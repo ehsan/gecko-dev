@@ -11,9 +11,10 @@
 #ifndef nsPresState_h_
 #define nsPresState_h_
 
+#include "prtypes.h"
 #include "nsPoint.h"
-#include "gfxPoint.h"
 #include "nsAutoPtr.h"
+#include "nsRect.h"
 
 class nsPresState
 {
@@ -21,7 +22,6 @@ public:
   nsPresState()
     : mContentData(nullptr)
     , mScrollState(0, 0)
-    , mResolution(1.0, 1.0)
     , mDisabledSet(false)
     , mDisabled(false)
   {}
@@ -31,19 +31,9 @@ public:
     mScrollState = aState;
   }
 
-  nsPoint GetScrollState() const
+  nsPoint GetScrollState()
   {
     return mScrollState;
-  }
-
-  void SetResolution(const gfxSize& aSize)
-  {
-    mResolution = aSize;
-  }
-
-  gfxSize GetResolution() const
-  {
-    return mResolution;
   }
 
   void ClearNonScrollState()
@@ -52,7 +42,7 @@ public:
     mDisabledSet = false;
   }
 
-  bool GetDisabled() const
+  bool GetDisabled()
   {
     return mDisabled;
   }
@@ -63,12 +53,12 @@ public:
     mDisabledSet = true;
   }
 
-  bool IsDisabledSet() const
+  bool IsDisabledSet()
   {
     return mDisabledSet;
   }
 
-  nsISupports* GetStateProperty() const
+  nsISupports* GetStateProperty()
   {
     return mContentData;
   }
@@ -82,7 +72,6 @@ public:
 protected:
   nsCOMPtr<nsISupports> mContentData;
   nsPoint mScrollState;
-  gfxSize mResolution;
   bool mDisabledSet;
   bool mDisabled;
 };

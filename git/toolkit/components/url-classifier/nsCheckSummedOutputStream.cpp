@@ -12,11 +12,11 @@
 ////////////////////////////////////////////////////////////////////////////////
 // nsCheckSummedOutputStream
 
-NS_IMPL_ISUPPORTS_INHERITED(nsCheckSummedOutputStream,
-                            nsSafeFileOutputStream,
-                            nsISafeOutputStream,
-                            nsIOutputStream,
-                            nsIFileOutputStream)
+NS_IMPL_ISUPPORTS_INHERITED3(nsCheckSummedOutputStream,
+                             nsSafeFileOutputStream,
+                             nsISafeOutputStream,
+                             nsIOutputStream,
+                             nsIFileOutputStream)
 
 NS_IMETHODIMP
 nsCheckSummedOutputStream::Init(nsIFile* file, int32_t ioFlags, int32_t perm,
@@ -50,7 +50,7 @@ nsCheckSummedOutputStream::Finish()
 NS_IMETHODIMP
 nsCheckSummedOutputStream::Write(const char *buf, uint32_t count, uint32_t *result)
 {
-  nsresult rv = mHash->Update(reinterpret_cast<const uint8_t*>(buf), count);
+  nsresult rv = mHash->Update(reinterpret_cast<const uint8*>(buf), count);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return nsSafeFileOutputStream::Write(buf, count, result);

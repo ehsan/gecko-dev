@@ -3,9 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsISupports.idl"
-
-interface nsIAtom;
+#include "nsIAtom.idl"
 
 %{C++
 #define NS_ATOMSERVICE_CID \
@@ -16,6 +14,7 @@ interface nsIAtom;
     {0x88, 0x18, 0x98, 0xf5, 0x47, 0x5a, 0x49, 0x0c} }
 
 #define NS_ATOMSERVICE_CONTRACTID "@mozilla.org/atom-service;1"
+#define NS_ATOMSERVICE_CLASSNAME "Atom Service"
 %}
 
 /*

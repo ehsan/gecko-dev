@@ -1,12 +1,14 @@
-{
-  "sync_account": {
-    "username": "__SYNC_ACCOUNT_USERNAME__",
-    "password": "__SYNC_ACCOUNT_PASSWORD__",
-    "passphrase": "__SYNC_ACCOUNT_PASSPHRASE__"
+{ 
+  "account": {
+    "serverURL": "",
+    "admin-secret": "",
+    "username": "crossweaveservices@mozilla.com",
+    "password": "crossweaveservicescrossweaveservices",
+    "passphrase": "r-jwcbc-zgf42-fjn72-p5vpp-iypmi"
   },
-  "fx_account": {
-    "username": "__FX_ACCOUNT_USERNAME__",
-    "password": "__FX_ACCOUNT_PASSWORD__"
+  "resultstore": {
+    "host": "brasstacks.mozilla.com",
+    "path": "/resultserv/post/"
   },
   "email": {
     "username": "crossweave@mozilla.com",
@@ -14,11 +16,10 @@
     "passednotificationlist": ["crossweave@mozilla.com"],
     "notificationlist": ["crossweave@mozilla.com"]
   },
-  "auth_type": "fx_account",
+  "platform": "win32",
+  "os": "win7",
   "es": "localhost:9200",
-  "os": "Ubuntu",
-  "platform": "linux64",
-  "serverURL": null,
-  "extensiondir": "__EXTENSIONDIR__",
-  "testdir": "__TESTDIR__"
+  "testdir": "__TESTDIR__",
+  "extensiondir": "__EXTENSIONDIR__"
 }
+

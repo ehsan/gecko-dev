@@ -25,7 +25,6 @@
 
 // must include config.h first for webkit to fiddle with new/delete
 #include "SkANP.h"
-#include "SkRect.h"
 
 static ANPCanvas* anp_newCanvas(const ANPBitmap* bitmap) {
     SkBitmap bm;
@@ -80,7 +79,8 @@ static void anp_getTotalMatrix(ANPCanvas* canvas, ANPMatrix* matrix) {
 static bool anp_getLocalClipBounds(ANPCanvas* canvas, ANPRectF* r,
                                    bool antialias) {
     SkRect bounds;
-    if (canvas->skcanvas->getClipBounds(&bounds)) {
+    if (canvas->skcanvas->getClipBounds(&bounds,
+                antialias ? SkCanvas::kAA_EdgeType : SkCanvas::kBW_EdgeType)) {
         SkANP::SetRect(r, bounds);
         return true;
     }
@@ -88,9 +88,9 @@ static bool anp_getLocalClipBounds(ANPCanvas* canvas, ANPRectF* r,
 }
 
 static bool anp_getDeviceClipBounds(ANPCanvas* canvas, ANPRectI* r) {
-    SkIRect bounds;
-    if (canvas->skcanvas->getClipDeviceBounds(&bounds)) {
-        SkANP::SetRect(r, bounds);
+    const SkRegion& clip = canvas->skcanvas->getTotalClip();
+    if (!clip.isEmpty()) {
+        SkANP::SetRect(r, clip.getBounds());
         return true;
     }
     return false;

@@ -6,16 +6,18 @@
 
 #include "nsAboutRedirector.h"
 #include "nsNetUtil.h"
+#include "plstr.h"
+#include "nsIScriptSecurityManager.h"
 #include "nsAboutProtocolUtils.h"
-#include "mozilla/ArrayUtils.h"
-#include "nsDOMString.h"
 
-NS_IMPL_ISUPPORTS(nsAboutRedirector, nsIAboutModule)
+NS_IMPL_ISUPPORTS1(nsAboutRedirector, nsIAboutModule)
 
 struct RedirEntry {
     const char* id;
     const char* url;
-    uint32_t flags;
+    uint32_t flags;  // See nsIAboutModule.  The URI_SAFE_FOR_UNTRUSTED_CONTENT
+                     // flag does double duty here -- if it's not set, we don't
+                     // drop chrome privileges.
 };
 
 /*
@@ -51,9 +53,9 @@ static RedirEntry kRedirMap[] = {
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
       nsIAboutModule::ALLOW_SCRIPT |
       nsIAboutModule::HIDE_FROM_ABOUTABOUT },
-    { "compartments", "chrome://global/content/aboutCompartments.xhtml",
-      nsIAboutModule::ALLOW_SCRIPT |
-      nsIAboutModule::HIDE_FROM_ABOUTABOUT },
+    // aboutMemory.xhtml implements about:compartments
+    { "compartments", "chrome://global/content/aboutMemory.xhtml",
+      nsIAboutModule::ALLOW_SCRIPT },
     { "memory", "chrome://global/content/aboutMemory.xhtml",
       nsIAboutModule::ALLOW_SCRIPT },
     { "addons", "chrome://mozapps/content/extensions/extensions.xul",
@@ -62,32 +64,19 @@ static RedirEntry kRedirMap[] = {
       nsIAboutModule::ALLOW_SCRIPT |
       nsIAboutModule::HIDE_FROM_ABOUTABOUT },
     { "support", "chrome://global/content/aboutSupport.xhtml",
-      nsIAboutModule::ALLOW_SCRIPT },
-    { "telemetry", "chrome://global/content/aboutTelemetry.xhtml",
-      nsIAboutModule::ALLOW_SCRIPT },
-    { "networking", "chrome://global/content/aboutNetworking.xhtml",
-       nsIAboutModule::ALLOW_SCRIPT },
-    { "webrtc", "chrome://global/content/aboutwebrtc/aboutWebrtc.xhtml",
-       nsIAboutModule::ALLOW_SCRIPT },
-    // about:srcdoc is unresolvable by specification.  It is included here
-    // because the security manager would disallow srcdoc iframes otherwise.
-    { "srcdoc", "about:blank",
-      nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
-      nsIAboutModule::HIDE_FROM_ABOUTABOUT }
+      nsIAboutModule::ALLOW_SCRIPT }
 };
-static const int kRedirTotal = mozilla::ArrayLength(kRedirMap);
+static const int kRedirTotal = NS_ARRAY_LENGTH(kRedirMap);
 
 NS_IMETHODIMP
-nsAboutRedirector::NewChannel(nsIURI* aURI,
-                              nsILoadInfo* aLoadInfo,
-                              nsIChannel** result)
+nsAboutRedirector::NewChannel(nsIURI *aURI, nsIChannel **result)
 {
     NS_ENSURE_ARG_POINTER(aURI);
     NS_ASSERTION(result, "must not be null");
 
     nsresult rv;
 
-    nsAutoCString path;
+    nsCAutoString path;
     rv = NS_GetAboutModuleName(aURI, path);
     if (NS_FAILED(rv))
         return rv;
@@ -108,6 +97,18 @@ nsAboutRedirector::NewChannel(nsIURI* aURI,
 
             tempChannel->SetOriginalURI(aURI);
 
+            // Keep the page from getting unnecessary privileges unless it needs them
+            if (kRedirMap[i].flags &
+                nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT)
+            {
+                // Setting the owner to null means that we'll go through the normal
+                // path in GetChannelPrincipal and create a codebase principal based
+                // on the channel's originalURI
+                rv = tempChannel->SetOwner(nullptr);
+                if (NS_FAILED(rv))
+                    return rv;
+            }
+
             NS_ADDREF(*result = tempChannel);
             return rv;
         }
@@ -122,7 +123,7 @@ nsAboutRedirector::GetURIFlags(nsIURI *aURI, uint32_t *result)
 {
     NS_ENSURE_ARG_POINTER(aURI);
 
-    nsAutoCString name;
+    nsCAutoString name;
     nsresult rv = NS_GetAboutModuleName(aURI, name);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -137,13 +138,6 @@ nsAboutRedirector::GetURIFlags(nsIURI *aURI, uint32_t *result)
 
     NS_ERROR("nsAboutRedirector called for unknown case");
     return NS_ERROR_ILLEGAL_VALUE;
-}
-
-NS_IMETHODIMP
-nsAboutRedirector::GetIndexedDBOriginPostfix(nsIURI *aURI, nsAString &result)
-{
-    SetDOMStringToNull(result);
-    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 nsresult

@@ -3,6 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsIServiceManager.h"
 #include "nsSocketTransport2.h"
 #include "nsServerSocket.h"
 #include "nsProxyRelease.h"
@@ -11,15 +12,9 @@
 #include "nsNetCID.h"
 #include "prnetdb.h"
 #include "prio.h"
-#include "nsThreadUtils.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/Endian.h"
-#include "mozilla/net/DNS.h"
-#include "nsServiceManagerUtils.h"
-#include "nsIFile.h"
 
 using namespace mozilla;
-using namespace mozilla::net;
 
 static NS_DEFINE_CID(kSocketTransportServiceCID, NS_SOCKETTRANSPORTSERVICE_CID);
 
@@ -45,10 +40,9 @@ PostEvent(nsServerSocket *s, nsServerSocketFunc func)
 //-----------------------------------------------------------------------------
 
 nsServerSocket::nsServerSocket()
-  : mFD(nullptr)
-  , mLock("nsServerSocket.mLock")
+  : mLock("nsServerSocket.mLock")
+  , mFD(nullptr)
   , mAttached(false)
-  , mKeepWhenOffline(false)
 {
   // we want to be able to access the STS directly, and it may not have been
   // constructed yet.  the STS constructor sets gSocketTransportService.
@@ -154,25 +148,6 @@ nsServerSocket::TryAttach()
   return NS_OK;
 }
 
-void
-nsServerSocket::CreateClientTransport(PRFileDesc* aClientFD,
-                                      const NetAddr& aClientAddr)
-{
-  nsRefPtr<nsSocketTransport> trans = new nsSocketTransport;
-  if (NS_WARN_IF(!trans)) {
-    mCondition = NS_ERROR_OUT_OF_MEMORY;
-    return;
-  }
-
-  nsresult rv = trans->InitWithConnectedSocket(aClientFD, &aClientAddr);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    mCondition = rv;
-    return;
-  }
-
-  mListener->OnSocketAccepted(this, trans);
-}
-
 //-----------------------------------------------------------------------------
 // nsServerSocket::nsASocketHandler
 //-----------------------------------------------------------------------------
@@ -192,26 +167,28 @@ nsServerSocket::OnSocketReady(PRFileDesc *fd, int16_t outFlags)
   }
 
   PRFileDesc *clientFD;
-  PRNetAddr prClientAddr;
-  NetAddr clientAddr;
+  PRNetAddr clientAddr;
 
-  // NSPR doesn't tell us the peer address's length (as provided by the
-  // 'accept' system call), so we can't distinguish between named,
-  // unnamed, and abstract peer addresses. Clear prClientAddr first, so
-  // that the path will at least be reliably empty for unnamed and
-  // abstract addresses, and not garbage when the peer is unnamed.
-  memset(&prClientAddr, 0, sizeof(prClientAddr));
-
-  clientFD = PR_Accept(mFD, &prClientAddr, PR_INTERVAL_NO_WAIT);
-  PRNetAddrToNetAddr(&prClientAddr, &clientAddr);
-  if (!clientFD) {
+  clientFD = PR_Accept(mFD, &clientAddr, PR_INTERVAL_NO_WAIT);
+  if (!clientFD)
+  {
     NS_WARNING("PR_Accept failed");
     mCondition = NS_ERROR_UNEXPECTED;
-    return;
   }
-
-  // Accept succeeded, create socket transport and notify consumer
-  CreateClientTransport(clientFD, clientAddr);
+  else
+  {
+    nsRefPtr<nsSocketTransport> trans = new nsSocketTransport;
+    if (!trans)
+      mCondition = NS_ERROR_OUT_OF_MEMORY;
+    else
+    {
+      nsresult rv = trans->InitWithConnectedSocket(clientFD, &clientAddr);
+      if (NS_FAILED(rv))
+        mCondition = rv;
+      else
+        mListener->OnSocketAccepted(this, trans);
+    }
+  }
 }
 
 void
@@ -245,33 +222,12 @@ nsServerSocket::OnSocketDetached(PRFileDesc *fd)
   }
 }
 
-void
-nsServerSocket::IsLocal(bool *aIsLocal)
-{
-#if defined(XP_UNIX)
-  // Unix-domain sockets are always local.
-  if (mAddr.raw.family == PR_AF_LOCAL)
-  {
-    *aIsLocal = true;
-    return;
-  }
-#endif
-
-  // If bound to loopback, this server socket only accepts local connections.
-  *aIsLocal = PR_IsNetAddrType(&mAddr, PR_IpAddrLoopback);
-}
-
-void
-nsServerSocket::KeepWhenOffline(bool *aKeepWhenOffline)
-{
-  *aKeepWhenOffline = mKeepWhenOffline;
-}
 
 //-----------------------------------------------------------------------------
 // nsServerSocket::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS(nsServerSocket, nsIServerSocket)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsServerSocket, nsIServerSocket)
 
 
 //-----------------------------------------------------------------------------
@@ -281,54 +237,17 @@ NS_IMPL_ISUPPORTS(nsServerSocket, nsIServerSocket)
 NS_IMETHODIMP
 nsServerSocket::Init(int32_t aPort, bool aLoopbackOnly, int32_t aBackLog)
 {
-  return InitSpecialConnection(aPort, aLoopbackOnly ? LoopbackOnly : 0, aBackLog);
-}
-
-NS_IMETHODIMP
-nsServerSocket::InitWithFilename(nsIFile *aPath, uint32_t aPermissions, int32_t aBacklog)
-{
-#if defined(XP_UNIX)
-  nsresult rv;
-
-  nsAutoCString path;
-  rv = aPath->GetNativePath(path);
-  if (NS_FAILED(rv))
-    return rv;
-
-  // Create a Unix domain PRNetAddr referring to the given path.
-  PRNetAddr addr;
-  if (path.Length() > sizeof(addr.local.path) - 1)
-    return NS_ERROR_FILE_NAME_TOO_LONG;
-  addr.local.family = PR_AF_LOCAL;
-  memcpy(addr.local.path, path.get(), path.Length());
-  addr.local.path[path.Length()] = '\0';
-
-  rv = InitWithAddress(&addr, aBacklog);
-  if (NS_FAILED(rv))
-    return rv;
-
-  return aPath->SetPermissions(aPermissions);
-#else
-  return NS_ERROR_SOCKET_ADDRESS_NOT_SUPPORTED;
-#endif
-}
-
-NS_IMETHODIMP
-nsServerSocket::InitSpecialConnection(int32_t aPort, nsServerSocketFlag aFlags,
-                                      int32_t aBackLog)
-{
   PRNetAddrValue val;
   PRNetAddr addr;
 
   if (aPort < 0)
     aPort = 0;
-  if (aFlags & nsIServerSocket::LoopbackOnly)
+  if (aLoopbackOnly)
     val = PR_IpAddrLoopback;
   else
     val = PR_IpAddrAny;
   PR_SetNetAddr(val, PR_AF_INET, aPort, &addr);
 
-  mKeepWhenOffline = ((aFlags & nsIServerSocket::KeepWhenOffline) != 0);
   return InitWithAddress(&addr, aBackLog);
 }
 
@@ -336,7 +255,6 @@ NS_IMETHODIMP
 nsServerSocket::InitWithAddress(const PRNetAddr *aAddr, int32_t aBackLog)
 {
   NS_ENSURE_TRUE(mFD == nullptr, NS_ERROR_ALREADY_INITIALIZED);
-  nsresult rv;
 
   //
   // configure listening socket...
@@ -346,7 +264,7 @@ nsServerSocket::InitWithAddress(const PRNetAddr *aAddr, int32_t aBackLog)
   if (!mFD)
   {
     NS_WARNING("unable to create server socket");
-    return ErrorAccordingToNSPR(PR_GetError());
+    return NS_ERROR_FAILURE;
   }
 
   PRSocketOptionData opt;
@@ -382,20 +300,13 @@ nsServerSocket::InitWithAddress(const PRNetAddr *aAddr, int32_t aBackLog)
     goto fail;
   }
 
-  // Set any additional socket defaults needed by child classes
-  rv = SetSocketDefaults();
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    goto fail;
-  }
-
   // wait until AsyncListen is called before polling the socket for
   // client connections.
   return NS_OK;
 
 fail:
-  rv = ErrorAccordingToNSPR(PR_GetError());
   Close();
-  return rv;
+  return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
@@ -422,21 +333,19 @@ namespace {
 
 class ServerSocketListenerProxy MOZ_FINAL : public nsIServerSocketListener
 {
-  ~ServerSocketListenerProxy() {}
-
 public:
-  explicit ServerSocketListenerProxy(nsIServerSocketListener* aListener)
-    : mListener(new nsMainThreadPtrHolder<nsIServerSocketListener>(aListener))
+  ServerSocketListenerProxy(nsIServerSocketListener* aListener)
+    : mListener(aListener)
     , mTargetThread(do_GetCurrentThread())
   { }
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSISERVERSOCKETLISTENER
 
   class OnSocketAcceptedRunnable : public nsRunnable
   {
   public:
-    OnSocketAcceptedRunnable(const nsMainThreadPtrHandle<nsIServerSocketListener>& aListener,
+    OnSocketAcceptedRunnable(nsIServerSocketListener* aListener,
                              nsIServerSocket* aServ,
                              nsISocketTransport* aTransport)
       : mListener(aListener)
@@ -447,7 +356,7 @@ public:
     NS_DECL_NSIRUNNABLE
 
   private:
-    nsMainThreadPtrHandle<nsIServerSocketListener> mListener;
+    nsCOMPtr<nsIServerSocketListener> mListener;
     nsCOMPtr<nsIServerSocket> mServ;
     nsCOMPtr<nsISocketTransport> mTransport;
   };
@@ -455,7 +364,7 @@ public:
   class OnStopListeningRunnable : public nsRunnable
   {
   public:
-    OnStopListeningRunnable(const nsMainThreadPtrHandle<nsIServerSocketListener>& aListener,
+    OnStopListeningRunnable(nsIServerSocketListener* aListener,
                             nsIServerSocket* aServ,
                             nsresult aStatus)
       : mListener(aListener)
@@ -466,18 +375,18 @@ public:
     NS_DECL_NSIRUNNABLE
 
   private:
-    nsMainThreadPtrHandle<nsIServerSocketListener> mListener;
+    nsCOMPtr<nsIServerSocketListener> mListener;
     nsCOMPtr<nsIServerSocket> mServ;
     nsresult mStatus;
   };
 
 private:
-  nsMainThreadPtrHandle<nsIServerSocketListener> mListener;
+  nsCOMPtr<nsIServerSocketListener> mListener;
   nsCOMPtr<nsIEventTarget> mTargetThread;
 };
 
-NS_IMPL_ISUPPORTS(ServerSocketListenerProxy,
-                  nsIServerSocketListener)
+NS_IMPL_THREADSAFE_ISUPPORTS1(ServerSocketListenerProxy,
+                              nsIServerSocketListener)
 
 NS_IMETHODIMP
 ServerSocketListenerProxy::OnSocketAccepted(nsIServerSocket* aServ,
@@ -524,13 +433,6 @@ nsServerSocket::AsyncListen(nsIServerSocketListener *aListener)
     mListener = new ServerSocketListenerProxy(aListener);
     mListenerTarget = NS_GetCurrentThread();
   }
-
-  // Child classes may need to do additional setup just before listening begins
-  nsresult rv = OnSocketListen();
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-
   return PostEvent(this, &nsServerSocket::OnMsgAttach);
 }
 
@@ -541,12 +443,9 @@ nsServerSocket::GetPort(int32_t *aResult)
   uint16_t port;
   if (mAddr.raw.family == PR_AF_INET)
     port = mAddr.inet.port;
-  else if (mAddr.raw.family == PR_AF_INET6)
-    port = mAddr.ipv6.port;
   else
-    return NS_ERROR_FAILURE;
-
-  *aResult = static_cast<int32_t>(NetworkEndian::readUint16(&port));
+    port = mAddr.ipv6.port;
+  *aResult = (int32_t) PR_ntohs(port);
   return NS_OK;
 }
 

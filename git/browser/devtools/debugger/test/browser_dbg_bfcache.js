@@ -1,92 +1,130 @@
+/* vim:set ts=2 sw=2 sts=2 et: */
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 /**
- * Make sure that the debugger is updated with the correct sources when moving
+ * Make sure that the debugger is updated with the correct scripts when moving
  * back and forward in the tab.
  */
 
-const TAB_URL_1 = EXAMPLE_URL + "doc_script-switching-01.html";
-const TAB_URL_2 = EXAMPLE_URL + "doc_recursion-stack.html";
+const TAB_URL = EXAMPLE_URL + "browser_dbg_script-switching.html";
+var gPane = null;
+var gTab = null;
+var gDebuggee = null;
+var gDebugger = null;
+var gScripts = null;
 
-let gTab, gDebuggee, gPanel, gDebugger;
-let gSources;
-
-function test() {
-  initDebugger(TAB_URL_1).then(([aTab, aDebuggee, aPanel]) => {
+function test()
+{
+  debug_tab_pane(TAB_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
     gDebuggee = aDebuggee;
-    gPanel = aPanel;
-    gDebugger = gPanel.panelWin;
-    gSources = gDebugger.DebuggerView.Sources;
+    gPane = aPane;
+    gDebugger = gPane.contentWindow;
 
-    testFirstPage()
-      .then(testLocationChange)
-      .then(testBack)
-      .then(testForward)
-      .then(() => closeDebuggerAndFinish(gPanel))
-      .then(null, aError => {
-        ok(false, "Got an error: " + aError.message + "\n" + aError.stack);
+    testInitialLoad();
+  });
+}
+
+function testInitialLoad() {
+  gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
+    executeSoon(function() {
+      validateFirstPage();
+      testLocationChange();
+    });
+  });
+
+  gDebuggee.firstCall();
+}
+
+function testLocationChange()
+{
+  gDebugger.DebuggerController.activeThread.resume(function() {
+    gDebugger.DebuggerController.client.addOneTimeListener("tabNavigated", function(aEvent, aPacket) {
+      ok(true, "tabNavigated event was fired.");
+      info("Still attached to the tab.");
+
+      gDebugger.addEventListener("Debugger:AfterScriptsAdded", function _onEvent(aEvent) {
+        gDebugger.removeEventListener(aEvent.type, _onEvent);
+
+        executeSoon(function() {
+          validateSecondPage();
+          testBack();
+        });
       });
+    });
+    content.location = STACK_URL;
   });
 }
 
-function testFirstPage() {
-  info("Testing first page.");
+function testBack()
+{
+  gDebugger.DebuggerController.client.addOneTimeListener("tabNavigated", function(aEvent, aPacket) {
+    ok(true, "tabNavigated event was fired after going back.");
+    info("Still attached to the tab.");
 
-  // Spin the event loop before causing the debuggee to pause, to allow
-  // this function to return first.
-  executeSoon(() => gDebuggee.firstCall());
+    gDebugger.addEventListener("Debugger:AfterScriptsAdded", function _onEvent(aEvent) {
+      gDebugger.removeEventListener(aEvent.type, _onEvent);
 
-  return waitForSourceAndCaretAndScopes(gPanel, "-02.js", 1).then(() => {
-    validateFirstPage();
+      executeSoon(function() {
+        validateFirstPage();
+        testForward();
+      });
+    });
   });
-}
 
-function testLocationChange() {
-  info("Navigating to a different page.");
-
-  return navigateActiveTabTo(gPanel, TAB_URL_2, gDebugger.EVENTS.SOURCES_ADDED).then(() => {
-    validateSecondPage();
-  });
-}
-
-function testBack() {
   info("Going back.");
-
-  return navigateActiveTabInHistory(gPanel, "back", gDebugger.EVENTS.SOURCES_ADDED).then(() => {
-    validateFirstPage();
-  });
+  content.history.back();
 }
 
-function testForward() {
-  info("Going forward.");
+function testForward()
+{
+  gDebugger.DebuggerController.client.addOneTimeListener("tabNavigated", function(aEvent, aPacket) {
+    ok(true, "tabNavigated event was fired after going forward.");
+    info("Still attached to the tab.");
 
-  return navigateActiveTabInHistory(gPanel, "forward", gDebugger.EVENTS.SOURCES_ADDED).then(() => {
-    validateSecondPage();
+    gDebugger.addEventListener("Debugger:AfterScriptsAdded", function _onEvent(aEvent) {
+      gDebugger.removeEventListener(aEvent.type, _onEvent);
+
+      executeSoon(function() {
+        validateSecondPage();
+        closeDebuggerAndFinish();
+      });
+    });
   });
+
+  info("Going forward.");
+  content.history.forward();
 }
 
 function validateFirstPage() {
-  is(gSources.itemCount, 2,
-    "Found the expected number of sources.");
-  ok(gSources.getItemForAttachment(e => e.label == "code_script-switching-01.js"),
-    "Found the first source label.");
-  ok(gSources.getItemForAttachment(e => e.label == "code_script-switching-02.js"),
-    "Found the second source label.");
+  gScripts = gDebugger.DebuggerView.Scripts._scripts;
+
+  is(gScripts.itemCount, 2, "Found the expected number of scripts.");
+
+  let label1 = "test-script-switching-01.js";
+  let label2 = "test-script-switching-02.js";
+
+  ok(gDebugger.DebuggerView.Scripts.containsLabel(label1),
+     "Found the first script label.");
+  ok(gDebugger.DebuggerView.Scripts.containsLabel(label2),
+     "Found the second script label.");
 }
 
 function validateSecondPage() {
-  is(gSources.itemCount, 1,
-    "Found the expected number of sources.");
-  ok(gSources.getItemForAttachment(e => e.label == "doc_recursion-stack.html"),
-    "Found the single source label.");
+  gScripts = gDebugger.DebuggerView.Scripts._scripts;
+
+  is(gScripts.itemCount, 1, "Found the expected number of scripts.");
+
+  ok(gDebugger.DebuggerView.Scripts.containsLabel("browser_dbg_stack.html"),
+     "Found the single script label.");
 }
 
 registerCleanupFunction(function() {
+  removeTab(gTab);
+  gPane = null;
   gTab = null;
   gDebuggee = null;
-  gPanel = null;
   gDebugger = null;
-  gSources = null;
+  gScripts = null;
 });

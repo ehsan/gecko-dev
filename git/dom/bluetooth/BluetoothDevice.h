@@ -7,28 +7,33 @@
 #ifndef mozilla_dom_bluetooth_bluetoothdevice_h__
 #define mozilla_dom_bluetooth_bluetoothdevice_h__
 
-#include "mozilla/Attributes.h"
-#include "mozilla/DOMEventTargetHelper.h"
 #include "BluetoothCommon.h"
 #include "BluetoothPropertyContainer.h"
+#include "nsDOMEventTargetHelper.h"
+#include "nsIDOMBluetoothDevice.h"
 #include "nsString.h"
+
+class nsIDOMDOMRequest;
 
 BEGIN_BLUETOOTH_NAMESPACE
 
 class BluetoothNamedValue;
 class BluetoothValue;
 class BluetoothSignal;
-class BluetoothSocket;
 
-class BluetoothDevice : public DOMEventTargetHelper
+class BluetoothDevice : public nsDOMEventTargetHelper
+                      , public nsIDOMBluetoothDevice
                       , public BluetoothSignalObserver
                       , public BluetoothPropertyContainer
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIDOMBLUETOOTHDEVICE
+
+  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
 
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(BluetoothDevice,
-                                                         DOMEventTargetHelper)
+                                                         nsDOMEventTargetHelper)
 
   static already_AddRefed<BluetoothDevice>
   Create(nsPIDOMWindow* aOwner, const nsAString& aAdapterPath,
@@ -36,81 +41,42 @@ public:
 
   void Notify(const BluetoothSignal& aParam);
 
-  void GetAddress(nsString& aAddress) const
+  nsIDOMEventTarget*
+  ToIDOMEventTarget() const
   {
-    aAddress = mAddress;
+    return static_cast<nsDOMEventTargetHelper*>(
+      const_cast<BluetoothDevice*>(this));
   }
-
-  void GetName(nsString& aName) const
-  {
-    aName = mName;
-  }
-
-  void GetIcon(nsString& aIcon) const
-  {
-    aIcon = mIcon;
-  }
-
-  uint32_t Class() const
-  {
-    return mClass;
-  }
-
-  bool Paired() const
-  {
-    return mPaired;
-  }
-
-  bool Connected() const
-  {
-    return mConnected;
-  }
-
-  void GetUuids(JSContext* aContext, JS::MutableHandle<JS::Value> aUuids,
-                ErrorResult& aRv);
-  void GetServices(JSContext* aContext, JS::MutableHandle<JS::Value> aServices,
-                   ErrorResult& aRv);
 
   nsISupports*
-  ToISupports()
+  ToISupports() const
   {
-    return static_cast<EventTarget*>(this);
+    return ToIDOMEventTarget();
   }
 
-  void SetPropertyByValue(const BluetoothNamedValue& aValue) MOZ_OVERRIDE;
+  void SetPropertyByValue(const BluetoothNamedValue& aValue);
 
   void Unroot();
-
-  nsPIDOMWindow* GetParentObject() const
-  {
-     return GetOwner();
-  }
-
-  virtual JSObject*
-    WrapObject(JSContext* aCx) MOZ_OVERRIDE;
-
-  virtual void DisconnectFromOwner() MOZ_OVERRIDE;
-
 private:
   BluetoothDevice(nsPIDOMWindow* aOwner, const nsAString& aAdapterPath,
                   const BluetoothValue& aValue);
   ~BluetoothDevice();
   void Root();
-
-  JS::Heap<JSObject*> mJsUuids;
-  JS::Heap<JSObject*> mJsServices;
+  
+  JSObject* mJsUuids;
 
   nsString mAdapterPath;
   nsString mAddress;
   nsString mName;
-  nsString mIcon;
   uint32_t mClass;
   bool mConnected;
   bool mPaired;
   bool mIsRooted;
   nsTArray<nsString> mUuids;
-  nsTArray<nsString> mServices;
 
+  NS_DECL_EVENT_HANDLER(propertychanged)
+  NS_DECL_EVENT_HANDLER(connected)
+  NS_DECL_EVENT_HANDLER(disconnected)
 };
 
 END_BLUETOOTH_NAMESPACE

@@ -7,6 +7,7 @@
 #define nsIDOMClassInfo_h___
 
 #include "nsIClassInfoImpl.h"
+#include "nsVoidArray.h"
 #include "nsDOMClassInfoID.h"
 #include "nsIXPCScriptable.h"
 #include "nsIServiceManager.h"
@@ -23,7 +24,8 @@
 
 #define DEFAULT_SCRIPTABLE_FLAGS                                           \
   (DOM_BASE_SCRIPTABLE_FLAGS |                                             \
-   nsIXPCScriptable::WANT_RESOLVE |                                        \
+   nsIXPCScriptable::WANT_NEWRESOLVE |                                     \
+   nsIXPCScriptable::WANT_CHECKACCESS |                                    \
    nsIXPCScriptable::WANT_PRECREATE)
 
 #define DOM_DEFAULT_SCRIPTABLE_FLAGS                                       \
@@ -32,7 +34,7 @@
    nsIXPCScriptable::CLASSINFO_INTERFACES_ONLY)
 
 
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
 
 // See nsDOMClassInfoID.h
 
@@ -55,7 +57,7 @@
       sof->GetClassInfoInstance(eDOMClassInfo_##_class##_id);              \
   } else
 
-#endif /* MOZILLA_INTERNAL_API */
+#endif /* _IMPL_NS_LAYOUT */
 
 // Looks up the nsIClassInfo for a class name registered with the 
 // nsScriptNamespaceManager. Remember to release NS_CLASSINFO_NAME(_class)
@@ -137,7 +139,7 @@ NS_DOMCI_EXTENSION_NAME(_module)::~NS_DOMCI_EXTENSION_NAME(_module)()     \
 {                                                                         \
 }                                                                         \
                                                                           \
-NS_IMPL_ISUPPORTS(NS_DOMCI_EXTENSION_NAME(_module), nsIDOMCIExtension)    \
+NS_IMPL_ISUPPORTS1(NS_DOMCI_EXTENSION_NAME(_module), nsIDOMCIExtension)   \
                                                                           \
 NS_IMETHODIMP                                                             \
 NS_DOMCI_EXTENSION_NAME(_module)::RegisterDOMCI(const char* aName,        \

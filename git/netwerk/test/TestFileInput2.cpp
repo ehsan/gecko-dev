@@ -218,7 +218,7 @@ protected:
     uint32_t            mBufferSize;
 };
 
-NS_IMPL_ISUPPORTS(FileSpecWorker, nsIRunnable)
+NS_IMPL_ISUPPORTS1(FileSpecWorker, nsIRunnable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -310,7 +310,7 @@ protected:
     uint32_t            mBufferSize;
 };
 
-NS_IMPL_ISUPPORTS(FileChannelWorker, nsIRunnable)
+NS_IMPL_ISUPPORTS1(FileChannelWorker, nsIRunnable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -321,8 +321,8 @@ Test(CreateFun create, uint32_t count,
     nsresult rv;
     uint32_t i;
 
-    nsAutoCString inDir;
-    nsAutoCString outDir;
+    nsCAutoString inDir;
+    nsCAutoString outDir;
     (void)inDirSpec->GetNativePath(inDir);
     (void)outDirSpec->GetNativePath(outDir);
     printf("###########\nTest: from %s to %s, bufSize = %d\n",
@@ -351,7 +351,7 @@ Test(CreateFun create, uint32_t count,
         rv = outDirSpec->Clone(getter_AddRefs(outSpec)); // don't munge the original
         if (NS_FAILED(rv)) goto done;
 
-        nsAutoCString leafName;
+        nsCAutoString leafName;
         rv = inSpec->GetNativeLeafName(leafName);
         if (NS_FAILED(rv)) goto done;
 

@@ -6,17 +6,13 @@
 #define mozilla_net_WyciwygChannelChild_h
 
 #include "mozilla/net/PWyciwygChannelChild.h"
+#include "mozilla/net/ChannelEventQueue.h"
 #include "nsIWyciwygChannel.h"
 #include "nsIChannel.h"
-#include "nsILoadInfo.h"
-#include "PrivateBrowsingChannel.h"
-
-class nsIProgressEventSink;
+#include "nsIProgressEventSink.h"
 
 namespace mozilla {
 namespace net {
-
-class ChannelEventQueue;
 
 // TODO: replace with IPDL states
 enum WyciwygChannelChildState {
@@ -38,7 +34,6 @@ enum WyciwygChannelChildState {
 // Header file contents
 class WyciwygChannelChild : public PWyciwygChannelChild
                           , public nsIWyciwygChannel
-                          , public PrivateBrowsingChannel<WyciwygChannelChild>
 {
 public:
   NS_DECL_ISUPPORTS
@@ -47,6 +42,7 @@ public:
   NS_DECL_NSIWYCIWYGCHANNEL
 
   WyciwygChannelChild();
+  virtual ~WyciwygChannelChild();
 
   void AddIPDLReference();
   void ReleaseIPDLReference();
@@ -56,42 +52,37 @@ public:
   bool IsSuspended();
 
 protected:
-  virtual ~WyciwygChannelChild();
-
   bool RecvOnStartRequest(const nsresult& statusCode,
-                          const int64_t& contentLength,
+                          const int32_t& contentLength,
                           const int32_t& source,
                           const nsCString& charset,
-                          const nsCString& securityInfo) MOZ_OVERRIDE;
+                          const nsCString& securityInfo);
   bool RecvOnDataAvailable(const nsCString& data,
-                           const uint64_t& offset) MOZ_OVERRIDE;
-  bool RecvOnStopRequest(const nsresult& statusCode) MOZ_OVERRIDE;
-  bool RecvCancelEarly(const nsresult& statusCode) MOZ_OVERRIDE;
+                           const uint32_t& offset);
+  bool RecvOnStopRequest(const nsresult& statusCode);
+  bool RecvCancelEarly(const nsresult& statusCode);
 
   void OnStartRequest(const nsresult& statusCode,
-                      const int64_t& contentLength,
+                      const int32_t& contentLength,
                       const int32_t& source,
                       const nsCString& charset,
                       const nsCString& securityInfo);
   void OnDataAvailable(const nsCString& data,
-                       const uint64_t& offset);
+                       const uint32_t& offset);
   void OnStopRequest(const nsresult& statusCode);
   void CancelEarly(const nsresult& statusCode);
-
-  friend class PrivateBrowsingChannel<WyciwygChannelChild>;
 
 private:
   nsresult                          mStatus;
   bool                              mIsPending;
   bool                              mCanceled;
   uint32_t                          mLoadFlags;
-  int64_t                           mContentLength;
+  int32_t                           mContentLength;
   int32_t                           mCharsetSource;
   nsCString                         mCharset;
   nsCOMPtr<nsIURI>                  mURI;
   nsCOMPtr<nsIURI>                  mOriginalURI;
   nsCOMPtr<nsISupports>             mOwner;
-  nsCOMPtr<nsILoadInfo>             mLoadInfo;
   nsCOMPtr<nsIInterfaceRequestor>   mCallbacks;
   nsCOMPtr<nsIProgressEventSink>    mProgressSink;
   nsCOMPtr<nsILoadGroup>            mLoadGroup;
@@ -103,8 +94,7 @@ private:
   enum WyciwygChannelChildState mState;
 
   bool mIPCOpen;
-  bool mSentAppData;
-  nsRefPtr<ChannelEventQueue> mEventQ;
+  ChannelEventQueue mEventQ;
 
   friend class WyciwygStartRequestEvent;
   friend class WyciwygDataAvailableEvent;

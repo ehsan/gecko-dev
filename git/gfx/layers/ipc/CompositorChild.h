@@ -7,50 +7,23 @@
 #ifndef mozilla_layers_CompositorChild_h
 #define mozilla_layers_CompositorChild_h
 
-#include "base/basictypes.h"            // for DISALLOW_EVIL_CONSTRUCTORS
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT_HELPER2
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
-#include "mozilla/ipc/ProtocolUtils.h"
 #include "mozilla/layers/PCompositorChild.h"
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsClassHashtable.h"           // for nsClassHashtable
-#include "nsCOMPtr.h"                   // for nsCOMPtr
-#include "nsHashKeys.h"                 // for nsUint64HashKey
-#include "nsISupportsImpl.h"            // for NS_INLINE_DECL_REFCOUNTING
-#include "ThreadSafeRefcountingWithMainThreadDestruction.h"
-#include "nsWeakReference.h"
-
-class nsIObserver;
+#include "nsXULAppAPI.h"
 
 namespace mozilla {
-
-namespace dom {
-  class TabChild;
-}
-
 namespace layers {
 
-using mozilla::dom::TabChild;
-
-class ClientLayerManager;
+class LayerManager;
 class CompositorParent;
-struct FrameMetrics;
 
-class CompositorChild MOZ_FINAL : public PCompositorChild
+class CompositorChild : public PCompositorChild
 {
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING_WITH_MAIN_THREAD_DESTRUCTION(CompositorChild)
-
+  NS_INLINE_DECL_REFCOUNTING(CompositorChild)
 public:
-  explicit CompositorChild(ClientLayerManager *aLayerManager);
+  CompositorChild(LayerManager *aLayerManager);
+  virtual ~CompositorChild();
 
   void Destroy();
-
-  /**
-   * Lookup the FrameMetrics shared by the compositor process with the
-   * associated FrameMetrics::ViewID. The returned FrameMetrics is used
-   * in progressive paint calculations.
-   */
-  bool LookupCompositorFrameMetrics(const FrameMetrics::ViewID aId, FrameMetrics&);
 
   /**
    * We're asked to create a new Compositor in response to an Opens()
@@ -60,92 +33,27 @@ public:
   static PCompositorChild*
   Create(Transport* aTransport, ProcessId aOtherProcess);
 
-  static CompositorChild* Get();
+  static PCompositorChild* Get();
 
   static bool ChildProcessHasCompositor() { return sCompositor != nullptr; }
-
-  virtual bool RecvInvalidateAll() MOZ_OVERRIDE;
-  virtual bool RecvOverfill(const uint32_t &aOverfill) MOZ_OVERRIDE;
-  void AddOverfillObserver(ClientLayerManager* aLayerManager);
-
-  virtual bool RecvDidComposite(const uint64_t& aId, const uint64_t& aTransactionId) MOZ_OVERRIDE;
-
-  /**
-   * Request that the parent tell us when graphics are ready on GPU.
-   * When we get that message, we bounce it to the TabParent via
-   * the TabChild
-   * @param tabChild The object to bounce the note to.  Non-NULL.
-   */
-  void RequestNotifyAfterRemotePaint(TabChild* aTabChild);
-
-  void CancelNotifyAfterRemotePaint(TabChild* aTabChild);
-
-private:
-  // Private destructor, to discourage deletion outside of Release():
-  virtual ~CompositorChild();
-
-  virtual PLayerTransactionChild*
-    AllocPLayerTransactionChild(const nsTArray<LayersBackend>& aBackendHints,
-                                const uint64_t& aId,
-                                TextureFactoryIdentifier* aTextureFactoryIdentifier,
-                                bool* aSuccess) MOZ_OVERRIDE;
-
-  virtual bool DeallocPLayerTransactionChild(PLayerTransactionChild *aChild) MOZ_OVERRIDE;
+protected:
+  virtual PLayersChild* AllocPLayers(const LayersBackend& aBackendHint,
+                                     const uint64_t& aId,
+                                     LayersBackend* aBackend,
+                                     int* aMaxTextureSize);
+  virtual bool DeallocPLayers(PLayersChild *aChild);
 
   virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
-  virtual bool RecvSharedCompositorFrameMetrics(const mozilla::ipc::SharedMemoryBasic::Handle& metrics,
-                                                const CrossProcessMutexHandle& handle,
-                                                const uint32_t& aAPZCId) MOZ_OVERRIDE;
-
-  virtual bool RecvReleaseSharedCompositorFrameMetrics(const ViewID& aId,
-                                                       const uint32_t& aAPZCId) MOZ_OVERRIDE;
-
-  virtual bool
-  RecvRemotePaintIsReady() MOZ_OVERRIDE;
-
-  // Class used to store the shared FrameMetrics, mutex, and APZCId  in a hash table
-  class SharedFrameMetricsData {
-  public:
-    SharedFrameMetricsData(
-        const mozilla::ipc::SharedMemoryBasic::Handle& metrics,
-        const CrossProcessMutexHandle& handle,
-        const uint32_t& aAPZCId);
-
-    ~SharedFrameMetricsData();
-
-    void CopyFrameMetrics(FrameMetrics* aFrame);
-    FrameMetrics::ViewID GetViewID();
-    uint32_t GetAPZCId();
-
-  private:
-    // Pointer to the class that allows access to the shared memory that contains
-    // the shared FrameMetrics
-    nsRefPtr<mozilla::ipc::SharedMemoryBasic> mBuffer;
-    CrossProcessMutex* mMutex;
-    // Unique ID of the APZC that is sharing the FrameMetrics
-    uint32_t mAPZCId;
-  };
-
-  nsRefPtr<ClientLayerManager> mLayerManager;
-
-  // The ViewID of the FrameMetrics is used as the key for this hash table.
-  // While this should be safe to use since the ViewID is unique
-  nsClassHashtable<nsUint64HashKey, SharedFrameMetricsData> mFrameMetricsTable;
+private:
+  nsRefPtr<LayerManager> mLayerManager;
 
   // When we're in a child process, this is the process-global
   // compositor that we use to forward transactions directly to the
   // compositor context in another process.
   static CompositorChild* sCompositor;
 
-  // Weakly hold the TabChild that made a request to be alerted when
-  // the transaction has been received.
-  nsWeakPtr mWeakTabChild;      // type is TabChild
-
   DISALLOW_EVIL_CONSTRUCTORS(CompositorChild);
-
-  // When we receive overfill numbers, notify these client layer managers
-  nsAutoTArray<ClientLayerManager*,0> mOverfillObservers;
 };
 
 } // layers

@@ -13,12 +13,14 @@ function test() {
   let tab = gBrowser.addTab("about:sessionrestore");
   gBrowser.selectedTab = tab;
   let browser = tab.linkedBrowser;
-  whenBrowserLoaded(browser, function() {
+  browser.addEventListener("load", function(aEvent) {
+    browser.removeEventListener("load", arguments.callee, true);
     let doc = browser.contentDocument;
 
     // click on the "Start New Session" button after about:sessionrestore is loaded
     doc.getElementById("errorCancel").click();
-    whenBrowserLoaded(browser, function() {
+    browser.addEventListener("load", function(aEvent) {
+      browser.removeEventListener("load", arguments.callee, true);
       let doc = browser.contentDocument;
 
       is(doc.URL, "about:blank", "loaded page is about:blank");
@@ -29,12 +31,14 @@ function test() {
       gPrefService.setCharPref("browser.startup.homepage", homepage);
       gPrefService.setIntPref("browser.startup.page", 1);
       gBrowser.loadURI("about:sessionrestore");
-      whenBrowserLoaded(browser, function() {
+      browser.addEventListener("load", function(aEvent) {
+        browser.removeEventListener("load", arguments.callee, true);
         let doc = browser.contentDocument;
 
         // click on the "Start New Session" button after about:sessionrestore is loaded
         doc.getElementById("errorCancel").click();
-        whenBrowserLoaded(browser, function() {
+        browser.addEventListener("load", function(aEvent) {
+          browser.removeEventListener("load", arguments.callee, true);
           let doc = browser.contentDocument;
 
           is(doc.URL, homepage, "loaded page is the homepage");
@@ -44,8 +48,8 @@ function test() {
           gPrefService.clearUserPref("browser.startup.page");
           gPrefService.clearUserPref("browser.startup.homepage");
           finish();
-        });
-      });
-    });
-  });
+        }, true);
+      }, true);
+    }, true);
+  }, true);
 }

@@ -13,8 +13,6 @@
 #include "nsAutoPtr.h"
 #include "nsThreadUtils.h"
 #include "nsISupportsPriority.h"
-#include "nsCacheUtils.h"
-#include "prtime.h"
 #include <time.h>
 
 using namespace mozilla;
@@ -28,6 +26,20 @@ public:
     nsDeleteDir::gInstance->mCondVar.Notify();
     return NS_OK;
   }
+};
+
+class nsDestroyThreadEvent : public nsRunnable {
+public:
+  nsDestroyThreadEvent(nsIThread *thread)
+    : mThread(thread)
+  {}
+  NS_IMETHOD Run()
+  {
+    mThread->Shutdown();
+    return NS_OK;
+  }
+private:
+  nsCOMPtr<nsIThread> mThread;
 };
 
 
@@ -102,7 +114,7 @@ nsDeleteDir::Shutdown(bool finishDeleting)
       }
 
       rv = gInstance->mCondVar.Wait();
-      nsShutdownThread::BlockingShutdown(thread);
+      thread->Shutdown();
     }
   }
 
@@ -143,7 +155,7 @@ nsDeleteDir::DestroyThread()
     // more work to do, so don't delete thread.
     return;
 
-  nsShutdownThread::Shutdown(mThread);
+  NS_DispatchToMainThread(new nsDestroyThreadEvent(mThread));
   mThread = nullptr;
 }
 
@@ -206,14 +218,14 @@ nsDeleteDir::DeleteDir(nsIFile *dirIn, bool moveToTrash, uint32_t delay)
     rv = GetTrashDir(dir, &trash);
     if (NS_FAILED(rv))
       return rv;
-    nsAutoCString origLeaf;
+    nsCAutoString origLeaf;
     rv = trash->GetNativeLeafName(origLeaf);
     if (NS_FAILED(rv))
       return rv;
 
     // Append random number to the trash directory and check if it exists.
-    srand(static_cast<unsigned>(PR_Now()));
-    nsAutoCString leaf;
+    srand(PR_Now());
+    nsCAutoString leaf;
     for (int32_t i = 0; i < 10; i++) {
       leaf = origLeaf;
       leaf.AppendInt(rand());
@@ -277,7 +289,7 @@ nsDeleteDir::GetTrashDir(nsIFile *target, nsCOMPtr<nsIFile> *result)
       return rv;
 
     // Add a sub folder with the cache folder name
-    nsAutoCString leaf;
+    nsCAutoString leaf;
     rv = target->GetNativeLeafName(leaf);
     (*result)->AppendNative(leaf);
   } else
@@ -288,7 +300,7 @@ nsDeleteDir::GetTrashDir(nsIFile *target, nsCOMPtr<nsIFile> *result)
   if (NS_FAILED(rv))
     return rv;
 
-  nsAutoCString leaf;
+  nsCAutoString leaf;
   rv = (*result)->GetNativeLeafName(leaf);
   if (NS_FAILED(rv))
     return rv;
@@ -304,6 +316,13 @@ nsDeleteDir::RemoveOldTrashes(nsIFile *cacheDir)
     return NS_ERROR_NOT_INITIALIZED;
 
   nsresult rv;
+
+  static bool firstRun = true;
+
+  if (!firstRun)
+    return NS_OK;
+
+  firstRun = false;
 
   nsCOMPtr<nsIFile> trash;
   rv = GetTrashDir(cacheDir, &trash);

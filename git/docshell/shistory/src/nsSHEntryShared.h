@@ -21,8 +21,8 @@ class nsIDocument;
 class nsIContentViewer;
 class nsIDocShellTreeItem;
 class nsILayoutHistoryState;
-class nsDocShellEditorData;
 class nsISupportsArray;
+class nsDocShellEditorData;
 
 // A document may have multiple SHEntries, either due to hash navigations or
 // calls to history.pushState.  SHEntries corresponding to the same document
@@ -38,14 +38,13 @@ class nsSHEntryShared MOZ_FINAL : public nsIBFCacheEntry,
     static void Shutdown();
 
     nsSHEntryShared();
+    ~nsSHEntryShared();
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIMUTATIONOBSERVER
     NS_DECL_NSIBFCACHEENTRY
 
   private:
-    ~nsSHEntryShared();
-
     friend class nsSHEntry;
 
     friend class HistoryTracker;

@@ -12,22 +12,9 @@
 #include "base/command_line.h"
 #include "base/string_util.h"
 #include "chrome/common/chrome_switches.h"
-#include "nsDebugImpl.h"
-
-#if defined(XP_MACOSX)
-#include "nsCocoaFeatures.h"
-// An undocumented CoreGraphics framework method, present in the same form
-// since at least OS X 10.5.
-extern "C" CGError CGSSetDebugOptions(int options);
-#endif
 
 #ifdef XP_WIN
 #include <objbase.h>
-bool ShouldProtectPluginCurrentDirectory(char16ptr_t pluginFilePath);
-#if defined(MOZ_SANDBOX)
-#define TARGET_SANDBOX_EXPORTS
-#include "mozilla/sandboxTarget.h"
-#endif
 #endif
 
 using mozilla::ipc::IOThreadChild;
@@ -50,12 +37,9 @@ std::size_t caseInsensitiveFind(std::string aHaystack, std::string aNeedle) {
 namespace mozilla {
 namespace plugins {
 
-
 bool
 PluginProcessChild::Init()
 {
-    nsDebugImpl::SetMultiprocessMode("NPAPI");
-
 #if defined(XP_MACOSX)
     // Remove the trigger for "dyld interposing" that we added in
     // GeckoChildProcessHost::PerformAsyncLaunchInternal(), in the host
@@ -86,7 +70,7 @@ PluginProcessChild::Init()
                 setInterpose.Append(interpose);
             }
             // Values passed to PR_SetEnv() must be seperately allocated.
-            char* setInterposePtr = strdup(setInterpose.get());
+            char* setInterposePtr = strdup(PromiseFlatCString(setInterpose).get());
             PR_SetEnv(setInterposePtr);
         }
     }
@@ -95,7 +79,7 @@ PluginProcessChild::Init()
 #ifdef XP_WIN
     // Drag-and-drop needs OleInitialize to be called, and Silverlight depends
     // on the host calling CoInitialize (which is called by OleInitialize).
-    ::OleInitialize(nullptr);
+    ::OleInitialize(NULL);
 #endif
 
     // Certain plugins, such as flash, steal the unhandled exception filter
@@ -118,19 +102,21 @@ PluginProcessChild::Init()
         CommandLine::ForCurrentProcess()->GetLooseValues();
     NS_ABORT_IF_FALSE(values.size() >= 1, "not enough loose args");
 
-    if (ShouldProtectPluginCurrentDirectory(values[0].c_str())) {
+    pluginFilename = WideToUTF8(values[0]);
+
+    bool protectCurrentDirectory = true;
+    // Don't use SetDllDirectory for Shockwave Director
+    const std::string shockwaveDirectorPluginFilename("\\np32dsw.dll");
+    std::size_t index = caseInsensitiveFind(pluginFilename, shockwaveDirectorPluginFilename);
+    if (index != std::string::npos &&
+        index + shockwaveDirectorPluginFilename.length() == pluginFilename.length()) {
+        protectCurrentDirectory = false;
+    }
+    if (protectCurrentDirectory) {
         SanitizeEnvironmentVariables();
         SetDllDirectory(L"");
     }
 
-    pluginFilename = WideToUTF8(values[0]);
-
-#if defined(MOZ_SANDBOX)
-    // This is probably the earliest we would want to start the sandbox.
-    // As we attempt to tighten the sandbox, we may need to consider moving this
-    // to later in the plugin initialization.
-    mozilla::SandboxTarget::Instance()->StartSandbox();
-#endif
 #else
 #  error Sorry
 #endif
@@ -140,21 +126,11 @@ PluginProcessChild::Init()
       return false;
     }
 
-    bool retval = mPlugin.InitForChrome(pluginFilename, ParentHandle(),
-                                        IOThreadChild::message_loop(),
-                                        IOThreadChild::channel());
-#if defined(XP_MACOSX)
-    if (nsCocoaFeatures::OnYosemiteOrLater()) {
-      // Explicitly turn off CGEvent logging.  This works around bug 1092855.
-      // If there are already CGEvents in the log, turning off logging also
-      // causes those events to be written to disk.  But at this point no
-      // CGEvents have yet been processed.  CGEvents are events (usually
-      // input events) pulled from the WindowServer.  An option of 0x80000008
-      // turns on CGEvent logging.
-      CGSSetDebugOptions(0x80000007);
-    }
-#endif
-    return retval;
+    mPlugin.Init(pluginFilename, ParentHandle(),
+                 IOThreadChild::message_loop(),
+                 IOThreadChild::channel());
+
+    return true;
 }
 
 void

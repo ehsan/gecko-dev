@@ -32,8 +32,9 @@
   var waitCount = 0;
 
   function setCachePref(enabled) {
-    var prefBranch = SpecialPowers.Cc["@mozilla.org/preferences-service;1"]
-                                  .getService(SpecialPowers.Ci.nsIPrefBranch);
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+    var prefBranch = Components.classes["@mozilla.org/preferences-service;1"]
+                               .getService(Components.interfaces.nsIPrefBranch);
     if (enabled) {
       prefBranch.setBoolPref("browser.sessionhistory.cache_subframes", true);
     }

@@ -19,15 +19,14 @@ inline int test_common_init(int *argc, char ***argv)
 static bool gKeepPumpingEvents = false;
 
 class nsQuitPumpingEvent MOZ_FINAL : public nsIRunnable {
-  ~nsQuitPumpingEvent() {}
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_IMETHOD Run() {
     gKeepPumpingEvents = false;
     return NS_OK;
   }
 };
-NS_IMPL_ISUPPORTS(nsQuitPumpingEvent, nsIRunnable)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsQuitPumpingEvent, nsIRunnable)
 
 static inline void PumpEvents()
 {

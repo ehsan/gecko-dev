@@ -1,11 +1,14 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-Cu.import("resource://gre/modules/Log.jsm");
 Cu.import("resource://services-common/observers.js");
 Cu.import("resource://services-sync/identity.js");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-sync/resource.js");
 Cu.import("resource://services-sync/util.js");
+
+const RES_UPLOAD_URL = "http://localhost:8080/upload";
+const RES_HEADERS_URL = "http://localhost:8080/headers";
 
 let logger;
 
@@ -107,21 +110,21 @@ function server_backoff(metadata, response) {
   let body = "Hey, back off!";
   response.setHeader("X-Weave-Backoff", '600', false);
   response.setStatusLine(metadata.httpVersion, 200, "OK");
-  response.bodyOutputStream.write(body, body.length);
+  response.bodyOutputStream.write(body, body.length);  
 }
 
 function server_quota_notice(request, response) {
   let body = "You're approaching quota.";
   response.setHeader("X-Weave-Quota-Remaining", '1048576', false);
   response.setStatusLine(request.httpVersion, 200, "OK");
-  response.bodyOutputStream.write(body, body.length);
+  response.bodyOutputStream.write(body, body.length);  
 }
 
 function server_quota_error(request, response) {
   let body = "14";
   response.setHeader("X-Weave-Quota-Remaining", '-1024', false);
   response.setStatusLine(request.httpVersion, 400, "OK");
-  response.bodyOutputStream.write(body, body.length);
+  response.bodyOutputStream.write(body, body.length);  
 }
 
 function server_headers(metadata, response) {
@@ -153,8 +156,8 @@ Observers.add("weave:service:quota:remaining",
               function (subject) { quotaValue = subject; });
 
 function run_test() {
-  logger = Log.repository.getLogger('Test');
-  Log.repository.rootLogger.addAppender(new Log.DumpAppender());
+  logger = Log4Moz.repository.getLogger('Test');
+  Log4Moz.repository.rootLogger.addAppender(new Log4Moz.DumpAppender());
 
   Svc.Prefs.set("network.numRetries", 1); // speed up test
   run_next_test();
@@ -169,10 +172,10 @@ add_test(function test_proxy_auth_redirect() {
     "/open": server_open,
     "/pac2": server_pac
   });
-
-  PACSystemSettings.PACURI = server.baseURI + "/pac2";
+    
+  PACSystemSettings.PACURI = "http://localhost:8080/pac2";
   installFakePAC();
-  let res = new AsyncResource(server.baseURI + "/open");
+  let res = new AsyncResource("http://localhost:8080/open");
   res.get(function (error, result) {
     do_check_true(!error);
     do_check_true(pacFetched);
@@ -196,19 +199,18 @@ add_test(function test_new_channel() {
     response.bodyOutputStream.write(body, body.length);
   }
 
-  let locationURL;
   function redirectHandler(metadata, response) {
     let body = "Redirecting";
     response.setStatusLine(metadata.httpVersion, 307, "TEMPORARY REDIRECT");
-    response.setHeader("Location", locationURL);
+    response.setHeader("Location", "http://localhost:8080/resource");
     response.bodyOutputStream.write(body, body.length);
   }
 
   let server = httpd_setup({"/resource": resourceHandler,
-                            "/redirect": redirectHandler});
-  locationURL = server.baseURI + "/resource";
+                            "/redirect": redirectHandler},
+                            8080);
 
-  let request = new AsyncResource(server.baseURI + "/redirect");
+  let request = new AsyncResource("http://localhost:8080/redirect");
   request.get(function onRequest(error, content) {
     do_check_null(error);
     do_check_true(resourceRequested);
@@ -244,11 +246,10 @@ add_test(function setup() {
 
 add_test(function test_members() {
   _("Resource object members");
-  let uri = server.baseURI + "/open";
-  let res = new AsyncResource(uri);
+  let res = new AsyncResource("http://localhost:8080/open");
   do_check_true(res.uri instanceof Ci.nsIURI);
-  do_check_eq(res.uri.spec, uri);
-  do_check_eq(res.spec, uri);
+  do_check_eq(res.uri.spec, "http://localhost:8080/open");
+  do_check_eq(res.spec, "http://localhost:8080/open");
   do_check_eq(typeof res.headers, "object");
   do_check_eq(typeof res.authenticator, "object");
   // Initially res.data is null since we haven't performed a GET or
@@ -260,7 +261,7 @@ add_test(function test_members() {
 
 add_test(function test_get() {
   _("GET a non-password-protected resource");
-  let res = new AsyncResource(server.baseURI + "/open");
+  let res = new AsyncResource("http://localhost:8080/open");
   res.get(function (error, content) {
     do_check_eq(error, null);
     do_check_eq(content, "This path exists");
@@ -298,7 +299,7 @@ add_test(function test_get() {
 
 add_test(function test_basicauth() {
   _("Test that the BasicAuthenticator doesn't screw up header case.");
-  let res1 = new AsyncResource(server.baseURI + "/foo");
+  let res1 = new AsyncResource("http://localhost:8080/foo");
   res1.setHeader("Authorization", "Basic foobar");
   do_check_eq(res1._headers["authorization"], "Basic foobar");
   do_check_eq(res1.headers["authorization"], "Basic foobar");
@@ -308,7 +309,7 @@ add_test(function test_basicauth() {
 
 add_test(function test_get_protected_fail() {
   _("GET a password protected resource (test that it'll fail w/o pass, no throw)");
-  let res2 = new AsyncResource(server.baseURI + "/protected");
+  let res2 = new AsyncResource("http://localhost:8080/protected");
   res2.get(function (error, content) {
     do_check_eq(error, null);
     do_check_eq(content, "This path exists and is protected - failed");
@@ -320,9 +321,8 @@ add_test(function test_get_protected_fail() {
 
 add_test(function test_get_protected_success() {
   _("GET a password protected resource");
-  let identity = new IdentityManager();
-  let auth = identity.getBasicResourceAuthenticator("guest", "guest");
-  let res3 = new AsyncResource(server.baseURI + "/protected");
+  let auth = Identity.getBasicResourceAuthenticator("guest", "guest");
+  let res3 = new AsyncResource("http://localhost:8080/protected");
   res3.authenticator = auth;
   do_check_eq(res3.authenticator, auth);
   res3.get(function (error, content) {
@@ -336,7 +336,7 @@ add_test(function test_get_protected_success() {
 
 add_test(function test_get_404() {
   _("GET a non-existent resource (test that it'll fail, but not throw)");
-  let res4 = new AsyncResource(server.baseURI + "/404");
+  let res4 = new AsyncResource("http://localhost:8080/404");
   res4.get(function (error, content) {
     do_check_eq(error, null);
     do_check_eq(content, "File not found");
@@ -354,7 +354,7 @@ add_test(function test_get_404() {
 
 add_test(function test_put_string() {
   _("PUT to a resource (string)");
-  let res_upload = new AsyncResource(server.baseURI + "/upload");
+  let res_upload = new AsyncResource(RES_UPLOAD_URL);
   res_upload.put(JSON.stringify(sample_data), function(error, content) {
     do_check_eq(error, null);
     do_check_eq(content, "Valid data upload via PUT");
@@ -366,7 +366,7 @@ add_test(function test_put_string() {
 
 add_test(function test_put_object() {
   _("PUT to a resource (object)");
-  let res_upload = new AsyncResource(server.baseURI + "/upload");
+  let res_upload = new AsyncResource(RES_UPLOAD_URL);
   res_upload.put(sample_data, function (error, content) {
     do_check_eq(error, null);
     do_check_eq(content, "Valid data upload via PUT");
@@ -378,7 +378,7 @@ add_test(function test_put_object() {
 
 add_test(function test_put_data_string() {
   _("PUT without data arg (uses resource.data) (string)");
-  let res_upload = new AsyncResource(server.baseURI + "/upload");
+  let res_upload = new AsyncResource(RES_UPLOAD_URL);
   res_upload.data = JSON.stringify(sample_data);
   res_upload.put(function (error, content) {
     do_check_eq(error, null);
@@ -391,7 +391,7 @@ add_test(function test_put_data_string() {
 
 add_test(function test_put_data_object() {
   _("PUT without data arg (uses resource.data) (object)");
-  let res_upload = new AsyncResource(server.baseURI + "/upload");
+  let res_upload = new AsyncResource(RES_UPLOAD_URL);
   res_upload.data = sample_data;
   res_upload.put(function (error, content) {
     do_check_eq(error, null);
@@ -404,7 +404,7 @@ add_test(function test_put_data_object() {
 
 add_test(function test_post_string() {
   _("POST to a resource (string)");
-  let res_upload = new AsyncResource(server.baseURI + "/upload");
+  let res_upload = new AsyncResource(RES_UPLOAD_URL);
   res_upload.post(JSON.stringify(sample_data), function (error, content) {
     do_check_eq(error, null);
     do_check_eq(content, "Valid data upload via POST");
@@ -416,7 +416,7 @@ add_test(function test_post_string() {
 
 add_test(function test_post_object() {
   _("POST to a resource (object)");
-  let res_upload = new AsyncResource(server.baseURI + "/upload");
+  let res_upload = new AsyncResource(RES_UPLOAD_URL);
   res_upload.post(sample_data, function (error, content) {
     do_check_eq(error, null);
     do_check_eq(content, "Valid data upload via POST");
@@ -428,7 +428,7 @@ add_test(function test_post_object() {
 
 add_test(function test_post_data_string() {
   _("POST without data arg (uses resource.data) (string)");
-  let res_upload = new AsyncResource(server.baseURI + "/upload");
+  let res_upload = new AsyncResource(RES_UPLOAD_URL);
   res_upload.data = JSON.stringify(sample_data);
   res_upload.post(function (error, content) {
     do_check_eq(error, null);
@@ -441,7 +441,7 @@ add_test(function test_post_data_string() {
 
 add_test(function test_post_data_object() {
   _("POST without data arg (uses resource.data) (object)");
-  let res_upload = new AsyncResource(server.baseURI + "/upload");
+  let res_upload = new AsyncResource(RES_UPLOAD_URL);
   res_upload.data = sample_data;
   res_upload.post(function (error, content) {
     do_check_eq(error, null);
@@ -454,7 +454,7 @@ add_test(function test_post_data_object() {
 
 add_test(function test_delete() {
   _("DELETE a resource");
-  let res6 = new AsyncResource(server.baseURI + "/delete");
+  let res6 = new AsyncResource("http://localhost:8080/delete");
   res6.delete(function (error, content) {
     do_check_eq(error, null);
     do_check_eq(content, "This resource has been deleted");
@@ -465,7 +465,7 @@ add_test(function test_delete() {
 
 add_test(function test_json_body() {
   _("JSON conversion of response body");
-  let res7 = new AsyncResource(server.baseURI + "/json");
+  let res7 = new AsyncResource("http://localhost:8080/json");
   res7.get(function (error, content) {
     do_check_eq(error, null);
     do_check_eq(content, JSON.stringify(sample_data));
@@ -480,7 +480,7 @@ add_test(function test_weave_timestamp() {
   // Before having received any response containing the
   // X-Weave-Timestamp header, AsyncResource.serverTime is null.
   do_check_eq(AsyncResource.serverTime, null);
-  let res8 = new AsyncResource(server.baseURI + "/timestamp");
+  let res8 = new AsyncResource("http://localhost:8080/timestamp");
   res8.get(function (error, content) {
     do_check_eq(error, null);
     do_check_eq(AsyncResource.serverTime, TIMESTAMP);
@@ -490,7 +490,7 @@ add_test(function test_weave_timestamp() {
 
 add_test(function test_get_no_headers() {
   _("GET: no special request headers");
-  let res_headers = new AsyncResource(server.baseURI + "/headers");
+  let res_headers = new AsyncResource(RES_HEADERS_URL);
   res_headers.get(function (error, content) {
     do_check_eq(error, null);
     do_check_eq(content, '{}');
@@ -500,7 +500,7 @@ add_test(function test_get_no_headers() {
 
 add_test(function test_put_default_content_type() {
   _("PUT: Content-Type defaults to text/plain");
-  let res_headers = new AsyncResource(server.baseURI + "/headers");
+  let res_headers = new AsyncResource(RES_HEADERS_URL);
   res_headers.put('data', function (error, content) {
     do_check_eq(error, null);
     do_check_eq(content, JSON.stringify({"content-type": "text/plain"}));
@@ -510,7 +510,7 @@ add_test(function test_put_default_content_type() {
 
 add_test(function test_post_default_content_type() {
   _("POST: Content-Type defaults to text/plain");
-  let res_headers = new AsyncResource(server.baseURI + "/headers");
+  let res_headers = new AsyncResource(RES_HEADERS_URL);
   res_headers.post('data', function (error, content) {
     do_check_eq(error, null);
     do_check_eq(content, JSON.stringify({"content-type": "text/plain"}));
@@ -520,7 +520,7 @@ add_test(function test_post_default_content_type() {
 
 add_test(function test_setHeader() {
   _("setHeader(): setting simple header");
-  let res_headers = new AsyncResource(server.baseURI + "/headers");
+  let res_headers = new AsyncResource(RES_HEADERS_URL);
   res_headers.setHeader('X-What-Is-Weave', 'awesome');
   do_check_eq(res_headers.headers['x-what-is-weave'], 'awesome');
   res_headers.get(function (error, content) {
@@ -532,7 +532,7 @@ add_test(function test_setHeader() {
 
 add_test(function test_setHeader_overwrite() {
   _("setHeader(): setting multiple headers, overwriting existing header");
-  let res_headers = new AsyncResource(server.baseURI + "/headers");
+  let res_headers = new AsyncResource(RES_HEADERS_URL);
   res_headers.setHeader('X-WHAT-is-Weave', 'more awesomer');
   res_headers.setHeader('X-Another-Header', 'hello world');
   do_check_eq(res_headers.headers['x-what-is-weave'], 'more awesomer');
@@ -548,7 +548,7 @@ add_test(function test_setHeader_overwrite() {
 
 add_test(function test_headers_object() {
   _("Setting headers object");
-  let res_headers = new AsyncResource(server.baseURI + "/headers");
+  let res_headers = new AsyncResource(RES_HEADERS_URL);
   res_headers.headers = {};
   res_headers.get(function (error, content) {
     do_check_eq(error, null);
@@ -559,7 +559,7 @@ add_test(function test_headers_object() {
 
 add_test(function test_put_override_content_type() {
   _("PUT: override default Content-Type");
-  let res_headers = new AsyncResource(server.baseURI + "/headers");
+  let res_headers = new AsyncResource(RES_HEADERS_URL);
   res_headers.setHeader('Content-Type', 'application/foobar');
   do_check_eq(res_headers.headers['content-type'], 'application/foobar');
   res_headers.put('data', function (error, content) {
@@ -571,7 +571,7 @@ add_test(function test_put_override_content_type() {
 
 add_test(function test_post_override_content_type() {
   _("POST: override default Content-Type");
-  let res_headers = new AsyncResource(server.baseURI + "/headers");
+  let res_headers = new AsyncResource(RES_HEADERS_URL);
   res_headers.setHeader('Content-Type', 'application/foobar');
   res_headers.post('data', function (error, content) {
     do_check_eq(error, null);
@@ -588,7 +588,7 @@ add_test(function test_weave_backoff() {
   }
   Observers.add("weave:service:backoff:interval", onBackoff);
 
-  let res10 = new AsyncResource(server.baseURI + "/backoff");
+  let res10 = new AsyncResource("http://localhost:8080/backoff");
   res10.get(function (error, content) {
     do_check_eq(error, null);
     do_check_eq(backoffInterval, 600);
@@ -598,7 +598,7 @@ add_test(function test_weave_backoff() {
 
 add_test(function test_quota_error() {
   _("X-Weave-Quota-Remaining header notifies observer on successful requests.");
-  let res10 = new AsyncResource(server.baseURI + "/quota-error");
+  let res10 = new AsyncResource("http://localhost:8080/quota-error");
   res10.get(function (error, content) {
     do_check_eq(error, null);
     do_check_eq(content.status, 400);
@@ -608,7 +608,7 @@ add_test(function test_quota_error() {
 });
 
 add_test(function test_quota_notice() {
-  let res10 = new AsyncResource(server.baseURI + "/quota-notice");
+  let res10 = new AsyncResource("http://localhost:8080/quota-notice");
   res10.get(function (error, content) {
     do_check_eq(error, null);
     do_check_eq(content.status, 200);
@@ -630,7 +630,7 @@ add_test(function test_preserve_exceptions() {
 
 add_test(function test_xpc_exception_handling() {
   _("Exception handling inside fetches.");
-  let res14 = new AsyncResource(server.baseURI + "/json");
+  let res14 = new AsyncResource("http://localhost:8080/json");
   res14._onProgress = function(rec) {
     // Provoke an XPC exception without a Javascript wrapper.
     Services.io.newURI("::::::::", null, null);
@@ -644,7 +644,7 @@ add_test(function test_xpc_exception_handling() {
     do_check_eq(content, null);
     do_check_eq(warnings.pop(),
                 "Got exception calling onProgress handler during fetch of " +
-                server.baseURI + "/json");
+                "http://localhost:8080/json");
 
     run_next_test();
   });
@@ -652,7 +652,7 @@ add_test(function test_xpc_exception_handling() {
 
 add_test(function test_js_exception_handling() {
   _("JS exception handling inside fetches.");
-  let res15 = new AsyncResource(server.baseURI + "/json");
+  let res15 = new AsyncResource("http://localhost:8080/json");
   res15._onProgress = function(rec) {
     throw "BOO!";
   };
@@ -665,15 +665,15 @@ add_test(function test_js_exception_handling() {
     do_check_eq(content, null);
     do_check_eq(warnings.pop(),
                 "Got exception calling onProgress handler during fetch of " +
-                server.baseURI + "/json");
-
+                "http://localhost:8080/json");
+      
     run_next_test();
   });
 });
 
 add_test(function test_timeout() {
   _("Ensure channel timeouts are thrown appropriately.");
-  let res19 = new AsyncResource(server.baseURI + "/json");
+  let res19 = new AsyncResource("http://localhost:8080/json");
   res19.ABORT_TIMEOUT = 0;
   res19.get(function (error, content) {
     do_check_eq(error.result, Cr.NS_ERROR_NET_TIMEOUT);
@@ -698,27 +698,6 @@ add_test(function test_uri_construction() {
   do_check_eq(uri1.query, uri2.query);
 
   run_next_test();
-});
-
-add_test(function test_not_sending_cookie() {
-  function handler(metadata, response) {
-    let body = "COOKIE!";
-    response.setStatusLine(metadata.httpVersion, 200, "OK");
-    response.bodyOutputStream.write(body, body.length);
-    do_check_false(metadata.hasHeader("Cookie"));
-  }
-  let cookieSer = Cc["@mozilla.org/cookieService;1"]
-                    .getService(Ci.nsICookieService);
-  let uri = CommonUtils.makeURI(server.baseURI);
-  cookieSer.setCookieString(uri, null, "test=test; path=/;", null);
-
-  let res = new AsyncResource(server.baseURI + "/test");
-  res.get(function (error) {
-    do_check_null(error);
-    do_check_true(this.response.success);
-    do_check_eq("COOKIE!", this.response.body);
-    server.stop(run_next_test);
-  });
 });
 
 /**

@@ -176,6 +176,7 @@ struct _MDCPU {
 #include <sys/syscall.h>
 #define _MD_SELECT(nfds,r,w,e,tv) syscall(SYS_select,nfds,r,w,e,tv)
 
-#define _MD_INTERVAL_USE_GTOD
+#define _MD_GET_INTERVAL                  _PR_UNIX_GetInterval
+#define _MD_INTERVAL_PER_SEC              _PR_UNIX_TicksPerSecond
 
 #endif /* nspr_bsdi_defs_h___ */

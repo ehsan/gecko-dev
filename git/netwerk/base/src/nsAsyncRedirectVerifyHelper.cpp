@@ -3,6 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#ifdef MOZ_LOGGING
+#define FORCE_PR_LOG
+#endif
+
 #include "prlog.h"
 #include "nsAsyncRedirectVerifyHelper.h"
 #include "nsThreadUtils.h"
@@ -13,24 +17,16 @@
 #include "nsIHttpChannelInternal.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 
-#undef LOG
 #ifdef PR_LOGGING
-static PRLogModuleInfo *
-GetRedirectLog()
-{
-    static PRLogModuleInfo *sLog;
-    if (!sLog)
-        sLog = PR_NewLogModule("nsRedirect");
-    return sLog;
-}
-#define LOG(args) PR_LOG(GetRedirectLog(), PR_LOG_DEBUG, args)
+static PRLogModuleInfo *gLog = PR_NewLogModule("nsRedirect");
+#define LOG(args) PR_LOG(gLog, PR_LOG_DEBUG, args)
 #else
 #define LOG(args)
 #endif
 
-NS_IMPL_ISUPPORTS(nsAsyncRedirectVerifyHelper,
-                  nsIAsyncVerifyRedirectCallback,
-                  nsIRunnable)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsAsyncRedirectVerifyHelper,
+                              nsIAsyncVerifyRedirectCallback,
+                              nsIRunnable)
 
 class nsAsyncVerifyRedirectCallbackEvent : public nsRunnable {
 public:
@@ -258,17 +254,8 @@ nsAsyncRedirectVerifyHelper::IsOldChannelCanceled()
         do_QueryInterface(mOldChan);
     if (oldChannelInternal) {
         oldChannelInternal->GetCanceled(&canceled);
-        if (canceled) {
+        if (canceled)
             return true;
-        }
-    } else if (mOldChan) {
-        // For non-HTTP channels check on the status, failure
-        // indicates the channel has probably been canceled.
-        nsresult status = NS_ERROR_FAILURE;
-        mOldChan->GetStatus(&status);
-        if (NS_FAILED(status)) {
-            return true;
-        }
     }
 
     return false;

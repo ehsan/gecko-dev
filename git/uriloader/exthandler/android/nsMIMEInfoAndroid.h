@@ -9,8 +9,7 @@
 #include "nsMIMEInfoImpl.h"
 #include "nsIMutableArray.h"
 #include "nsAndroidHandlerApp.h"
-
-class nsMIMEInfoAndroid MOZ_FINAL : public nsIMIMEInfo
+class nsMIMEInfoAndroid : public nsIMIMEInfo
 {
 public:
   static bool
@@ -30,11 +29,9 @@ public:
 
   nsMIMEInfoAndroid(const nsACString& aMIMEType);
 
-private:
-  ~nsMIMEInfoAndroid() {}
-
-  virtual nsresult LaunchDefaultWithFile(nsIFile* aFile);
-  virtual nsresult LoadUriInternal(nsIURI *aURI);
+protected:
+  virtual NS_HIDDEN_(nsresult) LaunchDefaultWithFile(nsIFile* aFile);
+  virtual NS_HIDDEN_(nsresult) LoadUriInternal(nsIURI *aURI);
   nsCOMPtr<nsIMutableArray> mHandlerApps;
   nsCString mType;
   nsTArray<nsCString> mExtensions;
@@ -42,18 +39,16 @@ private:
   nsHandlerInfoAction mPrefAction;
   nsString mDescription;
   nsCOMPtr<nsIHandlerApp> mPrefApp;
-
-public:
-  class SystemChooser MOZ_FINAL : public nsIHandlerApp {
+  
+  class SystemChooser : public nsIHandlerApp {
   public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIHANDLERAPP
-    SystemChooser(nsMIMEInfoAndroid* aOuter): mOuter(aOuter) {}
-
+    SystemChooser(nsMIMEInfoAndroid* aOuter): mOuter(aOuter) {};
+    
   private:
-    ~SystemChooser() {}
-
     nsMIMEInfoAndroid* mOuter;
+    
   };
 };
 

@@ -1,9 +1,8 @@
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-sync/identity.js");
 Cu.import("resource://services-sync/jpakeclient.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://testing-common/services/sync/utils.js");
 
 const JPAKE_LENGTH_SECRET     = 8;
 const JPAKE_LENGTH_CLIENTID   = 256;
@@ -169,9 +168,7 @@ const DATA = {"msg": "eggstreamly sekrit"};
 const POLLINTERVAL = 50;
 
 function run_test() {
-  server = httpd_setup({"/new_channel": server_new_channel,
-                        "/report":      server_report});
-  Svc.Prefs.set("jpake.serverURL", server.baseURI + "/");
+  Svc.Prefs.set("jpake.serverURL", TEST_SERVER_URL);
   Svc.Prefs.set("jpake.pollInterval", POLLINTERVAL);
   Svc.Prefs.set("jpake.maxTries", 2);
   Svc.Prefs.set("jpake.firstMsgMaxTries", 5);
@@ -186,13 +183,15 @@ function run_test() {
 
   // Simulate Sync setup with credentials in place. We want to make
   // sure the J-PAKE requests don't include those data.
-  ensureLegacyIdentityManager();
   setBasicCredentials("johndoe", "ilovejane");
 
+  server = httpd_setup({"/new_channel": server_new_channel,
+                        "/report":      server_report});
+
   initTestLogging("Trace");
-  Log.repository.getLogger("Sync.JPAKEClient").level = Log.Level.Trace;
-  Log.repository.getLogger("Common.RESTRequest").level =
-    Log.Level.Trace;
+  Log4Moz.repository.getLogger("Sync.JPAKEClient").level = Log4Moz.Level.Trace;
+  Log4Moz.repository.getLogger("Common.RESTRequest").level =
+    Log4Moz.Level.Trace;
   run_next_test();
 }
 
@@ -301,7 +300,7 @@ add_test(function test_firstMsgMaxTries() {
   });
   rec.receiveNoPIN();
 });
-
+  
 
 add_test(function test_lastMsgMaxTries() {
   _("Test that receiver can wait longer for the last message.");

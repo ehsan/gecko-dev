@@ -11,8 +11,6 @@
   <script type="application/javascript"
           src="../common.js"></script>
   <script type="application/javascript"
-          src="../role.js"></script>
-  <script type="application/javascript"
           src="../events.js"></script>
 
   <script type="application/javascript">
@@ -63,7 +61,6 @@
     {
       this.selectNode = getNode(aID);
       this.select = getAccessible(this.selectNode);
-      this.selectList = this.select.firstChild;
 
       this.invoke = function removeOptions_invoke()
       {
@@ -72,7 +69,7 @@
       }
 
       this.eventSeq = [
-        new invokerChecker(EVENT_REORDER, this.selectList)
+        new invokerChecker(EVENT_REORDER, this.select)
       ];
 
       this.finalCheck = function removeOptions_finalCheck()

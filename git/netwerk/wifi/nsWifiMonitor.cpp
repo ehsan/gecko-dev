@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsCOMPtr.h"
-#include "nsProxyRelease.h"
 #include "nsComponentManagerUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
@@ -24,10 +23,10 @@ using namespace mozilla;
 PRLogModuleInfo *gWifiMonitorLog;
 #endif
 
-NS_IMPL_ISUPPORTS(nsWifiMonitor,
-                  nsIRunnable,
-                  nsIObserver,
-                  nsIWifiMonitor)
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsWifiMonitor,
+                              nsIRunnable,
+                              nsIObserver,
+                              nsIWifiMonitor)
 
 nsWifiMonitor::nsWifiMonitor()
 : mKeepGoing(true)
@@ -50,7 +49,7 @@ nsWifiMonitor::~nsWifiMonitor()
 
 NS_IMETHODIMP
 nsWifiMonitor::Observe(nsISupports *subject, const char *topic,
-                     const char16_t *data)
+                     const PRUnichar *data)
 {
   if (!strcmp(topic, "xpcom-shutdown")) {
     LOG(("Shutting down\n"));
@@ -79,7 +78,7 @@ NS_IMETHODIMP nsWifiMonitor::StartWatching(nsIWifiListener *aListener)
 
   mKeepGoing = true;
 
-  mListeners.AppendElement(nsWifiListener(new nsMainThreadPtrHolder<nsIWifiListener>(aListener)));
+  mListeners.AppendElement(nsWifiListener(aListener));
 
   // tell ourselves that we have a new watcher.
   mon.Notify();
@@ -112,33 +111,30 @@ NS_IMETHODIMP nsWifiMonitor::StopWatching(nsIWifiListener *aListener)
   return NS_OK;
 }
 
-typedef nsTArray<nsMainThreadPtrHandle<nsIWifiListener> > WifiListenerArray;
-
 class nsPassErrorToWifiListeners MOZ_FINAL : public nsIRunnable
 {
  public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
-  nsPassErrorToWifiListeners(nsAutoPtr<WifiListenerArray> aListeners,
+  nsPassErrorToWifiListeners(nsAutoPtr<nsCOMArray<nsIWifiListener> > aListeners,
                              nsresult aResult)
   : mListeners(aListeners),
     mResult(aResult)
   {}
 
  private:
-  ~nsPassErrorToWifiListeners() {}
-  nsAutoPtr<WifiListenerArray> mListeners;
+  nsAutoPtr<nsCOMArray<nsIWifiListener> > mListeners;
   nsresult mResult;
 };
 
-NS_IMPL_ISUPPORTS(nsPassErrorToWifiListeners,
-                  nsIRunnable)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsPassErrorToWifiListeners,
+                              nsIRunnable)
 
 NS_IMETHODIMP nsPassErrorToWifiListeners::Run()
 {
   LOG(("About to send error to the wifi listeners\n"));
-  for (size_t i = 0; i < mListeners->Length(); i++) {
+  for (int32_t i = 0; i < mListeners->Count(); i++) {
     (*mListeners)[i]->OnError(mResult);
   }
   return NS_OK;
@@ -153,13 +149,13 @@ NS_IMETHODIMP nsWifiMonitor::Run()
   nsresult rv = DoScan();
 
   if (mKeepGoing && NS_FAILED(rv)) {
-    nsAutoPtr<WifiListenerArray> currentListeners(
-                           new WifiListenerArray(mListeners.Length()));
+    nsAutoPtr<nsCOMArray<nsIWifiListener> > currentListeners(
+                           new nsCOMArray<nsIWifiListener>(mListeners.Length()));
     if (!currentListeners)
       return NS_ERROR_OUT_OF_MEMORY;
 
     for (uint32_t i = 0; i < mListeners.Length(); i++)
-      currentListeners->AppendElement(mListeners[i].mListener);
+      currentListeners->AppendObject(mListeners[i].mListener);
 
     nsCOMPtr<nsIThread> thread = do_GetMainThread();
     if (!thread)
@@ -178,28 +174,27 @@ NS_IMETHODIMP nsWifiMonitor::Run()
 class nsCallWifiListeners MOZ_FINAL : public nsIRunnable
 {
  public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
-  nsCallWifiListeners(nsAutoPtr<WifiListenerArray> aListeners,
+  nsCallWifiListeners(nsAutoPtr<nsCOMArray<nsIWifiListener> > aListeners,
                       nsAutoPtr<nsTArray<nsIWifiAccessPoint*> > aAccessPoints)
   : mListeners(aListeners),
     mAccessPoints(aAccessPoints)
   {}
 
  private:
-  ~nsCallWifiListeners() {}
-  nsAutoPtr<WifiListenerArray> mListeners;
+  nsAutoPtr<nsCOMArray<nsIWifiListener> > mListeners;
   nsAutoPtr<nsTArray<nsIWifiAccessPoint*> > mAccessPoints;
 };
 
-NS_IMPL_ISUPPORTS(nsCallWifiListeners,
-                  nsIRunnable)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsCallWifiListeners,
+                              nsIRunnable)
 
 NS_IMETHODIMP nsCallWifiListeners::Run()
 {
   LOG(("About to send data to the wifi listeners\n"));
-  for (size_t i = 0; i < mListeners->Length(); i++) {
+  for (int32_t i = 0; i < mListeners->Count(); i++) {
     (*mListeners)[i]->OnChange(mAccessPoints->Elements(), mAccessPoints->Length());
   }
   return NS_OK;
@@ -209,8 +204,8 @@ nsresult
 nsWifiMonitor::CallWifiListeners(const nsCOMArray<nsWifiAccessPoint> &aAccessPoints,
                                  bool aAccessPointsChanged)
 {
-    nsAutoPtr<WifiListenerArray> currentListeners(
-                           new WifiListenerArray(mListeners.Length()));
+    nsAutoPtr<nsCOMArray<nsIWifiListener> > currentListeners(
+                           new nsCOMArray<nsIWifiListener>(mListeners.Length()));
     if (!currentListeners)
       return NS_ERROR_OUT_OF_MEMORY;
 
@@ -220,12 +215,12 @@ nsWifiMonitor::CallWifiListeners(const nsCOMArray<nsWifiAccessPoint> &aAccessPoi
       for (uint32_t i = 0; i < mListeners.Length(); i++) {
         if (!mListeners[i].mHasSentData || aAccessPointsChanged) {
           mListeners[i].mHasSentData = true;
-          currentListeners->AppendElement(mListeners[i].mListener);
+          currentListeners->AppendObject(mListeners[i].mListener);
         }
       }
     }
 
-    if (currentListeners->Length() > 0)
+    if (currentListeners->Count() > 0)
     {
       uint32_t resultCount = aAccessPoints.Count();
       nsAutoPtr<nsTArray<nsIWifiAccessPoint*> > accessPoints(

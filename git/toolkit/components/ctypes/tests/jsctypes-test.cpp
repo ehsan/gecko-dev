@@ -4,6 +4,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "jsctypes-test.h"
+#include "jsapi.h"
+#include "nsCRTGlue.h"
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -144,7 +146,7 @@ test_ansi_len(const char* string)
 }
 
 int32_t
-test_wide_len(const char16_t* string)
+test_wide_len(const PRUnichar* string)
 {
   return StrLen(string);
 }
@@ -155,10 +157,10 @@ test_ansi_ret()
   return "success";
 }
 
-const char16_t *
+const PRUnichar *
 test_wide_ret()
 {
-  static const char16_t kSuccess[] = {'s', 'u', 'c', 'c', 'e', 's', 's', '\0'};
+  static const PRUnichar kSuccess[] = {'s', 'u', 'c', 'c', 'e', 's', 's', '\0'};
   return kSuccess;
 }
 
@@ -169,7 +171,7 @@ test_ansi_echo(const char* string)
 }
 
 int32_t
-test_pt_in_rect(myRECT rc, myPOINT pt)
+test_pt_in_rect(RECT rc, POINT pt)
 {
   if (pt.x < rc.left || pt.x > rc.right)
     return 0;
@@ -179,7 +181,7 @@ test_pt_in_rect(myRECT rc, myPOINT pt)
 }
 
 void
-test_init_pt(myPOINT* pt, int32_t x, int32_t y)
+test_init_pt(POINT* pt, int32_t x, int32_t y)
 {
   pt->x = x;
   pt->y = y;
@@ -191,25 +193,25 @@ test_nested_struct(NESTED n)
   return int32_t(n.n1 + n.n2 + n.inner.i1 + n.inner.i2 + n.inner.i3 + n.n3 + n.n4);
 }
 
-myPOINT
-test_struct_return(myRECT r)
+POINT
+test_struct_return(RECT r)
 {
-  myPOINT p;
+  POINT p;
   p.x = r.left; p.y = r.top;
   return p;
 }
 
-myRECT
-test_large_struct_return(myRECT a, myRECT b)
+RECT
+test_large_struct_return(RECT a, RECT b)
 {
-  myRECT r;
+  RECT r;
   r.left = a.left; r.right = a.right;
   r.top = b.top; r.bottom = b.bottom;
   return r;
 }
 
 ONE_BYTE
-test_1_byte_struct_return(myRECT r)
+test_1_byte_struct_return(RECT r)
 {
   ONE_BYTE s;
   s.a = r.top;
@@ -217,7 +219,7 @@ test_1_byte_struct_return(myRECT r)
 }
 
 TWO_BYTE
-test_2_byte_struct_return(myRECT r)
+test_2_byte_struct_return(RECT r)
 {
   TWO_BYTE s;
   s.a = r.top;
@@ -226,7 +228,7 @@ test_2_byte_struct_return(myRECT r)
 }
 
 THREE_BYTE
-test_3_byte_struct_return(myRECT r)
+test_3_byte_struct_return(RECT r)
 {
   THREE_BYTE s;
   s.a = r.top;
@@ -236,7 +238,7 @@ test_3_byte_struct_return(myRECT r)
 }
 
 FOUR_BYTE
-test_4_byte_struct_return(myRECT r)
+test_4_byte_struct_return(RECT r)
 {
   FOUR_BYTE s;
   s.a = r.top;
@@ -247,7 +249,7 @@ test_4_byte_struct_return(myRECT r)
 }
 
 FIVE_BYTE
-test_5_byte_struct_return(myRECT r)
+test_5_byte_struct_return(RECT r)
 {
   FIVE_BYTE s;
   s.a = r.top;
@@ -259,7 +261,7 @@ test_5_byte_struct_return(myRECT r)
 }
 
 SIX_BYTE
-test_6_byte_struct_return(myRECT r)
+test_6_byte_struct_return(RECT r)
 {
   SIX_BYTE s;
   s.a = r.top;
@@ -272,7 +274,7 @@ test_6_byte_struct_return(myRECT r)
 }
 
 SEVEN_BYTE
-test_7_byte_struct_return(myRECT r)
+test_7_byte_struct_return(RECT r)
 {
   SEVEN_BYTE s;
   s.a = r.top;
@@ -371,4 +373,4 @@ test_vector_add_va_cdecl(uint8_t num_vecs,
   return result;
 }
 
-myRECT data_rect = { -1, -2, 3, 4 };
+RECT data_rect = { -1, -2, 3, 4 };

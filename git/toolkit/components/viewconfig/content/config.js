@@ -1,4 +1,4 @@
-// -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
+// -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -22,7 +22,7 @@ const gPrefBranch = Services.prefs;
 const gClipboardHelper = Components.classes[nsClipboardHelper_CONTRACTID].getService(nsIClipboardHelper);
 const gAtomService = Components.classes[nsAtomService_CONTRACTID].getService(nsIAtomService);
 
-var gLockProps = ["default", "user", "locked"];
+var gLockAtoms = [gAtomService.getAtom("default"), gAtomService.getAtom("user"), gAtomService.getAtom("locked")];
 // we get these from a string bundle
 var gLockStrs = [];
 var gTypeStrs = [];
@@ -57,14 +57,12 @@ var view = {
         return value;
     }
   },
-  getRowProperties : function(index) { return ""; },
-  getCellProperties : function(index, col) {
+  getRowProperties : function(index, prop) {},
+  getCellProperties : function(index, col, prop) {
     if (index in gPrefView)
-      return gLockProps[gPrefView[index].lockCol];
-
-    return "";
+      prop.AppendElement(gLockAtoms[gPrefView[index].lockCol]);
   },
-  getColumnProperties : function(col) { return ""; },
+  getColumnProperties : function(col, prop) {},
   treebox : null,
   selection : null,
   isContainer : function(index) { return false; },
@@ -193,6 +191,9 @@ var gPrefListener =
   observe: function(subject, topic, prefName)
   {
     if (topic != "nsPref:changed")
+      return;
+
+    if (/^capability\./.test(prefName)) // avoid displaying "private" preferences
       return;
 
     var arrayIndex = gPrefArray.length;
@@ -345,7 +346,14 @@ function onConfigLoad()
 // Unhide the warning message
 function ShowPrefs()
 {
-  gPrefBranch.getChildList("").forEach(fetchPref);
+  var prefArray = gPrefBranch.getChildList("");
+
+  prefArray.forEach(function (prefName) {
+    if (/^capability\./.test(prefName)) // avoid displaying "private" preferences
+      return;
+
+    fetchPref(prefName, gPrefArray.length);
+  });
 
   var descending = document.getElementsByAttribute("sortDirection", "descending");
   if (descending.item(0)) {
@@ -401,7 +409,7 @@ function onConfigUnload()
 function FilterPrefs()
 {
   if (document.getElementById("configDeck").getAttribute("selectedIndex") != 1) {
-    return;
+    return false;
   }
 
   var substring = document.getElementById("textbox").value;

@@ -17,7 +17,6 @@
 /*
 ** Required includes.
 */
-#include <stdint.h>
 #include "nspr.h"
 #include "prlock.h"
 #include "prrwlock.h"

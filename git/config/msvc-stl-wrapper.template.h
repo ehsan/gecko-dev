@@ -12,9 +12,6 @@
 #  error "STL code can only be used with -fno-exceptions"
 #endif
 
-// Suppress windef.h min and max macros - they make std::min/max not compile.
-#define NOMINMAX 1
-
 // Code built with !_HAS_EXCEPTIONS calls std::_Throw(), but the win2k
 // CRT doesn't export std::_Throw().  So we define it.
 #ifndef mozilla_Throw_h
@@ -36,13 +33,13 @@
 #  error "STL code can only be used with infallible ::operator new()"
 #endif
 
-#ifdef _DEBUG
+#ifdef DEBUG
 // From
 //   http://msdn.microsoft.com/en-us/library/aa985982%28VS.80%29.aspx
 // and
 //   http://msdn.microsoft.com/en-us/library/aa985965%28VS.80%29.aspx
 // there appear to be two types of STL container checking.  The
-// former is enabled by -D_DEBUG (which is implied by -MDd or -MTd), and
+// former is enabled by -D_DEBUG (which is implied by -DDEBUG), and
 // looks to be full generation/mutation checked iterators as done by
 // _GLIBCXX_DEBUG.  The latter appears to just be bounds checking, and
 // is enabled by the following macros.  It appears that the _DEBUG
@@ -63,12 +60,10 @@
 //#  undef _SECURE_SCL
 #endif
 
-// C4275: When _HAS_EXCEPTIONS is set to 0, system STL header
-//        will generate the warning which we can't modify.
-// C4530: We know that code won't be able to catch exceptions,
-//        but that's OK because we're not throwing them.
+// We know that code won't be able to catch exceptions, but that's OK
+// because we're not throwing them.
 #pragma warning( push )
-#pragma warning( disable : 4275 4530 )
+#pragma warning( disable : 4530 )
 
 #include <${HEADER_PATH}>
 

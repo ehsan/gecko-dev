@@ -91,7 +91,7 @@ function run_test_1() {
     do_check_eq(a1.scope, AddonManager.SCOPE_PROFILE);
     do_check_false(a1.foreignInstall);
 
-    do_execute_soon(run_test_2);
+    run_test_2();
   });
 }
 
@@ -110,7 +110,7 @@ function run_test_2() {
     do_check_true(a1.isActive);
     do_check_eq(a1.scope, AddonManager.SCOPE_PROFILE);
 
-    do_execute_soon(run_test_3);
+    run_test_3();
   });
 }
 
@@ -125,7 +125,7 @@ function run_test_3() {
     do_check_eq(a1.scope, AddonManager.SCOPE_PROFILE);
     do_check_false(a1.foreignInstall);
 
-    do_execute_soon(run_test_4);
+    run_test_4();
   });
 }
 
@@ -143,13 +143,13 @@ function run_test_4() {
     do_check_true(a1.isActive);
     do_check_eq(a1.scope, AddonManager.SCOPE_PROFILE);
 
-    do_execute_soon(run_test_5);
+    run_test_5();
   });
 }
 
 // Tests that after uninstalling a restart doesn't re-install the extension
 function run_test_5() {
-  AddonManager.getAddonByID("addon1@tests.mozilla.org", callback_soon(function(a1) {
+  AddonManager.getAddonByID("addon1@tests.mozilla.org", function(a1) {
     a1.uninstall();
 
     restartManager();
@@ -157,9 +157,9 @@ function run_test_5() {
     AddonManager.getAddonByID("addon1@tests.mozilla.org", function(a1) {
       do_check_eq(a1, null);
 
-      do_execute_soon(run_test_6);
+      run_test_6();
     });
-  }));
+  });
 }
 
 // Tests that upgrading the application still doesn't re-install the uninstalled
@@ -170,7 +170,7 @@ function run_test_6() {
   AddonManager.getAddonByID("addon1@tests.mozilla.org", function(a1) {
     do_check_eq(a1, null);
 
-    do_execute_soon(run_test_7);
+    run_test_7();
   });
 }
 
@@ -189,7 +189,9 @@ function run_test_7() {
       do_check_eq(a1.scope, AddonManager.SCOPE_PROFILE);
 
       a1.uninstall();
-      do_execute_soon(run_test_8);
+      restartManager();
+
+      run_test_8();
     });
   });
 }
@@ -197,8 +199,6 @@ function run_test_7() {
 // Tests that a pending install of a older version of a distributed add-on
 // at app change gets replaced by the distributed version
 function run_test_8() {
-  restartManager();
-
   writeInstallRDFForExtension(addon1_3, distroDir);
 
   installAllFiles([do_get_addon("test_distribution1_2")], function() {
@@ -211,7 +211,9 @@ function run_test_8() {
       do_check_eq(a1.scope, AddonManager.SCOPE_PROFILE);
 
       a1.uninstall();
-      do_execute_soon(run_test_9);
+      restartManager();
+
+      run_test_9();
     });
   });
 }
@@ -219,8 +221,6 @@ function run_test_8() {
 // Tests that bootstrapped add-ons distributed start up correctly, also that
 // add-ons with multiple directories get copied fully
 function run_test_9() {
-  restartManager();
-
   // Copy the test add-on to the distro dir
   let addon = do_get_file("data/test_distribution2_2");
   addon.copyTo(distroDir, "addon2@tests.mozilla.org");
@@ -257,6 +257,6 @@ function run_test_9() {
 
     a2.uninstall();
 
-    do_execute_soon(do_test_finished);
+    do_test_finished();
   });
 }

@@ -12,6 +12,7 @@
 #include "nsGkAtoms.h"
 #include "nsCSSRendering.h"
 #include "nsIContent.h"
+#include "nsIDOMHTMLTableColElement.h"
 
 #define COL_TYPE_BITS                 (NS_FRAME_STATE_BIT(28) | \
                                        NS_FRAME_STATE_BIT(29) | \
@@ -47,8 +48,7 @@ nsTableColFrame::SetColType(nsTableColType aType)
                 GetPrevContinuation()->GetNextSibling() == this),
                "spanned content cols must be continuations");
   uint32_t type = aType - eColContent;
-  RemoveStateBits(COL_TYPE_BITS);
-  AddStateBits(nsFrameState(type << COL_TYPE_OFFSET));
+  mState |= (type << COL_TYPE_OFFSET);
 }
 
 /* virtual */ void
@@ -61,7 +61,7 @@ nsTableColFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
      
   nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
   if (tableFrame->IsBorderCollapse() &&
-      tableFrame->BCRecalcNeeded(aOldStyleContext, StyleContext())) {
+      tableFrame->BCRecalcNeeded(aOldStyleContext, GetStyleContext())) {
     nsIntRect damageArea(GetColIndex(), 0, 1, tableFrame->GetRowCount());
     tableFrame->AddBCDamageArea(damageArea);
   }
@@ -85,16 +85,16 @@ void nsTableColFrame::SetContinuousBCBorderWidth(uint8_t     aForSide,
   }
 }
 
-void
-nsTableColFrame::Reflow(nsPresContext*          aPresContext,
+NS_METHOD nsTableColFrame::Reflow(nsPresContext*          aPresContext,
                                   nsHTMLReflowMetrics&     aDesiredSize,
                                   const nsHTMLReflowState& aReflowState,
                                   nsReflowStatus&          aStatus)
 {
   DO_GLOBAL_REFLOW_COUNT("nsTableColFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
-  aDesiredSize.ClearSize();
-  const nsStyleVisibility* colVis = StyleVisibility();
+  aDesiredSize.width=0;
+  aDesiredSize.height=0;
+  const nsStyleVisibility* colVis = GetStyleVisibility();
   bool collapseCol = (NS_STYLE_VISIBILITY_COLLAPSE == colVis->mVisible);
   if (collapseCol) {
     nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
@@ -102,11 +102,12 @@ nsTableColFrame::Reflow(nsPresContext*          aPresContext,
   }
   aStatus = NS_FRAME_COMPLETE;
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
+  return NS_OK;
 }
 
 int32_t nsTableColFrame::GetSpan()
 {
-  return StyleTable()->mSpan;
+  return GetStyleTable()->mSpan;
 }
 
 #ifdef DEBUG
@@ -175,8 +176,8 @@ nsTableColFrame::GetType() const
   return nsGkAtoms::tableColFrame;
 }
 
-#ifdef DEBUG_FRAME_DUMP
-nsresult
+#ifdef DEBUG
+NS_IMETHODIMP
 nsTableColFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("TableCol"), aResult);
@@ -187,23 +188,5 @@ nsSplittableType
 nsTableColFrame::GetSplittableType() const
 {
   return NS_FRAME_NOT_SPLITTABLE;
-}
-
-void
-nsTableColFrame::InvalidateFrame(uint32_t aDisplayItemKey)
-{
-  nsIFrame::InvalidateFrame(aDisplayItemKey);
-  GetParent()->InvalidateFrameWithRect(GetVisualOverflowRect() + GetPosition(), aDisplayItemKey);
-}
-
-void
-nsTableColFrame::InvalidateFrameWithRect(const nsRect& aRect, uint32_t aDisplayItemKey)
-{
-  nsIFrame::InvalidateFrameWithRect(aRect, aDisplayItemKey);
-
-  // If we have filters applied that would affects our bounds, then
-  // we get an inactive layer created and this is computed
-  // within FrameLayerBuilder
-  GetParent()->InvalidateFrameWithRect(aRect + GetPosition(), aDisplayItemKey);
 }
 

@@ -15,11 +15,12 @@
 #include "nsINavHistoryService.h"
 #include "nsPrintfCString.h"
 #include "nsNavHistory.h"
-#include "mozilla/Likely.h"
+#if defined(XP_OS2)
+#include "nsIRandomGenerator.h"
+#endif
+#include "mozilla/Telemetry.h"
 
 using namespace mozilla::storage;
-
-// Keep the GUID-related parts of this file in sync with toolkit/downloads/SQLFunctions.cpp!
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Anonymous Helpers
@@ -43,7 +44,7 @@ namespace {
    * @return a pointer to the next word boundary after aStart
    */
   static
-  MOZ_ALWAYS_INLINE const_char_iterator
+  NS_ALWAYS_INLINE const_char_iterator
   nextWordBoundary(const_char_iterator const aStart,
                    const_char_iterator const aNext,
                    const_char_iterator const aEnd) {
@@ -75,7 +76,7 @@ namespace {
    * findAnywhere and findOnBoundary do almost the same thing, so it's natural
    * to implement them in terms of a single function.  They're both
    * performance-critical functions, however, and checking aBehavior makes them
-   * a bit slower.  Our solution is to define findInString as MOZ_ALWAYS_INLINE
+   * a bit slower.  Our solution is to define findInString as NS_ALWAYS_INLINE
    * and rely on the compiler to optimize out the aBehavior check.
    *
    * @param aToken
@@ -90,7 +91,7 @@ namespace {
    * @return true if aToken was found in aSourceString, false otherwise.
    */
   static
-  MOZ_ALWAYS_INLINE bool
+  NS_ALWAYS_INLINE bool
   findInString(const nsDependentCSubstring &aToken,
                const nsACString &aSourceString,
                FindInStringBehavior aBehavior)
@@ -150,7 +151,7 @@ namespace {
       }
 
       // If something went wrong above, get out of here!
-      if (MOZ_UNLIKELY(error)) {
+      if (NS_UNLIKELY(error)) {
         return false;
       }
 
@@ -180,10 +181,6 @@ namespace places {
 
   //////////////////////////////////////////////////////////////////////////////
   //// MatchAutoCompleteFunction
-
-  MatchAutoCompleteFunction::~MatchAutoCompleteFunction()
-  {
-  }
 
   /* static */
   nsresult
@@ -318,7 +315,7 @@ namespace places {
     };
   }
 
-  NS_IMPL_ISUPPORTS(
+  NS_IMPL_THREADSAFE_ISUPPORTS1(
     MatchAutoCompleteFunction,
     mozIStorageFunction
   )
@@ -336,7 +333,7 @@ namespace places {
     #define HAS_BEHAVIOR(aBitName) \
       (searchBehavior & mozIPlacesAutoComplete::BEHAVIOR_##aBitName)
 
-    nsAutoCString searchString;
+    nsCAutoString searchString;
     (void)aArguments->GetUTF8String(kArgSearchString, searchString);
     nsCString url;
     (void)aArguments->GetUTF8String(kArgIndexURL, url);
@@ -356,28 +353,19 @@ namespace places {
     int32_t visitCount = aArguments->AsInt32(kArgIndexVisitCount);
     bool typed = aArguments->AsInt32(kArgIndexTyped) ? true : false;
     bool bookmark = aArguments->AsInt32(kArgIndexBookmark) ? true : false;
-    nsAutoCString tags;
+    nsCAutoString tags;
     (void)aArguments->GetUTF8String(kArgIndexTags, tags);
     int32_t openPageCount = aArguments->AsInt32(kArgIndexOpenPageCount);
-    bool matches = false;
-    if (HAS_BEHAVIOR(RESTRICT)) {
-      // Make sure we match all the filter requirements.  If a given restriction
-      // is active, make sure the corresponding condition is not true.
-      matches = (!HAS_BEHAVIOR(HISTORY) || visitCount > 0) &&
-                (!HAS_BEHAVIOR(TYPED) || typed) &&
-                (!HAS_BEHAVIOR(BOOKMARK) || bookmark) &&
-                (!HAS_BEHAVIOR(TAG) || !tags.IsVoid()) &&
-                (!HAS_BEHAVIOR(OPENPAGE) || openPageCount > 0);
-    } else {
-      // Make sure that we match all the filter requirements and that the
-      // corresponding condition is true if at least a given restriction is active.
-      matches = (HAS_BEHAVIOR(HISTORY) && visitCount > 0) ||
-                (HAS_BEHAVIOR(TYPED) && typed) ||
-                (HAS_BEHAVIOR(BOOKMARK) && bookmark) ||
-                (HAS_BEHAVIOR(TAG) && !tags.IsVoid()) ||
-                (HAS_BEHAVIOR(OPENPAGE) && openPageCount > 0);
-    }
 
+    // Make sure we match all the filter requirements.  If a given restriction
+    // is active, make sure the corresponding condition is not true.
+    bool matches = !(
+      (HAS_BEHAVIOR(HISTORY) && visitCount == 0) ||
+      (HAS_BEHAVIOR(TYPED) && !typed) ||
+      (HAS_BEHAVIOR(BOOKMARK) && !bookmark) ||
+      (HAS_BEHAVIOR(TAG) && tags.IsVoid()) ||
+      (HAS_BEHAVIOR(OPENPAGE) && openPageCount == 0)
+    );
     if (!matches) {
       NS_ADDREF(*_result = new IntegerVariant(0));
       return NS_OK;
@@ -390,7 +378,7 @@ namespace places {
     nsCString fixedURI;
     fixupURISpec(url, matchBehavior, fixedURI);
 
-    nsAutoCString title;
+    nsCAutoString title;
     (void)aArguments->GetUTF8String(kArgIndexTitle, title);
 
     // Determine if every token matches either the bookmark title, tags, page
@@ -428,10 +416,6 @@ namespace places {
   //////////////////////////////////////////////////////////////////////////////
   //// CalculateFrecencyFunction
 
-  CalculateFrecencyFunction::~CalculateFrecencyFunction()
-  {
-  }
-
   /* static */
   nsresult
   CalculateFrecencyFunction::create(mozIStorageConnection *aDBConn)
@@ -447,7 +431,7 @@ namespace places {
     return NS_OK;
   }
 
-  NS_IMPL_ISUPPORTS(
+  NS_IMPL_THREADSAFE_ISUPPORTS1(
     CalculateFrecencyFunction,
     mozIStorageFunction
   )
@@ -464,6 +448,8 @@ namespace places {
     nsresult rv = aArguments->GetNumEntries(&numEntries);
     NS_ENSURE_SUCCESS(rv, rv);
     NS_ASSERTION(numEntries > 0, "unexpected number of arguments");
+
+    Telemetry::AutoTimer<Telemetry::PLACES_FRECENCY_CALC_TIME_MS> timer;
 
     int64_t pageId = aArguments->AsInt64(0);
     int32_t typed = numEntries > 1 ? aArguments->AsInt32(1) : 0;
@@ -622,10 +608,6 @@ namespace places {
 ////////////////////////////////////////////////////////////////////////////////
 //// GUID Creation Function
 
-  GenerateGUIDFunction::~GenerateGUIDFunction()
-  {
-  }
-
   //////////////////////////////////////////////////////////////////////////////
   //// GenerateGUIDFunction
 
@@ -633,6 +615,15 @@ namespace places {
   nsresult
   GenerateGUIDFunction::create(mozIStorageConnection *aDBConn)
   {
+#if defined(XP_OS2)
+    // We need this service to be initialized on the main thread because it is
+    // not threadsafe.  We are about to use it asynchronously, so initialize it
+    // now.
+    nsCOMPtr<nsIRandomGenerator> rg =
+      do_GetService("@mozilla.org/security/random-generator;1");
+    NS_ENSURE_STATE(rg);
+#endif
+
     nsRefPtr<GenerateGUIDFunction> function = new GenerateGUIDFunction();
     nsresult rv = aDBConn->CreateFunction(
       NS_LITERAL_CSTRING("generate_guid"), 0, function
@@ -642,7 +633,7 @@ namespace places {
     return NS_OK;
   }
 
-  NS_IMPL_ISUPPORTS(
+  NS_IMPL_THREADSAFE_ISUPPORTS1(
     GenerateGUIDFunction,
     mozIStorageFunction
   )
@@ -654,7 +645,7 @@ namespace places {
   GenerateGUIDFunction::OnFunctionCall(mozIStorageValueArray *aArguments,
                                        nsIVariant **_result)
   {
-    nsAutoCString guid;
+    nsCAutoString guid;
     nsresult rv = GenerateGUID(guid);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -664,10 +655,6 @@ namespace places {
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Get Unreversed Host Function
-
-  GetUnreversedHostFunction::~GetUnreversedHostFunction()
-  {
-  }
 
   //////////////////////////////////////////////////////////////////////////////
   //// GetUnreversedHostFunction
@@ -685,7 +672,7 @@ namespace places {
     return NS_OK;
   }
 
-  NS_IMPL_ISUPPORTS(
+  NS_IMPL_THREADSAFE_ISUPPORTS1(
     GetUnreversedHostFunction,
     mozIStorageFunction
   )
@@ -723,10 +710,6 @@ namespace places {
 ////////////////////////////////////////////////////////////////////////////////
 //// Fixup URL Function
 
-  FixupURLFunction::~FixupURLFunction()
-  {
-  }
-
   //////////////////////////////////////////////////////////////////////////////
   //// FixupURLFunction
 
@@ -743,7 +726,7 @@ namespace places {
     return NS_OK;
   }
 
-  NS_IMPL_ISUPPORTS(
+  NS_IMPL_THREADSAFE_ISUPPORTS1(
     FixupURLFunction,
     mozIStorageFunction
   )
@@ -771,68 +754,6 @@ namespace places {
     }
 
     result->SetAsAString(src);
-    NS_ADDREF(*_result = result);
-    return NS_OK;
-  }
-
-////////////////////////////////////////////////////////////////////////////////
-//// Frecency Changed Notification Function
-
-  FrecencyNotificationFunction::~FrecencyNotificationFunction()
-  {
-  }
-
-  /* static */
-  nsresult
-  FrecencyNotificationFunction::create(mozIStorageConnection *aDBConn)
-  {
-    nsRefPtr<FrecencyNotificationFunction> function =
-      new FrecencyNotificationFunction();
-    nsresult rv = aDBConn->CreateFunction(
-      NS_LITERAL_CSTRING("notify_frecency"), 5, function
-    );
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    return NS_OK;
-  }
-
-  NS_IMPL_ISUPPORTS(
-    FrecencyNotificationFunction,
-    mozIStorageFunction
-  )
-
-  NS_IMETHODIMP
-  FrecencyNotificationFunction::OnFunctionCall(mozIStorageValueArray *aArgs,
-                                               nsIVariant **_result)
-  {
-    uint32_t numArgs;
-    nsresult rv = aArgs->GetNumEntries(&numArgs);
-    NS_ENSURE_SUCCESS(rv, rv);
-    MOZ_ASSERT(numArgs == 5);
-
-    int32_t newFrecency = aArgs->AsInt32(0);
-
-    nsAutoCString spec;
-    rv = aArgs->GetUTF8String(1, spec);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    nsAutoCString guid;
-    rv = aArgs->GetUTF8String(2, guid);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    bool hidden = static_cast<bool>(aArgs->AsInt32(3));
-    PRTime lastVisitDate = static_cast<PRTime>(aArgs->AsInt64(4));
-
-    const nsNavHistory* navHistory = nsNavHistory::GetConstHistoryService();
-    NS_ENSURE_STATE(navHistory);
-    navHistory->DispatchFrecencyChangedNotification(spec, newFrecency, guid,
-                                                    hidden, lastVisitDate);
-
-    nsCOMPtr<nsIWritableVariant> result =
-      do_CreateInstance("@mozilla.org/variant;1");
-    NS_ENSURE_STATE(result);
-    rv = result->SetAsInt32(newFrecency);
-    NS_ENSURE_SUCCESS(rv, rv);
     NS_ADDREF(*_result = result);
     return NS_OK;
   }

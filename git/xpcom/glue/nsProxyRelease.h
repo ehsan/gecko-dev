@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 3; indent-tabs-mode: nil; c-basic-offset: 3 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -8,11 +7,9 @@
 #define nsProxyRelease_h__
 
 #include "nsIEventTarget.h"
-#include "nsIThread.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
-#include "MainThreadUtils.h"
-#include "mozilla/Likely.h"
+#include "nsThreadUtils.h"
 
 #ifdef XPCOM_GLUE_AVOID_NSPR
 #error NS_ProxyRelease implementation depends on NSPR.
@@ -23,14 +20,14 @@
  *
  * @see NS_ProxyRelease(nsIEventTarget*, nsISupports*, bool)
  */
-template<class T>
+template <class T>
 inline NS_HIDDEN_(nsresult)
-NS_ProxyRelease(nsIEventTarget* aTarget, nsCOMPtr<T>& aDoomed,
-                bool aAlwaysProxy = false)
+NS_ProxyRelease
+    (nsIEventTarget *target, nsCOMPtr<T> &doomed, bool alwaysProxy=false)
 {
-  T* raw = nullptr;
-  aDoomed.swap(raw);
-  return NS_ProxyRelease(aTarget, raw, aAlwaysProxy);
+   T* raw = nullptr;
+   doomed.swap(raw);
+   return NS_ProxyRelease(target, raw, alwaysProxy);
 }
 
 /**
@@ -38,32 +35,32 @@ NS_ProxyRelease(nsIEventTarget* aTarget, nsCOMPtr<T>& aDoomed,
  *
  * @see NS_ProxyRelease(nsIEventTarget*, nsISupports*, bool)
  */
-template<class T>
+template <class T>
 inline NS_HIDDEN_(nsresult)
-NS_ProxyRelease(nsIEventTarget* aTarget, nsRefPtr<T>& aDoomed,
-                bool aAlwaysProxy = false)
+NS_ProxyRelease
+    (nsIEventTarget *target, nsRefPtr<T> &doomed, bool alwaysProxy=false)
 {
-  T* raw = nullptr;
-  aDoomed.swap(raw);
-  return NS_ProxyRelease(aTarget, raw, aAlwaysProxy);
+   T* raw = nullptr;
+   doomed.swap(raw);
+   return NS_ProxyRelease(target, raw, alwaysProxy);
 }
 
 /**
  * Ensures that the delete of a nsISupports object occurs on the target thread.
  *
- * @param aTarget
+ * @param target
  *        the target thread where the doomed object should be released.
- * @param aDoomed
+ * @param doomed
  *        the doomed object; the object to be released on the target thread.
- * @param aAlwaysProxy
+ * @param alwaysProxy
  *        normally, if NS_ProxyRelease is called on the target thread, then the
  *        doomed object will released directly.  however, if this parameter is
  *        true, then an event will always be posted to the target thread for
  *        asynchronous release.
  */
-nsresult
-NS_ProxyRelease(nsIEventTarget* aTarget, nsISupports* aDoomed,
-                bool aAlwaysProxy = false);
+NS_COM_GLUE nsresult
+NS_ProxyRelease
+    (nsIEventTarget *target, nsISupports *doomed, bool alwaysProxy=false);
 
 /**
  * Class to safely handle main-thread-only pointers off the main thread.
@@ -104,33 +101,23 @@ NS_ProxyRelease(nsIEventTarget* aTarget, nsISupports* aDoomed,
  * an nsMainThreadPtrHandle<T> rather than an nsCOMPtr<T>.
  */
 template<class T>
-class nsMainThreadPtrHolder MOZ_FINAL
+class nsMainThreadPtrHolder
 {
 public:
-  // We can only acquire a pointer on the main thread. We to fail fast for
-  // threading bugs, so by default we assert if our pointer is used or acquired
-  // off-main-thread. But some consumers need to use the same pointer for
-  // multiple classes, some of which are main-thread-only and some of which
-  // aren't. So we allow them to explicitly disable this strict checking.
-  explicit nsMainThreadPtrHolder(T* aPtr, bool aStrict = true)
-    : mRawPtr(nullptr)
-    , mStrict(aStrict)
-  {
+  // We can only acquire a pointer on the main thread.
+  nsMainThreadPtrHolder(T* ptr) : mRawPtr(NULL) {
     // We can only AddRef our pointer on the main thread, which means that the
     // holder must be constructed on the main thread.
-    MOZ_ASSERT(!mStrict || NS_IsMainThread());
-    NS_IF_ADDREF(mRawPtr = aPtr);
+    MOZ_ASSERT(NS_IsMainThread());
+    NS_IF_ADDREF(mRawPtr = ptr);
   }
 
-private:
   // We can be released on any thread.
-  ~nsMainThreadPtrHolder()
-  {
+  ~nsMainThreadPtrHolder() {
     if (NS_IsMainThread()) {
       NS_IF_RELEASE(mRawPtr);
-    } else if (mRawPtr) {
-      nsCOMPtr<nsIThread> mainThread;
-      NS_GetMainThread(getter_AddRefs(mainThread));
+    } else {
+      nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
       if (!mainThread) {
         NS_WARNING("Couldn't get main thread! Leaking pointer.");
         return;
@@ -139,99 +126,54 @@ private:
     }
   }
 
-public:
-  T* get()
-  {
+  T* get() {
     // Nobody should be touching the raw pointer off-main-thread.
-    if (mStrict && MOZ_UNLIKELY(!NS_IsMainThread())) {
-      NS_ERROR("Can't dereference nsMainThreadPtrHolder off main thread");
+    if (NS_UNLIKELY(!NS_IsMainThread()))
       MOZ_CRASH();
-    }
     return mRawPtr;
   }
 
-  bool operator==(const nsMainThreadPtrHolder<T>& aOther) const
-  {
-    return mRawPtr == aOther.mRawPtr;
-  }
-  bool operator!() const
-  {
-    return !mRawPtr;
-  }
-
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(nsMainThreadPtrHolder<T>)
+  NS_IMETHOD_(nsrefcnt) Release();
+  NS_IMETHOD_(nsrefcnt) AddRef();
 
 private:
+  // This class is threadsafe and reference-counted.
+  nsAutoRefCnt mRefCnt;
+
   // Our wrapped pointer.
   T* mRawPtr;
 
-  // Whether to strictly enforce thread invariants in this class.
-  bool mStrict;
-
   // Copy constructor and operator= not implemented. Once constructed, the
   // holder is immutable.
-  T& operator=(nsMainThreadPtrHolder& aOther);
-  nsMainThreadPtrHolder(const nsMainThreadPtrHolder& aOther);
+  T& operator=(nsMainThreadPtrHolder& other);
+  nsMainThreadPtrHolder(const nsMainThreadPtrHolder& other);
 };
+
+template<class T>
+NS_IMPL_THREADSAFE_ADDREF(nsMainThreadPtrHolder<T>)
+template<class T>
+NS_IMPL_THREADSAFE_RELEASE(nsMainThreadPtrHolder<T>)
 
 template<class T>
 class nsMainThreadPtrHandle
 {
-  nsRefPtr<nsMainThreadPtrHolder<T>> mPtr;
+  nsRefPtr<nsMainThreadPtrHolder<T> > mPtr;
 
-public:
-  nsMainThreadPtrHandle() : mPtr(nullptr) {}
-  explicit nsMainThreadPtrHandle(nsMainThreadPtrHolder<T>* aHolder)
-    : mPtr(aHolder)
-  {
-  }
-  nsMainThreadPtrHandle(const nsMainThreadPtrHandle& aOther)
-    : mPtr(aOther.mPtr)
-  {
-  }
-  nsMainThreadPtrHandle& operator=(const nsMainThreadPtrHandle& aOther)
-  {
+  public:
+  nsMainThreadPtrHandle(nsMainThreadPtrHolder<T> *aHolder) : mPtr(aHolder) {}
+  nsMainThreadPtrHandle(const nsMainThreadPtrHandle& aOther) : mPtr(aOther.mPtr) {}
+  nsMainThreadPtrHandle& operator=(const nsMainThreadPtrHandle& aOther) {
     mPtr = aOther.mPtr;
-    return *this;
   }
-  nsMainThreadPtrHandle& operator=(nsMainThreadPtrHolder<T>* aHolder)
-  {
-    mPtr = aHolder;
-    return *this;
-  }
+
+  operator nsMainThreadPtrHolder<T>*() { return mPtr.get(); }
 
   // These all call through to nsMainThreadPtrHolder, and thus implicitly
   // assert that we're on the main thread. Off-main-thread consumers must treat
   // these handles as opaque.
-  T* get()
-  {
-    if (mPtr) {
-      return mPtr.get()->get();
-    }
-    return nullptr;
-  }
-  const T* get() const
-  {
-    if (mPtr) {
-      return mPtr.get()->get();
-    }
-    return nullptr;
-  }
-
+  T* get() { return mPtr.get()->get(); }
   operator T*() { return get(); }
   T* operator->() { return get(); }
-
-  // These are safe to call on other threads with appropriate external locking.
-  bool operator==(const nsMainThreadPtrHandle<T>& aOther) const
-  {
-    if (!mPtr || !aOther.mPtr) {
-      return mPtr == aOther.mPtr;
-    }
-    return *mPtr == *aOther.mPtr;
-  }
-  bool operator!() const {
-    return !mPtr || !*mPtr;
-  }
 };
 
 #endif

@@ -2,16 +2,23 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 "use strict";
 
-let {devtools} = Components.utils.import("resource://gre/modules/devtools/Loader.jsm", {});
-let TiltManager = devtools.require("devtools/tilt/tilt").TiltManager;
-let TiltGL = devtools.require("devtools/tilt/tilt-gl");
-let {EPSILON, TiltMath, vec3, mat3, mat4, quat4} = devtools.require("devtools/tilt/tilt-math");
-let TiltUtils = devtools.require("devtools/tilt/tilt-utils");
-let {TiltVisualizer} = devtools.require("devtools/tilt/tilt-visualizer");
-
 let tempScope = {};
-Components.utils.import("resource://gre/modules/devtools/LayoutHelpers.jsm", tempScope);
+Components.utils.import("resource:///modules/devtools/TiltGL.jsm", tempScope);
+Components.utils.import("resource:///modules/devtools/TiltMath.jsm", tempScope);
+Components.utils.import("resource:///modules/devtools/TiltUtils.jsm", tempScope);
+Components.utils.import("resource:///modules/devtools/TiltVisualizer.jsm", tempScope);
+Components.utils.import("resource:///modules/devtools/LayoutHelpers.jsm", tempScope);
+let TiltGL = tempScope.TiltGL;
+let EPSILON = tempScope.EPSILON;
+let TiltMath = tempScope.TiltMath;
+let vec3 = tempScope.vec3;
+let mat3 = tempScope.mat3;
+let mat4 = tempScope.mat4;
+let quat4 = tempScope.quat4;
+let TiltUtils = tempScope.TiltUtils;
+let TiltVisualizer = tempScope.TiltVisualizer;
 let LayoutHelpers = tempScope.LayoutHelpers;
+
 
 const DEFAULT_HTML = "data:text/html," +
   "<DOCTYPE html>" +
@@ -39,9 +46,9 @@ const DEFAULT_HTML = "data:text/html," +
     "<body>" +
   "</html>";
 
-let Tilt = TiltManager.getTiltForBrowser(window);
+const INSPECTOR_OPENED = InspectorUI.INSPECTOR_NOTIFICATIONS.OPENED;
+const INSPECTOR_CLOSED = InspectorUI.INSPECTOR_NOTIFICATIONS.CLOSED;
 
-const STARTUP = Tilt.NOTIFICATIONS.STARTUP;
 const INITIALIZING = Tilt.NOTIFICATIONS.INITIALIZING;
 const INITIALIZED = Tilt.NOTIFICATIONS.INITIALIZED;
 const DESTROYING = Tilt.NOTIFICATIONS.DESTROYING;
@@ -54,15 +61,14 @@ const UNHIGHLIGHTING = Tilt.NOTIFICATIONS.UNHIGHLIGHTING;
 const NODE_REMOVED = Tilt.NOTIFICATIONS.NODE_REMOVED;
 
 const TILT_ENABLED = Services.prefs.getBoolPref("devtools.tilt.enabled");
+const INSP_ENABLED = Services.prefs.getBoolPref("devtools.inspector.enabled");
 
-gDevTools.testing = true;
-SimpleTest.registerCleanupFunction(() => {
-  gDevTools.testing = false;
-});
 
 function isTiltEnabled() {
-  info("Apparently, Tilt is" + (TILT_ENABLED ? "" : " not") + " enabled.");
-  return TILT_ENABLED;
+  let enabled = TILT_ENABLED && INSP_ENABLED;
+
+  info("Apparently, Tilt is" + (enabled ? "" : " not") + " enabled.");
+  return enabled;
 }
 
 function isWebGLSupported() {
@@ -140,14 +146,30 @@ function createTilt(callbacks, close, suddenDeath) {
                    ", autoclose param " + close +
           ", and sudden death handler " + typeof suddenDeath + ".");
 
-  handleFailure(suddenDeath);
-
   Services.prefs.setBoolPref("webgl.verbose", true);
   TiltUtils.Output.suppressAlerts = true;
 
-  info("Attempting to start Tilt.");
-  Services.obs.addObserver(onTiltOpen, INITIALIZING, false);
-  Tilt.toggle();
+  info("Attempting to start the inspector.");
+  Services.obs.addObserver(onInspectorOpen, INSPECTOR_OPENED, false);
+  InspectorUI.toggleInspectorUI();
+
+  function onInspectorOpen() {
+    info("Inspector was opened.");
+    Services.obs.removeObserver(onInspectorOpen, INSPECTOR_OPENED);
+
+    executeSoon(function() {
+      if ("function" === typeof callbacks.onInspectorOpen) {
+        info("Calling 'onInspectorOpen'.");
+        callbacks.onInspectorOpen();
+      }
+      executeSoon(function() {
+        info("Attempting to start Tilt.");
+        Services.obs.addObserver(onTiltOpen, INITIALIZING, false);
+        handleFailure(suddenDeath);
+        Tilt.initialize();
+      });
+    });
+  }
 
   function onTiltOpen() {
     info("Tilt was opened.");
@@ -176,6 +198,25 @@ function createTilt(callbacks, close, suddenDeath) {
       if ("function" === typeof callbacks.onTiltClose) {
         info("Calling 'onTiltClose'.");
         callbacks.onTiltClose();
+      }
+      if (close) {
+        executeSoon(function() {
+          info("Attempting to close the Inspector.");
+          Services.obs.addObserver(onInspectorClose, INSPECTOR_CLOSED, false);
+          InspectorUI.closeInspectorUI();
+        });
+      }
+    });
+  }
+
+  function onInspectorClose() {
+    info("Inspector was closed.");
+    Services.obs.removeObserver(onInspectorClose, INSPECTOR_CLOSED);
+
+    executeSoon(function() {
+      if ("function" === typeof callbacks.onInspectorClose) {
+        info("Calling 'onInspectorClose'.");
+        callbacks.onInspectorClose();
       }
       if ("function" === typeof callbacks.onEnd) {
         info("Calling 'onEnd'.");
@@ -206,10 +247,4 @@ function getPickablePoint(presenter) {
   let viewport = [0, 0, renderer.width, renderer.height];
 
   return vec3.project(center, viewport, renderer.mvMatrix, renderer.projMatrix);
-}
-
-function aborting() {
-  // Tilt aborting and we need at least one pass, fail or todo so let's add a
-  // dummy pass.
-  ok(true, "Test aborted early.");
 }

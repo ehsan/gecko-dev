@@ -8,9 +8,8 @@
 #define dom_plugins_PluginUtilsOSX_h 1
 
 #include "npapi.h"
+#include "nsRect.h"
 #include "mozilla/gfx/QuartzSupport.h"
-
-struct nsIntRect;
 
 namespace mozilla {
 namespace plugins {
@@ -26,8 +25,7 @@ void InvokeNativeEventLoop();
 // Need to call back and send a cocoa draw event to the plugin.
 typedef void (*DrawPluginFunc) (CGContextRef, void*, nsIntRect aUpdateRect);
 
-void* GetCGLayer(DrawPluginFunc aFunc, void* aPluginInstance,
-                 bool aAvoidCGCrashes, double aContentsScaleFactor);
+void* GetCGLayer(DrawPluginFunc aFunc, void* aPluginInstance);
 void ReleaseCGLayer(void* cgLayer);
 void Repaint(void* cgLayer, nsIntRect aRect);
 
@@ -41,25 +39,13 @@ bool SetProcessName(const char* aProcessName);
  * The buffers can be initialized and cleared individually.
  * Swapping still occurs regardless if the buffers are initialized.
  */
-class nsDoubleBufferCARenderer {
+class THEBES_API nsDoubleBufferCARenderer {
 public:
-  nsDoubleBufferCARenderer() : mCALayer(nullptr), mContentsScaleFactor(1.0) {}
-  // Returns width in "display pixels".  A "display pixel" is the smallest
-  // fully addressable part of a display.  But in HiDPI modes each "display
-  // pixel" corresponds to more than one device pixel.  Multiply display pixels
-  // by mContentsScaleFactor to get device pixels.
+  nsDoubleBufferCARenderer() : mCALayer(nullptr) {}
   size_t GetFrontSurfaceWidth();
-  // Returns height in "display pixels".  Multiply by
-  // mContentsScaleFactor to get device pixels.
   size_t GetFrontSurfaceHeight();
-  double GetFrontSurfaceContentsScaleFactor();
-  // Returns width in "display pixels".  Multiply by
-  // mContentsScaleFactor to get device pixels.
   size_t GetBackSurfaceWidth();
-  // Returns height in "display pixels".  Multiply by
-  // mContentsScaleFactor to get device pixels.
   size_t GetBackSurfaceHeight();
-  double GetBackSurfaceContentsScaleFactor();
   IOSurfaceID GetFrontSurfaceID();
 
   bool HasBackSurface();
@@ -67,24 +53,17 @@ public:
   bool HasCALayer();
 
   void SetCALayer(void *aCALayer);
-  // aWidth and aHeight are in "display pixels".  Multiply by
-  // aContentsScaleFactor to get device pixels.
-  bool InitFrontSurface(size_t aWidth, size_t aHeight,
-                        double aContentsScaleFactor,
-                        AllowOfflineRendererEnum aAllowOfflineRenderer);
+  bool InitFrontSurface(size_t aWidth, size_t aHeight, AllowOfflineRendererEnum aAllowOfflineRenderer);
   void Render();
   void SwapSurfaces();
   void ClearFrontSurface();
   void ClearBackSurface();
-
-  double GetContentsScaleFactor() { return mContentsScaleFactor; }
 
 private:
   void *mCALayer;
   RefPtr<nsCARenderer> mCARenderer;
   RefPtr<MacIOSurface> mFrontSurface;
   RefPtr<MacIOSurface> mBackSurface;
-  double mContentsScaleFactor;
 };
 
 } // namespace PluginUtilsOSX

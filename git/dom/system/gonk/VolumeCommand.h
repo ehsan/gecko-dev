@@ -6,7 +6,6 @@
 #define mozilla_system_volumecommand_h__
 
 #include "nsString.h"
-#include "nsISupportsImpl.h"
 #include "mozilla/RefPtr.h"
 #include <algorithm>
 #include <vold/ResponseCode.h>
@@ -33,15 +32,13 @@ class VolumeCommand;
 *
 ***************************************************************************/
 
-class VolumeResponseCallback
+class VolumeResponseCallback : public RefCounted<VolumeResponseCallback>
 {
-protected:
-  virtual ~VolumeResponseCallback() {}
-
 public:
-  NS_INLINE_DECL_REFCOUNTING(VolumeResponseCallback)
   VolumeResponseCallback()
     : mResponseCode(0), mPending(false) {}
+
+  virtual ~VolumeResponseCallback() {}
 
   bool Done() const
   {
@@ -62,23 +59,17 @@ public:
   const nsCString  &ResponseStr() const   { return mResponseStr; }
 
 protected:
-  virtual void ResponseReceived(const VolumeCommand* aCommand) = 0;
+  virtual void ResponseReceived(const VolumeCommand *aCommand) = 0;
 
 private:
   friend  class VolumeCommand;  // Calls HandleResponse and SetPending
 
-  void HandleResponse(const VolumeCommand* aCommand,
+  void HandleResponse(const VolumeCommand *aCommand,
                       int aResponseCode,
-                      nsACString& aResponseStr)
+                      nsACString &aResponseStr)
   {
     mResponseCode = aResponseCode;
-#if ANDROID_VERSION >= 17
-    // There's a sequence number here that we don't care about
-    // We expect it to be 0. See VolumeCommand::SetCmd
-    mResponseStr = Substring(aResponseStr, 2);
-#else
     mResponseStr = aResponseStr;
-#endif
     if (mResponseCode >= ResponseCode::CommandOkay) {
       // This is a final response.
       mPending = false;
@@ -108,44 +99,35 @@ private:
 *
 ***************************************************************************/
 
-class VolumeCommand
+class VolumeCommand : public RefCounted<VolumeCommand>
 {
-protected:
-  virtual ~VolumeCommand() {}
-
 public:
-  NS_INLINE_DECL_REFCOUNTING(VolumeCommand)
-
-  VolumeCommand(VolumeResponseCallback* aCallback)
+  VolumeCommand(VolumeResponseCallback *aCallback)
     : mBytesConsumed(0),
       mCallback(aCallback)
   {
     SetCmd(NS_LITERAL_CSTRING(""));
   }
 
-  VolumeCommand(const nsACString& aCommand, VolumeResponseCallback* aCallback)
+  VolumeCommand(const nsACString &aCommand, VolumeResponseCallback *aCallback)
     : mBytesConsumed(0),
       mCallback(aCallback)
   {
     SetCmd(aCommand);
   }
 
-  void SetCmd(const nsACString& aCommand)
+  virtual ~VolumeCommand() {}
+
+  void SetCmd(const nsACString &aCommand)
   {
-    mCmd.Truncate();
-#if ANDROID_VERSION >= 17
-    // JB requires a sequence number at the beginning of messages.
-    // It doesn't matter what we use, so we use 0.
-    mCmd = "0 ";
-#endif
-    mCmd.Append(aCommand);
+    mCmd = aCommand;
     // Add a null character. We want this to be included in the length since
     // vold uses it to determine the end of the command.
     mCmd.Append('\0');
   }
 
-  const char* CmdStr() const    { return mCmd.get(); }
-  const char* Data() const      { return mCmd.Data() + mBytesConsumed; }
+  const char *CmdStr() const    { return mCmd.get(); }
+  const char *Data() const      { return mCmd.Data() + mBytesConsumed; }
   size_t BytesConsumed() const  { return mBytesConsumed; }
 
   size_t BytesRemaining() const
@@ -168,7 +150,7 @@ private:
     }
   }
 
-  void HandleResponse(int aResponseCode, nsACString& aResponseStr)
+  void HandleResponse(int aResponseCode, nsACString &aResponseStr)
   {
     if (mCallback) {
       mCallback->HandleResponse(this, aResponseCode, aResponseStr);
@@ -185,8 +167,8 @@ private:
 class VolumeActionCommand : public VolumeCommand
 {
 public:
-  VolumeActionCommand(Volume* aVolume, const char* aAction,
-                      const char* aExtraArgs, VolumeResponseCallback* aCallback);
+  VolumeActionCommand(Volume *aVolume, const char *aAction,
+                      const char *aExtraArgs, VolumeResponseCallback *aCallback);
 
 private:
   RefPtr<Volume>  mVolume;
@@ -195,7 +177,7 @@ private:
 class VolumeListCommand : public VolumeCommand
 {
 public:
-  VolumeListCommand(VolumeResponseCallback* aCallback);
+  VolumeListCommand(VolumeResponseCallback *aCallback);
 };
 
 } // system

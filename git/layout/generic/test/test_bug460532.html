@@ -19,6 +19,8 @@ lorem ipsum.
 <script class="testbody" type="text/javascript">
 
 function select_460532(){
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
   var content = document.getElementById('content');
   var node = content.firstChild;
 
@@ -34,7 +36,9 @@ function select_460532(){
 }
 
 function click_460532(){
-  var wu = SpecialPowers.getDOMWindowUtils(window);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var wu =  document.defaultView.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+               .getInterface(Components.interfaces.nsIDOMWindowUtils);
   var content = document.getElementById('content');
   var rect = content.getBoundingClientRect();
   wu.sendMouseEvent('mousedown', rect.left+5, rect.top+5, 0, 1, 0);

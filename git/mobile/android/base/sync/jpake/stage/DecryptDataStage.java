@@ -5,12 +5,15 @@
 package org.mozilla.gecko.sync.jpake.stage;
 
 import java.io.IOException;
+import java.io.Reader;
+import java.io.StringReader;
 import java.io.UnsupportedEncodingException;
 
 import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
-import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.ExtendedJSONObject;
+import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.NonObjectJSONException;
 import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.crypto.CryptoException;
@@ -55,12 +58,12 @@ public class DecryptDataStage extends JPakeStage {
       return;
     }
     try {
-      jClient.jCreds = ExtendedJSONObject.parseJSONObject(cleartext).object;
+      jClient.jCreds = getJSONObject(cleartext);
     } catch (IOException e) {
       Logger.error(LOG_TAG, "I/O exception while creating JSON object.", e);
       jClient.abort(Constants.JPAKE_ERROR_INVALID);
       return;
-    } catch (ParseException | NonObjectJSONException e) {
+    } catch (ParseException e) {
       Logger.error(LOG_TAG, "JSON parse error.", e);
       jClient.abort(Constants.JPAKE_ERROR_INVALID);
       return;
@@ -98,6 +101,20 @@ public class DecryptDataStage extends JPakeStage {
 
     CryptoInfo decrypted = CryptoInfo.decrypt(ciphertext, iv, hmac, keybundle);
     return decrypted.getMessage();
+  }
+
+  /**
+   *
+   * @param jsonString
+   *          String to be packaged as JSON object.
+   * @return JSONObject
+   * @throws ParseException
+   * @throws IOException
+   * @throws Exception
+   */
+  private JSONObject getJSONObject(String jsonString) throws IOException, ParseException{
+    final Reader in = new StringReader(jsonString);
+    return (JSONObject) new JSONParser().parse(in);
   }
 
   private boolean checkCredentials(JSONObject creds) {

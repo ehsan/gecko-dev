@@ -12,18 +12,23 @@
 #include <sys/types.h>
 
 #if defined(MALLOC_H)
-#  include MALLOC_H             // for memalign, valloc, malloc_size, malloc_usable_size
+#  include MALLOC_H             // for memalign, valloc where available
 #endif // if defined(MALLOC_H)
 #include <stddef.h>             // for size_t
 #include <stdlib.h>             // for malloc, free
 #if defined(XP_UNIX)
 #  include <unistd.h>           // for valloc on *BSD
 #endif //if defined(XP_UNIX)
+#if defined(__FreeBSD__)
+#  include <malloc_np.h>        // for malloc_usable_size
+#endif // if defined(__FreeBSD__)
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) || (defined(XP_OS2) && defined(__declspec))
 #  define MOZALLOC_EXPORT __declspec(dllexport)
 #endif
 
+// Make sure that "malloc" et al. resolve to their libc variants.
+#define MOZALLOC_DONT_DEFINE_MACRO_WRAPPERS
 #include "mozilla/mozalloc.h"
 #include "mozilla/mozalloc_oom.h"  // for mozalloc_handle_oom
 
@@ -32,7 +37,7 @@
 extern "C" size_t malloc_usable_size(const void *ptr);
 #endif
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && (__GNUC__ > 2)
 #define LIKELY(x)    (__builtin_expect(!!(x), 1))
 #define UNLIKELY(x)  (__builtin_expect(!!(x), 0))
 #else
@@ -208,7 +213,8 @@ moz_malloc_usable_size(void *ptr)
 
 #if defined(XP_MACOSX)
     return malloc_size(ptr);
-#elif defined(HAVE_MALLOC_USABLE_SIZE) || defined(MOZ_MEMORY)
+#elif defined(MOZ_MEMORY) || (defined(XP_LINUX) && !defined(ANDROID)) || defined(__FreeBSD__)
+    // Android bionic libc doesn't have malloc_usable_size.
     return malloc_usable_size(ptr);
 #elif defined(XP_WIN)
     return _msize(ptr);

@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -9,24 +8,24 @@
 
 using namespace mozilla;
 
-NS_IMPL_ISUPPORTS(nsScriptableBase64Encoder, nsIScriptableBase64Encoder)
+NS_IMPL_ISUPPORTS1(nsScriptableBase64Encoder, nsIScriptableBase64Encoder)
 
 /* ACString encodeToCString (in nsIInputStream stream, in unsigned long length); */
 NS_IMETHODIMP
-nsScriptableBase64Encoder::EncodeToCString(nsIInputStream* aStream,
+nsScriptableBase64Encoder::EncodeToCString(nsIInputStream *aStream,
                                            uint32_t aLength,
-                                           nsACString& aResult)
+                                           nsACString & _retval)
 {
-  Base64EncodeInputStream(aStream, aResult, aLength);
+  Base64EncodeInputStream(aStream, _retval, aLength);
   return NS_OK;
 }
 
 /* AString encodeToString (in nsIInputStream stream, in unsigned long length); */
 NS_IMETHODIMP
-nsScriptableBase64Encoder::EncodeToString(nsIInputStream* aStream,
+nsScriptableBase64Encoder::EncodeToString(nsIInputStream *aStream,
                                           uint32_t aLength,
-                                          nsAString& aResult)
+                                          nsAString & _retval)
 {
-  Base64EncodeInputStream(aStream, aResult, aLength);
+  Base64EncodeInputStream(aStream, _retval, aLength);
   return NS_OK;
 }

@@ -9,7 +9,6 @@
 #define __mozilla_widget_GfxInfo_h__
 
 #include "GfxInfoBase.h"
-#include "nsIGfxInfo2.h"
 
 #include "nsString.h"
 
@@ -31,7 +30,6 @@ public:
   NS_IMETHOD GetAdapterDriver(nsAString & aAdapterDriver);
   NS_IMETHOD GetAdapterVendorID(nsAString & aAdapterVendorID);
   NS_IMETHOD GetAdapterDeviceID(nsAString & aAdapterDeviceID);
-  NS_IMETHOD GetAdapterSubsysID(nsAString & aAdapterSubsysID);
   NS_IMETHOD GetAdapterRAM(nsAString & aAdapterRAM);
   NS_IMETHOD GetAdapterDriverVersion(nsAString & aAdapterDriverVersion);
   NS_IMETHOD GetAdapterDriverDate(nsAString & aAdapterDriverDate);
@@ -39,7 +37,6 @@ public:
   NS_IMETHOD GetAdapterDriver2(nsAString & aAdapterDriver);
   NS_IMETHOD GetAdapterVendorID2(nsAString & aAdapterVendorID);
   NS_IMETHOD GetAdapterDeviceID2(nsAString & aAdapterDeviceID);
-  NS_IMETHOD GetAdapterSubsysID2(nsAString & aAdapterSubsysID);
   NS_IMETHOD GetAdapterRAM2(nsAString & aAdapterRAM);
   NS_IMETHOD GetAdapterDriverVersion2(nsAString & aAdapterDriverVersion);
   NS_IMETHOD GetAdapterDriverDate2(nsAString & aAdapterDriverDate);
@@ -51,17 +48,14 @@ public:
 
   virtual nsresult Init();
 
-  NS_DECL_ISUPPORTS_INHERITED
 #ifdef DEBUG
+  NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIGFXINFODEBUG
 #endif
-  NS_DECL_NSIGFXINFO2
 
-  virtual uint32_t OperatingSystemVersion() MOZ_OVERRIDE { return mOSXVersion; }
+  virtual uint32_t OperatingSystemVersion() const { return mOSXVersion; }
 
 protected:
-
-  virtual ~GfxInfo() {}
 
   virtual nsresult GetFeatureStatusImpl(int32_t aFeature, 
                                         int32_t *aStatus, 
@@ -73,10 +67,10 @@ protected:
 private:
 
   void GetDeviceInfo();
-  void GetSelectedCityInfo();
   void AddCrashReportAnnotations();
-
+  nsString mRendererIDsString;
   nsString mAdapterRAMString;
+
   nsString mDeviceID;
   nsString mDriverVersion;
   nsString mDriverDate;
@@ -85,7 +79,7 @@ private:
   nsString mAdapterVendorID;
   nsString mAdapterDeviceID;
 
-  nsString mCountryCode;
+  uint32_t mRendererIDs[16];
 
   uint32_t mOSXVersion;
 };

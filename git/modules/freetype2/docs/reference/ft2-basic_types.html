@@ -3,7 +3,7 @@
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-<title>FreeType-2.5.3 API Reference</title>
+<title>FreeType-2.4.9 API Reference</title>
 <style type="text/css">
   body { font-family: Verdana, Geneva, Arial, Helvetica, serif;
          color: #000000;
@@ -35,28 +35,27 @@
 <table align=center><tr><td><font size=-1>[<a href="ft2-index.html">Index</a>]</font></td>
 <td width="100%"></td>
 <td><font size=-1>[<a href="ft2-toc.html">TOC</a>]</font></td></tr></table>
-<center><h1>FreeType-2.5.3 API Reference</h1></center>
+<center><h1>FreeType-2.4.9 API Reference</h1></center>
 
 <center><h1>
 Basic Data Types
 </h1></center>
 <h2>Synopsis</h2>
 <table align=center cellspacing=5 cellpadding=0 border=0>
-<tr><td></td><td><a href="#FT_Byte">FT_Byte</a></td><td></td><td><a href="#FT_PtrDist">FT_PtrDist</a></td><td></td><td><a href="#FT_Pixel_Mode">FT_Pixel_Mode</a></td></tr>
-<tr><td></td><td><a href="#FT_Bytes">FT_Bytes</a></td><td></td><td><a href="#FT_String">FT_String</a></td><td></td><td><a href="#ft_pixel_mode_xxx">ft_pixel_mode_xxx</a></td></tr>
-<tr><td></td><td><a href="#FT_Char">FT_Char</a></td><td></td><td><a href="#FT_Tag">FT_Tag</a></td><td></td><td><a href="#FT_Palette_Mode">FT_Palette_Mode</a></td></tr>
-<tr><td></td><td><a href="#FT_Int">FT_Int</a></td><td></td><td><a href="#FT_Error">FT_Error</a></td><td></td><td><a href="#FT_Bitmap">FT_Bitmap</a></td></tr>
-<tr><td></td><td><a href="#FT_UInt">FT_UInt</a></td><td></td><td><a href="#FT_Fixed">FT_Fixed</a></td><td></td><td><a href="#FT_IMAGE_TAG">FT_IMAGE_TAG</a></td></tr>
-<tr><td></td><td><a href="#FT_Int16">FT_Int16</a></td><td></td><td><a href="#FT_Pointer">FT_Pointer</a></td><td></td><td><a href="#FT_Glyph_Format">FT_Glyph_Format</a></td></tr>
-<tr><td></td><td><a href="#FT_UInt16">FT_UInt16</a></td><td></td><td><a href="#FT_Pos">FT_Pos</a></td><td></td><td><a href="#ft_glyph_format_xxx">ft_glyph_format_xxx</a></td></tr>
-<tr><td></td><td><a href="#FT_Int32">FT_Int32</a></td><td></td><td><a href="#FT_Vector">FT_Vector</a></td><td></td><td><a href="#FT_Data">FT_Data</a></td></tr>
-<tr><td></td><td><a href="#FT_UInt32">FT_UInt32</a></td><td></td><td><a href="#FT_BBox">FT_BBox</a></td><td></td><td><a href="#FT_Generic_Finalizer">FT_Generic_Finalizer</a></td></tr>
-<tr><td></td><td><a href="#FT_Short">FT_Short</a></td><td></td><td><a href="#FT_Matrix">FT_Matrix</a></td><td></td><td><a href="#FT_Generic">FT_Generic</a></td></tr>
-<tr><td></td><td><a href="#FT_UShort">FT_UShort</a></td><td></td><td><a href="#FT_FWord">FT_FWord</a></td><td></td><td><a href="#FT_MAKE_TAG">FT_MAKE_TAG</a></td></tr>
-<tr><td></td><td><a href="#FT_Long">FT_Long</a></td><td></td><td><a href="#FT_UFWord">FT_UFWord</a></td><td></td><td><a href="#FT_Int64">FT_Int64</a></td></tr>
-<tr><td></td><td><a href="#FT_ULong">FT_ULong</a></td><td></td><td><a href="#FT_F2Dot14">FT_F2Dot14</a></td><td></td><td><a href="#FT_UInt64">FT_UInt64</a></td></tr>
-<tr><td></td><td><a href="#FT_Bool">FT_Bool</a></td><td></td><td><a href="#FT_UnitVector">FT_UnitVector</a></td><td></td><td></td></tr>
-<tr><td></td><td><a href="#FT_Offset">FT_Offset</a></td><td></td><td><a href="#FT_F26Dot6">FT_F26Dot6</a></td><td></td><td></td></tr>
+<tr><td></td><td><a href="#FT_Byte">FT_Byte</a></td><td></td><td><a href="#FT_Offset">FT_Offset</a></td><td></td><td><a href="#FT_UnitVector">FT_UnitVector</a></td></tr>
+<tr><td></td><td><a href="#FT_Bytes">FT_Bytes</a></td><td></td><td><a href="#FT_PtrDist">FT_PtrDist</a></td><td></td><td><a href="#FT_F26Dot6">FT_F26Dot6</a></td></tr>
+<tr><td></td><td><a href="#FT_Char">FT_Char</a></td><td></td><td><a href="#FT_String">FT_String</a></td><td></td><td><a href="#FT_Pixel_Mode">FT_Pixel_Mode</a></td></tr>
+<tr><td></td><td><a href="#FT_Int">FT_Int</a></td><td></td><td><a href="#FT_Tag">FT_Tag</a></td><td></td><td><a href="#ft_pixel_mode_xxx">ft_pixel_mode_xxx</a></td></tr>
+<tr><td></td><td><a href="#FT_UInt">FT_UInt</a></td><td></td><td><a href="#FT_Error">FT_Error</a></td><td></td><td><a href="#FT_Palette_Mode">FT_Palette_Mode</a></td></tr>
+<tr><td></td><td><a href="#FT_Int16">FT_Int16</a></td><td></td><td><a href="#FT_Fixed">FT_Fixed</a></td><td></td><td><a href="#FT_Bitmap">FT_Bitmap</a></td></tr>
+<tr><td></td><td><a href="#FT_UInt16">FT_UInt16</a></td><td></td><td><a href="#FT_Pointer">FT_Pointer</a></td><td></td><td><a href="#FT_IMAGE_TAG">FT_IMAGE_TAG</a></td></tr>
+<tr><td></td><td><a href="#FT_Int32">FT_Int32</a></td><td></td><td><a href="#FT_Pos">FT_Pos</a></td><td></td><td><a href="#FT_Glyph_Format">FT_Glyph_Format</a></td></tr>
+<tr><td></td><td><a href="#FT_UInt32">FT_UInt32</a></td><td></td><td><a href="#FT_Vector">FT_Vector</a></td><td></td><td><a href="#ft_glyph_format_xxx">ft_glyph_format_xxx</a></td></tr>
+<tr><td></td><td><a href="#FT_Short">FT_Short</a></td><td></td><td><a href="#FT_BBox">FT_BBox</a></td><td></td><td><a href="#FT_Data">FT_Data</a></td></tr>
+<tr><td></td><td><a href="#FT_UShort">FT_UShort</a></td><td></td><td><a href="#FT_Matrix">FT_Matrix</a></td><td></td><td><a href="#FT_Generic_Finalizer">FT_Generic_Finalizer</a></td></tr>
+<tr><td></td><td><a href="#FT_Long">FT_Long</a></td><td></td><td><a href="#FT_FWord">FT_FWord</a></td><td></td><td><a href="#FT_Generic">FT_Generic</a></td></tr>
+<tr><td></td><td><a href="#FT_ULong">FT_ULong</a></td><td></td><td><a href="#FT_UFWord">FT_UFWord</a></td><td></td><td><a href="#FT_MAKE_TAG">FT_MAKE_TAG</a></td></tr>
+<tr><td></td><td><a href="#FT_Bool">FT_Bool</a></td><td></td><td><a href="#FT_F2Dot14">FT_F2Dot14</a></td><td></td><td></td></tr>
 </table><br><br>
 
 <table align=center width="87%"><tr><td>
@@ -65,7 +64,7 @@ Basic Data Types
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Byte">FT_Byte</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -84,7 +83,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Bytes">FT_Bytes</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -103,7 +102,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Char">FT_Char</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -122,7 +121,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Int">FT_Int</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -141,7 +140,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_UInt">FT_UInt</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -160,7 +159,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Int16">FT_Int16</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_CONFIG_CONFIG_H (config/ftconfig.h).
+Defined in FT_CONFIG_CONFIG_H (freetype/config/ftconfig.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -179,7 +178,7 @@ Defined in FT_CONFIG_CONFIG_H (config/ftconfig.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_UInt16">FT_UInt16</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_CONFIG_CONFIG_H (config/ftconfig.h).
+Defined in FT_CONFIG_CONFIG_H (freetype/config/ftconfig.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -198,7 +197,7 @@ Defined in FT_CONFIG_CONFIG_H (config/ftconfig.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Int32">FT_Int32</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_CONFIG_CONFIG_H (config/ftconfig.h).
+Defined in FT_CONFIG_CONFIG_H (freetype/config/ftconfig.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -217,7 +216,7 @@ Defined in FT_CONFIG_CONFIG_H (config/ftconfig.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_UInt32">FT_UInt32</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_CONFIG_CONFIG_H (config/ftconfig.h).
+Defined in FT_CONFIG_CONFIG_H (freetype/config/ftconfig.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -233,7 +232,7 @@ Defined in FT_CONFIG_CONFIG_H (config/ftconfig.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Short">FT_Short</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -252,7 +251,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_UShort">FT_UShort</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -271,7 +270,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Long">FT_Long</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -290,7 +289,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_ULong">FT_ULong</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -309,7 +308,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Bool">FT_Bool</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -328,7 +327,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Offset">FT_Offset</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -347,7 +346,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_PtrDist">FT_PtrDist</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -366,7 +365,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_String">FT_String</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -385,7 +384,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Tag">FT_Tag</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -404,7 +403,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Error">FT_Error</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -423,7 +422,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Fixed">FT_Fixed</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -431,7 +430,7 @@ Defined in FT_TYPES_H (fttypes.h).
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
-<p>This type is used to store 16.16 fixed-point values, like scaling values or matrix coefficients.</p>
+<p>This type is used to store 16.16 fixed float values, like scaling values or matrix coefficients.</p>
 </td></tr></table><br>
 </td></tr></table>
 <hr width="75%">
@@ -442,7 +441,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Pointer">FT_Pointer</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -461,7 +460,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Pos">FT_Pos</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_IMAGE_H (ftimage.h).
+Defined in FT_IMAGE_H (freetype/ftimage.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -469,7 +468,7 @@ Defined in FT_IMAGE_H (ftimage.h).
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
-<p>The type FT_Pos is used to store vectorial coordinates. Depending on the context, these can represent distances in integer font units, or 16.16, or 26.6 fixed-point pixel coordinates.</p>
+<p>The type FT_Pos is used to store vectorial coordinates. Depending on the context, these can represent distances in integer font units, or 16.16, or 26.6 fixed float pixel coordinates.</p>
 </td></tr></table><br>
 </td></tr></table>
 <hr width="75%">
@@ -480,7 +479,7 @@ Defined in FT_IMAGE_H (ftimage.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Vector">FT_Vector</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_IMAGE_H (ftimage.h).
+Defined in FT_IMAGE_H (freetype/ftimage.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -515,7 +514,7 @@ Defined in FT_IMAGE_H (ftimage.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_BBox">FT_BBox</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_IMAGE_H (ftimage.h).
+Defined in FT_IMAGE_H (freetype/ftimage.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -561,7 +560,7 @@ Defined in FT_IMAGE_H (ftimage.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Matrix">FT_Matrix</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -574,7 +573,7 @@ Defined in FT_TYPES_H (fttypes.h).
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
-<p>A simple structure used to store a 2x2 matrix. Coefficients are in 16.16 fixed-point format. The computation performed is:</p>
+<p>A simple structure used to store a 2x2 matrix. Coefficients are in 16.16 fixed float format. The computation performed is:</p>
 <pre class="colored">
    x' = x*xx + y*xy                                             
    y' = x*yx + y*yy                                             
@@ -606,7 +605,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_FWord">FT_FWord</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -625,7 +624,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_UFWord">FT_UFWord</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -644,7 +643,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_F2Dot14">FT_F2Dot14</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -652,7 +651,7 @@ Defined in FT_TYPES_H (fttypes.h).
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
-<p>A signed 2.14 fixed-point type used for unit vectors.</p>
+<p>A signed 2.14 fixed float type used for unit vectors.</p>
 </td></tr></table><br>
 </td></tr></table>
 <hr width="75%">
@@ -663,7 +662,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_UnitVector">FT_UnitVector</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -698,7 +697,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_F26Dot6">FT_F26Dot6</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -706,7 +705,7 @@ Defined in FT_TYPES_H (fttypes.h).
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
-<p>A signed 26.6 fixed-point type used for vectorial pixel coordinates.</p>
+<p>A signed 26.6 fixed float type used for vectorial pixel coordinates.</p>
 </td></tr></table><br>
 </td></tr></table>
 <hr width="75%">
@@ -717,7 +716,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Pixel_Mode">FT_Pixel_Mode</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_IMAGE_H (ftimage.h).
+Defined in FT_IMAGE_H (freetype/ftimage.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -730,7 +729,6 @@ Defined in FT_IMAGE_H (ftimage.h).
     <a href="ft2-basic_types.html#FT_Pixel_Mode">FT_PIXEL_MODE_GRAY4</a>,
     <a href="ft2-basic_types.html#FT_Pixel_Mode">FT_PIXEL_MODE_LCD</a>,
     <a href="ft2-basic_types.html#FT_Pixel_Mode">FT_PIXEL_MODE_LCD_V</a>,
-    <a href="ft2-basic_types.html#FT_Pixel_Mode">FT_PIXEL_MODE_BGRA</a>,
 
     FT_PIXEL_MODE_MAX      /* do not remove */
 
@@ -764,9 +762,6 @@ Defined in FT_IMAGE_H (ftimage.h).
 <tr valign=top><td><b>FT_PIXEL_MODE_LCD_V</b></td><td>
 <p>An 8-bit bitmap, representing RGB or BGR decimated glyph images used for display on rotated LCD displays; the bitmap is three times taller than the original glyph image. See also <a href="ft2-base_interface.html#FT_Render_Mode">FT_RENDER_MODE_LCD_V</a>.</p>
 </td></tr>
-<tr valign=top><td><b>FT_PIXEL_MODE_BGRA</b></td><td>
-<p>An image with four 8-bit channels per pixel, representing a color image (such as emoticons) with alpha channel. For each pixel, the format is BGRA, which means, the blue channel comes first in memory. The color channels are pre-multiplied and in the sRGB colorspace. For example, full red at half-translucent opacity will be represented as &lsquo;00,00,80,80&rsquo;, not &lsquo;00,00,FF,80&rsquo;. See also <a href="ft2-base_interface.html#FT_LOAD_XXX">FT_LOAD_COLOR</a>.</p>
-</td></tr>
 </table>
 </td></tr></table>
 </td></tr></table>
@@ -778,7 +773,7 @@ Defined in FT_IMAGE_H (ftimage.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="ft_pixel_mode_xxx">ft_pixel_mode_xxx</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_IMAGE_H (ftimage.h).
+Defined in FT_IMAGE_H (freetype/ftimage.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -821,7 +816,7 @@ Defined in FT_IMAGE_H (ftimage.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Palette_Mode">FT_Palette_Mode</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_IMAGE_H (ftimage.h).
+Defined in FT_IMAGE_H (freetype/ftimage.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -862,7 +857,7 @@ Defined in FT_IMAGE_H (ftimage.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Bitmap">FT_Bitmap</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_IMAGE_H (ftimage.h).
+Defined in FT_IMAGE_H (freetype/ftimage.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -927,7 +922,7 @@ Defined in FT_IMAGE_H (ftimage.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_IMAGE_TAG">FT_IMAGE_TAG</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_IMAGE_H (ftimage.h).
+Defined in FT_IMAGE_H (freetype/ftimage.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -959,7 +954,7 @@ Defined in FT_IMAGE_H (ftimage.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Glyph_Format">FT_Glyph_Format</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_IMAGE_H (ftimage.h).
+Defined in FT_IMAGE_H (freetype/ftimage.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -1010,7 +1005,7 @@ Defined in FT_IMAGE_H (ftimage.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="ft_glyph_format_xxx">ft_glyph_format_xxx</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_IMAGE_H (ftimage.h).
+Defined in FT_IMAGE_H (freetype/ftimage.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -1056,7 +1051,7 @@ Defined in FT_IMAGE_H (ftimage.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Data">FT_Data</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -1091,7 +1086,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Generic_Finalizer">FT_Generic_Finalizer</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -1102,7 +1097,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <p>Describe a function used to destroy the &lsquo;client&rsquo; data of any FreeType object. See the description of the <a href="ft2-basic_types.html#FT_Generic">FT_Generic</a> type for details of usage.</p>
 </td></tr></table><br>
 <table align=center width="87%" cellpadding=5><tr bgcolor="#EEEEFF"><td><em><b>input</b></em></td></tr><tr><td>
-<p>The address of the FreeType object that is under finalization. Its client data is accessed through its &lsquo;generic&rsquo; field.</p>
+<p>The address of the FreeType object which is under finalization. Its client data is accessed through its &lsquo;generic&rsquo; field.</p>
 </td></tr></table>
 </td></tr></table>
 <hr width="75%">
@@ -1113,7 +1108,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_Generic">FT_Generic</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -1150,7 +1145,7 @@ Defined in FT_TYPES_H (fttypes.h).
 <table align=center width="75%"><tr><td>
 <h4><a name="FT_MAKE_TAG">FT_MAKE_TAG</a></h4>
 <table align=center width="87%"><tr><td>
-Defined in FT_TYPES_H (fttypes.h).
+Defined in FT_TYPES_H (freetype/fttypes.h).
 </td></tr></table><br>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
@@ -1163,43 +1158,11 @@ Defined in FT_TYPES_H (fttypes.h).
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
-<p>This macro converts four-letter tags that are used to label TrueType tables into an unsigned long, to be used within FreeType.</p>
+<p>This macro converts four-letter tags which are used to label TrueType tables into an unsigned long to be used within FreeType.</p>
 </td></tr></table><br>
 <table align=center width="87%" cellpadding=5><tr bgcolor="#EEEEFF"><td><em><b>note</b></em></td></tr><tr><td>
 <p>The produced values <b>must</b> be 32-bit integers. Don't redefine this macro.</p>
 </td></tr></table>
-</td></tr></table>
-<hr width="75%">
-<table align=center width="75%"><tr><td><font size=-2>[<a href="ft2-index.html">Index</a>]</font></td>
-<td width="100%"></td>
-<td><font size=-2>[<a href="ft2-toc.html">TOC</a>]</font></td></tr></table>
-
-<table align=center width="75%"><tr><td>
-<h4><a name="FT_Int64">FT_Int64</a></h4>
-<table align=center width="87%"><tr><td>
-Defined in FT_CONFIG_CONFIG_H (config/ftconfig.h).
-</td></tr></table><br>
-<table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
-
-  <span class="keyword">typedef</span> <span class="keyword">signed</span> XXX  <b>FT_Int64</b>;
-
-</pre></table><br>
-</td></tr></table>
-<hr width="75%">
-<table align=center width="75%"><tr><td><font size=-2>[<a href="ft2-index.html">Index</a>]</font></td>
-<td width="100%"></td>
-<td><font size=-2>[<a href="ft2-toc.html">TOC</a>]</font></td></tr></table>
-
-<table align=center width="75%"><tr><td>
-<h4><a name="FT_UInt64">FT_UInt64</a></h4>
-<table align=center width="87%"><tr><td>
-Defined in FT_CONFIG_CONFIG_H (config/ftconfig.h).
-</td></tr></table><br>
-<table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
-
-  <span class="keyword">typedef</span> <span class="keyword">unsigned</span> XXX  <b>FT_UInt64</b>;
-
-</pre></table><br>
 </td></tr></table>
 <hr width="75%">
 <table align=center width="75%"><tr><td><font size=-2>[<a href="ft2-index.html">Index</a>]</font></td>

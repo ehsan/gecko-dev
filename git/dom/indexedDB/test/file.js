@@ -3,26 +3,14 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-const DEFAULT_QUOTA = 50 * 1024 * 1024;
-
 var bufferCache = [];
 var utils = SpecialPowers.getDOMWindowUtils(window);
 
-function getBuffer(size)
-{
-  let buffer = new ArrayBuffer(size);
-  is(buffer.byteLength, size, "Correct byte length");
-  return buffer;
-}
-
-function getRandomBuffer(size)
-{
-  let buffer = getBuffer(size);
-  let view = new Uint8Array(buffer);
-  for (let i = 0; i < size; i++) {
-    view[i] = parseInt(Math.random() * 255)
+if (!SpecialPowers.isMainProcess()) {
+  window.runTest = function() {
+    todo(false, "Test disabled in child processes, for now");
+    finishTest();
   }
-  return buffer;
 }
 
 function getView(size)
@@ -59,12 +47,12 @@ function compareBuffers(buffer1, buffer2)
 
 function getBlob(type, view)
 {
-  return new Blob([view], {type: type});
+  return utils.getBlob([view], {type: type});
 }
 
 function getFile(name, type, view)
 {
-  return new File([view], name, {type: type});
+  return utils.getFile(name, [view], {type: type});
 }
 
 function getRandomBlob(size)
@@ -182,27 +170,47 @@ function grabFileUsageAndContinueHandler(usage, fileUsage)
 
 function getUsage(usageHandler)
 {
-  let principal = SpecialPowers.wrap(document).nodePrincipal;
-  let appId, inBrowser;
-  if (principal.appId != Components.interfaces.nsIPrincipal.UNKNOWN_APP_ID &&
-      principal.appId != Components.interfaces.nsIPrincipal.NO_APP_ID) {
-    appId = principal.appId;
-    inBrowser = principal.isInBrowserElement;
+  let comp = SpecialPowers.wrap(Components);
+  let idbManager = comp.classes["@mozilla.org/dom/indexeddb/manager;1"]
+                       .getService(comp.interfaces.nsIIndexedDatabaseManager);
+
+  let uri = SpecialPowers.getDocumentURIObject(window.document);
+  let callback = {
+    onUsageResult: function(uri, usage, fileUsage) {
+      usageHandler(usage, fileUsage);
+    }
+  };
+
+  idbManager.getUsageForURI(uri, callback);
+}
+
+function getUsageSync()
+{
+  let usage;
+
+  getUsage(function(aUsage, aFileUsage) {
+    usage = aUsage;
+  });
+
+  let comp = SpecialPowers.wrap(Components);
+  let thread = comp.classes["@mozilla.org/thread-manager;1"]
+                   .getService(comp.interfaces.nsIThreadManager)
+                   .currentThread;
+  while (!usage) {
+    thread.processNextEvent(true);
   }
-  SpecialPowers.getStorageUsageForURI(window.document.documentURI,
-                                      usageHandler,
-                                      appId,
-                                      inBrowser);
+
+  return usage;
+}
+
+function scheduleGC()
+{
+  SpecialPowers.exactGC(window, continueToNextStep);
 }
 
 function getFileId(file)
 {
   return utils.getFileId(file);
-}
-
-function getFilePath(file)
-{
-  return utils.getFilePath(file);
 }
 
 function hasFileInfo(name, id)
@@ -213,13 +221,13 @@ function hasFileInfo(name, id)
 function getFileRefCount(name, id)
 {
   let count = {};
-  utils.getFileReferences(name, id, null, count);
+  utils.getFileReferences(name, id, count);
   return count.value;
 }
 
 function getFileDBRefCount(name, id)
 {
   let count = {};
-  utils.getFileReferences(name, id, null, {}, count);
+  utils.getFileReferences(name, id, {}, count);
   return count.value;
 }

@@ -11,34 +11,21 @@
 #include <unistd.h>
 #include <ui/GraphicBuffer.h>
 
-#include "base/process.h"
-#include "ipc/IPCMessageUtils.h"
+#include "IPC/IPCMessageUtils.h"
+#include "mozilla/layers/PGrallocBufferChild.h"
+#include "mozilla/layers/PGrallocBufferParent.h"
 
 #define MOZ_HAVE_SURFACEDESCRIPTORGRALLOC
 #define MOZ_HAVE_PLATFORM_SPECIFIC_LAYER_BUFFERS
+
+class gfxASurface;
 
 namespace mozilla {
 namespace layers {
 
 class MaybeMagicGrallocBufferHandle;
-class SurfaceDescriptor;
-class TextureHost;
+class SurfaceDescriptorGralloc;
 
-struct GrallocBufferRef {
-  base::ProcessId mOwner;
-  int64_t mKey;
-
-  GrallocBufferRef()
-    : mOwner(0)
-    , mKey(-1)
-  {
-
-  }
-
-  bool operator== (const GrallocBufferRef rhs) const{
-    return mOwner == rhs.mOwner && mKey == rhs.mKey;
-  }
-};
 /**
  * This class exists to share the underlying GraphicBuffer resources
  * from one thread context to another.  This requires going through
@@ -49,9 +36,11 @@ struct GrallocBufferRef {
  */
 struct MagicGrallocBufferHandle {
   typedef android::GraphicBuffer GraphicBuffer;
-  MagicGrallocBufferHandle() {}
 
-  MagicGrallocBufferHandle(const android::sp<GraphicBuffer>& aGraphicBuffer, GrallocBufferRef ref);
+  MagicGrallocBufferHandle()
+  { }
+
+  MagicGrallocBufferHandle(const android::sp<GraphicBuffer>& aGraphicBuffer);
 
   // Default copy ctor and operator= are OK
 
@@ -60,15 +49,45 @@ struct MagicGrallocBufferHandle {
   }
 
   android::sp<GraphicBuffer> mGraphicBuffer;
-  GrallocBufferRef mRef;
 };
 
 /**
- * Util function to find GraphicBuffer from SurfaceDescriptor, caller of this function should check origin
- * to make sure not corrupt others buffer
+ * GrallocBufferActor is an "IPC wrapper" for an underlying
+ * GraphicBuffer (pmem region).  It allows us to cheaply and
+ * conveniently share gralloc handles between processes.
  */
-android::sp<android::GraphicBuffer> GetGraphicBufferFrom(MaybeMagicGrallocBufferHandle aHandle);
-android::sp<android::GraphicBuffer> GetGraphicBufferFromDesc(SurfaceDescriptor aDesc);
+class GrallocBufferActor : public PGrallocBufferChild
+                         , public PGrallocBufferParent
+{
+  friend class ShadowLayerForwarder;
+  friend class ShadowLayerManager;
+  friend class ImageBridgeChild;
+  typedef android::GraphicBuffer GraphicBuffer;
+
+public:
+  virtual ~GrallocBufferActor() {}
+
+  static PGrallocBufferParent*
+  Create(const gfxIntSize& aSize, const gfxContentType& aContent,
+         MaybeMagicGrallocBufferHandle* aOutHandle);
+
+  static PGrallocBufferParent*
+  Create(const gfxIntSize& aSize, const uint32_t& aFormat, const uint32_t& aUsage,
+         MaybeMagicGrallocBufferHandle* aOutHandle);
+
+  static PGrallocBufferChild*
+  Create();
+
+  static android::sp<GraphicBuffer>
+  GetFrom(const SurfaceDescriptorGralloc& aDescriptor);
+
+private:
+  GrallocBufferActor() {}
+
+  void InitFromHandle(const MagicGrallocBufferHandle& aHandle);
+
+  android::sp<GraphicBuffer> mGraphicBuffer;
+};
 
 } // namespace layers
 } // namespace mozilla
@@ -82,14 +101,6 @@ struct ParamTraits<mozilla::layers::MagicGrallocBufferHandle> {
   static void Write(Message* aMsg, const paramType& aParam);
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult);
 };
-
-template<>
-struct ParamTraits<mozilla::layers::GrallocBufferRef> {
-  typedef mozilla::layers::GrallocBufferRef paramType;
-  static void Write(Message* aMsg, const paramType& aParam);
-  static bool Read(const Message* aMsg, void** aIter, paramType* aResult);
-};
-
 
 } // namespace IPC
 

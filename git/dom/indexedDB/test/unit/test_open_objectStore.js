@@ -7,6 +7,7 @@ var testGenerator = testSteps();
 
 function testSteps()
 {
+  const nsIIDBObjectStore = Components.interfaces.nsIIDBObjectStore;
   const name = this.window ? window.location.pathname : "Splendid Test";
   const objectStoreName = "Objects";
 
@@ -14,7 +15,7 @@ function testSteps()
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  let event = yield undefined;
+  let event = yield;
 
   let db = event.target.result;
   is(db.objectStoreNames.length, 0, "Bad objectStores list");
@@ -25,7 +26,7 @@ function testSteps()
   is(db.objectStoreNames.length, 1, "Bad objectStores list");
   is(db.objectStoreNames.item(0), objectStoreName, "Bad name");
 
-  yield undefined;
+  yield;
 
   objectStore = db.transaction(objectStoreName).objectStore(objectStoreName);
 
@@ -34,6 +35,6 @@ function testSteps()
   if(objectStore.indexNames.length, 0, "Bad indexNames");
 
   finishTest();
-  yield undefined;
+  yield;
 }
 

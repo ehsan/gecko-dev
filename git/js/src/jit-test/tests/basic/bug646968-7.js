@@ -1,4 +1,4 @@
-load(libdir + "evalInFrame.js");
+// |jit-test| debug
 
 function test(s) {
     eval(s);

@@ -175,18 +175,12 @@ function cartProd(aSequences, aCallback)
   return numProds;
 }
 
-function run_test()
-{
-  run_next_test();
-}
-
 /**
  * Populate the visits array and add visits to the database.
  * We will generate visit-chains like:
  *   visit -> redirect_temp -> redirect_perm
  */
-add_task(function test_add_visits_to_database()
-{
+function add_visits_to_database() {
   remove_all_bookmarks();
 
   // We don't really bother on this, but we need a time to add visits.
@@ -277,14 +271,21 @@ add_task(function test_add_visits_to_database()
     isInQuery: false });
 
   // Put visits in the database.
-  yield task_populateDB(visits);
-});
+  populateDB(visits);
+}
 
-add_task(function test_redirects()
-{
+// Main
+function run_test() {
+  do_test_pending();
+
+  // Populate the database.
+  add_visits_to_database();
+
   // Frecency and hidden are updated asynchronously, wait for them.
-  yield promiseAsyncUpdates();
+  waitForAsyncUpdates(continue_test);
+ }
 
+ function continue_test() {
   // This array will be used by cartProd to generate a matrix of all possible
   // combinations.
   let includeHidden_options = [true, false];
@@ -299,6 +300,5 @@ add_task(function test_redirects()
            check_results_callback);
 
   remove_all_bookmarks();
-
-  yield promiseClearHistory();
-});
+  waitForClearHistory(do_test_finished);
+}

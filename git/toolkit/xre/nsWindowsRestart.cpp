@@ -24,13 +24,13 @@
  * additional length if the string needs to be quoted and if characters need to
  * be escaped.
  */
-static int ArgStrLen(const wchar_t *s)
+static int ArgStrLen(const PRUnichar *s)
 {
   int backslashes = 0;
   int i = wcslen(s);
-  BOOL hasDoubleQuote = wcschr(s, L'"') != nullptr;
+  BOOL hasDoubleQuote = wcschr(s, L'"') != NULL;
   // Only add doublequotes if the string contains a space or a tab
-  BOOL addDoubleQuotes = wcspbrk(s, L" \t") != nullptr;
+  BOOL addDoubleQuotes = wcspbrk(s, L" \t") != NULL;
 
   if (addDoubleQuotes) {
     i += 2; // initial and final duoblequote
@@ -65,12 +65,12 @@ static int ArgStrLen(const wchar_t *s)
  *
  * @return the end of the string
  */
-static wchar_t* ArgToString(wchar_t *d, const wchar_t *s)
+static PRUnichar* ArgToString(PRUnichar *d, const PRUnichar *s)
 {
   int backslashes = 0;
-  BOOL hasDoubleQuote = wcschr(s, L'"') != nullptr;
+  BOOL hasDoubleQuote = wcschr(s, L'"') != NULL;
   // Only add doublequotes if the string contains a space or a tab
-  BOOL addDoubleQuotes = wcspbrk(s, L" \t") != nullptr;
+  BOOL addDoubleQuotes = wcspbrk(s, L" \t") != NULL;
 
   if (addDoubleQuotes) {
     *d = '"'; // initial doublequote
@@ -116,8 +116,8 @@ static wchar_t* ArgToString(wchar_t *d, const wchar_t *s)
  *
  * argv is UTF8
  */
-wchar_t*
-MakeCommandLine(int argc, wchar_t **argv)
+PRUnichar*
+MakeCommandLine(int argc, PRUnichar **argv)
 {
   int i;
   int len = 0;
@@ -130,11 +130,11 @@ MakeCommandLine(int argc, wchar_t **argv)
   if (len == 0)
     len = 1;
 
-  wchar_t *s = (wchar_t*) malloc(len * sizeof(wchar_t));
+  PRUnichar *s = (PRUnichar*) malloc(len * sizeof(PRUnichar));
   if (!s)
-    return nullptr;
+    return NULL;
 
-  wchar_t *c = s;
+  PRUnichar *c = s;
   for (i = 0; i < argc; ++i) {
     c = ArgToString(c, argv[i]);
     if (i + 1 != argc) {
@@ -152,14 +152,14 @@ MakeCommandLine(int argc, wchar_t **argv)
  * Convert UTF8 to UTF16 without using the normal XPCOM goop, which we
  * can't link to updater.exe.
  */
-static char16_t*
+static PRUnichar*
 AllocConvertUTF8toUTF16(const char *arg)
 {
   // UTF16 can't be longer in units than UTF8
   int len = strlen(arg);
-  char16_t *s = new char16_t[(len + 1) * sizeof(char16_t)];
+  PRUnichar *s = new PRUnichar[(len + 1) * sizeof(PRUnichar)];
   if (!s)
-    return nullptr;
+    return NULL;
 
   ConvertUTF8toUTF16 convert(s);
   convert.write(arg, len);
@@ -168,7 +168,7 @@ AllocConvertUTF8toUTF16(const char *arg)
 }
 
 static void
-FreeAllocStrings(int argc, wchar_t **argv)
+FreeAllocStrings(int argc, PRUnichar **argv)
 {
   while (argc) {
     --argc;
@@ -187,23 +187,23 @@ FreeAllocStrings(int argc, wchar_t **argv)
  */
 
 BOOL
-WinLaunchChild(const wchar_t *exePath,
-               int argc, wchar_t **argv,
-               HANDLE userToken = nullptr,
-               HANDLE *hProcess = nullptr);
+WinLaunchChild(const PRUnichar *exePath, 
+               int argc, PRUnichar **argv, 
+               HANDLE userToken = NULL,
+               HANDLE *hProcess = NULL);
 
 BOOL
-WinLaunchChild(const wchar_t *exePath,
-               int argc, char **argv,
+WinLaunchChild(const PRUnichar *exePath, 
+               int argc, char **argv, 
                HANDLE userToken,
                HANDLE *hProcess)
 {
-  wchar_t** argvConverted = new wchar_t*[argc];
+  PRUnichar** argvConverted = new PRUnichar*[argc];
   if (!argvConverted)
     return FALSE;
 
   for (int i = 0; i < argc; ++i) {
-      argvConverted[i] = reinterpret_cast<wchar_t*>(AllocConvertUTF8toUTF16(argv[i]));
+    argvConverted[i] = AllocConvertUTF8toUTF16(argv[i]);
     if (!argvConverted[i]) {
       FreeAllocStrings(i, argvConverted);
       return FALSE;
@@ -216,13 +216,13 @@ WinLaunchChild(const wchar_t *exePath,
 }
 
 BOOL
-WinLaunchChild(const wchar_t *exePath,
+WinLaunchChild(const PRUnichar *exePath, 
                int argc, 
-               wchar_t **argv,
+               PRUnichar **argv, 
                HANDLE userToken,
                HANDLE *hProcess)
 {
-  wchar_t *cl;
+  PRUnichar *cl;
   BOOL ok;
 
   cl = MakeCommandLine(argc, argv);
@@ -235,34 +235,34 @@ WinLaunchChild(const wchar_t *exePath,
   si.lpDesktop = L"winsta0\\Default";
   PROCESS_INFORMATION pi = {0};
 
-  if (userToken == nullptr) {
+  if (userToken == NULL) {
     ok = CreateProcessW(exePath,
                         cl,
-                        nullptr,  // no special security attributes
-                        nullptr,  // no special thread attributes
+                        NULL,  // no special security attributes
+                        NULL,  // no special thread attributes
                         FALSE, // don't inherit filehandles
                         0,     // creation flags
-                        nullptr,  // inherit my environment
-                        nullptr,  // use my current directory
+                        NULL,  // inherit my environment
+                        NULL,  // use my current directory
                         &si,
                         &pi);
   } else {
     // Create an environment block for the process we're about to start using
     // the user's token.
-    LPVOID environmentBlock = nullptr;
+    LPVOID environmentBlock = NULL;
     if (!CreateEnvironmentBlock(&environmentBlock, userToken, TRUE)) {
-      environmentBlock = nullptr;
+      environmentBlock = NULL;
     }
 
     ok = CreateProcessAsUserW(userToken, 
                               exePath,
                               cl,
-                              nullptr,  // no special security attributes
-                              nullptr,  // no special thread attributes
-                              FALSE,    // don't inherit filehandles
-                              0,        // creation flags
+                              NULL,  // no special security attributes
+                              NULL,  // no special thread attributes
+                              FALSE, // don't inherit filehandles
+                              0,     // creation flags
                               environmentBlock,
-                              nullptr,  // use my current directory
+                              NULL,  // use my current directory
                               &si,
                               &pi);
 
@@ -279,16 +279,16 @@ WinLaunchChild(const wchar_t *exePath,
     }
     CloseHandle(pi.hThread);
   } else {
-    LPVOID lpMsgBuf = nullptr;
+    LPVOID lpMsgBuf = NULL;
     FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
                   FORMAT_MESSAGE_FROM_SYSTEM |
                   FORMAT_MESSAGE_IGNORE_INSERTS,
-                  nullptr,
+                  NULL,
                   GetLastError(),
                   MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
                   (LPTSTR) &lpMsgBuf,
                   0,
-                  nullptr);
+                  NULL);
     wprintf(L"Error restarting: %s\n", lpMsgBuf ? lpMsgBuf : L"(null)");
     if (lpMsgBuf)
       LocalFree(lpMsgBuf);

@@ -10,6 +10,9 @@
  * liability, trademark and document use rules apply.
  */
 
+interface Document;
+interface Blob;
+interface FormData;
 interface InputStream;
 interface MozChannel;
 interface IID;
@@ -53,11 +56,11 @@ dictionary MozXMLHttpRequestParameters
  // things like this:
  //   c = new(window.ActiveXObject || XMLHttpRequest)("Microsoft.XMLHTTP")
  // To handle that, we need a constructor that takes a string.
- Constructor(DOMString ignored),
- Exposed=(Window,Worker)]
+ Constructor(DOMString ignored)]
 interface XMLHttpRequest : XMLHttpRequestEventTarget {
   // event handler
-  attribute EventHandler onreadystatechange;
+  [TreatNonCallableAsNull, GetterInfallible=MainThread]
+  attribute Function? onreadystatechange;
 
   // states
   const unsigned short UNSENT = 0;
@@ -66,85 +69,72 @@ interface XMLHttpRequest : XMLHttpRequestEventTarget {
   const unsigned short LOADING = 3;
   const unsigned short DONE = 4;
 
+  [Infallible]
   readonly attribute unsigned short readyState;
 
   // request
-  [Throws]
-  void open(ByteString method, DOMString url);
-  [Throws]
-  void open(ByteString method, DOMString url, boolean async,
+  void open(DOMString method, DOMString url, optional boolean async = true,
             optional DOMString? user, optional DOMString? password);
-  [Throws]
-  void setRequestHeader(ByteString header, ByteString value);
+  void setRequestHeader(DOMString header, DOMString value);
 
-  [SetterThrows]
+  [GetterInfallible]
   attribute unsigned long timeout;
 
-  [SetterThrows]
+  [GetterInfallible, SetterInfallible=MainThread]
   attribute boolean withCredentials;
 
-  [Throws=Workers]
+  [Infallible=MainThread]
   readonly attribute XMLHttpRequestUpload upload;
 
-  [Throws]
   void send();
-  [Throws]
   void send(ArrayBuffer data);
-  [Throws]
-  void send(ArrayBufferView data);
-  [Throws]
   void send(Blob data);
-  [Throws]
   void send(Document data);
-  [Throws]
   void send(DOMString? data);
-  [Throws]
   void send(FormData data);
-  [Throws]
   void send(InputStream data);
 
-  [Throws=Workers]
+  [Infallible=MainThread]
   void abort();
 
   // response
-  readonly attribute DOMString responseURL;
-
-  [Throws=Workers]
+  [Infallible=MainThread]
   readonly attribute unsigned short status;
 
-  readonly attribute ByteString statusText;
-  [Throws]
-  ByteString? getResponseHeader(ByteString header);
+  [Infallible]
+  readonly attribute DOMString statusText;
+  DOMString? getResponseHeader(DOMString header);
 
-  [Throws=Workers]
-  ByteString getAllResponseHeaders();
+  [Infallible=MainThread]
+  DOMString getAllResponseHeaders();
 
-  [Throws=Workers]
+  [Infallible=MainThread]
   void overrideMimeType(DOMString mime);
 
-  [SetterThrows]
+  [GetterInfallible]
   attribute XMLHttpRequestResponseType responseType;
-  [Throws]
   readonly attribute any response;
-  [Throws]
   readonly attribute DOMString? responseText;
 
-  [Throws, Exposed=Window]
+  [GetterInfallible=Workers]
   readonly attribute Document? responseXML;
 
   // Mozilla-specific stuff
+  [GetterInfallible, SetterInfallible=MainThread]
+  attribute boolean multipart;
 
-  [ChromeOnly, SetterThrows=Workers]
+  [GetterInfallible, SetterInfallible=MainThread]
   attribute boolean mozBackgroundRequest;
 
-  [ChromeOnly, Exposed=Window]
-  readonly attribute MozChannel? channel;
+  [ChromeOnly, GetterInfallible]
+  readonly attribute MozChannel channel;
 
-  [Throws]
   void sendAsBinary(DOMString body);
-  [Throws, ChromeOnly]
   any getInterface(IID iid);
 
+  [Infallible]
   readonly attribute boolean mozAnon;
+
+  [Infallible]
   readonly attribute boolean mozSystem;
 };

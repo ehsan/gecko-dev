@@ -11,13 +11,12 @@
 
 class nsBidiKeyboard : public nsIBidiKeyboard
 {
-  virtual ~nsBidiKeyboard();
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIBIDIKEYBOARD
 
   nsBidiKeyboard();
+  virtual ~nsBidiKeyboard();
 
 protected:
 
@@ -26,9 +25,9 @@ protected:
 
   bool mInitialized;
   bool mHaveBidiKeyboards;
-  wchar_t  mLTRKeyboard[KL_NAMELENGTH];
-  wchar_t  mRTLKeyboard[KL_NAMELENGTH];
-  wchar_t  mCurrentLocaleName[KL_NAMELENGTH];
+  PRUnichar  mLTRKeyboard[KL_NAMELENGTH];
+  PRUnichar  mRTLKeyboard[KL_NAMELENGTH];
+  PRUnichar  mCurrentLocaleName[KL_NAMELENGTH];
 };
 
 

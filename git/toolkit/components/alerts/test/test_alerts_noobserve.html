@@ -18,58 +18,43 @@
 
 <pre id="test">
 <script class="testbody" type="text/javascript">
+netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 
-const Cc = SpecialPowers.Cc;
-const Ci = SpecialPowers.Ci;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
 
-const wm = Cc["@mozilla.org/appshell/window-mediator;1"]
-             .getService(Ci.nsIWindowMediator);
+var gNotificationIsAvailable;
 
-function anyXULAlertsVisible() {
-  var windows = wm.getEnumerator('alert:alert');
-  return windows.hasMoreElements();
-}
+if (!("@mozilla.org/alerts-service;1" in Cc)) {
+  todo(false, "Alerts service does not exist in this application");
+} else {
+  ok(true, "Alerts service exists in this application");
 
-function waitForAlertsThenFinish() {
-  if (anyXULAlertsVisible()) {
-    setTimeout(waitForAlertsThenFinish, 1000);
-  } else {
-    ok(true, "Alert disappeared.");
-    SimpleTest.finish();
+  var notifier;
+  try {
+    notifier = Cc["@mozilla.org/alerts-service;1"].
+               getService(Ci.nsIAlertsService);
+    ok(true, "Alerts service is available");
+  } catch (ex) {
+    todo(false, "Alerts service is not available. (Mac OS X without Growl?)", ex);
   }
-}
 
-function runTest() {
-  if (!("@mozilla.org/alerts-service;1" in Cc)) {
-    todo(false, "Alerts service does not exist in this application");
-  } else {
-    ok(true, "Alerts service exists in this application");
-
-    var notifier;
+  if (notifier) {
     try {
-      notifier = Cc["@mozilla.org/alerts-service;1"].
-                 getService(Ci.nsIAlertsService);
-      ok(true, "Alerts service is available");
-    } catch (ex) {
-      todo(false, "Alerts service is not available.", ex);
-    }
+      notifier.showAlertNotification(null, "Notification test",
+                                     "This notification has no observer");
+      ok(true, "showAlertNotification() succeeded");
 
-    if (notifier) {
-      try {
-        notifier.showAlertNotification(null, "Notification test",
-                                       "This notification has no observer");
-        ok(true, "showAlertNotification() succeeded");
-      } catch (ex) {
-        todo(false, "showAlertNotification() failed.", ex);
-      }
+      gNotificationIsAvailable = true;
+    } catch (ex) {
+      todo(false, "showAlertNotification() failed. (Mac OS X without Growl?)", ex);
     }
   }
 }
 
-SimpleTest.waitForExplicitFinish();
-ok(!anyXULAlertsVisible(), "Alerts should not be present at the start of the test.");
-runTest();
-setTimeout(waitForAlertsThenFinish, 1000);
+if (gNotificationIsAvailable) {
+  ok(true, "Notification should actually display during later tests... (Hope this doesn't disturb them!)");
+}
 </script>
 </pre>
 </body>

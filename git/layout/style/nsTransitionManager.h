@@ -8,46 +8,36 @@
 #ifndef nsTransitionManager_h_
 #define nsTransitionManager_h_
 
-#include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
-#include "mozilla/dom/Animation.h"
-#include "mozilla/dom/AnimationPlayer.h"
 #include "AnimationCommon.h"
 #include "nsCSSPseudoElements.h"
 
 class nsStyleContext;
 class nsPresContext;
 class nsCSSPropertySet;
-struct ElementDependentRuleProcessorData;
-
-namespace mozilla {
-struct StyleTransition;
-}
+struct nsTransition;
 
 /*****************************************************************************
  * Per-Element data                                                          *
  *****************************************************************************/
 
-namespace mozilla {
-
-struct ElementPropertyTransition : public dom::Animation
+struct ElementPropertyTransition
 {
-  ElementPropertyTransition(nsIDocument* aDocument,
-                            dom::Element* aTarget,
-                            nsCSSPseudoElements::Type aPseudoType,
-                            const AnimationTiming &aTiming)
-    : dom::Animation(aDocument, aTarget, aPseudoType, aTiming, EmptyString())
-  { }
+  ElementPropertyTransition() {}
 
-  virtual ElementPropertyTransition* AsTransition() { return this; }
-  virtual const ElementPropertyTransition* AsTransition() const { return this; }
+  nsCSSProperty mProperty;
+  nsStyleAnimation::Value mStartValue, mEndValue;
+  mozilla::TimeStamp mStartTime; // actual start plus transition delay
+
+  // data from the relevant nsTransition
+  mozilla::TimeDuration mDuration;
+  mozilla::css::ComputedTimingFunction mTimingFunction;
 
   // This is the start value to be used for a check for whether a
-  // transition is being reversed.  Normally the same as
-  // mProperties[0].mSegments[0].mFromValue, except when this transition
-  // started as the reversal of another in-progress transition.
-  // Needed so we can handle two reverses in a row.
-  mozilla::StyleAnimationValue mStartForReversingTest;
+  // transition is being reversed.  Normally the same as mStartValue,
+  // except when this transition started as the reversal of another
+  // in-progress transition.  Needed so we can handle two reverses in a
+  // row.
+  nsStyleAnimation::Value mStartForReversingTest;
   // Likewise, the portion (in value space) of the "full" reversed
   // transition that we're actually covering.  For example, if a :hover
   // effect has a transition that moves the element 10px to the right
@@ -60,50 +50,67 @@ struct ElementPropertyTransition : public dom::Animation
   double mReversePortion;
 
   // Compute the portion of the *value* space that we should be through
-  // at the current time.  (The input to the transition timing function
+  // at the given time.  (The input to the transition timing function
   // has time units, the output has value units.)
-  double CurrentValuePortion() const;
-};
+  double ValuePortionFor(mozilla::TimeStamp aRefreshTime) const;
 
-class CSSTransitionPlayer MOZ_FINAL : public dom::AnimationPlayer
-{
-public:
- explicit CSSTransitionPlayer(dom::AnimationTimeline* aTimeline)
-    : dom::AnimationPlayer(aTimeline)
+  bool IsRemovedSentinel() const
   {
+    return mStartTime.IsNull();
   }
 
-  virtual CSSTransitionPlayer*
-  AsCSSTransitionPlayer() MOZ_OVERRIDE { return this; }
+  void SetRemovedSentinel()
+  {
+    // assign the null time stamp
+    mStartTime = mozilla::TimeStamp();
+  }
 
-  virtual dom::AnimationPlayState PlayStateFromJS() const MOZ_OVERRIDE;
-  virtual void PlayFromJS() MOZ_OVERRIDE;
-
-protected:
-  virtual ~CSSTransitionPlayer() { }
-
-  virtual css::CommonAnimationManager* GetAnimationManager() const MOZ_OVERRIDE;
+  bool IsRunningAt(mozilla::TimeStamp aTime) const;
 };
 
-} // namespace mozilla
+struct ElementTransitions : public mozilla::css::CommonElementAnimationData
+{
+  ElementTransitions(mozilla::dom::Element *aElement, nsIAtom *aElementProperty,
+                     nsTransitionManager *aTransitionManager);
 
-class nsTransitionManager MOZ_FINAL
-  : public mozilla::css::CommonAnimationManager
+  void EnsureStyleRuleFor(mozilla::TimeStamp aRefreshTime);
+
+
+  bool HasTransitionOfProperty(nsCSSProperty aProperty) const;
+  // True if this animation can be performed on the compositor thread.
+  bool CanPerformOnCompositorThread() const;
+  // Either zero or one for each CSS property:
+  nsTArray<ElementPropertyTransition> mPropertyTransitions;
+};
+
+
+
+class nsTransitionManager : public mozilla::css::CommonAnimationManager
 {
 public:
-  explicit nsTransitionManager(nsPresContext *aPresContext)
+  nsTransitionManager(nsPresContext *aPresContext)
     : mozilla::css::CommonAnimationManager(aPresContext)
-    , mInAnimationOnlyStyleUpdate(false)
   {
   }
 
-  typedef mozilla::AnimationPlayerCollection AnimationPlayerCollection;
+  static ElementTransitions* GetTransitions(nsIContent* aContent) {
+    return static_cast<ElementTransitions*>
+      (aContent->GetProperty(nsGkAtoms::transitionsProperty));
+  }
 
-  static AnimationPlayerCollection*
-  GetAnimationsForCompositor(nsIContent* aContent, nsCSSProperty aProperty)
+  static ElementTransitions*
+    GetTransitionsForCompositor(nsIContent* aContent,
+                                nsCSSProperty aProperty)
   {
-    return mozilla::css::CommonAnimationManager::GetAnimationsForCompositor(
-      aContent, nsGkAtoms::transitionsProperty, aProperty);
+    if (!aContent->MayHaveAnimations())
+      return nullptr;
+    ElementTransitions* transitions = GetTransitions(aContent);
+    if (!transitions ||
+        !transitions->HasTransitionOfProperty(aProperty) ||
+        !transitions->CanPerformOnCompositorThread()) {
+      return nullptr;
+    }
+    return transitions;
   }
 
   /**
@@ -127,43 +134,35 @@ public:
                         nsStyleContext *aOldStyleContext,
                         nsStyleContext *aNewStyleContext);
 
-  void SetInAnimationOnlyStyleUpdate(bool aInAnimationOnlyUpdate) {
-    mInAnimationOnlyStyleUpdate = aInAnimationOnlyUpdate;
-  }
-
-  virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
-    MOZ_MUST_OVERRIDE MOZ_OVERRIDE;
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
-    MOZ_MUST_OVERRIDE MOZ_OVERRIDE;
+  // nsIStyleRuleProcessor (parts)
+  virtual void RulesMatching(ElementRuleProcessorData* aData);
+  virtual void RulesMatching(PseudoElementRuleProcessorData* aData);
+  virtual void RulesMatching(AnonBoxRuleProcessorData* aData);
+#ifdef MOZ_XUL
+  virtual void RulesMatching(XULTreeRuleProcessorData* aData);
+#endif
+  virtual NS_MUST_OVERRIDE size_t
+    SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
+  virtual NS_MUST_OVERRIDE size_t
+    SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
   // nsARefreshObserver
-  virtual void WillRefresh(mozilla::TimeStamp aTime) MOZ_OVERRIDE;
-
-  void FlushTransitions(FlushFlags aFlags);
-
-protected:
-  virtual nsIAtom* GetAnimationsAtom() MOZ_OVERRIDE {
-    return nsGkAtoms::transitionsProperty;
-  }
-  virtual nsIAtom* GetAnimationsBeforeAtom() MOZ_OVERRIDE {
-    return nsGkAtoms::transitionsOfBeforeProperty;
-  }
-  virtual nsIAtom* GetAnimationsAfterAtom() MOZ_OVERRIDE {
-    return nsGkAtoms::transitionsOfAfterProperty;
-  }
+  virtual void WillRefresh(mozilla::TimeStamp aTime);
 
 private:
-  void
-  ConsiderStartingTransition(nsCSSProperty aProperty,
-                             const mozilla::StyleTransition& aTransition,
-                             mozilla::dom::Element* aElement,
-                             AnimationPlayerCollection*& aElementTransitions,
-                             nsStyleContext* aOldStyleContext,
-                             nsStyleContext* aNewStyleContext,
-                             bool* aStartedAny,
-                             nsCSSPropertySet* aWhichStarted);
-
-  bool mInAnimationOnlyStyleUpdate;
+  void ConsiderStartingTransition(nsCSSProperty aProperty,
+                                  const nsTransition& aTransition,
+                                  mozilla::dom::Element *aElement,
+                                  ElementTransitions *&aElementTransitions,
+                                  nsStyleContext *aOldStyleContext,
+                                  nsStyleContext *aNewStyleContext,
+                                  bool *aStartedAny,
+                                  nsCSSPropertySet *aWhichStarted);
+  ElementTransitions* GetElementTransitions(mozilla::dom::Element *aElement,
+                                            nsCSSPseudoElements::Type aPseudoType,
+                                            bool aCreateIfNeeded);
+  void WalkTransitionRule(RuleProcessorData* aData,
+                          nsCSSPseudoElements::Type aPseudoType);
 };
 
 #endif /* !defined(nsTransitionManager_h_) */

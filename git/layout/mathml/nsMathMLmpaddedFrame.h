@@ -6,7 +6,7 @@
 #ifndef nsMathMLmpaddedFrame_h___
 #define nsMathMLmpaddedFrame_h___
 
-#include "mozilla/Attributes.h"
+#include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
 
 //
@@ -20,37 +20,29 @@ public:
   friend nsIFrame* NS_NewMathMLmpaddedFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_IMETHOD
-  InheritAutomaticData(nsIFrame* aParent) MOZ_OVERRIDE;
+  InheritAutomaticData(nsIFrame* aParent);
 
   NS_IMETHOD
-  TransmitAutomaticData() MOZ_OVERRIDE {
+  TransmitAutomaticData() {
     return TransmitAutomaticDataForMrowLikeElement();
   }
 
-  virtual void
+  NS_IMETHOD
   Reflow(nsPresContext*          aPresContext,
          nsHTMLReflowMetrics&     aDesiredSize,
          const nsHTMLReflowState& aReflowState,
-         nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+         nsReflowStatus&          aStatus);
   
   virtual nsresult
   Place(nsRenderingContext& aRenderingContext,
         bool                 aPlaceOrigin,
-        nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
-
-  bool
-  IsMrowLike() MOZ_OVERRIDE {
-    return mFrames.FirstChild() != mFrames.LastChild() ||
-           !mFrames.FirstChild();
-  }
+        nsHTMLReflowMetrics& aDesiredSize);
 
 protected:
-  explicit nsMathMLmpaddedFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
+  nsMathMLmpaddedFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLmpaddedFrame();
   
-  virtual nsresult
-  MeasureForWidth(nsRenderingContext& aRenderingContext,
-                  nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
+  virtual int GetSkipSides() const { return 0; }
 
 private:
   nsCSSValue mWidth;
@@ -85,9 +77,8 @@ private:
   UpdateValue(int32_t                  aSign,
               int32_t                  aPseudoUnit,
               const nsCSSValue&        aCSSValue,
-              const nsHTMLReflowMetrics& aDesiredSize,
-              nscoord&                 aValueToUpdate,
-              float                    aFontSizeInflation) const;
+              const nsBoundingMetrics& aBoundingMetrics,
+              nscoord&                 aValueToUpdate) const;
 };
 
 #endif /* nsMathMLmpaddedFrame_h___ */

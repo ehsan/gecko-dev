@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2014 Mozilla Foundation
+ * Copyright (c) 2008-2011 Mozilla Foundation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a 
  * copy of this software and associated documentation files (the "Software"), 
@@ -25,13 +25,14 @@
  * Please edit ElementName.java instead and regenerate.
  */
 
-#ifndef nsHtml5ElementName_h
-#define nsHtml5ElementName_h
+#ifndef nsHtml5ElementName_h__
+#define nsHtml5ElementName_h__
 
+#include "prtypes.h"
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"
 #include "nsString.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsIContent.h"
 #include "nsTraceRefcnt.h"
 #include "jArray.h"
@@ -41,7 +42,6 @@
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsHtml5Macros.h"
-#include "nsIContentHandle.h"
 
 class nsHtml5StreamParser;
 
@@ -68,13 +68,12 @@ class nsHtml5ElementName
     }
 
     int32_t getGroup();
-    bool isCustom();
-    static nsHtml5ElementName* elementNameByBuffer(char16_t* buf, int32_t offset, int32_t length, nsHtml5AtomTable* interner);
+    static nsHtml5ElementName* elementNameByBuffer(PRUnichar* buf, int32_t offset, int32_t length, nsHtml5AtomTable* interner);
   private:
-    static int32_t bufToHash(char16_t* buf, int32_t len);
+    static int32_t bufToHash(PRUnichar* buf, int32_t len);
     nsHtml5ElementName(nsIAtom* name, nsIAtom* camelCaseName, int32_t flags);
   protected:
-    explicit nsHtml5ElementName(nsIAtom* name);
+    nsHtml5ElementName(nsIAtom* name);
   public:
     virtual void release();
     virtual ~nsHtml5ElementName();
@@ -115,7 +114,6 @@ class nsHtml5ElementName
     static nsHtml5ElementName* ELT_OL;
     static nsHtml5ElementName* ELT_OR;
     static nsHtml5ElementName* ELT_PI;
-    static nsHtml5ElementName* ELT_RB;
     static nsHtml5ElementName* ELT_RP;
     static nsHtml5ElementName* ELT_RT;
     static nsHtml5ElementName* ELT_TD;
@@ -155,7 +153,6 @@ class nsHtml5ElementName
     static nsHtml5ElementName* ELT_NOT;
     static nsHtml5ElementName* ELT_NAV;
     static nsHtml5ElementName* ELT_PRE;
-    static nsHtml5ElementName* ELT_RTC;
     static nsHtml5ElementName* ELT_REM;
     static nsHtml5ElementName* ELT_SUB;
     static nsHtml5ElementName* ELT_SEC;
@@ -201,7 +198,6 @@ class nsHtml5ElementName
     static nsHtml5ElementName* ELT_MARK;
     static nsHtml5ElementName* ELT_MASK;
     static nsHtml5ElementName* ELT_MEAN;
-    static nsHtml5ElementName* ELT_MAIN;
     static nsHtml5ElementName* ELT_MSUP;
     static nsHtml5ElementName* ELT_MENU;
     static nsHtml5ElementName* ELT_MROW;
@@ -331,6 +327,7 @@ class nsHtml5ElementName
     static nsHtml5ElementName* ELT_ACRONYM;
     static nsHtml5ElementName* ELT_ADDRESS;
     static nsHtml5ElementName* ELT_BGSOUND;
+    static nsHtml5ElementName* ELT_COMMAND;
     static nsHtml5ElementName* ELT_COMPOSE;
     static nsHtml5ElementName* ELT_CEILING;
     static nsHtml5ElementName* ELT_CSYMBOL;
@@ -361,7 +358,6 @@ class nsHtml5ElementName
     static nsHtml5ElementName* ELT_NOEMBED;
     static nsHtml5ElementName* ELT_POLYGON;
     static nsHtml5ElementName* ELT_PATTERN;
-    static nsHtml5ElementName* ELT_PICTURE;
     static nsHtml5ElementName* ELT_PRODUCT;
     static nsHtml5ElementName* ELT_SETDIFF;
     static nsHtml5ElementName* ELT_SECTION;
@@ -398,7 +394,6 @@ class nsHtml5ElementName
     static nsHtml5ElementName* ELT_QUOTIENT;
     static nsHtml5ElementName* ELT_SELECTOR;
     static nsHtml5ElementName* ELT_TEXTAREA;
-    static nsHtml5ElementName* ELT_TEMPLATE;
     static nsHtml5ElementName* ELT_TEXTPATH;
     static nsHtml5ElementName* ELT_VARIANCE;
     static nsHtml5ElementName* ELT_ANIMATION;
@@ -446,7 +441,6 @@ class nsHtml5ElementName
     static nsHtml5ElementName* ELT_EXPONENTIALE;
     static nsHtml5ElementName* ELT_FETURBULENCE;
     static nsHtml5ElementName* ELT_FEPOINTLIGHT;
-    static nsHtml5ElementName* ELT_FEDROPSHADOW;
     static nsHtml5ElementName* ELT_FEMORPHOLOGY;
     static nsHtml5ElementName* ELT_OUTERPRODUCT;
     static nsHtml5ElementName* ELT_ANIMATEMOTION;

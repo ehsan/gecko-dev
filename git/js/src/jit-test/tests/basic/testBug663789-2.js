@@ -1,4 +1,4 @@
-load(libdir + "evalInFrame.js");
+// |jit-test| debug;mjit
 
 o = { toString:function() { return evalInFrame(1, "x") } }
 var x = 'C';

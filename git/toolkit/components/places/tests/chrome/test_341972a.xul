@@ -37,8 +37,9 @@ function runTest() {
     , index: PlacesUtils.bookmarks.DEFAULT_INDEX
     , feedURI: NetUtil.newURI(FEEDSPEC)
     , siteURI: NetUtil.newURI(INITIALSITESPEC)
-    })
-    .then(function (aLivemark) {
+    },
+    function (aStatus, aLivemark) {
+      ok(Components.isSuccessCode(aStatus), "Get livemark");
       is(aLivemark.siteURI.spec, INITIALSITESPEC,
          "Has correct initial livemark site URI");
 
@@ -49,8 +50,6 @@ function runTest() {
         PlacesUtils.bookmarks.removeItem(aLivemark.id);
         SimpleTest.finish();
       });
-    }, function () {
-      is(true, false, "Should not fail adding a livemark");
     }
   );
 }
@@ -64,6 +63,7 @@ function waitForLivemarkLoad(aLivemark, aCallback) {
     nodeAnnotationChanged: function() {},
     nodeTitleChanged: function() {},
     nodeHistoryDetailsChanged: function() {},
+    nodeReplaced: function() {},
     nodeMoved: function() {},
     ontainerStateChanged: function () {},
     sortingChanged: function() {},

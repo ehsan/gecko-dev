@@ -1,32 +1,30 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const TOTAL_SITES = 20;
-
-function run_test()
-{
-  run_next_test();
+function add_visit(aURI, aType) {
+  PlacesUtils.history.addVisit(uri(aURI), Date.now() * 1000, null, aType,
+                                 false, 0);
 }
 
-add_task(function test_execute()
-{
-  let places = [];
-  for (let i = 0; i < TOTAL_SITES; i++) {
-    for (let j = 0; j <= i; j++) {
-      places.push({ uri: uri("http://www.test-" + i + ".com/"),
-                    transition: TRANSITION_TYPED });
-        // because these are embedded visits, they should not show up on our
-        // query results.  If they do, we have a problem.
-      places.push({ uri: uri("http://www.hidden.com/hidden.gif"),
-                    transition: TRANSITION_EMBED });
-      places.push({ uri: uri("http://www.alsohidden.com/hidden.gif"),
-                    transition: TRANSITION_FRAMED_LINK });
+const TOTAL_SITES = 20;
+
+function run_test() {
+  PlacesUtils.history.runInBatchMode({
+    runBatched: function (aUserData) {
+      for (let i = 0; i < TOTAL_SITES; i++) {
+        for (let j = 0; j <= i; j++) {
+          add_visit("http://www.test-" + i + ".com/", TRANSITION_TYPED);
+          // because these are embedded visits, they should not show up on our
+          // query results.  If they do, we have a problem.
+          add_visit("http://www.hidden.com/hidden.gif", TRANSITION_EMBED);
+          add_visit("http://www.alsohidden.com/hidden.gif", TRANSITION_FRAMED_LINK);
+        }
+      }
     }
-  }
-  yield promiseAddVisits(places);
+  }, null);
 
   // test our optimized query for the "Most Visited" item
   // in the "Smart Bookmarks" folder
@@ -49,7 +47,7 @@ add_task(function test_execute()
     let node = root.getChild(i);
     let site = "http://www.test-" + (TOTAL_SITES - 1 - i) + ".com/";
     do_check_eq(node.uri, site);
-    do_check_eq(node.type, Ci.nsINavHistoryResultNode.RESULT_TYPE_URI);
+    do_check_eq(node.type, options.RESULTS_AS_URI);
   }
   root.containerOpen = false;
 
@@ -60,19 +58,19 @@ add_task(function test_execute()
   // http://www.test-19.com/
   // ...
   // http://www.test-10.com/
-  options = PlacesUtils.history.getNewQueryOptions();
+  let options = PlacesUtils.history.getNewQueryOptions();
   options.sortingMode = options.SORT_BY_VISITCOUNT_DESCENDING;
   options.resultType = options.RESULTS_AS_URI;
-  root = PlacesUtils.history.executeQuery(PlacesUtils.history.getNewQuery(),
+  let root = PlacesUtils.history.executeQuery(PlacesUtils.history.getNewQuery(),
                                               options).root;
   root.containerOpen = true;
-  cc = root.childCount;
+  let cc = root.childCount;
   do_check_eq(cc, TOTAL_SITES);
   for (let i = 0; i < 10; i++) {
     let node = root.getChild(i);
     let site = "http://www.test-" + (TOTAL_SITES - 1 - i) + ".com/";
     do_check_eq(node.uri, site);
-    do_check_eq(node.type, Ci.nsINavHistoryResultNode.RESULT_TYPE_URI);
+    do_check_eq(node.type, options.RESULTS_AS_URI);
   }
   root.containerOpen = false;
-});
+}

@@ -4,35 +4,37 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// HttpLog.h should generally be included first
-#include "HttpLog.h"
-
 #include "nsHttp.h"
 #include "NullHttpTransaction.h"
+#include "nsProxyRelease.h"
 #include "nsHttpHandler.h"
-#include "nsHttpRequestHead.h"
 
 namespace mozilla {
 namespace net {
 
-NS_IMPL_ISUPPORTS(NullHttpTransaction, NullHttpTransaction, nsISupportsWeakReference)
+NS_IMPL_THREADSAFE_ISUPPORTS0(NullHttpTransaction)
 
 NullHttpTransaction::NullHttpTransaction(nsHttpConnectionInfo *ci,
                                          nsIInterfaceRequestor *callbacks,
-                                         uint32_t caps)
+                                         nsIEventTarget *target,
+                                         uint8_t caps)
   : mStatus(NS_OK)
   , mCaps(caps | NS_HTTP_ALLOW_KEEPALIVE)
-  , mCapsToClear(0)
+  , mCallbacks(callbacks)
+  , mEventTarget(target)
+  , mConnectionInfo(ci)
   , mRequestHead(nullptr)
   , mIsDone(false)
-  , mCallbacks(callbacks)
-  , mConnectionInfo(ci)
 {
 }
 
 NullHttpTransaction::~NullHttpTransaction()
 {
-  mCallbacks = nullptr;
+  if (mCallbacks) {
+    nsIInterfaceRequestor *cbs = nullptr;
+    mCallbacks.swap(cbs);
+    NS_ProxyRelease(mEventTarget, cbs);
+  }
   delete mRequestHead;
 }
 
@@ -49,10 +51,18 @@ NullHttpTransaction::Connection()
 }
 
 void
-NullHttpTransaction::GetSecurityCallbacks(nsIInterfaceRequestor **outCB)
+NullHttpTransaction::GetSecurityCallbacks(nsIInterfaceRequestor **outCB,
+                                           nsIEventTarget **outTarget)
 {
   nsCOMPtr<nsIInterfaceRequestor> copyCB(mCallbacks);
-  *outCB = copyCB.forget().take();
+  *outCB = copyCB;
+  copyCB.forget();
+
+  if (outTarget) {
+    nsCOMPtr<nsIEventTarget> copyET(mEventTarget);
+    *outTarget = copyET;
+    copyET.forget();
+  }
 }
 
 void
@@ -73,17 +83,10 @@ NullHttpTransaction::Status()
   return mStatus;
 }
 
-uint32_t
+uint8_t
 NullHttpTransaction::Caps()
 {
-  return mCaps & ~mCapsToClear;
-}
-
-void
-NullHttpTransaction::SetDNSWasRefreshed()
-{
-  MOZ_ASSERT(NS_IsMainThread(), "SetDNSWasRefreshed on main thread only!");
-  mCapsToClear |= NS_HTTP_REFRESH_DNS;
+  return mCaps;
 }
 
 uint64_t
@@ -124,7 +127,7 @@ NullHttpTransaction::RequestHead()
   if (!mRequestHead) {
     mRequestHead = new nsHttpRequestHead();
 
-    nsAutoCString hostHeader;
+    nsCAutoString hostHeader;
     nsCString host(mConnectionInfo->GetHost());
     nsresult rv = nsHttpHandler::GenerateHostPort(host,
                                                   mConnectionInfo->Port(),
@@ -135,9 +138,9 @@ NullHttpTransaction::RequestHead()
     // CONNECT tunnels may also want Proxy-Authorization but that is a lot
     // harder to determine, so for now we will let those connections fail in
     // the NullHttpTransaction and let them be retried from the pending queue
-    // with a bound transaction
+    // with a bound transcation
   }
-
+  
   return mRequestHead;
 }
 
@@ -161,12 +164,6 @@ NullHttpTransaction::Close(nsresult reason)
   mIsDone = true;
 }
 
-nsHttpConnectionInfo *
-NullHttpTransaction::ConnectionInfo()
-{
-  return mConnectionInfo;
-}
-
 nsresult
 NullHttpTransaction::AddTransaction(nsAHttpTransaction *trans)
 {
@@ -184,7 +181,7 @@ NullHttpTransaction::SetPipelinePosition(int32_t position)
 {
     return NS_OK;
 }
-
+ 
 int32_t
 NullHttpTransaction::PipelinePosition()
 {

@@ -10,21 +10,13 @@
 #include "bzlib.h"
 #include "archivereader.h"
 #include "errors.h"
+#include "nsAlgorithm.h"
 #ifdef XP_WIN
-#include "nsAlgorithm.h" // Needed by nsVersionComparator.cpp
 #include "updatehelper.h"
 #endif
 
-#ifdef XP_WIN
-// These are generated at compile time based on the DER file for the channel
-// being used
-#include "primaryCert.h"
-#include "secondaryCert.h"
-#include "xpcshellCert.h"
-#endif
-
 #define UPDATER_NO_STRING_GLUE_STL
-#include "nsVersionComparator.cpp"
+#include "../../../../xpcom/build/nsVersionComparator.cpp"
 #undef UPDATER_NO_STRING_GLUE_STL
 
 #if defined(XP_UNIX)
@@ -35,27 +27,69 @@
 
 static int inbuf_size  = 262144;
 static int outbuf_size = 262144;
-static char *inbuf  = nullptr;
-static char *outbuf = nullptr;
+static char *inbuf  = NULL;
+static char *outbuf = NULL;
 
 #ifdef XP_WIN
 #include "resource.h"
 
 /**
+ * Obtains the data of the specified resource name and type.
+ *
+ * @param  name The name ID of the resource
+ * @param  type The type ID of the resource
+ * @param  data Out parameter which sets the pointer to a buffer containing
+ *                  the needed data.
+ * @param  size Out parameter which sets the size of the returned data buffer 
+ * @return TRUE on success
+*/
+BOOL
+LoadFileInResource(int name, int type, const char *&data, DWORD& size)
+{
+  HMODULE handle = GetModuleHandle(NULL);
+  if (!handle) {
+    return FALSE;
+  }
+
+  HRSRC resourceInfoBlockHandle = FindResource(handle, 
+                                               MAKEINTRESOURCE(name),
+                                               MAKEINTRESOURCE(type));
+  if (!resourceInfoBlockHandle) {
+    FreeLibrary(handle);
+    return FALSE;
+  }
+
+  HGLOBAL resourceHandle = LoadResource(handle, resourceInfoBlockHandle);
+  if (!resourceHandle) {
+    FreeLibrary(handle);
+    return FALSE;
+  }
+
+  size = SizeofResource(handle, resourceInfoBlockHandle);
+  data = static_cast<const char*>(::LockResource(resourceHandle));
+  FreeLibrary(handle);
+  return TRUE;
+}
+
+/**
  * Performs a verification on the opened MAR file with the passed in
  * certificate name ID and type ID.
  *
- * @param  archive   The MAR file to verify the signature on.
- * @param  certData  The certificate data.
- * @return OK on success, CERT_VERIFY_ERROR on failure.
+ * @param  archive   The MAR file to verify the signature on
+ * @param  name      The name ID of the resource
+ * @param  type      THe type ID of the resource
+ * @return OK on success, CERT_LOAD_ERROR or CERT_VERIFY_ERROR on failure.
 */
-template<uint32_t SIZE>
 int
-VerifyLoadedCert(MarFile *archive, const uint8_t (&certData)[SIZE])
+VerifyLoadedCert(MarFile *archive, int name, int type)
 {
-  const uint32_t size = SIZE;
-  const uint8_t * const data = &certData[0];
-  if (mar_verify_signaturesW(archive, &data, &size, 1)) {
+  DWORD size = 0;
+  const char *data = NULL;
+  if (!LoadFileInResource(name, type, data, size) || !data || !size) {
+    return CERT_LOAD_ERROR;
+  }
+
+  if (mar_verify_signatureW(archive, data, size)) {
     return CERT_VERIFY_ERROR;
   }
 
@@ -84,11 +118,11 @@ ArchiveReader::VerifySignature()
   // use the XPCShell specific cert for the signed MAR.
   int rv;
   if (DoesFallbackKeyExist()) {
-    rv = VerifyLoadedCert(mArchive, xpcshellCertData);
+    rv = VerifyLoadedCert(mArchive, IDR_XPCSHELL_CERT, TYPE_CERT);
   } else {
-    rv = VerifyLoadedCert(mArchive, primaryCertData);
+    rv = VerifyLoadedCert(mArchive, IDR_PRIMARY_CERT, TYPE_CERT);
     if (rv != OK) {
-      rv = VerifyLoadedCert(mArchive, secondaryCertData);
+      rv = VerifyLoadedCert(mArchive, IDR_BACKUP_CERT, TYPE_CERT);
     }
   }
   return rv;
@@ -149,7 +183,7 @@ ArchiveReader::VerifyProductInformation(const char *MARChannelID,
         rv = OK;
         break;
       }
-      channel = strtok(nullptr, delimiter);
+      channel = strtok(NULL, delimiter);
     }
   }
 
@@ -219,17 +253,17 @@ ArchiveReader::Close()
 {
   if (mArchive) {
     mar_close(mArchive);
-    mArchive = nullptr;
+    mArchive = NULL;
   }
 
   if (inbuf) {
     free(inbuf);
-    inbuf = nullptr;
+    inbuf = NULL;
   }
 
   if (outbuf) {
     free(outbuf);
-    outbuf = nullptr;
+    outbuf = NULL;
   }
 }
 

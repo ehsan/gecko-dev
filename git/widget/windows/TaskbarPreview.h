@@ -10,7 +10,6 @@
 
 #include <windows.h>
 #include <shobjidl.h>
-#undef LogSeverity // SetupAPI.h #defines this as DWORD
 
 #include <nsITaskbarPreview.h>
 #include <nsAutoPtr.h>
@@ -26,12 +25,11 @@ class TaskbarPreview : public nsITaskbarPreview
 {
 public:
   TaskbarPreview(ITaskbarList4 *aTaskbar, nsITaskbarPreviewController *aController, HWND aHWND, nsIDocShell *aShell);
+  virtual ~TaskbarPreview();
 
   NS_DECL_NSITASKBARPREVIEW
 
 protected:
-  virtual ~TaskbarPreview();
-
   // Called to update ITaskbarList4 dependent properties
   virtual nsresult UpdateTaskbarProperties();
 

@@ -8,9 +8,7 @@
 #include "nsCOMPtr.h"
 
 // Yes, we support QI to nsProxyInfo
-NS_IMPL_ISUPPORTS(nsProxyInfo, nsProxyInfo, nsIProxyInfo) 
-
-using namespace mozilla;
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsProxyInfo, nsProxyInfo, nsIProxyInfo) 
 
 NS_IMETHODIMP
 nsProxyInfo::GetHost(nsACString &result)
@@ -70,42 +68,3 @@ nsProxyInfo::SetFailoverProxy(nsIProxyInfo *proxy)
   pi.swap(mNext);
   return NS_OK;
 }
-
-// These pointers are declared in nsProtocolProxyService.cpp and
-// comparison of mType by string pointer is valid within necko
-namespace mozilla {
-  extern const char kProxyType_HTTP[];
-  extern const char kProxyType_HTTPS[];
-  extern const char kProxyType_SOCKS[];
-  extern const char kProxyType_SOCKS4[];
-  extern const char kProxyType_SOCKS5[];
-  extern const char kProxyType_DIRECT[];
-}
-
-bool
-nsProxyInfo::IsDirect()
-{
-  if (!mType)
-    return true;
-  return mType == kProxyType_DIRECT;
-}
-
-bool
-nsProxyInfo::IsHTTP()
-{
-  return mType == kProxyType_HTTP;
-}
-
-bool
-nsProxyInfo::IsHTTPS()
-{
-  return mType == kProxyType_HTTPS;
-}
-
-bool
-nsProxyInfo::IsSOCKS()
-{
-  return mType == kProxyType_SOCKS ||
-    mType == kProxyType_SOCKS4 || mType == kProxyType_SOCKS5;
-}
-

@@ -6,12 +6,10 @@ let tabEvents = "";
 
 function test() {
   if (!isTiltEnabled()) {
-    aborting();
     info("Skipping notifications test because Tilt isn't enabled.");
     return;
   }
   if (!isWebGLSupported()) {
-    aborting();
     info("Skipping notifications test because WebGL isn't supported.");
     return;
   }
@@ -21,7 +19,6 @@ function test() {
 
   createTab(function() {
     Services.obs.addObserver(finalize, DESTROYED, false);
-    Services.obs.addObserver(obs_STARTUP, STARTUP, false);
     Services.obs.addObserver(obs_INITIALIZING, INITIALIZING, false);
     Services.obs.addObserver(obs_INITIALIZED, INITIALIZED, false);
     Services.obs.addObserver(obs_DESTROYING, DESTROYING, false);
@@ -31,53 +28,45 @@ function test() {
     info("Starting up the Tilt notifications test.");
     createTilt({}, false, function suddenDeath()
     {
-      ok(false, "Tilt could not be initialized properly.");
+      info("Tilt could not be initialized properly.");
       cleanup();
     });
   });
 }
 
-function obs_STARTUP(win) {
-  info("Handling the STARTUP notification.");
-  is(win, gBrowser.selectedBrowser.contentWindow, "Saw the correct window");
-  tabEvents += "STARTUP;";
-}
-
-function obs_INITIALIZING(win) {
+function obs_INITIALIZING() {
   info("Handling the INITIALIZING notification.");
-  is(win, gBrowser.selectedBrowser.contentWindow, "Saw the correct window");
   tabEvents += "INITIALIZING;";
 }
 
-function obs_INITIALIZED(win) {
+function obs_INITIALIZED() {
   info("Handling the INITIALIZED notification.");
-  is(win, gBrowser.selectedBrowser.contentWindow, "Saw the correct window");
   tabEvents += "INITIALIZED;";
 
   Tilt.destroy(Tilt.currentWindowId, true);
 }
 
-function obs_DESTROYING(win) {
+function obs_DESTROYING() {
   info("Handling the DESTROYING( notification.");
-  is(win, gBrowser.selectedBrowser.contentWindow, "Saw the correct window");
   tabEvents += "DESTROYING;";
 }
 
-function obs_BEFORE_DESTROYED(win) {
+function obs_BEFORE_DESTROYED() {
   info("Handling the BEFORE_DESTROYED notification.");
-  is(win, gBrowser.selectedBrowser.contentWindow, "Saw the correct window");
   tabEvents += "BEFORE_DESTROYED;";
 }
 
-function obs_DESTROYED(win) {
+function obs_DESTROYED() {
   info("Handling the DESTROYED notification.");
-  is(win, gBrowser.selectedBrowser.contentWindow, "Saw the correct window");
   tabEvents += "DESTROYED;";
 }
 
-function finalize(win) {
-  is(win, gBrowser.selectedBrowser.contentWindow, "Saw the correct window");
-  is(tabEvents, "STARTUP;INITIALIZING;INITIALIZED;DESTROYING;BEFORE_DESTROYED;DESTROYED;",
+function finalize() {
+  if (!tabEvents) {
+    return;
+  }
+
+  is(tabEvents, "INITIALIZING;INITIALIZED;DESTROYING;BEFORE_DESTROYED;DESTROYED;",
     "The notifications weren't fired in the correct order.");
 
   cleanup();
@@ -92,7 +81,6 @@ function cleanup() {
   Services.obs.removeObserver(obs_DESTROYING, DESTROYING);
   Services.obs.removeObserver(obs_BEFORE_DESTROYED, BEFORE_DESTROYED);
   Services.obs.removeObserver(obs_DESTROYED, DESTROYED);
-  Services.obs.removeObserver(obs_STARTUP, STARTUP);
 
   gBrowser.removeCurrentTab();
   finish();

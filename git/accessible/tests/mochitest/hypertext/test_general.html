@@ -44,7 +44,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=428248
     //gA11yEventDumpToConsole = true;
     function doPreTest()
     {
-      waitForImageMap("imgmap", doTest);
+      var imgMap = document.getElementById("imgmap");
+      waitForImageMap(imgMap, doTest);
     }
 
     function doTest()

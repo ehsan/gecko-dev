@@ -1,4 +1,4 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -19,10 +19,20 @@ var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
 var bmsvc = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
             getService(Ci.nsINavBookmarksService);
 
+function add_visit(aURI, aVisitDate, aVisitType) {
+  var isRedirect = aVisitType == histsvc.TRANSITION_REDIRECT_PERMANENT ||
+                   aVisitType == histsvc.TRANSITION_REDIRECT_TEMPORARY;
+  var placeID = histsvc.addVisit(aURI, aVisitDate, null,
+                                 aVisitType, isRedirect, 0);
+  do_check_true(placeID > 0);
+  return placeID;
+}
+
 // create test data
 var searchTerm = "ユニコード";
 var decoded = "http://www.foobar.com/" + searchTerm + "/";
 var url = uri(decoded);
+add_visit(url, Date.now(), Ci.nsINavHistoryService.TRANSITION_LINK);
 
 function AutoCompleteInput(aSearches) {
   this.searches = aSearches;
@@ -77,14 +87,7 @@ AutoCompleteInput.prototype = {
   }
 }
 
-function run_test()
-{
-  do_test_pending();
-  promiseAddVisits(url).then(continue_test);
-}
-
-function continue_test()
-{
+function run_test() {
   var controller = Components.classes["@mozilla.org/autocomplete/controller;1"].
                    getService(Components.interfaces.nsIAutoCompleteController);
 
@@ -93,6 +96,9 @@ function continue_test()
   var input = new AutoCompleteInput(["history"]);
 
   controller.input = input;
+
+  // Search is asynchronous, so don't let the test finish immediately
+  do_test_pending();
 
   var numSearchesStarted = 0;
   input.onSearchBegin = function() {

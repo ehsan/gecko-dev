@@ -1,4 +1,4 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: JavaScript; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -13,9 +13,9 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "getFrameWorkerHandle", "resource://gre/modules/FrameWorker.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "openChatWindow", "resource://gre/modules/MozSocialAPI.jsm");
 
-this.EXPORTED_SYMBOLS = ["WorkerAPI"];
+const EXPORTED_SYMBOLS = ["WorkerAPI"];
 
-this.WorkerAPI = function WorkerAPI(provider, port) {
+function WorkerAPI(provider, port) {
   if (!port)
     throw new Error("Can't initialize WorkerAPI with a null port");
 
@@ -44,23 +44,17 @@ WorkerAPI.prototype = {
     try {
       handler.call(this, data);
     } catch (ex) {
-      Cu.reportError("WorkerAPI: failed to handle message '" + topic + "': " + ex + "\n" + ex.stack);
+      Cu.reportError("WorkerAPI: failed to handle message '" + topic + "': " + ex);
     }
   },
 
   handlers: {
-    "social.manifest-get": function(data) {
-      // retreive the currently installed manifest from firefox
-      this._port.postMessage({topic: "social.manifest", data: this._provider.manifest});
-    },
-    "social.manifest-set": function(data) {
-      // the provider will get reloaded as a result of this call
-      let SocialService = Cu.import("resource://gre/modules/SocialService.jsm", {}).SocialService;
-      let origin = this._provider.origin;
-      SocialService.updateProvider(origin, data);
-    },
     "social.reload-worker": function(data) {
-      this._provider.reload();
+      getFrameWorkerHandle(this._provider.workerURL, null)._worker.reload();
+      // the frameworker is going to be reloaded, send the initialization
+      // so it can have the same startup sequence as if it were loaded
+      // the first time.  This will be queued until the frameworker is ready.
+      this._port.postMessage({topic: "social.initialize"});
     },
     "social.user-profile": function (data) {
       this._provider.updateUserProfile(data);
@@ -69,34 +63,20 @@ WorkerAPI.prototype = {
       this._provider.setAmbientNotification(data);
     },
     "social.cookies-get": function(data) {
-      // We don't want to trust provider.origin etc, just incase the provider
-      // redirected away or something else bad is going on.  So we want to
-      // reach into the Worker's document and fetch the actual cookies it has.
-      // We need to do this via our own message dance.
-      let port = this._port;
-      let whandle = getFrameWorkerHandle(this._provider.workerURL, null);
-      whandle.port.close();
-      whandle._worker.browserPromise.then(browser => {
-        let mm = browser.messageManager;
-        mm.addMessageListener("frameworker:cookie-get-response", function _onCookieResponse(msg) {
-          mm.removeMessageListener("frameworker:cookie-get-response", _onCookieResponse);
-          let cookies = msg.json.split(";");
-          let results = [];
-          cookies.forEach(function(aCookie) {
-            let [name, value] = aCookie.split("=");
-            if (name || value) {
-              results.push({name: unescape(name.trim()),
-                            value: value ? unescape(value.trim()) : ""});
-            }
-          });
-          port.postMessage({topic: "social.cookies-get-response",
-                            data: results});
-        });
-        mm.sendAsyncMessage("frameworker:cookie-get");
+      let document = this._port._window.document;
+      let cookies = document.cookie.split(";");
+      let results = [];
+      cookies.forEach(function(aCookie) {
+        let [name, value] = aCookie.split("=");
+        results.push({name: unescape(name.trim()),
+                      value: value ? unescape(value.trim()) : ""});
       });
+      this._port.postMessage({topic: "social.cookies-get-response",
+                              data: results});
     },
     'social.request-chat': function(data) {
-      openChatWindow(null, this._provider, data);
+      let xulWindow = Services.wm.getMostRecentWindow("navigator:browser").getTopWin();
+      openChatWindow(xulWindow, this._provider, data, null, "minimized");
     },
     'social.notification-create': function(data) {
       if (!Services.prefs.getBoolPref("social.toast-notifications.enabled"))
@@ -118,18 +98,19 @@ WorkerAPI.prototype = {
             case "link":
               // if there is a url, make it open a tab
               if (actionArgs.toURL) {
-                let uriToOpen = provider.resolveUri(actionArgs.toURL);
-                // Bug 815970 - facebook gives us http:// links even though
-                // the origin is https:// - so we perform a fixup here.
-                let pUri = Services.io.newURI(provider.origin, null, null);
-                if (uriToOpen.scheme != pUri.scheme)
-                  uriToOpen.scheme = pUri.scheme;
-                if (provider.isSameOrigin(uriToOpen)) {
-                  let xulWindow = Services.wm.getMostRecentWindow("navigator:browser");
-                  xulWindow.openUILinkIn(uriToOpen.spec, "tab");
-                } else {
-                  Cu.reportError("Not opening notification link " + actionArgs.toURL
-                                 + " as not in provider origin");
+                try {
+                  let pUri = Services.io.newURI(provider.origin, null, null);
+                  let nUri = Services.io.newURI(pUri.resolve(actionArgs.toURL),
+                                                null, null);
+                  // fixup
+                  if (nUri.scheme != pUri.scheme)
+                    nUri.scheme = pUri.scheme;
+                  if (nUri.prePath == provider.origin) {
+                    let xulWindow = Services.wm.getMostRecentWindow("navigator:browser");
+                    xulWindow.openUILink(nUri.spec);
+                  }
+                } catch(e) {
+                  Cu.reportError("social.notification-create error: "+e);
                 }
               }
               break;

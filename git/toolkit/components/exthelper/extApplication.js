@@ -586,8 +586,8 @@ Extensions.prototype = {
 //=================================================
 // Application globals
 
-var gExtensionObserver = new ExtensionObserver();
-var gPreferenceObserver = new PreferenceObserver();
+gExtensionObserver = new ExtensionObserver();
+gPreferenceObserver = new PreferenceObserver();
 
 //=================================================
 // extApplication constructor

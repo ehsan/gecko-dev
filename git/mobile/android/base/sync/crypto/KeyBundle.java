@@ -44,7 +44,9 @@ public class KeyBundle {
       // Hash appropriately.
       try {
         username = Utils.usernameFromAccount(username);
-      } catch (NoSuchAlgorithmException | UnsupportedEncodingException e) {
+      } catch (NoSuchAlgorithmException e) {
+        throw new IllegalArgumentException("Invalid username.");
+      } catch (UnsupportedEncodingException e) {
         throw new IllegalArgumentException("Invalid username.");
       }
 
@@ -54,7 +56,9 @@ public class KeyBundle {
       Mac hmacHasher;
       try {
         hmacHasher = HKDF.makeHMACHasher(syncKey);
-      } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+      } catch (NoSuchAlgorithmException e) {
+        throw new CryptoException(e);
+      } catch (InvalidKeyException e) {
         throw new CryptoException(e);
       }
       assert(hmacHasher != null); // If makeHMACHasher doesn't throw, then hmacHasher is non-null.
@@ -126,10 +130,5 @@ public class KeyBundle {
       KeyBundle other = (KeyBundle) o;
       return Arrays.equals(other.encryptionKey, this.encryptionKey) &&
              Arrays.equals(other.hmacKey, this.hmacKey);
-    }
-
-    @Override
-    public int hashCode() {
-      throw new UnsupportedOperationException("No hashCode for KeyBundle.");
     }
 }

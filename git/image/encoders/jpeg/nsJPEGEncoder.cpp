@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsJPEGEncoder.h"
+#include "prmem.h"
 #include "prprf.h"
 #include "nsString.h"
 #include "nsStreamUtils.h"
@@ -14,8 +15,7 @@
 
 using namespace mozilla;
 
-NS_IMPL_ISUPPORTS(nsJPEGEncoder, imgIEncoder, nsIInputStream,
-                  nsIAsyncInputStream)
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsJPEGEncoder, imgIEncoder, nsIInputStream, nsIAsyncInputStream)
 
 // used to pass error info through the JPEG library
 struct encoder_error_mgr {
@@ -23,23 +23,19 @@ struct encoder_error_mgr {
   jmp_buf setjmp_buffer;
 };
 
-nsJPEGEncoder::nsJPEGEncoder()
-   : mFinished(false),
-     mImageBuffer(nullptr),
-     mImageBufferSize(0),
-     mImageBufferUsed(0),
-     mImageBufferReadPoint(0),
-     mCallback(nullptr),
-     mCallbackTarget(nullptr),
-     mNotifyThreshold(0),
-     mReentrantMonitor("nsJPEGEncoder.mReentrantMonitor")
+nsJPEGEncoder::nsJPEGEncoder() : mFinished(false),
+                                 mImageBuffer(nullptr), mImageBufferSize(0),
+                                 mImageBufferUsed(0), mImageBufferReadPoint(0),
+                                 mCallback(nullptr),
+                                 mCallbackTarget(nullptr), mNotifyThreshold(0),
+                                 mReentrantMonitor("nsJPEGEncoder.mReentrantMonitor")
 {
 }
 
 nsJPEGEncoder::~nsJPEGEncoder()
 {
   if (mImageBuffer) {
-    moz_free(mImageBuffer);
+    PR_Free(mImageBuffer);
     mImageBuffer = nullptr;
   }
 }
@@ -52,14 +48,13 @@ nsJPEGEncoder::~nsJPEGEncoder()
 //
 //    Transparency is always discarded.
 
-NS_IMETHODIMP
-nsJPEGEncoder::InitFromData(const uint8_t* aData,
-                            uint32_t aLength, // (unused, req'd by JS)
-                            uint32_t aWidth,
-                            uint32_t aHeight,
-                            uint32_t aStride,
-                            uint32_t aInputFormat,
-                            const nsAString& aOutputOptions)
+NS_IMETHODIMP nsJPEGEncoder::InitFromData(const uint8_t* aData,
+                                          uint32_t aLength, // (unused, req'd by JS)
+                                          uint32_t aWidth,
+                                          uint32_t aHeight,
+                                          uint32_t aStride,
+                                          uint32_t aInputFormat,
+                                          const nsAString& aOutputOptions)
 {
   NS_ENSURE_ARG(aData);
 
@@ -73,17 +68,15 @@ nsJPEGEncoder::InitFromData(const uint8_t* aData,
   // people will not understand what stride means, so check it well)
   if ((aInputFormat == INPUT_FORMAT_RGB &&
        aStride < aWidth * 3) ||
-      ((aInputFormat == INPUT_FORMAT_RGBA ||
-        aInputFormat == INPUT_FORMAT_HOSTARGB) &&
+      ((aInputFormat == INPUT_FORMAT_RGBA || aInputFormat == INPUT_FORMAT_HOSTARGB) &&
        aStride < aWidth * 4)) {
     NS_WARNING("Invalid stride for InitFromData");
     return NS_ERROR_INVALID_ARG;
   }
 
   // can't initialize more than once
-  if (mImageBuffer != nullptr) {
+  if (mImageBuffer != nullptr)
     return NS_ERROR_ALREADY_INITIALIZED;
-  }
 
   // options: we only have one option so this is easy
   int quality = 92;
@@ -93,20 +86,17 @@ nsJPEGEncoder::InitFromData(const uint8_t* aData,
     if (aOutputOptions.Length() > qualityPrefix.Length()  &&
         StringBeginsWith(aOutputOptions, qualityPrefix)) {
       // have quality string
-      nsCString value =
-        NS_ConvertUTF16toUTF8(Substring(aOutputOptions,
-                                        qualityPrefix.Length()));
+      nsCString value = NS_ConvertUTF16toUTF8(Substring(aOutputOptions,
+                                                        qualityPrefix.Length()));
       int newquality = -1;
       if (PR_sscanf(value.get(), "%d", &newquality) == 1) {
         if (newquality >= 0 && newquality <= 100) {
           quality = newquality;
         } else {
-          NS_WARNING("Quality value out of range, should be 0-100,"
-                     " using default");
+          NS_WARNING("Quality value out of range, should be 0-100, using default");
         }
       } else {
-        NS_WARNING("Quality value invalid, should be integer 0-100,"
-                   " using default");
+        NS_WARNING("Quality value invalid, should be integer 0-100, using default");
       }
     }
     else {
@@ -184,26 +174,23 @@ nsJPEGEncoder::InitFromData(const uint8_t* aData,
   NotifyListener();
 
   // if output callback can't get enough memory, it will free our buffer
-  if (!mImageBuffer) {
+  if (!mImageBuffer)
     return NS_ERROR_OUT_OF_MEMORY;
-  }
 
   return NS_OK;
 }
 
 
-NS_IMETHODIMP
-nsJPEGEncoder::StartImageEncode(uint32_t aWidth,
-                                uint32_t aHeight,
-                                uint32_t aInputFormat,
-                                const nsAString& aOutputOptions)
+NS_IMETHODIMP nsJPEGEncoder::StartImageEncode(uint32_t aWidth,
+                                              uint32_t aHeight,
+                                              uint32_t aInputFormat,
+                                              const nsAString& aOutputOptions)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 // Returns the number of bytes in the image buffer used.
-NS_IMETHODIMP
-nsJPEGEncoder::GetImageBufferUsed(uint32_t* aOutputSize)
+NS_IMETHODIMP nsJPEGEncoder::GetImageBufferUsed(uint32_t *aOutputSize)
 {
   NS_ENSURE_ARG_POINTER(aOutputSize);
   *aOutputSize = mImageBufferUsed;
@@ -211,39 +198,35 @@ nsJPEGEncoder::GetImageBufferUsed(uint32_t* aOutputSize)
 }
 
 // Returns a pointer to the start of the image buffer
-NS_IMETHODIMP
-nsJPEGEncoder::GetImageBuffer(char** aOutputBuffer)
+NS_IMETHODIMP nsJPEGEncoder::GetImageBuffer(char **aOutputBuffer)
 {
   NS_ENSURE_ARG_POINTER(aOutputBuffer);
   *aOutputBuffer = reinterpret_cast<char*>(mImageBuffer);
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsJPEGEncoder::AddImageFrame(const uint8_t* aData,
-                             uint32_t aLength,
-                             uint32_t aWidth,
-                             uint32_t aHeight,
-                             uint32_t aStride,
-                             uint32_t aFrameFormat,
-                             const nsAString& aFrameOptions)
+NS_IMETHODIMP nsJPEGEncoder::AddImageFrame(const uint8_t* aData,
+                                           uint32_t aLength,
+                                           uint32_t aWidth,
+                                           uint32_t aHeight,
+                                           uint32_t aStride,
+                                           uint32_t aFrameFormat,
+                                           const nsAString& aFrameOptions)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-NS_IMETHODIMP
-nsJPEGEncoder::EndImageEncode()
+NS_IMETHODIMP nsJPEGEncoder::EndImageEncode()
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 
 /* void close (); */
-NS_IMETHODIMP
-nsJPEGEncoder::Close()
+NS_IMETHODIMP nsJPEGEncoder::Close()
 {
   if (mImageBuffer != nullptr) {
-    moz_free(mImageBuffer);
+    PR_Free(mImageBuffer);
     mImageBuffer = nullptr;
     mImageBufferSize = 0;
     mImageBufferUsed = 0;
@@ -253,29 +236,24 @@ nsJPEGEncoder::Close()
 }
 
 /* unsigned long available (); */
-NS_IMETHODIMP
-nsJPEGEncoder::Available(uint64_t* _retval)
+NS_IMETHODIMP nsJPEGEncoder::Available(uint64_t *_retval)
 {
-  if (!mImageBuffer) {
+  if (!mImageBuffer)
     return NS_BASE_STREAM_CLOSED;
-  }
 
   *_retval = mImageBufferUsed - mImageBufferReadPoint;
   return NS_OK;
 }
 
 /* [noscript] unsigned long read (in charPtr aBuf, in unsigned long aCount); */
-NS_IMETHODIMP
-nsJPEGEncoder::Read(char* aBuf, uint32_t aCount, uint32_t* _retval)
+NS_IMETHODIMP nsJPEGEncoder::Read(char * aBuf, uint32_t aCount,
+                                  uint32_t *_retval)
 {
   return ReadSegments(NS_CopySegmentToBuffer, aBuf, aCount, _retval);
 }
 
-/* [noscript] unsigned long readSegments (in nsWriteSegmentFun aWriter, in
-   voidPtr aClosure, in unsigned long aCount); */
-NS_IMETHODIMP
-nsJPEGEncoder::ReadSegments(nsWriteSegmentFun aWriter,
-                            void* aClosure, uint32_t aCount, uint32_t* _retval)
+/* [noscript] unsigned long readSegments (in nsWriteSegmentFun aWriter, in voidPtr aClosure, in unsigned long aCount); */
+NS_IMETHODIMP nsJPEGEncoder::ReadSegments(nsWriteSegmentFun aWriter, void *aClosure, uint32_t aCount, uint32_t *_retval)
 {
   // Avoid another thread reallocing the buffer underneath us
   ReentrantMonitorAutoEnter autoEnter(mReentrantMonitor);
@@ -286,12 +264,10 @@ nsJPEGEncoder::ReadSegments(nsWriteSegmentFun aWriter,
     return mFinished ? NS_OK : NS_BASE_STREAM_WOULD_BLOCK;
   }
 
-  if (aCount > maxCount) {
+  if (aCount > maxCount)
     aCount = maxCount;
-  }
   nsresult rv = aWriter(this, aClosure,
-                        reinterpret_cast<const char*>
-                          (mImageBuffer+mImageBufferReadPoint),
+                        reinterpret_cast<const char*>(mImageBuffer+mImageBufferReadPoint),
                         0, aCount, _retval);
   if (NS_SUCCEEDED(rv)) {
     NS_ASSERTION(*_retval <= aCount, "bad write count");
@@ -303,39 +279,33 @@ nsJPEGEncoder::ReadSegments(nsWriteSegmentFun aWriter,
 }
 
 /* boolean isNonBlocking (); */
-NS_IMETHODIMP
-nsJPEGEncoder::IsNonBlocking(bool* _retval)
+NS_IMETHODIMP nsJPEGEncoder::IsNonBlocking(bool *_retval)
 {
   *_retval = true;
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsJPEGEncoder::AsyncWait(nsIInputStreamCallback* aCallback,
-                         uint32_t aFlags, uint32_t aRequestedCount,
-                         nsIEventTarget* aTarget)
+NS_IMETHODIMP nsJPEGEncoder::AsyncWait(nsIInputStreamCallback *aCallback,
+                                       uint32_t aFlags,
+                                       uint32_t aRequestedCount,
+                                       nsIEventTarget *aTarget)
 {
-  if (aFlags != 0) {
+  if (aFlags != 0)
     return NS_ERROR_NOT_IMPLEMENTED;
-  }
 
-  if (mCallback || mCallbackTarget) {
+  if (mCallback || mCallbackTarget)
     return NS_ERROR_UNEXPECTED;
-  }
 
   mCallbackTarget = aTarget;
   // 0 means "any number of bytes except 0"
   mNotifyThreshold = aRequestedCount;
-  if (!aRequestedCount) {
-    mNotifyThreshold = 1024; // 1 KB seems good.  We don't want to
-                             // notify incessantly
-  }
+  if (!aRequestedCount)
+    mNotifyThreshold = 1024; // 1 KB seems good.  We don't want to notify incessantly
 
   // We set the callback absolutely last, because NotifyListener uses it to
   // determine if someone needs to be notified.  If we don't set it last,
   // NotifyListener might try to fire off a notification to a null target
-  // which will generally cause non-threadsafe objects to be used off the
-  // main thread
+  // which will generally cause non-threadsafe objects to be used off the main thread
   mCallback = aCallback;
 
   // What we are being asked for may be present already
@@ -343,8 +313,7 @@ nsJPEGEncoder::AsyncWait(nsIInputStreamCallback* aCallback,
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsJPEGEncoder::CloseWithStatus(nsresult aStatus)
+NS_IMETHODIMP nsJPEGEncoder::CloseWithStatus(nsresult aStatus)
 {
   return Close();
 }
@@ -363,7 +332,7 @@ nsJPEGEncoder::ConvertHostARGBRow(const uint8_t* aSrc, uint8_t* aDest,
 {
   for (uint32_t x = 0; x < aPixelWidth; x++) {
     const uint32_t& pixelIn = ((const uint32_t*)(aSrc))[x];
-    uint8_t* pixelOut = &aDest[x * 3];
+    uint8_t *pixelOut = &aDest[x * 3];
 
     pixelOut[0] = (pixelIn & 0xff0000) >> 16;
     pixelOut[1] = (pixelIn & 0x00ff00) >>  8;
@@ -385,9 +354,9 @@ nsJPEGEncoder::ConvertRGBARow(const uint8_t* aSrc, uint8_t* aDest,
     uint8_t* pixelOut = &aDest[x * 3];
 
     uint8_t alpha = pixelIn[3];
-    pixelOut[0] = gfxPreMultiply(pixelIn[0], alpha);
-    pixelOut[1] = gfxPreMultiply(pixelIn[1], alpha);
-    pixelOut[2] = gfxPreMultiply(pixelIn[2], alpha);
+    pixelOut[0] = GFX_PREMULTIPLY(pixelIn[0], alpha);
+    pixelOut[1] = GFX_PREMULTIPLY(pixelIn[1], alpha);
+    pixelOut[2] = GFX_PREMULTIPLY(pixelIn[2], alpha);
   }
 }
 
@@ -401,10 +370,10 @@ void // static
 nsJPEGEncoder::initDestination(jpeg_compress_struct* cinfo)
 {
   nsJPEGEncoder* that = static_cast<nsJPEGEncoder*>(cinfo->client_data);
-  NS_ASSERTION(!that->mImageBuffer, "Image buffer already initialized");
+  NS_ASSERTION(! that->mImageBuffer, "Image buffer already initialized");
 
   that->mImageBufferSize = 8192;
-  that->mImageBuffer = (uint8_t*)moz_malloc(that->mImageBufferSize);
+  that->mImageBuffer = (uint8_t*)PR_Malloc(that->mImageBufferSize);
   that->mImageBufferUsed = 0;
 
   cinfo->dest->next_output_byte = that->mImageBuffer;
@@ -438,11 +407,11 @@ nsJPEGEncoder::emptyOutputBuffer(jpeg_compress_struct* cinfo)
   // expand buffer, just double size each time
   that->mImageBufferSize *= 2;
 
-  uint8_t* newBuf = (uint8_t*)moz_realloc(that->mImageBuffer,
-                                          that->mImageBufferSize);
-  if (!newBuf) {
+  uint8_t* newBuf = (uint8_t*)PR_Realloc(that->mImageBuffer,
+                                         that->mImageBufferSize);
+  if (! newBuf) {
     // can't resize, just zero (this will keep us from writing more)
-    moz_free(that->mImageBuffer);
+    PR_Free(that->mImageBuffer);
     that->mImageBuffer = nullptr;
     that->mImageBufferSize = 0;
     that->mImageBufferUsed = 0;
@@ -472,9 +441,8 @@ void // static
 nsJPEGEncoder::termDestination(jpeg_compress_struct* cinfo)
 {
   nsJPEGEncoder* that = static_cast<nsJPEGEncoder*>(cinfo->client_data);
-  if (!that->mImageBuffer) {
+  if (! that->mImageBuffer)
     return;
-  }
   that->mImageBufferUsed = cinfo->dest->next_output_byte - that->mImageBuffer;
   NS_ASSERTION(that->mImageBufferUsed < that->mImageBufferSize,
                "JPEG library busted, got a bad image buffer size");
@@ -491,7 +459,7 @@ void // static
 nsJPEGEncoder::errorExit(jpeg_common_struct* cinfo)
 {
   nsresult error_code;
-  encoder_error_mgr* err = (encoder_error_mgr*) cinfo->err;
+  encoder_error_mgr *err = (encoder_error_mgr *) cinfo->err;
 
   // Convert error to a browser error code
   switch (cinfo->err->msg_code) {
@@ -521,7 +489,9 @@ nsJPEGEncoder::NotifyListener()
        mFinished)) {
     nsCOMPtr<nsIInputStreamCallback> callback;
     if (mCallbackTarget) {
-      callback = NS_NewInputStreamReadyEvent(mCallback, mCallbackTarget);
+      NS_NewInputStreamReadyEvent(getter_AddRefs(callback),
+                                  mCallback,
+                                  mCallbackTarget);
     } else {
       callback = mCallback;
     }

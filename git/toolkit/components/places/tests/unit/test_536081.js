@@ -1,4 +1,4 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -14,21 +14,13 @@ const URLS = [
     s: "goog" },
 ];
 
-function run_test()
-{
-  run_next_test();
+function run_test() {
+  URLS.forEach(test_url);
 }
 
-add_task(function test_execute()
-{
-  for (let [, url] in Iterator(URLS)) {
-    yield task_test_url(url);
-  }
-});
-
-function task_test_url(aURL) {
+function test_url(aURL) {
   print("Testing url: " + aURL.u);
-  yield promiseAddVisits(uri(aURL.u));
+  hs.addVisit(uri(aURL.u), Date.now() * 1000, null, hs.TRANSITION_TYPED, false, 0);
   let query = hs.getNewQuery();
   query.searchTerms = aURL.s;
   let options = hs.getNewQueryOptions();

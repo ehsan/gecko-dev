@@ -20,7 +20,6 @@ union BluetoothValue
   nsString;
   bool;
   nsString[];
-  uint8_t[];
   BluetoothNamedValue[];
 };
 

@@ -26,6 +26,7 @@ static const char kCookiesPermissions[] = "network.cookie.cookieBehavior";
 static const char kCookiesLifetimeEnabled[] = "network.cookie.lifetime.enabled";
 static const char kCookiesLifetimeDays[] = "network.cookie.lifetime.days";
 static const char kCookiesLifetimeCurrentSession[] = "network.cookie.lifetime.behavior";
+static const char kCookiesP3PString[] = "network.cookie.p3p";
 static const char kCookiesAskPermission[] = "network.cookie.warnAboutCookies";
 static const char kCookiesMaxPerHost[] = "network.cookie.maxPerHost";
 
@@ -620,7 +621,7 @@ main(int32_t argc, char *argv[])
                                            false,                             // is secure
                                            false,                             // is httponly
                                            true,                              // is session
-                                           INT64_MAX));                          // expiry time
+                                           LL_MAXINT));                          // expiry time
       rv[2] = NS_SUCCEEDED(cookieMgr2->Add(NS_LITERAL_CSTRING("cookiemgr.test"), // domain
                                            NS_LITERAL_CSTRING("/foo"),           // path
                                            NS_LITERAL_CSTRING("test2"),          // name
@@ -636,7 +637,7 @@ main(int32_t argc, char *argv[])
                                            false,                             // is secure
                                            false,                             // is httponly
                                            true,                              // is session
-                                           INT64_MAX));                          // expiry time
+                                           LL_MAXINT));                          // expiry time
       // confirm using enumerator
       nsCOMPtr<nsISimpleEnumerator> enumerator;
       rv[4] = NS_SUCCEEDED(cookieMgr->GetEnumerator(getter_AddRefs(enumerator)));
@@ -651,11 +652,11 @@ main(int32_t argc, char *argv[])
         // keep tabs on the second and third cookies, so we can check them later
         nsCOMPtr<nsICookie2> cookie2(do_QueryInterface(cookie));
         if (!cookie2) break;
-        nsAutoCString name;
+        nsCAutoString name;
         cookie2->GetName(name);
-        if (name.EqualsLiteral("test2"))
+        if (name == NS_LITERAL_CSTRING("test2"))
           expiredCookie = cookie2;
-        else if (name.EqualsLiteral("test3"))
+        else if (name == NS_LITERAL_CSTRING("test3"))
           newDomainCookie = cookie2;
       }
       rv[5] = i == 3;
@@ -684,7 +685,7 @@ main(int32_t argc, char *argv[])
                                             false,                             // is secure
                                             false,                             // is httponly
                                             true,                              // is session
-                                            INT64_MIN));                          // expiry time
+                                            LL_MININT));                          // expiry time
       rv[13] = NS_SUCCEEDED(cookieMgr2->CookieExists(newDomainCookie, &found)) && !found;
       // sleep four seconds, to make sure the second cookie has expired
       PR_Sleep(4 * PR_TicksPerSecond());
@@ -708,8 +709,8 @@ main(int32_t argc, char *argv[])
       // test that cookies are
       // a) returned by order of creation time (oldest first, newest last)
       // b) evicted by order of lastAccessed time, if the limit on cookies per host (50) is reached
-      nsAutoCString name;
-      nsAutoCString expected;
+      nsCAutoString name;
+      nsCAutoString expected;
       for (int32_t i = 0; i < 60; ++i) {
         name = NS_LITERAL_CSTRING("test");
         name.AppendInt(i);

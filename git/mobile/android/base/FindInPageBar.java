@@ -4,40 +4,22 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.util.GeckoEventListener;
-import org.mozilla.gecko.util.GeckoRequest;
-import org.mozilla.gecko.util.NativeJSObject;
-import org.mozilla.gecko.util.ThreadUtils;
-
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import android.content.Context;
 import android.text.Editable;
-import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.CheckedTextView;
-import android.widget.LinearLayout;
-import android.widget.TextView;
+import android.widget.RelativeLayout;
 
-public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnClickListener, GeckoEventListener  {
-    private static final String LOGTAG = "GeckoFindInPageBar";
-    private static final String REQUEST_ID = "FindInPageBar";
-
-    // Will be removed by Bug 1113297.
-    private static final boolean MATCH_CASE_ENABLED = AppConstants.NIGHTLY_BUILD;
+public class FindInPageBar extends RelativeLayout implements TextWatcher, View.OnClickListener {
+    private static final String LOGTAG = "GeckoFindInPagePopup";
 
     private final Context mContext;
     private CustomEditText mFindText;
-    private CheckedTextView mMatchCase;
-    private TextView mStatusText;
-    private boolean mInflated;
+    private boolean mInflated = false;
 
     public FindInPageBar(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -60,7 +42,6 @@ public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnC
         mFindText = (CustomEditText) content.findViewById(R.id.find_text);
         mFindText.addTextChangedListener(this);
         mFindText.setOnKeyPreImeListener(new CustomEditText.OnKeyPreImeListener() {
-            @Override
             public boolean onKeyPreIme(View v, int keyCode, KeyEvent event) {
                 if (keyCode == KeyEvent.KEYCODE_BACK) {
                     hide();
@@ -70,17 +51,7 @@ public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnC
             }
         });
 
-        mMatchCase = (CheckedTextView) content.findViewById(R.id.find_matchcase);
-        if (MATCH_CASE_ENABLED) {
-            mMatchCase.setOnClickListener(this);
-        } else {
-            mMatchCase.setVisibility(View.GONE);
-        }
-
-        mStatusText = (TextView) content.findViewById(R.id.find_status);
-
         mInflated = true;
-        EventDispatcher.getInstance().registerGeckoThreadListener(this, "TextSelection:Data");
     }
 
     public void show() {
@@ -90,9 +61,20 @@ public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnC
         setVisibility(VISIBLE);
         mFindText.requestFocus();
 
-        // handleMessage() receives response message and determines initial state of softInput
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("TextSelection:Get", REQUEST_ID));
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FindInPage:Opened", null));
+        // Show the virtual keyboard.
+        if (mFindText.hasWindowFocus()) {
+            getInputMethodManager(mFindText).showSoftInput(mFindText, 0);
+        } else {
+            // showSoftInput won't work until after the window is focused.
+            mFindText.setOnWindowFocusChangeListener(new CustomEditText.OnWindowFocusChangeListener() {
+               public void onWindowFocusChanged(boolean hasFocus) {
+                   if (!hasFocus)
+                       return;
+                   mFindText.setOnWindowFocusChangeListener(null);
+                   getInputMethodManager(mFindText).showSoftInput(mFindText, 0);
+               }
+            });
+        }
     }
 
     public void hide() {
@@ -106,143 +88,33 @@ public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnC
         return (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
      }
 
-    public void onDestroy() {
-        if (!mInflated) {
-            return;
-        }
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this, "TextSelection:Data");
-    }
-
     // TextWatcher implementation
 
-    @Override
     public void afterTextChanged(Editable s) {
-        sendRequestToFinderHelper("FindInPage:Find", s.toString());
+        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FindInPage:Find", s.toString()));
     }
 
-    @Override
     public void beforeTextChanged(CharSequence s, int start, int count, int after) {
         // ignore
     }
 
-    @Override
     public void onTextChanged(CharSequence s, int start, int before, int count) {
         // ignore
     }
 
     // View.OnClickListener implementation
 
-    @Override
     public void onClick(View v) {
-        final int viewId = v.getId();
-
-        if (viewId == R.id.find_matchcase) {
-            // Toggle matchcase state (color).
-            mMatchCase.toggle();
-
-            // Repeat the find after a matchcase change.
-            sendRequestToFinderHelper("FindInPage:Find", mFindText.getText().toString());
-            getInputMethodManager(mFindText).hideSoftInputFromWindow(mFindText.getWindowToken(), 0);
-            return;
+        switch (v.getId()) {
+            case R.id.find_prev:
+                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FindInPage:Prev", mFindText.getText().toString()));
+                break;
+            case R.id.find_next:
+                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FindInPage:Next", mFindText.getText().toString()));
+                break;
+            case R.id.find_close:
+                hide();
+                break;
         }
-
-        if (viewId == R.id.find_prev) {
-            sendRequestToFinderHelper("FindInPage:Prev", mFindText.getText().toString());
-            getInputMethodManager(mFindText).hideSoftInputFromWindow(mFindText.getWindowToken(), 0);
-            return;
-        }
-
-        if (viewId == R.id.find_next) {
-            sendRequestToFinderHelper("FindInPage:Next", mFindText.getText().toString());
-            getInputMethodManager(mFindText).hideSoftInputFromWindow(mFindText.getWindowToken(), 0);
-            return;
-        }
-
-        if (viewId == R.id.find_close) {
-            hide();
-        }
-    }
-
-    // GeckoEventListener implementation
-
-    @Override
-    public void handleMessage(String event, JSONObject message) {
-        if (!event.equals("TextSelection:Data") || !REQUEST_ID.equals(message.optString("requestId"))) {
-            return;
-        }
-
-        final String text = message.optString("text");
-
-        // Populate an initial find string, virtual keyboard not required.
-        if (!TextUtils.isEmpty(text)) {
-            // Populate initial selection
-            ThreadUtils.postToUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    mFindText.setText(text);
-                }
-            });
-            return;
-        }
-
-        // Show the virtual keyboard.
-        if (mFindText.hasWindowFocus()) {
-            getInputMethodManager(mFindText).showSoftInput(mFindText, 0);
-        } else {
-            // showSoftInput won't work until after the window is focused.
-            mFindText.setOnWindowFocusChangeListener(new CustomEditText.OnWindowFocusChangeListener() {
-                @Override
-                public void onWindowFocusChanged(boolean hasFocus) {
-                    if (!hasFocus)
-                        return;
-
-                    mFindText.setOnWindowFocusChangeListener(null);
-                    getInputMethodManager(mFindText).showSoftInput(mFindText, 0);
-               }
-            });
-        }
-    }
-
-    /**
-     * Request find operation, and update matchCount results (current count and total).
-     */
-    private void sendRequestToFinderHelper(final String request, final String searchString) {
-        final JSONObject json = new JSONObject();
-        try {
-            json.put("searchString", searchString);
-            json.put("matchCase", mMatchCase.isChecked());
-        } catch (JSONException e) {
-            Log.e(LOGTAG, "JSON error - Error creating JSONObject", e);
-            return;
-        }
-
-        GeckoAppShell.sendRequestToGecko(new GeckoRequest(request, json) {
-            @Override
-            public void onResponse(NativeJSObject nativeJSObject) {
-                final int total = nativeJSObject.optInt("total", 0);
-                final int current = nativeJSObject.optInt("current", 0);
-                updateResult(total, current);
-            }
-
-            public void onError() {
-                // Gecko didn't respond due to state change, javascript error, etc.
-                updateResult(0, 0);
-                Log.d(LOGTAG, "No response from Gecko on request to match string: [" +
-                    searchString + "]");
-            }
-
-            private void updateResult(int total, int current) {
-                final Boolean statusVisibility = (total > 0);
-                final String statusText = current + "/" + total;
-
-                ThreadUtils.postToUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        mStatusText.setVisibility(statusVisibility ? View.VISIBLE : View.GONE);
-                        mStatusText.setText(statusText);
-                    }
-                });
-            }
-        });
     }
 }

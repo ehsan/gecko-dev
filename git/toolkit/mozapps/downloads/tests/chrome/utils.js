@@ -10,8 +10,6 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 
-Components.utils.import("resource://gre/modules/Services.jsm");
-
 /**
  * Returns the toolkit implementation of the download manager UI service.
  * If the toolkit implementation of the service can't be found (e.g. because
@@ -22,12 +20,6 @@ Components.utils.import("resource://gre/modules/Services.jsm");
  */
 function getDMUI()
 {
-  try {
-    // This method throws an exception if the old Download Manager is disabled.
-    Services.downloads.activeDownloadCount;
-  } catch (ex) {
-    return false;
-  }
   if (Components.classesByID["{7dfdf0d1-aff6-4a34-bad1-d0fe74601642}"])
     return Components.classesByID["{7dfdf0d1-aff6-4a34-bad1-d0fe74601642}"].
            getService(Ci.nsIDownloadManagerUI);
@@ -74,18 +66,14 @@ function addDownload(aName) {
     dmFile.append(aName || ("dm-test-file-" + randomString()));
     if (dmFile.exists())
       throw "Download file already exists";
-  
+
     let dl = dm.addDownload(Ci.nsIDownloadManager.DOWNLOAD_TYPE_DOWNLOAD,
                             createURI("http://example.com/httpd.js"),
                             createURI(dmFile), null, null,
-                            Math.round(Date.now() * 1000), null, persist, false);
-
-    let privacyContext = window.QueryInterface(Ci.nsIInterfaceRequestor)
-                               .getInterface(Ci.nsIWebNavigation)
-                               .QueryInterface(Ci.nsILoadContext);
+                            Math.round(Date.now() * 1000), null, persist);
 
     persist.progressListener = dl.QueryInterface(Ci.nsIWebProgressListener);
-    persist.saveURI(dl.source, null, null, 0, null, null, dl.targetFile, privacyContext);
+    persist.saveURI(dl.source, null, null, null, null, dl.targetFile);
 
     return dl;
   }
@@ -152,6 +140,7 @@ function setCleanState()
  */
 function waitForClearHistory(aCallback) {
   Components.utils.import("resource://gre/modules/PlacesUtils.jsm");
+  Components.utils.import("resource://gre/modules/Services.jsm");
   Services.obs.addObserver(function observeClearHistory(aSubject, aTopic) {
     Services.obs.removeObserver(observeClearHistory, aTopic);
     aCallback();

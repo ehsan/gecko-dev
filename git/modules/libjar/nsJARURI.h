@@ -23,6 +23,8 @@
     {0xb7, 0x5b, 0xfa, 0x7d, 0x95, 0x70, 0xa6, 0x91} \
 }
 
+#define NS_JARURI_CLASSNAME \
+    "nsJARURI"
 #define NS_JARURI_CID                                \
 { /* 245abae2-b947-4ded-a46d-9829d3cca462 */         \
     0x245abae2,                                      \
@@ -32,14 +34,14 @@
 }
 
 
-class nsJARURI MOZ_FINAL : public nsIJARURI,
-                           public nsISerializable,
-                           public nsIClassInfo,
-                           public nsINestedURI,
-                           public nsIIPCSerializableURI
+class nsJARURI : public nsIJARURI,
+                 public nsISerializable,
+                 public nsIClassInfo,
+                 public nsINestedURI,
+                 public nsIIPCSerializableURI
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIURI
     NS_DECL_NSIURL
     NS_DECL_NSIJARURI
@@ -52,6 +54,7 @@ public:
 
     // nsJARURI
     nsJARURI();
+    virtual ~nsJARURI();
    
     nsresult Init(const char *charsetHint);
     nsresult FormatSpec(const nsACString &entryPath, nsACString &result,
@@ -62,8 +65,6 @@ public:
     nsresult SetSpecWithBase(const nsACString& aSpec, nsIURI* aBaseURL);
 
 protected:
-    virtual ~nsJARURI();
-
     // enum used in a few places to specify how .ref attribute should be handled
     enum RefHandlingEnum {
         eIgnoreRef,

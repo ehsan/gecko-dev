@@ -4,22 +4,22 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "GLContextProvider.h"
-#include "GLContextCGL.h"
-#include "TextureImageCGL.h"
 #include "nsDebug.h"
 #include "nsIWidget.h"
+#include "OpenGL/OpenGL.h"
 #include <OpenGL/gl.h>
-#include "gfxPrefs.h"
+#include <AppKit/NSOpenGL.h>
+#include "gfxASurface.h"
+#include "gfxImageSurface.h"
+#include "gfxQuartzSurface.h"
+#include "gfxPlatform.h"
 #include "gfxFailure.h"
 #include "prenv.h"
 #include "mozilla/Preferences.h"
-#include "GeckoProfiler.h"
-#include "mozilla/gfx/MacIOSurface.h"
+#include "sampler.h"
 
 namespace mozilla {
 namespace gl {
-
-using namespace mozilla::gfx;
 
 static bool gUseDoubleBufferedWindows = true;
 
@@ -75,112 +75,338 @@ private:
     bool mInitialized;
     PRLibrary *mOGLLibrary;
     NSOpenGLPixelFormat *mPixelFormat;
-};
+}; 
 
 CGLLibrary sCGLLibrary;
 
-GLContextCGL::GLContextCGL(
-                  const SurfaceCaps& caps,
-                  GLContext *shareContext,
-                  NSOpenGLContext *context,
-                  bool isOffscreen)
-    : GLContext(caps, shareContext, isOffscreen),
-      mContext(context)
+class GLContextCGL : public GLContext
 {
-    SetProfileVersion(ContextProfile::OpenGLCompatibility, 210);
-}
+    friend class GLContextProviderCGL;
 
-GLContextCGL::~GLContextCGL()
-{
-    MarkDestroyed();
+public:
+    GLContextCGL(const ContextFormat& aFormat,
+                 GLContext *aShareContext,
+                 NSOpenGLContext *aContext,
+                 bool aIsOffscreen = false)
+        : GLContext(aFormat, aIsOffscreen, aShareContext),
+          mContext(aContext),
+          mPBuffer(nullptr),
+          mTempTextureName(0)
+    { }
 
-    if (mContext) {
-        if ([NSOpenGLContext currentContext] == mContext) {
-            // Clear the current context before releasing. If we don't do
-            // this, the next time we call [NSOpenGLContext currentContext],
-            // "invalid context" will be printed to the console.
-            [NSOpenGLContext clearCurrentContext];
-        }
-        [mContext release];
+    GLContextCGL(const ContextFormat& aFormat,
+                 GLContext *aShareContext,
+                 NSOpenGLContext *aContext,
+                 NSOpenGLPixelBuffer *aPixelBuffer)
+        : GLContext(aFormat, true, aShareContext),
+          mContext(aContext),
+          mPBuffer(aPixelBuffer),
+          mTempTextureName(0)
+    { }
+
+    ~GLContextCGL()
+    {
+        MarkDestroyed();
+
+        if (mContext)
+            [mContext release];
+
+        if (mPBuffer)
+            [mPBuffer release];
     }
 
-}
+    GLContextType GetContextType() {
+        return ContextTypeCGL;
+    }
 
-bool
-GLContextCGL::Init()
-{
-    if (!InitWithPrefix("gl", true))
-        return false;
+    bool Init()
+    {
+        MakeCurrent();
+        if (!InitWithPrefix("gl", true))
+            return false;
 
-    return true;
-}
-
-CGLContextObj
-GLContextCGL::GetCGLContext() const
-{
-    return static_cast<CGLContextObj>([mContext CGLContextObj]);
-}
-
-bool
-GLContextCGL::MakeCurrentImpl(bool aForce)
-{
-    if (!aForce && [NSOpenGLContext currentContext] == mContext) {
+        InitFramebuffers();
         return true;
     }
 
-    if (mContext) {
-        [mContext makeCurrentContext];
-        // Use non-blocking swap in "ASAP mode".
-        // ASAP mode means that rendering is iterated as fast as possible.
-        // ASAP mode is entered when layout.frame_rate=0 (requires restart).
-        // If swapInt is 1, then glSwapBuffers will block and wait for a vblank signal.
-        // When we're iterating as fast as possible, however, we want a non-blocking
-        // glSwapBuffers, which will happen when swapInt==0.
-        GLint swapInt = gfxPrefs::LayoutFrameRate() == 0 ? 0 : 1;
-        [mContext setValues:&swapInt forParameter:NSOpenGLCPSwapInterval];
+    void *GetNativeData(NativeDataType aType)
+    { 
+        switch (aType) {
+        case NativeGLContext:
+            return mContext;
+
+        default:
+            return nullptr;
+        }
     }
+
+    bool MakeCurrentImpl(bool aForce = false)
+    {
+        if (!aForce && [NSOpenGLContext currentContext] == mContext) {
+            return true;
+        }
+
+        if (mContext) {
+            [mContext makeCurrentContext];
+            GLint swapInt = 1;
+            [mContext setValues:&swapInt forParameter:NSOpenGLCPSwapInterval];
+        }
+        return true;
+    }
+
+    virtual bool IsCurrent() {
+        return [NSOpenGLContext currentContext] == mContext;
+    }
+
+    bool SetupLookupFunction()
+    {
+        return false;
+    }
+
+    bool IsDoubleBuffered() 
+    { 
+      return gUseDoubleBufferedWindows; 
+    }
+
+    bool SupportsRobustness()
+    {
+        return false;
+    }
+
+    bool SwapBuffers()
+    {
+      SAMPLE_LABEL("GLContext", "SwapBuffers");
+      [mContext flushBuffer];
+      return true;
+    }
+
+    bool BindTex2DOffscreen(GLContext *aOffscreen);
+    void UnbindTex2DOffscreen(GLContext *aOffscreen);
+    bool ResizeOffscreen(const gfxIntSize& aNewSize);
+
+    virtual already_AddRefed<TextureImage>
+    CreateBasicTextureImage(GLuint aTexture,
+                            const nsIntSize& aSize,
+                            GLenum aWrapMode,
+                            TextureImage::ContentType aContentType,
+                            GLContext* aContext,
+                            TextureImage::Flags aFlags = TextureImage::NoFlags);
+
+    NSOpenGLContext *mContext;
+    NSOpenGLPixelBuffer *mPBuffer;
+    GLuint mTempTextureName;
+};
+
+bool
+GLContextCGL::BindTex2DOffscreen(GLContext *aOffscreen)
+{
+    if (aOffscreen->GetContextType() != ContextTypeCGL) {
+        NS_WARNING("non-CGL context");
+        return false;
+    }
+
+    if (!aOffscreen->IsOffscreen()) {
+        NS_WARNING("non-offscreen context");
+        return false;
+    }
+
+    GLContextCGL *offs = static_cast<GLContextCGL*>(aOffscreen);
+
+    if (offs->mPBuffer) {
+        fGenTextures(1, &mTempTextureName);
+        fBindTexture(LOCAL_GL_TEXTURE_2D, mTempTextureName);
+
+        [mContext
+         setTextureImageToPixelBuffer:offs->mPBuffer
+         colorBuffer:LOCAL_GL_FRONT];
+    } else if (offs->mOffscreenTexture) {
+        if (offs->GetSharedContext() != GLContextProviderCGL::GetGlobalContext())
+        {
+            NS_WARNING("offscreen FBO context can only be bound with context sharing!");
+            return false;
+        }
+
+        fBindTexture(LOCAL_GL_TEXTURE_2D, offs->mOffscreenTexture);
+    } else {
+        NS_WARNING("don't know how to bind this!");
+        return false;
+    }
+
     return true;
 }
 
-bool
-GLContextCGL::IsCurrent() {
-    return [NSOpenGLContext currentContext] == mContext;
-}
-
-GLenum
-GLContextCGL::GetPreferredARGB32Format() const
+void
+GLContextCGL::UnbindTex2DOffscreen(GLContext *aOffscreen)
 {
-    return LOCAL_GL_BGRA;
-}
+    NS_ASSERTION(aOffscreen->GetContextType() == ContextTypeCGL, "wrong type");
 
-bool
-GLContextCGL::SetupLookupFunction()
-{
-    return false;
+    GLContextCGL *offs = static_cast<GLContextCGL*>(aOffscreen);
+    if (offs->mPBuffer) {
+        NS_ASSERTION(mTempTextureName, "We didn't have an offscreen texture name?");
+        fDeleteTextures(1, &mTempTextureName);
+        mTempTextureName = 0;
+    }
 }
 
 bool
-GLContextCGL::IsDoubleBuffered() const
+GLContextCGL::ResizeOffscreen(const gfxIntSize& aNewSize)
 {
-  return gUseDoubleBufferedWindows;
+    if (!IsOffscreenSizeAllowed(aNewSize))
+        return false;
+
+    if (mPBuffer) {
+        NSOpenGLPixelBuffer *pb = [[NSOpenGLPixelBuffer alloc]
+                                   initWithTextureTarget:LOCAL_GL_TEXTURE_2D
+                                   textureInternalFormat:(mCreationFormat.alpha ? LOCAL_GL_RGBA : LOCAL_GL_RGB)
+                                   textureMaxMipMapLevel:0
+                                   pixelsWide:aNewSize.width
+                                   pixelsHigh:aNewSize.height];
+        if (!pb) {
+            return false;
+        }
+
+        if (!ResizeOffscreenFBOs(aNewSize, false)) {
+            [pb release];
+            return false;
+        }
+
+        [mPBuffer release];
+        mPBuffer = pb;
+
+        mOffscreenSize = aNewSize;
+        mOffscreenActualSize = aNewSize;
+
+        [mContext setPixelBuffer:pb cubeMapFace:0 mipMapLevel:0
+         currentVirtualScreen:[mContext currentVirtualScreen]];
+
+        MakeCurrent();
+        ClearSafely();
+
+        return true;
+    }
+
+    return ResizeOffscreenFBOs(aNewSize, true);
 }
 
-bool
-GLContextCGL::SupportsRobustness() const
+class TextureImageCGL : public BasicTextureImage
 {
-    return false;
-}
+    friend already_AddRefed<TextureImage>
+    GLContextCGL::CreateBasicTextureImage(GLuint,
+                                          const nsIntSize&,
+                                          GLenum,
+                                          TextureImage::ContentType,
+                                          GLContext*,
+                                          TextureImage::Flags);
+public:
+    ~TextureImageCGL()
+    {
+        if (mPixelBuffer) {
+            mGLContext->MakeCurrent();
+            mGLContext->fDeleteBuffers(1, &mPixelBuffer);
+        }
+    }
 
-bool
-GLContextCGL::SwapBuffers()
+protected:
+    already_AddRefed<gfxASurface>
+    GetSurfaceForUpdate(const gfxIntSize& aSize, ImageFormat aFmt)
+    {
+        gfxIntSize size(aSize.width + 1, aSize.height + 1);
+        mGLContext->MakeCurrent();
+        if (!mGLContext->
+            IsExtensionSupported(GLContext::ARB_pixel_buffer_object)) 
+        {
+            return gfxPlatform::GetPlatform()->
+                CreateOffscreenSurface(size,
+                                       gfxASurface::ContentFromFormat(aFmt));
+        }
+
+        if (!mPixelBuffer) {
+            mGLContext->fGenBuffers(1, &mPixelBuffer);
+        }
+        mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, mPixelBuffer);
+        int32_t length = size.width * 4 * size.height;
+
+        if (length > mPixelBufferSize) {
+            mGLContext->fBufferData(LOCAL_GL_PIXEL_UNPACK_BUFFER, length,
+                                    NULL, LOCAL_GL_STREAM_DRAW);
+            mPixelBufferSize = length;
+        }
+        unsigned char* data = 
+            (unsigned char*)mGLContext->
+                fMapBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 
+                           LOCAL_GL_WRITE_ONLY);
+
+        mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 0);
+
+        if (!data) {
+            nsCAutoString failure;
+            failure += "Pixel buffer binding failed: ";
+            failure.AppendPrintf("%dx%d\n", size.width, size.height);
+            gfx::LogFailure(failure);
+
+            mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 0);
+            return gfxPlatform::GetPlatform()->
+                CreateOffscreenSurface(size,
+                                       gfxASurface::ContentFromFormat(aFmt));
+        }
+
+        nsRefPtr<gfxQuartzSurface> surf = 
+            new gfxQuartzSurface(data, size, size.width * 4, aFmt);
+
+        mBoundPixelBuffer = true;
+        return surf.forget();
+    }
+  
+    bool FinishedSurfaceUpdate()
+    {
+        if (mBoundPixelBuffer) {
+            mGLContext->MakeCurrent();
+            mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, mPixelBuffer);
+            mGLContext->fUnmapBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER);
+            return true;
+        }
+        return false;
+    }
+
+    void FinishedSurfaceUpload()
+    {
+        if (mBoundPixelBuffer) {
+            mGLContext->MakeCurrent();
+            mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 0);
+            mBoundPixelBuffer = false;
+        }
+    }
+
+private:
+    TextureImageCGL(GLuint aTexture,
+                    const nsIntSize& aSize,
+                    GLenum aWrapMode,
+                    ContentType aContentType,
+                    GLContext* aContext,
+                    TextureImage::Flags aFlags = TextureImage::NoFlags)
+        : BasicTextureImage(aTexture, aSize, aWrapMode, aContentType, aContext, aFlags)
+        , mPixelBuffer(0)
+        , mPixelBufferSize(0)
+        , mBoundPixelBuffer(false)
+    {}
+    
+    GLuint mPixelBuffer;
+    int32_t mPixelBufferSize;
+    bool mBoundPixelBuffer;
+};
+
+already_AddRefed<TextureImage>
+GLContextCGL::CreateBasicTextureImage(GLuint aTexture,
+                                      const nsIntSize& aSize,
+                                      GLenum aWrapMode,
+                                      TextureImage::ContentType aContentType,
+                                      GLContext* aContext,
+                                      TextureImage::Flags aFlags)
 {
-  PROFILER_LABEL("GLContextCGL", "SwapBuffers",
-    js::ProfileEntry::Category::GRAPHICS);
-
-  [mContext flushBuffer];
-  return true;
+    nsRefPtr<TextureImageCGL> teximage
+        (new TextureImageCGL(aTexture, aSize, aWrapMode, aContentType, aContext, aFlags));
+    return teximage.forget();
 }
-
 
 static GLContextCGL *
 GetGlobalContextCGL()
@@ -189,29 +415,26 @@ GetGlobalContextCGL()
 }
 
 already_AddRefed<GLContext>
-GLContextProviderCGL::CreateWrappingExisting(void*, void*)
-{
-    return nullptr;
-}
-
-already_AddRefed<GLContext>
 GLContextProviderCGL::CreateForWindow(nsIWidget *aWidget)
 {
+    if (!sCGLLibrary.EnsureInitialized()) {
+        return nullptr;
+    }
+
     GLContextCGL *shareContext = GetGlobalContextCGL();
 
-    NSOpenGLContext *context = [[NSOpenGLContext alloc]
+    NSOpenGLContext *context = [[NSOpenGLContext alloc] 
                                 initWithFormat:sCGLLibrary.PixelFormat()
                                 shareContext:(shareContext ? shareContext->mContext : NULL)];
     if (!context) {
         return nullptr;
     }
 
-    // make the context transparent
-    GLint opaque = 0;
-    [context setValues:&opaque forParameter:NSOpenGLCPSurfaceOpacity];
+    NSView *childView = (NSView *)aWidget->GetNativeData(NS_NATIVE_WIDGET);
+    [context setView:childView];
 
-    SurfaceCaps caps = SurfaceCaps::ForRGBA();
-    nsRefPtr<GLContextCGL> glContext = new GLContextCGL(caps,
+    // make the context transparent
+    nsRefPtr<GLContextCGL> glContext = new GLContextCGL(ContextFormat(ContextFormat::BasicRGB24),
                                                         shareContext,
                                                         context);
     if (!glContext->Init()) {
@@ -222,7 +445,102 @@ GLContextProviderCGL::CreateForWindow(nsIWidget *aWidget)
 }
 
 static already_AddRefed<GLContextCGL>
-CreateOffscreenFBOContext(bool aShare = true)
+CreateOffscreenPBufferContext(const gfxIntSize& aSize,
+                              const ContextFormat& aFormat,
+                              bool aShare = false)
+{
+    if (!sCGLLibrary.EnsureInitialized()) {
+        return nullptr;
+    }
+
+    GLContextCGL *shareContext = aShare ? GetGlobalContextCGL() : nullptr;
+    if (aShare && !shareContext) {
+        return nullptr;
+    }
+
+    nsTArray<NSOpenGLPixelFormatAttribute> attribs;
+
+#define A_(_x)  attribs.AppendElement(NSOpenGLPixelFormatAttribute(_x))
+    A_(NSOpenGLPFAAccelerated);
+    A_(NSOpenGLPFAPixelBuffer);
+    A_(NSOpenGLPFAMinimumPolicy);
+
+    A_(NSOpenGLPFAColorSize);
+    A_(aFormat.colorBits());
+
+    A_(NSOpenGLPFAAlphaSize);
+    A_(aFormat.alpha);
+
+    A_(NSOpenGLPFADepthSize);
+    A_(aFormat.depth);
+
+    A_(NSOpenGLPFAStencilSize);
+    A_(aFormat.stencil);
+
+    A_(0);
+#undef A_
+
+    NSOpenGLPixelFormat *pbFormat = [[NSOpenGLPixelFormat alloc]
+                                     initWithAttributes:attribs.Elements()];
+    if (!pbFormat) {
+        return nullptr;
+    }
+
+    // If we ask for any of these to be on/off and we get the opposite, we stop
+    // creating a pbuffer and instead create an FBO.
+    GLint alphaBits, depthBits, stencilBits;
+    [pbFormat getValues: &alphaBits forAttribute: NSOpenGLPFAAlphaSize forVirtualScreen: 0];
+    [pbFormat getValues: &depthBits forAttribute: NSOpenGLPFADepthSize forVirtualScreen: 0];
+    [pbFormat getValues: &stencilBits forAttribute: NSOpenGLPFAStencilSize forVirtualScreen: 0];
+    if ((alphaBits && !aFormat.alpha) || (!alphaBits && aFormat.alpha) ||
+        (depthBits && !aFormat.alpha) || (!depthBits && aFormat.depth) ||
+        (stencilBits && !aFormat.stencil) || (!stencilBits && aFormat.stencil)) 
+    {
+        [pbFormat release];
+        return nullptr;
+    }
+
+    NSOpenGLPixelBuffer *pb = [[NSOpenGLPixelBuffer alloc]
+                               initWithTextureTarget:LOCAL_GL_TEXTURE_2D
+                               textureInternalFormat:(aFormat.alpha ? LOCAL_GL_RGBA : LOCAL_GL_RGB)
+                               textureMaxMipMapLevel:0
+                               pixelsWide:aSize.width
+                               pixelsHigh:aSize.height];
+    if (!pb) {
+        [pbFormat release];
+        return nullptr;
+    }
+
+    NSOpenGLContext *context = [[NSOpenGLContext alloc]
+                                initWithFormat:pbFormat
+                                shareContext:shareContext ? shareContext->mContext : NULL];
+    if (!context) {
+        [pbFormat release];
+        [pb release];
+        return nullptr;
+    }
+
+    [context
+     setPixelBuffer:pb
+     cubeMapFace:0
+     mipMapLevel:0
+     currentVirtualScreen:[context currentVirtualScreen]];
+
+    {
+        GLint l;
+        [pbFormat getValues:&l forAttribute:NSOpenGLPFADepthSize forVirtualScreen:[context currentVirtualScreen]];
+    }
+
+    [pbFormat release];
+
+    nsRefPtr<GLContextCGL> glContext = new GLContextCGL(aFormat, shareContext, context, pb);
+
+    return glContext.forget();
+}
+
+static already_AddRefed<GLContextCGL>
+CreateOffscreenFBOContext(const ContextFormat& aFormat,
+                          bool aShare = true)
 {
     if (!sCGLLibrary.EnsureInitialized()) {
         return nullptr;
@@ -236,45 +554,58 @@ CreateOffscreenFBOContext(bool aShare = true)
 
     NSOpenGLContext *context = [[NSOpenGLContext alloc]
                                 initWithFormat:sCGLLibrary.PixelFormat()
-                                shareContext:shareContext ? shareContext->GetNSOpenGLContext() : NULL];
+                                shareContext:shareContext ? shareContext->mContext : NULL];
     if (!context) {
         return nullptr;
     }
 
-    SurfaceCaps dummyCaps = SurfaceCaps::Any();
-    nsRefPtr<GLContextCGL> glContext = new GLContextCGL(dummyCaps, shareContext, context, true);
+    nsRefPtr<GLContextCGL> glContext = new GLContextCGL(aFormat, shareContext, context, true);
 
     return glContext.forget();
 }
 
 already_AddRefed<GLContext>
-GLContextProviderCGL::CreateHeadless()
+GLContextProviderCGL::CreateOffscreen(const gfxIntSize& aSize,
+                                      const ContextFormat& aFormat,
+                                      const ContextFlags flags)
 {
-    nsRefPtr<GLContextCGL> glContext = CreateOffscreenFBOContext();
-    if (!glContext)
-        return nullptr;
+    ContextFormat actualFormat(aFormat);
 
-    if (!glContext->Init())
-        return nullptr;
+    nsRefPtr<GLContextCGL> glContext;
+    
+    NS_ENSURE_TRUE(Preferences::GetRootBranch(), nullptr);
+    const bool preferFBOs = Preferences::GetBool("cgl.prefer-fbo", true);
+    if (!preferFBOs)
+    {
+        glContext = CreateOffscreenPBufferContext(aSize, actualFormat);
+        if (glContext &&
+            glContext->Init() &&
+            glContext->ResizeOffscreenFBOs(aSize, false))
+        {
+            glContext->mOffscreenSize = aSize;
+            glContext->mOffscreenActualSize = aSize;
 
-    return glContext.forget();
-}
+            return glContext.forget();
+        }
+    }
 
-already_AddRefed<GLContext>
-GLContextProviderCGL::CreateOffscreen(const gfxIntSize& size,
-                                      const SurfaceCaps& caps)
-{
-    nsRefPtr<GLContext> glContext = CreateHeadless();
-    if (!glContext->InitOffscreen(ToIntSize(size), caps))
-        return nullptr;
+    // try a FBO as second choice
+    glContext = CreateOffscreenFBOContext(actualFormat);
+    if (glContext &&
+        glContext->Init() &&
+        glContext->ResizeOffscreenFBOs(aSize, true))
+    {
+        return glContext.forget();
+    }
 
-    return glContext.forget();
+    // everything failed
+    return nullptr;
 }
 
 static nsRefPtr<GLContext> gGlobalContext;
 
-GLContext*
-GLContextProviderCGL::GetGlobalContext()
+GLContext *
+GLContextProviderCGL::GetGlobalContext(const ContextFlags)
 {
     if (!sCGLLibrary.EnsureInitialized()) {
         return nullptr;
@@ -285,12 +616,15 @@ GLContextProviderCGL::GetGlobalContext()
         // than 16x16 in size; also 16x16 is POT so that we can do
         // a FBO with it on older video cards.  A FBO context for
         // sharing is preferred since it has no associated target.
-        gGlobalContext = CreateOffscreenFBOContext(false);
+        gGlobalContext = CreateOffscreenFBOContext(ContextFormat(ContextFormat::BasicRGB24),
+                                                   false);
         if (!gGlobalContext || !static_cast<GLContextCGL*>(gGlobalContext.get())->Init()) {
             NS_WARNING("Couldn't init gGlobalContext.");
             gGlobalContext = nullptr;
-            return nullptr;
+            return nullptr; 
         }
+
+        gGlobalContext->SetIsGlobalSharedContext(true);
     }
 
     return gGlobalContext;

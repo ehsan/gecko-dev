@@ -10,8 +10,9 @@ function checkOS(os) {
 }
 
 const isWin = checkOS("Win");
+const isOS2 = checkOS("OS2");
 const isMac = checkOS("Mac");
-const isUnix = !(isWin || isMac);
+const isUnix = !(isWin || isOS2 || isMac);
 
 var hiddenUnixFile;
 function createUNIXHiddenFile() {
@@ -28,7 +29,7 @@ function createUNIXHiddenFile() {
 
 function run_test() {
   // Skip this test on Windows
-  if (isWin)
+  if (isWin || isOS2)
     return;
 
   do_check_true(createUNIXHiddenFile());

@@ -6,124 +6,125 @@
 
 #include "DOMRequest.h"
 
+#include "mozilla/Util.h"
+#include "nsDOMClassInfo.h"
 #include "DOMError.h"
-#include "nsThreadUtils.h"
-#include "DOMCursor.h"
-#include "nsIDOMEvent.h"
-#include "mozilla/ErrorResult.h"
-#include "mozilla/dom/Promise.h"
-#include "mozilla/dom/ScriptSettings.h"
+#include "nsEventDispatcher.h"
+#include "nsDOMEvent.h"
+#include "nsContentUtils.h"
 
-using mozilla::dom::AnyCallback;
-using mozilla::dom::DOMError;
 using mozilla::dom::DOMRequest;
 using mozilla::dom::DOMRequestService;
-using mozilla::dom::DOMCursor;
-using mozilla::dom::Promise;
-using mozilla::AutoSafeJSContext;
 
-DOMRequest::DOMRequest(nsPIDOMWindow* aWindow)
-  : DOMEventTargetHelper(aWindow->IsInnerWindow() ?
-                           aWindow : aWindow->GetCurrentInnerWindow())
-  , mResult(JSVAL_VOID)
+DOMRequest::DOMRequest(nsIDOMWindow* aWindow)
+  : mResult(JSVAL_VOID)
   , mDone(false)
+  , mRooted(false)
+{
+  Init(aWindow);
+}
+
+// We need this constructor for dom::Activity that inherits from DOMRequest
+// but has no window available from the constructor.
+DOMRequest::DOMRequest()
+  : mResult(JSVAL_VOID)
+  , mDone(false)
+  , mRooted(false)
 {
 }
 
-DOMRequest::~DOMRequest()
+void
+DOMRequest::Init(nsIDOMWindow* aWindow)
 {
-  mResult.setUndefined();
-  mozilla::DropJSObjects(this);
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aWindow);
+  BindToOwner(window->IsInnerWindow() ? window.get() :
+                                        window->GetCurrentInnerWindow());
 }
+
+DOMCI_DATA(DOMRequest, DOMRequest)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(DOMRequest)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(DOMRequest,
-                                                  DOMEventTargetHelper)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mError)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPromise)
+                                                  nsDOMEventTargetHelper)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(success)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(error)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mError)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(DOMRequest,
-                                                DOMEventTargetHelper)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mError)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mPromise)
-  tmp->mResult = JSVAL_VOID;
+                                                nsDOMEventTargetHelper)
+  if (tmp->mRooted) {
+    tmp->mResult = JSVAL_VOID;
+    tmp->UnrootResultVal();
+  }
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(success)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(error)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mError)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(DOMRequest,
-                                               DOMEventTargetHelper)
+                                               nsDOMEventTargetHelper)
   // Don't need NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER because
-  // DOMEventTargetHelper does it for us.
+  // nsDOMEventTargetHelper does it for us.
   NS_IMPL_CYCLE_COLLECTION_TRACE_JSVAL_MEMBER_CALLBACK(mResult)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(DOMRequest)
   NS_INTERFACE_MAP_ENTRY(nsIDOMDOMRequest)
-NS_INTERFACE_MAP_END_INHERITING(DOMEventTargetHelper)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DOMRequest)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
-NS_IMPL_ADDREF_INHERITED(DOMRequest, DOMEventTargetHelper)
-NS_IMPL_RELEASE_INHERITED(DOMRequest, DOMEventTargetHelper)
+NS_IMPL_ADDREF_INHERITED(DOMRequest, nsDOMEventTargetHelper)
+NS_IMPL_RELEASE_INHERITED(DOMRequest, nsDOMEventTargetHelper)
 
-/* virtual */ JSObject*
-DOMRequest::WrapObject(JSContext* aCx)
-{
-  return DOMRequestBinding::Wrap(aCx, this);
-}
-
-NS_IMPL_EVENT_HANDLER(DOMRequest, success)
-NS_IMPL_EVENT_HANDLER(DOMRequest, error)
+NS_IMPL_EVENT_HANDLER(DOMRequest, success);
+NS_IMPL_EVENT_HANDLER(DOMRequest, error);
 
 NS_IMETHODIMP
 DOMRequest::GetReadyState(nsAString& aReadyState)
 {
-  DOMRequestReadyState readyState = ReadyState();
-  switch (readyState) {
-    case DOMRequestReadyState::Pending:
-      aReadyState.AssignLiteral("pending");
-      break;
-    case DOMRequestReadyState::Done:
-      aReadyState.AssignLiteral("done");
-      break;
-    default:
-      MOZ_CRASH("Unrecognized readyState.");
-  }
+  mDone ? aReadyState.AssignLiteral("done") :
+          aReadyState.AssignLiteral("pending");
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-DOMRequest::GetResult(JS::MutableHandle<JS::Value> aResult)
+DOMRequest::GetResult(jsval* aResult)
 {
-  GetResult(nullptr, aResult);
+  NS_ASSERTION(mDone || mResult == JSVAL_VOID,
+               "Result should be undefined when pending");
+  *aResult = mResult;
+
   return NS_OK;
 }
 
 NS_IMETHODIMP
-DOMRequest::GetError(nsISupports** aError)
+DOMRequest::GetError(nsIDOMDOMError** aError)
 {
-  NS_IF_ADDREF(*aError = GetError());
+  NS_ASSERTION(mDone || !mError,
+               "Error should be null when pending");
+
+  NS_IF_ADDREF(*aError = mError);
+
   return NS_OK;
 }
 
 void
-DOMRequest::FireSuccess(JS::Handle<JS::Value> aResult)
+DOMRequest::FireSuccess(jsval aResult)
 {
   NS_ASSERTION(!mDone, "mDone shouldn't have been set to true already!");
   NS_ASSERTION(!mError, "mError shouldn't have been set!");
   NS_ASSERTION(mResult == JSVAL_VOID, "mResult shouldn't have been set!");
 
   mDone = true;
-  if (aResult.isGCThing()) {
+  if (JSVAL_IS_GCTHING(aResult)) {
     RootResultVal();
   }
   mResult = aResult;
 
   FireEvent(NS_LITERAL_STRING("success"), false, false);
-
-  if (mPromise) {
-    mPromise->MaybeResolve(mResult);
-  }
 }
 
 void
@@ -134,13 +135,9 @@ DOMRequest::FireError(const nsAString& aError)
   NS_ASSERTION(mResult == JSVAL_VOID, "mResult shouldn't have been set!");
 
   mDone = true;
-  mError = new DOMError(GetOwner(), aError);
+  mError = DOMError::CreateWithName(aError);
 
   FireEvent(NS_LITERAL_STRING("error"), true, true);
-
-  if (mPromise) {
-    mPromise->MaybeRejectBrokenly(mError);
-  }
 }
 
 void
@@ -151,31 +148,9 @@ DOMRequest::FireError(nsresult aError)
   NS_ASSERTION(mResult == JSVAL_VOID, "mResult shouldn't have been set!");
 
   mDone = true;
-  mError = new DOMError(GetOwner(), aError);
+  mError = DOMError::CreateForNSResult(aError);
 
   FireEvent(NS_LITERAL_STRING("error"), true, true);
-
-  if (mPromise) {
-    mPromise->MaybeRejectBrokenly(mError);
-  }
-}
-
-void
-DOMRequest::FireDetailedError(DOMError* aError)
-{
-  NS_ASSERTION(!mDone, "mDone shouldn't have been set to true already!");
-  NS_ASSERTION(!mError, "mError shouldn't have been set!");
-  NS_ASSERTION(mResult == JSVAL_VOID, "mResult shouldn't have been set!");
-  NS_ASSERTION(aError, "No detailed error provided");
-
-  mDone = true;
-  mError = aError;
-
-  FireEvent(NS_LITERAL_STRING("error"), true, true);
-
-  if (mPromise) {
-    mPromise->MaybeRejectBrokenly(mError);
-  }
 }
 
 void
@@ -185,14 +160,16 @@ DOMRequest::FireEvent(const nsAString& aType, bool aBubble, bool aCancelable)
     return;
   }
 
-  nsCOMPtr<nsIDOMEvent> event;
-  NS_NewDOMEvent(getter_AddRefs(event), this, nullptr, nullptr);
+  nsRefPtr<nsDOMEvent> event = new nsDOMEvent(nullptr, nullptr);
   nsresult rv = event->InitEvent(aType, aBubble, aCancelable);
   if (NS_FAILED(rv)) {
     return;
   }
 
-  event->SetTrusted(true);
+  rv = event->SetTrusted(true);
+  if (NS_FAILED(rv)) {
+    return;
+  }
 
   bool dummy;
   DispatchEvent(event, &dummy);
@@ -201,62 +178,34 @@ DOMRequest::FireEvent(const nsAString& aType, bool aBubble, bool aCancelable)
 void
 DOMRequest::RootResultVal()
 {
-  mozilla::HoldJSObjects(this);
+  NS_ASSERTION(!mRooted, "Don't call me if already rooted!");
+  NS_HOLD_JS_OBJECTS(this, DOMRequest);
+  mRooted = true;
 }
 
-already_AddRefed<Promise>
-DOMRequest::Then(JSContext* aCx, AnyCallback* aResolveCallback,
-                 AnyCallback* aRejectCallback, mozilla::ErrorResult& aRv)
+void
+DOMRequest::UnrootResultVal()
 {
-  if (!mPromise) {
-    mPromise = Promise::Create(DOMEventTargetHelper::GetParentObject(), aRv);
-    if (aRv.Failed()) {
-      return nullptr;
-    }
-    if (mDone) {
-      // Since we create mPromise lazily, it's possible that the DOMRequest object
-      // has already fired its success/error event.  In that case we should
-      // manually resolve/reject mPromise here.  mPromise will take care of
-      // calling the callbacks on |promise| as needed.
-      if (mError) {
-        mPromise->MaybeRejectBrokenly(mError);
-      } else {
-        mPromise->MaybeResolve(mResult);
-      }
-    }
-  }
-
-  return mPromise->Then(aCx, aResolveCallback, aRejectCallback, aRv);
+  NS_ASSERTION(mRooted, "Don't call me if not rooted!");
+  NS_DROP_JS_OBJECTS(this, DOMRequest);
+  mRooted = false;
 }
 
-NS_IMPL_ISUPPORTS(DOMRequestService, nsIDOMRequestService)
+NS_IMPL_ISUPPORTS1(DOMRequestService, nsIDOMRequestService)
 
 NS_IMETHODIMP
 DOMRequestService::CreateRequest(nsIDOMWindow* aWindow,
                                  nsIDOMDOMRequest** aRequest)
 {
-  nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(aWindow));
-  NS_ENSURE_STATE(win);
-  NS_ADDREF(*aRequest = new DOMRequest(win));
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-DOMRequestService::CreateCursor(nsIDOMWindow* aWindow,
-                                nsICursorContinueCallback* aCallback,
-                                nsIDOMDOMCursor** aCursor)
-{
-  nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(aWindow));
-  NS_ENSURE_STATE(win);
-  NS_ADDREF(*aCursor = new DOMCursor(win, aCallback));
-
+  NS_ENSURE_STATE(aWindow);
+  NS_ADDREF(*aRequest = new DOMRequest(aWindow));
+  
   return NS_OK;
 }
 
 NS_IMETHODIMP
 DOMRequestService::FireSuccess(nsIDOMDOMRequest* aRequest,
-                               JS::Handle<JS::Value> aResult)
+                               const jsval& aResult)
 {
   NS_ENSURE_STATE(aRequest);
   static_cast<DOMRequest*>(aRequest)->FireSuccess(aResult);
@@ -270,116 +219,6 @@ DOMRequestService::FireError(nsIDOMDOMRequest* aRequest,
 {
   NS_ENSURE_STATE(aRequest);
   static_cast<DOMRequest*>(aRequest)->FireError(aError);
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-DOMRequestService::FireDetailedError(nsIDOMDOMRequest* aRequest,
-                                     nsISupports* aError)
-{
-  NS_ENSURE_STATE(aRequest);
-  nsCOMPtr<DOMError> err = do_QueryInterface(aError);
-  NS_ENSURE_STATE(err);
-  static_cast<DOMRequest*>(aRequest)->FireDetailedError(err);
-
-  return NS_OK;
-}
-
-class FireSuccessAsyncTask : public nsRunnable
-{
-
-  FireSuccessAsyncTask(JSContext* aCx,
-                       DOMRequest* aRequest,
-                       const JS::Value& aResult) :
-    mReq(aRequest),
-    mResult(aCx, aResult)
-  {
-  }
-
-public:
-
-  // Due to the fact that initialization can fail during shutdown (since we
-  // can't fetch a js context), set up an initiatization function to make sure
-  // we can return the failure appropriately
-  static nsresult
-  Dispatch(DOMRequest* aRequest,
-           const JS::Value& aResult)
-  {
-    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-    mozilla::ThreadsafeAutoSafeJSContext cx;
-    nsRefPtr<FireSuccessAsyncTask> asyncTask = new FireSuccessAsyncTask(cx, aRequest, aResult);
-    if (NS_FAILED(NS_DispatchToMainThread(asyncTask))) {
-      NS_WARNING("Failed to dispatch to main thread!");
-      return NS_ERROR_FAILURE;
-    }
-    return NS_OK;
-  }
-
-  NS_IMETHODIMP
-  Run()
-  {
-    mReq->FireSuccess(JS::Handle<JS::Value>::fromMarkedLocation(mResult.address()));
-    return NS_OK;
-  }
-
-  ~FireSuccessAsyncTask()
-  {
-    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  }
-
-private:
-  nsRefPtr<DOMRequest> mReq;
-  JS::PersistentRooted<JS::Value> mResult;
-};
-
-class FireErrorAsyncTask : public nsRunnable
-{
-public:
-  FireErrorAsyncTask(DOMRequest* aRequest,
-                     const nsAString& aError) :
-    mReq(aRequest),
-    mError(aError)
-  {
-  }
-
-  NS_IMETHODIMP
-  Run()
-  {
-    mReq->FireError(mError);
-    return NS_OK;
-  }
-private:
-  nsRefPtr<DOMRequest> mReq;
-  nsString mError;
-};
-
-NS_IMETHODIMP
-DOMRequestService::FireSuccessAsync(nsIDOMDOMRequest* aRequest,
-                                    JS::Handle<JS::Value> aResult)
-{
-  NS_ENSURE_STATE(aRequest);
-  return FireSuccessAsyncTask::Dispatch(static_cast<DOMRequest*>(aRequest), aResult);
-}
-
-NS_IMETHODIMP
-DOMRequestService::FireErrorAsync(nsIDOMDOMRequest* aRequest,
-                                  const nsAString& aError)
-{
-  NS_ENSURE_STATE(aRequest);
-  nsCOMPtr<nsIRunnable> asyncTask =
-    new FireErrorAsyncTask(static_cast<DOMRequest*>(aRequest), aError);
-  if (NS_FAILED(NS_DispatchToMainThread(asyncTask))) {
-    NS_WARNING("Failed to dispatch to main thread!");
-    return NS_ERROR_FAILURE;
-  }
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-DOMRequestService::FireDone(nsIDOMDOMCursor* aCursor) {
-  NS_ENSURE_STATE(aCursor);
-  static_cast<DOMCursor*>(aCursor)->FireDone();
 
   return NS_OK;
 }

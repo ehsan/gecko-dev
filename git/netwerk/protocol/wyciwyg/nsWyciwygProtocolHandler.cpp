@@ -7,12 +7,12 @@
 #include "nsWyciwyg.h"
 #include "nsWyciwygChannel.h"
 #include "nsWyciwygProtocolHandler.h"
+#include "nsIURL.h"
+#include "nsIComponentManager.h"
 #include "nsNetCID.h"
 #include "nsServiceManagerUtils.h"
 #include "plstr.h"
 #include "nsNetUtil.h"
-#include "nsIObserverService.h"
-#include "mozIApplicationClearPrivateDataParams.h"
 
 #include "mozilla/net/NeckoChild.h"
 
@@ -28,16 +28,15 @@ nsWyciwygProtocolHandler::nsWyciwygProtocolHandler()
     gWyciwygLog = PR_NewLogModule("nsWyciwygChannel");
 #endif
 
-  LOG(("Creating nsWyciwygProtocolHandler [this=%p].\n", this));
+  LOG(("Creating nsWyciwygProtocolHandler [this=%x].\n", this));
 }
 
 nsWyciwygProtocolHandler::~nsWyciwygProtocolHandler() 
 {
-  LOG(("Deleting nsWyciwygProtocolHandler [this=%p]\n", this));
+  LOG(("Deleting nsWyciwygProtocolHandler [this=%x]\n", this));
 }
 
-NS_IMPL_ISUPPORTS(nsWyciwygProtocolHandler,
-                  nsIProtocolHandler)
+NS_IMPL_ISUPPORTS1(nsWyciwygProtocolHandler, nsIProtocolHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsIProtocolHandler methods:
@@ -85,9 +84,7 @@ nsWyciwygProtocolHandler::NewURI(const nsACString &aSpec,
 }
 
 NS_IMETHODIMP
-nsWyciwygProtocolHandler::NewChannel2(nsIURI* url,
-                                      nsILoadInfo* aLoadInfo,
-                                      nsIChannel** result)
+nsWyciwygProtocolHandler::NewChannel(nsIURI* url, nsIChannel* *result)
 {
   if (mozilla::net::IsNeckoChild())
     mozilla::net::NeckoChild::InitNeckoChild();
@@ -112,7 +109,7 @@ nsWyciwygProtocolHandler::NewChannel2(nsIURI* url,
   {
     // If original channel used https, make sure PSM is initialized
     // (this may be first channel to load during a session restore)
-    nsAutoCString path;
+    nsCAutoString path;
     rv = url->GetPath(path);
     NS_ENSURE_SUCCESS(rv, rv);
     int32_t slashIndex = path.FindChar('/', 2);
@@ -131,14 +128,8 @@ nsWyciwygProtocolHandler::NewChannel2(nsIURI* url,
   if (NS_FAILED(rv))
     return rv;
 
-  channel.forget(result);
+  *result = channel.forget().get();
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsWyciwygProtocolHandler::NewChannel(nsIURI* url, nsIChannel* *result)
-{
-  return NewChannel2(url, nullptr, result);
 }
 
 NS_IMETHODIMP

@@ -10,14 +10,14 @@ function test() {
     let tmpdir = extractJarToTmp(jar);
     rootDir = "file://" + tmpdir.path + '/';
   }
-  loader.loadSubScript(rootDir + "privacypane_tests_perwindow.js", this);
+  loader.loadSubScript(rootDir + "privacypane_tests.js", this);
 
   run_test_subset([
-    test_locbar_suggestion_retention("history", true),
-    test_locbar_suggestion_retention("bookmark", true),
-    test_locbar_suggestion_retention("openpage", false),
-    test_locbar_suggestion_retention("history", true),
-    test_locbar_suggestion_retention("history", false),
+    test_locbar_suggestion_retention(-1, undefined),
+    test_locbar_suggestion_retention(1, -1),
+    test_locbar_suggestion_retention(2, 1),
+    test_locbar_suggestion_retention(0, 2),
+    test_locbar_suggestion_retention(0, 0),
 
     // reset all preferences to their default values once we're done
     reset_preferences

@@ -6,11 +6,7 @@
 
 // Local Includes
 #include "nsDocShellLoadInfo.h"
-#include "nsISHEntry.h"
-#include "nsIInputStream.h"
-#include "nsIURI.h"
-#include "nsIDocShell.h"
-#include "mozilla/net/ReferrerPolicy.h"
+#include "nsReadableUtils.h"
 
 //*****************************************************************************
 //***    nsDocShellLoadInfo: Object Management
@@ -20,9 +16,7 @@ nsDocShellLoadInfo::nsDocShellLoadInfo()
   : mInheritOwner(false),
     mOwnerIsExplicit(false),
     mSendReferrer(true),
-    mReferrerPolicy(mozilla::net::RP_Default),
-    mLoadType(nsIDocShellLoadInfo::loadNormal),
-    mIsSrcdocLoad(false)
+    mLoadType(nsIDocShellLoadInfo::loadNormal)
 {
 }
 
@@ -131,7 +125,7 @@ NS_IMETHODIMP nsDocShellLoadInfo::SetSHEntry(nsISHEntry* aSHEntry)
    return NS_OK;
 }
 
-NS_IMETHODIMP nsDocShellLoadInfo::GetTarget(char16_t** aTarget)
+NS_IMETHODIMP nsDocShellLoadInfo::GetTarget(PRUnichar** aTarget)
 {
    NS_ENSURE_ARG_POINTER(aTarget);
 
@@ -140,7 +134,7 @@ NS_IMETHODIMP nsDocShellLoadInfo::GetTarget(char16_t** aTarget)
    return NS_OK;
 }
 
-NS_IMETHODIMP nsDocShellLoadInfo::SetTarget(const char16_t* aTarget)
+NS_IMETHODIMP nsDocShellLoadInfo::SetTarget(const PRUnichar* aTarget)
 {
    mTarget.Assign(aTarget);
    return NS_OK;
@@ -191,66 +185,6 @@ NS_IMETHODIMP nsDocShellLoadInfo::GetSendReferrer(bool* aSendReferrer)
 NS_IMETHODIMP nsDocShellLoadInfo::SetSendReferrer(bool aSendReferrer)
 {
    mSendReferrer = aSendReferrer;
-   return NS_OK;
-}
-
-NS_IMETHODIMP nsDocShellLoadInfo::GetReferrerPolicy(nsDocShellInfoReferrerPolicy* aReferrerPolicy)
-{
-   *aReferrerPolicy = mReferrerPolicy;
-   return NS_OK;
-}
-
-NS_IMETHODIMP nsDocShellLoadInfo::SetReferrerPolicy(nsDocShellInfoReferrerPolicy aReferrerPolicy)
-{
-    mReferrerPolicy = aReferrerPolicy;
-    return NS_OK;
-}
-
-NS_IMETHODIMP nsDocShellLoadInfo::GetIsSrcdocLoad(bool* aIsSrcdocLoad)
-{
-   *aIsSrcdocLoad = mIsSrcdocLoad;
-   return NS_OK;
-}
-
-NS_IMETHODIMP nsDocShellLoadInfo::GetSrcdocData(nsAString &aSrcdocData)
-{
-   aSrcdocData = mSrcdocData;
-   return NS_OK;
-}
-
-NS_IMETHODIMP nsDocShellLoadInfo::SetSrcdocData(const nsAString &aSrcdocData)
-{
-   mSrcdocData = aSrcdocData;
-   mIsSrcdocLoad = true;
-   return NS_OK;
-}
-
-NS_IMETHODIMP nsDocShellLoadInfo::GetSourceDocShell(nsIDocShell** aSourceDocShell)
-{
-   MOZ_ASSERT(aSourceDocShell);
-   nsCOMPtr<nsIDocShell> result = mSourceDocShell;
-   result.forget(aSourceDocShell);
-   return NS_OK;
-}
-
-NS_IMETHODIMP nsDocShellLoadInfo::SetSourceDocShell(nsIDocShell* aSourceDocShell)
-{
-   mSourceDocShell = aSourceDocShell;
-   return NS_OK;
-}
-
-NS_IMETHODIMP nsDocShellLoadInfo::GetBaseURI(nsIURI** aBaseURI)
-{
-   NS_ENSURE_ARG_POINTER(aBaseURI);
-
-   *aBaseURI = mBaseURI;
-   NS_IF_ADDREF(*aBaseURI);
-   return NS_OK;
-}
-
-NS_IMETHODIMP nsDocShellLoadInfo::SetBaseURI(nsIURI* aBaseURI)
-{
-   mBaseURI = aBaseURI;
    return NS_OK;
 }
 

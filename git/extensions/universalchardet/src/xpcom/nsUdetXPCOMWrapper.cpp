@@ -13,11 +13,16 @@
 //---- for XPCOM
 #include "nsIFactory.h"
 #include "nsISupports.h"
+#include "pratom.h"
+#include "prmem.h"
 #include "nsCOMPtr.h"
 
+static NS_DEFINE_CID(kUniversalDetectorCID, NS_UNIVERSAL_DETECTOR_CID);
+static NS_DEFINE_CID(kUniversalStringDetectorCID, NS_UNIVERSAL_STRING_DETECTOR_CID);
+
 //---------------------------------------------------------------------
-nsXPCOMDetector:: nsXPCOMDetector()
- : nsUniversalDetector()
+nsXPCOMDetector:: nsXPCOMDetector(uint32_t aLanguageFilter)
+ : nsUniversalDetector(aLanguageFilter)
 {
 }
 //---------------------------------------------------------------------
@@ -26,7 +31,7 @@ nsXPCOMDetector::~nsXPCOMDetector()
 }
 //---------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS(nsXPCOMDetector, nsICharsetDetector)
+NS_IMPL_ISUPPORTS1(nsXPCOMDetector, nsICharsetDetector)
 
 //---------------------------------------------------------------------
 NS_IMETHODIMP nsXPCOMDetector::Init(
@@ -92,8 +97,8 @@ void nsXPCOMDetector::Report(const char* aCharset)
 
 
 //---------------------------------------------------------------------
-nsXPCOMStringDetector:: nsXPCOMStringDetector()
-  : nsUniversalDetector()
+nsXPCOMStringDetector:: nsXPCOMStringDetector(uint32_t aLanguageFilter)
+  : nsUniversalDetector(aLanguageFilter)
 {
 }
 //---------------------------------------------------------------------
@@ -101,7 +106,7 @@ nsXPCOMStringDetector::~nsXPCOMStringDetector()
 {
 }
 //---------------------------------------------------------------------
-NS_IMPL_ISUPPORTS(nsXPCOMStringDetector, nsIStringCharsetDetector)
+NS_IMPL_ISUPPORTS1(nsXPCOMStringDetector, nsIStringCharsetDetector)
 //---------------------------------------------------------------------
 void nsXPCOMStringDetector::Report(const char *aCharset) 
 {

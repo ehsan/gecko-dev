@@ -25,7 +25,7 @@
 
 "use strict";
 
-this.EXPORTED_SYMBOLS = [
+const EXPORTED_SYMBOLS = [
   "BasicStorageObject",
   "StorageServiceClient",
   "StorageServiceRequestError",
@@ -33,9 +33,9 @@ this.EXPORTED_SYMBOLS = [
 
 const {classes: Cc, interfaces: Ci, results: Cr, utils: Cu} = Components;
 
-Cu.import("resource://gre/modules/Preferences.jsm");
 Cu.import("resource://services-common/async.js");
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-common/log4moz.js");
+Cu.import("resource://services-common/preferences.js");
 Cu.import("resource://services-common/rest.js");
 Cu.import("resource://services-common/utils.js");
 
@@ -70,8 +70,7 @@ const Prefs = new Preferences("services.common.storageservice.");
  *        (string) ID of BSO. Can be null.
  *        (string) Collection BSO belongs to. Can be null;
  */
-this.BasicStorageObject =
- function BasicStorageObject(id=null, collection=null) {
+function BasicStorageObject(id=null, collection=null) {
   this.data       = {};
   this.id         = id;
   this.collection = collection;
@@ -267,7 +266,7 @@ BasicStorageObject.prototype = {
  *     never happen. But, it does. If set, this will be an Error which
  *     describes the error as reported by the server.
  */
-this.StorageServiceRequestError = function StorageServiceRequestError() {
+function StorageServiceRequestError() {
   this.serverModified  = false;
   this.notFound        = false;
   this.conflict        = false;
@@ -470,8 +469,8 @@ this.StorageServiceRequestError = function StorageServiceRequestError() {
  * to implement it transparently.
  */
 function StorageServiceRequest() {
-  this._log = Log.repository.getLogger("Sync.StorageService.Request");
-  this._log.level = Log.Level[Prefs.get("log.level")];
+  this._log = Log4Moz.repository.getLogger("Sync.StorageService.Request");
+  this._log.level = Log4Moz.Level[Prefs.get("log.level")];
 
   this.notModified = false;
 
@@ -1520,9 +1519,9 @@ Object.freeze(StorageCollectionBatchedDelete.prototype);
  * @param baseURI
  *        (string) Base URI for all requests.
  */
-this.StorageServiceClient = function StorageServiceClient(baseURI) {
-  this._log = Log.repository.getLogger("Services.Common.StorageServiceClient");
-  this._log.level = Log.Level[Prefs.get("log.level")];
+function StorageServiceClient(baseURI) {
+  this._log = Log4Moz.repository.getLogger("Services.Common.StorageServiceClient");
+  this._log.level = Log4Moz.Level[Prefs.get("log.level")];
 
   this._baseURI = baseURI;
 

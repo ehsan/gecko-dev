@@ -6,6 +6,7 @@
 
 #include "sqlite3.h"
 
+#include "jsapi.h"
 #include "jsfriendapi.h"
 
 #include "nsPrintfCString.h"
@@ -71,7 +72,7 @@ convertResultCode(int aSQLiteResultCode)
 
   // generic error
 #ifdef DEBUG
-  nsAutoCString message;
+  nsCAutoString message;
   message.AppendLiteral("SQLite returned error code ");
   message.AppendInt(rc);
   message.AppendLiteral(" , Storage will convert it to NS_ERROR_FAILURE");
@@ -95,20 +96,15 @@ checkAndLogStatementPerformance(sqlite3_stmt *aStatement)
   if (::strstr(sql, "/* do not warn (bug "))
     return;
 
-  nsAutoCString message;
+  nsCAutoString message;
   message.AppendInt(count);
   if (count == 1)
-    message.AppendLiteral(" sort operation has ");
+    message.Append(" sort operation has ");
   else
-    message.AppendLiteral(" sort operations have ");
-  message.AppendLiteral("occurred for the SQL statement '");
-#ifdef MOZ_STORAGE_SORTWARNING_SQL_DUMP
-  message.AppendLiteral("SQL command: ");
-  message.Append(sql);
-#else
+    message.Append(" sort operations have ");
+  message.Append("occurred for the SQL statement '");
   nsPrintfCString address("0x%p", aStatement);
   message.Append(address);
-#endif
   message.Append("'.  See https://developer.mozilla.org/En/Storage/Warnings "
                  "details.");
   NS_WARNING(message.get());
@@ -126,8 +122,8 @@ convertJSValToVariant(
     return new FloatVariant(aValue.toDouble());
 
   if (aValue.isString()) {
-    nsAutoJSString value;
-    if (!value.init(aCtx, aValue.toString()))
+    nsDependentJSString value;
+    if (!value.init(aCtx, aValue))
         return nullptr;
     return new TextVariant(value);
   }
@@ -139,14 +135,15 @@ convertJSValToVariant(
     return new NullVariant();
 
   if (aValue.isObject()) {
-    JS::Rooted<JSObject*> obj(aCtx, &aValue.toObject());
+    JSObject* obj = &aValue.toObject();
     // We only support Date instances, all others fail.
-    if (!js::DateIsValid(aCtx, obj))
+    if (!::js_DateIsValid(aCtx, obj))
       return nullptr;
 
-    double msecd = js::DateGetMsecSinceEpoch(aCtx, obj);
+    double msecd = ::js_DateGetMsecSinceEpoch(aCtx, obj);
     msecd *= 1000.0;
-    int64_t msec = msecd;
+    int64_t msec;
+    LL_D2L(msec, msecd);
 
     return new IntegerVariant(msec);
   }
@@ -158,14 +155,14 @@ namespace {
 class CallbackEvent : public nsRunnable
 {
 public:
-  explicit CallbackEvent(mozIStorageCompletionCallback *aCallback)
+  CallbackEvent(mozIStorageCompletionCallback *aCallback)
   : mCallback(aCallback)
   {
   }
 
   NS_IMETHOD Run()
   {
-    (void)mCallback->Complete(NS_OK, nullptr);
+    (void)mCallback->Complete();
     return NS_OK;
   }
 private:

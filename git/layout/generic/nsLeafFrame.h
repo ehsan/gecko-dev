@@ -8,7 +8,6 @@
 #ifndef nsLeafFrame_h___
 #define nsLeafFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsFrame.h"
 #include "nsDisplayList.h"
 
@@ -23,53 +22,48 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
   // nsIFrame replacements
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE {
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists) {
     DO_GLOBAL_REFLOW_COUNT_DSP("nsLeafFrame");
-    DisplayBorderBackgroundOutline(aBuilder, aLists);
+    return DisplayBorderBackgroundOutline(aBuilder, aLists);
   }
 
   /**
-   * Both GetMinISize and GetPrefISize will return whatever GetIntrinsicISize
+   * Both GetMinWidth and GetPrefWidth will return whatever GetIntrinsicWidth
    * returns.
    */
-  virtual nscoord GetMinISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
-  virtual nscoord GetPrefISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
 
   /**
    * Our auto size is just intrinsic width and intrinsic height.
    */
-  virtual mozilla::LogicalSize
-  ComputeAutoSize(nsRenderingContext *aRenderingContext,
-                  mozilla::WritingMode aWritingMode,
-                  const mozilla::LogicalSize& aCBSize,
-                  nscoord aAvailableISize,
-                  const mozilla::LogicalSize& aMargin,
-                  const mozilla::LogicalSize& aBorder,
-                  const mozilla::LogicalSize& aPadding,
-                  bool aShrinkWrap) MOZ_OVERRIDE;
+  virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
+                                 nsSize aCBSize, nscoord aAvailableWidth,
+                                 nsSize aMargin, nsSize aBorder,
+                                 nsSize aPadding, bool aShrinkWrap);
 
   /**
    * Reflow our frame.  This will use the computed width plus borderpadding for
-   * the desired width, and use the return value of GetIntrinsicBSize plus
+   * the desired width, and use the return value of GetIntrinsicHeight plus
    * borderpadding for the desired height.  Ascent will be set to the height,
    * and descent will be set to 0.
    */
-  virtual void Reflow(nsPresContext*      aPresContext,
-                      nsHTMLReflowMetrics& aDesiredSize,
-                      const nsHTMLReflowState& aReflowState,
-                      nsReflowStatus&      aStatus) MOZ_OVERRIDE;
+  NS_IMETHOD Reflow(nsPresContext*      aPresContext,
+                    nsHTMLReflowMetrics& aDesiredSize,
+                    const nsHTMLReflowState& aReflowState,
+                    nsReflowStatus&      aStatus);
   
   /**
    * This method does most of the work that Reflow() above need done.
    */
-  virtual void DoReflow(nsPresContext*      aPresContext,
-                        nsHTMLReflowMetrics& aDesiredSize,
-                        const nsHTMLReflowState& aReflowState,
-                        nsReflowStatus&      aStatus);
+  NS_IMETHOD DoReflow(nsPresContext*      aPresContext,
+                      nsHTMLReflowMetrics& aDesiredSize,
+                      const nsHTMLReflowState& aReflowState,
+                      nsReflowStatus&      aStatus);
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
+  virtual bool IsFrameOfType(uint32_t aFlags) const
   {
     // We don't actually contain a block, but we do always want a
     // computed width, so tell a little white lie here.
@@ -77,7 +71,7 @@ public:
   }
 
 protected:
-  explicit nsLeafFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
+  nsLeafFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
   virtual ~nsLeafFrame();
 
   /**
@@ -85,7 +79,7 @@ protected:
    * should not include borders or padding and should not depend on the applied
    * styles.
    */
-  virtual nscoord GetIntrinsicISize() = 0;
+  virtual nscoord GetIntrinsicWidth() = 0;
 
   /**
    * Return the intrinsic height of the frame's content area.  This should not
@@ -94,13 +88,13 @@ protected:
    * Reflow and ComputeAutoSize; the default Reflow and ComputeAutoSize impls
    * call this method.
    */
-  virtual nscoord GetIntrinsicBSize();
+  virtual nscoord GetIntrinsicHeight();
 
   /**
    * Subroutine to add in borders and padding
    */
   void AddBordersAndPadding(const nsHTMLReflowState& aReflowState,
-                            mozilla::LogicalSize& aDesiredSize);
+                            nsHTMLReflowMetrics& aDesiredSize);
 
   /**
    * Set aDesiredSize to be the available size

@@ -18,13 +18,13 @@
 
 class mozSpellI18NManager : public mozISpellI18NManager
 {
-protected:
-  virtual ~mozSpellI18NManager();
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_MOZISPELLI18NMANAGER
+  NS_DECL_CYCLE_COLLECTION_CLASS(mozSpellI18NManager)
 
   mozSpellI18NManager();
+  virtual ~mozSpellI18NManager();
 };
 #endif
 

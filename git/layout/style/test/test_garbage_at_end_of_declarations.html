@@ -40,8 +40,8 @@ var gDeclaration = gElement.style;
 /*
  * This lists properties where garbage identifiers are allowed at the
  * end, with values in property_database.js that are exceptions that
- * should be tested anyway.  "inherit", "initial" and "unset" are always
- * tested.
+ * should be tested anyway.  "inherit" and "-moz-initial" are always
+ * tested
  */
 var gAllowsExtra = {
   "counter-increment": { "none": true },
@@ -50,13 +50,6 @@ var gAllowsExtra = {
   "font": { "caption": true, "icon": true, "menu": true, "message-box": true,
             "small-caption": true, "status-bar": true },
   "voice-family": {},
-  "list-style": {
-    "inside none": true, "none inside": true, "none": true,
-    "none outside": true, "outside none": true,
-    'url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAKElEQVR42u3NQQ0AAAgEoNP+nTWFDzcoQE1udQQCgUAgEAgEAsGTYAGjxAE/G/Q2tQAAAABJRU5ErkJggg==")': true,
-    'url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAKElEQVR42u3NQQ0AAAgEoNP+nTWFDzcoQE1udQQCgUAgEAgEAsGTYAGjxAE/G/Q2tQAAAABJRU5ErkJggg==") outside': true,
-    'outside url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAKElEQVR42u3NQQ0AAAgEoNP+nTWFDzcoQE1udQQCgUAgEAgEAsGTYAGjxAE/G/Q2tQAAAABJRU5ErkJggg==")': true
-  },
 };
 
 /* These are the reverse of the above list; they're the unusual values
@@ -68,7 +61,7 @@ var gAllowsExtraUnusual = {
                   "1s linear": true, "1s 2s": true, "2s 1s": true,
                   "linear": true, "1s": true, "2s": true,
                   "ease-in-out": true, "2s ease-in": true,
-                  "ease-out 2s": true, "1s width, 2s": true },
+                  "ease-out 2s": true },
   "animation": { "none": true, "0s": true, "ease": true,
                  "normal": true, "running": true, "1.0": true,
                  "1s 2s linear": true, "1s linear 2s": true,
@@ -78,7 +71,6 @@ var gAllowsExtraUnusual = {
                  "ease-in-out": true, "2s ease-in": true,
                  "ease-out 2s": true, "1s bounce, 2s": true,
                  "1s bounce, 2s none": true },
-  "font-family": { "inherit": true, "initial": true, "unset": true }
 };
 
 gAllowsExtraUnusual["-moz-transition"] = gAllowsExtraUnusual["transition"];
@@ -90,7 +82,7 @@ function test_property(property)
 
   function test_value(value) {
     if (property in gAllowsExtra &&
-        value != "inherit" && value != "initial" && value != "unset" &&
+        value != "inherit" && value != "-moz-initial" &&
         !(value in gAllowsExtra[property])) {
       return;
     }
@@ -99,9 +91,7 @@ function test_property(property)
       return;
     }
 
-    // Include non-identifier characters in the garbage
-    // in case |value| would also be valid with a <custom-ident> added.
-    gElement.setAttribute("style", property + ": " + value + " +blah/");
+    gElement.setAttribute("style", property + ": " + value + " blah");
     if ("subproperties" in info) {
       for (idx in info.subproperties) {
         var subprop = info.subproperties[idx];
@@ -118,9 +108,7 @@ function test_property(property)
 
   var idx;
   test_value("inherit");
-  test_value("initial");
-  if (SpecialPowers.getBoolPref("layout.css.unset-value.enabled"))
-    test_value("unset");
+  test_value("-moz-initial");
   for (idx in info.initial_values)
     test_value(info.initial_values[idx]);
   for (idx in info.other_values)

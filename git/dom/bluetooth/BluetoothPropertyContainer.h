@@ -11,14 +11,7 @@
 #include "BluetoothReplyRunnable.h"
 
 class nsIDOMDOMRequest;
-class nsPIDOMWindow;
-
-namespace mozilla {
-class ErrorResult;
-namespace dom {
-class DOMRequest;
-}
-}
+class nsIDOMWindow;
 
 BEGIN_BLUETOOTH_NAMESPACE
 
@@ -27,11 +20,11 @@ class BluetoothNamedValue;
 class BluetoothPropertyContainer
 {
 public:
-  already_AddRefed<mozilla::dom::DOMRequest>
-    FirePropertyAlreadySet(nsPIDOMWindow* aOwner, ErrorResult& aRv);
-  already_AddRefed<mozilla::dom::DOMRequest>
-    SetProperty(nsPIDOMWindow* aOwner, const BluetoothNamedValue& aProperty,
-                ErrorResult& aRv);
+  nsresult FirePropertyAlreadySet(nsIDOMWindow* aOwner,
+                                  nsIDOMDOMRequest** aRequest);
+  nsresult SetProperty(nsIDOMWindow* aOwner,
+                       const BluetoothNamedValue& aProperty,
+                       nsIDOMDOMRequest** aRequest);
   virtual void SetPropertyByValue(const BluetoothNamedValue& aValue) = 0;
   nsString GetPath()
   {

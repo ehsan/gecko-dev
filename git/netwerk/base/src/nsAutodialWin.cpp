@@ -33,8 +33,6 @@
 static PRLogModuleInfo* gLog = nullptr;
 #endif
 
-#undef LOGD
-#undef LOGE
 #define LOGD(args) PR_LOG(gLog, PR_LOG_DEBUG, args)
 #define LOGE(args) PR_LOG(gLog, PR_LOG_ERROR, args)
 
@@ -45,8 +43,8 @@ PRIntervalTime nsAutodial::mDontRetryUntil = 0;
 // ctor. 
 nsAutodial::nsAutodial()
 :   mAutodialBehavior(AUTODIAL_DEFAULT),
-    mAutodialServiceDialingLocation(-1),
-    mNumRASConnectionEntries(0)
+    mNumRASConnectionEntries(0),
+    mAutodialServiceDialingLocation(-1)
 {
     // Initializations that can be made again since RAS OS settings can 
     // change.
@@ -207,7 +205,7 @@ int nsAutodial::QueryAutodialBehavior()
 // Return values:
 //  NS_OK: dialing was successful and caller should retry
 //  all other values indicate that the caller should not retry
-nsresult nsAutodial::DialDefault(const char16_t* hostName)
+nsresult nsAutodial::DialDefault(const PRUnichar* hostName)
 {
     mDontRetryUntil = 0;
 
@@ -336,7 +334,7 @@ bool nsAutodial::IsRASConnected()
 }
 
 // Get the first RAS dial entry name from the phonebook.
-nsresult nsAutodial::GetFirstEntryName(wchar_t* entryName, int bufferSize)
+nsresult nsAutodial::GetFirstEntryName(PRUnichar* entryName, int bufferSize)
 {
     RASENTRYNAMEW rasEntryName;
     rasEntryName.dwSize = sizeof(rasEntryName);
@@ -379,7 +377,7 @@ int nsAutodial::NumRASEntries()
 }
 
 // Get the name of the default dial entry.
-nsresult nsAutodial::GetDefaultEntryName(wchar_t* entryName, int bufferSize)
+nsresult nsAutodial::GetDefaultEntryName(PRUnichar* entryName, int bufferSize)
 {
     // No RAS dialup entries. 
     if (mNumRASConnectionEntries <= 0)
@@ -399,8 +397,8 @@ nsresult nsAutodial::GetDefaultEntryName(wchar_t* entryName, int bufferSize)
     // For Windows XP: HKCU/Software/Microsoft/RAS Autodial/Default/DefaultInternet.
     //              or HKLM/Software/Microsoft/RAS Autodial/Default/DefaultInternet.
 
-    const wchar_t* key = L"Software\\Microsoft\\RAS Autodial\\Default";
-    const wchar_t* val = L"DefaultInternet";
+    const PRUnichar* key = L"Software\\Microsoft\\RAS Autodial\\Default";
+    const PRUnichar* val = L"DefaultInternet";
 
     HKEY hKey = 0;
     LONG result = 0;
@@ -492,7 +490,7 @@ bool nsAutodial::IsAutodialServiceRunning()
 }
 
 // Add the specified address to the autodial directory.
-bool nsAutodial::AddAddressToAutodialDirectory(char16ptr_t hostName)
+bool nsAutodial::AddAddressToAutodialDirectory(const PRUnichar* hostName)
 {
     // First see if there is already a db entry for this address. 
     RASAUTODIALENTRYW autodialEntry;

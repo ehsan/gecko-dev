@@ -1,11 +1,8 @@
-// -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
+// -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/FormHistory.jsm");
 
 var dialog;     // Quick access to document/form elements.
 var gFindInst;   // nsIWebBrowserFind that we're going to use
@@ -101,7 +98,6 @@ function onAccept()
 
   // Transfer dialog contents to the find service.
   saveFindData();
-  updateFormHistory();
 
   // set up the find instance
   gFindInst.searchString  = dialog.findKey.value;
@@ -116,8 +112,7 @@ function onAccept()
   {
     if (!dialog.bundle)
       dialog.bundle = document.getElementById("findBundle");
-    Services.prompt.alert(window, dialog.bundle.getString("notFoundTitle"),
-                                  dialog.bundle.getString("notFoundWarning"));
+    window.alert(dialog.bundle.getString("notFoundWarning"));
     dialog.findKey.select();
     dialog.findKey.focus();
   } 
@@ -127,23 +122,4 @@ function onAccept()
 function doEnabling()
 {
   dialog.find.disabled = !dialog.findKey.value;
-}
-
-function updateFormHistory()
-{
-  if (window.opener.PrivateBrowsingUtils &&
-      window.opener.PrivateBrowsingUtils.isWindowPrivate(window.opener) ||
-      !dialog.findKey.value)
-    return;
-
-  FormHistory.update({
-    op: "bump",
-    fieldname: "find-dialog",
-    value: dialog.findKey.value
-  }, {
-    handleError: function(aError) {
-      Components.utils.reportError("Saving find to form history failed: " +
-                                   aError.message);
-    }
-  });
 }

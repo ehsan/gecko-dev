@@ -7,21 +7,18 @@
 #ifndef nsHttpChannelAuthProvider_h__
 #define nsHttpChannelAuthProvider_h__
 
+#include "nsHttp.h"
 #include "nsIHttpChannelAuthProvider.h"
 #include "nsIAuthPromptCallback.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
+#include "nsIHttpAuthenticableChannel.h"
+#include "nsIURI.h"
 #include "nsHttpAuthCache.h"
 #include "nsProxyInfo.h"
-#include "nsCRT.h"
+#include "mozilla/Attributes.h"
 
-class nsIHttpAuthenticableChannel;
 class nsIHttpAuthenticator;
-class nsIURI;
-
-namespace mozilla { namespace net {
-
-class nsHttpHandler;
 
 class nsHttpChannelAuthProvider : public nsIHttpChannelAuthProvider
                                 , public nsIAuthPromptCallback
@@ -33,10 +30,9 @@ public:
     NS_DECL_NSIAUTHPROMPTCALLBACK
 
     nsHttpChannelAuthProvider();
-
-private:
     virtual ~nsHttpChannelAuthProvider();
 
+private:
     const char *ProxyHost() const
     { return mProxyInfo ? mProxyInfo->Host().get() : nullptr; }
 
@@ -48,7 +44,7 @@ private:
     bool        UsingSSL() const  { return mUsingSSL; }
 
     bool        UsingHttpProxy() const
-    { return mProxyInfo && (mProxyInfo->IsHTTP() || mProxyInfo->IsHTTPS()); }
+    { return !!(mProxyInfo && !nsCRT::strcmp(mProxyInfo->Type(), "http")); }
 
     nsresult PrepareForAuthentication(bool proxyAuth);
     nsresult GenCredsAndSetEntry(nsIHttpAuthenticator *, bool proxyAuth,
@@ -104,7 +100,7 @@ private:
     nsresult DoRedirectChannelToHttps();
 
     /**
-     * A function that takes care of reading STS headers and enforcing STS
+     * A function that takes care of reading STS headers and enforcing STS 
      * load rules.  After a secure channel is erected, STS requires the channel
      * to be trusted or any STS header data on the channel is ignored.
      * This is called from ProcessResponse.
@@ -119,7 +115,6 @@ private:
     nsCString                         mHost;
     int32_t                           mPort;
     bool                              mUsingSSL;
-    bool                              mIsPrivate;
 
     nsISupports                      *mProxyAuthContinuationState;
     nsCString                         mProxyAuthType;
@@ -147,10 +142,6 @@ private:
     uint32_t                          mTriedProxyAuth           : 1;
     uint32_t                          mTriedHostAuth            : 1;
     uint32_t                          mSuppressDefensiveAuth    : 1;
-
-    nsRefPtr<nsHttpHandler>           mHttpHandler;  // keep gHttpHandler alive
 };
-
-}} // namespace mozilla::net
 
 #endif // nsHttpChannelAuthProvider_h__

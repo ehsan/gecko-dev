@@ -8,7 +8,6 @@
 #include "nsISupports.h"
 #include "nsCoord.h"
 #include "mozilla/gfx/Types.h"
-#include <stdint.h>
 
 class nsTableCellFrame;
 class nsCellMap;
@@ -125,7 +124,7 @@ private:
   /** constructor.
     * @param aOrigCell  the table cell frame which will be stored in mOrigCell.
     */
-  explicit CellData(nsTableCellFrame* aOrigCell);  // implemented in nsCellMap.cpp
+  CellData(nsTableCellFrame* aOrigCell);  // implemented in nsCellMap.cpp
 
   /** destructor */
   ~CellData(); // implemented in nsCellMap.cpp
@@ -136,10 +135,11 @@ protected:
   // not start on an odd bit boundary. If mSpan is 0 then mOrigCell is in effect
   // and the data does not represent a span. If mSpan is 1, then mBits is in
   // effect and the data represents a span.
-  // mBits must match the size of mOrigCell on both 32- and 64-bit platforms.
+  // mBits must be an unsigned long because it must match the size of
+  // mOrigCell on both 32- and 64-bit platforms.
   union {
     nsTableCellFrame* mOrigCell;
-    uintptr_t         mBits;
+    unsigned long     mBits;
   };
 };
 
@@ -163,7 +163,7 @@ typedef uint16_t BCPixelSize;
 
 // These are the max sizes that are stored. If they are exceeded, then the max is stored and
 // the actual value is computed when needed.
-#define MAX_BORDER_WIDTH nscoord((1u << (sizeof(BCPixelSize) * 8)) - 1)
+#define MAX_BORDER_WIDTH nscoord(PR_BITMASK(sizeof(BCPixelSize) * 8))
 
 static inline nscoord
 BC_BORDER_TOP_HALF_COORD(int32_t p2t, uint16_t px)    { return (px - px / 2) * p2t; }
@@ -201,11 +201,11 @@ public:
                   nscoord       aSize,
                   bool          aStart);
 
-  BCPixelSize GetCorner(mozilla::Side&       aCornerOwner,
+  BCPixelSize GetCorner(mozilla::css::Side&       aCornerOwner,
                         bool&  aBevel) const;
 
   void SetCorner(BCPixelSize aSubSize,
-                 mozilla::Side aOwner,
+                 mozilla::css::Side aOwner,
                  bool    aBevel);
 
   bool IsLeftStart() const;
@@ -229,7 +229,7 @@ protected:
   unsigned mTopOwner:      4; // owner of top border
   unsigned mLeftStart:     1; // set if this is the start of a vertical border segment
   unsigned mTopStart:      1; // set if this is the start of a horizontal border segment
-  unsigned mCornerSide:    2; // mozilla::Side of the owner of the upper left corner relative to the corner
+  unsigned mCornerSide:    2; // mozilla::css::Side of the owner of the upper left corner relative to the corner
   unsigned mCornerBevel:   1; // is the corner beveled (only two segments, perpendicular, not dashed or dotted).
 };
 
@@ -240,7 +240,7 @@ protected:
 class BCCellData : public CellData
 {
 public:
-  explicit BCCellData(nsTableCellFrame* aOrigCell);
+  BCCellData(nsTableCellFrame* aOrigCell);
   ~BCCellData();
 
   BCData mData;
@@ -449,16 +449,16 @@ inline void BCData::SetTopEdge(BCBorderOwner  aOwner,
   mTopStart = aStart;
 }
 
-inline BCPixelSize BCData::GetCorner(mozilla::Side& aOwnerSide,
+inline BCPixelSize BCData::GetCorner(mozilla::css::Side& aOwnerSide,
                                      bool&       aBevel) const
 {
-  aOwnerSide = mozilla::Side(mCornerSide);
+  aOwnerSide = mozilla::css::Side(mCornerSide);
   aBevel     = (bool)mCornerBevel;
   return mCornerSubSize;
 }
 
 inline void BCData::SetCorner(BCPixelSize aSubSize,
-                              mozilla::Side aOwnerSide,
+                              mozilla::css::Side aOwnerSide,
                               bool    aBevel)
 {
   mCornerSubSize = aSubSize;

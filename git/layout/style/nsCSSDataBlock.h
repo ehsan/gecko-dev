@@ -11,11 +11,8 @@
 #ifndef nsCSSDataBlock_h__
 #define nsCSSDataBlock_h__
 
-#include "mozilla/MemoryReporting.h"
 #include "nsCSSProps.h"
 #include "nsCSSPropertySet.h"
-#include "nsCSSValue.h"
-#include "imgRequestProxy.h"
 
 struct nsRuleData;
 class nsCSSExpandedDataBlock;
@@ -38,7 +35,7 @@ private:
 
     // Only this class (via |CreateEmptyBlock|) or nsCSSExpandedDataBlock
     // (in |Compress|) can create compressed data blocks.
-    explicit nsCSSCompressedDataBlock(uint32_t aNumProps)
+    nsCSSCompressedDataBlock(uint32_t aNumProps)
       : mStyleBits(0), mNumProps(aNumProps)
     {}
 
@@ -84,7 +81,7 @@ public:
      */
     static nsCSSCompressedDataBlock* CreateEmptyBlock();
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+    size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
     bool HasDefaultBorderImageSlice() const;
     bool HasDefaultBorderImageWidth() const;
@@ -104,7 +101,7 @@ public:
     // enums.  So we manually squeeze nsCSSProperty into 16 bits ourselves.
     // The static assertion below ensures it fits.
     typedef int16_t CompressedCSSProperty;
-    static const size_t MaxCompressedCSSProperty = INT16_MAX;
+    static const size_t MaxCompressedCSSProperty = PR_INT16_MAX;
 
 private:
     static size_t DataSize(uint32_t aNumProps) {
@@ -162,17 +159,17 @@ private:
 
 // Make sure the values and properties are aligned appropriately.  (These
 // assertions are stronger than necessary to keep them simple.)
-static_assert(sizeof(nsCSSCompressedDataBlock) == 8,
-              "nsCSSCompressedDataBlock's size has changed");
-static_assert(NS_ALIGNMENT_OF(nsCSSValue) == 4 || NS_ALIGNMENT_OF(nsCSSValue) == 8,
-              "nsCSSValue doesn't align with nsCSSCompressedDataBlock"); 
-static_assert(NS_ALIGNMENT_OF(nsCSSCompressedDataBlock::CompressedCSSProperty) == 2,
-              "CompressedCSSProperty doesn't align with nsCSSValue"); 
+MOZ_STATIC_ASSERT(sizeof(nsCSSCompressedDataBlock) == 8,
+                  "nsCSSCompressedDataBlock's size has changed");
+MOZ_STATIC_ASSERT(NS_ALIGNMENT_OF(nsCSSValue) == 4 || NS_ALIGNMENT_OF(nsCSSValue) == 8,
+                  "nsCSSValue doesn't align with nsCSSCompressedDataBlock"); 
+MOZ_STATIC_ASSERT(NS_ALIGNMENT_OF(nsCSSCompressedDataBlock::CompressedCSSProperty) == 2,
+                  "CompressedCSSProperty doesn't align with nsCSSValue"); 
 
 // Make sure that sizeof(CompressedCSSProperty) is big enough.
-static_assert(eCSSProperty_COUNT_no_shorthands <=
-              nsCSSCompressedDataBlock::MaxCompressedCSSProperty,
-              "nsCSSProperty doesn't fit in StoredSizeOfCSSProperty");
+MOZ_STATIC_ASSERT(eCSSProperty_COUNT_no_shorthands <=
+                  nsCSSCompressedDataBlock::MaxCompressedCSSProperty,
+                  "nsCSSProperty doesn't fit in StoredSizeOfCSSProperty");
 
 class nsCSSExpandedDataBlock {
     friend class nsCSSCompressedDataBlock;
@@ -251,14 +248,6 @@ public:
                              bool aMustCallValueAppended,
                              mozilla::css::Declaration* aDeclaration);
 
-    /**
-     * Copies the values for aPropID into the specified aRuleData object.
-     *
-     * This is used for copying parsed-at-computed-value-time properties
-     * that had variable references.  aPropID must be a longhand property.
-     */
-    void MapRuleInfoInto(nsCSSProperty aPropID, nsRuleData* aRuleData) const;
-
     void AssertInitialState() {
 #ifdef DEBUG
         DoAssertInitialState();
@@ -306,12 +295,6 @@ private:
      * property |aProperty|.
      */
     nsCSSValue* PropertyAt(nsCSSProperty aProperty) {
-        NS_ABORT_IF_FALSE(0 <= aProperty &&
-                          aProperty < eCSSProperty_COUNT_no_shorthands,
-                          "property out of range");
-        return &mValues[aProperty];
-    }
-    const nsCSSValue* PropertyAt(nsCSSProperty aProperty) const {
         NS_ABORT_IF_FALSE(0 <= aProperty &&
                           aProperty < eCSSProperty_COUNT_no_shorthands,
                           "property out of range");

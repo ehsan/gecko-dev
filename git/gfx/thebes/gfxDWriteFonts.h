@@ -6,7 +6,6 @@
 #ifndef GFX_WINDOWSDWRITEFONTS_H
 #define GFX_WINDOWSDWRITEFONTS_H
 
-#include "mozilla/MemoryReporting.h"
 #include <dwrite.h>
 
 #include "gfxFont.h"
@@ -28,19 +27,19 @@ public:
                   AntialiasOption = kAntialiasDefault);
     ~gfxDWriteFont();
 
-    virtual gfxFont*
-    CopyWithAntialiasOption(AntialiasOption anAAOption) MOZ_OVERRIDE;
+    virtual gfxFont* CopyWithAntialiasOption(AntialiasOption anAAOption);
 
-    virtual uint32_t GetSpaceGlyph() MOZ_OVERRIDE;
+    virtual const gfxFont::Metrics& GetMetrics();
 
-    virtual bool SetupCairoFont(gfxContext *aContext) MOZ_OVERRIDE;
+    virtual uint32_t GetSpaceGlyph();
 
-    virtual bool AllowSubpixelAA() MOZ_OVERRIDE
-    { return mAllowManualShowGlyphs; }
+    virtual bool SetupCairoFont(gfxContext *aContext);
 
-    bool IsValid() const;
+    virtual bool AllowSubpixelAA() { return mAllowManualShowGlyphs; }
 
-    virtual gfxFloat GetAdjustedSize() const MOZ_OVERRIDE {
+    virtual bool IsValid();
+
+    gfxFloat GetAdjustedSize() {
         return mAdjustedSize;
     }
 
@@ -51,31 +50,29 @@ public:
                                uint32_t aStart, uint32_t aEnd,
                                BoundingBoxType aBoundingBoxType,
                                gfxContext *aContextForTightBoundingBox,
-                               Spacing *aSpacing,
-                               uint16_t aOrientation) MOZ_OVERRIDE;
+                               Spacing *aSpacing);
 
-    virtual bool ProvidesGlyphWidths() const MOZ_OVERRIDE;
+    // override gfxFont table access function to bypass gfxFontEntry cache,
+    // use DWrite API to get direct access to system font data
+    virtual hb_blob_t *GetFontTable(uint32_t aTag);
 
-    virtual int32_t GetGlyphWidth(DrawTarget& aDrawTarget,
-                                  uint16_t aGID) MOZ_OVERRIDE;
+    virtual bool ProvidesGlyphWidths();
 
-    virtual mozilla::TemporaryRef<mozilla::gfx::GlyphRenderingOptions>
-    GetGlyphRenderingOptions(const TextRunDrawParams* aRunParams = nullptr) MOZ_OVERRIDE;
+    virtual int32_t GetGlyphWidth(gfxContext *aCtx, uint16_t aGID);
 
-    virtual void AddSizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                        FontCacheSizes* aSizes) const;
-    virtual void AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                        FontCacheSizes* aSizes) const;
+    virtual mozilla::TemporaryRef<mozilla::gfx::GlyphRenderingOptions> GetGlyphRenderingOptions();
+
+    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
+                                     FontCacheSizes*   aSizes) const;
+    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
+                                     FontCacheSizes*   aSizes) const;
 
     virtual FontType GetType() const { return FONT_TYPE_DWRITE; }
 
-    virtual mozilla::TemporaryRef<mozilla::gfx::ScaledFont>
-    GetScaledFont(mozilla::gfx::DrawTarget *aTarget) MOZ_OVERRIDE;
-
-    virtual cairo_scaled_font_t *GetCairoScaledFont() MOZ_OVERRIDE;
-
 protected:
-    virtual const Metrics& GetHorizontalMetrics() MOZ_OVERRIDE;
+    friend class gfxDWriteShaper;
+
+    virtual void CreatePlatformShaper();
 
     bool GetFakeMetricsForArialBlack(DWRITE_FONT_METRICS *aFontMetrics);
 
@@ -85,7 +82,11 @@ protected:
 
     cairo_font_face_t *CairoFontFace();
 
+    cairo_scaled_font_t *CairoScaledFont();
+
     gfxFloat MeasureGlyphWidth(uint16_t aGlyph);
+
+    static void DestroyBlobFunc(void* userArg);
 
     DWRITE_MEASURING_MODE GetMeasuringMode();
     bool GetForceGDIClassic();
@@ -93,16 +94,15 @@ protected:
     nsRefPtr<IDWriteFontFace> mFontFace;
     cairo_font_face_t *mCairoFontFace;
 
-    Metrics *mMetrics;
+    gfxFont::Metrics          *mMetrics;
 
     // cache of glyph widths in 16.16 fixed-point pixels
-    nsAutoPtr<nsDataHashtable<nsUint32HashKey,int32_t> > mGlyphWidths;
+    nsDataHashtable<nsUint32HashKey,int32_t>    mGlyphWidths;
 
     bool mNeedsOblique;
     bool mNeedsBold;
     bool mUseSubpixelPositions;
     bool mAllowManualShowGlyphs;
-    bool mAzureScaledFontIsCairo;
 };
 
 #endif

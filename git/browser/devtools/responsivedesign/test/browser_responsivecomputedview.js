@@ -5,7 +5,6 @@ function test() {
   let instance;
 
   let computedView;
-  let inspector;
 
   waitForExplicitFinish();
 
@@ -15,7 +14,7 @@ function test() {
     waitForFocus(startTest, content);
   }, true);
 
-  content.location = "data:text/html;charset=utf-8,<html><style>" +
+  content.location = "data:text/html,<html><style>" +
     "div {" +
     "  width: 500px;" +
     "  height: 10px;" +
@@ -53,36 +52,47 @@ function test() {
 
     instance.setSize(500, 500);
 
-    openComputedView().then(onInspectorUIOpen);
+    Services.obs.addObserver(onInspectorUIOpen,
+      InspectorUI.INSPECTOR_NOTIFICATIONS.OPENED, false);
+    InspectorUI.openInspectorUI();
   }
 
-  function onInspectorUIOpen(args) {
-    inspector = args.inspector;
-    computedView = args.view;
-    ok(inspector, "Got inspector instance");
+  function onInspectorUIOpen() {
+    Services.obs.removeObserver(onInspectorUIOpen,
+      InspectorUI.INSPECTOR_NOTIFICATIONS.OPENED);
 
     let div = content.document.getElementsByTagName("div")[0];
+    InspectorUI.inspectNode(div);
+    InspectorUI.stopInspecting();
 
-    inspector.selection.setNode(div);
-    inspector.once("inspector-updated", testShrink);
+    Services.obs.addObserver(testShrink, "StyleInspector-populated", false);
+
+    InspectorUI.sidebar.show();
+    InspectorUI.sidebar.activatePanel("computedview");
   }
 
   function testShrink() {
+    Services.obs.removeObserver(testShrink, "StyleInspector-populated", false);
+
+    computedView = InspectorUI.sidebar._toolContext("computedview").view;
+
     is(computedWidth(), "500px", "Should show 500px initially.");
 
-    inspector.once("computed-view-refreshed", function onShrink() {
+    Services.obs.addObserver(function onShrink() {
+      Services.obs.removeObserver(onShrink, "StyleInspector-populated");
       is(computedWidth(), "100px", "div should be 100px after shrinking.");
       testGrow();
-    });
+    }, "StyleInspector-populated", false);
 
     instance.setSize(100, 100);
   }
 
   function testGrow() {
-    inspector.once("computed-view-refreshed", function onGrow() {
+    Services.obs.addObserver(function onGrow() {
+      Services.obs.removeObserver(onGrow, "StyleInspector-populated");
       is(computedWidth(), "500px", "Should be 500px after growing.");
       finishUp();
-    });
+    }, "StyleInspector-populated", false);
 
     instance.setSize(500, 500);
   }
@@ -92,6 +102,8 @@ function test() {
 
     // Menus are correctly updated?
     is(document.getElementById("Tools:ResponsiveUI").getAttribute("checked"), "false", "menu unchecked");
+
+    InspectorUI.closeInspectorUI();
 
     gBrowser.removeCurrentTab();
     finish();

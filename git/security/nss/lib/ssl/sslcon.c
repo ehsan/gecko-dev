@@ -1,9 +1,43 @@
 /* 
  * SSL v2 handshake functions, and functions common to SSL2 and SSL3.
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Dr Vipul Gupta <vipul.gupta@sun.com>, Sun Microsystems Laboratories
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+/* $Id: sslcon.c,v 1.46 2012/03/01 01:58:22 wtc%google.com Exp $ */
 
 #include "nssrenam.h"
 #include "cert.h"
@@ -20,6 +54,7 @@
 #include "prinit.h"
 #include "prtime.h" 	/* for PR_Now() */
 
+#define XXX
 static PRBool policyWasSet;
 
 /* This ordered list is indexed by (SSL_CK_xx * 3)   */
@@ -242,13 +277,12 @@ ssl2_CheckConfigSanity(sslSocket *ss)
     /* Ask how many ssl3 CipherSuites were enabled. */
     rv = ssl3_ConstructV2CipherSpecsHack(ss, NULL, &ssl3CipherCount);
     if (rv != SECSuccess || ssl3CipherCount <= 0) {
-	/* SSL3/TLS not really enabled if no ciphers */
-	ss->vrange.min = SSL_LIBRARY_VERSION_NONE;
-	ss->vrange.max = SSL_LIBRARY_VERSION_NONE;
+	ss->opt.enableSSL3 = PR_FALSE; /* not really enabled if no ciphers */
+	ss->opt.enableTLS  = PR_FALSE;
     }
 
-    if (!ss->opt.enableSSL2 && SSL3_ALL_VERSIONS_DISABLED(&ss->vrange)) {
-	SSL_DBG(("%d: SSL[%d]: Can't handshake! all versions disabled.",
+    if (!ss->opt.enableSSL2 && !ss->opt.enableSSL3 && !ss->opt.enableTLS) {
+	SSL_DBG(("%d: SSL[%d]: Can't handshake! both v2 and v3 disabled.",
 		 SSL_GETPID(), ss->fd));
 disabled:
 	PORT_SetError(SSL_ERROR_SSL_DISABLED);
@@ -428,6 +462,7 @@ ssl2_CreateMAC(sslSecurityInfo *sec, SECItem *readKey, SECItem *writeKey,
           int cipherChoice)
 {
     switch (cipherChoice) {
+
       case SSL_CK_RC2_128_CBC_EXPORT40_WITH_MD5:
       case SSL_CK_RC2_128_CBC_WITH_MD5:
       case SSL_CK_RC4_128_EXPORT40_WITH_MD5:
@@ -435,10 +470,8 @@ ssl2_CreateMAC(sslSecurityInfo *sec, SECItem *readKey, SECItem *writeKey,
       case SSL_CK_DES_64_CBC_WITH_MD5:
       case SSL_CK_DES_192_EDE3_CBC_WITH_MD5:
 	sec->hash = HASH_GetHashObject(HASH_AlgMD5);
-	if (SECITEM_CopyItem(0, &sec->sendSecret, writeKey) ||
-	    SECITEM_CopyItem(0, &sec->rcvSecret, readKey)) {
-	    return SECFailure;
-	}
+	SECITEM_CopyItem(0, &sec->sendSecret, writeKey);
+	SECITEM_CopyItem(0, &sec->rcvSecret, readKey);
 	break;
 
       default:
@@ -624,13 +657,11 @@ ssl2_SendServerFinishedMessage(sslSocket *ss)
 
 	if (sent < 0) {
 	    /* If send failed, it is now a bogus  session-id */
-	    if (ss->sec.uncache)
-		(*ss->sec.uncache)(sid);
+	    (*ss->sec.uncache)(sid);
 	    rv = (SECStatus)sent;
 	} else if (!ss->opt.noCache) {
-	    if (sid->cached == never_cached) {
-		(*ss->sec.cache)(sid);
-	    }
+	    /* Put the sid in session-id cache, (may already be there) */
+	    (*ss->sec.cache)(sid);
 	    rv = SECSuccess;
 	}
 	ssl_FreeSID(sid);
@@ -1217,12 +1248,7 @@ ssl_GatherRecord1stHandshake(sslSocket *ss)
 
     ssl_GetRecvBufLock(ss);
 
-    /* The special case DTLS logic is needed here because the SSL/TLS
-     * version wants to auto-detect SSL2 vs. SSL3 on the initial handshake
-     * (ss->version == 0) but with DTLS it gets confused, so we force the
-     * SSL3 version.
-     */
-    if ((ss->version >= SSL_LIBRARY_VERSION_3_0) || IS_DTLS(ss)) {
+    if (ss->version >= SSL_LIBRARY_VERSION_3_0) {
 	/* Wait for handshake to complete, or application data to arrive.  */
 	rv = ssl3_GatherCompleteHandshake(ss, 0);
     } else {
@@ -1657,7 +1683,7 @@ ssl2_ServerSetupSessionCypher(sslSocket *ss, int cipher, unsigned int keyBits,
     }
 
     /* Make sure we're not subject to a version rollback attack. */
-    if (!SSL3_ALL_VERSIONS_DISABLED(&ss->vrange)) {
+    if (ss->opt.enableSSL3 || ss->opt.enableTLS) {
 	static const PRUint8 threes[8] = { 0x03, 0x03, 0x03, 0x03,
 			                   0x03, 0x03, 0x03, 0x03 };
 	
@@ -2118,7 +2144,7 @@ ssl2_ClientSetupSessionCypher(sslSocket *ss, PRUint8 *cs, int csLen)
 
     /* Set up the padding for version 2 rollback detection. */
     /* XXX We should really use defines here */
-    if (!SSL3_ALL_VERSIONS_DISABLED(&ss->vrange)) {
+    if (ss->opt.enableSSL3 || ss->opt.enableTLS) {
 	PORT_Assert((modulusLen - rek.len) > 12);
 	PORT_Memset(eblock + modulusLen - rek.len - 8 - 1, 0x03, 8);
     }
@@ -2172,7 +2198,7 @@ ssl2_ClientRegSessionID(sslSocket *ss, PRUint8 *s)
 	sid->peerCert = CERT_DupCertificate(ss->sec.peerCert);
 
     }
-    if (!ss->opt.noCache && sid->cached == never_cached)
+    if (!ss->opt.noCache)
 	(*ss->sec.cache)(sid);
 }
 
@@ -2859,10 +2885,9 @@ ssl2_HandleServerHelloMessage(sslSocket *ss)
 	    /* Forget our session-id - server didn't like it */
 	    SSL_TRC(7, ("%d: SSL[%d]: server forgot me, uncaching session-id",
 			SSL_GETPID(), ss->fd));
-	    if (ss->sec.uncache)
-		(*ss->sec.uncache)(sid);
+	    (*ss->sec.uncache)(sid);
 	    ssl_FreeSID(sid);
-	    ss->sec.ci.sid = sid = PORT_ZNew(sslSessionID);
+	    ss->sec.ci.sid = sid = (sslSessionID*) PORT_ZAlloc(sizeof(sslSessionID));
 	    if (!sid) {
 		goto loser;
 	    }
@@ -3026,29 +3051,23 @@ ssl2_BeginClientHandshake(sslSocket *ss)
 	                    ss->url);
     }
     while (sid) {  /* this isn't really a loop */
-	PRBool sidVersionEnabled =
-	    (!SSL3_ALL_VERSIONS_DISABLED(&ss->vrange) &&
-	     sid->version >= ss->vrange.min &&
-	     sid->version <= ss->vrange.max) ||
-	    (sid->version < SSL_LIBRARY_VERSION_3_0 && ss->opt.enableSSL2);
-
 	/* if we're not doing this SID's protocol any more, drop it. */
-	if (!sidVersionEnabled) {
-	    if (ss->sec.uncache)
-		ss->sec.uncache(sid);
+	if (((sid->version  < SSL_LIBRARY_VERSION_3_0) && !ss->opt.enableSSL2) ||
+	    ((sid->version == SSL_LIBRARY_VERSION_3_0) && !ss->opt.enableSSL3) ||
+	    ((sid->version >  SSL_LIBRARY_VERSION_3_0) && !ss->opt.enableTLS)) {
+	    ss->sec.uncache(sid);
 	    ssl_FreeSID(sid);
 	    sid = NULL;
 	    break;
 	}
-	if (sid->version < SSL_LIBRARY_VERSION_3_0) {
+	if (ss->opt.enableSSL2 && sid->version < SSL_LIBRARY_VERSION_3_0) {
 	    /* If the cipher in this sid is not enabled, drop it. */
 	    for (i = 0; i < ss->sizeCipherSpecs; i += 3) {
 		if (ss->cipherSpecs[i] == sid->u.ssl2.cipherType)
 		    break;
 	    }
 	    if (i >= ss->sizeCipherSpecs) {
-		if (ss->sec.uncache)
-		    ss->sec.uncache(sid);
+		ss->sec.uncache(sid);
 		ssl_FreeSID(sid);
 		sid = NULL;
 		break;
@@ -3067,7 +3086,7 @@ ssl2_BeginClientHandshake(sslSocket *ss)
     } 
     if (!sid) {
 	sidLen = 0;
-	sid = PORT_ZNew(sslSessionID);
+	sid = (sslSessionID*) PORT_ZAlloc(sizeof(sslSessionID));
 	if (!sid) {
 	    goto loser;
 	}
@@ -3087,7 +3106,8 @@ ssl2_BeginClientHandshake(sslSocket *ss)
     PORT_Assert(sid != NULL);
 
     if ((sid->version >= SSL_LIBRARY_VERSION_3_0 || !ss->opt.v2CompatibleHello) &&
-	!SSL3_ALL_VERSIONS_DISABLED(&ss->vrange)) {
+        (ss->opt.enableSSL3 || ss->opt.enableTLS)) {
+
 	ss->gs.state      = GS_INIT;
 	ss->handshake     = ssl_GatherRecord1stHandshake;
 
@@ -3096,13 +3116,13 @@ ssl2_BeginClientHandshake(sslSocket *ss)
 
 	ssl_GetSSL3HandshakeLock(ss);
 	ssl_GetXmitBufLock(ss);
-	rv =  ssl3_SendClientHello(ss, PR_FALSE);
+	rv =  ssl3_SendClientHello(ss);
 	ssl_ReleaseXmitBufLock(ss);
 	ssl_ReleaseSSL3HandshakeLock(ss);
 
 	return rv;
     }
-#ifndef NSS_DISABLE_ECC
+#if defined(NSS_ENABLE_ECC) && !defined(NSS_ECC_MORE_THAN_SUITE_B)
     /* ensure we don't neogtiate ECC cipher suites with SSL2 hello */
     ssl3_DisableECCSuites(ss, NULL); /* disable all ECC suites */
     if (ss->cipherSpecs != NULL) {
@@ -3110,7 +3130,7 @@ ssl2_BeginClientHandshake(sslSocket *ss)
 	ss->cipherSpecs     = NULL;
 	ss->sizeCipherSpecs = 0;
     }
-#endif /* NSS_DISABLE_ECC */
+#endif
 
     if (!ss->cipherSpecs) {
         rv = ssl2_ConstructCipherSpecs(ss);
@@ -3137,9 +3157,14 @@ ssl2_BeginClientHandshake(sslSocket *ss)
     /* Construct client-hello message */
     cp = msg = ss->sec.ci.sendBuf.buf;
     msg[0] = SSL_MT_CLIENT_HELLO;
-    ss->clientHelloVersion = SSL3_ALL_VERSIONS_DISABLED(&ss->vrange) ?
-	SSL_LIBRARY_VERSION_2 : ss->vrange.max;
-
+    if ( ss->opt.enableTLS ) {
+	ss->clientHelloVersion = SSL_LIBRARY_VERSION_3_1_TLS;
+    } else if ( ss->opt.enableSSL3 ) {
+	ss->clientHelloVersion = SSL_LIBRARY_VERSION_3_0;
+    } else {
+	ss->clientHelloVersion = SSL_LIBRARY_VERSION_2;
+    }
+    
     msg[1] = MSB(ss->clientHelloVersion);
     msg[2] = LSB(ss->clientHelloVersion);
     /* Add 3 for SCSV */
@@ -3356,7 +3381,7 @@ ssl2_HandleClientHelloMessage(sslSocket *ss)
      */
     if ((data[0] == SSL_MT_CLIENT_HELLO) && 
         (data[1] >= MSB(SSL_LIBRARY_VERSION_3_0)) && 
-	!SSL3_ALL_VERSIONS_DISABLED(&ss->vrange)) {
+	(ss->opt.enableSSL3 || ss->opt.enableTLS)) {
 	rv = ssl3_HandleV2ClientHello(ss, data, ss->gs.recordLen);
 	if (rv != SECFailure) { /* Success */
 	    ss->handshake             = NULL;
@@ -3493,7 +3518,7 @@ ssl2_HandleClientHelloMessage(sslSocket *ss)
 	    goto loser;
 	}
 	hit = 0;
-	sid = PORT_ZNew(sslSessionID);
+	sid = (sslSessionID*) PORT_ZAlloc(sizeof(sslSessionID));
 	if (!sid) {
 	    goto loser;
 	}

@@ -7,6 +7,7 @@ var testGenerator = testSteps();
 
 function testSteps()
 {
+  const IDBObjectStore = Components.interfaces.nsIIDBObjectStore;
   const name = this.window ? window.location.pathname : "Splendid Test";
 
   var data = [
@@ -42,7 +43,7 @@ function testSteps()
     let request = indexedDB.open(name, i+1);
     request.onerror = errorHandler;
     request.onupgradeneeded = grabEventAndContinueHandler;
-    let event = yield undefined;
+    let event = yield;
 
     let db = event.target.result;
 
@@ -53,13 +54,13 @@ function testSteps()
     request = objectStore.add(test.storedObject, test.keyValue);
     request.onerror = errorHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield undefined;
+    event = yield;
 
     let id = event.target.result;
     request = objectStore.get(id);
     request.onerror = errorHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield undefined;
+    event = yield;
 
     // Sanity check!
     is(test.storedObject.name, event.target.result.name,
@@ -68,19 +69,19 @@ function testSteps()
     request = objectStore.delete(id);
     request.onerror = errorHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield undefined;
+    event = yield;
 
     // Make sure it was removed.
     request = objectStore.get(id);
     request.onerror = errorHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield undefined;
+    event = yield;
 
     ok(event.target.result === undefined, "Object was deleted");
     db.close();
   }
 
   finishTest();
-  yield undefined;
+  yield;
 }
 

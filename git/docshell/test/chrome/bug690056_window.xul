@@ -27,16 +27,16 @@
         uri: 'data:text/html,<title>initial load</title>',
         onNavComplete: nextTest
       });
-      yield undefined;
+      yield;
 
       // Now load a new page
       doPageNavigation({
         uri: 'data:text/html,<title>new load</title>',
-        eventsToListenFor: [ "pageshow", "pagehide", "visibilitychange" ],
+        eventsToListenFor: [ "pageshow", "pagehide", "mozvisibilitychange" ],
         expectedEvents: [ { type: "pagehide",
                             title: "initial load",
                             persisted: true },
-                          { type: "visibilitychange",
+                          { type: "mozvisibilitychange",
                             title: "initial load",
                             visibilityState: "hidden",
                             hidden: true },
@@ -47,20 +47,20 @@
                         ],
         onNavComplete: nextTest
       });
-      yield undefined;
+      yield;
 
       // Now go back
       doPageNavigation({
         back: true,
-        eventsToListenFor: [ "pageshow", "pagehide", "visibilitychange" ],
+        eventsToListenFor: [ "pageshow", "pagehide", "mozvisibilitychange" ],
         expectedEvents: [ { type: "pagehide",
                             title: "new load",
                             persisted: true },
-                          { type: "visibilitychange",
+                          { type: "mozvisibilitychange",
                             title: "new load",
                             visibilityState: "hidden",
                             hidden: true },
-                          { type: "visibilitychange",
+                          { type: "mozvisibilitychange",
                             title: "initial load",
                             visibilityState: "visible",
                             hidden: false },
@@ -70,20 +70,20 @@
                         ],
         onNavComplete: nextTest
       });
-      yield undefined;
+      yield;
 
       // And forward
       doPageNavigation({
         forward: true,
-        eventsToListenFor: [ "pageshow", "pagehide", "visibilitychange" ],
+        eventsToListenFor: [ "pageshow", "pagehide", "mozvisibilitychange" ],
         expectedEvents: [ { type: "pagehide",
                             title: "initial load",
                             persisted: true },
-                          { type: "visibilitychange",
+                          { type: "mozvisibilitychange",
                             title: "initial load",
                             visibilityState: "hidden",
                             hidden: true },
-                          { type: "visibilitychange",
+                          { type: "mozvisibilitychange",
                             title: "new load",
                             visibilityState: "visible",
                             hidden: false },
@@ -93,37 +93,37 @@
                         ],
         onNavComplete: nextTest
       });
-      yield undefined;
+      yield;
 
       function generateDetector(state, hidden, title, name) {
         var detector = function (event) {
-          is(event.target.hidden, hidden,
+          is(event.target.mozHidden, hidden,
              name + " hidden value does not match");
-          is(event.target.visibilityState, state,
+          is(event.target.mozVisibilityState, state,
              name + " state value does not match");
           is(event.target.title, title,
              name + " title value does not match");
           document.getElementById("content")
-                  .removeEventListener("visibilitychange",
+                  .removeEventListener("mozvisibilitychange",
                                        detector,
                                        true);
           nextTest();
         }
 
         document.getElementById("content")
-                .addEventListener("visibilitychange", detector, true);
+                .addEventListener("mozvisibilitychange", detector, true);
       }
       
       generateDetector("hidden", true, "new load", "Going hidden");
         
       // Now flip our docshell to not active
       document.getElementById("content").docShellIsActive = false;
-      yield undefined;
+      yield;
 
       // And navigate back; there should be no visibility state transitions
       doPageNavigation({
         back: true,
-        eventsToListenFor: [ "pageshow", "pagehide", "visibilitychange" ],
+        eventsToListenFor: [ "pageshow", "pagehide", "mozvisibilitychange" ],
         expectedEvents: [ { type: "pagehide",
                             title: "new load",
                             persisted: true },
@@ -131,29 +131,29 @@
                             title: "initial load",
                             persisted: true },
                         ],
-        unexpectedEvents: [ "visibilitychange" ],
+        unexpectedEvents: [ "mozvisibilitychange" ],
         onNavComplete: nextTest
       });
-      yield undefined;
+      yield;
 
       generateDetector("visible", false, "initial load", "Going visible");
 
       // Now set the docshell active again
       document.getElementById("content").docShellIsActive = true;
-      yield undefined;
+      yield;
 
       // And forward
       doPageNavigation({
         forward: true,
-        eventsToListenFor: [ "pageshow", "pagehide", "visibilitychange" ],
+        eventsToListenFor: [ "pageshow", "pagehide", "mozvisibilitychange" ],
         expectedEvents: [ { type: "pagehide",
                             title: "initial load",
                             persisted: true },
-                          { type: "visibilitychange",
+                          { type: "mozvisibilitychange",
                             title: "initial load",
                             visibilityState: "hidden",
                             hidden: true },
-                          { type: "visibilitychange",
+                          { type: "mozvisibilitychange",
                             title: "new load",
                             visibilityState: "visible",
                             hidden: false },
@@ -163,12 +163,12 @@
                         ],
         onNavComplete: nextTest
       });
-      yield undefined;
+      yield;
 
       // Tell the framework the test is finished.  Include the final 'yield' 
       // statement to prevent a StopIteration exception from being thrown.
       finish();
-      yield undefined;      
+      yield;      
     }
   ]]></script>
 

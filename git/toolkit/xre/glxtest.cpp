@@ -22,39 +22,16 @@
 #include <cstdio>
 #include <cstdlib>
 #include <unistd.h>
+#include <GL/gl.h>
+#include <GL/glx.h>
 #include <dlfcn.h>
 #include "nscore.h"
+
 #include <fcntl.h>
-#include "stdint.h"
 
 #ifdef __SUNPRO_CC
 #include <stdio.h>
 #endif
-
-#include "X11/Xlib.h"
-#include "X11/Xutil.h"
-
-// stuff from glx.h
-typedef struct __GLXcontextRec *GLXContext;
-typedef XID GLXPixmap;
-typedef XID GLXDrawable;
-/* GLX 1.3 and later */
-typedef struct __GLXFBConfigRec *GLXFBConfig;
-typedef XID GLXFBConfigID;
-typedef XID GLXContextID;
-typedef XID GLXWindow;
-typedef XID GLXPbuffer;
-#define GLX_RGBA        4
-#define GLX_RED_SIZE    8
-#define GLX_GREEN_SIZE  9
-#define GLX_BLUE_SIZE   10
-
-// stuff from gl.h
-typedef uint8_t GLubyte;
-typedef uint32_t GLenum;
-#define GL_VENDOR       0x1F00
-#define GL_RENDERER     0x1F01
-#define GL_VERSION      0x1F02
 
 namespace mozilla {
 namespace widget {
@@ -83,7 +60,7 @@ static void fatal_error(const char *str)
 {
   write(write_end_of_the_pipe, str, strlen(str));
   write(write_end_of_the_pipe, "\n", 1);
-  _exit(EXIT_FAILURE);
+  exit(EXIT_FAILURE);
 }
 
 static int
@@ -97,18 +74,11 @@ x_error_handler(Display *, XErrorEvent *ev)
                         ev->request_code,
                         ev->minor_code);
   write(write_end_of_the_pipe, buf, length);
-  _exit(EXIT_FAILURE);
+  exit(EXIT_FAILURE);
   return 0;
 }
 
-
-// glxtest is declared inside extern "C" so that the name is not mangled.
-// The name is used in build/valgrind/x86_64-redhat-linux-gnu.sup to suppress
-// memory leak errors because we run it inside a short lived fork and we don't
-// care about leaking memory
-extern "C" {
-
-void glxtest()
+static void glxtest()
 {
   // we want to redirect to /dev/null stdout, stderr, and while we're at it,
   // any PR logging file descriptors. To that effect, we redirect all positive
@@ -117,9 +87,6 @@ void glxtest()
   for (int i = 1; i < fd; i++)
     dup2(fd, i);
   close(fd);
-
-  if (getenv("MOZ_AVOID_OPENGL_ALTOGETHER"))
-    fatal_error("The MOZ_AVOID_OPENGL_ALTOGETHER environment variable is defined");
 
   ///// Open libGL and load needed symbols /////
 #ifdef __OpenBSD__
@@ -169,12 +136,12 @@ void glxtest()
     fatal_error("glXGetProcAddress couldn't find required functions");
   }
   ///// Open a connection to the X server /////
-  Display *dpy = XOpenDisplay(nullptr);
+  Display *dpy = XOpenDisplay(NULL);
   if (!dpy)
     fatal_error("Unable to open a connection to the X server");
   
   ///// Check that the GLX extension is present /////
-  if (!glXQueryExtension(dpy, nullptr, nullptr))
+  if (!glXQueryExtension(dpy, NULL, NULL))
     fatal_error("GLX extension missing");
 
   XSetErrorHandler(x_error_handler);
@@ -204,7 +171,7 @@ void glxtest()
                        CWBorderPixel | CWColormap, &swa);
 
   ///// Get a GL context and make it current //////
-  GLXContext context = glXCreateContext(dpy, vInfo, nullptr, True);
+  GLXContext context = glXCreateContext(dpy, vInfo, NULL, True);
   glXMakeCurrent(dpy, window, context);
 
   ///// Look for this symbol to determine texture_from_pixmap support /////
@@ -216,7 +183,7 @@ void glxtest()
   const GLubyte *vendorString = glGetString(GL_VENDOR);
   const GLubyte *rendererString = glGetString(GL_RENDERER);
   const GLubyte *versionString = glGetString(GL_VERSION);
-
+  
   if (!vendorString || !rendererString || !versionString)
     fatal_error("glGetString returned null");
 
@@ -232,26 +199,15 @@ void glxtest()
   ///// Clean up. Indeed, the parent process might fail to kill us (e.g. if it doesn't need to check GL info)
   ///// so we might be staying alive for longer than expected, so it's important to consume as little memory as
   ///// possible. Also we want to check that we're able to do that too without generating X errors.
-  glXMakeCurrent(dpy, None, nullptr); // must release the GL context before destroying it
+  glXMakeCurrent(dpy, None, NULL); // must release the GL context before destroying it
   glXDestroyContext(dpy, context);
   XDestroyWindow(dpy, window);
   XFreeColormap(dpy, swa.colormap);
-
-#ifdef NS_FREE_PERMANENT_DATA // conditionally defined in nscore.h, don't forget to #include it above
   XCloseDisplay(dpy);
-#else
-  // This XSync call wanted to be instead:
-  //   XCloseDisplay(dpy);
-  // but this can cause 1-minute stalls on certain setups using Nouveau, see bug 973192
-  XSync(dpy, False);
-#endif
-
   dlclose(libgl);
 
   ///// Finally write data to the pipe
   write(write_end_of_the_pipe, buf, length);
-}
-
 }
 
 /** \returns true in the child glxtest process, false in the parent process */
@@ -269,14 +225,12 @@ bool fire_glxtest_process()
       close(pfd[1]);
       return false;
   }
-  // The child exits early to avoid running the full shutdown sequence and avoid conflicting with threads 
-  // we have already spawned (like the profiler).
   if (pid == 0) {
       close(pfd[0]);
       write_end_of_the_pipe = pfd[1];
       glxtest();
       close(pfd[1]);
-      _exit(0);
+      return true;
   }
 
   close(pfd[1]);

@@ -27,28 +27,21 @@ nsHtml5SpeculativeLoad::Perform(nsHtml5TreeOpExecutor* aExecutor)
     case eSpeculativeLoadBase:
       aExecutor->SetSpeculationBase(mUrl);
       break;
-    case eSpeculativeLoadMetaReferrer:
-      aExecutor->SetSpeculationReferrerPolicy(mMetaReferrerPolicy);
-      break;
     case eSpeculativeLoadImage:
       aExecutor->PreloadImage(mUrl, mCrossOrigin);
       break;
     case eSpeculativeLoadScript:
       aExecutor->PreloadScript(mUrl, mCharset, mTypeOrCharsetSource,
-                               mCrossOrigin, false);
-      break;
-    case eSpeculativeLoadScriptFromHead:
-      aExecutor->PreloadScript(mUrl, mCharset, mTypeOrCharsetSource,
-                               mCrossOrigin, true);
+			       mCrossOrigin);
       break;
     case eSpeculativeLoadStyle:
-      aExecutor->PreloadStyle(mUrl, mCharset, mCrossOrigin);
+      aExecutor->PreloadStyle(mUrl, mCharset);
       break;
     case eSpeculativeLoadManifest:  
       aExecutor->ProcessOfflineManifest(mUrl);
       break;
     case eSpeculativeLoadSetDocumentCharset: {
-        nsAutoCString narrowName;
+        nsCAutoString narrowName;
         CopyUTF16toUTF8(mCharset, narrowName);
         NS_ASSERTION(mTypeOrCharsetSource.Length() == 1,
             "Unexpected charset source string");

@@ -27,12 +27,10 @@ struct LookupSubtableParser {
              const size_t length, const uint16_t lookup_type) const;
 };
 
-bool ParseScriptListTable(const ots::OpenTypeFile *file,
-                          const uint8_t *data, const size_t length,
+bool ParseScriptListTable(const uint8_t *data, const size_t length,
                           const uint16_t num_features);
 
-bool ParseFeatureListTable(const ots::OpenTypeFile *file,
-                           const uint8_t *data, const size_t length,
+bool ParseFeatureListTable(const uint8_t *data, const size_t length,
                            const uint16_t num_lookups,
                            uint16_t *num_features);
 
@@ -41,28 +39,22 @@ bool ParseLookupListTable(OpenTypeFile *file, const uint8_t *data,
                           const LookupSubtableParser* parser,
                           uint16_t* num_lookups);
 
-bool ParseClassDefTable(const ots::OpenTypeFile *file,
-                        const uint8_t *data, size_t length,
+bool ParseClassDefTable(const uint8_t *data, size_t length,
                         const uint16_t num_glyphs,
                         const uint16_t num_classes);
 
-bool ParseCoverageTable(const ots::OpenTypeFile *file,
-                        const uint8_t *data, size_t length,
-                        const uint16_t num_glyphs,
-                        const uint16_t expected_num_glyphs = 0);
+bool ParseCoverageTable(const uint8_t *data, size_t length,
+                        const uint16_t num_glyphs);
 
-bool ParseDeviceTable(const ots::OpenTypeFile *file,
-                      const uint8_t *data, size_t length);
+bool ParseDeviceTable(const uint8_t *data, size_t length);
 
 // Parser for 'Contextual' subtable shared by GSUB/GPOS tables.
-bool ParseContextSubtable(const ots::OpenTypeFile *file,
-                          const uint8_t *data, const size_t length,
+bool ParseContextSubtable(const uint8_t *data, const size_t length,
                           const uint16_t num_glyphs,
                           const uint16_t num_lookups);
 
 // Parser for 'Chaining Contextual' subtable shared by GSUB/GPOS tables.
-bool ParseChainingContextSubtable(const ots::OpenTypeFile *file,
-                                  const uint8_t *data, const size_t length,
+bool ParseChainingContextSubtable(const uint8_t *data, const size_t length,
                                   const uint16_t num_glyphs,
                                   const uint16_t num_lookups);
 

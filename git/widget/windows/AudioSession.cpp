@@ -87,7 +87,7 @@ protected:
   nsID mSessionGroupingParameter;
   SessionState mState;
 
-  ThreadSafeAutoRefCnt mRefCnt;
+  nsAutoRefCnt mRefCnt;
   NS_DECL_OWNINGTHREAD
 
   static AudioSession* sService;
@@ -125,7 +125,7 @@ RecvAudioSessionData(const nsID& aID,
                                                       aIconPath);
 }
 
-AudioSession* AudioSession::sService = nullptr;
+AudioSession* AudioSession::sService = NULL;
 
 AudioSession::AudioSession()
 {
@@ -151,8 +151,8 @@ AudioSession::GetSingleton()
 }
 
 // It appears Windows will use us on a background thread ...
-NS_IMPL_ADDREF(AudioSession)
-NS_IMPL_RELEASE(AudioSession)
+NS_IMPL_THREADSAFE_ADDREF(AudioSession)
+NS_IMPL_THREADSAFE_RELEASE(AudioSession)
 
 STDMETHODIMP
 AudioSession::QueryInterface(REFIID iid, void **ppv)
@@ -187,7 +187,7 @@ AudioSession::Start()
 
   // Don't check for errors in case something already initialized COM
   // on this thread.
-  CoInitialize(nullptr);
+  CoInitialize(NULL);
 
   if (mState == UNINITIALIZED) {
     mState = FAILED;
@@ -207,15 +207,15 @@ AudioSession::Start()
                                 getter_AddRefs(bundle));
     NS_ENSURE_TRUE(bundle, NS_ERROR_FAILURE);
 
-    bundle->GetStringFromName(MOZ_UTF16("brandFullName"),
+    bundle->GetStringFromName(NS_LITERAL_STRING("brandFullName").get(),
                               getter_Copies(mDisplayName));
 
-    wchar_t *buffer;
+    PRUnichar *buffer;
     mIconPath.GetMutableData(&buffer, MAX_PATH);
 
     // XXXkhuey we should provide a way for a xulrunner app to specify an icon
     // that's not in the product binary.
-    ::GetModuleFileNameW(nullptr, buffer, MAX_PATH);
+    ::GetModuleFileNameW(NULL, buffer, MAX_PATH);
 
     nsCOMPtr<nsIUUIDGenerator> uuidgen =
       do_GetService("@mozilla.org/uuid-generator;1");
@@ -230,7 +230,7 @@ AudioSession::Start()
 
   nsRefPtr<IMMDeviceEnumerator> enumerator;
   hr = ::CoCreateInstance(CLSID_MMDeviceEnumerator,
-                          nullptr,
+                          NULL,
                           CLSCTX_ALL,
                           IID_IMMDeviceEnumerator,
                           getter_AddRefs(enumerator));
@@ -250,31 +250,31 @@ AudioSession::Start()
   nsRefPtr<IAudioSessionManager> manager;
   hr = device->Activate(IID_IAudioSessionManager,
                         CLSCTX_ALL,
-                        nullptr,
+                        NULL,
                         getter_AddRefs(manager));
   if (FAILED(hr))
     return NS_ERROR_FAILURE;
 
-  hr = manager->GetAudioSessionControl(nullptr,
+  hr = manager->GetAudioSessionControl(NULL,
                                        FALSE,
                                        getter_AddRefs(mAudioSessionControl));
   if (FAILED(hr))
     return NS_ERROR_FAILURE;
 
   hr = mAudioSessionControl->SetGroupingParam((LPCGUID)&mSessionGroupingParameter,
-                                              nullptr);
+                                              NULL);
   if (FAILED(hr)) {
     StopInternal();
     return NS_ERROR_FAILURE;
   }
 
-  hr = mAudioSessionControl->SetDisplayName(mDisplayName.get(), nullptr);
+  hr = mAudioSessionControl->SetDisplayName(mDisplayName.get(), NULL);
   if (FAILED(hr)) {
     StopInternal();
     return NS_ERROR_FAILURE;
   }
 
-  hr = mAudioSessionControl->SetIconPath(mIconPath.get(), nullptr);
+  hr = mAudioSessionControl->SetIconPath(mIconPath.get(), NULL);
   if (FAILED(hr)) {
     StopInternal();
     return NS_ERROR_FAILURE;
@@ -297,7 +297,7 @@ AudioSession::StopInternal()
   static const nsID blankId = {0, 0, 0, {0, 0, 0, 0, 0, 0, 0, 0} };
 
   if (mAudioSessionControl) {
-    mAudioSessionControl->SetGroupingParam((LPCGUID)&blankId, nullptr);
+    mAudioSessionControl->SetGroupingParam((LPCGUID)&blankId, NULL);
     mAudioSessionControl->UnregisterAudioSessionNotification(this);
     mAudioSessionControl = nullptr;
   }

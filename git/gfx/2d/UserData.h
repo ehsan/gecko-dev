@@ -73,7 +73,7 @@ public:
   }
 
   /* Retrives the userData for the associated key */
-  void *Get(UserDataKey *key) const
+  void *Get(UserDataKey *key)
   {
     for (int i=0; i<count; i++) {
       if (key == entries[i].key) {

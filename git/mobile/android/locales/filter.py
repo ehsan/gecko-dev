@@ -4,7 +4,8 @@
 
 """This routine controls which localizable files and entries are
 reported and l10n-merged.
-This needs to stay in sync with the copy in mobile/locales.
+It's common to all of mobile, mobile/android and mobile/xul, so
+those three versions need to stay in sync.
 """
 
 def test(mod, path, entity = None):
@@ -12,13 +13,14 @@ def test(mod, path, entity = None):
   # ignore anything but mobile, which is our local repo checkout name
   if mod not in ("netwerk", "dom", "toolkit", "security/manager",
                  "services/sync", "mobile",
-                 "mobile/android/base",  "mobile/android"):
+                 "mobile/android/base",  "mobile/android",
+                 "mobile/xul"):
     return "ignore"
 
-  if mod not in ("mobile", "mobile/android"):
+  if mod not in ("mobile", "mobile/android", "mobile/xul"):
     # we only have exceptions for mobile*
     return "error"
-  if mod == "mobile/android":
+  if mod in ("mobile/android", "mobile/xul"):
     if not entity:
       if (re.match(r"mobile-l10n.js", path) or
           re.match(r"defines.inc", path)):
@@ -36,8 +38,7 @@ def test(mod, path, entity = None):
     if (re.match(r"browser\.search\.order\.[1-9]", entity) or
         re.match(r"browser\.contentHandlers\.types\.[0-5]", entity) or
         re.match(r"gecko\.handlerService\.schemes\.", entity) or
-        re.match(r"gecko\.handlerService\.defaultHandlersVersion", entity) or
-        re.match(r"browser\.suggestedsites\.", entity)):
+      re.match(r"gecko\.handlerService\.defaultHandlersVersion", entity)):
       return "ignore"
 
   return "error"

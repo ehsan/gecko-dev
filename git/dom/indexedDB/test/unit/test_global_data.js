@@ -14,7 +14,7 @@ function testSteps()
   let request = indexedDB.open(name, 1);
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
-  let event = yield undefined;
+  let event = yield;
 
   let db1 = event.target.result;
 
@@ -23,12 +23,12 @@ function testSteps()
   db1.createObjectStore(objectStore.name, objectStore.options);
 
   continueToNextStep();
-  yield undefined;
+  yield;
 
   request = indexedDB.open(name, 1);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   let db2 = event.target.result;
 
@@ -53,5 +53,5 @@ function testSteps()
   is(objectStore1.keyPath, objectStore2.keyPath, "Same keyPath");
 
   finishTest();
-  yield undefined;
+  yield;
 }

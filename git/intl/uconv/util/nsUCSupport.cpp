@@ -3,10 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "pratom.h"
+#include "nsAlgorithm.h"
+#include "nsIComponentManager.h"
 #include "nsUCSupport.h"
 #include "nsUnicodeDecodeHelper.h"
 #include "nsUnicodeEncodeHelper.h"
-#include <algorithm>
 
 #define DEFAULT_BUFFER_CAPACITY 16
 
@@ -28,11 +30,11 @@ nsBasicDecoderSupport::~nsBasicDecoderSupport()
 // Interface nsISupports [implementation]
 
 #ifdef DEBUG
-NS_IMPL_ISUPPORTS(nsBasicDecoderSupport,
-                  nsIUnicodeDecoder,
-                  nsIBasicDecoder)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsBasicDecoderSupport,
+                              nsIUnicodeDecoder,
+                              nsIBasicDecoder)
 #else
-NS_IMPL_ISUPPORTS(nsBasicDecoderSupport, nsIUnicodeDecoder)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsBasicDecoderSupport, nsIUnicodeDecoder)
 #endif
 
 //----------------------------------------------------------------------
@@ -46,10 +48,10 @@ nsBasicDecoderSupport::SetInputErrorBehavior(int32_t aBehavior)
   mErrBehavior = aBehavior;
 }
 
-char16_t
+PRUnichar
 nsBasicDecoderSupport::GetCharacterForUnMapped()
 {
-  return char16_t(0xfffd); // Unicode REPLACEMENT CHARACTER
+  return PRUnichar(0xfffd); // Unicode REPLACEMENT CHARACTER
 }
 
 //----------------------------------------------------------------------
@@ -72,7 +74,7 @@ nsBufferDecoderSupport::~nsBufferDecoderSupport()
 
 void nsBufferDecoderSupport::FillBuffer(const char ** aSrc, int32_t aSrcLength)
 {
-  int32_t bcr = std::min(mBufferCapacity - mBufferLength, aSrcLength);
+  int32_t bcr = NS_MIN(mBufferCapacity - mBufferLength, aSrcLength);
   memcpy(mBuffer + mBufferLength, *aSrc, bcr);
   mBufferLength += bcr;
   (*aSrc) += bcr;
@@ -83,14 +85,14 @@ void nsBufferDecoderSupport::FillBuffer(const char ** aSrc, int32_t aSrcLength)
 
 NS_IMETHODIMP nsBufferDecoderSupport::Convert(const char * aSrc,
                                               int32_t * aSrcLength,
-                                              char16_t * aDest,
+                                              PRUnichar * aDest,
                                               int32_t * aDestLength)
 {
   // we do all operations using pointers internally
   const char * src = aSrc;
   const char * srcEnd = aSrc + *aSrcLength;
-  char16_t * dest = aDest;
-  char16_t * destEnd = aDest + *aDestLength;
+  PRUnichar * dest = aDest;
+  PRUnichar * destEnd = aDest + *aDestLength;
 
   int32_t bcr, bcw; // byte counts for read & write;
   nsresult res = NS_OK;
@@ -212,7 +214,7 @@ nsTableDecoderSupport::~nsTableDecoderSupport()
 
 NS_IMETHODIMP nsTableDecoderSupport::ConvertNoBuff(const char * aSrc,
                                                    int32_t * aSrcLength,
-                                                   char16_t * aDest,
+                                                   PRUnichar * aDest,
                                                    int32_t * aDestLength)
 {
   return nsUnicodeDecodeHelper::ConvertByTable(aSrc, aSrcLength,
@@ -248,7 +250,7 @@ nsMultiTableDecoderSupport::~nsMultiTableDecoderSupport()
 
 NS_IMETHODIMP nsMultiTableDecoderSupport::ConvertNoBuff(const char * aSrc,
                                                         int32_t * aSrcLength,
-                                                        char16_t * aDest,
+                                                        PRUnichar * aDest,
                                                         int32_t * aDestLength)
 {
   return nsUnicodeDecodeHelper::ConvertByMultiTable(aSrc, aSrcLength,
@@ -280,7 +282,7 @@ nsOneByteDecoderSupport::~nsOneByteDecoderSupport()
 
 NS_IMETHODIMP nsOneByteDecoderSupport::Convert(const char * aSrc,
                                               int32_t * aSrcLength,
-                                              char16_t * aDest,
+                                              PRUnichar * aDest,
                                               int32_t * aDestLength)
 {
   if (!mFastTableCreated) {
@@ -332,12 +334,12 @@ nsBasicEncoder::~nsBasicEncoder()
 NS_IMPL_ADDREF(nsBasicEncoder)
 NS_IMPL_RELEASE(nsBasicEncoder)
 #ifdef DEBUG
-NS_IMPL_QUERY_INTERFACE(nsBasicEncoder,
-                        nsIUnicodeEncoder,
-                        nsIBasicEncoder)
+NS_IMPL_QUERY_INTERFACE2(nsBasicEncoder,
+                         nsIUnicodeEncoder,
+                         nsIBasicEncoder)
 #else
-NS_IMPL_QUERY_INTERFACE(nsBasicEncoder,
-                        nsIUnicodeEncoder)
+NS_IMPL_QUERY_INTERFACE1(nsBasicEncoder,
+                         nsIUnicodeEncoder)
 #endif
 //----------------------------------------------------------------------
 // Class nsEncoderSupport [implementation]
@@ -359,14 +361,14 @@ nsEncoderSupport::~nsEncoderSupport()
   delete [] mBuffer;
 }
 
-NS_IMETHODIMP nsEncoderSupport::ConvertNoBuff(const char16_t * aSrc,
+NS_IMETHODIMP nsEncoderSupport::ConvertNoBuff(const PRUnichar * aSrc,
                                               int32_t * aSrcLength,
                                               char * aDest,
                                               int32_t * aDestLength)
 {
   // we do all operations using pointers internally
-  const char16_t * src = aSrc;
-  const char16_t * srcEnd = aSrc + *aSrcLength;
+  const PRUnichar * src = aSrc;
+  const PRUnichar * srcEnd = aSrc + *aSrcLength;
   char * dest = aDest;
   char * destEnd = aDest + *aDestLength;
 
@@ -382,7 +384,7 @@ NS_IMETHODIMP nsEncoderSupport::ConvertNoBuff(const char16_t * aSrc,
 
     if (res == NS_ERROR_UENC_NOMAPPING) {
       if (mErrBehavior == kOnError_Replace) {
-        const char16_t buff[] = {mErrChar};
+        const PRUnichar buff[] = {mErrChar};
         bcr = 1;
         bcw = destEnd - dest;
         src--; // back the input: maybe the guy won't consume consume anything.
@@ -440,14 +442,14 @@ nsresult nsEncoderSupport::FlushBuffer(char ** aDest, const char * aDestEnd)
 //----------------------------------------------------------------------
 // Interface nsIUnicodeEncoder [implementation]
 
-NS_IMETHODIMP nsEncoderSupport::Convert(const char16_t * aSrc,
+NS_IMETHODIMP nsEncoderSupport::Convert(const PRUnichar * aSrc,
                                         int32_t * aSrcLength,
                                         char * aDest,
                                         int32_t * aDestLength)
 {
   // we do all operations using pointers internally
-  const char16_t * src = aSrc;
-  const char16_t * srcEnd = aSrc + *aSrcLength;
+  const PRUnichar * src = aSrc;
+  const PRUnichar * srcEnd = aSrc + *aSrcLength;
   char * dest = aDest;
   char * destEnd = aDest + *aDestLength;
 
@@ -535,7 +537,7 @@ NS_IMETHODIMP nsEncoderSupport::Reset()
 NS_IMETHODIMP nsEncoderSupport::SetOutputErrorBehavior(
                                 int32_t aBehavior,
                                 nsIUnicharEncoder * aEncoder,
-                                char16_t aChar)
+                                PRUnichar aChar)
 {
   if (aBehavior == kOnError_CallBack && !aEncoder)
     return NS_ERROR_NULL_POINTER;
@@ -547,7 +549,7 @@ NS_IMETHODIMP nsEncoderSupport::SetOutputErrorBehavior(
 }
 
 NS_IMETHODIMP
-nsEncoderSupport::GetMaxLength(const char16_t * aSrc,
+nsEncoderSupport::GetMaxLength(const PRUnichar * aSrc,
                                int32_t aSrcLength,
                                int32_t * aDestLength)
 {
@@ -588,7 +590,7 @@ nsTableEncoderSupport::~nsTableEncoderSupport()
 // Subclassing of nsEncoderSupport class [implementation]
 
 NS_IMETHODIMP nsTableEncoderSupport::ConvertNoBuffNoErr(
-                                     const char16_t * aSrc,
+                                     const PRUnichar * aSrc,
                                      int32_t * aSrcLength,
                                      char * aDest,
                                      int32_t * aDestLength)
@@ -624,7 +626,7 @@ nsMultiTableEncoderSupport::~nsMultiTableEncoderSupport()
 // Subclassing of nsEncoderSupport class [implementation]
 
 NS_IMETHODIMP nsMultiTableEncoderSupport::ConvertNoBuffNoErr(
-                                          const char16_t * aSrc,
+                                          const PRUnichar * aSrc,
                                           int32_t * aSrcLength,
                                           char * aDest,
                                           int32_t * aDestLength)

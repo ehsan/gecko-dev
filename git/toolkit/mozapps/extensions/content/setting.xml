@@ -24,10 +24,6 @@
     <implementation>
       <constructor><![CDATA[
         this.preferenceChanged();
-
-        this.addEventListener("keypress", function(event) {
-          event.stopPropagation();
-        }, false);
         
         if (this.usePref)
           Services.prefs.addObserver(this.pref, this._observer, true);
@@ -43,7 +39,7 @@
               aIID.equals(Ci.nsISupports))
             return this;
 
-          throw Components.Exception("No interface", Components.results.NS_ERROR_NO_INTERFACE);
+          throw Components.results.NS_ERROR_NO_INTERFACE;
         },
 
         observe: function(aSubject, aTopic, aPrefName) {
@@ -82,8 +78,7 @@
         <body>
         <![CDATA[
           // Should be code to set the from the preference input.value
-          throw Components.Exception("No valueFromPreference implementation",
-                                     Components.results.NS_ERROR_NOT_IMPLEMENTED);
+          throw "No valueFromPreference implementation";
         ]]>
         </body>
       </method>
@@ -92,8 +87,7 @@
         <body>
         <![CDATA[
           // Should be code to set the input.value from the preference
-          throw Components.Exception("No valueToPreference implementation",
-                                     Components.results.NS_ERROR_NOT_IMPLEMENTED);
+          throw "No valueToPreference implementation";
         ]]>
         </body>
       </method>
@@ -230,8 +224,8 @@
         <xul:description class="preferences-description" flex="1" xbl:inherits="xbl:text=desc"/>
       </xul:vbox>
       <xul:hbox class="preferences-alignment">
-        <xul:textbox type="number" anonid="input" oninput="inputChanged();" onchange="inputChanged();"
-                     xbl:inherits="disabled,emptytext,min,max,increment,hidespinbuttons,wraparound,size"/>
+        <xul:textbox type="number" anonid="input" flex="1" oninput="inputChanged();" onchange="inputChanged();"
+                     xbl:inherits="disabled,emptytext,min,max,increment,hidespinbuttons,wraparound"/>
       </xul:hbox>
     </content>
 
@@ -441,7 +435,7 @@
     <implementation>
       <constructor>
       <![CDATA[
-        this.control.addEventListener("command", this.inputChanged.bind(this), false);
+        this.control.addEventListener("command", this.valueToPreference.bind(this), false);
       ]]>
       </constructor>
 
@@ -463,15 +457,11 @@
               return;
           }
 
-          if ("itemCount" in this.control) {
-            for (let i = 0; i < this.control.itemCount; i++) {
-              if (this.control.getItemAtIndex(i).value == val) {
-                this.control.selectedIndex = i;
-                break;
-              }
+          for (let i = 0; i < this.control.itemCount; i++) {
+            if (this.control.getItemAtIndex(i).value == val) {
+              this.control.selectedIndex = i;
+              break;
             }
-          } else {
-            this.control.setAttribute("value", val);
           }
         ]]>
         </body>

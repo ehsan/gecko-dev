@@ -10,8 +10,6 @@
 #include "nsHttp.h"
 #include "nsString.h"
 
-namespace mozilla { namespace net {
-
 //-----------------------------------------------------------------------------
 // nsHttpResponseHead represents the status line and headers from an HTTP
 // response.
@@ -22,16 +20,14 @@ class nsHttpResponseHead
 public:
     nsHttpResponseHead() : mVersion(NS_HTTP_VERSION_1_1)
                          , mStatus(200)
-                         , mContentLength(UINT64_MAX)
+                         , mContentLength(LL_MAXUINT)
                          , mCacheControlNoStore(false)
                          , mCacheControlNoCache(false)
                          , mPragmaNoCache(false) {}
-
+    
     const nsHttpHeaderArray & Headers()   const { return mHeaders; }
     nsHttpHeaderArray    &Headers()             { return mHeaders; }
     nsHttpVersion         Version()       const { return mVersion; }
-// X11's Xlib.h #defines 'Status' to 'int' on some systems!
-#undef Status
     uint16_t              Status()        const { return mStatus; }
     const nsAFlatCString &StatusText()    const { return mStatusText; }
     int64_t               ContentLength() const { return mContentLength; }
@@ -94,7 +90,7 @@ public:
     bool     ExpiresInPast() const;
 
     // update headers...
-    nsresult UpdateHeaders(const nsHttpHeaderArray &headers);
+    nsresult UpdateHeaders(const nsHttpHeaderArray &headers); 
 
     // reset the response head to it's initial state
     void     Reset();
@@ -114,7 +110,6 @@ public:
     }
 
 private:
-    void     AssignDefaultStatusText();
     void     ParseVersion(const char *);
     void     ParseCacheControl(const char *);
     void     ParsePragma(const char *);
@@ -124,16 +119,15 @@ private:
     nsHttpHeaderArray mHeaders;
     nsHttpVersion     mVersion;
     uint16_t          mStatus;
-    nsCString         mStatusText;
+    mozilla::net::InfallableCopyCString mStatusText;
     int64_t           mContentLength;
-    nsCString         mContentType;
-    nsCString         mContentCharset;
+    mozilla::net::InfallableCopyCString mContentType;
+    mozilla::net::InfallableCopyCString mContentCharset;
     bool              mCacheControlNoStore;
     bool              mCacheControlNoCache;
     bool              mPragmaNoCache;
 
     friend struct IPC::ParamTraits<nsHttpResponseHead>;
 };
-}} // namespace mozilla::net
 
 #endif // nsHttpResponseHead_h__

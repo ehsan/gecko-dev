@@ -4,46 +4,29 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// HttpLog.h should generally be included first
-#include "HttpLog.h"
-
-/*
-  Currently supported are HTTP-draft-[see nshttp.h]/2.0 spdy/3.1
-*/
-
 #include "nsHttp.h"
 #include "nsHttpHandler.h"
 
 #include "ASpdySession.h"
-#include "PSpdyPush.h"
-#include "SpdyPush31.h"
-#include "Http2Push.h"
-#include "SpdySession31.h"
-#include "Http2Session.h"
+#include "SpdySession2.h"
+#include "SpdySession3.h"
 
 #include "mozilla/Telemetry.h"
 
 namespace mozilla {
 namespace net {
 
-ASpdySession::ASpdySession()
-{
-}
-
-ASpdySession::~ASpdySession()
-{
-}
-
 ASpdySession *
 ASpdySession::NewSpdySession(uint32_t version,
-                             nsISocketTransport *aTransport)
+                             nsAHttpTransaction *aTransaction,
+                             nsISocketTransport *aTransport,
+                             int32_t aPriority)
 {
   // This is a necko only interface, so we can enforce version
   // requests as a precondition
-  MOZ_ASSERT(version == SPDY_VERSION_31 ||
-             version == HTTP_VERSION_2 ||
-             version == NS_HTTP2_DRAFT_VERSION,
-             "Unsupported spdy version");
+  NS_ABORT_IF_FALSE(version == SpdyInformation::SPDY_VERSION_2 ||
+                    version == SpdyInformation::SPDY_VERSION_3,
+                    "Unsupported spdy version");
 
   // Don't do a runtime check of IsSpdyV?Enabled() here because pref value
   // may have changed since starting negotiation. The selected protocol comes
@@ -51,140 +34,76 @@ ASpdySession::NewSpdySession(uint32_t version,
   // versions, so there is no risk of the server ignoring our prefs.
 
   Telemetry::Accumulate(Telemetry::SPDY_VERSION2, version);
+    
+  if (version == SpdyInformation::SPDY_VERSION_2)
+    return new SpdySession2(aTransaction, aTransport, aPriority);
 
-  if (version == SPDY_VERSION_31) {
-    return new SpdySession31(aTransport);
-  } else if (version == NS_HTTP2_DRAFT_VERSION || version == HTTP_VERSION_2) {
-    return new Http2Session(aTransport);
-  }
-
-  return nullptr;
-}
-static bool SpdySessionTrue(nsISupports *securityInfo)
-{
-  return true;
+  return new SpdySession3(aTransaction, aTransport, aPriority);
 }
 
 SpdyInformation::SpdyInformation()
 {
-  // highest index of enabled protocols is the
-  // most preferred for ALPN negotiaton
-  Version[0] = SPDY_VERSION_31;
-  VersionString[0] = NS_LITERAL_CSTRING("spdy/3.1");
-  ALPNCallbacks[0] = SpdySessionTrue;
+  // list the preferred version first
+  Version[0] = SPDY_VERSION_3;
+  VersionString[0] = NS_LITERAL_CSTRING("spdy/3");
+  AlternateProtocolString[0] = NS_LITERAL_CSTRING("443:npn-spdy/3");
 
-  Version[1] = HTTP_VERSION_2;
-  VersionString[1] = NS_LITERAL_CSTRING("h2");
-  ALPNCallbacks[1] = Http2Session::ALPNCallback;
-
-  Version[2] = NS_HTTP2_DRAFT_VERSION;
-  VersionString[2] = NS_LITERAL_CSTRING("h2-14");
-  ALPNCallbacks[2] = Http2Session::ALPNCallback;
-
-  Version[3] = NS_HTTP2_DRAFT_VERSION;
-  VersionString[3] = NS_LITERAL_CSTRING(NS_HTTP2_DRAFT_TOKEN);
-  ALPNCallbacks[3] = Http2Session::ALPNCallback;
+  Version[1] = SPDY_VERSION_2;
+  VersionString[1] = NS_LITERAL_CSTRING("spdy/2");
+  AlternateProtocolString[1] = NS_LITERAL_CSTRING("443:npn-spdy/2");
 }
 
 bool
-SpdyInformation::ProtocolEnabled(uint32_t index) const
+SpdyInformation::ProtocolEnabled(uint32_t index)
 {
-  MOZ_ASSERT(index < kCount, "index out of range");
+  if (index == 0)
+    return gHttpHandler->IsSpdyV3Enabled();
 
-  switch (index) {
-  case 0:
-    return gHttpHandler->IsSpdyV31Enabled();
-  case 1:
-    return gHttpHandler->IsHttp2Enabled();
-  case 2:
-  case 3:
-    return gHttpHandler->IsHttp2DraftEnabled();
-  }
+  if (index == 1)
+    return gHttpHandler->IsSpdyV2Enabled();
+
+  NS_ABORT_IF_FALSE(false, "index out of range");
   return false;
 }
 
 nsresult
-SpdyInformation::GetNPNIndex(const nsACString &npnString,
-                             uint32_t *result) const
+SpdyInformation::GetNPNVersionIndex(const nsACString &npnString,
+                                    uint8_t *result)
 {
   if (npnString.IsEmpty())
     return NS_ERROR_FAILURE;
 
-  for (uint32_t index = 0; index < kCount; ++index) {
-    if (npnString.Equals(VersionString[index])) {
-      *result = index;
-      return NS_OK;
-    }
-  }
+  if (npnString.Equals(VersionString[0]))
+    *result = Version[0];
+  else if (npnString.Equals(VersionString[1]))
+    *result = Version[1];
+  else
+    return NS_ERROR_FAILURE;
 
-  return NS_ERROR_FAILURE;
+  return NS_OK;
 }
 
-//////////////////////////////////////////
-// SpdyPushCache
-//////////////////////////////////////////
-
-SpdyPushCache::SpdyPushCache()
+nsresult
+SpdyInformation::GetAlternateProtocolVersionIndex(const char *val,
+                                                  uint8_t *result)
 {
+  if (!val || !val[0])
+    return NS_ERROR_FAILURE;
+
+  if (ProtocolEnabled(0) && nsHttp::FindToken(val,
+                                              AlternateProtocolString[0].get(),
+                                              HTTP_HEADER_VALUE_SEPS))
+    *result = Version[0];
+  else if (ProtocolEnabled(1) && nsHttp::FindToken(val,
+                                                   AlternateProtocolString[1].get(),
+                                                   HTTP_HEADER_VALUE_SEPS))
+    *result = Version[1];
+  else
+    return NS_ERROR_FAILURE;
+
+  return NS_OK;
 }
 
-SpdyPushCache::~SpdyPushCache()
-{
-  mHashSpdy31.Clear();
-  mHashHttp2.Clear();
-}
-
-bool
-SpdyPushCache::RegisterPushedStreamSpdy31(nsCString key,
-                                          SpdyPushedStream31 *stream)
-{
-  LOG3(("SpdyPushCache::RegisterPushedStreamSpdy31 %s 0x%X\n",
-        key.get(), stream->StreamID()));
-  if(mHashSpdy31.Get(key)) {
-    LOG3(("SpdyPushCache::RegisterPushedStreamSpdy31 %s 0x%X duplicate key\n",
-          key.get(), stream->StreamID()));
-    return false;
-  }
-  mHashSpdy31.Put(key, stream);
-  return true;
-}
-
-SpdyPushedStream31 *
-SpdyPushCache::RemovePushedStreamSpdy31(nsCString key)
-{
-  SpdyPushedStream31 *rv = mHashSpdy31.Get(key);
-  LOG3(("SpdyPushCache::RemovePushedStream %s 0x%X\n",
-        key.get(), rv ? rv->StreamID() : 0));
-  if (rv)
-    mHashSpdy31.Remove(key);
-  return rv;
-}
-
-bool
-SpdyPushCache::RegisterPushedStreamHttp2(nsCString key,
-                                         Http2PushedStream *stream)
-{
-  LOG3(("SpdyPushCache::RegisterPushedStreamHttp2 %s 0x%X\n",
-        key.get(), stream->StreamID()));
-  if(mHashHttp2.Get(key)) {
-    LOG3(("SpdyPushCache::RegisterPushedStreamHttp2 %s 0x%X duplicate key\n",
-          key.get(), stream->StreamID()));
-    return false;
-  }
-  mHashHttp2.Put(key, stream);
-  return true;
-}
-
-Http2PushedStream *
-SpdyPushCache::RemovePushedStreamHttp2(nsCString key)
-{
-  Http2PushedStream *rv = mHashHttp2.Get(key);
-  LOG3(("SpdyPushCache::RemovePushedStreamHttp2 %s 0x%X\n",
-        key.get(), rv ? rv->StreamID() : 0));
-  if (rv)
-    mHashHttp2.Remove(key);
-  return rv;
-}
 } // namespace mozilla::net
 } // namespace mozilla
 

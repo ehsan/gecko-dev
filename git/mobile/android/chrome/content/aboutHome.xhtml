@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!DOCTYPE html [
-  <!ENTITY % htmlDTD PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "DTD/xhtml1-strict.dtd">
-  %htmlDTD;
-  <!ENTITY % brandDTD SYSTEM "chrome://branding/locale/brand.dtd" >
-  %brandDTD;
-  <!ENTITY % abouthomeDTD SYSTEM "chrome://browser/locale/aboutHome.dtd">
-  %abouthomeDTD;
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+  "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd" [
+<!ENTITY % brandDTD SYSTEM "chrome://branding/locale/brand.dtd" >
+%brandDTD;
+<!ENTITY % aboutHomeDTD SYSTEM "chrome://browser/locale/aboutHome.dtd" >
+%aboutHomeDTD;
 ]>
 
 <!-- This Source Code Form is subject to the terms of the Mozilla Public
@@ -15,7 +14,8 @@
 
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-  <title>&abouthome.title;</title>
+  <title>&homepage.default;</title>
+  <link rel="icon" type="image/png" href="chrome://branding/content/favicon32.png" />
 </head>
 <body>
 </body>

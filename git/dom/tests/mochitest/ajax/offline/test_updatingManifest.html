@@ -17,8 +17,8 @@
  * swaps cache for this document, reloads and checks document state.
  */
 
-const NAMESPACE_BYPASS = SpecialPowers.Ci.nsIApplicationCacheNamespace.NAMESPACE_BYPASS;
-const NAMESPACE_FALLBACK = SpecialPowers.Ci.nsIApplicationCacheNamespace.NAMESPACE_FALLBACK;
+const NAMESPACE_BYPASS = Components.interfaces.nsIApplicationCacheNamespace.NAMESPACE_BYPASS;
+const NAMESPACE_FALLBACK = Components.interfaces.nsIApplicationCacheNamespace.NAMESPACE_FALLBACK;
 
 var gStep = 0;
 var gGotFrameVersion = 0;
@@ -38,7 +38,7 @@ function waitForLocations(frames, doneFunc)
   if (frame)
     // toString() might cause problems when this test will
     // completely be changed to test IDN behavior.
-    OfflineTest.waitForAdd(frame, function()
+    OfflineTest.waitForAdd(frame.location.toString(), function()
       {
         waitForLocations(frames, doneFunc);
       }
@@ -94,7 +94,7 @@ function frameLoad(version)
   {
     var call = gCallOnUpdatingFrameLoad;
     gCallOnUpdatingFrameLoad = null;
-    SimpleTest.executeSoon(OfflineTest.priv(call));
+    OfflineTest.priv(call)();
   }
 }
 
@@ -109,18 +109,15 @@ function whitelistOnLoad(version)
 
 function manifestCached()
 {
-  OfflineTest.is(gStep, 0, "Got manifestCached in step 0, gStep=" + gStep);
+  OfflineTest.is(gStep, 0);
 
   reloadLocations([fallbackFrame1, fallbackFrame2]);
-  waitForLocations(
-    ["http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/fallback.html"],
-    fallbackLoaded
-  );
+  waitForLocations([fallbackFrame1, fallbackFrame2],
+      fallbackLoaded);
 }
 
 function fallbackLoaded()
 {
-  dump("in fallbackLoaded\n");
   applicationCache.mozAdd("http://mochi.test:8888/tests/SimpleTest/EventUtils.js");
   OfflineTest.waitForAdd("http://mochi.test:8888/tests/SimpleTest/EventUtils.js",
       dynamicLoaded);
@@ -129,7 +126,7 @@ function fallbackLoaded()
 function dynamicLoaded()
 {
   window.open("http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/updatingImplicit.html");
-  // window.applicationCache.noupdate invokes implicitLoaded()
+  // window.onload invokes implicitLoaded()
 }
 
 function implicitLoaded(aWindow, errorOccured)
@@ -156,7 +153,7 @@ function implicitCached()
       "http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/fallback.html", false);
 
   // Cache object status
-  OfflineTest.is(applicationCache.status, SpecialPowers.Ci.nsIDOMOfflineResourceList.IDLE,
+  OfflineTest.is(applicationCache.status, Components.interfaces.nsIDOMOfflineResourceList.IDLE,
       "we have associated application cache (1)");
 
   OfflineTest.is(gGotFrameVersion, 1, "IFrame version 1");
@@ -193,7 +190,7 @@ function implicitCached()
 
 function manifestUpdated()
 {
-  OfflineTest.ok(gStep == 1 || gStep == 2, "Got manifestUpdated in step 1 or 2, gStep=" + gStep);
+  OfflineTest.ok(gStep == 1 || gStep == 2);
 
   switch (gStep)
   {
@@ -210,7 +207,7 @@ function manifestUpdated()
         "http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/fallback2.html", false);
 
     // Cache object status
-    OfflineTest.is(applicationCache.status, SpecialPowers.Ci.nsIDOMOfflineResourceList.UPDATEREADY,
+    OfflineTest.is(applicationCache.status, Components.interfaces.nsIDOMOfflineResourceList.UPDATEREADY,
         "we have associated application cache and update is pending (2)");
 
     var entries = [
@@ -240,8 +237,8 @@ function manifestUpdated()
         OfflineTest.setSJSState("http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/updatingIframe.sjs", "second");
 
         gGotFrameVersion = 0;
+        gCallOnUpdatingFrameLoad = function() {applicationCache.update();};
         updatingFrame.location.reload();
-        // Since the frame is offline-cached, reload of it invokes update
       });
 
     break;
@@ -259,7 +256,7 @@ function manifestUpdated()
         "http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/fallback2.html", false);
 
     // Cache object status
-    OfflineTest.is(applicationCache.status, SpecialPowers.Ci.nsIDOMOfflineResourceList.UPDATEREADY,
+    OfflineTest.is(applicationCache.status, Components.interfaces.nsIDOMOfflineResourceList.UPDATEREADY,
         "we have associated application cache and update is pending (3)");
 
     OfflineTest.is(gGotFrameVersion, 1, "IFrame version 1 because cache was not swapped");
@@ -300,13 +297,12 @@ function manifestNoUpdate()
 {
   applicationCache.onnoupdate = null;
 
-  OfflineTest.ok(gStep == 3, "Got manifestNoUpdate in step 3, gStep=" + gStep);
-  ++gStep;
+  OfflineTest.ok(gStep == 3);
 
-  OfflineTest.is(applicationCache.status, SpecialPowers.Ci.nsIDOMOfflineResourceList.UPDATEREADY,
+  OfflineTest.is(applicationCache.status, Components.interfaces.nsIDOMOfflineResourceList.UPDATEREADY,
         "we have associated application cache and update is pending (4)");
   applicationCache.swapCache();
-  OfflineTest.is(applicationCache.status, SpecialPowers.Ci.nsIDOMOfflineResourceList.IDLE,
+  OfflineTest.is(applicationCache.status, Components.interfaces.nsIDOMOfflineResourceList.IDLE,
         "we have associated application cache (4)");
 
   gGotFrameVersion = 0;
@@ -318,7 +314,8 @@ function checkNewVersionOfIFrame()
 {
   OfflineTest.is(gGotFrameVersion, 2, "IFrame version 2");
 
-  OfflineTest.teardownAndFinish();
+  OfflineTest.teardown();
+  OfflineTest.finish();
 }
 
 // End of the test function chain

@@ -21,7 +21,7 @@
 namespace mozilla {
 namespace ipc {
 
-class SharedMemoryBasic MOZ_FINAL : public SharedMemory
+class SharedMemoryBasic : public SharedMemory
 {
 public:
   typedef base::SharedMemoryHandle Handle;
@@ -30,7 +30,7 @@ public:
   {
   }
 
-  explicit SharedMemoryBasic(const Handle& aHandle)
+  SharedMemoryBasic(const Handle& aHandle)
     : mSharedMemory(aHandle, false)
   {
   }
@@ -84,10 +84,6 @@ public:
   }
 
 private:
-  ~SharedMemoryBasic()
-  {
-  }
-
   base::SharedMemory mSharedMemory;
 };
 

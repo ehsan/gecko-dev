@@ -11,12 +11,11 @@
 
 class nsISupportsArray;
 
-class nsSupportsArrayEnumerator MOZ_FINAL : public nsIBidirectionalEnumerator
-{
+class nsSupportsArrayEnumerator MOZ_FINAL : public nsIBidirectionalEnumerator {
 public:
   NS_DECL_ISUPPORTS
 
-  explicit nsSupportsArrayEnumerator(nsISupportsArray* aArray);
+  nsSupportsArrayEnumerator(nsISupportsArray* array);
 
   // nsIEnumerator methods:
   NS_DECL_NSIENUMERATOR

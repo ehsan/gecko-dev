@@ -13,7 +13,6 @@
 #include "nsIObserver.h"
 #include "nsUrlClassifierPrefixSet.h"
 #include "nsIUrlClassifierHashCompleter.h"
-#include "nsIUrlListManager.h"
 #include "nsIUrlClassifierDBService.h"
 #include "nsIURIClassifier.h"
 #include "nsToolkitCompsCID.h"
@@ -52,7 +51,7 @@ public:
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_URLCLASSIFIERDBSERVICE_CID)
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIURLCLASSIFIERDBSERVICE
   NS_DECL_NSIURICLASSIFIER
   NS_DECL_NSIOBSERVER
@@ -71,9 +70,7 @@ private:
   // Disallow copy constructor
   nsUrlClassifierDBService(nsUrlClassifierDBService&);
 
-  nsresult LookupURI(nsIPrincipal* aPrincipal,
-                     const nsACString& tables,
-                     nsIUrlClassifierCallback* c,
+  nsresult LookupURI(nsIPrincipal* aPrincipal, nsIUrlClassifierCallback* c,
                      bool forceCheck, bool *didCheck);
 
   // Close db connection and join the background thread if it exists.
@@ -83,10 +80,7 @@ private:
   nsresult CheckClean(const nsACString &lookupKey,
                       bool *clean);
 
-  // Read everything into mGethashTables and mDisallowCompletionTables
-  nsresult ReadTablesFromPrefs();
-
-  nsRefPtr<nsUrlClassifierDBServiceWorker> mWorker;
+  nsCOMPtr<nsUrlClassifierDBServiceWorker> mWorker;
   nsCOMPtr<nsIUrlClassifierDBServiceWorker> mWorkerProxy;
 
   nsInterfaceHashtable<nsCStringHashKey, nsIUrlClassifierHashCompleter> mCompleters;
@@ -99,9 +93,9 @@ private:
   // uris on document loads.
   bool mCheckPhishing;
 
-  // TRUE if the nsURIClassifier implementation should check for tracking
-  // uris on document loads.
-  bool mCheckTracking;
+  // TRUE if we randomize the prefixes/domains per client to prevent
+  // simulatenous collisions for all Firefox users
+  bool mPerClientRandomize;
 
   // TRUE if a BeginUpdate() has been called without an accompanying
   // CancelUpdate()/FinishUpdate().  This is used to prevent competing
@@ -110,10 +104,7 @@ private:
   bool mInUpdate;
 
   // The list of tables that can use the default hash completer object.
-  nsTArray<nsCString> mGethashTables;
-
-  // The list of tables that should never be hash completed.
-  nsTArray<nsCString> mDisallowCompletionsTables;
+  nsTArray<nsCString> mGethashWhitelist;
 
   // Thread that we do the updates on.
   static nsIThread* gDbBackgroundThread;

@@ -9,15 +9,11 @@
  */
 
 
-#ifndef VP8_ENCODER_TOKENIZE_H_
-#define VP8_ENCODER_TOKENIZE_H_
+#ifndef tokenize_h
+#define tokenize_h
 
 #include "vp8/common/entropy.h"
 #include "block.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 void vp8_tokenize_initialize();
 
@@ -37,22 +33,18 @@ typedef struct
 
 int rd_cost_mby(MACROBLOCKD *);
 
-#ifdef VP8_ENTROPY_STATS
+#ifdef ENTROPY_STATS
 void init_context_counters();
 void print_context_counters();
 
 extern _int64 context_counters[BLOCK_TYPES] [COEF_BANDS] [PREV_COEF_CONTEXTS] [MAX_ENTROPY_TOKENS];
 #endif
 
-extern const short *const vp8_dct_value_cost_ptr;
+extern const int *vp8_dct_value_cost_ptr;
 /* TODO: The Token field should be broken out into a separate char array to
  *  improve cache locality, since it's needed for costing when the rest of the
  *  fields are not.
  */
-extern const TOKENVALUE *const vp8_dct_value_tokens_ptr;
+extern const TOKENVALUE *vp8_dct_value_tokens_ptr;
 
-#ifdef __cplusplus
-}  // extern "C"
-#endif
-
-#endif  // VP8_ENCODER_TOKENIZE_H_
+#endif  /* tokenize_h */

@@ -13,26 +13,18 @@
 #include "nsIMIMEService.h"
 #include "nsWeakReference.h"
 #include "nsCOMPtr.h"
-#include "nsClassHashtable.h"
-#include "nsHashKeys.h"
-#include "nsTArrayForwardDeclare.h"
 
-class nsIHashable;
-class nsIRemoteOpenFileListener;
-
-class nsJARProtocolHandler MOZ_FINAL : public nsIJARProtocolHandler
-                                     , public nsSupportsWeakReference
+class nsJARProtocolHandler : public nsIJARProtocolHandler
+                           , public nsSupportsWeakReference
 {
-    typedef nsAutoTArray<nsCOMPtr<nsIRemoteOpenFileListener>, 5>
-            RemoteFileListenerArray;
-
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIPROTOCOLHANDLER
     NS_DECL_NSIJARPROTOCOLHANDLER
 
     // nsJARProtocolHandler methods:
     nsJARProtocolHandler();
+    virtual ~nsJARProtocolHandler();
 
     static nsJARProtocolHandler *GetSingleton();
 
@@ -42,28 +34,15 @@ public:
     nsIMIMEService    *MimeService();
     nsIZipReaderCache *JarCache() { return mJARCache; }
 
-    bool IsMainProcess() const { return mIsMainProcess; }
-
-    bool RemoteOpenFileInProgress(nsIHashable *aRemoteFile,
-                                  nsIRemoteOpenFileListener *aListener);
-    void RemoteOpenFileComplete(nsIHashable *aRemoteFile, nsresult aStatus);
-
 protected:
-    virtual ~nsJARProtocolHandler();
-
     nsCOMPtr<nsIZipReaderCache> mJARCache;
     nsCOMPtr<nsIMIMEService> mMimeService;
-
-    // Holds lists of RemoteOpenFileChild (not including the 1st) that have
-    // requested the same file from parent.
-    nsClassHashtable<nsHashableHashKey, RemoteFileListenerArray>
-        mRemoteFileListeners;
-
-    bool mIsMainProcess;
 };
 
 extern nsJARProtocolHandler *gJarHandler;
 
+#define NS_JARPROTOCOLHANDLER_CLASSNAME \
+    "nsJarProtocolHandler"
 #define NS_JARPROTOCOLHANDLER_CID                    \
 { /* 0xc7e410d4-0x85f2-11d3-9f63-006008a6efe9 */     \
     0xc7e410d4,                                      \

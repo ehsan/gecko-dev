@@ -12,6 +12,7 @@
 #include "gfxXlibNativeRenderer.h"
 #endif
 
+class gfxASurface;
 class gfxContext;
 
 /**
@@ -20,7 +21,7 @@ class gfxContext;
  * override DrawWithGDK, and then call Draw(). The drawing will be subjected
  * to all Thebes transformations, clipping etc.
  */
-class gfxGdkNativeRenderer
+class THEBES_API gfxGdkNativeRenderer
 #ifdef MOZ_X11
     : private gfxXlibNativeRenderer
 #endif
@@ -75,9 +76,9 @@ public:
 private:
 #ifdef MOZ_X11
     // for gfxXlibNativeRenderer:
-    virtual nsresult DrawWithXlib(cairo_surface_t* surface,
+    virtual nsresult DrawWithXlib(gfxXlibSurface* surface,
                                   nsIntPoint offset,
-                                  nsIntRect* clipRects, uint32_t numClipRects) MOZ_OVERRIDE;
+                                  nsIntRect* clipRects, uint32_t numClipRects);
 
 #if (MOZ_WIDGET_GTK == 2)
     GdkColormap *mColormap;

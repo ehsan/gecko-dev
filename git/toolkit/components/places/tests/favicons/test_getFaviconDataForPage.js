@@ -26,11 +26,9 @@ add_test(function test_normal()
 {
   let pageURI = NetUtil.newURI("http://example.com/normal");
 
-  promiseAddVisits(pageURI).then(function () {
+  addVisits(pageURI, function () {
     PlacesUtils.favicons.setAndFetchFaviconForPage(
-      pageURI, FAVICON_URI, true,
-        PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE,
-        function () {
+      pageURI, FAVICON_URI, true, function () {
         PlacesUtils.favicons.getFaviconDataForPage(pageURI,
           function (aURI, aDataLen, aData, aMimeType) {
             do_check_true(aURI.equals(FAVICON_URI));

@@ -100,9 +100,7 @@ public:
 
 inline Machine::Code::Code() throw()
 : _code(0), _data(0), _data_size(0), _instr_count(0), _max_ref(0),
-  _status(loaded), _constraint(false), _modify(false),_delete(false),
-  _own(false)
-{
+  _status(loaded), _own(false) {
 }
 
 inline Machine::Code::Code(const Machine::Code &obj) throw ()
@@ -168,7 +166,7 @@ inline bool Machine::Code::deletes() const throw()
 
 inline size_t Machine::Code::maxRef() const throw()
 {
-    return _max_ref;
+	return _max_ref;
 }
 
 } // namespace vm

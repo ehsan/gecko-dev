@@ -18,7 +18,7 @@ class nsNSSCertTrust
 public:
   nsNSSCertTrust();
   nsNSSCertTrust(unsigned int ssl, unsigned int email, unsigned int objsign);
-  explicit nsNSSCertTrust(CERTCertTrust *t);
+  nsNSSCertTrust(CERTCertTrust *t);
   virtual ~nsNSSCertTrust();
 
   /* query */

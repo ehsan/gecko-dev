@@ -4,13 +4,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include "nsISupports.h"
-#include "nsISupportsArray.h"
 #include "nsIPK11TokenDB.h"
 #include "prerror.h"
 #include "secerr.h"
 #include "nsReadableUtils.h"
 #include "nsNSSComponent.h"
-#include "nsServiceManagerUtils.h"
 
 #include "nsPK11TokenDB.h"
 
@@ -18,7 +16,9 @@
 extern PRLogModuleInfo* gPIPNSSLog;
 #endif
 
-NS_IMPL_ISUPPORTS(nsPK11Token, nsIPK11Token)
+static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
+
+NS_IMPL_ISUPPORTS1(nsPK11Token, nsIPK11Token)
 
 nsPK11Token::nsPK11Token(PK11SlotInfo *slot)
 {
@@ -63,11 +63,11 @@ nsPK11Token::refreshTokenInfo()
 
     // Set the Hardware Version field
     mTokenHWVersion.AppendInt(tok_info.hardwareVersion.major);
-    mTokenHWVersion.Append('.');
+    mTokenHWVersion.AppendLiteral(".");
     mTokenHWVersion.AppendInt(tok_info.hardwareVersion.minor);
     // Set the Firmware Version field
     mTokenFWVersion.AppendInt(tok_info.firmwareVersion.major);
-    mTokenFWVersion.Append('.');
+    mTokenFWVersion.AppendLiteral(".");
     mTokenFWVersion.AppendInt(tok_info.firmwareVersion.minor);
     // Set the Serial Number field
     const char *ccSerial = (const char*)tok_info.serialNumber;
@@ -83,9 +83,9 @@ nsPK11Token::refreshTokenInfo()
 nsPK11Token::~nsPK11Token()
 {
   nsNSSShutDownPreventionLock locker;
-  if (isAlreadyShutDown()) {
+  if (isAlreadyShutDown())
     return;
-  }
+
   destructorSafeDestroyNSSReference();
   shutdown(calledFromObject);
 }
@@ -97,6 +97,9 @@ void nsPK11Token::virtualDestroyNSSReference()
 
 void nsPK11Token::destructorSafeDestroyNSSReference()
 {
+  if (isAlreadyShutDown())
+    return;
+
   if (mSlot) {
     PK11_FreeSlot(mSlot);
     mSlot = nullptr;
@@ -104,7 +107,7 @@ void nsPK11Token::destructorSafeDestroyNSSReference()
 }
 
 /* readonly attribute wstring tokenName; */
-NS_IMETHODIMP nsPK11Token::GetTokenName(char16_t * *aTokenName)
+NS_IMETHODIMP nsPK11Token::GetTokenName(PRUnichar * *aTokenName)
 {
   // handle removals/insertions
   if (mSeries != PK11_GetSlotSeries(mSlot)) {
@@ -117,7 +120,7 @@ NS_IMETHODIMP nsPK11Token::GetTokenName(char16_t * *aTokenName)
 }
 
 /* readonly attribute wstring tokenDesc; */
-NS_IMETHODIMP nsPK11Token::GetTokenLabel(char16_t **aTokLabel)
+NS_IMETHODIMP nsPK11Token::GetTokenLabel(PRUnichar **aTokLabel)
 {
   // handle removals/insertions
   if (mSeries != PK11_GetSlotSeries(mSlot)) {
@@ -129,7 +132,7 @@ NS_IMETHODIMP nsPK11Token::GetTokenLabel(char16_t **aTokLabel)
 }
 
 /* readonly attribute wstring tokenManID; */
-NS_IMETHODIMP nsPK11Token::GetTokenManID(char16_t **aTokManID)
+NS_IMETHODIMP nsPK11Token::GetTokenManID(PRUnichar **aTokManID)
 {
   // handle removals/insertions
   if (mSeries != PK11_GetSlotSeries(mSlot)) {
@@ -141,7 +144,7 @@ NS_IMETHODIMP nsPK11Token::GetTokenManID(char16_t **aTokManID)
 }
 
 /* readonly attribute wstring tokenHWVersion; */
-NS_IMETHODIMP nsPK11Token::GetTokenHWVersion(char16_t **aTokHWVersion)
+NS_IMETHODIMP nsPK11Token::GetTokenHWVersion(PRUnichar **aTokHWVersion)
 {
   // handle removals/insertions
   if (mSeries != PK11_GetSlotSeries(mSlot)) {
@@ -153,7 +156,7 @@ NS_IMETHODIMP nsPK11Token::GetTokenHWVersion(char16_t **aTokHWVersion)
 }
 
 /* readonly attribute wstring tokenFWVersion; */
-NS_IMETHODIMP nsPK11Token::GetTokenFWVersion(char16_t **aTokFWVersion)
+NS_IMETHODIMP nsPK11Token::GetTokenFWVersion(PRUnichar **aTokFWVersion)
 {
   // handle removals/insertions
   if (mSeries != PK11_GetSlotSeries(mSlot)) {
@@ -165,7 +168,7 @@ NS_IMETHODIMP nsPK11Token::GetTokenFWVersion(char16_t **aTokFWVersion)
 }
 
 /* readonly attribute wstring tokenSerialNumber; */
-NS_IMETHODIMP nsPK11Token::GetTokenSerialNumber(char16_t **aTokSerialNum)
+NS_IMETHODIMP nsPK11Token::GetTokenSerialNumber(PRUnichar **aTokSerialNum)
 {
   // handle removals/insertions
   if (mSeries != PK11_GetSlotSeries(mSlot)) {
@@ -227,8 +230,6 @@ NS_IMETHODIMP nsPK11Token::LogoutSimple()
 
 NS_IMETHODIMP nsPK11Token::LogoutAndDropAuthenticatedResources()
 {
-  static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
-
   nsresult rv = LogoutSimple();
 
   if (NS_FAILED(rv))
@@ -276,7 +277,7 @@ NS_IMETHODIMP nsPK11Token::GetNeedsUserInit(bool *aNeedsUserInit)
 }
 
 /* boolean checkPassword (in wstring password); */
-NS_IMETHODIMP nsPK11Token::CheckPassword(const char16_t *password, bool *_retval)
+NS_IMETHODIMP nsPK11Token::CheckPassword(const PRUnichar *password, bool *_retval)
 {
   nsNSSShutDownPreventionLock locker;
   if (isAlreadyShutDown())
@@ -301,7 +302,7 @@ NS_IMETHODIMP nsPK11Token::CheckPassword(const char16_t *password, bool *_retval
 }
 
 /* void initPassword (in wstring initialPassword); */
-NS_IMETHODIMP nsPK11Token::InitPassword(const char16_t *initialPassword)
+NS_IMETHODIMP nsPK11Token::InitPassword(const PRUnichar *initialPassword)
 {
   nsNSSShutDownPreventionLock locker;
   if (isAlreadyShutDown())
@@ -362,7 +363,7 @@ nsPK11Token::SetAskPasswordDefaults(const int32_t askTimes,
 }
 
 /* void changePassword (in wstring oldPassword, in wstring newPassword); */
-NS_IMETHODIMP nsPK11Token::ChangePassword(const char16_t *oldPassword, const char16_t *newPassword)
+NS_IMETHODIMP nsPK11Token::ChangePassword(const PRUnichar *oldPassword, const PRUnichar *newPassword)
 {
   nsNSSShutDownPreventionLock locker;
   if (isAlreadyShutDown())
@@ -373,8 +374,8 @@ NS_IMETHODIMP nsPK11Token::ChangePassword(const char16_t *oldPassword, const cha
   NS_ConvertUTF16toUTF8 aUtf8NewPassword(newPassword);
 
   rv = PK11_ChangePW(mSlot, 
-         (oldPassword ? const_cast<char *>(aUtf8OldPassword.get()) : nullptr),
-         (newPassword ? const_cast<char *>(aUtf8NewPassword.get()) : nullptr));
+         (oldPassword != NULL ? const_cast<char *>(aUtf8OldPassword.get()) : NULL), 
+         (newPassword != NULL ? const_cast<char *>(aUtf8NewPassword.get()) : NULL));
   return (rv == SECSuccess) ? NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -422,7 +423,7 @@ NS_IMETHODIMP nsPK11Token::IsFriendly(bool *_retval)
 
 /*=========================================================*/
 
-NS_IMPL_ISUPPORTS(nsPK11TokenDB, nsIPK11TokenDB)
+NS_IMPL_ISUPPORTS1(nsPK11TokenDB, nsIPK11TokenDB)
 
 nsPK11TokenDB::nsPK11TokenDB()
 {
@@ -446,6 +447,8 @@ NS_IMETHODIMP nsPK11TokenDB::GetInternalKeyToken(nsIPK11Token **_retval)
   if (!slot) { rv = NS_ERROR_FAILURE; goto done; }
 
   token = new nsPK11Token(slot);
+  if (!token) { rv = NS_ERROR_OUT_OF_MEMORY; goto done; }
+
   *_retval = token;
   NS_ADDREF(*_retval);
 
@@ -456,7 +459,7 @@ done:
 
 /* nsIPK11Token findTokenByName (in wchar tokenName); */
 NS_IMETHODIMP nsPK11TokenDB::
-FindTokenByName(const char16_t* tokenName, nsIPK11Token **_retval)
+FindTokenByName(const PRUnichar* tokenName, nsIPK11Token **_retval)
 {
   nsNSSShutDownPreventionLock locker;
   nsresult rv = NS_OK;
@@ -466,6 +469,8 @@ FindTokenByName(const char16_t* tokenName, nsIPK11Token **_retval)
   if (!slot) { rv = NS_ERROR_FAILURE; goto done; }
 
   *_retval = new nsPK11Token(slot);
+  if (!*_retval) { rv = NS_ERROR_OUT_OF_MEMORY; goto done; }
+
   NS_ADDREF(*_retval);
 
 done:
@@ -493,7 +498,10 @@ NS_IMETHODIMP nsPK11TokenDB::ListTokens(nsIEnumerator* *_retval)
 
   for (le = PK11_GetFirstSafe(list); le; le = PK11_GetNextSafe(list, le, false)) {
     nsCOMPtr<nsIPK11Token> token = new nsPK11Token(le->slot);
-    rv = array->AppendElement(token);
+    rv = token
+      ? array->AppendElement(token)
+      : NS_ERROR_OUT_OF_MEMORY;
+
     if (NS_FAILED(rv)) {
       PK11_FreeSlotListElement(list, le);
       rv = NS_ERROR_OUT_OF_MEMORY;

@@ -10,7 +10,7 @@ import java.net.Socket;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocket;
 
-import org.mozilla.gecko.background.common.log.Logger;
+import org.mozilla.gecko.sync.Logger;
 
 import ch.boye.httpclientandroidlib.conn.ssl.SSLSocketFactory;
 import ch.boye.httpclientandroidlib.params.HttpParams;
@@ -18,9 +18,7 @@ import ch.boye.httpclientandroidlib.params.HttpParams;
 public class TLSSocketFactory extends SSLSocketFactory {
   private static final String LOG_TAG = "TLSSocketFactory";
   private static final String[] DEFAULT_CIPHER_SUITES = new String[] {
-    "TLS_DHE_RSA_WITH_AES_256_CBC_SHA",
-    "TLS_DHE_RSA_WITH_AES_128_CBC_SHA",
-    "SSL_RSA_WITH_RC4_128_SHA", // "RC4_SHA"
+    "SSL_RSA_WITH_RC4_128_SHA",        // "RC4_SHA"
   };
   private static final String[] DEFAULT_PROTOCOLS = new String[] {
     "SSLv3",

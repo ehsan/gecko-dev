@@ -2,13 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-Cu.import("resource://gre/modules/Log.jsm");
-Cu.import("resource://services-common/utils.js");
 Cu.import("resource://testing-common/httpd.js");
-Cu.import("resource://testing-common/services/common/logging.js");
+Cu.import("resource://services-common/log4moz.js");
+Cu.import("resource://services-common/utils.js");
 
-let btoa = Cu.import("resource://gre/modules/Log.jsm").btoa;
-let atob = Cu.import("resource://gre/modules/Log.jsm").atob;
+let btoa = Cu.import("resource://services-common/log4moz.js").btoa;
+let atob = Cu.import("resource://services-common/log4moz.js").atob;
 
 function do_check_empty(obj) {
   do_check_attribute_count(obj, 0);
@@ -35,26 +34,6 @@ function do_check_throws(aFunc, aResult, aStack) {
   do_throw("Expected result " + aResult + ", none thrown.", aStack);
 }
 
-
-/**
- * Test whether specified function throws exception with expected
- * result.
- *
- * @param func
- *        Function to be tested.
- * @param message
- *        Message of expected exception. <code>null</code> for no throws.
- */
-function do_check_throws_message(aFunc, aResult) {
-  try {
-    aFunc();
-  } catch (e) {
-    do_check_eq(e.message, aResult);
-    return;
-  }
-  do_throw("Expected an error, none thrown.");
-}
-
 /**
  * Print some debug message to the console. All arguments will be printed,
  * separated by spaces.
@@ -66,7 +45,55 @@ function do_check_throws_message(aFunc, aResult) {
  */
 let _ = function(some, debug, text, to) print(Array.slice(arguments).join(" "));
 
-function httpd_setup (handlers, port=-1) {
+function initTestLogging(level) {
+  function LogStats() {
+    this.errorsLogged = 0;
+  }
+  LogStats.prototype = {
+    format: function BF_format(message) {
+      if (message.level == Log4Moz.Level.Error)
+        this.errorsLogged += 1;
+      return message.loggerName + "\t" + message.levelDesc + "\t" +
+        message.message + "\n";
+    }
+  };
+  LogStats.prototype.__proto__ = new Log4Moz.Formatter();
+
+  let log = Log4Moz.repository.rootLogger;
+  let logStats = new LogStats();
+  let appender = new Log4Moz.DumpAppender(logStats);
+
+  if (typeof(level) == "undefined") {
+    level = "Debug";
+  }
+  getTestLogger().level = Log4Moz.Level[level];
+  Log4Moz.repository.getLogger("Services").level = Log4Moz.Level[level];
+
+  log.level = Log4Moz.Level.Trace;
+  appender.level = Log4Moz.Level.Trace;
+  // Overwrite any other appenders (e.g. from previous incarnations)
+  log.ownAppenders = [appender];
+  log.updateAppenders();
+
+  return logStats;
+}
+
+function getTestLogger(component) {
+  return Log4Moz.repository.getLogger("Testing");
+}
+
+/**
+ * Obtain a port number to run a server on.
+ *
+ * In the ideal world, this would be dynamic so multiple servers could be run
+ * in parallel.
+ */
+function get_server_port() {
+  return 8080;
+}
+
+function httpd_setup (handlers, port) {
+  let port   = port || 8080;
   let server = new HttpServer();
   for (let path in handlers) {
     server.registerPathHandler(path, handlers[path]);
@@ -81,10 +108,6 @@ function httpd_setup (handlers, port=-1) {
     _("==========================================");
     do_throw(ex);
   }
-
-  // Set the base URI for convenience.
-  let i = server.identity;
-  server.baseURI = i.primaryScheme + "://" + i.primaryHost + ":" + i.primaryPort;
 
   return server;
 }
@@ -151,7 +174,6 @@ let PACSystemSettings = {
 
   // Replace this URI for each test to avoid caching. We want to ensure that
   // each test gets a completely fresh setup.
-  mainThreadOnly: true,
   PACURI: null,
   getProxyForURI: function getProxyForURI(aURI) {
     throw Cr.NS_ERROR_NOT_IMPLEMENTED;
@@ -172,16 +194,3 @@ function uninstallFakePAC() {
   let CID = PACSystemSettings.CID;
   Cm.nsIComponentRegistrar.unregisterFactory(CID, PACSystemSettings);
 }
-
-// Many tests do service.startOver() and don't expect the provider type to
-// change (whereas by default, a startOver will do exactly that so FxA is
-// subsequently used). The tests that know how to deal with
-// the Firefox Accounts identity hack things to ensure that still works.
-function ensureStartOverKeepsIdentity() {
-  Cu.import("resource://gre/modules/Services.jsm");
-  Services.prefs.setBoolPref("services.sync-testing.startOverKeepIdentity", true);
-  do_register_cleanup(function() {
-    Services.prefs.clearUserPref("services.sync-testing.startOverKeepIdentity");
-  });
-}
-ensureStartOverKeepsIdentity();

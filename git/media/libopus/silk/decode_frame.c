@@ -8,11 +8,11 @@ this list of conditions and the following disclaimer.
 - Redistributions in binary form must reproduce the above copyright
 notice, this list of conditions and the following disclaimer in the
 documentation and/or other materials provided with the distribution.
-- Neither the name of Internet Society, IETF or IETF Trust, nor the
+- Neither the name of Internet Society, IETF or IETF Trust, nor the 
 names of specific contributors, may be used to endorse or promote
 products derived from this software without specific prior written
 permission.
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS IS”
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
 ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
@@ -30,7 +30,6 @@ POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 #include "main.h"
-#include "stack_alloc.h"
 #include "PLC.h"
 
 /****************/
@@ -45,16 +44,12 @@ opus_int silk_decode_frame(
     opus_int                    condCoding                      /* I    The type of conditional coding to use       */
 )
 {
-    VARDECL( silk_decoder_control, psDecCtrl );
+    silk_decoder_control sDecCtrl;
     opus_int         L, mv_len, ret = 0;
-    VARDECL( opus_int, pulses );
-    SAVE_STACK;
+    opus_int         pulses[ MAX_FRAME_LENGTH ];
 
     L = psDec->frame_length;
-    ALLOC( psDecCtrl, 1, silk_decoder_control );
-    ALLOC( pulses, (L + SHELL_CODEC_FRAME_LENGTH - 1) &
-                   ~(SHELL_CODEC_FRAME_LENGTH - 1), opus_int );
-    psDecCtrl->LTP_scale_Q14 = 0;
+    sDecCtrl.LTP_scale_Q14 = 0;
 
     /* Safety checks */
     silk_assert( L > 0 && L <= MAX_FRAME_LENGTH );
@@ -76,17 +71,20 @@ opus_int silk_decode_frame(
         /********************************************/
         /* Decode parameters and pulse signal       */
         /********************************************/
-        silk_decode_parameters( psDec, psDecCtrl, condCoding );
+        silk_decode_parameters( psDec, &sDecCtrl, condCoding );
+
+        /* Update length. Sampling frequency may have changed */
+        L = psDec->frame_length;
 
         /********************************************************/
         /* Run inverse NSQ                                      */
         /********************************************************/
-        silk_decode_core( psDec, psDecCtrl, pOut, pulses );
+        silk_decode_core( psDec, &sDecCtrl, pOut, pulses );
 
         /********************************************************/
         /* Update PLC state                                     */
         /********************************************************/
-        silk_PLC( psDec, psDecCtrl, pOut, 0 );
+        silk_PLC( psDec, &sDecCtrl, pOut, 0 );
 
         psDec->lossCnt = 0;
         psDec->prevSignalType = psDec->indices.signalType;
@@ -96,7 +94,7 @@ opus_int silk_decode_frame(
         psDec->first_frame_after_reset = 0;
     } else {
         /* Handle packet loss by extrapolation */
-        silk_PLC( psDec, psDecCtrl, pOut, 1 );
+        silk_PLC( psDec, &sDecCtrl, pOut, 1 );
     }
 
     /*************************/
@@ -115,14 +113,13 @@ opus_int silk_decode_frame(
     /************************************************/
     /* Comfort noise generation / estimation        */
     /************************************************/
-    silk_CNG( psDec, psDecCtrl, pOut, L );
+    silk_CNG( psDec, &sDecCtrl, pOut, L );
 
     /* Update some decoder state variables */
-    psDec->lagPrev = psDecCtrl->pitchL[ psDec->nb_subfr - 1 ];
+    psDec->lagPrev = sDecCtrl.pitchL[ psDec->nb_subfr - 1 ];
 
     /* Set output frame length */
     *pN = L;
 
-    RESTORE_STACK;
     return ret;
 }

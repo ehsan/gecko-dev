@@ -6,22 +6,35 @@
 #ifndef __nsFtpState__h_
 #define __nsFtpState__h_
 
+#include "ftpCore.h"
+#include "nsFTPChannel.h"
 #include "nsBaseContentStream.h"
 
+#include "nsIThread.h"
+#include "nsIRunnable.h"
+#include "nsISocketTransportService.h"
+#include "nsISocketTransport.h"
+#include "nsIServiceManager.h"
+#include "nsIStreamListener.h"
 #include "nsICacheListener.h"
+#include "nsIURI.h"
+#include "prnetdb.h"
+#include "prtime.h"
 #include "nsString.h"
+#include "nsIFTPChannel.h"
+#include "nsIProtocolHandler.h"
 #include "nsCOMPtr.h"
 #include "nsIAsyncInputStream.h"
+#include "nsIOutputStream.h"
 #include "nsAutoPtr.h"
+#include "nsIPrompt.h"
 #include "nsITransport.h"
-#include "mozilla/net/DNS.h"
-#include "nsFtpControlConnection.h"
-#include "nsIProtocolProxyCallback.h"
+#include "nsIProxyInfo.h"
 
-#ifdef MOZ_WIDGET_GONK
-#include "nsINetworkManager.h"
-#include "nsProxyRelease.h"
-#endif
+#include "nsFtpControlConnection.h"
+
+#include "nsICacheEntryDescriptor.h"
+#include "nsICacheListener.h"
 
 // ftp server types
 #define FTP_GENERIC_TYPE     0
@@ -57,40 +70,31 @@ typedef enum _FTP_STATE {
     FTP_S_STOR, FTP_R_STOR,
     FTP_S_LIST, FTP_R_LIST,
     FTP_S_PASV, FTP_R_PASV,
-    FTP_S_PWD,  FTP_R_PWD,
-    FTP_S_FEAT, FTP_R_FEAT,
-    FTP_S_OPTS, FTP_R_OPTS
+    FTP_S_PWD,  FTP_R_PWD
 } FTP_STATE;
 
 // higher level ftp actions
 typedef enum _FTP_ACTION {GET, PUT} FTP_ACTION;
 
 class nsFtpChannel;
-class nsICancelable;
-class nsICacheEntryDescriptor;
-class nsIProxyInfo;
-class nsIStreamListener;
 
 // The nsFtpState object is the content stream for the channel.  It implements
 // nsIInputStreamCallback, so it can read data from the control connection.  It
 // implements nsITransportEventSink so it can mix status events from both the
 // control connection and the data connection.
 
-class nsFtpState MOZ_FINAL : public nsBaseContentStream,
-                             public nsIInputStreamCallback,
-                             public nsITransportEventSink,
-                             public nsICacheListener,
-                             public nsIRequestObserver,
-                             public nsFtpControlConnectionListener,
-                             public nsIProtocolProxyCallback
-{
+class nsFtpState : public nsBaseContentStream,
+                   public nsIInputStreamCallback,
+                   public nsITransportEventSink,
+                   public nsICacheListener,
+                   public nsIRequestObserver,
+                   public nsFtpControlConnectionListener {
 public:
     NS_DECL_ISUPPORTS_INHERITED
     NS_DECL_NSIINPUTSTREAMCALLBACK
     NS_DECL_NSITRANSPORTEVENTSINK
     NS_DECL_NSICACHELISTENER
     NS_DECL_NSIREQUESTOBSERVER
-    NS_DECL_NSIPROTOCOLPROXYCALLBACK
 
     // Override input stream methods:
     NS_IMETHOD CloseWithStatus(nsresult status);
@@ -131,8 +135,6 @@ private:
     nsresult        S_stor(); FTP_STATE       R_stor();
     nsresult        S_pasv(); FTP_STATE       R_pasv();
     nsresult        S_pwd();  FTP_STATE       R_pwd();
-    nsresult        S_feat(); FTP_STATE       R_feat();
-    nsresult        S_opts(); FTP_STATE       R_opts();
     // END: STATE METHODS
     ///////////////////////////////////
 
@@ -149,6 +151,7 @@ private:
     void ConvertDirspecFromVMS(nsCString& fileSpec);
     nsresult BuildStreamConverter(nsIStreamListener** convertStreamListener);
     nsresult SetContentType();
+    nsresult ConvertUTF8PathToCharset(const nsACString &aCharset);
 
     /**
      * This method is called to kick-off the FTP state machine.  mState is
@@ -247,11 +250,10 @@ private:
     nsCOMPtr<nsIRequest>    mUploadRequest;
     bool                    mAddressChecked;
     bool                    mServerIsIPv6;
-    bool                    mUseUTF8;
-
+    
     static uint32_t         mSessionStartTime;
 
-    mozilla::net::NetAddr   mServerAddress;
+    PRNetAddr               mServerAddress;
 
     // ***** control read gvars
     nsresult                mControlStatus;
@@ -259,24 +261,8 @@ private:
 
     nsCOMPtr<nsICacheEntryDescriptor> mCacheEntry;
     bool                    mDoomCache;
-
+    
     nsCString mSuppliedEntityID;
-
-    nsCOMPtr<nsICancelable>  mProxyRequest;
-    bool                     mDeferredCallbackPending;
-
-// These members are used for network per-app metering (bug 855948)
-// Currently, they are only available on gonk.
-    uint64_t                           mCountRecv;
-#ifdef MOZ_WIDGET_GONK
-    nsMainThreadPtrHandle<nsINetworkInterface> mActiveNetwork;
-#endif
-    nsresult                           SaveNetworkStats(bool);
-    void                               CountRecvBytes(uint64_t recvBytes)
-    {
-        mCountRecv += recvBytes;
-        SaveNetworkStats(false);
-    }
 };
 
 #endif //__nsFtpState__h_

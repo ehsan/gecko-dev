@@ -7,8 +7,8 @@ package org.mozilla.gecko.sync.setup.activities;
 import java.util.Locale;
 
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.SyncConstants;
+import org.mozilla.gecko.sync.GlobalConstants;
+import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.ThreadPool;
 import org.mozilla.gecko.sync.setup.Constants;
 import org.mozilla.gecko.sync.setup.InvalidSyncKeyException;
@@ -45,7 +45,7 @@ public class AccountActivity extends AccountAuthenticatorActivity {
   private String              username;
   private String              password;
   private String              key;
-  private String              server = SyncConstants.DEFAULT_AUTH_SERVER;
+  private String              server = Constants.AUTH_NODE_DEFAULT;
 
   // UI elements.
   private EditText            serverInput;
@@ -61,10 +61,9 @@ public class AccountActivity extends AccountAuthenticatorActivity {
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
+    setTheme(R.style.SyncTheme);
     super.onCreate(savedInstanceState);
     setContentView(R.layout.sync_account);
-
-    ActivityUtils.prepareLogging();
     mContext = getApplicationContext();
     Logger.debug(LOG_TAG, "AccountManager.get(" + mContext + ")");
     mAccountManager = AccountManager.get(mContext);
@@ -112,7 +111,6 @@ public class AccountActivity extends AccountAuthenticatorActivity {
   @Override
   public void onResume() {
     super.onResume();
-    ActivityUtils.prepareLogging();
     clearCredentials();
     usernameInput.requestFocus();
     cancelButton.setOnClickListener(new OnClickListener() {
@@ -162,7 +160,7 @@ public class AccountActivity extends AccountAuthenticatorActivity {
     username = usernameInput.getText().toString().toLowerCase(Locale.US);
     password = passwordInput.getText().toString();
     key      = synckeyInput.getText().toString();
-    server   = SyncConstants.DEFAULT_AUTH_SERVER;
+    server   = Constants.AUTH_NODE_DEFAULT;
 
     if (serverCheckbox.isChecked()) {
       String userServer = serverInput.getText().toString();
@@ -188,7 +186,6 @@ public class AccountActivity extends AccountAuthenticatorActivity {
         cancelConnectHandler(v);
         // Set cancel click handler to leave account setup.
         cancelButton.setOnClickListener(new OnClickListener() {
-          @Override
           public void onClick(View v) {
             cancelClickHandler(v);
           }
@@ -268,8 +265,8 @@ public class AccountActivity extends AccountAuthenticatorActivity {
 
         Bundle resultBundle = new Bundle();
         resultBundle.putString(AccountManager.KEY_ACCOUNT_NAME, syncAccount.username);
-        resultBundle.putString(AccountManager.KEY_ACCOUNT_TYPE, SyncConstants.ACCOUNTTYPE_SYNC);
-        resultBundle.putString(AccountManager.KEY_AUTHTOKEN, SyncConstants.ACCOUNTTYPE_SYNC);
+        resultBundle.putString(AccountManager.KEY_ACCOUNT_TYPE, GlobalConstants.ACCOUNTTYPE_SYNC);
+        resultBundle.putString(AccountManager.KEY_AUTHTOKEN, GlobalConstants.ACCOUNTTYPE_SYNC);
         setAccountAuthenticatorResult(resultBundle);
 
         setResult(RESULT_OK);
@@ -323,6 +320,7 @@ public class AccountActivity extends AccountAuthenticatorActivity {
         }
       }
     });
+    return;
   }
 
   /**

@@ -4,12 +4,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-#ifndef nsICODecoder_h
-#define nsICODecoder_h
+#ifndef _nsICODecoder_h
+#define _nsICODecoder_h
 
 #include "nsAutoPtr.h"
 #include "Decoder.h"
-#include "imgFrame.h"
+#include "imgIDecoderObserver.h"
 #include "nsBMPDecoder.h"
 #include "nsPNGDecoder.h"
 #include "ICOFileHeaders.h"
@@ -23,32 +23,28 @@ class nsICODecoder : public Decoder
 {
 public:
 
-  explicit nsICODecoder(RasterImage& aImage);
+  nsICODecoder(RasterImage &aImage, imgIDecoderObserver* aObserver);
   virtual ~nsICODecoder();
 
   // Obtains the width of the icon directory entry
   uint32_t GetRealWidth() const
   {
-    return mDirEntry.mWidth == 0 ? 256 : mDirEntry.mWidth;
+    return mDirEntry.mWidth == 0 ? 256 : mDirEntry.mWidth; 
   }
 
   // Obtains the height of the icon directory entry
   uint32_t GetRealHeight() const
   {
-    return mDirEntry.mHeight == 0 ? 256 : mDirEntry.mHeight;
+    return mDirEntry.mHeight == 0 ? 256 : mDirEntry.mHeight; 
   }
 
-  virtual void WriteInternal(const char* aBuffer, uint32_t aCount,
-                             DecodeStrategy aStrategy) MOZ_OVERRIDE;
+  virtual void WriteInternal(const char* aBuffer, uint32_t aCount);
   virtual void FinishInternal();
-  virtual bool NeedsNewFrame() const;
-  virtual nsresult AllocateFrame();
 
 private:
   // Writes to the contained decoder and sets the appropriate errors
   // Returns true if there are no errors.
-  bool WriteToContainedDecoder(const char* aBuffer, uint32_t aCount,
-                               DecodeStrategy aStrategy);
+  bool WriteToContainedDecoder(const char* aBuffer, uint32_t aCount);
 
   // Processes a single dir entry of the icon resource
   void ProcessDirEntry(IconDirEntry& aTarget);
@@ -78,17 +74,16 @@ private:
   uint16_t mNumIcons; // Stores the number of icons in the ICO file
   uint16_t mCurrIcon; // Stores the current dir entry index we are processing
   uint32_t mImageOffset; // Stores the offset of the image data we want
-  uint8_t* mRow;      // Holds one raw line of the image
+  uint8_t *mRow;      // Holds one raw line of the image
   int32_t mCurLine;   // Line index of the image that's currently being decoded
   uint32_t mRowBytes; // How many bytes of the row were already received
-  int32_t mOldLine;   // Previous index of the line
-  nsRefPtr<Decoder> mContainedDecoder; // Contains either a BMP or PNG resource
-  RawAccessFrameRef mRefForContainedDecoder; // Avoid locking off-main-thread
+  int32_t mOldLine;   // Previous index of the line 
+  nsAutoPtr<Decoder> mContainedDecoder; // Contains either a BMP or PNG resource
 
   char mDirEntryArray[ICODIRENTRYSIZE]; // Holds the current dir entry buffer
   IconDirEntry mDirEntry; // Holds a decoded dir entry
   // Holds the potential bytes that can be a PNG signature
-  char mSignature[PNGSIGNATURESIZE];
+  char mSignature[PNGSIGNATURESIZE]; 
   // Holds the potential bytes for a bitmap information header
   char mBIHraw[40];
   // Stores whether or not the icon file we are processing has type 1 (icon)
@@ -100,4 +95,4 @@ private:
 } // namespace image
 } // namespace mozilla
 
-#endif // nsICODecoder_h
+#endif

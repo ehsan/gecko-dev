@@ -21,10 +21,6 @@
   -moz-user-focus: none;
 }
 
-.controlBar[fullscreen-unavailable] > .fullscreenButton {
-  display: none;
-}
-
 .mediaControlsFrame {
   direction: ltr;
   /* Prevent unwanted style inheritance. See bug 554717. */
@@ -36,10 +32,6 @@
 
 .controlsSpacer[hideCursor] {
   cursor: none;
-}
-
-.controlsOverlay[scaled] {
-  -moz-box-align: center;
 }
 
 /* CSS Transitions
@@ -100,8 +92,7 @@ html|span.statActivity[seeking] > html|span.statActivitySeeking {
 .controlBar[size="hidden"],
 .controlBar[size="small"] .durationBox,
 .controlBar[size="small"] .durationLabel,
-.controlBar[size="small"] .positionLabel,
-.controlBar[size="small"] .volumeStack {
+.controlBar[size="small"] .positionLabel {
   visibility: collapse;
 }
 

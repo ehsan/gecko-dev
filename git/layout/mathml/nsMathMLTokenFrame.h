@@ -6,7 +6,7 @@
 #ifndef nsMathMLTokenFrame_h___
 #define nsMathMLTokenFrame_h___
 
-#include "mozilla/Attributes.h"
+#include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
 
 //
@@ -20,7 +20,7 @@ public:
   friend nsIFrame* NS_NewMathMLTokenFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_IMETHOD
-  TransmitAutomaticData() MOZ_OVERRIDE {
+  TransmitAutomaticData() {
     // The REC defines the following elements to be space-like:
     // * an mtext, mspace, maligngroup, or malignmark element;
     if (mContent->Tag() == nsGkAtoms::mtext_) {
@@ -30,39 +30,65 @@ public:
   }
 
   NS_IMETHOD
-  InheritAutomaticData(nsIFrame* aParent) MOZ_OVERRIDE;
+  InheritAutomaticData(nsIFrame* aParent);
 
-  virtual eMathMLFrameType GetMathMLFrameType() MOZ_OVERRIDE;
+  virtual eMathMLFrameType GetMathMLFrameType();
 
-  virtual void
+  NS_IMETHOD
   SetInitialChildList(ChildListID     aListID,
-                      nsFrameList&    aChildList) MOZ_OVERRIDE;
+                      nsFrameList&    aChildList);
 
-  virtual void
+  NS_IMETHOD
   AppendFrames(ChildListID            aListID,
-               nsFrameList&           aChildList) MOZ_OVERRIDE;
+               nsFrameList&           aChildList);
 
-  virtual void
+  NS_IMETHOD
   InsertFrames(ChildListID            aListID,
                nsIFrame*              aPrevFrame,
-               nsFrameList&           aChildList) MOZ_OVERRIDE;
+               nsFrameList&           aChildList);
 
-  virtual void
+  NS_IMETHOD
   Reflow(nsPresContext*          aPresContext,
          nsHTMLReflowMetrics&     aDesiredSize,
          const nsHTMLReflowState& aReflowState,
-         nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+         nsReflowStatus&          aStatus);
 
   virtual nsresult
   Place(nsRenderingContext& aRenderingContext,
         bool                 aPlaceOrigin,
-        nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
+        nsHTMLReflowMetrics& aDesiredSize);
+
+  virtual void MarkIntrinsicWidthsDirty();
+
+  NS_IMETHOD
+  AttributeChanged(int32_t         aNameSpaceID,
+                   nsIAtom*        aAttribute,
+                   int32_t         aModType);
+
+  virtual nsresult
+  ChildListChanged(int32_t aModType)
+  {
+    ProcessTextData();
+    return nsMathMLContainerFrame::ChildListChanged(aModType);
+  }
 
 protected:
-  explicit nsMathMLTokenFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
+  nsMathMLTokenFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLTokenFrame();
 
-  void MarkTextFramesAsTokenMathML();
+  virtual int GetSkipSides() const { return 0; }
+
+  // hook to perform MathML-specific actions depending on the tag
+  virtual void ProcessTextData();
+
+  // helper to set the style of <mi> which has to be italic or normal
+  // depending on its textual content
+  bool SetTextStyle();
+
+  // helper to set the quotes of <ms>
+  void SetQuotes(bool aNotify);
+
+  void ForceTrimChildTextFrames();
 };
 
 #endif /* nsMathMLTokentFrame_h___ */

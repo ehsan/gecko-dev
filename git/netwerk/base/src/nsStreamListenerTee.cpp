@@ -5,11 +5,10 @@
 #include "nsStreamListenerTee.h"
 #include "nsProxyRelease.h"
 
-NS_IMPL_ISUPPORTS(nsStreamListenerTee,
-                  nsIStreamListener,
-                  nsIRequestObserver,
-                  nsIStreamListenerTee,
-                  nsIThreadRetargetableStreamListener)
+NS_IMPL_ISUPPORTS3(nsStreamListenerTee,
+                   nsIStreamListener,
+                   nsIRequestObserver,
+                   nsIStreamListenerTee)
 
 NS_IMETHODIMP
 nsStreamListenerTee::OnStartRequest(nsIRequest *request,
@@ -41,10 +40,7 @@ nsStreamListenerTee::OnStopRequest(nsIRequest *request,
     if (mEventTarget) {
         nsIOutputStream *sink = nullptr;
         mSink.swap(sink);
-        if (NS_FAILED(NS_ProxyRelease(mEventTarget, sink))) {
-            NS_WARNING("Releasing sink on the current thread!");
-            NS_RELEASE(sink);
-        }
+        NS_ProxyRelease(mEventTarget, sink);
     }
     else {
         mSink = 0;
@@ -61,7 +57,7 @@ NS_IMETHODIMP
 nsStreamListenerTee::OnDataAvailable(nsIRequest *request,
                                      nsISupports *context,
                                      nsIInputStream *input,
-                                     uint64_t offset,
+                                     uint32_t offset,
                                      uint32_t count)
 {
     NS_ENSURE_TRUE(mListener, NS_ERROR_NOT_INITIALIZED);
@@ -91,29 +87,6 @@ nsStreamListenerTee::OnDataAvailable(nsIRequest *request,
     }
 
     return mListener->OnDataAvailable(request, context, tee, offset, count);
-}
-
-NS_IMETHODIMP
-nsStreamListenerTee::CheckListenerChain()
-{
-    NS_ASSERTION(NS_IsMainThread(), "Should be on main thread!");
-    nsresult rv = NS_OK;
-    nsCOMPtr<nsIThreadRetargetableStreamListener> retargetableListener =
-        do_QueryInterface(mListener, &rv);
-    if (retargetableListener) {
-        rv = retargetableListener->CheckListenerChain();
-    }
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-    if (!mObserver) {
-      return rv;
-    }
-    retargetableListener = do_QueryInterface(mObserver, &rv);
-    if (retargetableListener) {
-        rv = retargetableListener->CheckListenerChain();
-    }
-    return rv;
 }
 
 NS_IMETHODIMP

@@ -6,8 +6,8 @@
 
 #include <algorithm>
 
-#include "mozilla/Atomics.h"
 #include "base/compiler_specific.h"
+#include "base/lazy_instance.h"
 #include "base/logging.h"
 #include "base/message_pump_default.h"
 #include "base/string_util.h"
@@ -19,8 +19,8 @@
 #if defined(OS_POSIX)
 #include "base/message_pump_libevent.h"
 #endif
-#if defined(OS_LINUX) || defined(OS_BSD)
-#if defined(MOZ_WIDGET_GTK)
+#if defined(OS_LINUX)
+#ifdef MOZ_WIDGET_GTK2
 #include "base/message_pump_glib.h"
 #endif
 #ifdef MOZ_WIDGET_QT
@@ -30,20 +30,16 @@
 #ifdef ANDROID
 #include "base/message_pump_android.h"
 #endif
-#ifdef MOZ_TASK_TRACER
-#include "GeckoTaskTracer.h"
-#endif
 
 #include "MessagePump.h"
 
 using base::Time;
 using base::TimeDelta;
-using base::TimeTicks;
 
-static base::ThreadLocalPointer<MessageLoop>& get_tls_ptr() {
-  static base::ThreadLocalPointer<MessageLoop> tls_ptr;
-  return tls_ptr;
-}
+// A lazily created thread local storage for quick access to a thread's message
+// loop, if one exists.  This should be safe and free of static constructors.
+static base::LazyInstance<base::ThreadLocalPointer<MessageLoop> > lazy_tls_ptr(
+    base::LINKER_INITIALIZED);
 
 //------------------------------------------------------------------------------
 
@@ -83,51 +79,30 @@ static LPTOP_LEVEL_EXCEPTION_FILTER GetTopSEHFilter() {
 
 // static
 MessageLoop* MessageLoop::current() {
-  return get_tls_ptr().Get();
+  // TODO(darin): sadly, we cannot enable this yet since people call us even
+  // when they have no intention of using us.
+  //DCHECK(loop) << "Ouch, did you forget to initialize me?";
+  return lazy_tls_ptr.Pointer()->Get();
 }
-
-static mozilla::Atomic<int32_t> message_loop_id_seq(0);
 
 MessageLoop::MessageLoop(Type type)
     : type_(type),
-      id_(++message_loop_id_seq),
       nestable_tasks_allowed_(true),
       exception_restoration_(false),
       state_(NULL),
-      run_depth_base_(1),
 #ifdef OS_WIN
       os_modal_loop_(false),
 #endif  // OS_WIN
-      transient_hang_timeout_(0),
-      permanent_hang_timeout_(0),
       next_sequence_num_(0) {
   DCHECK(!current()) << "should only have one message loop per thread";
-  get_tls_ptr().Set(this);
-
-  switch (type_) {
-  case TYPE_MOZILLA_UI:
+  lazy_tls_ptr.Pointer()->Set(this);
+  if (type_ == TYPE_MOZILLA_UI) {
     pump_ = new mozilla::ipc::MessagePump();
     return;
-  case TYPE_MOZILLA_CHILD:
+  }
+  if (type_ == TYPE_MOZILLA_CHILD) {
     pump_ = new mozilla::ipc::MessagePumpForChildProcess();
-    // There is a MessageLoop Run call from XRE_InitChildProcess
-    // and another one from MessagePumpForChildProcess. The one
-    // from MessagePumpForChildProcess becomes the base, so we need
-    // to set run_depth_base_ to 2 or we'll never be able to process
-    // Idle tasks.
-    run_depth_base_ = 2;
     return;
-  case TYPE_MOZILLA_NONMAINTHREAD:
-    pump_ = new mozilla::ipc::MessagePumpForNonMainThreads();
-    return;
-#if defined(OS_WIN)
-  case TYPE_MOZILLA_NONMAINUITHREAD:
-    pump_ = new mozilla::ipc::MessagePumpForNonMainUIThreads();
-    return;
-#endif
-  default:
-    // Create one of Chromium's standard MessageLoop types below.
-    break;
   }
 
 #if defined(OS_WIN)
@@ -144,7 +119,7 @@ MessageLoop::MessageLoop(Type type)
   if (type_ == TYPE_UI) {
 #if defined(OS_MACOSX)
     pump_ = base::MessagePumpMac::Create();
-#elif defined(OS_LINUX) || defined(OS_BSD)
+#elif defined(OS_LINUX)
     pump_ = new base::MessagePumpForUI();
 #endif  // OS_LINUX
   } else if (type_ == TYPE_IO) {
@@ -182,7 +157,7 @@ MessageLoop::~MessageLoop() {
   DCHECK(!did_work);
 
   // OK, now make it so that no one can find us.
-  get_tls_ptr().Set(NULL);
+  lazy_tls_ptr.Pointer()->Set(NULL);
 }
 
 void MessageLoop::AddDestructionObserver(DestructionObserver *obs) {
@@ -237,7 +212,7 @@ void MessageLoop::RunInternal() {
 // Wrapper functions for use in above message loop framework.
 
 bool MessageLoop::ProcessNextDelayedNonNestableTask() {
-  if (state_->run_depth > run_depth_base_)
+  if (state_->run_depth != 1)
     return false;
 
   if (deferred_non_nestable_work_queue_.empty())
@@ -284,11 +259,6 @@ void MessageLoop::PostNonNestableDelayedTask(
 void MessageLoop::PostIdleTask(
     const tracked_objects::Location& from_here, Task* task) {
   DCHECK(current() == this);
-
-#ifdef MOZ_TASK_TRACER
-  task = mozilla::tasktracer::CreateTracedTask(task);
-#endif
-
   task->SetBirthPlace(from_here);
   PendingTask pending_task(task, false);
   deferred_non_nestable_work_queue_.push(pending_task);
@@ -298,18 +268,13 @@ void MessageLoop::PostIdleTask(
 void MessageLoop::PostTask_Helper(
     const tracked_objects::Location& from_here, Task* task, int delay_ms,
     bool nestable) {
-
-#ifdef MOZ_TASK_TRACER
-  task = mozilla::tasktracer::CreateTracedTask(task);
-#endif
-
   task->SetBirthPlace(from_here);
 
   PendingTask pending_task(task, nestable);
 
   if (delay_ms > 0) {
     pending_task.delayed_run_time =
-        TimeTicks::Now() + TimeDelta::FromMilliseconds(delay_ms);
+        Time::Now() + TimeDelta::FromMilliseconds(delay_ms);
   } else {
     DCHECK(delay_ms == 0) << "delay should not be negative";
   }
@@ -318,7 +283,7 @@ void MessageLoop::PostTask_Helper(
   // directly, as it could starve handling of foreign threads.  Put every task
   // into this queue.
 
-  nsRefPtr<base::MessagePump> pump;
+  scoped_refptr<base::MessagePump> pump;
   {
     AutoLock locked(incoming_queue_lock_);
     incoming_queue_.push(pending_task);
@@ -365,7 +330,7 @@ void MessageLoop::RunTask(Task* task) {
 }
 
 bool MessageLoop::DeferOrRunPendingTask(const PendingTask& pending_task) {
-  if (pending_task.nestable || state_->run_depth <= run_depth_base_) {
+  if (pending_task.nestable || state_->run_depth == 1) {
     RunTask(pending_task.task);
     // Show that we ran a task (Note: a new one might arrive as a
     // consequence!).
@@ -407,12 +372,34 @@ void MessageLoop::ReloadWorkQueue() {
 }
 
 bool MessageLoop::DeletePendingTasks() {
-  MOZ_ASSERT(work_queue_.empty());
-  bool did_work = !deferred_non_nestable_work_queue_.empty();
+  bool did_work = !work_queue_.empty();
+  while (!work_queue_.empty()) {
+    PendingTask pending_task = work_queue_.front();
+    work_queue_.pop();
+    if (!pending_task.delayed_run_time.is_null()) {
+      // We want to delete delayed tasks in the same order in which they would
+      // normally be deleted in case of any funny dependencies between delayed
+      // tasks.
+      AddToDelayedWorkQueue(pending_task);
+    } else {
+      // TODO(darin): Delete all tasks once it is safe to do so.
+      // Until it is totally safe, just do it when running purify.
+#ifdef PURIFY
+      delete pending_task.task;
+#endif  // PURIFY
+    }
+  }
+  did_work |= !deferred_non_nestable_work_queue_.empty();
   while (!deferred_non_nestable_work_queue_.empty()) {
+    // TODO(darin): Delete all tasks once it is safe to do so.
+    // Until it is totaly safe, just delete them to keep purify happy.
+#ifdef PURIFY
     Task* task = deferred_non_nestable_work_queue_.front().task;
+#endif
     deferred_non_nestable_work_queue_.pop();
+#ifdef PURIFY
     delete task;
+#endif
   }
   did_work |= !delayed_work_queue_.empty();
   while (!delayed_work_queue_.empty()) {
@@ -454,13 +441,13 @@ bool MessageLoop::DoWork() {
   return false;
 }
 
-bool MessageLoop::DoDelayedWork(TimeTicks* next_delayed_work_time) {
+bool MessageLoop::DoDelayedWork(Time* next_delayed_work_time) {
   if (!nestable_tasks_allowed_ || delayed_work_queue_.empty()) {
-    *next_delayed_work_time = TimeTicks();
+    *next_delayed_work_time = Time();
     return false;
   }
 
-  if (delayed_work_queue_.top().delayed_run_time > TimeTicks::Now()) {
+  if (delayed_work_queue_.top().delayed_run_time > Time::Now()) {
     *next_delayed_work_time = delayed_work_queue_.top().delayed_run_time;
     return false;
   }

@@ -6,6 +6,11 @@
 // from and to private browsing mode.
 
 function test() {
+  // initialization
+  gPrefService.setBoolPref("browser.privatebrowsing.keep_current_session", true);
+  let pb = Cc["@mozilla.org/privatebrowsing;1"].
+           getService(Ci.nsIPrivateBrowsingService);
+
   const testPageURL = "http://mochi.test:8888/browser/" +
     "browser/components/privatebrowsing/test/browser/browser_privatebrowsing_windowtitle_page.html";
   waitForExplicitFinish();
@@ -24,79 +29,65 @@ function test() {
   if (isOSX) {
     page_with_title = test_title;
     page_without_title = app_name;
-    about_pb_title = "Open a private window?";
+    about_pb_title = "Would you like to start Private Browsing?";
     pb_page_with_title = test_title + " - (Private Browsing)";
     pb_page_without_title = app_name + " - (Private Browsing)";
-    pb_about_pb_title = "You're browsing privately - (Private Browsing)";
+    pb_about_pb_title = pb_page_without_title;
   }
   else {
     page_with_title = test_title + " - " + app_name;
     page_without_title = app_name;
-    about_pb_title = "Open a private window?" + " - " + app_name;
+    about_pb_title = "Would you like to start Private Browsing?" + " - " + app_name;
     pb_page_with_title = test_title + " - " + app_name + " (Private Browsing)";
     pb_page_without_title = app_name + " (Private Browsing)";
-    pb_about_pb_title = "You're browsing privately - " + app_name + " (Private Browsing)";
+    pb_about_pb_title = "Private Browsing - " + app_name + " (Private Browsing)";
   }
 
-  function testTabTitle(aWindow, url, insidePB, expected_title, funcNext) {
-    executeSoon(function () {
-      let tab = aWindow.gBrowser.selectedTab = aWindow.gBrowser.addTab();
-      let browser = aWindow.gBrowser.selectedBrowser;
-      browser.stop();
-      // ensure that the test is run after the titlebar has been updated
-      browser.addEventListener("load", function () {
-        browser.removeEventListener("load", arguments.callee, true);
-        executeSoon(function () {
-          if (aWindow.document.title != expected_title) {
-            executeSoon(arguments.callee);
-            return;
-          }
-          is(aWindow.document.title, expected_title, "The window title for " + url +
-             " is correct (" + (insidePB ? "inside" : "outside") +
-             " private browsing mode)");
+  function testTabTitle(url, insidePB, expected_title, funcNext) {
+    pb.privateBrowsingEnabled = insidePB;
 
-          let win = aWindow.gBrowser.replaceTabWithWindow(tab);
-          win.addEventListener("load", function() {
-            win.removeEventListener("load", arguments.callee, false);
-            executeSoon(function() {
-              if (win.document.title != expected_title) {
-                executeSoon(arguments.callee);
-                return;
-              }
-              is(win.document.title, expected_title, "The window title for " + url +
-                 " detached tab is correct (" + (insidePB ? "inside" : "outside") +
-                 " private browsing mode)");
-              win.close();
-              aWindow.close();
+    let tab = gBrowser.selectedTab = gBrowser.addTab();
+    let browser = gBrowser.selectedBrowser;
+    browser.stop();
+    // ensure that the test is run after the titlebar has been updated
+    browser.addEventListener("pageshow", function () {
+      browser.removeEventListener("pageshow", arguments.callee, false);
+      executeSoon(function () {
+        is(document.title, expected_title, "The window title for " + url +
+           " is correct (" + (insidePB ? "inside" : "outside") +
+           " private browsing mode)");
 
-              setTimeout(funcNext, 0);
-            });
-          }, false);
-        });
-      }, true);
+        let win = gBrowser.replaceTabWithWindow(tab);
+        win.addEventListener("load", function() {
+          win.removeEventListener("load", arguments.callee, false);
 
-      browser.loadURI(url);
-    });
+          executeSoon(function() {
+            is(win.document.title, expected_title, "The window title for " + url +
+               " detached tab is correct (" + (insidePB ? "inside" : "outside") +
+               " private browsing mode)");
+            win.close();
+
+            setTimeout(funcNext, 0);
+          });
+        }, false);
+      });
+    }, false);
+
+    browser.loadURI(url);
   }
 
-  whenNewWindowLoaded({private: false}, function(win) {
-    testTabTitle(win, "about:blank", false, page_without_title, function() {
-      whenNewWindowLoaded({private: false}, function(win) {
-        testTabTitle(win, testPageURL, false, page_with_title, function() {
-          whenNewWindowLoaded({private: false}, function(win) {
-            testTabTitle(win, "about:privatebrowsing", false, about_pb_title, function() {
-              whenNewWindowLoaded({private: true}, function(win) {
-                testTabTitle(win, "about:blank", true, pb_page_without_title, function() {
-                  whenNewWindowLoaded({private: true}, function(win) {
-                    testTabTitle(win, testPageURL, true, pb_page_with_title, function() {
-                      whenNewWindowLoaded({private: true}, function(win) {
-                        testTabTitle(win, "about:privatebrowsing", true, pb_about_pb_title, finish);
-                      });
-                    });
-                  });
-                });
-              });
-            });
+  function cleanup() {
+    pb.privateBrowsingEnabled = false;
+    gPrefService.clearUserPref("browser.privatebrowsing.keep_current_session");
+    finish();
+  }
+
+  testTabTitle("about:blank", false, page_without_title, function() {
+    testTabTitle(testPageURL, false, page_with_title, function() {
+      testTabTitle("about:privatebrowsing", false, about_pb_title, function() {
+        testTabTitle("about:blank", true, pb_page_without_title, function() {
+          testTabTitle(testPageURL, true, pb_page_with_title, function() {
+            testTabTitle("about:privatebrowsing", true, pb_about_pb_title, cleanup);
           });
         });
       });

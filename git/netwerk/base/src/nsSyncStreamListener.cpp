@@ -5,8 +5,6 @@
 #include "nsIOService.h"
 #include "nsSyncStreamListener.h"
 #include "nsIPipe.h"
-#include "nsThreadUtils.h"
-#include <algorithm>
 
 nsresult
 nsSyncStreamListener::Init()
@@ -14,7 +12,7 @@ nsSyncStreamListener::Init()
     return NS_NewPipe(getter_AddRefs(mPipeIn),
                       getter_AddRefs(mPipeOut),
                       nsIOService::gDefaultSegmentSize,
-                      UINT32_MAX, // no size limit
+                      PR_UINT32_MAX, // no size limit
                       false,
                       false);
 }
@@ -34,11 +32,11 @@ nsSyncStreamListener::WaitForData()
 // nsSyncStreamListener::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS(nsSyncStreamListener,
-                  nsIStreamListener,
-                  nsIRequestObserver,
-                  nsIInputStream,
-                  nsISyncStreamListener)
+NS_IMPL_ISUPPORTS4(nsSyncStreamListener,
+                   nsIStreamListener,
+                   nsIRequestObserver,
+                   nsIInputStream,
+                   nsISyncStreamListener)
 
 //-----------------------------------------------------------------------------
 // nsSyncStreamListener::nsISyncStreamListener
@@ -66,7 +64,7 @@ NS_IMETHODIMP
 nsSyncStreamListener::OnDataAvailable(nsIRequest     *request,
                                       nsISupports    *context,
                                       nsIInputStream *stream,
-                                      uint64_t        offset,
+                                      uint32_t        offset,
                                       uint32_t        count)
 {
     uint32_t bytesWritten;
@@ -148,7 +146,7 @@ nsSyncStreamListener::Read(char     *buf,
     if (NS_FAILED(Available(&avail64)))
         return mStatus;
 
-    uint32_t avail = (uint32_t)std::min(avail64, (uint64_t)bufLen);
+    uint32_t avail = (uint32_t)NS_MIN(avail64, (uint64_t)bufLen);
     mStatus = mPipeIn->Read(buf, avail, result);
     return mStatus;
 }
@@ -168,7 +166,7 @@ nsSyncStreamListener::ReadSegments(nsWriteSegmentFun  writer,
     if (NS_FAILED(Available(&avail64)))
         return mStatus;
 
-    uint32_t avail = (uint32_t)std::min(avail64, (uint64_t)count);
+    uint32_t avail = (uint32_t)NS_MIN(avail64, (uint64_t)count);
     mStatus = mPipeIn->ReadSegments(writer, closure, avail, result);
     return mStatus;
 }

@@ -32,10 +32,7 @@
 #include "hb-ot.h"
 
 #ifdef HAVE_GLIB
-# include <glib.h>
-# if !GLIB_CHECK_VERSION (2, 22, 0)
-#  define g_mapped_file_unref g_mapped_file_free
-# endif
+#include <glib.h>
 #endif
 #include <stdlib.h>
 #include <stdio.h>
@@ -102,5 +99,5 @@ main (int argc, char **argv)
       (argc > 4 &&
        !hb_font_glyph_from_string (font, argv[4], -1, &glyphs[1])))
     return 2;
-  return !hb_ot_layout_lookup_would_substitute (face, strtol (argv[2], NULL, 0), glyphs, len, false);
+  return !hb_ot_layout_would_substitute_lookup (face, glyphs, len, strtol (argv[2], NULL, 0));
 }

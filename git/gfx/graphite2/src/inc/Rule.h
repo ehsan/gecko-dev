@@ -1,6 +1,6 @@
 /*  GRAPHITE2 LICENSING
 
-    Copyright 2011, SIL International
+    Copyright 2010, SIL International
     All rights reserved.
 
     This library is free software; you can redistribute it and/or modify
@@ -41,14 +41,10 @@ struct Rule {
   uint16           rule_idx;
 #endif
 
-  Rule() : constraint(0), action(0), sort(0), preContext(0) {}
+  Rule() : constraint(0), action(0) {}
   ~Rule();
 
   CLASS_NEW_DELETE;
-
-private:
-  Rule(const Rule &);
-  Rule & operator = (const Rule &);
 };
 
 inline Rule::~Rule()
@@ -62,15 +58,13 @@ struct RuleEntry
 {
   const Rule   * rule;
 
-  inline
-  bool operator < (const RuleEntry &r) const
-  {
-    const unsigned short lsort = rule->sort, rsort = r.rule->sort;
+  inline bool operator < (const RuleEntry &r) const
+  { 
+    const unsigned short lsort = rule->sort, rsort = r.rule->sort; 
     return lsort > rsort || (lsort == rsort && rule < r.rule);
   }
-
-  inline
-  bool operator == (const RuleEntry &r) const
+  
+  inline bool operator == (const RuleEntry &r) const
   {
     return rule == r.rule;
   }
@@ -81,14 +75,29 @@ struct State
 {
   const RuleEntry     * rules,
                       * rules_end;
+  const State * const * transitions;
   
-  bool   empty() const;
+  size_t size() const;
+  bool   is_success() const;
+  bool   is_transition() const;
+#ifndef NDEBUG
+    uint32 index;
+#endif
 };
 
-inline
-bool State::empty() const
+inline size_t State::size() const 
 {
-    return rules_end == rules;
+  return rules_end - rules;
+}
+
+inline bool State::is_success() const
+{
+  return (rules != NULL);
+}
+
+inline bool State::is_transition() const
+{
+  return (transitions != NULL);
 }
 
 
@@ -107,12 +116,12 @@ public:
   Slot * const & operator[](int n) const;
   Slot       * & operator [] (int);
   void           pushSlot(Slot * const slot);
-  void           collectGarbage();
+  void			 collectGarbage();
 
   Slot         * highwater() { return m_highwater; }
   void           highwater(Slot *s) { m_highwater = s; m_highpassed = false; }
-  bool           highpassed() const { return m_highpassed; }
-  void           highpassed(bool v) { m_highpassed = v; }
+  bool			 highpassed() const { return m_highpassed; }
+  void			 highpassed(bool v) { m_highpassed = v; }
 
   Segment &    segment;
 private:
@@ -120,7 +129,7 @@ private:
   unsigned short m_size;
   unsigned short m_precontext;
   Slot         * m_highwater;
-  bool           m_highpassed;
+  bool			 m_highpassed;
 };
 
 
@@ -148,24 +157,18 @@ private:
   };
 
 public:
-  FiniteStateMachine(SlotMap & map, json * logger);
+  FiniteStateMachine(SlotMap & map);
   void      reset(Slot * & slot, const short unsigned int max_pre_ctxt);
-
   Rules     rules;
   SlotMap   & slots;
-  json    * const dbgout;
 };
 
-
-inline
-FiniteStateMachine::FiniteStateMachine(SlotMap& map, json * logger)
-: slots(map),
-  dbgout(logger)
+inline FiniteStateMachine::FiniteStateMachine(SlotMap& map)
+: slots(map)
 {
 }
 
-inline
-void FiniteStateMachine::reset(Slot * & slot, const short unsigned int max_pre_ctxt)
+inline void FiniteStateMachine::reset(Slot * & slot, const short unsigned int max_pre_ctxt)
 {
   rules.clear();
   int ctxt = 0;
@@ -173,47 +176,41 @@ void FiniteStateMachine::reset(Slot * & slot, const short unsigned int max_pre_c
   slots.reset(*slot, ctxt);
 }
 
-inline
-FiniteStateMachine::Rules::Rules()
-  : m_begin(m_rules), m_end(m_rules)
-{
-}
-
-inline
-void FiniteStateMachine::Rules::clear()
+inline FiniteStateMachine::Rules::Rules()
+  : m_begin(m_rules)
 {
   m_end = m_begin;
 }
 
-inline
-const RuleEntry * FiniteStateMachine::Rules::begin() const
+inline void FiniteStateMachine::Rules::clear() 
+{
+  m_end = m_begin;
+}
+
+inline const RuleEntry * FiniteStateMachine::Rules::begin() const
 {
   return m_begin;
 }
 
-inline
-const RuleEntry * FiniteStateMachine::Rules::end() const
+inline const RuleEntry * FiniteStateMachine::Rules::end() const
 {
   return m_end;
 }
 
-inline
-size_t FiniteStateMachine::Rules::size() const
+inline size_t FiniteStateMachine::Rules::size() const
 {
   return m_end - m_begin;
 }
 
-inline
-void FiniteStateMachine::Rules::accumulate_rules(const State &state)
+inline void FiniteStateMachine::Rules::accumulate_rules(const State &state)
 {
   // Only bother if there are rules in the State object.
-  if (state.empty()) return;
+  if (state.size() == 0) return;
   
   // Merge the new sorted rules list into the current sorted result set.
   const RuleEntry * lre = begin(), * rre = state.rules;
   RuleEntry * out = m_rules + (m_begin == m_rules)*MAX_RULES;    
-  const RuleEntry * const lrend = out + MAX_RULES,
-                  * const rrend = state.rules_end;
+  const RuleEntry * lrend = out + MAX_RULES;
   m_begin = out; 
   while (lre != end() && out != lrend)
   {
@@ -221,71 +218,62 @@ void FiniteStateMachine::Rules::accumulate_rules(const State &state)
     else if (*rre < *lre) { *out++ = *rre++; }
     else                { *out++ = *lre++; ++rre; }
 
-    if (rre == rrend)
+    if (rre == state.rules_end) 
     { 
       while (lre != end() && out != lrend) { *out++ = *lre++; }
       m_end = out;
       return;
     }
   }
-  while (rre != rrend && out != lrend) { *out++ = *rre++; }
+  while (rre != state.rules_end && out != lrend) { *out++ = *rre++; }
   m_end = out;
 }
 
-inline
-SlotMap::SlotMap(Segment & seg)
-: segment(seg), m_size(0), m_precontext(0), m_highwater(0), m_highpassed(false)
+inline SlotMap::SlotMap(Segment & seg)
+: segment(seg), m_size(0), m_precontext(0)
 {
     m_slot_map[0] = 0;
 }
 
-inline
-Slot * * SlotMap::begin()
+inline Slot * * SlotMap::begin()
 {
   return &m_slot_map[1]; // allow map to go 1 before slot_map when inserting
                          // at start of segment.
 }
 
-inline
-Slot * * SlotMap::end()
+inline Slot * * SlotMap::end()
 {
   return m_slot_map + m_size + 1;
 }
 
-inline
-size_t SlotMap::size() const
+inline size_t SlotMap::size() const
 {
   return m_size;
 }
 
-inline
-short unsigned int SlotMap::context() const
+inline short unsigned int SlotMap::context() const
 {
   return m_precontext;
 }
 
-inline
-void SlotMap::reset(Slot & slot, short unsigned int ctxt)
+inline void SlotMap::reset(Slot & slot, short unsigned int ctxt)
 {
   m_size = 0;
   m_precontext = ctxt;
   *m_slot_map = slot.prev();
 }
 
-inline
-void SlotMap::pushSlot(Slot*const slot)
+inline void SlotMap::pushSlot(Slot*const slot)
 {
-  m_slot_map[++m_size] = slot;
+  m_slot_map[m_size++ + 1] = slot;
 }
 
-inline
-Slot * const & SlotMap::operator[](int n) const
+inline Slot * const & SlotMap::operator[](int n) const
 {
   return m_slot_map[n + 1];
 }
 
-inline
-Slot * & SlotMap::operator[](int n)
+inline Slot * & SlotMap::operator[](int n)
 {
   return m_slot_map[n + 1];
 }

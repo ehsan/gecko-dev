@@ -4,7 +4,6 @@
 https://bugzilla.mozilla.org/show_bug.cgi?id=666041
 -->
 <head>
-  <meta charset="utf-8">
   <title>Test for Bug 666041</title>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="flexbox_layout_testcases.js"></script>
@@ -13,9 +12,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=666041
 </head>
 <body>
 <a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=666041">Mozilla Bug 666041</a>
-<div id="display">
-  <div id="content">
-  </div>
+<p id="display"></p>
+<div id="content">
 </div>
 <pre id="test">
 <script type="application/javascript;version=1.7">
@@ -32,37 +30,11 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=666041
  * See flexbox_layout_testcases.js for the actual testcases & testcase format.
  */
 
+SimpleTest.waitForExplicitFinish();
+
 function getComputedStyleWrapper(elem, prop)
 {
   return window.getComputedStyle(elem, null).getPropertyValue(prop);
-}
-
-function setPossiblyAliasedProperty(aElem, aPropertyName, aPropertyValue,
-                                    aPropertyMapping)
-{
-  let actualPropertyName = (aPropertyName in aPropertyMapping ?
-                            aPropertyMapping[aPropertyName] : aPropertyName);
-
-  if (!gCSSProperties[actualPropertyName]) {
-    ok(false, "Bug in test: property '" + actualPropertyName +
-              "' doesn't exist in gCSSProperties");
-  } else {
-    let domPropertyName = gCSSProperties[actualPropertyName].domProp;
-    aElem.style[domPropertyName] = aPropertyValue;
-  }
-}
-
-// Helper function to strip "px" off the end of a string
-// (so that we can compare two lengths using "isfuzzy()" with an epsilon)
-function stripPx(aLengthInPx)
-{
-  let pxOffset = aLengthInPx.length - 2; // subtract off length of "px"
-
-  // Sanity-check the arg:
-  ok(pxOffset > 0 && aLengthInPx.substr(pxOffset) == "px",
-     "expecting value with 'px' units");
-
-  return aLengthInPx.substr(0, pxOffset);
 }
 
 // The main test function.
@@ -73,20 +45,11 @@ function testFlexboxTestcase(aFlexboxTestcase, aFlexDirection, aPropertyMapping)
 
   // Create flex container
   let flexContainer = document.createElement("div");
-  flexContainer.style.display = "flex";
-  flexContainer.style.flexDirection = aFlexDirection;
-  setPossiblyAliasedProperty(flexContainer, "_main-size",
-                             gDefaultFlexContainerSize,
-                             aPropertyMapping);
+  flexContainer.style.display = "-moz-flex";
 
-  // Apply testcase's customizations for flex container (if any).
-  if (aFlexboxTestcase.container_properties) {
-    for (let propName in aFlexboxTestcase.container_properties) {
-      let propValue = aFlexboxTestcase.container_properties[propName];
-      setPossiblyAliasedProperty(flexContainer, propName, propValue,
-                                 aPropertyMapping);
-    }
-  }
+  flexContainer.style[aPropertyMapping["_main-size"]] = gDefaultFlexContainerSize;
+
+  flexContainer.style.MozFlexDirection = aFlexDirection;
 
   // Create & append flex items
   aFlexboxTestcase.items.forEach(function(aChildSpec) {
@@ -103,14 +66,18 @@ function testFlexboxTestcase(aFlexboxTestcase, aFlexDirection, aPropertyMapping)
 
       // SANITY CHECK:
       if (Array.isArray(aChildSpec[propName])) {
-        ok(aChildSpec[propName].length >= 2 &&
-           aChildSpec[propName].length <= 3,
+        is(aChildSpec[propName].length, 2,
            "unexpected number of elements in array within child spec");
       }
 
-      if (specifiedValue !== null) {
-        setPossiblyAliasedProperty(child, propName, specifiedValue,
-                                   aPropertyMapping);
+      let actualPropName = (propName in aPropertyMapping ?
+                            aPropertyMapping[propName] : propName);
+      if (!gCSSProperties[actualPropName]) {
+        ok(false, "Bug in test: property '" + actualPropName +
+                  "' doesn't exist in gCSSProperties");
+      } else if (specifiedValue !== null) {
+        let domPropName = gCSSProperties[actualPropName].domProp;
+        child.style[domPropName] = specifiedValue;
       }
     }
 
@@ -134,20 +101,8 @@ function testFlexboxTestcase(aFlexboxTestcase, aFlexDirection, aPropertyMapping)
         let expectedVal = childSpec[propName][1];
         let actualPropName = (propName in aPropertyMapping ?
                               aPropertyMapping[propName] : propName);
-        let actualVal = getComputedStyleWrapper(child, actualPropName);
-        let message = "computed value of '" + actualPropName +
-                      "' should match expected";
-
-        if (childSpec[propName].length > 2) {
-          // 3rd entry in array is epsilon
-          // Need to strip off "px" units in order to use epsilon:
-          let actualValNoPx = stripPx(actualVal);
-          let expectedValNoPx = stripPx(expectedVal);
-          isfuzzy(actualValNoPx, expectedValNoPx,
-                  childSpec[propName][2], message);
-        } else {
-          is(actualVal, expectedVal, message);
-        }
+        is(getComputedStyleWrapper(child, actualPropName), expectedVal,
+           "computed value of '" + actualPropName + "' should match expected");
       }
     }
 
@@ -174,10 +129,10 @@ function main()
                           gColumnReversePropertyMapping);
     }
   );
+  SimpleTest.finish();
 }
 
-main();
-
+window.addEventListener("load", main, false);
 </script>
 </pre>
 </body>

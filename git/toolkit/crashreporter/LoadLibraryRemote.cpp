@@ -22,6 +22,8 @@
 
 #include "nsWindowsHelpers.h"
 
+namespace {
+
 typedef const unsigned char* FileView;
 
 template<>
@@ -31,15 +33,17 @@ public:
   typedef FileView RawRef;
   static FileView Void()
   {
-    return nullptr;
+    return NULL;
   }
 
   static void Release(RawRef aView)
   {
-    if (nullptr != aView)
+    if (NULL != aView)
       UnmapViewOfFile(aView);
   }
 };
+
+} // anonymous namespace
 
 #ifndef IMAGE_SIZEOF_BASE_RELOCATION
 // Vista SDKs no longer define IMAGE_SIZEOF_BASE_RELOCATION!?
@@ -67,9 +71,7 @@ OutputLastError(const char *msg)
   char* tmp;
   char *tmpmsg;
   FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                 nullptr, GetLastError(),
-                 MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                 (LPSTR) &tmp, 0, nullptr);
+                 NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR) &tmp, 0, NULL);
   tmpmsg = (char *)LocalAlloc(LPTR, strlen(msg) + strlen(tmp) + 3);
   sprintf(tmpmsg, "%s: %s", msg, tmp);
   OutputDebugStringA(tmpmsg);
@@ -95,35 +97,6 @@ CopySections(const unsigned char *data, PIMAGE_NT_HEADERS old_headers, PMEMORYMO
   }
 }
 
-static bool
-CopyRegion(HANDLE hRemoteProcess, void* remoteAddress, void* localAddress, DWORD size, DWORD protect)
-{
-  if (size > 0) {
-    // Copy the data from local->remote and set the memory protection
-    if (!VirtualAllocEx(hRemoteProcess, remoteAddress, size, MEM_COMMIT, PAGE_READWRITE))
-      return false;
-
-    if (!WriteProcessMemory(hRemoteProcess,
-                            remoteAddress,
-                            localAddress,
-                            size,
-                            nullptr)) {
-#ifdef DEBUG_OUTPUT
-      OutputLastError("Error writing remote memory.\n");
-#endif
-      return false;
-    }
-
-    DWORD oldProtect;
-    if (VirtualProtectEx(hRemoteProcess, remoteAddress, size, protect, &oldProtect) == 0) {
-#ifdef DEBUG_OUTPUT
-      OutputLastError("Error protecting memory page");
-#endif
-      return false;
-    }
-  }
-  return true;
-}
 // Protection flags for memory pages (Executable, Readable, Writeable)
 static int ProtectionFlags[2][2][2] = {
   {
@@ -146,20 +119,11 @@ FinalizeSections(PMEMORYMODULE module, HANDLE hRemoteProcess)
 #endif
 
   int i;
-  int numSections = module->headers->FileHeader.NumberOfSections;
-
-  if (numSections < 1)
-    return false;
-
   PIMAGE_SECTION_HEADER section = IMAGE_FIRST_SECTION(module->headers);
-
-  // Copy any data before the first section (i.e. the image header)
-  if (!CopyRegion(hRemoteProcess, module->remoteCodeBase, module->localCodeBase, section->VirtualAddress, PAGE_READONLY))
-    return false;
-
+  
   // loop through all sections and change access flags
-  for (i=0; i<numSections; i++, section++) {
-    DWORD protect, size;
+  for (i=0; i<module->headers->FileHeader.NumberOfSections; i++, section++) {
+    DWORD protect, oldProtect, size;
     int executable = (section->Characteristics & IMAGE_SCN_MEM_EXECUTE) != 0;
     int readable =   (section->Characteristics & IMAGE_SCN_MEM_READ) != 0;
     int writeable =  (section->Characteristics & IMAGE_SCN_MEM_WRITE) != 0;
@@ -170,17 +134,39 @@ FinalizeSections(PMEMORYMODULE module, HANDLE hRemoteProcess)
       protect |= PAGE_NOCACHE;
     }
 
-    void* remoteAddress = module->remoteCodeBase + section->VirtualAddress;
-    void* localAddress = module->localCodeBase + section->VirtualAddress;
-
     // determine size of region
     size = section->Misc.VirtualSize;
+    if (size > 0) {
+      void* remoteAddress = module->remoteCodeBase + section->VirtualAddress;
+      void* localAddress = module->localCodeBase + section->VirtualAddress;
+
 #ifdef DEBUG_OUTPUT
       fprintf(stderr, "Copying section %s to %p, size %x, executable %i readable %i writeable %i\n",
               section->Name, remoteAddress, size, executable, readable, writeable);
 #endif
-    if (!CopyRegion(hRemoteProcess, remoteAddress, localAddress, size, protect))
-      return false;
+
+      // Copy the data from local->remote and set the memory protection
+      if (!VirtualAllocEx(hRemoteProcess, remoteAddress, size, MEM_COMMIT, PAGE_READWRITE))
+        return false;
+
+      if (!WriteProcessMemory(hRemoteProcess,
+                              remoteAddress,
+                              localAddress,
+                              size,
+                              NULL)) {
+#ifdef DEBUG_OUTPUT
+        OutputLastError("Error writing remote memory.\n");
+#endif
+        return false;
+      }
+
+      if (VirtualProtectEx(hRemoteProcess, remoteAddress, size, protect, &oldProtect) == 0) {
+#ifdef DEBUG_OUTPUT
+        OutputLastError("Error protecting memory page");
+#endif
+        return false;
+      }
+    }
   }
   return true;
 }
@@ -255,7 +241,7 @@ BuildImportTable(PMEMORYMODULE module)
       POINTER_TYPE *thunkRef;
       FARPROC *funcRef;
       HMODULE handle = GetModuleHandleA((LPCSTR) (codeBase + importDesc->Name));
-      if (handle == nullptr) {
+      if (handle == NULL) {
 #if DEBUG_OUTPUT
         OutputLastError("Can't load library");
 #endif
@@ -264,7 +250,7 @@ BuildImportTable(PMEMORYMODULE module)
       }
 
       module->modules = (HMODULE *)realloc(module->modules, (module->numModules+1)*(sizeof(HMODULE)));
-      if (module->modules == nullptr) {
+      if (module->modules == NULL) {
         result = 0;
         break;
       }
@@ -308,22 +294,22 @@ void* LoadRemoteLibraryAndGetAddress(HANDLE hRemoteProcess,
 {
   // Map the DLL into memory
   nsAutoHandle hLibrary(
-    CreateFile(library, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
-               FILE_ATTRIBUTE_NORMAL, nullptr));
+    CreateFile(library, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
+               FILE_ATTRIBUTE_NORMAL, NULL));
   if (INVALID_HANDLE_VALUE == hLibrary) {
 #if DEBUG_OUTPUT
     OutputLastError("Couldn't CreateFile the library.\n");
 #endif
-    return nullptr;
+    return NULL;
   }
 
   nsAutoHandle hMapping(
-    CreateFileMapping(hLibrary, nullptr, PAGE_READONLY, 0, 0, nullptr));
+    CreateFileMapping(hLibrary, NULL, PAGE_READONLY, 0, 0, NULL));
   if (!hMapping) {
 #if DEBUG_OUTPUT
     OutputLastError("Couldn't CreateFileMapping.\n");
 #endif
-    return nullptr;
+    return NULL;
   }
 
   nsAutoRef<FileView> data(
@@ -332,7 +318,7 @@ void* LoadRemoteLibraryAndGetAddress(HANDLE hRemoteProcess,
 #if DEBUG_OUTPUT
     OutputLastError("Couldn't MapViewOfFile.\n");
 #endif
-    return nullptr;
+    return NULL;
   }
 
   SIZE_T locationDelta;
@@ -342,7 +328,7 @@ void* LoadRemoteLibraryAndGetAddress(HANDLE hRemoteProcess,
 #if DEBUG_OUTPUT
     OutputDebugStringA("Not a valid executable file.\n");
 #endif
-    return nullptr;
+    return NULL;
   }
 
   PIMAGE_NT_HEADERS old_header = (PIMAGE_NT_HEADERS)(data + dos_header->e_lfanew);
@@ -350,11 +336,11 @@ void* LoadRemoteLibraryAndGetAddress(HANDLE hRemoteProcess,
 #if DEBUG_OUTPUT
     OutputDebugStringA("No PE header found.\n");
 #endif
-    return nullptr;
+    return NULL;
   }
 
   // reserve memory for image of library in this process and the target process
-  unsigned char* localCode = (unsigned char*) VirtualAlloc(nullptr,
+  unsigned char* localCode = (unsigned char*) VirtualAlloc(NULL,
     old_header->OptionalHeader.SizeOfImage,
     MEM_RESERVE | MEM_COMMIT,
     PAGE_READWRITE);
@@ -364,7 +350,7 @@ void* LoadRemoteLibraryAndGetAddress(HANDLE hRemoteProcess,
 #endif
   }
 
-  unsigned char* remoteCode = (unsigned char*) VirtualAllocEx(hRemoteProcess, nullptr,
+  unsigned char* remoteCode = (unsigned char*) VirtualAllocEx(hRemoteProcess, NULL,
     old_header->OptionalHeader.SizeOfImage,
     MEM_RESERVE,
     PAGE_EXECUTE_READ);
@@ -378,7 +364,7 @@ void* LoadRemoteLibraryAndGetAddress(HANDLE hRemoteProcess,
   result.localCodeBase = localCode;
   result.remoteCodeBase = remoteCode;
   result.numModules = 0;
-  result.modules = nullptr;
+  result.modules = NULL;
 
   // copy PE header to code
   memcpy(localCode, dos_header, dos_header->e_lfanew + old_header->OptionalHeader.SizeOfHeaders);
@@ -398,13 +384,13 @@ void* LoadRemoteLibraryAndGetAddress(HANDLE hRemoteProcess,
 
   // load required dlls and adjust function table of imports
   if (!BuildImportTable(&result)) {
-    return nullptr;
+    return NULL;
   }
 
   // mark memory pages depending on section headers and release
   // sections that are marked as "discardable"
   if (!FinalizeSections(&result, hRemoteProcess)) {
-    return nullptr;
+    return NULL;
   }
 
   return MemoryGetProcAddress(&result, symbol);
@@ -420,13 +406,13 @@ static void* MemoryGetProcAddress(PMEMORYMODULE module, const char *name)
   PIMAGE_DATA_DIRECTORY directory = GET_HEADER_DICTIONARY(module, IMAGE_DIRECTORY_ENTRY_EXPORT);
   if (directory->Size == 0) {
     // no export table found
-    return nullptr;
+    return NULL;
   }
 
   exports = (PIMAGE_EXPORT_DIRECTORY) (localCodeBase + directory->VirtualAddress);
   if (exports->NumberOfNames == 0 || exports->NumberOfFunctions == 0) {
     // DLL doesn't export anything
-    return nullptr;
+    return NULL;
   }
 
   // search function name in list of exported names
@@ -441,14 +427,14 @@ static void* MemoryGetProcAddress(PMEMORYMODULE module, const char *name)
 
   if (idx == -1) {
     // exported symbol not found
-    return nullptr;
+    return NULL;
   }
 
   if ((DWORD)idx > exports->NumberOfFunctions) {
     // name <-> ordinal number don't match
-    return nullptr;
+    return NULL;
   }
 
   // AddressOfFunctions contains the RVAs to the "real" functions
-  return module->remoteCodeBase + (*(DWORD *) (localCodeBase + exports->AddressOfFunctions + (idx*4)));
+  return (FARPROC) (module->remoteCodeBase + (*(DWORD *) (localCodeBase + exports->AddressOfFunctions + (idx*4))));
 }

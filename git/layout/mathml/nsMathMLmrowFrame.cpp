@@ -3,8 +3,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+
+#include "nsCOMPtr.h"
+#include "nsFrame.h"
+#include "nsStyleContext.h"
+#include "nsStyleConsts.h"
+
 #include "nsMathMLmrowFrame.h"
-#include "mozilla/gfx/2D.h"
 
 //
 // <mrow> -- horizontally group any number of subexpressions - implementation
@@ -30,10 +35,15 @@ nsMathMLmrowFrame::InheritAutomaticData(nsIFrame* aParent)
 
   mPresentationData.flags |= NS_MATHML_STRETCH_ALL_CHILDREN_VERTICALLY;
 
+  if (mContent->Tag() == nsGkAtoms::mrow_) {
+    // see if the directionality attribute is there
+    nsMathMLFrame::FindAttrDirectionality(mContent, mPresentationData);
+  }
+
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLmrowFrame::AttributeChanged(int32_t  aNameSpaceID,
                                     nsIAtom* aAttribute,
                                     int32_t  aModType)
@@ -52,18 +62,4 @@ nsMathMLmrowFrame::AttributeChanged(int32_t  aNameSpaceID,
   }
 
   return nsMathMLContainerFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
-}
-
-/* virtual */ eMathMLFrameType
-nsMathMLmrowFrame::GetMathMLFrameType()
-{
-  if (!IsMrowLike()) {
-    nsIMathMLFrame* child = do_QueryFrame(mFrames.FirstChild());
-    if (child) {
-      // We only have one child, so we return the frame type of that child as if
-      // we didn't exist.
-      return child->GetMathMLFrameType();
-    }
-  }
-  return nsMathMLFrame::GetMathMLFrameType();
 }

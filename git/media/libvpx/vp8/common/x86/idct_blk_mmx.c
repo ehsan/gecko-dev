@@ -9,9 +9,8 @@
  */
 
 #include "vpx_config.h"
-#include "vp8_rtcd.h"
-#include "vp8/common/blockd.h"
-#include "vpx_mem/vpx_mem.h"
+#include "vp8/common/idct.h"
+#include "vp8/common/dequantize.h"
 
 extern void vp8_dequantize_b_impl_mmx(short *sq, short *dq, short *q);
 
@@ -36,7 +35,7 @@ void vp8_dequant_idct_add_y_block_mmx
         else if (eobs[0] == 1)
         {
             vp8_dc_only_idct_add_mmx (q[0]*dq[0], dst, stride, dst, stride);
-            vpx_memset(q, 0, 2 * sizeof(q[0]));
+            ((int *)q)[0] = 0;
         }
 
         if (eobs[1] > 1)
@@ -45,7 +44,7 @@ void vp8_dequant_idct_add_y_block_mmx
         {
             vp8_dc_only_idct_add_mmx (q[16]*dq[0], dst+4, stride,
                                       dst+4, stride);
-            vpx_memset(q + 16, 0, 2 * sizeof(q[0]));
+            ((int *)(q+16))[0] = 0;
         }
 
         if (eobs[2] > 1)
@@ -54,7 +53,7 @@ void vp8_dequant_idct_add_y_block_mmx
         {
             vp8_dc_only_idct_add_mmx (q[32]*dq[0], dst+8, stride,
                                       dst+8, stride);
-            vpx_memset(q + 32, 0, 2 * sizeof(q[0]));
+            ((int *)(q+32))[0] = 0;
         }
 
         if (eobs[3] > 1)
@@ -63,7 +62,7 @@ void vp8_dequant_idct_add_y_block_mmx
         {
             vp8_dc_only_idct_add_mmx (q[48]*dq[0], dst+12, stride,
                                       dst+12, stride);
-            vpx_memset(q + 48, 0, 2 * sizeof(q[0]));
+            ((int *)(q+48))[0] = 0;
         }
 
         q    += 64;
@@ -85,7 +84,7 @@ void vp8_dequant_idct_add_uv_block_mmx
         else if (eobs[0] == 1)
         {
             vp8_dc_only_idct_add_mmx (q[0]*dq[0], dstu, stride, dstu, stride);
-            vpx_memset(q, 0, 2 * sizeof(q[0]));
+            ((int *)q)[0] = 0;
         }
 
         if (eobs[1] > 1)
@@ -94,7 +93,7 @@ void vp8_dequant_idct_add_uv_block_mmx
         {
             vp8_dc_only_idct_add_mmx (q[16]*dq[0], dstu+4, stride,
                                       dstu+4, stride);
-            vpx_memset(q + 16, 0, 2 * sizeof(q[0]));
+            ((int *)(q+16))[0] = 0;
         }
 
         q    += 32;
@@ -109,7 +108,7 @@ void vp8_dequant_idct_add_uv_block_mmx
         else if (eobs[0] == 1)
         {
             vp8_dc_only_idct_add_mmx (q[0]*dq[0], dstv, stride, dstv, stride);
-            vpx_memset(q, 0, 2 * sizeof(q[0]));
+            ((int *)q)[0] = 0;
         }
 
         if (eobs[1] > 1)
@@ -118,7 +117,7 @@ void vp8_dequant_idct_add_uv_block_mmx
         {
             vp8_dc_only_idct_add_mmx (q[16]*dq[0], dstv+4, stride,
                                       dstv+4, stride);
-            vpx_memset(q + 16, 0, 2 * sizeof(q[0]));
+            ((int *)(q+16))[0] = 0;
         }
 
         q    += 32;

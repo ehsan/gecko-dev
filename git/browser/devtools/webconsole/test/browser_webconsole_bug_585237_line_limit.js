@@ -44,32 +44,34 @@ function testGen() {
     console.log("foo #" + i); // must change message to prevent repeats
   }
 
-  waitForMessages({
-    webconsole: hud,
-    messages: [{
-      text: "foo #29",
-      category: CATEGORY_WEBDEV,
-      severity: SEVERITY_LOG,
-    }],
-  }).then(testNext);
+  waitForSuccess({
+    name: "20 console.log messages displayed",
+    validatorFn: function()
+    {
+      return outputNode.textContent.indexOf("foo #29") > -1;
+    },
+    successFn: testNext,
+    failureFn: finishTest,
+  });
 
-  yield undefined;
+  yield;
 
   is(countMessageNodes(), 20, "there are 20 message nodes in the output " +
      "when the log limit is set to 20");
 
   console.log("bar bug585237");
 
-  waitForMessages({
-    webconsole: hud,
-    messages: [{
-      text: "bar bug585237",
-      category: CATEGORY_WEBDEV,
-      severity: SEVERITY_LOG,
-    }],
-  }).then(testNext);
+  waitForSuccess({
+    name: "another console.log message displayed",
+    validatorFn: function()
+    {
+      return outputNode.textContent.indexOf("bar bug585237") > -1;
+    },
+    successFn: testNext,
+    failureFn: finishTest,
+  });
 
-  yield undefined;
+  yield;
 
   is(countMessageNodes(), 20, "there are still 20 message nodes in the " +
      "output when adding one more");
@@ -79,16 +81,17 @@ function testGen() {
     console.log("boo #" + i); // must change message to prevent repeats
   }
 
-  waitForMessages({
-    webconsole: hud,
-    messages: [{
-      text: "boo #19",
-      category: CATEGORY_WEBDEV,
-      severity: SEVERITY_LOG,
-    }],
-  }).then(testNext);
+  waitForSuccess({
+    name: "another 20 console.log message displayed",
+    validatorFn: function()
+    {
+      return outputNode.textContent.indexOf("boo #19") > -1;
+    },
+    successFn: testNext,
+    failureFn: finishTest,
+  });
 
-  yield undefined;
+  yield;
 
   is(countMessageNodes(), 30, "there are 30 message nodes in the output " +
      "when the log limit is set to 30");
@@ -97,10 +100,10 @@ function testGen() {
   hud = testDriver = prefBranch = console = outputNode = null;
   finishTest();
 
-  yield undefined;
+  yield;
 }
 
 function countMessageNodes() {
-  return outputNode.querySelectorAll(".message").length;
+  return outputNode.querySelectorAll(".hud-msg-node").length;
 }
 

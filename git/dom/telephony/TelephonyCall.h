@@ -7,120 +7,65 @@
 #ifndef mozilla_dom_telephony_telephonycall_h__
 #define mozilla_dom_telephony_telephonycall_h__
 
-#include "mozilla/dom/telephony/TelephonyCommon.h"
+#include "TelephonyCommon.h"
 
-#include "mozilla/dom/DOMError.h"
-
-#include "TelephonyCallId.h"
+#include "nsIDOMTelephonyCall.h"
+#include "nsIRadioInterfaceLayer.h"
 
 class nsPIDOMWindow;
 
-namespace mozilla {
-namespace dom {
+BEGIN_TELEPHONY_NAMESPACE
 
-class TelephonyCall MOZ_FINAL : public DOMEventTargetHelper
+class TelephonyCall : public nsDOMEventTargetHelper,
+                      public nsIDOMTelephonyCall
 {
+  NS_DECL_EVENT_HANDLER(statechange)
+  NS_DECL_EVENT_HANDLER(dialing)
+  NS_DECL_EVENT_HANDLER(alerting)
+  NS_DECL_EVENT_HANDLER(busy)
+  NS_DECL_EVENT_HANDLER(connecting)
+  NS_DECL_EVENT_HANDLER(connected)
+  NS_DECL_EVENT_HANDLER(disconnecting)
+  NS_DECL_EVENT_HANDLER(disconnected)
+  NS_DECL_EVENT_HANDLER(holding)
+  NS_DECL_EVENT_HANDLER(held)
+  NS_DECL_EVENT_HANDLER(resuming)
+  NS_DECL_EVENT_HANDLER(error)
+
   nsRefPtr<Telephony> mTelephony;
-  nsRefPtr<TelephonyCallGroup> mGroup;
 
-  nsRefPtr<TelephonyCallId> mId;
-  nsRefPtr<TelephonyCallId> mSecondId;
-
-  uint32_t mServiceId;
+  nsString mNumber;
   nsString mState;
-  bool mEmergency;
-  nsRefPtr<DOMError> mError;
-  bool mSwitchable;
-  bool mMergeable;
+  nsCOMPtr<nsIDOMDOMError> mError;
 
   uint32_t mCallIndex;
   uint16_t mCallState;
   bool mLive;
+  bool mOutgoing;
 
 public:
   NS_DECL_ISUPPORTS_INHERITED
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(DOMEventTargetHelper)
+  NS_DECL_NSIDOMTELEPHONYCALL
+  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(TelephonyCall,
-                                           DOMEventTargetHelper)
-  friend class Telephony;
-
-  nsPIDOMWindow*
-  GetParentObject() const
-  {
-    return GetOwner();
-  }
-
-  // WrapperCache
-  virtual JSObject*
-  WrapObject(JSContext* aCx) MOZ_OVERRIDE;
-
-  // WebIDL
-  already_AddRefed<TelephonyCallId>
-  Id() const;
-
-  already_AddRefed<TelephonyCallId>
-  GetSecondId() const;
-
-  void
-  GetState(nsString& aState) const
-  {
-    aState.Assign(mState);
-  }
-
-  bool
-  Emergency() const
-  {
-    return mEmergency;
-  }
-
-  bool
-  Switchable() const
-  {
-    return mSwitchable;
-  }
-
-  bool
-  Mergeable() const
-  {
-    return mMergeable;
-  }
-
-  already_AddRefed<DOMError>
-  GetError() const;
-
-  already_AddRefed<TelephonyCallGroup>
-  GetGroup() const;
-
-  void
-  Answer(ErrorResult& aRv);
-
-  void
-  HangUp(ErrorResult& aRv);
-
-  void
-  Hold(ErrorResult& aRv);
-
-  void
-  Resume(ErrorResult& aRv);
-
-  IMPL_EVENT_HANDLER(statechange)
-  IMPL_EVENT_HANDLER(dialing)
-  IMPL_EVENT_HANDLER(alerting)
-  IMPL_EVENT_HANDLER(connecting)
-  IMPL_EVENT_HANDLER(connected)
-  IMPL_EVENT_HANDLER(disconnecting)
-  IMPL_EVENT_HANDLER(disconnected)
-  IMPL_EVENT_HANDLER(holding)
-  IMPL_EVENT_HANDLER(held)
-  IMPL_EVENT_HANDLER(resuming)
-  IMPL_EVENT_HANDLER(error)
-  IMPL_EVENT_HANDLER(groupchange)
+                                           nsDOMEventTargetHelper)
 
   static already_AddRefed<TelephonyCall>
-  Create(Telephony* aTelephony, TelephonyCallId* aId,
-         uint32_t aServiceId, uint32_t aCallIndex, uint16_t aCallState,
-         bool aEmergency = false, bool aConference = false,
-         bool aSwitchable = true, bool aMergeable = true);
+  Create(Telephony* aTelephony, const nsAString& aNumber, uint16_t aCallState,
+         uint32_t aCallIndex = kOutgoingPlaceholderCallIndex);
+
+  nsIDOMEventTarget*
+  ToIDOMEventTarget() const
+  {
+    return static_cast<nsDOMEventTargetHelper*>(
+             const_cast<TelephonyCall*>(this));
+  }
+
+  nsISupports*
+  ToISupports() const
+  {
+    return ToIDOMEventTarget();
+  }
 
   void
   ChangeState(uint16_t aCallState)
@@ -129,15 +74,17 @@ public:
   }
 
   uint32_t
-  ServiceId() const
-  {
-    return mServiceId;
-  }
-
-  uint32_t
   CallIndex() const
   {
     return mCallIndex;
+  }
+
+  void
+  UpdateCallIndex(uint32_t aCallIndex)
+  {
+    NS_ASSERTION(mCallIndex == kOutgoingPlaceholderCallIndex,
+                 "Call index should not be set!");
+    mCallIndex = aCallIndex;
   }
 
   uint16_t
@@ -146,47 +93,28 @@ public:
     return mCallState;
   }
 
-  void
-  UpdateEmergency(bool aEmergency)
+  bool
+  IsOutgoing() const
   {
-    mEmergency = aEmergency;
-  }
-
-  void
-  UpdateSwitchable(bool aSwitchable) {
-    mSwitchable = aSwitchable;
-  }
-
-  void
-  UpdateMergeable(bool aMergeable) {
-    mMergeable = aMergeable;
-  }
-
-  void
-  UpdateSecondId(TelephonyCallId* aId) {
-    mSecondId = aId;
+    return mOutgoing;
   }
 
   void
   NotifyError(const nsAString& aError);
 
-  void
-  ChangeGroup(TelephonyCallGroup* aGroup);
-
 private:
-  explicit TelephonyCall(nsPIDOMWindow* aOwner);
+  TelephonyCall()
+  : mCallIndex(kOutgoingPlaceholderCallIndex),
+    mCallState(nsIRadioInterfaceLayer::CALL_STATE_UNKNOWN), mLive(false), mOutgoing(false)
+  { }
 
-  ~TelephonyCall();
+  ~TelephonyCall()
+  { }
 
   void
   ChangeStateInternal(uint16_t aCallState, bool aFireEvents);
-
-  nsresult
-  DispatchCallEvent(const nsAString& aType,
-                    TelephonyCall* aCall);
 };
 
-} // namespace dom
-} // namespace mozilla
+END_TELEPHONY_NAMESPACE
 
 #endif // mozilla_dom_telephony_telephonycall_h__

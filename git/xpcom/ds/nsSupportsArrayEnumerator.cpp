@@ -7,8 +7,7 @@
 #include "nsISupportsArray.h"
 
 nsSupportsArrayEnumerator::nsSupportsArrayEnumerator(nsISupportsArray* array)
-  : mArray(array)
-  , mCursor(0)
+  : mArray(array), mCursor(0)
 {
   NS_ASSERTION(array, "null array");
   NS_ADDREF(mArray);
@@ -19,8 +18,7 @@ nsSupportsArrayEnumerator::~nsSupportsArrayEnumerator()
   NS_RELEASE(mArray);
 }
 
-NS_IMPL_ISUPPORTS(nsSupportsArrayEnumerator, nsIBidirectionalEnumerator,
-                  nsIEnumerator)
+NS_IMPL_ISUPPORTS2(nsSupportsArrayEnumerator, nsIBidirectionalEnumerator, nsIEnumerator)
 
 NS_IMETHODIMP
 nsSupportsArrayEnumerator::First()
@@ -28,15 +26,12 @@ nsSupportsArrayEnumerator::First()
   mCursor = 0;
   uint32_t cnt;
   nsresult rv = mArray->Count(&cnt);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  if (NS_FAILED(rv)) return rv;
   int32_t end = (int32_t)cnt;
-  if (mCursor < end) {
+  if (mCursor < end)
     return NS_OK;
-  } else {
+  else
     return NS_ERROR_FAILURE;
-  }
 }
 
 NS_IMETHODIMP
@@ -44,31 +39,26 @@ nsSupportsArrayEnumerator::Next()
 {
   uint32_t cnt;
   nsresult rv = mArray->Count(&cnt);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  if (NS_FAILED(rv)) return rv;
   int32_t end = (int32_t)cnt;
-  if (mCursor < end) { // don't count upward forever
+  if (mCursor < end)   // don't count upward forever
     mCursor++;
-  }
-  if (mCursor < end) {
+  if (mCursor < end)
     return NS_OK;
-  } else {
+  else
     return NS_ERROR_FAILURE;
-  }
 }
 
 NS_IMETHODIMP
-nsSupportsArrayEnumerator::CurrentItem(nsISupports** aItem)
+nsSupportsArrayEnumerator::CurrentItem(nsISupports **aItem)
 {
   NS_ASSERTION(aItem, "null out parameter");
   uint32_t cnt;
   nsresult rv = mArray->Count(&cnt);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  if (NS_FAILED(rv)) return rv;
   if (mCursor >= 0 && mCursor < (int32_t)cnt) {
-    return mArray->GetElementAt(mCursor, aItem);
+    *aItem = mArray->ElementAt(mCursor);
+    return NS_OK;
   }
   return NS_ERROR_FAILURE;
 }
@@ -78,9 +68,7 @@ nsSupportsArrayEnumerator::IsDone()
 {
   uint32_t cnt;
   nsresult rv = mArray->Count(&cnt);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  if (NS_FAILED(rv)) return rv;
   // XXX This is completely incompatible with the meaning of nsresult.
   // NS_ENUMERATOR_FALSE is defined to be 1.  (bug 778111)
   return (mCursor >= 0 && mCursor < (int32_t)cnt)
@@ -94,9 +82,7 @@ nsSupportsArrayEnumerator::Last()
 {
   uint32_t cnt;
   nsresult rv = mArray->Count(&cnt);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  if (NS_FAILED(rv)) return rv;
   mCursor = cnt - 1;
   return NS_OK;
 }
@@ -104,13 +90,29 @@ nsSupportsArrayEnumerator::Last()
 NS_IMETHODIMP
 nsSupportsArrayEnumerator::Prev()
 {
-  if (mCursor >= 0) {
+  if (mCursor >= 0)
     --mCursor;
-  }
-  if (mCursor >= 0) {
+  if (mCursor >= 0)
     return NS_OK;
-  } else {
+  else
     return NS_ERROR_FAILURE;
-  }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+nsresult
+NS_NewISupportsArrayEnumerator(nsISupportsArray* array,
+                               nsIBidirectionalEnumerator* *aInstancePtrResult)
+{
+  if (aInstancePtrResult == 0)
+    return NS_ERROR_NULL_POINTER;
+  nsSupportsArrayEnumerator* e = new nsSupportsArrayEnumerator(array);
+  if (e == 0)
+    return NS_ERROR_OUT_OF_MEMORY;
+  NS_ADDREF(e);
+  *aInstancePtrResult = e;
+  return NS_OK;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 

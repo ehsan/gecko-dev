@@ -2,13 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = [
-  "WBORecord",
-  "RecordManager",
-  "CryptoWrapper",
-  "CollectionKeyManager",
-  "Collection",
-];
+const EXPORTED_SYMBOLS = ["WBORecord", "RecordManager", "Records",
+                          "CryptoWrapper", "CollectionKeys", "Collection"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -18,13 +13,14 @@ const Cu = Components.utils;
 const CRYPTO_COLLECTION = "crypto";
 const KEYS_WBO = "keys";
 
-Cu.import("resource://gre/modules/Log.jsm");
 Cu.import("resource://services-sync/constants.js");
+Cu.import("resource://services-sync/identity.js");
 Cu.import("resource://services-sync/keys.js");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-sync/resource.js");
 Cu.import("resource://services-sync/util.js");
 
-this.WBORecord = function WBORecord(collection, id) {
+function WBORecord(collection, id) {
   this.data = {};
   this.payload = {};
   this.collection = collection;      // Optional.
@@ -41,12 +37,8 @@ WBORecord.prototype = {
 
   // Get thyself from your URI, then deserialize.
   // Set thine 'response' field.
-  fetch: function fetch(resource) {
-    if (!resource instanceof Resource) {
-      throw new Error("First argument must be a Resource instance.");
-    }
-
-    let r = resource.get();
+  fetch: function fetch(uri) {
+    let r = new Resource(uri).get();
     if (r.success) {
       this.deserialize(r);   // Warning! Muffles exceptions!
     }
@@ -54,12 +46,8 @@ WBORecord.prototype = {
     return this;
   },
 
-  upload: function upload(resource) {
-    if (!resource instanceof Resource) {
-      throw new Error("First argument must be a Resource instance.");
-    }
-
-    return resource.put(this);
+  upload: function upload(uri) {
+    return new Resource(uri).put(this);
   },
 
   // Take a base URI string, with trailing slash, and return the URI of this
@@ -105,13 +93,12 @@ WBORecord.prototype = {
 
 Utils.deferGetSet(WBORecord, "data", ["id", "modified", "sortindex", "payload"]);
 
-/**
- * An interface and caching layer for records.
- */
-this.RecordManager = function RecordManager(service) {
-  this.service = service;
+XPCOMUtils.defineLazyGetter(this, "Records", function () {
+  return new RecordManager();
+});
 
-  this._log = Log.repository.getLogger(this._logName);
+function RecordManager() {
+  this._log = Log4Moz.repository.getLogger(this._logName);
   this._records = {};
 }
 RecordManager.prototype = {
@@ -123,7 +110,7 @@ RecordManager.prototype = {
     try {
       // Clear out the last response with empty object if GET fails
       this.response = {};
-      this.response = this.service.resource(url).get();
+      this.response = new Resource(url).get();
 
       // Don't parse and save the record on failure
       if (!this.response.success)
@@ -167,7 +154,7 @@ RecordManager.prototype = {
   }
 };
 
-this.CryptoWrapper = function CryptoWrapper(collection, id) {
+function CryptoWrapper(collection, id) {
   this.cleartext = {};
   WBORecord.call(this, collection, id);
   this.ciphertext = null;
@@ -196,8 +183,9 @@ CryptoWrapper.prototype = {
    * Optional key bundle overrides the collection key lookup.
    */
   encrypt: function encrypt(keyBundle) {
+    keyBundle = keyBundle || CollectionKeys.keyForCollection(this.collection);
     if (!keyBundle) {
-      throw new Error("A key bundle must be supplied to encrypt.");
+      throw new Error("Key bundle is null for " + this.uri.spec);
     }
 
     this.IV = Svc.Crypto.generateRandomIV();
@@ -213,8 +201,9 @@ CryptoWrapper.prototype = {
       throw "No ciphertext: nothing to decrypt?";
     }
 
+    keyBundle = keyBundle || CollectionKeys.keyForCollection(this.collection);
     if (!keyBundle) {
-      throw new Error("A key bundle must be supplied to decrypt.");
+      throw new Error("Key bundle is null for " + this.collection + "/" + this.id);
     }
 
     // Authenticate the encrypted blob with the expected HMAC
@@ -269,6 +258,10 @@ CryptoWrapper.prototype = {
 Utils.deferGetSet(CryptoWrapper, "payload", ["ciphertext", "IV", "hmac"]);
 Utils.deferGetSet(CryptoWrapper, "cleartext", "deleted");
 
+XPCOMUtils.defineLazyGetter(this, "CollectionKeys", function () {
+  return new CollectionKeyManager();
+});
+
 
 /**
  * Keeps track of mappings between collection names ('tabs') and KeyBundles.
@@ -276,12 +269,12 @@ Utils.deferGetSet(CryptoWrapper, "cleartext", "deleted");
  * You can update this thing simply by giving it /info/collections. It'll
  * use the last modified time to bring itself up to date.
  */
-this.CollectionKeyManager = function CollectionKeyManager() {
+function CollectionKeyManager() {
   this.lastModified = 0;
   this._collections = {};
   this._default = null;
 
-  this._log = Log.repository.getLogger("Sync.CollectionKeyManager");
+  this._log = Log4Moz.repository.getLogger("Sync.CollectionKeys");
 }
 
 // TODO: persist this locally as an Identity. Bug 610913.
@@ -320,7 +313,7 @@ CollectionKeyManager.prototype = {
   },
 
   clear: function clear() {
-    this._log.info("Clearing collection keys...");
+    this._log.info("Clearing CollectionKeys...");
     this.lastModified = 0;
     this._collections = {};
     this._default = null;
@@ -423,16 +416,16 @@ CollectionKeyManager.prototype = {
 
     let self = this;
 
-    this._log.info("Setting collection keys contents. Our last modified: " +
+    this._log.info("Setting CollectionKeys contents. Our last modified: " +
                    this.lastModified + ", input modified: " + modified + ".");
 
     if (!payload)
-      throw "No payload in CollectionKeyManager.setContents().";
+      throw "No payload in CollectionKeys.setContents().";
 
     if (!payload.default) {
       this._log.warn("No downloaded default key: this should not occur.");
       this._log.warn("Not clearing local keys.");
-      throw "No default key in CollectionKeyManager.setContents(). Cannot proceed.";
+      throw "No default key in CollectionKeys.setContents(). Cannot proceed.";
     }
 
     // Process the incoming default key.
@@ -505,19 +498,9 @@ CollectionKeyManager.prototype = {
   }
 }
 
-this.Collection = function Collection(uri, recordObj, service) {
-  if (!service) {
-    throw new Error("Collection constructor requires a service.");
-  }
-
+function Collection(uri, recordObj) {
   Resource.call(this, uri);
-
-  // This is a bit hacky, but gets the job done.
-  let res = service.resource(uri);
-  this.authenticator = res.authenticator;
-
   this._recordObj = recordObj;
-  this._service = service;
 
   this._full = false;
   this._ids = null;
@@ -625,5 +608,5 @@ Collection.prototype = {
         onRecord(record);
       }
     };
-  },
+  }
 };

@@ -1,60 +1,77 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-MARIONETTE_TIMEOUT = 60000;
-MARIONETTE_HEAD_JS = 'head.js';
+MARIONETTE_TIMEOUT = 10000;
 
+SpecialPowers.addPermission("telephony", true, document);
+
+let telephony = window.navigator.mozTelephony;
 let number = "5555552368";
 let outgoing;
+let calls;
+
+function verifyInitialState() {
+  log("Verifying initial state.");
+  ok(telephony);
+  is(telephony.active, null);
+  ok(telephony.calls);
+  is(telephony.calls.length, 0);
+  calls = telephony.calls;
+
+  runEmulatorCmd("gsm list", function(result) {
+    log("Initial call list: " + result);
+    is(result[0], "OK");
+    dial();
+  });
+}
 
 function dial() {
   log("Make an outgoing call.");
 
-  telephony.dial(number).then(call => {
-    outgoing = call;
-    ok(outgoing);
-    is(outgoing.id.number, number);
-    is(outgoing.state, "dialing");
+  outgoing = telephony.dial(number);
+  ok(outgoing);
+  is(outgoing.number, number);
+  is(outgoing.state, "dialing");
 
-    is(outgoing, telephony.active);
-    is(telephony.calls.length, 1);
-    is(telephony.calls[0], outgoing);
+  //is(outgoing, telephony.active); // bug 757587
+  //ok(telephony.calls === calls); // bug 757587
+  //is(calls.length, 1); // bug 757587
+  //is(calls[0], outgoing); // bug 757587
 
-    outgoing.onalerting = function onalerting(event) {
-      log("Received 'onalerting' call event.");
-      is(outgoing, event.call);
-      is(outgoing.state, "alerting");
+outgoing.onstatechange = function onstatechange(event) {
+  log("outgoing call state: " + outgoing.state);
+};
 
-      emulator.runCmdWithCallback("gsm list", function(result) {
-        log("Call list is now: " + result);
-        is(result[0], "outbound to  " + number + " : ringing");
-        busy();
-      });
-    };
+  runEmulatorCmd("gsm list", function(result) {
+    log("Call list is now: " + result);
+    is(result[0], "outbound to  " + number + " : unknown");
+    is(result[1], "OK");
+    busy();
   });
 }
 
 function busy() {
   log("The receiver is busy.");
 
-  outgoing.onerror = function onerror(event) {
-    log("Received 'error' call event.");
+  outgoing.onbusy = function onbusy(event) {
+    log("Received 'busy' call event.");
     is(outgoing, event.call);
-    is(event.call.error.name, "BusyError");
+    is(outgoing.state, "busy");
 
-    emulator.runCmdWithCallback("gsm list", function(result) {
+    //is(outgoing, telephony.active);  // bug 757587
+
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
+      is(result[0], "OK");
       cleanUp();
     });
   };
-
-  emulator.runCmdWithCallback("gsm busy " + number);
-}
+  runEmulatorCmd("gsm busy " + number);
+};
 
 function cleanUp() {
+  SpecialPowers.removePermission("telephony", document);
   finish();
 }
 
-startTest(function() {
-  dial();
-});
+verifyInitialState();

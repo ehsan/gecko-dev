@@ -14,7 +14,7 @@
 //
 //
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "prlink.h"
 #include "nsCOMPtr.h"
@@ -22,7 +22,6 @@
 #include "nsIPrefBranch.h"
 #include "nsIServiceManager.h"
 #include "nsNativeCharsetUtils.h"
-#include "mozilla/Telemetry.h"
 
 #include "nsAuthGSSAPI.h"
 
@@ -40,9 +39,6 @@ typedef KLStatus (*KLCacheHasValidTickets_type)(
 #endif
 
 #if defined(HAVE_RES_NINIT)
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <arpa/nameser.h>
 #include <resolv.h>
 #endif
 
@@ -66,16 +62,16 @@ static struct GSSFunction {
     const char *str;
     PRFuncPtr func;
 } gssFuncs[] = {
-    { "gss_display_status", nullptr },
-    { "gss_init_sec_context", nullptr },
-    { "gss_indicate_mechs", nullptr },
-    { "gss_release_oid_set", nullptr },
-    { "gss_delete_sec_context", nullptr },
-    { "gss_import_name", nullptr },
-    { "gss_release_buffer", nullptr },
-    { "gss_release_name", nullptr },
-    { "gss_wrap", nullptr },
-    { "gss_unwrap", nullptr }
+    { "gss_display_status", NULL },
+    { "gss_init_sec_context", NULL },
+    { "gss_indicate_mechs", NULL },
+    { "gss_release_oid_set", NULL },
+    { "gss_delete_sec_context", NULL },
+    { "gss_import_name", NULL },
+    { "gss_release_buffer", NULL },
+    { "gss_release_name", NULL },
+    { "gss_wrap", NULL },
+    { "gss_unwrap", NULL }
 };
 
 static bool      gssNativeImp = true;
@@ -108,7 +104,7 @@ gssInit()
         prefs->GetBoolPref(kNegotiateAuthNativeImp, &gssNativeImp); 
     }
 
-    PRLibrary *lib = nullptr;
+    PRLibrary *lib = NULL;
 
     if (!libPath.IsEmpty()) {
         LOG(("Attempting to load user specified library [%s]\n", libPath.get()));
@@ -117,35 +113,11 @@ gssInit()
     }
     else {
 #ifdef XP_WIN
-        char *libName = PR_GetLibraryName(nullptr, "gssapi32");
+        char *libName = PR_GetLibraryName(NULL, "gssapi32");
         if (libName) {
             lib = PR_LoadLibrary("gssapi32");
             PR_FreeLibraryName(libName);
         }
-#elif defined(__OpenBSD__)
-        /* OpenBSD doesn't register inter-library dependencies in basesystem
-         * libs therefor we need to load all the libraries gssapi depends on,
-         * in the correct order and with LD_GLOBAL for GSSAPI auth to work
-         * fine.
-         */
-
-        const char *const verLibNames[] = {
-            "libasn1.so",
-            "libcrypto.so",
-            "libroken.so",
-            "libheimbase.so",
-            "libcom_err.so",
-            "libkrb5.so",
-            "libgssapi.so"
-        };
-
-        PRLibSpec libSpec;
-        for (size_t i = 0; i < ArrayLength(verLibNames); ++i) {
-            libSpec.type = PR_LibSpec_Pathname;
-            libSpec.value.pathname = verLibNames[i];
-            lib = PR_LoadLibraryWithFlags(libSpec, PR_LD_GLOBAL);
-        };
-
 #else
         
         const char *const libNames[] = {
@@ -157,7 +129,8 @@ gssInit()
         const char *const verLibNames[] = {
             "libgssapi_krb5.so.2", /* MIT - FC, Suse10, Debian */
             "libgssapi.so.4",      /* Heimdal - Suse10, MDK */
-            "libgssapi.so.1"       /* Heimdal - Suse9, CITI - FC, MDK, Suse10*/
+            "libgssapi.so.1",      /* Heimdal - Suse9, CITI - FC, MDK, Suse10*/
+            "libgssapi.so"         /* OpenBSD */
         };
 
         for (size_t i = 0; i < ArrayLength(verLibNames) && !lib; ++i) {
@@ -175,12 +148,12 @@ gssInit()
                 PR_FindFunctionSymbol(lib, "gssd_pname_to_uid")) {
                 LOG(("CITI libgssapi found, which calls exit(). Skipping\n"));
                 PR_UnloadLibrary(lib);
-                lib = nullptr;
+                lib = NULL;
             }
         }
 
         for (size_t i = 0; i < ArrayLength(libNames) && !lib; ++i) {
-            char *libName = PR_GetLibraryName(nullptr, libNames[i]);
+            char *libName = PR_GetLibraryName(NULL, libNames[i]);
             if (libName) {
                 lib = PR_LoadLibrary(libName);
                 PR_FreeLibraryName(libName);
@@ -191,7 +164,7 @@ gssInit()
                     PR_FindFunctionSymbol(lib, "gssd_pname_to_uid")) {
                     LOG(("CITI libgssapi found, which calls exit(). Skipping\n"));
                     PR_UnloadLibrary(lib);
-                    lib = nullptr;
+                    lib = NULL;
                 } 
             }
         }
@@ -239,7 +212,7 @@ LogGssError(OM_uint32 maj_stat, OM_uint32 min_stat, const char *prefix)
     gss_buffer_desc status1_string;
     gss_buffer_desc status2_string;
     OM_uint32 ret;
-    nsAutoCString errorStr;
+    nsCAutoString errorStr;
     errorStr.Assign(prefix);
 
     if (!gssLibrary)
@@ -358,14 +331,14 @@ nsAuthGSSAPI::Shutdown()
 }
 
 /* Limitations apply to this class's thread safety. See the header file */
-NS_IMPL_ISUPPORTS(nsAuthGSSAPI, nsIAuthModule)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsAuthGSSAPI, nsIAuthModule)
 
 NS_IMETHODIMP
 nsAuthGSSAPI::Init(const char *serviceName,
                    uint32_t    serviceFlags,
-                   const char16_t *domain,
-                   const char16_t *username,
-                   const char16_t *password)
+                   const PRUnichar *domain,
+                   const PRUnichar *username,
+                   const PRUnichar *password)
 {
     // we don't expect to be passed any user credentials
     NS_ASSERTION(!domain && !username && !password, "unexpected credentials");
@@ -380,17 +353,6 @@ nsAuthGSSAPI::Init(const char *serviceName,
 
     mServiceName = serviceName;
     mServiceFlags = serviceFlags;
-
-    static bool sTelemetrySent = false;
-    if (!sTelemetrySent) {
-        mozilla::Telemetry::Accumulate(
-            mozilla::Telemetry::NTLM_MODULE_USED_2,
-            serviceFlags & nsIAuthModule::REQ_PROXY_AUTH
-                ? NTLM_MODULE_KERBEROS_PROXY
-                : NTLM_MODULE_KERBEROS_DIRECT);
-        sTelemetrySent = true;
-    }
-
     return NS_OK;
 }
 
@@ -406,7 +368,7 @@ nsAuthGSSAPI::GetNextToken(const void *inToken,
     gss_buffer_desc output_token = GSS_C_EMPTY_BUFFER;
     gss_buffer_t  in_token_ptr = GSS_C_NO_BUFFER;
     gss_name_t server;
-    nsAutoCString userbuf;
+    nsCAutoString userbuf;
     nsresult rv;
 
     LOG(("entering nsAuthGSSAPI::GetNextToken()\n"));
@@ -434,7 +396,7 @@ nsAuthGSSAPI::GetNextToken(const void *inToken,
                                    &input_token,
                                    &gss_c_nt_hostbased_service,
                                    &server);
-    input_token.value = nullptr;
+    input_token.value = NULL;
     input_token.length = 0;
     if (GSS_ERROR(major_status)) {
         LogGssError(major_status, minor_status, "gss_import_name() failed");
@@ -467,7 +429,7 @@ nsAuthGSSAPI::GetNextToken(const void *inToken,
                            mServiceName.Find("ldap@");
     
     if (!doingMailTask && (gssNativeImp &&
-         (KLCacheHasValidTickets_ptr(nullptr, kerberosVersion_V5, &found, nullptr, nullptr) != klNoErr || !found)))
+         (KLCacheHasValidTickets_ptr(NULL, kerberosVersion_V5, &found, NULL, NULL) != klNoErr || !found)))
     {
         major_status = GSS_S_FAILURE;
         minor_status = 0;
@@ -511,7 +473,7 @@ nsAuthGSSAPI::GetNextToken(const void *inToken,
     if (output_token.length != 0)
         *outToken = nsMemory::Clone(output_token.value, output_token.length);
     else
-        *outToken = nullptr;
+        *outToken = NULL;
     
     gss_release_buffer_ptr(&minor_status, &output_token);
 
@@ -545,8 +507,8 @@ nsAuthGSSAPI::Unwrap(const void *inToken,
                                   mCtx,
                                   &input_token,
                                   &output_token,
-                                  nullptr,
-                                  nullptr);
+                                  NULL,
+                                  NULL);
     if (GSS_ERROR(major_status)) {
         LogGssError(major_status, minor_status, "gss_unwrap() failed");
         Reset();
@@ -559,7 +521,7 @@ nsAuthGSSAPI::Unwrap(const void *inToken,
     if (output_token.length)
         *outToken = nsMemory::Clone(output_token.value, output_token.length);
     else
-        *outToken = nullptr;
+        *outToken = NULL;
 
     gss_release_buffer_ptr(&minor_status, &output_token);
 
@@ -586,7 +548,7 @@ nsAuthGSSAPI::Wrap(const void *inToken,
                                 confidential,
                                 GSS_C_QOP_DEFAULT,
                                 &input_token,
-                                nullptr,
+                                NULL,
                                 &output_token);
     
     if (GSS_ERROR(major_status)) {

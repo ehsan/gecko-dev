@@ -20,7 +20,7 @@ TransportDIB::TransportDIB(HANDLE handle)
 }
 
 // static
-TransportDIB* TransportDIB::Create(size_t size, uint32_t sequence_num) {
+TransportDIB* TransportDIB::Create(size_t size, uint32 sequence_num) {
   size_t allocation_granularity = base::SysInfo::VMAllocationGranularity();
   size = size / allocation_granularity + 1;
   size = size * allocation_granularity;
@@ -43,9 +43,9 @@ TransportDIB* TransportDIB::Create(size_t size, uint32_t sequence_num) {
 TransportDIB* TransportDIB::Map(TransportDIB::Handle handle) {
   TransportDIB* dib = new TransportDIB(handle);
   if (!dib->shared_memory_.Map(0 /* map whole shared memory segment */)) {
-    CHROMIUM_LOG(ERROR) << "Failed to map transport DIB"
-                        << " handle:" << handle
-                        << " error:" << GetLastError();
+    LOG(ERROR) << "Failed to map transport DIB"
+               << " handle:" << handle
+               << " error:" << GetLastError();
     delete dib;
     return NULL;
   }

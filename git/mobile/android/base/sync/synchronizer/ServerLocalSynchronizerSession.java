@@ -4,7 +4,7 @@
 
 package org.mozilla.gecko.sync.synchronizer;
 
-import org.mozilla.gecko.background.common.log.Logger;
+import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.repositories.FetchFailedException;
 import org.mozilla.gecko.sync.repositories.StoreFailedException;
 
@@ -27,7 +27,6 @@ public class ServerLocalSynchronizerSession extends SynchronizerSession {
     super(synchronizer, delegate);
   }
 
-  @Override
   public void onFirstFlowCompleted(RecordsChannel recordsChannel, long fetchEnd, long storeEnd) {
     // Fetch failures always abort.
     int numRemoteFetchFailed = recordsChannel.getFetchFailureCount();
@@ -51,7 +50,6 @@ public class ServerLocalSynchronizerSession extends SynchronizerSession {
     super.onFirstFlowCompleted(recordsChannel, fetchEnd, storeEnd);
   }
 
-  @Override
   public void onSecondFlowCompleted(RecordsChannel recordsChannel, long fetchEnd, long storeEnd) {
     // Fetch failures always abort.
     int numLocalFetchFailed = recordsChannel.getFetchFailureCount();

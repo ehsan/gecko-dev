@@ -9,7 +9,7 @@
 #include "gfxPoint.h"
 #include "gfxTypes.h"
 #include "gfxRect.h"
-#include "mozilla/Attributes.h"
+#include "nsMathUtils.h"
 
 // XX - I don't think this class should use gfxFloat at all,
 // but should use 'double' and be called gfxDoubleMatrix;
@@ -31,12 +31,12 @@
  *           \ tx ty 1 /   \         1          /
  *
  */
-class gfxMatrix {
-public:
-    double _11; double _12;
-    double _21; double _22;
-    double _31; double _32;
+struct THEBES_API gfxMatrix {
+    double xx; double yx;
+    double xy; double yy;
+    double x0; double y0;
 
+public:
     /**
      * Initializes this matrix as the identity matrix.
      */
@@ -47,36 +47,22 @@ public:
      * description for the layout of the matrix.
      */
     gfxMatrix(gfxFloat a, gfxFloat b, gfxFloat c, gfxFloat d, gfxFloat tx, gfxFloat ty) :
-        _11(a),  _12(b),
-        _21(c),  _22(d),
-        _31(tx), _32(ty) { }
-
-    MOZ_ALWAYS_INLINE gfxMatrix Copy() const {
-        return gfxMatrix(*this);
-    }
-
-    friend std::ostream& operator<<(std::ostream& stream, const gfxMatrix& m) {
-      if (m.IsIdentity()) {
-        return stream << "[identity]";
-      }
-
-      return stream << "["
-             << m._11 << " " << m._12
-             << m._21 << " " << m._22
-             << m._31 << " " << m._32
-             << "]";
-    }
+        xx(a),  yx(b),
+        xy(c),  yy(d),
+        x0(tx), y0(ty) { }
 
     /**
      * Post-multiplies m onto the matrix.
      */
-    const gfxMatrix& operator *= (const gfxMatrix& m);
+    const gfxMatrix& operator *= (const gfxMatrix& m) {
+        return Multiply(m);
+    }
 
     /**
      * Multiplies *this with m and returns the result.
      */
     gfxMatrix operator * (const gfxMatrix& m) const {
-        return gfxMatrix(*this) *= m;
+        return gfxMatrix(*this).Multiply(m);
     }
 
     /* Returns true if the other matrix is fuzzy-equal to this matrix.
@@ -84,9 +70,9 @@ public:
      */
     bool operator==(const gfxMatrix& other) const
     {
-      return FuzzyEqual(_11, other._11) && FuzzyEqual(_12, other._12) &&
-             FuzzyEqual(_21, other._21) && FuzzyEqual(_22, other._22) &&
-             FuzzyEqual(_31, other._31) && FuzzyEqual(_32, other._32);
+      return FuzzyEqual(xx, other.xx) && FuzzyEqual(yx, other.yx) &&
+             FuzzyEqual(xy, other.xy) && FuzzyEqual(yy, other.yy) &&
+             FuzzyEqual(x0, other.x0) && FuzzyEqual(y0, other.y0);
     }
 
     bool operator!=(const gfxMatrix& other) const
@@ -101,9 +87,9 @@ public:
     const gfxMatrix& Reset();
 
     bool IsIdentity() const {
-       return _11 == 1.0 && _12 == 0.0 &&
-              _21 == 0.0 && _22 == 1.0 &&
-              _31 == 0.0 && _32 == 0.0;
+       return xx == 1.0 && yx == 0.0 &&
+              xy == 0.0 && yy == 1.0 &&
+              x0 == 0.0 && y0 == 0.0;
     }
 
     /**
@@ -113,31 +99,27 @@ public:
      * XXX should this do something with the return value of
      * cairo_matrix_invert?
      */
-    bool Invert();
+    const gfxMatrix& Invert();
 
     /**
      * Check if matrix is singular (no inverse exists).
      */
     bool IsSingular() const {
         // if the determinant (ad - bc) is zero it's singular
-        return (_11 * _22) == (_12 * _21);
+        return (xx * yy) == (yx * xy);
     }
 
     /**
      * Scales this matrix. The scale is pre-multiplied onto this matrix,
      * i.e. the scaling takes place before the other transformations.
      */
-    gfxMatrix& Scale(gfxFloat x, gfxFloat y);
+    const gfxMatrix& Scale(gfxFloat x, gfxFloat y);
 
     /**
      * Translates this matrix. The translation is pre-multiplied onto this matrix,
      * i.e. the translation takes place before the other transformations.
      */
-    gfxMatrix& Translate(const gfxPoint& pt);
-
-    gfxMatrix& Translate(gfxFloat x, gfxFloat y) {
-      return Translate(gfxPoint(x, y));
-    }
+    const gfxMatrix& Translate(const gfxPoint& pt);
 
     /**
      * Rotates this matrix. The rotation is pre-multiplied onto this matrix,
@@ -145,31 +127,23 @@ public:
      *
      * @param radians Angle in radians.
      */
-    gfxMatrix& Rotate(gfxFloat radians);
+    const gfxMatrix& Rotate(gfxFloat radians);
+
+     /**
+      * Multiplies the current matrix with m.
+      * This is a post-multiplication, i.e. the transformations of m are
+      * applied _after_ the existing transformations.
+      *
+      * XXX is that difference (compared to Rotate etc) a good thing?
+      */
+    const gfxMatrix& Multiply(const gfxMatrix& m);
 
     /**
      * Multiplies the current matrix with m.
      * This is a pre-multiplication, i.e. the transformations of m are
      * applied _before_ the existing transformations.
      */
-    gfxMatrix& PreMultiply(const gfxMatrix& m);
-
-    static gfxMatrix Translation(gfxFloat aX, gfxFloat aY)
-    {
-        return gfxMatrix(1.0, 0.0, 0.0, 1.0, aX, aY);
-    }
-
-    static gfxMatrix Translation(gfxPoint aPoint)
-    {
-        return Translation(aPoint.x, aPoint.y);
-    }
-
-    static gfxMatrix Rotation(gfxFloat aAngle);
-
-    static gfxMatrix Scaling(gfxFloat aX, gfxFloat aY)
-    {
-        return gfxMatrix(aX, 0.0, 0.0, aY, 0.0, 0.0);
-    }
+    const gfxMatrix& PreMultiply(const gfxMatrix& m);
 
     /**
      * Transforms a point according to this matrix.
@@ -194,7 +168,7 @@ public:
      * Returns the translation component of this matrix.
      */
     gfxPoint GetTranslation() const {
-        return gfxPoint(_31, _32);
+        return gfxPoint(x0, y0);
     }
 
     /**
@@ -203,8 +177,8 @@ public:
      */
     bool HasNonIntegerTranslation() const {
         return HasNonTranslation() ||
-            !FuzzyEqual(_31, floor(_31 + 0.5)) ||
-            !FuzzyEqual(_32, floor(_32 + 0.5));
+            !FuzzyEqual(x0, floor(x0 + 0.5)) ||
+            !FuzzyEqual(y0, floor(y0 + 0.5));
     }
 
     /**
@@ -212,8 +186,8 @@ public:
      * than a straight translation
      */
     bool HasNonTranslation() const {
-        return !FuzzyEqual(_11, 1.0) || !FuzzyEqual(_22, 1.0) ||
-               !FuzzyEqual(_21, 0.0) || !FuzzyEqual(_12, 0.0);
+        return !FuzzyEqual(xx, 1.0) || !FuzzyEqual(yy, 1.0) ||
+               !FuzzyEqual(xy, 0.0) || !FuzzyEqual(yx, 0.0);
     }
 
     /**
@@ -228,9 +202,9 @@ public:
      * than a translation or a -1 y scale (y axis flip)
      */
     bool HasNonTranslationOrFlip() const {
-        return !FuzzyEqual(_11, 1.0) ||
-               (!FuzzyEqual(_22, 1.0) && !FuzzyEqual(_22, -1.0)) ||
-               !FuzzyEqual(_21, 0.0) || !FuzzyEqual(_12, 0.0);
+        return !FuzzyEqual(xx, 1.0) ||
+               (!FuzzyEqual(yy, 1.0) && !FuzzyEqual(yy, -1.0)) ||
+               !FuzzyEqual(xy, 0.0) || !FuzzyEqual(yx, 0.0);
     }
 
     /**
@@ -239,14 +213,14 @@ public:
      * no rotation.
      */
     bool HasNonAxisAlignedTransform() const {
-        return !FuzzyEqual(_21, 0.0) || !FuzzyEqual(_12, 0.0);
+        return !FuzzyEqual(xy, 0.0) || !FuzzyEqual(yx, 0.0);
     }
 
     /**
      * Computes the determinant of this matrix.
      */
     double Determinant() const {
-        return _11*_22 - _12*_21;
+        return xx*yy - yx*xy;
     }
 
     /* Computes the scale factors of this matrix; that is,
@@ -284,15 +258,23 @@ public:
      * to integers. In particular, components that are integral when
      * converted to single precision are set to those integers.
      */
-    gfxMatrix& NudgeToIntegers(void);
+    void NudgeToIntegers(void);
 
     /**
      * Returns true if matrix is multiple of 90 degrees rotation with flipping,
      * scaling and translation.
      */
     bool PreservesAxisAlignedRectangles() const {
-        return ((FuzzyEqual(_11, 0.0) && FuzzyEqual(_22, 0.0))
-            || (FuzzyEqual(_21, 0.0) && FuzzyEqual(_12, 0.0)));
+        return ((FuzzyEqual(xx, 0.0) && FuzzyEqual(yy, 0.0))
+            || (FuzzyEqual(xy, 0.0) && FuzzyEqual(yx, 0.0)));
+    }
+
+    /**
+     * Returns true if the matrix has non-integer scale
+     */
+    bool HasNonIntegerScale() const {
+        return !FuzzyEqual(xx, floor(xx + 0.5)) ||
+               !FuzzyEqual(yy, floor(yy + 0.5));
     }
 
 private:

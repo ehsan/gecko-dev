@@ -6,34 +6,13 @@
 
 interface nsITabParent;
 
-%{C++
-namespace mozilla {
-namespace net {
-class HttpChannelParentListener;
-}
-}
-%}
-
-[ptr] native HttpChannelParentListener(mozilla::net::HttpChannelParentListener);
-
 /**
  * Implemented by chrome side of IPC protocols.
  */
 
-[scriptable, uuid(e0fc4801-6030-4653-a59f-1fb282bd1a04)]
+[scriptable, uuid(723188c3-fff8-4d27-b657-a256e7209be0)]
 interface nsIParentChannel : nsIStreamListener
 {
-  /**
-   * Called to set the HttpChannelParentListener object (optional).
-   */
-  [noscript] void setParentListener(in HttpChannelParentListener listener);
-
-  /**
-   * Called to notify the HttpChannelChild that tracking protection was
-   * disabled for this load.
-   */
-  [noscript] void notifyTrackingProtectionDisabled();
-
   /**
    * Called to invoke deletion of the IPC protocol.
    */

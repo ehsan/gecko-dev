@@ -5,6 +5,7 @@
 #ifndef mozilla_osfileconstants_h__
 #define mozilla_osfileconstants_h__
 
+#include "jspubtd.h"
 #include "nsIOSFileConstantsService.h"
 #include "mozilla/Attributes.h"
 
@@ -38,7 +39,7 @@ void CleanupOSFileConstants();
  * This function creates or uses JS object |OS.Constants| to store
  * all its constants.
  */
-bool DefineOSFileConstants(JSContext *cx, JS::Handle<JSObject*> global);
+bool DefineOSFileConstants(JSContext *cx, JSObject *global);
 
 /**
  * XPConnect initializer, for use in the main thread.

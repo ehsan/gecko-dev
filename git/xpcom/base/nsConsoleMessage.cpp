@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -9,48 +8,30 @@
  */
 
 #include "nsConsoleMessage.h"
-#include "jsapi.h"
+#include "nsReadableUtils.h"
 
-NS_IMPL_ISUPPORTS(nsConsoleMessage, nsIConsoleMessage)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsConsoleMessage, nsIConsoleMessage)
 
-nsConsoleMessage::nsConsoleMessage()
-  : mTimeStamp(0)
-  , mMessage()
+nsConsoleMessage::nsConsoleMessage() 
 {
 }
 
-nsConsoleMessage::nsConsoleMessage(const char16_t* aMessage)
+nsConsoleMessage::nsConsoleMessage(const PRUnichar *message) 
 {
-  mTimeStamp = JS_Now() / 1000;
-  mMessage.Assign(aMessage);
+	mMessage.Assign(message);
 }
 
 NS_IMETHODIMP
-nsConsoleMessage::GetMessageMoz(char16_t** aResult)
-{
-  *aResult = ToNewUnicode(mMessage);
+nsConsoleMessage::GetMessageMoz(PRUnichar **result) {
+    *result = ToNewUnicode(mMessage);
 
-  return NS_OK;
+    return NS_OK;
 }
 
-NS_IMETHODIMP
-nsConsoleMessage::GetLogLevel(uint32_t* aLogLevel)
-{
-  *aLogLevel = nsConsoleMessage::info;
-  return NS_OK;
-}
+//  NS_IMETHODIMP
+//  nsConsoleMessage::Init(const PRUnichar *message) {
+//      nsAutoString newMessage(message);
+//      mMessage = ToNewUnicode(newMessage);
+//      return NS_OK;
+//  }
 
-NS_IMETHODIMP
-nsConsoleMessage::GetTimeStamp(int64_t* aTimeStamp)
-{
-  *aTimeStamp = mTimeStamp;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsConsoleMessage::ToString(nsACString& /*UTF8*/ aResult)
-{
-  CopyUTF16toUTF8(mMessage, aResult);
-
-  return NS_OK;
-}

@@ -3,12 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "nsIServiceManager.h"
 #include "nsIConsoleService.h"
 #include <initguid.h>
 #include "Nv3DVUtils.h"
+#include "mozilla/Util.h"
 
 DEFINE_GUID(CLSID_NV3DVStreaming, 
 0xf7747266, 0x777d, 0x4f61, 0xa1, 0x75, 0xdd, 0x5a, 0xdf, 0x1e, 0x37, 0xdf);
@@ -23,7 +22,7 @@ namespace layers {
  * Constructor and Destructor
  */
 Nv3DVUtils::Nv3DVUtils()
-  : m3DVStreaming (nullptr)
+  : m3DVStreaming (NULL)
 {
 }
 
@@ -31,17 +30,6 @@ Nv3DVUtils::~Nv3DVUtils()
 {
   UnInitialize();
 }
-
-
-// Silence spurious warnings!
-#if defined(WARNING) || defined WARN_IF_FALSE
-#error We shouldn't be redefining these!
-#endif
-// Uncomment these to enable spurious warnings.
-//#define WARNING(str) NS_WARNING(str)
-//#define WARN_IF_FALSE(b, str) NS_WARN_IF_FALSE(b, str)
-#define WARNING(str)
-#define WARN_IF_FALSE(b, str)
 
 /**
  * Initializes the Nv3DVUtils object.
@@ -53,33 +41,33 @@ Nv3DVUtils::Initialize()
    * Detect if 3D Streaming object is already loaded. Do nothing in that case.
    */
   if (m3DVStreaming) {
-    WARNING("Nv3DVStreaming COM object already instantiated.\n");
+    NS_WARNING("Nv3DVStreaming COM object already instantiated.\n");
     return;
   }
 
   /*
    * Create the COM object. If we fail at any stage, just return
    */
-  HRESULT hr = CoCreateInstance(CLSID_NV3DVStreaming, nullptr, CLSCTX_INPROC_SERVER, IID_INV3DVStreaming, (void**)(getter_AddRefs(m3DVStreaming)));
+  HRESULT hr = CoCreateInstance(CLSID_NV3DVStreaming, NULL, CLSCTX_INPROC_SERVER, IID_INV3DVStreaming, (void**)(getter_AddRefs(m3DVStreaming)));
   if (FAILED(hr) || !m3DVStreaming) {
-    WARNING("Nv3DVStreaming CoCreateInstance failed (disabled).");
+    NS_WARNING("Nv3DVStreaming CoCreateInstance failed (disabled).");
     return;
   }
 
   /*
-   * Initialize the object. Note that m3DVStreaming cannot be nullptr at this point.
+   * Initialize the object. Note that m3DVStreaming cannot be NULL at this point.
    */
   bool bRetVal = m3DVStreaming->Nv3DVInitialize();
 
   if (!bRetVal) {
-    WARNING("Nv3DVStreaming Nv3DVInitialize failed!");
+    NS_WARNING("Nv3DVStreaming Nv3DVInitialize failed!");
     return;
   }
 }
 
 /**
  * Release resources used by the COM Object, and then release 
- * the COM Object (nsRefPtr gets released by setting to nullptr) 
+ * the COM Object (nsRefPtr gets released by setting to NULL) 
  *
  */
 void
@@ -98,7 +86,7 @@ void
 Nv3DVUtils::SetDeviceInfo(IUnknown *devUnknown)
 {
   if (!devUnknown) {
-    WARNING("D3D Device Pointer (IUnknown) is nullptr.\n");
+    NS_WARNING("D3D Device Pointer (IUnknown) is NULL.\n");
     return;
   }
 
@@ -108,12 +96,12 @@ Nv3DVUtils::SetDeviceInfo(IUnknown *devUnknown)
 
   bool rv = m3DVStreaming->Nv3DVSetDevice(devUnknown);
   if (!rv) {
-      WARNING("Nv3DVStreaming Nv3DVControl failed!");
+      NS_WARNING("Nv3DVStreaming Nv3DVControl failed!");
       return;
   }
 
   rv = m3DVStreaming->Nv3DVControl(NV_STEREO_MODE_RIGHT_LEFT, true, FIREFOX_3DV_APP_HANDLE);
-  WARN_IF_FALSE(rv, "Nv3DVStreaming Nv3DVControl failed!");
+  NS_WARN_IF_FALSE(rv, "Nv3DVStreaming Nv3DVControl failed!");
 }
 
 /*
@@ -127,7 +115,7 @@ Nv3DVUtils::SendNv3DVControl(Nv_Stereo_Mode eStereoMode, bool bEnableStereo, DWO
       return;
 
   DebugOnly<bool> rv = m3DVStreaming->Nv3DVControl(eStereoMode, bEnableStereo, dw3DVAppHandle);
-  WARN_IF_FALSE(rv, "Nv3DVStreaming Nv3DVControl failed!");
+  NS_WARN_IF_FALSE(rv, "Nv3DVStreaming Nv3DVControl failed!");
 }
 
 /*
@@ -141,7 +129,7 @@ Nv3DVUtils::SendNv3DVMetaData(unsigned int dwWidth, unsigned int dwHeight, HANDL
       return;
 
   DebugOnly<bool> rv = m3DVStreaming->Nv3DVMetaData((DWORD)dwWidth, (DWORD)dwHeight, hSrcLuma, hDst);
-  WARN_IF_FALSE(rv, "Nv3DVStreaming Nv3DVMetaData failed!");
+  NS_WARN_IF_FALSE(rv, "Nv3DVStreaming Nv3DVMetaData failed!");
 }
 
 } /* namespace layers */

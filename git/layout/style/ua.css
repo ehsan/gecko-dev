@@ -2,6 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+@import url(resource://gre-resources/html.css);
+@import url(chrome://global/content/xul.css);
+
 @namespace parsererror url(http://www.mozilla.org/newlayout/xml/parsererror.xml);
 @namespace xul url(http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul);
 
@@ -13,12 +16,12 @@
 
 *|*::-moz-table {
   display: table !important;
-  box-sizing: border-box; /* XXX do we really want this? */
+  -moz-box-sizing: border-box; /* XXX do we really want this? */
 }
 
 *|*::-moz-inline-table {
   display: inline-table !important;
-  box-sizing: border-box; /* XXX do we really want this? */
+  -moz-box-sizing: border-box; /* XXX do we really want this? */
 }
 
 *|*::-moz-table-outer {
@@ -36,24 +39,20 @@
   z-index: inherit;
   page-break-before: inherit;
   page-break-after: inherit;
-  page-break-inside: inherit;
   vertical-align: inherit; /* needed for inline-table */
   line-height: inherit; /* needed for vertical-align on inline-table */
-  align-self: inherit; /* needed for "align-self" to work on table flex items */
-  order: inherit;   /* needed for "order" to work on table flex items */
   /* Bug 722777 */
   -moz-transform: inherit;
   -moz-transform-origin: inherit;
   /* Bug 724750 */
   -moz-backface-visibility: inherit;
-  clip: inherit;
 }
 
 *|*::-moz-table-row {
   display: table-row !important;
 }
 
-/* The ::-moz-table-column pseudo-element is for extra columns at the end
+/* The ::-moz-table-column pseudo-element is for extra columns at the end 
    of a table. */
 *|*::-moz-table-column {
   display: table-column !important;
@@ -62,7 +61,7 @@
 *|*::-moz-table-column-group {
   display: table-column-group !important;
 }
-
+ 
 *|*::-moz-table-row-group {
   display: table-row-group !important;
 }
@@ -72,37 +71,13 @@
   white-space: inherit;
 }
 
-/* Ruby */
-@supports(display:ruby) {
-  *|*::-moz-ruby {
-    display: ruby;
-  }
-  *|*::-moz-ruby-base {
-    display: ruby-base;
-  }
-  *|*::-moz-ruby-text {
-    display: ruby-text;
-  }
-  *|*::-moz-ruby-base-container {
-    display: ruby-base-container;
-  }
-  *|*::-moz-ruby-text-container {
-    display: ruby-text-container;
-  }
-}
-
 /* Lists */
 
 *|*::-moz-list-bullet, *|*::-moz-list-number {
   display: inline;
   vertical-align: baseline;
-  font-variant-numeric: tabular-nums;
+  -moz-margin-end: 8px;
 }
-
-/* SVG documents don't always load this file but they do have links.
- * If you change the link rules, consider carefully whether to make
- * the same changes to svg.css.
- */
 
 /* Links */
 
@@ -122,7 +97,6 @@
   position: static !important;
   unicode-bidi: inherit;
   text-overflow: inherit;
-  overflow-clip-box: inherit;
 }
 
 *|*::-moz-anonymous-block, *|*::-moz-anonymous-positioned-block {
@@ -135,7 +109,6 @@
   opacity: inherit;
   text-decoration: inherit;
   -moz-box-ordinal-group: inherit !important;
-  overflow-clip-box: inherit;
 }
 
 *|*::-moz-xul-anonymous-block {
@@ -144,7 +117,6 @@
   float: none ! important;
   -moz-box-ordinal-group: inherit !important;
   text-overflow: inherit;
-  overflow-clip-box: inherit;
 }
 
 *|*::-moz-scrolled-content, *|*::-moz-scrolled-canvas,
@@ -163,17 +135,10 @@
   -moz-column-width: inherit;
   -moz-column-gap: inherit;
   -moz-column-rule: inherit;
-  /* CSS3 flexbox properties that apply to the flex container: */
-  align-content: inherit;
-  align-items: inherit;
-  flex-direction: inherit;
-  flex-wrap: inherit;
-  justify-content: inherit;
   /* Do not change these. nsCSSFrameConstructor depends on them to create a good
      frame tree. */
   position: static !important;
   float: none !important;
-  overflow-clip-box: inherit;
 }
 
 *|*::-moz-viewport, *|*::-moz-viewport-scroll, *|*::-moz-canvas, *|*::-moz-scrolled-canvas {
@@ -188,7 +153,7 @@
 %endif
 }
 
-*|*::-moz-column-content {
+*|*::-moz-column-content { 
   /* the column boxes inside a column-flowed block */
   /* make unicode-bidi inherit, otherwise it has no effect on column boxes */
   unicode-bidi: inherit;
@@ -200,10 +165,9 @@
   height: 100%;
 }
 
-*|*::-moz-anonymous-flex-item,
-*|*::-moz-anonymous-grid-item {
-  /* Anonymous blocks that wrap contiguous runs of text
-   * inside of a flex or grid container. */
+*|*::-moz-anonymous-flex-item {
+  /* Anonymous blocks that wrap contiguous runs of inline non-replaced
+   * content inside of a flex container. */
   display: block;
 }
 
@@ -211,7 +175,7 @@
   /* Collection of pages in print/print preview. Visual styles may only appear
    * in print preview. */
   display: block !important;
-  background: linear-gradient(#606060, #8a8a8a) fixed;
+  background: -moz-linear-gradient(top, #606060, #8a8a8a) fixed;
   height: 100%;
 }
 
@@ -226,7 +190,6 @@
 
 *|*::-moz-pagecontent {
   display: block !important;
-  margin: auto;
 }
 
 *|*::-moz-pagebreak {
@@ -235,8 +198,8 @@
 
 *|*::-moz-anonymous-positioned-block {
   display: block !important;
-  position: inherit; /* relative or sticky */
-  top: inherit;
+  position: relative;
+  top: inherit; 
   left: inherit;
   bottom: inherit;
   right: inherit;
@@ -272,7 +235,6 @@
   max-width: none !important;
   min-height: 0 !important;
   max-height: none !important;
-  box-sizing: border-box !important;
 }
 
 /* If there is a full-screen element that is not the root then
@@ -307,112 +269,4 @@ parsererror|sourcetext {
   color: red;
   font-weight: bold;
   font-size: 12pt;
-}
-
-div:-moz-native-anonymous.moz-touchcaret,
-div:-moz-native-anonymous.moz-selectioncaret-left,
-div:-moz-native-anonymous.moz-selectioncaret-right,
-div:-moz-native-anonymous.moz-selectioncaret-left > div,
-div:-moz-native-anonymous.moz-selectioncaret-right > div {
-  position: absolute;
-  width: 29px;
-  height: 31px;
-  background-position: center center;
-  background-size: 100% 100%;
-  z-index: 2147483647;
-}
-
-div:-moz-native-anonymous.moz-touchcaret,
-div:-moz-native-anonymous.moz-selectioncaret-left > div,
-div:-moz-native-anonymous.moz-selectioncaret-right > div {
-  background-image: url("resource://gre/res/text_caret.png");
-}
-
-div:-moz-native-anonymous.moz-touchcaret,
-div:-moz-native-anonymous.moz-selectioncaret-left,
-div:-moz-native-anonymous.moz-selectioncaret-right {
-  margin-left: -15px;
-}
-
-div:-moz-native-anonymous.moz-selectioncaret-left.tilt > div {
-  background-image: url("resource://gre/res/text_caret_tilt_left.png");
-  margin-left: -14px;
-}
-
-div:-moz-native-anonymous.moz-selectioncaret-right.tilt > div {
-  background-image: url("resource://gre/res/text_caret_tilt_right.png");
-  margin-left: 14px;
-}
-
-@media (min-resolution: 1.5dppx) {
-  div:-moz-native-anonymous.moz-touchcaret,
-  div:-moz-native-anonymous.moz-selectioncaret-left > div,
-  div:-moz-native-anonymous.moz-selectioncaret-right > div {
-    background-image: url("resource://gre/res/text_caret@1.5x.png");
-  }
-
-  div:-moz-native-anonymous.moz-selectioncaret-left.tilt > div {
-    background-image: url("resource://gre/res/text_caret_tilt_left@1.5x.png");
-  }
-
-  div:-moz-native-anonymous.moz-selectioncaret-right.tilt > div {
-    background-image: url("resource://gre/res/text_caret_tilt_right@1.5x.png");
-  }
-}
-
-@media (min-resolution: 2dppx) {
-  div:-moz-native-anonymous.moz-touchcaret,
-  div:-moz-native-anonymous.moz-selectioncaret-left > div,
-  div:-moz-native-anonymous.moz-selectioncaret-right > div {
-    background-image: url("resource://gre/res/text_caret@2x.png");
-  }
-
-  div:-moz-native-anonymous.moz-selectioncaret-left.tilt > div {
-    background-image: url("resource://gre/res/text_caret_tilt_left@2x.png");
-  }
-
-  div:-moz-native-anonymous.moz-selectioncaret-right.tilt > div {
-    background-image: url("resource://gre/res/text_caret_tilt_right@2x.png");
-  }
-}
-
-@media (min-resolution: 2.25dppx) {
-  div:-moz-native-anonymous.moz-touchcaret,
-  div:-moz-native-anonymous.moz-selectioncaret-left > div,
-  div:-moz-native-anonymous.moz-selectioncaret-right > div {
-    background-image: url("resource://gre/res/text_caret@2.25x.png");
-  }
-
-  div:-moz-native-anonymous.moz-selectioncaret-left.tilt > div {
-    background-image: url("resource://gre/res/text_caret_tilt_left@2.25x.png");
-  }
-
-  div:-moz-native-anonymous.moz-selectioncaret-right.tilt > div {
-    background-image: url("resource://gre/res/text_caret_tilt_right@2.25x.png");
-  }
-}
-
-div:-moz-native-anonymous.moz-touchcaret.hidden,
-div:-moz-native-anonymous.moz-selectioncaret-left.hidden,
-div:-moz-native-anonymous.moz-selectioncaret-right.hidden,
-div:-moz-native-anonymous.moz-selectioncaret-left.hidden > div,
-div:-moz-native-anonymous.moz-selectioncaret-right.hidden > div {
-  width: 0px;
-  height: 0px;
-  margin: 0px;
-  visibility: hidden;
-}
-
-/* Custom content container in the CanvasFrame, fixed positioned on top of
-   everything else, not reacting to pointer events. */
-div:-moz-native-anonymous.moz-custom-content-container {
-  pointer-events: none;
-
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-
-  z-index: 2147483648;
 }

@@ -13,25 +13,29 @@ function test() {
     openConsole(null, function(hud) {
       content.location.reload();
 
-      waitForMessages({
-        webconsole: hud,
-        messages: [{
-          text: "test-console.html",
-          category: CATEGORY_NETWORK,
-          severity: SEVERITY_LOG,
-        }],
-      }).then(performTest);
+      waitForSuccess({
+        name: "network message displayed",
+        validatorFn: function()
+        {
+          return hud.outputNode.querySelector(".webconsole-msg-network");
+        },
+        successFn: performTest,
+        failureFn: finishTest,
+      });
     });
   }, true);
 }
 
-function performTest(results) {
-  let HUD = HUDService.getHudByWindow(content);
+function performTest() {
+  let hudId = HUDService.getHudIdByWindow(content);
+  let HUD = HUDService.hudReferences[hudId];
 
-  let networkMessage = [...results[0].matched][0];
-  ok(networkMessage, "network message element");
+  HUD.jsterm.execute("document");
 
-  let networkLink = networkMessage.querySelector(".url");
+  let networkMessage = HUD.outputNode.querySelector(".webconsole-msg-network");
+  ok(networkMessage, "found network message");
+
+  let networkLink = networkMessage.querySelector(".webconsole-msg-link");
   ok(networkLink, "found network message link");
 
   let popupset = document.getElementById("mainPopupSet");
@@ -41,48 +45,66 @@ function performTest(results) {
   let hiddenPopups = 0;
 
   let onpopupshown = function() {
-    document.removeEventListener("popupshown", onpopupshown, false);
     popupsShown++;
+    if (popupsShown == 2) {
+      document.removeEventListener("popupshown", onpopupshown, false);
 
-    executeSoon(function() {
-      let popups = popupset.querySelectorAll("panel[hudId=" + HUD.hudId + "]");
-      is(popups.length, 1, "found one popup");
+      executeSoon(function() {
+        let popups = popupset.querySelectorAll("panel[hudId=" + hudId + "]");
+        is(popups.length, 2, "found two popups");
 
-      document.addEventListener("popuphidden", onpopuphidden, false);
+        document.addEventListener("popuphidden", onpopuphidden, false);
 
-      registerCleanupFunction(function() {
-        is(hiddenPopups, 1, "correct number of popups hidden");
-        if (hiddenPopups != 1) {
-          document.removeEventListener("popuphidden", onpopuphidden, false);
-        }
+        registerCleanupFunction(function() {
+          is(hiddenPopups, 2, "correct number of popups hidden");
+          if (hiddenPopups != 2) {
+            document.removeEventListener("popuphidden", onpopuphidden, false);
+          }
+        });
+
+        executeSoon(closeConsole);
       });
-
-      executeSoon(closeConsole);
-    });
+    }
   };
 
   let onpopuphidden = function() {
-    document.removeEventListener("popuphidden", onpopuphidden, false);
     hiddenPopups++;
+    if (hiddenPopups == 2) {
+      document.removeEventListener("popuphidden", onpopuphidden, false);
 
-    executeSoon(function() {
-      let popups = popupset.querySelectorAll("panel[hudId=" + HUD.hudId + "]");
-      is(popups.length, 0, "no popups found");
+      executeSoon(function() {
+        let popups = popupset.querySelectorAll("panel[hudId=" + hudId + "]");
+        is(popups.length, 0, "no popups found");
 
-      executeSoon(finishTest);
-    });
+        executeSoon(finishTest);
+      });
+    }
   };
 
   document.addEventListener("popupshown", onpopupshown, false);
 
   registerCleanupFunction(function() {
-    is(popupsShown, 1, "correct number of popups shown");
-    if (popupsShown != 1) {
+    is(popupsShown, 2, "correct number of popups shown");
+    if (popupsShown != 2) {
       document.removeEventListener("popupshown", onpopupshown, false);
     }
   });
 
-  EventUtils.sendMouseEvent({ type: "mousedown" }, networkLink, HUD.iframeWindow);
-  EventUtils.sendMouseEvent({ type: "mouseup" }, networkLink, HUD.iframeWindow);
-  EventUtils.sendMouseEvent({ type: "click" }, networkLink, HUD.iframeWindow);
+  waitForSuccess({
+    name: "jsterm output message",
+    validatorFn: function()
+    {
+      return HUD.outputNode.querySelector(".webconsole-msg-output");
+    },
+    successFn: function()
+    {
+      let jstermMessage = HUD.outputNode.querySelector(".webconsole-msg-output");
+      EventUtils.sendMouseEvent({ type: "mousedown" }, jstermMessage, HUD.iframeWindow);
+      EventUtils.sendMouseEvent({ type: "click" }, jstermMessage, HUD.iframeWindow);
+      EventUtils.sendMouseEvent({ type: "mousedown" }, networkLink, HUD.iframeWindow);
+      EventUtils.sendMouseEvent({ type: "mouseup" }, networkLink, HUD.iframeWindow);
+      EventUtils.sendMouseEvent({ type: "click" }, networkLink, HUD.iframeWindow);
+    },
+    failureFn: finishTest,
+  });
 }

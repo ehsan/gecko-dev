@@ -28,7 +28,7 @@ enum State {
 class DatabaseLocker : public nsRunnable
 {
 public:
-  explicit DatabaseLocker(const char* aSQL)
+  DatabaseLocker(const char* aSQL)
   : monitor("DatabaseLocker::monitor")
   , mSQL(aSQL)
   , mState(STARTING)
@@ -121,6 +121,7 @@ public:
 
 private:
   nsCOMPtr<mozIStorageConnection> mConnection;
+  State mState;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

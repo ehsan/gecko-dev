@@ -7,7 +7,6 @@
 #define nsClipboard_h__
 
 #include "nsBaseClipboard.h"
-#include "nsIObserver.h"
 #include "nsIURI.h"
 #include <windows.h>
 
@@ -21,23 +20,16 @@ struct IDataObject;
  * Native Win32 Clipboard wrapper
  */
 
-class nsClipboard : public nsBaseClipboard,
-                    public nsIObserver
+class nsClipboard : public nsBaseClipboard
 {
-  virtual ~nsClipboard();
 
 public:
   nsClipboard();
-
-  NS_DECL_ISUPPORTS_INHERITED
-
-  // nsIObserver
-  NS_DECL_NSIOBSERVER
+  virtual ~nsClipboard();
 
   // nsIClipboard
   NS_IMETHOD HasDataMatchingFlavors(const char** aFlavorList, uint32_t aLength,
                                     int32_t aWhichClipboard, bool *_retval); 
-  NS_IMETHOD EmptyClipboard(int32_t aWhichClipboard);
 
   // Internal Native Routines
   static nsresult CreateNativeDataObject(nsITransferable * aTransferable, 

@@ -26,14 +26,12 @@ public:
 
   virtual bool IsBrowserStream() MOZ_OVERRIDE { return true; }
 
-  virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
-
   virtual bool AnswerNPN_RequestRead(const IPCByteRanges& ranges,
-                                     NPError* result) MOZ_OVERRIDE;
+                                     NPError* result);
 
-  virtual bool RecvNPN_DestroyStream(const NPReason& reason) MOZ_OVERRIDE;
+  virtual bool RecvNPN_DestroyStream(const NPReason& reason);
 
-  virtual bool RecvStreamDestroyed() MOZ_OVERRIDE;
+  virtual bool RecvStreamDestroyed();
 
   int32_t WriteReady();
   int32_t Write(int32_t offset, int32_t len, void* buffer);

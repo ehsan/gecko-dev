@@ -3,14 +3,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-Components.utils.import("resource://gre/modules/Services.jsm");
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
 // Dummy boomark/history observer
 function DummyObserver() {
-  Services.obs.notifyObservers(null, "dummy-observer-created", null);
+  let os = Cc["@mozilla.org/observer-service;1"].
+           getService(Ci.nsIObserverService);
+  os.notifyObservers(null, "dummy-observer-created", null);
 }
 
 DummyObserver.prototype = {
@@ -18,9 +19,12 @@ DummyObserver.prototype = {
   onBeginUpdateBatch: function () {},
   onEndUpdateBatch: function () {},
   onVisit: function (aURI, aVisitID, aTime, aSessionID, aReferringID, aTransitionType) {
-    Services.obs.notifyObservers(null, "dummy-observer-visited", null);
+    let os = Cc["@mozilla.org/observer-service;1"].
+             getService(Ci.nsIObserverService);
+    os.notifyObservers(null, "dummy-observer-visited", null);
   },
   onTitleChanged: function () {},
+  onBeforeDeleteURI: function () {},
   onDeleteURI: function () {},
   onClearHistory: function () {},
   onPageChanged: function () {},
@@ -30,9 +34,12 @@ DummyObserver.prototype = {
   //onBeginUpdateBatch: function() {},
   //onEndUpdateBatch: function() {},
   onItemAdded: function(aItemId, aParentId, aIndex, aItemType, aURI) {
-    Services.obs.notifyObservers(null, "dummy-observer-item-added", null);
+    let os = Cc["@mozilla.org/observer-service;1"].
+             getService(Ci.nsIObserverService);
+    os.notifyObservers(null, "dummy-observer-item-added", null);
   },
   onItemChanged: function () {},
+  onBeforeItemRemoved: function() {},
   onItemRemoved: function() {},
   onItemVisited: function() {},
   onItemMoved: function() {},
@@ -45,4 +52,4 @@ DummyObserver.prototype = {
   ])
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([DummyObserver]);
+const NSGetFactory = XPCOMUtils.generateNSGetFactory([DummyObserver]);

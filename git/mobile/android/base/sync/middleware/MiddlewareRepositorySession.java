@@ -6,7 +6,7 @@ package org.mozilla.gecko.sync.middleware;
 
 import java.util.concurrent.ExecutorService;
 
-import org.mozilla.gecko.background.common.log.Logger;
+import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.repositories.InactiveSessionException;
 import org.mozilla.gecko.sync.repositories.InvalidSessionTransitionException;
 import org.mozilla.gecko.sync.repositories.RepositorySession;
@@ -32,8 +32,8 @@ public abstract class MiddlewareRepositorySession extends RepositorySession {
 
   public class MiddlewareRepositorySessionBeginDelegate implements RepositorySessionBeginDelegate {
 
-    private final MiddlewareRepositorySession outerSession;
-    private final RepositorySessionBeginDelegate next;
+    private MiddlewareRepositorySession outerSession;
+    private RepositorySessionBeginDelegate next;
 
     public MiddlewareRepositorySessionBeginDelegate(MiddlewareRepositorySession outerSession, RepositorySessionBeginDelegate next) {
       this.outerSession = outerSession;
@@ -75,7 +75,6 @@ public abstract class MiddlewareRepositorySession extends RepositorySession {
     }
   }
 
-  @Override
   public void begin(RepositorySessionBeginDelegate delegate) throws InvalidSessionTransitionException {
     inner.begin(new MiddlewareRepositorySessionBeginDelegate(this, delegate));
   }
@@ -161,25 +160,5 @@ public abstract class MiddlewareRepositorySession extends RepositorySession {
   @Override
   public void storeDone(long storeEnd) {
     inner.storeDone(storeEnd);
-  }
-
-  @Override
-  public boolean shouldSkip() {
-    return inner.shouldSkip();
-  }
-
-  @Override
-  public boolean dataAvailable() {
-    return inner.dataAvailable();
-  }
-
-  @Override
-  public void unbundle(RepositorySessionBundle bundle) {
-    inner.unbundle(bundle);
-  }
-
-  @Override
-  public long getLastSyncTimestamp() {
-    return inner.getLastSyncTimestamp();
   }
 }

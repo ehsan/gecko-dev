@@ -2,23 +2,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = [ "FormAutoCompleteResult" ];
+let EXPORTED_SYMBOLS = [ "FormAutoCompleteResult" ];
 
 const Ci = Components.interfaces;
 const Cr = Components.results;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
-this.FormAutoCompleteResult =
- function FormAutoCompleteResult(searchString,
-                                 searchResult,
-                                 defaultIndex,
-                                 errorDescription,
-                                 values,
-                                 labels,
-                                 comments,
-                                 prevResult) {
-  this.searchString = searchString;
+function FormAutoCompleteResult(searchString,
+                                searchResult,
+                                defaultIndex,
+                                errorDescription,
+                                values,
+                                labels,
+                                comments,
+                                prevResult) {
+  this._searchString = searchString;
   this._searchResult = searchResult;
   this._defaultIndex = defaultIndex;
   this._errorDescription = errorDescription;
@@ -37,7 +36,7 @@ this.FormAutoCompleteResult =
 FormAutoCompleteResult.prototype = {
 
   // The user's query string
-  searchString: "",
+  _searchString: "",
 
   // The result code of this result object, see |get searchResult| for possible values.
   _searchResult: 0,
@@ -58,6 +57,13 @@ FormAutoCompleteResult.prototype = {
 
   get wrappedJSObject() {
     return this;
+  },
+
+  /**
+   * @return the user's query string
+   */
+  get searchString() {
+    return this._searchString;
   },
 
   /**
@@ -130,11 +136,6 @@ FormAutoCompleteResult.prototype = {
    */
   getStyleAt: function(index) {
     this._checkIndexBounds(index);
-
-    if (this._formHistResult && index < this._formHistResult.matchCount) {
-      return "fromhistory";
-    }
-
     if (!this._comments[index]) {
       return null;  // not a category label, so no special styling
     }
@@ -154,15 +155,6 @@ FormAutoCompleteResult.prototype = {
   getImageAt: function(index) {
     this._checkIndexBounds(index);
     return "";
-  },
-
-  /**
-   * Retrieves a result
-   * @param  index    the index of the result requested
-   * @return          the result at the specified index
-   */
-  getFinalCompleteValueAt: function(index) {
-    return this.getValueAt(index);
   },
 
   /**

@@ -15,7 +15,7 @@
 function run_test()
 {
   removeMetadata();
-  updateAppInfo();
+  createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "2");
 
   let search = Services.search;
 

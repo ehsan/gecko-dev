@@ -6,9 +6,8 @@
 #ifndef nsMathMLmrootFrame_h___
 #define nsMathMLmrootFrame_h___
 
-#include "mozilla/Attributes.h"
+#include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
-#include "nsMathMLChar.h"
 
 //
 // <msqrt> and <mroot> -- form a radical
@@ -22,48 +21,37 @@ public:
 
   virtual void
   SetAdditionalStyleContext(int32_t          aIndex, 
-                            nsStyleContext*  aStyleContext) MOZ_OVERRIDE;
+                            nsStyleContext*  aStyleContext);
   virtual nsStyleContext*
-  GetAdditionalStyleContext(int32_t aIndex) const MOZ_OVERRIDE;
-
-  virtual void
-  Init(nsIContent*       aContent,
-       nsContainerFrame* aParent,
-       nsIFrame*         aPrevInFlow) MOZ_OVERRIDE;
+  GetAdditionalStyleContext(int32_t aIndex) const;
 
   NS_IMETHOD
-  TransmitAutomaticData() MOZ_OVERRIDE;
+  Init(nsIContent*      aContent,
+       nsIFrame*        aParent,
+       nsIFrame*        aPrevInFlow);
 
-  virtual void
+  NS_IMETHOD
+  TransmitAutomaticData();
+
+  NS_IMETHOD
   Reflow(nsPresContext*          aPresContext,
          nsHTMLReflowMetrics&     aDesiredSize,
          const nsHTMLReflowState& aReflowState,
-         nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+         nsReflowStatus&          aStatus);
 
-  void
-  GetRadicalXOffsets(nscoord aIndexWidth, nscoord aSqrWidth,
-                     nsFontMetrics* aFontMetrics,
-                     nscoord* aIndexOffset,
-                     nscoord* aSqrOffset);
+  virtual nscoord
+  GetIntrinsicWidth(nsRenderingContext* aRenderingContext);
 
-  virtual void
-  GetIntrinsicISizeMetrics(nsRenderingContext* aRenderingContext,
-                           nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
-
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
-
-  uint8_t
-  ScriptIncrement(nsIFrame* aFrame) MOZ_OVERRIDE
-  {
-    return (aFrame && aFrame == mFrames.LastChild()) ? 2 : 0;
-  }
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists);
 
 protected:
-  explicit nsMathMLmrootFrame(nsStyleContext* aContext);
+  nsMathMLmrootFrame(nsStyleContext* aContext);
   virtual ~nsMathMLmrootFrame();
   
+  virtual int GetSkipSides() const { return 0; }
+
   nsMathMLChar mSqrChar;
   nsRect       mBarRect;
 };

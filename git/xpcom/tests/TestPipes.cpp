@@ -63,10 +63,10 @@ nsresult TP_NewPipe(nsIInputStream **pipeIn,
     if (segmentSize == 0)
         segmentSize = TP_DEFAULT_SEGMENT_SIZE;
 
-    // Handle maxSize of UINT32_MAX as a special case
+    // Handle maxSize of PR_UINT32_MAX as a special case
     uint32_t segmentCount;
-    if (maxSize == UINT32_MAX)
-        segmentCount = UINT32_MAX;
+    if (maxSize == PR_UINT32_MAX)
+        segmentCount = PR_UINT32_MAX;
     else
         segmentCount = maxSize / segmentSize;
 
@@ -106,7 +106,7 @@ WriteAll(nsIOutputStream *os, const char *buf, uint32_t bufLen, uint32_t *lenWri
 
 class nsReceiver : public nsIRunnable {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
 
     NS_IMETHOD Run() {
         nsresult rv;
@@ -146,7 +146,7 @@ protected:
     uint32_t            mCount;
 };
 
-NS_IMPL_ISUPPORTS(nsReceiver, nsIRunnable)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsReceiver, nsIRunnable)
 
 nsresult
 TestPipe(nsIInputStream* in, nsIOutputStream* out)
@@ -197,7 +197,7 @@ TestPipe(nsIInputStream* in, nsIOutputStream* out)
 
 class nsShortReader : public nsIRunnable {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
 
     NS_IMETHOD Run() {
         nsresult rv;
@@ -261,7 +261,7 @@ protected:
     Monitor*                 mMon;
 };
 
-NS_IMPL_ISUPPORTS(nsShortReader, nsIRunnable)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsShortReader, nsIRunnable)
 
 nsresult
 TestShortWrites(nsIInputStream* in, nsIOutputStream* out)
@@ -282,7 +282,7 @@ TestShortWrites(nsIInputStream* in, nsIOutputStream* out)
         char* buf = PR_smprintf("%d %s", i, kTestPattern);
         uint32_t len = strlen(buf);
         len = len * rand() / RAND_MAX;
-        len = XPCOM_MAX(1, len);
+        len = NS_MAX(1, len);
         rv = WriteAll(out, buf, len, &writeCount);
         if (NS_FAILED(rv)) return rv;
         NS_ASSERTION(writeCount == len, "didn't write enough");
@@ -316,7 +316,7 @@ TestShortWrites(nsIInputStream* in, nsIOutputStream* out)
 class nsPump : public nsIRunnable
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
 
     NS_IMETHOD Run() {
         nsresult rv;
@@ -352,7 +352,8 @@ protected:
     uint32_t                            mCount;
 };
 
-NS_IMPL_ISUPPORTS(nsPump, nsIRunnable)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsPump,
+                              nsIRunnable)
 
 nsresult
 TestChainedPipes()
@@ -390,7 +391,7 @@ TestChainedPipes()
         char* buf = PR_smprintf("%d %s", i, kTestPattern);
         uint32_t len = strlen(buf);
         len = len * rand() / RAND_MAX;
-        len = XPCOM_MAX(1, len);
+        len = NS_MAX(1, len);
         rv = WriteAll(out1, buf, len, &writeCount);
         if (NS_FAILED(rv)) return rv;
         NS_ASSERTION(writeCount == len, "didn't write enough");
@@ -448,7 +449,7 @@ main(int argc, char* argv[])
     nsresult rv;
 
     nsCOMPtr<nsIServiceManager> servMgr;
-    rv = NS_InitXPCOM2(getter_AddRefs(servMgr), nullptr, nullptr);
+    rv = NS_InitXPCOM2(getter_AddRefs(servMgr), NULL, NULL);
     if (NS_FAILED(rv)) return rv;
 
     if (argc > 1 && nsCRT::strcmp(argv[1], "-trace") == 0)
@@ -460,7 +461,7 @@ main(int argc, char* argv[])
     RunTests(4096, 16);
 
     servMgr = 0;
-    rv = NS_ShutdownXPCOM(nullptr);
+    rv = NS_ShutdownXPCOM( NULL );
     NS_ASSERTION(NS_SUCCEEDED(rv), "NS_ShutdownXPCOM failed");
 
     return 0;

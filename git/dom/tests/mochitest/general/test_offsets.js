@@ -60,7 +60,6 @@ function testElement(element)
                               offsetParent, element.id);
 
   var scrollWidth, scrollHeight, clientWidth, clientHeight;
-  var doScrollCheck = true;
   if (element.id == "scrollbox") {
     var lastchild = $("lastline");
     scrollWidth = lastchild.getBoundingClientRect().width + paddingLeft + paddingRight;
@@ -70,29 +69,18 @@ function testElement(element)
     scrollHeight = contentsHeight + paddingTop + paddingBottom;
     clientWidth = paddingLeft + width + paddingRight - scrollbarWidth;
     clientHeight = paddingTop + height + paddingBottom - scrollbarHeight;
-  } else {
+  }
+  else {
+    scrollWidth = paddingLeft + width + paddingRight;
+    scrollHeight = paddingTop + height + paddingBottom;
     clientWidth = paddingLeft + width + paddingRight;
     clientHeight = paddingTop + height + paddingBottom;
-    if (element.id == "overflow-visible") {
-      scrollWidth = 200;
-      scrollHeight = 201;
-    } else if (element.scrollWidth > clientWidth ||
-               element.scrollHeight > clientHeight) {
-      // The element overflows. Don't check scrollWidth/scrollHeight since the
-      // above calculation is not correct.
-      doScrollCheck = false;
-    } else {
-      scrollWidth = clientWidth;
-      scrollHeight = clientHeight;
-    }
   }
 
-  if (doScrollCheck) {
-    if (element instanceof SVGElement)
-      checkScrollState(element, 0, 0, 0, 0, element.id);
-     else
-      checkScrollState(element, 0, 0, scrollWidth, scrollHeight, element.id);
-  }
+  if (element instanceof SVGElement)
+    checkScrollState(element, 0, 0, 0, 0, element.id);
+  else
+    checkScrollState(element, 0, 0, scrollWidth, scrollHeight, element.id);
 
   if (element instanceof SVGElement)
     checkClientState(element, 0, 0, 0, 0, element.id);
@@ -110,7 +98,7 @@ function testElement(element)
      element.id + " bounding rect bottom");
 
   var rects = element.getClientRects();
-  if (element.id == "div-displaynone" || element.id == "nonappended") {
+  if (element.id == "input-displaynone" || element.id == "nonappended") {
     is(rects.length, 0, element.id + " getClientRects empty");
   }
   else {
@@ -194,9 +182,12 @@ function checkCoords(element, type, left, top, width, height, testname)
   if (element.id == "outerpopup" && !element.parentNode.open) // closed popup
     return;
 
-  if (element.id == "div-displaynone" || element.id == "nonappended") // hidden elements
+  if (element.id == "input-displaynone" || element.id == "nonappended") // hidden elements
     ok(element[type + "Width"] == 0 && element[type + "Height"] == 0,
        element.id + " has zero " + type + " width and height");
+  else if (element.id != "input-nosize") // for some reason, this element has a width of 2
+    ok(element[type + "Width"] > 0 && element[type + "Height"] > 0,
+       element.id + " has non-zero " + type + " width and height");
 }
 
 function gcs(element, prop)

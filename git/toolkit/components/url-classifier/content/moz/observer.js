@@ -112,11 +112,11 @@ function TEST_G_Observer() {
     var regularObserverRan = 0;
     var observerServiceObserverRan = 0;
 
-    let regularObserver = function () {
+    function regularObserver() {
       regularObserverRan++;
     };
 
-    let observerServiceObserver = function () {
+    function observerServiceObserver() {
       observerServiceObserverRan++;
     };
 

@@ -3,34 +3,33 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Tests that code completion works properly in chrome tabs, like about:credits.
+// Tests that code completion works properly.
 
 function test() {
-  Task.spawn(function*() {
-    const {tab} = yield loadTab("about:config");
-    ok(tab, "tab loaded");
-
-    const hud = yield openConsole(tab);
-    ok(hud, "we have a console");
-    ok(hud.iframeWindow, "we have the console UI window");
-
-    let jsterm = hud.jsterm;
-    ok(jsterm, "we have a jsterm");
-
-    let input = jsterm.inputNode;
-    ok(hud.outputNode, "we have an output node");
-
-    // Test typing 'docu'.
-    input.value = "docu";
-    input.setSelectionRange(4, 4);
-
-    let deferred = promise.defer();
-
-    jsterm.complete(jsterm.COMPLETE_HINT_ONLY, function() {
-      is(jsterm.completeNode.value, "    ment", "'docu' completion");
-      deferred.resolve(null);
-    });
-
-    yield deferred.promise;
-  }).then(finishTest);
+  addTab("about:addons");
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, testChrome);
+  }, true);
 }
+
+function testChrome(hud) {
+  ok(hud, "we have a console");
+  
+  ok(hud.iframe, "we have the console iframe");
+
+  let jsterm = hud.jsterm;
+  ok(jsterm, "we have a jsterm");
+
+  let input = jsterm.inputNode;
+  ok(hud.outputNode, "we have an output node");
+
+  // Test typing 'docu'.
+  input.value = "docu";
+  input.setSelectionRange(4, 4);
+  jsterm.complete(jsterm.COMPLETE_HINT_ONLY, function() {
+    is(jsterm.completeNode.value, "    ment", "'docu' completion");
+    executeSoon(finishTest);
+  });
+}
+

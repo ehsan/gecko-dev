@@ -4,15 +4,12 @@
 
 package org.mozilla.gecko.db;
 
-import android.database.sqlite.SQLiteDatabase;
 import org.mozilla.gecko.GeckoAppShell;
 
 import android.content.ContentValues;
-import android.database.Cursor;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.text.TextUtils;
 import android.util.Log;
-import org.mozilla.gecko.Telemetry;
 
 public class DBUtils {
     private static final String LOGTAG = "GeckoDBUtils";
@@ -66,98 +63,20 @@ public class DBUtils {
         }
     }
 
-    private static String HISTOGRAM_DATABASE_LOCKED = "DATABASE_LOCKED_EXCEPTION";
-    private static String HISTOGRAM_DATABASE_UNLOCKED = "DATABASE_SUCCESSFUL_UNLOCK";
     public static void ensureDatabaseIsNotLocked(SQLiteOpenHelper dbHelper, String databasePath) {
-        final int maxAttempts = 5;
-        int attempt = 0;
-        SQLiteDatabase db = null;
-        for (; attempt < maxAttempts; attempt++) {
-            try {
-                // Try a simple test and exit the loop.
-                db = dbHelper.getWritableDatabase();
-                break;
-            } catch (Exception e) {
-                // We assume that this is a android.database.sqlite.SQLiteDatabaseLockedException.
-                // That class is only available on API 11+.
-                Telemetry.addToHistogram(HISTOGRAM_DATABASE_LOCKED, attempt);
+        try {
+            dbHelper.getWritableDatabase();
+        } catch (Exception e) {
+            Log.d(LOGTAG, "Database is locked, trying to kill any zombie processes: " + databasePath);
 
-                // Things could get very bad if we don't find a way to unlock the DB.
-                Log.d(LOGTAG, "Database is locked, trying to kill any zombie processes: " + databasePath);
-                GeckoAppShell.killAnyZombies();
-                try {
-                    Thread.sleep(attempt * 100);
-                } catch (InterruptedException ie) {
-                }
-            }
-        }
+            GeckoAppShell.killAnyZombies();
 
-        if (db == null) {
-            Log.w(LOGTAG, "Failed to unlock database.");
-            GeckoAppShell.listOfOpenFiles();
-            return;
-        }
+            // This call should not throw if the forced unlocking
+            // actually fixed the situation.
+            dbHelper.getWritableDatabase();
 
-        // If we needed to retry, but we succeeded, report that in telemetry.
-        // Failures are indicated by a lower frequency of UNLOCKED than LOCKED.
-        if (attempt > 1) {
-            Telemetry.addToHistogram(HISTOGRAM_DATABASE_UNLOCKED, attempt - 1);
+            // TODO: maybe check if the database is still locked and let the
+            // user know that the device needs rebooting?
         }
-    }
-
-    /**
-     * Verifies that 0-byte arrays aren't added as favicon or thumbnail data.
-     * @param values        ContentValues of query
-     * @param columnName    Name of data column to verify
-     */
-    public static void stripEmptyByteArray(ContentValues values, String columnName) {
-        if (values.containsKey(columnName)) {
-            byte[] data = values.getAsByteArray(columnName);
-            if (data == null || data.length == 0) {
-                Log.w(LOGTAG, "Tried to insert an empty or non-byte-array image. Ignoring.");
-                values.putNull(columnName);
-            }
-        }
-    }
-
-    /**
-     * Builds a selection string that searches for a list of arguments in a particular column.
-     * For example URL in (?,?,?). Callers should pass the actual arguments into their query
-     * as selection args.
-     * @para columnName   The column to search in
-     * @para size         The number of arguments to search for
-     */
-    public static String computeSQLInClause(int items, String field) {
-        final StringBuilder builder = new StringBuilder(field);
-        builder.append(" IN (");
-        int i = 0;
-        for (; i < items - 1; ++i) {
-            builder.append("?, ");
-        }
-        if (i < items) {
-            builder.append("?");
-        }
-        builder.append(")");
-        return builder.toString();
-    }
-
-    /**
-     * Turn a single-column cursor of longs into a single SQL "IN" clause.
-     * We can do this without using selection arguments because Long isn't
-     * vulnerable to injection.
-     */
-    public static String computeSQLInClauseFromLongs(final Cursor cursor, String field) {
-        final StringBuilder builder = new StringBuilder(field);
-        builder.append(" IN (");
-        final int commaLimit = cursor.getCount() - 1;
-        int i = 0;
-        while (cursor.moveToNext()) {
-            builder.append(cursor.getLong(0));
-            if (i++ < commaLimit) {
-                builder.append(", ");
-            }
-        }
-        builder.append(")");
-        return builder.toString();
     }
 }

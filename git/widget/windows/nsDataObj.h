@@ -20,7 +20,6 @@
 #include "nsITimer.h"
 
 class nsIThread;
-class nsINode;
 
 // The SDK shipping with VC11 has renamed IAsyncOperation to
 // IDataObjectAsyncCapability.  We try to detect this, and rename this in our
@@ -102,7 +101,7 @@ protected:
 		STDMETHODIMP_(ULONG) Release       ();
 
     // support for clipboard
-    virtual void AddDataFlavor(const char* aDataFlavor, LPFORMATETC aFE);
+    void AddDataFlavor(const char* aDataFlavor, LPFORMATETC aFE);
     void SetTransferable(nsITransferable * aTransferable);
 
 		// Return the registered OLE class ID of this object's CfDataObj.
@@ -165,8 +164,8 @@ protected:
 	public: // other methods
 
     // Gets the filename from the kFilePromiseURLMime flavour
-    HRESULT GetDownloadDetails(nsIURI **aSourceURI,
-                               nsAString &aFilename);
+    nsresult GetDownloadDetails(nsIURI **aSourceURI,
+                                nsAString &aFilename);
 
 	protected:
     // help determine the kind of drag
@@ -249,7 +248,7 @@ protected:
 
     public:
       CStream();
-      nsresult Init(nsIURI *pSourceURI, nsINode* aRequestingNode);
+      nsresult Init(nsIURI *pSourceURI);
 
       NS_DECL_ISUPPORTS
       NS_DECL_NSIREQUESTOBSERVER

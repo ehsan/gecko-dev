@@ -6,10 +6,6 @@
 
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-error.html";
 
-let getItemForAttachment;
-let Sources;
-let getItemInvoked = false;
-
 function test() {
   addTab(TEST_URI);
   browser.addEventListener("load", function onLoad() {
@@ -19,47 +15,29 @@ function test() {
 }
 
 function testViewSource(hud) {
-  info("console opened");
-
   let button = content.document.querySelector("button");
+  button = XPCNativeWrapper.unwrap(button);
   ok(button, "we have the button on the page");
 
   expectUncaughtException();
   EventUtils.sendMouseEvent({ type: "click" }, button, content);
 
-  openDebugger().then(({panelWin: { DebuggerView }}) => {
-    info("debugger opened");
-    Sources = DebuggerView.Sources;
-    openConsole(null, (hud) => {
-      info("console opened again");
+  waitForSuccess({
+    name: "find the location node",
+    validatorFn: function()
+    {
+      return hud.outputNode.querySelector(".webconsole-location");
+    },
+    successFn: function()
+    {
+      let locationNode = hud.outputNode.querySelector(".webconsole-location");
 
-      waitForMessages({
-        webconsole: hud,
-        messages: [{
-          text: "fooBazBaz is not defined",
-          category: CATEGORY_JS,
-          severity: SEVERITY_ERROR,
-        }],
-      }).then(onMessage);
-    });
+      Services.ww.registerNotification(observer);
+
+      EventUtils.sendMouseEvent({ type: "click" }, locationNode);
+    },
+    failureFn: finishTest,
   });
-
-  function onMessage([result]) {
-    let msg = [...result.matched][0];
-    ok(msg, "error message");
-    let locationNode = msg.querySelector(".message-location");
-    ok(locationNode, "location node");
-
-    Services.ww.registerNotification(observer);
-
-    getItemForAttachment = Sources.getItemForAttachment;
-    Sources.getItemForAttachment = () => {
-      getItemInvoked = true;
-      return false;
-    };
-
-    EventUtils.sendMouseEvent({ type: "click" }, locationNode);
-  }
 }
 
 let observer = {
@@ -71,11 +49,11 @@ let observer = {
     ok(true, "the view source window was opened in response to clicking " +
        "the location node");
 
-    aSubject.close();
-    ok(getItemInvoked, "custom getItemForAttachment() was invoked");
-    Sources.getItemForAttachment = getItemForAttachment;
-    Sources = getItemForAttachment = null;
-    finishTest();
+    // executeSoon() is necessary to avoid crashing Firefox. See bug 611543.
+    executeSoon(function() {
+      aSubject.close();
+      finishTest();
+    });
   }
 };
 

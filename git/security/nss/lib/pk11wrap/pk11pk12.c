@@ -1,7 +1,39 @@
 
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 /*
  * This file PKCS #12 fuctions that should really be moved to the
  * PKCS #12 directory, however we can't do that in a point release
@@ -18,7 +50,6 @@
 #include "secoid.h"
 #include "secasn1.h"
 #include "secerr.h"
-#include "prerror.h"
 
 
 
@@ -31,7 +62,7 @@
 
 /* member names from PKCS#1, section 7.2 */
 struct SECKEYRSAPrivateKeyStr {
-    PLArenaPool * arena;
+    PRArenaPool * arena;
     SECItem version;
     SECItem modulus;
     SECItem publicExponent;
@@ -60,7 +91,7 @@ typedef struct SECKEYDSAPrivateKeyStr SECKEYDSAPrivateKey;
 ** Structure member names suggested by PKCS#3.
 */
 struct SECKEYDHPrivateKeyStr {
-    PLArenaPool * arena;
+    PRArenaPool * arena;
     SECItem prime;
     SECItem base;
     SECItem privateValue;
@@ -218,7 +249,7 @@ PK11_ImportDERPrivateKeyInfoAndReturnKey(PK11SlotInfo *slot, SECItem *derPKI,
 	void *wincx) 
 {
     SECKEYPrivateKeyInfo *pki = NULL;
-    PLArenaPool *temparena = NULL;
+    PRArenaPool *temparena = NULL;
     SECStatus rv = SECFailure;
 
     temparena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
@@ -427,7 +458,7 @@ PK11_ImportPrivateKeyInfoAndReturnKey(PK11SlotInfo *slot,
     SECKEYRawPrivateKey *lpk = NULL;
     const SEC_ASN1Template *keyTemplate, *paramTemplate;
     void *paramDest = NULL;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
 
     arena = PORT_NewArena(2048);
     if(!arena) {
@@ -517,112 +548,3 @@ PK11_ImportPrivateKeyInfo(PK11SlotInfo *slot, SECKEYPrivateKeyInfo *pki,
 
 }
 
-SECItem *
-PK11_ExportDERPrivateKeyInfo(SECKEYPrivateKey *pk, void *wincx)
-{
-    SECKEYPrivateKeyInfo *pki = PK11_ExportPrivKeyInfo(pk, wincx);
-    SECItem *derPKI;
-
-    if (!pki) {
-        return NULL;
-    }
-    derPKI = SEC_ASN1EncodeItem(NULL, NULL, pki,
-                                SECKEY_PrivateKeyInfoTemplate);
-    SECKEY_DestroyPrivateKeyInfo(pki, PR_TRUE);
-    return derPKI;
-}
-
-static PRBool
-ReadAttribute(SECKEYPrivateKey *key, CK_ATTRIBUTE_TYPE type,
-              PLArenaPool *arena, SECItem *output)
-{
-    SECStatus rv = PK11_ReadAttribute(key->pkcs11Slot, key->pkcs11ID, type,
-                                      arena, output);
-    return rv == SECSuccess;
-}
-
-/*
- * The caller is responsible for freeing the return value by passing it to
- * SECKEY_DestroyPrivateKeyInfo(..., PR_TRUE).
- */
-SECKEYPrivateKeyInfo *
-PK11_ExportPrivKeyInfo(SECKEYPrivateKey *pk, void *wincx)
-{
-    /* PrivateKeyInfo version (always zero) */
-    const unsigned char pkiVersion = 0;
-    /* RSAPrivateKey version (always zero) */
-    const unsigned char rsaVersion = 0;
-    PLArenaPool *arena = NULL;
-    SECKEYRawPrivateKey rawKey;
-    SECKEYPrivateKeyInfo *pki;
-    SECItem *encoded;
-    SECStatus rv;
-
-    if (pk->keyType != rsaKey) {
-        PORT_SetError(PR_NOT_IMPLEMENTED_ERROR);
-        goto loser;
-    }
-
-    arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
-    if (!arena) {
-        goto loser;
-    }
-    memset(&rawKey, 0, sizeof(rawKey));
-    rawKey.keyType = pk->keyType;
-    rawKey.u.rsa.version.type = siUnsignedInteger;
-    rawKey.u.rsa.version.data = (unsigned char *)PORT_ArenaAlloc(arena, 1);
-    if (!rawKey.u.rsa.version.data) {
-        goto loser;
-    }
-    rawKey.u.rsa.version.data[0] = rsaVersion;
-    rawKey.u.rsa.version.len = 1;
-
-    /* Read the component attributes of the private key */
-    prepare_rsa_priv_key_export_for_asn1(&rawKey);
-    if (!ReadAttribute(pk, CKA_MODULUS, arena, &rawKey.u.rsa.modulus) ||
-        !ReadAttribute(pk, CKA_PUBLIC_EXPONENT, arena,
-                       &rawKey.u.rsa.publicExponent) ||
-        !ReadAttribute(pk, CKA_PRIVATE_EXPONENT, arena,
-                       &rawKey.u.rsa.privateExponent) ||
-        !ReadAttribute(pk, CKA_PRIME_1, arena, &rawKey.u.rsa.prime1) ||
-        !ReadAttribute(pk, CKA_PRIME_2, arena, &rawKey.u.rsa.prime2) ||
-        !ReadAttribute(pk, CKA_EXPONENT_1, arena,
-                       &rawKey.u.rsa.exponent1) ||
-        !ReadAttribute(pk, CKA_EXPONENT_2, arena,
-                       &rawKey.u.rsa.exponent2) ||
-        !ReadAttribute(pk, CKA_COEFFICIENT, arena,
-                       &rawKey.u.rsa.coefficient)) {
-        goto loser;
-    }
-
-    pki = PORT_ArenaZNew(arena, SECKEYPrivateKeyInfo);
-    if (!pki) {
-        goto loser;
-    }
-    encoded = SEC_ASN1EncodeItem(arena, &pki->privateKey, &rawKey,
-                                 SECKEY_RSAPrivateKeyExportTemplate);
-    if (!encoded) {
-        goto loser;
-    }
-    rv = SECOID_SetAlgorithmID(arena, &pki->algorithm,
-                               SEC_OID_PKCS1_RSA_ENCRYPTION, NULL);
-    if (rv != SECSuccess) {
-        goto loser;
-    }
-    pki->version.type = siUnsignedInteger;
-    pki->version.data = (unsigned char *)PORT_ArenaAlloc(arena, 1);
-    if (!pki->version.data) {
-        goto loser;
-    }
-    pki->version.data[0] = pkiVersion;
-    pki->version.len = 1;
-    pki->arena = arena;
-
-    return pki;
-
-loser:
-    if (arena) {
-        PORT_FreeArena(arena, PR_TRUE);
-    }
-    return NULL;
-}

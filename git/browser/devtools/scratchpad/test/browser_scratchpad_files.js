@@ -4,7 +4,9 @@
 
 let tempScope = {};
 Cu.import("resource://gre/modules/NetUtil.jsm", tempScope);
+Cu.import("resource://gre/modules/FileUtils.jsm", tempScope);
 let NetUtil = tempScope.NetUtil;
+let FileUtils = tempScope.FileUtils;
 
 // Reference to the Scratchpad object.
 let gScratchpad;
@@ -32,14 +34,32 @@ function runTests()
 {
   gScratchpad = gScratchpadWindow.Scratchpad;
 
-  createTempFile("fileForBug636725.tmp", gFileContent, function(aStatus, aFile) {
-    ok(Components.isSuccessCode(aStatus),
-      "The temporary file was saved successfully");
+  // Create a temporary file.
+  gFile = FileUtils.getFile("TmpD", ["fileForBug636725.tmp"]);
+  gFile.createUnique(Ci.nsIFile.NORMAL_FILE_TYPE, 0666);
 
-      gFile = aFile;
-      gScratchpad.importFromFile(gFile.QueryInterface(Ci.nsILocalFile), true,
-        fileImported);
-  });
+  // Write the temporary file.
+  let fout = Cc["@mozilla.org/network/file-output-stream;1"].
+             createInstance(Ci.nsIFileOutputStream);
+  fout.init(gFile.QueryInterface(Ci.nsILocalFile), 0x02 | 0x08 | 0x20,
+            0644, fout.DEFER_OPEN);
+
+  let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
+                  createInstance(Ci.nsIScriptableUnicodeConverter);
+  converter.charset = "UTF-8";
+  let fileContentStream = converter.convertToInputStream(gFileContent);
+
+  NetUtil.asyncCopy(fileContentStream, fout, tempFileSaved);
+}
+
+function tempFileSaved(aStatus)
+{
+  ok(Components.isSuccessCode(aStatus),
+     "the temporary file was saved successfully");
+
+  // Import the file into Scratchpad.
+  gScratchpad.importFromFile(gFile.QueryInterface(Ci.nsILocalFile),  true,
+                            fileImported);
 }
 
 function fileImported(aStatus, aFileContent)
@@ -53,12 +73,9 @@ function fileImported(aStatus, aFileContent)
   is(gScratchpad.getText(), gFileContent,
      "the editor content is correct");
 
-  is(gScratchpad.dirty, false,
-     "the editor marks imported file as saved");
-
   // Save the file after changes.
   gFileContent += "// omg, saved!";
-  gScratchpad.editor.setText(gFileContent);
+  gScratchpad.setText(gFileContent);
 
   gScratchpad.exportToFile(gFile.QueryInterface(Ci.nsILocalFile), true, true,
                           fileExported);
@@ -73,7 +90,7 @@ function fileExported(aStatus)
 
   // Attempt another file save, with confirmation which returns false.
   gFileContent += "// omg, saved twice!";
-  gScratchpad.editor.setText(gFileContent);
+  gScratchpad.setText(gFileContent);
 
   let oldConfirm = gScratchpadWindow.confirm;
   let askedConfirmation = false;

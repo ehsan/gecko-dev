@@ -22,14 +22,13 @@
 #if defined(__cplusplus)
 #include "mozilla/fallible.h"
 #endif
-#include "mozilla/Attributes.h"
 
 #define MOZALLOC_HAVE_XMALLOC
 
 #if defined(MOZALLOC_EXPORT)
 /* do nothing: it's been defined to __declspec(dllexport) by
  * mozalloc*.cpp on platforms where that's required. */
-#elif defined(XP_WIN)
+#elif defined(XP_WIN) || (defined(XP_OS2) && defined(__declspec))
 #  define MOZALLOC_EXPORT __declspec(dllimport)
 #elif defined(HAVE_VISIBILITY_ATTRIBUTE)
 /* Make sure symbols are still exported even if we're wrapped in a
@@ -40,8 +39,8 @@
 #endif
 
 
-#if defined(MOZ_ALWAYS_INLINE_EVEN_DEBUG)
-#  define MOZALLOC_INLINE MOZ_ALWAYS_INLINE_EVEN_DEBUG
+#if defined(NS_ALWAYS_INLINE)
+#  define MOZALLOC_INLINE NS_ALWAYS_INLINE inline
 #elif defined(HAVE_FORCEINLINE)
 #  define MOZALLOC_INLINE __forceinline
 #else
@@ -180,20 +179,13 @@ MOZALLOC_EXPORT void* moz_valloc(size_t size)
 #  define MOZALLOC_EXPORT_NEW
 #endif
 
-#if defined(ANDROID)
+#if defined(ANDROID) || defined(_MSC_VER)
 /*
- * It's important to always specify 'throw()' in GCC because it's used to tell
- * GCC that 'new' may return null. That makes GCC null-check the result before
- * potentially initializing the memory to zero.
- * Also, the Android minimalistic headers don't include std::bad_alloc.
+ * Android doesn't fully support exceptions, so its <new> header
+ * has operators that don't specify throw() at all. Also include MSVC
+ * to suppress build warning spam (bug 578546).
  */
-#define MOZALLOC_THROW_IF_HAS_EXCEPTIONS throw()
-#define MOZALLOC_THROW_BAD_ALLOC_IF_HAS_EXCEPTIONS
-#elif defined(_MSC_VER)
-/*
- * Suppress build warning spam (bug 578546).
- */
-#define MOZALLOC_THROW_IF_HAS_EXCEPTIONS
+#define MOZALLOC_THROW_IF_HAS_EXCEPTIONS /**/
 #define MOZALLOC_THROW_BAD_ALLOC_IF_HAS_EXCEPTIONS
 #else
 #define MOZALLOC_THROW_IF_HAS_EXCEPTIONS throw()

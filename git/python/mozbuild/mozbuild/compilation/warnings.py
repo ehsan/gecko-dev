@@ -4,9 +4,6 @@
 
 # This modules provides functionality for dealing with compiler warnings.
 
-from __future__ import unicode_literals
-
-import errno
 import json
 import os
 import re
@@ -28,7 +25,7 @@ RE_CLANG_WARNING = re.compile(r"""
     (?P<column>\d+)
     :
     \swarning:\s
-    (?P<message>.+)
+    (?P<message>[^\[]+)
     \[(?P<flag>[^\]]+)
     """, re.X)
 
@@ -57,36 +54,16 @@ class CompilerWarning(dict):
         self['message'] = None
         self['flag'] = None
 
-    # Since we inherit from dict, functools.total_ordering gets confused.
-    # Thus, we define a key function, a generic comparison, and then
-    # implement all the rich operators with those; approach is from:
-    # http://regebro.wordpress.com/2010/12/13/python-implementing-rich-comparison-the-correct-way/
-    def _cmpkey(self):
-        return (self['filename'], self['line'], self['column'])
-
-    def _compare(self, other, func):
-        if not isinstance(other, CompilerWarning):
-            return NotImplemented
-
-        return func(self._cmpkey(), other._cmpkey())
-
     def __eq__(self, other):
-        return self._compare(other, lambda s,o: s == o)
+        if not isinstance(other, CompilerWarning):
+            return False
+
+        return self['filename'] == other['filename'] \
+            and self['line'] == other['line'] \
+            and self['column'] == other['column']
 
     def __neq__(self, other):
-        return self._compare(other, lambda s,o: s != o)
-
-    def __lt__(self, other):
-        return self._compare(other, lambda s,o: s < o)
-
-    def __le__(self, other):
-        return self._compare(other, lambda s,o: s <= o)
-
-    def __gt__(self, other):
-        return self._compare(other, lambda s,o: s > o)
-
-    def __ge__(self, other):
-        return self._compare(other, lambda s,o: s >= o)
+        return not self.__eq__(other)
 
     def __hash__(self):
         """Define so this can exist inside a set, etc."""
@@ -266,12 +243,6 @@ class WarningsDatabase(object):
 
     def save_to_file(self, filename):
         """Save the database to a file."""
-        try:
-            # Ensure the directory exists
-            os.makedirs(os.path.dirname(filename))
-        except OSError as e:
-            if e.errno != errno.EEXIST:
-                raise
         with open(filename, 'wb') as fh:
             self.serialize(fh)
 

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-let stateBackup = JSON.parse(ss.getBrowserState());
+let stateBackup = ss.getBrowserState();
 
 function test() {
   /** Test for Bug 600545 **/
@@ -20,12 +20,11 @@ function testBug600545() {
     Services.prefs.clearUserPref("browser.sessionstore.interval");
   });
 
-  // This tests the following use case: When multiple windows are open
-  // and browser.sessionstore.resume_from_crash preference is false,
-  // tab session data for non-active window is stripped for non-pinned
-  // tabs.  This occurs after "sessionstore-state-write-complete"
-  // fires which will only fire in this case if there is at least one
-  // pinned tab.
+  // This tests the following use case:
+  // When multiple windows are open and browser.sessionstore.resume_from_crash
+  // preference is false, tab session data for non-active window is stripped for
+  // non-pinned tabs.  This occurs after "sessionstore-state-write" fires which
+  // will only fire in this case if there is at least one pinned tab.
   let state = { windows: [
     {
       tabs: [
@@ -72,7 +71,8 @@ function done() {
       currentWindow.close();
   }
 
-  waitForBrowserState(stateBackup, finish);
+  ss.setBrowserState(stateBackup);
+  executeSoon(finish);
 }
 
 // Count up the number of tabs in the state data

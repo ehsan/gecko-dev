@@ -21,7 +21,7 @@ let tests = [];
 function generatorTest() {
   while (tests.length > 0) {
     tests.shift()();
-    yield undefined;
+    yield;
   }
 }
 
@@ -97,7 +97,7 @@ tests.push(function test_redGradientBlueSolid() {
     ctx.fillStyle = "blue";
     ctx.fillRect(9, 0, 7, 16);
   }, function(actual, message) {
-    ok(actual >= 0xFF0000 && actual <= 0xFF0808, message);
+    ok(actual > 0xFF0000 && actual < 0xFF0808, message);
   }, "redGradientBlueSolid analysis returns redish");
 });
 
@@ -233,13 +233,11 @@ tests.push(function test_interestingColorPreferenceNotTooLenient() {
   }, 0xFF0000, "interestingColorPreferenceNotTooLenient analysis returns red");
 });
 
-let maxPixels = 144; // see ColorAnalyzer MAXIMUM_PIXELS const
-
-// make sure that images larger than maxPixels*maxPixels fail
+// make sure that images larger than 128x128 fail
 tests.push(function test_imageTooLarge() {
-  canvasTest(1+maxPixels, 1+maxPixels, function(ctx) {
+  canvasTest(129, 129, function(ctx) {
     ctx.fillStyle = "red";
-    ctx.fillRect(0, 0, 1+maxPixels, 1+maxPixels);
+    ctx.fillRect(0, 0, 129, 129);
   }, null, "imageTooLarge analysis fails");
 });
 
@@ -322,7 +320,7 @@ tests.push(function test_perfBigImage() {
 
 // the rest of the tests are for coverage of "real" favicons
 // exact color isn't terribly important, just make sure it's reasonable
-const filePrefix = getRootDirectory(gTestPath) + "colorAnalyzer/";
+const filePrefix = getRootDirectory(gTestPath);
 
 tests.push(function test_categoryDiscover() {
   frcTest(filePrefix + "category-discover.png", 0xB28D3A,
@@ -330,13 +328,13 @@ tests.push(function test_categoryDiscover() {
 });
 
 tests.push(function test_localeGeneric() {
-  frcTest(filePrefix + "localeGeneric.png", 0x3EC23E,
-          "localeGeneric analysis returns green");
+  frcTest(filePrefix + "localeGeneric.png", 0x00A400,
+          "localeGeneric analysis returns orange");
 });
 
 tests.push(function test_dictionaryGeneric() {
-  frcTest(filePrefix + "dictionaryGeneric-16.png", 0x854C30,
-          "dictionaryGeneric-16 analysis returns brown");
+  frcTest(filePrefix + "dictionaryGeneric-16.png", 0x502E1E,
+          "dictionaryGeneric-16 analysis returns blue");
 });
 
 tests.push(function test_extensionGeneric() {

@@ -6,27 +6,20 @@
 package org.mozilla.gecko.gfx;
 
 import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.gfx.Layer.RenderContext;
-import org.mozilla.gecko.gfx.RenderTask;
 import org.mozilla.gecko.mozglue.DirectBufferAllocator;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.content.res.Resources;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.Matrix;
-import android.graphics.PointF;
+import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.Region;
+import android.graphics.RegionIterator;
 import android.opengl.GLES20;
 import android.os.SystemClock;
 import android.util.Log;
-import org.mozilla.gecko.mozglue.JNITarget;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -39,7 +32,7 @@ import javax.microedition.khronos.egl.EGLConfig;
 /**
  * The layer renderer implements the rendering logic for a layer view.
  */
-public class LayerRenderer implements Tabs.OnTabsChangedListener {
+public class LayerRenderer {
     private static final String LOGTAG = "GeckoLayerRenderer";
     private static final String PROFTAG = "GeckoLayerRendererProf";
 
@@ -52,10 +45,11 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
     private static final int FRAME_RATE_METER_WIDTH = 128;
     private static final int FRAME_RATE_METER_HEIGHT = 32;
 
-    private static final long NANOS_PER_MS = 1000000;
-    private static final int NANOS_PER_SECOND = 1000000000;
-
     private final LayerView mView;
+    private final SingleTileLayer mBackgroundLayer;
+    private final ScreenshotLayer mCheckerboardLayer;
+    private final NinePatchTileLayer mShadowLayer;
+    private TextLayer mFrameRateLayer;
     private final ScrollbarLayer mHorizScrollLayer;
     private final ScrollbarLayer mVertScrollLayer;
     private final FadeRunnable mFadeRunnable;
@@ -64,15 +58,11 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
     private RenderContext mLastPageContext;
     private int mMaxTextureSize;
     private int mBackgroundColor;
-    private int mOverscrollColor;
 
-    private long mLastFrameTime;
-    private final CopyOnWriteArrayList<RenderTask> mTasks;
-
-    private final CopyOnWriteArrayList<Layer> mExtraLayers = new CopyOnWriteArrayList<Layer>();
+    private CopyOnWriteArrayList<Layer> mExtraLayers = new CopyOnWriteArrayList<Layer>();
 
     // Dropped frames display
-    private final int[] mFrameTimings;
+    private int[] mFrameTimings;
     private int mCurrentFrame, mFrameTimingsSum, mDroppedFrames;
 
     // Render profiling output
@@ -81,6 +71,7 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
     private boolean mProfileRender;
     private long mProfileOutputTime;
 
+    /* Used by robocop for testing purposes */
     private IntBuffer mPixelBuffer;
 
     // Used by GLES 2.0
@@ -133,19 +124,38 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
         "    gl_FragColor = texture2D(sTexture, vTexCoord);\n" +
         "}\n";
 
+    public void setCheckerboardBitmap(ByteBuffer data, int width, int height, RectF pageRect, Rect copyRect) {
+        try {
+            mCheckerboardLayer.setBitmap(data, width, height, copyRect);
+        } catch (IllegalArgumentException ex) {
+            Log.e(LOGTAG, "error setting bitmap: ", ex);
+        }
+        mCheckerboardLayer.beginTransaction();
+        try {
+            mCheckerboardLayer.setPosition(RectUtils.round(pageRect));
+            mCheckerboardLayer.invalidate();
+        } finally {
+            mCheckerboardLayer.endTransaction();
+        }
+    }
+
+    public void resetCheckerboard() {
+        mCheckerboardLayer.reset();
+    }
+
     public LayerRenderer(LayerView view) {
         mView = view;
-        setOverscrollColor(R.color.background_normal);
 
-        Bitmap scrollbarImage = view.getScrollbarImage();
-        IntSize size = new IntSize(scrollbarImage.getWidth(), scrollbarImage.getHeight());
-        scrollbarImage = expandCanvasToPowerOfTwo(scrollbarImage, size);
+        CairoImage backgroundImage = new BufferedCairoImage(view.getBackgroundPattern());
+        mBackgroundLayer = new SingleTileLayer(true, backgroundImage);
 
-        mTasks = new CopyOnWriteArrayList<RenderTask>();
-        mLastFrameTime = System.nanoTime();
+        mCheckerboardLayer = ScreenshotLayer.create();
 
-        mVertScrollLayer = new ScrollbarLayer(this, scrollbarImage, size, true);
-        mHorizScrollLayer = new ScrollbarLayer(this, diagonalFlip(scrollbarImage), new IntSize(size.height, size.width), false);
+        CairoImage shadowImage = new BufferedCairoImage(view.getShadowPattern());
+        mShadowLayer = new NinePatchTileLayer(shadowImage);
+
+        mHorizScrollLayer = ScrollbarLayer.create(this, false);
+        mVertScrollLayer = ScrollbarLayer.create(this, true);
         mFadeRunnable = new FadeRunnable();
 
         mFrameTimings = new int[60];
@@ -156,47 +166,23 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
         mCoordByteBuffer = DirectBufferAllocator.allocate(COORD_BUFFER_SIZE * 4);
         mCoordByteBuffer.order(ByteOrder.nativeOrder());
         mCoordBuffer = mCoordByteBuffer.asFloatBuffer();
-
-        Tabs.registerOnTabsChangedListener(this);
     }
 
-    private Bitmap expandCanvasToPowerOfTwo(Bitmap image, IntSize size) {
-        IntSize potSize = size.nextPowerOfTwo();
-        if (size.equals(potSize)) {
-            return image;
+    @Override
+    protected void finalize() throws Throwable {
+        try {
+            DirectBufferAllocator.free(mCoordByteBuffer);
+            mCoordByteBuffer = null;
+            mCoordBuffer = null;
+        } finally {
+            super.finalize();
         }
-        // make the bitmap size a power-of-two in both dimensions if it's not already.
-        Bitmap potImage = Bitmap.createBitmap(potSize.width, potSize.height, image.getConfig());
-        new Canvas(potImage).drawBitmap(image, new Matrix(), null);
-        return potImage;
-    }
-
-    private Bitmap diagonalFlip(Bitmap image) {
-        Matrix rotation = new Matrix();
-        rotation.setValues(new float[] { 0, 1, 0, 1, 0, 0, 0, 0, 1 }); // transform (x,y) into (y,x)
-        Bitmap rotated = Bitmap.createBitmap(image, 0, 0, image.getWidth(), image.getHeight(), rotation, true);
-        return rotated;
-    }
-
-    public void destroy() {
-        DirectBufferAllocator.free(mCoordByteBuffer);
-        mCoordByteBuffer = null;
-        mCoordBuffer = null;
-        mHorizScrollLayer.destroy();
-        mVertScrollLayer.destroy();
-        Tabs.unregisterOnTabsChangedListener(this);
     }
 
     void onSurfaceCreated(EGLConfig config) {
         checkMonitoringEnabled();
         createDefaultProgram();
         activateDefaultProgram();
-    }
-
-    void setOverscrollColor(int colorId) {
-        try {
-            mOverscrollColor = mView.getContext().getResources().getColor(colorId);
-        } catch (Resources.NotFoundException nfe) { mOverscrollColor = Color.BLACK; }
     }
 
     public void createDefaultProgram() {
@@ -245,41 +231,8 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
         GLES20.glUseProgram(0);
     }
 
-    void restoreState(boolean enableScissor, int scissorX, int scissorY, int scissorW, int scissorH) {
-        GLES20.glScissor(scissorX, scissorY, scissorW, scissorH);
-        if (enableScissor) {
-            GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
-        } else {
-            GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
-        }
-    }
-
     public int getMaxTextureSize() {
         return mMaxTextureSize;
-    }
-
-    public void postRenderTask(RenderTask aTask) {
-        mTasks.add(aTask);
-        mView.requestRender();
-    }
-
-    public void removeRenderTask(RenderTask aTask) {
-        mTasks.remove(aTask);
-    }
-
-    private void runRenderTasks(CopyOnWriteArrayList<RenderTask> tasks, boolean after, long frameStartTime) {
-        for (RenderTask task : tasks) {
-            if (task.runAfter != after) {
-                continue;
-            }
-
-            boolean stillRunning = task.run(frameStartTime - mLastFrameTime, frameStartTime);
-
-            // Remove the task from the list if its finished
-            if (!stillRunning) {
-                tasks.remove(task);
-            }
-        }
     }
 
     public void addLayer(Layer layer) {
@@ -319,31 +272,26 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
         return pixelBuffer;
     }
 
-    private RenderContext createScreenContext(ImmutableViewportMetrics metrics, PointF offset) {
+    private RenderContext createScreenContext(ImmutableViewportMetrics metrics) {
         RectF viewport = new RectF(0.0f, 0.0f, metrics.getWidth(), metrics.getHeight());
-        RectF pageRect = metrics.getPageRect();
-
-        return createContext(viewport, pageRect, 1.0f, offset);
+        RectF pageRect = new RectF(metrics.getPageRect());
+        return createContext(viewport, pageRect, 1.0f);
     }
 
-    private RenderContext createPageContext(ImmutableViewportMetrics metrics, PointF offset) {
-        RectF viewport = metrics.getViewport();
+    private RenderContext createPageContext(ImmutableViewportMetrics metrics) {
+        Rect viewport = RectUtils.round(metrics.getViewport());
         RectF pageRect = metrics.getPageRect();
         float zoomFactor = metrics.zoomFactor;
-
-        return createContext(new RectF(RectUtils.round(viewport)), pageRect, zoomFactor, offset);
+        return createContext(new RectF(viewport), pageRect, zoomFactor);
     }
 
-    private RenderContext createContext(RectF viewport, RectF pageRect, float zoomFactor, PointF offset) {
-        if (mCoordBuffer == null) {
-            throw new IllegalStateException();
-        }
-        return new RenderContext(viewport, pageRect, zoomFactor, offset, mPositionHandle, mTextureHandle,
+    private RenderContext createContext(RectF viewport, RectF pageRect, float zoomFactor) {
+        return new RenderContext(viewport, pageRect, zoomFactor, mPositionHandle, mTextureHandle,
                                  mCoordBuffer);
     }
 
     private void updateDroppedFrames(long frameStartTime) {
-        int frameElapsedTime = (int)((System.nanoTime() - frameStartTime) / NANOS_PER_MS);
+        int frameElapsedTime = (int)(SystemClock.uptimeMillis() - frameStartTime);
 
         /* Update the running statistics. */
         mFrameTimingsSum -= mFrameTimings[mCurrentFrame];
@@ -355,10 +303,43 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
         mCurrentFrame = (mCurrentFrame + 1) % mFrameTimings.length;
 
         int averageTime = mFrameTimingsSum / mFrameTimings.length;
+        mFrameRateLayer.beginTransaction();     // called on compositor thread
+        try {
+            mFrameRateLayer.setText(averageTime + " ms/" + mDroppedFrames);
+        } finally {
+            mFrameRateLayer.endTransaction();
+        }
+    }
+
+    /* Given the new dimensions for the surface, moves the frame rate layer appropriately. */
+    private void moveFrameRateLayer(int width, int height) {
+        mFrameRateLayer.beginTransaction();     // called on compositor thread
+        try {
+            Rect position = new Rect(width - FRAME_RATE_METER_WIDTH - 8,
+                                    height - FRAME_RATE_METER_HEIGHT + 8,
+                                    width - 8,
+                                    height + 8);
+            mFrameRateLayer.setPosition(position);
+        } finally {
+            mFrameRateLayer.endTransaction();
+        }
     }
 
     void checkMonitoringEnabled() {
-        mProfileRender = Log.isLoggable(PROFTAG, Log.DEBUG);
+        /* Do this I/O off the main thread to minimize its impact on startup time. */
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                Context context = mView.getContext();
+                SharedPreferences preferences = context.getSharedPreferences("GeckoApp", 0);
+                if (preferences.getBoolean("showFrameRate", false)) {
+                    IntSize frameRateLayerSize = new IntSize(FRAME_RATE_METER_WIDTH, FRAME_RATE_METER_HEIGHT);
+                    mFrameRateLayer = TextLayer.create(frameRateLayerSize, "-- ms/--");
+                    moveFrameRateLayer(mView.getWidth(), mView.getHeight());
+                }
+                mProfileRender = Log.isLoggable(PROFTAG, Log.DEBUG);
+            }
+        }).start();
     }
 
     /*
@@ -399,7 +380,6 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
             return !mStarted;
         }
 
-        @Override
         public void run() {
             long timeDelta = mRunAt - SystemClock.elapsedRealtime();
             if (timeDelta > 0) {
@@ -417,30 +397,18 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
         // The timestamp recording the start of this frame.
         private long mFrameStartTime;
         // A fixed snapshot of the viewport metrics that this frame is using to render content.
-        private final ImmutableViewportMetrics mFrameMetrics;
+        private ImmutableViewportMetrics mFrameMetrics;
         // A rendering context for page-positioned layers, and one for screen-positioned layers.
-        private final RenderContext mPageContext, mScreenContext;
+        private RenderContext mPageContext, mScreenContext;
         // Whether a layer was updated.
         private boolean mUpdated;
         private final Rect mPageRect;
-        private final Rect mAbsolutePageRect;
-        private final PointF mRenderOffset;
 
         public Frame(ImmutableViewportMetrics metrics) {
             mFrameMetrics = metrics;
-
-            // Work out the offset due to margins
-            Layer rootLayer = mView.getLayerClient().getRoot();
-            mRenderOffset = mFrameMetrics.getMarginOffset();
-            mPageContext = createPageContext(metrics, mRenderOffset);
-            mScreenContext = createScreenContext(metrics, mRenderOffset);
-
-            RectF pageRect = mFrameMetrics.getPageRect();
-            mAbsolutePageRect = RectUtils.round(pageRect);
-
-            PointF origin = mFrameMetrics.getOrigin();
-            pageRect.offset(-origin.x, -origin.y);
-            mPageRect = RectUtils.round(pageRect);
+            mPageContext = createPageContext(metrics);
+            mScreenContext = createScreenContext(metrics);
+            mPageRect = getPageRect();
         }
 
         private void setScissorRect() {
@@ -458,17 +426,20 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
             int right = Math.min(screenSize.width, rect.right);
             int bottom = Math.min(screenSize.height, rect.bottom);
 
-            Rect scissorRect = new Rect(left, screenSize.height - bottom, right,
-                                        (screenSize.height - bottom) + (bottom - top));
-            scissorRect.offset(Math.round(-mRenderOffset.x), Math.round(-mRenderOffset.y));
+            return new Rect(left, screenSize.height - bottom, right,
+                            (screenSize.height - bottom) + (bottom - top));
+        }
 
-            return scissorRect;
+        private Rect getPageRect() {
+            Point origin = PointUtils.round(mFrameMetrics.getOrigin());
+            Rect pageRect = RectUtils.round(mFrameMetrics.getPageRect());
+            pageRect.offset(-origin.x, -origin.y);
+            return pageRect;
         }
 
         /** This function is invoked via JNI; be careful when modifying signature. */
-        @JNITarget
         public void beginDrawing() {
-            mFrameStartTime = System.nanoTime();
+            mFrameStartTime = SystemClock.uptimeMillis();
 
             TextureReaper.get().reap();
             TextureGenerator.get().fill();
@@ -477,14 +448,9 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
 
             Layer rootLayer = mView.getLayerClient().getRoot();
 
-            // Run through pre-render tasks
-            runRenderTasks(mTasks, false, mFrameStartTime);
-
-            boolean hideScrollbars = (mView.getFullScreenState() == FullScreenState.NON_ROOT_ELEMENT);
-            if (!mPageContext.fuzzyEquals(mLastPageContext) && !hideScrollbars) {
-                // The viewport or page changed, so show the scrollbars again
-                // as per UX decision. Don't do this if we're disabling scrolling due to
-                // full-screen mode though.
+            if (!mPageContext.fuzzyEquals(mLastPageContext)) {
+                // the viewport or page changed, so show the scrollbars again
+                // as per UX decision
                 mVertScrollLayer.unfade();
                 mHorizScrollLayer.unfade();
                 mFadeRunnable.scheduleStartFade(ScrollbarLayer.FADE_DELAY);
@@ -497,59 +463,122 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
             mLastPageContext = mPageContext;
 
             /* Update layers. */
-            if (rootLayer != null) {
-                // Called on compositor thread.
-                mUpdated &= rootLayer.update(mPageContext);
-            }
-
+            if (rootLayer != null) mUpdated &= rootLayer.update(mPageContext);  // called on compositor thread
+            mUpdated &= mBackgroundLayer.update(mScreenContext);    // called on compositor thread
+            mUpdated &= mShadowLayer.update(mPageContext);  // called on compositor thread
+            mUpdated &= mCheckerboardLayer.update(mPageContext);   // called on compositor thread
+            if (mFrameRateLayer != null) mUpdated &= mFrameRateLayer.update(mScreenContext); // called on compositor thread
             mUpdated &= mVertScrollLayer.update(mPageContext);  // called on compositor thread
             mUpdated &= mHorizScrollLayer.update(mPageContext); // called on compositor thread
 
-            for (Layer layer : mExtraLayers) {
+            for (Layer layer : mExtraLayers)
                 mUpdated &= layer.update(mPageContext); // called on compositor thread
-            }
         }
 
-        private void clear(int color) {
-            GLES20.glClearColor(((color >> 16) & 0xFF) / 255.0f,
-                                ((color >> 8) & 0xFF) / 255.0f,
-                                (color & 0xFF) / 255.0f,
-                                0.0f);
-            // The bits set here need to match up with those used
-            // in gfx/layers/opengl/LayerManagerOGL.cpp.
-            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT |
-                           GLES20.GL_DEPTH_BUFFER_BIT);
+        /** Retrieves the bounds for the layer, rounded in such a way that it
+         * can be used as a mask for something that will render underneath it.
+         * This will round the bounds inwards, but stretch the mask towards any
+         * near page edge, where near is considered to be 'within 2 pixels'.
+         * Returns null if the given layer is null.
+         */
+        private Rect getMaskForLayer(Layer layer) {
+            if (layer == null) {
+                return null;
+            }
+
+            RectF bounds = RectUtils.contract(layer.getBounds(mPageContext), 1.0f, 1.0f);
+            Rect mask = RectUtils.roundIn(bounds);
+
+            // If the mask is within two pixels of any page edge, stretch it over
+            // that edge. This is to avoid drawing thin slivers when masking
+            // layers.
+            if (mask.top <= 2) {
+                mask.top = -1;
+            }
+            if (mask.left <= 2) {
+                mask.left = -1;
+            }
+
+            // Because we're drawing relative to the page-rect, we only need to
+            // take into account its width and height (and not its origin)
+            int pageRight = mPageRect.width();
+            int pageBottom = mPageRect.height();
+
+            if (mask.right >= pageRight - 2) {
+                mask.right = pageRight + 1;
+            }
+            if (mask.bottom >= pageBottom - 2) {
+                mask.bottom = pageBottom + 1;
+            }
+
+            return mask;
         }
 
         /** This function is invoked via JNI; be careful when modifying signature. */
-        @JNITarget
         public void drawBackground() {
-            // Any GL state which is changed here must be restored in
-            // restoreState(...)
-
             GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
 
-            // Draw the overscroll background area as a solid color
-            clear(mOverscrollColor);
+            /* Update background color. */
+            mBackgroundColor = mView.getCheckerboardColor();
 
-            // Update background color.
-            mBackgroundColor = mView.getBackgroundColor();
+            /* Clear to the page background colour. The bits set here need to
+             * match up with those used in gfx/layers/opengl/LayerManagerOGL.cpp.
+             */
+            GLES20.glClearColor(((mBackgroundColor>>16)&0xFF) / 255.0f,
+                                ((mBackgroundColor>>8)&0xFF) / 255.0f,
+                                (mBackgroundColor&0xFF) / 255.0f,
+                                0.0f);
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT |
+                           GLES20.GL_DEPTH_BUFFER_BIT);
 
-            // Clear the page area to the page background colour.
-            setScissorRect();
-            clear(mBackgroundColor);
-            GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+            /* Draw the background. */
+            mBackgroundLayer.setMask(mPageRect);
+            mBackgroundLayer.draw(mScreenContext);
+
+            /* Draw the drop shadow, if we need to. */
+            RectF untransformedPageRect = new RectF(0.0f, 0.0f, mPageRect.width(),
+                                                    mPageRect.height());
+            if (!untransformedPageRect.contains(mFrameMetrics.getViewport()))
+                mShadowLayer.draw(mPageContext);
+
+            /* Draw the 'checkerboard'. We use gfx.show_checkerboard_pattern to
+             * determine whether to draw the screenshot layer.
+             */
+            if (mView.checkerboardShouldShowChecks()) {
+                /* Find the area the root layer will render into, to mask the checkerboard layer */
+                Rect rootMask = getMaskForLayer(mView.getLayerClient().getRoot());
+                mCheckerboardLayer.setMask(rootMask);
+
+                /* Scissor around the page-rect, in case the page has shrunk
+                 * since the screenshot layer was last updated.
+                 */
+                setScissorRect(); // Calls glEnable(GL_SCISSOR_TEST))
+                mCheckerboardLayer.draw(mPageContext);
+            }
         }
 
-        @JNITarget
-        public void drawForeground() {
-            // Any GL state which is changed here must be restored in
-            // restoreState(...)
+        // Draws the layer the client added to us.
+        void drawRootLayer() {
+            Layer rootLayer = mView.getLayerClient().getRoot();
+            if (rootLayer == null) {
+                return;
+            }
 
+            rootLayer.draw(mPageContext);
+        }
+
+        /** This function is invoked via JNI; be careful when modifying signature. */
+        public void drawForeground() {
             /* Draw any extra layers that were added (likely plugins) */
             if (mExtraLayers.size() > 0) {
                 for (Layer layer : mExtraLayers) {
+                    if (!layer.usesDefaultProgram())
+                        deactivateDefaultProgram();
+
                     layer.draw(mPageContext);
+
+                    if (!layer.usesDefaultProgram())
+                        activateDefaultProgram();
                 }
             }
 
@@ -565,29 +594,62 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
             Layer rootLayer = mView.getLayerClient().getRoot();
             if ((rootLayer != null) &&
                 (mProfileRender || PanningPerfAPI.isRecordingCheckerboard())) {
-                // Calculate the incompletely rendered area of the page
-                float checkerboard =  1.0f - GeckoAppShell.computeRenderIntegrity();
+                // Find out how much of the viewport area is valid
+                Rect viewport = RectUtils.round(mPageContext.viewport);
+                Region validRegion = rootLayer.getValidRegion(mPageContext);
+
+                /* restrict the viewport to page bounds so we don't
+                 * count overscroll as checkerboard */
+                if (!viewport.intersect(mPageRect)) {
+                    /* if the rectangles don't intersect
+                       intersect() doesn't change viewport
+                       so we set it to empty by hand */
+                    viewport.setEmpty();
+                }
+                validRegion.op(viewport, Region.Op.INTERSECT);
+
+                float checkerboard = 0.0f;
+
+                int screenArea = viewport.width() * viewport.height();
+                if (screenArea > 0 && !(validRegion.isRect() && validRegion.getBounds().equals(viewport))) {
+                    validRegion.op(viewport, Region.Op.REVERSE_DIFFERENCE);
+
+                    // XXX The assumption here is that a Region never has overlapping
+                    //     rects. This is true, as evidenced by reading the SkRegion
+                    //     source, but is not mentioned in the Android documentation,
+                    //     and so is liable to change.
+                    //     If it does change, this code will need to be reevaluated.
+                    Rect r = new Rect();
+                    int checkerboardArea = 0;
+                    for (RegionIterator i = new RegionIterator(validRegion); i.next(r);) {
+                        checkerboardArea += r.width() * r.height();
+                    }
+
+                    checkerboard = checkerboardArea / (float)screenArea;
+                }
 
                 PanningPerfAPI.recordCheckerboard(checkerboard);
-                if (checkerboard < 0.0f || checkerboard > 1.0f) {
-                    Log.e(LOGTAG, "Checkerboard value out of bounds: " + checkerboard);
-                }
 
                 mCompleteFramesRendered += 1.0f - checkerboard;
                 mFramesRendered ++;
 
-                if (mFrameStartTime - mProfileOutputTime > NANOS_PER_SECOND) {
+                if (mFrameStartTime - mProfileOutputTime > 1000) {
                     mProfileOutputTime = mFrameStartTime;
                     printCheckerboardStats();
                 }
             }
 
-            runRenderTasks(mTasks, true, mFrameStartTime);
+            /* Draw the FPS. */
+            if (mFrameRateLayer != null) {
+                updateDroppedFrames(mFrameStartTime);
 
+                GLES20.glEnable(GLES20.GL_BLEND);
+                GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+                mFrameRateLayer.draw(mScreenContext);
+            }
         }
 
         /** This function is invoked via JNI; be careful when modifying signature. */
-        @JNITarget
         public void endDrawing() {
             // If a layer update requires further work, schedule another redraw
             if (!mUpdated)
@@ -607,38 +669,14 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
                 }
             }
 
-            // Remove background color once we've painted. GeckoLayerClient is
-            // responsible for setting this flag before current document is
-            // composited.
+            // Remove white screen once we've painted
             if (mView.getPaintState() == LayerView.PAINT_BEFORE_FIRST) {
                 mView.post(new Runnable() {
-                    @Override
                     public void run() {
                         mView.getChildAt(0).setBackgroundColor(Color.TRANSPARENT);
                     }
                 });
                 mView.setPaintState(LayerView.PAINT_AFTER_FIRST);
-            }
-            mLastFrameTime = mFrameStartTime;
-        }
-    }
-
-    @Override
-    public void onTabChanged(final Tab tab, Tabs.TabEvents msg, Object data) {
-        // Sets the background of the newly selected tab. This background color
-        // gets cleared in endDrawing(). This function runs on the UI thread,
-        // but other code that touches the paint state is run on the compositor
-        // thread, so this may need to be changed if any problems appear.
-        if (msg == Tabs.TabEvents.SELECTED) {
-            if (mView != null) {
-                final int overscrollColor =
-                        (tab.isPrivate() ? R.color.background_private : R.color.background_normal);
-                setOverscrollColor(overscrollColor);
-
-                if (mView.getChildAt(0) != null) {
-                    mView.getChildAt(0).setBackgroundColor(tab.getBackgroundColor());
-                }
-                mView.setPaintState(LayerView.PAINT_START);
             }
         }
     }

@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = [ "DownloadUtils" ];
+var EXPORTED_SYMBOLS = [ "DownloadUtils" ];
 
 /**
  * This module provides the DownloadUtils object which contains useful methods
@@ -39,12 +39,13 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+__defineGetter__("PluralForm", function() {
+  delete this.PluralForm;
+  Cu.import("resource://gre/modules/PluralForm.jsm");
+  return PluralForm;
+});
 
-XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
-                                  "resource://gre/modules/PluralForm.jsm");
-
-this.__defineGetter__("gDecimalSymbol", function() {
+__defineGetter__("gDecimalSymbol", function() {
   delete this.gDecimalSymbol;
   return this.gDecimalSymbol = Number(5.4).toLocaleString().match(/\D/);
 });
@@ -54,8 +55,6 @@ const kDownloadProperties =
 
 let gStr = {
   statusFormat: "statusFormat3",
-  statusFormatInfiniteRate: "statusFormatInfiniteRate",
-  statusFormatNoRate: "statusFormatNoRate",
   transferSameUnits: "transferSameUnits2",
   transferDiffUnits: "transferDiffUnits2",
   transferNoTotal: "transferNoTotal2",
@@ -71,11 +70,10 @@ let gStr = {
   units: ["bytes", "kilobyte", "megabyte", "gigabyte"],
   // Update timeSize in convertTimeUnits if changing the length of this array
   timeUnits: ["seconds", "minutes", "hours", "days"],
-  infiniteRate: "infiniteRate",
 };
 
 // This lazily initializes the string bundle upon first use.
-this.__defineGetter__("gBundle", function() {
+__defineGetter__("gBundle", function() {
   delete gBundle;
   return this.gBundle = Cc["@mozilla.org/intl/stringbundle;1"].
                         getService(Ci.nsIStringBundleService).
@@ -87,7 +85,7 @@ this.__defineGetter__("gBundle", function() {
 const kCachedLastMaxSize = 10;
 let gCachedLast = [];
 
-this.DownloadUtils = {
+let DownloadUtils = {
   /**
    * Generate a full status string for a download given its current progress,
    * total size, speed, last time remaining
@@ -105,73 +103,6 @@ this.DownloadUtils = {
   getDownloadStatus: function DU_getDownloadStatus(aCurrBytes, aMaxBytes,
                                                    aSpeed, aLastSec)
   {
-    let [transfer, timeLeft, newLast, normalizedSpeed]
-      = this._deriveTransferRate(aCurrBytes, aMaxBytes, aSpeed, aLastSec);
-
-    let [rate, unit] = DownloadUtils.convertByteUnits(normalizedSpeed);
-
-    let status;
-    if (rate === "Infinity") {
-      // Infinity download speed doesn't make sense. Show a localized phrase instead.
-      let params = [transfer, gBundle.GetStringFromName(gStr.infiniteRate), timeLeft];
-      status = gBundle.formatStringFromName(gStr.statusFormatInfiniteRate, params,
-                                            params.length);
-    }
-    else {
-      let params = [transfer, rate, unit, timeLeft];
-      status = gBundle.formatStringFromName(gStr.statusFormat, params,
-                                            params.length);
-    }
-    return [status, newLast];
-  },
-
-  /**
-   * Generate a status string for a download given its current progress,
-   * total size, speed, last time remaining. The status string contains the
-   * time remaining, as well as the total bytes downloaded. Unlike
-   * getDownloadStatus, it does not include the rate of download.
-   *
-   * @param aCurrBytes
-   *        Number of bytes transferred so far
-   * @param [optional] aMaxBytes
-   *        Total number of bytes or -1 for unknown
-   * @param [optional] aSpeed
-   *        Current transfer rate in bytes/sec or -1 for unknown
-   * @param [optional] aLastSec
-   *        Last time remaining in seconds or Infinity for unknown
-   * @return A pair: [download status text, new value of "last seconds"]
-   */
-  getDownloadStatusNoRate:
-  function DU_getDownloadStatusNoRate(aCurrBytes, aMaxBytes, aSpeed,
-                                      aLastSec)
-  {
-    let [transfer, timeLeft, newLast]
-      = this._deriveTransferRate(aCurrBytes, aMaxBytes, aSpeed, aLastSec);
-
-    let params = [transfer, timeLeft];
-    let status = gBundle.formatStringFromName(gStr.statusFormatNoRate, params,
-                                              params.length);
-    return [status, newLast];
-  },
-
-  /**
-   * Helper function that returns a transfer string, a time remaining string,
-   * and a new value of "last seconds".
-   * @param aCurrBytes
-   *        Number of bytes transferred so far
-   * @param [optional] aMaxBytes
-   *        Total number of bytes or -1 for unknown
-   * @param [optional] aSpeed
-   *        Current transfer rate in bytes/sec or -1 for unknown
-   * @param [optional] aLastSec
-   *        Last time remaining in seconds or Infinity for unknown
-   * @return A triple: [amount transferred string, time remaining string,
-   *                    new value of "last seconds"]
-   */
-  _deriveTransferRate: function DU__deriveTransferRate(aCurrBytes,
-                                                       aMaxBytes, aSpeed,
-                                                       aLastSec)
-  {
     if (aMaxBytes == null)
       aMaxBytes = -1;
     if (aSpeed == null)
@@ -184,8 +115,13 @@ this.DownloadUtils = {
       (aMaxBytes - aCurrBytes) / aSpeed : -1;
 
     let transfer = DownloadUtils.getTransferTotal(aCurrBytes, aMaxBytes);
+    let [rate, unit] = DownloadUtils.convertByteUnits(aSpeed);
     let [timeLeft, newLast] = DownloadUtils.getTimeLeft(seconds, aLastSec);
-    return [transfer, timeLeft, newLast, aSpeed];
+
+    let params = [transfer, rate, unit, timeLeft];
+    let status = gBundle.formatStringFromName(gStr.statusFormat, params,
+                                              params.length);
+    return [status, newLast];
   },
 
   /**

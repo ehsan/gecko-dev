@@ -23,9 +23,6 @@ struct extent_node_s {
 
 	/* Total region size. */
 	size_t			size;
-
-	/* True if zero-filled; used by chunk recycling code. */
-	bool			zeroed;
 };
 typedef rb_tree(extent_node_t) extent_tree_t;
 

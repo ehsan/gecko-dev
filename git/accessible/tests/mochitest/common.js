@@ -12,8 +12,6 @@ const nsIAccessibleTextChangeEvent =
   Components.interfaces.nsIAccessibleTextChangeEvent;
 const nsIAccessibleVirtualCursorChangeEvent =
   Components.interfaces.nsIAccessibleVirtualCursorChangeEvent;
-const nsIAccessibleObjectAttributeChangedEvent =
-  Components.interfaces.nsIAccessibleObjectAttributeChangedEvent;
 
 const nsIAccessibleStates = Components.interfaces.nsIAccessibleStates;
 const nsIAccessibleRole = Components.interfaces.nsIAccessibleRole;
@@ -21,7 +19,6 @@ const nsIAccessibleScrollType = Components.interfaces.nsIAccessibleScrollType;
 const nsIAccessibleCoordinateType = Components.interfaces.nsIAccessibleCoordinateType;
 
 const nsIAccessibleRelation = Components.interfaces.nsIAccessibleRelation;
-const nsIAccessibleTextRange = Components.interfaces.nsIAccessibleTextRange;
 
 const nsIAccessible = Components.interfaces.nsIAccessible;
 
@@ -34,6 +31,7 @@ const nsIAccessibleEditableText = Components.interfaces.nsIAccessibleEditableTex
 const nsIAccessibleHyperLink = Components.interfaces.nsIAccessibleHyperLink;
 const nsIAccessibleHyperText = Components.interfaces.nsIAccessibleHyperText;
 
+const nsIAccessibleCursorable = Components.interfaces.nsIAccessibleCursorable;
 const nsIAccessibleImage = Components.interfaces.nsIAccessibleImage;
 const nsIAccessiblePivot = Components.interfaces.nsIAccessiblePivot;
 const nsIAccessibleSelectable = Components.interfaces.nsIAccessibleSelectable;
@@ -75,18 +73,11 @@ const STATE_BUSY = nsIAccessibleStates.STATE_BUSY;
 
 const SCROLL_TYPE_ANYWHERE = nsIAccessibleScrollType.SCROLL_TYPE_ANYWHERE;
 
-const COORDTYPE_SCREEN_RELATIVE = nsIAccessibleCoordinateType.COORDTYPE_SCREEN_RELATIVE;
-const COORDTYPE_WINDOW_RELATIVE = nsIAccessibleCoordinateType.COORDTYPE_WINDOW_RELATIVE;
-const COORDTYPE_PARENT_RELATIVE = nsIAccessibleCoordinateType.COORDTYPE_PARENT_RELATIVE;
-
 const kEmbedChar = String.fromCharCode(0xfffc);
 
-const kDiscBulletChar = String.fromCharCode(0x2022);
-const kDiscBulletText = kDiscBulletChar + " ";
+const kDiscBulletText = String.fromCharCode(0x2022) + " ";
 const kCircleBulletText = String.fromCharCode(0x25e6) + " ";
-const kSquareBulletText = String.fromCharCode(0x25fe) + " ";
-
-const MAX_TRIM_LENGTH = 100;
+const kSquareBulletText = String.fromCharCode(0x25aa) + " ";
 
 /**
  * nsIAccessibleRetrieval service.
@@ -104,10 +95,6 @@ function enableLogging(aModules)
 function disableLogging()
 {
   gAccRetrieval.setLogging("");
-}
-function isLogged(aModule)
-{
-  return gAccRetrieval.isLogged(aModule);
 }
 
 /**
@@ -161,7 +148,7 @@ function isObject(aObj, aExpectedObj, aMsg)
 /**
  * Return the DOM node by identifier (may be accessible, DOM node or ID).
  */
-function getNode(aAccOrNodeOrID, aDocument)
+function getNode(aAccOrNodeOrID)
 {
   if (!aAccOrNodeOrID)
     return null;
@@ -172,7 +159,7 @@ function getNode(aAccOrNodeOrID, aDocument)
   if (aAccOrNodeOrID instanceof nsIAccessible)
     return aAccOrNodeOrID.DOMNode;
 
-  var node = (aDocument || document).getElementById(aAccOrNodeOrID);
+  node = document.getElementById(aAccOrNodeOrID);
   if (!node) {
     ok(false, "Can't get DOM element for " + aAccOrNodeOrID);
     return null;
@@ -238,7 +225,7 @@ function getAccessible(aAccOrElmOrID, aInterfaces, aElmObj, aDoNotFailIf)
 
     if (!acc) {
       if (!(aDoNotFailIf & DONOTFAIL_IF_NO_ACC))
-        ok(false, "Can't get accessible for " + prettyName(aAccOrElmOrID));
+        ok(false, "Can't get accessible for " + aAccOrElmOrID);
 
       return null;
     }
@@ -247,20 +234,27 @@ function getAccessible(aAccOrElmOrID, aInterfaces, aElmObj, aDoNotFailIf)
   if (!aInterfaces)
     return acc;
 
-  if (!(aInterfaces instanceof Array))
-    aInterfaces = [ aInterfaces ];
+  if (aInterfaces instanceof Array) {
+    for (var index = 0; index < aInterfaces.length; index++) {
+      try {
+        acc.QueryInterface(aInterfaces[index]);
+      } catch (e) {
+        if (!(aDoNotFailIf & DONOTFAIL_IF_NO_INTERFACE))
+          ok(false, "Can't query " + aInterfaces[index] + " for " + aAccOrElmOrID);
 
-  for (var index = 0; index < aInterfaces.length; index++) {
-    try {
-      acc.QueryInterface(aInterfaces[index]);
-    } catch (e) {
-      if (!(aDoNotFailIf & DONOTFAIL_IF_NO_INTERFACE))
-        ok(false, "Can't query " + aInterfaces[index] + " for " + aAccOrElmOrID);
-
-      return null;
+        return null;
+      }
     }
+    return acc;
   }
-
+  
+  try {
+    acc.QueryInterface(aInterfaces);
+  } catch (e) {
+    ok(false, "Can't query " + aInterfaces + " for " + aAccOrElmOrID);
+    return null;
+  }
+  
   return acc;
 }
 
@@ -325,19 +319,6 @@ function getApplicationAccessible()
 }
 
 /**
- * A version of accessible tree testing, doesn't fail if tree is not complete.
- */
-function testElm(aID, aTreeObj)
-{
-  testAccessibleTree(aID, aTreeObj, kSkipTreeFullCheck);
-}
-
-/**
- * Flags used for testAccessibleTree
- */
-const kSkipTreeFullCheck = 1;
-
-/**
  * Compare expected and actual accessibles trees.
  *
  * @param  aAccOrElmOrID  [in] accessible identifier
@@ -348,9 +329,8 @@ const kSkipTreeFullCheck = 1;
  *                                      children of accessible
  *                          states   - an object having states and extraStates
  *                                      fields
- * @param aFlags          [in, optional] flags, see constants above
  */
-function testAccessibleTree(aAccOrElmOrID, aAccTree, aFlags)
+function testAccessibleTree(aAccOrElmOrID, aAccTree)
 {
   var acc = getAccessible(aAccOrElmOrID);
   if (!acc)
@@ -371,97 +351,27 @@ function testAccessibleTree(aAccOrElmOrID, aAccTree, aFlags)
   // Test accessible properties.
   for (var prop in accTree) {
     var msg = "Wrong value of property '" + prop + "' for " + prettyName(acc) + ".";
+    if (prop == "role") {
+      is(roleToString(acc[prop]), roleToString(accTree[prop]), msg);
 
-    switch (prop) {
-    case "actions": {
-      testActionNames(acc, accTree.actions);
-      break;
-    }
+    } else if (prop == "states") {
+      var statesObj = accTree[prop];
+      testStates(acc, statesObj.states, statesObj.extraStates,
+                 statesObj.absentStates, statesObj.absentExtraStates);
 
-    case "attributes":
-      testAttrs(acc, accTree[prop], true);
-      break;
-
-    case "absentAttributes":
-      testAbsentAttrs(acc, accTree[prop]);
-      break;
-
-    case "interfaces": {
-      var ifaces = (accTree[prop] instanceof Array) ?
-        accTree[prop] : [ accTree[prop] ];
-      for (var i = 0; i < ifaces.length; i++) {
-        ok((acc instanceof ifaces[i]),
-           "No " + ifaces[i] + " interface on " + prettyName(acc));
-      }
-      break;
-    }
-
-    case "relations": {
-      for (var rel in accTree[prop])
-        testRelation(acc, window[rel], accTree[prop][rel]);
-      break;
-    }
-
-    case "role":
-      isRole(acc, accTree[prop], msg);
-      break;
-
-    case "states":
-    case "extraStates":
-    case "absentStates":
-    case "absentExtraStates": {
-      testStates(acc, accTree["states"], accTree["extraStates"],
-                 accTree["absentStates"], accTree["absentExtraStates"]);
-      break;
-    }
-
-    case "tagName":
-      is(accTree[prop], acc.DOMNode.tagName, msg);
-      break;
-
-    case "textAttrs": {
-      var prevOffset = -1;
-      for (var offset in accTree[prop]) {
-        if (prevOffset !=- 1) {
-          var attrs = accTree[prop][prevOffset];
-          testTextAttrs(acc, prevOffset, attrs, { }, prevOffset, offset, true);
-        }
-        prevOffset = offset;
-      }
-
-      if (prevOffset != -1) {
-        var charCount = getAccessible(acc, [nsIAccessibleText]).characterCount;
-        var attrs = accTree[prop][prevOffset];
-        testTextAttrs(acc, prevOffset, attrs, { }, prevOffset, charCount, true);
-      }
-
-      break;
-    }
-
-    default:
-      if (prop.indexOf("todo_") == 0)
-        todo(false, msg);
-      else if (prop != "children")
-        is(acc[prop], accTree[prop], msg);
+    } else if (prop != "children") {
+      is(acc[prop], accTree[prop], msg);
     }
   }
 
   // Test children.
   if ("children" in accTree && accTree["children"] instanceof Array) {
     var children = acc.children;
-    var childCount = children.length;
-
-    is(childCount, accTree.children.length,
+    is(children.length, accTree.children.length,
        "Different amount of expected children of " + prettyName(acc) + ".");
 
-    if (accTree.children.length == childCount) {
-      if (aFlags & kSkipTreeFullCheck) {
-        for (var i = 0; i < childCount; i++) {
-          var child = children.queryElementAt(i, nsIAccessible);
-          testAccessibleTree(child, accTree.children[i], aFlags);
-        }
-        return;
-      }
+    if (accTree.children.length == children.length) {
+      var childCount = children.length;
 
       // nsIAccessible::firstChild
       var expectedFirstChild = childCount > 0 ?
@@ -479,7 +389,7 @@ function testAccessibleTree(aAccOrElmOrID, aAccTree, aFlags)
       is(lastChild, expectedLastChild,
          "Wrong last child of " + prettyName(acc));
 
-      for (var i = 0; i < childCount; i++) {
+      for (var i = 0; i < children.length; i++) {
         var child = children.queryElementAt(i, nsIAccessible);
 
         // nsIAccessible::parent
@@ -510,7 +420,7 @@ function testAccessibleTree(aAccOrElmOrID, aAccTree, aFlags)
            "Wrong previous sibling of " + prettyName(child));
 
         // Go down through subtree
-        testAccessibleTree(child, accTree.children[i], aFlags);
+        testAccessibleTree(child, accTree.children[i]);
       }
     }
   }
@@ -659,13 +569,13 @@ function getTextFromClipboard()
   var clip = Components.classes["@mozilla.org/widget/clipboard;1"].
     getService(Components.interfaces.nsIClipboard);
   if (!clip)
-    return "";
+    return;
 
   var trans = Components.classes["@mozilla.org/widget/transferable;1"].
     createInstance(Components.interfaces.nsITransferable);
   trans.init(getLoadContext());
   if (!trans)
-    return "";
+    return;
 
   trans.addDataFlavor("text/unicode");
   clip.getData(trans, clip.kGlobalClipboard);
@@ -687,24 +597,13 @@ function getTextFromClipboard()
  */
 function prettyName(aIdentifier)
 {
-  if (aIdentifier instanceof Array) {
-    var msg = "";
-    for (var idx = 0; idx < aIdentifier.length; idx++) {
-      if (msg != "")
-        msg += ", ";
-
-      msg += prettyName(aIdentifier[idx]);
-    }
-    return msg;
-  }
-
   if (aIdentifier instanceof nsIAccessible) {
     var acc = getAccessible(aIdentifier);
     var msg = "[" + getNodePrettyName(acc.DOMNode);
     try {
       msg += ", role: " + roleToString(acc.role);
       if (acc.name)
-        msg += ", name: '" + shortenString(acc.name) + "'";
+        msg += ", name: '" + acc.name + "'";
     } catch (e) {
       msg += "defunct";
     }
@@ -720,54 +619,6 @@ function prettyName(aIdentifier)
     return "[ " + getNodePrettyName(aIdentifier) + " ]";
 
   return " '" + aIdentifier + "' ";
-}
-
-/**
- * Shorten a long string if it exceeds MAX_TRIM_LENGTH.
- * @param aString the string to shorten.
- * @returns the shortened string.
- */
-function shortenString(aString, aMaxLength)
-{
-  if (aString.length <= MAX_TRIM_LENGTH)
-    return aString;
-
-  // Trim the string if its length is > MAX_TRIM_LENGTH characters.
-  var trimOffset = MAX_TRIM_LENGTH / 2;
-  return aString.substring(0, trimOffset - 1) + "..." +
-    aString.substring(aString.length - trimOffset, aString.length);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// General Utils
-////////////////////////////////////////////////////////////////////////////////
-/**
- * Return main chrome window (crosses chrome boundary)
- */
-function getMainChromeWindow(aWindow)
-{
-  return aWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                .getInterface(Components.interfaces.nsIWebNavigation)
-                .QueryInterface(Components.interfaces.nsIDocShellTreeItem)
-                .rootTreeItem
-                .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                .getInterface(Components.interfaces.nsIDOMWindow);
-}
-
-/** Sets the test plugin(s) initially expected enabled state.
- * It will automatically be reset to it's previous value after the test
- * ends.
- * @param aNewEnabledState [in] the enabled state, e.g. SpecialPowers.Ci.nsIPluginTag.STATE_ENABLED
- * @param aPluginName [in, optional] The name of the plugin, defaults to "Test Plug-in"
- */
-function setTestPluginEnabledState(aNewEnabledState, aPluginName)
-{
-  var plugin = getTestPluginTag(aPluginName);
-  var oldEnabledState = plugin.enabledState;
-  plugin.enabledState = aNewEnabledState;
-  SimpleTest.registerCleanupFunction(function() {
-    getTestPluginTag(aPluginName).enabledState = oldEnabledState;
-  });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -803,20 +654,4 @@ function getObjAddress(aObj)
     return match[1];
 
   return aObj.toString();
-}
-
-function getTestPluginTag(aPluginName)
-{
-  var ph = SpecialPowers.Cc["@mozilla.org/plugin/host;1"]
-                        .getService(SpecialPowers.Ci.nsIPluginHost);
-  var tags = ph.getPluginTags();
-  var name = aPluginName || "Test Plug-in";
-  for (var tag of tags) {
-    if (tag.name == name) {
-      return tag;
-    }
-  }
-
-  ok(false, "Could not find plugin tag with plugin name '" + name + "'");
-  return null;
 }

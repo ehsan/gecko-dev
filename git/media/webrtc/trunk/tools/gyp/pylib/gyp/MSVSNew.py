@@ -1,9 +1,10 @@
-# Copyright (c) 2012 Google Inc. All rights reserved.
+# Copyright (c) 2011 Google Inc. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 """New implementation of Visual Studio project generation for SCons."""
 
+import common
 import os
 import random
 
@@ -59,13 +60,7 @@ def MakeGuid(name, seed='msvs_new'):
 #------------------------------------------------------------------------------
 
 
-class MSVSSolutionEntry(object):
-  def __cmp__(self, other):
-    # Sort by name then guid (so things are in order on vs2008).
-    return cmp((self.name, self.get_guid()), (other.name, other.get_guid()))
-
-
-class MSVSFolder(MSVSSolutionEntry):
+class MSVSFolder(object):
   """Folder in a Visual Studio project or solution."""
 
   def __init__(self, path, name = None, entries = None,
@@ -91,7 +86,7 @@ class MSVSFolder(MSVSSolutionEntry):
     self.guid = guid
 
     # Copy passed lists (or set to empty lists)
-    self.entries = sorted(list(entries or []))
+    self.entries = list(entries or [])
     self.items = list(items or [])
 
     self.entry_type_guid = ENTRY_TYPE_GUIDS['folder']
@@ -106,7 +101,7 @@ class MSVSFolder(MSVSSolutionEntry):
 #------------------------------------------------------------------------------
 
 
-class MSVSProject(MSVSSolutionEntry):
+class MSVSProject(object):
   """Visual Studio project."""
 
   def __init__(self, path, name = None, dependencies = None, guid = None,
@@ -144,11 +139,10 @@ class MSVSProject(MSVSSolutionEntry):
     else:
       self.config_platform_overrides = {}
     self.fixpath_prefix = fixpath_prefix
-    self.msbuild_toolset = None
 
   def set_dependencies(self, dependencies):
     self.dependencies = list(dependencies or [])
-
+  
   def get_guid(self):
     if self.guid is None:
       # Set GUID from path
@@ -165,9 +159,6 @@ class MSVSProject(MSVSSolutionEntry):
       #    GUID from the files.
       self.guid = MakeGuid(self.name)
     return self.guid
-
-  def set_msbuild_toolset(self, msbuild_toolset):
-    self.msbuild_toolset = msbuild_toolset
 
 #------------------------------------------------------------------------------
 
@@ -213,7 +204,7 @@ class MSVSSolution:
     self.Write()
 
 
-  def Write(self, writer=gyp.common.WriteOnDiff):
+  def Write(self, writer=common.WriteOnDiff):
     """Writes the solution file to disk.
 
     Raises:
@@ -235,7 +226,15 @@ class MSVSSolution:
       if isinstance(e, MSVSFolder):
         entries_to_check += e.entries
 
-    all_entries = sorted(all_entries)
+    # Sort by name then guid (so things are in order on vs2008).
+    def NameThenGuid(a, b):
+      if a.name < b.name: return -1
+      if a.name > b.name: return 1
+      if a.get_guid() < b.get_guid(): return -1
+      if a.get_guid() > b.get_guid(): return 1
+      return 0
+
+    all_entries = sorted(all_entries, NameThenGuid)
 
     # Open file and print header
     f = writer(self.path)

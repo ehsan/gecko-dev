@@ -7,35 +7,26 @@ package org.mozilla.gecko.sync.syncadapter;
 import java.io.IOException;
 import java.net.URI;
 import java.security.NoSuchAlgorithmException;
-import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.json.simple.parser.ParseException;
-import org.mozilla.gecko.background.common.GlobalConstants;
-import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.db.BrowserContract;
 import org.mozilla.gecko.sync.AlreadySyncingException;
-import org.mozilla.gecko.sync.BackoffHandler;
 import org.mozilla.gecko.sync.CredentialException;
+import org.mozilla.gecko.sync.GlobalConstants;
 import org.mozilla.gecko.sync.GlobalSession;
+import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.NonObjectJSONException;
-import org.mozilla.gecko.sync.PrefsBackoffHandler;
-import org.mozilla.gecko.sync.SharedPreferencesClientsDataDelegate;
-import org.mozilla.gecko.sync.SharedPreferencesNodeAssignmentCallback;
-import org.mozilla.gecko.sync.Sync11Configuration;
 import org.mozilla.gecko.sync.SyncConfiguration;
 import org.mozilla.gecko.sync.SyncConfigurationException;
-import org.mozilla.gecko.sync.SyncConstants;
 import org.mozilla.gecko.sync.SyncException;
 import org.mozilla.gecko.sync.ThreadPool;
 import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.config.AccountPickler;
 import org.mozilla.gecko.sync.crypto.CryptoException;
 import org.mozilla.gecko.sync.crypto.KeyBundle;
-import org.mozilla.gecko.sync.delegates.BaseGlobalSessionCallback;
 import org.mozilla.gecko.sync.delegates.ClientsDataDelegate;
-import org.mozilla.gecko.sync.net.AuthHeaderProvider;
-import org.mozilla.gecko.sync.net.BasicAuthHeaderProvider;
+import org.mozilla.gecko.sync.delegates.GlobalSessionCallback;
 import org.mozilla.gecko.sync.net.ConnectionMonitorThread;
 import org.mozilla.gecko.sync.setup.Constants;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
@@ -51,12 +42,13 @@ import android.content.ContentProviderClient;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.SharedPreferences.Editor;
 import android.content.SyncResult;
 import android.database.sqlite.SQLiteConstraintException;
 import android.database.sqlite.SQLiteException;
 import android.os.Bundle;
 
-public class SyncAdapter extends AbstractThreadedSyncAdapter implements BaseGlobalSessionCallback {
+public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSessionCallback, ClientsDataDelegate {
   private static final String  LOG_TAG = "SyncAdapter";
 
   private static final int     BACKOFF_PAD_SECONDS = 5;
@@ -67,11 +59,31 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements BaseGlob
 
   protected long syncStartTimestamp;
 
-  protected volatile BackoffHandler backoffHandler;
-
   public SyncAdapter(Context context, boolean autoInitialize) {
     super(context, autoInitialize);
     mContext = context;
+  }
+
+  /**
+   * Backoff.
+   */
+  public synchronized long getEarliestNextSync() {
+    return accountSharedPreferences.getLong(SyncConfiguration.PREF_EARLIEST_NEXT_SYNC, 0);
+  }
+
+  public synchronized void setEarliestNextSync(long next) {
+    Editor edit = accountSharedPreferences.edit();
+    edit.putLong(SyncConfiguration.PREF_EARLIEST_NEXT_SYNC, next);
+    edit.commit();
+  }
+
+  public synchronized void extendEarliestNextSync(long next) {
+    if (accountSharedPreferences.getLong(SyncConfiguration.PREF_EARLIEST_NEXT_SYNC, 0) >= next) {
+      return;
+    }
+    Editor edit = accountSharedPreferences.edit();
+    edit.putLong(SyncConfiguration.PREF_EARLIEST_NEXT_SYNC, next);
+    edit.commit();
   }
 
   /**
@@ -177,34 +189,25 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements BaseGlob
   public Object syncMonitor = new Object();
   private SyncResult syncResult;
 
-  protected Account localAccount;
+  public Account localAccount;
   protected boolean thisSyncIsForced = false;
-  protected SharedPreferences accountSharedPreferences;
-  protected SharedPreferencesClientsDataDelegate clientsDataDelegate;
-  protected SharedPreferencesNodeAssignmentCallback nodeAssignmentDelegate;
+  public SharedPreferences accountSharedPreferences;
 
   /**
-   * Request that no sync start right away.  A new sync won't start until
-   * at least <code>backoff</code> milliseconds from now.
-   *
-   * Don't call this unless you are inside `run`.
-   *
-   * @param backoff time to wait in milliseconds.
+   * Return the number of milliseconds until we're allowed to sync again,
+   * or 0 if now is fine.
    */
-  @Override
-  public void requestBackoff(final long backoff) {
-    if (this.backoffHandler == null) {
-      throw new IllegalStateException("No backoff handler: requesting backoff outside run()?");
+  public long delayMilliseconds() {
+    long earliestNextSync = getEarliestNextSync();
+    if (earliestNextSync <= 0) {
+      return 0;
     }
-    if (backoff > 0) {
-      // Fuzz the backoff time (up to 25% more) to prevent client lock-stepping; agrees with desktop.
-      final long fuzzedBackoff = backoff + Math.round(backoff * 0.25d * Math.random());
-      this.backoffHandler.extendEarliestNextRequest(System.currentTimeMillis() + fuzzedBackoff);
-    }
+    long now = System.currentTimeMillis();
+    return Math.max(0, earliestNextSync - now);
   }
 
   @Override
-  public boolean shouldBackOffStorage() {
+  public boolean shouldBackOff() {
     if (thisSyncIsForced) {
       /*
        * If the user asks us to sync, we should sync regardless. This path is
@@ -214,7 +217,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements BaseGlob
       return false;
     }
 
-    if (nodeAssignmentDelegate.wantNodeAssignment()) {
+    if (wantNodeAssignment()) {
       /*
        * We recently had a 401 and we aborted the last sync. We should kick off
        * another sync to fetch a new node/weave cluster URL, since ours is
@@ -225,10 +228,22 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements BaseGlob
       return false;
     }
 
-    if (this.backoffHandler == null) {
-      throw new IllegalStateException("No backoff handler: checking backoff outside run()?");
+    return delayMilliseconds() > 0;
+  }
+
+  /**
+   * Request that no sync start right away.  A new sync won't start until
+   * at least <code>backoff</code> milliseconds from now.
+   *
+   * @param backoff time to wait in milliseconds.
+   */
+  @Override
+  public void requestBackoff(long backoff) {
+    if (backoff > 0) {
+      // Fuzz the backoff time (up to 25% more) to prevent client lock-stepping; agrees with desktop.
+      backoff = backoff + Math.round((double) backoff * 0.25d * Math.random());
+      this.extendEarliestNextSync(System.currentTimeMillis() + backoff);
     }
-    return this.backoffHandler.delayMilliseconds() > 0;
   }
 
   /**
@@ -243,23 +258,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements BaseGlob
    *          stage names to sync, or <code>null</code> to sync all known stages.
    */
   public static void requestImmediateSync(final Account account, final String[] stageNames) {
-    requestImmediateSync(account, stageNames, null);
-  }
-
-  /**
-   * Asynchronously request an immediate sync, optionally syncing only the given
-   * named stages.
-   * <p>
-   * Returns immediately.
-   *
-   * @param account
-   *          the Android <code>Account</code> instance to sync.
-   * @param stageNames
-   *          stage names to sync, or <code>null</code> to sync all known stages.
-   * @param moreExtras
-   *          bundle of extras to give to the sync, or <code>null</code>
-   */
-  public static void requestImmediateSync(final Account account, final String[] stageNames, Bundle moreExtras) {
     if (account == null) {
       Logger.warn(LOG_TAG, "Not requesting immediate sync because Android Account is null.");
       return;
@@ -268,11 +266,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements BaseGlob
     final Bundle extras = new Bundle();
     Utils.putStageNamesToSync(extras, stageNames, null);
     extras.putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true);
-
-    if (moreExtras != null) {
-      extras.putAll(moreExtras);
-    }
-
     ContentResolver.requestSync(account, BrowserContract.AUTHORITY, extras);
   }
 
@@ -282,9 +275,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements BaseGlob
                             final String authority,
                             final ContentProviderClient provider,
                             final SyncResult syncResult) {
-    syncStartTimestamp = System.currentTimeMillis();
-
-    Logger.setThreadLogTag(SyncConstants.GLOBAL_LOG_TAG);
     Logger.resetLogging();
     Utils.reseedSharedRandom(); // Make sure we don't work with the same random seed for too long.
 
@@ -315,14 +305,8 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements BaseGlob
         Logger.trace(LOG_TAG, "AccountManagerCallback invoked.");
         // TODO: N.B.: Future must not be used on the main thread.
         try {
-          if (Logger.LOG_PERSONAL_INFORMATION) {
-            Logger.pii(LOG_TAG, "Syncing account named " + account.name +
-                " for authority " + authority + ".");
-          } else {
-            // Replace "foo@bar.com" with "XXX@XXX.XXX".
-            Logger.info(LOG_TAG, "Syncing account named like " + Utils.obfuscateEmail(account.name) +
-                " for authority " + authority + ".");
-          }
+          Logger.info(LOG_TAG, "Syncing account named " + account.name +
+              " for authority " + authority + ".");
 
           // We dump this information right away to help with debugging.
           Logger.debug(LOG_TAG, "Username: " + username);
@@ -341,25 +325,25 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements BaseGlob
           final String profile = Constants.DEFAULT_PROFILE;
           final long version = SyncConfiguration.CURRENT_PREFS_VERSION;
           self.accountSharedPreferences = Utils.getSharedPreferences(mContext, product, username, serverURL, profile, version);
-          self.clientsDataDelegate = new SharedPreferencesClientsDataDelegate(accountSharedPreferences, mContext);
-          self.backoffHandler = new PrefsBackoffHandler(accountSharedPreferences, SyncConstants.BACKOFF_PREF_SUFFIX_11);
-          final String nodeWeaveURL = Utils.nodeWeaveURL(serverURL, username);
-          self.nodeAssignmentDelegate = new SharedPreferencesNodeAssignmentCallback(accountSharedPreferences, nodeWeaveURL);
 
           Logger.info(LOG_TAG,
-              "Client is named '" + clientsDataDelegate.getClientName() + "'" +
-              ", has client guid " + clientsDataDelegate.getAccountGUID() +
-              ", and has " + clientsDataDelegate.getClientsCount() + " clients.");
+              "Client is named '" + getClientName() + "'" +
+              ", has client guid " + getAccountGUID() +
+              ", and has " + getClientsCount() + " clients.");
 
-          final boolean thisSyncIsForced = (extras != null) && (extras.getBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, false));
-          final long delayMillis = backoffHandler.delayMilliseconds();
-          boolean shouldSync = thisSyncIsForced || (delayMillis <= 0L);
-          if (!shouldSync) {
-            long remainingSeconds = delayMillis / 1000;
-            syncResult.delayUntil = remainingSeconds + BACKOFF_PAD_SECONDS;
-            setNextSync.set(false);
-            self.notifyMonitor();
-            return;
+          thisSyncIsForced = (extras != null) && (extras.getBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, false));
+          long delay = delayMilliseconds();
+          if (delay > 0) {
+            if (thisSyncIsForced) {
+              Logger.info(LOG_TAG, "Forced sync: overruling remaining backoff of " + delay + "ms.");
+            } else {
+              Logger.info(LOG_TAG, "Not syncing: must wait another " + delay + "ms.");
+              long remainingSeconds = delay / 1000;
+              syncResult.delayUntil = remainingSeconds + BACKOFF_PAD_SECONDS;
+              setNextSync.set(false);
+              self.notifyMonitor();
+              return;
+            }
           }
 
           final String prefsPath = Utils.getPrefsPath(product, username, serverURL, profile, version);
@@ -387,16 +371,10 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements BaseGlob
         syncMonitor.wait();
 
         if (setNextSync.get()) {
-          long interval = getSyncInterval(clientsDataDelegate);
+          long interval = getSyncInterval();
           long next = System.currentTimeMillis() + interval;
-
-          if (thisSyncIsForced) {
-            Logger.info(LOG_TAG, "Setting minimum next sync time to " + next + " (" + interval + "ms from now).");
-            self.backoffHandler.setEarliestNextRequest(next);
-          } else {
-            Logger.info(LOG_TAG, "Extending minimum next sync time to " + next + " (" + interval + "ms from now).");
-            self.backoffHandler.extendEarliestNextRequest(next);
-          }
+          Logger.info(LOG_TAG, "Setting minimum next sync time to " + next + " (" + interval + "ms from now).");
+          extendEarliestNextSync(next);
         }
         Logger.info(LOG_TAG, "Sync took " + Utils.formatDuration(syncStartTimestamp, System.currentTimeMillis()) + ".");
       } catch (InterruptedException e) {
@@ -408,13 +386,13 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements BaseGlob
     }
   }
 
-  public int getSyncInterval(ClientsDataDelegate clientsDataDelegate) {
+  public int getSyncInterval() {
     // Must have been a problem that means we can't access the Account.
     if (this.localAccount == null) {
       return SINGLE_DEVICE_INTERVAL_MILLISECONDS;
     }
 
-    int clientsCount = clientsDataDelegate.getClientsCount();
+    int clientsCount = this.getClientsCount();
     if (clientsCount <= 1) {
       return SINGLE_DEVICE_INTERVAL_MILLISECONDS;
     }
@@ -450,6 +428,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements BaseGlob
                                         IOException, ParseException,
                                         NonObjectJSONException, CryptoException {
     Logger.trace(LOG_TAG, "Performing sync.");
+    syncStartTimestamp = System.currentTimeMillis();
 
     /**
      * Bug 769745: pickle Sync account parameters to JSON file. Un-pickle in
@@ -463,8 +442,8 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements BaseGlob
         password,
         serverURL,
         null, // We'll re-fetch cluster URL; not great, but not harmful.
-        clientsDataDelegate.getClientName(),
-        clientsDataDelegate.getAccountGUID());
+        getClientName(),
+        getAccountGUID());
 
       // Bug 772971: pickle Sync account parameters on background thread to
       // avoid strict mode warnings.
@@ -484,30 +463,12 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements BaseGlob
       // Do nothing.
     }
 
-    if (username == null) {
-      throw new IllegalArgumentException("username must not be null.");
-    }
-
-    if (syncKey == null) {
-      throw new SyncConfigurationException();
-    }
-
+    // TODO: default serverURL.
     final KeyBundle keyBundle = new KeyBundle(username, syncKey);
+    GlobalSession globalSession = new GlobalSession(SyncConfiguration.DEFAULT_USER_API,
+                                                    serverURL, username, password, prefsPath,
+                                                    keyBundle, this, this.mContext, extras, this);
 
-    if (keyBundle == null ||
-        keyBundle.getEncryptionKey() == null ||
-        keyBundle.getHMACKey() == null) {
-      throw new SyncConfigurationException();
-    }
-
-    final AuthHeaderProvider authHeaderProvider = new BasicAuthHeaderProvider(username, password);
-    final SharedPreferences prefs = getContext().getSharedPreferences(prefsPath, Utils.SHARED_PREFERENCES_MODE);
-    final SyncConfiguration config = new Sync11Configuration(username, authHeaderProvider, prefs, keyBundle);
-
-    Collection<String> knownStageNames = SyncConfiguration.validEngineNames();
-    config.stagesToSync = Utils.getStagesToSyncFromBundle(knownStageNames, extras);
-
-    GlobalSession globalSession = new GlobalSession(config, this, this.mContext, clientsDataDelegate, nodeAssignmentDelegate);
     globalSession.start();
   }
 
@@ -534,6 +495,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements BaseGlob
   @Override
   public void handleSuccess(GlobalSession globalSession) {
     Logger.info(LOG_TAG, "GlobalSession indicated success.");
+    Logger.debug(LOG_TAG, "Prefs target: " + globalSession.config.prefsPath);
     globalSession.config.persistToPrefs();
     notifyMonitor();
   }
@@ -545,8 +507,71 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements BaseGlob
   }
 
   @Override
+  public synchronized String getAccountGUID() {
+    String accountGUID = accountSharedPreferences.getString(SyncConfiguration.PREF_ACCOUNT_GUID, null);
+    if (accountGUID == null) {
+      Logger.debug(LOG_TAG, "Account GUID was null. Creating a new one.");
+      accountGUID = Utils.generateGuid();
+      accountSharedPreferences.edit().putString(SyncConfiguration.PREF_ACCOUNT_GUID, accountGUID).commit();
+    }
+    return accountGUID;
+  }
+
+  @Override
+  public synchronized String getClientName() {
+    String clientName = accountSharedPreferences.getString(SyncConfiguration.PREF_CLIENT_NAME, null);
+    if (clientName == null) {
+      clientName = GlobalConstants.PRODUCT_NAME + " on " + android.os.Build.MODEL;
+      accountSharedPreferences.edit().putString(SyncConfiguration.PREF_CLIENT_NAME, clientName).commit();
+    }
+    return clientName;
+  }
+
+  @Override
+  public synchronized void setClientsCount(int clientsCount) {
+    accountSharedPreferences.edit().putLong(SyncConfiguration.PREF_NUM_CLIENTS, (long) clientsCount).commit();
+  }
+
+  @Override
+  public boolean isLocalGUID(String guid) {
+    return getAccountGUID().equals(guid);
+  }
+
+  @Override
+  public synchronized int getClientsCount() {
+    return (int) accountSharedPreferences.getLong(SyncConfiguration.PREF_NUM_CLIENTS, 0);
+  }
+
+  public synchronized boolean getClusterURLIsStale() {
+    return accountSharedPreferences.getBoolean(SyncConfiguration.PREF_CLUSTER_URL_IS_STALE, false);
+  }
+
+  public synchronized void setClusterURLIsStale(boolean clusterURLIsStale) {
+    Editor edit = accountSharedPreferences.edit();
+    edit.putBoolean(SyncConfiguration.PREF_CLUSTER_URL_IS_STALE, clusterURLIsStale);
+    edit.commit();
+  }
+
+  @Override
+  public boolean wantNodeAssignment() {
+    return getClusterURLIsStale();
+  }
+
+  @Override
+  public void informNodeAuthenticationFailed(GlobalSession session, URI failedClusterURL) {
+    // TODO: communicate to the user interface that we need a new user password!
+    // TODO: only freshen the cluster URL (better yet, forget the cluster URL) after the user has provided new credentials.
+    setClusterURLIsStale(false);
+  }
+
+  @Override
+  public void informNodeAssigned(GlobalSession session, URI oldClusterURL, URI newClusterURL) {
+    setClusterURLIsStale(false);
+  }
+
+  @Override
   public void informUnauthorizedResponse(GlobalSession session, URI oldClusterURL) {
-    nodeAssignmentDelegate.setClusterURLIsStale(true);
+    setClusterURLIsStale(true);
   }
 
   @Override

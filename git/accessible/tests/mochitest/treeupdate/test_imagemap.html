@@ -228,9 +228,6 @@
       {
         this.imageMap = getAccessible(aImageMapID);
         this.mapNode.setAttribute("name", "atoz_map");
-
-        // XXXhack: force repainting of the image (see bug 745788 for details).
-        waveOverImageMap(aImageMapID);
       }
 
       this.finalCheck = function removeNameOnMap_finalCheck()
@@ -381,10 +378,11 @@
       }
     }
 
-    //gA11yEventDumpToConsole = true; // debug stuff
+    gA11yEventDumpToConsole = true;
     function doPreTest()
     {
-      waitForImageMap("imgmap", doTest);
+      var imgMap = document.getElementById("imgmap");
+      waitForImageMap(imgMap, doTest);
     }
 
     var gQueue = null;
@@ -400,9 +398,6 @@
       gQueue.push(new removeMap("container", "imgmap", "map"));
       gQueue.push(new insertMap("container", "imgmap"));
       gQueue.push(new hideImageMap("container", "imgmap"));
-
-      //enableLogging("tree"); // debug stuff
-      //gQueue.onFinish = function() { disableLogging("tree"); }
 
       gQueue.invoke(); // Will call SimpleTest.finish();
     }

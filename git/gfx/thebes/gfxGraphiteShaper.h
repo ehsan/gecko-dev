@@ -6,7 +6,10 @@
 #ifndef GFX_GRAPHITESHAPER_H
 #define GFX_GRAPHITESHAPER_H
 
+#include "gfxTypes.h"
 #include "gfxFont.h"
+#include "nsDataHashtable.h"
+#include "nsHashKeys.h"
 
 struct gr_face;
 struct gr_font;
@@ -14,32 +17,16 @@ struct gr_segment;
 
 class gfxGraphiteShaper : public gfxFontShaper {
 public:
-    explicit gfxGraphiteShaper(gfxFont *aFont);
+    gfxGraphiteShaper(gfxFont *aFont);
     virtual ~gfxGraphiteShaper();
 
-    virtual bool ShapeText(gfxContext      *aContext,
-                           const char16_t *aText,
-                           uint32_t         aOffset,
-                           uint32_t         aLength,
-                           int32_t          aScript,
-                           bool             aVertical,
-                           gfxShapedText   *aShapedText);
+    virtual bool ShapeWord(gfxContext *aContext,
+                           gfxShapedWord *aShapedWord,
+                           const PRUnichar *aText);
+
+    const void* GetTable(uint32_t aTag, size_t *aLength);
 
     static void Shutdown();
-
-protected:
-    nsresult SetGlyphsFromSegment(gfxContext      *aContext,
-                                  gfxShapedText   *aShapedText,
-                                  uint32_t         aOffset,
-                                  uint32_t         aLength,
-                                  const char16_t *aText,
-                                  gr_segment      *aSegment);
-
-    static float GrGetAdvance(const void* appFontHandle, uint16_t glyphid);
-
-    gr_face *mGrFace; // owned by the font entry; shaper must call
-                      // gfxFontEntry::ReleaseGrFace when finished with it
-    gr_font *mGrFont; // owned by the shaper itself
 
     struct CallbackData {
         gfxFont           *mFont;
@@ -47,12 +34,30 @@ protected:
         gfxContext        *mContext;
     };
 
+    struct TableRec {
+        hb_blob_t  *mBlob;
+        const void *mData;
+        uint32_t    mLength;
+    };
+
+protected:
+    nsresult SetGlyphsFromSegment(gfxShapedWord *aShapedWord,
+                                  gr_segment *aSegment);
+
+    gr_face *mGrFace;
+    gr_font *mGrFont;
+
     CallbackData mCallbackData;
-    bool mFallbackToSmallCaps; // special fallback for the petite-caps case
+
+    nsDataHashtable<nsUint32HashKey,TableRec> mTables;
+
+    // Whether the font implements GetGlyphWidth, or we should read tables
+    // directly to get ideal widths
+    bool mUseFontGlyphWidths;
 
     // Convert HTML 'lang' (BCP47) to Graphite language code
     static uint32_t GetGraphiteTagForLang(const nsCString& aLang);
-    static nsTHashtable<nsUint32HashKey> *sLanguageTags;
+    static nsTHashtable<nsUint32HashKey> sLanguageTags;
 };
 
 #endif /* GFX_GRAPHITESHAPER_H */

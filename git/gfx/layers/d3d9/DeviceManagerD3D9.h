@@ -7,13 +7,10 @@
 #define GFX_DEVICEMANAGERD3D9_H
 
 #include "gfxTypes.h"
+#include "nsRect.h"
 #include "nsAutoPtr.h"
 #include "d3d9.h"
 #include "nsTArray.h"
-#include "mozilla/layers/CompositorTypes.h"
-#include "mozilla/RefPtr.h"
-
-struct nsIntRect;
 
 namespace mozilla {
 namespace layers {
@@ -22,7 +19,6 @@ class DeviceManagerD3D9;
 class LayerD3D9;
 class Nv3DVUtils;
 class Layer;
-class TextureSourceD3D9;
 
 // Shader Constant locations
 const int CBmLayerTransform = 0;
@@ -30,59 +26,17 @@ const int CBmProjection = 4;
 const int CBvRenderTargetOffset = 8;
 const int CBvTextureCoords = 9;
 const int CBvLayerQuad = 10;
-// we don't use opacity with solid color shaders
 const int CBfLayerOpacity = 0;
-const int CBvColor = 0;
-
-enum DeviceManagerState {
-  // The device and swap chain are OK.
-  DeviceOK,
-  // The device or swap chain are in a bad state, and we should not render.
-  DeviceFail,
-  // The device is lost and cannot be reset, the user should forget the
-  // current device manager and create a new one.
-  DeviceMustRecreate,
-};
-
-
-/**
- * This structure is used to pass rectangles to our shader constant. We can use
- * this for passing rectangular areas to SetVertexShaderConstant. In the format
- * of a 4 component float(x,y,width,height). Our vertex shader can then use
- * this to construct rectangular positions from the 0,0-1,1 quad that we source
- * it with.
- */
-struct ShaderConstantRect
-{
-  float mX, mY, mWidth, mHeight;
-
-  // Provide all the commonly used argument types to prevent all the local
-  // casts in the code.
-  ShaderConstantRect(float aX, float aY, float aWidth, float aHeight)
-    : mX(aX), mY(aY), mWidth(aWidth), mHeight(aHeight)
-  { }
-
-  ShaderConstantRect(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight)
-    : mX((float)aX), mY((float)aY)
-    , mWidth((float)aWidth), mHeight((float)aHeight)
-  { }
-
-  ShaderConstantRect(int32_t aX, int32_t aY, float aWidth, float aHeight)
-    : mX((float)aX), mY((float)aY), mWidth(aWidth), mHeight(aHeight)
-  { }
-
-  // For easy passing to SetVertexShaderConstantF.
-  operator float* () { return &mX; }
-};
 
 /**
  * SwapChain class, this class manages the swap chain belonging to a
  * LayerManagerD3D9.
  */
-class SwapChainD3D9 MOZ_FINAL
+class THEBES_API SwapChainD3D9
 {
   NS_INLINE_DECL_REFCOUNTING(SwapChainD3D9)
 public:
+  ~SwapChainD3D9();
 
   /**
    * This function will prepare the device this swap chain belongs to for
@@ -94,24 +48,18 @@ public:
    * in no case does this function guarantee the backbuffer to still have its
    * old content.
    */
-  DeviceManagerState PrepareForRendering();
-
-  already_AddRefed<IDirect3DSurface9> GetBackBuffer();
+  bool PrepareForRendering();
 
   /**
    * This function will present the selected rectangle of the swap chain to
    * its associated window.
    */
   void Present(const nsIntRect &aRect);
-  void Present();
 
 private:
   friend class DeviceManagerD3D9;
 
   SwapChainD3D9(DeviceManagerD3D9 *aDeviceManager);
-
-  // Private destructor, to discourage deletion outside of Release():
-  ~SwapChainD3D9();
   
   bool Init(HWND hWnd);
 
@@ -131,19 +79,17 @@ private:
  * device and create swap chains for the individual windows the layer managers
  * belong to.
  */
-class DeviceManagerD3D9 MOZ_FINAL
+class THEBES_API DeviceManagerD3D9
 {
 public:
   DeviceManagerD3D9();
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(DeviceManagerD3D9)
+  NS_IMETHOD_(nsrefcnt) AddRef(void);
+  NS_IMETHOD_(nsrefcnt) Release(void);
+protected:
+  nsAutoRefCnt mRefCnt;
+  NS_DECL_OWNINGTHREAD
 
-  /**
-   * Initialises the device manager, the underlying device, and everything else
-   * the manager needs.
-   * Returns true if initialisation succeeds, false otherwise.
-   * Note that if initisalisation fails, you cannot try again - you must throw
-   * away the DeviceManagerD3D9 and create a new one.
-   */
+public:
   bool Init();
 
   /**
@@ -172,8 +118,6 @@ public:
   };
 
   void SetShaderMode(ShaderMode aMode, Layer* aMask, bool aIs2D);
-  // returns the register to be used for the mask texture, if appropriate
-  uint32_t SetShaderMode(ShaderMode aMode, MaskType aMaskType);
 
   /** 
    * Return pointer to the Nv3DVUtils instance 
@@ -195,53 +139,23 @@ public:
 
   int32_t GetMaxTextureSize() { return mMaxTextureSize; }
 
-  // Removes aHost from our list of texture hosts if it is the head.
-  void RemoveTextureListHead(TextureSourceD3D9* aHost);
+private:
+  friend class SwapChainD3D9;
 
-  /**
-   * Creates a texture using our device.
-   * If needed, we keep a record of the new texture, so the texture can be
-   * released. In this case, aTextureHostIDirect3DTexture9 must be non-null.
-   */
-  TemporaryRef<IDirect3DTexture9> CreateTexture(const gfx::IntSize &aSize,
-                                                _D3DFORMAT aFormat,
-                                                D3DPOOL aPool,
-                                                TextureSourceD3D9* aTextureHostIDirect3DTexture9);
-#ifdef DEBUG
-  // Looks for aFind in the list of texture hosts.
-  // O(n) so only use for assertions.
-  bool IsInTextureHostList(TextureSourceD3D9* aFind);
-#endif
+  ~DeviceManagerD3D9();
 
   /**
    * This function verifies the device is ready for rendering, internally this
    * will test the cooperative level of the device and reset the device if
    * needed. If this returns false subsequent rendering calls may return errors.
    */
-  DeviceManagerState VerifyReadyForRendering();
-
-  static uint32_t sMaskQuadRegister;
-
-private:
-  friend class SwapChainD3D9;
-
-  ~DeviceManagerD3D9();
-  void DestroyDevice();
+  bool VerifyReadyForRendering();
 
   /**
    * This will fill our vertex buffer with the data of our quad, it may be
    * called when the vertex buffer is recreated.
    */
   bool CreateVertexBuffer();
-
-  /**
-   * Release all textures created by this device manager.
-   */
-  void ReleaseTextureResources();
-  /**
-   * Add aHost to our list of texture hosts.
-   */
-  void RegisterTextureHost(TextureSourceD3D9* aHost);
 
   /* Array used to store all swap chains for device resets */
   nsTArray<SwapChainD3D9*> mSwapChains;
@@ -296,14 +210,6 @@ private:
   /* Our vertex declaration */
   nsRefPtr<IDirect3DVertexDeclaration9> mVD;
 
-  /* We maintain a doubly linked list of all d3d9 texture hosts which host
-   * d3d9 textures created by this device manager.
-   * Texture hosts must remove themselves when they disappear (i.e., we
-   * expect all hosts in the list to be valid).
-   * The list is cleared when we release the textures.
-   */
-  TextureSourceD3D9* mTextureHostList;
-
   /* Our focus window - this is really a dummy window we can associate our
    * device with.
    */
@@ -315,12 +221,6 @@ private:
   uint32_t mDeviceResetCount;
 
   uint32_t mMaxTextureSize;
-
-  /**
-   * Wrap (repeat) or clamp textures. We prefer the former so we can do buffer
-   * rotation, but some older hardware doesn't support it.
-   */
-  D3DTEXTUREADDRESS mTextureAddressingMode;
 
   /* If this device supports dynamic textures */
   bool mHasDynamicTextures;

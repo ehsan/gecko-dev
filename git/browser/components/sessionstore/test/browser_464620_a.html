@@ -15,7 +15,7 @@
       return;
     firstPass = frames[1].location.href == "about:blank";
     if (firstPass) {
-      frames[0].location = 'data:text/html;charset=utf-8,<body onload="if (parent.firstPass) parent.step();"><input id="x" oninput="parent.xss()">XXX</body>';
+      frames[0].location = 'data:text/html,<body onload="if (parent.firstPass) parent.step();"><input id="x" oninput="parent.xss()">XXX</body>';
     }
     frames[1].location = targetUrl;
   }
@@ -44,9 +44,8 @@
     }
     document.getElementById("state").textContent = "done";
 
-    var event = new MessageEvent('464620_a', { bubbles: true, cancelable: false,
-                                               data: "done", origin: location.href,
-                                               source: window });
+    var event = document.createEvent("MessageEvent");
+    event.initMessageEvent("464620_a", true, false, "done", location.href, "", window);
     document.dispatchEvent(event);
   }
 </script>

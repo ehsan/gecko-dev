@@ -4,18 +4,17 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsFormControlFrame.h"
-
 #include "nsGkAtoms.h"
 #include "nsLayoutUtils.h"
 #include "nsIDOMHTMLInputElement.h"
-#include "mozilla/EventStateManager.h"
+#include "nsEventStateManager.h"
 #include "mozilla/LookAndFeel.h"
-#include "nsDeviceContext.h"
-#include "nsIContent.h"
 
 using namespace mozilla;
 
 //#define FCF_NOISY
+
+const int32_t kSizeNotSet = -1;
 
 nsFormControlFrame::nsFormControlFrame(nsStyleContext* aContext) :
   nsLeafFrame(aContext)
@@ -47,7 +46,7 @@ NS_QUERYFRAME_TAIL_INHERITING(nsLeafFrame)
 NS_IMPL_FRAMEARENA_HELPERS(nsFormControlFrame)
 
 nscoord
-nsFormControlFrame::GetIntrinsicISize()
+nsFormControlFrame::GetIntrinsicWidth()
 {
   // Provide a reasonable default for sites that use an "auto" height.
   // Note that if you change this, you should change the values in forms.css
@@ -56,7 +55,7 @@ nsFormControlFrame::GetIntrinsicISize()
 }
 
 nscoord
-nsFormControlFrame::GetIntrinsicBSize()
+nsFormControlFrame::GetIntrinsicHeight()
 {
   // Provide a reasonable default for sites that use an "auto" height.
   // Note that if you change this, you should change the values in forms.css
@@ -65,18 +64,17 @@ nsFormControlFrame::GetIntrinsicBSize()
 }
 
 nscoord
-nsFormControlFrame::GetLogicalBaseline(WritingMode aWritingMode) const
+nsFormControlFrame::GetBaseline() const
 {
   NS_ASSERTION(!NS_SUBTREE_DIRTY(this),
                "frame must not be dirty");
   // Treat radio buttons and checkboxes as having an intrinsic baseline
   // at the bottom of the control (use the bottom content edge rather
   // than the bottom margin edge).
-  return BSize(aWritingMode) -
-         GetLogicalUsedBorderAndPadding(aWritingMode).BEnd(aWritingMode);
+  return mRect.height - GetUsedBorderAndPadding().bottom;
 }
 
-void
+NS_METHOD
 nsFormControlFrame::Reflow(nsPresContext*          aPresContext,
                            nsHTMLReflowMetrics&     aDesiredSize,
                            const nsHTMLReflowState& aReflowState,
@@ -89,15 +87,20 @@ nsFormControlFrame::Reflow(nsPresContext*          aPresContext,
     RegUnRegAccessKey(static_cast<nsIFrame*>(this), true);
   }
 
-  nsLeafFrame::Reflow(aPresContext, aDesiredSize, aReflowState, aStatus);
+  nsresult rv = nsLeafFrame::Reflow(aPresContext, aDesiredSize, aReflowState,
+                                    aStatus);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
 
   if (nsLayoutUtils::FontSizeInflationEnabled(aPresContext)) {
     float inflation = nsLayoutUtils::FontSizeInflationFor(this);
-    aDesiredSize.Width() *= inflation;
-    aDesiredSize.Height() *= inflation;
+    aDesiredSize.width *= inflation;
+    aDesiredSize.height *= inflation;
     aDesiredSize.UnionOverflowAreasWithDesiredBounds();
     FinishAndStoreOverflow(&aDesiredSize);
   }
+  return NS_OK;
 }
 
 nsresult
@@ -114,7 +117,7 @@ nsFormControlFrame::RegUnRegAccessKey(nsIFrame * aFrame, bool aDoReg)
   nsIContent* content = aFrame->GetContent();
   content->GetAttr(kNameSpaceID_None, nsGkAtoms::accesskey, accessKey);
   if (!accessKey.IsEmpty()) {
-    EventStateManager* stateManager = presContext->EventStateManager();
+    nsEventStateManager *stateManager = presContext->EventStateManager();
     if (aDoReg) {
       stateManager->RegisterAccessKey(content, (uint32_t)accessKey.First());
     } else {
@@ -130,13 +133,13 @@ nsFormControlFrame::SetFocus(bool aOn, bool aRepaint)
 {
 }
 
-nsresult
+NS_METHOD
 nsFormControlFrame::HandleEvent(nsPresContext* aPresContext, 
-                                WidgetGUIEvent* aEvent,
-                                nsEventStatus* aEventStatus)
+                                          nsGUIEvent* aEvent,
+                                          nsEventStatus* aEventStatus)
 {
   // Check for user-input:none style
-  const nsStyleUserInterface* uiStyle = StyleUserInterface();
+  const nsStyleUserInterface* uiStyle = GetStyleUserInterface();
   if (uiStyle->mUserInput == NS_STYLE_USER_INPUT_NONE ||
       uiStyle->mUserInput == NS_STYLE_USER_INPUT_DISABLED)
     return nsFrame::HandleEvent(aPresContext, aEvent, aEventStatus);
@@ -156,6 +159,13 @@ nsFormControlFrame::GetCurrentCheckState(bool *aState)
 nsresult
 nsFormControlFrame::SetFormProperty(nsIAtom* aName, const nsAString& aValue)
 {
+  return NS_OK;
+}
+
+nsresult
+nsFormControlFrame::GetFormProperty(nsIAtom* aName, nsAString& aValue) const
+{
+  aValue.Truncate();
   return NS_OK;
 }
 

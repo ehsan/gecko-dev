@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7,12 +6,25 @@
 #ifndef nsISupportsUtils_h__
 #define nsISupportsUtils_h__
 
+#ifndef nscore_h___
 #include "nscore.h"
+#endif
+
+#ifndef nsISupportsBase_h__
 #include "nsISupportsBase.h"
+#endif
+
+#ifndef nsError_h__
 #include "nsError.h"
+#endif
+
+#ifndef nsDebug_h___
 #include "nsDebug.h"
+#endif
+
+#ifndef nsISupportsImpl_h__
 #include "nsISupportsImpl.h"
-#include "mozilla/TypeTraits.h"
+#endif
 
 /**
  * Macro for adding a reference to an interface.
@@ -36,21 +48,22 @@ extern "C++" {
 // an |extern "C"|
 
 
-// Making this a |inline| |template| allows |aExpr| to be evaluated only once,
+// Making this a |inline| |template| allows |expr| to be evaluated only once,
 // yet still denies you the ability to |AddRef()| an |nsCOMPtr|.
-template<class T>
-inline void
-ns_if_addref(T aExpr)
+template <class T>
+inline
+void
+ns_if_addref( T expr )
 {
-  if (aExpr) {
-    aExpr->AddRef();
-  }
+    if (expr) {
+        expr->AddRef();
+    }
 }
 
 } /* extern "C++" */
 
 /**
- * Macro for adding a reference to an interface that checks for nullptr.
+ * Macro for adding a reference to an interface that checks for NULL.
  * @param _expr The interface pointer.
  */
 #define NS_IF_ADDREF(_expr) ns_if_addref(_expr)
@@ -69,13 +82,14 @@ ns_if_addref(T aExpr)
  * @param _ptr The interface pointer.
  */
 #define NS_RELEASE(_ptr)                                                      \
-  do {                                                                        \
+  PR_BEGIN_MACRO                                                              \
     (_ptr)->Release();                                                        \
     (_ptr) = 0;                                                               \
-  } while (0)
+  PR_END_MACRO
 
 /**
- * Macro for releasing a reference to this interface.
+ * Macro for releasing a reference to an interface.
+ * @param _ptr The interface pointer.
  */
 #define NS_RELEASE_THIS() \
     Release()
@@ -87,25 +101,24 @@ ns_if_addref(T aExpr)
  * goes to zero.
  *
  * @param _ptr The interface pointer.
- * @param _rc  The reference count.
  */
-#define NS_RELEASE2(_ptr, _rc)                                                \
-  do {                                                                        \
-    _rc = (_ptr)->Release();                                                  \
-    if (0 == (_rc)) (_ptr) = 0;                                               \
-  } while (0)
+#define NS_RELEASE2(_ptr,_rv)                                                 \
+  PR_BEGIN_MACRO                                                              \
+    _rv = (_ptr)->Release();                                                  \
+    if (0 == (_rv)) (_ptr) = 0;                                               \
+  PR_END_MACRO
 
 /**
- * Macro for releasing a reference to an interface that checks for nullptr;
+ * Macro for releasing a reference to an interface that checks for NULL;
  * @param _ptr The interface pointer.
  */
 #define NS_IF_RELEASE(_ptr)                                                   \
-  do {                                                                        \
+  PR_BEGIN_MACRO                                                              \
     if (_ptr) {                                                               \
       (_ptr)->Release();                                                      \
       (_ptr) = 0;                                                             \
     }                                                                         \
-  } while (0)
+  PR_END_MACRO
 
 /*
  * Often you have to cast an implementation pointer, e.g., |this|, to an
@@ -124,21 +137,16 @@ ns_if_addref(T aExpr)
   static_cast<nsISupports*>(static_cast<__unambiguousBase>(__expr))
 
 // a type-safe shortcut for calling the |QueryInterface()| member function
-template<class T, class DestinationType>
-inline nsresult
-CallQueryInterface(T* aSource, DestinationType** aDestination)
+template <class T, class DestinationType>
+inline
+nsresult
+CallQueryInterface( T* aSource, DestinationType** aDestination )
 {
-  // We permit nsISupports-to-nsISupports here so that one can still obtain
-  // the canonical nsISupports pointer with CallQueryInterface.
-  static_assert(!mozilla::IsSame<T, DestinationType>::value ||
-                mozilla::IsSame<DestinationType, nsISupports>::value,
-                "don't use CallQueryInterface for compile-time-determinable casts");
-
-  NS_PRECONDITION(aSource, "null parameter");
-  NS_PRECONDITION(aDestination, "null parameter");
-
-  return aSource->QueryInterface(NS_GET_TEMPLATE_IID(DestinationType),
-                                 reinterpret_cast<void**>(aDestination));
+    NS_PRECONDITION(aSource, "null parameter");
+    NS_PRECONDITION(aDestination, "null parameter");
+    
+    return aSource->QueryInterface(NS_GET_TEMPLATE_IID(DestinationType),
+                                   reinterpret_cast<void**>(aDestination));
 }
 
 #endif /* __nsISupportsUtils_h */

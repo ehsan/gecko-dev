@@ -5,7 +5,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include <nsITaskbarPreviewController.h>
 #include "TaskbarWindowPreview.h"
@@ -27,9 +27,9 @@ bool WindowHookProc(void *aContext, HWND hWnd, UINT nMsg, WPARAM wParam, LPARAM 
 }
 }
 
-NS_IMPL_ISUPPORTS(TaskbarWindowPreview, nsITaskbarWindowPreview,
-                  nsITaskbarProgress, nsITaskbarOverlayIconController,
-                  nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS4(TaskbarWindowPreview, nsITaskbarWindowPreview,
+                   nsITaskbarProgress, nsITaskbarOverlayIconController,
+                   nsISupportsWeakReference)
 
 /**
  * These correspond directly to the states defined in nsITaskbarProgress.idl, so
@@ -51,7 +51,7 @@ TaskbarWindowPreview::TaskbarWindowPreview(ITaskbarList4 *aTaskbar, nsITaskbarPr
     mState(TBPF_NOPROGRESS),
     mCurrentValue(0),
     mMaxValue(0),
-    mOverlayIcon(nullptr)
+    mOverlayIcon(NULL)
 {
   // Window previews are visible by default
   (void) SetVisible(true);
@@ -72,19 +72,19 @@ TaskbarWindowPreview::TaskbarWindowPreview(ITaskbarList4 *aTaskbar, nsITaskbarPr
 TaskbarWindowPreview::~TaskbarWindowPreview() {
   if (mOverlayIcon) {
     ::DestroyIcon(mOverlayIcon);
-    mOverlayIcon = nullptr;
+    mOverlayIcon = NULL;
   }
 
   if (IsWindowAvailable()) {
     DetachFromNSWindow();
   } else {
-    mWnd = nullptr;
+    mWnd = NULL;
   }
 }
 
 nsresult
 TaskbarWindowPreview::ShowActive(bool active) {
-  return FAILED(mTaskbar->ActivateTab(active ? mWnd : nullptr))
+  return FAILED(mTaskbar->ActivateTab(active ? mWnd : NULL))
        ? NS_ERROR_FAILURE
        : NS_OK;
 
@@ -154,9 +154,7 @@ TaskbarWindowPreview::SetProgressState(nsTaskbarProgressState aState,
                                        uint64_t aCurrentValue,
                                        uint64_t aMaxValue)
 {
-  NS_ENSURE_ARG_RANGE(aState,
-                      nsTaskbarProgressState(0),
-                      nsTaskbarProgressState(ArrayLength(sNativeStates) - 1));
+  NS_ENSURE_ARG_RANGE(aState, 0, ArrayLength(sNativeStates) - 1);
 
   TBPFLAG nativeState = sNativeStates[aState];
   if (nativeState == TBPF_NOPROGRESS || nativeState == TBPF_INDETERMINATE) {
@@ -187,7 +185,7 @@ TaskbarWindowPreview::SetOverlayIcon(imgIContainer* aStatusIcon,
     NS_ENSURE_FALSE(isAnimated, NS_ERROR_INVALID_ARG);
   }
 
-  HICON hIcon = nullptr;
+  HICON hIcon = NULL;
   if (aStatusIcon) {
     rv = nsWindowGfx::CreateIcon(aStatusIcon, false, 0, 0,
                                  nsWindowGfx::GetIconMetrics(nsWindowGfx::kSmallIcon),

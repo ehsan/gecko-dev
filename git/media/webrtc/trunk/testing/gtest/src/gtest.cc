@@ -39,7 +39,6 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <wchar.h>
 #include <wctype.h>
 
@@ -306,7 +305,7 @@ UInt32 Random::Generate(UInt32 range) {
 // Test.  g_init_gtest_count is set to the number of times
 // InitGoogleTest() has been called.  We don't protect this variable
 // under a mutex as it is only accessed in the main thread.
-GTEST_API_ int g_init_gtest_count = 0;
+int g_init_gtest_count = 0;
 static bool GTestIsInitialized() { return g_init_gtest_count != 0; }
 
 // Iterates over a vector of TestCases, keeping a running sum of the
@@ -361,7 +360,7 @@ void AssertHelper::operator=(const Message& message) const {
 }
 
 // Mutex for linked pointers.
-GTEST_API_ GTEST_DEFINE_STATIC_MUTEX_(g_linked_ptr_mutex);
+GTEST_DEFINE_STATIC_MUTEX_(g_linked_ptr_mutex);
 
 // Application pathname gotten in InitGoogleTest.
 String g_executable_path;
@@ -818,6 +817,17 @@ TimeInMillis GetTimeInMillis() {
 
 // class String
 
+// Returns the input enclosed in double quotes if it's not NULL;
+// otherwise returns "(null)".  For example, "\"Hello\"" is returned
+// for input "Hello".
+//
+// This is useful for printing a C string in the syntax of a literal.
+//
+// Known issue: escape sequences are not handled yet.
+String String::ShowCStringQuoted(const char* c_str) {
+  return c_str ? String::Format("\"%s\"", c_str) : String("(null)");
+}
+
 // Copies at most length characters from str into a newly-allocated
 // piece of memory of size length+1.  The memory is allocated with new[].
 // A terminating null byte is written to the memory, and a pointer to it
@@ -1007,43 +1017,6 @@ AssertionResult EqFailure(const char* expected_expression,
   return AssertionFailure() << msg;
 }
 
-// Constructs and returns the message for an equality assertion
-// (e.g. ASSERT_NE, EXPECT_NE, etc) failure.
-//
-// The first four parameters are the expressions used in the assertion
-// and their values, as strings.  For example, for ASSERT_NE(foo, bar)
-// where foo is 5 and bar is 6, we have:
-//
-//   expected_expression: "foo"
-//   actual_expression:   "bar"
-//   expected_value:      "5"
-//   actual_value:        "6"
-//
-// The ignoring_case parameter is true iff the assertion is a
-// *_STRCASENE*.  When it's true, the string " (ignoring case)" will
-// be inserted into the message.
-AssertionResult NeFailure(const char* expected_expression,
-                          const char* actual_expression,
-                          const String& expected_value,
-                          const String& actual_value,
-                          bool ignoring_case) {
-  Message msg;
-  msg << "Value of: " << actual_expression;
-  if (actual_value != actual_expression) {
-    msg << "\n  Actual: " << actual_value;
-  }
-
-  msg << "\nExpected: " << expected_expression;
-  if (ignoring_case) {
-    msg << " (ignoring case)";
-  }
-  if (expected_value != expected_expression) {
-    msg << "\nWhich is: " << expected_value;
-  }
-
-  return AssertionFailure() << msg;
-}
-
 // Constructs a failure message for Boolean assertions such as EXPECT_TRUE.
 String GetBoolAssertionFailureMessage(const AssertionResult& assertion_result,
                                       const char* expression_text,
@@ -1195,8 +1168,8 @@ AssertionResult CmpHelperSTREQ(const char* expected_expression,
 
   return EqFailure(expected_expression,
                    actual_expression,
-                   PrintToString(expected),
-                   PrintToString(actual),
+                   String::ShowCStringQuoted(expected),
+                   String::ShowCStringQuoted(actual),
                    false);
 }
 
@@ -1211,8 +1184,8 @@ AssertionResult CmpHelperSTRCASEEQ(const char* expected_expression,
 
   return EqFailure(expected_expression,
                    actual_expression,
-                   PrintToString(expected),
-                   PrintToString(actual),
+                   String::ShowCStringQuoted(expected),
+                   String::ShowCStringQuoted(actual),
                    true);
 }
 
@@ -1560,6 +1533,15 @@ String String::ShowWideCString(const wchar_t * wide_c_str) {
   return String(internal::WideStringToUtf8(wide_c_str, -1).c_str());
 }
 
+// Similar to ShowWideCString(), except that this function encloses
+// the converted string in double quotes.
+String String::ShowWideCStringQuoted(const wchar_t* wide_c_str) {
+  if (wide_c_str == NULL) return String("(null)");
+
+  return String::Format("L\"%s\"",
+                        String::ShowWideCString(wide_c_str).c_str());
+}
+
 // Compares two wide C strings.  Returns true iff they have the same
 // content.
 //
@@ -1585,8 +1567,8 @@ AssertionResult CmpHelperSTREQ(const char* expected_expression,
 
   return EqFailure(expected_expression,
                    actual_expression,
-                   PrintToString(expected),
-                   PrintToString(actual),
+                   String::ShowWideCStringQuoted(expected),
+                   String::ShowWideCStringQuoted(actual),
                    false);
 }
 
@@ -1601,8 +1583,8 @@ AssertionResult CmpHelperSTRNE(const char* s1_expression,
 
   return AssertionFailure() << "Expected: (" << s1_expression << ") != ("
                             << s2_expression << "), actual: "
-                            << PrintToString(s1)
-                            << " vs " << PrintToString(s2);
+                            << String::ShowWideCStringQuoted(s1)
+                            << " vs " << String::ShowWideCStringQuoted(s2);
 }
 
 // Compares two C strings, ignoring case.  Returns true iff they have
@@ -2639,7 +2621,7 @@ void ColoredPrintf(GTestColor color, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
 
-#if GTEST_OS_WINDOWS_MOBILE || GTEST_OS_SYMBIAN || GTEST_OS_ZOS || GTEST_OS_IOS
+#if GTEST_OS_WINDOWS_MOBILE || GTEST_OS_SYMBIAN || GTEST_OS_ZOS
   const bool use_color = false;
 #else
   static const bool in_color_mode =
@@ -2725,6 +2707,8 @@ class PrettyUnitTestResultPrinter : public TestEventListener {
 
  private:
   static void PrintFailedTests(const UnitTest& unit_test);
+
+  internal::String test_case_name_;
 };
 
   // Fired before each iteration of tests starts.
@@ -2771,10 +2755,11 @@ void PrettyUnitTestResultPrinter::OnEnvironmentsSetUpStart(
 }
 
 void PrettyUnitTestResultPrinter::OnTestCaseStart(const TestCase& test_case) {
+  test_case_name_ = test_case.name();
   const internal::String counts =
       FormatCountableNoun(test_case.test_to_run_count(), "test", "tests");
   ColoredPrintf(COLOR_GREEN, "[----------] ");
-  printf("%s from %s", counts.c_str(), test_case.name());
+  printf("%s from %s", counts.c_str(), test_case_name_.c_str());
   if (test_case.type_param() == NULL) {
     printf("\n");
   } else {
@@ -2785,7 +2770,7 @@ void PrettyUnitTestResultPrinter::OnTestCaseStart(const TestCase& test_case) {
 
 void PrettyUnitTestResultPrinter::OnTestStart(const TestInfo& test_info) {
   ColoredPrintf(COLOR_GREEN,  "[ RUN      ] ");
-  PrintTestName(test_info.test_case_name(), test_info.name());
+  PrintTestName(test_case_name_.c_str(), test_info.name());
   printf("\n");
   fflush(stdout);
 }
@@ -2808,7 +2793,7 @@ void PrettyUnitTestResultPrinter::OnTestEnd(const TestInfo& test_info) {
   } else {
     ColoredPrintf(COLOR_RED, "[  FAILED  ] ");
   }
-  PrintTestName(test_info.test_case_name(), test_info.name());
+  PrintTestName(test_case_name_.c_str(), test_info.name());
   if (test_info.result()->Failed())
     PrintFullTestCommentIfPresent(test_info);
 
@@ -2824,11 +2809,12 @@ void PrettyUnitTestResultPrinter::OnTestEnd(const TestInfo& test_info) {
 void PrettyUnitTestResultPrinter::OnTestCaseEnd(const TestCase& test_case) {
   if (!GTEST_FLAG(print_time)) return;
 
+  test_case_name_ = test_case.name();
   const internal::String counts =
       FormatCountableNoun(test_case.test_to_run_count(), "test", "tests");
   ColoredPrintf(COLOR_GREEN, "[----------] ");
   printf("%s from %s (%s ms total)\n\n",
-         counts.c_str(), test_case.name(),
+         counts.c_str(), test_case_name_.c_str(),
          internal::StreamableToString(test_case.elapsed_time()).c_str());
   fflush(stdout);
 }
@@ -3213,32 +3199,6 @@ std::string FormatTimeInMillisAsSeconds(TimeInMillis ms) {
   return ss.str();
 }
 
-// Converts the given epoch time in milliseconds to a date string in the ISO
-// 8601 format, without the timezone information.
-std::string FormatEpochTimeInMillisAsIso8601(TimeInMillis ms) {
-  // Using non-reentrant version as localtime_r is not portable.
-  time_t seconds = static_cast<time_t>(ms / 1000);
-#ifdef _MSC_VER
-# pragma warning(push)          // Saves the current warning state.
-# pragma warning(disable:4996)  // Temporarily disables warning 4996
-                                // (function or variable may be unsafe).
-  const struct tm* const time_struct = localtime(&seconds);  // NOLINT
-# pragma warning(pop)           // Restores the warning state again.
-#else
-  const struct tm* const time_struct = localtime(&seconds);  // NOLINT
-#endif
-  if (time_struct == NULL)
-    return "";  // Invalid ms value
-
-  return String::Format("%d-%02d-%02dT%02d:%02d:%02d",  // YYYY-MM-DDThh:mm:ss
-                        time_struct->tm_year + 1900,
-                        time_struct->tm_mon + 1,
-                        time_struct->tm_mday,
-                        time_struct->tm_hour,
-                        time_struct->tm_min,
-                        time_struct->tm_sec);
-}
-
 // Streams an XML CDATA section, escaping invalid CDATA sequences as needed.
 void XmlUnitTestResultPrinter::OutputXmlCDataSection(::std::ostream* stream,
                                                      const char* data) {
@@ -3288,17 +3248,16 @@ void XmlUnitTestResultPrinter::OutputXmlTestInfo(::std::ostream* stream,
   for (int i = 0; i < result.total_part_count(); ++i) {
     const TestPartResult& part = result.GetTestPartResult(i);
     if (part.failed()) {
-      if (++failures == 1) {
+      if (++failures == 1)
         *stream << ">\n";
-      }
+      *stream << "      <failure message=\""
+              << EscapeXmlAttribute(part.summary()).c_str()
+              << "\" type=\"\">";
       const string location = internal::FormatCompilerIndependentFileLocation(
           part.file_name(), part.line_number());
-      const string summary = location + "\n" + part.summary();
-      *stream << "      <failure message=\""
-              << EscapeXmlAttribute(summary.c_str())
-              << "\" type=\"\">";
-      const string detail = location + "\n" + part.message();
-      OutputXmlCDataSection(stream, RemoveInvalidXmlCharacters(detail).c_str());
+      const string message = location + "\n" + part.message();
+      OutputXmlCDataSection(stream,
+                            RemoveInvalidXmlCharacters(message).c_str());
       *stream << "</failure>\n";
     }
   }
@@ -3336,11 +3295,10 @@ void XmlUnitTestResultPrinter::PrintXmlUnitTest(FILE* out,
   fprintf(out, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
   fprintf(out,
           "<testsuites tests=\"%d\" failures=\"%d\" disabled=\"%d\" "
-          "errors=\"0\" timestamp=\"%s\" time=\"%s\" ",
+          "errors=\"0\" time=\"%s\" ",
           unit_test.total_test_count(),
           unit_test.failed_test_count(),
           unit_test.disabled_test_count(),
-          FormatEpochTimeInMillisAsIso8601(unit_test.start_timestamp()).c_str(),
           FormatTimeInMillisAsSeconds(unit_test.elapsed_time()).c_str());
   if (GTEST_FLAG(shuffle)) {
     fprintf(out, "random_seed=\"%d\" ", unit_test.random_seed());
@@ -3546,8 +3504,8 @@ void StreamingListener::MakeConnection() {
 
 // Pushes the given source file location and message onto a per-thread
 // trace stack maintained by Google Test.
-ScopedTrace::ScopedTrace(const char* file, int line, const Message& message)
-    GTEST_LOCK_EXCLUDED_(&UnitTest::mutex_) {
+// L < UnitTest::mutex_
+ScopedTrace::ScopedTrace(const char* file, int line, const Message& message) {
   TraceInfo trace;
   trace.file = file;
   trace.line = line;
@@ -3557,8 +3515,8 @@ ScopedTrace::ScopedTrace(const char* file, int line, const Message& message)
 }
 
 // Pops the info pushed by the c'tor.
-ScopedTrace::~ScopedTrace()
-    GTEST_LOCK_EXCLUDED_(&UnitTest::mutex_) {
+// L < UnitTest::mutex_
+ScopedTrace::~ScopedTrace() {
   UnitTest::GetInstance()->PopGTestTrace();
 }
 
@@ -3572,14 +3530,14 @@ ScopedTrace::~ScopedTrace()
 //   skip_count - the number of top frames to be skipped; doesn't count
 //                against max_depth.
 //
-String OsStackTraceGetter::CurrentStackTrace(int /* max_depth */,
-                                             int /* skip_count */)
-    GTEST_LOCK_EXCLUDED_(mutex_) {
+// L < mutex_
+// We use "L < mutex_" to denote that the function may acquire mutex_.
+String OsStackTraceGetter::CurrentStackTrace(int, int) {
   return String("");
 }
 
-void OsStackTraceGetter::UponLeavingGTest()
-    GTEST_LOCK_EXCLUDED_(mutex_) {
+// L < mutex_
+void OsStackTraceGetter::UponLeavingGTest() {
 }
 
 const char* const
@@ -3733,12 +3691,6 @@ int UnitTest::total_test_count() const { return impl()->total_test_count(); }
 // Gets the number of tests that should run.
 int UnitTest::test_to_run_count() const { return impl()->test_to_run_count(); }
 
-// Gets the time of the test program start, in ms from the start of the
-// UNIX epoch.
-internal::TimeInMillis UnitTest::start_timestamp() const {
-    return impl()->start_timestamp();
-}
-
 // Gets the elapsed time, in milliseconds.
 internal::TimeInMillis UnitTest::elapsed_time() const {
   return impl()->elapsed_time();
@@ -3792,13 +3744,12 @@ Environment* UnitTest::AddEnvironment(Environment* env) {
 // assertion macros (e.g. ASSERT_TRUE, EXPECT_EQ, etc) eventually call
 // this to report their results.  The user code should use the
 // assertion macros instead of calling this directly.
-void UnitTest::AddTestPartResult(
-    TestPartResult::Type result_type,
-    const char* file_name,
-    int line_number,
-    const internal::String& message,
-    const internal::String& os_stack_trace)
-        GTEST_LOCK_EXCLUDED_(mutex_) {
+// L < mutex_
+void UnitTest::AddTestPartResult(TestPartResult::Type result_type,
+                                 const char* file_name,
+                                 int line_number,
+                                 const internal::String& message,
+                                 const internal::String& os_stack_trace) {
   Message msg;
   msg << message;
 
@@ -3882,6 +3833,7 @@ int UnitTest::Run() {
   // process. In either case the user does not want to see pop-up dialogs
   // about crashes - they are expected.
   if (impl()->catch_exceptions() || in_death_test_child_process) {
+
 # if !GTEST_OS_WINDOWS_MOBILE
     // SetErrorMode doesn't exist on CE.
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOALIGNMENTFAULTEXCEPT |
@@ -3912,6 +3864,7 @@ int UnitTest::Run() {
           0x0,                                    // Clear the following flags:
           _WRITE_ABORT_MSG | _CALL_REPORTFAULT);  // pop-up window, core dump.
 # endif
+
   }
 #endif  // GTEST_HAS_SEH
 
@@ -3929,16 +3882,16 @@ const char* UnitTest::original_working_dir() const {
 
 // Returns the TestCase object for the test that's currently running,
 // or NULL if no test is running.
-const TestCase* UnitTest::current_test_case() const
-    GTEST_LOCK_EXCLUDED_(mutex_) {
+// L < mutex_
+const TestCase* UnitTest::current_test_case() const {
   internal::MutexLock lock(&mutex_);
   return impl_->current_test_case();
 }
 
 // Returns the TestInfo object for the test that's currently running,
 // or NULL if no test is running.
-const TestInfo* UnitTest::current_test_info() const
-    GTEST_LOCK_EXCLUDED_(mutex_) {
+// L < mutex_
+const TestInfo* UnitTest::current_test_info() const {
   internal::MutexLock lock(&mutex_);
   return impl_->current_test_info();
 }
@@ -3949,9 +3902,9 @@ int UnitTest::random_seed() const { return impl_->random_seed(); }
 #if GTEST_HAS_PARAM_TEST
 // Returns ParameterizedTestCaseRegistry object used to keep track of
 // value-parameterized tests and instantiate and register them.
+// L < mutex_
 internal::ParameterizedTestCaseRegistry&
-    UnitTest::parameterized_test_registry()
-        GTEST_LOCK_EXCLUDED_(mutex_) {
+    UnitTest::parameterized_test_registry() {
   return impl_->parameterized_test_registry();
 }
 #endif  // GTEST_HAS_PARAM_TEST
@@ -3968,15 +3921,15 @@ UnitTest::~UnitTest() {
 
 // Pushes a trace defined by SCOPED_TRACE() on to the per-thread
 // Google Test trace stack.
-void UnitTest::PushGTestTrace(const internal::TraceInfo& trace)
-    GTEST_LOCK_EXCLUDED_(mutex_) {
+// L < mutex_
+void UnitTest::PushGTestTrace(const internal::TraceInfo& trace) {
   internal::MutexLock lock(&mutex_);
   impl_->gtest_trace_stack().push_back(trace);
 }
 
 // Pops a trace from the per-thread Google Test trace stack.
-void UnitTest::PopGTestTrace()
-    GTEST_LOCK_EXCLUDED_(mutex_) {
+// L < mutex_
+void UnitTest::PopGTestTrace() {
   internal::MutexLock lock(&mutex_);
   impl_->gtest_trace_stack().pop_back();
 }
@@ -4012,7 +3965,6 @@ UnitTestImpl::UnitTestImpl(UnitTest* parent)
       post_flag_parse_init_performed_(false),
       random_seed_(0),  // Will be overridden by the flag before first use.
       random_(0),  // Will be reseeded before first use.
-      start_timestamp_(0),
       elapsed_time_(0),
 #if GTEST_HAS_DEATH_TEST
       internal_run_death_test_flag_(NULL),
@@ -4244,7 +4196,6 @@ bool UnitTestImpl::RunAllTests() {
 
   TestEventListener* repeater = listeners()->repeater();
 
-  start_timestamp_ = GetTimeInMillis();
   repeater->OnTestProgramStart(*parent_);
 
   // How many times to repeat the tests?  We don't want to repeat them

@@ -4,14 +4,11 @@
 
 package org.mozilla.gecko.sync.repositories.android;
 
-import java.io.IOException;
-
 import org.json.simple.JSONArray;
+import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
-import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.NonArrayJSONException;
+import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.repositories.NullCursorException;
 import org.mozilla.gecko.sync.repositories.domain.ClientRecord;
 import org.mozilla.gecko.sync.repositories.domain.HistoryRecord;
@@ -95,24 +92,7 @@ public class RepoUtils {
     }
   }
 
-  /**
-   * This method exists because the behavior of <code>cur.getString()</code> is undefined
-   * when the value in the database is <code>NULL</code>.
-   * This method will return <code>null</code> in that case.
-   */
-  public static String optStringFromCursor(final Cursor cur, final String colId) {
-    final int col = cur.getColumnIndex(colId);
-    if (cur.isNull(col)) {
-      return null;
-    }
-    return cur.getString(col);
-  }
-
-  /**
-   * The behavior of this method when the value in the database is <code>NULL</code> is
-   * determined by the implementation of the {@link Cursor}.
-   */
-  public static String getStringFromCursor(final Cursor cur, final String colId) {
+  public static String getStringFromCursor(Cursor cur, String colId) {
     // TODO: getColumnIndexOrThrow?
     // TODO: don't look up columns by name!
     return cur.getString(cur.getColumnIndex(colId));
@@ -132,13 +112,7 @@ public class RepoUtils {
       return new JSONArray();
     }
     try {
-      return ExtendedJSONObject.parseJSONArray(getStringFromCursor(cur, colId));
-    } catch (NonArrayJSONException e) {
-      Logger.error(LOG_TAG, "JSON parsing error for " + colId, e);
-      return null;
-    } catch (IOException e) {
-      Logger.error(LOG_TAG, "JSON parsing error for " + colId, e);
-      return null;
+      return (JSONArray) new JSONParser().parse(getStringFromCursor(cur, colId));
     } catch (ParseException e) {
       Logger.error(LOG_TAG, "JSON parsing error for " + colId, e);
       return null;
@@ -211,7 +185,7 @@ public class RepoUtils {
 
     final String collection = "history";
     final long lastModified = getLongFromCursor(cur, BrowserContract.SyncColumns.DATE_MODIFIED);
-    final boolean deleted = getLongFromCursor(cur, BrowserContract.SyncColumns.IS_DELETED) == 1;
+    final boolean deleted = getLongFromCursor(cur, BrowserContract.SyncColumns.IS_DELETED) == 1 ? true : false;
 
     final HistoryRecord rec = new HistoryRecord(guid, collection, lastModified, deleted);
 
@@ -261,6 +235,69 @@ public class RepoUtils {
     if (a != null && b == null) return false;
     
     return a.equals(b);
+  }
+
+  private static String fixedWidth(int width, String s) {
+    if (s == null) {
+      return spaces(width);
+    }
+    int length = s.length();
+    if (width == length) {
+      return s;
+    }
+    if (width > length) {
+      return s + spaces(width - length);
+    }
+    return s.substring(0, width);
+  }
+
+  private static String spaces(int i) {
+    return "                                     ".substring(0, i);
+  }
+
+  private static String dashes(int i) {
+    return "-------------------------------------".substring(0, i);
+  }
+
+  public static void dumpCursor(Cursor cur) {
+    dumpCursor(cur, 18, "records");
+  }
+
+  public static void dumpCursor(Cursor cur, int columnWidth, String tag) {
+    int originalPosition = cur.getPosition();
+    try {
+      String[] columnNames = cur.getColumnNames();
+      int columnCount      = cur.getColumnCount();
+
+      for (int i = 0; i < columnCount; ++i) {
+        System.out.print(fixedWidth(columnWidth, columnNames[i]) + " | ");
+      }
+      System.out.println("(" + cur.getCount() + " " + tag + ")");
+      for (int i = 0; i < columnCount; ++i) {
+        System.out.print(dashes(columnWidth) + " | ");
+      }
+      System.out.println("");
+      if (!cur.moveToFirst()) {
+        System.out.println("EMPTY");
+        return;
+      }
+
+      cur.moveToFirst();
+      while (!cur.isAfterLast()) {
+        for (int i = 0; i < columnCount; ++i) {
+          System.out.print(fixedWidth(columnWidth, cur.getString(i)) + " | ");
+        }
+        System.out.println("");
+        cur.moveToNext();
+      }
+      for (int i = 0; i < columnCount-1; ++i) {
+        System.out.print(dashes(columnWidth + 3));
+      }
+      System.out.print(dashes(columnWidth + 3 - 1));
+      System.out.println("");
+    } finally {
+      cur.moveToPosition(originalPosition);
+    }
   }
 
   public static String computeSQLInClause(int items, String field) {

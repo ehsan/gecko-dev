@@ -26,34 +26,13 @@ ChildThread::ChildThread(Thread::Options options)
 ChildThread::~ChildThread() {
 }
 
-#ifdef MOZ_NUWA_PROCESS
-#include "ipc/Nuwa.h"
-#endif
-
 bool ChildThread::Run() {
-  bool r = StartWithOptions(options_);
-#ifdef MOZ_NUWA_PROCESS
-  NS_ASSERTION(NuwaMarkCurrentThread, "NuwaMarkCurrentThread is not defined!");
-  if (IsNuwaProcess()) {
-      message_loop()->PostTask(FROM_HERE,
-                               NewRunnableFunction(&ChildThread::MarkThread));
-  }
-#endif
-  return r;
+  return StartWithOptions(options_);
 }
 
 void ChildThread::OnChannelError() {
   owner_loop_->PostTask(FROM_HERE, new MessageLoop::QuitTask());
 }
-
-#ifdef MOZ_NUWA_PROCESS
-void ChildThread::MarkThread() {
-    NuwaMarkCurrentThread(nullptr, nullptr);
-    if (!NuwaCheckpointCurrentThread()) {
-        NS_RUNTIMEABORT("Should not be here!");
-    }
-}
-#endif
 
 bool ChildThread::Send(IPC::Message* msg) {
   if (!channel_.get()) {
@@ -64,13 +43,13 @@ bool ChildThread::Send(IPC::Message* msg) {
   return channel_->Send(msg);
 }
 
-void ChildThread::AddRoute(int32_t routing_id, IPC::Channel::Listener* listener) {
+void ChildThread::AddRoute(int32 routing_id, IPC::Channel::Listener* listener) {
   DCHECK(MessageLoop::current() == message_loop());
 
   router_.AddRoute(routing_id, listener);
 }
 
-void ChildThread::RemoveRoute(int32_t routing_id) {
+void ChildThread::RemoveRoute(int32 routing_id) {
   DCHECK(MessageLoop::current() == message_loop());
 
   router_.RemoveRoute(routing_id);
@@ -89,9 +68,9 @@ ChildThread* ChildThread::current() {
 }
 
 void ChildThread::Init() {
-  channel_ = mozilla::MakeUnique<IPC::Channel>(channel_name_,
-                                               IPC::Channel::MODE_CLIENT,
-                                               this);
+  channel_.reset(new IPC::Channel(channel_name_,
+                                  IPC::Channel::MODE_CLIENT,
+                                  this));
 
 #ifdef IPC_MESSAGE_LOG_ENABLED
   IPC::Logging::current()->SetIPCSender(this);
@@ -104,7 +83,7 @@ void ChildThread::CleanUp() {
 #endif
   // Need to destruct the SyncChannel to the browser before we go away because
   // it caches a pointer to this thread.
-  channel_ = nullptr;
+  channel_.reset();
 }
 
 void ChildThread::OnProcessFinalRelease() {

@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef NS_HTML5_PARSER
-#define NS_HTML5_PARSER
+#ifndef NS_HTML5_PARSER__
+#define NS_HTML5_PARSER__
 
 #include "nsAutoPtr.h"
 #include "nsIParser.h"
@@ -12,6 +12,7 @@
 #include "nsIURL.h"
 #include "nsParserCIID.h"
 #include "nsITokenizer.h"
+#include "nsThreadUtils.h"
 #include "nsIContentSink.h"
 #include "nsIRequest.h"
 #include "nsIChannel.h"
@@ -25,10 +26,9 @@
 #include "nsHtml5StreamParser.h"
 #include "nsHtml5AtomTable.h"
 #include "nsWeakReference.h"
-#include "nsHtml5StreamListener.h"
 
-class nsHtml5Parser MOZ_FINAL : public nsIParser,
-                                public nsSupportsWeakReference
+class nsHtml5Parser : public nsIParser,
+                      public nsSupportsWeakReference
 {
   public:
     NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
@@ -37,6 +37,7 @@ class nsHtml5Parser MOZ_FINAL : public nsIParser,
     NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsHtml5Parser, nsIParser)
 
     nsHtml5Parser();
+    virtual ~nsHtml5Parser();
 
     /* Start nsIParser */
     /**
@@ -237,12 +238,10 @@ class nsHtml5Parser MOZ_FINAL : public nsIParser,
 
     void InitializeDocWriteParserState(nsAHtml5TreeBuilderState* aState, int32_t aLine);
 
-    void DropStreamParser()
-    {
-      if (GetStreamParser()) {
-        GetStreamParser()->DropTimer();
-        mStreamListener->DropDelegate();
-        mStreamListener = nullptr;
+    void DropStreamParser() {
+      if (mStreamParser) {
+        mStreamParser->DropTimer();
+        mStreamParser = nullptr;
       }
     }
     
@@ -250,22 +249,16 @@ class nsHtml5Parser MOZ_FINAL : public nsIParser,
     
     void ContinueAfterFailedCharsetSwitch();
 
-    nsHtml5StreamParser* GetStreamParser()
-    {
-      if (!mStreamListener) {
-        return nullptr;
-      }
-      return mStreamListener->GetDelegate();
+    nsHtml5StreamParser* GetStreamParser() {
+      return mStreamParser;
     }
 
     /**
      * Parse until pending data is exhausted or a script blocks the parser
      */
-    nsresult ParseUntilBlocked();
+    void ParseUntilBlocked();
 
   private:
-
-    virtual ~nsHtml5Parser();
 
     // State variables
 
@@ -340,9 +333,9 @@ class nsHtml5Parser MOZ_FINAL : public nsIParser,
     nsAutoPtr<nsHtml5Tokenizer>   mDocWriteSpeculativeTokenizer;
 
     /**
-     * The stream listener holding the stream parser.
+     * The stream parser.
      */
-    nsRefPtr<nsHtml5StreamListener>     mStreamListener;
+    nsRefPtr<nsHtml5StreamParser>       mStreamParser;
 
     /**
      *

@@ -15,26 +15,15 @@ GLContextProviderNull::CreateForWindow(nsIWidget*)
 }
 
 already_AddRefed<GLContext>
-GLContextProviderNull::CreateWrappingExisting(void*, void*)
-{
-    return nullptr;
-}
-
-already_AddRefed<GLContext>
 GLContextProviderNull::CreateOffscreen(const gfxIntSize&,
-                                       const SurfaceCaps&)
+                                       const ContextFormat&,
+                                       const ContextFlags)
 {
     return nullptr;
 }
 
-already_AddRefed<GLContext>
-GLContextProviderNull::CreateHeadless()
-{
-    return nullptr;
-}
-
-GLContext*
-GLContextProviderNull::GetGlobalContext(ContextFlags)
+GLContext *
+GLContextProviderNull::GetGlobalContext()
 {
     return nullptr;
 }

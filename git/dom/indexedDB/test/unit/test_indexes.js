@@ -7,7 +7,7 @@ var testGenerator = testSteps();
 
 function testSteps()
 {
-  const name = this.window ? window.location.pathname : "Splendid Test";
+  const name = this.window ? this.window ? window.location.pathname : "Splendid Test" : "Splendid Test";
 
   const objectStoreName = "People";
 
@@ -56,7 +56,7 @@ function testSteps()
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  let event = yield undefined;
+  let event = yield;
   let db = event.target.result;
 
   let objectStore = db.createObjectStore(objectStoreName, { keyPath: null });
@@ -73,14 +73,14 @@ function testSteps()
       }
     }
   }
-  event = yield undefined;
+  event = yield;
   // Now create the indexes.
   for (let i in indexData) {
     objectStore.createIndex(indexData[i].name, indexData[i].keyPath,
                             indexData[i].options);
   }
   is(objectStore.indexNames.length, indexData.length, "Good index count");
-  yield undefined;
+  yield;
   objectStore = db.transaction(objectStoreName)
                   .objectStore(objectStoreName);
 
@@ -97,7 +97,7 @@ function testSteps()
     is(found, true, "objectStore has our index");
     let index = objectStore.index(indexData[i].name);
     is(index.name, indexData[i].name, "Correct name");
-    is(index.objectStore.name, objectStore.name, "Correct store name");
+    is(index.storeName, objectStore.name, "Correct store name");
     is(index.keyPath, indexData[i].keyPath, "Correct keyPath");
     is(index.unique, indexData[i].options.unique ? true : false,
        "Correct unique value");
@@ -106,14 +106,14 @@ function testSteps()
   request = objectStore.index("name").getKey("Bob");
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   is(event.target.result, "237-23-7732", "Correct key returned!");
 
   request = objectStore.index("name").get("Bob");
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   is(event.target.result.name, "Bob", "Correct name returned!");
   is(event.target.result.height, 60, "Correct height returned!");
@@ -148,7 +148,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, objectStoreData.length, "Saw all the expected keys");
 
@@ -179,7 +179,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, objectStoreData.length - 1, "Saw all the expected keys");
 
@@ -188,9 +188,9 @@ function testSteps()
                   .objectStore(objectStoreName);
   request = objectStore.add({ name: "Bob", height: 62, weight: 170 },
                             "237-23-7738");
-  request.addEventListener("error", new ExpectError("ConstraintError", true));
+  request.onerror = new ExpectError("ConstraintError", true);
   request.onsuccess = unexpectedSuccessHandler;
-  event = yield undefined;
+  event = yield;
 
   ok(true, "Test group 3");
 
@@ -219,7 +219,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, -1, "Saw all the expected keys");
 
@@ -245,14 +245,14 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, 5, "Saw all the expected keys");
 
   ok(true, "Test group 5");
 
   keyIndex = 2;
-  keyRange = IDBKeyRange.bound("Bob", "Ron", true);
+  let keyRange = IDBKeyRange.bound("Bob", "Ron", true);
 
   request = objectStore.index("name").openKeyCursor(keyRange);
   request.onerror = errorHandler;
@@ -271,14 +271,14 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, 5, "Saw all the expected keys");
 
   ok(true, "Test group 6");
 
   keyIndex = 1;
-  keyRange = IDBKeyRange.bound("Bob", "Ron", false, true);
+  let keyRange = IDBKeyRange.bound("Bob", "Ron", false, true);
 
   request = objectStore.index("name").openKeyCursor(keyRange);
   request.onerror = errorHandler;
@@ -297,7 +297,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, 4, "Saw all the expected keys");
 
@@ -323,7 +323,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, 4, "Saw all the expected keys");
 
@@ -349,7 +349,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, objectStoreDataNameSort.length, "Saw all the expected keys");
 
@@ -375,7 +375,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, objectStoreDataNameSort.length, "Saw all the expected keys");
 
@@ -401,7 +401,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, 3, "Saw all the expected keys");
 
@@ -427,7 +427,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, 2, "Saw all the expected keys");
 
@@ -453,7 +453,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, 4, "Saw all the expected keys");
 
@@ -504,7 +504,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, objectStoreDataNameSort.length, "Saw all the expected keys");
 
@@ -555,7 +555,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, -1, "Saw all the expected keys");
 
@@ -607,7 +607,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, 5, "Saw all the expected keys");
 
@@ -659,7 +659,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, 5, "Saw all the expected keys");
 
@@ -711,7 +711,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, 4, "Saw all the expected keys");
 
@@ -763,7 +763,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, 4, "Saw all the expected keys");
 
@@ -815,7 +815,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, 0, "Saw all the expected keys");
 
@@ -842,7 +842,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, 5, "Saw all the expected keys");
 
@@ -869,7 +869,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, 4, "Saw all the expected keys");
 
@@ -894,7 +894,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, -1, "Saw all the expected keys");
 
@@ -923,7 +923,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, -1, "Saw all the expected keys");
 
@@ -959,7 +959,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, 5, "Saw all the expected keys");
 
@@ -996,7 +996,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, 4, "Saw all the expected keys");
 
@@ -1031,7 +1031,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, -1, "Saw all the expected keys");
 
@@ -1070,7 +1070,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, -1, "Saw all the expected keys");
 
@@ -1108,7 +1108,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, objectStoreData.length, "Saw all the expected keys");
 
@@ -1141,7 +1141,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, objectStoreData.length, "Saw all the expected keys");
 
@@ -1199,7 +1199,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, objectStoreDataNameSort.length, "Saw all the expected keys");
 
@@ -1252,10 +1252,10 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, objectStoreDataNameSort.length, "Saw all the expected keys");
 
   finishTest();
-  yield undefined;
+  yield;
 }

@@ -9,15 +9,11 @@
  */
 
 
-#ifndef VP8_COMMON_ENTROPY_H_
-#define VP8_COMMON_ENTROPY_H_
+#ifndef __INC_ENTROPY_H
+#define __INC_ENTROPY_H
 
 #include "treecoder.h"
 #include "blockd.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /* Coefficient token alphabet */
 
@@ -39,7 +35,7 @@ extern "C" {
 
 extern const vp8_tree_index vp8_coef_tree[];
 
-extern const struct vp8_token_struct vp8_coef_encodings[MAX_ENTROPY_TOKENS];
+extern struct vp8_token_struct vp8_coef_encodings[MAX_ENTROPY_TOKENS];
 
 typedef struct
 {
@@ -49,7 +45,7 @@ typedef struct
     int base_val;
 } vp8_extra_bit_struct;
 
-extern const vp8_extra_bit_struct vp8_extra_bits[12];    /* indexed by token value */
+extern vp8_extra_bit_struct vp8_extra_bits[12];    /* indexed by token value */
 
 #define PROB_UPDATE_BASELINE_COST   7
 
@@ -98,12 +94,8 @@ void vp8_default_coef_probs(struct VP8Common *);
 
 extern DECLARE_ALIGNED(16, const int, vp8_default_zig_zag1d[16]);
 extern DECLARE_ALIGNED(16, const short, vp8_default_inv_zig_zag[16]);
-extern DECLARE_ALIGNED(16, const short, vp8_default_zig_zag_mask[16]);
+extern short vp8_default_zig_zag_mask[16];
 extern const int vp8_mb_feature_data_bits[MB_LVL_MAX];
 
 void vp8_coef_tree_initialize(void);
-#ifdef __cplusplus
-}  // extern "C"
 #endif
-
-#endif  // VP8_COMMON_ENTROPY_H_

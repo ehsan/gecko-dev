@@ -1,5 +1,3 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -43,17 +41,19 @@
 
 namespace mozilla {
 
-int32_t CompareVersions(const char* aStrA, const char* aStrB);
+int32_t NS_COM_GLUE
+CompareVersions(const char *A, const char *B);
 
 #ifdef XP_WIN
-int32_t CompareVersions(const char16_t* aStrA, const char16_t* aStrB);
+int32_t NS_COM_GLUE
+CompareVersions(const PRUnichar *A, const PRUnichar *B);
 #endif
 
-struct Version
+struct NS_COM_GLUE Version
 {
-  explicit Version(const char* aVersionString)
+  Version(const char* versionString)
   {
-    versionContent = strdup(aVersionString);
+    versionContent = strdup(versionString);
   }
 
   const char* ReadContent() const
@@ -66,69 +66,44 @@ struct Version
     free(versionContent);
   }
 
-  bool operator<(const Version& aRhs) const
+  bool operator< (const Version& rhs) const
   {
-    return CompareVersions(versionContent, aRhs.ReadContent()) == -1;
+    return CompareVersions(versionContent, rhs.ReadContent()) == -1;
   }
-  bool operator<=(const Version& aRhs) const
+  bool operator<= (const Version& rhs) const
   {
-    return CompareVersions(versionContent, aRhs.ReadContent()) < 1;
+    return CompareVersions(versionContent, rhs.ReadContent()) < 1;
   }
-  bool operator>(const Version& aRhs) const
+  bool operator> (const Version& rhs) const
   {
-    return CompareVersions(versionContent, aRhs.ReadContent()) == 1;
+    return CompareVersions(versionContent, rhs.ReadContent()) == 1;
   }
-  bool operator>=(const Version& aRhs) const
+  bool operator>= (const Version& rhs) const
   {
-    return CompareVersions(versionContent, aRhs.ReadContent()) > -1;
+    return CompareVersions(versionContent, rhs.ReadContent()) > -1;
   }
-  bool operator==(const Version& aRhs) const
+  bool operator== (const Version& rhs) const
   {
-    return CompareVersions(versionContent, aRhs.ReadContent()) == 0;
+    return CompareVersions(versionContent, rhs.ReadContent()) == 0;
   }
-  bool operator!=(const Version& aRhs) const
+  bool operator!= (const Version& rhs) const
   {
-    return CompareVersions(versionContent, aRhs.ReadContent()) != 0;
-  }
-  bool operator<(const char* aRhs) const
-  {
-    return CompareVersions(versionContent, aRhs) == -1;
-  }
-  bool operator<=(const char* aRhs) const
-  {
-    return CompareVersions(versionContent, aRhs) < 1;
-  }
-  bool operator>(const char* aRhs) const
-  {
-    return CompareVersions(versionContent, aRhs) == 1;
-  }
-  bool operator>=(const char* aRhs) const
-  {
-    return CompareVersions(versionContent, aRhs) > -1;
-  }
-  bool operator==(const char* aRhs) const
-  {
-    return CompareVersions(versionContent, aRhs) == 0;
-  }
-  bool operator!=(const char* aRhs) const
-  {
-    return CompareVersions(versionContent, aRhs) != 0;
+    return CompareVersions(versionContent, rhs.ReadContent()) != 0;
   }
 
-private:
+ private:
   char* versionContent;
 };
 
 #ifdef XP_WIN
-struct VersionW
+struct NS_COM_GLUE VersionW
 {
-  VersionW(const char16_t* aVersionStringW)
+  VersionW(const PRUnichar *versionStringW)
   {
-    versionContentW =
-      reinterpret_cast<char16_t*>(wcsdup(char16ptr_t(aVersionStringW)));
+    versionContentW = wcsdup(versionStringW);
   }
 
-  const char16_t* ReadContentW() const
+  const PRUnichar* ReadContentW() const
   {
     return versionContentW;
   }
@@ -138,33 +113,33 @@ struct VersionW
     free(versionContentW);
   }
 
-  bool operator<(const VersionW& aRhs) const
+  bool operator< (const VersionW& rhs) const
   {
-    return CompareVersions(versionContentW, aRhs.ReadContentW()) == -1;
+    return CompareVersions(versionContentW, rhs.ReadContentW()) == -1;
   }
-  bool operator<=(const VersionW& aRhs) const
+  bool operator<= (const VersionW& rhs) const
   {
-    return CompareVersions(versionContentW, aRhs.ReadContentW()) < 1;
+    return CompareVersions(versionContentW, rhs.ReadContentW()) < 1;
   }
-  bool operator>(const VersionW& aRhs) const
+  bool operator> (const VersionW& rhs) const
   {
-    return CompareVersions(versionContentW, aRhs.ReadContentW()) == 1;
+    return CompareVersions(versionContentW, rhs.ReadContentW()) == 1;
   }
-  bool operator>=(const VersionW& aRhs) const
+  bool operator>= (const VersionW& rhs) const
   {
-    return CompareVersions(versionContentW, aRhs.ReadContentW()) > -1;
+    return CompareVersions(versionContentW, rhs.ReadContentW()) > -1;
   }
-  bool operator==(const VersionW& aRhs) const
+  bool operator== (const VersionW& rhs) const
   {
-    return CompareVersions(versionContentW, aRhs.ReadContentW()) == 0;
+    return CompareVersions(versionContentW, rhs.ReadContentW()) == 0;
   }
-  bool operator!=(const VersionW& aRhs) const
+  bool operator!= (const VersionW& rhs) const
   {
-    return CompareVersions(versionContentW, aRhs.ReadContentW()) != 0;
+    return CompareVersions(versionContentW, rhs.ReadContentW()) != 0;
   }
 
-private:
-  char16_t* versionContentW;
+ private:
+  PRUnichar* versionContentW;
 };
 #endif
 

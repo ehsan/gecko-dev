@@ -415,12 +415,13 @@ void addVariance(VarianceState* inVariance, unsigned inValue)
 {
     uint64_t squared;
     uint64_t bigValue;
+    
+    LL_UI2L(bigValue, inValue);
 
-    bigValue = inValue;
-    inVariance->mSum += bigValue;
+    LL_ADD(inVariance->mSum, inVariance->mSum, bigValue);
 
-    squared = bigValue * bigValue;
-    inVariance->mSquaredSum += squared;
+    LL_MUL(squared, bigValue, bigValue);
+    LL_ADD(inVariance->mSquaredSum, inVariance->mSquaredSum, squared);
 
     inVariance->mCount++;
 }
@@ -436,6 +437,7 @@ double getAverage(VarianceState* inVariance)
     if(NULL != inVariance && 0 < inVariance->mCount)
     {
         double count;
+        double sum;
         int64_t isum;
 
         /*
@@ -444,8 +446,9 @@ double getAverage(VarianceState* inVariance)
         isum = inVariance->mSum;
 
         count = (double)inVariance->mCount;
+        LL_L2F(sum, isum);
 
-        retval = (double)isum / count;
+        retval = sum / count;
     }
 
     return retval;
@@ -462,6 +465,7 @@ double getVariance(VarianceState* inVariance)
     if(NULL != inVariance && 1 < inVariance->mCount)
     {
         double count;
+        double squaredSum;
         double avg;
         double squaredAvg;
         int64_t isquaredSum;
@@ -472,11 +476,12 @@ double getVariance(VarianceState* inVariance)
         isquaredSum = inVariance->mSquaredSum;
 
         count = (double)inVariance->mCount;
+        LL_L2F(squaredSum, isquaredSum);
 
         avg = getAverage(inVariance);
         squaredAvg = avg * avg;
 
-        retval = ((double)isquaredSum - (count * squaredAvg)) / (count - 1.0);
+        retval = (squaredSum - (count * squaredAvg)) / (count - 1.0);
     }
 
     return retval;
@@ -527,7 +532,18 @@ uint32_t ticks2xsec(tmreader* aReader, uint32_t aTicks, uint32_t aResolution)
 ** Returns 0 on success.
 */
 {
-    return (uint32_t)((aResolution * aTicks) / aReader->ticksPerSec);
+    uint32_t retval = 0;
+    uint64_t bigone;
+    uint64_t tmp64;
+
+    LL_UI2L(bigone, aResolution);
+    LL_UI2L(tmp64, aTicks);
+    LL_MUL(bigone, bigone, tmp64);
+    LL_UI2L(tmp64, aReader->ticksPerSec);
+    LL_DIV(bigone, bigone, tmp64);
+    LL_L2UI(retval, bigone);
+
+    return retval;
 }
 #define ticks2msec(reader, ticks) ticks2xsec((reader), (ticks), 1000)
 

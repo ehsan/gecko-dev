@@ -7,22 +7,16 @@
 #define _NSPROFILER_H_
 
 #include "nsIProfiler.h"
-#include "nsIObserver.h"
 #include "mozilla/Attributes.h"
 
-class nsProfiler MOZ_FINAL : public nsIProfiler, public nsIObserver
+class nsProfiler MOZ_FINAL : public nsIProfiler
 {
 public:
     nsProfiler();
 
     NS_DECL_ISUPPORTS
-    NS_DECL_NSIOBSERVER
-    NS_DECL_NSIPROFILER
 
-    nsresult Init();
-private:
-    ~nsProfiler();
-    bool mLockedForPrivateBrowsing;
+    NS_DECL_NSIPROFILER
 };
 
 #endif /* _NSPROFILER_H_ */

@@ -4,16 +4,12 @@
 
 @namespace html url(http://www.w3.org/1999/xhtml);
 
-/* Do not change this without also changing the appropriate line in
- * browser-plugins.js (near where this file is mentioned). */
 html|object:not([width]), html|object[width=""],
 html|embed:not([width]), html|embed[width=""],
 html|applet:not([width]), html|applet[width=""] {
   width: 240px;
 }
 
-/* Do not change this without also changing the appropriate line in
- * browser-plugins.js (near where this file is mentioned). */
 html|object:not([height]), html|object[height=""],
 html|embed:not([height]), html|embed[height=""],
 html|applet:not([height]), html|applet[height=""] {
@@ -45,26 +41,6 @@ html|applet:not([height]), html|applet[height=""] {
   overflow: hidden;
   direction: ltr;
   unicode-bidi: embed;
-  /* used to block inherited properties */
-  text-transform: none;
-  text-indent: 0;
-  cursor: initial;
-  white-space: initial;
-  word-spacing: initial;
-  letter-spacing: initial;
-  line-height: initial;
-}
-
-/* Initialize the overlay with visibility:hidden to prevent flickering if
-* the plugin is too small to show the overlay */
-.mainBox > .hoverBox,
-.mainBox > .closeIcon {
-  visibility: hidden;
-}
-
-.visible > .hoverBox,
-.visible > .closeIcon {
-  visibility: visible;
 }
 
 .mainBox[chromedir="rtl"] {
@@ -73,19 +49,6 @@ html|applet:not([height]), html|applet[height=""] {
 
 :-moz-handler-playpreview .mainBox {
   display: none;
-}
-
-:-moz-handler-clicktoplay .hoverBox,
-:-moz-handler-vulnerable-updatable .hoverBox,
-:-moz-handler-vulnerable-no-update .hoverBox {
-  cursor: pointer;
-}
-
-.hoverBox > label {
-  cursor: inherit;
-}
-.icon {
-  cursor: inherit;
 }
 
 .previewPluginContent {
@@ -125,11 +88,8 @@ html|applet:not([height]), html|applet[height=""] {
   display: block;
 }
 
-.submitStatus[status] {
-  display: -moz-box;
-  -moz-box-align: center;
-  -moz-box-pack: center;
-  height: 160px;
+.installStatus[status="ready"] .msgInstallPlugin {
+  display: block;
 }
 
 .submitStatus[status="noReport"]   .msgNoCrashReport,
@@ -137,6 +97,16 @@ html|applet:not([height]), html|applet[height=""] {
 .submitStatus[status="noSubmit"]   .msgNotSubmitted,
 .submitStatus[status="submitting"] .msgSubmitting,
 .submitStatus[status="success"]    .msgSubmitted,
-.submitStatus[status="failed"]     .msgSubmitFailed {
+.submitStatus[status="failed"]     .msgSubmitFailed,
+.submitStatus[status]:not([status="please"]) .msgReload {
   display: block;
+}
+.submitStatus[status="please"] .msgReload {
+  /* Take up space when invisible, so stuff doesn't shift upon reveal. */
+  display: block;
+  visibility: hidden;
+}
+
+.helpIcon {
+  cursor: pointer;
 }

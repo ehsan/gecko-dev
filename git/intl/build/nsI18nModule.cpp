@@ -7,8 +7,9 @@
 
 // lwbrk
 #include "nsLWBrkCIID.h"
-#include "nsJISx4051LineBreaker.h"
+#include "nsJISx4501LineBreaker.h"
 #include "nsSampleWordBreaker.h"
+#include "nsLWBRKDll.h"
 
 #include "nsSemanticUnitScanner.h"
 
@@ -28,6 +29,7 @@
 #include "nsLocaleConstructors.h"
 
 // uconv
+#include "nsCharsetConverterManager.h"
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsJISx4051LineBreaker)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSampleWordBreaker)
@@ -71,6 +73,11 @@ NS_DEFINE_NAMED_CID(NS_DATETIMEFORMAT_CID);
 NS_DEFINE_NAMED_CID(NS_COLLATION_CID);
 NS_DEFINE_NAMED_CID(NS_DATETIMEFORMAT_CID);
 #endif
+#ifdef XP_OS2
+NS_DEFINE_NAMED_CID(NS_OS2LOCALE_CID);
+NS_DEFINE_NAMED_CID(NS_COLLATION_CID);
+NS_DEFINE_NAMED_CID(NS_DATETIMEFORMAT_CID);
+#endif
 
 static const mozilla::Module::CIDEntry kIntlCIDs[] = {
     { &kNS_LBRK_CID, false, nullptr, nsJISx4051LineBreakerConstructor },
@@ -99,6 +106,11 @@ static const mozilla::Module::CIDEntry kIntlCIDs[] = {
 #ifdef USE_MAC_LOCALE
     { &kNS_COLLATION_CID, false, nullptr, nsCollationMacUCConstructor },
     { &kNS_DATETIMEFORMAT_CID, false, nullptr, nsDateTimeFormatMacConstructor },
+#endif
+#ifdef XP_OS2
+    { &kNS_OS2LOCALE_CID, false, nullptr, nsOS2LocaleConstructor },
+    { &kNS_COLLATION_CID, false, nullptr, nsCollationOS2Constructor },
+    { &kNS_DATETIMEFORMAT_CID, false, nullptr, nsDateTimeFormatOS2Constructor },
 #endif
     { nullptr }
 };
@@ -131,8 +143,19 @@ static const mozilla::Module::ContractIDEntry kIntlContracts[] = {
     { NS_COLLATION_CONTRACTID, &kNS_COLLATION_CID },
     { NS_DATETIMEFORMAT_CONTRACTID, &kNS_DATETIMEFORMAT_CID },
 #endif
+#ifdef XP_OS2
+    { NS_OS2LOCALE_CONTRACTID, &kNS_OS2LOCALE_CID },
+    { NS_COLLATION_CONTRACTID, &kNS_COLLATION_CID },
+    { NS_DATETIMEFORMAT_CONTRACTID, &kNS_DATETIMEFORMAT_CID },
+#endif
     { nullptr }
 };
+
+static void
+I18nModuleDtor()
+{
+    nsCharsetConverterManager::Shutdown();
+}
 
 static const mozilla::Module kIntlModule = {
     mozilla::Module::kVersion,
@@ -141,7 +164,7 @@ static const mozilla::Module kIntlModule = {
     nullptr,
     nullptr,
     nullptr,
-    nullptr
+    I18nModuleDtor
 };
 
 NSMODULE_DEFN(nsI18nModule) = &kIntlModule;

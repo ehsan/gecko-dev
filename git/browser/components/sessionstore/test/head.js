@@ -5,34 +5,6 @@
 const TAB_STATE_NEEDS_RESTORE = 1;
 const TAB_STATE_RESTORING = 2;
 
-const ROOT = getRootDirectory(gTestPath);
-const FRAME_SCRIPTS = [
-  ROOT + "content.js",
-  ROOT + "content-forms.js"
-];
-
-let mm = Cc["@mozilla.org/globalmessagemanager;1"]
-           .getService(Ci.nsIMessageListenerManager);
-
-for (let script of FRAME_SCRIPTS) {
-  mm.loadFrameScript(script, true);
-}
-
-registerCleanupFunction(() => {
-  for (let script of FRAME_SCRIPTS) {
-    mm.removeDelayedFrameScript(script, true);
-  }
-});
-
-let tmp = {};
-Cu.import("resource://gre/modules/Promise.jsm", tmp);
-Cu.import("resource://gre/modules/Task.jsm", tmp);
-Cu.import("resource:///modules/sessionstore/SessionStore.jsm", tmp);
-Cu.import("resource:///modules/sessionstore/SessionSaver.jsm", tmp);
-Cu.import("resource:///modules/sessionstore/SessionFile.jsm", tmp);
-Cu.import("resource:///modules/sessionstore/TabState.jsm", tmp);
-let {Promise, Task, SessionStore, SessionSaver, SessionFile, TabState} = tmp;
-
 let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
 
 // Some tests here assume that all restored tabs are loaded without waiting for
@@ -42,13 +14,6 @@ Services.prefs.setBoolPref("browser.sessionstore.restore_on_demand", false);
 registerCleanupFunction(function () {
   Services.prefs.clearUserPref("browser.sessionstore.restore_on_demand");
 });
-
-// Obtain access to internals
-Services.prefs.setBoolPref("browser.sessionstore.debug", true);
-registerCleanupFunction(function () {
-  Services.prefs.clearUserPref("browser.sessionstore.debug");
-});
-
 
 // This kicks off the search service used on about:home and allows the
 // session restore tests to be run standalone without triggering errors.
@@ -61,7 +26,7 @@ function provideWindow(aCallback, aURL, aFeatures) {
     });
   }
 
-  let win = openDialog(getBrowserURL(), "", aFeatures || "chrome,all,dialog=no", aURL || "about:blank");
+  let win = openDialog(getBrowserURL(), "", aFeatures || "chrome,all,dialog=no", aURL);
   whenWindowLoaded(win, function onWindowLoaded(aWin) {
     if (!aURL) {
       info("Loaded a blank window.");
@@ -78,12 +43,6 @@ function provideWindow(aCallback, aURL, aFeatures) {
 
 // This assumes that tests will at least have some state/entries
 function waitForBrowserState(aState, aSetStateCallback) {
-  if (typeof aState == "string") {
-    aState = JSON.parse(aState);
-  }
-  if (typeof aState != "object") {
-    throw new TypeError("Argument must be an object or a JSON representation of an object");
-  }
   let windows = [window];
   let tabsRestored = 0;
   let expectedTabsRestored = 0;
@@ -161,15 +120,8 @@ function waitForBrowserState(aState, aSetStateCallback) {
   listening = true;
   gBrowser.tabContainer.addEventListener("SSTabRestored", onSSTabRestored, true);
 
-  // Ensure setBrowserState() doesn't remove the initial tab.
-  gBrowser.selectedTab = gBrowser.tabs[0];
-
   // Finally, call setBrowserState
   ss.setBrowserState(JSON.stringify(aState));
-}
-
-function promiseBrowserState(aState) {
-  return new Promise(resolve => waitForBrowserState(aState, resolve));
 }
 
 // Doesn't assume that the tab needs to be closed in a cleanup function.
@@ -193,49 +145,31 @@ function waitForTabState(aTab, aState, aCallback) {
   ss.setTabState(aTab, JSON.stringify(aState));
 }
 
-function promiseTabState(tab, state) {
-  return new Promise(resolve => waitForTabState(tab, state, resolve));
-}
-
-/**
- * Wait for a content -> chrome message.
- */
-function promiseContentMessage(browser, name) {
-  let mm = browser.messageManager;
-
-  return new Promise(resolve => {
-    function removeListener() {
-      mm.removeMessageListener(name, listener);
-    }
-
-    function listener(msg) {
-      removeListener();
-      resolve(msg.data);
-    }
-
-    mm.addMessageListener(name, listener);
-    registerCleanupFunction(removeListener);
-  });
-}
-
-function waitForTopic(aTopic, aTimeout, aCallback) {
+// waitForSaveState waits for a state write but not necessarily for the state to
+// turn dirty.
+function waitForSaveState(aSaveStateCallback) {
   let observing = false;
+  let topic = "sessionstore-state-write";
+
+  let sessionSaveTimeout = 1000 +
+    Services.prefs.getIntPref("browser.sessionstore.interval");
+
   function removeObserver() {
     if (!observing)
       return;
-    Services.obs.removeObserver(observer, aTopic);
+    Services.obs.removeObserver(observer, topic, false);
     observing = false;
   }
 
   let timeout = setTimeout(function () {
     removeObserver();
-    aCallback(false);
-  }, aTimeout);
+    aSaveStateCallback();
+  }, sessionSaveTimeout);
 
   function observer(aSubject, aTopic, aData) {
     removeObserver();
     timeout = clearTimeout(timeout);
-    executeSoon(() => aCallback(true));
+    executeSoon(aSaveStateCallback);
   }
 
   registerCleanupFunction(function() {
@@ -246,128 +180,23 @@ function waitForTopic(aTopic, aTimeout, aCallback) {
   });
 
   observing = true;
-  Services.obs.addObserver(observer, aTopic, false);
-}
+  Services.obs.addObserver(observer, topic, false);
+};
 
-/**
- * Wait until session restore has finished collecting its data and is
- * has written that data ("sessionstore-state-write-complete").
- *
- * @param {function} aCallback If sessionstore-state-write is sent
- * within buffering interval + 100 ms, the callback is passed |true|,
- * otherwise, it is passed |false|.
- */
-function waitForSaveState(aCallback) {
-  let timeout = 100 +
-    Services.prefs.getIntPref("browser.sessionstore.interval");
-  return waitForTopic("sessionstore-state-write-complete", timeout, aCallback);
-}
-function promiseSaveState() {
-  return new Promise(resolve => {
-    waitForSaveState(isSuccessful => {
-      if (!isSuccessful) {
-        throw new Error("timeout");
-      }
-
-      resolve();
-    });
-  });
-}
-function forceSaveState() {
-  return SessionSaver.run();
-}
-
-function promiseRecoveryFileContents() {
-  let promise = forceSaveState();
-  return promise.then(function() {
-    return OS.File.read(SessionFile.Paths.recovery, { encoding: "utf-8" });
-  });
-}
-
-let promiseForEachSessionRestoreFile = Task.async(function*(cb) {
-  for (let key of SessionFile.Paths.loadOrder) {
-    let data = "";
-    try {
-      data = yield OS.File.read(SessionFile.Paths[key], { encoding: "utf-8" });
-    } catch (ex if ex instanceof OS.File.Error
-	     && ex.becauseNoSuchFile) {
-      // Ignore missing files
-    }
-    cb(data, key);
-  }
-});
-
-function whenBrowserLoaded(aBrowser, aCallback = next, ignoreSubFrames = true, expectedURL = null) {
-  aBrowser.messageManager.addMessageListener("ss-test:loadEvent", function onLoad(msg) {
-    if (expectedURL && aBrowser.currentURI.spec != expectedURL) {
-      return;
-    }
-
-    if (!ignoreSubFrames || !msg.data.subframe) {
-      aBrowser.messageManager.removeMessageListener("ss-test:loadEvent", onLoad);
-      executeSoon(aCallback);
-    }
-  });
-}
-function promiseBrowserLoaded(aBrowser, ignoreSubFrames = true) {
-  return new Promise(resolve => {
-    whenBrowserLoaded(aBrowser, resolve, ignoreSubFrames);
-  });
-}
-function whenBrowserUnloaded(aBrowser, aContainer, aCallback = next) {
-  aBrowser.addEventListener("unload", function onUnload() {
-    aBrowser.removeEventListener("unload", onUnload, true);
+function whenBrowserLoaded(aBrowser, aCallback) {
+  aBrowser.addEventListener("load", function onLoad() {
+    aBrowser.removeEventListener("load", onLoad, true);
     executeSoon(aCallback);
   }, true);
 }
 
-/**
- * Loads a page in a browser, and returns a Promise that
- * resolves once a "load" event has been fired within that
- * browser.
- *
- * @param browser
- *        The browser to load the page in.
- * @param uri
- *        The URI to load.
- *
- * @return Promise
- */
-function loadPage(browser, uri) {
-  return new Promise((resolve, reject) => {
-    browser.addEventListener("load", function onLoad(event) {
-      browser.removeEventListener("load", onLoad, true);
-      resolve();
-    }, true);
-    browser.loadURI(uri);
-  });
-}
-
-function promiseBrowserUnloaded(aBrowser, aContainer) {
-  return new Promise(resolve => {
-    whenBrowserUnloaded(aBrowser, aContainer, resolve);
-  });
-}
-
-function whenWindowLoaded(aWindow, aCallback = next) {
+function whenWindowLoaded(aWindow, aCallback) {
   aWindow.addEventListener("load", function windowLoadListener() {
     aWindow.removeEventListener("load", windowLoadListener, false);
     executeSoon(function executeWhenWindowLoaded() {
       aCallback(aWindow);
     });
   }, false);
-}
-function promiseWindowLoaded(aWindow) {
-  return new Promise(resolve => whenWindowLoaded(aWindow, resolve));
-}
-
-function whenTabRestored(aTab, aCallback = next) {
-  aTab.addEventListener("SSTabRestored", function onRestored(aEvent) {
-    aTab.removeEventListener("SSTabRestored", onRestored, true);
-    executeSoon(function executeWhenTabRestored() {
-      aCallback();
-    });
-  }, true);
 }
 
 var gUniqueCounter = 0;
@@ -385,75 +214,50 @@ function BrowserWindowIterator() {
   }
 }
 
-let gWebProgressListener = {
+let gProgressListener = {
   _callback: null,
+  _checkRestoreState: true,
 
-  setCallback: function (aCallback) {
+  setCallback: function gProgressListener_setCallback(aCallback, aCheckRestoreState = true) {
     if (!this._callback) {
       window.gBrowser.addTabsProgressListener(this);
     }
     this._callback = aCallback;
+    this._checkRestoreState = aCheckRestoreState;
   },
 
-  unsetCallback: function () {
+  unsetCallback: function gProgressListener_unsetCallback() {
     if (this._callback) {
       this._callback = null;
       window.gBrowser.removeTabsProgressListener(this);
     }
   },
 
-  onStateChange: function (aBrowser, aWebProgress, aRequest,
-                           aStateFlags, aStatus) {
-    if (aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
+  onStateChange:
+  function gProgressListener_onStateChange(aBrowser, aWebProgress, aRequest,
+                                           aStateFlags, aStatus) {
+    if ((!this._checkRestoreState ||
+         aBrowser.__SS_restoreState == TAB_STATE_RESTORING) &&
+        aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
         aStateFlags & Ci.nsIWebProgressListener.STATE_IS_NETWORK &&
         aStateFlags & Ci.nsIWebProgressListener.STATE_IS_WINDOW) {
-      this._callback(aBrowser);
-    }
-  }
-};
-
-registerCleanupFunction(function () {
-  gWebProgressListener.unsetCallback();
-});
-
-let gProgressListener = {
-  _callback: null,
-
-  setCallback: function (callback) {
-    Services.obs.addObserver(this, "sessionstore-debug-tab-restored", false);
-    this._callback = callback;
-  },
-
-  unsetCallback: function () {
-    if (this._callback) {
-      this._callback = null;
-    Services.obs.removeObserver(this, "sessionstore-debug-tab-restored");
+      let args = [aBrowser].concat(this._countTabs());
+      this._callback.apply(this, args);
     }
   },
 
-  observe: function (browser, topic, data) {
-    gProgressListener.onRestored(browser);
-  },
-
-  onRestored: function (browser) {
-    if (browser.__SS_restoreState == TAB_STATE_RESTORING) {
-      let args = [browser].concat(gProgressListener._countTabs());
-      gProgressListener._callback.apply(gProgressListener, args);
-    }
-  },
-
-  _countTabs: function () {
+  _countTabs: function gProgressListener_countTabs() {
     let needsRestore = 0, isRestoring = 0, wasRestored = 0;
 
     for (let win in BrowserWindowIterator()) {
       for (let i = 0; i < win.gBrowser.tabs.length; i++) {
         let browser = win.gBrowser.tabs[i].linkedBrowser;
-        if (!browser.__SS_restoreState)
-          wasRestored++;
-        else if (browser.__SS_restoreState == TAB_STATE_RESTORING)
+        if (browser.__SS_restoreState == TAB_STATE_RESTORING)
           isRestoring++;
         else if (browser.__SS_restoreState == TAB_STATE_NEEDS_RESTORE)
           needsRestore++;
+        else
+          wasRestored++;
       }
     }
     return [needsRestore, isRestoring, wasRestored];
@@ -472,155 +276,4 @@ function closeAllButPrimaryWindow() {
       win.close();
     }
   }
-}
-
-/**
- * When opening a new window it is not sufficient to wait for its load event.
- * We need to use whenDelayedStartupFinshed() here as the browser window's
- * delayedStartup() routine is executed one tick after the window's load event
- * has been dispatched. browser-delayed-startup-finished might be deferred even
- * further if parts of the window's initialization process take more time than
- * expected (e.g. reading a big session state from disk).
- */
-function whenNewWindowLoaded(aOptions, aCallback) {
-  let features = "";
-  let url = "about:blank";
-
-  if (aOptions && aOptions.private || false) {
-    features = ",private";
-    url = "about:privatebrowsing";
-  }
-
-  let win = openDialog(getBrowserURL(), "", "chrome,all,dialog=no" + features, url);
-  whenDelayedStartupFinished(win, () => aCallback(win));
-  return win;
-}
-function promiseNewWindowLoaded(aOptions) {
-  return new Promise(resolve => whenNewWindowLoaded(aOptions, resolve));
-}
-
-/**
- * Chrome windows aren't closed synchronously. Provide a helper method to close
- * a window and wait until we received the "domwindowclosed" notification for it.
- */
-function promiseWindowClosed(win) {
-  let promise = new Promise(resolve => {
-    Services.obs.addObserver(function obs(subject, topic) {
-      if (subject == win) {
-        Services.obs.removeObserver(obs, topic);
-        resolve();
-      }
-    }, "domwindowclosed", false);
-  });
-
-  win.close();
-  return promise;
-}
-
-function runInContent(browser, func, arg, callback = null) {
-  let deferred = Promise.defer();
-
-  let mm = browser.messageManager;
-  mm.sendAsyncMessage("ss-test:run", {code: func.toSource()}, {arg: arg});
-  mm.addMessageListener("ss-test:runFinished", ({data}) => deferred.resolve(data));
-
-  return deferred.promise;
-}
-
-/**
- * This waits for the browser-delayed-startup-finished notification of a given
- * window. It indicates that the windows has loaded completely and is ready to
- * be used for testing.
- */
-function whenDelayedStartupFinished(aWindow, aCallback) {
-  Services.obs.addObserver(function observer(aSubject, aTopic) {
-    if (aWindow == aSubject) {
-      Services.obs.removeObserver(observer, aTopic);
-      executeSoon(aCallback);
-    }
-  }, "browser-delayed-startup-finished", false);
-}
-function promiseDelayedStartupFinished(aWindow) {
-  return new Promise(resolve => whenDelayedStartupFinished(aWindow, resolve));
-}
-
-/**
- * The test runner that controls the execution flow of our tests.
- */
-let TestRunner = {
-  _iter: null,
-
-  /**
-   * Holds the browser state from before we started so
-   * that we can restore it after all tests ran.
-   */
-  backupState: {},
-
-  /**
-   * Starts the test runner.
-   */
-  run: function () {
-    waitForExplicitFinish();
-
-    SessionStore.promiseInitialized.then(() => {
-      this.backupState = JSON.parse(ss.getBrowserState());
-      this._iter = runTests();
-      this.next();
-    });
-  },
-
-  /**
-   * Runs the next available test or finishes if there's no test left.
-   */
-  next: function () {
-    try {
-      TestRunner._iter.next();
-    } catch (e if e instanceof StopIteration) {
-      TestRunner.finish();
-    }
-  },
-
-  /**
-   * Finishes all tests and cleans up.
-   */
-  finish: function () {
-    closeAllButPrimaryWindow();
-    gBrowser.selectedTab = gBrowser.tabs[0];
-    waitForBrowserState(this.backupState, finish);
-  }
-};
-
-function next() {
-  TestRunner.next();
-}
-
-function promiseTabRestored(tab) {
-  return new Promise(resolve => {
-    tab.addEventListener("SSTabRestored", function onRestored() {
-      tab.removeEventListener("SSTabRestored", onRestored);
-      resolve();
-    });
-  });
-}
-
-function sendMessage(browser, name, data = {}) {
-  browser.messageManager.sendAsyncMessage(name, data);
-  return promiseContentMessage(browser, name);
-}
-
-// This creates list of functions that we will map to their corresponding
-// ss-test:* messages names. Those will be sent to the frame script and
-// be used to read and modify form data.
-const FORM_HELPERS = [
-  "getTextContent",
-  "getInputValue", "setInputValue",
-  "getInputChecked", "setInputChecked",
-  "getSelectedIndex", "setSelectedIndex",
-  "getMultipleSelected", "setMultipleSelected",
-  "getFileNameArray", "setFileNameArray",
-];
-
-for (let name of FORM_HELPERS) {
-  let msg = "ss-test:" + name;
-  this[name] = (browser, data) => sendMessage(browser, msg, data);
 }

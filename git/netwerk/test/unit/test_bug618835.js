@@ -11,6 +11,11 @@
 // "/redirect" and "/cl" are loaded from server the expected number of times.
 //
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
+
 Cu.import("resource://testing-common/httpd.js");
 
 var httpserv;
@@ -29,9 +34,8 @@ InitialListener.prototype = {
     onStopRequest: function(request, context, status) {
         do_check_eq(1, numberOfCLHandlerCalls);
         do_execute_soon(function() {
-            var channel = setupChannel("http://localhost:" +
-                                       httpserv.identity.primaryPort + "/post");
-            channel.requestMethod = "POST";
+            var channel = setupChannel("http://localhost:4444/post");
+            channel.requestMethod = "post";
             channel.asyncOpen(new RedirectingListener(), null);
         });
     }
@@ -44,9 +48,8 @@ RedirectingListener.prototype = {
     onStopRequest: function(request, context, status) {
         do_check_eq(1, numberOfHandlerCalls);
         do_execute_soon(function() {
-            var channel = setupChannel("http://localhost:" +
-                                       httpserv.identity.primaryPort + "/post");
-            channel.requestMethod = "POST";
+            var channel = setupChannel("http://localhost:4444/post");
+            channel.requestMethod = "post";
             channel.asyncOpen(new VerifyingListener(), null);
         });
     }
@@ -59,8 +62,7 @@ VerifyingListener.prototype = {
     onStartRequest: function(request, context) { },
     onStopRequest: function(request, context, status) {
         do_check_eq(2, numberOfHandlerCalls);
-        var channel = setupChannel("http://localhost:" +
-                                   httpserv.identity.primaryPort + "/cl");
+        var channel = setupChannel("http://localhost:4444/cl");
         channel.asyncOpen(new FinalListener(), null);
     }
 };
@@ -81,14 +83,13 @@ function run_test() {
   httpserv.registerPathHandler("/cl", content_location);
   httpserv.registerPathHandler("/post", post_target);
   httpserv.registerPathHandler("/redirect", redirect_target);
-  httpserv.start(-1);
+  httpserv.start(4444);
 
   // Clear cache
   evict_cache_entries();
 
   // Load Content-Location URI into cache and start the chain of loads
-  var channel = setupChannel("http://localhost:" +
-                             httpserv.identity.primaryPort + "/cl");
+  var channel = setupChannel("http://localhost:4444/cl");
   channel.asyncOpen(new InitialListener(), null);
 
   do_test_pending();

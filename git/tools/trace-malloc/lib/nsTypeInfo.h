@@ -7,16 +7,14 @@
 #ifndef trace_malloc_nsTypeInfo_h_
 #define trace_malloc_nsTypeInfo_h_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "prtypes.h"
+
+PR_BEGIN_EXTERN_C
 
 extern const char* nsGetTypeName(void* ptr);
 
 extern void RegisterTraceMallocShutdown();
 
-#ifdef __cplusplus
-}
-#endif
+PR_END_EXTERN_C
 
 #endif /* trace_malloc_nsTypeInfo_h_ */

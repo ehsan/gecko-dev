@@ -13,8 +13,12 @@
 
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
+#include "nsIRunnable.h"
+#include "nsIObserver.h"
+#include "nsThreadUtils.h"
 
-#include "GeneratedJNIWrappers.h"
+#include "AndroidLayerViewWrapper.h"
+#include "AndroidJavaWrappers.h"
 
 #include "nsIMutableArray.h"
 #include "nsIMIMEInfo.h"
@@ -22,12 +26,6 @@
 #include "gfxRect.h"
 
 #include "nsIAndroidBridge.h"
-#include "nsIMobileMessageCallback.h"
-
-#include "mozilla/Likely.h"
-#include "mozilla/StaticPtr.h"
-#include "mozilla/TimeStamp.h"
-#include "mozilla/Types.h"
 
 // Some debug #defines
 // #define DEBUG_ANDROID_EVENTS
@@ -35,19 +33,23 @@
 
 class nsWindow;
 class nsIDOMMozSmsMessage;
-class nsIObserver;
-class Task;
 
 /* See the comment in AndroidBridge about this function before using it */
-extern "C" MOZ_EXPORT JNIEnv * GetJNIForThread();
+extern "C" JNIEnv * GetJNIForThread();
+extern "C" jclass jsjni_FindClass(const char *className);
+extern "C" jmethodID jsjni_GetStaticMethodID(jclass methodClass,
+                                       const char *methodName,
+                                       const char *signature);
+extern "C" bool jsjni_ExceptionCheck();
+extern "C" void jsjni_CallStaticVoidMethodA(jclass cls, jmethodID method, jvalue *values);
+extern "C" int jsjni_CallStaticIntMethodA(jclass cls, jmethodID method, jvalue *values);
 
-extern bool mozilla_AndroidBridge_SetMainThread(pthread_t);
+extern bool mozilla_AndroidBridge_SetMainThread(void *);
+extern jclass GetGeckoAppShellClass();
 
 namespace base {
 class Thread;
 } // end namespace base
-
-typedef void* EGLSurface;
 
 namespace mozilla {
 
@@ -57,9 +59,9 @@ class NetworkInformation;
 } // namespace hal
 
 namespace dom {
-namespace mobilemessage {
+namespace sms {
 struct SmsFilterData;
-} // namespace mobilemessage
+} // namespace sms
 } // namespace dom
 
 namespace layers {
@@ -84,46 +86,21 @@ typedef struct AndroidSystemColors {
 
 class nsFilePickerCallback : nsISupports {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     virtual void handleResult(nsAString& filePath) = 0;
     nsFilePickerCallback() {}
 protected:
     virtual ~nsFilePickerCallback() {}
 };
 
-class DelayedTask {
-public:
-    DelayedTask(Task* aTask, int aDelayMs) {
-        mTask = aTask;
-        mRunTime = mozilla::TimeStamp::Now() + mozilla::TimeDuration::FromMilliseconds(aDelayMs);
-    }
-
-    bool IsEarlierThan(DelayedTask *aOther) {
-        return mRunTime < aOther->mRunTime;
-    }
-
-    int64_t MillisecondsToRunTime() {
-        mozilla::TimeDuration timeLeft = mRunTime - mozilla::TimeStamp::Now();
-        return (int64_t)timeLeft.ToMilliseconds();
-    }
-
-    Task* GetTask() {
-        return mTask;
-    }
-
-private:
-    Task* mTask;
-    mozilla::TimeStamp mRunTime;
-};
-
-class AndroidBridge MOZ_FINAL
+class AndroidBridge
 {
 public:
     enum {
-        // Values for NotifyIME, in addition to values from the Gecko
-        // IMEMessage enum; use negative values here to prevent conflict
-        NOTIFY_IME_OPEN_VKB = -2,
-        NOTIFY_IME_REPLY_EVENT = -1,
+        NOTIFY_IME_RESETINPUTSTATE = 0,
+        NOTIFY_IME_SETOPENSTATE = 1,
+        NOTIFY_IME_CANCELCOMPOSITION = 2,
+        NOTIFY_IME_FOCUSCHANGE = 3
     };
 
     enum {
@@ -131,64 +108,34 @@ public:
         LAYER_CLIENT_TYPE_GL = 2            // AndroidGeckoGLLayerClient
     };
 
-    static void RegisterJavaUiThread() {
-        sJavaUiThread = pthread_self();
-    }
-
-    static bool IsJavaUiThread() {
-        return pthread_equal(pthread_self(), sJavaUiThread);
-    }
-
-    static void ConstructBridge(JNIEnv *jEnv);
+    static void ConstructBridge(JNIEnv *jEnv, jclass jGeckoAppShellClass);
 
     static AndroidBridge *Bridge() {
         return sBridge;
     }
 
     static JavaVM *GetVM() {
-        MOZ_ASSERT(sBridge);
-        return sBridge->mJavaVM;
+        if (NS_LIKELY(sBridge))
+            return sBridge->mJavaVM;
+        return nullptr;
     }
-
 
     static JNIEnv *GetJNIEnv() {
-        MOZ_ASSERT(sBridge);
-        if (MOZ_UNLIKELY(!pthread_equal(pthread_self(), sBridge->mThread))) {
-            MOZ_CRASH();
+        if (NS_LIKELY(sBridge)) {
+            if ((void*)pthread_self() != sBridge->mThread) {
+                __android_log_print(ANDROID_LOG_INFO, "AndroidBridge",
+                                    "###!!!!!!! Something's grabbing the JNIEnv from the wrong thread! (thr %p should be %p)",
+                                    (void*)pthread_self(), (void*)sBridge->mThread);
+                return nullptr;
+            }
+            return sBridge->mJNIEnv;
+
         }
-        MOZ_ASSERT(sBridge->mJNIEnv);
-        return sBridge->mJNIEnv;
+        return nullptr;
     }
-
-    static bool HasEnv() {
-        return sBridge && sBridge->mJNIEnv;
-    }
-
-    static bool ThrowException(JNIEnv *aEnv, const char *aClass,
-                               const char *aMessage) {
-        MOZ_ASSERT(aEnv, "Invalid thread JNI env");
-        jclass cls = aEnv->FindClass(aClass);
-        MOZ_ASSERT(cls, "Cannot find exception class");
-        bool ret = !aEnv->ThrowNew(cls, aMessage);
-        aEnv->DeleteLocalRef(cls);
-        return ret;
-    }
-
-    static bool ThrowException(JNIEnv *aEnv, const char *aMessage) {
-        return ThrowException(aEnv, "java/lang/Exception", aMessage);
-    }
-
-    static void HandleUncaughtException(JNIEnv *aEnv) {
-        MOZ_ASSERT(aEnv);
-        if (!aEnv->ExceptionCheck()) {
-            return;
-        }
-        jthrowable e = aEnv->ExceptionOccurred();
-        MOZ_ASSERT(e);
-        aEnv->ExceptionClear();
-        mozilla::widget::android::GeckoAppShell::HandleUncaughtException(nullptr, e);
-        // Should be dead by now...
-        MOZ_CRASH("Failed to handle uncaught exception");
+    
+    static jclass GetGeckoAppShellClass() {
+        return sBridge->mGeckoAppShellClass;
     }
 
     // The bridge needs to be constructed via ConstructBridge first,
@@ -196,37 +143,69 @@ public:
     // SetMainThread should be called which will create the JNIEnv for
     // us to use.  toolkit/xre/nsAndroidStartup.cpp calls
     // SetMainThread.
-    bool SetMainThread(pthread_t thr);
+    bool SetMainThread(void *thr);
 
     /* These are all implemented in Java */
-    bool GetThreadNameJavaProfiling(uint32_t aThreadId, nsCString & aResult);
-    bool GetFrameNameJavaProfiling(uint32_t aThreadId, uint32_t aSampleId, uint32_t aFrameId, nsCString & aResult);
+    static void NotifyIME(int aType, int aState);
 
-    nsresult CaptureThumbnail(nsIDOMWindow *window, int32_t bufW, int32_t bufH, int32_t tabId, jobject buffer, bool &shouldStore);
-    void GetDisplayPort(bool aPageSizeUpdate, bool aIsBrowserContentDisplayed, int32_t tabId, nsIAndroidViewport* metrics, nsIAndroidDisplayport** displayPort);
-    void ContentDocumentChanged();
-    bool IsContentDocumentDisplayed();
+    static void NotifyIMEEnabled(int aState, const nsAString& aTypeHint,
+                                 const nsAString& aModeHint, const nsAString& aActionHint);
 
-    bool ProgressiveUpdateCallback(bool aHasPendingNewThebesContent, const LayerRect& aDisplayPort, float aDisplayResolution, bool aDrawingCritical,
-                                   mozilla::ParentLayerPoint& aScrollOffset, mozilla::CSSToParentLayerScale& aZoom);
+    static void NotifyIMEChange(const PRUnichar *aText, uint32_t aTextLen, int aStart, int aEnd, int aNewEnd);
+
+    nsresult TakeScreenshot(nsIDOMWindow *window, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, int32_t dstY, int32_t dstX, int32_t dstW, int32_t dstH, int32_t bufW, int32_t bufH, int32_t tabId, int32_t token, jobject buffer);
+
+    static void NotifyPaintedRect(float top, float left, float bottom, float right);
+
+    void AcknowledgeEventSync();
+
+    void EnableLocation(bool aEnable);
+    void EnableLocationHighAccuracy(bool aEnable);
+
+    void EnableSensor(int aSensorType);
+
+    void DisableSensor(int aSensorType);
+
+    void ReturnIMEQueryResult(const PRUnichar *aResult, uint32_t aLen, int aSelStart, int aSelLen);
+
+    void NotifyXreExit();
+
+    void ScheduleRestart();
 
     void SetLayerClient(JNIEnv* env, jobject jobj);
-    mozilla::widget::android::GeckoLayerClient* GetLayerClient() { return mLayerClient; }
+    AndroidGeckoLayerClient &GetLayerClient() { return *mLayerClient; }
 
-    bool GetHandlersForURL(const nsAString& aURL,
-                           nsIMutableArray* handlersArray = nullptr,
-                           nsIHandlerApp **aDefaultApp = nullptr,
-                           const nsAString& aAction = EmptyString());
+    void SetSurfaceView(jobject jobj);
+    AndroidGeckoSurfaceView& SurfaceView() { return mSurfaceView; }
 
-    bool GetHandlersForMimeType(const nsAString& aMimeType,
-                                nsIMutableArray* handlersArray = nullptr,
-                                nsIHandlerApp **aDefaultApp = nullptr,
-                                const nsAString& aAction = EmptyString());
+    bool GetHandlersForURL(const char *aURL, 
+                             nsIMutableArray* handlersArray = nullptr,
+                             nsIHandlerApp **aDefaultApp = nullptr,
+                             const nsAString& aAction = EmptyString());
+
+    bool GetHandlersForMimeType(const char *aMimeType,
+                                  nsIMutableArray* handlersArray = nullptr,
+                                  nsIHandlerApp **aDefaultApp = nullptr,
+                                  const nsAString& aAction = EmptyString());
+
+    bool OpenUriExternal(const nsACString& aUriSpec, const nsACString& aMimeType,
+                           const nsAString& aPackageName = EmptyString(),
+                           const nsAString& aClassName = EmptyString(),
+                           const nsAString& aAction = EmptyString(),
+                           const nsAString& aTitle = EmptyString());
 
     void GetMimeTypeFromExtensions(const nsACString& aFileExt, nsCString& aMimeType);
     void GetExtensionFromMimeType(const nsACString& aMimeType, nsACString& aFileExt);
 
+    void MoveTaskToBack();
+
     bool GetClipboardText(nsAString& aText);
+
+    void SetClipboardText(const nsAString& aText);
+    
+    void EmptyClipboard();
+
+    bool ClipboardHasText();
 
     void ShowAlertNotification(const nsAString& aImageUrl,
                                const nsAString& aAlertTitle,
@@ -235,22 +214,62 @@ public:
                                nsIObserver *aAlertListener,
                                const nsAString& aAlertName);
 
+    void AlertsProgressListener_OnProgress(const nsAString& aAlertName,
+                                           int64_t aProgress,
+                                           int64_t aProgressMax,
+                                           const nsAString& aAlertText);
+
+    void AlertsProgressListener_OnCancel(const nsAString& aAlertName);
+
     int GetDPI();
-    int GetScreenDepth();
+
+    void ShowFilePickerForExtensions(nsAString& aFilePath, const nsAString& aExtensions);
+    void ShowFilePickerForMimeType(nsAString& aFilePath, const nsAString& aMimeType);
+    void ShowFilePickerAsync(const nsAString& aMimeType, nsFilePickerCallback* callback);
+
+    void PerformHapticFeedback(bool aIsLongPress);
 
     void Vibrate(const nsTArray<uint32_t>& aPattern);
+    void CancelVibrate();
+
+    void SetFullScreen(bool aFullScreen);
+
+    void ShowInputMethodPicker();
+
+    void NotifyDefaultPrevented(bool aDefaultPrevented);
+
+    void HideProgressDialogOnce();
+
+    bool IsNetworkLinkUp();
+
+    bool IsNetworkLinkKnown();
+
+    void SetSelectedLocale(const nsAString&);
 
     void GetSystemColors(AndroidSystemColors *aColors);
 
     void GetIconForExtension(const nsACString& aFileExt, uint32_t aIconSize, uint8_t * const aBuf);
 
+    bool GetShowPasswordSetting();
+
+    void FireAndWaitForTracerEvent();
+
+    /* See GLHelpers.java as to why this is needed */
+    void *CallEglCreateWindowSurface(void *dpy, void *config, AndroidGeckoSurfaceView& surfaceView);
+
     // Switch Java to composite with the Gecko Compositor thread
-    void RegisterCompositor(JNIEnv* env = nullptr);
-    EGLSurface CreateEGLSurfaceForCompositor();
+    void RegisterCompositor(JNIEnv* env = NULL, bool resetting = false);
+    EGLSurface ProvideEGLSurface();
 
     bool GetStaticStringField(const char *classID, const char *field, nsAString &result, JNIEnv* env = nullptr);
 
     bool GetStaticIntField(const char *className, const char *fieldName, int32_t* aInt, JNIEnv* env = nullptr);
+
+    void SetKeepScreenOn(bool on);
+
+    void ScanMedia(const nsAString& aFile, const nsACString& aMimeType);
+
+    void CreateShortcut(const nsAString& aTitle, const nsAString& aURI, const nsAString& aIconData, const nsAString& aIntent);
 
     // These next four functions are for native Bitmap access in Android 2.2+
     bool HasNativeBitmapAccess();
@@ -259,12 +278,15 @@ public:
 
     void *LockBitmap(jobject bitmap);
 
-    // Returns a global reference to the Context for Fennec's Activity. The
-    // caller is responsible for ensuring this doesn't leak by calling
-    // DeleteGlobalRef() when the context is no longer needed.
-    jobject GetGlobalContextRef(void);
-
     void UnlockBitmap(jobject bitmap);
+
+    void PostToJavaThread(JNIEnv *aEnv, nsIRunnable* aRunnable, bool aMainThread = false);
+
+    void ExecuteNextRunnable(JNIEnv *aEnv);
+
+    bool UnlockProfile();
+
+    void KillAnyZombies();
 
     /* Copied from Android's native_window.h in newer (platform 9) NDK */
     enum {
@@ -281,103 +303,92 @@ public:
     void *AcquireNativeWindowFromSurfaceTexture(JNIEnv* aEnv, jobject aSurface);
     void ReleaseNativeWindowForSurfaceTexture(void *window);
 
+    bool SetNativeWindowFormat(void *window, int width, int height, int format);
+
     bool LockWindow(void *window, unsigned char **bits, int *width, int *height, int *format, int *stride);
     bool UnlockWindow(void *window);
+    
+    void HandleGeckoMessage(const nsAString& message, nsAString &aRet);
 
-    void HandleGeckoMessage(JSContext* cx, JS::HandleObject message);
+    void CheckURIVisited(const nsAString& uri);
+    void MarkURIVisited(const nsAString& uri);
 
     bool InitCamera(const nsCString& contentType, uint32_t camera, uint32_t *width, uint32_t *height, uint32_t *fps);
 
+    void CloseCamera();
+
+    void EnableBatteryNotifications();
+    void DisableBatteryNotifications();
     void GetCurrentBatteryInformation(hal::BatteryInformation* aBatteryInfo);
 
-    nsresult GetSegmentInfoForText(const nsAString& aText,
-                                   nsIMobileMessageCallback* aRequest);
-    void SendMessage(const nsAString& aNumber, const nsAString& aText,
-                     nsIMobileMessageCallback* aRequest);
-    void GetMessage(int32_t aMessageId, nsIMobileMessageCallback* aRequest);
-    void DeleteMessage(int32_t aMessageId, nsIMobileMessageCallback* aRequest);
-    void CreateMessageList(const dom::mobilemessage::SmsFilterData& aFilter,
-                           bool aReverse, nsIMobileMessageCallback* aRequest);
-    void GetNextMessageInList(int32_t aListId, nsIMobileMessageCallback* aRequest);
-    already_AddRefed<nsIMobileMessageCallback> DequeueSmsRequest(uint32_t aRequestId);
+    uint16_t GetNumberOfMessagesForText(const nsAString& aText);
+    void SendMessage(const nsAString& aNumber, const nsAString& aText, int32_t aRequestId, uint64_t aProcessId);
+    int32_t SaveSentMessage(const nsAString& aRecipient, const nsAString& aBody, uint64_t aDate);
+    void GetMessage(int32_t aMessageId, int32_t aRequestId, uint64_t aProcessId);
+    void DeleteMessage(int32_t aMessageId, int32_t aRequestId, uint64_t aProcessId);
+    void CreateMessageList(const dom::sms::SmsFilterData& aFilter, bool aReverse, int32_t aRequestId, uint64_t aProcessId);
+    void GetNextMessageInList(int32_t aListId, int32_t aRequestId, uint64_t aProcessId);
+    void ClearMessageList(int32_t aListId);
+
+    bool IsTablet();
 
     void GetCurrentNetworkInformation(hal::NetworkInformation* aNetworkInfo);
+    void EnableNetworkNotifications();
+    void DisableNetworkNotifications();
 
-    void SetFirstPaintViewport(const LayerIntPoint& aOffset, const CSSToLayerScale& aZoom, const CSSRect& aCssPageRect);
-    void SetPageRect(const CSSRect& aCssPageRect);
-    void SyncViewportInfo(const LayerIntRect& aDisplayPort, const CSSToLayerScale& aDisplayResolution,
-                          bool aLayersUpdated, ParentLayerPoint& aScrollOffset, CSSToParentLayerScale& aScale,
-                          LayerMargin& aFixedLayerMargins, ScreenPoint& aOffset);
-    void SyncFrameMetrics(const ParentLayerPoint& aScrollOffset, float aZoom, const CSSRect& aCssPageRect,
-                          bool aLayersUpdated, const CSSRect& aDisplayPort, const CSSToLayerScale& aDisplayResolution,
-                          bool aIsFirstPaint, LayerMargin& aFixedLayerMargins, ScreenPoint& aOffset);
+    void SetFirstPaintViewport(const nsIntPoint& aOffset, float aZoom, const nsIntRect& aPageRect, const gfx::Rect& aCssPageRect);
+    void SetPageRect(const gfx::Rect& aCssPageRect);
+    void SyncViewportInfo(const nsIntRect& aDisplayPort, float aDisplayResolution, bool aLayersUpdated,
+                          nsIntPoint& aScrollOffset, float& aScaleX, float& aScaleY);
 
-    void AddPluginView(jobject view, const LayoutDeviceRect& rect, bool isFullScreen);
+    void AddPluginView(jobject view, const gfxRect& rect, bool isFullScreen);
+    void RemovePluginView(jobject view, bool isFullScreen);
 
     // These methods don't use a ScreenOrientation because it's an
     // enum and that would require including the header which requires
     // include IPC headers which requires including basictypes.h which
     // requires a lot of changes...
     uint32_t GetScreenOrientation();
+    void EnableScreenOrientationNotifications();
+    void DisableScreenOrientationNotifications();
+    void LockScreenOrientation(uint32_t aOrientation);
+    void UnlockScreenOrientation();
+
+    void PumpMessageLoop();
+
+    void NotifyWakeLockChanged(const nsAString& topic, const nsAString& state);
 
     int GetAPIVersion() { return mAPIVersion; }
     bool IsHoneycomb() { return mAPIVersion >= 11 && mAPIVersion <= 13; }
 
     void ScheduleComposite();
+    void RegisterSurfaceTextureFrameListener(jobject surfaceTexture, int id);
+    void UnregisterSurfaceTextureFrameListener(jobject surfaceTexture);
 
-    nsresult GetProxyForURI(const nsACString & aSpec,
-                            const nsACString & aScheme,
-                            const nsACString & aHost,
-                            const int32_t      aPort,
-                            nsACString & aResult);
-
-    // Utility methods.
-    static jstring NewJavaString(JNIEnv* env, const char16_t* string, uint32_t len);
-    static jstring NewJavaString(JNIEnv* env, const nsAString& string);
-    static jstring NewJavaString(JNIEnv* env, const char* string);
-    static jstring NewJavaString(JNIEnv* env, const nsACString& string);
-
-    static jstring NewJavaString(AutoLocalJNIFrame* frame, const char16_t* string, uint32_t len);
-    static jstring NewJavaString(AutoLocalJNIFrame* frame, const nsAString& string);
-    static jstring NewJavaString(AutoLocalJNIFrame* frame, const char* string);
-    static jstring NewJavaString(AutoLocalJNIFrame* frame, const nsACString& string);
-
-    static jclass GetClassGlobalRef(JNIEnv* env, const char* className);
-    static jfieldID GetFieldID(JNIEnv* env, jclass jClass, const char* fieldName, const char* fieldType);
-    static jfieldID GetStaticFieldID(JNIEnv* env, jclass jClass, const char* fieldName, const char* fieldType);
-    static jmethodID GetMethodID(JNIEnv* env, jclass jClass, const char* methodName, const char* methodType);
-    static jmethodID GetStaticMethodID(JNIEnv* env, jclass jClass, const char* methodName, const char* methodType);
-
-    static jobject ChannelCreate(jobject);
-
-    static void InputStreamClose(jobject obj);
-    static uint32_t InputStreamAvailable(jobject obj);
-    static nsresult InputStreamRead(jobject obj, char *aBuf, uint32_t aCount, uint32_t *aRead);
-
-    static nsresult GetExternalPublicDirectory(const nsAString& aType, nsAString& aPath);
+    void GetGfxInfoData(nsACString& aRet);
 
 protected:
-    static pthread_t sJavaUiThread;
-    static AndroidBridge* sBridge;
-    nsTArray<nsCOMPtr<nsIMobileMessageCallback> > mSmsRequests;
+    static AndroidBridge *sBridge;
 
     // the global JavaVM
     JavaVM *mJavaVM;
 
     // the JNIEnv for the main thread
     JNIEnv *mJNIEnv;
-    pthread_t mThread;
+    void *mThread;
 
-    mozilla::widget::android::GeckoLayerClient *mLayerClient;
+    // the GeckoSurfaceView
+    AndroidGeckoSurfaceView mSurfaceView;
 
-    // the android.telephony.SmsMessage class
-    jclass mAndroidSmsMessageClass;
+    AndroidGeckoLayerClient *mLayerClient;
+
+    // the GeckoAppShell java class
+    jclass mGeckoAppShellClass;
 
     AndroidBridge();
     ~AndroidBridge();
 
-    void InitStubs(JNIEnv *jEnv);
-    bool Init(JNIEnv *jEnv);
+    bool Init(JNIEnv *jEnv, jclass jGeckoApp);
 
     bool mOpenedGraphicsLibraries;
     void OpenGraphicsLibraries();
@@ -389,37 +400,117 @@ protected:
 
     int mAPIVersion;
 
-    bool QueueSmsRequest(nsIMobileMessageCallback* aRequest, uint32_t* aRequestIdOut);
-
-    // intput stream
-    jclass jReadableByteChannel;
-    jclass jChannels;
-    jmethodID jChannelCreate;
-    jmethodID jByteBufferRead;
-
-    jclass jInputStream;
-    jmethodID jClose;
-    jmethodID jAvailable;
+    nsCOMArray<nsIRunnable> mRunnableQueue;
 
     // other things
+    jmethodID jNotifyIME;
+    jmethodID jNotifyIMEEnabled;
+    jmethodID jNotifyIMEChange;
+    jmethodID jNotifyScreenShot;
+    jmethodID jAcknowledgeEventSync;
+    jmethodID jEnableLocation;
+    jmethodID jEnableLocationHighAccuracy;
+    jmethodID jEnableSensor;
+    jmethodID jDisableSensor;
+    jmethodID jReturnIMEQueryResult;
     jmethodID jNotifyAppShellReady;
+    jmethodID jNotifyXreExit;
+    jmethodID jScheduleRestart;
     jmethodID jGetOutstandingDrawEvents;
+    jmethodID jGetHandlersForMimeType;
+    jmethodID jGetHandlersForURL;
+    jmethodID jOpenUriExternal;
+    jmethodID jGetMimeTypeFromExtensions;
+    jmethodID jGetExtensionFromMimeType;
+    jmethodID jMoveTaskToBack;
+    jmethodID jGetClipboardText;
+    jmethodID jSetClipboardText;
+    jmethodID jShowAlertNotification;
+    jmethodID jShowFilePickerForExtensions;
+    jmethodID jShowFilePickerForMimeType;
+    jmethodID jShowFilePickerAsync;
+    jmethodID jUnlockProfile;
+    jmethodID jKillAnyZombies;
+    jmethodID jAlertsProgressListener_OnProgress;
+    jmethodID jAlertsProgressListener_OnCancel;
+    jmethodID jGetDpi;
+    jmethodID jSetFullScreen;
+    jmethodID jShowInputMethodPicker;
+    jmethodID jNotifyDefaultPrevented;
+    jmethodID jHideProgressDialog;
+    jmethodID jPerformHapticFeedback;
+    jmethodID jVibrate1;
+    jmethodID jVibrateA;
+    jmethodID jCancelVibrate;
+    jmethodID jSetKeepScreenOn;
+    jmethodID jIsNetworkLinkUp;
+    jmethodID jIsNetworkLinkKnown;
+    jmethodID jSetSelectedLocale;
+    jmethodID jScanMedia;
+    jmethodID jGetSystemColors;
+    jmethodID jGetIconForExtension;
+    jmethodID jFireAndWaitForTracerEvent;
+    jmethodID jCreateShortcut;
+    jmethodID jGetShowPasswordSetting;
     jmethodID jPostToJavaThread;
+    jmethodID jInitCamera;
+    jmethodID jCloseCamera;
+    jmethodID jIsTablet;
+    jmethodID jEnableBatteryNotifications;
+    jmethodID jDisableBatteryNotifications;
+    jmethodID jGetCurrentBatteryInformation;
+    jmethodID jHandleGeckoMessage;
+    jmethodID jCheckUriVisited;
+    jmethodID jMarkUriVisited;
+    jmethodID jAddPluginView;
+    jmethodID jRemovePluginView;
     jmethodID jCreateSurface;
     jmethodID jShowSurface;
     jmethodID jHideSurface;
     jmethodID jDestroySurface;
 
-    jmethodID jCalculateLength;
+    jmethodID jNotifyPaintedRect;
+
+    jmethodID jNumberOfMessages;
+    jmethodID jSendMessage;
+    jmethodID jSaveSentMessage;
+    jmethodID jGetMessage;
+    jmethodID jDeleteMessage;
+    jmethodID jCreateMessageList;
+    jmethodID jGetNextMessageinList;
+    jmethodID jClearMessageList;
+
+    jmethodID jGetCurrentNetworkInformation;
+    jmethodID jEnableNetworkNotifications;
+    jmethodID jDisableNetworkNotifications;
+
+    jmethodID jGetScreenOrientation;
+    jmethodID jEnableScreenOrientationNotifications;
+    jmethodID jDisableScreenOrientationNotifications;
+    jmethodID jLockScreenOrientation;
+    jmethodID jUnlockScreenOrientation;
+    jmethodID jPumpMessageLoop;
+    jmethodID jNotifyWakeLockChanged;
+    jmethodID jRegisterSurfaceTextureFrameListener;
+    jmethodID jUnregisterSurfaceTextureFrameListener;
+
+    // for GfxInfo (gfx feature detection and blacklisting)
+    jmethodID jGetGfxInfoData;
 
     // For native surface stuff
     jclass jSurfaceClass;
     jfieldID jSurfacePointerField;
 
-    jclass jLayerView;
+    // stuff we need for CallEglCreateWindowSurface
+    jclass jEGLSurfaceImplClass;
+    jclass jEGLContextImplClass;
+    jclass jEGLConfigImplClass;
+    jclass jEGLDisplayImplClass;
+    jclass jEGLContextClass;
+    jclass jEGL10Class;
 
-    jfieldID jEGLSurfacePointerField;
-    mozilla::widget::android::GLController *mGLControllerObj;
+    jclass jLayerView;
+    jmethodID jRegisterCompositorMethod;
 
     // some convinient types to have around
     jclass jStringClass;
@@ -441,73 +532,33 @@ protected:
     int (* Surface_unlockAndPost)(void* surface);
     void (* Region_constructor)(void* region);
     void (* Region_set)(void* region, void* rect);
-
-private:
-    // This will always be accessed from one thread (the Java UI thread),
-    // so we don't need to do locking to touch it.
-    nsTArray<DelayedTask*> mDelayedTaskQueue;
-public:
-    void PostTaskToUiThread(Task* aTask, int aDelayMs);
-    int64_t RunDelayedUiThreadTasks();
-};
-
-class AutoJObject {
-public:
-    AutoJObject(JNIEnv* aJNIEnv = nullptr) : mObject(nullptr)
-    {
-        mJNIEnv = aJNIEnv ? aJNIEnv : AndroidBridge::GetJNIEnv();
-    }
-
-    AutoJObject(JNIEnv* aJNIEnv, jobject aObject)
-    {
-        mJNIEnv = aJNIEnv ? aJNIEnv : AndroidBridge::GetJNIEnv();
-        mObject = aObject;
-    }
-
-    ~AutoJObject() {
-        if (mObject)
-            mJNIEnv->DeleteLocalRef(mObject);
-    }
-
-    jobject operator=(jobject aObject)
-    {
-        if (mObject) {
-            mJNIEnv->DeleteLocalRef(mObject);
-        }
-        return mObject = aObject;
-    }
-
-    operator jobject() {
-        return mObject;
-    }
-private:
-    JNIEnv* mJNIEnv;
-    jobject mObject;
 };
 
 class AutoLocalJNIFrame {
 public:
-    AutoLocalJNIFrame(int nEntries = 15)
-        : mEntries(nEntries)
-        , mJNIEnv(AndroidBridge::GetJNIEnv())
-        , mHasFrameBeenPushed(false)
+    AutoLocalJNIFrame(int nEntries = 128)
+        : mEntries(nEntries), mHasFrameBeenPushed(false)
     {
-        MOZ_ASSERT(mJNIEnv);
+        mJNIEnv = AndroidBridge::GetJNIEnv();
         Push();
     }
 
-    AutoLocalJNIFrame(JNIEnv* aJNIEnv, int nEntries = 15)
-        : mEntries(nEntries)
-        , mJNIEnv(aJNIEnv ? aJNIEnv : AndroidBridge::GetJNIEnv())
-        , mHasFrameBeenPushed(false)
+    AutoLocalJNIFrame(JNIEnv* aJNIEnv, int nEntries = 128)
+        : mEntries(nEntries), mHasFrameBeenPushed(false)
     {
-        MOZ_ASSERT(mJNIEnv);
+        mJNIEnv = aJNIEnv ? aJNIEnv : AndroidBridge::GetJNIEnv();
+
         Push();
     }
 
-    ~AutoLocalJNIFrame() {
-        if (mHasFrameBeenPushed) {
-            Pop();
+    // Note! Calling Purge makes all previous local refs created in
+    // the AutoLocalJNIFrame's scope INVALID; be sure that you locked down
+    // any local refs that you need to keep around in global refs!
+    void Purge() {
+        if (mJNIEnv) {
+            if (mHasFrameBeenPushed)
+                mJNIEnv->PopLocalFrame(NULL);
+            Push();
         }
     }
 
@@ -517,43 +568,42 @@ public:
 
     bool CheckForException() {
         if (mJNIEnv->ExceptionCheck()) {
-            AndroidBridge::HandleUncaughtException(mJNIEnv);
+            mJNIEnv->ExceptionDescribe();
+            mJNIEnv->ExceptionClear();
             return true;
         }
+
         return false;
     }
 
-    // Note! Calling Purge makes all previous local refs created in
-    // the AutoLocalJNIFrame's scope INVALID; be sure that you locked down
-    // any local refs that you need to keep around in global refs!
-    void Purge() {
-        Pop();
-        Push();
-    }
+    ~AutoLocalJNIFrame() {
+        if (!mJNIEnv)
+            return;
 
-    template <typename ReturnType = jobject>
-    ReturnType Pop(ReturnType aResult = nullptr) {
-        MOZ_ASSERT(mHasFrameBeenPushed);
-        mHasFrameBeenPushed = false;
-        return static_cast<ReturnType>(
-            mJNIEnv->PopLocalFrame(static_cast<jobject>(aResult)));
+        CheckForException();
+
+        if (mHasFrameBeenPushed)
+            mJNIEnv->PopLocalFrame(NULL);
     }
 
 private:
     void Push() {
-        MOZ_ASSERT(!mHasFrameBeenPushed);
+        if (!mJNIEnv)
+            return;
+
         // Make sure there is enough space to store a local ref to the
         // exception.  I am not completely sure this is needed, but does
         // not hurt.
-        if (mJNIEnv->PushLocalFrame(mEntries + 1) != 0) {
+        jint ret = mJNIEnv->PushLocalFrame(mEntries + 1);
+        NS_ABORT_IF_FALSE(ret == 0, "Failed to push local JNI frame");
+        if (ret < 0)
             CheckForException();
-            return;
-        }
-        mHasFrameBeenPushed = true;
+        else
+            mHasFrameBeenPushed = true;
     }
 
-    const int mEntries;
-    JNIEnv* const mJNIEnv;
+    int mEntries;
+    JNIEnv* mJNIEnv;
     bool mHasFrameBeenPushed;
 };
 
@@ -563,7 +613,7 @@ private:
 { 0x0FE2321D, 0xEBD9, 0x467D, \
     { 0xA7, 0x43, 0x03, 0xA6, 0x8D, 0x40, 0x59, 0x9E } }
 
-class nsAndroidBridge MOZ_FINAL : public nsIAndroidBridge
+class nsAndroidBridge : public nsIAndroidBridge
 {
 public:
   NS_DECL_ISUPPORTS
@@ -576,5 +626,6 @@ private:
 
 protected:
 };
+
 
 #endif /* AndroidBridge_h__ */

@@ -1,23 +1,16 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "nsUnicharStreamLoader.h"
 #include "nsIInputStream.h"
-#include <algorithm>
-#include "mozilla/dom/EncodingUtils.h"
+#include "nsICharsetConverterManager.h"
+#include "nsIServiceManager.h"
 
-// 1024 bytes is specified in
-// http://www.whatwg.org/specs/web-apps/current-work/#charset for HTML; for
-// other resource types (e.g. CSS) typically fewer bytes are fine too, since
-// they only look at things right at the beginning of the data.
-#define SNIFFING_BUFFER_SIZE 1024
+#define SNIFFING_BUFFER_SIZE 512 // specified in draft-abarth-mime-sniff-06
 
-using namespace mozilla;
-using mozilla::dom::EncodingUtils;
+using mozilla::fallible_t;
 
 NS_IMETHODIMP
 nsUnicharStreamLoader::Init(nsIUnicharStreamLoaderObserver *aObserver)
@@ -46,8 +39,8 @@ nsUnicharStreamLoader::Create(nsISupports *aOuter,
   return rv;
 }
 
-NS_IMPL_ISUPPORTS(nsUnicharStreamLoader, nsIUnicharStreamLoader,
-                  nsIRequestObserver, nsIStreamListener)
+NS_IMPL_ISUPPORTS3(nsUnicharStreamLoader, nsIUnicharStreamLoader,
+                   nsIRequestObserver, nsIStreamListener)
 
 /* readonly attribute nsIChannel channel; */
 NS_IMETHODIMP
@@ -113,7 +106,7 @@ NS_IMETHODIMP
 nsUnicharStreamLoader::OnDataAvailable(nsIRequest *aRequest,
                                        nsISupports *aContext,
                                        nsIInputStream *aInputStream,
-                                       uint64_t aSourceOffset,
+                                       uint32_t aSourceOffset,
                                        uint32_t aCount)
 {
   if (!mObserver) {
@@ -137,7 +130,7 @@ nsUnicharStreamLoader::OnDataAvailable(nsIRequest *aRequest,
     // wait for more data.
 
     uint32_t haveRead = mRawData.Length();
-    uint32_t toRead = std::min(SNIFFING_BUFFER_SIZE - haveRead, aCount);
+    uint32_t toRead = NS_MIN(SNIFFING_BUFFER_SIZE - haveRead, aCount);
     uint32_t n;
     char *here = mRawData.BeginWriting() + haveRead;
 
@@ -162,6 +155,10 @@ nsUnicharStreamLoader::OnDataAvailable(nsIRequest *aRequest,
   return rv;
 }
 
+/* internal */
+static NS_DEFINE_CID(kCharsetConverterManagerCID,
+                     NS_ICHARSETCONVERTERMANAGER_CID);
+
 nsresult
 nsUnicharStreamLoader::DetermineCharset()
 {
@@ -172,21 +169,13 @@ nsUnicharStreamLoader::DetermineCharset()
     mCharset.AssignLiteral("UTF-8");
   }
 
-  // Sadly, nsIUnicharStreamLoader is exposed to extensions, so we can't
-  // assume mozilla::css::Loader to be the only caller. Special-casing
-  // replacement, since it's not invariant under a second label resolution
-  // operation.
-  if (mCharset.EqualsLiteral("replacement")) {
-    mDecoder = EncodingUtils::DecoderForEncoding(mCharset);
-  } else {
-    nsAutoCString charset;
-    if (!EncodingUtils::FindEncodingForLabelNoReplacement(mCharset, charset)) {
-      // If we got replacement here, the caller was not mozilla::css::Loader
-      // but an extension.
-      return NS_ERROR_UCONV_NOCONV;
-    }
-    mDecoder = EncodingUtils::DecoderForEncoding(charset);
-  }
+  // Create the decoder for this character set
+  nsCOMPtr<nsICharsetConverterManager> ccm =
+    do_GetService(kCharsetConverterManagerCID, &rv);
+  if (NS_FAILED(rv)) return rv;
+
+  rv = ccm->GetUnicodeDecoder(mCharset.get(), getter_AddRefs(mDecoder));
+  if (NS_FAILED(rv)) return rv;
 
   // Process the data into mBuffer
   uint32_t dummy;
@@ -209,23 +198,42 @@ nsUnicharStreamLoader::WriteSegmentFun(nsIInputStream *,
   nsUnicharStreamLoader* self = static_cast<nsUnicharStreamLoader*>(aClosure);
 
   uint32_t haveRead = self->mBuffer.Length();
-  int32_t srcLen = aCount;
-  int32_t dstLen;
-  self->mDecoder->GetMaxLength(aSegment, srcLen, &dstLen);
+  uint32_t consumed = 0;
+  nsresult rv;
+  do {
+    int32_t srcLen = aCount - consumed;
+    int32_t dstLen;
+    self->mDecoder->GetMaxLength(aSegment + consumed, srcLen, &dstLen);
 
-  uint32_t capacity = haveRead + dstLen;
-  if (!self->mBuffer.SetCapacity(capacity, fallible_t())) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
+    uint32_t capacity = haveRead + dstLen;
+    if (!self->mBuffer.SetCapacity(capacity, fallible_t())) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
-  DebugOnly<nsresult> rv =
-    self->mDecoder->Convert(aSegment,
-                            &srcLen,
-                            self->mBuffer.BeginWriting() + haveRead,
-                            &dstLen);
-  MOZ_ASSERT(NS_SUCCEEDED(rv));
-  MOZ_ASSERT(srcLen == static_cast<int32_t>(aCount));
-  haveRead += dstLen;
+    rv = self->mDecoder->Convert(aSegment + consumed,
+                                 &srcLen,
+                                 self->mBuffer.BeginWriting() + haveRead,
+                                 &dstLen);
+    haveRead += dstLen;
+    // XXX if srcLen is negative, we want to drop the _first_ byte in
+    // the erroneous byte sequence and try again.  This is not quite
+    // possible right now -- see bug 160784
+    consumed += srcLen;
+    if (NS_FAILED(rv)) {
+      if (haveRead >= capacity) {
+        // Make room for writing the 0xFFFD below (bug 785753).
+        if (!self->mBuffer.SetCapacity(haveRead + 1, fallible_t())) {
+          return NS_ERROR_OUT_OF_MEMORY;
+        }
+      }
+      self->mBuffer.BeginWriting()[haveRead++] = 0xFFFD;
+      ++consumed;
+      // XXX this is needed to make sure we don't underrun our buffer;
+      // bug 160784 again
+      consumed = NS_MAX<uint32_t>(consumed, 0);
+      self->mDecoder->Reset();
+    }
+  } while (consumed < aCount);
 
   self->mBuffer.SetLength(haveRead);
   *aWriteCount = aCount;

@@ -4,7 +4,7 @@
 
 #include "nsISupports.idl"
 
-[scriptable, builtinclass, uuid(60da41b4-cdc2-11e2-8a91-10bf48d64bd4)]
+[scriptable, builtinclass, uuid(d2124467-7209-4b2e-a91a-cf3f90681e3c)]
 interface nsIAudioManager : nsISupports
 {
   /**
@@ -13,9 +13,14 @@ interface nsIAudioManager : nsISupports
   attribute boolean microphoneMuted;
 
   /**
-   * Are we playing audio from the FM radio?
+   * The master volume.
    */
-  attribute boolean fmRadioAudioEnabled;
+  attribute float masterVolume;
+
+  /**
+   * Master volume muted?
+   */
+  attribute boolean masterMuted;
 
   /**
    * Set the phone's audio mode.
@@ -41,9 +46,7 @@ interface nsIAudioManager : nsISupports
   const long FORCE_WIRED_ACCESSORY = 5;
   const long FORCE_BT_CAR_DOCK     = 6;
   const long FORCE_BT_DESK_DOCK    = 7;
-  const long FORCE_ANALOG_DOCK     = 8;
-  const long FORCE_DIGITAL_DOCK    = 9;
-  const long FORCE_NO_BT_A2DP      = 10;
+
   const long USE_COMMUNICATION     = 0;
   const long USE_MEDIA             = 1;
   const long USE_RECORD            = 2;
@@ -51,9 +54,4 @@ interface nsIAudioManager : nsISupports
 
   void setForceForUse(in long usage, in long force);
   long getForceForUse(in long usage);
-
-  /* The range of volume index is from 0 to N. Ex: 0 ~ 15 */
-  void setAudioChannelVolume(in long channel, in long index);
-  long getAudioChannelVolume(in long channel);
-  long getMaxAudioChannelVolume(in long channel);
 };

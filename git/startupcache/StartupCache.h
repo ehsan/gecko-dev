@@ -6,19 +6,22 @@
 #ifndef StartupCache_h_
 #define StartupCache_h_
 
+#include "prio.h"
+#include "prtypes.h"
+
 #include "nsClassHashtable.h"
+#include "nsIZipWriter.h"
+#include "nsIZipReader.h"
 #include "nsComponentManagerUtils.h"
 #include "nsZipArchive.h"
 #include "nsIStartupCache.h"
+#include "nsIStorageStream.h"
 #include "nsITimer.h"
-#include "nsIMemoryReporter.h"
 #include "nsIObserverService.h"
 #include "nsIObserver.h"
 #include "nsIOutputStream.h"
 #include "nsIFile.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
-#include "mozilla/StaticPtr.h"
 
 /**
  * The StartupCache is a persistent cache of simple key-value pairs,
@@ -26,7 +29,7 @@
  * arbitrary data, passed as a (char*, size) tuple. 
  *
  * Clients should use the GetSingleton() static method to access the cache. It 
- * will be available from the end of XPCOM init (NS_InitXPCOM3 in XPCOMInit.cpp), 
+ * will be available from the end of XPCOM init (NS_InitXPCOM3 in nsXPComInit.cpp), 
  * until XPCOM shutdown begins. The GetSingleton() method will return null if the cache
  * is unavailable. The cache is only provided for libxul builds --
  * it will fail to link in non-libxul builds. The XPCOM interface is provided
@@ -41,12 +44,6 @@
  *
  * InvalidateCache() may be called if a client suspects data corruption 
  * or wishes to invalidate for any other reason. This will remove all existing cache data.
- * Additionally, the static method IgnoreDiskCache() can be called if it is
- * believed that the on-disk cache file is itself corrupt. This call implicitly
- * calls InvalidateCache (if the singleton has been initialized) to ensure any
- * data already read from disk is discarded. The cache will not load data from
- * the disk file until a successful write occurs.
- *
  * Finally, getDebugObjectOutputStream() allows debug code to wrap an objectstream
  * with a debug objectstream, to check for multiply-referenced objects. These will
  * generally fail to deserialize correctly, unless they are stateless singletons or the 
@@ -66,11 +63,12 @@
  * provide some convenience in writing out data.
  */
 
-namespace mozilla {
+class nsIMemoryReporter;
 
+namespace mozilla {
 namespace scache {
 
-struct CacheEntry
+struct CacheEntry 
 {
   nsAutoArrayPtr<char> data;
   uint32_t size;
@@ -84,7 +82,7 @@ struct CacheEntry
   {
   }
 
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) {
+  size_t SizeOfExcludingThis(nsMallocSizeOfFun mallocSizeOf) {
     return mallocSizeOf(data);
   }
 };
@@ -93,24 +91,21 @@ struct CacheEntry
 // refcount its listeners, so we'll let it refcount this instead.
 class StartupCacheListener MOZ_FINAL : public nsIObserver
 {
-  ~StartupCacheListener() {}
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
 };
 
-class StartupCache : public nsIMemoryReporter
+class StartupCache
 {
 
 friend class StartupCacheListener;
 friend class StartupCacheWrapper;
-
+                                
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
-  NS_DECL_NSIMEMORYREPORTER
 
   // StartupCache methods. See above comments for a more detailed description.
 
-  // Returns a buffer that was previously stored, caller takes ownership.
+  // Returns a buffer that was previously stored, caller takes ownership. 
   nsresult GetBuffer(const char* id, char** outbuf, uint32_t* length);
 
   // Stores a buffer. Caller keeps ownership, we make a copy.
@@ -118,9 +113,6 @@ public:
 
   // Removes the cache file.
   void InvalidateCache();
-
-  // Signal that data should not be loaded from the cache file
-  static void IgnoreDiskCache();
 
   // In DEBUG builds, returns a stream that will attempt to check for
   // and disallow multiple writes of the same object.
@@ -134,13 +126,13 @@ public:
 
   // This measures all the heap memory used by the StartupCache, i.e. it
   // excludes the mapping.
-  size_t HeapSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
+  size_t HeapSizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf);
 
   size_t SizeOfMapping();
 
 private:
   StartupCache();
-  virtual ~StartupCache();
+  ~StartupCache();
 
   enum TelemetrifyAge {
     IGNORE_AGE = 0,
@@ -160,26 +152,28 @@ private:
 
   static size_t SizeOfEntryExcludingThis(const nsACString& key,
                                          const nsAutoPtr<CacheEntry>& data,
-                                         mozilla::MallocSizeOf mallocSizeOf,
+                                         nsMallocSizeOfFun mallocSizeOf,
                                          void *);
 
   nsClassHashtable<nsCStringHashKey, CacheEntry> mTable;
   nsRefPtr<nsZipArchive> mArchive;
   nsCOMPtr<nsIFile> mFile;
-
+  
   nsCOMPtr<nsIObserverService> mObserverService;
   nsRefPtr<StartupCacheListener> mListener;
   nsCOMPtr<nsITimer> mTimer;
 
   bool mStartupWriteInitiated;
 
-  static StaticRefPtr<StartupCache> gStartupCache;
+  static StartupCache *gStartupCache;
   static bool gShutdownInitiated;
-  static bool gIgnoreDiskCache;
   PRThread *mWriteThread;
 #ifdef DEBUG
   nsTHashtable<nsISupportsHashKey> mWriteObjectMap;
 #endif
+
+  nsIMemoryReporter* mMappingMemoryReporter;
+  nsIMemoryReporter* mDataMemoryReporter;
 };
 
 // This debug outputstream attempts to detect if clients are writing multiple
@@ -188,9 +182,7 @@ private:
 #ifdef DEBUG
 class StartupCacheDebugOutputStream MOZ_FINAL
   : public nsIObjectOutputStream
-{
-  ~StartupCacheDebugOutputStream() {}
-
+{  
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBJECTOUTPUTSTREAM
 
@@ -217,9 +209,7 @@ class StartupCacheDebugOutputStream MOZ_FINAL
 class StartupCacheWrapper MOZ_FINAL
   : public nsIStartupCache
 {
-  ~StartupCacheWrapper() {}
-
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSISTARTUPCACHE
 
   static StartupCacheWrapper* GetSingleton();

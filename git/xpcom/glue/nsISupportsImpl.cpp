@@ -1,5 +1,3 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7,20 +5,21 @@
 #include "nsISupportsImpl.h"
 
 nsresult NS_FASTCALL
-NS_TableDrivenQI(void* aThis, REFNSIID aIID, void** aInstancePtr,
-                 const QITableEntry* aEntries)
+NS_TableDrivenQI(void* aThis, const QITableEntry* entries,
+                 REFNSIID aIID, void **aInstancePtr)
 {
-  do {
-    if (aIID.Equals(*aEntries->iid)) {
-      nsISupports* r = reinterpret_cast<nsISupports*>(
-        reinterpret_cast<char*>(aThis) + aEntries->offset);
+  while (entries->iid) {
+    if (aIID.Equals(*entries->iid)) {
+      nsISupports* r =
+        reinterpret_cast<nsISupports*>
+                        (reinterpret_cast<char*>(aThis) + entries->offset);
       NS_ADDREF(r);
       *aInstancePtr = r;
       return NS_OK;
     }
 
-    ++aEntries;
-  } while (aEntries->iid);
+    ++entries;
+  }
 
   *aInstancePtr = nullptr;
   return NS_ERROR_NO_INTERFACE;

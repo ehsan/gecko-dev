@@ -52,8 +52,7 @@ add_test(function test_query_result_favicon_changed_on_child()
         // data URI.
         PlacesUtils.favicons.setAndFetchFaviconForPage(PAGE_URI,
                                                        SMALLPNG_DATA_URI,
-                                                       false,
-                                                       PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE);
+                                                       false);
       }
     },
     nodeIconChanged: function QRFCOC_nodeIconChanged(aNode) {
@@ -69,7 +68,7 @@ add_test(function test_query_result_favicon_changed_on_child()
     // operation, and then for the main thread to process any pending
     // notifications that came from the asynchronous thread, before we can be
     // sure that nodeIconChanged was not invoked in the meantime.
-    promiseAsyncUpdates().then(function QRFCOC_asyncUpdates() {
+    waitForAsyncUpdates(function QRFCOC_asyncUpdates() {
       do_execute_soon(function QRFCOC_soon() {
         result.removeObserver(resultObserver);
 

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = ["CommonDialog"];
+var EXPORTED_SYMBOLS = ["CommonDialog"];
 
 const Ci = Components.interfaces;
 const Cr = Components.results;
@@ -12,7 +12,7 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/Services.jsm");
 
 
-this.CommonDialog = function CommonDialog(args, ui) {
+function CommonDialog(args, ui) {
     this.args = args;
     this.ui   = ui;
 }
@@ -198,10 +198,10 @@ CommonDialog.prototype = {
         // Note that if you change the following code, see the comment of
         // nsTextBoxFrame::UpdateAccessTitle.
         var accessKey = null;
-        if (/ *\(\&([^&])\)(:?)$/.test(aLabel)) {
+        if (/ *\(\&([^&])\)(:)?$/.test(aLabel)) {
             aLabel = RegExp.leftContext + RegExp.$2;
             accessKey = RegExp.$1;
-        } else if (/^([^&]*)\&(([^&]).*$)/.test(aLabel)) {
+        } else if (/^(.*[^&])?\&(([^&]).*$)/.test(aLabel)) {
             aLabel = RegExp.$1 + RegExp.$2;
             accessKey = RegExp.$3;
         }
@@ -219,8 +219,7 @@ CommonDialog.prototype = {
 
     initTextbox : function (aName, aValue) {
         this.ui[aName + "Container"].hidden = false;
-        this.ui[aName + "Textbox"].setAttribute("value",
-                                                aValue !== null ? aValue : "");
+        this.ui[aName + "Textbox"].setAttribute("value", aValue);
     },
 
     setButtonsEnabledState : function(enabled) {

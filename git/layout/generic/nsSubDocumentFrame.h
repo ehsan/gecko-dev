@@ -6,7 +6,6 @@
 #ifndef NSSUBDOCUMENTFRAME_H_
 #define NSSUBDOCUMENTFRAME_H_
 
-#include "mozilla/Attributes.h"
 #include "nsLeafFrame.h"
 #include "nsIReflowCallback.h"
 #include "nsFrameLoader.h"
@@ -21,93 +20,77 @@ public:
   NS_DECL_QUERYFRAME_TARGET(nsSubDocumentFrame)
   NS_DECL_FRAMEARENA_HELPERS
 
-  explicit nsSubDocumentFrame(nsStyleContext* aContext);
+  nsSubDocumentFrame(nsStyleContext* aContext);
 
-#ifdef DEBUG_FRAME_DUMP
-  void List(FILE* out = stderr, const char* aPrefix = "", uint32_t aFlags = 0) const MOZ_OVERRIDE;
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+#ifdef DEBUG
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
   NS_DECL_QUERYFRAME
 
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
+  virtual bool IsFrameOfType(uint32_t aFlags) const
   {
     // nsLeafFrame is already eReplacedContainsBlock, but that's somewhat bogus
     return nsLeafFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
   }
 
-  virtual void Init(nsIContent*       aContent,
-                    nsContainerFrame* aParent,
-                    nsIFrame*         aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
-  virtual nscoord GetMinISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
-  virtual nscoord GetPrefISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
 
-  virtual mozilla::IntrinsicSize GetIntrinsicSize() MOZ_OVERRIDE;
-  virtual nsSize  GetIntrinsicRatio() MOZ_OVERRIDE;
+  virtual IntrinsicSize GetIntrinsicSize();
+  virtual nsSize  GetIntrinsicRatio();
 
-  virtual mozilla::LogicalSize
-  ComputeAutoSize(nsRenderingContext *aRenderingContext,
-                  mozilla::WritingMode aWritingMode,
-                  const mozilla::LogicalSize& aCBSize,
-                  nscoord aAvailableISize,
-                  const mozilla::LogicalSize& aMargin,
-                  const mozilla::LogicalSize& aBorder,
-                  const mozilla::LogicalSize& aPadding,
-                  bool aShrinkWrap) MOZ_OVERRIDE;
+  virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
+                                 nsSize aCBSize, nscoord aAvailableWidth,
+                                 nsSize aMargin, nsSize aBorder,
+                                 nsSize aPadding, bool aShrinkWrap);
 
-  virtual mozilla::LogicalSize
-  ComputeSize(nsRenderingContext *aRenderingContext,
-              mozilla::WritingMode aWritingMode,
-              const mozilla::LogicalSize& aCBSize,
-              nscoord aAvailableISize,
-              const mozilla::LogicalSize& aMargin,
-              const mozilla::LogicalSize& aBorder,
-              const mozilla::LogicalSize& aPadding,
-              ComputeSizeFlags aFlags) MOZ_OVERRIDE;
+  virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
+                             nsSize aCBSize, nscoord aAvailableWidth,
+                             nsSize aMargin, nsSize aBorder, nsSize aPadding,
+                             uint32_t aFlags) MOZ_OVERRIDE;
 
-  virtual void Reflow(nsPresContext*           aPresContext,
-                      nsHTMLReflowMetrics&     aDesiredSize,
-                      const nsHTMLReflowState& aReflowState,
-                      nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+  NS_IMETHOD Reflow(nsPresContext*          aPresContext,
+                    nsHTMLReflowMetrics&     aDesiredSize,
+                    const nsHTMLReflowState& aReflowState,
+                    nsReflowStatus&          aStatus);
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists);
 
-  virtual nsresult AttributeChanged(int32_t aNameSpaceID,
-                                    nsIAtom* aAttribute,
-                                    int32_t aModType) MOZ_OVERRIDE;
+  NS_IMETHOD AttributeChanged(int32_t aNameSpaceID,
+                              nsIAtom* aAttribute,
+                              int32_t aModType);
 
   // if the content is "visibility:hidden", then just hide the view
   // and all our contents. We don't extend "visibility:hidden" to
   // the child content ourselves, since it belongs to a different
   // document and CSS doesn't inherit in there.
-  virtual bool SupportsVisibilityHidden() MOZ_OVERRIDE { return false; }
+  virtual bool SupportsVisibilityHidden() { return false; }
 
 #ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
+  virtual already_AddRefed<Accessible> CreateAccessible();
 #endif
 
   nsresult GetDocShell(nsIDocShell **aDocShell);
   nsresult BeginSwapDocShells(nsIFrame* aOther);
   void EndSwapDocShells(nsIFrame* aOther);
-  nsView* EnsureInnerView();
+  nsIView* EnsureInnerView();
   nsIFrame* GetSubdocumentRootFrame();
-  enum {
-    IGNORE_PAINT_SUPPRESSION = 0x1
-  };
-  nsIPresShell* GetSubdocumentPresShellForPainting(uint32_t aFlags);
-  nsIntSize GetSubdocumentSize();
 
   // nsIReflowCallback
-  virtual bool ReflowFinished() MOZ_OVERRIDE;
-  virtual void ReflowCallbackCanceled() MOZ_OVERRIDE;
+  virtual bool ReflowFinished();
+  virtual void ReflowCallbackCanceled();
 
   bool ShouldClipSubdocument()
   {
@@ -121,12 +104,6 @@ public:
     return !frameLoader || frameLoader->ShouldClampScrollPosition();
   }
 
-  /**
-   * Return true if pointer event hit-testing should be allowed to target
-   * content in the subdocument.
-   */
-  bool PassPointerEventsToChildren();
-
 protected:
   friend class AsyncFrameInit;
 
@@ -137,8 +114,10 @@ protected:
 
   bool IsInline() { return mIsInline; }
 
-  virtual nscoord GetIntrinsicISize() MOZ_OVERRIDE;
-  virtual nscoord GetIntrinsicBSize() MOZ_OVERRIDE;
+  virtual nscoord GetIntrinsicWidth();
+  virtual nscoord GetIntrinsicHeight();
+
+  virtual int GetSkipSides() const;
 
   // Show our document viewer. The document viewer is hidden via a script
   // runner, so that we can save and restore the presentation if we're
@@ -156,7 +135,7 @@ protected:
   nsIFrame* ObtainIntrinsicSizeFrame();
 
   nsRefPtr<nsFrameLoader> mFrameLoader;
-  nsView* mInnerView;
+  nsIView* mInnerView;
   bool mIsInline;
   bool mPostedReflowCallback;
   bool mDidCreateDoc;

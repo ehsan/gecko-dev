@@ -10,39 +10,52 @@ function onContentLoaded()
   browser.removeEventListener("load", onContentLoaded, true);
 
   let HUD = HUDService.getHudByWindow(content);
+  let jsterm = HUD.jsterm;
+  let outputNode = HUD.outputNode;
 
   let cssWarning = "Unknown property '-moz-opacity'.  Declaration dropped.";
 
-  waitForMessages({
-    webconsole: HUD,
-    messages: [{
-      text: cssWarning,
-      category: CATEGORY_CSS,
-      severity: SEVERITY_WARNING,
-      repeats: 2,
-    }],
-  }).then(testConsoleLogRepeats);
+  waitForSuccess({
+    name: "2 repeated CSS warnings",
+    validatorFn: function()
+    {
+      return outputNode.textContent.indexOf(cssWarning) > -1;
+    },
+    successFn: function()
+    {
+      let msg = "The unknown CSS property warning is displayed only once";
+      let node = outputNode.firstChild;
+
+      is(node.childNodes[2].textContent, cssWarning, "correct node");
+      is(node.childNodes[3].firstChild.getAttribute("value"), 2, msg);
+
+      testConsoleLogRepeats();
+    },
+    failureFn: finishTest,
+  });
 }
 
 function testConsoleLogRepeats()
 {
   let HUD = HUDService.getHudByWindow(content);
   let jsterm = HUD.jsterm;
+  let outputNode = HUD.outputNode;
 
   jsterm.clearOutput();
 
   jsterm.setInputValue("for (let i = 0; i < 10; ++i) console.log('this is a line of reasonably long text that I will use to verify that the repeated text node is of an appropriate size.');");
   jsterm.execute();
 
-  waitForMessages({
-    webconsole: HUD,
-    messages: [{
-      text: "this is a line of reasonably long text",
-      category: CATEGORY_WEBDEV,
-      severity: SEVERITY_LOG,
-      repeats: 10,
-    }],
-  }).then(finishTest);
+  waitForSuccess({
+    name: "10 repeated console.log messages",
+    validatorFn: function()
+    {
+      let node = outputNode.querySelector(".webconsole-msg-console");
+      return node && node.childNodes[3].firstChild.getAttribute("value") == 10;
+    },
+    successFn: finishTest,
+    failureFn: finishTest,
+  });
 }
 
 /**

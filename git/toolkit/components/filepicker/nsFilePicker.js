@@ -1,4 +1,4 @@
-/* -*- tab-width: 2; indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -88,55 +88,15 @@ nsFilePicker.prototype = {
   },
 
   /* readonly attribute nsILocalFile file; */
+  set file(a) { throw "readonly property"; },
   get file()  { return this.mFilesEnumerator.mFiles[0]; },
 
   /* readonly attribute nsISimpleEnumerator files; */
+  set files(a) { throw "readonly property"; },
   get files()  { return this.mFilesEnumerator; },
 
-  /* readonly attribute nsIDOMFile domfile; */
-  get domfile()  {
-    let enumerator = this.domfiles;
-    return enumerator ? enumerator.mFiles[0] : null;
-  },
-
-  /* readonly attribute nsISimpleEnumerator domfiles; */
-  get domfiles()  {
-    if (!this.mFilesEnumerator) {
-      return null;
-    }
-
-    if (!this.mDOMFilesEnumerator) {
-      this.mDOMFilesEnumerator = {
-        QueryInterface: XPCOMUtils.generateQI([Components.interfaces.nsISimpleEnumerator]),
-
-        mFiles: [],
-        mIndex: 0,
-
-        hasMoreElements: function() {
-          return (this.mIndex < this.mFiles.length);
-        },
-
-        getNext: function() {
-          if (this.mIndex >= this.mFiles.length) {
-            throw Components.results.NS_ERROR_FAILURE;
-          }
-          return this.mFiles[this.mIndex++];
-        }
-      };
-
-      var utils = this.mParentWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                                    .getInterface(Components.interfaces.nsIDOMWindowUtils);
-
-      for (var i = 0; i < this.mFilesEnumerator.mFiles.length; ++i) {
-        var file = utils.wrapDOMFile(this.mFilesEnumerator.mFiles[i]);
-        this.mDOMFilesEnumerator.mFiles.push(file);
-      }
-    }
-
-    return this.mDOMFilesEnumerator;
-  },
-
   /* readonly attribute nsIURI fileURL; */
+  set fileURL(a) { throw "readonly property"; },
   get fileURL()  {
     if (this.mFileURL)
       return this.mFileURL;
@@ -166,12 +126,8 @@ nsFilePicker.prototype = {
   set addToRecentDocs(a) {},
   get addToRecentDocs()  { return false; },
 
-  /* readonly attribute short mode; */
-  get mode() { return this.mMode; },
-
   /* members */
   mFilesEnumerator: undefined,
-  mDOMFilesEnumerator: undefined,
   mParentWindow: null,
 
   /* methods */
@@ -231,13 +187,11 @@ nsFilePicker.prototype = {
     var tm = Components.classes["@mozilla.org/thread-manager;1"]
                        .getService(Components.interfaces.nsIThreadManager);
     tm.mainThread.dispatch(function() {
-      let result = Components.interfaces.nsIFilePicker.returnCancel;
       try {
-        result = this.show();
-      } catch(ex) {
-      }
-      if (aFilePickerShownCallback) {
+        let result = this.show();
         aFilePickerShownCallback.done(result);
+      } catch(ex) {
+        aFilePickerShownCallback.done(this.returnCancel);
       }
     }.bind(this), Components.interfaces.nsIThread.DISPATCH_NORMAL);
   },
@@ -303,7 +257,7 @@ if (DEBUG)
 else
   debug = function (s) {};
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([nsFilePicker]);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([nsFilePicker]);
 
 /* crap from strres.js that I want to use for string bundles since I can't include another .js file.... */
 

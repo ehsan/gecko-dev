@@ -10,21 +10,11 @@
  * liability, trademark and document use rules apply.
  */
 
-interface Attr : Node {
-  readonly attribute DOMString localName;
-           [SetterThrows]
+interface Attr {
+  readonly attribute DOMString name;
            attribute DOMString value;
 
-  readonly attribute DOMString name;
   readonly attribute DOMString? namespaceURI;
   readonly attribute DOMString? prefix;
-
-  readonly attribute boolean specified;
-};
-
-// Mozilla extensions
-
-partial interface Attr {
-           [GetterThrows]
-  readonly attribute Element? ownerElement;
+  readonly attribute DOMString localName;
 };

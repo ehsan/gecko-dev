@@ -25,15 +25,5 @@ GetCurrentSwitchState(SwitchDevice aDevice) {
   return SWITCH_STATE_UNKNOWN;
 }
 
-void
-NotifySwitchStateFromInputDevice(SwitchDevice aDevice, SwitchState aState)
-{
-}
-
-bool IsHeadphoneEventFromInputDev()
-{
-  return false;
-}
-
 } // namespace hal_impl
 } // namespace mozilla

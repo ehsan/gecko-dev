@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "nsIconChannel.h"
 #include "nsIIconURI.h"
@@ -23,7 +23,6 @@
 #include "nsIMIMEService.h"
 #include "nsCExternalHandlerService.h"
 #include "nsDirectoryServiceDefs.h"
-#include "nsProxyRelease.h"
 
 #ifdef _WIN32_WINNT
 #undef _WIN32_WINNT
@@ -56,12 +55,16 @@ struct ICONENTRY {
   uint32_t ieFileOffset;
 };
 
+typedef HRESULT (WINAPI*SHGetStockIconInfoPtr) (SHSTOCKICONID siid, UINT uFlags, SHSTOCKICONINFO *psii);
+
 // Match stock icons with names
-static SHSTOCKICONID
-GetStockIconIDForName(const nsACString& aStockName)
+static SHSTOCKICONID GetStockIconIDForName(const nsACString &aStockName)
 {
-  return aStockName.EqualsLiteral("uac-shield") ? SIID_SHIELD :
-                                                  SIID_INVALID;
+  // UAC shield icon
+  if (aStockName == NS_LITERAL_CSTRING("uac-shield"))
+    return SIID_SHIELD;
+
+  return SIID_INVALID;
 }
 
 // nsIconChannel methods
@@ -69,26 +72,16 @@ nsIconChannel::nsIconChannel()
 {
 }
 
-nsIconChannel::~nsIconChannel()
-{
-  if (mLoadInfo) {
-    nsCOMPtr<nsIThread> mainThread;
-    NS_GetMainThread(getter_AddRefs(mainThread));
+nsIconChannel::~nsIconChannel() 
+{}
 
-    nsILoadInfo* forgetableLoadInfo;
-    mLoadInfo.forget(&forgetableLoadInfo);
-    NS_ProxyRelease(mainThread, forgetableLoadInfo, false);
-  }
-}
+NS_IMPL_THREADSAFE_ISUPPORTS4(nsIconChannel, 
+                              nsIChannel, 
+                              nsIRequest,
+                              nsIRequestObserver,
+                              nsIStreamListener)
 
-NS_IMPL_ISUPPORTS(nsIconChannel,
-                  nsIChannel,
-                  nsIRequest,
-                  nsIRequestObserver,
-                  nsIStreamListener)
-
-nsresult
-nsIconChannel::Init(nsIURI* uri)
+nsresult nsIconChannel::Init(nsIURI* uri)
 {
   NS_ASSERTION(uri, "no uri");
   mUrl = uri;
@@ -101,64 +94,54 @@ nsIconChannel::Init(nsIURI* uri)
 ////////////////////////////////////////////////////////////////////////////////
 // nsIRequest methods:
 
-NS_IMETHODIMP
-nsIconChannel::GetName(nsACString& result)
+NS_IMETHODIMP nsIconChannel::GetName(nsACString &result)
 {
   return mUrl->GetSpec(result);
 }
 
-NS_IMETHODIMP
-nsIconChannel::IsPending(bool* result)
+NS_IMETHODIMP nsIconChannel::IsPending(bool *result)
 {
   return mPump->IsPending(result);
 }
 
-NS_IMETHODIMP
-nsIconChannel::GetStatus(nsresult* status)
+NS_IMETHODIMP nsIconChannel::GetStatus(nsresult *status)
 {
   return mPump->GetStatus(status);
 }
 
-NS_IMETHODIMP
-nsIconChannel::Cancel(nsresult status)
+NS_IMETHODIMP nsIconChannel::Cancel(nsresult status)
 {
   return mPump->Cancel(status);
 }
 
-NS_IMETHODIMP
-nsIconChannel::Suspend(void)
+NS_IMETHODIMP nsIconChannel::Suspend(void)
 {
   return mPump->Suspend();
 }
 
-NS_IMETHODIMP
-nsIconChannel::Resume(void)
+NS_IMETHODIMP nsIconChannel::Resume(void)
 {
   return mPump->Resume();
 }
-NS_IMETHODIMP
-nsIconChannel::GetLoadGroup(nsILoadGroup** aLoadGroup)
+NS_IMETHODIMP nsIconChannel::GetLoadGroup(nsILoadGroup* *aLoadGroup)
 {
   *aLoadGroup = mLoadGroup;
   NS_IF_ADDREF(*aLoadGroup);
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsIconChannel::SetLoadGroup(nsILoadGroup* aLoadGroup)
+NS_IMETHODIMP nsIconChannel::SetLoadGroup(nsILoadGroup* aLoadGroup)
 {
   mLoadGroup = aLoadGroup;
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsIconChannel::GetLoadFlags(uint32_t* aLoadAttributes)
+NS_IMETHODIMP nsIconChannel::GetLoadFlags(uint32_t *aLoadAttributes)
 {
   return mPump->GetLoadFlags(aLoadAttributes);
 }
 
-NS_IMETHODIMP
-nsIconChannel::SetLoadFlags(uint32_t aLoadAttributes)
+NS_IMETHODIMP nsIconChannel::SetLoadFlags(uint32_t aLoadAttributes)
 {
   return mPump->SetLoadFlags(aLoadAttributes);
 }
@@ -166,24 +149,21 @@ nsIconChannel::SetLoadFlags(uint32_t aLoadAttributes)
 ////////////////////////////////////////////////////////////////////////////////
 // nsIChannel methods:
 
-NS_IMETHODIMP
-nsIconChannel::GetOriginalURI(nsIURI** aURI)
+NS_IMETHODIMP nsIconChannel::GetOriginalURI(nsIURI* *aURI)
 {
   *aURI = mOriginalURI;
   NS_ADDREF(*aURI);
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsIconChannel::SetOriginalURI(nsIURI* aURI)
+NS_IMETHODIMP nsIconChannel::SetOriginalURI(nsIURI* aURI)
 {
   NS_ENSURE_ARG_POINTER(aURI);
   mOriginalURI = aURI;
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsIconChannel::GetURI(nsIURI** aURI)
+NS_IMETHODIMP nsIconChannel::GetURI(nsIURI* *aURI)
 {
   *aURI = mUrl;
   NS_IF_ADDREF(*aURI);
@@ -191,15 +171,12 @@ nsIconChannel::GetURI(nsIURI** aURI)
 }
 
 NS_IMETHODIMP
-nsIconChannel::Open(nsIInputStream** _retval)
+nsIconChannel::Open(nsIInputStream **_retval)
 {
   return MakeInputStream(_retval, false);
 }
 
-nsresult
-nsIconChannel::ExtractIconInfoFromUrl(nsIFile** aLocalFile,
-                        uint32_t* aDesiredImageSize, nsCString& aContentType,
-                        nsCString& aFileExtension)
+nsresult nsIconChannel::ExtractIconInfoFromUrl(nsIFile ** aLocalFile, uint32_t * aDesiredImageSize, nsCString &aContentType, nsCString &aFileExtension)
 {
   nsresult rv = NS_OK;
   nsCOMPtr<nsIMozIconURI> iconURI (do_QueryInterface(mUrl, &rv));
@@ -223,62 +200,51 @@ nsIconChannel::ExtractIconInfoFromUrl(nsIFile** aLocalFile,
   return file->Clone(aLocalFile);
 }
 
-NS_IMETHODIMP
-nsIconChannel::AsyncOpen(nsIStreamListener* aListener,
-                                       nsISupports* ctxt)
+NS_IMETHODIMP nsIconChannel::AsyncOpen(nsIStreamListener *aListener, nsISupports *ctxt)
 {
   nsCOMPtr<nsIInputStream> inStream;
   nsresult rv = MakeInputStream(getter_AddRefs(inStream), true);
-  if (NS_FAILED(rv)) {
+  if (NS_FAILED(rv))
     return rv;
-  }
 
   // Init our streampump
   rv = mPump->Init(inStream, int64_t(-1), int64_t(-1), 0, 0, false);
-  if (NS_FAILED(rv)) {
+  if (NS_FAILED(rv))
     return rv;
-  }
 
   rv = mPump->AsyncRead(this, ctxt);
   if (NS_SUCCEEDED(rv)) {
     // Store our real listener
     mListener = aListener;
     // Add ourself to the load group, if available
-    if (mLoadGroup) {
+    if (mLoadGroup)
       mLoadGroup->AddRequest(this, nullptr);
-    }
   }
   return rv;
 }
 
-static DWORD
-GetSpecialFolderIcon(nsIFile* aFile, int aFolder,
-                                  SHFILEINFOW* aSFI, UINT aInfoFlags)
+static DWORD GetSpecialFolderIcon(nsIFile* aFile, int aFolder, SHFILEINFOW* aSFI, UINT aInfoFlags)
 {
   DWORD shellResult = 0;
 
-  if (!aFile) {
+  if (!aFile)
     return shellResult;
-  }
 
-  wchar_t fileNativePath[MAX_PATH];
+  PRUnichar fileNativePath[MAX_PATH];
   nsAutoString fileNativePathStr;
   aFile->GetPath(fileNativePathStr);
-  ::GetShortPathNameW(fileNativePathStr.get(), fileNativePath,
-                      ArrayLength(fileNativePath));
+  ::GetShortPathNameW(fileNativePathStr.get(), fileNativePath, ArrayLength(fileNativePath));
 
   LPITEMIDLIST idList;
-  HRESULT hr = ::SHGetSpecialFolderLocation(nullptr, aFolder, &idList);
+  HRESULT hr = ::SHGetSpecialFolderLocation(NULL, aFolder, &idList);
   if (SUCCEEDED(hr)) {
-    wchar_t specialNativePath[MAX_PATH];
+    PRUnichar specialNativePath[MAX_PATH];
     ::SHGetPathFromIDListW(idList, specialNativePath);
-    ::GetShortPathNameW(specialNativePath, specialNativePath,
-                        ArrayLength(specialNativePath));
-
+    ::GetShortPathNameW(specialNativePath, specialNativePath, ArrayLength(specialNativePath));
+  
     if (!wcsicmp(fileNativePath, specialNativePath)) {
       aInfoFlags |= (SHGFI_PIDL | SHGFI_SYSICONINDEX);
-      shellResult = ::SHGetFileInfoW((LPCWSTR)(LPCITEMIDLIST)idList, 0,
-                                      aSFI,
+      shellResult = ::SHGetFileInfoW((LPCWSTR)(LPCITEMIDLIST)idList, 0, aSFI,
                                      sizeof(*aSFI), aInfoFlags);
     }
   }
@@ -286,128 +252,116 @@ GetSpecialFolderIcon(nsIFile* aFile, int aFolder,
   return shellResult;
 }
 
-static UINT
-GetSizeInfoFlag(uint32_t aDesiredImageSize)
+static UINT GetSizeInfoFlag(uint32_t aDesiredImageSize)
 {
-  return
-    (UINT) (aDesiredImageSize > 16 ? SHGFI_SHELLICONSIZE : SHGFI_SMALLICON);
+  UINT infoFlag;
+  if (aDesiredImageSize > 16)
+    infoFlag = SHGFI_SHELLICONSIZE;
+  else
+    infoFlag = SHGFI_SMALLICON;
+
+  return infoFlag;
 }
 
-nsresult
-nsIconChannel::GetHIconFromFile(HICON* hIcon)
+nsresult nsIconChannel::GetHIconFromFile(HICON *hIcon)
 {
   nsXPIDLCString contentType;
   nsCString fileExt;
   nsCOMPtr<nsIFile> localFile; // file we want an icon for
   uint32_t desiredImageSize;
-  nsresult rv = ExtractIconInfoFromUrl(getter_AddRefs(localFile),
-                                       &desiredImageSize, contentType,
-                                       fileExt);
+  nsresult rv = ExtractIconInfoFromUrl(getter_AddRefs(localFile), &desiredImageSize, contentType, fileExt);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // if the file exists, we are going to use it's real attributes...
-  // otherwise we only want to use it for it's extension...
+  // if the file exists, we are going to use it's real attributes...otherwise we only want to use it for it's extension...
   SHFILEINFOW      sfi;
   UINT infoFlags = SHGFI_ICON;
-
+  
   bool fileExists = false;
-
+ 
   nsAutoString filePath;
   CopyASCIItoUTF16(fileExt, filePath);
-  if (localFile) {
+  if (localFile)
+  {
     rv = localFile->Normalize();
     NS_ENSURE_SUCCESS(rv, rv);
 
     localFile->GetPath(filePath);
-    if (filePath.Length() < 2 || filePath[1] != ':') {
+    if (filePath.Length() < 2 || filePath[1] != ':')
       return NS_ERROR_MALFORMED_URI; // UNC
-    }
 
-    if (filePath.Last() == ':') {
+    if (filePath.Last() == ':')
       filePath.Append('\\');
-    } else {
+    else {
       localFile->Exists(&fileExists);
-      if (!fileExists) {
+      if (!fileExists)
        localFile->GetLeafName(filePath);
-      }
     }
   }
 
-  if (!fileExists) {
+  if (!fileExists)
    infoFlags |= SHGFI_USEFILEATTRIBUTES;
-  }
 
   infoFlags |= GetSizeInfoFlag(desiredImageSize);
 
-  // if we have a content type... then use it! but for existing files,
-  // we want to show their real icon.
-  if (!fileExists && !contentType.IsEmpty()) {
-    nsCOMPtr<nsIMIMEService> mimeService
-      (do_GetService(NS_MIMESERVICE_CONTRACTID, &rv));
+  // if we have a content type... then use it! but for existing files, we want
+  // to show their real icon.
+  if (!fileExists && !contentType.IsEmpty())
+  {
+    nsCOMPtr<nsIMIMEService> mimeService (do_GetService(NS_MIMESERVICE_CONTRACTID, &rv));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString defFileExt;
+    nsCAutoString defFileExt;
     mimeService->GetPrimaryExtension(contentType, fileExt, defFileExt);
     // If the mime service does not know about this mime type, we show
     // the generic icon.
     // In any case, we need to insert a '.' before the extension.
-    filePath = NS_LITERAL_STRING(".") +
-               NS_ConvertUTF8toUTF16(defFileExt);
+    filePath = NS_LITERAL_STRING(".") + NS_ConvertUTF8toUTF16(defFileExt);
   }
 
   // Is this the "Desktop" folder?
-  DWORD shellResult = GetSpecialFolderIcon(localFile, CSIDL_DESKTOP,
-                                           &sfi, infoFlags);
+  DWORD shellResult = GetSpecialFolderIcon(localFile, CSIDL_DESKTOP, &sfi, infoFlags);
   if (!shellResult) {
     // Is this the "My Documents" folder?
-    shellResult = GetSpecialFolderIcon(localFile, CSIDL_PERSONAL,
-                                       &sfi, infoFlags);
+    shellResult = GetSpecialFolderIcon(localFile, CSIDL_PERSONAL, &sfi, infoFlags);
   }
 
-  // There are other "Special Folders" and Namespace entities that we
-  // are not fetching icons for, see:
-  // http://msdn.microsoft.com/library/default.asp?url=/library/en-us/
-  //        shellcc/platform/shell/reference/enums/csidl.asp
-  // If we ever need to get them, code to do so would be inserted here.
+  // There are other "Special Folders" and Namespace entities that we are not 
+  // fetching icons for, see: 
+  // http://msdn.microsoft.com/library/default.asp?url=/library/en-us/shellcc/platform/shell/reference/enums/csidl.asp
+  // If we ever need to get them, code to do so would be inserted here. 
 
   // Not a special folder, or something else failed above.
-  if (!shellResult) {
+  if (!shellResult)
     shellResult = ::SHGetFileInfoW(filePath.get(),
-                                   FILE_ATTRIBUTE_ARCHIVE,
-                                   &sfi, sizeof(sfi), infoFlags);
-  }
+                                   FILE_ATTRIBUTE_ARCHIVE, &sfi, sizeof(sfi), infoFlags);
 
-  if (shellResult && sfi.hIcon) {
+  if (shellResult && sfi.hIcon)
     *hIcon = sfi.hIcon;
-  } else {
+  else
     rv = NS_ERROR_NOT_AVAILABLE;
-  }
 
   return rv;
 }
 
-nsresult
-nsIconChannel::GetStockHIcon(nsIMozIconURI* aIconURI,
-                                      HICON* hIcon)
+nsresult nsIconChannel::GetStockHIcon(nsIMozIconURI *aIconURI, HICON *hIcon)
 {
   nsresult rv = NS_OK;
 
   // We can only do this on Vista or above
   HMODULE hShellDLL = ::LoadLibraryW(L"shell32.dll");
-  decltype(SHGetStockIconInfo)* pSHGetStockIconInfo =
-    (decltype(SHGetStockIconInfo)*) ::GetProcAddress(hShellDLL,
-                                                    "SHGetStockIconInfo");
+  SHGetStockIconInfoPtr pSHGetStockIconInfo =
+    (SHGetStockIconInfoPtr) ::GetProcAddress(hShellDLL, "SHGetStockIconInfo");
 
-  if (pSHGetStockIconInfo) {
+  if (pSHGetStockIconInfo)
+  {
     uint32_t desiredImageSize;
     aIconURI->GetImageSize(&desiredImageSize);
-    nsAutoCString stockIcon;
+    nsCAutoString stockIcon;
     aIconURI->GetStockIcon(stockIcon);
 
     SHSTOCKICONID stockIconID = GetStockIconIDForName(stockIcon);
-    if (stockIconID == SIID_INVALID) {
+    if (stockIconID == SIID_INVALID)
       return NS_ERROR_NOT_AVAILABLE;
-    }
 
     UINT infoFlags = SHGSI_ICON;
     infoFlags |= GetSizeInfoFlag(desiredImageSize);
@@ -416,25 +370,24 @@ nsIconChannel::GetStockHIcon(nsIMozIconURI* aIconURI,
     sii.cbSize = sizeof(sii);
     HRESULT hr = pSHGetStockIconInfo(stockIconID, infoFlags, &sii);
 
-    if (SUCCEEDED(hr)) {
+    if (SUCCEEDED(hr))
       *hIcon = sii.hIcon;
-    } else {
+    else
       rv = NS_ERROR_FAILURE;
-    }
-  } else {
+  }
+  else
+  {
     rv = NS_ERROR_NOT_AVAILABLE;
   }
 
-  if (hShellDLL) {
+  if (hShellDLL)
     ::FreeLibrary(hShellDLL);
-  }
 
   return rv;
 }
 
 // Given a BITMAPINFOHEADER, returns the size of the color table.
-static int
-GetColorTableSize(BITMAPINFOHEADER* aHeader)
+static int GetColorTableSize(BITMAPINFOHEADER* aHeader)
 {
   int colorTableSize = -1;
 
@@ -447,24 +400,24 @@ GetColorTableSize(BITMAPINFOHEADER* aHeader)
     colorTableSize = 2 * sizeof(RGBQUAD);
     break;
   case 4:
-  case 8: {
+  case 8:
+  {
     // The maximum possible size for the color table is 2**bpp, so check for
     // that and fail if we're not in those bounds
     unsigned int maxEntries = 1 << (aHeader->biBitCount);
-    if (aHeader->biClrUsed > 0 && aHeader->biClrUsed <= maxEntries) {
+    if (aHeader->biClrUsed > 0 && aHeader->biClrUsed <= maxEntries)
       colorTableSize = aHeader->biClrUsed * sizeof(RGBQUAD);
-    } else if (aHeader->biClrUsed == 0) {
+    else if (aHeader->biClrUsed == 0)
       colorTableSize = maxEntries * sizeof(RGBQUAD);
-    }
     break;
   }
   case 16:
   case 32:
     // If we have BI_BITFIELDS compression, we would normally need 3 DWORDS for
-    // the bitfields mask which would be stored in the color table; However,
+    // the bitfields mask which would be stored in the color table; However, 
     // we instead force the bitmap to request data of type BI_RGB so the color
-    // table should be of size 0.
-    // Setting aHeader->biCompression = BI_RGB forces the later call to
+    // table should be of size 0.  
+    // Setting aHeader->biCompression = BI_RGB forces the later call to 
     // GetDIBits to return to us BI_RGB data.
     if (aHeader->biCompression == BI_BITFIELDS) {
       aHeader->biCompression = BI_RGB;
@@ -476,17 +429,16 @@ GetColorTableSize(BITMAPINFOHEADER* aHeader)
     break;
   }
 
-  if (colorTableSize < 0) {
+  if (colorTableSize < 0)
     NS_WARNING("Unable to figure out the color table size for this bitmap");
-  }
 
   return colorTableSize;
 }
 
 // Given a header and a size, creates a freshly allocated BITMAPINFO structure.
 // It is the caller's responsibility to null-check and delete the structure.
-static BITMAPINFO*
-CreateBitmapInfo(BITMAPINFOHEADER* aHeader, size_t aColorTableSize)
+static BITMAPINFO* CreateBitmapInfo(BITMAPINFOHEADER* aHeader,
+                                    size_t aColorTableSize)
 {
   BITMAPINFO* bmi = (BITMAPINFO*) ::operator new(sizeof(BITMAPINFOHEADER) +
                                                  aColorTableSize,
@@ -498,49 +450,43 @@ CreateBitmapInfo(BITMAPINFOHEADER* aHeader, size_t aColorTableSize)
   return bmi;
 }
 
-nsresult
-nsIconChannel::MakeInputStream(nsIInputStream** _retval, bool aNonBlocking)
+nsresult nsIconChannel::MakeInputStream(nsIInputStream** _retval, bool nonBlocking)
 {
   // Check whether the icon requested's a file icon or a stock icon
   nsresult rv = NS_ERROR_NOT_AVAILABLE;
 
   // GetDIBits does not exist on windows mobile.
-  HICON hIcon = nullptr;
+  HICON hIcon = NULL;
 
   nsCOMPtr<nsIMozIconURI> iconURI(do_QueryInterface(mUrl, &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString stockIcon;
+  nsCAutoString stockIcon;
   iconURI->GetStockIcon(stockIcon);
-  if (!stockIcon.IsEmpty()) {
+  if (!stockIcon.IsEmpty())
     rv = GetStockHIcon(iconURI, &hIcon);
-  } else {
+  else
     rv = GetHIconFromFile(&hIcon);
-  }
 
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (hIcon) {
-    // we got a handle to an icon. Now we want to get a bitmap for the icon
-    // using GetIconInfo....
+  if (hIcon)
+  {
+    // we got a handle to an icon. Now we want to get a bitmap for the icon using GetIconInfo....
     ICONINFO iconInfo;
-    if (GetIconInfo(hIcon, &iconInfo)) {
+    if (GetIconInfo(hIcon, &iconInfo))
+    {
       // we got the bitmaps, first find out their size
-      HDC hDC = CreateCompatibleDC(nullptr); // get a device context for
-                                             // the screen.
+      HDC hDC = CreateCompatibleDC(NULL); // get a device context for the screen.
       BITMAPINFOHEADER maskHeader  = {sizeof(BITMAPINFOHEADER)};
       BITMAPINFOHEADER colorHeader = {sizeof(BITMAPINFOHEADER)};
       int colorTableSize, maskTableSize;
-      if (GetDIBits(hDC, iconInfo.hbmMask,  0, 0, nullptr,
-                    (BITMAPINFO*)&maskHeader,  DIB_RGB_COLORS) &&
-          GetDIBits(hDC, iconInfo.hbmColor, 0, 0, nullptr,
-                    (BITMAPINFO*)&colorHeader, DIB_RGB_COLORS) &&
+      if (GetDIBits(hDC, iconInfo.hbmMask,  0, 0, NULL, (BITMAPINFO*)&maskHeader,  DIB_RGB_COLORS) &&
+          GetDIBits(hDC, iconInfo.hbmColor, 0, 0, NULL, (BITMAPINFO*)&colorHeader, DIB_RGB_COLORS) &&
           maskHeader.biHeight == colorHeader.biHeight &&
           maskHeader.biWidth  == colorHeader.biWidth  &&
           colorHeader.biBitCount > 8 &&
           colorHeader.biSizeImage > 0 &&
-          colorHeader.biWidth >= 0 && colorHeader.biWidth <= 255 &&
-          colorHeader.biHeight >= 0 && colorHeader.biHeight <= 255 &&
           maskHeader.biSizeImage > 0  &&
           (colorTableSize = GetColorTableSize(&colorHeader)) >= 0 &&
           (maskTableSize  = GetColorTableSize(&maskHeader))  >= 0) {
@@ -550,11 +496,11 @@ nsIconChannel::MakeInputStream(nsIInputStream** _retval, bool aNonBlocking)
                             colorHeader.biSizeImage +
                             maskHeader.biSizeImage;
 
-        char* buffer = new char[iconSize];
-        if (!buffer) {
+        char *buffer = new char[iconSize];
+        if (!buffer)
           rv = NS_ERROR_OUT_OF_MEMORY;
-        } else {
-          char* whereTo = buffer;
+        else {
+          char *whereTo = buffer;
           int howMuch;
 
           // the data starts with an icon file header
@@ -568,8 +514,8 @@ nsIconChannel::MakeInputStream(nsIInputStream** _retval, bool aNonBlocking)
 
           // followed by the single icon entry
           ICONENTRY iconEntry;
-          iconEntry.ieWidth = static_cast<int8_t>(colorHeader.biWidth);
-          iconEntry.ieHeight = static_cast<int8_t>(colorHeader.biHeight);
+          iconEntry.ieWidth = colorHeader.biWidth;
+          iconEntry.ieHeight = colorHeader.biHeight;
           iconEntry.ieColors = 0;
           iconEntry.ieReserved = 0;
           iconEntry.iePlanes = 1;
@@ -593,10 +539,8 @@ nsIconChannel::MakeInputStream(nsIInputStream** _retval, bool aNonBlocking)
           colorHeader.biSizeImage -= maskHeader.biSizeImage;
 
           // followed by the XOR bitmap data (colorHeader)
-          // (you'd expect the color table to come here, but it apparently
-          // doesn't)
-          BITMAPINFO* colorInfo = CreateBitmapInfo(&colorHeader,
-                                                   colorTableSize);
+          // (you'd expect the color table to come here, but it apparently doesn't)
+          BITMAPINFO* colorInfo = CreateBitmapInfo(&colorHeader, colorTableSize);
           if (colorInfo && GetDIBits(hDC, iconInfo.hbmColor, 0,
                                      colorHeader.biHeight, whereTo, colorInfo,
                                      DIB_RGB_COLORS)) {
@@ -610,9 +554,8 @@ nsIconChannel::MakeInputStream(nsIInputStream** _retval, bool aNonBlocking)
               // Now, create a pipe and stuff our data into it
               nsCOMPtr<nsIInputStream> inStream;
               nsCOMPtr<nsIOutputStream> outStream;
-              rv = NS_NewPipe(getter_AddRefs(inStream),
-                              getter_AddRefs(outStream),
-                              iconSize, iconSize, aNonBlocking);
+              rv = NS_NewPipe(getter_AddRefs(inStream), getter_AddRefs(outStream),
+                              iconSize, iconSize, nonBlocking);
               if (NS_SUCCEEDED(rv)) {
                 uint32_t written;
                 rv = outStream->Write(buffer, iconSize, &written);
@@ -637,35 +580,33 @@ nsIconChannel::MakeInputStream(nsIInputStream** _retval, bool aNonBlocking)
   } // if we got an hIcon
 
   // If we didn't make a stream, then fail.
-  if (!*_retval && NS_SUCCEEDED(rv)) {
+  if (!*_retval && NS_SUCCEEDED(rv))
     rv = NS_ERROR_NOT_AVAILABLE;
-  }
   return rv;
 }
 
-NS_IMETHODIMP
-nsIconChannel::GetContentType(nsACString& aContentType)
+NS_IMETHODIMP nsIconChannel::GetContentType(nsACString &aContentType) 
 {
-  aContentType.AssignLiteral(IMAGE_ICO);
+  aContentType.AssignLiteral("image/x-icon");
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsIconChannel::SetContentType(const nsACString& aContentType)
+nsIconChannel::SetContentType(const nsACString &aContentType)
 {
   // It doesn't make sense to set the content-type on this type
   // of channel...
   return NS_ERROR_FAILURE;
 }
 
-NS_IMETHODIMP nsIconChannel::GetContentCharset(nsACString& aContentCharset)
+NS_IMETHODIMP nsIconChannel::GetContentCharset(nsACString &aContentCharset) 
 {
   aContentCharset.Truncate();
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsIconChannel::SetContentCharset(const nsACString& aContentCharset)
+nsIconChannel::SetContentCharset(const nsACString &aContentCharset)
 {
   // It doesn't make sense to set the content-charset on this type
   // of channel...
@@ -673,119 +614,76 @@ nsIconChannel::SetContentCharset(const nsACString& aContentCharset)
 }
 
 NS_IMETHODIMP
-nsIconChannel::GetContentDisposition(uint32_t* aContentDisposition)
+nsIconChannel::GetContentDisposition(uint32_t *aContentDisposition)
 {
   return NS_ERROR_NOT_AVAILABLE;
 }
 
 NS_IMETHODIMP
-nsIconChannel::SetContentDisposition(uint32_t aContentDisposition)
+nsIconChannel::GetContentDispositionFilename(nsAString &aContentDispositionFilename)
 {
   return NS_ERROR_NOT_AVAILABLE;
 }
 
 NS_IMETHODIMP
-nsIconChannel::
-  GetContentDispositionFilename(nsAString& aContentDispositionFilename)
+nsIconChannel::GetContentDispositionHeader(nsACString &aContentDispositionHeader)
 {
   return NS_ERROR_NOT_AVAILABLE;
 }
 
-NS_IMETHODIMP
-nsIconChannel::
-  SetContentDispositionFilename(const nsAString& aContentDispositionFilename)
-{
-  return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
-nsIconChannel::
-  GetContentDispositionHeader(nsACString& aContentDispositionHeader)
-{
-  return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
-nsIconChannel::GetContentLength(int64_t* aContentLength)
+NS_IMETHODIMP nsIconChannel::GetContentLength(int32_t *aContentLength)
 {
   *aContentLength = mContentLength;
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsIconChannel::SetContentLength(int64_t aContentLength)
+NS_IMETHODIMP nsIconChannel::SetContentLength(int32_t aContentLength)
 {
   NS_NOTREACHED("nsIconChannel::SetContentLength");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-NS_IMETHODIMP
-nsIconChannel::GetOwner(nsISupports** aOwner)
+NS_IMETHODIMP nsIconChannel::GetOwner(nsISupports* *aOwner)
 {
   *aOwner = mOwner.get();
   NS_IF_ADDREF(*aOwner);
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsIconChannel::SetOwner(nsISupports* aOwner)
+NS_IMETHODIMP nsIconChannel::SetOwner(nsISupports* aOwner)
 {
   mOwner = aOwner;
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsIconChannel::GetLoadInfo(nsILoadInfo** aLoadInfo)
-{
-  NS_IF_ADDREF(*aLoadInfo = mLoadInfo);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsIconChannel::SetLoadInfo(nsILoadInfo* aLoadInfo)
-{
-  mLoadInfo = aLoadInfo;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsIconChannel::
-  GetNotificationCallbacks(nsIInterfaceRequestor** aNotificationCallbacks)
+NS_IMETHODIMP nsIconChannel::GetNotificationCallbacks(nsIInterfaceRequestor* *aNotificationCallbacks)
 {
   *aNotificationCallbacks = mCallbacks.get();
   NS_IF_ADDREF(*aNotificationCallbacks);
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsIconChannel::
-  SetNotificationCallbacks(nsIInterfaceRequestor* aNotificationCallbacks)
+NS_IMETHODIMP nsIconChannel::SetNotificationCallbacks(nsIInterfaceRequestor* aNotificationCallbacks)
 {
   mCallbacks = aNotificationCallbacks;
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsIconChannel::GetSecurityInfo(nsISupports** aSecurityInfo)
+NS_IMETHODIMP nsIconChannel::GetSecurityInfo(nsISupports * *aSecurityInfo)
 {
   *aSecurityInfo = nullptr;
   return NS_OK;
 }
 
 // nsIRequestObserver methods
-NS_IMETHODIMP nsIconChannel::OnStartRequest(nsIRequest* aRequest,
-                                            nsISupports* aContext)
+NS_IMETHODIMP nsIconChannel::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
 {
-  if (mListener) {
+  if (mListener)
     return mListener->OnStartRequest(this, aContext);
-  }
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsIconChannel::OnStopRequest(nsIRequest* aRequest,
-                             nsISupports* aContext,
-                             nsresult aStatus)
+NS_IMETHODIMP nsIconChannel::OnStopRequest(nsIRequest* aRequest, nsISupports* aContext, nsresult aStatus)
 {
   if (mListener) {
     mListener->OnStopRequest(this, aContext, aStatus);
@@ -793,9 +691,8 @@ nsIconChannel::OnStopRequest(nsIRequest* aRequest,
   }
 
   // Remove from load group
-  if (mLoadGroup) {
+  if (mLoadGroup)
     mLoadGroup->RemoveRequest(this, nullptr, aStatus);
-  }
 
   // Drop notification callbacks to prevent cycles.
   mCallbacks = nullptr;
@@ -804,15 +701,13 @@ nsIconChannel::OnStopRequest(nsIRequest* aRequest,
 }
 
 // nsIStreamListener methods
-NS_IMETHODIMP
-nsIconChannel::OnDataAvailable(nsIRequest* aRequest,
-                               nsISupports* aContext,
-                               nsIInputStream* aStream,
-                               uint64_t aOffset,
-                               uint32_t aCount)
+NS_IMETHODIMP nsIconChannel::OnDataAvailable(nsIRequest* aRequest,
+                                             nsISupports* aContext,
+                                             nsIInputStream* aStream,
+                                             uint32_t aOffset,
+                                             uint32_t aCount)
 {
-  if (mListener) {
+  if (mListener)
     return mListener->OnDataAvailable(this, aContext, aStream, aOffset, aCount);
-  }
   return NS_OK;
 }

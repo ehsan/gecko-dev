@@ -26,7 +26,8 @@ function doTest()
                  .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
                  .getInterface(Components.interfaces.nsIWebNavigation)
                  .QueryInterface(Components.interfaces.nsIDocShell)
-                 .contentViewer;
+                 .contentViewer
+                 .QueryInterface(Components.interfaces.nsIMarkupDocumentViewer);
   viewer.authorStyleDisabled = true;
 
   document.documentElement.getBoundingClientRect();

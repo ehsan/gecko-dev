@@ -4,11 +4,11 @@
 
 const PREF_RESTORE_ON_DEMAND = "browser.sessionstore.restore_on_demand";
 
-function test() {
-  TestRunner.run();
-}
+let stateBackup = ss.getBrowserState();
 
-function runTests() {
+function test() {
+  waitForExplicitFinish();
+
   Services.prefs.setBoolPref(PREF_RESTORE_ON_DEMAND, false);
   registerCleanupFunction(function () {
     Services.prefs.clearUserPref(PREF_RESTORE_ON_DEMAND);
@@ -46,7 +46,10 @@ function runTests() {
       is(aNeedRestore, 0, "there are no tabs left needing restore");
 
       gProgressListener.unsetCallback();
-      executeSoon(next);
+      executeSoon(function () {
+        closeAllButPrimaryWindow();
+        waitForBrowserState(JSON.parse(stateBackup), finish);
+      });
     }
   });
 
@@ -62,5 +65,5 @@ function runTests() {
     }
   });
 
-  yield ss.setBrowserState(JSON.stringify(state));
+  ss.setBrowserState(JSON.stringify(state));
 }

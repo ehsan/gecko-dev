@@ -1,14 +1,11 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* vim: set sw=2 ts=8 et ft=cpp : */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef mozilla_StaticPtr_h
 #define mozilla_StaticPtr_h
-
-#include "mozilla/Assertions.h"
-#include "mozilla/NullPtr.h"
 
 namespace mozilla {
 
@@ -37,83 +34,91 @@ namespace mozilla {
 template<class T>
 class StaticAutoPtr
 {
-public:
-  // In debug builds, check that mRawPtr is initialized for us as we expect
-  // by the compiler.  In non-debug builds, don't declare a constructor
-  // so that the compiler can see that the constructor is trivial.
-#ifdef DEBUG
-  StaticAutoPtr()
-  {
-    MOZ_ASSERT(!mRawPtr);
-  }
-#endif
+  public:
+    StaticAutoPtr()
+    {
+      // In debug builds, check that mRawPtr is initialized for us as we expect
+      // by the compiler.
+      MOZ_ASSERT(!mRawPtr);
+    }
 
-  StaticAutoPtr<T>& operator=(T* aRhs)
-  {
-    Assign(aRhs);
-    return *this;
-  }
+    ~StaticAutoPtr() {}
 
-  T* get() const { return mRawPtr; }
+    StaticAutoPtr<T>& operator=(T* rhs)
+    {
+      Assign(rhs);
+      return *this;
+    }
 
-  operator T*() const { return get(); }
+    T* get() const
+    {
+      return mRawPtr;
+    }
 
-  T* operator->() const
-  {
-    MOZ_ASSERT(mRawPtr);
-    return get();
-  }
+    operator T*() const
+    {
+      return get();
+    }
 
-  T& operator*() const { return *get(); }
+    T* operator->() const
+    {
+      MOZ_ASSERT(mRawPtr);
+      return get();
+    }
 
-private:
-  // Disallow copy constructor, but only in debug mode.  We only define
-  // a default constructor in debug mode (see above); if we declared
-  // this constructor always, the compiler wouldn't generate a trivial
-  // default constructor for us in non-debug mode.
-#ifdef DEBUG
-  StaticAutoPtr(StaticAutoPtr<T>& aOther);
-#endif
+    T& operator*() const
+    {
+      return *get();
+    }
 
-  void Assign(T* aNewPtr)
-  {
-    MOZ_ASSERT(!aNewPtr || mRawPtr != aNewPtr);
-    T* oldPtr = mRawPtr;
-    mRawPtr = aNewPtr;
-    delete oldPtr;
-  }
+  private:
+    // Disallow copy constructor.
+    StaticAutoPtr(StaticAutoPtr<T> &other);
 
-  T* mRawPtr;
+    void Assign(T* newPtr)
+    {
+      MOZ_ASSERT(!newPtr || mRawPtr != newPtr);
+      T* oldPtr = mRawPtr;
+      mRawPtr = newPtr;
+      delete oldPtr;
+    }
+
+    T* mRawPtr;
 };
 
 template<class T>
 class StaticRefPtr
 {
 public:
-  // In debug builds, check that mRawPtr is initialized for us as we expect
-  // by the compiler.  In non-debug builds, don't declare a constructor
-  // so that the compiler can see that the constructor is trivial.
-#ifdef DEBUG
   StaticRefPtr()
   {
     MOZ_ASSERT(!mRawPtr);
   }
-#endif
 
-  StaticRefPtr<T>& operator=(T* aRhs)
+  ~StaticRefPtr()
   {
-    AssignWithAddref(aRhs);
+  }
+
+  StaticRefPtr<T>& operator=(T* rhs)
+  {
+    AssignWithAddref(rhs);
     return *this;
   }
 
-  StaticRefPtr<T>& operator=(const StaticRefPtr<T>& aRhs)
+  StaticRefPtr<T>& operator=(const StaticRefPtr<T>& rhs)
   {
-    return (this = aRhs.mRawPtr);
+    return (this = rhs.mRawPtr);
   }
 
-  T* get() const { return mRawPtr; }
+  T* get() const
+  {
+    return mRawPtr;
+  }
 
-  operator T*() const { return get(); }
+  operator T*() const
+  {
+    return get();
+  }
 
   T* operator->() const
   {
@@ -121,21 +126,24 @@ public:
     return get();
   }
 
-  T& operator*() const { return *get(); }
-
-private:
-  void AssignWithAddref(T* aNewPtr)
+  T& operator*() const
   {
-    if (aNewPtr) {
-      aNewPtr->AddRef();
-    }
-    AssignAssumingAddRef(aNewPtr);
+    return *get();
   }
 
-  void AssignAssumingAddRef(T* aNewPtr)
+private:
+  void AssignWithAddref(T* newPtr)
+  {
+    if (newPtr) {
+      newPtr->AddRef();
+    }
+    AssignAssumingAddRef(newPtr);
+  }
+
+  void AssignAssumingAddRef(T* newPtr)
   {
     T* oldPtr = mRawPtr;
-    mRawPtr = aNewPtr;
+    mRawPtr = newPtr;
     if (oldPtr) {
       oldPtr->Release();
     }
@@ -181,16 +189,16 @@ class Zero;
 
 template<class T, class U>
 inline bool
-operator==(const StaticAutoPtr<T>& aLhs, const StaticAutoPtr<U>& aRhs)
+operator==(const StaticAutoPtr<T>& lhs, const StaticAutoPtr<U>& rhs)
 {
-  return aLhs.get() == aRhs.get();
+  return lhs.get() == rhs.get();
 }
 
 template<class T, class U>
 inline bool
-operator!=(const StaticAutoPtr<T>& aLhs, const StaticAutoPtr<U>& aRhs)
+operator!=(const StaticAutoPtr<T>& lhs, const StaticAutoPtr<U>& rhs)
 {
-  return !(aLhs == aRhs);
+  return !(lhs == rhs);
 }
 
 REFLEXIVE_EQUALITY_OPERATORS(const StaticAutoPtr<T>&, const U*,
@@ -201,22 +209,22 @@ REFLEXIVE_EQUALITY_OPERATORS(const StaticAutoPtr<T>&, U*,
 
 // Let us compare StaticAutoPtr to 0.
 REFLEXIVE_EQUALITY_OPERATORS(const StaticAutoPtr<T>&, StaticPtr_internal::Zero*,
-                             lhs.get() == nullptr, class T)
+                             lhs.get() == NULL, class T)
 
 // StaticRefPtr (in)equality operators
 
 template<class T, class U>
 inline bool
-operator==(const StaticRefPtr<T>& aLhs, const StaticRefPtr<U>& aRhs)
+operator==(const StaticRefPtr<T>& lhs, const StaticRefPtr<U>& rhs)
 {
-  return aLhs.get() == aRhs.get();
+  return lhs.get() == rhs.get();
 }
 
 template<class T, class U>
 inline bool
-operator!=(const StaticRefPtr<T>& aLhs, const StaticRefPtr<U>& aRhs)
+operator!=(const StaticRefPtr<T>& lhs, const StaticRefPtr<U>& rhs)
 {
-  return !(aLhs == aRhs);
+  return !(lhs == rhs);
 }
 
 REFLEXIVE_EQUALITY_OPERATORS(const StaticRefPtr<T>&, const U*,
@@ -227,7 +235,7 @@ REFLEXIVE_EQUALITY_OPERATORS(const StaticRefPtr<T>&, U*,
 
 // Let us compare StaticRefPtr to 0.
 REFLEXIVE_EQUALITY_OPERATORS(const StaticRefPtr<T>&, StaticPtr_internal::Zero*,
-                             lhs.get() == nullptr, class T)
+                             lhs.get() == NULL, class T)
 
 #undef REFLEXIVE_EQUALITY_OPERATORS
 

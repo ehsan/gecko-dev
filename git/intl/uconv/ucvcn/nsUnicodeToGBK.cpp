@@ -14,9 +14,10 @@
  */
 
 #include "nsUnicodeToGBK.h"
+#include "nsUCvCnDll.h"
 #include "gbku.h"
 #include "uconvutil.h"
-#include "nsCharTraits.h"
+#include "nsUnicharUtils.h"
 
 //-------------------------------------------------------------
 // Global table initialization function defined in gbku.h
@@ -80,16 +81,16 @@ void nsUnicodeToGB18030::Create4BytesEncoder()
 }
 
 bool nsUnicodeToGB18030::EncodeSurrogate(
-  char16_t aSurrogateHigh,
-  char16_t aSurrogateLow,
+  PRUnichar aSurrogateHigh,
+  PRUnichar aSurrogateLow,
   char* aOut)
 {
   if( NS_IS_HIGH_SURROGATE(aSurrogateHigh) && 
       NS_IS_LOW_SURROGATE(aSurrogateLow) )
   {
     // notice that idx does not include the 0x10000 
-    uint32_t idx = ((aSurrogateHigh - (char16_t)0xD800) << 10 ) |
-                   (aSurrogateLow - (char16_t) 0xDC00);
+    uint32_t idx = ((aSurrogateHigh - (PRUnichar)0xD800) << 10 ) |
+                   (aSurrogateLow - (PRUnichar) 0xDC00);
 
     unsigned char *out = (unsigned char*) aOut;
     // notice this is from 0x90 for supplment planes
@@ -112,6 +113,7 @@ nsUnicodeToGBK::nsUnicodeToGBK(uint32_t aMaxLength) :
 {
   mExtensionEncoder = nullptr;
   m4BytesEncoder = nullptr;
+  mUtil.InitToGBKTable();
   mSurrogateHigh = 0;
 }
 void nsUnicodeToGBK::CreateExtensionEncoder()
@@ -123,7 +125,7 @@ void nsUnicodeToGBK::Create4BytesEncoder()
   m4BytesEncoder = nullptr;
 }
 bool nsUnicodeToGBK::TryExtensionEncoder(
-  char16_t aChar,
+  PRUnichar aChar,
   char* aOut,
   int32_t *aOutLen
 )
@@ -148,7 +150,7 @@ bool nsUnicodeToGBK::TryExtensionEncoder(
 }
 
 bool nsUnicodeToGBK::Try4BytesEncoder(
-  char16_t aChar,
+  PRUnichar aChar,
   char* aOut,
   int32_t *aOutLen
 )
@@ -174,22 +176,22 @@ bool nsUnicodeToGBK::Try4BytesEncoder(
   return false;
 }
 bool nsUnicodeToGBK::EncodeSurrogate(
-  char16_t aSurrogateHigh,
-  char16_t aSurrogateLow,
+  PRUnichar aSurrogateHigh,
+  PRUnichar aSurrogateLow,
   char* aOut)
 {
   return false; // GBK cannot encode Surrogate, let the subclass encode it.
 } 
 
 NS_IMETHODIMP nsUnicodeToGBK::ConvertNoBuff(
-  const char16_t * aSrc, 
+  const PRUnichar * aSrc, 
   int32_t * aSrcLength, 
   char * aDest, 
   int32_t * aDestLength)
 {
   int32_t iSrcLength = 0;
   int32_t iDestLength = 0;
-  char16_t unicode;
+  PRUnichar unicode;
   nsresult res = NS_OK;
   while (iSrcLength < *aSrcLength )
   {
@@ -294,7 +296,7 @@ NS_IMETHODIMP nsUnicodeToGBK::ConvertNoBuff(
         }
       } 
     }
-    iSrcLength++ ; // Each unicode char just count as one in char16_t string;  	  
+    iSrcLength++ ; // Each unicode char just count as one in PRUnichar string;  	  
     mSurrogateHigh = 0;
     aSrc++;
     if ( iDestLength >= (*aDestLength) && (iSrcLength < *aSrcLength) )

@@ -5,18 +5,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsUXThemeConstants_h
-#define nsUXThemeConstants_h
-
 /* 
  * The following constants are used to determine how a widget is drawn using
  * Windows' Theme API. For more information on theme parts and states see
  * http://msdn.microsoft.com/en-us/library/bb773210(VS.85).aspx
  */
-
-#include <vssym32.h>
-#include <vsstyle.h>
-
 #define THEME_COLOR 204
 #define THEME_FONT  210
 
@@ -30,6 +23,10 @@
 // These constants are reversed for the trackbar (scale) thumb
 #define TKP_FOCUSED   4
 #define TKP_DISABLED  5
+
+// Toolbar constants
+#define TP_BUTTON 1
+#define TP_SEPARATOR 5
 
 // Toolbarbutton constants
 #define TB_CHECKED       5
@@ -75,21 +72,21 @@
 #define TKP_TRACK          1
 #define TKP_TRACKVERT      2
 #define TKP_THUMB          3
-#define TKP_THUMBBOTTOM    4
-#define TKP_THUMBTOP       5
 #define TKP_THUMBVERT      6
-#define TKP_THUMBLEFT      7
-#define TKP_THUMBRIGHT     8
-
-// Track state contstants
-#define TRS_NORMAL         1
-
-// Track vertical state constants
-#define TRVS_NORMAL        1
 
 // Spin constants
 #define SPNP_UP            1
 #define SPNP_DOWN          2
+
+// Progress bar constants
+#define PP_BAR             1
+#define PP_BARVERT         2
+#define PP_CHUNK           3
+#define PP_CHUNKVERT       4
+#define PP_FILL            5
+#define PP_FILLVERT        6
+#define PP_MOVEOVERLAY     8
+#define PP_MOVEOVERLAYVERT 9
 
 // Tab constants
 #define TABP_TAB             4
@@ -153,6 +150,12 @@
 
 #define MSM_NORMAL 1
 #define MSM_DISABLED 2
+
+// From tmschema.h in the Vista SDK
+#define TMT_TEXTCOLOR 3803
+#define TMT_SIZINGMARGINS 3601
+#define TMT_CONTENTMARGINS 3602
+#define TMT_CAPTIONMARGINS 3603
 
 // Rebar constants
 #define RP_BAND              3
@@ -247,5 +250,3 @@ enum {
 };
 
 }}} // mozilla::widget::themeconst
-
-#endif

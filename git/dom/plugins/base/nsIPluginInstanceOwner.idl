@@ -11,22 +11,15 @@ interface nsIDocument;
 
 %{C++
 #include "npapi.h"
-#include "mozilla/EventForwards.h"
-class nsNPAPIPluginInstance;
-
-enum nsPluginTagType {
-  nsPluginTagType_Unknown,
-  nsPluginTagType_Embed,
-  nsPluginTagType_Object,
-  nsPluginTagType_Applet
-};
+#include "nsNPAPIPluginInstance.h"
+class nsPluginEvent;
 %}
 
 [ptr] native nsNPAPIPluginInstancePtr(nsNPAPIPluginInstance);
 
 // Do not make this interface scriptable, because the virtual functions in C++
 // blocks will make script call the wrong functions.
-[uuid(c4e26e5d-7a9b-4900-b567-e128c4be6e31)]
+[uuid(23bd0a76-a5dc-4a1d-be76-13d7a0dfd9ff)]
 interface nsIPluginInstanceOwner : nsISupports
 {
   /**
@@ -75,7 +68,7 @@ interface nsIPluginInstanceOwner : nsISupports
   void showStatus(in string aStatusMsg);
 
 %{C++
-  NS_IMETHOD ShowStatus(const char16_t *aStatusMsg) = 0;
+  NS_IMETHOD ShowStatus(const PRUnichar *aStatusMsg) = 0;
 %}
 
   /**
@@ -110,18 +103,20 @@ interface nsIPluginInstanceOwner : nsISupports
   virtual NPError ShowNativeContextMenu(NPMenu* menu, void* event) = 0;
   virtual NPBool  ConvertPoint(double sourceX, double sourceY, NPCoordinateSpace sourceSpace,
                                double *destX, double *destY, NPCoordinateSpace destSpace) = 0;
+  virtual NPError InitAsyncSurface(NPSize *size, NPImageFormat format,
+                                   void *initData, NPAsyncSurface *surface) = 0;
+  virtual NPError FinalizeAsyncSurface(NPAsyncSurface *surface) = 0;
+  virtual void SetCurrentAsyncSurface(NPAsyncSurface *surface, NPRect *changed) = 0;
 %}
 
   void setEventModel(in int32_t eventModel);
+
+%{C++
+  virtual void SendIdleEvent() = 0;
+%}
 
   /**
    * Call NPP_SetWindow on the plugin.
    */
   void callSetWindow();
-
-  /**
-   * Get the contents scale factor for the screen the plugin is
-   * drawn on.
-   */
-  double getContentsScaleFactor();
 };

@@ -15,7 +15,7 @@ struct ObjectHashEntry : PLDHashEntryHdr {
   nsNSSShutDownObject *obj;
 };
 
-static bool
+PR_STATIC_CALLBACK(bool)
 ObjectSetMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
                          const void *key)
 {
@@ -23,7 +23,7 @@ ObjectSetMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
   return entry->obj == static_cast<const nsNSSShutDownObject*>(key);
 }
 
-static bool
+PR_STATIC_CALLBACK(bool)
 ObjectSetInitEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
                      const void *key)
 {
@@ -32,7 +32,7 @@ ObjectSetInitEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
   return true;
 }
 
-static const PLDHashTableOps gSetOps = {
+static PLDHashTableOps gSetOps = {
   PL_DHashAllocTable,
   PL_DHashFreeTable,
   PL_DHashVoidPtrKeyStub,
@@ -52,9 +52,9 @@ nsNSSShutDownList::nsNSSShutDownList()
   mPK11LogoutCancelObjects.ops = nullptr;
   mObjects.ops = nullptr;
   PL_DHashTableInit(&mObjects, &gSetOps, nullptr,
-                    sizeof(ObjectHashEntry));
+                    sizeof(ObjectHashEntry), 16);
   PL_DHashTableInit(&mPK11LogoutCancelObjects, &gSetOps, nullptr,
-                    sizeof(ObjectHashEntry));
+                    sizeof(ObjectHashEntry), 16);
 }
 
 nsNSSShutDownList::~nsNSSShutDownList()
@@ -157,7 +157,7 @@ nsresult nsNSSShutDownList::doPK11Logout()
   return NS_OK;
 }
 
-PLDHashOperator
+PLDHashOperator PR_CALLBACK
 nsNSSShutDownList::doPK11LogoutHelper(PLDHashTable *table, 
   PLDHashEntryHdr *hdr, uint32_t number, void *arg)
 {
@@ -209,7 +209,7 @@ nsresult nsNSSShutDownList::evaporateAllNSSResources()
   return NS_OK;
 }
 
-PLDHashOperator
+PLDHashOperator PR_CALLBACK
 nsNSSShutDownList::evaporateAllNSSResourcesHelper(PLDHashTable *table, 
   PLDHashEntryHdr *hdr, uint32_t number, void *arg)
 {

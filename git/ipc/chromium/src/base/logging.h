@@ -11,10 +11,6 @@
 #include "base/basictypes.h"
 #include "prlog.h"
 
-#ifdef NO_CHROMIUM_LOGGING
-#include <sstream>
-#endif
-
 // Replace the Chromium logging code with NSPR-based logging code and
 // some C++ wrappers to emulate std::ostream
 
@@ -88,18 +84,12 @@ const mozilla::EmptyLog& operator <<(const mozilla::EmptyLog& log, const T&)
   return log;
 }
 
-#ifdef NO_CHROMIUM_LOGGING
-#define CHROMIUM_LOG(info) std::stringstream()
-#define LOG_IF(info, condition) if (!(condition)) std::stringstream()
-#else
-#define CHROMIUM_LOG(info) mozilla::LogWrapper(mozilla::LOG_ ## info, __FILE__, __LINE__)
+#define LOG(info) mozilla::LogWrapper(mozilla::LOG_ ## info, __FILE__, __LINE__)
 #define LOG_IF(info, condition) \
   if (!(condition)) mozilla::LogWrapper(mozilla::LOG_ ## info, __FILE__, __LINE__)
-#endif
-
 
 #ifdef DEBUG
-#define DLOG(info) CHROMIUM_LOG(info)
+#define DLOG(info) LOG(info)
 #define DLOG_IF(info) LOG_IF(info)
 #define DCHECK(condition) CHECK(condition)
 #else
@@ -111,8 +101,8 @@ const mozilla::EmptyLog& operator <<(const mozilla::EmptyLog& log, const T&)
 #define LOG_ASSERT(cond) CHECK(0)
 #define DLOG_ASSERT(cond) DCHECK(0)
 
-#define NOTREACHED() CHROMIUM_LOG(ERROR)
-#define NOTIMPLEMENTED() CHROMIUM_LOG(ERROR)
+#define NOTREACHED() LOG(ERROR)
+#define NOTIMPLEMENTED() LOG(ERROR)
 
 #define CHECK(condition) LOG_IF(FATAL, condition)
 

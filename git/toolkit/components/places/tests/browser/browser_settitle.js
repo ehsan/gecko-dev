@@ -8,7 +8,7 @@ gBrowser.selectedTab = gBrowser.addTab();
 function finishAndCleanUp()
 {
   gBrowser.removeCurrentTab();
-  promiseClearHistory().then(finish);
+  waitForClearHistory(finish);
 }
 
 /**
@@ -34,8 +34,8 @@ var conn = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase).DBConnectio
 function getColumn(table, column, fromColumnName, fromColumnValue)
 {
   var stmt = conn.createStatement(
-    `SELECT ${column} FROM ${table} WHERE ${fromColumnName} = :val
-     LIMIT 1`);
+    "SELECT " + column + " FROM " + table + " WHERE " + fromColumnName + "=:val " +
+    "LIMIT 1");
   try {
     stmt.params.val = fromColumnValue;
     stmt.executeStep();
@@ -73,6 +73,7 @@ function test()
       PlacesUtils.history.removeObserver(this);
       confirmResults(this.data);
     },
+    onBeforeDeleteURI: function() {},
     onDeleteURI: function() {},
     onClearHistory: function() {},
     onPageChanged: function() {},

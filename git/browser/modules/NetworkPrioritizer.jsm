@@ -13,7 +13,7 @@
  * Lowest (+10):  Background tabs in background windows.
  */
 
-this.EXPORTED_SYMBOLS = ["trackBrowserWindow"];
+let EXPORTED_SYMBOLS = ["trackBrowserWindow"];
 
 const Ci = Components.interfaces;
 
@@ -39,7 +39,7 @@ let _windows = [];
 
 
 // Exported symbol
-this.trackBrowserWindow = function trackBrowserWindow(aWindow) {
+function trackBrowserWindow(aWindow) {
   WindowHelper.addWindow(aWindow);
 }
 
@@ -80,12 +80,18 @@ let BrowserHelper = {
     windowEntry.lastSelectedBrowser = aBrowser;
   },
 
+  // Auxiliary methods
+  getLoadgroup: function NP_BH_getLoadgroup(aBrowser) {
+    return aBrowser.webNavigation.QueryInterface(Ci.nsIDocumentLoader)
+                   .loadGroup.QueryInterface(Ci.nsISupportsPriority);
+  },
+
   increasePriority: function NP_BH_increasePriority(aBrowser) {
-    aBrowser.adjustPriority(PRIORITY_DELTA);
+    this.getLoadgroup(aBrowser).adjustPriority(PRIORITY_DELTA);
   },
 
   decreasePriority: function NP_BH_decreasePriority(aBrowser) {
-    aBrowser.adjustPriority(PRIORITY_DELTA * -1);
+    this.getLoadgroup(aBrowser).adjustPriority(PRIORITY_DELTA * -1);
   }
 };
 

@@ -5,18 +5,18 @@
 
 // Local Includes
 #include "nsSHEntry.h"
+#include "nsXPIDLString.h"
+#include "nsReadableUtils.h"
 #include "nsIDocShellLoadInfo.h"
 #include "nsIDocShellTreeItem.h"
+#include "nsISHistory.h"
+#include "nsISHistoryInternal.h"
 #include "nsDocShellEditorData.h"
 #include "nsSHEntryShared.h"
 #include "nsILayoutHistoryState.h"
 #include "nsIContentViewer.h"
 #include "nsISupportsArray.h"
 #include "nsIStructuredCloneContainer.h"
-#include "nsIInputStream.h"
-#include "nsIURI.h"
-#include "mozilla/net/ReferrerPolicy.h"
-#include <algorithm>
 
 namespace dom = mozilla::dom;
 
@@ -28,14 +28,12 @@ static uint32_t gEntryID = 0;
 
 
 nsSHEntry::nsSHEntry()
-  : mReferrerPolicy(mozilla::net::RP_Default)
-  , mLoadType(0)
+  : mLoadType(0)
   , mID(gEntryID++)
   , mScrollPositionX(0)
   , mScrollPositionY(0)
   , mParent(nullptr)
   , mURIWasModified(false)
-  , mIsSrcdocEntry(false)
 {
   mShared = new nsSHEntryShared();
 }
@@ -44,7 +42,6 @@ nsSHEntry::nsSHEntry(const nsSHEntry &other)
   : mShared(other.mShared)
   , mURI(other.mURI)
   , mReferrerURI(other.mReferrerURI)
-  , mReferrerPolicy(other.mReferrerPolicy)
   , mTitle(other.mTitle)
   , mPostData(other.mPostData)
   , mLoadType(0)         // XXX why not copy?
@@ -54,9 +51,6 @@ nsSHEntry::nsSHEntry(const nsSHEntry &other)
   , mParent(other.mParent)
   , mURIWasModified(other.mURIWasModified)
   , mStateData(other.mStateData)
-  , mIsSrcdocEntry(other.mIsSrcdocEntry)
-  , mSrcdocData(other.mSrcdocData)
-  , mBaseURI(other.mBaseURI)
 {
 }
 
@@ -79,7 +73,8 @@ nsSHEntry::~nsSHEntry()
 //    nsSHEntry: nsISupports
 //*****************************************************************************
 
-NS_IMPL_ISUPPORTS(nsSHEntry, nsISHContainer, nsISHEntry, nsISHEntryInternal)
+NS_IMPL_ISUPPORTS4(nsSHEntry, nsISHContainer, nsISHEntry, nsIHistoryEntry,
+                   nsISHEntryInternal)
 
 //*****************************************************************************
 //    nsSHEntry: nsISHEntry
@@ -134,18 +129,6 @@ NS_IMETHODIMP nsSHEntry::GetReferrerURI(nsIURI **aReferrerURI)
 NS_IMETHODIMP nsSHEntry::SetReferrerURI(nsIURI *aReferrerURI)
 {
   mReferrerURI = aReferrerURI;
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsSHEntry::GetReferrerPolicy(uint32_t *aReferrerPolicy)
-{
-  *aReferrerPolicy = mReferrerPolicy;
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsSHEntry::SetReferrerPolicy(uint32_t aReferrerPolicy)
-{
-  mReferrerPolicy = aReferrerPolicy;
   return NS_OK;
 }
 
@@ -209,12 +192,12 @@ nsSHEntry::GetSticky(bool *aSticky)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsSHEntry::GetTitle(char16_t** aTitle)
+NS_IMETHODIMP nsSHEntry::GetTitle(PRUnichar** aTitle)
 {
   // Check for empty title...
   if (mTitle.IsEmpty() && mURI) {
     // Default title is the URL.
-    nsAutoCString spec;
+    nsCAutoString spec;
     if (NS_SUCCEEDED(mURI->GetSpec(spec)))
       AppendUTF8toUTF16(spec, mTitle);
   }
@@ -387,9 +370,6 @@ nsSHEntry::Create(nsIURI * aURI, const nsAString &aTitle,
   //By default the page is not expired
   mShared->mExpired = false;
 
-  mIsSrcdocEntry = false;
-  mSrcdocData = NullString();
-
   return NS_OK;
 }
 
@@ -510,43 +490,6 @@ nsSHEntry::AbandonBFCacheEntry()
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsSHEntry::GetIsSrcdocEntry(bool* aIsSrcdocEntry)
-{
-  *aIsSrcdocEntry = mIsSrcdocEntry;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsSHEntry::GetSrcdocData(nsAString &aSrcdocData)
-{
-  aSrcdocData = mSrcdocData;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsSHEntry::SetSrcdocData(const nsAString &aSrcdocData)
-{
-  mSrcdocData = aSrcdocData;
-  mIsSrcdocEntry = true;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsSHEntry::GetBaseURI(nsIURI **aBaseURI)
-{
-  *aBaseURI = mBaseURI;
-  NS_IF_ADDREF(*aBaseURI);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsSHEntry::SetBaseURI(nsIURI *aBaseURI)
-{
-  mBaseURI = aBaseURI;
-  return NS_OK;
-}
-
 //*****************************************************************************
 //    nsSHEntry: nsISHContainer
 //*****************************************************************************
@@ -618,7 +561,7 @@ nsSHEntry::AddChild(nsISHEntry * aChild, int32_t aOffset)
     // If there are dynamically added children before that, those must be
     // moved to be after aOffset.
     if (mChildren.Count() > 0) {
-      int32_t start = std::min(mChildren.Count() - 1, aOffset);
+      int32_t start = NS_MIN(mChildren.Count() - 1, aOffset);
       int32_t dynEntryIndex = -1;
       nsISHEntry* dynEntry = nullptr;
       for (int32_t i = start; i >= 0; --i) {
@@ -703,27 +646,6 @@ nsSHEntry::GetChildAt(int32_t aIndex, nsISHEntry ** aResult)
     *aResult = nullptr;
   }
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsSHEntry::ReplaceChild(nsISHEntry* aNewEntry)
-{
-  NS_ENSURE_STATE(aNewEntry);
-
-  uint64_t docshellID;
-  aNewEntry->GetDocshellID(&docshellID);
-
-  uint64_t otherID;
-  for (int32_t i = 0; i < mChildren.Count(); ++i) {
-    if (mChildren[i] && NS_SUCCEEDED(mChildren[i]->GetDocshellID(&otherID)) &&
-        docshellID == otherID) {
-      mChildren[i]->SetParent(nullptr);
-      if (mChildren.ReplaceObjectAt(aNewEntry, i)) {
-        return aNewEntry->SetParent(this);
-      }
-    }
-  }
-  return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP

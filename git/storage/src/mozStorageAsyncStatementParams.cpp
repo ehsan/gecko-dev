@@ -7,9 +7,6 @@
 #include "nsMemory.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
-#include "nsJSUtils.h"
-
-#include "jsapi.h"
 
 #include "mozStoragePrivateHelpers.h"
 #include "mozStorageAsyncStatement.h"
@@ -28,7 +25,7 @@ AsyncStatementParams::AsyncStatementParams(AsyncStatement *aStatement)
   NS_ASSERTION(mStatement != nullptr, "mStatement is null");
 }
 
-NS_IMPL_ISUPPORTS(
+NS_IMPL_ISUPPORTS2(
   AsyncStatementParams
 , mozIStorageStatementParams
 , nsIXPCScriptable
@@ -40,7 +37,7 @@ NS_IMPL_ISUPPORTS(
 #define XPC_MAP_CLASSNAME AsyncStatementParams
 #define XPC_MAP_QUOTED_CLASSNAME "AsyncStatementParams"
 #define XPC_MAP_WANT_SETPROPERTY
-#define XPC_MAP_WANT_RESOLVE
+#define XPC_MAP_WANT_NEWRESOLVE
 #define XPC_MAP_FLAGS nsIXPCScriptable::ALLOW_PROP_MODS_DURING_RESOLVE
 #include "xpc_map_end.h"
 
@@ -50,7 +47,7 @@ AsyncStatementParams::SetProperty(
   JSContext *aCtx,
   JSObject *aScopeObj,
   jsid aId,
-  JS::Value *_vp,
+  jsval *_vp,
   bool *_retval
 )
 {
@@ -66,12 +63,9 @@ AsyncStatementParams::SetProperty(
   }
   else if (JSID_IS_STRING(aId)) {
     JSString *str = JSID_TO_STRING(aId);
-    nsAutoJSString autoStr;
-    if (!autoStr.init(aCtx, str)) {
-      return NS_ERROR_FAILURE;
-    }
-
-    NS_ConvertUTF16toUTF8 name(autoStr);
+    size_t length;
+    const jschar *chars = JS_GetInternedStringCharsAndLength(str, &length);
+    NS_ConvertUTF16toUTF8 name(chars, length);
 
     nsCOMPtr<nsIVariant> variant(convertJSValToVariant(aCtx, *_vp));
     NS_ENSURE_TRUE(variant, NS_ERROR_UNEXPECTED);
@@ -87,15 +81,16 @@ AsyncStatementParams::SetProperty(
 }
 
 NS_IMETHODIMP
-AsyncStatementParams::Resolve(nsIXPConnectWrappedNative *aWrapper,
-                              JSContext *aCtx,
-                              JSObject *aScopeObj,
-                              jsid aId,
-                              bool *aResolvedp,
-                              bool *_retval)
+AsyncStatementParams::NewResolve(
+  nsIXPConnectWrappedNative *aWrapper,
+  JSContext *aCtx,
+  JSObject *aScopeObj,
+  jsid aId,
+  uint32_t aFlags,
+  JSObject **_objp,
+  bool *_retval
+)
 {
-  JS::Rooted<JSObject*> scopeObj(aCtx, aScopeObj);
-
   NS_ENSURE_TRUE(mStatement, NS_ERROR_NOT_INITIALIZED);
   // We do not throw at any point after this because we want to allow the
   // prototype chain to be checked for the property.
@@ -106,20 +101,21 @@ AsyncStatementParams::Resolve(nsIXPConnectWrappedNative *aWrapper,
     uint32_t idx = JSID_TO_INT(aId);
     // All indexes are good because we don't know how many parameters there
     // really are.
-    ok = ::JS_DefineElement(aCtx, scopeObj, idx, JS::UndefinedHandleValue, 0);
+    ok = ::JS_DefineElement(aCtx, aScopeObj, idx, JSVAL_VOID, nullptr,
+                            nullptr, 0);
     resolved = true;
   }
   else if (JSID_IS_STRING(aId)) {
     // We are unable to tell if there's a parameter with this name and so
     // we must assume that there is.  This screws the rest of the prototype
     // chain, but people really shouldn't be depending on this anyways.
-    JS::Rooted<jsid> id(aCtx, aId);
-    ok = ::JS_DefinePropertyById(aCtx, scopeObj, id, JS::UndefinedHandleValue, 0);
+    ok = ::JS_DefinePropertyById(aCtx, aScopeObj, aId, JSVAL_VOID, nullptr,
+                                 nullptr, 0);
     resolved = true;
   }
 
   *_retval = ok;
-  *aResolvedp = resolved && ok;
+  *_objp = resolved && ok ? aScopeObj : nullptr;
   return NS_OK;
 }
 

@@ -8,30 +8,83 @@
 #include <d3d10_1.h>
 #include <dxgi.h>
 
-#include "mozilla/gfx/Point.h"
-#include "mozilla/layers/LayerManagerComposite.h"
-#include "mozilla/layers/PLayerTransaction.h"
+#include "mozilla/layers/PLayers.h"
 #include "ShadowLayers.h"
-
-using namespace mozilla::gl;
 
 namespace mozilla {
 namespace layers {
 
+// Platform-specific shadow-layers interfaces.  See ShadowLayers.h.
+// D3D10 doesn't need all these yet.
+bool
+ShadowLayerForwarder::PlatformAllocBuffer(const gfxIntSize&,
+                                          gfxASurface::gfxContentType,
+                                          uint32_t,
+                                          SurfaceDescriptor*)
+{
+  return false;
+}
+
+/*static*/ already_AddRefed<gfxASurface>
+ShadowLayerForwarder::PlatformOpenDescriptor(OpenMode,
+                                             const SurfaceDescriptor&)
+{
+  return nullptr;
+}
+
+/*static*/ bool
+ShadowLayerForwarder::PlatformCloseDescriptor(const SurfaceDescriptor&)
+{
+  return false;
+}
+
+/*static*/ bool
+ShadowLayerForwarder::PlatformGetDescriptorSurfaceContentType(
+  const SurfaceDescriptor&,
+  OpenMode,
+  gfxContentType*,
+  gfxASurface**)
+{
+  return false;
+}
+
+/*static*/ bool
+ShadowLayerForwarder::PlatformGetDescriptorSurfaceSize(
+  const SurfaceDescriptor&,
+  OpenMode,
+  gfxIntSize*,
+  gfxASurface**)
+{
+  return false;
+}
+
+bool
+ShadowLayerForwarder::PlatformDestroySharedSurface(SurfaceDescriptor*)
+{
+  return false;
+}
 
 /*static*/ void
 ShadowLayerForwarder::PlatformSyncBeforeUpdate()
 {
 }
 
-/*static*/ bool
-LayerManagerComposite::SupportsDirectTexturing()
+bool
+ShadowLayerManager::PlatformDestroySharedSurface(SurfaceDescriptor*)
 {
-  return true;
+  return false;
+}
+
+/*static*/ already_AddRefed<TextureImage>
+ShadowLayerManager::OpenDescriptorForDirectTexturing(GLContext*,
+                                                     const SurfaceDescriptor&,
+                                                     GLenum)
+{
+  return nullptr;
 }
 
 /*static*/ void
-LayerManagerComposite::PlatformSyncBeforeReplyUpdate()
+ShadowLayerManager::PlatformSyncBeforeReplyUpdate()
 {
 }
 
@@ -61,6 +114,7 @@ OpenForeign(ID3D10Device* aDevice, const SurfaceDescriptorD3D10& aDescr)
   if (!SUCCEEDED(hr) || !tex)
     return nullptr;
 
+  // XXX FIXME TODO do we need this???
   return nsRefPtr<ID3D10Texture2D>(tex).forget();
 }
 

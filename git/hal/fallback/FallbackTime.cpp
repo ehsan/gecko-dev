@@ -11,44 +11,12 @@ namespace mozilla {
 namespace hal_impl {
 
 void 
-AdjustSystemClock(int64_t aDeltaMilliseconds)
+AdjustSystemClock(int32_t aDeltaMilliseconds)
 {}
 
 void
 SetTimezone(const nsCString& aTimezoneSpec)
 {}
-
-nsCString
-GetTimezone()
-{
-  return EmptyCString();
-}
-
-int32_t
-GetTimezoneOffset()
-{
-  return 0;
-}
-
-void
-EnableSystemClockChangeNotifications()
-{
-}
-
-void
-DisableSystemClockChangeNotifications()
-{
-}
-
-void
-EnableSystemTimezoneChangeNotifications()
-{
-}
-
-void
-DisableSystemTimezoneChangeNotifications()
-{
-}
 
 } // namespace hal_impl
 } // namespace mozilla

@@ -1,4 +1,4 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 4 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* vim:sw=4:sr:sta:et:sts: */
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
@@ -31,10 +31,10 @@ jsConsoleHandler.prototype = {
       cmdLine.preventDefault = true;
   },
 
-  helpInfo : "  --jsconsole        Open the Error console.\n",
+  helpInfo : "  -jsconsole         Open the Error console.\n",
 
   classID: Components.ID("{2cd0c310-e127-44d0-88fc-4435c9ab4d4b}"),
   QueryInterface: XPCOMUtils.generateQI([Ci.nsICommandLineHandler]),
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([jsConsoleHandler]);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([jsConsoleHandler]);

@@ -61,13 +61,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=500931
    ok(win.XPathEvaluator.toString().indexOf("XPathEvaluator") >= 0,
       "Can access content window.XPathEvaluator");
 
-   var nativeToString =
-       ("" + String.replace).replace("replace", "EventTarget");
-   var eventTargetToString = "" + win.EventTarget;
-   ok(eventTargetToString.indexOf(nativeToString) > -1,
-      "Stringifying a DOM interface object should return the same string as " +
-      "stringifying a native function." + " " + eventTargetToString + " " + nativeToString);
-
    is(win.XPathResult.NUMBER_TYPE, 1, "can access constants on constructors");
    is(typeof win.IDBKeyRange.bound, "function", "can access crazy IDBKeyRange static functions");
 
@@ -79,10 +72,11 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=500931
    var contentXHR = XPCNativeWrapper(win.wrappedJSObject.xhr);
    try {
      var QIed = contentXHR.QueryInterface(Components.interfaces.nsIClassInfo);
-     ok(false, "Should throw for new binding objects not having classinfo");
+     ok(QIed, "Successfully QI-ed on wrapper");
    } catch(e) {
-     ok(true, "Threw while QI-ing on wrapper");
+     ok(false, "Threw while QI-ing on wrapper");
    }
+
   }
 
   SimpleTest.waitForExplicitFinish();

@@ -6,21 +6,25 @@
 #ifndef GLCONTEXTPROVIDER_H_
 #define GLCONTEXTPROVIDER_H_
 
-#include "GLContextTypes.h"
+#include "GLContext.h"
+#include "gfxTypes.h"
+#include "gfxPoint.h"
 #include "nsAutoPtr.h"
-#include "SurfaceTypes.h"
-
-#include "nsSize.h" // for gfxIntSize (needed by GLContextProviderImpl.h below)
 
 class nsIWidget;
+class gfxASurface;
 
 namespace mozilla {
 namespace gl {
 
 #define IN_GL_CONTEXT_PROVIDER_H
 
-// Null is always there
+// Null and OSMesa are always there
 #define GL_CONTEXT_PROVIDER_NAME GLContextProviderNull
+#include "GLContextProviderImpl.h"
+#undef GL_CONTEXT_PROVIDER_NAME
+
+#define GL_CONTEXT_PROVIDER_NAME GLContextProviderOSMesa
 #include "GLContextProviderImpl.h"
 #undef GL_CONTEXT_PROVIDER_NAME
 
@@ -39,13 +43,30 @@ namespace gl {
 #define GL_CONTEXT_PROVIDER_DEFAULT GLContextProviderCGL
 #endif
 
-#if defined(ANDROID) || defined(XP_WIN)
+#if defined(ANDROID) || defined(MOZ_PLATFORM_MAEMO) || defined(XP_WIN)
 #define GL_CONTEXT_PROVIDER_NAME GLContextProviderEGL
 #include "GLContextProviderImpl.h"
 #undef GL_CONTEXT_PROVIDER_NAME
+
 #ifndef GL_CONTEXT_PROVIDER_DEFAULT
 #define GL_CONTEXT_PROVIDER_DEFAULT GLContextProviderEGL
 #endif
+#endif
+
+// X11, with XRender optimizations and no GL layer support
+#if defined(MOZ_X11) && defined(MOZ_EGL_XRENDER_COMPOSITE) && !defined(GL_CONTEXT_PROVIDER_DEFAULT)
+#define GL_CONTEXT_PROVIDER_NAME GLContextProviderEGL
+#include "GLContextProviderImpl.h"
+#undef GL_CONTEXT_PROVIDER_NAME
+#define GL_CONTEXT_PROVIDER_DEFAULT GLContextProviderEGL
+#endif
+
+// X11, but only if we didn't use EGL above
+#if defined(MOZ_X11) && !defined(GL_CONTEXT_PROVIDER_DEFAULT)
+#define GL_CONTEXT_PROVIDER_NAME GLContextProviderGLX
+#include "GLContextProviderImpl.h"
+#undef GL_CONTEXT_PROVIDER_NAME
+#define GL_CONTEXT_PROVIDER_DEFAULT GLContextProviderGLX
 #endif
 
 #ifdef MOZ_GL_PROVIDER
@@ -53,13 +74,6 @@ namespace gl {
 #include "GLContextProviderImpl.h"
 #undef GL_CONTEXT_PROVIDER_NAME
 #define GL_CONTEXT_PROVIDER_DEFAULT MOZ_GL_PROVIDER
-#endif
-
-#if defined(MOZ_X11) && !defined(GL_CONTEXT_PROVIDER_DEFAULT)
-#define GL_CONTEXT_PROVIDER_NAME GLContextProviderGLX
-#include "GLContextProviderImpl.h"
-#undef GL_CONTEXT_PROVIDER_NAME
-#define GL_CONTEXT_PROVIDER_DEFAULT GLContextProviderGLX
 #endif
 
 #ifdef GL_CONTEXT_PROVIDER_DEFAULT

@@ -5,11 +5,10 @@
 #ifndef nsTableCellFrame_h__
 #define nsTableCellFrame_h__
 
-#include "mozilla/Attributes.h"
-#include "celldata.h"
 #include "nsITableCellLayout.h"
 #include "nscore.h"
 #include "nsContainerFrame.h"
+#include "nsTableRowFrame.h"  // need to actually include this here to inline GetRowIndex
 #include "nsStyleContext.h"
 #include "nsIPercentHeightObserver.h"
 #include "nsGkAtoms.h"
@@ -17,6 +16,13 @@
 #include "nsTArray.h"
 
 class nsTableFrame;
+
+/**
+ * Additional frame-state bits
+ */
+#define NS_TABLE_CELL_CONTENT_EMPTY       NS_FRAME_STATE_BIT(31)
+#define NS_TABLE_CELL_HAD_SPECIAL_REFLOW  NS_FRAME_STATE_BIT(29)
+#define NS_TABLE_CELL_HAS_PCT_OVER_HEIGHT NS_FRAME_STATE_BIT(28)
 
 /**
  * nsTableCellFrame
@@ -40,47 +46,44 @@ public:
 
   // default constructor supplied by the compiler
 
-  explicit nsTableCellFrame(nsStyleContext* aContext);
+  nsTableCellFrame(nsStyleContext* aContext);
   ~nsTableCellFrame();
 
-  virtual void Init(nsIContent*       aContent,
-                    nsContainerFrame* aParent,
-                    nsIFrame*         aPrevInFlow) MOZ_OVERRIDE;
-
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
 
 #ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
+  virtual already_AddRefed<Accessible> CreateAccessible();
 #endif
 
-  virtual nsresult  AttributeChanged(int32_t         aNameSpaceID,
-                                     nsIAtom*        aAttribute,
-                                     int32_t         aModType) MOZ_OVERRIDE;
+  NS_IMETHOD  AttributeChanged(int32_t         aNameSpaceID,
+                               nsIAtom*        aAttribute,
+                               int32_t         aModType);
 
   /** @see nsIFrame::DidSetStyleContext */
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext) MOZ_OVERRIDE;
+  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
-#ifdef DEBUG
-  // Our anonymous block frame is the content insertion frame so these
-  // methods should never be called:
-  virtual void AppendFrames(ChildListID     aListID,
-                            nsFrameList&    aFrameList) MOZ_OVERRIDE;
-  virtual void InsertFrames(ChildListID     aListID,
-                            nsIFrame*       aPrevFrame,
-                            nsFrameList&    aFrameList) MOZ_OVERRIDE;
-  virtual void RemoveFrame(ChildListID     aListID,
-                           nsIFrame*       aOldFrame) MOZ_OVERRIDE;
-#endif
+  // table cells contain a block frame which does most of the work, and
+  // so these functions should never be called. They assert and return
+  // NS_ERROR_NOT_IMPLEMENTED
+  NS_IMETHOD AppendFrames(ChildListID     aListID,
+                          nsFrameList&    aFrameList);
+  NS_IMETHOD InsertFrames(ChildListID     aListID,
+                          nsIFrame*       aPrevFrame,
+                          nsFrameList&    aFrameList);
+  NS_IMETHOD RemoveFrame(ChildListID     aListID,
+                         nsIFrame*       aOldFrame);
 
-  virtual nsContainerFrame* GetContentInsertionFrame() MOZ_OVERRIDE {
+  virtual nsIFrame* GetContentInsertionFrame() {
     return GetFirstPrincipalChild()->GetContentInsertionFrame();
   }
 
-  virtual nsMargin GetUsedMargin() const MOZ_OVERRIDE;
+  virtual nsMargin GetUsedMargin() const;
 
-  virtual void NotifyPercentHeight(const nsHTMLReflowState& aReflowState) MOZ_OVERRIDE;
+  virtual void NotifyPercentHeight(const nsHTMLReflowState& aReflowState);
 
-  virtual bool NeedsToObserve(const nsHTMLReflowState& aReflowState) MOZ_OVERRIDE;
+  virtual bool NeedsToObserve(const nsHTMLReflowState& aReflowState);
 
   /** instantiate a new instance of nsTableRowFrame.
     * @param aPresShell the pres shell for this frame
@@ -89,38 +92,33 @@ public:
     */
   friend nsIFrame* NS_NewTableCellFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists);
 
   void PaintCellBackground(nsRenderingContext& aRenderingContext,
                            const nsRect& aDirtyRect, nsPoint aPt,
                            uint32_t aFlags);
 
- 
-  virtual nsresult ProcessBorders(nsTableFrame* aFrame,
-                                  nsDisplayListBuilder* aBuilder,
-                                  const nsDisplayListSet& aLists);
+  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual IntrinsicWidthOffsetData
+    IntrinsicWidthOffsets(nsRenderingContext* aRenderingContext);
 
-  virtual nscoord GetMinISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
-  virtual nscoord GetPrefISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
-  virtual IntrinsicISizeOffsetData
-    IntrinsicISizeOffsets(nsRenderingContext* aRenderingContext) MOZ_OVERRIDE;
-
-  virtual void Reflow(nsPresContext*      aPresContext,
-                      nsHTMLReflowMetrics& aDesiredSize,
-                      const nsHTMLReflowState& aReflowState,
-                      nsReflowStatus&      aStatus) MOZ_OVERRIDE;
+  NS_IMETHOD Reflow(nsPresContext*      aPresContext,
+                    nsHTMLReflowMetrics& aDesiredSize,
+                    const nsHTMLReflowState& aReflowState,
+                    nsReflowStatus&      aStatus);
 
   /**
    * Get the "type" of the frame
    *
    * @see nsLayoutAtoms::tableCellFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
-#ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+#ifdef DEBUG
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
   void VerticallyAlignChild(nscoord aMaxAscent);
@@ -130,7 +128,7 @@ public:
    * table cell, which means the result is always
    * NS_STYLE_VERTICAL_ALIGN_{TOP,MIDDLE,BOTTOM,BASELINE}.
    */
-  virtual uint8_t GetVerticalAlign() const;
+  uint8_t GetVerticalAlign() const;
 
   bool HasVerticalAlignBaseline() const {
     return GetVerticalAlign() == NS_STYLE_VERTICAL_ALIGN_BASELINE;
@@ -163,10 +161,10 @@ public:
    * for continued cell frames the row index is that of the cell's first-in-flow
    * and the column index (starting at 0 for the first column
    */
-  NS_IMETHOD GetCellIndexes(int32_t &aRowIndex, int32_t &aColIndex) MOZ_OVERRIDE;
+  NS_IMETHOD GetCellIndexes(int32_t &aRowIndex, int32_t &aColIndex);
 
   /** return the mapped cell's row index (starting at 0 for the first row) */
-  virtual nsresult GetRowIndex(int32_t &aRowIndex) const MOZ_OVERRIDE;
+  virtual nsresult GetRowIndex(int32_t &aRowIndex) const;
 
   /**
    * return the cell's specified col span. this is what was specified in the
@@ -177,7 +175,7 @@ public:
   virtual int32_t GetColSpan();
 
   /** return the cell's column index (starting at 0 for the first column) */
-  virtual nsresult GetColIndex(int32_t &aColIndex) const MOZ_OVERRIDE;
+  virtual nsresult GetColIndex(int32_t &aColIndex) const;
   void SetColIndex(int32_t aColIndex);
 
   /** return the available width given to this frame during its last reflow */
@@ -187,7 +185,7 @@ public:
   inline void SetPriorAvailWidth(nscoord aPriorAvailWidth);
 
   /** return the desired size returned by this frame during its last reflow */
-  inline mozilla::LogicalSize GetDesiredSize();
+  inline nsSize GetDesiredSize();
 
   /** set the desired size returned by this frame during its last reflow */
   inline void SetDesiredSize(const nsHTMLReflowMetrics & aDesiredSize);
@@ -210,19 +208,11 @@ public:
   void DecorateForSelection(nsRenderingContext& aRenderingContext,
                             nsPoint              aPt);
 
-  virtual bool UpdateOverflow() MOZ_OVERRIDE;
-
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
-  {
-    return nsContainerFrame::IsFrameOfType(aFlags & ~(nsIFrame::eTablePart));
-  }
-  
-  virtual void InvalidateFrame(uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
-  virtual void InvalidateFrameWithRect(const nsRect& aRect, uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
-  virtual void InvalidateFrameForRemoval() MOZ_OVERRIDE { InvalidateFrameSubtree(); }
+  virtual bool UpdateOverflow();
 
 protected:
-  virtual LogicalSides GetLogicalSkipSides(const nsHTMLReflowState* aReflowState= nullptr) const MOZ_OVERRIDE;
+  /** implement abstract method on nsContainerFrame */
+  virtual int GetSkipSides() const;
 
   /**
    * GetBorderOverflow says how far the cell's own borders extend
@@ -238,7 +228,7 @@ protected:
   uint32_t     mColIndex;             // the starting column for this cell
 
   nscoord      mPriorAvailWidth;      // the avail width during the last reflow
-  mozilla::LogicalSize mDesiredSize;  // the last desired inline and block size
+  nsSize       mDesiredSize;          // the last desired width & height
 };
 
 inline nscoord nsTableCellFrame::GetPriorAvailWidth()
@@ -247,13 +237,13 @@ inline nscoord nsTableCellFrame::GetPriorAvailWidth()
 inline void nsTableCellFrame::SetPriorAvailWidth(nscoord aPriorAvailWidth)
 { mPriorAvailWidth = aPriorAvailWidth;}
 
-inline mozilla::LogicalSize nsTableCellFrame::GetDesiredSize()
+inline nsSize nsTableCellFrame::GetDesiredSize()
 { return mDesiredSize; }
 
 inline void nsTableCellFrame::SetDesiredSize(const nsHTMLReflowMetrics & aDesiredSize)
 {
-  mozilla::WritingMode wm = aDesiredSize.GetWritingMode();
-  mDesiredSize = aDesiredSize.Size(wm).ConvertTo(GetWritingMode(), wm);
+  mDesiredSize.width = aDesiredSize.width;
+  mDesiredSize.height = aDesiredSize.height;
 }
 
 inline bool nsTableCellFrame::GetContentEmpty()
@@ -287,25 +277,22 @@ inline void nsTableCellFrame::SetHasPctOverHeight(bool aValue)
 }
 
 // nsBCTableCellFrame
-class nsBCTableCellFrame MOZ_FINAL : public nsTableCellFrame
+class nsBCTableCellFrame : public nsTableCellFrame
 {
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
-  explicit nsBCTableCellFrame(nsStyleContext* aContext);
+  nsBCTableCellFrame(nsStyleContext* aContext);
 
   ~nsBCTableCellFrame();
 
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
-  virtual nsMargin GetUsedBorder() const MOZ_OVERRIDE;
-  virtual bool GetBorderRadii(const nsSize& aFrameSize,
-                              const nsSize& aBorderArea,
-                              Sides aSkipSides,
-                              nscoord aRadii[8]) const MOZ_OVERRIDE;
+  virtual nsMargin GetUsedBorder() const;
+  virtual bool GetBorderRadii(nscoord aRadii[8]) const;
 
   // Get the *inner half of the border only*, in twips.
-  virtual nsMargin* GetBorderWidth(nsMargin& aBorder) const MOZ_OVERRIDE;
+  virtual nsMargin* GetBorderWidth(nsMargin& aBorder) const;
 
   // Get the *inner half of the border only*, in pixels.
   BCPixelSize GetBorderWidth(mozilla::css::Side aSide) const;
@@ -313,16 +300,16 @@ public:
   // Set the full (both halves) width of the border
   void SetBorderWidth(mozilla::css::Side aSide, BCPixelSize aPixelValue);
 
-  virtual nsMargin GetBorderOverflow() MOZ_OVERRIDE;
+  virtual nsMargin GetBorderOverflow();
 
-#ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+#ifdef DEBUG
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
   virtual void PaintBackground(nsRenderingContext& aRenderingContext,
                                const nsRect&        aDirtyRect,
                                nsPoint              aPt,
-                               uint32_t             aFlags) MOZ_OVERRIDE;
+                               uint32_t             aFlags);
 
 private:
 

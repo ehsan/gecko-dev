@@ -9,17 +9,11 @@ let Ci = Components.interfaces;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/PageThumbs.jsm");
-Cu.import("resource://gre/modules/BackgroundPageThumbs.jsm");
-Cu.import("resource:///modules/DirectoryLinksProvider.jsm");
-Cu.import("resource://gre/modules/NewTabUtils.jsm");
+Cu.import("resource:///modules/PageThumbs.jsm");
+Cu.import("resource:///modules/NewTabUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Rect",
   "resource://gre/modules/Geometry.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
-  "resource://gre/modules/PrivateBrowsingUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "UpdateChannel",
-  "resource://gre/modules/UpdateChannel.jsm");
 
 let {
   links: gLinks,
@@ -35,25 +29,26 @@ XPCOMUtils.defineLazyGetter(this, "gStringBundle", function() {
     createBundle("chrome://browser/locale/newTab.properties");
 });
 
-function newTabString(name, args) {
-  let stringName = "newtab." + name;
-  if (!args) {
-    return gStringBundle.GetStringFromName(stringName);
-  }
-  return gStringBundle.formatStringFromName(stringName, args, args.length);
-}
+function newTabString(name) gStringBundle.GetStringFromName('newtab.' + name);
 
 function inPrivateBrowsingMode() {
-  return PrivateBrowsingUtils.isWindowPrivate(window);
+  let chromeWin = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                        .getInterface(Ci.nsIWebNavigation)
+                        .QueryInterface(Ci.nsIDocShellTreeItem)
+                        .rootTreeItem
+                        .QueryInterface(Ci.nsIInterfaceRequestor)
+                        .getInterface(Ci.nsIDOMWindow)
+                        .wrappedJSObject;
+
+  if ("gPrivateBrowsingUI" in chromeWin)
+    return chromeWin.gPrivateBrowsingUI.privateWindow;
+
+  return false;
 }
 
 const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
-const XUL_NAMESPACE = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
-const TILES_EXPLAIN_LINK = "https://support.mozilla.org/kb/how-do-tiles-work-firefox";
-const TILES_INTRO_LINK = "https://www.mozilla.org/firefox/tiles/";
-const TILES_PRIVACY_LINK = "https://www.mozilla.org/privacy/";
-
+#include batch.js
 #include transformations.js
 #include page.js
 #include grid.js
@@ -65,10 +60,6 @@ const TILES_PRIVACY_LINK = "https://www.mozilla.org/privacy/";
 #include dropTargetShim.js
 #include dropPreview.js
 #include updater.js
-#include undo.js
-#include search.js
-#include customize.js
-#include intro.js
 
 // Everything is loaded. Initialize the New Tab Page.
 gPage.init();

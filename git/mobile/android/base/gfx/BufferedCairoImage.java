@@ -8,7 +8,6 @@ package org.mozilla.gecko.gfx;
 import org.mozilla.gecko.mozglue.DirectBufferAllocator;
 
 import android.graphics.Bitmap;
-import android.util.Log;
 
 import java.nio.ByteBuffer;
 
@@ -17,8 +16,7 @@ public class BufferedCairoImage extends CairoImage {
     private ByteBuffer mBuffer;
     private IntSize mSize;
     private int mFormat;
-
-    private static final String LOGTAG = "GeckoBufferedCairoImage";
+    private boolean mNeedToFreeBuffer;
 
     /** Creates a buffered Cairo image from a byte buffer. */
     public BufferedCairoImage(ByteBuffer inBuffer, int inWidth, int inHeight, int inFormat) {
@@ -30,16 +28,18 @@ public class BufferedCairoImage extends CairoImage {
         setBitmap(bitmap);
     }
 
-    private synchronized void freeBuffer() {
-        mBuffer = DirectBufferAllocator.free(mBuffer);
+    private void freeBuffer() {
+        if (mNeedToFreeBuffer)
+            DirectBufferAllocator.free(mBuffer);
+        mNeedToFreeBuffer = false;
+        mBuffer = null;
     }
 
-    @Override
-    public void destroy() {
+    protected void finalize() throws Throwable {
         try {
             freeBuffer();
-        } catch (Exception ex) {
-            Log.e(LOGTAG, "error clearing buffer: ", ex);
+        } finally {
+            super.finalize();
         }
     }
 
@@ -61,6 +61,7 @@ public class BufferedCairoImage extends CairoImage {
     public void setBitmap(Bitmap bitmap) {
         mFormat = CairoUtils.bitmapConfigToCairoFormat(bitmap.getConfig());
         mSize = new IntSize(bitmap.getWidth(), bitmap.getHeight());
+        mNeedToFreeBuffer = true;
 
         int bpp = CairoUtils.bitsPerPixelForCairoFormat(mFormat);
         mBuffer = DirectBufferAllocator.allocate(mSize.getArea() * bpp);

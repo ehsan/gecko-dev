@@ -1,4 +1,4 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -386,11 +386,6 @@ function check_children_sorting(aRootNode, aExpectedSortingMode) {
 
 function run_test()
 {
-  run_next_test();
-}
-
-add_task(function test_containersQueries_sorting()
-{
   // Add visits, bookmarks and tags to our database.
   var timeInMilliseconds = Date.now();
   var visitCount = 0;
@@ -408,7 +403,7 @@ add_task(function test_containersQueries_sorting()
       isTag: true,
       tagArray: tags,
       isInQuery: true }));
-  yield task_populateDB(visits);
+  populateDB(visits);
 
   cartProd([resultTypes, sortingModes], test_query_callback);
-});
+}

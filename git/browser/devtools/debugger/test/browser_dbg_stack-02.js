@@ -1,109 +1,85 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
-/**
- * Test that stackframes are added when debugger is paused in eval calls.
+/* vim:set ts=2 sw=2 sts=2 et: */
+/*
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-const TAB_URL = EXAMPLE_URL + "doc_recursion-stack.html";
-
-let gTab, gPanel, gDebugger;
-let gFrames, gClassicFrames;
+var gPane = null;
+var gTab = null;
+var gDebuggee = null;
+var gDebugger = null;
 
 function test() {
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  debug_tab_pane(STACK_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
-    gPanel = aPanel;
-    gDebugger = gPanel.panelWin;
-    gFrames = gDebugger.DebuggerView.StackFrames;
-    gClassicFrames = gDebugger.DebuggerView.StackFramesClassicList;
+    gDebuggee = aDebuggee;
+    gPane = aPane;
+    gDebugger = gPane.contentWindow;
 
-    waitForSourceAndCaretAndScopes(gPanel, ".html", 1).then(performTest);
-    callInTab(gTab, "evalCall");
+    testEvalCall();
   });
 }
 
-function performTest() {
-  is(gDebugger.gThreadClient.state, "paused",
-    "Should only be getting stack frames while paused.");
-  is(gFrames.itemCount, 2,
-    "Should have two frames.");
-  is(gClassicFrames.itemCount, 2,
-    "Should also have only two in the mirrored view.");
+function testEvalCall() {
+  gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
+    Services.tm.currentThread.dispatch({ run: function() {
 
-  is(gFrames.getItemAtIndex(0).attachment.title,
-    "evalCall", "Oldest frame name should be correct.");
-  is(gFrames.getItemAtIndex(0).attachment.url,
-    TAB_URL, "Oldest frame url should be correct.");
-  is(gClassicFrames.getItemAtIndex(0).attachment.depth,
-    0, "Oldest frame name is mirrored correctly.");
+      let frames = gDebugger.DebuggerView.StackFrames._frames;
+      let childNodes = frames.childNodes;
 
-  is(gFrames.getItemAtIndex(1).attachment.title,
-    "(eval)", "Newest frame name should be correct.");
-  is(gFrames.getItemAtIndex(1).attachment.url,
-     TAB_URL, "Newest frame url should be correct.");
-  is(gClassicFrames.getItemAtIndex(1).attachment.depth,
-    1, "Newest frame name is mirrored correctly.");
+      is(gDebugger.DebuggerController.activeThread.state, "paused",
+        "Should only be getting stack frames while paused.");
 
-  is(gFrames.selectedIndex, 1,
-    "Newest frame should be selected by default.");
-  is(gClassicFrames.selectedIndex, 0,
-    "Newest frame should be selected by default in the mirrored view.");
+      is(frames.querySelectorAll(".dbg-stackframe").length, 2,
+        "Should have two frames.");
 
-  isnot(gFrames.selectedIndex, 0,
-    "Oldest frame should not be selected.");
-  isnot(gClassicFrames.selectedIndex, 1,
-    "Oldest frame should not be selected in the mirrored view.");
+      is(childNodes.length, frames.querySelectorAll(".dbg-stackframe").length,
+        "All children should be frames.");
 
-  EventUtils.sendMouseEvent({ type: "mousedown" },
-    gFrames.getItemAtIndex(0).target,
-    gDebugger);
+      is(frames.querySelector("#stackframe-0 .dbg-stackframe-name").getAttribute("value"),
+        "(eval)", "Frame name should be (eval)");
 
-  isnot(gFrames.selectedIndex, 1,
-    "Newest frame should not be selected after click.");
-  isnot(gClassicFrames.selectedIndex, 0,
-    "Newest frame in the mirrored view should not be selected.");
+      ok(frames.querySelector("#stackframe-0").classList.contains("selected"),
+        "First frame should be selected by default.");
 
-  is(gFrames.selectedIndex, 0,
-    "Oldest frame should be selected after click.");
-  is(gClassicFrames.selectedIndex, 1,
-    "Oldest frame in the mirrored view should be selected.");
+      ok(!frames.querySelector("#stackframe-1").classList.contains("selected"),
+        "Second frame should not be selected.");
 
-  EventUtils.sendMouseEvent({ type: "mousedown" },
-    gFrames.getItemAtIndex(1).target.querySelector(".dbg-stackframe-title"),
-    gDebugger);
 
-  is(gFrames.selectedIndex, 1,
-    "Newest frame should be selected after click inside the newest frame.");
-  is(gClassicFrames.selectedIndex, 0,
-    "Newest frame in the mirrored view should be selected.");
+      EventUtils.sendMouseEvent({ type: "click" },
+        frames.querySelector("#stackframe-1"),
+        gDebugger);
 
-  isnot(gFrames.selectedIndex, 0,
-    "Oldest frame should not be selected after click inside the newest frame.");
-  isnot(gClassicFrames.selectedIndex, 1,
-    "Oldest frame in the mirrored view should not be selected.");
+      ok(!frames.querySelector("#stackframe-0").classList.contains("selected"),
+         "First frame should not be selected after click.");
 
-  EventUtils.sendMouseEvent({ type: "mousedown" },
-    gFrames.getItemAtIndex(0).target.querySelector(".dbg-stackframe-details"),
-    gDebugger);
+      ok(frames.querySelector("#stackframe-1").classList.contains("selected"),
+         "Second frame should be selected after click.");
 
-  isnot(gFrames.selectedIndex, 1,
-    "Newest frame should not be selected after click inside the oldest frame.");
-  isnot(gClassicFrames.selectedIndex, 0,
-    "Newest frame in the mirrored view should not be selected.");
 
-  is(gFrames.selectedIndex, 0,
-    "Oldest frame should be selected after click inside the oldest frame.");
-  is(gClassicFrames.selectedIndex, 1,
-    "Oldest frame in the mirrored view should be selected.");
+      EventUtils.sendMouseEvent({ type: "click" },
+        frames.querySelector("#stackframe-0 .dbg-stackframe-name"),
+        gDebugger);
 
-  resumeDebuggerThenCloseAndFinish(gPanel);
+      ok(frames.querySelector("#stackframe-0").classList.contains("selected"),
+         "First frame should be selected after click inside the first frame.");
+
+      ok(!frames.querySelector("#stackframe-1").classList.contains("selected"),
+         "Second frame should not be selected after click inside the first frame.");
+
+      gDebugger.DebuggerController.activeThread.resume(function() {
+        closeDebuggerAndFinish();
+      });
+    }}, 0);
+  });
+
+  gDebuggee.evalCall();
 }
 
 registerCleanupFunction(function() {
+  removeTab(gTab);
+  gPane = null;
   gTab = null;
-  gPanel = null;
+  gDebuggee = null;
   gDebugger = null;
-  gFrames = null;
-  gClassicFrames = null;
 });

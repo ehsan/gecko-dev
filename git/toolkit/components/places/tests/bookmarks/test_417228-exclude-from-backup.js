@@ -1,4 +1,4 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -107,20 +107,32 @@ var test = {
 }
 
 function run_test() {
-  run_next_test();
-}
+  do_check_eq(typeof PlacesUtils, "object");
 
-add_task(function() {
   // make json file
-  let jsonFile = OS.Path.join(OS.Constants.Path.profileDir, "bookmarks.json");
+  var jsonFile = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
+  jsonFile.append("bookmarks.json");
+  if (jsonFile.exists())
+    jsonFile.remove(false);
+  jsonFile.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, 0600);
+  if (!jsonFile.exists())
+    do_throw("couldn't create file: bookmarks.exported.json");
 
   // populate db
   test.populate();
 
-  yield BookmarkJSONUtils.exportToFile(jsonFile);
+  try {
+    PlacesUtils.backups.saveBookmarksToJSONFile(jsonFile);
+  } catch(ex) {
+    do_throw("couldn't export to file: " + ex);
+  }
 
   // restore json file
-  yield BookmarkJSONUtils.importFromFile(jsonFile, true);
+  try {
+    PlacesUtils.restoreBookmarksFromJSONFile(jsonFile);
+  } catch(ex) {
+    do_throw("couldn't import the exported file: " + ex);
+  }
 
   // validate without removing all bookmarks
   // restore do not remove backup exclude entries
@@ -130,12 +142,17 @@ add_task(function() {
   remove_all_bookmarks();
   // manually remove the excluded root
   PlacesUtils.bookmarks.removeItem(test._excludeRootId);
+
   // restore json file
-  yield BookmarkJSONUtils.importFromFile(jsonFile, true);
+  try {
+    PlacesUtils.restoreBookmarksFromJSONFile(jsonFile);
+  } catch(ex) {
+    do_throw("couldn't import the exported file: " + ex);
+  }
 
   // validate after a complete bookmarks cleanup
   test.validate(true);
 
   // clean up
-  yield OS.File.remove(jsonFile);
-});
+  jsonFile.remove(false);
+}

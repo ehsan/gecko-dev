@@ -3,12 +3,48 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH = @DEPTH@
+topsrcdir = @top_srcdir@
+srcdir = @srcdir@
+VPATH = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+DIRS = profile
+
 PREF_JS_EXPORTS = $(srcdir)/xulrunner.js
 GARBAGE += $(addprefix $(DIST)/bin/defaults/pref/,xulrunner.js)
+
+DEFINES += -DAB_CD=$(AB_CD)
+
+PROGRAM = xulrunner$(BIN_SUFFIX)
+
+DEFINES += -DXULRUNNER_PROGNAME=\"xulrunner\"
+
+ifdef TARGET_XPCOM_ABI
+DEFINES += -DTARGET_XPCOM_ABI=\"$(TARGET_XPCOM_ABI)\"
+endif
+
+DEFINES += -DXPCOM_GLUE
+STL_FLAGS=
+
+CPPSRCS = nsXULRunnerApp.cpp
+
+LOCAL_INCLUDES += \
+  -I$(topsrcdir)/toolkit/xre \
+  -I$(topsrcdir)/toolkit/profile \
+  -I$(topsrcdir)/xpcom/base \
+  -I$(topsrcdir)/xpcom/build \
+  $(NULL)
 
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 TK_LIBS := -framework Cocoa $(TK_LIBS)
 endif
+
+LIBS += \
+  $(EXTRA_DSO_LIBS) \
+  $(XPCOM_STANDALONE_GLUE_LDOPTS) \
+  $(NULL)
 
 ifndef MOZ_WINCONSOLE
 ifdef MOZ_DEBUG
@@ -24,11 +60,59 @@ NSDISTMODE = copy
 
 include $(topsrcdir)/config/config.mk
 
+ifdef _MSC_VER
+# Always enter a Windows program through wmain, whether or not we're
+# a console application.
+WIN32_EXE_LDFLAGS += -ENTRY:wmainCRTStartup
+endif
+
+ifeq ($(OS_ARCH),WINNT)
+OS_LIBS += $(call EXPAND_LIBNAME,comctl32 comdlg32 uuid shell32 ole32 oleaut32 version winspool)
+RCINCLUDE = splash.rc
+ifndef GNU_CC
+RCFLAGS += -DMOZ_XULRUNNER -I$(srcdir)
+else
+RCFLAGS += -DMOZ_XULRUNNER --include-dir $(srcdir)
+endif
+ifdef DEBUG
+RCFLAGS += -DDEBUG
+endif
+endif
+
+ifeq ($(OS_ARCH),OS2)
+RESFILE=splashos2.res
+RCFLAGS += -DMOZ_XULRUNNER
+ifdef DEBUG
+RCFLAGS += -DDEBUG
+endif
+RCFLAGS += -DXULRUNNER_ICO=\"$(DIST)/branding/xulrunner.ico\" -DDOCUMENT_ICO=\"$(DIST)/branding/document.ico\"
+endif
+
 include $(topsrcdir)/config/rules.mk
 
-DEFINES += -DXULRUNNER_ICO='"$(DIST)/branding/xulrunner.ico"' -DDOCUMENT_ICO='"$(DIST)/branding/document.ico"'
+DEFINES += -DXULRUNNER_ICO=\"$(DIST)/branding/xulrunner.ico\" -DDOCUMENT_ICO=\"$(DIST)/branding/document.ico\"
 
-ifdef MOZ_WIDGET_GTK
+ifeq ($(OS_ARCH),WINNT)
+#
+# Control the default heap size.
+# This is the heap returned by GetProcessHeap().
+# As we use the CRT heap, the default size is too large and wastes VM.
+#
+# The default heap size is 1MB on Win32.
+# The heap will grow if need be.
+#
+# Set it to 256k.  See bug 127069.
+#
+ifndef GNU_CC
+LDFLAGS += /HEAP:0x40000
+ifeq ($(OS_TEST),x86_64)
+# set stack to 2MB on x64 build.  See bug 582910
+LDFLAGS += -STACK:2097152
+endif
+endif
+endif
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 libs::
 	$(INSTALL) $(IFLAGS1) $(DIST)/branding/default16.png $(DIST)/bin/chrome/icons/default
 	$(INSTALL) $(IFLAGS1) $(DIST)/branding/default32.png $(DIST)/bin/chrome/icons/default
@@ -37,7 +121,7 @@ endif
 
 # XXX applications would need to supply this file
 #export:: brand.dtd.in
-#	$(call py_action,preprocessor,$(DEFINES) $(ACDEFINES) $^ -o brand.dtd)
+#	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $^ > brand.dtd
 
 export::
 	$(NSINSTALL) -D $(DIST)/branding
@@ -46,10 +130,13 @@ ifeq ($(OS_ARCH),WINNT)
 	cp $(srcdir)/xulrunner.ico   $(DIST)/branding/app.ico
 	cp $(srcdir)/document.ico  $(DIST)/branding/document.ico
 endif
-ifdef MOZ_WIDGET_GTK
+ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 	cp $(srcdir)/default16.png   $(DIST)/branding/default16.png
 	cp $(srcdir)/default32.png   $(DIST)/branding/default32.png
 	cp $(srcdir)/default48.png   $(DIST)/branding/default48.png
+endif
+ifeq ($(OS_ARCH),OS2)
+	cp $(srcdir)/xulrunner-os2.ico   $(DIST)/branding/xulrunner.ico
 endif
 
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
@@ -63,9 +150,9 @@ FRAMEWORK_DIR = \
 $(FRAMEWORK_DIR)/Resources:
 	$(NSINSTALL) -D $@
 
-tools:: $(PROGRAM) $(FRAMEWORK_DIR)/Resources
+libs:: $(PROGRAM) $(FRAMEWORK_DIR)/Resources
 	$(NSINSTALL) $(srcdir)/macbuild/InfoPlist.strings $(FRAMEWORK_DIR)/Resources
-	sed -e 's/APP_VERSION/$(APP_VERSION)/' $(srcdir)/macbuild/Info.plist.in > $(FRAMEWORK_DIR)/Info.plist
+	sed -e "s/APP_VERSION/$(APP_VERSION)/" $(srcdir)/macbuild/Info.plist.in > $(FRAMEWORK_DIR)/Info.plist
 	rsync -av $(DIST)/bin/ $(FRAMEWORK_DIR) --exclude mangle --exclude shlibsign
 	rm -f $(DIST)/$(FRAMEWORK_NAME).framework/Versions/Current \
 	      $(DIST)/$(FRAMEWORK_NAME).framework/libxpcom.dylib \
@@ -85,5 +172,3 @@ README_FILE = $(srcdir)/../README.xulrunner
 libs::
 	$(INSTALL) $(IFLAGS1) $(README_FILE) $(DIST)/bin
 	$(INSTALL) $(IFLAGS1) $(topsrcdir)/LICENSE	$(DIST)/bin
-	$(INSTALL) $(IFLAGS1) $(srcdir)/install_app.py $(DIST)/bin
-

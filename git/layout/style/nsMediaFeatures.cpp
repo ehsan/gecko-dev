@@ -5,28 +5,28 @@
 
 /* the features that media queries can test */
 
+#include "mozilla/Util.h"
+
 #include "nsMediaFeatures.h"
 #include "nsGkAtoms.h"
 #include "nsCSSKeywords.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
 #include "nsCSSValue.h"
-#ifdef XP_WIN
+#include "nsIDocShell.h"
+#include "nsLayoutUtils.h"
 #include "mozilla/LookAndFeel.h"
-#endif
 #include "nsCSSRuleProcessor.h"
-#include "nsDeviceContext.h"
-#include "nsIDocument.h"
 
 using namespace mozilla;
 
-static const nsCSSProps::KTableValue kOrientationKeywords[] = {
+static const int32_t kOrientationKeywords[] = {
   eCSSKeyword_portrait,                 NS_STYLE_ORIENTATION_PORTRAIT,
   eCSSKeyword_landscape,                NS_STYLE_ORIENTATION_LANDSCAPE,
   eCSSKeyword_UNKNOWN,                  -1
 };
 
-static const nsCSSProps::KTableValue kScanKeywords[] = {
+static const int32_t kScanKeywords[] = {
   eCSSKeyword_progressive,              NS_STYLE_SCAN_PROGRESSIVE,
   eCSSKeyword_interlace,                NS_STYLE_SCAN_INTERLACE,
   eCSSKeyword_UNKNOWN,                  -1
@@ -41,26 +41,12 @@ struct WindowsThemeName {
 // Windows theme identities used in the -moz-windows-theme media query.
 const WindowsThemeName themeStrings[] = {
     { LookAndFeel::eWindowsTheme_Aero,       L"aero" },
-    { LookAndFeel::eWindowsTheme_AeroLite,   L"aero-lite" },
     { LookAndFeel::eWindowsTheme_LunaBlue,   L"luna-blue" },
     { LookAndFeel::eWindowsTheme_LunaOlive,  L"luna-olive" },
     { LookAndFeel::eWindowsTheme_LunaSilver, L"luna-silver" },
     { LookAndFeel::eWindowsTheme_Royale,     L"royale" },
     { LookAndFeel::eWindowsTheme_Zune,       L"zune" },
     { LookAndFeel::eWindowsTheme_Generic,    L"generic" }
-};
-
-struct OperatingSystemVersionInfo {
-    LookAndFeel::OperatingSystemVersion id;
-    const wchar_t* name;
-};
-
-// Os version identities used in the -moz-os-version media query.
-const OperatingSystemVersionInfo osVersionStrings[] = {
-    { LookAndFeel::eOperatingSystemVersion_WindowsXP,     L"windows-xp" },
-    { LookAndFeel::eOperatingSystemVersion_WindowsVista,  L"windows-vista" },
-    { LookAndFeel::eOperatingSystemVersion_Windows7,      L"windows-win7" },
-    { LookAndFeel::eOperatingSystemVersion_Windows8,      L"windows-win8" },
 };
 #endif
 
@@ -113,18 +99,14 @@ static nsSize
 GetDeviceSize(nsPresContext* aPresContext)
 {
     nsSize size;
-
-    if (aPresContext->IsDeviceSizePageSize()) {
-        size = GetSize(aPresContext);
-    } else if (aPresContext->IsRootPaginatedDocument()) {
+    if (aPresContext->IsRootPaginatedDocument())
         // We want the page size, including unprintable areas and margins.
         // XXX The spec actually says we want the "page sheet size", but
         // how is that different?
         size = aPresContext->GetPageSize();
-    } else {
+    else
         GetDeviceContextFor(aPresContext)->
             GetDeviceSurfaceDimensions(size.width, size.height);
-    }
     return size;
 }
 
@@ -268,7 +250,15 @@ GetResolution(nsPresContext* aPresContext, const nsMediaFeature*,
 {
     // Resolution measures device pixels per CSS (inch/cm/pixel).  We
     // return it in device pixels per CSS inches.
-    float dpi = float(nsPresContext::AppUnitsPerCSSInch()) /
+    //
+    // However, on platforms where the CSS viewport is not fixed to the
+    // screen viewport, use the device resolution instead (bug 779527).
+    nsIPresShell *shell = aPresContext->PresShell();
+    float appUnitsPerInch = shell->GetIsViewportOverridden() ?
+            GetDeviceContextFor(aPresContext)->AppUnitsPerPhysicalInch() :
+            nsPresContext::AppUnitsPerCSSInch();
+
+    float dpi = appUnitsPerInch /
                 float(aPresContext->AppUnitsPerDevPixel());
     aResult.SetFloatValue(dpi, eCSSUnit_Inch);
     return NS_OK;
@@ -337,36 +327,6 @@ GetWindowsTheme(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
         }
     }
 #endif
-    return NS_OK;
-}
-
-static nsresult
-GetOperatinSystemVersion(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
-                         nsCSSValue& aResult)
-{
-    aResult.Reset();
-#ifdef XP_WIN
-    int32_t metricResult;
-    if (NS_SUCCEEDED(
-          LookAndFeel::GetInt(LookAndFeel::eIntID_OperatingSystemVersionIdentifier,
-                              &metricResult))) {
-        for (size_t i = 0; i < ArrayLength(osVersionStrings); ++i) {
-            if (metricResult == osVersionStrings[i].id) {
-                aResult.SetStringValue(nsDependentString(osVersionStrings[i].name),
-                                       eCSSUnit_Ident);
-                break;
-            }
-        }
-    }
-#endif
-    return NS_OK;
-}
-
-static nsresult
-GetIsGlyph(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
-          nsCSSValue& aResult)
-{
-    aResult.SetIntValue(aPresContext->IsGlyph() ? 1 : 0, eCSSUnit_Integer);
     return NS_OK;
 }
 
@@ -496,13 +456,6 @@ nsMediaFeatures::features[] = {
         GetIsResourceDocument
     },
     {
-        &nsGkAtoms::_moz_color_picker_available,
-        nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eBoolInteger,
-        { &nsGkAtoms::color_picker_available },
-        GetSystemMetric
-    },
-    {
         &nsGkAtoms::_moz_scrollbar_start_backward,
         nsMediaFeature::eMinMaxNotAllowed,
         nsMediaFeature::eBoolInteger,
@@ -552,13 +505,6 @@ nsMediaFeatures::features[] = {
         GetSystemMetric
     },
     {
-        &nsGkAtoms::_moz_overlay_scrollbars,
-        nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eBoolInteger,
-        { &nsGkAtoms::overlay_scrollbars },
-        GetSystemMetric
-    },
-    {
         &nsGkAtoms::_moz_windows_default_theme,
         nsMediaFeature::eMinMaxNotAllowed,
         nsMediaFeature::eBoolInteger,
@@ -580,13 +526,6 @@ nsMediaFeatures::features[] = {
         GetSystemMetric
     },
     {
-      &nsGkAtoms::_moz_mac_yosemite_theme,
-      nsMediaFeature::eMinMaxNotAllowed,
-      nsMediaFeature::eBoolInteger,
-      { &nsGkAtoms::mac_yosemite_theme },
-      GetSystemMetric
-    },
-    {
         &nsGkAtoms::_moz_windows_compositor,
         nsMediaFeature::eMinMaxNotAllowed,
         nsMediaFeature::eBoolInteger,
@@ -601,17 +540,17 @@ nsMediaFeatures::features[] = {
         GetSystemMetric
     },
     {
-        &nsGkAtoms::_moz_windows_glass,
-        nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eBoolInteger,
-        { &nsGkAtoms::windows_glass },
-        GetSystemMetric
-    },
-    {
         &nsGkAtoms::_moz_touch_enabled,
         nsMediaFeature::eMinMaxNotAllowed,
         nsMediaFeature::eBoolInteger,
         { &nsGkAtoms::touch_enabled },
+        GetSystemMetric
+    },
+    {
+        &nsGkAtoms::_moz_maemo_classic,
+        nsMediaFeature::eMinMaxNotAllowed,
+        nsMediaFeature::eBoolInteger,
+        { &nsGkAtoms::maemo_classic },
         GetSystemMetric
     },
     {
@@ -627,40 +566,6 @@ nsMediaFeatures::features[] = {
         nsMediaFeature::eIdent,
         { nullptr },
         GetWindowsTheme
-    },
-    {
-        &nsGkAtoms::_moz_os_version,
-        nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eIdent,
-        { nullptr },
-        GetOperatinSystemVersion
-    },
-
-    {
-        &nsGkAtoms::_moz_swipe_animation_enabled,
-        nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eBoolInteger,
-        { &nsGkAtoms::swipe_animation_enabled },
-        GetSystemMetric
-    },
-
-    {
-        &nsGkAtoms::_moz_physical_home_button,
-        nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eBoolInteger,
-        { &nsGkAtoms::physical_home_button },
-        GetSystemMetric
-    },
-
-    // Internal -moz-is-glyph media feature: applies only inside SVG glyphs.
-    // Internal because it is really only useful in the user agent anyway
-    //  and therefore not worth standardizing.
-    {
-        &nsGkAtoms::_moz_is_glyph,
-        nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eBoolInteger,
-        { nullptr },
-        GetIsGlyph
     },
     // Null-mName terminator:
     {

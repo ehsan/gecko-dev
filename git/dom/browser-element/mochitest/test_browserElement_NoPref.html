@@ -23,9 +23,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=710231
 SimpleTest.waitForExplicitFinish();
 
 function runTest() {
+  browserElementTestHelpers.setEnabledPref(false);
 
   var iframe = document.createElement('iframe');
-  iframe.setAttribute('mozbrowser', 'true');
+  iframe.mozbrowser = true;
   document.body.appendChild(iframe);
 
   iframe.addEventListener('mozbrowserloadstart', function() {
@@ -40,8 +41,7 @@ function runTest() {
   iframe.src = browserElementTestHelpers.emptyPage1;
 }
 
-browserElementTestHelpers.setEnabledPref(false);
-addEventListener('testready', runTest);
+addEventListener('load', function() { SimpleTest.executeSoon(runTest); });
 
 </script>
 

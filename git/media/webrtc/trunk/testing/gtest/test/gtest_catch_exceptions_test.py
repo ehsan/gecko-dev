@@ -117,17 +117,14 @@ class CatchCxxExceptionsTest(gtest_test_utils.TestCase):
                  '"CxxExceptionInConstructorTest" (no quotes) '
                  'appears on the same line as words "called unexpectedly"')
 
-  if ('CxxExceptionInDestructorTest.ThrowsExceptionInDestructor' in
-      EX_BINARY_OUTPUT):
-
-    def testCatchesCxxExceptionsInFixtureDestructor(self):
-      self.assert_('C++ exception with description '
-                   '"Standard C++ exception" thrown '
-                   'in the test fixture\'s destructor'
-                   in EX_BINARY_OUTPUT)
-      self.assert_('CxxExceptionInDestructorTest::TearDownTestCase() '
-                   'called as expected.'
-                   in EX_BINARY_OUTPUT)
+  def testCatchesCxxExceptionsInFixtureDestructor(self):
+    self.assert_('C++ exception with description '
+                 '"Standard C++ exception" thrown '
+                 'in the test fixture\'s destructor'
+                 in EX_BINARY_OUTPUT)
+    self.assert_('CxxExceptionInDestructorTest::TearDownTestCase() '
+                 'called as expected.'
+                 in EX_BINARY_OUTPUT)
 
   def testCatchesCxxExceptionsInSetUpTestCase(self):
     self.assert_('C++ exception with description "Standard C++ exception"'

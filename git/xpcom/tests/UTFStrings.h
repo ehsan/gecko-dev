@@ -7,7 +7,7 @@
 
 struct UTFStringsStringPair
   {
-    char16_t m16[16];
+    PRUnichar m16[16];
     char m8[16];
   };
 

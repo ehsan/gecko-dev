@@ -1,3 +1,8 @@
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
+
 Cu.import("resource://testing-common/httpd.js");
 var httpserver = new HttpServer();
 
@@ -41,8 +46,7 @@ var listener_3 = {
     }
 };
 
-XPCOMUtils.defineLazyGetter(this, "listener_2", function() {
-    return {
+var listener_2 = {
     // this listener is used to process the revalidation of the
     // corrupted cache entry. its revalidation prompts it to be cleaned
 
@@ -69,16 +73,12 @@ XPCOMUtils.defineLazyGetter(this, "listener_2", function() {
     onStopRequest: function test_onStopR(request, ctx, status) {
 	var channel = request.QueryInterface(Ci.nsIHttpChannel);
 
-	var chan = ios.newChannel("http://localhost:" +
-				  httpserver.identity.primaryPort +
-				  "/test1", "", null);
+	var chan = ios.newChannel("http://localhost:4444/test1", "", null);
 	chan.asyncOpen(listener_3, null);
     }
 };
-});
 
-XPCOMUtils.defineLazyGetter(this, "listener_1", function() {
-    return {
+var listener_1 = {
     // this listener processes the initial request from a empty cache.
     // the server responds with the wrong data ('A')
 
@@ -101,13 +101,10 @@ XPCOMUtils.defineLazyGetter(this, "listener_1", function() {
     onStopRequest: function test_onStopR(request, ctx, status) {
 	var channel = request.QueryInterface(Ci.nsIHttpChannel);
 
-	var chan = ios.newChannel("http://localhost:" +
-				  httpserver.identity.primaryPort +
-				  "/test1", "", null);
+	var chan = ios.newChannel("http://localhost:4444/test1", "", null);
 	chan.asyncOpen(listener_2, null);
     }
 };
-});
 
 function run_test() {
     do_get_profile();
@@ -117,11 +114,9 @@ function run_test() {
     evict_cache_entries();
 
     httpserver.registerPathHandler("/test1", handler);
-    httpserver.start(-1);
+    httpserver.start(4444);
 
-    var port = httpserver.identity.primaryPort;
-
-    var chan = ios.newChannel("http://localhost:" + port + "/test1", "", null);
+    var chan = ios.newChannel("http://localhost:4444/test1", "", null);
     chan.asyncOpen(listener_1, null);
 
     do_test_pending();

@@ -4,13 +4,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /**
- * Implementation of moz-anno: URLs for accessing favicons.  The urls are sent
- * to the favicon service.  If the favicon service doesn't have the
- * data, a stream containing the default favicon will be returned.
+ * Implementation of moz-anno: URLs for accessing annotation values. This just
+ * reads binary data from the annotation service.
  *
- * The reference to annotations ("moz-anno") is a leftover from previous
- * iterations of this component. As of now the moz-anno protocol is independent
- * of annotations.
+ * There is a special case for favicons. Annotation URLs with the name "favicon"
+ * will be sent to the favicon service. If the favicon service doesn't have the
+ * data, a stream containing the default favicon will be returned.
  */
 
 #include "nsAnnoProtocolHandler.h"
@@ -23,7 +22,6 @@
 #include "nsISupportsUtils.h"
 #include "nsIURI.h"
 #include "nsNetUtil.h"
-#include "nsContentUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsStringStream.h"
 #include "mozilla/storage.h"
@@ -47,12 +45,7 @@ GetDefaultIcon(nsIChannel **aChannel)
   nsresult rv = NS_NewURI(getter_AddRefs(defaultIconURI),
                           NS_LITERAL_CSTRING(FAVICON_DEFAULT_URL));
   NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_NewChannel(aChannel,
-                       defaultIconURI,
-                       nsContentUtils::GetSystemPrincipal(),
-                       nsILoadInfo::SEC_NORMAL,
-                       nsIContentPolicy::TYPE_OTHER);
+  return NS_NewChannel(aChannel, defaultIconURI);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,7 +93,7 @@ public:
 
     // We do not allow favicons without a MIME type, so we'll return the default
     // icon.
-    nsAutoCString mimeType;
+    nsCAutoString mimeType;
     (void)row->GetUTF8String(1, mimeType);
     NS_ENSURE_FALSE(mimeType.IsEmpty(), NS_OK);
 
@@ -185,16 +178,13 @@ public:
     return NS_OK;
   }
 
-protected:
-  virtual ~faviconAsyncLoader() {}
-
 private:
   nsCOMPtr<nsIChannel> mChannel;
   nsCOMPtr<nsIOutputStream> mOutputStream;
   bool mReturnDefaultIcon;
 };
 
-NS_IMPL_ISUPPORTS_INHERITED(
+NS_IMPL_ISUPPORTS_INHERITED1(
   faviconAsyncLoader,
   AsyncStatementCallback,
   nsIRequestObserver
@@ -205,7 +195,7 @@ NS_IMPL_ISUPPORTS_INHERITED(
 ////////////////////////////////////////////////////////////////////////////////
 //// nsAnnoProtocolHandler
 
-NS_IMPL_ISUPPORTS(nsAnnoProtocolHandler, nsIProtocolHandler)
+NS_IMPL_ISUPPORTS1(nsAnnoProtocolHandler, nsIProtocolHandler)
 
 // nsAnnoProtocolHandler::GetScheme
 
@@ -263,29 +253,65 @@ nsAnnoProtocolHandler::NewURI(const nsACString& aSpec,
 //
 
 NS_IMETHODIMP
-nsAnnoProtocolHandler::NewChannel2(nsIURI* aURI,
-                                   nsILoadInfo* aLoadInfo,
-                                   nsIChannel** _retval)
+nsAnnoProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
 {
   NS_ENSURE_ARG_POINTER(aURI);
+  nsresult rv;
+
+  nsCAutoString path;
+  rv = aURI->GetPath(path);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIAnnotationService> annotationService = do_GetService(
+                              "@mozilla.org/browser/annotation-service;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // annotation info
   nsCOMPtr<nsIURI> annoURI;
-  nsAutoCString annoName;
-  nsresult rv = ParseAnnoURI(aURI, getter_AddRefs(annoURI), annoName);
+  nsCAutoString annoName;
+  rv = ParseAnnoURI(aURI, getter_AddRefs(annoURI), annoName);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Only favicon annotation are supported.
-  if (!annoName.EqualsLiteral(FAVICON_ANNOTATION_NAME))
-    return NS_ERROR_INVALID_ARG;
+  // If this is a favicon annotation, we create a different channel that will
+  // ask the favicon service for information about the favicon.
+  if (annoName.EqualsLiteral(FAVICON_ANNOTATION_NAME))
+    return NewFaviconChannel(aURI, annoURI, _retval);
 
-  return NewFaviconChannel(aURI, annoURI, _retval);
-}
+  // normal handling for annotations
+  uint8_t* data;
+  uint32_t dataLen;
+  nsCAutoString mimeType;
 
-NS_IMETHODIMP
-nsAnnoProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
-{
-  return NewChannel2(aURI, nullptr, _retval);
+  // get the data from the annotation service and hand it off to the stream
+  rv = annotationService->GetPageAnnotationBinary(annoURI, annoName, &data,
+                                                  &dataLen, mimeType);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // disallow annotations with no MIME types
+  if (mimeType.IsEmpty()) {
+    NS_Free(data);
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
+  nsCOMPtr<nsIStringInputStream> stream = do_CreateInstance(
+                                          NS_STRINGINPUTSTREAM_CONTRACTID, &rv);
+  if (NS_FAILED(rv)) {
+    NS_Free(data);
+    return rv;
+  }
+  rv = stream->AdoptData((char*)data, dataLen);
+  if (NS_FAILED(rv)) {
+    NS_Free(data);
+    return rv;
+  }
+
+  nsCOMPtr<nsIChannel> channel;
+  rv = NS_NewInputStreamChannel(getter_AddRefs(channel), aURI, stream, mimeType);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  *_retval = channel;
+  NS_ADDREF(*_retval);
+  return NS_OK;
 }
 
 
@@ -311,7 +337,7 @@ nsAnnoProtocolHandler::ParseAnnoURI(nsIURI* aURI,
                                     nsIURI** aResultURI, nsCString& aName)
 {
   nsresult rv;
-  nsAutoCString path;
+  nsCAutoString path;
   rv = aURI->GetPath(path);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -343,12 +369,8 @@ nsAnnoProtocolHandler::NewFaviconChannel(nsIURI *aURI, nsIURI *aAnnotationURI,
   // Create our channel.  We'll call SetContentType with the right type when
   // we know what it actually is.
   nsCOMPtr<nsIChannel> channel;
-  rv = NS_NewInputStreamChannel(getter_AddRefs(channel),
-                                aURI,
-                                inputStream,
-                                nsContentUtils::GetSystemPrincipal(),
-                                nsILoadInfo::SEC_NORMAL,
-                                nsIContentPolicy::TYPE_OTHER);
+  rv = NS_NewInputStreamChannel(getter_AddRefs(channel), aURI, inputStream,
+                                EmptyCString());
   NS_ENSURE_SUCCESS(rv, GetDefaultIcon(_channel));
 
   // Now we go ahead and get our data asynchronously for the favicon.

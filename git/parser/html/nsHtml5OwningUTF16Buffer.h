@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsHtml5OwningUTF16Buffer_h
-#define nsHtml5OwningUTF16Buffer_h
+#ifndef nsHtml5OwningUTF16Buffer_h_
+#define nsHtml5OwningUTF16Buffer_h_
 
 #include "nsHtml5UTF16Buffer.h"
 
@@ -14,7 +14,7 @@ class nsHtml5OwningUTF16Buffer : public nsHtml5UTF16Buffer
     /**
      * Passes a buffer and its length to the superclass constructor.
      */
-    explicit nsHtml5OwningUTF16Buffer(char16_t* aBuffer);
+    nsHtml5OwningUTF16Buffer(PRUnichar* aBuffer);
 
   public:
 
@@ -22,15 +22,13 @@ class nsHtml5OwningUTF16Buffer : public nsHtml5UTF16Buffer
      * Constructor for a parser key placeholder. (No actual buffer.)
      * @param aKey a parser key
      */
-    explicit nsHtml5OwningUTF16Buffer(void* aKey);
+    nsHtml5OwningUTF16Buffer(void* aKey);
 
-protected:
     /**
      * Takes care of releasing the owned buffer.
      */
     ~nsHtml5OwningUTF16Buffer();
 
-public:
     /**
      * The next buffer in a queue.
      */
@@ -55,4 +53,4 @@ public:
     nsAutoRefCnt mRefCnt;
 };
 
-#endif // nsHtml5OwningUTF16Buffer_h
+#endif // nsHtml5OwningUTF16Buffer_h_

@@ -1,5 +1,3 @@
-. "$topsrcdir/xulrunner/config/mozconfigs/common"
-
 ac_add_options --target=x86_64-pc-mingw32
 ac_add_options --host=x86_64-pc-mingw32
 
@@ -10,4 +8,4 @@ ac_add_options --enable-application=xulrunner
 ac_add_options --enable-jemalloc
 ac_add_options --disable-tests
 
-. "$topsrcdir/xulrunner/config/mozconfigs/common.override"
+mk_add_options MOZ_MAKE_FLAGS=-j1

@@ -17,9 +17,8 @@ class PathSkia;
 class PathBuilderSkia : public PathBuilder
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(PathBuilderSkia)
   PathBuilderSkia(const Matrix& aTransform, const SkPath& aPath, FillRule aFillRule);
-  explicit PathBuilderSkia(FillRule aFillRule);
+  PathBuilderSkia(FillRule aFillRule);
 
   virtual void MoveTo(const Point &aPoint);
   virtual void LineTo(const Point &aPoint);
@@ -34,12 +33,7 @@ public:
   virtual Point CurrentPoint() const;
   virtual TemporaryRef<Path> Finish();
 
-  void AppendPath(const SkPath &aPath);
-
-  virtual BackendType GetBackendType() const { return BackendType::SKIA; }
-
 private:
-
   void SetFillRule(FillRule aFillRule);
 
   SkPath mPath;
@@ -49,31 +43,24 @@ private:
 class PathSkia : public Path
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(PathSkia)
   PathSkia(SkPath& aPath, FillRule aFillRule)
     : mFillRule(aFillRule)
   {
     mPath.swap(aPath);
   }
   
-  virtual BackendType GetBackendType() const { return BackendType::SKIA; }
+  virtual BackendType GetBackendType() const { return BACKEND_SKIA; }
 
-  virtual TemporaryRef<PathBuilder> CopyToBuilder(FillRule aFillRule = FillRule::FILL_WINDING) const;
+  virtual TemporaryRef<PathBuilder> CopyToBuilder(FillRule aFillRule = FILL_WINDING) const;
   virtual TemporaryRef<PathBuilder> TransformedCopyToBuilder(const Matrix &aTransform,
-                                                             FillRule aFillRule = FillRule::FILL_WINDING) const;
+                                                             FillRule aFillRule = FILL_WINDING) const;
 
   virtual bool ContainsPoint(const Point &aPoint, const Matrix &aTransform) const;
   
-  virtual bool StrokeContainsPoint(const StrokeOptions &aStrokeOptions,
-                                   const Point &aPoint,
-                                   const Matrix &aTransform) const;
-
   virtual Rect GetBounds(const Matrix &aTransform = Matrix()) const;
   
   virtual Rect GetStrokedBounds(const StrokeOptions &aStrokeOptions,
                                 const Matrix &aTransform = Matrix()) const;
-
-  virtual void StreamToSink(PathSink *aSink) const;
 
   virtual FillRule GetFillRule() const { return mFillRule; }
 

@@ -17,7 +17,6 @@
 
 #include "mozilla/Services.h"
 
-#undef VOLUME_MANAGER_LOG_TAG
 #define VOLUME_MANAGER_LOG_TAG  "VolumeServiceTest"
 #include "VolumeManagerLog.h"
 
@@ -56,7 +55,7 @@ public:
     obs->RemoveObserver(this, NS_VOLUME_STATE_CHANGED);
   }
 
-  void LogVolume(nsIVolume* vol)
+  void LogVolume(nsIVolume *vol)
   {
     nsString volName;
     nsString mountPoint;
@@ -90,12 +89,12 @@ public:
 };
 static nsCOMPtr<VolumeTestObserver>  sTestObserver;
 
-NS_IMPL_ISUPPORTS(VolumeTestObserver, nsIObserver)
+NS_IMPL_ISUPPORTS1(VolumeTestObserver, nsIObserver)
 
 NS_IMETHODIMP
-VolumeTestObserver::Observe(nsISupports* aSubject,
-                            const char* aTopic,
-                            const char16_t* aData)
+VolumeTestObserver::Observe(nsISupports *aSubject,
+                            const char *aTopic,
+                            const PRUnichar *aData)
 {
   LOG("TestObserver: topic: %s", aTopic);
 
@@ -194,7 +193,7 @@ ShutdownVolumeServiceTest()
 {
 #if TEST_NSVOLUME_OBSERVER
   DBG("ShutdownVolumeServiceTestIOThread called");
-  sTestObserver = nullptr;
+  sTestObserver = NULL;
 #endif
 }
 

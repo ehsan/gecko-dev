@@ -7,9 +7,6 @@
 #include "jsperf.h"
 #include "mozilla/ModuleUtils.h"
 #include "nsMemory.h"
-#include "mozilla/Preferences.h"
-#include "mozJSComponentLoader.h"
-#include "nsZipArchive.h"
 
 #define JSPERF_CONTRACTID \
   "@mozilla.org/jsperf;1"
@@ -23,7 +20,7 @@ namespace jsperf {
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(Module)
 
-NS_IMPL_ISUPPORTS(Module, nsIXPCScriptable)
+NS_IMPL_ISUPPORTS1(Module, nsIXPCScriptable)
 
 Module::Module()
 {
@@ -39,28 +36,23 @@ Module::~Module()
 #define XPC_MAP_FLAGS nsIXPCScriptable::WANT_CALL
 #include "xpc_map_end.h"
 
-static bool
-SealObjectAndPrototype(JSContext* cx, JS::Handle<JSObject *> parent, const char* name)
+static JSBool
+SealObjectAndPrototype(JSContext* cx, JSObject* parent, const char* name)
 {
-  JS::Rooted<JS::Value> prop(cx);
+  jsval prop;
   if (!JS_GetProperty(cx, parent, name, &prop))
     return false;
 
-  if (prop.isUndefined()) {
-    // Pretend we sealed the object.
-    return true;
-  }
-
-  JS::Rooted<JSObject*> obj(cx, prop.toObjectOrNull());
+  JSObject* obj = JSVAL_TO_OBJECT(prop);
   if (!JS_GetProperty(cx, obj, "prototype", &prop))
     return false;
 
-  JS::Rooted<JSObject*> prototype(cx, prop.toObjectOrNull());
+  JSObject* prototype = JSVAL_TO_OBJECT(prop);
   return JS_FreezeObject(cx, obj) && JS_FreezeObject(cx, prototype);
 }
 
-static bool
-InitAndSealPerfMeasurementClass(JSContext* cx, JS::Handle<JSObject*> global)
+static JSBool
+InitAndSealPerfMeasurementClass(JSContext* cx, JSObject* global)
 {
   // Init the PerfMeasurement class
   if (!JS::RegisterPerfMeasurement(cx, global))
@@ -82,16 +74,16 @@ NS_IMETHODIMP
 Module::Call(nsIXPConnectWrappedNative* wrapper,
              JSContext* cx,
              JSObject* obj,
-             const JS::CallArgs& args,
+             uint32_t argc,
+             jsval* argv,
+             jsval* vp,
              bool* _retval)
 {
+  JSObject* global = JS_GetGlobalForScopeChain(cx);
+  if (!global)
+    return NS_ERROR_NOT_AVAILABLE;
 
-  mozJSComponentLoader* loader = mozJSComponentLoader::Get();
-  JS::Rooted<JSObject*> targetObj(cx);
-  nsresult rv = loader->FindTargetObject(cx, &targetObj);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  *_retval = InitAndSealPerfMeasurementClass(cx, targetObj);
+  *_retval = InitAndSealPerfMeasurementClass(cx, global);
   return NS_OK;
 }
 
@@ -101,13 +93,13 @@ Module::Call(nsIXPConnectWrappedNative* wrapper,
 NS_DEFINE_NAMED_CID(JSPERF_CID);
 
 static const mozilla::Module::CIDEntry kPerfCIDs[] = {
-  { &kJSPERF_CID, false, nullptr, mozilla::jsperf::ModuleConstructor },
-  { nullptr }
+  { &kJSPERF_CID, false, NULL, mozilla::jsperf::ModuleConstructor },
+  { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kPerfContracts[] = {
   { JSPERF_CONTRACTID, &kJSPERF_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module kPerfModule = {

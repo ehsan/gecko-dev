@@ -7,16 +7,23 @@
 #ifndef nsPluginInstanceOwner_h_
 #define nsPluginInstanceOwner_h_
 
-#include "mozilla/Attributes.h"
+#include "prtypes.h"
 #include "npapi.h"
 #include "nsCOMPtr.h"
 #include "nsIPluginInstanceOwner.h"
+#include "nsIPluginTagInfo.h"
 #include "nsIPrivacyTransitionObserver.h"
 #include "nsIDOMEventListener.h"
+#include "nsIScrollPositionListener.h"
 #include "nsPluginHost.h"
 #include "nsPluginNativeWindow.h"
 #include "nsWeakReference.h"
 #include "gfxRect.h"
+
+// X.h defines KeyPress
+#ifdef KeyPress
+#undef KeyPress
+#endif
 
 #ifdef XP_MACOSX
 #include "mozilla/gfx/QuartzSupport.h"
@@ -26,14 +33,8 @@
 class nsIInputStream;
 struct nsIntRect;
 class nsPluginDOMContextMenuListener;
-class nsPluginFrame;
+class nsObjectFrame;
 class nsDisplayListBuilder;
-
-namespace mozilla {
-namespace dom {
-struct MozPluginParameter;
-}
-}
 
 #ifdef MOZ_X11
 class gfxXlibSurface;
@@ -44,13 +45,27 @@ class gfxXlibSurface;
 #endif
 #endif
 
-class nsPluginInstanceOwner MOZ_FINAL : public nsIPluginInstanceOwner,
-                                        public nsIDOMEventListener,
-                                        public nsIPrivacyTransitionObserver,
-                                        public nsSupportsWeakReference
+#ifdef XP_OS2
+#define INCL_PM
+#define INCL_GPI
+#include <os2.h>
+#endif
+
+// X.h defines KeyPress
+#ifdef KeyPress
+#undef KeyPress
+#endif
+
+class nsPluginInstanceOwner : public nsIPluginInstanceOwner,
+                              public nsIPluginTagInfo,
+                              public nsIDOMEventListener,
+                              public nsIScrollPositionListener,
+                              public nsIPrivacyTransitionObserver,
+                              public nsSupportsWeakReference
 {
 public:
   nsPluginInstanceOwner();
+  virtual ~nsPluginInstanceOwner();
   
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPLUGININSTANCEOWNER
@@ -58,38 +73,32 @@ public:
   
   NS_IMETHOD GetURL(const char *aURL, const char *aTarget,
                     nsIInputStream *aPostStream, 
-                    void *aHeadersData, uint32_t aHeadersDataLen) MOZ_OVERRIDE;
+                    void *aHeadersData, uint32_t aHeadersDataLen);
   
-  NS_IMETHOD ShowStatus(const char16_t *aStatusMsg) MOZ_OVERRIDE;
+  NS_IMETHOD ShowStatus(const PRUnichar *aStatusMsg);
   
-  NPError    ShowNativeContextMenu(NPMenu* menu, void* event) MOZ_OVERRIDE;
+  NPError    ShowNativeContextMenu(NPMenu* menu, void* event);
   
   NPBool     ConvertPoint(double sourceX, double sourceY, NPCoordinateSpace sourceSpace,
-                          double *destX, double *destY, NPCoordinateSpace destSpace) MOZ_OVERRIDE;
+                          double *destX, double *destY, NPCoordinateSpace destSpace);
   
-  /**
-   * Get the type of the HTML tag that was used ot instantiate this
-   * plugin.  Currently supported tags are EMBED, OBJECT and APPLET.
-   */
-  NS_IMETHOD GetTagType(nsPluginTagType *aResult);
+  virtual NPError InitAsyncSurface(NPSize *size, NPImageFormat format,
+                                   void *initData, NPAsyncSurface *surface);
+  virtual NPError FinalizeAsyncSurface(NPAsyncSurface *surface);
+  virtual void SetCurrentAsyncSurface(NPAsyncSurface *surface, NPRect *changed);
 
-  void GetParameters(nsTArray<mozilla::dom::MozPluginParameter>& parameters);
-  void GetAttributes(nsTArray<mozilla::dom::MozPluginParameter>& attributes);
-
-  /**
-   * Returns the DOM element corresponding to the tag which references
-   * this plugin in the document.
-   *
-   * @param aDOMElement - resulting DOM element
-   * @result - NS_OK if this operation was successful
-   */
-  NS_IMETHOD GetDOMElement(nsIDOMElement* * aResult);
+  //nsIPluginTagInfo interface
+  NS_DECL_NSIPLUGINTAGINFO
   
   // nsIDOMEventListener interfaces 
   NS_DECL_NSIDOMEVENTLISTENER
   
-  nsresult ProcessMouseDown(nsIDOMEvent* aKeyEvent);
-  nsresult ProcessKeyPress(nsIDOMEvent* aKeyEvent);
+  nsresult MouseDown(nsIDOMEvent* aKeyEvent);
+  nsresult KeyPress(nsIDOMEvent* aKeyEvent);
+#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
+  nsresult Text(nsIDOMEvent* aTextEvent);
+#endif
+
   nsresult Destroy();  
 
 #ifdef XP_WIN
@@ -102,8 +111,20 @@ public:
   void Paint(gfxContext* aContext,
              const gfxRect& aFrameRect,
              const gfxRect& aDirtyRect);
+#elif defined(XP_OS2)
+  void Paint(const nsRect& aDirtyRect, HPS aHPS);
 #endif
-
+  
+#ifdef MAC_CARBON_PLUGINS
+  void CancelTimer();
+  void StartTimer(bool isVisible);
+#endif
+  void SendIdleEvent();
+  
+  // nsIScrollPositionListener interface
+  virtual void ScrollPositionWillChange(nscoord aX, nscoord aY);
+  virtual void ScrollPositionDidChange(nscoord aX, nscoord aY);
+  
   //locals
   
   nsresult Init(nsIContent* aContent);
@@ -111,14 +132,13 @@ public:
   void* GetPluginPortFromWidget();
   void ReleasePluginPort(void* pluginPort);
 
-  nsEventStatus ProcessEvent(const mozilla::WidgetGUIEvent& anEvent);
+  nsEventStatus ProcessEvent(const nsGUIEvent & anEvent);
   
 #ifdef XP_MACOSX
   enum { ePluginPaintEnable, ePluginPaintDisable };
   
   NPDrawingModel GetDrawingModel();
   bool IsRemoteDrawingCoreAnimation();
-  nsresult ContentsScaleFactorChanged(double aContentsScaleFactor);
   NPEventModel GetEventModel();
   static void CARefresh(nsITimer *aTimer, void *aClosure);
   void AddToCARefreshTimer();
@@ -138,21 +158,20 @@ public:
   // changed, and SetWindow() needs to be called again.
   void* SetPluginPortAndDetectChange();
   // Flag when we've set up a Thebes (and CoreGraphics) context in
-  // nsPluginFrame::PaintPlugin().  We need to know this in
+  // nsObjectFrame::PaintPlugin().  We need to know this in
   // FixUpPluginWindow() (i.e. we need to know when FixUpPluginWindow() has
-  // been called from nsPluginFrame::PaintPlugin() when we're using the
+  // been called from nsObjectFrame::PaintPlugin() when we're using the
   // CoreGraphics drawing model).
   void BeginCGPaint();
   void EndCGPaint();
 #else // XP_MACOSX
   void UpdateWindowPositionAndClipRect(bool aSetWindow);
   void UpdateWindowVisibility(bool aVisible);
+  void UpdateDocumentActiveState(bool aIsActive);
 #endif // XP_MACOSX
 
-  void UpdateDocumentActiveState(bool aIsActive);
-
-  void SetFrame(nsPluginFrame *aFrame);
-  nsPluginFrame* GetFrame();
+  void SetFrame(nsObjectFrame *aFrame);
+  nsObjectFrame* GetFrame();
 
   uint32_t GetLastEventloopNestingLevel() const {
     return mLastEventloopNestingLevel; 
@@ -171,7 +190,7 @@ public:
   const char* GetPluginName()
   {
     if (mInstance && mPluginHost) {
-      const char* name = nullptr;
+      const char* name = NULL;
       if (NS_SUCCEEDED(mPluginHost->GetPluginName(mInstance, &name)) && name)
         return name;
     }
@@ -216,7 +235,7 @@ public:
   void NotifyPaintWaiter(nsDisplayListBuilder* aBuilder);
 
   // Returns the image container that has our currently displayed image.
-  already_AddRefed<mozilla::layers::ImageContainer> GetImageContainer();
+  already_AddRefed<ImageContainer> GetImageContainer();
 
   /**
    * Returns the bounds of the current async-rendered surface. This can only
@@ -234,12 +253,10 @@ public:
   
   bool UseAsyncRendering();
 
-  already_AddRefed<nsIURI> GetBaseURI() const;
-
 #ifdef MOZ_WIDGET_ANDROID
   // Returns the image container for the specified VideoInfo
   void GetVideos(nsTArray<nsNPAPIPluginInstance::VideoInfo*>& aVideos);
-  already_AddRefed<mozilla::layers::ImageContainer> GetImageContainerForVideo(nsNPAPIPluginInstance::VideoInfo* aVideoInfo);
+  already_AddRefed<ImageContainer> GetImageContainerForVideo(nsNPAPIPluginInstance::VideoInfo* aVideoInfo);
 
   void Invalidate();
 
@@ -251,8 +268,7 @@ public:
 #endif
   
 private:
-  virtual ~nsPluginInstanceOwner();
-
+  
   // return FALSE if LayerSurface dirty (newly created and don't have valid plugin content yet)
   bool IsUpToDate()
   {
@@ -260,27 +276,37 @@ private:
     return NS_SUCCEEDED(mInstance->GetImageSize(&size)) &&
     size == nsIntSize(mPluginWindow->width, mPluginWindow->height);
   }
-
+  
+  void FixUpURLS(const nsString &name, nsAString &value);
 #ifdef MOZ_WIDGET_ANDROID
-  mozilla::LayoutDeviceRect GetPluginRect();
-  bool AddPluginView(const mozilla::LayoutDeviceRect& aRect = mozilla::LayoutDeviceRect(0, 0, 0, 0));
+  gfxRect GetPluginRect();
+  bool AddPluginView(const gfxRect& aRect = gfxRect(0, 0, 0, 0));
   void RemovePluginView();
 
   bool mFullScreen;
   void* mJavaView;
 #endif 
+
+#if defined(XP_MACOSX) && !defined(NP_NO_CARBON)
+  void AddScrollPositionListener();
+  void RemoveScrollPositionListener();
+#endif
  
   nsPluginNativeWindow       *mPluginWindow;
   nsRefPtr<nsNPAPIPluginInstance> mInstance;
-  nsPluginFrame              *mPluginFrame;
+  nsObjectFrame              *mObjectFrame;
   nsIContent                 *mContent; // WEAK, content owns us
   nsCString                   mDocumentBase;
+  char                       *mTagText;
   bool                        mWidgetCreationComplete;
   nsCOMPtr<nsIWidget>         mWidget;
   nsRefPtr<nsPluginHost>      mPluginHost;
   
 #ifdef XP_MACOSX
   NP_CGContext                              mCGPluginPortCopy;
+#ifndef NP_NO_QUICKDRAW
+  NP_Port                                   mQDPluginPortCopy;
+#endif
   int32_t                                   mInCGPaintLevel;
   mozilla::RefPtr<MacIOSurface>             mIOSurface;
   mozilla::RefPtr<nsCARenderer>             mCARenderer;
@@ -305,7 +331,15 @@ private:
 #endif
   bool                        mPluginWindowVisible;
   bool                        mPluginDocumentActiveState;
+#if defined(XP_MACOSX) && !defined(NP_NO_CARBON)
+  bool                        mRegisteredScrollPositionListener;
+#endif
 
+  uint16_t          mNumCachedAttrs;
+  uint16_t          mNumCachedParams;
+  char              **mCachedAttrParamNames;
+  char              **mCachedAttrParamValues;
+  
 #ifdef XP_MACOSX
   NPEventModel mEventModel;
   // This is a hack! UseAsyncRendering() can incorrectly return false
@@ -319,12 +353,11 @@ private:
   nsRefPtr<nsPluginDOMContextMenuListener> mCXMenuListener;
   
   nsresult DispatchKeyToPlugin(nsIDOMEvent* aKeyEvent);
-  nsresult DispatchMouseToPlugin(nsIDOMEvent* aMouseEvent,
-                                 bool aAllowPropagate = false);
+  nsresult DispatchMouseToPlugin(nsIDOMEvent* aMouseEvent);
   nsresult DispatchFocusToPlugin(nsIDOMEvent* aFocusEvent);
-
-  int mLastMouseDownButtonType;
-
+  
+  nsresult EnsureCachedAttrParamArrays();
+  
 #ifdef MOZ_X11
   class Renderer
 #if defined(MOZ_WIDGET_QT)
@@ -339,9 +372,8 @@ private:
     : mWindow(aWindow), mInstanceOwner(aInstanceOwner),
     mPluginSize(aPluginSize), mDirtyRect(aDirtyRect)
     {}
-    virtual nsresult DrawWithXlib(cairo_surface_t* surface,
-                                  nsIntPoint offset,
-                                  nsIntRect* clipRects, uint32_t numClipRects) MOZ_OVERRIDE;
+    virtual nsresult DrawWithXlib(gfxXlibSurface* surface, nsIntPoint offset, 
+                                  nsIntRect* clipRects, uint32_t numClipRects);
   private:
     NPWindow* mWindow;
     nsPluginInstanceOwner* mInstanceOwner;

@@ -1,6 +1,6 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim:set expandtab ts=4 sw=4 sts=4 cin: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -19,12 +19,9 @@
 #include "nsIDNSListener.h"
 #include "nsICancelable.h"
 #include "nsThreadUtils.h"
-#include "mozilla/net/DNS.h"
 
-using namespace mozilla::net;
-
-static PRDescIdentity nsSOCKSIOLayerIdentity;
-static PRIOMethods nsSOCKSIOLayerMethods;
+static PRDescIdentity	nsSOCKSIOLayerIdentity;
+static PRIOMethods	nsSOCKSIOLayerMethods;
 static bool firstTime = true;
 static bool ipv6Supported = true;
 
@@ -57,15 +54,16 @@ class nsSOCKSSocketInfo : public nsISOCKSSocketInfo
         SOCKS_FAILED
     };
 
-    // A buffer of 265 bytes should be enough for any request and response
+    // A buffer of 262 bytes should be enough for any request and response
     // in case of SOCKS4 as well as SOCKS5
-    static const uint32_t BUFFER_SIZE = 265;
+    static const uint32_t BUFFER_SIZE = 262;
     static const uint32_t MAX_HOSTNAME_LEN = 255;
 
 public:
     nsSOCKSSocketInfo();
+    virtual ~nsSOCKSSocketInfo() { HandshakeFinished(); }
 
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSISOCKSSOCKETINFO
     NS_DECL_NSIDNSLISTENER
 
@@ -80,15 +78,12 @@ public:
     PRStatus DoHandshake(PRFileDesc *fd, int16_t oflags = -1);
     int16_t GetPollFlags() const;
     bool IsConnected() const { return mState == SOCKS_CONNECTED; }
-    void ForgetFD() { mFD = nullptr; }
 
 private:
-    virtual ~nsSOCKSSocketInfo() { HandshakeFinished(); }
-
     void HandshakeFinished(PRErrorCode err = 0);
     PRStatus StartDNS(PRFileDesc *fd);
     PRStatus ConnectToProxy(PRFileDesc *fd);
-    void FixupAddressFamily(PRFileDesc *fd, NetAddr *proxy);
+    void FixupAddressFamily(PRFileDesc *fd, PRNetAddr *proxy);
     PRStatus ContinueConnectingToProxy(PRFileDesc *fd, int16_t oflags);
     PRStatus WriteV4ConnectRequest();
     PRStatus ReadV4ConnectResponse();
@@ -99,11 +94,18 @@ private:
     PRStatus ReadV5ConnectResponseTop();
     PRStatus ReadV5ConnectResponseBottom();
 
+    void WriteUint8(uint8_t d);
+    void WriteUint16(uint16_t d);
+    void WriteUint32(uint32_t d);
+    void WriteNetAddr(const PRNetAddr *addr);
+    void WriteNetPort(const PRNetAddr *addr);
+    void WriteString(const nsACString &str);
+
     uint8_t ReadUint8();
     uint16_t ReadUint16();
     uint32_t ReadUint32();
-    void ReadNetAddr(NetAddr *addr, uint16_t fam);
-    void ReadNetPort(NetAddr *addr);
+    void ReadNetAddr(PRNetAddr *addr, uint16_t fam);
+    void ReadNetPort(PRNetAddr *addr);
 
     void WantRead(uint32_t sz);
     PRStatus ReadFromSocket(PRFileDesc *fd);
@@ -127,9 +129,9 @@ private:
     int32_t   mVersion;   // SOCKS version 4 or 5
     int32_t   mDestinationFamily;
     uint32_t  mFlags;
-    NetAddr   mInternalProxyAddr;
-    NetAddr   mExternalProxyAddr;
-    NetAddr   mDestinationAddr;
+    PRNetAddr mInternalProxyAddr;
+    PRNetAddr mExternalProxyAddr;
+    PRNetAddr mDestinationAddr;
     PRIntervalTime mTimeout;
 };
 
@@ -141,133 +143,15 @@ nsSOCKSSocketInfo::nsSOCKSSocketInfo()
     , mAmountToRead(0)
     , mProxyPort(-1)
     , mVersion(-1)
-    , mDestinationFamily(AF_INET)
+    , mDestinationFamily(PR_AF_INET)
     , mFlags(0)
     , mTimeout(PR_INTERVAL_NO_TIMEOUT)
 {
     mData = new uint8_t[BUFFER_SIZE];
-
-    mInternalProxyAddr.raw.family = AF_INET;
-    mInternalProxyAddr.inet.ip = htonl(INADDR_ANY);
-    mInternalProxyAddr.inet.port = htons(0);
-
-    mExternalProxyAddr.raw.family = AF_INET;
-    mExternalProxyAddr.inet.ip = htonl(INADDR_ANY);
-    mExternalProxyAddr.inet.port = htons(0);
-
-    mDestinationAddr.raw.family = AF_INET;
-    mDestinationAddr.inet.ip = htonl(INADDR_ANY);
-    mDestinationAddr.inet.port = htons(0);
+    PR_InitializeNetAddr(PR_IpAddrAny, 0, &mInternalProxyAddr);
+    PR_InitializeNetAddr(PR_IpAddrAny, 0, &mExternalProxyAddr);
+    PR_InitializeNetAddr(PR_IpAddrAny, 0, &mDestinationAddr);
 }
-
-/* Helper template class to statically check that writes to a fixed-size
- * buffer are not going to overflow.
- *
- * Example usage:
- *   uint8_t real_buf[TOTAL_SIZE];
- *   Buffer<TOTAL_SIZE> buf(&real_buf);
- *   auto buf2 = buf.WriteUint16(1);
- *   auto buf3 = buf2.WriteUint8(2);
- *
- * It is possible to chain them, to limit the number of (error-prone)
- * intermediate variables:
- *   auto buf = Buffer<TOTAL_SIZE>(&real_buf)
- *              .WriteUint16(1)
- *              .WriteUint8(2);
- *
- * Debug builds assert when intermediate variables are reused:
- *   Buffer<TOTAL_SIZE> buf(&real_buf);
- *   auto buf2 = buf.WriteUint16(1);
- *   auto buf3 = buf.WriteUint8(2); // Asserts
- *
- * Strings can be written, given an explicit maximum length.
- *   buf.WriteString<MAX_STRING_LENGTH>(str);
- *
- * The Written() method returns how many bytes have been written so far:
- *   Buffer<TOTAL_SIZE> buf(&real_buf);
- *   auto buf2 = buf.WriteUint16(1);
- *   auto buf3 = buf2.WriteUint8(2);
- *   buf3.Written(); // returns 3.
- */
-template <size_t Size>
-class Buffer
-{
-public:
-  Buffer() : mBuf(nullptr), mLength(0) {}
-
-  explicit Buffer(uint8_t* aBuf, size_t aLength=0)
-  : mBuf(aBuf), mLength(aLength) {}
-
-  template <size_t Size2>
-  Buffer(const Buffer<Size2>& aBuf) : mBuf(aBuf.mBuf), mLength(aBuf.mLength) {
-      static_assert(Size2 > Size, "Cannot cast buffer");
-  }
-
-  Buffer<Size - sizeof(uint8_t)> WriteUint8(uint8_t aValue) {
-      return Write(aValue);
-  }
-
-  Buffer<Size - sizeof(uint16_t)> WriteUint16(uint16_t aValue) {
-      return Write(aValue);
-  }
-
-  Buffer<Size - sizeof(uint32_t)> WriteUint32(uint32_t aValue) {
-      return Write(aValue);
-  }
-
-  Buffer<Size - sizeof(uint16_t)> WriteNetPort(const NetAddr* aAddr) {
-      return WriteUint16(aAddr->inet.port);
-  }
-
-  Buffer<Size - sizeof(IPv6Addr)> WriteNetAddr(const NetAddr* aAddr) {
-      if (aAddr->raw.family == AF_INET) {
-          return Write(aAddr->inet.ip);
-      } else if (aAddr->raw.family == AF_INET6) {
-          return Write(aAddr->inet6.ip.u8);
-      }
-      NS_NOTREACHED("Unknown address family");
-      return *this;
-  }
-
-  template <size_t MaxLength>
-  Buffer<Size - MaxLength> WriteString(const nsACString& aStr) {
-      if (aStr.Length() > MaxLength) {
-          return Buffer<Size - MaxLength>(nullptr);
-      }
-      return WritePtr<char, MaxLength>(aStr.Data(), aStr.Length());
-  }
-
-  size_t Written() {
-      MOZ_ASSERT(mBuf);
-      return mLength;
-  }
-
-  operator bool() { return !!mBuf; }
-private:
-  template <size_t Size2>
-  friend class Buffer;
-
-  template <typename T>
-  Buffer<Size - sizeof(T)> Write(T& aValue) {
-      return WritePtr<T, sizeof(T)>(&aValue, sizeof(T));
-  }
-
-  template <typename T, size_t Length>
-  Buffer<Size - Length> WritePtr(const T* aValue, size_t aCopyLength) {
-      static_assert(Size >= Length, "Cannot write that much");
-      MOZ_ASSERT(aCopyLength <= Length);
-      MOZ_ASSERT(mBuf);
-      memcpy(mBuf, aValue, aCopyLength);
-      Buffer<Size - Length> result(mBuf + aCopyLength, mLength + aCopyLength);
-      mBuf = nullptr;
-      mLength = 0;
-      return result;
-  }
-
-  uint8_t* mBuf;
-  size_t mLength;
-};
-
 
 void
 nsSOCKSSocketInfo::Init(int32_t version, int32_t family, const char *proxyHost, int32_t proxyPort, const char *host, uint32_t flags)
@@ -280,47 +164,47 @@ nsSOCKSSocketInfo::Init(int32_t version, int32_t family, const char *proxyHost, 
     mFlags           = flags;
 }
 
-NS_IMPL_ISUPPORTS(nsSOCKSSocketInfo, nsISOCKSSocketInfo, nsIDNSListener)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsSOCKSSocketInfo, nsISOCKSSocketInfo, nsIDNSListener)
 
 NS_IMETHODIMP 
-nsSOCKSSocketInfo::GetExternalProxyAddr(NetAddr * *aExternalProxyAddr)
+nsSOCKSSocketInfo::GetExternalProxyAddr(PRNetAddr * *aExternalProxyAddr)
 {
-    memcpy(*aExternalProxyAddr, &mExternalProxyAddr, sizeof(NetAddr));
+    memcpy(*aExternalProxyAddr, &mExternalProxyAddr, sizeof(PRNetAddr));
     return NS_OK;
 }
 
 NS_IMETHODIMP 
-nsSOCKSSocketInfo::SetExternalProxyAddr(NetAddr *aExternalProxyAddr)
+nsSOCKSSocketInfo::SetExternalProxyAddr(PRNetAddr *aExternalProxyAddr)
 {
-    memcpy(&mExternalProxyAddr, aExternalProxyAddr, sizeof(NetAddr));
+    memcpy(&mExternalProxyAddr, aExternalProxyAddr, sizeof(PRNetAddr));
     return NS_OK;
 }
 
 NS_IMETHODIMP 
-nsSOCKSSocketInfo::GetDestinationAddr(NetAddr * *aDestinationAddr)
+nsSOCKSSocketInfo::GetDestinationAddr(PRNetAddr * *aDestinationAddr)
 {
-    memcpy(*aDestinationAddr, &mDestinationAddr, sizeof(NetAddr));
+    memcpy(*aDestinationAddr, &mDestinationAddr, sizeof(PRNetAddr));
     return NS_OK;
 }
 
 NS_IMETHODIMP 
-nsSOCKSSocketInfo::SetDestinationAddr(NetAddr *aDestinationAddr)
+nsSOCKSSocketInfo::SetDestinationAddr(PRNetAddr *aDestinationAddr)
 {
-    memcpy(&mDestinationAddr, aDestinationAddr, sizeof(NetAddr));
+    memcpy(&mDestinationAddr, aDestinationAddr, sizeof(PRNetAddr));
     return NS_OK;
 }
 
 NS_IMETHODIMP 
-nsSOCKSSocketInfo::GetInternalProxyAddr(NetAddr * *aInternalProxyAddr)
+nsSOCKSSocketInfo::GetInternalProxyAddr(PRNetAddr * *aInternalProxyAddr)
 {
-    memcpy(*aInternalProxyAddr, &mInternalProxyAddr, sizeof(NetAddr));
+    memcpy(*aInternalProxyAddr, &mInternalProxyAddr, sizeof(PRNetAddr));
     return NS_OK;
 }
 
 NS_IMETHODIMP 
-nsSOCKSSocketInfo::SetInternalProxyAddr(NetAddr *aInternalProxyAddr)
+nsSOCKSSocketInfo::SetInternalProxyAddr(PRNetAddr *aInternalProxyAddr)
 {
-    memcpy(&mInternalProxyAddr, aInternalProxyAddr, sizeof(NetAddr));
+    memcpy(&mInternalProxyAddr, aInternalProxyAddr, sizeof(PRNetAddr));
     return NS_OK;
 }
 
@@ -389,10 +273,8 @@ nsSOCKSSocketInfo::OnLookupComplete(nsICancelable *aRequest,
     mLookupStatus = aStatus;
     mDnsRec = aRecord;
     mState = SOCKS_DNS_COMPLETE;
-    if (mFD) {
-      ConnectToProxy(mFD);
-      ForgetFD();
-    }
+    ConnectToProxy(mFD);
+    mFD = nullptr;
     return NS_OK;
 }
 
@@ -412,7 +294,7 @@ nsSOCKSSocketInfo::ConnectToProxy(PRFileDesc *fd)
 
     // Try socks5 if the destination addrress is IPv6
     if (mVersion == 4 &&
-        mDestinationAddr.raw.family == AF_INET6) {
+        PR_NetAddrFamily(&mDestinationAddr) == PR_AF_INET6) {
         mVersion = 5;
     }
 
@@ -430,16 +312,14 @@ nsSOCKSSocketInfo::ConnectToProxy(PRFileDesc *fd)
         }
 
 #if defined(PR_LOGGING)
-        char buf[kIPv6CStrBufSize];
-        NetAddrToString(&mInternalProxyAddr, buf, sizeof(buf));
+        char buf[64];
+        PR_NetAddrToString(&mInternalProxyAddr, buf, sizeof(buf));
         LOGDEBUG(("socks: trying proxy server, %s:%hu",
-                 buf, ntohs(mInternalProxyAddr.inet.port)));
+                 buf, PR_ntohs(PR_NetAddrInetPort(&mInternalProxyAddr))));
 #endif
-        NetAddr proxy = mInternalProxyAddr;
+        PRNetAddr proxy = mInternalProxyAddr;
         FixupAddressFamily(fd, &proxy);
-        PRNetAddr prProxy;
-        NetAddrToPRNetAddr(&proxy, &prProxy);
-        status = fd->lower->methods->connect(fd->lower, &prProxy, mTimeout);
+        status = fd->lower->methods->connect(fd->lower, &proxy, mTimeout);
         if (status != PR_SUCCESS) {
             PRErrorCode c = PR_GetError();
             // If EINPROGRESS, return now and check back later after polling
@@ -457,25 +337,25 @@ nsSOCKSSocketInfo::ConnectToProxy(PRFileDesc *fd)
 }
 
 void
-nsSOCKSSocketInfo::FixupAddressFamily(PRFileDesc *fd, NetAddr *proxy)
+nsSOCKSSocketInfo::FixupAddressFamily(PRFileDesc *fd, PRNetAddr *proxy)
 {
-    int32_t proxyFamily = mInternalProxyAddr.raw.family;
+    int32_t proxyFamily = PR_NetAddrFamily(&mInternalProxyAddr);
     // Do nothing if the address family is already matched
     if (proxyFamily == mDestinationFamily) {
         return;
     }
     // If the system does not support IPv6 and the proxy address is IPv6,
     // We can do nothing here.
-    if (proxyFamily == AF_INET6 && !ipv6Supported) {
+    if (proxyFamily == PR_AF_INET6 && !ipv6Supported) {
         return;
     }
     // If the system does not support IPv6 and the destination address is
     // IPv6, convert IPv4 address to IPv4-mapped IPv6 address to satisfy
     // the emulation layer
-    if (mDestinationFamily == AF_INET6 && !ipv6Supported) {
-        proxy->inet6.family = AF_INET6;
-        proxy->inet6.port = mInternalProxyAddr.inet.port;
-        uint8_t *proxyp = proxy->inet6.ip.u8;
+    if (mDestinationFamily == PR_AF_INET6 && !ipv6Supported) {
+        proxy->ipv6.family = PR_AF_INET6;
+        proxy->ipv6.port = mInternalProxyAddr.inet.port;
+        uint8_t *proxyp = proxy->ipv6.ip.pr_s6_addr;
         memset(proxyp, 0, 10);
         memset(proxyp + 10, 0xff, 2);
         memcpy(proxyp + 12,(char *) &mInternalProxyAddr.inet.ip, 4);
@@ -541,7 +421,7 @@ nsSOCKSSocketInfo::ContinueConnectingToProxy(PRFileDesc *fd, int16_t oflags)
 PRStatus
 nsSOCKSSocketInfo::WriteV4ConnectRequest()
 {
-    NetAddr *addr = &mDestinationAddr;
+    PRNetAddr *addr = &mDestinationAddr;
     int32_t proxy_resolve;
 
     NS_ABORT_IF_FALSE(mState == SOCKS_CONNECTING_TO_PROXY,
@@ -556,39 +436,33 @@ nsSOCKSSocketInfo::WriteV4ConnectRequest()
              proxy_resolve? "yes" : "no"));
 
     // Send a SOCKS 4 connect request.
-    auto buf = Buffer<BUFFER_SIZE>(mData)
-               .WriteUint8(0x04) // version -- 4
-               .WriteUint8(0x01) // command -- connect
-               .WriteNetPort(addr);
-
-    // We don't have anything more to write after the if, so we can
-    // use a buffer with no further writes allowed.
-    Buffer<0> buf3;
+    WriteUint8(0x04); // version -- 4
+    WriteUint8(0x01); // command -- connect
+    WriteNetPort(addr);
     if (proxy_resolve) {
         // Add the full name, null-terminated, to the request
         // according to SOCKS 4a. A fake IP address, with the first
         // four bytes set to 0 and the last byte set to something other
         // than 0, is used to notify the proxy that this is a SOCKS 4a
         // request. This request type works for Tor and perhaps others.
-        auto buf2 = buf.WriteUint32(htonl(0x00000001)) // Fake IP
-                       .WriteUint8(0x00) // Send an emtpy username
-                       .WriteString<MAX_HOSTNAME_LEN>(mDestinationHost); // Hostname
-        if (!buf2) {
+        WriteUint32(PR_htonl(0x00000001)); // Fake IP
+        WriteUint8(0x00); // Send an emtpy username
+        if (mDestinationHost.Length() > MAX_HOSTNAME_LEN) {
             LOGERROR(("socks4: destination host name is too long!"));
             HandshakeFinished(PR_BAD_ADDRESS_ERROR);
             return PR_FAILURE;
         }
-        buf3 = buf2.WriteUint8(0x00);
-    } else if (addr->raw.family == AF_INET) {
-        buf3 = buf.WriteNetAddr(addr) // Add the IPv4 address
-                  .WriteUint8(0x00); // Send an emtpy username
-    } else {
-        LOGERROR(("socks: SOCKS 4 can only handle IPv4 addresses!"));
+        WriteString(mDestinationHost); // Hostname
+        WriteUint8(0x00);
+    } else if (PR_NetAddrFamily(addr) == PR_AF_INET) {
+        WriteNetAddr(addr); // Add the IPv4 address
+        WriteUint8(0x00); // Send an emtpy username
+    } else if (PR_NetAddrFamily(addr) == PR_AF_INET6) {
+        LOGERROR(("socks: SOCKS 4 can't handle IPv6 addresses!"));
         HandshakeFinished(PR_BAD_ADDRESS_ERROR);
         return PR_FAILURE;
     }
 
-    mDataLength = buf3.Written();
     return PR_SUCCESS;
 }
 
@@ -629,11 +503,9 @@ nsSOCKSSocketInfo::WriteV5AuthRequest()
 
     // Send an initial SOCKS 5 greeting
     LOGDEBUG(("socks5: sending auth methods"));
-    mDataLength = Buffer<BUFFER_SIZE>(mData)
-                  .WriteUint8(0x05) // version -- 5
-                  .WriteUint8(0x01) // # auth methods -- 1
-                  .WriteUint8(0x00) // we don't support authentication
-                  .Written();
+    WriteUint8(0x05); // version -- 5
+    WriteUint8(0x01); // # auth methods -- 1
+    WriteUint8(0x00); // we don't support authentication
 
     return PR_SUCCESS;
 }
@@ -669,7 +541,7 @@ PRStatus
 nsSOCKSSocketInfo::WriteV5ConnectRequest()
 {
     // Send SOCKS 5 connect request
-    NetAddr *addr = &mDestinationAddr;
+    PRNetAddr *addr = &mDestinationAddr;
     int32_t proxy_resolve;
     proxy_resolve = mFlags & nsISocketProvider::PROXY_RESOLVES_HOST;
 
@@ -679,41 +551,36 @@ nsSOCKSSocketInfo::WriteV5ConnectRequest()
     mDataLength = 0;
     mState = SOCKS5_WRITE_CONNECT_REQUEST;
 
-    auto buf = Buffer<BUFFER_SIZE>(mData)
-               .WriteUint8(0x05) // version -- 5
-               .WriteUint8(0x01) // command -- connect
-               .WriteUint8(0x00); // reserved
+    WriteUint8(0x05); // version -- 5
+    WriteUint8(0x01); // command -- connect
+    WriteUint8(0x00); // reserved
    
-    // We're writing a net port after the if, so we need a buffer allowing
-    // to write that much.
-    Buffer<sizeof(uint16_t)> buf2;
     // Add the address to the SOCKS 5 request. SOCKS 5 supports several
     // address types, so we pick the one that works best for us.
     if (proxy_resolve) {
         // Add the host name. Only a single byte is used to store the length,
         // so we must prevent long names from being used.
-        buf2 = buf.WriteUint8(0x03) // addr type -- domainname
-                  .WriteUint8(mDestinationHost.Length()) // name length
-                  .WriteString<MAX_HOSTNAME_LEN>(mDestinationHost); // Hostname
-        if (!buf2) {
+        if (mDestinationHost.Length() > MAX_HOSTNAME_LEN) {
             LOGERROR(("socks5: destination host name is too long!"));
             HandshakeFinished(PR_BAD_ADDRESS_ERROR);
             return PR_FAILURE;
         }
-    } else if (addr->raw.family == AF_INET) {
-        buf2 = buf.WriteUint8(0x01) // addr type -- IPv4
-                  .WriteNetAddr(addr);
-    } else if (addr->raw.family == AF_INET6) {
-        buf2 = buf.WriteUint8(0x04) // addr type -- IPv6
-                  .WriteNetAddr(addr);
+        WriteUint8(0x03); // addr type -- domainname
+        WriteUint8(mDestinationHost.Length()); // name length
+        WriteString(mDestinationHost);
+    } else if (PR_NetAddrFamily(addr) == PR_AF_INET) {
+        WriteUint8(0x01); // addr type -- IPv4
+        WriteNetAddr(addr);
+    } else if (PR_NetAddrFamily(addr) == PR_AF_INET6) {
+        WriteUint8(0x04); // addr type -- IPv6
+        WriteNetAddr(addr);
     } else {
         LOGERROR(("socks5: destination address of unknown type!"));
         HandshakeFinished(PR_BAD_ADDRESS_ERROR);
         return PR_FAILURE;
     }
 
-    auto buf3 = buf2.WriteNetPort(addr); // port
-    mDataLength = buf3.Written();
+    WriteNetPort(addr); // port
 
     return PR_SUCCESS;
 }
@@ -848,14 +715,14 @@ nsSOCKSSocketInfo::ReadV5ConnectResponseBottom()
     // Read what the proxy says is our source address
     switch (type) {
         case 0x01: // ipv4
-            ReadNetAddr(&mExternalProxyAddr, AF_INET);
+            ReadNetAddr(&mExternalProxyAddr, PR_AF_INET);
             break;
         case 0x04: // ipv6
-            ReadNetAddr(&mExternalProxyAddr, AF_INET6);
+            ReadNetAddr(&mExternalProxyAddr, PR_AF_INET6);
             break;
         case 0x03: // fqdn (skip)
             mReadOffset += len;
-            mExternalProxyAddr.raw.family = AF_INET;
+            mExternalProxyAddr.raw.family = PR_AF_INET;
             break;
     }
 
@@ -967,12 +834,76 @@ nsSOCKSSocketInfo::GetPollFlags() const
     return 0;
 }
 
+inline void
+nsSOCKSSocketInfo::WriteUint8(uint8_t v)
+{
+    NS_ABORT_IF_FALSE(mDataLength + sizeof(v) <= BUFFER_SIZE,
+                      "Can't write that much data!");
+    mData[mDataLength] = v;
+    mDataLength += sizeof(v);
+}
+
+inline void
+nsSOCKSSocketInfo::WriteUint16(uint16_t v)
+{
+    NS_ABORT_IF_FALSE(mDataLength + sizeof(v) <= BUFFER_SIZE,
+                      "Can't write that much data!");
+    memcpy(mData + mDataLength, &v, sizeof(v));
+    mDataLength += sizeof(v);
+}
+
+inline void
+nsSOCKSSocketInfo::WriteUint32(uint32_t v)
+{
+    NS_ABORT_IF_FALSE(mDataLength + sizeof(v) <= BUFFER_SIZE,
+                      "Can't write that much data!");
+    memcpy(mData + mDataLength, &v, sizeof(v));
+    mDataLength += sizeof(v);
+}
+
+void
+nsSOCKSSocketInfo::WriteNetAddr(const PRNetAddr *addr)
+{
+    const char *ip = NULL;
+    uint32_t len = 0;
+
+    if (PR_NetAddrFamily(addr) == PR_AF_INET) {
+        ip = (const char*)&addr->inet.ip;
+        len = sizeof(addr->inet.ip);
+    } else if (PR_NetAddrFamily(addr) == PR_AF_INET6) {
+        ip = (const char*)addr->ipv6.ip.pr_s6_addr;
+        len = sizeof(addr->ipv6.ip.pr_s6_addr);
+    }
+
+    NS_ABORT_IF_FALSE(ip != NULL, "Unknown address");
+    NS_ABORT_IF_FALSE(mDataLength + len <= BUFFER_SIZE,
+                      "Can't write that much data!");
+ 
+    memcpy(mData + mDataLength, ip, len);
+    mDataLength += len;
+}
+
+void
+nsSOCKSSocketInfo::WriteNetPort(const PRNetAddr *addr)
+{
+    WriteUint16(PR_NetAddrInetPort(addr));
+}
+
+void
+nsSOCKSSocketInfo::WriteString(const nsACString &str)
+{
+    NS_ABORT_IF_FALSE(mDataLength + str.Length() <= BUFFER_SIZE,
+                      "Can't write that much data!");
+    memcpy(mData + mDataLength, str.Data(), str.Length());
+    mDataLength += str.Length();
+}
+
 inline uint8_t
 nsSOCKSSocketInfo::ReadUint8()
 {
     uint8_t rv;
     NS_ABORT_IF_FALSE(mReadOffset + sizeof(rv) <= mDataLength,
-                      "Not enough space to pop a uint8_t!");
+                      "Not enough space to pop a uint8!");
     rv = mData[mReadOffset];
     mReadOffset += sizeof(rv);
     return rv;
@@ -983,7 +914,7 @@ nsSOCKSSocketInfo::ReadUint16()
 {
     uint16_t rv;
     NS_ABORT_IF_FALSE(mReadOffset + sizeof(rv) <= mDataLength,
-                      "Not enough space to pop a uint16_t!");
+                      "Not enough space to pop a uint16!");
     memcpy(&rv, mData + mReadOffset, sizeof(rv));
     mReadOffset += sizeof(rv);
     return rv;
@@ -994,36 +925,36 @@ nsSOCKSSocketInfo::ReadUint32()
 {
     uint32_t rv;
     NS_ABORT_IF_FALSE(mReadOffset + sizeof(rv) <= mDataLength,
-                      "Not enough space to pop a uint32_t!");
+                      "Not enough space to pop a uint32!");
     memcpy(&rv, mData + mReadOffset, sizeof(rv));
     mReadOffset += sizeof(rv);
     return rv;
 }
 
 void
-nsSOCKSSocketInfo::ReadNetAddr(NetAddr *addr, uint16_t fam)
+nsSOCKSSocketInfo::ReadNetAddr(PRNetAddr *addr, uint16_t fam)
 {
-    uint32_t amt = 0;
+    uint32_t amt;
     const uint8_t *ip = mData + mReadOffset;
 
     addr->raw.family = fam;
-    if (fam == AF_INET) {
+    if (fam == PR_AF_INET) {
         amt = sizeof(addr->inet.ip);
         NS_ABORT_IF_FALSE(mReadOffset + amt <= mDataLength,
                           "Not enough space to pop an ipv4 addr!");
         memcpy(&addr->inet.ip, ip, amt);
-    } else if (fam == AF_INET6) {
-        amt = sizeof(addr->inet6.ip.u8);
+    } else if (fam == PR_AF_INET6) {
+        amt = sizeof(addr->ipv6.ip.pr_s6_addr);
         NS_ABORT_IF_FALSE(mReadOffset + amt <= mDataLength,
                           "Not enough space to pop an ipv6 addr!");
-        memcpy(addr->inet6.ip.u8, ip, amt);
+        memcpy(addr->ipv6.ip.pr_s6_addr, ip, amt);
     }
 
     mReadOffset += amt;
 }
 
 void
-nsSOCKSSocketInfo::ReadNetPort(NetAddr *addr)
+nsSOCKSSocketInfo::ReadNetPort(PRNetAddr *addr)
 {
     addr->inet.port = ReadUint16();
 }
@@ -1031,7 +962,7 @@ nsSOCKSSocketInfo::ReadNetPort(NetAddr *addr)
 void
 nsSOCKSSocketInfo::WantRead(uint32_t sz)
 {
-    NS_ABORT_IF_FALSE(mDataIoPtr == nullptr,
+    NS_ABORT_IF_FALSE(mDataIoPtr == NULL,
                       "WantRead() called while I/O already in progress!");
     NS_ABORT_IF_FALSE(mDataLength + sz <= BUFFER_SIZE,
                       "Can't read that much data!");
@@ -1126,24 +1057,22 @@ static PRStatus
 nsSOCKSIOLayerConnect(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime to)
 {
     PRStatus status;
-    NetAddr dst;
+    PRNetAddr dst;
 
     nsSOCKSSocketInfo * info = (nsSOCKSSocketInfo*) fd->secret;
-    if (info == nullptr) return PR_FAILURE;
+    if (info == NULL) return PR_FAILURE;
 
-    if (addr->raw.family == PR_AF_INET6 &&
+    if (PR_NetAddrFamily(addr) == PR_AF_INET6 &&
         PR_IsNetAddrType(addr, PR_IpAddrV4Mapped)) {
         const uint8_t *srcp;
 
         LOGDEBUG(("socks: converting ipv4-mapped ipv6 address to ipv4"));
 
         // copied from _PR_ConvertToIpv4NetAddr()
-        dst.raw.family = AF_INET;
-        dst.inet.ip = htonl(INADDR_ANY);
-        dst.inet.port = htons(0);
+        PR_InitializeNetAddr(PR_IpAddrAny, 0, &dst);
         srcp = addr->ipv6.ip.pr_s6_addr;
         memcpy(&dst.inet.ip, srcp + 12, 4);
-        dst.inet.family = AF_INET;
+        dst.inet.family = PR_AF_INET;
         dst.inet.port = addr->ipv6.port;
     } else {
         memcpy(&dst, addr, sizeof(dst));
@@ -1165,7 +1094,7 @@ nsSOCKSIOLayerConnectContinue(PRFileDesc *fd, int16_t oflags)
     PRStatus status;
 
     nsSOCKSSocketInfo * info = (nsSOCKSSocketInfo*) fd->secret;
-    if (info == nullptr) return PR_FAILURE;
+    if (info == NULL) return PR_FAILURE;
 
     do { 
         status = info->DoHandshake(fd, oflags);
@@ -1178,7 +1107,7 @@ static int16_t
 nsSOCKSIOLayerPoll(PRFileDesc *fd, int16_t in_flags, int16_t *out_flags)
 {
     nsSOCKSSocketInfo * info = (nsSOCKSSocketInfo*) fd->secret;
-    if (info == nullptr) return PR_FAILURE;
+    if (info == NULL) return PR_FAILURE;
 
     if (!info->IsConnected()) {
         *out_flags = 0;
@@ -1196,7 +1125,6 @@ nsSOCKSIOLayerClose(PRFileDesc *fd)
 
     if (info && id == nsSOCKSIOLayerIdentity)
     {
-        info->ForgetFD();
         NS_RELEASE(info);
         fd->identity = PR_INVALID_IO_LAYER;
     }
@@ -1230,13 +1158,9 @@ nsSOCKSIOLayerGetName(PRFileDesc *fd, PRNetAddr *addr)
 {
     nsSOCKSSocketInfo * info = (nsSOCKSSocketInfo*) fd->secret;
     
-    if (info != nullptr && addr != nullptr) {
-        NetAddr temp;
-        NetAddr *tempPtr = &temp;
-        if (info->GetExternalProxyAddr(&tempPtr) == NS_OK) {
-            NetAddrToPRNetAddr(tempPtr, addr);
+    if (info != NULL && addr != NULL) {
+        if (info->GetExternalProxyAddr(&addr) == NS_OK)
             return PR_SUCCESS;
-        }
     }
 
     return PR_FAILURE;
@@ -1247,13 +1171,9 @@ nsSOCKSIOLayerGetPeerName(PRFileDesc *fd, PRNetAddr *addr)
 {
     nsSOCKSSocketInfo * info = (nsSOCKSSocketInfo*) fd->secret;
 
-    if (info != nullptr && addr != nullptr) {
-        NetAddr temp;
-        NetAddr *tempPtr = &temp;
-        if (info->GetDestinationAddr(&tempPtr) == NS_OK) {
-            NetAddrToPRNetAddr(tempPtr, addr);
+    if (info != NULL && addr != NULL) {
+        if (info->GetDestinationAddr(&addr) == NS_OK)
             return PR_SUCCESS;
-        }
     }
 
     return PR_FAILURE;
@@ -1295,21 +1215,21 @@ nsSOCKSIOLayerAddToSocket(int32_t family,
             PR_Close(tmpfd);
         }
 
-        nsSOCKSIOLayerIdentity = PR_GetUniqueIdentity("SOCKS layer");
-        nsSOCKSIOLayerMethods = *PR_GetDefaultIOMethods();
+        nsSOCKSIOLayerIdentity		= PR_GetUniqueIdentity("SOCKS layer");
+        nsSOCKSIOLayerMethods		= *PR_GetDefaultIOMethods();
 
-        nsSOCKSIOLayerMethods.connect = nsSOCKSIOLayerConnect;
-        nsSOCKSIOLayerMethods.connectcontinue = nsSOCKSIOLayerConnectContinue;
-        nsSOCKSIOLayerMethods.poll = nsSOCKSIOLayerPoll;
-        nsSOCKSIOLayerMethods.bind = nsSOCKSIOLayerBind;
+        nsSOCKSIOLayerMethods.connect	= nsSOCKSIOLayerConnect;
+        nsSOCKSIOLayerMethods.connectcontinue	= nsSOCKSIOLayerConnectContinue;
+        nsSOCKSIOLayerMethods.poll	= nsSOCKSIOLayerPoll;
+        nsSOCKSIOLayerMethods.bind	= nsSOCKSIOLayerBind;
         nsSOCKSIOLayerMethods.acceptread = nsSOCKSIOLayerAcceptRead;
         nsSOCKSIOLayerMethods.getsockname = nsSOCKSIOLayerGetName;
         nsSOCKSIOLayerMethods.getpeername = nsSOCKSIOLayerGetPeerName;
-        nsSOCKSIOLayerMethods.accept = nsSOCKSIOLayerAccept;
-        nsSOCKSIOLayerMethods.listen = nsSOCKSIOLayerListen;
-        nsSOCKSIOLayerMethods.close = nsSOCKSIOLayerClose;
+        nsSOCKSIOLayerMethods.accept	= nsSOCKSIOLayerAccept;
+        nsSOCKSIOLayerMethods.listen	= nsSOCKSIOLayerListen;
+        nsSOCKSIOLayerMethods.close	= nsSOCKSIOLayerClose;
 
-        firstTime = false;
+        firstTime			= false;
 
 #if defined(PR_LOGGING)
         gSOCKSLog = PR_NewLogModule("SOCKS");
@@ -1319,8 +1239,8 @@ nsSOCKSIOLayerAddToSocket(int32_t family,
 
     LOGDEBUG(("Entering nsSOCKSIOLayerAddToSocket()."));
 
-    PRFileDesc *layer;
-    PRStatus rv;
+    PRFileDesc *	layer;
+    PRStatus	rv;
 
     layer = PR_CreateIOLayerStub(nsSOCKSIOLayerIdentity, &nsSOCKSIOLayerMethods);
     if (! layer)

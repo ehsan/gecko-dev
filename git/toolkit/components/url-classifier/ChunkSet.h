@@ -15,10 +15,9 @@ namespace mozilla {
 namespace safebrowsing {
 
 /**
- * Store the chunk numbers as an array of uint32_t. We need chunk numbers in
- * order to ask for incremental updates from the server.
- * XXX: We should optimize this further to compress the many consecutive
- * numbers.
+ * Store the chunks as an array of uint32.
+ * XXX: We should optimize this further to compress the
+ * many consecutive numbers.
  */
 class ChunkSet {
 public:
@@ -34,7 +33,7 @@ public:
 
   bool Has(uint32_t chunk) const;
 
-  uint32_t Length() const { return mChunks.Length(); }
+  uint32 Length() const { return mChunks.Length(); }
 
   nsresult Write(nsIOutputStream* aOut) {
     return WriteTArray(aOut, mChunks);
@@ -44,11 +43,11 @@ public:
     return ReadTArray(aIn, &mChunks, aNumElements);
   }
 
-  uint32_t *Begin() { return mChunks.Elements(); }
-  uint32_t *End() { return mChunks.Elements() + mChunks.Length(); }
+  uint32 *Begin() { return mChunks.Elements(); }
+  uint32 *End() { return mChunks.Elements() + mChunks.Length(); }
 
 private:
-  nsTArray<uint32_t> mChunks;
+  nsTArray<uint32> mChunks;
 };
 
 }

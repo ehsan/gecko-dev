@@ -3,7 +3,7 @@ function f() {
         for (var i = 0; i < 3; i++)
         x = i;
     };
-    var [x] = [];
+    var [x] = 0;
     g();
     assertEq(x, 2);
     print(x);

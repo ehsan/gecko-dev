@@ -24,7 +24,6 @@
 #include "mozStoragePrivateHelpers.h"
 #include "mozStorageStatementRow.h"
 #include "mozStorageStatement.h"
-#include "nsDOMClassInfo.h"
 
 #include "prlog.h"
 
@@ -38,18 +37,18 @@ namespace storage {
 ////////////////////////////////////////////////////////////////////////////////
 //// nsIClassInfo
 
-NS_IMPL_CI_INTERFACE_GETTER(AsyncStatement,
-                            mozIStorageAsyncStatement,
-                            mozIStorageBaseStatement,
-                            mozIStorageBindingParams,
-                            mozilla::storage::StorageBaseStatementInternal)
+NS_IMPL_CI_INTERFACE_GETTER4(
+  AsyncStatement
+, mozIStorageAsyncStatement
+, mozIStorageBaseStatement
+, mozIStorageBindingParams
+, mozilla::storage::StorageBaseStatementInternal
+)
 
 class AsyncStatementClassInfo : public nsIClassInfo
 {
 public:
-  MOZ_CONSTEXPR AsyncStatementClassInfo() {}
-
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
 
   NS_IMETHODIMP
   GetInterfaces(uint32_t *_count, nsIID ***_array)
@@ -112,9 +111,9 @@ public:
   }
 };
 
-NS_IMETHODIMP_(MozExternalRefCountType) AsyncStatementClassInfo::AddRef() { return 2; }
-NS_IMETHODIMP_(MozExternalRefCountType) AsyncStatementClassInfo::Release() { return 1; }
-NS_IMPL_QUERY_INTERFACE(AsyncStatementClassInfo, nsIClassInfo)
+NS_IMETHODIMP_(nsrefcnt) AsyncStatementClassInfo::AddRef() { return 2; }
+NS_IMETHODIMP_(nsrefcnt) AsyncStatementClassInfo::Release() { return 1; }
+NS_IMPL_QUERY_INTERFACE1(AsyncStatementClassInfo, nsIClassInfo)
 
 static AsyncStatementClassInfo sAsyncStatementClassInfo;
 
@@ -129,19 +128,19 @@ AsyncStatement::AsyncStatement()
 
 nsresult
 AsyncStatement::initialize(Connection *aDBConnection,
-                           sqlite3 *aNativeConnection,
                            const nsACString &aSQLStatement)
 {
-  MOZ_ASSERT(aDBConnection, "No database connection given!");
-  MOZ_ASSERT(!aDBConnection->isClosed(), "Database connection should be valid");
-  MOZ_ASSERT(aNativeConnection, "No native connection given!");
+  NS_ASSERTION(aDBConnection, "No database connection given!");
+  NS_ASSERTION(aDBConnection->GetNativeConnection(),
+               "We should never be called with a null sqlite3 database!");
 
   mDBConnection = aDBConnection;
-  mNativeConnection = aNativeConnection;
   mSQLString = aSQLStatement;
 
+#ifdef PR_LOGGING
   PR_LOG(gStorageLog, PR_LOG_NOTICE, ("Inited async statement '%s' (0x%p)",
                                       mSQLString.get()));
+#endif
 
 #ifdef DEBUG
   // We want to try and test for LIKE and that consumers are using
@@ -263,8 +262,8 @@ AsyncStatement::cleanupJSHelpers()
 ////////////////////////////////////////////////////////////////////////////////
 //// nsISupports
 
-NS_IMPL_ADDREF(AsyncStatement)
-NS_IMPL_RELEASE(AsyncStatement)
+NS_IMPL_THREADSAFE_ADDREF(AsyncStatement)
+NS_IMPL_THREADSAFE_RELEASE(AsyncStatement)
 
 NS_INTERFACE_MAP_BEGIN(AsyncStatement)
   NS_INTERFACE_MAP_ENTRY(mozIStorageAsyncStatement)
@@ -300,20 +299,24 @@ AsyncStatement::getAsyncStatement(sqlite3_stmt **_stmt)
 #endif
 
   if (!mAsyncStatement) {
-    int rc = mDBConnection->prepareStatement(mNativeConnection, mSQLString,
-                                             &mAsyncStatement);
+    int rc = mDBConnection->prepareStatement(mSQLString, &mAsyncStatement);
     if (rc != SQLITE_OK) {
+#ifdef PR_LOGGING
       PR_LOG(gStorageLog, PR_LOG_ERROR,
              ("Sqlite statement prepare error: %d '%s'", rc,
-              ::sqlite3_errmsg(mNativeConnection)));
+              ::sqlite3_errmsg(mDBConnection->GetNativeConnection())));
       PR_LOG(gStorageLog, PR_LOG_ERROR,
              ("Statement was: '%s'", mSQLString.get()));
+#endif
       *_stmt = nullptr;
       return rc;
     }
+
+#ifdef PR_LOGGING
     PR_LOG(gStorageLog, PR_LOG_NOTICE, ("Initialized statement '%s' (0x%p)",
                                         mSQLString.get(),
                                         mAsyncStatement));
+#endif
   }
 
   *_stmt = mAsyncStatement;
@@ -365,8 +368,10 @@ AsyncStatement::Finalize()
 
   mFinalized = true;
 
+#ifdef PR_LOGGING
   PR_LOG(gStorageLog, PR_LOG_NOTICE, ("Finalizing statement '%s'",
                                       mSQLString.get()));
+#endif
 
   asyncFinalize();
   cleanupJSHelpers();

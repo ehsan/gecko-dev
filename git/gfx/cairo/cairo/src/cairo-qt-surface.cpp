@@ -56,6 +56,7 @@
 #include <QtGui/QPixmap>
 #include <QtGui/QBrush>
 #include <QtGui/QPen>
+#include <QWidget>
 #include <QtCore/QVarLengthArray>
 
 #include <sys/time.h>
@@ -588,6 +589,8 @@ _cairo_qt_surface_acquire_dest_image (void *abstract_surface,
             qimg = new QImage(((QImage*) pd)->copy());
         } else if (pd->devType() == QInternal::Pixmap) {
             qimg = new QImage(((QPixmap*) pd)->toImage());
+        } else if (pd->devType() == QInternal::Widget) {
+            qimg = new QImage(QPixmap::grabWindow(((QWidget*)pd)->winId()).toImage());
         }
     }
 
@@ -725,7 +728,7 @@ _cairo_qt_surface_set_clip_region (cairo_qt_surface_t *qs,
 	    cairo_region_get_rectangle (clip_region, i, &rect);
 
 	    QRect r(rect.x, rect.y, rect.width, rect.height);
-	    qr = qr.united(r);
+	    qr = qr.unite(r);
 	}
 
 	qs->p->setClipRegion (qr, Qt::IntersectClip);
@@ -1730,9 +1733,9 @@ cairo_qt_surface_get_image (cairo_surface_t *surface)
  *
  * - Figure out why QBrush isn't working with non-repeated images
  *
- * - Correct repeat mode; right now, every surface source is ExtendMode::REPEAT
+ * - Correct repeat mode; right now, every surface source is EXTEND_REPEAT
  *   - implement EXTEND_NONE (?? probably need to clip to the extents of the source)
- *   - implement ExtendMode::REFLECT (create temporary and copy 4x, then ExtendMode::REPEAT that)
+ *   - implement EXTEND_REFLECT (create temporary and copy 4x, then EXTEND_REPEAT that)
  *
  * - stroke-image failure
  *

@@ -13,40 +13,41 @@
 #include "nsIAlarmHalService.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
+#include "prtime.h"
 
 namespace mozilla {
 namespace dom {
 namespace alarm {
-  
-typedef Observer<void_t> AlarmObserver;
-typedef Observer<hal::SystemTimezoneChangeInformation> SystemTimezoneChangeObserver;
 
 class AlarmHalService : public nsIAlarmHalService, 
-                        public AlarmObserver,
-                        public SystemTimezoneChangeObserver
+                        mozilla::hal::AlarmObserver
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIALARMHALSERVICE
 
   void Init();
-
-  static already_AddRefed<AlarmHalService> GetInstance();
-
-  // Implementing hal::AlarmObserver
-  void Notify(const void_t& aVoid);
-
-  // Implementing hal::SystemTimezoneChangeObserver
-  void Notify(const hal::SystemTimezoneChangeInformation& aSystemTimezoneChangeInfo);
-
-private:
   virtual ~AlarmHalService();
 
+  static already_AddRefed<nsIAlarmHalService> GetInstance();
+
+  // Implementing hal::AlarmObserver
+  void Notify(const mozilla::void_t& aVoid);
+
+private:
   bool mAlarmEnabled;
+  nsCOMPtr<nsIAlarmFiredCb> mAlarmFiredCb;
   static StaticRefPtr<AlarmHalService> sSingleton;
 
-  nsCOMPtr<nsIAlarmFiredCb> mAlarmFiredCb;
+  // TODO The mTimezoneChangedCb would be called 
+  // when a timezone-changed event is detected 
+  // at run-time. To do so, we can register a 
+  // timezone-changed observer, see bug 714358.
+  // We need to adjust the alarm time respect to
+  // the correct timezone where user is located.
   nsCOMPtr<nsITimezoneChangedCb> mTimezoneChangedCb;
+
+  int32_t GetTimezoneOffset(bool aIgnoreDST);
 };
 
 } // namespace alarm

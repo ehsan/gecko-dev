@@ -15,9 +15,8 @@
 
 #include "nscore.h"
 #include "nsDebug.h"
-#include "nsAutoPtr.h"
 
-#include "ipc/IPCMessageUtils.h"
+#include "IPC/IPCMessageUtils.h"
 #include "mozilla/ipc/SharedMemory.h"
 
 /**
@@ -55,30 +54,22 @@
  */
 
 namespace mozilla {
-namespace layers {
-class ShadowLayerForwarder;
-}
-
 namespace ipc {
 
 class Shmem MOZ_FINAL
 {
   friend struct IPC::ParamTraits<mozilla::ipc::Shmem>;
-#ifdef DEBUG
-  // For ShadowLayerForwarder::CheckSurfaceDescriptor
-  friend class mozilla::layers::ShadowLayerForwarder;
-#endif
 
 public:
-  typedef int32_t id_t;
+  typedef int32 id_t;
   // Low-level wrapper around platform shmem primitives.
   typedef mozilla::ipc::SharedMemory SharedMemory;
   typedef SharedMemory::SharedMemoryType SharedMemoryType;
   struct IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead {};
 
   Shmem() :
-    mSegment(nullptr),
-    mData(nullptr),
+    mSegment(0),
+    mData(0),
     mSize(0),
     mId(0)
   {
@@ -139,7 +130,7 @@ public:
   bool
   IsWritable() const
   {
-    return mSegment != nullptr;
+    return mSegment != NULL;
   }
 
   // Returns whether this Shmem is readable by you, and thus whether you can
@@ -147,7 +138,7 @@ public:
   bool
   IsReadable() const
   {
-    return mSegment != nullptr;
+    return mSegment != NULL;
   }
 
   // Return a pointer to the user-visible data segment.
@@ -196,13 +187,13 @@ public:
 
   void forget(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead)
   {
-    mSegment = nullptr;
-    mData = nullptr;
+    mSegment = 0;
+    mData = 0;
     mSize = 0;
     mId = 0;
   }
 
-  static already_AddRefed<Shmem::SharedMemory>
+  static SharedMemory*
   Alloc(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
         size_t aNBytes,
         SharedMemoryType aType,
@@ -212,26 +203,26 @@ public:
   // Prepare this to be shared with |aProcess|.  Return an IPC message
   // that contains enough information for the other process to map
   // this segment in OpenExisting() below.  Return a new message if
-  // successful (owned by the caller), nullptr if not.
+  // successful (owned by the caller), NULL if not.
   IPC::Message*
   ShareTo(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
           base::ProcessHandle aProcess,
-          int32_t routingId);
+          int32 routingId);
 
   // Stop sharing this with |aProcess|.  Return an IPC message that
   // contains enough information for the other process to unmap this
   // segment.  Return a new message if successful (owned by the
-  // caller), nullptr if not.
+  // caller), NULL if not.
   IPC::Message*
   UnshareFrom(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
               base::ProcessHandle aProcess,
-              int32_t routingId);
+              int32 routingId);
 
   // Return a SharedMemory instance in this process using the
   // descriptor shared to us by the process that created the
   // underlying OS shmem resource.  The contents of the descriptor
   // depend on the type of SharedMemory that was passed to us.
-  static already_AddRefed<SharedMemory>
+  static SharedMemory*
   OpenExisting(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
                const IPC::Message& aDescriptor,
                id_t* aId,
@@ -253,12 +244,12 @@ private:
   void AssertInvariants() const
   { }
 
-  static uint32_t*
+  static uint32*
   PtrToSize(SharedMemory* aSegment)
   {
     char* endOfSegment =
       reinterpret_cast<char*>(aSegment->memory()) + aSegment->Size();
-    return reinterpret_cast<uint32_t*>(endOfSegment - sizeof(uint32_t));
+    return reinterpret_cast<uint32*>(endOfSegment - sizeof(uint32));
   }
 
 #else

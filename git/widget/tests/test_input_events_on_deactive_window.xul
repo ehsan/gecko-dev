@@ -153,18 +153,20 @@ function startTests()
     is(textarea.value, "", "textarea value isn't empty");
 
     // IME events
+    const nsIDOMWindowUtils = Components.interfaces.nsIDOMWindowUtils;
     clear();
     // start composition
     synthesizeComposition({ type: "compositionstart" });
     checkCompositionEvents(true, false, false, false, "compositionstart");
     clear();
     // input first character
-    synthesizeCompositionChange(
+    synthesizeComposition({ type: "compositionupdate", data: "\u3089" });
+    synthesizeText(
       { "composition":
         { "string": "\u3089",
           "clauses":
           [
-            { "length": 1, "attr": COMPOSITION_ATTR_RAWINPUT }
+            { "length": 1, "attr": nsIDOMWindowUtils.COMPOSITION_ATTR_RAWINPUT }
           ]
         },
         "caret": { "start": 1, "length": 0 }
@@ -195,8 +197,17 @@ function startTests()
        "query selected text event returns wrong selected text");
     clear();
     // commit composition
-    synthesizeComposition({ type: "compositioncommitasis" });
-    checkCompositionEvents(false, true, false, true, "commit composition as is");
+    synthesizeText(
+      { "composition":
+        { "string": "\u3089",
+          "clauses":
+          [
+            { "length": 0, "attr": 0 }
+          ]
+        },
+        "caret": { "start": 1, "length": 0 }
+      });
+    checkCompositionEvents(false, false, false, false, "commit composition");
     queryText = synthesizeQueryTextContent(0, 100);
     ok(queryText, "query text event result is null after commit");
     if (!queryText) {
@@ -223,6 +234,9 @@ function startTests()
     is(querySelectedText.text, "",
        "query selected text event returns wrong selected text after commit");
     clear();
+    // end composition
+    synthesizeComposition({ type: "compositionend", data: "\u3089" });
+    checkCompositionEvents(false, true, false, true, "compositionend");
   }
 
   textarea.removeEventListener("keydown", onEvent, false);

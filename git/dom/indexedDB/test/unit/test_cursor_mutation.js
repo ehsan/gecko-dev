@@ -27,7 +27,7 @@ function testSteps()
   let request = indexedDB.open(this.window ? window.location.pathname : "Splendid Test", 1);
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
-  let event = yield undefined;
+  let event = yield;
 
   let db = event.target.result;
   event.target.onsuccess = continueToNextStep;
@@ -38,7 +38,7 @@ function testSteps()
   for (let i = 0; i < objectStoreData.length - 1; i++) {
     objectStore.add(objectStoreData[i]);
   }
-  yield undefined;
+  yield;
 
   let count = 0;
 
@@ -61,7 +61,7 @@ function testSteps()
         count++;
       }
     };
-  yield undefined;
+  yield;
 
   is(count, objectStoreData.length - 1, "Good initial count");
   is(sawAdded, false, "Didn't see item that is about to be added");
@@ -104,15 +104,12 @@ function testSteps()
         }
       }
     };
-  yield undefined;
+  yield;
 
   is(count, objectStoreData.length - 1, "Good final count");
   is(sawAdded, true, "Saw item that was added");
   is(sawRemoved, false, "Didn't see item that was removed");
 
   finishTest();
-
-  objectStore = null; // Bug 943409 workaround.
-
-  yield undefined;
+  yield;
 }

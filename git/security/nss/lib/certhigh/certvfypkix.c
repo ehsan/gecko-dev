@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Sun Microsystems
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 /*
  * nss_pkix_proxy.h
  *
@@ -26,6 +59,20 @@
 #include "pkix_pl_common.h"
 
 extern PRLogModuleInfo *pkixLog;
+
+#ifdef DEBUG_volkov
+/* Temporary declarations of functioins. Will be removed with fix for
+ * 391183 */
+extern char *
+pkix_Error2ASCII(PKIX_Error *error, void *plContext);
+
+extern void
+cert_PrintCert(PKIX_PL_Cert *pkixCert, void *plContext);
+
+extern PKIX_Error *
+cert_PrintCertChain(PKIX_List *pkixCertChain, void *plContext);
+
+#endif /* DEBUG */
 
 #ifdef PKIX_OBJECT_LEAK_TEST
 
@@ -636,7 +683,7 @@ cert_PkixToNssCertsChain(
     CERTCertList **pvalidChain, 
     void *plContext)
 {
-    PLArenaPool     *arena = NULL;
+    PRArenaPool     *arena = NULL;
     CERTCertificate *nssCert = NULL;
     CERTCertList    *validChain = NULL;
     PKIX_PL_Object  *certItem = NULL;
@@ -884,6 +931,11 @@ cert_GetLogFromVerifyNode(
     if (children == NULL) {
         PKIX_ERRORCODE errCode = PKIX_ANCHORDIDNOTCHAINTOCERT;
         if (node->error && node->error->errCode != errCode) {
+#ifdef DEBUG_volkov
+            char *string = pkix_Error2ASCII(node->error, plContext);
+            fprintf(stderr, "Branch search finished with error: \t%s\n", string);
+            PKIX_PL_Free(string, NULL);
+#endif
             if (log != NULL) {
                 SECErrorCodes nssErrorCode = 0;
                 CERTCertificate *cert = NULL;
@@ -984,6 +1036,9 @@ cert_GetBuildResults(
     PKIX_TrustAnchor    *trustAnchor = NULL;
     PKIX_PL_Cert        *trustedCert = NULL;
     PKIX_List           *pkixCertChain = NULL;
+#ifdef DEBUG_volkov
+    PKIX_Error          *tmpPkixError = NULL;
+#endif /* DEBUG */
             
     PKIX_ENTER(CERTVFYPKIX, "cert_GetBuildResults");
     if (buildResult == NULL && error == NULL) {
@@ -992,6 +1047,11 @@ cert_GetBuildResults(
 
     if (error) {
         SECErrorCodes nssErrorCode = 0;
+#ifdef DEBUG_volkov        
+        char *temp = pkix_Error2ASCII(error, plContext);
+        fprintf(stderr, "BUILD ERROR:\n%s\n", temp);
+        PKIX_PL_Free(temp, NULL);
+#endif /* DEBUG */
         if (verifyNode) {
             PKIX_Error *tmpError =
                 cert_GetLogFromVerifyNode(log, verifyNode, plContext);
@@ -1009,6 +1069,13 @@ cert_GetBuildResults(
             PKIX_BuildResult_GetCertChain(buildResult, &pkixCertChain,
                                           plContext),
             PKIX_BUILDRESULTGETCERTCHAINFAILED);
+
+#ifdef DEBUG_volkov
+        tmpPkixError = cert_PrintCertChain(pkixCertChain, plContext);
+        if (tmpPkixError) {
+            PKIX_PL_Object_DecRef((PKIX_PL_Object*)tmpPkixError, plContext);
+        }
+#endif        
 
         PKIX_CHECK(
             cert_PkixToNssCertsChain(pkixCertChain, &validChain, plContext),
@@ -1031,7 +1098,13 @@ cert_GetBuildResults(
                                             plContext),
             PKIX_TRUSTANCHORGETTRUSTEDCERTFAILED);
 
-        PKIX_CHECK(
+#ifdef DEBUG_volkov
+        if (pvalidChain == NULL) {
+            cert_PrintCert(trustedCert, plContext);
+        }
+#endif        
+
+       PKIX_CHECK(
             PKIX_PL_Cert_GetCERTCertificate(trustedCert, &trustedRoot,
                                             plContext),
             PKIX_CERTGETCERTCERTIFICATEFAILED);
@@ -1118,6 +1191,10 @@ cert_VerifyCertChainPkix(
 
     SECStatus              rv = SECFailure;
     void                  *plContext = NULL;
+#ifdef DEBUG_volkov
+    CERTCertificate       *trustedRoot = NULL;
+    CERTCertList          *validChain = NULL;
+#endif /* DEBUG */
 
 #ifdef PKIX_OBJECT_LEAK_TEST
     int  leakedObjNum = 0;
@@ -1152,6 +1229,10 @@ do {
     result = NULL;
     verifyNode = NULL;
     error = NULL;
+#ifdef DEBUG_volkov
+    trustedRoot = NULL;
+    validChain = NULL;
+#endif /* DEBUG */
     errorGenerated = PKIX_FALSE;
     stackPosition = 0;
 
@@ -1194,11 +1275,29 @@ do {
     rv = SECSuccess;
 
 cleanup:
-    error = cert_GetBuildResults(result, verifyNode, error, log, NULL, NULL,
+    error = cert_GetBuildResults(result, verifyNode, error, log,
+#ifdef DEBUG_volkov                                 
+                                 &trustedRoot, &validChain,
+#else
+                                 NULL, NULL,
+#endif /* DEBUG */
                                  plContext);
     if (error) {
+#ifdef DEBUG_volkov        
+        char *temp = pkix_Error2ASCII(error, plContext);
+        fprintf(stderr, "GET BUILD RES ERRORS:\n%s\n", temp);
+        PKIX_PL_Free(temp, NULL);
+#endif /* DEBUG */
         PKIX_PL_Object_DecRef((PKIX_PL_Object *)error, plContext);
     }
+#ifdef DEBUG_volkov
+    if (trustedRoot) {
+        CERT_DestroyCertificate(trustedRoot);
+    }
+    if (validChain) {
+        CERT_DestroyCertList(validChain);
+    }
+#endif /* DEBUG */
     if (procParams) {
         PKIX_PL_Object_DecRef((PKIX_PL_Object *)procParams, plContext);
     }
@@ -1456,7 +1555,6 @@ cert_pkixSetParam(PKIX_ProcessingParams *procParams,
     PKIX_TrustAnchor *trustAnchor = NULL;
     PKIX_PL_Date *revDate = NULL;
     PKIX_RevocationChecker *revChecker = NULL;
-    PKIX_PL_NssContext *nssContext = (PKIX_PL_NssContext *)plContext;
 
     /* XXX we need a way to map generic PKIX error to generic NSS errors */
 
@@ -1630,28 +1728,7 @@ cert_pkixSetParam(PKIX_ProcessingParams *procParams,
                                      (PRBool)(param->value.scalar.b != 0),
                                                                plContext);
             break;
-
-        case cert_pi_chainVerifyCallback:
-        {
-            const CERTChainVerifyCallback *chainVerifyCallback =
-                param->value.pointer.chainVerifyCallback;
-            if (!chainVerifyCallback || !chainVerifyCallback->isChainValid) {
-                PORT_SetError(errCode);
-                r = SECFailure;
-                break;
-            }
-
-            nssContext->chainVerifyCallback = *chainVerifyCallback;
-        }
-        break;
-
-        case cert_pi_useOnlyTrustAnchors:
-            error =
-                PKIX_ProcessingParams_SetUseOnlyTrustAnchors(procParams,
-                                      (PRBool)(param->value.scalar.b != 0),
-                                                             plContext);
-            break;
-
+            
         default:
             PORT_SetError(errCode);
             r = SECFailure;

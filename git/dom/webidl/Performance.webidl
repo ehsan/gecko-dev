@@ -10,43 +10,15 @@
  * liability, trademark and document use rules apply.
  */
 
-typedef double DOMHighResTimeStamp;
-typedef sequence <PerformanceEntry> PerformanceEntryList;
+// typedef double DOMHighResTimeStamp;
 
-[Exposed=(Window,Worker)]
 interface Performance {
-  DOMHighResTimeStamp now();
-};
+  // DOMHighResTimeStamp now();
+  [Infallible]
+  double now();
 
-[Exposed=Window]
-partial interface Performance {
-  [Constant]
+  [Infallible]
   readonly attribute PerformanceTiming timing;
-  [Constant]
+  [Infallible]
   readonly attribute PerformanceNavigation navigation;
-
-  jsonifier;
-};
-
-// http://www.w3.org/TR/performance-timeline/#sec-window.performance-attribute
-[Exposed=Window]
-partial interface Performance {
-  [Pref="dom.enable_resource_timing"]
-  PerformanceEntryList getEntries();
-  [Pref="dom.enable_resource_timing"]
-  PerformanceEntryList getEntriesByType(DOMString entryType);
-  [Pref="dom.enable_resource_timing"]
-  PerformanceEntryList getEntriesByName(DOMString name, optional DOMString
-    entryType);
-};
-
-// http://www.w3.org/TR/resource-timing/#extensions-performance-interface
-[Exposed=Window]
-partial interface Performance {
-  [Pref="dom.enable_resource_timing"]
-  void clearResourceTimings();
-  [Pref="dom.enable_resource_timing"]
-  void setResourceTimingBufferSize(unsigned long maxSize);
-  [Pref="dom.enable_resource_timing"]
-  attribute EventHandler onresourcetimingbufferfull;
 };

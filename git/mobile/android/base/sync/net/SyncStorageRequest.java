@@ -10,14 +10,15 @@ import java.net.URISyntaxException;
 import java.security.GeneralSecurityException;
 import java.util.HashMap;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.SyncConstants;
+import org.mozilla.gecko.sync.GlobalConstants;
+import org.mozilla.gecko.sync.Logger;
 
 import ch.boye.httpclientandroidlib.HttpEntity;
 import ch.boye.httpclientandroidlib.HttpResponse;
 import ch.boye.httpclientandroidlib.client.ClientProtocolException;
 import ch.boye.httpclientandroidlib.client.methods.HttpRequestBase;
 import ch.boye.httpclientandroidlib.impl.client.DefaultHttpClient;
+import ch.boye.httpclientandroidlib.params.CoreProtocolPNames;
 
 public class SyncStorageRequest implements Resource {
   public static HashMap<String, String> SERVER_ERROR_MESSAGES;
@@ -77,25 +78,10 @@ public class SyncStorageRequest implements Resource {
     this.resource.delegate = this.resourceDelegate;
   }
 
-  @Override
-  public URI getURI() {
-    return this.resource.getURI();
-  }
-
-  @Override
-  public String getURIString() {
-    return this.resource.getURIString();
-  }
-
-  @Override
-  public String getHostname() {
-    return this.resource.getHostname();
-  }
-
   /**
    * A ResourceDelegate that mediates between Resource-level notifications and the SyncStorageRequest.
    */
-  public class SyncStorageResourceDelegate extends BaseResourceDelegate {
+  public class SyncStorageResourceDelegate extends SyncResourceDelegate {
     private static final String LOG_TAG = "SSResourceDelegate";
     protected SyncStorageRequest request;
 
@@ -105,13 +91,8 @@ public class SyncStorageRequest implements Resource {
     }
 
     @Override
-    public AuthHeaderProvider getAuthHeaderProvider() {
-      return request.delegate.getAuthHeaderProvider();
-    }
-
-    @Override
-    public String getUserAgent() {
-      return SyncConstants.USER_AGENT;
+    public String getCredentials() {
+      return this.request.delegate.credentials();
     }
 
     @Override
@@ -150,6 +131,8 @@ public class SyncStorageRequest implements Resource {
 
     @Override
     public void addHeaders(HttpRequestBase request, DefaultHttpClient client) {
+      client.getParams().setParameter(CoreProtocolPNames.USER_AGENT, GlobalConstants.USER_AGENT);
+
       // Clients can use their delegate interface to specify X-If-Unmodified-Since.
       String ifUnmodifiedSince = this.request.delegate.ifUnmodifiedSince();
       if (ifUnmodifiedSince != null) {
@@ -162,7 +145,7 @@ public class SyncStorageRequest implements Resource {
     }
   }
 
-  protected BaseResourceDelegate resourceDelegate;
+  protected SyncResourceDelegate resourceDelegate;
   public SyncStorageRequestDelegate delegate;
   protected BaseResource resource;
 
@@ -171,26 +154,22 @@ public class SyncStorageRequest implements Resource {
   }
 
   // Default implementation. Override this.
-  protected BaseResourceDelegate makeResourceDelegate(SyncStorageRequest request) {
+  protected SyncResourceDelegate makeResourceDelegate(SyncStorageRequest request) {
     return new SyncStorageResourceDelegate(request);
   }
 
-  @Override
   public void get() {
     this.resource.get();
   }
 
-  @Override
   public void delete() {
     this.resource.delete();
   }
 
-  @Override
   public void post(HttpEntity body) {
     this.resource.post(body);
   }
 
-  @Override
   public void put(HttpEntity body) {
     this.resource.put(body);
   }

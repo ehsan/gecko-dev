@@ -1,5 +1,3 @@
-/* -*- js-indent-level: 4; tab-width: 4; indent-tabs-mode: nil -*- */
-/* vim:set ts=4 sw=4 sts=4 et: */
 /**
  * SimpleTest, a partial Test.Simple/Test.More API compatible test library.
  *
@@ -22,14 +20,8 @@ var parentRunner = null;
 // In normal test runs, the window that has a TestRunner in its parent is
 // the primary window.  In single test runs, if there is no parent and there
 // is no opener then it is the primary window.
-var isSingleTestRun = (parent == window && !opener)
-try {
-  var isPrimaryTestWindow = !!parent.TestRunner || isSingleTestRun;
-} catch(e) {
-  dump("TEST-UNEXPECTED-FAIL, Exception caught: " + e.message +
-                ", at: " + e.fileName + " (" + e.lineNumber +
-                "), location: " + window.location.href + "\n");
-}
+var isPrimaryTestWindow = !!parent.TestRunner || (parent == window && !opener);
+
 // Finds the TestRunner for this test run and the SpecialPowers object (in
 // case it is not defined) from a parent/opener window.
 //
@@ -55,15 +47,11 @@ try {
         }
         w = ancestor(w);
     }
-
-    if (parentRunner) {
-        SimpleTest.harnessParameters = parentRunner.getParameterInfo();
-    }
 })();
 
 /* Helper functions pulled out of various MochiKit modules */
 if (typeof(repr) == 'undefined') {
-    this.repr = function(o) {
+    function repr(o) {
         if (typeof(o) == "undefined") {
             return "undefined";
         } else if (o === null) {
@@ -100,13 +88,13 @@ if (typeof(repr) == 'undefined') {
         }
         return ostring;
     };
-}
+} 
 
 /* This returns a function that applies the previously given parameters.
  * This is used by SimpleTest.showReport
  */
 if (typeof(partial) == 'undefined') {
-    this.partial = function(func) {
+    function partial(func) {
         var args = [];
         for (var i = 1; i < arguments.length; i++) {
             args.push(arguments[i]);
@@ -123,9 +111,9 @@ if (typeof(partial) == 'undefined') {
 }
 
 if (typeof(getElement) == 'undefined') {
-    this.getElement = function(id) {
+    function getElement(id) {
         return ((typeof(id) == "string") ?
-            document.getElementById(id) : id);
+            document.getElementById(id) : id); 
     };
     this.$ = this.getElement;
 }
@@ -149,7 +137,7 @@ SimpleTest._newCallStack = function(path) {
 };
 
 if (typeof(addLoadEvent) == 'undefined') {
-    this.addLoadEvent = function(func) {
+    function addLoadEvent(func) {
         var existing = window["onload"];
         var regfunc = existing;
         if (!(typeof(existing) == 'function'
@@ -187,7 +175,7 @@ function createEl(type, attrs, html) {
 
 /* lots of tests use this as a helper to get css properties */
 if (typeof(computedStyle) == 'undefined') {
-    this.computedStyle = function(elem, cssProperty) {
+    function computedStyle(elem, cssProperty) {
         elem = getElement(elem);
         if (elem.currentStyle) {
             return elem.currentStyle[cssProperty];
@@ -199,10 +187,10 @@ if (typeof(computedStyle) == 'undefined') {
         if (typeof(style) == 'undefined' || style === null) {
             return undefined;
         }
-
+        
         var selectorCase = cssProperty.replace(/([A-Z])/g, '-$1'
             ).toLowerCase();
-
+            
         return style.getPropertyValue(selectorCase);
     };
 }
@@ -237,35 +225,13 @@ SimpleTest.testPluginIsOOP = function () {
 
 SimpleTest._tests = [];
 SimpleTest._stopOnLoad = true;
-SimpleTest._cleanupFunctions = [];
-SimpleTest.expected = 'pass';
-SimpleTest.num_failed = 0;
-
-SimpleTest.setExpected = function () {
-  if (parent.TestRunner) {
-    SimpleTest.expected = parent.TestRunner.expected;
-  }
-}
-SimpleTest.setExpected();
 
 /**
  * Something like assert.
 **/
 SimpleTest.ok = function (condition, name, diag) {
-
     var test = {'result': !!condition, 'name': name, 'diag': diag};
-    if (SimpleTest.expected == 'fail') {
-      if (!test.result) {
-        SimpleTest.num_failed++;
-        test.result = !test.result;
-      }
-      var successInfo = {status:"FAIL", expected:"FAIL", message:"TEST-KNOWN-FAIL"};
-      var failureInfo = {status:"PASS", expected:"FAIL", message:"TEST-UNEXPECTED-PASS"};
-    } else {
-      var successInfo = {status:"PASS", expected:"PASS", message:"TEST-PASS"};
-      var failureInfo = {status:"FAIL", expected:"PASS", message:"TEST-UNEXPECTED-FAIL"};
-    }
-    SimpleTest._logResult(test, successInfo, failureInfo);
+    SimpleTest._logResult(test, "TEST-PASS", "TEST-UNEXPECTED-FAIL");
     SimpleTest._tests.push(test);
 };
 
@@ -276,12 +242,6 @@ SimpleTest.is = function (a, b, name) {
     var pass = (a == b);
     var diag = pass ? "" : "got " + repr(a) + ", expected " + repr(b)
     SimpleTest.ok(pass, name, diag);
-};
-
-SimpleTest.isfuzzy = function (a, b, epsilon, name) {
-  var pass = (a >= b - epsilon) && (a <= b + epsilon);
-  var diag = pass ? "" : "got " + repr(a) + ", expected " + repr(b) + " epsilon: +/- " + repr(epsilon)
-  SimpleTest.ok(pass, name, diag);
 };
 
 SimpleTest.isnot = function (a, b, name) {
@@ -299,44 +259,12 @@ SimpleTest.ise = function (a, b, name) {
     SimpleTest.ok(pass, name, diag);
 };
 
-/**
- * Check that the function call throws an exception.
- */
-SimpleTest.doesThrow = function(fn, name) {
-    var gotException = false;
-    try {
-      fn();
-    } catch (ex) { gotException = true; }
-    ok(gotException, name);
-};
-
 //  --------------- Test.Builder/Test.More todo() -----------------
 
 SimpleTest.todo = function(condition, name, diag) {
     var test = {'result': !!condition, 'name': name, 'diag': diag, todo: true};
-    var successInfo = {status:"PASS", expected:"FAIL", message:"TEST-UNEXPECTED-PASS"};
-    var failureInfo = {status:"FAIL", expected:"FAIL", message:"TEST-KNOWN-FAIL"};
-    SimpleTest._logResult(test, successInfo, failureInfo);
+    SimpleTest._logResult(test, "TEST-UNEXPECTED-PASS", "TEST-KNOWN-FAIL");
     SimpleTest._tests.push(test);
-};
-
-/*
- * Returns the absolute URL to a test data file from where tests
- * are served. i.e. the file doesn't necessarely exists where tests
- * are executed.
- * (For b2g and android, mochitest are executed on the device, while
- * all mochitest html (and others) files are served from the test runner
- * slave)
- */
-SimpleTest.getTestFileURL = function(path) {
-  var lastSlashIdx = path.lastIndexOf("/") + 1;
-  var filename = path.substr(lastSlashIdx);
-  var location = window.location;
-  // Remove mochitest html file name from the path
-  var remotePath = location.pathname.replace(/\/[^\/]+?$/,"");
-  var url = location.origin +
-            remotePath + "/" + path;
-  return url;
 };
 
 SimpleTest._getCurrentTestURL = function() {
@@ -345,66 +273,26 @@ SimpleTest._getCurrentTestURL = function() {
            "unknown test url";
 };
 
-SimpleTest._forceLogMessageOutput = false;
-
-/**
- * Force all test messages to be displayed.  Only applies for the current test.
- */
-SimpleTest.requestCompleteLog = function() {
-    if (!parentRunner || SimpleTest._forceLogMessageOutput) {
-        return;
-    }
-
-    parentRunner.structuredLogger.deactivateBuffering();
-    SimpleTest._forceLogMessageOutput = true;
-
-    SimpleTest.registerCleanupFunction(function() {
-        parentRunner.structuredLogger.activateBuffering();
-        SimpleTest._forceLogMessageOutput = false;
-    });
-};
-
-SimpleTest._logResult = function (test, passInfo, failInfo) {
-    var url = SimpleTest._getCurrentTestURL();
-    var result = test.result ? passInfo : failInfo;
-    var diagnostic = test.diag || null;
-    // BUGFIX : coercing test.name to a string, because some a11y tests pass an xpconnect object
-    var subtest = test.name ? String(test.name) : null;
+SimpleTest._logResult = function(test, passString, failString) {
     var isError = !test.result == !test.todo;
-
+    var resultString = test.result ? passString : failString;
+    var url = SimpleTest._getCurrentTestURL();
+    var diagnostic = test.name + (test.diag ? " - " + test.diag : "");
+    var msg = [resultString, url, diagnostic].join(" | ");
     if (parentRunner) {
-        if (!result.status || !result.expected) {
-            if (diagnostic) {
-                parentRunner.structuredLogger.info(diagnostic);
-            }
-            return;
-        }
-
         if (isError) {
             parentRunner.addFailedTest(url);
+            parentRunner.error(msg);
+        } else {
+            parentRunner.log(msg);
         }
-
-        parentRunner.structuredLogger.testStatus(url,
-                                                 subtest,
-                                                 result.status,
-                                                 result.expected,
-                                                 diagnostic);
-    } else if (typeof dump === "function") {
-        var diagMessage = test.name + (test.diag ? " - " + test.diag : "");
-        var debugMsg = [result.message, url, diagMessage].join(' | ');
-        dump(debugMsg + "\n");
     } else {
-        // Non-Mozilla browser?  Just do nothing.
+        dump(msg + "\n");
     }
 };
 
 SimpleTest.info = function(name, message) {
-    var log = message ? name + ' | ' + message : name;
-    if (parentRunner) {
-        parentRunner.structuredLogger.info(log);
-    } else {
-        dump(log + '\n');
-    }
+    SimpleTest._logResult({result:true, name:name, diag:message}, "TEST-INFO");
 };
 
 /**
@@ -499,14 +387,14 @@ SimpleTest.toggleByClass = function (cls, evt) {
         var clsName = child.className;
         if (!clsName) {
             continue;
-        }
+        }    
         var classNames = clsName.split(' ');
         for (var j = 0; j < classNames.length; j++) {
             if (classNames[j] == cls) {
                 elements.push(child);
                 break;
-            }
-        }
+            }    
+        }    
     }
     for (var t=0; t<elements.length; t++) {
         //TODO: again, for-in loop over elems seems to break this
@@ -578,62 +466,6 @@ SimpleTest.requestLongerTimeout = function (factor) {
     }
 }
 
-/**
- * Note that the given range of assertions is to be expected.  When
- * this function is not called, 0 assertions are expected.  When only
- * one argument is given, that number of assertions are expected.
- *
- * A test where we expect to have assertions (which should largely be a
- * transitional mechanism to get assertion counts down from our current
- * situation) can call the SimpleTest.expectAssertions() function, with
- * either one or two arguments:  one argument gives an exact number
- * expected, and two arguments give a range.  For example, a test might do
- * one of the following:
- *
- *   // Currently triggers two assertions (bug NNNNNN).
- *   SimpleTest.expectAssertions(2);
- *
- *   // Currently triggers one assertion on Mac (bug NNNNNN).
- *   if (navigator.platform.indexOf("Mac") == 0) {
- *     SimpleTest.expectAssertions(1);
- *   }
- *
- *   // Currently triggers two assertions on all platforms (bug NNNNNN),
- *   // but intermittently triggers two additional assertions (bug NNNNNN)
- *   // on Windows.
- *   if (navigator.platform.indexOf("Win") == 0) {
- *     SimpleTest.expectAssertions(2, 4);
- *   } else {
- *     SimpleTest.expectAssertions(2);
- *   }
- *
- *   // Intermittently triggers up to three assertions (bug NNNNNN).
- *   SimpleTest.expectAssertions(0, 3);
- */
-SimpleTest.expectAssertions = function(min, max) {
-    if (parentRunner) {
-        parentRunner.expectAssertions(min, max);
-    }
-}
-
-/**
- * Request the framework to allow usage of setTimeout(func, timeout)
- * where |timeout > 0|.  This is required to note that the author of
- * the test is aware of the inherent flakiness in the test caused by
- * that, and asserts that there is no way around using the magic timeout
- * value number for some reason.
- *
- * The reason parameter should be a string representation of the
- * reason why using such flaky timeouts.
- *
- * Use of this function is STRONGLY discouraged.  Think twice before
- * using it.  Such magic timeout values could result in intermittent
- * failures in your test, and are almost never necessary!
- */
-SimpleTest.requestFlakyTimeout = function (reason) {
-    // TODO: This will get implemented in bug 649012.
-}
-
 SimpleTest.waitForFocus_started = false;
 SimpleTest.waitForFocus_loaded = false;
 SimpleTest.waitForFocus_focused = false;
@@ -665,7 +497,9 @@ SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
     SimpleTest.waitForFocus_started = false;
     expectBlankPage = !!expectBlankPage;
 
-    var childTargetWindow = SpecialPowers.getFocusedElementForWindow(targetWindow, true);
+    var childTargetWindow = {};
+    SpecialPowers.getFocusedElementForWindow(targetWindow, true, childTargetWindow);
+    childTargetWindow = childTargetWindow.value;
 
     function info(msg) {
         SimpleTest.info(msg);
@@ -680,7 +514,7 @@ SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
             !SimpleTest.waitForFocus_started) {
             SimpleTest._pendingWaitForFocusCount--;
             SimpleTest.waitForFocus_started = true;
-            SimpleTest.executeSoon(function() { callback(targetWindow) });
+            setTimeout(callback, 0, targetWindow);
         }
     }
 
@@ -707,18 +541,18 @@ SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
     // to load its content, and we want to skip over any intermediate blank
     // pages that load. This issue is described in bug 554873.
     SimpleTest.waitForFocus_loaded =
-        expectBlankPage ?
-            getHref(targetWindow) == "about:blank" :
-            getHref(targetWindow) != "about:blank" && targetWindow.document.readyState == "complete";
+        (expectBlankPage == (getHref(targetWindow) == "about:blank")) &&
+        targetWindow.document.readyState == "complete";
     if (!SimpleTest.waitForFocus_loaded) {
         info("must wait for load");
         targetWindow.addEventListener("load", waitForEvent, true);
     }
 
     // Check if the desired window is already focused.
-    var focusedChildWindow = null;
+    var focusedChildWindow = { };
     if (SpecialPowers.activeWindow()) {
-        focusedChildWindow = SpecialPowers.getFocusedElementForWindow(SpecialPowers.activeWindow(), true);
+        SpecialPowers.getFocusedElementForWindow(SpecialPowers.activeWindow(), true, focusedChildWindow);
+        focusedChildWindow = focusedChildWindow.value;
     }
 
     // If this is a child frame, ensure that the frame is focused.
@@ -766,7 +600,7 @@ SimpleTest.waitForClipboard = function(aExpectedStringOrValidatorFn, aSetupFn,
 
     // Build a default validator function for common string input.
     var inputValidatorFn = typeof(aExpectedStringOrValidatorFn) == "string"
-        ? function(aData) { return aData == aExpectedStringOrValidatorFn; }
+        ? function(aData) aData == aExpectedStringOrValidatorFn
         : aExpectedStringOrValidatorFn;
 
     // reset for the next use
@@ -794,7 +628,7 @@ SimpleTest.waitForClipboard = function(aExpectedStringOrValidatorFn, aSetupFn,
             reset();
             successFn();
         } else {
-            setTimeout(function() { return wait(validatorFn, successFn, failureFn, flavor); }, 100);
+            setTimeout(function() wait(validatorFn, successFn, failureFn, flavor), 100);
         }
     }
 
@@ -802,7 +636,7 @@ SimpleTest.waitForClipboard = function(aExpectedStringOrValidatorFn, aSetupFn,
     var preExpectedVal = SimpleTest._waitForClipboardMonotonicCounter +
                          "-waitForClipboard-known-value";
     SpecialPowers.clipboardCopyString(preExpectedVal);
-    wait(function(aData) { return aData  == preExpectedVal; },
+    wait(function(aData) aData  == preExpectedVal,
          function() {
            // Call the original setup fn
            aSetupFn();
@@ -819,238 +653,38 @@ SimpleTest.executeSoon = function(aFunc) {
         return SpecialPowers.executeSoon(aFunc, window);
     }
     setTimeout(aFunc, 0);
-    return null;		// Avoid warning.
-};
-
-SimpleTest.registerCleanupFunction = function(aFunc) {
-    SimpleTest._cleanupFunctions.push(aFunc);
-};
+}
 
 /**
  * Finishes the tests. This is automatically called, except when
  * SimpleTest.waitForExplicitFinish() has been invoked.
 **/
-SimpleTest.finish = function() {
-    if (SimpleTest._alreadyFinished) {
-        var err = "[SimpleTest.finish()] this test already called finish!";
-        if (parentRunner) {
-            parentRunner.structuredLogger.error(err);
-        } else {
-            dump(err + '\n');
-        }
+SimpleTest.finish = function () {
+    if (SimpleTest._expectingUncaughtException) {
+        SimpleTest.ok(false, "expectUncaughtException was called but no uncaught exception was detected!");
+    }
+    if (SimpleTest._pendingWaitForFocusCount != 0) {
+        SimpleTest.is(SimpleTest._pendingWaitForFocusCount, 0,
+                      "[SimpleTest.finish()] waitForFocus() was called a "
+                      + "different number of times from the number of "
+                      + "callbacks run.  Maybe the test terminated "
+                      + "prematurely -- be sure to use "
+                      + "SimpleTest.waitForExplicitFinish().");
+    }
+    if (SimpleTest._tests.length == 0) {
+        SimpleTest.ok(false, "[SimpleTest.finish()] No checks actually run. "
+                           + "(You need to call ok(), is(), or similar "
+                           + "functions at least once.  Make sure you use "
+                           + "SimpleTest.waitForExplicitFinish() if you need "
+                           + "it.)");
     }
 
-    if (SimpleTest.expected == 'fail' && SimpleTest.num_failed <= 0) {
-        msg = 'We expected at least one failure';
-        var test = {'result': false, 'name': 'fail-if condition in manifest', 'diag': msg};
-        var successInfo = {status:"PASS", expected:"PASS", message:"TEST-PASS"};
-        var failureInfo = {status:"FAIL", expected:"FAIL", message:"TEST-KNOWN-FAIL"};
-
-        SimpleTest._logResult(test, successInfo, failureInfo);
-        SimpleTest._tests.push(test);
-    }
-
-    SimpleTest.testsLength = SimpleTest._tests.length;
-
-    SimpleTest._alreadyFinished = true;
-
-    var afterCleanup = function() {
-        if (SpecialPowers.DOMWindowUtils.isTestControllingRefreshes) {
-            SimpleTest.ok(false, "test left refresh driver under test control");
-            SpecialPowers.DOMWindowUtils.restoreNormalRefresh();
-        }
-        if (SimpleTest._expectingUncaughtException) {
-            SimpleTest.ok(false, "expectUncaughtException was called but no uncaught exception was detected!");
-        }
-        if (SimpleTest._pendingWaitForFocusCount != 0) {
-            SimpleTest.is(SimpleTest._pendingWaitForFocusCount, 0,
-                          "[SimpleTest.finish()] waitForFocus() was called a "
-                          + "different number of times from the number of "
-                          + "callbacks run.  Maybe the test terminated "
-                          + "prematurely -- be sure to use "
-                          + "SimpleTest.waitForExplicitFinish().");
-        }
-        if (SimpleTest._tests.length == 0) {
-            SimpleTest.ok(false, "[SimpleTest.finish()] No checks actually run. "
-                               + "(You need to call ok(), is(), or similar "
-                               + "functions at least once.  Make sure you use "
-                               + "SimpleTest.waitForExplicitFinish() if you need "
-                               + "it.)");
-        }
-
-        if (parentRunner) {
-            /* We're running in an iframe, and the parent has a TestRunner */
-            parentRunner.testFinished(SimpleTest._tests);
-        }
-
-        if (!parentRunner || parentRunner.showTestReport) {
-            SpecialPowers.flushAllAppsLaunchable();
-            SpecialPowers.flushPermissions(function () {
-              SpecialPowers.flushPrefEnv(function() {
-                SimpleTest.showReport();
-              });
-            });
-        }
-    }
-
-    var executeCleanupFunction = function() {
-        var func = SimpleTest._cleanupFunctions.pop();
-
-        if (!func) {
-            afterCleanup();
-            return;
-        }
-
-        var ret;
-        try {
-            ret = func();
-        } catch (ex) {
-            SimpleTest.ok(false, "Cleanup function threw exception: " + ex);
-        }
-
-        if (ret && ret.constructor.name == "Promise") {
-            ret.then(executeCleanupFunction,
-                     (ex) => SimpleTest.ok(false, "Cleanup promise rejected: " + ex));
-        } else {
-            executeCleanupFunction();
-        }
-    };
-
-    executeCleanupFunction();
-};
-
-/**
- * Monitor console output from now until endMonitorConsole is called.
- *
- * Expect to receive all console messages described by the elements of
- * |msgs|, an array, in the order listed in |msgs|; each element is an
- * object which may have any number of the following properties:
- *   message, errorMessage, sourceName, sourceLine, category:
- *     string or regexp
- *   lineNumber, columnNumber: number
- *   isScriptError, isWarning, isException, isStrict: boolean
- * Strings, numbers, and booleans must compare equal to the named
- * property of the Nth console message.  Regexps must match.  Any
- * fields present in the message but not in the pattern object are ignored.
- *
- * In addition to the above properties, elements in |msgs| may have a |forbid|
- * boolean property.  When |forbid| is true, a failure is logged each time a
- * matching message is received.
- *
- * If |forbidUnexpectedMsgs| is true, then the messages received in the console
- * must exactly match the non-forbidden messages in |msgs|; for each received
- * message not described by the next element in |msgs|, a failure is logged.  If
- * false, then other non-forbidden messages are ignored, but all expected
- * messages must still be received.
- *
- * After endMonitorConsole is called, |continuation| will be called
- * asynchronously.  (Normally, you will want to pass |SimpleTest.finish| here.)
- *
- * It is incorrect to use this function in a test which has not called
- * SimpleTest.waitForExplicitFinish.
- */
-SimpleTest.monitorConsole = function (continuation, msgs, forbidUnexpectedMsgs) {
-  if (SimpleTest._stopOnLoad) {
-    ok(false, "Console monitoring requires use of waitForExplicitFinish.");
-  }
-
-  function msgMatches(msg, pat) {
-    for (k in pat) {
-      if (!(k in msg)) {
-        return false;
-      }
-      if (pat[k] instanceof RegExp && typeof(msg[k]) === 'string') {
-        if (!pat[k].test(msg[k])) {
-          return false;
-        }
-      } else if (msg[k] !== pat[k]) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  var forbiddenMsgs = [];
-  var i = 0;
-  while (i < msgs.length) {
-    var pat = msgs[i];
-    if ("forbid" in pat) {
-      var forbid = pat.forbid;
-      delete pat.forbid;
-      if (forbid) {
-        forbiddenMsgs.push(pat);
-        msgs.splice(i, 1);
-        continue;
-      }
-    }
-    i++;
-  }
-
-  var counter = 0;
-  function listener(msg) {
-    if (msg.message === "SENTINEL" && !msg.isScriptError) {
-      is(counter, msgs.length, "monitorConsole | number of messages");
-      SimpleTest.executeSoon(continuation);
-      return;
-    }
-    for (var pat of forbiddenMsgs) {
-      if (msgMatches(msg, pat)) {
-        ok(false, "monitorConsole | observed forbidden message " +
-                  JSON.stringify(msg));
-        return;
-      }
-    }
-    if (counter >= msgs.length) {
-      var str = "monitorConsole | extra message | " + JSON.stringify(msg);
-      if (forbidUnexpectedMsgs) {
-        ok(false, str);
-      } else {
-        info(str);
-      }
-      return;
-    }
-    var matches = msgMatches(msg, msgs[counter]);
-    if (forbidUnexpectedMsgs) {
-      ok(matches, "monitorConsole | [" + counter + "] must match " +
-                  JSON.stringify(msg));
+    if (parentRunner) {
+        /* We're running in an iframe, and the parent has a TestRunner */
+        parentRunner.testFinished(SimpleTest._tests);
     } else {
-      info("monitorConsole | [" + counter + "] " +
-           (matches ? "matched " : "did not match ") + JSON.stringify(msg));
+        SimpleTest.showReport();
     }
-    if (matches)
-      counter++;
-  }
-  SpecialPowers.registerConsoleListener(listener);
-};
-
-/**
- * Stop monitoring console output.
- */
-SimpleTest.endMonitorConsole = function () {
-  SpecialPowers.postConsoleSentinel();
-};
-
-/**
- * Run |testfn| synchronously, and monitor its console output.
- *
- * |msgs| is handled as described above for monitorConsole.
- *
- * After |testfn| returns, console monitoring will stop, and
- * |continuation| will be called asynchronously.
- */
-SimpleTest.expectConsoleMessages = function (testfn, msgs, continuation) {
-  SimpleTest.monitorConsole(continuation, msgs);
-  testfn();
-  SimpleTest.executeSoon(SimpleTest.endMonitorConsole);
-};
-
-/**
- * Wrapper around |expectConsoleMessages| for the case where the test has
- * only one |testfn| to run.
- */
-SimpleTest.runTestExpectingConsoleMessages = function(testfn, msgs) {
-  SimpleTest.waitForExplicitFinish();
-  SimpleTest.expectConsoleMessages(testfn, msgs, SimpleTest.finish);
 };
 
 /**
@@ -1105,7 +739,6 @@ SimpleTest.isIgnoringAllUncaughtExceptions = function () {
 SimpleTest.reset = function () {
     SimpleTest._ignoringAllUncaughtExceptions = false;
     SimpleTest._expectingUncaughtException = false;
-    SimpleTest._bufferedMessages = [];
 };
 
 if (isPrimaryTestWindow) {
@@ -1145,9 +778,6 @@ SimpleTest._deepCheck = function (e1, e2, stack, seen) {
         ok = SimpleTest._eqArray(e1, e2, stack, seen);
     } else if (typeof e1 == "object" && typeof e2 == "object") {
         ok = SimpleTest._eqAssoc(e1, e2, stack, seen);
-    } else if (typeof e1 == "number" && typeof e2 == "number"
-               && isNaN(e1) && isNaN(e2)) {
-        ok = true;
     } else {
         // If we get here, they're not the same (function references must
         // always simply reference the same function).
@@ -1320,7 +950,6 @@ SimpleTest.isa = function (object, clas) {
 // Global symbols:
 var ok = SimpleTest.ok;
 var is = SimpleTest.is;
-var isfuzzy = SimpleTest.isfuzzy;
 var isnot = SimpleTest.isnot;
 var ise = SimpleTest.ise;
 var todo = SimpleTest.todo;
@@ -1337,13 +966,12 @@ window.onerror = function simpletestOnerror(errorMsg, url, lineNumber) {
     // For now, for tests that self identify as having unintentional uncaught
     // exceptions, just dump it so that the error is visible but doesn't cause
     // a test failure.  See bug 652494.
+    var href = SpecialPowers.getPrivilegedProps(window, 'location.href');
     var isExpected = !!SimpleTest._expectingUncaughtException;
-    var message = (isExpected ? "expected " : "") + "uncaught exception";
+    var message = "an " + (isExpected ? "" : "un") + "expected uncaught JS exception reported through window.onerror";
     var error = errorMsg + " at " + url + ":" + lineNumber;
     if (!SimpleTest._ignoringAllUncaughtExceptions) {
-        // Don't log if SimpleTest.finish() is already called, it would cause failures
-        if (!SimpleTest._alreadyFinished)
-          SimpleTest.ok(isExpected, message, error);
+        SimpleTest.ok(isExpected, message, error);
         SimpleTest._expectingUncaughtException = false;
     } else {
         SimpleTest.todo(false, message + ": " + error);

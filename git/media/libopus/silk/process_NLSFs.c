@@ -8,11 +8,11 @@ this list of conditions and the following disclaimer.
 - Redistributions in binary form must reproduce the above copyright
 notice, this list of conditions and the following disclaimer in the
 documentation and/or other materials provided with the distribution.
-- Neither the name of Internet Society, IETF or IETF Trust, nor the
+- Neither the name of Internet Society, IETF or IETF Trust, nor the 
 names of specific contributors, may be used to endorse or promote
 products derived from this software without specific prior written
 permission.
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS IS”
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
 ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
@@ -79,7 +79,7 @@ void silk_process_NLSFs(
         /* Update NLSF weights with contribution from first half */
         i_sqr_Q15 = silk_LSHIFT( silk_SMULBB( psEncC->indices.NLSFInterpCoef_Q2, psEncC->indices.NLSFInterpCoef_Q2 ), 11 );
         for( i = 0; i < psEncC->predictLPCOrder; i++ ) {
-            pNLSFW_QW[ i ] = silk_SMLAWB( silk_RSHIFT( pNLSFW_QW[ i ], 1 ), (opus_int32)pNLSFW0_temp_QW[ i ], i_sqr_Q15 );
+            pNLSFW_QW[ i ] = silk_SMLAWB( silk_RSHIFT( pNLSFW_QW[ i ], 1 ), pNLSFW0_temp_QW[ i ], i_sqr_Q15 );
             silk_assert( pNLSFW_QW[ i ] >= 1 );
         }
     }

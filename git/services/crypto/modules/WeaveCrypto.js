@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = ["WeaveCrypto"];
+const EXPORTED_SYMBOLS = ["WeaveCrypto"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -26,7 +26,7 @@ const KEYSIZE_AES_256           = 32;
 const KEY_DERIVATION_ITERATIONS = 4096;   // PKCS#5 recommends at least 1000.
 const INITIAL_BUFFER_SIZE       = 1024;
 
-this.WeaveCrypto = function WeaveCrypto() {
+function WeaveCrypto() {
     this.init();
 }
 
@@ -57,11 +57,7 @@ WeaveCrypto.prototype = {
             this.prefBranch = Services.prefs.getBranch("services.sync.log.");
             this.prefBranch.addObserver("cryptoDebug", this.observer, false);
             this.observer._self = this;
-            try {
-              this.debug = this.prefBranch.getBoolPref("cryptoDebug");
-            } catch (x) {
-              this.debug = false;
-            }
+            this.debug = this.prefBranch.getBoolPref("cryptoDebug");
 
             this.initNSS();
             this.initAlgorithmSettings();   // Depends on NSS.
@@ -132,16 +128,17 @@ WeaveCrypto.prototype = {
 
         // XXX really want to be able to pass specific dlopen flags here.
         var nsslib;
-#ifdef MOZ_NATIVE_NSS
-        // Search platform-dependent library paths for system NSS.
-        this.log("Trying NSS library without path");
-        nsslib = ctypes.open(path);
-#else
-        let file = Services.dirsvc.get("GreBinD", Ci.nsILocalFile);
-        file.append(path);
-        this.log("Trying NSS library with path " + file.path);
-        nsslib = ctypes.open(file.path);
-#endif
+        try {
+            this.log("Trying NSS library without path");
+            nsslib = ctypes.open(path);
+        } catch(e) {
+            // In case opening the library without a full path fails,
+            // try again with a full path.
+            let file = Services.dirsvc.get("GreD", Ci.nsILocalFile);
+            file.append(path);
+            this.log("Trying again with path " + file.path);
+            nsslib = ctypes.open(file.path);
+        }
 
         this.log("Initializing NSS types and function declarations...");
 
@@ -708,7 +705,7 @@ WeaveCrypto.prototype = {
         // Callee picks if SEC_OID_UNKNOWN, but only SHA1 is supported.
         let prfAlg    = this.nss.SEC_OID_HMAC_SHA1;
 
-        keyLength  = keyLength || 0;    // 0 = Callee will pick.
+        let keyLength  = keyLength || 0;    // 0 = Callee will pick.
         let iterations = KEY_DERIVATION_ITERATIONS;
 
         let algid, slot, symKey, keyData;

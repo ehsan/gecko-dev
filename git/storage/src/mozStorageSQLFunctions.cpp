@@ -4,11 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "mozStorageSQLFunctions.h"
 #include "nsUnicharUtils.h"
-#include <algorithm>
 
 namespace mozilla {
 namespace storage {
@@ -39,10 +38,10 @@ likeCompare(nsAString::const_iterator aPatternItr,
             nsAString::const_iterator aPatternEnd,
             nsAString::const_iterator aStringItr,
             nsAString::const_iterator aStringEnd,
-            char16_t aEscapeChar)
+            PRUnichar aEscapeChar)
 {
-  const char16_t MATCH_ALL('%');
-  const char16_t MATCH_ONE('_');
+  const PRUnichar MATCH_ALL('%');
+  const PRUnichar MATCH_ONE('_');
 
   bool lastWasEscape = false;
   while (aPatternItr != aPatternEnd) {
@@ -131,7 +130,7 @@ template <class T, size_t N> class AutoArray
 
 public:
 
-  explicit AutoArray(size_t size)
+  AutoArray(size_t size)
   : mBuffer(size <= N ? mAutoBuffer : new T[size])
   {
   }
@@ -144,7 +143,7 @@ public:
 
   /**
    * Return the pointer to the allocated array.
-   * @note If the array allocation failed, get() will return nullptr!
+   * @note If the array allocation failed, get() will return NULL!
    *
    * @return the pointer to the allocated array
    */
@@ -222,8 +221,8 @@ levenshteinDistance(const nsAString &aStringS,
     for (uint32_t i = 0; i <= sLen; i++)
         prevRow[i] = i;
 
-    const char16_t *s = aStringS.BeginReading();
-    const char16_t *t = aStringT.BeginReading();
+    const PRUnichar *s = aStringS.BeginReading();
+    const PRUnichar *t = aStringT.BeginReading();
 
     // Compute the empty cells in the "matrix" row-by-row, starting with
     // the second row.
@@ -233,7 +232,7 @@ levenshteinDistance(const nsAString &aStringS,
         currRow[0] = ti;
 
         // Get the character from "t" that corresponds to this row.
-        const char16_t tch = t[ti - 1];
+        const PRUnichar tch = t[ti - 1];
 
         // Compute the remaining cells in this row, left-to-right,
         // starting at the second column (and first character of "s").
@@ -241,7 +240,7 @@ levenshteinDistance(const nsAString &aStringS,
             
             // Get the character from "s" that corresponds to this column,
             // compare it to the t-character, and compute the "cost".
-            const char16_t sch = s[si - 1];
+            const PRUnichar sch = s[si - 1];
             int cost = (sch == tch) ? 0 : 1;
 
             // ............ We want to calculate the value of cell "d" from
@@ -251,7 +250,7 @@ levenshteinDistance(const nsAString &aStringS,
             int aPrime = prevRow[si - 1] + cost;
             int bPrime = prevRow[si] + 1;
             int cPrime = currRow[si - 1] + 1;
-            currRow[si] = std::min(aPrime, std::min(bPrime, cPrime));
+            currRow[si] = NS_MIN(aPrime, NS_MIN(bPrime, cPrime));
         }
 
         // Advance to the next row.  The current row becomes the previous
@@ -346,7 +345,7 @@ registerFunctions(sqlite3 *aDB)
   for (size_t i = 0; SQLITE_OK == rv && i < ArrayLength(functions); ++i) {
     struct Functions *p = &functions[i];
     rv = ::sqlite3_create_function(aDB, p->zName, p->nArg, p->enc, p->pContext,
-                                   p->xFunc, nullptr, nullptr);
+                                   p->xFunc, NULL, NULL);
   }
 
   return rv;
@@ -362,7 +361,7 @@ caseFunction(sqlite3_context *aCtx,
 {
   NS_ASSERTION(1 == aArgc, "Invalid number of arguments!");
 
-  nsAutoString data(static_cast<const char16_t *>(::sqlite3_value_text16(aArgv[0])));
+  nsAutoString data(static_cast<const PRUnichar *>(::sqlite3_value_text16(aArgv[0])));
   bool toUpper = ::sqlite3_user_data(aCtx) ? true : false;
 
   if (toUpper)
@@ -395,13 +394,13 @@ likeFunction(sqlite3_context *aCtx,
   if (!::sqlite3_value_text16(aArgv[0]) || !::sqlite3_value_text16(aArgv[1]))
     return;
 
-  nsDependentString A(static_cast<const char16_t *>(::sqlite3_value_text16(aArgv[1])));
-  nsDependentString B(static_cast<const char16_t *>(::sqlite3_value_text16(aArgv[0])));
+  nsDependentString A(static_cast<const PRUnichar *>(::sqlite3_value_text16(aArgv[1])));
+  nsDependentString B(static_cast<const PRUnichar *>(::sqlite3_value_text16(aArgv[0])));
   NS_ASSERTION(!B.IsEmpty(), "LIKE string must not be null!");
 
-  char16_t E = 0;
+  PRUnichar E = 0;
   if (3 == aArgc)
-    E = static_cast<const char16_t *>(::sqlite3_value_text16(aArgv[2]))[0];
+    E = static_cast<const PRUnichar *>(::sqlite3_value_text16(aArgv[2]))[0];
 
   nsAString::const_iterator itrString, endString;
   A.BeginReading(itrString);
@@ -426,11 +425,11 @@ void levenshteinDistanceFunction(sqlite3_context *aCtx,
     return;
   }
 
-  int aLen = ::sqlite3_value_bytes16(aArgv[0]) / sizeof(char16_t);
-  const char16_t *a = static_cast<const char16_t *>(::sqlite3_value_text16(aArgv[0]));
+  int aLen = ::sqlite3_value_bytes16(aArgv[0]) / sizeof(PRUnichar);
+  const PRUnichar *a = static_cast<const PRUnichar *>(::sqlite3_value_text16(aArgv[0]));
 
-  int bLen = ::sqlite3_value_bytes16(aArgv[1]) / sizeof(char16_t);
-  const char16_t *b = static_cast<const char16_t *>(::sqlite3_value_text16(aArgv[1]));
+  int bLen = ::sqlite3_value_bytes16(aArgv[1]) / sizeof(PRUnichar);
+  const PRUnichar *b = static_cast<const PRUnichar *>(::sqlite3_value_text16(aArgv[1]));
 
   // Compute the Levenshtein Distance, and return the result (or error).
   int distance = -1;

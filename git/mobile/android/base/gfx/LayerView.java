@@ -5,32 +5,20 @@
 
 package org.mozilla.gecko.gfx;
 
-import java.nio.IntBuffer;
-import java.util.ArrayList;
-
-import org.mozilla.gecko.AndroidGamepadManager;
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GeckoAccessibility;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.PrefsHelper;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
+import org.mozilla.gecko.GeckoApp;
+import org.mozilla.gecko.R;
 import org.mozilla.gecko.ZoomConstraints;
-import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.mozglue.generatorannotations.WrapElementForJNI;
+import org.mozilla.gecko.util.EventDispatcher;
+import org.mozilla.gecko.GeckoAccessibility;
 
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.Point;
+import android.graphics.PixelFormat;
 import android.graphics.PointF;
-import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
-import android.os.Handler;
+import android.os.Build;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -44,48 +32,38 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.widget.FrameLayout;
 
+import java.nio.IntBuffer;
+
+import java.lang.reflect.Method;
+
 /**
  * A view rendered by the layer compositor.
  *
  * Note that LayerView is accessed by Robocop via reflection.
  */
-public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener {
-    private static final String LOGTAG = "GeckoLayerView";
+public class LayerView extends FrameLayout {
+    private static String LOGTAG = "GeckoLayerView";
 
     private GeckoLayerClient mLayerClient;
-    private PanZoomController mPanZoomController;
-    private LayerMarginsAnimator mMarginsAnimator;
-    private final GLController mGLController;
+    private TouchEventHandler mTouchEventHandler;
+    private GLController mGLController;
     private InputConnectionHandler mInputConnectionHandler;
     private LayerRenderer mRenderer;
     /* Must be a PAINT_xxx constant */
     private int mPaintState;
-    private int mBackgroundColor;
-    private FullScreenState mFullScreenState;
+    private int mCheckerboardColor;
+    private boolean mCheckerboardShouldShowChecks;
 
     private SurfaceView mSurfaceView;
     private TextureView mTextureView;
 
     private Listener mListener;
 
-    private PointF mInitialTouchPoint;
-    private boolean mGeckoIsReady;
-
-    /* This should only be modified on the Java UI thread. */
-    private final Overscroll mOverscroll;
-
     /* Flags used to determine when to show the painted surface. */
-    public static final int PAINT_START = 0;
-    public static final int PAINT_BEFORE_FIRST = 1;
-    public static final int PAINT_AFTER_FIRST = 2;
+    public static final int PAINT_BEFORE_FIRST = 0;
+    public static final int PAINT_AFTER_FIRST = 1;
 
-    public boolean shouldUseTextureView() {
-        // Disable TextureView support for now as it causes panning/zooming
-        // performance regressions (see bug 792259). Uncomment the code below
-        // once this bug is fixed.
-        return false;
-
-        /*
+    boolean shouldUseTextureView() {
         // we can only use TextureView on ICS or higher
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
             Log.i(LOGTAG, "Not using TextureView: not on ICS+");
@@ -99,38 +77,37 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
         } catch (Exception e) {
             Log.i(LOGTAG, "Not using TextureView: caught exception checking for hw accel: " + e.toString());
             return false;
-        } */
+        }
     }
 
     public LayerView(Context context, AttributeSet attrs) {
         super(context, attrs);
 
-        mGLController = GLController.getInstance(this);
-        mPaintState = PAINT_START;
-        mBackgroundColor = Color.WHITE;
-        mFullScreenState = FullScreenState.NONE;
-
-        if (Versions.feature14Plus) {
-            mOverscroll = new OverscrollEdgeEffect(this);
+        if (shouldUseTextureView()) {
+            mTextureView = new TextureView(context);
+            mTextureView.setSurfaceTextureListener(new SurfaceTextureListener());
+            mTextureView.setBackgroundColor(Color.WHITE);
+            addView(mTextureView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         } else {
-            mOverscroll = null;
+            mSurfaceView = new SurfaceView(context);
+            mSurfaceView.setBackgroundColor(Color.WHITE);
+            addView(mSurfaceView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+
+            SurfaceHolder holder = mSurfaceView.getHolder();
+            holder.addCallback(new SurfaceListener());
+            holder.setFormat(PixelFormat.RGB_565);
         }
-        Tabs.registerOnTabsChangedListener(this);
+
+        mGLController = new GLController(this);
+        mPaintState = PAINT_BEFORE_FIRST;
+        mCheckerboardColor = Color.WHITE;
+        mCheckerboardShouldShowChecks = true;
     }
 
-    public LayerView(Context context) {
-        this(context, null);
-    }
-
-    public void initializeView(EventDispatcher eventDispatcher) {
+    public void createLayerClient(EventDispatcher eventDispatcher) {
         mLayerClient = new GeckoLayerClient(getContext(), this, eventDispatcher);
-        if (mOverscroll != null) {
-            mLayerClient.setOverscrollHandler(mOverscroll);
-        }
 
-        mPanZoomController = mLayerClient.getPanZoomController();
-        mMarginsAnimator = mLayerClient.getLayerMarginsAnimator();
-
+        mTouchEventHandler = new TouchEventHandler(getContext(), this, mLayerClient);
         mRenderer = new LayerRenderer(this);
         mInputConnectionHandler = null;
 
@@ -138,71 +115,14 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
         setFocusableInTouchMode(true);
 
         GeckoAccessibility.setDelegate(this);
-        GeckoAccessibility.setAccessibilityStateChangeListener(getContext());
     }
 
-    /**
-     * MotionEventHelper dragAsync() robocop tests can instruct
-     * PanZoomController not to generate longpress events.
-     */
-    public void setIsLongpressEnabled(boolean isLongpressEnabled) {
-        ((JavaPanZoomController) mPanZoomController).setIsLongpressEnabled(isLongpressEnabled);
-    }
-
-    private static Point getEventRadius(MotionEvent event) {
-        return new Point((int)event.getToolMajor() / 2,
-                         (int)event.getToolMinor() / 2);
-    }
-
-    public void geckoConnected() {
-        // See if we want to force 16-bit colour before doing anything
-        PrefsHelper.getPref("gfx.android.rgb16.force", new PrefsHelper.PrefHandlerBase() {
-            @Override public void prefValue(String pref, boolean force16bit) {
-                if (force16bit) {
-                    GeckoAppShell.setScreenDepthOverride(16);
-                }
-            }
-        });
-
-        mLayerClient.notifyGeckoReady();
-        mInitialTouchPoint = null;
-        mGeckoIsReady = true;
-    }
-
-    private boolean sendEventToGecko(MotionEvent event) {
-        if (!mGeckoIsReady) {
-            return false;
-        }
-
-        int action = event.getActionMasked();
-        PointF point = new PointF(event.getX(), event.getY());
-        if (action == MotionEvent.ACTION_DOWN) {
-            mInitialTouchPoint = point;
-        }
-
-        if (mInitialTouchPoint != null && action == MotionEvent.ACTION_MOVE) {
-            Point p = getEventRadius(event);
-
-            if (PointUtils.subtract(point, mInitialTouchPoint).length() <
-                Math.max(PanZoomController.CLICK_THRESHOLD, Math.min(Math.min(p.x, p.y), PanZoomController.PAN_THRESHOLD))) {
-                // Don't send the touchmove event if if the users finger hasn't moved far.
-                // Necessary for Google Maps to work correctly. See bug 771099.
-                return true;
-            } else {
-                mInitialTouchPoint = null;
-            }
-        }
-
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createMotionEvent(event, false));
-        return true;
-    }
-
-    public void showSurface() {
+    public void show() {
         // Fix this if TextureView support is turned back on above
         mSurfaceView.setVisibility(View.VISIBLE);
     }
 
-    public void hideSurface() {
+    public void hide() {
         // Fix this if TextureView support is turned back on above
         mSurfaceView.setVisibility(View.INVISIBLE);
     }
@@ -211,111 +131,55 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
         if (mLayerClient != null) {
             mLayerClient.destroy();
         }
-        if (mRenderer != null) {
-            mRenderer.destroy();
-        }
-        Tabs.unregisterOnTabsChangedListener(this);
-    }
-
-    @Override
-    public void dispatchDraw(final Canvas canvas) {
-        super.dispatchDraw(canvas);
-
-        // We must have a layer client to get valid viewport metrics
-        if (mLayerClient != null && mOverscroll != null) {
-            mOverscroll.draw(canvas, getViewportMetrics());
-        }
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+        if (event.getActionMasked() == MotionEvent.ACTION_DOWN)
             requestFocus();
-        }
 
-        if (mMarginsAnimator != null && mMarginsAnimator.onInterceptTouchEvent(event)) {
-            return true;
-        }
-        if (mPanZoomController != null && mPanZoomController.onTouchEvent(event)) {
-            return true;
-        }
-        return sendEventToGecko(event);
+        /** We need to manually hide FormAssistPopup because it is not a regular PopupWindow. */
+        if (GeckoApp.mAppContext != null)
+            GeckoApp.mAppContext.hideFormAssistPopup();
+
+        return mTouchEventHandler == null ? false : mTouchEventHandler.handleEvent(event);
     }
 
     @Override
     public boolean onHoverEvent(MotionEvent event) {
-        return sendEventToGecko(event);
+        return mTouchEventHandler == null ? false : mTouchEventHandler.handleEvent(event);
     }
 
-    @Override
-    public boolean onGenericMotionEvent(MotionEvent event) {
-        if (AndroidGamepadManager.handleMotionEvent(event)) {
-            return true;
-        }
-        if (mPanZoomController != null && mPanZoomController.onMotionEvent(event)) {
-            return true;
-        }
-        return false;
-    }
-
-    @Override
-    protected void onAttachedToWindow() {
-        // This check should not be done before the view is attached to a window
-        // as hardware acceleration will not be enabled at that point.
-        // We must create and add the SurfaceView instance before the view tree
-        // is fully created to avoid flickering (see bug 801477).
-        if (shouldUseTextureView()) {
-            mTextureView = new TextureView(getContext());
-            mTextureView.setSurfaceTextureListener(new SurfaceTextureListener());
-
-            // The background is set to this color when the LayerView is
-            // created, and it will be shown immediately at startup. Shortly
-            // after, the tab's background color will be used before any content
-            // is shown.
-            mTextureView.setBackgroundColor(Color.WHITE);
-            addView(mTextureView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-        } else {
-            // This will stop PropertyAnimator from creating a drawing cache (i.e. a bitmap)
-            // from a SurfaceView, which is just not possible (the bitmap will be transparent).
-            setWillNotCacheDrawing(false);
-
-            mSurfaceView = new LayerSurfaceView(getContext(), this);
-            mSurfaceView.setBackgroundColor(Color.WHITE);
-            addView(mSurfaceView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-
-            SurfaceHolder holder = mSurfaceView.getHolder();
-            holder.addCallback(new SurfaceListener());
-        }
-    }
-
-    // Don't expose GeckoLayerClient to things outside this package; only expose it as an Object
-    GeckoLayerClient getLayerClient() { return mLayerClient; }
-    public Object getLayerClientObject() { return mLayerClient; }
-
-    public PanZoomController getPanZoomController() { return mPanZoomController; }
-    public LayerMarginsAnimator getLayerMarginsAnimator() { return mMarginsAnimator; }
+    public GeckoLayerClient getLayerClient() { return mLayerClient; }
+    public TouchEventHandler getTouchEventHandler() { return mTouchEventHandler; }
 
     public ImmutableViewportMetrics getViewportMetrics() {
         return mLayerClient.getViewportMetrics();
     }
 
     public void abortPanning() {
-        if (mPanZoomController != null) {
-            mPanZoomController.abortPanning();
-        }
+        mLayerClient.getPanZoomController().abortPanning();
     }
 
     public PointF convertViewPointToLayerPoint(PointF viewPoint) {
         return mLayerClient.convertViewPointToLayerPoint(viewPoint);
     }
 
-    int getBackgroundColor() {
-        return mBackgroundColor;
+    int getCheckerboardColor() {
+        return mCheckerboardColor;
     }
 
-    @Override
-    public void setBackgroundColor(int newColor) {
-        mBackgroundColor = newColor;
+    public void setCheckerboardColor(int newColor) {
+        mCheckerboardColor = newColor;
+        requestRender();
+    }
+
+    boolean checkerboardShouldShowChecks() {
+        return mCheckerboardShouldShowChecks;
+    }
+
+    void setCheckerboardShouldShowChecks(boolean value) {
+        mCheckerboardShouldShowChecks = value;
         requestRender();
     }
 
@@ -323,19 +187,14 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
         mLayerClient.setZoomConstraints(constraints);
     }
 
-    public void setIsRTL(boolean aIsRTL) {
-        mLayerClient.setIsRTL(aIsRTL);
+    /** The LayerRenderer calls this to indicate that the window has changed size. */
+    public void setViewportSize(IntSize size) {
+        mLayerClient.setViewportSize(new FloatSize(size));
     }
 
     public void setInputConnectionHandler(InputConnectionHandler inputConnectionHandler) {
         mInputConnectionHandler = inputConnectionHandler;
-    }
-
-    @Override
-    public Handler getHandler() {
-        if (mInputConnectionHandler != null)
-            return mInputConnectionHandler.getHandler(super.getHandler());
-        return super.getHandler();
+        mLayerClient.setForceRedraw();
     }
 
     @Override
@@ -347,51 +206,36 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
 
     @Override
     public boolean onKeyPreIme(int keyCode, KeyEvent event) {
-        if (mInputConnectionHandler != null && mInputConnectionHandler.onKeyPreIme(keyCode, event)) {
-            return true;
-        }
+        if (mInputConnectionHandler != null)
+            return mInputConnectionHandler.onKeyPreIme(keyCode, event);
         return false;
     }
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (mPanZoomController != null && mPanZoomController.onKeyEvent(event)) {
-            return true;
-        }
-        if (mInputConnectionHandler != null && mInputConnectionHandler.onKeyDown(keyCode, event)) {
-            return true;
-        }
+        if (mInputConnectionHandler != null)
+            return mInputConnectionHandler.onKeyDown(keyCode, event);
         return false;
     }
 
     @Override
     public boolean onKeyLongPress(int keyCode, KeyEvent event) {
-        if (mInputConnectionHandler != null && mInputConnectionHandler.onKeyLongPress(keyCode, event)) {
-            return true;
-        }
+        if (mInputConnectionHandler != null)
+            return mInputConnectionHandler.onKeyLongPress(keyCode, event);
         return false;
     }
 
     @Override
     public boolean onKeyMultiple(int keyCode, int repeatCount, KeyEvent event) {
-        if (mInputConnectionHandler != null && mInputConnectionHandler.onKeyMultiple(keyCode, repeatCount, event)) {
-            return true;
-        }
+        if (mInputConnectionHandler != null)
+            return mInputConnectionHandler.onKeyMultiple(keyCode, repeatCount, event);
         return false;
     }
 
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
-        if (mInputConnectionHandler != null && mInputConnectionHandler.onKeyUp(keyCode, event)) {
-            return true;
-        }
-        return false;
-    }
-
-    public boolean isIMEEnabled() {
-        if (mInputConnectionHandler != null) {
-            return mInputConnectionHandler.isIMEEnabled();
-        }
+        if (mInputConnectionHandler != null)
+            return mInputConnectionHandler.onKeyUp(keyCode, event);
         return false;
     }
 
@@ -409,32 +253,33 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
         mRenderer.removeLayer(layer);
     }
 
-    public void postRenderTask(RenderTask task) {
-        mRenderer.postRenderTask(task);
-    }
-
-    public void removeRenderTask(RenderTask task) {
-        mRenderer.removeRenderTask(task);
-    }
-
     public int getMaxTextureSize() {
         return mRenderer.getMaxTextureSize();
     }
 
     /** Used by robocop for testing purposes. Not for production use! */
-    @RobocopTarget
     public IntBuffer getPixels() {
         return mRenderer.getPixels();
     }
 
+    public void setLayerRenderer(LayerRenderer renderer) {
+        mRenderer = renderer;
+    }
+
+    public LayerRenderer getLayerRenderer() {
+        return mRenderer;
+    }
+
     /* paintState must be a PAINT_xxx constant. */
     public void setPaintState(int paintState) {
+        Log.d(LOGTAG, "LayerView paint state set to " + paintState);
         mPaintState = paintState;
     }
 
     public int getPaintState() {
         return mPaintState;
     }
+
 
     public LayerRenderer getRenderer() {
         return mRenderer;
@@ -452,65 +297,34 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
         return mGLController;
     }
 
-    private Bitmap getDrawable(String name) {
+    private Bitmap getDrawable(int resId) {
         BitmapFactory.Options options = new BitmapFactory.Options();
         options.inScaled = false;
-        Context context = getContext();
-        int resId = context.getResources().getIdentifier(name, "drawable", context.getPackageName());
-        return BitmapUtils.decodeResource(context, resId, options);
+        return BitmapFactory.decodeResource(getContext().getResources(), resId, options);
     }
 
-    Bitmap getScrollbarImage() {
-        return getDrawable("scrollbar");
+    Bitmap getBackgroundPattern() {
+        return getDrawable(R.drawable.tabs_tray_selected_bg);
     }
 
-    /* When using a SurfaceView (mSurfaceView != null), resizing happens in two
-     * phases. First, the LayerView changes size, then, often some frames later,
-     * the SurfaceView changes size. Because of this, we need to split the
-     * resize into two phases to avoid jittering.
-     *
-     * The first phase is the LayerView size change. mListener is notified so
-     * that a synchronous draw can be performed (otherwise a blank frame will
-     * appear).
-     *
-     * The second phase is the SurfaceView size change. At this point, the
-     * backing GL surface is resized and another synchronous draw is performed.
-     * Gecko is also sent the new window size, and this will likely cause an
-     * extra draw a few frames later, after it's re-rendered and caught up.
-     *
-     * In the case that there is no valid GL surface (for example, when
-     * resuming, or when coming back from the awesomescreen), or we're using a
-     * TextureView instead of a SurfaceView, the first phase is skipped.
-     */
+    Bitmap getShadowPattern() {
+        return getDrawable(R.drawable.shadow);
+    }
+
     private void onSizeChanged(int width, int height) {
-        if (!mGLController.isServerSurfaceValid() || mSurfaceView == null) {
-            surfaceChanged(width, height);
-            return;
-        }
-
-        if (mListener != null) {
-            mListener.sizeChanged(width, height);
-        }
-
-        if (mOverscroll != null) {
-            mOverscroll.setSize(width, height);
-        }
-    }
-
-    private void surfaceChanged(int width, int height) {
-        mGLController.serverSurfaceChanged(width, height);
+        mGLController.surfaceChanged(width, height);
 
         if (mListener != null) {
             mListener.surfaceChanged(width, height);
         }
-
-        if (mOverscroll != null) {
-            mOverscroll.setSize(width, height);
-        }
     }
 
     private void onDestroyed() {
-        mGLController.serverSurfaceDestroyed();
+        mGLController.surfaceDestroyed();
+
+        if (mListener != null) {
+            mListener.compositionPauseRequested();
+        }
     }
 
     public Object getNativeWindow() {
@@ -520,13 +334,12 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
         return mTextureView.getSurfaceTexture();
     }
 
-    @WrapElementForJNI(allowMultithread = true, stubName = "RegisterCompositorWrapper")
+    /** This function is invoked by Gecko (compositor thread) via JNI; be careful when modifying signature. */
     public static GLController registerCxxCompositor() {
         try {
-            LayerView layerView = GeckoAppShell.getLayerView();
-            GLController controller = layerView.getGLController();
-            controller.compositorCreated();
-            return controller;
+            LayerView layerView = GeckoApp.mAppContext.getLayerView();
+            layerView.mListener.compositorCreated();
+            return layerView.getGLController();
         } catch (Exception e) {
             Log.e(LOGTAG, "Error registering compositor!", e);
             return null;
@@ -534,138 +347,45 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
     }
 
     public interface Listener {
+        void compositorCreated();
         void renderRequested();
-        void sizeChanged(int width, int height);
+        void compositionPauseRequested();
+        void compositionResumeRequested(int width, int height);
         void surfaceChanged(int width, int height);
     }
 
     private class SurfaceListener implements SurfaceHolder.Callback {
-        @Override
         public void surfaceChanged(SurfaceHolder holder, int format, int width,
                                                 int height) {
             onSizeChanged(width, height);
         }
 
-        @Override
         public void surfaceCreated(SurfaceHolder holder) {
         }
 
-        @Override
         public void surfaceDestroyed(SurfaceHolder holder) {
             onDestroyed();
         }
     }
 
-    /* A subclass of SurfaceView to listen to layout changes, as
-     * View.OnLayoutChangeListener requires API level 11.
-     */
-    private class LayerSurfaceView extends SurfaceView {
-        LayerView mParent;
-
-        public LayerSurfaceView(Context aContext, LayerView aParent) {
-            super(aContext);
-            mParent = aParent;
-        }
-
-        @Override
-        protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-            if (changed) {
-                mParent.surfaceChanged(right - left, bottom - top);
-            }
-        }
-    }
-
     private class SurfaceTextureListener implements TextureView.SurfaceTextureListener {
-        @Override
         public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
             // We don't do this for surfaceCreated above because it is always followed by a surfaceChanged,
             // but that is not the case here.
             onSizeChanged(width, height);
         }
 
-        @Override
         public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
             onDestroyed();
             return true; // allow Android to call release() on the SurfaceTexture, we are done drawing to it
         }
 
-        @Override
         public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
             onSizeChanged(width, height);
         }
 
-        @Override
         public void onSurfaceTextureUpdated(SurfaceTexture surface) {
 
         }
-    }
-
-    @RobocopTarget
-    public void addDrawListener(DrawListener listener) {
-        mLayerClient.addDrawListener(listener);
-    }
-
-    @RobocopTarget
-    public void removeDrawListener(DrawListener listener) {
-        mLayerClient.removeDrawListener(listener);
-    }
-
-    @RobocopTarget
-    public static interface DrawListener {
-        public void drawFinished();
-    }
-
-    @Override
-    public void setOverScrollMode(int overscrollMode) {
-        super.setOverScrollMode(overscrollMode);
-        if (mPanZoomController != null) {
-            mPanZoomController.setOverScrollMode(overscrollMode);
-        }
-    }
-
-    @Override
-    public int getOverScrollMode() {
-        if (mPanZoomController != null) {
-            return mPanZoomController.getOverScrollMode();
-        }
-
-        return super.getOverScrollMode();
-    }
-
-    @Override
-    public void onFocusChanged (boolean gainFocus, int direction, Rect previouslyFocusedRect) {
-        super.onFocusChanged(gainFocus, direction, previouslyFocusedRect);
-        GeckoAccessibility.onLayerViewFocusChanged(this, gainFocus);
-    }
-
-    public void setFullScreenState(FullScreenState state) {
-        mFullScreenState = state;
-    }
-
-    public boolean isFullScreen() {
-        return mFullScreenState != FullScreenState.NONE;
-    }
-
-    public FullScreenState getFullScreenState() {
-        return mFullScreenState;
-    }
-
-    @Override
-    public void onTabChanged(Tab tab, Tabs.TabEvents msg, Object data) {
-        if (msg == Tabs.TabEvents.VIEWPORT_CHANGE && Tabs.getInstance().isSelectedTab(tab) && mLayerClient != null) {
-            setZoomConstraints(tab.getZoomConstraints());
-            setIsRTL(tab.getIsRTL());
-        }
-    }
-
-    // Public hooks for listening to metrics changing
-
-    public interface OnMetricsChangedListener {
-        public void onMetricsChanged(ImmutableViewportMetrics viewport);
-        public void onPanZoomStopped();
-    }
-
-    public void setOnMetricsChangedListener(OnMetricsChangedListener listener) {
-        mLayerClient.setOnMetricsChangedListener(listener);
     }
 }

@@ -12,7 +12,6 @@
 #include "base/waitable_event.h"
 #include "mozilla/ipc/ProcessChild.h"
 #include "mozilla/ipc/BrowserProcessSubThread.h"
-#include "mozilla/ipc/Transport.h"
 typedef mozilla::ipc::BrowserProcessSubThread ChromeThread;
 #include "chrome/common/ipc_logging.h"
 #include "chrome/common/notification_service.h"
@@ -20,7 +19,6 @@ typedef mozilla::ipc::BrowserProcessSubThread ChromeThread;
 #include "chrome/common/process_watcher.h"
 #include "chrome/common/result_codes.h"
 
-using mozilla::ipc::FileDescriptor;
 
 namespace {
 typedef std::list<ChildProcessHost*> ChildProcessList;
@@ -49,10 +47,12 @@ class ChildNotificationTask : public Task {
 
 
 
-ChildProcessHost::ChildProcessHost(ProcessType type)
+ChildProcessHost::ChildProcessHost(
+    ProcessType type, ResourceDispatcherHost* resource_dispatcher_host)
     :
       ChildProcessInfo(type),
       ALLOW_THIS_IN_INITIALIZER_LIST(listener_(this)),
+      resource_dispatcher_host_(resource_dispatcher_host),
       opening_channel_(false),
       process_event_(NULL) {
   Singleton<ChildProcessList>::get()->push_back(this);
@@ -86,22 +86,6 @@ bool ChildProcessHost::CreateChannel() {
   return true;
 }
 
-bool ChildProcessHost::CreateChannel(FileDescriptor& aFileDescriptor) {
-  if (channel_.get()) {
-    channel_->Close();
-  }
-  channel_.reset(mozilla::ipc::OpenDescriptor(
-      aFileDescriptor, IPC::Channel::MODE_SERVER));
-  channel_->set_listener(&listener_);
-  if (!channel_->Connect()) {
-    return false;
-  }
-
-  opening_channel_ = true;
-
-  return true;
-}
-
 void ChildProcessHost::SetHandle(base::ProcessHandle process) {
 #if defined(OS_WIN)
   process_event_.reset(new base::WaitableEvent(process));
@@ -113,7 +97,7 @@ void ChildProcessHost::SetHandle(base::ProcessHandle process) {
 }
 
 void ChildProcessHost::InstanceCreated() {
-  Notify(NotificationType(NotificationType::CHILD_INSTANCE_CREATED));
+  Notify(NotificationType::CHILD_INSTANCE_CREATED);
 }
 
 bool ChildProcessHost::Send(IPC::Message* msg) {
@@ -143,10 +127,10 @@ void ChildProcessHost::OnWaitableEventSignaled(base::WaitableEvent *event) {
   bool did_crash = base::DidProcessCrash(NULL, object);
   if (did_crash) {
     // Report that this child process crashed.
-    Notify(NotificationType(NotificationType::CHILD_PROCESS_CRASHED));
+    Notify(NotificationType::CHILD_PROCESS_CRASHED);
   }
   // Notify in the main loop of the disconnection.
-  Notify(NotificationType(NotificationType::CHILD_PROCESS_HOST_DISCONNECTED));
+  Notify(NotificationType::CHILD_PROCESS_HOST_DISCONNECTED);
 #endif
 }
 
@@ -183,12 +167,12 @@ void ChildProcessHost::ListenerHook::OnMessageReceived(
 #endif
 }
 
-void ChildProcessHost::ListenerHook::OnChannelConnected(int32_t peer_pid) {
+void ChildProcessHost::ListenerHook::OnChannelConnected(int32 peer_pid) {
   host_->opening_channel_ = false;
   host_->OnChannelConnected(peer_pid);
 
   // Notify in the main loop of the connection.
-  host_->Notify(NotificationType(NotificationType::CHILD_PROCESS_HOST_CONNECTED));
+  host_->Notify(NotificationType::CHILD_PROCESS_HOST_CONNECTED);
 }
 
 void ChildProcessHost::ListenerHook::OnChannelError() {

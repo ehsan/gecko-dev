@@ -2,24 +2,24 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-///////////////////
-//
-// Whitelisting this test.
-// As part of bug 1077403, the leaking uncaught rejection should be fixed. 
-//
-thisTestLeaksUncaughtRejectionsAndShouldBeFixed("Error: Unknown sheet source");
-
 const TESTCASE_URI = TEST_BASE + "minified.html";
 
-let gUI;
 
 function test()
 {
   waitForExplicitFinish();
 
-  addTabAndCheckOnStyleEditorAdded(panel => gUI = panel.UI, editor => {
-    editor.getSourceEditor().then(function() {
-      testEditor(editor);
+  addTabAndLaunchStyleEditorChromeWhenLoaded(function (aChrome) {
+    aChrome.addChromeListener({
+      onEditorAdded: function (aChrome, aEditor) {
+        if (aEditor.sourceEditor) {
+          run(aEditor); // already attached to input element
+        } else {
+          aEditor.addActionListener({
+            onAttach: run
+          });
+        }
+      }
     });
   });
 
@@ -27,20 +27,21 @@ function test()
 }
 
 let editorTestedCount = 0;
-function testEditor(aEditor)
+function run(aEditor)
 {
-  if (aEditor.styleSheet.styleSheetIndex == 0) {
-    let prettifiedSource = "body\{\r?\n\tbackground\:white;\r?\n\}\r?\n\r?\ndiv\{\r?\n\tfont\-size\:4em;\r?\n\tcolor\:red\r?\n\}\r?\n\r?\nspan\{\r?\n\tcolor\:green;\r?\n\}\r?\n";
+  if (aEditor.styleSheetIndex == 0) {
+    let prettifiedSource = "body\{\r?\n\tbackground\:white;\r?\n\}\r?\n\r?\ndiv\{\r?\n\tfont\-size\:4em;\r?\n\tcolor\:red\r?\n\}\r?\n";
     let prettifiedSourceRE = new RegExp(prettifiedSource);
 
     ok(prettifiedSourceRE.test(aEditor.sourceEditor.getText()),
        "minified source has been prettified automatically");
     editorTestedCount++;
-    let summary = gUI.editors[1].summary;
-    EventUtils.synthesizeMouseAtCenter(summary, {}, gPanelWindow);
+    let chrome = gChromeWindow.styleEditorChrome;
+    let summary = chrome.getSummaryElementForEditor(chrome.editors[1]);
+    EventUtils.synthesizeMouseAtCenter(summary, {}, gChromeWindow);
   }
 
-  if (aEditor.styleSheet.styleSheetIndex == 1) {
+  if (aEditor.styleSheetIndex == 1) {
     let originalSource = "body \{ background\: red; \}\r?\ndiv \{\r?\nfont\-size\: 5em;\r?\ncolor\: red\r?\n\}";
     let originalSourceRE = new RegExp(originalSource);
 
@@ -50,7 +51,6 @@ function testEditor(aEditor)
   }
 
   if (editorTestedCount == 2) {
-    gUI = null;
     finish();
   }
 }

@@ -24,7 +24,7 @@ ArgValueArray::ArgValueArray(int32_t aArgc,
 {
 }
 
-NS_IMPL_ISUPPORTS(
+NS_IMPL_ISUPPORTS1(
   ArgValueArray,
   mozIStorageValueArray
 )
@@ -130,7 +130,7 @@ ArgValueArray::GetString(uint32_t aIndex,
     _value.Truncate(0);
     _value.SetIsVoid(true);
   } else {
-    _value.Assign(static_cast<const char16_t *>(::sqlite3_value_text16(mArgv[aIndex])),
+    _value.Assign(static_cast<const PRUnichar *>(::sqlite3_value_text16(mArgv[aIndex])),
                   ::sqlite3_value_bytes16(mArgv[aIndex]) / 2);
   }
   return NS_OK;
@@ -180,12 +180,12 @@ ArgValueArray::GetSharedUTF8String(uint32_t aIndex,
 NS_IMETHODIMP
 ArgValueArray::GetSharedString(uint32_t aIndex,
                                uint32_t *_length,
-                               const char16_t **_string)
+                               const PRUnichar **_string)
 {
   if (_length)
     *_length = ::sqlite3_value_bytes(mArgv[aIndex]);
 
-  *_string = static_cast<const char16_t *>(::sqlite3_value_text16(mArgv[aIndex]));
+  *_string = static_cast<const PRUnichar *>(::sqlite3_value_text16(mArgv[aIndex]));
   return NS_OK;
 }
 

@@ -85,7 +85,7 @@ class DeathData {
   // Metrics accessors.
   int count() const { return count_; }
   base::TimeDelta life_duration() const { return life_duration_; }
-  int64_t square_duration() const { return square_duration_; }
+  int64 square_duration() const { return square_duration_; }
   int AverageMsDuration() const;
   double StandardDeviation() const;
 
@@ -100,7 +100,7 @@ class DeathData {
  private:
   int count_;                // Number of destructions.
   base::TimeDelta life_duration_;    // Sum of all lifetime durations.
-  int64_t square_duration_;  // Sum of squares in milliseconds.
+  int64 square_duration_;  // Sum of squares in milliseconds.
 };
 
 //------------------------------------------------------------------------------
@@ -129,7 +129,7 @@ class Snapshot {
 
   int count() const { return death_data_.count(); }
   base::TimeDelta life_duration() const { return death_data_.life_duration(); }
-  int64_t square_duration() const { return death_data_.square_duration(); }
+  int64 square_duration() const { return death_data_.square_duration(); }
   int AverageMsDuration() const { return death_data_.AverageMsDuration(); }
 
   void Write(std::string* output) const;
@@ -267,6 +267,12 @@ class Comparator {
   // aggregated, then the following is used to order them (within the group).
   void SetSubgroupTiebreaker(Selector selector);
 
+  // Translate a keyword and restriction in URL path to a selector for sorting.
+  void ParseKeyphrase(const std::string key_phrase);
+
+  // Parse a query in an about:objects URL to decide on sort ordering.
+  bool ParseQuery(const std::string query);
+
   // Output a header line that can be used to indicated what items will be
   // collected in the group.  It lists all (potentially) tested attributes and
   // their values (in the sample item).
@@ -318,6 +324,16 @@ class ThreadData {
   // If shutdown has already started, and we don't yet have an instance, then
   // return null.
   static ThreadData* current();
+
+  // For a given about:objects URL, develop resulting HTML, and append to
+  // output.
+  static void WriteHTML(const std::string& query, std::string* output);
+
+  // For a given accumulated array of results, use the comparator to sort and
+  // subtotal, writing the results to the output.
+  static void WriteHTMLTotalAndSubtotals(
+      const DataCollector::Collection& match_array,
+      const Comparator& comparator, std::string* output);
 
   // In this thread's data, find a place to record a new birth.
   Births* FindLifetime(const Location& location);

@@ -2,13 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/Attributes.h"
-#include "mozilla/Types.h"
+#include "jsapi.h"
 
-#define EXPORT_CDECL(type)   MOZ_EXPORT type
+#define EXPORT_CDECL(type)   NS_EXPORT type
 
-MOZ_BEGIN_EXTERN_C
-
+NS_EXTERN_C
+{
   EXPORT_CDECL(void) test_finalizer_start(size_t size);
   EXPORT_CDECL(void) test_finalizer_stop();
   EXPORT_CDECL(bool) test_finalizer_resource_is_acquired(size_t i);
@@ -16,7 +15,7 @@ MOZ_BEGIN_EXTERN_C
   EXPORT_CDECL(size_t) test_finalizer_acq_size_t(size_t i);
   EXPORT_CDECL(void) test_finalizer_rel_size_t(size_t i);
   EXPORT_CDECL(size_t) test_finalizer_rel_size_t_return_size_t(size_t i);
-  EXPORT_CDECL(myRECT) test_finalizer_rel_size_t_return_struct_t(size_t i);
+  EXPORT_CDECL(RECT) test_finalizer_rel_size_t_return_struct_t(size_t i);
   EXPORT_CDECL(bool) test_finalizer_cmp_size_t(size_t a, size_t b);
 
   EXPORT_CDECL(int32_t) test_finalizer_acq_int32_t(size_t i);
@@ -44,9 +43,9 @@ MOZ_BEGIN_EXTERN_C
   EXPORT_CDECL(bool) test_finalizer_cmp_null_t(void *a, void *b);
   EXPORT_CDECL(bool) test_finalizer_null_resource_is_acquired(size_t i);
 
-  EXPORT_CDECL(myRECT) test_finalizer_acq_struct_t(int i);
-  EXPORT_CDECL(void) test_finalizer_rel_struct_t(myRECT i);
-  EXPORT_CDECL(bool) test_finalizer_cmp_struct_t(myRECT a, myRECT b);
+  EXPORT_CDECL(RECT) test_finalizer_acq_struct_t(int i);
+  EXPORT_CDECL(void) test_finalizer_rel_struct_t(RECT i);
+  EXPORT_CDECL(bool) test_finalizer_cmp_struct_t(RECT a, RECT b);
 
   typedef void (*afun)(size_t);
   EXPORT_CDECL(afun*) test_finalizer_rel_null_function();
@@ -54,4 +53,4 @@ MOZ_BEGIN_EXTERN_C
   EXPORT_CDECL(void) test_finalizer_rel_size_t_set_errno(size_t i);
   EXPORT_CDECL(void) reset_errno();
 
-MOZ_END_EXTERN_C
+}

@@ -5,10 +5,8 @@
 #ifndef NSFRAMETRAVERSAL_H
 #define NSFRAMETRAVERSAL_H
 
-#include "mozilla/Attributes.h"
+#include "nsIFrame.h"
 #include "nsIFrameTraversal.h"
-
-class nsIFrame;
 
 nsresult NS_NewFrameTraversal(nsIFrameEnumerator **aEnumerator,
                               nsPresContext* aPresContext,
@@ -24,19 +22,17 @@ class nsFrameTraversal : public nsIFrameTraversal
 {
 public:
   nsFrameTraversal();
+  virtual ~nsFrameTraversal();
 
   NS_DECL_ISUPPORTS
 
   NS_IMETHOD NewFrameTraversal(nsIFrameEnumerator **aEnumerator,
                                nsPresContext* aPresContext,
                                nsIFrame *aStart,
-                               int32_t aType,
+                               PRInt32 aType,
                                bool aVisual,
                                bool aLockInScrollView,
-                               bool aFollowOOFs) MOZ_OVERRIDE;
-
-protected:
-  virtual ~nsFrameTraversal();
+                               bool aFollowOOFs);
 };
 
 #endif //NSFRAMETRAVERSAL_H

@@ -12,12 +12,11 @@
 #ifndef nsIStyleRuleProcessor_h___
 #define nsIStyleRuleProcessor_h___
 
-#include "mozilla/MemoryReporting.h"
 #include "nsISupports.h"
 #include "nsChangeHint.h"
+#include "nsIContent.h"
 
 struct RuleProcessorData;
-struct ElementDependentRuleProcessorData;
 struct ElementRuleProcessorData;
 struct PseudoElementRuleProcessorData;
 struct AnonBoxRuleProcessorData;
@@ -25,7 +24,6 @@ struct AnonBoxRuleProcessorData;
 struct XULTreeRuleProcessorData;
 #endif
 struct StateRuleProcessorData;
-struct PseudoElementStateRuleProcessorData;
 struct AttributeRuleProcessorData;
 class nsPresContext;
 
@@ -93,12 +91,10 @@ public:
    * test is used for optimization only, and may err on the side of
    * reporting more dependencies than really exist.
    *
-   * Event states are defined in mozilla/EventStates.h.
+   * Event states are defined in nsEventStates.h.
    */
   virtual nsRestyleHint
     HasStateDependentStyle(StateRuleProcessorData* aData) = 0;
-  virtual nsRestyleHint
-    HasStateDependentStyle(PseudoElementStateRuleProcessorData* aData) = 0;
 
   /**
    * This method will be called twice for every attribute change.
@@ -130,8 +126,8 @@ public:
    * Report the size of this style rule processor to about:memory.  A
    * processor may return 0.
    */
-  virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const = 0;
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const = 0;
+  virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun mallocSizeOf) const = 0;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf) const = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIStyleRuleProcessor,

@@ -15,84 +15,115 @@
 #endif
 
 class gfxFontconfigUtils;
-class QWindow;
+class QWidget;
+#ifndef MOZ_PANGO
+typedef struct FT_LibraryRec_ *FT_Library;
 
-class gfxQtPlatform : public gfxPlatform {
+class FontFamily;
+class FontEntry;
+#endif
+
+class THEBES_API gfxQtPlatform : public gfxPlatform {
 public:
+
+    enum RenderMode {
+        /* Use QPainter surfaces */
+        RENDER_QPAINTER = 0,
+        /* Use offscreen buffer for rendering with image or xlib gfx backend */
+        RENDER_BUFFERED,
+        /* Direct rendering to Widget surface */
+        RENDER_DIRECT,
+        /* max */
+        RENDER_MODE_MAX
+    };
+
     gfxQtPlatform();
     virtual ~gfxQtPlatform();
 
     static gfxQtPlatform *GetPlatform() {
-        return static_cast<gfxQtPlatform*>(gfxPlatform::GetPlatform());
+        return (gfxQtPlatform*) gfxPlatform::GetPlatform();
     }
 
-    virtual already_AddRefed<gfxASurface>
-      CreateOffscreenSurface(const IntSize& size,
-                             gfxContentType contentType) MOZ_OVERRIDE;
+    already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
+                                                         gfxASurface::gfxContentType contentType);
 
-    virtual mozilla::TemporaryRef<mozilla::gfx::ScaledFont>
-      GetScaledFontForFont(mozilla::gfx::DrawTarget* aTarget, gfxFont *aFont) MOZ_OVERRIDE;
+    nsresult GetFontList(nsIAtom *aLangGroup,
+                         const nsACString& aGenericFamily,
+                         nsTArray<nsString>& aListOfFonts);
 
-    virtual nsresult GetFontList(nsIAtom *aLangGroup,
-                                 const nsACString& aGenericFamily,
-                                 nsTArray<nsString>& aListOfFonts) MOZ_OVERRIDE;
+    nsresult UpdateFontList();
 
-    virtual nsresult UpdateFontList() MOZ_OVERRIDE;
+    nsresult ResolveFontName(const nsAString& aFontName,
+                             FontResolverCallback aCallback,
+                             void *aClosure, bool& aAborted);
 
-    virtual nsresult GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName) MOZ_OVERRIDE;
+    nsresult GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName);
 
-    virtual gfxFontGroup *CreateFontGroup(const mozilla::FontFamilyList& aFontFamilyList,
-                                          const gfxFontStyle *aStyle,
-                                          gfxUserFontSet* aUserFontSet) MOZ_OVERRIDE;
+    gfxFontGroup *CreateFontGroup(const nsAString &aFamilies,
+                                  const gfxFontStyle *aStyle,
+                                  gfxUserFontSet* aUserFontSet);
 
+#ifdef MOZ_PANGO
     /**
      * Look up a local platform font using the full font face name (needed to
      * support @font-face src local() )
      */
-    virtual gfxFontEntry* LookupLocalFont(const nsAString& aFontName,
-                                          uint16_t aWeight,
-                                          int16_t aStretch,
-                                          bool aItalic) MOZ_OVERRIDE;
+    virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
+                                          const nsAString& aFontName);
 
     /**
      * Activate a platform font (needed to support @font-face src url() )
      *
      */
-    virtual gfxFontEntry* MakePlatformFont(const nsAString& aFontName,
-                                           uint16_t aWeight,
-                                           int16_t aStretch,
-                                           bool aItalic,
-                                           const uint8_t* aFontData,
-                                           uint32_t aLength) MOZ_OVERRIDE;
+    virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                                           const uint8_t *aFontData,
+                                           uint32_t aLength);
 
     /**
      * Check whether format is supported on a platform or not (if unclear,
      * returns true).
      */
     virtual bool IsFontFormatSupported(nsIURI *aFontURI,
-                                       uint32_t aFormatFlags) MOZ_OVERRIDE;
+                                         uint32_t aFormatFlags);
+#endif
 
-    virtual void ClearPrefFonts() { mPrefFonts.Clear(); }
+#ifndef MOZ_PANGO
+    FontFamily *FindFontFamily(const nsAString& aName);
+    FontEntry *FindFontEntry(const nsAString& aFamilyName, const gfxFontStyle& aFontStyle);
+    already_AddRefed<gfxFont> FindFontForChar(uint32_t aCh, gfxFont *aFont);
+    bool GetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<gfxFontEntry> > *aFontEntryList);
+    void SetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<gfxFontEntry> >& aFontEntryList);
+#endif
+
+    void ClearPrefFonts() { mPrefFonts.Clear(); }
+
+#ifndef MOZ_PANGO
+    FT_Library GetFTLibrary();
+#endif
+
+    RenderMode GetRenderMode() { return mRenderMode; }
+    void SetRenderMode(RenderMode rmode) { mRenderMode = rmode; }
 
     static int32_t GetDPI();
 
-    virtual gfxImageFormat GetOffscreenFormat() MOZ_OVERRIDE;
+    virtual gfxImageFormat GetOffscreenFormat();
 #ifdef MOZ_X11
-    static Display* GetXDisplay(QWindow* aWindow = 0);
-    static Screen* GetXScreen(QWindow* aWindow = 0);
+    static Display* GetXDisplay(QWidget* aWindow = 0);
+    static Screen* GetXScreen(QWidget* aWindow = 0);
 #endif
 
-    virtual int GetScreenDepth() const MOZ_OVERRIDE;
+    virtual int GetScreenDepth() const;
 
 protected:
     static gfxFontconfigUtils *sFontconfigUtils;
 
 private:
-    virtual void GetPlatformCMSOutputProfile(void *&mem, size_t &size) MOZ_OVERRIDE;
+    virtual qcms_profile *GetPlatformCMSOutputProfile();
 
     // TODO: unify this with mPrefFonts (NB: holds families, not fonts) in gfxPlatformFontList
     nsDataHashtable<nsCStringHashKey, nsTArray<nsRefPtr<gfxFontEntry> > > mPrefFonts;
 
+    RenderMode mRenderMode;
     int mScreenDepth;
 };
 

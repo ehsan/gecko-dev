@@ -11,8 +11,8 @@
 #include "nsIFrame.h"
 #include "nsStyleStruct.h"
 #include "prclist.h"
+#include "nsIDOMCharacterData.h"
 #include "nsCSSPseudoElements.h"
-#include "nsTextNode.h"
 
 class nsGenConList;
 
@@ -30,9 +30,9 @@ struct nsGenConNode : public PRCList {
 
   // null for 'content:no-open-quote', 'content:no-close-quote' and for
   // counter nodes for increments and resets (rather than uses)
-  nsRefPtr<nsTextNode> mText;
+  nsCOMPtr<nsIDOMCharacterData> mText;
 
-  explicit nsGenConNode(int32_t aContentIndex)
+  nsGenConNode(int32_t aContentIndex)
     : mPseudoFrame(nullptr)
     , mContentIndex(aContentIndex)
   {
@@ -63,15 +63,15 @@ struct nsGenConNode : public PRCList {
 protected:
   void CheckFrameAssertions() {
     NS_ASSERTION(mContentIndex <
-                   int32_t(mPseudoFrame->StyleContent()->ContentCount()),
+                   int32_t(mPseudoFrame->GetStyleContent()->ContentCount()),
                  "index out of range");
       // We allow negative values of mContentIndex for 'counter-reset' and
       // 'counter-increment'.
 
     NS_ASSERTION(mContentIndex < 0 ||
-                 mPseudoFrame->StyleContext()->GetPseudo() ==
+                 mPseudoFrame->GetStyleContext()->GetPseudo() ==
                    nsCSSPseudoElements::before ||
-                 mPseudoFrame->StyleContext()->GetPseudo() ==
+                 mPseudoFrame->GetStyleContext()->GetPseudo() ==
                    nsCSSPseudoElements::after,
                  "not :before/:after generated content and not counter change");
     NS_ASSERTION(mContentIndex < 0 ||

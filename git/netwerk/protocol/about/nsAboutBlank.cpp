@@ -4,36 +4,30 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsAboutBlank.h"
+#include "nsIIOService.h"
+#include "nsIServiceManager.h"
 #include "nsStringStream.h"
-#include "nsDOMString.h"
 #include "nsNetUtil.h"
-#include "nsContentUtils.h"
 
-NS_IMPL_ISUPPORTS(nsAboutBlank, nsIAboutModule)
+NS_IMPL_ISUPPORTS1(nsAboutBlank, nsIAboutModule)
 
 NS_IMETHODIMP
-nsAboutBlank::NewChannel(nsIURI* aURI,
-                         nsILoadInfo* aLoadInfo,
-                         nsIChannel** result)
+nsAboutBlank::NewChannel(nsIURI *aURI, nsIChannel **result)
 {
     NS_ENSURE_ARG_POINTER(aURI);
+    nsresult rv;
+    nsIChannel* channel;
 
     nsCOMPtr<nsIInputStream> in;
-    nsresult rv = NS_NewCStringInputStream(getter_AddRefs(in), EmptyCString());
+    rv = NS_NewCStringInputStream(getter_AddRefs(in), EmptyCString());
     if (NS_FAILED(rv)) return rv;
 
-    nsCOMPtr<nsIChannel> channel;
-    rv = NS_NewInputStreamChannel(getter_AddRefs(channel),
-                                  aURI,
-                                  in,
-                                  nsContentUtils::GetSystemPrincipal(),
-                                  nsILoadInfo::SEC_NORMAL,
-                                  nsIContentPolicy::TYPE_OTHER,
+    rv = NS_NewInputStreamChannel(&channel, aURI, in,
                                   NS_LITERAL_CSTRING("text/html"),
                                   NS_LITERAL_CSTRING("utf-8"));
     if (NS_FAILED(rv)) return rv;
 
-    channel.forget(result);
+    *result = channel;
     return rv;
 }
 
@@ -43,13 +37,6 @@ nsAboutBlank::GetURIFlags(nsIURI *aURI, uint32_t *result)
     *result = nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
               nsIAboutModule::HIDE_FROM_ABOUTABOUT;
     return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAboutBlank::GetIndexedDBOriginPostfix(nsIURI *aURI, nsAString &result)
-{
-    SetDOMStringToNull(result);
-    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 nsresult

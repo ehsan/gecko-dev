@@ -27,7 +27,7 @@ public:
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
         mNP_GetValue(nullptr),
 #endif
-#if defined(XP_WIN) || defined(XP_MACOSX)
+#if defined(XP_WIN) || defined(XP_MACOSX) || defined(XP_OS2)
         mNP_GetEntryPoints(nullptr),
 #endif
         mNPP_New(nullptr),
@@ -72,7 +72,7 @@ public:
             return false;
 #endif
 
-#if defined(XP_WIN) || defined(XP_MACOSX)
+#if defined(XP_WIN) || defined(XP_MACOSX) || defined(XP_OS2)
         mNP_GetEntryPoints = (NP_GetEntryPointsFunc)
             PR_FindFunctionSymbol(mLibrary, "NP_GetEntryPoints");
         if (!mNP_GetEntryPoints)
@@ -95,7 +95,7 @@ public:
     virtual nsresult NP_GetValue(void *future, NPPVariable aVariable,
                                  void *aValue, NPError* error);
 
-#if defined(XP_WIN) || defined(XP_MACOSX)
+#if defined(XP_WIN) || defined(XP_MACOSX) || defined(XP_OS2)
     virtual nsresult NP_GetEntryPoints(NPPluginFuncs* pFuncs, NPError* error);
 #endif
 
@@ -109,18 +109,22 @@ public:
     virtual nsresult NPP_GetSitesWithData(InfallibleTArray<nsCString>& result);
 
     virtual nsresult AsyncSetWindow(NPP instance, NPWindow* window);
-    virtual nsresult GetImageContainer(NPP instance, mozilla::layers::ImageContainer** aContainer);
+    virtual nsresult GetImageContainer(NPP instance, ImageContainer** aContainer);
     virtual nsresult GetImageSize(NPP instance, nsIntSize* aSize);
     virtual bool IsOOP() MOZ_OVERRIDE { return false; }
 #if defined(XP_MACOSX)
     virtual nsresult IsRemoteDrawingCoreAnimation(NPP instance, bool *aDrawing);
-    virtual nsresult ContentsScaleFactorChanged(NPP instance, double aContentsScaleFactor);
 #endif
     virtual nsresult SetBackgroundUnknown(NPP instance) MOZ_OVERRIDE;
     virtual nsresult BeginUpdateBackground(NPP instance,
                                            const nsIntRect&, gfxContext** aCtx) MOZ_OVERRIDE;
     virtual nsresult EndUpdateBackground(NPP instance,
                                          gfxContext* aCtx, const nsIntRect&) MOZ_OVERRIDE;
+#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
+    virtual nsresult HandleGUIEvent(NPP instance,
+                                    const nsGUIEvent& anEvent, bool* handled);
+#endif
+
     virtual void GetLibraryPath(nsACString& aPath) { aPath.Assign(mFilePath); }
 
 private:
@@ -130,7 +134,7 @@ private:
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
     NP_GetValueFunc mNP_GetValue;
 #endif
-#if defined(XP_WIN) || defined(XP_MACOSX)
+#if defined(XP_WIN) || defined(XP_MACOSX) || defined(XP_OS2)
     NP_GetEntryPointsFunc mNP_GetEntryPoints;
 #endif
     NPP_NewProcPtr mNPP_New;

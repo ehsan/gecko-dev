@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    CID-keyed Type1 font loader (body).                                  */
 /*                                                                         */
-/*  Copyright 1996-2006, 2009, 2011-2014 by                                */
+/*  Copyright 1996-2006, 2009, 2011-2012 by                                */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -42,7 +42,7 @@
   cid_get_offset( FT_Byte*  *start,
                   FT_Byte    offsize )
   {
-    FT_ULong  result;
+    FT_Long   result;
     FT_Byte*  p = *start;
 
 
@@ -53,7 +53,7 @@
     }
 
     *start = p;
-    return (FT_Long)result;
+    return result;
   }
 
 
@@ -114,7 +114,7 @@
         {
           FT_ERROR(( "cid_load_keyword: invalid use of `%s'\n",
                      keyword->ident ));
-          error = FT_THROW( Syntax_Error );
+          error = CID_Err_Syntax_Error;
           goto Exit;
         }
 
@@ -150,6 +150,8 @@
   cid_parse_font_matrix( CID_Face     face,
                          CID_Parser*  parser )
   {
+    FT_Matrix*    matrix;
+    FT_Vector*    offset;
     CID_FaceDict  dict;
     FT_Face       root = (FT_Face)&face->root;
     FT_Fixed      temp[6];
@@ -158,33 +160,19 @@
 
     if ( parser->num_dict >= 0 && parser->num_dict < face->cid.num_dicts )
     {
-      FT_Matrix*  matrix;
-      FT_Vector*  offset;
-      FT_Int      result;
-
-
       dict   = face->cid.font_dicts + parser->num_dict;
       matrix = &dict->font_matrix;
       offset = &dict->font_offset;
 
-      result = cid_parser_to_fixed_array( parser, 6, temp, 3 );
-
-      if ( result < 6 )
-        return FT_THROW( Invalid_File_Format );
+      (void)cid_parser_to_fixed_array( parser, 6, temp, 3 );
 
       temp_scale = FT_ABS( temp[3] );
 
-      if ( temp_scale == 0 )
-      {
-        FT_ERROR(( "cid_parse_font_matrix: invalid font matrix\n" ));
-        return FT_THROW( Invalid_File_Format );
-      }
-
-      /* Set Units per EM based on FontMatrix values.  We set the value to */
-      /* 1000 / temp_scale, because temp_scale was already multiplied by   */
-      /* 1000 (in t1_tofixed, from psobjs.c).                              */
-
-      root->units_per_EM = (FT_UShort)FT_DivFix( 1000, temp_scale );
+      /* Set units per EM based on FontMatrix values.  We set the value to */
+      /* `1000/temp_scale', because temp_scale was already multiplied by   */
+      /* 1000 (in `t1_tofixed', from psobjs.c).                            */
+      root->units_per_EM = (FT_UShort)( FT_DivFix( 0x10000L,
+                                        FT_DivFix( temp_scale, 1000 ) ) );
 
       /* we need to scale the values by 1.0/temp[3] */
       if ( temp_scale != 0x10000L )
@@ -194,7 +182,7 @@
         temp[2] = FT_DivFix( temp[2], temp_scale );
         temp[4] = FT_DivFix( temp[4], temp_scale );
         temp[5] = FT_DivFix( temp[5], temp_scale );
-        temp[3] = temp[3] < 0 ? -0x10000L : 0x10000L;
+        temp[3] = 0x10000L;
       }
 
       matrix->xx = temp[0];
@@ -207,7 +195,8 @@
       offset->y  = temp[5] >> 16;
     }
 
-    return FT_Err_Ok;
+    return CID_Err_Ok;      /* this is a callback function; */
+                            /* we must return an error code */
   }
 
 
@@ -217,7 +206,7 @@
   {
     CID_FaceInfo  cid    = &face->cid;
     FT_Memory     memory = face->root.memory;
-    FT_Error      error  = FT_Err_Ok;
+    FT_Error      error  = CID_Err_Ok;
     FT_Long       num_dicts;
 
 
@@ -268,7 +257,7 @@
       dict->private_dict.expansion_factor = dict->expansion_factor;
     }
 
-    return FT_Err_Ok;
+    return CID_Err_Ok;
   }
 
 
@@ -297,7 +286,7 @@
 
     parser->root.cursor = base;
     parser->root.limit  = base + size;
-    parser->root.error  = FT_Err_Ok;
+    parser->root.error  = CID_Err_Ok;
 
     {
       FT_Byte*  cur   = base;
@@ -427,7 +416,7 @@
       /* Check for possible overflow. */
       if ( num_subrs == FT_UINT_MAX )
       {
-        error = FT_THROW( Syntax_Error );
+        error = CID_Err_Syntax_Error;
         goto Fail;
       }
 
@@ -439,7 +428,7 @@
 
         if ( new_max <= max_offsets )
         {
-          error = FT_THROW( Syntax_Error );
+          error = CID_Err_Syntax_Error;
           goto Fail;
         }
 
@@ -582,7 +571,7 @@
 
         if ( size == 0 )
         {
-          error = FT_THROW( Syntax_Error );
+          error = CID_Err_Syntax_Error;
           goto Exit;
         }
 
@@ -615,7 +604,7 @@
       }
       else
       {
-        error = FT_THROW( Syntax_Error );
+        error = CID_Err_Syntax_Error;
         goto Exit;
       }
 
@@ -635,7 +624,7 @@
       p++;
     }
 
-    error = FT_Err_Ok;
+    error = CID_Err_Ok;
 
   Exit:
     return error;

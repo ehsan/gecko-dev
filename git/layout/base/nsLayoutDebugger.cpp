@@ -12,39 +12,36 @@
 #include "nsFrame.h"
 #include "nsDisplayList.h"
 #include "FrameLayerBuilder.h"
-#include "nsPrintfCString.h"
 
 #include <stdio.h>
 
-using namespace mozilla;
 using namespace mozilla::layers;
 
 #ifdef DEBUG
 class nsLayoutDebugger : public nsILayoutDebugger {
 public:
   nsLayoutDebugger();
+  virtual ~nsLayoutDebugger();
 
   NS_DECL_ISUPPORTS
 
-  NS_IMETHOD SetShowFrameBorders(bool aEnable) MOZ_OVERRIDE;
+  NS_IMETHOD SetShowFrameBorders(bool aEnable);
 
-  NS_IMETHOD GetShowFrameBorders(bool* aResult) MOZ_OVERRIDE;
+  NS_IMETHOD GetShowFrameBorders(bool* aResult);
 
-  NS_IMETHOD SetShowEventTargetFrameBorder(bool aEnable) MOZ_OVERRIDE;
+  NS_IMETHOD SetShowEventTargetFrameBorder(bool aEnable);
 
-  NS_IMETHOD GetShowEventTargetFrameBorder(bool* aResult) MOZ_OVERRIDE;
+  NS_IMETHOD GetShowEventTargetFrameBorder(bool* aResult);
 
   NS_IMETHOD GetContentSize(nsIDocument* aDocument,
-                            int32_t* aSizeInBytesResult) MOZ_OVERRIDE;
+                            int32_t* aSizeInBytesResult);
 
   NS_IMETHOD GetFrameSize(nsIPresShell* aPresentation,
-                          int32_t* aSizeInBytesResult) MOZ_OVERRIDE;
+                          int32_t* aSizeInBytesResult);
 
   NS_IMETHOD GetStyleSize(nsIPresShell* aPresentation,
-                          int32_t* aSizeInBytesResult) MOZ_OVERRIDE;
+                          int32_t* aSizeInBytesResult);
 
-protected:
-  virtual ~nsLayoutDebugger();
 };
 
 nsresult
@@ -66,7 +63,7 @@ nsLayoutDebugger::~nsLayoutDebugger()
 {
 }
 
-NS_IMPL_ISUPPORTS(nsLayoutDebugger, nsILayoutDebugger)
+NS_IMPL_ISUPPORTS1(nsLayoutDebugger, nsILayoutDebugger)
 
 NS_IMETHODIMP
 nsLayoutDebugger::SetShowFrameBorders(bool aEnable)
@@ -122,178 +119,118 @@ nsLayoutDebugger::GetStyleSize(nsIPresShell* aPresentation,
 #endif
 
 #ifdef MOZ_DUMP_PAINTING
-std::ostream& operator<<(std::ostream& os, const nsPrintfCString& rhs) {
-  os << rhs.get();
-  return os;
-}
+static int sPrintDisplayListIndent = 0;
 
 static void
 PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
-                   std::stringstream& aStream, uint32_t aIndent, bool aDumpHtml);
-
-static void
-PrintDisplayItemTo(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem,
-                   std::stringstream& aStream, uint32_t aIndent, bool aDumpSublist, bool aDumpHtml)
-{
-  std::stringstream ss;
-
-  if (!aDumpHtml) {
-    for (uint32_t indent = 0; indent < aIndent; indent++) {
-      aStream << "  ";
-    }
-  }
-  nsIFrame* f = aItem->Frame();
-  nsAutoString fName;
-#ifdef DEBUG_FRAME_DUMP
-  f->GetFrameName(fName);
-#endif
-  bool snap;
-  nsRect rect = aItem->GetBounds(aBuilder, &snap);
-  nscolor color;
-  nsRect vis = aItem->GetVisibleRect();
-  nsRect component = aItem->GetComponentAlphaBounds(aBuilder);
-  nsDisplayList* list = aItem->GetChildren();
-  const DisplayItemClip& clip = aItem->GetClip();
-  nsRegion opaque = aItem->GetOpaqueRegion(aBuilder, &snap);
-  if (aDumpHtml && aItem->Painted()) {
-    nsCString string(aItem->Name());
-    string.Append('-');
-    string.AppendInt((uint64_t)aItem);
-    aStream << nsPrintfCString("<a href=\"javascript:ViewImage('%s')\">", string.BeginReading());
-  }
-  aStream << nsPrintfCString("%s p=0x%p f=0x%p(%s) %sbounds(%d,%d,%d,%d) visible(%d,%d,%d,%d) componentAlpha(%d,%d,%d,%d) clip(%s) %s",
-          aItem->Name(), aItem, (void*)f, NS_ConvertUTF16toUTF8(fName).get(),
-          (aItem->ZIndex() ? nsPrintfCString("z=%d ", aItem->ZIndex()).get() : ""),
-          rect.x, rect.y, rect.width, rect.height,
-          vis.x, vis.y, vis.width, vis.height,
-          component.x, component.y, component.width, component.height,
-          clip.ToString().get(),
-          aItem->IsUniform(aBuilder, &color) ? " uniform" : "");
-
-  nsRegionRectIterator iter(opaque);
-  for (const nsRect* r = iter.Next(); r; r = iter.Next()) {
-    aStream << nsPrintfCString(" (opaque %d,%d,%d,%d)", r->x, r->y, r->width, r->height);
-  }
-
-  if (aItem->ShouldFixToViewport(nullptr)) {
-    aStream << " fixed";
-  }
-
-  if (aItem->Frame()->StyleDisplay()->mWillChange.Length() > 0) {
-    aStream << " (will-change=";
-    for (size_t i = 0; i < aItem->Frame()->StyleDisplay()->mWillChange.Length(); i++) {
-      if (i > 0) {
-        aStream << ",";
-      }
-      aStream << NS_LossyConvertUTF16toASCII(aItem->Frame()->StyleDisplay()->mWillChange[i]).get();
-    }
-    aStream << ")";
-  }
-
-  // Display item specific debug info
-  aItem->WriteDebugInfo(aStream);
-
-  if (aDumpHtml && aItem->Painted()) {
-    aStream << "</a>";
-  }
-  uint32_t key = aItem->GetPerFrameKey();
-  Layer* layer = mozilla::FrameLayerBuilder::GetDebugOldLayerFor(f, key);
-  if (layer) {
-    if (aDumpHtml) {
-      aStream << nsPrintfCString(" <a href=\"#%p\">layer=%p</a>", layer, layer);
-    } else {
-      aStream << nsPrintfCString(" layer=0x%p", layer);
-    }
-  }
-  if (aItem->GetType() == nsDisplayItem::TYPE_SVG_EFFECTS) {
-    nsCString str;
-    (static_cast<nsDisplaySVGEffects*>(aItem))->PrintEffects(str);
-    aStream << str.get();
-  }
-  aStream << "\n";
-
-  if (aDumpSublist && list) {
-    PrintDisplayListTo(aBuilder, *list, aStream, aIndent+1, aDumpHtml);
-  }
-}
-
-static void
-PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
-                   std::stringstream& aStream, uint32_t aIndent, bool aDumpHtml)
+                   FILE* aOutput, bool aDumpHtml)
 {
   if (aDumpHtml) {
-    aStream << "<ul>";
+    fprintf(aOutput, "<ul>");
   }
 
   for (nsDisplayItem* i = aList.GetBottom(); i != nullptr; i = i->GetAbove()) {
+#ifdef DEBUG
+    if (aList.DidComputeVisibility() && i->GetVisibleRect().IsEmpty())
+      continue;
+#endif
     if (aDumpHtml) {
-      aStream << "<li>";
+      fprintf(aOutput, "<li>");
+    } else {
+      sPrintDisplayListIndent ++;
+      for (int indent = 0; indent < sPrintDisplayListIndent; indent++) {
+        fprintf(aOutput, "  ");
+      }
     }
-    PrintDisplayItemTo(aBuilder, i, aStream, aIndent, true, aDumpHtml);
+    nsIFrame* f = i->GetUnderlyingFrame();
+    nsAutoString fName;
+#ifdef DEBUG
+    if (f) {
+      f->GetFrameName(fName);
+    }
+#endif
+    bool snap;
+    nsRect rect = i->GetBounds(aBuilder, &snap);
+    switch (i->GetType()) {
+      case nsDisplayItem::TYPE_CLIP:
+      case nsDisplayItem::TYPE_CLIP_ROUNDED_RECT: {
+        nsDisplayClip* c = static_cast<nsDisplayClip*>(i);
+        rect = c->GetClipRect();
+        break;
+      }
+      default:
+        break;
+    }
+    nscolor color;
+    nsRect vis = i->GetVisibleRect();
+    nsRect component = i->GetComponentAlphaBounds(aBuilder);
+    nsDisplayList* list = i->GetList();
+    nsRegion opaque;
+    if (i->GetType() == nsDisplayItem::TYPE_TRANSFORM) {
+        nsDisplayTransform* t = static_cast<nsDisplayTransform*>(i);
+        list = t->GetStoredList()->GetList();
+    }
+#ifdef DEBUG
+    if (!list || list->DidComputeVisibility()) {
+      opaque = i->GetOpaqueRegion(aBuilder, &snap);
+    }
+#endif
+    if (aDumpHtml && i->Painted()) {
+      nsCString string(i->Name());
+      string.Append("-");
+      string.AppendInt((uint64_t)i);
+      fprintf(aOutput, "<a href=\"javascript:ViewImage('%s')\">", string.BeginReading());
+    }
+    fprintf(aOutput, "%s %p(%s) (%d,%d,%d,%d)(%d,%d,%d,%d)(%d,%d,%d,%d)%s",
+            i->Name(), (void*)f, NS_ConvertUTF16toUTF8(fName).get(),
+            rect.x, rect.y, rect.width, rect.height,
+            vis.x, vis.y, vis.width, vis.height,
+            component.x, component.y, component.width, component.height,
+            i->IsUniform(aBuilder, &color) ? " uniform" : "");
+    nsRegionRectIterator iter(opaque);
+    for (const nsRect* r = iter.Next(); r; r = iter.Next()) {
+      printf("(opaque %d,%d,%d,%d)", r->x, r->y, r->width, r->height);
+    }
+    if (aDumpHtml && i->Painted()) {
+      fprintf(aOutput, "</a>");
+    }
+    if (f) {
+      uint32_t key = i->GetPerFrameKey();
+      Layer* layer = mozilla::FrameLayerBuilder::GetDebugOldLayerFor(f, key);
+      if (layer) {
+        if (aDumpHtml) {
+          fprintf(aOutput, " <a href=\"#%p\">layer=%p</a>", layer, layer);
+        } else {
+          fprintf(aOutput, " layer=%p", layer);
+        }
+      }
+    }
+    if (i->GetType() == nsDisplayItem::TYPE_SVG_EFFECTS) {
+      (static_cast<nsDisplaySVGEffects*>(i))->PrintEffects(aOutput);
+    }
+    fputc('\n', aOutput);
+    if (list) {
+      PrintDisplayListTo(aBuilder, *list, aOutput, aDumpHtml);
+    }
     if (aDumpHtml) {
-      aStream << "</li>";
+      fprintf(aOutput, "</li>");
+    } else {
+      sPrintDisplayListIndent --;
     }
   }
 
   if (aDumpHtml) {
-    aStream << "</ul>";
+    fprintf(aOutput, "</ul>");
   }
-}
-
-void
-nsFrame::PrintDisplayItem(nsDisplayListBuilder* aBuilder,
-                          nsDisplayItem* aItem,
-                          std::stringstream& aStream,
-                          bool aDumpSublist,
-                          bool aDumpHtml)
-{
-  PrintDisplayItemTo(aBuilder, aItem, aStream, 0, aDumpSublist, aDumpHtml);
 }
 
 void
 nsFrame::PrintDisplayList(nsDisplayListBuilder* aBuilder,
                           const nsDisplayList& aList,
-                          std::stringstream& aStream,
+                          FILE* aFile,
                           bool aDumpHtml)
 {
-  PrintDisplayListTo(aBuilder, aList, aStream, 0, aDumpHtml);
-}
-
-static void
-PrintDisplayListSetItem(nsDisplayListBuilder* aBuilder,
-                        const char* aItemName,
-                        const nsDisplayList& aList,
-                        std::stringstream& aStream,
-                        bool aDumpHtml)
-{
-  if (aDumpHtml) {
-    aStream << "<li>";
-  }
-  aStream << aItemName << "\n";
-  PrintDisplayListTo(aBuilder, aList, aStream, 0, aDumpHtml);
-  if (aDumpHtml) {
-    aStream << "</li>";
-  }
-}
-
-void
-nsFrame::PrintDisplayListSet(nsDisplayListBuilder* aBuilder,
-                             const nsDisplayListSet& aSet,
-                             std::stringstream& aStream,
-                             bool aDumpHtml)
-{
-  if (aDumpHtml) {
-    aStream << "<ul>";
-  }
-  PrintDisplayListSetItem(aBuilder, "[BorderBackground]", *(aSet.BorderBackground()), aStream, aDumpHtml);
-  PrintDisplayListSetItem(aBuilder, "[BlockBorderBackgrounds]", *(aSet.BlockBorderBackgrounds()), aStream, aDumpHtml);
-  PrintDisplayListSetItem(aBuilder, "[Floats]", *(aSet.Floats()), aStream, aDumpHtml);
-  PrintDisplayListSetItem(aBuilder, "[PositionedDescendants]", *(aSet.PositionedDescendants()), aStream, aDumpHtml);
-  PrintDisplayListSetItem(aBuilder, "[Outlines]", *(aSet.Outlines()), aStream, aDumpHtml);
-  PrintDisplayListSetItem(aBuilder, "[Content]", *(aSet.Content()), aStream, aDumpHtml);
-  if (aDumpHtml) {
-    aStream << "</ul>";
-  }
+  PrintDisplayListTo(aBuilder, aList, aFile, aDumpHtml);
 }
 
 #endif

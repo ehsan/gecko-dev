@@ -4,44 +4,26 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "gfxQuartzImageSurface.h"
-#include "gfxImageSurface.h"
 
+#include "cairo-quartz.h"
 #include "cairo-quartz-image.h"
 
 gfxQuartzImageSurface::gfxQuartzImageSurface(gfxImageSurface *imageSurface)
 {
-    if (imageSurface->CairoSurface() == nullptr)
+    if (imageSurface->CairoSurface() == NULL)
         return;
 
     cairo_surface_t *surf = cairo_quartz_image_surface_create (imageSurface->CairoSurface());
     Init (surf);
-    mSize = ComputeSize();
 }
 
 gfxQuartzImageSurface::gfxQuartzImageSurface(cairo_surface_t *csurf)
 {
     Init (csurf, true);
-    mSize = ComputeSize();
 }
 
 gfxQuartzImageSurface::~gfxQuartzImageSurface()
 {
-}
-
-gfxIntSize
-gfxQuartzImageSurface::ComputeSize()
-{
-  if (mSurfaceValid) {
-    cairo_surface_t* isurf = cairo_quartz_image_surface_get_image(mSurface);
-    if (isurf) {
-      return gfxIntSize(cairo_image_surface_get_width(isurf),
-                        cairo_image_surface_get_height(isurf));
-    }
-  }
-
-  // If we reach here then something went wrong. Just use the same default
-  // value as gfxASurface::GetSize.
-  return gfxIntSize(-1, -1);
 }
 
 int32_t
@@ -67,8 +49,8 @@ gfxQuartzImageSurface::GetAsImageSurface()
         return nullptr;
     }
 
-    nsRefPtr<gfxImageSurface> result = gfxASurface::Wrap(isurf).downcast<gfxImageSurface>();
-    result->SetOpaqueRect(GetOpaqueRect());
-
-    return result.forget();
+    nsRefPtr<gfxASurface> asurf = gfxASurface::Wrap(isurf);
+    gfxImageSurface *imgsurf = (gfxImageSurface*) asurf.get();
+    NS_ADDREF(imgsurf);
+    return imgsurf;
 }

@@ -2,11 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-inline nsHtml5HtmlAttributes* GetAttributes()
-{
-  return attributes;
-}
-
 nsAutoPtr<nsHtml5Highlighter> mViewSource;
 
 /**
@@ -45,21 +40,21 @@ void errPrematureEndOfComment();
 
 void errBogusComment();
 
-void errUnquotedAttributeValOrNull(char16_t c);
+void errUnquotedAttributeValOrNull(PRUnichar c);
 
 void errSlashNotFollowedByGt();
 
 void errNoSpaceBetweenAttributes();
 
-void errLtOrEqualsOrGraveInUnquotedAttributeOrNull(char16_t c);
+void errLtOrEqualsOrGraveInUnquotedAttributeOrNull(PRUnichar c);
 
 void errAttributeValueMissing();
 
-void errBadCharBeforeAttributeNameOrNull(char16_t c);
+void errBadCharBeforeAttributeNameOrNull(PRUnichar c);
 
 void errEqualsSignBeforeAttributeName();
 
-void errBadCharAfterLt(char16_t c);
+void errBadCharAfterLt(PRUnichar c);
 
 void errLtGt();
 
@@ -71,9 +66,9 @@ void errNotSemicolonTerminated();
 
 void errNoNamedCharacterMatch();
 
-void errQuoteBeforeAttributeName(char16_t c);
+void errQuoteBeforeAttributeName(PRUnichar c);
 
-void errQuoteOrLtInAttributeNameOrNull(char16_t c);
+void errQuoteOrLtInAttributeNameOrNull(PRUnichar c);
 
 void errExpectedPublicId();
 
@@ -83,13 +78,13 @@ void maybeErrAttributesOnEndTag(nsHtml5HtmlAttributes* attrs);
 
 void maybeErrSlashInEndTag(bool selfClosing);
 
-char16_t errNcrNonCharacter(char16_t ch);
+PRUnichar errNcrNonCharacter(PRUnichar ch);
 
 void errAstralNonCharacter(int32_t ch);
 
 void errNcrSurrogate();
 
-char16_t errNcrControlChar(char16_t ch);
+PRUnichar errNcrControlChar(PRUnichar ch);
 
 void errNcrCr();
 

@@ -36,8 +36,10 @@ function runTest() {
     , index: PlacesUtils.bookmarks.DEFAULT_INDEX
     , feedURI: NetUtil.newURI(FEEDSPEC)
     , siteURI: NetUtil.newURI("http:/mochi.test/")
-    })
-    .then(function (aLivemark) {
+    },
+    function (aStatus, aLivemark) {
+      ok(Components.isSuccessCode(aStatus), "Get livemark");
+
       waitForLivemarkLoad(aLivemark, function (aLivemark) {
         let nodes = aLivemark.getNodesForContainer({});
 
@@ -50,8 +52,6 @@ function runTest() {
         PlacesUtils.bookmarks.removeItem(aLivemark.id);
         SimpleTest.finish();
       });
-    }, function () {
-      is(true, false, "Should not fail adding a livemark");
     }
   );
 }
@@ -65,6 +65,7 @@ function waitForLivemarkLoad(aLivemark, aCallback) {
     nodeAnnotationChanged: function() {},
     nodeTitleChanged: function() {},
     nodeHistoryDetailsChanged: function() {},
+    nodeReplaced: function() {},
     nodeMoved: function() {},
     ontainerStateChanged: function () {},
     sortingChanged: function() {},

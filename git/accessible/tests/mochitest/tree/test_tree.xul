@@ -72,13 +72,13 @@
       };
 
       var treeBoxObject = aTree.treeBoxObject;
-      var view = aTree.view;
+      var view = treeBoxObject.view;
       var columnCount = treeBoxObject.columns.count;
 
       for (var idx = 0; idx < columnCount; idx++)
-        accTreeForColumns.children.push({ COLUMNHEADER: [ ] });
+        accTreeForColumns.children.push({ role: ROLE_COLUMNHEADER, children: []});
       if (!aTree.hasAttribute("hidecolumnpicker"))
-        accTreeForColumns.children.push({ PUSHBUTTON: [ { MENUPOPUP: [] } ] });
+        accTreeForColumns.children.push({ role: ROLE_PUSHBUTTON, children: []});
 
       for (var idx = 0; idx < view.rowCount; idx++)
         accTreeForTree.children.push(getTreeItemAccTree(aRole, columnCount));
@@ -95,7 +95,7 @@
 
       this.invoke = function invoke()
       {
-        this.DOMNode.view = aView;
+        this.DOMNode.treeBoxObject.view = aView;
       }
       this.check = function check(aEvent)
       {
@@ -180,3 +180,4 @@
   </hbox>
 
 </window>
+

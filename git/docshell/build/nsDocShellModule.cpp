@@ -10,8 +10,8 @@
 #include "nsDocShell.h"
 #include "nsDefaultURIFixup.h"
 #include "nsWebNavigationInfo.h"
+
 #include "nsAboutRedirector.h"
-#include "nsCDefaultURIFixup.h"
 
 // uriloader
 #include "nsURILoader.h"
@@ -24,8 +24,10 @@
 #ifdef MOZ_ENABLE_DBUS
 #include "nsDBusHandlerApp.h"
 #endif 
-#if defined(MOZ_WIDGET_ANDROID)
+#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_ENABLE_MEEGOTOUCHSHARE)
 #include "nsExternalSharingAppService.h"
+#endif
+#if defined(MOZ_WIDGET_ANDROID)
 #include "nsExternalURLHandlerService.h"
 #endif
 
@@ -83,8 +85,10 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(PlatformLocalHandlerApp_t)
 #ifdef MOZ_ENABLE_DBUS
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDBusHandlerApp)
 #endif 
-#if defined(MOZ_WIDGET_ANDROID)
+#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_ENABLE_MEEGOTOUCHSHARE)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsExternalSharingAppService)
+#endif
+#if defined(MOZ_WIDGET_ANDROID)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsExternalURLHandlerService)
 #endif
 
@@ -111,11 +115,14 @@ NS_DEFINE_NAMED_CID(NS_LOCALHANDLERAPP_CID);
 #ifdef MOZ_ENABLE_DBUS
 NS_DEFINE_NAMED_CID(NS_DBUSHANDLERAPP_CID);
 #endif
-#if defined(MOZ_WIDGET_ANDROID)
+#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_ENABLE_MEEGOTOUCHSHARE)
 NS_DEFINE_NAMED_CID(NS_EXTERNALSHARINGAPPSERVICE_CID);
+#endif
+#if defined(MOZ_WIDGET_ANDROID)
 NS_DEFINE_NAMED_CID(NS_EXTERNALURLHANDLERSERVICE_CID);
 #endif
 NS_DEFINE_NAMED_CID(NS_SHENTRY_CID);
+NS_DEFINE_NAMED_CID(NS_HISTORYENTRY_CID);
 NS_DEFINE_NAMED_CID(NS_SHTRANSACTION_CID);
 NS_DEFINE_NAMED_CID(NS_SHISTORY_CID);
 NS_DEFINE_NAMED_CID(NS_SHISTORY_INTERNAL_CID);
@@ -123,31 +130,34 @@ NS_DEFINE_NAMED_CID(NS_DOWNLOADHISTORY_CID);
 
 
 const mozilla::Module::CIDEntry kDocShellCIDs[] = {
-  { &kNS_DOCSHELL_CID, false, nullptr, nsDocShellConstructor },
-  { &kNS_DEFAULTURIFIXUP_CID, false, nullptr, nsDefaultURIFixupConstructor },
-  { &kNS_WEBNAVIGATION_INFO_CID, false, nullptr, nsWebNavigationInfoConstructor },
-  { &kNS_ABOUT_REDIRECTOR_MODULE_CID, false, nullptr, nsAboutRedirector::Create },
-  { &kNS_URI_LOADER_CID, false, nullptr, nsURILoaderConstructor },
-  { &kNS_DOCUMENTLOADER_SERVICE_CID, false, nullptr, nsDocLoaderConstructor },
-  { &kNS_EXTERNALHELPERAPPSERVICE_CID, false, nullptr, nsOSHelperAppServiceConstructor },
-  { &kNS_EXTERNALPROTOCOLHANDLER_CID, false, nullptr, nsExternalProtocolHandlerConstructor },
-  { &kNS_PREFETCHSERVICE_CID, false, nullptr, nsPrefetchServiceConstructor },
-  { &kNS_OFFLINECACHEUPDATESERVICE_CID, false, nullptr, nsOfflineCacheUpdateServiceConstructor },
-  { &kNS_OFFLINECACHEUPDATE_CID, false, nullptr, nsOfflineCacheUpdateConstructor },
-  { &kNS_LOCALHANDLERAPP_CID, false, nullptr, PlatformLocalHandlerApp_tConstructor },
+  { &kNS_DOCSHELL_CID, false, NULL, nsDocShellConstructor },
+  { &kNS_DEFAULTURIFIXUP_CID, false, NULL, nsDefaultURIFixupConstructor },
+  { &kNS_WEBNAVIGATION_INFO_CID, false, NULL, nsWebNavigationInfoConstructor },
+  { &kNS_ABOUT_REDIRECTOR_MODULE_CID, false, NULL, nsAboutRedirector::Create },
+  { &kNS_URI_LOADER_CID, false, NULL, nsURILoaderConstructor },
+  { &kNS_DOCUMENTLOADER_SERVICE_CID, false, NULL, nsDocLoaderConstructor },
+  { &kNS_EXTERNALHELPERAPPSERVICE_CID, false, NULL, nsOSHelperAppServiceConstructor },
+  { &kNS_EXTERNALPROTOCOLHANDLER_CID, false, NULL, nsExternalProtocolHandlerConstructor },
+  { &kNS_PREFETCHSERVICE_CID, false, NULL, nsPrefetchServiceConstructor },
+  { &kNS_OFFLINECACHEUPDATESERVICE_CID, false, NULL, nsOfflineCacheUpdateServiceConstructor },
+  { &kNS_OFFLINECACHEUPDATE_CID, false, NULL, nsOfflineCacheUpdateConstructor },
+  { &kNS_LOCALHANDLERAPP_CID, false, NULL, PlatformLocalHandlerApp_tConstructor },
 #ifdef MOZ_ENABLE_DBUS
-  { &kNS_DBUSHANDLERAPP_CID, false, nullptr, nsDBusHandlerAppConstructor },
+  { &kNS_DBUSHANDLERAPP_CID, false, NULL, nsDBusHandlerAppConstructor },
+#endif
+#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_ENABLE_MEEGOTOUCHSHARE)
+  { &kNS_EXTERNALSHARINGAPPSERVICE_CID, false, NULL, nsExternalSharingAppServiceConstructor },
 #endif
 #if defined(MOZ_WIDGET_ANDROID)
-  { &kNS_EXTERNALSHARINGAPPSERVICE_CID, false, nullptr, nsExternalSharingAppServiceConstructor },
-  { &kNS_EXTERNALURLHANDLERSERVICE_CID, false, nullptr, nsExternalURLHandlerServiceConstructor },
+  { &kNS_EXTERNALURLHANDLERSERVICE_CID, false, NULL, nsExternalURLHandlerServiceConstructor },
 #endif
-  { &kNS_SHENTRY_CID, false, nullptr, nsSHEntryConstructor },
-  { &kNS_SHTRANSACTION_CID, false, nullptr, nsSHTransactionConstructor },
-  { &kNS_SHISTORY_CID, false, nullptr, nsSHistoryConstructor },
-  { &kNS_SHISTORY_INTERNAL_CID, false, nullptr, nsSHistoryConstructor },
-  { &kNS_DOWNLOADHISTORY_CID, false, nullptr, nsDownloadHistoryConstructor },
-  { nullptr }
+  { &kNS_SHENTRY_CID, false, NULL, nsSHEntryConstructor },
+  { &kNS_HISTORYENTRY_CID, false, NULL, nsSHEntryConstructor },
+  { &kNS_SHTRANSACTION_CID, false, NULL, nsSHTransactionConstructor },
+  { &kNS_SHISTORY_CID, false, NULL, nsSHistoryConstructor },
+  { &kNS_SHISTORY_INTERNAL_CID, false, NULL, nsSHistoryConstructor },
+  { &kNS_DOWNLOADHISTORY_CID, false, NULL, nsDownloadHistoryConstructor },
+  { NULL }
 };
 
 const mozilla::Module::ContractIDEntry kDocShellContracts[] = {
@@ -172,10 +182,6 @@ const mozilla::Module::ContractIDEntry kDocShellContracts[] = {
   { NS_ABOUT_MODULE_CONTRACTID_PREFIX "addons", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
   { NS_ABOUT_MODULE_CONTRACTID_PREFIX "newaddon", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
   { NS_ABOUT_MODULE_CONTRACTID_PREFIX "support", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX "telemetry", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX "networking", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX "webrtc", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX "srcdoc", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
   { NS_URI_LOADER_CONTRACTID, &kNS_URI_LOADER_CID },
   { NS_DOCUMENTLOADER_SERVICE_CONTRACTID, &kNS_DOCUMENTLOADER_SERVICE_CID },
   { NS_EXTERNALHELPERAPPSERVICE_CONTRACTID, &kNS_EXTERNALHELPERAPPSERVICE_CID },
@@ -189,24 +195,27 @@ const mozilla::Module::ContractIDEntry kDocShellContracts[] = {
 #ifdef MOZ_ENABLE_DBUS
   { NS_DBUSHANDLERAPP_CONTRACTID, &kNS_DBUSHANDLERAPP_CID },
 #endif
-#if defined(MOZ_WIDGET_ANDROID)
+#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_ENABLE_MEEGOTOUCHSHARE)
   { NS_EXTERNALSHARINGAPPSERVICE_CONTRACTID, &kNS_EXTERNALSHARINGAPPSERVICE_CID },
+#endif
+#if defined(MOZ_WIDGET_ANDROID)
   { NS_EXTERNALURLHANDLERSERVICE_CONTRACTID, &kNS_EXTERNALURLHANDLERSERVICE_CID },
 #endif
   { NS_SHENTRY_CONTRACTID, &kNS_SHENTRY_CID },
+  { NS_HISTORYENTRY_CONTRACTID, &kNS_HISTORYENTRY_CID },
   { NS_SHTRANSACTION_CONTRACTID, &kNS_SHTRANSACTION_CID },
   { NS_SHISTORY_CONTRACTID, &kNS_SHISTORY_CID },
   { NS_SHISTORY_INTERNAL_CONTRACTID, &kNS_SHISTORY_INTERNAL_CID },
   { NS_DOWNLOADHISTORY_CONTRACTID, &kNS_DOWNLOADHISTORY_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module kDocShellModule = {
   mozilla::Module::kVersion,
   kDocShellCIDs,
   kDocShellContracts,
-  nullptr,
-  nullptr,
+  NULL,
+  NULL,
   Initialize,
   Shutdown
 };

@@ -16,13 +16,9 @@ public:
   NS_DECL_NSIAUTHMODULE
 
   nsNTLMAuthModule() {}
+  virtual ~nsNTLMAuthModule();
 
   nsresult InitTest();
-
-  static void SetSendLM(bool sendLM);
-
-protected:
-  virtual ~nsNTLMAuthModule();
 
 private:
   nsString mDomain;
@@ -30,6 +26,8 @@ private:
   nsString mPassword;
 };
 
+#define NS_NTLMAUTHMODULE_CLASSNAME \
+  "nsNTLMAuthModule"
 #define NS_NTLMAUTHMODULE_CONTRACTID \
   NS_AUTH_MODULE_CONTRACTID_PREFIX "ntlm"
 #define NS_NTLMAUTHMODULE_CID \

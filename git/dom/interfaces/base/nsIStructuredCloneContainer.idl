@@ -11,7 +11,7 @@ interface nsIVariant;
 interface nsIDocument;
 
 %{C++
-#include "js/TypeDecls.h"
+struct JSContext;
 %}
 
 /**
@@ -27,15 +27,15 @@ interface nsIDocument;
  * string containing a copy of the container's serialized data, using
  * getDataAsBase64.
  */
-[scriptable, uuid(8144021a-7f8a-483a-a0f1-ca02b761403f)]
+[scriptable, uuid(400a282d-7157-4ed0-85b4-8bdc2fa634cd)]
 interface nsIStructuredCloneContainer : nsISupports
 {
   /**
    * Initialize this structured clone container so it contains a clone of the
-   * given jsval.
+   * given variant. aData must be backed by a jsval.
    */
-  [noscript]
-  void initFromJSVal(in jsval aData);
+  [implicit_jscontext]
+  void initFromVariant(in nsIVariant aData);
 
   /**
    * Initialize this structured clone container from a base-64-encoded byte
@@ -46,7 +46,7 @@ interface nsIStructuredCloneContainer : nsISupports
   void initFromBase64(in AString aData,in unsigned long aFormatVersion);
 
   /**
-   * Deserialize the object this container holds, returning it wrapped as
+   * Deserialize the object this conatiner holds, returning it wrapped as
    * an nsIVariant.
    */
   [implicit_jscontext]

@@ -1,21 +1,9 @@
-"use strict";
-
 // runapp.js:
 // Provide a --runapp APPNAME command-line option.
 
-let runAppObj;
 window.addEventListener('load', function() {
   // Get the command line arguments that were passed to the b2g client
-  let args;
-  try {
-    let service = Cc["@mozilla.org/commandlinehandler/general-startup;1?type=b2gcmds"].getService(Ci.nsISupports);
-    args = service.wrappedJSObject.cmdLine;
-  } catch(e) {}
-
-  if (!args) {
-    return;
-  }
-
+  let args = window.arguments[0].QueryInterface(Ci.nsICommandLine);
   let appname;
 
   // - Check if the argument is present before doing any work.
@@ -25,75 +13,27 @@ window.addEventListener('load', function() {
     // it was the last argument or the next argument starts with '-').
     // However, someone could still explicitly pass an empty argument!
     appname = args.handleFlagWithParam('runapp', false);
-  } catch(e) {
+  }
+  catch(e) {
     // treat a missing parameter like an empty parameter (=> show usage)
     appname = '';
   }
 
   // not specified, bail.
-  if (appname === null) {
+  if (appname === null)
     return;
-  }
 
-  runAppObj = new AppRunner(appname);
-  Services.obs.addObserver(runAppObj, 'remote-browser-shown', false);
-  Services.obs.addObserver(runAppObj, 'inprocess-browser-shown', false);
-});
-
-window.addEventListener('unload', function() {
-  if (runAppObj) {
-    Services.obs.removeObserver(runAppObj, 'remote-browser-shown');
-    Services.obs.removeObserver(runAppObj, 'inprocess-browser-shown');
-  }
-});
-
-function AppRunner(aName) {
-  this._appName = aName;
-  this._apps = [];
-}
-AppRunner.prototype = {
-  observe: function(aSubject, aTopic, aData) {
-    let frameLoader = aSubject;
-    // get a ref to the app <iframe>
-    frameLoader.QueryInterface(Ci.nsIFrameLoader);
-    // Ignore notifications that aren't from a BrowserOrApp
-    if (!frameLoader.ownerIsBrowserOrAppFrame) {
-      return;
-    }
-
-    let frame = frameLoader.ownerElement;
-    if (!frame.appManifestURL) { // Ignore all frames but app frames
-      return;
-    }
-
-    if (aTopic == 'remote-browser-shown' ||
-        aTopic == 'inprocess-browser-shown') {
-      this.doRunApp(frame);
-    }
-  },
-
-  doRunApp: function(currentFrame) {
-    // - Get the list of apps since the parameter was specified
-    if (this._apps.length) {
-      this.getAllSuccess(this._apps, currentFrame)
-    } else {
-      var req = navigator.mozApps.mgmt.getAll();
-      req.onsuccess = function() {
-        this._apps = req.result;
-        this.getAllSuccess(this._apps, currentFrame)
-      }.bind(this);
-      req.onerror = this.getAllError.bind(this);
-    }
-  },
-
-  getAllSuccess: function(apps, currentFrame) {
+  // - Get the list of apps since the parameter was specified
+  let appsReq = navigator.mozApps.mgmt.getAll();
+  appsReq.onsuccess = function() {
+    let apps = appsReq.result;
     function findAppWithName(name) {
       let normalizedSearchName = name.replace(/[- ]+/g, '').toLowerCase();
 
       for (let i = 0; i < apps.length; i++) {
         let app = apps[i];
         let normalizedAppName =
-          app.manifest.name.replace(/[- ]+/g, '').toLowerCase();
+              app.manifest.name.replace(/[- ]+/g, '').toLowerCase();
         if (normalizedSearchName === normalizedAppName) {
           return app;
         }
@@ -119,53 +59,35 @@ AppRunner.prototype = {
       Services.startup.quit(Ci.nsIAppStartup.eAttemptQuit);
     }
 
-    if (this._appName === '') {
+    if (appname === '') {
       usageAndDie();
       return;
     }
 
-    let appsService = Cc["@mozilla.org/AppsService;1"].getService(Ci.nsIAppsService);
-    let currentApp = appsService.getAppByManifestURL(currentFrame.appManifestURL);
-
-    if (!currentApp || currentApp.role !== 'homescreen') {
-      return;
-    }
-
-    let app = findAppWithName(this._appName);
+    let app = findAppWithName(appname);
     if (!app) {
-      dump('Could not find app: "' + this._appName + '". Maybe you meant one of:\n');
+      dump('Could not find app: "' + appname + '". Maybe you meant one of:\n');
       usageAndDie(true);
       return;
     }
 
-    currentFrame.addEventListener('mozbrowserloadend', launchApp);
+    let setReq =
+      navigator.mozSettings.getLock().set({'lockscreen.enabled': false});
+    setReq.onsuccess = function() {
+      // give the event loop another turn to disable the lock screen
+      window.setTimeout(function() {
+        dump('--runapp launching app: ' + app.manifest.name + '\n');
+        app.launch();
+      }, 0);
+    };
+    setReq.onerror = function() {
+      dump('--runapp failed to disable lock-screen.  Giving up.\n');
+    };
 
-    function launchApp() {
-      currentFrame.removeEventListener('mozbrowserloadend', launchApp);
-
-      let setReq =
-        navigator.mozSettings.createLock().set({'lockscreen.enabled': false});
-      setReq.onsuccess = function() {
-        // give the event loop 100ms to disable the lock screen
-        window.setTimeout(function() {
-          dump('--runapp launching app: ' + app.manifest.name + '\n');
-          app.launch();
-        }, 100);
-      };
-      setReq.onerror = function() {
-        dump('--runapp failed to disable lock-screen.  Giving up.\n');
-      };
-
-      dump('--runapp found app: ' + app.manifest.name +
-           ', disabling lock screen...\n');
-
-      // Disable observers once we have made the request to launch the app.
-      Services.obs.removeObserver(runAppObj, 'remote-browser-shown');
-      Services.obs.removeObserver(runAppObj, 'inprocess-browser-shown');
-    }
-  },
-
-  getAllError: function() {
-    dump('Problem getting the list of all apps!');
-  }
-};
+    dump('--runapp found app: ' + app.manifest.name +
+         ', disabling lock screen...\n');
+ };
+ appsReq.onerror = function() {
+   dump('Problem getting the list of all apps!');
+ };
+});

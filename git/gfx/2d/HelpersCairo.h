@@ -18,80 +18,33 @@ GfxOpToCairoOp(CompositionOp op)
 {
   switch (op)
   {
-    case CompositionOp::OP_OVER:
+    case OP_OVER:
       return CAIRO_OPERATOR_OVER;
-    case CompositionOp::OP_ADD:
+    case OP_ADD:
       return CAIRO_OPERATOR_ADD;
-    case CompositionOp::OP_ATOP:
+    case OP_ATOP:
       return CAIRO_OPERATOR_ATOP;
-    case CompositionOp::OP_OUT:
+    case OP_OUT:
       return CAIRO_OPERATOR_OUT;
-    case CompositionOp::OP_IN:
+    case OP_IN:
       return CAIRO_OPERATOR_IN;
-    case CompositionOp::OP_SOURCE:
+    case OP_SOURCE:
       return CAIRO_OPERATOR_SOURCE;
-    case CompositionOp::OP_DEST_IN:
+    case OP_DEST_IN:
       return CAIRO_OPERATOR_DEST_IN;
-    case CompositionOp::OP_DEST_OUT:
+    case OP_DEST_OUT:
       return CAIRO_OPERATOR_DEST_OUT;
-    case CompositionOp::OP_DEST_OVER:
+    case OP_DEST_OVER:
       return CAIRO_OPERATOR_DEST_OVER;
-    case CompositionOp::OP_DEST_ATOP:
+    case OP_DEST_ATOP:
       return CAIRO_OPERATOR_DEST_ATOP;
-    case CompositionOp::OP_XOR:
+    case OP_XOR:
       return CAIRO_OPERATOR_XOR;
-    case CompositionOp::OP_MULTIPLY:
-      return CAIRO_OPERATOR_MULTIPLY;
-    case CompositionOp::OP_SCREEN:
-      return CAIRO_OPERATOR_SCREEN;
-    case CompositionOp::OP_OVERLAY:
-      return CAIRO_OPERATOR_OVERLAY;
-    case CompositionOp::OP_DARKEN:
-      return CAIRO_OPERATOR_DARKEN;
-    case CompositionOp::OP_LIGHTEN:
-      return CAIRO_OPERATOR_LIGHTEN;
-    case CompositionOp::OP_COLOR_DODGE:
-      return CAIRO_OPERATOR_COLOR_DODGE;
-    case CompositionOp::OP_COLOR_BURN:
-      return CAIRO_OPERATOR_COLOR_BURN;
-    case CompositionOp::OP_HARD_LIGHT:
-      return CAIRO_OPERATOR_HARD_LIGHT;
-    case CompositionOp::OP_SOFT_LIGHT:
-      return CAIRO_OPERATOR_SOFT_LIGHT;
-    case CompositionOp::OP_DIFFERENCE:
-      return CAIRO_OPERATOR_DIFFERENCE;
-    case CompositionOp::OP_EXCLUSION:
-      return CAIRO_OPERATOR_EXCLUSION;
-    case CompositionOp::OP_HUE:
-      return CAIRO_OPERATOR_HSL_HUE;
-    case CompositionOp::OP_SATURATION:
-      return CAIRO_OPERATOR_HSL_SATURATION;
-    case CompositionOp::OP_COLOR:
-      return CAIRO_OPERATOR_HSL_COLOR;
-    case CompositionOp::OP_LUMINOSITY:
-      return CAIRO_OPERATOR_HSL_LUMINOSITY;
-    case CompositionOp::OP_COUNT:
+    case OP_COUNT:
       break;
   }
 
   return CAIRO_OPERATOR_OVER;
-}
-
-static inline cairo_antialias_t
-GfxAntialiasToCairoAntialias(AntialiasMode antialias)
-{
-  switch (antialias)
-  {
-    case AntialiasMode::NONE:
-      return CAIRO_ANTIALIAS_NONE;
-    case AntialiasMode::GRAY:
-      return CAIRO_ANTIALIAS_GRAY;
-    case AntialiasMode::SUBPIXEL:
-      return CAIRO_ANTIALIAS_SUBPIXEL;
-    case AntialiasMode::DEFAULT:
-      return CAIRO_ANTIALIAS_DEFAULT;
-  }
-  return CAIRO_ANTIALIAS_DEFAULT;
 }
 
 static inline cairo_filter_t
@@ -99,11 +52,9 @@ GfxFilterToCairoFilter(Filter filter)
 {
   switch (filter)
   {
-    case Filter::GOOD:
-      return CAIRO_FILTER_GOOD;
-    case Filter::LINEAR:
+    case FILTER_LINEAR:
       return CAIRO_FILTER_BILINEAR;
-    case Filter::POINT:
+    case FILTER_POINT:
       return CAIRO_FILTER_NEAREST;
   }
 
@@ -115,11 +66,11 @@ GfxExtendToCairoExtend(ExtendMode extend)
 {
   switch (extend)
   {
-    case ExtendMode::CLAMP:
+    case EXTEND_CLAMP:
       return CAIRO_EXTEND_PAD;
-    case ExtendMode::REPEAT:
+    case EXTEND_REPEAT:
       return CAIRO_EXTEND_REPEAT;
-    case ExtendMode::REFLECT:
+    case EXTEND_REFLECT:
       return CAIRO_EXTEND_REFLECT;
   }
 
@@ -131,17 +82,16 @@ GfxFormatToCairoFormat(SurfaceFormat format)
 {
   switch (format)
   {
-    case SurfaceFormat::B8G8R8A8:
+    case FORMAT_B8G8R8A8:
       return CAIRO_FORMAT_ARGB32;
-    case SurfaceFormat::B8G8R8X8:
+    case FORMAT_B8G8R8X8:
       return CAIRO_FORMAT_RGB24;
-    case SurfaceFormat::A8:
+    case FORMAT_A8:
       return CAIRO_FORMAT_A8;
-    case SurfaceFormat::R5G6B5:
+    case FORMAT_R5G6B5:
       return CAIRO_FORMAT_RGB16_565;
     default:
       gfxWarning() << "Unknown image format";
-      MOZ_ASSERT(false, "Unknown image format");
       return CAIRO_FORMAT_ARGB32;
   }
 }
@@ -151,16 +101,15 @@ GfxFormatToCairoContent(SurfaceFormat format)
 {
   switch (format)
   {
-    case SurfaceFormat::B8G8R8A8:
+    case FORMAT_B8G8R8A8:
       return CAIRO_CONTENT_COLOR_ALPHA;
-    case SurfaceFormat::B8G8R8X8:
-    case SurfaceFormat::R5G6B5:  //fall through
+    case FORMAT_B8G8R8X8:
+    case FORMAT_R5G6B5:  //fall through
       return CAIRO_CONTENT_COLOR;
-    case SurfaceFormat::A8:
+    case FORMAT_A8:
       return CAIRO_CONTENT_ALPHA;
     default:
       gfxWarning() << "Unknown image format";
-      MOZ_ASSERT(false, "Unknown image format");
       return CAIRO_CONTENT_COLOR_ALPHA;
   }
 }
@@ -170,13 +119,13 @@ GfxLineJoinToCairoLineJoin(JoinStyle style)
 {
   switch (style)
   {
-    case JoinStyle::BEVEL:
+    case JOIN_BEVEL:
       return CAIRO_LINE_JOIN_BEVEL;
-    case JoinStyle::ROUND:
+    case JOIN_ROUND:
       return CAIRO_LINE_JOIN_ROUND;
-    case JoinStyle::MITER:
+    case JOIN_MITER:
       return CAIRO_LINE_JOIN_MITER;
-    case JoinStyle::MITER_OR_BEVEL:
+    case JOIN_MITER_OR_BEVEL:
       return CAIRO_LINE_JOIN_MITER;
   }
 
@@ -188,11 +137,11 @@ GfxLineCapToCairoLineCap(CapStyle style)
 {
   switch (style)
   {
-    case CapStyle::BUTT:
+    case CAP_BUTT:
       return CAIRO_LINE_CAP_BUTT;
-    case CapStyle::ROUND:
+    case CAP_ROUND:
       return CAIRO_LINE_CAP_ROUND;
-    case CapStyle::SQUARE:
+    case CAP_SQUARE:
       return CAIRO_LINE_CAP_SQUARE;
   }
 
@@ -205,44 +154,15 @@ CairoContentToGfxFormat(cairo_content_t content)
   switch (content)
   {
     case CAIRO_CONTENT_COLOR_ALPHA:
-      return SurfaceFormat::B8G8R8A8;
+      return FORMAT_B8G8R8A8;
     case CAIRO_CONTENT_COLOR:
       // BEWARE! format may be 565
-      return SurfaceFormat::B8G8R8X8;
+      return FORMAT_B8G8R8X8;
     case CAIRO_CONTENT_ALPHA:
-      return SurfaceFormat::A8;
+      return FORMAT_A8;
   }
 
-  return SurfaceFormat::B8G8R8A8;
-}
-
-static inline SurfaceFormat
-CairoFormatToGfxFormat(cairo_format_t format)
-{
-  switch (format) {
-    case CAIRO_FORMAT_ARGB32:
-      return SurfaceFormat::B8G8R8A8;
-    case CAIRO_FORMAT_RGB24:
-      return SurfaceFormat::B8G8R8X8;
-    case CAIRO_FORMAT_A8:
-      return SurfaceFormat::A8;
-    case CAIRO_FORMAT_RGB16_565:
-      return SurfaceFormat::R5G6B5;
-    default:
-      gfxWarning() << "Unknown cairo format";
-      MOZ_ASSERT(false, "Unknown cairo format");
-      return SurfaceFormat::UNKNOWN;
-  }
-}
-
-static inline SurfaceFormat
-GfxFormatForCairoSurface(cairo_surface_t* surface)
-{
-  if (cairo_surface_get_type(surface) == CAIRO_SURFACE_TYPE_IMAGE) {
-    return CairoFormatToGfxFormat(cairo_image_surface_get_format(surface));
-  }
-
-  return CairoContentToGfxFormat(cairo_surface_get_content(surface));
+  return FORMAT_B8G8R8A8;
 }
 
 static inline void
@@ -278,9 +198,9 @@ GfxFillRuleToCairoFillRule(FillRule rule)
 {
   switch (rule)
   {
-    case FillRule::FILL_WINDING:
+    case FILL_WINDING:
       return CAIRO_FILL_RULE_WINDING;
-    case FillRule::FILL_EVEN_ODD:
+    case FILL_EVEN_ODD:
       return CAIRO_FILL_RULE_EVEN_ODD;
   }
 
@@ -305,7 +225,7 @@ public:
 
   ~CairoTempMatrix()
   {
-    cairo_set_matrix(mCtx, &mSaveMatrix);
+    cairo_get_matrix(mCtx, &mSaveMatrix);
   }
 
 private:

@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// HttpLog.h should generally be included first
-#include "HttpLog.h"
-
+#include <stdlib.h>
+#include "nsHttp.h"
 #include "nsHttpNTLMAuth.h"
+#include "nsIComponentManager.h"
 #include "nsIAuthModule.h"
 #include "nsCOMPtr.h"
 #include "plbase64.h"
@@ -16,25 +16,18 @@
 
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
+#include "nsIServiceManager.h"
 #include "nsIHttpAuthenticableChannel.h"
 #include "nsIURI.h"
-#ifdef XP_WIN
 #include "nsIX509Cert.h"
 #include "nsISSLStatus.h"
 #include "nsISSLStatusProvider.h"
-#endif
 #include "mozilla/Attributes.h"
-#include "nsThreadUtils.h"
-
-namespace mozilla {
-namespace net {
 
 static const char kAllowProxies[] = "network.automatic-ntlm-auth.allow-proxies";
 static const char kAllowNonFqdn[] = "network.automatic-ntlm-auth.allow-non-fqdn";
 static const char kTrustedURIs[]  = "network.automatic-ntlm-auth.trusted-uris";
 static const char kForceGeneric[] = "network.auth.force-generic-ntlm";
-static const char kAllowGenericHTTP[] = "network.negotiate-auth.allow-insecure-ntlm-v1";
-static const char kAllowGenericHTTPS[] = "network.negotiate-auth.allow-insecure-ntlm-v1-https";
 
 // XXX MatchesBaseURI and TestPref are duplicated in nsHttpNegotiateAuth.cpp,
 // but since that file lives in a separate library we cannot directly share it.
@@ -99,7 +92,7 @@ MatchesBaseURI(const nsCSubstring &matchScheme,
 static bool
 IsNonFqdn(nsIURI *uri)
 {
-    nsAutoCString host;
+    nsCAutoString host;
     PRNetAddr addr;
 
     if (NS_FAILED(uri->GetAsciiHost(host)))
@@ -117,7 +110,7 @@ TestPref(nsIURI *uri, const char *pref)
     if (!prefs)
         return false;
 
-    nsAutoCString scheme, host;
+    nsCAutoString scheme, host;
     int32_t port;
 
     if (NS_FAILED(uri->GetScheme(scheme)))
@@ -159,7 +152,7 @@ TestPref(nsIURI *uri, const char *pref)
             break;
         start = end + 1;
     }
-
+    
     nsMemory::Free(hostList);
     return false;
 }
@@ -177,47 +170,6 @@ ForceGenericNTLM()
         flag = false;
 
     LOG(("Force use of generic ntlm auth module: %d\n", flag));
-    return flag;
-}
-
-// Check to see if we should use our generic (internal) NTLM auth module.
-static bool
-AllowGenericNTLM()
-{
-    MOZ_ASSERT(NS_IsMainThread());
-
-    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    if (!prefs)
-        return false;
-
-    bool flag = false;
-    if (NS_FAILED(prefs->GetBoolPref(kAllowGenericHTTP, &flag)))
-        flag = false;
-
-    LOG(("Allow use of generic ntlm auth module: %d\n", flag));
-    return flag;
-}
-
-// Check to see if we should use our generic (internal) NTLM auth module.
-static bool
-AllowGenericNTLMforHTTPS(nsIHttpAuthenticableChannel *channel)
-{
-    bool isSSL = false;
-    channel->GetIsSSL(&isSSL);
-    if (!isSSL)
-        return false;
-
-    MOZ_ASSERT(NS_IsMainThread());
-
-    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    if (!prefs)
-        return false;
-
-    bool flag = false;
-    if (NS_FAILED(prefs->GetBoolPref(kAllowGenericHTTPS, &flag)))
-        flag = false;
-
-    LOG(("Allow use of generic ntlm auth module for only https: %d\n", flag));
     return flag;
 }
 
@@ -258,7 +210,6 @@ CanUseDefaultCredentials(nsIHttpAuthenticableChannel *channel,
 // Instead we use its existence as a flag.  See ChallengeReceived.
 class nsNTLMSessionState MOZ_FINAL : public nsISupports
 {
-    ~nsNTLMSessionState() {}
 public:
     NS_DECL_ISUPPORTS
 };
@@ -266,7 +217,7 @@ NS_IMPL_ISUPPORTS0(nsNTLMSessionState)
 
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS(nsHttpNTLMAuth, nsIHttpAuthenticator)
+NS_IMPL_ISUPPORTS1(nsHttpNTLMAuth, nsIHttpAuthenticator)
 
 NS_IMETHODIMP
 nsHttpNTLMAuth::ChallengeReceived(nsIHttpAuthenticableChannel *channel,
@@ -298,7 +249,7 @@ nsHttpNTLMAuth::ChallengeReceived(nsIHttpAuthenticableChannel *channel,
         // instantiate a native NTLM module the last time, so skip trying again.
         bool forceGeneric = ForceGenericNTLM();
         if (!forceGeneric && !*sessionState) {
-            // Check for approved default credentials hosts and proxies. If
+            // Check for approved default credentials hosts and proxies. If 
             // *continuationState is non-null, the last authentication attempt
             // failed so skip default credential use.
             if (!*continuationState && CanUseDefaultCredentials(channel, isProxyAuth)) {
@@ -343,15 +294,9 @@ nsHttpNTLMAuth::ChallengeReceived(nsIHttpAuthenticableChannel *channel,
 
             // Use our internal NTLM implementation. Note, this is less secure,
             // see bug 520607 for details.
-
-            // For now with default preference settings (i.e. allow-insecure-ntlm-v1-https = true
-            // and allow-insecure-ntlm-v1 = false) we don't allow authentication to any proxy,
-            // either http or https.  This will be fixed in a followup bug.
-            if (AllowGenericNTLM() || (!isProxyAuth && AllowGenericNTLMforHTTPS(channel))) {
-                LOG(("Trying to fall back on internal ntlm auth.\n"));
-                module = do_CreateInstance(NS_AUTH_MODULE_CONTRACTID_PREFIX "ntlm");
-            }
-	
+            LOG(("Trying to fall back on internal ntlm auth.\n"));
+            module = do_CreateInstance(NS_AUTH_MODULE_CONTRACTID_PREFIX "ntlm");
+	    
             mUseNative = false;
 
             // Prompt user for domain, username, and password.
@@ -375,9 +320,9 @@ NS_IMETHODIMP
 nsHttpNTLMAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
                                     const char      *challenge,
                                     bool             isProxyAuth,
-                                    const char16_t *domain,
-                                    const char16_t *user,
-                                    const char16_t *pass,
+                                    const PRUnichar *domain,
+                                    const PRUnichar *user,
+                                    const PRUnichar *pass,
                                     nsISupports    **sessionState,
                                     nsISupports    **continuationState,
                                     uint32_t       *aFlags,
@@ -391,7 +336,7 @@ nsHttpNTLMAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
 
     // if user or password is empty, ChallengeReceived returned
     // identityInvalid = false, that means we are using default user
-    // credentials; see  nsAuthSSPI::Init method for explanation of this
+    // credentials; see  nsAuthSSPI::Init method for explanation of this 
     // condition
     if (!user || !pass)
         *aFlags = USING_INTERNAL_IDENTITY;
@@ -410,31 +355,27 @@ nsHttpNTLMAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
         rv = authChannel->GetURI(getter_AddRefs(uri));
         if (NS_FAILED(rv))
             return rv;
-        nsAutoCString serviceName, host;
+        nsCAutoString serviceName, host;
         rv = uri->GetAsciiHost(host);
         if (NS_FAILED(rv))
             return rv;
         serviceName.AppendLiteral("HTTP@");
         serviceName.Append(host);
         // initialize auth module
-        uint32_t reqFlags = nsIAuthModule::REQ_DEFAULT;
-        if (isProxyAuth)
-            reqFlags |= nsIAuthModule::REQ_PROXY_AUTH;
-
-        rv = module->Init(serviceName.get(), reqFlags, domain, user, pass);
+        rv = module->Init(serviceName.get(), nsIAuthModule::REQ_DEFAULT, domain, user, pass);
         if (NS_FAILED(rv))
             return rv;
 
 // This update enables updated Windows machines (Win7 or patched previous
-// versions) and Linux machines running Samba (updated for Channel
-// Binding), to perform Channel Binding when authenticating using NTLMv2
+// versions) and Linux machines running Samba (updated for Channel 
+// Binding), to perform Channel Binding when authenticating using NTLMv2 
 // and an outer secure channel.
-//
-// Currently only implemented for Windows, linux support will be landing in
+// 
+// Currently only implemented for Windows, linux support will be landing in 
 // a separate patch, update this #ifdef accordingly then.
 #if defined (XP_WIN) /* || defined (LINUX) */
-        // We should retrieve the server certificate and compute the CBT,
-        // but only when we are using the native NTLM implementation and
+        // We should retrieve the server certificate and compute the CBT, 
+        // but only when we are using the native NTLM implementation and 
         // not the internal one.
         // It is a valid case not having the security info object.  This
         // occures when we connect an https site through an ntlm proxy.
@@ -465,13 +406,13 @@ nsHttpNTLMAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
 
             uint32_t length;
             uint8_t* certArray;
-            cert->GetRawDER(&length, &certArray);						
+            cert->GetRawDER(&length, &certArray);						  
 			
             // If there is a server certificate, we pass it along the
             // first time we call GetNextToken().
             inBufLen = length;
             inBuf = certArray;
-        } else {
+        } else { 
             // If there is no server certificate, we don't pass anything.
             inBufLen = 0;
             inBuf = nullptr;
@@ -534,6 +475,3 @@ nsHttpNTLMAuth::GetAuthFlags(uint32_t *flags)
     *flags = CONNECTION_BASED | IDENTITY_INCLUDES_DOMAIN | IDENTITY_ENCRYPTED;
     return NS_OK;
 }
-
-} // namespace mozilla::net
-} // namespace mozilla

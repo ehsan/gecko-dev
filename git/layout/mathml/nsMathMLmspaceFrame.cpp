@@ -3,10 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+
+#include "nsCOMPtr.h"
+#include "nsFrame.h"
+#include "nsPresContext.h"
+#include "nsStyleContext.h"
+#include "nsStyleConsts.h"
+
 #include "nsMathMLmspaceFrame.h"
-#include "nsMathMLElement.h"
-#include "mozilla/gfx/2D.h"
-#include <algorithm>
 
 
 //
@@ -35,7 +39,6 @@ void
 nsMathMLmspaceFrame::ProcessAttributes(nsPresContext* aPresContext)
 {
   nsAutoString value;
-  float fontSizeInflation = nsLayoutUtils::FontSizeInflationFor(this);
 
   // width 
   //
@@ -50,11 +53,12 @@ nsMathMLmspaceFrame::ProcessAttributes(nsPresContext* aPresContext)
   // as an example. Hence we allow negative values.
   //
   mWidth = 0;
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::width, value);
+  GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::width,
+               value);
   if (!value.IsEmpty()) {
     ParseNumericValue(value, &mWidth,
                       nsMathMLElement::PARSE_ALLOW_NEGATIVE,
-                      aPresContext, mStyleContext, fontSizeInflation);
+                      aPresContext, mStyleContext);
   }
 
   // height
@@ -68,10 +72,11 @@ nsMathMLmspaceFrame::ProcessAttributes(nsPresContext* aPresContext)
   // We do not allow negative values. See bug 716349.
   //
   mHeight = 0;
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::height, value);
+  GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::height,
+               value);
   if (!value.IsEmpty()) {
     ParseNumericValue(value, &mHeight, 0,
-                      aPresContext, mStyleContext, fontSizeInflation);
+                      aPresContext, mStyleContext);
   }
 
   // depth
@@ -85,46 +90,38 @@ nsMathMLmspaceFrame::ProcessAttributes(nsPresContext* aPresContext)
   // We do not allow negative values. See bug 716349.
   //
   mDepth = 0;
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::depth_, value);
+  GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::depth_,
+               value);
   if (!value.IsEmpty()) {
     ParseNumericValue(value, &mDepth, 0,
-                      aPresContext, mStyleContext, fontSizeInflation);
+                      aPresContext, mStyleContext);
   }
 }
 
-void
+NS_IMETHODIMP
 nsMathMLmspaceFrame::Reflow(nsPresContext*          aPresContext,
                             nsHTMLReflowMetrics&     aDesiredSize,
                             const nsHTMLReflowState& aReflowState,
                             nsReflowStatus&          aStatus)
 {
   ProcessAttributes(aPresContext);
+  // nsLineLayout doesn't expect negative widths.
+  // XXXfredw Negative spaces are not implemented. See bug 717546
 
   mBoundingMetrics = nsBoundingMetrics();
-  mBoundingMetrics.width = mWidth;
+  mBoundingMetrics.width = NS_MAX(0, mWidth);
   mBoundingMetrics.ascent = mHeight;
   mBoundingMetrics.descent = mDepth;
   mBoundingMetrics.leftBearing = 0;
   mBoundingMetrics.rightBearing = mBoundingMetrics.width;
 
-  aDesiredSize.SetBlockStartAscent(mHeight);
-  aDesiredSize.Width() = std::max(0, mBoundingMetrics.width);
-  aDesiredSize.Height() = aDesiredSize.BlockStartAscent() + mDepth;
+  aDesiredSize.ascent = mHeight;
+  aDesiredSize.width = mBoundingMetrics.width;
+  aDesiredSize.height = aDesiredSize.ascent + mDepth;
   // Also return our bounding metrics
   aDesiredSize.mBoundingMetrics = mBoundingMetrics;
 
   aStatus = NS_FRAME_COMPLETE;
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
-}
-
-/* virtual */ nsresult
-nsMathMLmspaceFrame::MeasureForWidth(nsRenderingContext& aRenderingContext,
-                                     nsHTMLReflowMetrics& aDesiredSize)
-{
-  ProcessAttributes(PresContext());
-  mBoundingMetrics = nsBoundingMetrics();
-  mBoundingMetrics.width = mWidth;
-  aDesiredSize.Width() = std::max(0, mBoundingMetrics.width);
-  aDesiredSize.mBoundingMetrics = mBoundingMetrics;
   return NS_OK;
 }

@@ -18,9 +18,9 @@ namespace storage {
 ////////////////////////////////////////////////////////////////////////////////
 //// Variant_base
 
-inline NS_IMPL_ADDREF(Variant_base)
-inline NS_IMPL_RELEASE(Variant_base)
-inline NS_IMPL_QUERY_INTERFACE(
+inline NS_IMPL_THREADSAFE_ADDREF(Variant_base)
+inline NS_IMPL_THREADSAFE_RELEASE(Variant_base)
+inline NS_IMPL_THREADSAFE_QUERY_INTERFACE1(
   Variant_base,
   nsIVariant
 )
@@ -147,7 +147,7 @@ Variant_base::GetAsChar(char *)
 
 inline
 NS_IMETHODIMP
-Variant_base::GetAsWChar(char16_t *)
+Variant_base::GetAsWChar(PRUnichar *)
 {
   return NS_ERROR_CANNOT_CONVERT_DATA;
 }
@@ -175,7 +175,7 @@ Variant_base::GetAsString(char **)
 
 inline
 NS_IMETHODIMP
-Variant_base::GetAsWString(char16_t **)
+Variant_base::GetAsWString(PRUnichar **)
 {
   return NS_ERROR_CANNOT_CONVERT_DATA;
 }
@@ -213,14 +213,14 @@ Variant_base::GetAsStringWithSize(uint32_t *,
 inline
 NS_IMETHODIMP
 Variant_base::GetAsWStringWithSize(uint32_t *,
-                                   char16_t **)
+                                   PRUnichar **)
 {
   return NS_ERROR_CANNOT_CONVERT_DATA;
 }
 
 inline
 NS_IMETHODIMP
-Variant_base::GetAsJSVal(JS::MutableHandle<JS::Value>)
+Variant_base::GetAsJSVal(JS::Value *)
 {
   return NS_ERROR_CANNOT_CONVERT_DATA;
 }

@@ -1,4 +1,3 @@
-/* vim: set ts=4 sts=4 sw=4 et tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -10,8 +9,6 @@ const Cr = Components.results;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
-Components.utils.import("resource://gre/modules/SharedPromptUtils.jsm");
 
 /*
  * LoginManagerPromptFactory
@@ -98,9 +95,6 @@ LoginManagerPromptFactory.prototype = {
                     ok = prompter.promptAuth(prompt.channel,
                                              prompt.level,
                                              prompt.authInfo);
-                } catch (e if (e instanceof Components.Exception) &&
-                               e.result == Cr.NS_ERROR_NOT_AVAILABLE) {
-                    self.log("_doAsyncPrompt:run bypassed, UI is not available in this context");
                 } catch (e) {
                     Components.utils.reportError("LoginManagerPrompter: " +
                         "_doAsyncPrompt:run: " + e + "\n");
@@ -201,8 +195,6 @@ LoginManagerPrompter.prototype = {
 
     _factory       : null,
     _window        : null,
-    _browser       : null,
-    _opener        : null,
     _debug         : false, // mirrors signon.debug
 
     __pwmgr : null, // Password Manager service
@@ -253,15 +245,13 @@ LoginManagerPrompter.prototype = {
 
     // Whether we are in private browsing mode
     get _inPrivateBrowsing() {
-      if (this._window) {
-        return PrivateBrowsingUtils.isContentWindowPrivate(this._window);
-      } else {
-        // If we don't that we're in private browsing mode if the caller did
-        // not provide a window.  The callers which really care about this
-        // will indeed pass down a window to us, and for those who don't,
-        // we can just assume that we don't want to save the entered login
-        // information.
-        return true;
+      // The Private Browsing service might not be available.
+      try {
+        var pbs = Cc["@mozilla.org/privatebrowsing;1"].
+                  getService(Ci.nsIPrivateBrowsingService);
+        return pbs.privateBrowsingEnabled;
+      } catch (e) {
+        return false;
       }
     },
 
@@ -578,14 +568,10 @@ LoginManagerPrompter.prototype = {
                 "Epic fail in promptAuth: " + e + "\n");
         }
 
-        var ok = canAutologin;
-        if (!ok) {
-          if (this._window)
-            PromptUtils.fireDialogEvent(this._window, "DOMWillOpenModalDialog", this._browser);
-          ok = this._promptService.promptAuth(this._window,
-                                              aChannel, aLevel, aAuthInfo,
-                                              checkboxLabel, checkbox);
-        }
+        var ok = canAutologin ||
+                 this._promptService.promptAuth(this._window,
+                                                aChannel, aLevel, aAuthInfo,
+                                                checkboxLabel, checkbox);
 
         // If there's a notification box, use it to allow the user to
         // determine if the login should be saved. If there isn't a
@@ -710,19 +696,10 @@ LoginManagerPrompter.prototype = {
     init : function (aWindow, aFactory) {
         this._window = aWindow;
         this._factory = aFactory || null;
-        this._browser = null;
-        this._opener = null;
 
         var prefBranch = Services.prefs.getBranch("signon.");
         this._debug = prefBranch.getBoolPref("debug");
         this.log("===== initialized =====");
-    },
-
-    setE10sData : function (aBrowser, aOpener) {
-        if (!(this._window instanceof Ci.nsIDOMChromeWindow))
-            throw new Error("Unexpected call");
-        this._browser = aBrowser;
-        this._opener = aOpener;
     },
 
 
@@ -840,7 +817,10 @@ LoginManagerPrompter.prototype = {
                 }
             ];
 
-            var { browser } = this._getNotifyWindow();
+            var notifyWin = this._getNotifyWindow();
+            var chromeWin = this._getChromeWindow(notifyWin).wrappedJSObject;
+            var browser = chromeWin.gBrowser.
+                                    getBrowserForDocument(this._window.top.document);
 
             aNotifyObj.show(browser, "password-save", notificationText,
                             "password-notification-icon", mainAction,
@@ -1035,7 +1015,10 @@ LoginManagerPrompter.prototype = {
                 }
             };
 
-            var { browser } = this._getNotifyWindow();
+            var notifyWin = this._getNotifyWindow();
+            var chromeWin = this._getChromeWindow(notifyWin).wrappedJSObject;
+            var browser = chromeWin.gBrowser.
+                                    getBrowserForDocument(this._window.top.document);
 
             aNotifyObj.show(browser, "password-change", notificationText,
                             "password-notification-icon", mainAction,
@@ -1176,9 +1159,6 @@ LoginManagerPrompter.prototype = {
      * Given a content DOM window, returns the chrome window it's in.
      */
     _getChromeWindow: function (aWindow) {
-        // In e10s, aWindow may already be a chrome window.
-        if (aWindow instanceof Ci.nsIDOMChromeWindow)
-            return aWindow;
         var chromeWin = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                                .getInterface(Ci.nsIWebNavigation)
                                .QueryInterface(Ci.nsIDocShell)
@@ -1195,61 +1175,33 @@ LoginManagerPrompter.prototype = {
         try {
             // Get topmost window, in case we're in a frame.
             var notifyWin = this._window.top;
-            var isE10s = (notifyWin instanceof Ci.nsIDOMChromeWindow);
-            var useOpener = false;
 
-            // Some sites pop up a temporary login window, which disappears
+            // Some sites pop up a temporary login window, when disappears
             // upon submission of credentials. We want to put the notification
             // bar in the opener window if this seems to be happening.
             if (notifyWin.opener) {
                 var chromeDoc = this._getChromeWindow(notifyWin).
                                      document.documentElement;
-
-                var hasHistory;
-                if (isE10s) {
-                    if (!this._browser)
-                        throw new Error("Expected a browser in e10s");
-                    hasHistory = this._browser.canGoBack;
-                } else {
-                    var webnav = notifyWin.
-                                 QueryInterface(Ci.nsIInterfaceRequestor).
-                                 getInterface(Ci.nsIWebNavigation);
-                    hasHistory = webnav.sessionHistory.count > 1;
-                }
+                var webnav = notifyWin.
+                             QueryInterface(Ci.nsIInterfaceRequestor).
+                             getInterface(Ci.nsIWebNavigation);
 
                 // Check to see if the current window was opened with chrome
                 // disabled, and if so use the opener window. But if the window
                 // has been used to visit other pages (ie, has a history),
                 // assume it'll stick around and *don't* use the opener.
-                if (chromeDoc.getAttribute("chromehidden") && !hasHistory) {
+                if (chromeDoc.hasAttribute("chromehidden") &&
+                    webnav.sessionHistory.count == 1) {
                     this.log("Using opener window for notification bar.");
                     notifyWin = notifyWin.opener;
-                    useOpener = true;
                 }
             }
 
-            let browser;
-            if (useOpener && this._opener && isE10s) {
-                // In e10s, we have to reconstruct the opener browser from
-                // the CPOW passed in the message (and then passed to us in
-                // setE10sData).
-                // NB: notifyWin is now the chrome window for the opening
-                // window.
-
-                browser = notifyWin.gBrowser.getBrowserForContentWindow(this._opener);
-            } else if (isE10s) {
-                browser = this._browser;
-            } else {
-                var chromeWin = this._getChromeWindow(notifyWin).wrappedJSObject;
-                browser = chromeWin.gBrowser
-                                   .getBrowserForDocument(notifyWin.top.document);
-            }
-
-            return { notifyWin: notifyWin, browser: browser };
+            return notifyWin;
 
         } catch (e) {
             // If any errors happen, just assume no notification box.
-            this.log("Unable to get notify window: " + e.fileName + ":" + e.lineNumber + ": " + e.message);
+            this.log("Unable to get notify window");
             return null;
         }
     },
@@ -1265,7 +1217,7 @@ LoginManagerPrompter.prototype = {
         let popupNote = null;
 
         try {
-            let { notifyWin } = this._getNotifyWindow();
+            let notifyWin = this._getNotifyWindow();
 
             // Get the chrome window for the content window we're using.
             // .wrappedJSObject needed here -- see bug 422974 comment 5.
@@ -1290,7 +1242,7 @@ LoginManagerPrompter.prototype = {
         let notifyBox = null;
 
         try {
-            let { notifyWin } = this._getNotifyWindow();
+            let notifyWin = this._getNotifyWindow();
 
             // Get the chrome window for the content window we're using.
             // .wrappedJSObject needed here -- see bug 422974 comment 5.
@@ -1379,7 +1331,7 @@ LoginManagerPrompter.prototype = {
 
         // If the URI explicitly specified a port, only include it when
         // it's not the default. (We never want "http://foo.com:80")
-        var port = uri.port;
+        port = uri.port;
         if (port != -1) {
             var handler = Services.io.getProtocolHandler(scheme);
             if (port != handler.defaultPort)
@@ -1527,4 +1479,4 @@ LoginManagerPrompter.prototype = {
 
 
 var component = [LoginManagerPromptFactory, LoginManagerPrompter];
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory(component);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory(component);

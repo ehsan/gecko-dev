@@ -14,8 +14,8 @@ import java.util.TreeMap;
 
 import org.json.simple.JSONArray;
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.db.BrowserContract;
+import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.repositories.InactiveSessionException;
 import org.mozilla.gecko.sync.repositories.InvalidSessionTransitionException;
@@ -42,8 +42,8 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
   public static final int DEFAULT_INSERTION_FLUSH_THRESHOLD = 50;
 
   // TODO: synchronization for these.
-  private final HashMap<String, Long> parentGuidToIDMap = new HashMap<String, Long>();
-  private final HashMap<Long, String> parentIDToGuidMap = new HashMap<Long, String>();
+  private HashMap<String, Long> parentGuidToIDMap = new HashMap<String, Long>();
+  private HashMap<Long, String> parentIDToGuidMap = new HashMap<Long, String>();
 
   /**
    * Some notes on reparenting/reordering.
@@ -100,11 +100,11 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
    */
 
   // TODO: can we guarantee serial access to these?
-  private final HashMap<String, ArrayList<String>> missingParentToChildren = new HashMap<String, ArrayList<String>>();
-  private final HashMap<String, JSONArray>         parentToChildArray      = new HashMap<String, JSONArray>();
+  private HashMap<String, ArrayList<String>> missingParentToChildren = new HashMap<String, ArrayList<String>>();
+  private HashMap<String, JSONArray>         parentToChildArray      = new HashMap<String, JSONArray>();
   private int needsReparenting = 0;
 
-  private final AndroidBrowserBookmarksDataAccessor dataAccessor;
+  private AndroidBrowserBookmarksDataAccessor dataAccessor;
 
   protected BookmarksDeletionManager deletionManager;
   protected BookmarksInsertionManager insertionManager;
@@ -112,7 +112,7 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
   /**
    * An array of known-special GUIDs.
    */
-  public static final String[] SPECIAL_GUIDS = new String[] {
+  public static String[] SPECIAL_GUIDS = new String[] {
     // Mobile and desktop places roots have to come first.
     "places",
     "mobile",
@@ -131,19 +131,14 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
    * Additionally, the mobile root is annotated. In Firefox Sync, PlacesUtils is
    * used to find the IDs of these special folders.
    *
-   * We need to consume records with these various GUIDs, producing a local
+   * Sync skips over `places` and `tags` when finding IDs.
+   *
+   * We need to consume records with these various guids, producing a local
    * representation which we are able to stably map upstream.
-   *
-   * Android Sync skips over the contents of some special GUIDs -- `places`, `tags`,
-   * etc. -- when finding IDs.
-   * Some of these special GUIDs are part of desktop structure (places, tags). Some
-   * are part of Fennec's custom data (readinglist, pinned).
-   *
-   * We don't want to upload or apply these records.
    *
    * That is:
    *
-   * * We should not upload a `places`,`tags`, `readinglist`, or `pinned` record.
+   * * We should not upload a `places` record or a `tags` record.
    * * We can stably _store_ menu/toolbar/unfiled/mobile as special GUIDs, and set
      * their parent ID as appropriate on upload.
    *
@@ -197,33 +192,12 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
   /**
    * Return true if the provided record GUID should be skipped
    * in child lists or fetch results.
-   *
-   * @param recordGUID the GUID of the record to check.
-   * @return true if the record should be skipped.
    */
-  public static boolean forbiddenGUID(final String recordGUID) {
+  public static boolean forbiddenGUID(String recordGUID) {
     return recordGUID == null ||
-           // Temporarily exclude reading list items (Bug 762118; re-enable in Bug 762109.)
-           BrowserContract.Bookmarks.READING_LIST_FOLDER_GUID.equals(recordGUID) ||
-           BrowserContract.Bookmarks.PINNED_FOLDER_GUID.equals(recordGUID) ||
-           BrowserContract.Bookmarks.PLACES_FOLDER_GUID.equals(recordGUID) ||
-           BrowserContract.Bookmarks.TAGS_FOLDER_GUID.equals(recordGUID);
-  }
-
-  /**
-   * Return true if the provided parent GUID's children should
-   * be skipped in child lists or fetch results.
-   * This differs from {@link #forbiddenGUID(String)} in that we're skipping
-   * part of the hierarchy.
-   *
-   * @param parentGUID the GUID of parent of the record to check.
-   * @return true if the record should be skipped.
-   */
-  public static boolean forbiddenParent(final String parentGUID) {
-    return parentGUID == null ||
-           // Temporarily exclude reading list items (Bug 762118; re-enable in Bug 762109.)
-           BrowserContract.Bookmarks.READING_LIST_FOLDER_GUID.equals(parentGUID) ||
-           BrowserContract.Bookmarks.PINNED_FOLDER_GUID.equals(parentGUID);
+           "readinglist".equals(recordGUID) ||      // Temporary: Bug 762118
+           "places".equals(recordGUID) ||
+           "tags".equals(recordGUID);
   }
 
   public AndroidBrowserBookmarksRepositorySession(Repository repository, Context context) {
@@ -272,7 +246,7 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
       Logger.warn(LOG_TAG, "Couldn't find local ID for GUID " + guid);
       return -1;
     }
-    return id;
+    return id.longValue();
   }
 
   private String getGUID(Cursor cur) {
@@ -364,7 +338,7 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
       boolean changed = false;
       int i = 0;
       for (Entry<Long, ArrayList<String>> entry : guids.entrySet()) {
-        long pos = entry.getKey();
+        long pos = entry.getKey().longValue();
         int atPos = entry.getValue().size();
 
         // If every element has a different index, and the indices are
@@ -534,7 +508,6 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
     if (record.deleted) {
       return false;
     }
-
     BookmarkRecord bmk = (BookmarkRecord) record;
 
     if (forbiddenGUID(bmk.guid)) {
@@ -542,8 +515,8 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
       return true;
     }
 
-    if (forbiddenParent(bmk.parentID)) {
-      Logger.debug(LOG_TAG,  "Ignoring child " + bmk.guid + " of forbidden parent folder " + bmk.parentID);
+    if ("readinglist".equals(bmk.parentID)) {      // Temporary: Bug 762118
+      Logger.debug(LOG_TAG,  "Ignoring reading list item with guid: " + bmk.guid);
       return true;
     }
 
@@ -567,6 +540,9 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
       Logger.debug(LOG_TAG, "Got GUIDs for folders.");
     } catch (android.database.sqlite.SQLiteConstraintException e) {
       Logger.error(LOG_TAG, "Got sqlite constraint exception working with Fennec bookmark DB.", e);
+      delegate.onBeginFailed(e);
+      return;
+    } catch (NullCursorException e) {
       delegate.onBeginFailed(e);
       return;
     } catch (Exception e) {
@@ -1083,9 +1059,9 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
     if (typeString == null) {
       Logger.warn(LOG_TAG, "Unsupported type code " + rowType);
       return null;
+    } else {
+      Logger.trace(LOG_TAG, "Record " + guid + " has type " + typeString);
     }
-
-    Logger.trace(LOG_TAG, "Record " + guid + " has type " + typeString);
 
     rec.type = typeString;
     rec.title = RepoUtils.getStringFromCursor(cur, BrowserContract.Bookmarks.TITLE);

@@ -25,7 +25,7 @@ protected:
   typedef base::ProcessHandle ProcessHandle;
 
 public:
-  explicit ProcessChild(ProcessHandle parentHandle);
+  ProcessChild(ProcessHandle parentHandle);
   virtual ~ProcessChild();
 
   virtual bool Init() = 0;

@@ -10,98 +10,7 @@
 #include <vector>
 #include <zlib.h>
 #include "Utils.h"
-#include "mozilla/Assertions.h"
 #include "mozilla/RefPtr.h"
-#include "mozilla/UniquePtr.h"
-
-/**
- * Helper class wrapping z_stream to avoid malloc() calls during
- * inflate. Do not use for deflate.
- * inflateInit allocates two buffers:
- * - one for its internal state, which is "approximately 10K bytes" according
- *   to inflate.h from zlib.
- * - one for the compression window, which depends on the window size passed
- *   to inflateInit2, but is never greater than 32K (1 << MAX_WBITS).
- * Those buffers are created at instantiation time instead of when calling
- * inflateInit2. When inflateInit2 is called, it will call zxx_stream::Alloc
- * to get both these buffers. zxx_stream::Alloc will choose one of the
- * pre-allocated buffers depending on the requested size.
- */
-class zxx_stream: public z_stream
-{
-public:
-  zxx_stream() {
-    memset(this, 0, sizeof(z_stream));
-    zalloc = Alloc;
-    zfree = Free;
-    opaque = this;
-  }
-
-private:
-  static void *Alloc(void *data, uInt items, uInt size)
-  {
-    size_t buf_size = items * size;
-    zxx_stream *zStream = reinterpret_cast<zxx_stream *>(data);
-
-    if (items == 1 && buf_size <= zStream->stateBuf.size) {
-      return zStream->stateBuf.get();
-    } else if (buf_size == zStream->windowBuf.size) {
-      return zStream->windowBuf.get();
-    } else {
-      MOZ_CRASH("No ZStreamBuf for allocation");
-    }
-  }
-
-  static void Free(void *data, void *ptr)
-  {
-    zxx_stream *zStream = reinterpret_cast<zxx_stream *>(data);
-
-    if (zStream->stateBuf.Equals(ptr)) {
-      zStream->stateBuf.Release();
-    } else if (zStream->windowBuf.Equals(ptr)) {
-      zStream->windowBuf.Release();
-    } else {
-      MOZ_CRASH("Pointer doesn't match a ZStreamBuf");
-    }
-  }
-
-  /**
-   * Helper class for each buffer.
-   */
-  template <size_t Size>
-  class ZStreamBuf
-  {
-  public:
-    ZStreamBuf() : buf(new char[Size]), inUse(false) { }
-
-    char *get()
-    {
-      if (!inUse) {
-        inUse = true;
-        return buf.get();
-      } else {
-        MOZ_CRASH("ZStreamBuf already in use");
-      }
-    }
-
-    void Release()
-    {
-      memset(buf.get(), 0, Size);
-      inUse = false;
-    }
-
-    bool Equals(const void *other) { return other == buf.get(); }
-
-    static const size_t size = Size;
-
-  private:
-    mozilla::UniquePtr<char[]> buf;
-    bool inUse;
-  };
-
-  ZStreamBuf<0x3000> stateBuf; // 0x3000 is an arbitrary size above 10K.
-  ZStreamBuf<1 << MAX_WBITS> windowBuf;
-};
 
 /**
  * Forward declaration
@@ -117,33 +26,15 @@ class ZipCollection;
  * libraries from Zip archives, there is no interest in making this code
  * safe, since the libraries could contain malicious code anyways.
  */
-class Zip: public mozilla::external::AtomicRefCounted<Zip>
+class Zip: public mozilla::RefCounted<Zip>
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(Zip)
   /**
-   * Create a Zip instance for the given file name. Returns nullptr in case
-   * of failure.
+   * Create a Zip instance for the given file name. In case of error, the
+   * Zip instance is still created but methods will error out.
    */
-  static mozilla::TemporaryRef<Zip> Create(const char *filename);
+  Zip(const char *filename, ZipCollection *collection = NULL);
 
-  /**
-   * Create a Zip instance using the given buffer.
-   */
-  static mozilla::TemporaryRef<Zip> Create(void *buffer, size_t size) {
-    return Create(nullptr, buffer, size);
-  }
-
-private:
-  static mozilla::TemporaryRef<Zip> Create(const char *filename,
-                                           void *buffer, size_t size);
-
-  /**
-   * Private constructor
-   */
-  Zip(const char *filename, void *buffer, size_t size);
-
-public:
   /**
    * Destructor
    */
@@ -166,7 +57,7 @@ public:
     /**
      * Constructor
      */
-    Stream(): compressedBuf(nullptr), compressedSize(0), uncompressedSize(0)
+    Stream(): compressedBuf(NULL), compressedSize(0), uncompressedSize(0)
             , type(STORE) { }
 
     /**
@@ -178,13 +69,14 @@ public:
     Type GetType() { return type; }
 
     /**
-     * Returns a zxx_stream for use with inflate functions using the given
+     * Returns a z_stream for use with inflate functions using the given
      * buffer as inflate output. The caller is expected to allocate enough
      * memory for the Stream uncompressed size.
      */
-    zxx_stream GetZStream(void *buf)
+    z_stream GetZStream(void *buf)
     {
-      zxx_stream zStream;
+      z_stream zStream;
+      memset(&zStream, 0, sizeof(zStream));
       zStream.avail_in = compressedSize;
       zStream.next_in = reinterpret_cast<Bytef *>(
                         const_cast<void *>(compressedBuf));
@@ -269,7 +161,7 @@ public:
       const T *ret = static_cast<const T *>(buf);
       if (ret->signature == T::magic)
         return ret;
-      return nullptr;
+      return NULL;
     }
 
     SignedEntity(uint32_t magic): signature(magic) { }
@@ -411,6 +303,9 @@ private:
 
   /* Pointer to the Directory entries */
   mutable const DirectoryEntry *entries;
+
+  /* ZipCollection containing this Zip */
+  mutable ZipCollection *parent;
 };
 
 /**
@@ -419,27 +314,19 @@ private:
 class ZipCollection
 {
 public:
-  static ZipCollection Singleton;
-
   /**
    * Get a Zip instance for the given path. If there is an existing one
    * already, return that one, otherwise create a new one.
    */
-  static mozilla::TemporaryRef<Zip> GetZip(const char *path);
+  mozilla::TemporaryRef<Zip> GetZip(const char *path);
 
 protected:
-  friend class Zip;
-  /**
-   * Register the given Zip instance. This method is meant to be called
-   * by Zip::Create.
-   */
-  static void Register(Zip *zip);
-
   /**
    * Forget about the given Zip instance. This method is meant to be called
    * by the Zip destructor.
    */
-  static void Forget(Zip *zip);
+  friend Zip::~Zip();
+  void Forget(Zip *zip);
 
 private:
   /* Zip instances bookkept in this collection */

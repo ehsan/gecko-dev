@@ -6,34 +6,13 @@
 
 #include <string.h>
 #include "mozilla/Telemetry.h"
-#include "mozilla/Preferences.h"
 #include "sqlite3.h"
 #include "nsThreadUtils.h"
-#include "mozilla/dom/quota/PersistenceType.h"
-#include "mozilla/dom/quota/QuotaManager.h"
-#include "mozilla/dom/quota/QuotaObject.h"
-#include "mozilla/IOInterposer.h"
-
-// The last VFS version for which this file has been updated.
-#define LAST_KNOWN_VFS_VERSION 3
-
-// The last io_methods version for which this file has been updated.
-#define LAST_KNOWN_IOMETHODS_VERSION 3
-
-/**
- * This preference is a workaround to allow users/sysadmins to identify
- * that the profile exists on an NFS share whose implementation
- * is incompatible with SQLite's default locking implementation.
- * Bug 433129 attempted to automatically identify such file-systems, 
- * but a reliable way was not found and it was determined that the fallback 
- * locking is slower than POSIX locking, so we do not want to do it by default.
-*/
-#define PREF_NFS_FILESYSTEM   "storage.nfs_filesystem"
+#include "mozilla/Util.h"
 
 namespace {
 
 using namespace mozilla;
-using namespace mozilla::dom::quota;
 
 struct Histograms {
   const char *name;
@@ -57,7 +36,7 @@ Histograms gHistograms[] = {
   SQLITE_TELEMETRY("places.sqlite", PLACES),
   SQLITE_TELEMETRY("cookies.sqlite", COOKIES),
   SQLITE_TELEMETRY("webappsstore.sqlite", WEBAPPS),
-  SQLITE_TELEMETRY(nullptr, OTHER)
+  SQLITE_TELEMETRY(NULL, OTHER)
 };
 #undef SQLITE_TELEMETRY
 
@@ -73,75 +52,28 @@ public:
    * @param id takes a telemetry histogram id. The id+1 must be an
    * equivalent histogram for the main thread. Eg, MOZ_SQLITE_OPEN_MS 
    * is followed by MOZ_SQLITE_OPEN_MAIN_THREAD_MS.
-   *
-   * @param aOp optionally takes an IO operation to report through the
-   * IOInterposer. Filename will be reported as NULL, and reference will be
-   * either "sqlite-mainthread" or "sqlite-otherthread".
    */
-  explicit IOThreadAutoTimer(Telemetry::ID id,
-    IOInterposeObserver::Operation aOp = IOInterposeObserver::OpNone)
+  IOThreadAutoTimer(Telemetry::ID id)
     : start(TimeStamp::Now()),
-      id(id),
-      op(aOp)
+      id(id)
   {
   }
 
-  /**
-   * This constructor is for when we want to report an operation to
-   * IOInterposer but do not require a telemetry probe.
-   *
-   * @param aOp IO Operation to report through the IOInterposer.
-   */
-  explicit IOThreadAutoTimer(IOInterposeObserver::Operation aOp)
-    : start(TimeStamp::Now()),
-      id(Telemetry::HistogramCount),
-      op(aOp)
-  {
-  }
-
-  ~IOThreadAutoTimer()
-  {
-    TimeStamp end(TimeStamp::Now());
+  ~IOThreadAutoTimer() {
     uint32_t mainThread = NS_IsMainThread() ? 1 : 0;
-    if (id != Telemetry::HistogramCount) {
-      Telemetry::AccumulateTimeDelta(static_cast<Telemetry::ID>(id + mainThread),
-                                     start, end);
-    }
-    // We don't report SQLite I/O on Windows because we have a comprehensive
-    // mechanism for intercepting I/O on that platform that captures a superset
-    // of the data captured here.
-#if defined(MOZ_ENABLE_PROFILER_SPS) && !defined(XP_WIN)
-    if (IOInterposer::IsObservedOperation(op)) {
-      const char* main_ref  = "sqlite-mainthread";
-      const char* other_ref = "sqlite-otherthread";
-
-      // Create observation
-      IOInterposeObserver::Observation ob(op, start, end,
-                                          (mainThread ? main_ref : other_ref));
-      // Report observation
-      IOInterposer::Report(ob);
-    }
-#endif /* defined(MOZ_ENABLE_PROFILER_SPS) && !defined(XP_WIN) */
+    Telemetry::AccumulateTimeDelta(static_cast<Telemetry::ID>(id + mainThread),
+                                   start);
   }
 
 private:
   const TimeStamp start;
   const Telemetry::ID id;
-  IOInterposeObserver::Operation op;
 };
 
 struct telemetry_file {
-  // Base class.  Must be first
-  sqlite3_file base;
-
-  // histograms pertaining to this file
-  Histograms *histograms;
-
-  // quota object for this file
-  nsRefPtr<QuotaObject> quotaObject;
-
-  // This contains the vfs that actually does work
-  sqlite3_file pReal[1];
+  sqlite3_file base;        // Base class.  Must be first
+  Histograms *histograms;   // histograms pertaining to this file
+  sqlite3_file pReal[1];    // This contains the vfs that actually does work
 };
 
 /*
@@ -152,14 +84,10 @@ xClose(sqlite3_file *pFile)
 {
   telemetry_file *p = (telemetry_file *)pFile;
   int rc;
-  { // Scope for IOThreadAutoTimer
-    IOThreadAutoTimer ioTimer(IOInterposeObserver::OpClose);
-    rc = p->pReal->pMethods->xClose(p->pReal);
-  }
+  rc = p->pReal->pMethods->xClose(p->pReal);
   if( rc==SQLITE_OK ){
     delete p->base.pMethods;
-    p->base.pMethods = nullptr;
-    p->quotaObject = nullptr;
+    p->base.pMethods = NULL;
   }
   return rc;
 }
@@ -171,7 +99,7 @@ int
 xRead(sqlite3_file *pFile, void *zBuf, int iAmt, sqlite_int64 iOfst)
 {
   telemetry_file *p = (telemetry_file *)pFile;
-  IOThreadAutoTimer ioTimer(p->histograms->readMS, IOInterposeObserver::OpRead);
+  IOThreadAutoTimer ioTimer(p->histograms->readMS);
   int rc;
   rc = p->pReal->pMethods->xRead(p->pReal, zBuf, iAmt, iOfst);
   // sqlite likes to read from empty files, this is normal, ignore it.
@@ -187,10 +115,7 @@ int
 xWrite(sqlite3_file *pFile, const void *zBuf, int iAmt, sqlite_int64 iOfst)
 {
   telemetry_file *p = (telemetry_file *)pFile;
-  if (p->quotaObject && !p->quotaObject->MaybeAllocateMoreSpace(iOfst, iAmt)) {
-    return SQLITE_FULL;
-  }
-  IOThreadAutoTimer ioTimer(p->histograms->writeMS, IOInterposeObserver::OpWrite);
+  IOThreadAutoTimer ioTimer(p->histograms->writeMS);
   int rc;
   rc = p->pReal->pMethods->xWrite(p->pReal, zBuf, iAmt, iOfst);
   Telemetry::Accumulate(p->histograms->writeB, rc == SQLITE_OK ? iAmt : 0);
@@ -208,9 +133,6 @@ xTruncate(sqlite3_file *pFile, sqlite_int64 size)
   int rc;
   Telemetry::AutoTimer<Telemetry::MOZ_SQLITE_TRUNCATE_MS> timer;
   rc = p->pReal->pMethods->xTruncate(p->pReal, size);
-  if (rc == SQLITE_OK && p->quotaObject) {
-    p->quotaObject->UpdateSize(size);
-  }
   return rc;
 }
 
@@ -221,7 +143,7 @@ int
 xSync(sqlite3_file *pFile, int flags)
 {
   telemetry_file *p = (telemetry_file *)pFile;
-  IOThreadAutoTimer ioTimer(p->histograms->syncMS, IOInterposeObserver::OpFSync);
+  IOThreadAutoTimer ioTimer(p->histograms->syncMS);
   return p->pReal->pMethods->xSync(p->pReal, flags);
 }
 
@@ -231,7 +153,6 @@ xSync(sqlite3_file *pFile, int flags)
 int
 xFileSize(sqlite3_file *pFile, sqlite_int64 *pSize)
 {
-  IOThreadAutoTimer ioTimer(IOInterposeObserver::OpStat);
   telemetry_file *p = (telemetry_file *)pFile;
   int rc;
   rc = p->pReal->pMethods->xFileSize(p->pReal, pSize);
@@ -340,34 +261,17 @@ xShmUnmap(sqlite3_file *pFile, int delFlag){
   rc = p->pReal->pMethods->xShmUnmap(p->pReal, delFlag);
   return rc;
 }
-
-int
-xFetch(sqlite3_file *pFile, sqlite3_int64 iOff, int iAmt, void **pp)
-{
-  telemetry_file *p = (telemetry_file *)pFile;
-  MOZ_ASSERT(p->pReal->pMethods->iVersion >= 3);
-  return p->pReal->pMethods->xFetch(p->pReal, iOff, iAmt, pp);
-}
-
-int
-xUnfetch(sqlite3_file *pFile, sqlite3_int64 iOff, void *pResOut)
-{
-  telemetry_file *p = (telemetry_file *)pFile;
-  MOZ_ASSERT(p->pReal->pMethods->iVersion >= 3);
-  return p->pReal->pMethods->xUnfetch(p->pReal, iOff, pResOut);
-}
-
+ 
 int
 xOpen(sqlite3_vfs* vfs, const char *zName, sqlite3_file* pFile,
           int flags, int *pOutFlags)
 {
-  IOThreadAutoTimer ioTimer(Telemetry::MOZ_SQLITE_OPEN_MS,
-                            IOInterposeObserver::OpCreateOrOpen);
+  IOThreadAutoTimer ioTimer(Telemetry::MOZ_SQLITE_OPEN_MS);
   Telemetry::AutoTimer<Telemetry::MOZ_SQLITE_OPEN_MS> timer;
   sqlite3_vfs *orig_vfs = static_cast<sqlite3_vfs*>(vfs->pAppData);
   int rc;
   telemetry_file *p = (telemetry_file *)pFile;
-  Histograms *h = nullptr;
+  Histograms *h = NULL;
   // check if the filename is one we are probing for
   for(size_t i = 0;i < sizeof(gHistograms)/sizeof(gHistograms[0]);i++) {
     h = &gHistograms[i];
@@ -385,22 +289,6 @@ xOpen(sqlite3_vfs* vfs, const char *zName, sqlite3_file* pFile,
       break;
   }
   p->histograms = h;
-
-  const char* persistenceType;
-  const char* group;
-  const char* origin;
-  if ((flags & SQLITE_OPEN_URI) &&
-      (persistenceType = sqlite3_uri_parameter(zName, "persistenceType")) &&
-      (group = sqlite3_uri_parameter(zName, "group")) &&
-      (origin = sqlite3_uri_parameter(zName, "origin"))) {
-    QuotaManager* quotaManager = QuotaManager::Get();
-    MOZ_ASSERT(quotaManager);
-
-    p->quotaObject = quotaManager->GetQuotaObject(PersistenceTypeFromText(
-      nsDependentCString(persistenceType)), nsDependentCString(group),
-      nsDependentCString(origin), NS_ConvertUTF8toUTF16(zName));
-  }
-
   rc = orig_vfs->xOpen(orig_vfs, zName, p->pReal, flags, pOutFlags);
   if( rc != SQLITE_OK )
     return rc;
@@ -408,11 +296,7 @@ xOpen(sqlite3_vfs* vfs, const char *zName, sqlite3_file* pFile,
     sqlite3_io_methods *pNew = new sqlite3_io_methods;
     const sqlite3_io_methods *pSub = p->pReal->pMethods;
     memset(pNew, 0, sizeof(*pNew));
-    // If the io_methods version is higher than the last known one, you should
-    // update this VFS adding appropriate IO methods for any methods added in
-    // the version change.
     pNew->iVersion = pSub->iVersion;
-    MOZ_ASSERT(pNew->iVersion <= LAST_KNOWN_IOMETHODS_VERSION);
     pNew->xClose = xClose;
     pNew->xRead = xRead;
     pNew->xWrite = xWrite;
@@ -425,22 +309,11 @@ xOpen(sqlite3_vfs* vfs, const char *zName, sqlite3_file* pFile,
     pNew->xFileControl = xFileControl;
     pNew->xSectorSize = xSectorSize;
     pNew->xDeviceCharacteristics = xDeviceCharacteristics;
-    if (pNew->iVersion >= 2) {
-      // Methods added in version 2.
+    if( pNew->iVersion>=2 ){
       pNew->xShmMap = pSub->xShmMap ? xShmMap : 0;
       pNew->xShmLock = pSub->xShmLock ? xShmLock : 0;
       pNew->xShmBarrier = pSub->xShmBarrier ? xShmBarrier : 0;
       pNew->xShmUnmap = pSub->xShmUnmap ? xShmUnmap : 0;
-    }
-    if (pNew->iVersion >= 3) {
-      // Methods added in version 3.
-      // SQLite 3.7.17 calls these methods without checking for nullptr first,
-      // so we always define them.  Verify that we're not going to call
-      // nullptrs, though.
-      MOZ_ASSERT(pSub->xFetch);
-      pNew->xFetch = xFetch;
-      MOZ_ASSERT(pSub->xUnfetch);
-      pNew->xUnfetch = xUnfetch;
     }
     pFile->pMethods = pNew;
   }
@@ -562,34 +435,22 @@ namespace storage {
 sqlite3_vfs* ConstructTelemetryVFS()
 {
 #if defined(XP_WIN)
-#define EXPECTED_VFS     "win32"
-#define EXPECTED_VFS_NFS "win32"
+#define EXPECTED_VFS "win32"
 #else
-#define EXPECTED_VFS     "unix"
-#define EXPECTED_VFS_NFS "unix-excl"
+#define EXPECTED_VFS "unix"
 #endif
-  
-  bool expected_vfs;
-  sqlite3_vfs *vfs;
-  if (Preferences::GetBool(PREF_NFS_FILESYSTEM)) {
-    vfs = sqlite3_vfs_find(EXPECTED_VFS_NFS);
-    expected_vfs = (vfs != nullptr);
-  }
-  else {
-    vfs = sqlite3_vfs_find(nullptr);
-    expected_vfs = vfs->zName && !strcmp(vfs->zName, EXPECTED_VFS);
-  }
+
+  sqlite3_vfs *vfs = sqlite3_vfs_find(NULL);
+  const bool expected_vfs = vfs->zName && !strcmp(vfs->zName, EXPECTED_VFS);
   if (!expected_vfs) {
-    return nullptr;
+    return NULL;
   }
 
   sqlite3_vfs *tvfs = new ::sqlite3_vfs;
   memset(tvfs, 0, sizeof(::sqlite3_vfs));
-  // If the VFS version is higher than the last known one, you should update
-  // this VFS adding appropriate methods for any methods added in the version
-  // change.
-  tvfs->iVersion = vfs->iVersion;
-  MOZ_ASSERT(vfs->iVersion <= LAST_KNOWN_VFS_VERSION);
+  tvfs->iVersion = 3;
+  // If the SQLite VFS version is updated, this shim must be updated as well.
+  MOZ_ASSERT(vfs->iVersion == tvfs->iVersion);
   tvfs->szOsFile = sizeof(telemetry_file) - sizeof(sqlite3_file) + vfs->szOsFile;
   tvfs->mxPathname = vfs->mxPathname;
   tvfs->zName = "telemetry-vfs";
@@ -606,16 +467,13 @@ sqlite3_vfs* ConstructTelemetryVFS()
   tvfs->xSleep = xSleep;
   tvfs->xCurrentTime = xCurrentTime;
   tvfs->xGetLastError = xGetLastError;
-  if (tvfs->iVersion >= 2) {
-    // Methods added in version 2.
-    tvfs->xCurrentTimeInt64 = xCurrentTimeInt64;
-  }
-  if (tvfs->iVersion >= 3) {
-    // Methods added in version 3.
-    tvfs->xSetSystemCall = xSetSystemCall;
-    tvfs->xGetSystemCall = xGetSystemCall;
-    tvfs->xNextSystemCall = xNextSystemCall;
-  }
+  // Added in version 2.
+  tvfs->xCurrentTimeInt64 = xCurrentTimeInt64;
+  // Added in version 3.
+  tvfs->xSetSystemCall = xSetSystemCall;
+  tvfs->xGetSystemCall = xGetSystemCall;
+  tvfs->xNextSystemCall = xNextSystemCall;
+
   return tvfs;
 }
 

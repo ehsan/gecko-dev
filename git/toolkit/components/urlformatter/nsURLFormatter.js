@@ -1,5 +1,3 @@
-#filter substitution
-
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -22,11 +20,10 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
+const PREF_APP_UPDATE_CHANNEL         = "app.update.channel";
+const PREF_PARTNER_BRANCH             = "app.partner.";
 const PREF_APP_DISTRIBUTION           = "distribution.id";
 const PREF_APP_DISTRIBUTION_VERSION   = "distribution.version";
-
-XPCOMUtils.defineLazyModuleGetter(this, "UpdateChannel",
-                                  "resource://gre/modules/UpdateChannel.jsm");
 
 function nsURLFormatterService() {
   XPCOMUtils.defineLazyGetter(this, "appInfo", function UFS_appInfo() {
@@ -40,14 +37,12 @@ function nsURLFormatterService() {
     try {
       ABI = this.appInfo.XPCOMABI;
 
-      if ("@mozilla.org/xpcom/mac-utils;1" in Cc) {
-        // Mac universal build should report a different ABI than either macppc
-        // or mactel.
-        let macutils = Cc["@mozilla.org/xpcom/mac-utils;1"]
-                         .getService(Ci.nsIMacUtils);
-        if (macutils && macutils.isUniversalBinary) {
-          ABI = "Universal-gcc3";
-        }
+      // Mac universal build should report a different ABI than either macppc
+      // or mactel.
+      let macutils = Cc["@mozilla.org/xpcom/mac-utils;1"].
+                      getService(Ci.nsIMacUtils);
+      if (macutils && macutils.isUniversalBinary) {
+        ABI = "Universal-gcc3";
       }
     } catch (e) {}
 
@@ -65,6 +60,29 @@ function nsURLFormatterService() {
     } catch (e) {}
 
     return encodeURIComponent(OSVersion);
+  });
+
+  XPCOMUtils.defineLazyGetter(this, "updateChannel", function UFS_updateChannel() {
+    // Read the update channel from defaults only.  We do this to ensure that
+    // the channel is tightly coupled with the application and does not apply
+    // to other instances of the application that may use the same profile.
+    let channel = "default";
+    let defaults = Services.prefs.getDefaultBranch(null);
+    try {
+      channel = defaults.getCharPref(PREF_APP_UPDATE_CHANNEL);
+    } catch (e) {}
+
+    try {
+      let partners = Services.prefs.getChildList(PREF_PARTNER_BRANCH).sort();
+      if (partners.length) {
+        channel += "-cck";
+        partners.forEach(function (prefName) {
+          channel += "-" + Services.prefs.getCharPref(prefName);
+        });
+      }
+    } catch (e) {}
+
+    return channel;
   });
 
   XPCOMUtils.defineLazyGetter(this, "distribution", function UFS_distribution() {
@@ -102,13 +120,7 @@ nsURLFormatterService.prototype = {
     XPCOMABI:         function() this.ABI,
     BUILD_TARGET:     function() this.appInfo.OS + "_" + this.ABI,
     OS_VERSION:       function() this.OSVersion,
-    CHANNEL:          function() UpdateChannel.get(),
-    MOZILLA_API_KEY:   function() "@MOZ_MOZILLA_API_KEY@",
-    GOOGLE_API_KEY:   function() "@MOZ_GOOGLE_API_KEY@",
-    GOOGLE_OAUTH_API_CLIENTID:function() "@MOZ_GOOGLE_OAUTH_API_CLIENTID@",
-    GOOGLE_OAUTH_API_KEY:     function() "@MOZ_GOOGLE_OAUTH_API_KEY@",
-    BING_API_CLIENTID:function() "@MOZ_BING_API_CLIENTID@",
-    BING_API_KEY:     function() "@MOZ_BING_API_KEY@",
+    CHANNEL:          function() this.updateChannel,
     DISTRIBUTION:     function() this.distribution.id,
     DISTRIBUTION_VERSION: function() this.distribution.version
   },
@@ -149,4 +161,4 @@ nsURLFormatterService.prototype = {
   }
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([nsURLFormatterService]);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([nsURLFormatterService]);

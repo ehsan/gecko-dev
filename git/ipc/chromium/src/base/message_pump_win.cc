@@ -9,7 +9,6 @@
 #include "base/message_loop.h"
 #include "base/histogram.h"
 #include "base/win_util.h"
-#include "WinUtils.h"
 
 using base::Time;
 
@@ -71,8 +70,7 @@ int MessagePumpWin::GetCurrentDelay() const {
   // Be careful here.  TimeDelta has a precision of microseconds, but we want a
   // value in milliseconds.  If there are 5.5ms left, should the delay be 5 or
   // 6?  It should be 6 to avoid executing delayed work too early.
-  double timeout =
-      ceil((delayed_work_time_ - TimeTicks::Now()).InMillisecondsF());
+  double timeout = ceil((delayed_work_time_ - Time::Now()).InMillisecondsF());
 
   // If this value is negative, then we need to run delayed work soon.
   int delay = static_cast<int>(timeout);
@@ -103,10 +101,10 @@ void MessagePumpForUI::ScheduleWork() {
 
   // In order to wake up any cross-process COM calls which may currently be
   // pending on the main thread, we also have to post a UI message.
-  PostMessage(message_hwnd_, WM_NULL, 0, 0);
+  PostMessage(message_hwnd_, WM_NULL, NULL, 0);
 }
 
-void MessagePumpForUI::ScheduleDelayedWork(const TimeTicks& delayed_work_time) {
+void MessagePumpForUI::ScheduleDelayedWork(const Time& delayed_work_time) {
   //
   // We would *like* to provide high resolution timers.  Windows timers using
   // SetTimer() have a 10ms granularity.  We have to use WM_TIMER as a wakeup
@@ -264,7 +262,31 @@ void MessagePumpForUI::WaitForWork() {
   if (delay < 0)  // Negative value means no timers waiting.
     delay = INFINITE;
 
-  mozilla::widget::WinUtils::WaitForMessage(delay);
+  DWORD result;
+  result = MsgWaitForMultipleObjectsEx(0, NULL, delay, QS_ALLINPUT,
+                                       MWMO_INPUTAVAILABLE);
+
+  if (WAIT_OBJECT_0 == result) {
+    // A WM_* message is available.
+    // If a parent child relationship exists between windows across threads
+    // then their thread inputs are implicitly attached.
+    // This causes the MsgWaitForMultipleObjectsEx API to return indicating
+    // that messages are ready for processing (specifically mouse messages
+    // intended for the child window. Occurs if the child window has capture)
+    // The subsequent PeekMessages call fails to return any messages thus
+    // causing us to enter a tight loop at times.
+    // The WaitMessage call below is a workaround to give the child window
+    // sometime to process its input messages.
+    MSG msg = {0};
+    DWORD queue_status = GetQueueStatus(QS_MOUSE);
+    if (HIWORD(queue_status) & QS_MOUSE &&
+       !PeekMessage(&msg, NULL, WM_MOUSEFIRST, WM_MOUSELAST, PM_NOREMOVE)) {
+      WaitMessage();
+    }
+    return;
+  }
+
+  DCHECK_NE(WAIT_FAILED, result) << GetLastError();
 }
 
 void MessagePumpForUI::HandleWorkMessage() {
@@ -394,7 +416,7 @@ bool MessagePumpForUI::ProcessPumpReplacementMessage() {
 // MessagePumpForIO public:
 
 MessagePumpForIO::MessagePumpForIO() {
-  port_.Set(CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 1));
+  port_.Set(CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, NULL, 1));
   DCHECK(port_.IsValid());
 }
 
@@ -409,7 +431,7 @@ void MessagePumpForIO::ScheduleWork() {
   DCHECK(ret);
 }
 
-void MessagePumpForIO::ScheduleDelayedWork(const TimeTicks& delayed_work_time) {
+void MessagePumpForIO::ScheduleDelayedWork(const Time& delayed_work_time) {
   // We know that we can't be blocked right now since this method can only be
   // called on the same thread as Run, so we only need to update our record of
   // how long to sleep when we do sleep.
@@ -508,7 +530,7 @@ bool MessagePumpForIO::WaitForIOCompletion(DWORD timeout, IOHandler* filter) {
 // Asks the OS for another IO completion result.
 bool MessagePumpForIO::GetIOItem(DWORD timeout, IOItem* item) {
   memset(item, 0, sizeof(*item));
-  ULONG_PTR key = 0;
+  ULONG_PTR key = NULL;
   OVERLAPPED* overlapped = NULL;
   if (!GetQueuedCompletionStatus(port_.Get(), &item->bytes_transfered, &key,
                                  &overlapped, timeout)) {

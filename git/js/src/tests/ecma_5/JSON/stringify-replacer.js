@@ -1,3 +1,5 @@
+// Ported from dom/src/json/test/unit/test_replacer.js
+
 /**
  * These return* functions are used by the
  * replacer tests taken from bug 512447

@@ -5,7 +5,7 @@
 
 #include "nsIDOMEventTarget.idl"
 
-[builtinclass, uuid(82c7924b-4b46-4e5a-a8d2-6edb5fc0a60d)]
+[scriptable, builtinclass, uuid(9b978f58-5bfe-409d-aa3f-946ca934e51d)]
 interface nsIDOMScreen : nsIDOMEventTarget
 {
   readonly attribute long             top;
@@ -24,6 +24,17 @@ interface nsIDOMScreen : nsIDOMEventTarget
    * Can be: landscape-primary, landscape-secondary,
    *         portrait-primary or portrait-secondary.
    */
-  [binaryname(SlowMozOrientation)]
   readonly attribute DOMString       mozOrientation;
+
+  attribute nsIDOMEventListener      onmozorientationchange;
+
+  /**
+   * Lock screen orientation to the specified type.
+   */
+  boolean mozLockOrientation(in DOMString orientation);
+
+  /**
+   * Unlock the screen orientation.
+   */
+  void mozUnlockOrientation();
 };

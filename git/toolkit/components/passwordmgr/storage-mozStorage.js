@@ -1,4 +1,4 @@
-/* -*- tab-width: 4; indent-tabs-mode: nil; js-indent-level: 4 -*- */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* vim: set sw=4 ts=4 et lcs=trail\:.,tab\:>~ : */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -13,10 +13,6 @@ const DB_VERSION = 5; // The database schema version
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/Promise.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "LoginHelper",
-                                  "resource://gre/modules/LoginHelper.jsm");
 
 /**
  * Object that manages a database transaction properly so consumers don't have
@@ -57,11 +53,6 @@ LoginManagerStorage_mozStorage.prototype = {
     QueryInterface : XPCOMUtils.generateQI([Ci.nsILoginManagerStorage,
                                             Ci.nsIInterfaceRequestor]),
     getInterface : function(aIID) {
-        if (aIID.equals(Ci.nsIVariant)) {
-            // Allows unwrapping the JavaScript object for regression tests.
-            return this;
-        }
-
         if (aIID.equals(Ci.mozIStorageConnection)) {
             return this._dbConnection;
         }
@@ -156,7 +147,9 @@ LoginManagerStorage_mozStorage.prototype = {
 
     _prefBranch   : null,  // Preferences service
     _signonsFile  : null,  // nsIFile for "signons.sqlite"
+    _importFile   : null,  // nsIFile for import from legacy
     _debug        : false, // mirrors signon.debug
+    _base64checked : false,
 
 
     /*
@@ -173,22 +166,29 @@ LoginManagerStorage_mozStorage.prototype = {
 
 
     /*
-     * Internal method used by regression tests only.  It overrides the default
-     * database location.
+     * initWithFile
+     *
+     * Initialize the component, but override the default filename locations.
+     * This is primarily used to the unit tests and profile migration.
+     * aImportFile is legacy storage file, aDBFile is a sqlite/mozStorage file.
      */
-    initWithFile : function(aDBFile) {
+    initWithFile : function(aImportFile, aDBFile) {
+        if (aImportFile)
+            this._importFile = aImportFile;
         if (aDBFile)
             this._signonsFile = aDBFile;
 
-        this.initialize();
+        this.init();
     },
 
 
     /*
-     * initialize
+     * init
      *
+     * Initialize this storage component; import from legacy files, if
+     * necessary. Most of the work is done in _deferredInit.
      */
-    initialize : function () {
+    init : function () {
         this._dbStmts = {};
 
         // Connect to the correct preferences branch.
@@ -197,10 +197,6 @@ LoginManagerStorage_mozStorage.prototype = {
 
         let isFirstRun;
         try {
-            // Force initialization of the crypto module.
-            // See bug 717490 comment 17.
-            this._crypto;
-
             // If initWithFile is calling us, _signonsFile may already be set.
             if (!this._signonsFile) {
                 // Initialize signons.sqlite
@@ -212,9 +208,14 @@ LoginManagerStorage_mozStorage.prototype = {
             // Initialize the database (create, migrate as necessary)
             isFirstRun = this._dbInit();
 
-            this._initialized = true;
+            // On first run we want to import the default legacy storage files.
+            // Otherwise if passed a file, import from that.
+            if (isFirstRun && !this._importFile)
+                this._importLegacySignons();
+            else if (this._importFile)
+                this._importLegacySignons(this._importFile);
 
-            return Promise.resolve();
+            this._initialized = true;
         } catch (e) {
             this.log("Initialization failed: " + e);
             // If the import fails on first run, we want to delete the db
@@ -226,25 +227,32 @@ LoginManagerStorage_mozStorage.prototype = {
 
 
     /*
-     * terminate
-     *
-     * Internal method used by regression tests only.  It is called before
-     * replacing this storage module with a new instance.
-     */
-    terminate : function () {
-        return Promise.resolve();
-    },
-
-
-    /*
      * addLogin
      *
      */
     addLogin : function (login) {
-        // Throws if there are bogus values.
-        LoginHelper.checkLoginValues(login);
+        this._addLogin(login, false);
+    },
 
-        let [encUsername, encPassword, encType] = this._encryptLogin(login);
+
+    /*
+     * _addLogin
+     *
+     * Private function wrapping core addLogin functionality.
+     */
+    _addLogin : function (login, isEncrypted) {
+        let encUsername, encPassword;
+
+        // Throws if there are bogus values.
+        this._checkLoginValues(login);
+
+        // isEncrypted only set when importing from an legacy (signons3.txt)
+        // format, which only would have used SDR or BASE64 encoding. The
+        // latter of which is handled a little further down.
+        if (isEncrypted)
+            [encUsername, encPassword, encType] = [login.username, login.password, Ci.nsILoginManagerCrypto.ENCTYPE_SDR];
+        else
+            [encUsername, encPassword, encType] = this._encryptLogin(login);
 
         // Clone the login, so we don't modify the caller's object.
         let loginClone = login.clone();
@@ -257,6 +265,11 @@ LoginManagerStorage_mozStorage.prototype = {
         } else {
             loginClone.guid = this._uuidService.generateUUID().toString();
         }
+
+        // If we're migrating legacy storage, check for base64 logins.
+        if (isEncrypted &&
+            (encUsername.charAt(0) == '~' || encPassword.charAt(0) == '~'))
+            encType = this._crypto.ENCTYPE_BASE64;
 
         // Set timestamps
         let currentTime = Date.now();
@@ -301,7 +314,7 @@ LoginManagerStorage_mozStorage.prototype = {
             stmt = this._dbCreateStatement(query, params);
             stmt.execute();
         } catch (e) {
-            this.log("addLogin failed: " + e.name + " : " + e.message);
+            this.log("_addLogin failed: " + e.name + " : " + e.message);
             throw "Couldn't write to database, login not added.";
         } finally {
             if (stmt) {
@@ -310,7 +323,8 @@ LoginManagerStorage_mozStorage.prototype = {
         }
 
         // Send a notification that a login was added.
-        this._sendNotification("addLogin", loginClone);
+        if (!isEncrypted)
+            this._sendNotification("addLogin", loginClone);
     },
 
 
@@ -354,25 +368,84 @@ LoginManagerStorage_mozStorage.prototype = {
         let [idToModify, oldStoredLogin] = this._getIdForLogin(oldLogin);
         if (!idToModify)
             throw "No matching logins";
+        oldStoredLogin.QueryInterface(Ci.nsILoginMetaInfo);
 
-        let newLogin = LoginHelper.buildModifiedLogin(oldStoredLogin, newLoginData);
+        let newLogin;
+        if (newLoginData instanceof Ci.nsILoginInfo) {
+            // Clone the existing login to get its nsILoginMetaInfo, then init it
+            // with the replacement nsILoginInfo data from the new login.
+            newLogin = oldStoredLogin.clone();
+            newLogin.init(newLoginData.hostname,
+                          newLoginData.formSubmitURL, newLoginData.httpRealm,
+                          newLoginData.username, newLoginData.password,
+                          newLoginData.usernameField, newLoginData.passwordField);
+            newLogin.QueryInterface(Ci.nsILoginMetaInfo);
 
-        // Check if the new GUID is duplicate.
-        if (newLogin.guid != oldStoredLogin.guid &&
-            !this._isGuidUnique(newLogin.guid)) 
-        {
-            throw "specified GUID already exists";
+            // Automatically update metainfo when password is changed.
+            if (newLogin.password != oldLogin.password)
+                newLogin.timePasswordChanged = Date.now();
+        } else if (newLoginData instanceof Ci.nsIPropertyBag) {
+            function _bagHasProperty(aPropName) {
+                try {
+                    newLoginData.getProperty(aPropName);
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            // Clone the existing login, along with all its properties.
+            newLogin = oldStoredLogin.clone();
+            newLogin.QueryInterface(Ci.nsILoginMetaInfo);
+
+            // Automatically update metainfo when password is changed.
+            // (Done before the main property updates, lest the caller be
+            // explicitly updating both .password and .timePasswordChanged)
+            if (_bagHasProperty("password")) {
+                let newPassword = newLoginData.getProperty("password");
+                if (newPassword != oldLogin.password)
+                    newLogin.timePasswordChanged = Date.now();
+            }
+
+            let propEnum = newLoginData.enumerator;
+            while (propEnum.hasMoreElements()) {
+                let prop = propEnum.getNext().QueryInterface(Ci.nsIProperty);
+                switch (prop.name) {
+                    // nsILoginInfo properties...
+                    case "hostname":
+                    case "httpRealm":
+                    case "formSubmitURL":
+                    case "username":
+                    case "password":
+                    case "usernameField":
+                    case "passwordField":
+                    // nsILoginMetaInfo properties...
+                    case "guid":
+                    case "timeCreated":
+                    case "timeLastUsed":
+                    case "timePasswordChanged":
+                    case "timesUsed":
+                        newLogin[prop.name] = prop.value;
+                        if (prop.name == "guid" && !this._isGuidUnique(newLogin.guid))
+                            throw "specified GUID already exists";
+                        break;
+
+                    // Fake property, allows easy incrementing.
+                    case "timesUsedIncrement":
+                        newLogin.timesUsed += prop.value;
+                        break;
+
+                    // Fail if caller requests setting an unknown property.
+                    default:
+                        throw "Unexpected propertybag item: " + prop.name;
+                }
+            }
+        } else {
+            throw "newLoginData needs an expected interface!";
         }
 
-        // Look for an existing entry in case key properties changed.
-        if (!newLogin.matches(oldLogin, true)) {
-            let logins = this.findLogins({}, newLogin.hostname,
-                                         newLogin.formSubmitURL,
-                                         newLogin.httpRealm);
-
-            if (logins.some(login => newLogin.matches(login, true)))
-                throw "This login already exists.";
-        }
+        // Throws if there are bogus values.
+        this._checkLoginValues(newLogin);
 
         // Get the encrypted value of the username and password.
         let [encUsername, encPassword, encType] = this._encryptLogin(newLogin);
@@ -443,6 +516,19 @@ LoginManagerStorage_mozStorage.prototype = {
         if (count)
             count.value = logins.length; // needed for XPCOM
         return logins;
+    },
+
+
+    /*
+     * getAllEncryptedLogins
+     *
+     * Not implemented. This interface was added to extract logins from the
+     * legacy storage module without decrypting them. Now that logins are in
+     * mozStorage, if the encrypted data is really needed it can be easily
+     * obtained with SQL and the mozStorage APIs.
+     */
+    getAllEncryptedLogins : function (count) {
+        throw Cr.NS_ERROR_NOT_IMPLEMENTED;
     },
 
 
@@ -571,6 +657,7 @@ LoginManagerStorage_mozStorage.prototype = {
      *
      */
      storeDeletedLogin : function(aLogin) {
+#ifdef ANDROID
           let stmt = null; 
           try {
               this.log("Storing " + aLogin.guid + " in deleted passwords\n");
@@ -585,6 +672,7 @@ LoginManagerStorage_mozStorage.prototype = {
               if (stmt)
                   stmt.reset();
           }		
+#endif
      },
 
 
@@ -599,6 +687,9 @@ LoginManagerStorage_mozStorage.prototype = {
         let stmt;
         let transaction = new Transaction(this._dbConnection);
  
+        // Delete any old, unused files.
+        this._removeOldSignonsFiles();
+
         // Disabled hosts kept, as one presumably doesn't want to erase those.
         // TODO: Add these items to the deleted items table once we've sorted
         //       out the issues from bug 756701
@@ -618,7 +709,7 @@ LoginManagerStorage_mozStorage.prototype = {
         }
 
         this._sendNotification("removeAllLogins", null);
-    },
+   },
 
 
     /*
@@ -651,7 +742,7 @@ LoginManagerStorage_mozStorage.prototype = {
      */
     setLoginSavingEnabled : function (hostname, enabled) {
         // Throws if there are bogus values.
-        LoginHelper.checkHostnameValue(hostname);
+        this._checkHostnameValue(hostname);
 
         this.log("Setting login saving enabled for " + hostname + " to " + enabled);
         let query;
@@ -692,8 +783,8 @@ LoginManagerStorage_mozStorage.prototype = {
         };
         let matchData = { };
         for each (let field in ["hostname", "formSubmitURL", "httpRealm"])
-            if (loginData[field] != '')
-                matchData[field] = loginData[field];
+          if (loginData[field] != '')
+              matchData[field] = loginData[field];
         let [logins, ids] = this._searchLogins(matchData);
 
         // Decrypt entries found for the caller.
@@ -743,14 +834,6 @@ LoginManagerStorage_mozStorage.prototype = {
      */
     get uiBusy() {
         return this._crypto.uiBusy;
-    },
-
-
-    /*
-     * isLoggedIn
-     */
-    get isLoggedIn() {
-        return this._crypto.isLoggedIn;
     },
 
 
@@ -883,6 +966,70 @@ LoginManagerStorage_mozStorage.prototype = {
 
 
     /*
+     * _checkLoginValues
+     *
+     * Due to the way the signons2.txt file is formatted, we need to make
+     * sure certain field values or characters do not cause the file to
+     * be parse incorrectly. Reject logins that we can't store correctly.
+     */
+    _checkLoginValues : function (aLogin) {
+        function badCharacterPresent(l, c) {
+            return ((l.formSubmitURL && l.formSubmitURL.indexOf(c) != -1) ||
+                    (l.httpRealm     && l.httpRealm.indexOf(c)     != -1) ||
+                                        l.hostname.indexOf(c)      != -1  ||
+                                        l.usernameField.indexOf(c) != -1  ||
+                                        l.passwordField.indexOf(c) != -1);
+        }
+
+        // Nulls are invalid, as they don't round-trip well.
+        // Mostly not a formatting problem, although ".\0" can be quirky.
+        if (badCharacterPresent(aLogin, "\0"))
+            throw "login values can't contain nulls";
+
+        // In theory these nulls should just be rolled up into the encrypted
+        // values, but nsISecretDecoderRing doesn't use nsStrings, so the
+        // nulls cause truncation. Check for them here just to avoid
+        // unexpected round-trip surprises.
+        if (aLogin.username.indexOf("\0") != -1 ||
+            aLogin.password.indexOf("\0") != -1)
+            throw "login values can't contain nulls";
+
+        // Newlines are invalid for any field stored as plaintext.
+        if (badCharacterPresent(aLogin, "\r") ||
+            badCharacterPresent(aLogin, "\n"))
+            throw "login values can't contain newlines";
+
+        // A line with just a "." can have special meaning.
+        if (aLogin.usernameField == "." ||
+            aLogin.formSubmitURL == ".")
+            throw "login values can't be periods";
+
+        // A hostname with "\ \(" won't roundtrip.
+        // eg host="foo (", realm="bar" --> "foo ( (bar)"
+        // vs host="foo", realm=" (bar" --> "foo ( (bar)"
+        if (aLogin.hostname.indexOf(" (") != -1)
+            throw "bad parens in hostname";
+    },
+
+
+    /*
+     * _checkHostnameValue
+     *
+     * Legacy storage prohibited newlines and nulls in hostnames, so we'll keep
+     * that standard here. Throws on illegal format.
+     */
+    _checkHostnameValue : function (hostname) {
+        // File format prohibits certain values. Also, nulls
+        // won't round-trip with getAllDisabledHosts().
+        if (hostname == "." ||
+            hostname.indexOf("\r") != -1 ||
+            hostname.indexOf("\n") != -1 ||
+            hostname.indexOf("\0") != -1)
+            throw "Invalid hostname";
+    },
+
+
+    /*
      * _isGuidUnique
      *
      * Checks to see if the specified GUID already exists.
@@ -909,6 +1056,76 @@ LoginManagerStorage_mozStorage.prototype = {
 
 
     /*
+     * _importLegacySignons
+     *
+     * Imports a file that uses Legacy storage. Will use importFile if provided
+     * else it will attempt to initialize the Legacy storage normally.
+     *
+     */
+    _importLegacySignons : function (importFile) {
+        this.log("Importing " + (importFile ? importFile.path : "legacy storage"));
+
+        let legacy = Cc["@mozilla.org/login-manager/storage/legacy;1"].
+                     createInstance(Ci.nsILoginManagerStorage);
+
+        // Import all logins and disabled hosts
+        try {
+            if (importFile)
+                legacy.initWithFile(importFile, null);
+            else
+                legacy.init();
+
+            // Import logins and disabledHosts
+            let logins = legacy.getAllEncryptedLogins();
+
+            // Wrap in a transaction for better performance.
+            let transaction = new Transaction(this._dbConnection);
+            for each (let login in logins) {
+                try {
+                    this._addLogin(login, true);
+                } catch (e) {
+                    this.log("_importLegacySignons failed to add login: " + e);
+                }
+            }
+            let disabledHosts = legacy.getAllDisabledHosts();
+            for each (let hostname in disabledHosts)
+                this.setLoginSavingEnabled(hostname, false);
+            transaction.commit();
+        } catch (e) {
+            this.log("_importLegacySignons failed: " + e.name + " : " + e.message);
+            throw "Import failed";
+        }
+    },
+
+
+    /*
+     * _removeOldSignonsFiles
+     *
+     * Deletes any storage files that we're not using any more.
+     */
+    _removeOldSignonsFiles : function () {
+        // We've used a number of prefs over time due to compatibility issues.
+        // We want to delete all files referenced in prefs, which are only for
+        // importing and clearing logins from storage-Legacy.js.
+        let filenamePrefs = ["SignonFileName3", "SignonFileName2", "SignonFileName"];
+        for each (let prefname in filenamePrefs) {
+            let filename = this._prefBranch.getCharPref(prefname);
+            let file = this._profileDir.clone();
+            file.append(filename);
+
+            if (file.exists()) {
+                this.log("Deleting old " + filename + " (" + prefname + ")");
+                try {
+                    file.remove(false);
+                } catch (e) {
+                    this.log("NOTICE: Couldn't delete " + filename + ": " + e);
+                }
+            }
+        }
+    },
+
+
+    /*
      * _encryptLogin
      *
      * Returns the encrypted username, password, and encrypton type for the specified
@@ -918,6 +1135,9 @@ LoginManagerStorage_mozStorage.prototype = {
         let encUsername = this._crypto.encrypt(login.username);
         let encPassword = this._crypto.encrypt(login.password);
         let encType     = this._crypto.defaultEncType;
+
+        if (!this._base64checked)
+            this._reencryptBase64Logins();
 
         return [encUsername, encPassword, encType];
     },
@@ -953,7 +1173,79 @@ LoginManagerStorage_mozStorage.prototype = {
             result.push(login);
         }
 
+        if (!this._base64checked)
+            this._reencryptBase64Logins();
+
         return result;
+    },
+
+
+    /*
+     * _reencryptBase64Logins
+     *
+     * Checks the signons DB for any logins using the old wallet-style base64
+     * obscuring of the username/password, instead of proper encryption. We're
+     * called once per session, after the user has successfully encrypted or
+     * decrypted some login (this helps ensure the user doesn't get mysterious
+     * prompts for a master password, when set).
+     */
+    _reencryptBase64Logins : function () {
+        let base64Type = Ci.nsILoginManagerCrypto.ENCTYPE_BASE64;
+        this._base64checked = true;
+        // Ignore failures, will try again next session...
+
+        this.log("Reencrypting Base64 logins");
+        let transaction;
+        try {
+            let [logins, ids] = this._searchLogins({ encType: base64Type });
+
+            if (!logins.length)
+                return;
+
+            try {
+                logins = this._decryptLogins(logins);
+            } catch (e) {
+                // User might have canceled master password entry, just ignore.
+                return;
+            }
+
+            transaction = new Transaction(this._dbConnection);
+
+            let encUsername, encPassword, stmt;
+            for each (let login in logins) {
+                [encUsername, encPassword, encType] = this._encryptLogin(login);
+
+                let query =
+                    "UPDATE moz_logins " +
+                    "SET encryptedUsername = :encryptedUsername, " +
+                        "encryptedPassword = :encryptedPassword, " +
+                        "encType = :encType " +
+                    "WHERE guid = :guid";
+                let params = {
+                    encryptedUsername: encUsername,
+                    encryptedPassword: encPassword,
+                    encType:           encType,
+                    guid:              login.guid
+                };
+                try {
+                    stmt = this._dbCreateStatement(query, params);
+                    stmt.execute();
+                } catch (e) {
+                    // Ignore singular errors, continue trying to update others.
+                    this.log("_reencryptBase64Logins caught error: " + e);
+                } finally {
+                    if (stmt) {
+                        stmt.reset();
+                    }
+                }
+            }
+        } catch (e) {
+            this.log("_reencryptBase64Logins failed: " + e);
+        } finally {
+            if (transaction) {
+                transaction.commit();
+            }
+        }
     },
 
 
@@ -987,7 +1279,8 @@ LoginManagerStorage_mozStorage.prototype = {
      * _dbInit
      *
      * Attempts to initialize the database. This creates the file if it doesn't
-     * exist, performs any migrations, etc. Return if this is the first run.
+     * exist, performs any migrations, etc. When database is first created, we
+     * attempt to import legacy signons. Return if this is the first run.
      */
     _dbInit : function () {
         this.log("Initializing Database");
@@ -1116,7 +1409,7 @@ LoginManagerStorage_mozStorage.prototype = {
 
         // Get a list of IDs for existing logins
         let ids = [];
-        query = "SELECT id FROM moz_logins WHERE guid isnull";
+        let query = "SELECT id FROM moz_logins WHERE guid isnull";
         let stmt;
         try {
             stmt = this._dbCreateStatement(query);
@@ -1180,7 +1473,6 @@ LoginManagerStorage_mozStorage.prototype = {
             stmt = this._dbCreateStatement(query);
             while (stmt.executeStep()) {
                 let params = { id: stmt.row.id };
-                // We will tag base64 logins correctly, but no longer support their use.
                 if (stmt.row.encryptedUsername.charAt(0) == '~' ||
                     stmt.row.encryptedPassword.charAt(0) == '~')
                     params.encType = Ci.nsILoginManagerCrypto.ENCTYPE_BASE64;
@@ -1389,4 +1681,4 @@ LoginManagerStorage_mozStorage.prototype = {
 }; // end of nsLoginManagerStorage_mozStorage implementation
 
 let component = [LoginManagerStorage_mozStorage];
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory(component);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory(component);

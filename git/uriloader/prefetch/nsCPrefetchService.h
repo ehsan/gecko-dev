@@ -10,6 +10,8 @@
 /**
  * nsPrefetchService : nsIPrefetchService
  */
+#define NS_PREFETCHSERVICE_CLASSNAME \
+    "nsPrefetchService"
 #define NS_PREFETCHSERVICE_CONTRACTID \
     "@mozilla.org/prefetch-service;1"
 #define NS_PREFETCHSERVICE_CID                       \
@@ -24,6 +26,8 @@
  * nsOfflineCacheUpdateService : nsIOfflineCacheUpdateService
  */
 
+#define NS_OFFLINECACHEUPDATESERVICE_CLASSNAME \
+  "nsOfflineCacheUpdateService"
 #define NS_OFFLINECACHEUPDATESERVICE_CONTRACTID \
   "@mozilla.org/offlinecacheupdate-service;1"
 #define NS_OFFLINECACHEUPDATESERVICE_CID             \
@@ -38,6 +42,8 @@
  * nsOfflineCacheUpdate : nsIOfflineCacheUpdate
  */
 
+#define NS_OFFLINECACHEUPDATE_CLASSNAME \
+  "nsOfflineCacheUpdate"
 #define NS_OFFLINECACHEUPDATE_CONTRACTID \
   "@mozilla.org/offlinecacheupdate;1"
 #define NS_OFFLINECACHEUPDATE_CID                    \

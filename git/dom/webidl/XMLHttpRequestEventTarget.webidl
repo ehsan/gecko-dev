@@ -10,28 +10,27 @@
  * liability, trademark and document use rules apply.
  */
 
-[NoInterfaceObject,
- Exposed=(Window,Worker)]
+[NoInterfaceObject]
 interface XMLHttpRequestEventTarget : EventTarget {
   // event handlers
-  [SetterThrows=Workers, GetterThrows=Workers]
-  attribute EventHandler onloadstart;
+  [TreatNonCallableAsNull, GetterInfallible=MainThread]
+  attribute Function? onloadstart;
 
-  [SetterThrows=Workers, GetterThrows=Workers]
-  attribute EventHandler onprogress;
+  [TreatNonCallableAsNull, GetterInfallible=MainThread]
+  attribute Function? onprogress;
 
-  [SetterThrows=Workers, GetterThrows=Workers]
-  attribute EventHandler onabort;
+  [TreatNonCallableAsNull, GetterInfallible=MainThread]
+  attribute Function? onabort;
 
-  [SetterThrows=Workers, GetterThrows=Workers]
-  attribute EventHandler onerror;
+  [TreatNonCallableAsNull, GetterInfallible=MainThread]
+  attribute Function? onerror;
 
-  [SetterThrows=Workers, GetterThrows=Workers]
-  attribute EventHandler onload;
+  [TreatNonCallableAsNull, GetterInfallible=MainThread]
+  attribute Function? onload;
 
-  [SetterThrows=Workers, GetterThrows=Workers]
-  attribute EventHandler ontimeout;
+  [TreatNonCallableAsNull, GetterInfallible=MainThread]
+  attribute Function? ontimeout;
 
-  [SetterThrows=Workers, GetterThrows=Workers]
-  attribute EventHandler onloadend;
+  [TreatNonCallableAsNull, GetterInfallible=MainThread]
+  attribute Function? onloadend;
 };

@@ -10,13 +10,12 @@ import java.security.GeneralSecurityException;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.SyncConstants;
+import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.jpake.JPakeClient;
+import org.mozilla.gecko.sync.jpake.JPakeResponse;
 import org.mozilla.gecko.sync.net.BaseResource;
-import org.mozilla.gecko.sync.net.BaseResourceDelegate;
 import org.mozilla.gecko.sync.net.Resource;
-import org.mozilla.gecko.sync.net.SyncResponse;
+import org.mozilla.gecko.sync.net.SyncResourceDelegate;
 import org.mozilla.gecko.sync.setup.Constants;
 
 import ch.boye.httpclientandroidlib.Header;
@@ -28,7 +27,7 @@ import ch.boye.httpclientandroidlib.message.BasicHeader;
 
 public class GetRequestStage extends JPakeStage {
 
-  private final Timer timerScheduler = new Timer();
+  private Timer timerScheduler = new Timer();
   private int pollTries;
   private GetStepTimerTask getStepTimerTask;
 
@@ -50,7 +49,7 @@ public class GetRequestStage extends JPakeStage {
           Logger.debug(LOG_TAG, "Finished; returning.");
           return;
         }
-        SyncResponse res = new SyncResponse(response);
+        JPakeResponse res = new JPakeResponse(response);
 
         Header etagHeader = response.getFirstHeader("etag");
         if (etagHeader == null) {
@@ -101,11 +100,7 @@ public class GetRequestStage extends JPakeStage {
 
   private Resource createGetRequest(final GetRequestStageDelegate callbackDelegate, final JPakeClient jpakeClient) throws URISyntaxException {
     BaseResource httpResource = new BaseResource(jpakeClient.channelUrl);
-    httpResource.delegate = new BaseResourceDelegate(httpResource) {
-      @Override
-      public String getUserAgent() {
-        return SyncConstants.USER_AGENT;
-      }
+    httpResource.delegate = new SyncResourceDelegate(httpResource) {
 
       @Override
       public void addHeaders(HttpRequestBase request, DefaultHttpClient client) {
@@ -188,7 +183,7 @@ public class GetRequestStage extends JPakeStage {
    *
    */
   public class GetStepTimerTask extends TimerTask {
-    private final Resource request;
+    private Resource request;
 
     public GetStepTimerTask(Resource request) {
       this.request = request;

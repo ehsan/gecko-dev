@@ -5,7 +5,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "nsXRemoteService.h"
 #include "nsIObserverService.h"
@@ -40,6 +40,7 @@ using namespace mozilla;
 
 #define MOZILLA_VERSION_PROP   "_MOZILLA_VERSION"
 #define MOZILLA_LOCK_PROP      "_MOZILLA_LOCK"
+#define MOZILLA_COMMAND_PROP   "_MOZILLA_COMMAND"
 #define MOZILLA_RESPONSE_PROP  "_MOZILLA_RESPONSE"
 #define MOZILLA_USER_PROP      "_MOZILLA_USER"
 #define MOZILLA_PROFILE_PROP   "_MOZILLA_PROFILE"
@@ -57,19 +58,21 @@ const unsigned char kRemoteVersion[] = "5.1";
 #endif
 
 // Minimize the roundtrips to the X server by getting all the atoms at once
-static const char *XAtomNames[] = {
+static char *XAtomNames[] = {
   MOZILLA_VERSION_PROP,
   MOZILLA_LOCK_PROP,
+  MOZILLA_COMMAND_PROP,
   MOZILLA_RESPONSE_PROP,
   MOZILLA_USER_PROP,
   MOZILLA_PROFILE_PROP,
   MOZILLA_PROGRAM_PROP,
   MOZILLA_COMMANDLINE_PROP
 };
-static Atom XAtoms[MOZ_ARRAY_LENGTH(XAtomNames)];
+static Atom XAtoms[NS_ARRAY_LENGTH(XAtomNames)];
 
 Atom nsXRemoteService::sMozVersionAtom;
 Atom nsXRemoteService::sMozLockAtom;
+Atom nsXRemoteService::sMozCommandAtom;
 Atom nsXRemoteService::sMozResponseAtom;
 Atom nsXRemoteService::sMozUserAtom;
 Atom nsXRemoteService::sMozProfileAtom;
@@ -85,7 +88,7 @@ FindExtensionParameterInCommand(const char* aParameterName,
                                 char aSeparator,
                                 nsACString* aValue)
 {
-  nsAutoCString searchFor;
+  nsCAutoString searchFor;
   searchFor.Append(aSeparator);
   searchFor.Append(aParameterName);
   searchFor.Append('=');
@@ -162,7 +165,7 @@ nsXRemoteService::HandleCommandsFor(Window aWindowId)
 NS_IMETHODIMP
 nsXRemoteService::Observe(nsISupports* aSubject,
                           const char *aTopic,
-                          const char16_t *aData)
+                          const PRUnichar *aData)
 {
   // This can be xpcom-shutdown or quit-application, but it's the same either
   // way.
@@ -179,7 +182,7 @@ nsXRemoteService::HandleNewProperty(XID aWindowId, Display* aDisplay,
 
   nsCOMPtr<nsIDOMWindow> window (do_QueryReferent(aDomWindow));
 
-  if (aChangedAtom == sMozCommandLineAtom) {
+  if (aChangedAtom == sMozCommandAtom || aChangedAtom == sMozCommandLineAtom) {
     // We got a new command atom.
     int result;
     Atom actual_type;
@@ -211,7 +214,11 @@ nsXRemoteService::HandleNewProperty(XID aWindowId, Display* aDisplay,
       return false;
 
     // cool, we got the property data.
-    const char *response = HandleCommandLine(data, window, aEventTime);
+    const char *response = NULL;
+    if (aChangedAtom == sMozCommandAtom)
+      response = HandleCommand(data, window, aEventTime);
+    else if (aChangedAtom == sMozCommandLineAtom)
+      response = HandleCommandLine(data, window, aEventTime);
 
     // put the property onto the window as the response
     XChangeProperty (aDisplay, aWindowId,
@@ -234,6 +241,61 @@ nsXRemoteService::HandleNewProperty(XID aWindowId, Display* aDisplay,
   }
 
   return false;
+}
+
+const char*
+nsXRemoteService::HandleCommand(char* aCommand, nsIDOMWindow* aWindow,
+                                uint32_t aTimestamp)
+{
+  nsresult rv;
+
+  nsCOMPtr<nsICommandLineRunner> cmdline
+    (do_CreateInstance("@mozilla.org/toolkit/command-line;1", &rv));
+  if (NS_FAILED(rv))
+    return "509 internal error";
+
+  // 1) Make sure that it looks remotely valid with parens
+  // 2) Treat ping() immediately and specially
+
+  nsCAutoString command(aCommand);
+  int32_t p1, p2;
+  p1 = command.FindChar('(');
+  p2 = command.FindChar(')');
+
+  if (p1 == kNotFound || p2 == kNotFound || p1 == 0 || p2 < p1) {
+    return "500 command not parseable";
+  }
+
+  command.Truncate(p1);
+  command.Trim(" ", true, true);
+  ToLowerCase(command);
+
+  if (!command.EqualsLiteral("ping")) {
+    nsCAutoString desktopStartupID;
+    nsDependentCString cmd(aCommand);
+    FindExtensionParameterInCommand("DESKTOP_STARTUP_ID",
+                                    cmd, '\n',
+                                    &desktopStartupID);
+
+    char* argv[3] = {"dummyappname", "-remote", aCommand};
+    rv = cmdline->Init(3, argv, nullptr, nsICommandLine::STATE_REMOTE_EXPLICIT);
+    if (NS_FAILED(rv))
+      return "509 internal error";
+
+    if (aWindow)
+      cmdline->SetWindowContext(aWindow);
+
+    if (sRemoteImplementation)
+      sRemoteImplementation->SetDesktopStartupIDOrTimestamp(desktopStartupID, aTimestamp);
+
+    rv = cmdline->Run();
+    if (NS_ERROR_ABORT == rv)
+      return "500 command not parseable";
+    if (NS_FAILED(rv))
+      return "509 internal error";
+  }
+
+  return "200 executed command";
 }
 
 const char*
@@ -262,7 +324,7 @@ nsXRemoteService::HandleCommandLine(char* aBuffer, nsIDOMWindow* aWindow,
   if (NS_FAILED(rv))
     return "509 internal error";
 
-  nsAutoCString desktopStartupID;
+  nsCAutoString desktopStartupID;
 
   char **argv = (char**) malloc(sizeof(char*) * argc);
   if (!argv) return "509 internal error";
@@ -310,12 +372,13 @@ nsXRemoteService::EnsureAtoms(void)
   if (sMozVersionAtom)
     return;
 
-  XInternAtoms(mozilla::DefaultXDisplay(), const_cast<char**>(XAtomNames),
-               ArrayLength(XAtomNames), False, XAtoms);
+  XInternAtoms(mozilla::DefaultXDisplay(), XAtomNames, ArrayLength(XAtomNames),
+               False, XAtoms);
 
   int i = 0;
   sMozVersionAtom     = XAtoms[i++];
   sMozLockAtom        = XAtoms[i++];
+  sMozCommandAtom     = XAtoms[i++];
   sMozResponseAtom    = XAtoms[i++];
   sMozUserAtom        = XAtoms[i++];
   sMozProfileAtom     = XAtoms[i++];

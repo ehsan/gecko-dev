@@ -8,12 +8,10 @@ let tabEvents = "";
 
 function test() {
   if (!isTiltEnabled()) {
-    aborting();
     info("Skipping notifications test because Tilt isn't enabled.");
     return;
   }
   if (!isWebGLSupported()) {
-    aborting();
     info("Skipping notifications test because WebGL isn't supported.");
     return;
   }
@@ -30,7 +28,6 @@ function createNewTab() {
 
   tab1 = createTab(function() {
     Services.obs.addObserver(finalize, DESTROYED, false);
-    Services.obs.addObserver(tab_STARTUP, STARTUP, false);
     Services.obs.addObserver(tab_INITIALIZING, INITIALIZING, false);
     Services.obs.addObserver(tab_DESTROYING, DESTROYING, false);
     Services.obs.addObserver(tab_SHOWN, SHOWN, false);
@@ -45,39 +42,29 @@ function createNewTab() {
       }
     }, false, function suddenDeath()
     {
-      ok(false, "Tilt could not be initialized properly.");
+      info("Tilt could not be initialized properly.");
       cleanup();
     });
   });
 }
 
-function tab_STARTUP(win) {
-  info("Handling the STARTUP notification.");
-  is(win, tab1.linkedBrowser.contentWindow, "Saw the correct window");
-  tabEvents += "STARTUP;";
-}
-
-function tab_INITIALIZING(win) {
+function tab_INITIALIZING() {
   info("Handling the INITIALIZING notification.");
-  is(win, tab1.linkedBrowser.contentWindow, "Saw the correct window");
   tabEvents += "INITIALIZING;";
 }
 
-function tab_DESTROYING(win) {
+function tab_DESTROYING() {
   info("Handling the DESTROYING notification.");
-  is(win, tab1.linkedBrowser.contentWindow, "Saw the correct window");
   tabEvents += "DESTROYING;";
 }
 
-function tab_SHOWN(win) {
+function tab_SHOWN() {
   info("Handling the SHOWN notification.");
-  is(win, tab1.linkedBrowser.contentWindow, "Saw the correct window");
   tabEvents += "SHOWN;";
 }
 
-function tab_HIDDEN(win) {
+function tab_HIDDEN() {
   info("Handling the HIDDEN notification.");
-  is(win, tab1.linkedBrowser.contentWindow, "Saw the correct window");
   tabEvents += "HIDDEN;";
 }
 
@@ -96,10 +83,12 @@ let testSteps = [
   }
 ];
 
-function finalize(win) {
-  is(win, tab1.linkedBrowser.contentWindow, "Saw the correct window");
+function finalize() {
+  if (!tabEvents) {
+    return;
+  }
 
-  is(tabEvents, "STARTUP;INITIALIZING;HIDDEN;SHOWN;DESTROYING;",
+  is(tabEvents, "INITIALIZING;HIDDEN;SHOWN;DESTROYING;",
     "The notifications weren't fired in the correct order.");
 
   cleanup();
@@ -116,7 +105,6 @@ function cleanup() {
   Services.obs.removeObserver(tab_DESTROYING, DESTROYING);
   Services.obs.removeObserver(tab_SHOWN, SHOWN);
   Services.obs.removeObserver(tab_HIDDEN, HIDDEN);
-  Services.obs.removeObserver(tab_STARTUP, STARTUP);
 
   gBrowser.tabContainer.removeEventListener("TabSelect", tabSelect);
   gBrowser.removeCurrentTab();

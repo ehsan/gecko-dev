@@ -21,8 +21,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include <cutils/log.h>
-
+#include <utils/Log.h>
 #include <utils/VectorImpl.h>
 #include <utils/TypeHelpers.h>
 
@@ -44,11 +43,11 @@ class Vector : private VectorImpl
 {
 public:
             typedef TYPE    value_type;
-
-    /*!
+    
+    /*! 
      * Constructors and destructors
      */
-
+    
                             Vector();
                             Vector(const Vector<TYPE>& rhs);
     explicit                Vector(const SortedVector<TYPE>& rhs);
@@ -56,7 +55,7 @@ public:
 
     /*! copy operator */
             const Vector<TYPE>&     operator = (const Vector<TYPE>& rhs) const;
-            Vector<TYPE>&           operator = (const Vector<TYPE>& rhs);
+            Vector<TYPE>&           operator = (const Vector<TYPE>& rhs);    
 
             const Vector<TYPE>&     operator = (const SortedVector<TYPE>& rhs) const;
             Vector<TYPE>&           operator = (const SortedVector<TYPE>& rhs);
@@ -67,35 +66,29 @@ public:
 
     inline  void            clear()             { VectorImpl::clear(); }
 
-    /*!
+    /*! 
      * vector stats
      */
 
     //! returns number of items in the vector
     inline  size_t          size() const                { return VectorImpl::size(); }
-    //! returns whether or not the vector is empty
+    //! returns wether or not the vector is empty
     inline  bool            isEmpty() const             { return VectorImpl::isEmpty(); }
     //! returns how many items can be stored without reallocating the backing store
     inline  size_t          capacity() const            { return VectorImpl::capacity(); }
-    //! sets the capacity. capacity can never be reduced less than size()
+    //! setst the capacity. capacity can never be reduced less than size()
     inline  ssize_t         setCapacity(size_t size)    { return VectorImpl::setCapacity(size); }
 
-    /*!
-     * set the size of the vector. items are appended with the default
-     * constructor, or removed from the end as needed.
-     */
-    inline  ssize_t         resize(size_t size)         { return VectorImpl::resize(size); }
-
-    /*!
+    /*! 
      * C-style array access
      */
-
-    //! read-only C-style access
+     
+    //! read-only C-style access 
     inline  const TYPE*     array() const;
     //! read-write C-style access
             TYPE*           editArray();
-
-    /*!
+    
+    /*! 
      * accessors
      */
 
@@ -105,20 +98,22 @@ public:
     inline  const TYPE&     itemAt(size_t index) const;
     //! stack-usage of the vector. returns the top of the stack (last element)
             const TYPE&     top() const;
+    //! same as operator [], but allows to access the vector backward (from the end) with a negative index
+            const TYPE&     mirrorItemAt(ssize_t index) const;
 
     /*!
-     * modifying the array
+     * modifing the array
      */
 
     //! copy-on write support, grants write access to an item
             TYPE&           editItemAt(size_t index);
-    //! grants right access to the top of the stack (last element)
+    //! grants right acces to the top of the stack (last element)
             TYPE&           editTop();
 
-            /*!
+            /*! 
              * append/insert another vector
              */
-
+            
     //! insert another vector at a given index
             ssize_t         insertVectorAt(const Vector<TYPE>& vector, size_t index);
 
@@ -132,10 +127,10 @@ public:
     //! append an array at the end of this vector
             ssize_t         appendArray(const TYPE* array, size_t length);
 
-            /*!
+            /*! 
              * add/insert/replace items
              */
-
+             
     //! insert one or several items initialized with their default constructor
     inline  ssize_t         insertAt(size_t index, size_t numItems = 1);
     //! insert one or several items initialized from a prototype item
@@ -149,7 +144,7 @@ public:
     //! same as push() but returns the index the item was added at (or an error)
     inline  ssize_t         add();
     //! same as push() but returns the index the item was added at (or an error)
-            ssize_t         add(const TYPE& item);
+            ssize_t         add(const TYPE& item);            
     //! replace an item with a new one initialized with its default constructor
     inline  ssize_t         replaceAt(size_t index);
     //! replace an item with a new one
@@ -167,10 +162,10 @@ public:
     /*!
      * sort (stable) the array
      */
-
+     
      typedef int (*compar_t)(const TYPE* lhs, const TYPE* rhs);
      typedef int (*compar_r_t)(const TYPE* lhs, const TYPE* rhs, void* state);
-
+     
      inline status_t        sort(compar_t cmp);
      inline status_t        sort(compar_r_t cmp, void* state);
 
@@ -191,11 +186,10 @@ public:
      inline const_iterator end() const   { return array() + size(); }
      inline void reserve(size_t n) { setCapacity(n); }
      inline bool empty() const{ return isEmpty(); }
-     inline void push_back(const TYPE& item)  { insertAt(item, size(), 1); }
-     inline void push_front(const TYPE& item) { insertAt(item, 0, 1); }
+     inline void push_back(const TYPE& item)  { insertAt(item, size()); }
+     inline void push_front(const TYPE& item) { insertAt(item, 0); }
      inline iterator erase(iterator pos) {
-         ssize_t index = removeItemsAt(pos-array());
-         return begin() + index;
+         return begin() + removeItemsAt(pos-array());
      }
 
 protected:
@@ -207,9 +201,6 @@ protected:
     virtual void    do_move_backward(void* dest, const void* from, size_t num) const;
 };
 
-// Vector<T> can be trivially moved using memcpy() because moving does not
-// require any change to the underlying SharedBuffer contents or reference count.
-template<typename T> struct trait_trivial_move<Vector<T> > { enum { value = true }; };
 
 // ---------------------------------------------------------------------------
 // No user serviceable parts from here...
@@ -243,7 +234,7 @@ Vector<TYPE>::~Vector() {
 template<class TYPE> inline
 Vector<TYPE>& Vector<TYPE>::operator = (const Vector<TYPE>& rhs) {
     VectorImpl::operator = (rhs);
-    return *this;
+    return *this; 
 }
 
 template<class TYPE> inline
@@ -261,7 +252,7 @@ Vector<TYPE>& Vector<TYPE>::operator = (const SortedVector<TYPE>& rhs) {
 template<class TYPE> inline
 const Vector<TYPE>& Vector<TYPE>::operator = (const SortedVector<TYPE>& rhs) const {
     VectorImpl::operator = (rhs);
-    return *this;
+    return *this; 
 }
 
 template<class TYPE> inline
@@ -277,15 +268,22 @@ TYPE* Vector<TYPE>::editArray() {
 
 template<class TYPE> inline
 const TYPE& Vector<TYPE>::operator[](size_t index) const {
-    LOG_FATAL_IF(index>=size(),
-            "%s: index=%u out of range (%u)", __PRETTY_FUNCTION__,
-            int(index), int(size()));
+    LOG_FATAL_IF( index>=size(),
+                  "itemAt: index %d is past size %d", (int)index, (int)size() );
     return *(array() + index);
 }
 
 template<class TYPE> inline
 const TYPE& Vector<TYPE>::itemAt(size_t index) const {
     return operator[](index);
+}
+
+template<class TYPE> inline
+const TYPE& Vector<TYPE>::mirrorItemAt(ssize_t index) const {
+    LOG_FATAL_IF( (index>0 ? index : -index)>=size(),
+                  "mirrorItemAt: index %d is past size %d",
+                  (int)index, (int)size() );
+    return *(array() + ((index<0) ? (size()-index) : index));
 }
 
 template<class TYPE> inline
@@ -421,4 +419,3 @@ void Vector<TYPE>::do_move_backward(void* dest, const void* from, size_t num) co
 // ---------------------------------------------------------------------------
 
 #endif // ANDROID_VECTOR_H
-

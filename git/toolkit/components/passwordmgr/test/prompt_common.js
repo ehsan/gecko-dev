@@ -1,6 +1,6 @@
-var Ci = SpecialPowers.Ci;
+var Ci = Components.interfaces;
 ok(Ci != null, "Access Ci");
-var Cc = SpecialPowers.Cc;
+var Cc = SpecialPowers.wrap(Components).classes;
 ok(Cc != null, "Access Cc");
 
 var didDialog;
@@ -18,13 +18,13 @@ function startCallbackTimer() {
 }
 
 
-var observer = SpecialPowers.wrapCallbackObject({
+var observer = {
     QueryInterface : function (iid) {
         const interfaces = [Ci.nsIObserver,
                             Ci.nsISupports, Ci.nsISupportsWeakReference];
 
         if (!interfaces.some( function(v) { return iid.equals(v) } ))
-            throw SpecialPowers.Components.results.NS_ERROR_NO_INTERFACE;
+            throw Components.results.NS_ERROR_NO_INTERFACE;
         return this;
     },
 
@@ -35,7 +35,7 @@ var observer = SpecialPowers.wrapCallbackObject({
         else
             startCallbackTimer(); // try again in a bit
     }
-});
+};
 
 function getDialogDoc() {
   // Find the <browser> which contains notifyWindow, by looking

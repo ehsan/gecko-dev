@@ -54,15 +54,17 @@ ChromePowers.prototype._receiveMessage = function(aMessage) {
         // Hack out register/unregister specifically for browser-chrome leaks
         break;
       } else if (aMessage.type == "crash-observed") {
-        for (let e of msg.dumpIDs) {
-          this._encounteredCrashDumpFiles.push(e.id + "." + e.extension);
-        }
+        var self = this;
+        msg.dumpIDs.forEach(function(id) {
+          self._encounteredCrashDumpFiles.push(id + ".dmp");
+          self._encounteredCrashDumpFiles.push(id + ".extra");
+        });
       }
     default:
       // All calls go here, because we need to handle SPProcessCrashService calls as well
       return this.spObserver._receiveMessageAPI(aMessage);
+      break;
   }
-  return undefined;		// Avoid warning.
 };
 
 ChromePowers.prototype.quit = function() {
@@ -70,14 +72,6 @@ ChromePowers.prototype.quit = function() {
   // For some reason this.<func> resolves to TestRunner, so using SpecialPowers
   // allows us to use the ChromePowers object which we defined below.
   SpecialPowers._sendSyncMessage("SpecialPowers.Quit", {});
-};
-
-ChromePowers.prototype.focus = function(aWindow) {
-  // We come in here as SpecialPowers.focus, but SpecialPowers is really ChromePowers.
-  // For some reason this.<func> resolves to TestRunner, so using SpecialPowers
-  // allows us to use the ChromePowers object which we defined below.
-  if (aWindow)
-    aWindow.focus();
 };
 
 ChromePowers.prototype.executeAfterFlushingMessageQueue = function(aCallback) {

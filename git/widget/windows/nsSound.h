@@ -9,9 +9,7 @@
 
 #include "nsISound.h"
 #include "nsIStreamLoader.h"
-#include "nsCOMPtr.h"
-
-class nsIThread;
+#include "nsThreadUtils.h"
 
 class nsSound : public nsISound,
                 public nsIStreamLoaderObserver
@@ -19,6 +17,7 @@ class nsSound : public nsISound,
 {
 public: 
   nsSound();
+  virtual ~nsSound();
   void ShutdownOldPlayerThread();
 
   NS_DECL_ISUPPORTS
@@ -26,7 +25,6 @@ public:
   NS_DECL_NSISTREAMLOADEROBSERVER
 
 private:
-  virtual ~nsSound();
   void PurgeLastSound();
 
 private:

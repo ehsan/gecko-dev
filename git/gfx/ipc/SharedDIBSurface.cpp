@@ -45,19 +45,19 @@ SharedDIBSurface::InitSurface(uint32_t aWidth, uint32_t aHeight,
   long stride = long(aWidth * kBytesPerPixel);
   unsigned char* data = reinterpret_cast<unsigned char*>(mSharedDIB.GetBits());
 
-  gfxImageFormat format = aTransparent ? gfxImageFormat::ARGB32 : gfxImageFormat::RGB24;
+  gfxImageFormat format = aTransparent ? ImageFormatARGB32 : ImageFormatRGB24;
 
   gfxImageSurface::InitWithData(data, gfxIntSize(aWidth, aHeight),
                                 stride, format);
 
-  cairo_surface_set_user_data(mSurface, &SHAREDDIB_KEY, this, nullptr);
+  cairo_surface_set_user_data(mSurface, &SHAREDDIB_KEY, this, NULL);
 }
 
 bool
 SharedDIBSurface::IsSharedDIBSurface(gfxASurface* aSurface)
 {
   return aSurface &&
-    aSurface->GetType() == gfxSurfaceType::Image &&
+    aSurface->GetType() == gfxASurface::SurfaceTypeImage &&
     aSurface->GetData(&SHAREDDIB_KEY);
 }
 

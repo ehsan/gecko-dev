@@ -1,3 +1,7 @@
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cr = Components.results;
+
 var _PSvc;
 function get_pref_service() {
   if (_PSvc)
@@ -32,20 +36,23 @@ function write_datafile(status, entry)
   var os = entry.openOutputStream(0);
   var data = gen_1MiB();
 
-  // write 2MiB
+  // max size in MB
+  var max_size = get_pref_service().
+                 getIntPref("browser.cache.disk.max_entry_size") / 1024;
+
+  // write larger entry than is allowed
   var i;
-  for (i=0 ; i<2 ; i++)
+  for (i=0 ; i<(max_size+1) ; i++)
     write_and_check(os, data, data.length);
 
   os.close();
   entry.close();
 
-  // now change max_entry_size so that the existing entry is too big
-  get_pref_service().setIntPref("browser.cache.disk.max_entry_size", 1024);
-
   // append to entry
-  asyncOpenCacheEntry("http://data/",
-                      "disk", Ci.nsICacheStorage.OPEN_NORMALLY, null,
+  asyncOpenCacheEntry("data",
+                      "HTTP",
+                      Ci.nsICache.STORE_ON_DISK,
+                      Ci.nsICache.ACCESS_READ_WRITE,
                       append_datafile);
 }
 
@@ -75,19 +82,16 @@ function append_datafile(status, entry)
 }
 
 function run_test() {
-  if (newCacheBackEndUsed()) {
-    // Needs limit preferences
-    do_check_true(true, "This test doesn't run with the new cache backend, the test or the cache needs to be fixed");
-    return;
-  }
-
   do_get_profile();
 
   // clear the cache
   evict_cache_entries();
 
-  asyncOpenCacheEntry("http://data/",
-                      "disk", Ci.nsICacheStorage.OPEN_NORMALLY, null,
+  // force to write file bigger than 5MiB
+  asyncOpenCacheEntry("data",
+                      "HTTP",
+                      Ci.nsICache.STORE_ON_DISK_AS_FILE,
+                      Ci.nsICache.ACCESS_WRITE,
                       write_datafile);
 
   do_test_pending();

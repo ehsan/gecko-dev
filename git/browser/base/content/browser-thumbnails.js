@@ -4,8 +4,6 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 #endif
 
-Cu.import("resource://gre/modules/NewTabUtils.jsm");
-
 /**
  * Keeps thumbnails of open web pages up-to-date.
  */
@@ -33,6 +31,11 @@ let gBrowserThumbnails = {
   _tabEvents: ["TabClose", "TabSelect"],
 
   init: function Thumbnails_init() {
+    try {
+      if (Services.prefs.getBoolPref("browser.pagethumbnails.capturing_disabled"))
+        return;
+    } catch (e) {}
+
     PageThumbs.addExpirationFilter(this);
     gBrowser.addTabsProgressListener(this);
     Services.prefs.addObserver(this.PREF_DISK_CACHE_SSL, this, false);
@@ -81,7 +84,7 @@ let gBrowserThumbnails = {
 
   filterForThumbnailExpiration:
   function Thumbnails_filterForThumbnailExpiration(aCallback) {
-    aCallback(this._topSiteURLs);
+    aCallback([browser.currentURI.spec for (browser of gBrowser.browsers)]);
   },
 
   /**
@@ -95,10 +98,8 @@ let gBrowserThumbnails = {
   },
 
   _capture: function Thumbnails_capture(aBrowser) {
-    // Only capture about:newtab top sites.
-    if (this._topSiteURLs.indexOf(aBrowser.currentURI.spec) >= 0 &&
-        this._shouldCapture(aBrowser))
-      PageThumbs.captureAndStoreIfStale(aBrowser);
+    if (this._shouldCapture(aBrowser))
+      PageThumbs.captureAndStore(aBrowser);
   },
 
   _delayedCapture: function Thumbnails_delayedCapture(aBrowser) {
@@ -115,14 +116,13 @@ let gBrowserThumbnails = {
     this._timeouts.set(aBrowser, timeout);
   },
 
-  // FIXME: This should be part of the PageThumbs API. (bug 1062414)
   _shouldCapture: function Thumbnails_shouldCapture(aBrowser) {
     // Capture only if it's the currently selected tab.
     if (aBrowser != gBrowser.selectedBrowser)
       return false;
 
     // Don't capture in per-window private browsing mode.
-    if (PrivateBrowsingUtils.isWindowPrivate(window))
+    if (gPrivateBrowsingUI.privateWindow)
       return false;
 
     let doc = aBrowser.contentDocument;
@@ -132,16 +132,12 @@ let gBrowserThumbnails = {
     if (doc instanceof SVGDocument || doc instanceof XMLDocument)
       return false;
 
-    // Don't take screenshots of about: pages.
-    if (aBrowser.currentURI.schemeIs("about"))
-      return false;
-
-    // FIXME e10s work around, we need channel information. bug 1073957
-    if (!aBrowser.docShell)
-      return true;
-
     // There's no point in taking screenshot of loading pages.
     if (aBrowser.docShell.busyFlags != Ci.nsIDocShell.BUSY_FLAGS_NONE)
+      return false;
+
+    // Don't take screenshots of about: pages.
+    if (aBrowser.currentURI.schemeIs("about"))
       return false;
 
     let channel = aBrowser.docShell.currentDocumentChannel;
@@ -163,14 +159,8 @@ let gBrowserThumbnails = {
 
     if (httpChannel) {
       // Continue only if we have a 2xx status code.
-      try {
-        if (Math.floor(httpChannel.responseStatus / 100) != 2)
-          return false;
-      } catch (e) {
-        // Can't get response information from the httpChannel
-        // because mResponseHead is not available.
+      if (Math.floor(httpChannel.responseStatus / 100) != 2)
         return false;
-      }
 
       // Cache-Control: no-store.
       if (httpChannel.isNoStoreResponse())
@@ -182,14 +172,6 @@ let gBrowserThumbnails = {
     }
 
     return true;
-  },
-
-  get _topSiteURLs() {
-    return NewTabUtils.links.getLinks().reduce((urls, link) => {
-      if (link)
-        urls.push(link.url);
-      return urls;
-    }, []);
   },
 
   _clearTimeout: function Thumbnails_clearTimeout(aBrowser) {

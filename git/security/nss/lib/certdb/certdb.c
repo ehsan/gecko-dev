@@ -1,9 +1,45 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *    Aaron Spangler <aaron@spangler.ods.org>
+ *    Kaspar Brand <mozbugzilla@velox.ch>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * Certificate handling code
+ *
+ * $Id: certdb.c,v 1.121.2.1 2012/04/03 00:38:19 wtc%google.com Exp $
  */
 
 #include "nssilock.h"
@@ -209,7 +245,7 @@ SEC_ASN1_CHOOSER_IMPLEMENT(SEC_SignedCertificateTemplate)
 SEC_ASN1_CHOOSER_IMPLEMENT(CERT_SequenceOfCertExtensionTemplate)
 
 SECStatus
-CERT_KeyFromIssuerAndSN(PLArenaPool *arena, SECItem *issuer, SECItem *sn,
+CERT_KeyFromIssuerAndSN(PRArenaPool *arena, SECItem *issuer, SECItem *sn,
 			SECItem *key)
 {
     key->len = sn->len + issuer->len;
@@ -243,7 +279,7 @@ SECStatus
 CERT_NameFromDERCert(SECItem *derCert, SECItem *derName)
 {
     int rv;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     CERTSignedData sd;
     void *tmpptr;
     
@@ -287,7 +323,7 @@ SECStatus
 CERT_IssuerNameFromDERCert(SECItem *derCert, SECItem *derName)
 {
     int rv;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     CERTSignedData sd;
     void *tmpptr;
     
@@ -331,7 +367,7 @@ SECStatus
 CERT_SerialNumberFromDERCert(SECItem *derCert, SECItem *derName)
 {
     int rv;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     CERTSignedData sd;
     void *tmpptr;
     
@@ -376,7 +412,7 @@ loser:
  * DER certificate.
  */
 SECStatus
-CERT_KeyFromDERCert(PLArenaPool *reqArena, SECItem *derCert, SECItem *key)
+CERT_KeyFromDERCert(PRArenaPool *reqArena, SECItem *derCert, SECItem *key)
 {
     int rv;
     CERTSignedData sd;
@@ -744,7 +780,7 @@ CERT_DecodeDERCertificate(SECItem *derSignedCert, PRBool copyDER,
 			 char *nickname)
 {
     CERTCertificate *cert;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     void *data;
     int rv;
     int len;
@@ -874,11 +910,11 @@ __CERT_DecodeDERCertificate(SECItem *derSignedCert, PRBool copyDER,
 
 
 CERTValidity *
-CERT_CreateValidity(PRTime notBefore, PRTime notAfter)
+CERT_CreateValidity(int64 notBefore, int64 notAfter)
 {
     CERTValidity *v;
     int rv;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
 
     if (notBefore > notAfter) {
        PORT_SetError(SEC_ERROR_INVALID_ARGS);
@@ -906,7 +942,7 @@ CERT_CreateValidity(PRTime notBefore, PRTime notAfter)
 }
 
 SECStatus
-CERT_CopyValidity(PLArenaPool *arena, CERTValidity *to, CERTValidity *from)
+CERT_CopyValidity(PRArenaPool *arena, CERTValidity *to, CERTValidity *from)
 {
     SECStatus rv;
 
@@ -953,7 +989,7 @@ CERT_SetSlopTime(PRInt32 slop)		/* seconds */
 }
 
 SECStatus
-CERT_GetCertTimes(const CERTCertificate *c, PRTime *notBefore, PRTime *notAfter)
+CERT_GetCertTimes(CERTCertificate *c, PRTime *notBefore, PRTime *notAfter)
 {
     SECStatus rv;
 
@@ -981,8 +1017,7 @@ CERT_GetCertTimes(const CERTCertificate *c, PRTime *notBefore, PRTime *notAfter)
  * Check the validity times of a certificate
  */
 SECCertTimeValidity
-CERT_CheckCertValidTimes(const CERTCertificate *c, PRTime t,
-                         PRBool allowOverride)
+CERT_CheckCertValidTimes(CERTCertificate *c, PRTime t, PRBool allowOverride)
 {
     PRTime notBefore, notAfter, llPendingSlop, tmp1;
     SECStatus rv;
@@ -1381,7 +1416,7 @@ cert_TestHostName(char * cn, const char * hn)
 	    return rv;
 	}
     } else {
-	/* New approach conforms to RFC 6125. */
+	/* New approach conforms to RFC 2818. */
 	char *wildcard    = PORT_Strchr(cn, '*');
 	char *firstcndot  = PORT_Strchr(cn, '.');
 	char *secondcndot = firstcndot ? PORT_Strchr(firstcndot+1, '.') : NULL;
@@ -1390,17 +1425,14 @@ cert_TestHostName(char * cn, const char * hn)
 	/* For a cn pattern to be considered valid, the wildcard character...
 	 * - may occur only in a DNS name with at least 3 components, and
 	 * - may occur only as last character in the first component, and
-	 * - may be preceded by additional characters, and
-	 * - must not be preceded by an IDNA ACE prefix (xn--)
+	 * - may be preceded by additional characters
 	 */
 	if (wildcard && secondcndot && secondcndot[1] && firsthndot 
-	    && firstcndot  - wildcard  == 1 /* wildcard is last char in first component */
-	    && secondcndot - firstcndot > 1 /* second component is non-empty */
-	    && PORT_Strrchr(cn, '*') == wildcard /* only one wildcard in cn */
+	    && firstcndot  - wildcard  == 1
+	    && secondcndot - firstcndot > 1
+	    && PORT_Strrchr(cn, '*') == wildcard
 	    && !PORT_Strncasecmp(cn, hn, wildcard - cn)
-	    && !PORT_Strcasecmp(firstcndot, firsthndot)
-	       /* If hn starts with xn--, then cn must start with wildcard */
-	    && (PORT_Strncasecmp(hn, "xn--", 4) || wildcard == cn)) {
+	    && !PORT_Strcasecmp(firstcndot, firsthndot)) {
 	    /* valid wildcard pattern match */
 	    return SECSuccess;
 	}
@@ -1418,9 +1450,9 @@ cert_TestHostName(char * cn, const char * hn)
 
 
 SECStatus
-cert_VerifySubjectAltName(const CERTCertificate *cert, const char *hn)
+cert_VerifySubjectAltName(CERTCertificate *cert, const char *hn)
 {
-    PLArenaPool *     arena          = NULL;
+    PRArenaPool *     arena          = NULL;
     CERTGeneralName * nameList       = NULL;
     CERTGeneralName * current;
     char *            cn;
@@ -1555,7 +1587,7 @@ finish:
  *   - return value is NULL
  */
 CERTGeneralName *
-cert_GetSubjectAltNameList(const CERTCertificate *cert, PLArenaPool *arena)
+cert_GetSubjectAltNameList(CERTCertificate *cert, PRArenaPool *arena)
 {
     CERTGeneralName * nameList       = NULL;
     SECStatus         rv             = SECFailure;
@@ -1694,7 +1726,7 @@ CERT_GetValidDNSPatternsFromCert(CERTCertificate *cert)
 {
     CERTGeneralName *generalNames;
     CERTCertNicknames *nickNames;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     char *singleName;
     
     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
@@ -1762,7 +1794,7 @@ CERT_GetValidDNSPatternsFromCert(CERTCertificate *cert)
  * that they are using.
  */
 SECStatus
-CERT_VerifyCertName(const CERTCertificate *cert, const char *hn)
+CERT_VerifyCertName(CERTCertificate *cert, const char *hn)
 {
     char *    cn;
     SECStatus rv;
@@ -1807,7 +1839,7 @@ CERT_VerifyCertName(const CERTCertificate *cert, const char *hn)
 }
 
 PRBool
-CERT_CompareCerts(const CERTCertificate *c1, const CERTCertificate *c2)
+CERT_CompareCerts(CERTCertificate *c1, CERTCertificate *c2)
 {
     SECComparison comp;
     
@@ -1919,7 +1951,7 @@ CERT_CompareCertsForRedirection(CERTCertificate *c1, CERTCertificate *c2)
 
 
 CERTIssuerAndSN *
-CERT_GetCertIssuerAndSN(PLArenaPool *arena, CERTCertificate *cert)
+CERT_GetCertIssuerAndSN(PRArenaPool *arena, CERTCertificate *cert)
 {
     CERTIssuerAndSN *result;
     SECStatus rv;
@@ -2053,38 +2085,35 @@ cert_Version(CERTCertificate *cert)
 static unsigned int
 cert_ComputeTrustOverrides(CERTCertificate *cert, unsigned int cType)
 {
-    CERTCertTrust trust;
-    SECStatus rv = SECFailure;
+    CERTCertTrust *trust = cert->trust;
 
-    rv = CERT_GetCertTrust(cert, &trust);
+    if (trust && (trust->sslFlags |
+		  trust->emailFlags |
+		  trust->objectSigningFlags)) {
 
-    if (rv == SECSuccess && (trust.sslFlags |
-		  trust.emailFlags |
-		  trust.objectSigningFlags)) {
-
-	if (trust.sslFlags & (CERTDB_TERMINAL_RECORD|CERTDB_TRUSTED)) 
+	if (trust->sslFlags & (CERTDB_TERMINAL_RECORD|CERTDB_TRUSTED)) 
 	    cType |= NS_CERT_TYPE_SSL_SERVER|NS_CERT_TYPE_SSL_CLIENT;
-	if (trust.sslFlags & (CERTDB_VALID_CA|CERTDB_TRUSTED_CA)) 
+	if (trust->sslFlags & (CERTDB_VALID_CA|CERTDB_TRUSTED_CA)) 
 	    cType |= NS_CERT_TYPE_SSL_CA;
 #if defined(CERTDB_NOT_TRUSTED)
-	if (trust.sslFlags & CERTDB_NOT_TRUSTED) 
+	if (trust->sslFlags & CERTDB_NOT_TRUSTED) 
 	    cType &= ~(NS_CERT_TYPE_SSL_SERVER|NS_CERT_TYPE_SSL_CLIENT|
 	               NS_CERT_TYPE_SSL_CA);
 #endif
-	if (trust.emailFlags & (CERTDB_TERMINAL_RECORD|CERTDB_TRUSTED)) 
+	if (trust->emailFlags & (CERTDB_TERMINAL_RECORD|CERTDB_TRUSTED)) 
 	    cType |= NS_CERT_TYPE_EMAIL;
-	if (trust.emailFlags & (CERTDB_VALID_CA|CERTDB_TRUSTED_CA)) 
+	if (trust->emailFlags & (CERTDB_VALID_CA|CERTDB_TRUSTED_CA)) 
 	    cType |= NS_CERT_TYPE_EMAIL_CA;
 #if defined(CERTDB_NOT_TRUSTED)
-	if (trust.emailFlags & CERTDB_NOT_TRUSTED) 
+	if (trust->emailFlags & CERTDB_NOT_TRUSTED) 
 	    cType &= ~(NS_CERT_TYPE_EMAIL|NS_CERT_TYPE_EMAIL_CA);
 #endif
-	if (trust.objectSigningFlags & (CERTDB_TERMINAL_RECORD|CERTDB_TRUSTED)) 
+	if (trust->objectSigningFlags & (CERTDB_TERMINAL_RECORD|CERTDB_TRUSTED)) 
 	    cType |= NS_CERT_TYPE_OBJECT_SIGNING;
-	if (trust.objectSigningFlags & (CERTDB_VALID_CA|CERTDB_TRUSTED_CA)) 
+	if (trust->objectSigningFlags & (CERTDB_VALID_CA|CERTDB_TRUSTED_CA)) 
 	    cType |= NS_CERT_TYPE_OBJECT_SIGNING_CA;
 #if defined(CERTDB_NOT_TRUSTED)
-	if (trust.objectSigningFlags & CERTDB_NOT_TRUSTED) 
+	if (trust->objectSigningFlags & CERTDB_NOT_TRUSTED) 
 	    cType &= ~(NS_CERT_TYPE_OBJECT_SIGNING|
 	               NS_CERT_TYPE_OBJECT_SIGNING_CA);
 #endif
@@ -2515,7 +2544,7 @@ CERT_ImportCerts(CERTCertDBHandle *certdb, SECCertUsage usage,
 CERTCertList *
 CERT_NewCertList(void)
 {
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     CERTCertList *ret = NULL;
     
     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
@@ -2823,14 +2852,10 @@ loser:
 
 PRBool CERT_IsUserCert(CERTCertificate* cert)
 {
-    CERTCertTrust trust;
-    SECStatus rv = SECFailure;
-
-    rv = CERT_GetCertTrust(cert, &trust);
-    if (rv == SECSuccess &&
-        ((trust.sslFlags & CERTDB_USER ) ||
-         (trust.emailFlags & CERTDB_USER ) ||
-         (trust.objectSigningFlags & CERTDB_USER )) ) {
+    if ( cert->trust &&
+        ((cert->trust->sslFlags & CERTDB_USER ) ||
+         (cert->trust->emailFlags & CERTDB_USER ) ||
+         (cert->trust->objectSigningFlags & CERTDB_USER )) ) {
         return PR_TRUE;
     } else {
         return PR_FALSE;
@@ -2907,7 +2932,7 @@ static PZLock *certTrustLock = NULL;
  * that turns out to be necessary.
  */
 void
-CERT_LockCertTrust(const CERTCertificate *cert)
+CERT_LockCertTrust(CERTCertificate *cert)
 {
     PORT_Assert(certTrustLock != NULL);
     PZ_Lock(certTrustLock);
@@ -2965,7 +2990,7 @@ cert_DestroyLocks(void)
  * Free the cert trust lock
  */
 void
-CERT_UnlockCertTrust(const CERTCertificate *cert)
+CERT_UnlockCertTrust(CERTCertificate *cert)
 {
     PRStatus prstat;
 

@@ -17,6 +17,7 @@ function dump(a) {
 function openWindow(aParent, aURL, aTarget, aFeatures, aArgs) {
   let argsArray = Cc["@mozilla.org/supports-array;1"].createInstance(Ci.nsISupportsArray);
   let urlString = null;
+  let restoreModeInt = Cc["@mozilla.org/supports-PRInt32;1"].createInstance(Ci.nsISupportsPRInt32);
   let pinnedBool = Cc["@mozilla.org/supports-PRBool;1"].createInstance(Ci.nsISupportsPRBool);
   let widthInt = Cc["@mozilla.org/supports-PRInt32;1"].createInstance(Ci.nsISupportsPRInt32);
   let heightInt = Cc["@mozilla.org/supports-PRInt32;1"].createInstance(Ci.nsISupportsPRInt32);
@@ -25,11 +26,13 @@ function openWindow(aParent, aURL, aTarget, aFeatures, aArgs) {
     urlString = Cc["@mozilla.org/supports-string;1"].createInstance(Ci.nsISupportsString);
     urlString.data = aArgs.url;
   }
+  restoreModeInt.data = "restoreMode" in aArgs ? aArgs.restoreMode : 0;
   widthInt.data = "width" in aArgs ? aArgs.width : 1;
   heightInt.data = "height" in aArgs ? aArgs.height : 1;
   pinnedBool.data = "pinned" in aArgs ? aArgs.pinned : false;
 
   argsArray.AppendElement(urlString, false);
+  argsArray.AppendElement(restoreModeInt, false);
   argsArray.AppendElement(widthInt, false);
   argsArray.AppendElement(heightInt, false);
   argsArray.AppendElement(pinnedBool, false);
@@ -59,6 +62,7 @@ BrowserCLH.prototype = {
     let openURL = "about:home";
     let pinned = false;
 
+    let restoreMode = 0;
     let width = 1;
     let height = 1;
 
@@ -69,6 +73,9 @@ BrowserCLH.prototype = {
       pinned = aCmdLine.handleFlag("webapp", false);
     } catch (e) { /* Optional */ }
 
+    try {
+      restoreMode = aCmdLine.handleFlagWithParam("restoremode", false);
+    } catch (e) { /* Optional */ }
     try {
       width = aCmdLine.handleFlagWithParam("width", false);
     } catch (e) { /* Optional */ }
@@ -81,28 +88,19 @@ BrowserCLH.prototype = {
       if (!uri)
         return;
 
-      // Let's get a head start on opening the network connection to the URI we are about to load
-      Services.io.QueryInterface(Ci.nsISpeculativeConnect).speculativeConnect(uri, null);
-
       let browserWin = Services.wm.getMostRecentWindow("navigator:browser");
       if (browserWin) {
-        if (!pinned) {
-          browserWin.browserDOMWindow.openURI(uri, null, Ci.nsIBrowserDOMWindow.OPEN_NEWTAB, Ci.nsIBrowserDOMWindow.OPEN_EXTERNAL);
-        }
+        let whereFlags = pinned ? Ci.nsIBrowserDOMWindow.OPEN_SWITCHTAB : Ci.nsIBrowserDOMWindow.OPEN_NEWTAB;
+        browserWin.browserDOMWindow.openURI(uri, null, whereFlags, Ci.nsIBrowserDOMWindow.OPEN_EXTERNAL);
       } else {
         let args = {
           url: openURL,
+          restoreMode: restoreMode,
           pinned: pinned,
           width: width,
-          height: height,
+          height: height
         };
-
-        // Make sure webapps do not have: locationbar, personalbar, menubar, statusbar, and toolbar
-        let flags = "chrome,dialog=no";
-        if (!pinned)
-          flags += ",all";
-
-        browserWin = openWindow(null, "chrome://browser/content/browser.xul", "_blank", flags, args);
+        browserWin = openWindow(null, "chrome://browser/content/browser.xul", "_blank", "chrome,dialog=no,all", args);
       }
 
       aCmdLine.preventDefault = true;
@@ -111,37 +109,12 @@ BrowserCLH.prototype = {
     }
   },
 
-  /**
-   * Register resource://android as the APK root.
-   *
-   * Consumers can access Android assets using resource://android/assets/FILENAME.
-   */
-  setResourceSubstitutions: function () {
-    let registry = Cc["@mozilla.org/chrome/chrome-registry;1"].getService(Ci["nsIChromeRegistry"]);
-    // Like jar:jar:file:///data/app/org.mozilla.fennec-2.apk!/assets/omni.ja!/chrome/chrome/content/aboutHome.xhtml
-    let url = registry.convertChromeURL(Services.io.newURI("chrome://browser/content/aboutHome.xhtml", null, null)).spec;
-    // Like jar:file:///data/app/org.mozilla.fennec-2.apk!/
-    url = url.substring(4, url.indexOf("!/") + 2);
-
-    let protocolHandler = Services.io.getProtocolHandler("resource").QueryInterface(Ci.nsIResProtocolHandler);
-    protocolHandler.setSubstitution("android", Services.io.newURI(url, null, null));
-  },
-
-  observe: function (subject, topic, data) {
-    switch (topic) {
-      case "app-startup":
-        this.setResourceSubstitutions();
-        break;
-    }
-  },
-
   // QI
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsICommandLineHandler,
-                                         Ci.nsIObserver]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsICommandLineHandler]),
 
   // XPCOMUtils factory
   classID: Components.ID("{be623d20-d305-11de-8a39-0800200c9a66}")
 };
 
 var components = [ BrowserCLH ];
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
+const NSGetFactory = XPCOMUtils.generateNSGetFactory(components);

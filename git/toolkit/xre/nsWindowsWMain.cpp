@@ -16,14 +16,6 @@
 #include "nsSetDllDirectory.h"
 #endif
 
-#if defined(MOZ_METRO) || defined(__GNUC__)
-#define XRE_DONT_SUPPORT_XPSP2
-#endif
-
-#ifndef XRE_DONT_SUPPORT_XPSP2
-#include "WindowsCrtPatch.h"
-#endif
-
 #ifdef __MINGW32__
 
 /* MingW currently does not implement a wide version of the
@@ -50,20 +42,16 @@ int main(int argc, char **argv)
 
 #define main NS_internal_main
 
-#ifndef XRE_WANT_ENVIRON
 int main(int argc, char **argv);
-#else
-int main(int argc, char **argv, char **envp);
-#endif
 
 static char*
-AllocConvertUTF16toUTF8(char16ptr_t arg)
+AllocConvertUTF16toUTF8(const WCHAR *arg)
 {
   // be generous... UTF16 units can expand up to 3 UTF8 units
   int len = wcslen(arg);
   char *s = new char[len * 3 + 1];
   if (!s)
-    return nullptr;
+    return NULL;
 
   ConvertUTF16toUTF8 convert(s);
   convert.write(arg, len);
@@ -84,10 +72,6 @@ FreeAllocStrings(int argc, char **argv)
 
 int wmain(int argc, WCHAR **argv)
 {
-#if !defined(XRE_DONT_SUPPORT_XPSP2)
-  WindowsCrtPatch::Init();
-#endif
-
 #ifndef XRE_DONT_PROTECT_DLL_LOAD
   mozilla::SanitizeEnvironmentVariables();
   SetDllDirectoryW(L"");
@@ -103,7 +87,7 @@ int wmain(int argc, WCHAR **argv)
       return 127;
     }
   }
-  argvConverted[argc] = nullptr;
+  argvConverted[argc] = NULL;
 
   // need to save argvConverted copy for later deletion.
   char **deleteUs = new char*[argc+1];
@@ -113,13 +97,7 @@ int wmain(int argc, WCHAR **argv)
   }
   for (int i = 0; i < argc; i++)
     deleteUs[i] = argvConverted[i];
-#ifndef XRE_WANT_ENVIRON
   int result = main(argc, argvConverted);
-#else
-  // Force creation of the multibyte _environ variable.
-  getenv("PATH");
-  int result = main(argc, argvConverted, _environ);
-#endif
 
   delete[] argvConverted;
   FreeAllocStrings(argc, deleteUs);

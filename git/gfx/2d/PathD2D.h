@@ -6,9 +6,8 @@
 #ifndef MOZILLA_GFX_PATHD2D_H_
 #define MOZILLA_GFX_PATHD2D_H_
 
-#include <d2d1.h>
-
 #include "2D.h"
+#include "moz-d2d1-1.h"
 
 namespace mozilla {
 namespace gfx {
@@ -18,7 +17,6 @@ class PathD2D;
 class PathBuilderD2D : public PathBuilder
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(PathBuilderD2D)
   PathBuilderD2D(ID2D1GeometrySink *aSink, ID2D1PathGeometry *aGeom, FillRule aFillRule)
     : mSink(aSink)
     , mGeometry(aGeom)
@@ -42,8 +40,6 @@ public:
 
   virtual TemporaryRef<Path> Finish();
 
-  virtual BackendType GetBackendType() const { return BackendType::DIRECT2D; }
-
   ID2D1GeometrySink *GetSink() { return mSink; }
 
 private:
@@ -63,7 +59,6 @@ private:
 class PathD2D : public Path
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(PathD2D)
   PathD2D(ID2D1PathGeometry *aGeometry, bool aEndedActive,
           const Point &aEndPoint, FillRule aFillRule)
     : mGeometry(aGeometry)
@@ -72,24 +67,18 @@ public:
     , mFillRule(aFillRule)
   {}
   
-  virtual BackendType GetBackendType() const { return BackendType::DIRECT2D; }
+  virtual BackendType GetBackendType() const { return BACKEND_DIRECT2D; }
 
-  virtual TemporaryRef<PathBuilder> CopyToBuilder(FillRule aFillRule = FillRule::FILL_WINDING) const;
+  virtual TemporaryRef<PathBuilder> CopyToBuilder(FillRule aFillRule = FILL_WINDING) const;
   virtual TemporaryRef<PathBuilder> TransformedCopyToBuilder(const Matrix &aTransform,
-                                                             FillRule aFillRule = FillRule::FILL_WINDING) const;
+                                                             FillRule aFillRule = FILL_WINDING) const;
 
   virtual bool ContainsPoint(const Point &aPoint, const Matrix &aTransform) const;
-
-  virtual bool StrokeContainsPoint(const StrokeOptions &aStrokeOptions,
-                                   const Point &aPoint,
-                                   const Matrix &aTransform) const;
 
   virtual Rect GetBounds(const Matrix &aTransform = Matrix()) const;
 
   virtual Rect GetStrokedBounds(const StrokeOptions &aStrokeOptions,
                                 const Matrix &aTransform = Matrix()) const;
-
-  virtual void StreamToSink(PathSink *aSink) const;
 
   virtual FillRule GetFillRule() const { return mFillRule; }
 
@@ -97,7 +86,6 @@ public:
 
 private:
   friend class DrawTargetD2D;
-  friend class DrawTargetD2D1;
 
   mutable RefPtr<ID2D1PathGeometry> mGeometry;
   bool mEndedActive;

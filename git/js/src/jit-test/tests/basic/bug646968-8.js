@@ -1,4 +1,4 @@
-load(libdir + "evalInFrame.js");
+// |jit-test| debug
 
 var x = 5;
 let (x = eval("x++")) {

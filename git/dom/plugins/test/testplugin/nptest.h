@@ -39,7 +39,8 @@
 #include "npapi.h"
 #include "npfunctions.h"
 #include "npruntime.h"
-#include <stdint.h>
+#include "prtypes.h"
+#include "mozilla/StandardInteger.h"
 #include <string>
 #include <sstream>
 
@@ -60,6 +61,12 @@ typedef enum {
   FUNCTION_NPP_DESTROYSTREAM,
   FUNCTION_NPP_WRITE_RPC
 } TestFunction;
+
+typedef enum {
+  AD_NONE,
+  AD_BITMAP,
+  AD_DXGI
+} AsyncDrawing;
 
 typedef enum {
   ACTIVATION_STATE_UNKNOWN,
@@ -100,12 +107,10 @@ typedef struct InstanceData {
   bool npnNewStream;
   bool throwOnNextInvoke;
   bool runScriptOnPaint;
-  bool dontTouchElement;
   uint32_t timerID[2];
   bool timerTestResult;
   bool asyncCallbackResult;
   bool invalidateDuringPaint;
-  bool slowPaint;
   int32_t winX;
   int32_t winY;
   int32_t lastMouseX;
@@ -142,9 +147,10 @@ typedef struct InstanceData {
   bool closeStream;
   std::string lastKeyText;
   bool wantsAllStreams;
+  AsyncDrawing asyncDrawing;
+  NPAsyncSurface *frontBuffer;
+  NPAsyncSurface *backBuffer;
   int32_t mouseUpEventCount;
-  int32_t bugMode;
-  std::string javaCodebase;
 } InstanceData;
 
 void notifyDidPaint(InstanceData* instanceData);

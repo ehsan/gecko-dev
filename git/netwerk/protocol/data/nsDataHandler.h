@@ -10,8 +10,6 @@
 
 class nsDataHandler : public nsIProtocolHandler
 {
-    virtual ~nsDataHandler();
-
 public:
     NS_DECL_ISUPPORTS
 
@@ -20,6 +18,7 @@ public:
 
     // nsDataHandler methods:
     nsDataHandler();
+    virtual ~nsDataHandler();
 
     // Define a Create method to be used with a factory:
     static nsresult
@@ -28,7 +27,7 @@ public:
     // Parse a data: URI and return the individual parts
     // (the given spec will temporarily be modified but will be returned
     //  to the original before returning)
-    static nsresult ParseURI(nsCString& spec,
+    static NS_HIDDEN_(nsresult) ParseURI(nsCString& spec,
                                          nsCString& contentType,
                                          nsCString& contentCharset,
                                          bool&    isBase64,

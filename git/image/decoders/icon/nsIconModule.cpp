@@ -12,34 +12,33 @@
 #include "nsIconChannel.h"
 
 // objects that just require generic constructors
-//*****************************************************************************
-// Protocol CIDs
-
-#define NS_ICONPROTOCOL_CID { 0xd0f9db12, 0x249c, 0x11d5, \
-                              { 0x99, 0x5, 0x0, 0x10, 0x83, 0x1, 0xe, 0x9b } }
+/******************************************************************************
+ * Protocol CIDs
+ */
+#define NS_ICONPROTOCOL_CID   { 0xd0f9db12, 0x249c, 0x11d5, { 0x99, 0x5, 0x0, 0x10, 0x83, 0x1, 0xe, 0x9b } } 
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsIconProtocolHandler)
 
 NS_DEFINE_NAMED_CID(NS_ICONPROTOCOL_CID);
 
 static const mozilla::Module::CIDEntry kIconCIDs[] = {
-  { &kNS_ICONPROTOCOL_CID, false, nullptr, nsIconProtocolHandlerConstructor },
-  { nullptr }
+  { &kNS_ICONPROTOCOL_CID, false, NULL, nsIconProtocolHandlerConstructor },
+  { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kIconContracts[] = {
   { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "moz-icon", &kNS_ICONPROTOCOL_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module::CategoryEntry kIconCategories[] = {
-  { nullptr }
+  { NULL }
 };
 
 static void
 IconDecoderModuleDtor()
 {
-#if (MOZ_WIDGET_GTK == 2)
+#ifdef MOZ_WIDGET_GTK2
   nsIconChannel::Shutdown();
 #endif
 }
@@ -49,8 +48,8 @@ static const mozilla::Module kIconModule = {
   kIconCIDs,
   kIconContracts,
   kIconCategories,
-  nullptr,
-  nullptr,
+  NULL,
+  NULL,
   IconDecoderModuleDtor
 };
 

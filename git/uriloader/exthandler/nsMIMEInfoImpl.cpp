@@ -16,8 +16,8 @@
 #include "nsCURILoader.h"
 
 // nsISupports methods
-NS_IMPL_ADDREF(nsMIMEInfoBase)
-NS_IMPL_RELEASE(nsMIMEInfoBase)
+NS_IMPL_THREADSAFE_ADDREF(nsMIMEInfoBase)
+NS_IMPL_THREADSAFE_RELEASE(nsMIMEInfoBase)
 
 NS_INTERFACE_MAP_BEGIN(nsMIMEInfoBase)
     NS_INTERFACE_MAP_ENTRY(nsIHandlerInfo)
@@ -167,7 +167,7 @@ nsMIMEInfoBase::Equals(nsIMIMEInfo *aMIMEInfo, bool *_retval)
 {
     if (!aMIMEInfo) return NS_ERROR_NULL_POINTER;
 
-    nsAutoCString type;
+    nsCAutoString type;
     nsresult rv = aMIMEInfo->GetMIMEType(type);
     if (NS_FAILED(rv)) return rv;
 
@@ -265,18 +265,13 @@ nsMIMEInfoBase::GetLocalFileFromURI(nsIURI *aURI, nsIFile **aFile)
   nsresult rv;
 
   nsCOMPtr<nsIFileURL> fileUrl = do_QueryInterface(aURI, &rv);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  if (NS_FAILED(rv)) return rv;
 
   nsCOMPtr<nsIFile> file;
   rv = fileUrl->GetFile(getter_AddRefs(file));
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  if (NS_FAILED(rv)) return rv;    
 
-  file.forget(aFile);
-  return NS_OK;
+  return CallQueryInterface(file, aFile);
 }
 
 NS_IMETHODIMP
@@ -305,7 +300,7 @@ nsMIMEInfoBase::LaunchWithFile(nsIFile* aFile)
     rv = localHandler->GetExecutable(getter_AddRefs(executable));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString path;
+    nsCAutoString path;
     aFile->GetNativePath(path);
     return LaunchWithIProcess(executable, path);
   }
@@ -386,7 +381,7 @@ nsMIMEInfoBase::LaunchWithIProcess(nsIFile* aApp, const nsString& aArg)
   if (NS_FAILED(rv))
     return rv;
 
-  const char16_t *string = aArg.get();
+  const PRUnichar *string = aArg.get();
 
   return process->Runw(false, &string, 1);
 }
@@ -423,7 +418,7 @@ nsMIMEInfoImpl::LaunchDefaultWithFile(nsIFile* aFile)
   if (!mDefaultApplication)
     return NS_ERROR_FILE_NOT_FOUND;
 
-  nsAutoCString nativePath;
+  nsCAutoString nativePath;
   aFile->GetNativePath(nativePath);
   
   return LaunchWithIProcess(mDefaultApplication, nativePath);

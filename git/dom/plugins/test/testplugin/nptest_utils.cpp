@@ -33,7 +33,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include "mozilla/NullPtr.h"
 
 NPUTF8*
 createCStringFromNPVariant(const NPVariant* variant)
@@ -94,9 +93,7 @@ parseHexColor(const char* color, int len)
   uint8_t bgra[4] = { 0, 0, 0, 0xFF };
   int i = 0;
 
-  // Ignore unsupported formats.
-  if (len != 9 && len != 8)
-    return 0;
+  assert(len == 9 || len == 8);
 
   // start from the right and work to the left
   while (len >= 2) { // we have at least #AA or AA left.
@@ -106,7 +103,7 @@ parseHexColor(const char* color, int len)
     byte[1] = color[len - 1];
     byte[2] = '\0';
 
-    bgra[i] = (uint8_t)(strtoul(byte, nullptr, 16) & 0xFF);
+    bgra[i] = (uint8_t)(strtoul(byte, NULL, 16) & 0xFF);
     i++;
     len -= 2;
   }

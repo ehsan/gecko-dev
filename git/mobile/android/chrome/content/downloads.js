@@ -1,32 +1,14 @@
-// -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
+// -*- Mode: js2; tab-width: 2; indent-tabs-mode: nil; js2-basic-offset: 2; js2-skip-preprocessor-directives: t; -*-
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-"use strict";
-
-let Cu = Components.utils;
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "Notifications",
-                                  "resource://gre/modules/Notifications.jsm");
-
 const URI_GENERIC_ICON_DOWNLOAD = "drawable://alert_download";
-const URI_PAUSE_ICON = "drawable://pause";
-const URI_CANCEL_ICON = "drawable://close";
-const URI_RESUME_ICON = "drawable://play";
-
-
-XPCOMUtils.defineLazyModuleGetter(this, "OS", "resource://gre/modules/osfile.jsm");
 
 var Downloads = {
   _initialized: false,
   _dlmgr: null,
   _progressAlert: null,
-  _privateDownloads: [],
-  _showingPrompt: false,
-  _downloadsIdMap: {},
-  _notificationKey: "downloads",
 
   _getLocalFile: function dl__getLocalFile(aFileURI) {
     // if this is a URL, get the file from that
@@ -41,187 +23,102 @@ var Downloads = {
     this._initialized = true;
 
     // Monitor downloads and display alerts
-    this._dlmgr = Cc["@mozilla.org/download-manager;1"].getService(Ci.nsIDownloadManager);
-    this._progressAlert = new AlertDownloadProgressListener();
-    this._dlmgr.addPrivacyAwareListener(this._progressAlert);
-    Services.obs.addObserver(this, "last-pb-context-exited", true);
-
-    // All click, cancel, and button presses will be handled by this handler as part of the Notifications callback API.
-    Notifications.registerHandler(this._notificationKey, this);
+    var os = Services.obs;
+    os.addObserver(this, "dl-start", true);
+    os.addObserver(this, "dl-failed", true);
+    os.addObserver(this, "dl-done", true);
+    os.addObserver(this, "dl-blocked", true);
+    os.addObserver(this, "dl-dirty", true);
+    os.addObserver(this, "dl-cancel", true);
   },
 
-  onClick: function(aCookie) {
-    Services.console.logStringMessage("Onclick " + aCookie);
-    Downloads.clickCallback(aCookie);
-  },
-
-  onCancel: function(aCookie) {
-    Services.console.logStringMessage("onCancel " + aCookie);
-    Downloads.notificationCanceledCallback(aCookie);
-  },
-
-  onButtonClick: function(aButtonId, aCookie) {
-    Services.console.logStringMessage("onButtonClick " + aCookie);
-    if (aButtonId === PAUSE_BUTTON.buttonId) {
-      Downloads.pauseClickCallback(aCookie);
-    } else if (aButtonId === RESUME_BUTTON.buttonId) {
-      Downloads.resumeClickCallback(aCookie);
-    } else if (aButtonId === CANCEL_BUTTON.buttonId) {
-      Downloads.cancelClickCallback(aCookie);
-    }
-  },
-
-  openDownload: function dl_openDownload(aDownload) {
-    let fileUri = aDownload.target.spec;
-    let guid = aDownload.guid;
-    let f = this._getLocalFile(fileUri);
+  openDownload: function dl_openDownload(aFileURI) {
+    let f = this._getLocalFile(aFileURI);
     try {
       f.launch();
-    } catch (ex) {
-      // in case we are not able to open the file (i.e. there is no app able to handle it)
-      // we just open the browser tab showing it 
-      BrowserApp.addTab("about:downloads?id=" + guid);
-    }
+    } catch (ex) { }
   },
 
   cancelDownload: function dl_cancelDownload(aDownload) {
-    aDownload.cancel();
+    this._dlmgr.cancelDownload(aDownload.id);
+    
     let fileURI = aDownload.target.spec;
     let f = this._getLocalFile(fileURI);
-
-    OS.File.remove(f.path);
+    if (f.exists())
+      f.remove(false);
   },
 
-  showCancelConfirmPrompt: function dl_showCancelConfirmPrompt(aDownload) {
-    if (this._showingPrompt)
-      return;
-    this._showingPrompt = true;
-    // Open a prompt that offers a choice to cancel the download
-    let title = Strings.browser.GetStringFromName("downloadCancelPromptTitle");
-    let message = Strings.browser.GetStringFromName("downloadCancelPromptMessage");
-    let flags = Services.prompt.BUTTON_POS_0 * Services.prompt.BUTTON_TITLE_YES +
-                Services.prompt.BUTTON_POS_1 * Services.prompt.BUTTON_TITLE_NO;
-    let choice = Services.prompt.confirmEx(null, title, message, flags,
-                                           null, null, null, null, {});
-    if (choice == 0)
-      this.cancelDownload(aDownload);
-    this._showingPrompt = false;
-  },
+  showAlert: function dl_showAlert(aDownload, aMessage, aTitle, aIcon) { 
+    let self = this;
 
-  handleClickEvent: function dl_handleClickEvent(aDownload) {
-    // Only open the downloaded file if the download is complete
-    if (aDownload.state == Ci.nsIDownloadManager.DOWNLOAD_FINISHED)
-      this.openDownload(aDownload);
-    else if (aDownload.state == Ci.nsIDownloadManager.DOWNLOAD_DOWNLOADING ||
-                aDownload.state == Ci.nsIDownloadManager.DOWNLOAD_PAUSED)
-      this.showCancelConfirmPrompt(aDownload);
-  },
+    // Use this flag to make sure we only show one prompt at a time
+    let cancelPrompt = false;
 
-  clickCallback: function dl_clickCallback(aDownloadId) {
-    this._dlmgr.getDownloadByGUID(aDownloadId, (function(status, download) {
-          if (Components.isSuccessCode(status))
-            this.handleClickEvent(download);
-        }).bind(this));
-  },
+    // Callback for tapping on the alert popup
+    let observer = {
+      observe: function (aSubject, aTopic, aData) {
+        if (aTopic == "alertclickcallback") {
+          if (aDownload.state == Ci.nsIDownloadManager.DOWNLOAD_FINISHED) {
+            // Only open the downloaded file if the download is complete
+            self.openDownload(aDownload.target.spec);
+          } else if (aDownload.state == Ci.nsIDownloadManager.DOWNLOAD_DOWNLOADING &&
+                     !cancelPrompt) {
+            cancelPrompt = true;
+            // Open a prompt that offers a choice to cancel the download
+            let title = Strings.browser.GetStringFromName("downloadCancelPromptTitle");
+            let message = Strings.browser.GetStringFromName("downloadCancelPromptMessage");
+            let flags = Services.prompt.BUTTON_POS_0 * Services.prompt.BUTTON_TITLE_YES +
+                        Services.prompt.BUTTON_POS_1 * Services.prompt.BUTTON_TITLE_NO;
 
-  pauseClickCallback: function dl_buttonPauseCallback(aDownloadId) {
-    this._dlmgr.getDownloadByGUID(aDownloadId, (function(status, download) {
-          if (Components.isSuccessCode(status))
-            download.pause();
-        }).bind(this));
-  },
-
-  resumeClickCallback: function dl_buttonPauseCallback(aDownloadId) {
-    this._dlmgr.getDownloadByGUID(aDownloadId, (function(status, download) {
-          if (Components.isSuccessCode(status))
-            download.resume();
-        }).bind(this));
-  },
-
-  cancelClickCallback: function dl_buttonPauseCallback(aDownloadId) {
-    this._dlmgr.getDownloadByGUID(aDownloadId, (function(status, download) {
-          if (Components.isSuccessCode(status))
-            this.cancelDownload(download);
-        }).bind(this));
-  },
-
-  notificationCanceledCallback: function dl_notifCancelCallback(aDownloadId) {
-    delete this._downloadsIdMap[aDownloadId];
-  },
-
-  createNotification: function dl_createNotif(aDownload, aOptions) {
-    let notificationId = Notifications.create(aOptions);
-    this._downloadsIdMap[aDownload.guid] = notificationId;
-  },
-
-  updateNotification: function dl_updateNotif(aDownload, aOptions) {
-    let notificationId = this._downloadsIdMap[aDownload.guid];
-    if (notificationId)
-      Notifications.update(notificationId, aOptions);
-  },
-
-  cancelNotification: function dl_cleanNotif(aDownload) {
-    Notifications.cancel(this._downloadsIdMap[aDownload.guid]);
-    delete this._downloadsIdMap[aDownload.guid];
-  },
-
-  // observer for last-pb-context-exited
-  observe: function dl_observe(aSubject, aTopic, aData) {
-    let download;
-    while ((download = this._privateDownloads.pop())) {
-      try {
-        let notificationId = aDownload.guid;
-        Notifications.clear(notificationId);
-        Downloads.removeNotification(download);
-      } catch (e) {
-        dump("Error removing private download: " + e);
+            let choice = Services.prompt.confirmEx(null, title, message, flags,
+                                                   null, null, null, null, {});
+            if (choice == 0)
+              self.cancelDownload(aDownload);
+            cancelPrompt = false;
+          }
+        }
       }
+    };
+
+    if (!aTitle)
+      aTitle = Strings.browser.GetStringFromName("alertDownloads");
+    if (!aIcon)
+      aIcon = URI_GENERIC_ICON_DOWNLOAD;
+
+    var notifier = Cc["@mozilla.org/alerts-service;1"].getService(Ci.nsIAlertsService);
+    notifier.showAlertNotification(aIcon, aTitle, aMessage, true, "", observer,
+                                   aDownload.target.spec.replace("file:", "download:"));
+  },
+
+  observe: function dl_observe(aSubject, aTopic, aData) {
+    let download = aSubject.QueryInterface(Ci.nsIDownload);
+    let msgKey = "";
+    if (aTopic == "dl-start") {
+      msgKey = "alertDownloadsStart";
+      if (!this._progressAlert) {
+        if (!this._dlmgr)
+          this._dlmgr = Cc["@mozilla.org/download-manager;1"].getService(Ci.nsIDownloadManager);
+        this._progressAlert = new AlertDownloadProgressListener();
+        this._dlmgr.addListener(this._progressAlert);
+      }
+
+      NativeWindow.toast.show(Strings.browser.GetStringFromName("alertDownloadsToast"), "long");
+    } else if (aTopic == "dl-done") {
+      msgKey = "alertDownloadsDone";
     }
+
+    if (msgKey)
+      this.showAlert(download, Strings.browser.formatStringFromName(msgKey, [download.displayName], 1));
   },
 
   QueryInterface: function (aIID) {
-    if (!aIID.equals(Ci.nsISupports) &&
-        !aIID.equals(Ci.nsIObserver) &&
-        !aIID.equals(Ci.nsISupportsWeakReference))
+    if (!aIID.equals(Ci.nsIObserver) &&
+        !aIID.equals(Ci.nsISupportsWeakReference) &&
+        !aIID.equals(Ci.nsISupports))
       throw Components.results.NS_ERROR_NO_INTERFACE;
     return this;
   }
 };
-
-const PAUSE_BUTTON = {
-  buttonId: "pause",
-  title : Strings.browser.GetStringFromName("alertDownloadsPause"),
-  icon : URI_PAUSE_ICON,
-};
-
-const CANCEL_BUTTON = {
-  buttonId: "cancel",
-  title : Strings.browser.GetStringFromName("alertDownloadsCancel"),
-  icon : URI_CANCEL_ICON,
-};
-
-const RESUME_BUTTON = {
-  buttonId: "resume",
-  title : Strings.browser.GetStringFromName("alertDownloadsResume"),
-  icon: URI_RESUME_ICON,
-};
-
-function DownloadNotifOptions (aDownload, aTitle, aMessage) {
-  this.icon = URI_GENERIC_ICON_DOWNLOAD;
-  this.title = aTitle;
-  this.message = aMessage;
-  this.buttons = null;
-  this.cookie = aDownload.guid;
-  this.persistent = true;
-  this.handlerKey = Downloads._notificationKey;
-}
-
-function DownloadProgressNotifOptions (aDownload, aButtons) {
-  DownloadNotifOptions.apply(this, [aDownload, aDownload.displayName, aDownload.percentComplete + "%"]);
-  this.ongoing = true;
-  this.progress = aDownload.percentComplete;
-  this.buttons = aButtons;
-}
 
 // AlertDownloadProgressListener is used to display progress in the alert notifications.
 function AlertDownloadProgressListener() { }
@@ -238,58 +135,34 @@ AlertDownloadProgressListener.prototype = {
     } catch(ex) { }
     let contentLength = aDownload.size;
     if (availableSpace > 0 && contentLength > 0 && contentLength > availableSpace) {
-      Downloads.updateNotification(aDownload, new DownloadNotifOptions(aDownload,
-                                                                        strings.GetStringFromName("alertDownloadsNoSpace"),
-                                                                        strings.GetStringFromName("alertDownloadsSize")));
-      aDownload.cancel();
+      Downloads.showAlert(aDownload, strings.GetStringFromName("alertDownloadsNoSpace"),
+                                     strings.GetStringFromName("alertDownloadsSize"));
+
+      Cc["@mozilla.org/download-manager;1"].getService(Ci.nsIDownloadManager).cancelDownload(aDownload.id);
     }
 
     if (aDownload.percentComplete == -1) {
       // Undetermined progress is not supported yet
       return;
     }
-
-    Downloads.updateNotification(aDownload, new DownloadProgressNotifOptions(aDownload, [PAUSE_BUTTON, CANCEL_BUTTON]));
+    let alertsService = Cc["@mozilla.org/alerts-service;1"].getService(Ci.nsIAlertsService);
+    let progressListener = alertsService.QueryInterface(Ci.nsIAlertsProgressListener);
+    let notificationName = aDownload.target.spec.replace("file:", "download:");
+    progressListener.onProgress(notificationName, aDownload.percentComplete, 100);
   },
 
   onDownloadStateChange: function(aState, aDownload) {
     let state = aDownload.state;
     switch (state) {
-      case Ci.nsIDownloadManager.DOWNLOAD_QUEUED: {
-        if (!ParentalControls.isAllowed(ParentalControls.DOWNLOADS)) {
-          aDownload.cancel();
-          NativeWindow.toast.show(Strings.browser.GetStringFromName("downloads.disabledInGuest"), "long");
-          return;
-        }
-
-        NativeWindow.toast.show(Strings.browser.GetStringFromName("alertDownloadsToast"), "long");
-        Downloads.createNotification(aDownload, new DownloadNotifOptions(aDownload,
-                                                                         Strings.browser.GetStringFromName("alertDownloadsStart2"),
-                                                                         aDownload.displayName));
-        break;
-      }
-      case Ci.nsIDownloadManager.DOWNLOAD_PAUSED: {
-        Downloads.updateNotification(aDownload, new DownloadProgressNotifOptions(aDownload, [RESUME_BUTTON, CANCEL_BUTTON]));
-        break;
-      }
       case Ci.nsIDownloadManager.DOWNLOAD_FAILED:
       case Ci.nsIDownloadManager.DOWNLOAD_CANCELED:
       case Ci.nsIDownloadManager.DOWNLOAD_BLOCKED_PARENTAL:
       case Ci.nsIDownloadManager.DOWNLOAD_DIRTY:
       case Ci.nsIDownloadManager.DOWNLOAD_FINISHED: {
-        Downloads.cancelNotification(aDownload);
-        if (aDownload.isPrivate) {
-          let index = Downloads._privateDownloads.indexOf(aDownload);
-          if (index != -1) {
-            Downloads._privateDownloads.splice(index, 1);
-          }
-        }
-
-        if (state == Ci.nsIDownloadManager.DOWNLOAD_FINISHED) {
-          Downloads.createNotification(aDownload, new DownloadNotifOptions(aDownload,
-                                                                Strings.browser.GetStringFromName("alertDownloadsDone2"),
-                                                                aDownload.displayName));
-        }
+        let alertsService = Cc["@mozilla.org/alerts-service;1"].getService(Ci.nsIAlertsService);
+        let progressListener = alertsService.QueryInterface(Ci.nsIAlertsProgressListener);
+        let notificationName = aDownload.target.spec.replace("file:", "download:");
+        progressListener.onCancel(notificationName);
         break;
       }
     }

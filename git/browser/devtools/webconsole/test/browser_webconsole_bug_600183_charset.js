@@ -10,44 +10,39 @@
 
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-bug-600183-charset.html";
 
-function performTest(lastFinishedRequest, aConsole)
+function performTest(lastFinishedRequest)
 {
   ok(lastFinishedRequest, "charset test page was loaded and logged");
-  HUDService.lastFinishedRequest.callback = null;
 
-  executeSoon(() => {
-    aConsole.webConsoleClient.getResponseContent(lastFinishedRequest.actor,
-      (aResponse) => {
-        ok(!aResponse.contentDiscarded, "response body was not discarded");
+  let body = lastFinishedRequest.log.entries[0].response.content.text;
+  ok(body, "we have the response body");
 
-        let body = aResponse.content.text;
-        ok(body, "we have the response body");
+  let chars = "\u7684\u95ee\u5019!"; // 的问候!
+  isnot(body.indexOf("<p>" + chars + "</p>"), -1,
+    "found the chinese simplified string");
 
-        let chars = "\u7684\u95ee\u5019!"; // 的问候!
-        isnot(body.indexOf("<p>" + chars + "</p>"), -1,
-          "found the chinese simplified string");
-
-        HUDService.lastFinishedRequest.callback = null;
-        executeSoon(finishTest);
-      });
-  });
+  HUDService.lastFinishedRequestCallback = null;
+  executeSoon(finishTest);
 }
 
 function test()
 {
   addTab("data:text/html;charset=utf-8,Web Console - bug 600183 test");
 
+  let initialLoad = true;
+
   browser.addEventListener("load", function onLoad() {
-    browser.removeEventListener("load", onLoad, true);
+    if (initialLoad) {
+      openConsole(null, function(hud) {
 
-    openConsole(null, function(hud) {
-      hud.ui.setSaveRequestAndResponseBodies(true).then(() => {
-        ok(hud.ui._saveRequestAndResponseBodies,
-          "The saveRequestAndResponseBodies property was successfully set.");
+        hud.ui.saveRequestAndResponseBodies = true;
+        HUDService.lastFinishedRequestCallback = performTest;
 
-        HUDService.lastFinishedRequest.callback = performTest;
         content.location = TEST_URI;
       });
-    });
+      initialLoad = false;
+    } else {
+      browser.removeEventListener("load", onLoad, true);
+    }
   }, true);
 }

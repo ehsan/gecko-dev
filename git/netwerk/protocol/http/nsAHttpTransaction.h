@@ -7,23 +7,15 @@
 
 #include "nsISupports.h"
 #include "nsTArray.h"
-#include "nsWeakReference.h"
-
-class nsIInterfaceRequestor;
-class nsIEventTarget;
-class nsITransport;
-class nsILoadGroupConnectionInfo;
-
-namespace mozilla { namespace net {
 
 class nsAHttpConnection;
 class nsAHttpSegmentReader;
 class nsAHttpSegmentWriter;
-class nsHttpTransaction;
-class nsHttpPipeline;
+class nsIInterfaceRequestor;
+class nsIEventTarget;
+class nsITransport;
 class nsHttpRequestHead;
-class nsHttpConnectionInfo;
-class SpdyConnectTransaction;
+class nsHttpPipeline;
 
 //----------------------------------------------------------------------------
 // Abstract base class for a HTTP transaction:
@@ -34,15 +26,9 @@ class SpdyConnectTransaction;
 // write function returns NS_BASE_STREAM_WOULD_BLOCK in this case).
 //----------------------------------------------------------------------------
 
-// 2af6d634-13e3-494c-8903-c9dce5c22fc0
-#define NS_AHTTPTRANSACTION_IID \
-{ 0x2af6d634, 0x13e3, 0x494c, {0x89, 0x03, 0xc9, 0xdc, 0xe5, 0xc2, 0x2f, 0xc0 }}
-
-class nsAHttpTransaction : public nsSupportsWeakReference
+class nsAHttpTransaction : public nsISupports
 {
 public:
-    NS_DECLARE_STATIC_IID_ACCESSOR(NS_AHTTPTRANSACTION_IID)
-
     // called by the connection when it takes ownership of the transaction.
     virtual void SetConnection(nsAHttpConnection *) = 0;
 
@@ -51,7 +37,8 @@ public:
 
     // called by the connection to get security callbacks to set on the
     // socket transport.
-    virtual void GetSecurityCallbacks(nsIInterfaceRequestor **) = 0;
+    virtual void GetSecurityCallbacks(nsIInterfaceRequestor **,
+                                      nsIEventTarget **) = 0;
 
     // called to report socket status (see nsITransportEventSink)
     virtual void OnTransportStatus(nsITransport* transport,
@@ -60,10 +47,7 @@ public:
     // called to check the transaction status.
     virtual bool     IsDone() = 0;
     virtual nsresult Status() = 0;
-    virtual uint32_t Caps() = 0;
-
-    // called to notify that a requested DNS cache entry was refreshed.
-    virtual void     SetDNSWasRefreshed() = 0;
+    virtual uint8_t  Caps() = 0;
 
     // called to find out how much request data is available for writing.
     virtual uint64_t Available() = 0;
@@ -81,7 +65,7 @@ public:
 
     // called to indicate a failure with proxy CONNECT
     virtual void SetProxyConnectFailed() = 0;
-
+    
     // called to retrieve the request headers of the transaction
     virtual nsHttpRequestHead *RequestHead() = 0;
 
@@ -106,7 +90,7 @@ public:
     // classes that do not implement sub transactions
     // return NS_ERROR_NOT_IMPLEMENTED
     virtual nsresult AddTransaction(nsAHttpTransaction *transaction) = 0;
-
+    
     // The total length of the outstanding pipeline comprised of transacations
     // and sub-transactions.
     virtual uint32_t PipelineDepth() = 0;
@@ -117,12 +101,6 @@ public:
     virtual nsresult SetPipelinePosition(int32_t) = 0;
     virtual int32_t  PipelinePosition() = 0;
 
-    // Occasionally the abstract interface has to give way to base implementations
-    // to respect differences between spdy, pipelines, etc..
-    // These Query* (and IsNUllTransaction()) functions provide a way to do
-    // that without using xpcom or rtti. Any calling code that can't deal with
-    // a null response from one of them probably shouldn't be using nsAHttpTransaction
-
     // If we used rtti this would be the result of doing
     // dynamic_cast<nsHttpPipeline *>(this).. i.e. it can be nullptr for
     // non pipeline implementations of nsAHttpTransaction
@@ -132,27 +110,7 @@ public:
     // A null transaction is expected to return BASE_STREAM_CLOSED on all of
     // its IO functions all the time.
     virtual bool IsNullTransaction() { return false; }
-
-    // If we used rtti this would be the result of doing
-    // dynamic_cast<nsHttpTransaction *>(this).. i.e. it can be nullptr for
-    // non nsHttpTransaction implementations of nsAHttpTransaction
-    virtual nsHttpTransaction *QueryHttpTransaction() { return nullptr; }
-
-    // If we used rtti this would be the result of doing
-    // dynamic_cast<SpdyConnectTransaction *>(this).. i.e. it can be nullptr for
-    // other types
-    virtual SpdyConnectTransaction *QuerySpdyConnectTransaction() { return nullptr; }
-
-    // return the load group connection information associated with the transaction
-    virtual nsILoadGroupConnectionInfo *LoadGroupConnectionInfo() { return nullptr; }
-
-    // return the connection information associated with the transaction
-    virtual nsHttpConnectionInfo *ConnectionInfo() = 0;
-
-    // The base definition of these is done in nsHttpTransaction.cpp
-    virtual bool ResponseTimeoutEnabled() const;
-    virtual PRIntervalTime ResponseTimeout();
-
+    
     // Every transaction is classified into one of the types below. When using
     // HTTP pipelines, only transactions with the same type appear on the same
     // pipeline.
@@ -166,7 +124,7 @@ public:
         // Transactions for content expected to be an image
         CLASS_IMAGE,
 
-        // Transactions that cannot involve a pipeline
+        // Transactions that cannot involve a pipeline 
         CLASS_SOLO,
 
         // Transactions that do not fit any of the other categories. HTML
@@ -175,41 +133,24 @@ public:
 
         CLASS_MAX
     };
-
-    // conceptually the security info is part of the connection, but sometimes
-    // in the case of TLS tunneled within TLS the transaction might present
-    // a more specific security info that cannot be represented as a layer in
-    // the connection due to multiplexing. This interface represents such an
-    // overload. If it returns NS_FAILURE the connection should be considered
-    // authoritative.
-    virtual nsresult GetTransactionSecurityInfo(nsISupports **)
-    {
-        return NS_ERROR_NOT_IMPLEMENTED;
-    }
-
-    virtual void DisableSpdy() { }
-    virtual void ReuseConnectionOnRestartOK(bool) { }
 };
-
-NS_DEFINE_STATIC_IID_ACCESSOR(nsAHttpTransaction, NS_AHTTPTRANSACTION_IID)
 
 #define NS_DECL_NSAHTTPTRANSACTION \
     void SetConnection(nsAHttpConnection *); \
     nsAHttpConnection *Connection(); \
-    void GetSecurityCallbacks(nsIInterfaceRequestor **);       \
+    void GetSecurityCallbacks(nsIInterfaceRequestor **, \
+                              nsIEventTarget **);       \
     void OnTransportStatus(nsITransport* transport, \
                            nsresult status, uint64_t progress); \
     bool     IsDone(); \
     nsresult Status(); \
-    uint32_t Caps();   \
-    void     SetDNSWasRefreshed(); \
+    uint8_t  Caps();   \
     uint64_t Available(); \
-    virtual nsresult ReadSegments(nsAHttpSegmentReader *, uint32_t, uint32_t *); \
-    virtual nsresult WriteSegments(nsAHttpSegmentWriter *, uint32_t, uint32_t *); \
-    virtual void Close(nsresult reason);                                \
-    nsHttpConnectionInfo *ConnectionInfo();                             \
+    nsresult ReadSegments(nsAHttpSegmentReader *, uint32_t, uint32_t *); \
+    nsresult WriteSegments(nsAHttpSegmentWriter *, uint32_t, uint32_t *); \
+    void     Close(nsresult reason);                                    \
     void     SetProxyConnectFailed();                                   \
-    virtual nsHttpRequestHead *RequestHead();                                   \
+    nsHttpRequestHead *RequestHead();                                   \
     uint32_t Http1xTransactionCount();                                  \
     nsresult TakeSubTransactions(nsTArray<nsRefPtr<nsAHttpTransaction> > &outTransactions); \
     nsresult AddTransaction(nsAHttpTransaction *);                      \
@@ -233,13 +174,12 @@ public:
     // data from subsequent OnReadSegment() calls or throw hard
     // (i.e. not wouldblock) exceptions. Implementations
     // can return NS_ERROR_FAILURE if they never make commitments of that size
-    // (the default), NS_OK if they make the commitment, or
-    // NS_BASE_STREAM_WOULD_BLOCK if they cannot make the
-    // commitment now but might in the future and forceCommitment is not true .
-    // (forceCommitment requires a hard failure or OK at this moment.)
+    // (the default), NS_BASE_STREAM_WOULD_BLOCK if they cannot make
+    // the commitment now but might in the future, or NS_OK
+    // if they make the commitment.
     //
-    // SpdySession uses this to make sure frames are atomic.
-    virtual nsresult CommitToSegmentSize(uint32_t size, bool forceCommitment)
+    // Spdy uses this to make sure frames are atomic.
+    virtual nsresult CommitToSegmentSize(uint32_t size)
     {
         return NS_ERROR_FAILURE;
     }
@@ -263,7 +203,5 @@ public:
 
 #define NS_DECL_NSAHTTPSEGMENTWRITER \
     nsresult OnWriteSegment(char *, uint32_t, uint32_t *);
-
-}} // namespace mozilla::net
 
 #endif // nsAHttpTransaction_h__

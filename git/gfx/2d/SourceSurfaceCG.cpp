@@ -5,12 +5,8 @@
 
 #include "SourceSurfaceCG.h"
 #include "DrawTargetCG.h"
-#include "DataSourceSurfaceWrapper.h"
-#include "DataSurfaceHelpers.h"
-#include "mozilla/Types.h" // for decltype
 
-#include "MacIOSurface.h"
-#include "Tools.h"
+#include "QuartzSupport.h"
 
 namespace mozilla {
 namespace gfx {
@@ -41,107 +37,13 @@ SourceSurfaceCG::GetDataSurface()
 {
   //XXX: we should be more disciplined about who takes a reference and where
   CGImageRetain(mImage);
-  RefPtr<DataSourceSurface> dataSurf = new DataSourceSurfaceCG(mImage);
-
-  // We also need to make sure that the returned surface has
-  // surface->GetType() == SurfaceType::DATA.
-  return new DataSourceSurfaceWrapper(dataSurf);
+  RefPtr<DataSourceSurfaceCG> dataSurf =
+    new DataSourceSurfaceCG(mImage);
+  return dataSurf;
 }
 
 static void releaseCallback(void *info, const void *data, size_t size) {
   free(info);
-}
-
-CGImageRef
-CreateCGImage(void *aInfo,
-              const void *aData,
-              const IntSize &aSize,
-              int32_t aStride,
-              SurfaceFormat aFormat)
-{
-  return CreateCGImage(releaseCallback,
-                       aInfo,
-                       aData,
-                       aSize,
-                       aStride,
-                       aFormat);
-}
-
-CGImageRef
-CreateCGImage(CGDataProviderReleaseDataCallback aCallback,
-              void *aInfo,
-              const void *aData,
-              const IntSize &aSize,
-              int32_t aStride,
-              SurfaceFormat aFormat)
-{
-  //XXX: we should avoid creating this colorspace everytime
-  CGColorSpaceRef colorSpace = nullptr;
-  CGBitmapInfo bitinfo = 0;
-  int bitsPerComponent = 0;
-  int bitsPerPixel = 0;
-
-  switch (aFormat) {
-    case SurfaceFormat::B8G8R8A8:
-      colorSpace = CGColorSpaceCreateDeviceRGB();
-      bitinfo = kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host;
-      bitsPerComponent = 8;
-      bitsPerPixel = 32;
-      break;
-
-    case SurfaceFormat::B8G8R8X8:
-      colorSpace = CGColorSpaceCreateDeviceRGB();
-      bitinfo = kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Host;
-      bitsPerComponent = 8;
-      bitsPerPixel = 32;
-      break;
-
-    case SurfaceFormat::A8:
-      // XXX: why don't we set a colorspace here?
-      bitsPerComponent = 8;
-      bitsPerPixel = 8;
-      break;
-
-    default:
-      MOZ_CRASH();
-  }
-
-  size_t bufLen = BufferSizeFromStrideAndHeight(aStride, aSize.height);
-  if (bufLen == 0) {
-    return nullptr;
-  }
-  CGDataProviderRef dataProvider = CGDataProviderCreateWithData(aInfo,
-                                                                aData,
-                                                                bufLen,
-                                                                aCallback);
-
-  CGImageRef image;
-  if (aFormat == SurfaceFormat::A8) {
-    CGFloat decode[] = {1.0, 0.0};
-    image = CGImageMaskCreate (aSize.width, aSize.height,
-                               bitsPerComponent,
-                               bitsPerPixel,
-                               aStride,
-                               dataProvider,
-                               decode,
-                               true);
-  } else {
-    image = CGImageCreate (aSize.width, aSize.height,
-                           bitsPerComponent,
-                           bitsPerPixel,
-                           aStride,
-                           colorSpace,
-                           bitinfo,
-                           dataProvider,
-                           nullptr,
-                           true,
-                           kCGRenderingIntentDefault);
-  }
-
-  CGDataProviderRelease(dataProvider);
-  CGColorSpaceRelease(colorSpace);
-
-  return image;
 }
 
 bool
@@ -150,21 +52,71 @@ SourceSurfaceCG::InitFromData(unsigned char *aData,
                                int32_t aStride,
                                SurfaceFormat aFormat)
 {
+  //XXX: we should avoid creating this colorspace everytime
+  CGColorSpaceRef colorSpace = nullptr;
+  CGBitmapInfo bitinfo = 0;
+  CGDataProviderRef dataProvider = nullptr;
+  int bitsPerComponent = 0;
+  int bitsPerPixel = 0;
+
   assert(aSize.width >= 0 && aSize.height >= 0);
 
-  size_t bufLen = BufferSizeFromStrideAndHeight(aStride, aSize.height);
-  if (bufLen == 0) {
-    mImage = nullptr;
-    return false;
-  }
+  switch (aFormat) {
+    case FORMAT_B8G8R8A8:
+      colorSpace = CGColorSpaceCreateDeviceRGB();
+      bitinfo = kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host;
+      bitsPerComponent = 8;
+      bitsPerPixel = 32;
+      break;
 
-  void *data = malloc(bufLen);
-  // Copy all the data except the stride padding on the very last
-  // row since we can't guarantee that is readable.
-  memcpy(data, aData, bufLen - aStride + (aSize.width * BytesPerPixel(aFormat)));
+    case FORMAT_B8G8R8X8:
+      colorSpace = CGColorSpaceCreateDeviceRGB();
+      bitinfo = kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Host;
+      bitsPerComponent = 8;
+      bitsPerPixel = 32;
+      break;
+
+    case FORMAT_A8:
+      // XXX: why don't we set a colorspace here?
+      bitsPerComponent = 8;
+      bitsPerPixel = 8;
+  };
+
+  void *data = malloc(aStride * aSize.height);
+  memcpy(data, aData, aStride * aSize.height);
 
   mFormat = aFormat;
-  mImage = CreateCGImage(data, data, aSize, aStride, aFormat);
+
+  dataProvider = CGDataProviderCreateWithData (data,
+                                               data,
+					       aSize.height * aStride,
+					       releaseCallback);
+
+  if (aFormat == FORMAT_A8) {
+    CGFloat decode[] = {1.0, 0.0};
+    mImage = CGImageMaskCreate (aSize.width, aSize.height,
+				bitsPerComponent,
+				bitsPerPixel,
+				aStride,
+				dataProvider,
+				decode,
+				true);
+
+  } else {
+    mImage = CGImageCreate (aSize.width, aSize.height,
+			    bitsPerComponent,
+			    bitsPerPixel,
+			    aStride,
+			    colorSpace,
+			    bitinfo,
+			    dataProvider,
+			    nullptr,
+			    true,
+			    kCGRenderingIntentDefault);
+  }
+
+  CGDataProviderRelease(dataProvider);
+  CGColorSpaceRelease (colorSpace);
 
   return mImage != nullptr;
 }
@@ -191,28 +143,71 @@ DataSourceSurfaceCG::InitFromData(unsigned char *aData,
                                int32_t aStride,
                                SurfaceFormat aFormat)
 {
-  if (aSize.width <= 0 || aSize.height <= 0) {
-    return false;
+  //XXX: we should avoid creating this colorspace everytime
+  CGColorSpaceRef colorSpace = nullptr;
+  CGBitmapInfo bitinfo = 0;
+  CGDataProviderRef dataProvider = nullptr;
+  int bitsPerComponent = 0;
+  int bitsPerPixel = 0;
+
+  switch (aFormat) {
+    case FORMAT_B8G8R8A8:
+      colorSpace = CGColorSpaceCreateDeviceRGB();
+      bitinfo = kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host;
+      bitsPerComponent = 8;
+      bitsPerPixel = 32;
+      break;
+
+    case FORMAT_B8G8R8X8:
+      colorSpace = CGColorSpaceCreateDeviceRGB();
+      bitinfo = kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Host;
+      bitsPerComponent = 8;
+      bitsPerPixel = 32;
+      break;
+
+    case FORMAT_A8:
+      // XXX: why don't we set a colorspace here?
+      bitsPerComponent = 8;
+      bitsPerPixel = 8;
+  };
+
+  void *data = malloc(aStride * aSize.height);
+  memcpy(data, aData, aStride * aSize.height);
+
+  //mFormat = aFormat;
+
+  dataProvider = CGDataProviderCreateWithData (data,
+                                               data,
+					       aSize.height * aStride,
+					       releaseCallback);
+
+  if (aFormat == FORMAT_A8) {
+    CGFloat decode[] = {1.0, 0.0};
+    mImage = CGImageMaskCreate (aSize.width, aSize.height,
+				bitsPerComponent,
+				bitsPerPixel,
+				aStride,
+				dataProvider,
+				decode,
+				true);
+
+  } else {
+    mImage = CGImageCreate (aSize.width, aSize.height,
+			    bitsPerComponent,
+			    bitsPerPixel,
+			    aStride,
+			    colorSpace,
+			    bitinfo,
+			    dataProvider,
+			    nullptr,
+			    true,
+			    kCGRenderingIntentDefault);
   }
 
-  size_t bufLen = BufferSizeFromStrideAndHeight(aStride, aSize.height);
-  if (bufLen == 0) {
-    mImage = nullptr;
-    return false;
-  }
+  CGDataProviderRelease(dataProvider);
+  CGColorSpaceRelease (colorSpace);
 
-  void *data = malloc(bufLen);
-  memcpy(data, aData, bufLen - aStride + (aSize.width * BytesPerPixel(aFormat)));
-
-  mFormat = aFormat;
-  mImage = CreateCGImage(data, data, aSize, aStride, aFormat);
-
-  if (!mImage) {
-    free(data);
-    return false;
-  }
-
-  return true;
+  return mImage;
 }
 
 CGContextRef CreateBitmapContextForImage(CGImageRef image)
@@ -251,7 +246,6 @@ CGContextRef CreateBitmapContextForImage(CGImageRef image)
 
 DataSourceSurfaceCG::DataSourceSurfaceCG(CGImageRef aImage)
 {
-  mFormat = SurfaceFormat::B8G8R8A8;
   mImage = aImage;
   mCg = CreateBitmapContextForImage(aImage);
   if (mCg == nullptr) {
@@ -292,8 +286,7 @@ DataSourceSurfaceCG::GetData()
 SourceSurfaceCGBitmapContext::SourceSurfaceCGBitmapContext(DrawTargetCG *aDrawTarget)
 {
   mDrawTarget = aDrawTarget;
-  mFormat = aDrawTarget->GetFormat();
-  mCg = (CGContextRef)aDrawTarget->GetNativeSurface(NativeSurfaceType::CGCONTEXT);
+  mCg = (CGContextRef)aDrawTarget->GetNativeSurface(NATIVE_SURFACE_CGCONTEXT);
   if (!mCg)
     abort();
 
@@ -315,8 +308,48 @@ void SourceSurfaceCGBitmapContext::EnsureImage() const
   // memcpy when the bitmap context is modified gives us more predictable
   // performance characteristics.
   if (!mImage) {
-    if (!mData) abort();
-    mImage = CreateCGImage(nullptr, mData, mSize, mStride, mFormat);
+      //XXX: we should avoid creating this colorspace everytime
+      CGColorSpaceRef colorSpace = nullptr;
+      CGBitmapInfo bitinfo = 0;
+      CGDataProviderRef dataProvider = nullptr;
+      int bitsPerComponent = 8;
+      int bitsPerPixel = 32;
+
+      colorSpace = CGColorSpaceCreateDeviceRGB();
+      bitinfo = kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host;
+
+      void *info;
+      if (mCg) {
+          // if we have an mCg than it owns the data
+          // and we don't want to tranfer ownership
+          // to the CGDataProviderCreateWithData
+          info = nullptr;
+      } else {
+          // otherwise we transfer ownership to
+          // the dataProvider
+          info = mData;
+      }
+
+      if (!mData) abort();
+
+      dataProvider = CGDataProviderCreateWithData (info,
+                                                   mData,
+                                                   mSize.height * mStride,
+                                                   releaseCallback);
+
+      mImage = CGImageCreate (mSize.width, mSize.height,
+                              bitsPerComponent,
+                              bitsPerPixel,
+                              mStride,
+                              colorSpace,
+                              bitinfo,
+                              dataProvider,
+                              nullptr,
+                              true,
+                              kCGRenderingIntentDefault);
+
+      CGDataProviderRelease(dataProvider);
+      CGColorSpaceRelease (colorSpace);
   }
 }
 
@@ -334,21 +367,13 @@ SourceSurfaceCGBitmapContext::DrawTargetWillChange()
     size_t stride = CGBitmapContextGetBytesPerRow(mCg);
     size_t height = CGBitmapContextGetHeight(mCg);
 
-    size_t bufLen = BufferSizeFromStrideAndHeight(stride, height);
-    if (bufLen == 0) {
-      mDataHolder.Dealloc();
-      mData = nullptr;
-    } else {
-      static_assert(sizeof(decltype(mDataHolder[0])) == 1,
-                    "mDataHolder.Realloc() takes an object count, so its objects must be 1-byte sized if we use bufLen");
-      mDataHolder.Realloc(/* actually an object count */ bufLen);
-      mData = mDataHolder;
+    //XXX: infalliable malloc?
+    mData = malloc(stride * height);
 
-      // copy out the data from the CGBitmapContext
-      // we'll maintain ownership of mData until
-      // we transfer it to mImage
-      memcpy(mData, CGBitmapContextGetData(mCg), bufLen);
-    }
+    // copy out the data from the CGBitmapContext
+    // we'll maintain ownership of mData until
+    // we transfer it to mImage
+    memcpy(mData, CGBitmapContextGetData(mCg), stride*height);
 
     // drop the current image for the data associated with the CGBitmapContext
     if (mImage)
@@ -360,37 +385,22 @@ SourceSurfaceCGBitmapContext::DrawTargetWillChange()
   }
 }
 
-void
-SourceSurfaceCGBitmapContext::DrawTargetWillGoAway()
-{
-  if (mDrawTarget) {
-    if (mDrawTarget->mData != CGBitmapContextGetData(mCg)) {
-      DrawTargetWillChange();
-      return;
-    }
-
-    // Instead of copying the data over, we can just swap it.
-    mDataHolder.Swap(mDrawTarget->mData);
-    mData = mDataHolder;
-    mCg = nullptr;
-    mDrawTarget = nullptr;
-    // mImage is still valid because it still points to the same data.
-  }
-}
-
 SourceSurfaceCGBitmapContext::~SourceSurfaceCGBitmapContext()
 {
+  if (!mImage && !mCg) {
+    // neither mImage or mCg owns the data
+    free(mData);
+  }
   if (mImage)
     CGImageRelease(mImage);
 }
 
 SourceSurfaceCGIOSurfaceContext::SourceSurfaceCGIOSurfaceContext(DrawTargetCG *aDrawTarget)
 {
-  CGContextRef cg = (CGContextRef)aDrawTarget->GetNativeSurface(NativeSurfaceType::CGCONTEXT_ACCELERATED);
+  CGContextRef cg = (CGContextRef)aDrawTarget->GetNativeSurface(NATIVE_SURFACE_CGCONTEXT_ACCELERATED);
 
   RefPtr<MacIOSurface> surf = MacIOSurface::IOSurfaceContextGetSurface(cg);
 
-  mFormat = aDrawTarget->GetFormat();
   mSize.width = surf->GetWidth();
   mSize.height = surf->GetHeight();
 
@@ -423,7 +433,36 @@ void SourceSurfaceCGIOSurfaceContext::EnsureImage() const
   // memcpy when the bitmap context is modified gives us more predictable
   // performance characteristics.
   if (!mImage) {
-    mImage = CreateCGImage(mData, mData, mSize, mStride, SurfaceFormat::B8G8R8A8);
+      //XXX: we should avoid creating this colorspace everytime
+      CGColorSpaceRef colorSpace = nullptr;
+      CGBitmapInfo bitinfo = 0;
+      CGDataProviderRef dataProvider = nullptr;
+      int bitsPerComponent = 8;
+      int bitsPerPixel = 32;
+
+      colorSpace = CGColorSpaceCreateDeviceRGB();
+      bitinfo = kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host;
+
+      void *info = mData;
+
+      dataProvider = CGDataProviderCreateWithData (info,
+                                                   mData,
+                                                   mSize.height * mStride,
+                                                   releaseCallback);
+
+      mImage = CGImageCreate (mSize.width, mSize.height,
+                              bitsPerComponent,
+                              bitsPerPixel,
+                              mStride,
+                              colorSpace,
+                              bitinfo,
+                              dataProvider,
+                              nullptr,
+                              true,
+                              kCGRenderingIntentDefault);
+
+      CGDataProviderRelease(dataProvider);
+      CGColorSpaceRelease (colorSpace);
   }
 
 }

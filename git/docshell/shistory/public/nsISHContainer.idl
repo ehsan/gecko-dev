@@ -5,8 +5,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsISupports.idl"
+#include "nsIEnumerator.idl"
+#include "nsISHEntry.idl"
 
-interface nsISHEntry;
 
 /**
  * The nsISHEntryContainer. The interface to access child entries
@@ -14,7 +15,7 @@ interface nsISHEntry;
  * 
  */
 
-[scriptable, uuid(67dd0357-8372-4122-bff6-217435e8b7e4)]
+[scriptable, uuid(65281BA2-988A-11d3-BDC7-0050040A9B44)]
 interface nsISHContainer : nsISupports
 {
 	/**
@@ -37,13 +38,6 @@ interface nsISHContainer : nsISupports
 	 * Get child at an index
 	 */
 	nsISHEntry GetChildAt(in long index);
-
-	/**
-	 * Replaces a child which is for the same docshell as aNewChild
-	 * with aNewChild.
-	 * @throw if nothing was replaced.
-	 */
-	void ReplaceChild(in nsISHEntry aNewChild);
 
 };
 

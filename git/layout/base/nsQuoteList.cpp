@@ -8,7 +8,6 @@
 
 #include "nsQuoteList.h"
 #include "nsReadableUtils.h"
-#include "nsIContent.h"
 
 bool
 nsQuoteNode::InitTextFrame(nsGenConList* aList, nsIFrame* aPseudoFrame,
@@ -37,7 +36,7 @@ nsQuoteNode::Text()
   NS_ASSERTION(mType == eStyleContentType_OpenQuote ||
                mType == eStyleContentType_CloseQuote,
                "should only be called when mText should be non-null");
-  const nsStyleQuotes* styleQuotes = mPseudoFrame->StyleQuotes();
+  const nsStyleQuotes* styleQuotes = mPseudoFrame->GetStyleQuotes();
   int32_t quotesCount = styleQuotes->QuotesCount(); // 0 if 'quotes:none'
   int32_t quoteDepth = Depth();
 

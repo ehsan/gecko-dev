@@ -7,11 +7,9 @@
 #include <stdio.h>
 #include "plhash.h"
 
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsQuickSort.h"
 #include "nsXPCOM.h"
-
-const uint32_t kPointersDefaultSize = 8;
 
 /*
  * Read in an allocation dump, presumably one taken at shutdown (using
@@ -27,10 +25,10 @@ struct AllocationNode {
 
     // Other |AllocationNode| objects whose memory has a pointer to
     // this object.
-    nsAutoTArray<AllocationNode*, kPointersDefaultSize> pointers_to;
+    nsAutoVoidArray pointers_to;
 
     // The reverse.
-    nsAutoTArray<AllocationNode*, kPointersDefaultSize> pointers_from;
+    nsAutoVoidArray pointers_from;
 
     // Early on in the algorithm, the pre-order index from a DFS.
     // Later on, set to the index of the strongly connected component to
@@ -92,11 +90,6 @@ static void print_escaped(FILE *aStream, const char* aData)
     fputs(buf, aStream);
 }
 
-static const char *allocation_format =
-  (sizeof(ADLog::Pointer) == 4) ? "0x%08zX" :
-  (sizeof(ADLog::Pointer) == 8) ? "0x%016zX" :
-  "UNEXPECTED sizeof(void*)";
-
 int main(int argc, char **argv)
 {
     if (argc != 2) {
@@ -107,7 +100,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    NS_InitXPCOM2(nullptr, nullptr, nullptr);
+    NS_InitXPCOM2(NULL, NULL, NULL);
 
     ADLog log;
     if (!log.Read(argv[1])) {
@@ -143,8 +136,8 @@ int main(int argc, char **argv)
             for (ADLog::Pointer p = e->address,
                             p_end = e->address + e->datasize;
                  p != p_end; ++p) {
-                PLHashEntry *he = PL_HashTableAdd(memory_map, p, cur_node);
-                if (!he) {
+                PLHashEntry *e = PL_HashTableAdd(memory_map, p, cur_node);
+                if (!e) {
                     fprintf(stderr, "%s: Out of memory.\n", argv[0]);
                     return 1;
                 }
@@ -172,7 +165,7 @@ int main(int argc, char **argv)
     // |pointers_to|) and assign the post-order index to |index|.
     {
         uint32_t dfs_index = 0;
-        nsTArray<AllocationNode*> stack;
+        nsVoidArray stack;
 
         for (AllocationNode *n = nodes, *n_end = nodes+count; n != n_end; ++n) {
             if (n->reached) {
@@ -181,8 +174,9 @@ int main(int argc, char **argv)
             stack.AppendElement(n);
 
             do {
-                uint32_t pos = stack.Length() - 1;
-                AllocationNode *n = stack[pos];
+                uint32_t pos = stack.Count() - 1;
+                AllocationNode *n =
+                    static_cast<AllocationNode*>(stack[pos]);
                 if (n->reached) {
                     n->index = dfs_index++;
                     stack.RemoveElementAt(pos);
@@ -191,14 +185,14 @@ int main(int argc, char **argv)
 
                     // When doing post-order processing, we have to be
                     // careful not to put reached nodes into the stack.
-                    for (int32_t i = n->pointers_to.Length() - 1; i >= 0; --i) {
-                        AllocationNode* e = n->pointers_to[i];
-                        if (!e->reached) {
-                            stack.AppendElement(e);
+                    nsVoidArray &pt = n->pointers_to;
+                    for (int32_t i = pt.Count() - 1; i >= 0; --i) {
+                        if (!static_cast<AllocationNode*>(pt[i])->reached) {
+                            stack.AppendElement(pt[i]);
                         }
                     }
                 }
-            } while (stack.Length() > 0);
+            } while (stack.Count() > 0);
         }
     }
 
@@ -224,7 +218,7 @@ int main(int argc, char **argv)
         for (size_t i = 0; i < count; ++i) {
             nodes[i].reached = false;
         }
-        nsTArray<AllocationNode*> stack;
+        nsVoidArray stack;
         for (AllocationNode **sn = sorted_nodes,
                         **sn_end = sorted_nodes + count; sn != sn_end; ++sn) {
             if ((*sn)->reached) {
@@ -234,8 +228,9 @@ int main(int argc, char **argv)
             // We found a new strongly connected index.
             stack.AppendElement(*sn);
             do {
-                uint32_t pos = stack.Length() - 1;
-                AllocationNode *n = stack[pos];
+                uint32_t pos = stack.Count() - 1;
+                AllocationNode *n =
+                    static_cast<AllocationNode*>(stack[pos]);
                 stack.RemoveElementAt(pos);
 
                 if (!n->reached) {
@@ -243,7 +238,7 @@ int main(int argc, char **argv)
                     n->index = num_sccs;
                     stack.AppendElements(n->pointers_from);
                 }
-            } while (stack.Length() > 0);
+            } while (stack.Count() > 0);
             ++num_sccs;
         }
     }
@@ -256,7 +251,7 @@ int main(int argc, char **argv)
             nodes[i].is_root = true;
         }
 
-        nsTArray<AllocationNode*> stack;
+        nsVoidArray stack;
         for (AllocationNode *n = nodes, *n_end = nodes+count; n != n_end; ++n) {
             if (!n->is_root) {
                 continue;
@@ -264,16 +259,18 @@ int main(int argc, char **argv)
 
             // Loop through pointers_to, and add any that are in a
             // different SCC to stack:
-            for (int i = n->pointers_to.Length() - 1; i >= 0; --i) {
-                AllocationNode *target = n->pointers_to[i];
+            for (int i = n->pointers_to.Count() - 1; i >= 0; --i) {
+                AllocationNode *target =
+                    static_cast<AllocationNode*>(n->pointers_to[i]);
                 if (n->index != target->index) {
                     stack.AppendElement(target);
                 }
             }
 
-            while (stack.Length() > 0) {
-                uint32_t pos = stack.Length() - 1;
-                AllocationNode *n = stack[pos];
+            while (stack.Count() > 0) {
+                uint32_t pos = stack.Count() - 1;
+                AllocationNode *n =
+                    static_cast<AllocationNode*>(stack[pos]);
                 stack.RemoveElementAt(pos);
 
                 if (n->is_root) {
@@ -301,7 +298,7 @@ int main(int argc, char **argv)
                "</style>\n"
                "</head>\n");
         printf("<body>\n\n"
-               "<p>Generated %zd entries (%d in root SCCs) and %d SCCs.</p>\n\n",
+               "<p>Generated %d entries (%d in root SCCs) and %d SCCs.</p>\n\n",
                count, num_root_nodes, num_sccs);
 
         for (size_t i = 0; i < count; ++i) {
@@ -342,46 +339,43 @@ int main(int argc, char **argv)
 
                 if (one_object_component) {
                     printf("\n\n<div id=\"c%d\">\n", component);
-                    printf("<h2 id=\"o%td\">Object %td "
+                    printf("<h2 id=\"o%d\">Object %d "
                            "(single-object component %d)</h2>\n",
                            n-nodes, n-nodes, component);
                 } else {
-                    printf("\n\n<h3 id=\"o%td\">Object %td</h3>\n",
+                    printf("\n\n<h3 id=\"o%d\">Object %d</h3>\n",
                            n-nodes, n-nodes);
                 }
                 printf("<pre>\n");
-                printf("%p &lt;%s&gt; (%zd)\n",
+                printf("%p &lt;%s&gt; (%d)\n",
                        e->address, e->type, e->datasize);
                 for (size_t d = 0; d < e->datasize;
                      d += sizeof(ADLog::Pointer)) {
                     AllocationNode *target = (AllocationNode*)
                         PL_HashTableLookup(memory_map, *(void**)(e->data + d));
                     if (target) {
-                        printf("        <a href=\"#o%td\">",
-                               target - nodes);
-                        printf(allocation_format,
-                               *(size_t*)(e->data + d));
-                        printf("</a> &lt;%s&gt;",
+                        printf("        <a href=\"#o%d\">0x%08X</a> &lt;%s&gt;",
+                               target - nodes,
+                               *(unsigned int*)(e->data + d),
                                target->entry->type);
                         if (target->index != n->index) {
                             printf(", component %d", target->index);
                         }
                         printf("\n");
                     } else {
-                        printf("        ");
-                        printf(allocation_format,
-                               *(size_t*)(e->data + d));
-                        printf("\n");
+                        printf("        0x%08X\n",
+                               *(unsigned int*)(e->data + d));
                     }
                 }
 
-                if (n->pointers_from.Length()) {
+                if (n->pointers_from.Count()) {
                     printf("\nPointers from:\n");
-                    for (uint32_t i = 0, i_end = n->pointers_from.Length();
+                    for (uint32_t i = 0, i_end = n->pointers_from.Count();
                          i != i_end; ++i) {
-                        AllocationNode *t = n->pointers_from[i];
+                        AllocationNode *t = static_cast<AllocationNode*>
+                                                       (n->pointers_from[i]);
                         const ADLog::Entry *te = t->entry;
-                        printf("    <a href=\"#o%td\">%s</a> (Object %td, ",
+                        printf("    <a href=\"#o%d\">%s</a> (Object %d, ",
                                t - nodes, te->type, t - nodes);
                         if (t->index != n->index) {
                             printf("component %d, ", t->index);
@@ -410,7 +404,7 @@ int main(int argc, char **argv)
     delete [] sorted_nodes;
     delete [] nodes;
 
-    NS_ShutdownXPCOM(nullptr);
+    NS_ShutdownXPCOM(NULL);
 
     return 0;
 }

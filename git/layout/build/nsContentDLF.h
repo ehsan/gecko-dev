@@ -7,6 +7,7 @@
 #define nsContentDLF_h__
 
 #include "nsIDocumentLoaderFactory.h"
+#include "nsIDocument.h"
 #include "nsMimeTypes.h"
 
 class nsIChannel;
@@ -21,11 +22,9 @@ class nsIStreamListener;
 
 class nsContentDLF : public nsIDocumentLoaderFactory
 {
-protected:
-  virtual ~nsContentDLF();
-
 public:
   nsContentDLF();
+  virtual ~nsContentDLF();
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOCUMENTLOADERFACTORY
@@ -35,7 +34,7 @@ public:
   nsresult CreateDocument(const char* aCommand,
                           nsIChannel* aChannel,
                           nsILoadGroup* aLoadGroup,
-                          nsIDocShell* aContainer,
+                          nsISupports* aContainer,
                           const nsCID& aDocumentCID,
                           nsIStreamListener** aDocListener,
                           nsIContentViewer** aContentViewer);
@@ -44,7 +43,7 @@ public:
                              nsIChannel* aChannel,
                              nsILoadGroup* aLoadGroup,
                              const char* aContentType,
-                             nsIDocShell* aContainer,
+                             nsISupports* aContainer,
                              nsISupports* aExtraInfo,
                              nsIStreamListener** aDocListener,
                              nsIContentViewer** aContentViewer);
@@ -87,7 +86,6 @@ NS_NewContentDocumentLoaderFactory(nsIDocumentLoaderFactory** aResult);
     { "Gecko-Content-Viewers", IMAGE_SVG_XML, "@mozilla.org/content/document-loader-factory;1" }, \
     { "Gecko-Content-Viewers", APPLICATION_MATHML_XML, "@mozilla.org/content/document-loader-factory;1" }, \
     CONTENTDLF_WEBM_CATEGORIES
-
 
 #endif
 

@@ -15,14 +15,14 @@
   ondialogaccept="return doOK();"
   ondialogcancel="return doCancel();">
 
-  <stringbundle id="pippki_bundle" src="chrome://pippki/locale/pippki.properties"/>
-
   <script type="application/javascript" src="chrome://pippki/content/deletecert.js"/>
+  <script type="application/javascript" src="chrome://global/content/strres.js" />
   <script type="application/javascript" src="pippki.js" />
 
   <description id="confirm" style="width: 400px;"/>
-  <richlistbox id="certlist" class="box-padded" flex="1"
-               style="min-height: 8em; height: 8em; min-width: 35em;"/>
+  <separator />
+  <vbox id="certlist" class="box-padded"/>
+  <separator />
   <description id="impact" style="width: 400px;"/>
 
 </dialog>

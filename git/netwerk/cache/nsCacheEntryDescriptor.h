@@ -13,26 +13,23 @@
 #include "nsIInputStream.h"
 #include "nsIOutputStream.h"
 #include "nsCacheService.h"
+#include "nsIDiskCacheStreamInternal.h"
 #include "zlib.h"
-#include "mozilla/Mutex.h"
-#include "nsVoidArray.h"
 
 /******************************************************************************
 * nsCacheEntryDescriptor
 *******************************************************************************/
-class nsCacheEntryDescriptor MOZ_FINAL :
+class nsCacheEntryDescriptor :
     public PRCList,
     public nsICacheEntryDescriptor
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSICACHEENTRYDESCRIPTOR
     NS_DECL_NSICACHEENTRYINFO
-
-    friend class nsAsyncDoomEvent;
-    friend class nsCacheService;
-
+    
     nsCacheEntryDescriptor(nsCacheEntry * entry, nsCacheAccessMode  mode);
+    virtual ~nsCacheEntryDescriptor();
     
     /**
      * utility method to attempt changing data size of associated entry
@@ -43,29 +40,28 @@ public:
      * methods callbacks for nsCacheService
      */
     nsCacheEntry * CacheEntry(void)      { return mCacheEntry; }
-    bool           ClearCacheEntry(void)
+    void           ClearCacheEntry(void) { mCacheEntry = nullptr; }
+
+    nsresult       CloseOutput(void)
     {
-      NS_ASSERTION(mInputWrappers.Count() == 0, "Bad state");
-      NS_ASSERTION(!mOutputWrapper, "Bad state");
-
-      bool doomEntry = false;
-      bool asyncDoomPending;
-      {
-        mozilla::MutexAutoLock lock(mLock);
-        asyncDoomPending = mAsyncDoomPending;
-      }
-
-      if (asyncDoomPending && mCacheEntry) {
-        doomEntry = true;
-        mDoomedOnClose = true;
-      }
-      mCacheEntry = nullptr;
-
-      return doomEntry;
+      nsresult rv = InternalCleanup(mOutput);
+      mOutput = nullptr;
+      return rv;
     }
 
 private:
-    virtual ~nsCacheEntryDescriptor();
+    nsresult       InternalCleanup(nsIOutputStream *stream)
+    {
+      if (stream) {
+        nsCOMPtr<nsIDiskCacheStreamInternal> tmp (do_QueryInterface(stream));
+        if (tmp)
+          return tmp->CloseInternal();
+        else
+          return stream->Close();
+      }
+      return NS_OK;
+    }
+
 
      /*************************************************************************
       * input stream wrapper class -
@@ -74,39 +70,32 @@ private:
       * doesn't need any references to the stream wrapper.
       *************************************************************************/
      class nsInputStreamWrapper : public nsIInputStream {
-         friend class nsCacheEntryDescriptor;
-
      private:
          nsCacheEntryDescriptor    * mDescriptor;
          nsCOMPtr<nsIInputStream>    mInput;
          uint32_t                    mStartOffset;
          bool                        mInitialized;
-         mozilla::Mutex              mLock;
      public:
-         NS_DECL_THREADSAFE_ISUPPORTS
+         NS_DECL_ISUPPORTS
          NS_DECL_NSIINPUTSTREAM
 
          nsInputStreamWrapper(nsCacheEntryDescriptor * desc, uint32_t off)
              : mDescriptor(desc)
              , mStartOffset(off)
              , mInitialized(false)
-             , mLock("nsInputStreamWrapper.mLock")
          {
              NS_ADDREF(mDescriptor);
          }
-
-     private:
          virtual ~nsInputStreamWrapper()
          {
-             NS_IF_RELEASE(mDescriptor);
+             NS_RELEASE(mDescriptor);
          }
 
+     private:
          nsresult LazyInit();
-         nsresult EnsureInit();
-         nsresult Read_Locked(char *buf, uint32_t count, uint32_t *countRead);
-         nsresult Close_Locked();
-         void CloseInternal();
+         nsresult EnsureInit() { return mInitialized ? NS_OK : LazyInit(); }
      };
+     friend class nsInputStreamWrapper;
 
 
      class nsDecompressInputStreamWrapper : public nsInputStreamWrapper {
@@ -117,7 +106,7 @@ private:
          bool mStreamInitialized;
          bool mStreamEnded;
      public:
-         NS_DECL_ISUPPORTS_INHERITED
+         NS_DECL_ISUPPORTS
 
          nsDecompressInputStreamWrapper(nsCacheEntryDescriptor * desc,
                                       uint32_t off)
@@ -128,13 +117,13 @@ private:
           , mStreamEnded(false)
          {
          }
-         NS_IMETHOD Read(char* buf, uint32_t count, uint32_t * result);
-         NS_IMETHOD Close();
-     private:
          virtual ~nsDecompressInputStreamWrapper()
          {
              Close();
          }
+         NS_IMETHOD Read(char* buf, uint32_t count, uint32_t * result);
+         NS_IMETHOD Close();
+     private:
          nsresult InitZstream();
          nsresult EndZstream();
      };
@@ -147,46 +136,39 @@ private:
       * doesn't need any references to the stream wrapper.
       *************************************************************************/
      class nsOutputStreamWrapper : public nsIOutputStream {
-         friend class nsCacheEntryDescriptor;
-
      protected:
          nsCacheEntryDescriptor *    mDescriptor;
          nsCOMPtr<nsIOutputStream>   mOutput;
          uint32_t                    mStartOffset;
          bool                        mInitialized;
-         mozilla::Mutex              mLock;
      public:
-         NS_DECL_THREADSAFE_ISUPPORTS
+         NS_DECL_ISUPPORTS
          NS_DECL_NSIOUTPUTSTREAM
 
          nsOutputStreamWrapper(nsCacheEntryDescriptor * desc, uint32_t off)
              : mDescriptor(desc)
              , mStartOffset(off)
              , mInitialized(false)
-             , mLock("nsOutputStreamWrapper.mLock")
          {
              NS_ADDREF(mDescriptor); // owning ref
          }
-
-     private:
          virtual ~nsOutputStreamWrapper()
-         {
+         { 
+             // XXX _HACK_ the storage stream needs this!
              Close();
-
-             NS_ASSERTION(!mOutput, "Bad state");
-             NS_ASSERTION(!mDescriptor, "Bad state");
+             {
+             nsCacheServiceAutoLock lock(LOCK_TELEM(NSOUTPUTSTREAMWRAPPER_CLOSE));
+             mDescriptor->mOutput = nullptr;
+             }
+             NS_RELEASE(mDescriptor);
          }
 
+     private:
          nsresult LazyInit();
-         nsresult EnsureInit();
+         nsresult EnsureInit() { return mInitialized ? NS_OK : LazyInit(); }
          nsresult OnWrite(uint32_t count);
-         nsresult Write_Locked(const char * buf,
-                               uint32_t count,
-                               uint32_t * result);
-         nsresult Close_Locked();
-         void CloseInternal();
      };
-
+     friend class nsOutputStreamWrapper;
 
      class nsCompressOutputStreamWrapper : public nsOutputStreamWrapper {
      private:
@@ -194,10 +176,9 @@ private:
          uint32_t mWriteBufferLen;
          z_stream mZstream;
          bool mStreamInitialized;
-         bool mStreamEnded;
          uint32_t mUncompressedCount;
      public:
-         NS_DECL_ISUPPORTS_INHERITED
+         NS_DECL_ISUPPORTS
 
          nsCompressOutputStreamWrapper(nsCacheEntryDescriptor * desc, 
                                        uint32_t off)
@@ -205,17 +186,16 @@ private:
           , mWriteBuffer(0)
           , mWriteBufferLen(0)
           , mStreamInitialized(false)
-          , mStreamEnded(false)
           , mUncompressedCount(0)
          {
          }
-         NS_IMETHOD Write(const char* buf, uint32_t count, uint32_t * result);
-         NS_IMETHOD Close();
-     private:
          virtual ~nsCompressOutputStreamWrapper()
          { 
              Close();
          }
+         NS_IMETHOD Write(const char* buf, uint32_t count, uint32_t * result);
+         NS_IMETHOD Close();
+     private:
          nsresult InitZstream();
          nsresult WriteBuffer();
      };
@@ -226,12 +206,7 @@ private:
       */
      nsCacheEntry          * mCacheEntry; // we are a child of the entry
      nsCacheAccessMode       mAccessGranted;
-     nsVoidArray             mInputWrappers;
-     nsOutputStreamWrapper * mOutputWrapper;
-     mozilla::Mutex          mLock;
-     bool                    mAsyncDoomPending;
-     bool                    mDoomedOnClose;
-     bool                    mClosingDescriptor;
+     nsIOutputStream       * mOutput;
 };
 
 

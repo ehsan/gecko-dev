@@ -8,16 +8,11 @@
 #include "cairo.h"
 #include "cairo-xlib.h"
 #include "cairo-xlib-xrender.h"
-#include <X11/Xlibint.h>  /* For XESetCloseDisplay */
-#undef max // Xlibint.h defines this and it breaks std::max
-#undef min // Xlibint.h defines this and it breaks std::min
+#include <X11/Xlibint.h>	/* For XESetCloseDisplay */
 
-#include "nsAutoPtr.h"
 #include "nsTArray.h"
 #include "nsAlgorithm.h"
 #include "mozilla/Preferences.h"
-#include <algorithm>
-#include "mozilla/CheckedInt.h"
 
 using namespace mozilla;
 
@@ -28,33 +23,33 @@ using namespace mozilla;
 
 gfxXlibSurface::gfxXlibSurface(Display *dpy, Drawable drawable, Visual *visual)
     : mPixmapTaken(false), mDisplay(dpy), mDrawable(drawable)
-#if defined(GL_PROVIDER_GLX)
+#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
     , mGLXPixmap(None)
 #endif
 {
-    const gfxIntSize size = DoSizeQuery();
-    cairo_surface_t *surf = cairo_xlib_surface_create(dpy, drawable, visual, size.width, size.height);
+    DoSizeQuery();
+    cairo_surface_t *surf = cairo_xlib_surface_create(dpy, drawable, visual, mSize.width, mSize.height);
     Init(surf);
 }
 
 gfxXlibSurface::gfxXlibSurface(Display *dpy, Drawable drawable, Visual *visual, const gfxIntSize& size)
-    : mPixmapTaken(false), mDisplay(dpy), mDrawable(drawable)
-#if defined(GL_PROVIDER_GLX)
+    : mPixmapTaken(false), mDisplay(dpy), mDrawable(drawable), mSize(size)
+#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
     , mGLXPixmap(None)
 #endif
 {
     NS_ASSERTION(CheckSurfaceSize(size, XLIB_IMAGE_SIDE_SIZE_LIMIT),
                  "Bad size");
 
-    cairo_surface_t *surf = cairo_xlib_surface_create(dpy, drawable, visual, size.width, size.height);
+    cairo_surface_t *surf = cairo_xlib_surface_create(dpy, drawable, visual, mSize.width, mSize.height);
     Init(surf);
 }
 
 gfxXlibSurface::gfxXlibSurface(Screen *screen, Drawable drawable, XRenderPictFormat *format,
                                const gfxIntSize& size)
     : mPixmapTaken(false), mDisplay(DisplayOfScreen(screen)),
-      mDrawable(drawable)
-#if defined(GL_PROVIDER_GLX)
+      mDrawable(drawable), mSize(size)
+#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
       , mGLXPixmap(None)
 #endif
 {
@@ -64,13 +59,15 @@ gfxXlibSurface::gfxXlibSurface(Screen *screen, Drawable drawable, XRenderPictFor
     cairo_surface_t *surf =
         cairo_xlib_surface_create_with_xrender_format(mDisplay, drawable,
                                                       screen, format,
-                                                      size.width, size.height);
+                                                      mSize.width, mSize.height);
     Init(surf);
 }
 
 gfxXlibSurface::gfxXlibSurface(cairo_surface_t *csurf)
-    : mPixmapTaken(false)
-#if defined(GL_PROVIDER_GLX)
+    : mPixmapTaken(false),
+      mSize(cairo_xlib_surface_get_width(csurf),
+            cairo_xlib_surface_get_height(csurf))
+#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
       , mGLXPixmap(None)
 #endif
 {
@@ -85,9 +82,9 @@ gfxXlibSurface::gfxXlibSurface(cairo_surface_t *csurf)
 
 gfxXlibSurface::~gfxXlibSurface()
 {
-#if defined(GL_PROVIDER_GLX)
+#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
     if (mGLXPixmap) {
-        gl::sGLXLibrary.DestroyPixmap(mDisplay, mGLXPixmap);
+        gl::sGLXLibrary.DestroyPixmap(mGLXPixmap);
     }
 #endif
     // gfxASurface's destructor calls RecordMemoryFreed().
@@ -110,7 +107,7 @@ CreatePixmap(Screen *screen, const gfxIntSize& size, unsigned int depth,
     // X gives us a fatal error if we try to create a pixmap of width
     // or height 0
     return XCreatePixmap(dpy, relatedDrawable,
-                         std::max(1, size.width), std::max(1, size.height),
+                         NS_MAX(1, size.width), NS_MAX(1, size.height),
                          depth);
 }
 
@@ -120,23 +117,10 @@ gfxXlibSurface::TakePixmap()
     NS_ASSERTION(!mPixmapTaken, "I already own the Pixmap!");
     mPixmapTaken = true;
 
-    // The bit depth returned from Cairo is technically int, but this is
-    // the last place we'd be worried about that scenario.
-    unsigned int bitDepth = cairo_xlib_surface_get_depth(CairoSurface());
-    MOZ_ASSERT((bitDepth % 8) == 0, "Memory used not recorded correctly");    
-
     // Divide by 8 because surface_get_depth gives us the number of *bits* per
     // pixel.
-    gfxIntSize size = GetSize();
-    CheckedInt32 totalBytes = CheckedInt32(size.width) * CheckedInt32(size.height) * (bitDepth/8);
-
-    // Don't do anything in the "else" case.  We could add INT32_MAX, but that
-    // would overflow the memory used counter.  It would also mean we tried for
-    // a 2G image.  For now, we'll just assert,
-    MOZ_ASSERT(totalBytes.isValid(),"Did not expect to exceed 2Gb image");
-    if (totalBytes.isValid()) {
-        RecordMemoryUsed(totalBytes.value());
-    }
+    RecordMemoryUsed(mSize.width * mSize.height *
+        cairo_xlib_surface_get_depth(CairoSurface()) / 8);
 }
 
 Drawable
@@ -145,48 +129,6 @@ gfxXlibSurface::ReleasePixmap() {
     mPixmapTaken = false;
     RecordMemoryFreed();
     return mDrawable;
-}
-
-static cairo_user_data_key_t gDestroyPixmapKey;
-
-struct DestroyPixmapClosure {
-    DestroyPixmapClosure(Drawable d, Screen *s) : mPixmap(d), mScreen(s) {}
-    Drawable mPixmap;
-    Screen *mScreen;
-};
-
-static void
-DestroyPixmap(void *data)
-{
-    DestroyPixmapClosure *closure = static_cast<DestroyPixmapClosure*>(data);
-    XFreePixmap(DisplayOfScreen(closure->mScreen), closure->mPixmap);
-    delete closure;
-}
-
-/* static */
-cairo_surface_t *
-gfxXlibSurface::CreateCairoSurface(Screen *screen, Visual *visual,
-                                   const gfxIntSize& size, Drawable relatedDrawable)
-{
-    Drawable drawable =
-        CreatePixmap(screen, size, DepthOfVisual(screen, visual),
-                     relatedDrawable);
-    if (!drawable)
-        return nullptr;
-
-    cairo_surface_t* surface =
-        cairo_xlib_surface_create(DisplayOfScreen(screen), drawable, visual,
-                                  size.width, size.height);
-    if (cairo_surface_status(surface)) {
-        cairo_surface_destroy(surface);
-        XFreePixmap(DisplayOfScreen(screen), drawable);
-        return nullptr;
-    }
-
-    DestroyPixmapClosure *closure = new DestroyPixmapClosure(drawable, screen);
-    cairo_surface_set_user_data(surface, &gDestroyPixmapKey,
-                                closure, DestroyPixmap);
-    return surface;
 }
 
 /* static */
@@ -243,7 +185,7 @@ gfxXlibSurface::CreateSimilarSurface(gfxContentType aContent,
       return nullptr;
     }
 
-    if (aContent == gfxContentType::COLOR) {
+    if (aContent == CONTENT_COLOR) {
         // cairo_surface_create_similar will use a matching visual if it can.
         // However, systems with 16-bit or indexed default visuals may benefit
         // from rendering with 24-bit formats.
@@ -273,28 +215,6 @@ gfxXlibSurface::CreateSimilarSurface(gfxContentType aContent,
 }
 
 void
-gfxXlibSurface::Finish()
-{
-#if defined(GL_PROVIDER_GLX)
-    if (mGLXPixmap) {
-        gl::sGLXLibrary.DestroyPixmap(mDisplay, mGLXPixmap);
-        mGLXPixmap = None;
-    }
-#endif
-    gfxASurface::Finish();
-}
-
-const gfxIntSize
-gfxXlibSurface::GetSize() const
-{
-    if (!mSurfaceValid)
-        return gfxIntSize(0,0);
-
-    return gfxIntSize(cairo_xlib_surface_get_width(mSurface),
-                      cairo_xlib_surface_get_height(mSurface));
-}
-
-const gfxIntSize
 gfxXlibSurface::DoSizeQuery()
 {
     // figure out width/height/depth
@@ -308,7 +228,8 @@ gfxXlibSurface::DoSizeQuery()
                  &width, &height,
                  &bwidth_ignore, &depth);
 
-    return gfxIntSize(width, height);
+    mSize.width = width;
+    mSize.height = height;
 }
 
 class DisplayTable {
@@ -331,7 +252,7 @@ private:
 
     class DisplayInfo {
     public:
-        explicit DisplayInfo(Display* display) : mDisplay(display) { }
+        DisplayInfo(Display* display) : mDisplay(display) { }
         Display* mDisplay;
         nsTArray<ColormapEntry> mColormapEntries;
     };
@@ -404,7 +325,7 @@ DisplayTable::GetColormapAndVisual(Screen* aScreen, XRenderPictFormat* aFormat,
     }
 
     nsTArray<DisplayInfo>* displays = &sDisplayTable->mDisplays;
-    size_t d = displays->IndexOf(display, 0, FindDisplay());
+    uint32_t d = displays->IndexOf(display, 0, FindDisplay());
 
     if (d == displays->NoIndex) {
         d = displays->Length();
@@ -464,27 +385,19 @@ DisplayTable::DisplayClosing(Display *display, XExtCodes* codes)
     return 0;
 }
 
-/* static */
-bool
-gfxXlibSurface::GetColormapAndVisual(cairo_surface_t* aXlibSurface,
-                                     Colormap* aColormap, Visual** aVisual)
-{
-    XRenderPictFormat* format =
-        cairo_xlib_surface_get_xrender_format(aXlibSurface);
-    Screen* screen = cairo_xlib_surface_get_screen(aXlibSurface);
-    Visual* visual = cairo_xlib_surface_get_visual(aXlibSurface);
-
-    return DisplayTable::GetColormapAndVisual(screen, format, visual,
-                                              aColormap, aVisual);
-}
-
 bool
 gfxXlibSurface::GetColormapAndVisual(Colormap* aColormap, Visual** aVisual)
 {
     if (!mSurfaceValid)
         return false;
 
-    return GetColormapAndVisual(CairoSurface(), aColormap, aVisual);
+    XRenderPictFormat* format =
+        cairo_xlib_surface_get_xrender_format(CairoSurface());
+    Screen* screen = cairo_xlib_surface_get_screen(CairoSurface());
+    Visual* visual = cairo_xlib_surface_get_visual(CairoSurface());
+
+    return DisplayTable::GetColormapAndVisual(screen, format, visual,
+                                              aColormap, aVisual);
 }
 
 /* static */
@@ -509,28 +422,28 @@ gfxXlibSurface::FindVisual(Screen *screen, gfxImageFormat format)
     int depth;
     unsigned long red_mask, green_mask, blue_mask;
     switch (format) {
-        case gfxImageFormat::ARGB32:
+        case ImageFormatARGB32:
             depth = 32;
             red_mask = 0xff0000;
             green_mask = 0xff00;
             blue_mask = 0xff;
             break;
-        case gfxImageFormat::RGB24:
+        case ImageFormatRGB24:
             depth = 24;
             red_mask = 0xff0000;
             green_mask = 0xff00;
             blue_mask = 0xff;
             break;
-        case gfxImageFormat::RGB16_565:
+        case ImageFormatRGB16_565:
             depth = 16;
             red_mask = 0xf800;
             green_mask = 0x7e0;
             blue_mask = 0x1f;
             break;
-        case gfxImageFormat::A8:
-        case gfxImageFormat::A1:
+        case ImageFormatA8:
+        case ImageFormatA1:
         default:
-            return nullptr;
+            return NULL;
     }
 
     for (int d = 0; d < screen->ndepths; d++) {
@@ -549,7 +462,7 @@ gfxXlibSurface::FindVisual(Screen *screen, gfxImageFormat format)
         }
     }
 
-    return nullptr;
+    return NULL;
 }
 
 /* static */
@@ -557,28 +470,28 @@ XRenderPictFormat*
 gfxXlibSurface::FindRenderFormat(Display *dpy, gfxImageFormat format)
 {
     switch (format) {
-        case gfxImageFormat::ARGB32:
+        case ImageFormatARGB32:
             return XRenderFindStandardFormat (dpy, PictStandardARGB32);
-        case gfxImageFormat::RGB24:
+        case ImageFormatRGB24:
             return XRenderFindStandardFormat (dpy, PictStandardRGB24);
-        case gfxImageFormat::RGB16_565: {
+        case ImageFormatRGB16_565: {
             // PictStandardRGB16_565 is not standard Xrender format
             // we should try to find related visual
             // and find xrender format by visual
             Visual *visual = FindVisual(DefaultScreenOfDisplay(dpy), format);
             if (!visual)
-                return nullptr;
+                return NULL;
             return XRenderFindVisualFormat(dpy, visual);
         }
-        case gfxImageFormat::A8:
+        case ImageFormatA8:
             return XRenderFindStandardFormat (dpy, PictStandardA8);
-        case gfxImageFormat::A1:
+        case ImageFormatA1:
             return XRenderFindStandardFormat (dpy, PictStandardA1);
         default:
             break;
     }
 
-    return nullptr;
+    return (XRenderPictFormat*)NULL;
 }
 
 Screen*
@@ -593,27 +506,19 @@ gfxXlibSurface::XRenderFormat()
     return cairo_xlib_surface_get_xrender_format(CairoSurface());
 }
 
-#if defined(GL_PROVIDER_GLX)
+#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
 GLXPixmap
 gfxXlibSurface::GetGLXPixmap()
 {
     if (!mGLXPixmap) {
-#ifdef DEBUG
-        // cairo_surface_has_show_text_glyphs is used solely for the
-        // side-effect of setting the error on surface if
-        // cairo_surface_finish() has been called.
-        cairo_surface_has_show_text_glyphs(CairoSurface());
-        NS_ASSERTION(CairoStatus() != CAIRO_STATUS_SURFACE_FINISHED,
-            "GetGLXPixmap called after surface finished");
-#endif
         mGLXPixmap = gl::sGLXLibrary.CreatePixmap(this);
     }
     return mGLXPixmap;
 }
 #endif
 
-gfxMemoryLocation
+gfxASurface::MemoryLocation
 gfxXlibSurface::GetMemoryLocation() const
 {
-    return gfxMemoryLocation::OUT_OF_PROCESS;
+    return MEMORY_OUT_OF_PROCESS;
 }

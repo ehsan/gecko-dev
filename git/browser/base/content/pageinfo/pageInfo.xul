@@ -37,7 +37,6 @@
   <stringbundleset id="pageinfobundleset">
     <stringbundle id="pageinfobundle" src="chrome://browser/locale/pageInfo.properties"/>
     <stringbundle id="pkiBundle" src="chrome://pippki/locale/pippki.properties"/>
-    <stringbundle id="browserBundle" src="chrome://browser/locale/browser.properties"/>
   </stringbundleset>
 
   <commandset id="pageInfoCommandSet">
@@ -47,11 +46,25 @@
     <command id="cmd_selectall" oncommand="doSelectAll();"/>
 
     <!-- permissions tab -->
+    <command id="cmd_imageDef"      oncommand="onCheckboxClick('image');"/>
+    <command id="cmd_popupDef"      oncommand="onCheckboxClick('popup');"/>
+    <command id="cmd_cookieDef"     oncommand="onCheckboxClick('cookie');"/>
+    <command id="cmd_installDef"    oncommand="onCheckboxClick('install');"/>
+    <command id="cmd_fullscreenDef" oncommand="onCheckboxClick('fullscreen');"/>
+    <command id="cmd_geoDef"        oncommand="onCheckboxClick('geo');"/>
+    <command id="cmd_indexedDBDef"  oncommand="onCheckboxClick('indexedDB');"/>
     <command id="cmd_pluginsDef"    oncommand="onCheckboxClick('plugins');"/>
-    <command id="cmd_pluginsToggle" oncommand="onPluginRadioClick(event);"/>
+    <command id="cmd_imageToggle"   oncommand="onRadioClick('image');"/>
+    <command id="cmd_popupToggle"   oncommand="onRadioClick('popup');"/>
+    <command id="cmd_cookieToggle"  oncommand="onRadioClick('cookie');"/>
+    <command id="cmd_installToggle" oncommand="onRadioClick('install');"/>
+    <command id="cmd_fullscreenToggle" oncommand="onRadioClick('fullscreen');"/>
+    <command id="cmd_geoToggle"     oncommand="onRadioClick('geo');"/>
+    <command id="cmd_indexedDBToggle" oncommand="onRadioClick('indexedDB');"/>
+    <command id="cmd_pluginsToggle" oncommand="onRadioClick('plugins');"/>
   </commandset>
 
-  <keyset id="pageInfoKeySet">
+  <keyset>
     <key key="&closeWindow.key;" modifiers="accel" command="cmd_close"/>
     <key keycode="VK_ESCAPE"                       command="cmd_close"/>
 #ifdef XP_MACOSX
@@ -89,50 +102,50 @@
     <!-- General page information -->
     <vbox id="generalPanel">
       <textbox class="header" readonly="true" id="titletext"/>
-      <grid id="generalGrid">
+      <grid>
         <columns>
           <column/>
           <column class="gridSeparator"/>
           <column flex="1"/>
         </columns>
-        <rows id="generalRows">
-          <row id="generalURLRow">
+        <rows>
+          <row>
             <label control="urltext" value="&generalURL;"/>
             <separator/>
             <textbox readonly="true" id="urltext"/>
           </row>
-          <row id="generalSeparatorRow1">
+          <row>
             <separator class="thin"/>
           </row>
-          <row id="generalTypeRow">
+          <row>
             <label control="typetext" value="&generalType;"/>
             <separator/>
             <textbox readonly="true" id="typetext"/>
           </row>
-          <row id="generalModeRow">
+          <row>
             <label control="modetext" value="&generalMode;"/>
             <separator/>
             <textbox readonly="true" crop="end" id="modetext"/>
           </row>
-          <row id="generalEncodingRow">
+          <row>
             <label control="encodingtext" value="&generalEncoding;"/>
             <separator/>
             <textbox readonly="true" id="encodingtext"/>
           </row>
-          <row id="generalSizeRow">
+          <row>
             <label control="sizetext" value="&generalSize;"/>
             <separator/>
             <textbox readonly="true" id="sizetext"/>
           </row>
-          <row id="generalReferrerRow">
+          <row>
             <label control="refertext" value="&generalReferrer;"/>
             <separator/>
             <textbox readonly="true" id="refertext"/>
           </row>
-          <row id="generalSeparatorRow2">
+          <row>
             <separator class="thin"/>
           </row>
-          <row id="generalModifiedRow">
+          <row>
             <label control="modifiedtext" value="&generalModified;"/>
             <separator/>
             <textbox readonly="true" id="modifiedtext"/>
@@ -152,8 +165,18 @@
                      persist="width" flex="4"
                      onclick="gMetaView.onPageMediaSort('meta-content');"/>
           </treecols>
-          <treechildren id="metatreechildren" flex="1"/>
+          <treechildren flex="1"/>
         </tree>        
+      </groupbox>
+      <groupbox id="securityBox">
+        <caption id="securityBoxCaption" label="&securityHeader;"/>
+        <description id="general-security-identity" class="header"/>
+        <description id="general-security-privacy"  class="header"/>
+        <hbox align="right">
+          <button id="security-view-details" label="&generalSecurityDetails;"
+                  accesskey="&generalSecurityDetails.accesskey;"
+                  oncommand="onClickMore();"/>
+        </hbox>
       </groupbox>
     </vbox>
 
@@ -182,7 +205,7 @@
                         width="1"  id="image-count"    label="&mediaCount;"
                         onclick="gImageView.onPageMediaSort('image-count');"/>
         </treecols>
-        <treechildren id="imagetreechildren" flex="1"/>
+        <treechildren flex="1"/>
       </tree>
       <splitter orient="vertical" id="mediaSplitter"/>
       <vbox flex="1" id="mediaPreviewBox" collapsed="true">
@@ -192,51 +215,51 @@
             <column class="gridSeparator"/>
             <column flex="1"/>
           </columns>
-          <rows id="mediaRows">
-            <row id="mediaLocationRow">
+          <rows>
+            <row>
               <label control="imageurltext" value="&mediaLocation;"/>
               <separator/>
               <textbox readonly="true" id="imageurltext"/>
             </row>
-            <row id="mediaTypeRow">
+            <row>
               <label control="imagetypetext" value="&generalType;"/>
               <separator/>
               <textbox readonly="true" id="imagetypetext"/>
             </row>
-            <row id="mediaSizeRow">
+            <row>
               <label control="imagesizetext" value="&generalSize;"/>
               <separator/>
               <textbox readonly="true" id="imagesizetext"/>
             </row>
-            <row id="mediaDimensionRow">
+            <row>
               <label control="imagedimensiontext" value="&mediaDimension;"/>
               <separator/>
               <textbox readonly="true" id="imagedimensiontext"/>
             </row>
-            <row id="mediaTextRow">
+            <row>
               <label control="imagetext" value="&mediaText;"/>
               <separator/>
               <textbox readonly="true" id="imagetext"/>
             </row>
-            <row id="mediaLongdescRow">
+            <row>
               <label control="imagelongdesctext" value="&mediaLongdesc;"/>
               <separator/>
               <textbox readonly="true" id="imagelongdesctext"/>
             </row>
           </rows>
         </grid>
-        <hbox id="imageSaveBox" align="end">
-          <vbox id="blockImageBox">
+        <hbox align="end">
+          <vbox>
             <checkbox id="blockImage" hidden="true" oncommand="onBlockImage()"
                       accesskey="&mediaBlockImage.accesskey;"/>
             <label control="thepreviewimage" value="&mediaPreview;" class="header"/>
           </vbox>
-          <spacer id="imageSaveBoxSpacer" flex="1"/>
+          <spacer flex="1"/>
           <button label="&mediaSaveAs;" accesskey="&mediaSaveAs.accesskey;"
                   icon="save" id="imagesaveasbutton"
                   oncommand="saveMedia();"/>
         </hbox>
-        <vbox id="imagecontainerbox" class="inset iframe" flex="1" pack="center">
+        <vbox class="inset iframe" flex="1" pack="center">
           <hbox id="theimagecontainer" pack="center">
             <image id="thepreviewimage"/>
           </hbox>
@@ -246,10 +269,9 @@
         </vbox>
       </vbox>
       <hbox id="mediaSaveBox" collapsed="true">
-        <spacer id="mediaSaveBoxSpacer" flex="1"/>
+        <spacer flex="1"/>
         <button label="&mediaSaveAs;" accesskey="&mediaSaveAs2.accesskey;"
-                icon="save" id="mediasaveasbutton"
-                oncommand="saveMedia();"/>
+                icon="save" oncommand="saveMedia();"/>
       </hbox>
     </vbox>
 
@@ -260,32 +282,118 @@
 
     <!-- Permissions -->
     <vbox id="permPanel">
-      <hbox id="permHostBox">
+      <hbox>
         <label value="&permissionsFor;" control="hostText" />
         <textbox id="hostText" class="header" readonly="true"
                  crop="end" flex="1"/>
       </hbox>
 
       <vbox id="permList" flex="1">
-        <hbox id="perm-indexedDB-extras">
-          <spacer flex="1"/>
-          <vbox id="permIndexedDBStatusBox" pack="center">
-            <label id="indexedDBStatus" control="indexedDBClear" hidden="true"/>
-          </vbox>
-          <button id="indexedDBClear" label="&permClearStorage;" hidden="true"
-                  accesskey="&permClearStorage.accesskey;" onclick="onIndexedDBClear();"/>
-        </hbox>
-        <vbox class="permission" id="perm-plugins-row">
+        <vbox class="permission">
+          <label class="permissionLabel" id="permImageLabel"
+                 value="&permImage;" control="imageRadioGroup"/>
+          <hbox role="group" aria-labelledby="permImageLabel">
+            <checkbox id="imageDef" command="cmd_imageDef" label="&permUseDefault;"/>
+            <spacer flex="1"/>
+            <radiogroup id="imageRadioGroup" orient="horizontal">
+              <radio id="image#1" command="cmd_imageToggle" label="&permAllow;"/>
+              <radio id="image#2" command="cmd_imageToggle" label="&permBlock;"/>
+            </radiogroup>
+          </hbox>
+        </vbox>
+        <vbox class="permission">
+          <label class="permissionLabel" id="permPopupLabel"
+                 value="&permPopup;" control="popupRadioGroup"/>
+          <hbox role="group" aria-labelledby="permPopupLabel">
+            <checkbox id="popupDef" command="cmd_popupDef" label="&permUseDefault;"/>
+            <spacer flex="1"/>
+            <radiogroup id="popupRadioGroup" orient="horizontal">
+              <radio id="popup#1" command="cmd_popupToggle" label="&permAllow;"/>
+              <radio id="popup#2" command="cmd_popupToggle" label="&permBlock;"/>
+            </radiogroup>
+          </hbox>
+        </vbox>
+        <vbox class="permission">
+          <label class="permissionLabel" id="permCookieLabel"
+                 value="&permCookie;" control="cookieRadioGroup"/>
+          <hbox role="group" aria-labelledby="permCookieLabel">
+            <checkbox id="cookieDef" command="cmd_cookieDef" label="&permUseDefault;"/>
+            <spacer flex="1"/>
+            <radiogroup id="cookieRadioGroup" orient="horizontal">
+              <radio id="cookie#1" command="cmd_cookieToggle" label="&permAllow;"/>
+              <radio id="cookie#8" command="cmd_cookieToggle" label="&permAllowSession;"/>
+              <radio id="cookie#2" command="cmd_cookieToggle" label="&permBlock;"/>
+            </radiogroup>
+          </hbox>
+        </vbox>
+        <vbox class="permission">
+          <label class="permissionLabel" id="permInstallLabel"
+                 value="&permInstall;" control="installRadioGroup"/>
+          <hbox role="group" aria-labelledby="permInstallLabel">
+            <checkbox id="installDef" command="cmd_installDef" label="&permUseDefault;"/>
+            <spacer flex="1"/>
+            <radiogroup id="installRadioGroup" orient="horizontal">
+              <radio id="install#1" command="cmd_installToggle" label="&permAllow;"/>
+              <radio id="install#2" command="cmd_installToggle" label="&permBlock;"/>
+            </radiogroup>
+          </hbox>
+        </vbox>
+        <vbox class="permission">
+          <label class="permissionLabel" id="permGeoLabel"
+                 value="&permGeo;" control="geoRadioGroup"/>
+          <hbox role="group" aria-labelledby="permGeoLabel">
+            <checkbox id="geoDef" command="cmd_geoDef" label="&permAskAlways;"/>
+            <spacer flex="1"/>
+            <radiogroup id="geoRadioGroup" orient="horizontal">
+              <radio id="geo#1" command="cmd_geoToggle" label="&permAllow;"/>
+              <radio id="geo#2" command="cmd_geoToggle" label="&permBlock;"/>
+            </radiogroup>
+          </hbox>
+        </vbox>
+        <vbox class="permission">
+          <label class="permissionLabel" id="permIndexedDBLabel"
+                 value="&permIndexedDB;" control="indexedDBRadioGroup"/>
+          <hbox role="group" aria-labelledby="permIndexedDBLabel">
+            <checkbox id="indexedDBDef" command="cmd_indexedDBDef" label="&permUseDefault;"/>
+            <spacer flex="1"/>
+            <radiogroup id="indexedDBRadioGroup" orient="horizontal">
+              <!-- Ask and Allow are purposefully reversed here! -->
+              <radio id="indexedDB#1" command="cmd_indexedDBToggle" label="&permAskAlways;"/>
+              <radio id="indexedDB#0" command="cmd_indexedDBToggle" label="&permAllow;"/>
+              <radio id="indexedDB#2" command="cmd_indexedDBToggle" label="&permBlock;"/>
+            </radiogroup>
+          </hbox>
+          <hbox>
+            <spacer flex="1"/>
+            <vbox pack="center">
+              <label id="indexedDBStatus" control="indexedDBClear" hidden="true"/>
+            </vbox>
+            <button id="indexedDBClear" label="&permClearStorage;" hidden="true"
+                    accesskey="&permClearStorage.accesskey;" onclick="onIndexedDBClear();"/>
+          </hbox>
+        </vbox>
+        <vbox class="permission" id="permPluginsRow">
           <label class="permissionLabel" id="permPluginsLabel"
                  value="&permPlugins;" control="pluginsRadioGroup"/>
-          <hbox id="permPluginTemplate" role="group" aria-labelledby="permPluginsLabel" align="baseline">
-            <label class="permPluginTemplateLabel"/>
+          <hbox role="group" aria-labelledby="permPluginsLabel">
+            <checkbox id="pluginsDef" command="cmd_pluginsDef" label="&permAskAlways;"/>
             <spacer flex="1"/>
-            <radiogroup class="permPluginTemplateRadioGroup" orient="horizontal" command="cmd_pluginsToggle">
-              <radio class="permPluginTemplateRadioDefault" label="&permUseDefault;"/>
-              <radio class="permPluginTemplateRadioAsk" label="&permAskAlways;"/>
-              <radio class="permPluginTemplateRadioAllow" label="&permAllow;"/>
-              <radio class="permPluginTemplateRadioBlock" label="&permBlock;"/>
+            <radiogroup id="pluginsRadioGroup" orient="horizontal">
+              <radio id="plugins#1" command="cmd_pluginsToggle" label="&permAllow;"/>
+              <radio id="plugins#2" command="cmd_pluginsToggle" label="&permBlock;"/>
+            </radiogroup>
+          </hbox>
+        </vbox>
+        <vbox class="permission">
+          <label class="permissionLabel" id="permFullscreenLabel"
+                 value="&permFullscreen;" control="fullscreenRadioGroup"/>
+          <hbox role="group" aria-labelledby="permFullscreenLabel">
+            <checkbox id="fullscreenDef" command="cmd_fullscreenDef" label="&permUseDefault;"/>
+            <spacer flex="1"/>
+            <radiogroup id="fullscreenRadioGroup" orient="horizontal">
+              <radio id="fullscreen#0" command="cmd_fullscreenToggle" label="&permAskAlways;"/>
+              <radio id="fullscreen#1" command="cmd_fullscreenToggle" label="&permAllow;"/>
+              <radio id="fullscreen#2" command="cmd_fullscreenToggle" label="&permBlock;"/>
             </radiogroup>
           </hbox>
         </vbox>
@@ -297,14 +405,13 @@
       <!-- Identity Section -->
       <groupbox id="security-identity-groupbox" flex="1">
         <caption id="security-identity" label="&securityView.identity.header;"/>
-        <grid id="security-identity-grid" flex="1">
+        <grid flex="1">
           <columns>
             <column/>
             <column flex="1"/>
           </columns>
-          <rows id="security-identity-rows">
-            <!-- Domain -->
-            <row id="security-identity-domain-row">
+          <rows>
+            <row><!-- Domain -->
               <label id="security-identity-domain-label"
                      class="fieldLabel"
                      value="&securityView.identity.domain;"
@@ -312,8 +419,7 @@
               <textbox id="security-identity-domain-value"
                        class="fieldValue" readonly="true"/>
             </row>
-            <!-- Owner -->
-            <row id="security-identity-owner-row">
+            <row><!-- Owner -->
               <label id="security-identity-owner-label"
                      class="fieldLabel"
                      value="&securityView.identity.owner;"
@@ -321,8 +427,7 @@
               <textbox id="security-identity-owner-value"
                        class="fieldValue" readonly="true"/>
             </row>
-            <!-- Verifier -->
-            <row id="security-identity-verifier-row">
+            <row><!-- Verifier -->
               <label id="security-identity-verifier-label"
                      class="fieldLabel"
                      value="&securityView.identity.verifier;"
@@ -333,8 +438,7 @@
           </rows>
         </grid>
         <spacer flex="1"/>
-        <!-- Cert button -->
-        <hbox id="security-view-cert-box" pack="end">
+        <hbox pack="end"><!-- Cert button -->
           <button id="security-view-cert" label="&securityView.certView;"
                   accesskey="&securityView.accesskey;"
                   oncommand="security.viewCert();"/>
@@ -344,14 +448,13 @@
       <!-- Privacy & History section -->
       <groupbox id="security-privacy-groupbox" flex="1">
         <caption id="security-privacy" label="&securityView.privacy.header;" />
-        <grid id="security-privacy-grid">
+        <grid>
           <columns>
             <column flex="1"/>
             <column flex="1"/>
           </columns>
-          <rows id="security-privacy-rows">
-            <!-- History -->
-            <row id="security-privacy-history-row">
+          <rows>
+            <row><!-- History -->
               <label id="security-privacy-history-label"
                            control="security-privacy-history-value"
                            class="fieldLabel">&securityView.privacy.history;</label>
@@ -360,12 +463,11 @@
                        value="&securityView.unknown;"
                        readonly="true"/>
             </row>
-            <!-- Cookies -->
-            <row id="security-privacy-cookies-row">
+            <row><!-- Cookies -->
               <label id="security-privacy-cookies-label"
                            control="security-privacy-cookies-value"
                            class="fieldLabel">&securityView.privacy.cookies;</label>
-              <hbox id="security-privacy-cookies-box" align="center">
+              <hbox align="center">
                 <textbox id="security-privacy-cookies-value"
                          class="fieldValue"
                          value="&securityView.unknown;"
@@ -377,12 +479,11 @@
                         oncommand="security.viewCookies();"/>
               </hbox>
             </row>
-            <!-- Passwords -->
-            <row id="security-privacy-passwords-row">
+            <row><!-- Passwords -->
               <label id="security-privacy-passwords-label"
                             control="security-privacy-passwords-value"
                             class="fieldLabel">&securityView.privacy.passwords;</label>
-              <hbox id="security-privacy-passwords-box" align="center">
+              <hbox align="center">
                 <textbox id="security-privacy-passwords-value"
                          class="fieldValue"
                          value="&securityView.unknown;"
@@ -401,7 +502,7 @@
       <!-- Technical Details section -->
       <groupbox id="security-technical-groupbox" flex="1">
         <caption id="security-technical" label="&securityView.technical.header;" />
-        <vbox id="security-technical-box" flex="1">
+        <vbox flex="1">
           <label id="security-technical-shortform" class="fieldValue"/>
           <description id="security-technical-longform1" class="fieldLabel"/>
           <description id="security-technical-longform2" class="fieldLabel"/>

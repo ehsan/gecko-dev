@@ -6,7 +6,6 @@
 #ifndef nsMathMLmsqrtFrame_h___
 #define nsMathMLmsqrtFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsMathMLmencloseFrame.h"
 
 //
@@ -39,28 +38,21 @@ public:
   friend nsIFrame* NS_NewMathMLmsqrtFrame(nsIPresShell*   aPresShell,
                                           nsStyleContext* aContext);
 
-  virtual void
-  Init(nsIContent*       aContent,
-       nsContainerFrame* aParent,
-       nsIFrame*         aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD
+  Init(nsIContent* aContent,
+       nsIFrame*   aParent,
+       nsIFrame*   aPrevInFlow);
 
   NS_IMETHOD
-  InheritAutomaticData(nsIFrame* aParent) MOZ_OVERRIDE;
+  InheritAutomaticData(nsIFrame* aParent);
 
-  virtual nsresult
+  NS_IMETHOD
   AttributeChanged(int32_t         aNameSpaceID,
                    nsIAtom*        aAttribute,
-                   int32_t         aModType) MOZ_OVERRIDE;
-
-  virtual bool
-  IsMrowLike() MOZ_OVERRIDE
-  {
-    return mFrames.FirstChild() != mFrames.LastChild() ||
-           !mFrames.FirstChild();
-  }
+                   int32_t         aModType);
 
 protected:
-  explicit nsMathMLmsqrtFrame(nsStyleContext* aContext);
+  nsMathMLmsqrtFrame(nsStyleContext* aContext);
   virtual ~nsMathMLmsqrtFrame();
 };
 

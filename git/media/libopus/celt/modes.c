@@ -14,6 +14,11 @@
    notice, this list of conditions and the following disclaimer in the
    documentation and/or other materials provided with the distribution.
 
+   - Neither the name of Internet Society, IETF or IETF Trust, nor the
+   names of specific contributors, may be used to endorse or promote
+   products derived from this software without specific prior written
+   permission.
+
    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
    ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
    LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -345,14 +350,6 @@ CELTMode *opus_custom_mode_create(opus_int32 Fs, int frame_size, int *error)
    mode->eBands = compute_ebands(Fs, mode->shortMdctSize, res, &mode->nbEBands);
    if (mode->eBands==NULL)
       goto failure;
-#if !defined(SMALL_FOOTPRINT)
-   /* Make sure we don't allocate a band larger than our PVQ table.
-      208 should be enough, but let's be paranoid. */
-   if ((mode->eBands[mode->nbEBands] - mode->eBands[mode->nbEBands-1])<<LM >
-    208) {
-       goto failure;
-   }
-#endif
 
    mode->effEBands = mode->nbEBands;
    while (mode->eBands[mode->effEBands] > mode->shortMdctSize)

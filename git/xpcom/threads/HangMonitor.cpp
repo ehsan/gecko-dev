@@ -1,25 +1,16 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/HangMonitor.h"
-
-#include <set>
-
-#include "mozilla/Atomics.h"
-#include "mozilla/BackgroundHangMonitor.h"
 #include "mozilla/Monitor.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/ProcessedStack.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/StaticPtr.h"
-#include "mozilla/UniquePtr.h"
-#include "nsReadableUtils.h"
-#include "nsStackWalk.h"
-#include "nsThreadUtils.h"
+#include "mozilla/ProcessedStack.h"
 #include "nsXULAppAPI.h"
+#include "nsThreadUtils.h"
+#include "nsStackWalk.h"
 
 #ifdef MOZ_CRASHREPORTER
 #include "nsExceptionHandler.h"
@@ -33,8 +24,7 @@
   #define REPORT_CHROME_HANGS
 #endif
 
-namespace mozilla {
-namespace HangMonitor {
+namespace mozilla { namespace HangMonitor {
 
 /**
  * A flag which may be set from within a debugger to disable the hang
@@ -44,9 +34,7 @@ volatile bool gDebugDisableHangMonitor = false;
 
 const char kHangMonitorPrefName[] = "hangmonitor.timeout";
 
-#ifdef REPORT_CHROME_HANGS
 const char kTelemetryPrefName[] = "toolkit.telemetry.enabled";
-#endif
 
 // Monitor protects gShutdown and gTimeout, but not gTimestamp which rely on
 // being atomically set by the processor; synchronization doesn't really matter
@@ -63,24 +51,21 @@ bool gShutdown;
 
 // The timestamp of the last event notification, or PR_INTERVAL_NO_WAIT if
 // we're currently not processing events.
-Atomic<PRIntervalTime> gTimestamp(PR_INTERVAL_NO_WAIT);
+volatile PRIntervalTime gTimestamp = PR_INTERVAL_NO_WAIT;
 
 #ifdef REPORT_CHROME_HANGS
 // Main thread ID used in reporting chrome hangs under Windows
-static HANDLE winMainThreadHandle = nullptr;
+static HANDLE winMainThreadHandle = NULL;
 
 // Default timeout for reporting chrome hangs to Telemetry (5 seconds)
 static const int32_t DEFAULT_CHROME_HANG_INTERVAL = 5;
 
 // Maximum number of PCs to gather from the stack
 static const int32_t MAX_CALL_STACK_PCS = 400;
-
-// Chrome hang annotators
-static StaticAutoPtr<std::set<Annotator*>> gAnnotators;
 #endif
 
 // PrefChangedFunc
-void
+int
 PrefChanged(const char*, void*)
 {
   int32_t newval = Preferences::GetInt(kHangMonitorPrefName);
@@ -98,6 +83,8 @@ PrefChanged(const char*, void*)
     gTimeout = newval;
     lock.Notify();
   }
+
+  return 0;
 }
 
 void
@@ -122,179 +109,20 @@ Crash()
 }
 
 #ifdef REPORT_CHROME_HANGS
-class ChromeHangAnnotations : public HangAnnotations
-{
-public:
-  ChromeHangAnnotations();
-  ~ChromeHangAnnotations();
-
-  void AddAnnotation(const nsAString& aName, const int32_t aData) MOZ_OVERRIDE;
-  void AddAnnotation(const nsAString& aName, const double aData) MOZ_OVERRIDE;
-  void AddAnnotation(const nsAString& aName, const nsAString& aData) MOZ_OVERRIDE;
-  void AddAnnotation(const nsAString& aName, const nsACString& aData) MOZ_OVERRIDE;
-  void AddAnnotation(const nsAString& aName, const bool aData) MOZ_OVERRIDE;
-
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
-  bool IsEmpty() const MOZ_OVERRIDE;
-  bool GetEnumerator(Enumerator** aOutEnum) MOZ_OVERRIDE;
-
-  typedef std::pair<nsString, nsString> AnnotationType;
-  typedef std::vector<AnnotationType> VectorType;
-  typedef VectorType::const_iterator IteratorType;
-
-private:
-  VectorType  mAnnotations;
-};
-
-ChromeHangAnnotations::ChromeHangAnnotations()
-{
-  MOZ_COUNT_CTOR(ChromeHangAnnotations);
-}
-
-ChromeHangAnnotations::~ChromeHangAnnotations()
-{
-  MOZ_COUNT_DTOR(ChromeHangAnnotations);
-}
-
-void
-ChromeHangAnnotations::AddAnnotation(const nsAString& aName, const int32_t aData)
-{
-  nsString dataString;
-  dataString.AppendInt(aData);
-  AnnotationType annotation = std::make_pair(nsString(aName), dataString);
-  mAnnotations.push_back(annotation);
-}
-
-void
-ChromeHangAnnotations::AddAnnotation(const nsAString& aName, const double aData)
-{
-  nsString dataString;
-  dataString.AppendFloat(aData);
-  AnnotationType annotation = std::make_pair(nsString(aName), dataString);
-  mAnnotations.push_back(annotation);
-}
-
-void
-ChromeHangAnnotations::AddAnnotation(const nsAString& aName, const nsAString& aData)
-{
-  AnnotationType annotation = std::make_pair(nsString(aName), nsString(aData));
-  mAnnotations.push_back(annotation);
-}
-
-void
-ChromeHangAnnotations::AddAnnotation(const nsAString& aName, const nsACString& aData)
-{
-  nsString dataString;
-  AppendUTF8toUTF16(aData, dataString);
-  AnnotationType annotation = std::make_pair(nsString(aName), dataString);
-  mAnnotations.push_back(annotation);
-}
-
-void
-ChromeHangAnnotations::AddAnnotation(const nsAString& aName, const bool aData)
-{
-  nsString dataString;
-  dataString += aData ? NS_LITERAL_STRING("true") : NS_LITERAL_STRING("false");
-  AnnotationType annotation = std::make_pair(nsString(aName), dataString);
-  mAnnotations.push_back(annotation);
-}
-
-/**
- * This class itself does not use synchronization but it (and its parent object)
- * should be protected by mutual exclusion in some way. In Telemetry the chrome
- * hang data is protected via TelemetryImpl::mHangReportsMutex.
- */
-class ChromeHangAnnotationEnumerator : public HangAnnotations::Enumerator
-{
-public:
-  ChromeHangAnnotationEnumerator(const ChromeHangAnnotations::VectorType& aAnnotations);
-  ~ChromeHangAnnotationEnumerator();
-
-  virtual bool Next(nsAString& aOutName, nsAString& aOutValue);
-
-private:
-  ChromeHangAnnotations::IteratorType mIterator;
-  ChromeHangAnnotations::IteratorType mEnd;
-};
-
-ChromeHangAnnotationEnumerator::ChromeHangAnnotationEnumerator(
-                          const ChromeHangAnnotations::VectorType& aAnnotations)
-  : mIterator(aAnnotations.begin())
-  , mEnd(aAnnotations.end())
-{
-  MOZ_COUNT_CTOR(ChromeHangAnnotationEnumerator);
-}
-
-ChromeHangAnnotationEnumerator::~ChromeHangAnnotationEnumerator()
-{
-  MOZ_COUNT_DTOR(ChromeHangAnnotationEnumerator);
-}
-
-bool
-ChromeHangAnnotationEnumerator::Next(nsAString& aOutName, nsAString& aOutValue)
-{
-  aOutName.Truncate();
-  aOutValue.Truncate();
-  if (mIterator == mEnd) {
-    return false;
-  }
-  aOutName = mIterator->first;
-  aOutValue = mIterator->second;
-  ++mIterator;
-  return true;
-}
-
-bool
-ChromeHangAnnotations::IsEmpty() const
-{
-  return mAnnotations.empty();
-}
-
-size_t
-ChromeHangAnnotations::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
-{
-  size_t result = sizeof(mAnnotations) +
-                  mAnnotations.capacity() * sizeof(AnnotationType);
-  for (IteratorType i = mAnnotations.begin(), e = mAnnotations.end(); i != e;
-       ++i) {
-    result += i->first.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
-    result += i->second.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
-  }
-
-  return result;
-}
-
-bool
-ChromeHangAnnotations::GetEnumerator(HangAnnotations::Enumerator** aOutEnum)
-{
-  if (!aOutEnum) {
-    return false;
-  }
-  *aOutEnum = nullptr;
-  if (mAnnotations.empty()) {
-    return false;
-  }
-  *aOutEnum = new ChromeHangAnnotationEnumerator(mAnnotations);
-  return true;
-}
-
 static void
-ChromeStackWalker(uint32_t aFrameNumber, void* aPC, void* aSP, void* aClosure)
+ChromeStackWalker(void *aPC, void *aSP, void *aClosure)
 {
   MOZ_ASSERT(aClosure);
-  std::vector<uintptr_t>* stack =
+  std::vector<uintptr_t> *stack =
     static_cast<std::vector<uintptr_t>*>(aClosure);
-  if (stack->size() == MAX_CALL_STACK_PCS) {
+  if (stack->size() == MAX_CALL_STACK_PCS)
     return;
-  }
   MOZ_ASSERT(stack->size() < MAX_CALL_STACK_PCS);
   stack->push_back(reinterpret_cast<uintptr_t>(aPC));
 }
 
 static void
-GetChromeHangReport(Telemetry::ProcessedStack& aStack,
-                    int32_t& aSystemUptime,
-                    int32_t& aFirefoxUptime)
+GetChromeHangReport(Telemetry::ProcessedStack &aStack)
 {
   MOZ_ASSERT(winMainThreadHandle);
 
@@ -303,47 +131,15 @@ GetChromeHangReport(Telemetry::ProcessedStack& aStack,
   std::vector<uintptr_t> rawStack;
   rawStack.reserve(MAX_CALL_STACK_PCS);
   DWORD ret = ::SuspendThread(winMainThreadHandle);
-  if (ret == -1) {
+  if (ret == -1)
     return;
-  }
-  NS_StackWalk(ChromeStackWalker, /* skipFrames */ 0, /* maxFrames */ 0,
-               reinterpret_cast<void*>(&rawStack),
-               reinterpret_cast<uintptr_t>(winMainThreadHandle), nullptr);
+  NS_StackWalk(ChromeStackWalker, 0, reinterpret_cast<void*>(&rawStack),
+               reinterpret_cast<uintptr_t>(winMainThreadHandle));
   ret = ::ResumeThread(winMainThreadHandle);
-  if (ret == -1) {
+  if (ret == -1)
     return;
-  }
-  aStack = Telemetry::GetStackAndModules(rawStack);
-
-  // Record system uptime (in minutes) at the time of the hang
-  aSystemUptime = ((GetTickCount() / 1000) - (gTimeout * 2)) / 60;
-
-  // Record Firefox uptime (in minutes) at the time of the hang
-  bool error;
-  TimeStamp processCreation = TimeStamp::ProcessCreation(error);
-  if (!error) {
-    TimeDuration td = TimeStamp::Now() - processCreation;
-    aFirefoxUptime = (static_cast<int32_t>(td.ToSeconds()) - (gTimeout * 2)) / 60;
-  } else {
-    aFirefoxUptime = -1;
-  }
+  aStack = Telemetry::GetStackAndModules(rawStack, false);
 }
-
-static void
-ChromeHangAnnotatorCallout(ChromeHangAnnotations& aAnnotations)
-{
-  gMonitor->AssertCurrentThreadOwns();
-  MOZ_ASSERT(gAnnotators);
-  if (!gAnnotators) {
-    return;
-  }
-  for (std::set<Annotator*>::iterator i = gAnnotators->begin(),
-                                      e = gAnnotators->end();
-       i != e; ++i) {
-    (*i)->AnnotateHang(aAnnotations);
-  }
-}
-
 #endif
 
 void
@@ -361,9 +157,6 @@ ThreadMain(void*)
 
 #ifdef REPORT_CHROME_HANGS
   Telemetry::ProcessedStack stack;
-  int32_t systemUptime = -1;
-  int32_t firefoxUptime = -1;
-  auto annotations = MakeUnique<ChromeHangAnnotations>();
 #endif
 
   while (true) {
@@ -386,33 +179,25 @@ ThreadMain(void*)
         timestamp == lastTimestamp &&
         gTimeout > 0) {
       ++waitCount;
-#ifdef REPORT_CHROME_HANGS
-      // Capture the chrome-hang stack + Firefox & system uptimes after
-      // the minimum hang duration has been reached (not when the hang ends)
       if (waitCount == 2) {
-        GetChromeHangReport(stack, systemUptime, firefoxUptime);
-        ChromeHangAnnotatorCallout(*annotations);
-      }
+#ifdef REPORT_CHROME_HANGS
+        GetChromeHangReport(stack);
 #else
-      // This is the crash-on-hang feature.
-      // See bug 867313 for the quirk in the waitCount comparison
-      if (waitCount >= 2) {
         int32_t delay =
           int32_t(PR_IntervalToSeconds(now - timestamp));
-        if (delay >= gTimeout) {
+        if (delay > gTimeout) {
           MonitorAutoUnlock unlock(*gMonitor);
           Crash();
         }
-      }
 #endif
-    } else {
+      }
+    }
+    else {
 #ifdef REPORT_CHROME_HANGS
       if (waitCount >= 2) {
         uint32_t hangDuration = PR_IntervalToSeconds(now - lastTimestamp);
-        Telemetry::RecordChromeHang(hangDuration, stack, systemUptime,
-                                    firefoxUptime, Move(annotations));
+        Telemetry::RecordChromeHang(hangDuration, stack);
         stack.Clear();
-        annotations = MakeUnique<ChromeHangAnnotations>();
       }
 #endif
       lastTimestamp = timestamp;
@@ -422,7 +207,8 @@ ThreadMain(void*)
     PRIntervalTime timeout;
     if (gTimeout <= 0) {
       timeout = PR_INTERVAL_NO_TIMEOUT;
-    } else {
+    }
+    else {
       timeout = PR_MillisecondsToInterval(gTimeout * 500);
     }
     lock.Wait(timeout);
@@ -435,24 +221,21 @@ Startup()
   // The hang detector only runs in chrome processes. If you change this,
   // you must also deal with the threadsafety of AnnotateCrashReport in
   // non-chrome processes!
-  if (GeckoProcessType_Default != XRE_GetProcessType()) {
+  if (GeckoProcessType_Default != XRE_GetProcessType())
     return;
-  }
 
-  MOZ_ASSERT(!gMonitor, "Hang monitor already initialized");
+  NS_ASSERTION(!gMonitor, "Hang monitor already initialized");
   gMonitor = new Monitor("HangMonitor");
 
-  Preferences::RegisterCallback(PrefChanged, kHangMonitorPrefName, nullptr);
-  PrefChanged(nullptr, nullptr);
+  Preferences::RegisterCallback(PrefChanged, kHangMonitorPrefName, NULL);
+  PrefChanged(NULL, NULL);
 
 #ifdef REPORT_CHROME_HANGS
-  Preferences::RegisterCallback(PrefChanged, kTelemetryPrefName, nullptr);
+  Preferences::RegisterCallback(PrefChanged, kTelemetryPrefName, NULL);
   winMainThreadHandle =
     OpenThread(THREAD_ALL_ACCESS, FALSE, GetCurrentThreadId());
-  if (!winMainThreadHandle) {
+  if (!winMainThreadHandle)
     return;
-  }
-  gAnnotators = new std::set<Annotator*>();
 #endif
 
   // Don't actually start measuring hangs until we hit the main event loop.
@@ -463,21 +246,19 @@ Startup()
 
   gThread = PR_CreateThread(PR_USER_THREAD,
                             ThreadMain,
-                            nullptr, PR_PRIORITY_LOW, PR_GLOBAL_THREAD,
+                            NULL, PR_PRIORITY_LOW, PR_GLOBAL_THREAD,
                             PR_JOINABLE_THREAD, 0);
 }
 
 void
 Shutdown()
 {
-  if (GeckoProcessType_Default != XRE_GetProcessType()) {
+  if (GeckoProcessType_Default != XRE_GetProcessType())
     return;
-  }
 
-  MOZ_ASSERT(gMonitor, "Hang monitor not started");
+  NS_ASSERTION(gMonitor, "Hang monitor not started");
 
-  {
-    // Scope the lock we're going to delete later
+  { // Scope the lock we're going to delete later
     MonitorAutoLock lock(*gMonitor);
     gShutdown = true;
     lock.Notify();
@@ -486,16 +267,11 @@ Shutdown()
   // thread creation could theoretically fail
   if (gThread) {
     PR_JoinThread(gThread);
-    gThread = nullptr;
+    gThread = NULL;
   }
 
   delete gMonitor;
-  gMonitor = nullptr;
-
-#ifdef REPORT_CHROME_HANGS
-  // gAnnotators is a StaticAutoPtr, so we just need to null it out.
-  gAnnotators = nullptr;
-#endif
+  gMonitor = NULL;
 }
 
 static bool
@@ -504,47 +280,45 @@ IsUIMessageWaiting()
 #ifndef XP_WIN
   return false;
 #else
-#define NS_WM_IMEFIRST WM_IME_SETCONTEXT
-#define NS_WM_IMELAST  WM_IME_KEYUP
+  #define NS_WM_IMEFIRST WM_IME_SETCONTEXT
+  #define NS_WM_IMELAST  WM_IME_KEYUP
   BOOL haveUIMessageWaiting = FALSE;
   MSG msg;
-  haveUIMessageWaiting |= ::PeekMessageW(&msg, nullptr, WM_KEYFIRST,
+  haveUIMessageWaiting |= ::PeekMessageW(&msg, NULL, WM_KEYFIRST, 
                                          WM_IME_KEYLAST, PM_NOREMOVE);
-  haveUIMessageWaiting |= ::PeekMessageW(&msg, nullptr, NS_WM_IMEFIRST,
+  haveUIMessageWaiting |= ::PeekMessageW(&msg, NULL, NS_WM_IMEFIRST,
                                          NS_WM_IMELAST, PM_NOREMOVE);
-  haveUIMessageWaiting |= ::PeekMessageW(&msg, nullptr, WM_MOUSEFIRST,
+  haveUIMessageWaiting |= ::PeekMessageW(&msg, NULL, WM_MOUSEFIRST,
                                          WM_MOUSELAST, PM_NOREMOVE);
   return haveUIMessageWaiting;
 #endif
 }
 
 void
-NotifyActivity(ActivityType aActivityType)
+NotifyActivity(ActivityType activityType)
 {
-  MOZ_ASSERT(NS_IsMainThread(),
-             "HangMonitor::Notify called from off the main thread.");
+  NS_ASSERTION(NS_IsMainThread(),
+    "HangMonitor::Notify called from off the main thread.");
 
   // Determine the activity type more specifically
-  if (aActivityType == kGeneralActivity) {
-    aActivityType = IsUIMessageWaiting() ? kActivityUIAVail :
-                                           kActivityNoUIAVail;
+  if (activityType == kGeneralActivity) {
+    activityType = IsUIMessageWaiting() ? kActivityUIAVail : 
+                                          kActivityNoUIAVail;
   }
 
   // Calculate the cumulative amount of lag time since the last UI message
   static uint32_t cumulativeUILagMS = 0;
-  switch (aActivityType) {
-    case kActivityNoUIAVail:
-      cumulativeUILagMS = 0;
-      break;
-    case kActivityUIAVail:
-    case kUIActivity:
-      if (gTimestamp != PR_INTERVAL_NO_WAIT) {
-        cumulativeUILagMS += PR_IntervalToMilliseconds(PR_IntervalNow() -
-                                                       gTimestamp);
-      }
-      break;
-    default:
-      break;
+  switch(activityType) {
+  case kActivityNoUIAVail:
+    cumulativeUILagMS = 0;
+    break;
+  case kActivityUIAVail:
+  case kUIActivity:
+    if (gTimestamp != PR_INTERVAL_NO_WAIT) {
+      cumulativeUILagMS += PR_IntervalToMilliseconds(PR_IntervalNow() -
+                                                     gTimestamp);
+    }
+    break;
   }
 
   // This is not a locked activity because PRTimeStamp is a 32-bit quantity
@@ -554,7 +328,7 @@ NotifyActivity(ActivityType aActivityType)
 
   // If we have UI activity we should reset the timer and report it if it is
   // significant enough.
-  if (aActivityType == kUIActivity) {
+  if (activityType == kUIActivity) {
     // The minimum amount of lag time that we should report for telemetry data.
     // Mozilla's UI responsiveness goal is 50ms
     static const uint32_t kUIResponsivenessThresholdMS = 50;
@@ -564,51 +338,15 @@ NotifyActivity(ActivityType aActivityType)
     }
     cumulativeUILagMS = 0;
   }
-
-  if (gThread && !gShutdown) {
-    mozilla::BackgroundHangMonitor().NotifyActivity();
-  }
 }
 
 void
 Suspend()
 {
-  MOZ_ASSERT(NS_IsMainThread(),
-             "HangMonitor::Suspend called from off the main thread.");
+  NS_ASSERTION(NS_IsMainThread(), "HangMonitor::Suspend called from off the main thread.");
 
   // Because gTimestamp changes this resets the wait count.
   gTimestamp = PR_INTERVAL_NO_WAIT;
-
-  if (gThread && !gShutdown) {
-    mozilla::BackgroundHangMonitor().NotifyWait();
-  }
 }
 
-void
-RegisterAnnotator(Annotator& aAnnotator)
-{
-#ifdef REPORT_CHROME_HANGS
-  if (GeckoProcessType_Default != XRE_GetProcessType()) {
-    return;
-  }
-  MonitorAutoLock lock(*gMonitor);
-  MOZ_ASSERT(gAnnotators);
-  gAnnotators->insert(&aAnnotator);
-#endif
-}
-
-void
-UnregisterAnnotator(Annotator& aAnnotator)
-{
-#ifdef REPORT_CHROME_HANGS
-  if (GeckoProcessType_Default != XRE_GetProcessType()) {
-    return;
-  }
-  MonitorAutoLock lock(*gMonitor);
-  MOZ_ASSERT(gAnnotators);
-  gAnnotators->erase(&aAnnotator);
-#endif
-}
-
-} // namespace HangMonitor
-} // namespace mozilla
+} } // namespace mozilla::HangMonitor

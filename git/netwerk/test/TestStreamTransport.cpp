@@ -45,7 +45,7 @@ class MyCopier : public nsIInputStreamCallback
                , public nsIOutputStreamCallback
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
 
     MyCopier()
         : mLock(nullptr)
@@ -162,9 +162,9 @@ protected:
     nsresult                       mInputCondition;
 };
 
-NS_IMPL_ISUPPORTS(MyCopier,
-                  nsIInputStreamCallback,
-                  nsIOutputStreamCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS2(MyCopier,
+                              nsIInputStreamCallback,
+                              nsIOutputStreamCallback)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -292,12 +292,12 @@ main(int argc, char* argv[])
         rv = srcFile->Clone(getter_AddRefs(destFile));
         if (NS_FAILED(rv)) return rv;
 
-        nsAutoCString leafName;
+        nsCAutoString leafName;
         rv = destFile->GetNativeLeafName(leafName);
         if (NS_FAILED(rv)) return rv;
 
-        nsAutoCString newName(leafName);
-        newName.AppendLiteral(".1");
+        nsCAutoString newName(leafName);
+        newName.Append(NS_LITERAL_CSTRING(".1"));
         rv = destFile->SetNativeLeafName(newName);
         if (NS_FAILED(rv)) return rv;
 
@@ -305,7 +305,7 @@ main(int argc, char* argv[])
         NS_ASSERTION(NS_SUCCEEDED(rv), "RunTest failed");
 
         newName = leafName;
-        newName.AppendLiteral(".2");
+        newName.Append(NS_LITERAL_CSTRING(".2"));
         rv = destFile->SetNativeLeafName(newName);
         if (NS_FAILED(rv)) return rv;
 

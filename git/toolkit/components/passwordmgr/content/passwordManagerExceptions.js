@@ -1,4 +1,4 @@
-// -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
+// -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -27,15 +27,13 @@ var rejectsTreeView = {
   isSorted: function() { return false; },
   isContainer : function(index) {return false;},
   cycleHeader : function(column) {},
-  getRowProperties : function(row){ return ""; },
-  getColumnProperties : function(column){ return ""; },
-  getCellProperties : function(row,column){
+  getRowProperties : function(row,prop){},
+  getColumnProperties : function(column,prop){},
+  getCellProperties : function(row,column,prop){
     if (column.element.getAttribute("id") == "rejectCol")
-      return "ltr";
-
-    return "";
+      prop.AppendElement(kLTRAtom);
   }
-};
+ };
 
 function Reject(number, host) {
   this.number = number;
@@ -48,7 +46,7 @@ function LoadRejects() {
   rejectsTreeView.rowCount = rejects.length;
 
   // sort and display the table
-  rejectsTree.view = rejectsTreeView;
+  rejectsTree.treeBoxObject.view = rejectsTreeView;
   RejectColumnSort(lastRejectSortColumn);
 
   var element = document.getElementById("removeAllRejects");
@@ -88,12 +86,8 @@ function FinalizeRejectDeletions() {
 }
 
 function HandleRejectKeyPress(e) {
-  if (e.keyCode == KeyEvent.DOM_VK_DELETE
-#ifdef XP_MACOSX
-      || e.keyCode == KeyEvent.DOM_VK_BACK_SPACE
-#endif
-     ) {
-    DeleteReject();
+  if (e.keyCode == 46) {
+    DeleteRejectSelected();
   }
 }
 

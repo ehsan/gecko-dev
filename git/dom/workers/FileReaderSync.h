@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -9,48 +9,16 @@
 
 #include "Workers.h"
 
-class nsIInputStream;
-class nsIDOMBlob;
-
-namespace mozilla {
-class ErrorResult;
-
-namespace dom {
-class File;
-class GlobalObject;
-template<typename> class Optional;
-}
-}
+#include "jspubtd.h"
 
 BEGIN_WORKERS_NAMESPACE
 
-class FileReaderSync MOZ_FINAL
-{
-  NS_INLINE_DECL_REFCOUNTING(FileReaderSync)
+namespace filereadersync {
 
-private:
-  // Private destructor, to discourage deletion outside of Release():
-  ~FileReaderSync()
-  {
-  }
+bool
+InitClass(JSContext* aCx, JSObject* aGlobal);
 
-  nsresult ConvertStream(nsIInputStream *aStream, const char *aCharset,
-                         nsAString &aResult);
-
-public:
-  static already_AddRefed<FileReaderSync>
-  Constructor(const GlobalObject& aGlobal, ErrorResult& aRv);
-
-  JSObject* WrapObject(JSContext* aCx);
-
-  void ReadAsArrayBuffer(JSContext* aCx, JS::Handle<JSObject*> aScopeObj,
-                         File& aBlob, JS::MutableHandle<JSObject*> aRetval,
-                         ErrorResult& aRv);
-  void ReadAsBinaryString(File& aBlob, nsAString& aResult, ErrorResult& aRv);
-  void ReadAsText(File& aBlob, const Optional<nsAString>& aEncoding,
-                  nsAString& aResult, ErrorResult& aRv);
-  void ReadAsDataURL(File& aBlob, nsAString& aResult, ErrorResult& aRv);
-};
+} // namespace filereadersync
 
 END_WORKERS_NAMESPACE
 

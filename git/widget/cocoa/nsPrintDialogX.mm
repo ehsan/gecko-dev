@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "nsPrintDialogX.h"
 #include "nsIPrintSettings.h"
@@ -20,7 +20,7 @@
 
 using namespace mozilla;
 
-NS_IMPL_ISUPPORTS(nsPrintDialogServiceX, nsIPrintDialogService)
+NS_IMPL_ISUPPORTS1(nsPrintDialogServiceX, nsIPrintDialogService)
 
 nsPrintDialogServiceX::nsPrintDialogServiceX()
 {
@@ -44,17 +44,16 @@ nsPrintDialogServiceX::Show(nsIDOMWindow *aParent, nsIPrintSettings *aSettings,
 
   NS_PRECONDITION(aSettings, "aSettings must not be null");
 
-  nsRefPtr<nsPrintSettingsX> settingsX(do_QueryObject(aSettings));
+  nsCOMPtr<nsPrintSettingsX> settingsX(do_QueryInterface(aSettings));
   if (!settingsX)
     return NS_ERROR_FAILURE;
 
   // Set the print job title
-  char16_t** docTitles;
+  PRUnichar** docTitles;
   uint32_t titleCount;
   nsresult rv = aWebBrowserPrint->EnumerateDocumentNames(&titleCount, &docTitles);
   if (NS_SUCCEEDED(rv) && titleCount > 0) {
-    CFStringRef cfTitleString = CFStringCreateWithCharacters(NULL, reinterpret_cast<const UniChar*>(docTitles[0]),
-                                                             NS_strlen(docTitles[0]));
+    CFStringRef cfTitleString = CFStringCreateWithCharacters(NULL, docTitles[0], NS_strlen(docTitles[0]));
     if (cfTitleString) {
       ::PMPrintSettingsSetJobName(settingsX->GetPMPrintSettings(), cfTitleString);
       CFRelease(cfTitleString);
@@ -106,7 +105,7 @@ nsPrintDialogServiceX::Show(nsIDOMWindow *aParent, nsIPrintSettings *aSettings,
     OSStatus status = ::PMGetFirstPage(nativePrintSettings, &firstPage);
     if (status == noErr) {
       status = ::PMGetLastPage(nativePrintSettings, &lastPage);
-      if (status == noErr && lastPage != UINT32_MAX) {
+      if (status == noErr && lastPage != PR_UINT32_MAX) {
         aSettings->SetPrintRange(nsIPrintSettings::kRangeSpecifiedPageRange);
         aSettings->SetStartPageRange(firstPage);
         aSettings->SetEndPageRange(lastPage);
@@ -127,7 +126,7 @@ nsPrintDialogServiceX::ShowPageSetup(nsIDOMWindow *aParent,
   NS_PRECONDITION(aNSSettings, "aSettings must not be null");
   NS_ENSURE_TRUE(aNSSettings, NS_ERROR_FAILURE);
 
-  nsRefPtr<nsPrintSettingsX> settingsX(do_QueryObject(aNSSettings));
+  nsCOMPtr<nsPrintSettingsX> settingsX(do_QueryInterface(aNSSettings));
   if (!settingsX)
     return NS_ERROR_FAILURE;
 
@@ -169,7 +168,7 @@ nsPrintDialogServiceX::ShowPageSetup(nsIDOMWindow *aParent,
 - (NSButton*)checkboxWithLabel:(const char*)aLabel andFrame:(NSRect)aRect;
 
 - (NSPopUpButton*)headerFooterItemListWithFrame:(NSRect)aRect
-                                   selectedItem:(const char16_t*)aCurrentString;
+                                   selectedItem:(const PRUnichar*)aCurrentString;
 
 - (void)addOptionsSection;
 
@@ -298,7 +297,7 @@ static const char sHeaderFooterTags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
 }
 
 - (NSPopUpButton*)headerFooterItemListWithFrame:(NSRect)aRect
-                                   selectedItem:(const char16_t*)aCurrentString
+                                   selectedItem:(const PRUnichar*)aCurrentString
 {
   NSPopUpButton* list = [[[NSPopUpButton alloc] initWithFrame:aRect pullsDown:NO] autorelease];
   [list setFont:[NSFont systemFontOfSize:[NSFont smallSystemFontSize]]];

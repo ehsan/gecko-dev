@@ -1,4 +1,4 @@
-# -*- indent-tabs-mode: nil; js-indent-level: 4 -*-
+# -*- Mode: Java; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -13,6 +13,9 @@ var gTabsPane = {
    *     1 opens such links in the most recent window or tab,
    *     2 opens such links in a new window,
    *     3 opens such links in a new tab
+   * browser.tabs.autoHide
+   * - true if the tab bar is hidden when only one tab is open, false to always
+   *   show it
    * browser.tabs.loadInBackground
    * - true if display should switch to a new tab which has been opened from a
    *   link, false if display shouldn't switch

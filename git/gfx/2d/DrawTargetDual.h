@@ -12,7 +12,6 @@
 #include "SourceSurfaceDual.h"
      
 #include "2D.h"
-#include "Filters.h"
      
 namespace mozilla {
 namespace gfx {
@@ -35,7 +34,6 @@ namespace gfx {
 class DrawTargetDual : public DrawTarget
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DrawTargetDual)
   DrawTargetDual(DrawTarget *aA, DrawTarget *aB)
     : mA(aA)
     , mB(aB)
@@ -43,8 +41,7 @@ public:
     mFormat = aA->GetFormat();
   }
      
-  virtual DrawTargetType GetType() const MOZ_OVERRIDE { return mA->GetType(); }
-  virtual BackendType GetBackendType() const { return mA->GetBackendType(); }
+  virtual BackendType GetType() const { return mA->GetType(); }
   virtual TemporaryRef<SourceSurface> Snapshot() { return new SourceSurfaceDual(mA, mB); }
   virtual IntSize GetSize() { return mA->GetSize(); }
      
@@ -62,21 +59,7 @@ public:
 
   virtual void DrawSurface(SourceSurface *aSurface, const Rect &aDest, const Rect & aSource,
                            const DrawSurfaceOptions &aSurfOptions, const DrawOptions &aOptions);
-
-  virtual void DrawFilter(FilterNode *aNode,
-                          const Rect &aSourceRect,
-                          const Point &aDestPoint,
-                          const DrawOptions &aOptions = DrawOptions())
-  {
-    mA->DrawFilter(aNode, aSourceRect, aDestPoint, aOptions);
-    mB->DrawFilter(aNode, aSourceRect, aDestPoint, aOptions);
-  }
-
-  virtual void MaskSurface(const Pattern &aSource,
-                           SourceSurface *aMask,
-                           Point aOffset,
-                           const DrawOptions &aOptions = DrawOptions());
-
+  
   virtual void DrawSurfaceWithShadow(SourceSurface *aSurface, const Point &aDest,
                                      const Color &aColor, const Point &aOffset,
                                      Float aSigma, CompositionOp aOp);
@@ -126,7 +109,7 @@ public:
   virtual TemporaryRef<DrawTarget>
     CreateSimilarDrawTarget(const IntSize &aSize, SurfaceFormat aFormat) const;
      
-  virtual TemporaryRef<PathBuilder> CreatePathBuilder(FillRule aFillRule = FillRule::FILL_WINDING) const
+  virtual TemporaryRef<PathBuilder> CreatePathBuilder(FillRule aFillRule = FILL_WINDING) const
   {
     return mA->CreatePathBuilder(aFillRule);
   }
@@ -134,24 +117,14 @@ public:
   virtual TemporaryRef<GradientStops>
     CreateGradientStops(GradientStop *aStops,
                         uint32_t aNumStops,
-                        ExtendMode aExtendMode = ExtendMode::CLAMP) const
+                        ExtendMode aExtendMode = EXTEND_CLAMP) const
   {
     return mA->CreateGradientStops(aStops, aNumStops, aExtendMode);
   }
-
-  virtual TemporaryRef<FilterNode> CreateFilter(FilterType aType)
-  {
-    return mA->CreateFilter(aType);
-  }
-
+     
   virtual void *GetNativeSurface(NativeSurfaceType aType)
   {
     return nullptr;
-  }
-
-  virtual bool IsDualDrawTarget() const
-  {
-    return true;
   }
      
 private:

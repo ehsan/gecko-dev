@@ -58,7 +58,7 @@ function HelperAppDlg() { }
 HelperAppDlg.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIHelperAppLauncherDialog]),
   contractID: "@mozilla.org/helperapplauncherdialog;1",
-  show: function (launcher, ctx, reason, usePrivateUI) {
+  show: function (launcher, ctx, reason) {
     launcher.MIMEInfo.preferredAction = Ci.nsIMIMEInfo.saveToFile;
     launcher.launchWithApplication(null, false);
   },
@@ -150,7 +150,7 @@ function runChildTestSet(set)
   sendCommand('\
   let uri = ioservice.newURI("http://localhost:4444' + set[0] + '", null, null);\
   let channel = ioservice.newChannelFromURI(uri);                              \
-  uriloader.openURI(channel, Ci.nsIURILoader.IS_CONTENT_PREFERRED, new WindowContext()); \
+  uriloader.openURI(channel, true, new WindowContext());                       \
   ');
 }
 
@@ -193,7 +193,14 @@ function finishTest1(subject, topic, data) {
   let bis = Cc["@mozilla.org/binaryinputstream;1"].createInstance(Ci.nsIBinaryInputStream);
   bis.setInputStream(fis);
   let str = bis.readByteArray(bis.available());
-  do_check_matches(str, responseBody);
+  do_check_true(str.length == responseBody.length);
+
+  let cmp = 0;
+  for (i = 0; i < str.length; i++) {
+    cmp += str[i] - responseBody[i];
+    if (cmp != 0) break;
+  }
+  do_check_true(cmp == 0);
 }
 
 /*
@@ -219,7 +226,14 @@ function finishTest2(subject, topic, data) {
   let bis = Cc["@mozilla.org/binaryinputstream;1"].createInstance(Ci.nsIBinaryInputStream);
   bis.setInputStream(fis);
   let str = bis.readByteArray(bis.available());
-  do_check_matches(str, responseBody);
+  do_check_true(str.length == responseBody.length);
+
+  let cmp = 0;
+  for (i = 0; i < str.length; i++) {
+    cmp += str[i] - responseBody[i];
+    if (cmp != 0) break;
+  }
+  do_check_true(cmp == 0);
 }
 
 function testResponse3(metadata, response) {
@@ -241,7 +255,14 @@ function finishTest3(subject, topic, data) {
   bis.setInputStream(fis);
   let str = bis.readByteArray(bis.available());
   let decodedBody = [ 116, 101, 115, 116, 10 ]; // 't','e','s','t','\n'
-  do_check_matches(str, decodedBody);
+  do_check_true(str.length == decodedBody.length);
+
+  let cmp = 0;
+  for (i = 0; i < str.length; i++) {
+    cmp += str[i] - decodedBody[i];
+    if (cmp != 0) break;
+  }
+  do_check_true(cmp == 0);
 }
 
 let tests = [

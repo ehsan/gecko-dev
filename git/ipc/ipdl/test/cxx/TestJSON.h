@@ -18,9 +18,6 @@ class TestHandleParent :
 public:
     TestHandleParent() { }
     virtual ~TestHandleParent() { }
-
-protected:
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE {}
 };
 
 class TestJSONParent :
@@ -40,12 +37,12 @@ protected:
     RecvTest(const JSONVariant& i,
              JSONVariant* o) MOZ_OVERRIDE;
 
-    virtual PTestHandleParent* AllocPTestHandleParent() MOZ_OVERRIDE
+    virtual PTestHandleParent* AllocPTestHandle() MOZ_OVERRIDE
     {
         return mKid = new TestHandleParent();
     }
 
-    virtual bool DeallocPTestHandleParent(PTestHandleParent* actor) MOZ_OVERRIDE
+    virtual bool DeallocPTestHandle(PTestHandleParent* actor) MOZ_OVERRIDE
     {
         delete actor;
         return true;
@@ -82,12 +79,12 @@ protected:
     virtual bool
     RecvStart() MOZ_OVERRIDE;
 
-    virtual PTestHandleChild* AllocPTestHandleChild() MOZ_OVERRIDE
+    virtual PTestHandleChild* AllocPTestHandle() MOZ_OVERRIDE
     {
         return mKid = new TestHandleChild();
     }
 
-    virtual bool DeallocPTestHandleChild(PTestHandleChild* actor) MOZ_OVERRIDE
+    virtual bool DeallocPTestHandle(PTestHandleChild* actor) MOZ_OVERRIDE
     {
         delete actor;
         return true;

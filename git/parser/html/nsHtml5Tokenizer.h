@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2005-2007 Henri Sivonen
- * Copyright (c) 2007-2013 Mozilla Foundation
+ * Copyright (c) 2007-2010 Mozilla Foundation
  * Portions of comments Copyright 2004-2010 Apple Computer, Inc., Mozilla 
  * Foundation, and Opera Software ASA.
  *
@@ -28,9 +28,10 @@
  * Please edit Tokenizer.java instead and regenerate.
  */
 
-#ifndef nsHtml5Tokenizer_h
-#define nsHtml5Tokenizer_h
+#ifndef nsHtml5Tokenizer_h__
+#define nsHtml5Tokenizer_h__
 
+#include "prtypes.h"
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"
 #include "nsString.h"
@@ -62,25 +63,25 @@ class nsHtml5Portability;
 class nsHtml5Tokenizer
 {
   private:
-    static char16_t LT_GT[];
-    static char16_t LT_SOLIDUS[];
-    static char16_t RSQB_RSQB[];
-    static char16_t REPLACEMENT_CHARACTER[];
-    static char16_t LF[];
-    static char16_t CDATA_LSQB[];
-    static char16_t OCTYPE[];
-    static char16_t UBLIC[];
-    static char16_t YSTEM[];
-    static staticJArray<char16_t,int32_t> TITLE_ARR;
-    static staticJArray<char16_t,int32_t> SCRIPT_ARR;
-    static staticJArray<char16_t,int32_t> STYLE_ARR;
-    static staticJArray<char16_t,int32_t> PLAINTEXT_ARR;
-    static staticJArray<char16_t,int32_t> XMP_ARR;
-    static staticJArray<char16_t,int32_t> TEXTAREA_ARR;
-    static staticJArray<char16_t,int32_t> IFRAME_ARR;
-    static staticJArray<char16_t,int32_t> NOEMBED_ARR;
-    static staticJArray<char16_t,int32_t> NOSCRIPT_ARR;
-    static staticJArray<char16_t,int32_t> NOFRAMES_ARR;
+    static PRUnichar LT_GT[];
+    static PRUnichar LT_SOLIDUS[];
+    static PRUnichar RSQB_RSQB[];
+    static PRUnichar REPLACEMENT_CHARACTER[];
+    static PRUnichar LF[];
+    static PRUnichar CDATA_LSQB[];
+    static PRUnichar OCTYPE[];
+    static PRUnichar UBLIC[];
+    static PRUnichar YSTEM[];
+    static staticJArray<PRUnichar,int32_t> TITLE_ARR;
+    static staticJArray<PRUnichar,int32_t> SCRIPT_ARR;
+    static staticJArray<PRUnichar,int32_t> STYLE_ARR;
+    static staticJArray<PRUnichar,int32_t> PLAINTEXT_ARR;
+    static staticJArray<PRUnichar,int32_t> XMP_ARR;
+    static staticJArray<PRUnichar,int32_t> TEXTAREA_ARR;
+    static staticJArray<PRUnichar,int32_t> IFRAME_ARR;
+    static staticJArray<PRUnichar,int32_t> NOEMBED_ARR;
+    static staticJArray<PRUnichar,int32_t> NOSCRIPT_ARR;
+    static staticJArray<PRUnichar,int32_t> NOFRAMES_ARR;
   protected:
     nsHtml5TreeBuilder* tokenHandler;
     nsHtml5StreamParser* encodingDeclarationHandler;
@@ -92,7 +93,7 @@ class nsHtml5Tokenizer
     int32_t index;
   private:
     bool forceQuirks;
-    char16_t additional;
+    PRUnichar additional;
     int32_t entCol;
     int32_t firstCharKey;
     int32_t lo;
@@ -109,16 +110,16 @@ class nsHtml5Tokenizer
   private:
     nsString* publicId;
     nsString* systemId;
-    autoJArray<char16_t,int32_t> strBuf;
+    autoJArray<PRUnichar,int32_t> strBuf;
     int32_t strBufLen;
-    autoJArray<char16_t,int32_t> longStrBuf;
+    autoJArray<PRUnichar,int32_t> longStrBuf;
     int32_t longStrBufLen;
-    autoJArray<char16_t,int32_t> bmpChar;
-    autoJArray<char16_t,int32_t> astralChar;
+    autoJArray<PRUnichar,int32_t> bmpChar;
+    autoJArray<PRUnichar,int32_t> astralChar;
   protected:
     nsHtml5ElementName* endTagExpectation;
   private:
-    jArray<char16_t,int32_t> endTagExpectationAsArray;
+    jArray<PRUnichar,int32_t> endTagExpectationAsArray;
   protected:
     bool endTag;
   private:
@@ -130,7 +131,6 @@ class nsHtml5Tokenizer
     nsString* publicIdentifier;
     nsString* systemIdentifier;
     nsHtml5HtmlAttributes* attributes;
-    bool newAttributesEachTime;
     bool shouldSuspend;
   protected:
     bool confident;
@@ -156,7 +156,7 @@ class nsHtml5Tokenizer
 
     nsHtml5HtmlAttributes* emptyAttributes();
   private:
-    inline void clearStrBufAndAppend(char16_t c)
+    inline void clearStrBufAndAppend(PRUnichar c)
     {
       strBuf[0] = c;
       strBufLen = 1;
@@ -167,7 +167,7 @@ class nsHtml5Tokenizer
       strBufLen = 0;
     }
 
-    void appendStrBuf(char16_t c);
+    void appendStrBuf(PRUnichar c);
   protected:
     nsString* strBufToString();
   private:
@@ -178,25 +178,25 @@ class nsHtml5Tokenizer
       longStrBufLen = 0;
     }
 
-    inline void clearLongStrBufAndAppend(char16_t c)
+    inline void clearLongStrBufAndAppend(PRUnichar c)
     {
       longStrBuf[0] = c;
       longStrBufLen = 1;
     }
 
-    void appendLongStrBuf(char16_t c);
+    void appendLongStrBuf(PRUnichar c);
     inline void appendSecondHyphenToBogusComment()
     {
       appendLongStrBuf('-');
     }
 
-    inline void adjustDoubleHyphenAndAppendToLongStrBufAndErr(char16_t c)
+    inline void adjustDoubleHyphenAndAppendToLongStrBufAndErr(PRUnichar c)
     {
       errConsecutiveHyphens();
       appendLongStrBuf(c);
     }
 
-    void appendLongStrBuf(char16_t* buffer, int32_t offset, int32_t length);
+    void appendLongStrBuf(PRUnichar* buffer, int32_t offset, int32_t length);
     inline void appendStrBufToLongStrBuf()
     {
       appendLongStrBuf(strBuf, 0, strBufLen);
@@ -205,8 +205,9 @@ class nsHtml5Tokenizer
     nsString* longStrBufToString();
     void emitComment(int32_t provisionalHyphens, int32_t pos);
   protected:
-    void flushChars(char16_t* buf, int32_t pos);
+    void flushChars(PRUnichar* buf, int32_t pos);
   private:
+    void resetAttributes();
     void strBufToElementNameString();
     int32_t emitCurrentTagToken(bool selfClosing, int32_t pos);
     void attributeNameComplete();
@@ -216,7 +217,7 @@ class nsHtml5Tokenizer
     void start();
     bool tokenizeBuffer(nsHtml5UTF16Buffer* buffer);
   private:
-    template<class P> int32_t stateLoop(int32_t state, char16_t c, int32_t pos, char16_t* buf, bool reconsume, int32_t returnState, int32_t endPos);
+    template<class P> int32_t stateLoop(int32_t state, PRUnichar c, int32_t pos, PRUnichar* buf, bool reconsume, int32_t returnState, int32_t endPos);
     void initDoctypeFields();
     inline void adjustDoubleHyphenAndAppendToLongStrBufCarriageReturn()
     {
@@ -255,10 +256,10 @@ class nsHtml5Tokenizer
     }
 
   private:
-    void emitCarriageReturn(char16_t* buf, int32_t pos);
-    void emitReplacementCharacter(char16_t* buf, int32_t pos);
-    void emitPlaintextReplacementCharacter(char16_t* buf, int32_t pos);
-    void setAdditionalAndRememberAmpersandLocation(char16_t add);
+    void emitCarriageReturn(PRUnichar* buf, int32_t pos);
+    void emitReplacementCharacter(PRUnichar* buf, int32_t pos);
+    void emitPlaintextReplacementCharacter(PRUnichar* buf, int32_t pos);
+    void setAdditionalAndRememberAmpersandLocation(PRUnichar add);
     void bogusDoctype();
     void bogusDoctypeWithoutQuirks();
     void emitOrAppendStrBuf(int32_t returnState);
@@ -268,7 +269,7 @@ class nsHtml5Tokenizer
   private:
     void emitDoctypeToken(int32_t pos);
   protected:
-    inline char16_t checkChar(char16_t* buf, int32_t pos)
+    inline PRUnichar checkChar(PRUnichar* buf, int32_t pos)
     {
       return buf[pos];
     }
@@ -276,8 +277,8 @@ class nsHtml5Tokenizer
   public:
     bool internalEncodingDeclaration(nsString* internalCharset);
   private:
-    void emitOrAppendTwo(const char16_t* val, int32_t returnState);
-    void emitOrAppendOne(const char16_t* val, int32_t returnState);
+    void emitOrAppendTwo(const PRUnichar* val, int32_t returnState);
+    void emitOrAppendOne(const PRUnichar* val, int32_t returnState);
   public:
     void end();
     void requestSuspension();

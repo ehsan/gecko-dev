@@ -11,13 +11,11 @@
 #include <X11/extensions/Xrender.h>
 #include <X11/Xlib.h>
 
-#if defined(GL_PROVIDER_GLX)
+#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
 #include "GLXLibrary.h"
 #endif
 
-#include "nsSize.h"
-
-class gfxXlibSurface MOZ_FINAL : public gfxASurface {
+class THEBES_API gfxXlibSurface : public gfxASurface {
 public:
     // construct a wrapper around the specified drawable with dpy/visual.
     // Will use XGetGeometry to query the window/pixmap size.
@@ -32,7 +30,7 @@ public:
     gfxXlibSurface(Screen *screen, Drawable drawable, XRenderPictFormat *format,
                    const gfxIntSize& size);
 
-    explicit gfxXlibSurface(cairo_surface_t *csurf);
+    gfxXlibSurface(cairo_surface_t *csurf);
 
     // create a new Pixmap and wrapper surface.
     // |relatedDrawable| provides a hint to the server for determining whether
@@ -41,9 +39,6 @@ public:
     static already_AddRefed<gfxXlibSurface>
     Create(Screen *screen, Visual *visual, const gfxIntSize& size,
            Drawable relatedDrawable = None);
-    static cairo_surface_t *
-    CreateCairoSurface(Screen *screen, Visual *visual, const gfxIntSize& size,
-                       Drawable relatedDrawable = None);
     static already_AddRefed<gfxXlibSurface>
     Create(Screen* screen, XRenderPictFormat *format, const gfxIntSize& size,
            Drawable relatedDrawable = None);
@@ -52,9 +47,8 @@ public:
 
     virtual already_AddRefed<gfxASurface>
     CreateSimilarSurface(gfxContentType aType, const gfxIntSize& aSize);
-    virtual void Finish() MOZ_OVERRIDE;
 
-    virtual const gfxIntSize GetSize() const;
+    virtual const gfxIntSize GetSize() const { return mSize; }
 
     Display* XDisplay() { return mDisplay; }
     Screen* XScreen();
@@ -64,7 +58,6 @@ public:
     static int DepthOfVisual(const Screen* screen, const Visual* visual);
     static Visual* FindVisual(Screen* screen, gfxImageFormat format);
     static XRenderPictFormat *FindRenderFormat(Display *dpy, gfxImageFormat format);
-    static bool GetColormapAndVisual(cairo_surface_t* aXlibSurface, Colormap* colormap, Visual **visual);
 
     // take ownership of a passed-in Pixmap, calling XFreePixmap on it
     // when the gfxXlibSurface is destroyed.
@@ -80,9 +73,9 @@ public:
 
     // This surface is a wrapper around X pixmaps, which are stored in the X
     // server, not the main application.
-    virtual gfxMemoryLocation GetMemoryLocation() const;
+    virtual gfxASurface::MemoryLocation GetMemoryLocation() const;
 
-#if defined(GL_PROVIDER_GLX)
+#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
     GLXPixmap GetGLXPixmap();
 #endif
 
@@ -105,9 +98,11 @@ protected:
     Display *mDisplay;
     Drawable mDrawable;
 
-    const gfxIntSize DoSizeQuery();
+    void DoSizeQuery();
 
-#if defined(GL_PROVIDER_GLX)
+    gfxIntSize mSize;
+
+#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
     GLXPixmap mGLXPixmap;
 #endif
 };

@@ -4,17 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// HttpLog.h should generally be included first
-#include "HttpLog.h"
-
+#include <stdlib.h>
 #include "nsHttpResponseHead.h"
 #include "nsPrintfCString.h"
+#include "prprf.h"
 #include "prtime.h"
-#include "nsURLHelper.h"
-#include <algorithm>
-
-namespace mozilla {
-namespace net {
+#include "nsCRT.h"
 
 //-----------------------------------------------------------------------------
 // nsHttpResponseHead <public>
@@ -42,7 +37,7 @@ void
 nsHttpResponseHead::SetContentLength(int64_t len)
 {
     mContentLength = len;
-    if (len < 0)
+    if (!LL_GE_ZERO(len)) // < 0
         mHeaders.ClearHeader(nsHttp::Content_Length);
     else
         mHeaders.SetHeader(nsHttp::Content_Length, nsPrintfCString("%lld", len));
@@ -55,9 +50,7 @@ nsHttpResponseHead::Flatten(nsACString &buf, bool pruneTransients)
         return;
 
     buf.AppendLiteral("HTTP/");
-    if (mVersion == NS_HTTP_VERSION_2_0)
-        buf.AppendLiteral("2.0 ");
-    else if (mVersion == NS_HTTP_VERSION_1_1)
+    if (mVersion == NS_HTTP_VERSION_1_1)
         buf.AppendLiteral("1.1 ");
     else
         buf.AppendLiteral("1.0 ");
@@ -104,7 +97,7 @@ nsresult
 nsHttpResponseHead::Parse(char *block)
 {
 
-    LOG(("nsHttpResponseHead::Parse [this=%p]\n", this));
+    LOG(("nsHttpResponseHead::Parse [this=%x]\n", this));
 
     // this command works on a buffer as prepared by Flatten, as such it is
     // not very forgiving ;-)
@@ -135,169 +128,18 @@ nsHttpResponseHead::Parse(char *block)
 }
 
 void
-nsHttpResponseHead::AssignDefaultStatusText()
-{
-    LOG(("response status line needs default reason phrase\n"));
-
-    // if a http response doesn't contain a reason phrase, put one in based
-    // on the status code. The reason phrase is totally meaningless so its
-    // ok to have a default catch all here - but this makes debuggers and addons
-    // a little saner to use if we don't map things to "404 OK" or other nonsense.
-    // In particular, HTTP/2 does not use reason phrases at all so they need to
-    // always be injected.
-
-    switch (mStatus) {
-        // start with the most common
-    case 200:
-        mStatusText.AssignLiteral("OK");
-        break;
-    case 404:
-        mStatusText.AssignLiteral("Not Found");
-        break;
-    case 301:
-        mStatusText.AssignLiteral("Moved Permanently");
-        break;
-    case 304:
-        mStatusText.AssignLiteral("Not Modified");
-        break;
-    case 307:
-        mStatusText.AssignLiteral("Temporary Redirect");
-        break;
-    case 500:
-        mStatusText.AssignLiteral("Internal Server Error");
-        break;
-
-        // also well known
-    case 100:
-        mStatusText.AssignLiteral("Continue");
-        break;
-    case 101:
-        mStatusText.AssignLiteral("Switching Protocols");
-        break;
-    case 201:
-        mStatusText.AssignLiteral("Created");
-        break;
-    case 202:
-        mStatusText.AssignLiteral("Accepted");
-        break;
-    case 203:
-        mStatusText.AssignLiteral("Non Authoritative");
-        break;
-    case 204:
-        mStatusText.AssignLiteral("No Content");
-        break;
-    case 205:
-        mStatusText.AssignLiteral("Reset Content");
-        break;
-    case 206:
-        mStatusText.AssignLiteral("Partial Content");
-        break;
-    case 207:
-        mStatusText.AssignLiteral("Multi-Status");
-        break;
-    case 208:
-        mStatusText.AssignLiteral("Already Reported");
-        break;
-    case 300:
-        mStatusText.AssignLiteral("Multiple Choices");
-        break;
-    case 302:
-        mStatusText.AssignLiteral("Found");
-        break;
-    case 303:
-        mStatusText.AssignLiteral("See Other");
-        break;
-    case 305:
-        mStatusText.AssignLiteral("Use Proxy");
-        break;
-    case 308:
-        mStatusText.AssignLiteral("Permanent Redirect");
-        break;
-    case 400:
-        mStatusText.AssignLiteral("Bad Request");
-        break;
-    case 401:
-        mStatusText.AssignLiteral("Unauthorized");
-        break;
-    case 402:
-        mStatusText.AssignLiteral("Payment Required");
-        break;
-    case 403:
-        mStatusText.AssignLiteral("Forbidden");
-        break;
-    case 405:
-        mStatusText.AssignLiteral("Method Not Allowed");
-        break;
-    case 406:
-        mStatusText.AssignLiteral("Not Acceptable");
-        break;
-    case 407:
-        mStatusText.AssignLiteral("Proxy Authentication Required");
-        break;
-    case 408:
-        mStatusText.AssignLiteral("Request Timeout");
-        break;
-    case 409:
-        mStatusText.AssignLiteral("Conflict");
-        break;
-    case 410:
-        mStatusText.AssignLiteral("Gone");
-        break;
-    case 411:
-        mStatusText.AssignLiteral("Length Required");
-        break;
-    case 412:
-        mStatusText.AssignLiteral("Precondition Failed");
-        break;
-    case 413:
-        mStatusText.AssignLiteral("Request Entity Too Large");
-        break;
-    case 414:
-        mStatusText.AssignLiteral("Request URI Too Long");
-        break;
-    case 415:
-        mStatusText.AssignLiteral("Unsupported Media Type");
-        break;
-    case 416:
-        mStatusText.AssignLiteral("Requested Range Not Satisfiable");
-        break;
-    case 417:
-        mStatusText.AssignLiteral("Expectation Failed");
-        break;
-    case 501:
-        mStatusText.AssignLiteral("Not Implemented");
-        break;
-    case 502:
-        mStatusText.AssignLiteral("Bad Gateway");
-        break;
-    case 503:
-        mStatusText.AssignLiteral("Service Unavailable");
-        break;
-    case 504:
-        mStatusText.AssignLiteral("Gateway Timeout");
-        break;
-    case 505:
-        mStatusText.AssignLiteral("HTTP Version Unsupported");
-        break;
-    default:
-        mStatusText.AssignLiteral("No Reason Phrase");
-        break;
-    }
-}
-
-void
 nsHttpResponseHead::ParseStatusLine(const char *line)
 {
     //
     // Parse Status-Line:: HTTP-Version SP Status-Code SP Reason-Phrase CRLF
     //
-
+ 
     // HTTP-Version
     ParseVersion(line);
-
+    
     if ((mVersion == NS_HTTP_VERSION_0_9) || !(line = PL_strchr(line, ' '))) {
         mStatus = 200;
-        AssignDefaultStatusText();
+        mStatusText.AssignLiteral("OK");
     }
     else {
         // Status-Code
@@ -309,7 +151,8 @@ nsHttpResponseHead::ParseStatusLine(const char *line)
 
         // Reason-Phrase is whatever is remaining of the line
         if (!(line = PL_strchr(line, ' '))) {
-            AssignDefaultStatusText();
+            LOG(("mal-formed response status line; assuming statusText = 'OK'\n"));
+            mStatusText.AssignLiteral("OK");
         }
         else
             mStatusText = nsDependentCString(++line);
@@ -325,11 +168,11 @@ nsHttpResponseHead::ParseHeaderLine(const char *line)
     nsHttpAtom hdr = {0};
     char *val;
     nsresult rv;
-
+    
     rv = mHeaders.ParseHeaderLine(line, &hdr, &val);
     if (NS_FAILED(rv))
         return rv;
-
+    
     // leading and trailing LWS has been removed from |val|
 
     // handle some special case headers...
@@ -341,7 +184,7 @@ nsHttpResponseHead::ParseHeaderLine(const char *line)
             mContentLength = len;
         }
         else {
-            // If this is a negative content length then just ignore it
+            // If this is a negative content length then just ignore it 
             LOG(("invalid content-length! %s\n", val));
         }
     }
@@ -378,13 +221,8 @@ nsHttpResponseHead::ComputeCurrentAge(uint32_t now,
 
     *result = 0;
 
-    if (requestTime > now) {
-        // for calculation purposes lets not allow the request to happen in the future
-        requestTime = now;
-    }
-
     if (NS_FAILED(GetDateValue(&dateValue))) {
-        LOG(("nsHttpResponseHead::ComputeCurrentAge [this=%p] "
+        LOG(("nsHttpResponseHead::ComputeCurrentAge [this=%x] "
              "Date response header not set!\n", this));
         // Assume we have a fast connection and that our clock
         // is in sync with the server.
@@ -397,7 +235,9 @@ nsHttpResponseHead::ComputeCurrentAge(uint32_t now,
 
     // Compute corrected received age
     if (NS_SUCCEEDED(GetAgeValue(&ageValue)))
-        *result = std::max(*result, ageValue);
+        *result = NS_MAX(*result, ageValue);
+
+    NS_ASSERTION(now >= requestTime, "bogus request time");
 
     // Compute current age
     *result += (now - requestTime);
@@ -437,7 +277,7 @@ nsHttpResponseHead::ComputeFreshnessLifetime(uint32_t *result) const
         // the Expires header can specify a date in the past.
         return NS_OK;
     }
-
+    
     // Fallback on heuristic using last modified header...
     if (NS_SUCCEEDED(GetLastModifiedValue(&date2))) {
         LOG(("using last-modified to determine freshness-lifetime\n"));
@@ -450,7 +290,7 @@ nsHttpResponseHead::ComputeFreshnessLifetime(uint32_t *result) const
     }
 
     // These responses can be cached indefinitely.
-    if ((mStatus == 300) || nsHttp::IsPermanentRedirect(mStatus)) {
+    if ((mStatus == 300) || (mStatus == 301)) {
         *result = uint32_t(-1);
         return NS_OK;
     }
@@ -494,7 +334,7 @@ nsHttpResponseHead::MustValidate() const
         LOG(("Must validate since response is an uncacheable error page\n"));
         return true;
     }
-
+    
     // The no-cache response header indicates that we must validate this
     // cached response before reusing.
     if (NoCache()) {
@@ -528,8 +368,8 @@ nsHttpResponseHead::MustValidateIfExpired() const
 {
     // according to RFC2616, section 14.9.4:
     //
-    //  When the must-revalidate directive is present in a response received by a
-    //  cache, that cache MUST NOT use the entry after it becomes stale to respond to
+    //  When the must-revalidate directive is present in a response received by a   
+    //  cache, that cache MUST NOT use the entry after it becomes stale to respond to 
     //  a subsequent request without first revalidating it with the origin server.
     //
     return HasHeaderValue(nsHttp::Cache_Control, "must-revalidate");
@@ -545,7 +385,7 @@ nsHttpResponseHead::IsResumable() const
     // non-2xx responses.
     return mStatus == 200 &&
            mVersion >= NS_HTTP_VERSION_1_1 &&
-           PeekHeader(nsHttp::Content_Length) &&
+           PeekHeader(nsHttp::Content_Length) && 
           (PeekHeader(nsHttp::ETag) || PeekHeader(nsHttp::Last_Modified)) &&
            HasHeaderValue(nsHttp::Accept_Ranges, "bytes");
 }
@@ -554,12 +394,12 @@ bool
 nsHttpResponseHead::ExpiresInPast() const
 {
     uint32_t maxAgeVal, expiresVal, dateVal;
-
+    
     // Bug #203271. Ensure max-age directive takes precedence over Expires
     if (NS_SUCCEEDED(GetMaxAgeValue(&maxAgeVal))) {
         return false;
     }
-
+    
     return NS_SUCCEEDED(GetExpiresValue(&expiresVal)) &&
            NS_SUCCEEDED(GetDateValue(&dateVal)) &&
            expiresVal < dateVal;
@@ -568,7 +408,7 @@ nsHttpResponseHead::ExpiresInPast() const
 nsresult
 nsHttpResponseHead::UpdateHeaders(const nsHttpHeaderArray &headers)
 {
-    LOG(("nsHttpResponseHead::UpdateHeaders [this=%p]\n", this));
+    LOG(("nsHttpResponseHead::UpdateHeaders [this=%x]\n", this));
 
     uint32_t i, count = headers.Count();
     for (i=0; i<count; ++i) {
@@ -623,7 +463,7 @@ nsHttpResponseHead::Reset()
 
     mVersion = NS_HTTP_VERSION_1_1;
     mStatus = 200;
-    mContentLength = UINT64_MAX;
+    mContentLength = LL_MAXUINT;
     mCacheControlNoStore = false;
     mCacheControlNoCache = false;
     mPragmaNoCache = false;
@@ -644,7 +484,7 @@ nsHttpResponseHead::ParseDateHeader(nsHttpAtom header, uint32_t *result) const
     if (st != PR_SUCCESS)
         return NS_ERROR_NOT_AVAILABLE;
 
-    *result = PRTimeToSeconds(time);
+    *result = PRTimeToSeconds(time); 
     return NS_OK;
 }
 
@@ -668,22 +508,14 @@ nsHttpResponseHead::GetMaxAgeValue(uint32_t *result) const
     if (!val)
         return NS_ERROR_NOT_AVAILABLE;
 
-    const char *p = nsHttp::FindToken(val, "max-age", HTTP_HEADER_VALUE_SEPS "=");
+    const char *p = PL_strcasestr(val, "max-age=");
     if (!p)
         return NS_ERROR_NOT_AVAILABLE;
-    p += 7;
-    while (*p == ' ' || *p == '\t')
-        ++p;
-    if (*p != '=')
-        return NS_ERROR_NOT_AVAILABLE;
-    ++p;
-    while (*p == ' ' || *p == '\t')
-        ++p;
 
-    int maxAgeValue = atoi(p);
+    int maxAgeValue = atoi(p + 8);
     if (maxAgeValue < 0)
         maxAgeValue = 0;
-    *result = static_cast<uint32_t>(maxAgeValue);
+    *result = uint32_t(maxAgeValue);
     return NS_OK;
 }
 
@@ -703,10 +535,10 @@ nsHttpResponseHead::GetExpiresValue(uint32_t *result) const
         return NS_OK;
     }
 
-    if (time < 0)
+    if (LL_CMP(time, <, LL_Zero()))
         *result = 0;
     else
-        *result = PRTimeToSeconds(time);
+        *result = PRTimeToSeconds(time); 
     return NS_OK;
 }
 
@@ -728,7 +560,7 @@ nsHttpResponseHead::TotalEntitySize() const
 
     int64_t size;
     if (!nsHttp::ParseInt64(slash, &size))
-        size = UINT64_MAX;
+        size = LL_MAXUINT;
     return size;
 }
 
@@ -745,12 +577,6 @@ nsHttpResponseHead::ParseVersion(const char *str)
 
     // make sure we have HTTP at the beginning
     if (PL_strncasecmp(str, "HTTP", 4) != 0) {
-        if (PL_strncasecmp(str, "ICY ", 4) == 0) {
-            // ShoutCast ICY is HTTP/1.0-like. Assume it is HTTP/1.0.
-            LOG(("Treating ICY as HTTP 1.0\n"));
-            mVersion = NS_HTTP_VERSION_1_0;
-            return;
-        }
         LOG(("looks like a HTTP/0.9 response\n"));
         mVersion = NS_HTTP_VERSION_0_9;
         return;
@@ -777,9 +603,7 @@ nsHttpResponseHead::ParseVersion(const char *str)
     int major = atoi(str + 1);
     int minor = atoi(p);
 
-    if ((major > 2) || ((major == 2) && (minor >= 0)))
-        mVersion = NS_HTTP_VERSION_2_0;
-    else if ((major == 1) && (minor >= 1))
+    if ((major > 1) || ((major == 1) && (minor >= 1)))
         // at least HTTP/1.1
         mVersion = NS_HTTP_VERSION_1_1;
     else
@@ -802,7 +626,7 @@ nsHttpResponseHead::ParseCacheControl(const char *val)
     if (nsHttp::FindToken(val, "no-cache", HTTP_HEADER_VALUE_SEPS))
         mCacheControlNoCache = true;
 
-    // search header value for occurrence of "no-store"
+    // search header value for occurrence of "no-store" 
     if (nsHttp::FindToken(val, "no-store", HTTP_HEADER_VALUE_SEPS))
         mCacheControlNoStore = true;
 }
@@ -824,6 +648,3 @@ nsHttpResponseHead::ParsePragma(const char *val)
     if (nsHttp::FindToken(val, "no-cache", HTTP_HEADER_VALUE_SEPS))
         mPragmaNoCache = true;
 }
-
-} // namespace mozilla::net
-} // namespace mozilla

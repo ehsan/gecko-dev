@@ -10,11 +10,9 @@
 #define nsLineBox_h___
 
 #include "mozilla/Attributes.h"
-#include "mozilla/Likely.h"
 
 #include "nsILineIterator.h"
 #include "nsIFrame.h"
-#include <algorithm>
 
 class nsLineBox;
 class nsFloatCache;
@@ -144,11 +142,14 @@ protected:
 //----------------------------------------------------------------------
 
 #define LINE_MAX_BREAK_TYPE  ((1 << 4) - 1)
-#define LINE_MAX_CHILD_COUNT INT32_MAX
+#define LINE_MAX_CHILD_COUNT PR_INT32_MAX
+
+#if NS_STYLE_CLEAR_LAST_VALUE > 15
+need to rearrange the mBits bitfield;
+#endif
 
 /**
  * Function to create a line box and initialize it with a single frame.
- * The allocation is infallible.
  * If the frame was moved from another line then you're responsible
  * for notifying that line using NoteFrameRemoved().  Alternatively,
  * it's better to use the next function that does that for you in an
@@ -158,7 +159,7 @@ nsLineBox* NS_NewLineBox(nsIPresShell* aPresShell, nsIFrame* aFrame,
                          bool aIsBlock);
 /**
  * Function to create a line box and initialize it with aCount frames
- * that are currently on aFromLine.  The allocation is infallible.
+ * that are currently on aFromLine.
  */
 nsLineBox* NS_NewLineBox(nsIPresShell* aPresShell, nsLineBox* aFromLine,
                          nsIFrame* aFrame, int32_t aCount);
@@ -341,10 +342,11 @@ private:
   {
     MOZ_ASSERT(!mFlags.mHasHashedFrames);
     uint32_t count = GetChildCount();
+    mFrames = new nsTHashtable< nsPtrHashKey<nsIFrame> >();
     mFlags.mHasHashedFrames = 1;
-    uint32_t minLength = std::max(kMinChildCountForHashtable,
-                                  uint32_t(PL_DHASH_DEFAULT_INITIAL_LENGTH));
-    mFrames = new nsTHashtable< nsPtrHashKey<nsIFrame> >(std::max(count, minLength));
+    uint32_t minSize =
+      NS_MAX(kMinChildCountForHashtable, uint32_t(PL_DHASH_MIN_SIZE));
+    mFrames->Init(NS_MAX(count, minSize));
     for (nsIFrame* f = mFirstChild; count-- > 0; f = f->GetNextSibling()) {
       mFrames->PutEntry(f);
     }
@@ -359,14 +361,14 @@ private:
 
 public:
   int32_t GetChildCount() const {
-    return MOZ_UNLIKELY(mFlags.mHasHashedFrames) ? mFrames->Count() : mChildCount;
+    return NS_UNLIKELY(mFlags.mHasHashedFrames) ? mFrames->Count() : mChildCount;
   }
 
   /**
    * Register that aFrame is now on this line.
    */
   void NoteFrameAdded(nsIFrame* aFrame) {
-    if (MOZ_UNLIKELY(mFlags.mHasHashedFrames)) {
+    if (NS_UNLIKELY(mFlags.mHasHashedFrames)) {
       mFrames->PutEntry(aFrame);
     } else {
       if (++mChildCount >= kMinChildCountForHashtable) {
@@ -380,7 +382,7 @@ public:
    */
   void NoteFrameRemoved(nsIFrame* aFrame) {
     MOZ_ASSERT(GetChildCount() > 0);
-    if (MOZ_UNLIKELY(mFlags.mHasHashedFrames)) {
+    if (NS_UNLIKELY(mFlags.mHasHashedFrames)) {
       mFrames->RemoveEntry(aFrame);
       if (mFrames->Count() < kMinChildCountForHashtable) {
         SwitchToCounter();
@@ -399,10 +401,7 @@ public:
   }
   void SetBreakTypeBefore(uint8_t aBreakType) {
     NS_ASSERTION(IsBlock(), "Only blocks have break-before");
-    NS_ASSERTION(aBreakType == NS_STYLE_CLEAR_NONE ||
-                 aBreakType == NS_STYLE_CLEAR_LEFT ||
-                 aBreakType == NS_STYLE_CLEAR_RIGHT ||
-                 aBreakType == NS_STYLE_CLEAR_BOTH,
+    NS_ASSERTION(aBreakType <= NS_STYLE_CLEAR_LEFT_AND_RIGHT,
                  "Only float break types are allowed before a line");
     mFlags.mBreakType = aBreakType;
   }
@@ -421,16 +420,16 @@ public:
   bool HasFloatBreakAfter() const {
     return !IsBlock() && (NS_STYLE_CLEAR_LEFT == mFlags.mBreakType ||
                           NS_STYLE_CLEAR_RIGHT == mFlags.mBreakType ||
-                          NS_STYLE_CLEAR_BOTH == mFlags.mBreakType);
+                          NS_STYLE_CLEAR_LEFT_AND_RIGHT == mFlags.mBreakType);
   }
   uint8_t GetBreakTypeAfter() const {
     return !IsBlock() ? mFlags.mBreakType : NS_STYLE_CLEAR_NONE;
   }
 
-  // mCarriedOutBEndMargin value
-  nsCollapsingMargin GetCarriedOutBEndMargin() const;
+  // mCarriedOutBottomMargin value
+  nsCollapsingMargin GetCarriedOutBottomMargin() const;
   // Returns true if the margin changed
-  bool SetCarriedOutBEndMargin(nsCollapsingMargin aValue);
+  bool SetCarriedOutBottomMargin(nsCollapsingMargin aValue);
 
   // mFloats
   bool HasFloats() const {
@@ -446,89 +445,42 @@ public:
   // used for painting-related things, but should never be used for
   // layout (except for handling of 'overflow').
   void SetOverflowAreas(const nsOverflowAreas& aOverflowAreas);
-  mozilla::LogicalRect GetOverflowArea(nsOverflowType aType,
-                                       mozilla::WritingMode aWM,
-                                       nscoord aContainerWidth)
-  {
-    return mozilla::LogicalRect(aWM, GetOverflowArea(aType), aContainerWidth);
-  }
   nsRect GetOverflowArea(nsOverflowType aType) {
-    return mData ? mData->mOverflowAreas.Overflow(aType) : GetPhysicalBounds();
+    return mData ? mData->mOverflowAreas.Overflow(aType) : mBounds;
   }
   nsOverflowAreas GetOverflowAreas() {
     if (mData) {
       return mData->mOverflowAreas;
     }
-    nsRect bounds = GetPhysicalBounds();
-    return nsOverflowAreas(bounds, bounds);
+    return nsOverflowAreas(mBounds, mBounds);
   }
   nsRect GetVisualOverflowArea()
     { return GetOverflowArea(eVisualOverflow); }
   nsRect GetScrollableOverflowArea()
     { return GetOverflowArea(eScrollableOverflow); }
 
-  void SlideBy(nscoord aDBCoord, nscoord aContainerWidth) {
-    NS_ASSERTION(aContainerWidth == mContainerWidth || mContainerWidth == -1,
-                 "container width doesn't match");
-    mContainerWidth = aContainerWidth;
-    mBounds.BStart(mWritingMode) += aDBCoord;
+  void SlideBy(nscoord aDY) {
+    mBounds.y += aDY;
     if (mData) {
-      nsPoint physicalDelta = mozilla::LogicalPoint(mWritingMode, 0, aDBCoord).
-                                         GetPhysicalPoint(mWritingMode, 0);
       NS_FOR_FRAME_OVERFLOW_TYPES(otype) {
-        mData->mOverflowAreas.Overflow(otype) += physicalDelta;
+        mData->mOverflowAreas.Overflow(otype).y += aDY;
       }
     }
   }
 
-  void IndentBy(nscoord aDICoord, nscoord aContainerWidth) {
-    NS_ASSERTION(aContainerWidth == mContainerWidth || mContainerWidth == -1,
-                 "container width doesn't match");
-    mContainerWidth = aContainerWidth;
-    mBounds.IStart(mWritingMode) += aDICoord;
-  }
-
-  void ExpandBy(nscoord aDISize, nscoord aContainerWidth) {
-    NS_ASSERTION(aContainerWidth == mContainerWidth || mContainerWidth == -1,
-                 "container width doesn't match");
-    mContainerWidth = aContainerWidth;
-    mBounds.ISize(mWritingMode) += aDISize;
-  }
-
   /**
-   * The logical ascent (distance from block-start to baseline) of the
-   * linebox is the logical ascent of the anonymous inline box (for
-   * which we don't actually create a frame) that wraps all the
-   * consecutive inline children of a block.
+   * The ascent (distance from top to baseline) of the linebox is the
+   * ascent of the anonymous inline box (for which we don't actually
+   * create a frame) that wraps all the consecutive inline children of a
+   * block.
    *
    * This is currently unused for block lines.
    */
-  nscoord GetLogicalAscent() const { return mAscent; }
-  void SetLogicalAscent(nscoord aAscent) { mAscent = aAscent; }
+  nscoord GetAscent() const { return mAscent; }
+  void SetAscent(nscoord aAscent) { mAscent = aAscent; }
 
-  nscoord BStart() const {
-    return mBounds.BStart(mWritingMode);
-  }
-  nscoord BSize() const {
-    return mBounds.BSize(mWritingMode);
-  }
-  nscoord BEnd() const {
-    return mBounds.BEnd(mWritingMode);
-  }
-  nscoord IStart() const {
-    return mBounds.IStart(mWritingMode);
-  }
-  nscoord ISize() const {
-    return mBounds.ISize(mWritingMode);
-  }
-  nscoord IEnd() const {
-    return mBounds.IEnd(mWritingMode);
-  }
-  void SetBoundsEmpty() {
-    mBounds.IStart(mWritingMode) = 0;
-    mBounds.ISize(mWritingMode) = 0;
-    mBounds.BStart(mWritingMode) = 0;
-    mBounds.BSize(mWritingMode) = 0;
+  nscoord GetHeight() const {
+    return mBounds.height;
   }
 
   static void DeleteLineList(nsPresContext* aPresContext, nsLineList& aLines,
@@ -546,11 +498,10 @@ public:
                                     nsIFrame* aLastFrameBeforeEnd,
                                     int32_t* aFrameIndexInLine);
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
   char* StateToString(char* aBuf, int32_t aBufSize) const;
 
-  void List(FILE* out, int32_t aIndent, uint32_t aFlags = 0) const;
-  void List(FILE* out = stderr, const char* aPrefix = "", uint32_t aFlags = 0) const;
+  void List(FILE* out, int32_t aIndent) const;
   nsIFrame* LastChild() const;
 #endif
 
@@ -559,7 +510,7 @@ private:
 public:
 
   bool Contains(nsIFrame* aFrame) const {
-    return MOZ_UNLIKELY(mFlags.mHasHashedFrames) ? mFrames->Contains(aFrame)
+    return NS_UNLIKELY(mFlags.mHasHashedFrames) ? mFrames->Contains(aFrame)
                                                 : IndexOf(aFrame) >= 0;
   }
 
@@ -586,42 +537,7 @@ public:
 
   nsIFrame* mFirstChild;
 
-  mozilla::WritingMode mWritingMode;
-
-  // Physical width. Use only for physical <-> logical coordinate conversion.
-  nscoord mContainerWidth;
-
- private:
-  mozilla::LogicalRect mBounds;
-
- public:
-  const mozilla::LogicalRect& GetBounds() { return mBounds; }
-  nsRect GetPhysicalBounds() const
-  {
-    if (mBounds.IsAllZero()) {
-      return nsRect(0, 0, 0, 0);
-    }
-
-    NS_ASSERTION(mContainerWidth != -1, "mContainerWidth not initialized");
-    return mBounds.GetPhysicalRect(mWritingMode, mContainerWidth);
-  }
-  void SetBounds(mozilla::WritingMode aWritingMode,
-                 nscoord aIStart, nscoord aBStart,
-                 nscoord aISize, nscoord aBSize,
-                 nscoord aContainerWidth)
-  {
-    mWritingMode = aWritingMode;
-    mContainerWidth = aContainerWidth;
-    mBounds = mozilla::LogicalRect(aWritingMode, aIStart, aBStart,
-                                   aISize, aBSize);
-  }
-  void SetBounds(mozilla::WritingMode aWritingMode,
-                 nsRect aRect, nscoord aContainerWidth)
-  {
-    mWritingMode = aWritingMode;
-    mContainerWidth = aContainerWidth;
-    mBounds = mozilla::LogicalRect(aWritingMode, aRect, aContainerWidth);
-  }
+  nsRect mBounds;
 
   // mFlags.mHasHashedFrames says which one to use
   union {
@@ -651,22 +567,22 @@ public:
   };
 
   struct ExtraData {
-    explicit ExtraData(const nsRect& aBounds) : mOverflowAreas(aBounds, aBounds) {
+    ExtraData(const nsRect& aBounds) : mOverflowAreas(aBounds, aBounds) {
     }
     nsOverflowAreas mOverflowAreas;
   };
 
   struct ExtraBlockData : public ExtraData {
-    explicit ExtraBlockData(const nsRect& aBounds)
+    ExtraBlockData(const nsRect& aBounds)
       : ExtraData(aBounds),
-        mCarriedOutBEndMargin()
+        mCarriedOutBottomMargin()
     {
     }
-    nsCollapsingMargin mCarriedOutBEndMargin;
+    nsCollapsingMargin mCarriedOutBottomMargin;
   };
 
   struct ExtraInlineData : public ExtraData {
-    explicit ExtraInlineData(const nsRect& aBounds) : ExtraData(aBounds) {
+    ExtraInlineData(const nsRect& aBounds) : ExtraData(aBounds) {
     }
     nsFloatCacheList mFloats;
   };
@@ -1694,27 +1610,29 @@ public:
   nsLineIterator();
   ~nsLineIterator();
 
-  virtual void DisposeLineIterator() MOZ_OVERRIDE;
+  virtual void DisposeLineIterator();
 
-  virtual int32_t GetNumLines() MOZ_OVERRIDE;
-  virtual bool GetDirection() MOZ_OVERRIDE;
+  virtual int32_t GetNumLines();
+  virtual bool GetDirection();
   NS_IMETHOD GetLine(int32_t aLineNumber,
                      nsIFrame** aFirstFrameOnLine,
                      int32_t* aNumFramesOnLine,
                      nsRect& aLineBounds,
-                     uint32_t* aLineFlags) MOZ_OVERRIDE;
-  virtual int32_t FindLineContaining(nsIFrame* aFrame, int32_t aStartLine = 0) MOZ_OVERRIDE;
+                     uint32_t* aLineFlags);
+  virtual int32_t FindLineContaining(nsIFrame* aFrame, int32_t aStartLine = 0);
   NS_IMETHOD FindFrameAt(int32_t aLineNumber,
-                         nsPoint aPos,
+                         nscoord aX,
                          nsIFrame** aFrameFound,
-                         bool* aPosIsBeforeFirstFrame,
-                         bool* aPosIsAfterLastFrame) MOZ_OVERRIDE;
+                         bool* aXIsBeforeFirstFrame,
+                         bool* aXIsAfterLastFrame);
 
-  NS_IMETHOD GetNextSiblingOnLine(nsIFrame*& aFrame, int32_t aLineNumber) MOZ_OVERRIDE;
+  NS_IMETHOD GetNextSiblingOnLine(nsIFrame*& aFrame, int32_t aLineNumber);
+#ifdef IBMBIDI
   NS_IMETHOD CheckLineOrder(int32_t                  aLine,
                             bool                     *aIsReordered,
                             nsIFrame                 **aFirstVisual,
-                            nsIFrame                 **aLastVisual) MOZ_OVERRIDE;
+                            nsIFrame                 **aLastVisual);
+#endif
   nsresult Init(nsLineList& aLines, bool aRightToLeft);
 
 private:

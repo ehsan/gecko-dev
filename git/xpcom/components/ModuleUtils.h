@@ -18,14 +18,14 @@ _InstanceClass##Constructor(nsISupports *aOuter, REFNSIID aIID,               \
                                                                               \
     _InstanceClass * inst;                                                    \
                                                                               \
-    *aResult = nullptr;                                                       \
-    if (nullptr != aOuter) {                                                  \
+    *aResult = NULL;                                                          \
+    if (NULL != aOuter) {                                                     \
         rv = NS_ERROR_NO_AGGREGATION;                                         \
         return rv;                                                            \
     }                                                                         \
                                                                               \
     inst = new _InstanceClass();                                              \
-    if (nullptr == inst) {                                                    \
+    if (NULL == inst) {                                                       \
         rv = NS_ERROR_OUT_OF_MEMORY;                                          \
         return rv;                                                            \
     }                                                                         \
@@ -45,14 +45,14 @@ _InstanceClass##Constructor(nsISupports *aOuter, REFNSIID aIID,               \
                                                                               \
     _InstanceClass * inst;                                                    \
                                                                               \
-    *aResult = nullptr;                                                       \
-    if (nullptr != aOuter) {                                                  \
+    *aResult = NULL;                                                          \
+    if (NULL != aOuter) {                                                     \
         rv = NS_ERROR_NO_AGGREGATION;                                         \
         return rv;                                                            \
     }                                                                         \
                                                                               \
     inst = new _InstanceClass();                                              \
-    if (nullptr == inst) {                                                    \
+    if (NULL == inst) {                                                       \
         rv = NS_ERROR_OUT_OF_MEMORY;                                          \
         return rv;                                                            \
     }                                                                         \
@@ -77,14 +77,14 @@ _InstanceClass##Constructor(nsISupports *aOuter, REFNSIID aIID,               \
                                                                               \
     _InstanceClass * inst;                                                    \
                                                                               \
-    *aResult = nullptr;                                                       \
-    if (nullptr != aOuter) {                                                  \
+    *aResult = NULL;                                                          \
+    if (NULL != aOuter) {                                                     \
         rv = NS_ERROR_NO_AGGREGATION;                                         \
         return rv;                                                            \
     }                                                                         \
                                                                               \
-    inst = already_AddRefed<_InstanceClass>(_GetterProc()).take();   \
-    if (nullptr == inst) {                                                    \
+    inst = already_AddRefed<_InstanceClass>(_GetterProc()).get();             \
+    if (NULL == inst) {                                                       \
         rv = NS_ERROR_OUT_OF_MEMORY;                                          \
         return rv;                                                            \
     }                                                                         \
@@ -104,16 +104,17 @@ namespace mozilla {
 
 class GenericModule MOZ_FINAL : public nsIModule
 {
-  ~GenericModule() {}
-
 public:
-  explicit GenericModule(const mozilla::Module* aData) : mData(aData) {}
+    GenericModule(const mozilla::Module* aData)
+        : mData(aData)
+    {
+    }
 
-  NS_DECL_THREADSAFE_ISUPPORTS
-  NS_DECL_NSIMODULE
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIMODULE
 
 private:
-  const mozilla::Module* mData;
+    const mozilla::Module* mData;
 };
 
 } // namespace mozilla

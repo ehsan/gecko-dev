@@ -4,12 +4,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <limits>
-#include "BatteryManager.h"
-#include "Constants.h"
-#include "mozilla/DOMEventTargetHelper.h"
 #include "mozilla/Hal.h"
-#include "mozilla/dom/BatteryManagerBinding.h"
+#include "BatteryManager.h"
 #include "nsIDOMClassInfo.h"
+#include "Constants.h"
+#include "nsDOMEvent.h"
+#include "mozilla/Preferences.h"
+#include "nsDOMEventTargetHelper.h"
 
 /**
  * We have to use macros here because our leak analysis tool things we are
@@ -20,21 +21,50 @@
 #define DISCHARGINGTIMECHANGE_EVENT_NAME NS_LITERAL_STRING("dischargingtimechange")
 #define CHARGINGTIMECHANGE_EVENT_NAME    NS_LITERAL_STRING("chargingtimechange")
 
+DOMCI_DATA(BatteryManager, mozilla::dom::battery::BatteryManager)
+
 namespace mozilla {
 namespace dom {
 namespace battery {
 
-BatteryManager::BatteryManager(nsPIDOMWindow* aWindow)
-  : DOMEventTargetHelper(aWindow)
-  , mLevel(kDefaultLevel)
+NS_IMPL_CYCLE_COLLECTION_CLASS(BatteryManager)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(BatteryManager,
+                                                  nsDOMEventTargetHelper)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(levelchange)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(chargingchange)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(chargingtimechange)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(dischargingtimechange)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(BatteryManager,
+                                                nsDOMEventTargetHelper)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(levelchange)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(chargingchange)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(chargingtimechange)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(dischargingtimechange)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(BatteryManager)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMBatteryManager)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(BatteryManager)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
+
+NS_IMPL_ADDREF_INHERITED(BatteryManager, nsDOMEventTargetHelper)
+NS_IMPL_RELEASE_INHERITED(BatteryManager, nsDOMEventTargetHelper)
+
+BatteryManager::BatteryManager()
+  : mLevel(kDefaultLevel)
   , mCharging(kDefaultCharging)
   , mRemainingTime(kDefaultRemainingTime)
 {
 }
 
 void
-BatteryManager::Init()
+BatteryManager::Init(nsPIDOMWindow *aWindow)
 {
+  BindToOwner(aWindow);
+
   hal::RegisterBatteryObserver(this);
 
   hal::BatteryInformation batteryInfo;
@@ -49,30 +79,68 @@ BatteryManager::Shutdown()
   hal::UnregisterBatteryObserver(this);
 }
 
-JSObject*
-BatteryManager::WrapObject(JSContext* aCx)
+NS_IMETHODIMP
+BatteryManager::GetCharging(bool* aCharging)
 {
-  return BatteryManagerBinding::Wrap(aCx, this);
+  *aCharging = mCharging;
+
+  return NS_OK;
 }
 
-double
-BatteryManager::DischargingTime() const
+NS_IMETHODIMP
+BatteryManager::GetLevel(double* aLevel)
+{
+  *aLevel = mLevel;
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+BatteryManager::GetDischargingTime(double* aDischargingTime)
 {
   if (mCharging || mRemainingTime == kUnknownRemainingTime) {
-    return std::numeric_limits<double>::infinity();
+    *aDischargingTime = std::numeric_limits<double>::infinity();
+    return NS_OK;
   }
 
-  return mRemainingTime;
+  *aDischargingTime = mRemainingTime;
+
+  return NS_OK;
 }
 
-double
-BatteryManager::ChargingTime() const
+NS_IMETHODIMP
+BatteryManager::GetChargingTime(double* aChargingTime)
 {
   if (!mCharging || mRemainingTime == kUnknownRemainingTime) {
-    return std::numeric_limits<double>::infinity();
+    *aChargingTime = std::numeric_limits<double>::infinity();
+    return NS_OK;
   }
 
-  return mRemainingTime;
+  *aChargingTime = mRemainingTime;
+
+  return NS_OK;
+}
+
+NS_IMPL_EVENT_HANDLER(BatteryManager, levelchange)
+NS_IMPL_EVENT_HANDLER(BatteryManager, chargingchange)
+NS_IMPL_EVENT_HANDLER(BatteryManager, chargingtimechange)
+NS_IMPL_EVENT_HANDLER(BatteryManager, dischargingtimechange)
+
+nsresult
+BatteryManager::DispatchTrustedEventToSelf(const nsAString& aEventName)
+{
+  nsRefPtr<nsDOMEvent> event = new nsDOMEvent(nullptr, nullptr);
+  nsresult rv = event->InitEvent(aEventName, false, false);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = event->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  bool dummy;
+  rv = DispatchEvent(event, &dummy);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
 }
 
 void
@@ -101,11 +169,11 @@ BatteryManager::Notify(const hal::BatteryInformation& aBatteryInfo)
   UpdateFromBatteryInfo(aBatteryInfo);
 
   if (previousCharging != mCharging) {
-    DispatchTrustedEvent(CHARGINGCHANGE_EVENT_NAME);
+    DispatchTrustedEventToSelf(CHARGINGCHANGE_EVENT_NAME);
   }
 
   if (previousLevel != mLevel) {
-    DispatchTrustedEvent(LEVELCHANGE_EVENT_NAME);
+    DispatchTrustedEventToSelf(LEVELCHANGE_EVENT_NAME);
   }
 
   /*
@@ -119,17 +187,23 @@ BatteryManager::Notify(const hal::BatteryInformation& aBatteryInfo)
    */
   if (mCharging != previousCharging) {
     if (previousRemainingTime != kUnknownRemainingTime) {
-      DispatchTrustedEvent(previousCharging ? CHARGINGTIMECHANGE_EVENT_NAME
-                                            : DISCHARGINGTIMECHANGE_EVENT_NAME);
+      DispatchTrustedEventToSelf(previousCharging ? CHARGINGTIMECHANGE_EVENT_NAME
+                                                  : DISCHARGINGTIMECHANGE_EVENT_NAME);
     }
     if (mRemainingTime != kUnknownRemainingTime) {
-      DispatchTrustedEvent(mCharging ? CHARGINGTIMECHANGE_EVENT_NAME
-                                     : DISCHARGINGTIMECHANGE_EVENT_NAME);
+      DispatchTrustedEventToSelf(mCharging ? CHARGINGTIMECHANGE_EVENT_NAME
+                                           : DISCHARGINGTIMECHANGE_EVENT_NAME);
     }
   } else if (previousRemainingTime != mRemainingTime) {
-    DispatchTrustedEvent(mCharging ? CHARGINGTIMECHANGE_EVENT_NAME
-                                   : DISCHARGINGTIMECHANGE_EVENT_NAME);
+    DispatchTrustedEventToSelf(mCharging ? CHARGINGTIMECHANGE_EVENT_NAME
+                                         : DISCHARGINGTIMECHANGE_EVENT_NAME);
   }
+}
+
+/* static */ bool
+BatteryManager::HasSupport()
+{
+  return Preferences::GetBool("dom.battery.enabled", true);
 }
 
 } // namespace battery

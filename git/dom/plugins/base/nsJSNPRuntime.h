@@ -7,6 +7,7 @@
 #define nsJSNPRuntime_h_
 
 #include "nscore.h"
+#include "jsapi.h"
 #include "npapi.h"
 #include "npruntime.h"
 #include "pldhash.h"
@@ -25,28 +26,19 @@ public:
   {
   }
 
-  bool operator==(const nsJSObjWrapperKey& other) const {
-    return mJSObj == other.mJSObj && mNpp == other.mNpp;
-  }
-  bool operator!=(const nsJSObjWrapperKey& other) const {
-    return !(*this == other);
-  }
+  JSObject *mJSObj;
 
-  JSObject * mJSObj;
   const NPP mNpp;
 };
 
-class nsJSObjWrapper : public NPObject
+class nsJSObjWrapper : public NPObject,
+                       public nsJSObjWrapperKey
 {
 public:
-  JS::Heap<JSObject *> mJSObj;
-  const NPP mNpp;
-
-  static NPObject *GetNewOrUsed(NPP npp, JSContext *cx,
-                                JS::Handle<JSObject*> obj);
+  static NPObject *GetNewOrUsed(NPP npp, JSContext *cx, JSObject *obj);
 
 protected:
-  explicit nsJSObjWrapper(NPP npp);
+  nsJSObjWrapper(NPP npp);
   ~nsJSObjWrapper();
 
   static NPObject * NP_Allocate(NPP npp, NPClass *aClass);
@@ -76,13 +68,12 @@ public:
 class nsNPObjWrapper
 {
 public:
-  static bool IsWrapper(JSObject *obj);
   static void OnDestroy(NPObject *npobj);
   static JSObject *GetNewOrUsed(NPP npp, JSContext *cx, NPObject *npobj);
 };
 
 bool
-JSValToNPVariant(NPP npp, JSContext *cx, JS::Value val, NPVariant *variant);
+JSValToNPVariant(NPP npp, JSContext *cx, jsval val, NPVariant *variant);
 
 
 #endif // nsJSNPRuntime_h_

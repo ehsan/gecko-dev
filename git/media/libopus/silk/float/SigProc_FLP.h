@@ -8,11 +8,11 @@ this list of conditions and the following disclaimer.
 - Redistributions in binary form must reproduce the above copyright
 notice, this list of conditions and the following disclaimer in the
 documentation and/or other materials provided with the distribution.
-- Neither the name of Internet Society, IETF or IETF Trust, nor the
+- Neither the name of Internet Society, IETF or IETF Trust, nor the 
 names of specific contributors, may be used to endorse or promote
 products derived from this software without specific prior written
 permission.
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS IS”
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
 ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
@@ -94,8 +94,7 @@ opus_int silk_pitch_analysis_core_FLP(      /* O    Voicing estimate: 0 voiced, 
     const silk_float    search_thres2,      /* I    Final threshold for lag candidates 0 - 1                    */
     const opus_int      Fs_kHz,             /* I    sample frequency (kHz)                                      */
     const opus_int      complexity,         /* I    Complexity setting, 0-2, where 2 is highest                 */
-    const opus_int      nb_subfr,           /* I    Number of 5 ms subframes                                    */
-    int                 arch                /* I    Run-time architecture                                       */
+    const opus_int      nb_subfr            /* I    Number of 5 ms subframes                                    */
 );
 
 void silk_insertion_sort_decreasing_FLP(
@@ -110,7 +109,7 @@ silk_float silk_burg_modified_FLP(          /* O    returns residual energy     
     silk_float          A[],                /* O    prediction coefficients (length order)                      */
     const silk_float    x[],                /* I    input signal, length: nb_subfr*(D+L_sub)                    */
     const silk_float    minInvGain,         /* I    minimum inverse prediction gain                             */
-    const opus_int      subfr_length,       /* I    input signal subframe length (incl. D preceding samples)    */
+    const opus_int      subfr_length,       /* I    input signal subframe length (incl. D preceeding samples)   */
     const opus_int      nb_subfr,           /* I    number of subframes stacked in x                            */
     const opus_int      D                   /* I    order                                                       */
 );
@@ -153,20 +152,23 @@ double silk_energy_FLP(
 #define silk_max_float( a, b )                  (((a) > (b)) ? (a) :  (b))
 #define silk_abs_float( a )                     ((silk_float)fabs(a))
 
+#define silk_LIMIT_float( a, limit1, limit2 )   ((limit1) > (limit2) ? ((a) > (limit1) ? (limit1) : ((a) < (limit2) ? (limit2) : (a))) \
+                                                                     : ((a) > (limit2) ? (limit2) : ((a) < (limit1) ? (limit1) : (a))))
+
 /* sigmoid function */
-static OPUS_INLINE silk_float silk_sigmoid( silk_float x )
+static inline silk_float silk_sigmoid( silk_float x )
 {
     return (silk_float)(1.0 / (1.0 + exp(-x)));
 }
 
 /* floating-point to integer conversion (rounding) */
-static OPUS_INLINE opus_int32 silk_float2int( silk_float x )
+static inline opus_int32 silk_float2int( silk_float x )
 {
     return (opus_int32)float2int( x );
 }
 
 /* floating-point to integer conversion (rounding) */
-static OPUS_INLINE void silk_float2short_array(
+static inline void silk_float2short_array(
     opus_int16       *out,
     const silk_float *in,
     opus_int32       length
@@ -179,7 +181,7 @@ static OPUS_INLINE void silk_float2short_array(
 }
 
 /* integer to floating-point conversion */
-static OPUS_INLINE void silk_short2float_array(
+static inline void silk_short2float_array(
     silk_float       *out,
     const opus_int16 *in,
     opus_int32       length
@@ -192,9 +194,9 @@ static OPUS_INLINE void silk_short2float_array(
 }
 
 /* using log2() helps the fixed-point conversion */
-static OPUS_INLINE silk_float silk_log2( double x )
-{
-    return ( silk_float )( 3.32192809488736 * log10( x ) );
+static inline silk_float silk_log2( double x ) 
+{ 
+    return ( silk_float )( 3.32192809488736 * log10( x ) ); 
 }
 
 #ifdef  __cplusplus

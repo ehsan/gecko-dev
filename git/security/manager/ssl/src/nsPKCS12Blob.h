@@ -7,7 +7,6 @@
 #define _NS_PKCS12BLOB_H_
 
 #include "nsCOMPtr.h"
-#include "nsString.h"
 #include "nsIFile.h"
 #include "nsIPK11TokenDB.h"
 #include "nsNSSHelper.h"
@@ -16,8 +15,10 @@
 
 #include "nss.h"
 
+extern "C" {
 #include "pkcs12.h"
 #include "p12plcy.h"
+}
 
 class nsIX509Cert;
 
@@ -39,6 +40,10 @@ public:
   nsresult ImportFromFile(nsIFile *file);
 
   // PKCS#12 Export
+#if 0
+  //nsresult LoadCerts(const PRUnichar **certNames, int numCerts);
+  nsresult LoadCerts(nsIX509Cert **certs, int numCerts);
+#endif
   nsresult ExportToFile(nsIFile *file, nsIX509Cert **certs, int numCerts);
 
 private:
@@ -51,7 +56,7 @@ private:
   nsresult getPKCS12FilePassword(SECItem *);
   nsresult newPKCS12FilePassword(SECItem *);
   nsresult inputToDecoder(SEC_PKCS12DecoderContext *, nsIFile *);
-  void unicodeToItem(const char16_t *, SECItem *);
+  void unicodeToItem(const PRUnichar *, SECItem *);
   void handleError(int myerr = 0);
 
   // RetryReason and ImportMode are used when importing a PKCS12 file.
@@ -61,7 +66,7 @@ private:
   // - When the user entered a zero length password.
   //   An empty password should be represented as an empty
   //   string (a SECItem that contains a single terminating
-  //   null UTF16 character), but some applications use a
+  //   NULL UTF16 character), but some applications use a
   //   zero length SECItem.
   //   We try both variations, zero length item and empty string,
   //   without giving a user prompt when trying the different empty password flavors.
@@ -73,6 +78,7 @@ private:
 
   // NSPR file I/O for export file
   PRFileDesc *mTmpFile;
+  char       *mTmpFilePath;
 
   // simulated file I/O for "in memory" temporary digest data
   nsCString                 *mDigest;
@@ -81,13 +87,14 @@ private:
   bool        mTokenSet;
 
   // C-style callback functions for the NSS PKCS#12 library
-  static SECStatus digest_open(void *, PRBool);
-  static SECStatus digest_close(void *, PRBool);
-  static int       digest_read(void *, unsigned char *, unsigned long);
-  static int       digest_write(void *, unsigned char *, unsigned long);
-  static SECItem * nickname_collision(SECItem *, PRBool *, void *);
-  static void write_export_file(void *arg, const char *buf, unsigned long len);
+  static SECStatus PR_CALLBACK digest_open(void *, PRBool);
+  static SECStatus PR_CALLBACK digest_close(void *, PRBool);
+  static int       PR_CALLBACK digest_read(void *, unsigned char *, unsigned long);
+  static int       PR_CALLBACK digest_write(void *, unsigned char *, unsigned long);
+  static SECItem * PR_CALLBACK nickname_collision(SECItem *, PRBool *, void *);
+  static void PR_CALLBACK write_export_file(void *arg, const char *buf, unsigned long len);
 
 };
 
 #endif /* _NS_PKCS12BLOB_H_ */
+

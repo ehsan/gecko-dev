@@ -9,7 +9,8 @@
 #include "nsIPermissionManager.h"
 #include "nsIObserver.h"
 #include "nsCOMPtr.h"
-#include "mozIThirdPartyUtil.h"
+#include "prlong.h"
+#include "nsIPrivateBrowsingService.h"
 
 class nsIPrefBranch;
 
@@ -21,22 +22,22 @@ public:
   NS_DECL_NSICOOKIEPERMISSION
   NS_DECL_NSIOBSERVER
 
-  nsCookiePermission()
-    : mCookiesLifetimeSec(INT64_MAX)
+  nsCookiePermission() 
+    : mCookiesLifetimeSec(LL_MAXINT)
     , mCookiesLifetimePolicy(0) // ACCEPT_NORMALLY
     , mCookiesAlwaysAcceptSession(false)
     {}
+  virtual ~nsCookiePermission() {}
 
   bool Init();
   void PrefChanged(nsIPrefBranch *, const char *);
 
 private:
-  virtual ~nsCookiePermission() {}
-
-  bool EnsureInitialized() { return (mPermMgr != nullptr && mThirdPartyUtil != nullptr) || Init(); };
+  bool EnsureInitialized() { return mPermMgr != NULL || Init(); };
+  bool InPrivateBrowsing();
 
   nsCOMPtr<nsIPermissionManager> mPermMgr;
-  nsCOMPtr<mozIThirdPartyUtil> mThirdPartyUtil;
+  nsCOMPtr<nsIPrivateBrowsingService> mPBService;
 
   int64_t      mCookiesLifetimeSec;            // lifetime limit specified in seconds
   uint8_t      mCookiesLifetimePolicy;         // pref for how long cookies are stored

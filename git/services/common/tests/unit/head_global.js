@@ -3,6 +3,9 @@
 
 const {classes: Cc, interfaces: Ci, results: Cr, utils: Cu, manager: Cm} = Components;
 
+// Where to bind test HTTP servers to.
+const TEST_SERVER_URL = "http://localhost:8080/";
+
 let gSyncProfile = do_get_profile();
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -41,9 +44,9 @@ function addResourceAlias() {
   const handler = Services.io.getProtocolHandler("resource")
                   .QueryInterface(Ci.nsIResProtocolHandler);
 
-  let modules = ["common", "crypto"];
+  let modules = ["aitc", "common", "crypto"];
   for each (let module in modules) {
-    let uri = Services.io.newURI("resource://gre/modules/services-" + module + "/",
+    let uri = Services.io.newURI("resource:///modules/services-" + module + "/",
                                  null, null);
     handler.setSubstitution("services-" + module, uri);
   }

@@ -1,6 +1,41 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/*
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Elliptic Curve Cryptography library.
+ *
+ * The Initial Developer of the Original Code is
+ * Sun Microsystems, Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2003
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Dr Vipul Gupta <vipul.gupta@sun.com> and
+ *   Douglas Stebila <douglas@stebila.ca>, Sun Microsystems Laboratories
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifdef FREEBL_NO_DEPEND
 #include "stubs.h"
@@ -16,7 +51,7 @@
 #include "ec.h"
 #include "ecl.h"
 
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
 
 /* 
  * Returns true if pointP is the point at infinity, false otherwise
@@ -192,7 +227,7 @@ cleanup:
 
     return rv;
 }
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */
 
 /* Generates a new EC key pair. The private key is a supplied
  * value and the public key is the result of performing a scalar 
@@ -203,8 +238,8 @@ ec_NewKey(ECParams *ecParams, ECPrivateKey **privKey,
     const unsigned char *privKeyBytes, int privKeyLen)
 {
     SECStatus rv = SECFailure;
-#ifndef NSS_DISABLE_ECC
-    PLArenaPool *arena;
+#ifdef NSS_ENABLE_ECC
+    PRArenaPool *arena;
     ECPrivateKey *key;
     mp_int k;
     mp_err err = MP_OKAY;
@@ -301,7 +336,7 @@ cleanup:
 #endif
 #else
     PORT_SetError(SEC_ERROR_UNSUPPORTED_KEYALG);
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */
 
     return rv;
 
@@ -317,15 +352,15 @@ EC_NewKeyFromSeed(ECParams *ecParams, ECPrivateKey **privKey,
     const unsigned char *seed, int seedlen)
 {
     SECStatus rv = SECFailure;
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
     rv = ec_NewKey(ecParams, privKey, seed, seedlen);
 #else
     PORT_SetError(SEC_ERROR_UNSUPPORTED_KEYALG);
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */
     return rv;
 }
 
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
 /* Generate a random private key using the algorithm A.4.1 of ANSI X9.62,
  * modified a la FIPS 186-2 Change Notice 1 to eliminate the bias in the
  * random number generator.
@@ -381,7 +416,7 @@ cleanup:
     }
     return privKeyBytes;
 }
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */
 
 /* Generates a new EC key pair. The private key is a random value and
  * the public key is the result of performing a scalar point multiplication
@@ -391,7 +426,7 @@ SECStatus
 EC_NewKey(ECParams *ecParams, ECPrivateKey **privKey)
 {
     SECStatus rv = SECFailure;
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
     int len;
     unsigned char *privKeyBytes = NULL;
 
@@ -416,7 +451,7 @@ cleanup:
 #endif
 #else
     PORT_SetError(SEC_ERROR_UNSUPPORTED_KEYALG);
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */
     
     return rv;
 }
@@ -430,7 +465,7 @@ cleanup:
 SECStatus 
 EC_ValidatePublicKey(ECParams *ecParams, SECItem *publicValue)
 {
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
     mp_int Px, Py;
     ECGroup *group = NULL;
     SECStatus rv = SECFailure;
@@ -506,7 +541,7 @@ cleanup:
 #else
     PORT_SetError(SEC_ERROR_UNSUPPORTED_KEYALG);
     return SECFailure;
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */
 }
 
 /* 
@@ -527,7 +562,7 @@ ECDH_Derive(SECItem  *publicValue,
             SECItem  *derivedSecret)
 {
     SECStatus rv = SECFailure;
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
     unsigned int len = 0;
     SECItem pointQ = {siBuffer, NULL, 0};
     mp_int k; /* to hold the private value */
@@ -596,7 +631,7 @@ cleanup:
     }
 #else
     PORT_SetError(SEC_ERROR_UNSUPPORTED_KEYALG);
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */
 
     return rv;
 }
@@ -610,7 +645,7 @@ ECDSA_SignDigestWithSeed(ECPrivateKey *key, SECItem *signature,
     const SECItem *digest, const unsigned char *kb, const int kblen)
 {
     SECStatus rv = SECFailure;
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
     mp_int x1;
     mp_int d, k;     /* private key, random integer */
     mp_int r, s;     /* tuple (r, s) is the signature */
@@ -822,7 +857,7 @@ cleanup:
 #endif
 #else
     PORT_SetError(SEC_ERROR_UNSUPPORTED_KEYALG);
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */
 
    return rv;
 }
@@ -835,7 +870,7 @@ SECStatus
 ECDSA_SignDigest(ECPrivateKey *key, SECItem *signature, const SECItem *digest)
 {
     SECStatus rv = SECFailure;
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
     int len;
     unsigned char *kBytes= NULL;
 
@@ -863,25 +898,20 @@ cleanup:
 #endif
 #else
     PORT_SetError(SEC_ERROR_UNSUPPORTED_KEYALG);
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */
 
     return rv;
 }
 
 /*
 ** Checks the signature on the given digest using the key provided.
-**
-** The key argument must represent a valid EC public key (a point on
-** the relevant curve).  If it is not a valid point, then the behavior
-** of this function is undefined.  In cases where a public key might
-** not be valid, use EC_ValidatePublicKey to check.
 */
 SECStatus 
 ECDSA_VerifyDigest(ECPublicKey *key, const SECItem *signature, 
                  const SECItem *digest)
 {
     SECStatus rv = SECFailure;
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
     mp_int r_, s_;           /* tuple (r', s') is received signature) */
     mp_int c, u1, u2, v;     /* intermediate values used in verification */
     mp_int x1;
@@ -1078,7 +1108,7 @@ cleanup:
 #endif
 #else
     PORT_SetError(SEC_ERROR_UNSUPPORTED_KEYALG);
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */
 
     return rv;
 }

@@ -1085,12 +1085,6 @@ UNLOCK:
     return image;
 }
 
-static double
-clamp (double val, double min, double max)
-{
-    return val < min ? min : (val > max ? max : val);
-}
-
 static pixman_image_t *
 _pixman_image_for_gradient (const cairo_gradient_pattern_t *pattern,
 			    const cairo_rectangle_int_t *extents,
@@ -1140,7 +1134,6 @@ _pixman_image_for_gradient (const cairo_gradient_pattern_t *pattern,
 	    _cairo_fixed_integer_ceil (ydim) > PIXMAN_MAX_INT)
 	{
 	    double sf;
-	    cairo_matrix_t scale;
 
 	    if (xdim > ydim)
 		sf = PIXMAN_MAX_INT / _cairo_fixed_to_double (xdim);
@@ -1152,9 +1145,7 @@ _pixman_image_for_gradient (const cairo_gradient_pattern_t *pattern,
 	    p2.x = _cairo_fixed_16_16_from_double (_cairo_fixed_to_double (linear->p2.x) * sf);
 	    p2.y = _cairo_fixed_16_16_from_double (_cairo_fixed_to_double (linear->p2.y) * sf);
 
-	    /* cairo_matrix_scale does a pre-scale, we want a post-scale */
-	    cairo_matrix_init_scale (&scale, sf, sf);
-	    cairo_matrix_multiply (&matrix, &matrix, &scale);
+	    cairo_matrix_scale (&matrix, sf, sf);
 	}
 	else
 	{
@@ -1191,9 +1182,9 @@ _pixman_image_for_gradient (const cairo_gradient_pattern_t *pattern,
     if (unlikely (pixman_image == NULL))
 	return NULL;
 
-    tx = matrix.x0;
-    ty = matrix.y0;
-    if (! _cairo_matrix_is_translation (&matrix) ||
+    tx = pattern->base.matrix.x0;
+    ty = pattern->base.matrix.y0;
+    if (! _cairo_matrix_is_translation (&pattern->base.matrix) ||
 	! _nearest_sample (pattern->base.filter, &tx, &ty))
     {
 	pixman_transform_t pixman_transform;
@@ -1201,30 +1192,21 @@ _pixman_image_for_gradient (const cairo_gradient_pattern_t *pattern,
 	if (tx != 0. || ty != 0.) {
 	    cairo_matrix_t m, inv;
 	    cairo_status_t status;
-	    double x, y, max_x, max_y;
+	    double x, y;
 
-	    /* Pixman also limits the [xy]_offset to 16 bits. We try to evenly
-	     * spread the bits between the two, but we need to ensure that
-	     * fabs (tx + extents->x + extents->width) < PIXMAN_MAX_INT &&
-	     * fabs (ty + extents->y + extents->height) < PIXMAN_MAX_INT,
-	     * otherwise the gradient won't render.
+	    /* pixman also limits the [xy]_offset to 16 bits so evenly
+	     * spread the bits between the two.
 	     */
-	    inv = matrix;
+	    inv = pattern->base.matrix;
 	    status = cairo_matrix_invert (&inv);
 	    assert (status == CAIRO_STATUS_SUCCESS);
 
 	    x = _cairo_lround (inv.x0 / 2);
 	    y = _cairo_lround (inv.y0 / 2);
-
-	    max_x = PIXMAN_MAX_INT - 1 - fabs (extents->x + extents->width);
-	    x = clamp(x, -max_x, max_x);
-	    max_y = PIXMAN_MAX_INT - 1 - fabs (extents->y + extents->height);
-	    y = clamp(y, -max_y, max_y);
-
 	    tx = -x;
 	    ty = -y;
 	    cairo_matrix_init_translate (&inv, x, y);
-	    cairo_matrix_multiply (&m, &inv, &matrix);
+	    cairo_matrix_multiply (&m, &inv, &pattern->base.matrix);
 	    _cairo_matrix_to_pixman_matrix (&m, &pixman_transform,
 					    extents->x + extents->width/2.,
 					    extents->y + extents->height/2.);
@@ -1811,25 +1793,8 @@ _cairo_image_surface_fixup_unbounded_boxes (cairo_image_surface_t *dst,
     struct _cairo_boxes_chunk *chunk;
     int i;
 
-    // If we have no boxes then we need to clear the entire extents
-    // because we have nothing to draw.
-    if (boxes->num_boxes < 1 && clip_region == NULL) {
-        int x = extents->unbounded.x;
-        int y = extents->unbounded.y;
-        int width = extents->unbounded.width;
-        int height = extents->unbounded.height;
-
-        pixman_color_t color = { 0 };
-        pixman_box32_t box = { x, y, x + width, y + height };
-
-        if (! pixman_image_fill_boxes (PIXMAN_OP_CLEAR,
-                                       dst->pixman_image,
-                                       &color,
-                                       1, &box)) {
-            return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-        }
-        return CAIRO_STATUS_SUCCESS;
-    }
+    if (boxes->num_boxes < 1 && clip_region == NULL)
+	return _cairo_image_surface_fixup_unbounded (dst, extents, NULL);
 
     _cairo_boxes_init (&clear);
 
@@ -1886,10 +1851,6 @@ _cairo_image_surface_fixup_unbounded_boxes (cairo_image_surface_t *dst,
 		int x2 = _cairo_fixed_integer_part (chunk->base[i].p2.x);
 		int y2 = _cairo_fixed_integer_part (chunk->base[i].p2.y);
 
-		x1 = (x1 < 0 ? 0 : x1);
-		y1 = (y1 < 0 ? 0 : y1);
-		if (x2 <= x1 || y2 <= y1)
-		    continue;
 		pixman_fill ((uint32_t *) dst->data, dst->stride / sizeof (uint32_t),
 			     PIXMAN_FORMAT_BPP (dst->pixman_format),
 			     x1, y1, x2 - x1, y2 - y1,
@@ -2713,8 +2674,6 @@ _fill_unaligned_boxes (cairo_image_surface_t *dst,
 	    int x2 = _cairo_fixed_integer_floor (box[i].p2.x);
 	    int y2 = _cairo_fixed_integer_floor (box[i].p2.y);
 
-	    x1 = (x1 < 0 ? 0 : x1);
-	    y1 = (y1 < 0 ? 0 : y1);
 	    if (x2 > x1 && y2 > y1) {
 		cairo_box_t b;
 
@@ -2931,8 +2890,6 @@ _composite_boxes (cairo_image_surface_t *dst,
 
     if (clip != NULL) {
 	status = _cairo_clip_get_region (clip, &clip_region);
-	if (unlikely (status == CAIRO_INT_STATUS_NOTHING_TO_DO))
-	    return CAIRO_STATUS_SUCCESS;
 	need_clip_mask = status == CAIRO_INT_STATUS_UNSUPPORTED;
 	if (need_clip_mask &&
 	    (op == CAIRO_OPERATOR_SOURCE || ! extents->is_bounded))
@@ -2975,9 +2932,7 @@ _composite_boxes (cairo_image_surface_t *dst,
 		int x2 = _cairo_fixed_integer_round_down (box[i].p2.x);
 		int y2 = _cairo_fixed_integer_round_down (box[i].p2.y);
 
-		x1 = (x1 < 0 ? 0 : x1);
-		y1 = (y1 < 0 ? 0 : y1);
-		if (x2 <= x1 || y2 <= y1)
+		if (x2 == x1 || y2 == y1)
 		    continue;
 
 		pixman_fill ((uint32_t *) dst->data, dst->stride / sizeof (uint32_t),
@@ -3250,10 +3205,20 @@ _clip_and_composite_trapezoids (cairo_image_surface_t *dst,
 static cairo_clip_path_t *
 _clip_get_single_path (cairo_clip_t *clip)
 {
-    if (clip->path->prev == NULL)
-      return clip->path;
+    cairo_clip_path_t *iter = clip->path;
+    cairo_clip_path_t *path = NULL;
 
-    return NULL;
+    do {
+	if ((iter->flags & CAIRO_CLIP_PATH_IS_BOX) == 0) {
+	    if (path != NULL)
+		return FALSE;
+
+	    path = iter;
+	}
+	iter = iter->prev;
+    } while (iter != NULL);
+
+    return path;
 }
 
 /* high level image interface */
@@ -3583,11 +3548,9 @@ _clip_and_composite_polygon (cairo_image_surface_t *dst,
 	return status;
     }
 
-    if (_cairo_operator_bounded_by_mask(op)) {
-	_cairo_box_round_to_rectangle (&polygon->extents, &extents->mask);
-	if (! _cairo_rectangle_intersect (&extents->bounded, &extents->mask))
-	    return CAIRO_STATUS_SUCCESS;
-    }
+    _cairo_box_round_to_rectangle (&polygon->extents, &extents->mask);
+    if (! _cairo_rectangle_intersect (&extents->bounded, &extents->mask))
+	return CAIRO_STATUS_SUCCESS;
 
     if (antialias != CAIRO_ANTIALIAS_NONE) {
 	composite_spans_info_t info;
@@ -3978,6 +3941,16 @@ _composite_glyphs (void				*closure,
     cairo_status_t status;
     int i;
 
+    if (pattern != NULL) {
+	src = _pixman_image_for_pattern (pattern, FALSE, extents, &src_x, &src_y);
+	src_x -= dst_x;
+	src_y -= dst_y;
+    } else {
+	src = _pixman_white_image ();
+    }
+    if (unlikely (src == NULL))
+	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+
     memset (glyph_cache, 0, sizeof (glyph_cache));
     status = CAIRO_STATUS_SUCCESS;
 
@@ -4028,45 +4001,17 @@ _composite_glyphs (void				*closure,
 	    if (y2 > extents->y + extents->height)
 		y2 = extents->y + extents->height;
 
-	    if (glyph_surface->format == CAIRO_FORMAT_A8 ||
-	        glyph_surface->format == CAIRO_FORMAT_A1 ||
-	        (glyph_surface->format == CAIRO_FORMAT_ARGB32 &&
-	         pixman_image_get_component_alpha (glyph_surface->pixman_image)))
-	    {
-		if (unlikely (src == NULL)) {
-		    if (pattern != NULL) {
-			src = _pixman_image_for_pattern (pattern, FALSE, extents, &src_x, &src_y);
-			src_x -= dst_x;
-			src_y -= dst_y;
-		    } else {
-			src = _pixman_white_image ();
-		    }
-		    if (unlikely (src == NULL)) {
-			status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
-			break;
-		    }
-		}
-
-		pixman_image_composite32 (pixman_op,
-					  src, glyph_surface->pixman_image, dst,
-					  x1 + src_x, y1 + src_y,
-					  x1 - x, y1 - y,
-					  x1 - dst_x, y1 - dst_y,
-					  x2 - x1, y2 - y1);
-	    } else {
-		pixman_image_composite32 (pixman_op,
-					  glyph_surface->pixman_image, NULL, dst,
-					  x1 - x, y1 - y,
-					  0, 0,
-					  x1 - dst_x, y1 - dst_y,
-					  x2 - x1, y2 - y1);
-	    }
+	    pixman_image_composite32 (pixman_op,
+                                      src, glyph_surface->pixman_image, dst,
+                                      x1 + src_x,  y1 + src_y,
+                                      x1 - x, y1 - y,
+                                      x1 - dst_x, y1 - dst_y,
+                                      x2 - x1, y2 - y1);
 	}
     }
     _cairo_scaled_font_thaw_cache (info->font);
 
-    if (src != NULL)
-	pixman_image_unref (src);
+    pixman_image_unref (src);
 
     return status;
 }

@@ -7,14 +7,15 @@
 #include "nsIRunnable.h"
 
 #include "nsThreadUtils.h"
-#include <algorithm>
+#include "nsAlgorithm.h"
+#include "prmem.h"
    
 namespace mozilla {
 namespace net {
 
-NS_IMPL_ISUPPORTS(nsPreloadedStream,
-                  nsIInputStream,
-                  nsIAsyncInputStream)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsPreloadedStream,
+                              nsIInputStream,
+                              nsIAsyncInputStream)
 
 nsPreloadedStream::nsPreloadedStream(nsIAsyncInputStream *aStream,
                                      const char *data, uint32_t datalen)
@@ -58,7 +59,7 @@ nsPreloadedStream::Read(char *aBuf, uint32_t aCount,
     if (!mLen)
         return mStream->Read(aBuf, aCount, _retval);
     
-    uint32_t toRead = std::min(mLen, aCount);
+    uint32_t toRead = NS_MIN(mLen, aCount);
     memcpy(aBuf, mBuf + mOffset, toRead);
     mOffset += toRead;
     mLen -= toRead;
@@ -76,7 +77,7 @@ nsPreloadedStream::ReadSegments(nsWriteSegmentFun aWriter,
 
     *result = 0;
     while (mLen > 0 && aCount > 0) {
-        uint32_t toRead = std::min(mLen, aCount);
+        uint32_t toRead = NS_MIN(mLen, aCount);
         uint32_t didRead = 0;
         nsresult rv;
 

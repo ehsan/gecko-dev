@@ -6,61 +6,47 @@
 #define __NSNSSCERTIFICATEDB_H__
 
 #include "nsIX509CertDB.h"
-#include "nsNSSShutDown.h"
-#include "mozilla/RefPtr.h"
-#include "mozilla/Mutex.h"
-#include "certt.h"
+#include "nsIX509CertDB2.h"
+#include "nsNSSCertHeader.h"
 
-class nsCString;
 class nsIArray;
 
-class nsNSSCertificateDB MOZ_FINAL : public nsIX509CertDB
-                                   , public nsNSSShutDownObject
-
+class nsNSSCertificateDB : public nsIX509CertDB, public nsIX509CertDB2
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIX509CERTDB
+  NS_DECL_NSIX509CERTDB2
+
+  nsNSSCertificateDB(); 
+  virtual ~nsNSSCertificateDB();
 
   // Use this function to generate a default nickname for a user
   // certificate that is to be imported onto a token.
   static void
   get_default_nickname(CERTCertificate *cert, nsIInterfaceRequestor* ctx,
-                       nsCString &nickname,
-                       const nsNSSShutDownPreventionLock &proofOfLock);
+                       nsCString &nickname);
 
   static nsresult 
-  ImportValidCACerts(int numCACerts, SECItem *CACerts, nsIInterfaceRequestor *ctx,
-                     const nsNSSShutDownPreventionLock &proofOfLock);
-
-protected:
-  virtual ~nsNSSCertificateDB();
+  ImportValidCACerts(int numCACerts, SECItem *CACerts, nsIInterfaceRequestor *ctx);
 
 private:
 
   static nsresult
-  ImportValidCACertsInList(CERTCertList *certList, nsIInterfaceRequestor *ctx,
-                           const nsNSSShutDownPreventionLock &proofOfLock);
+  ImportValidCACertsInList(CERTCertList *certList, nsIInterfaceRequestor *ctx);
 
   static void DisplayCertificateAlert(nsIInterfaceRequestor *ctx, 
-                                      const char *stringID, nsIX509Cert *certToShow,
-                                      const nsNSSShutDownPreventionLock &proofOfLock);
+                                      const char *stringID, nsIX509Cert *certToShow);
 
   void getCertNames(CERTCertList *certList,
                     uint32_t      type, 
                     uint32_t     *_count,
-                    char16_t  ***_certNameList,
-                    const nsNSSShutDownPreventionLock &proofOfLock);
+                    PRUnichar  ***_certNameList);
 
-  CERTDERCerts *getCertsFromPackage(PLArenaPool *arena, uint8_t *data, 
-                                    uint32_t length,
-                                    const nsNSSShutDownPreventionLock &proofOfLock);
+  CERTDERCerts *getCertsFromPackage(PRArenaPool *arena, uint8_t *data, 
+                                    uint32_t length);
   nsresult handleCACertDownload(nsIArray *x509Certs, 
-                                nsIInterfaceRequestor *ctx,
-                                const nsNSSShutDownPreventionLock &proofOfLock);
-
-  // We don't own any NSS objects here, so no need to clean up
-  virtual void virtualDestroyNSSReference() { };
+                                nsIInterfaceRequestor *ctx);
 };
 
 #define NS_X509CERTDB_CID { /* fb0bbc5c-452e-4783-b32c-80124693d871 */ \

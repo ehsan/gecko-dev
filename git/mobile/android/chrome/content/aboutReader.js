@@ -4,12 +4,8 @@
 
 let Ci = Components.interfaces, Cc = Components.classes, Cu = Components.utils;
 
-Cu.import("resource://gre/modules/Messaging.jsm");
 Cu.import("resource://gre/modules/Services.jsm")
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "UITelemetry",
-                                  "resource://gre/modules/UITelemetry.jsm");
 
 XPCOMUtils.defineLazyGetter(window, "gChromeWin", function ()
   window.QueryInterface(Ci.nsIInterfaceRequestor)
@@ -33,9 +29,6 @@ let AboutReader = function(doc, win) {
   this._winRef = Cu.getWeakReference(win);
 
   Services.obs.addObserver(this, "Reader:FaviconReturn", false);
-  Services.obs.addObserver(this, "Reader:Added", false);
-  Services.obs.addObserver(this, "Reader:Removed", false);
-  Services.obs.addObserver(this, "Gesture:DoubleTap", false);
 
   this._article = null;
 
@@ -56,83 +49,57 @@ let AboutReader = function(doc, win) {
   body.addEventListener("touchstart", this, false);
   body.addEventListener("click", this, false);
 
-  win.addEventListener("unload", this, false);
   win.addEventListener("scroll", this, false);
   win.addEventListener("popstate", this, false);
   win.addEventListener("resize", this, false);
 
-  doc.addEventListener("visibilitychange", this, false);
-
   this._setupAllDropdowns();
   this._setupButton("toggle-button", this._onReaderToggle.bind(this));
+  this._setupButton("list-button", this._onList.bind(this));
   this._setupButton("share-button", this._onShare.bind(this));
 
   let colorSchemeOptions = [
-    { name: gStrings.GetStringFromName("aboutReader.colorSchemeDark"),
-      value: "dark"},
     { name: gStrings.GetStringFromName("aboutReader.colorSchemeLight"),
       value: "light"},
-    { name: gStrings.GetStringFromName("aboutReader.colorSchemeAuto"),
-      value: "auto"}
+    { name: gStrings.GetStringFromName("aboutReader.colorSchemeDark"),
+      value: "dark"}
   ];
 
   let colorScheme = Services.prefs.getCharPref("reader.color_scheme");
-  this._setupSegmentedButton("color-scheme-buttons", colorSchemeOptions, colorScheme, this._setColorSchemePref.bind(this));
-  this._setColorSchemePref(colorScheme);
+  this._setupSegmentedButton("color-scheme-buttons", colorSchemeOptions, colorScheme, this._setColorScheme.bind(this));
+  this._setColorScheme(colorScheme);
 
-  let fontTypeSample = gStrings.GetStringFromName("aboutReader.fontTypeSample");
-  let fontTypeOptions = [
-    { name: fontTypeSample,
-      description: gStrings.GetStringFromName("aboutReader.fontTypeSerif"),
-      value: "serif",
-      linkClass: "serif" },
-    { name: fontTypeSample,
-      description: gStrings.GetStringFromName("aboutReader.fontTypeSansSerif"),
-      value: "sans-serif",
-      linkClass: "sans-serif"
-    },
-  ];
+  let fontTitle = gStrings.GetStringFromName("aboutReader.textTitle");
+  this._setupStepControl("font-size-control", fontTitle, this._onFontSizeChange.bind(this));
+  this._fontSize = 0;
+  this._setFontSize(Services.prefs.getIntPref("reader.font_size"));
 
-  let fontType = Services.prefs.getCharPref("reader.font_type");
-  this._setupSegmentedButton("font-type-buttons", fontTypeOptions, fontType, this._setFontType.bind(this));
-  this._setFontType(fontType);
-
-  let fontSizeSample = gStrings.GetStringFromName("aboutReader.fontSizeSample");
-  let fontSizeOptions = [
-    { name: fontSizeSample,
-      value: 1,
-      linkClass: "font-size1-sample" },
-    { name: fontSizeSample,
-      value: 2,
-      linkClass: "font-size2-sample" },
-    { name: fontSizeSample,
-      value: 3,
-      linkClass: "font-size3-sample" },
-    { name: fontSizeSample,
-      value: 4,
-      linkClass: "font-size4-sample" },
-    { name: fontSizeSample,
-      value: 5,
-      linkClass: "font-size5-sample" }
-  ];
-
-  let fontSize = Services.prefs.getIntPref("reader.font_size");
-  this._setupSegmentedButton("font-size-buttons", fontSizeOptions, fontSize, this._setFontSize.bind(this));
-  this._setFontSize(fontSize);
+  let marginTitle = gStrings.GetStringFromName("aboutReader.marginTitle");
+  this._setupStepControl("margin-size-control", marginTitle, this._onMarginSizeChange.bind(this));
+  this._marginSize = 0;
+  this._setMarginSize(Services.prefs.getIntPref("reader.margin_size"));
 
   dump("Decoding query arguments");
   let queryArgs = this._decodeQueryString(win.location.href);
 
-  // Track status of reader toolbar add/remove toggle button
-  this._isReadingListItem = -1;
+  this._isReadingListItem = (queryArgs.readingList == "1");
   this._updateToggleButton();
 
   let url = queryArgs.url;
   let tabId = queryArgs.tabId;
-  this._loadArticle(url, tabId);
+  if (tabId) {
+    dump("Loading from tab with ID: " + tabId + ", URL: " + url);
+    this._loadFromTab(tabId, url);
+  } else {
+    dump("Fetching page with URL: " + url);
+    this._loadFromURL(url);
+  }
 }
 
 AboutReader.prototype = {
+  _STEP_INCREMENT: 0,
+  _STEP_DECREMENT: 1,
+
   _BLOCK_IMAGES_SELECTOR: ".content p > img:only-child, " +
                           ".content p > a:only-child > img:only-child, " +
                           ".content .wp-caption img, " +
@@ -174,46 +141,12 @@ AboutReader.prototype = {
     return this._messageElementRef.get();
   },
 
-  observe: function Reader_observe(aMessage, aTopic, aData) {
+  observe: function(aMessage, aTopic, aData) {
     switch(aTopic) {
       case "Reader:FaviconReturn": {
-        let args = JSON.parse(aData);
-        this._loadFavicon(args.url, args.faviconUrl);
-        Services.obs.removeObserver(this, "Reader:FaviconReturn");
-        break;
-      }
-
-      case "Reader:Added": {
-        // Page can be added by long-press pageAction, or by tap on banner icon.
-        if (aData == this._article.url) {
-          if (this._isReadingListItem != 1) {
-            this._isReadingListItem = 1;
-            this._updateToggleButton();
-          }
-        }
-        break;
-      }
-
-      case "Reader:Removed": {
-        if (aData == this._article.url) {
-          if (this._isReadingListItem != 0) {
-            this._isReadingListItem = 0;
-            this._updateToggleButton();
-          }
-        }
-        break;
-      }
-
-      case "Gesture:DoubleTap": {
-        let args = JSON.parse(aData);
-        let scrollBy;
-        // Arbitary choice of innerHeight - 50 to give some context after scroll
-        if (args.y < (this._win.innerHeight / 2)) {
-          scrollBy = -this._win.innerHeight + 50;
-        } else {
-          scrollBy = this._win.innerHeight - 50;
-        }
-        this._scrollPage(scrollBy);
+        let info = JSON.parse(aData);
+        this._loadFavicon(info.url, info.faviconUrl);
+        Services.obs.removeObserver(this, "Reader:FaviconReturn", false);
         break;
       }
     }
@@ -233,9 +166,8 @@ AboutReader.prototype = {
         break;
       case "scroll":
         if (!this._scrolled) {
-          let isScrollingUp = this._scrollOffset > aEvent.pageY;
-          this._setToolbarVisibility(isScrollingUp);
-          this._scrollOffset = aEvent.pageY;
+          this._scrolled = true;
+          this._setToolbarVisibility(false);
         }
         break;
       case "popstate":
@@ -245,179 +177,123 @@ AboutReader.prototype = {
       case "resize":
         this._updateImageMargins();
         break;
-
-      case "devicelight":
-        this._handleDeviceLight(aEvent.value);
-        break;
-
-      case "visibilitychange":
-        this._handleVisibilityChange();
-        break;
-
-      case "unload":
-        Services.obs.removeObserver(this, "Reader:Added");
-        Services.obs.removeObserver(this, "Reader:Removed");
-        Services.obs.removeObserver(this, "Gesture:DoubleTap");
-        break;
     }
-  },
-
-  _scrollPage: function Reader_scrollPage(scrollByPixels) {
-    let viewport = BrowserApp.selectedTab.getViewport();
-    let newY = Math.min(Math.max(viewport.cssY + scrollByPixels, viewport.cssPageTop), viewport.cssPageBottom);
-    let newRect = new Rect(viewport.cssX, newY, viewport.cssWidth, viewport.cssHeight);
-
-    this._setToolbarVisibility(false);
-    this._setBrowserToolbarVisiblity(false);
-    this._scrolled  = true;
-    ZoomHelper.zoomToRect(newRect, -1);
   },
 
   _updateToggleButton: function Reader_updateToggleButton() {
     let classes = this._doc.getElementById("toggle-button").classList;
 
-    if (this._isReadingListItem == 1) {
+    if (this._isReadingListItem) {
       classes.add("on");
     } else {
       classes.remove("on");
     }
   },
 
-  _requestReadingListStatus: function Reader_requestReadingListStatus() {
-    Messaging.sendRequestForResult({
-      type: "Reader:ListStatusRequest",
-      url: this._article.url
-    }).then((data) => {
-      let args = JSON.parse(data);
-      if (args.url == this._article.url) {
-        if (this._isReadingListItem != args.inReadingList) {
-          let isInitialStateChange = (this._isReadingListItem == -1);
-          this._isReadingListItem = args.inReadingList;
-          this._updateToggleButton();
-
-          // Display the toolbar when all its initial component states are known
-          if (isInitialStateChange) {
-            this._setToolbarVisibility(true);
-          }
-        }
-      }
-    });
-  },
-
   _onReaderToggle: function Reader_onToggle() {
     if (!this._article)
       return;
 
-    if (this._isReadingListItem == 0) {
-      gChromeWin.Reader.addArticleToReadingList(this._article);
+    this._isReadingListItem = !this._isReadingListItem;
+    this._updateToggleButton();
 
-      UITelemetry.addEvent("save.1", "button", null, "reader");
+    if (this._isReadingListItem) {
+      gChromeWin.Reader.storeArticleInCache(this._article, function(success) {
+        dump("Reader:Add (in reader) success=" + success);
+
+        gChromeWin.sendMessageToJava({
+          gecko: {
+            type: "Reader:Added",
+            success: success,
+            title: this._article.title,
+            url: this._article.url,
+          }
+        });
+      }.bind(this));
     } else {
-      Messaging.sendRequest({
-        type: "Reader:RemoveFromList",
-        url: this._article.url
-      });
+      gChromeWin.Reader.removeArticleFromCache(this._article.url , function(success) {
+        dump("Reader:Remove (in reader) success=" + success);
 
-      UITelemetry.addEvent("unsave.1", "button", null, "reader");
+        gChromeWin.sendMessageToJava({
+          gecko: {
+            type: "Reader:Removed",
+            url: this._article.url
+          }
+        });
+      }.bind(this));
     }
+  },
+
+  _onList: function Reader_onList() {
+    if (!this._article)
+      return;
+
+    gChromeWin.sendMessageToJava({
+      gecko: {
+        type: "Reader:GoToReadingList"
+      }
+    });
   },
 
   _onShare: function Reader_onShare() {
     if (!this._article)
       return;
 
-    Messaging.sendRequest({
-      type: "Reader:Share",
-      url: this._article.url,
-      title: this._article.title
+    gChromeWin.sendMessageToJava({
+      gecko: {
+        type: "Reader:Share",
+        url: this._article.url,
+        title: this._article.title
+      }
     });
+  },
 
-    UITelemetry.addEvent("share.1", "list", null);
+  _onMarginSizeChange: function Reader_onMarginSizeChange(operation) {
+    if (operation == this._STEP_INCREMENT)
+      this._setMarginSize(this._marginSize + 5);
+    else
+      this._setMarginSize(this._marginSize - 5);
+  },
+
+  _setMarginSize: function Reader_setMarginSize(newMarginSize) {
+    if (this._marginSize === newMarginSize)
+      return;
+
+    let doc = this._doc;
+
+    this._marginSize = Math.max(5, Math.min(25, newMarginSize));
+    doc.body.style.marginLeft = this._marginSize + "%";
+    doc.body.style.marginRight = this._marginSize + "%";
+
+    this._updateImageMargins();
+
+    Services.prefs.setIntPref("reader.margin_size", this._marginSize);
+  },
+
+  _onFontSizeChange: function Reader_onFontSizeChange(operation) {
+    if (operation == this._STEP_INCREMENT)
+      this._setFontSize(this._fontSize + 1);
+    else
+      this._setFontSize(this._fontSize - 1);
   },
 
   _setFontSize: function Reader_setFontSize(newFontSize) {
+    if (this._fontSize === newFontSize)
+      return;
+
     let bodyClasses = this._doc.body.classList;
 
     if (this._fontSize > 0)
       bodyClasses.remove("font-size" + this._fontSize);
 
-    this._fontSize = newFontSize;
+    this._fontSize = Math.max(1, Math.min(7, newFontSize));
     bodyClasses.add("font-size" + this._fontSize);
 
     Services.prefs.setIntPref("reader.font_size", this._fontSize);
   },
 
-  _handleDeviceLight: function Reader_handleDeviceLight(newLux) {
-    // Desired size of the this._luxValues array.
-    let luxValuesSize = 10;
-    // Add new lux value at the front of the array.
-    this._luxValues.unshift(newLux);
-    // Add new lux value to this._totalLux for averaging later.
-    this._totalLux += newLux;
-
-    // Don't update when length of array is less than luxValuesSize except when it is 1.
-    if (this._luxValues.length < luxValuesSize) {
-      // Use the first lux value to set the color scheme until our array equals luxValuesSize.
-      if (this._luxValues.length == 1) {
-        this._updateColorScheme(newLux);
-      }
-      return;
-    }
-    // Holds the average of the lux values collected in this._luxValues.
-    let averageLuxValue = this._totalLux/luxValuesSize;
-
-    this._updateColorScheme(averageLuxValue);
-    // Pop the oldest value off the array.
-    let oldLux = this._luxValues.pop();
-    // Subtract oldLux since it has been discarded from the array.
-    this._totalLux -= oldLux;
-  },
-
-  _handleVisibilityChange: function Reader_handleVisibilityChange() {
-    let colorScheme = Services.prefs.getCharPref("reader.color_scheme");
-    if (colorScheme != "auto") {
-      return;
-    }
-
-    // Turn off the ambient light sensor if the page is hidden
-    this._enableAmbientLighting(!this._doc.hidden);
-  },
-
-  // Setup or teardown the ambient light tracking system.
-  _enableAmbientLighting: function Reader_enableAmbientLighting(enable) {
-    if (enable) {
-      this._win.addEventListener("devicelight", this, false);
-      this._luxValues = [];
-      this._totalLux = 0;
-    } else {
-      this._win.removeEventListener("devicelight", this, false);
-      delete this._luxValues;
-      delete this._totalLux;
-    }
-  },
-
-  _updateColorScheme: function Reader_updateColorScheme(luxValue) {
-    // Upper bound value for "dark" color scheme beyond which it changes to "light".
-    let upperBoundDark = 50;
-    // Lower bound value for "light" color scheme beyond which it changes to "dark".
-    let lowerBoundLight = 10;
-    // Threshold for color scheme change.
-    let colorChangeThreshold = 20;
-
-    // Ignore changes that are within a certain threshold of previous lux values.
-    if ((this._colorScheme === "dark" && luxValue < upperBoundDark) ||
-        (this._colorScheme === "light" && luxValue > lowerBoundLight))
-      return;
-
-    if (luxValue < colorChangeThreshold)
-      this._setColorScheme("dark");
-    else
-      this._setColorScheme("light");
-  },
-
   _setColorScheme: function Reader_setColorScheme(newColorScheme) {
-    // "auto" is not a real color scheme
-    if (this._colorScheme === newColorScheme || newColorScheme === "auto")
+    if (this._colorScheme === newColorScheme)
       return;
 
     let bodyClasses = this._doc.body.classList;
@@ -427,30 +303,8 @@ AboutReader.prototype = {
 
     this._colorScheme = newColorScheme;
     bodyClasses.add(this._colorScheme);
-  },
 
-  // Pref values include "dark", "light", and "auto", which automatically switches
-  // between light and dark color schemes based on the ambient light level.
-  _setColorSchemePref: function Reader_setColorSchemePref(colorSchemePref) {
-    this._enableAmbientLighting(colorSchemePref === "auto");
-    this._setColorScheme(colorSchemePref);
-
-    Services.prefs.setCharPref("reader.color_scheme", colorSchemePref);
-  },
-
-  _setFontType: function Reader_setFontType(newFontType) {
-    if (this._fontType === newFontType)
-      return;
-
-    let bodyClasses = this._doc.body.classList;
-
-    if (this._fontType)
-      bodyClasses.remove(this._fontType);
-
-    this._fontType = newFontType;
-    bodyClasses.add(this._fontType);
-
-    Services.prefs.setCharPref("reader.font_type", this._fontType);
+    Services.prefs.setCharPref("reader.color_scheme", this._colorScheme);
   },
 
   _getToolbarVisibility: function Reader_getToolbarVisibility() {
@@ -465,15 +319,10 @@ AboutReader.prototype = {
     if (!this._toolbarEnabled)
       return;
 
-    // Don't allow visible toolbar until banner state is known
-    if (this._isReadingListItem == -1)
-      return;
-
     if (this._getToolbarVisibility() === visible)
       return;
 
     this._toolbarElement.classList.toggle("toolbar-hidden");
-    this._setSystemUIVisibility(visible);
 
     if (!visible && !this._hasUsedToolbar) {
       this._hasUsedToolbar = Services.prefs.getBoolPref("reader.has_used_toolbar");
@@ -486,42 +335,38 @@ AboutReader.prototype = {
     }
   },
 
-  _toggleToolbarVisibility: function Reader_toggleToolbarVisibility() {
+  _toggleToolbarVisibility: function Reader_toggleToolbarVisibility(visible) {
     this._setToolbarVisibility(!this._getToolbarVisibility());
   },
 
-  _setBrowserToolbarVisiblity: function Reader_setBrowserToolbarVisiblity(visible) {
-    Messaging.sendRequest({
-      type: "BrowserToolbar:Visibility",
-      visible: visible
-    });
-  },
-
-  _setSystemUIVisibility: function Reader_setSystemUIVisibility(visible) {
-    Messaging.sendRequest({
-      type: "SystemUI:Visibility",
-      visible: visible
-    });
-  },
-
-  _loadArticle: Task.async(function* (url, tabId) {
+  _loadFromURL: function Reader_loadFromURL(url) {
     this._showProgressDelayed();
 
-    let article = yield gChromeWin.Reader.getArticle(url, tabId).catch(e => {
-      Cu.reportError("Error loading article: " + e);
-      return null;
-    });
-    if (article) {
-      this._showContent(article);
-    } else {
-      this._win.location.href = url;
-    }
-  }),
+    gChromeWin.Reader.parseDocumentFromURL(url, function(article) {
+      if (article)
+        this._showContent(article);
+      else
+        this._showError(gStrings.GetStringFromName("aboutReader.loadError"));
+    }.bind(this));
+  },
+
+  _loadFromTab: function Reader_loadFromTab(tabId, url) {
+    this._showProgressDelayed();
+
+    gChromeWin.Reader.getArticleForTab(tabId, url, function(article) {
+      if (article)
+        this._showContent(article);
+      else
+        this._showError(gStrings.GetStringFromName("aboutReader.loadError"));
+    }.bind(this));
+  },
 
   _requestFavicon: function Reader_requestFavicon() {
-    Messaging.sendRequest({
-      type: "Reader:FaviconRequest",
-      url: this._article.url
+    gChromeWin.sendMessageToJava({
+      gecko: {
+        type: "Reader:FaviconRequest",
+        url: this._article.url
+      }
     });
   },
 
@@ -582,15 +427,6 @@ AboutReader.prototype = {
     }
   },
 
-  _maybeSetTextDirection: function Read_maybeSetTextDirection(article){
-    if(!article.dir)
-      return;
-
-    //Set "dir" attribute on content
-    this._contentElement.setAttribute("dir", article.dir);
-    this._headerElement.setAttribute("dir", article.dir);
-  },
-
   _showError: function Reader_showError(error) {
     this._headerElement.style.display = "none";
     this._contentElement.style.display = "none";
@@ -601,35 +437,19 @@ AboutReader.prototype = {
     this._doc.title = error;
   },
 
-  // This function is the JS version of Java's StringUtils.stripCommonSubdomains.
-  _stripHost: function Reader_stripHost(host) {
-    if (!host)
-      return host;
-
-    let start = 0;
-
-    if (host.startsWith("www."))
-      start = 4;
-    else if (host.startsWith("m."))
-      start = 2;
-    else if (host.startsWith("mobile."))
-      start = 7;
-
-    return host.substring(start);
-  },
-
   _showContent: function Reader_showContent(article) {
     this._messageElement.style.display = "none";
 
     this._article = article;
 
-    this._domainElement.href = article.url;
     let articleUri = Services.io.newURI(article.url, null, null);
-    this._domainElement.innerHTML = this._stripHost(articleUri.host);
+    let domain = articleUri.host;
+
+    this._domainElement.innerHTML = domain;
 
     this._creditsElement.innerHTML = article.byline;
 
-    this._titleElement.textContent = article.title;
+    this._titleElement.innerHTML = article.title;
     this._doc.title = article.title;
 
     this._headerElement.style.display = "block";
@@ -640,10 +460,8 @@ AboutReader.prototype = {
     this._contentElement.innerHTML = "";
     this._contentElement.appendChild(contentFragment);
     this._updateImageMargins();
-    this._maybeSetTextDirection(article);
 
     this._contentElement.style.display = "block";
-    this._requestReadingListStatus();
 
     this._toolbarEnabled = true;
     this._setToolbarVisibility(true);
@@ -685,6 +503,39 @@ AboutReader.prototype = {
     return result;
   },
 
+  _setupStepControl: function Reader_setupStepControl(id, name, callback) {
+    let doc = this._doc;
+    let stepControl = doc.getElementById(id);
+
+    let title = this._doc.createElement("h1");
+    title.innerHTML = name;
+    stepControl.appendChild(title);
+
+    let plusButton = doc.createElement("div");
+    plusButton.className = "button plus-button";
+    stepControl.appendChild(plusButton);
+
+    let minusButton = doc.createElement("div");
+    minusButton.className = "button minus-button";
+    stepControl.appendChild(minusButton);
+
+    plusButton.addEventListener("click", function(aEvent) {
+      if (!aEvent.isTrusted)
+        return;
+
+      aEvent.stopPropagation();
+      callback(this._STEP_INCREMENT);
+    }.bind(this), true);
+
+    minusButton.addEventListener("click", function(aEvent) {
+      if (!aEvent.isTrusted)
+        return;
+
+      aEvent.stopPropagation();
+      callback(this._STEP_DECREMENT);
+    }.bind(this), true);
+  },
+
   _setupSegmentedButton: function Reader_setupSegmentedButton(id, options, initialValue, callback) {
     let doc = this._doc;
     let segmentedButton = doc.getElementById(id);
@@ -694,19 +545,9 @@ AboutReader.prototype = {
 
       let item = doc.createElement("li");
       let link = doc.createElement("a");
-      link.textContent = option.name;
+      link.innerHTML = option.name;
       item.appendChild(link);
 
-      if (option.linkClass !== undefined)
-        link.classList.add(option.linkClass);
-
-      if (option.description !== undefined) {
-        let description = doc.createElement("div");
-        description.textContent = option.description;
-        item.appendChild(description);
-      }
-
-      link.style.MozUserSelect = 'none';
       segmentedButton.appendChild(item);
 
       link.addEventListener("click", function(aEvent) {
@@ -714,10 +555,6 @@ AboutReader.prototype = {
           return;
 
         aEvent.stopPropagation();
-
-        // Just pass the ID of the button as an extra and hope the ID doesn't change
-        // unless the context changes
-        UITelemetry.addEvent("action.1", "button", null, id);
 
         let items = segmentedButton.children;
         for (let j = items.length - 1; j >= 0; j--) {
@@ -765,26 +602,25 @@ AboutReader.prototype = {
       dropdownPopup.appendChild(dropdownArrow);
 
       let updatePopupPosition = function() {
-        let popupWidth = dropdownPopup.offsetWidth + 30;
-        let arrowWidth = dropdownArrow.offsetWidth;
-        let toggleWidth = dropdownToggle.offsetWidth;
-        let toggleLeft = dropdownToggle.offsetLeft;
+          let popupWidth = dropdownPopup.offsetWidth + 30;
+          let arrowWidth = dropdownArrow.offsetWidth;
+          let toggleWidth = dropdownToggle.offsetWidth;
+          let toggleLeft = dropdownToggle.offsetLeft;
 
-        let popupShift = (toggleWidth - popupWidth) / 2;
-        let popupLeft = Math.max(0, Math.min(win.innerWidth - popupWidth, toggleLeft + popupShift));
-        dropdownPopup.style.left = popupLeft + "px";
+          let popupShift = (toggleWidth - popupWidth) / 2;
+          let popupLeft = Math.max(0, Math.min(win.innerWidth - popupWidth, toggleLeft + popupShift));
+          dropdownPopup.style.left = popupLeft + "px";
 
-        let arrowShift = (toggleWidth - arrowWidth) / 2;
-        let arrowLeft = toggleLeft - popupLeft + arrowShift;
-        dropdownArrow.style.left = arrowLeft + "px";
+          let arrowShift = (toggleWidth - arrowWidth) / 2;
+          let arrowLeft = toggleLeft - popupLeft + arrowShift;
+          dropdownArrow.style.left = arrowLeft + "px";
       };
 
       win.addEventListener("resize", function(aEvent) {
         if (!aEvent.isTrusted)
           return;
 
-        // Wait for reflow before calculating the new position of the popup.
-        setTimeout(updatePopupPosition, 0);
+        updatePopupPosition();
       }, true);
 
       dropdownToggle.addEventListener("click", function(aEvent) {
@@ -792,9 +628,6 @@ AboutReader.prototype = {
           return;
 
         aEvent.stopPropagation();
-
-        if (!this._getToolbarVisibility())
-          return;
 
         let dropdownClasses = dropdown.classList;
 

@@ -7,84 +7,119 @@
 #ifndef mozilla_dom_indexeddb_fileinfo_h__
 #define mozilla_dom_indexeddb_fileinfo_h__
 
-#include "nsAutoPtr.h"
-#include "nsISupportsImpl.h"
+#include "IndexedDatabase.h"
 
-namespace mozilla {
-namespace dom {
-namespace indexedDB {
+#include "nsAtomicRefcnt.h"
+#include "nsThreadUtils.h"
 
-class FileManager;
+#include "FileManager.h"
+#include "IndexedDatabaseManager.h"
+
+BEGIN_INDEXEDDB_NAMESPACE
 
 class FileInfo
 {
   friend class FileManager;
 
-  ThreadSafeAutoRefCnt mRefCnt;
-  ThreadSafeAutoRefCnt mDBRefCnt;
-  ThreadSafeAutoRefCnt mSliceRefCnt;
-
-  nsRefPtr<FileManager> mFileManager;
-
 public:
+  FileInfo(FileManager* aFileManager)
+  : mFileManager(aFileManager)
+  { }
+
+  virtual ~FileInfo()
+  {
+#ifdef DEBUG
+    NS_ASSERTION(NS_IsMainThread(), "File info destroyed on wrong thread!");
+#endif
+  }
+
   static
   FileInfo* Create(FileManager* aFileManager, int64_t aId);
 
-  explicit FileInfo(FileManager* aFileManager);
-
-  void
-  AddRef()
+  void AddRef()
   {
-    UpdateReferences(mRefCnt, 1);
+    if (IndexedDatabaseManager::IsClosed()) {
+      NS_AtomicIncrementRefcnt(mRefCnt);
+    }
+    else {
+      UpdateReferences(mRefCnt, 1);
+    }
   }
 
-  void
-  Release()
+  void Release()
   {
-    UpdateReferences(mRefCnt, -1);
+    if (IndexedDatabaseManager::IsClosed()) {
+      nsrefcnt count = NS_AtomicDecrementRefcnt(mRefCnt);
+      if (count == 0) {
+        mRefCnt = 1;
+        delete this;
+      }
+    }
+    else {
+      UpdateReferences(mRefCnt, -1);
+    }
   }
 
-  void
-  UpdateDBRefs(int32_t aDelta)
+  void UpdateDBRefs(int32_t aDelta)
   {
     UpdateReferences(mDBRefCnt, aDelta);
   }
 
-  void
-  UpdateSliceRefs(int32_t aDelta)
+  void ClearDBRefs()
+  {
+    UpdateReferences(mDBRefCnt, 0, true);
+  }
+
+  void UpdateSliceRefs(int32_t aDelta)
   {
     UpdateReferences(mSliceRefCnt, aDelta);
   }
 
-  void
-  GetReferences(int32_t* aRefCnt, int32_t* aDBRefCnt, int32_t* aSliceRefCnt);
+  void GetReferences(int32_t* aRefCnt, int32_t* aDBRefCnt,
+                     int32_t* aSliceRefCnt);
 
-  FileManager*
-  Manager() const
+  FileManager* Manager() const
   {
     return mFileManager;
   }
 
-  virtual int64_t
-  Id() const = 0;
-
-protected:
-  virtual ~FileInfo();
+  virtual int64_t Id() const = 0;
 
 private:
-  void
-  UpdateReferences(ThreadSafeAutoRefCnt& aRefCount,
-                   int32_t aDelta);
+  void UpdateReferences(nsAutoRefCnt& aRefCount, int32_t aDelta,
+                        bool aClear = false);
+  void Cleanup();
 
-  bool
-  LockedClearDBRefs();
+  nsAutoRefCnt mRefCnt;
+  nsAutoRefCnt mDBRefCnt;
+  nsAutoRefCnt mSliceRefCnt;
 
-  void
-  Cleanup();
+  nsRefPtr<FileManager> mFileManager;
 };
 
-} // namespace indexedDB
-} // namespace dom
-} // namespace mozilla
+#define FILEINFO_SUBCLASS(_bits)                                              \
+class FileInfo##_bits : public FileInfo                                       \
+{                                                                             \
+public:                                                                       \
+  FileInfo##_bits(FileManager* aFileManager, int##_bits##_t aId)              \
+  : FileInfo(aFileManager), mId(aId)                                          \
+  { }                                                                         \
+                                                                              \
+  virtual int64_t Id() const                                                  \
+  {                                                                           \
+    return mId;                                                               \
+  }                                                                           \
+                                                                              \
+private:                                                                      \
+  int##_bits##_t mId;                                                         \
+};
+
+FILEINFO_SUBCLASS(16)
+FILEINFO_SUBCLASS(32)
+FILEINFO_SUBCLASS(64)
+
+#undef FILEINFO_SUBCLASS
+
+END_INDEXEDDB_NAMESPACE
 
 #endif // mozilla_dom_indexeddb_fileinfo_h__

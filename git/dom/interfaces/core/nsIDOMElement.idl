@@ -5,8 +5,6 @@
 
 #include "nsIDOMNode.idl"
 
-interface nsIDOMMozNamedAttrMap;
-
 /**
  * The nsIDOMElement interface represents an element in an HTML or 
  * XML document. 
@@ -15,19 +13,16 @@ interface nsIDOMMozNamedAttrMap;
  * http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html#interface-element
  */
 
-[uuid(6289999b-1008-4269-b42a-413ec5a9d3f4)]
+[scriptable, uuid(69D44CE2-B544-49A8-BB5F-87804B971EE4)]
 interface nsIDOMElement : nsIDOMNode
 {
   readonly attribute DOMString        tagName;
 
-           attribute DOMString        id;
-           attribute DOMString        className;
   /**
    * Returns a DOMTokenList object reflecting the class attribute.
    */
-  readonly attribute nsISupports classList;
+  readonly attribute nsIDOMDOMTokenList classList;
 
-  readonly attribute nsIDOMMozNamedAttrMap attributes;
   DOMString          getAttribute(in DOMString name);
   DOMString          getAttributeNS(in DOMString namespaceURI, 
                                     in DOMString localName);
@@ -42,7 +37,6 @@ interface nsIDOMElement : nsIDOMNode
   boolean            hasAttribute(in DOMString name);
   boolean            hasAttributeNS(in DOMString namespaceURI, 
                                     in DOMString localName);
-  boolean            hasAttributes();
 
   // Obsolete methods.
   nsIDOMAttr         getAttributeNode(in DOMString name);
@@ -53,14 +47,14 @@ interface nsIDOMElement : nsIDOMNode
   nsIDOMAttr         setAttributeNodeNS(in nsIDOMAttr newAttr)
                                         raises(DOMException);
 
-  nsIDOMHTMLCollection getElementsByTagName(in DOMString name);
-  nsIDOMHTMLCollection getElementsByTagNameNS(in DOMString namespaceURI, 
-                                              in DOMString localName);
+  nsIDOMNodeList     getElementsByTagName(in DOMString name);
+  nsIDOMNodeList     getElementsByTagNameNS(in DOMString namespaceURI, 
+                                            in DOMString localName);
   /**
    * Retrieve elements matching all classes listed in a
    * space-separated string.
    */
-  nsIDOMHTMLCollection getElementsByClassName(in DOMString classes);
+  nsIDOMNodeList getElementsByClassName(in DOMString classes);
 
   /**
    * Returns a live nsIDOMNodeList of the current child elements.
@@ -80,8 +74,11 @@ interface nsIDOMElement : nsIDOMNode
    */
   readonly attribute unsigned long childElementCount;
 
-  [binaryname(MozRemove)]
-  void remove();
+
+  // HTML
+  [implicit_jscontext] attribute jsval onmouseenter;
+  [implicit_jscontext] attribute jsval onmouseleave;
+
 
   // CSSOM View
   /**
@@ -209,12 +206,4 @@ interface nsIDOMElement : nsIDOMNode
    * @see <http://dvcs.w3.org/hg/pointerlock/raw-file/default/index.html>
    */
   void mozRequestPointerLock();
-
-  /**
-   * Return nodes that match a given CSS selector.
-   *
-   * @see <http://dev.w3.org/2006/webapi/selectors-api/>
-   */
-  nsIDOMElement querySelector([Null(Stringify)] in DOMString selectors);
-  nsIDOMNodeList querySelectorAll([Null(Stringify)] in DOMString selectors);
 };

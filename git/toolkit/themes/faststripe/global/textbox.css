@@ -25,10 +25,15 @@ html|*.textbox-input,
 html|*.textbox-textarea {
   margin: 0px !important;
   border: none !important;
-  padding: 0px 1px !important;
+  padding: 0px !important;
   background-color: inherit;
   color: inherit;
   font: inherit;
+}
+
+html|*.textbox-input:-moz-placeholder,
+html|*.textbox-textarea:-moz-placeholder {
+  color: GrayText;
 }
 
 .textbox-contextmenu {
@@ -57,11 +62,6 @@ textbox.plain {
   padding: 0px !important;
   margin: 0px !important;
   border: none !important;
-}
-
-textbox.plain html|*.textbox-input,
-textbox.plain html|*.textbox-textarea {
-  padding: 0px !important;
 }
 
 /* ::::: search textbox ::::: */

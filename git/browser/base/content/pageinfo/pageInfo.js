@@ -1,10 +1,7 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-const Cu = Components.utils;
-Cu.import("resource://gre/modules/LoadContextInfo.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
+# -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 //******** define a js object to implement nsITreeView
 function pageInfoTreeView(treeid, copycol)
@@ -106,9 +103,9 @@ pageInfoTreeView.prototype = {
     this.sortcol = treecol.index;
   },
 
-  getRowProperties: function(row) { return ""; },
-  getCellProperties: function(row, column) { return ""; },
-  getColumnProperties: function(column) { return ""; },
+  getRowProperties: function(row, prop) { },
+  getCellProperties: function(row, column, prop) { },
+  getColumnProperties: function(column, prop) { },
   isContainer: function(index) { return false; },
   isContainerOpen: function(index) { return false; },
   isSeparator: function(index) { return false; },
@@ -154,19 +151,21 @@ const COPYCOL_IMAGE = COL_IMAGE_ADDRESS;
 var gMetaView = new pageInfoTreeView('metatree', COPYCOL_META_CONTENT);
 var gImageView = new pageInfoTreeView('imagetree', COPYCOL_IMAGE);
 
-gImageView.getCellProperties = function(row, col) {
+var atomSvc = Components.classes["@mozilla.org/atom-service;1"]
+                        .getService(Components.interfaces.nsIAtomService);
+gImageView._ltrAtom = atomSvc.getAtom("ltr");
+gImageView._brokenAtom = atomSvc.getAtom("broken");
+
+gImageView.getCellProperties = function(row, col, props) {
   var data = gImageView.data[row];
   var item = gImageView.data[row][COL_IMAGE_NODE];
-  var props = "";
   if (!checkProtocol(data) ||
       item instanceof HTMLEmbedElement ||
-      (item instanceof HTMLObjectElement && !item.type.startsWith("image/")))
-    props += "broken";
+      (item instanceof HTMLObjectElement && !/^image\//.test(item.type)))
+    props.AppendElement(this._brokenAtom);
 
   if (col.element.id == "image-address")
-    props += " ltr";
-
-  return props;
+    props.AppendElement(this._ltrAtom);
 };
 
 gImageView.getCellText = function(row, column) {
@@ -187,7 +186,7 @@ gImageView.onPageMediaSort = function(columnname) {
   var treecol = tree.columns.getNamedColumn(columnname);
 
   var comparator;
-  if (treecol.index == COL_IMAGE_SIZE || treecol.index == COL_IMAGE_COUNT) {
+  if (treecol.index == COL_IMAGE_SIZE) {
     comparator = function numComparator(a, b) { return a - b; };
   } else {
     comparator = function textComparator(a, b) { return a.toLowerCase().localeCompare(b.toLowerCase()); };
@@ -220,15 +219,13 @@ const ATOM_CONTRACTID           = "@mozilla.org/atom-service;1";
 
 // a number of services I'll need later
 // the cache services
-const nsICacheStorageService = Components.interfaces.nsICacheStorageService;
-const nsICacheStorage = Components.interfaces.nsICacheStorage;
-const cacheService = Components.classes["@mozilla.org/netwerk/cache-storage-service;1"].getService(nsICacheStorageService);
-
-var loadContextInfo = LoadContextInfo.fromLoadContext(
-  window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-        .getInterface(Components.interfaces.nsIWebNavigation)
-        .QueryInterface(Components.interfaces.nsILoadContext), false);
-var diskStorage = cacheService.diskCacheStorage(loadContextInfo, false);
+const nsICacheService = Components.interfaces.nsICacheService;
+const ACCESS_READ     = Components.interfaces.nsICache.ACCESS_READ;
+const cacheService = Components.classes["@mozilla.org/network/cache-service;1"].getService(nsICacheService);
+var httpCacheSession = cacheService.createSession("HTTP", 0, true);
+httpCacheSession.doomEntriesIfExpired = false;
+var ftpCacheSession = cacheService.createSession("FTP", 0, true);
+ftpCacheSession.doomEntriesIfExpired = false;
 
 const nsICookiePermission  = Components.interfaces.nsICookiePermission;
 const nsIPermissionManager = Components.interfaces.nsIPermissionManager;
@@ -237,14 +234,12 @@ const nsICertificateDialogs = Components.interfaces.nsICertificateDialogs;
 const CERTIFICATEDIALOGS_CONTRACTID = "@mozilla.org/nsCertificateDialogs;1"
 
 // clipboard helper
-function getClipboardHelper() {
-    try {
-        return Components.classes["@mozilla.org/widget/clipboardhelper;1"].getService(Components.interfaces.nsIClipboardHelper);
-    } catch(e) {
-        // do nothing, later code will handle the error
-    }
+try {
+  const gClipboardHelper = Components.classes["@mozilla.org/widget/clipboardhelper;1"].getService(Components.interfaces.nsIClipboardHelper);
 }
-const gClipboardHelper = getClipboardHelper();
+catch(e) {
+  // do nothing, later code will handle the error
+}
 
 // Interface for image loading content
 const nsIImageLoadingContent = Components.interfaces.nsIImageLoadingContent;
@@ -294,8 +289,6 @@ var onFinished = [ ];
 // These functions are called once when the Page Info window is closed.
 var onUnloadRegistry = [ ];
 
-// These functions are called once when an image preview is shown.
-var onImagePreviewShown = [ ];
 
 /* Called when PageInfo window is loaded.  Arguments are:
  *  window.arguments[0] - (optional) an object consisting of
@@ -317,15 +310,17 @@ function onLoadPageInfo()
   gStrings.mediaEmbed = gBundle.getString("mediaEmbed");
   gStrings.mediaLink = gBundle.getString("mediaLink");
   gStrings.mediaInput = gBundle.getString("mediaInput");
+#ifdef MOZ_MEDIA
   gStrings.mediaVideo = gBundle.getString("mediaVideo");
   gStrings.mediaAudio = gBundle.getString("mediaAudio");
+#endif
 
   var args = "arguments" in window &&
              window.arguments.length >= 1 &&
              window.arguments[0];
 
   if (!args || !args.doc) {
-    gWindow = window.opener.gBrowser.selectedBrowser.contentWindowAsCPOW;
+    gWindow = window.opener.content;
     gDocument = gWindow.document;
   }
 
@@ -444,6 +439,14 @@ function loadTab(args)
   radioGroup.focus();
 }
 
+function onClickMore()
+{
+  var radioGrp = document.getElementById("viewGroup");
+  var radioElt = document.getElementById("securityTab");
+  radioGrp.selectedItem = radioElt;
+  showTab('security');
+}
+
 function toggleGroupbox(id)
 {
   var elt = document.getElementById(id);
@@ -459,19 +462,6 @@ function toggleGroupbox(id)
       elt.flex = 0;
     }
   }
-}
-
-function openCacheEntry(key, cb)
-{
-  var checkCacheListener = {
-    onCacheEntryCheck: function(entry, appCache) {
-      return Components.interfaces.nsICacheEntryOpenCallback.ENTRY_WANTED;
-    },
-    onCacheEntryAvailable: function(entry, isNew, appCache, status) {
-      cb(entry);
-    }
-  };
-  diskStorage.asyncOpenURI(Services.io.newURI(key, null, null), "", nsICacheStorage.OPEN_READONLY, checkCacheListener);
 }
 
 function makeGeneralTab()
@@ -510,7 +500,7 @@ function makeGeneralTab()
     else
       metaTagsCaption.label = gBundle.getFormattedString("generalMetaTags", [length]);
     var metaTree = document.getElementById("metatree");
-    metaTree.view = gMetaView;
+    metaTree.treeBoxObject.view = gMetaView;
 
     for (var i = 0; i < length; i++)
       gMetaView.addRow([metaNodes[i].name || metaNodes[i].httpEquiv, metaNodes[i].content]);
@@ -524,15 +514,23 @@ function makeGeneralTab()
 
   // get cache info
   var cacheKey = url.replace(/#.*$/, "");
-  openCacheEntry(cacheKey, function(cacheEntry) {
-    var sizeText;
-    if (cacheEntry) {
-      var pageSize = cacheEntry.dataSize;
-      var kbSize = formatNumber(Math.round(pageSize / 1024 * 100) / 100);
-      sizeText = gBundle.getFormattedString("generalSize", [kbSize, formatNumber(pageSize)]);
+  try {
+    var cacheEntryDescriptor = httpCacheSession.openCacheEntry(cacheKey, ACCESS_READ, false);
+  }
+  catch(ex) {
+    try {
+      cacheEntryDescriptor = ftpCacheSession.openCacheEntry(cacheKey, ACCESS_READ, false);
     }
-    setItemValue("sizetext", sizeText);
-  });
+    catch(ex2) { }
+  }
+
+  var sizeText;
+  if (cacheEntryDescriptor) {
+    var pageSize = cacheEntryDescriptor.dataSize;
+    var kbSize = formatNumber(Math.round(pageSize / 1024 * 100) / 100);
+    sizeText = gBundle.getFormattedString("generalSize", [kbSize, formatNumber(pageSize)]);
+  }
+  setItemValue("sizetext", sizeText);
 
   securityOnLoad();
 }
@@ -566,7 +564,7 @@ function processFrames()
   if (gFrameList.length) {
     var doc = gFrameList[0];
     onProcessFrame.forEach(function(func) { func(doc); });
-    var iterator = doc.createTreeWalker(doc, NodeFilter.SHOW_ELEMENT, grabAll);
+    var iterator = doc.createTreeWalker(doc, NodeFilter.SHOW_ELEMENT, grabAll, true);
     gFrameList.shift();
     setTimeout(doGrab, 10, iterator);
     onFinished.push(selectImage);
@@ -597,18 +595,20 @@ function addImage(url, type, alt, elem, isBg)
     gImageHash[url][type] = { };
   if (!gImageHash[url][type].hasOwnProperty(alt)) {
     gImageHash[url][type][alt] = gImageView.data.length;
-    var row = [url, type, -1, alt, 1, elem, isBg];
-    gImageView.addRow(row);
-
-    // Fill in cache data asynchronously
-    openCacheEntry(url, function(cacheEntry) {
-      // The data at row[2] corresponds to the data size.
-      if (cacheEntry) {
-        row[2] = cacheEntry.dataSize;
-        // Invalidate the row to trigger a repaint.
-        gImageView.tree.invalidateRow(gImageView.data.indexOf(row));
+    try {
+      // open for READ, in non-blocking mode
+      var cacheEntryDescriptor = httpCacheSession.openCacheEntry(url, ACCESS_READ, false);
+    }
+    catch(ex) {
+      try {
+        // open for READ, in non-blocking mode
+        cacheEntryDescriptor = ftpCacheSession.openCacheEntry(url, ACCESS_READ, false);
       }
-    });
+      catch(ex2) { }
+    }
+
+    var dataSize = (cacheEntryDescriptor) ? cacheEntryDescriptor.dataSize : -1;
+    gImageView.addRow([url, type, dataSize, alt, 1, elem, isBg]);
 
     // Add the observer, only once.
     if (gImageView.data.length == 1) {
@@ -670,12 +670,14 @@ function grabAll(elem)
       addImage(href, gStrings.mediaImg, "", elem, false);
     } catch (e) { }
   }
+#ifdef MOZ_MEDIA
   else if (elem instanceof HTMLVideoElement) {
     addImage(elem.currentSrc, gStrings.mediaVideo, "", elem, false);
   }
   else if (elem instanceof HTMLAudioElement) {
     addImage(elem.currentSrc, gStrings.mediaAudio, "", elem, false);
   }
+#endif
   else if (elem instanceof HTMLLinkElement) {
     if (elem.rel && /\bicon\b/i.test(elem.rel))
       addImage(elem.href, gStrings.mediaLink, "", elem, false);
@@ -728,65 +730,54 @@ function onBeginLinkDrag(event,urlField,descField)
 }
 
 //******** Image Stuff
-function getSelectedRows(tree)
+function getSelectedImage(tree)
 {
-  var start = { };
-  var end   = { };
-  var numRanges = tree.view.selection.getRangeCount();
+  if (!gImageView.rowCount)
+    return null;
 
-  var rowArray = [ ];
-  for (var t = 0; t < numRanges; t++) {
-    tree.view.selection.getRangeAt(t, start, end);
-    for (var v = start.value; v <= end.value; v++)
-      rowArray.push(v);
-  }
+  // Only works if only one item is selected
+  var clickedRow = tree.view.selection.currentIndex;
+  if (clickedRow == -1)
+    return null;
 
-  return rowArray;
+  // image-node
+  return gImageView.data[clickedRow][COL_IMAGE_NODE];
 }
 
-function getSelectedRow(tree)
-{
-  var rows = getSelectedRows(tree);
-  return (rows.length == 1) ? rows[0] : -1;
-}
-
-function selectSaveFolder(aCallback)
+function selectSaveFolder()
 {
   const nsILocalFile = Components.interfaces.nsILocalFile;
   const nsIFilePicker = Components.interfaces.nsIFilePicker;
-  let titleText = gBundle.getString("mediaSelectFolder");
-  let fp = Components.classes["@mozilla.org/filepicker;1"].
-           createInstance(nsIFilePicker);
-  let fpCallback = function fpCallback_done(aResult) {
-    if (aResult == nsIFilePicker.returnOK) {
-      aCallback(fp.file.QueryInterface(nsILocalFile));
-    } else {
-      aCallback(null);
-    }
-  };
+  var fp = Components.classes["@mozilla.org/filepicker;1"]
+                     .createInstance(nsIFilePicker);
 
+  var titleText = gBundle.getString("mediaSelectFolder");
   fp.init(window, titleText, nsIFilePicker.modeGetFolder);
-  fp.appendFilters(nsIFilePicker.filterAll);
   try {
-    let prefs = Components.classes[PREFERENCES_CONTRACTID].
-                getService(Components.interfaces.nsIPrefBranch);
-    let initialDir = prefs.getComplexValue("browser.download.dir", nsILocalFile);
-    if (initialDir) {
+    var prefs = Components.classes[PREFERENCES_CONTRACTID]
+                          .getService(Components.interfaces.nsIPrefBranch);
+
+    var initialDir = prefs.getComplexValue("browser.download.dir", nsILocalFile);
+    if (initialDir)
       fp.displayDirectory = initialDir;
-    }
-  } catch (ex) {
   }
-  fp.open(fpCallback);
+  catch (ex) { }
+
+  fp.appendFilters(nsIFilePicker.filterAll);
+  var ret = fp.show();
+
+  if (ret == nsIFilePicker.returnOK)
+    return fp.file.QueryInterface(nsILocalFile);
+  return null;
 }
 
 function saveMedia()
 {
   var tree = document.getElementById("imagetree");
-  var rowArray = getSelectedRows(tree);
-  if (rowArray.length == 1) {
-    var row = rowArray[0];
-    var item = gImageView.data[row][COL_IMAGE_NODE];
-    var url = gImageView.data[row][COL_IMAGE_ADDRESS];
+  var count = tree.view.selection.count;
+  if (count == 1) {
+    var item = getSelectedImage(tree);
+    var url = gImageView.data[tree.currentIndex][COL_IMAGE_ADDRESS];
 
     if (url) {
       var titleKey = "SaveImageTitle";
@@ -796,41 +787,49 @@ function saveMedia()
       else if (item instanceof HTMLAudioElement)
         titleKey = "SaveAudioTitle";
 
-      saveURL(url, null, titleKey, false, false, makeURI(item.baseURI), gDocument);
+      saveURL(url, null, titleKey, false, false, makeURI(item.baseURI));
     }
-  } else {
-    selectSaveFolder(function(aDirectory) {
-      if (aDirectory) {
-        var saveAnImage = function(aURIString, aChosenData, aBaseURI) {
-          internalSave(aURIString, null, null, null, null, false, "SaveImageTitle",
-                       aChosenData, aBaseURI, gDocument);
-        };
+  }
+  else {
+    var odir  = selectSaveFolder();
+    var start = { };
+    var end   = { };
+    var numRanges = tree.view.selection.getRangeCount();
 
-        for (var i = 0; i < rowArray.length; i++) {
-          var v = rowArray[i];
-          var dir = aDirectory.clone();
-          var item = gImageView.data[v][COL_IMAGE_NODE];
-          var uriString = gImageView.data[v][COL_IMAGE_ADDRESS];
-          var uri = makeURI(uriString);
+    var rowArray = [ ];
+    for (var t = 0; t < numRanges; t++) {
+      tree.view.selection.getRangeAt(t, start, end);
+      for (var v = start.value; v <= end.value; v++)
+        rowArray.push(v);
+    }
 
-          try {
-            uri.QueryInterface(Components.interfaces.nsIURL);
-            dir.append(decodeURIComponent(uri.fileName));
-          } catch(ex) {
-            /* data: uris */
-          }
+    var saveAnImage = function(aURIString, aChosenData, aBaseURI) {
+      internalSave(aURIString, null, null, null, null, false, "SaveImageTitle",
+                   aChosenData, aBaseURI);
+    }
 
-          if (i == 0) {
-            saveAnImage(uriString, new AutoChosen(dir, uri), makeURI(item.baseURI));
-          } else {
-            // This delay is a hack which prevents the download manager
-            // from opening many times. See bug 377339.
-            setTimeout(saveAnImage, 200, uriString, new AutoChosen(dir, uri),
-                       makeURI(item.baseURI));
-          }
-        }
+    for (var i = 0; i < rowArray.length; i++) {
+      var v = rowArray[i];
+      var dir = odir.clone();
+      var item = gImageView.data[v][COL_IMAGE_NODE];
+      var uriString = gImageView.data[v][COL_IMAGE_ADDRESS];
+      var uri = makeURI(uriString);
+ 
+      try {
+        uri.QueryInterface(Components.interfaces.nsIURL);
+        dir.append(decodeURIComponent(uri.fileName));
       }
-    });
+      catch(ex) { /* data: uris */ }
+
+      if (i == 0)
+        saveAnImage(uriString, new AutoChosen(dir, uri), makeURI(item.baseURI));
+      else {
+        // This delay is a hack which prevents the download manager
+        // from opening many times. See bug 377339.
+        setTimeout(saveAnImage, 200, uriString, new AutoChosen(dir, uri),
+                   makeURI(item.baseURI));
+      }
+    }
   }
 }
 
@@ -871,14 +870,14 @@ function onImageSelect()
     splitter.collapsed     = false;
     previewBox.collapsed   = false;
     tree.flex = 0;
-    makePreview(getSelectedRows(tree)[0]);
+    makePreview(tree.view.selection.currentIndex);
   }
 }
 
 function makePreview(row)
 {
   var imageTree = document.getElementById("imagetree");
-  var item = gImageView.data[row][COL_IMAGE_NODE];
+  var item = getSelectedImage(imageTree);
   var url = gImageView.data[row][COL_IMAGE_ADDRESS];
   var isBG = gImageView.data[row][COL_IMAGE_BG];
   var isAudio = false;
@@ -900,164 +899,173 @@ function makePreview(row)
 
   // get cache info
   var cacheKey = url.replace(/#.*$/, "");
-  openCacheEntry(cacheKey, function(cacheEntry) {
-    // find out the file size
-    var sizeText;
-    if (cacheEntry) {
-      var imageSize = cacheEntry.dataSize;
-      var kbSize = Math.round(imageSize / 1024 * 100) / 100;
-      sizeText = gBundle.getFormattedString("generalSize",
-                                            [formatNumber(kbSize), formatNumber(imageSize)]);
+  try {
+    // open for READ, in non-blocking mode
+    var cacheEntryDescriptor = httpCacheSession.openCacheEntry(cacheKey, ACCESS_READ, false);
+  }
+  catch(ex) {
+    try {
+      // open for READ, in non-blocking mode
+      cacheEntryDescriptor = ftpCacheSession.openCacheEntry(cacheKey, ACCESS_READ, false);
     }
-    else
-      sizeText = gBundle.getString("mediaUnknownNotCached");
-    setItemValue("imagesizetext", sizeText);
+    catch(ex2) { }
+  }
 
-    var mimeType;
-    var numFrames = 1;
-    if (item instanceof HTMLObjectElement ||
-        item instanceof HTMLEmbedElement ||
-        item instanceof HTMLLinkElement)
-      mimeType = item.type;
+  // find out the file size
+  var sizeText;
+  if (cacheEntryDescriptor) {
+    var imageSize = cacheEntryDescriptor.dataSize;
+    var kbSize = Math.round(imageSize / 1024 * 100) / 100;
+    sizeText = gBundle.getFormattedString("generalSize",
+                                          [formatNumber(kbSize), formatNumber(imageSize)]);
+  }
+  else
+    sizeText = gBundle.getString("mediaUnknownNotCached");
+  setItemValue("imagesizetext", sizeText);
 
-    if (!mimeType && !isBG && item instanceof nsIImageLoadingContent) {
-      var imageRequest = item.getRequest(nsIImageLoadingContent.CURRENT_REQUEST);
-      if (imageRequest) {
-        mimeType = imageRequest.mimeType;
-        var image = imageRequest.image;
-        if (image)
-          numFrames = image.numFrames;
-      }
+  var mimeType;
+  var numFrames = 1;
+  if (item instanceof HTMLObjectElement ||
+      item instanceof HTMLEmbedElement ||
+      item instanceof HTMLLinkElement)
+    mimeType = item.type;
+
+  if (!mimeType && !isBG && item instanceof nsIImageLoadingContent) {
+    var imageRequest = item.getRequest(nsIImageLoadingContent.CURRENT_REQUEST);
+    if (imageRequest) {
+      mimeType = imageRequest.mimeType;
+      var image = imageRequest.image;
+      if (image)
+        numFrames = image.numFrames;
     }
+  }
+  if (!mimeType)
+    mimeType = getContentTypeFromHeaders(cacheEntryDescriptor);
 
-    if (!mimeType)
-      mimeType = getContentTypeFromHeaders(cacheEntry);
+  // if we have a data url, get the MIME type from the url
+  if (!mimeType && /^data:/.test(url)) {
+    let dataMimeType = /^data:(image\/[^;,]+)/i.exec(url);
+    if (dataMimeType)
+      mimeType = dataMimeType[1].toLowerCase();
+  }
 
-    // if we have a data url, get the MIME type from the url
-    if (!mimeType && url.startsWith("data:")) {
-      let dataMimeType = /^data:(image\/[^;,]+)/i.exec(url);
-      if (dataMimeType)
-        mimeType = dataMimeType[1].toLowerCase();
-    }
-
-    var imageType;
-    if (mimeType) {
-      // We found the type, try to display it nicely
-      let imageMimeType = /^image\/(.*)/i.exec(mimeType);
-      if (imageMimeType) {
-        imageType = imageMimeType[1].toUpperCase();
-        if (numFrames > 1)
-          imageType = gBundle.getFormattedString("mediaAnimatedImageType",
-                                                 [imageType, numFrames]);
-        else
-          imageType = gBundle.getFormattedString("mediaImageType", [imageType]);
-      }
-      else {
-        // the MIME type doesn't begin with image/, display the raw type
-        imageType = mimeType;
-      }
+  var imageType;
+  if (mimeType) {
+    // We found the type, try to display it nicely
+    let imageMimeType = /^image\/(.*)/i.exec(mimeType);
+    if (imageMimeType) {
+      imageType = imageMimeType[1].toUpperCase();
+      if (numFrames > 1)
+        imageType = gBundle.getFormattedString("mediaAnimatedImageType",
+                                               [imageType, numFrames]);
+      else
+        imageType = gBundle.getFormattedString("mediaImageType", [imageType]);
     }
     else {
-      // We couldn't find the type, fall back to the value in the treeview
-      imageType = gImageView.data[row][COL_IMAGE_TYPE];
+      // the MIME type doesn't begin with image/, display the raw type
+      imageType = mimeType;
     }
-    setItemValue("imagetypetext", imageType);
+  }
+  else {
+    // We couldn't find the type, fall back to the value in the treeview
+    imageType = gImageView.data[row][COL_IMAGE_TYPE];
+  }
+  setItemValue("imagetypetext", imageType);
 
-    var imageContainer = document.getElementById("theimagecontainer");
-    var oldImage = document.getElementById("thepreviewimage");
+  var imageContainer = document.getElementById("theimagecontainer");
+  var oldImage = document.getElementById("thepreviewimage");
 
-    var isProtocolAllowed = checkProtocol(gImageView.data[row]);
+  var isProtocolAllowed = checkProtocol(gImageView.data[row]);
 
-    var newImage = new Image;
+  var newImage = new Image;
+  newImage.id = "thepreviewimage";
+  var physWidth = 0, physHeight = 0;
+  var width = 0, height = 0;
+
+  if ((item instanceof HTMLLinkElement || item instanceof HTMLInputElement ||
+       item instanceof HTMLImageElement ||
+       item instanceof SVGImageElement ||
+      (item instanceof HTMLObjectElement && /^image\//.test(mimeType)) || isBG) && isProtocolAllowed) {
+    newImage.setAttribute("src", url);
+    physWidth = newImage.width || 0;
+    physHeight = newImage.height || 0;
+
+    // "width" and "height" attributes must be set to newImage,
+    // even if there is no "width" or "height attribute in item;
+    // otherwise, the preview image cannot be displayed correctly.
+    if (!isBG) {
+      newImage.width = ("width" in item && item.width) || newImage.naturalWidth;
+      newImage.height = ("height" in item && item.height) || newImage.naturalHeight;
+    }
+    else {
+      // the Width and Height of an HTML tag should not be used for its background image
+      // (for example, "table" can have "width" or "height" attributes)
+      newImage.width = newImage.naturalWidth;
+      newImage.height = newImage.naturalHeight;
+    }
+
+    if (item instanceof SVGImageElement) {
+      newImage.width = item.width.baseVal.value;
+      newImage.height = item.height.baseVal.value;
+    }
+
+    width = newImage.width;
+    height = newImage.height;
+
+    document.getElementById("theimagecontainer").collapsed = false
+    document.getElementById("brokenimagecontainer").collapsed = true;
+  }
+#ifdef MOZ_MEDIA
+  else if (item instanceof HTMLVideoElement && isProtocolAllowed) {
+    newImage = document.createElementNS("http://www.w3.org/1999/xhtml", "video");
     newImage.id = "thepreviewimage";
-    var physWidth = 0, physHeight = 0;
-    var width = 0, height = 0;
+    newImage.mozLoadFrom(item);
+    newImage.controls = true;
+    width = physWidth = item.videoWidth;
+    height = physHeight = item.videoHeight;
 
-    if ((item instanceof HTMLLinkElement || item instanceof HTMLInputElement ||
-         item instanceof HTMLImageElement ||
-         item instanceof SVGImageElement ||
-         (item instanceof HTMLObjectElement && mimeType && mimeType.startsWith("image/")) || isBG) && isProtocolAllowed) {
-      newImage.setAttribute("src", url);
-      physWidth = newImage.width || 0;
-      physHeight = newImage.height || 0;
+    document.getElementById("theimagecontainer").collapsed = false;
+    document.getElementById("brokenimagecontainer").collapsed = true;
+  }
+  else if (item instanceof HTMLAudioElement && isProtocolAllowed) {
+    newImage = new Audio;
+    newImage.id = "thepreviewimage";
+    newImage.src = url;
+    newImage.controls = true;
+    isAudio = true;
 
-      // "width" and "height" attributes must be set to newImage,
-      // even if there is no "width" or "height attribute in item;
-      // otherwise, the preview image cannot be displayed correctly.
-      if (!isBG) {
-        newImage.width = ("width" in item && item.width) || newImage.naturalWidth;
-        newImage.height = ("height" in item && item.height) || newImage.naturalHeight;
-      }
-      else {
-        // the Width and Height of an HTML tag should not be used for its background image
-        // (for example, "table" can have "width" or "height" attributes)
-        newImage.width = newImage.naturalWidth;
-        newImage.height = newImage.naturalHeight;
-      }
+    document.getElementById("theimagecontainer").collapsed = false;
+    document.getElementById("brokenimagecontainer").collapsed = true;
+  }
+#endif
+  else {
+    // fallback image for protocols not allowed (e.g., javascript:)
+    // or elements not [yet] handled (e.g., object, embed).
+    document.getElementById("brokenimagecontainer").collapsed = false;
+    document.getElementById("theimagecontainer").collapsed = true;
+  }
 
-      if (item instanceof SVGImageElement) {
-        newImage.width = item.width.baseVal.value;
-        newImage.height = item.height.baseVal.value;
-      }
-
-      width = newImage.width;
-      height = newImage.height;
-
-      document.getElementById("theimagecontainer").collapsed = false
-      document.getElementById("brokenimagecontainer").collapsed = true;
-    }
-    else if (item instanceof HTMLVideoElement && isProtocolAllowed) {
-      newImage = document.createElementNS("http://www.w3.org/1999/xhtml", "video");
-      newImage.id = "thepreviewimage";
-      newImage.src = url;
-      newImage.controls = true;
-      width = physWidth = item.videoWidth;
-      height = physHeight = item.videoHeight;
-
-      document.getElementById("theimagecontainer").collapsed = false;
-      document.getElementById("brokenimagecontainer").collapsed = true;
-    }
-    else if (item instanceof HTMLAudioElement && isProtocolAllowed) {
-      newImage = new Audio;
-      newImage.id = "thepreviewimage";
-      newImage.src = url;
-      newImage.controls = true;
-      isAudio = true;
-
-      document.getElementById("theimagecontainer").collapsed = false;
-      document.getElementById("brokenimagecontainer").collapsed = true;
+  var imageSize = "";
+  if (url && !isAudio) {
+    if (width != physWidth || height != physHeight) {
+      imageSize = gBundle.getFormattedString("mediaDimensionsScaled",
+                                             [formatNumber(physWidth),
+                                              formatNumber(physHeight),
+                                              formatNumber(width),
+                                              formatNumber(height)]);
     }
     else {
-      // fallback image for protocols not allowed (e.g., javascript:)
-      // or elements not [yet] handled (e.g., object, embed).
-      document.getElementById("brokenimagecontainer").collapsed = false;
-      document.getElementById("theimagecontainer").collapsed = true;
+      imageSize = gBundle.getFormattedString("mediaDimensions",
+                                             [formatNumber(width),
+                                              formatNumber(height)]);
     }
+  }
+  setItemValue("imagedimensiontext", imageSize);
 
-    var imageSize = "";
-    if (url && !isAudio) {
-      if (width != physWidth || height != physHeight) {
-        imageSize = gBundle.getFormattedString("mediaDimensionsScaled",
-                                               [formatNumber(physWidth),
-                                                formatNumber(physHeight),
-                                                formatNumber(width),
-                                                formatNumber(height)]);
-      }
-      else {
-        imageSize = gBundle.getFormattedString("mediaDimensions",
-                                               [formatNumber(width),
-                                                formatNumber(height)]);
-      }
-    }
-    setItemValue("imagedimensiontext", imageSize);
+  makeBlockImage(url);
 
-    makeBlockImage(url);
-
-    imageContainer.removeChild(oldImage);
-    imageContainer.appendChild(newImage);
-
-    onImagePreviewShown.forEach(function(func) { func(); });
-  });
+  imageContainer.removeChild(oldImage);
+  imageContainer.appendChild(newImage);
 }
 
 function makeBlockImage(url)
@@ -1096,7 +1104,7 @@ var imagePermissionObserver = {
       var permission = aSubject.QueryInterface(Components.interfaces.nsIPermission);
       if (permission.type == "image") {
         var imageTree = document.getElementById("imagetree");
-        var row = getSelectedRow(imageTree);
+        var row = imageTree.currentIndex;
         var item = gImageView.data[row][COL_IMAGE_NODE];
         var url = gImageView.data[row][COL_IMAGE_ADDRESS];
         if (makeURI(url).host == permission.host)

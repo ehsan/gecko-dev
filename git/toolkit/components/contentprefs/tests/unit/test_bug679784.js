@@ -15,9 +15,19 @@ var prefObserver = {
 };
 
 function run_test() {
-  let loadContext = { get usePrivateBrowsing() { return gInPrivateBrowsing; } };
+  var pbs;
+  try {
+    pbs = Cc["@mozilla.org/privatebrowsing;1"].getService(Ci.nsIPrivateBrowsingService);
+  } catch(e) {
+    // Private Browsing might not be available
+    return;
+  }
 
-  var cps = new ContentPrefInstance(loadContext);
+  Cc["@mozilla.org/preferences-service;1"].
+    getService(Ci.nsIPrefBranch).
+      setBoolPref("browser.privatebrowsing.keep_current_session", true);
+
+  var cps = Cc["@mozilla.org/content-pref/service;1"].getService(Ci.nsIContentPrefService);
   cps.removeGroupedPrefs();
 
   var uri = ContentPrefTest.getURI("http://www.example.com/");
@@ -31,7 +41,7 @@ function run_test() {
   cps.addObserver("value", prefObserver);
   cps.addObserver("value-global", prefObserver);
 
-  enterPBMode();
+  pbs.privateBrowsingEnabled = true;
 
   // test setPref
   num = prefObserver.setCalledNum;

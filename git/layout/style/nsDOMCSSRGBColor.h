@@ -8,60 +8,33 @@
 #ifndef nsDOMCSSRGBColor_h__
 #define nsDOMCSSRGBColor_h__
 
-#include "mozilla/Attributes.h"
-#include "nsAutoPtr.h"
-#include "nsWrapperCache.h"
+#include "nsISupports.h"
+#include "nsIDOMNSRGBAColor.h"
+#include "nsCOMPtr.h"
 
-class nsROCSSPrimitiveValue;
+class nsIDOMCSSPrimitiveValue;
 
-class nsDOMCSSRGBColor : public nsWrapperCache
-{
+class nsDOMCSSRGBColor : public nsIDOMNSRGBAColor {
 public:
-  nsDOMCSSRGBColor(nsROCSSPrimitiveValue* aRed,
-                   nsROCSSPrimitiveValue* aGreen,
-                   nsROCSSPrimitiveValue* aBlue,
-                   nsROCSSPrimitiveValue* aAlpha,
+  nsDOMCSSRGBColor(nsIDOMCSSPrimitiveValue* aRed,
+                   nsIDOMCSSPrimitiveValue* aGreen,
+                   nsIDOMCSSPrimitiveValue* aBlue,
+                   nsIDOMCSSPrimitiveValue* aAlpha,
                    bool aHasAlpha);
 
-  NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(nsDOMCSSRGBColor)
+  virtual ~nsDOMCSSRGBColor(void);
 
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(nsDOMCSSRGBColor)
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDOMRGBCOLOR
+  NS_DECL_NSIDOMNSRGBACOLOR
 
   bool HasAlpha() const { return mHasAlpha; }
 
-  // RGBColor webidl interface
-  nsROCSSPrimitiveValue* Red() const
-  {
-    return mRed;
-  }
-  nsROCSSPrimitiveValue* Green() const
-  {
-    return mGreen;
-  }
-  nsROCSSPrimitiveValue* Blue() const
-  {
-    return mBlue;
-  }
-  nsROCSSPrimitiveValue* Alpha() const
-  {
-    return mAlpha;
-  }
-
-  nsISupports* GetParentObject() const
-  {
-    return nullptr;
-  }
-
-  virtual JSObject *WrapObject(JSContext *cx)
-    MOZ_OVERRIDE MOZ_FINAL;
-
 private:
-  virtual ~nsDOMCSSRGBColor(void);
-
-  nsRefPtr<nsROCSSPrimitiveValue> mRed;
-  nsRefPtr<nsROCSSPrimitiveValue> mGreen;
-  nsRefPtr<nsROCSSPrimitiveValue> mBlue;
-  nsRefPtr<nsROCSSPrimitiveValue> mAlpha;
+  nsCOMPtr<nsIDOMCSSPrimitiveValue> mRed;
+  nsCOMPtr<nsIDOMCSSPrimitiveValue> mGreen;
+  nsCOMPtr<nsIDOMCSSPrimitiveValue> mBlue;
+  nsCOMPtr<nsIDOMCSSPrimitiveValue> mAlpha;
   bool mHasAlpha;
 };
 

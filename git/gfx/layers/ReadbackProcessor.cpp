@@ -4,24 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ReadbackProcessor.h"
-#include <sys/types.h>                  // for int32_t
-#include "Layers.h"                     // for Layer, PaintedLayer, etc
-#include "ReadbackLayer.h"              // for ReadbackLayer, ReadbackSink
-#include "gfxColor.h"                   // for gfxRGBA
-#include "gfxContext.h"                 // for gfxContext
-#include "gfxUtils.h"
-#include "gfxRect.h"                    // for gfxRect
-#include "mozilla/gfx/2D.h"
-#include "mozilla/gfx/BasePoint.h"      // for BasePoint
-#include "mozilla/gfx/BaseRect.h"       // for BaseRect
-#include "nsAutoPtr.h"                  // for nsRefPtr, nsAutoPtr
-#include "nsDebug.h"                    // for NS_ASSERTION
-#include "nsISupportsImpl.h"            // for gfxContext::Release, etc
-#include "nsPoint.h"                    // for nsIntPoint
-#include "nsRegion.h"                   // for nsIntRegion
-#include "nsSize.h"                     // for nsIntSize
-
-using namespace mozilla::gfx;
+#include "ReadbackLayer.h"
 
 namespace mozilla {
 namespace layers {
@@ -48,19 +31,19 @@ ReadbackProcessor::BuildUpdates(ContainerLayer* aContainer)
 static Layer*
 FindBackgroundLayer(ReadbackLayer* aLayer, nsIntPoint* aOffset)
 {
-  gfx::Matrix transform;
+  gfxMatrix transform;
   if (!aLayer->GetTransform().Is2D(&transform) ||
       transform.HasNonIntegerTranslation())
     return nullptr;
-  nsIntPoint transformOffset(int32_t(transform._31), int32_t(transform._32));
+  nsIntPoint transformOffset(int32_t(transform.x0), int32_t(transform.y0));
 
   for (Layer* l = aLayer->GetPrevSibling(); l; l = l->GetPrevSibling()) {
-    gfx::Matrix backgroundTransform;
+    gfxMatrix backgroundTransform;
     if (!l->GetTransform().Is2D(&backgroundTransform) ||
-        gfx::ThebesMatrix(backgroundTransform).HasNonIntegerTranslation())
+        backgroundTransform.HasNonIntegerTranslation())
       return nullptr;
 
-    nsIntPoint backgroundOffset(int32_t(backgroundTransform._31), int32_t(backgroundTransform._32));
+    nsIntPoint backgroundOffset(int32_t(backgroundTransform.x0), int32_t(backgroundTransform.y0));
     nsIntRect rectInBackground(transformOffset - backgroundOffset, aLayer->GetSize());
     const nsIntRegion& visibleRegion = l->GetEffectiveVisibleRegion();
     if (!visibleRegion.Intersects(rectInBackground))
@@ -71,7 +54,6 @@ FindBackgroundLayer(ReadbackLayer* aLayer, nsIntPoint* aOffset)
       return nullptr;
 
     if (l->GetEffectiveOpacity() != 1.0 ||
-        l->GetMaskLayer() ||
         !(l->GetContentFlags() & Layer::CONTENT_OPAQUE))
       return nullptr;
 
@@ -81,7 +63,7 @@ FindBackgroundLayer(ReadbackLayer* aLayer, nsIntPoint* aOffset)
       return nullptr;
 
     Layer::LayerType type = l->GetType();
-    if (type != Layer::TYPE_COLOR && type != Layer::TYPE_PAINTED)
+    if (type != Layer::TYPE_COLOR && type != Layer::TYPE_THEBES)
       return nullptr;
 
     *aOffset = backgroundOffset - transformOffset;
@@ -115,27 +97,27 @@ ReadbackProcessor::BuildUpdatesForLayer(ReadbackLayer* aLayer)
           aLayer->mSink->BeginUpdate(aLayer->GetRect(),
                                      aLayer->AllocateSequenceNumber());
       if (ctx) {
-        ColorPattern color(ToDeviceColor(aLayer->mBackgroundColor));
+        ctx->SetColor(aLayer->mBackgroundColor);
         nsIntSize size = aLayer->GetSize();
-        ctx->GetDrawTarget()->FillRect(Rect(0, 0, size.width, size.height),
-                                       color);
+        ctx->Rectangle(gfxRect(0, 0, size.width, size.height));
+        ctx->Fill();
         aLayer->mSink->EndUpdate(ctx, aLayer->GetRect());
       }
     }
   } else {
-    NS_ASSERTION(newBackground->AsPaintedLayer(), "Must be PaintedLayer");
-    PaintedLayer* paintedLayer = static_cast<PaintedLayer*>(newBackground);
-    // updateRect is relative to the PaintedLayer
+    NS_ASSERTION(newBackground->AsThebesLayer(), "Must be ThebesLayer");
+    ThebesLayer* thebesLayer = static_cast<ThebesLayer*>(newBackground);
+    // updateRect is relative to the ThebesLayer
     nsIntRect updateRect = aLayer->GetRect() - offset;
-    if (paintedLayer != aLayer->mBackgroundLayer ||
+    if (thebesLayer != aLayer->mBackgroundLayer ||
         offset != aLayer->mBackgroundLayerOffset) {
-      aLayer->mBackgroundLayer = paintedLayer;
+      aLayer->mBackgroundLayer = thebesLayer;
       aLayer->mBackgroundLayerOffset = offset;
       aLayer->mBackgroundColor = gfxRGBA(0,0,0,0);
-      paintedLayer->SetUsedForReadback(true);
+      thebesLayer->SetUsedForReadback(true);
     } else {
       nsIntRegion invalid;
-      invalid.Sub(updateRect, paintedLayer->GetValidRegion());
+      invalid.Sub(updateRect, thebesLayer->GetValidRegion());
       updateRect = invalid.GetBounds();
     }
 
@@ -145,11 +127,11 @@ ReadbackProcessor::BuildUpdatesForLayer(ReadbackLayer* aLayer)
 }
 
 void
-ReadbackProcessor::GetPaintedLayerUpdates(PaintedLayer* aLayer,
+ReadbackProcessor::GetThebesLayerUpdates(ThebesLayer* aLayer,
                                          nsTArray<Update>* aUpdates,
                                          nsIntRegion* aUpdateRegion)
 {
-  // All PaintedLayers used for readback are in mAllUpdates (some possibly
+  // All ThebesLayers used for readback are in mAllUpdates (some possibly
   // with an empty update rect).
   aLayer->SetUsedForReadback(false);
   if (aUpdateRegion) {

@@ -11,7 +11,7 @@ function run_test() {
   do_check_true(migrator.sourceExists);
 
   // Ensure bookmarks migration is available.
-  let availableSources = migrator.getMigrateData(null, false);
+  let availableSources = migrator.getMigrateData("FieldOfFlowers", false);
   do_check_true((availableSources & MigrationUtils.resourceTypes.BOOKMARKS) > 0);
 
   // Wait for the imported bookmarks.  Check that "From Internet Explorer"
@@ -35,6 +35,7 @@ function run_test() {
     },
     onBeginUpdateBatch: function () {},
     onEndUpdateBatch: function () {},
+    onBeforeItemRemoved: function () {},
     onItemRemoved: function () {},
     onItemChanged: function () {},
     onItemVisited: function () {},
@@ -52,5 +53,5 @@ function run_test() {
   }, "Migration:Ended", false);
 
   migrator.migrate(MigrationUtils.resourceTypes.BOOKMARKS, null,
-                   null);
+                   "FieldOfFlowers");
 }

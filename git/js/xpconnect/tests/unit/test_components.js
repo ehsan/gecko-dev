@@ -1,40 +1,32 @@
-const Cu = Components.utils;
-
 function run_test() {
+  var Cu = Components.utils;
   var sb1 = Cu.Sandbox("http://www.blah.com");
   var sb2 = Cu.Sandbox("http://www.blah.com");
   var sb3 = Cu.Sandbox(this);
   var sb4 = Cu.Sandbox("http://www.other.com");
   var rv;
 
-  // Components is normally hidden from content on the XBL scope chain, but we
-  // expose it to content here to make sure that the security wrappers work
-  // regardless.
-  [sb1, sb2, sb4].forEach(function(x) { x.Components = Cu.getComponentsForScope(x); });
-
   // non-chrome accessing chrome Components
   sb1.C = Components;
-  checkThrows("C.utils", sb1);
-  checkThrows("C.classes", sb1);
+  rv = Cu.evalInSandbox("C.utils", sb1);
+  do_check_eq(rv, undefined);  
+  rv = Cu.evalInSandbox("C.interfaces", sb1);
+  do_check_neq(rv, undefined);
 
   // non-chrome accessing own Components
-  do_check_eq(Cu.evalInSandbox("typeof Components.interfaces", sb1), 'object');
-  do_check_eq(Cu.evalInSandbox("typeof Components.utils", sb1), 'undefined');
-  do_check_eq(Cu.evalInSandbox("typeof Components.classes", sb1), 'undefined');
-
-  // Make sure an unprivileged Components is benign.
-  var C2 = Cu.evalInSandbox("Components", sb2);
-  var whitelist = ['interfaces', 'interfacesByID', 'results', 'isSuccessCode', 'QueryInterface'];
-  for (var prop in Components) {
-    do_print("Checking " + prop);
-    do_check_eq((prop in C2), whitelist.indexOf(prop) != -1);
-  }
+  rv = Cu.evalInSandbox("Components.utils", sb1);
+  do_check_eq(rv, undefined);
+  rv = Cu.evalInSandbox("Components.interfaces", sb1);
+  do_check_neq(rv, undefined); 
 
   // non-chrome same origin
+  var C2 = Cu.evalInSandbox("Components", sb2);
+  do_check_neq(rv, C2.utils); 
   sb1.C2 = C2;
-  do_check_eq(Cu.evalInSandbox("typeof C2.interfaces", sb1), 'object');
-  do_check_eq(Cu.evalInSandbox("typeof C2.utils", sb1), 'undefined');
-  do_check_eq(Cu.evalInSandbox("typeof C2.classes", sb1), 'undefined');
+  rv = Cu.evalInSandbox("C2.utils", sb1);
+  do_check_eq(rv, undefined);
+  rv = Cu.evalInSandbox("C2.interfaces", sb1);
+  do_check_neq(rv, undefined);
 
   // chrome accessing chrome
   sb3.C = Components;
@@ -43,12 +35,9 @@ function run_test() {
 
   // non-chrome cross origin
   sb4.C2 = C2;
-  checkThrows("C2.interfaces", sb4);
-  checkThrows("C2.utils", sb4);
-  checkThrows("C2.classes", sb4);
-}
+  rv = Cu.evalInSandbox("C2.interfaces", sb1);
+  do_check_neq(rv, undefined);
+  rv = Cu.evalInSandbox("C2.utils", sb1);
+  do_check_eq(rv, undefined);
 
-function checkThrows(expression, sb) {
-  var result = Cu.evalInSandbox('(function() { try { ' + expression + '; return "allowed"; } catch (e) { return e.toString(); }})();', sb);
-  do_check_true(!!/denied/.exec(result));
 }

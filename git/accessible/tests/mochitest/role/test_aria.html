@@ -115,8 +115,7 @@
 
       //////////////////////////////////////////////////////////////////////////
       // test gEmptyRoleMap
-      testRole("buttontable_row", ROLE_NOTHING);
-      testRole("buttontable_cell", ROLE_NOTHING);
+      testRole("cell", ROLE_NOTHING);
 
       // abstract roles
       var abstract_roles = ["composite", "landmark", "structure", "widget",
@@ -128,10 +127,6 @@
       //////////////////////////////////////////////////////////////////////////
       // roles transformed by ARIA state attributes
       testRole("togglebutton", ROLE_TOGGLE_BUTTON);
-
-      //////////////////////////////////////////////////////////////////////////
-      // ignore unknown roles, take first known
-      testRole("unknown_roles", ROLE_PUSHBUTTON);
 
       //////////////////////////////////////////////////////////////////////////
       // misc roles
@@ -280,8 +275,8 @@
 
   <!-- test gEmptyRoleMap -->
   <table role="button">
-    <tr id="buttontable_row">
-      <td id="buttontable_cell">cell</td>
+    <tr>
+      <td id="cell">cell</td>
     </tr>
   </table>
 
@@ -303,9 +298,6 @@
 
   <!-- roles transformed by ARIA state attributes -->
   <button aria-pressed="true" id="togglebutton">
-
-  <!-- take the first known mappable role -->
-  <div role="wiggly:worm abc123 button" id="unknown_roles">worm button</div>
 
   <!-- misc roles -->
   <div role="note" id="note">note</div>

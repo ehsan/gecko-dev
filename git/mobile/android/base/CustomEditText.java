@@ -5,22 +5,20 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.widget.ThemedEditText;
-
 import android.content.Context;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
 import android.view.View;
+import android.widget.EditText;
 
-public class CustomEditText extends ThemedEditText {
-    private OnKeyPreImeListener mOnKeyPreImeListener;
-    private OnSelectionChangedListener mOnSelectionChangedListener;
-    private OnWindowFocusChangeListener mOnWindowFocusChangeListener;
-    private int mHighlightColor;
+public class CustomEditText extends EditText {
+    OnKeyPreImeListener mOnKeyPreImeListener;
+    OnSelectionChangedListener mOnSelectionChangedListener;
+    OnWindowFocusChangeListener mOnWindowFocusChangeListener;
 
     public CustomEditText(Context context, AttributeSet attrs) {
         super(context, attrs);
-        setPrivateMode(false); // Initialize mHighlightColor.
+        mOnKeyPreImeListener = null;
     }
 
     public interface OnKeyPreImeListener {
@@ -68,21 +66,5 @@ public class CustomEditText extends ThemedEditText {
         super.onWindowFocusChanged(hasFocus);
         if (mOnWindowFocusChangeListener != null)
             mOnWindowFocusChangeListener.onWindowFocusChanged(hasFocus);
-    }
-
-    // Provide a getHighlightColor implementation for API level < 16.
-    @Override
-    public int getHighlightColor() {
-        return mHighlightColor;
-    }
-
-    @Override
-    public void setPrivateMode(boolean isPrivate) {
-        super.setPrivateMode(isPrivate);
-
-        mHighlightColor = getContext().getResources().getColor(isPrivate
-                ? R.color.url_bar_text_highlight_pb : R.color.url_bar_text_highlight);
-        // android:textColorHighlight cannot support a ColorStateList.
-        setHighlightColor(mHighlightColor);
     }
 }

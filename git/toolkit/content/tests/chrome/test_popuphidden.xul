@@ -42,7 +42,6 @@ function runTests(popup)
 function hidePopupWhileShowing(popup)
 {
   popup.hidden = true;
-  popup.clientWidth; // flush layout
   is(popup.state, 'closed', 'popupshowing hidden');
   SimpleTest.executeSoon(function () runTests($('popupinbutton')));
 }

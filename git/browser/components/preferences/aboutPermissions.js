@@ -6,14 +6,10 @@ let Ci = Components.interfaces;
 let Cc = Components.classes;
 let Cu = Components.utils;
 
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/PluralForm.jsm");
 Cu.import("resource://gre/modules/DownloadUtils.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
-Cu.import("resource://gre/modules/ForgetAboutSite.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
-                                  "resource://gre/modules/PluralForm.jsm");
 
 let gFaviconService = Cc["@mozilla.org/browser/favicon-service;1"].
                       getService(Ci.nsIFaviconService);
@@ -41,7 +37,7 @@ let gVisitStmt = gPlacesDatabase.createAsyncStatement(
  * Permission types that should be tested with testExactPermission, as opposed
  * to testPermission. This is based on what consumers use to test these permissions.
  */
-let TEST_EXACT_PERM_TYPES = ["geo", "camera", "microphone"];
+let TEST_EXACT_PERM_TYPES = ["geo"];
 
 /**
  * Site object represents a single site, uniquely identified by a host.
@@ -235,7 +231,9 @@ Site.prototype = {
    * Removes all data from the browser corresponding to the site.
    */
   forgetSite: function Site_forgetSite() {
-    ForgetAboutSite.removeDataFromDomain(this.host);
+    let pb = Cc["@mozilla.org/privatebrowsing;1"].
+             getService(Ci.nsIPrivateBrowsingService);
+    pb.removeDataFromDomain(this.host);
   }
 }
 
@@ -324,6 +322,17 @@ let PermissionDefaults = {
     Services.prefs.setBoolPref("dom.disable_open_during_load", value);
   },
 
+  get plugins() {
+    if (Services.prefs.getBoolPref("plugins.click_to_play")) {
+      return this.UNKNOWN;
+    }
+    return this.ALLOW;
+  },
+  set plugins(aValue) {
+    let value = (aValue != this.ALLOW);
+    Services.prefs.setBoolPref("plugins.click_to_play", value);
+  },
+  
   get fullscreen() {
     if (!Services.prefs.getBoolPref("full-screen-api.enabled")) {
       return this.DENY;
@@ -333,11 +342,8 @@ let PermissionDefaults = {
   set fullscreen(aValue) {
     let value = (aValue != this.DENY);
     Services.prefs.setBoolPref("full-screen-api.enabled", value);
-  },
-
-  get camera() this.UNKNOWN,
-  get microphone() this.UNKNOWN
-};
+  }
+}
 
 /**
  * AboutPermissions manages the about:permissions page.
@@ -345,7 +351,7 @@ let PermissionDefaults = {
 let AboutPermissions = {
   /**
    * Number of sites to return from the places database.
-   */
+   */  
   PLACES_SITES_LIMIT: 50,
 
   /**
@@ -375,18 +381,17 @@ let AboutPermissions = {
    *
    * Potential future additions: "sts/use", "sts/subd"
    */
-  _supportedPermissions: ["password", "cookie", "geo", "indexedDB", "popup",
-                          "fullscreen", "camera", "microphone"],
+  _supportedPermissions: ["password", "cookie", "geo", "indexedDB", "popup", "plugins", "fullscreen"],
 
   /**
    * Permissions that don't have a global "Allow" option.
    */
-  _noGlobalAllow: ["geo", "indexedDB", "fullscreen", "camera", "microphone"],
+  _noGlobalAllow: ["geo", "indexedDB", "fullscreen"],
 
   /**
    * Permissions that don't have a global "Deny" option.
    */
-  _noGlobalDeny: ["camera", "microphone"],
+  _noGlobalDeny: ["plugins"],
 
   _stringBundle: Services.strings.
                  createBundle("chrome://browser/locale/preferences/aboutPermissions.properties"),
@@ -408,13 +413,14 @@ let AboutPermissions = {
     Services.prefs.addObserver("geo.enabled", this, false);
     Services.prefs.addObserver("dom.indexedDB.enabled", this, false);
     Services.prefs.addObserver("dom.disable_open_during_load", this, false);
+    Services.prefs.addObserver("plugins.click_to_play", this, false);
     Services.prefs.addObserver("full-screen-api.enabled", this, false);
 
     Services.obs.addObserver(this, "perm-changed", false);
     Services.obs.addObserver(this, "passwordmgr-storage-changed", false);
     Services.obs.addObserver(this, "cookie-changed", false);
     Services.obs.addObserver(this, "browser:purge-domain-data", false);
-
+    
     this._observersInitialized = true;
     Services.obs.notifyObservers(null, "browser-permissions-preinit", null);
   },
@@ -429,12 +435,13 @@ let AboutPermissions = {
       Services.prefs.removeObserver("geo.enabled", this, false);
       Services.prefs.removeObserver("dom.indexedDB.enabled", this, false);
       Services.prefs.removeObserver("dom.disable_open_during_load", this, false);
+      Services.prefs.removeObserver("plugins.click_to_play", this, false);
       Services.prefs.removeObserver("full-screen-api.enabled", this, false);
 
-      Services.obs.removeObserver(this, "perm-changed");
-      Services.obs.removeObserver(this, "passwordmgr-storage-changed");
-      Services.obs.removeObserver(this, "cookie-changed");
-      Services.obs.removeObserver(this, "browser:purge-domain-data");
+      Services.obs.removeObserver(this, "perm-changed", false);
+      Services.obs.removeObserver(this, "passwordmgr-storage-changed", false);
+      Services.obs.removeObserver(this, "cookie-changed", false);
+      Services.obs.removeObserver(this, "browser:purge-domain-data", false);
     }
 
     gSitesStmt.finalize();
@@ -549,7 +556,7 @@ let AboutPermissions = {
         let uri = NetUtil.newURI(aLogin.hostname);
         this.addHost(uri.host);
       } catch (e) {
-        // newURI will throw for add-ons logins stored in chrome:// URIs
+        // newURI will throw for add-ons logins stored in chrome:// URIs 
       }
       itemCnt++;
     }, this);
@@ -564,7 +571,7 @@ let AboutPermissions = {
         let uri = NetUtil.newURI(aHostname);
         this.addHost(uri.host);
       } catch (e) {
-        // newURI will throw for add-ons logins stored in chrome:// URIs
+        // newURI will throw for add-ons logins stored in chrome:// URIs 
       }
       itemCnt++;
     }, this);
@@ -752,13 +759,14 @@ let AboutPermissions = {
     if (!this._selectedSite) {
       // If there is no selected site, we are updating the default permissions interface.
       permissionValue = PermissionDefaults[aType];
-      if (aType == "cookie")
-	// cookie-9 corresponds to ALLOW_FIRST_PARTY_ONLY, which is reserved
-	// for site-specific preferences only.
-	document.getElementById("cookie-9").hidden = true;
+      if (aType == "plugins")
+        document.getElementById("plugins-pref-item").hidden = false;
     } else {
-      if (aType == "cookie")
-        document.getElementById("cookie-9").hidden = false;
+      if (aType == "plugins") {
+        document.getElementById("plugins-pref-item").hidden =
+          !Services.prefs.getBoolPref("plugins.click_to_play");
+        return;
+      }
       let result = {};
       permissionValue = this._selectedSite.getPermission(aType, result) ?
                         result.value : PermissionDefaults[aType];
@@ -785,7 +793,7 @@ let AboutPermissions = {
       let visitLabel = PluralForm.get(aCount, visitForm)
                                   .replace("#1", aCount);
       document.getElementById("site-visit-count").value = visitLabel;
-    });
+    });  
   },
 
   updatePasswordsCount: function() {

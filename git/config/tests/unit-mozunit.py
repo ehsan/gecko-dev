@@ -2,6 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+from __future__ import with_statement
 import sys
 import os
 from mozunit import main, MockedOpen
@@ -15,15 +16,8 @@ class TestMozUnit(unittest.TestCase):
         with os.fdopen(fd, 'w') as file:
             file.write('foobar');
 
-        self.assertFalse(os.path.exists('file1'))
-        self.assertFalse(os.path.exists('file2'))
-
         with MockedOpen({'file1': 'content1',
                          'file2': 'content2'}):
-            self.assertTrue(os.path.exists('file1'))
-            self.assertTrue(os.path.exists('file2'))
-            self.assertFalse(os.path.exists('foo/file1'))
-
             # Check the contents of the files given at MockedOpen creation.
             self.assertEqual(open('file1', 'r').read(), 'content1')
             self.assertEqual(open('file2', 'r').read(), 'content2')
@@ -31,7 +25,6 @@ class TestMozUnit(unittest.TestCase):
             # Check that overwriting these files alters their content.
             with open('file1', 'w') as file:
                 file.write('foo')
-            self.assertTrue(os.path.exists('file1'))
             self.assertEqual(open('file1', 'r').read(), 'foo')
 
             # ... but not until the file is closed.
@@ -46,17 +39,13 @@ class TestMozUnit(unittest.TestCase):
                 file.write('bar')
             self.assertEqual(open('file1', 'r').read(), 'foobar')
 
-            self.assertFalse(os.path.exists('file3'))
-
             # Opening a non-existing file ought to fail.
             self.assertRaises(IOError, open, 'file3', 'r')
-            self.assertFalse(os.path.exists('file3'))
 
             # Check that writing a new file does create the file.
             with open('file3', 'w') as file:
                 file.write('baz')
             self.assertEqual(open('file3', 'r').read(), 'baz')
-            self.assertTrue(os.path.exists('file3'))
 
             # Check the content of the file created outside MockedOpen.
             self.assertEqual(open(path, 'r').read(), 'foobar')

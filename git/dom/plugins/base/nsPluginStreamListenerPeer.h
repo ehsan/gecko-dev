@@ -13,13 +13,14 @@
 #include "nsIHttpHeaderVisitor.h"
 #include "nsWeakReference.h"
 #include "nsNPAPIPluginStreamListener.h"
-#include "nsDataHashtable.h"
-#include "nsHashKeys.h"
+#include "nsHashtable.h"
 #include "nsNPAPIPluginInstance.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIChannelEventSink.h"
+#include "nsIObjectLoadingContent.h"
 
 class nsIChannel;
+class nsObjectLoadingContent;
 
 /**
  * When a plugin requests opens multiple requests to the same URL and
@@ -30,14 +31,14 @@ class nsIChannel;
 class CachedFileHolder
 {
 public:
-  explicit CachedFileHolder(nsIFile* cacheFile);
+  CachedFileHolder(nsIFile* cacheFile);
   ~CachedFileHolder();
-
+  
   void AddRef();
   void Release();
-
+  
   nsIFile* file() const { return mFile; }
-
+  
 private:
   nsAutoRefCnt mRefCnt;
   nsCOMPtr<nsIFile> mFile;
@@ -50,11 +51,10 @@ public nsSupportsWeakReference,
 public nsIInterfaceRequestor,
 public nsIChannelEventSink
 {
-  virtual ~nsPluginStreamListenerPeer();
-
 public:
   nsPluginStreamListenerPeer();
-
+  virtual ~nsPluginStreamListenerPeer();
+  
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPROGRESSEVENTSINK
   NS_DECL_NSIREQUESTOBSERVER
@@ -66,21 +66,26 @@ public:
   // Called by RequestRead
   void
   MakeByteRangeString(NPByteRange* aRangeList, nsACString &string, int32_t *numRequests);
-
+  
   bool UseExistingPluginCacheFile(nsPluginStreamListenerPeer* psi);
-
-  // Called by GetURL and PostURL (via NewStream) or by the host in the case of
-  // the initial plugin stream.
+  
+  // Called by GetURL and PostURL (via NewStream)
   nsresult Initialize(nsIURI *aURL,
                       nsNPAPIPluginInstance *aInstance,
                       nsNPAPIPluginStreamListener *aListener);
+  
+  nsresult InitializeEmbedded(nsIURI *aURL,
+                              nsNPAPIPluginInstance* aInstance,
+                              nsObjectLoadingContent *aContent);
+  
+  nsresult InitializeFullPage(nsIURI* aURL, nsNPAPIPluginInstance *aInstance);
 
   nsresult OnFileAvailable(nsIFile* aFile);
-
+  
   nsresult ServeStreamAsFile(nsIRequest *request, nsISupports *ctxt);
-
+  
   nsNPAPIPluginInstance *GetPluginInstance() { return mPluginInstance; }
-
+  
   nsresult RequestRead(NPByteRange* rangeList);
   nsresult GetLength(uint32_t* result);
   nsresult GetURL(const char** result);
@@ -107,7 +112,7 @@ public:
       mRequests.ReplaceObjectAt(newRequest, i);
     }
   }
-
+  
   void CancelRequests(nsresult status)
   {
     // Copy the array to avoid modification during the loop.
@@ -135,11 +140,12 @@ private:
 
   nsCOMPtr<nsIURI> mURL;
   nsCString mURLSpec; // Have to keep this member because GetURL hands out char*
+  nsCOMPtr<nsIObjectLoadingContent> mContent;
   nsRefPtr<nsNPAPIPluginStreamListener> mPStreamListener;
 
   // Set to true if we request failed (like with a HTTP response of 404)
   bool                    mRequestFailed;
-
+  
   /*
    * Set to true after nsNPAPIPluginStreamListener::OnStartBinding() has
    * been called.  Checked in ::OnStopRequest so we can call the
@@ -151,20 +157,20 @@ private:
   // these get passed to the plugin stream listener
   uint32_t                mLength;
   int32_t                 mStreamType;
-
+  
   // local cached file, we save the content into local cache if browser cache is not available,
   // or plugin asks stream as file and it expects file extension until bug 90558 got fixed
   nsRefPtr<CachedFileHolder> mLocalCachedFileHolder;
   nsCOMPtr<nsIOutputStream> mFileCacheOutputStream;
-  nsDataHashtable<nsUint32HashKey, uint32_t>* mDataForwardToRequest;
-
+  nsHashtable             *mDataForwardToRequest;
+  
   nsCString mContentType;
   bool mSeekable;
   uint32_t mModified;
   nsRefPtr<nsNPAPIPluginInstance> mPluginInstance;
   int32_t mStreamOffset;
   bool mStreamComplete;
-
+  
 public:
   bool                    mAbort;
   int32_t                 mPendingRequests;

@@ -5,25 +5,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsScriptableRegion.h"
-#include <stdint.h>                     // for uint32_t
-#include <sys/types.h>                  // for int32_t
-#include "js/RootingAPI.h"              // for Rooted
-#include "js/Value.h"                   // for INT_TO_JSVAL, etc
-#include "jsapi.h"                      // for JS_DefineElement, etc
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT_HELPER2
-#include "nsError.h"                    // for NS_OK, NS_ERROR_FAILURE, etc
-#include "nsID.h"
-#include "nsRect.h"                     // for nsIntRect
-#include "nscore.h"                     // for NS_IMETHODIMP
-
-class JSObject;
-struct JSContext;
+#include "nsCOMPtr.h"
+#include "nsIXPConnect.h"
+#include "nsServiceManagerUtils.h"
+#include "jsapi.h"
 
 nsScriptableRegion::nsScriptableRegion()
 {
 }
 
-NS_IMPL_ISUPPORTS(nsScriptableRegion, nsIScriptableRegion)
+NS_IMPL_ISUPPORTS1(nsScriptableRegion, nsIScriptableRegion)
 
 NS_IMETHODIMP nsScriptableRegion::Init()
 {
@@ -127,31 +118,31 @@ NS_IMETHODIMP nsScriptableRegion::GetRegion(nsIntRegion* outRgn)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsScriptableRegion::GetRects(JSContext* aCx, JS::MutableHandle<JS::Value> aRects)
+NS_IMETHODIMP nsScriptableRegion::GetRects(JSContext* aCx, JS::Value* aRects)
 {
   uint32_t numRects = mRegion.GetNumRects();
 
   if (!numRects) {
-    aRects.setNull();
+    *aRects = JSVAL_NULL;
     return NS_OK;
   }
 
-  JS::Rooted<JSObject*> destArray(aCx, JS_NewArrayObject(aCx, numRects * 4));
+  JSObject* destArray = JS_NewArrayObject(aCx, numRects * 4, NULL);
   if (!destArray) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  aRects.setObject(*destArray);
+  *aRects = OBJECT_TO_JSVAL(destArray);
 
-  uint32_t n = 0;
+  uint32 n = 0;
   nsIntRegionRectIterator iter(mRegion);
   const nsIntRect *rect;
 
   while ((rect = iter.Next())) {
-    if (!JS_DefineElement(aCx, destArray, n, rect->x, JSPROP_ENUMERATE) ||
-        !JS_DefineElement(aCx, destArray, n + 1, rect->y, JSPROP_ENUMERATE) ||
-        !JS_DefineElement(aCx, destArray, n + 2, rect->width, JSPROP_ENUMERATE) ||
-        !JS_DefineElement(aCx, destArray, n + 3, rect->height, JSPROP_ENUMERATE)) {
+    if (!JS_DefineElement(aCx, destArray, n, INT_TO_JSVAL(rect->x), NULL, NULL, JSPROP_ENUMERATE) ||
+        !JS_DefineElement(aCx, destArray, n + 1, INT_TO_JSVAL(rect->y), NULL, NULL, JSPROP_ENUMERATE) ||
+        !JS_DefineElement(aCx, destArray, n + 2, INT_TO_JSVAL(rect->width), NULL, NULL, JSPROP_ENUMERATE) ||
+        !JS_DefineElement(aCx, destArray, n + 3, INT_TO_JSVAL(rect->height), NULL, NULL, JSPROP_ENUMERATE)) {
       return NS_ERROR_FAILURE;
     }
     n += 4;

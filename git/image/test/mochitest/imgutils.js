@@ -1,25 +1,15 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 // Helper file for shared image functionality
 // 
 // Note that this is use by tests elsewhere in the source tree. When in doubt,
 // check mxr before removing or changing functionality.
 
-// Helper function to clear both the content and chrome image caches
-function clearAllImageCaches()
-{
-  var tools = SpecialPowers.Cc["@mozilla.org/image/tools;1"]
-                             .getService(SpecialPowers.Ci.imgITools);
-  var imageCache = tools.getImgCacheForDocument(window.document);
-  imageCache.clearCache(true);  // true=chrome
-  imageCache.clearCache(false); // false=content
-}
-
 // Helper function to clear the image cache of content images
 function clearImageCache()
 {
-  var tools = SpecialPowers.Cc["@mozilla.org/image/tools;1"]
-                             .getService(SpecialPowers.Ci.imgITools);
-  var imageCache = tools.getImgCacheForDocument(window.document);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var imageCache = Components.classes["@mozilla.org/image/cache;1"]
+                             .getService(Components.interfaces.imgICache);
   imageCache.clearCache(false); // true=chrome, false=content
 }
 
@@ -27,7 +17,7 @@ function clearImageCache()
 function isFrameDecoded(id)
 {
   return (getImageStatus(id) &
-          SpecialPowers.Ci.imgIRequest.STATUS_FRAME_COMPLETE)
+          Components.interfaces.imgIRequest.STATUS_FRAME_COMPLETE)
          ? true : false;
 }
 
@@ -35,21 +25,24 @@ function isFrameDecoded(id)
 function isImageLoaded(id)
 {
   return (getImageStatus(id) &
-          SpecialPowers.Ci.imgIRequest.STATUS_LOAD_COMPLETE)
+          Components.interfaces.imgIRequest.STATUS_LOAD_COMPLETE)
          ? true : false;
 }
 
 // Helper function to get the status flags of an image
 function getImageStatus(id)
 {
+  // Escalate
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
   // Get the image
-  var img = SpecialPowers.wrap(document.getElementById(id));
+  var img = document.getElementById(id);
 
   // QI the image to nsImageLoadingContent
-  img.QueryInterface(SpecialPowers.Ci.nsIImageLoadingContent);
+  img.QueryInterface(Components.interfaces.nsIImageLoadingContent);
 
   // Get the request
-  var request = img.getRequest(SpecialPowers.Ci
+  var request = img.getRequest(Components.interfaces
                                          .nsIImageLoadingContent
                                          .CURRENT_REQUEST);
 
@@ -61,6 +54,8 @@ function getImageStatus(id)
 // really meaningful if the image is fully loaded first
 function forceDecode(id)
 {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
   // Get the image
   var img = document.getElementById(id);
 
@@ -86,8 +81,9 @@ const DISCARD_TIMEOUT_PREF = {name: "min_discard_timeout_ms", branch: "image.mem
 
 function setImagePref(pref, val)
 {
-  var prefService = SpecialPowers.Cc["@mozilla.org/preferences-service;1"]
-                                 .getService(SpecialPowers.Ci.nsIPrefService);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefService = Components.classes["@mozilla.org/preferences-service;1"]
+                              .getService(Components.interfaces.nsIPrefService);
   var branch = prefService.getBranch(pref.branch);
   if (val != null) {
     switch(pref.type) {
@@ -107,8 +103,9 @@ function setImagePref(pref, val)
 
 function getImagePref(pref)
 {
-  var prefService = SpecialPowers.Cc["@mozilla.org/preferences-service;1"]
-                                 .getService(SpecialPowers.Ci.nsIPrefService);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefService = Components.classes["@mozilla.org/preferences-service;1"]
+                              .getService(Components.interfaces.nsIPrefService);
   var branch = prefService.getBranch(pref.branch);
   if (branch.prefHasUserValue(pref.name)) {
     switch (pref.type) {
@@ -124,15 +121,15 @@ function getImagePref(pref)
     return null;
 }
 
-// JS implementation of imgIScriptedNotificationObserver with stubs for all of its methods.
+// JS implementation of imgIDecoderObserver with stubs for all of its methods.
 function ImageDecoderObserverStub()
 {
-  this.sizeAvailable = function sizeAvailable(aRequest)     {}
-  this.frameComplete = function frameComplete(aRequest)     {}
-  this.decodeComplete = function decodeComplete(aRequest)   {}
-  this.loadComplete = function loadComplete(aRequest)       {}
-  this.frameUpdate = function frameUpdate(aRequest)         {}
-  this.discard = function discard(aRequest)                 {}
-  this.isAnimated = function isAnimated(aRequest)           {}
-  this.hasTransparency = function hasTransparency(aRequest) {}
+  this.onStartRequest = function onStartRequest(aRequest)                 {}
+  this.onStartDecode = function onStartDecode(aRequest)                   {}
+  this.onStartContainer = function onStartContainer(aRequest, aContainer) {}
+  this.onStartFrame = function onStartFrame(aRequest, aFrame)             {}
+  this.onStopFrame = function onStopFrame(aRequest, aFrame)               {}
+  this.onStopContainer = function onStopContainer(aRequest, aContainer)   {}
+  this.onStopDecode = function onStopDecode(aRequest, status, statusArg)  {}
+  this.onStopRequest = function onStopRequest(aRequest, aIsLastPart)      {}
 }

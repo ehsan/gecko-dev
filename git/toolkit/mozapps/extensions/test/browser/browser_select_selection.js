@@ -103,27 +103,26 @@ function test() {
   Services.prefs.setBoolPref("extensions.installedDistroAddon.test12@tests.mozilla.org", true);
   Services.prefs.setBoolPref("extensions.installedDistroAddon.test15@tests.mozilla.org", true);
 
-  for (let pos in ADDONS) {
-    let addonItem = ADDONS[pos];
-    let addon = new MockAddon("test" + pos + "@tests.mozilla.org",
-                              "Test Add-on " + pos, "extension");
+  ADDONS.forEach(function(aAddon, aPos) {
+    var addon = new MockAddon("test" + aPos + "@tests.mozilla.org",
+                              "Test Add-on " + aPos, "extension");
     addon.version = "1.0";
-    addon.userDisabled = addonItem[0];
-    addon.appDisabled = addonItem[1];
-    addon.isActive = addonItem[3];
-    addon.applyBackgroundUpdates = addonItem[5] ? AddonManager.AUTOUPDATE_ENABLE
+    addon.userDisabled = aAddon[0];
+    addon.appDisabled = aAddon[1];
+    addon.isActive = aAddon[3];
+    addon.applyBackgroundUpdates = aAddon[5] ? AddonManager.AUTOUPDATE_ENABLE
                                              : AddonManager.AUTOUPDATE_DISABLE;
-    addon.scope = addonItem[6];
+    addon.scope = aAddon[6];
 
     // Remove the upgrade permission from non-profile add-ons
     if (addon.scope != AddonManager.SCOPE_PROFILE)
       addon._permissions -= AddonManager.PERM_CAN_UPGRADE;
 
     addon.findUpdates = function(aListener, aReason, aAppVersion, aPlatformVersion) {
-      addon.appDisabled = addonItem[2];
+      addon.appDisabled = aAddon[2];
       addon.isActive = addon.shouldBeActive;
 
-      if (addonItem[4]) {
+      if (aAddon[4]) {
         var newAddon = new MockAddon(this.id, this.name, "extension");
         newAddon.version = "2.0";
         var install = new MockInstall(this.name, this.type, newAddon);
@@ -135,7 +134,7 @@ function test() {
     };
 
     gProvider.addAddon(addon);
-  }
+  });
 
   gWin = Services.ww.openWindow(null,
                                 "chrome://mozapps/content/extensions/selectAddons.xul",
@@ -212,7 +211,7 @@ add_test(function selection_test() {
 
   var pos = 0;
   var scrollbox = gWin.document.getElementById("select-scrollbox");
-  var scrollBoxObject = scrollbox.boxObject;
+  var scrollBoxObject = scrollbox.boxObject.QueryInterface(Ci.nsIScrollBoxObject);
   for (var row = gWin.document.getElementById("select-rows").firstChild; row; row = row.nextSibling) {
     // Ignore separators but increase the position by a large amount so we
     // can verify they were in the right place

@@ -12,7 +12,7 @@
 
 // How much data are we willing to send across the wire
 // in one chunk?
-static const int32_t kSendDataChunk = 0xffff;
+static const int32_t kSendDataChunk = 0x4000;
 
 namespace mozilla {
 namespace plugins {
@@ -28,12 +28,6 @@ BrowserStreamParent::BrowserStreamParent(PluginInstanceParent* npp,
 
 BrowserStreamParent::~BrowserStreamParent()
 {
-}
-
-void
-BrowserStreamParent::ActorDestroy(ActorDestroyReason aWhy)
-{
-  // Implement me! Bug 1005159
 }
 
 bool
@@ -58,7 +52,7 @@ BrowserStreamParent::AnswerNPN_RequestRead(const IPCByteRanges& ranges,
   if (!mStream)
     return false;
 
-  if (ranges.size() > INT32_MAX)
+  if (ranges.size() > PR_INT32_MAX)
     return false;
 
   nsAutoArrayPtr<NPByteRange> rp(new NPByteRange[ranges.size()]);
@@ -67,7 +61,7 @@ BrowserStreamParent::AnswerNPN_RequestRead(const IPCByteRanges& ranges,
     rp[i].length = ranges[i].length;
     rp[i].next = &rp[i + 1];
   }
-  rp[ranges.size() - 1].next = nullptr;
+  rp[ranges.size() - 1].next = NULL;
 
   *result = mNPP->mNPNIface->requestread(mStream, rp);
   return true;
@@ -108,7 +102,7 @@ BrowserStreamParent::RecvStreamDestroyed()
     return false;
   }
 
-  mStreamPeer = nullptr;
+  mStreamPeer = NULL;
 
   mState = DELETING;
   return Send__delete__(this);

@@ -13,7 +13,7 @@ function testSteps()
   var request = indexedDB.open(name, 1);
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
-  var event = yield undefined;
+  var event = yield;
 
   is(event.target.source, null, "correct event.target.source");
 
@@ -23,10 +23,10 @@ function testSteps()
   request = objectStore.add({});
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   ok(event.target.source === objectStore, "correct event.source");
 
   finishTest();
-  yield undefined;
+  yield;
 }

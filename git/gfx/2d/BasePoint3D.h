@@ -6,8 +6,6 @@
 #ifndef MOZILLA_BASEPOINT3D_H_
 #define MOZILLA_BASEPOINT3D_H_
 
-#include "mozilla/Assertions.h"
-
 namespace mozilla {
 namespace gfx {
 
@@ -31,12 +29,12 @@ struct BasePoint3D {
   // compiler generated default assignment operator
 
   T& operator[](int aIndex) {
-    MOZ_ASSERT(aIndex >= 0 && aIndex <= 2);
+    NS_ABORT_IF_FALSE(aIndex >= 0 && aIndex <= 2, "Invalid array index");
     return *((&x)+aIndex);
   }
 
   const T& operator[](int aIndex) const {
-    MOZ_ASSERT(aIndex >= 0 && aIndex <= 2);
+    NS_ABORT_IF_FALSE(aIndex >= 0 && aIndex <= 2, "Invalid array index");
     return *((&x)+aIndex);
   }
 

@@ -17,7 +17,8 @@ nsInputStreamChannel::OpenContentStream(bool async, nsIInputStream **result,
   // If content length is unknown, then we must guess.  In this case, we assume
   // the stream can tell us.  If the stream is a pipe, then this will not work.
 
-  if (mContentLength < 0) {
+  int64_t len = ContentLength64();
+  if (len < 0) {
     uint64_t avail;
     nsresult rv = mContentStream->Available(&avail);
     if (rv == NS_BASE_STREAM_CLOSED) {
@@ -26,7 +27,7 @@ nsInputStreamChannel::OpenContentStream(bool async, nsIInputStream **result,
     } else if (NS_FAILED(rv)) {
       return rv;
     }
-    mContentLength = avail;
+    SetContentLength64(avail);
   }
 
   EnableSynthesizedProgressEvents(true);
@@ -38,9 +39,9 @@ nsInputStreamChannel::OpenContentStream(bool async, nsIInputStream **result,
 //-----------------------------------------------------------------------------
 // nsInputStreamChannel::nsISupports
 
-NS_IMPL_ISUPPORTS_INHERITED(nsInputStreamChannel,
-                            nsBaseChannel,
-                            nsIInputStreamChannel)
+NS_IMPL_ISUPPORTS_INHERITED1(nsInputStreamChannel,
+                             nsBaseChannel,
+                             nsIInputStreamChannel)
 
 //-----------------------------------------------------------------------------
 // nsInputStreamChannel::nsIInputStreamChannel
@@ -65,27 +66,5 @@ nsInputStreamChannel::SetContentStream(nsIInputStream *stream)
 {
   NS_ENSURE_TRUE(!mContentStream, NS_ERROR_ALREADY_INITIALIZED);
   mContentStream = stream;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsInputStreamChannel::GetSrcdocData(nsAString& aSrcdocData)
-{
-  aSrcdocData = mSrcdocData;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsInputStreamChannel::SetSrcdocData(const nsAString& aSrcdocData)
-{
-  mSrcdocData = aSrcdocData;
-  mIsSrcdocChannel = true;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsInputStreamChannel::GetIsSrcdocChannel(bool *aIsSrcdocChannel)
-{
-  *aIsSrcdocChannel = mIsSrcdocChannel;
   return NS_OK;
 }

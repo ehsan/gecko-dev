@@ -3,16 +3,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"         // for ArrayLength
-#include "mozilla/mozalloc.h"           // for operator delete, etc
+#include "mozilla/Util.h"
 
+#include "plstr.h"
 #include "nsColor.h"
-#include <sys/types.h>                  // for int32_t
-#include "nsColorNames.h"               // for nsColorNames
-#include "nsDebug.h"                    // for NS_ASSERTION, etc
+#include "nsColorNames.h"
+#include "nsString.h"
+#include "nscore.h"
+#include "nsCoord.h"
+#include "nsCOMPtr.h"
+#include "nsIServiceManager.h"
+#include <math.h>
+#include "prprf.h"
 #include "nsStaticNameTable.h"
-#include "nsString.h"                   // for nsAutoCString, nsString, etc
-#include "nscore.h"                     // for nsAString, etc
 
 using namespace mozilla;
 
@@ -45,8 +48,8 @@ void nsColorNames::AddRefTable(void)
     {
       // let's verify the table...
       for (uint32_t index = 0; index < eColorName_COUNT; ++index) {
-        nsAutoCString temp1(kColorNames[index]);
-        nsAutoCString temp2(kColorNames[index]);
+        nsCAutoString temp1(kColorNames[index]);
+        nsCAutoString temp2(kColorNames[index]);
         ToLowerCase(temp1);
         NS_ASSERTION(temp1.Equals(temp2), "upper case char in table");
       }
@@ -65,7 +68,7 @@ void nsColorNames::ReleaseTable(void)
   }
 }
 
-static int ComponentValue(const char16_t* aColorSpec, int aLen, int color, int dpc)
+static int ComponentValue(const PRUnichar* aColorSpec, int aLen, int color, int dpc)
 {
   int component = 0;
   int index = (color * dpc);
@@ -73,7 +76,7 @@ static int ComponentValue(const char16_t* aColorSpec, int aLen, int color, int d
     dpc = 2;
   }
   while (--dpc >= 0) {
-    char16_t ch = ((index < aLen) ? aColorSpec[index++] : '0');
+    PRUnichar ch = ((index < aLen) ? aColorSpec[index++] : '0');
     if (('0' <= ch) && (ch <= '9')) {
       component = (component * 16) + (ch - '0');
     } else if ((('a' <= ch) && (ch <= 'f')) || 
@@ -88,16 +91,16 @@ static int ComponentValue(const char16_t* aColorSpec, int aLen, int color, int d
   return component;
 }
 
-NS_GFX_(bool) NS_HexToRGB(const nsAString& aColorSpec,
+NS_GFX_(bool) NS_HexToRGB(const nsString& aColorSpec,
                                        nscolor* aResult)
 {
-  const char16_t* buffer = aColorSpec.BeginReading();
+  const PRUnichar* buffer = aColorSpec.get();
 
   int nameLen = aColorSpec.Length();
   if ((nameLen == 3) || (nameLen == 6)) {
     // Make sure the digits are legal
     for (int i = 0; i < nameLen; i++) {
-      char16_t ch = buffer[i];
+      PRUnichar ch = buffer[i];
       if (((ch >= '0') && (ch <= '9')) ||
           ((ch >= 'a') && (ch <= 'f')) ||
           ((ch >= 'A') && (ch <= 'F'))) {
@@ -141,7 +144,7 @@ NS_GFX_(bool) NS_LooseHexToRGB(const nsString& aColorSpec, nscolor* aResult)
   }
 
   int nameLen = aColorSpec.Length();
-  const char16_t* colorSpec = aColorSpec.get();
+  const PRUnichar* colorSpec = aColorSpec.get();
   if (nameLen > 128) {
     nameLen = 128;
   }
@@ -170,7 +173,7 @@ NS_GFX_(bool) NS_LooseHexToRGB(const nsString& aColorSpec, nscolor* aResult)
     for (int c = 0; c < 3; ++c) {
       NS_ABORT_IF_FALSE(c * dpc < nameLen,
                         "should not pass end of string while newdpc > 2");
-      char16_t ch = colorSpec[c * dpc];
+      PRUnichar ch = colorSpec[c * dpc];
       if (('1' <= ch && ch <= '9') ||
           ('A' <= ch && ch <= 'F') ||
           ('a' <= ch && ch <= 'f')) {
@@ -212,14 +215,6 @@ NS_GFX_(bool) NS_ColorNameToRGB(const nsAString& aColorName, nscolor* aResult)
     return true;
   }
   return false;
-}
-
-// Returns kColorNames, an array of all possible color names, and sets
-// *aSizeArray to the size of that array. Do NOT call free() on this array.
-NS_GFX_(const char * const *) NS_AllColorNames(size_t *aSizeArray)
-{
-  *aSizeArray = ArrayLength(kColorNames);
-  return kColorNames;
 }
 
 // Macro to blend two colors
@@ -292,16 +287,4 @@ NS_HSL2RGB(float h, float s, float l)
   g = uint8_t(255 * HSL_HueToRGB(m1, m2, h));
   b = uint8_t(255 * HSL_HueToRGB(m1, m2, h - 1.0f/3.0f));
   return NS_RGB(r, g, b);  
-}
-
-NS_GFX_(const char*)
-NS_RGBToColorName(nscolor aColor)
-{
-  for (size_t idx = 0; idx < ArrayLength(kColors); ++idx) {
-    if (kColors[idx] == aColor) {
-      return kColorNames[idx];
-    }
-  }
-
-  return nullptr;
 }

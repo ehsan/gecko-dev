@@ -1,345 +1,93 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set ts=8 sts=4 et sw=4 tw=80: */
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <algorithm>
-#include <stdio.h>
-#include <string.h>
-#include <ctype.h>
 
+#include <string.h>
+#include <stdio.h>
+#include <algorithm>
+
+#include "prlink.h"
+#include "prenv.h"
+
+#include "nsThreadUtils.h"
+
+#include "gfxPlatform.h"
 #include "GLContext.h"
-#include "GLBlitHelper.h"
-#include "GLReadTexImageHelper.h"
+#include "GLContextProvider.h"
 
 #include "gfxCrashReporterUtils.h"
 #include "gfxUtils.h"
-#include "GLContextProvider.h"
-#include "GLTextureImage.h"
-#include "nsPrintfCString.h"
-#include "nsThreadUtils.h"
-#include "prenv.h"
-#include "prlink.h"
-#include "ScopedGLHelpers.h"
-#include "SharedSurfaceGL.h"
-#include "GfxTexturesReporter.h"
-#include "TextureGarbageBin.h"
-#include "gfx2DGlue.h"
-#include "gfxPrefs.h"
-#include "mozilla/IntegerPrintfMacros.h"
 
-#include "OGLShaderProgram.h" // for ShaderProgramType
+#include "mozilla/Preferences.h"
+#include "mozilla/Util.h" // for DebugOnly
 
-#include "mozilla/DebugOnly.h"
-
-#ifdef XP_MACOSX
-#include <CoreServices/CoreServices.h>
-#include "gfxColor.h"
-#endif
-
-#if defined(MOZ_WIDGET_COCOA)
-#include "nsCocoaFeatures.h"
-#endif
+using namespace mozilla::gfx;
 
 namespace mozilla {
 namespace gl {
 
-using namespace mozilla::gfx;
-using namespace mozilla::layers;
-
-#ifdef MOZ_GL_DEBUG
+#ifdef DEBUG
 unsigned GLContext::sCurrentGLContextTLS = -1;
 #endif
 
 uint32_t GLContext::sDebugMode = 0;
 
+// define this here since it's global to GLContextProvider, not any
+// specific implementation
+const ContextFormat ContextFormat::BasicRGBA32Format(ContextFormat::BasicRGBA32);
 
 #define MAX_SYMBOL_LENGTH 128
 #define MAX_SYMBOL_NAMES 5
-#define END_SYMBOLS { nullptr, { nullptr } }
 
 // should match the order of GLExtensions, and be null-terminated.
 static const char *sExtensionNames[] = {
-    "NO_EXTENSION",
-    "GL_AMD_compressed_ATC_texture",
-    "GL_ANGLE_depth_texture",
-    "GL_ANGLE_framebuffer_blit",
-    "GL_ANGLE_framebuffer_multisample",
-    "GL_ANGLE_instanced_arrays",
-    "GL_ANGLE_texture_compression_dxt3",
-    "GL_ANGLE_texture_compression_dxt5",
-    "GL_APPLE_client_storage",
-    "GL_APPLE_texture_range",
-    "GL_APPLE_vertex_array_object",
-    "GL_ARB_ES2_compatibility",
-    "GL_ARB_ES3_compatibility",
-    "GL_ARB_color_buffer_float",
-    "GL_ARB_copy_buffer",
-    "GL_ARB_depth_texture",
-    "GL_ARB_draw_buffers",
-    "GL_ARB_draw_instanced",
-    "GL_ARB_framebuffer_object",
-    "GL_ARB_framebuffer_sRGB",
-    "GL_ARB_half_float_pixel",
-    "GL_ARB_instanced_arrays",
-    "GL_ARB_invalidate_subdata",
-    "GL_ARB_map_buffer_range",
-    "GL_ARB_occlusion_query2",
-    "GL_ARB_pixel_buffer_object",
-    "GL_ARB_robustness",
-    "GL_ARB_sampler_objects",
-    "GL_ARB_sync",
-    "GL_ARB_texture_compression",
-    "GL_ARB_texture_float",
-    "GL_ARB_texture_non_power_of_two",
-    "GL_ARB_texture_rectangle",
-    "GL_ARB_texture_storage",
-    "GL_ARB_transform_feedback2",
-    "GL_ARB_uniform_buffer_object",
-    "GL_ARB_vertex_array_object",
-    "GL_EXT_bgra",
-    "GL_EXT_blend_minmax",
-    "GL_EXT_color_buffer_float",
-    "GL_EXT_color_buffer_half_float",
-    "GL_EXT_copy_texture",
-    "GL_EXT_draw_buffers",
-    "GL_EXT_draw_buffers2",
-    "GL_EXT_draw_instanced",
-    "GL_EXT_draw_range_elements",
-    "GL_EXT_frag_depth",
-    "GL_EXT_framebuffer_blit",
-    "GL_EXT_framebuffer_multisample",
     "GL_EXT_framebuffer_object",
-    "GL_EXT_framebuffer_sRGB",
-    "GL_EXT_gpu_shader4",
-    "GL_EXT_occlusion_query_boolean",
-    "GL_EXT_packed_depth_stencil",
-    "GL_EXT_read_format_bgra",
-    "GL_EXT_robustness",
-    "GL_EXT_sRGB",
-    "GL_EXT_shader_texture_lod",
-    "GL_EXT_texture3D",
-    "GL_EXT_texture_compression_dxt1",
-    "GL_EXT_texture_compression_s3tc",
-    "GL_EXT_texture_filter_anisotropic",
+    "GL_ARB_framebuffer_object",
+    "GL_ARB_texture_rectangle",
+    "GL_EXT_bgra",
     "GL_EXT_texture_format_BGRA8888",
-    "GL_EXT_texture_sRGB",
-    "GL_EXT_texture_storage",
-    "GL_EXT_transform_feedback",
-    "GL_EXT_unpack_subimage",
-    "GL_IMG_read_format",
-    "GL_IMG_texture_compression_pvrtc",
-    "GL_IMG_texture_npot",
-    "GL_KHR_debug",
-    "GL_NV_draw_instanced",
-    "GL_NV_fence",
-    "GL_NV_half_float",
-    "GL_NV_instanced_arrays",
-    "GL_NV_transform_feedback",
-    "GL_NV_transform_feedback2",
-    "GL_OES_EGL_image",
-    "GL_OES_EGL_image_external",
-    "GL_OES_EGL_sync",
-    "GL_OES_compressed_ETC1_RGB8_texture",
     "GL_OES_depth24",
     "GL_OES_depth32",
-    "GL_OES_depth_texture",
-    "GL_OES_element_index_uint",
-    "GL_OES_packed_depth_stencil",
-    "GL_OES_rgb8_rgba8",
-    "GL_OES_standard_derivatives",
     "GL_OES_stencil8",
-    "GL_OES_texture_3D",
-    "GL_OES_texture_float",
-    "GL_OES_texture_float_linear",
-    "GL_OES_texture_half_float",
-    "GL_OES_texture_half_float_linear",
     "GL_OES_texture_npot",
-    "GL_OES_vertex_array_object",
+    "GL_OES_depth_texture",
+    "GL_OES_packed_depth_stencil",
+    "GL_IMG_read_format",
+    "GL_EXT_read_format_bgra",
+    "GL_APPLE_client_storage",
+    "GL_ARB_texture_non_power_of_two",
+    "GL_ARB_pixel_buffer_object",
+    "GL_ARB_ES2_compatibility",
+    "GL_OES_texture_float",
+    "GL_ARB_texture_float",
+    "GL_EXT_unpack_subimage",
+    "GL_OES_standard_derivatives",
+    "GL_EXT_texture_filter_anisotropic",
+    "GL_EXT_texture_compression_s3tc",
+    "GL_EXT_texture_compression_dxt1",
+    "GL_ANGLE_texture_compression_dxt3",
+    "GL_ANGLE_texture_compression_dxt5",
+    "GL_EXT_framebuffer_blit",
+    "GL_ANGLE_framebuffer_blit",
+    "GL_EXT_framebuffer_multisample",
+    "GL_ANGLE_framebuffer_multisample",
+    "GL_OES_rgb8_rgba8",
+    "GL_ARB_robustness",
+    "GL_EXT_robustness",
+    "GL_ARB_sync",
+    "GL_OES_EGL_image",
+    "GL_OES_EGL_sync",
+    "GL_OES_EGL_image_external",
+    "GL_EXT_packed_depth_stencil",
     nullptr
 };
 
-static bool
-ParseGLVersion(GLContext* gl, uint32_t* out_version)
-{
-    if (gl->fGetError() != LOCAL_GL_NO_ERROR) {
-        MOZ_ASSERT(false, "An OpenGL error has been triggered before.");
-        return false;
-    }
-
-    /**
-     * B2G emulator bug work around: The emulator implements OpenGL ES 2.0 on
-     * OpenGL 3.2. The bug is that GetIntegerv(LOCAL_GL_{MAJOR,MINOR}_VERSION)
-     * returns OpenGL 3.2 instead of generating an error.
-     */
-    if (!gl->IsGLES()) {
-        /**
-         * OpenGL 3.1 and OpenGL ES 3.0 both introduce GL_{MAJOR,MINOR}_VERSION
-         * with GetIntegerv. So we first try those constants even though we
-         * might not have an OpenGL context supporting them, as this is a
-         * better way than parsing GL_VERSION.
-         */
-        GLint majorVersion = 0;
-        GLint minorVersion = 0;
-
-        const bool ok = (gl->GetPotentialInteger(LOCAL_GL_MAJOR_VERSION,
-                                                 &majorVersion) &&
-                         gl->GetPotentialInteger(LOCAL_GL_MINOR_VERSION,
-                                                 &minorVersion));
-
-        // If it's not an OpenGL (ES) 3.0 context, we will have an error
-        if (ok &&
-            majorVersion > 0 &&
-            minorVersion >= 0)
-        {
-            *out_version = majorVersion * 100 + minorVersion * 10;
-            return true;
-        }
-    }
-
-    /**
-     * We were not able to use GL_{MAJOR,MINOR}_VERSION, so we parse
-     * GL_VERSION.
-     *
-     *
-     * OpenGL 2.x, 3.x, 4.x specifications:
-     *  The VERSION and SHADING_LANGUAGE_VERSION strings are laid out as follows:
-     *
-     *    <version number><space><vendor-specific information>
-     *
-     *  The version number is either of the form major_number.minor_number or
-     *  major_number.minor_number.release_number, where the numbers all have
-     *  one or more digits.
-     *
-     *
-     * OpenGL ES 2.0, 3.0 specifications:
-     *  The VERSION string is laid out as follows:
-     *
-     *     "OpenGL ES N.M vendor-specific information"
-     *
-     *  The version number is either of the form major_number.minor_number or
-     *  major_number.minor_number.release_number, where the numbers all have
-     *  one or more digits.
-     *
-     *
-     * Note:
-     *  We don't care about release_number.
-     */
-    const char* versionString = (const char*)gl->fGetString(LOCAL_GL_VERSION);
-
-    if (gl->fGetError() != LOCAL_GL_NO_ERROR) {
-        MOZ_ASSERT(false, "glGetString(GL_VERSION) has generated an error");
-        return false;
-    } else if (!versionString) {
-        MOZ_ASSERT(false, "glGetString(GL_VERSION) has returned 0");
-        return false;
-    }
-
-    const char kGLESVersionPrefix[] = "OpenGL ES ";
-    if (strncmp(versionString, kGLESVersionPrefix, strlen(kGLESVersionPrefix)) == 0) {
-        versionString += strlen(kGLESVersionPrefix);
-    }
-
-    const char* itr = versionString;
-    char* end = nullptr;
-    auto majorVersion = strtol(itr, &end, 10);
-
-    if (!end) {
-        MOZ_ASSERT(false, "Failed to parse the GL major version number.");
-        return false;
-    } else if (*end != '.') {
-        MOZ_ASSERT(false, "Failed to parse GL's major-minor version number separator.");
-        return false;
-    }
-
-    // we skip the '.' between the major and the minor version
-    itr = end + 1;
-
-    end = nullptr;
-
-    auto minorVersion = strtol(itr, &end, 10);
-    if (!end) {
-        MOZ_ASSERT(false, "Failed to parse GL's minor version number.");
-        return false;
-    }
-
-    if (majorVersion <= 0 || majorVersion >= 100) {
-        MOZ_ASSERT(false, "Invalid major version.");
-        return false;
-    } else if (minorVersion < 0 || minorVersion >= 10) {
-        MOZ_ASSERT(false, "Invalid minor version.");
-        return false;
-    }
-
-    *out_version = (uint32_t)majorVersion * 100 + (uint32_t)minorVersion * 10;
-    return true;
-}
-
-GLContext::GLContext(const SurfaceCaps& caps,
-          GLContext* sharedContext,
-          bool isOffscreen)
-  : mInitialized(false),
-    mIsOffscreen(isOffscreen),
-    mContextLost(false),
-    mVersion(0),
-    mProfile(ContextProfile::Unknown),
-    mVendor(GLVendor::Other),
-    mRenderer(GLRenderer::Other),
-    mHasRobustness(false),
-    mTopError(LOCAL_GL_NO_ERROR),
-    mLocalErrorScope(nullptr),
-    mSharedContext(sharedContext),
-    mCaps(caps),
-    mScreen(nullptr),
-    mLockedSurface(nullptr),
-    mMaxTextureSize(0),
-    mMaxCubeMapTextureSize(0),
-    mMaxTextureImageSize(0),
-    mMaxRenderbufferSize(0),
-    mNeedsTextureSizeChecks(false),
-    mWorkAroundDriverBugs(true),
-    mHeavyGLCallsSinceLastFlush(false)
-{
-    mOwningThreadId = PlatformThread::CurrentId();
-}
-
-GLContext::~GLContext() {
-    NS_ASSERTION(IsDestroyed(), "GLContext implementation must call MarkDestroyed in destructor!");
-#ifdef MOZ_GL_DEBUG
-    if (mSharedContext) {
-        GLContext *tip = mSharedContext;
-        while (tip->mSharedContext)
-            tip = tip->mSharedContext;
-        tip->SharedContextDestroyed(this);
-        tip->ReportOutstandingNames();
-    } else {
-        ReportOutstandingNames();
-    }
-#endif
-}
-
-/*static*/ void
-GLContext::StaticDebugCallback(GLenum source,
-                               GLenum type,
-                               GLuint id,
-                               GLenum severity,
-                               GLsizei length,
-                               const GLchar* message,
-                               const GLvoid* userParam)
-{
-    GLContext* gl = (GLContext*)userParam;
-    gl->DebugCallback(source, type, id, severity, length, message);
-}
-
-static void
-ClearSymbols(GLLibraryLoader::SymLoadStruct *symbols)
-{
-    while (symbols->symPointer) {
-        *symbols->symPointer = nullptr;
-        symbols++;
-    }
-}
+/*
+ * XXX - we should really know the ARB/EXT variants of these
+ * instead of only handling the symbol if it's exposed directly.
+ */
 
 bool
 GLContext::InitWithPrefix(const char *prefix, bool trygl)
@@ -351,181 +99,162 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         return true;
     }
 
-    mWorkAroundDriverBugs = gfxPrefs::WorkAroundDriverBugs();
+    mWorkAroundDriverBugs = gfxPlatform::GetPlatform()->WorkAroundDriverBugs();
 
     SymLoadStruct symbols[] = {
-        { (PRFuncPtr*) &mSymbols.fActiveTexture, { "ActiveTexture", "ActiveTextureARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fAttachShader, { "AttachShader", "AttachShaderARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fBindAttribLocation, { "BindAttribLocation", "BindAttribLocationARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fBindBuffer, { "BindBuffer", "BindBufferARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fBindTexture, { "BindTexture", "BindTextureARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fBlendColor, { "BlendColor", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fBlendEquation, { "BlendEquation", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fBlendEquationSeparate, { "BlendEquationSeparate", "BlendEquationSeparateEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fBlendFunc, { "BlendFunc", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fBlendFuncSeparate, { "BlendFuncSeparate", "BlendFuncSeparateEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fBufferData, { "BufferData", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fBufferSubData, { "BufferSubData", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fClear, { "Clear", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fClearColor, { "ClearColor", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fClearStencil, { "ClearStencil", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fColorMask, { "ColorMask", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fCompressedTexImage2D, {"CompressedTexImage2D", nullptr} },
-        { (PRFuncPtr*) &mSymbols.fCompressedTexSubImage2D, {"CompressedTexSubImage2D", nullptr} },
-        { (PRFuncPtr*) &mSymbols.fCullFace, { "CullFace", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fDetachShader, { "DetachShader", "DetachShaderARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fDepthFunc, { "DepthFunc", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fDepthMask, { "DepthMask", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fDisable, { "Disable", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fDisableVertexAttribArray, { "DisableVertexAttribArray", "DisableVertexAttribArrayARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fDrawArrays, { "DrawArrays", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fDrawElements, { "DrawElements", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fEnable, { "Enable", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fEnableVertexAttribArray, { "EnableVertexAttribArray", "EnableVertexAttribArrayARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fFinish, { "Finish", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fFlush, { "Flush", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fFrontFace, { "FrontFace", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetActiveAttrib, { "GetActiveAttrib", "GetActiveAttribARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetActiveUniform, { "GetActiveUniform", "GetActiveUniformARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetAttachedShaders, { "GetAttachedShaders", "GetAttachedShadersARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetAttribLocation, { "GetAttribLocation", "GetAttribLocationARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetIntegerv, { "GetIntegerv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetFloatv, { "GetFloatv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetBooleanv, { "GetBooleanv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetBufferParameteriv, { "GetBufferParameteriv", "GetBufferParameterivARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetError, { "GetError", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetProgramiv, { "GetProgramiv", "GetProgramivARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetProgramInfoLog, { "GetProgramInfoLog", "GetProgramInfoLogARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fTexParameteri, { "TexParameteri", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fTexParameteriv, { "TexParameteriv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fTexParameterf, { "TexParameterf", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetString, { "GetString", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetTexParameterfv, { "GetTexParameterfv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetTexParameteriv, { "GetTexParameteriv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetUniformfv, { "GetUniformfv", "GetUniformfvARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetUniformiv, { "GetUniformiv", "GetUniformivARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetUniformLocation, { "GetUniformLocation", "GetUniformLocationARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetVertexAttribfv, { "GetVertexAttribfv", "GetVertexAttribfvARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetVertexAttribiv, { "GetVertexAttribiv", "GetVertexAttribivARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetVertexAttribPointerv, { "GetVertexAttribPointerv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fHint, { "Hint", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fIsBuffer, { "IsBuffer", "IsBufferARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fIsEnabled, { "IsEnabled", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fIsProgram, { "IsProgram", "IsProgramARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fIsShader, { "IsShader", "IsShaderARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fIsTexture, { "IsTexture", "IsTextureARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fLineWidth, { "LineWidth", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fLinkProgram, { "LinkProgram", "LinkProgramARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fPixelStorei, { "PixelStorei", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fPolygonOffset, { "PolygonOffset", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fReadPixels, { "ReadPixels", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fSampleCoverage, { "SampleCoverage", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fScissor, { "Scissor", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fStencilFunc, { "StencilFunc", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fStencilFuncSeparate, { "StencilFuncSeparate", "StencilFuncSeparateEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fStencilMask, { "StencilMask", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fStencilMaskSeparate, { "StencilMaskSeparate", "StencilMaskSeparateEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fStencilOp, { "StencilOp", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fStencilOpSeparate, { "StencilOpSeparate", "StencilOpSeparateEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fTexImage2D, { "TexImage2D", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fTexSubImage2D, { "TexSubImage2D", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fUniform1f, { "Uniform1f", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fUniform1fv, { "Uniform1fv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fUniform1i, { "Uniform1i", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fUniform1iv, { "Uniform1iv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fUniform2f, { "Uniform2f", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fUniform2fv, { "Uniform2fv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fUniform2i, { "Uniform2i", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fUniform2iv, { "Uniform2iv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fUniform3f, { "Uniform3f", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fUniform3fv, { "Uniform3fv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fUniform3i, { "Uniform3i", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fUniform3iv, { "Uniform3iv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fUniform4f, { "Uniform4f", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fUniform4fv, { "Uniform4fv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fUniform4i, { "Uniform4i", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fUniform4iv, { "Uniform4iv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fUniformMatrix2fv, { "UniformMatrix2fv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fUniformMatrix3fv, { "UniformMatrix3fv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fUniformMatrix4fv, { "UniformMatrix4fv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fUseProgram, { "UseProgram", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fValidateProgram, { "ValidateProgram", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fVertexAttribPointer, { "VertexAttribPointer", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fVertexAttrib1f, { "VertexAttrib1f", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fVertexAttrib2f, { "VertexAttrib2f", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fVertexAttrib3f, { "VertexAttrib3f", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fVertexAttrib4f, { "VertexAttrib4f", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fVertexAttrib1fv, { "VertexAttrib1fv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fVertexAttrib2fv, { "VertexAttrib2fv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fVertexAttrib3fv, { "VertexAttrib3fv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fVertexAttrib4fv, { "VertexAttrib4fv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fViewport, { "Viewport", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fCompileShader, { "CompileShader", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fCopyTexImage2D, { "CopyTexImage2D", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fCopyTexSubImage2D, { "CopyTexSubImage2D", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetShaderiv, { "GetShaderiv", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetShaderInfoLog, { "GetShaderInfoLog", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetShaderSource, { "GetShaderSource", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fShaderSource, { "ShaderSource", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fVertexAttribPointer, { "VertexAttribPointer", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fBindFramebuffer, { "BindFramebuffer", "BindFramebufferEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fBindRenderbuffer, { "BindRenderbuffer", "BindRenderbufferEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fCheckFramebufferStatus, { "CheckFramebufferStatus", "CheckFramebufferStatusEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fFramebufferRenderbuffer, { "FramebufferRenderbuffer", "FramebufferRenderbufferEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fFramebufferTexture2D, { "FramebufferTexture2D", "FramebufferTexture2DEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGenerateMipmap, { "GenerateMipmap", "GenerateMipmapEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetFramebufferAttachmentParameteriv, { "GetFramebufferAttachmentParameteriv", "GetFramebufferAttachmentParameterivEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGetRenderbufferParameteriv, { "GetRenderbufferParameteriv", "GetRenderbufferParameterivEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fIsFramebuffer, { "IsFramebuffer", "IsFramebufferEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fIsRenderbuffer, { "IsRenderbuffer", "IsRenderbufferEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fRenderbufferStorage, { "RenderbufferStorage", "RenderbufferStorageEXT", nullptr } },
+        { (PRFuncPtr*) &mSymbols.fActiveTexture, { "ActiveTexture", "ActiveTextureARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fAttachShader, { "AttachShader", "AttachShaderARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fBindAttribLocation, { "BindAttribLocation", "BindAttribLocationARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fBindBuffer, { "BindBuffer", "BindBufferARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fBindTexture, { "BindTexture", "BindTextureARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fBlendColor, { "BlendColor", NULL } },
+        { (PRFuncPtr*) &mSymbols.fBlendEquation, { "BlendEquation", NULL } },
+        { (PRFuncPtr*) &mSymbols.fBlendEquationSeparate, { "BlendEquationSeparate", "BlendEquationSeparateEXT", NULL } },
+        { (PRFuncPtr*) &mSymbols.fBlendFunc, { "BlendFunc", NULL } },
+        { (PRFuncPtr*) &mSymbols.fBlendFuncSeparate, { "BlendFuncSeparate", "BlendFuncSeparateEXT", NULL } },
+        { (PRFuncPtr*) &mSymbols.fBufferData, { "BufferData", NULL } },
+        { (PRFuncPtr*) &mSymbols.fBufferSubData, { "BufferSubData", NULL } },
+        { (PRFuncPtr*) &mSymbols.fClear, { "Clear", NULL } },
+        { (PRFuncPtr*) &mSymbols.fClearColor, { "ClearColor", NULL } },
+        { (PRFuncPtr*) &mSymbols.fClearStencil, { "ClearStencil", NULL } },
+        { (PRFuncPtr*) &mSymbols.fColorMask, { "ColorMask", NULL } },
+        { (PRFuncPtr*) &mSymbols.fCompressedTexImage2D, {"CompressedTexImage2D", NULL} },
+        { (PRFuncPtr*) &mSymbols.fCompressedTexSubImage2D, {"CompressedTexSubImage2D", NULL} },
+        { (PRFuncPtr*) &mSymbols.fCullFace, { "CullFace", NULL } },
+        { (PRFuncPtr*) &mSymbols.fDetachShader, { "DetachShader", "DetachShaderARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fDepthFunc, { "DepthFunc", NULL } },
+        { (PRFuncPtr*) &mSymbols.fDepthMask, { "DepthMask", NULL } },
+        { (PRFuncPtr*) &mSymbols.fDisable, { "Disable", NULL } },
+        { (PRFuncPtr*) &mSymbols.fDisableVertexAttribArray, { "DisableVertexAttribArray", "DisableVertexAttribArrayARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fDrawArrays, { "DrawArrays", NULL } },
+        { (PRFuncPtr*) &mSymbols.fDrawElements, { "DrawElements", NULL } },
+        { (PRFuncPtr*) &mSymbols.fEnable, { "Enable", NULL } },
+        { (PRFuncPtr*) &mSymbols.fEnableVertexAttribArray, { "EnableVertexAttribArray", "EnableVertexAttribArrayARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fFinish, { "Finish", NULL } },
+        { (PRFuncPtr*) &mSymbols.fFlush, { "Flush", NULL } },
+        { (PRFuncPtr*) &mSymbols.fFrontFace, { "FrontFace", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetActiveAttrib, { "GetActiveAttrib", "GetActiveAttribARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetActiveUniform, { "GetActiveUniform", "GetActiveUniformARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetAttachedShaders, { "GetAttachedShaders", "GetAttachedShadersARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetAttribLocation, { "GetAttribLocation", "GetAttribLocationARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetIntegerv, { "GetIntegerv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetFloatv, { "GetFloatv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetBooleanv, { "GetBooleanv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetBufferParameteriv, { "GetBufferParameteriv", "GetBufferParameterivARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetError, { "GetError", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetProgramiv, { "GetProgramiv", "GetProgramivARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetProgramInfoLog, { "GetProgramInfoLog", "GetProgramInfoLogARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fTexParameteri, { "TexParameteri", NULL } },
+        { (PRFuncPtr*) &mSymbols.fTexParameterf, { "TexParameterf", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetString, { "GetString", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetTexParameterfv, { "GetTexParameterfv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetTexParameteriv, { "GetTexParameteriv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetUniformfv, { "GetUniformfv", "GetUniformfvARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetUniformiv, { "GetUniformiv", "GetUniformivARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetUniformLocation, { "GetUniformLocation", "GetUniformLocationARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetVertexAttribfv, { "GetVertexAttribfv", "GetVertexAttribfvARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetVertexAttribiv, { "GetVertexAttribiv", "GetVertexAttribivARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetVertexAttribPointerv, { "GetVertexAttribPointerv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fHint, { "Hint", NULL } },
+        { (PRFuncPtr*) &mSymbols.fIsBuffer, { "IsBuffer", "IsBufferARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fIsEnabled, { "IsEnabled", NULL } },
+        { (PRFuncPtr*) &mSymbols.fIsProgram, { "IsProgram", "IsProgramARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fIsShader, { "IsShader", "IsShaderARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fIsTexture, { "IsTexture", "IsTextureARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fLineWidth, { "LineWidth", NULL } },
+        { (PRFuncPtr*) &mSymbols.fLinkProgram, { "LinkProgram", "LinkProgramARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fPixelStorei, { "PixelStorei", NULL } },
+        { (PRFuncPtr*) &mSymbols.fPolygonOffset, { "PolygonOffset", NULL } },
+        { (PRFuncPtr*) &mSymbols.fReadPixels, { "ReadPixels", NULL } },
+        { (PRFuncPtr*) &mSymbols.fSampleCoverage, { "SampleCoverage", NULL } },
+        { (PRFuncPtr*) &mSymbols.fScissor, { "Scissor", NULL } },
+        { (PRFuncPtr*) &mSymbols.fStencilFunc, { "StencilFunc", NULL } },
+        { (PRFuncPtr*) &mSymbols.fStencilFuncSeparate, { "StencilFuncSeparate", "StencilFuncSeparateEXT", NULL } },
+        { (PRFuncPtr*) &mSymbols.fStencilMask, { "StencilMask", NULL } },
+        { (PRFuncPtr*) &mSymbols.fStencilMaskSeparate, { "StencilMaskSeparate", "StencilMaskSeparateEXT", NULL } },
+        { (PRFuncPtr*) &mSymbols.fStencilOp, { "StencilOp", NULL } },
+        { (PRFuncPtr*) &mSymbols.fStencilOpSeparate, { "StencilOpSeparate", "StencilOpSeparateEXT", NULL } },
+        { (PRFuncPtr*) &mSymbols.fTexImage2D, { "TexImage2D", NULL } },
+        { (PRFuncPtr*) &mSymbols.fTexSubImage2D, { "TexSubImage2D", NULL } },
+        { (PRFuncPtr*) &mSymbols.fUniform1f, { "Uniform1f", NULL } },
+        { (PRFuncPtr*) &mSymbols.fUniform1fv, { "Uniform1fv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fUniform1i, { "Uniform1i", NULL } },
+        { (PRFuncPtr*) &mSymbols.fUniform1iv, { "Uniform1iv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fUniform2f, { "Uniform2f", NULL } },
+        { (PRFuncPtr*) &mSymbols.fUniform2fv, { "Uniform2fv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fUniform2i, { "Uniform2i", NULL } },
+        { (PRFuncPtr*) &mSymbols.fUniform2iv, { "Uniform2iv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fUniform3f, { "Uniform3f", NULL } },
+        { (PRFuncPtr*) &mSymbols.fUniform3fv, { "Uniform3fv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fUniform3i, { "Uniform3i", NULL } },
+        { (PRFuncPtr*) &mSymbols.fUniform3iv, { "Uniform3iv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fUniform4f, { "Uniform4f", NULL } },
+        { (PRFuncPtr*) &mSymbols.fUniform4fv, { "Uniform4fv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fUniform4i, { "Uniform4i", NULL } },
+        { (PRFuncPtr*) &mSymbols.fUniform4iv, { "Uniform4iv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fUniformMatrix2fv, { "UniformMatrix2fv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fUniformMatrix3fv, { "UniformMatrix3fv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fUniformMatrix4fv, { "UniformMatrix4fv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fUseProgram, { "UseProgram", NULL } },
+        { (PRFuncPtr*) &mSymbols.fValidateProgram, { "ValidateProgram", NULL } },
+        { (PRFuncPtr*) &mSymbols.fVertexAttribPointer, { "VertexAttribPointer", NULL } },
+        { (PRFuncPtr*) &mSymbols.fVertexAttrib1f, { "VertexAttrib1f", NULL } },
+        { (PRFuncPtr*) &mSymbols.fVertexAttrib2f, { "VertexAttrib2f", NULL } },
+        { (PRFuncPtr*) &mSymbols.fVertexAttrib3f, { "VertexAttrib3f", NULL } },
+        { (PRFuncPtr*) &mSymbols.fVertexAttrib4f, { "VertexAttrib4f", NULL } },
+        { (PRFuncPtr*) &mSymbols.fVertexAttrib1fv, { "VertexAttrib1fv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fVertexAttrib2fv, { "VertexAttrib2fv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fVertexAttrib3fv, { "VertexAttrib3fv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fVertexAttrib4fv, { "VertexAttrib4fv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fViewport, { "Viewport", NULL } },
+        { (PRFuncPtr*) &mSymbols.fCompileShader, { "CompileShader", NULL } },
+        { (PRFuncPtr*) &mSymbols.fCopyTexImage2D, { "CopyTexImage2D", NULL } },
+        { (PRFuncPtr*) &mSymbols.fCopyTexSubImage2D, { "CopyTexSubImage2D", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetShaderiv, { "GetShaderiv", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetShaderInfoLog, { "GetShaderInfoLog", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetShaderSource, { "GetShaderSource", NULL } },
+        { (PRFuncPtr*) &mSymbols.fShaderSource, { "ShaderSource", NULL } },
+        { (PRFuncPtr*) &mSymbols.fVertexAttribPointer, { "VertexAttribPointer", NULL } },
+        { (PRFuncPtr*) &mSymbols.fBindFramebuffer, { "BindFramebuffer", "BindFramebufferEXT", NULL } },
+        { (PRFuncPtr*) &mSymbols.fBindRenderbuffer, { "BindRenderbuffer", "BindRenderbufferEXT", NULL } },
+        { (PRFuncPtr*) &mSymbols.fCheckFramebufferStatus, { "CheckFramebufferStatus", "CheckFramebufferStatusEXT", NULL } },
+        { (PRFuncPtr*) &mSymbols.fFramebufferRenderbuffer, { "FramebufferRenderbuffer", "FramebufferRenderbufferEXT", NULL } },
+        { (PRFuncPtr*) &mSymbols.fFramebufferTexture2D, { "FramebufferTexture2D", "FramebufferTexture2DEXT", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGenerateMipmap, { "GenerateMipmap", "GenerateMipmapEXT", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetFramebufferAttachmentParameteriv, { "GetFramebufferAttachmentParameteriv", "GetFramebufferAttachmentParameterivEXT", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGetRenderbufferParameteriv, { "GetRenderbufferParameteriv", "GetRenderbufferParameterivEXT", NULL } },
+        { (PRFuncPtr*) &mSymbols.fIsFramebuffer, { "IsFramebuffer", "IsFramebufferEXT", NULL } },
+        { (PRFuncPtr*) &mSymbols.fIsRenderbuffer, { "IsRenderbuffer", "IsRenderbufferEXT", NULL } },
+        { (PRFuncPtr*) &mSymbols.fRenderbufferStorage, { "RenderbufferStorage", "RenderbufferStorageEXT", NULL } },
 
-        { (PRFuncPtr*) &mSymbols.fGenBuffers, { "GenBuffers", "GenBuffersARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGenTextures, { "GenTextures", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fCreateProgram, { "CreateProgram", "CreateProgramARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fCreateShader, { "CreateShader", "CreateShaderARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGenFramebuffers, { "GenFramebuffers", "GenFramebuffersEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fGenRenderbuffers, { "GenRenderbuffers", "GenRenderbuffersEXT", nullptr } },
+        { (PRFuncPtr*) &mSymbols.fGenBuffers, { "GenBuffers", "GenBuffersARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGenTextures, { "GenTextures", NULL } },
+        { (PRFuncPtr*) &mSymbols.fCreateProgram, { "CreateProgram", "CreateProgramARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fCreateShader, { "CreateShader", "CreateShaderARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGenFramebuffers, { "GenFramebuffers", "GenFramebuffersEXT", NULL } },
+        { (PRFuncPtr*) &mSymbols.fGenRenderbuffers, { "GenRenderbuffers", "GenRenderbuffersEXT", NULL } },
 
-        { (PRFuncPtr*) &mSymbols.fDeleteBuffers, { "DeleteBuffers", "DeleteBuffersARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fDeleteTextures, { "DeleteTextures", "DeleteTexturesARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fDeleteProgram, { "DeleteProgram", "DeleteProgramARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fDeleteShader, { "DeleteShader", "DeleteShaderARB", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fDeleteFramebuffers, { "DeleteFramebuffers", "DeleteFramebuffersEXT", nullptr } },
-        { (PRFuncPtr*) &mSymbols.fDeleteRenderbuffers, { "DeleteRenderbuffers", "DeleteRenderbuffersEXT", nullptr } },
+        { (PRFuncPtr*) &mSymbols.fDeleteBuffers, { "DeleteBuffers", "DeleteBuffersARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fDeleteTextures, { "DeleteTextures", "DeleteTexturesARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fDeleteProgram, { "DeleteProgram", "DeleteProgramARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fDeleteShader, { "DeleteShader", "DeleteShaderARB", NULL } },
+        { (PRFuncPtr*) &mSymbols.fDeleteFramebuffers, { "DeleteFramebuffers", "DeleteFramebuffersEXT", NULL } },
+        { (PRFuncPtr*) &mSymbols.fDeleteRenderbuffers, { "DeleteRenderbuffers", "DeleteRenderbuffersEXT", NULL } },
 
-        END_SYMBOLS
+        { NULL, { NULL } },
 
     };
 
     mInitialized = LoadSymbols(&symbols[0], trygl, prefix);
-    MakeCurrent();
-    if (mInitialized) {
-        uint32_t version = 0;
-        ParseGLVersion(this, &version);
-
-        if (ShouldSpew()) {
-            printf_stderr("OpenGL version detected: %u\n", version);
-            printf_stderr("OpenGL vendor: %s\n", fGetString(LOCAL_GL_VENDOR));
-            printf_stderr("OpenGL renderer: %s\n", fGetString(LOCAL_GL_RENDERER));
-        }
-
-        if (version >= mVersion) {
-            mVersion = version;
-        }
-        // Don't fail if version < mVersion, see bug 999445,
-        // Mac OSX 10.6/10.7 machines with Intel GPUs claim only OpenGL 1.4 but
-        // have all the GL2+ extensions that we need.
-    }
 
     // Load OpenGL ES 2.0 symbols, or desktop if we aren't using ES 2.
     if (mInitialized) {
-        if (IsGLES()) {
+        if (mIsGLES2) {
             SymLoadStruct symbols_ES2[] = {
-                { (PRFuncPtr*) &mSymbols.fGetShaderPrecisionFormat, { "GetShaderPrecisionFormat", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fClearDepthf, { "ClearDepthf", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fDepthRangef, { "DepthRangef", nullptr } },
-                END_SYMBOLS
+                { (PRFuncPtr*) &mSymbols.fGetShaderPrecisionFormat, { "GetShaderPrecisionFormat", NULL } },
+                { (PRFuncPtr*) &mSymbols.fClearDepthf, { "ClearDepthf", NULL } },
+                { (PRFuncPtr*) &mSymbols.fDepthRangef, { "DepthRangef", NULL } },
+                { NULL, { NULL } },
             };
 
             if (!LoadSymbols(&symbols_ES2[0], trygl, prefix)) {
@@ -534,27 +263,13 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             }
         } else {
             SymLoadStruct symbols_desktop[] = {
-                { (PRFuncPtr*) &mSymbols.fClearDepth, { "ClearDepth", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fDepthRange, { "DepthRange", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fReadBuffer, { "ReadBuffer", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fMapBuffer, { "MapBuffer", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fUnmapBuffer, { "UnmapBuffer", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fPointParameterf, { "PointParameterf", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fDrawBuffer, { "DrawBuffer", nullptr } },
-                    // These functions are only used by Skia/GL in desktop mode.
-                    // Other parts of Gecko should avoid using these
-                    { (PRFuncPtr*) &mSymbols.fDrawBuffers, { "DrawBuffers", nullptr } },
-                    { (PRFuncPtr*) &mSymbols.fClientActiveTexture, { "ClientActiveTexture", nullptr } },
-                    { (PRFuncPtr*) &mSymbols.fDisableClientState, { "DisableClientState", nullptr } },
-                    { (PRFuncPtr*) &mSymbols.fEnableClientState, { "EnableClientState", nullptr } },
-                    { (PRFuncPtr*) &mSymbols.fLoadIdentity, { "LoadIdentity", nullptr } },
-                    { (PRFuncPtr*) &mSymbols.fLoadMatrixf, { "LoadMatrixf", nullptr } },
-                    { (PRFuncPtr*) &mSymbols.fMatrixMode, { "MatrixMode", nullptr } },
-                    { (PRFuncPtr*) &mSymbols.fTexGeni, { "TexGeni", nullptr } },
-                    { (PRFuncPtr*) &mSymbols.fTexGenf, { "TexGenf", nullptr } },
-                    { (PRFuncPtr*) &mSymbols.fTexGenfv, { "TexGenfv", nullptr } },
-                    { (PRFuncPtr*) &mSymbols.fVertexPointer, { "VertexPointer", nullptr } },
-                END_SYMBOLS
+                { (PRFuncPtr*) &mSymbols.fClearDepth, { "ClearDepth", NULL } },
+                { (PRFuncPtr*) &mSymbols.fDepthRange, { "DepthRange", NULL } },
+                { (PRFuncPtr*) &mSymbols.fReadBuffer, { "ReadBuffer", NULL } },
+                { (PRFuncPtr*) &mSymbols.fMapBuffer, { "MapBuffer", NULL } },
+                { (PRFuncPtr*) &mSymbols.fUnmapBuffer, { "UnmapBuffer", NULL } },
+                { (PRFuncPtr*) &mSymbols.fPointParameterf, { "PointParameterf", NULL } },
+                { NULL, { NULL } },
             };
 
             if (!LoadSymbols(&symbols_desktop[0], trygl, prefix)) {
@@ -564,31 +279,24 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         }
     }
 
-    const char *glVendorString = nullptr;
-    const char *glRendererString = nullptr;
+    const char *glVendorString;
+    const char *glRendererString;
 
     if (mInitialized) {
         // The order of these strings must match up with the order of the enum
         // defined in GLContext.h for vendor IDs
         glVendorString = (const char *)fGetString(LOCAL_GL_VENDOR);
-        if (!glVendorString)
-            mInitialized = false;
-
-        const char *vendorMatchStrings[size_t(GLVendor::Other)] = {
+        const char *vendorMatchStrings[VendorOther] = {
                 "Intel",
                 "NVIDIA",
                 "ATI",
                 "Qualcomm",
-                "Imagination",
-                "nouveau",
-                "Vivante",
-                "VMware, Inc."
+                "Imagination"
         };
-
-        mVendor = GLVendor::Other;
-        for (size_t i = 0; i < size_t(GLVendor::Other); ++i) {
+        mVendor = VendorOther;
+        for (int i = 0; i < VendorOther; ++i) {
             if (DoesStringMatch(glVendorString, vendorMatchStrings[i])) {
-                mVendor = GLVendor(i);
+                mVendor = i;
                 break;
             }
         }
@@ -596,35 +304,23 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         // The order of these strings must match up with the order of the enum
         // defined in GLContext.h for renderer IDs
         glRendererString = (const char *)fGetString(LOCAL_GL_RENDERER);
-        if (!glRendererString)
-            mInitialized = false;
-
-        const char *rendererMatchStrings[size_t(GLRenderer::Other)] = {
+        const char *rendererMatchStrings[RendererOther] = {
                 "Adreno 200",
                 "Adreno 205",
-                "Adreno (TM) 200",
-                "Adreno (TM) 205",
-                "Adreno (TM) 320",
                 "PowerVR SGX 530",
                 "PowerVR SGX 540",
-                "NVIDIA Tegra",
-                "Android Emulator",
-                "Gallium 0.4 on llvmpipe",
-                "Intel HD Graphics 3000 OpenGL Engine",
-                "Microsoft Basic Render Driver"
-        };
 
-        mRenderer = GLRenderer::Other;
-        for (size_t i = 0; i < size_t(GLRenderer::Other); ++i) {
+        };
+        mRenderer = RendererOther;
+        for (int i = 0; i < RendererOther; ++i) {
             if (DoesStringMatch(glRendererString, rendererMatchStrings[i])) {
-                mRenderer = GLRenderer(i);
+                mRenderer = i;
                 break;
             }
         }
     }
 
-
-#ifdef MOZ_GL_DEBUG
+#ifdef DEBUG
     if (PR_GetEnv("MOZ_GL_DEBUG"))
         sDebugMode |= DebugEnabled;
 
@@ -639,78 +335,43 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
 #endif
 
     if (mInitialized) {
-        if (ShouldSpew()) {
-            const char* vendors[size_t(GLVendor::Other)] = {
+#ifdef DEBUG
+        static bool firstRun = true;
+        if (firstRun && DebugMode()) {
+            const char *vendors[VendorOther] = {
                 "Intel",
                 "NVIDIA",
                 "ATI",
                 "Qualcomm"
             };
 
-            MOZ_ASSERT(glVendorString);
-            if (mVendor < GLVendor::Other) {
+            if (mVendor < VendorOther) {
                 printf_stderr("OpenGL vendor ('%s') recognized as: %s\n",
-                              glVendorString, vendors[size_t(mVendor)]);
+                              glVendorString, vendors[mVendor]);
             } else {
                 printf_stderr("OpenGL vendor ('%s') unrecognized\n", glVendorString);
             }
         }
+        firstRun = false;
+#endif
 
         InitExtensions();
-        InitFeatures();
-
-        // Disable extensions with partial or incorrect support.
-        if (WorkAroundDriverBugs()) {
-            if (Renderer() == GLRenderer::AdrenoTM320) {
-                MarkUnsupported(GLFeature::standard_derivatives);
-            }
-
-            if (Vendor() == GLVendor::Vivante) {
-                // bug 958256
-                MarkUnsupported(GLFeature::standard_derivatives);
-            }
-
-            if (Vendor() == GLVendor::Imagination &&
-                Renderer() == GLRenderer::SGX540) {
-                // Bug 980048
-                MarkExtensionUnsupported(OES_EGL_sync);
-            }
-
-            if (Renderer() == GLRenderer::MicrosoftBasicRenderDriver) {
-                // Bug 978966: on Microsoft's "Basic Render Driver" (software renderer)
-                // multisampling hardcodes blending with the default blendfunc, which breaks WebGL.
-                MarkUnsupported(GLFeature::framebuffer_multisample);
-            }
-
-#ifdef XP_MACOSX
-            // The Mac Nvidia driver, for versions up to and including 10.8,
-            // don't seem to properly support this.  See 814839
-            // this has been fixed in Mac OS X 10.9. See 907946
-            // and it also works in 10.8.3 and higher.  See 1094338.
-            if (Vendor() == gl::GLVendor::NVIDIA &&
-                !nsCocoaFeatures::IsAtLeastVersion(10,8,3))
-            {
-                MarkUnsupported(GLFeature::depth_texture);
-            }
-#endif
-        }
 
         NS_ASSERTION(!IsExtensionSupported(GLContext::ARB_pixel_buffer_object) ||
                      (mSymbols.fMapBuffer && mSymbols.fUnmapBuffer),
                      "ARB_pixel_buffer_object supported without glMapBuffer/UnmapBuffer being available!");
 
         if (SupportsRobustness()) {
-            mHasRobustness = false;
-
             if (IsExtensionSupported(ARB_robustness)) {
                 SymLoadStruct robustnessSymbols[] = {
                     { (PRFuncPtr*) &mSymbols.fGetGraphicsResetStatus, { "GetGraphicsResetStatusARB", nullptr } },
-                    END_SYMBOLS
+                    { nullptr, { nullptr } },
                 };
 
                 if (!LoadSymbols(&robustnessSymbols[0], trygl, prefix)) {
                     NS_ERROR("GL supports ARB_robustness without supplying GetGraphicsResetStatusARB.");
 
+                    MarkExtensionUnsupported(ARB_robustness);
                     mSymbols.fGetGraphicsResetStatus = nullptr;
                 } else {
                     mHasRobustness = true;
@@ -720,65 +381,67 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                 IsExtensionSupported(EXT_robustness)) {
                 SymLoadStruct robustnessSymbols[] = {
                     { (PRFuncPtr*) &mSymbols.fGetGraphicsResetStatus, { "GetGraphicsResetStatusEXT", nullptr } },
-                    END_SYMBOLS
+                    { nullptr, { nullptr } },
                 };
 
                 if (!LoadSymbols(&robustnessSymbols[0], trygl, prefix)) {
                     NS_ERROR("GL supports EXT_robustness without supplying GetGraphicsResetStatusEXT.");
 
+                    MarkExtensionUnsupported(EXT_robustness);
                     mSymbols.fGetGraphicsResetStatus = nullptr;
                 } else {
                     mHasRobustness = true;
                 }
             }
-
-            if (!mHasRobustness) {
-                MarkUnsupported(GLFeature::robustness);
-            }
         }
 
         // Check for aux symbols based on extensions
-        if (IsSupported(GLFeature::framebuffer_blit))
+        if (IsExtensionSupported(GLContext::ANGLE_framebuffer_blit) ||
+            IsExtensionSupported(GLContext::EXT_framebuffer_blit))
         {
-            SymLoadStruct coreSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fBlitFramebuffer, { "BlitFramebuffer", nullptr } },
-                END_SYMBOLS
+            SymLoadStruct auxSymbols[] = {
+                {
+                    (PRFuncPtr*) &mSymbols.fBlitFramebuffer,
+                    {
+                        "BlitFramebuffer",
+                        "BlitFramebufferEXT",
+                        "BlitFramebufferANGLE",
+                        nullptr
+                    }
+                },
+                { nullptr, { nullptr } },
             };
-
-            SymLoadStruct extSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fBlitFramebuffer, { "BlitFramebufferEXT", "BlitFramebufferANGLE", nullptr } },
-                END_SYMBOLS
-            };
-
-            bool useCore = IsFeatureProvidedByCoreSymbols(GLFeature::framebuffer_blit);
-
-            if (!LoadSymbols(useCore ? coreSymbols : extSymbols, trygl, prefix)) {
+            if (!LoadSymbols(&auxSymbols[0], trygl, prefix)) {
                 NS_ERROR("GL supports framebuffer_blit without supplying glBlitFramebuffer");
 
-                MarkUnsupported(GLFeature::framebuffer_blit);
-                ClearSymbols(coreSymbols);
+                MarkExtensionUnsupported(ANGLE_framebuffer_blit);
+                MarkExtensionUnsupported(EXT_framebuffer_blit);
+                mSymbols.fBlitFramebuffer = nullptr;
             }
         }
 
-        if (IsSupported(GLFeature::framebuffer_multisample))
+        if (SupportsOffscreenSplit() &&
+            ( IsExtensionSupported(GLContext::ANGLE_framebuffer_multisample) ||
+              IsExtensionSupported(GLContext::EXT_framebuffer_multisample) ))
         {
-            SymLoadStruct coreSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fRenderbufferStorageMultisample, { "RenderbufferStorageMultisample", nullptr } },
-                END_SYMBOLS
+            SymLoadStruct auxSymbols[] = {
+                {
+                    (PRFuncPtr*) &mSymbols.fRenderbufferStorageMultisample,
+                    {
+                        "RenderbufferStorageMultisample",
+                        "RenderbufferStorageMultisampleEXT",
+                        "RenderbufferStorageMultisampleANGLE",
+                        nullptr
+                    }
+                },
+                { nullptr, { nullptr } },
             };
-
-            SymLoadStruct extSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fRenderbufferStorageMultisample, { "RenderbufferStorageMultisampleEXT", "RenderbufferStorageMultisampleANGLE", nullptr } },
-                END_SYMBOLS
-            };
-
-            bool useCore = IsFeatureProvidedByCoreSymbols(GLFeature::framebuffer_multisample);
-
-            if (!LoadSymbols(useCore ? coreSymbols : extSymbols, trygl, prefix)) {
+            if (!LoadSymbols(&auxSymbols[0], trygl, prefix)) {
                 NS_ERROR("GL supports framebuffer_multisample without supplying glRenderbufferStorageMultisample");
 
-                MarkUnsupported(GLFeature::framebuffer_multisample);
-                ClearSymbols(coreSymbols);
+                MarkExtensionUnsupported(ANGLE_framebuffer_multisample);
+                MarkExtensionUnsupported(EXT_framebuffer_multisample);
+                mSymbols.fRenderbufferStorageMultisample = nullptr;
             }
         }
 
@@ -791,803 +454,84 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                 { (PRFuncPtr*) &mSymbols.fWaitSync,       { "WaitSync",       nullptr } },
                 { (PRFuncPtr*) &mSymbols.fGetInteger64v,  { "GetInteger64v",  nullptr } },
                 { (PRFuncPtr*) &mSymbols.fGetSynciv,      { "GetSynciv",      nullptr } },
-                END_SYMBOLS
+                { nullptr, { nullptr } },
             };
 
             if (!LoadSymbols(&syncSymbols[0], trygl, prefix)) {
                 NS_ERROR("GL supports ARB_sync without supplying its functions.");
 
                 MarkExtensionUnsupported(ARB_sync);
-                ClearSymbols(syncSymbols);
+                mSymbols.fFenceSync = nullptr;
+                mSymbols.fIsSync = nullptr;
+                mSymbols.fDeleteSync = nullptr;
+                mSymbols.fClientWaitSync = nullptr;
+                mSymbols.fWaitSync = nullptr;
+                mSymbols.fGetInteger64v = nullptr;
+                mSymbols.fGetSynciv = nullptr;
             }
         }
 
         if (IsExtensionSupported(OES_EGL_image)) {
-            SymLoadStruct extSymbols[] = {
+            SymLoadStruct imageSymbols[] = {
                 { (PRFuncPtr*) &mSymbols.fEGLImageTargetTexture2D, { "EGLImageTargetTexture2DOES", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fEGLImageTargetRenderbufferStorage, { "EGLImageTargetRenderbufferStorageOES", nullptr } },
-                END_SYMBOLS
+                { nullptr, { nullptr } },
             };
 
-            if (!LoadSymbols(extSymbols, trygl, prefix)) {
+            if (!LoadSymbols(&imageSymbols[0], trygl, prefix)) {
                 NS_ERROR("GL supports OES_EGL_image without supplying its functions.");
 
                 MarkExtensionUnsupported(OES_EGL_image);
-                ClearSymbols(extSymbols);
+                mSymbols.fEGLImageTargetTexture2D = nullptr;
             }
         }
-
-        if (IsExtensionSupported(APPLE_texture_range)) {
-            SymLoadStruct extSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fTextureRangeAPPLE, { "TextureRangeAPPLE", nullptr } },
-                END_SYMBOLS
-            };
-
-            if (!LoadSymbols(extSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports APPLE_texture_range without supplying its functions.");
-
-                ClearSymbols(extSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::vertex_array_object)) {
-            SymLoadStruct coreSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fIsVertexArray, { "IsVertexArray", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGenVertexArrays, { "GenVertexArrays", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fBindVertexArray, { "BindVertexArray", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fDeleteVertexArrays, { "DeleteVertexArrays", nullptr } },
-                END_SYMBOLS
-            };
-
-            SymLoadStruct extSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fIsVertexArray, { "IsVertexArrayARB", "IsVertexArrayOES", "IsVertexArrayAPPLE", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGenVertexArrays, { "GenVertexArraysARB", "GenVertexArraysOES", "GenVertexArraysAPPLE", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fBindVertexArray, { "BindVertexArrayARB", "BindVertexArrayOES", "BindVertexArrayAPPLE", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fDeleteVertexArrays, { "DeleteVertexArraysARB", "DeleteVertexArraysOES", "DeleteVertexArraysAPPLE", nullptr } },
-                END_SYMBOLS
-            };
-
-            bool useCore = IsFeatureProvidedByCoreSymbols(GLFeature::vertex_array_object);
-
-            if (!LoadSymbols(useCore ? coreSymbols : extSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports Vertex Array Object without supplying its functions.");
-
-                MarkUnsupported(GLFeature::vertex_array_object);
-                ClearSymbols(coreSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::draw_instanced)) {
-            SymLoadStruct coreSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fDrawArraysInstanced, { "DrawArraysInstanced", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fDrawElementsInstanced, { "DrawElementsInstanced", nullptr } },
-                END_SYMBOLS
-            };
-
-            SymLoadStruct extSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fDrawArraysInstanced, { "DrawArraysInstancedARB", "DrawArraysInstancedEXT", "DrawArraysInstancedNV", "DrawArraysInstancedANGLE", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fDrawElementsInstanced, { "DrawElementsInstancedARB", "DrawElementsInstancedEXT", "DrawElementsInstancedNV", "DrawElementsInstancedANGLE", nullptr }
-                },
-                END_SYMBOLS
-            };
-
-            bool useCore = IsFeatureProvidedByCoreSymbols(GLFeature::draw_instanced);
-
-            if (!LoadSymbols(useCore ? coreSymbols : extSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports instanced draws without supplying its functions.");
-
-                MarkUnsupported(GLFeature::draw_instanced);
-                ClearSymbols(coreSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::instanced_arrays)) {
-            SymLoadStruct coreSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fVertexAttribDivisor, { "VertexAttribDivisor", nullptr } },
-                END_SYMBOLS
-            };
-
-            SymLoadStruct extSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fVertexAttribDivisor, { "VertexAttribDivisorARB", "VertexAttribDivisorNV", "VertexAttribDivisorANGLE", nullptr } },
-                END_SYMBOLS
-            };
-
-            bool useCore = IsFeatureProvidedByCoreSymbols(GLFeature::instanced_arrays);
-
-            if (!LoadSymbols(useCore ? coreSymbols : extSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports array instanced without supplying it function.");
-
-                MarkUnsupported(GLFeature::instanced_arrays);
-                ClearSymbols(coreSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::texture_storage)) {
-            SymLoadStruct coreSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fTexStorage2D, { "TexStorage2D", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fTexStorage3D, { "TexStorage3D", nullptr } },
-                END_SYMBOLS
-            };
-
-            SymLoadStruct extSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fTexStorage2D, { "TexStorage2DEXT", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fTexStorage3D, { "TexStorage3DEXT", nullptr } },
-                END_SYMBOLS
-            };
-
-            bool useCore = IsFeatureProvidedByCoreSymbols(GLFeature::texture_storage);
-            if (!LoadSymbols(useCore ? coreSymbols : extSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports texture storage without supplying its functions.");
-
-                MarkUnsupported(GLFeature::texture_storage);
-                MarkExtensionSupported(useCore ? ARB_texture_storage : EXT_texture_storage);
-                ClearSymbols(coreSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::sampler_objects)) {
-            SymLoadStruct samplerObjectsSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fGenSamplers, { "GenSamplers", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fDeleteSamplers, { "DeleteSamplers", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fIsSampler, { "IsSampler", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fBindSampler, { "BindSampler", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fSamplerParameteri, { "SamplerParameteri", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fSamplerParameteriv, { "SamplerParameteriv", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fSamplerParameterf, { "SamplerParameterf", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fSamplerParameterfv, { "SamplerParameterfv", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGetSamplerParameteriv, { "GetSamplerParameteriv", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGetSamplerParameterfv, { "GetSamplerParameterfv", nullptr } },
-                END_SYMBOLS
-            };
-
-            if (!LoadSymbols(samplerObjectsSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports sampler objects without supplying its functions.");
-
-                MarkUnsupported(GLFeature::sampler_objects);
-                ClearSymbols(samplerObjectsSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::texture_storage)) {
-            SymLoadStruct coreSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fTexStorage2D, { "TexStorage2D", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fTexStorage3D, { "TexStorage3D", nullptr } },
-                END_SYMBOLS
-            };
-
-            if (!LoadSymbols(coreSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports texture storage without supplying its functions.");
-
-                MarkUnsupported(GLFeature::texture_storage);
-                MarkExtensionUnsupported(ARB_texture_storage);
-                ClearSymbols(coreSymbols);
-            }
-        }
-
-        // ARB_transform_feedback2/NV_transform_feedback2 is a
-        // superset of EXT_transform_feedback/NV_transform_feedback
-        // and adds glPauseTransformFeedback &
-        // glResumeTransformFeedback, which are required for WebGL2.
-        if (IsSupported(GLFeature::transform_feedback2)) {
-            SymLoadStruct coreSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fBindBufferBase, { "BindBufferBase", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fBindBufferRange, { "BindBufferRange", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGenTransformFeedbacks, { "GenTransformFeedbacks", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fDeleteTransformFeedbacks, { "DeleteTransformFeedbacks", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fIsTransformFeedback, { "IsTransformFeedback", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fBeginTransformFeedback, { "BeginTransformFeedback", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fEndTransformFeedback, { "EndTransformFeedback", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fTransformFeedbackVaryings, { "TransformFeedbackVaryings", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGetTransformFeedbackVarying, { "GetTransformFeedbackVarying", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fPauseTransformFeedback, { "PauseTransformFeedback", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fResumeTransformFeedback, { "ResumeTransformFeedback", nullptr } },
-                END_SYMBOLS
-            };
-
-            SymLoadStruct extSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fBindBufferBase, { "BindBufferBaseEXT", "BindBufferBaseNV", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fBindBufferRange, { "BindBufferRangeEXT", "BindBufferRangeNV", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGenTransformFeedbacks, { "GenTransformFeedbacksNV", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fDeleteTransformFeedbacks, { "DeleteTransformFeedbacksNV", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fIsTransformFeedback, { "IsTransformFeedbackNV", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fBeginTransformFeedback, { "BeginTransformFeedbackEXT", "BeginTransformFeedbackNV", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fEndTransformFeedback, { "EndTransformFeedbackEXT", "EndTransformFeedbackNV", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fTransformFeedbackVaryings, { "TransformFeedbackVaryingsEXT", "TransformFeedbackVaryingsNV", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGetTransformFeedbackVarying, { "GetTransformFeedbackVaryingEXT", "GetTransformFeedbackVaryingNV", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fPauseTransformFeedback, { "PauseTransformFeedbackNV", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fResumeTransformFeedback, { "ResumeTransformFeedbackNV", nullptr } },
-                END_SYMBOLS
-            };
-
-            bool useCore = IsFeatureProvidedByCoreSymbols(GLFeature::transform_feedback2);
-
-            if (!LoadSymbols(useCore ? coreSymbols : extSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports transform feedback without supplying its functions.");
-
-                MarkUnsupported(GLFeature::transform_feedback2);
-                MarkUnsupported(GLFeature::bind_buffer_offset);
-                ClearSymbols(coreSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::bind_buffer_offset)) {
-            SymLoadStruct coreSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fBindBufferOffset, { "BindBufferOffset", nullptr } },
-                END_SYMBOLS
-            };
-
-            SymLoadStruct extSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fBindBufferOffset,
-                  { "BindBufferOffsetEXT", "BindBufferOffsetNV", nullptr }
-                },
-                END_SYMBOLS
-            };
-
-            bool useCore = IsFeatureProvidedByCoreSymbols(GLFeature::bind_buffer_offset);
-
-            if (!LoadSymbols(useCore ? coreSymbols : extSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports BindBufferOffset without supplying its function.");
-
-                MarkUnsupported(GLFeature::bind_buffer_offset);
-                ClearSymbols(coreSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::query_objects)) {
-            SymLoadStruct coreSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fBeginQuery, { "BeginQuery", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGenQueries, { "GenQueries", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fDeleteQueries, { "DeleteQueries", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fEndQuery, { "EndQuery", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGetQueryiv, { "GetQueryiv", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGetQueryObjectuiv, { "GetQueryObjectuiv", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fIsQuery, { "IsQuery", nullptr } },
-                END_SYMBOLS
-            };
-
-            SymLoadStruct extSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fBeginQuery, { "BeginQueryEXT", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGenQueries, { "GenQueriesEXT", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fDeleteQueries, { "DeleteQueriesEXT", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fEndQuery, { "EndQueryEXT", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGetQueryiv, { "GetQueryivEXT", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGetQueryObjectuiv, { "GetQueryObjectuivEXT", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fIsQuery, { "IsQueryEXT", nullptr } },
-                END_SYMBOLS
-            };
-
-            bool useCore = IsFeatureProvidedByCoreSymbols(GLFeature::query_objects);
-
-            if (!LoadSymbols(useCore ? coreSymbols : extSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports query objects without supplying its functions.");
-
-                MarkUnsupported(GLFeature::query_objects);
-                MarkUnsupported(GLFeature::get_query_object_iv);
-                MarkUnsupported(GLFeature::occlusion_query);
-                MarkUnsupported(GLFeature::occlusion_query_boolean);
-                MarkUnsupported(GLFeature::occlusion_query2);
-                ClearSymbols(coreSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::get_query_object_iv)) {
-            SymLoadStruct coreSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fGetQueryObjectiv, { "GetQueryObjectiv", nullptr } },
-                END_SYMBOLS
-            };
-
-            SymLoadStruct extSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fGetQueryObjectiv, { "GetQueryObjectivEXT", nullptr } },
-                END_SYMBOLS
-            };
-
-            bool useCore = IsFeatureProvidedByCoreSymbols(GLFeature::get_query_object_iv);
-
-            if (!LoadSymbols(useCore ? coreSymbols : extSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports query objects iv getter without supplying its function.");
-
-                MarkUnsupported(GLFeature::get_query_object_iv);
-                ClearSymbols(coreSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::clear_buffers)) {
-            SymLoadStruct clearBuffersSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fClearBufferfi,  { "ClearBufferfi",  nullptr } },
-                { (PRFuncPtr*) &mSymbols.fClearBufferfv,  { "ClearBufferfv",  nullptr } },
-                { (PRFuncPtr*) &mSymbols.fClearBufferiv,  { "ClearBufferiv",  nullptr } },
-                { (PRFuncPtr*) &mSymbols.fClearBufferuiv, { "ClearBufferuiv", nullptr } },
-                END_SYMBOLS
-            };
-
-            if (!LoadSymbols(clearBuffersSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports clear_buffers without supplying its functions.");
-
-                MarkUnsupported(GLFeature::clear_buffers);
-                ClearSymbols(clearBuffersSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::copy_buffer)) {
-            SymLoadStruct copyBufferSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fCopyBufferSubData, { "CopyBufferSubData", nullptr } },
-                END_SYMBOLS
-            };
-
-            if (!LoadSymbols(copyBufferSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports copy_buffer without supplying its function.");
-
-                MarkUnsupported(GLFeature::copy_buffer);
-                ClearSymbols(copyBufferSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::draw_buffers)) {
-            SymLoadStruct coreSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fDrawBuffers, { "DrawBuffers", nullptr } },
-                END_SYMBOLS
-            };
-
-            SymLoadStruct extSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fDrawBuffers, { "DrawBuffersARB", "DrawBuffersEXT", nullptr } },
-                END_SYMBOLS
-            };
-
-            bool useCore = IsFeatureProvidedByCoreSymbols(GLFeature::draw_buffers);
-
-            if (!LoadSymbols(useCore ? coreSymbols : extSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports draw_buffers without supplying its functions.");
-
-                MarkUnsupported(GLFeature::draw_buffers);
-                ClearSymbols(coreSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::draw_range_elements)) {
-            SymLoadStruct coreSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fDrawRangeElements, { "DrawRangeElements", nullptr } },
-                END_SYMBOLS
-            };
-
-            SymLoadStruct extSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fDrawRangeElements, { "DrawRangeElementsEXT", nullptr } },
-                END_SYMBOLS
-            };
-
-            bool useCore = IsFeatureProvidedByCoreSymbols(GLFeature::draw_range_elements);
-
-            if (!LoadSymbols(useCore ? coreSymbols : extSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports draw_range_elements without supplying its functions.");
-
-                MarkUnsupported(GLFeature::draw_range_elements);
-                ClearSymbols(coreSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::get_integer_indexed)) {
-            SymLoadStruct coreSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fGetIntegeri_v, { "GetIntegeri_v", nullptr } },
-                END_SYMBOLS
-            };
-
-            SymLoadStruct extSymbols[] ={
-                { (PRFuncPtr*) &mSymbols.fGetIntegeri_v, { "GetIntegerIndexedvEXT", nullptr } },
-                END_SYMBOLS
-            };
-
-            bool useCore = IsFeatureProvidedByCoreSymbols(GLFeature::get_integer_indexed);
-
-            if (!LoadSymbols(useCore ? coreSymbols : extSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports get_integer_indexed without supplying its functions.");
-
-                MarkUnsupported(GLFeature::get_integer_indexed);
-                ClearSymbols(coreSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::get_integer64_indexed)) {
-            SymLoadStruct coreSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fGetInteger64i_v, { "GetInteger64i_v", nullptr } },
-                END_SYMBOLS
-            };
-
-            if (!LoadSymbols(coreSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports get_integer64_indexed without supplying its functions.");
-
-                MarkUnsupported(GLFeature::get_integer64_indexed);
-                ClearSymbols(coreSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::gpu_shader4)) {
-            SymLoadStruct gpuShader4Symbols[] = {
-                { (PRFuncPtr*) &mSymbols.fVertexAttribI4i, { "VertexAttribI4i", "VertexAttribI4iEXT", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fVertexAttribI4iv, { "VertexAttribI4iv","VertexAttribI4ivEXT", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fVertexAttribI4ui, { "VertexAttribI4ui", "VertexAttribI4uiEXT", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fVertexAttribI4uiv, { "VertexAttribI4uiv", "VertexAttribI4uivEXT", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fVertexAttribIPointer, { "VertexAttribIPointer", "VertexAttribIPointerEXT", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fUniform1ui,  { "Uniform1ui", "Uniform1uiEXT", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fUniform2ui,  { "Uniform2ui", "Uniform2uiEXT", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fUniform3ui,  { "Uniform3ui", "Uniform3uiEXT", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fUniform4ui,  { "Uniform4ui", "Uniform4uiEXT", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fUniform1uiv, { "Uniform1uiv", "Uniform1uivEXT", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fUniform2uiv, { "Uniform2uiv", "Uniform2uivEXT", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fUniform3uiv, { "Uniform3uiv", "Uniform3uivEXT", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fUniform4uiv, { "Uniform4uiv", "Uniform4uivEXT", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGetFragDataLocation, { "GetFragDataLocation", "GetFragDataLocationEXT", nullptr } },
-                END_SYMBOLS
-            };
-
-            if (!LoadSymbols(gpuShader4Symbols, trygl, prefix)) {
-                NS_ERROR("GL supports gpu_shader4 without supplying its functions.");
-
-                MarkUnsupported(GLFeature::gpu_shader4);
-                ClearSymbols(gpuShader4Symbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::map_buffer_range)) {
-            SymLoadStruct mapBufferRangeSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fMapBufferRange, { "MapBufferRange", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fFlushMappedBufferRange, { "FlushMappedBufferRange", nullptr } },
-                END_SYMBOLS
-            };
-
-            if (!LoadSymbols(mapBufferRangeSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports map_buffer_range without supplying its functions.");
-
-                MarkUnsupported(GLFeature::map_buffer_range);
-                ClearSymbols(mapBufferRangeSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::texture_3D)) {
-            SymLoadStruct coreSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fTexImage3D, { "TexImage3D", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fTexSubImage3D, { "TexSubImage3D", nullptr } },
-                END_SYMBOLS
-            };
-
-            SymLoadStruct extSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fTexSubImage3D, { "TexSubImage3DEXT", "TexSubImage3DOES", nullptr } },
-                END_SYMBOLS
-            };
-
-            bool useCore = IsFeatureProvidedByCoreSymbols(GLFeature::texture_3D);
-
-            if (!LoadSymbols(useCore ? coreSymbols : extSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports 3D textures without supplying functions.");
-
-                MarkUnsupported(GLFeature::texture_3D);
-                ClearSymbols(coreSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::texture_3D_compressed)) {
-            SymLoadStruct coreSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fCompressedTexImage3D, { "CompressedTexImage3D", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fCompressedTexSubImage3D, { "CompressedTexSubImage3D", nullptr } },
-                END_SYMBOLS
-            };
-
-            SymLoadStruct extSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fCompressedTexImage3D, { "CompressedTexImage3DARB", "CompressedTexImage3DOES", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fCompressedTexSubImage3D, { "CompressedTexSubImage3DARB", "CompressedTexSubImage3DOES", nullptr } },
-                END_SYMBOLS
-            };
-
-            bool useCore = IsFeatureProvidedByCoreSymbols(GLFeature::texture_3D_compressed);
-
-            if (!LoadSymbols(useCore ? coreSymbols : extSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports 3D textures without supplying functions.");
-
-                MarkUnsupported(GLFeature::texture_3D_compressed);
-                ClearSymbols(coreSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::texture_3D_copy)) {
-            SymLoadStruct coreSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fCopyTexSubImage3D, { "CopyTexSubImage3D", nullptr } },
-                END_SYMBOLS
-            };
-
-            SymLoadStruct extSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fCopyTexSubImage3D, { "CopyTexSubImage3DEXT", "CopyTexSubImage3DOES", nullptr } },
-                END_SYMBOLS
-            };
-
-            bool useCore = IsFeatureProvidedByCoreSymbols(GLFeature::texture_3D_copy);
-
-            if (!LoadSymbols(useCore ? coreSymbols : extSymbols, trygl, prefix)) {
-                NS_ERROR("GL supports 3D textures without supplying functions.");
-
-                MarkUnsupported(GLFeature::texture_3D_copy);
-                ClearSymbols(coreSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::uniform_buffer_object)) {
-            SymLoadStruct uboSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fGetUniformIndices, { "GetUniformIndices", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGetActiveUniformsiv, { "GetActiveUniformsiv", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGetActiveUniformName, { "GetActiveUniformName", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGetUniformBlockIndex, { "GetUniformBlockIndex", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGetActiveUniformBlockiv, { "GetActiveUniformBlockiv", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGetActiveUniformBlockName, { "GetActiveUniformBlockName", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fUniformBlockBinding, { "UniformBlockBinding", nullptr } },
-                END_SYMBOLS
-            };
-
-            if (!LoadSymbols(&uboSymbols[0], trygl, prefix)) {
-                NS_ERROR("GL supports ARB_uniform_buffer_object without supplying its functions.");
-
-                MarkExtensionUnsupported(ARB_uniform_buffer_object);
-                MarkUnsupported(GLFeature::uniform_buffer_object);
-                ClearSymbols(uboSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::uniform_matrix_nonsquare)) {
-            SymLoadStruct umnSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fUniformMatrix2x3fv, { "UniformMatrix2x3fv", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fUniformMatrix2x4fv, { "UniformMatrix2x4fv", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fUniformMatrix3x2fv, { "UniformMatrix3x2fv", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fUniformMatrix3x4fv, { "UniformMatrix3x4fv", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fUniformMatrix4x2fv, { "UniformMatrix4x2fv", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fUniformMatrix4x3fv, { "UniformMatrix4x3fv", nullptr } },
-                END_SYMBOLS
-            };
-
-            if (!LoadSymbols(&umnSymbols[0], trygl, prefix)) {
-                NS_ERROR("GL supports uniform matrix with non-square dim without supplying its functions.");
-
-                MarkUnsupported(GLFeature::uniform_matrix_nonsquare);
-                ClearSymbols(umnSymbols);
-            }
-        }
-
-        if (IsSupported(GLFeature::invalidate_framebuffer)) {
-            SymLoadStruct invSymbols[] = {
-                { (PRFuncPtr *) &mSymbols.fInvalidateFramebuffer,    { "InvalidateFramebuffer", nullptr } },
-                { (PRFuncPtr *) &mSymbols.fInvalidateSubFramebuffer, { "InvalidateSubFramebuffer", nullptr } },
-                END_SYMBOLS
-            };
-
-            if (!LoadSymbols(&invSymbols[0], trygl, prefix)) {
-                NS_ERROR("GL supports framebuffer invalidation without supplying its functions.");
-
-                MarkUnsupported(GLFeature::invalidate_framebuffer);
-                ClearSymbols(invSymbols);
-            }
-        }
-
-        if (IsExtensionSupported(KHR_debug)) {
-            SymLoadStruct extSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fDebugMessageControl,  { "DebugMessageControl",  "DebugMessageControlKHR",  nullptr } },
-                { (PRFuncPtr*) &mSymbols.fDebugMessageInsert,   { "DebugMessageInsert",   "DebugMessageInsertKHR",   nullptr } },
-                { (PRFuncPtr*) &mSymbols.fDebugMessageCallback, { "DebugMessageCallback", "DebugMessageCallbackKHR", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGetDebugMessageLog,   { "GetDebugMessageLog",   "GetDebugMessageLogKHR",   nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGetPointerv,          { "GetPointerv",          "GetPointervKHR",          nullptr } },
-                { (PRFuncPtr*) &mSymbols.fPushDebugGroup,       { "PushDebugGroup",       "PushDebugGroupKHR",       nullptr } },
-                { (PRFuncPtr*) &mSymbols.fPopDebugGroup,        { "PopDebugGroup",        "PopDebugGroupKHR",        nullptr } },
-                { (PRFuncPtr*) &mSymbols.fObjectLabel,          { "ObjectLabel",          "ObjectLabelKHR",          nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGetObjectLabel,       { "GetObjectLabel",       "GetObjectLabelKHR",       nullptr } },
-                { (PRFuncPtr*) &mSymbols.fObjectPtrLabel,       { "ObjectPtrLabel",       "ObjectPtrLabelKHR",       nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGetObjectPtrLabel,    { "GetObjectPtrLabel",    "GetObjectPtrLabelKHR",    nullptr } },
-                END_SYMBOLS
-            };
-
-            if (!LoadSymbols(&extSymbols[0], trygl, prefix)) {
-                NS_ERROR("GL supports KHR_debug without supplying its functions.");
-
-                MarkExtensionUnsupported(KHR_debug);
-                ClearSymbols(extSymbols);
-            }
-        }
-
-        if (IsExtensionSupported(NV_fence)) {
-            SymLoadStruct extSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fGenFences,    { "GenFencesNV",    nullptr } },
-                { (PRFuncPtr*) &mSymbols.fDeleteFences, { "DeleteFencesNV", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fSetFence,     { "SetFenceNV",     nullptr } },
-                { (PRFuncPtr*) &mSymbols.fTestFence,    { "TestFenceNV",    nullptr } },
-                { (PRFuncPtr*) &mSymbols.fFinishFence,  { "FinishFenceNV",  nullptr } },
-                { (PRFuncPtr*) &mSymbols.fIsFence,      { "IsFenceNV",      nullptr } },
-                { (PRFuncPtr*) &mSymbols.fGetFenceiv,   { "GetFenceivNV",   nullptr } },
-                END_SYMBOLS
-            };
-
-            if (!LoadSymbols(&extSymbols[0], trygl, prefix)) {
-                NS_ERROR("GL supports NV_fence without supplying its functions.");
-
-                MarkExtensionUnsupported(NV_fence);
-                ClearSymbols(extSymbols);
-            }
-        }
-
+       
         // Load developer symbols, don't fail if we can't find them.
         SymLoadStruct auxSymbols[] = {
                 { (PRFuncPtr*) &mSymbols.fGetTexImage, { "GetTexImage", nullptr } },
                 { (PRFuncPtr*) &mSymbols.fGetTexLevelParameteriv, { "GetTexLevelParameteriv", nullptr } },
-                END_SYMBOLS
+                { nullptr, { nullptr } },
         };
-        bool warnOnFailures = DebugMode();
-        LoadSymbols(&auxSymbols[0], trygl, prefix, warnOnFailures);
+        LoadSymbols(&auxSymbols[0], trygl, prefix);
     }
 
     if (mInitialized) {
-        raw_fGetIntegerv(LOCAL_GL_VIEWPORT, mViewportRect);
-        raw_fGetIntegerv(LOCAL_GL_SCISSOR_BOX, mScissorRect);
-        raw_fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &mMaxTextureSize);
-        raw_fGetIntegerv(LOCAL_GL_MAX_CUBE_MAP_TEXTURE_SIZE, &mMaxCubeMapTextureSize);
-        raw_fGetIntegerv(LOCAL_GL_MAX_RENDERBUFFER_SIZE, &mMaxRenderbufferSize);
-        raw_fGetIntegerv(LOCAL_GL_MAX_VIEWPORT_DIMS, mMaxViewportDims);
+        GLint v[4];
+
+        fGetIntegerv(LOCAL_GL_SCISSOR_BOX, v);
+        mScissorStack.AppendElement(nsIntRect(v[0], v[1], v[2], v[3]));
+
+        fGetIntegerv(LOCAL_GL_VIEWPORT, v);
+        mViewportStack.AppendElement(nsIntRect(v[0], v[1], v[2], v[3]));
+
+        fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &mMaxTextureSize);
+        fGetIntegerv(LOCAL_GL_MAX_CUBE_MAP_TEXTURE_SIZE, &mMaxCubeMapTextureSize);
+        fGetIntegerv(LOCAL_GL_MAX_RENDERBUFFER_SIZE, &mMaxRenderbufferSize);
 
 #ifdef XP_MACOSX
-        if (mWorkAroundDriverBugs) {
-            if (mVendor == GLVendor::Intel) {
-                // see bug 737182 for 2D textures, bug 684882 for cube map textures.
-                mMaxTextureSize        = std::min(mMaxTextureSize,        4096);
-                mMaxCubeMapTextureSize = std::min(mMaxCubeMapTextureSize, 512);
-                // for good measure, we align renderbuffers on what we do for 2D textures
-                mMaxRenderbufferSize   = std::min(mMaxRenderbufferSize,   4096);
-                mNeedsTextureSizeChecks = true;
-            } else if (mVendor == GLVendor::NVIDIA) {
-                if (nsCocoaFeatures::OnMountainLionOrLater()) {
-                    // See bug 879656.  8192 fails, 8191 works.
-                    mMaxTextureSize = std::min(mMaxTextureSize, 8191);
-                    mMaxRenderbufferSize = std::min(mMaxRenderbufferSize, 8191);
-                } else {
-                    // See bug 877949.
-                    mMaxTextureSize = std::min(mMaxTextureSize, 4096);
-                    mMaxRenderbufferSize = std::min(mMaxRenderbufferSize, 4096);
-                }
-
-                // Part of the bug 879656, but it also doesn't hurt the 877949
-                mNeedsTextureSizeChecks = true;
-            }
-        }
-#endif
-#ifdef MOZ_X11
         if (mWorkAroundDriverBugs &&
-            mVendor == GLVendor::Nouveau) {
-            // see bug 814716. Clamp MaxCubeMapTextureSize at 2K for Nouveau.
-            mMaxCubeMapTextureSize = std::min(mMaxCubeMapTextureSize, 2048);
-            mNeedsTextureSizeChecks = true;
+            mVendor == VendorIntel) {
+            // see bug 737182 for 2D textures, bug 684822 for cube map textures.
+            mMaxTextureSize        = NS_MIN(mMaxTextureSize,        4096);
+            mMaxCubeMapTextureSize = NS_MIN(mMaxCubeMapTextureSize, 512);
+            // for good measure, we align renderbuffers on what we do for 2D textures
+            mMaxRenderbufferSize   = NS_MIN(mMaxRenderbufferSize,   4096);
         }
 #endif
 
         mMaxTextureImageSize = mMaxTextureSize;
 
-        mMaxSamples = 0;
-        if (IsSupported(GLFeature::framebuffer_multisample)) {
-            fGetIntegerv(LOCAL_GL_MAX_SAMPLES, (GLint*)&mMaxSamples);
-        }
+        UpdateActualFormat();
+    }
 
-        // We're ready for final setup.
-        fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
-
-        if (mCaps.any)
-            DetermineCaps();
-
-        UpdatePixelFormat();
-        UpdateGLFormats(mCaps);
-
-        mTexGarbageBin = new TextureGarbageBin(this);
-
-        MOZ_ASSERT(IsCurrent());
-
-        if (DebugMode() && IsExtensionSupported(KHR_debug)) {
-            fEnable(LOCAL_GL_DEBUG_OUTPUT);
-            fDisable(LOCAL_GL_DEBUG_OUTPUT_SYNCHRONOUS);
-            fDebugMessageCallback(&StaticDebugCallback, (void*)this);
-            fDebugMessageControl(LOCAL_GL_DONT_CARE,
-                                 LOCAL_GL_DONT_CARE,
-                                 LOCAL_GL_DONT_CARE,
-                                 0, nullptr,
-                                 true);
-        }
-
+    if (mInitialized)
         reporter.SetSuccessful();
-    } else {
+    else {
         // if initialization fails, ensure all symbols are zero, to avoid hard-to-understand bugs
         mSymbols.Zero();
         NS_WARNING("InitWithPrefix failed!");
     }
 
-    mVersionString = nsPrintfCString("%u.%u.%u", mVersion / 100, (mVersion / 10) % 10, mVersion % 10);
-
     return mInitialized;
-}
-
-void
-GLContext::DebugCallback(GLenum source,
-                         GLenum type,
-                         GLuint id,
-                         GLenum severity,
-                         GLsizei length,
-                         const GLchar* message)
-{
-    nsAutoCString sourceStr;
-    switch (source) {
-    case LOCAL_GL_DEBUG_SOURCE_API:
-        sourceStr = NS_LITERAL_CSTRING("SOURCE_API");
-        break;
-    case LOCAL_GL_DEBUG_SOURCE_WINDOW_SYSTEM:
-        sourceStr = NS_LITERAL_CSTRING("SOURCE_WINDOW_SYSTEM");
-        break;
-    case LOCAL_GL_DEBUG_SOURCE_SHADER_COMPILER:
-        sourceStr = NS_LITERAL_CSTRING("SOURCE_SHADER_COMPILER");
-        break;
-    case LOCAL_GL_DEBUG_SOURCE_THIRD_PARTY:
-        sourceStr = NS_LITERAL_CSTRING("SOURCE_THIRD_PARTY");
-        break;
-    case LOCAL_GL_DEBUG_SOURCE_APPLICATION:
-        sourceStr = NS_LITERAL_CSTRING("SOURCE_APPLICATION");
-        break;
-    case LOCAL_GL_DEBUG_SOURCE_OTHER:
-        sourceStr = NS_LITERAL_CSTRING("SOURCE_OTHER");
-        break;
-    default:
-        sourceStr = nsPrintfCString("<source 0x%04x>", source);
-        break;
-    }
-
-    nsAutoCString typeStr;
-    switch (type) {
-    case LOCAL_GL_DEBUG_TYPE_ERROR:
-        typeStr = NS_LITERAL_CSTRING("TYPE_ERROR");
-        break;
-    case LOCAL_GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
-        typeStr = NS_LITERAL_CSTRING("TYPE_DEPRECATED_BEHAVIOR");
-        break;
-    case LOCAL_GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
-        typeStr = NS_LITERAL_CSTRING("TYPE_UNDEFINED_BEHAVIOR");
-        break;
-    case LOCAL_GL_DEBUG_TYPE_PORTABILITY:
-        typeStr = NS_LITERAL_CSTRING("TYPE_PORTABILITY");
-        break;
-    case LOCAL_GL_DEBUG_TYPE_PERFORMANCE:
-        typeStr = NS_LITERAL_CSTRING("TYPE_PERFORMANCE");
-        break;
-    case LOCAL_GL_DEBUG_TYPE_OTHER:
-        typeStr = NS_LITERAL_CSTRING("TYPE_OTHER");
-        break;
-    case LOCAL_GL_DEBUG_TYPE_MARKER:
-        typeStr = NS_LITERAL_CSTRING("TYPE_MARKER");
-        break;
-    default:
-        typeStr = nsPrintfCString("<type 0x%04x>", type);
-        break;
-    }
-
-    nsAutoCString sevStr;
-    switch (severity) {
-    case LOCAL_GL_DEBUG_SEVERITY_HIGH:
-        sevStr = NS_LITERAL_CSTRING("SEVERITY_HIGH");
-        break;
-    case LOCAL_GL_DEBUG_SEVERITY_MEDIUM:
-        sevStr = NS_LITERAL_CSTRING("SEVERITY_MEDIUM");
-        break;
-    case LOCAL_GL_DEBUG_SEVERITY_LOW:
-        sevStr = NS_LITERAL_CSTRING("SEVERITY_LOW");
-        break;
-    case LOCAL_GL_DEBUG_SEVERITY_NOTIFICATION:
-        sevStr = NS_LITERAL_CSTRING("SEVERITY_NOTIFICATION");
-        break;
-    default:
-        sevStr = nsPrintfCString("<severity 0x%04x>", severity);
-        break;
-    }
-
-    printf_stderr("[KHR_debug: 0x%" PRIxPTR "] ID %u: %s, %s, %s:\n    %s\n",
-                  (uintptr_t)this,
-                  id,
-                  sourceStr.BeginReading(),
-                  typeStr.BeginReading(),
-                  sevStr.BeginReading(),
-                  message);
 }
 
 void
@@ -1598,56 +542,123 @@ GLContext::InitExtensions()
     if (!extensions)
         return;
 
-    InitializeExtensionsBitSet(mAvailableExtensions, extensions,
-                               sExtensionNames);
+#ifdef DEBUG
+    static bool firstRun = true;
+#else
+    // Non-DEBUG, so never spew.
+    const bool firstRun = false;
+#endif
 
-    if (WorkAroundDriverBugs() &&
-        Vendor() == GLVendor::Qualcomm) {
+    mAvailableExtensions.Load(extensions, sExtensionNames, firstRun && DebugMode());
 
-        // Some Adreno drivers do not report GL_OES_EGL_sync, but they really do support it.
-        MarkExtensionSupported(OES_EGL_sync);
-    }
-
-    if (WorkAroundDriverBugs() &&
-        Renderer() == GLRenderer::AndroidEmulator) {
-        // the Android emulator, which we use to run B2G reftests on,
-        // doesn't expose the OES_rgb8_rgba8 extension, but it seems to
-        // support it (tautologically, as it only runs on desktop GL).
-        MarkExtensionSupported(OES_rgb8_rgba8);
-    }
-
-    if (WorkAroundDriverBugs() &&
-        Vendor() == GLVendor::VMware &&
-        Renderer() == GLRenderer::GalliumLlvmpipe)
-    {
-        // The llvmpipe driver that is used on linux try servers appears to have
-        // buggy support for s3tc/dxt1 compressed textures.
-        // See Bug 975824.
-        MarkExtensionUnsupported(EXT_texture_compression_s3tc);
-        MarkExtensionUnsupported(EXT_texture_compression_dxt1);
-        MarkExtensionUnsupported(ANGLE_texture_compression_dxt3);
-        MarkExtensionUnsupported(ANGLE_texture_compression_dxt5);
-    }
-
-#ifdef XP_MACOSX
-    // Bug 1009642: On OSX Mavericks (10.9), the driver for Intel HD
-    // 3000 appears to be buggy WRT updating sub-images of S3TC
-    // textures with glCompressedTexSubImage2D. Works on Intel HD 4000
-    // and Intel HD 5000/Iris that I tested.
-    if (WorkAroundDriverBugs() &&
-        nsCocoaFeatures::OSXVersionMajor() == 10 &&
-        nsCocoaFeatures::OSXVersionMinor() == 9 &&
-        Renderer() == GLRenderer::IntelHD3000)
-    {
-        MarkExtensionUnsupported(EXT_texture_compression_s3tc);
-    }
+#ifdef DEBUG
+    firstRun = false;
 #endif
 }
 
-void
-GLContext::PlatformStartup()
+
+// Take texture data in a given buffer and copy it into a larger buffer,
+// padding out the edge pixels for filtering if necessary
+static void
+CopyAndPadTextureData(const GLvoid* srcBuffer,
+                      GLvoid* dstBuffer,
+                      GLsizei srcWidth, GLsizei srcHeight,
+                      GLsizei dstWidth, GLsizei dstHeight,
+                      GLsizei stride, GLint pixelsize)
 {
-  RegisterStrongMemoryReporter(new GfxTexturesReporter());
+    unsigned char *rowDest = static_cast<unsigned char*>(dstBuffer);
+    const unsigned char *source = static_cast<const unsigned char*>(srcBuffer);
+
+    for (GLsizei h = 0; h < srcHeight; ++h) {
+        memcpy(rowDest, source, srcWidth * pixelsize);
+        rowDest += dstWidth * pixelsize;
+        source += stride;
+    }
+
+    GLsizei padHeight = srcHeight;
+
+    // Pad out an extra row of pixels so that edge filtering doesn't use garbage data
+    if (dstHeight > srcHeight) {
+        memcpy(rowDest, source - stride, srcWidth * pixelsize);
+        padHeight++;
+    }
+
+    // Pad out an extra column of pixels
+    if (dstWidth > srcWidth) {
+        rowDest = static_cast<unsigned char*>(dstBuffer) + srcWidth * pixelsize;
+        for (GLsizei h = 0; h < padHeight; ++h) {
+            memcpy(rowDest, rowDest - pixelsize, pixelsize);
+            rowDest += dstWidth * pixelsize;
+        }
+    }
+}
+
+// In both of these cases (for the Adreno at least) it is impossible
+// to determine good or bad driver versions for POT texture uploads,
+// so blacklist them all. Newer drivers use a different rendering
+// string in the form "Adreno (TM) 200" and the drivers we've seen so
+// far work fine with NPOT textures, so don't blacklist those until we
+// have evidence of any problems with them.
+bool
+GLContext::CanUploadSubTextures()
+{
+    if (!mWorkAroundDriverBugs)
+        return true;
+
+    // Lock surface feature allows to mmap texture memory and modify it directly
+    // this feature allow us modify texture partially without full upload
+    if (HasLockSurface())
+        return true;
+
+    // There are certain GPUs that we don't want to use glTexSubImage2D on
+    // because that function can be very slow and/or buggy
+    if (Renderer() == RendererAdreno200 || Renderer() == RendererAdreno205)
+        return false;
+
+    // On PowerVR glTexSubImage does a readback, so it will be slower
+    // than just doing a glTexImage2D() directly. i.e. 26ms vs 10ms
+    if (Renderer() == RendererSGX540 || Renderer() == RendererSGX530)
+        return false;
+
+    return true;
+}
+
+bool
+GLContext::CanUploadNonPowerOfTwo()
+{
+    if (!mWorkAroundDriverBugs)
+        return true;
+
+    static bool sPowerOfTwoForced;
+    static bool sPowerOfTwoPrefCached = false;
+
+    if (!sPowerOfTwoPrefCached) {
+        sPowerOfTwoPrefCached = true;
+        mozilla::Preferences::AddBoolVarCache(&sPowerOfTwoForced,
+                                              "gfx.textures.poweroftwo.force-enabled");
+    }
+
+    // Some GPUs driver crash when uploading non power of two 565 textures.
+    return sPowerOfTwoForced ? false : (Renderer() != RendererAdreno200 &&
+                                        Renderer() != RendererAdreno205);
+}
+
+bool
+GLContext::WantsSmallTiles()
+{
+    // We must use small tiles for good performance if we can't use
+    // glTexSubImage2D() for some reason.
+    if (!CanUploadSubTextures())
+        return true;
+
+    // We can't use small tiles on the SGX 540, because of races in texture upload.
+    if (mWorkAroundDriverBugs &&
+        Renderer() == RendererSGX540)
+        return false;
+
+    // Don't use small tiles otherwise. (If we implement incremental texture upload,
+    // then we will want to revisit this.)
+    return false;
 }
 
 // Common code for checking for both GL extensions and GLX extensions.
@@ -1666,10 +677,10 @@ GLContext::ListHasExtension(const GLubyte *extensions, const char *extension)
     if (where || *extension == '\0')
         return false;
 
-    /*
+    /* 
      * It takes a bit of care to be fool-proof about parsing the
      * OpenGL extensions string. Don't be fooled by sub-strings,
-     * etc.
+     * etc. 
      */
     start = extensions;
     for (;;) {
@@ -1688,231 +699,797 @@ GLContext::ListHasExtension(const GLubyte *extensions, const char *extension)
     return false;
 }
 
+already_AddRefed<TextureImage>
+GLContext::CreateTextureImage(const nsIntSize& aSize,
+                              TextureImage::ContentType aContentType,
+                              GLenum aWrapMode,
+                              TextureImage::Flags aFlags)
+{
+    bool useNearestFilter = aFlags & TextureImage::UseNearestFilter;
+    MakeCurrent();
+
+    GLuint texture;
+    fGenTextures(1, &texture);
+
+    fActiveTexture(LOCAL_GL_TEXTURE0);
+    fBindTexture(LOCAL_GL_TEXTURE_2D, texture);
+
+    GLint texfilter = useNearestFilter ? LOCAL_GL_NEAREST : LOCAL_GL_LINEAR;
+    fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, texfilter);
+    fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, texfilter);
+    fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_S, aWrapMode);
+    fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, aWrapMode);
+
+    return CreateBasicTextureImage(texture, aSize, aWrapMode, aContentType, this, aFlags);
+}
+
+void GLContext::ApplyFilterToBoundTexture(gfxPattern::GraphicsFilter aFilter)
+{
+    if (aFilter == gfxPattern::FILTER_NEAREST) {
+        fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_NEAREST);
+        fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_NEAREST);
+    } else {
+        fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
+       fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
+    }
+}
+
+BasicTextureImage::~BasicTextureImage()
+{
+    GLContext *ctx = mGLContext;
+    if (ctx->IsDestroyed() || !ctx->IsOwningThreadCurrent()) {
+        ctx = ctx->GetSharedContext();
+    }
+
+    // If we have a context, then we need to delete the texture;
+    // if we don't have a context (either real or shared),
+    // then they went away when the contex was deleted, because it
+    // was the only one that had access to it.
+    if (ctx && !ctx->IsDestroyed()) {
+        mGLContext->MakeCurrent();
+        mGLContext->fDeleteTextures(1, &mTexture);
+    }
+}
+
+gfxASurface*
+BasicTextureImage::BeginUpdate(nsIntRegion& aRegion)
+{
+    NS_ASSERTION(!mUpdateSurface, "BeginUpdate() without EndUpdate()?");
+
+    // determine the region the client will need to repaint
+    if (mGLContext->CanUploadSubTextures()) {
+        GetUpdateRegion(aRegion);
+    } else {
+        aRegion = nsIntRect(nsIntPoint(0, 0), mSize);
+    }
+
+    mUpdateRegion = aRegion;
+
+    nsIntRect rgnSize = mUpdateRegion.GetBounds();
+    if (!nsIntRect(nsIntPoint(0, 0), mSize).Contains(rgnSize)) {
+        NS_ERROR("update outside of image");
+        return NULL;
+    }
+
+    ImageFormat format =
+        (GetContentType() == gfxASurface::CONTENT_COLOR) ?
+        gfxASurface::ImageFormatRGB24 : gfxASurface::ImageFormatARGB32;
+    mUpdateSurface =
+        GetSurfaceForUpdate(gfxIntSize(rgnSize.width, rgnSize.height), format);
+
+    if (!mUpdateSurface || mUpdateSurface->CairoStatus()) {
+        mUpdateSurface = NULL;
+        return NULL;
+    }
+
+    mUpdateSurface->SetDeviceOffset(gfxPoint(-rgnSize.x, -rgnSize.y));
+
+    return mUpdateSurface;
+}
+
 void
-GLContext::DetermineCaps()
+BasicTextureImage::GetUpdateRegion(nsIntRegion& aForRegion)
 {
-    PixelBufferFormat format = QueryPixelFormat();
-
-    SurfaceCaps caps;
-    caps.color = !!format.red && !!format.green && !!format.blue;
-    caps.bpp16 = caps.color && format.ColorBits() == 16;
-    caps.alpha = !!format.alpha;
-    caps.depth = !!format.depth;
-    caps.stencil = !!format.stencil;
-    caps.antialias = format.samples > 1;
-    caps.preserve = true;
-
-    mCaps = caps;
-}
-
-PixelBufferFormat
-GLContext::QueryPixelFormat()
-{
-    PixelBufferFormat format;
-
-    ScopedBindFramebuffer autoFB(this, 0);
-
-    fGetIntegerv(LOCAL_GL_RED_BITS  , &format.red  );
-    fGetIntegerv(LOCAL_GL_GREEN_BITS, &format.green);
-    fGetIntegerv(LOCAL_GL_BLUE_BITS , &format.blue );
-    fGetIntegerv(LOCAL_GL_ALPHA_BITS, &format.alpha);
-
-    fGetIntegerv(LOCAL_GL_DEPTH_BITS, &format.depth);
-    fGetIntegerv(LOCAL_GL_STENCIL_BITS, &format.stencil);
-
-    fGetIntegerv(LOCAL_GL_SAMPLES, &format.samples);
-
-    return format;
+  // if the texture hasn't been initialized yet, or something important
+  // changed, we need to recreate our backing surface and force the
+  // client to paint everything
+  if (mTextureState != Valid)
+      aForRegion = nsIntRect(nsIntPoint(0, 0), mSize);
 }
 
 void
-GLContext::UpdatePixelFormat()
+BasicTextureImage::EndUpdate()
 {
-    PixelBufferFormat format = QueryPixelFormat();
-#ifdef MOZ_GL_DEBUG
-    const SurfaceCaps& caps = Caps();
-    MOZ_ASSERT(!caps.any, "Did you forget to DetermineCaps()?");
+    NS_ASSERTION(!!mUpdateSurface, "EndUpdate() without BeginUpdate()?");
 
-    MOZ_ASSERT(caps.color == !!format.red);
-    MOZ_ASSERT(caps.color == !!format.green);
-    MOZ_ASSERT(caps.color == !!format.blue);
+    // FIXME: this is the slow boat.  Make me fast (with GLXPixmap?).
 
-    // These we either must have if they're requested, or
-    // we can have if they're not.
-    MOZ_ASSERT(caps.alpha == !!format.alpha || !caps.alpha);
-    MOZ_ASSERT(caps.depth == !!format.depth || !caps.depth);
-    MOZ_ASSERT(caps.stencil == !!format.stencil || !caps.stencil);
+    // Undo the device offset that BeginUpdate set; doesn't much matter for us here,
+    // but important if we ever do anything directly with the surface.
+    mUpdateSurface->SetDeviceOffset(gfxPoint(0, 0));
 
-    MOZ_ASSERT(caps.antialias == (format.samples > 1));
-#endif
-    mPixelFormat = new PixelBufferFormat(format);
+    bool relative = FinishedSurfaceUpdate();
+
+    mShaderType =
+        mGLContext->UploadSurfaceToTexture(mUpdateSurface,
+                                           mUpdateRegion,
+                                           mTexture,
+                                           mTextureState == Created,
+                                           mUpdateOffset,
+                                           relative);
+    FinishedSurfaceUpload();
+
+    mUpdateSurface = nullptr;
+    mTextureState = Valid;
 }
 
-GLFormats
-GLContext::ChooseGLFormats(const SurfaceCaps& caps) const
+void
+BasicTextureImage::BindTexture(GLenum aTextureUnit)
+{
+    mGLContext->fActiveTexture(aTextureUnit);
+    mGLContext->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
+    mGLContext->fActiveTexture(LOCAL_GL_TEXTURE0);
+}
+
+void
+BasicTextureImage::ApplyFilter()
+{
+  mGLContext->ApplyFilterToBoundTexture(mFilter);
+}
+
+
+already_AddRefed<gfxASurface>
+BasicTextureImage::GetSurfaceForUpdate(const gfxIntSize& aSize, ImageFormat aFmt)
+{
+    return gfxPlatform::GetPlatform()->
+        CreateOffscreenSurface(aSize, gfxASurface::ContentFromFormat(aFmt));
+}
+
+bool
+BasicTextureImage::FinishedSurfaceUpdate()
+{
+    return false;
+}
+
+void
+BasicTextureImage::FinishedSurfaceUpload()
+{
+}
+
+bool 
+BasicTextureImage::DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, const nsIntPoint& aFrom /* = nsIntPoint(0, 0) */)
+{
+    nsIntRect bounds = aRegion.GetBounds();
+    nsIntRegion region;
+    if (mTextureState != Valid) {
+        bounds = nsIntRect(0, 0, mSize.width, mSize.height);
+        region = nsIntRegion(bounds);
+    } else {
+        region = aRegion;
+    }
+
+    mShaderType =
+        mGLContext->UploadSurfaceToTexture(aSurf,
+                                           region,
+                                           mTexture,
+                                           mTextureState == Created,
+                                           bounds.TopLeft() + aFrom,
+                                           false);
+    mTextureState = Valid;
+    return true;
+}
+
+void
+BasicTextureImage::Resize(const nsIntSize& aSize)
+{
+    NS_ASSERTION(!mUpdateSurface, "Resize() while in update?");
+
+    mGLContext->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
+
+    mGLContext->fTexImage2D(LOCAL_GL_TEXTURE_2D,
+                            0,
+                            LOCAL_GL_RGBA,
+                            aSize.width,
+                            aSize.height,
+                            0,
+                            LOCAL_GL_RGBA,
+                            LOCAL_GL_UNSIGNED_BYTE,
+                            NULL);
+
+    mTextureState = Allocated;
+    mSize = aSize;
+}
+
+TiledTextureImage::TiledTextureImage(GLContext* aGL,
+                                     nsIntSize aSize,
+                                     TextureImage::ContentType aContentType,
+                                     TextureImage::Flags aFlags)
+    : TextureImage(aSize, LOCAL_GL_CLAMP_TO_EDGE, aContentType, aFlags)
+    , mCurrentImage(0)
+    , mIterationCallback(nullptr)
+    , mInUpdate(false)
+    , mRows(0)
+    , mColumns(0)
+    , mGL(aGL)
+    , mTextureState(Created)
+{
+    mTileSize = (!(aFlags & TextureImage::ForceSingleTile) && mGL->WantsSmallTiles())
+        ? 256 : mGL->GetMaxTextureSize();
+    if (aSize != nsIntSize(0,0)) {
+        Resize(aSize);
+    }
+}
+
+TiledTextureImage::~TiledTextureImage()
+{
+}
+
+bool 
+TiledTextureImage::DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, const nsIntPoint& aFrom /* = nsIntPoint(0, 0) */)
+{
+    nsIntRegion region;
+
+    if (mTextureState != Valid) {
+        nsIntRect bounds = nsIntRect(0, 0, mSize.width, mSize.height);
+        region = nsIntRegion(bounds);
+    } else {
+        region = aRegion;
+    }
+
+    bool result = true;
+    int oldCurrentImage = mCurrentImage;
+    BeginTileIteration();
+    do {
+        nsIntRect tileRect = GetSrcTileRect();
+        int xPos = tileRect.x;
+        int yPos = tileRect.y;
+
+        nsIntRegion tileRegion;
+        tileRegion.And(region, tileRect); // intersect with tile
+
+        if (tileRegion.IsEmpty())
+            continue;
+
+        if (mGL->CanUploadSubTextures()) {
+          tileRegion.MoveBy(-xPos, -yPos); // translate into tile local space
+        } else {
+          // If sub-textures are unsupported, expand to tile boundaries
+          tileRect.x = tileRect.y = 0;
+          tileRegion = nsIntRegion(tileRect);
+        }
+
+        result &= mImages[mCurrentImage]->
+          DirectUpdate(aSurf, tileRegion, aFrom + nsIntPoint(xPos, yPos));
+
+        if (mCurrentImage == mImages.Length() - 1) {
+            // We know we're done, but we still need to ensure that the callback
+            // gets called (e.g. to update the uploaded region).
+            NextTile();
+            break;
+        }
+        // Override a callback cancelling iteration if the texture wasn't valid.
+        // We need to force the update in that situation, or we may end up
+        // showing invalid/out-of-date texture data.
+    } while (NextTile() || (mTextureState != Valid));
+    mCurrentImage = oldCurrentImage;
+
+    mShaderType = mImages[0]->GetShaderProgramType();
+    mTextureState = Valid;
+    return result;
+}
+
+void
+TiledTextureImage::GetUpdateRegion(nsIntRegion& aForRegion)
+{
+    if (mTextureState != Valid) {
+        // if the texture hasn't been initialized yet, or something important
+        // changed, we need to recreate our backing surface and force the
+        // client to paint everything
+        aForRegion = nsIntRect(nsIntPoint(0, 0), mSize);
+        return;
+    }
+
+    nsIntRegion newRegion;
+
+    // We need to query each texture with the region it will be drawing and
+    // set aForRegion to be the combination of all of these regions
+    for (unsigned i = 0; i < mImages.Length(); i++) {
+        int xPos = (i % mColumns) * mTileSize;
+        int yPos = (i / mColumns) * mTileSize;
+        nsIntRect imageRect = nsIntRect(nsIntRect(nsIntPoint(xPos,yPos), mImages[i]->GetSize()));
+
+        if (aForRegion.Intersects(imageRect)) {
+            // Make a copy of the region
+            nsIntRegion subRegion;
+            subRegion.And(aForRegion, imageRect);
+            // Translate it into tile-space
+            subRegion.MoveBy(-xPos, -yPos);
+            // Query region
+            mImages[i]->GetUpdateRegion(subRegion);
+            // Translate back
+            subRegion.MoveBy(xPos, yPos);
+            // Add to the accumulated region
+            newRegion.Or(newRegion, subRegion);
+        }
+    }
+
+    aForRegion = newRegion;
+}
+
+gfxASurface*
+TiledTextureImage::BeginUpdate(nsIntRegion& aRegion)
+{
+    NS_ASSERTION(!mInUpdate, "nested update");
+    mInUpdate = true;
+
+    // Note, we don't call GetUpdateRegion here as if the updated region is
+    // fully contained in a single tile, we get to avoid iterating through
+    // the tiles again (and a little copying).
+    if (mTextureState != Valid)
+    {
+        // if the texture hasn't been initialized yet, or something important
+        // changed, we need to recreate our backing surface and force the
+        // client to paint everything
+        aRegion = nsIntRect(nsIntPoint(0, 0), mSize);
+    }
+
+    nsIntRect bounds = aRegion.GetBounds();
+
+    for (unsigned i = 0; i < mImages.Length(); i++) {
+        int xPos = (i % mColumns) * mTileSize;
+        int yPos = (i / mColumns) * mTileSize;
+        nsIntRegion imageRegion = nsIntRegion(nsIntRect(nsIntPoint(xPos,yPos), mImages[i]->GetSize()));
+
+        // a single Image can handle this update request
+        if (imageRegion.Contains(aRegion)) {
+            // adjust for tile offset
+            aRegion.MoveBy(-xPos, -yPos);
+            // forward the actual call
+            nsRefPtr<gfxASurface> surface = mImages[i]->BeginUpdate(aRegion);
+            // caller expects container space
+            aRegion.MoveBy(xPos, yPos);
+            // Correct the device offset
+            gfxPoint offset = surface->GetDeviceOffset();
+            surface->SetDeviceOffset(gfxPoint(offset.x - xPos,
+                                              offset.y - yPos));
+            // we don't have a temp surface
+            mUpdateSurface = nullptr;
+            // remember which image to EndUpdate
+            mCurrentImage = i;
+            return surface.get();
+        }
+    }
+
+    // Get the real updated region, taking into account the capabilities of
+    // each TextureImage tile
+    GetUpdateRegion(aRegion);
+    mUpdateRegion = aRegion;
+    bounds = aRegion.GetBounds();
+
+    // update covers multiple Images - create a temp surface to paint in
+    gfxASurface::gfxImageFormat format =
+        (GetContentType() == gfxASurface::CONTENT_COLOR) ?
+        gfxASurface::ImageFormatRGB24 : gfxASurface::ImageFormatARGB32;
+    mUpdateSurface = gfxPlatform::GetPlatform()->
+        CreateOffscreenSurface(gfxIntSize(bounds.width, bounds.height), gfxASurface::ContentFromFormat(format));
+    mUpdateSurface->SetDeviceOffset(gfxPoint(-bounds.x, -bounds.y));
+
+    return mUpdateSurface;
+}
+
+void
+TiledTextureImage::EndUpdate()
+{
+    NS_ASSERTION(mInUpdate, "EndUpdate not in update");
+    if (!mUpdateSurface) { // update was to a single TextureImage
+        mImages[mCurrentImage]->EndUpdate();
+        mInUpdate = false;
+        mTextureState = Valid;
+        mShaderType = mImages[mCurrentImage]->GetShaderProgramType();
+        return;
+    }
+
+    // upload tiles from temp surface
+    for (unsigned i = 0; i < mImages.Length(); i++) {
+        int xPos = (i % mColumns) * mTileSize;
+        int yPos = (i / mColumns) * mTileSize;
+        nsIntRect imageRect = nsIntRect(nsIntPoint(xPos,yPos), mImages[i]->GetSize());
+
+        nsIntRegion subregion;
+        subregion.And(mUpdateRegion, imageRect);
+        if (subregion.IsEmpty())
+            continue;
+        subregion.MoveBy(-xPos, -yPos); // Tile-local space
+        // copy tile from temp surface
+        gfxASurface* surf = mImages[i]->BeginUpdate(subregion);
+        nsRefPtr<gfxContext> ctx = new gfxContext(surf);
+        gfxUtils::ClipToRegion(ctx, subregion);
+        ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+        ctx->SetSource(mUpdateSurface, gfxPoint(-xPos, -yPos));
+        ctx->Paint();
+        mImages[i]->EndUpdate();
+    }
+
+    mUpdateSurface = nullptr;
+    mInUpdate = false;
+    mShaderType = mImages[0]->GetShaderProgramType();
+    mTextureState = Valid;
+}
+
+void TiledTextureImage::BeginTileIteration()
+{
+    mCurrentImage = 0;
+}
+
+bool TiledTextureImage::NextTile()
+{
+    bool continueIteration = true;
+
+    if (mIterationCallback)
+        continueIteration = mIterationCallback(this, mCurrentImage,
+                                               mIterationCallbackData);
+
+    if (mCurrentImage + 1 < mImages.Length()) {
+        mCurrentImage++;
+        return continueIteration;
+    }
+    return false;
+}
+
+void TiledTextureImage::SetIterationCallback(TileIterationCallback aCallback,
+                                             void* aCallbackData)
+{
+    mIterationCallback = aCallback;
+    mIterationCallbackData = aCallbackData;
+}
+
+nsIntRect TiledTextureImage::GetTileRect()
+{
+    nsIntRect rect = mImages[mCurrentImage]->GetTileRect();
+    unsigned int xPos = (mCurrentImage % mColumns) * mTileSize;
+    unsigned int yPos = (mCurrentImage / mColumns) * mTileSize;
+    rect.MoveBy(xPos, yPos);
+    return rect;
+}
+
+nsIntRect TiledTextureImage::GetSrcTileRect()
+{
+    nsIntRect rect = GetTileRect();
+    unsigned int srcY = mFlags & NeedsYFlip
+                        ? mSize.height - rect.height - rect.y
+                        : rect.y;
+    return nsIntRect(rect.x, srcY, rect.width, rect.height);
+}
+
+void
+TiledTextureImage::BindTexture(GLenum aTextureUnit)
+{
+    mImages[mCurrentImage]->BindTexture(aTextureUnit);
+}
+
+void
+TiledTextureImage::ApplyFilter()
+{
+   mGL->ApplyFilterToBoundTexture(mFilter);
+}
+
+/*
+ * Resize, trying to reuse tiles. The reuse strategy is to decide on reuse per
+ * column. A tile on a column is reused if it hasn't changed size, otherwise it
+ * is discarded/replaced. Extra tiles on a column are pruned after iterating
+ * each column, and extra rows are pruned after iteration over the entire image
+ * finishes.
+ */
+void TiledTextureImage::Resize(const nsIntSize& aSize)
+{
+    if (mSize == aSize && mTextureState != Created) {
+        return;
+    }
+
+    // calculate rows and columns, rounding up
+    unsigned int columns = (aSize.width  + mTileSize - 1) / mTileSize;
+    unsigned int rows = (aSize.height + mTileSize - 1) / mTileSize;
+
+    // Iterate over old tile-store and insert/remove tiles as necessary
+    int row;
+    unsigned int i = 0;
+    for (row = 0; row < (int)rows; row++) {
+        // If we've gone beyond how many rows there were before, set mColumns to
+        // zero so that we only create new tiles.
+        if (row >= (int)mRows)
+            mColumns = 0;
+
+        // Similarly, if we're on the last row of old tiles and the height has
+        // changed, discard all tiles in that row.
+        // This will cause the pruning of columns not to work, but we don't need
+        // to worry about that, as no more tiles will be reused past this point
+        // anyway.
+        if ((row == (int)mRows - 1) && (aSize.height != mSize.height))
+            mColumns = 0;
+
+        int col;
+        for (col = 0; col < (int)columns; col++) {
+            nsIntSize size( // use tilesize first, then the remainder
+                    (col+1) * mTileSize > (unsigned int)aSize.width  ? aSize.width  % mTileSize : mTileSize,
+                    (row+1) * mTileSize > (unsigned int)aSize.height ? aSize.height % mTileSize : mTileSize);
+
+            bool replace = false;
+
+            // Check if we can re-use old tiles.
+            if (col < (int)mColumns) {
+                // Reuse an existing tile. If the tile is an end-tile and the
+                // width differs, replace it instead.
+                if (mSize.width != aSize.width) {
+                    if (col == (int)mColumns - 1) {
+                        // Tile at the end of the old column, replace it with
+                        // a new one.
+                        replace = true;
+                    } else if (col == (int)columns - 1) {
+                        // Tile at the end of the new column, create a new one.
+                    } else {
+                        // Before the last column on both the old and new sizes,
+                        // reuse existing tile.
+                        i++;
+                        continue;
+                    }
+                } else {
+                    // Width hasn't changed, reuse existing tile.
+                    i++;
+                    continue;
+                }
+            }
+
+            // Create a new tile.
+            nsRefPtr<TextureImage> teximg =
+                    mGL->TileGenFunc(size, mContentType, mFlags);
+            if (replace)
+                mImages.ReplaceElementAt(i, teximg.forget());
+            else
+                mImages.InsertElementAt(i, teximg.forget());
+            i++;
+        }
+
+        // Prune any unused tiles on the end of the column.
+        if (row < (int)mRows) {
+            for (col = (int)mColumns - col; col > 0; col--) {
+                mImages.RemoveElementAt(i);
+            }
+        }
+    }
+
+    // Prune any unused tiles at the end of the store.
+    unsigned int length = mImages.Length();
+    for (; i < length; i++)
+      mImages.RemoveElementAt(mImages.Length()-1);
+
+    // Reset tile-store properties.
+    mRows = rows;
+    mColumns = columns;
+    mSize = aSize;
+    mTextureState = Allocated;
+    mCurrentImage = 0;
+}
+
+uint32_t TiledTextureImage::GetTileCount()
+{
+    return mImages.Length();
+}
+
+GLContext::GLFormats
+GLContext::ChooseGLFormats(ContextFormat& aCF, ColorByteOrder aByteOrder)
 {
     GLFormats formats;
 
     // If we're on ES2 hardware and we have an explicit request for 16 bits of color or less
     // OR we don't support full 8-bit color, return a 4444 or 565 format.
-    bool bpp16 = caps.bpp16;
-    if (IsGLES()) {
-        if (!IsExtensionSupported(OES_rgb8_rgba8))
-            bpp16 = true;
+    if (mIsGLES2 && (aCF.colorBits() <= 16 || !IsExtensionSupported(OES_rgb8_rgba8))) {
+        if (aCF.alpha) {
+            formats.texColor = LOCAL_GL_RGBA;
+            formats.texColorType = LOCAL_GL_UNSIGNED_SHORT_4_4_4_4;
+            formats.rbColor = LOCAL_GL_RGBA4;
+
+            aCF.red = aCF.green = aCF.blue = aCF.alpha = 4;
+        } else {
+            formats.texColor = LOCAL_GL_RGB;
+            formats.texColorType = LOCAL_GL_UNSIGNED_SHORT_5_6_5;
+            formats.rbColor = LOCAL_GL_RGB565;
+
+            aCF.red = 5;
+            aCF.green = 6;
+            aCF.blue = 5;
+            aCF.alpha = 0;
+        }   
     } else {
-        // RGB565 is uncommon on desktop, requiring ARB_ES2_compatibility.
-        // Since it's also vanishingly useless there, let's not support it.
-        bpp16 = false;
+        formats.texColorType = LOCAL_GL_UNSIGNED_BYTE;
+
+        if (aCF.alpha) {
+            // Prefer BGRA8888 on ES2 hardware; if the extension is supported, it
+            // should be faster.  There are some cases where we don't want this --
+            // specifically, CopyTex*Image doesn't seem to understand how to deal
+            // with a BGRA source going to a RGB/RGBA destination on some drivers.
+            if (mIsGLES2 &&
+                IsExtensionSupported(EXT_texture_format_BGRA8888) &&
+                aByteOrder != ForceRGBA)
+            {
+                formats.texColor = LOCAL_GL_BGRA;
+            } else {
+                formats.texColor = LOCAL_GL_RGBA;
+            }
+
+            formats.rbColor = LOCAL_GL_RGBA8;
+
+            aCF.red = aCF.green = aCF.blue = aCF.alpha = 8;
+        } else {
+            formats.texColor = LOCAL_GL_RGB;
+            formats.rbColor = LOCAL_GL_RGB8;
+
+            aCF.red = aCF.green = aCF.blue = 8;
+            aCF.alpha = 0;
+        }
     }
 
-    if (bpp16) {
-        MOZ_ASSERT(IsGLES());
-        if (caps.alpha) {
-            formats.color_texInternalFormat = LOCAL_GL_RGBA;
-            formats.color_texFormat = LOCAL_GL_RGBA;
-            formats.color_texType   = LOCAL_GL_UNSIGNED_SHORT_4_4_4_4;
-            formats.color_rbFormat  = LOCAL_GL_RGBA4;
-        } else {
-            formats.color_texInternalFormat = LOCAL_GL_RGB;
-            formats.color_texFormat = LOCAL_GL_RGB;
-            formats.color_texType   = LOCAL_GL_UNSIGNED_SHORT_5_6_5;
-            formats.color_rbFormat  = LOCAL_GL_RGB565;
-        }
-    } else {
-        formats.color_texType = LOCAL_GL_UNSIGNED_BYTE;
+    GLsizei samples = aCF.samples;
 
-        if (caps.alpha) {
-            formats.color_texInternalFormat = IsGLES() ? LOCAL_GL_RGBA : LOCAL_GL_RGBA8;
-            formats.color_texFormat = LOCAL_GL_RGBA;
-            formats.color_rbFormat  = LOCAL_GL_RGBA8;
-        } else {
-            formats.color_texInternalFormat = IsGLES() ? LOCAL_GL_RGB : LOCAL_GL_RGB8;
-            formats.color_texFormat = LOCAL_GL_RGB;
-            formats.color_rbFormat  = LOCAL_GL_RGB8;
-        }
-    }
+    GLsizei maxSamples = 0;
+    if (SupportsFramebufferMultisample())
+        fGetIntegerv(LOCAL_GL_MAX_SAMPLES, (GLint*)&maxSamples);
+    samples = NS_MIN(samples, maxSamples);
 
-    uint32_t msaaLevel = gfxPrefs::MSAALevel();
-    GLsizei samples = msaaLevel * msaaLevel;
-    samples = std::min(samples, mMaxSamples);
-
-    // Bug 778765.
+    // bug 778765
     if (WorkAroundDriverBugs() && samples == 1) {
         samples = 0;
     }
+
     formats.samples = samples;
+    aCF.samples = samples;
 
 
-    // Be clear that these are 0 if unavailable.
+    const int depth = aCF.depth;
+    const int stencil = aCF.stencil;
+    const bool useDepthStencil =
+        !mIsGLES2 || IsExtensionSupported(OES_packed_depth_stencil);
+
     formats.depthStencil = 0;
-    if (!IsGLES() || IsExtensionSupported(OES_packed_depth_stencil)) {
-        formats.depthStencil = LOCAL_GL_DEPTH24_STENCIL8;
-    }
-
     formats.depth = 0;
-    if (IsGLES()) {
-        if (IsExtensionSupported(OES_depth24)) {
-            formats.depth = LOCAL_GL_DEPTH_COMPONENT24;
-        } else {
-            formats.depth = LOCAL_GL_DEPTH_COMPONENT16;
-        }
+    formats.stencil = 0;
+    if (depth && stencil && useDepthStencil) {
+        formats.depthStencil = LOCAL_GL_DEPTH24_STENCIL8;
+        aCF.depth = 24;
+        aCF.stencil = 8;
     } else {
-        formats.depth = LOCAL_GL_DEPTH_COMPONENT24;
-    }
+        if (depth) {
+            if (mIsGLES2) {
+                if (IsExtensionSupported(OES_depth24)) {
+                    formats.depth = LOCAL_GL_DEPTH_COMPONENT24;
+                    aCF.depth = 24;
+                } else {
+                    formats.depth = LOCAL_GL_DEPTH_COMPONENT16;
+                    aCF.depth = 16;
+                }
+            } else {
+                formats.depth = LOCAL_GL_DEPTH_COMPONENT24;
+                aCF.depth = 24;
+            }
+        }
 
-    formats.stencil = LOCAL_GL_STENCIL_INDEX8;
+        if (stencil) {
+            formats.stencil = LOCAL_GL_STENCIL_INDEX8;
+            aCF.stencil = 8;
+        }
+    }
 
     return formats;
 }
 
-bool
-GLContext::IsFramebufferComplete(GLuint fb, GLenum* pStatus)
+void
+GLContext::CreateTextureForOffscreen(const GLFormats& aFormats, const gfxIntSize& aSize, GLuint& texture)
 {
-    MOZ_ASSERT(fb);
+    GLuint boundTexture = 0;
+    fGetIntegerv(LOCAL_GL_TEXTURE_BINDING_2D, (GLint*)&boundTexture);
 
-    ScopedBindFramebuffer autoFB(this, fb);
-    MOZ_ASSERT(fIsFramebuffer(fb));
+    if (texture == 0) {
+        fGenTextures(1, &texture);
+    }
 
-    GLenum status = fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
-    if (pStatus)
-        *pStatus = status;
+    fBindTexture(LOCAL_GL_TEXTURE_2D, texture);
+    fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
+    fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
+    fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_S, LOCAL_GL_CLAMP_TO_EDGE);
+    fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, LOCAL_GL_CLAMP_TO_EDGE);
 
-    return status == LOCAL_GL_FRAMEBUFFER_COMPLETE;
+    fTexImage2D(LOCAL_GL_TEXTURE_2D,
+                0,
+                aFormats.texColor,
+                aSize.width, aSize.height,
+                0,
+                aFormats.texColor,
+                aFormats.texColorType,
+                nullptr);
+
+    fBindTexture(LOCAL_GL_TEXTURE_2D, boundTexture);
+}
+
+static inline void
+RenderbufferStorageBySamples(GLContext* gl, GLsizei samples, GLenum internalFormat, const gfxIntSize& size)
+{
+    if (samples) {
+        gl->fRenderbufferStorageMultisample(LOCAL_GL_RENDERBUFFER,
+                                            samples,
+                                            internalFormat,
+                                            size.width, size.height);
+    } else {
+        gl->fRenderbufferStorage(LOCAL_GL_RENDERBUFFER,
+                                 internalFormat,
+                                 size.width, size.height);
+    }
 }
 
 void
-GLContext::AttachBuffersToFB(GLuint colorTex, GLuint colorRB,
-                             GLuint depthRB, GLuint stencilRB,
-                             GLuint fb, GLenum target)
+GLContext::CreateRenderbuffersForOffscreen(const GLContext::GLFormats& aFormats, const gfxIntSize& aSize,
+                                           GLuint& colorMSRB, GLuint& depthRB, GLuint& stencilRB)
 {
-    MOZ_ASSERT(fb);
-    MOZ_ASSERT( !(colorTex && colorRB) );
+    GLuint boundRB = 0;
+    fGetIntegerv(LOCAL_GL_RENDERBUFFER_BINDING, (GLint*)&boundRB);
 
-    ScopedBindFramebuffer autoFB(this, fb);
-    MOZ_ASSERT(fIsFramebuffer(fb)); // It only counts after being bound.
 
-    if (colorTex) {
-        MOZ_ASSERT(fIsTexture(colorTex));
-        MOZ_ASSERT(target == LOCAL_GL_TEXTURE_2D ||
-                   target == LOCAL_GL_TEXTURE_RECTANGLE_ARB);
-        fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER,
-                              LOCAL_GL_COLOR_ATTACHMENT0,
-                              target,
-                              colorTex,
-                              0);
-    } else if (colorRB) {
-        MOZ_ASSERT(fIsRenderbuffer(colorRB));
-        fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER,
-                                 LOCAL_GL_COLOR_ATTACHMENT0,
-                                 LOCAL_GL_RENDERBUFFER,
-                                 colorRB);
+    colorMSRB = 0;
+    depthRB = 0;
+    stencilRB = 0;
+
+    if (aFormats.samples > 0) {
+        fGenRenderbuffers(1, &colorMSRB);
+        fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, colorMSRB);
+        RenderbufferStorageBySamples(this, aFormats.samples, aFormats.rbColor, aSize);
     }
 
-    if (depthRB) {
-        MOZ_ASSERT(fIsRenderbuffer(depthRB));
-        fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER,
-                                 LOCAL_GL_DEPTH_ATTACHMENT,
-                                 LOCAL_GL_RENDERBUFFER,
-                                 depthRB);
+    // If depthStencil, disallow depth, stencil
+    MOZ_ASSERT(!aFormats.depthStencil || (!aFormats.depth && !aFormats.stencil));
+
+    if (aFormats.depthStencil) {
+        fGenRenderbuffers(1, &depthRB);
+        stencilRB = depthRB;
+        fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, depthRB);
+        RenderbufferStorageBySamples(this, aFormats.samples, aFormats.depthStencil, aSize);
     }
 
-    if (stencilRB) {
-        MOZ_ASSERT(fIsRenderbuffer(stencilRB));
-        fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER,
-                                 LOCAL_GL_STENCIL_ATTACHMENT,
-                                 LOCAL_GL_RENDERBUFFER,
-                                 stencilRB);
+    if (aFormats.depth) {
+        fGenRenderbuffers(1, &depthRB);
+        fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, depthRB);
+        RenderbufferStorageBySamples(this, aFormats.samples, aFormats.depth, aSize);
     }
+
+    if (aFormats.stencil) {
+        fGenRenderbuffers(1, &stencilRB);
+        fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, stencilRB);
+        RenderbufferStorageBySamples(this, aFormats.samples, aFormats.stencil, aSize);
+    }
+
+
+    fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, boundRB);
 }
 
 bool
-GLContext::AssembleOffscreenFBs(const GLuint colorMSRB,
-                                const GLuint depthRB,
-                                const GLuint stencilRB,
-                                const GLuint texture,
-                                GLuint* drawFB_out,
-                                GLuint* readFB_out)
+GLContext::AssembleOffscreenFBOs(const GLuint colorMSRB,
+                                 const GLuint depthRB,
+                                 const GLuint stencilRB,
+                                 const GLuint texture,
+                                 GLuint& drawFBO,
+                                 GLuint& readFBO)
 {
+    drawFBO = 0;
+    readFBO = 0;
+
     if (!colorMSRB && !texture) {
         MOZ_ASSERT(!depthRB && !stencilRB);
-
-        if (drawFB_out)
-            *drawFB_out = 0;
-        if (readFB_out)
-            *readFB_out = 0;
-
         return true;
     }
 
-    ScopedBindFramebuffer autoFB(this);
-
-    GLuint drawFB = 0;
-    GLuint readFB = 0;
+    GLuint boundDrawFBO = GetUserBoundDrawFBO();
+    GLuint boundReadFBO = GetUserBoundReadFBO();
 
     if (texture) {
-        readFB = 0;
-        fGenFramebuffers(1, &readFB);
-        BindFB(readFB);
+        fGenFramebuffers(1, &readFBO);
+        BindInternalFBO(readFBO);
         fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER,
                               LOCAL_GL_COLOR_ATTACHMENT0,
                               LOCAL_GL_TEXTURE_2D,
@@ -1921,17 +1498,16 @@ GLContext::AssembleOffscreenFBs(const GLuint colorMSRB,
     }
 
     if (colorMSRB) {
-        drawFB = 0;
-        fGenFramebuffers(1, &drawFB);
-        BindFB(drawFB);
+        fGenFramebuffers(1, &drawFBO);
+        BindInternalFBO(drawFBO);
         fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER,
                                  LOCAL_GL_COLOR_ATTACHMENT0,
                                  LOCAL_GL_RENDERBUFFER,
                                  colorMSRB);
     } else {
-        drawFB = readFB;
+        drawFBO = readFBO;
+        // drawFBO==readFBO is already bound from the 'if (texture)' block.
     }
-    MOZ_ASSERT(GetFB() == drawFB);
 
     if (depthRB) {
         fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER,
@@ -1951,9 +1527,11 @@ GLContext::AssembleOffscreenFBs(const GLuint colorMSRB,
     GLenum status;
     bool isComplete = true;
 
-    if (!IsFramebufferComplete(drawFB, &status)) {
+    BindInternalFBO(drawFBO);
+    status = fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
+    if (status != LOCAL_GL_FRAMEBUFFER_COMPLETE) {
         NS_WARNING("DrawFBO: Incomplete");
-  #ifdef MOZ_GL_DEBUG
+  #ifdef DEBUG
         if (DebugMode()) {
             printf_stderr("Framebuffer status: %X\n", status);
         }
@@ -1961,9 +1539,11 @@ GLContext::AssembleOffscreenFBs(const GLuint colorMSRB,
         isComplete = false;
     }
 
-    if (!IsFramebufferComplete(readFB, &status)) {
+    BindInternalFBO(readFBO);
+    status = fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
+    if (status != LOCAL_GL_FRAMEBUFFER_COMPLETE) {
         NS_WARNING("ReadFBO: Incomplete");
-  #ifdef MOZ_GL_DEBUG
+  #ifdef DEBUG
         if (DebugMode()) {
             printf_stderr("Framebuffer status: %X\n", status);
         }
@@ -1971,21 +1551,107 @@ GLContext::AssembleOffscreenFBs(const GLuint colorMSRB,
         isComplete = false;
     }
 
-    if (drawFB_out) {
-        *drawFB_out = drawFB;
-    } else if (drawFB) {
-        NS_RUNTIMEABORT("drawFB created when not requested!");
-    }
-
-    if (readFB_out) {
-        *readFB_out = readFB;
-    } else if (readFB) {
-        NS_RUNTIMEABORT("readFB created when not requested!");
-    }
+    BindUserDrawFBO(boundDrawFBO);
+    BindUserReadFBO(boundReadFBO);
 
     return isComplete;
 }
 
+bool
+GLContext::ResizeOffscreenFBOs(const ContextFormat& aCF, const gfxIntSize& aSize, const bool aNeedsReadBuffer)
+{
+    // Early out for when we're rendering directly to the context's 'screen'.
+    if (!aNeedsReadBuffer && !aCF.samples)
+        return true;
+
+    MakeCurrent();
+    ContextFormat cf(aCF);
+    GLFormats formats = ChooseGLFormats(cf);
+
+    GLuint texture = 0;
+    if (aNeedsReadBuffer)
+        CreateTextureForOffscreen(formats, aSize, texture);
+
+    GLuint colorMSRB = 0;
+    GLuint depthRB = 0;
+    GLuint stencilRB = 0;
+    CreateRenderbuffersForOffscreen(formats, aSize, colorMSRB, depthRB, stencilRB);
+
+    GLuint drawFBO = 0;
+    GLuint readFBO = 0;
+    if (!AssembleOffscreenFBOs(colorMSRB, depthRB, stencilRB, texture,
+                               drawFBO, readFBO))
+    {
+        fDeleteFramebuffers(1, &drawFBO);
+        fDeleteFramebuffers(1, &readFBO);
+        fDeleteRenderbuffers(1, &colorMSRB);
+        fDeleteRenderbuffers(1, &depthRB);
+        fDeleteRenderbuffers(1, &stencilRB);
+        fDeleteTextures(1, &texture);
+
+        return false;
+    }
+
+    // Success, so switch everything out.
+    // Store current user FBO bindings.
+    GLuint boundDrawFBO = GetUserBoundDrawFBO();
+    GLuint boundReadFBO = GetUserBoundReadFBO();
+
+    // Replace with the new hotness
+    std::swap(mOffscreenDrawFBO, drawFBO);
+    std::swap(mOffscreenReadFBO, readFBO);
+    std::swap(mOffscreenColorRB, colorMSRB);
+    std::swap(mOffscreenDepthRB, depthRB);
+    std::swap(mOffscreenStencilRB, stencilRB);
+    std::swap(mOffscreenTexture, texture);
+
+    // Delete the old and busted
+    fDeleteFramebuffers(1, &drawFBO);
+    fDeleteFramebuffers(1, &readFBO);
+    fDeleteRenderbuffers(1, &colorMSRB);
+    fDeleteRenderbuffers(1, &depthRB);
+    fDeleteRenderbuffers(1, &stencilRB);
+    fDeleteTextures(1, &texture);
+
+    // Rebind user FBOs, in case anything changed internally.
+    BindUserDrawFBO(boundDrawFBO);
+    BindUserReadFBO(boundReadFBO);
+
+    // Newly-created buffers are...unlikely to match.
+    ForceDirtyFBOs();
+
+    // Finish up.
+    mOffscreenSize = aSize;
+    mOffscreenActualSize = aSize;
+    mActualFormat = cf;
+
+    if (DebugMode()) {
+        printf_stderr("Resized %dx%d offscreen FBO: r: %d g: %d b: %d a: %d depth: %d stencil: %d samples: %d\n",
+                      mOffscreenActualSize.width, mOffscreenActualSize.height,
+                      mActualFormat.red, mActualFormat.green, mActualFormat.blue, mActualFormat.alpha,
+                      mActualFormat.depth, mActualFormat.stencil, mActualFormat.samples);
+    }
+
+    return true;
+}
+
+void
+GLContext::DeleteOffscreenFBOs()
+{
+    fDeleteFramebuffers(1, &mOffscreenDrawFBO);
+    fDeleteFramebuffers(1, &mOffscreenReadFBO);
+    fDeleteTextures(1, &mOffscreenTexture);
+    fDeleteRenderbuffers(1, &mOffscreenColorRB);
+    fDeleteRenderbuffers(1, &mOffscreenDepthRB);
+    fDeleteRenderbuffers(1, &mOffscreenStencilRB);
+
+    mOffscreenDrawFBO = 0;
+    mOffscreenReadFBO = 0;
+    mOffscreenTexture = 0;
+    mOffscreenColorRB = 0;
+    mOffscreenDepthRB = 0;
+    mOffscreenStencilRB = 0;
+}
 
 void
 GLContext::ClearSafely()
@@ -2022,6 +1688,7 @@ GLContext::ClearSafely()
     // prepare GL state for clearing
     fDisable(LOCAL_GL_SCISSOR_TEST);
     fDisable(LOCAL_GL_DITHER);
+    PushViewportRect(nsIntRect(0, 0, mOffscreenSize.width, mOffscreenSize.height));
 
     fColorMask(1, 1, 1, 1);
     fClearColor(0.f, 0.f, 0.f, 0.f);
@@ -2054,6 +1721,8 @@ GLContext::ClearSafely()
     fStencilMaskSeparate(LOCAL_GL_BACK, stencilWriteMaskBack);
     fClearStencil(stencilClearValue);
 
+    PopViewportRect();
+
     if (ditherEnabled)
         fEnable(LOCAL_GL_DITHER);
     else
@@ -2067,18 +1736,34 @@ GLContext::ClearSafely()
 }
 
 void
+GLContext::UpdateActualFormat()
+{
+    ContextFormat nf;
+
+    fGetIntegerv(LOCAL_GL_RED_BITS, (GLint*) &nf.red);
+    fGetIntegerv(LOCAL_GL_GREEN_BITS, (GLint*) &nf.green);
+    fGetIntegerv(LOCAL_GL_BLUE_BITS, (GLint*) &nf.blue);
+    fGetIntegerv(LOCAL_GL_ALPHA_BITS, (GLint*) &nf.alpha);
+    fGetIntegerv(LOCAL_GL_DEPTH_BITS, (GLint*) &nf.depth);
+    fGetIntegerv(LOCAL_GL_STENCIL_BITS, (GLint*) &nf.stencil);
+
+    mActualFormat = nf;
+}
+
+void
 GLContext::MarkDestroyed()
 {
     if (IsDestroyed())
         return;
 
     if (MakeCurrent()) {
-        DestroyScreenBuffer();
+        DeleteOffscreenFBOs();
+        DeleteTexBlitProgram();
 
-        mBlitHelper = nullptr;
-        mReadTexImageHelper = nullptr;
-
-        mTexGarbageBin->GLContextTeardown();
+        fDeleteProgram(mBlitProgram);
+        mBlitProgram = 0;
+        fDeleteFramebuffers(1, &mBlitFramebuffer);
+        mBlitFramebuffer = 0;
     } else {
         NS_WARNING("MakeCurrent() failed during MarkDestroyed! Skipping GL object teardown.");
     }
@@ -2086,37 +1771,1156 @@ GLContext::MarkDestroyed()
     mSymbols.Zero();
 }
 
-#ifdef MOZ_GL_DEBUG
-/* static */ void
-GLContext::AssertNotPassingStackBufferToTheGL(const void* ptr)
+static void SwapRAndBComponents(gfxImageSurface* surf)
 {
-  int somethingOnTheStack;
-  const void* someStackPtr = &somethingOnTheStack;
-  const int page_bits = 12;
-  intptr_t page = reinterpret_cast<uintptr_t>(ptr) >> page_bits;
-  intptr_t someStackPage = reinterpret_cast<uintptr_t>(someStackPtr) >> page_bits;
-  uintptr_t pageDistance = std::abs(page - someStackPage);
-
-  // Explanation for the "distance <= 1" check here as opposed to just
-  // an equality check.
-  //
-  // Here we assume that pages immediately adjacent to the someStackAddress page,
-  // are also stack pages. That allows to catch the case where the calling frame put
-  // a buffer on the stack, and we just crossed the page boundary. That is likely
-  // to happen, precisely, when using stack arrays. I hit that specifically
-  // with CompositorOGL::Initialize.
-  //
-  // In theory we could be unlucky and wrongly assert here. If that happens,
-  // it will only affect debug builds, and looking at stacks we'll be able to
-  // see that this assert is wrong and revert to the conservative and safe
-  // approach of only asserting when address and someStackAddress are
-  // on the same page.
-  bool isStackAddress = pageDistance <= 1;
-  MOZ_ASSERT(!isStackAddress,
-             "Please don't pass stack arrays to the GL. "
-             "Consider using HeapCopyOfStackArray. "
-             "See bug 1005658.");
+    for (int j = 0; j < surf->Height(); ++j) {
+        uint32_t* row = (uint32_t*)(surf->Data() + surf->Stride() * j);
+        for (int i = 0; i < surf->Width(); ++i) {
+            *row = (*row & 0xff00ff00) | ((*row & 0xff) << 16) | ((*row & 0xff0000) >> 16);
+            row++;
+        }
+    }
 }
+
+static already_AddRefed<gfxImageSurface> YInvertImageSurface(gfxImageSurface* aSurf)
+{
+  gfxIntSize size = aSurf->GetSize();
+  nsRefPtr<gfxImageSurface> temp = new gfxImageSurface(size, aSurf->Format());
+  nsRefPtr<gfxContext> ctx = new gfxContext(temp);
+  ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+  ctx->Scale(1.0, -1.0);
+  ctx->Translate(-gfxPoint(0.0, size.height));
+  ctx->SetSource(aSurf);
+  ctx->Paint();
+  return temp.forget();
+}
+
+already_AddRefed<gfxImageSurface>
+GLContext::GetTexImage(GLuint aTexture, bool aYInvert, ShaderProgramType aShader)
+{
+    MakeCurrent();
+    GuaranteeResolve();
+    fActiveTexture(LOCAL_GL_TEXTURE0);
+    fBindTexture(LOCAL_GL_TEXTURE_2D, aTexture);
+
+    gfxIntSize size;
+    fGetTexLevelParameteriv(LOCAL_GL_TEXTURE_2D, 0, LOCAL_GL_TEXTURE_WIDTH, &size.width);
+    fGetTexLevelParameteriv(LOCAL_GL_TEXTURE_2D, 0, LOCAL_GL_TEXTURE_HEIGHT, &size.height);
+    
+    nsRefPtr<gfxImageSurface> surf = new gfxImageSurface(size, gfxASurface::ImageFormatARGB32);
+    if (!surf || surf->CairoStatus()) {
+        return NULL;
+    }
+
+    uint32_t currentPackAlignment = 0;
+    fGetIntegerv(LOCAL_GL_PACK_ALIGNMENT, (GLint*)&currentPackAlignment);
+    if (currentPackAlignment != 4) {
+        fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, 4);
+    }
+    fGetTexImage(LOCAL_GL_TEXTURE_2D, 0, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE, surf->Data());
+    if (currentPackAlignment != 4) {
+        fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, currentPackAlignment);
+    }
+   
+    if (aShader == RGBALayerProgramType || aShader == RGBXLayerProgramType) {
+      SwapRAndBComponents(surf);
+    }
+
+    if (aYInvert) {
+      surf = YInvertImageSurface(surf);
+    }
+    return surf.forget();
+}
+
+already_AddRefed<gfxImageSurface>
+GLContext::ReadTextureImage(GLuint aTexture,
+                            const gfxIntSize& aSize,
+                            GLenum aTextureFormat,
+                            bool aYInvert)
+{
+    MakeCurrent();
+
+    nsRefPtr<gfxImageSurface> isurf;
+
+    GLint oldrb, oldfb, oldprog, oldPackAlignment;
+    GLint success;
+
+    GLuint rb = 0, fb = 0;
+    GLuint vs = 0, fs = 0, prog = 0;
+
+    const char *vShader =
+        "attribute vec4 aVertex;\n"
+        "attribute vec2 aTexCoord;\n"
+        "varying vec2 vTexCoord;\n"
+        "void main() { gl_Position = aVertex; vTexCoord = aTexCoord; }";
+    const char *fShader =
+        "#ifdef GL_ES\n"
+        "precision mediump float;\n"
+        "#endif\n"
+        "varying vec2 vTexCoord;\n"
+        "uniform sampler2D uTexture;\n"
+        "void main() { gl_FragColor = texture2D(uTexture, vTexCoord); }";
+
+    float verts[4*4] = {
+        -1.0f, -1.0f, 0.0f, 1.0f,
+         1.0f, -1.0f, 0.0f, 1.0f,
+        -1.0f,  1.0f, 0.0f, 1.0f,
+         1.0f,  1.0f, 0.0f, 1.0f
+    };
+
+    float texcoords[2*4] = {
+        0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f
+    };
+
+    fGetIntegerv(LOCAL_GL_RENDERBUFFER_BINDING, &oldrb);
+    fGetIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, &oldfb);
+    fGetIntegerv(LOCAL_GL_CURRENT_PROGRAM, &oldprog);
+    fGetIntegerv(LOCAL_GL_PACK_ALIGNMENT, &oldPackAlignment);
+
+    PushViewportRect(nsIntRect(0, 0, aSize.width, aSize.height));
+
+    fGenRenderbuffers(1, &rb);
+    fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, rb);
+    fRenderbufferStorage(LOCAL_GL_RENDERBUFFER, LOCAL_GL_RGBA,
+                         aSize.width, aSize.height);
+
+    fGenFramebuffers(1, &fb);
+    fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, fb);
+    fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0,
+                             LOCAL_GL_RENDERBUFFER, rb);
+
+    if (fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER) !=
+        LOCAL_GL_FRAMEBUFFER_COMPLETE)
+    {
+        goto cleanup;
+    }
+
+    vs = fCreateShader(LOCAL_GL_VERTEX_SHADER);
+    fs = fCreateShader(LOCAL_GL_FRAGMENT_SHADER);
+    fShaderSource(vs, 1, (const GLchar**) &vShader, NULL);
+    fShaderSource(fs, 1, (const GLchar**) &fShader, NULL);
+    fCompileShader(vs);
+    fCompileShader(fs);
+    prog = fCreateProgram();
+    fAttachShader(prog, vs);
+    fAttachShader(prog, fs);
+    fBindAttribLocation(prog, 0, "aVertex");
+    fBindAttribLocation(prog, 1, "aTexCoord");
+    fLinkProgram(prog);
+
+    fGetProgramiv(prog, LOCAL_GL_LINK_STATUS, &success);
+    if (!success) {
+        goto cleanup;
+    }
+
+    fUseProgram(prog);
+
+    fEnableVertexAttribArray(0);
+    fEnableVertexAttribArray(1);
+
+    fVertexAttribPointer(0, 4, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, verts);
+    fVertexAttribPointer(1, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, texcoords);
+
+    fActiveTexture(LOCAL_GL_TEXTURE0);
+    fBindTexture(LOCAL_GL_TEXTURE_2D, aTexture);
+
+    fUniform1i(fGetUniformLocation(prog, "uTexture"), 0);
+
+    fDrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 4);
+
+    fDisableVertexAttribArray(1);
+    fDisableVertexAttribArray(0);
+
+    isurf = new gfxImageSurface(aSize, gfxASurface::ImageFormatARGB32);
+    if (!isurf || isurf->CairoStatus()) {
+        isurf = nullptr;
+        goto cleanup;
+    }
+
+    if (oldPackAlignment != 4)
+        fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, 4);
+
+    fReadPixels(0, 0, aSize.width, aSize.height,
+                LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE,
+                isurf->Data());
+
+    SwapRAndBComponents(isurf);
+
+    if (oldPackAlignment != 4)
+        fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, oldPackAlignment);
+
+    if (aYInvert) {
+      isurf = YInvertImageSurface(isurf);
+    }
+
+ cleanup:
+    // note that deleting 0 has no effect in any of these calls
+    fDeleteRenderbuffers(1, &rb);
+    fDeleteFramebuffers(1, &fb);
+    fDeleteShader(vs);
+    fDeleteShader(fs);
+    fDeleteProgram(prog);
+
+    fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, oldrb);
+    fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, oldfb);
+    fUseProgram(oldprog);
+
+    PopViewportRect();
+
+    return isurf.forget();
+}
+
+static void
+GetOptimalReadFormats(GLContext* gl, GLenum& format, GLenum& type) {
+    if (gl->IsGLES2()) {
+        bool has_BGRA_UByte = false;
+        if (gl->IsExtensionSupported(gl::GLContext::EXT_bgra)) {
+          has_BGRA_UByte = true;
+        } else if (gl->IsExtensionSupported(gl::GLContext::EXT_read_format_bgra) ||
+                   gl->IsExtensionSupported(gl::GLContext::IMG_read_format)) {
+            // Note that these extensions are not required to query this value.
+            // However, we should never get back BGRA unless one of these is supported.
+            GLint auxFormat = 0;
+            GLint auxType = 0;
+
+            gl->fGetIntegerv(LOCAL_GL_IMPLEMENTATION_COLOR_READ_FORMAT, &auxFormat);
+            gl->fGetIntegerv(LOCAL_GL_IMPLEMENTATION_COLOR_READ_TYPE, &auxType);
+
+            if (auxFormat == LOCAL_GL_BGRA && auxType == LOCAL_GL_UNSIGNED_BYTE)
+              has_BGRA_UByte = true;
+        }
+
+        format = has_BGRA_UByte ? LOCAL_GL_BGRA : LOCAL_GL_RGBA;
+        type = LOCAL_GL_UNSIGNED_BYTE;
+    } else {
+        // defaults for desktop
+        format = LOCAL_GL_BGRA;
+        type = LOCAL_GL_UNSIGNED_INT_8_8_8_8_REV;
+    }
+}
+
+void
+GLContext::ReadScreenIntoImageSurface(gfxImageSurface* dest)
+{
+    GLuint boundFB = 0;
+    fGetIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, (GLint*)&boundFB);
+    fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
+
+    ReadPixelsIntoImageSurface(dest);
+
+    fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, boundFB);
+}
+
+void
+GLContext::ReadPixelsIntoImageSurface(gfxImageSurface* dest)
+{
+    MOZ_ASSERT(dest->Format() == gfxASurface::ImageFormatARGB32 ||
+               dest->Format() == gfxASurface::ImageFormatRGB24);
+
+    MOZ_ASSERT(dest->Stride() == dest->Width() * 4);
+    MOZ_ASSERT(dest->Format() == gfxASurface::ImageFormatARGB32 ||
+               dest->Format() == gfxASurface::ImageFormatRGB24);
+
+    MOZ_ASSERT(dest->Stride() == dest->Width() * 4);
+
+    MakeCurrent();
+
+    GLint currentPackAlignment = 0;
+    fGetIntegerv(LOCAL_GL_PACK_ALIGNMENT, &currentPackAlignment);
+
+    if (currentPackAlignment != 4)
+        fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, 4);
+
+    GLenum format;
+    GLenum datatype;
+
+    GetOptimalReadFormats(this, format, datatype);
+
+    fReadPixels(0, 0,
+                dest->Width(), dest->Height(),
+                format, datatype,
+                dest->Data());
+
+    // Output should be in BGRA, so swap if RGBA.
+    if (format == LOCAL_GL_RGBA) {
+        SwapRAndBComponents(dest);
+    }
+
+    if (currentPackAlignment != 4)
+        fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, currentPackAlignment);
+}
+
+void
+GLContext::BlitTextureImage(TextureImage *aSrc, const nsIntRect& aSrcRect,
+                            TextureImage *aDst, const nsIntRect& aDstRect)
+{
+    NS_ASSERTION(!aSrc->InUpdate(), "Source texture is in update!");
+    NS_ASSERTION(!aDst->InUpdate(), "Destination texture is in update!");
+
+    if (aSrcRect.IsEmpty() || aDstRect.IsEmpty())
+        return;
+
+    // only save/restore this stuff on Qualcomm Adreno, to work
+    // around an apparent bug
+    int savedFb = 0;
+    if (mWorkAroundDriverBugs &&
+        mVendor == VendorQualcomm)
+    {
+        fGetIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, &savedFb);
+    }
+
+    fDisable(LOCAL_GL_SCISSOR_TEST);
+    fDisable(LOCAL_GL_BLEND);
+
+    // 2.0 means scale up by two
+    float blitScaleX = float(aDstRect.width) / float(aSrcRect.width);
+    float blitScaleY = float(aDstRect.height) / float(aSrcRect.height);
+
+    // We start iterating over all destination tiles
+    aDst->BeginTileIteration();
+    do {
+        // calculate portion of the tile that is going to be painted to
+        nsIntRect dstSubRect;
+        nsIntRect dstTextureRect = aDst->GetTileRect();
+        dstSubRect.IntersectRect(aDstRect, dstTextureRect);
+
+        // this tile is not part of the destination rectangle aDstRect
+        if (dstSubRect.IsEmpty())
+            continue;
+
+        // (*) transform the rect of this tile into the rectangle defined by aSrcRect...
+        nsIntRect dstInSrcRect(dstSubRect);
+        dstInSrcRect.MoveBy(-aDstRect.TopLeft());
+        // ...which might be of different size, hence scale accordingly
+        dstInSrcRect.ScaleRoundOut(1.0f / blitScaleX, 1.0f / blitScaleY);
+        dstInSrcRect.MoveBy(aSrcRect.TopLeft());
+
+        SetBlitFramebufferForDestTexture(aDst->GetTextureID());
+        UseBlitProgram();
+
+        aSrc->BeginTileIteration();
+        // now iterate over all tiles in the source Image...
+        do {
+            // calculate portion of the source tile that is in the source rect
+            nsIntRect srcSubRect;
+            nsIntRect srcTextureRect = aSrc->GetTileRect();
+            srcSubRect.IntersectRect(aSrcRect, srcTextureRect);
+
+            // this tile is not part of the source rect
+            if (srcSubRect.IsEmpty()) {
+                continue;
+            }
+            // calculate intersection of source rect with destination rect
+            srcSubRect.IntersectRect(srcSubRect, dstInSrcRect);
+            // this tile does not overlap the current destination tile
+            if (srcSubRect.IsEmpty()) {
+                continue;
+            }
+            // We now have the intersection of 
+            //     the current source tile 
+            // and the desired source rectangle
+            // and the destination tile
+            // and the desired destination rectange
+            // in destination space.
+            // We need to transform this back into destination space, inverting the transform from (*)
+            nsIntRect srcSubInDstRect(srcSubRect);
+            srcSubInDstRect.MoveBy(-aSrcRect.TopLeft());
+            srcSubInDstRect.ScaleRoundOut(blitScaleX, blitScaleY);
+            srcSubInDstRect.MoveBy(aDstRect.TopLeft());
+
+            // we transform these rectangles to be relative to the current src and dst tiles, respectively
+            nsIntSize srcSize = srcTextureRect.Size();
+            nsIntSize dstSize = dstTextureRect.Size();
+            srcSubRect.MoveBy(-srcTextureRect.x, -srcTextureRect.y);
+            srcSubInDstRect.MoveBy(-dstTextureRect.x, -dstTextureRect.y);
+
+            float dx0 = 2.0 * float(srcSubInDstRect.x) / float(dstSize.width) - 1.0;
+            float dy0 = 2.0 * float(srcSubInDstRect.y) / float(dstSize.height) - 1.0;
+            float dx1 = 2.0 * float(srcSubInDstRect.x + srcSubInDstRect.width) / float(dstSize.width) - 1.0;
+            float dy1 = 2.0 * float(srcSubInDstRect.y + srcSubInDstRect.height) / float(dstSize.height) - 1.0;
+            PushViewportRect(nsIntRect(0, 0, dstSize.width, dstSize.height));
+
+            RectTriangles rects;
+
+            nsIntSize realTexSize = srcSize;
+            if (!CanUploadNonPowerOfTwo()) {
+                realTexSize = nsIntSize(NextPowerOfTwo(srcSize.width),
+                                        NextPowerOfTwo(srcSize.height));
+            }
+
+            if (aSrc->GetWrapMode() == LOCAL_GL_REPEAT) {
+                rects.addRect(/* dest rectangle */
+                        dx0, dy0, dx1, dy1,
+                        /* tex coords */
+                        srcSubRect.x / float(realTexSize.width),
+                        srcSubRect.y / float(realTexSize.height),
+                        srcSubRect.XMost() / float(realTexSize.width),
+                        srcSubRect.YMost() / float(realTexSize.height));
+            } else {
+                DecomposeIntoNoRepeatTriangles(srcSubRect, realTexSize, rects);
+
+                // now put the coords into the d[xy]0 .. d[xy]1 coordinate space
+                // from the 0..1 that it comes out of decompose
+                RectTriangles::vert_coord* v = (RectTriangles::vert_coord*)rects.vertexPointer();
+
+                for (unsigned int i = 0; i < rects.elements(); ++i) {
+                    v[i].x = (v[i].x * (dx1 - dx0)) + dx0;
+                    v[i].y = (v[i].y * (dy1 - dy0)) + dy0;
+                }
+            }
+
+            TextureImage::ScopedBindTexture texBind(aSrc, LOCAL_GL_TEXTURE0);
+
+            fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
+
+            fVertexAttribPointer(0, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, rects.vertexPointer());
+            fVertexAttribPointer(1, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, rects.texCoordPointer());
+
+            fEnableVertexAttribArray(0);
+            fEnableVertexAttribArray(1);
+
+            fDrawArrays(LOCAL_GL_TRIANGLES, 0, rects.elements());
+
+            fDisableVertexAttribArray(0);
+            fDisableVertexAttribArray(1);
+
+            PopViewportRect();
+        } while (aSrc->NextTile());
+    } while (aDst->NextTile());
+
+    fVertexAttribPointer(0, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, NULL);
+    fVertexAttribPointer(1, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, NULL);
+
+    // unbind the previous texture from the framebuffer
+    SetBlitFramebufferForDestTexture(0);
+
+    // then put back the previous framebuffer, and don't
+    // enable stencil if it wasn't enabled on entry to work
+    // around Adreno 200 bug that causes us to crash if
+    // we enable scissor test while the current FBO is invalid
+    // (which it will be, once we assign texture 0 to the color
+    // attachment)
+    if (mWorkAroundDriverBugs &&
+        mVendor == VendorQualcomm) {
+        fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, savedFb);
+    }
+
+    fEnable(LOCAL_GL_SCISSOR_TEST);
+    fEnable(LOCAL_GL_BLEND);
+}
+
+static unsigned int 
+DataOffset(gfxImageSurface *aSurf, const nsIntPoint &aPoint)
+{
+  unsigned int data = aPoint.y * aSurf->Stride();
+  data += aPoint.x * gfxASurface::BytePerPixelFromFormat(aSurf->Format());
+  return data;
+}
+
+ShaderProgramType 
+GLContext::UploadSurfaceToTexture(gfxASurface *aSurface, 
+                                  const nsIntRegion& aDstRegion,
+                                  GLuint& aTexture,
+                                  bool aOverwrite,
+                                  const nsIntPoint& aSrcPoint,
+                                  bool aPixelBuffer,
+                                  GLenum aTextureUnit)
+{
+    bool textureInited = aOverwrite ? false : true;
+    MakeCurrent();
+    fActiveTexture(aTextureUnit);
+  
+    if (!aTexture) {
+        fGenTextures(1, &aTexture);
+        fBindTexture(LOCAL_GL_TEXTURE_2D, aTexture);
+        fTexParameteri(LOCAL_GL_TEXTURE_2D, 
+                       LOCAL_GL_TEXTURE_MIN_FILTER, 
+                       LOCAL_GL_LINEAR);
+        fTexParameteri(LOCAL_GL_TEXTURE_2D, 
+                       LOCAL_GL_TEXTURE_MAG_FILTER, 
+                       LOCAL_GL_LINEAR);
+        fTexParameteri(LOCAL_GL_TEXTURE_2D, 
+                       LOCAL_GL_TEXTURE_WRAP_S, 
+                       LOCAL_GL_CLAMP_TO_EDGE);
+        fTexParameteri(LOCAL_GL_TEXTURE_2D, 
+                       LOCAL_GL_TEXTURE_WRAP_T, 
+                       LOCAL_GL_CLAMP_TO_EDGE);
+        textureInited = false;
+    } else {
+        fBindTexture(LOCAL_GL_TEXTURE_2D, aTexture);
+    }
+
+    nsIntRegion paintRegion;
+    if (!textureInited) {
+        paintRegion = nsIntRegion(aDstRegion.GetBounds());
+    } else {
+        paintRegion = aDstRegion;
+    }
+
+    nsRefPtr<gfxImageSurface> imageSurface = aSurface->GetAsImageSurface();
+    unsigned char* data = NULL;
+
+    if (!imageSurface || 
+        (imageSurface->Format() != gfxASurface::ImageFormatARGB32 &&
+         imageSurface->Format() != gfxASurface::ImageFormatRGB24 &&
+         imageSurface->Format() != gfxASurface::ImageFormatRGB16_565 &&
+         imageSurface->Format() != gfxASurface::ImageFormatA8)) {
+        // We can't get suitable pixel data for the surface, make a copy
+        nsIntRect bounds = aDstRegion.GetBounds();
+        imageSurface = 
+          new gfxImageSurface(gfxIntSize(bounds.width, bounds.height), 
+                              gfxASurface::ImageFormatARGB32);
+  
+        nsRefPtr<gfxContext> context = new gfxContext(imageSurface);
+
+        context->Translate(-gfxPoint(aSrcPoint.x, aSrcPoint.y));
+        context->SetSource(aSurface);
+        context->Paint();
+        data = imageSurface->Data();
+        NS_ASSERTION(!aPixelBuffer,
+                     "Must be using an image compatible surface with pixel buffers!");
+    } else {
+        // If a pixel buffer is bound the data pointer parameter is relative
+        // to the start of the data block.
+        if (!aPixelBuffer) {
+              data = imageSurface->Data();
+        }
+        data += DataOffset(imageSurface, aSrcPoint);
+    }
+
+    GLenum format;
+    GLenum type;
+    int32_t pixelSize = gfxASurface::BytePerPixelFromFormat(imageSurface->Format());
+    ShaderProgramType shader;
+
+    switch (imageSurface->Format()) {
+        case gfxASurface::ImageFormatARGB32:
+            format = LOCAL_GL_RGBA;
+            type = LOCAL_GL_UNSIGNED_BYTE;
+            shader = BGRALayerProgramType;
+            break;
+        case gfxASurface::ImageFormatRGB24:
+            // Treat RGB24 surfaces as RGBA32 except for the shader
+            // program used.
+            format = LOCAL_GL_RGBA;
+            type = LOCAL_GL_UNSIGNED_BYTE;
+            shader = BGRXLayerProgramType;
+            break;
+        case gfxASurface::ImageFormatRGB16_565:
+            format = LOCAL_GL_RGB;
+            type = LOCAL_GL_UNSIGNED_SHORT_5_6_5;
+            shader = RGBALayerProgramType;
+            break;
+        case gfxASurface::ImageFormatA8:
+            format = LOCAL_GL_LUMINANCE;
+            type = LOCAL_GL_UNSIGNED_BYTE;
+            // We don't have a specific luminance shader
+            shader = ShaderProgramType(0);
+            break;
+        default:
+            NS_ASSERTION(false, "Unhandled image surface format!");
+            format = 0;
+            type = 0;
+            shader = ShaderProgramType(0);
+    }
+
+    int32_t stride = imageSurface->Stride();
+
+    nsIntRegionRectIterator iter(paintRegion);
+    const nsIntRect *iterRect;
+
+    // Top left point of the region's bounding rectangle.
+    nsIntPoint topLeft = paintRegion.GetBounds().TopLeft();
+
+    while ((iterRect = iter.Next())) {
+        // The inital data pointer is at the top left point of the region's
+        // bounding rectangle. We need to find the offset of this rect
+        // within the region and adjust the data pointer accordingly.
+        unsigned char *rectData = 
+            data + DataOffset(imageSurface, iterRect->TopLeft() - topLeft);
+
+        NS_ASSERTION(textureInited || (iterRect->x == 0 && iterRect->y == 0), 
+                     "Must be uploading to the origin when we don't have an existing texture");
+
+        if (textureInited && CanUploadSubTextures()) {
+            TexSubImage2D(LOCAL_GL_TEXTURE_2D,
+                          0,
+                          iterRect->x,
+                          iterRect->y,
+                          iterRect->width,
+                          iterRect->height,
+                          stride,
+                          pixelSize,
+                          format,
+                          type,
+                          rectData);
+        } else {
+            TexImage2D(LOCAL_GL_TEXTURE_2D,
+                       0,
+                       format,
+                       iterRect->width,
+                       iterRect->height,
+                       stride,
+                       pixelSize,
+                       0,
+                       format,
+                       type,
+                       rectData);
+        }
+
+    }
+
+    return shader;
+}
+
+static GLint GetAddressAlignment(ptrdiff_t aAddress)
+{
+    if (!(aAddress & 0x7)) {
+       return 8;
+    } else if (!(aAddress & 0x3)) {
+        return 4;
+    } else if (!(aAddress & 0x1)) {
+        return 2;
+    } else {
+        return 1;
+    }
+}
+
+void
+GLContext::TexImage2D(GLenum target, GLint level, GLint internalformat,
+                      GLsizei width, GLsizei height, GLsizei stride,
+                      GLint pixelsize, GLint border, GLenum format,
+                      GLenum type, const GLvoid *pixels)
+{
+    if (mIsGLES2) {
+
+        NS_ASSERTION(format == (GLenum)internalformat,
+                    "format and internalformat not the same for glTexImage2D on GLES2");
+
+        if (!CanUploadNonPowerOfTwo()
+            && (stride != width * pixelsize
+            || !IsPowerOfTwo(width)
+            || !IsPowerOfTwo(height))) {
+
+            // Pad out texture width and height to the next power of two
+            // as we don't support/want non power of two texture uploads
+            GLsizei paddedWidth = NextPowerOfTwo(width);
+            GLsizei paddedHeight = NextPowerOfTwo(height);
+
+            GLvoid* paddedPixels = new unsigned char[paddedWidth * paddedHeight * pixelsize];
+
+            // Pad out texture data to be in a POT sized buffer for uploading to
+            // a POT sized texture
+            CopyAndPadTextureData(pixels, paddedPixels, width, height,
+                                  paddedWidth, paddedHeight, stride, pixelsize);
+
+            fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT,
+                    NS_MIN(GetAddressAlignment((ptrdiff_t)paddedPixels),
+                            GetAddressAlignment((ptrdiff_t)paddedWidth * pixelsize)));
+            fTexImage2D(target,
+                        border,
+                        internalformat,
+                        paddedWidth,
+                        paddedHeight,
+                        border,
+                        format,
+                        type,
+                        paddedPixels);
+            fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
+
+            delete[] static_cast<unsigned char*>(paddedPixels);
+            return;
+        }
+
+        if (stride == width * pixelsize) {
+            fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT,
+                    NS_MIN(GetAddressAlignment((ptrdiff_t)pixels),
+                            GetAddressAlignment((ptrdiff_t)stride)));
+            fTexImage2D(target,
+                        border,
+                        internalformat,
+                        width,
+                        height,
+                        border,
+                        format,
+                        type,
+                        pixels);
+            fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
+        } else {
+            // Use GLES-specific workarounds for GL_UNPACK_ROW_LENGTH; these are
+            // implemented in TexSubImage2D.
+            fTexImage2D(target,
+                        border,
+                        internalformat,
+                        width,
+                        height,
+                        border,
+                        format,
+                        type,
+                        NULL);
+            TexSubImage2D(target,
+                          level,
+                          0,
+                          0,
+                          width,
+                          height,
+                          stride,
+                          pixelsize,
+                          format,
+                          type,
+                          pixels);
+        }
+    } else {
+        // desktop GL (non-ES) path
+
+        fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT,
+                    NS_MIN(GetAddressAlignment((ptrdiff_t)pixels),
+                            GetAddressAlignment((ptrdiff_t)stride)));
+        int rowLength = stride/pixelsize;
+        fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, rowLength);
+        fTexImage2D(target,
+                    level,
+                    internalformat,
+                    width,
+                    height,
+                    border,
+                    format,
+                    type,
+                    pixels);
+        fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, 0);
+        fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
+    }
+}
+
+void
+GLContext::TexSubImage2D(GLenum target, GLint level,
+                         GLint xoffset, GLint yoffset,
+                         GLsizei width, GLsizei height, GLsizei stride,
+                         GLint pixelsize, GLenum format,
+                         GLenum type, const GLvoid* pixels)
+{
+    if (mIsGLES2) {
+        if (stride == width * pixelsize) {
+            fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT,
+                    NS_MIN(GetAddressAlignment((ptrdiff_t)pixels),
+                            GetAddressAlignment((ptrdiff_t)stride)));
+            fTexSubImage2D(target,
+                          level,
+                          xoffset,
+                          yoffset,
+                          width,
+                          height,
+                          format,
+                          type,
+                          pixels);
+            fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
+        } else if (IsExtensionSupported(EXT_unpack_subimage)) {
+            TexSubImage2DWithUnpackSubimageGLES(target, level, xoffset, yoffset,
+                                                width, height, stride,
+                                                pixelsize, format, type, pixels);
+
+        } else {
+            TexSubImage2DWithoutUnpackSubimage(target, level, xoffset, yoffset,
+                                              width, height, stride,
+                                              pixelsize, format, type, pixels);
+        }
+    } else {
+        // desktop GL (non-ES) path
+        fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT,
+                    NS_MIN(GetAddressAlignment((ptrdiff_t)pixels),
+                            GetAddressAlignment((ptrdiff_t)stride)));
+        int rowLength = stride/pixelsize;
+        fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, rowLength);
+        fTexSubImage2D(target,
+                      level,
+                      xoffset,
+                      yoffset,
+                      width,
+                      height,
+                      format,
+                      type,
+                      pixels);
+        fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, 0);
+        fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
+    }
+}
+
+void
+GLContext::TexSubImage2DWithUnpackSubimageGLES(GLenum target, GLint level,
+                                               GLint xoffset, GLint yoffset,
+                                               GLsizei width, GLsizei height,
+                                               GLsizei stride, GLint pixelsize,
+                                               GLenum format, GLenum type,
+                                               const GLvoid* pixels)
+{
+    fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT,
+                 NS_MIN(GetAddressAlignment((ptrdiff_t)pixels),
+                        GetAddressAlignment((ptrdiff_t)stride)));
+    // When using GL_UNPACK_ROW_LENGTH, we need to work around a Tegra
+    // driver crash where the driver apparently tries to read
+    // (stride - width * pixelsize) bytes past the end of the last input
+    // row. We only upload the first height-1 rows using GL_UNPACK_ROW_LENGTH,
+    // and then we upload the final row separately. See bug 697990.
+    int rowLength = stride/pixelsize;
+    fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, rowLength);
+    fTexSubImage2D(target,
+                    level,
+                    xoffset,
+                    yoffset,
+                    width,
+                    height-1,
+                    format,
+                    type,
+                    pixels);
+    fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, 0);
+    fTexSubImage2D(target,
+                    level,
+                    xoffset,
+                    yoffset+height-1,
+                    width,
+                    1,
+                    format,
+                    type,
+                    (const unsigned char *)pixels+(height-1)*stride);
+    fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
+}
+
+void
+GLContext::TexSubImage2DWithoutUnpackSubimage(GLenum target, GLint level,
+                                              GLint xoffset, GLint yoffset,
+                                              GLsizei width, GLsizei height,
+                                              GLsizei stride, GLint pixelsize,
+                                              GLenum format, GLenum type,
+                                              const GLvoid* pixels)
+{
+    // Not using the whole row of texture data and GL_UNPACK_ROW_LENGTH
+    // isn't supported. We make a copy of the texture data we're using,
+    // such that we're using the whole row of data in the copy. This turns
+    // out to be more efficient than uploading row-by-row; see bug 698197.
+    unsigned char *newPixels = new unsigned char[width*height*pixelsize];
+    unsigned char *rowDest = newPixels;
+    const unsigned char *rowSource = (const unsigned char *)pixels;
+    for (int h = 0; h < height; h++) {
+            memcpy(rowDest, rowSource, width*pixelsize);
+            rowDest += width*pixelsize;
+            rowSource += stride;
+    }
+
+    stride = width*pixelsize;
+    fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT,
+                    NS_MIN(GetAddressAlignment((ptrdiff_t)newPixels),
+                            GetAddressAlignment((ptrdiff_t)stride)));
+    fTexSubImage2D(target,
+                    level,
+                    xoffset,
+                    yoffset,
+                    width,
+                    height,
+                    format,
+                    type,
+                    newPixels);
+    delete [] newPixels;
+    fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
+}
+
+void
+GLContext::RectTriangles::addRect(GLfloat x0, GLfloat y0, GLfloat x1, GLfloat y1,
+                                  GLfloat tx0, GLfloat ty0, GLfloat tx1, GLfloat ty1,
+                                  bool flip_y /* = false */)
+{
+    vert_coord v;
+    v.x = x0; v.y = y0;
+    vertexCoords.AppendElement(v);
+    v.x = x1; v.y = y0;
+    vertexCoords.AppendElement(v);
+    v.x = x0; v.y = y1;
+    vertexCoords.AppendElement(v);
+
+    v.x = x0; v.y = y1;
+    vertexCoords.AppendElement(v);
+    v.x = x1; v.y = y0;
+    vertexCoords.AppendElement(v);
+    v.x = x1; v.y = y1;
+    vertexCoords.AppendElement(v);
+
+    if (flip_y) {
+        tex_coord t;
+        t.u = tx0; t.v = ty1;
+        texCoords.AppendElement(t);
+        t.u = tx1; t.v = ty1;
+        texCoords.AppendElement(t);
+        t.u = tx0; t.v = ty0;
+        texCoords.AppendElement(t);
+
+        t.u = tx0; t.v = ty0;
+        texCoords.AppendElement(t);
+        t.u = tx1; t.v = ty1;
+        texCoords.AppendElement(t);
+        t.u = tx1; t.v = ty0;
+        texCoords.AppendElement(t);
+    } else {
+        tex_coord t;
+        t.u = tx0; t.v = ty0;
+        texCoords.AppendElement(t);
+        t.u = tx1; t.v = ty0;
+        texCoords.AppendElement(t);
+        t.u = tx0; t.v = ty1;
+        texCoords.AppendElement(t);
+
+        t.u = tx0; t.v = ty1;
+        texCoords.AppendElement(t);
+        t.u = tx1; t.v = ty0;
+        texCoords.AppendElement(t);
+        t.u = tx1; t.v = ty1;
+        texCoords.AppendElement(t);
+    }
+}
+
+static GLfloat
+WrapTexCoord(GLfloat v)
+{
+    // fmodf gives negative results for negative numbers;
+    // that is, fmodf(0.75, 1.0) == 0.75, but
+    // fmodf(-0.75, 1.0) == -0.75.  For the negative case,
+    // the result we need is 0.25, so we add 1.0f.
+    if (v < 0.0f) {
+        return 1.0f + fmodf(v, 1.0f);
+    }
+
+    return fmodf(v, 1.0f);
+}
+
+void
+GLContext::DecomposeIntoNoRepeatTriangles(const nsIntRect& aTexCoordRect,
+                                          const nsIntSize& aTexSize,
+                                          RectTriangles& aRects,
+                                          bool aFlipY /* = false */)
+{
+    // normalize this
+    nsIntRect tcr(aTexCoordRect);
+    while (tcr.x >= aTexSize.width)
+        tcr.x -= aTexSize.width;
+    while (tcr.y >= aTexSize.height)
+        tcr.y -= aTexSize.height;
+
+    // Compute top left and bottom right tex coordinates
+    GLfloat tl[2] =
+        { GLfloat(tcr.x) / GLfloat(aTexSize.width),
+          GLfloat(tcr.y) / GLfloat(aTexSize.height) };
+    GLfloat br[2] =
+        { GLfloat(tcr.XMost()) / GLfloat(aTexSize.width),
+          GLfloat(tcr.YMost()) / GLfloat(aTexSize.height) };
+
+    // then check if we wrap in either the x or y axis; if we do,
+    // then also use fmod to figure out the "true" non-wrapping
+    // texture coordinates.
+
+    bool xwrap = false, ywrap = false;
+    if (tcr.x < 0 || tcr.x > aTexSize.width ||
+        tcr.XMost() < 0 || tcr.XMost() > aTexSize.width)
+    {
+        xwrap = true;
+        tl[0] = WrapTexCoord(tl[0]);
+        br[0] = WrapTexCoord(br[0]);
+    }
+
+    if (tcr.y < 0 || tcr.y > aTexSize.height ||
+        tcr.YMost() < 0 || tcr.YMost() > aTexSize.height)
+    {
+        ywrap = true;
+        tl[1] = WrapTexCoord(tl[1]);
+        br[1] = WrapTexCoord(br[1]);
+    }
+
+    NS_ASSERTION(tl[0] >= 0.0f && tl[0] <= 1.0f &&
+                 tl[1] >= 0.0f && tl[1] <= 1.0f &&
+                 br[0] >= 0.0f && br[0] <= 1.0f &&
+                 br[1] >= 0.0f && br[1] <= 1.0f,
+                 "Somehow generated invalid texture coordinates");
+
+    // If xwrap is false, the texture will be sampled from tl[0]
+    // .. br[0].  If xwrap is true, then it will be split into tl[0]
+    // .. 1.0, and 0.0 .. br[0].  Same for the Y axis.  The
+    // destination rectangle is also split appropriately, according
+    // to the calculated xmid/ymid values.
+
+    // There isn't a 1:1 mapping between tex coords and destination coords;
+    // when computing midpoints, we have to take that into account.  We
+    // need to map the texture coords, which are (in the wrap case):
+    // |tl->1| and |0->br| to the |0->1| range of the vertex coords.  So
+    // we have the length (1-tl)+(br) that needs to map into 0->1.
+    // These are only valid if there is wrap involved, they won't be used
+    // otherwise.
+    GLfloat xlen = (1.0f - tl[0]) + br[0];
+    GLfloat ylen = (1.0f - tl[1]) + br[1];
+
+    NS_ASSERTION(!xwrap || xlen > 0.0f, "xlen isn't > 0, what's going on?");
+    NS_ASSERTION(!ywrap || ylen > 0.0f, "ylen isn't > 0, what's going on?");
+    NS_ASSERTION(aTexCoordRect.width <= aTexSize.width &&
+                 aTexCoordRect.height <= aTexSize.height, "tex coord rect would cause tiling!");
+
+    if (!xwrap && !ywrap) {
+        aRects.addRect(0.0f, 0.0f,
+                       1.0f, 1.0f,
+                       tl[0], tl[1],
+                       br[0], br[1],
+                       aFlipY);
+    } else if (!xwrap && ywrap) {
+        GLfloat ymid = (1.0f - tl[1]) / ylen;
+        aRects.addRect(0.0f, 0.0f,
+                       1.0f, ymid,
+                       tl[0], tl[1],
+                       br[0], 1.0f,
+                       aFlipY);
+        aRects.addRect(0.0f, ymid,
+                       1.0f, 1.0f,
+                       tl[0], 0.0f,
+                       br[0], br[1],
+                       aFlipY);
+    } else if (xwrap && !ywrap) {
+        GLfloat xmid = (1.0f - tl[0]) / xlen;
+        aRects.addRect(0.0f, 0.0f,
+                       xmid, 1.0f,
+                       tl[0], tl[1],
+                       1.0f, br[1],
+                       aFlipY);
+        aRects.addRect(xmid, 0.0f,
+                       1.0f, 1.0f,
+                       0.0f, tl[1],
+                       br[0], br[1],
+                       aFlipY);
+    } else {
+        GLfloat xmid = (1.0f - tl[0]) / xlen;
+        GLfloat ymid = (1.0f - tl[1]) / ylen;
+        aRects.addRect(0.0f, 0.0f,
+                       xmid, ymid,
+                       tl[0], tl[1],
+                       1.0f, 1.0f,
+                       aFlipY);
+        aRects.addRect(xmid, 0.0f,
+                       1.0f, ymid,
+                       0.0f, tl[1],
+                       br[0], 1.0f,
+                       aFlipY);
+        aRects.addRect(0.0f, ymid,
+                       xmid, 1.0f,
+                       tl[0], 0.0f,
+                       1.0f, br[1],
+                       aFlipY);
+        aRects.addRect(xmid, ymid,
+                       1.0f, 1.0f,
+                       0.0f, 0.0f,
+                       br[0], br[1],
+                       aFlipY);
+    }
+}
+
+void
+GLContext::UseBlitProgram()
+{
+    if (mBlitProgram) {
+        fUseProgram(mBlitProgram);
+        return;
+    }
+
+    mBlitProgram = fCreateProgram();
+
+    GLuint shaders[2];
+    shaders[0] = fCreateShader(LOCAL_GL_VERTEX_SHADER);
+    shaders[1] = fCreateShader(LOCAL_GL_FRAGMENT_SHADER);
+
+    const char *blitVSSrc = 
+        "attribute vec2 aVertex;"
+        "attribute vec2 aTexCoord;"
+        "varying vec2 vTexCoord;"
+        "void main() {"
+        "  vTexCoord = aTexCoord;"
+        "  gl_Position = vec4(aVertex, 0.0, 1.0);"
+        "}";
+    const char *blitFSSrc = "#ifdef GL_ES\nprecision mediump float;\n#endif\n"
+        "uniform sampler2D uSrcTexture;"
+        "varying vec2 vTexCoord;"
+        "void main() {"
+        "  gl_FragColor = texture2D(uSrcTexture, vTexCoord);"
+        "}";
+
+    fShaderSource(shaders[0], 1, (const GLchar**) &blitVSSrc, NULL);
+    fShaderSource(shaders[1], 1, (const GLchar**) &blitFSSrc, NULL);
+
+    for (int i = 0; i < 2; ++i) {
+        GLint success, len = 0;
+
+        fCompileShader(shaders[i]);
+        fGetShaderiv(shaders[i], LOCAL_GL_COMPILE_STATUS, &success);
+        NS_ASSERTION(success, "Shader compilation failed!");
+
+        if (!success) {
+            nsCAutoString log;
+            fGetShaderiv(shaders[i], LOCAL_GL_INFO_LOG_LENGTH, (GLint*) &len);
+            log.SetCapacity(len);
+            fGetShaderInfoLog(shaders[i], len, (GLint*) &len, (char*) log.BeginWriting());
+            log.SetLength(len);
+
+            printf_stderr("Shader %d compilation failed:\n%s\n", log.get());
+            return;
+        }
+
+        fAttachShader(mBlitProgram, shaders[i]);
+        fDeleteShader(shaders[i]);
+    }
+
+    fBindAttribLocation(mBlitProgram, 0, "aVertex");
+    fBindAttribLocation(mBlitProgram, 1, "aTexCoord");
+
+    fLinkProgram(mBlitProgram);
+
+    GLint success, len = 0;
+    fGetProgramiv(mBlitProgram, LOCAL_GL_LINK_STATUS, &success);
+    NS_ASSERTION(success, "Shader linking failed!");
+
+    if (!success) {
+        nsCAutoString log;
+        fGetProgramiv(mBlitProgram, LOCAL_GL_INFO_LOG_LENGTH, (GLint*) &len);
+        log.SetCapacity(len);
+        fGetProgramInfoLog(mBlitProgram, len, (GLint*) &len, (char*) log.BeginWriting());
+        log.SetLength(len);
+
+        printf_stderr("Program linking failed:\n%s\n", log.get());
+        return;
+    }
+
+    fUseProgram(mBlitProgram);
+    fUniform1i(fGetUniformLocation(mBlitProgram, "uSrcTexture"), 0);
+}
+
+void
+GLContext::SetBlitFramebufferForDestTexture(GLuint aTexture)
+{
+    if (!mBlitFramebuffer) {
+        fGenFramebuffers(1, &mBlitFramebuffer);
+    }
+
+    fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, mBlitFramebuffer);
+    fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER,
+                          LOCAL_GL_COLOR_ATTACHMENT0,
+                          LOCAL_GL_TEXTURE_2D,
+                          aTexture,
+                          0);
+
+    GLenum result = fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
+    if (aTexture && (result != LOCAL_GL_FRAMEBUFFER_COMPLETE)) {
+        nsCAutoString msg;
+        msg.Append("Framebuffer not complete -- error 0x");
+        msg.AppendInt(result, 16);
+        // Note: if you are hitting this, it is likely that
+        // your texture is not texture complete -- that is, you
+        // allocated a texture name, but didn't actually define its
+        // size via a call to TexImage2D.
+        NS_RUNTIMEABORT(msg.get());
+    }
+}
+
+#ifdef DEBUG
 
 void
 GLContext::CreatedProgram(GLContext *aOrigin, GLuint aName)
@@ -2135,14 +2939,6 @@ GLContext::CreatedBuffers(GLContext *aOrigin, GLsizei aCount, GLuint *aNames)
 {
     for (GLsizei i = 0; i < aCount; ++i) {
         mTrackedBuffers.AppendElement(NamedResource(aOrigin, aNames[i]));
-    }
-}
-
-void
-GLContext::CreatedQueries(GLContext *aOrigin, GLsizei aCount, GLuint *aNames)
-{
-    for (GLsizei i = 0; i < aCount; ++i) {
-        mTrackedQueries.AppendElement(NamedResource(aOrigin, aNames[i]));
     }
 }
 
@@ -2171,7 +2967,7 @@ GLContext::CreatedRenderbuffers(GLContext *aOrigin, GLsizei aCount, GLuint *aNam
 }
 
 static void
-RemoveNamesFromArray(GLContext *aOrigin, GLsizei aCount, const GLuint *aNames, nsTArray<GLContext::NamedResource>& aArray)
+RemoveNamesFromArray(GLContext *aOrigin, GLsizei aCount, GLuint *aNames, nsTArray<GLContext::NamedResource>& aArray)
 {
     for (GLsizei j = 0; j < aCount; ++j) {
         GLuint name = aNames[j];
@@ -2201,31 +2997,25 @@ GLContext::DeletedShader(GLContext *aOrigin, GLuint aName)
 }
 
 void
-GLContext::DeletedBuffers(GLContext *aOrigin, GLsizei aCount, const GLuint *aNames)
+GLContext::DeletedBuffers(GLContext *aOrigin, GLsizei aCount, GLuint *aNames)
 {
     RemoveNamesFromArray(aOrigin, aCount, aNames, mTrackedBuffers);
 }
 
 void
-GLContext::DeletedQueries(GLContext *aOrigin, GLsizei aCount, const GLuint *aNames)
-{
-    RemoveNamesFromArray(aOrigin, aCount, aNames, mTrackedQueries);
-}
-
-void
-GLContext::DeletedTextures(GLContext *aOrigin, GLsizei aCount, const GLuint *aNames)
+GLContext::DeletedTextures(GLContext *aOrigin, GLsizei aCount, GLuint *aNames)
 {
     RemoveNamesFromArray(aOrigin, aCount, aNames, mTrackedTextures);
 }
 
 void
-GLContext::DeletedFramebuffers(GLContext *aOrigin, GLsizei aCount, const GLuint *aNames)
+GLContext::DeletedFramebuffers(GLContext *aOrigin, GLsizei aCount, GLuint *aNames)
 {
     RemoveNamesFromArray(aOrigin, aCount, aNames, mTrackedFramebuffers);
 }
 
 void
-GLContext::DeletedRenderbuffers(GLContext *aOrigin, GLsizei aCount, const GLuint *aNames)
+GLContext::DeletedRenderbuffers(GLContext *aOrigin, GLsizei aCount, GLuint *aNames)
 {
     RemoveNamesFromArray(aOrigin, aCount, aNames, mTrackedRenderbuffers);
 }
@@ -2248,7 +3038,6 @@ GLContext::SharedContextDestroyed(GLContext *aChild)
     MarkContextDestroyedInArray(aChild, mTrackedFramebuffers);
     MarkContextDestroyedInArray(aChild, mTrackedRenderbuffers);
     MarkContextDestroyedInArray(aChild, mTrackedBuffers);
-    MarkContextDestroyedInArray(aChild, mTrackedQueries);
 }
 
 static void
@@ -2262,7 +3051,7 @@ ReportArrayContents(const char *title, const nsTArray<GLContext::NamedResource>&
     nsTArray<GLContext::NamedResource> copy(aArray);
     copy.Sort();
 
-    GLContext *lastContext = nullptr;
+    GLContext *lastContext = NULL;
     for (uint32_t i = 0; i < copy.Length(); ++i) {
         if (lastContext != copy[i].origin) {
             if (lastContext)
@@ -2278,14 +3067,13 @@ ReportArrayContents(const char *title, const nsTArray<GLContext::NamedResource>&
 void
 GLContext::ReportOutstandingNames()
 {
-    if (!ShouldSpew())
+    if (!DebugMode())
         return;
 
     printf_stderr("== GLContext %p Outstanding ==\n", this);
 
     ReportArrayContents("Outstanding Textures", mTrackedTextures);
     ReportArrayContents("Outstanding Buffers", mTrackedBuffers);
-    ReportArrayContents("Outstanding Queries", mTrackedQueries);
     ReportArrayContents("Outstanding Programs", mTrackedPrograms);
     ReportArrayContents("Outstanding Shaders", mTrackedShaders);
     ReportArrayContents("Outstanding Framebuffers", mTrackedFramebuffers);
@@ -2293,160 +3081,6 @@ GLContext::ReportOutstandingNames()
 }
 
 #endif /* DEBUG */
-
-void
-GLContext::GuaranteeResolve()
-{
-    if (mScreen) {
-        mScreen->AssureBlitted();
-    }
-    fFinish();
-}
-
-const gfx::IntSize&
-GLContext::OffscreenSize() const
-{
-    MOZ_ASSERT(IsOffscreen());
-    return mScreen->Size();
-}
-
-bool
-GLContext::CreateScreenBufferImpl(const IntSize& size, const SurfaceCaps& caps)
-{
-    UniquePtr<GLScreenBuffer> newScreen = GLScreenBuffer::Create(this, size, caps);
-    if (!newScreen)
-        return false;
-
-    if (!newScreen->Resize(size)) {
-        return false;
-    }
-
-    DestroyScreenBuffer();
-
-    // This will rebind to 0 (Screen) if needed when
-    // it falls out of scope.
-    ScopedBindFramebuffer autoFB(this);
-
-    mScreen = Move(newScreen);
-
-    return true;
-}
-
-bool
-GLContext::ResizeScreenBuffer(const IntSize& size)
-{
-    if (!IsOffscreenSizeAllowed(size))
-        return false;
-
-    return mScreen->Resize(size);
-}
-
-void
-GLContext::DestroyScreenBuffer()
-{
-    mScreen = nullptr;
-}
-
-void
-GLContext::ForceDirtyScreen()
-{
-    ScopedBindFramebuffer autoFB(0);
-
-    BeforeGLDrawCall();
-    // no-op; just pretend we did something
-    AfterGLDrawCall();
-}
-
-void
-GLContext::CleanDirtyScreen()
-{
-    ScopedBindFramebuffer autoFB(0);
-
-    BeforeGLReadCall();
-    // no-op; we just want to make sure the Read FBO is updated if it needs to be
-    AfterGLReadCall();
-}
-
-void
-GLContext::EmptyTexGarbageBin()
-{
-    TexGarbageBin()->EmptyGarbage();
-}
-
-bool
-GLContext::IsOffscreenSizeAllowed(const IntSize& aSize) const
-{
-    int32_t biggerDimension = std::max(aSize.width, aSize.height);
-    int32_t maxAllowed = std::min(mMaxRenderbufferSize, mMaxTextureSize);
-    return biggerDimension <= maxAllowed;
-}
-
-bool
-GLContext::IsOwningThreadCurrent()
-{
-    return PlatformThread::CurrentId() == mOwningThreadId;
-}
-
-GLBlitHelper*
-GLContext::BlitHelper()
-{
-    if (!mBlitHelper) {
-        mBlitHelper = MakeUnique<GLBlitHelper>(this);
-    }
-
-    return mBlitHelper.get();
-}
-
-GLReadTexImageHelper*
-GLContext::ReadTexImageHelper()
-{
-    if (!mReadTexImageHelper) {
-        mReadTexImageHelper = MakeUnique<GLReadTexImageHelper>(this);
-    }
-
-    return mReadTexImageHelper.get();
-}
-
-void
-GLContext::FlushIfHeavyGLCallsSinceLastFlush()
-{
-    if (!mHeavyGLCallsSinceLastFlush) {
-        return;
-    }
-    MakeCurrent();
-    fFlush();
-}
-
-bool
-DoesStringMatch(const char* aString, const char *aWantedString)
-{
-    if (!aString || !aWantedString)
-        return false;
-
-    const char *occurrence = strstr(aString, aWantedString);
-
-    // aWanted not found
-    if (!occurrence)
-        return false;
-
-    // aWantedString preceded by alpha character
-    if (occurrence != aString && isalpha(*(occurrence-1)))
-        return false;
-
-    // aWantedVendor followed by alpha character
-    const char *afterOccurrence = occurrence + strlen(aWantedString);
-    if (isalpha(*afterOccurrence))
-        return false;
-
-    return true;
-}
-
-/*static*/ bool
-GLContext::ShouldSpew()
-{
-    static bool spew = PR_GetEnv("MOZ_GL_SPEW");
-    return spew;
-}
 
 } /* namespace gl */
 } /* namespace mozilla */

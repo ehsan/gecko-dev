@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+//* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -8,124 +7,56 @@
 // complete description of the expected file format and parsing rules, see
 // http://wiki.mozilla.org/Gecko:Effective_TLD_Service
 
-#include "mozilla/ArrayUtils.h"
-#include "mozilla/MemoryReporting.h"
+#include "mozilla/Util.h"
 
 #include "nsEffectiveTLDService.h"
 #include "nsIIDNService.h"
 #include "nsNetUtil.h"
 #include "prnetdb.h"
 
+#include "mozilla/FunctionTimer.h"
+
 using namespace mozilla;
 
-NS_IMPL_ISUPPORTS(nsEffectiveTLDService, nsIEffectiveTLDService,
-                  nsIMemoryReporter)
+NS_IMPL_ISUPPORTS1(nsEffectiveTLDService, nsIEffectiveTLDService)
 
 // ----------------------------------------------------------------------
 
-#define ETLD_STR_NUM_1(line) str##line
-#define ETLD_STR_NUM(line) ETLD_STR_NUM_1(line)
-#define ETLD_ENTRY_OFFSET(name) offsetof(struct etld_string_list, ETLD_STR_NUM(__LINE__))
-
-const ETLDEntry nsDomainEntry::entries[] = {
-#define ETLD_ENTRY(name, ex, wild) { ETLD_ENTRY_OFFSET(name), ex, wild },
+static const ETLDEntry gEntries[] =
 #include "etld_data.inc"
-#undef ETLD_ENTRY
-};
-
-const union nsDomainEntry::etld_strings nsDomainEntry::strings = {
-  {
-#define ETLD_ENTRY(name, ex, wild) name,
-#include "etld_data.inc"
-#undef ETLD_ENTRY
-  }
-};
-
-// Dummy function to statically ensure that our indices don't overflow
-// the storage provided for them.
-void
-nsDomainEntry::FuncForStaticAsserts(void)
-{
-#define ETLD_ENTRY(name, ex, wild)                                      \
-  static_assert(ETLD_ENTRY_OFFSET(name) < (1 << ETLD_ENTRY_N_INDEX_BITS), \
-                "invalid strtab index");
-#include "etld_data.inc"
-#undef ETLD_ENTRY
-}
-
-#undef ETLD_ENTRY_OFFSET
-#undef ETLD_STR_NUM
-#undef ETLD_STR_NUM1
+;
 
 // ----------------------------------------------------------------------
-
-static nsEffectiveTLDService *gService = nullptr;
-
-nsEffectiveTLDService::nsEffectiveTLDService()
-  : mHash(ArrayLength(nsDomainEntry::entries))
-{
-}
 
 nsresult
 nsEffectiveTLDService::Init()
 {
-  const ETLDEntry *entries = nsDomainEntry::entries;
+  NS_TIME_FUNCTION;
+
+  // We'll probably have to rehash at least once, since nsTHashtable doesn't
+  // use a perfect hash, but at least we'll save a few rehashes along the way.
+  // Next optimization here is to precompute the hash using something like
+  // gperf, but one step at a time.  :-)
+  mHash.Init(ArrayLength(gEntries) - 1);
 
   nsresult rv;
   mIDNService = do_GetService(NS_IDNSERVICE_CONTRACTID, &rv);
   if (NS_FAILED(rv)) return rv;
 
   // Initialize eTLD hash from static array
-  for (uint32_t i = 0; i < ArrayLength(nsDomainEntry::entries); i++) {
-    const char *domain = nsDomainEntry::GetEffectiveTLDName(entries[i].strtab_index);
+  for (uint32_t i = 0; i < ArrayLength(gEntries) - 1; i++) {
 #ifdef DEBUG
-    nsDependentCString name(domain);
-    nsAutoCString normalizedName(domain);
+    nsDependentCString name(gEntries[i].domain);
+    nsCAutoString normalizedName(gEntries[i].domain);
     NS_ASSERTION(NS_SUCCEEDED(NormalizeHostname(normalizedName)),
                  "normalization failure!");
     NS_ASSERTION(name.Equals(normalizedName), "domain not normalized!");
 #endif
-    nsDomainEntry *entry = mHash.PutEntry(domain);
+    nsDomainEntry *entry = mHash.PutEntry(gEntries[i].domain);
     NS_ENSURE_TRUE(entry, NS_ERROR_OUT_OF_MEMORY);
-    entry->SetData(&entries[i]);
+    entry->SetData(&gEntries[i]);
   }
-
-  MOZ_ASSERT(!gService);
-  gService = this;
-  RegisterWeakMemoryReporter(this);
-
   return NS_OK;
-}
-
-nsEffectiveTLDService::~nsEffectiveTLDService()
-{
-  UnregisterWeakMemoryReporter(this);
-  gService = nullptr;
-}
-
-MOZ_DEFINE_MALLOC_SIZE_OF(EffectiveTLDServiceMallocSizeOf)
-
-NS_IMETHODIMP
-nsEffectiveTLDService::CollectReports(nsIHandleReportCallback* aHandleReport,
-                                      nsISupports* aData, bool aAnonymize)
-{
-  return MOZ_COLLECT_REPORT(
-    "explicit/xpcom/effective-TLD-service", KIND_HEAP, UNITS_BYTES,
-    SizeOfIncludingThis(EffectiveTLDServiceMallocSizeOf),
-    "Memory used by the effective TLD service.");
-}
-
-size_t
-nsEffectiveTLDService::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
-{
-  size_t n = aMallocSizeOf(this);
-  n += mHash.SizeOfExcludingThis(nullptr, aMallocSizeOf);
-
-  // Measurement of the following members may be added later if DMD finds it is
-  // worthwhile:
-  // - mIDNService
-
-  return n;
 }
 
 // External function for dealing with URI's correctly.
@@ -140,7 +71,7 @@ nsEffectiveTLDService::GetPublicSuffix(nsIURI     *aURI,
   nsCOMPtr<nsIURI> innerURI = NS_GetInnermostURI(aURI);
   NS_ENSURE_ARG_POINTER(innerURI);
 
-  nsAutoCString host;
+  nsCAutoString host;
   nsresult rv = innerURI->GetAsciiHost(host);
   if (NS_FAILED(rv)) return rv;
 
@@ -156,12 +87,11 @@ nsEffectiveTLDService::GetBaseDomain(nsIURI     *aURI,
                                      nsACString &aBaseDomain)
 {
   NS_ENSURE_ARG_POINTER(aURI);
-  NS_ENSURE_TRUE( ((int32_t)aAdditionalParts) >= 0, NS_ERROR_INVALID_ARG);
 
   nsCOMPtr<nsIURI> innerURI = NS_GetInnermostURI(aURI);
   NS_ENSURE_ARG_POINTER(innerURI);
 
-  nsAutoCString host;
+  nsCAutoString host;
   nsresult rv = innerURI->GetAsciiHost(host);
   if (NS_FAILED(rv)) return rv;
 
@@ -176,7 +106,7 @@ nsEffectiveTLDService::GetPublicSuffixFromHost(const nsACString &aHostname,
 {
   // Create a mutable copy of the hostname and normalize it to ACE.
   // This will fail if the hostname includes invalid characters.
-  nsAutoCString normHostname(aHostname);
+  nsCAutoString normHostname(aHostname);
   nsresult rv = NormalizeHostname(normHostname);
   if (NS_FAILED(rv)) return rv;
 
@@ -191,28 +121,13 @@ nsEffectiveTLDService::GetBaseDomainFromHost(const nsACString &aHostname,
                                              uint32_t          aAdditionalParts,
                                              nsACString       &aBaseDomain)
 {
-  NS_ENSURE_TRUE( ((int32_t)aAdditionalParts) >= 0, NS_ERROR_INVALID_ARG);
-
   // Create a mutable copy of the hostname and normalize it to ACE.
   // This will fail if the hostname includes invalid characters.
-  nsAutoCString normHostname(aHostname);
+  nsCAutoString normHostname(aHostname);
   nsresult rv = NormalizeHostname(normHostname);
   if (NS_FAILED(rv)) return rv;
 
   return GetBaseDomainInternal(normHostname, aAdditionalParts + 1, aBaseDomain);
-}
-
-NS_IMETHODIMP
-nsEffectiveTLDService::GetNextSubDomain(const nsACString& aHostname,
-                                        nsACString&       aBaseDomain)
-{
-  // Create a mutable copy of the hostname and normalize it to ACE.
-  // This will fail if the hostname includes invalid characters.
-  nsAutoCString normHostname(aHostname);
-  nsresult rv = NormalizeHostname(normHostname);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return GetBaseDomainInternal(normHostname, -1, aBaseDomain);
 }
 
 // Finds the base domain for a host, with requested number of additional parts.
@@ -222,7 +137,7 @@ nsEffectiveTLDService::GetNextSubDomain(const nsACString& aHostname,
 // on the host string and the result will be in UTF8.
 nsresult
 nsEffectiveTLDService::GetBaseDomainInternal(nsCString  &aHostname,
-                                             int32_t    aAdditionalParts,
+                                             uint32_t    aAdditionalParts,
                                              nsACString &aBaseDomain)
 {
   if (aHostname.IsEmpty())
@@ -290,33 +205,17 @@ nsEffectiveTLDService::GetBaseDomainInternal(nsCString  &aHostname,
     nextDot = strchr(currDomain, '.');
   }
 
-  const char *begin, *iter;
-  if (aAdditionalParts < 0) {
-    NS_ASSERTION(aAdditionalParts == -1,
-                 "aAdditionalParts can't be negative and different from -1");
+  // count off the number of requested domains.
+  const char *begin = aHostname.get();
+  const char *iter = eTLD;
+  while (1) {
+    if (iter == begin)
+      break;
 
-    for (iter = aHostname.get(); iter != eTLD && *iter != '.'; iter++);
-
-    if (iter != eTLD) {
-      iter++;
-    }
-    if (iter != eTLD) {
-      aAdditionalParts = 0;
-    }
-  } else {
-    // count off the number of requested domains.
-    begin = aHostname.get();
-    iter = eTLD;
-
-    while (1) {
-      if (iter == begin)
-        break;
-
-      if (*(--iter) == '.' && aAdditionalParts-- == 0) {
-        ++iter;
-        ++aAdditionalParts;
-        break;
-      }
+    if (*(--iter) == '.' && aAdditionalParts-- == 0) {
+      ++iter;
+      ++aAdditionalParts;
+      break;
     }
   }
 

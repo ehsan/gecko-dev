@@ -8,7 +8,6 @@
 
 #include "cairo-ft.h"
 #include "gfxFT2FontBase.h"
-#include "mozilla/Likely.h"
 
 // Rounding and truncation functions for a FreeType fixed point number 
 // (FT26Dot6) stored in a 32bit integer with high 26 bits for the integer
@@ -22,7 +21,7 @@ typedef struct FT_FaceRec_* FT_Face;
 
 class gfxFT2LockedFace {
 public:
-    explicit gfxFT2LockedFace(gfxFT2FontBase *aFont) :
+    gfxFT2LockedFace(gfxFT2FontBase *aFont) :
         mGfxFont(aFont),
         mFace(cairo_ft_scaled_font_lock_face(aFont->CairoScaledFont()))
     { }
@@ -48,11 +47,13 @@ public:
 
     void GetMetrics(gfxFont::Metrics* aMetrics, uint32_t* aSpaceGlyph);
 
+    bool GetFontTable(uint32_t aTag, FallibleTArray<uint8_t>& aBuffer);
+
     // A scale factor for use in converting horizontal metrics from font units
     // to pixels.
     gfxFloat XScale()
     {
-        if (MOZ_UNLIKELY(!mFace))
+        if (NS_UNLIKELY(!mFace))
             return 0.0;
 
         const FT_Size_Metrics& ftMetrics = mFace->size->metrics;

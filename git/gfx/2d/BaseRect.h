@@ -6,17 +6,25 @@
 #ifndef MOZILLA_GFX_BASERECT_H_
 #define MOZILLA_GFX_BASERECT_H_
 
-#include <algorithm>
 #include <cmath>
-#include <ostream>
-
-#include "mozilla/Assertions.h"
-#include "mozilla/FloatingPoint.h"
-#include "mozilla/TypeTraits.h"
-#include "Types.h"
+#include <mozilla/Assertions.h>
 
 namespace mozilla {
 namespace gfx {
+
+// XXX - <algorithm> conflicts with exceptions on 10.6. Define our own gfx_min/gfx_max
+// functions here. Avoid min/max to avoid conflicts with existing #defines on windows.
+template<typename T>
+T gfx_min(T aVal1, T aVal2)
+{
+  return (aVal1 < aVal2) ? aVal1 : aVal2;
+}
+
+template<typename T>
+T gfx_max(T aVal1, T aVal2)
+{
+  return (aVal1 > aVal2) ? aVal1 : aVal2;
+}
 
 /**
  * Rectangles have two interpretations: a set of (zero-size) points,
@@ -41,7 +49,7 @@ namespace gfx {
  * Do not use this class directly. Subclass it, pass that subclass as the
  * Sub parameter, and only use that subclass.
  */
-template <class T, class Sub, class Point, class SizeT, class MarginT>
+template <class T, class Sub, class Point, class SizeT, class Margin>
 struct BaseRect {
   T x, y, width, height;
 
@@ -61,16 +69,6 @@ struct BaseRect {
   bool IsEmpty() const { return height <= 0 || width <= 0; }
   void SetEmpty() { width = height = 0; }
 
-  // "Finite" means not inf and not NaN
-  bool IsFinite() const
-  {
-    typedef typename mozilla::Conditional<mozilla::IsSame<T, float>::value, float, double>::Type FloatType;
-    return (mozilla::IsFinite(FloatType(x)) &&
-            mozilla::IsFinite(FloatType(y)) &&
-            mozilla::IsFinite(FloatType(width)) &&
-            mozilla::IsFinite(FloatType(height)));
-  }
-
   // Returns true if this rectangle contains the interior of aRect. Always
   // returns true if aRect is empty, and always returns false is aRect is
   // nonempty but this rect is empty.
@@ -80,17 +78,13 @@ struct BaseRect {
            (x <= aRect.x && aRect.XMost() <= XMost() &&
             y <= aRect.y && aRect.YMost() <= YMost());
   }
-  // Returns true if this rectangle contains the point. Points are considered
-  // in the rectangle if they are on the left or top edge, but outside if they
-  // are on the right or bottom edge.
+  // Returns true if this rectangle contains the rectangle (aX,aY,1,1).
   bool Contains(T aX, T aY) const
   {
-    return x <= aX && aX < XMost() &&
-           y <= aY && aY < YMost();
+    return x <= aX && aX + 1 <= XMost() &&
+           y <= aY && aY + 1 <= YMost();
   }
-  // Returns true if this rectangle contains the point. Points are considered
-  // in the rectangle if they are on the left or top edge, but outside if they
-  // are on the right or bottom edge.
+  // Returns true if this rectangle contains the rectangle (aPoint.x,aPoint.y,1,1).
   bool Contains(const Point& aPoint) const { return Contains(aPoint.x, aPoint.y); }
 
   // Intersection. Returns TRUE if the receiver's area has non-empty
@@ -98,21 +92,20 @@ struct BaseRect {
   // Always returns false if aRect is empty or 'this' is empty.
   bool Intersects(const Sub& aRect) const
   {
-    return !IsEmpty() && !aRect.IsEmpty() &&
-           x < aRect.XMost() && aRect.x < XMost() &&
+    return x < aRect.XMost() && aRect.x < XMost() &&
            y < aRect.YMost() && aRect.y < YMost();
   }
   // Returns the rectangle containing the intersection of the points
   // (including edges) of *this and aRect. If there are no points in that
-  // intersection, returns an empty rectangle with x/y set to the std::max of the x/y
+  // intersection, returns an empty rectangle with x/y set to the gfx_max of the x/y
   // of *this and aRect.
   Sub Intersect(const Sub& aRect) const
   {
     Sub result;
-    result.x = std::max<T>(x, aRect.x);
-    result.y = std::max<T>(y, aRect.y);
-    result.width = std::min<T>(XMost(), aRect.XMost()) - result.x;
-    result.height = std::min<T>(YMost(), aRect.YMost()) - result.y;
+    result.x = gfx_max(x, aRect.x);
+    result.y = gfx_max(y, aRect.y);
+    result.width = gfx_min(XMost(), aRect.XMost()) - result.x;
+    result.height = gfx_min(YMost(), aRect.YMost()) - result.y;
     if (result.width < 0 || result.height < 0) {
       result.SizeTo(0, 0);
     }
@@ -120,7 +113,7 @@ struct BaseRect {
   }
   // Sets *this to be the rectangle containing the intersection of the points
   // (including edges) of *this and aRect. If there are no points in that
-  // intersection, sets *this to be an empty rectangle with x/y set to the std::max
+  // intersection, sets *this to be an empty rectangle with x/y set to the gfx_max
   // of the x/y of *this and aRect.
   //
   // 'this' can be the same object as either aRect1 or aRect2
@@ -150,10 +143,10 @@ struct BaseRect {
   Sub UnionEdges(const Sub& aRect) const
   {
     Sub result;
-    result.x = std::min(x, aRect.x);
-    result.y = std::min(y, aRect.y);
-    result.width = std::max(XMost(), aRect.XMost()) - result.x;
-    result.height = std::max(YMost(), aRect.YMost()) - result.y;
+    result.x = gfx_min(x, aRect.x);
+    result.y = gfx_min(y, aRect.y);
+    result.width = gfx_max(XMost(), aRect.XMost()) - result.x;
+    result.height = gfx_max(YMost(), aRect.YMost()) - result.y;
     return result;
   }
   // Computes the smallest rectangle that contains both the area of both
@@ -175,23 +168,6 @@ struct BaseRect {
   void UnionRectEdges(const Sub& aRect1, const Sub& aRect2)
   {
     *static_cast<Sub*>(this) = aRect1.UnionEdges(aRect2);
-  }
-
-  // Expands the rect to include the point
-  void ExpandToEnclose(const Point& aPoint)
-  {
-    if (aPoint.x < x) {
-      width = XMost() - aPoint.x;
-      x = aPoint.x;
-    } else if (aPoint.x > XMost()) {
-      width = aPoint.x - x;
-    }
-    if (aPoint.y < y) {
-      height = YMost() - aPoint.y;
-      y = aPoint.y;
-    } else if (aPoint.y > YMost()) {
-      height = aPoint.y - y;
-    }
   }
 
   void SetRect(T aX, T aY, T aWidth, T aHeight)
@@ -217,7 +193,7 @@ struct BaseRect {
     width += 2 * aDx;
     height += 2 * aDy;
   }
-  void Inflate(const MarginT& aMargin)
+  void Inflate(const Margin& aMargin)
   {
     x -= aMargin.left;
     y -= aMargin.top;
@@ -226,34 +202,20 @@ struct BaseRect {
   }
   void Inflate(const SizeT& aSize) { Inflate(aSize.width, aSize.height); }
 
-  void InflateToMultiple(const SizeT& aMultiple)
-  {
-    T xMost = XMost();
-    T yMost = YMost();
-
-    x = static_cast<T>(floor(x / aMultiple.width)) * aMultiple.width;
-    y = static_cast<T>(floor(y / aMultiple.height)) * aMultiple.height;
-    xMost = static_cast<T>(ceil(x / aMultiple.width)) * aMultiple.width;
-    yMost = static_cast<T>(ceil(y / aMultiple.height)) * aMultiple.height;
-
-    width = xMost - x;
-    height = yMost - y;
-  }
-
   void Deflate(T aD) { Deflate(aD, aD); }
   void Deflate(T aDx, T aDy)
   {
     x += aDx;
     y += aDy;
-    width = std::max(T(0), width - 2 * aDx);
-    height = std::max(T(0), height - 2 * aDy);
+    width = gfx_max(T(0), width - 2 * aDx);
+    height = gfx_max(T(0), height - 2 * aDy);
   }
-  void Deflate(const MarginT& aMargin)
+  void Deflate(const Margin& aMargin)
   {
     x += aMargin.left;
     y += aMargin.top;
-    width = std::max(T(0), width - aMargin.LeftRight());
-    height = std::max(T(0), height - aMargin.TopBottom());
+    width = gfx_max(T(0), width - aMargin.LeftRight());
+    height = gfx_max(T(0), height - aMargin.TopBottom());
   }
   void Deflate(const SizeT& aSize) { Deflate(aSize.width, aSize.height); }
 
@@ -273,25 +235,13 @@ struct BaseRect {
     return IsEqualEdges(aRect) || (IsEmpty() && aRect.IsEmpty());
   }
 
-  friend Sub operator+(Sub aSub, const Point& aPoint)
+  Sub operator+(const Point& aPoint) const
   {
-    aSub += aPoint;
-    return aSub;
+    return Sub(x + aPoint.x, y + aPoint.y, width, height);
   }
-  friend Sub operator-(Sub aSub, const Point& aPoint)
+  Sub operator-(const Point& aPoint) const
   {
-    aSub -= aPoint;
-    return aSub;
-  }
-  friend Sub operator+(Sub aSub, const SizeT& aSize)
-  {
-    aSub += aSize;
-    return aSub;
-  }
-  friend Sub operator-(Sub aSub, const SizeT& aSize)
-  {
-    aSub -= aSize;
-    return aSub;
+    return Sub(x - aPoint.x, y - aPoint.y, width, height);
   }
   Sub& operator+=(const Point& aPoint)
   {
@@ -303,25 +253,12 @@ struct BaseRect {
     MoveBy(-aPoint);
     return *static_cast<Sub*>(this);
   }
-  Sub& operator+=(const SizeT& aSize)
-  {
-    width += aSize.width;
-    height += aSize.height;
-    return *static_cast<Sub*>(this);
-  }
-  Sub& operator-=(const SizeT& aSize)
-  {
-    width -= aSize.width;
-    height -= aSize.height;
-    return *static_cast<Sub*>(this);
-  }
+
   // Find difference as a Margin
-  MarginT operator-(const Sub& aRect) const
+  Margin operator-(const Sub& aRect) const
   {
-    return MarginT(aRect.y - y,
-                   XMost() - aRect.XMost(),
-                   YMost() - aRect.YMost(),
-                   aRect.x - x);
+    return Margin(aRect.x - x, aRect.y - y,
+                  XMost() - aRect.XMost(), YMost() - aRect.YMost());
   }
 
   // Helpers for accessing the vertices
@@ -329,33 +266,6 @@ struct BaseRect {
   Point TopRight() const { return Point(XMost(), y); }
   Point BottomLeft() const { return Point(x, YMost()); }
   Point BottomRight() const { return Point(XMost(), YMost()); }
-  Point AtCorner(int aCorner) const {
-    switch (aCorner) {
-      case RectCorner::TopLeft: return TopLeft();
-      case RectCorner::TopRight: return TopRight();
-      case RectCorner::BottomRight: return BottomRight();
-      case RectCorner::BottomLeft: return BottomLeft();
-    }
-    MOZ_CRASH("Incomplete switch");
-  }
-  Point CCWCorner(mozilla::Side side) const {
-    switch (side) {
-      case NS_SIDE_TOP: return TopLeft();
-      case NS_SIDE_RIGHT: return TopRight();
-      case NS_SIDE_BOTTOM: return BottomRight();
-      case NS_SIDE_LEFT: return BottomLeft();
-    }
-    MOZ_CRASH("Incomplete switch");
-  }
-  Point CWCorner(mozilla::Side side) const {
-    switch (side) {
-      case NS_SIDE_TOP: return TopRight();
-      case NS_SIDE_RIGHT: return BottomRight();
-      case NS_SIDE_BOTTOM: return BottomLeft();
-      case NS_SIDE_LEFT: return TopLeft();
-    }
-    MOZ_CRASH("Incomplete switch");
-  }
   Point Center() const { return Point(x, y) + Point(width, height)/2; }
   SizeT Size() const { return SizeT(width, height); }
 
@@ -444,18 +354,6 @@ struct BaseRect {
     height = y1 - y0;
   }
 
-  // Scale 'this' by aScale without doing any rounding.
-  void Scale(T aScale) { Scale(aScale, aScale); }
-  // Scale 'this' by aXScale and aYScale, without doing any rounding.
-  void Scale(T aXScale, T aYScale)
-  {
-    T right = XMost() * aXScale;
-    T bottom = YMost() * aYScale;
-    x = x * aXScale;
-    y = y * aYScale;
-    width = right - x;
-    height = bottom - y;
-  }
   // Scale 'this' by aScale, converting coordinates to integers so that the result is
   // the smallest integer-coordinate rectangle containing the unrounded result.
   // Note: this can turn an empty rectangle into a non-empty rectangle
@@ -485,8 +383,8 @@ struct BaseRect {
     T bottom = static_cast<T>(floor(double(YMost()) * aYScale));
     x = static_cast<T>(ceil(double(x) * aXScale));
     y = static_cast<T>(ceil(double(y) * aYScale));
-    width = std::max<T>(0, right - x);
-    height = std::max<T>(0, bottom - y);
+    width = gfx_max<T>(0, right - x);
+    height = gfx_max<T>(0, bottom - y);
   }
   // Scale 'this' by 1/aScale, converting coordinates to integers so that the result is
   // the smallest integer-coordinate rectangle containing the unrounded result.
@@ -505,21 +403,6 @@ struct BaseRect {
     width = right - x;
     height = bottom - y;
   }
-  // Scale 'this' by 1/aScale, converting coordinates to integers so that the result is
-  // the largest integer-coordinate rectangle contained by the unrounded result.
-  void ScaleInverseRoundIn(double aScale) { ScaleInverseRoundIn(aScale, aScale); }
-  // Scale 'this' by 1/aXScale and 1/aYScale, converting coordinates to integers so
-  // that the result is the largest integer-coordinate rectangle contained by the
-  // unrounded result.
-  void ScaleInverseRoundIn(double aXScale, double aYScale)
-  {
-    T right = static_cast<T>(floor(double(XMost()) / aXScale));
-    T bottom = static_cast<T>(floor(double(YMost()) / aYScale));
-    x = static_cast<T>(ceil(double(x) / aXScale));
-    y = static_cast<T>(ceil(double(y) / aYScale));
-    width = std::max<T>(0, right - x);
-    height = std::max<T>(0, bottom - y);
-  }
 
   /**
    * Clamp aPoint to this rectangle. It is allowed to end up on any
@@ -527,30 +410,8 @@ struct BaseRect {
    */
   Point ClampPoint(const Point& aPoint) const
   {
-    return Point(std::max(x, std::min(XMost(), aPoint.x)),
-                 std::max(y, std::min(YMost(), aPoint.y)));
-  }
-
-  /**
-   * Clamp this rectangle to be inside aRect. The function returns a copy of
-   * this rect after it is forced inside the bounds of aRect. It will attempt to
-   * retain the size but will shrink the dimensions that don't fit.
-   */
-  Sub ForceInside(const Sub& aRect) const
-  {
-    Sub rect(std::max(aRect.x, x),
-             std::max(aRect.y, y),
-             std::min(aRect.width, width),
-             std::min(aRect.height, height));
-    rect.x = std::min(rect.XMost(), aRect.XMost()) - rect.width;
-    rect.y = std::min(rect.YMost(), aRect.YMost()) - rect.height;
-    return rect;
-  }
-
-  friend std::ostream& operator<<(std::ostream& stream,
-      const BaseRect<T, Sub, Point, SizeT, MarginT>& aRect) {
-    return stream << '(' << aRect.x << ',' << aRect.y << ','
-                  << aRect.width << ',' << aRect.height << ')';
+    return Point(NS_MAX(x, NS_MIN(XMost(), aPoint.x)),
+                 NS_MAX(y, NS_MIN(YMost(), aPoint.y)));
   }
 
 private:

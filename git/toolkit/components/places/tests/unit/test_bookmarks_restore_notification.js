@@ -1,4 +1,4 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -48,19 +48,16 @@ var tests = [
     data:       NSIOBSERVER_DATA_JSON,
     folderId:   null,
     run:        function () {
-      Task.spawn(function () {
-        this.file = yield promiseFile("bookmarks-test_restoreNotification.json");
-        addBookmarks();
-
-        yield BookmarkJSONUtils.exportToFile(this.file);
-        remove_all_bookmarks();
-        try {
-          yield BookmarkJSONUtils.importFromFile(this.file, true);
-        }
-        catch (e) {
-          do_throw("  Restore should not have failed");
-        }
-      }.bind(this));
+      this.file = createFile("bookmarks-test_restoreNotification.json");
+      addBookmarks();
+      PlacesUtils.backups.saveBookmarksToJSONFile(this.file);
+      remove_all_bookmarks();
+      try {
+        PlacesUtils.restoreBookmarksFromJSONFile(this.file);
+      }
+      catch (e) {
+        do_throw("  Restore should not have failed");
+      }
     }
   },
 
@@ -71,15 +68,13 @@ var tests = [
     data:       NSIOBSERVER_DATA_JSON,
     folderId:   null,
     run:        function () {
-      Task.spawn(function() {
-        this.file = yield promiseFile("bookmarks-test_restoreNotification.json");
-        try {
-          yield BookmarkJSONUtils.importFromFile(this.file, true);
-        }
-        catch (e) {
-          do_throw("  Restore should not have failed" + e);
-        }
-      }.bind(this));
+      this.file = createFile("bookmarks-test_restoreNotification.json");
+      try {
+        PlacesUtils.restoreBookmarksFromJSONFile(this.file);
+      }
+      catch (e) {
+        do_throw("  Restore should not have failed");
+      }
     }
   },
 
@@ -91,15 +86,12 @@ var tests = [
     folderId:   null,
     run:        function () {
       this.file = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
-      this.file.append("this file doesn't exist because nobody created it 1");
-      Task.spawn(function() {
-        try {
-          yield BookmarkJSONUtils.importFromFile(this.file, true);
-          do_throw("  Restore should have failed");
-        }
-        catch (e) {
-        }
-      }.bind(this));
+      this.file.append("this file doesn't exist because nobody created it");
+      try {
+        PlacesUtils.restoreBookmarksFromJSONFile(this.file);
+        do_throw("  Restore should have failed");
+      }
+      catch (e) {}
     }
   },
 
@@ -110,19 +102,20 @@ var tests = [
     data:       NSIOBSERVER_DATA_HTML,
     folderId:   null,
     run:        function () {
-      Task.spawn(function() {
-        this.file = yield promiseFile("bookmarks-test_restoreNotification.html");
-        addBookmarks();
-        yield BookmarkHTMLUtils.exportToFile(this.file);
-        remove_all_bookmarks();
-        try {
-          BookmarkHTMLUtils.importFromFile(this.file, false)
-                           .then(null, do_report_unexpected_exception);
-        }
-        catch (e) {
-          do_throw("  Restore should not have failed");
-        }
-      }.bind(this));
+      this.file = createFile("bookmarks-test_restoreNotification.html");
+      addBookmarks();
+      exporter.exportHTMLToFile(this.file);
+      remove_all_bookmarks();
+      try {
+        BookmarkHTMLUtils.importFromFile(this.file, false, function (success) {
+          if (!success) {
+            do_throw("  Restore should not have failed");
+          }
+        });
+      }
+      catch (e) {
+        do_throw("  Restore should not have failed");
+      }
     }
   },
 
@@ -133,16 +126,17 @@ var tests = [
     data:       NSIOBSERVER_DATA_HTML,
     folderId:   null,
     run:        function () {
-      Task.spawn(function (){
-        this.file = yield promiseFile("bookmarks-test_restoreNotification.init.html");
-        try {
-          BookmarkHTMLUtils.importFromFile(this.file, false)
-                           .then(null, do_report_unexpected_exception);
-        }
-        catch (e) {
-          do_throw("  Restore should not have failed");
-        }
-      }.bind(this));
+      this.file = createFile("bookmarks-test_restoreNotification.init.html");
+      try {
+        BookmarkHTMLUtils.importFromFile(this.file, false, function (success) {
+          if (!success) {
+            do_throw("  Restore should not have failed");            
+          }
+        });
+      }
+      catch (e) {
+        do_throw("  Restore should not have failed");
+      }
     }
   },
 
@@ -152,15 +146,19 @@ var tests = [
     finalTopic: NSIOBSERVER_TOPIC_FAILED,
     data:       NSIOBSERVER_DATA_HTML,
     folderId:   null,
-    run:        Task.async(function* () {
+    run:        function () {
       this.file = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
-      this.file.append("this file doesn't exist because nobody created it 2");
+      this.file.append("this file doesn't exist because nobody created it");
       try {
-        yield BookmarkHTMLUtils.importFromFile(this.file, false);
-        do_throw("Should fail!");
+        BookmarkHTMLUtils.importFromFile(this.file, false, function (success) {
+          print("callback");
+          if (success) {
+            do_throw("  Restore should have failed");
+          }
+        });
       }
       catch (e) {}
-    }.bind(this))
+    }
   },
 
   {
@@ -170,19 +168,20 @@ var tests = [
     data:       NSIOBSERVER_DATA_HTML_INIT,
     folderId:   null,
     run:        function () {
-      Task.spawn(function () {
-        this.file = yield promiseFile("bookmarks-test_restoreNotification.init.html");
-        addBookmarks();
-        yield BookmarkHTMLUtils.exportToFile(this.file);
-        remove_all_bookmarks();
-        try {
-          BookmarkHTMLUtils.importFromFile(this.file, true)
-                           .then(null, do_report_unexpected_exception);
-        }
-        catch (e) {
-          do_throw("  Restore should not have failed");
-        }
-      }.bind(this));
+      this.file = createFile("bookmarks-test_restoreNotification.init.html");
+      addBookmarks();
+      exporter.exportHTMLToFile(this.file);
+      remove_all_bookmarks();
+      try {
+        BookmarkHTMLUtils.importFromFile(this.file, true, function (success) {
+          if (!success) {
+            do_throw("  Restore should not have failed");
+          }
+        });
+      }
+      catch (e) {
+        do_throw("  Restore should not have failed");
+      }
     }
   },
 
@@ -193,16 +192,17 @@ var tests = [
     data:       NSIOBSERVER_DATA_HTML_INIT,
     folderId:   null,
     run:        function () {
-      Task.spawn(function () {
-        this.file = yield promiseFile("bookmarks-test_restoreNotification.init.html");
-        try {
-          BookmarkHTMLUtils.importFromFile(this.file, true)
-                           .then(null, do_report_unexpected_exception);
-        }
-        catch (e) {
-          do_throw("  Restore should not have failed");
-        }
-      }.bind(this));
+      this.file = createFile("bookmarks-test_restoreNotification.init.html");
+      try {
+        BookmarkHTMLUtils.importFromFile(this.file, true, function (success) {
+          if (!success) {
+            do_throw("  Restore should not have failed");
+          }
+        });
+      }
+      catch (e) {
+        do_throw("  Restore should not have failed");
+      }
     }
   },
 
@@ -212,15 +212,18 @@ var tests = [
     finalTopic: NSIOBSERVER_TOPIC_FAILED,
     data:       NSIOBSERVER_DATA_HTML_INIT,
     folderId:   null,
-    run:        Task.async(function* () {
+    run:        function () {
       this.file = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
-      this.file.append("this file doesn't exist because nobody created it 3");
+      this.file.append("this file doesn't exist because nobody created it");
       try {
-        yield BookmarkHTMLUtils.importFromFile(this.file, true);
-        do_throw("Should fail!");
+        BookmarkHTMLUtils.importFromFile(this.file, true, function (success) {
+          if (success) {
+            do_throw("  Restore should have failed");
+          }
+        });
       }
       catch (e) {}
-    }.bind(this))
+    }
   }
 ];
 
@@ -283,6 +286,9 @@ var bmsvc = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
 var obssvc = Cc["@mozilla.org/observer-service;1"].
              getService(Ci.nsIObserverService);
 
+var exporter = Cc["@mozilla.org/browser/places/import-export-service;1"].
+               getService(Ci.nsIPlacesImportExportService);
+
 ///////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -318,17 +324,21 @@ function checkBookmarksExist() {
 }
 
 /**
- * Creates an file in the profile directory.
+ * Creates an nsILocalFile in the profile directory.
  *
  * @param  aBasename
  *         e.g., "foo.txt" in the path /some/long/path/foo.txt
- * @return {Promise}
- * @resolves to an OS.File path
+ * @return The nsILocalFile
  */
-function promiseFile(aBasename) {
-  let path = OS.Path.join(OS.Constants.Path.profileDir, aBasename);
-  dump("\n\nopening " + path + "\n\n");
-  return OS.File.open(path, { truncate: true }).then(aFile => { aFile.close(); return path; });
+function createFile(aBasename) {
+  var file = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
+  file.append(aBasename);
+  if (file.exists())
+    file.remove(false);
+  file.create(file.NORMAL_FILE_TYPE, 0666);
+  if (!file.exists())
+    do_throw("Couldn't create file: " + aBasename);
+  return file;
 }
 
 /**

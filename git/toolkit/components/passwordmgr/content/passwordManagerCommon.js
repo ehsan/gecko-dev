@@ -1,4 +1,4 @@
-// -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
+// -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,6 +7,7 @@
 /*** =================== INITIALISATION CODE =================== ***/
 
 var kObserverService;
+var gSelectUserInUse = false;
 
 // interface variables
 var passwordmanager     = null;
@@ -22,6 +23,8 @@ var rejectsTree;
 
 var showingPasswords = false;
 
+var kLTRAtom;
+
 function Startup() {
   // xpconnect to password manager interfaces
   passwordmanager = Components.classes["@mozilla.org/login-manager;1"]
@@ -29,47 +32,63 @@ function Startup() {
 
   // be prepared to reload the display if anything changes
   kObserverService = Components.classes["@mozilla.org/observer-service;1"].getService(Components.interfaces.nsIObserverService);
-  kObserverService.addObserver(signonReloadDisplay, "passwordmgr-storage-changed", false);
+  kObserverService.addObserver(signonReloadDisplay, "signonChanged", false);
+
+  // be prepared to disable the buttons when selectuser dialog is in use
+  kObserverService.addObserver(signonReloadDisplay, "signonSelectUser", false);
 
   signonsTree = document.getElementById("signonsTree");
   rejectsTree = document.getElementById("rejectsTree");
+
+  kLTRAtom = Components.classes["@mozilla.org/atom-service;1"]
+                       .getService(Components.interfaces.nsIAtomService)
+                       .getAtom("ltr");
 }
 
 function Shutdown() {
-  kObserverService.removeObserver(signonReloadDisplay, "passwordmgr-storage-changed");
+  kObserverService.removeObserver(signonReloadDisplay, "signonChanged");
+  kObserverService.removeObserver(signonReloadDisplay, "signonSelectUser");
 }
 
 var signonReloadDisplay = {
-  observe: function(subject, topic, data) {
-    if (topic == "passwordmgr-storage-changed") {
-      switch (data) {
-        case "addLogin":
-        case "modifyLogin":
-        case "removeLogin":
-        case "removeAllLogins":
-          if (!signonsTree) {
-            return;
-          }
-          signons.length = 0;
-          LoadSignons();
-          // apply the filter if needed
-          if (document.getElementById("filter") && document.getElementById("filter").value != "") {
-            _filterPasswords();
-          }
-          break;
-        case "hostSavingEnabled":
-        case "hostSavingDisabled":
-          if (!rejectsTree) {
-            return;
-          }
-          rejects.length = 0;
-          if (lastRejectSortColumn == "hostname") {
-            lastRejectSortAscending = !lastRejectSortAscending; // prevents sort from being reversed
-          }
-          LoadRejects();
-          break;
+  observe: function(subject, topic, state) {
+    if (topic == "signonChanged") {
+      if (state == "signons") {
+        signons.length = 0;
+        if (lastSignonSortColumn == "hostname") {
+          lastSignonSortAscending = !lastSignonSortAscending; // prevents sort from being reversed
+        }
+        LoadSignons();
+        // apply the filter if needed
+        if (document.getElementById("filter") && document.getElementById("filter").value != "") {
+          _filterPasswords();
+        }
+      } else if (state == "rejects") {
+        rejects.length = 0;
+        if (lastRejectSortColumn == "hostname") {
+          lastRejectSortAscending = !lastRejectSortAscending; // prevents sort from being reversed
+        }
+        LoadRejects();
       }
-      kObserverService.notifyObservers(null, "passwordmgr-dialog-updated", null);
+    } else if (topic == "signonSelectUser") {
+      if (state == "suspend") {
+        gSelectUserInUse = true;
+        document.getElementById("removeSignon").disabled = true;
+        document.getElementById("removeAllSignons").disabled = true;
+        document.getElementById("togglePasswords").disabled = true;
+      } else if (state == "resume") {
+        gSelectUserInUse = false;
+        var selections = GetTreeSelections(signonsTree);
+        if (selections.length > 0) {
+          document.getElementById("removeSignon").disabled = false;
+        }
+        if (signons.length > 0) {
+          document.getElementById("removeAllSignons").disabled = false;
+          document.getElementById("togglePasswords").disabled = false;
+        }
+      } else if (state == "inUse") {
+        gSelectUserInUse = true;
+      }
     }
   }
 }
@@ -169,40 +188,18 @@ function SortTree(tree, view, table, column, lastSortColumn, lastSortAscending, 
   // determine if sort is to be ascending or descending
   var ascending = (column == lastSortColumn) ? !lastSortAscending : true;
 
-  function compareFunc(a, b) {
-    var valA, valB;
-    switch (column) {
-      case "hostname":
-        var realmA = a.httpRealm;
-        var realmB = b.httpRealm;
-        realmA = realmA == null ? "" : realmA.toLowerCase();
-        realmB = realmB == null ? "" : realmB.toLowerCase();
-
-        valA = a[column].toLowerCase() + realmA;
-        valB = b[column].toLowerCase() + realmB;
-        break;
-      case "username":
-      case "password":
-        valA = a[column].toLowerCase();
-        valB = b[column].toLowerCase();
-        break;
-
-      default:
-        valA = a[column];
-        valB = b[column];
-    }
-
-    if (valA < valB)
-      return -1;
-    if (valA > valB)
-      return 1;
-    return 0;
-  }
-
   // do the sort
+  var compareFunc;
+  if (ascending) {
+    compareFunc = function compare(first, second) {
+      return CompareLowerCase(first[column], second[column]);
+    }
+  } else {
+    compareFunc = function compare(first, second) {
+      return CompareLowerCase(second[column], first[column]);
+    }
+  }
   table.sort(compareFunc);
-  if (!ascending)
-    table.reverse();
 
   // restore the selection
   var selectedRow = -1;
@@ -228,3 +225,28 @@ function SortTree(tree, view, table, column, lastSortColumn, lastSortAscending, 
   return ascending;
 }
 
+/**
+ * Case insensitive string comparator.
+ */
+function CompareLowerCase(first, second) {
+  var firstLower, secondLower;
+
+  // Are we sorting nsILoginInfo entries or just strings?
+  if (first.hostname) {
+    firstLower  = first.hostname.toLowerCase();
+    secondLower = second.hostname.toLowerCase();
+  } else {
+    firstLower  = first.toLowerCase();
+    secondLower = second.toLowerCase();
+  }
+
+  if (firstLower < secondLower) {
+    return -1;
+  }
+
+  if (firstLower > secondLower) {
+    return 1;
+  }
+
+  return 0;
+}

@@ -5,7 +5,7 @@
 // This verifies that if the AMO response provides total_results,
 // searchSucceeded is called with the correct number of total results
 
-Components.utils.import("resource://gre/modules/addons/AddonRepository.jsm");
+Components.utils.import("resource://gre/modules/AddonRepository.jsm");
 
 const PREF_GETADDONS_GETSEARCHRESULTS = "extensions.getAddons.search.url";
 
@@ -71,13 +71,10 @@ function run_test()
 
   server = new HttpServer();
   server.registerDirectory("/", do_get_file("data"));
-  mapFile("/data/test_bug554133.xml", server);
-  server.start(-1);
-  gPort = server.identity.primaryPort;
+  server.start(4444);
 
   // Point search to the test server
-  Services.prefs.setCharPref(PREF_GETADDONS_GETSEARCHRESULTS,
-                             "http://localhost:" + gPort + "/data/test_%TERMS%.xml");
+  Services.prefs.setCharPref(PREF_GETADDONS_GETSEARCHRESULTS, "http://localhost:4444/test_%TERMS%.xml");
 
   do_check_neq(AddonRepository, null);
   gCurrentTest = 0;

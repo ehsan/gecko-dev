@@ -22,7 +22,8 @@ interface nsIInputStream;
  *
  * Implementers should return the following:
  *
- * @throws <any-error> if not interested in consuming any data
+ * @return NS_OK and (*aWriteCount > 0) if consumed some data
+ * @return <any-error> if not interested in consuming any data
  *
  * Errors are never passed to the caller of ReadSegments.
  *
@@ -30,7 +31,7 @@ interface nsIInputStream;
  */
 typedef NS_CALLBACK(nsWriteUnicharSegmentFun)(nsIUnicharInputStream *aInStream,
                                               void *aClosure,
-                                              const char16_t *aFromSegment,
+                                              const PRUnichar *aFromSegment,
                                               uint32_t aToOffset,
                                               uint32_t aCount,
                                               uint32_t *aWriteCount);
@@ -52,7 +53,7 @@ interface nsIUnicharInputStream : nsISupports {
    *
    * @note To read more than 2^32 characters, call this method multiple times.
    */
-  [noscript] unsigned long read([array, size_is(aCount)] in char16_t aBuf,
+  [noscript] unsigned long read([array, size_is(aCount)] in PRUnichar aBuf,
                                 in unsigned long aCount);
 
   /**

@@ -1,4 +1,4 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -22,11 +22,11 @@ function test()
 
 // ------- Comment #112 From Jesse Ruderman
 
-  expect = 'ReferenceError: can\'t access lexical declaration `q\' before initialization';
+  expect = 'TypeError: q is not a function';
 
   try
   {
-    q = new Function("(function() { q(3); })(); const q = undefined;"); q();
+    q = new Function("(function() { q(3); })(); const q;"); q();
   }
   catch(ex)
   {

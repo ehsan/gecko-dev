@@ -5,23 +5,14 @@
 #ifndef GFX_BASICIMPLDATA_H
 #define GFX_BASICIMPLDATA_H
 
-#include "Layers.h"                     // for Layer (ptr only), etc
-#include "gfxContext.h"                 // for gfxContext, etc
-#include "nsDebug.h"                    // for NS_ASSERTION
-#include "nsISupportsImpl.h"            // for MOZ_COUNT_CTOR, etc
-#include "mozilla/gfx/Types.h"
-
 namespace mozilla {
 namespace layers {
-
-class ReadbackProcessor;
-class SurfaceDescriptor;
 
 /**
  * This is the ImplData for all Basic layers. It also exposes methods
  * private to the Basic implementation that are common to all Basic layer types.
  * In particular, there is an internal Paint() method that we can use
- * to paint the contents of non-PaintedLayers.
+ * to paint the contents of non-Thebes layers.
  *
  * The class hierarchy for Basic layers is like this:
  *                                 BasicImplData
@@ -31,9 +22,9 @@ class SurfaceDescriptor;
  *  |    |                          |   |   |
  *  |    +-> BasicContainerLayer <--+   |   |
  *  |                                   |   |
- *  +-> PaintedLayer                     |   |
+ *  +-> ThebesLayer                     |   |
  *  |    |                              |   |
- *  |    +-> BasicPaintedLayer <---------+   |
+ *  |    +-> BasicThebesLayer <---------+   |
  *  |                                       |
  *  +-> ImageLayer                          |
  *       |                                  |
@@ -44,7 +35,7 @@ public:
   BasicImplData() : mHidden(false),
     mClipToVisibleRegion(false),
     mDrawAtomically(false),
-    mOperator(gfx::CompositionOp::OP_OVER)
+    mOperator(gfxContext::OPERATOR_OVER)
   {
     MOZ_COUNT_CTOR(BasicImplData);
   }
@@ -59,24 +50,19 @@ public:
    * set up to account for all the properties of the layer (transform,
    * opacity, etc).
    */
-  virtual void Paint(gfx::DrawTarget* aDT,
-                     const gfx::Point& aDeviceOffset,
-                     Layer* aMaskLayer) {}
+  virtual void Paint(gfxContext* aContext, Layer* aMaskLayer) {}
 
   /**
-   * Like Paint() but called for PaintedLayers with the additional parameters
+   * Like Paint() but called for ThebesLayers with the additional parameters
    * they need.
    * If mClipToVisibleRegion is set, then the layer must clip to its
    * effective visible region (snapped or unsnapped, it doesn't matter).
    */
   virtual void PaintThebes(gfxContext* aContext,
                            Layer* aMasklayer,
-                           LayerManager::DrawPaintedLayerCallback aCallback,
-                           void* aCallbackData) {}
-
-  virtual void Validate(LayerManager::DrawPaintedLayerCallback aCallback,
-                        void* aCallbackData,
-                        ReadbackProcessor* aReadback) {}
+                           LayerManager::DrawThebesLayerCallback aCallback,
+                           void* aCallbackData,
+                           ReadbackProcessor* aReadback) {}
 
   /**
    * Layers will get this call when their layer manager is destroyed, this
@@ -96,19 +82,14 @@ public:
    * the operator to be used when compositing the layer in this transaction. It must
    * be OVER or SOURCE.
    */
-  void SetOperator(gfx::CompositionOp aOperator)
+  void SetOperator(gfxContext::GraphicsOperator aOperator)
   {
-    NS_ASSERTION(aOperator == gfx::CompositionOp::OP_OVER ||
-                 aOperator == gfx::CompositionOp::OP_SOURCE,
+    NS_ASSERTION(aOperator == gfxContext::OPERATOR_OVER ||
+                 aOperator == gfxContext::OPERATOR_SOURCE,
                  "Bad composition operator");
     mOperator = aOperator;
   }
-
-  gfx::CompositionOp GetOperator() const { return mOperator; }
-  gfxContext::GraphicsOperator DeprecatedGetOperator() const
-  {
-    return gfx::ThebesOp(mOperator);
-  }
+  gfxContext::GraphicsOperator GetOperator() const { return mOperator; }
 
   /**
    * Return a surface for this layer. Will use an existing surface, if
@@ -117,7 +98,9 @@ public:
    * return false if a surface cannot be created.  If true is
    * returned, only one of |aSurface| or |aDescriptor| is valid.
    */
-  virtual TemporaryRef<gfx::SourceSurface> GetAsSourceSurface() { return nullptr; }
+  virtual bool GetAsSurface(gfxASurface** aSurface,
+                            SurfaceDescriptor* aDescriptor)
+  { return false; }
 
   bool GetClipToVisibleRegion() { return mClipToVisibleRegion; }
   void SetClipToVisibleRegion(bool aClip) { mClipToVisibleRegion = aClip; }
@@ -128,7 +111,7 @@ protected:
   bool mHidden;
   bool mClipToVisibleRegion;
   bool mDrawAtomically;
-  gfx::CompositionOp mOperator;
+  gfxContext::GraphicsOperator mOperator;
 };
 
 } // layers

@@ -4,28 +4,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "nsLoadGroup.h"
-
-#include "nsArrayEnumerator.h"
-#include "nsCOMArray.h"
+#include "nsISupportsArray.h"
+#include "nsEnumeratorUtils.h"
+#include "nsIServiceManager.h"
 #include "nsCOMPtr.h"
+#include "nsIURI.h"
 #include "prlog.h"
+#include "nsCRT.h"
+#include "netCore.h"
+#include "nsXPIDLString.h"
+#include "nsReadableUtils.h"
 #include "nsString.h"
 #include "nsTArray.h"
-#include "mozilla/Atomics.h"
 #include "mozilla/Telemetry.h"
-#include "nsAutoPtr.h"
-#include "mozilla/net/PSpdyPush.h"
-#include "nsITimedChannel.h"
-#include "nsIInterfaceRequestor.h"
-#include "nsIRequestObserver.h"
-#include "CacheObserver.h"
-#include "MainThreadUtils.h"
 
 using namespace mozilla;
-using namespace mozilla::net;
 
 #if defined(PR_LOGGING)
 //
@@ -42,7 +36,6 @@ using namespace mozilla::net;
 static PRLogModuleInfo* gLoadGroupLog = nullptr;
 #endif
 
-#undef LOG
 #define LOG(args) PR_LOG(gLoadGroupLog, PR_LOG_DEBUG, args)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,7 +43,7 @@ static PRLogModuleInfo* gLoadGroupLog = nullptr;
 class RequestMapEntry : public PLDHashEntryHdr
 {
 public:
-    explicit RequestMapEntry(nsIRequest *aRequest) :
+    RequestMapEntry(nsIRequest *aRequest) :
         mKey(aRequest)
     {
     }
@@ -114,14 +107,12 @@ RescheduleRequests(PLDHashTable *table, PLDHashEntryHdr *hdr,
 nsLoadGroup::nsLoadGroup(nsISupports* outer)
     : mForegroundCount(0)
     , mLoadFlags(LOAD_NORMAL)
-    , mDefaultLoadFlags(0)
     , mStatus(NS_OK)
     , mPriority(PRIORITY_NORMAL)
     , mIsCanceling(false)
     , mDefaultLoadIsTimed(false)
     , mTimedRequests(0)
     , mCachedRequests(0)
-    , mTimedNonCachedRequestsUntilOnEndPageLoad(0)
 {
     NS_INIT_AGGREGATED(outer);
 
@@ -141,7 +132,9 @@ nsLoadGroup::nsLoadGroup(nsISupports* outer)
 
 nsLoadGroup::~nsLoadGroup()
 {
-    DebugOnly<nsresult> rv = Cancel(NS_BINDING_ABORTED);
+    nsresult rv;
+
+    rv = Cancel(NS_BINDING_ABORTED);
     NS_ASSERTION(NS_SUCCEEDED(rv), "Cancel failed");
 
     if (mRequests.ops) {
@@ -154,14 +147,36 @@ nsLoadGroup::~nsLoadGroup()
 }
 
 
+nsresult nsLoadGroup::Init()
+{
+    static PLDHashTableOps hash_table_ops =
+    {
+        PL_DHashAllocTable,
+        PL_DHashFreeTable,
+        PL_DHashVoidPtrKeyStub,
+        RequestHashMatchEntry,
+        PL_DHashMoveEntryStub,
+        RequestHashClearEntry,
+        PL_DHashFinalizeStub,
+        RequestHashInitEntry
+    };
+
+    if (!PL_DHashTableInit(&mRequests, &hash_table_ops, nullptr,
+                           sizeof(RequestMapEntry), 16)) {
+        mRequests.ops = nullptr;
+
+        return NS_ERROR_OUT_OF_MEMORY;
+    }
+
+    return NS_OK;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // nsISupports methods:
 
 NS_IMPL_AGGREGATED(nsLoadGroup)
 NS_INTERFACE_MAP_BEGIN_AGGREGATED(nsLoadGroup)
     NS_INTERFACE_MAP_ENTRY(nsILoadGroup)
-    NS_INTERFACE_MAP_ENTRY(nsPILoadGroupInternal)
-    NS_INTERFACE_MAP_ENTRY(nsILoadGroupChild)
     NS_INTERFACE_MAP_ENTRY(nsIRequest)
     NS_INTERFACE_MAP_ENTRY(nsISupportsPriority)
     NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
@@ -226,11 +241,9 @@ AppendRequestsToArray(PLDHashTable *table, PLDHashEntryHdr *hdr,
 NS_IMETHODIMP
 nsLoadGroup::Cancel(nsresult status)
 {
-    MOZ_ASSERT(NS_IsMainThread());
-
     NS_ASSERTION(NS_FAILED(status), "shouldn't cancel with a success code");
     nsresult rv;
-    uint32_t count = mRequests.EntryCount();
+    uint32_t count = mRequests.entryCount;
 
     nsAutoTArray<nsIRequest*, 8> requests;
 
@@ -276,7 +289,7 @@ nsLoadGroup::Cancel(nsresult status)
         }
 
 #if defined(PR_LOGGING)
-        nsAutoCString nameStr;
+        nsCAutoString nameStr;
         request->GetName(nameStr);
         LOG(("LOADGROUP [%x]: Canceling request %x %s.\n",
              this, request, nameStr.get()));
@@ -301,7 +314,7 @@ nsLoadGroup::Cancel(nsresult status)
     }
 
 #if defined(DEBUG)
-    NS_ASSERTION(mRequests.EntryCount() == 0, "Request list is not empty.");
+    NS_ASSERTION(mRequests.entryCount == 0, "Request list is not empty.");
     NS_ASSERTION(mForegroundCount == 0, "Foreground URLs are active.");
 #endif
 
@@ -316,7 +329,7 @@ NS_IMETHODIMP
 nsLoadGroup::Suspend()
 {
     nsresult rv, firstError;
-    uint32_t count = mRequests.EntryCount();
+    uint32_t count = mRequests.entryCount;
 
     nsAutoTArray<nsIRequest*, 8> requests;
 
@@ -344,7 +357,7 @@ nsLoadGroup::Suspend()
             continue;
 
 #if defined(PR_LOGGING)
-        nsAutoCString nameStr;
+        nsCAutoString nameStr;
         request->GetName(nameStr);
         LOG(("LOADGROUP [%x]: Suspending request %x %s.\n",
             this, request, nameStr.get()));
@@ -368,7 +381,7 @@ NS_IMETHODIMP
 nsLoadGroup::Resume()
 {
     nsresult rv, firstError;
-    uint32_t count = mRequests.EntryCount();
+    uint32_t count = mRequests.entryCount;
 
     nsAutoTArray<nsIRequest*, 8> requests;
 
@@ -396,7 +409,7 @@ nsLoadGroup::Resume()
             continue;
 
 #if defined(PR_LOGGING)
-        nsAutoCString nameStr;
+        nsCAutoString nameStr;
         request->GetName(nameStr);
         LOG(("LOADGROUP [%x]: Resuming request %x %s.\n",
             this, request, nameStr.get()));
@@ -486,10 +499,10 @@ nsLoadGroup::AddRequest(nsIRequest *request, nsISupports* ctxt)
 
 #if defined(PR_LOGGING)
     {
-        nsAutoCString nameStr;
+        nsCAutoString nameStr;
         request->GetName(nameStr);
         LOG(("LOADGROUP [%x]: Adding request %x %s (count=%d).\n",
-             this, request, nameStr.get(), mRequests.EntryCount()));
+             this, request, nameStr.get(), mRequests.entryCount));
     }
 #endif /* PR_LOGGING */
 
@@ -599,10 +612,10 @@ nsLoadGroup::RemoveRequest(nsIRequest *request, nsISupports* ctxt,
 
 #if defined(PR_LOGGING)
     {
-        nsAutoCString nameStr;
+        nsCAutoString nameStr;
         request->GetName(nameStr);
         LOG(("LOADGROUP [%x]: Removing request %x %s status %x (count=%d).\n",
-            this, request, nameStr.get(), aStatus, mRequests.EntryCount() - 1));
+            this, request, nameStr.get(), aStatus, mRequests.entryCount-1));
     }
 #endif
 
@@ -639,12 +652,8 @@ nsLoadGroup::RemoveRequest(nsIRequest *request, nsISupports* ctxt,
             ++mTimedRequests;
             TimeStamp timeStamp;
             rv = timedChannel->GetCacheReadStart(&timeStamp);
-            if (NS_SUCCEEDED(rv) && !timeStamp.IsNull()) {
+            if (NS_SUCCEEDED(rv) && !timeStamp.IsNull())
                 ++mCachedRequests;
-            }
-            else {
-                mTimedNonCachedRequestsUntilOnEndPageLoad++;
-            }
 
             rv = timedChannel->GetAsyncOpen(&timeStamp);
             if (NS_SUCCEEDED(rv) && !timeStamp.IsNull()) {
@@ -664,7 +673,7 @@ nsLoadGroup::RemoveRequest(nsIRequest *request, nsISupports* ctxt,
         }
     }
 
-    if (mRequests.EntryCount() == 0) {
+    if (mRequests.entryCount == 0) {
         TelemetryReport();
     }
 
@@ -706,25 +715,42 @@ nsLoadGroup::RemoveRequest(nsIRequest *request, nsISupports* ctxt,
 }
 
 // PLDHashTable enumeration callback that appends all items in the
-// hash to an nsCOMArray
+// hash to an nsISupportsArray.
 static PLDHashOperator
-AppendRequestsToCOMArray(PLDHashTable *table, PLDHashEntryHdr *hdr,
-                         uint32_t number, void *arg)
+AppendRequestsToISupportsArray(PLDHashTable *table, PLDHashEntryHdr *hdr,
+                               uint32_t number, void *arg)
 {
     RequestMapEntry *e = static_cast<RequestMapEntry *>(hdr);
-    static_cast<nsCOMArray<nsIRequest>*>(arg)->AppendObject(e->mKey);
+    nsISupportsArray *array = static_cast<nsISupportsArray *>(arg);
+
+    // nsISupportsArray::AppendElement returns a bool disguised as nsresult
+    bool ok = static_cast<bool>(array->AppendElement(e->mKey));
+
+    if (!ok) {
+        return PL_DHASH_STOP;
+    }
+
     return PL_DHASH_NEXT;
 }
 
 NS_IMETHODIMP
 nsLoadGroup::GetRequests(nsISimpleEnumerator * *aRequests)
 {
-    nsCOMArray<nsIRequest> requests;
-    requests.SetCapacity(mRequests.EntryCount());
+    nsCOMPtr<nsISupportsArray> array;
+    nsresult rv = NS_NewISupportsArray(getter_AddRefs(array));
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    PL_DHashTableEnumerate(&mRequests, AppendRequestsToCOMArray, &requests);
+    PL_DHashTableEnumerate(&mRequests, AppendRequestsToISupportsArray,
+                           array.get());
 
-    return NS_NewArrayEnumerator(aRequests, requests);
+    uint32_t count;
+    array->Count(&count);
+
+    if (count != mRequests.entryCount) {
+        return NS_ERROR_OUT_OF_MEMORY;
+    }
+
+    return NS_NewArrayEnumerator(aRequests, array);
 }
 
 NS_IMETHODIMP
@@ -766,74 +792,6 @@ nsLoadGroup::SetNotificationCallbacks(nsIInterfaceRequestor *aCallbacks)
     return NS_OK;
 }
 
-NS_IMETHODIMP
-nsLoadGroup::GetConnectionInfo(nsILoadGroupConnectionInfo **aCI)
-{
-    NS_ENSURE_ARG_POINTER(aCI);
-    *aCI = mConnectionInfo;
-    NS_IF_ADDREF(*aCI);
-    return NS_OK;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsILoadGroupChild methods:
-
-/* attribute nsILoadGroup parentLoadGroup; */
-NS_IMETHODIMP
-nsLoadGroup::GetParentLoadGroup(nsILoadGroup * *aParentLoadGroup)
-{
-    *aParentLoadGroup = nullptr;
-    nsCOMPtr<nsILoadGroup> parent = do_QueryReferent(mParentLoadGroup);
-    if (!parent)
-        return NS_OK;
-    parent.forget(aParentLoadGroup);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsLoadGroup::SetParentLoadGroup(nsILoadGroup *aParentLoadGroup)
-{
-    mParentLoadGroup = do_GetWeakReference(aParentLoadGroup);
-    return NS_OK;
-}
-
-/* readonly attribute nsILoadGroup childLoadGroup; */
-NS_IMETHODIMP
-nsLoadGroup::GetChildLoadGroup(nsILoadGroup * *aChildLoadGroup)
-{
-    NS_ADDREF(*aChildLoadGroup = this);
-    return NS_OK;
-}
-
-/* readonly attribute nsILoadGroup rootLoadGroup; */
-NS_IMETHODIMP
-nsLoadGroup::GetRootLoadGroup(nsILoadGroup * *aRootLoadGroup)
-{
-    // first recursively try the root load group of our parent
-    nsCOMPtr<nsILoadGroupChild> ancestor = do_QueryReferent(mParentLoadGroup);
-    if (ancestor)
-        return ancestor->GetRootLoadGroup(aRootLoadGroup);
-
-    // next recursively try the root load group of our own load grop
-    ancestor = do_QueryInterface(mLoadGroup);
-    if (ancestor)
-        return ancestor->GetRootLoadGroup(aRootLoadGroup);
-
-    // finally just return this
-    NS_ADDREF(*aRootLoadGroup = this);
-    return NS_OK;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsPILoadGroupInternal methods:
-
-NS_IMETHODIMP
-nsLoadGroup::OnEndPageLoad(nsIChannel *aDefaultChannel)
-{
-    // for the moment, nothing to do here.
-    return NS_OK;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsISupportsPriority methods:
 
@@ -860,21 +818,6 @@ nsLoadGroup::AdjustPriority(int32_t aDelta)
     }
     return NS_OK;
 }
-
-NS_IMETHODIMP
-nsLoadGroup::GetDefaultLoadFlags(uint32_t *aFlags)
-{
-    *aFlags = mDefaultLoadFlags;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsLoadGroup::SetDefaultLoadFlags(uint32_t aFlags)
-{
-    mDefaultLoadFlags = aFlags;
-    return NS_OK;
-}
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -997,25 +940,13 @@ nsLoadGroup::TelemetryReportChannel(nsITimedChannel *aTimedChannel,
     }                                                                          \
                                                                                \
     if (!cacheReadStart.IsNull() && !cacheReadEnd.IsNull()) {                  \
-        if (!CacheObserver::UseNewCache()) {                                   \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_OPEN_TO_FIRST_FROM_CACHE,           \
-                asyncOpen, cacheReadStart);                                    \
-        } else {                                                               \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_OPEN_TO_FIRST_FROM_CACHE_V2,        \
-                asyncOpen, cacheReadStart);                                    \
-        }                                                                      \
+        Telemetry::AccumulateTimeDelta(                                        \
+            Telemetry::HTTP_##prefix##_OPEN_TO_FIRST_FROM_CACHE,               \
+            asyncOpen, cacheReadStart);                                        \
                                                                                \
-        if (!CacheObserver::UseNewCache()) {                                   \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_CACHE_READ_TIME,                    \
-                cacheReadStart, cacheReadEnd);                                 \
-        } else {                                                               \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_CACHE_READ_TIME_V2,                 \
-                cacheReadStart, cacheReadEnd);                                 \
-        }                                                                      \
+        Telemetry::AccumulateTimeDelta(                                        \
+            Telemetry::HTTP_##prefix##_CACHE_READ_TIME,                        \
+            cacheReadStart, cacheReadEnd);                                     \
                                                                                \
         if (!requestStart.IsNull() && !responseEnd.IsNull()) {                 \
             Telemetry::AccumulateTimeDelta(                                    \
@@ -1028,33 +959,17 @@ nsLoadGroup::TelemetryReportChannel(nsITimedChannel *aTimedChannel,
         Telemetry::AccumulateTimeDelta(                                        \
             Telemetry::HTTP_##prefix##_COMPLETE_LOAD,                          \
             asyncOpen, cacheReadEnd);                                          \
-                                                                               \
-        if (!CacheObserver::UseNewCache()) {                                   \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_COMPLETE_LOAD_CACHED,               \
-                asyncOpen, cacheReadEnd);                                      \
-        } else {                                                               \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_COMPLETE_LOAD_CACHED_V2,            \
-                asyncOpen, cacheReadEnd);                                      \
-        }                                                                      \
+        Telemetry::AccumulateTimeDelta(                                        \
+            Telemetry::HTTP_##prefix##_COMPLETE_LOAD_CACHED,                   \
+            asyncOpen, cacheReadEnd);                                          \
     }                                                                          \
     else if (!responseEnd.IsNull()) {                                          \
-        if (!CacheObserver::UseNewCache()) {                                   \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_COMPLETE_LOAD,                      \
-                asyncOpen, responseEnd);                                       \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_COMPLETE_LOAD_NET,                  \
-                asyncOpen, responseEnd);                                       \
-        } else {                                                               \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_COMPLETE_LOAD_V2,                   \
-                asyncOpen, responseEnd);                                       \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_COMPLETE_LOAD_NET_V2,               \
-                asyncOpen, responseEnd);                                       \
-        }                                                                      \
+        Telemetry::AccumulateTimeDelta(                                        \
+            Telemetry::HTTP_##prefix##_COMPLETE_LOAD,                          \
+            asyncOpen, responseEnd);                                           \
+        Telemetry::AccumulateTimeDelta(                                        \
+            Telemetry::HTTP_##prefix##_COMPLETE_LOAD_NET,                      \
+            asyncOpen, responseEnd);                                           \
     }
 
     if (aDefaultRequest) {
@@ -1084,98 +999,9 @@ nsresult nsLoadGroup::MergeLoadFlags(nsIRequest *aRequest, nsLoadFlags& outFlags
                             VALIDATE_ONCE_PER_SESSION |
                             VALIDATE_NEVER));
 
-    // ... and force the default flags.
-    flags |= mDefaultLoadFlags;
-
     if (flags != oldFlags)
         rv = aRequest->SetLoadFlags(flags);
 
     outFlags = flags;
     return rv;
 }
-
-// nsLoadGroupConnectionInfo
-
-class nsLoadGroupConnectionInfo MOZ_FINAL : public nsILoadGroupConnectionInfo
-{
-    ~nsLoadGroupConnectionInfo() {}
-
-public:
-    NS_DECL_THREADSAFE_ISUPPORTS
-    NS_DECL_NSILOADGROUPCONNECTIONINFO
-
-    nsLoadGroupConnectionInfo();
-private:
-    Atomic<uint32_t>       mBlockingTransactionCount;
-    nsAutoPtr<mozilla::net::SpdyPushCache> mSpdyCache;
-};
-
-NS_IMPL_ISUPPORTS(nsLoadGroupConnectionInfo, nsILoadGroupConnectionInfo)
-
-nsLoadGroupConnectionInfo::nsLoadGroupConnectionInfo()
-    : mBlockingTransactionCount(0)
-{
-}
-
-NS_IMETHODIMP
-nsLoadGroupConnectionInfo::GetBlockingTransactionCount(uint32_t *aBlockingTransactionCount)
-{
-    NS_ENSURE_ARG_POINTER(aBlockingTransactionCount);
-    *aBlockingTransactionCount = mBlockingTransactionCount;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsLoadGroupConnectionInfo::AddBlockingTransaction()
-{
-    mBlockingTransactionCount++;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsLoadGroupConnectionInfo::RemoveBlockingTransaction(uint32_t *_retval)
-{
-    NS_ENSURE_ARG_POINTER(_retval);
-        mBlockingTransactionCount--;
-        *_retval = mBlockingTransactionCount;
-    return NS_OK;
-}
-
-/* [noscript] attribute SpdyPushCachePtr spdyPushCache; */
-NS_IMETHODIMP
-nsLoadGroupConnectionInfo::GetSpdyPushCache(mozilla::net::SpdyPushCache **aSpdyPushCache)
-{
-    *aSpdyPushCache = mSpdyCache.get();
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsLoadGroupConnectionInfo::SetSpdyPushCache(mozilla::net::SpdyPushCache *aSpdyPushCache)
-{
-    mSpdyCache = aSpdyPushCache;
-    return NS_OK;
-}
-
-nsresult nsLoadGroup::Init()
-{
-    static const PLDHashTableOps hash_table_ops =
-    {
-        PL_DHashAllocTable,
-        PL_DHashFreeTable,
-        PL_DHashVoidPtrKeyStub,
-        RequestHashMatchEntry,
-        PL_DHashMoveEntryStub,
-        RequestHashClearEntry,
-        PL_DHashFinalizeStub,
-        RequestHashInitEntry
-    };
-
-    PL_DHashTableInit(&mRequests, &hash_table_ops, nullptr,
-                      sizeof(RequestMapEntry));
-
-    mConnectionInfo = new nsLoadGroupConnectionInfo();
-
-    return NS_OK;
-}
-
-#undef LOG

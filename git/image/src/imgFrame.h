@@ -7,99 +7,53 @@
 #ifndef imgFrame_h
 #define imgFrame_h
 
-#include "mozilla/MemoryReporting.h"
-#include "mozilla/Move.h"
-#include "mozilla/Mutex.h"
-#include "mozilla/VolatileBuffer.h"
+#include "nsRect.h"
+#include "nsPoint.h"
+#include "nsSize.h"
+#include "gfxTypes.h"
+#include "nsID.h"
+#include "gfxContext.h"
+#include "gfxPattern.h"
 #include "gfxDrawable.h"
+#include "gfxImageSurface.h"
+#if defined(XP_WIN)
+#include "gfxWindowsSurface.h"
+#elif defined(XP_MACOSX)
+#include "gfxQuartzImageSurface.h"
+#endif
+#include "nsAutoPtr.h"
 #include "imgIContainer.h"
-
-namespace mozilla {
-namespace image {
-
-class ImageRegion;
-class DrawableFrameRef;
-class RawAccessFrameRef;
 
 class imgFrame
 {
-  typedef gfx::Color Color;
-  typedef gfx::DataSourceSurface DataSourceSurface;
-  typedef gfx::DrawTarget DrawTarget;
-  typedef gfx::IntSize IntSize;
-  typedef gfx::SourceSurface SourceSurface;
-  typedef gfx::SurfaceFormat SurfaceFormat;
-
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(imgFrame)
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(imgFrame)
-
   imgFrame();
+  ~imgFrame();
 
-  /**
-   * Initialize this imgFrame with an empty surface and prepare it for being
-   * written to by a decoder.
-   *
-   * This is appropriate for use with decoded images, but it should not be used
-   * when drawing content into an imgFrame, as it may use a different graphics
-   * backend than normal content drawing.
-   */
-  nsresult InitForDecoder(const nsIntSize& aImageSize,
-                          const nsIntRect& aRect,
-                          SurfaceFormat aFormat,
-                          uint8_t aPaletteDepth = 0);
+  nsresult Init(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight, gfxASurface::gfxImageFormat aFormat, uint8_t aPaletteDepth = 0);
+  nsresult Optimize();
 
-  nsresult InitForDecoder(const nsIntSize& aSize,
-                          SurfaceFormat aFormat,
-                          uint8_t aPaletteDepth = 0)
-  {
-    return InitForDecoder(aSize, nsIntRect(0, 0, aSize.width, aSize.height),
-                          aFormat, aPaletteDepth);
-  }
+  void Draw(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter,
+            const gfxMatrix &aUserSpaceToImageSpace, const gfxRect& aFill,
+            const nsIntMargin &aPadding, const nsIntRect &aSubimage,
+            uint32_t aImageFlags = imgIContainer::FLAG_NONE);
 
-
-  /**
-   * Initialize this imgFrame with a new surface and draw the provided
-   * gfxDrawable into it.
-   *
-   * This is appropriate to use when drawing content into an imgFrame, as it
-   * uses the same graphics backend as normal content drawing. The downside is
-   * that the underlying surface may not be stored in a volatile buffer on all
-   * platforms, and raw access to the surface (using RawAccessRef()) may be much
-   * more expensive than in the InitForDecoder() case.
-   */
-  nsresult InitWithDrawable(gfxDrawable* aDrawable,
-                            const nsIntSize& aSize,
-                            const SurfaceFormat aFormat,
-                            GraphicsFilter aFilter,
-                            uint32_t aImageFlags);
-
-  DrawableFrameRef DrawableRef();
-  RawAccessFrameRef RawAccessRef();
-
-  bool Draw(gfxContext* aContext, const ImageRegion& aRegion,
-            GraphicsFilter aFilter, uint32_t aImageFlags);
+  nsresult Extract(const nsIntRect& aRegion, imgFrame** aResult);
 
   nsresult ImageUpdated(const nsIntRect &aUpdateRect);
 
-  IntSize GetImageSize() { return mImageSize; }
   nsIntRect GetRect() const;
-  IntSize GetSize() const { return mSize; }
-  bool NeedsPadding() const { return mOffset != nsIntPoint(0, 0); }
-  int32_t GetStride() const;
-  SurfaceFormat GetFormat() const;
+  gfxASurface::gfxImageFormat GetFormat() const;
+  bool GetNeedsBackground() const;
   uint32_t GetImageBytesPerRow() const;
   uint32_t GetImageDataLength() const;
   bool GetIsPaletted() const;
   bool GetHasAlpha() const;
   void GetImageData(uint8_t **aData, uint32_t *length) const;
-  uint8_t* GetImageData() const;
   void GetPaletteData(uint32_t **aPalette, uint32_t *length) const;
-  uint32_t* GetPaletteData() const;
-  uint8_t* GetRawData() const;
 
-  int32_t GetRawTimeout() const;
-  void SetRawTimeout(int32_t aTimeout);
+  int32_t GetTimeout() const;
+  void SetTimeout(int32_t aTimeout);
 
   int32_t GetFrameDisposalMethod() const;
   void SetFrameDisposalMethod(int32_t aFrameDisposalMethod);
@@ -113,48 +67,56 @@ public:
   bool GetCompositingFailed() const;
   void SetCompositingFailed(bool val);
 
-  void SetOptimizable();
+  nsresult LockImageData();
+  nsresult UnlockImageData();
 
-  TemporaryRef<SourceSurface> GetSurface();
-  TemporaryRef<DrawTarget> GetDrawTarget();
-
-  Color
-  SinglePixelColor()
+  nsresult GetSurface(gfxASurface **aSurface) const
   {
-    return mSinglePixelColor;
+    *aSurface = ThebesSurface();
+    NS_IF_ADDREF(*aSurface);
+    return NS_OK;
   }
 
-  bool IsSinglePixel()
+  nsresult GetPattern(gfxPattern **aPattern) const
   {
-    return mSinglePixel;
+    if (mSinglePixel)
+      *aPattern = new gfxPattern(mSinglePixelColor);
+    else
+      *aPattern = new gfxPattern(ThebesSurface());
+    NS_ADDREF(*aPattern);
+    return NS_OK;
   }
 
-  TemporaryRef<SourceSurface> CachedSurface();
+  gfxASurface* ThebesSurface() const
+  {
+    if (mOptSurface)
+      return mOptSurface;
+#if defined(XP_WIN)
+    if (mWinSurface)
+      return mWinSurface;
+#elif defined(XP_MACOSX)
+    if (mQuartzSurface)
+      return mQuartzSurface;
+#endif
+    return mImageSurface;
+  }
 
-  size_t SizeOfExcludingThis(gfxMemoryLocation aLocation,
-                             MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfExcludingThisWithComputedFallbackIfHeap(
+           gfxASurface::MemoryLocation aLocation,
+           nsMallocSizeOfFun aMallocSizeOf) const;
 
   uint8_t GetPaletteDepth() const { return mPaletteDepth; }
-  uint32_t PaletteDataLength() const {
-    if (!mPaletteDepth)
-      return 0;
 
+private: // methods
+  uint32_t PaletteDataLength() const {
     return ((1 << mPaletteDepth) * sizeof(uint32_t));
   }
 
-private: // methods
-
-  ~imgFrame();
-
-  nsresult LockImageData();
-  nsresult UnlockImageData();
-  nsresult Optimize();
-
   struct SurfaceWithFormat {
     nsRefPtr<gfxDrawable> mDrawable;
-    SurfaceFormat mFormat;
+    gfxImageSurface::gfxImageFormat mFormat;
     SurfaceWithFormat() {}
-    SurfaceWithFormat(gfxDrawable* aDrawable, SurfaceFormat aFormat)
+    SurfaceWithFormat(gfxDrawable* aDrawable, gfxImageSurface::gfxImageFormat aFormat)
      : mDrawable(aDrawable), mFormat(aFormat) {}
     bool IsValid() { return !!mDrawable; }
   };
@@ -162,23 +124,26 @@ private: // methods
   SurfaceWithFormat SurfaceForDrawing(bool               aDoPadding,
                                       bool               aDoPartialDecode,
                                       bool               aDoTile,
-                                      gfxContext*        aContext,
                                       const nsIntMargin& aPadding,
-                                      gfxRect&           aImageRect,
-                                      ImageRegion&       aRegion,
-                                      SourceSurface*     aSurface);
+                                      gfxMatrix&         aUserSpaceToImageSpace,
+                                      gfxRect&           aFill,
+                                      gfxRect&           aSubimage,
+                                      gfxRect&           aSourceRect,
+                                      gfxRect&           aImageRect);
 
 private: // data
-  RefPtr<DataSourceSurface> mImageSurface;
-  RefPtr<SourceSurface> mOptSurface;
+  nsRefPtr<gfxImageSurface> mImageSurface;
+  nsRefPtr<gfxASurface> mOptSurface;
+#if defined(XP_WIN)
+  nsRefPtr<gfxWindowsSurface> mWinSurface;
+#elif defined(XP_MACOSX)
+  nsRefPtr<gfxQuartzImageSurface> mQuartzSurface;
+#endif
 
-  IntSize      mImageSize;
-  IntSize      mSize;
+  nsIntSize    mSize;
   nsIntPoint   mOffset;
 
   nsIntRect    mDecoded;
-
-  mutable Mutex mDecodedMutex;
 
   // The palette and image data for images that are paletted, since Cairo
   // doesn't support these images.
@@ -186,188 +151,29 @@ private: // data
   // Total length is PaletteDataLength() + GetImageDataLength().
   uint8_t*     mPalettedImageData;
 
-  // Note that the data stored in gfx::Color is *non-alpha-premultiplied*.
-  Color        mSinglePixelColor;
+  // Note that the data stored in gfxRGBA is *non-alpha-premultiplied*.
+  gfxRGBA      mSinglePixelColor;
 
   int32_t      mTimeout; // -1 means display forever
   int32_t      mDisposalMethod;
 
-  /** Indicates how many readers currently have locked this frame */
-  int32_t mLockCount;
-
-  RefPtr<VolatileBuffer> mVBuf;
-  VolatileBufferPtr<uint8_t> mVBufPtr;
-
-  SurfaceFormat mFormat;
+  gfxASurface::gfxImageFormat mFormat;
   uint8_t      mPaletteDepth;
   int8_t       mBlendMethod;
   bool mSinglePixel;
+  bool mNeverUseDeviceSurface;
+  bool mFormatChanged;
   bool mCompositingFailed;
-  bool mHasNoAlpha;
   bool mNonPremult;
-  bool mOptimizable;
+  /** Indicates if the image data is currently locked */
+  bool mLocked;
 
-  friend class DrawableFrameRef;
-  friend class RawAccessFrameRef;
+  /** Have we called DiscardTracker::InformAllocation()? */
+  bool mInformedDiscardTracker;
+
+#ifdef XP_WIN
+  bool mIsDDBSurface;
+#endif
 };
-
-/**
- * A reference to an imgFrame that holds the imgFrame's surface in memory,
- * allowing drawing. If you have a DrawableFrameRef |ref| and |if (ref)| returns
- * true, then calls to Draw() and GetSurface() are guaranteed to succeed.
- */
-class DrawableFrameRef MOZ_FINAL
-{
-  // Implementation details for safe boolean conversion.
-  typedef void (DrawableFrameRef::* ConvertibleToBool)(float*****, double*****);
-  void nonNull(float*****, double*****) {}
-
-public:
-  DrawableFrameRef() { }
-
-  explicit DrawableFrameRef(imgFrame* aFrame)
-    : mFrame(aFrame)
-    , mRef(aFrame->mVBuf)
-  {
-    if (mRef.WasBufferPurged()) {
-      mFrame = nullptr;
-      mRef = nullptr;
-    }
-  }
-
-  DrawableFrameRef(DrawableFrameRef&& aOther)
-    : mFrame(aOther.mFrame.forget())
-    , mRef(Move(aOther.mRef))
-  { }
-
-  DrawableFrameRef& operator=(DrawableFrameRef&& aOther)
-  {
-    MOZ_ASSERT(this != &aOther, "Self-moves are prohibited");
-    mFrame = aOther.mFrame.forget();
-    mRef = Move(aOther.mRef);
-    return *this;
-  }
-
-  operator ConvertibleToBool() const
-  {
-    return bool(mFrame) ? &DrawableFrameRef::nonNull : 0;
-  }
-
-  imgFrame* operator->()
-  {
-    MOZ_ASSERT(mFrame);
-    return mFrame;
-  }
-
-  const imgFrame* operator->() const
-  {
-    MOZ_ASSERT(mFrame);
-    return mFrame;
-  }
-
-  imgFrame* get() { return mFrame; }
-  const imgFrame* get() const { return mFrame; }
-
-  void reset()
-  {
-    mFrame = nullptr;
-    mRef = nullptr;
-  }
-
-private:
-  nsRefPtr<imgFrame> mFrame;
-  VolatileBufferPtr<uint8_t> mRef;
-};
-
-/**
- * A reference to an imgFrame that holds the imgFrame's surface in memory in a
- * format appropriate for access as raw data. If you have a RawAccessFrameRef
- * |ref| and |if (ref)| is true, then calls to GetImageData(), GetPaletteData(),
- * and GetDrawTarget() are guaranteed to succeed. This guarantee is stronger
- * than DrawableFrameRef, so everything that a valid DrawableFrameRef guarantees
- * is also guaranteed by a valid RawAccessFrameRef.
- *
- * This may be considerably more expensive than is necessary just for drawing,
- * so only use this when you need to read or write the raw underlying image data
- * that the imgFrame holds.
- */
-class RawAccessFrameRef MOZ_FINAL
-{
-  // Implementation details for safe boolean conversion.
-  typedef void (RawAccessFrameRef::* ConvertibleToBool)(float*****, double*****);
-  void nonNull(float*****, double*****) {}
-
-public:
-  RawAccessFrameRef() { }
-
-  explicit RawAccessFrameRef(imgFrame* aFrame)
-    : mFrame(aFrame)
-  {
-    MOZ_ASSERT(mFrame, "Need a frame");
-
-    if (NS_FAILED(mFrame->LockImageData())) {
-      mFrame->UnlockImageData();
-      mFrame = nullptr;
-    }
-  }
-
-  RawAccessFrameRef(RawAccessFrameRef&& aOther)
-    : mFrame(aOther.mFrame.forget())
-  { }
-
-  ~RawAccessFrameRef()
-  {
-    if (mFrame) {
-      mFrame->UnlockImageData();
-    }
-  }
-
-  RawAccessFrameRef& operator=(RawAccessFrameRef&& aOther)
-  {
-    MOZ_ASSERT(this != &aOther, "Self-moves are prohibited");
-
-    if (mFrame) {
-      mFrame->UnlockImageData();
-    }
-
-    mFrame = aOther.mFrame.forget();
-
-    return *this;
-  }
-
-  operator ConvertibleToBool() const
-  {
-    return bool(mFrame) ? &RawAccessFrameRef::nonNull : 0;
-  }
-
-  imgFrame* operator->()
-  {
-    MOZ_ASSERT(mFrame);
-    return mFrame.get();
-  }
-
-  const imgFrame* operator->() const
-  {
-    MOZ_ASSERT(mFrame);
-    return mFrame;
-  }
-
-  imgFrame* get() { return mFrame; }
-  const imgFrame* get() const { return mFrame; }
-
-  void reset()
-  {
-    if (mFrame) {
-      mFrame->UnlockImageData();
-    }
-    mFrame = nullptr;
-  }
-
-private:
-  nsRefPtr<imgFrame> mFrame;
-};
-
-} // namespace image
-} // namespace mozilla
 
 #endif /* imgFrame_h */

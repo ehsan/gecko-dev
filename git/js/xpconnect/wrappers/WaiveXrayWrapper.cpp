@@ -1,100 +1,65 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set ts=8 sts=4 et sw=4 tw=99: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99 ft=cpp:
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "WaiveXrayWrapper.h"
-#include "WrapperFactory.h"
-#include "jsapi.h"
+#include "nsJSPrincipals.h"
 
-using namespace JS;
+#include "XPCWrapper.h"
+
+#include "WaiveXrayWrapper.h"
+#include "AccessCheck.h"
+#include "WrapperFactory.h"
 
 namespace xpc {
 
-static bool
-WaiveAccessors(JSContext *cx, JS::MutableHandle<JSPropertyDescriptor> desc)
+WaiveXrayWrapper::WaiveXrayWrapper(unsigned flags) : js::CrossCompartmentWrapper(flags)
 {
-    if (desc.hasGetterObject() && desc.getterObject()) {
-        RootedValue v(cx, JS::ObjectValue(*desc.getterObject()));
-        if (!WrapperFactory::WaiveXrayAndWrap(cx, &v))
-            return false;
-        desc.setGetterObject(&v.toObject());
-    }
+}
 
-    if (desc.hasSetterObject() && desc.setterObject()) {
-        RootedValue v(cx, JS::ObjectValue(*desc.setterObject()));
-        if (!WrapperFactory::WaiveXrayAndWrap(cx, &v))
-            return false;
-        desc.setSetterObject(&v.toObject());
-    }
-    return true;
+WaiveXrayWrapper::~WaiveXrayWrapper()
+{
 }
 
 bool
-WaiveXrayWrapper::getPropertyDescriptor(JSContext *cx, HandleObject wrapper,
-                                        HandleId id, JS::MutableHandle<JSPropertyDescriptor> desc)
-                                        const
+WaiveXrayWrapper::getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
+                                          bool set, js::PropertyDescriptor *desc)
 {
-    return CrossCompartmentWrapper::getPropertyDescriptor(cx, wrapper, id, desc) &&
-           WrapperFactory::WaiveXrayAndWrap(cx, desc.value()) && WaiveAccessors(cx, desc);
+    return CrossCompartmentWrapper::getPropertyDescriptor(cx, wrapper, id, set, desc) &&
+           WrapperFactory::WaiveXrayAndWrap(cx, &desc->value);
 }
 
 bool
-WaiveXrayWrapper::getOwnPropertyDescriptor(JSContext *cx, HandleObject wrapper,
-                                           HandleId id, JS::MutableHandle<JSPropertyDescriptor> desc)
-                                           const
+WaiveXrayWrapper::getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
+                                             bool set, js::PropertyDescriptor *desc)
 {
-    return CrossCompartmentWrapper::getOwnPropertyDescriptor(cx, wrapper, id, desc) &&
-           WrapperFactory::WaiveXrayAndWrap(cx, desc.value()) && WaiveAccessors(cx, desc);
+    return CrossCompartmentWrapper::getOwnPropertyDescriptor(cx, wrapper, id, set, desc) &&
+           WrapperFactory::WaiveXrayAndWrap(cx, &desc->value);
 }
 
 bool
-WaiveXrayWrapper::get(JSContext *cx, HandleObject wrapper,
-                      HandleObject receiver, HandleId id,
-                      MutableHandleValue vp) const
+WaiveXrayWrapper::get(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsid id,
+                        js::Value *vp)
 {
     return CrossCompartmentWrapper::get(cx, wrapper, receiver, id, vp) &&
            WrapperFactory::WaiveXrayAndWrap(cx, vp);
 }
 
 bool
-WaiveXrayWrapper::iterate(JSContext *cx, HandleObject proxy, unsigned flags,
-                          MutableHandleObject objp) const
+WaiveXrayWrapper::call(JSContext *cx, JSObject *wrapper, unsigned argc, js::Value *vp)
 {
-    return CrossCompartmentWrapper::iterate(cx, proxy, flags, objp) &&
-           (!objp || WrapperFactory::WaiveXrayAndWrap(cx, objp));
+    return CrossCompartmentWrapper::call(cx, wrapper, argc, vp) &&
+           WrapperFactory::WaiveXrayAndWrap(cx, vp);
 }
 
 bool
-WaiveXrayWrapper::call(JSContext *cx, HandleObject wrapper, const JS::CallArgs &args) const
+WaiveXrayWrapper::construct(JSContext *cx, JSObject *wrapper,
+                              unsigned argc, js::Value *argv, js::Value *rval)
 {
-    return CrossCompartmentWrapper::call(cx, wrapper, args) &&
-           WrapperFactory::WaiveXrayAndWrap(cx, args.rval());
-}
-
-bool
-WaiveXrayWrapper::construct(JSContext *cx, HandleObject wrapper, const JS::CallArgs &args) const
-{
-    return CrossCompartmentWrapper::construct(cx, wrapper, args) &&
-           WrapperFactory::WaiveXrayAndWrap(cx, args.rval());
-}
-
-// NB: This is important as the other side of a handshake with FieldGetter. See
-// nsXBLProtoImplField.cpp.
-bool
-WaiveXrayWrapper::nativeCall(JSContext *cx, JS::IsAcceptableThis test,
-                             JS::NativeImpl impl, JS::CallArgs args) const
-{
-    return CrossCompartmentWrapper::nativeCall(cx, test, impl, args) &&
-           WrapperFactory::WaiveXrayAndWrap(cx, args.rval());
-}
-
-bool
-WaiveXrayWrapper::getPrototypeOf(JSContext *cx, HandleObject wrapper, MutableHandleObject protop) const
-{
-    return CrossCompartmentWrapper::getPrototypeOf(cx, wrapper, protop) &&
-           (!protop || WrapperFactory::WaiveXrayAndWrap(cx, protop));
+    return CrossCompartmentWrapper::construct(cx, wrapper, argc, argv, rval) &&
+           WrapperFactory::WaiveXrayAndWrap(cx, rval);
 }
 
 }

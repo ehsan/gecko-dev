@@ -13,7 +13,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NS_IMPL_ISUPPORTS(nsViewSourceHandler, nsIProtocolHandler)
+NS_IMPL_ISUPPORTS1(nsViewSourceHandler, nsIProtocolHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsIProtocolHandler methods:
@@ -61,7 +61,7 @@ nsViewSourceHandler::NewURI(const nsACString &aSpec,
     if (NS_FAILED(rv))
         return rv;
 
-    nsAutoCString asciiSpec;
+    nsCAutoString asciiSpec;
     rv = innerURI->GetAsciiSpec(asciiSpec);
     if (NS_FAILED(rv))
         return rv;
@@ -90,9 +90,7 @@ nsViewSourceHandler::NewURI(const nsACString &aSpec,
 }
 
 NS_IMETHODIMP
-nsViewSourceHandler::NewChannel2(nsIURI* uri,
-                                 nsILoadInfo* aLoadInfo,
-                                 nsIChannel** result)
+nsViewSourceHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
 {
     NS_ENSURE_ARG_POINTER(uri);
     nsViewSourceChannel *channel = new nsViewSourceChannel();
@@ -110,54 +108,10 @@ nsViewSourceHandler::NewChannel2(nsIURI* uri,
     return NS_OK;
 }
 
-NS_IMETHODIMP
-nsViewSourceHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
-{
-    return NewChannel2(uri, nullptr, result);
-}
-
-nsresult
-nsViewSourceHandler::NewSrcdocChannel(nsIURI* uri, const nsAString &srcdoc,
-                                      nsIChannel* *result)
-{
-    NS_ENSURE_ARG_POINTER(uri);
-    nsViewSourceChannel *channel = new nsViewSourceChannel();
-    if (!channel)
-        return NS_ERROR_OUT_OF_MEMORY;
-    NS_ADDREF(channel);
-
-    nsresult rv = channel->InitSrcdoc(uri, srcdoc);
-    if (NS_FAILED(rv)) {
-        NS_RELEASE(channel);
-        return rv;
-    }
-
-    *result = static_cast<nsIViewSourceChannel*>(channel);
-    return NS_OK;
-}
-
 NS_IMETHODIMP 
 nsViewSourceHandler::AllowPort(int32_t port, const char *scheme, bool *_retval)
 {
     // don't override anything.  
     *_retval = false;
     return NS_OK;
-}
-
-nsViewSourceHandler::nsViewSourceHandler()
-{
-    gInstance = this;
-}
-
-nsViewSourceHandler::~nsViewSourceHandler()
-{
-    gInstance = nullptr;
-}
-
-nsViewSourceHandler* nsViewSourceHandler::gInstance = nullptr;
-
-nsViewSourceHandler*
-nsViewSourceHandler::GetInstance()
-{
-    return gInstance;
 }

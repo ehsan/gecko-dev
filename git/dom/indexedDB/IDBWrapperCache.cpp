@@ -5,82 +5,71 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "IDBWrapperCache.h"
+#include "nsContentUtils.h"
 
-#include "mozilla/HoldDropJSObjects.h"
-#include "nsCOMPtr.h"
-#include "nsIScriptGlobalObject.h"
-#include "nsPIDOMWindow.h"
-
-#ifdef DEBUG
-#include "nsCycleCollector.h"
-#endif
-
-namespace mozilla {
-namespace dom {
-namespace indexedDB {
+USING_INDEXEDDB_NAMESPACE
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(IDBWrapperCache)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBWrapperCache,
-                                                  DOMEventTargetHelper)
+                                                  nsDOMEventTargetHelper)
   // Don't need NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS because
-  // DOMEventTargetHelper does it for us.
+  // nsDOMEventTargetHelper does it for us.
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBWrapperCache,
-                                                DOMEventTargetHelper)
+                                                nsDOMEventTargetHelper)
   if (tmp->mScriptOwner) {
+    NS_DROP_JS_OBJECTS(tmp, IDBWrapperCache);
     tmp->mScriptOwner = nullptr;
-    mozilla::DropJSObjects(tmp);
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(IDBWrapperCache,
-                                               DOMEventTargetHelper)
+                                               nsDOMEventTargetHelper)
   // Don't need NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER because
-  // DOMEventTargetHelper does it for us.
+  // nsDOMEventTargetHelper does it for us.
   NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mScriptOwner)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(IDBWrapperCache)
-NS_INTERFACE_MAP_END_INHERITING(DOMEventTargetHelper)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
-NS_IMPL_ADDREF_INHERITED(IDBWrapperCache, DOMEventTargetHelper)
-NS_IMPL_RELEASE_INHERITED(IDBWrapperCache, DOMEventTargetHelper)
-
-IDBWrapperCache::IDBWrapperCache(DOMEventTargetHelper* aOwner)
-  : DOMEventTargetHelper(aOwner), mScriptOwner(nullptr)
-{ }
-
-IDBWrapperCache::IDBWrapperCache(nsPIDOMWindow* aOwner)
-  : DOMEventTargetHelper(aOwner), mScriptOwner(nullptr)
-{ }
+NS_IMPL_ADDREF_INHERITED(IDBWrapperCache, nsDOMEventTargetHelper)
+NS_IMPL_RELEASE_INHERITED(IDBWrapperCache, nsDOMEventTargetHelper)
 
 IDBWrapperCache::~IDBWrapperCache()
 {
-  mScriptOwner = nullptr;
-  ReleaseWrapper(this);
-  mozilla::DropJSObjects(this);
+  if (mScriptOwner) {
+    NS_DROP_JS_OBJECTS(this, IDBWrapperCache);
+  }
 }
 
-void
+bool
 IDBWrapperCache::SetScriptOwner(JSObject* aScriptOwner)
 {
-  MOZ_ASSERT(aScriptOwner);
+  NS_ASSERTION(aScriptOwner, "This should never be null!");
 
   mScriptOwner = aScriptOwner;
-  mozilla::HoldJSObjects(this);
+
+  nsISupports* thisSupports = NS_CYCLE_COLLECTION_UPCAST(this, IDBWrapperCache);
+  nsXPCOMCycleCollectionParticipant* participant;
+  CallQueryInterface(this, &participant);
+  nsresult rv = nsContentUtils::HoldJSObjects(thisSupports, participant);
+  if (NS_FAILED(rv)) {
+    NS_WARNING("nsContentUtils::HoldJSObjects failed.");
+    mScriptOwner = nullptr;
+    return false;
+  }
+
+  return true;
 }
 
 #ifdef DEBUG
 void
 IDBWrapperCache::AssertIsRooted() const
 {
-  MOZ_ASSERT(cyclecollector::IsJSHolder(const_cast<IDBWrapperCache*>(this)),
-             "Why aren't we rooted?!");
+  NS_ASSERTION(nsContentUtils::AreJSObjectsHeld(const_cast<IDBWrapperCache*>(this)),
+               "Why aren't we rooted?!");
 }
 #endif
-
-} // namespace indexedDB
-} // namespace dom
-} // namespace mozilla

@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
-
-Cu.import("resource://gre/modules/Services.jsm");
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
 
 var gStateObject;
 var gTreeData;
@@ -12,22 +12,6 @@ var gTreeData;
 // Page initialization
 
 window.onload = function() {
-  // pages used by this script may have a link that needs to be updated to
-  // the in-product link.
-  let anchor = document.getElementById("linkMoreTroubleshooting");
-  if (anchor) {
-    let baseURL = Services.urlFormatter.formatURLPref("app.support.baseURL");
-    anchor.setAttribute("href", baseURL + "troubleshooting");
-  }
-
-  // wire up click handlers for the radio buttons if they exist.
-  for (let radioId of ["radioRestoreAll", "radioRestoreChoose"]) {
-    let button = document.getElementById(radioId);
-    if (button) {
-      button.addEventListener("click", updateTabListVisibility);
-    }
-  }
-
   // the crashed session state is kept inside a textbox so that SessionStore picks it up
   // (for when the tab is closed or the session crashes right again)
   var sessionData = document.getElementById("sessionData");
@@ -36,7 +20,19 @@ window.onload = function() {
     return;
   }
 
-  gStateObject = JSON.parse(sessionData.value);
+  // remove unneeded braces (added for compatibility with Firefox 2.0 and 3.0)
+  if (sessionData.value.charAt(0) == '(')
+    sessionData.value = sessionData.value.slice(1, -1);
+  try {
+    gStateObject = JSON.parse(sessionData.value);
+  }
+  catch (exJSON) {
+    var s = new Cu.Sandbox("about:blank", {sandboxName: 'aboutSessionRestore'});
+    gStateObject = Cu.evalInSandbox("(" + sessionData.value + ")", s);
+    // If we couldn't parse the string with JSON.parse originally, make sure
+    // that the value in the textbox will be parsable.
+    sessionData.value = JSON.stringify(gStateObject);
+  }
 
   // make sure the data is tracked to be restored in case of a subsequent crash
   var event = document.createEvent("UIEvents");
@@ -48,17 +44,7 @@ window.onload = function() {
   document.getElementById("errorTryAgain").focus();
 };
 
-function isTreeViewVisible() {
-  let tabList = document.getElementById("tabList");
-  return tabList.hasAttribute("available");
-}
-
 function initTreeView() {
-  // If we aren't visible we initialize as we are made visible (and it's OK
-  // to initialize multiple times)
-  if (!isTreeViewVisible()) {
-    return;
-  }
   var tabList = document.getElementById("tabList");
   var winLabel = tabList.getAttribute("_window_label");
 
@@ -93,42 +79,23 @@ function initTreeView() {
 }
 
 // User actions
-function updateTabListVisibility() {
-  let tabList = document.getElementById("tabList");
-  if (document.getElementById("radioRestoreChoose").checked) {
-    tabList.setAttribute("available", "true");
-  } else {
-    tabList.removeAttribute("available");
-  }
-  initTreeView();
-}
 
 function restoreSession() {
   document.getElementById("errorTryAgain").disabled = true;
 
-  if (isTreeViewVisible()) {
-    if (!gTreeData.some(aItem => aItem.checked)) {
-      // This should only be possible when we have no "cancel" button, and thus
-      // the "Restore session" button always remains enabled.  In that case and
-      // when nothing is selected, we just want a new session.
-      startNewSession();
-      return;
-    }
-
-    // remove all unselected tabs from the state before restoring it
-    var ix = gStateObject.windows.length - 1;
-    for (var t = gTreeData.length - 1; t >= 0; t--) {
-      if (treeView.isContainer(t)) {
-        if (gTreeData[t].checked === 0)
-          // this window will be restored partially
-          gStateObject.windows[ix].tabs =
-            gStateObject.windows[ix].tabs.filter(function(aTabData, aIx)
-                                                   gTreeData[t].tabs[aIx].checked);
-        else if (!gTreeData[t].checked)
-          // this window won't be restored at all
-          gStateObject.windows.splice(ix, 1);
-        ix--;
-      }
+  // remove all unselected tabs from the state before restoring it
+  var ix = gStateObject.windows.length - 1;
+  for (var t = gTreeData.length - 1; t >= 0; t--) {
+    if (treeView.isContainer(t)) {
+      if (gTreeData[t].checked === 0)
+        // this window will be restored partially
+        gStateObject.windows[ix].tabs =
+          gStateObject.windows[ix].tabs.filter(function(aTabData, aIx)
+                                                 gTreeData[t].tabs[aIx].checked);
+      else if (!gTreeData[t].checked)
+        // this window won't be restored at all
+        gStateObject.windows.splice(ix, 1);
+      ix--;
     }
   }
   var stateString = JSON.stringify(gStateObject);
@@ -144,20 +111,14 @@ function restoreSession() {
 
   // restore the session into a new window and close the current tab
   var newWindow = top.openDialog(top.location, "_blank", "chrome,dialog=no,all");
-
-  var obs = Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService);
-  obs.addObserver(function observe(win, topic) {
-    if (win != newWindow) {
-      return;
-    }
-
-    obs.removeObserver(observe, topic);
+  newWindow.addEventListener("load", function() {
+    newWindow.removeEventListener("load", arguments.callee, true);
     ss.setWindowState(newWindow, stateString, true);
 
     var tabbrowser = top.gBrowser;
     var tabIndex = tabbrowser.getBrowserIndexForDocument(document);
     tabbrowser.removeTab(tabbrowser.tabs[tabIndex]);
-  }, "browser-delayed-startup-finished", false);
+  }, true);
 }
 
 function startNewSession() {
@@ -173,8 +134,9 @@ function onListClick(aEvent) {
   if (aEvent.button == 2)
     return;
 
-  var cell = treeView.treeBox.getCellAt(aEvent.clientX, aEvent.clientY);
-  if (cell.col) {
+  var row = {}, col = {};
+  treeView.treeBox.getCellAt(aEvent.clientX, aEvent.clientY, row, col, {});
+  if (col.value) {
     // Restore this specific tab in the same window for middle/double/accel clicking
     // on a tab's title.
 #ifdef XP_MACOSX
@@ -183,13 +145,13 @@ function onListClick(aEvent) {
     let accelKey = aEvent.ctrlKey;
 #endif
     if ((aEvent.button == 1 || aEvent.button == 0 && aEvent.detail == 2 || accelKey) &&
-        cell.col.id == "title" &&
-        !treeView.isContainer(cell.row)) {
-      restoreSingleTab(cell.row, aEvent.shiftKey);
+        col.value.id == "title" &&
+        !treeView.isContainer(row.value)) {
+      restoreSingleTab(row.value, aEvent.shiftKey);
       aEvent.stopPropagation();
     }
-    else if (cell.col.id == "restore")
-      toggleRowChecked(cell.row);
+    else if (col.value.id == "restore")
+      toggleRowChecked(row.value);
   }
 }
 
@@ -203,6 +165,14 @@ function onListKeyDown(aEvent) {
     var ix = document.getElementById("tabList").currentIndex;
     if (aEvent.ctrlKey && !treeView.isContainer(ix))
       restoreSingleTab(ix, aEvent.shiftKey);
+    break;
+  case KeyEvent.DOM_VK_UP:
+  case KeyEvent.DOM_VK_DOWN:
+  case KeyEvent.DOM_VK_PAGE_UP:
+  case KeyEvent.DOM_VK_PAGE_DOWN:
+  case KeyEvent.DOM_VK_HOME:
+  case KeyEvent.DOM_VK_END:
+    aEvent.preventDefault(); // else the page scrolls unwantedly
     break;
   }
 }
@@ -236,10 +206,7 @@ function toggleRowChecked(aIx) {
     treeView.treeBox.invalidateRow(gTreeData.indexOf(item.parent));
   }
 
-  // we only disable the button when there's no cancel button.
-  if (document.getElementById("errorCancel")) {
-    document.getElementById("errorTryAgain").disabled = !gTreeData.some(isChecked);
-  }
+  document.getElementById("errorTryAgain").disabled = !gTreeData.some(isChecked);
 }
 
 function restoreSingleTab(aIx, aShifted) {
@@ -263,6 +230,16 @@ function restoreSingleTab(aIx, aShifted) {
 // Tree controller
 
 var treeView = {
+  _atoms: {},
+  _getAtom: function(aName)
+  {
+    if (!this._atoms[aName]) {
+      var as = Cc["@mozilla.org/atom-service;1"].getService(Ci.nsIAtomService);
+      this._atoms[aName] = as.getAtom(aName);
+    }
+    return this._atoms[aName];
+  },
+
   treeBox: null,
   selection: null,
 
@@ -318,21 +295,17 @@ var treeView = {
     this.treeBox.invalidateRow(idx);
   },
 
-  getCellProperties: function(idx, column) {
+  getCellProperties: function(idx, column, prop) {
     if (column.id == "restore" && this.isContainer(idx) && gTreeData[idx].checked === 0)
-      return "partial";
+      prop.AppendElement(this._getAtom("partial"));
     if (column.id == "title")
-      return this.getImageSrc(idx, column) ? "icon" : "noicon";
-
-    return "";
+      prop.AppendElement(this._getAtom(this.getImageSrc(idx, column) ? "icon" : "noicon"));
   },
 
-  getRowProperties: function(idx) {
+  getRowProperties: function(idx, prop) {
     var winState = gTreeData[idx].parent || gTreeData[idx];
     if (winState.ix % 2 != 0)
-      return "alternate";
-
-    return "";
+      prop.AppendElement(this._getAtom("alternate"));
   },
 
   getImageSrc: function(idx, column) {
@@ -347,5 +320,5 @@ var treeView = {
   selectionChanged: function() { },
   performAction: function(action) { },
   performActionOnCell: function(action, index, column) { },
-  getColumnProperties: function(column) { return ""; }
+  getColumnProperties: function(column, prop) { }
 };

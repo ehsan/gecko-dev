@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sw=2 et tw=79: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7,115 +6,107 @@
 #ifndef nsPluginArray_h___
 #define nsPluginArray_h___
 
-#include "nsTArray.h"
+#include "nsCOMPtr.h"
+#include "nsIDOMPluginArray.h"
+#include "nsIDOMPlugin.h"
+#include "nsIPluginHost.h"
+#include "nsIURL.h"
 #include "nsWeakReference.h"
-#include "nsIObserver.h"
-#include "nsWrapperCache.h"
-#include "nsPluginTags.h"
-#include "nsPIDOMWindow.h"
 
-class nsPluginElement;
-class nsMimeType;
+namespace mozilla {
+namespace dom {
+class Navigator;
+} // namespace dom
+} // namespace mozilla
 
-class nsPluginArray MOZ_FINAL : public nsIObserver,
-                                public nsSupportsWeakReference,
-                                public nsWrapperCache
+class nsIDocShell;
+
+// NB: Due to weak references, Navigator has intimate knowledge of our
+// internals.
+class nsPluginArray : public nsIDOMPluginArray
 {
 public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsPluginArray,
-                                                         nsIObserver)
-
-  // nsIObserver
-  NS_DECL_NSIOBSERVER
-
-  explicit nsPluginArray(nsPIDOMWindow* aWindow);
-  nsPIDOMWindow* GetParentObject() const;
-  virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
-
-  // nsPluginArray registers itself as an observer with a weak reference.
-  // This can't be done in the constructor, because at that point its
-  // refcount is 0 (and it gets destroyed upon registration). So, Init()
-  // must be called after construction.
-  void Init();
-  void Invalidate();
-
-  void GetMimeTypes(nsTArray<nsRefPtr<nsMimeType> >& aMimeTypes,
-                    nsTArray<nsRefPtr<nsMimeType> >& aHiddenMimeTypes);
-
-  // PluginArray WebIDL methods
-
-  nsPluginElement* Item(uint32_t aIndex);
-  nsPluginElement* NamedItem(const nsAString& aName);
-  void Refresh(bool aReloadDocuments);
-  nsPluginElement* IndexedGetter(uint32_t aIndex, bool &aFound);
-  nsPluginElement* NamedGetter(const nsAString& aName, bool &aFound);
-  bool NameIsEnumerable(const nsAString& aName);
-  uint32_t Length();
-  void GetSupportedNames(unsigned, nsTArray<nsString>& aRetval);
-
-private:
+  nsPluginArray(mozilla::dom::Navigator* navigator, nsIDocShell *aDocShell);
   virtual ~nsPluginArray();
 
-  bool AllowPlugins() const;
-  void EnsurePlugins();
+  NS_DECL_ISUPPORTS
 
-  nsCOMPtr<nsPIDOMWindow> mWindow;
+  // nsIDOMPluginArray
+  NS_DECL_NSIDOMPLUGINARRAY
 
-  // Many sites check whether a particular plugin is installed by enumerating
-  // all navigator.plugins, checking each plugin's name. These sites should
-  // just check navigator.plugins["Popular Plugin Name"] instead. mPlugins
-  // contains those popular plugins that must be exposed in navigator.plugins
-  // enumeration to avoid breaking web content.
-  nsTArray<nsRefPtr<nsPluginElement> > mPlugins;
+  nsresult GetPluginHost(nsIPluginHost** aPluginHost);
 
-  // mHiddenPlugins contains plugins that can be queried by
-  // navigator.plugins["Hidden Plugin Name"] but do not need to be exposed in
-  // navigator.plugins enumeration.
-  nsTArray<nsRefPtr<nsPluginElement> > mHiddenPlugins;
-};
+  nsIDOMPlugin* GetItemAt(uint32_t aIndex, nsresult* aResult);
+  nsIDOMPlugin* GetNamedItem(const nsAString& aName, nsresult* aResult);
 
-class nsPluginElement MOZ_FINAL : public nsISupports,
-                                  public nsWrapperCache
-{
-public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsPluginElement)
-
-  nsPluginElement(nsPIDOMWindow* aWindow, nsPluginTag* aPluginTag);
-
-  nsPIDOMWindow* GetParentObject() const;
-  virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
-
-  nsPluginTag* PluginTag() const
+  static nsPluginArray* FromSupports(nsISupports* aSupports)
   {
-    return mPluginTag;
+#ifdef DEBUG
+    {
+      nsCOMPtr<nsIDOMPluginArray> array_qi = do_QueryInterface(aSupports);
+
+      // If this assertion fires the QI implementation for the object in
+      // question doesn't use the nsIDOMPluginArray pointer as the nsISupports
+      // pointer. That must be fixed, or we'll crash...
+      NS_ASSERTION(array_qi == static_cast<nsIDOMPluginArray*>(aSupports),
+                   "Uh, fix QI!");
+    }
+#endif
+
+    return static_cast<nsPluginArray*>(aSupports);
   }
 
-  // Plugin WebIDL methods
+private:
+  nsresult GetPlugins();
+  bool AllowPlugins();
 
-  void GetDescription(nsString& retval) const;
-  void GetFilename(nsString& retval) const;
-  void GetVersion(nsString& retval) const;
-  void GetName(nsString& retval) const;
-  nsMimeType* Item(uint32_t index);
-  nsMimeType* NamedItem(const nsAString& name);
-  nsMimeType* IndexedGetter(uint32_t index, bool &found);
-  nsMimeType* NamedGetter(const nsAString& name, bool &found);
-  bool NameIsEnumerable(const nsAString& aName);
-  uint32_t Length();
-  void GetSupportedNames(unsigned, nsTArray<nsString>& retval);
-
-  nsTArray<nsRefPtr<nsMimeType> >& MimeTypes();
+public:
+  void Invalidate();
 
 protected:
-  ~nsPluginElement();
+  mozilla::dom::Navigator* mNavigator;
+  nsCOMPtr<nsIPluginHost> mPluginHost;
+  uint32_t mPluginCount;
+  nsIDOMPlugin** mPluginArray;
+  nsWeakPtr mDocShell;
+};
 
-  void EnsurePluginMimeTypes();
+class nsPluginElement : public nsIDOMPlugin
+{
+public:
+  nsPluginElement(nsIDOMPlugin* plugin);
+  virtual ~nsPluginElement();
 
-  nsCOMPtr<nsPIDOMWindow> mWindow;
-  nsRefPtr<nsPluginTag> mPluginTag;
-  nsTArray<nsRefPtr<nsMimeType> > mMimeTypes;
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDOMPLUGIN
+
+  nsIDOMMimeType* GetItemAt(uint32_t aIndex, nsresult* aResult);
+  nsIDOMMimeType* GetNamedItem(const nsAString& aName, nsresult* aResult);
+
+  static nsPluginElement* FromSupports(nsISupports* aSupports)
+  {
+#ifdef DEBUG
+    {
+      nsCOMPtr<nsIDOMPlugin> plugin_qi = do_QueryInterface(aSupports);
+
+      // If this assertion fires the QI implementation for the object in
+      // question doesn't use the nsIDOMPlugin pointer as the nsISupports
+      // pointer. That must be fixed, or we'll crash...
+      NS_ASSERTION(plugin_qi == static_cast<nsIDOMPlugin*>(aSupports),
+                   "Uh, fix QI!");
+    }
+#endif
+
+    return static_cast<nsPluginElement*>(aSupports);
+  }
+
+private:
+  nsresult GetMimeTypes();
+
+protected:
+  nsIDOMPlugin* mPlugin;
+  uint32_t mMimeTypeCount;
+  nsIDOMMimeType** mMimeTypeArray;
 };
 
 #endif /* nsPluginArray_h___ */

@@ -4,11 +4,11 @@
 
 const PREF_RESTORE_ON_DEMAND = "browser.sessionstore.restore_on_demand";
 
-function test() {
-  TestRunner.run();
-}
+let stateBackup = ss.getBrowserState();
 
-function runTests() {
+function test() {
+  waitForExplicitFinish();
+
   Services.prefs.setBoolPref(PREF_RESTORE_ON_DEMAND, true);
   registerCleanupFunction(function () {
     Services.prefs.clearUserPref(PREF_RESTORE_ON_DEMAND);
@@ -38,7 +38,7 @@ function runTests() {
         tab = window.gBrowser.tabs[i];
     }
 
-    ok(tab.pinned || tab.selected,
+    ok(tab.pinned || gBrowser.selectedTab == tab,
        "load came from pinned or selected tab");
 
     // We should get 4 loads: 3 app tabs + 1 normal selected tab
@@ -46,8 +46,10 @@ function runTests() {
       return;
 
     gProgressListener.unsetCallback();
-    executeSoon(next);
+    executeSoon(function () {
+      waitForBrowserState(JSON.parse(stateBackup), finish);
+    });
   });
 
-  yield ss.setBrowserState(JSON.stringify(state));
+  ss.setBrowserState(JSON.stringify(state));
 }

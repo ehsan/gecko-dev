@@ -3,7 +3,8 @@
 
 const modules = [
   "async.js",
-  "bagheeraclient.js",
+  "log4moz.js",
+  "preferences.js",
   "rest.js",
   "storageservice.js",
   "stringbundle.js",
@@ -12,8 +13,7 @@ const modules = [
 ];
 
 const test_modules = [
-  "bagheeraserver.js",
-  "logging.js",
+  "aitcserver.js",
   "storageserver.js",
 ];
 
@@ -24,7 +24,7 @@ function run_test() {
   }
 
   for each (let m in test_modules) {
-    let resource = "resource://testing-common/services/common/" + m;
+    let resource = "resource://testing-common/services-common/" + m;
     Components.utils.import(resource, {});
   }
 }

@@ -6,17 +6,16 @@
 #ifndef nsHttpAuthCache_h__
 #define nsHttpAuthCache_h__
 
+#include "nsHttp.h"
 #include "nsError.h"
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
+#include "nsAString.h"
+#include "nsString.h"
 #include "nsCOMPtr.h"
 #include "plhash.h"
-#include "nsIObserver.h"
+#include "nsCRT.h"
 
-class nsCString;
-
-namespace mozilla {
-namespace net {
 
 struct nsHttpAuthPath {
     struct nsHttpAuthPath *mNext;
@@ -36,9 +35,9 @@ public:
         , mDomain(nullptr)
     {
     }
-    nsHttpAuthIdentity(const char16_t *domain,
-                       const char16_t *user,
-                       const char16_t *password)
+    nsHttpAuthIdentity(const PRUnichar *domain,
+                       const PRUnichar *user,
+                       const PRUnichar *password)
         : mUser(nullptr)
     {
         Set(domain, user, password);
@@ -48,13 +47,13 @@ public:
         Clear();
     }
 
-    const char16_t *Domain()   const { return mDomain; }
-    const char16_t *User()     const { return mUser; }
-    const char16_t *Password() const { return mPass; }
+    const PRUnichar *Domain()   const { return mDomain; }
+    const PRUnichar *User()     const { return mUser; }
+    const PRUnichar *Password() const { return mPass; }
 
-    nsresult Set(const char16_t *domain,
-                 const char16_t *user,
-                 const char16_t *password);
+    nsresult Set(const PRUnichar *domain,
+                 const PRUnichar *user,
+                 const PRUnichar *password);
     nsresult Set(const nsHttpAuthIdentity &other) { return Set(other.mDomain, other.mUser, other.mPass); }
     void Clear();
 
@@ -63,9 +62,9 @@ public:
 
 private:
     // allocated as one contiguous blob, starting at mUser.
-    char16_t *mUser;
-    char16_t *mPass;
-    char16_t *mDomain;
+    PRUnichar *mUser;
+    PRUnichar *mPass;
+    PRUnichar *mDomain;
 };
 
 //-----------------------------------------------------------------------------
@@ -78,15 +77,15 @@ public:
     const char *Realm()       const { return mRealm; }
     const char *Creds()       const { return mCreds; }
     const char *Challenge()   const { return mChallenge; }
-    const char16_t *Domain() const { return mIdent.Domain(); }
-    const char16_t *User()   const { return mIdent.User(); }
-    const char16_t *Pass()   const { return mIdent.Password(); }
+    const PRUnichar *Domain() const { return mIdent.Domain(); }
+    const PRUnichar *User()   const { return mIdent.User(); }
+    const PRUnichar *Pass()   const { return mIdent.Password(); }
     nsHttpAuthPath *RootPath()      { return mRoot; }
 
     const nsHttpAuthIdentity &Identity() const { return mIdent; }
-
+            
     nsresult AddPath(const char *aPath);
-
+            
     nsCOMPtr<nsISupports> mMetaData;
 
 private:
@@ -181,8 +180,6 @@ public:
                                  const char *host,
                                  int32_t     port,
                                  const char *path,
-                                 uint32_t    appId,
-                                 bool        inBrowserElement,
                                  nsHttpAuthEntry **entry);
 
     // |scheme|, |host|, and |port| are required
@@ -192,8 +189,6 @@ public:
                                    const char *host,
                                    int32_t     port,
                                    const char *realm,
-                                   uint32_t    appId,
-                                   bool        inBrowserElement,
                                    nsHttpAuthEntry **entry);
 
     // |scheme|, |host|, and |port| are required
@@ -208,27 +203,21 @@ public:
                           const char *realm,
                           const char *credentials,
                           const char *challenge,
-                          uint32_t    appId,
-                          bool        inBrowserElement,
                           const nsHttpAuthIdentity *ident,
                           nsISupports *metadata);
 
     void ClearAuthEntry(const char *scheme,
                         const char *host,
                         int32_t     port,
-                        const char *realm,
-                        uint32_t    appId,
-                        bool        inBrowserElement);
+                        const char *realm);
 
-    // expire all existing auth list entries including proxy auths.
+    // expire all existing auth list entries including proxy auths. 
     nsresult ClearAll();
 
 private:
     nsHttpAuthNode *LookupAuthNode(const char *scheme,
                                    const char *host,
                                    int32_t     port,
-                                   uint32_t    appId,
-                                   bool        inBrowserElement,
                                    nsCString  &key);
 
     // hash table allocation functions
@@ -238,23 +227,9 @@ private:
     static void         FreeEntry(void *, PLHashEntry *he, unsigned flag);
 
     static PLHashAllocOps gHashAllocOps;
-
-    class AppDataClearObserver : public nsIObserver {
-      virtual ~AppDataClearObserver() {}
-    public:
-      NS_DECL_ISUPPORTS
-      NS_DECL_NSIOBSERVER
-      explicit AppDataClearObserver(nsHttpAuthCache* aOwner) : mOwner(aOwner) {}
-      nsHttpAuthCache* mOwner;
-    };
-
-    void ClearAppData(uint32_t appId, bool browserOnly);
-
+    
 private:
     PLHashTable *mDB; // "host:port" --> nsHttpAuthNode
-    nsRefPtr<AppDataClearObserver> mObserver;
 };
-
-}} // namespace mozilla::net
 
 #endif // nsHttpAuthCache_h__

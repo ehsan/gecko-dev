@@ -7,8 +7,13 @@
 
 #include "nsAboutProtocolHandler.h"
 #include "nsIURI.h"
+#include "nsIIOService.h"
+#include "nsCRT.h"
+#include "nsIComponentManager.h"
+#include "nsIServiceManager.h"
 #include "nsIAboutModule.h"
 #include "nsString.h"
+#include "nsReadableUtils.h"
 #include "nsNetCID.h"
 #include "nsAboutProtocolUtils.h"
 #include "nsError.h"
@@ -21,16 +26,9 @@
 static NS_DEFINE_CID(kSimpleURICID,     NS_SIMPLEURI_CID);
 static NS_DEFINE_CID(kNestedAboutURICID, NS_NESTEDABOUTURI_CID);
 
-static bool IsSafeForUntrustedContent(nsIAboutModule *aModule, nsIURI *aURI) {
-  uint32_t flags;
-  nsresult rv = aModule->GetURIFlags(aURI, &flags);
-  NS_ENSURE_SUCCESS(rv, false);
-
-  return (flags & nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT) != 0;
-}
 ////////////////////////////////////////////////////////////////////////////////
 
-NS_IMPL_ISUPPORTS(nsAboutProtocolHandler, nsIProtocolHandler)
+NS_IMPL_ISUPPORTS1(nsAboutProtocolHandler, nsIProtocolHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsIProtocolHandler methods:
@@ -82,7 +80,13 @@ nsAboutProtocolHandler::NewURI(const nsACString &aSpec,
     nsCOMPtr<nsIAboutModule> aboutMod;
     rv = NS_GetAboutModule(url, getter_AddRefs(aboutMod));
     if (NS_SUCCEEDED(rv)) {
-        isSafe = IsSafeForUntrustedContent(aboutMod, url);
+        // The standard return case
+        uint32_t flags;
+        rv = aboutMod->GetURIFlags(url, &flags);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        isSafe =
+            ((flags & nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT) != 0);
     }
 
     if (isSafe) {
@@ -90,7 +94,7 @@ nsAboutProtocolHandler::NewURI(const nsACString &aSpec,
         // no one but the security manager will see.  Make sure to preserve our
         // path, in case someone decides to hardcode checks for particular
         // about: URIs somewhere.
-        nsAutoCString spec;
+        nsCAutoString spec;
         rv = url->GetPath(spec);
         NS_ENSURE_SUCCESS(rv, rv);
         
@@ -118,39 +122,17 @@ nsAboutProtocolHandler::NewURI(const nsACString &aSpec,
 }
 
 NS_IMETHODIMP
-nsAboutProtocolHandler::NewChannel2(nsIURI* uri,
-                                    nsILoadInfo* aLoadInfo,
-                                    nsIChannel** result)
+nsAboutProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
 {
     NS_ENSURE_ARG_POINTER(uri);
 
     // about:what you ask?
     nsCOMPtr<nsIAboutModule> aboutMod;
     nsresult rv = NS_GetAboutModule(uri, getter_AddRefs(aboutMod));
-
-    nsAutoCString path;
-    nsresult rv2 = NS_GetAboutModuleName(uri, path);
-    if (NS_SUCCEEDED(rv2) && path.EqualsLiteral("srcdoc")) {
-        // about:srcdoc is meant to be unresolvable, yet is included in the 
-        // about lookup tables so that it can pass security checks when used in
-        // a srcdoc iframe.  To ensure that it stays unresolvable, we pretend
-        // that it doesn't exist.
-      rv = NS_ERROR_FACTORY_NOT_REGISTERED;
-    }
-
     if (NS_SUCCEEDED(rv)) {
         // The standard return case:
-        rv = aboutMod->NewChannel(uri, aLoadInfo, result);
+        rv = aboutMod->NewChannel(uri, result);
         if (NS_SUCCEEDED(rv)) {
-            // If this URI is safe for untrusted content, enforce that its
-            // principal be based on the channel's originalURI by setting the
-            // owner to null.
-            // Note: this relies on aboutMod's newChannel implementation
-            // having set the proper originalURI, which probably isn't ideal.
-            if (IsSafeForUntrustedContent(aboutMod, uri)) {
-                (*result)->SetOwner(nullptr);
-            }
-
             nsRefPtr<nsNestedAboutURI> aboutURI;
             nsresult rv2 = uri->QueryInterface(kNestedAboutURICID,
                                                getter_AddRefs(aboutURI));
@@ -178,12 +160,6 @@ nsAboutProtocolHandler::NewChannel2(nsIURI* uri,
     return rv;
 }
 
-NS_IMETHODIMP
-nsAboutProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
-{
-    return NewChannel2(uri, nullptr, result);
-}
-
 NS_IMETHODIMP 
 nsAboutProtocolHandler::AllowPort(int32_t port, const char *scheme, bool *_retval)
 {
@@ -195,7 +171,7 @@ nsAboutProtocolHandler::AllowPort(int32_t port, const char *scheme, bool *_retva
 ////////////////////////////////////////////////////////////////////////////////
 // Safe about protocol handler impl
 
-NS_IMPL_ISUPPORTS(nsSafeAboutProtocolHandler, nsIProtocolHandler)
+NS_IMPL_ISUPPORTS1(nsSafeAboutProtocolHandler, nsIProtocolHandler)
 
 // nsIProtocolHandler methods:
 
@@ -216,7 +192,7 @@ nsSafeAboutProtocolHandler::GetDefaultPort(int32_t *result)
 NS_IMETHODIMP
 nsSafeAboutProtocolHandler::GetProtocolFlags(uint32_t *result)
 {
-    *result = URI_NORELATIVE | URI_NOAUTH | URI_LOADABLE_BY_ANYONE | URI_SAFE_TO_LOAD_IN_SECURE_CONTEXT;
+    *result = URI_NORELATIVE | URI_NOAUTH | URI_LOADABLE_BY_ANYONE;
     return NS_OK;
 }
 
@@ -241,15 +217,6 @@ nsSafeAboutProtocolHandler::NewURI(const nsACString &aSpec,
     *result = nullptr;
     url.swap(*result);
     return rv;
-}
-
-NS_IMETHODIMP
-nsSafeAboutProtocolHandler::NewChannel2(nsIURI* uri,
-                                        nsILoadInfo* aLoadInfo,
-                                        nsIChannel** result)
-{
-    *result = nullptr;
-    return NS_ERROR_NOT_AVAILABLE;
 }
 
 NS_IMETHODIMP

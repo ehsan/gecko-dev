@@ -1,38 +1,45 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-MARIONETTE_TIMEOUT = 60000;
-MARIONETTE_HEAD_JS = 'head.js';
+MARIONETTE_TIMEOUT = 10000;
 
+SpecialPowers.addPermission("telephony", true, document);
+
+let telephony = window.navigator.mozTelephony;
 let number = "5555552368";
 let outgoing;
 let calls;
 
+function verifyInitialState() {
+  log("Verifying initial state.");
+  ok(telephony);
+  is(telephony.active, null);
+  ok(telephony.calls);
+  is(telephony.calls.length, 0);
+  calls = telephony.calls;
+
+  runEmulatorCmd("gsm list", function(result) {
+    log("Initial call list: " + result);
+    is(result[0], "OK");
+    dial();
+  });
+}
+
 function dial() {
   log("Make an outgoing call.");
 
-  telephony.dial(number).then(call => {
-    outgoing = call;
-    ok(outgoing);
-    is(outgoing.id.number, number);
-    is(outgoing.state, "dialing");
-    is(outgoing, telephony.active);
-    //ok(telephony.calls === calls); // bug 717414
-    is(telephony.calls.length, 1);
-    is(telephony.calls[0], outgoing);
+  outgoing = telephony.dial(number);
+  ok(outgoing);
+  is(outgoing.number, number);
+  is(outgoing.state, "dialing");
 
-    outgoing.onalerting = function onalerting(event) {
-      log("Received 'onalerting' call event.");
-      is(outgoing, event.call);
-      is(outgoing.state, "alerting");
+  is(outgoing, telephony.active);
+  //ok(telephony.calls === calls); // bug 717414
+  is(telephony.calls.length, 1);
+  is(telephony.calls[0], outgoing);
 
-      emulator.runCmdWithCallback("gsm list", function(result) {
-        log("Call list is now: " + result);
-        is(result[0], "outbound to  " + number + " : ringing");
-        answer();
-      });
-    };
-  });
+  // Get call list. Answer a call if the connection is established.
+  runEmulatorCmd("gsm list", cmdCallback);
 }
 
 function answer() {
@@ -47,14 +54,15 @@ function answer() {
 
     is(outgoing, telephony.active);
 
-    emulator.runCmdWithCallback("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "outbound to  " + number + " : active");
+      is(result[1], "OK");
       hold();
     });
   };
-  emulator.runCmdWithCallback("gsm accept " + number);
-}
+  runEmulatorCmd("gsm accept " + number);
+};
 
 function hold() {
   log("Holding the outgoing call.");
@@ -75,9 +83,10 @@ function hold() {
     is(telephony.active, null);
     is(telephony.calls.length, 1);
 
-    emulator.runCmdWithCallback("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "outbound to  " + number + " : held");
+      is(result[1], "OK");
       hangUp();
     });
   };
@@ -104,8 +113,9 @@ function hangUp() {
     is(telephony.active, null);
     is(telephony.calls.length, 0);
 
-    emulator.runCmdWithCallback("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
+      is(result[0], "OK");
       cleanUp();
     });
   };
@@ -113,10 +123,29 @@ function hangUp() {
   outgoing.hangUp();
 }
 
+function cmdCallback(result) {
+  let unknownState = "outbound to  " + number + " : unknown";
+  let alertingState = "outbound to " + number + " : alerting";
+
+  log("Call list is now: " + result);
+
+  switch (result[0]) {
+    // Gsm list is empty. Wait until the connection is established.
+    case "OK":
+      runEmulatorCmd("gsm list", cmdCallback);
+      break;
+    // Answer the call now since the connection is established.
+    case unknownState: // Fall through ...
+    case alertingState:
+      is(result[1], "OK");
+      answer();
+      break;
+  }
+}
+
 function cleanUp() {
+  SpecialPowers.removePermission("telephony", document);
   finish();
 }
 
-startTest(function() {
-  dial();
-});
+verifyInitialState();

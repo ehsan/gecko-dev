@@ -7,38 +7,51 @@
 #ifndef mozilla_dom_indexeddb_idbcursor_h__
 #define mozilla_dom_indexeddb_idbcursor_h__
 
-#include "IndexedDatabase.h"
-#include "js/RootingAPI.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/dom/IDBCursorBinding.h"
+#include "mozilla/dom/indexedDB/IndexedDatabase.h"
+#include "mozilla/dom/indexedDB/IDBObjectStore.h"
 #include "mozilla/dom/indexedDB/Key.h"
-#include "nsAutoPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsWrapperCache.h"
 
+#include "nsIIDBCursorWithValue.h"
+
+#include "nsCycleCollectionParticipant.h"
+
+class nsIRunnable;
+class nsIScriptContext;
 class nsPIDOMWindow;
 
-namespace mozilla {
+BEGIN_INDEXEDDB_NAMESPACE
 
-class ErrorResult;
-
-namespace dom {
-
-class OwningIDBObjectStoreOrIDBIndex;
-
-namespace indexedDB {
-
-class BackgroundCursorChild;
+class ContinueHelper;
+class ContinueObjectStoreHelper;
+class ContinueIndexHelper;
+class ContinueIndexObjectHelper;
 class IDBIndex;
-class IDBObjectStore;
 class IDBRequest;
 class IDBTransaction;
+class IndexedDBCursorChild;
+class IndexedDBCursorParent;
 
-class IDBCursor MOZ_FINAL
-  : public nsISupports
-  , public nsWrapperCache
+class IDBCursor MOZ_FINAL : public nsIIDBCursorWithValue
 {
+  friend class ContinueHelper;
+  friend class ContinueObjectStoreHelper;
+  friend class ContinueIndexHelper;
+  friend class ContinueIndexObjectHelper;
+
 public:
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_NSIIDBCURSOR
+  NS_DECL_NSIIDBCURSORWITHVALUE
+
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(IDBCursor)
+
+  enum Type
+  {
+    OBJECTSTORE = 0,
+    INDEXKEY,
+    INDEXOBJECT
+  };
+
   enum Direction
   {
     NEXT = 0,
@@ -50,156 +63,133 @@ public:
     DIRECTION_INVALID
   };
 
-private:
-  enum Type
+  // For OBJECTSTORE cursors.
+  static
+  already_AddRefed<IDBCursor>
+  Create(IDBRequest* aRequest,
+         IDBTransaction* aTransaction,
+         IDBObjectStore* aObjectStore,
+         Direction aDirection,
+         const Key& aRangeKey,
+         const nsACString& aContinueQuery,
+         const nsACString& aContinueToQuery,
+         const Key& aKey,
+         StructuredCloneReadInfo& aCloneReadInfo);
+
+  // For INDEXKEY cursors.
+  static
+  already_AddRefed<IDBCursor>
+  Create(IDBRequest* aRequest,
+         IDBTransaction* aTransaction,
+         IDBIndex* aIndex,
+         Direction aDirection,
+         const Key& aRangeKey,
+         const nsACString& aContinueQuery,
+         const nsACString& aContinueToQuery,
+         const Key& aKey,
+         const Key& aObjectKey);
+
+  // For INDEXOBJECT cursors.
+  static
+  already_AddRefed<IDBCursor>
+  Create(IDBRequest* aRequest,
+         IDBTransaction* aTransaction,
+         IDBIndex* aIndex,
+         Direction aDirection,
+         const Key& aRangeKey,
+         const nsACString& aContinueQuery,
+         const nsACString& aContinueToQuery,
+         const Key& aKey,
+         const Key& aObjectKey,
+         StructuredCloneReadInfo& aCloneReadInfo);
+
+  IDBTransaction* Transaction() const
   {
-    Type_ObjectStore,
-    Type_ObjectStoreKey,
-    Type_Index,
-    Type_IndexKey,
-  };
-
-  BackgroundCursorChild* mBackgroundActor;
-
-  nsRefPtr<IDBRequest> mRequest;
-  nsRefPtr<IDBObjectStore> mSourceObjectStore;
-  nsRefPtr<IDBIndex> mSourceIndex;
-
-  // mSourceObjectStore or mSourceIndex will hold this alive.
-  IDBTransaction* mTransaction;
-
-  JS::Heap<JSObject*> mScriptOwner;
-
-  // These are cycle-collected!
-  JS::Heap<JS::Value> mCachedKey;
-  JS::Heap<JS::Value> mCachedPrimaryKey;
-  JS::Heap<JS::Value> mCachedValue;
-
-  Key mKey;
-  Key mPrimaryKey;
-  StructuredCloneReadInfo mCloneInfo;
-
-  const Type mType;
-  const Direction mDirection;
-
-  bool mHaveCachedKey : 1;
-  bool mHaveCachedPrimaryKey : 1;
-  bool mHaveCachedValue : 1;
-  bool mRooted : 1;
-  bool mContinueCalled : 1;
-  bool mHaveValue : 1;
-
-public:
-  static already_AddRefed<IDBCursor>
-  Create(BackgroundCursorChild* aBackgroundActor,
-         const Key& aKey,
-         StructuredCloneReadInfo&& aCloneInfo);
-
-  static already_AddRefed<IDBCursor>
-  Create(BackgroundCursorChild* aBackgroundActor,
-         const Key& aKey);
-
-  static already_AddRefed<IDBCursor>
-  Create(BackgroundCursorChild* aBackgroundActor,
-         const Key& aKey,
-         const Key& aPrimaryKey,
-         StructuredCloneReadInfo&& aCloneInfo);
-
-  static already_AddRefed<IDBCursor>
-  Create(BackgroundCursorChild* aBackgroundActor,
-         const Key& aKey,
-         const Key& aPrimaryKey);
-
-  static Direction
-  ConvertDirection(IDBCursorDirection aDirection);
-
-  void
-  AssertIsOnOwningThread() const
-#ifdef DEBUG
-  ;
-#else
-  { }
-#endif
-
-  nsPIDOMWindow*
-  GetParentObject() const;
-
-  void
-  GetSource(OwningIDBObjectStoreOrIDBIndex& aSource) const;
-
-  IDBCursorDirection
-  GetDirection() const;
-
-  void
-  GetKey(JSContext* aCx,
-         JS::MutableHandle<JS::Value> aResult,
-         ErrorResult& aRv);
-
-  void
-  GetPrimaryKey(JSContext* aCx,
-                JS::MutableHandle<JS::Value> aResult,
-                ErrorResult& aRv);
-
-  void
-  GetValue(JSContext* aCx,
-           JS::MutableHandle<JS::Value> aResult,
-           ErrorResult& aRv);
-
-  void
-  Continue(JSContext* aCx, JS::Handle<JS::Value> aKey, ErrorResult& aRv);
-
-  void
-  Advance(uint32_t aCount, ErrorResult& aRv);
-
-  already_AddRefed<IDBRequest>
-  Update(JSContext* aCx, JS::Handle<JS::Value> aValue, ErrorResult& aRv);
-
-  already_AddRefed<IDBRequest>
-  Delete(JSContext* aCx, ErrorResult& aRv);
-
-  void
-  Reset();
-
-  void
-  Reset(Key&& aKey, StructuredCloneReadInfo&& aValue);
-
-  void
-  Reset(Key&& aKey);
-
-  void
-  Reset(Key&& aKey, Key&& aPrimaryKey, StructuredCloneReadInfo&& aValue);
-
-  void
-  Reset(Key&& aKey, Key&& aPrimaryKey);
-
-  void
-  ClearBackgroundActor()
-  {
-    AssertIsOnOwningThread();
-
-    mBackgroundActor = nullptr;
+    return mTransaction;
   }
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(IDBCursor)
+  IDBRequest* Request() const
+  {
+    return mRequest;
+  }
 
-  // nsWrapperCache
-  virtual JSObject*
-  WrapObject(JSContext* aCx) MOZ_OVERRIDE;
-
-private:
-  IDBCursor(Type aType,
-            BackgroundCursorChild* aBackgroundActor,
-            const Key& aKey);
-
-  ~IDBCursor();
+  static nsresult ParseDirection(const nsAString& aDirection,
+                                 Direction* aResult);
 
   void
-  DropJSObjects();
+  SetActor(IndexedDBCursorChild* aActorChild)
+  {
+    NS_ASSERTION(!aActorChild || !mActorChild, "Shouldn't have more than one!");
+    mActorChild = aActorChild;
+  }
+
+  void
+  SetActor(IndexedDBCursorParent* aActorParent)
+  {
+    NS_ASSERTION(!aActorParent || !mActorParent,
+                 "Shouldn't have more than one!");
+    mActorParent = aActorParent;
+  }
+
+  IndexedDBCursorChild*
+  GetActorChild() const
+  {
+    return mActorChild;
+  }
+
+  nsresult
+  ContinueInternal(const Key& aKey,
+                   int32_t aCount);
+
+protected:
+  IDBCursor();
+  ~IDBCursor();
+
+  static
+  already_AddRefed<IDBCursor>
+  CreateCommon(IDBRequest* aRequest,
+               IDBTransaction* aTransaction,
+               IDBObjectStore* aObjectStore,
+               Direction aDirection,
+               const Key& aRangeKey,
+               const nsACString& aContinueQuery,
+               const nsACString& aContinueToQuery);
+
+  nsRefPtr<IDBRequest> mRequest;
+  nsRefPtr<IDBTransaction> mTransaction;
+  nsRefPtr<IDBObjectStore> mObjectStore;
+  nsRefPtr<IDBIndex> mIndex;
+
+  JSObject* mScriptOwner;
+
+  Type mType;
+  Direction mDirection;
+  nsCString mContinueQuery;
+  nsCString mContinueToQuery;
+
+  // These are cycle-collected!
+  jsval mCachedKey;
+  jsval mCachedPrimaryKey;
+  jsval mCachedValue;
+
+  Key mRangeKey;
+
+  Key mKey;
+  Key mObjectKey;
+  StructuredCloneReadInfo mCloneReadInfo;
+  Key mContinueToKey;
+
+  IndexedDBCursorChild* mActorChild;
+  IndexedDBCursorParent* mActorParent;
+
+  bool mHaveCachedKey;
+  bool mHaveCachedPrimaryKey;
+  bool mHaveCachedValue;
+  bool mRooted;
+  bool mContinueCalled;
+  bool mHaveValue;
 };
 
-} // namespace indexedDB
-} // namespace dom
-} // namespace mozilla
+END_INDEXEDDB_NAMESPACE
 
 #endif // mozilla_dom_indexeddb_idbcursor_h__

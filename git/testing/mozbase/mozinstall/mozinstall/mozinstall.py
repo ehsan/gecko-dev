@@ -6,6 +6,7 @@
 applications across platforms.
 
 """
+import mozinfo
 from optparse import OptionParser
 import os
 import shutil
@@ -14,15 +15,6 @@ import sys
 import tarfile
 import time
 import zipfile
-
-import mozfile
-import mozinfo
-
-try:
-    import pefile
-    has_pefile = True
-except ImportError:
-    has_pefile = False
 
 if mozinfo.isMac:
     from plistlib import readPlist
@@ -58,16 +50,17 @@ def get_binary(path, app_name):
     """Find the binary in the specified path, and return its path. If binary is
     not found throw an InvalidBinary exception.
 
-    :param path: Path within to search for the binary
-    :param app_name: Application binary without file extension to look for
+    Arguments:
+    path -- the path within to search for the binary
+    app_name -- application binary without file extension to look for
+
     """
     binary = None
 
     # On OS X we can get the real binary from the app bundle
     if mozinfo.isMac:
         plist = '%s/Contents/Info.plist' % path
-        if not os.path.isfile(plist):
-            raise InvalidBinary('%s/Contents/Info.plist not found' % path)
+        assert os.path.isfile(plist), '"%s" has not been found.' % plist
 
         binary = os.path.join(path, 'Contents/MacOS/',
                               readPlist(plist)['CFBundleExecutable'])
@@ -88,7 +81,7 @@ def get_binary(path, app_name):
     if not binary:
         # The expected binary has not been found. Make sure we clean the
         # install folder to remove any traces
-        mozfile.remove(path)
+        shutil.rmtree(path)
 
         raise InvalidBinary('"%s" does not contain a valid binary.' % path)
 
@@ -99,15 +92,18 @@ def install(src, dest):
     """Install a zip, exe, tar.gz, tar.bz2 or dmg file, and return the path of
     the installation folder.
 
-    :param src: Path to the install file
-    :param dest: Path to install to (to ensure we do not overwrite any existent
-                 files the folder should not exist yet)
+    Arguments:
+    src  -- the path to the install file
+    dest -- the path to install to (to ensure we do not overwrite any existent
+                                    files the folder should not exist yet)
+
     """
     src = os.path.realpath(src)
     dest = os.path.realpath(dest)
 
     if not is_installer(src):
-        raise InvalidSource(src + ' is not valid installer file.')
+        raise InvalidSource(src + ' is not a recognized file type ' +
+                                  '(zip, exe, tar.gz, tar.bz2 or dmg)')
 
     if not os.path.exists(dest):
         os.makedirs(dest)
@@ -116,7 +112,7 @@ def install(src, dest):
     try:
         install_dir = None
         if zipfile.is_zipfile(src) or tarfile.is_tarfile(src):
-            install_dir = mozfile.extract(src, dest)[0]
+            install_dir = _extract(src, dest)[0]
         elif src.lower().endswith('.dmg'):
             install_dir = _install_dmg(src, dest)
         elif src.lower().endswith('.exe'):
@@ -124,7 +120,7 @@ def install(src, dest):
 
         return install_dir
 
-    except Exception:
+    except Exception, e:
         cls, exc, trbk = sys.exc_info()
         error = InstallError('Failed to install "%s"' % src)
         raise InstallError, error, trbk
@@ -143,10 +139,9 @@ def is_installer(src):
     Mac:     dmg
     Windows: zip, exe
 
-    On Windows pefile will be used to determine if the executable is the
-    right type, if it is installed on the system.
+    Arguments:
+    src -- the path to the install file
 
-    :param src: Path to the install file.
     """
     src = os.path.realpath(src)
 
@@ -158,31 +153,15 @@ def is_installer(src):
     elif mozinfo.isMac:
         return src.lower().endswith('.dmg')
     elif mozinfo.isWin:
-        if zipfile.is_zipfile(src):
-            return True
-
-        if os.access(src, os.X_OK) and src.lower().endswith('.exe'):
-            if has_pefile:
-                # try to determine if binary is actually a gecko installer
-                pe_data = pefile.PE(src)
-                data = {}
-                for info in getattr(pe_data, 'FileInfo', []):
-                    if info.Key == 'StringFileInfo':
-                        for string in info.StringTable:
-                            data.update(string.entries)
-                return 'BuildID' not in data
-            else:
-                # pefile not available, just assume a proper binary was passed in
-                return True
-
-        return False
+        return src.lower().endswith('.exe') or zipfile.is_zipfile(src)
 
 
 def uninstall(install_folder):
     """Uninstalls the application in the specified path. If it has been
     installed via an installer on Windows, use the uninstaller first.
 
-    :param install_folder: Path of the installation folder
+    Arguments:
+    install_folder -- the path of the installation folder
 
     """
     install_folder = os.path.realpath(install_folder)
@@ -213,7 +192,7 @@ def uninstall(install_folder):
                     if time.time() > end_time:
                         raise Exception('Failure removing uninstall folder.')
 
-            except Exception:
+            except Exception, e:
                 cls, exc, trbk = sys.exc_info()
                 error = UninstallError('Failed to uninstall %s' % install_folder)
                 raise UninstallError, error, trbk
@@ -225,19 +204,74 @@ def uninstall(install_folder):
 
     # Ensure that we remove any trace of the installation. Even the uninstaller
     # on Windows leaves files behind we have to explicitely remove.
-    mozfile.remove(install_folder)
+    shutil.rmtree(install_folder)
+
+
+def _extract(src, dest):
+    """Extract a tar or zip file into the destination folder and return the
+    application folder.
+
+    Arguments:
+    src -- archive which has to be extracted
+    dest -- the path to extract to
+
+    """
+    if zipfile.is_zipfile(src):
+        bundle = zipfile.ZipFile(src)
+
+        # FIXME: replace with zip.extractall() when we require python 2.6
+        namelist = bundle.namelist()
+        for name in bundle.namelist():
+            filename = os.path.realpath(os.path.join(dest, name))
+            if name.endswith('/'):
+                os.makedirs(filename)
+            else:
+                path = os.path.dirname(filename)
+                if not os.path.isdir(path):
+                    os.makedirs(path)
+                _dest = open(filename, 'wb')
+                _dest.write(bundle.read(name))
+                _dest.close()
+
+    elif tarfile.is_tarfile(src):
+        bundle = tarfile.open(src)
+        namelist = bundle.getnames()
+
+        if hasattr(bundle, 'extractall'):
+            # tarfile.extractall doesn't exist in Python 2.4
+            bundle.extractall(path=dest)
+        else:
+            for name in namelist:
+                bundle.extract(name, path=dest)
+    else:
+        return
+
+    bundle.close()
+
+    # namelist returns paths with forward slashes even in windows
+    top_level_files = [os.path.join(dest, name) for name in namelist
+                             if len(name.rstrip('/').split('/')) == 1]
+
+    # namelist doesn't include folders, append these to the list
+    for name in namelist:
+        root = os.path.join(dest, name[:name.find('/')])
+        if root not in top_level_files:
+            top_level_files.append(root)
+
+    return top_level_files
 
 
 def _install_dmg(src, dest):
     """Extract a dmg file into the destination folder and return the
     application folder.
 
+    Arguments:
     src -- DMG image which has to be extracted
     dest -- the path to extract to
 
     """
     try:
-        proc = subprocess.Popen('hdiutil attach -nobrowse -noautoopen %s' % src,
+        proc = subprocess.Popen('hdiutil attach %s' % src,
                                 shell=True,
                                 stdout=subprocess.PIPE)
 

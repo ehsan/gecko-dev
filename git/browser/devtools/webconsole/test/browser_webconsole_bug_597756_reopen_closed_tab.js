@@ -25,34 +25,33 @@ function tabLoaded(aEvent) {
 function tabReloaded(aEvent) {
   gBrowser.selectedBrowser.removeEventListener(aEvent.type, tabReloaded, true);
 
-  let HUD = HUDService.getHudByWindow(content);
+  let hudId = HUDService.getHudIdByWindow(content);
+  let HUD = HUDService.hudReferences[hudId];
   ok(HUD, "Web Console is open");
 
-  waitForMessages({
-    webconsole: HUD,
-    messages: [{
-      name: "error message displayed",
-      text: "fooBug597756_error",
-      category: CATEGORY_JS,
-      severity: SEVERITY_ERROR,
-    }],
-  }).then(() => {
-    if (newTabIsOpen) {
-      finishTest();
-      return;
-    }
+  waitForSuccess({
+    name: "error message displayed",
+    validatorFn: function() {
+      return HUD.outputNode.textContent.indexOf("fooBug597756_error") > -1;
+    },
+    successFn: function() {
+      if (newTabIsOpen) {
+        finishTest();
+        return;
+      }
+      closeConsole(gBrowser.selectedTab, function() {
+        gBrowser.removeCurrentTab();
 
-    closeConsole(gBrowser.selectedTab, () => {
-      gBrowser.removeCurrentTab();
+        let newTab = gBrowser.addTab();
+        gBrowser.selectedTab = newTab;
 
-      let newTab = gBrowser.addTab();
-      gBrowser.selectedTab = newTab;
-
-      newTabIsOpen = true;
-      gBrowser.selectedBrowser.addEventListener("load", tabLoaded, true);
-      expectUncaughtException();
-      content.location = TEST_URI;
-    });
+        newTabIsOpen = true;
+        gBrowser.selectedBrowser.addEventListener("load", tabLoaded, true);
+        expectUncaughtException();
+        content.location = TEST_URI;
+      });
+    },
+    failureFn: finishTest,
   });
 }
 

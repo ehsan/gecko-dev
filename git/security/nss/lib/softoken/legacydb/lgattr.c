@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Dr Vipul Gupta <vipul.gupta@sun.com>, Sun Microsystems Laboratories
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 /*
  * Internal PKCS #11 functions. Should only be called by pkcs11.c
  */
@@ -423,11 +456,11 @@ lg_GetPubItem(NSSLOWKEYPublicKey *pubKey) {
     case NSSLOWKEYDHKey:
 	    pubItem = &pubKey->u.dh.publicValue;
 	    break;
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
     case NSSLOWKEYECKey:
 	    pubItem = &pubKey->u.ec.publicValue;
 	    break;
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */
     default:
 	    break;
     }
@@ -551,7 +584,7 @@ lg_FindDHPublicKeyAttribute(NSSLOWKEYPublicKey *key, CK_ATTRIBUTE_TYPE type,
     return lg_invalidAttribute(attribute);
 }
 
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
 static CK_RV
 lg_FindECPublicKeyAttribute(NSSLOWKEYPublicKey *key, CK_ATTRIBUTE_TYPE type,
 				CK_ATTRIBUTE *attribute)
@@ -601,7 +634,7 @@ lg_FindECPublicKeyAttribute(NSSLOWKEYPublicKey *key, CK_ATTRIBUTE_TYPE type,
     }
     return lg_invalidAttribute(attribute);
 }
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */
 
 
 static CK_RV
@@ -653,10 +686,10 @@ lg_FindPublicKeyAttribute(LGObjectCache *obj, CK_ATTRIBUTE_TYPE type,
 	return lg_FindDSAPublicKeyAttribute(key,type,attribute);
     case NSSLOWKEYDHKey:
 	return lg_FindDHPublicKeyAttribute(key,type,attribute);
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
     case NSSLOWKEYECKey:
 	return lg_FindECPublicKeyAttribute(key,type,attribute);
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */
     default:
 	break;
     }
@@ -945,7 +978,7 @@ lg_FindDHPrivateKeyAttribute(NSSLOWKEYPrivateKey *key, CK_ATTRIBUTE_TYPE type,
     return lg_invalidAttribute(attribute);
 }
 
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
 static CK_RV
 lg_FindECPrivateKeyAttribute(NSSLOWKEYPrivateKey *key, CK_ATTRIBUTE_TYPE type,
 				CK_ATTRIBUTE *attribute, SDB *sdbpw)
@@ -983,7 +1016,7 @@ lg_FindECPrivateKeyAttribute(NSSLOWKEYPrivateKey *key, CK_ATTRIBUTE_TYPE type,
     }
     return lg_invalidAttribute(attribute);
 }
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */
 
 static CK_RV
 lg_FindPrivateKeyAttribute(LGObjectCache *obj, CK_ATTRIBUTE_TYPE type,
@@ -1030,10 +1063,10 @@ lg_FindPrivateKeyAttribute(LGObjectCache *obj, CK_ATTRIBUTE_TYPE type,
 	return lg_FindDSAPrivateKeyAttribute(key,type,attribute,obj->sdb);
     case NSSLOWKEYDHKey:
 	return lg_FindDHPrivateKeyAttribute(key,type,attribute,obj->sdb);
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
     case NSSLOWKEYECKey:
 	return lg_FindECPrivateKeyAttribute(key,type,attribute,obj->sdb);
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */
     default:
 	break;
     }
@@ -1372,7 +1405,7 @@ lg_GetAttributeValue(SDB *sdb, CK_OBJECT_HANDLE handle, CK_ATTRIBUTE *templ,
 {
     LGObjectCache *obj = lg_NewObjectCache(sdb, NULL, handle & ~LG_TOKEN_MASK);
     CK_RV crv, crvCollect = CKR_OK;
-    unsigned int i;
+    int i;
 
     if (obj == NULL) {
 	return CKR_OBJECT_HANDLE_INVALID;
@@ -1434,7 +1467,7 @@ lg_tokenMatch(SDB *sdb, const SECItem *dbKey, CK_OBJECT_HANDLE class,
 {
     PRBool match = PR_TRUE;
     LGObjectCache *obj = lg_NewObjectCache(sdb, dbKey, class);
-    unsigned int i;
+    int i;
 
     if (obj == NULL) {
 	return PR_FALSE;
@@ -1758,7 +1791,7 @@ lg_SetAttributeValue(SDB *sdb, CK_OBJECT_HANDLE handle,
     LGObjectCache *obj = lg_NewObjectCache(sdb, NULL, handle & ~LG_TOKEN_MASK);
     CK_RV crv, crvCollect = CKR_OK;
     PRBool writePrivate = PR_FALSE;
-    unsigned int i;
+    int i;
 
     if (obj == NULL) {
 	return CKR_OBJECT_HANDLE_INVALID;

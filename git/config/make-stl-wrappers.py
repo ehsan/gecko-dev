@@ -1,9 +1,8 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
-from __future__ import print_function
+
 import os, re, string, sys
-from mozbuild.util import FileAvoidWrite
 
 def find_in_path(file, searchpath):
     for dir in searchpath.split(os.pathsep):
@@ -20,7 +19,7 @@ def header_path(header, compiler):
         return find_in_path(header, os.environ.get('INCLUDE', ''))
     else:
         # hope someone notices this ...
-        raise NotImplementedError(compiler)
+        raise NotImplementedError, compiler
 
 def is_comment(line):
     return re.match(r'\s*#.*', line)
@@ -38,17 +37,20 @@ def main(outdir, compiler, template_file, header_list_file):
             continue
 
         path = header_path(header, compiler)
-        with FileAvoidWrite(os.path.join(outdir, header)) as f:
+        try:
+            f = open(os.path.join(outdir, header), 'w')
             f.write(string.Template(template).substitute(HEADER=header,
                                                          HEADER_PATH=path,
                                                          NEW_HEADER_PATH=path_to_new))
+        finally:
+            f.close()
 
 
 if __name__ == '__main__':
     if 5 != len(sys.argv):
-        print("""Usage:
-  python {0} OUT_DIR ('msvc'|'gcc') TEMPLATE_FILE HEADER_LIST_FILE
-""".format(sys.argv[0]), file=sys.stderr)
+        print >>sys.stderr, """Usage:
+  python %s OUT_DIR ('msvc'|'gcc') TEMPLATE_FILE HEADER_LIST_FILE
+"""% (sys.argv[0])
         sys.exit(1)
 
     main(*sys.argv[1:])

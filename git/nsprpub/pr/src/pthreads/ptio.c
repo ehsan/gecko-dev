@@ -1150,7 +1150,7 @@ void _PR_InitIO(void)
         osfd = socket(AF_INET6, SOCK_STREAM, 0);
         if (osfd != -1) {
             int on;
-            socklen_t optlen = sizeof(on);
+            int optlen = sizeof(on);
             if (getsockopt(osfd, IPPROTO_IPV6, IPV6_V6ONLY,
                     &on, &optlen) == 0) {
                 _pr_ipv6_v6only_on_by_default = on;
@@ -2854,7 +2854,6 @@ static PRStatus pt_GetSocketOption(PRFileDesc *fd, PRSocketOptionData *data)
             case PR_SockOpt_Keepalive:
             case PR_SockOpt_NoDelay:
             case PR_SockOpt_Broadcast:
-            case PR_SockOpt_Reuseport:
             {
                 PRIntn value;
                 length = sizeof(PRIntn);
@@ -2974,7 +2973,6 @@ static PRStatus pt_SetSocketOption(PRFileDesc *fd, const PRSocketOptionData *dat
             case PR_SockOpt_Keepalive:
             case PR_SockOpt_NoDelay:
             case PR_SockOpt_Broadcast:
-            case PR_SockOpt_Reuseport:
             {
                 PRIntn value = (data->value.reuse_addr) ? 1 : 0;
                 rv = setsockopt(
@@ -3402,7 +3400,7 @@ PR_EXTERN(PRStatus) _pr_push_ipv6toipv4_layer(PRFileDesc *fd);
 extern PRBool _pr_ipv6_is_present(void);
 PR_IMPLEMENT(PRBool) _pr_test_ipv6_socket()
 {
-    int osfd;
+PRInt32 osfd;
 
 #if defined(DARWIN)
     /*
@@ -4588,7 +4586,7 @@ PR_IMPLEMENT(PRFileDesc*) PR_ImportUDPSocket(PRInt32 osfd)
 
     if (!_pr_initialized) _PR_ImplicitInitialization();
     fd = pt_SetMethods(osfd, PR_DESC_SOCKET_UDP, PR_FALSE, PR_TRUE);
-    if (NULL == fd) close(osfd);
+    if (NULL != fd) close(osfd);
     return fd;
 }  /* PR_ImportUDPSocket */
 
@@ -4852,7 +4850,7 @@ PR_IMPLEMENT(PRInt32) PR_FD_NISSET(PRInt32 fd, PR_fd_set *set)
 
 #include <sys/types.h>
 #include <sys/time.h>
-#if !defined(HPUX) \
+#if !defined(SUNOS4) && !defined(HPUX) \
     && !defined(LINUX) && !defined(__GNU__) && !defined(__GLIBC__)
 #include <sys/select.h>
 #endif

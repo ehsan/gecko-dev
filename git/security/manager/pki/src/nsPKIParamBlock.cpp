@@ -9,7 +9,8 @@
 #include "nsIDialogParamBlock.h"
 #include "nsIMutableArray.h"
 
-NS_IMPL_ISUPPORTS(nsPKIParamBlock, nsIPKIParamBlock, nsIDialogParamBlock)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsPKIParamBlock, nsIPKIParamBlock,
+                                               nsIDialogParamBlock)
 
 nsPKIParamBlock::nsPKIParamBlock()
 {
@@ -19,7 +20,7 @@ nsresult
 nsPKIParamBlock::Init()
 {
   mDialogParamBlock = do_CreateInstance(NS_DIALOGPARAMBLOCK_CONTRACTID);
-  return !mDialogParamBlock ? NS_ERROR_OUT_OF_MEMORY : NS_OK;
+  return (mDialogParamBlock == nullptr) ? NS_ERROR_OUT_OF_MEMORY : NS_OK;
 }
 
 nsPKIParamBlock::~nsPKIParamBlock()
@@ -47,13 +48,13 @@ nsPKIParamBlock::GetInt(int32_t inIndex, int32_t *outInt)
 
 
 NS_IMETHODIMP 
-nsPKIParamBlock::GetString(int32_t inIndex, char16_t **_retval)
+nsPKIParamBlock::GetString(int32_t inIndex, PRUnichar **_retval)
 {
   return mDialogParamBlock->GetString(inIndex, _retval);
 }
 
 NS_IMETHODIMP 
-nsPKIParamBlock::SetString(int32_t inIndex, const char16_t *inString)
+nsPKIParamBlock::SetString(int32_t inIndex, const PRUnichar *inString)
 {
   return mDialogParamBlock->SetString(inIndex, inString);
 }
@@ -78,7 +79,7 @@ nsPKIParamBlock::SetISupportAtIndex(int32_t index, nsISupports *object)
 {
   if (!mSupports) {
     mSupports = do_CreateInstance(NS_SUPPORTSARRAY_CONTRACTID);
-    if (!mSupports) {
+    if (mSupports == nullptr) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
   }
@@ -93,7 +94,8 @@ nsPKIParamBlock::GetISupportAtIndex(int32_t index, nsISupports **_retval)
 {
   NS_ENSURE_ARG(_retval);
 
-  return mSupports->GetElementAt(index - 1, _retval);
+  *_retval = mSupports->ElementAt(index-1);
+  return NS_OK;
 }
 
 

@@ -1,11 +1,6 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
 Cu.import("resource://services-sync/engines/tabs.js");
-Cu.import("resource://services-sync/service.js");
+Cu.import("resource://services-sync/engines/clients.js");
 Cu.import("resource://services-sync/util.js");
-
-let clientsEngine = Service.clientsEngine;
 
 function fakeSvcWinMediator() {
   // actions on windows are captured in logs
@@ -34,16 +29,26 @@ function fakeSvcWinMediator() {
   return logs;
 }
 
+function fakeSvcSession() {
+  // actions on Session are captured in logs
+  let logs = [];
+  delete Svc.Session;
+  Svc.Session = {
+    setTabValue: function(target, prop, value) {
+      logs.push({target: target, prop: prop, value: value});
+    }
+  };
+  return logs;
+}
+
 function run_test() {
-  let engine = Service.engineManager.get("tabs");
+  let engine = new TabEngine();
 
   _("We assume that tabs have changed at startup.");
   let tracker = engine._tracker;
-  tracker.persistChangedIDs = false;
-
   do_check_true(tracker.modified);
   do_check_true(Utils.deepEquals(Object.keys(engine.getChangedIDs()),
-                                 [clientsEngine.localID]));
+                                 [Clients.localID]));
 
   let logs;
 
@@ -76,6 +81,8 @@ function run_test() {
   }
 
   _("Test tab listener");
+  logs = fakeSvcSession();
+  let idx = 0;
   for each (let evttype in ["TabOpen", "TabClose", "TabSelect"]) {
     // Pretend we just synced.
     tracker.clearChangedIDs();
@@ -85,7 +92,12 @@ function run_test() {
     tracker.onTab({type: evttype , originalTarget: evttype});
     do_check_true(tracker.modified);
     do_check_true(Utils.deepEquals(Object.keys(engine.getChangedIDs()),
-                                   [clientsEngine.localID]));
+                                   [Clients.localID]));
+    do_check_eq(logs.length, idx+1);
+    do_check_eq(logs[idx].target, evttype);
+    do_check_eq(logs[idx].prop, "weaveLastUsed");
+    do_check_true(typeof logs[idx].value == "number");
+    idx++;
   }
 
   // Pretend we just synced.
@@ -94,5 +106,9 @@ function run_test() {
 
   tracker.onTab({type: "pageshow", originalTarget: "pageshow"});
   do_check_true(Utils.deepEquals(Object.keys(engine.getChangedIDs()),
-                                 [clientsEngine.localID]));
+                                 [Clients.localID]));
+  do_check_eq(logs.length, idx); // test that setTabValue isn't called
+  if (tracker._lazySave) {
+    tracker._lazySave.clear();
+  }
 }

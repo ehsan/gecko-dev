@@ -13,61 +13,69 @@
 const TEST_HTTPS_URI = "https://example.com/browser/browser/devtools/webconsole/test/test-bug-737873-mixedcontent.html";
 
 function test() {
-  addTab("data:text/html;charset=utf8,Web Console mixed content test");
+  addTab("data:text/html,Web Console basic network logging test");
   browser.addEventListener("load", onLoad, true);
 }
 
 function onLoad(aEvent) {
   browser.removeEventListener("load", onLoad, true);
-  Services.prefs.setBoolPref("security.mixed_content.block_display_content", false);
-  Services.prefs.setBoolPref("security.mixed_content.block_active_content", false);
   openConsole(null, testMixedContent);
 }
 
 function testMixedContent(hud) {
   content.location = TEST_HTTPS_URI;
+  var aOutputNode = hud.outputNode;
 
-  waitForMessages({
-    webconsole: hud,
-    messages: [{
-      text: "example.com",
-      category: CATEGORY_NETWORK,
-      severity: SEVERITY_WARNING,
-    }],
-  }).then((results) => {
-    let msg = [...results[0].matched][0];
-    ok(msg, "page load logged");
-    ok(msg.classList.contains("mixed-content"), ".mixed-content element");
+  waitForSuccess(
+    {
+      name: "mixed content warning displayed successfully",
+      validatorFn: function() {
+        return ( aOutputNode.querySelector(".webconsole-mixed-content") );
+      },
 
-    let link = msg.querySelector(".learn-more-link");
-    ok(link, "mixed content link element");
-    is(link.textContent, "[Mixed Content]", "link text is accurate");
+      successFn: function() {
 
-    let oldOpenLink = hud.openLink;
-    let linkOpened = false;
-    hud.openLink = (url) => {
-      is(url, "https://developer.mozilla.org/docs/Security/MixedContent",
-         "url opened");
-      linkOpened = true;
-    };
+        //tests on the urlnode
+        let node = aOutputNode.querySelector(".webconsole-mixed-content");
+        ok(testSeverity(node), "Severity type is SEVERITY_WARNING.");
 
-    EventUtils.synthesizeMouse(link, 2, 2, {}, link.ownerDocument.defaultView);
+        //tests on the warningNode
+        let warningNode = aOutputNode.querySelector(".webconsole-mixed-content-link");
+        is(warningNode.value, "[Mixed Content]", "Message text is accurate." );
+        testClickOpenNewTab(warningNode);
 
-    ok(linkOpened, "clicking the Mixed Content link opened a page");
+        finishTest();
+      },
 
-    hud.openLink = oldOpenLink;
+      failureFn: finishTest,
+    }
+  );
 
-    ok(!msg.classList.contains("filtered-by-type"), "message is not filtered");
+}
 
-    hud.setFilterState("netwarn", false);
+function testSeverity(node) {
+  let linkNode = node.parentNode;
+  let msgNode = linkNode.parentNode;
+  let bodyNode = msgNode.parentNode;
+  let finalNode = bodyNode.parentNode;
 
-    ok(msg.classList.contains("filtered-by-type"), "message is filtered");
+  return finalNode.classList.contains("webconsole-msg-warn");
+}
 
-    hud.setFilterState("netwarn", true);
+function testClickOpenNewTab(warningNode) {
+  /* Invoke the click event and check if a new tab would open to the correct page */
+  let linkOpened = false;
+  let oldOpenUILinkIn = window.openUILinkIn;
 
-    Services.prefs.clearUserPref("security.mixed_content.block_display_content");
-    Services.prefs.clearUserPref("security.mixed_content.block_active_content");
+  window.openUILinkIn = function(aLink) {
+   if (aLink == "https://developer.mozilla.org/en/Security/MixedContent");
+     linkOpened = true;
+  }
 
-    finishTest();
-  });
+  EventUtils.synthesizeMouse(warningNode, 2, 2, {},
+                             warningNode.ownerDocument.defaultView);
+
+  ok(linkOpened, "Clicking the Mixed Content Warning node opens the desired page");
+
+  window.openUILinkIn = oldOpenUILinkIn;
 }

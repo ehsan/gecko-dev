@@ -1,4 +1,4 @@
-# -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
+# -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -18,10 +18,8 @@ var Ci = Components.interfaces;
 let Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/DownloadUtils.jsm");
+Cu.import("resource://gre/modules/PluralForm.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
-                                  "resource://gre/modules/PluralForm.jsm");
 
 const nsIDM = Ci.nsIDownloadManager;
 
@@ -438,6 +436,8 @@ function Startup()
   let obs = Cc["@mozilla.org/observer-service;1"].
             getService(Ci.nsIObserverService);
   obs.addObserver(gDownloadObserver, "download-manager-remove-download", false);
+  obs.addObserver(gDownloadObserver, "private-browsing", false);
+  obs.addObserver(gDownloadObserver, "private-browsing-change-granted", false);
   obs.addObserver(gDownloadObserver, "browser-lastwindow-close-granted", false);
 
   // Clear the search box and move focus to the list on escape from the box
@@ -449,9 +449,11 @@ function Startup()
     }
   }, false);
 
-  let DownloadTaskbarProgress =
-    Cu.import("resource://gre/modules/DownloadTaskbarProgress.jsm", {}).DownloadTaskbarProgress;
-  DownloadTaskbarProgress.onDownloadWindowLoad(window);
+#ifdef XP_WIN
+  let tempScope = {};
+  Cu.import("resource://gre/modules/DownloadTaskbarProgress.jsm", tempScope);
+  tempScope.DownloadTaskbarProgress.onDownloadWindowLoad(window);
+#endif
 }
 
 function Shutdown()
@@ -460,6 +462,8 @@ function Shutdown()
 
   let obs = Cc["@mozilla.org/observer-service;1"].
             getService(Ci.nsIObserverService);
+  obs.removeObserver(gDownloadObserver, "private-browsing");
+  obs.removeObserver(gDownloadObserver, "private-browsing-change-granted");
   obs.removeObserver(gDownloadObserver, "download-manager-remove-download");
   obs.removeObserver(gDownloadObserver, "browser-lastwindow-close-granted");
 
@@ -483,6 +487,33 @@ let gDownloadObserver = {
         let id = aSubject.QueryInterface(Ci.nsISupportsPRUint32);
         let dl = getDownload(id.data);
         removeFromView(dl);
+        break;
+      case "private-browsing-change-granted":
+        // Finalize our statements cause the connection will be closed by the
+        // service during the private browsing transition.
+        gStmt.finalize();
+        gStmt = null;
+        break;
+      case "private-browsing":
+        if (aData == "enter" || aData == "exit") {
+          // We need to reset the title here, because otherwise the title of
+          // the download manager would still reflect the progress of current
+          // active downloads, if any, after switching the private browsing
+          // mode, even though the downloads will no longer be accessible.
+          // If any download is auto-started after switching the private
+          // browsing mode, the title will be updated as needed by the progress
+          // listener.
+          document.title = document.documentElement.getAttribute("statictitle");
+
+          // We might get this notification before the download manager
+          // service, so the new database connection might not be ready
+          // yet.  Defer this until all private-browsing notifications
+          // have been processed.
+          setTimeout(function() {
+            initStatement();
+            buildDownloadList(true);
+          }, 0);
+        }
         break;
       case "browser-lastwindow-close-granted":
 #ifndef XP_MACOSX
@@ -651,9 +682,6 @@ var gDownloadDNDObserver =
 
     var dt = aEvent.dataTransfer;
     dt.mozSetDataAt("application/x-moz-file", f, 0);
-    var url = Services.io.newFileURI(f).spec;
-    dt.setData("text/uri-list", url);
-    dt.setData("text/plain", url);
     dt.effectAllowed = "copyMove";
     dt.addElement(dl);
   },
@@ -670,21 +698,14 @@ var gDownloadDNDObserver =
   onDrop: function(aEvent)
   {
     var dt = aEvent.dataTransfer;
-    // If dragged item is from our source, do not try to
-    // redownload already downloaded file.
-    if (dt.mozGetDataAt("application/x-moz-file", 0))
-      return;
-
     var url = dt.getData("URL");
     var name;
     if (!url) {
       url = dt.getData("text/x-moz-url") || dt.getData("text/plain");
       [url, name] = url.split("\n");
     }
-    if (url) {
-      let sourceDoc = dt.mozSourceNode ? dt.mozSourceNode.ownerDocument : document;
-      saveURL(url, name ? name : url, null, true, true, null, sourceDoc);
-    }
+    if (url)
+      saveURL(url, name ? name : url, null, true, true);
   }
 }
 
@@ -708,7 +729,7 @@ function pasteHandler() {
 
     let uri = Services.io.newURI(url, null, null);
 
-    saveURL(uri.spec, name || uri.spec, null, true, true, null, document);
+    saveURL(uri.spec, name || uri.spec, null, true, true);
   } catch (ex) {}
 }
 
@@ -1317,6 +1338,10 @@ function getDownload(aID)
 
 /**
  * Initialize the statement which is used to retrieve the list of downloads.
+ *
+ * This function gets called both at startup, and when entering the private
+ * browsing mode (because the database connection is changed when entering
+ * the private browsing mode, and a new statement should be initialized.
  */
 function initStatement()
 {

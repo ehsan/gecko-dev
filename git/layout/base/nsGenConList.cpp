@@ -8,7 +8,6 @@
 
 #include "nsGenConList.h"
 #include "nsLayoutUtils.h"
-#include "nsIContent.h"
 
 void
 nsGenConList::Clear()
@@ -74,7 +73,7 @@ nsGenConList::DestroyNodesFor(nsIFrame* aFrame)
  */
 inline int32_t PseudoCompareType(nsIFrame* aFrame, nsIContent** aContent)
 {
-  nsIAtom *pseudo = aFrame->StyleContext()->GetPseudo();
+  nsIAtom *pseudo = aFrame->GetStyleContext()->GetPseudo();
   if (pseudo == nsCSSPseudoElements::before) {
     *aContent = aFrame->GetContent()->GetParent();
     return -1;

@@ -6,18 +6,27 @@
 #ifndef nsIOService_h__
 #define nsIOService_h__
 
-#include "nsStringFwd.h"
+#include "necko-config.h"
+
+#include "nsString.h"
 #include "nsIIOService2.h"
 #include "nsTArray.h"
+#include "nsPISocketTransportService.h" 
+#include "nsPIDNSService.h" 
+#include "nsIProtocolProxyService2.h"
 #include "nsCOMPtr.h"
+#include "nsURLHelper.h"
 #include "nsWeakPtr.h"
+#include "nsIURLParser.h"
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
 #include "nsINetUtil.h"
 #include "nsIChannelEventSink.h"
+#include "nsIContentSniffer.h"
 #include "nsCategoryCache.h"
+#include "nsINetworkLinkService.h"
+#include "nsAsyncRedirectVerifyHelper.h"
 #include "nsISpeculativeConnect.h"
-#include "nsDataHashtable.h"
 #include "mozilla/Attributes.h"
 
 #define NS_N(x) (sizeof(x)/sizeof(*x))
@@ -30,19 +39,7 @@
 static const char gScheme[][sizeof("resource")] =
     {"chrome", "file", "http", "jar", "resource"};
 
-class nsAsyncRedirectVerifyHelper;
-class nsINetworkLinkService;
 class nsIPrefBranch;
-class nsIProtocolProxyService2;
-class nsIProxyInfo;
-class nsPIDNSService;
-class nsPISocketTransportService;
-
-namespace mozilla {
-namespace net {
-    class NeckoChild;
-} // namespace net
-} // namespace mozilla
 
 class nsIOService MOZ_FINAL : public nsIIOService2
                             , public nsIObserver
@@ -51,7 +48,7 @@ class nsIOService MOZ_FINAL : public nsIIOService2
                             , public nsSupportsWeakReference
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIIOSERVICE
     NS_DECL_NSIIOSERVICE2
     NS_DECL_NSIOBSERVER
@@ -63,8 +60,8 @@ public:
     // Returns an addrefed pointer.
     static nsIOService* GetInstance();
 
-    nsresult Init();
-    nsresult NewURI(const char* aSpec, nsIURI* aBaseURI,
+    NS_HIDDEN_(nsresult) Init();
+    NS_HIDDEN_(nsresult) NewURI(const char* aSpec, nsIURI* aBaseURI,
                                 nsIURI* *result,
                                 nsIProtocolHandler* *hdlrResult);
 
@@ -74,6 +71,11 @@ public:
                                     uint32_t flags,
                                     nsAsyncRedirectVerifyHelper *helper);
 
+    // Gets the array of registered content sniffers
+    const nsCOMArray<nsIContentSniffer>& GetContentSniffers() {
+      return mContentSniffers.GetEntries();
+    }
+
     bool IsOffline() { return mOffline; }
     bool IsLinkUp();
 
@@ -81,29 +83,26 @@ public:
       return mOffline && mSettingOffline && !mSetOfflineValue;
     }
 
-    // Should only be called from NeckoChild. Use SetAppOffline instead.
-    void SetAppOfflineInternal(uint32_t appId, int32_t status);
-
 private:
     // These shouldn't be called directly:
     // - construct using GetInstance
     // - destroy using Release
-    nsIOService();
-    ~nsIOService();
+    nsIOService() NS_HIDDEN;
+    ~nsIOService() NS_HIDDEN;
 
-    nsresult OnNetworkLinkEvent(const char *data);
+    NS_HIDDEN_(nsresult) TrackNetworkLinkStatusForOffline();
 
-    nsresult GetCachedProtocolHandler(const char *scheme,
+    NS_HIDDEN_(nsresult) GetCachedProtocolHandler(const char *scheme,
                                                   nsIProtocolHandler* *hdlrResult,
                                                   uint32_t start=0,
                                                   uint32_t end=0);
-    nsresult CacheProtocolHandler(const char *scheme,
+    NS_HIDDEN_(nsresult) CacheProtocolHandler(const char *scheme,
                                               nsIProtocolHandler* hdlr);
 
     // Prefs wrangling
-    void PrefsChanged(nsIPrefBranch *prefs, const char *pref = nullptr);
-    void GetPrefBranch(nsIPrefBranch **);
-    void ParsePortList(nsIPrefBranch *prefBranch, const char *pref, bool remove);
+    NS_HIDDEN_(void) PrefsChanged(nsIPrefBranch *prefs, const char *pref = nullptr);
+    NS_HIDDEN_(void) GetPrefBranch(nsIPrefBranch **);
+    NS_HIDDEN_(void) ParsePortList(nsIPrefBranch *prefBranch, const char *pref, bool remove);
 
     nsresult InitializeSocketTransportService();
     nsresult InitializeNetworkLinkService();
@@ -111,11 +110,6 @@ private:
     // consolidated helper function
     void LookupProxyInfo(nsIURI *aURI, nsIURI *aProxyURI, uint32_t aProxyFlags,
                          nsCString *aScheme, nsIProxyInfo **outPI);
-
-    // notify content processes of offline status
-    // 'status' must be a nsIAppOfflineInfo mode constant.
-    void NotifyAppOfflineStatus(uint32_t appId, int32_t status);
-    static PLDHashOperator EnumerateWifiAppsChangingState(const unsigned int &, int32_t, void*);
 
 private:
     bool                                 mOffline;
@@ -140,52 +134,15 @@ private:
 
     // cached categories
     nsCategoryCache<nsIChannelEventSink> mChannelEventSinks;
+    nsCategoryCache<nsIContentSniffer>   mContentSniffers;
 
     nsTArray<int32_t>                    mRestrictedPortList;
 
     bool                                 mAutoDialEnabled;
-    bool                                 mNetworkNotifyChanged;
-    int32_t                              mPreviousWifiState;
-    // Hashtable of (appId, nsIAppOffineInfo::mode) pairs
-    // that is used especially in IsAppOffline
-    nsDataHashtable<nsUint32HashKey, int32_t> mAppsOfflineStatus;
 public:
     // Used for all default buffer sizes that necko allocates.
     static uint32_t   gDefaultSegmentSize;
     static uint32_t   gDefaultSegmentCount;
-};
-
-/**
- * This class is passed as the subject to a NotifyObservers call for the
- * "network:app-offline-status-changed" topic.
- * Observers will use the appId and mode to get the offline status of an app.
- */
-class nsAppOfflineInfo : public nsIAppOfflineInfo
-{
-    NS_DECL_THREADSAFE_ISUPPORTS
-public:
-    nsAppOfflineInfo(uint32_t aAppId, int32_t aMode)
-        : mAppId(aAppId), mMode(aMode)
-    {
-    }
-
-    NS_IMETHODIMP GetMode(int32_t *aMode)
-    {
-        *aMode = mMode;
-        return NS_OK;
-    }
-
-    NS_IMETHODIMP GetAppId(uint32_t *aAppId)
-    {
-        *aAppId = mAppId;
-        return NS_OK;
-    }
-
-private:
-    virtual ~nsAppOfflineInfo() {}
-
-    uint32_t mAppId;
-    int32_t mMode;
 };
 
 /**

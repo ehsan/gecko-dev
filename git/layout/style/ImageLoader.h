@@ -5,18 +5,16 @@
 // A class that handles style system image loads (other image loads are handled
 // by the nodes in the content tree).
 
-#ifndef mozilla_css_ImageLoader_h___
-#define mozilla_css_ImageLoader_h___
-
+#include "nsAutoPtr.h"
 #include "nsClassHashtable.h"
 #include "nsHashKeys.h"
-#include "nsTArray.h"
+#include "nsInterfaceHashtable.h"
+#include "nsCSSValue.h"
 #include "imgIRequest.h"
 #include "imgIOnloadBlocker.h"
-#include "imgINotificationObserver.h"
+#include "nsStubImageDecoderObserver.h"
 #include "mozilla/Attributes.h"
 
-class imgIContainer;
 class nsIFrame;
 class nsIDocument;
 class nsPresContext;
@@ -26,23 +24,37 @@ class nsIPrincipal;
 namespace mozilla {
 namespace css {
 
-struct ImageValue;
-
-class ImageLoader MOZ_FINAL : public imgINotificationObserver,
+class ImageLoader MOZ_FINAL : public nsStubImageDecoderObserver,
                               public imgIOnloadBlocker {
 public:
   typedef mozilla::css::ImageValue Image;
 
-  explicit ImageLoader(nsIDocument* aDocument)
+  ImageLoader(nsIDocument* aDocument)
   : mDocument(aDocument),
     mInClone(false)
   {
     MOZ_ASSERT(mDocument);
+
+    mRequestToFrameMap.Init();
+    mFrameToRequestMap.Init();
+    mImages.Init();
   }
 
   NS_DECL_ISUPPORTS
   NS_DECL_IMGIONLOADBLOCKER
-  NS_DECL_IMGINOTIFICATIONOBSERVER
+
+  // imgIDecoderObserver (override nsStubImageDecoderObserver)
+  NS_IMETHOD OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
+  NS_IMETHOD OnStopFrame(imgIRequest *aRequest, uint32_t aFrame);
+  NS_IMETHOD OnImageIsAnimated(imgIRequest *aRequest);
+  // Do not override OnDataAvailable since background images are not
+  // displayed incrementally; they are displayed after the entire image
+  // has been loaded.
+
+  // imgIContainerObserver (override nsStubImageDecoderObserver)
+  NS_IMETHOD FrameChanged(imgIRequest* aRequest,
+                          imgIContainer *aContainer,
+                          const nsIntRect *aDirtyRect);
 
   void DropDocumentReference();
 
@@ -59,10 +71,7 @@ public:
 
   void SetAnimationMode(uint16_t aMode);
 
-  // The prescontext for this ImageLoader's document. We need it to be passed
-  // in because this can be called during presentation destruction after the
-  // presshell pointer on the document has been cleared.
-  void ClearFrames(nsPresContext* aPresContext);
+  void ClearAll();
 
   void LoadImage(nsIURI* aURI, nsIPrincipal* aPrincipal, nsIURI* aReferrer,
                  Image* aCSSValue);
@@ -70,8 +79,6 @@ public:
   void DestroyRequest(imgIRequest* aRequest);
 
 private:
-  ~ImageLoader() {}
-
   // We need to be able to look up the frames associated with a request (for
   // delivering notifications) and the requests associated with a frame (when
   // the frame goes away). Thus we maintain hashtables going both ways.  These
@@ -90,20 +97,11 @@ private:
 
   nsPresContext* GetPresContext();
 
-  void DoRedraw(FrameSet* aFrameSet, bool aForcePaint);
+  void DoRedraw(FrameSet* aFrameSet);
 
   static PLDHashOperator
   SetAnimationModeEnumerator(nsISupports* aKey, FrameSet* aValue,
                              void* aClosure);
-
-  static PLDHashOperator
-  DeregisterRequestEnumerator(nsISupports* aKey, FrameSet* aValue,
-                              void* aClosure);
-
-  nsresult OnSizeAvailable(imgIRequest* aRequest, imgIContainer* aImage);
-  nsresult OnFrameComplete(imgIRequest* aRequest);
-  nsresult OnImageIsAnimated(imgIRequest* aRequest);
-  nsresult OnFrameUpdate(imgIRequest* aRequest);
 
   // A map of imgIRequests to the nsIFrames that are using them.
   RequestToFrameMap mRequestToFrameMap;
@@ -125,5 +123,3 @@ private:
 
 } // namespace css
 } // namespace mozilla
-
-#endif /* mozilla_css_ImageLoader_h___ */

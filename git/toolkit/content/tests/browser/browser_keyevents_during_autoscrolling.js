@@ -90,22 +90,16 @@ function test()
     EventUtils.synthesizeMouse(root, 10, 10, { button: 1 },
                                gBrowser.contentWindow);
 
-    // Before continuing the test, we need to ensure that the IPC
-    // message that starts autoscrolling has had time to arrive.
-    executeSoon(continueTest);
-  }
-
-  function continueTest() {
     // Most key events should be eaten by the browser.
     expectedKeyEvents = kNoKeyEvents;
     sendChar("A");
     sendKey("DOWN");
     sendKey("RETURN");
-    sendKey("RETURN");
+    sendKey("ENTER");
     sendKey("HOME");
     sendKey("END");
     sendKey("TAB");
-    sendKey("RETURN");
+    sendKey("ENTER");
 
     // Finish autoscrolling by ESC key.  Note that only keydown and keypress
     // events are eaten because keyup event is fired *after* the autoscrolling
@@ -124,6 +118,10 @@ function test()
     // restore the changed prefs
     if (Services.prefs.prefHasUserValue(kPrefName_AutoScroll))
       Services.prefs.clearUserPref(kPrefName_AutoScroll);
+
+    // cleaning-up
+    gBrowser.addTab().linkedBrowser.stop();
+    gBrowser.removeCurrentTab();
 
     finish();
   }

@@ -7,8 +7,6 @@
 
   <script type="text/javascript" src="platform.js"/>
 
-  <!-- leading space in the value to ensure no pixels of t get clipped
-       in one rendering but not the other -->
-  <textbox type="autocomplete" value=" test"/>
+  <textbox type="autocomplete" value="test"/>
       
 </window>

@@ -4,40 +4,33 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// HttpLog.h should generally be included first
-#include "HttpLog.h"
-
 #include "base/basictypes.h"
 
+#include "nsIOService.h"
 #include "nsHttpHandler.h"
 #include "nsHttpTransaction.h"
+#include "nsHttpConnection.h"
 #include "nsHttpRequestHead.h"
 #include "nsHttpResponseHead.h"
 #include "nsHttpChunkedDecoder.h"
 #include "nsTransportUtils.h"
 #include "nsNetUtil.h"
-#include "nsCRT.h"
+#include "nsProxyRelease.h"
+#include "nsIOService.h"
+#include "nsAtomicRefcnt.h"
 
 #include "nsISeekableStream.h"
+#include "nsISocketTransport.h"
 #include "nsMultiplexInputStream.h"
 #include "nsStringStream.h"
-#include "mozilla/VisualEventTracer.h"
 
 #include "nsComponentManagerUtils.h" // do_CreateInstance
 #include "nsServiceManagerUtils.h"   // do_GetService
 #include "nsIHttpActivityObserver.h"
-#include "nsSocketTransportService2.h"
-#include "nsICancelable.h"
-#include "nsIEventTarget.h"
-#include "nsIHttpChannelInternal.h"
-#include "nsIInputStream.h"
-#include "nsITransport.h"
-#include "nsIOService.h"
-#include <algorithm>
 
-#ifdef MOZ_WIDGET_GONK
-#include "NetStatistics.h"
-#endif
+#include "mozilla/FunctionTimer.h"
+
+using namespace mozilla;
 
 //-----------------------------------------------------------------------------
 
@@ -54,31 +47,24 @@ static NS_DEFINE_CID(kMultiplexInputStream, NS_MULTIPLEXINPUTSTREAM_CID);
 // looking for a response header
 #define MAX_INVALID_RESPONSE_BODY_SIZE (1024 * 128)
 
-using namespace mozilla::net;
-
-namespace mozilla {
-namespace net {
-
 //-----------------------------------------------------------------------------
 // helpers
 //-----------------------------------------------------------------------------
 
 #if defined(PR_LOGGING)
 static void
-LogHeaders(const char *lineStart)
+LogHeaders(const char *lines)
 {
-    nsAutoCString buf;
-    char *endOfLine;
-    while ((endOfLine = PL_strstr(lineStart, "\r\n"))) {
-        buf.Assign(lineStart, endOfLine - lineStart);
-        if (PL_strcasestr(buf.get(), "authorization: ") ||
-            PL_strcasestr(buf.get(), "proxy-authorization: ")) {
-            char *p = PL_strchr(PL_strchr(buf.get(), ' ') + 1, ' ');
-            while (p && *++p)
-                *p = '*';
+    nsCAutoString buf;
+    char *p;
+    while ((p = PL_strstr(lines, "\r\n")) != nullptr) {
+        buf.Assign(lines, p - lines);
+        if (PL_strcasestr(buf.get(), "authorization: ") != nullptr) {
+            char *p = PL_strchr(PL_strchr(buf.get(), ' ')+1, ' ');
+            while (*++p) *p = '*';
         }
         LOG3(("  %s\n", buf.get()));
-        lineStart = endOfLine + 2;
+        lines = p + 2;
     }
 }
 #endif
@@ -88,21 +74,19 @@ LogHeaders(const char *lineStart)
 //-----------------------------------------------------------------------------
 
 nsHttpTransaction::nsHttpTransaction()
-    : mLock("transaction lock")
-    , mRequestSize(0)
+    : mRequestSize(0)
     , mConnection(nullptr)
+    , mConnInfo(nullptr)
     , mRequestHead(nullptr)
     , mResponseHead(nullptr)
     , mContentLength(-1)
     , mContentRead(0)
     , mInvalidResponseBytesRead(0)
-    , mPushedStream(nullptr)
     , mChunkedDecoder(nullptr)
     , mStatus(NS_OK)
     , mPriority(0)
     , mRestartCount(0)
     , mCaps(0)
-    , mCapsToClear(0)
     , mClassification(CLASS_GENERAL)
     , mPipelinePosition(0)
     , mHttpVersion(NS_HTTP_VERSION_UNKNOWN)
@@ -121,48 +105,25 @@ nsHttpTransaction::nsHttpTransaction()
     , mProxyConnectFailed(false)
     , mHttpResponseMatched(false)
     , mPreserveStream(false)
-    , mDispatchedAsBlocking(false)
-    , mResponseTimeoutEnabled(true)
-    , mDontRouteViaWildCard(false)
-    , mForceRestart(false)
-    , mReuseOnRestart(false)
     , mReportedStart(false)
     , mReportedResponseHeader(false)
     , mForTakeResponseHead(nullptr)
     , mResponseHeadTaken(false)
-    , mSubmittedRatePacing(false)
-    , mPassedRatePacing(false)
-    , mSynchronousRatePaceRequest(false)
-    , mCountRecv(0)
-    , mCountSent(0)
-    , mAppId(NECKO_NO_APP_ID)
 {
-    LOG(("Creating nsHttpTransaction @%p\n", this));
+    LOG(("Creating nsHttpTransaction @%x\n", this));
     gHttpHandler->GetMaxPipelineObjectSize(&mMaxPipelineObjectSize);
 }
 
 nsHttpTransaction::~nsHttpTransaction()
 {
-    LOG(("Destroying nsHttpTransaction @%p\n", this));
+    LOG(("Destroying nsHttpTransaction @%x\n", this));
 
-    if (mPushedStream) {
-        mPushedStream->OnPushFailed();
-        mPushedStream = nullptr;
-    }
-
-    if (mTokenBucketCancel) {
-        mTokenBucketCancel->Cancel(NS_ERROR_ABORT);
-        mTokenBucketCancel = nullptr;
-    }
-
-    // Force the callbacks and connection to be released right now
-    mCallbacks = nullptr;
-    mConnection = nullptr;
+    NS_IF_RELEASE(mConnection);
+    NS_IF_RELEASE(mConnInfo);
 
     delete mResponseHead;
     delete mForTakeResponseHead;
     delete mChunkedDecoder;
-    ReleaseBlockingTransaction();
 }
 
 nsHttpTransaction::Classifier
@@ -200,7 +161,7 @@ nsHttpTransaction::Classify()
 }
 
 nsresult
-nsHttpTransaction::Init(uint32_t caps,
+nsHttpTransaction::Init(uint8_t caps,
                         nsHttpConnectionInfo *cinfo,
                         nsHttpRequestHead *requestHead,
                         nsIInputStream *requestBody,
@@ -210,19 +171,15 @@ nsHttpTransaction::Init(uint32_t caps,
                         nsITransportEventSink *eventsink,
                         nsIAsyncInputStream **responseBody)
 {
-    MOZ_EVENT_TRACER_COMPOUND_NAME(static_cast<nsAHttpTransaction*>(this),
-                                   requestHead->PeekHeader(nsHttp::Host),
-                                   requestHead->RequestURI().BeginReading());
+    NS_TIME_FUNCTION;
 
-    MOZ_EVENT_TRACER_WAIT(static_cast<nsAHttpTransaction*>(this),
-                          "net::http::transaction");
     nsresult rv;
 
-    LOG(("nsHttpTransaction::Init [this=%p caps=%x]\n", this, caps));
+    LOG(("nsHttpTransaction::Init [this=%x caps=%x]\n", this, caps));
 
-    MOZ_ASSERT(cinfo);
-    MOZ_ASSERT(requestHead);
-    MOZ_ASSERT(target);
+    NS_ASSERTION(cinfo, "ouch");
+    NS_ASSERTION(requestHead, "ouch");
+    NS_ASSERTION(target, "ouch");
 
     mActivityDistributor = do_GetService(NS_HTTPACTIVITYDISTRIBUTOR_CONTRACTID, &rv);
     if (NS_FAILED(rv)) return rv;
@@ -232,41 +189,17 @@ nsHttpTransaction::Init(uint32_t caps,
     if (NS_SUCCEEDED(rv) && activityDistributorActive) {
         // there are some observers registered at activity distributor, gather
         // nsISupports for the channel that called Init()
+        mChannel = do_QueryInterface(eventsink);
         LOG(("nsHttpTransaction::Init() " \
              "mActivityDistributor is active " \
-             "this=%p", this));
+             "this=%x", this));
     } else {
         // there is no observer, so don't use it
         activityDistributorActive = false;
         mActivityDistributor = nullptr;
     }
-    mChannel = do_QueryInterface(eventsink);
-    nsCOMPtr<nsIChannel> channel = do_QueryInterface(eventsink);
-    if (channel) {
-        bool isInBrowser;
-        NS_GetAppInfo(channel, &mAppId, &isInBrowser);
-    }
 
-#ifdef MOZ_WIDGET_GONK
-    if (mAppId != NECKO_NO_APP_ID) {
-        nsCOMPtr<nsINetworkInterface> activeNetwork;
-        GetActiveNetworkInterface(activeNetwork);
-        mActiveNetwork =
-            new nsMainThreadPtrHolder<nsINetworkInterface>(activeNetwork);
-    }
-#endif
-
-    nsCOMPtr<nsIHttpChannelInternal> httpChannelInternal =
-        do_QueryInterface(eventsink);
-    if (httpChannelInternal) {
-        rv = httpChannelInternal->GetResponseTimeoutEnabled(
-            &mResponseTimeoutEnabled);
-        if (NS_WARN_IF(NS_FAILED(rv))) {
-            return rv;
-        }
-    }
-
-    // create transport event sink proxy. it coalesces all events if and only
+    // create transport event sink proxy. it coalesces all events if and only 
     // if the activity observer is not active. when the observer is active
     // we need not to coalesce any events to get all expected notifications
     // of the transaction state, necessary for correct debugging and logging.
@@ -275,14 +208,13 @@ nsHttpTransaction::Init(uint32_t caps,
                                         !activityDistributorActive);
     if (NS_FAILED(rv)) return rv;
 
-    mConnInfo = cinfo;
+    NS_ADDREF(mConnInfo = cinfo);
     mCallbacks = callbacks;
     mConsumerTarget = target;
     mCaps = caps;
 
-    if (requestHead->IsHead()) {
+    if (requestHead->Method() == nsHttp::Head)
         mNoContent = true;
-    }
 
     // Make sure that there is "Content-Length: 0" header in the requestHead
     // in case of POST and PUT methods when there is no requestBody and
@@ -296,7 +228,7 @@ nsHttpTransaction::Init(uint32_t caps,
     //   For compatibility with HTTP/1.0 applications, HTTP/1.1 requests
     //   containing a message-body MUST include a valid Content-Length header
     //   field unless the server is known to be HTTP/1.1 compliant.
-    if ((requestHead->IsPost() || requestHead->IsPut()) &&
+    if ((requestHead->Method() == nsHttp::Post || requestHead->Method() == nsHttp::Put) &&
         !requestBody && !requestHead->PeekHeader(nsHttp::Transfer_Encoding)) {
         requestHead->SetHeader(nsHttp::Content_Length, NS_LITERAL_CSTRING("0"));
     }
@@ -304,10 +236,10 @@ nsHttpTransaction::Init(uint32_t caps,
     // grab a weak reference to the request head
     mRequestHead = requestHead;
 
-    // make sure we eliminate any proxy specific headers from
+    // make sure we eliminate any proxy specific headers from 
     // the request if we are using CONNECT
     bool pruneProxyHeaders = cinfo->UsingConnect();
-
+    
     mReqHeaderBuf.Truncate();
     requestHead->Flatten(mReqHeaderBuf, pruneProxyHeaders);
 
@@ -330,7 +262,7 @@ nsHttpTransaction::Init(uint32_t caps,
             mChannel,
             NS_HTTP_ACTIVITY_TYPE_HTTP_TRANSACTION,
             NS_HTTP_ACTIVITY_SUBTYPE_REQUEST_HEADER,
-            PR_Now(), 0,
+            PR_Now(), LL_ZERO,
             mReqHeaderBuf);
 
     // Create a string stream for the request header buf (the stream holds
@@ -379,31 +311,20 @@ nsHttpTransaction::Init(uint32_t caps,
 
     Classify();
 
-    nsCOMPtr<nsIAsyncInputStream> tmp(mPipeIn);
-    tmp.forget(responseBody);
+    NS_ADDREF(*responseBody = mPipeIn);
     return NS_OK;
 }
 
-// This method should only be used on the socket thread
 nsAHttpConnection *
 nsHttpTransaction::Connection()
 {
-    MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
-    return mConnection.get();
-}
-
-already_AddRefed<nsAHttpConnection>
-nsHttpTransaction::GetConnectionReference()
-{
-    MutexAutoLock lock(mLock);
-    nsRefPtr<nsAHttpConnection> connection(mConnection);
-    return connection.forget();
+    return mConnection;
 }
 
 nsHttpResponseHead *
 nsHttpTransaction::TakeResponseHead()
 {
-    MOZ_ASSERT(!mResponseHeadTaken, "TakeResponseHead called 2x");
+    NS_ABORT_IF_FALSE(!mResponseHeadTaken, "TakeResponseHead called 2x");
 
     // Lock RestartInProgress() and TakeResponseHead() against main thread
     MutexAutoLock lock(*nsHttp::GetLock());
@@ -418,7 +339,7 @@ nsHttpTransaction::TakeResponseHead()
         mForTakeResponseHead = nullptr;
         return head;
     }
-
+    
     // Even in OnStartRequest() the headers won't be available if we were
     // canceled
     if (!mHaveAllHeaders) {
@@ -463,62 +384,42 @@ nsHttpTransaction::TakeSubTransactions(
 void
 nsHttpTransaction::SetConnection(nsAHttpConnection *conn)
 {
-    {
-        MutexAutoLock lock(mLock);
-        mConnection = conn;
-    }
-
-    if (conn) {
-        MOZ_EVENT_TRACER_EXEC(static_cast<nsAHttpTransaction*>(this),
-                              "net::http::transaction");
-    }
+    NS_IF_RELEASE(mConnection);
+    NS_IF_ADDREF(mConnection = conn);
 }
 
 void
-nsHttpTransaction::GetSecurityCallbacks(nsIInterfaceRequestor **cb)
+nsHttpTransaction::GetSecurityCallbacks(nsIInterfaceRequestor **cb,
+                                        nsIEventTarget        **target)
 {
-    MutexAutoLock lock(mLock);
-    nsCOMPtr<nsIInterfaceRequestor> tmp(mCallbacks);
-    tmp.forget(cb);
-}
-
-void
-nsHttpTransaction::SetSecurityCallbacks(nsIInterfaceRequestor* aCallbacks)
-{
-    {
-        MutexAutoLock lock(mLock);
-        mCallbacks = aCallbacks;
-    }
-
-    if (gSocketTransportService) {
-        nsRefPtr<UpdateSecurityCallbacks> event = new UpdateSecurityCallbacks(this, aCallbacks);
-        gSocketTransportService->Dispatch(event, nsIEventTarget::DISPATCH_NORMAL);
-    }
+    NS_IF_ADDREF(*cb = mCallbacks);
+    if (target)
+        NS_IF_ADDREF(*target = mConsumerTarget);
 }
 
 void
 nsHttpTransaction::OnTransportStatus(nsITransport* transport,
                                      nsresult status, uint64_t progress)
 {
-    LOG(("nsHttpTransaction::OnSocketStatus [this=%p status=%x progress=%llu]\n",
+    LOG(("nsHttpTransaction::OnSocketStatus [this=%x status=%x progress=%llu]\n",
         this, status, progress));
 
     if (TimingEnabled()) {
         if (status == NS_NET_STATUS_RESOLVING_HOST) {
-            mTimings.domainLookupStart = TimeStamp::Now();
+            mTimings.domainLookupStart = mozilla::TimeStamp::Now();
         } else if (status == NS_NET_STATUS_RESOLVED_HOST) {
-            mTimings.domainLookupEnd = TimeStamp::Now();
+            mTimings.domainLookupEnd = mozilla::TimeStamp::Now();
         } else if (status == NS_NET_STATUS_CONNECTING_TO) {
-            mTimings.connectStart = TimeStamp::Now();
+            mTimings.connectStart = mozilla::TimeStamp::Now();
         } else if (status == NS_NET_STATUS_CONNECTED_TO) {
-            mTimings.connectEnd = TimeStamp::Now();
+            mTimings.connectEnd = mozilla::TimeStamp::Now();
         }
     }
 
     if (!mTransportSink)
         return;
 
-    MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
+    NS_ASSERTION(PR_GetCurrentThread() == gSocketThread, "wrong thread");
 
     // Need to do this before the STATUS_RECEIVING_FROM check below, to make
     // sure that the activity distributor gets told about all status events.
@@ -530,7 +431,7 @@ nsHttpTransaction::OnTransportStatus(nsITransport* transport,
                 mChannel,
                 NS_HTTP_ACTIVITY_TYPE_HTTP_TRANSACTION,
                 NS_HTTP_ACTIVITY_SUBTYPE_REQUEST_BODY_SENT,
-                PR_Now(), 0, EmptyCString());
+                PR_Now(), LL_ZERO, EmptyCString());
 
         // report the status and progress
         if (!mRestartInProgressVerifier.IsDiscardingContent())
@@ -555,7 +456,7 @@ nsHttpTransaction::OnTransportStatus(nsITransport* transport,
             return;
 
         nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(mRequestStream);
-        MOZ_ASSERT(seekable, "Request stream isn't seekable?!?");
+        NS_ASSERTION(seekable, "Request stream isn't seekable?!?");
 
         int64_t prog = 0;
         seekable->Tell(&prog);
@@ -566,7 +467,7 @@ nsHttpTransaction::OnTransportStatus(nsITransport* transport,
         progressMax = mRequestSize; // XXX mRequestSize is 32-bit!
     }
     else {
-        progress = 0;
+        progress = LL_ZERO;
         progressMax = 0;
     }
 
@@ -585,17 +486,10 @@ nsHttpTransaction::Status()
     return mStatus;
 }
 
-uint32_t
+uint8_t
 nsHttpTransaction::Caps()
-{
-    return mCaps & ~mCapsToClear;
-}
-
-void
-nsHttpTransaction::SetDNSWasRefreshed()
-{
-    MOZ_ASSERT(NS_IsMainThread(), "SetDNSWasRefreshed on main thread only!");
-    mCapsToClear |= NS_HTTP_REFRESH_DNS;
+{ 
+    return mCaps;
 }
 
 uint64_t
@@ -621,15 +515,8 @@ nsHttpTransaction::ReadRequestSegment(nsIInputStream *stream,
 
     if (trans->TimingEnabled() && trans->mTimings.requestStart.IsNull()) {
         // First data we're sending -> this is requestStart
-        trans->mTimings.requestStart = TimeStamp::Now();
+        trans->mTimings.requestStart = mozilla::TimeStamp::Now();
     }
-
-    if (!trans->mSentData) {
-        MOZ_EVENT_TRACER_MARK(static_cast<nsAHttpTransaction*>(trans),
-                              "net::http::first-write");
-    }
-
-    trans->CountSentBytes(*countRead);
     trans->mSentData = true;
     return NS_OK;
 }
@@ -638,7 +525,7 @@ nsresult
 nsHttpTransaction::ReadSegments(nsAHttpSegmentReader *reader,
                                 uint32_t count, uint32_t *countRead)
 {
-    MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
+    NS_ASSERTION(PR_GetCurrentThread() == gSocketThread, "wrong thread");
 
     if (mTransactionDone) {
         *countRead = 0;
@@ -690,7 +577,7 @@ nsHttpTransaction::WritePipeSegment(nsIOutputStream *stream,
         return NS_BASE_STREAM_CLOSED; // stop iterating
 
     if (trans->TimingEnabled() && trans->mTimings.responseStart.IsNull()) {
-        trans->mTimings.responseStart = TimeStamp::Now();
+        trans->mTimings.responseStart = mozilla::TimeStamp::Now();
     }
 
     nsresult rv;
@@ -700,13 +587,7 @@ nsHttpTransaction::WritePipeSegment(nsIOutputStream *stream,
     rv = trans->mWriter->OnWriteSegment(buf, count, countWritten);
     if (NS_FAILED(rv)) return rv; // caller didn't want to write anything
 
-    if (!trans->mReceivedData) {
-        MOZ_EVENT_TRACER_MARK(static_cast<nsAHttpTransaction*>(trans),
-                              "net::http::first-read");
-    }
-
-    MOZ_ASSERT(*countWritten > 0, "bad writer");
-    trans->CountRecvBytes(*countWritten);
+    NS_ASSERTION(*countWritten > 0, "bad writer");
     trans->mReceivedData = true;
 
     // Let the transaction "play" with the buffer.  It is free to modify
@@ -714,7 +595,7 @@ nsHttpTransaction::WritePipeSegment(nsIOutputStream *stream,
     // - Bytes in HTTP headers don't count towards countWritten, so the input
     // side of pipe (aka nsHttpChannel's mTransactionPump) won't hit
     // OnInputStreamReady until all headers have been parsed.
-    //
+    //    
     rv = trans->ProcessData(buf, *countWritten, countWritten);
     if (NS_FAILED(rv))
         trans->Close(rv);
@@ -726,7 +607,7 @@ nsresult
 nsHttpTransaction::WriteSegments(nsAHttpSegmentWriter *writer,
                                  uint32_t count, uint32_t *countWritten)
 {
-    MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
+    NS_ASSERTION(PR_GetCurrentThread() == gSocketThread, "wrong thread");
 
     if (mTransactionDone)
         return NS_SUCCEEDED(mStatus) ? NS_BASE_STREAM_CLOSED : mStatus;
@@ -753,60 +634,16 @@ nsHttpTransaction::WriteSegments(nsAHttpSegmentWriter *writer,
     return rv;
 }
 
-nsresult
-nsHttpTransaction::SaveNetworkStats(bool enforce)
-{
-#ifdef MOZ_WIDGET_GONK
-    // Check if active network and appid are valid.
-    if (!mActiveNetwork || mAppId == NECKO_NO_APP_ID) {
-        return NS_OK;
-    }
-
-    if (mCountRecv <= 0 && mCountSent <= 0) {
-        // There is no traffic, no need to save.
-        return NS_OK;
-    }
-
-    // If |enforce| is false, the traffic amount is saved
-    // only when the total amount exceeds the predefined
-    // threshold.
-    uint64_t totalBytes = mCountRecv + mCountSent;
-    if (!enforce && totalBytes < NETWORK_STATS_THRESHOLD) {
-        return NS_OK;
-    }
-
-    // Create the event to save the network statistics.
-    // the event is then dispathed to the main thread.
-    nsRefPtr<nsRunnable> event =
-        new SaveNetworkStatsEvent(mAppId, mActiveNetwork,
-                                  mCountRecv, mCountSent, false);
-    NS_DispatchToMainThread(event);
-
-    // Reset the counters after saving.
-    mCountSent = 0;
-    mCountRecv = 0;
-
-    return NS_OK;
-#else
-    return NS_ERROR_NOT_IMPLEMENTED;
-#endif
-}
-
 void
 nsHttpTransaction::Close(nsresult reason)
 {
-    LOG(("nsHttpTransaction::Close [this=%p reason=%x]\n", this, reason));
+    LOG(("nsHttpTransaction::Close [this=%x reason=%x]\n", this, reason));
 
-    MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
+    NS_ASSERTION(PR_GetCurrentThread() == gSocketThread, "wrong thread");
 
     if (mClosed) {
         LOG(("  already closed\n"));
         return;
-    }
-
-    if (mTokenBucketCancel) {
-        mTokenBucketCancel->Cancel(reason);
-        mTokenBucketCancel = nullptr;
     }
 
     if (mActivityDistributor) {
@@ -825,10 +662,10 @@ nsHttpTransaction::Close(nsresult reason)
             mChannel,
             NS_HTTP_ACTIVITY_TYPE_HTTP_TRANSACTION,
             NS_HTTP_ACTIVITY_SUBTYPE_TRANSACTION_CLOSE,
-            PR_Now(), 0, EmptyCString());
+            PR_Now(), LL_ZERO, EmptyCString());
     }
 
-    // we must no longer reference the connection!  find out if the
+    // we must no longer reference the connection!  find out if the 
     // connection was being reused before letting it go.
     bool connReused = false;
     if (mConnection)
@@ -854,22 +691,17 @@ nsHttpTransaction::Close(nsresult reason)
     //
     if (reason == NS_ERROR_NET_RESET || reason == NS_OK) {
 
-        if (mForceRestart && NS_SUCCEEDED(Restart())) {
-            LOG(("transaction force restarted\n"));
-            return;
-        }
-
         // reallySentData is meant to separate the instances where data has
         // been sent by this transaction but buffered at a higher level while
         // a TLS session (perhaps via a tunnel) is setup.
         bool reallySentData =
             mSentData && (!mConnection || mConnection->BytesWritten());
-
+        
         if (!mReceivedData &&
             (!reallySentData || connReused || mPipelinePosition)) {
             // if restarting fails, then we must proceed to close the pipe,
             // which will notify the channel that the transaction failed.
-
+            
             if (mPipelinePosition) {
                 gHttpHandler->ConnMgr()->PipelineFeedbackInfo(
                     mConnInfo, nsHttpConnectionMgr::RedCanceledPipeline,
@@ -887,25 +719,6 @@ nsHttpTransaction::Close(nsresult reason)
                 mConnInfo, nsHttpConnectionMgr::RedCorruptedContent, nullptr, 0);
             if (NS_SUCCEEDED(RestartInProgress()))
                 return;
-        }
-    }
-
-    if ((mChunkedDecoder || (mContentLength >= int64_t(0))) &&
-        (NS_SUCCEEDED(reason) && !mResponseIsComplete)) {
-
-        NS_WARNING("Partial transfer, incomplete HTTP response received");
-
-        if ((mHttpVersion >= NS_HTTP_VERSION_1_1) &&
-            gHttpHandler->GetEnforceH1Framing()) {
-            reason = NS_ERROR_NET_PARTIAL_TRANSFER;
-            LOG(("Partial transfer, incomplete HTTP response received: %s",
-                 mChunkedDecoder ? "broken chunk" : "c-l underrun"));
-        }
-
-        if (mConnection) {
-            // whether or not we generate an error for the transaction
-            // bad framing means we don't want a pconn
-            mConnection->DontReuse();
         }
     }
 
@@ -952,20 +765,14 @@ nsHttpTransaction::Close(nsresult reason)
     // EOF or an error still require an end time be recorded.
     if (TimingEnabled() &&
         mTimings.responseEnd.IsNull() && !mTimings.responseStart.IsNull())
-        mTimings.responseEnd = TimeStamp::Now();
+        mTimings.responseEnd = mozilla::TimeStamp::Now();
 
-    if (relConn && mConnection) {
-        MutexAutoLock lock(mLock);
-        mConnection = nullptr;
-    }
-
-    // save network statistics in the end of transaction
-    SaveNetworkStats(true);
+    if (relConn && mConnection)
+        NS_RELEASE(mConnection);
 
     mStatus = reason;
     mTransactionDone = true; // forcibly flag the transaction as complete
     mClosed = true;
-    ReleaseBlockingTransaction();
 
     // release some resources that we no longer need
     mRequestStream = nullptr;
@@ -978,15 +785,6 @@ nsHttpTransaction::Close(nsresult reason)
 
     // closing this pipe triggers the channel's OnStopRequest method.
     mPipeOut->CloseWithStatus(reason);
-
-    MOZ_EVENT_TRACER_DONE(static_cast<nsAHttpTransaction*>(this),
-                          "net::http::transaction");
-}
-
-nsHttpConnectionInfo *
-nsHttpTransaction::ConnectionInfo()
-{
-    return mConnInfo.get();
 }
 
 nsresult
@@ -1007,29 +805,11 @@ nsHttpTransaction::SetPipelinePosition(int32_t position)
     mPipelinePosition = position;
     return NS_OK;
 }
-
+ 
 int32_t
 nsHttpTransaction::PipelinePosition()
 {
     return mPipelinePosition;
-}
-
-bool // NOTE BASE CLASS
-nsAHttpTransaction::ResponseTimeoutEnabled() const
-{
-    return false;
-}
-
-PRIntervalTime // NOTE BASE CLASS
-nsAHttpTransaction::ResponseTimeout()
-{
-    return gHttpHandler->ResponseTimeout();
-}
-
-bool
-nsHttpTransaction::ResponseTimeoutEnabled() const
-{
-    return mResponseTimeoutEnabled;
 }
 
 //-----------------------------------------------------------------------------
@@ -1039,8 +819,8 @@ nsHttpTransaction::ResponseTimeoutEnabled() const
 nsresult
 nsHttpTransaction::RestartInProgress()
 {
-    MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
-
+    NS_ASSERTION(PR_GetCurrentThread() == gSocketThread, "wrong thread");
+    
     if ((mRestartCount + 1) >= gHttpHandler->MaxRequestAttempts()) {
         LOG(("nsHttpTransaction::RestartInProgress() "
              "reached max request attempts, failing transaction %p\n", this));
@@ -1065,7 +845,7 @@ nsHttpTransaction::RestartInProgress()
          this, mContentRead, mContentLength));
 
     mRestartInProgressVerifier.SetAlreadyProcessed(
-        std::max(mRestartInProgressVerifier.AlreadyProcessed(), mContentRead));
+        PR_MAX(mRestartInProgressVerifier.AlreadyProcessed(), mContentRead));
 
     if (!mResponseHeadTaken && !mForTakeResponseHead) {
         // TakeResponseHeader() has not been called yet and this
@@ -1100,16 +880,15 @@ nsHttpTransaction::RestartInProgress()
 nsresult
 nsHttpTransaction::Restart()
 {
-    MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
+    NS_ASSERTION(PR_GetCurrentThread() == gSocketThread, "wrong thread");
 
     // limit the number of restart attempts - bug 92224
     if (++mRestartCount >= gHttpHandler->MaxRequestAttempts()) {
-        LOG(("reached max request attempts, failing transaction @%p\n", this));
+        LOG(("reached max request attempts, failing transaction @%x\n", this));
         return NS_ERROR_NET_RESET;
     }
 
-    LOG(("restarting transaction @%p\n", this));
-    SetDontRouteViaWildCard(false);
+    LOG(("restarting transaction @%x\n", this));
 
     // rewind streams in case we already wrote out the request
     nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(mRequestStream);
@@ -1118,34 +897,13 @@ nsHttpTransaction::Restart()
 
     // clear old connection state...
     mSecurityInfo = 0;
-    if (mConnection) {
-        if (!mReuseOnRestart) {
-            mConnection->DontReuse();
-        }
-        MutexAutoLock lock(mLock);
-        mConnection = nullptr;
-    }
-
-    // Reset this to our default state, since this may change from one restart
-    // to the next
-    mReuseOnRestart = false;
+    NS_IF_RELEASE(mConnection);
 
     // disable pipelining for the next attempt in case pipelining caused the
     // reset.  this is being overly cautious since we don't know if pipelining
     // was the problem here.
     mCaps &= ~NS_HTTP_ALLOW_PIPELINING;
     SetPipelinePosition(0);
-
-    if (!mConnInfo->GetAuthenticationHost().IsEmpty()) {
-        MutexAutoLock lock(*nsHttp::GetLock());
-        nsRefPtr<nsHttpConnectionInfo> ci;
-         mConnInfo->CloneAsDirectRoute(getter_AddRefs(ci));
-         mConnInfo = ci;
-        if (mRequestHead) {
-            mRequestHead->SetHeader(nsHttp::Alternate_Service_Used, NS_LITERAL_CSTRING("0"));
-        }
-    }
-    mForceRestart = false;
 
     return gHttpHandler->InitiateTransaction(this, mPriority);
 }
@@ -1154,23 +912,20 @@ char *
 nsHttpTransaction::LocateHttpStart(char *buf, uint32_t len,
                                    bool aAllowPartialMatch)
 {
-    MOZ_ASSERT(!aAllowPartialMatch || mLineBuf.IsEmpty());
+    NS_ASSERTION(!aAllowPartialMatch || mLineBuf.IsEmpty(), "ouch");
 
     static const char HTTPHeader[] = "HTTP/1.";
     static const uint32_t HTTPHeaderLen = sizeof(HTTPHeader) - 1;
     static const char HTTP2Header[] = "HTTP/2.0";
     static const uint32_t HTTP2HeaderLen = sizeof(HTTP2Header) - 1;
-    // ShoutCast ICY is treated as HTTP/1.0
-    static const char ICYHeader[] = "ICY ";
-    static const uint32_t ICYHeaderLen = sizeof(ICYHeader) - 1;
-
+    
     if (aAllowPartialMatch && (len < HTTPHeaderLen))
         return (PL_strncasecmp(buf, HTTPHeader, len) == 0) ? buf : nullptr;
 
     // mLineBuf can contain partial match from previous search
     if (!mLineBuf.IsEmpty()) {
-        MOZ_ASSERT(mLineBuf.Length() < HTTPHeaderLen);
-        int32_t checkChars = std::min(len, HTTPHeaderLen - mLineBuf.Length());
+        NS_ASSERTION(mLineBuf.Length() < HTTPHeaderLen, "ouch");
+        int32_t checkChars = NS_MIN(len, HTTPHeaderLen - mLineBuf.Length());
         if (PL_strncasecmp(buf, HTTPHeader + mLineBuf.Length(),
                            checkChars) == 0) {
             mLineBuf.Append(buf, checkChars);
@@ -1189,7 +944,7 @@ nsHttpTransaction::LocateHttpStart(char *buf, uint32_t len,
 
     bool firstByte = true;
     while (len > 0) {
-        if (PL_strncasecmp(buf, HTTPHeader, std::min<uint32_t>(len, HTTPHeaderLen)) == 0) {
+        if (PL_strncasecmp(buf, HTTPHeader, NS_MIN<uint32_t>(len, HTTPHeaderLen)) == 0) {
             if (len < HTTPHeaderLen) {
                 // partial HTTPHeader sequence found
                 // save partial match to mLineBuf
@@ -1212,16 +967,6 @@ nsHttpTransaction::LocateHttpStart(char *buf, uint32_t len,
             return buf;
         }
 
-        // Treat ICY (AOL/Nullsoft ShoutCast) non-standard header in same fashion
-        // as HTTP/2.0 is treated above. This will allow "ICY " to be interpretted
-        // as HTTP/1.0 in nsHttpResponseHead::ParseVersion
-
-        if (firstByte && !mInvalidResponseBytesRead && len >= ICYHeaderLen &&
-            (PL_strncasecmp(buf, ICYHeader, ICYHeaderLen) == 0)) {
-            LOG(("nsHttpTransaction:: Identified ICY treating as HTTP/1.0\n"));
-            return buf;
-        }
-
         if (!nsCRT::IsAsciiSpace(*buf))
             firstByte = false;
         buf++;
@@ -1235,7 +980,7 @@ nsHttpTransaction::ParseLine(char *line)
 {
     LOG(("nsHttpTransaction::ParseLine [%s]\n", line));
     nsresult rv = NS_OK;
-
+    
     if (!mHaveStatusLine) {
         mResponseHead->ParseStatusLine(line);
         mHaveStatusLine = true;
@@ -1274,7 +1019,7 @@ nsHttpTransaction::ParseLineSegment(char *segment, uint32_t len)
 
     // append segment to mLineBuf...
     mLineBuf.Append(segment, len);
-
+    
     // a line buf with only a new line char signifies the end of headers.
     if (mLineBuf.First() == '\n') {
         mLineBuf.Truncate();
@@ -1307,7 +1052,7 @@ nsHttpTransaction::ParseHead(char *buf,
     *countRead = 0;
 
     NS_PRECONDITION(!mHaveAllHeaders, "oops");
-
+        
     // allocate the response head object if necessary
     if (!mResponseHead) {
         mResponseHead = new nsHttpResponseHead();
@@ -1321,7 +1066,7 @@ nsHttpTransaction::ParseHead(char *buf,
                 mChannel,
                 NS_HTTP_ACTIVITY_TYPE_HTTP_TRANSACTION,
                 NS_HTTP_ACTIVITY_SUBTYPE_RESPONSE_START,
-                PR_Now(), 0, EmptyCString());
+                PR_Now(), LL_ZERO, EmptyCString());
         }
     }
 
@@ -1334,10 +1079,10 @@ nsHttpTransaction::ParseHead(char *buf,
         if (!mConnection || !mConnection->LastTransactionExpectedNoContent()) {
             // tolerate only minor junk before the status line
             mHttpResponseMatched = true;
-            char *p = LocateHttpStart(buf, std::min<uint32_t>(count, 11), true);
+            char *p = LocateHttpStart(buf, NS_MIN<uint32_t>(count, 11), true);
             if (!p) {
                 // Treat any 0.9 style response of a put as a failure.
-                if (mRequestHead->IsPut())
+                if (mRequestHead->Method() == nsHttp::Put)
                     return NS_ERROR_ABORT;
 
                 mResponseHead->ParseStatusLine("");
@@ -1375,7 +1120,7 @@ nsHttpTransaction::ParseHead(char *buf,
     }
     // otherwise we can assume that we don't have a HTTP/0.9 response.
 
-    MOZ_ASSERT (mHttpResponseMatched);
+    NS_ABORT_IF_FALSE (mHttpResponseMatched, "inconsistent");
     while ((eol = static_cast<char *>(memchr(buf, '\n', count - *countRead))) != nullptr) {
         // found line in range [buf:eol]
         len = eol - buf + 1;
@@ -1418,17 +1163,17 @@ nsHttpTransaction::ParseHead(char *buf,
     return NS_OK;
 }
 
+// called on the socket thread
 nsresult
 nsHttpTransaction::HandleContentStart()
 {
-    LOG(("nsHttpTransaction::HandleContentStart [this=%p]\n", this));
-    MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
+    LOG(("nsHttpTransaction::HandleContentStart [this=%x]\n", this));
 
     if (mResponseHead) {
 #if defined(PR_LOGGING)
         if (LOG3_ENABLED()) {
             LOG3(("http response [\n"));
-            nsAutoCString headers;
+            nsCAutoString headers;
             mResponseHead->Flatten(headers, false);
             LogHeaders(headers.get());
             LOG3(("]\n"));
@@ -1466,18 +1211,8 @@ nsHttpTransaction::HandleContentStart()
             mNoContent = true;
             LOG(("this response should not contain a body.\n"));
             break;
-        case 421:
-            if (!mConnInfo->GetAuthenticationHost().IsEmpty()) {
-                LOG(("Not Authoritative.\n"));
-                gHttpHandler->ConnMgr()->
-                    ClearHostMapping(mConnInfo->GetHost(), mConnInfo->Port());
-            }
-            // retry on a new connection - just in case
-            mCaps &= ~NS_HTTP_ALLOW_KEEPALIVE;
-            mForceRestart = true; // force restart has built in loop protection
-            break;
         }
-
+        
         if (mResponseHead->Status() == 200 &&
             mConnection->IsProxyConnectInProgress()) {
             // successful CONNECTs do not have response bodies
@@ -1498,7 +1233,7 @@ nsHttpTransaction::HandleContentStart()
             if ((mClassification != CLASS_SOLO) &&
                 (mContentLength > mMaxPipelineObjectSize))
                 CancelPipeline(nsHttpConnectionMgr::BadUnexpectedLarge);
-
+            
             // handle chunked encoding here, so we'll know immediately when
             // we're done with the socket.  please note that _all_ other
             // decoding is done when the channel receives the content data
@@ -1530,7 +1265,7 @@ nsHttpTransaction::HandleContentStart()
 
     // The verifier only initializes itself once (from the first iteration of
     // a transaction that gets far enough to have response headers)
-    if (mRequestHead->IsGet())
+    if (mRequestHead->Method() == nsHttp::Get)
         mRestartInProgressVerifier.Set(mContentLength, mResponseHead);
 
     return NS_OK;
@@ -1545,12 +1280,12 @@ nsHttpTransaction::HandleContent(char *buf,
 {
     nsresult rv;
 
-    LOG(("nsHttpTransaction::HandleContent [this=%p count=%u]\n", this, count));
+    LOG(("nsHttpTransaction::HandleContent [this=%x count=%u]\n", this, count));
 
     *contentRead = 0;
     *contentRemaining = 0;
 
-    MOZ_ASSERT(mConnection);
+    NS_ASSERTION(mConnection, "no connection");
 
     if (!mDidContentStart) {
         rv = HandleContentStart();
@@ -1574,7 +1309,7 @@ nsHttpTransaction::HandleContent(char *buf,
         if (mConnection->IsPersistent() || mPreserveStream ||
             mHttpVersion >= NS_HTTP_VERSION_1_1) {
             int64_t remaining = mContentLength - mContentRead;
-            *contentRead = uint32_t(std::min<int64_t>(count, remaining));
+            *contentRead = uint32_t(NS_MIN<int64_t>(count, remaining));
             *contentRemaining = count - *contentRead;
         }
         else {
@@ -1592,14 +1327,14 @@ nsHttpTransaction::HandleContent(char *buf,
         // (no explicit content-length given)
         *contentRead = count;
     }
-
+    
     int64_t toReadBeforeRestart =
         mRestartInProgressVerifier.ToReadBeforeRestart();
 
     if (toReadBeforeRestart && *contentRead) {
         uint32_t ignore =
-            static_cast<uint32_t>(std::min<int64_t>(toReadBeforeRestart, UINT32_MAX));
-        ignore = std::min(*contentRead, ignore);
+            PR_MIN(toReadBeforeRestart, PR_UINT32_MAX);
+        ignore = PR_MIN(*contentRead, ignore);
         LOG(("Due To Restart ignoring %d of remaining %ld",
              ignore, toReadBeforeRestart));
         *contentRead -= ignore;
@@ -1611,13 +1346,13 @@ nsHttpTransaction::HandleContent(char *buf,
     if (*contentRead) {
         // update count of content bytes read and report progress...
         mContentRead += *contentRead;
-        /* when uncommenting, take care of 64-bit integers w/ std::max...
+        /* when uncommenting, take care of 64-bit integers w/ NS_MAX...
         if (mProgressSink)
-            mProgressSink->OnProgress(nullptr, nullptr, mContentRead, std::max(0, mContentLength));
+            mProgressSink->OnProgress(nullptr, nullptr, mContentRead, NS_MAX(0, mContentLength));
         */
     }
 
-    LOG(("nsHttpTransaction::HandleContent [this=%p count=%u read=%u mContentRead=%lld mContentLength=%lld]\n",
+    LOG(("nsHttpTransaction::HandleContent [this=%x count=%u read=%u mContentRead=%lld mContentLength=%lld]\n",
         this, count, *contentRead, mContentRead, mContentLength));
 
     // Check the size of chunked responses. If we exceed the max pipeline size
@@ -1635,10 +1370,9 @@ nsHttpTransaction::HandleContent(char *buf,
         // the transaction is done with a complete response.
         mTransactionDone = true;
         mResponseIsComplete = true;
-        ReleaseBlockingTransaction();
 
         if (TimingEnabled())
-            mTimings.responseEnd = TimeStamp::Now();
+            mTimings.responseEnd = mozilla::TimeStamp::Now();
 
         // report the entire response has arrived
         if (mActivityDistributor)
@@ -1659,7 +1393,7 @@ nsHttpTransaction::ProcessData(char *buf, uint32_t count, uint32_t *countRead)
 {
     nsresult rv;
 
-    LOG(("nsHttpTransaction::ProcessData [this=%p count=%u]\n", this, count));
+    LOG(("nsHttpTransaction::ProcessData [this=%x count=%u]\n", this, count));
 
     *countRead = 0;
 
@@ -1671,13 +1405,13 @@ nsHttpTransaction::ProcessData(char *buf, uint32_t count, uint32_t *countRead)
             uint32_t localBytesConsumed = 0;
             char *localBuf = buf + bytesConsumed;
             uint32_t localCount = count - bytesConsumed;
-
+            
             rv = ParseHead(localBuf, localCount, &localBytesConsumed);
             if (NS_FAILED(rv) && rv != NS_ERROR_NET_INTERRUPT)
                 return rv;
             bytesConsumed += localBytesConsumed;
         } while (rv == NS_ERROR_NET_INTERRUPT);
-
+        
         count -= bytesConsumed;
 
         // if buf has some content in it, shift bytes to top of buf.
@@ -1688,14 +1422,14 @@ nsHttpTransaction::ProcessData(char *buf, uint32_t count, uint32_t *countRead)
         if (mActivityDistributor && mResponseHead && mHaveAllHeaders &&
             !mReportedResponseHeader) {
             mReportedResponseHeader = true;
-            nsAutoCString completeResponseHeaders;
+            nsCAutoString completeResponseHeaders;
             mResponseHead->Flatten(completeResponseHeaders, false);
             completeResponseHeaders.AppendLiteral("\r\n");
             mActivityDistributor->ObserveActivity(
                 mChannel,
                 NS_HTTP_ACTIVITY_TYPE_HTTP_TRANSACTION,
                 NS_HTTP_ACTIVITY_SUBTYPE_RESPONSE_HEADER,
-                PR_Now(), 0,
+                PR_Now(), LL_ZERO,
                 completeResponseHeaders);
         }
     }
@@ -1706,7 +1440,7 @@ nsHttpTransaction::ProcessData(char *buf, uint32_t count, uint32_t *countRead)
         uint32_t countRemaining = 0;
         //
         // buf layout:
-        //
+        // 
         // +--------------------------------------+----------------+-----+
         // |              countRead               | countRemaining |     |
         // +--------------------------------------+----------------+-----+
@@ -1723,7 +1457,7 @@ nsHttpTransaction::ProcessData(char *buf, uint32_t count, uint32_t *countRead)
         // we may have read more than our share, in which case we must give
         // the excess bytes back to the connection
         if (mResponseIsComplete && countRemaining) {
-            MOZ_ASSERT(mConnection);
+            NS_ASSERTION(mConnection, "no connection");
             mConnection->PushBack(buf + *countRead, countRemaining);
         }
     }
@@ -1748,75 +1482,13 @@ nsHttpTransaction::CancelPipeline(uint32_t reason)
     mClassification = CLASS_SOLO;
 }
 
-// Called when the transaction marked for blocking is associated with a connection
-// (i.e. added to a spdy session, an idle http connection, or placed into
-// a http pipeline). It is safe to call this multiple times with it only
-// having an effect once.
-void
-nsHttpTransaction::DispatchedAsBlocking()
-{
-    if (mDispatchedAsBlocking)
-        return;
-
-    LOG(("nsHttpTransaction %p dispatched as blocking\n", this));
-
-    if (!mLoadGroupCI)
-        return;
-
-    LOG(("nsHttpTransaction adding blocking channel %p from "
-         "loadgroup %p\n", this, mLoadGroupCI.get()));
-
-    mLoadGroupCI->AddBlockingTransaction();
-    mDispatchedAsBlocking = true;
-}
-
-void
-nsHttpTransaction::RemoveDispatchedAsBlocking()
-{
-    if (!mLoadGroupCI || !mDispatchedAsBlocking)
-        return;
-
-    uint32_t blockers = 0;
-    nsresult rv = mLoadGroupCI->RemoveBlockingTransaction(&blockers);
-
-    LOG(("nsHttpTransaction removing blocking channel %p from "
-         "loadgroup %p. %d blockers remain.\n", this,
-         mLoadGroupCI.get(), blockers));
-
-    if (NS_SUCCEEDED(rv) && !blockers) {
-        LOG(("nsHttpTransaction %p triggering release of blocked channels.\n",
-             this));
-        gHttpHandler->ConnMgr()->ProcessPendingQ();
-    }
-
-    mDispatchedAsBlocking = false;
-}
-
-void
-nsHttpTransaction::ReleaseBlockingTransaction()
-{
-    RemoveDispatchedAsBlocking();
-    mLoadGroupCI = nullptr;
-}
-
-void
-nsHttpTransaction::DisableSpdy()
-{
-    mCaps |= NS_HTTP_DISALLOW_SPDY;
-    if (mConnInfo) {
-        // This is our clone of the connection info, not the persistent one that
-        // is owned by the connection manager, so we're safe to change this here
-        mConnInfo->SetNoSpdy(true);
-    }
-}
-
 //-----------------------------------------------------------------------------
 // nsHttpTransaction deletion event
 //-----------------------------------------------------------------------------
 
-class DeleteHttpTransaction : public nsRunnable {
+class nsDeleteHttpTransaction : public nsRunnable {
 public:
-    explicit DeleteHttpTransaction(nsHttpTransaction *trans)
+    nsDeleteHttpTransaction(nsHttpTransaction *trans)
         : mTrans(trans)
     {}
 
@@ -1832,49 +1504,17 @@ private:
 void
 nsHttpTransaction::DeleteSelfOnConsumerThread()
 {
-    LOG(("nsHttpTransaction::DeleteSelfOnConsumerThread [this=%p]\n", this));
-
+    LOG(("nsHttpTransaction::DeleteSelfOnConsumerThread [this=%x]\n", this));
+    
     bool val;
     if (!mConsumerTarget ||
         (NS_SUCCEEDED(mConsumerTarget->IsOnCurrentThread(&val)) && val)) {
         delete this;
     } else {
         LOG(("proxying delete to consumer thread...\n"));
-        nsCOMPtr<nsIRunnable> event = new DeleteHttpTransaction(this);
+        nsCOMPtr<nsIRunnable> event = new nsDeleteHttpTransaction(this);
         if (NS_FAILED(mConsumerTarget->Dispatch(event, NS_DISPATCH_NORMAL)))
             NS_WARNING("failed to dispatch nsHttpDeleteTransaction event");
-    }
-}
-
-bool
-nsHttpTransaction::TryToRunPacedRequest()
-{
-    if (mSubmittedRatePacing)
-        return mPassedRatePacing;
-
-    mSubmittedRatePacing = true;
-    mSynchronousRatePaceRequest = true;
-    gHttpHandler->SubmitPacedRequest(this, getter_AddRefs(mTokenBucketCancel));
-    mSynchronousRatePaceRequest = false;
-    return mPassedRatePacing;
-}
-
-void
-nsHttpTransaction::OnTokenBucketAdmitted()
-{
-    mPassedRatePacing = true;
-    mTokenBucketCancel = nullptr;
-
-    if (!mSynchronousRatePaceRequest)
-        gHttpHandler->ConnMgr()->ProcessPendingQ(mConnInfo);
-}
-
-void
-nsHttpTransaction::CancelPacing(nsresult reason)
-{
-    if (mTokenBucketCancel) {
-        mTokenBucketCancel->Cancel(reason);
-        mTokenBucketCancel = nullptr;
     }
 }
 
@@ -1882,18 +1522,18 @@ nsHttpTransaction::CancelPacing(nsresult reason)
 // nsHttpTransaction::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ADDREF(nsHttpTransaction)
+NS_IMPL_THREADSAFE_ADDREF(nsHttpTransaction)
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 nsHttpTransaction::Release()
 {
     nsrefcnt count;
     NS_PRECONDITION(0 != mRefCnt, "dup release");
-    count = --mRefCnt;
+    count = NS_AtomicDecrementRefcnt(mRefCnt);
     NS_LOG_RELEASE(this, count, "nsHttpTransaction");
     if (0 == count) {
         mRefCnt = 1; /* stablize */
-        // it is essential that the transaction be destroyed on the consumer
+        // it is essential that the transaction be destroyed on the consumer 
         // thread (we could be holding the last reference to our consumer).
         DeleteSelfOnConsumerThread();
         return 0;
@@ -1901,9 +1541,9 @@ nsHttpTransaction::Release()
     return count;
 }
 
-NS_IMPL_QUERY_INTERFACE(nsHttpTransaction,
-                        nsIInputStreamCallback,
-                        nsIOutputStreamCallback)
+NS_IMPL_THREADSAFE_QUERY_INTERFACE2(nsHttpTransaction,
+                                    nsIInputStreamCallback,
+                                    nsIOutputStreamCallback)
 
 //-----------------------------------------------------------------------------
 // nsHttpTransaction::nsIInputStreamCallback
@@ -1945,7 +1585,7 @@ matchOld(nsHttpResponseHead *newHead, nsCString &old,
          nsHttpAtom headerAtom)
 {
     const char *val;
-
+    
     val = newHead->PeekHeader(headerAtom);
     if (val && old.IsEmpty())
         return false;
@@ -1980,7 +1620,7 @@ nsHttpTransaction::RestartVerifier::Verify(int64_t contentLength,
 
     if (!matchOld(newHead, mTransferEncoding, nsHttp::Transfer_Encoding))
         return false;
-
+    
     return true;
 }
 
@@ -1999,7 +1639,7 @@ nsHttpTransaction::RestartVerifier::Set(int64_t contentLength,
         return;
 
     mContentLength = contentLength;
-
+    
     if (head) {
         const char *val;
         val = head->PeekHeader(nsHttp::ETag);
@@ -2026,6 +1666,3 @@ nsHttpTransaction::RestartVerifier::Set(int64_t contentLength,
         mSetup = true;
     }
 }
-
-} // namespace mozilla::net
-} // namespace mozilla

@@ -82,7 +82,6 @@ typedef std::map<std::string, std::string> StringTable;
 namespace CrashReporter {
   extern StringTable  gStrings;
   extern std::string  gSettingsPath;
-  extern std::string  gEventsPath;
   extern int          gArgc;
   extern char**       gArgv;
 
@@ -125,7 +124,7 @@ void UIShowDefaultUI();
 // Run the UI for when the app was launched with a dump file
 // Return true if the user sent (or tried to send) the crash report,
 // false if they chose not to, and it should be deleted.
-bool UIShowCrashUI(const StringTable& files,
+bool UIShowCrashUI(const std::string& dumpfile,
                    const StringTable& queryParameters,
                    const std::string& sendURL,
                    const std::vector<std::string>& restartArgs);
@@ -141,9 +140,7 @@ bool UIFileExists(const std::string& path);
 bool UIMoveFile(const std::string& oldfile, const std::string& newfile);
 bool UIDeleteFile(const std::string& oldfile);
 std::ifstream* UIOpenRead(const std::string& filename);
-std::ofstream* UIOpenWrite(const std::string& filename,
-                           bool append=false,
-                           bool binary=false);
+std::ofstream* UIOpenWrite(const std::string& filename, bool append=false);
 void UIPruneSavedDumps(const std::string& directory);
 
 #ifdef _MSC_VER

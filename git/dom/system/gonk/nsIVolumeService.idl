@@ -4,28 +4,16 @@
 
 #include "nsISupports.idl"
 #include "nsIVolume.idl"
-#include "nsIVolumeMountLock.idl"
 
-interface nsIArray;
-
-[scriptable, uuid(c31b182c-61a3-449c-bba8-fd45044499c2)]
+[scriptable, uuid(b31bd379-4bd2-4189-a85b-c0927a266a85)]
 interface nsIVolumeService : nsISupports
 {
     nsIVolume getVolumeByName(in DOMString volName);
     nsIVolume getVolumeByPath(in DOMString path);
-    nsIVolume createOrGetVolumeByPath(in DOMString path);
-
-    nsIVolumeMountLock createMountLock(in DOMString volName);
-
-    nsIArray getVolumeNames();
-
-    /* for test case only to simulate sdcard insertion/removal */
-    void createFakeVolume(in DOMString name, in DOMString path);
-    void SetFakeVolumeState(in DOMString name, in long state);
 };
 
 %{C++
 #define NS_VOLUMESERVICE_CID \
-  {0x7c179fb7, 0x67a0, 0x43a3, {0x93, 0x37, 0x29, 0x4e, 0x03, 0x60, 0xb8, 0x58}}
+  {0xb31bd379, 0x4bd2, 0x4189, {0xa8, 0x5b, 0xc0, 0x92, 0x7a, 0x26, 0x6a, 0x85}}
 #define NS_VOLUMESERVICE_CONTRACTID "@mozilla.org/telephony/volume-service;1"
 %}

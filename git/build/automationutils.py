@@ -4,41 +4,40 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 from __future__ import with_statement
-import logging
-from operator import itemgetter
-import os
-import platform
+import glob, logging, os, platform, shutil, subprocess, sys, tempfile, urllib2, zipfile
 import re
-import signal
-import subprocess
-import sys
-import tempfile
-import zipfile
-import mozinfo
+from urlparse import urlparse
 
 __all__ = [
   "ZipFileReader",
+  "addCommonOptions",
+  "checkForCrashes",
   "dumpLeakLog",
+  "isURL",
   "processLeakLog",
-  'systemMemory',
-  'environment',
-  'dumpScreen',
-  "ShutdownLeaks",
-  "setAutomationLog",
+  "getDebuggerInfo",
+  "DEBUGGER_INFO",
+  "replaceBackSlashes",
+  "wrapCommand",
   ]
 
-log = logging.getLogger()
-def resetGlobalLog():
-  while log.handlers:
-    log.removeHandler(log.handlers[0])
-  handler = logging.StreamHandler(sys.stdout)
-  log.setLevel(logging.INFO)
-  log.addHandler(handler)
-resetGlobalLog()
+# Map of debugging programs to information about them, like default arguments
+# and whether or not they are interactive.
+DEBUGGER_INFO = {
+  # gdb requires that you supply the '--args' flag in order to pass arguments
+  # after the executable name to the executable.
+  "gdb": {
+    "interactive": True,
+    "args": "-q --args"
+  },
 
-def setAutomationLog(alt_logger):
-  global log
-  log = alt_logger
+  # valgrind doesn't explain much about leaks unless you set the
+  # '--leak-check=full' flag.
+  "valgrind": {
+    "interactive": False,
+    "args": "--leak-check=full"
+  }
+}
 
 class ZipFileReader(object):
   """
@@ -102,42 +101,160 @@ class ZipFileReader(object):
     for name in self._zipfile.namelist():
       self._extractname(name, path)
 
-# Python does not provide strsignal() even in the very latest 3.x.
-# This is a reasonable fake.
-def strsig(n):
-  # Signal numbers run 0 through NSIG-1; an array with NSIG members
-  # has exactly that many slots
-  _sigtbl = [None]*signal.NSIG
-  for k in dir(signal):
-    if k.startswith("SIG") and not k.startswith("SIG_") and k != "SIGCLD" and k != "SIGPOLL":
-      _sigtbl[getattr(signal, k)] = k
-  # Realtime signals mostly have no names
-  if hasattr(signal, "SIGRTMIN") and hasattr(signal, "SIGRTMAX"):
-    for r in range(signal.SIGRTMIN+1, signal.SIGRTMAX+1):
-      _sigtbl[r] = "SIGRTMIN+" + str(r - signal.SIGRTMIN)
-  # Fill in any remaining gaps
-  for i in range(signal.NSIG):
-    if _sigtbl[i] is None:
-      _sigtbl[i] = "unrecognized signal, number " + str(i)
-  if n < 0 or n >= signal.NSIG:
-    return "out-of-range signal, number "+str(n)
-  return _sigtbl[n]
+log = logging.getLogger()
 
-def printstatus(status, name = ""):
-  # 'status' is the exit status
-  if os.name != 'posix':
-    # Windows error codes are easier to look up if printed in hexadecimal
-    if status < 0:
-      status += 2**32
-    print "TEST-INFO | %s: exit status %x\n" % (name, status)
-  elif os.WIFEXITED(status):
-    print "TEST-INFO | %s: exit %d\n" % (name, os.WEXITSTATUS(status))
-  elif os.WIFSIGNALED(status):
-    # The python stdlib doesn't appear to have strsignal(), alas
-    print "TEST-INFO | {}: killed by {}".format(name,strsig(os.WTERMSIG(status)))
-  else:
-    # This is probably a can't-happen condition on Unix, but let's be defensive
-    print "TEST-INFO | %s: undecodable exit status %04x\n" % (name, status)
+def isURL(thing):
+  """Return True if |thing| looks like a URL."""
+  # We want to download URLs like http://... but not Windows paths like c:\...
+  return len(urlparse(thing).scheme) >= 2
+
+def addCommonOptions(parser, defaults={}):
+  parser.add_option("--xre-path",
+                    action = "store", type = "string", dest = "xrePath",
+                    # individual scripts will set a sane default
+                    default = None,
+                    help = "absolute path to directory containing XRE (probably xulrunner)")
+  if 'SYMBOLS_PATH' not in defaults:
+    defaults['SYMBOLS_PATH'] = None
+  parser.add_option("--symbols-path",
+                    action = "store", type = "string", dest = "symbolsPath",
+                    default = defaults['SYMBOLS_PATH'],
+                    help = "absolute path to directory containing breakpad symbols, or the URL of a zip file containing symbols")
+  parser.add_option("--debugger",
+                    action = "store", dest = "debugger",
+                    help = "use the given debugger to launch the application")
+  parser.add_option("--debugger-args",
+                    action = "store", dest = "debuggerArgs",
+                    help = "pass the given args to the debugger _before_ "
+                           "the application on the command line")
+  parser.add_option("--debugger-interactive",
+                    action = "store_true", dest = "debuggerInteractive",
+                    help = "prevents the test harness from redirecting "
+                        "stdout and stderr for interactive debuggers")
+
+def checkForCrashes(dumpDir, symbolsPath, testName=None):
+  stackwalkPath = os.environ.get('MINIDUMP_STACKWALK', None)
+  # try to get the caller's filename if no test name is given
+  if testName is None:
+    try:
+      testName = os.path.basename(sys._getframe(1).f_code.co_filename)
+    except:
+      testName = "unknown"
+
+  # Check preconditions
+  dumps = glob.glob(os.path.join(dumpDir, '*.dmp'))
+  if len(dumps) == 0:
+    return False
+
+  foundCrash = False
+  removeSymbolsPath = False
+
+  # If our symbols are at a remote URL, download them now
+  if isURL(symbolsPath):
+    print "Downloading symbols from: " + symbolsPath
+    removeSymbolsPath = True
+    # Get the symbols and write them to a temporary zipfile
+    data = urllib2.urlopen(symbolsPath)
+    symbolsFile = tempfile.TemporaryFile()
+    symbolsFile.write(data.read())
+    # extract symbols to a temporary directory (which we'll delete after
+    # processing all crashes)
+    symbolsPath = tempfile.mkdtemp()
+    zfile = ZipFileReader(symbolsFile)
+    zfile.extractall(symbolsPath)
+
+  try:
+    for d in dumps:
+      log.info("PROCESS-CRASH | %s | application crashed (minidump found)", testName)
+      print "Crash dump filename: " + d
+      if symbolsPath and stackwalkPath and os.path.exists(stackwalkPath):
+        # run minidump stackwalk
+        p = subprocess.Popen([stackwalkPath, d, symbolsPath],
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+        (out, err) = p.communicate()
+        if len(out) > 3:
+          # minidump_stackwalk is chatty, so ignore stderr when it succeeds.
+          print out
+        else:
+          print "stderr from minidump_stackwalk:"
+          print err
+        if p.returncode != 0:
+          print "minidump_stackwalk exited with return code %d" % p.returncode
+      else:
+        if not symbolsPath:
+          print "No symbols path given, can't process dump."
+        if not stackwalkPath:
+          print "MINIDUMP_STACKWALK not set, can't process dump."
+        elif stackwalkPath and not os.path.exists(stackwalkPath):
+          print "MINIDUMP_STACKWALK binary not found: %s" % stackwalkPath
+      dumpSavePath = os.environ.get('MINIDUMP_SAVE_PATH', None)
+      if dumpSavePath:
+        shutil.move(d, dumpSavePath)
+        print "Saved dump as %s" % os.path.join(dumpSavePath,
+                                                os.path.basename(d))
+      else:
+        os.remove(d)
+      extra = os.path.splitext(d)[0] + ".extra"
+      if os.path.exists(extra):
+        os.remove(extra)
+      foundCrash = True
+  finally:
+    if removeSymbolsPath:
+      shutil.rmtree(symbolsPath)
+
+  return foundCrash
+
+def getFullPath(directory, path):
+  "Get an absolute path relative to 'directory'."
+  return os.path.normpath(os.path.join(directory, os.path.expanduser(path)))
+
+def searchPath(directory, path):
+  "Go one step beyond getFullPath and try the various folders in PATH"
+  # Try looking in the current working directory first.
+  newpath = getFullPath(directory, path)
+  if os.path.isfile(newpath):
+    return newpath
+
+  # At this point we have to fail if a directory was given (to prevent cases
+  # like './gdb' from matching '/usr/bin/./gdb').
+  if not os.path.dirname(path):
+    for dir in os.environ['PATH'].split(os.pathsep):
+      newpath = os.path.join(dir, path)
+      if os.path.isfile(newpath):
+        return newpath
+  return None
+
+def getDebuggerInfo(directory, debugger, debuggerArgs, debuggerInteractive = False):
+
+  debuggerInfo = None
+
+  if debugger:
+    debuggerPath = searchPath(directory, debugger)
+    if not debuggerPath:
+      print "Error: Path %s doesn't exist." % debugger
+      sys.exit(1)
+
+    debuggerName = os.path.basename(debuggerPath).lower()
+
+    def getDebuggerInfo(type, default):
+      if debuggerName in DEBUGGER_INFO and type in DEBUGGER_INFO[debuggerName]:
+        return DEBUGGER_INFO[debuggerName][type]
+      return default
+
+    debuggerInfo = {
+      "path": debuggerPath,
+      "interactive" : getDebuggerInfo("interactive", False),
+      "args": getDebuggerInfo("args", "").split()
+    }
+
+    if debuggerArgs:
+      debuggerInfo["args"] = debuggerArgs.split()
+    if debuggerInteractive:
+      debuggerInfo["interactive"] = debuggerInteractive
+
+  return debuggerInfo
+
 
 def dumpLeakLog(leakLogFile, filter = False):
   """Process the leak log, without parsing it.
@@ -150,8 +267,9 @@ def dumpLeakLog(leakLogFile, filter = False):
   if not os.path.exists(leakLogFile):
     return
 
-  with open(leakLogFile, "r") as leaks:
-    leakReport = leaks.read()
+  leaks = open(leakLogFile, "r")
+  leakReport = leaks.read()
+  leaks.close()
 
   # Only |XPCOM_MEM_LEAK_LOG| reports can be actually filtered out.
   # Only check whether an actual leak was reported.
@@ -161,8 +279,9 @@ def dumpLeakLog(leakLogFile, filter = False):
   # Simply copy the log.
   log.info(leakReport.rstrip("\n"))
 
-def processSingleLeakFile(leakLogFileName, processType, leakThreshold, ignoreMissingLeaks):
-  """Process a single leak log.
+def processSingleLeakFile(leakLogFileName, PID, processType, leakThreshold):
+  """Process a single leak log, corresponding to the specified
+  process PID and type.
   """
 
   #                  Per-Inst  Leaked      Total  Rem ...
@@ -172,539 +291,129 @@ def processSingleLeakFile(leakLogFileName, processType, leakThreshold, ignoreMis
                       r"(?P<size>-?\d+)\s+(?P<bytesLeaked>-?\d+)\s+"
                       r"-?\d+\s+(?P<numLeaked>-?\d+)")
 
-  processString = "%s process:" % processType
+  processString = ""
+  if PID and processType:
+    processString = "| %s process %s " % (processType, PID)
+  leaks = open(leakLogFileName, "r")
+  for line in leaks:
+    matches = lineRe.match(line)
+    if (matches and
+        int(matches.group("numLeaked")) == 0 and
+        matches.group("name") != "TOTAL"):
+      continue
+    log.info(line.rstrip())
+  leaks.close()
+
+  leaks = open(leakLogFileName, "r")
+  seenTotal = False
   crashedOnPurpose = False
-  totalBytesLeaked = None
-  logAsWarning = False
-  leakAnalysis = []
-  leakedObjectAnalysis = []
-  leakedObjectNames = []
-  recordLeakedObjects = False
-  with open(leakLogFileName, "r") as leaks:
-    for line in leaks:
-      if line.find("purposefully crash") > -1:
-        crashedOnPurpose = True
-      matches = lineRe.match(line)
-      if not matches:
-        # eg: the leak table header row
-        log.info(line.rstrip())
-        continue
-      name = matches.group("name")
-      size = int(matches.group("size"))
-      bytesLeaked = int(matches.group("bytesLeaked"))
-      numLeaked = int(matches.group("numLeaked"))
-      # Output the raw line from the leak log table if it is the TOTAL row,
-      # or is for an object row that has been leaked.
-      if numLeaked != 0 or name == "TOTAL":
-        log.info(line.rstrip())
-      # Analyse the leak log, but output later or it will interrupt the leak table
+  prefix = "TEST-PASS"
+  numObjects = 0
+  for line in leaks:
+    if line.find("purposefully crash") > -1:
+      crashedOnPurpose = True
+    matches = lineRe.match(line)
+    if not matches:
+      continue
+    name = matches.group("name")
+    size = int(matches.group("size"))
+    bytesLeaked = int(matches.group("bytesLeaked"))
+    numLeaked = int(matches.group("numLeaked"))
+    if size < 0 or bytesLeaked < 0 or numLeaked < 0:
+      log.info("TEST-UNEXPECTED-FAIL %s| automationutils.processLeakLog() | negative leaks caught!" %
+               processString)
       if name == "TOTAL":
-        # Multiple default processes can end up writing their bloat views into a single
-        # log, particularly on B2G. Eventually, these should be split into multiple
-        # logs (bug 1068869), but for now, we report the largest leak.
-        if totalBytesLeaked != None:
-          leakAnalysis.append("WARNING | leakcheck | %s multiple BloatView byte totals found"
-                              % processString)
-        else:
-          totalBytesLeaked = 0
-        if bytesLeaked > totalBytesLeaked:
-          totalBytesLeaked = bytesLeaked
-          # Throw out the information we had about the previous bloat view.
-          leakedObjectNames = []
-          leakedObjectAnalysis = []
-          recordLeakedObjects = True
-        else:
-          recordLeakedObjects = False
-      if size < 0 or bytesLeaked < 0 or numLeaked < 0:
-        leakAnalysis.append("TEST-UNEXPECTED-FAIL | leakcheck | %s negative leaks caught!"
-                            % processString)
-        logAsWarning = True
-        continue
-      if name != "TOTAL" and numLeaked != 0 and recordLeakedObjects:
-        leakedObjectNames.append(name)
-        leakedObjectAnalysis.append("TEST-INFO | leakcheck | %s leaked %d %s (%s bytes)"
-                                    % (processString, numLeaked, name, bytesLeaked))
-
-  leakAnalysis.extend(leakedObjectAnalysis)
-  if logAsWarning:
-    log.warning('\n'.join(leakAnalysis))
-  else:
-    log.info('\n'.join(leakAnalysis))
-
-  logAsWarning = False
-
-  if totalBytesLeaked is None:
-    # We didn't see a line with name 'TOTAL'
-    if crashedOnPurpose:
-      log.info("TEST-INFO | leakcheck | %s deliberate crash and thus no leak log"
-               % processString)
-    elif ignoreMissingLeaks:
-      log.info("TEST-INFO | leakcheck | %s ignoring missing output line for total leaks"
-               % processString)
+        seenTotal = True
+    elif name == "TOTAL":
+      seenTotal = True
+      # Check for leaks.
+      if bytesLeaked < 0 or bytesLeaked > leakThreshold:
+        prefix = "TEST-UNEXPECTED-FAIL"
+        leakLog = "TEST-UNEXPECTED-FAIL %s| automationutils.processLeakLog() | leaked" \
+                  " %d bytes during test execution" % (processString, bytesLeaked)
+      elif bytesLeaked > 0:
+        leakLog = "TEST-PASS %s| automationutils.processLeakLog() | WARNING leaked" \
+                  " %d bytes during test execution" % (processString, bytesLeaked)
+      else:
+        leakLog = "TEST-PASS %s| automationutils.processLeakLog() | no leaks detected!" \
+                  % processString
+      # Remind the threshold if it is not 0, which is the default/goal.
+      if leakThreshold != 0:
+        leakLog += " (threshold set at %d bytes)" % leakThreshold
+      # Log the information.
+      log.info(leakLog)
     else:
-      log.info("TEST-UNEXPECTED-FAIL | leakcheck | %s missing output line for total leaks!"
-               % processString)
-      log.info("TEST-INFO | leakcheck | missing output line from log file %s"
-               % leakLogFileName)
-    return
+      if numLeaked != 0:
+        if numLeaked > 1:
+          instance = "instances"
+          rest = " each (%s bytes total)" % matches.group("bytesLeaked")
+        else:
+          instance = "instance"
+          rest = ""
+        numObjects += 1
+        if numObjects > 5:
+          # don't spam brief tinderbox logs with tons of leak output
+          prefix = "TEST-INFO"
+        log.info("%(prefix)s %(process)s| automationutils.processLeakLog() | leaked %(numLeaked)d %(instance)s of %(name)s "
+                 "with size %(size)s bytes%(rest)s" %
+                 { "prefix": prefix,
+                   "process": processString,
+                   "numLeaked": numLeaked,
+                   "instance": instance,
+                   "name": name,
+                   "size": matches.group("size"),
+                   "rest": rest })
+  if not seenTotal:
+    if crashedOnPurpose:
+      log.info("INFO | automationutils.processLeakLog() | process %s was " \
+               "deliberately crashed and thus has no leak log" % PID)
+    else:
+      log.info("TEST-UNEXPECTED-FAIL %s| automationutils.processLeakLog() | missing output line for total leaks!" %
+             processString)
+  leaks.close()
 
-  if totalBytesLeaked == 0:
-    log.info("TEST-PASS | leakcheck | %s no leaks detected!" % processString)
-    return
 
-  # totalBytesLeaked was seen and is non-zero.
-  if totalBytesLeaked > leakThreshold:
-    logAsWarning = True
-    # Fail the run if we're over the threshold (which defaults to 0)
-    prefix = "TEST-UNEXPECTED-FAIL"
-  else:
-    prefix = "WARNING"
-  # Create a comma delimited string of the first N leaked objects found,
-  # to aid with bug summary matching in TBPL. Note: The order of the objects
-  # had no significance (they're sorted alphabetically).
-  maxSummaryObjects = 5
-  leakedObjectSummary = ', '.join(leakedObjectNames[:maxSummaryObjects])
-  if len(leakedObjectNames) > maxSummaryObjects:
-    leakedObjectSummary += ', ...'
-
-  if logAsWarning:
-    log.warning("%s | leakcheck | %s %d bytes leaked (%s)"
-                % (prefix, processString, totalBytesLeaked, leakedObjectSummary))
-  else:
-    log.info("%s | leakcheck | %s %d bytes leaked (%s)"
-             % (prefix, processString, totalBytesLeaked, leakedObjectSummary))
-
-def processLeakLog(leakLogFile, options):
+def processLeakLog(leakLogFile, leakThreshold = 0):
   """Process the leak log, including separate leak logs created
   by child processes.
 
   Use this function if you want an additional PASS/FAIL summary.
   It must be used with the |XPCOM_MEM_BLOAT_LOG| environment variable.
-
-  The base of leakLogFile for a non-default process needs to end with
-    _proctype_pid12345.log
-  "proctype" is a string denoting the type of the process, which should
-  be the result of calling XRE_ChildProcessTypeToString(). 12345 is
-  a series of digits that is the pid for the process. The .log is
-  optional.
-
-  All other file names are treated as being for default processes.
-
-  The options argument is checked for two optional attributes,
-  leakThresholds and ignoreMissingLeaks.
-
-  leakThresholds should be a dict mapping process types to leak thresholds,
-  in bytes. If a process type is not present in the dict the threshold
-  will be 0.
-
-  ignoreMissingLeaks should be a list of process types. If a process
-  creates a leak log without a TOTAL, then we report an error if it isn't
-  in the list ignoreMissingLeaks.
   """
 
   if not os.path.exists(leakLogFile):
-    log.info("WARNING | leakcheck | refcount logging is off, so leaks can't be detected!")
+    log.info("WARNING | automationutils.processLeakLog() | refcount logging is off, so leaks can't be detected!")
     return
 
-  leakThresholds = getattr(options, 'leakThresholds', {})
-  ignoreMissingLeaks = getattr(options, 'ignoreMissingLeaks', [])
-
-  # This list is based on kGeckoProcessTypeString. ipdlunittest processes likely
-  # are not going to produce leak logs we will ever see.
-  knownProcessTypes = ["default", "plugin", "tab", "geckomediaplugin"]
-
-  for processType in knownProcessTypes:
-    log.info("TEST-INFO | leakcheck | %s process: leak threshold set at %d bytes"
-             % (processType, leakThresholds.get(processType, 0)))
-
-  for processType in leakThresholds:
-    if not processType in knownProcessTypes:
-      log.info("TEST-UNEXPECTED-FAIL | leakcheck | Unknown process type %s in leakThresholds"
-               % processType)
-
   (leakLogFileDir, leakFileBase) = os.path.split(leakLogFile)
+  pidRegExp = re.compile(r".*?_([a-z]*)_pid(\d*)$")
   if leakFileBase[-4:] == ".log":
     leakFileBase = leakFileBase[:-4]
-    fileNameRegExp = re.compile(r"_([a-z]*)_pid\d*.log$")
-  else:
-    fileNameRegExp = re.compile(r"_([a-z]*)_pid\d*$")
+    pidRegExp = re.compile(r".*?_([a-z]*)_pid(\d*).log$")
 
   for fileName in os.listdir(leakLogFileDir):
     if fileName.find(leakFileBase) != -1:
       thisFile = os.path.join(leakLogFileDir, fileName)
-      m = fileNameRegExp.search(fileName)
+      processPID = 0
+      processType = None
+      m = pidRegExp.search(fileName)
       if m:
         processType = m.group(1)
-      else:
-        processType = "default"
-      if not processType in knownProcessTypes:
-        log.info("TEST-UNEXPECTED-FAIL | leakcheck | Leak log with unknown process type %s"
-                 % processType)
-      leakThreshold = leakThresholds.get(processType, 0)
-      processSingleLeakFile(thisFile, processType, leakThreshold,
-                            processType in ignoreMissingLeaks)
+        processPID = m.group(2)
+      processSingleLeakFile(thisFile, processPID, processType, leakThreshold)
 
-def systemMemory():
+def replaceBackSlashes(input):
+  return input.replace('\\', '/')
+
+def wrapCommand(cmd):
   """
-  Returns total system memory in kilobytes.
-  Works only on unix-like platforms where `free` is in the path.
+  If running on OS X 10.5 or older, wrap |cmd| so that it will
+  be executed as an i386 binary, in case it's a 32-bit/64-bit universal
+  binary.
   """
-  return int(os.popen("free").readlines()[1].split()[1])
-
-def environment(xrePath, env=None, crashreporter=True, debugger=False, dmdPath=None, lsanPath=None):
-  """populate OS environment variables for mochitest"""
-
-  env = os.environ.copy() if env is None else env
-
-  assert os.path.isabs(xrePath)
-
-  if mozinfo.isMac:
-    ldLibraryPath = os.path.join(os.path.dirname(xrePath), "MacOS")
-  else:
-    ldLibraryPath = xrePath
-
-  envVar = None
-  dmdLibrary = None
-  preloadEnvVar = None
-  if 'toolkit' in mozinfo.info and mozinfo.info['toolkit'] == "gonk":
-    # Skip all of this, it's only valid for the host.
-    pass
-  elif mozinfo.isUnix:
-    envVar = "LD_LIBRARY_PATH"
-    env['MOZILLA_FIVE_HOME'] = xrePath
-    dmdLibrary = "libdmd.so"
-    preloadEnvVar = "LD_PRELOAD"
-  elif mozinfo.isMac:
-    envVar = "DYLD_LIBRARY_PATH"
-    dmdLibrary = "libdmd.dylib"
-    preloadEnvVar = "DYLD_INSERT_LIBRARIES"
-  elif mozinfo.isWin:
-    envVar = "PATH"
-    dmdLibrary = "dmd.dll"
-    preloadEnvVar = "MOZ_REPLACE_MALLOC_LIB"
-  if envVar:
-    envValue = ((env.get(envVar), str(ldLibraryPath))
-                if mozinfo.isWin
-                else (ldLibraryPath, dmdPath, env.get(envVar)))
-    env[envVar] = os.path.pathsep.join([path for path in envValue if path])
-
-  if dmdPath and dmdLibrary and preloadEnvVar:
-    env['DMD'] = '1'
-    env[preloadEnvVar] = os.path.join(dmdPath, dmdLibrary)
-
-  # crashreporter
-  env['GNOME_DISABLE_CRASH_DIALOG'] = '1'
-  env['XRE_NO_WINDOWS_CRASH_DIALOG'] = '1'
-  env['NS_TRACE_MALLOC_DISABLE_STACKS'] = '1'
-
-  if crashreporter and not debugger:
-    env['MOZ_CRASHREPORTER_NO_REPORT'] = '1'
-    env['MOZ_CRASHREPORTER'] = '1'
-  else:
-    env['MOZ_CRASHREPORTER_DISABLE'] = '1'
-
-  # Crash on non-local network connections by default.
-  # MOZ_DISABLE_NONLOCAL_CONNECTIONS can be set to "0" to temporarily
-  # enable non-local connections for the purposes of local testing.  Don't
-  # override the user's choice here.  See bug 1049688.
-  env.setdefault('MOZ_DISABLE_NONLOCAL_CONNECTIONS', '1')
-
-  # Set WebRTC logging in case it is not set yet
-  env.setdefault('NSPR_LOG_MODULES', 'signaling:5,mtransport:5,datachannel:5')
-  env.setdefault('R_LOG_LEVEL', '6')
-  env.setdefault('R_LOG_DESTINATION', 'stderr')
-  env.setdefault('R_LOG_VERBOSE', '1')
-
-  # ASan specific environment stuff
-  asan = bool(mozinfo.info.get("asan"))
-  if asan and (mozinfo.isLinux or mozinfo.isMac):
-    try:
-      # Symbolizer support
-      llvmsym = os.path.join(xrePath, "llvm-symbolizer")
-      if os.path.isfile(llvmsym):
-        env["ASAN_SYMBOLIZER_PATH"] = llvmsym
-        log.info("INFO | runtests.py | ASan using symbolizer at %s" % llvmsym)
-      else:
-        log.info("TEST-UNEXPECTED-FAIL | runtests.py | Failed to find ASan symbolizer at %s" % llvmsym)
-
-      totalMemory = systemMemory()
-
-      # Only 4 GB RAM or less available? Use custom ASan options to reduce
-      # the amount of resources required to do the tests. Standard options
-      # will otherwise lead to OOM conditions on the current test slaves.
-      message = "INFO | runtests.py | ASan running in %s configuration"
-      asanOptions = []
-      if totalMemory <= 1024 * 1024 * 4:
-        message = message % 'low-memory'
-        asanOptions = ['quarantine_size=50331648', 'malloc_context_size=5']
-      else:
-        message = message % 'default memory'
-
-      if lsanPath:
-        log.info("LSan enabled.")
-        asanOptions.append('detect_leaks=1')
-        lsanOptions = ["exitcode=0"]
-        suppressionsFile = os.path.join(lsanPath, 'lsan_suppressions.txt')
-        if os.path.exists(suppressionsFile):
-          log.info("LSan using suppression file " + suppressionsFile)
-          lsanOptions.append("suppressions=" + suppressionsFile)
-        else:
-          log.info("WARNING | runtests.py | LSan suppressions file does not exist! " + suppressionsFile)
-        env["LSAN_OPTIONS"] = ':'.join(lsanOptions)
-        # Run shutdown GCs and CCs to avoid spurious leaks.
-        env['MOZ_CC_RUN_DURING_SHUTDOWN'] = '1'
-
-      if len(asanOptions):
-        env['ASAN_OPTIONS'] = ':'.join(asanOptions)
-
-    except OSError,err:
-      log.info("Failed determine available memory, disabling ASan low-memory configuration: %s" % err.strerror)
-    except:
-      log.info("Failed determine available memory, disabling ASan low-memory configuration")
-    else:
-      log.info(message)
-
-  return env
-
-def dumpScreen(utilityPath):
-  """dumps a screenshot of the entire screen to a directory specified by
-  the MOZ_UPLOAD_DIR environment variable"""
-
-  # Need to figure out which OS-dependent tool to use
-  if mozinfo.isUnix:
-    utility = [os.path.join(utilityPath, "screentopng")]
-    utilityname = "screentopng"
-  elif mozinfo.isMac:
-    utility = ['/usr/sbin/screencapture', '-C', '-x', '-t', 'png']
-    utilityname = "screencapture"
-  elif mozinfo.isWin:
-    utility = [os.path.join(utilityPath, "screenshot.exe")]
-    utilityname = "screenshot"
-
-  # Get dir where to write the screenshot file
-  parent_dir = os.environ.get('MOZ_UPLOAD_DIR', None)
-  if not parent_dir:
-    log.info('Failed to retrieve MOZ_UPLOAD_DIR env var')
-    return
-
-  # Run the capture
-  try:
-    tmpfd, imgfilename = tempfile.mkstemp(prefix='mozilla-test-fail-screenshot_', suffix='.png', dir=parent_dir)
-    os.close(tmpfd)
-    returncode = subprocess.call(utility + [imgfilename])
-    printstatus(returncode, utilityname)
-  except OSError, err:
-    log.info("Failed to start %s for screenshot: %s" %
-             utility[0], err.strerror)
-    return
-
-class ShutdownLeaks(object):
-  """
-  Parses the mochitest run log when running a debug build, assigns all leaked
-  DOM windows (that are still around after test suite shutdown, despite running
-  the GC) to the tests that created them and prints leak statistics.
-  """
-
-  def __init__(self, logger):
-    self.logger = logger
-    self.tests = []
-    self.leakedWindows = {}
-    self.leakedDocShells = set()
-    self.currentTest = None
-    self.seenShutdown = False
-
-  def log(self, message):
-    if message['action'] == 'log':
-        line = message['message']
-        if line[2:11] == "DOMWINDOW":
-          self._logWindow(line)
-        elif line[2:10] == "DOCSHELL":
-          self._logDocShell(line)
-        elif line.startswith("TEST-START | Shutdown"):
-          self.seenShutdown = True
-    elif message['action'] == 'test_start':
-      fileName = message['test'].replace("chrome://mochitests/content/browser/", "")
-      self.currentTest = {"fileName": fileName, "windows": set(), "docShells": set()}
-    elif message['action'] == 'test_end':
-      # don't track a test if no windows or docShells leaked
-      if self.currentTest and (self.currentTest["windows"] or self.currentTest["docShells"]):
-        self.tests.append(self.currentTest)
-      self.currentTest = None
-
-  def process(self):
-    if not self.seenShutdown:
-      self.logger.warning("TEST-UNEXPECTED-FAIL | ShutdownLeaks | process() called before end of test suite")
-
-    for test in self._parseLeakingTests():
-      for url, count in self._zipLeakedWindows(test["leakedWindows"]):
-        self.logger.warning("TEST-UNEXPECTED-FAIL | %s | leaked %d window(s) until shutdown [url = %s]" % (test["fileName"], count, url))
-
-      if test["leakedDocShells"]:
-        self.logger.warning("TEST-UNEXPECTED-FAIL | %s | leaked %d docShell(s) until shutdown" % (test["fileName"], len(test["leakedDocShells"])))
-
-  def _logWindow(self, line):
-    created = line[:2] == "++"
-    pid = self._parseValue(line, "pid")
-    serial = self._parseValue(line, "serial")
-
-    # log line has invalid format
-    if not pid or not serial:
-      self.logger.warning("TEST-UNEXPECTED-FAIL | ShutdownLeaks | failed to parse line <%s>" % line)
-      return
-
-    key = pid + "." + serial
-
-    if self.currentTest:
-      windows = self.currentTest["windows"]
-      if created:
-        windows.add(key)
-      else:
-        windows.discard(key)
-    elif self.seenShutdown and not created:
-      self.leakedWindows[key] = self._parseValue(line, "url")
-
-  def _logDocShell(self, line):
-    created = line[:2] == "++"
-    pid = self._parseValue(line, "pid")
-    id = self._parseValue(line, "id")
-
-    # log line has invalid format
-    if not pid or not id:
-      self.logger.warning("TEST-UNEXPECTED-FAIL | ShutdownLeaks | failed to parse line <%s>" % line)
-      return
-
-    key = pid + "." + id
-
-    if self.currentTest:
-      docShells = self.currentTest["docShells"]
-      if created:
-        docShells.add(key)
-      else:
-        docShells.discard(key)
-    elif self.seenShutdown and not created:
-      self.leakedDocShells.add(key)
-
-  def _parseValue(self, line, name):
-    match = re.search("\[%s = (.+?)\]" % name, line)
-    if match:
-      return match.group(1)
-    return None
-
-  def _parseLeakingTests(self):
-    leakingTests = []
-
-    for test in self.tests:
-      test["leakedWindows"] = [self.leakedWindows[id] for id in test["windows"] if id in self.leakedWindows]
-      test["leakedDocShells"] = [id for id in test["docShells"] if id in self.leakedDocShells]
-      test["leakCount"] = len(test["leakedWindows"]) + len(test["leakedDocShells"])
-
-      if test["leakCount"]:
-        leakingTests.append(test)
-
-    return sorted(leakingTests, key=itemgetter("leakCount"), reverse=True)
-
-  def _zipLeakedWindows(self, leakedWindows):
-    counts = []
-    counted = set()
-
-    for url in leakedWindows:
-      if not url in counted:
-        counts.append((url, leakedWindows.count(url)))
-        counted.add(url)
-
-    return sorted(counts, key=itemgetter(1), reverse=True)
-
-
-class LSANLeaks(object):
-  """
-  Parses the log when running an LSAN build, looking for interesting stack frames
-  in allocation stacks, and prints out reports.
-  """
-
-  def __init__(self, logger):
-    self.logger = logger
-    self.inReport = False
-    self.foundFrames = set([])
-    self.recordMoreFrames = None
-    self.currStack = None
-    self.maxNumRecordedFrames = 4
-
-    # Don't various allocation-related stack frames, as they do not help much to
-    # distinguish different leaks.
-    unescapedSkipList = [
-      "malloc", "js_malloc", "malloc_", "__interceptor_malloc", "moz_malloc", "moz_xmalloc",
-      "calloc", "js_calloc", "calloc_", "__interceptor_calloc", "moz_calloc", "moz_xcalloc",
-      "realloc","js_realloc", "realloc_", "__interceptor_realloc", "moz_realloc", "moz_xrealloc",
-      "new",
-      "js::MallocProvider",
-    ]
-    self.skipListRegExp = re.compile("^" + "|".join([re.escape(f) for f in unescapedSkipList]) + "$")
-
-    self.startRegExp = re.compile("==\d+==ERROR: LeakSanitizer: detected memory leaks")
-    self.stackFrameRegExp = re.compile("    #\d+ 0x[0-9a-f]+ in ([^(</]+)")
-    self.sysLibStackFrameRegExp = re.compile("    #\d+ 0x[0-9a-f]+ \(([^+]+)\+0x[0-9a-f]+\)")
-
-
-  def log(self, line):
-    if re.match(self.startRegExp, line):
-      self.inReport = True
-      return
-
-    if not self.inReport:
-      return
-
-    if line.startswith("Direct leak"):
-      self._finishStack()
-      self.recordMoreFrames = True
-      self.currStack = []
-      return
-
-    if line.startswith("Indirect leak"):
-      self._finishStack()
-      # Only report direct leaks, in the hope that they are less flaky.
-      self.recordMoreFrames = False
-      return
-
-    if line.startswith("SUMMARY: AddressSanitizer"):
-      self._finishStack()
-      self.inReport = False
-      return
-
-    if not self.recordMoreFrames:
-      return
-
-    stackFrame = re.match(self.stackFrameRegExp, line)
-    if stackFrame:
-      # Split the frame to remove any return types.
-      frame = stackFrame.group(1).split()[-1]
-      if not re.match(self.skipListRegExp, frame):
-        self._recordFrame(frame)
-      return
-
-    sysLibStackFrame = re.match(self.sysLibStackFrameRegExp, line)
-    if sysLibStackFrame:
-      # System library stack frames will never match the skip list,
-      # so don't bother checking if they do.
-      self._recordFrame(sysLibStackFrame.group(1))
-
-    # If we don't match either of these, just ignore the frame.
-    # We'll end up with "unknown stack" if everything is ignored.
-
-  def process(self):
-    for f in self.foundFrames:
-      self.logger.warning("TEST-UNEXPECTED-FAIL | LeakSanitizer | leak at " + f)
-
-  def _finishStack(self):
-    if self.recordMoreFrames and len(self.currStack) == 0:
-      self.currStack = ["unknown stack"]
-    if self.currStack:
-      self.foundFrames.add(", ".join(self.currStack))
-      self.currStack = None
-    self.recordMoreFrames = False
-    self.numRecordedFrames = 0
-
-  def _recordFrame(self, frame):
-    self.currStack.append(frame)
-    self.numRecordedFrames += 1
-    if self.numRecordedFrames >= self.maxNumRecordedFrames:
-      self.recordMoreFrames = False
+  if platform.system() == "Darwin" and \
+     hasattr(platform, 'mac_ver') and \
+     platform.mac_ver()[0][:4] < '10.6':
+    return ["arch", "-arch", "i386"] + cmd
+  # otherwise just execute the command normally
+  return cmd

@@ -16,17 +16,12 @@
 #include "nsTArray.h"
 #include "nsIAtom.h"
 #include "nsCSSValue.h"
-#include "nsWrapperCache.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/ErrorResult.h"
 
 class nsPresContext;
+class nsCSSStyleSheet;
 class nsAString;
 struct nsMediaFeature;
-
-namespace mozilla {
-class CSSStyleSheet;
-} // namespace mozilla
 
 struct nsMediaExpression {
   enum Range { eMin, eMax, eEqual };
@@ -37,16 +32,7 @@ struct nsMediaExpression {
 
   // aActualValue must be obtained from mFeature->mGetter
   bool Matches(nsPresContext* aPresContext,
-               const nsCSSValue& aActualValue) const;
-
-  bool operator==(const nsMediaExpression& aOther) const {
-    return mFeature == aOther.mFeature && // pointer equality fine (atom-like)
-           mRange == aOther.mRange &&
-           mValue == aOther.mValue;
-  }
-  bool operator!=(const nsMediaExpression& aOther) const {
-    return !(*this == aOther);
-  }
+                 const nsCSSValue& aActualValue) const;
 };
 
 /**
@@ -70,7 +56,7 @@ struct nsMediaExpression {
  */
 class nsMediaQueryResultCacheKey {
 public:
-  explicit nsMediaQueryResultCacheKey(nsIAtom* aMedium)
+  nsMediaQueryResultCacheKey(nsIAtom* aMedium)
     : mMedium(aMedium)
   {}
 
@@ -82,21 +68,6 @@ public:
   void AddExpression(const nsMediaExpression* aExpression,
                      bool aExpressionMatches);
   bool Matches(nsPresContext* aPresContext) const;
-  bool HasFeatureConditions() const {
-    return !mFeatureCache.IsEmpty();
-  }
-
-  /**
-   * An operator== that implements list equality, which isn't quite as
-   * good as set equality, but catches the trivial equality cases.
-   */
-  bool operator==(const nsMediaQueryResultCacheKey& aOther) const {
-    return mMedium == aOther.mMedium &&
-           mFeatureCache == aOther.mFeatureCache;
-  }
-  bool operator!=(const nsMediaQueryResultCacheKey& aOther) const {
-    return !(*this == aOther);
-  }
 private:
   struct ExpressionEntry {
     // FIXME: if we were better at maintaining invariants about clearing
@@ -104,26 +75,10 @@ private:
     // nsMediaExpression*| instead.
     nsMediaExpression mExpression;
     bool mExpressionMatches;
-
-    bool operator==(const ExpressionEntry& aOther) const {
-      return mExpression == aOther.mExpression &&
-             mExpressionMatches == aOther.mExpressionMatches;
-    }
-    bool operator!=(const ExpressionEntry& aOther) const {
-      return !(*this == aOther);
-    }
   };
   struct FeatureEntry {
     const nsMediaFeature *mFeature;
     InfallibleTArray<ExpressionEntry> mExpressions;
-
-    bool operator==(const FeatureEntry& aOther) const {
-      return mFeature == aOther.mFeature &&
-             mExpressions == aOther.mExpressions;
-    }
-    bool operator!=(const FeatureEntry& aOther) const {
-      return !(*this == aOther);
-    }
   };
   nsCOMPtr<nsIAtom> mMedium;
   nsTArray<FeatureEntry> mFeatureCache;
@@ -147,9 +102,9 @@ private:
     , mTypeOmitted(aOther.mTypeOmitted)
     , mHadUnknownExpression(aOther.mHadUnknownExpression)
     , mMediaType(aOther.mMediaType)
+    // Clone checks the result of this deep copy for allocation failure
     , mExpressions(aOther.mExpressions)
   {
-    MOZ_ASSERT(mExpressions.Length() == aOther.mExpressions.Length());
   }
 
 public:
@@ -188,58 +143,33 @@ private:
   nsTArray<nsMediaExpression> mExpressions;
 };
 
-class nsMediaList MOZ_FINAL : public nsIDOMMediaList
-                            , public nsWrapperCache
-{
+class nsMediaList MOZ_FINAL : public nsIDOMMediaList {
 public:
-  typedef mozilla::ErrorResult ErrorResult;
-
   nsMediaList();
 
-  virtual JSObject*
-  WrapObject(JSContext* aCx) MOZ_OVERRIDE;
-  nsISupports* GetParentObject() const
-  {
-    return nullptr;
-  }
-
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsMediaList)
+  NS_DECL_ISUPPORTS
 
   NS_DECL_NSIDOMMEDIALIST
 
-  void GetText(nsAString& aMediaText);
-  void SetText(const nsAString& aMediaText);
+  nsresult GetText(nsAString& aMediaText);
+  nsresult SetText(const nsAString& aMediaText);
 
   // Does this query apply to the presentation?
   // If |aKey| is non-null, add cache information to it.
   bool Matches(nsPresContext* aPresContext,
                  nsMediaQueryResultCacheKey* aKey);
 
-  void SetStyleSheet(mozilla::CSSStyleSheet* aSheet);
+  nsresult SetStyleSheet(nsCSSStyleSheet* aSheet);
   void AppendQuery(nsAutoPtr<nsMediaQuery>& aQuery) {
     // Takes ownership of aQuery
     mArray.AppendElement(aQuery.forget());
   }
 
-  already_AddRefed<nsMediaList> Clone();
+  nsresult Clone(nsMediaList** aResult);
 
+  int32_t Count() { return mArray.Length(); }
   nsMediaQuery* MediumAt(int32_t aIndex) { return mArray[aIndex]; }
   void Clear() { mArray.Clear(); }
-
-  // WebIDL
-  // XPCOM GetMediaText and SetMediaText are fine.
-  uint32_t Length() { return mArray.Length(); }
-  void IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aReturn);
-  // XPCOM Item is fine.
-  void DeleteMedium(const nsAString& aMedium, ErrorResult& aRv)
-  {
-    aRv = DeleteMedium(aMedium);
-  }
-  void AppendMedium(const nsAString& aMedium, ErrorResult& aRv)
-  {
-    aRv = AppendMedium(aMedium);
-  }
 
 protected:
   ~nsMediaList();
@@ -251,6 +181,6 @@ protected:
   // not refcounted; sheet will let us know when it goes away
   // mStyleSheet is the sheet that needs to be dirtied when this medialist
   // changes
-  mozilla::CSSStyleSheet* mStyleSheet;
+  nsCSSStyleSheet*         mStyleSheet;
 };
 #endif /* !defined(nsIMediaList_h_) */

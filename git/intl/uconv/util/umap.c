@@ -7,28 +7,28 @@
 
 
 typedef uint16_t (* MapFormatFunc)(uint16_t in,const uTable *uT,const uMapCell *cell);
-typedef int (* HitFormateFunc)(uint16_t in,const uMapCell *cell);
+typedef PRBool (* HitFormateFunc)(uint16_t in,const uMapCell *cell);
 typedef void (* FillInfoFormateFunc)(const uTable *uT, const uMapCell *cell, uint32_t* info);
 
 
-int uHitFormate0(uint16_t in,const uMapCell *cell);
-int uHitFormate2(uint16_t in,const uMapCell *cell);
-uint16_t uMapFormate0(uint16_t in,const uTable *uT,const uMapCell *cell);
-uint16_t uMapFormate1(uint16_t in,const uTable *uT,const uMapCell *cell);
-uint16_t uMapFormate2(uint16_t in,const uTable *uT,const uMapCell *cell);
-void uFillInfoFormate0(const uTable *uT,const uMapCell *cell,uint32_t* aInfo);
-void uFillInfoFormate1(const uTable *uT,const uMapCell *cell,uint32_t* aInfo);
-void uFillInfoFormate2(const uTable *uT,const uMapCell *cell,uint32_t* aInfo);
+PRIVATE PRBool uHitFormate0(uint16_t in,const uMapCell *cell);
+PRIVATE PRBool uHitFormate2(uint16_t in,const uMapCell *cell);
+PRIVATE uint16_t uMapFormate0(uint16_t in,const uTable *uT,const uMapCell *cell);
+PRIVATE uint16_t uMapFormate1(uint16_t in,const uTable *uT,const uMapCell *cell);
+PRIVATE uint16_t uMapFormate2(uint16_t in,const uTable *uT,const uMapCell *cell);
+PRIVATE void uFillInfoFormate0(const uTable *uT,const uMapCell *cell,uint32_t* aInfo);
+PRIVATE void uFillInfoFormate1(const uTable *uT,const uMapCell *cell,uint32_t* aInfo);
+PRIVATE void uFillInfoFormate2(const uTable *uT,const uMapCell *cell,uint32_t* aInfo);
 
 
-const uMapCell *uGetMapCell(const uTable *uT, int16_t item);
-char uGetFormat(const uTable *uT, int16_t item);
+PRIVATE const uMapCell *uGetMapCell(const uTable *uT, int16_t item);
+PRIVATE char uGetFormat(const uTable *uT, int16_t item);
 
 
 /*=================================================================================
 
 =================================================================================*/
-const MapFormatFunc m_map[uNumFormatTag] =
+PRIVATE const MapFormatFunc m_map[uNumFormatTag] =
 {
     uMapFormate0,
     uMapFormate1,
@@ -38,7 +38,7 @@ const MapFormatFunc m_map[uNumFormatTag] =
 /*=================================================================================
 
 =================================================================================*/
-const FillInfoFormateFunc m_fillinfo[uNumFormatTag] =
+PRIVATE const FillInfoFormateFunc m_fillinfo[uNumFormatTag] =
 {
     uFillInfoFormate0,
     uFillInfoFormate1,
@@ -48,7 +48,7 @@ const FillInfoFormateFunc m_fillinfo[uNumFormatTag] =
 /*=================================================================================
 
 =================================================================================*/
-const HitFormateFunc m_hit[uNumFormatTag] =
+PRIVATE const HitFormateFunc m_hit[uNumFormatTag] =
 {
     uHitFormate0,
     uHitFormate0,
@@ -63,9 +63,9 @@ const HitFormateFunc m_hit[uNumFormatTag] =
 /*=================================================================================
 
 =================================================================================*/
-int uMapCode(const uTable *uT, uint16_t in, uint16_t* out)
+MODULE_PRIVATE PRBool uMapCode(const uTable *uT, uint16_t in, uint16_t* out)
 {
-  int done = 0;
+  PRBool done = PR_FALSE;
   uint16_t itemOfList = uT->itemOfList;
   uint16_t i;
   *out = NOMAPPING;
@@ -77,7 +77,7 @@ int uMapCode(const uTable *uT, uint16_t in, uint16_t* out)
     if(uHit(format, in, uCell))
     {
       *out = uMap(format, in, uT,uCell);
-      done = 1;
+      done = PR_TRUE;
       break;
     }
   }
@@ -91,7 +91,7 @@ member function
 /*=================================================================================
 
 =================================================================================*/
-int uHitFormate0(uint16_t in,const uMapCell *cell)
+PRIVATE PRBool uHitFormate0(uint16_t in,const uMapCell *cell)
 {
   return ( (in >= cell->fmt.format0.srcBegin) &&
     (in <= cell->fmt.format0.srcEnd) ) ;
@@ -99,21 +99,21 @@ int uHitFormate0(uint16_t in,const uMapCell *cell)
 /*=================================================================================
 
 =================================================================================*/
-int uHitFormate2(uint16_t in,const uMapCell *cell)
+PRIVATE PRBool uHitFormate2(uint16_t in,const uMapCell *cell)
 {
   return (in == cell->fmt.format2.srcBegin);
 }
 /*=================================================================================
 
 =================================================================================*/
-uint16_t uMapFormate0(uint16_t in,const uTable *uT,const uMapCell *cell)
+PRIVATE uint16_t uMapFormate0(uint16_t in,const uTable *uT,const uMapCell *cell)
 {
   return ((in - cell->fmt.format0.srcBegin) + cell->fmt.format0.destBegin);
 }
 /*=================================================================================
 
 =================================================================================*/
-uint16_t uMapFormate1(uint16_t in,const uTable *uT,const uMapCell *cell)
+PRIVATE uint16_t uMapFormate1(uint16_t in,const uTable *uT,const uMapCell *cell)
 {
   return (*(((uint16_t *)uT) + uT->offsetToMappingTable
     + cell->fmt.format1.mappingOffset + in - cell->fmt.format1.srcBegin));
@@ -121,7 +121,7 @@ uint16_t uMapFormate1(uint16_t in,const uTable *uT,const uMapCell *cell)
 /*=================================================================================
 
 =================================================================================*/
-uint16_t uMapFormate2(uint16_t in,const uTable *uT,const uMapCell *cell)
+PRIVATE uint16_t uMapFormate2(uint16_t in,const uTable *uT,const uMapCell *cell)
 {
   return (cell->fmt.format2.destBegin);
 }
@@ -130,7 +130,7 @@ uint16_t uMapFormate2(uint16_t in,const uTable *uT,const uMapCell *cell)
 /*=================================================================================
 
 =================================================================================*/
-void uFillInfoFormate0(const uTable *uT,const uMapCell *cell,uint32_t* info)
+PRIVATE void uFillInfoFormate0(const uTable *uT,const uMapCell *cell,uint32_t* info)
 {
   uint16_t begin, end, i;
   begin = cell->fmt.format0.srcBegin;
@@ -152,7 +152,7 @@ void uFillInfoFormate0(const uTable *uT,const uMapCell *cell,uint32_t* info)
 /*=================================================================================
 
 =================================================================================*/
-void uFillInfoFormate1(const uTable *uT,const uMapCell *cell,uint32_t* info)
+PRIVATE void uFillInfoFormate1(const uTable *uT,const uMapCell *cell,uint32_t* info)
 {
   uint16_t begin, end, i;
   uint16_t *base;
@@ -168,7 +168,7 @@ void uFillInfoFormate1(const uTable *uT,const uMapCell *cell,uint32_t* info)
 /*=================================================================================
 
 =================================================================================*/
-void uFillInfoFormate2(const uTable *uT,const uMapCell *cell,uint32_t* info)
+PRIVATE void uFillInfoFormate2(const uTable *uT,const uMapCell *cell,uint32_t* info)
 {
   SET_REPRESENTABLE(info, cell->fmt.format2.srcBegin);
 }

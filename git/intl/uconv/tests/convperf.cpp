@@ -29,7 +29,7 @@ FILE* infile = 0;
 #define OUTBUFSIZE (1024*16*8)
 char inbuffer[INBUFSIZE];
 char outbuffer[OUTBUFSIZE];
-char16_t  medbuffer[MEDBUFSIZE];
+PRUnichar  medbuffer[MEDBUFSIZE];
 nsIUnicodeEncoder* encoder = nullptr;
 nsIUnicodeDecoder* decoder = nullptr;
 UINT incp = 932;
@@ -45,29 +45,29 @@ void memcpyEncode(const char* src, int32_t srclen, char* dest)
 }
 
 void WideDecode(const char* src, 
-              int32_t srclen, char16_t *dest, int32_t *destLen)
+              int32_t srclen, PRUnichar *dest, int32_t *destLen)
 {
    const char* end = src+srclen ;
    while(src < end)
-     *dest++ = (char16_t) *src++;
+     *dest++ = (PRUnichar) *src++;
    *destLen = srclen;
 }
-void NarrowEncode(const char16_t *src, 
+void NarrowEncode(const PRUnichar *src, 
               int32_t srclen, char* dest, int32_t* destLen)
 {
-   const char16_t* end = src+srclen ;
+   const PRUnichar* end = src+srclen ;
    while(src < end)
      *dest++ = (char) *src++;
    *destLen = srclen;
 }
 void msDecode(UINT cp, const char* src, 
-              int32_t srclen, char16_t *dest, int32_t *destLen)
+              int32_t srclen, PRUnichar *dest, int32_t *destLen)
 {
    *destLen = ::MultiByteToWideChar(cp, 0,src, srclen, (LPWSTR)dest, *destLen);
    if(*destLen <= 0)
       fprintf(stderr, "problem in ::MultiByteToWideChar\n");
 }
-void msEncode(UINT cp, const char16_t *src, 
+void msEncode(UINT cp, const PRUnichar *src, 
               int32_t srcLen, char* dest, int32_t* destLen)
 {
    *destLen = ::WideCharToMultiByte(cp, 0, src, srcLen, (LPSTR)dest, *destLen, 

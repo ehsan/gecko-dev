@@ -9,6 +9,7 @@
 #include "Entries.h"
 #include "nsString.h"
 #include "nsTArray.h"
+#include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsIFile.h"
 #include "nsIFileStreams.h"
@@ -43,6 +44,9 @@ public:
   // True if this is a noise entry, i.e. an extra entry
   // that is inserted to mask the true URL we are requesting
   bool mNoise;
+
+  // Value of actual key looked up in the prefixset (coded with client key)
+  Prefix mCodedPrefix;
 
   // True if we've updated this table recently-enough.
   bool mFresh;
@@ -85,7 +89,18 @@ public:
   static nsresult GetKey(const nsACString& aSpec, Completion* aHash,
                          nsCOMPtr<nsICryptoHash>& aCryptoHash);
 
-  LookupCache(const nsACString& aTableName, nsIFile* aStoreFile);
+  /* We have both a prefix and a domain. Drop the domain, but
+     hash the domain, the prefix and a random value together,
+     ensuring any collisions happens at a different points for
+     different users. If aPassthrough is set, we ignore the
+     random value and copy prefix directly into output.
+  */
+  static nsresult KeyedHash(uint32_t aPref, uint32_t aHostKey,
+                            uint32_t aUserKey, uint32_t* aOut,
+                            bool aPassthrough);
+
+  LookupCache(const nsACString& aTableName, nsIFile* aStoreFile,
+              bool aPerClientRandomize);
   ~LookupCache();
 
   const nsCString &TableName() const { return mTableName; }
@@ -98,19 +113,21 @@ public:
   // This will Clear() the passed arrays when done.
   nsresult Build(AddPrefixArray& aAddPrefixes,
                  AddCompleteArray& aAddCompletes);
-  nsresult GetPrefixes(FallibleTArray<uint32_t>& aAddPrefixes);
-  void ClearCompleteCache();
+  nsresult GetPrefixes(nsTArray<uint32_t>* aAddPrefixes);
 
 #if DEBUG && defined(PR_LOGGING)
   void Dump();
 #endif
   nsresult WriteFile();
   nsresult Has(const Completion& aCompletion,
-               bool* aHas, bool* aComplete);
+               const Completion& aHostkey,
+               uint32_t aHashKey,
+               bool* aHas, bool* aComplete,
+               Prefix* aOrigPrefix);
   bool IsPrimed();
 
 private:
-  void ClearAll();
+  void Clear();
   nsresult Reset();
   void UpdateHeader();
   nsresult ReadHeader(nsIInputStream* aInputStream);
@@ -122,13 +139,14 @@ private:
   nsresult ConstructPrefixSet(AddPrefixArray& aAddPrefixes);
 
   struct Header {
-    uint32_t magic;
-    uint32_t version;
-    uint32_t numCompletions;
+    uint32 magic;
+    uint32 version;
+    uint32 numCompletions;
   };
   Header mHeader;
 
   bool mPrimed;
+  bool mPerClientRandomize;
   nsCString mTableName;
   nsCOMPtr<nsIFile> mStoreDirectory;
   CompletionArray mCompletions;

@@ -6,10 +6,10 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
+Cu.import("resource://webapprt/modules/Startup.jsm");
 Cu.import("resource://webapprt/modules/WebappRT.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Task.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "gAppBrowser",
                             function() document.getElementById("content"));
@@ -20,44 +20,19 @@ XPCOMUtils.defineLazyServiceGetter(this, "gCrashReporter",
                                    "nsICrashReporter");
 #endif
 
-function isSameOrigin(url) {
-  let origin = Services.io.newURI(url, null, null).prePath;
-  return (origin == WebappRT.config.app.origin);
-}
-
 let progressListener = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIWebProgressListener,
                                          Ci.nsISupportsWeakReference]),
   onLocationChange: function onLocationChange(progress, request, location,
                                               flags) {
-
-    // Close tooltip (code adapted from /browser/base/content/browser.js)
-    let pageTooltip = document.getElementById("contentAreaTooltip");
-    let tooltipNode = pageTooltip.triggerNode;
-    if (tooltipNode) {
-      // Optimise for the common case
-      if (progress.isTopLevel) {
-        pageTooltip.hidePopup();
-      }
-      else {
-        for (let tooltipWindow = tooltipNode.ownerDocument.defaultView;
-             tooltipWindow != tooltipWindow.parent;
-             tooltipWindow = tooltipWindow.parent) {
-          if (tooltipWindow == progress.DOMWindow) {
-            pageTooltip.hidePopup();
-            break;
-          }
-        }
-      }
-    }
-
     // Set the title of the window to the name of the webapp, adding the origin
     // of the page being loaded if it's from a different origin than the app
     // (per security bug 741955, which specifies that other-origin pages loaded
     // in runtime windows must be identified in chrome).
-    let title = WebappRT.localeManifest.name;
-    if (!isSameOrigin(location.spec)) {
-      title = location.prePath + " - " + title;
+    let title = WebappRT.config.app.manifest.name;
+    let origin = location.prePath;
+    if (origin != WebappRT.config.app.origin) {
+      title = origin + " - " + title;
     }
     document.documentElement.setAttribute("title", title);
   },
@@ -71,46 +46,12 @@ let progressListener = {
   }
 };
 
-function onOpenWindow(event) {
-  let name = event.detail.name;
-
-  if (name == "_blank") {
-    let uri = Services.io.newURI(event.detail.url, null, null);
-
-    // Direct the URL to the browser.
-    Cc["@mozilla.org/uriloader/external-protocol-service;1"].
-    getService(Ci.nsIExternalProtocolService).
-    getProtocolHandlerInfo(uri.scheme).
-    launchWithURI(uri);
-  } else {
-    let win = window.openDialog("chrome://webapprt/content/webapp.xul",
-                                name,
-                                "chrome,dialog=no,resizable," + event.detail.features);
-
-    win.addEventListener("load", function onLoad() {
-      win.removeEventListener("load", onLoad, false);
-
-#ifndef XP_WIN
-#ifndef XP_MACOSX
-      if (isSameOrigin(event.detail.url)) {
-        // On non-Windows platforms, we open new windows in fullscreen mode
-        // if the opener window is in fullscreen mode, so we hide the menubar;
-        // but on Mac we don't need to hide the menubar.
-        if (document.mozFullScreenElement) {
-          win.document.getElementById("main-menubar").style.display = "none";
-        }
-      }
-#endif
-#endif
-
-      win.document.getElementById("content").docShell.setIsApp(WebappRT.appID);
-      win.document.getElementById("content").setAttribute("src", event.detail.url);
-    }, false);
-  }
-}
-
 function onLoad() {
   window.removeEventListener("load", onLoad, false);
+
+  let args = window.arguments && window.arguments[0] ?
+             window.arguments[0].QueryInterface(Ci.nsIPropertyBag2) :
+             null;
 
   gAppBrowser.addProgressListener(progressListener,
                                   Ci.nsIWebProgress.NOTIFY_LOCATION |
@@ -118,35 +59,64 @@ function onLoad() {
 
   updateMenuItems();
 
-  gAppBrowser.addEventListener("mozbrowseropenwindow", onOpenWindow);
+  // Listen for clicks to redirect <a target="_blank"> to the browser.
+  // This doesn't capture clicks so content can capture them itself and do
+  // something different if it doesn't want the default behavior.
+  gAppBrowser.addEventListener("click", onContentClick, false, true);
+
+  // This is not the only way that a URL gets loaded in the app browser.
+  // When content calls openWindow(), there are no window.arguments,
+  // but something in the platform loads the URL specified by the content.
+  if (args && args.hasKey("url")) {
+    gAppBrowser.setAttribute("src", args.get("url"));
+  }
+
 }
 window.addEventListener("load", onLoad, false);
 
 function onUnload() {
   gAppBrowser.removeProgressListener(progressListener);
-  gAppBrowser.removeEventListener("mozbrowseropenwindow", onOpenWindow);
 }
 window.addEventListener("unload", onUnload, false);
 
-// Fullscreen handling.
+/**
+ * Direct a click on <a target="_blank"> to the user's default browser.
+ *
+ * In the long run, it might be cleaner to move this to an extension of
+ * nsIWebBrowserChrome3::onBeforeLinkTraversal.
+ *
+ * @param {DOMEvent} event the DOM event
+ **/
+function onContentClick(event) {
+  let target = event.target;
 
-#ifndef XP_MACOSX
-document.addEventListener('mozfullscreenchange', function() {
-  if (document.mozFullScreenElement) {
-    document.getElementById("main-menubar").style.display = "none";
-  } else {
-    document.getElementById("main-menubar").style.display = "";
+  if (!(target instanceof HTMLAnchorElement) ||
+      target.getAttribute("target") != "_blank") {
+    return;
   }
-}, false);
-#endif
+
+  let uri = Services.io.newURI(target.href,
+                               target.ownerDocument.characterSet,
+                               null);
+
+  // Direct the URL to the browser.
+  Cc["@mozilla.org/uriloader/external-protocol-service;1"].
+    getService(Ci.nsIExternalProtocolService).
+    getProtocolHandlerInfo(uri.scheme).
+    launchWithURI(uri);
+
+  // Prevent the runtime from loading the URL.  We do this after directing it
+  // to the browser to give the runtime a shot at handling the URL if we fail
+  // to direct it to the browser for some reason.
+  event.preventDefault();
+}
 
 // On Mac, we dynamically create the label for the Quit menuitem, using
 // a string property to inject the name of the webapp into it.
-let updateMenuItems = Task.async(function*() {
+function updateMenuItems() {
 #ifdef XP_MACOSX
-  yield WebappRT.configPromise;
-
-  let manifest = WebappRT.localeManifest;
+  let installRecord = WebappRT.config.app;
+  let manifest = WebappRT.config.app.manifest;
   let bundle =
     Services.strings.createBundle("chrome://webapprt/locale/webapp.properties");
   let quitLabel = bundle.formatStringFromName("quitApplicationCmdMac.label",
@@ -156,24 +126,17 @@ let updateMenuItems = Task.async(function*() {
   document.getElementById("menu_FileQuitItem").setAttribute("label", quitLabel);
   document.getElementById("menu_mac_hide_app").setAttribute("label", hideLabel);
 #endif
-});
-
-#ifndef XP_MACOSX
-let gEditUIVisible = true;
-#endif
+}
 
 function updateEditUIVisibility() {
 #ifndef XP_MACOSX
   let editMenuPopupState = document.getElementById("menu_EditPopup").state;
-  let contextMenuPopupState = document.getElementById("contentAreaContextMenu").state;
 
   // The UI is visible if the Edit menu is opening or open, if the context menu
   // is open, or if the toolbar has been customized to include the Cut, Copy,
   // or Paste toolbar buttons.
   gEditUIVisible = editMenuPopupState == "showing" ||
-                   editMenuPopupState == "open" ||
-                   contextMenuPopupState == "showing" ||
-                   contextMenuPopupState == "open";
+                   editMenuPopupState == "open";
 
   // If UI is visible, update the edit commands' enabled state to reflect
   // whether or not they are actually enabled for the current focus/selection.
@@ -214,50 +177,3 @@ function updateCrashReportURL(aURI) {
   gCrashReporter.annotateCrashReport("URL", uri.spec);
 #endif
 }
-
-// Context menu handling code.
-// At the moment there isn't any built-in menu, we only support HTML5 custom
-// menus.
-
-let gContextMenu = null;
-
-XPCOMUtils.defineLazyGetter(this, "PageMenu", function() {
-  let tmp = {};
-  Cu.import("resource://gre/modules/PageMenu.jsm", tmp);
-  return new tmp.PageMenu();
-});
-
-function showContextMenu(aEvent, aXULMenu) {
-  if (aEvent.target != aXULMenu) {
-    return true;
-  }
-
-  gContextMenu = new nsContextMenu(aXULMenu);
-  if (gContextMenu.shouldDisplay) {
-    updateEditUIVisibility();
-  }
-
-  return gContextMenu.shouldDisplay;
-}
-
-function hideContextMenu(aEvent, aXULMenu) {
-  if (aEvent.target != aXULMenu) {
-    return;
-  }
-
-  gContextMenu = null;
-
-  updateEditUIVisibility();
-}
-
-function nsContextMenu(aXULMenu) {
-  this.initMenu(aXULMenu);
-}
-
-nsContextMenu.prototype = {
-  initMenu: function(aXULMenu) {
-    this.hasPageMenu = PageMenu.maybeBuildAndAttachMenu(document.popupNode,
-                                                        aXULMenu);
-    this.shouldDisplay = this.hasPageMenu;
-  },
-};

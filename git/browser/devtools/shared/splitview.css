@@ -26,7 +26,6 @@ box,
   min-height: 3em;
   max-height: 14em;
   max-width: 400px;
-  min-width: 200px;
 }
 
 .splitview-nav {
@@ -85,7 +84,7 @@ ol.splitview-nav > li.splitview-filtered {
 
 /* portrait mode */
 @media (max-width: 550px) {
-  .splitview-landscape-splitter {
+  #splitview-details-toolbar {
     display: none;
   }
 

@@ -4,9 +4,8 @@
 
 #include "xpctest_private.h"
 #include "xpctest_interfaces.h"
-#include "js/Value.h"
 
-NS_IMPL_ISUPPORTS(nsXPCTestParams, nsIXPCTestParams)
+NS_IMPL_ISUPPORTS1(nsXPCTestParams, nsIXPCTestParams)
 
 nsXPCTestParams::nsXPCTestParams()
 {
@@ -152,13 +151,13 @@ NS_IMETHODIMP nsXPCTestParams::TestString(const char * a, char * *b, char * *_re
 }
 
 /* wchar testWchar (in wchar a, inout wchar b); */
-NS_IMETHODIMP nsXPCTestParams::TestWchar(char16_t a, char16_t *b, char16_t *_retval)
+NS_IMETHODIMP nsXPCTestParams::TestWchar(PRUnichar a, PRUnichar *b, PRUnichar *_retval)
 {
     GENERIC_METHOD_IMPL;
 }
 
 /* wstring testWstring (in wstring a, inout wstring b); */
-NS_IMETHODIMP nsXPCTestParams::TestWstring(const char16_t * a, char16_t * *b, char16_t * *_retval)
+NS_IMETHODIMP nsXPCTestParams::TestWstring(const PRUnichar * a, PRUnichar * *b, PRUnichar * *_retval)
 {
     nsDependentString aprime(a);
     nsDependentString bprime(*b);
@@ -167,7 +166,7 @@ NS_IMETHODIMP nsXPCTestParams::TestWstring(const char16_t * a, char16_t * *b, ch
 
     // XPCOM ownership rules dictate that overwritten inout params must be callee-freed.
     // See https://developer.mozilla.org/en/XPIDL
-    NS_Free((void*)bprime.get());
+    NS_Free(const_cast<PRUnichar*>(bprime.get()));
 
     return NS_OK;
 }
@@ -197,13 +196,11 @@ NS_IMETHODIMP nsXPCTestParams::TestACString(const nsACString & a, nsACString & b
     STRING_METHOD_IMPL;
 }
 
-/* jsval testJsval (in jsval a, in jsval b); */
-NS_IMETHODIMP nsXPCTestParams::TestJsval(JS::Handle<JS::Value> a,
-                                         JS::MutableHandle<JS::Value> b,
-                                         JS::MutableHandle<JS::Value> _retval)
+/* jsval testJsval (in jsval a, inout jsval b); */
+NS_IMETHODIMP nsXPCTestParams::TestJsval(const jsval & a, jsval & b, jsval *_retval)
 {
-    _retval.set(b);
-    b.set(a);
+    *_retval = b;
+    b = a;
     return NS_OK;
 }
 
@@ -240,11 +237,11 @@ NS_IMETHODIMP nsXPCTestParams::TestStringArray(uint32_t aLength, const char * *a
 /* void testWstringArray (in unsigned long aLength, [array, size_is (aLength)] in wstring a,
  *                        inout unsigned long bLength, [array, size_is (bLength)] inout wstring b,
  *                        out unsigned long rvLength, [array, size_is (rvLength), retval] out wstring rv); */
-NS_IMETHODIMP nsXPCTestParams::TestWstringArray(uint32_t aLength, const char16_t * *a,
-                                                uint32_t *bLength, char16_t * **b,
-                                                uint32_t *rvLength, char16_t * **rv)
+NS_IMETHODIMP nsXPCTestParams::TestWstringArray(uint32_t aLength, const PRUnichar * *a,
+                                                uint32_t *bLength, PRUnichar * **b,
+                                                uint32_t *rvLength, PRUnichar * **rv)
 {
-    BUFFER_METHOD_IMPL(char16_t*, 0, TAKE_OWNERSHIP_WSTRING);
+    BUFFER_METHOD_IMPL(PRUnichar*, 0, TAKE_OWNERSHIP_WSTRING);
 }
 
 /* void testInterfaceArray (in unsigned long aLength, [array, size_is (aLength)] in nsIXPCTestInterfaceA a,
@@ -270,11 +267,11 @@ NS_IMETHODIMP nsXPCTestParams::TestSizedString(uint32_t aLength, const char * a,
 /* void testSizedWstring (in unsigned long aLength, [size_is (aLength)] in wstring a,
  *                        inout unsigned long bLength, [size_is (bLength)] inout wstring b,
  *                        out unsigned long rvLength, [size_is (rvLength), retval] out wstring rv); */
-NS_IMETHODIMP nsXPCTestParams::TestSizedWstring(uint32_t aLength, const char16_t * a,
-                                                uint32_t *bLength, char16_t * *b,
-                                                uint32_t *rvLength, char16_t * *rv)
+NS_IMETHODIMP nsXPCTestParams::TestSizedWstring(uint32_t aLength, const PRUnichar * a,
+                                                uint32_t *bLength, PRUnichar * *b,
+                                                uint32_t *rvLength, PRUnichar * *rv)
 {
-    BUFFER_METHOD_IMPL(char16_t, 1, TAKE_OWNERSHIP_NOOP);
+    BUFFER_METHOD_IMPL(PRUnichar, 1, TAKE_OWNERSHIP_NOOP);
 }
 
 /* void testInterfaceIs (in nsIIDPtr aIID, [iid_is (aIID)] in nsQIResult a,
@@ -338,11 +335,4 @@ NS_IMETHODIMP nsXPCTestParams::TestInterfaceIsArray(uint32_t aLength, const nsII
     //
     // Do this second, since the macro returns.
     BUFFER_METHOD_IMPL(void*, 0, TAKE_OWNERSHIP_INTERFACE);
-}
-
-/* void testOutAString (out AString o); */
-NS_IMETHODIMP nsXPCTestParams::TestOutAString(nsAString & o)
-{
-    o.AssignLiteral("out");
-    return NS_OK;
 }

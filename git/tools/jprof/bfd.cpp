@@ -12,13 +12,16 @@
 #include <unistd.h>
 #include <libgen.h>
 #include <bfd.h>
-#include <cxxabi.h>
+
+extern "C" {
+  char *cplus_demangle (const char *mangled, int options);
+}
 
 static bfd *try_debug_file(const char *filename, unsigned long crc32)
 {
   int fd = open(filename, O_RDONLY);
   if (fd < 0)
-    return nullptr;
+    return NULL;
 
   unsigned char buf[4*1024];
   unsigned long crc = 0;
@@ -34,12 +37,12 @@ static bfd *try_debug_file(const char *filename, unsigned long crc32)
   close(fd);
 
   if (crc != crc32)
-    return nullptr;
+    return NULL;
 
-  bfd *object = bfd_openr(filename, nullptr);
+  bfd *object = bfd_openr(filename, NULL);
   if (!bfd_check_format(object, bfd_object)) {
     bfd_close(object);
-    return nullptr;
+    return NULL;
   }
 
   return object;
@@ -51,7 +54,7 @@ static bfd *find_debug_file(bfd *lib, const char *aFileName)
   asection *sect = bfd_get_section_by_name(lib, ".gnu_debuglink");
 
   if (!sect)
-    return nullptr;
+    return NULL;
 
   bfd_size_type debuglinkSize = bfd_section_size (objfile->obfd, sect);
 
@@ -97,49 +100,31 @@ static bfd *find_debug_file(bfd *lib, const char *aFileName)
   return debugFile;
 }
 
-
-// Use an indirect array to avoid copying tons of objects
-Symbol ** leaky::ExtendSymbols(int num)
-{
-  long n = numExternalSymbols + num;
-
-  externalSymbols = (Symbol**)
-                    realloc(externalSymbols,
-                            (size_t) (sizeof(externalSymbols[0]) * n));
-  Symbol *new_array = new Symbol[n];
-  for (int i = 0; i < num; i++) {
-    externalSymbols[i + numExternalSymbols] = &new_array[i];
+#define NEXT_SYMBOL \
+  sp++; \
+  if (sp >= lastSymbol) { \
+    long n = numExternalSymbols + 10000; \
+    externalSymbols = (Symbol*) \
+      realloc(externalSymbols, (size_t) (sizeof(Symbol) * n)); \
+    lastSymbol = externalSymbols + n; \
+    sp = externalSymbols + numExternalSymbols; \
+    numExternalSymbols = n; \
   }
-  lastSymbol = externalSymbols + n;
-  Symbol **sp = externalSymbols + numExternalSymbols;
-  numExternalSymbols = n;
-  return sp;
-}
-
-#define NEXT_SYMBOL do { sp++; \
-                         if (sp >= lastSymbol) { \
-                           sp = ExtendSymbols(16384); \
-                         } \
-                       } while (0)
 
 void leaky::ReadSymbols(const char *aFileName, u_long aBaseAddress)
 {
   int initialSymbols = usefulSymbols;
-  if (nullptr == externalSymbols) {
-    externalSymbols = (Symbol**) calloc(sizeof(Symbol*),10000);
-    Symbol *new_array = new Symbol[10000];
-    for (int i = 0; i < 10000; i++) {
-      externalSymbols[i] = &new_array[i];
-    }
+  if (NULL == externalSymbols) {
+    externalSymbols = (Symbol*) malloc(sizeof(Symbol) * 10000);
     numExternalSymbols = 10000;
   }
-  Symbol** sp = externalSymbols + usefulSymbols;
-  lastSymbol = externalSymbols + numExternalSymbols;
+  Symbol* sp = externalSymbols + usefulSymbols;
+  Symbol* lastSymbol = externalSymbols + numExternalSymbols;
 
   // Create a dummy symbol for the library so, if it doesn't have any
   // symbols, we show it by library.
-  (*sp)->Init(aFileName, aBaseAddress);
-  NEXT_SYMBOL;
+  sp->Init(aFileName, aBaseAddress);
+  NEXT_SYMBOL
 
   bfd_boolean kDynamic = (bfd_boolean) false;
 
@@ -149,8 +134,8 @@ void leaky::ReadSymbols(const char *aFileName, u_long aBaseAddress)
     bfd_init ();
   }
 
-  bfd* lib = bfd_openr(aFileName, nullptr);
-  if (nullptr == lib) {
+  bfd* lib = bfd_openr(aFileName, NULL);
+  if (NULL == lib) {
     return;
   }
   if (!bfd_check_format(lib, bfd_object)) {
@@ -187,8 +172,6 @@ void leaky::ReadSymbols(const char *aFileName, u_long aBaseAddress)
   store = bfd_make_empty_symbol(symbolFile);
 
   // Scan symbols
-  size_t demangle_buffer_size = 128;
-  char *demangle_buffer = (char*) malloc(demangle_buffer_size);
   bfd_byte* from = (bfd_byte *) minisyms;
   bfd_byte* fromend = from + symcount * size;
   for (; from < fromend; from += size) {
@@ -201,29 +184,22 @@ void leaky::ReadSymbols(const char *aFileName, u_long aBaseAddress)
 //    if ((syminfo.type == 'T') || (syminfo.type == 't')) {
       const char* nm = bfd_asymbol_name(sym);
       if (nm && nm[0]) {
-        char* dnm = nullptr;
-        if (strncmp("__thunk", nm, 7)) {
-          dnm =
-            abi::__cxa_demangle(nm, demangle_buffer, &demangle_buffer_size, 0);
-          if (dnm) {
-            demangle_buffer = dnm;
-          }
-        }
-        (*sp)->Init(dnm ? dnm : nm, syminfo.value + aBaseAddress);
-        NEXT_SYMBOL;
+	char* dnm = NULL;
+	if (strncmp("__thunk", nm, 7)) {
+	  dnm = cplus_demangle(nm, 1);
+	}
+	sp->Init(dnm ? dnm : nm, syminfo.value + aBaseAddress);
+        NEXT_SYMBOL
       }
 //    }
   }
-
-  free(demangle_buffer);
-  demangle_buffer = nullptr;
 
   bfd_close(symbolFile);
 
   int interesting = sp - externalSymbols;
   if (!quiet) {
     printf("%s provided %d symbols\n", aFileName,
-           interesting - initialSymbols);
+	   interesting - initialSymbols);
   }
   usefulSymbols = interesting;
 }

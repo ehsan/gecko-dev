@@ -4,8 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "VacuumManager.h"
 
 #include "mozilla/Services.h"
@@ -14,7 +12,6 @@
 #include "nsIFile.h"
 #include "nsThreadUtils.h"
 #include "prlog.h"
-#include "prtime.h"
 
 #include "mozStorageConnection.h"
 #include "mozIStorageStatement.h"
@@ -22,7 +19,6 @@
 #include "mozIStoragePendingStatement.h"
 #include "mozIStorageError.h"
 #include "mozStorageHelper.h"
-#include "nsXULAppAPI.h"
 
 #define OBSERVER_TOPIC_IDLE_DAILY "idle-daily"
 #define OBSERVER_TOPIC_XPCOM_SHUTDOWN "xpcom-shutdown"
@@ -68,14 +64,14 @@ BaseCallback::HandleError(mozIStorageError *aError)
   int32_t result;
   nsresult rv = aError->GetResult(&result);
   NS_ENSURE_SUCCESS(rv, rv);
-  nsAutoCString message;
+  nsCAutoString message;
   rv = aError->GetMessage(message);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString warnMsg;
+  nsCAutoString warnMsg;
   warnMsg.AppendLiteral("An error occured during async execution: ");
   warnMsg.AppendInt(result);
-  warnMsg.Append(' ');
+  warnMsg.AppendLiteral(" ");
   warnMsg.Append(message);
   NS_WARNING(warnMsg.get());
 #endif
@@ -96,7 +92,7 @@ BaseCallback::HandleCompletion(uint16_t aReason)
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS(
+NS_IMPL_ISUPPORTS1(
   BaseCallback
 , mozIStorageStatementCallback
 )
@@ -109,7 +105,7 @@ class Vacuumer : public BaseCallback
 public:
   NS_DECL_MOZISTORAGESTATEMENTCALLBACK
 
-  explicit Vacuumer(mozIStorageVacuumParticipant *aParticipant);
+  Vacuumer(mozIStorageVacuumParticipant *aParticipant);
 
   bool execute();
   nsresult notifyCompletion(bool aSucceeded);
@@ -147,10 +143,10 @@ Vacuumer::execute()
   // TODO Bug 634374: figure out a strategy to fix page size with WAL.
   int32_t expectedPageSize = 0;
   rv = mParticipant->GetExpectedDatabasePageSize(&expectedPageSize);
-  if (NS_FAILED(rv) || !Service::pageSizeIsValid(expectedPageSize)) {
+  if (NS_FAILED(rv) || expectedPageSize < 512 || expectedPageSize > 65536) {
     NS_WARNING("Invalid page size requested for database, will use default ");
     NS_WARNING(mDBFilename.get());
-    expectedPageSize = Service::getDefaultPageSize();
+    expectedPageSize = mozIStorageConnection::DEFAULT_PAGE_SIZE;
   }
 
   // Get the database filename.  Last vacuum time is stored under this name
@@ -170,7 +166,7 @@ Vacuumer::execute()
   // Check interval from last vacuum.
   int32_t now = static_cast<int32_t>(PR_Now() / PR_USEC_PER_SEC);
   int32_t lastVacuum;
-  nsAutoCString prefName(PREF_VACUUM_BRANCH);
+  nsCAutoString prefName(PREF_VACUUM_BRANCH);
   prefName += mDBFilename;
   rv = Preferences::GetInt(prefName.get(), &lastVacuum);
   if (NS_SUCCEEDED(rv) && (now - lastVacuum) < VACUUM_INTERVAL_SECONDS) {
@@ -200,13 +196,13 @@ Vacuumer::execute()
   // Execute the statements separately, since the pragma may conflict with the
   // vacuum, if they are executed in the same transaction.
   nsCOMPtr<mozIStorageAsyncStatement> pageSizeStmt;
-  nsAutoCString pageSizeQuery(MOZ_STORAGE_UNIQUIFY_QUERY_STR
+  nsCAutoString pageSizeQuery(MOZ_STORAGE_UNIQUIFY_QUERY_STR
                               "PRAGMA page_size = ");
   pageSizeQuery.AppendInt(expectedPageSize);
   rv = mDBConn->CreateAsyncStatement(pageSizeQuery,
                                      getter_AddRefs(pageSizeStmt));
   NS_ENSURE_SUCCESS(rv, false);
-  nsRefPtr<BaseCallback> callback = new BaseCallback();
+  nsCOMPtr<BaseCallback> callback = new BaseCallback();
   nsCOMPtr<mozIStoragePendingStatement> ps;
   rv = pageSizeStmt->ExecuteAsync(callback, getter_AddRefs(ps));
   NS_ENSURE_SUCCESS(rv, false);
@@ -232,16 +228,16 @@ Vacuumer::HandleError(mozIStorageError *aError)
   int32_t result;
   nsresult rv = aError->GetResult(&result);
   NS_ENSURE_SUCCESS(rv, rv);
-  nsAutoCString message;
+  nsCAutoString message;
   rv = aError->GetMessage(message);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString warnMsg;
+  nsCAutoString warnMsg;
   warnMsg.AppendLiteral("Unable to vacuum database: ");
   warnMsg.Append(mDBFilename);
   warnMsg.AppendLiteral(" - ");
   warnMsg.AppendInt(result);
-  warnMsg.Append(' ');
+  warnMsg.AppendLiteral(" ");
   warnMsg.Append(message);
   NS_WARNING(warnMsg.get());
 #endif
@@ -251,7 +247,7 @@ Vacuumer::HandleError(mozIStorageError *aError)
     int32_t result;
     nsresult rv = aError->GetResult(&result);
     NS_ENSURE_SUCCESS(rv, rv);
-    nsAutoCString message;
+    nsCAutoString message;
     rv = aError->GetMessage(message);
     NS_ENSURE_SUCCESS(rv, rv);
     PR_LOG(gStorageLog, PR_LOG_ERROR,
@@ -276,7 +272,7 @@ Vacuumer::HandleCompletion(uint16_t aReason)
     // Update last vacuum time.
     int32_t now = static_cast<int32_t>(PR_Now() / PR_USEC_PER_SEC);
     MOZ_ASSERT(!mDBFilename.IsEmpty(), "Database filename cannot be empty");
-    nsAutoCString prefName(PREF_VACUUM_BRANCH);
+    nsCAutoString prefName(PREF_VACUUM_BRANCH);
     prefName += mDBFilename;
     DebugOnly<nsresult> rv = Preferences::SetInt(prefName.get(), now);
     MOZ_ASSERT(NS_SUCCEEDED(rv), "Should be able to set a preference"); 
@@ -307,7 +303,7 @@ Vacuumer::notifyCompletion(bool aSucceeded)
 ////////////////////////////////////////////////////////////////////////////////
 //// VacuumManager
 
-NS_IMPL_ISUPPORTS(
+NS_IMPL_ISUPPORTS1(
   VacuumManager
 , nsIObserver
 )
@@ -318,11 +314,6 @@ VacuumManager::gVacuumManager = nullptr;
 VacuumManager *
 VacuumManager::getSingleton()
 {
-  //Don't allocate it in the child Process.
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
-    return nullptr;
-  }
-
   if (gVacuumManager) {
     NS_ADDREF(gVacuumManager);
     return gVacuumManager;
@@ -359,13 +350,13 @@ VacuumManager::~VacuumManager()
 NS_IMETHODIMP
 VacuumManager::Observe(nsISupports *aSubject,
                        const char *aTopic,
-                       const char16_t *aData)
+                       const PRUnichar *aData)
 {
   if (strcmp(aTopic, OBSERVER_TOPIC_IDLE_DAILY) == 0) {
     // Try to run vacuum on all registered entries.  Will stop at the first
     // successful one.
-    nsCOMArray<mozIStorageVacuumParticipant> entries;
-    mParticipants.GetEntries(entries);
+    const nsCOMArray<mozIStorageVacuumParticipant> &entries =
+      mParticipants.GetEntries();
     // If there are more entries than what a month can contain, we could end up
     // skipping some, since we run daily.  So we use a starting index.
     static const char* kPrefName = PREF_VACUUM_BRANCH "index";
@@ -375,7 +366,7 @@ VacuumManager::Observe(nsISupports *aSubject,
     }
     int32_t index;
     for (index = startIndex; index < entries.Count(); ++index) {
-      nsRefPtr<Vacuumer> vacuum = new Vacuumer(entries[index]);
+      nsCOMPtr<Vacuumer> vacuum = new Vacuumer(entries[index]);
       // Only vacuum one database per day.
       if (vacuum->execute()) {
         break;

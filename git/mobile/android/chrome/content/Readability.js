@@ -26,7 +26,6 @@ var Readability = function(uri, doc) {
   this._doc = doc;
   this._biggestFrame = false;
   this._articleByline = null;
-  this._articleDir = null;
 
   // Start with all flags set
   this._flags = this.FLAG_STRIP_UNLIKELYS |
@@ -132,8 +131,9 @@ Readability.prototype = {
       for (let i = elems.length; --i >= 0;) {
         let elem = elems[i];
         let relativeURI = elem.getAttribute(propName);
-        if (relativeURI != null)
+        if (relativeURI != null) {
           elems[i].setAttribute(propName, toAbsoluteURI(relativeURI));
+        }
       }
     }
 
@@ -199,7 +199,7 @@ Readability.prototype = {
     // In some cases a body element can't be found (if the HTML is
     // totally hosed for example) so we create a new body node and
     // append it to the document.
-    if (!doc.body) {
+    if (doc.body === null) {
       let body = doc.createElement("body");
 
       try {
@@ -278,8 +278,9 @@ Readability.prototype = {
           // If we've hit another <br><br>, we're done adding children to this <p>.
           if (next.tagName == "BR") {
             let nextElem = this._nextElement(next);
-            if (nextElem && nextElem.tagName == "BR")
+            if (nextElem && nextElem.tagName == "BR") {
               break;
+            }
           }
           
           // Otherwise, make this node a child of the new <p>.
@@ -335,16 +336,18 @@ Readability.prototype = {
       if (imgCount === 0 &&
         embedCount === 0 &&
         objectCount === 0 &&
-        this._getInnerText(articleParagraphs[i], false) === '')
+        this._getInnerText(articleParagraphs[i], false) === '') {
         articleParagraphs[i].parentNode.removeChild(articleParagraphs[i]);
+      }
     }
 
     let brs = articleContent.getElementsByTagName("BR");
     for (let i = brs.length; --i >= 0;) {
       let br = brs[i];
       let next = this._nextElement(br.nextSibling);
-      if (next && next.tagName == "P")
+      if (next && next.tagName == "P") {
         br.parentNode.removeChild(br);
+      }
     }
   },
 
@@ -407,9 +410,6 @@ Readability.prototype = {
     page = page ? page : this._doc.body;
     let pageCacheHtml = page.innerHTML;
 
-    // Check if any "dir" is set on the toplevel document element
-    this._articleDir = doc.documentElement.getAttribute("dir");
-
     while (true) {
       let stripUnlikelyCandidates = this._flagIsActive(this.FLAG_STRIP_UNLIKELYS);
       let allElements = page.getElementsByTagName('*');
@@ -447,12 +447,10 @@ Readability.prototype = {
 
         let matchString = node.className + node.id;
         if (matchString.search(this.REGEXPS.byline) !== -1 && !this._articleByline) {
-          if (this._isValidByline(node.textContent)) {
-            this._articleByline = node.textContent.trim();
-            node.parentNode.removeChild(node);
-            purgeNode(node);
-            continue;
-          }
+          this._articleByline = node.textContent;
+          node.parentNode.removeChild(node);
+          purgeNode(node);
+          continue;
         }
 
         // Remove unlikely candidates
@@ -585,6 +583,7 @@ Readability.prototype = {
       }
 
       let topCandidate = topCandidates[0] || null;
+      let lastTopCandidate = (topCandidates.length > 3 ? topCandidates[topCandidates.length - 1] : null);
 
       // If we still have no top candidate, just use the body as a last resort.
       // We also have to copy the body node so it is something we can modify.
@@ -628,8 +627,9 @@ Readability.prototype = {
           contentBonus += topCandidate.readability.contentScore * 0.2;
 
         if (typeof siblingNode.readability !== 'undefined' &&
-          (siblingNode.readability.contentScore+contentBonus) >= siblingScoreThreshold)
+          (siblingNode.readability.contentScore+contentBonus) >= siblingScoreThreshold) {
           append = true;
+        }
 
         if (siblingNode.nodeName === "P") {
           let linkDensity = this._getLinkDensity(siblingNode);
@@ -703,96 +703,20 @@ Readability.prototype = {
           return null;
         }
       } else {
+        if (lastTopCandidate !== null) {
+          // EXPERIMENTAL: Contrast ratio is how we measure the level of competition between candidates in the
+          // readability algorithm. This is to avoid offering reader mode on pages that are more like
+          // a list or directory of links with summaries. It takes the score of the last top candidate
+          // (see N_TOP_CANDIDATES) and checks how it compares to the top candidate's. On pages that are not
+          // actual articles, there will likely be many candidates with similar score (i.e. higher contrast ratio).
+          let contrastRatio = lastTopCandidate.readability.contentScore / topCandidate.readability.contentScore;
+          if (contrastRatio > 0.45)
+            return null;
+        }
+
         return articleContent;
       }
     }
-  },
-
-  /**
-   * Check whether the input string could be a byline.
-   * This verifies that the input is a string, and that the length
-   * is less than 100 chars.
-   *
-   * @param possibleByline {string} - a string to check whether its a byline.
-   * @return Boolean - whether the input string is a byline.
-   */
-  _isValidByline: function(byline) {
-    if (typeof byline == 'string' || byline instanceof String) {
-      byline = byline.trim();
-      return (byline.length > 0) && (byline.length < 100);
-    }
-    return false;
-  },
-
-  /**
-   * Attempts to get the excerpt from these
-   * sources in the following order:
-   * - meta description tag
-   * - open-graph description
-   * - twitter cards description
-   * - article's first paragraph
-   * If no excerpt is found, an empty string will be
-   * returned.
-   *
-   * @param Element - root element of the processed version page
-   * @return String - excerpt of the article
-  **/
-  _getExcerpt: function(articleContent) {
-    let values = {};
-    let metaElements = this._doc.getElementsByTagName("meta");
-
-    // Match "description", or Twitter's "twitter:description" (Cards)
-    // in name attribute.
-    let namePattern = /^\s*((twitter)\s*:\s*)?description\s*$/gi;
-
-    // Match Facebook's og:description (Open Graph) in property attribute.
-    let propertyPattern = /^\s*og\s*:\s*description\s*$/gi;
-
-    // Find description tags.
-    for (let i = 0; i < metaElements.length; i++) {
-      let element = metaElements[i];
-      let elementName = element.getAttribute("name");
-      let elementProperty = element.getAttribute("property");
-
-      let name;
-      if (namePattern.test(elementName)) {
-        name = elementName;
-      } else if (propertyPattern.test(elementProperty)) {
-        name = elementProperty;
-      }
-
-      if (name) {
-        let content = element.getAttribute("content");
-        if (content) {
-          // Convert to lowercase and remove any whitespace
-          // so we can match below.
-          name = name.toLowerCase().replace(/\s/g, '');
-          values[name] = content.trim();
-        }
-      }
-    }
-
-    if ("description" in values) {
-      return values["description"];
-    }
-
-    if ("og:description" in values) {
-      // Use facebook open graph description.
-      return values["og:description"];
-    }
-
-    if ("twitter:description" in values) {
-      // Use twitter cards description.
-      return values["twitter:description"];
-    }
-
-    // No description meta tags, use the article's first paragraph.
-    let paragraphs = articleContent.getElementsByTagName("p");
-    if (paragraphs.length > 0) {
-      return paragraphs[0].textContent;
-    }
-
-    return "";
   },
 
   /**
@@ -1146,8 +1070,9 @@ Readability.prototype = {
     for (let page in possiblePages) {
       if (possiblePages.hasOwnProperty(page)) {
         if (possiblePages[page].score >= 50 &&
-          (!topPage || topPage.score < possiblePages[page].score))
+          (!topPage || topPage.score < possiblePages[page].score)) {
           topPage = possiblePages[page];
+        }
       }
     }
 
@@ -1174,11 +1099,13 @@ Readability.prototype = {
     function respondToReadyState(readyState) {
       if (request.readyState === 4) {
         if (this._successfulRequest(request)) {
-          if (options.success)
+          if (options.success) {
             options.success(request);
+          }
         } else {
-          if (options.error)
+          if (options.error) {
             options.error(request);
+          }
         }
       }
     }
@@ -1498,8 +1425,9 @@ Readability.prototype = {
 
     let articleTitle = this._getArticleTitle();
     let articleContent = this._grabArticle();
-    if (!articleContent)
+    if (!articleContent) {
       return null;
+    }
 
     this._postProcessContent(articleContent);
 
@@ -1511,13 +1439,8 @@ Readability.prototype = {
     //   }).bind(this), 500);
     // }
 
-    let excerpt = this._getExcerpt(articleContent);
-
     return { title: articleTitle,
              byline: this._articleByline,
-             dir: this._articleDir,
-             content: articleContent.innerHTML,
-             length: articleContent.textContent.length,
-             excerpt: excerpt };
+             content: articleContent.innerHTML };
   }
 };

@@ -46,25 +46,6 @@ enum nsCharType   {
 typedef enum nsCharType nsCharType;
 
 /**
- * Find the direction of an embedding level or paragraph level set by
- * the Unicode Bidi Algorithm. (Even levels are left-to-right, odd
- * levels right-to-left.
- */
-#define IS_LEVEL_RTL(level) (((level) & 1) == 1)
-
-/**
- * Check whether two bidi levels have the same parity and thus the same
- * directionality
- */
-#define IS_SAME_DIRECTION(level1, level2) (((level1 ^ level2) & 1) == 0)
-
-/**
- * Convert from nsBidiLevel to nsBidiDirection
- */
-#define DIRECTION_FROM_LEVEL(level) ((IS_LEVEL_RTL(level)) \
-   ? NSBIDI_RTL : NSBIDI_LTR)
-
-/**
  * definitions of bidirection character types by category
  */
 
@@ -85,7 +66,7 @@ typedef enum nsCharType nsCharType;
    *        IBMBIDI_NUMERAL_HINDICONTEXT: convert numbers in Arabic text to Hindi, otherwise to Arabic
    * @return the converted Unichar
    */
-  char16_t HandleNumberInChar(char16_t aChar, bool aPrevCharArabic, uint32_t aNumFlag);
+  PRUnichar HandleNumberInChar(PRUnichar aChar, bool aPrevCharArabic, uint32_t aNumFlag);
 
   /**
    * Scan a Unichar string, converting numbers to Arabic or Hindi forms in place
@@ -97,33 +78,25 @@ typedef enum nsCharType nsCharType;
    *        IBMBIDI_NUMERAL_ARABIC:       convert to Arabic forms (Unicode 0030-0039)
    *        IBMBIDI_NUMERAL_HINDICONTEXT: convert numbers in Arabic text to Hindi, otherwise to Arabic
    */
-  nsresult HandleNumbers(char16_t* aBuffer, uint32_t aSize, uint32_t  aNumFlag);
+  nsresult HandleNumbers(PRUnichar* aBuffer, uint32_t aSize, uint32_t  aNumFlag);
 
   /**
    * Give a UTF-32 codepoint
-   * return true if the codepoint is a Bidi control character (LRM, RLM, ALM;
-   * LRE, RLE, PDF, LRO, RLO; LRI, RLI, FSI, PDI).
-   * Return false, otherwise
+   * return true if the codepoint is a Bidi control character (LRE, RLE, PDF, LRO, RLO, LRM, RLM)
+   * return false, otherwise
    */
-#define LRM_CHAR 0x200e
-#define LRE_CHAR 0x202a
-#define RLO_CHAR 0x202e
-#define LRI_CHAR 0x2066
-#define PDI_CHAR 0x2069
-#define ALM_CHAR 0x061C
-   inline bool IsBidiControl(uint32_t aChar) {
-     return ((LRE_CHAR <= aChar && aChar <= RLO_CHAR) ||
-             (LRI_CHAR <= aChar && aChar <= PDI_CHAR) ||
-             (aChar == ALM_CHAR) ||
-             (aChar & 0xfffffe) == LRM_CHAR);
-   }
+  bool IsBidiControl(uint32_t aChar);
 
   /**
    * Give an nsString.
    * @return true if the string contains right-to-left characters
    */
-   bool HasRTLChars(const nsAString& aString);
+  bool HasRTLChars(const nsAString& aString);
 
+// --------------------------------------------------
+// IBMBIDI 
+// --------------------------------------------------
+//
 // These values are shared with Preferences dialog
 //  ------------------
 //  If Pref values are to be changed
@@ -229,6 +202,8 @@ typedef enum nsCharType nsCharType;
                               (c) >= 0x08a0 ) )
 #define IS_ARABIC_ALPHABETIC(c) (IS_ARABIC_CHAR(c) && \
                                 !(IS_HINDI_DIGIT(c) || IS_FARSI_DIGIT(c) || IS_ARABIC_SEPARATOR(c)))
+#define IS_BIDI_CONTROL_CHAR(c) (((0x202a <= (c)) && ((c) <= 0x202e)) \
+                                || ((c) == 0x200e) || ((c) == 0x200f))
 
 /**
  * The codepoint ranges in the following macros are based on the blocks

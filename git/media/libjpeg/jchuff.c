@@ -1,10 +1,9 @@
 /*
  * jchuff.c
  *
- * This file was part of the Independent JPEG Group's software:
  * Copyright (C) 1991-1997, Thomas G. Lane.
- * libjpeg-turbo Modifications:
  * Copyright (C) 2009-2011, D. R. Commander.
+ * This file is part of the Independent JPEG Group's software.
  * For conditions of distribution and use, see the accompanying README file.
  *
  * This file contains Huffman entropy encoding routines.
@@ -22,10 +21,8 @@
 #include "jchuff.h"		/* Declarations shared with jcphuff.c */
 #include <limits.h>
 
-static const unsigned char jpeg_nbits_table[65536] = {
-/* Number i needs jpeg_nbits_table[i] bits to be represented. */
-#include "jpeg_nbits_table.h"
-};
+static unsigned char jpeg_nbits_table[65536];
+static int jpeg_nbits_table_init = 0;
 
 #ifndef min
  #define min(a,b) ((a)<(b)?(a):(b))
@@ -273,6 +270,15 @@ jpeg_make_c_derived_tbl (j_compress_ptr cinfo, boolean isDC, int tblno,
     dtbl->ehufco[i] = huffcode[p];
     dtbl->ehufsi[i] = huffsize[p];
   }
+
+  if(!jpeg_nbits_table_init) {
+    for(i = 0; i < 65536; i++) {
+      int nbits = 0, temp = i;
+      while (temp) {temp >>= 1;  nbits++;}
+      jpeg_nbits_table[i] = nbits;
+    }
+    jpeg_nbits_table_init = 1;
+  }
 }
 
 
@@ -291,6 +297,8 @@ dump_buffer (working_state * state)
 /* Empty the output buffer; return TRUE if successful, FALSE if must suspend */
 {
   struct jpeg_destination_mgr * dest = state->cinfo->dest;
+
+  dest->free_in_buffer = state->free_in_buffer;
 
   if (! (*dest->empty_output_buffer) (state->cinfo))
     return FALSE;

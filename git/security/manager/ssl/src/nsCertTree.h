@@ -6,18 +6,20 @@
 #define _NS_CERTTREE_H_
 
 #include "nsCOMPtr.h"
+#include "nsAutoPtr.h"
 #include "nsIServiceManager.h"
 #include "nsICertTree.h"
 #include "nsITreeView.h"
 #include "nsITreeBoxObject.h"
 #include "nsITreeSelection.h"
+#include "nsISupportsArray.h"
 #include "nsIMutableArray.h"
-#include "nsNSSComponent.h"
 #include "nsTArray.h"
 #include "pldhash.h"
 #include "nsIX509CertDB.h"
 #include "nsCertOverrideService.h"
 #include "mozilla/Attributes.h"
+
 
 typedef struct treeArrayElStr treeArrayEl;
 
@@ -38,15 +40,12 @@ struct CompareCacheHashEntryPtr : PLDHashEntryHdr {
 
 class nsCertAddonInfo MOZ_FINAL : public nsISupports
 {
-private:
-  ~nsCertAddonInfo() {}
-
 public:
   NS_DECL_ISUPPORTS
 
   nsCertAddonInfo() : mUsageCount(0) {}
 
-  mozilla::RefPtr<nsIX509Cert> mCert;
+  nsRefPtr<nsIX509Cert> mCert;
   // how many display entries reference this?
   // (and therefore depend on the underlying cert)
   int32_t mUsageCount;
@@ -54,17 +53,15 @@ public:
 
 class nsCertTreeDispInfo : public nsICertTreeItem
 {
-protected:
-  virtual ~nsCertTreeDispInfo();
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSICERTTREEITEM
 
   nsCertTreeDispInfo();
   nsCertTreeDispInfo(nsCertTreeDispInfo &other);
+  virtual ~nsCertTreeDispInfo();
 
-  mozilla::RefPtr<nsCertAddonInfo> mAddonInfo;
+  nsRefPtr<nsCertAddonInfo> mAddonInfo;
   enum {
     direct_db, host_port_override
   } mTypeOfEntry;
@@ -83,13 +80,12 @@ public:
   NS_DECL_NSITREEVIEW
 
   nsCertTree();
+  virtual ~nsCertTree();
 
   enum sortCriterion { sort_IssuerOrg, sort_Org, sort_Token, 
     sort_CommonName, sort_IssuedDateDescending, sort_Email, sort_None };
 
 protected:
-  virtual ~nsCertTree();
-
   nsresult InitCompareHash();
   void ClearCompareHash();
   void RemoveCacheEntry(void *key);
@@ -117,7 +113,7 @@ protected:
   nsresult GetCertsByTypeFromCache(nsINSSCertCache *aCache, uint32_t aType,
                                    nsCertCompareFunc aCertCmpFn, void *aCertCmpFnArg);
 private:
-  nsTArray< mozilla::RefPtr<nsCertTreeDispInfo> > mDispInfo;
+  nsTArray< nsRefPtr<nsCertTreeDispInfo> > mDispInfo;
   nsCOMPtr<nsITreeBoxObject>  mTree;
   nsCOMPtr<nsITreeSelection>  mSelection;
   treeArrayEl                *mTreeArray;
@@ -126,12 +122,12 @@ private:
   PLDHashTable mCompareCache;
   nsCOMPtr<nsINSSComponent> mNSSComponent;
   nsCOMPtr<nsICertOverrideService> mOverrideService;
-  mozilla::RefPtr<nsCertOverrideService> mOriginalOverrideService;
+  nsRefPtr<nsCertOverrideService> mOriginalOverrideService;
 
   treeArrayEl *GetThreadDescAtIndex(int32_t _index);
   already_AddRefed<nsIX509Cert> 
     GetCertAtIndex(int32_t _index, int32_t *outAbsoluteCertOffset = nullptr);
-  mozilla::TemporaryRef<nsCertTreeDispInfo>
+  already_AddRefed<nsCertTreeDispInfo> 
     GetDispInfoAtIndex(int32_t index, int32_t *outAbsoluteCertOffset = nullptr);
   void FreeCertArray();
   nsresult UpdateUIContents();

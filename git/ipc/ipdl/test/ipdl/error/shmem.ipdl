@@ -1,4 +1,4 @@
-using class mozilla::ipc::Shmem from "mozilla/ipc/Shmem.h";      // redeclaration
+using mozilla::ipc::Shmem;      // redeclaration
 
 protocol shmem {
 child: Msg(Shmem s);

@@ -5,16 +5,12 @@
 #ifndef GFX_CHROMIUMTYPES_H
 #define GFX_CHROMIUMTYPES_H
 
-#include <stdint.h>
+#include "prtypes.h"
+#include "mozilla/StandardInteger.h"
 
-// On Windows, protypes.h is #included, which defines these types.  This sucks!
-#ifndef PROTYPES_H
 typedef uint8_t uint8;
 typedef int8_t int8;
 typedef int16_t int16;
-typedef uint16_t uint16;
-typedef uint32_t uint32;
-#endif
 
 // From Chromium build_config.h:
 // Processor architecture detection.  For more info on what's defined, see:
@@ -45,10 +41,6 @@ typedef uint32_t uint32;
 #elif defined(__sparcv9)
 #define ARCH_CPU_SPARC_FAMILY 1
 #define ARCH_CPU_SPARC 1
-#define ARCH_CPU_64_BITS 1
-#elif defined(__aarch64__)
-#define ARCH_CPU_AARCH64_FAMILY 1
-#define ARCH_CPU_AARCH64 1
 #define ARCH_CPU_64_BITS 1
 #else
 #warning Please add support for your architecture in chromium_types.h

@@ -1,16 +1,18 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-"use strict";
-
 Cu.import("resource://gre/modules/NetUtil.jsm");
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-common/rest.js");
 Cu.import("resource://services-common/utils.js");
 
+const TEST_RESOURCE_URL = TEST_SERVER_URL + "resource";
+
+//DEBUG = true;
+
 function run_test() {
-  Log.repository.getLogger("Services.Common.RESTRequest").level =
-    Log.Level.Trace;
+  Log4Moz.repository.getLogger("Services.Common.RESTRequest").level =
+    Log4Moz.Level.Trace;
   initTestLogging("Trace");
 
   run_next_test();
@@ -39,8 +41,7 @@ add_test(function test_attributes() {
   do_check_eq(request.response, null);
   do_check_eq(request.status, request.NOT_SENT);
   let expectedLoadFlags = Ci.nsIRequest.LOAD_BYPASS_CACHE |
-                          Ci.nsIRequest.INHIBIT_CACHING |
-                          Ci.nsIRequest.LOAD_ANONYMOUS;
+                          Ci.nsIRequest.INHIBIT_CACHING;
   do_check_eq(request.loadFlags, expectedLoadFlags);
 
   run_next_test();
@@ -72,10 +73,10 @@ add_test(function test_proxy_auth_redirect() {
     "/original": original,
     "/pac3":     pacHandler
   });
-  PACSystemSettings.PACURI = server.baseURI + "/pac3";
+  PACSystemSettings.PACURI = "http://localhost:8080/pac3";
   installFakePAC();
 
-  let res = new RESTRequest(server.baseURI + "/original");
+  let res = new RESTRequest("http://localhost:8080/original");
   res.get(function (error) {
     do_check_true(pacFetched);
     do_check_true(fetched);
@@ -88,29 +89,14 @@ add_test(function test_proxy_auth_redirect() {
 });
 
 /**
- * Ensure that failures that cause asyncOpen to throw
- * result in callbacks being invoked.
- * Bug 826086.
- */
-add_test(function test_forbidden_port() {
-  let request = new RESTRequest("http://localhost:6000/");
-  request.get(function(error) {
-    if (!error) {
-      do_throw("Should have got an error.");
-    }
-    do_check_eq(error.result, Components.results.NS_ERROR_PORT_ACCESS_NOT_ALLOWED);
-    run_next_test();
-  });
-});
-
-/**
  * Demonstrate API short-hand: create a request and dispatch it immediately.
  */
 add_test(function test_simple_get() {
   let handler = httpd_handler(200, "OK", "Huzzah!");
   let server = httpd_setup({"/resource": handler});
 
-  let request = new RESTRequest(server.baseURI + "/resource").get(function (error) {
+  let uri = TEST_RESOURCE_URL;
+  let request = new RESTRequest(uri).get(function (error) {
     do_check_eq(error, null);
 
     do_check_eq(this.status, this.COMPLETED);
@@ -131,7 +117,7 @@ add_test(function test_get() {
   let handler = httpd_handler(200, "OK", "Huzzah!");
   let server = httpd_setup({"/resource": handler});
 
-  let request = new RESTRequest(server.baseURI + "/resource");
+  let request = new RESTRequest(TEST_RESOURCE_URL);
   do_check_eq(request.status, request.NOT_SENT);
 
   request.onProgress = request.onComplete = function () {
@@ -195,7 +181,7 @@ add_test(function test_get_utf8() {
   }});
 
   // Check if charset in Content-Type is propertly interpreted.
-  let request1 = new RESTRequest(server.baseURI + "/resource");
+  let request1 = new RESTRequest(TEST_RESOURCE_URL);
   request1.get(function(error) {
     do_check_null(error);
 
@@ -206,7 +192,7 @@ add_test(function test_get_utf8() {
 
     // Check that we default to UTF-8 if Content-Type doesn't have a charset.
     charset = false;
-    let request2 = new RESTRequest(server.baseURI + "/resource");
+    let request2 = new RESTRequest(TEST_RESOURCE_URL);
     request2.get(function(error) {
       do_check_null(error);
 
@@ -242,7 +228,7 @@ add_test(function test_charsets() {
   }});
 
   // Check that provided charset overrides hint.
-  let request1 = new RESTRequest(server.baseURI + "/resource");
+  let request1 = new RESTRequest(TEST_RESOURCE_URL);
   request1.charset = "not-a-charset";
   request1.get(function(error) {
     do_check_null(error);
@@ -255,7 +241,7 @@ add_test(function test_charsets() {
 
     // Check that hint is used if Content-Type doesn't have a charset.
     charset = false;
-    let request2 = new RESTRequest(server.baseURI + "/resource");
+    let request2 = new RESTRequest(TEST_RESOURCE_URL);
     request2.charset = "us-ascii";
     request2.get(function(error) {
       do_check_null(error);
@@ -271,14 +257,13 @@ add_test(function test_charsets() {
 });
 
 /**
- * Used for testing PATCH/PUT/POST methods.
+ * Test HTTP PUT with a simple string argument and default Content-Type.
  */
-function check_posting_data(method) {
-  let funcName = method.toLowerCase();
+add_test(function test_put() {
   let handler = httpd_handler(200, "OK", "Got it!");
   let server = httpd_setup({"/resource": handler});
 
-  let request = new RESTRequest(server.baseURI + "/resource");
+  let request = new RESTRequest(TEST_RESOURCE_URL);
   do_check_eq(request.status, request.NOT_SENT);
 
   request.onProgress = request.onComplete = function () {
@@ -300,7 +285,7 @@ function check_posting_data(method) {
     do_check_eq(this.response.status, 200);
     do_check_eq(this.response.body, "Got it!");
 
-    do_check_eq(handler.request.method, method);
+    do_check_eq(handler.request.method, "PUT");
     do_check_eq(handler.request.body, "Hullo?");
     do_check_eq(handler.request.getHeader("Content-Type"), "text/plain");
 
@@ -312,33 +297,61 @@ function check_posting_data(method) {
     });
   };
 
-  do_check_eq(request[funcName]("Hullo?", onComplete, onProgress), request);
+  do_check_eq(request.put("Hullo?", onComplete, onProgress), request);
   do_check_eq(request.status, request.SENT);
-  do_check_eq(request.method, method);
+  do_check_eq(request.method, "PUT");
   do_check_throws(function () {
-    request[funcName]("Hai!");
+    request.put("Hai!");
   });
-}
-
-/**
- * Test HTTP PATCH with a simple string argument and default Content-Type.
- */
-add_test(function test_patch() {
-  check_posting_data("PATCH");
-});
-
-/**
- * Test HTTP PUT with a simple string argument and default Content-Type.
- */
-add_test(function test_put() {
-  check_posting_data("PUT");
 });
 
 /**
  * Test HTTP POST with a simple string argument and default Content-Type.
  */
 add_test(function test_post() {
-  check_posting_data("POST");
+  let handler = httpd_handler(200, "OK", "Got it!");
+  let server = httpd_setup({"/resource": handler});
+
+  let request = new RESTRequest(TEST_RESOURCE_URL);
+  do_check_eq(request.status, request.NOT_SENT);
+
+  request.onProgress = request.onComplete = function () {
+    do_throw("This function should have been overwritten!");
+  };
+
+  let onProgress_called = false;
+  function onProgress() {
+    onProgress_called = true;
+    do_check_eq(this.status, request.IN_PROGRESS);
+    do_check_true(this.response.body.length > 0);
+  };
+
+  function onComplete(error) {
+    do_check_eq(error, null);
+
+    do_check_eq(this.status, this.COMPLETED);
+    do_check_true(this.response.success);
+    do_check_eq(this.response.status, 200);
+    do_check_eq(this.response.body, "Got it!");
+
+    do_check_eq(handler.request.method, "POST");
+    do_check_eq(handler.request.body, "Hullo?");
+    do_check_eq(handler.request.getHeader("Content-Type"), "text/plain");
+
+    do_check_true(onProgress_called);
+    CommonUtils.nextTick(function () {
+      do_check_eq(request.onComplete, null);
+      do_check_eq(request.onProgress, null);
+      server.stop(run_next_test);
+    });
+  };
+
+  do_check_eq(request.post("Hullo?", onComplete, onProgress), request);
+  do_check_eq(request.status, request.SENT);
+  do_check_eq(request.method, "POST");
+  do_check_throws(function () {
+    request.post("Hai!");
+  });
 });
 
 /**
@@ -348,7 +361,7 @@ add_test(function test_delete() {
   let handler = httpd_handler(200, "OK", "Got it!");
   let server = httpd_setup({"/resource": handler});
 
-  let request = new RESTRequest(server.baseURI + "/resource");
+  let request = new RESTRequest(TEST_RESOURCE_URL);
   do_check_eq(request.status, request.NOT_SENT);
 
   request.onProgress = request.onComplete = function () {
@@ -394,7 +407,7 @@ add_test(function test_get_404() {
   let handler = httpd_handler(404, "Not Found", "Cannae find it!");
   let server = httpd_setup({"/resource": handler});
 
-  let request = new RESTRequest(server.baseURI + "/resource");
+  let request = new RESTRequest(TEST_RESOURCE_URL);
   request.get(function (error) {
     do_check_eq(error, null);
 
@@ -420,7 +433,7 @@ add_test(function test_put_json() {
     injson: "format",
     number: 42
   };
-  let request = new RESTRequest(server.baseURI + "/resource");
+  let request = new RESTRequest(TEST_RESOURCE_URL);
   request.put(sample_data, function (error) {
     do_check_eq(error, null);
 
@@ -450,7 +463,7 @@ add_test(function test_post_json() {
     injson: "format",
     number: 42
   };
-  let request = new RESTRequest(server.baseURI + "/resource");
+  let request = new RESTRequest(TEST_RESOURCE_URL);
   request.post(sample_data, function (error) {
     do_check_eq(error, null);
 
@@ -474,7 +487,7 @@ add_test(function test_put_override_content_type() {
   let handler = httpd_handler(200, "OK");
   let server = httpd_setup({"/resource": handler});
 
-  let request = new RESTRequest(server.baseURI + "/resource");
+  let request = new RESTRequest(TEST_RESOURCE_URL);
   request.setHeader("Content-Type", "application/lolcat");
   request.put("O HAI!!1!", function (error) {
     do_check_eq(error, null);
@@ -499,7 +512,7 @@ add_test(function test_post_override_content_type() {
   let handler = httpd_handler(200, "OK");
   let server = httpd_setup({"/resource": handler});
 
-  let request = new RESTRequest(server.baseURI + "/resource");
+  let request = new RESTRequest(TEST_RESOURCE_URL);
   request.setHeader("Content-Type", "application/lolcat");
   request.post("O HAI!!1!", function (error) {
     do_check_eq(error, null);
@@ -529,7 +542,7 @@ add_test(function test_get_no_headers() {
                         "connection", "pragma", "cache-control",
                         "content-length"];
 
-  new RESTRequest(server.baseURI + "/resource").get(function (error) {
+  new RESTRequest(TEST_RESOURCE_URL).get(function (error) {
     do_check_eq(error, null);
 
     do_check_eq(this.response.status, 200);
@@ -554,8 +567,8 @@ add_test(function test_changing_uri() {
   let handler = httpd_handler(200, "OK");
   let server = httpd_setup({"/resource": handler});
 
-  let request = new RESTRequest("http://localhost:1234/the-wrong-resource");
-  request.uri = CommonUtils.makeURI(server.baseURI + "/resource");
+  let request = new RESTRequest("http://localhost:8080/the-wrong-resource");
+  request.uri = CommonUtils.makeURI(TEST_RESOURCE_URL);
   request.get(function (error) {
     do_check_eq(error, null);
     do_check_eq(this.response.status, 200);
@@ -570,7 +583,7 @@ add_test(function test_request_setHeader() {
   let handler = httpd_handler(200, "OK");
   let server = httpd_setup({"/resource": handler});
 
-  let request = new RESTRequest(server.baseURI + "/resource");
+  let request = new RESTRequest(TEST_RESOURCE_URL);
 
   request.setHeader("X-What-Is-Weave", "awesome");
   request.setHeader("X-WHAT-is-Weave", "more awesomer");
@@ -599,7 +612,7 @@ add_test(function test_response_headers() {
     response.setStatusLine(request.httpVersion, 200, "OK");
   }
   let server = httpd_setup({"/resource": handler});
-  let request = new RESTRequest(server.baseURI + "/resource");
+  let request = new RESTRequest(TEST_RESOURCE_URL);
 
   request.get(function (error) {
     do_check_eq(error, null);
@@ -619,7 +632,7 @@ add_test(function test_response_headers() {
  * (e.g. NS_ERROR_CONNECTION_REFUSED).
  */
 add_test(function test_connection_refused() {
-  let request = new RESTRequest("http://localhost:1234/resource");
+  let request = new RESTRequest(TEST_RESOURCE_URL);
   request.onProgress = function onProgress() {
     do_throw("Shouldn't have called request.onProgress()!");
   };
@@ -641,7 +654,7 @@ add_test(function test_abort() {
   }
   let server = httpd_setup({"/resource": handler});
 
-  let request = new RESTRequest(server.baseURI + "/resource");
+  let request = new RESTRequest(TEST_RESOURCE_URL);
 
   // Aborting a request that hasn't been sent yet is pointless and will throw.
   do_check_throws(function () {
@@ -679,25 +692,16 @@ add_test(function test_timeout() {
     // why you really only want to make one HTTP request to this server ever.
     server_connection = connection;
   };
-  server.start();
-  let identity = server.identity;
-  let uri = identity.primaryScheme + "://" + identity.primaryHost + ":" +
-            identity.primaryPort;
+  server.start(8080);
 
-  let request = new RESTRequest(uri + "/resource");
+  let request = new RESTRequest(TEST_RESOURCE_URL);
   request.timeout = 0.1; // 100 milliseconds
   request.get(function (error) {
     do_check_eq(error.result, Cr.NS_ERROR_NET_TIMEOUT);
     do_check_eq(this.status, this.ABORTED);
 
-    // server_connection is undefined on the Android emulator for reasons
-    // unknown. Yet, we still get here. If this test is refactored, we should
-    // investigate the reason why the above callback is behaving differently.
-    if (server_connection) {
-      _("Closing connection.");
-      server_connection.close();
-    }
-
+    _("Closing connection.");
+    server_connection.close();
     _("Shutting down server.");
     server.stop(run_next_test);
   });
@@ -710,7 +714,7 @@ add_test(function test_exception_in_onProgress() {
   let handler = httpd_handler(200, "OK", "Foobar");
   let server = httpd_setup({"/resource": handler});
 
-  let request = new RESTRequest(server.baseURI + "/resource");
+  let request = new RESTRequest(TEST_RESOURCE_URL);
   request.onProgress = function onProgress() {
     it.does.not.exist();
   };
@@ -732,14 +736,13 @@ add_test(function test_new_channel() {
   }
 
   let redirectRequested = false;
-  let redirectURL;
   function redirectHandler(metadata, response) {
     checkUA(metadata);
     redirectRequested = true;
 
     let body = "Redirecting";
     response.setStatusLine(metadata.httpVersion, 307, "TEMPORARY REDIRECT");
-    response.setHeader("Location", redirectURL);
+    response.setHeader("Location", "http://localhost:8081/resource");
     response.bodyOutputStream.write(body, body.length);
   }
 
@@ -753,9 +756,8 @@ add_test(function test_new_channel() {
     response.bodyOutputStream.write(body, body.length);
   }
 
-  let server1 = httpd_setup({"/redirect": redirectHandler});
-  let server2 = httpd_setup({"/resource": resourceHandler});
-  redirectURL = server2.baseURI + "/resource";
+  let server1 = httpd_setup({"/redirect": redirectHandler}, 8080);
+  let server2 = httpd_setup({"/resource": resourceHandler}, 8081);
 
   function advance() {
     server1.stop(function () {
@@ -763,7 +765,7 @@ add_test(function test_new_channel() {
     });
   }
 
-  let request = new RESTRequest(server1.baseURI + "/redirect");
+  let request = new RESTRequest("http://localhost:8080/redirect");
   request.setHeader("User-Agent", "foo bar");
 
   // Swizzle in our own fakery, because this redirect is neither
@@ -781,33 +783,7 @@ add_test(function test_new_channel() {
 
     do_check_eq(200, response.status);
     do_check_eq("Test", response.body);
-    do_check_true(redirectRequested);
-    do_check_true(resourceRequested);
 
     advance();
   });
 });
-
-add_test(function test_not_sending_cookie() {
-  function handler(metadata, response) {
-    let body = "COOKIE!";
-    response.setStatusLine(metadata.httpVersion, 200, "OK");
-    response.bodyOutputStream.write(body, body.length);
-    do_check_false(metadata.hasHeader("Cookie"));
-  }
-  let server = httpd_setup({"/test": handler});
-
-  let cookieSer = Cc["@mozilla.org/cookieService;1"]
-                    .getService(Ci.nsICookieService);
-  let uri = CommonUtils.makeURI(server.baseURI);
-  cookieSer.setCookieString(uri, null, "test=test; path=/;", null);
-
-  let res = new RESTRequest(server.baseURI + "/test");
-  res.get(function (error) {
-    do_check_null(error);
-    do_check_true(this.response.success);
-    do_check_eq("COOKIE!", this.response.body);
-    server.stop(run_next_test);
-  });
-});
-

@@ -1,4 +1,5 @@
-load(libdir + "evalInFrame.js");
+// |jit-test| mjitalways;debug
+setDebug(true);
 
 function callee() {
   evalInFrame(1, "var x = 'success'");

@@ -31,7 +31,7 @@ addPageBook(4, 0, 0); // bookmark
 addPageBook(5, 0, 0); // bookmark typed
 
 // Set some pages as typed
-markTyped([2,3,5], 0);
+markTyped([2,3,5]);
 // Remove pages from history to treat them as unvisited
 removePages([4,5]);
 
@@ -44,26 +44,20 @@ let gTests = [
    "foo ^ ~", [2,3]],
   ["2: Drop-down empty search matches only typed history",
    "", [2,3]],
-  ["3: Drop-down empty search matches only bookmarks",
-   "", [2,3], matchBookmarks],
+  ["3: Drop-down empty search matches everything",
+   "", [0,1,2,3,4,5], function () setEmptyPref(0)],
   ["4: Drop-down empty search matches only typed",
-   "", [2,3], matchTyped],
+   "", [2,3,5], function () setEmptyPref(32)],
+  ["5: Drop-down empty search matches only typed history",
+   "", [2,3], clearEmptyPref],
 ];
 
-function matchBookmarks() {
-  prefs.setBoolPref("browser.urlbar.suggest.history", false);
-  prefs.setBoolPref("browser.urlbar.suggest.bookmark", true);
-  clearPrefs();
+function setEmptyPref(aValue)
+  prefs.setIntPref("browser.urlbar.default.behavior.emptyRestriction", aValue);
+
+function clearEmptyPref()
+{
+  if (prefs.prefHasUserValue("browser.urlbar.default.behavior.emptyRestriction"))
+    prefs.clearUserPref("browser.urlbar.default.behavior.emptyRestriction");
 }
 
-function matchTyped() {
-  prefs.setBoolPref("browser.urlbar.suggest.history", true);
-  prefs.setBoolPref("browser.urlbar.suggest.history.onlyTyped", true);
-  clearPrefs();
-}
-
-function clearPrefs() {
-  prefs.clearUserPref("browser.urlbar.suggest.history");
-  prefs.clearUserPref("browser.urlbar.suggest.bookmark");
-  prefs.clearUserPref("browser.urlbar.suggest.history.onlyTyped");
-}

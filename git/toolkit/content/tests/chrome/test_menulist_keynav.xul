@@ -88,8 +88,7 @@ function differentPressed()
   list.open = true;
   is(list.getBoundingClientRect().width, list.firstChild.getBoundingClientRect().width,
      "menu and popup width match");
-  var minScrollbarWidth = window.matchMedia("(-moz-overlay-scrollbars)").matches ? 0 : 3;
-  ok(list.getBoundingClientRect().width >= list.getItemAtIndex(0).getBoundingClientRect().width + minScrollbarWidth,
+  ok(list.getBoundingClientRect().width > list.getItemAtIndex(0).getBoundingClientRect().width + 2,
      "menuitem width accounts for scrollbar");
   list.open = false;
 
@@ -139,7 +138,7 @@ function checkEnter()
   list.addEventListener("popuphidden", checkEnterWithModifiers, false);
   list.addEventListener("command", checkModifiers, false);
   list.open = true;
-  synthesizeKey("VK_RETURN", { });
+  synthesizeKey("VK_ENTER", { });
 }
 
 function checkEnterWithModifiers()
@@ -153,7 +152,7 @@ function checkEnterWithModifiers()
   list.addEventListener("popuphidden", done, false);
   list.open = true;
 
-  synthesizeKey("VK_RETURN", { shiftKey: true, ctrlKey: true, altKey: true, metaKey: true });
+  synthesizeKey("VK_ENTER", { shiftKey: true, ctrlKey: true, altKey: true, metaKey: true });
 }
 
 function done()

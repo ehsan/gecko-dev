@@ -4,21 +4,25 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/ContentChild.h"
-#include "mozilla/dom/PermissionMessageUtils.h"
 #include "nsXULAppAPI.h"
 
 #include "nsAlertsService.h"
 
 #ifdef MOZ_WIDGET_ANDROID
 #include "AndroidBridge.h"
-using namespace mozilla::widget::android;
 #else
 
+#include "nsISupportsArray.h"
 #include "nsXPCOM.h"
+#include "nsISupportsPrimitives.h"
 #include "nsIServiceManager.h"
 #include "nsIDOMWindow.h"
+#include "nsIWindowWatcher.h"
 #include "nsPromiseFlatString.h"
 #include "nsToolkitCompsCID.h"
+#include "mozilla/LookAndFeel.h"
+
+#define ALERT_CHROME_URL "chrome://global/content/alerts/alert.xul"
 
 #endif // !MOZ_WIDGET_ANDROID
 
@@ -26,7 +30,7 @@ using namespace mozilla;
 
 using mozilla::dom::ContentChild;
 
-NS_IMPL_ISUPPORTS(nsAlertsService, nsIAlertsService, nsIAlertsProgressListener)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsAlertsService, nsIAlertsService, nsIAlertsProgressListener)
 
 nsAlertsService::nsAlertsService()
 {
@@ -66,11 +70,7 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
                                                      const nsAString & aAlertText, bool aAlertTextClickable,
                                                      const nsAString & aAlertCookie,
                                                      nsIObserver * aAlertListener,
-                                                     const nsAString & aAlertName,
-                                                     const nsAString & aBidi,
-                                                     const nsAString & aLang,
-                                                     const nsAString & aData,
-                                                     nsIPrincipal * aPrincipal)
+                                                     const nsAString & aAlertName)
 {
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     ContentChild* cpc = ContentChild::GetSingleton();
@@ -78,16 +78,12 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
     if (aAlertListener)
       cpc->AddRemoteAlertObserver(PromiseFlatString(aAlertCookie), aAlertListener);
 
-    cpc->SendShowAlertNotification(PromiseFlatString(aImageUrl),
-                                   PromiseFlatString(aAlertTitle),
-                                   PromiseFlatString(aAlertText),
+    cpc->SendShowAlertNotification(nsAutoString(aImageUrl),
+                                   nsAutoString(aAlertTitle),
+                                   nsAutoString(aAlertText),
                                    aAlertTextClickable,
-                                   PromiseFlatString(aAlertCookie),
-                                   PromiseFlatString(aAlertName),
-                                   PromiseFlatString(aBidi),
-                                   PromiseFlatString(aLang),
-                                   PromiseFlatString(aData),
-                                   IPC::Principal(aPrincipal));
+                                   nsAutoString(aAlertCookie),
+                                   nsAutoString(aAlertName));
     return NS_OK;
   }
 
@@ -101,52 +97,93 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
   nsresult rv;
   if (sysAlerts) {
     rv = sysAlerts->ShowAlertNotification(aImageUrl, aAlertTitle, aAlertText, aAlertTextClickable,
-                                          aAlertCookie, aAlertListener, aAlertName,
-                                          aBidi, aLang, aData,
-                                          IPC::Principal(aPrincipal));
+                                          aAlertCookie, aAlertListener, aAlertName);
     if (NS_SUCCEEDED(rv))
-      return NS_OK;
+      return rv;
   }
 
   if (!ShouldShowAlert()) {
     // Do not display the alert. Instead call alertfinished and get out.
     if (aAlertListener)
-      aAlertListener->Observe(nullptr, "alertfinished", PromiseFlatString(aAlertCookie).get());
+      aAlertListener->Observe(NULL, "alertfinished", PromiseFlatString(aAlertCookie).get());
     return NS_OK;
   }
 
-  // Use XUL notifications as a fallback if above methods have failed.
-  rv = mXULAlerts.ShowAlertNotification(aImageUrl, aAlertTitle, aAlertText, aAlertTextClickable,
-                                        aAlertCookie, aAlertListener, aAlertName,
-                                        aBidi, aLang);
+#ifdef XP_MACOSX
+  return NS_ERROR_NOT_IMPLEMENTED;
+#endif
+
+  nsCOMPtr<nsIWindowWatcher> wwatch(do_GetService(NS_WINDOWWATCHER_CONTRACTID));
+  nsCOMPtr<nsIDOMWindow> newWindow;
+
+  nsCOMPtr<nsISupportsArray> argsArray;
+  rv = NS_NewISupportsArray(getter_AddRefs(argsArray));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // create scriptable versions of our strings that we can store in our nsISupportsArray....
+  nsCOMPtr<nsISupportsString> scriptableImageUrl (do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID));
+  NS_ENSURE_TRUE(scriptableImageUrl, NS_ERROR_FAILURE);
+
+  scriptableImageUrl->SetData(aImageUrl);
+  rv = argsArray->AppendElement(scriptableImageUrl);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsISupportsString> scriptableAlertTitle (do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID));
+  NS_ENSURE_TRUE(scriptableAlertTitle, NS_ERROR_FAILURE);
+
+  scriptableAlertTitle->SetData(aAlertTitle);
+  rv = argsArray->AppendElement(scriptableAlertTitle);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsISupportsString> scriptableAlertText (do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID));
+  NS_ENSURE_TRUE(scriptableAlertText, NS_ERROR_FAILURE);
+
+  scriptableAlertText->SetData(aAlertText);
+  rv = argsArray->AppendElement(scriptableAlertText);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsISupportsPRBool> scriptableIsClickable (do_CreateInstance(NS_SUPPORTS_PRBOOL_CONTRACTID));
+  NS_ENSURE_TRUE(scriptableIsClickable, NS_ERROR_FAILURE);
+
+  scriptableIsClickable->SetData(aAlertTextClickable);
+  rv = argsArray->AppendElement(scriptableIsClickable);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsISupportsString> scriptableAlertCookie (do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID));
+  NS_ENSURE_TRUE(scriptableAlertCookie, NS_ERROR_FAILURE);
+
+  scriptableAlertCookie->SetData(aAlertCookie);
+  rv = argsArray->AppendElement(scriptableAlertCookie);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsISupportsPRInt32> scriptableOrigin (do_CreateInstance(NS_SUPPORTS_PRINT32_CONTRACTID));
+  NS_ENSURE_TRUE(scriptableOrigin, NS_ERROR_FAILURE);
+
+  int32_t origin =
+    LookAndFeel::GetInt(LookAndFeel::eIntID_AlertNotificationOrigin);
+  scriptableOrigin->SetData(origin);
+
+  rv = argsArray->AppendElement(scriptableOrigin);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (aAlertListener)
+  {
+    nsCOMPtr<nsISupportsInterfacePointer> ifptr = do_CreateInstance(NS_SUPPORTS_INTERFACE_POINTER_CONTRACTID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsISupports> iSupports (do_QueryInterface(aAlertListener));
+    ifptr->SetData(iSupports);
+    ifptr->SetDataIID(&NS_GET_IID(nsIObserver));
+    rv = argsArray->AppendElement(ifptr);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  rv = wwatch->OpenWindow(0, ALERT_CHROME_URL, "_blank",
+                 "chrome,dialog=yes,titlebar=no,popup=yes", argsArray,
+                 getter_AddRefs(newWindow));
   return rv;
 #endif // !MOZ_WIDGET_ANDROID
 }
-
-NS_IMETHODIMP nsAlertsService::CloseAlert(const nsAString& aAlertName,
-                                          nsIPrincipal* aPrincipal)
-{
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    ContentChild* cpc = ContentChild::GetSingleton();
-    cpc->SendCloseAlert(nsAutoString(aAlertName), IPC::Principal(aPrincipal));
-    return NS_OK;
-  }
-
-#ifdef MOZ_WIDGET_ANDROID
-  mozilla::widget::android::GeckoAppShell::CloseNotification(aAlertName);
-  return NS_OK;
-#else
-
-  // Try the system notification service.
-  nsCOMPtr<nsIAlertsService> sysAlerts(do_GetService(NS_SYSTEMALERTSERVICE_CONTRACTID));
-  if (sysAlerts) {
-    return sysAlerts->CloseAlert(aAlertName, nullptr);
-  }
-
-  return mXULAlerts.CloseAlert(aAlertName);
-#endif // !MOZ_WIDGET_ANDROID
-}
-
 
 NS_IMETHODIMP nsAlertsService::OnProgress(const nsAString & aAlertName,
                                           int64_t aProgress,
@@ -154,9 +191,7 @@ NS_IMETHODIMP nsAlertsService::OnProgress(const nsAString & aAlertName,
                                           const nsAString & aAlertText)
 {
 #ifdef MOZ_WIDGET_ANDROID
-  mozilla::widget::android::GeckoAppShell::AlertsProgressListener_OnProgress(aAlertName,
-                                                                             aProgress, aProgressMax,
-                                                                             aAlertText);
+  mozilla::AndroidBridge::Bridge()->AlertsProgressListener_OnProgress(aAlertName, aProgress, aProgressMax, aAlertText);
   return NS_OK;
 #else
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -166,7 +201,7 @@ NS_IMETHODIMP nsAlertsService::OnProgress(const nsAString & aAlertName,
 NS_IMETHODIMP nsAlertsService::OnCancel(const nsAString & aAlertName)
 {
 #ifdef MOZ_WIDGET_ANDROID
-  mozilla::widget::android::GeckoAppShell::CloseNotification(aAlertName);
+  mozilla::AndroidBridge::Bridge()->AlertsProgressListener_OnCancel(aAlertName);
   return NS_OK;
 #else
   return NS_ERROR_NOT_IMPLEMENTED;

@@ -5,12 +5,13 @@
 
 "use strict";
 
-this.EXPORTED_SYMBOLS = ["SplitView"];
+const EXPORTED_SYMBOLS = ["SplitView"];
 
 /* this must be kept in sync with CSS (ie. splitview.css) */
 const LANDSCAPE_MEDIA_QUERY = "(min-width: 551px)";
 
-let bindings = new WeakMap();
+const BINDING_USERDATA = "splitview-binding";
+
 
 /**
  * SplitView constructor
@@ -25,7 +26,7 @@ let bindings = new WeakMap();
  * @param DOMElement aRoot
  * @see appendItem
  */
-this.SplitView = function SplitView(aRoot)
+function SplitView(aRoot)
 {
   this._root = aRoot;
   this._controller = aRoot.querySelector(".splitview-controller");
@@ -36,7 +37,7 @@ this.SplitView = function SplitView(aRoot)
   this._mql = aRoot.ownerDocument.defaultView.matchMedia(LANDSCAPE_MEDIA_QUERY);
 
   // items list focus and search-on-type handling
-  this._nav.addEventListener("keydown", (aEvent) => {
+  this._nav.addEventListener("keydown", function onKeyCatchAll(aEvent) {
     function getFocusedItemWithin(nav) {
       let node = nav.ownerDocument.activeElement;
       while (node && node.parentNode != nav) {
@@ -77,7 +78,7 @@ this.SplitView = function SplitView(aRoot)
       }
       return false;
     }
-  }, false);
+  }.bind(this), false);
 }
 
 SplitView.prototype = {
@@ -114,7 +115,7 @@ SplitView.prototype = {
     }
 
     if (this._activeSummary) {
-      let binding = bindings.get(this._activeSummary);
+      let binding = this._activeSummary.getUserData(BINDING_USERDATA);
 
       if (binding.onHide) {
         binding.onHide(this._activeSummary, binding._details, binding.data);
@@ -128,7 +129,7 @@ SplitView.prototype = {
       return;
     }
 
-    let binding = bindings.get(aSummary);
+    let binding = aSummary.getUserData(BINDING_USERDATA);
     aSummary.classList.add("splitview-active");
     binding._details.classList.add("splitview-active");
 
@@ -146,7 +147,7 @@ SplitView.prototype = {
   get activeDetails()
   {
     let summary = this.activeSummary;
-    return summary ? bindings.get(summary)._details : null;
+    return summary ? summary.getUserData(BINDING_USERDATA)._details : null;
   },
 
   /**
@@ -192,14 +193,14 @@ SplitView.prototype = {
 
     binding._summary = aSummary;
     binding._details = aDetails;
-    bindings.set(aSummary, binding);
+    aSummary.setUserData(BINDING_USERDATA, binding, null);
 
     this._nav.appendChild(aSummary);
 
-    aSummary.addEventListener("click", (aEvent) => {
+    aSummary.addEventListener("click", function onSummaryClick(aEvent) {
       aEvent.stopPropagation();
       this.activeSummary = aSummary;
-    }, false);
+    }.bind(this), false);
 
     this._side.appendChild(aDetails);
 
@@ -257,7 +258,7 @@ SplitView.prototype = {
       this.activeSummary = null;
     }
 
-    let binding = bindings.get(aSummary);
+    let binding = aSummary.getUserData(BINDING_USERDATA);
     aSummary.parentNode.removeChild(aSummary);
     binding._details.parentNode.removeChild(binding._details);
 
@@ -288,7 +289,7 @@ SplitView.prototype = {
    */
   setItemClassName: function ASV_setItemClassName(aSummary, aClassName)
   {
-    let binding = bindings.get(aSummary);
+    let binding = aSummary.getUserData(BINDING_USERDATA);
     let viewSpecific;
 
     viewSpecific = aSummary.className.match(/(splitview\-[\w-]+)/g);

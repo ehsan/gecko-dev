@@ -1,4 +1,4 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,13 +7,10 @@
 // checks if a byte range request and non-byte range request retrieve the
 // correct data.
 
-var srv;
-XPCOMUtils.defineLazyGetter(this, "PREFIX", function() {
-  return "http://localhost:" + srv.identity.primaryPort;
-});
+const PREFIX = "http://localhost:4444";
 
-XPCOMUtils.defineLazyGetter(this, "tests", function() {
-  return [
+var tests =
+  [
    new Test(PREFIX + "/range.txt",
             init_byterange, start_byterange, stop_byterange),
    new Test(PREFIX + "/range.txt",
@@ -43,15 +40,14 @@ XPCOMUtils.defineLazyGetter(this, "tests", function() {
    new Test(PREFIX + "/range.txt",
             null, start_normal, stop_normal)
    ];
-});
 
 function run_test()
 {
-  srv = createServer();
+  var srv = createServer();
   var dir = do_get_file("data/ranges/");
   srv.registerDirectory("/", dir);
 
-  srv.start(-1);
+  srv.start(4444);
 
   runHttpTests(tests, testComplete(srv));
 }

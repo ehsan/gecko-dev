@@ -16,7 +16,7 @@
 #endif
 
 #include "nsError.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "prlog.h"
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
@@ -46,11 +46,12 @@ public:
    * Note: Can be called from any thread.
    */
   nsresult Trigger();
-
-protected:
   ~Probe() {};
 
-  Probe(const nsCID& aGUID, const nsACString& aName, ProbeManager* aManager);
+protected:
+  Probe(const nsCID &aGUID,
+        const nsACString &aName,
+         ProbeManager *aManager);
   friend class ProbeManager;
 
 protected:
@@ -72,7 +73,7 @@ protected:
    *
    * Note: This is a weak reference to avoid a useless cycle.
    */
-  class ProbeManager* mManager;
+  class ProbeManager *mManager;
 };
 
 
@@ -93,18 +94,17 @@ public:
    *
    * This constructor should be called from the main thread.
    *
-   * @param aApplicationUID The unique ID of the probe. Under Windows, this
-   * unique ID must have been previously registered using an external tool.
+   * @param uid The unique ID of the probe. Under Windows, this unique
+   * ID must have been previously registered using an external tool.
    * See MyCategory on http://msdn.microsoft.com/en-us/library/aa364100.aspx
-   * @param aApplicationName A name for the probe. Currently used only for
-   * logging purposes. In the future, may be attached to the data sent to the
-   * operating system.
+   * @param name A name for the probe. Currently used only for logging purposes.
+   * In the future, may be attached to the data sent to the operating system.
    *
    * Note: If two ProbeManagers are constructed with the same uid and/or name,
    * behavior is unspecified.
    */
-  ProbeManager(const nsCID& aApplicationUID,
-               const nsACString& aApplicationName);
+  ProbeManager(const nsCID &applicationUID,
+               const nsACString &applicationName);
 
   /**
    * Acquire a probe.
@@ -113,10 +113,10 @@ public:
    * account
    * Note: Can be called only from the main thread.
    *
-   * @param aEventUID The unique ID of the probe. Under Windows, this unique
+   * @param eventUID The unique ID of the probe. Under Windows, this unique
    * ID must have been previously registered using an external tool.
    * See MyCategory on http://msdn.microsoft.com/en-us/library/aa364100.aspx
-   * @param aEventName A name for the probe. Currently used only for logging
+   * @param eventMame A name for the probe. Currently used only for logging
    * purposes. In the
    * future, may be attached to the data sent to the operating system.
    * @return Either |null| in case of error or a valid |Probe*|.
@@ -124,8 +124,8 @@ public:
    * Note: If this method is called twice with the same uid and/or name,
    * behavior is undefined.
    */
-  already_AddRefed<Probe> GetProbe(const nsCID& aEventUID,
-                                   const nsACString& aEventName);
+  already_AddRefed<Probe> GetProbe(const nsCID &eventUID,
+                                   const nsACString &eventName);
 
   /**
    * Start/stop the measuring session.
@@ -145,12 +145,11 @@ public:
    */
   bool IsActive();
 
-protected:
   ~ProbeManager();
 
-  nsresult StartSession(nsTArray<nsRefPtr<Probe>>& aProbes);
-  nsresult Init(const nsCID& aApplicationUID,
-                const nsACString& aApplicationName);
+protected:
+  nsresult StartSession(nsTArray<nsRefPtr<Probe> > &probes);
+  nsresult Init(const nsCID &applicationUID, const nsACString &applicationName);
 
 protected:
   /**
@@ -173,7 +172,7 @@ protected:
   /**
    * All the probes that have been created for this manager.
    */
-  nsTArray<nsRefPtr<Probe>> mAllProbes;
+  nsTArray<nsRefPtr<Probe> > mAllProbes;
 
   /**
    * Handle used for triggering events
@@ -190,14 +189,15 @@ protected:
    */
   bool mInitialized;
 
-  friend class Probe;  // Needs to access |mSessionHandle|
-  friend ULONG WINAPI ControlCallback(WMIDPREQUESTCODE aRequestCode,
-                                      PVOID aContext,
-                                      ULONG* aReserved,
-                                      PVOID aBuffer);  // Sets |mSessionHandle|
+  friend class Probe;//Needs to access |mSessionHandle|
+  friend ULONG WINAPI ControlCallback(
+                                      WMIDPREQUESTCODE RequestCode,
+                                      PVOID Context,
+                                      ULONG *Reserved,
+                                      PVOID Buffer
+                                      );//Sets |mSessionHandle|
 };
-
-}  // namespace probes
-}  // namespace mozilla
+}
+}
 
 #endif //mozilla_perfprobe_h

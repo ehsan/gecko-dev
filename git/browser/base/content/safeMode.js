@@ -1,4 +1,4 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: js2; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -8,8 +8,6 @@ let Ci = Components.interfaces;
 let Cu = Components.utils;
 
 const appStartup = Services.startup;
-
-Cu.import("resource://gre/modules/ResetProfile.jsm");
 
 let defaultToReset = false;
 
@@ -71,14 +69,15 @@ function onLoad() {
   if (appStartup.automaticSafeModeNecessary) {
     document.getElementById("autoSafeMode").hidden = false;
     document.getElementById("safeMode").hidden = true;
-    if (ResetProfile.resetSupported()) {
+    if (resetSupported()) {
+      populateResetPane("resetProfileItems");
       document.getElementById("resetProfile").hidden = false;
     } else {
       // Hide the reset button is it's not supported.
       document.documentElement.getButton("extra1").hidden = true;
     }
   } else {
-    if (!ResetProfile.resetSupported()) {
+    if (!resetSupported()) {
       // Hide the reset button and text if it's not supported.
       document.documentElement.getButton("extra1").hidden = true;
       document.getElementById("resetProfileInstead").hidden = true;

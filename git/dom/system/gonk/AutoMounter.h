@@ -5,23 +5,15 @@
 #ifndef mozilla_system_automounter_h__
 #define mozilla_system_automounter_h__
 
-#include <stdint.h>
-
-class nsCString;
+#include "mozilla/StandardInteger.h"
 
 namespace mozilla {
 namespace system {
 
 // AutoMounter modes
 #define AUTOMOUNTER_DISABLE                 0
-#define AUTOMOUNTER_ENABLE_UMS              1
+#define AUTOMOUNTER_ENABLE                  1
 #define AUTOMOUNTER_DISABLE_WHEN_UNPLUGGED  2
-#define AUTOMOUNTER_ENABLE_MTP              3
-
-// Automounter statuses
-#define AUTOMOUNTER_STATUS_DISABLED         0
-#define AUTOMOUNTER_STATUS_ENABLED          1
-#define AUTOMOUNTER_STATUS_FILES_OPEN       2
 
 /**
  * Initialize the automounter. This causes some of the phone's
@@ -32,8 +24,7 @@ namespace system {
  * of affairs (usb cable plugged in, automounter enabled, etc)
  * and try to make the state of the volumes match.
  */
-void
-InitAutoMounter();
+void InitAutoMounter();
 
 /**
  * Sets the enabled state of the automounter.
@@ -41,59 +32,14 @@ InitAutoMounter();
  * This will in turn cause the automounter to re-evaluate
  * whether it should mount/unmount/share/unshare volumes.
  */
-void
-SetAutoMounterMode(int32_t aMode);
-
-/**
- * Reports the status of the automounter.
- */
-int32_t
-GetAutoMounterStatus();
-
-/**
- * Sets the sharing mode of an individual volume.
- *
- * If a volume is enabled for sharing, and the autmounter
- * is in a state to share, then the volume will be shared
- * with the PC.
- */
-void
-SetAutoMounterSharingMode(const nsCString& aVolumeName, bool aAllowSharing);
-
-/**
- * Formats the volume with specified volume name.
- *
- * If the volume is ready to format, automounter
- * will unmount it, format it and then mount it again.
- */
-void
-AutoMounterFormatVolume(const nsCString& aVolumeName);
-
-/**
- * Mounts the volume with specified volume name.
- *
- * If the volume is already unmounted, automounter
- * will mount it. Otherwise automounter will skip this.
- */
-void
-AutoMounterMountVolume(const nsCString& aVolumeName);
-
-/**
- * Unmounts the volume with specified volume name.
- *
- * If the volume is already mounted, automounter
- * will unmount it. Otherwise automounter will skip this.
- */
-void
-AutoMounterUnmountVolume(const nsCString& aVolumeName);
+void SetAutoMounterMode(int32_t aMode);
 
 /**
  * Shuts down the automounter.
  *
  * This leaves the volumes in whatever state they're in.
  */
-void
-ShutdownAutoMounter();
+void ShutdownAutoMounter();
 
 } // system
 } // mozilla

@@ -8,7 +8,7 @@
  * automatic creation of the content-length header.
  */
 
-#include "ipc/IPCMessageUtils.h"
+#include "IPC/IPCMessageUtils.h"
 
 #include "nsCOMPtr.h"
 #include "nsComponentManagerUtils.h"
@@ -28,12 +28,11 @@ class nsMIMEInputStream : public nsIMIMEInputStream,
                           public nsISeekableStream,
                           public nsIIPCSerializableInputStream
 {
-    virtual ~nsMIMEInputStream();
-
 public:
     nsMIMEInputStream();
+    virtual ~nsMIMEInputStream();
 
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIINPUTSTREAM
     NS_DECL_NSIMIMEINPUTSTREAM
     NS_DECL_NSISEEKABLESTREAM
@@ -66,21 +65,21 @@ private:
     bool mStartedReading;
 };
 
-NS_IMPL_ADDREF(nsMIMEInputStream)
-NS_IMPL_RELEASE(nsMIMEInputStream)
+NS_IMPL_THREADSAFE_ADDREF(nsMIMEInputStream)
+NS_IMPL_THREADSAFE_RELEASE(nsMIMEInputStream)
 
-NS_IMPL_CLASSINFO(nsMIMEInputStream, nullptr, nsIClassInfo::THREADSAFE,
+NS_IMPL_CLASSINFO(nsMIMEInputStream, NULL, nsIClassInfo::THREADSAFE,
                   NS_MIMEINPUTSTREAM_CID)
 
-NS_IMPL_QUERY_INTERFACE_CI(nsMIMEInputStream,
-                           nsIMIMEInputStream,
-                           nsIInputStream,
-                           nsISeekableStream,
-                           nsIIPCSerializableInputStream)
-NS_IMPL_CI_INTERFACE_GETTER(nsMIMEInputStream,
+NS_IMPL_QUERY_INTERFACE4_CI(nsMIMEInputStream,
                             nsIMIMEInputStream,
                             nsIInputStream,
-                            nsISeekableStream)
+                            nsISeekableStream,
+                            nsIIPCSerializableInputStream)
+NS_IMPL_CI_INTERFACE_GETTER3(nsMIMEInputStream,
+                             nsIMIMEInputStream,
+                             nsIInputStream,
+                             nsISeekableStream)
 
 nsMIMEInputStream::nsMIMEInputStream() : mAddContentLength(false),
                                          mStartedReading(false)
@@ -200,7 +199,7 @@ nsMIMEInputStream::Seek(int32_t whence, int64_t offset)
 {
     nsresult rv;
     nsCOMPtr<nsISeekableStream> stream = do_QueryInterface(mStream);
-    if (whence == NS_SEEK_SET && offset == 0) {
+    if (whence == NS_SEEK_SET && LL_EQ(offset, LL_Zero())) {
         rv = stream->Seek(whence, offset);
         if (NS_SUCCEEDED(rv))
             mStartedReading = false;
@@ -296,17 +295,17 @@ nsMIMEInputStreamConstructor(nsISupports *outer, REFNSIID iid, void **result)
 }
 
 void
-nsMIMEInputStream::Serialize(InputStreamParams& aParams,
-                             FileDescriptorArray& aFileDescriptors)
+nsMIMEInputStream::Serialize(InputStreamParams& aParams)
 {
     MIMEInputStreamParams params;
 
     if (mData) {
-        nsCOMPtr<nsIInputStream> stream = do_QueryInterface(mData);
-        MOZ_ASSERT(stream);
+        nsCOMPtr<nsIIPCSerializableInputStream> stream =
+            do_QueryInterface(mData);
+        NS_ASSERTION(stream, "Wrapped stream is not serializable!");
 
         InputStreamParams wrappedParams;
-        SerializeInputStream(stream, wrappedParams, aFileDescriptors);
+        stream->Serialize(wrappedParams);
 
         NS_ASSERTION(wrappedParams.type() != InputStreamParams::T__None,
                      "Wrapped stream failed to serialize!");
@@ -326,8 +325,7 @@ nsMIMEInputStream::Serialize(InputStreamParams& aParams,
 }
 
 bool
-nsMIMEInputStream::Deserialize(const InputStreamParams& aParams,
-                               const FileDescriptorArray& aFileDescriptors)
+nsMIMEInputStream::Deserialize(const InputStreamParams& aParams)
 {
     if (aParams.type() != InputStreamParams::TMIMEInputStreamParams) {
         NS_ERROR("Received unknown parameters from the other process!");
@@ -350,8 +348,7 @@ nsMIMEInputStream::Deserialize(const InputStreamParams& aParams,
 
     nsCOMPtr<nsIInputStream> stream;
     if (wrappedParams.type() == OptionalInputStreamParams::TInputStreamParams) {
-        stream = DeserializeInputStream(wrappedParams.get_InputStreamParams(),
-                                        aFileDescriptors);
+        stream = DeserializeInputStream(wrappedParams.get_InputStreamParams());
         if (!stream) {
             NS_WARNING("Failed to deserialize wrapped stream!");
             return false;

@@ -4,18 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include "CrashReporterParent.h"
-#include "mozilla/dom/ContentParent.h"
-#include "nsXULAppAPI.h"
+
+#include "base/process_util.h"
+
 #include <time.h>
-
-#include "mozilla/Telemetry.h"
-
-#ifdef MOZ_CRASHREPORTER
-#include "nsExceptionHandler.h"
-#include "nsICrashService.h"
-#include "mozilla/SyncRunnable.h"
-#include "nsThreadUtils.h"
-#endif
 
 using namespace base;
 
@@ -23,18 +15,38 @@ namespace mozilla {
 namespace dom {
 
 void
-CrashReporterParent::AnnotateCrashReport(const nsCString& key,
-                                         const nsCString& data)
+CrashReporterParent::ActorDestroy(ActorDestroyReason why)
+{
+#if defined(MOZ_WIDGET_ANDROID) && defined(MOZ_CRASHREPORTER)
+  CrashReporter::RemoveLibraryMappingsForChild(ProcessId(OtherProcess()));
+#endif
+}
+
+bool
+CrashReporterParent::RecvAddLibraryMappings(const InfallibleTArray<Mapping>& mappings)
+{
+#if defined(MOZ_WIDGET_ANDROID) && defined(MOZ_CRASHREPORTER)
+  for (uint32_t i = 0; i < mappings.Length(); i++) {
+    const Mapping& m = mappings[i];
+    CrashReporter::AddLibraryMappingForChild(ProcessId(OtherProcess()),
+                                             m.library_name().get(),
+                                             m.file_id().get(),
+                                             m.start_address(),
+                                             m.mapping_length(),
+                                             m.file_offset());
+  }
+#endif
+  return true;
+}
+
+bool
+CrashReporterParent::RecvAnnotateCrashReport(const nsCString& key,
+                                             const nsCString& data)
 {
 #ifdef MOZ_CRASHREPORTER
     mNotes.Put(key, data);
 #endif
-}
-
-void
-CrashReporterParent::ActorDestroy(ActorDestroyReason aWhy)
-{
-  // Implement me! Bug 1005155
+    return true;
 }
 
 bool
@@ -44,43 +56,15 @@ CrashReporterParent::RecvAppendAppNotes(const nsCString& data)
     return true;
 }
 
-mozilla::ipc::IProtocol*
-CrashReporterParent::CloneProtocol(Channel* aChannel,
-                                   mozilla::ipc::ProtocolCloneContext* aCtx)
-{
-#ifdef MOZ_CRASHREPORTER
-    ContentParent* contentParent = aCtx->GetContentParent();
-    CrashReporter::ThreadId childThreadId = contentParent->Pid();
-    GeckoProcessType childProcessType =
-        contentParent->Process()->GetProcessType();
-
-    nsAutoPtr<PCrashReporterParent> actor(
-        contentParent->AllocPCrashReporterParent(childThreadId,
-                                                 childProcessType)
-    );
-    if (!actor ||
-        !contentParent->RecvPCrashReporterConstructor(actor,
-                                                      childThreadId,
-                                                      childThreadId)) {
-      return nullptr;
-    }
-
-    return actor.forget();
-#else
-    MOZ_CRASH("Not Implemented");
-    return nullptr;
-#endif
-}
-
 CrashReporterParent::CrashReporterParent()
-    :
-#ifdef MOZ_CRASHREPORTER
-      mNotes(4),
-#endif
-      mStartTime(::time(nullptr))
-    , mInitialized(false)
+: mStartTime(time(NULL))
+, mInitialized(false)
 {
     MOZ_COUNT_CTOR(CrashReporterParent);
+
+#ifdef MOZ_CRASHREPORTER
+    mNotes.Init(4);
+#endif
 }
 
 CrashReporterParent::~CrashReporterParent()
@@ -99,6 +83,22 @@ CrashReporterParent::SetChildData(const NativeThreadId& tid,
 
 #ifdef MOZ_CRASHREPORTER
 bool
+CrashReporterParent::GenerateHangCrashReport(const AnnotationTable* processNotes)
+{
+    if (mChildDumpID.IsEmpty())
+        return false;
+
+    GenerateChildData(processNotes);
+
+    CrashReporter::AnnotationTable notes;
+    notes.Init(4);
+    notes.Put(nsDependentCString("HangID"), NS_ConvertUTF16toUTF8(mHangID));
+    if (!CrashReporter::AppendExtraData(mParentDumpID, notes))
+        NS_WARNING("problem appending parent data to .extra");
+    return true;
+}
+
+bool
 CrashReporterParent::GenerateCrashReportForMinidump(nsIFile* minidump,
     const AnnotationTable* processNotes)
 {
@@ -112,13 +112,12 @@ CrashReporterParent::GenerateChildData(const AnnotationTable* processNotes)
 {
     MOZ_ASSERT(mInitialized);
 
-    nsAutoCString type;
+    nsCAutoString type;
     switch (mProcessType) {
         case GeckoProcessType_Content:
             type = NS_LITERAL_CSTRING("content");
             break;
         case GeckoProcessType_Plugin:
-        case GeckoProcessType_GMPlugin:
             type = NS_LITERAL_CSTRING("plugin");
             break;
         default:
@@ -139,69 +138,7 @@ CrashReporterParent::GenerateChildData(const AnnotationTable* processNotes)
         ret = CrashReporter::AppendExtraData(mChildDumpID, *processNotes);
     if (!ret)
         NS_WARNING("problem appending child data to .extra");
-
-    nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
-    class NotifyOnMainThread : public nsRunnable
-    {
-    public:
-        explicit NotifyOnMainThread(CrashReporterParent* aCR)
-            : mCR(aCR)
-        { }
-
-        NS_IMETHOD Run() {
-            mCR->NotifyCrashService();
-            return NS_OK;
-        }
-    private:
-        CrashReporterParent* mCR;
-    };
-    SyncRunnable::DispatchToThread(mainThread, new NotifyOnMainThread(this));
     return ret;
-}
-
-void
-CrashReporterParent::NotifyCrashService()
-{
-    MOZ_ASSERT(NS_IsMainThread());
-
-    nsCOMPtr<nsICrashService> crashService =
-        do_GetService("@mozilla.org/crashservice;1");
-    if (!crashService) {
-        return;
-    }
-
-    int32_t processType;
-    int32_t crashType = nsICrashService::CRASH_TYPE_CRASH;
-
-    nsCString telemetryKey;
-
-    switch (mProcessType) {
-        case GeckoProcessType_Content:
-            processType = nsICrashService::PROCESS_TYPE_CONTENT;
-            telemetryKey.AssignLiteral("content");
-            break;
-        case GeckoProcessType_Plugin: {
-            processType = nsICrashService::PROCESS_TYPE_PLUGIN;
-            telemetryKey.AssignLiteral("plugin");
-            nsAutoCString val;
-            if (mNotes.Get(NS_LITERAL_CSTRING("PluginHang"), &val) &&
-                val.Equals(NS_LITERAL_CSTRING("1"))) {
-                crashType = nsICrashService::CRASH_TYPE_HANG;
-                telemetryKey.AssignLiteral("pluginhang");
-            }
-            break;
-        }
-        case GeckoProcessType_GMPlugin:
-            processType = nsICrashService::PROCESS_TYPE_GMPLUGIN;
-            telemetryKey.AssignLiteral("gmplugin");
-            break;
-        default:
-            NS_ERROR("unknown process type");
-            return;
-    }
-
-    crashService->AddCrash(processType, crashType, mChildDumpID);
-    Telemetry::Accumulate(Telemetry::SUBPROCESS_CRASHES_WITH_DUMP, telemetryKey, 1);
 }
 #endif
 

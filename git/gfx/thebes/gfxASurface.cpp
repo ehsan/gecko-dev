@@ -5,23 +5,16 @@
 
 #include "nsIMemoryReporter.h"
 #include "nsMemory.h"
-#include "mozilla/ArrayUtils.h"
-#include "mozilla/Base64.h"
 #include "mozilla/CheckedInt.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
-#include "nsISupportsImpl.h"
-#include "mozilla/gfx/2D.h"
-#include "gfx2DGlue.h"
 
 #include "gfxASurface.h"
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
-#include "gfxPlatform.h"
-#include "gfxRect.h"
+
+#include "nsRect.h"
 
 #include "cairo.h"
-#include <algorithm>
 
 #ifdef CAIRO_HAS_WIN32_SURFACE
 #include "gfxWindowsSurface.h"
@@ -48,30 +41,18 @@
 
 #include "imgIEncoder.h"
 #include "nsComponentManagerUtils.h"
+#include "prmem.h"
 #include "nsISupportsUtils.h"
+#include "plbase64.h"
 #include "nsCOMPtr.h"
+#include "nsIConsoleService.h"
 #include "nsServiceManagerUtils.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsIClipboardHelper.h"
 
-using namespace mozilla;
-using namespace mozilla::gfx;
+using mozilla::CheckedInt;
 
 static cairo_user_data_key_t gfxasurface_pointer_key;
-
-gfxASurface::gfxASurface()
- : mSurface(nullptr), mFloatingRefs(0), mBytesRecorded(0),
-   mSurfaceValid(false), mAllowUseAsSource(true)
-{
-    MOZ_COUNT_CTOR(gfxASurface);
-}
-
-gfxASurface::~gfxASurface()
-{
-    RecordMemoryFreed();
-
-    MOZ_COUNT_DTOR(gfxASurface);
-}
 
 // Surfaces use refcounting that's tied to the cairo surface refcnt, to avoid
 // refcount mismatch issues.
@@ -119,18 +100,6 @@ gfxASurface::Release(void)
     }
 }
 
-nsrefcnt
-gfxASurface::AddRefExternal(void)
-{
-  return AddRef();
-}
-
-nsrefcnt
-gfxASurface::ReleaseExternal(void)
-{
-  return Release();
-}
-
 void
 gfxASurface::SurfaceDestroyFunc(void *data) {
     gfxASurface *surf = (gfxASurface*) data;
@@ -142,7 +111,7 @@ gfxASurface*
 gfxASurface::GetSurfaceWrapper(cairo_surface_t *csurf)
 {
     if (!csurf)
-        return nullptr;
+        return NULL;
     return (gfxASurface*) cairo_surface_get_user_data(csurf, &gfxasurface_pointer_key);
 }
 
@@ -155,15 +124,16 @@ gfxASurface::SetSurfaceWrapper(cairo_surface_t *csurf, gfxASurface *asurf)
 }
 
 already_AddRefed<gfxASurface>
-gfxASurface::Wrap (cairo_surface_t *csurf, const gfxIntSize& aSize)
+gfxASurface::Wrap (cairo_surface_t *csurf)
 {
-    nsRefPtr<gfxASurface> result;
+    gfxASurface *result;
 
     /* Do we already have a wrapper for this surface? */
     result = GetSurfaceWrapper(csurf);
     if (result) {
         // fprintf(stderr, "Existing wrapper for %p -> %p\n", csurf, result);
-        return result.forget();
+        NS_ADDREF(result);
+        return result;
     }
 
     /* No wrapper; figure out the surface type and create it */
@@ -190,7 +160,7 @@ gfxASurface::Wrap (cairo_surface_t *csurf, const gfxIntSize& aSize)
 #endif
 #ifdef CAIRO_HAS_QUARTZ_SURFACE
     else if (stype == CAIRO_SURFACE_TYPE_QUARTZ) {
-        result = new gfxQuartzSurface(csurf, aSize);
+        result = new gfxQuartzSurface(csurf);
     }
     else if (stype == CAIRO_SURFACE_TYPE_QUARTZ_IMAGE) {
         result = new gfxQuartzImageSurface(csurf);
@@ -202,12 +172,13 @@ gfxASurface::Wrap (cairo_surface_t *csurf, const gfxIntSize& aSize)
     }
 #endif
     else {
-        result = new gfxUnknownSurface(csurf, aSize);
+        result = new gfxUnknownSurface(csurf);
     }
 
     // fprintf(stderr, "New wrapper for %p -> %p\n", csurf, result);
 
-    return result.forget();
+    NS_ADDREF(result);
+    return result;
 }
 
 void
@@ -230,7 +201,7 @@ gfxASurface::Init(cairo_surface_t* surface, bool existingSurface)
     }
 }
 
-gfxSurfaceType
+gfxASurface::gfxSurfaceType
 gfxASurface::GetType() const
 {
     if (!mSurfaceValid)
@@ -239,7 +210,7 @@ gfxASurface::GetType() const
     return (gfxSurfaceType)cairo_surface_get_type(mSurface);
 }
 
-gfxContentType
+gfxASurface::gfxContentType
 gfxASurface::GetContentType() const
 {
     if (!mSurfaceValid)
@@ -273,7 +244,6 @@ gfxASurface::Flush() const
     if (!mSurfaceValid)
         return;
     cairo_surface_flush(mSurface);
-    gfxPlatform::ClearSourceSurfaceForSurface(const_cast<gfxASurface*>(this));
 }
 
 void
@@ -282,7 +252,6 @@ gfxASurface::MarkDirty()
     if (!mSurfaceValid)
         return;
     cairo_surface_mark_dirty(mSurface);
-    gfxPlatform::ClearSourceSurfaceForSurface(this);
 }
 
 void
@@ -293,7 +262,6 @@ gfxASurface::MarkDirty(const gfxRect& r)
     cairo_surface_mark_dirty_rectangle(mSurface,
                                        (int) r.X(), (int) r.Y(),
                                        (int) r.Width(), (int) r.Height());
-    gfxPlatform::ClearSourceSurfaceForSurface(this);
 }
 
 void
@@ -310,7 +278,7 @@ void *
 gfxASurface::GetData(const cairo_user_data_key_t *key)
 {
     if (!mSurfaceValid)
-        return nullptr;
+        return NULL;
     return cairo_surface_get_user_data(mSurface, key);
 }
 
@@ -323,52 +291,23 @@ gfxASurface::Finish()
 
 already_AddRefed<gfxASurface>
 gfxASurface::CreateSimilarSurface(gfxContentType aContent,
-                                  const nsIntSize& aSize)
+                                  const gfxIntSize& aSize)
 {
     if (!mSurface || !mSurfaceValid) {
       return nullptr;
     }
     
     cairo_surface_t *surface =
-        cairo_surface_create_similar(mSurface, cairo_content_t(int(aContent)),
+        cairo_surface_create_similar(mSurface, cairo_content_t(aContent),
                                      aSize.width, aSize.height);
     if (cairo_surface_status(surface)) {
         cairo_surface_destroy(surface);
         return nullptr;
     }
 
-    nsRefPtr<gfxASurface> result = Wrap(surface, aSize);
+    nsRefPtr<gfxASurface> result = Wrap(surface);
     cairo_surface_destroy(surface);
     return result.forget();
-}
-
-already_AddRefed<gfxImageSurface>
-gfxASurface::GetAsReadableARGB32ImageSurface()
-{
-    nsRefPtr<gfxImageSurface> imgSurface = GetAsImageSurface();
-    if (!imgSurface || imgSurface->Format() != gfxImageFormat::ARGB32) {
-      imgSurface = CopyToARGB32ImageSurface();
-    }
-    return imgSurface.forget();
-}
-
-already_AddRefed<gfxImageSurface>
-gfxASurface::CopyToARGB32ImageSurface()
-{
-    if (!mSurface || !mSurfaceValid) {
-      return nullptr;
-    }
-
-    const nsIntSize size = GetSize();
-    nsRefPtr<gfxImageSurface> imgSurface =
-        new gfxImageSurface(size, gfxImageFormat::ARGB32);
-
-    RefPtr<DrawTarget> dt = gfxPlatform::GetPlatform()->CreateDrawTargetForSurface(imgSurface, IntSize(size.width, size.height));
-    RefPtr<SourceSurface> source = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(dt, this);
-
-    dt->CopySurface(source, IntRect(0, 0, size.width, size.height), IntPoint());
-
-    return imgSurface.forget();
 }
 
 int
@@ -382,7 +321,7 @@ gfxASurface::CairoStatus()
 
 /* static */
 bool
-gfxASurface::CheckSurfaceSize(const nsIntSize& sz, int32_t limit)
+gfxASurface::CheckSurfaceSize(const gfxIntSize& sz, int32_t limit)
 {
     if (sz.width < 0 || sz.height < 0) {
         NS_WARNING("Surface width or height < 0!");
@@ -427,7 +366,7 @@ gfxASurface::CheckSurfaceSize(const nsIntSize& sz, int32_t limit)
 int32_t
 gfxASurface::FormatStrideForWidth(gfxImageFormat format, int32_t width)
 {
-    return cairo_format_stride_for_width((cairo_format_t)(int)format, (int)width);
+    return cairo_format_stride_for_width((cairo_format_t)format, (int)width);
 }
 
 nsresult
@@ -460,22 +399,22 @@ gfxASurface::EndPage()
     return NS_OK;
 }
 
-gfxContentType
+gfxASurface::gfxContentType
 gfxASurface::ContentFromFormat(gfxImageFormat format)
 {
     switch (format) {
-        case gfxImageFormat::ARGB32:
-            return gfxContentType::COLOR_ALPHA;
-        case gfxImageFormat::RGB24:
-        case gfxImageFormat::RGB16_565:
-            return gfxContentType::COLOR;
-        case gfxImageFormat::A8:
-        case gfxImageFormat::A1:
-            return gfxContentType::ALPHA;
+        case ImageFormatARGB32:
+            return CONTENT_COLOR_ALPHA;
+        case ImageFormatRGB24:
+        case ImageFormatRGB16_565:
+            return CONTENT_COLOR;
+        case ImageFormatA8:
+        case ImageFormatA1:
+            return CONTENT_ALPHA;
 
-        case gfxImageFormat::Unknown:
+        case ImageFormatUnknown:
         default:
-            return gfxContentType::COLOR;
+            return CONTENT_COLOR;
     }
 }
 
@@ -502,27 +441,73 @@ gfxASurface::GetSubpixelAntialiasingEnabled()
 #endif
 }
 
-gfxMemoryLocation
+gfxASurface::MemoryLocation
 gfxASurface::GetMemoryLocation() const
 {
-    return gfxMemoryLocation::IN_PROCESS_HEAP;
+    return MEMORY_IN_PROCESS_HEAP;
 }
 
 int32_t
 gfxASurface::BytePerPixelFromFormat(gfxImageFormat format)
 {
     switch (format) {
-        case gfxImageFormat::ARGB32:
-        case gfxImageFormat::RGB24:
+        case ImageFormatARGB32:
+        case ImageFormatRGB24:
             return 4;
-        case gfxImageFormat::RGB16_565:
+        case ImageFormatRGB16_565:
             return 2;
-        case gfxImageFormat::A8:
+        case ImageFormatA8:
             return 1;
         default:
             NS_WARNING("Unknown byte per pixel value for Image format");
     }
     return 0;
+}
+
+void
+gfxASurface::FastMovePixels(const nsIntRect& aSourceRect,
+                            const nsIntPoint& aDestTopLeft)
+{
+    // Used when the backend can internally handle self copies.
+    nsIntRect dest(aDestTopLeft, aSourceRect.Size());
+    
+    nsRefPtr<gfxContext> ctx = new gfxContext(this);
+    ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+    nsIntPoint srcOrigin = dest.TopLeft() - aSourceRect.TopLeft();
+    ctx->SetSource(this, gfxPoint(srcOrigin.x, srcOrigin.y));
+    ctx->Rectangle(gfxRect(dest.x, dest.y, dest.width, dest.height));
+    ctx->Fill();
+}
+
+void
+gfxASurface::MovePixels(const nsIntRect& aSourceRect,
+                        const nsIntPoint& aDestTopLeft)
+{
+    // Assume the backend can't handle self copying well and allocate
+    // a temporary surface instead.
+    nsRefPtr<gfxASurface> tmp = 
+      CreateSimilarSurface(GetContentType(), 
+                           gfxIntSize(aSourceRect.width, aSourceRect.height));
+    // CreateSimilarSurface can return nullptr if the current surface is
+    // in an error state. This isn't good, but its better to carry
+    // on with the error surface instead of crashing.
+    NS_ASSERTION(tmp, "Must have temporary surface to move pixels!");
+    if (!tmp) {
+        return;
+    }
+    nsRefPtr<gfxContext> ctx = new gfxContext(tmp);
+    ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+    ctx->SetSource(this, gfxPoint(-aSourceRect.x, -aSourceRect.y));
+    ctx->Paint();
+
+    ctx = new gfxContext(this);
+    ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+    ctx->SetSource(tmp, gfxPoint(aDestTopLeft.x, aDestTopLeft.y));
+    ctx->Rectangle(gfxRect(aDestTopLeft.x, 
+                           aDestTopLeft.y, 
+                           aSourceRect.width, 
+                           aSourceRect.height));
+    ctx->Fill();
 }
 
 /** Memory reporting **/
@@ -567,30 +552,38 @@ static const SurfaceMemoryReporterAttrs sSurfaceMemoryReporterAttrs[] = {
     {"gfx-surface-d2d", nullptr},
 };
 
-PR_STATIC_ASSERT(MOZ_ARRAY_LENGTH(sSurfaceMemoryReporterAttrs) ==
-                 size_t(gfxSurfaceType::Max));
+PR_STATIC_ASSERT(NS_ARRAY_LENGTH(sSurfaceMemoryReporterAttrs) ==
+                 gfxASurface::SurfaceTypeMax);
 #ifdef CAIRO_HAS_D2D_SURFACE
 PR_STATIC_ASSERT(uint32_t(CAIRO_SURFACE_TYPE_D2D) ==
-                 uint32_t(gfxSurfaceType::D2D));
+                 uint32_t(gfxASurface::SurfaceTypeD2D));
 #endif
 PR_STATIC_ASSERT(uint32_t(CAIRO_SURFACE_TYPE_SKIA) ==
-                 uint32_t(gfxSurfaceType::Skia));
+                 uint32_t(gfxASurface::SurfaceTypeSkia));
 
 /* Surface size memory reporting */
 
-static int64_t gSurfaceMemoryUsed[size_t(gfxSurfaceType::Max)] = { 0 };
+static int64_t gSurfaceMemoryUsed[gfxASurface::SurfaceTypeMax] = { 0 };
 
-class SurfaceMemoryReporter MOZ_FINAL : public nsIMemoryReporter
+class SurfaceMemoryReporter MOZ_FINAL :
+    public nsIMemoryMultiReporter
 {
-    ~SurfaceMemoryReporter() {}
-
 public:
+    SurfaceMemoryReporter()
+    { }
+
     NS_DECL_ISUPPORTS
 
-    NS_IMETHOD CollectReports(nsIMemoryReporterCallback *aCb,
-                              nsISupports *aClosure, bool aAnonymize)
+    NS_IMETHOD GetName(nsACString &name)
     {
-        const size_t len = ArrayLength(sSurfaceMemoryReporterAttrs);
+        name.AssignLiteral("gfx-surface");
+        return NS_OK;
+    }
+
+    NS_IMETHOD CollectReports(nsIMemoryMultiReporterCallback *aCb,
+                              nsISupports *aClosure)
+    {
+        size_t len = NS_ARRAY_LENGTH(sSurfaceMemoryReporterAttrs);
         for (size_t i = 0; i < len; i++) {
             int64_t amount = gSurfaceMemoryUsed[i];
 
@@ -602,7 +595,8 @@ public:
                 }
 
                 nsresult rv = aCb->Callback(EmptyCString(), nsCString(path),
-                                            KIND_OTHER, UNITS_BYTES,
+                                            nsIMemoryReporter::KIND_OTHER,
+                                            nsIMemoryReporter::UNITS_BYTES, 
                                             gSurfaceMemoryUsed[i],
                                             nsCString(desc), aClosure);
                 NS_ENSURE_SUCCESS(rv, rv);
@@ -611,26 +605,32 @@ public:
 
         return NS_OK;
     }
+
+    NS_IMETHOD GetExplicitNonHeap(int64_t *n)
+    {
+        *n = 0; // this reporter makes neither "explicit" non NONHEAP reports
+        return NS_OK;
+    }
 };
 
-NS_IMPL_ISUPPORTS(SurfaceMemoryReporter, nsIMemoryReporter)
+NS_IMPL_ISUPPORTS1(SurfaceMemoryReporter, nsIMemoryMultiReporter)
 
 void
-gfxASurface::RecordMemoryUsedForSurfaceType(gfxSurfaceType aType,
+gfxASurface::RecordMemoryUsedForSurfaceType(gfxASurface::gfxSurfaceType aType,
                                             int32_t aBytes)
 {
-    if (int(aType) < 0 || aType >= gfxSurfaceType::Max) {
+    if (aType < 0 || aType >= SurfaceTypeMax) {
         NS_WARNING("Invalid type to RecordMemoryUsedForSurfaceType!");
         return;
     }
 
     static bool registered = false;
     if (!registered) {
-        RegisterStrongMemoryReporter(new SurfaceMemoryReporter());
+        NS_RegisterMemoryMultiReporter(new SurfaceMemoryReporter());
         registered = true;
     }
 
-    gSurfaceMemoryUsed[size_t(aType)] += aBytes;
+    gSurfaceMemoryUsed[aType] += aBytes;
 }
 
 void
@@ -649,67 +649,185 @@ gfxASurface::RecordMemoryFreed()
     }
 }
 
-size_t
-gfxASurface::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
-{
-    // We don't measure mSurface because cairo doesn't allow it.
-    return 0;
-}
-
-size_t
-gfxASurface::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
-{
-    return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
-}
-
-/* static */ uint8_t
-gfxASurface::BytesPerPixel(gfxImageFormat aImageFormat)
-{
-  switch (aImageFormat) {
-    case gfxImageFormat::ARGB32:
-      return 4;
-    case gfxImageFormat::RGB24:
-      return 4;
-    case gfxImageFormat::RGB16_565:
-      return 2;
-    case gfxImageFormat::A8:
-      return 1;
-    case gfxImageFormat::A1:
-      return 1; // Close enough
-    case gfxImageFormat::Unknown:
-    default:
-      NS_NOTREACHED("Not really sure what you want me to say here");
-      return 0;
-  }
-}
-
+#ifdef MOZ_DUMP_IMAGES
 void
-gfxASurface::SetOpaqueRect(const gfxRect& aRect)
+gfxASurface::WriteAsPNG(const char* aFile)
 {
-    if (aRect.IsEmpty()) {
-        mOpaqueRect = nullptr;
-    } else if (!!mOpaqueRect) {
-        *mOpaqueRect = aRect;
+    FILE *file = fopen(aFile, "wb");
+    if (file) {
+      WriteAsPNG_internal(file, true);
+      fclose(file);
     } else {
-        mOpaqueRect = MakeUnique<gfxRect>(aRect);
+      NS_WARNING("Failed to create file!\n");
     }
 }
 
-/* static */const gfxRect&
-gfxASurface::GetEmptyOpaqueRect()
+void
+gfxASurface::DumpAsDataURL(FILE* aOutput)
 {
-  static const gfxRect empty(0, 0, 0, 0);
-  return empty;
+  WriteAsPNG_internal(aOutput, false);
 }
 
-const nsIntSize
-gfxASurface::GetSize() const
+void
+gfxASurface::PrintAsDataURL()
 {
-  return nsIntSize(-1, -1);
+  WriteAsPNG_internal(stdout, false);
+  fprintf(stdout, "\n");
 }
 
-already_AddRefed<gfxImageSurface>
-gfxASurface::GetAsImageSurface()
+void
+gfxASurface::CopyAsDataURL()
 {
-  return nullptr;
+  WriteAsPNG_internal(nullptr, false);
 }
+
+/**
+ * Write to a PNG file. If aBinary is true, then it is written
+ * as binary, otherwise as a data URL. If no file is specified then
+ * data is copied to the clipboard (must not be binary!).
+ */
+void
+gfxASurface::WriteAsPNG_internal(FILE* aFile, bool aBinary)
+{
+  nsRefPtr<gfxImageSurface> imgsurf = GetAsImageSurface();
+  gfxIntSize size;
+
+  if (!imgsurf) {
+    size = GetSize();
+    if (size.width == -1 && size.height == -1) {
+      printf("Could not determine surface size\n");
+      return;
+    }
+
+    imgsurf =
+      new gfxImageSurface(gfxIntSize(size.width, size.height),
+                          gfxASurface::ImageFormatARGB32);
+
+    if (!imgsurf || imgsurf->CairoStatus()) {
+      printf("Could not allocate image surface\n");
+      return;
+    }
+
+    nsRefPtr<gfxContext> ctx = new gfxContext(imgsurf);
+    if (!ctx || ctx->HasError()) {
+      printf("Could not allocate image context\n");
+      return;
+    }
+
+    ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+    ctx->SetSource(this, gfxPoint(0, 0));
+    ctx->Paint();
+  }
+  size = imgsurf->GetSize();
+
+  nsCOMPtr<imgIEncoder> encoder =
+    do_CreateInstance("@mozilla.org/image/encoder;2?type=image/png");
+  if (!encoder) {
+    int32_t w = NS_MIN(size.width, 8);
+    int32_t h = NS_MIN(size.height, 8);
+    printf("Could not create encoder. Printing %dx%d pixels.\n", w, h);
+    for (int32_t y = 0; y < h; ++y) {
+      for (int32_t x = 0; x < w; ++x) {
+        printf("%x ", reinterpret_cast<uint32_t*>(imgsurf->Data())[y*imgsurf->Stride()+ x]);
+      }
+    }
+    return;
+  }
+
+  nsresult rv = encoder->InitFromData(imgsurf->Data(),
+                                      size.width * size.height * 4,
+                                      size.width,
+                                      size.height,
+                                      imgsurf->Stride(),
+                                      imgIEncoder::INPUT_FORMAT_HOSTARGB,
+                                      NS_LITERAL_STRING(""));
+  if (NS_FAILED(rv))
+    return;
+
+  nsCOMPtr<nsIInputStream> imgStream;
+  CallQueryInterface(encoder.get(), getter_AddRefs(imgStream));
+  if (!imgStream)
+    return;
+
+  uint64_t bufSize64;
+  rv = imgStream->Available(&bufSize64);
+  if (NS_FAILED(rv))
+    return;
+
+  if (bufSize64 > PR_UINT32_MAX - 16)
+    return;
+
+  uint32_t bufSize = (uint32_t)bufSize64;
+
+  // ...leave a little extra room so we can call read again and make sure we
+  // got everything. 16 bytes for better padding (maybe)
+  bufSize += 16;
+  uint32_t imgSize = 0;
+  char* imgData = (char*)PR_Malloc(bufSize);
+  if (!imgData)
+    return;
+  uint32_t numReadThisTime = 0;
+  while ((rv = imgStream->Read(&imgData[imgSize],
+                               bufSize - imgSize,
+                               &numReadThisTime)) == NS_OK && numReadThisTime > 0)
+  {
+    imgSize += numReadThisTime;
+    if (imgSize == bufSize) {
+      // need a bigger buffer, just double
+      bufSize *= 2;
+      char* newImgData = (char*)PR_Realloc(imgData, bufSize);
+      if (!newImgData) {
+        PR_Free(imgData);
+        return;
+      }
+      imgData = newImgData;
+    }
+  }
+
+  if (aBinary) {
+    if (aFile) {
+      fwrite(imgData, 1, imgSize, aFile);
+    } else {
+      NS_WARNING("Can't write binary image data without a file!");
+    }
+    return;
+  }
+
+  // base 64, result will be NULL terminated
+  char* encodedImg = PL_Base64Encode(imgData, imgSize, nullptr);
+  PR_Free(imgData);
+  if (!encodedImg) // not sure why this would fail
+    return;
+
+  nsCString string("data:image/png;base64,");
+  string.Append(encodedImg);
+
+  if (aFile) {
+#ifdef ANDROID
+     if (aFile == stdout || aFile == stderr) {
+       // ADB logcat cuts off long strings so we will break it down
+       const char* cStr = string.BeginReading();
+       size_t len = strlen(cStr);
+       while (true) {
+         printf_stderr("IMG: %.140s\n", cStr);
+         if (len <= 140)
+           break;
+         len -= 140;
+         cStr += 140;
+       }
+     }
+#endif
+    fprintf(aFile, "%s", string.BeginReading());
+  } else {
+    nsCOMPtr<nsIClipboardHelper> clipboard(do_GetService("@mozilla.org/widget/clipboardhelper;1", &rv));
+    if (clipboard) {
+      clipboard->CopyString(NS_ConvertASCIItoUTF16(string), nullptr);
+    }
+  }
+
+  PR_Free(encodedImg);
+
+  return;
+}
+#endif
+

@@ -9,57 +9,6 @@
 #include "Types.h"
 
 namespace mozilla {
-
-/**
- * Sides represents a set of physical sides.
- */
-struct Sides MOZ_FINAL {
-  Sides() : mBits(0) {}
-  explicit Sides(SideBits aSideBits)
-  {
-    MOZ_ASSERT((aSideBits & ~eSideBitsAll) == 0, "illegal side bits");
-    mBits = aSideBits;
-  }
-  bool IsEmpty() const { return mBits == 0; }
-  bool Top()     const { return mBits & eSideBitsTop; }
-  bool Right()   const { return mBits & eSideBitsRight; }
-  bool Bottom()  const { return mBits & eSideBitsBottom; }
-  bool Left()    const { return mBits & eSideBitsLeft; }
-  bool Contains(SideBits aSideBits) const
-  {
-    MOZ_ASSERT((aSideBits & ~eSideBitsAll) == 0, "illegal side bits");
-    return (mBits & aSideBits) == aSideBits;
-  }
-  Sides operator|(Sides aOther) const
-  {
-    return Sides(SideBits(mBits | aOther.mBits));
-  }
-  Sides operator|(SideBits aSideBits) const
-  {
-    return *this | Sides(aSideBits);
-  }
-  Sides& operator|=(Sides aOther)
-  {
-    mBits |= aOther.mBits;
-    return *this;
-  }
-  Sides& operator|=(SideBits aSideBits)
-  {
-    return *this |= Sides(aSideBits);
-  }
-  bool operator==(Sides aOther) const
-  {
-    return mBits == aOther.mBits;
-  }
-  bool operator!=(Sides aOther) const
-  {
-    return !(*this == aOther);
-  }
-
-private:
-  uint8_t mBits;
-};
-
 namespace gfx {
 
 /**
@@ -68,7 +17,7 @@ namespace gfx {
  */
 template <class T, class Sub>
 struct BaseMargin {
-  typedef mozilla::Side SideT; // because we have a method named Side
+  typedef mozilla::css::Side SideT;
 
   // Do not change the layout of these members; the Side() methods below
   // depend on this order.
@@ -76,12 +25,12 @@ struct BaseMargin {
 
   // Constructors
   BaseMargin() : top(0), right(0), bottom(0), left(0) {}
-  BaseMargin(T aTop, T aRight, T aBottom, T aLeft) :
+  BaseMargin(T aLeft, T aTop, T aRight, T aBottom) :
       top(aTop), right(aRight), bottom(aBottom), left(aLeft) {}
 
-  void SizeTo(T aTop, T aRight, T aBottom, T aLeft)
+  void SizeTo(T aLeft, T aTop, T aRight, T aBottom)
   {
-    top = aTop; right = aRight; bottom = aBottom; left = aLeft;
+    left = aLeft; top = aTop; right = aRight; bottom = aBottom;
   }
 
   T LeftRight() const { return left + right; }
@@ -89,51 +38,35 @@ struct BaseMargin {
 
   T& Side(SideT aSide) {
     // This is ugly!
-    return *(&top + T(aSide));
+    return *(&top + aSide);
   }
   T Side(SideT aSide) const {
     // This is ugly!
-    return *(&top + T(aSide));
-  }
-
-  void ApplySkipSides(Sides aSkipSides)
-  {
-    if (aSkipSides.Top()) {
-      top = 0;
-    }
-    if (aSkipSides.Right()) {
-      right = 0;
-    }
-    if (aSkipSides.Bottom()) {
-      bottom = 0;
-    }
-    if (aSkipSides.Left()) {
-      left = 0;
-    }
+    return *(&top + aSide);
   }
 
   // Overloaded operators. Note that '=' isn't defined so we'll get the
   // compiler generated default assignment operator
   bool operator==(const Sub& aMargin) const {
-    return top == aMargin.top && right == aMargin.right &&
-           bottom == aMargin.bottom && left == aMargin.left;
+    return left == aMargin.left && top == aMargin.top &&
+           right == aMargin.right && bottom == aMargin.bottom;
   }
   bool operator!=(const Sub& aMargin) const {
     return !(*this == aMargin);
   }
   Sub operator+(const Sub& aMargin) const {
-    return Sub(top + aMargin.top, right + aMargin.right,
-               bottom + aMargin.bottom, left + aMargin.left);
+    return Sub(left + aMargin.left, top + aMargin.top,
+             right + aMargin.right, bottom + aMargin.bottom);
   }
   Sub operator-(const Sub& aMargin) const {
-    return Sub(top - aMargin.top, right - aMargin.right,
-               bottom - aMargin.bottom, left - aMargin.left);
+    return Sub(left - aMargin.left, top - aMargin.top,
+             right - aMargin.right, bottom - aMargin.bottom);
   }
   Sub& operator+=(const Sub& aMargin) {
+    left += aMargin.left;
     top += aMargin.top;
     right += aMargin.right;
     bottom += aMargin.bottom;
-    left += aMargin.left;
     return *static_cast<Sub*>(this);
   }
 };

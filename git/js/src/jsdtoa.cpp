@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7,12 +7,16 @@
 /*
  * Portable double to alphanumeric string and back converters.
  */
-
-#include "jsdtoa.h"
-
-#include "jsprf.h"
 #include "jstypes.h"
-#include "jsutil.h"
+#include "jsdtoa.h"
+#include "jsprf.h"
+#include "jsapi.h"
+#include "jsprvtd.h"
+#include "jsnum.h"
+#include "jslibmath.h"
+#include "jscntxt.h"
+
+#include "jsobjinlines.h"
 
 using namespace js;
 
@@ -44,11 +48,10 @@ using namespace js;
  * MALLOC gets declared external, and that doesn't work for class members, so
  * wrap.
  */
-static inline void* dtoa_malloc(size_t size) { return js_malloc(size); }
-static inline void dtoa_free(void* p) { return js_free(p); }
+inline void* dtoa_malloc(size_t size) { return OffTheBooks::malloc_(size); }
+inline void dtoa_free(void* p) { return UnwantedForeground::free_(p); }
 
 #define NO_GLOBAL_STATE
-#define NO_ERRNO
 #define MALLOC dtoa_malloc
 #define FREE dtoa_free
 #include "dtoa.c"
@@ -82,9 +85,9 @@ js_dtostr(DtoaState *state, char *buffer, size_t bufferSize, JSDToStrMode mode, 
     char *numBegin;   /* Pointer to the digits returned by js_dtoa */
     char *numEnd = 0; /* Pointer past the digits returned by js_dtoa */
 
-    MOZ_ASSERT(bufferSize >= (size_t)(mode <= DTOSTR_STANDARD_EXPONENTIAL
-                                     ? DTOSTR_STANDARD_BUFFER_SIZE
-                                     : DTOSTR_VARIABLE_BUFFER_SIZE(precision)));
+    JS_ASSERT(bufferSize >= (size_t)(mode <= DTOSTR_STANDARD_EXPONENTIAL
+                                    ? DTOSTR_STANDARD_BUFFER_SIZE
+                                    : DTOSTR_VARIABLE_BUFFER_SIZE(precision)));
 
     /*
      * Change mode here rather than below because the buffer may not be large
@@ -96,13 +99,13 @@ js_dtostr(DtoaState *state, char *buffer, size_t bufferSize, JSDToStrMode mode, 
     dval(d) = dinput;
     numBegin = dtoa(PASS_STATE d, dtoaModes[mode], precision, &decPt, &sign, &numEnd);
     if (!numBegin) {
-        return nullptr;
+        return NULL;
     }
 
     nDigits = numEnd - numBegin;
-    MOZ_ASSERT((size_t) nDigits <= bufferSize - 2);
+    JS_ASSERT((size_t) nDigits <= bufferSize - 2);
     if ((size_t) nDigits > bufferSize - 2) {
-        return nullptr;
+        return NULL;
     }
 
     js_memcpy(buffer + 2, numBegin, nDigits);
@@ -113,7 +116,7 @@ js_dtostr(DtoaState *state, char *buffer, size_t bufferSize, JSDToStrMode mode, 
 
     /* If Infinity, -Infinity, or NaN, return the string regardless of mode. */
     if (decPt != 9999) {
-        bool exponentialNotation = false;
+        JSBool exponentialNotation = JS_FALSE;
         int minNDigits = 0;  /* Min number of significant digits required */
         char *p;
         char *q;
@@ -121,7 +124,7 @@ js_dtostr(DtoaState *state, char *buffer, size_t bufferSize, JSDToStrMode mode, 
         switch (mode) {
             case DTOSTR_STANDARD:
                 if (decPt < -5 || decPt > 21)
-                    exponentialNotation = true;
+                    exponentialNotation = JS_TRUE;
                 else
                     minNDigits = decPt;
                 break;
@@ -134,18 +137,18 @@ js_dtostr(DtoaState *state, char *buffer, size_t bufferSize, JSDToStrMode mode, 
                 break;
 
             case DTOSTR_EXPONENTIAL:
-                MOZ_ASSERT(precision > 0);
+                JS_ASSERT(precision > 0);
                 minNDigits = precision;
                 /* Fall through */
             case DTOSTR_STANDARD_EXPONENTIAL:
-                exponentialNotation = true;
+                exponentialNotation = JS_TRUE;
                 break;
 
             case DTOSTR_PRECISION:
-                MOZ_ASSERT(precision > 0);
+                JS_ASSERT(precision > 0);
                 minNDigits = precision;
                 if (decPt < -5 || decPt > precision)
-                    exponentialNotation = true;
+                    exponentialNotation = JS_TRUE;
                 break;
         }
 
@@ -169,7 +172,7 @@ js_dtostr(DtoaState *state, char *buffer, size_t bufferSize, JSDToStrMode mode, 
             JS_snprintf(numEnd, bufferSize - (numEnd - buffer), "e%+d", decPt-1);
         } else if (decPt != nDigits) {
             /* Some kind of a fraction in fixed notation */
-            MOZ_ASSERT(decPt <= nDigits);
+            JS_ASSERT(decPt <= nDigits);
             if (decPt > 0) {
                 /* dd...dd . dd...dd */
                 p = --numBegin;
@@ -183,7 +186,7 @@ js_dtostr(DtoaState *state, char *buffer, size_t bufferSize, JSDToStrMode mode, 
                 p = numEnd;
                 numEnd += 1 - decPt;
                 q = numEnd;
-                MOZ_ASSERT(numEnd < buffer + bufferSize);
+                JS_ASSERT(numEnd < buffer + bufferSize);
                 *numEnd = '\0';
                 while (p != numBegin)
                     *--q = *--p;
@@ -217,7 +220,7 @@ divrem(Bigint *b, uint32_t divisor)
     ULong *bx;
     ULong *bp;
 
-    MOZ_ASSERT(divisor > 0 && divisor <= 65536);
+    JS_ASSERT(divisor > 0 && divisor <= 65536);
 
     if (!n)
         return 0; /* b is zero */
@@ -230,11 +233,11 @@ divrem(Bigint *b, uint32_t divisor)
         ULong quotientLo;
 
         remainder = dividend - quotientHi*divisor;
-        MOZ_ASSERT(quotientHi <= 0xFFFF && remainder < divisor);
+        JS_ASSERT(quotientHi <= 0xFFFF && remainder < divisor);
         dividend = remainder << 16 | (a & 0xFFFF);
         quotientLo = dividend / divisor;
         remainder = dividend - quotientLo*divisor;
-        MOZ_ASSERT(quotientLo <= 0xFFFF && remainder < divisor);
+        JS_ASSERT(quotientLo <= 0xFFFF && remainder < divisor);
         *bp = quotientHi << 16 | quotientLo;
     } while (bp != bx);
     /* Decrease the size of the number if its most significant word is now zero. */
@@ -257,13 +260,13 @@ static uint32_t quorem2(Bigint *b, int32_t k)
     w = b->wds - n;
     if (w <= 0)
         return 0;
-    MOZ_ASSERT(w <= 2);
+    JS_ASSERT(w <= 2);
     bx = b->x;
     bxe = bx + n;
     result = *bxe >> k;
     *bxe &= mask;
     if (w == 2) {
-        MOZ_ASSERT(!(bxe[1] & ~mask));
+        JS_ASSERT(!(bxe[1] & ~mask));
         if (k)
             result |= bxe[1] << (32 - k);
     }
@@ -295,16 +298,16 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
     U di;                /* d truncated to an integer */
     U df;                /* The fractional part of d */
 
-    MOZ_ASSERT(base >= 2 && base <= 36);
+    JS_ASSERT(base >= 2 && base <= 36);
 
     dval(d) = dinput;
-    buffer = (char*) js_malloc(DTOBASESTR_BUFFER_SIZE);
+    buffer = (char*) OffTheBooks::malloc_(DTOBASESTR_BUFFER_SIZE);
     if (!buffer)
-        return nullptr;
+        return NULL;
     p = buffer;
 
     if (dval(d) < 0.0
-#if defined(XP_WIN)
+#if defined(XP_WIN) || defined(XP_OS2)
         && !((word0(d) & Exp_mask) == Exp_mask && ((word0(d) & Frac_mask) || word1(d))) /* Visual C++ doesn't know how to compare against NaN */
 #endif
        ) {
@@ -328,7 +331,7 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
                 uint32_t m = n / base;
                 digit = n - m*base;
                 n = m;
-                MOZ_ASSERT(digit < (uint32_t)base);
+                JS_ASSERT(digit < (uint32_t)base);
                 *p++ = BASEDIGIT(digit);
             } while (n);
         else *p++ = '0';
@@ -342,12 +345,12 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
         if (!b) {
           nomem1:
             Bfree(PASS_STATE b);
-            js_free(buffer);
-            return nullptr;
+            UnwantedForeground::free_(buffer);
+            return NULL;
         }
         do {
             digit = divrem(b, base);
-            MOZ_ASSERT(digit < (uint32_t)base);
+            JS_ASSERT(digit < (uint32_t)base);
             *p++ = BASEDIGIT(digit);
         } while (b->wds);
         Bfree(PASS_STATE b);
@@ -367,7 +370,7 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
         int32_t s2, done;
         Bigint *b, *s, *mlo, *mhi;
 
-        b = s = mlo = mhi = nullptr;
+        b = s = mlo = mhi = NULL;
 
         *p++ = '.';
         b = d2b(PASS_STATE df, &e, &bbits);
@@ -378,10 +381,10 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
             if (mlo != mhi)
                 Bfree(PASS_STATE mlo);
             Bfree(PASS_STATE mhi);
-            js_free(buffer);
-            return nullptr;
+            UnwantedForeground::free_(buffer);
+            return NULL;
         }
-        MOZ_ASSERT(e < 0);
+        JS_ASSERT(e < 0);
         /* At this point df = b * 2^e.  e must be less than zero because 0 < df < 1. */
 
         s2 = -(int32_t)(word0(d) >> Exp_shift1 & Exp_mask>>Exp_shift1);
@@ -391,7 +394,7 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
 #endif
         s2 += Bias + P;
         /* 1/2^s2 = (nextDouble(d) - d)/2 */
-        MOZ_ASSERT(-s2 < e);
+        JS_ASSERT(-s2 < e);
         mlo = i2b(PASS_STATE 1);
         if (!mlo)
             goto nomem2;
@@ -423,7 +426,7 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
          *   (d - prevDouble(d))/2 = mlo/2^s2;
          *   (nextDouble(d) - d)/2 = mhi/2^s2. */
 
-        done = false;
+        done = JS_FALSE;
         do {
             int32_t j, j1;
             Bigint *delta;
@@ -460,7 +463,7 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
             if (j1 == 0 && !(word1(d) & 1)) {
                 if (j > 0)
                     digit++;
-                done = true;
+                done = JS_TRUE;
             } else
 #endif
             if (j < 0 || (j == 0
@@ -479,12 +482,12 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
                                  * such as 3.5 in base 3.  */
                         digit++;
                 }
-                done = true;
+                done = JS_TRUE;
             } else if (j1 > 0) {
                 digit++;
-                done = true;
+                done = JS_TRUE;
             }
-            MOZ_ASSERT(digit < (uint32_t)base);
+            JS_ASSERT(digit < (uint32_t)base);
             *p++ = BASEDIGIT(digit);
         } while (!done);
         Bfree(PASS_STATE b);
@@ -493,7 +496,7 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
             Bfree(PASS_STATE mlo);
         Bfree(PASS_STATE mhi);
     }
-    MOZ_ASSERT(p < buffer + DTOBASESTR_BUFFER_SIZE);
+    JS_ASSERT(p < buffer + DTOBASESTR_BUFFER_SIZE);
     *p = '\0';
     return buffer;
 }

@@ -11,17 +11,16 @@
 #define nsMenuItemIconX_h_
 
 #include "nsCOMPtr.h"
-#include "nsAutoPtr.h"
-#include "imgINotificationObserver.h"
+#include "imgIDecoderObserver.h"
 
 class nsIURI;
 class nsIContent;
-class imgRequestProxy;
+class imgIRequest;
 class nsMenuObjectX;
 
 #import <Cocoa/Cocoa.h>
 
-class nsMenuItemIconX : public imgINotificationObserver
+class nsMenuItemIconX : public imgIDecoderObserver
 {
 public:
   nsMenuItemIconX(nsMenuObjectX* aMenuItem,
@@ -32,7 +31,8 @@ private:
 
 public:
   NS_DECL_ISUPPORTS
-  NS_DECL_IMGINOTIFICATIONOBSERVER
+  NS_DECL_IMGICONTAINEROBSERVER
+  NS_DECL_IMGIDECODEROBSERVER
 
   // SetupIcon succeeds if it was able to set up the icon, or if there should
   // be no icon, in which case it clears any existing icon but still succeeds.
@@ -52,15 +52,13 @@ public:
   void Destroy();
 
 protected:
-  nsresult OnFrameComplete(imgIRequest* aRequest);
-
-  nsCOMPtr<nsIContent>      mContent;
-  nsRefPtr<imgRequestProxy> mIconRequest;
-  nsMenuObjectX*            mMenuObject; // [weak]
-  nsIntRect                 mImageRegionRect;
-  bool                      mLoadedIcon;
-  bool                      mSetIcon;
-  NSMenuItem*               mNativeMenuItem; // [weak]
+  nsCOMPtr<nsIContent>  mContent;
+  nsCOMPtr<imgIRequest> mIconRequest;
+  nsMenuObjectX*        mMenuObject; // [weak]
+  nsIntRect             mImageRegionRect;
+  bool                  mLoadedIcon;
+  bool                  mSetIcon;
+  NSMenuItem*           mNativeMenuItem; // [weak]
 };
 
 #endif // nsMenuItemIconX_h_

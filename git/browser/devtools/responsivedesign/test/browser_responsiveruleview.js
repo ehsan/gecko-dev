@@ -5,8 +5,6 @@ function test() {
   let instance;
 
   let ruleView;
-  let inspector;
-  let mgr = ResponsiveUI.ResponsiveUIManager;
 
   waitForExplicitFinish();
 
@@ -16,7 +14,7 @@ function test() {
     waitForFocus(startTest, content);
   }, true);
 
-  content.location = "data:text/html;charset=utf-8,<html><style>" +
+  content.location = "data:text/html,<html><style>" +
     "div {" +
     "  width: 500px;" +
     "  height: 10px;" +
@@ -49,20 +47,27 @@ function test() {
 
     instance.setSize(500, 500);
 
-    openRuleView().then(onInspectorUIOpen);
+    Services.obs.addObserver(onInspectorUIOpen,
+      InspectorUI.INSPECTOR_NOTIFICATIONS.OPENED, false);
+    InspectorUI.openInspectorUI();
   }
 
-  function onInspectorUIOpen(args) {
-    inspector = args.inspector;
-    ruleView = args.view;
-    ok(inspector, "Got inspector instance");
+  function onInspectorUIOpen() {
+    Services.obs.removeObserver(onInspectorUIOpen,
+      InspectorUI.INSPECTOR_NOTIFICATIONS.OPENED);
 
     let div = content.document.getElementsByTagName("div")[0];
-    inspector.selection.setNode(div);
-    inspector.once("inspector-updated", testShrink);
+    InspectorUI.inspectNode(div);
+    InspectorUI.stopInspecting();
+
+    InspectorUI.currentInspector.once("sidebaractivated-ruleview", testShrink);
+
+    InspectorUI.sidebar.show();
+    InspectorUI.sidebar.activatePanel("ruleview");
   }
 
   function testShrink() {
+    ruleView = InspectorUI.sidebar._toolContext("ruleview").view;
 
     is(numberOfRules(), 2, "Should have two rules initially.");
 
@@ -79,30 +84,19 @@ function test() {
     ruleView.element.addEventListener("CssRuleViewRefreshed", function refresh() {
       ruleView.element.removeEventListener("CssRuleViewRefreshed", refresh, false);
       is(numberOfRules(), 2, "Should have two rules after growing.");
-      testEscapeOpensSplitConsole();
+      finishUp();
     }, false);
 
     instance.setSize(500, 500);
   }
 
-  function testEscapeOpensSplitConsole() {
-    is(document.getElementById("Tools:ResponsiveUI").getAttribute("checked"), "true", "menu checked");
-    ok(!inspector._toolbox._splitConsole, "Console is not split.");
-
-    inspector._toolbox.once("split-console", function() {
-      mgr.once("off", function() {executeSoon(finishUp)});
-      mgr.toggle(window, gBrowser.selectedTab);
-    });
-    EventUtils.synthesizeKey("VK_ESCAPE", {});
-  }
-
   function finishUp() {
-    ok(inspector._toolbox._splitConsole, "Console is split after pressing escape.");
+    document.getElementById("Tools:ResponsiveUI").doCommand();
 
     // Menus are correctly updated?
     is(document.getElementById("Tools:ResponsiveUI").getAttribute("checked"), "false", "menu unchecked");
 
-    Services.prefs.clearUserPref("devtools.toolbox.splitconsoleEnabled");
+    InspectorUI.closeInspectorUI();
     gBrowser.removeCurrentTab();
     finish();
   }

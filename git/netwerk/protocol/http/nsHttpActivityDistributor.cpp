@@ -2,20 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// HttpLog.h should generally be included first
-#include "HttpLog.h"
-
 #include "nsHttpActivityDistributor.h"
+#include "nsIChannel.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
+#include "nsNetUtil.h"
 #include "nsThreadUtils.h"
 
-namespace mozilla {
-namespace net {
-
-typedef nsMainThreadPtrHolder<nsIHttpActivityObserver> ObserverHolder;
-typedef nsMainThreadPtrHandle<nsIHttpActivityObserver> ObserverHandle;
-typedef nsTArray<ObserverHandle> ObserverArray;
+using namespace mozilla;
 
 class nsHttpActivityEvent : public nsRunnable
 {
@@ -26,7 +20,7 @@ public:
                         PRTime aTimestamp,
                         uint64_t aExtraSizeData,
                         const nsACString & aExtraStringData,
-                        ObserverArray *aObservers)
+                        nsCOMArray<nsIHttpActivityObserver> *aObservers)
         : mHttpChannel(aHttpChannel)
         , mActivityType(aActivityType)
         , mActivitySubtype(aActivitySubtype)
@@ -39,7 +33,7 @@ public:
 
     NS_IMETHOD Run()
     {
-        for (size_t i = 0 ; i < mObservers.Length() ; i++)
+        for (int32_t i = 0 ; i < mObservers.Count() ; i++)
             mObservers[i]->ObserveActivity(mHttpChannel, mActivityType,
                                            mActivitySubtype, mTimestamp,
                                            mExtraSizeData, mExtraStringData);
@@ -58,12 +52,12 @@ private:
     uint64_t mExtraSizeData;
     nsCString mExtraStringData;
 
-    ObserverArray mObservers;
+    nsCOMArray<nsIHttpActivityObserver> mObservers;
 };
 
-NS_IMPL_ISUPPORTS(nsHttpActivityDistributor,
-                  nsIHttpActivityDistributor,
-                  nsIHttpActivityObserver)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsHttpActivityDistributor,
+                              nsIHttpActivityDistributor,
+                              nsIHttpActivityObserver)
 
 nsHttpActivityDistributor::nsHttpActivityDistributor()
     : mLock("nsHttpActivityDistributor.mLock")
@@ -86,7 +80,7 @@ nsHttpActivityDistributor::ObserveActivity(nsISupports *aHttpChannel,
     {
         MutexAutoLock lock(mLock);
 
-        if (!mObservers.Length())
+        if (!mObservers.Count())
             return NS_OK;
 
         event = new nsHttpActivityEvent(aHttpChannel, aActivityType,
@@ -103,7 +97,7 @@ nsHttpActivityDistributor::GetIsActive(bool *isActive)
 {
     NS_ENSURE_ARG_POINTER(isActive);
     MutexAutoLock lock(mLock);
-    *isActive = !!mObservers.Length();
+    *isActive = !!mObservers.Count();
     return NS_OK;
 }
 
@@ -112,8 +106,7 @@ nsHttpActivityDistributor::AddObserver(nsIHttpActivityObserver *aObserver)
 {
     MutexAutoLock lock(mLock);
 
-    ObserverHandle observer(new ObserverHolder(aObserver));
-    if (!mObservers.AppendElement(observer))
+    if (!mObservers.AppendObject(aObserver))
         return NS_ERROR_OUT_OF_MEMORY;
 
     return NS_OK;
@@ -124,11 +117,8 @@ nsHttpActivityDistributor::RemoveObserver(nsIHttpActivityObserver *aObserver)
 {
     MutexAutoLock lock(mLock);
 
-    ObserverHandle observer(new ObserverHolder(aObserver));
-    if (!mObservers.RemoveElement(observer))
+    if (!mObservers.RemoveObject(aObserver))
         return NS_ERROR_FAILURE;
 
     return NS_OK;
 }
-} // namespace mozilla::net
-} // namespace mozilla

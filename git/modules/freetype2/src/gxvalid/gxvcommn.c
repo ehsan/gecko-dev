@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    TrueTypeGX/AAT common tables validation (body).                      */
 /*                                                                         */
-/*  Copyright 2004, 2005, 2009, 2010, 2013                                 */
+/*  Copyright 2004, 2005, 2009, 2010                                       */
 /*  by suzuki toshiya, Masatake YAMATO, Red Hat K.K.,                      */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
@@ -900,7 +900,7 @@
     nnames = FT_Get_Sfnt_Name_Count( valid->face );
     for ( i = 0; i < nnames; i++ )
     {
-      if ( FT_Get_Sfnt_Name( valid->face, i, &name ) != FT_Err_Ok )
+      if ( FT_Get_Sfnt_Name( valid->face, i, &name ) != GXV_Err_Ok )
         continue ;
 
       if ( name.name_id == name_index )
@@ -1288,9 +1288,7 @@
                                valid );
     else
     {
-#if 0
       maxState = 1;     /* 0:start of text, 1:start of line are predefined */
-#endif
       maxEntry = 0;
     }
 
@@ -1623,10 +1621,8 @@
       gxv_LookupTable_validate( table + classTable,
                                 table + classTable + classTable_length,
                                 valid );
-#if 0
       if ( valid->subtable_length < classTable_length )
         classTable_length = valid->subtable_length;
-#endif
     }
     else
     {
@@ -1645,9 +1641,7 @@
                                 valid );
     else
     {
-#if 0
       maxState = 1; /* 0:start of text, 1:start of line are predefined */
-#endif
       maxEntry = 0;
     }
 
@@ -1733,7 +1727,6 @@
                                       odtect->range[j].start,
                                       odtect->range[j].length ) )
         {
-#ifdef FT_DEBUG_LEVEL_TRACE
           if ( odtect->range[i].name || odtect->range[j].name )
             GXV_TRACE(( "found overlap between range %d and range %d\n",
                         i, j ));
@@ -1741,7 +1734,6 @@
             GXV_TRACE(( "found overlap between `%s' and `%s\'\n",
                         odtect->range[i].name,
                         odtect->range[j].name ));
-#endif
           FT_INVALID_OFFSET;
         }
 

@@ -6,29 +6,22 @@
 #define nsHttpActivityDistributor_h__
 
 #include "nsIHttpActivityObserver.h"
-#include "nsTArray.h"
-#include "nsProxyRelease.h"
+#include "nsCOMArray.h"
 #include "mozilla/Mutex.h"
-
-namespace mozilla { namespace net {
 
 class nsHttpActivityDistributor : public nsIHttpActivityDistributor
 {
 public:
-    typedef nsTArray<nsMainThreadPtrHandle<nsIHttpActivityObserver> > ObserverArray;
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIHTTPACTIVITYOBSERVER
     NS_DECL_NSIHTTPACTIVITYDISTRIBUTOR
 
     nsHttpActivityDistributor();
-
-protected:
     virtual ~nsHttpActivityDistributor();
 
-    ObserverArray mObservers;
-    Mutex mLock;
+protected:
+    nsCOMArray<nsIHttpActivityObserver> mObservers;
+    mozilla::Mutex mLock;
 };
-
-}} // namespace mozilla::net
 
 #endif // nsHttpActivityDistributor_h__

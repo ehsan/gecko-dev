@@ -7,11 +7,12 @@
 #define GFXQTNATIVERENDER_H_
 
 #include "gfxColor.h"
+#include "gfxASurface.h"
 #include "gfxContext.h"
 #include "gfxXlibSurface.h"
+#include "nsRect.h"
 
 class QRect;
-struct nsIntRect;
 
 /**
  * This class lets us take code that draws into an Xlib surface drawable and lets us
@@ -19,7 +20,7 @@ struct nsIntRect;
  * override NativeDraw, and then call Draw(). The drawing will be subjected
  * to all Thebes transformations, clipping etc.
  */
-class gfxQtNativeRenderer {
+class THEBES_API gfxQtNativeRenderer {
 public:
     /**
      * Perform the native drawing.
@@ -29,9 +30,9 @@ public:
      * @param numClipRects the number of rects in the array, or zero if
      * no clipping is required
      */
-    virtual nsresult DrawWithXlib(cairo_surface_t* surface,
-                                  nsIntPoint offset,
-                                  nsIntRect* clipRects, uint32_t numClipRects) = 0;
+    virtual nsresult DrawWithXlib(gfxXlibSurface *xsurf,
+            nsIntPoint offset,
+            nsIntRect* clipRects, uint32_t numClipRects) = 0;
   
     enum {
         // If set, then Draw() is opaque, i.e., every pixel in the intersection
@@ -53,6 +54,13 @@ public:
         DRAW_SUPPORTS_ALTERNATE_SCREEN = 0x20
     };
 
+    struct DrawOutput {
+        nsRefPtr<gfxASurface> mSurface;
+        bool mUniformAlpha;
+        bool mUniformColor;
+        gfxRGBA      mColor;
+    };
+
     /**
      * @param flags see above
      * @param size Draw()'s drawing is guaranteed to be restricted to
@@ -64,7 +72,8 @@ public:
      * otherwise *resultSurface is set to nullptr.
      */
     nsresult Draw(gfxContext* ctx, nsIntSize size,
-                  uint32_t flags, Screen* screen, Visual* visual);
+                  uint32_t flags, Screen* screen, Visual* visual,
+                  DrawOutput* output);
 };
 
 #endif /*GFXQTNATIVERENDER_H_*/

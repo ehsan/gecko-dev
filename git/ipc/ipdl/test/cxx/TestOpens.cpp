@@ -60,13 +60,13 @@ OpenParent(TestOpensOpenedParent* aParent,
     // Messages will be delivered to this thread's message loop
     // instead of the main thread's.
     if (!aParent->Open(aTransport, aOtherProcess,
-                       XRE_GetIOMessageLoop(), ipc::ParentSide))
+                       XRE_GetIOMessageLoop(), AsyncChannel::Parent))
         fail("opening Parent");
 }
 
 PTestOpensOpenedParent*
-TestOpensParent::AllocPTestOpensOpenedParent(Transport* transport,
-                                             ProcessId otherProcess)
+TestOpensParent::AllocPTestOpensOpened(Transport* transport,
+                                       ProcessId otherProcess)
 {
     gMainThread = MessageLoop::current();
 
@@ -120,19 +120,6 @@ TestOpensOpenedParent::AnswerHelloRpc()
     return CallHiRpc();
 }
 
-static void
-ShutdownTestOpensOpenedParent(TestOpensOpenedParent* parent,
-                              Transport* transport)
-{
-    delete parent;
-
-    // Now delete the transport, which has to happen after the
-    // top-level actor is deleted.
-    XRE_GetIOMessageLoop()->PostTask(
-        FROM_HERE,
-        new DeleteTask<Transport>(transport));
-}
-
 void
 TestOpensOpenedParent::ActorDestroy(ActorDestroyReason why)
 {
@@ -144,10 +131,12 @@ TestOpensOpenedParent::ActorDestroy(ActorDestroyReason why)
     // ActorDestroy() is just a callback from IPDL-generated code,
     // which needs the top-level actor (this) to stay alive a little
     // longer so other things can be cleaned up.
-    gMainThread->PostTask(
+    MessageLoop::current()->PostTask(
         FROM_HERE,
-        NewRunnableFunction(ShutdownTestOpensOpenedParent,
-                            this, mTransport));
+        new DeleteTask<TestOpensOpenedParent>(this));
+    XRE_GetIOMessageLoop()->PostTask(
+        FROM_HERE,
+        new DeleteTask<Transport>(mTransport));
 }
 
 //-----------------------------------------------------------------------------
@@ -180,7 +169,7 @@ OpenChild(TestOpensOpenedChild* aChild,
     // Messages will be delivered to this thread's message loop
     // instead of the main thread's.
     if (!aChild->Open(aTransport, aOtherProcess,
-                      XRE_GetIOMessageLoop(), ipc::ChildSide))
+                      XRE_GetIOMessageLoop(), AsyncChannel::Child))
         fail("opening Child");
 
     // Kick off the unit tests
@@ -189,8 +178,8 @@ OpenChild(TestOpensOpenedChild* aChild,
 }
 
 PTestOpensOpenedChild*
-TestOpensChild::AllocPTestOpensOpenedChild(Transport* transport,
-                                           ProcessId otherProcess)
+TestOpensChild::AllocPTestOpensOpened(Transport* transport,
+                                      ProcessId otherProcess)
 {
     gMainThread = MessageLoop::current();
 
@@ -281,7 +270,7 @@ TestOpensOpenedChild::ActorDestroy(ActorDestroyReason why)
     // which needs the top-level actor (this) to stay alive a little
     // longer so other things can be cleaned up.  Defer shutdown to
     // let cleanup finish.
-    gMainThread->PostTask(
+    MessageLoop::current()->PostTask(
         FROM_HERE,
         NewRunnableFunction(ShutdownTestOpensOpenedChild,
                             this, mTransport));

@@ -4,24 +4,19 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * The origin of this IDL file is
- * http://dom.spec.whatwg.org/#interface-domimplementation
+ * http://www.w3.org/TR/2012/WD-dom-20120105/
  *
- * Copyright:
- * To the extent possible under law, the editors have waived all copyright and
- * related or neighboring rights to this work.
+ * Copyright © 2012 W3C® (MIT, ERCIM, Keio), All Rights Reserved. W3C
+ * liability, trademark and document use rules apply.
  */
 
 interface DOMImplementation {
   boolean hasFeature(DOMString feature,
                      [TreatNullAs=EmptyString] DOMString version);
 
-  [Throws]
   DocumentType createDocumentType(DOMString qualifiedName, DOMString publicId,
                                   DOMString systemId);
-  [Throws]
-  Document createDocument(DOMString? namespace,
-                          [TreatNullAs=EmptyString] DOMString qualifiedName,
-                          optional DocumentType? doctype = null);
-  [Throws]
-  Document createHTMLDocument(optional DOMString title);
+  XMLDocument createDocument(DOMString? namespace, DOMString qualifiedName,
+                             DocumentType? doctype);
+  Document createHTMLDocument(DOMString title);
 };

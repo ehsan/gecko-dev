@@ -6,22 +6,13 @@
 #ifndef NSFONTMETRICS__H__
 #define NSFONTMETRICS__H__
 
-#include <stdint.h>                     // for uint32_t
-#include <sys/types.h>                  // for int32_t
-#include "gfxTextRun.h"                 // for gfxFont, gfxFontGroup
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT_HELPER2
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsCOMPtr.h"                   // for nsCOMPtr
-#include "nsCoord.h"                    // for nscoord
-#include "nsError.h"                    // for nsresult
-#include "nsFont.h"                     // for nsFont
-#include "nsISupports.h"                // for NS_INLINE_DECL_REFCOUNTING
-#include "nscore.h"                     // for char16_t
+#include "nsCOMPtr.h"
+#include "nsCoord.h"
+#include "nsFont.h"
+#include "gfxFont.h"
 
-class gfxUserFontSet;
-class gfxTextPerfMetrics;
-class nsDeviceContext;
 class nsIAtom;
+class nsDeviceContext;
 class nsRenderingContext;
 struct nsBoundingMetrics;
 
@@ -43,10 +34,11 @@ struct nsBoundingMetrics;
  * implementations are expected to select non-Western fonts that "fit"
  * reasonably well with the Western font that is loaded at Init time.
  */
-class nsFontMetrics MOZ_FINAL
+class nsFontMetrics
 {
 public:
     nsFontMetrics();
+    ~nsFontMetrics();
 
     NS_INLINE_DECL_REFCOUNTING(nsFontMetrics)
 
@@ -56,12 +48,9 @@ public:
      *
      * @see nsDeviceContext#GetMetricsFor()
      */
-    nsresult Init(const nsFont& aFont,
-                  nsIAtom* aLanguage, bool aExplicitLanguage,
-                  gfxFont::Orientation aOrientation,
+    nsresult Init(const nsFont& aFont, nsIAtom* aLanguage,
                   nsDeviceContext *aContext,
-                  gfxUserFontSet *aUserFontSet,
-                  gfxTextPerfMetrics *aTextPerf);
+                  gfxUserFontSet *aUserFontSet = nullptr);
 
     /**
      * Destroy this font metrics. This breaks the association between
@@ -176,11 +165,6 @@ public:
      */
     nsIAtom* Language() { return mLanguage; }
 
-    /**
-     * Returns the orientation (horizontal/vertical) of these metrics.
-     */
-    gfxFont::Orientation Orientation() { return mOrientation; }
-
     int32_t GetMaxStringLength();
 
     // Get the width for this string.  aWidth will be updated with the
@@ -188,25 +172,25 @@ public:
     // want it in another format.
     nscoord GetWidth(const char* aString, uint32_t aLength,
                      nsRenderingContext *aContext);
-    nscoord GetWidth(const char16_t* aString, uint32_t aLength,
+    nscoord GetWidth(const PRUnichar* aString, uint32_t aLength,
                      nsRenderingContext *aContext);
 
     // Draw a string using this font handle on the surface passed in.
     void DrawString(const char *aString, uint32_t aLength,
                     nscoord aX, nscoord aY,
                     nsRenderingContext *aContext);
-    void DrawString(const char16_t* aString, uint32_t aLength,
+    void DrawString(const PRUnichar* aString, uint32_t aLength,
                     nscoord aX, nscoord aY,
                     nsRenderingContext *aContext,
                     nsRenderingContext *aTextRunConstructionContext);
 
-    nsBoundingMetrics GetBoundingMetrics(const char16_t *aString,
+    nsBoundingMetrics GetBoundingMetrics(const PRUnichar *aString,
                                          uint32_t aLength,
                                          nsRenderingContext *aContext);
 
     // Returns the LOOSE_INK_EXTENTS bounds of the text for determing the
     // overflow area of the string.
-    nsBoundingMetrics GetInkBoundsForVisualOverflow(const char16_t *aString,
+    nsBoundingMetrics GetInkBoundsForVisualOverflow(const PRUnichar *aString,
                                                     uint32_t aLength,
                                                     nsRenderingContext *aContext);
 
@@ -216,21 +200,17 @@ public:
     gfxFontGroup* GetThebesFontGroup() { return mFontGroup; }
     gfxUserFontSet* GetUserFontSet() { return mFontGroup->GetUserFontSet(); }
 
-    int32_t AppUnitsPerDevPixel() { return mP2A; }
+    uint32_t AppUnitsPerDevPixel() { return mP2A; }
 
-private:
-    // Private destructor, to discourage deletion outside of Release():
-    ~nsFontMetrics();
-
+protected:
     const gfxFont::Metrics& GetMetrics() const;
 
     nsFont mFont;
     nsRefPtr<gfxFontGroup> mFontGroup;
     nsCOMPtr<nsIAtom> mLanguage;
     nsDeviceContext *mDeviceContext;
-    int32_t mP2A;
+    uint32_t mP2A;
     bool mTextRunRTL;
-    gfxFont::Orientation mOrientation;
 };
 
 #endif /* NSFONTMETRICS__H__ */

@@ -1,3 +1,4 @@
+// |jit-test| debug
 // Debugger.Frame.prototype.live is true for frames on the stack and false for
 // frames that have returned
 
@@ -9,7 +10,7 @@ assertEq(desc.enumerable, false);
 
 var loc;
 
-var g = newGlobal();
+var g = newGlobal('new-compartment');
 g.debuggeeGlobal = this;
 g.eval("var hits = 0;");
 g.eval("(" + function () {

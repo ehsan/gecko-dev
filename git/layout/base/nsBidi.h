@@ -7,6 +7,8 @@
 #ifndef nsBidi_h__
 #define nsBidi_h__
 
+#include "nsCOMPtr.h"
+#include "nsString.h"
 #include "nsBidiUtils.h"
 
 // Bidi reordering engine from ICU
@@ -245,10 +247,10 @@ typedef uint8_t DirProp;
 
 #define UTF16_APPEND_CHAR_UNSAFE(s, i, c){ \
                                          if((uint32_t)(c)<=0xffff) { \
-                                         (s)[(i)++]=(char16_t)(c); \
+                                         (s)[(i)++]=(PRUnichar)(c); \
                                          } else { \
-                                         (s)[(i)++]=(char16_t)((c)>>10)+0xd7c0; \
-                                         (s)[(i)++]=(char16_t)(c)&0x3ff|0xdc00; \
+                                         (s)[(i)++]=(PRUnichar)((c)>>10)+0xd7c0; \
+                                         (s)[(i)++]=(PRUnichar)(c)&0x3ff|0xdc00; \
                                          } \
 }
 
@@ -256,11 +258,11 @@ typedef uint8_t DirProp;
 
 #define UTF16_APPEND_CHAR_SAFE(s, i, length, c) { \
                                                 if((PRUInt32)(c)<=0xffff) { \
-                                                (s)[(i)++]=(char16_t)(c); \
+                                                (s)[(i)++]=(PRUnichar)(c); \
                                                 } else if((PRUInt32)(c)<=0x10ffff) { \
                                                 if((i)+1<(length)) { \
-                                                (s)[(i)++]=(char16_t)((c)>>10)+0xd7c0; \
-                                                (s)[(i)++]=(char16_t)(c)&0x3ff|0xdc00; \
+                                                (s)[(i)++]=(PRUnichar)((c)>>10)+0xd7c0; \
+                                                (s)[(i)++]=(PRUnichar)(c)&0x3ff|0xdc00; \
                                                 } else /* not enough space */ { \
                                                 (s)[(i)++]=UTF_ERROR_VALUE; \
                                                 } \
@@ -311,7 +313,7 @@ typedef uint8_t DirProp;
 #define UTF16_PREV_CHAR_SAFE(s, start, i, c, strict) { \
                                                      (c)=(s)[--(i)]; \
                                                      if(IS_SECOND_SURROGATE(c)) { \
-                                                     char16_t __c2; \
+                                                     PRUnichar __c2; \
                                                      if((i)>(start) && IS_FIRST_SURROGATE(__c2=(s)[(i)-1])) { \
                                                      --(i); \
                                                      (c)=GET_UTF_32(__c2, (c)); \
@@ -473,7 +475,7 @@ public:
    *      <strong>The <code>aEmbeddingLevels</code> array must be
    *      at least <code>aLength</code> long.</strong>
    */
-  nsresult SetPara(const char16_t *aText, int32_t aLength, nsBidiLevel aParaLevel, nsBidiLevel *aEmbeddingLevels);
+  nsresult SetPara(const PRUnichar *aText, int32_t aLength, nsBidiLevel aParaLevel, nsBidiLevel *aEmbeddingLevels);
 
   /**
    * Get the directionality of the text.
@@ -556,7 +558,7 @@ public:
    * circumstances, unlike <code>GetLevelAt</code>.
    *
    * @param aLevels receives a pointer to the levels array for the text,
-   *       or <code>nullptr</code> if an error occurs.
+   *       or <code>NULL</code> if an error occurs.
    *
    * @see nsBidiLevel
    */
@@ -583,11 +585,11 @@ public:
    *      The l-value that you point to here may be the
    *      same expression (variable) as the one for
    *      <code>aLogicalStart</code>.
-   *      This pointer can be <code>nullptr</code> if this
+   *      This pointer can be <code>NULL</code> if this
    *      value is not necessary.
    *
    * @param aLevel will receive the level of the run.
-   *      This pointer can be <code>nullptr</code> if this
+   *      This pointer can be <code>NULL</code> if this
    *      value is not necessary.
    */
   nsresult GetLogicalRun(int32_t aLogicalStart, int32_t* aLogicalLimit, nsBidiLevel* aLevel);
@@ -617,10 +619,10 @@ public:
    *      range <code>[0..CountRuns-1]</code>.
    *
    * @param aLogicalStart is the first logical character index in the text.
-   *      The pointer may be <code>nullptr</code> if this index is not needed.
+   *      The pointer may be <code>NULL</code> if this index is not needed.
    *
    * @param aLength is the number of characters (at least one) in the run.
-   *      The pointer may be <code>nullptr</code> if this is not needed.
+   *      The pointer may be <code>NULL</code> if this is not needed.
    *
    * @param aDirection will receive the directionality of the run,
    *       <code>NSBIDI_LTR==0</code> or <code>NSBIDI_RTL==1</code>,
@@ -812,7 +814,7 @@ public:
    *
    * @param aDestSize will receive the number of characters that were written to <code>aDest</code>.
    */
-  nsresult WriteReverse(const char16_t *aSrc, int32_t aSrcLength, char16_t *aDest, uint16_t aOptions, int32_t *aDestSize);
+  nsresult WriteReverse(const PRUnichar *aSrc, int32_t aSrcLength, PRUnichar *aDest, uint16_t aOptions, int32_t *aDestSize);
 
 protected:
   friend class nsBidiPresUtils;
@@ -862,7 +864,7 @@ private:
 
   void Free();
 
-  void GetDirProps(const char16_t *aText);
+  void GetDirProps(const PRUnichar *aText);
 
   nsBidiDirection ResolveExplicitLevels();
 
@@ -884,8 +886,8 @@ private:
 
   static bool PrepareReorder(const nsBidiLevel *aLevels, int32_t aLength, int32_t *aIndexMap, nsBidiLevel *aMinLevel, nsBidiLevel *aMaxLevel);
 
-  int32_t doWriteReverse(const char16_t *src, int32_t srcLength,
-                         char16_t *dest, uint16_t options);
+  int32_t doWriteReverse(const PRUnichar *src, int32_t srcLength,
+                         PRUnichar *dest, uint16_t options);
 
 };
 

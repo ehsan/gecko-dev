@@ -30,7 +30,7 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsITestCom, NS_ITEST_COM_IID)
  * nsTestCom
  */
 
-class nsTestCom MOZ_FINAL : public nsITestCom {
+class nsTestCom: public nsITestCom {
   NS_DECL_ISUPPORTS
 
 public:
@@ -48,9 +48,9 @@ private:
   }
 };
 
-NS_IMPL_QUERY_INTERFACE(nsTestCom, nsITestCom)
+NS_IMPL_QUERY_INTERFACE1(nsTestCom, nsITestCom)
 
-MozExternalRefCountType nsTestCom::AddRef()
+nsrefcnt nsTestCom::AddRef() 
 {
   nsrefcnt res = ++mRefCnt;
   NS_LOG_ADDREF(this, mRefCnt, "nsTestCom", sizeof(*this));
@@ -58,7 +58,7 @@ MozExternalRefCountType nsTestCom::AddRef()
   return res;
 }
 
-MozExternalRefCountType nsTestCom::Release()
+nsrefcnt nsTestCom::Release() 
 {
   nsrefcnt res = --mRefCnt;
   NS_LOG_RELEASE(this, mRefCnt, "nsTestCom");
@@ -69,8 +69,7 @@ MozExternalRefCountType nsTestCom::Release()
   return res;
 }
 
-class nsTestComFactory MOZ_FINAL : public nsIFactory {
-  ~nsTestComFactory() {}
+class nsTestComFactory: public nsIFactory {
   NS_DECL_ISUPPORTS
 public:
   nsTestComFactory() {
@@ -84,23 +83,23 @@ public:
     printf("nsTestComFactory: ");
     printf("%s", (aLock ? "Locking server" : "Unlocking server"));
     printf("\n");
-    return NS_OK;
+    return S_OK;
   }
 };
 
-NS_IMPL_ISUPPORTS(nsTestComFactory, nsIFactory)
+NS_IMPL_ISUPPORTS1(nsTestComFactory, nsIFactory)
 
 nsresult nsTestComFactory::CreateInstance(nsISupports *aOuter,
 					  const nsIID &aIID,
 					  void **aResult)
 {
-  if (aOuter != nullptr) {
+  if (aOuter != NULL) {
     return NS_ERROR_NO_AGGREGATION;
   }
 
   nsTestCom *t = new nsTestCom();
   
-  if (t == nullptr) {
+  if (t == NULL) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
   
@@ -128,8 +127,11 @@ int main(int argc, char *argv[])
   IUnknown *iUnknown;  
   nsITestCom *iTestCom;
 
+  nsresult res;
   iFactory->LockServer(TRUE);
-  iFactory->CreateInstance(nullptr, IID_IUnknown, (void **) &iUnknown);
+  res = iFactory->CreateInstance(NULL,
+				 IID_IUnknown, 
+				 (void **) &iUnknown);
   iFactory->LockServer(FALSE);
 
   GUID testGUID = NS_ITEST_COM_IID;

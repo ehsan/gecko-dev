@@ -32,7 +32,7 @@ void usage()
 #define OUTBUFSIZE (1024*16*8)
 char inbuffer[INBUFSIZE];
 char outbuffer[OUTBUFSIZE];
-char16_t  medbuffer[MEDBUFSIZE];
+PRUnichar  medbuffer[MEDBUFSIZE];
 
 int main(int argc, const char** argv)
 {
@@ -63,7 +63,7 @@ int main(int argc, const char** argv)
       if(strcmp(argv[i], "-f") == 0)
       {
         // User has specified the charset to convert from
-        nsAutoCString str;
+        nsCAutoString str;
 
         // First check if a charset alias was given, 
         // and convert to the canonical name
@@ -88,7 +88,7 @@ int main(int argc, const char** argv)
       if(strcmp(argv[i], "-t") == 0)
       {
         // User has specified which charset to convert to
-        nsAutoCString str;
+        nsCAutoString str;
 
         // First check if a charset alias was given, 
         // and convert to the canonical name

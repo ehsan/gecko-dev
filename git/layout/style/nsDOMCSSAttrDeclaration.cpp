@@ -8,17 +8,21 @@
 #include "nsDOMCSSAttrDeclaration.h"
 
 #include "mozilla/css/Declaration.h"
+#include "mozilla/css/Loader.h"
 #include "mozilla/css/StyleRule.h"
 #include "mozilla/dom/Element.h"
 #include "nsIDocument.h"
 #include "nsIDOMMutationEvent.h"
+#include "nsIPrincipal.h"
 #include "nsIURI.h"
 #include "nsNodeUtils.h"
+#include "nsGenericElement.h"
+#include "nsContentUtils.h"
+#include "xpcpublic.h"
 #include "nsWrapperCacheInlines.h"
-#include "nsIFrame.h"
-#include "ActiveLayerTracker.h"
 
-using namespace mozilla;
+namespace css = mozilla::css;
+namespace dom = mozilla::dom;
 
 nsDOMCSSAttributeDeclaration::nsDOMCSSAttributeDeclaration(dom::Element* aElement,
                                                            bool aIsSMILOverride)
@@ -35,16 +39,18 @@ nsDOMCSSAttributeDeclaration::~nsDOMCSSAttributeDeclaration()
   MOZ_COUNT_DTOR(nsDOMCSSAttributeDeclaration);
 }
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(nsDOMCSSAttributeDeclaration, mElement)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(nsDOMCSSAttributeDeclaration, mElement)
 
 // mElement holds a strong ref to us, so if it's going to be
 // skipped, the attribute declaration can't be part of a garbage
 // cycle.
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsDOMCSSAttributeDeclaration)
-  if (tmp->mElement && Element::CanSkip(tmp->mElement, true)) {
+  if (tmp->mElement && nsGenericElement::CanSkip(tmp->mElement, true)) {
     if (tmp->PreservingWrapper()) {
-      // This marks the wrapper black.
-      tmp->GetWrapper();
+      // Not relying on GetWrapper to unmark us gray because the
+      // side-effect thing is pretty weird.
+      JSObject* o = tmp->GetWrapperPreserveColor();
+      xpc_UnmarkGrayObject(o);
     }
     return true;
   }
@@ -53,12 +59,12 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_BEGIN(nsDOMCSSAttributeDeclaration)
   return tmp->IsBlack() ||
-    (tmp->mElement && Element::CanSkipInCC(tmp->mElement));
+    (tmp->mElement && nsGenericElement::CanSkipInCC(tmp->mElement));
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(nsDOMCSSAttributeDeclaration)
   return tmp->IsBlack() ||
-    (tmp->mElement && Element::CanSkipThis(tmp->mElement));
+    (tmp->mElement && nsGenericElement::CanSkipThis(tmp->mElement));
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMCSSAttributeDeclaration)
@@ -128,7 +134,7 @@ nsDOMCSSAttributeDeclaration::GetCSSDeclaration(bool aAllocate)
   // cannot fail
   css::Declaration *decl = new css::Declaration();
   decl->InitializeEmpty();
-  nsRefPtr<css::StyleRule> newRule = new css::StyleRule(nullptr, decl, 0, 0);
+  nsRefPtr<css::StyleRule> newRule = new css::StyleRule(nullptr, decl);
 
   // this *can* fail (inside SetAttrAndNotify, at least).
   nsresult rv;
@@ -169,24 +175,4 @@ nsDOMCSSAttributeDeclaration::GetParentRule(nsIDOMCSSRule **aParent)
 nsDOMCSSAttributeDeclaration::GetParentObject()
 {
   return mElement;
-}
-
-NS_IMETHODIMP
-nsDOMCSSAttributeDeclaration::SetPropertyValue(const nsCSSProperty aPropID,
-                                               const nsAString& aValue)
-{
-  // Scripted modifications to style.opacity or style.transform
-  // could immediately force us into the animated state if heuristics suggest
-  // this is scripted animation.
-  if (aPropID == eCSSProperty_opacity || aPropID == eCSSProperty_transform ||
-      aPropID == eCSSProperty_left || aPropID == eCSSProperty_top ||
-      aPropID == eCSSProperty_right || aPropID == eCSSProperty_bottom ||
-      aPropID == eCSSProperty_margin_left || aPropID == eCSSProperty_margin_top ||
-      aPropID == eCSSProperty_margin_right || aPropID == eCSSProperty_margin_bottom) {
-    nsIFrame* frame = mElement->GetPrimaryFrame();
-    if (frame) {
-      ActiveLayerTracker::NotifyInlineStyleRuleModified(frame, aPropID);
-    }
-  }
-  return nsDOMCSSDeclaration::SetPropertyValue(aPropID, aValue);
 }

@@ -8,16 +8,10 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "SocialService", "resource://gre/modules/SocialService.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "Social", "resource:///modules/Social.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "Chat", "resource:///modules/Chat.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils", "resource://gre/modules/PrivateBrowsingUtils.jsm");
 
-this.EXPORTED_SYMBOLS = [
-  "MozSocialAPI", "openChatWindow", "findChromeWindowForChats", "closeAllChatWindows",
-  "hookWindowCloseForPanelClose"
-];
+const EXPORTED_SYMBOLS = ["MozSocialAPI", "openChatWindow"];
 
-this.MozSocialAPI = {
+var MozSocialAPI = {
   _enabled: false,
   _everEnabled: false,
   set enabled(val) {
@@ -36,7 +30,7 @@ this.MozSocialAPI = {
       }
 
     } else {
-      Services.obs.removeObserver(injectController, "document-element-inserted");
+      Services.obs.removeObserver(injectController, "document-element-inserted", false);
     }
   }
 };
@@ -46,7 +40,7 @@ this.MozSocialAPI = {
 function injectController(doc, topic, data) {
   try {
     let window = doc.defaultView;
-    if (!window || PrivateBrowsingUtils.isContentWindowPrivate(window))
+    if (!window)
       return;
 
     // Do not attempt to load the API into about: error pages
@@ -54,30 +48,18 @@ function injectController(doc, topic, data) {
       return;
     }
 
-    let containingBrowser = window.QueryInterface(Ci.nsIInterfaceRequestor)
+    var containingBrowser = window.QueryInterface(Ci.nsIInterfaceRequestor)
                                   .getInterface(Ci.nsIWebNavigation)
                                   .QueryInterface(Ci.nsIDocShell)
                                   .chromeEventHandler;
-    // limit injecting into social panels or same-origin browser tabs if
-    // social.debug.injectIntoTabs is enabled
-    let allowTabs = false;
-    try {
-      allowTabs = containingBrowser.contentWindow == window &&
-                  Services.prefs.getBoolPref("social.debug.injectIntoTabs");
-    } catch(e) {}
 
     let origin = containingBrowser.getAttribute("origin");
-    if (!allowTabs && !origin) {
+    if (!origin) {
       return;
     }
 
-    // we always handle window.close on social content, even if they are not
-    // "enabled".  "enabled" is about the worker state and a provider may
-    // still be in e.g. the share panel without having their worker enabled.
-    hookWindowCloseForPanelClose(window);
-
-    SocialService.getProvider(doc.nodePrincipal.origin, function(provider) {
-      if (provider && provider.enabled) {
+    SocialService.getProvider(origin, function(provider) {
+      if (provider && provider.workerURL) {
         attachToWindow(provider, window);
       }
     });
@@ -88,17 +70,17 @@ function injectController(doc, topic, data) {
 
 // Loads mozSocial support functions associated with provider into targetWindow
 function attachToWindow(provider, targetWindow) {
-  // If the loaded document isn't from the provider's origin (or a protocol
-  // that inherits the principal), don't attach the mozSocial API.
-  let targetDocURI = targetWindow.document.documentURIObject;
-  if (!provider.isSameOrigin(targetDocURI)) {
-    let msg = "MozSocialAPI: not attaching mozSocial API for " + provider.origin +
-              " to " + targetDocURI.spec + " since origins differ."
-    Services.console.logStringMessage(msg);
-    return;
+  let origin = provider.origin;
+  if (!provider.enabled) {
+    throw new Error("MozSocialAPI: cannot attach disabled provider " + origin);
   }
 
-  let port = provider.workerURL ? provider.getWorkerPort(targetWindow) : null;
+  let targetDocURI = targetWindow.document.documentURIObject;
+  if (provider.origin != targetDocURI.prePath) {
+    throw new Error("MozSocialAPI: cannot attach " + origin + " to " + targetDocURI.spec);
+  }
+
+  var port = provider.getWorkerPort(targetWindow);
 
   let mozSocialObj = {
     // Use a method for backwards compat with existing providers, but we
@@ -108,27 +90,12 @@ function attachToWindow(provider, targetWindow) {
       configurable: true,
       writable: true,
       value: function() {
-
-        // We do a bunch of hacky stuff to expose this API to content without
-        // relying on ChromeObjectWrapper functionality that is now unsupported.
-        // The content-facing API here should really move to JS-Implemented
-        // WebIDL.
-        let workerAPI = Cu.cloneInto({
-          port: {
-            postMessage: port.postMessage.bind(port),
-            close: port.close.bind(port),
-            toString: port.toString.bind(port)
+        return {
+          port: port,
+          __exposedProps__: {
+            port: "r"
           }
-        }, targetWindow, {cloneFunctions: true});
-
-        // Jump through hoops to define the accessor property.
-        let abstractPortPrototype = Object.getPrototypeOf(Object.getPrototypeOf(port));
-        let desc = Object.getOwnPropertyDescriptor(port.__proto__.__proto__, 'onmessage');
-        desc.get = Cu.exportFunction(desc.get.bind(port), targetWindow);
-        desc.set = Cu.exportFunction(desc.set.bind(port), targetWindow);
-        Object.defineProperty(workerAPI.wrappedJSObject.port, 'onmessage', desc);
-
-        return workerAPI;
+        };
       }
     },
     hasBeenIdleFor: {
@@ -145,7 +112,7 @@ function attachToWindow(provider, targetWindow) {
       writable: true,
       value: function(toURL, callback) {
         let url = targetWindow.document.documentURIObject.resolve(toURL);
-        openChatWindow(targetWindow, provider, url, callback);
+        openChatWindow(getChromeWindow(targetWindow), provider, url, callback);
       }
     },
     openPanel: {
@@ -157,9 +124,10 @@ function attachToWindow(provider, targetWindow) {
         if (!chromeWindow.SocialFlyout)
           return;
         let url = targetWindow.document.documentURIObject.resolve(toURL);
-        if (!provider.isSameOrigin(url))
+        let fullURL = ensureProviderOrigin(provider, url);
+        if (!fullURL)
           return;
-        chromeWindow.SocialFlyout.open(url, offset, callback);
+        chromeWindow.SocialFlyout.open(fullURL, offset, callback);
       }
     },
     closePanel: {
@@ -171,32 +139,6 @@ function attachToWindow(provider, targetWindow) {
         if (!chromeWindow.SocialFlyout || !chromeWindow.SocialFlyout.panel)
           return;
         chromeWindow.SocialFlyout.panel.hidePopup();
-      }
-    },
-    // allow a provider to share to other providers through the browser
-    share: {
-      enumerable: true,
-      configurable: true,
-      writable: true,
-      value: function(data) {
-        let chromeWindow = getChromeWindow(targetWindow);
-        if (!chromeWindow.SocialShare || chromeWindow.SocialShare.shareButton.hidden)
-          throw new Error("Share is unavailable");
-        // ensure user action initates the share
-        let dwu = chromeWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                              .getInterface(Ci.nsIDOMWindowUtils);
-        if (!dwu.isHandlingUserInput)
-          throw new Error("Attempt to share without user input");
-
-        // limit to a few params we want to support for now
-        let dataOut = {};
-        for (let sub of ["url", "title", "description", "source"]) {
-          dataOut[sub] = data[sub];
-        }
-        if (data.image)
-          dataOut.previews = [data.image];
-
-        chromeWindow.SocialShare.sharePage(null, dataOut);
       }
     },
     getAttention: {
@@ -231,17 +173,12 @@ function attachToWindow(provider, targetWindow) {
     return targetWindow.navigator.wrappedJSObject.mozSocial = contentObj;
   });
 
-  if (port) {
-    targetWindow.addEventListener("unload", function () {
-      // We want to close the port, but also want the target window to be
-      // able to use the port during an unload event they setup - so we
-      // set a timer which will fire after the unload events have all fired.
-      schedule(function () { port.close(); });
-    });
-  }
-}
-
-function hookWindowCloseForPanelClose(targetWindow) {
+  targetWindow.addEventListener("unload", function () {
+    // We want to close the port, but also want the target window to be
+    // able to use the port during an unload event they setup - so we
+    // set a timer which will fire after the unload events have all fired.
+    schedule(function () { port.close(); });
+  });
   // We allow window.close() to close the panel, so add an event handler for
   // this, then cancel the event (so the window itself doesn't die) and
   // close the panel instead.
@@ -257,10 +194,10 @@ function hookWindowCloseForPanelClose(targetWindow) {
                 .QueryInterface(Ci.nsIDocShell)
                 .chromeEventHandler;
     while (elt) {
-      if (elt.localName == "panel") {
+      if (elt.nodeName == "panel") {
         elt.hidePopup();
         break;
-      } else if (elt.localName == "chatbox") {
+      } else if (elt.nodeName == "chatbox") {
         elt.close();
         break;
       }
@@ -290,31 +227,31 @@ function getChromeWindow(contentWin) {
                    .getInterface(Ci.nsIDOMWindow);
 }
 
-this.openChatWindow =
- function openChatWindow(contentWindow, provider, url, callback, mode) {
-  let fullURI = provider.resolveUri(url);
-  if (!provider.isSameOrigin(fullURI)) {
-    Cu.reportError("Failed to open a social chat window - the requested URL is not the same origin as the provider.");
-    return;
+function ensureProviderOrigin(provider, url) {
+  // resolve partial URLs and check prePath matches
+  let uri;
+  let fullURL;
+  try {
+    fullURL = Services.io.newURI(provider.origin, null, null).resolve(url);
+    uri = Services.io.newURI(fullURL, null, null);
+  } catch (ex) {
+    Cu.reportError("mozSocial: failed to resolve window URL: " + url + "; " + ex);
+    return null;
   }
 
-  let thisCallback = function(chatbox) {
-    // All social chat windows get a special error listener.
-    Social.setErrorListener(chatbox.content, function(aBrowser) {
-      aBrowser.webNavigation.loadURI("about:socialerror?mode=compactInfo&origin=" +
-                             encodeURIComponent(aBrowser.getAttribute("origin")),
-                             null, null, null, null);
-    });
+  if (provider.origin != uri.prePath) {
+    Cu.reportError("mozSocial: unable to load new location, " +
+                   provider.origin + " != " + uri.prePath);
+    return null;
   }
-  let chatbox = Chat.open(contentWindow, provider.origin, provider.name,
-                          fullURI.spec, mode, undefined, thisCallback);
-  if (callback) {
-    chatbox.promiseChatLoaded.then(() => {
-      callback(chatbox.contentWindow);
-    });
-  }
+  return fullURL;
 }
 
-this.closeAllChatWindows = function closeAllChatWindows(provider) {
-  return Chat.closeAll(provider.origin);
+function openChatWindow(chromeWindow, provider, url, callback, mode) {
+  if (!chromeWindow.SocialChatBar)
+    return;
+  let fullURL = ensureProviderOrigin(provider, url);
+  if (!fullURL)
+    return;
+  chromeWindow.SocialChatBar.openChat(provider, fullURL, callback, mode);
 }

@@ -4,20 +4,22 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/chrome/RegistryMessageUtils.h"
-#include "mozilla/dom/ContentParent.h"
-#include "mozilla/unused.h"
 
 #include "nsResProtocolHandler.h"
+#include "nsIURL.h"
 #include "nsIIOService.h"
+#include "nsIServiceManager.h"
+#include "prenv.h"
+#include "prmem.h"
+#include "prprf.h"
+#include "nsXPIDLString.h"
 #include "nsIFile.h"
+#include "nsDirectoryServiceDefs.h"
 #include "nsNetUtil.h"
 #include "nsURLHelper.h"
 #include "nsEscape.h"
 
 #include "mozilla/Omnijar.h"
-
-using mozilla::dom::ContentParent;
-using mozilla::unused;
 
 static NS_DEFINE_CID(kResURLCID, NS_RESURL_CID);
 
@@ -52,12 +54,12 @@ nsResURL::EnsureFile()
 
     NS_ENSURE_TRUE(gResHandler, NS_ERROR_NOT_AVAILABLE);
 
-    nsAutoCString spec;
+    nsCAutoString spec;
     rv = gResHandler->ResolveURI(this, spec);
     if (NS_FAILED(rv))
         return rv;
 
-    nsAutoCString scheme;
+    nsCAutoString scheme;
     rv = net_ExtractURLScheme(spec, nullptr, nullptr, &scheme);
     if (NS_FAILED(rv))
         return rv;
@@ -66,7 +68,7 @@ nsResURL::EnsureFile()
     // In most cases, the scheme is jar if it's not file.
     // Regardless, net_GetFileFromURLSpec should be avoided
     // when the scheme isn't file.
-    if (!scheme.EqualsLiteral("file"))
+    if (!scheme.Equals(NS_LITERAL_CSTRING("file")))
         return NS_ERROR_NO_INTERFACE;
 
     rv = net_GetFileFromURLSpec(spec, getter_AddRefs(mFile));
@@ -102,7 +104,6 @@ nsResURL::GetClassIDNoAlloc(nsCID *aClassIDNoAlloc)
 //----------------------------------------------------------------------------
 
 nsResProtocolHandler::nsResProtocolHandler()
-    : mSubstitutions(16)
 {
 #if defined(PR_LOGGING)
     gResLog = PR_NewLogModule("nsResProtocol");
@@ -120,12 +121,14 @@ nsResProtocolHandler::~nsResProtocolHandler()
 nsresult
 nsResProtocolHandler::Init()
 {
+    mSubstitutions.Init(32);
+
     nsresult rv;
 
     mIOService = do_GetIOService(&rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString appURI, greURI;
+    nsCAutoString appURI, greURI;
     rv = mozilla::Omnijar::GetURIString(mozilla::Omnijar::APP, appURI);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = mozilla::Omnijar::GetURIString(mozilla::Omnijar::GRE, greURI);
@@ -197,10 +200,10 @@ nsResProtocolHandler::CollectSubstitutions(InfallibleTArray<ResourceMapping>& aR
 // nsResProtocolHandler::nsISupports
 //----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS(nsResProtocolHandler,
-                  nsIResProtocolHandler,
-                  nsIProtocolHandler,
-                  nsISupportsWeakReference)
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsResProtocolHandler,
+                              nsIResProtocolHandler,
+                              nsIProtocolHandler,
+                              nsISupportsWeakReference)
 
 //----------------------------------------------------------------------------
 // nsResProtocolHandler::nsIProtocolHandler
@@ -245,7 +248,7 @@ nsResProtocolHandler::NewURI(const nsACString &aSpec,
     // unescape any %2f and %2e to make sure nsStandardURL coalesces them.
     // Later net_GetFileFromURLSpec() will do a full unescape and we want to
     // treat them the same way the file system will. (bugs 380994, 394075)
-    nsAutoCString spec;
+    nsCAutoString spec;
     const char *src = aSpec.BeginReading();
     const char *end = aSpec.EndReading();
     const char *last = src;
@@ -279,13 +282,11 @@ nsResProtocolHandler::NewURI(const nsACString &aSpec,
 }
 
 NS_IMETHODIMP
-nsResProtocolHandler::NewChannel2(nsIURI* uri,
-                                  nsILoadInfo* aLoadInfo,
-                                  nsIChannel** result)
+nsResProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
 {
     NS_ENSURE_ARG_POINTER(uri);
     nsresult rv;
-    nsAutoCString spec;
+    nsCAutoString spec;
 
     rv = ResolveURI(uri, spec);
     if (NS_FAILED(rv)) return rv;
@@ -297,12 +298,6 @@ nsResProtocolHandler::NewChannel2(nsIURI* uri,
     (*result)->GetLoadFlags(&loadFlags);
     (*result)->SetLoadFlags(loadFlags & ~nsIChannel::LOAD_REPLACE);
     return (*result)->SetOriginalURI(uri);
-}
-
-NS_IMETHODIMP
-nsResProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
-{
-    return NewChannel2(uri, nullptr, result);
 }
 
 NS_IMETHODIMP 
@@ -317,52 +312,25 @@ nsResProtocolHandler::AllowPort(int32_t port, const char *scheme, bool *_retval)
 // nsResProtocolHandler::nsIResProtocolHandler
 //----------------------------------------------------------------------------
 
-static void
-SendResourceSubstitution(const nsACString& root, nsIURI* baseURI)
-{
-    if (GeckoProcessType_Content == XRE_GetProcessType()) {
-        return;
-    }
-
-    ResourceMapping resourceMapping;
-    resourceMapping.resource = root;
-    if (baseURI) {
-        baseURI->GetSpec(resourceMapping.resolvedURI.spec);
-        baseURI->GetOriginCharset(resourceMapping.resolvedURI.charset);
-    }
-
-    nsTArray<ContentParent*> parents;
-    ContentParent::GetAll(parents);
-    if (!parents.Length()) {
-        return;
-    }
-
-    for (uint32_t i = 0; i < parents.Length(); i++) {
-        unused << parents[i]->SendRegisterChromeItem(resourceMapping);
-    }
-}
-
 NS_IMETHODIMP
 nsResProtocolHandler::SetSubstitution(const nsACString& root, nsIURI *baseURI)
 {
     if (!baseURI) {
         mSubstitutions.Remove(root);
-        SendResourceSubstitution(root, baseURI);
         return NS_OK;
     }
 
     // If baseURI isn't a resource URI, we can set the substitution immediately.
-    nsAutoCString scheme;
+    nsCAutoString scheme;
     nsresult rv = baseURI->GetScheme(scheme);
     NS_ENSURE_SUCCESS(rv, rv);
-    if (!scheme.EqualsLiteral("resource")) {
+    if (!scheme.Equals(NS_LITERAL_CSTRING("resource"))) {
         mSubstitutions.Put(root, baseURI);
-        SendResourceSubstitution(root, baseURI);
         return NS_OK;
     }
 
     // baseURI is a resource URI, let's resolve it first.
-    nsAutoCString newBase;
+    nsCAutoString newBase;
     rv = ResolveURI(baseURI, newBase);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -372,7 +340,6 @@ nsResProtocolHandler::SetSubstitution(const nsACString& root, nsIURI *baseURI)
     NS_ENSURE_SUCCESS(rv, rv);
 
     mSubstitutions.Put(root, newBaseURI);
-    SendResourceSubstitution(root, newBaseURI);
     return NS_OK;
 }
 
@@ -386,7 +353,7 @@ nsResProtocolHandler::GetSubstitution(const nsACString& root, nsIURI **result)
 
     // try invoking the directory service for "resource:root"
 
-    nsAutoCString key;
+    nsCAutoString key;
     key.AssignLiteral("resource:");
     key.Append(root);
 
@@ -416,8 +383,8 @@ nsResProtocolHandler::ResolveURI(nsIURI *uri, nsACString &result)
 {
     nsresult rv;
 
-    nsAutoCString host;
-    nsAutoCString path;
+    nsCAutoString host;
+    nsCAutoString path;
 
     rv = uri->GetAsciiHost(host);
     if (NS_FAILED(rv)) return rv;
@@ -426,7 +393,7 @@ nsResProtocolHandler::ResolveURI(nsIURI *uri, nsACString &result)
     if (NS_FAILED(rv)) return rv;
 
     // Unescape the path so we can perform some checks on it.
-    nsAutoCString unescapedPath(path);
+    nsCAutoString unescapedPath(path);
     NS_UnescapeURL(unescapedPath);
 
     // Don't misinterpret the filepath as an absolute URI.
@@ -450,7 +417,7 @@ nsResProtocolHandler::ResolveURI(nsIURI *uri, nsACString &result)
 
 #if defined(PR_LOGGING)
     if (PR_LOG_TEST(gResLog, PR_LOG_DEBUG)) {
-        nsAutoCString spec;
+        nsCAutoString spec;
         uri->GetAsciiSpec(spec);
         PR_LOG(gResLog, PR_LOG_DEBUG,
                ("%s\n -> %s\n", spec.get(), PromiseFlatCString(result).get()));

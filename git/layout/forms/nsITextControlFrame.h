@@ -9,6 +9,7 @@
 #include "nsIFormControlFrame.h"
 
 class nsIEditor;
+class nsIDocShell;
 class nsISelectionController;
 class nsFrameSelection;
 
@@ -25,6 +26,8 @@ public:
 
   NS_IMETHOD    GetEditor(nsIEditor **aEditor) = 0;
 
+  NS_IMETHOD    GetTextLength(int32_t* aTextLength) = 0;
+  
   NS_IMETHOD    SetSelectionStart(int32_t aSelectionStart) = 0;
   NS_IMETHOD    SetSelectionEnd(int32_t aSelectionEnd) = 0;
   

@@ -21,7 +21,7 @@
 // stack based FILE wrapper to ensure that fclose is called.
 class AutoFILE {
 public:
-  explicit AutoFILE(FILE *fp) : fp_(fp) {}
+  AutoFILE(FILE *fp) : fp_(fp) {}
   ~AutoFILE() { if (fp_) fclose(fp_); }
   operator FILE *() { return fp_; }
 private:
@@ -30,7 +30,7 @@ private:
 
 class AutoCharArray {
 public:
-  explicit AutoCharArray(size_t len) { ptr_ = new char[len]; }
+  AutoCharArray(size_t len) { ptr_ = new char[len]; }
   ~AutoCharArray() { delete[] ptr_; }
   operator char *() { return ptr_; }
 private:
@@ -62,13 +62,13 @@ static char*
 NS_strtok(const char *delims, char **str)
 {
   if (!*str)
-    return nullptr;
+    return NULL;
 
   char *ret = (char*) NS_strspnp(delims, *str);
 
   if (!*ret) {
     *str = ret;
-    return nullptr;
+    return NULL;
   }
 
   char *i = ret;
@@ -83,7 +83,7 @@ NS_strtok(const char *delims, char **str)
     ++i;
   } while (*i);
 
-  *str = nullptr;
+  *str = NULL;
   return ret;
 }
 
@@ -129,7 +129,7 @@ ReadStrings(const NS_tchar *path,
             char results[][MAX_TEXT_LEN],
             const char *section)
 {
-  AutoFILE fp(NS_tfopen(path, OPEN_MODE));
+  AutoFILE fp = NS_tfopen(path, OPEN_MODE);
 
   if (!fp)
     return READ_ERROR;

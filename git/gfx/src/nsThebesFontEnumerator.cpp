@@ -4,20 +4,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsThebesFontEnumerator.h"
-#include <stdint.h>                     // for uint32_t
-#include "gfxPlatform.h"                // for gfxPlatform
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT_HELPER2
-#include "nsCOMPtr.h"                   // for nsCOMPtr
-#include "nsDebug.h"                    // for NS_ENSURE_ARG_POINTER
-#include "nsError.h"                    // for NS_OK, NS_FAILED, nsresult
-#include "nsIAtom.h"                    // for nsIAtom, do_GetAtom
-#include "nsID.h"
-#include "nsMemory.h"                   // for nsMemory
-#include "nsString.h"               // for nsAutoCString, nsAutoString, etc
-#include "nsTArray.h"                   // for nsTArray, nsTArray_Impl, etc
-#include "nscore.h"                     // for char16_t, NS_IMETHODIMP
 
-NS_IMPL_ISUPPORTS(nsThebesFontEnumerator, nsIFontEnumerator)
+#include "nsMemory.h"
+
+#include "gfxPlatform.h"
+#include "nsTArray.h"
+#include "nsIAtom.h"
+
+NS_IMPL_ISUPPORTS1(nsThebesFontEnumerator, nsIFontEnumerator)
 
 nsThebesFontEnumerator::nsThebesFontEnumerator()
 {
@@ -25,7 +19,7 @@ nsThebesFontEnumerator::nsThebesFontEnumerator()
 
 NS_IMETHODIMP
 nsThebesFontEnumerator::EnumerateAllFonts(uint32_t *aCount,
-                                          char16_t ***aResult)
+                                          PRUnichar ***aResult)
 {
     return EnumerateFonts (nullptr, nullptr, aCount, aResult);
 }
@@ -34,14 +28,14 @@ NS_IMETHODIMP
 nsThebesFontEnumerator::EnumerateFonts(const char *aLangGroup,
                                        const char *aGeneric,
                                        uint32_t *aCount,
-                                       char16_t ***aResult)
+                                       PRUnichar ***aResult)
 {
     NS_ENSURE_ARG_POINTER(aCount);
     NS_ENSURE_ARG_POINTER(aResult);
 
     nsTArray<nsString> fontList;
 
-    nsAutoCString generic;
+    nsCAutoString generic;
     if (aGeneric)
         generic.Assign(aGeneric);
     else
@@ -49,7 +43,7 @@ nsThebesFontEnumerator::EnumerateFonts(const char *aLangGroup,
 
     nsCOMPtr<nsIAtom> langGroupAtom;
     if (aLangGroup) {
-        nsAutoCString lowered;
+        nsCAutoString lowered;
         lowered.Assign(aLangGroup);
         ToLowerCase(lowered);
         langGroupAtom = do_GetAtom(lowered);
@@ -64,8 +58,8 @@ nsThebesFontEnumerator::EnumerateFonts(const char *aLangGroup,
         return NS_OK;
     }
 
-    char16_t **fs = static_cast<char16_t **>
-                                (nsMemory::Alloc(fontList.Length() * sizeof(char16_t*)));
+    PRUnichar **fs = static_cast<PRUnichar **>
+                                (nsMemory::Alloc(fontList.Length() * sizeof(PRUnichar*)));
     for (uint32_t i = 0; i < fontList.Length(); i++) {
         fs[i] = ToNewUnicode(fontList[i]);
     }
@@ -89,7 +83,7 @@ nsThebesFontEnumerator::HaveFontFor(const char *aLangGroup,
 NS_IMETHODIMP
 nsThebesFontEnumerator::GetDefaultFont(const char *aLangGroup,
                                        const char *aGeneric,
-                                       char16_t **aResult)
+                                       PRUnichar **aResult)
 {
     NS_ENSURE_ARG_POINTER(aResult);
     *aResult = nullptr;
@@ -105,8 +99,8 @@ nsThebesFontEnumerator::UpdateFontList(bool *_retval)
 }
 
 NS_IMETHODIMP
-nsThebesFontEnumerator::GetStandardFamilyName(const char16_t *aName,
-                                              char16_t **aResult)
+nsThebesFontEnumerator::GetStandardFamilyName(const PRUnichar *aName,
+                                              PRUnichar **aResult)
 {
     NS_ENSURE_ARG_POINTER(aResult);
     NS_ENSURE_ARG_POINTER(aName);

@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef _MOZILLA_GFX_OP_SOURCESURFACE_CAIRO_H
+#ifndef _MOZILLA_GFX_OP_SOURCESURFACE_CAIRO_H_
 #define _MOZILLA_GFX_OP_SOURCESURFACE_CAIRO_H
 
 #include "2D.h"
@@ -16,7 +16,6 @@ class DrawTargetCairo;
 class SourceSurfaceCairo : public SourceSurface
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(SourceSurfaceCairo)
   // Create a SourceSurfaceCairo. The surface will not be copied, but simply
   // referenced.
   // If aDrawTarget is non-nullptr, it is assumed that this is a snapshot source
@@ -27,7 +26,7 @@ public:
                      DrawTargetCairo* aDrawTarget = nullptr);
   virtual ~SourceSurfaceCairo();
 
-  virtual SurfaceType GetType() const { return SurfaceType::CAIRO; }
+  virtual SurfaceType GetType() const { return SURFACE_CAIRO; }
   virtual IntSize GetSize() const;
   virtual SurfaceFormat GetFormat() const;
   virtual TemporaryRef<DataSourceSurface> GetDataSurface();
@@ -37,6 +36,7 @@ public:
 private: // methods
   friend class DrawTargetCairo;
   void DrawTargetWillChange();
+  void MarkIndependent();
 
 private: // data
   IntSize mSize;
@@ -48,13 +48,12 @@ private: // data
 class DataSourceSurfaceCairo : public DataSourceSurface
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DataSourceSurfaceCairo)
-  explicit DataSourceSurfaceCairo(cairo_surface_t* imageSurf);
+  DataSourceSurfaceCairo(cairo_surface_t* imageSurf);
   virtual ~DataSourceSurfaceCairo();
   virtual unsigned char *GetData();
   virtual int32_t Stride();
 
-  virtual SurfaceType GetType() const { return SurfaceType::CAIRO_IMAGE; }
+  virtual SurfaceType GetType() const { return SURFACE_CAIRO_IMAGE; }
   virtual IntSize GetSize() const;
   virtual SurfaceFormat GetFormat() const;
 

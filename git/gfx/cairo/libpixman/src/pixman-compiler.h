@@ -56,10 +56,6 @@
 # define INT64_MAX              (9223372036854775807)
 #endif
 
-#ifndef SIZE_MAX
-# define SIZE_MAX               ((size_t)-1)
-#endif
-
 
 #ifndef M_PI
 # define M_PI			3.14159265358979323846
@@ -85,19 +81,7 @@
 
 /* In libxul builds we don't ever want to export pixman symbols */
 #if 1
-#include "prcpucfg.h"
-
-#ifdef HAVE_VISIBILITY_HIDDEN_ATTRIBUTE
-#define CVISIBILITY_HIDDEN __attribute__((visibility("hidden")))
-#elif defined(__SUNPRO_C) && (__SUNPRO_C >= 0x550)
-#define CVISIBILITY_HIDDEN __hidden
-#else
-#define CVISIBILITY_HIDDEN
-#endif
-
-/* In libxul builds we don't ever want to export cairo symbols */
-#define PIXMAN_EXPORT extern CVISIBILITY_HIDDEN
-
+#   define PIXMAN_EXPORT cairo_public
 #else
 
 /* GCC visibility */
@@ -111,10 +95,6 @@
 #endif
 
 #endif
-
-/* member offsets */
-#define CONTAINER_OF(type, member, data)				\
-    ((type *)(((uint8_t *)data) - offsetof (type, member)))
 
 /* TLS */
 #if defined(PIXMAN_NO_TLS)
@@ -131,12 +111,10 @@
 #   define PIXMAN_GET_THREAD_LOCAL(name)				\
     (&name)
 
-#elif defined(__MINGW32__) || defined(PIXMAN_USE_XP_DLL_TLS_WORKAROUND)
+#elif defined(__MINGW32__)
 
 #   define _NO_W32_PSEUDO_MODIFIERS
 #   include <windows.h>
-#undef IN
-#undef OUT
 
 #   define PIXMAN_DEFINE_THREAD_LOCAL(type, name)			\
     static volatile int tls_ ## name ## _initialized = 0;		\

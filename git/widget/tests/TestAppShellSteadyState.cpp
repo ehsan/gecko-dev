@@ -40,7 +40,7 @@ class ExitAppShellRunnable : public nsRunnable
   nsCOMPtr<nsIAppShell> mAppShell;
 
 public:
-  explicit ExitAppShellRunnable(nsIAppShell* aAppShell)
+  ExitAppShellRunnable(nsIAppShell* aAppShell)
   : mAppShell(aAppShell)
   { }
 
@@ -70,7 +70,7 @@ class CheckStableStateRunnable : public nsRunnable
   bool mShouldHaveRun;
 
 public:
-  explicit CheckStableStateRunnable(bool aShouldHaveRun)
+  CheckStableStateRunnable(bool aShouldHaveRun)
   : mShouldHaveRun(aShouldHaveRun)
   { }
 
@@ -93,7 +93,7 @@ protected:
   nsCOMPtr<nsIAppShell> mAppShell;
 
 public:
-  explicit ScheduleStableStateRunnable(nsIAppShell* aAppShell)
+  ScheduleStableStateRunnable(nsIAppShell* aAppShell)
   : CheckStableStateRunnable(false), mAppShell(aAppShell)
   { }
 
@@ -117,7 +117,7 @@ class NextTestRunnable : public nsRunnable
   nsCOMPtr<nsIAppShell> mAppShell;
 
 public:
-  explicit NextTestRunnable(nsIAppShell* aAppShell)
+  NextTestRunnable(nsIAppShell* aAppShell)
   : mAppShell(aAppShell)
   { }
 
@@ -127,7 +127,7 @@ public:
 class ScheduleNestedStableStateRunnable : public ScheduleStableStateRunnable
 {
 public:
-  explicit ScheduleNestedStableStateRunnable(nsIAppShell* aAppShell)
+  ScheduleNestedStableStateRunnable(nsIAppShell* aAppShell)
   : ScheduleStableStateRunnable(aAppShell)
   { }
 
@@ -141,7 +141,7 @@ public:
       fail("Failed to dispatch check runnable");
     }
 
-    if (NS_FAILED(NS_ProcessPendingEvents(nullptr))) {
+    if (NS_FAILED(NS_ProcessPendingEvents(NULL))) {
       fail("Failed to process all pending events");
     }
 
@@ -166,12 +166,10 @@ class EventListener MOZ_FINAL : public nsIDOMEventListener
   static nsIDOMWindowUtils* sWindowUtils;
   static nsIAppShell* sAppShell;
 
-  ~EventListener() {}
-
 public:
   NS_DECL_ISUPPORTS
 
-  explicit EventListener(nsIAppShell* aAppShell)
+  EventListener(nsIAppShell* aAppShell)
   : mAppShell(aAppShell)
   { }
 
@@ -241,7 +239,7 @@ public:
   {
     if (sWindowUtils) {
       nsCOMPtr<nsIDOMWindowUtils> utils = dont_AddRef(sWindowUtils);
-      sWindowUtils = nullptr;
+      sWindowUtils = NULL;
 
       if (gStableStateEventHasRun) {
         fail("StableStateRunnable ran at wrong time");
@@ -260,7 +258,7 @@ public:
       return;
     }
 
-    KillTimer(nullptr, idEvent);
+    KillTimer(NULL, idEvent);
 
     nsCOMPtr<nsIAppShell> appShell = dont_AddRef(sAppShell);
 
@@ -282,7 +280,7 @@ public:
   ScheduleTimer(nsIDOMWindowUtils* aWindowUtils)
   {
 #ifdef XP_WIN
-    UINT_PTR timerId = SetTimer(nullptr, 0, 1000, (TIMERPROC)TimerCallback);
+    UINT_PTR timerId = SetTimer(NULL, 0, 1000, (TIMERPROC)TimerCallback);
     if (!timerId) {
       fail("SetTimer failed!");
       return false;
@@ -301,23 +299,23 @@ public:
   }
 };
 
-nsIDOMWindowUtils* EventListener::sWindowUtils = nullptr;
-nsIAppShell* EventListener::sAppShell = nullptr;
+nsIDOMWindowUtils* EventListener::sWindowUtils = NULL;
+nsIAppShell* EventListener::sAppShell = NULL;
 
-NS_IMPL_ISUPPORTS(EventListener, nsIDOMEventListener)
+NS_IMPL_ISUPPORTS1(EventListener, nsIDOMEventListener)
 
 already_AddRefed<nsIAppShell>
 GetAppShell()
 {
   static const char* platforms[] = {
-    "android", "mac", "gonk", "gtk", "qt", "win"
+    "android", "mac", "gonk", "gtk", "os2", "qt", "win"
   };
 
   NS_NAMED_LITERAL_CSTRING(contractPrefix, "@mozilla.org/widget/appshell/");
   NS_NAMED_LITERAL_CSTRING(contractSuffix, ";1");
 
   for (size_t index = 0; index < ArrayLength(platforms); index++) {
-    nsAutoCString contractID(contractPrefix);
+    nsCAutoString contractID(contractPrefix);
     contractID.AppendASCII(platforms[index]);
     contractID.Append(contractSuffix);
 
@@ -327,7 +325,7 @@ GetAppShell()
     }
   }
 
-  return nullptr;
+  return NULL;
 }
 
 void
@@ -401,7 +399,7 @@ Test4Internal(nsIAppShell* aAppShell)
   }
 
   nsCOMPtr<nsIURI> uri;
-  if (NS_FAILED(NS_NewURI(getter_AddRefs(uri), "about:", nullptr))) {
+  if (NS_FAILED(NS_NewURI(getter_AddRefs(uri), "about:", NULL))) {
     fail("Failed to create new uri");
     return false;
   }
@@ -409,7 +407,7 @@ Test4Internal(nsIAppShell* aAppShell)
   uint32_t flags = nsIWebBrowserChrome::CHROME_DEFAULT;
 
   nsCOMPtr<nsIXULWindow> xulWindow;
-  if (NS_FAILED(appService->CreateTopLevelWindow(nullptr, uri, flags, 100, 100, nullptr,
+  if (NS_FAILED(appService->CreateTopLevelWindow(NULL, uri, flags, 100, 100,
                                                  getter_AddRefs(xulWindow)))) {
     fail("Failed to create new window");
     return false;

@@ -4,16 +4,24 @@
 
 # finds the location of the browser and puts it in the variable $(browser_path)
 
-ifneq (,$(filter WINNT,$(OS_ARCH)))
-program = $(MOZ_APP_NAME)$(BIN_SUFFIX)
+ifneq (,$(filter OS2 WINNT,$(OS_ARCH)))
+PROGRAM = $(MOZ_APP_NAME)$(BIN_SUFFIX)
 else
-program = $(MOZ_APP_NAME)-bin$(BIN_SUFFIX)
+ifeq ($(MOZ_BUILD_APP),mobile/xul)
+PROGRAM = $(MOZ_APP_NAME)$(BIN_SUFFIX)
+else
+PROGRAM = $(MOZ_APP_NAME)-bin$(BIN_SUFFIX)
+endif
 endif
 
 TARGET_DIST = $(TARGET_DEPTH)/dist
 
-ifeq ($(OS_ARCH),Darwin)
-browser_path = $(TARGET_DIST)/$(MOZ_MACBUNDLE_NAME)/Contents/MacOS/$(program)
+ifeq ($(MOZ_BUILD_APP),camino)
+browser_path = $(TARGET_DIST)/Camino.app/Contents/MacOS/Camino
 else
-browser_path = $(TARGET_DIST)/bin/$(program)
+ifeq ($(OS_ARCH),Darwin)
+browser_path = $(TARGET_DIST)/$(MOZ_MACBUNDLE_NAME)/Contents/MacOS/$(PROGRAM)
+else
+browser_path = $(TARGET_DIST)/bin/$(PROGRAM)
+endif
 endif

@@ -23,7 +23,7 @@ nsSocketProviderService::Create(nsISupports *aOuter, REFNSIID aIID, void **aResu
   return rv;
 }
 
-NS_IMPL_ISUPPORTS(nsSocketProviderService, nsISocketProviderService)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsSocketProviderService, nsISocketProviderService)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,7 +32,7 @@ nsSocketProviderService::GetSocketProvider(const char         *type,
                                            nsISocketProvider **result)
 {
   nsresult rv;
-  nsAutoCString contractID(
+  nsCAutoString contractID(
           NS_LITERAL_CSTRING(NS_NETWORK_SOCKET_CONTRACTID_PREFIX) +
           nsDependentCString(type));
 

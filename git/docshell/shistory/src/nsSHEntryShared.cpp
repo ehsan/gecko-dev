@@ -3,20 +3,18 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsSHEntryShared.h"
-
-#include "nsIDOMDocument.h"
 #include "nsISHistory.h"
 #include "nsISHistoryInternal.h"
 #include "nsIDocument.h"
 #include "nsIWebNavigation.h"
 #include "nsIContentViewer.h"
-#include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
+#include "nsISupportsArray.h"
 #include "nsDocShellEditorData.h"
 #include "nsThreadUtils.h"
 #include "nsILayoutHistoryState.h"
+#include "prprf.h"
 #include "mozilla/Attributes.h"
-#include "nsISupportsArray.h"
 
 namespace dom = mozilla::dom;
 
@@ -95,7 +93,7 @@ nsSHEntryShared::~nsSHEntryShared()
   }
 }
 
-NS_IMPL_ISUPPORTS(nsSHEntryShared, nsIBFCacheEntry, nsIMutationObserver)
+NS_IMPL_ISUPPORTS2(nsSHEntryShared, nsIBFCacheEntry, nsIMutationObserver)
 
 already_AddRefed<nsSHEntryShared>
 nsSHEntryShared::Duplicate(nsSHEntryShared *aEntry)
@@ -168,7 +166,7 @@ nsSHEntryShared::Expire()
   if (!mContentViewer) {
     return;
   }
-  nsCOMPtr<nsIDocShell> container;
+  nsCOMPtr<nsISupports> container;
   mContentViewer->GetContainer(getter_AddRefs(container));
   nsCOMPtr<nsIDocShellTreeItem> treeItem = do_QueryInterface(container);
   if (!treeItem) {

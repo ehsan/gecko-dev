@@ -8,18 +8,13 @@
 #include "nsStructuredCloneContainer.h"
 
 #include "nsCOMPtr.h"
-#include "nsIGlobalObject.h"
+#include "nsIJSContextStack.h"
+#include "nsIScriptContext.h"
 #include "nsIVariant.h"
-#include "nsIXPConnect.h"
 #include "nsServiceManagerUtils.h"
 #include "nsContentUtils.h"
-#include "jsapi.h"
-#include "jsfriendapi.h"
-#include "js/StructuredClone.h"
-#include "xpcpublic.h"
 
 #include "mozilla/Base64.h"
-#include "mozilla/dom/ScriptSettings.h"
 
 using namespace mozilla;
 
@@ -42,31 +37,29 @@ nsStructuredCloneContainer::~nsStructuredCloneContainer()
 }
 
 nsresult
-nsStructuredCloneContainer::InitFromJSVal(JS::Handle<JS::Value> aData)
+nsStructuredCloneContainer::InitFromVariant(nsIVariant *aData, JSContext *aCx)
 {
   NS_ENSURE_STATE(!mData);
+  NS_ENSURE_ARG_POINTER(aData);
+  NS_ENSURE_ARG_POINTER(aCx);
+
+  // First, try to extract a jsval from the variant |aData|.  This works only
+  // if the variant implements GetAsJSVal.
+  jsval jsData;
+  nsresult rv = aData->GetAsJSVal(&jsData);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_UNEXPECTED);
+
+  // Make sure that we serialize in the right context.
+  JSAutoRequest ar(aCx);
+ JSAutoCompartment ac(aCx, JS_GetGlobalObject(aCx));
+  JS_WrapValue(aCx, &jsData);
+
+  nsCxPusher cxPusher;
+  cxPusher.Push(aCx);
 
   uint64_t* jsBytes = nullptr;
-  bool success = false;
-  if (aData.isPrimitive()) {
-    // |aData| is a primitive, so the structured clone algorithm won't run
-    // script and we can just use AutoJSAPI.
-    dom::AutoJSAPI jsapi;
-    jsapi.Init();
-    success = JS_WriteStructuredClone(jsapi.cx(), aData, &jsBytes, &mSize,
-                                      nullptr, nullptr,
-                                      JS::UndefinedHandleValue);
-  } else {
-    // |aData| is an object and the structured clone algorithm can run script as
-    // part of the "own" "deep clone" sub-steps, so we need an AutoEntryScript.
-    // http://www.whatwg.org/specs/web-apps/current-work/#internal-structured-cloning-algorithm
-    nsIGlobalObject* nativeGlobal =
-      xpc::NativeGlobal(js::GetGlobalForObjectCrossCompartment(&aData.toObject()));
-    dom::AutoEntryScript aes(nativeGlobal);
-    success = JS_WriteStructuredClone(aes.cx(), aData, &jsBytes, &mSize,
-                                      nullptr, nullptr,
-                                      JS::UndefinedHandleValue);
-  }
+  bool success = JS_WriteStructuredClone(aCx, jsData, &jsBytes, &mSize,
+                                           nullptr, nullptr);
   NS_ENSURE_STATE(success);
   NS_ENSURE_STATE(jsBytes);
 
@@ -76,7 +69,9 @@ nsStructuredCloneContainer::InitFromJSVal(JS::Handle<JS::Value> aData)
     mSize = 0;
     mVersion = 0;
 
-    JS_ClearStructuredClone(jsBytes, mSize, nullptr, nullptr);
+    // FIXME This should really be js::Foreground::Free, but that's not public.
+    JS_free(aCx, jsBytes);
+
     return NS_ERROR_FAILURE;
   }
   else {
@@ -85,7 +80,8 @@ nsStructuredCloneContainer::InitFromJSVal(JS::Handle<JS::Value> aData)
 
   memcpy(mData, jsBytes, mSize);
 
-  JS_ClearStructuredClone(jsBytes, mSize, nullptr, nullptr);
+  // FIXME Similarly, this should be js::Foreground::free.
+  JS_free(aCx, jsBytes);
   return NS_OK;
 }
 
@@ -98,7 +94,7 @@ nsStructuredCloneContainer::InitFromBase64(const nsAString &aData,
 
   NS_ConvertUTF16toUTF8 data(aData);
 
-  nsAutoCString binaryData;
+  nsCAutoString binaryData;
   nsresult rv = Base64Decode(data, binaryData);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -121,25 +117,20 @@ nsStructuredCloneContainer::DeserializeToVariant(JSContext *aCx,
   NS_ENSURE_ARG_POINTER(aData);
   *aData = nullptr;
 
-  // Deserialize to a JS::Value.
-  JS::Rooted<JS::Value> jsStateObj(aCx);
-  bool hasTransferable = false;
+  // Deserialize to a jsval.
+  jsval jsStateObj;
   bool success = JS_ReadStructuredClone(aCx, mData, mSize, mVersion,
-                                        &jsStateObj, nullptr, nullptr) &&
-                 JS_StructuredCloneHasTransferables(mData, mSize,
-                                                    &hasTransferable);
-  // We want to be sure that mData doesn't contain transferable objects
-  MOZ_ASSERT(!hasTransferable);
-  NS_ENSURE_STATE(success && !hasTransferable);
+                                          &jsStateObj, nullptr, nullptr);
+  NS_ENSURE_STATE(success);
 
-  // Now wrap the JS::Value as an nsIVariant.
+  // Now wrap the jsval as an nsIVariant.
   nsCOMPtr<nsIVariant> varStateObj;
   nsCOMPtr<nsIXPConnect> xpconnect = do_GetService(nsIXPConnect::GetCID());
   NS_ENSURE_STATE(xpconnect);
-  xpconnect->JSValToVariant(aCx, jsStateObj, getter_AddRefs(varStateObj));
+  xpconnect->JSValToVariant(aCx, &jsStateObj, getter_AddRefs(varStateObj));
   NS_ENSURE_STATE(varStateObj);
 
-  NS_ADDREF(*aData = varStateObj);
+  NS_IF_ADDREF(*aData = varStateObj);
   return NS_OK;
 }
 
@@ -149,8 +140,8 @@ nsStructuredCloneContainer::GetDataAsBase64(nsAString &aOut)
   NS_ENSURE_STATE(mData);
   aOut.Truncate();
 
-  nsAutoCString binaryData(reinterpret_cast<char*>(mData), mSize);
-  nsAutoCString base64Data;
+  nsCAutoString binaryData(reinterpret_cast<char*>(mData), mSize);
+  nsCAutoString base64Data;
   nsresult rv = Base64Encode(binaryData, base64Data);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -165,7 +156,7 @@ nsStructuredCloneContainer::GetSerializedNBytes(uint64_t *aSize)
   NS_ENSURE_ARG_POINTER(aSize);
 
   // mSize is a size_t, while aSize is a uint64_t.  We rely on an implicit cast
-  // here so that we'll get a compile error if a size_t-to-uint64_t cast is
+  // here so that we'll get a compile error if a size_t-to-uint64 cast is
   // narrowing.
   *aSize = mSize;
 

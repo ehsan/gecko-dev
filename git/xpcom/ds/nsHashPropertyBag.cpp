@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 50; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim:set ts=4 sw=4 sts=4: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7,70 +7,103 @@
 #include "nsHashPropertyBag.h"
 #include "nsArray.h"
 #include "nsArrayEnumerator.h"
+#include "nsComponentManagerUtils.h"
 #include "nsIVariant.h"
 #include "nsIProperty.h"
 #include "nsVariant.h"
 #include "mozilla/Attributes.h"
 
+nsresult
+NS_NewHashPropertyBag(nsIWritablePropertyBag* *_retval)
+{
+    nsHashPropertyBag *hpb = new nsHashPropertyBag();
+    if (!hpb)
+        return NS_ERROR_OUT_OF_MEMORY;
+
+    NS_ADDREF(hpb);
+
+    nsresult rv = hpb->Init();
+    if (NS_FAILED(rv)) {
+        NS_RELEASE(hpb);
+        return rv;
+    }
+
+    *_retval = hpb;
+    return NS_OK;
+}
+
 /*
- * nsHashPropertyBagBase implementation.
+ * nsHashPropertyBag impl
  */
 
-NS_IMETHODIMP
-nsHashPropertyBagBase::HasKey(const nsAString& aName, bool* aResult)
+NS_IMPL_THREADSAFE_ADDREF(nsHashPropertyBag)
+NS_IMPL_THREADSAFE_RELEASE(nsHashPropertyBag)
+NS_INTERFACE_MAP_BEGIN(nsHashPropertyBag)
+  NS_INTERFACE_MAP_ENTRY(nsIWritablePropertyBag)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIPropertyBag, nsIWritablePropertyBag)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIWritablePropertyBag)
+  NS_INTERFACE_MAP_ENTRY(nsIPropertyBag2)
+  NS_INTERFACE_MAP_ENTRY(nsIWritablePropertyBag2)
+NS_INTERFACE_MAP_END
+
+nsresult
+nsHashPropertyBag::Init()
 {
-  *aResult = mPropertyHash.Get(aName, nullptr);
-  return NS_OK;
+    mPropertyHash.Init();
+    return NS_OK;
 }
 
 NS_IMETHODIMP
-nsHashPropertyBagBase::Get(const nsAString& aName, nsIVariant** aResult)
+nsHashPropertyBag::HasKey(const nsAString& name, bool *aResult)
 {
-  if (!mPropertyHash.Get(aName, aResult)) {
-    *aResult = nullptr;
-  }
+    *aResult = mPropertyHash.Get(name, nullptr);
 
-  return NS_OK;
+    return NS_OK;
 }
 
 NS_IMETHODIMP
-nsHashPropertyBagBase::GetProperty(const nsAString& aName, nsIVariant** aResult)
+nsHashPropertyBag::Get(const nsAString& name, nsIVariant* *_retval)
 {
-  bool isFound = mPropertyHash.Get(aName, aResult);
-  if (!isFound) {
-    return NS_ERROR_FAILURE;
-  }
+    if (!mPropertyHash.Get(name, _retval))
+        *_retval = nullptr;
 
-  return NS_OK;
+    return NS_OK;
 }
 
 NS_IMETHODIMP
-nsHashPropertyBagBase::SetProperty(const nsAString& aName, nsIVariant* aValue)
+nsHashPropertyBag::GetProperty(const nsAString& name, nsIVariant* *_retval)
 {
-  if (NS_WARN_IF(!aValue)) {
-    return NS_ERROR_INVALID_ARG;
-  }
+    bool isFound = mPropertyHash.Get(name, _retval);
+    if (!isFound)
+        return NS_ERROR_FAILURE;
 
-  mPropertyHash.Put(aName, aValue);
-
-  return NS_OK;
+    return NS_OK;
 }
 
 NS_IMETHODIMP
-nsHashPropertyBagBase::DeleteProperty(const nsAString& aName)
+nsHashPropertyBag::SetProperty(const nsAString& name, nsIVariant *value)
 {
-  // is it too much to ask for ns*Hashtable to return
-  // a boolean indicating whether RemoveEntry succeeded
-  // or not?!?!
-  bool isFound = mPropertyHash.Get(aName, nullptr);
-  if (!isFound) {
-    return NS_ERROR_FAILURE;
-  }
+    NS_ENSURE_ARG_POINTER(value);
 
-  // then from the hash
-  mPropertyHash.Remove(aName);
+    mPropertyHash.Put(name, value);
 
-  return NS_OK;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHashPropertyBag::DeleteProperty(const nsAString& name)
+{
+    // is it too much to ask for ns*Hashtable to return
+    // a boolean indicating whether RemoveEntry succeeded
+    // or not?!?!
+    bool isFound = mPropertyHash.Get(name, nullptr);
+    if (!isFound)
+        return NS_ERROR_FAILURE;
+
+    // then from the hash
+    mPropertyHash.Remove(name);
+
+    return NS_OK;
 }
 
 
@@ -78,70 +111,66 @@ nsHashPropertyBagBase::DeleteProperty(const nsAString& aName)
 // nsSimpleProperty class and impl; used for GetEnumerator
 //
 
-class nsSimpleProperty MOZ_FINAL : public nsIProperty
-{
-  ~nsSimpleProperty() {}
-
+class nsSimpleProperty MOZ_FINAL : public nsIProperty {
 public:
-  nsSimpleProperty(const nsAString& aName, nsIVariant* aValue)
-    : mName(aName)
-    , mValue(aValue)
-  {
-  }
+    nsSimpleProperty(const nsAString& aName, nsIVariant* aValue)
+        : mName(aName), mValue(aValue)
+    {
+    }
 
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIPROPERTY
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIPROPERTY
 protected:
-  nsString mName;
-  nsCOMPtr<nsIVariant> mValue;
+    nsString mName;
+    nsCOMPtr<nsIVariant> mValue;
 };
 
-NS_IMPL_ISUPPORTS(nsSimpleProperty, nsIProperty)
+NS_IMPL_ISUPPORTS1(nsSimpleProperty, nsIProperty)
 
 NS_IMETHODIMP
 nsSimpleProperty::GetName(nsAString& aName)
 {
-  aName.Assign(mName);
-  return NS_OK;
+    aName.Assign(mName);
+    return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSimpleProperty::GetValue(nsIVariant** aValue)
+nsSimpleProperty::GetValue(nsIVariant* *aValue)
 {
-  NS_IF_ADDREF(*aValue = mValue);
-  return NS_OK;
+    NS_IF_ADDREF(*aValue = mValue);
+    return NS_OK;
 }
 
 // end nsSimpleProperty
 
 static PLDHashOperator
-PropertyHashToArrayFunc(const nsAString& aKey,
-                        nsIVariant* aData,
-                        void* aUserArg)
+PropertyHashToArrayFunc (const nsAString &aKey,
+                         nsIVariant* aData,
+                         void *userArg)
 {
-  nsIMutableArray* propertyArray = static_cast<nsIMutableArray*>(aUserArg);
-  nsSimpleProperty* sprop = new nsSimpleProperty(aKey, aData);
-  propertyArray->AppendElement(sprop, false);
-  return PL_DHASH_NEXT;
+    nsIMutableArray *propertyArray =
+        static_cast<nsIMutableArray *>(userArg);
+    nsSimpleProperty *sprop = new nsSimpleProperty(aKey, aData);
+    propertyArray->AppendElement(sprop, false);
+    return PL_DHASH_NEXT;
 }
 
 
 NS_IMETHODIMP
-nsHashPropertyBagBase::GetEnumerator(nsISimpleEnumerator** aResult)
+nsHashPropertyBag::GetEnumerator(nsISimpleEnumerator* *_retval)
 {
-  nsCOMPtr<nsIMutableArray> propertyArray = nsArray::Create();
-  if (!propertyArray) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
+    nsCOMPtr<nsIMutableArray> propertyArray = new nsArray();
+    if (!propertyArray)
+        return NS_ERROR_OUT_OF_MEMORY;
 
-  mPropertyHash.EnumerateRead(PropertyHashToArrayFunc, propertyArray.get());
+    mPropertyHash.EnumerateRead(PropertyHashToArrayFunc, propertyArray.get());
 
-  return NS_NewArrayEnumerator(aResult, propertyArray);
+    return NS_NewArrayEnumerator(_retval, propertyArray);
 }
 
 #define IMPL_GETSETPROPERTY_AS(Name, Type) \
 NS_IMETHODIMP \
-nsHashPropertyBagBase::GetPropertyAs ## Name (const nsAString & prop, Type *_retval) \
+nsHashPropertyBag::GetPropertyAs ## Name (const nsAString & prop, Type *_retval) \
 { \
     nsIVariant* v = mPropertyHash.GetWeak(prop); \
     if (!v) \
@@ -150,9 +179,11 @@ nsHashPropertyBagBase::GetPropertyAs ## Name (const nsAString & prop, Type *_ret
 } \
 \
 NS_IMETHODIMP \
-nsHashPropertyBagBase::SetPropertyAs ## Name (const nsAString & prop, Type value) \
+nsHashPropertyBag::SetPropertyAs ## Name (const nsAString & prop, Type value) \
 { \
     nsCOMPtr<nsIWritableVariant> var = new nsVariant(); \
+    if (!var) \
+        return NS_ERROR_OUT_OF_MEMORY; \
     var->SetAs ## Name(value); \
     return SetProperty(prop, var); \
 }
@@ -166,126 +197,89 @@ IMPL_GETSETPROPERTY_AS(Bool, bool)
 
 
 NS_IMETHODIMP
-nsHashPropertyBagBase::GetPropertyAsAString(const nsAString& aProp,
-                                        nsAString& aResult)
+nsHashPropertyBag::GetPropertyAsAString(const nsAString & prop, nsAString & _retval)
 {
-  nsIVariant* v = mPropertyHash.GetWeak(aProp);
-  if (!v) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-  return v->GetAsAString(aResult);
+    nsIVariant* v = mPropertyHash.GetWeak(prop);
+    if (!v)
+        return NS_ERROR_NOT_AVAILABLE;
+    return v->GetAsAString(_retval);
 }
 
 NS_IMETHODIMP
-nsHashPropertyBagBase::GetPropertyAsACString(const nsAString& aProp,
-                                         nsACString& aResult)
+nsHashPropertyBag::GetPropertyAsACString(const nsAString & prop, nsACString & _retval)
 {
-  nsIVariant* v = mPropertyHash.GetWeak(aProp);
-  if (!v) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-  return v->GetAsACString(aResult);
+    nsIVariant* v = mPropertyHash.GetWeak(prop);
+    if (!v)
+        return NS_ERROR_NOT_AVAILABLE;
+    return v->GetAsACString(_retval);
 }
 
 NS_IMETHODIMP
-nsHashPropertyBagBase::GetPropertyAsAUTF8String(const nsAString& aProp,
-                                            nsACString& aResult)
+nsHashPropertyBag::GetPropertyAsAUTF8String(const nsAString & prop, nsACString & _retval)
 {
-  nsIVariant* v = mPropertyHash.GetWeak(aProp);
-  if (!v) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-  return v->GetAsAUTF8String(aResult);
+    nsIVariant* v = mPropertyHash.GetWeak(prop);
+    if (!v)
+        return NS_ERROR_NOT_AVAILABLE;
+    return v->GetAsAUTF8String(_retval);
 }
 
 NS_IMETHODIMP
-nsHashPropertyBagBase::GetPropertyAsInterface(const nsAString& aProp,
-                                          const nsIID& aIID,
-                                          void** aResult)
+nsHashPropertyBag::GetPropertyAsInterface(const nsAString & prop,
+                                          const nsIID & aIID,
+                                          void** _retval)
 {
-  nsIVariant* v = mPropertyHash.GetWeak(aProp);
-  if (!v) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-  nsCOMPtr<nsISupports> val;
-  nsresult rv = v->GetAsISupports(getter_AddRefs(val));
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-  if (!val) {
-    // We have a value, but it's null
-    *aResult = nullptr;
-    return NS_OK;
-  }
-  return val->QueryInterface(aIID, aResult);
+    nsIVariant* v = mPropertyHash.GetWeak(prop);
+    if (!v)
+        return NS_ERROR_NOT_AVAILABLE;
+    nsCOMPtr<nsISupports> val;
+    nsresult rv = v->GetAsISupports(getter_AddRefs(val));
+    if (NS_FAILED(rv))
+        return rv;
+    if (!val) {
+        // We have a value, but it's null
+        *_retval = nullptr;
+        return NS_OK;
+    }
+    return val->QueryInterface(aIID, _retval);
 }
 
 NS_IMETHODIMP
-nsHashPropertyBagBase::SetPropertyAsAString(const nsAString& aProp,
-                                        const nsAString& aValue)
+nsHashPropertyBag::SetPropertyAsAString(const nsAString & prop, const nsAString & value)
 {
-  nsCOMPtr<nsIWritableVariant> var = new nsVariant();
-  var->SetAsAString(aValue);
-  return SetProperty(aProp, var);
+    nsCOMPtr<nsIWritableVariant> var = new nsVariant();
+    if (!var)
+        return NS_ERROR_OUT_OF_MEMORY;
+    var->SetAsAString(value);
+    return SetProperty(prop, var);
 }
 
 NS_IMETHODIMP
-nsHashPropertyBagBase::SetPropertyAsACString(const nsAString& aProp,
-                                         const nsACString& aValue)
+nsHashPropertyBag::SetPropertyAsACString(const nsAString & prop, const nsACString & value)
 {
-  nsCOMPtr<nsIWritableVariant> var = new nsVariant();
-  var->SetAsACString(aValue);
-  return SetProperty(aProp, var);
+    nsCOMPtr<nsIWritableVariant> var = new nsVariant();
+    if (!var)
+        return NS_ERROR_OUT_OF_MEMORY;
+    var->SetAsACString(value);
+    return SetProperty(prop, var);
 }
 
 NS_IMETHODIMP
-nsHashPropertyBagBase::SetPropertyAsAUTF8String(const nsAString& aProp,
-                                            const nsACString& aValue)
+nsHashPropertyBag::SetPropertyAsAUTF8String(const nsAString & prop, const nsACString & value)
 {
-  nsCOMPtr<nsIWritableVariant> var = new nsVariant();
-  var->SetAsAUTF8String(aValue);
-  return SetProperty(aProp, var);
+    nsCOMPtr<nsIWritableVariant> var = new nsVariant();
+    if (!var)
+        return NS_ERROR_OUT_OF_MEMORY;
+    var->SetAsAUTF8String(value);
+    return SetProperty(prop, var);
 }
 
 NS_IMETHODIMP
-nsHashPropertyBagBase::SetPropertyAsInterface(const nsAString& aProp,
-                                          nsISupports* aValue)
+nsHashPropertyBag::SetPropertyAsInterface(const nsAString & prop, nsISupports* value)
 {
-  nsCOMPtr<nsIWritableVariant> var = new nsVariant();
-  var->SetAsISupports(aValue);
-  return SetProperty(aProp, var);
+    nsCOMPtr<nsIWritableVariant> var = new nsVariant();
+    if (!var)
+        return NS_ERROR_OUT_OF_MEMORY;
+    var->SetAsISupports(value);
+    return SetProperty(prop, var);
 }
 
-
-/*
- * nsHashPropertyBag implementation.
- */
-
-NS_IMPL_ADDREF(nsHashPropertyBag)
-NS_IMPL_RELEASE(nsHashPropertyBag)
-
-NS_INTERFACE_MAP_BEGIN(nsHashPropertyBag)
-  NS_INTERFACE_MAP_ENTRY(nsIWritablePropertyBag)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIPropertyBag, nsIWritablePropertyBag)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIWritablePropertyBag)
-  NS_INTERFACE_MAP_ENTRY(nsIPropertyBag2)
-  NS_INTERFACE_MAP_ENTRY(nsIWritablePropertyBag2)
-NS_INTERFACE_MAP_END
-
-
-/*
- * nsHashPropertyBagCC implementation.
- */
-
-NS_IMPL_CYCLE_COLLECTION(nsHashPropertyBagCC, mPropertyHash)
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsHashPropertyBagCC)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsHashPropertyBagCC)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsHashPropertyBagCC)
-  NS_INTERFACE_MAP_ENTRY(nsIWritablePropertyBag)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIPropertyBag, nsIWritablePropertyBag)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIWritablePropertyBag)
-  NS_INTERFACE_MAP_ENTRY(nsIPropertyBag2)
-  NS_INTERFACE_MAP_ENTRY(nsIWritablePropertyBag2)
-NS_INTERFACE_MAP_END

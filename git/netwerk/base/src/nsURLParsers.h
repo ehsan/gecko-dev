@@ -42,12 +42,10 @@ protected:
 
 class nsNoAuthURLParser MOZ_FINAL : public nsBaseURLParser
 {
-    ~nsNoAuthURLParser() {}
-
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) || defined(XP_OS2)
     NS_IMETHOD ParseFilePath(const char *, int32_t,
                              uint32_t *, int32_t *,
                              uint32_t *, int32_t *,
@@ -76,11 +74,10 @@ public:
 
 class nsAuthURLParser : public nsBaseURLParser
 {
-protected:
-    virtual ~nsAuthURLParser() {}
-
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
+
+    virtual ~nsAuthURLParser() {}
 
     NS_IMETHOD ParseAuthority(const char *auth, int32_t authLen,
                               uint32_t *usernamePos, int32_t *usernameLen,
@@ -113,8 +110,6 @@ public:
 
 class nsStdURLParser : public nsAuthURLParser
 {
-    virtual ~nsStdURLParser() {}
-
 public: 
     void ParseAfterScheme(const char *spec, int32_t specLen,
                           uint32_t *authPos, int32_t *authLen,

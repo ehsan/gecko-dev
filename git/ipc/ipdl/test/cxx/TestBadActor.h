@@ -34,10 +34,10 @@ protected:
   }
 
   virtual PTestBadActorSubParent*
-  AllocPTestBadActorSubParent();
+  AllocPTestBadActorSub();
 
   virtual bool
-  DeallocPTestBadActorSubParent(PTestBadActorSubParent* actor) {
+  DeallocPTestBadActorSub(PTestBadActorSubParent* actor) {
     delete actor;
     return true;
   }
@@ -51,7 +51,6 @@ public:
   virtual ~TestBadActorSubParent() { }
 
 protected:
-  virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE {}
   virtual bool RecvPing();
 };
 
@@ -64,10 +63,10 @@ public:
 
 protected:
   virtual PTestBadActorSubChild*
-  AllocPTestBadActorSubChild();
+  AllocPTestBadActorSub();
 
   virtual bool
-  DeallocPTestBadActorSubChild(PTestBadActorSubChild* actor)
+  DeallocPTestBadActorSub(PTestBadActorSubChild* actor)
   {
     delete actor;
     return true;

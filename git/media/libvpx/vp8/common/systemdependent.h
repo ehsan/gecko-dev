@@ -8,20 +8,14 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifndef VP8_COMMON_SYSTEMDEPENDENT_H_
-#define VP8_COMMON_SYSTEMDEPENDENT_H_
 
 #include "vpx_config.h"
-
-#ifdef __cplusplus
-extern "C" {
+#if ARCH_X86 || ARCH_X86_64
+void vpx_reset_mmx_state(void);
+#define vp8_clear_system_state() vpx_reset_mmx_state()
+#else
+#define vp8_clear_system_state()
 #endif
 
 struct VP8Common;
 void vp8_machine_specific_config(struct VP8Common *);
-
-#ifdef __cplusplus
-}  // extern "C"
-#endif
-
-#endif  // VP8_COMMON_SYSTEMDEPENDENT_H_

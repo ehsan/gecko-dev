@@ -6,25 +6,25 @@
 #ifndef GFX_CORETEXTSHAPER_H
 #define GFX_CORETEXTSHAPER_H
 
+#include "gfxTypes.h"
 #include "gfxFont.h"
+#include "gfxFontUtils.h"
+#include "gfxPlatform.h"
+#include "gfxMacPlatformFontList.h"
 
-#include <ApplicationServices/ApplicationServices.h>
+#include <Carbon/Carbon.h>
 
 class gfxMacFont;
 
 class gfxCoreTextShaper : public gfxFontShaper {
 public:
-    explicit gfxCoreTextShaper(gfxMacFont *aFont);
+    gfxCoreTextShaper(gfxMacFont *aFont);
 
     virtual ~gfxCoreTextShaper();
 
-    virtual bool ShapeText(gfxContext      *aContext,
-                           const char16_t *aText,
-                           uint32_t         aOffset,
-                           uint32_t         aLength,
-                           int32_t          aScript,
-                           bool             aVertical,
-                           gfxShapedText   *aShapedText);
+    virtual bool ShapeWord(gfxContext *aContext,
+                           gfxShapedWord *aShapedWord,
+                           const PRUnichar *aText);
 
     // clean up static objects that may have been cached
     static void Shutdown();
@@ -33,18 +33,16 @@ protected:
     CTFontRef mCTFont;
     CFDictionaryRef mAttributesDict;
 
-    nsresult SetGlyphsFromRun(gfxShapedText *aShapedText,
-                              uint32_t       aOffset,
-                              uint32_t       aLength,
-                              CTRunRef       aCTRun,
-                              int32_t        aStringOffset);
+    nsresult SetGlyphsFromRun(gfxShapedWord *aShapedWord,
+                              CTRunRef aCTRun,
+                              int32_t aStringOffset);
 
     CTFontRef CreateCTFontWithDisabledLigatures(CGFloat aSize);
 
     static void CreateDefaultFeaturesDescriptor();
 
     static CTFontDescriptorRef GetDefaultFeaturesDescriptor() {
-        if (sDefaultFeaturesDescriptor == nullptr) {
+        if (sDefaultFeaturesDescriptor == NULL) {
             CreateDefaultFeaturesDescriptor();
         }
         return sDefaultFeaturesDescriptor;

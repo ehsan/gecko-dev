@@ -6,36 +6,36 @@
 /* base class for DOM objects for element.style and cssStyleRule.style */
 
 #include "nsDOMCSSDeclaration.h"
-
+#include "nsIDOMCSSRule.h"
 #include "nsCSSParser.h"
-#include "mozilla/CSSStyleSheet.h"
+#include "mozilla/css/Loader.h"
+#include "nsCSSStyleSheet.h"
+#include "nsIStyleRule.h"
 #include "mozilla/css/Rule.h"
 #include "mozilla/css/Declaration.h"
-#include "mozilla/dom/CSS2PropertiesBinding.h"
 #include "nsCSSProps.h"
 #include "nsCOMPtr.h"
+#include "nsIURL.h"
+#include "nsReadableUtils.h"
+#include "nsIPrincipal.h"
+#include "nsDOMClassInfoID.h"
 #include "mozAutoDocUpdate.h"
-#include "nsIURI.h"
-#include "mozilla/dom/BindingUtils.h"
-#include "nsContentUtils.h"
 
-using namespace mozilla;
+namespace css = mozilla::css;
 
 nsDOMCSSDeclaration::~nsDOMCSSDeclaration()
 {
 }
 
-/* virtual */ JSObject*
-nsDOMCSSDeclaration::WrapObject(JSContext* aCx)
-{
-  return dom::CSS2PropertiesBinding::Wrap(aCx, this);
-}
+DOMCI_DATA(CSSStyleDeclaration, nsDOMCSSDeclaration)
 
 NS_INTERFACE_TABLE_HEAD(nsDOMCSSDeclaration)
-  NS_INTERFACE_TABLE(nsDOMCSSDeclaration,
-                     nsICSSDeclaration,
-                     nsIDOMCSSStyleDeclaration)
+  NS_INTERFACE_TABLE3(nsDOMCSSDeclaration,
+                      nsICSSDeclaration,
+                      nsIDOMCSSStyleDeclaration,
+                      nsIDOMCSS2Properties)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSStyleDeclaration)
 NS_INTERFACE_MAP_END
 
 NS_IMETHODIMP
@@ -52,24 +52,6 @@ nsDOMCSSDeclaration::GetPropertyValue(const nsCSSProperty aPropID,
     decl->GetValue(aPropID, aValue);
   }
   return NS_OK;
-}
-
-void
-nsDOMCSSDeclaration::GetCustomPropertyValue(const nsAString& aPropertyName,
-                                            nsAString& aValue)
-{
-  MOZ_ASSERT(Substring(aPropertyName, 0,
-                       CSS_CUSTOM_NAME_PREFIX_LENGTH).EqualsLiteral("--"));
-
-  css::Declaration* decl = GetCSSDeclaration(false);
-  if (!decl) {
-    aValue.Truncate();
-    return;
-  }
-
-  decl->GetVariableDeclaration(Substring(aPropertyName,
-                                         CSS_CUSTOM_NAME_PREFIX_LENGTH),
-                               aValue);
 }
 
 NS_IMETHODIMP
@@ -150,12 +132,16 @@ nsDOMCSSDeclaration::GetLength(uint32_t* aLength)
   return NS_OK;
 }
 
-already_AddRefed<dom::CSSValue>
-nsDOMCSSDeclaration::GetPropertyCSSValue(const nsAString& aPropertyName, ErrorResult& aRv)
+NS_IMETHODIMP
+nsDOMCSSDeclaration::GetPropertyCSSValue(const nsAString& aPropertyName,
+                                         nsIDOMCSSValue** aReturn)
 {
-  // We don't support CSSValue yet so we'll just return null...
+  NS_ENSURE_ARG_POINTER(aReturn);
 
-  return nullptr;
+  // We don't support CSSValue yet so we'll just return null...
+  *aReturn = nullptr;
+
+  return NS_OK;
 }
 
 void
@@ -169,46 +155,14 @@ NS_IMETHODIMP
 nsDOMCSSDeclaration::GetPropertyValue(const nsAString& aPropertyName,
                                       nsAString& aReturn)
 {
-  const nsCSSProperty propID =
-    nsCSSProps::LookupProperty(aPropertyName,
-                               nsCSSProps::eEnabledForAllContent);
+  const nsCSSProperty propID = nsCSSProps::LookupProperty(aPropertyName,
+                                                          nsCSSProps::eEnabled);
   if (propID == eCSSProperty_UNKNOWN) {
     aReturn.Truncate();
-    return NS_OK;
-  }
-
-  if (propID == eCSSPropertyExtra_variable) {
-    GetCustomPropertyValue(aPropertyName, aReturn);
     return NS_OK;
   }
 
   return GetPropertyValue(propID, aReturn);
-}
-
-NS_IMETHODIMP
-nsDOMCSSDeclaration::GetAuthoredPropertyValue(const nsAString& aPropertyName,
-                                              nsAString& aReturn)
-{
-  const nsCSSProperty propID =
-    nsCSSProps::LookupProperty(aPropertyName,
-                               nsCSSProps::eEnabledForAllContent);
-  if (propID == eCSSProperty_UNKNOWN) {
-    aReturn.Truncate();
-    return NS_OK;
-  }
-
-  if (propID == eCSSPropertyExtra_variable) {
-    GetCustomPropertyValue(aPropertyName, aReturn);
-    return NS_OK;
-  }
-
-  css::Declaration* decl = GetCSSDeclaration(false);
-  if (!decl) {
-    return NS_ERROR_FAILURE;
-  }
-
-  decl->GetAuthoredValue(propID, aReturn);
-  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -231,9 +185,8 @@ nsDOMCSSDeclaration::SetProperty(const nsAString& aPropertyName,
                                  const nsAString& aPriority)
 {
   // In the common (and fast) cases we can use the property id
-  nsCSSProperty propID =
-    nsCSSProps::LookupProperty(aPropertyName,
-                               nsCSSProps::eEnabledForAllContent);
+  nsCSSProperty propID = nsCSSProps::LookupProperty(aPropertyName,
+                                                    nsCSSProps::eEnabled);
   if (propID == eCSSProperty_UNKNOWN) {
     return NS_OK;
   }
@@ -242,42 +195,29 @@ nsDOMCSSDeclaration::SetProperty(const nsAString& aPropertyName,
     // If the new value of the property is an empty string we remove the
     // property.
     // XXX this ignores the priority string, should it?
-    if (propID == eCSSPropertyExtra_variable) {
-      return RemoveCustomProperty(aPropertyName);
-    }
     return RemoveProperty(propID);
   }
 
-  bool important;
   if (aPriority.IsEmpty()) {
-    important = false;
-  } else if (aPriority.EqualsLiteral("important")) {
-    important = true;
-  } else {
-    // XXX silent failure?
-    return NS_OK;
+    return ParsePropertyValue(propID, aValue, false);
   }
 
-  if (propID == eCSSPropertyExtra_variable) {
-    return ParseCustomPropertyValue(aPropertyName, aValue, important);
+  if (aPriority.EqualsLiteral("important")) {
+    return ParsePropertyValue(propID, aValue, true);
   }
-  return ParsePropertyValue(propID, aValue, important);
+
+  // XXX silent failure?
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMCSSDeclaration::RemoveProperty(const nsAString& aPropertyName,
                                     nsAString& aReturn)
 {
-  const nsCSSProperty propID =
-    nsCSSProps::LookupProperty(aPropertyName,
-                               nsCSSProps::eEnabledForAllContent);
+  const nsCSSProperty propID = nsCSSProps::LookupProperty(aPropertyName,
+                                                          nsCSSProps::eEnabled);
   if (propID == eCSSProperty_UNKNOWN) {
     aReturn.Truncate();
-    return NS_OK;
-  }
-
-  if (propID == eCSSPropertyExtra_variable) {
-    RemoveCustomProperty(aPropertyName);
     return NS_OK;
   }
 
@@ -292,7 +232,7 @@ nsDOMCSSDeclaration::GetCSSParsingEnvironmentForRule(css::Rule* aRule,
                                                      CSSParsingEnvironment& aCSSParseEnv)
 {
   nsIStyleSheet* sheet = aRule ? aRule->GetStyleSheet() : nullptr;
-  nsRefPtr<CSSStyleSheet> cssSheet(do_QueryObject(sheet));
+  nsRefPtr<nsCSSStyleSheet> cssSheet(do_QueryObject(sheet));
   if (!cssSheet) {
     aCSSParseEnv.mPrincipal = nullptr;
     return;
@@ -345,50 +285,6 @@ nsDOMCSSDeclaration::ParsePropertyValue(const nsCSSProperty aPropID,
 }
 
 nsresult
-nsDOMCSSDeclaration::ParseCustomPropertyValue(const nsAString& aPropertyName,
-                                              const nsAString& aPropValue,
-                                              bool aIsImportant)
-{
-  MOZ_ASSERT(nsCSSProps::IsCustomPropertyName(aPropertyName));
-
-  css::Declaration* olddecl = GetCSSDeclaration(true);
-  if (!olddecl) {
-    return NS_ERROR_FAILURE;
-  }
-
-  CSSParsingEnvironment env;
-  GetCSSParsingEnvironment(env);
-  if (!env.mPrincipal) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
-  // For nsDOMCSSAttributeDeclaration, SetCSSDeclaration will lead to
-  // Attribute setting code, which leads in turn to BeginUpdate.  We
-  // need to start the update now so that the old rule doesn't get used
-  // between when we mutate the declaration and when we set the new
-  // rule (see stack in bug 209575).
-  mozAutoDocConditionalContentUpdateBatch autoUpdate(DocToUpdate(), true);
-  css::Declaration* decl = olddecl->EnsureMutable();
-
-  nsCSSParser cssParser(env.mCSSLoader);
-  bool changed;
-  nsresult result =
-    cssParser.ParseVariable(Substring(aPropertyName,
-                                      CSS_CUSTOM_NAME_PREFIX_LENGTH),
-                            aPropValue, env.mSheetURI,
-                            env.mBaseURI, env.mPrincipal, decl,
-                            &changed, aIsImportant);
-  if (NS_FAILED(result) || !changed) {
-    if (decl != olddecl) {
-      delete decl;
-    }
-    return result;
-  }
-
-  return SetCSSDeclaration(decl);
-}
-
-nsresult
 nsDOMCSSDeclaration::RemoveProperty(const nsCSSProperty aPropID)
 {
   css::Declaration* decl = GetCSSDeclaration(false);
@@ -408,47 +304,34 @@ nsDOMCSSDeclaration::RemoveProperty(const nsCSSProperty aPropID)
   return SetCSSDeclaration(decl);
 }
 
-nsresult
-nsDOMCSSDeclaration::RemoveCustomProperty(const nsAString& aPropertyName)
-{
-  MOZ_ASSERT(Substring(aPropertyName, 0,
-                       CSS_CUSTOM_NAME_PREFIX_LENGTH).EqualsLiteral("--"));
+// nsIDOMCSS2Properties
 
-  css::Declaration* decl = GetCSSDeclaration(false);
-  if (!decl) {
-    return NS_OK; // no decl, so nothing to remove
+#define CSS_PROP_DOMPROP_PREFIXED(prop_) Moz ## prop_
+#define CSS_PROP(name_, id_, method_, flags_, pref_, parsevariant_,          \
+                 kwtable_, stylestruct_, stylestructoffset_, animtype_)      \
+  NS_IMETHODIMP                                                              \
+  nsDOMCSSDeclaration::Get##method_(nsAString& aValue)                       \
+  {                                                                          \
+    return GetPropertyValue(eCSSProperty_##id_, aValue);                     \
+  }                                                                          \
+                                                                             \
+  NS_IMETHODIMP                                                              \
+  nsDOMCSSDeclaration::Set##method_(const nsAString& aValue)                 \
+  {                                                                          \
+    return SetPropertyValue(eCSSProperty_##id_, aValue);                     \
   }
 
-  // For nsDOMCSSAttributeDeclaration, SetCSSDeclaration will lead to
-  // Attribute setting code, which leads in turn to BeginUpdate.  We
-  // need to start the update now so that the old rule doesn't get used
-  // between when we mutate the declaration and when we set the new
-  // rule (see stack in bug 209575).
-  mozAutoDocConditionalContentUpdateBatch autoUpdate(DocToUpdate(), true);
+#define CSS_PROP_LIST_EXCLUDE_INTERNAL
+#define CSS_PROP_SHORTHAND(name_, id_, method_, flags_, pref_)  \
+  CSS_PROP(name_, id_, method_, flags_, pref_, X, X, X, X, X)
+#include "nsCSSPropList.h"
 
-  decl = decl->EnsureMutable();
-  decl->RemoveVariableDeclaration(Substring(aPropertyName,
-                                            CSS_CUSTOM_NAME_PREFIX_LENGTH));
-  return SetCSSDeclaration(decl);
-}
+#define CSS_PROP_ALIAS(aliasname_, propid_, aliasmethod_, pref_)  \
+  CSS_PROP(X, propid_, aliasmethod_, X, pref_, X, X, X, X, X)
+#include "nsCSSPropAliasList.h"
+#undef CSS_PROP_ALIAS
 
-bool IsCSSPropertyExposedToJS(nsCSSProperty aProperty, JSContext* cx, JSObject* obj)
-{
-  nsCSSProps::EnabledState enabledState = nsCSSProps::eEnabledForAllContent;
-
-  // Optimization: we skip checking properties of the JSContext
-  // in the majority case where the property does not have the
-  // CSS_PROPERTY_ALWAYS_ENABLED_IN_PRIVILEGED_CONTENT flag.
-  bool isEnabledInChromeOrCertifiedApp
-    = nsCSSProps::PropHasFlags(aProperty,
-                               CSS_PROPERTY_ALWAYS_ENABLED_IN_CHROME_OR_CERTIFIED_APP);
-
-  if (isEnabledInChromeOrCertifiedApp) {
-    if (dom::IsInCertifiedApp(cx, obj) ||
-        nsContentUtils::ThreadsafeIsCallerChrome())
-    {
-      enabledState |= nsCSSProps::eEnabledInChromeOrCertifiedApp;
-    }
-  }
-  return nsCSSProps::IsEnabled(aProperty, enabledState);
-}
+#undef CSS_PROP_SHORTHAND
+#undef CSS_PROP_LIST_EXCLUDE_INTERNAL
+#undef CSS_PROP
+#undef CSS_PROP_DOMPROP_PREFIXED

@@ -4,11 +4,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsUnicharUtils.h"
+#include "nsUnicharUtilCIID.h"
+
+#include "nsCRT.h"
+#include "nsICaseConversion.h"
+#include "nsServiceManagerUtils.h"
 #include "nsXPCOMStrings.h"
 #include "nsUTF8Utils.h"
 #include "nsUnicodeProperties.h"
-#include "mozilla/Likely.h"
-#include "mozilla/HashFunctions.h"
+#include "nsHashKeys.h"
 
 // We map x -> x, except for upper-case letters,
 // which we map to their lower-case equivalents.
@@ -32,7 +36,7 @@ static const uint8_t gASCIIToLower [128] = {
 // We want ToLowerCase(uint32_t) and ToLowerCaseASCII(uint32_t) to be fast
 // when they're called from within the case-insensitive comparators, so we
 // define inlined versions.
-static MOZ_ALWAYS_INLINE uint32_t
+static NS_ALWAYS_INLINE uint32_t
 ToLowerCase_inline(uint32_t aChar)
 {
   if (IS_ASCII(aChar)) {
@@ -42,7 +46,7 @@ ToLowerCase_inline(uint32_t aChar)
   return mozilla::unicode::GetLowercase(aChar);
 }
 
-static MOZ_ALWAYS_INLINE uint32_t
+static NS_ALWAYS_INLINE uint32_t
 ToLowerCaseASCII_inline(const uint32_t aChar)
 {
   if (IS_ASCII(aChar)) {
@@ -55,7 +59,7 @@ ToLowerCaseASCII_inline(const uint32_t aChar)
 void
 ToLowerCase(nsAString& aString)
 {
-  char16_t *buf = aString.BeginWriting();
+  PRUnichar *buf = aString.BeginWriting();
   ToLowerCase(buf, buf, aString.Length());
 }
 
@@ -63,8 +67,8 @@ void
 ToLowerCase(const nsAString& aSource,
             nsAString& aDest)
 {
-  const char16_t *in;
-  char16_t *out;
+  const PRUnichar *in;
+  PRUnichar *out;
   uint32_t len = NS_StringGetData(aSource, &in);
   NS_StringGetMutableData(aDest, len, &out);
   NS_ASSERTION(out, "Uh...");
@@ -80,7 +84,7 @@ ToLowerCaseASCII(const uint32_t aChar)
 void
 ToUpperCase(nsAString& aString)
 {
-  char16_t *buf = aString.BeginWriting();
+  PRUnichar *buf = aString.BeginWriting();
   ToUpperCase(buf, buf, aString.Length());
 }
 
@@ -88,8 +92,8 @@ void
 ToUpperCase(const nsAString& aSource,
             nsAString& aDest)
 {
-  const char16_t *in;
-  char16_t *out;
+  const PRUnichar *in;
+  PRUnichar *out;
   uint32_t len = NS_StringGetData(aSource, &in);
   NS_StringGetMutableData(aDest, len, &out);
   NS_ASSERTION(out, "Uh...");
@@ -99,8 +103,8 @@ ToUpperCase(const nsAString& aSource,
 #ifdef MOZILLA_INTERNAL_API
 
 int32_t
-nsCaseInsensitiveStringComparator::operator()(const char16_t* lhs,
-                                              const char16_t* rhs,
+nsCaseInsensitiveStringComparator::operator()(const PRUnichar* lhs,
+                                              const PRUnichar* rhs,
                                               uint32_t lLength,
                                               uint32_t rLength) const
 {
@@ -118,8 +122,8 @@ nsCaseInsensitiveUTF8StringComparator::operator()(const char* lhs,
 }
 
 int32_t
-nsASCIICaseInsensitiveStringComparator::operator()(const char16_t* lhs,
-                                                   const char16_t* rhs,
+nsASCIICaseInsensitiveStringComparator::operator()(const PRUnichar* lhs,
+                                                   const PRUnichar* rhs,
                                                    uint32_t lLength,
                                                    uint32_t rLength) const
 {
@@ -132,8 +136,8 @@ nsASCIICaseInsensitiveStringComparator::operator()(const char16_t* lhs,
   while (rLength) {
     // we don't care about surrogates here, because we're only
     // lowercasing the ASCII range
-    char16_t l = *lhs++;
-    char16_t r = *rhs++;
+    PRUnichar l = *lhs++;
+    PRUnichar r = *rhs++;
     if (l != r) {
       l = ToLowerCaseASCII_inline(l);
       r = ToLowerCaseASCII_inline(r);
@@ -158,7 +162,7 @@ ToLowerCase(uint32_t aChar)
 }
 
 void
-ToLowerCase(const char16_t *aIn, char16_t *aOut, uint32_t aLen)
+ToLowerCase(const PRUnichar *aIn, PRUnichar *aOut, uint32_t aLen)
 {
   for (uint32_t i = 0; i < aLen; i++) {
     uint32_t ch = aIn[i];
@@ -188,7 +192,7 @@ ToUpperCase(uint32_t aChar)
 }
 
 void
-ToUpperCase(const char16_t *aIn, char16_t *aOut, uint32_t aLen)
+ToUpperCase(const PRUnichar *aIn, PRUnichar *aOut, uint32_t aLen)
 {
   for (uint32_t i = 0; i < aLen; i++) {
     uint32_t ch = aIn[i];
@@ -215,8 +219,8 @@ ToTitleCase(uint32_t aChar)
 }
 
 int32_t
-CaseInsensitiveCompare(const char16_t *a,
-                       const char16_t *b,
+CaseInsensitiveCompare(const PRUnichar *a,
+                       const PRUnichar *b,
                        uint32_t len)
 {
   NS_ASSERTION(a && b, "Do not pass in invalid pointers!");
@@ -267,7 +271,7 @@ CaseInsensitiveCompare(const char16_t *a,
 // the end of the string (as marked by aEnd), returns -1 and does not set
 // aNext.  Note that this function doesn't check that aStr < aEnd -- it assumes
 // you've done that already.
-static MOZ_ALWAYS_INLINE uint32_t
+static NS_ALWAYS_INLINE uint32_t
 GetLowerUTF8Codepoint(const char* aStr, const char* aEnd, const char **aNext)
 {
   // Convert to unsigned char so that stuffing chars into PRUint32s doesn't
@@ -279,7 +283,7 @@ GetLowerUTF8Codepoint(const char* aStr, const char* aEnd, const char **aNext)
     *aNext = aStr + 1;
     return gASCIIToLower[*str];
   }
-  if (UTF8traits::is2byte(str[0]) && MOZ_LIKELY(aStr + 1 < aEnd)) {
+  if (UTF8traits::is2byte(str[0]) && NS_LIKELY(aStr + 1 < aEnd)) {
     // It's a two-byte sequence, so it looks like
     //  110XXXXX 10XXXXXX.
     // This is definitely in the BMP, so we can store straightaway into a
@@ -296,7 +300,7 @@ GetLowerUTF8Codepoint(const char* aStr, const char* aEnd, const char **aNext)
     *aNext = aStr + 2;
     return c;
   }
-  if (UTF8traits::is3byte(str[0]) && MOZ_LIKELY(aStr + 2 < aEnd)) {
+  if (UTF8traits::is3byte(str[0]) && NS_LIKELY(aStr + 2 < aEnd)) {
     // It's a three-byte sequence, so it looks like
     //  1110XXXX 10XXXXXX 10XXXXXX.
     // This will just barely fit into 16-bits, so store into a uint16_t.
@@ -311,7 +315,7 @@ GetLowerUTF8Codepoint(const char* aStr, const char* aEnd, const char **aNext)
     *aNext = aStr + 3;
     return c;
   }
-  if (UTF8traits::is4byte(str[0]) && MOZ_LIKELY(aStr + 3 < aEnd)) {
+  if (UTF8traits::is4byte(str[0]) && NS_LIKELY(aStr + 3 < aEnd)) {
     // It's a four-byte sequence, so it looks like
     //   11110XXX 10XXXXXX 10XXXXXX 10XXXXXX.
 
@@ -341,11 +345,11 @@ int32_t CaseInsensitiveCompare(const char *aLeft,
 
   while (aLeft < leftEnd && aRight < rightEnd) {
     uint32_t leftChar = GetLowerUTF8Codepoint(aLeft, leftEnd, &aLeft);
-    if (MOZ_UNLIKELY(leftChar == uint32_t(-1)))
+    if (NS_UNLIKELY(leftChar == uint32_t(-1)))
       return -1;
 
     uint32_t rightChar = GetLowerUTF8Codepoint(aRight, rightEnd, &aRight);
-    if (MOZ_UNLIKELY(rightChar == uint32_t(-1)))
+    if (NS_UNLIKELY(rightChar == uint32_t(-1)))
       return -1;
 
     // Now leftChar and rightChar are lower-case, so we can compare them.
@@ -379,13 +383,13 @@ CaseInsensitiveUTF8CharsEqual(const char* aLeft, const char* aRight,
   NS_ASSERTION(aRight < aRightEnd, "aRight must be less than aRightEnd.");
 
   uint32_t leftChar = GetLowerUTF8Codepoint(aLeft, aLeftEnd, aLeftNext);
-  if (MOZ_UNLIKELY(leftChar == uint32_t(-1))) {
+  if (NS_UNLIKELY(leftChar == uint32_t(-1))) {
     *aErr = true;
     return false;
   }
 
   uint32_t rightChar = GetLowerUTF8Codepoint(aRight, aRightEnd, aRightNext);
-  if (MOZ_UNLIKELY(rightChar == uint32_t(-1))) {
+  if (NS_UNLIKELY(rightChar == uint32_t(-1))) {
     *aErr = true;
     return false;
   }

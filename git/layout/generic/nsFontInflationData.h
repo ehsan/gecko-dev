@@ -8,7 +8,9 @@
 #ifndef nsFontInflationData_h_
 #define nsFontInflationData_h_
 
-#include "nsContainerFrame.h"
+#include "nsIFrame.h"
+#include "nsLayoutUtils.h"
+#include "nsBlockFrame.h"
 
 struct nsHTMLReflowState;
 
@@ -38,7 +40,7 @@ public:
 
 private:
 
-  explicit nsFontInflationData(nsIFrame* aBFCFrame);
+  nsFontInflationData(nsIFrame* aBFCFrame);
 
   nsFontInflationData(const nsFontInflationData&) MOZ_DELETE;
   void operator=(const nsFontInflationData&) MOZ_DELETE;

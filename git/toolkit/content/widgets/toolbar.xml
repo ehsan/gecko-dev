@@ -93,9 +93,14 @@
     </implementation>
   </binding>
   
-  <binding id="toolbar" role="xul:toolbar"
-           extends="chrome://global/content/bindings/toolbar.xml#toolbar-base">
-    <implementation>
+  <binding id="toolbar" extends="chrome://global/content/bindings/toolbar.xml#toolbar-base">
+    <implementation implements="nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          return Components.interfaces.nsIAccessibleProvider.XULToolbar;
+        </getter>
+      </property>
+      
       <property name="toolbarName"
                 onget="return this.getAttribute('toolbarname');"
                 onset="this.setAttribute('toolbarname', val); return val;"/>
@@ -404,9 +409,6 @@
       <constructor>
         this._setInactive();
       </constructor>
-      <destructor>
-        this._setActive();
-      </destructor>
 
       <field name="_inactiveTimeout">null</field>
 
@@ -514,9 +516,15 @@
     </implementation>
   </binding>
 
-  <binding id="menubar" role="xul:menubar" 
-           extends="chrome://global/content/bindings/toolbar.xml#toolbar-base" display="xul:menubar">
-    <implementation>
+  <binding id="menubar" extends="chrome://global/content/bindings/toolbar.xml#toolbar-base" display="xul:menubar">
+    <implementation implements="nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            return Components.interfaces.nsIAccessibleProvider.XULMenubar;
+          ]]>
+        </getter>
+       </property>
        <field name="_active">false</field>
        <field name="_statusbar">null</field>
        <field name="_originalStatusText">null</field>
@@ -559,7 +567,14 @@
     </handlers>
   </binding>
 
-  <binding id="toolbardecoration" role="xul:toolbarseparator" extends="chrome://global/content/bindings/toolbar.xml#toolbar-base">
+  <binding id="toolbardecoration" extends="chrome://global/content/bindings/toolbar.xml#toolbar-base">
+    <implementation implements="nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          return Components.interfaces.nsIAccessibleProvider.XULToolbarSeparator;
+        </getter>
+      </property>
+    </implementation>
   </binding>
 
   <binding id="toolbarpaletteitem" extends="chrome://global/content/bindings/toolbar.xml#toolbar-base" display="xul:button">

@@ -81,7 +81,7 @@
 <!ENTITY col.name.label          "Name">
 <!ENTITY col.tags.label          "Tags">
 <!ENTITY col.url.label           "Location">
-<!ENTITY col.mostrecentvisit.label "Most Recent Visit">
+<!ENTITY col.lastvisit.label     "Visit Date">
 <!ENTITY col.visitcount.label    "Visit Count">
 <!ENTITY col.keyword.label       "Keyword">
 <!ENTITY col.description.label   "Description">
@@ -90,6 +90,18 @@
 
 <!ENTITY search.label                              "Search:">
 <!ENTITY search.accesskey                          "S">
+
+<!ENTITY search.in.label                           "Search in:">
+<!ENTITY search.scopeFolder.label                  "Selected Folder">
+<!ENTITY search.scopeFolder.accesskey              "r">
+<!ENTITY search.scopeBookmarks.label               "Bookmarks">
+<!ENTITY search.scopeBookmarks.accesskey           "k">
+<!ENTITY search.scopeDownloads.label               "Downloads">
+<!ENTITY search.scopeDownloads.accesskey           "D">
+<!ENTITY search.scopeHistory.label                 "History">
+<!ENTITY search.scopeHistory.accesskey             "H">
+<!ENTITY saveSearch.label                          "Save">
+<!ENTITY saveSearch.accesskey                      "S">
 
 <!ENTITY cmd.find.key  "f">
 

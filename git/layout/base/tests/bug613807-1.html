@@ -4,7 +4,7 @@
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
 </head>
 <body>
-<textarea id="t" rows="4" style="-moz-appearance: none"></textarea>
+<textarea id="t" rows="4"></textarea>
 <script>
   if (typeof(addLoadEvent) == 'undefined') {
     _newCallStack = function(path) {
@@ -44,44 +44,59 @@
     var area = document.getElementById('t');
     area.focus();
 
-    var domWindowUtils = SpecialPowers.getDOMWindowUtils(window);
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+    const nsIDOMWindowUtils = Components.interfaces.nsIDOMWindowUtils;
 
     // start composition
     synthesizeComposition({ type: "compositionstart" });
 
     // input raw characters
-    synthesizeCompositionChange(
+    synthesizeComposition({ type: "compositionupdate", data: "\u306D" });
+    synthesizeText(
       { composition:
         { string: "\u306D",
           clauses: [
-            { length: 1, attr: domWindowUtils.COMPOSITION_ATTR_RAWINPUT }
+            { length: 1, attr: nsIDOMWindowUtils.COMPOSITION_ATTR_RAWINPUT }
           ]
         },
         caret: { start: 1, length: 0 }
       });
-    synthesizeCompositionChange(
+    synthesizeComposition({ type: "compositionupdate", data: "\u306D\u3053" });
+    synthesizeText(
       { composition:
         { string: "\u306D\u3053",
           clauses: [
-            { length: 2, attr: domWindowUtils.COMPOSITION_ATTR_RAWINPUT }
+            { length: 2, attr: nsIDOMWindowUtils.COMPOSITION_ATTR_RAWINPUT }
           ]
         },
         caret: { start: 2, length: 0 }
       });
 
     // convert
-    synthesizeCompositionChange(
+    synthesizeComposition({ type: "compositionupdate", data: "\u732B" });
+    synthesizeText(
       { composition:
         { string: "\u732B",
           clauses: [
-            { length: 1, attr: domWindowUtils.COMPOSITION_ATTR_SELECTEDCONVERTEDTEXT }
+            { length: 1, attr: nsIDOMWindowUtils.COMPOSITION_ATTR_SELECTEDCONVERTEDTEXT }
           ]
         },
         caret: { start: 1, length: 0 }
       });
 
     // commit
-    synthesizeComposition({ type: "compositioncommitasis" });
+    synthesizeText(
+      { composition:
+        { string: "\u732B",
+          clauses: [
+            { length: 0, attr: 0 }
+          ]
+        },
+        caret: { start: 1, length: 0 }
+      });
+
+    // end composition
+    synthesizeComposition({ type: "compositionend", data: "\u732B" });
 
     document.body.clientWidth;
 

@@ -2,7 +2,6 @@
 <head>
     <!-- This harness does not work locally in Safari -->
     <script type="text/javascript" src="../MochiKit/MochiKit.js"></script>
-    <script type="text/javascript" src="SimpleTest/MemoryStats.js"></script>
     <script type="text/javascript" src="SimpleTest/TestRunner.js"></script>
     <script type="text/javascript" src="SimpleTest/MozillaLogger.js"></script>
     <!--<link rel="stylesheet" type="text/css" href="/static/main.css" />-->
@@ -33,10 +32,19 @@ if (params.logFile) {
   TestRunner.logger.addListener("mozLogger", fileLevel + "", spl.getLogCallback());
 }
 
-var RunSet = {};
+// if we get a quiet param, don't log to the console
+if (!params.quiet) {
+  function dumpListener(msg) {
+    dump("*** " + msg.num + " " + msg.level + " " + msg.info.join(' ') + "\n");
+  }
+  TestRunner.logger.addListener("dumpListener", consoleLevel + "", dumpListener);
+}
+
+var RunSet = {}
 RunSet.runall = function() {
   TestRunner.runTests(
-      'test_bug362788.xhtml'
+      'test_bug362788.xhtml',
+      'test_bug366645.xhtml'
   );
 };
 RunSet.reloadAndRunAll = function() {
@@ -49,7 +57,7 @@ RunSet.reloadAndRunAll = function() {
   }
 };
 
-// run automatically if
+// run automatically if 
 if (params.autorun) {
   RunSet.runall();
 }

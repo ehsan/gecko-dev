@@ -28,10 +28,11 @@
 
 #define nsHtml5HtmlAttributes_cpp__
 
+#include "prtypes.h"
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"
 #include "nsString.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsIContent.h"
 #include "nsTraceRefcnt.h"
 #include "jArray.h"
@@ -41,7 +42,6 @@
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsHtml5Macros.h"
-#include "nsIContentHandle.h"
 
 #include "nsHtml5Tokenizer.h"
 #include "nsHtml5TreeBuilder.h"
@@ -84,17 +84,6 @@ nsHtml5HtmlAttributes::getIndex(nsHtml5AttributeName* name)
   return -1;
 }
 
-nsString* 
-nsHtml5HtmlAttributes::getValue(nsHtml5AttributeName* name)
-{
-  int32_t index = getIndex(name);
-  if (index == -1) {
-    return nullptr;
-  } else {
-    return getValueNoBoundsCheck(index);
-  }
-}
-
 int32_t 
 nsHtml5HtmlAttributes::getLength()
 {
@@ -102,38 +91,64 @@ nsHtml5HtmlAttributes::getLength()
 }
 
 nsIAtom* 
-nsHtml5HtmlAttributes::getLocalNameNoBoundsCheck(int32_t index)
+nsHtml5HtmlAttributes::getLocalName(int32_t index)
 {
-  MOZ_ASSERT(index < length && index >= 0, "Index out of bounds");
-  return names[index]->getLocal(mode);
-}
-
-int32_t 
-nsHtml5HtmlAttributes::getURINoBoundsCheck(int32_t index)
-{
-  MOZ_ASSERT(index < length && index >= 0, "Index out of bounds");
-  return names[index]->getUri(mode);
-}
-
-nsIAtom* 
-nsHtml5HtmlAttributes::getPrefixNoBoundsCheck(int32_t index)
-{
-  MOZ_ASSERT(index < length && index >= 0, "Index out of bounds");
-  return names[index]->getPrefix(mode);
-}
-
-nsString* 
-nsHtml5HtmlAttributes::getValueNoBoundsCheck(int32_t index)
-{
-  MOZ_ASSERT(index < length && index >= 0, "Index out of bounds");
-  return values[index];
+  if (index < length && index >= 0) {
+    return names[index]->getLocal(mode);
+  } else {
+    return nullptr;
+  }
 }
 
 nsHtml5AttributeName* 
-nsHtml5HtmlAttributes::getAttributeNameNoBoundsCheck(int32_t index)
+nsHtml5HtmlAttributes::getAttributeName(int32_t index)
 {
-  MOZ_ASSERT(index < length && index >= 0, "Index out of bounds");
-  return names[index];
+  if (index < length && index >= 0) {
+    return names[index];
+  } else {
+    return nullptr;
+  }
+}
+
+int32_t 
+nsHtml5HtmlAttributes::getURI(int32_t index)
+{
+  if (index < length && index >= 0) {
+    return names[index]->getUri(mode);
+  } else {
+    return 0;
+  }
+}
+
+nsIAtom* 
+nsHtml5HtmlAttributes::getPrefix(int32_t index)
+{
+  if (index < length && index >= 0) {
+    return names[index]->getPrefix(mode);
+  } else {
+    return nullptr;
+  }
+}
+
+nsString* 
+nsHtml5HtmlAttributes::getValue(int32_t index)
+{
+  if (index < length && index >= 0) {
+    return values[index];
+  } else {
+    return nullptr;
+  }
+}
+
+nsString* 
+nsHtml5HtmlAttributes::getValue(nsHtml5AttributeName* name)
+{
+  int32_t index = getIndex(name);
+  if (index == -1) {
+    return nullptr;
+  } else {
+    return getValue(index);
+  }
 }
 
 void 
@@ -208,7 +223,7 @@ nsHtml5HtmlAttributes::adjustForSvg()
 nsHtml5HtmlAttributes* 
 nsHtml5HtmlAttributes::cloneAttributes(nsHtml5AtomTable* interner)
 {
-  MOZ_ASSERT((!length) || !mode || mode == 3);
+
   nsHtml5HtmlAttributes* clone = new nsHtml5HtmlAttributes(0);
   for (int32_t i = 0; i < length; i++) {
     clone->addAttribute(names[i]->cloneAttributeName(interner), nsHtml5Portability::newStringFromString(values[i]));
@@ -219,7 +234,7 @@ nsHtml5HtmlAttributes::cloneAttributes(nsHtml5AtomTable* interner)
 bool 
 nsHtml5HtmlAttributes::equalsAnother(nsHtml5HtmlAttributes* other)
 {
-  MOZ_ASSERT(!mode || mode == 3, "Trying to compare attributes in foreign content.");
+
   int32_t otherLength = other->getLength();
   if (length != otherLength) {
     return false;

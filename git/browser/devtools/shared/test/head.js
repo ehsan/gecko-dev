@@ -2,16 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
-let {console} = Cu.import("resource://gre/modules/devtools/Console.jsm", {});
-let TargetFactory = devtools.TargetFactory;
+let console = (function() {
+  let tempScope = {};
+  Components.utils.import("resource://gre/modules/devtools/Console.jsm", tempScope);
+  return tempScope.console;
+})();
 
-gDevTools.testing = true;
-SimpleTest.registerCleanupFunction(() => {
-  gDevTools.testing = false;
-});
-
-const TEST_URI_ROOT = "http://example.com/browser/browser/devtools/shared/test/";
+// Import the GCLI test helper
+let testDir = gTestPath.substr(0, gTestPath.lastIndexOf("/"));
+Services.scriptloader.loadSubScript(testDir + "/helpers.js", this);
 
 /**
  * Open a new tab at a URL and call a callback on load
@@ -32,11 +31,6 @@ function addTab(aURL, aCallback)
   }
 
   browser.addEventListener("load", onTabLoad, true);
-}
-
-function promiseTab(aURL) {
-  return new Promise(resolve =>
-    addTab(aURL, resolve));
 }
 
 registerCleanupFunction(function tearDown() {
@@ -123,25 +117,4 @@ function waitForValue(aOptions)
   }
 
   wait(aOptions.validator, aOptions.success, aOptions.failure);
-}
-
-function oneTimeObserve(name, callback) {
-  var func = function() {
-    Services.obs.removeObserver(func, name);
-    callback();
-  };
-  Services.obs.addObserver(func, name, false);
-}
-
-function* createHost(type = "bottom", src = "data:text/html;charset=utf-8,") {
-  let host = new Hosts[type](gBrowser.selectedTab);
-  let iframe = yield host.create();
-
-  yield new Promise(resolve => {
-    let domHelper = new DOMHelpers(iframe.contentWindow);
-    iframe.setAttribute("src", src);
-    domHelper.onceDOMReady(resolve);
-  });
-
-  return [host, iframe.contentWindow, iframe.contentDocument];
 }

@@ -9,72 +9,172 @@
 
 #include "nsIProgrammingLanguage.h"
 
-#include "js/StructuredClone.h"
+#include "mozilla/Attributes.h"
+#include "jsapi.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
+#include "nsDebug.h"
+#include "nsError.h"
+#include "nsStringGlue.h"
 #include "nsTArray.h"
 
+#define BEGIN_INDEXEDDB_NAMESPACE \
+  namespace mozilla { namespace dom { namespace indexedDB {
+
+#define END_INDEXEDDB_NAMESPACE \
+  } /* namespace indexedDB */ } /* namepsace dom */ } /* namespace mozilla */
+
+#define USING_INDEXEDDB_NAMESPACE \
+  using namespace mozilla::dom::indexedDB;
+
+class nsIDOMBlob;
 class nsIInputStream;
 
-namespace mozilla {
-namespace dom {
-
-class File;
-
-namespace indexedDB {
+BEGIN_INDEXEDDB_NAMESPACE
 
 class FileInfo;
 class IDBDatabase;
 class IDBTransaction;
-class SerializedStructuredCloneReadInfo;
-class SerializedStructuredCloneWriteInfo;
+
+enum FactoryPrivilege {
+  Content,
+  Chrome
+};
+
+template <class T>
+void SwapData(T& aData1, T& aData2)
+{
+  T temp = aData2;
+  aData2 = aData1;
+  aData1 = temp;
+}
 
 struct StructuredCloneFile
 {
-  nsRefPtr<File> mFile;
+  bool operator==(const StructuredCloneFile& aOther) const
+  {
+    return this->mFile == aOther.mFile &&
+           this->mFileInfo == aOther.mFileInfo &&
+           this->mInputStream == aOther.mInputStream;
+  }
+
+  nsCOMPtr<nsIDOMBlob> mFile;
   nsRefPtr<FileInfo> mFileInfo;
-
-  // In IndexedDatabaseInlines.h
-  inline
-  StructuredCloneFile();
-
-  // In IndexedDatabaseInlines.h
-  inline
-  ~StructuredCloneFile();
-
-  // In IndexedDatabaseInlines.h
-  inline bool
-  operator==(const StructuredCloneFile& aOther) const;
+  nsCOMPtr<nsIInputStream> mInputStream;
 };
+
+struct SerializedStructuredCloneReadInfo;
 
 struct StructuredCloneReadInfo
 {
-  nsTArray<uint8_t> mData;
+  // In IndexedDatabaseInlines.h
+  inline StructuredCloneReadInfo();
+
+  void Swap(StructuredCloneReadInfo& aCloneReadInfo)
+  {
+    mCloneBuffer.swap(aCloneReadInfo.mCloneBuffer);
+    mFiles.SwapElements(aCloneReadInfo.mFiles);
+    SwapData(mDatabase, aCloneReadInfo.mDatabase);
+  }
+
+  // In IndexedDatabaseInlines.h
+  inline bool
+  SetFromSerialized(const SerializedStructuredCloneReadInfo& aOther);
+
+  JSAutoStructuredCloneBuffer mCloneBuffer;
   nsTArray<StructuredCloneFile> mFiles;
   IDBDatabase* mDatabase;
-
-  // XXX Remove!
-  JSAutoStructuredCloneBuffer mCloneBuffer;
-
-  // In IndexedDatabaseInlines.h
-  inline
-  StructuredCloneReadInfo();
-
-  // In IndexedDatabaseInlines.h
-  inline
-  ~StructuredCloneReadInfo();
-
-  // In IndexedDatabaseInlines.h
-  inline StructuredCloneReadInfo&
-  operator=(StructuredCloneReadInfo&& aOther);
-
-  // In IndexedDatabaseInlines.h
-  inline
-  MOZ_IMPLICIT StructuredCloneReadInfo(SerializedStructuredCloneReadInfo&& aOther);
 };
 
-} // namespace indexedDB
-} // namespace dom
-} // namespace mozilla
+struct SerializedStructuredCloneReadInfo
+{
+  SerializedStructuredCloneReadInfo()
+  : data(nullptr), dataLength(0)
+  { }
+
+  bool
+  operator==(const SerializedStructuredCloneReadInfo& aOther) const
+  {
+    return this->data == aOther.data &&
+           this->dataLength == aOther.dataLength;
+  }
+
+  SerializedStructuredCloneReadInfo&
+  operator=(const StructuredCloneReadInfo& aOther)
+  {
+    data = aOther.mCloneBuffer.data();
+    dataLength = aOther.mCloneBuffer.nbytes();
+    return *this;
+  }
+
+  // Make sure to update ipc/SerializationHelpers.h when changing members here!
+  uint64_t* data;
+  size_t dataLength;
+};
+
+struct SerializedStructuredCloneWriteInfo;
+
+struct StructuredCloneWriteInfo
+{
+  // In IndexedDatabaseInlines.h
+  inline StructuredCloneWriteInfo();
+
+  void Swap(StructuredCloneWriteInfo& aCloneWriteInfo)
+  {
+    mCloneBuffer.swap(aCloneWriteInfo.mCloneBuffer);
+    mFiles.SwapElements(aCloneWriteInfo.mFiles);
+    SwapData(mTransaction, aCloneWriteInfo.mTransaction);
+    SwapData(mOffsetToKeyProp, aCloneWriteInfo.mOffsetToKeyProp);
+  }
+
+  bool operator==(const StructuredCloneWriteInfo& aOther) const
+  {
+    return this->mCloneBuffer.nbytes() == aOther.mCloneBuffer.nbytes() &&
+           this->mCloneBuffer.data() == aOther.mCloneBuffer.data() &&
+           this->mFiles == aOther.mFiles &&
+           this->mTransaction == aOther.mTransaction &&
+           this->mOffsetToKeyProp == aOther.mOffsetToKeyProp;
+  }
+
+  // In IndexedDatabaseInlines.h
+  inline bool
+  SetFromSerialized(const SerializedStructuredCloneWriteInfo& aOther);
+
+  JSAutoStructuredCloneBuffer mCloneBuffer;
+  nsTArray<StructuredCloneFile> mFiles;
+  IDBTransaction* mTransaction;
+  uint64_t mOffsetToKeyProp;
+};
+
+struct SerializedStructuredCloneWriteInfo
+{
+  SerializedStructuredCloneWriteInfo()
+  : data(nullptr), dataLength(0), offsetToKeyProp(0)
+  { }
+
+  bool
+  operator==(const SerializedStructuredCloneWriteInfo& aOther) const
+  {
+    return this->data == aOther.data &&
+           this->dataLength == aOther.dataLength &&
+           this->offsetToKeyProp == aOther.offsetToKeyProp;
+  }
+
+  SerializedStructuredCloneWriteInfo&
+  operator=(const StructuredCloneWriteInfo& aOther)
+  {
+    data = aOther.mCloneBuffer.data();
+    dataLength = aOther.mCloneBuffer.nbytes();
+    offsetToKeyProp = aOther.mOffsetToKeyProp;
+    return *this;
+  }
+
+  // Make sure to update ipc/SerializationHelpers.h when changing members here!
+  uint64_t* data;
+  size_t dataLength;
+  uint64_t offsetToKeyProp;
+};
+
+END_INDEXEDDB_NAMESPACE
 
 #endif // mozilla_dom_indexeddb_indexeddatabase_h__

@@ -3,21 +3,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-///////////////////
-//
-// Whitelisting this test.
-// As part of bug 1077403, the leaking uncaught rejection should be fixed. 
-//
-thisTestLeaksUncaughtRejectionsAndShouldBeFixed("Protocol error (unknownError): TypeError: this.conn.getActor(...) is null");
-
 // Tests that the $0 console helper works as intended.
 
-let inspector, h1;
-
-function createDocument() {
+function createDocument()
+{
   let doc = content.document;
   let div = doc.createElement("div");
-  h1 = doc.createElement("h1");
+  let h1 = doc.createElement("h1");
   let p1 = doc.createElement("p");
   let p2 = doc.createElement("p");
   let div2 = doc.createElement("div");
@@ -48,67 +40,101 @@ function createDocument() {
   setupHighlighterTests();
 }
 
-function setupHighlighterTests() {
+function setupHighlighterTests()
+{
+  let h1 = content.document.querySelector("h1");
   ok(h1, "we have the header node");
-  openInspector(runSelectionTests);
+  Services.obs.addObserver(runSelectionTests,
+    InspectorUI.INSPECTOR_NOTIFICATIONS.OPENED, false);
+  InspectorUI.toggleInspectorUI();
 }
 
-let runSelectionTests = Task.async(function*(aInspector) {
-  inspector = aInspector;
+function runSelectionTests()
+{
+  Services.obs.removeObserver(runSelectionTests,
+    InspectorUI.INSPECTOR_NOTIFICATIONS.OPENED, false);
 
-  let onPickerStarted = inspector.toolbox.once("picker-started");
-  inspector.toolbox.highlighterUtils.startPicker();
-  yield onPickerStarted;
+  executeSoon(function() {
+    InspectorUI.highlighter.addListener("nodeselected", performTestComparisons);
+    let h1 = content.document.querySelector("h1");
+    EventUtils.synthesizeMouse(h1, 2, 2, {type: "mousemove"}, content);
+  });
+}
 
-  info("Picker mode started, now clicking on H1 to select that node");
-  h1.scrollIntoView();
-  let onPickerStopped = inspector.toolbox.once("picker-stopped");
-  let onInspectorUpdated = inspector.once("inspector-updated");
-  EventUtils.synthesizeMouseAtCenter(h1, {}, content);
-  yield onPickerStopped;
-  yield onInspectorUpdated;
+function performTestComparisons()
+{
+  InspectorUI.highlighter.removeListener("nodeselected", performTestComparisons);
 
-  info("Picker mode stopped, H1 selected, now switching to the console");
-  let hud = yield openConsole(gBrowser.selectedTab);
+  InspectorUI.stopInspecting();
 
-  performWebConsoleTests(hud);
-});
+  let h1 = content.document.querySelector("h1");
+  is(InspectorUI.highlighter.node, h1, "node selected");
+  is(InspectorUI.selection, h1, "selection matches node");
 
-function performWebConsoleTests(hud) {
-  let target = TargetFactory.forTab(gBrowser.selectedTab);
+  openConsole(gBrowser.selectedTab, performWebConsoleTests);
+}
+
+function performWebConsoleTests(hud)
+{
   let jsterm = hud.jsterm;
   outputNode = hud.outputNode;
 
   jsterm.clearOutput();
-  jsterm.execute("$0", onNodeOutput);
+  jsterm.execute("$0");
 
-  function onNodeOutput(node) {
-    isnot(node.textContent.indexOf("<h1>"), -1, "correct output for $0");
+  waitForSuccess({
+    name: "$0 output",
+    validatorFn: function()
+    {
+      return outputNode.querySelector(".webconsole-msg-output");
+    },
+    successFn: function()
+    {
+      let node = outputNode.querySelector(".webconsole-msg-output");
+      isnot(node.textContent.indexOf("[object HTMLHeadingElement"), -1,
+            "correct output for $0");
 
-    jsterm.clearOutput();
-    jsterm.execute("$0.textContent = 'bug653531'", onNodeUpdate);
-  }
+      jsterm.clearOutput();
+      jsterm.execute("$0.textContent = 'bug653531'");
+      waitForSuccess(waitForNodeUpdate);
+    },
+    failureFn: finishUp,
+  });
 
-  function onNodeUpdate(node) {
-    isnot(node.textContent.indexOf("bug653531"), -1,
-          "correct output for $0.textContent");
-    is(inspector.selection.node.textContent, "bug653531",
-       "node successfully updated");
+  let waitForNodeUpdate = {
+    name: "$0.textContent update",
+    validatorFn: function()
+    {
+      return outputNode.querySelector(".webconsole-msg-output");
+    },
+    successFn: function()
+    {
+      let node = outputNode.querySelector(".webconsole-msg-output");
+      isnot(node.textContent.indexOf("bug653531"), -1,
+            "correct output for $0.textContent");
+      is(InspectorUI.selection.textContent, "bug653531",
+         "node successfully updated");
 
-    inspector = h1 = null;
-    gBrowser.removeCurrentTab();
-    finishTest();
-  }
+      executeSoon(finishUp);
+    },
+    failureFn: finishUp,
+  };
 }
 
-function test() {
-  waitForExplicitFinish();
+function finishUp() {
+  InspectorUI.closeInspectorUI();
+  finishTest();
+}
 
+function test()
+{
+  waitForExplicitFinish();
   gBrowser.selectedTab = gBrowser.addTab();
-  gBrowser.selectedBrowser.addEventListener("load", function onLoad() {
-    gBrowser.selectedBrowser.removeEventListener("load", onLoad, true);
+  gBrowser.selectedBrowser.addEventListener("load", function() {
+    gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
     waitForFocus(createDocument, content);
   }, true);
 
   content.location = "data:text/html;charset=utf-8,test for highlighter helper in web console";
 }
+

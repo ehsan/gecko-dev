@@ -4,16 +4,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-#include "mozilla/Likely.h"
-
 #include "nsError.h"
 #include "nsHtml5TreeOpExecutor.h"
 #include "nsScriptLoader.h"
+#include "nsIMarkupDocumentViewer.h"
 #include "nsIContentViewer.h"
 #include "nsIDocShellTreeItem.h"
+#include "nsIStyleSheetLinkingElement.h"
+#include "nsStyleLinkElement.h"
 #include "nsIDocShell.h"
 #include "nsIScriptGlobalObject.h"
+#include "nsIScriptGlobalObjectOwner.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIWebShellServices.h"
 #include "nsContentUtils.h"
@@ -24,30 +25,40 @@
 #include "nsHtml5TreeBuilder.h"
 #include "nsHtml5StreamParser.h"
 #include "mozilla/css/Loader.h"
-#include "GeckoProfiler.h"
+#include "mozilla/Util.h" // DebugOnly
+#include "sampler.h"
 #include "nsIScriptError.h"
 #include "nsIScriptContext.h"
 #include "mozilla/Preferences.h"
 #include "nsIHTMLDocument.h"
-#include "nsILoadInfo.h"
 
 using namespace mozilla;
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsHtml5TreeOpExecutor)
+
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHtml5TreeOpExecutor)
-  NS_INTERFACE_TABLE_INHERITED(nsHtml5TreeOpExecutor,
-                               nsIContentSink)
-NS_INTERFACE_TABLE_TAIL_INHERITING(nsHtml5DocumentBuilder)
+  NS_INTERFACE_TABLE_INHERITED1(nsHtml5TreeOpExecutor, 
+                                nsIContentSink)
+NS_INTERFACE_TABLE_TAIL_INHERITING(nsContentSink)
 
 NS_IMPL_ADDREF_INHERITED(nsHtml5TreeOpExecutor, nsContentSink)
 
 NS_IMPL_RELEASE_INHERITED(nsHtml5TreeOpExecutor, nsContentSink)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHtml5TreeOpExecutor, nsContentSink)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSTARRAY_OF_NSCOMPTR(mOwnedElements)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHtml5TreeOpExecutor, nsContentSink)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mOwnedElements)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 class nsHtml5ExecutorReflusher : public nsRunnable
 {
   private:
     nsRefPtr<nsHtml5TreeOpExecutor> mExecutor;
   public:
-    explicit nsHtml5ExecutorReflusher(nsHtml5TreeOpExecutor* aExecutor)
+    nsHtml5ExecutorReflusher(nsHtml5TreeOpExecutor* aExecutor)
       : mExecutor(aExecutor)
     {}
     NS_IMETHODIMP Run()
@@ -60,12 +71,10 @@ class nsHtml5ExecutorReflusher : public nsRunnable
 static mozilla::LinkedList<nsHtml5TreeOpExecutor>* gBackgroundFlushList = nullptr;
 static nsITimer* gFlushTimer = nullptr;
 
-nsHtml5TreeOpExecutor::nsHtml5TreeOpExecutor()
-  : nsHtml5DocumentBuilder(false)
-  , mPreloadedURLs(23)  // Mean # of preloadable resources per page on dmoz
-  , mSpeculationReferrerPolicyWasSet(false)
-  , mSpeculationReferrerPolicy(mozilla::net::RP_Default)
+nsHtml5TreeOpExecutor::nsHtml5TreeOpExecutor(bool aRunsToCompletion)
 {
+  mRunsToCompletion = aRunsToCompletion;
+  mPreloadedURLs.Init(23); // Mean # of preloadable resources per page on dmoz
   // zeroing operator new for everything else
 }
 
@@ -73,7 +82,7 @@ nsHtml5TreeOpExecutor::~nsHtml5TreeOpExecutor()
 {
   if (gBackgroundFlushList && isInList()) {
     mOpQueue.Clear();
-    removeFrom(*gBackgroundFlushList);
+    remove();
     if (gBackgroundFlushList->isEmpty()) {
       delete gBackgroundFlushList;
       gBackgroundFlushList = nullptr;
@@ -97,14 +106,14 @@ nsHtml5TreeOpExecutor::WillParse()
 NS_IMETHODIMP
 nsHtml5TreeOpExecutor::WillBuildModel(nsDTDMode aDTDMode)
 {
-  mDocument->AddObserver(this);
-  WillBuildModelImpl();
-  GetDocument()->BeginLoad();
-  if (mDocShell && !GetDocument()->GetWindow() &&
+  if (mDocShell && !GetDocument()->GetScriptGlobalObject() &&
       !IsExternalViewSource()) {
     // Not loading as data but script global object not ready
     return MarkAsBroken(NS_ERROR_DOM_INVALID_STATE_ERR);
   }
+  mDocument->AddObserver(this);
+  WillBuildModelImpl();
+  GetDocument()->BeginLoad();
   return NS_OK;
 }
 
@@ -113,6 +122,8 @@ nsHtml5TreeOpExecutor::WillBuildModel(nsDTDMode aDTDMode)
 NS_IMETHODIMP
 nsHtml5TreeOpExecutor::DidBuildModel(bool aTerminated)
 {
+  NS_PRECONDITION(mStarted, "Bad life cycle.");
+
   if (!aTerminated) {
     // This is needed to avoid unblocking loads too many times on one hand
     // and on the other hand to avoid destroying the frame constructor from
@@ -162,12 +173,7 @@ nsHtml5TreeOpExecutor::DidBuildModel(bool aTerminated)
     // Return early to avoid unblocking the onload event too many times.
     return NS_OK;
   }
-
-  // We may not have called BeginLoad() if loading is terminated before
-  // OnStartRequest call.
-  if (mStarted) {
-    mDocument->EndLoad();
-  }
+  mDocument->EndLoad();
   DropParserAndPerfHint();
 #ifdef GATHER_DOCWRITE_STATISTICS
   printf("UNSAFE SCRIPTS: %d\n", sUnsafeDocWrites);
@@ -213,16 +219,69 @@ nsHtml5TreeOpExecutor::FlushPendingNotifications(mozFlushType aType)
   }
 }
 
+void
+nsHtml5TreeOpExecutor::SetDocumentCharsetAndSource(nsACString& aCharset, int32_t aCharsetSource)
+{
+  if (mDocument) {
+    mDocument->SetDocumentCharacterSetSource(aCharsetSource);
+    mDocument->SetDocumentCharacterSet(aCharset);
+  }
+  if (mDocShell) {
+    // the following logic to get muCV is copied from
+    // nsHTMLDocument::StartDocumentLoad
+    // We need to call muCV->SetPrevDocCharacterSet here in case
+    // the charset is detected by parser DetectMetaTag
+    nsCOMPtr<nsIMarkupDocumentViewer> mucv;
+    nsCOMPtr<nsIContentViewer> cv;
+    mDocShell->GetContentViewer(getter_AddRefs(cv));
+    if (cv) {
+      mucv = do_QueryInterface(cv);
+    } else {
+      // in this block of code, if we get an error result, we return
+      // it but if we get a null pointer, that's perfectly legal for
+      // parent and parentContentViewer
+      nsCOMPtr<nsIDocShellTreeItem> docShellAsItem =
+        do_QueryInterface(mDocShell);
+      if (!docShellAsItem) {
+    	  return;
+      }
+      nsCOMPtr<nsIDocShellTreeItem> parentAsItem;
+      docShellAsItem->GetSameTypeParent(getter_AddRefs(parentAsItem));
+      nsCOMPtr<nsIDocShell> parent(do_QueryInterface(parentAsItem));
+      if (parent) {
+        nsCOMPtr<nsIContentViewer> parentContentViewer;
+        nsresult rv =
+          parent->GetContentViewer(getter_AddRefs(parentContentViewer));
+        if (NS_SUCCEEDED(rv) && parentContentViewer) {
+          mucv = do_QueryInterface(parentContentViewer);
+        }
+      }
+    }
+    if (mucv) {
+      mucv->SetPrevDocCharacterSet(aCharset);
+    }
+  }
+}
+
 nsISupports*
 nsHtml5TreeOpExecutor::GetTarget()
 {
   return mDocument;
 }
 
+// nsContentSink overrides
+
+void
+nsHtml5TreeOpExecutor::UpdateChildCounts()
+{
+  // No-op
+}
+
 nsresult
 nsHtml5TreeOpExecutor::MarkAsBroken(nsresult aReason)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  NS_ASSERTION(!mRunsToCompletion, "Fragment parsers can't be broken!");
   mBroken = aReason;
   if (mStreamParser) {
     mStreamParser->Terminate();
@@ -238,6 +297,12 @@ nsHtml5TreeOpExecutor::MarkAsBroken(nsresult aReason)
     }
   }
   return aReason;
+}
+
+nsresult
+nsHtml5TreeOpExecutor::FlushTags()
+{
+  return NS_OK;
 }
 
 void
@@ -283,6 +348,61 @@ nsHtml5TreeOpExecutor::ContinueInterruptedParsingAsync()
 }
 
 void
+nsHtml5TreeOpExecutor::UpdateStyleSheet(nsIContent* aElement)
+{
+  // Break out of the doc update created by Flush() to zap a runnable 
+  // waiting to call UpdateStyleSheet without the right observer
+  EndDocUpdate();
+
+  if (NS_UNLIKELY(!mParser)) {
+    // EndDocUpdate ran stuff that called nsIParser::Terminate()
+    return;
+  }
+
+  nsCOMPtr<nsIStyleSheetLinkingElement> ssle(do_QueryInterface(aElement));
+  NS_ASSERTION(ssle, "Node didn't QI to style.");
+
+  ssle->SetEnableUpdates(true);
+
+  bool willNotify;
+  bool isAlternate;
+  nsresult rv = ssle->UpdateStyleSheet(mRunsToCompletion ? nullptr : this,
+                                       &willNotify,
+                                       &isAlternate);
+  if (NS_SUCCEEDED(rv) && willNotify && !isAlternate && !mRunsToCompletion) {
+    ++mPendingSheetCount;
+    mScriptLoader->AddExecuteBlocker();
+  }
+
+  if (aElement->IsHTML(nsGkAtoms::link)) {
+    // look for <link rel="next" href="url">
+    nsAutoString relVal;
+    aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::rel, relVal);
+    if (!relVal.IsEmpty()) {
+      uint32_t linkTypes = nsStyleLinkElement::ParseLinkTypes(relVal);
+      bool hasPrefetch = linkTypes & PREFETCH;
+      if (hasPrefetch || (linkTypes & NEXT)) {
+        nsAutoString hrefVal;
+        aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::href, hrefVal);
+        if (!hrefVal.IsEmpty()) {
+          PrefetchHref(hrefVal, aElement, hasPrefetch);
+        }
+      }
+      if (linkTypes & DNS_PREFETCH) {
+        nsAutoString hrefVal;
+        aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::href, hrefVal);
+        if (!hrefVal.IsEmpty()) {
+          PrefetchDNS(hrefVal);
+        }
+      }
+    }
+  }
+
+  // Re-open update
+  BeginDocUpdate();
+}
+
+void
 nsHtml5TreeOpExecutor::FlushSpeculativeLoads()
 {
   nsTArray<nsHtml5SpeculativeLoad> speculativeLoadQueue;
@@ -292,7 +412,7 @@ nsHtml5TreeOpExecutor::FlushSpeculativeLoads()
   for (nsHtml5SpeculativeLoad* iter = const_cast<nsHtml5SpeculativeLoad*>(start);
        iter < end;
        ++iter) {
-    if (MOZ_UNLIKELY(!mParser)) {
+    if (NS_UNLIKELY(!mParser)) {
       // An extension terminated the parser from a HTTP observer.
       return;
     }
@@ -308,7 +428,7 @@ class nsHtml5FlushLoopGuard
     uint32_t mStartTime;
     #endif
   public:
-    explicit nsHtml5FlushLoopGuard(nsHtml5TreeOpExecutor* aExecutor)
+    nsHtml5FlushLoopGuard(nsHtml5TreeOpExecutor* aExecutor)
       : mExecutor(aExecutor)
     #ifdef DEBUG_NS_HTML5_TREE_OP_EXECUTOR_FLUSH
       , mStartTime(PR_IntervalToMilliseconds(PR_IntervalNow()))
@@ -340,9 +460,7 @@ class nsHtml5FlushLoopGuard
 void
 nsHtml5TreeOpExecutor::RunFlushLoop()
 {
-  PROFILER_LABEL("nsHtml5TreeOpExecutor", "RunFlushLoop",
-    js::ProfileEntry::Category::OTHER);
-
+  SAMPLE_LABEL("html5", "RunFlushLoop");
   if (mRunFlushLoopOnStack) {
     // There's already a RunFlushLoop() on the call stack.
     return;
@@ -394,7 +512,7 @@ nsHtml5TreeOpExecutor::RunFlushLoop()
            iter < end;
            ++iter) {
         iter->Perform(this);
-        if (MOZ_UNLIKELY(!mParser)) {
+        if (NS_UNLIKELY(!mParser)) {
           // An extension terminated the parser from a HTTP observer.
           mOpQueue.Clear(); // clear in order to be able to assert in destructor
           return;
@@ -404,7 +522,7 @@ nsHtml5TreeOpExecutor::RunFlushLoop()
       FlushSpeculativeLoads(); // Make sure speculative loads never start after
                                // the corresponding normal loads for the same
                                // URLs.
-      if (MOZ_UNLIKELY(!mParser)) {
+      if (NS_UNLIKELY(!mParser)) {
         // An extension terminated the parser from a HTTP observer.
         mOpQueue.Clear(); // clear in order to be able to assert in destructor
         return;
@@ -415,11 +533,7 @@ nsHtml5TreeOpExecutor::RunFlushLoop()
         GetParser()->GetStreamParser();
       // Now parse content left in the document.write() buffer queue if any.
       // This may generate tree ops on its own or dequeue a speculation.
-      nsresult rv = GetParser()->ParseUntilBlocked();
-      if (NS_FAILED(rv)) {
-        MarkAsBroken(rv);
-        return;
-      }
+      GetParser()->ParseUntilBlocked();
     }
 
     if (mOpQueue.IsEmpty()) {
@@ -436,26 +550,24 @@ nsHtml5TreeOpExecutor::RunFlushLoop()
 
     uint32_t numberOfOpsToFlush = mOpQueue.Length();
 
+    mElementsSeenInThisAppendBatch.SetCapacity(numberOfOpsToFlush * 2);
+
     const nsHtml5TreeOperation* first = mOpQueue.Elements();
     const nsHtml5TreeOperation* last = first + numberOfOpsToFlush - 1;
     for (nsHtml5TreeOperation* iter = const_cast<nsHtml5TreeOperation*>(first);;) {
-      if (MOZ_UNLIKELY(!mParser)) {
+      if (NS_UNLIKELY(!mParser)) {
         // The previous tree op caused a call to nsIParser::Terminate().
         break;
       }
       NS_ASSERTION(mFlushState == eInDocUpdate, 
         "Tried to perform tree op outside update batch.");
-      nsresult rv = iter->Perform(this, &scriptElement);
-      if (NS_FAILED(rv)) {
-        MarkAsBroken(rv);
-        break;
-      }
+      iter->Perform(this, &scriptElement);
 
       // Be sure not to check the deadline if the last op was just performed.
-      if (MOZ_UNLIKELY(iter == last)) {
+      if (NS_UNLIKELY(iter == last)) {
         break;
-      } else if (MOZ_UNLIKELY(nsContentSink::DidProcessATokenImpl() == 
-                 NS_ERROR_HTMLPARSER_INTERRUPTED)) {
+      } else if (NS_UNLIKELY(nsContentSink::DidProcessATokenImpl() == 
+                             NS_ERROR_HTMLPARSER_INTERRUPTED)) {
         mOpQueue.RemoveElementsAt(0, (iter - first) + 1);
         
         EndDocUpdate();
@@ -478,7 +590,7 @@ nsHtml5TreeOpExecutor::RunFlushLoop()
 
     mFlushState = eNotFlushing;
 
-    if (MOZ_UNLIKELY(!mParser)) {
+    if (NS_UNLIKELY(!mParser)) {
       // The parse ended already.
       return;
     }
@@ -502,24 +614,21 @@ nsHtml5TreeOpExecutor::RunFlushLoop()
   }
 }
 
-nsresult
+void
 nsHtml5TreeOpExecutor::FlushDocumentWrite()
 {
-  nsresult rv = IsBroken();
-  NS_ENSURE_SUCCESS(rv, rv);
-
   FlushSpeculativeLoads(); // Make sure speculative loads never start after the
                 // corresponding normal loads for the same URLs.
 
-  if (MOZ_UNLIKELY(!mParser)) {
+  if (NS_UNLIKELY(!mParser)) {
     // The parse has ended.
     mOpQueue.Clear(); // clear in order to be able to assert in destructor
-    return rv;
+    return;
   }
   
   if (mFlushState != eNotFlushing) {
     // XXX Can this happen? In case it can, let's avoid crashing.
-    return rv;
+    return;
   }
 
   mFlushState = eInFlush;
@@ -541,22 +650,20 @@ nsHtml5TreeOpExecutor::FlushDocumentWrite()
 
   uint32_t numberOfOpsToFlush = mOpQueue.Length();
 
+  mElementsSeenInThisAppendBatch.SetCapacity(numberOfOpsToFlush * 2);
+
   const nsHtml5TreeOperation* start = mOpQueue.Elements();
   const nsHtml5TreeOperation* end = start + numberOfOpsToFlush;
   for (nsHtml5TreeOperation* iter = const_cast<nsHtml5TreeOperation*>(start);
        iter < end;
        ++iter) {
-    if (MOZ_UNLIKELY(!mParser)) {
+    if (NS_UNLIKELY(!mParser)) {
       // The previous tree op caused a call to nsIParser::Terminate().
       break;
     }
     NS_ASSERTION(mFlushState == eInDocUpdate, 
       "Tried to perform tree op outside update batch.");
-    rv = iter->Perform(this, &scriptElement);
-    if (NS_FAILED(rv)) {
-      MarkAsBroken(rv);
-      break;
-    }
+    iter->Perform(this, &scriptElement);
   }
 
   mOpQueue.Clear();
@@ -565,16 +672,15 @@ nsHtml5TreeOpExecutor::FlushDocumentWrite()
 
   mFlushState = eNotFlushing;
 
-  if (MOZ_UNLIKELY(!mParser)) {
+  if (NS_UNLIKELY(!mParser)) {
     // Ending the doc update caused a call to nsIParser::Terminate().
-    return rv;
+    return;
   }
 
   if (scriptElement) {
     // must be tail call when mFlushState is eNotFlushing
     RunScript(scriptElement);
   }
-  return rv;
 }
 
 // copied from HTML content sink
@@ -583,16 +689,43 @@ nsHtml5TreeOpExecutor::IsScriptEnabled()
 {
   if (!mDocument || !mDocShell)
     return true;
-  nsCOMPtr<nsIScriptGlobalObject> globalObject = do_QueryInterface(mDocument->GetInnerWindow());
+  nsCOMPtr<nsIScriptGlobalObject> globalObject = mDocument->GetScriptGlobalObject();
   // Getting context is tricky if the document hasn't had its
   // GlobalObject set yet
   if (!globalObject) {
-    globalObject = mDocShell->GetScriptGlobalObject();
+    nsCOMPtr<nsIScriptGlobalObjectOwner> owner = do_GetInterface(mDocShell);
+    NS_ENSURE_TRUE(owner, true);
+    globalObject = owner->GetScriptGlobalObject();
     NS_ENSURE_TRUE(globalObject, true);
   }
-  NS_ENSURE_TRUE(globalObject && globalObject->GetGlobalJSObject(), true);
-  return nsContentUtils::GetSecurityManager()->
-           ScriptAllowed(globalObject->GetGlobalJSObject());
+  nsIScriptContext *scriptContext = globalObject->GetContext();
+  NS_ENSURE_TRUE(scriptContext, true);
+  JSContext* cx = scriptContext->GetNativeContext();
+  NS_ENSURE_TRUE(cx, true);
+  bool enabled = true;
+  nsContentUtils::GetSecurityManager()->
+    CanExecuteScripts(cx, mDocument->NodePrincipal(), &enabled);
+  return enabled;
+}
+
+void
+nsHtml5TreeOpExecutor::SetDocumentMode(nsHtml5DocumentMode m)
+{
+  nsCompatibility mode = eCompatibility_NavQuirks;
+  switch (m) {
+    case STANDARDS_MODE:
+      mode = eCompatibility_FullStandards;
+      break;
+    case ALMOST_STANDARDS_MODE:
+      mode = eCompatibility_AlmostStandards;
+      break;
+    case QUIRKS_MODE:
+      mode = eCompatibility_NavQuirks;
+      break;
+  }
+  nsCOMPtr<nsIHTMLDocument> htmlDocument = do_QueryInterface(mDocument);
+  NS_ASSERTION(htmlDocument, "Document didn't QI into HTML document.");
+  htmlDocument->SetCompatibilityMode(mode);
 }
 
 void
@@ -603,7 +736,7 @@ nsHtml5TreeOpExecutor::StartLayout() {
 
   EndDocUpdate();
 
-  if (MOZ_UNLIKELY(!mParser)) {
+  if (NS_UNLIKELY(!mParser)) {
     // got terminate
     return;
   }
@@ -677,6 +810,15 @@ nsHtml5TreeOpExecutor::RunScript(nsIContent* aScriptElement)
   }
 }
 
+nsresult
+nsHtml5TreeOpExecutor::Init(nsIDocument* aDoc,
+                            nsIURI* aURI,
+                            nsISupports* aContainer,
+                            nsIChannel* aChannel)
+{
+  return nsContentSink::Init(aDoc, aURI, aContainer, aChannel);
+}
+
 void
 nsHtml5TreeOpExecutor::Start()
 {
@@ -691,7 +833,7 @@ nsHtml5TreeOpExecutor::NeedsCharsetSwitchTo(const char* aEncoding,
 {
   EndDocUpdate();
 
-  if (MOZ_UNLIKELY(!mParser)) {
+  if (NS_UNLIKELY(!mParser)) {
     // got terminate
     return;
   }
@@ -743,8 +885,9 @@ nsHtml5TreeOpExecutor::MaybeComplainAboutCharset(const char* aMsgId,
   // the embedded different-origin pages anyway and can't fix problems even
   // if alerted about them.
   if (!strcmp(aMsgId, "EncNoDeclaration") && mDocShell) {
+    nsCOMPtr<nsIDocShellTreeItem> treeItem = do_QueryInterface(mDocShell);
     nsCOMPtr<nsIDocShellTreeItem> parent;
-    mDocShell->GetSameTypeParent(getter_AddRefs(parent));
+    treeItem->GetSameTypeParent(getter_AddRefs(parent));
     if (parent) {
       return;
     }
@@ -752,7 +895,7 @@ nsHtml5TreeOpExecutor::MaybeComplainAboutCharset(const char* aMsgId,
   mAlreadyComplainedAboutCharset = true;
   nsContentUtils::ReportToConsole(aError ? nsIScriptError::errorFlag
                                          : nsIScriptError::warningFlag,
-                                  NS_LITERAL_CSTRING("HTML parser"),
+                                  "HTML parser",
                                   mDocument,
                                   nsContentUtils::eHTMLPARSER_PROPERTIES,
                                   aMsgId,
@@ -770,7 +913,7 @@ nsHtml5TreeOpExecutor::ComplainAboutBogusProtocolCharset(nsIDocument* aDoc)
                "How come we already managed to complain?");
   mAlreadyComplainedAboutCharset = true;
   nsContentUtils::ReportToConsole(nsIScriptError::errorFlag,
-                                  NS_LITERAL_CSTRING("HTML parser"),
+                                  "HTML parser",
                                   aDoc,
                                   nsContentUtils::eHTMLPARSER_PROPERTIES,
                                   "EncProtocolUnsupported");
@@ -781,6 +924,31 @@ nsHtml5TreeOpExecutor::GetParser()
 {
   MOZ_ASSERT(!mRunsToCompletion);
   return static_cast<nsHtml5Parser*>(mParser.get());
+}
+
+void
+nsHtml5TreeOpExecutor::Reset()
+{
+  MOZ_ASSERT(mRunsToCompletion);
+  DropHeldElements();
+  mOpQueue.Clear();
+  mStarted = false;
+  mFlushState = eNotFlushing;
+  mRunFlushLoopOnStack = false;
+  MOZ_ASSERT(!mReadingFromStage);
+  MOZ_ASSERT(NS_SUCCEEDED(mBroken));
+}
+
+void
+nsHtml5TreeOpExecutor::DropHeldElements()
+{
+  mScriptLoader = nullptr;
+  mDocument = nullptr;
+  mNodeInfoManager = nullptr;
+  mCSSLoader = nullptr;
+  mDocumentURI = nullptr;
+  mDocShell = nullptr;
+  mOwnedElements.Clear();
 }
 
 void
@@ -804,22 +972,6 @@ nsIURI*
 nsHtml5TreeOpExecutor::GetViewSourceBaseURI()
 {
   if (!mViewSourceBaseURI) {
-
-    // We query the channel for the baseURI because in certain situations it
-    // cannot otherwise be determined. If this process fails, fall back to the
-    // standard method.
-    nsCOMPtr<nsIChannel> channel = mDocument->GetChannel();
-    if (channel) {
-      nsCOMPtr<nsILoadInfo> loadInfo;
-      nsresult rv = channel->GetLoadInfo(getter_AddRefs(loadInfo));
-      if (NS_SUCCEEDED(rv) && loadInfo) {
-        rv = loadInfo->GetBaseURI(getter_AddRefs(mViewSourceBaseURI));
-        if (NS_SUCCEEDED(rv) && mViewSourceBaseURI) {
-          return mViewSourceBaseURI;
-        }
-      }
-    }
-
     nsCOMPtr<nsIURI> orig = mDocument->GetOriginalURI();
     bool isViewSource;
     orig->SchemeIs("view-source", &isViewSource);
@@ -884,7 +1036,7 @@ nsHtml5TreeOpExecutor::ConvertIfNotPreloadedYet(const nsAString& aURL)
     NS_WARNING("Failed to create a URI");
     return nullptr;
   }
-  nsAutoCString spec;
+  nsCAutoString spec;
   uri->GetSpec(spec);
   if (mPreloadedURLs.Contains(spec)) {
     return nullptr;
@@ -897,29 +1049,24 @@ void
 nsHtml5TreeOpExecutor::PreloadScript(const nsAString& aURL,
                                      const nsAString& aCharset,
                                      const nsAString& aType,
-                                     const nsAString& aCrossOrigin,
-                                     bool aScriptFromHead)
+                                     const nsAString& aCrossOrigin)
 {
   nsCOMPtr<nsIURI> uri = ConvertIfNotPreloadedYet(aURL);
   if (!uri) {
     return;
   }
-  mDocument->ScriptLoader()->PreloadURI(uri, aCharset, aType, aCrossOrigin,
-                                        aScriptFromHead,
-                                        mSpeculationReferrerPolicy);
+  mDocument->ScriptLoader()->PreloadURI(uri, aCharset, aType, aCrossOrigin);
 }
 
 void
 nsHtml5TreeOpExecutor::PreloadStyle(const nsAString& aURL,
-                                    const nsAString& aCharset,
-                                    const nsAString& aCrossOrigin)
+                                    const nsAString& aCharset)
 {
   nsCOMPtr<nsIURI> uri = ConvertIfNotPreloadedYet(aURL);
   if (!uri) {
     return;
   }
-  mDocument->PreloadStyle(uri, aCharset, aCrossOrigin,
-                          mSpeculationReferrerPolicy);
+  mDocument->PreloadStyle(uri, aCharset);
 }
 
 void
@@ -930,19 +1077,9 @@ nsHtml5TreeOpExecutor::PreloadImage(const nsAString& aURL,
   if (!uri) {
     return;
   }
-  mDocument->MaybePreLoadImage(uri, aCrossOrigin, mSpeculationReferrerPolicy);
+  mDocument->MaybePreLoadImage(uri, aCrossOrigin);
 }
 
-void
-nsHtml5TreeOpExecutor::AddBase(const nsAString& aURL)
-{
-  const nsCString& charset = mDocument->GetDocumentCharacterSet();
-  nsresult rv = NS_NewURI(getter_AddRefs(mViewSourceBaseURI), aURL,
-                                     charset.get(), GetViewSourceBaseURI());
-  if (NS_FAILED(rv)) {
-    mViewSourceBaseURI = nullptr;
-  }
-}
 void
 nsHtml5TreeOpExecutor::SetSpeculationBase(const nsAString& aURL)
 {
@@ -954,27 +1091,6 @@ nsHtml5TreeOpExecutor::SetSpeculationBase(const nsAString& aURL)
   DebugOnly<nsresult> rv = NS_NewURI(getter_AddRefs(mSpeculationBaseURI), aURL,
                                      charset.get(), mDocument->GetDocumentURI());
   NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Failed to create a URI");
-}
-
-void
-nsHtml5TreeOpExecutor::SetSpeculationReferrerPolicy(const nsAString& aReferrerPolicy)
-{
-  ReferrerPolicy policy = mozilla::net::ReferrerPolicyFromString(aReferrerPolicy);
-
-  if (mSpeculationReferrerPolicyWasSet &&
-      policy != mSpeculationReferrerPolicy) {
-    // According to the Referrer Policy spec, if there's already been a policy
-    // set and another attempt is made to set a _different_ policy, the result
-    // is a "No Referrer" policy.
-    mSpeculationReferrerPolicy = mozilla::net::RP_No_Referrer;
-  }
-  else {
-    // Record "speculated" referrer policy locally and thread through the
-    // speculation phase.  The actual referrer policy will be set by
-    // HTMLMetaElement::BindToTree().
-    mSpeculationReferrerPolicyWasSet = true;
-    mSpeculationReferrerPolicy = policy;
-  }
 }
 
 #ifdef DEBUG_NS_HTML5_TREE_OP_EXECUTOR_FLUSH

@@ -7,8 +7,9 @@
 #include "nsIXPConnect.h"
 #include "nsThreadUtils.h"
 #include "jsapi.h"
+#include "jsgc.h"
 #include "jsfriendapi.h"
-#include "jswrapper.h"
+#include "jsdbgapi.h"
 #include "mozilla/ModuleUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsMemory.h"
@@ -24,7 +25,7 @@ namespace jsdebugger {
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(JSDebugger)
 
-NS_IMPL_ISUPPORTS(JSDebugger, IJSDebugger)
+NS_IMPL_ISUPPORTS1(JSDebugger, IJSDebugger)
 
 JSDebugger::JSDebugger()
 {
@@ -35,7 +36,7 @@ JSDebugger::~JSDebugger()
 }
 
 NS_IMETHODIMP
-JSDebugger::AddClass(JS::Handle<JS::Value> global, JSContext* cx)
+JSDebugger::AddClass(const JS::Value &global, JSContext* cx)
 {
   nsresult rv;
   nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID(), &rv);
@@ -43,9 +44,9 @@ JSDebugger::AddClass(JS::Handle<JS::Value> global, JSContext* cx)
   if (!global.isObject()) {
     return NS_ERROR_INVALID_ARG;
   }
-
-  JS::RootedObject obj(cx, &global.toObject());
-  obj = js::UncheckedUnwrap(obj, /* stopAtOuter = */ false);
+  
+  JSObject* obj = &global.toObject();
+  obj = JS_UnwrapObjectAndInnerize(obj);
   if (!obj) {
     return NS_ERROR_FAILURE;
   }
@@ -68,13 +69,13 @@ JSDebugger::AddClass(JS::Handle<JS::Value> global, JSContext* cx)
 NS_DEFINE_NAMED_CID(JSDEBUGGER_CID);
 
 static const mozilla::Module::CIDEntry kJSDebuggerCIDs[] = {
-  { &kJSDEBUGGER_CID, false, nullptr, mozilla::jsdebugger::JSDebuggerConstructor },
-  { nullptr }
+  { &kJSDEBUGGER_CID, false, NULL, mozilla::jsdebugger::JSDebuggerConstructor },
+  { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kJSDebuggerContracts[] = {
   { JSDEBUGGER_CONTRACTID, &kJSDEBUGGER_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module kJSDebuggerModule = {

@@ -10,14 +10,14 @@ function testSteps()
   let request = indexedDB.open(this.window ? window.location.pathname : "Splendid Test", 1);
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
-  let event = yield undefined;
+  let event = yield;
 
   let db = event.target.result;
   db.onerror = errorHandler;
 
   event.target.onsuccess = continueToNextStep;
   db.createObjectStore("foo");
-  yield undefined;
+  yield;
 
   let transaction1 = db.transaction("foo");
 
@@ -43,8 +43,8 @@ function testSteps()
   ok(transaction2, "Non-null transaction2");
 
   continueToNextStep();
-  yield undefined;
+  yield;
 
   finishTest();
-  yield undefined;
+  yield;
 }

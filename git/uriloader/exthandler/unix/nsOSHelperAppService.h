@@ -16,6 +16,7 @@
 #include "nsMIMEInfoImpl.h"
 #include "nsCOMPtr.h"
 
+class nsHashtable;
 class nsILineInputStream;
 
 class nsOSHelperAppService : public nsExternalHelperAppService
@@ -36,16 +37,17 @@ public:
   nsresult OSProtocolHandlerExists(const char * aProtocolScheme, bool * aHandlerExists);
   NS_IMETHOD GetApplicationDescription(const nsACString& aScheme, nsAString& _retval);
 
-  // GetFileTokenForPath must be implemented by each platform.
-  // platformAppPath --> a platform specific path to an application that we got out of the
+  // GetFileTokenForPath must be implemented by each platform. 
+  // platformAppPath --> a platform specific path to an application that we got out of the 
   //                     rdf data source. This can be a mac file spec, a unix path or a windows path depending on the platform
   // aFile --> an nsIFile representation of that platform application path.
-  virtual nsresult GetFileTokenForPath(const char16_t * platformAppPath, nsIFile ** aFile);
-
+  virtual nsresult GetFileTokenForPath(const PRUnichar * platformAppPath, nsIFile ** aFile);
+  
 protected:
   already_AddRefed<nsMIMEInfoBase> GetFromType(const nsCString& aMimeType);
   already_AddRefed<nsMIMEInfoBase> GetFromExtension(const nsCString& aFileExt);
 
+  virtual void FixFilePermissions(nsIFile* aFile);
 private:
   uint32_t mPermissions;
 
@@ -53,6 +55,7 @@ private:
   static nsresult UnescapeCommand(const nsAString& aEscapedCommand,
                                   const nsAString& aMajorType,
                                   const nsAString& aMinorType,
+                                  nsHashtable& aTypeOptions,
                                   nsACString& aUnEscapedCommand);
   static nsresult GetFileLocation(const char* aPrefName,
                                   const char* aEnvVarName,
@@ -106,20 +109,23 @@ private:
 
   static nsresult LookUpHandlerAndDescription(const nsAString& aMajorType,
                                               const nsAString& aMinorType,
+                                              nsHashtable& aTypeOptions,
                                               nsAString& aHandler,
                                               nsAString& aDescription,
                                               nsAString& aMozillaFlags);
-
+  
   static nsresult DoLookUpHandlerAndDescription(const nsAString& aMajorType,
                                                 const nsAString& aMinorType,
+                                                nsHashtable& aTypeOptions,
                                                 nsAString& aHandler,
                                                 nsAString& aDescription,
                                                 nsAString& aMozillaFlags,
                                                 bool aUserData);
-
+  
   static nsresult GetHandlerAndDescriptionFromMailcapFile(const nsAString& aFilename,
                                                           const nsAString& aMajorType,
                                                           const nsAString& aMinorType,
+                                                          nsHashtable& aTypeOptions,
                                                           nsAString& aHandler,
                                                           nsAString& aDescription,
                                                           nsAString& aMozillaFlags);

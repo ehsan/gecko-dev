@@ -11,6 +11,8 @@
 #include "nsIStreamListener.h"
 #include "nsIChannelEventSink.h"
 #include "nsIInterfaceRequestor.h"
+#include "nsIIOService.h"
+#include "nsIURI.h"
 #include "nsCOMPtr.h"
 
 //-----------------------------------------------------------------------------
@@ -20,10 +22,9 @@ class nsURIChecker : public nsIURIChecker,
                      public nsIChannelEventSink,
                      public nsIInterfaceRequestor
 {
-    virtual ~nsURIChecker() {}
-
 public:
     nsURIChecker();
+    virtual ~nsURIChecker() {}
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIURICHECKER

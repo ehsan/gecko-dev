@@ -23,11 +23,10 @@ public:
   NS_DECL_NSIOBSERVER
 
   nsPopupWindowManager();
+  virtual ~nsPopupWindowManager();
   nsresult Init();
 
 private:
-  virtual ~nsPopupWindowManager();
-
   uint32_t                       mPolicy;
   nsCOMPtr<nsIPermissionManager> mPermissionManager;
 };

@@ -7,6 +7,7 @@
 #define nsAnnoProtocolHandler_h___
 
 #include "nsCOMPtr.h"
+#include "nsIAnnotationService.h"
 #include "nsIProtocolHandler.h"
 #include "nsIURI.h"
 #include "nsString.h"

@@ -17,7 +17,7 @@ namespace layout {
 
 // enum FrameChildListID lives in nsFrameList.h to solve circular dependencies.
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
 extern const char* ChildListName(FrameChildListID aListID);
 #endif
 
@@ -26,7 +26,7 @@ friend class FrameChildListIterator;
  public:
   FrameChildListIDs() : mIDs(0) {}
   FrameChildListIDs(const FrameChildListIDs& aOther) : mIDs(aOther.mIDs) {}
-  MOZ_IMPLICIT FrameChildListIDs(FrameChildListID aListID) : mIDs(aListID) {}
+  FrameChildListIDs(FrameChildListID aListID) : mIDs(aListID) {}
 
   FrameChildListIDs operator|(FrameChildListIDs aOther) const {
     return FrameChildListIDs(mIDs | aOther.mIDs);
@@ -46,7 +46,7 @@ friend class FrameChildListIterator;
   }
 
  protected:
-  explicit FrameChildListIDs(uint32_t aIDs) : mIDs(aIDs) {}
+  FrameChildListIDs(uint32_t aIDs) : mIDs(aIDs) {}
   uint32_t mIDs;
 };
 
@@ -61,9 +61,9 @@ class FrameChildList {
 /**
  * A class to iterate frame child lists.
  */
-class MOZ_STACK_CLASS FrameChildListArrayIterator {
+class NS_STACK_CLASS FrameChildListArrayIterator {
  public:
-  explicit FrameChildListArrayIterator(const nsTArray<FrameChildList>& aLists)
+  FrameChildListArrayIterator(const nsTArray<FrameChildList>& aLists)
     : mLists(aLists), mCurrentIndex(0) {}
   bool IsDone() const { return mCurrentIndex >= mLists.Length(); }
   FrameChildListID CurrentID() const {
@@ -87,14 +87,17 @@ protected:
 /**
  * A class for retrieving a frame's child lists and iterate them.
  */
-class MOZ_STACK_CLASS FrameChildListIterator
+class NS_STACK_CLASS FrameChildListIterator
   : public FrameChildListArrayIterator {
  public:
-  explicit FrameChildListIterator(const nsIFrame* aFrame);
+  FrameChildListIterator(const nsIFrame* aFrame);
 
 protected:
   nsAutoTArray<FrameChildList,4> mLists;
 };
+
+} // namespace layout
+} // namespace mozilla
 
 inline mozilla::layout::FrameChildListIDs
 operator|(mozilla::layout::FrameChildListID aLeftOp,
@@ -110,9 +113,6 @@ operator|(mozilla::layout::FrameChildListID aLeftOp,
 {
   return mozilla::layout::FrameChildListIDs(aLeftOp) | aRightOp;
 }
-
-} // namespace layout
-} // namespace mozilla
 
 inline void nsFrameList::AppendIfNonempty(
          nsTArray<mozilla::layout::FrameChildList>* aLists,

@@ -10,11 +10,13 @@
 #include "nsIGlobalHistory2.h"
 #include "nsIObserverService.h"
 #include "nsIURI.h"
+#include "nsIComponentRegistrar.h"
+#include "nsDocShellCID.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 //// nsDownloadHistory
 
-NS_IMPL_ISUPPORTS(nsDownloadHistory, nsIDownloadHistory)
+NS_IMPL_ISUPPORTS1(nsDownloadHistory, nsIDownloadHistory)
 
 ////////////////////////////////////////////////////////////////////////////////
 //// nsIDownloadHistory
@@ -47,10 +49,4 @@ nsDownloadHistory::AddDownload(nsIURI *aSource,
   }
 
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDownloadHistory::RemoveAllDownloads()
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
 }

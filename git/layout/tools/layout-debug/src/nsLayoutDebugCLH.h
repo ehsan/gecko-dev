@@ -18,12 +18,10 @@ class nsLayoutDebugCLH : public ICOMMANDLINEHANDLER
 {
 public:
     nsLayoutDebugCLH();
+    virtual ~nsLayoutDebugCLH();
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSICOMMANDLINEHANDLER
-
-protected:
-    virtual ~nsLayoutDebugCLH();
 };
 
 #endif /* !defined(nsLayoutDebugCLH_h_) */

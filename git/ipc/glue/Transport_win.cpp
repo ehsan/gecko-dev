@@ -48,7 +48,7 @@ CreateTransport(ProcessHandle aProcOne, ProcessHandle /*unused*/,
 
   aOne->mPipeName = aTwo->mPipeName = id;
   aOne->mServerPipe = serverDup;
-  aTwo->mServerPipe = INVALID_HANDLE_VALUE;
+  aTwo->mServerPipe = 0;
   return true;
 }
 
@@ -56,13 +56,6 @@ Transport*
 OpenDescriptor(const TransportDescriptor& aTd, Transport::Mode aMode)
 {
   return new Transport(aTd.mPipeName, aTd.mServerPipe, aMode, nullptr);
-}
-
-Transport*
-OpenDescriptor(const FileDescriptor& aFd, Transport::Mode aMode)
-{
-  NS_NOTREACHED("Not implemented!");
-  return nullptr;
 }
 
 void

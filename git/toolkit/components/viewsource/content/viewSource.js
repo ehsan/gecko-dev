@@ -1,11 +1,10 @@
-// -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
+// -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/CharsetMenu.jsm");
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -32,7 +31,7 @@ function getBrowser() {
   return gBrowser;
 }
 
-this.__defineGetter__("gPageLoader", function () {
+__defineGetter__("gPageLoader", function () {
   var webnav = getWebNavigation();
   if (!webnav)
     return null;
@@ -111,9 +110,9 @@ function viewSource(url)
         if (typeof(arg) == "string" && arg.indexOf('charset=') != -1) {
           var arrayArgComponents = arg.split('=');
           if (arrayArgComponents) {
-            // Remember the charset here so that it can be used below in case
-            // the document had a forced charset.
+            //we should "inherit" the charset menu setting in a new window
             charset = arrayArgComponents[1];
+            gBrowser.markupDocumentViewer.defaultCharacterSet = charset;
           }
         }
       } catch (ex) {
@@ -264,10 +263,13 @@ function onClickContent(event) {
         } catch (e) {
           Components.utils.reportError("Couldn't get malware report URL: " + e);
         }
-      } else {
-        // It's a phishing site, just link to the generic information page
-        let url = Services.urlFormatter.formatURLPref("app.support.baseURL");
-        openURL(url + "phishing-malware");
+      } else { // It's a phishing site, not malware
+        try {
+          var infoURL = Services.urlFormatter.formatURLPref("browser.safebrowsing.warning.infoURL", true);
+          openURL(infoURL);
+        } catch (e) {
+          Components.utils.reportError("Couldn't get phishing info URL: " + e);
+        }
       }
     } else if (target == errorDoc.getElementById('ignoreWarningButton')) {
       // Allow users to override and continue through to the site
@@ -323,9 +325,9 @@ function ViewSourceReload()
 // Strips the |view-source:| for internalSave()
 function ViewSourceSavePage()
 {
-  internalSave(window.content.location.href.replace(/^view-source:/i, ""),
-               null, null, null, null, null, "SaveLinkTitle",
-               null, null, window.content.document, null, gPageLoader);
+  internalSave(window.content.location.href.substring(12), 
+               null, null, null, null, null,
+               "SaveLinkTitle", null, null, null, gPageLoader);
 }
 
 var PrintPreviewListener = {
@@ -335,11 +337,9 @@ var PrintPreviewListener = {
       browser = document.createElement("browser");
       browser.setAttribute("id", "ppBrowser");
       browser.setAttribute("flex", "1");
-      browser.setAttribute("type", "content");
       document.getElementById("appcontent").
         insertBefore(browser, document.getElementById("FindToolbar"));
     }
-
     return browser;
   },
   getSourceBrowser: function () {
@@ -546,7 +546,7 @@ function findLocation(pre, line, node, offset, interlinePosition, result)
 
   // Walk through each of the text nodes and count newlines.
   var treewalker = window.content.document
-      .createTreeWalker(pre, NodeFilter.SHOW_TEXT, null);
+      .createTreeWalker(pre, NodeFilter.SHOW_TEXT, null, false);
 
   // The column number of the first character in the current text node.
   var firstCol = 1;
@@ -626,12 +626,16 @@ function findLocation(pre, line, node, offset, interlinePosition, result)
 function wrapLongLines()
 {
   var myWrap = window.content.document.body;
-  myWrap.classList.toggle("wrap");
+
+  if (myWrap.className == '')
+    myWrap.className = 'wrap';
+  else
+    myWrap.className = '';
 
   // Since multiple viewsource windows are possible, another window could have
   // affected the pref, so instead of determining the new pref value via the current
-  // pref value, we use myWrap.classList.
-  Services.prefs.setBoolPref("view_source.wrap_long_lines", myWrap.classList.contains("wrap"));
+  // pref value, we use myWrap.className.
+  Services.prefs.setBoolPref("view_source.wrap_long_lines", myWrap.className != '');
 }
 
 // Toggles syntax highlighting and sets the view_source.syntax_highlight
@@ -659,10 +663,9 @@ function BrowserCharsetReload()
   }
 }
 
-function BrowserSetCharacterSet(aEvent)
+function BrowserSetForcedCharacterSet(aCharset)
 {
-  if (aEvent.target.hasAttribute("charset"))
-    gBrowser.docShell.charset = aEvent.target.getAttribute("charset");
+  gBrowser.docShell.charset = aCharset;
   BrowserCharsetReload();
 }
 
@@ -695,6 +698,41 @@ function UpdateBackForwardCommands() {
     forwardBroadcaster.removeAttribute("disabled");
   else
     forwardBroadcaster.setAttribute("disabled", "true");
+}
+
+// FIXME copied and modified from browser.js.
+// Deduplication is part of bug 480356.
+function FillInHTMLTooltip(tipElement)
+{
+  var retVal = false;
+  var titleText = null;
+  var direction = tipElement.ownerDocument.dir;
+
+  while (!titleText && tipElement) {
+    if (tipElement.nodeType == Node.ELEMENT_NODE) {
+      titleText = tipElement.getAttribute("title");
+      var defView = tipElement.ownerDocument.defaultView;
+      // XXX Work around bug 350679:
+      // "Tooltips can be fired in documents with no view".
+      if (!defView)
+        return retVal;
+      direction = defView.getComputedStyle(tipElement, "")
+        .getPropertyValue("direction");
+    }
+    tipElement = tipElement.parentNode;
+  }
+
+  var tipNode = document.getElementById("aHTMLTooltip");
+  tipNode.style.direction = direction;
+
+  if (titleText && /\S/.test(titleText)) {
+    // Make CRLF and CR render one line break each.  
+    titleText = titleText.replace(/\r\n/g, '\n');
+    titleText = titleText.replace(/\r/g, '\n');
+    tipNode.setAttribute("label", titleText);
+    retVal = true;
+  }
+  return retVal;
 }
 
 function contextMenuShowing() {

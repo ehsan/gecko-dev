@@ -4,261 +4,258 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsNSSCertificateFakeTransport.h"
-
-#include "nsIClassInfoImpl.h"
-#include "nsIObjectInputStream.h"
-#include "nsIObjectOutputStream.h"
-#include "nsIProgrammingLanguage.h"
-#include "nsISupportsPrimitives.h"
+#include "nsCOMPtr.h"
 #include "nsNSSCertificate.h"
+#include "nsIX509Cert.h"
 #include "nsString.h"
 #include "nsXPIDLString.h"
+#include "nsISupportsPrimitives.h"
+#include "nsIProgrammingLanguage.h"
+#include "nsIObjectOutputStream.h"
+#include "nsIObjectInputStream.h"
 
-NS_IMPL_ISUPPORTS(nsNSSCertificateFakeTransport,
-                  nsIX509Cert,
-                  nsISerializable,
-                  nsIClassInfo)
+#ifdef PR_LOGGING
+extern PRLogModuleInfo* gPIPNSSLog;
+#endif
 
-nsNSSCertificateFakeTransport::nsNSSCertificateFakeTransport()
-  : mCertSerialization(nullptr)
+/* nsNSSCertificateFakeTransport */
+
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsNSSCertificateFakeTransport, nsIX509Cert,
+                                                nsISerializable,
+                                                nsIClassInfo)
+
+nsNSSCertificateFakeTransport::nsNSSCertificateFakeTransport() :
+  mCertSerialization(nullptr)
 {
 }
 
 nsNSSCertificateFakeTransport::~nsNSSCertificateFakeTransport()
 {
-  if (mCertSerialization) {
+  if (mCertSerialization)
     SECITEM_FreeItem(mCertSerialization, true);
-  }
 }
 
+/* readonly attribute string dbKey; */
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetDbKey(char**)
+nsNSSCertificateFakeTransport::GetDbKey(char * *aDbKey)
+{
+  NS_NOTREACHED("Unimplemented on content process");
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+/* readonly attribute string windowTitle; */
+NS_IMETHODIMP
+nsNSSCertificateFakeTransport::GetWindowTitle(char * *aWindowTitle)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetWindowTitle(nsAString&)
+nsNSSCertificateFakeTransport::GetNickname(nsAString &aNickname)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetNickname(nsAString&)
+nsNSSCertificateFakeTransport::GetEmailAddress(nsAString &aEmailAddress)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetEmailAddress(nsAString&)
+nsNSSCertificateFakeTransport::GetEmailAddresses(uint32_t *aLength, PRUnichar*** aAddresses)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetEmailAddresses(uint32_t*, char16_t***)
+nsNSSCertificateFakeTransport::ContainsEmailAddress(const nsAString &aEmailAddress, bool *result)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::ContainsEmailAddress(const nsAString&, bool*)
+nsNSSCertificateFakeTransport::GetCommonName(nsAString &aCommonName)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetCommonName(nsAString&)
+nsNSSCertificateFakeTransport::GetOrganization(nsAString &aOrganization)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetOrganization(nsAString&)
+nsNSSCertificateFakeTransport::GetIssuerCommonName(nsAString &aCommonName)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetIssuerCommonName(nsAString&)
+nsNSSCertificateFakeTransport::GetIssuerOrganization(nsAString &aOrganization)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetIssuerOrganization(nsAString&)
+nsNSSCertificateFakeTransport::GetIssuerOrganizationUnit(nsAString &aOrganizationUnit)
+{
+  NS_NOTREACHED("Unimplemented on content process");
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+/* readonly attribute nsIX509Cert issuer; */
+NS_IMETHODIMP
+nsNSSCertificateFakeTransport::GetIssuer(nsIX509Cert * *aIssuer)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetIssuerOrganizationUnit(nsAString&)
+nsNSSCertificateFakeTransport::GetOrganizationalUnit(nsAString &aOrganizationalUnit)
+{
+  NS_NOTREACHED("Unimplemented on content process");
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+/*
+ * nsIEnumerator getChain();
+ */
+NS_IMETHODIMP
+nsNSSCertificateFakeTransport::GetChain(nsIArray **_rvChain)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetIssuer(nsIX509Cert**)
+nsNSSCertificateFakeTransport::GetSubjectName(nsAString &_subjectName)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetOrganizationalUnit(nsAString&)
+nsNSSCertificateFakeTransport::GetIssuerName(nsAString &_issuerName)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetChain(nsIArray**)
+nsNSSCertificateFakeTransport::GetSerialNumber(nsAString &_serialNumber)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetSubjectName(nsAString&)
+nsNSSCertificateFakeTransport::GetSha1Fingerprint(nsAString &_sha1Fingerprint)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetIssuerName(nsAString&)
+nsNSSCertificateFakeTransport::GetMd5Fingerprint(nsAString &_md5Fingerprint)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetSerialNumber(nsAString&)
+nsNSSCertificateFakeTransport::GetTokenName(nsAString &aTokenName)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetSha256Fingerprint(nsAString&)
+nsNSSCertificateFakeTransport::GetRawDER(uint32_t *aLength, uint8_t **aArray)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetSha1Fingerprint(nsAString&)
+nsNSSCertificateFakeTransport::GetValidity(nsIX509CertValidity **aValidity)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetTokenName(nsAString&)
+nsNSSCertificateFakeTransport::VerifyForUsage(uint32_t usage, uint32_t *verificationResult)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetRawDER(uint32_t*, uint8_t**)
+nsNSSCertificateFakeTransport::GetUsagesArray(bool localOnly,
+                                 uint32_t *_verified,
+                                 uint32_t *_count,
+                                 PRUnichar ***_usages)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetValidity(nsIX509CertValidity**)
+nsNSSCertificateFakeTransport::GetUsagesString(bool localOnly,
+                                  uint32_t   *_verified,
+                                  nsAString &_usages)
+{
+  NS_NOTREACHED("Unimplemented on content process");
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+/* readonly attribute nsIASN1Object ASN1Structure; */
+NS_IMETHODIMP
+nsNSSCertificateFakeTransport::GetASN1Structure(nsIASN1Object * *aASN1Structure)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetUsagesArray(bool, uint32_t*, uint32_t*,
-                                              char16_t***)
+nsNSSCertificateFakeTransport::Equals(nsIX509Cert *other, bool *result)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetUsagesString(bool, uint32_t*, nsAString&)
-{
-  NS_NOTREACHED("Unimplemented on content process");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetASN1Structure(nsIASN1Object**)
-{
-  NS_NOTREACHED("Unimplemented on content process");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsNSSCertificateFakeTransport::Equals(nsIX509Cert*, bool*)
-{
-  NS_NOTREACHED("Unimplemented on content process");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetSha256SubjectPublicKeyInfoDigest(nsACString&)
-{
-  NS_NOTREACHED("Unimplemented on content process");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-// NB: This serialization must match that of nsNSSCertificate.
 NS_IMETHODIMP
 nsNSSCertificateFakeTransport::Write(nsIObjectOutputStream* aStream)
 {
   // On a non-chrome process we don't have mCert because we lack
-  // nsNSSComponent. nsNSSCertificateFakeTransport object is used only to
-  // carry the certificate serialization.
+  // nsNSSComponent.  nsNSSCertificateFakeTransport object is used only to carry the
+  // certificate serialization.
 
-  // This serialization has to match that of nsNSSCertificate,
-  // so write a fake cached EV Status.
-  uint32_t status = static_cast<uint32_t>(nsNSSCertificate::ev_status_unknown);
-  nsresult rv = aStream->Write32(status);
+  nsresult rv = aStream->Write32(mCertSerialization->len);
   if (NS_FAILED(rv)) {
     return rv;
   }
 
-  rv = aStream->Write32(mCertSerialization->len);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
-  return aStream->WriteByteArray(mCertSerialization->data,
-                                 mCertSerialization->len);
+  return aStream->WriteByteArray(mCertSerialization->data, mCertSerialization->len);
 }
 
 NS_IMETHODIMP
 nsNSSCertificateFakeTransport::Read(nsIObjectInputStream* aStream)
 {
-  // This serialization has to match that of nsNSSCertificate,
-  // so read the cachedEVStatus but don't actually use it.
-  uint32_t cachedEVStatus;
-  nsresult rv = aStream->Read32(&cachedEVStatus);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
   uint32_t len;
-  rv = aStream->Read32(&len);
+  nsresult rv = aStream->Read32(&len);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -270,8 +267,8 @@ nsNSSCertificateFakeTransport::Read(nsIObjectInputStream* aStream)
   }
 
   // On a non-chrome process we cannot instatiate mCert because we lack
-  // nsNSSComponent. nsNSSCertificateFakeTransport object is used only to
-  // carry the certificate serialization.
+  // nsNSSComponent.  nsNSSCertificateFakeTransport object is used only to carry the
+  // certificate serialization.
 
   mCertSerialization = SECITEM_AllocItem(nullptr, nullptr, len);
   if (!mCertSerialization)
@@ -282,7 +279,7 @@ nsNSSCertificateFakeTransport::Read(nsIObjectInputStream* aStream)
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetInterfaces(uint32_t* count, nsIID*** array)
+nsNSSCertificateFakeTransport::GetInterfaces(uint32_t *count, nsIID * **array)
 {
   *count = 0;
   *array = nullptr;
@@ -290,29 +287,28 @@ nsNSSCertificateFakeTransport::GetInterfaces(uint32_t* count, nsIID*** array)
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetHelperForLanguage(uint32_t,
-                                                    nsISupports** _retval)
+nsNSSCertificateFakeTransport::GetHelperForLanguage(uint32_t language, nsISupports **_retval)
 {
   *_retval = nullptr;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetContractID(char** aContractID)
+nsNSSCertificateFakeTransport::GetContractID(char * *aContractID)
 {
   *aContractID = nullptr;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetClassDescription(char** aClassDescription)
+nsNSSCertificateFakeTransport::GetClassDescription(char * *aClassDescription)
 {
   *aClassDescription = nullptr;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetClassID(nsCID** aClassID)
+nsNSSCertificateFakeTransport::GetClassID(nsCID * *aClassID)
 {
   *aClassID = (nsCID*) nsMemory::Alloc(sizeof(nsCID));
   if (!*aClassID)
@@ -321,177 +317,24 @@ nsNSSCertificateFakeTransport::GetClassID(nsCID** aClassID)
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetImplementationLanguage(
-  uint32_t* aImplementationLanguage)
+nsNSSCertificateFakeTransport::GetImplementationLanguage(uint32_t *aImplementationLanguage)
 {
   *aImplementationLanguage = nsIProgrammingLanguage::CPLUSPLUS;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetFlags(uint32_t* aFlags)
+nsNSSCertificateFakeTransport::GetFlags(uint32_t *aFlags)
 {
   *aFlags = nsIClassInfo::THREADSAFE;
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetClassIDNoAlloc(nsCID* aClassIDNoAlloc)
-{
-  static NS_DEFINE_CID(kNSSCertificateCID, NS_X509CERT_CID);
+static NS_DEFINE_CID(kNSSCertificateCID, NS_X509CERT_CID);
 
+NS_IMETHODIMP
+nsNSSCertificateFakeTransport::GetClassIDNoAlloc(nsCID *aClassIDNoAlloc)
+{
   *aClassIDNoAlloc = kNSSCertificateCID;
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetCertType(unsigned int*)
-{
-  NS_NOTREACHED("Unimplemented on content process");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetIsSelfSigned(bool*)
-{
-  NS_NOTREACHED("Unimplemented on content process");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsNSSCertificateFakeTransport::RequestUsagesArrayAsync(
-  nsICertVerificationListener*)
-{
-  NS_NOTREACHED("Unimplemented on content process");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetAllTokenNames(unsigned int*, char16_t***)
-{
-  NS_NOTREACHED("Unimplemented on content process");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-CERTCertificate*
-nsNSSCertificateFakeTransport::GetCert()
-{
-  NS_NOTREACHED("Unimplemented on content process");
-  return nullptr;
-}
-
-NS_IMETHODIMP
-nsNSSCertificateFakeTransport::ExportAsCMS(unsigned int,
-                                           unsigned int*,
-                                           unsigned char**)
-{
-  NS_NOTREACHED("Unimplemented on content process");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsNSSCertificateFakeTransport::MarkForPermDeletion()
-{
-  NS_NOTREACHED("Unimplemented on content process");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMPL_CLASSINFO(nsNSSCertListFakeTransport,
-                  nullptr,
-                  // inferred from nsIX509Cert
-                  nsIClassInfo::THREADSAFE,
-                  NS_X509CERTLIST_CID)
-
-NS_IMPL_ISUPPORTS_CI(nsNSSCertListFakeTransport,
-                     nsIX509CertList,
-                     nsISerializable)
-
-nsNSSCertListFakeTransport::nsNSSCertListFakeTransport()
-{
-}
-
-nsNSSCertListFakeTransport::~nsNSSCertListFakeTransport()
-{
-}
-
-NS_IMETHODIMP
-nsNSSCertListFakeTransport::AddCert(nsIX509Cert* aCert)
-{
-  NS_NOTREACHED("Unimplemented on content process");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsNSSCertListFakeTransport::DeleteCert(nsIX509Cert* aCert)
-{
-  NS_NOTREACHED("Unimplemented on content process");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-void*
-nsNSSCertListFakeTransport::GetRawCertList()
-{
-  NS_NOTREACHED("Unimplemented on content process");
-  return nullptr;
-}
-
-NS_IMETHODIMP
-nsNSSCertListFakeTransport::GetEnumerator(nsISimpleEnumerator**)
-{
-  NS_NOTREACHED("Unimplemented on content process");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsNSSCertListFakeTransport::Equals(nsIX509CertList*, bool*)
-{
-  NS_NOTREACHED("Unimplemented on content process");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-// NB: This serialization must match that of nsNSSCertList.
-NS_IMETHODIMP
-nsNSSCertListFakeTransport::Write(nsIObjectOutputStream* aStream)
-{
-  uint32_t certListLen = mFakeCertList.length();
-  // Write the length of the list
-  nsresult rv = aStream->Write32(certListLen);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
-  for (size_t i = 0; i < certListLen; i++) {
-    nsCOMPtr<nsIX509Cert> cert = mFakeCertList[i];
-    nsCOMPtr<nsISerializable> serializableCert = do_QueryInterface(cert);
-    rv = aStream->WriteCompoundObject(serializableCert,
-                                      NS_GET_IID(nsIX509Cert), true);
-    if (NS_FAILED(rv)) {
-      break;
-    }
-  }
-
-  return rv;
-}
-
-NS_IMETHODIMP
-nsNSSCertListFakeTransport::Read(nsIObjectInputStream* aStream)
-{
-  uint32_t certListLen;
-  nsresult rv = aStream->Read32(&certListLen);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
-  for (uint32_t i = 0; i < certListLen; i++) {
-    nsCOMPtr<nsISupports> certSupports;
-    rv = aStream->ReadObject(true, getter_AddRefs(certSupports));
-    if (NS_FAILED(rv)) {
-      break;
-    }
-
-    nsCOMPtr<nsIX509Cert> cert = do_QueryInterface(certSupports);
-    mFakeCertList.append(cert);
-  }
-
-  return rv;
 }

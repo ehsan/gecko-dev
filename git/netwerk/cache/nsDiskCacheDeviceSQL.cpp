@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 #include "mozilla/Attributes.h"
 
 #include "nsCache.h"
@@ -25,10 +25,7 @@
 #include "nsArrayUtils.h"
 #include "nsIArray.h"
 #include "nsIVariant.h"
-#include "nsILoadContextInfo.h"
 #include "nsThreadUtils.h"
-#include "nsISerializable.h"
-#include "nsSerializationHelper.h"
 
 #include "mozIStorageService.h"
 #include "mozIStorageStatement.h"
@@ -38,6 +35,7 @@
 #include "nsICacheVisitor.h"
 #include "nsISeekableStream.h"
 
+#include "mozilla/FunctionTimer.h"
 #include "mozilla/Telemetry.h"
 
 #include "sqlite3.h"
@@ -91,7 +89,7 @@ DecomposeCacheEntryKey(const nsCString *fullKey,
 class AutoResetStatement
 {
   public:
-    explicit AutoResetStatement(mozIStorageStatement *s)
+    AutoResetStatement(mozIStorageStatement *s)
       : mStatement(s) {}
     ~AutoResetStatement() { mStatement->Reset(); }
     mozIStorageStatement *operator->() { return mStatement; }
@@ -129,7 +127,7 @@ class EvictionObserver
     nsRefPtr<nsOfflineCacheEvictionFunction> mEvictionFunction;
 };
 
-#define DCACHE_HASH_MAX  INT64_MAX
+#define DCACHE_HASH_MAX  LL_MAXINT
 #define DCACHE_HASH_BITS 64
 
 /**
@@ -151,7 +149,7 @@ DCacheHash(const char * key)
  * nsOfflineCacheEvictionFunction
  */
 
-NS_IMPL_ISUPPORTS(nsOfflineCacheEvictionFunction, mozIStorageFunction)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsOfflineCacheEvictionFunction, mozIStorageFunction)
 
 // helper function for directly exposing the same data file binding
 // path algorithm used in nsOfflineCacheBinding::Create
@@ -193,8 +191,8 @@ nsOfflineCacheEvictionFunction::OnFunctionCall(mozIStorageValueArray *values, ns
   uint32_t valueLen;
   const char *clientID = values->AsSharedUTF8String(0, &valueLen);
   const char *key = values->AsSharedUTF8String(1, &valueLen);
-  nsAutoCString fullKey(clientID);
-  fullKey.Append(':');
+  nsCAutoString fullKey(clientID);
+  fullKey.AppendLiteral(":");
   fullKey.Append(key);
   int generation  = values->AsInt32(2);
 
@@ -226,7 +224,7 @@ nsOfflineCacheEvictionFunction::Apply()
 
   for (int32_t i = 0; i < mItems.Count(); i++) {
 #if defined(PR_LOGGING)
-    nsAutoCString path;
+    nsCAutoString path;
     mItems[i]->GetNativePath(path);
     LOG(("  removing %s\n", path.get()));
 #endif
@@ -275,17 +273,15 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSICACHEDEVICEINFO
 
-  explicit nsOfflineCacheDeviceInfo(nsOfflineCacheDevice* device)
+  nsOfflineCacheDeviceInfo(nsOfflineCacheDevice* device)
     : mDevice(device)
   {}
 
 private:
-  ~nsOfflineCacheDeviceInfo() {}
-
   nsOfflineCacheDevice* mDevice;
 };
 
-NS_IMPL_ISUPPORTS(nsOfflineCacheDeviceInfo, nsICacheDeviceInfo)
+NS_IMPL_ISUPPORTS1(nsOfflineCacheDeviceInfo, nsICacheDeviceInfo)
 
 NS_IMETHODIMP
 nsOfflineCacheDeviceInfo::GetDescription(char **aDescription)
@@ -297,7 +293,7 @@ nsOfflineCacheDeviceInfo::GetDescription(char **aDescription)
 NS_IMETHODIMP
 nsOfflineCacheDeviceInfo::GetUsageReport(char ** usageReport)
 {
-  nsAutoCString buffer;
+  nsCAutoString buffer;
   buffer.AssignLiteral("  <tr>\n"
                        "    <th>Cache Directory:</th>\n"
                        "    <td>");
@@ -349,10 +345,8 @@ nsOfflineCacheDeviceInfo::GetMaximumSize(uint32_t *aMaximumSize)
 
 class nsOfflineCacheBinding MOZ_FINAL : public nsISupports
 {
-  ~nsOfflineCacheBinding() {}
-
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   static nsOfflineCacheBinding *
       Create(nsIFile *cacheDir, const nsCString *key, int generation);
@@ -368,7 +362,7 @@ public:
   void ClearNewEntry() { mFlags &= ~FLAG_NEW_ENTRY; }
 };
 
-NS_IMPL_ISUPPORTS0(nsOfflineCacheBinding)
+NS_IMPL_THREADSAFE_ISUPPORTS0(nsOfflineCacheBinding)
 
 nsOfflineCacheBinding *
 nsOfflineCacheBinding::Create(nsIFile *cacheDir,
@@ -380,7 +374,7 @@ nsOfflineCacheBinding::Create(nsIFile *cacheDir,
   if (!file)
     return nullptr;
 
-  nsAutoCString keyBuf;
+  nsCAutoString keyBuf;
   const char *cid, *key;
   if (!DecomposeCacheEntryKey(fullKey, &cid, &key, keyBuf))
     return nullptr;
@@ -483,19 +477,6 @@ CreateCacheEntry(nsOfflineCacheDevice *device,
 
   entry->UnflattenMetaData((const char *) rec.metaData, rec.metaDataLen);
 
-  // Restore security info, if present
-  const char* info = entry->GetMetaDataElement("security-info");
-  if (info) {
-    nsCOMPtr<nsISupports> infoObj;
-    rv = NS_DeserializeObject(nsDependentCString(info),
-                              getter_AddRefs(infoObj));
-    if (NS_FAILED(rv)) {
-      delete entry;
-      return nullptr;
-    }
-    entry->SetSecurityInfo(infoObj);
-  }
-
   // create a binding object for this entry
   nsOfflineCacheBinding *binding =
       nsOfflineCacheBinding::Create(device->CacheDirectory(),
@@ -518,8 +499,6 @@ CreateCacheEntry(nsOfflineCacheDevice *device,
 
 class nsOfflineCacheEntryInfo MOZ_FINAL : public nsICacheEntryInfo
 {
-  ~nsOfflineCacheEntryInfo() {}
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSICACHEENTRYINFO
@@ -527,7 +506,7 @@ public:
   nsOfflineCacheRecord *mRec;
 };
 
-NS_IMPL_ISUPPORTS(nsOfflineCacheEntryInfo, nsICacheEntryInfo)
+NS_IMPL_ISUPPORTS1(nsOfflineCacheEntryInfo, nsICacheEntryInfo)
 
 NS_IMETHODIMP
 nsOfflineCacheEntryInfo::GetClientID(char **result)
@@ -597,7 +576,7 @@ nsOfflineCacheEntryInfo::GetDataSize(uint32_t *aDataSize)
  * nsApplicationCacheNamespace
  */
 
-NS_IMPL_ISUPPORTS(nsApplicationCacheNamespace, nsIApplicationCacheNamespace)
+NS_IMPL_ISUPPORTS1(nsApplicationCacheNamespace, nsIApplicationCacheNamespace)
 
 NS_IMETHODIMP
 nsApplicationCacheNamespace::Init(uint32_t itemType,
@@ -635,9 +614,9 @@ nsApplicationCacheNamespace::GetData(nsACString &out)
  * nsApplicationCache
  */
 
-NS_IMPL_ISUPPORTS(nsApplicationCache,
-                  nsIApplicationCache,
-                  nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS2(nsApplicationCache,
+                   nsIApplicationCache,
+                   nsISupportsWeakReference)
 
 nsApplicationCache::nsApplicationCache()
   : mDevice(nullptr)
@@ -660,10 +639,7 @@ nsApplicationCache::~nsApplicationCache()
   if (!mDevice)
     return;
 
-  {
-    MutexAutoLock lock(mDevice->mLock);
-    mDevice->mCaches.Remove(mClientID);
-  }
+  mDevice->mCaches.Remove(mClientID);
 
   // If this isn't an active cache anymore, it can be destroyed.
   if (mValid && !mDevice->IsActiveCache(mGroup, mClientID))
@@ -685,19 +661,6 @@ nsApplicationCache::InitAsHandle(const nsACString &groupId,
 
   mGroup = groupId;
   mClientID = clientId;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationCache::GetManifestURI(nsIURI **out)
-{
-  nsCOMPtr<nsIURI> uri;
-  nsresult rv = NS_NewURI(getter_AddRefs(uri), mGroup);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = uri->CloneIgnoringRef(out);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   return NS_OK;
 }
 
@@ -861,7 +824,7 @@ nsApplicationCache::GetUsage(uint32_t *usage)
 
 class nsCloseDBEvent : public nsRunnable {
 public:
-  explicit nsCloseDBEvent(mozIStorageConnection *aDB)
+  nsCloseDBEvent(mozIStorageConnection *aDB)
   {
     mDB = aDB;
   }
@@ -885,21 +848,15 @@ private:
  * nsOfflineCacheDevice
  */
 
-NS_IMPL_ISUPPORTS0(nsOfflineCacheDevice)
+NS_IMPL_THREADSAFE_ISUPPORTS0(nsOfflineCacheDevice)
 
 nsOfflineCacheDevice::nsOfflineCacheDevice()
   : mDB(nullptr)
   , mCacheCapacity(0)
   , mDeltaCounter(0)
   , mAutoShutdown(false)
-  , mLock("nsOfflineCacheDevice.lock")
-  , mActiveCaches(4)
-  , mLockedEntries(32)
 {
 }
-
-nsOfflineCacheDevice::~nsOfflineCacheDevice()
-{}
 
 /* static */
 bool
@@ -943,30 +900,15 @@ nsresult
 nsOfflineCacheDevice::UpdateEntry(nsCacheEntry *entry)
 {
   // Decompose the key into "ClientID" and "Key"
-  nsAutoCString keyBuf;
+  nsCAutoString keyBuf;
   const char *cid, *key;
 
   if (!DecomposeCacheEntryKey(entry->Key(), &cid, &key, keyBuf))
     return NS_ERROR_UNEXPECTED;
 
-  // Store security info, if it is serializable
-  nsCOMPtr<nsISupports> infoObj = entry->SecurityInfo();
-  nsCOMPtr<nsISerializable> serializable = do_QueryInterface(infoObj);
-  if (infoObj && !serializable)
-    return NS_ERROR_UNEXPECTED;
-
-  if (serializable) {
-    nsCString info;
-    nsresult rv = NS_SerializeToString(serializable, info);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = entry->SetMetaDataElement("security-info", info.get());
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
   nsCString metaDataBuf;
   uint32_t mdSize = entry->MetaDataSize();
-  if (!metaDataBuf.SetLength(mdSize, fallible_t()))
+  if (!EnsureStringLength(metaDataBuf, mdSize))
     return NS_ERROR_OUT_OF_MEMORY;
   char *md = metaDataBuf.BeginWriting();
   entry->FlattenMetaData(md, mdSize);
@@ -1026,7 +968,7 @@ nsresult
 nsOfflineCacheDevice::UpdateEntrySize(nsCacheEntry *entry, uint32_t newSize)
 {
   // Decompose the key into "ClientID" and "Key"
-  nsAutoCString keyBuf;
+  nsCAutoString keyBuf;
   const char *cid, *key;
   if (!DecomposeCacheEntryKey(entry->Key(), &cid, &key, keyBuf))
     return NS_ERROR_UNEXPECTED;
@@ -1063,7 +1005,7 @@ nsOfflineCacheDevice::DeleteEntry(nsCacheEntry *entry, bool deleteData)
   }
 
   // Decompose the key into "ClientID" and "Key"
-  nsAutoCString keyBuf;
+  nsCAutoString keyBuf;
   const char *cid, *key;
   if (!DecomposeCacheEntryKey(entry->Key(), &cid, &key, keyBuf))
     return NS_ERROR_UNEXPECTED;
@@ -1109,13 +1051,8 @@ struct StatementSql {
 nsresult
 nsOfflineCacheDevice::Init()
 {
-  MOZ_ASSERT(false, "Need to be initialized with sqlite");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
+  NS_TIME_FUNCTION;
 
-nsresult
-nsOfflineCacheDevice::InitWithSqlite(mozIStorageService * ss)
-{
   NS_ENSURE_TRUE(!mDB, NS_ERROR_ALREADY_INITIALIZED);
 
   // SetCacheParentDirectory must have been called
@@ -1132,8 +1069,9 @@ nsOfflineCacheDevice::InitWithSqlite(mozIStorageService * ss)
   rv = indexFile->AppendNative(NS_LITERAL_CSTRING("index.sqlite"));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  MOZ_ASSERT(ss, "nsOfflineCacheDevice::InitWithSqlite called before nsCacheService::Init() ?");
-  NS_ENSURE_TRUE(ss, NS_ERROR_UNEXPECTED);
+  nsCOMPtr<mozIStorageService> ss =
+      do_GetService("@mozilla.org/storage/service;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   rv = ss->OpenDatabase(indexFile, getter_AddRefs(mDB));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1267,7 +1205,6 @@ nsOfflineCacheDevice::InitWithSqlite(mozIStorageService * ss)
                                                      " AND NameSpace <= ?2 AND ?2 GLOB NameSpace || '*'"
                                                      " ORDER BY NameSpace DESC;"),
     StatementSql ( mStatement_InsertNamespaceEntry,  "INSERT INTO moz_cache_namespaces (ClientID, NameSpace, Data, ItemType) VALUES(?, ?, ?, ?);"),
-    StatementSql ( mStatement_EnumerateApps,         "SELECT GroupID, ActiveClientID FROM moz_cache_groups WHERE GroupID LIKE ?1;"),
     StatementSql ( mStatement_EnumerateGroups,       "SELECT GroupID, ActiveClientID FROM moz_cache_groups;"),
     StatementSql ( mStatement_EnumerateGroupsTimeOrder, "SELECT GroupID, ActiveClientID FROM moz_cache_groups ORDER BY ActivateTimeStamp;")
   };
@@ -1286,80 +1223,15 @@ nsOfflineCacheDevice::InitWithSqlite(mozIStorageService * ss)
   return NS_OK;
 }
 
-namespace {
-
-nsresult
-GetGroupForCache(const nsCSubstring &clientID, nsCString &group)
-{
-  group.Assign(clientID);
-  group.Truncate(group.FindChar('|'));
-  NS_UnescapeURL(group);
-
-  return NS_OK;
-}
-
-nsresult
-AppendJARIdentifier(nsACString &_result, int32_t appId, bool isInBrowserElement)
-{
-    _result.Append('#');
-    _result.AppendInt(appId);
-    _result.Append('+');
-    _result.Append(isInBrowserElement ? 't' : 'f');
-
-    return NS_OK;
-}
-
-nsresult
-GetJARIdentifier(nsIURI *aURI,
-                 uint32_t appId, bool isInBrowserElement,
-                 nsACString &_result)
-{
-    _result.Truncate();
-
-    // These lines are here for compatibility only.  We must not fill the
-    // JAR identifier when this is no-app context, otherwise web content
-    // offline application cache loads would not be satisfied (cache would
-    // not be found).
-    if (!isInBrowserElement && appId == NECKO_NO_APP_ID)
-        return NS_OK;
-
-    // This load context has some special attributes, create a jar identifier
-    return AppendJARIdentifier(_result, appId, isInBrowserElement);
-}
-
-} // anon namespace
-
-// static
-nsresult
-nsOfflineCacheDevice::BuildApplicationCacheGroupID(nsIURI *aManifestURL,
-                                                   uint32_t appId, bool isInBrowserElement,
-                                                   nsACString &_result)
-{
-  nsCOMPtr<nsIURI> newURI;
-  nsresult rv = aManifestURL->CloneIgnoringRef(getter_AddRefs(newURI));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsAutoCString manifestSpec;
-  rv = newURI->GetAsciiSpec(manifestSpec);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  _result.Assign(manifestSpec);
-
-  nsAutoCString jarid;
-  rv = GetJARIdentifier(aManifestURL, appId, isInBrowserElement, jarid);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Include JAR ID, i.e. the extended origin if present.
-  if (!jarid.IsEmpty())
-    _result.Append(jarid);
-
-  return NS_OK;
-}
-
 nsresult
 nsOfflineCacheDevice::InitActiveCaches()
 {
-  MutexAutoLock lock(mLock);
+  mCaches.Init();
+  mActiveCachesByGroup.Init();
+
+  mActiveCaches.Init(5);
+
+  mLockedEntries.Init(64);
 
   AutoResetStatement statement(mStatement_EnumerateGroups);
 
@@ -1369,7 +1241,7 @@ nsOfflineCacheDevice::InitActiveCaches()
 
   while (hasRows)
   {
-    nsAutoCString group;
+    nsCAutoString group;
     statement->GetUTF8String(0, group);
     nsCString clientID;
     statement->GetUTF8String(1, clientID);
@@ -1405,10 +1277,8 @@ nsOfflineCacheDevice::Shutdown()
 {
   NS_ENSURE_TRUE(mDB, NS_ERROR_NOT_INITIALIZED);
 
-  {
-    MutexAutoLock lock(mLock);
+  if (mCaches.IsInitialized())
     mCaches.EnumerateRead(ShutdownApplicationCache, this);
-  }
 
   {
   EvictionObserver evictionObserver(mDB, mEvictionFunction);
@@ -1459,7 +1329,6 @@ nsOfflineCacheDevice::Shutdown()
   mStatement_DeactivateGroup = nullptr;
   mStatement_FindClient = nullptr;
   mStatement_FindClientByNamespace = nullptr;
-  mStatement_EnumerateApps = nullptr;
   mStatement_EnumerateGroups = nullptr;
   mStatement_EnumerateGroupsTimeOrder = nullptr;
   }
@@ -1501,7 +1370,7 @@ nsOfflineCacheDevice::FindEntry(nsCString *fullKey, bool *collision)
   // SELECT * FROM moz_cache WHERE key = ?
 
   // Decompose the key into "ClientID" and "Key"
-  nsAutoCString keyBuf;
+  nsCAutoString keyBuf;
   const char *cid, *key;
   if (!DecomposeCacheEntryKey(fullKey, &cid, &key, keyBuf))
     return nullptr;
@@ -1619,7 +1488,7 @@ nsOfflineCacheDevice::BindEntry(nsCacheEntry *entry)
   // it from the table.  so, we should always have to insert at this point.
 
   // Decompose the key into "ClientID" and "Key"
-  nsAutoCString keyBuf;
+  nsCAutoString keyBuf;
   const char *cid, *key;
   if (!DecomposeCacheEntryKey(entry->Key(), &cid, &key, keyBuf))
     return NS_ERROR_UNEXPECTED;
@@ -1634,7 +1503,7 @@ nsOfflineCacheDevice::BindEntry(nsCacheEntry *entry)
   nsOfflineCacheRecord rec;
   rec.clientID = cid;
   rec.key = key;
-  rec.metaData = nullptr; // don't write any metadata now.
+  rec.metaData = NULL; // don't write any metadata now.
   rec.metaDataLen = 0;
   rec.generation = binding->mGeneration;
   rec.dataSize = 0;
@@ -1782,9 +1651,9 @@ nsOfflineCacheDevice::OpenOutputStreamForEntry(nsCacheEntry       *entry,
   seekable->SetEOF();
 
   nsCOMPtr<nsIOutputStream> bufferedOut;
-  nsresult rv =
-    NS_NewBufferedOutputStream(getter_AddRefs(bufferedOut), out, 16 * 1024);
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_NewBufferedOutputStream(getter_AddRefs(bufferedOut), out, 16 * 1024);
+  if (!bufferedOut)
+    return NS_ERROR_UNEXPECTED;
 
   bufferedOut.swap(*result);
   return NS_OK;
@@ -1881,8 +1750,8 @@ nsOfflineCacheDevice::Visit(nsICacheVisitor *visitor)
     if (NS_FAILED(rv) || !hasRows)
       break;
 
-    statement->GetSharedUTF8String(0, nullptr, &rec.clientID);
-    statement->GetSharedUTF8String(1, nullptr, &rec.key);
+    statement->GetSharedUTF8String(0, NULL, &rec.clientID);
+    statement->GetSharedUTF8String(1, NULL, &rec.key);
     statement->GetSharedBlob(2, &rec.metaDataLen,
                              (const uint8_t **) &rec.metaData);
     rec.generation     = statement->AsInt32(3);
@@ -2246,21 +2115,18 @@ nsOfflineCacheDevice::GetGroupsTimeOrdered(uint32_t *count,
 bool
 nsOfflineCacheDevice::IsLocked(const nsACString &key)
 {
-  MutexAutoLock lock(mLock);
   return mLockedEntries.GetEntry(key);
 }
 
 void
 nsOfflineCacheDevice::Lock(const nsACString &key)
 {
-  MutexAutoLock lock(mLock);
   mLockedEntries.PutEntry(key);
 }
 
 void
 nsOfflineCacheDevice::Unlock(const nsACString &key)
 {
-  MutexAutoLock lock(mLock);
   mLockedEntries.RemoveEntry(key);
 }
 
@@ -2333,7 +2199,6 @@ nsOfflineCacheDevice::CreateApplicationCache(const nsACString &group,
   if (!weak)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  MutexAutoLock lock(mLock);
   mCaches.Put(clientID, weak);
 
   cache.swap(*out);
@@ -2344,14 +2209,6 @@ nsOfflineCacheDevice::CreateApplicationCache(const nsACString &group,
 nsresult
 nsOfflineCacheDevice::GetApplicationCache(const nsACString &clientID,
                                           nsIApplicationCache **out)
-{
-  MutexAutoLock lock(mLock);
-  return GetApplicationCache_Unlocked(clientID, out);
-}
-
-nsresult
-nsOfflineCacheDevice::GetApplicationCache_Unlocked(const nsACString &clientID,
-                                                   nsIApplicationCache **out)
 {
   *out = nullptr;
 
@@ -2390,11 +2247,9 @@ nsOfflineCacheDevice::GetActiveCache(const nsACString &group,
 {
   *out = nullptr;
 
-  MutexAutoLock lock(mLock);
-
   nsCString *clientID;
   if (mActiveCachesByGroup.Get(group, &clientID))
-    return GetApplicationCache_Unlocked(*clientID, out);
+    return GetApplicationCache(*clientID, out);
 
   return NS_OK;
 }
@@ -2411,8 +2266,6 @@ nsOfflineCacheDevice::DeactivateGroup(const nsACString &group)
   rv = statement->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  MutexAutoLock lock(mLock);
-
   if (mActiveCachesByGroup.Get(group, &active))
   {
     mActiveCaches.RemoveEntry(*active);
@@ -2423,111 +2276,35 @@ nsOfflineCacheDevice::DeactivateGroup(const nsACString &group)
   return NS_OK;
 }
 
-nsresult
-nsOfflineCacheDevice::DiscardByAppId(int32_t appID, bool browserEntriesOnly)
+bool
+nsOfflineCacheDevice::CanUseCache(nsIURI *keyURI, const nsCString &clientID)
 {
-  nsresult rv;
+  if (mActiveCaches.Contains(clientID)) {
+    nsCAutoString groupID;
+    nsresult rv = GetGroupForCache(clientID, groupID);
+    NS_ENSURE_SUCCESS(rv, false);
 
-  nsAutoCString jaridsuffix;
-  jaridsuffix.Append('%');
-  rv = AppendJARIdentifier(jaridsuffix, appID, browserEntriesOnly);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  {
-    AutoResetStatement statement(mStatement_EnumerateApps);
-    rv = statement->BindUTF8StringByIndex(0, jaridsuffix);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    bool hasRows;
-    rv = statement->ExecuteStep(&hasRows);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    while (hasRows) {
-      nsAutoCString group;
-      rv = statement->GetUTF8String(0, group);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      nsCString clientID;
-      rv = statement->GetUTF8String(1, clientID);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      nsCOMPtr<nsIRunnable> ev =
-        new nsOfflineCacheDiscardCache(this, group, clientID);
-
-      rv = nsCacheService::DispatchToCacheIOThread(ev);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      rv = statement->ExecuteStep(&hasRows);
-      NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsIURI> groupURI;
+    rv = NS_NewURI(getter_AddRefs(groupURI), groupID);
+    if (NS_SUCCEEDED(rv)) {
+      // When we are choosing an initial cache to load the top
+      // level document from, the URL of that document must have
+      // the same origin as the manifest, according to the spec.
+      // The following check is here because explicit, fallback
+      // and dynamic entries might have origin different from the
+      // manifest origin.
+      if (NS_SecurityCompareURIs(keyURI, groupURI,
+                                 GetStrictFileOriginPolicy()))
+        return true;
     }
   }
 
-  if (!browserEntriesOnly) {
-    // If deleting app, delete any 'inBrowserElement' entries too
-    rv = DiscardByAppId(appID, true);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  return NS_OK;
-}
-
-bool
-nsOfflineCacheDevice::CanUseCache(nsIURI *keyURI,
-                                  const nsACString &clientID,
-                                  nsILoadContextInfo *loadContextInfo)
-{
-  {
-    MutexAutoLock lock(mLock);
-    if (!mActiveCaches.Contains(clientID))
-      return false;
-  }
-
-  nsAutoCString groupID;
-  nsresult rv = GetGroupForCache(clientID, groupID);
-  NS_ENSURE_SUCCESS(rv, false);
-
-  nsCOMPtr<nsIURI> groupURI;
-  rv = NS_NewURI(getter_AddRefs(groupURI), groupID);
-  if (NS_FAILED(rv))
-    return false;
-
-  // When we are choosing an initial cache to load the top
-  // level document from, the URL of that document must have
-  // the same origin as the manifest, according to the spec.
-  // The following check is here because explicit, fallback
-  // and dynamic entries might have origin different from the
-  // manifest origin.
-  if (!NS_SecurityCompareURIs(keyURI, groupURI,
-                              GetStrictFileOriginPolicy()))
-    return false;
-
-  // Get extended origin attributes
-  uint32_t appId = NECKO_NO_APP_ID;
-  bool isInBrowserElement = false;
-
-  if (loadContextInfo) {
-      appId = loadContextInfo->AppId();
-      isInBrowserElement = loadContextInfo->IsInBrowserElement();
-  }
-
-  // Check the groupID we found is equal to groupID based
-  // on the load context demanding load from app cache.
-  // This is check of extended origin.
-  nsAutoCString demandedGroupID;
-  rv = BuildApplicationCacheGroupID(groupURI, appId, isInBrowserElement,
-                                    demandedGroupID);
-  NS_ENSURE_SUCCESS(rv, false);
-
-  if (groupID != demandedGroupID)
-    return false;
-
-  return true;
+  return false;
 }
 
 
 nsresult
 nsOfflineCacheDevice::ChooseApplicationCache(const nsACString &key,
-                                             nsILoadContextInfo *loadContextInfo,
                                              nsIApplicationCache **out)
 {
   *out = nullptr;
@@ -2551,11 +2328,11 @@ nsOfflineCacheDevice::ChooseApplicationCache(const nsACString &key,
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (!(itemType & nsIApplicationCache::ITEM_FOREIGN)) {
-      nsAutoCString clientID;
+      nsCAutoString clientID;
       rv = statement->GetUTF8String(0, clientID);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      if (CanUseCache(keyURI, clientID, loadContextInfo)) {
+      if (CanUseCache(keyURI, clientID)) {
         return GetApplicationCache(clientID, out);
       }
     }
@@ -2583,11 +2360,11 @@ nsOfflineCacheDevice::ChooseApplicationCache(const nsACString &key,
 
     // Don't associate with a cache based solely on a whitelist entry
     if (!(itemType & nsIApplicationCacheNamespace::NAMESPACE_BYPASS)) {
-      nsAutoCString clientID;
+      nsCAutoString clientID;
       rv = nsstatement->GetUTF8String(0, clientID);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      if (CanUseCache(keyURI, clientID, loadContextInfo)) {
+      if (CanUseCache(keyURI, clientID)) {
         return GetApplicationCache(clientID, out);
       }
     }
@@ -2607,7 +2384,7 @@ nsOfflineCacheDevice::CacheOpportunistically(nsIApplicationCache* cache,
 
   nsresult rv;
 
-  nsAutoCString clientID;
+  nsCAutoString clientID;
   rv = cache->GetClientID(clientID);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2628,8 +2405,6 @@ nsOfflineCacheDevice::ActivateCache(const nsCSubstring &group,
 
   rv = statement->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
-
-  MutexAutoLock lock(mLock);
 
   nsCString *active;
   if (mActiveCachesByGroup.Get(group, &active))
@@ -2653,8 +2428,18 @@ nsOfflineCacheDevice::IsActiveCache(const nsCSubstring &group,
                                     const nsCSubstring &clientID)
 {
   nsCString *active = nullptr;
-  MutexAutoLock lock(mLock);
   return mActiveCachesByGroup.Get(group, &active) && *active == clientID;
+}
+
+nsresult
+nsOfflineCacheDevice::GetGroupForCache(const nsACString &clientID,
+                                       nsCString &out)
+{
+  out.Assign(clientID);
+  out.Truncate(out.FindChar('|'));
+  NS_UnescapeURL(out);
+
+  return NS_OK;
 }
 
 /**
@@ -2717,10 +2502,8 @@ nsOfflineCacheDevice::AutoShutdown(nsIApplicationCache * aAppCache)
   nsRefPtr<nsCacheService> cacheService = nsCacheService::GlobalInstance();
   cacheService->RemoveCustomOfflineDevice(this);
 
-  nsAutoCString clientID;
+  nsCAutoString clientID;
   aAppCache->GetClientID(clientID);
-
-  MutexAutoLock lock(mLock);
   mCaches.Remove(clientID);
 
   return true;

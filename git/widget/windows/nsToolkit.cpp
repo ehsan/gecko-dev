@@ -9,17 +9,16 @@
 #include "nsWidgetsCID.h"
 #include "prmon.h"
 #include "prtime.h"
+#include "nsGUIEvent.h"
 #include "nsIServiceManager.h"
 #include "nsComponentManagerUtils.h"
 #include <objbase.h>
-#include "WinUtils.h"
+#include <initguid.h>
 
 #include "nsUXThemeData.h"
 
 // unknwn.h is needed to build with WIN32_LEAN_AND_MEAN
 #include <unknwn.h>
-
-using namespace mozilla::widget;
 
 nsToolkit* nsToolkit::gToolkit = nullptr;
 HINSTANCE nsToolkit::mDllInstance = 0;
@@ -28,9 +27,7 @@ static const unsigned long kD3DUsageDelay = 5000;
 static void
 StartAllowingD3D9(nsITimer *aTimer, void *aClosure)
 {
-  if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Desktop) {
-    nsWindow::StartAllowingD3D9(true);
-  }
+  nsWindow::StartAllowingD3D9(true);
 }
 
 MouseTrailer*       nsToolkit::gMouseTrailer;
@@ -45,18 +42,16 @@ nsToolkit::nsToolkit()
     MOZ_COUNT_CTOR(nsToolkit);
 
 #if defined(MOZ_STATIC_COMPONENT_LIBS)
-    nsToolkit::Startup(GetModuleHandle(nullptr));
+    nsToolkit::Startup(GetModuleHandle(NULL));
 #endif
 
     gMouseTrailer = &mMouseTrailer;
 
-    if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Desktop) {
-      mD3D9Timer = do_CreateInstance("@mozilla.org/timer;1");
-      mD3D9Timer->InitWithFuncCallback(::StartAllowingD3D9,
-                                       nullptr,
-                                       kD3DUsageDelay,
-                                       nsITimer::TYPE_ONE_SHOT);
-    }
+    mD3D9Timer = do_CreateInstance("@mozilla.org/timer;1");
+    mD3D9Timer->InitWithFuncCallback(::StartAllowingD3D9,
+                                     NULL,
+                                     kD3DUsageDelay,
+                                     nsITimer::TYPE_ONE_SHOT);
 }
 
 
@@ -75,7 +70,6 @@ void
 nsToolkit::Startup(HMODULE hModule)
 {
     nsToolkit::mDllInstance = hModule;
-    WinUtils::Initialize();
     nsUXThemeData::Initialize();
 }
 
@@ -89,10 +83,8 @@ nsToolkit::Shutdown()
 void
 nsToolkit::StartAllowingD3D9()
 {
-  if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Desktop) {
-    nsToolkit::GetToolkit()->mD3D9Timer->Cancel();
-    nsWindow::StartAllowingD3D9(false);
-  }
+  nsToolkit::GetToolkit()->mD3D9Timer->Cancel();
+  nsWindow::StartAllowingD3D9(false);
 }
 
 //-------------------------------------------------------------------------

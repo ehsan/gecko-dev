@@ -9,11 +9,6 @@ const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 const PREF_DEBUG = "toolkit.identity.debug";
 const PREF_ENABLED = "dom.identity.enabled";
 
-// Bug 822450: Workaround for Bug 821740.  When testing with marionette,
-// relax navigator.id.request's requirement that it be handling native
-// events.  Synthetic marionette events are ok.
-const PREF_SYNTHETIC_EVENTS_OK = "dom.identity.syntheticEventsOk";
-
 // Maximum length of a string that will go through IPC
 const MAX_STRING_LENGTH = 2048;
 // Maximum number of times navigator.id.request can be called for a document
@@ -22,127 +17,88 @@ const MAX_RP_CALLS = 100;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "checkDeprecated",
-                                  "resource://gre/modules/identity/IdentityUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "checkRenamed",
-                                  "resource://gre/modules/identity/IdentityUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "objectCopy",
-                                  "resource://gre/modules/identity/IdentityUtils.jsm");
-
-XPCOMUtils.defineLazyServiceGetter(this, "uuidgen",
-                                   "@mozilla.org/uuid-generator;1",
-                                   "nsIUUIDGenerator");
-
-// This is the child process corresponding to nsIDOMIdentity
-XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
-                                   "@mozilla.org/childprocessmessagemanager;1",
-                                   "nsIMessageSender");
+// This is the child process corresponding to nsIDOMIdentity.
 
 
-const ERRORS = {
-  "ERROR_INVALID_ASSERTION_AUDIENCE":
-    "Assertion audience may not differ from origin",
-  "ERROR_REQUEST_WHILE_NOT_HANDLING_USER_INPUT":
-    "The request() method may only be invoked when handling user input",
-};
-
-function nsDOMIdentity() {
+function nsDOMIdentity(aIdentityInternal) {
+  this._identityInternal = aIdentityInternal;
 }
-
 nsDOMIdentity.prototype = {
+  __exposedProps__: {
+    // Relying Party (RP)
+    watch: 'r',
+    request: 'r',
+    logout: 'r',
 
-  // require native events unless syntheticEventsOk is set
-  get nativeEventsRequired() {
-    if (Services.prefs.prefHasUserValue(PREF_SYNTHETIC_EVENTS_OK) &&
-        (Services.prefs.getPrefType(PREF_SYNTHETIC_EVENTS_OK) ===
-         Ci.nsIPrefBranch.PREF_BOOL)) {
-      return !Services.prefs.getBoolPref(PREF_SYNTHETIC_EVENTS_OK);
-    }
-    return true;
+    // Provisioning
+    beginProvisioning: 'r',
+    genKeyPair: 'r',
+    registerCertificate: 'r',
+    raiseProvisioningFailure: 'r',
+
+    // Authentication
+    beginAuthentication: 'r',
+    completeAuthentication: 'r',
+    raiseAuthenticationFailure: 'r',
   },
 
-  reportErrors: function(message) {
-    let onerror = function() {};
-    if (this._rpWatcher && this._rpWatcher.onerror) {
-      onerror = this._rpWatcher.onerror;
-    }
-
-    message.errors.forEach((error) => {
-      // Report an error string to content
-      Cu.reportError(ERRORS[error]);
-
-      // Report error code to RP callback, if available
-      onerror(error);
-    });
-  },
-
+  // nsIDOMIdentity
   /**
    * Relying Party (RP) APIs
    */
 
-  watch: function nsDOMIdentity_watch(aOptions = {}) {
-    aOptions = Cu.waiveXrays(aOptions);
+  watch: function nsDOMIdentity_watch(aOptions) {
+    this._log("watch");
     if (this._rpWatcher) {
-      // For the initial release of Firefox Accounts, we support callers who
-      // invoke watch() either for Firefox Accounts, or Persona, but not both.
-      // In the future, we may wish to support the dual invocation (say, for
-      // packaged apps so they can sign users in who reject the app's request
-      // to sign in with their Firefox Accounts identity).
       throw new Error("navigator.id.watch was already called");
     }
 
-    assertCorrectCallbacks(aOptions);
-
-    let message = this.DOMIdentityMessage(aOptions);
-
-    // loggedInUser vs loggedInEmail
-    // https://developer.mozilla.org/en-US/docs/DOM/navigator.id.watch
-    // This parameter, loggedInUser, was renamed from loggedInEmail in early
-    // September, 2012. Both names will continue to work for the time being,
-    // but code should be changed to use loggedInUser instead.
-    checkRenamed(aOptions, "loggedInEmail", "loggedInUser");
-
-    // Bad IPC or IDL converts null and undefined to "null" and "undefined".
-    // We can't assign to aOptions, which complicates the workaround.
-    message["loggedInUser"] = aOptions["loggedInUser"];
-    if (message.loggedInUser == "null" || message.loggedInUser == "undefined") {
-      message.loggedInUser = null;
+    if (!aOptions || typeof(aOptions) !== "object") {
+      throw new Error("options argument to watch is required");
     }
 
-    if (message.loggedInUser) {
-      if (typeof(message.loggedInUser) !== "string") {
-        throw new Error("loggedInUser must be a String or null");
+    // Check for required callbacks
+    let requiredCallbacks = ["onlogin", "onlogout"];
+    for (let cbName of requiredCallbacks) {
+      if ((!(cbName in aOptions))
+          || typeof(aOptions[cbName]) !== "function") {
+           throw new Error(cbName + " callback is required.");
+         }
+    }
+
+    // Optional callback "onready"
+    if (aOptions["onready"]
+        && typeof(aOptions['onready']) !== "function") {
+      throw new Error("onready must be a function");
+    }
+
+    let message = this.DOMIdentityMessage();
+
+    // loggedInEmail
+    message.loggedInEmail = null;
+    let emailType = typeof(aOptions["loggedInEmail"]);
+    if (aOptions["loggedInEmail"] && aOptions["loggedInEmail"] !== "undefined") {
+      if (emailType !== "string") {
+        throw new Error("loggedInEmail must be a String or null");
       }
 
       // TODO: Bug 767610 - check email format.
-      // See HTMLInputElement::IsValidEmailAddress
-      if (aOptions["loggedInUser"].indexOf("@") == -1
-          || aOptions["loggedInUser"].length > MAX_STRING_LENGTH) {
-        throw new Error("loggedInUser is not valid");
+      // See nsHTMLInputElement::IsValidEmailAddress
+      if (aOptions["loggedInEmail"].indexOf("@") == -1
+          || aOptions["loggedInEmail"].length > MAX_STRING_LENGTH) {
+        throw new Error("loggedInEmail is not valid");
       }
+      // Set loggedInEmail in this block that "undefined" doesn't get through.
+      message.loggedInEmail = aOptions.loggedInEmail;
     }
-    this._log("loggedInUser: " + message.loggedInUser);
+    this._log("loggedInEmail: " + message.loggedInEmail);
 
     this._rpWatcher = aOptions;
-    this._rpWatcher.audience = message.audience;
-
-    if (message.errors.length) {
-      this.reportErrors(message);
-      // We don't delete the rpWatcher object, because we don't want the
-      // broken client to be able to call watch() any more.  It's broken.
-      return;
-    }
-    this._mm.sendAsyncMessage(
-      "Identity:RP:Watch",
-      message,
-      null,
-      this._window.document.nodePrincipal
-    );
+    this._identityInternal._mm.sendAsyncMessage("Identity:RP:Watch", message);
   },
 
-  request: function nsDOMIdentity_request(aOptions = {}) {
-    aOptions = Cu.waiveXrays(aOptions);
-    this._log("request: " + JSON.stringify(aOptions));
+  request: function nsDOMIdentity_request(aOptions) {
+    // TODO: Bug 769569 - "must be invoked from within a click handler"
 
     // Has the caller called watch() before this?
     if (!this._rpWatcher) {
@@ -152,36 +108,7 @@ nsDOMIdentity.prototype = {
       throw new Error("navigator.id.request called too many times");
     }
 
-    let util = this._window.QueryInterface(Ci.nsIInterfaceRequestor)
-                           .getInterface(Ci.nsIDOMWindowUtils);
-
-    let message = this.DOMIdentityMessage(aOptions);
-
-    // We permit calling of request() outside of a user input handler only when
-    // a certified or privileged app is calling, or when we are handling the
-    // (deprecated) get() or getVerifiedEmail() calls, which make use of an RP
-    // context marked as _internal.
-
-    if (!aOptions._internal &&
-        this._appStatus !== Ci.nsIPrincipal.APP_STATUS_CERTIFIED &&
-        this._appStatus !== Ci.nsIPrincipal.APP_STATUS_PRIVILEGED) {
-
-      // If the caller is not special in one of those ways, see if the user has
-      // preffed on 'syntheticEventsOk' (useful for testing); otherwise, if
-      // this is a non-native event, reject it.
-      let util = this._window.QueryInterface(Ci.nsIInterfaceRequestor)
-                             .getInterface(Ci.nsIDOMWindowUtils);
-
-      if (!util.isHandlingUserInput && this.nativeEventsRequired) {
-        message.errors.push("ERROR_REQUEST_WHILE_NOT_HANDLING_USER_INPUT");
-      }
-    }
-
-    // Report and fail hard on any errors.
-    if (message.errors.length) {
-      this.reportErrors(message);
-      return;
-    }
+    let message = this.DOMIdentityMessage();
 
     if (aOptions) {
       // Optional string properties
@@ -208,12 +135,7 @@ nsDOMIdentity.prototype = {
     }
 
     this._rpCalls++;
-    this._mm.sendAsyncMessage(
-      "Identity:RP:Request",
-      message,
-      null,
-      this._window.document.nodePrincipal
-    );
+    this._identityInternal._mm.sendAsyncMessage("Identity:RP:Request", message);
   },
 
   logout: function nsDOMIdentity_logout() {
@@ -226,85 +148,7 @@ nsDOMIdentity.prototype = {
 
     this._rpCalls++;
     let message = this.DOMIdentityMessage();
-
-    // Report and fail hard on any errors.
-    if (message.errors.length) {
-      this.reportErrors(message);
-      return;
-    }
-
-    this._mm.sendAsyncMessage(
-      "Identity:RP:Logout",
-      message,
-      null,
-      this._window.document.nodePrincipal
-    );
-  },
-
-  /*
-   * Get an assertion.  This function is deprecated.  RPs are
-   * encouraged to use the observer API instead (watch + request).
-   */
-  get: function nsDOMIdentity_get(aCallback, aOptions) {
-    var opts = {};
-    aOptions = aOptions || {};
-
-    // We use the observer API (watch + request) to implement get().
-    // Because the caller can call get() and getVerifiedEmail() as
-    // many times as they want, we lift the restriction that watch() can
-    // only be called once.
-    this._rpWatcher = null;
-
-    // This flag tells internal_api.js (in the shim) to record in the
-    // login parameters whether the assertion was acquired silently or
-    // with user interaction.
-    opts._internal = true;
-
-    opts.privacyPolicy = aOptions.privacyPolicy || undefined;
-    opts.termsOfService = aOptions.termsOfService || undefined;
-    opts.privacyURL = aOptions.privacyURL || undefined;
-    opts.tosURL = aOptions.tosURL || undefined;
-    opts.siteName = aOptions.siteName || undefined;
-    opts.siteLogo = aOptions.siteLogo || undefined;
-
-    opts.oncancel = function get_oncancel() {
-      if (aCallback) {
-        aCallback(null);
-        aCallback = null;
-      }
-    };
-
-    if (checkDeprecated(aOptions, "silent")) {
-      // Silent has been deprecated, do nothing. Placing the check here
-      // prevents the callback from being called twice, once with null and
-      // once after internalWatch has been called. See issue #1532:
-      // https://github.com/mozilla/browserid/issues/1532
-      if (aCallback) {
-        setTimeout(function() { aCallback(null); }, 0);
-      }
-      return;
-    }
-
-    // Get an assertion by using our observer api: watch + request.
-    var self = this;
-    this.watch({
-      _internal: true,
-      onlogin: function get_onlogin(assertion, internalParams) {
-        if (assertion && aCallback && internalParams && !internalParams.silent) {
-          aCallback(assertion);
-          aCallback = null;
-        }
-      },
-      onlogout: function get_onlogout() {},
-      onready: function get_onready() {
-        self.request(opts);
-      }
-    });
-  },
-
-  getVerifiedEmail: function nsDOMIdentity_getVerifiedEmail(aCallback) {
-    Cu.reportError("WARNING: getVerifiedEmail has been deprecated");
-    this.get(aCallback, {});
+    this._identityInternal._mm.sendAsyncMessage("Identity:RP:Logout", message);
   },
 
   /**
@@ -321,12 +165,8 @@ nsDOMIdentity.prototype = {
     }
 
     this._beginProvisioningCallback = aCallback;
-    this._mm.sendAsyncMessage(
-      "Identity:IDP:BeginProvisioning",
-      this.DOMIdentityMessage(),
-      null,
-      this._window.document.nodePrincipal
-    );
+    this._identityInternal._mm.sendAsyncMessage("Identity:IDP:BeginProvisioning",
+                                                this.DOMIdentityMessage());
   },
 
   genKeyPair: function nsDOMIdentity_genKeyPair(aCallback) {
@@ -342,12 +182,8 @@ nsDOMIdentity.prototype = {
     }
 
     this._genKeyPairCallback = aCallback;
-    this._mm.sendAsyncMessage(
-      "Identity:IDP:GenKeyPair",
-      this.DOMIdentityMessage(),
-      null,
-      this._window.document.nodePrincipal
-    );
+    this._identityInternal._mm.sendAsyncMessage("Identity:IDP:GenKeyPair",
+                                                this.DOMIdentityMessage());
   },
 
   registerCertificate: function nsDOMIdentity_registerCertificate(aCertificate) {
@@ -362,12 +198,7 @@ nsDOMIdentity.prototype = {
 
     let message = this.DOMIdentityMessage();
     message.cert = aCertificate;
-    this._mm.sendAsyncMessage(
-      "Identity:IDP:RegisterCertificate",
-      message,
-      null,
-      this._window.document.nodePrincipal
-    );
+    this._identityInternal._mm.sendAsyncMessage("Identity:IDP:RegisterCertificate", message);
   },
 
   raiseProvisioningFailure: function nsDOMIdentity_raiseProvisioningFailure(aReason) {
@@ -382,12 +213,7 @@ nsDOMIdentity.prototype = {
 
     let message = this.DOMIdentityMessage();
     message.reason = aReason;
-    this._mm.sendAsyncMessage(
-      "Identity:IDP:ProvisioningFailure",
-      message,
-      null,
-      this._window.document.nodePrincipal
-    );
+    this._identityInternal._mm.sendAsyncMessage("Identity:IDP:ProvisioningFailure", message);
   },
 
   /**
@@ -407,12 +233,8 @@ nsDOMIdentity.prototype = {
     }
 
     this._beginAuthenticationCallback = aCallback;
-    this._mm.sendAsyncMessage(
-      "Identity:IDP:BeginAuthentication",
-      this.DOMIdentityMessage(),
-      null,
-      this._window.document.nodePrincipal
-    );
+    this._identityInternal._mm.sendAsyncMessage("Identity:IDP:BeginAuthentication",
+                                                this.DOMIdentityMessage());
   },
 
   completeAuthentication: function nsDOMIdentity_completeAuthentication() {
@@ -424,12 +246,8 @@ nsDOMIdentity.prototype = {
     }
     this._authenticationEnded = true;
 
-    this._mm.sendAsyncMessage(
-      "Identity:IDP:CompleteAuthentication",
-      this.DOMIdentityMessage(),
-      null,
-      this._window.document.nodePrincipal
-    );
+    this._identityInternal._mm.sendAsyncMessage("Identity:IDP:CompleteAuthentication",
+                                                this.DOMIdentityMessage());
   },
 
   raiseAuthenticationFailure: function nsDOMIdentity_raiseAuthenticationFailure(aReason) {
@@ -442,12 +260,22 @@ nsDOMIdentity.prototype = {
 
     let message = this.DOMIdentityMessage();
     message.reason = aReason;
-    this._mm.sendAsyncMessage(
-      "Identity:IDP:AuthenticationFailure",
-      message,
-      null,
-      this._window.document.nodePrincipal
-    );
+    this._identityInternal._mm.sendAsyncMessage("Identity:IDP:AuthenticationFailure", message);
+  },
+
+  // Private.
+  _init: function nsDOMIdentity__init(aWindow) {
+
+    this._initializeState();
+
+    // Store window and origin URI.
+    this._window = aWindow;
+    this._origin = aWindow.document.nodePrincipal.origin;
+
+    // Setup identifiers for current window.
+    let util = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                      .getInterface(Ci.nsIDOMWindowUtils);
+    this._id = util.outerWindowID;
   },
 
   /**
@@ -467,18 +295,13 @@ nsDOMIdentity.prototype = {
     this._beginAuthenticationCallback = null;
   },
 
-  // nsIMessageListener
-  receiveMessage: function nsDOMIdentity_receiveMessage(aMessage) {
+  _receiveMessage: function nsDOMIdentity_receiveMessage(aMessage) {
     let msg = aMessage.json;
-
-    // Is this message intended for this window?
-    if (msg.id != this._id) {
-      return;
-    }
+    this._log("receiveMessage: " + aMessage.name);
 
     switch (aMessage.name) {
       case "Identity:ResetState":
-        if (!this._debug) {
+        if (!this._identityInternal._debug) {
           return;
         }
         this._initializeState();
@@ -487,22 +310,16 @@ nsDOMIdentity.prototype = {
       case "Identity:RP:Watch:OnLogin":
         // Do we have a watcher?
         if (!this._rpWatcher) {
-          this._log("WARNING: Received OnLogin message, but there is no RP watcher");
           return;
         }
 
         if (this._rpWatcher.onlogin) {
-          if (this._rpWatcher._internal) {
-            this._rpWatcher.onlogin(msg.assertion, msg._internalParams);
-          } else {
-            this._rpWatcher.onlogin(msg.assertion);
-          }
+          this._rpWatcher.onlogin(msg.assertion);
         }
         break;
       case "Identity:RP:Watch:OnLogout":
         // Do we have a watcher?
         if (!this._rpWatcher) {
-          this._log("WARNING: Received OnLogout message, but there is no RP watcher");
           return;
         }
 
@@ -513,7 +330,6 @@ nsDOMIdentity.prototype = {
       case "Identity:RP:Watch:OnReady":
         // Do we have a watcher?
         if (!this._rpWatcher) {
-          this._log("WARNING: Received OnReady message, but there is no RP watcher");
           return;
         }
 
@@ -521,27 +337,14 @@ nsDOMIdentity.prototype = {
           this._rpWatcher.onready();
         }
         break;
-      case "Identity:RP:Watch:OnCancel":
+      case "Identity:RP:Request:OnCancel":
         // Do we have a watcher?
         if (!this._rpWatcher) {
-          this._log("WARNING: Received OnCancel message, but there is no RP " +
-                    "watcher");
           return;
         }
 
         if (this._onCancelRequestCallback) {
           this._onCancelRequestCallback();
-        }
-        break;
-      case "Identity:RP:Watch:OnError":
-        if (!this._rpWatcher) {
-          this._log("WARNING: Received OnError message, but there is no RP " +
-                    "watcher");
-          return;
-        }
-
-        if (this._rpWatcher.onerror) {
-          this._rpWatcher.onerror(JSON.stringify({name: msg.message.error}));
         }
         break;
       case "Identity:IDP:CallBeginProvisioningCallback":
@@ -554,6 +357,10 @@ nsDOMIdentity.prototype = {
         this._callBeginAuthenticationCallback(msg);
         break;
     }
+  },
+
+  _log: function nsDOMIdentity__log(msg) {
+    this._identityInternal._log(msg);
   },
 
   _callGenKeyPairCallback: function nsDOMIdentity__callGenKeyPairCallback(message) {
@@ -595,68 +402,44 @@ nsDOMIdentity.prototype = {
   },
 
   /**
-   * Helper to create messages to send using a message manager.
-   * Pass through user options if they are not functions.  Always
-   * overwrite id, origin, audience, and appStatus.  The caller
-   * does not get to set those.
+   * Helper to create messages to send using a message manager
    */
-  DOMIdentityMessage: function DOMIdentityMessage(aOptions) {
-    aOptions = aOptions || {};
-    let message = {
-      errors: []
+  DOMIdentityMessage: function DOMIdentityMessage() {
+    return {
+      id: this._id,
+      origin: this._origin,
     };
-
-    objectCopy(aOptions, message);
-
-    // outer window id
-    message.id = this._id;
-
-    // window origin
-    message.origin = this._origin;
-
-    // Normally the window origin will be the audience in assertions.  On b2g,
-    // certified apps have the power to override this and declare any audience
-    // the want.  Privileged apps can also declare a different audience, as
-    // long as it is the same as the origin specified in their manifest files.
-    // All other apps are stuck with b2g origins of the form app://{guid}.
-    // Since such an origin is meaningless for the purposes of verification,
-    // they will have to jump through some hoops to sign in: Specifically, they
-    // will have to host their sign-in flows and DOM API requests in an iframe,
-    // have the iframe xhr post assertions up to their server for verification,
-    // and then post-message the results down to their app.
-    let _audience = message.origin;
-    if (message.audience && message.audience != message.origin) {
-      if (this._appStatus === Ci.nsIPrincipal.APP_STATUS_CERTIFIED) {
-        _audience = message.audience;
-        this._log("Certified app setting assertion audience: " + _audience);
-      } else {
-        message.errors.push("ERROR_INVALID_ASSERTION_AUDIENCE");
-      }
-    }
-
-    // Replace any audience supplied by the RP with one that has been sanitised
-    message.audience = _audience;
-
-    this._log("DOMIdentityMessage: " + JSON.stringify(message));
-
-    return message;
   },
 
- /**
-  * Internal methods that are not exposed to content.
-  * See dom/webidl/Identity.webidl for the public interface.
-  */
+};
+
+/**
+ * Internal functions that shouldn't be exposed to content.
+ */
+function nsDOMIdentityInternal() {
+}
+nsDOMIdentityInternal.prototype = {
+
+  // nsIMessageListener
+  receiveMessage: function nsDOMIdentityInternal_receiveMessage(aMessage) {
+    let msg = aMessage.json;
+    // Is this message intended for this window?
+    if (msg.id != this._id) {
+      return;
+    }
+    this._identity._receiveMessage(aMessage);
+  },
+
   // nsIObserver
   observe: function nsDOMIdentityInternal_observe(aSubject, aTopic, aData) {
-    let window = aSubject.QueryInterface(Ci.nsIDOMWindow);
-    if (window != this._window) {
+    let wId = aSubject.QueryInterface(Ci.nsISupportsPRUint64).data;
+    if (wId != this._innerWindowID) {
       return;
     }
 
-    this.uninit();
-
-    Services.obs.removeObserver(this, "dom-window-destroyed");
-    this._initializeState();
+    Services.obs.removeObserver(this, "inner-window-destroyed");
+    this._identity._initializeState();
+    this._identity = null;
 
     // TODO: Also send message to DOMIdentity notifiying window is no longer valid
     // ie. in the case that the user closes the auth. window and we need to know.
@@ -672,8 +455,7 @@ nsDOMIdentity.prototype = {
     this._mm = null;
   },
 
-  //  Because we implement nsIDOMGlobalPropertyInitializer, our init() method
-  //  is invoked with content window as its single argument.
+  // nsIDOMGlobalPropertyInitializer
   init: function nsDOMIdentityInternal_init(aWindow) {
     if (Services.prefs.getPrefType(PREF_ENABLED) != Ci.nsIPrefBranch.PREF_BOOL
         || !Services.prefs.getBoolPref(PREF_ENABLED)) {
@@ -684,31 +466,21 @@ nsDOMIdentity.prototype = {
       Services.prefs.getPrefType(PREF_DEBUG) == Ci.nsIPrefBranch.PREF_BOOL
       && Services.prefs.getBoolPref(PREF_DEBUG);
 
-    // Setup identifiers for current window.
+    this._identity = new nsDOMIdentity(this);
+
+    this._identity._init(aWindow);
+
     let util = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                       .getInterface(Ci.nsIDOMWindowUtils);
-
-    // To avoid cross-process windowId collisions, use a uuid as an
-    // almost certainly unique identifier.
-    //
-    // XXX Bug 869182 - use a combination of child process id and
-    // innerwindow id to construct the unique id.
-    this._id = uuidgen.generateUUID().toString();
-    this._window = aWindow;
-
-    // nsDOMIdentity needs to know our _id, so this goes after
-    // its creation.
-    this._initializeState();
-
-    // Store window and origin URI.
-    this._window = aWindow;
-    this._origin = aWindow.document.nodePrincipal.origin;
-    this._appStatus = aWindow.document.nodePrincipal.appStatus;
-    this._appId = aWindow.document.nodePrincipal.appId;
+    this._id = util.outerWindowID;
+    this._innerWindowID = util.currentInnerWindowID;
 
     this._log("init was called from " + aWindow.document.location);
 
-    this._mm = cpmm;
+    this._mm = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                      .getInterface(Ci.nsIWebNavigation)
+                      .QueryInterface(Ci.nsIInterfaceRequestor)
+                      .getInterface(Ci.nsIContentFrameMessageManager);
 
     // Setup listeners for messages from parent process.
     this._messages = [
@@ -716,27 +488,20 @@ nsDOMIdentity.prototype = {
       "Identity:RP:Watch:OnLogin",
       "Identity:RP:Watch:OnLogout",
       "Identity:RP:Watch:OnReady",
-      "Identity:RP:Watch:OnCancel",
-      "Identity:RP:Watch:OnError",
+      "Identity:RP:Request:OnCancel",
       "Identity:IDP:CallBeginProvisioningCallback",
       "Identity:IDP:CallGenKeyPairCallback",
-      "Identity:IDP:CallBeginAuthenticationCallback"
+      "Identity:IDP:CallBeginAuthenticationCallback",
     ];
-    this._messages.forEach(function(msgName) {
+    this._messages.forEach((function(msgName) {
       this._mm.addMessageListener(msgName, this);
-    }, this);
+    }).bind(this));
 
     // Setup observers so we can remove message listeners.
-    Services.obs.addObserver(this, "dom-window-destroyed", false);
-  },
+    Services.obs.addObserver(this, "inner-window-destroyed", false);
 
-  uninit: function DOMIdentity_uninit() {
-    this._log("nsDOMIdentity uninit() " + this._id);
-    this._mm.sendAsyncMessage(
-      "Identity:RP:Unwatch",
-      { id: this._id }
-    );
-   },
+    return this._identity;
+  },
 
   // Private.
   _log: function nsDOMIdentityInternal__log(msg) {
@@ -747,52 +512,19 @@ nsDOMIdentity.prototype = {
   },
 
   // Component setup.
-  classID: Components.ID("{210853d9-2c97-4669-9761-b1ab9cbf57ef}"),
+  classID: Components.ID("{8bcac6a3-56a4-43a4-a44c-cdf42763002f}"),
 
-  QueryInterface: XPCOMUtils.generateQI([
-      Ci.nsIMessageListener,
-      Ci.nsIObserver,
-      Ci.nsIDOMGlobalPropertyInitializer
-  ]),
+  QueryInterface: XPCOMUtils.generateQI(
+    [Ci.nsIDOMGlobalPropertyInitializer, Ci.nsIMessageListener]
+  ),
 
   classInfo: XPCOMUtils.generateCI({
-    classID: Components.ID("{210853d9-2c97-4669-9761-b1ab9cbf57ef}"),
+    classID: Components.ID("{8bcac6a3-56a4-43a4-a44c-cdf42763002f}"),
     contractID: "@mozilla.org/dom/identity;1",
     interfaces: [],
     classDescription: "Identity DOM Implementation"
   })
+
 };
 
-function assertCorrectCallbacks(aOptions) {
-  // The relying party (RP) provides callbacks on watch().
-  //
-  // In the future, BrowserID will probably only require an onlogin()
-  // callback, lifting the requirement that BrowserID handle logged-in
-  // state management for RPs.  See
-  // https://github.com/mozilla/id-specs/blob/greenfield/browserid/api-rp.md
-  //
-  // However, Firefox Accounts requires callers to provide onlogout(),
-  // onready(), and also supports an onerror() callback.
-
-  let requiredCallbacks = ["onlogin"];
-  let optionalCallbacks = ["onlogout", "onready", "onerror"];
-
-  if (aOptions.wantIssuer == "firefox-accounts") {
-    requiredCallbacks = ["onlogin", "onlogout", "onready"];
-    optionalCallbacks = ["onerror"];
-  }
-
-  for (let cbName of requiredCallbacks) {
-    if (typeof(aOptions[cbName]) != "function") {
-      throw new Error(cbName + " callback is required.");
-    }
-  }
-
-  for (let cbName of optionalCallbacks) {
-    if (aOptions[cbName] && typeof(aOptions[cbName]) != "function") {
-      throw new Error(cbName + " must be a function");
-    }
-  }
-}
-
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([nsDOMIdentity]);
+const NSGetFactory = XPCOMUtils.generateNSGetFactory([nsDOMIdentityInternal]);

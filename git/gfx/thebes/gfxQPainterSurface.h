@@ -15,7 +15,7 @@
 class QPainter;
 class QImage;
 
-class gfxQPainterSurface : public gfxASurface {
+class THEBES_API gfxQPainterSurface : public gfxASurface {
 public:
     gfxQPainterSurface(QPainter *painter);
     gfxQPainterSurface(const gfxIntSize& size, gfxImageFormat format);

@@ -11,10 +11,12 @@ import subprocess
 import sys
 
 # determine the platform-specific invocation of `ps`
-if mozinfo.isWin:
-    psarg='ax'
-else:
+if mozinfo.isMac:
+    psarg = '-Acj'
+elif mozinfo.isLinux:
     psarg = 'axwww'
+else:
+    psarg = 'ax'
 
 def ps(arg=psarg):
     """
@@ -47,13 +49,7 @@ def running_processes(name, psarg=psarg, defunct=True):
     """
     retval = []
     for process in ps(psarg):
-        # Support for both BSD and UNIX syntax
-        # `ps aux` returns COMMAND, `ps -ef` returns CMD
-        try:
-            command = process['COMMAND']
-        except KeyError:
-            command = process['CMD']
-
+        command = process['COMMAND']
         command = shlex.split(command)
         if command[-1] == '<defunct>':
             command = command[:-1]
@@ -62,8 +58,9 @@ def running_processes(name, psarg=psarg, defunct=True):
         if 'STAT' in process and not defunct:
             if process['STAT'] == 'Z+':
                 continue
-        command = subprocess.list2cmdline(command)
-        if name in command:
+        prog = command[0]
+        basename = os.path.basename(prog)
+        if basename == name:
             retval.append((int(process['PID']), command))
     return retval
 

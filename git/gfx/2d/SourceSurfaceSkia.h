@@ -11,10 +11,7 @@
 #include "skia/SkCanvas.h"
 #include "skia/SkBitmap.h"
 
-class GrContext;
-
 namespace mozilla {
-
 namespace gfx {
 
 class DrawTargetSkia;
@@ -22,11 +19,10 @@ class DrawTargetSkia;
 class SourceSurfaceSkia : public DataSourceSurface
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DataSourceSurfaceSkia)
   SourceSurfaceSkia();
   ~SourceSurfaceSkia();
 
-  virtual SurfaceType GetType() const { return SurfaceType::SKIA; }
+  virtual SurfaceType GetType() const { return SURFACE_SKIA; }
   virtual IntSize GetSize() const;
   virtual SurfaceFormat GetFormat() const;
 
@@ -37,18 +33,14 @@ public:
                     int32_t aStride,
                     SurfaceFormat aFormat);
 
-  bool InitFromCanvas(SkCanvas* aCanvas,
+  /**
+   * If aOwner is nullptr, we make a copy of the pixel data in the bitmap, 
+   * otherwise we just reference this data until DrawTargetWillChange is called.
+   */
+  bool InitWithBitmap(const SkBitmap& aBitmap,
                       SurfaceFormat aFormat,
                       DrawTargetSkia* aOwner);
 
-  /**
-   * NOTE: While wrapping a Texture for SkiaGL, the texture *must* be created
-   *       with the same GLcontext of DrawTargetSkia
-   */
-  bool InitFromTexture(DrawTargetSkia* aOwner,
-                       unsigned int aTexture,
-                       const IntSize &aSize,
-                       SurfaceFormat aFormat);
 
   virtual unsigned char *GetData();
 
@@ -58,14 +50,14 @@ private:
   friend class DrawTargetSkia;
 
   void DrawTargetWillChange();
-  void MaybeUnlock();
+  void DrawTargetDestroyed();
+  void MarkIndependent();
 
   SkBitmap mBitmap;
   SurfaceFormat mFormat;
   IntSize mSize;
   int32_t mStride;
-  RefPtr<DrawTargetSkia> mDrawTarget;
-  bool mLocked;
+  DrawTargetSkia* mDrawTarget;
 };
 
 }

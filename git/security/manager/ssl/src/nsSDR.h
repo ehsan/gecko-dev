@@ -27,6 +27,7 @@
 // nsSecretDecoderRing - implementation of nsISecretDecoderRing
 // ===============================================
 
+#define NS_SDR_CLASSNAME "PIPNSS Secret Decoder Ring"
 #define NS_SDR_CID \
   { 0x0c4f1ddc, 0x1dd2, 0x11b2, { 0x9d, 0x95, 0xf2, 0xfd, 0xf1, 0x13, 0x04, 0x4b } }
 
@@ -40,8 +41,6 @@ public:
   NS_DECL_NSISECRETDECODERRINGCONFIG
 
   nsSecretDecoderRing();
-
-protected:
   virtual ~nsSecretDecoderRing();
 
 private:

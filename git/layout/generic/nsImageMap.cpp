@@ -7,16 +7,23 @@
 
 #include "nsImageMap.h"
 
-#include "mozilla/dom/Element.h"
-#include "mozilla/dom/Event.h" // for nsIDOMEvent::InternalDOMEvent()
-#include "mozilla/gfx/PathHelpers.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
+#include "nsRenderingContext.h"
 #include "nsPresContext.h"
-#include "nsNameSpaceManager.h"
+#include "nsIURL.h"
+#include "nsIServiceManager.h"
+#include "nsNetUtil.h"
+#include "nsTextFragment.h"
+#include "mozilla/dom/Element.h"
+#include "nsIDocument.h"
+#include "nsINameSpaceManager.h"
 #include "nsGkAtoms.h"
+#include "nsIDOMEventTarget.h"
+#include "nsIPresShell.h"
 #include "nsImageFrame.h"
 #include "nsCoord.h"
+#include "nsIConsoleService.h"
 #include "nsIScriptError.h"
 #include "nsIStringBundle.h"
 #include "nsContentUtils.h"
@@ -25,20 +32,19 @@
 #include "nsAccessibilityService.h"
 #endif
 
-using namespace mozilla;
-using namespace mozilla::gfx;
+namespace dom = mozilla::dom;
+
+static NS_DEFINE_CID(kCStringBundleServiceCID, NS_STRINGBUNDLESERVICE_CID);
 
 class Area {
 public:
-  explicit Area(nsIContent* aArea);
+  Area(nsIContent* aArea);
   virtual ~Area();
 
   virtual void ParseCoords(const nsAString& aSpec);
 
   virtual bool IsInside(nscoord x, nscoord y) const = 0;
-  virtual void Draw(nsIFrame* aFrame, DrawTarget& aDrawTarget,
-                    const ColorPattern& aColor,
-                    const StrokeOptions& aStrokeOptions) = 0;
+  virtual void Draw(nsIFrame* aFrame, nsRenderingContext& aRC) = 0;
   virtual void GetRect(nsIFrame* aFrame, nsRect& aRect) = 0;
 
   void HasFocus(bool aHasFocus);
@@ -85,7 +91,7 @@ static void logMessage(nsIContent*      aContent,
   nsIDocument* doc = aContent->OwnerDoc();
 
   nsContentUtils::ReportToConsole(
-     aFlags, NS_LITERAL_CSTRING("Layout: ImageMap"), doc,
+     aFlags, "ImageMap", doc,
      nsContentUtils::eLAYOUT_PROPERTIES,
      aMessageName,
      nullptr,  /* params */
@@ -267,13 +273,11 @@ void Area::HasFocus(bool aHasFocus)
 
 class DefaultArea : public Area {
 public:
-  explicit DefaultArea(nsIContent* aArea);
+  DefaultArea(nsIContent* aArea);
 
-  virtual bool IsInside(nscoord x, nscoord y) const MOZ_OVERRIDE;
-  virtual void Draw(nsIFrame* aFrame, DrawTarget& aDrawTarget,
-                    const ColorPattern& aColor,
-                    const StrokeOptions& aStrokeOptions) MOZ_OVERRIDE;
-  virtual void GetRect(nsIFrame* aFrame, nsRect& aRect) MOZ_OVERRIDE;
+  virtual bool IsInside(nscoord x, nscoord y) const;
+  virtual void Draw(nsIFrame* aFrame, nsRenderingContext& aRC);
+  virtual void GetRect(nsIFrame* aFrame, nsRect& aRect);
 };
 
 DefaultArea::DefaultArea(nsIContent* aArea)
@@ -286,18 +290,21 @@ bool DefaultArea::IsInside(nscoord x, nscoord y) const
   return true;
 }
 
-void DefaultArea::Draw(nsIFrame* aFrame, DrawTarget& aDrawTarget,
-                       const ColorPattern& aColor,
-                       const StrokeOptions& aStrokeOptions)
+void DefaultArea::Draw(nsIFrame* aFrame, nsRenderingContext& aRC)
 {
   if (mHasFocus) {
-    nsRect r(nsPoint(0, 0), aFrame->GetSize());
+    nsRect r = aFrame->GetRect();
+    r.MoveTo(0, 0);
+    nscoord x1 = r.x;
+    nscoord y1 = r.y;
     const nscoord kOnePixel = nsPresContext::CSSPixelsToAppUnits(1);
-    r.width -= kOnePixel;
-    r.height -= kOnePixel;
-    Rect rect =
-      ToRect(nsLayoutUtils::RectToGfxRect(r, aFrame->PresContext()->AppUnitsPerDevPixel()));
-    StrokeSnappedEdgesOfRect(rect, aDrawTarget, aColor, aStrokeOptions);
+    nscoord x2 = r.XMost() - kOnePixel;
+    nscoord y2 = r.YMost() - kOnePixel;
+    // XXX aRC.DrawRect(r) result is ugly, that's why we use DrawLine.
+    aRC.DrawLine(x1, y1, x1, y2);
+    aRC.DrawLine(x1, y2, x2, y2);
+    aRC.DrawLine(x1, y1, x2, y1);
+    aRC.DrawLine(x2, y1, x2, y2);
   }
 }
 
@@ -311,14 +318,12 @@ void DefaultArea::GetRect(nsIFrame* aFrame, nsRect& aRect)
 
 class RectArea : public Area {
 public:
-  explicit RectArea(nsIContent* aArea);
+  RectArea(nsIContent* aArea);
 
-  virtual void ParseCoords(const nsAString& aSpec) MOZ_OVERRIDE;
-  virtual bool IsInside(nscoord x, nscoord y) const MOZ_OVERRIDE;
-  virtual void Draw(nsIFrame* aFrame, DrawTarget& aDrawTarget,
-                    const ColorPattern& aColor,
-                    const StrokeOptions& aStrokeOptions) MOZ_OVERRIDE;
-  virtual void GetRect(nsIFrame* aFrame, nsRect& aRect) MOZ_OVERRIDE;
+  virtual void ParseCoords(const nsAString& aSpec);
+  virtual bool IsInside(nscoord x, nscoord y) const;
+  virtual void Draw(nsIFrame* aFrame, nsRenderingContext& aRC);
+  virtual void GetRect(nsIFrame* aFrame, nsRect& aRect);
 };
 
 RectArea::RectArea(nsIContent* aArea)
@@ -379,9 +384,7 @@ bool RectArea::IsInside(nscoord x, nscoord y) const
   return false;
 }
 
-void RectArea::Draw(nsIFrame* aFrame, DrawTarget& aDrawTarget,
-                    const ColorPattern& aColor,
-                    const StrokeOptions& aStrokeOptions)
+void RectArea::Draw(nsIFrame* aFrame, nsRenderingContext& aRC)
 {
   if (mHasFocus) {
     if (mNumCoords >= 4) {
@@ -391,10 +394,10 @@ void RectArea::Draw(nsIFrame* aFrame, DrawTarget& aDrawTarget,
       nscoord y2 = nsPresContext::CSSPixelsToAppUnits(mCoords[3]);
       NS_ASSERTION(x1 <= x2 && y1 <= y2,
                    "Someone screwed up RectArea::ParseCoords");
-      nsRect r(x1, y1, x2 - x1, y2 - y1);
-      Rect rect =
-        ToRect(nsLayoutUtils::RectToGfxRect(r, aFrame->PresContext()->AppUnitsPerDevPixel()));
-      StrokeSnappedEdgesOfRect(rect, aDrawTarget, aColor, aStrokeOptions);
+      aRC.DrawLine(x1, y1, x1, y2);
+      aRC.DrawLine(x1, y2, x2, y2);
+      aRC.DrawLine(x1, y1, x2, y1);
+      aRC.DrawLine(x2, y1, x2, y2);
     }
   }
 }
@@ -417,14 +420,12 @@ void RectArea::GetRect(nsIFrame* aFrame, nsRect& aRect)
 
 class PolyArea : public Area {
 public:
-  explicit PolyArea(nsIContent* aArea);
+  PolyArea(nsIContent* aArea);
 
-  virtual void ParseCoords(const nsAString& aSpec) MOZ_OVERRIDE;
-  virtual bool IsInside(nscoord x, nscoord y) const MOZ_OVERRIDE;
-  virtual void Draw(nsIFrame* aFrame, DrawTarget& aDrawTarget,
-                    const ColorPattern& aColor,
-                    const StrokeOptions& aStrokeOptions) MOZ_OVERRIDE;
-  virtual void GetRect(nsIFrame* aFrame, nsRect& aRect) MOZ_OVERRIDE;
+  virtual void ParseCoords(const nsAString& aSpec);
+  virtual bool IsInside(nscoord x, nscoord y) const;
+  virtual void Draw(nsIFrame* aFrame, nsRenderingContext& aRC);
+  virtual void GetRect(nsIFrame* aFrame, nsRect& aRect);
 };
 
 PolyArea::PolyArea(nsIContent* aArea)
@@ -515,36 +516,23 @@ bool PolyArea::IsInside(nscoord x, nscoord y) const
   return false;
 }
 
-void PolyArea::Draw(nsIFrame* aFrame, DrawTarget& aDrawTarget,
-                    const ColorPattern& aColor,
-                    const StrokeOptions& aStrokeOptions)
+void PolyArea::Draw(nsIFrame* aFrame, nsRenderingContext& aRC)
 {
   if (mHasFocus) {
     if (mNumCoords >= 6) {
-      // Where possible, we want all horizontal and vertical lines to align on
-      // pixel rows or columns, and to start at pixel boundaries so that one
-      // pixel dashing neatly sits on pixels to give us neat lines. To achieve
-      // that we draw each line segment as a separate path, snapping it to
-      // device pixels if applicable.
-      nsPresContext* pc = aFrame->PresContext();
-      Point p1(pc->CSSPixelsToDevPixels(mCoords[0]),
-               pc->CSSPixelsToDevPixels(mCoords[1]));
-      Point p2, p1snapped, p2snapped;
+      nscoord x0 = nsPresContext::CSSPixelsToAppUnits(mCoords[0]);
+      nscoord y0 = nsPresContext::CSSPixelsToAppUnits(mCoords[1]);
+      nscoord x1, y1;
       for (int32_t i = 2; i < mNumCoords; i += 2) {
-        p2.x = pc->CSSPixelsToDevPixels(mCoords[i]);
-        p2.y = pc->CSSPixelsToDevPixels(mCoords[i+1]);
-        p1snapped = p1;
-        p2snapped = p2;
-        SnapLineToDevicePixelsForStroking(p1snapped, p2snapped, aDrawTarget);
-        aDrawTarget.StrokeLine(p1snapped, p2snapped, aColor, aStrokeOptions);
-        p1 = p2;
+        x1 = nsPresContext::CSSPixelsToAppUnits(mCoords[i]);
+        y1 = nsPresContext::CSSPixelsToAppUnits(mCoords[i+1]);
+        aRC.DrawLine(x0, y0, x1, y1);
+        x0 = x1;
+        y0 = y1;
       }
-      p2.x = pc->CSSPixelsToDevPixels(mCoords[0]);
-      p2.y = pc->CSSPixelsToDevPixels(mCoords[1]);
-      p1snapped = p1;
-      p2snapped = p2;
-      SnapLineToDevicePixelsForStroking(p1snapped, p2snapped, aDrawTarget);
-      aDrawTarget.StrokeLine(p1snapped, p2snapped, aColor, aStrokeOptions);
+      x1 = nsPresContext::CSSPixelsToAppUnits(mCoords[0]);
+      y1 = nsPresContext::CSSPixelsToAppUnits(mCoords[1]);
+      aRC.DrawLine(x0, y0, x1, y1);
     }
   }
 }
@@ -572,14 +560,12 @@ void PolyArea::GetRect(nsIFrame* aFrame, nsRect& aRect)
 
 class CircleArea : public Area {
 public:
-  explicit CircleArea(nsIContent* aArea);
+  CircleArea(nsIContent* aArea);
 
-  virtual void ParseCoords(const nsAString& aSpec) MOZ_OVERRIDE;
-  virtual bool IsInside(nscoord x, nscoord y) const MOZ_OVERRIDE;
-  virtual void Draw(nsIFrame* aFrame, DrawTarget& aDrawTarget,
-                    const ColorPattern& aColor,
-                    const StrokeOptions& aStrokeOptions) MOZ_OVERRIDE;
-  virtual void GetRect(nsIFrame* aFrame, nsRect& aRect) MOZ_OVERRIDE;
+  virtual void ParseCoords(const nsAString& aSpec);
+  virtual bool IsInside(nscoord x, nscoord y) const;
+  virtual void Draw(nsIFrame* aFrame, nsRenderingContext& aRC);
+  virtual void GetRect(nsIFrame* aFrame, nsRect& aRect);
 };
 
 CircleArea::CircleArea(nsIContent* aArea)
@@ -637,23 +623,20 @@ bool CircleArea::IsInside(nscoord x, nscoord y) const
   return false;
 }
 
-void CircleArea::Draw(nsIFrame* aFrame, DrawTarget& aDrawTarget,
-                      const ColorPattern& aColor,
-                      const StrokeOptions& aStrokeOptions)
+void CircleArea::Draw(nsIFrame* aFrame, nsRenderingContext& aRC)
 {
   if (mHasFocus) {
     if (mNumCoords >= 3) {
-      Point center(aFrame->PresContext()->CSSPixelsToDevPixels(mCoords[0]),
-                   aFrame->PresContext()->CSSPixelsToDevPixels(mCoords[1]));
-      Float diameter =
-        2 * aFrame->PresContext()->CSSPixelsToDevPixels(mCoords[2]);
-      if (diameter <= 0) {
+      nscoord x1 = nsPresContext::CSSPixelsToAppUnits(mCoords[0]);
+      nscoord y1 = nsPresContext::CSSPixelsToAppUnits(mCoords[1]);
+      nscoord radius = nsPresContext::CSSPixelsToAppUnits(mCoords[2]);
+      if (radius < 0) {
         return;
       }
-      RefPtr<PathBuilder> builder = aDrawTarget.CreatePathBuilder();
-      AppendEllipseToPath(builder, center, Size(diameter, diameter));
-      RefPtr<Path> circle = builder->Finish();
-      aDrawTarget.Stroke(circle, aColor, aStrokeOptions);
+      nscoord x = x1 - radius;
+      nscoord y = y1 - radius;
+      nscoord w = 2 * radius;
+      aRC.DrawEllipse(x, y, w, w);
     }
   }
 }
@@ -686,9 +669,9 @@ nsImageMap::~nsImageMap()
   NS_ASSERTION(mAreas.Length() == 0, "Destroy was not called");
 }
 
-NS_IMPL_ISUPPORTS(nsImageMap,
-                  nsIMutationObserver,
-                  nsIDOMEventListener)
+NS_IMPL_ISUPPORTS2(nsImageMap,
+                   nsIMutationObserver,
+                   nsIDOMEventListener)
 
 nsresult
 nsImageMap::GetBoundsForAreaContent(nsIContent *aContent,
@@ -845,7 +828,6 @@ nsImageMap::AddArea(nsIContent* aArea)
     area = new PolyArea(aArea);
     break;
   default:
-    area = nullptr;
     NS_NOTREACHED("FindAttrValueIn returned an unexpected value.");
     break;
   }
@@ -859,9 +841,9 @@ nsImageMap::AddArea(nsIContent* aArea)
                                 false);
 
   // This is a nasty hack.  It needs to go away: see bug 135040.  Once this is
-  // removed, the code added to RestyleManager::RestyleElement,
+  // removed, the code added to nsCSSFrameConstructor::RestyleElement,
   // nsCSSFrameConstructor::ContentRemoved (both hacks there), and
-  // RestyleManager::ProcessRestyledFrames to work around this issue can
+  // nsCSSFrameConstructor::ProcessRestyledFrames to work around this issue can
   // be removed.
   aArea->SetPrimaryFrame(mImageFrame);
 
@@ -894,14 +876,12 @@ nsImageMap::GetAreaAt(uint32_t aIndex) const
 }
 
 void
-nsImageMap::Draw(nsIFrame* aFrame, DrawTarget& aDrawTarget,
-                 const ColorPattern& aColor,
-                 const StrokeOptions& aStrokeOptions)
+nsImageMap::Draw(nsIFrame* aFrame, nsRenderingContext& aRC)
 {
   uint32_t i, n = mAreas.Length();
   for (i = 0; i < n; i++) {
     Area* area = mAreas.ElementAt(i);
-    area->Draw(aFrame, aDrawTarget, aColor, aStrokeOptions);
+    area->Draw(aFrame, aRC);
   }
 }
 
@@ -989,22 +969,25 @@ nsImageMap::HandleEvent(nsIDOMEvent* aEvent)
                     "Unexpected event type");
 
   //Set which one of our areas changed focus
-  nsCOMPtr<nsIContent> targetContent = do_QueryInterface(
-    aEvent->InternalDOMEvent()->GetTarget());
-  if (!targetContent) {
-    return NS_OK;
-  }
-  uint32_t i, n = mAreas.Length();
-  for (i = 0; i < n; i++) {
-    Area* area = mAreas.ElementAt(i);
-    if (area->mArea == targetContent) {
-      //Set or Remove internal focus
-      area->HasFocus(focus);
-      //Now invalidate the rect
-      if (mImageFrame) {
-        mImageFrame->InvalidateFrame();
+  nsCOMPtr<nsIDOMEventTarget> target;
+  if (NS_SUCCEEDED(aEvent->GetTarget(getter_AddRefs(target))) && target) {
+    nsCOMPtr<nsIContent> targetContent(do_QueryInterface(target));
+    if (targetContent) {
+      uint32_t i, n = mAreas.Length();
+      for (i = 0; i < n; i++) {
+        Area* area = mAreas.ElementAt(i);
+        if (area->mArea == targetContent) {
+          //Set or Remove internal focus
+          area->HasFocus(focus);
+          //Now invalidate the rect
+          if (mImageFrame) {
+            nsRect dmgRect;
+            area->GetRect(mImageFrame, dmgRect);
+            mImageFrame->Invalidate(dmgRect);
+          }
+          break;
+        }
       }
-      break;
     }
   }
   return NS_OK;

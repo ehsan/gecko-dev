@@ -11,16 +11,13 @@
 #include "nsIRequest.h"
 #include "nsThreadUtils.h"
 #include "nsCOMPtr.h"
-#include "nsProxyRelease.h"
 
 class nsARequestObserverEvent;
 
-class nsRequestObserverProxy MOZ_FINAL : public nsIRequestObserverProxy
+class nsRequestObserverProxy : public nsIRequestObserverProxy
 {
-    ~nsRequestObserverProxy() {}
-
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIREQUESTOBSERVER
     NS_DECL_NSIREQUESTOBSERVERPROXY
 
@@ -29,10 +26,14 @@ public:
     nsIRequestObserver *Observer() { return mObserver; }
 
     nsresult FireEvent(nsARequestObserverEvent *);
+    nsIEventTarget *Target() { return mTarget; } // debugging aid
+    void SetTarget(nsIEventTarget *target) { mTarget = target; }
 
 protected:
-    nsMainThreadPtrHandle<nsIRequestObserver> mObserver;
-    nsMainThreadPtrHandle<nsISupports>        mContext;
+    virtual ~nsRequestObserverProxy();
+
+    nsCOMPtr<nsIRequestObserver> mObserver;
+    nsCOMPtr<nsIEventTarget>     mTarget;
 
     friend class nsOnStartRequestEvent;
     friend class nsOnStopRequestEvent;
@@ -41,12 +42,13 @@ protected:
 class nsARequestObserverEvent : public nsRunnable
 {
 public:
-    explicit nsARequestObserverEvent(nsIRequest *);
+    nsARequestObserverEvent(nsIRequest *, nsISupports *);
 
 protected:
     virtual ~nsARequestObserverEvent() {}
 
     nsCOMPtr<nsIRequest>  mRequest;
+    nsCOMPtr<nsISupports> mContext;
 };
 
 #endif // nsRequestObserverProxy_h__

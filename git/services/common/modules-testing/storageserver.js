@@ -10,7 +10,7 @@
 
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
-this.EXPORTED_SYMBOLS = [
+const EXPORTED_SYMBOLS = [
   "ServerBSO",
   "StorageServerCallback",
   "StorageServerCollection",
@@ -20,7 +20,7 @@ this.EXPORTED_SYMBOLS = [
 
 Cu.import("resource://testing-common/httpd.js");
 Cu.import("resource://services-common/async.js");
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-common/utils.js");
 
 const STORAGE_HTTP_LOGGER = "Services.Common.Test.Server";
@@ -65,7 +65,7 @@ function sendMozSvcError(request, response, code) {
  *        (number) Milliseconds since UNIX epoch that the BSO was last
  *        modified. If not defined or null, the current time will be used.
  */
-this.ServerBSO = function ServerBSO(id, payload, modified) {
+function ServerBSO(id, payload, modified) {
   if (!id) {
     throw new Error("No ID for ServerBSO!");
   }
@@ -74,7 +74,7 @@ this.ServerBSO = function ServerBSO(id, payload, modified) {
     throw new Error("BSO ID is invalid: " + id);
   }
 
-  this._log = Log.repository.getLogger(STORAGE_HTTP_LOGGER);
+  this._log = Log4Moz.repository.getLogger(STORAGE_HTTP_LOGGER);
 
   this.id = id;
   if (!payload) {
@@ -111,7 +111,7 @@ ServerBSO.prototype = {
     return obj;
   },
 
-  delete: function delete_() {
+  delete: function delete() {
     this.deleted = true;
 
     delete this.payload;
@@ -249,7 +249,6 @@ ServerBSO.prototype = {
     }
 
     this.modified = request.timestamp;
-    this.deleted = false;
     response.setHeader("X-Last-Modified", "" + this.modified, false);
 
     response.setStatusLine(request.httpVersion, code, status);
@@ -274,8 +273,7 @@ ServerBSO.prototype = {
  *        An optional timestamp value to initialize the modified time of the
  *        collection. This should be in the format returned by new_timestamp().
  */
-this.StorageServerCollection =
- function StorageServerCollection(bsos, acceptNew, timestamp=new_timestamp()) {
+function StorageServerCollection(bsos, acceptNew, timestamp=new_timestamp()) {
   this._bsos = bsos || {};
   this.acceptNew = acceptNew || false;
 
@@ -287,7 +285,7 @@ this.StorageServerCollection =
   CommonUtils.ensureMillisecondsTimestamp(timestamp);
   this._timestamp = timestamp;
 
-  this._log = Log.repository.getLogger(STORAGE_HTTP_LOGGER);
+  this._log = Log4Moz.repository.getLogger(STORAGE_HTTP_LOGGER);
 }
 StorageServerCollection.prototype = {
   BATCH_MAX_COUNT: 100,         // # of records.
@@ -552,7 +550,6 @@ StorageServerCollection.prototype = {
         if (bso) {
           bso.payload = record.payload;
           bso.modified = timestamp;
-          bso.deleted = false;
           success.push(record.id);
 
           if (record.sortindex) {
@@ -571,7 +568,7 @@ StorageServerCollection.prototype = {
     return {success: success, failed: failed};
   },
 
-  delete: function delete_(options) {
+  delete: function delete(options) {
     options = options || {};
 
     // Protocol 2.0 only allows the "ids" query string argument.
@@ -849,7 +846,7 @@ StorageServerCollection.prototype = {
  * find out what it needs without monkeypatching. Use this object as your
  * prototype, and override as appropriate.
  */
-this.StorageServerCallback = {
+let StorageServerCallback = {
   onCollectionDeleted: function onCollectionDeleted(user, collection) {},
   onItemDeleted: function onItemDeleted(user, collection, bsoID) {},
 
@@ -866,13 +863,13 @@ this.StorageServerCallback = {
  * Construct a new test Storage server. Takes a callback object (e.g.,
  * StorageServerCallback) as input.
  */
-this.StorageServer = function StorageServer(callback) {
+function StorageServer(callback) {
   this.callback     = callback || {__proto__: StorageServerCallback};
   this.server       = new HttpServer();
   this.started      = false;
   this.users        = {};
   this.requestCount = 0;
-  this._log         = Log.repository.getLogger(STORAGE_HTTP_LOGGER);
+  this._log         = Log4Moz.repository.getLogger(STORAGE_HTTP_LOGGER);
 
   // Install our own default handler. This allows us to mess around with the
   // whole URL space.
@@ -882,6 +879,7 @@ this.StorageServer = function StorageServer(callback) {
 StorageServer.prototype = {
   DEFAULT_QUOTA: 1024 * 1024, // # bytes.
 
+  port:   8080,
   server: null,    // HttpServer.
   users:  null,    // Map of username => {collections, password}.
 
@@ -897,8 +895,8 @@ StorageServer.prototype = {
    * Start the StorageServer's underlying HTTP server.
    *
    * @param port
-   *        The numeric port on which to start. A falsy value implies to
-   *        select any available port.
+   *        The numeric port on which to start. A falsy value implies the
+   *        default (8080).
    * @param cb
    *        A callback function (of no arguments) which is invoked after
    *        startup.
@@ -908,14 +906,11 @@ StorageServer.prototype = {
       this._log.warn("Warning: server already started on " + this.port);
       return;
     }
-    if (!port) {
-      port = -1;
+    if (port) {
+      this.port = port;
     }
-    this.port = port;
-
     try {
       this.server.start(this.port);
-      this.port = this.server.identity.primaryPort;
       this.started = true;
       if (cb) {
         cb();
@@ -934,10 +929,10 @@ StorageServer.prototype = {
    * Start the server synchronously.
    *
    * @param port
-   *        The numeric port on which to start. The default is to choose
-   *        any available port.
+   *        The numeric port on which to start. A falsy value implies the
+   *        default (8080).
    */
-  startSynchronous: function startSynchronous(port=-1) {
+  startSynchronous: function startSynchronous(port) {
     let cb = Async.makeSpinningCallback();
     this.start(port, cb);
     cb.wait();
@@ -1647,8 +1642,7 @@ StorageServer.prototype = {
  *
  * Each user is specified by a map of username to password.
  */
-this.storageServerForUsers =
- function storageServerForUsers(users, contents, callback) {
+function storageServerForUsers(users, contents, callback) {
   let server = new StorageServer(callback);
   for (let [user, pass] in Iterator(users)) {
     server.registerUser(user, pass);

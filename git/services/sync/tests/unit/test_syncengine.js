@@ -1,21 +1,14 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
 Cu.import("resource://services-sync/engines.js");
-Cu.import("resource://services-sync/service.js");
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://testing-common/services/sync/utils.js");
 
 function makeSteamEngine() {
-  return new SyncEngine('Steam', Service);
+  return new SyncEngine('Steam');
 }
-
-let server;
 
 function test_url_attributes() {
   _("SyncEngine url attributes");
-  let syncTesting = new SyncTestingInfrastructure(server);
-  Service.clusterURL = "https://cluster/";
+  let syncTesting = new SyncTestingInfrastructure();
+  Svc.Prefs.set("clusterURL", "https://cluster/");
   let engine = makeSteamEngine();
   try {
     do_check_eq(engine.storageURL, "https://cluster/1.1/foo/storage/");
@@ -28,7 +21,7 @@ function test_url_attributes() {
 
 function test_syncID() {
   _("SyncEngine.syncID corresponds to preference");
-  let syncTesting = new SyncTestingInfrastructure(server);
+  let syncTesting = new SyncTestingInfrastructure();
   let engine = makeSteamEngine();
   try {
     // Ensure pristine environment
@@ -48,7 +41,7 @@ function test_syncID() {
 
 function test_lastSync() {
   _("SyncEngine.lastSync and SyncEngine.lastSyncLocal correspond to preferences");
-  let syncTesting = new SyncTestingInfrastructure(server);
+  let syncTesting = new SyncTestingInfrastructure();
   let engine = makeSteamEngine();
   try {
     // Ensure pristine environment
@@ -78,7 +71,7 @@ function test_lastSync() {
 
 function test_toFetch() {
   _("SyncEngine.toFetch corresponds to file on disk");
-  let syncTesting = new SyncTestingInfrastructure(server);
+  let syncTesting = new SyncTestingInfrastructure();
   const filename = "weave/toFetch/steam.json";
   let engine = makeSteamEngine();
   try {
@@ -108,7 +101,7 @@ function test_toFetch() {
 
 function test_previousFailed() {
   _("SyncEngine.previousFailed corresponds to file on disk");
-  let syncTesting = new SyncTestingInfrastructure(server);
+  let syncTesting = new SyncTestingInfrastructure();
   const filename = "weave/failed/steam.json";
   let engine = makeSteamEngine();
   try {
@@ -138,7 +131,7 @@ function test_previousFailed() {
 
 function test_resetClient() {
   _("SyncEngine.resetClient resets lastSync and toFetch");
-  let syncTesting = new SyncTestingInfrastructure(server);
+  let syncTesting = new SyncTestingInfrastructure();
   let engine = makeSteamEngine();
   try {
     // Ensure pristine environment
@@ -163,6 +156,9 @@ function test_resetClient() {
 
 function test_wipeServer() {
   _("SyncEngine.wipeServer deletes server data and resets the client.");
+  let syncTesting = new SyncTestingInfrastructure();
+  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
+  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
   let engine = makeSteamEngine();
 
   const PAYLOAD = 42;
@@ -170,7 +166,6 @@ function test_wipeServer() {
   let server = httpd_setup({
     "/1.1/foo/storage/steam": steamCollection.handler()
   });
-  let syncTesting = new SyncTestingInfrastructure(server);
   do_test_pending();
 
   try {
@@ -191,7 +186,6 @@ function test_wipeServer() {
 }
 
 function run_test() {
-  server = httpd_setup({});
   test_url_attributes();
   test_syncID();
   test_lastSync();
@@ -199,6 +193,4 @@ function run_test() {
   test_previousFailed();
   test_resetClient();
   test_wipeServer();
-
-  server.stop(run_next_test);
 }

@@ -10,6 +10,7 @@
 
 #include "vpx_config.h"
 #include "vp8/common/variance.h"
+#include "vp8/common/pragmas.h"
 #include "vpx_ports/mem.h"
 #include "vp8/common/x86/filter_x86.h"
 
@@ -90,7 +91,7 @@ unsigned int vp8_variance4x4_mmx(
 
     vp8_get4x4var_mmx(src_ptr, source_stride, ref_ptr, recon_stride, &var, &avg) ;
     *sse = var;
-    return (var - (((unsigned int)avg * avg) >> 4));
+    return (var - ((unsigned int)(avg * avg) >> 4));
 
 }
 
@@ -107,7 +108,7 @@ unsigned int vp8_variance8x8_mmx(
     vp8_get8x8var_mmx(src_ptr, source_stride, ref_ptr, recon_stride, &var, &avg) ;
     *sse = var;
 
-    return (var - (((unsigned int)avg * avg) >> 6));
+    return (var - ((unsigned int)(avg * avg) >> 6));
 
 }
 
@@ -152,7 +153,7 @@ unsigned int vp8_variance16x16_mmx(
     var = sse0 + sse1 + sse2 + sse3;
     avg = sum0 + sum1 + sum2 + sum3;
     *sse = var;
-    return (var - (((unsigned int)avg * avg) >> 8));
+    return (var - ((unsigned int)(avg * avg) >> 8));
 }
 
 unsigned int vp8_variance16x8_mmx(
@@ -171,7 +172,7 @@ unsigned int vp8_variance16x8_mmx(
     var = sse0 + sse1;
     avg = sum0 + sum1;
     *sse = var;
-    return (var - (((unsigned int)avg * avg) >> 7));
+    return (var - ((unsigned int)(avg * avg) >> 7));
 
 }
 
@@ -193,7 +194,7 @@ unsigned int vp8_variance8x16_mmx(
     avg = sum0 + sum1;
     *sse = var;
 
-    return (var - (((unsigned int)avg * avg) >> 7));
+    return (var - ((unsigned int)(avg * avg) >> 7));
 
 }
 
@@ -218,7 +219,7 @@ unsigned int vp8_sub_pixel_variance4x4_mmx
         &xsum, &xxsum
     );
     *sse = xxsum;
-    return (xxsum - (((unsigned int)xsum * xsum) >> 4));
+    return (xxsum - ((xsum * xsum) >> 4));
 }
 
 
@@ -243,7 +244,7 @@ unsigned int vp8_sub_pixel_variance8x8_mmx
         &xsum, &xxsum
     );
     *sse = xxsum;
-    return (xxsum - (((unsigned int)xsum * xsum) >> 6));
+    return (xxsum - ((xsum * xsum) >> 6));
 }
 
 unsigned int vp8_sub_pixel_variance16x16_mmx
@@ -281,7 +282,7 @@ unsigned int vp8_sub_pixel_variance16x16_mmx
     xxsum0 += xxsum1;
 
     *sse = xxsum0;
-    return (xxsum0 - (((unsigned int)xsum0 * xsum0) >> 8));
+    return (xxsum0 - ((xsum0 * xsum0) >> 8));
 
 
 }
@@ -334,7 +335,7 @@ unsigned int vp8_sub_pixel_variance16x8_mmx
     xxsum0 += xxsum1;
 
     *sse = xxsum0;
-    return (xxsum0 - (((unsigned int)xsum0 * xsum0) >> 7));
+    return (xxsum0 - ((xsum0 * xsum0) >> 7));
 }
 
 unsigned int vp8_sub_pixel_variance8x16_mmx
@@ -357,7 +358,7 @@ unsigned int vp8_sub_pixel_variance8x16_mmx
         &xsum, &xxsum
     );
     *sse = xxsum;
-    return (xxsum - (((unsigned int)xsum * xsum) >> 7));
+    return (xxsum - ((xsum * xsum) >> 7));
 }
 
 

@@ -2,13 +2,41 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+ifndef LIBXUL_SDK
+# Needed for building our components as part of libxul
+APP_LIBXUL_DIRS += mobile/android/components/build
+
+include $(topsrcdir)/toolkit/toolkit-tiers.mk
+else
+ifdef ENABLE_TESTS
+tier_testharness_dirs += \
+  testing/mochitest \
+  $(NULL)
+endif
+endif
+
 include  $(topsrcdir)/toolkit/mozapps/installer/package-name.mk
 
-installer:
+TIERS += app
+
+ifdef MOZ_EXTENSIONS
+tier_app_dirs += extensions
+endif
+
+tier_app_dirs += \
+  $(MOZ_BRANDING_DIRECTORY) \
+  mobile/android \
+  $(NULL)
+
+
+installer: 
 	@$(MAKE) -C mobile/android/installer installer
 
 package:
 	@$(MAKE) -C mobile/android/installer
+
+fast-package:
+	@$(MAKE) package MOZ_FAST_PACKAGE=1
 
 ifeq ($(OS_TARGET),Android)
 ifneq ($(MOZ_ANDROID_INSTALL_TARGET),)
@@ -18,25 +46,19 @@ ifneq ($(ANDROID_SERIAL),)
 export ANDROID_SERIAL
 else
 # Determine if there's more than one device connected
-android_devices=$(filter device,$(shell $(ADB) devices))
-ifeq ($(android_devices),)
-install::
-	@echo 'No devices are connected.  Connect a device or start an emulator.'
-	@exit 1
-else
+android_devices=$(filter device,$(shell $(ANDROID_PLATFORM_TOOLS)/adb devices))
 ifneq ($(android_devices),device)
 install::
-	@echo 'Multiple devices are connected. Define ANDROID_SERIAL to specify the install target.'
-	$(ADB) devices
+	@echo "Multiple devices are connected. Define ANDROID_SERIAL to specify the install target."
+	$(ANDROID_PLATFORM_TOOLS)/adb devices
 	@exit 1
-endif
 endif
 endif
 
 install::
-	$(ADB) install -r $(DIST)/$(PKG_PATH)$(PKG_BASENAME).apk
+	$(ANDROID_PLATFORM_TOOLS)/adb install -r $(DIST)/$(PKG_PATH)$(PKG_BASENAME).apk
 else
-	@echo 'Mobile can't be installed directly.'
+	@echo "Mobile can't be installed directly."
 	@exit 1
 endif
 

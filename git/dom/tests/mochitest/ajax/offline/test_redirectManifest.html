@@ -25,7 +25,8 @@ function manifestError()
 
 function finish()
 {
-  OfflineTest.teardownAndFinish();
+  OfflineTest.teardown();
+  OfflineTest.finish();
 }
 
 SimpleTest.waitForExplicitFinish();

@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -19,11 +18,11 @@ namespace mozilla {
  *
  * @see ObserverList.
  */
-template<class T>
+template <class T>
 class Observer
 {
 public:
-  virtual ~Observer() {}
+  virtual ~Observer() { }
   virtual void Notify(const T& aParam) = 0;
 };
 
@@ -35,7 +34,7 @@ public:
  *
  * @see Observer.
  */
-template<class T>
+template <class T>
 class ObserverList
 {
 public:
@@ -46,8 +45,7 @@ public:
    *
    * @see RemoveObserver()
    */
-  void AddObserver(Observer<T>* aObserver)
-  {
+  void AddObserver(Observer<T>* aObserver) {
     mObservers.AppendElement(aObserver);
   }
 
@@ -55,20 +53,17 @@ public:
    * Remove the observer from the observer list.
    * @return Whether the observer has been found in the list.
    */
-  bool RemoveObserver(Observer<T>* aObserver)
-  {
+  bool RemoveObserver(Observer<T>* aObserver) {
     return mObservers.RemoveElement(aObserver);
   }
 
-  uint32_t Length()
-  {
+  uint32_t Length() {
     return mObservers.Length();
   }
 
-  void Broadcast(const T& aParam)
-  {
+  void Broadcast(const T& aParam) {
     uint32_t size = mObservers.Length();
-    for (uint32_t i = 0; i < size; ++i) {
+    for (uint32_t i=0; i<size; ++i) {
       mObservers[i]->Notify(aParam);
     }
   }

@@ -8,22 +8,27 @@
 #ifndef nsHTMLFrameset_h___
 #define nsHTMLFrameset_h___
 
-#include "mozilla/Attributes.h"
+#include "nsGkAtoms.h"
 #include "nsContainerFrame.h"
 #include "nsColor.h"
+#include "nsIObserver.h"
+#include "nsWeakPtr.h"
 
 class  nsIContent;
+class  nsIFrame;
 class  nsPresContext;
+class  nsRenderingContext;
 struct nsRect;
 struct nsHTMLReflowState;
 struct nsSize;
 class  nsIAtom;
 class  nsHTMLFramesetBorderFrame;
+class  nsGUIEvent;
 class  nsHTMLFramesetFrame;
 
 #define NO_COLOR 0xFFFFFFFA
 
-// defined at HTMLFrameSetElement.h
+// defined at nsHTMLFrameSetElement.h
 struct nsFramesetSpec;
 
 struct nsBorderColor 
@@ -68,56 +73,56 @@ public:
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
-  explicit nsHTMLFramesetFrame(nsStyleContext* aContext);
+  nsHTMLFramesetFrame(nsStyleContext* aContext);
 
   virtual ~nsHTMLFramesetFrame();
 
-  virtual void Init(nsIContent*       aContent,
-                    nsContainerFrame* aParent,
-                    nsIFrame*         aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
 
-  virtual void SetInitialChildList(ChildListID  aListID,
-                                   nsFrameList& aChildList) MOZ_OVERRIDE;
+  NS_IMETHOD SetInitialChildList(ChildListID  aListID,
+                                 nsFrameList& aChildList);
 
   static bool    gDragInProgress;
 
-  void GetSizeOfChild(nsIFrame* aChild, mozilla::WritingMode aWM,
-                      mozilla::LogicalSize& aSize);
+  void GetSizeOfChild(nsIFrame* aChild, nsSize& aSize);
 
-  void GetSizeOfChildAt(int32_t  aIndexInParent,
-                        mozilla::WritingMode aWM,
-                        mozilla::LogicalSize&  aSize,
+  void GetSizeOfChildAt(int32_t  aIndexInParent, 
+                        nsSize&  aSize, 
                         nsIntPoint& aCellIndex);
 
-  virtual nsresult HandleEvent(nsPresContext* aPresContext, 
-                               mozilla::WidgetGUIEvent* aEvent,
-                               nsEventStatus* aEventStatus) MOZ_OVERRIDE;
+  static nsHTMLFramesetFrame* GetFramesetParent(nsIFrame* aChild);
 
-  virtual nsresult GetCursor(const nsPoint&    aPoint,
-                             nsIFrame::Cursor& aCursor) MOZ_OVERRIDE;
+  NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
+                         nsGUIEvent*     aEvent,
+                         nsEventStatus*  aEventStatus);
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD GetCursor(const nsPoint&    aPoint,
+                       nsIFrame::Cursor& aCursor);
 
-  virtual void Reflow(nsPresContext*           aPresContext,
-                      nsHTMLReflowMetrics&     aDesiredSize,
-                      const nsHTMLReflowState& aReflowState,
-                      nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists);
 
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
-#ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD Reflow(nsPresContext*          aPresContext,
+                    nsHTMLReflowMetrics&     aDesiredSize,
+                    const nsHTMLReflowState& aReflowState,
+                    nsReflowStatus&          aStatus);
+
+  virtual nsIAtom* GetType() const;
+#ifdef DEBUG
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
-  virtual bool IsLeaf() const MOZ_OVERRIDE;
+  virtual bool IsLeaf() const;
   
-  void StartMouseDrag(nsPresContext* aPresContext,
-                      nsHTMLFramesetBorderFrame* aBorder,
-                      mozilla::WidgetGUIEvent* aEvent);
+  void StartMouseDrag(nsPresContext*            aPresContext, 
+                      nsHTMLFramesetBorderFrame* aBorder, 
+                      nsGUIEvent*                aEvent);
 
   void MouseDrag(nsPresContext* aPresContext, 
-                 mozilla::WidgetGUIEvent* aEvent);
+                 nsGUIEvent*     aEvent);
 
   void EndMouseDrag(nsPresContext* aPresContext);
 
@@ -174,6 +179,8 @@ protected:
 
   bool GetNoResize(nsIFrame* aChildFrame); 
   
+  virtual int GetSkipSides() const;
+
   void ReflowPlaceChild(nsIFrame*                aChild,
                         nsPresContext*          aPresContext,
                         const nsHTMLReflowState& aReflowState,
@@ -181,13 +188,20 @@ protected:
                         nsSize&                  aSize,
                         nsIntPoint*              aCellIndex = 0);
   
-  bool CanResize(bool aVertical, bool aLeft); 
+  bool CanResize(bool aVertical, 
+                   bool aLeft); 
 
-  bool CanChildResize(bool aVertical, bool aLeft, int32_t aChildX);
+  bool CanChildResize(bool    aVertical, 
+                        bool    aLeft, 
+                        int32_t aChildX,
+                        bool    aFrameset);
   
-  void SetBorderResize(nsHTMLFramesetBorderFrame* aBorderFrame);
+  void SetBorderResize(int32_t*                   aChildTypes, 
+                       nsHTMLFramesetBorderFrame* aBorderFrame);
 
-  static void FrameResizePrefCallback(const char* aPref, void* aClosure);
+  bool ChildIsFrameset(nsIFrame* aChild); 
+
+  static int FrameResizePrefCallback(const char* aPref, void* aClosure);
 
   nsFramesetDrag   mDrag;
   nsBorderColor    mEdgeColors;
@@ -195,6 +209,7 @@ protected:
   nsHTMLFramesetFrame* mTopLevelFrameset;
   nsHTMLFramesetBorderFrame** mVerBorders;  // vertical borders
   nsHTMLFramesetBorderFrame** mHorBorders;  // horizontal borders
+  int32_t*         mChildTypes; // frameset/frame distinction of children
   nsFrameborder*   mChildFrameborder; // the frameborder attr of children
   nsBorderColor*   mChildBorderColors;
   nscoord*         mRowSizes;  // currently computed row sizes

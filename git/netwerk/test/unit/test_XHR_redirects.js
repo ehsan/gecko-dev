@@ -4,22 +4,21 @@
 // etc--see HttpBaseChannel::IsSafeMethod).  Since no prompting is possible
 // in xpcshell, we get an error for prompts, and the request fails.
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
+
 Cu.import("resource://testing-common/httpd.js");
-Cu.import("resource://gre/modules/Preferences.jsm");
 
 var sSame;
 var sOther;
-var sRedirectPromptPref;
 
 const BUGID = "676059";
 const OTHERBUGID = "696849";
 
-XPCOMUtils.defineLazyGetter(this, "pSame", function() {
-  return sSame.identity.primaryPort;
-});
-XPCOMUtils.defineLazyGetter(this, "pOther", function() {
-  return sOther.identity.primaryPort;
-});
+const pSame = 4444;
+const pOther = 4445;
 
 function createXHR(async, method, path)
 {
@@ -29,20 +28,11 @@ function createXHR(async, method, path)
   return xhr;
 }
 
-function checkResults(xhr, method, status, unsafe)
+function checkResults(xhr, method, status)
 {
-  if (unsafe) {
-    if (sRedirectPromptPref) {
-      // The method is null if we prompt for unsafe redirects
-      method = null;
-    } else {
-      // The status code is 200 when we don't prompt for unsafe redirects
-      status = 200;
-    }
-  }
-
   if (xhr.readyState != 4)
     return false;
+
   do_check_eq(xhr.status, status);
 
   if (status == 200) {
@@ -73,12 +63,12 @@ function run_test() {
 
   // same-origin target
   sSame.registerPathHandler("/bug" + BUGID + "-target", echoMethod);
-  sSame.start(-1);
+  sSame.start(pSame);
 
   // cross-origin target
   sOther = new HttpServer();
   sOther.registerPathHandler("/bug" + OTHERBUGID + "-target", echoMethod);
-  sOther.start(-1);
+  sOther.start(pOther);
 
   // format: redirectType, methodToSend, redirectedMethod, finalStatus
   //   redirectType sets the URI the initial request goes to
@@ -89,46 +79,43 @@ function run_test() {
   // Note that unsafe methods should not follow the redirect automatically
   // Of the methods below, DELETE, POST and PUT are unsafe
   
-  sRedirectPromptPref = Preferences.get("network.http.prompt-temp-redirect");
-  // Following Bug 677754 we don't prompt for unsafe redirects
-
   // same-origin variant
   var tests = [
     // 301: rewrite just POST
-    [301, "DELETE", "DELETE", 301, true],
-    [301, "GET", "GET", 200, false],
-    [301, "HEAD", "HEAD", 200, false],
-    [301, "POST", "GET", 200, false],
-    [301, "PUT", "PUT", 301, true],
-    [301, "PROPFIND", "PROPFIND", 200, false],
+    [301, "DELETE", null, 301],
+    [301, "GET", "GET", 200],
+    [301, "HEAD", "HEAD", 200],
+    [301, "POST", "GET", 200],
+    [301, "PUT", null, 301],
+    [301, "PROPFIND", "PROPFIND", 200],
     // 302: see 301
-    [302, "DELETE", "DELETE", 302, true],
-    [302, "GET", "GET", 200, false],
-    [302, "HEAD", "HEAD", 200, false],
-    [302, "POST", "GET", 200, false],
-    [302, "PUT", "PUT", 302, true],
-    [302, "PROPFIND", "PROPFIND", 200, false],
+    [302, "DELETE", null, 302],
+    [302, "GET", "GET", 200],
+    [302, "HEAD", "HEAD", 200],
+    [302, "POST", "GET", 200],
+    [302, "PUT", null, 302],
+    [302, "PROPFIND", "PROPFIND", 200],
     // 303: rewrite to GET except HEAD
-    [303, "DELETE", "GET", 200, false],
-    [303, "GET", "GET", 200, false],
-    [303, "HEAD", "HEAD", 200, false],
-    [303, "POST", "GET", 200, false],
-    [303, "PUT", "GET", 200, false],
-    [303, "PROPFIND", "GET", 200, false],
+    [303, "DELETE", "GET", 200],
+    [303, "GET", "GET", 200],
+    [303, "HEAD", "HEAD", 200],
+    [303, "POST", "GET", 200],
+    [303, "PUT", "GET", 200],
+    [303, "PROPFIND", "GET", 200],
     // 307: never rewrite
-    [307, "DELETE", "DELETE", 307, true],
-    [307, "GET", "GET", 200, false],
-    [307, "HEAD", "HEAD", 200, false],
-    [307, "POST", "POST", 307, true],
-    [307, "PUT", "PUT", 307, true],
-    [307, "PROPFIND", "PROPFIND", 200, false],
+    [307, "DELETE", null, 307],
+    [307, "GET", "GET", 200],
+    [307, "HEAD", "HEAD", 200],
+    [307, "POST", null, 307],
+    [307, "PUT", null, 307],
+    [307, "PROPFIND", "PROPFIND", 200],
     // 308: never rewrite
-    [308, "DELETE", "DELETE", 308, true],
-    [308, "GET", "GET", 200, false],
-    [308, "HEAD", "HEAD", 200, false],
-    [308, "POST", "POST", 308, true],
-    [308, "PUT", "PUT", 308, true],
-    [308, "PROPFIND", "PROPFIND", 200, false],
+    [308, "DELETE", null, 308],
+    [308, "GET", "GET", 200],
+    [308, "HEAD", "HEAD", 200],
+    [308, "POST", null, 308],
+    [308, "PUT", null, 308],
+    [308, "PROPFIND", "PROPFIND", 200],
   ];
 
   // cross-origin variant
@@ -140,14 +127,14 @@ function run_test() {
     dump("Testing " + tests[i] + "\n");
     xhr = createXHR(false, tests[i][1], "/bug" + BUGID + "-redirect" + tests[i][0]);
     xhr.send(null);
-    checkResults(xhr, tests[i][2], tests[i][3], tests[i][4]);
+    checkResults(xhr, tests[i][2], tests[i][3]);
   }  
 
   for (var i = 0; i < othertests.length; ++i) {
     dump("Testing " + othertests[i] + " (cross-origin)\n");
     xhr = createXHR(false, othertests[i][1], "/bug" + OTHERBUGID + "-redirect" + othertests[i][0]);
     xhr.send(null);
-    checkResults(xhr, othertests[i][2], tests[i][3], tests[i][4]);
+    checkResults(xhr, othertests[i][2], tests[i][3]);
   }  
 
   sSame.stop(do_test_finished);

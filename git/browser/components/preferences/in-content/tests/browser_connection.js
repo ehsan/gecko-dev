@@ -7,7 +7,7 @@ Components.utils.import("resource://gre/modules/Services.jsm");
 
 function test() {
   waitForExplicitFinish();
-
+  
   // network.proxy.type needs to be backed up and restored because mochitest
   // changes this setting from the default
   let oldNetworkProxyType = Services.prefs.getIntPref("network.proxy.type");
@@ -16,9 +16,10 @@ function test() {
     Services.prefs.clearUserPref("network.proxy.no_proxies_on");
     Services.prefs.clearUserPref("browser.preferences.instantApply");
   });
-
-  let connectionURL = "chrome://browser/content/preferences/connection.xul";
-  let windowWatcher = Services.ww;
+  
+  let connectionURI = "chrome://browser/content/preferences/connection.xul";
+  let windowWatcher = Cc["@mozilla.org/embedcomp/window-watcher;1"]
+                          .getService(Components.interfaces.nsIWindowWatcher);
 
   // instantApply must be true, otherwise connection dialog won't save
   // when opened from in-content prefs
@@ -27,12 +28,13 @@ function test() {
   // this observer is registered after the pref tab loads
   let observer = {
     observe: function(aSubject, aTopic, aData) {
+      
       if (aTopic == "domwindowopened") {
         // when connection window loads, run tests and acceptDialog()
         let win = aSubject.QueryInterface(Components.interfaces.nsIDOMWindow);
         win.addEventListener("load", function winLoadListener() {
           win.removeEventListener("load", winLoadListener, false);
-          if (win.location.href == connectionURL) {
+          if (win.location.href == connectionURI) {
             ok(true, "connection window opened");
             runConnectionTests(win);
             win.document.documentElement.acceptDialog();
@@ -41,7 +43,7 @@ function test() {
       } else if (aTopic == "domwindowclosed") {
         // finish up when connection window closes
         let win = aSubject.QueryInterface(Components.interfaces.nsIDOMWindow);
-        if (win.location.href == connectionURL) {
+        if (win.location.href == connectionURI) {
           windowWatcher.unregisterNotification(observer);
           ok(true, "connection window closed");
           // runConnectionTests will have changed this pref - make sure it was
@@ -52,8 +54,9 @@ function test() {
           finish();
         }
       }
+
     }
-  };
+  }
 
   /*
   The connection dialog alone won't save onaccept since it uses type="child",
@@ -79,7 +82,7 @@ function runConnectionTests(win) {
      "networkProxyNone textbox is multiline");
   is(networkProxyNone.getAttribute("rows"), "2",
      "networkProxyNone textbox has two rows");
-
+  
   // check if sanitizing the given input for the no_proxies_on pref results in
   // expected string
   function testSanitize(input, expected, errorMessage) {

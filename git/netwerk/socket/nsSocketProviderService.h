@@ -10,13 +10,12 @@
 
 class nsSocketProviderService : public nsISocketProviderService
 {
-  virtual ~nsSocketProviderService() {}
-
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSISOCKETPROVIDERSERVICE
 
   nsSocketProviderService() {}
+  virtual ~nsSocketProviderService() {}
 
   static nsresult Create(nsISupports *, REFNSIID aIID, void **aResult);
 };

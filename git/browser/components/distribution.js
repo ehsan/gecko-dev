@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = [ "DistributionCustomizer" ];
+EXPORTED_SYMBOLS = [ "DistributionCustomizer" ];
 
 const Ci = Components.interfaces;
 const Cc = Components.classes;
@@ -13,29 +13,17 @@ const DISTRIBUTION_CUSTOMIZATION_COMPLETE_TOPIC =
   "distribution-customization-complete";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
                                   "resource://gre/modules/PlacesUtils.jsm");
 
-this.DistributionCustomizer = function DistributionCustomizer() {
-  // For parallel xpcshell testing purposes allow loading the distribution.ini
-  // file from the profile folder through an hidden pref.
-  let loadFromProfile = false;
-  try {
-    loadFromProfile = Services.prefs.getBoolPref("distribution.testing.loadFromProfile");
-  } catch(ex) {}
+function DistributionCustomizer() {
   let dirSvc = Cc["@mozilla.org/file/directory_service;1"].
                getService(Ci.nsIProperties);
-  try {
-    let iniFile = loadFromProfile ? dirSvc.get("ProfD", Ci.nsIFile)
-                                  : dirSvc.get("XREAppDist", Ci.nsIFile);
-    if (loadFromProfile) {
-      iniFile.leafName = "distribution";
-    }
-    iniFile.append("distribution.ini");
-    if (iniFile.exists())
-      this._iniFile = iniFile;
-  } catch(ex) {}
+  let iniFile = dirSvc.get("XCurProcD", Ci.nsIFile);
+  iniFile.append("distribution");
+  iniFile.append("distribution.ini");
+  if (iniFile.exists())
+    this._iniFile = iniFile;
 }
 
 DistributionCustomizer.prototype = {
@@ -171,7 +159,7 @@ DistributionCustomizer.prototype = {
                                           , index: index
                                           , feedURI: this._makeURI(items[iid]["feedLink"])
                                           , siteURI: this._makeURI(items[iid]["siteLink"])
-                                          }).then(null, Cu.reportError);
+                                          });
         break;
 
       case "bookmark":
@@ -277,18 +265,13 @@ DistributionCustomizer.prototype = {
 
     let partnerAbout = Cc["@mozilla.org/supports-string;1"].
       createInstance(Ci.nsISupportsString);
-    try {
-      if (globalPrefs["about." + this._locale]) {
-        partnerAbout.data = this._ini.getString("Global", "about." + this._locale);
-      } else {
-        partnerAbout.data = this._ini.getString("Global", "about");
-      }
-      defaults.setComplexValue("distribution.about",
-                               Ci.nsISupportsString, partnerAbout);
-    } catch (e) {
-      /* ignore bad prefs due to bug 895473 and move on */
-      Cu.reportError(e);
+    if (globalPrefs["about." + this._locale]) {
+      partnerAbout.data = this._ini.getString("Global", "about." + this._locale);
+    } else {
+      partnerAbout.data = this._ini.getString("Global", "about");
     }
+    defaults.setComplexValue("distribution.about",
+                             Ci.nsISupportsString, partnerAbout);
 
     if (sections["Preferences"]) {
       for (let key in enumerate(this._ini.getKeys("Preferences"))) {

@@ -3,7 +3,7 @@
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-<title>FreeType-2.5.3 API Reference</title>
+<title>FreeType-2.4.9 API Reference</title>
 <style type="text/css">
   body { font-family: Verdana, Geneva, Arial, Helvetica, serif;
          color: #000000;
@@ -35,38 +35,37 @@
 <table align=center><tr><td><font size=-1>[<a href="ft2-index.html">Index</a>]</font></td>
 <td width="100%"></td>
 <td><font size=-1>[<a href="ft2-toc.html">TOC</a>]</font></td></tr></table>
-<center><h1>FreeType-2.5.3 API Reference</h1></center>
+<center><h1>FreeType-2.4.9 API Reference</h1></center>
 
 <center><h1>
 Header File Macros
 </h1></center>
 <h2>Synopsis</h2>
 <table align=center cellspacing=5 cellpadding=0 border=0>
-<tr><td></td><td><a href="#FT_CONFIG_CONFIG_H">FT_CONFIG_CONFIG_H</a></td><td></td><td><a href="#FT_LZW_H">FT_LZW_H</a></td></tr>
-<tr><td></td><td><a href="#FT_CONFIG_STANDARD_LIBRARY_H">FT_CONFIG_STANDARD_LIBRARY_H</a></td><td></td><td><a href="#FT_BZIP2_H">FT_BZIP2_H</a></td></tr>
-<tr><td></td><td><a href="#FT_CONFIG_OPTIONS_H">FT_CONFIG_OPTIONS_H</a></td><td></td><td><a href="#FT_WINFONTS_H">FT_WINFONTS_H</a></td></tr>
-<tr><td></td><td><a href="#FT_CONFIG_MODULES_H">FT_CONFIG_MODULES_H</a></td><td></td><td><a href="#FT_GLYPH_H">FT_GLYPH_H</a></td></tr>
-<tr><td></td><td><a href="#FT_FREETYPE_H">FT_FREETYPE_H</a></td><td></td><td><a href="#FT_BITMAP_H">FT_BITMAP_H</a></td></tr>
-<tr><td></td><td><a href="#FT_ERRORS_H">FT_ERRORS_H</a></td><td></td><td><a href="#FT_BBOX_H">FT_BBOX_H</a></td></tr>
-<tr><td></td><td><a href="#FT_MODULE_ERRORS_H">FT_MODULE_ERRORS_H</a></td><td></td><td><a href="#FT_CACHE_H">FT_CACHE_H</a></td></tr>
-<tr><td></td><td><a href="#FT_SYSTEM_H">FT_SYSTEM_H</a></td><td></td><td><a href="#FT_CACHE_IMAGE_H">FT_CACHE_IMAGE_H</a></td></tr>
-<tr><td></td><td><a href="#FT_IMAGE_H">FT_IMAGE_H</a></td><td></td><td><a href="#FT_CACHE_SMALL_BITMAPS_H">FT_CACHE_SMALL_BITMAPS_H</a></td></tr>
-<tr><td></td><td><a href="#FT_TYPES_H">FT_TYPES_H</a></td><td></td><td><a href="#FT_CACHE_CHARMAP_H">FT_CACHE_CHARMAP_H</a></td></tr>
-<tr><td></td><td><a href="#FT_LIST_H">FT_LIST_H</a></td><td></td><td><a href="#FT_MAC_H">FT_MAC_H</a></td></tr>
-<tr><td></td><td><a href="#FT_OUTLINE_H">FT_OUTLINE_H</a></td><td></td><td><a href="#FT_MULTIPLE_MASTERS_H">FT_MULTIPLE_MASTERS_H</a></td></tr>
-<tr><td></td><td><a href="#FT_SIZES_H">FT_SIZES_H</a></td><td></td><td><a href="#FT_SFNT_NAMES_H">FT_SFNT_NAMES_H</a></td></tr>
-<tr><td></td><td><a href="#FT_MODULE_H">FT_MODULE_H</a></td><td></td><td><a href="#FT_OPENTYPE_VALIDATE_H">FT_OPENTYPE_VALIDATE_H</a></td></tr>
-<tr><td></td><td><a href="#FT_RENDER_H">FT_RENDER_H</a></td><td></td><td><a href="#FT_GX_VALIDATE_H">FT_GX_VALIDATE_H</a></td></tr>
-<tr><td></td><td><a href="#FT_AUTOHINTER_H">FT_AUTOHINTER_H</a></td><td></td><td><a href="#FT_PFR_H">FT_PFR_H</a></td></tr>
-<tr><td></td><td><a href="#FT_CFF_DRIVER_H">FT_CFF_DRIVER_H</a></td><td></td><td><a href="#FT_STROKER_H">FT_STROKER_H</a></td></tr>
-<tr><td></td><td><a href="#FT_TRUETYPE_DRIVER_H">FT_TRUETYPE_DRIVER_H</a></td><td></td><td><a href="#FT_SYNTHESIS_H">FT_SYNTHESIS_H</a></td></tr>
-<tr><td></td><td><a href="#FT_TYPE1_TABLES_H">FT_TYPE1_TABLES_H</a></td><td></td><td><a href="#FT_XFREE86_H">FT_XFREE86_H</a></td></tr>
-<tr><td></td><td><a href="#FT_TRUETYPE_IDS_H">FT_TRUETYPE_IDS_H</a></td><td></td><td><a href="#FT_TRIGONOMETRY_H">FT_TRIGONOMETRY_H</a></td></tr>
-<tr><td></td><td><a href="#FT_TRUETYPE_TABLES_H">FT_TRUETYPE_TABLES_H</a></td><td></td><td><a href="#FT_LCD_FILTER_H">FT_LCD_FILTER_H</a></td></tr>
-<tr><td></td><td><a href="#FT_TRUETYPE_TAGS_H">FT_TRUETYPE_TAGS_H</a></td><td></td><td><a href="#FT_UNPATENTED_HINTING_H">FT_UNPATENTED_HINTING_H</a></td></tr>
-<tr><td></td><td><a href="#FT_BDF_H">FT_BDF_H</a></td><td></td><td><a href="#FT_INCREMENTAL_H">FT_INCREMENTAL_H</a></td></tr>
-<tr><td></td><td><a href="#FT_CID_H">FT_CID_H</a></td><td></td><td><a href="#FT_GASP_H">FT_GASP_H</a></td></tr>
-<tr><td></td><td><a href="#FT_GZIP_H">FT_GZIP_H</a></td><td></td><td><a href="#FT_ADVANCES_H">FT_ADVANCES_H</a></td></tr>
+<tr><td></td><td><a href="#FT_CONFIG_CONFIG_H">FT_CONFIG_CONFIG_H</a></td><td></td><td><a href="#FT_WINFONTS_H">FT_WINFONTS_H</a></td></tr>
+<tr><td></td><td><a href="#FT_CONFIG_STANDARD_LIBRARY_H">FT_CONFIG_STANDARD_LIBRARY_H</a></td><td></td><td><a href="#FT_GLYPH_H">FT_GLYPH_H</a></td></tr>
+<tr><td></td><td><a href="#FT_CONFIG_OPTIONS_H">FT_CONFIG_OPTIONS_H</a></td><td></td><td><a href="#FT_BITMAP_H">FT_BITMAP_H</a></td></tr>
+<tr><td></td><td><a href="#FT_CONFIG_MODULES_H">FT_CONFIG_MODULES_H</a></td><td></td><td><a href="#FT_BBOX_H">FT_BBOX_H</a></td></tr>
+<tr><td></td><td><a href="#FT_FREETYPE_H">FT_FREETYPE_H</a></td><td></td><td><a href="#FT_CACHE_H">FT_CACHE_H</a></td></tr>
+<tr><td></td><td><a href="#FT_ERRORS_H">FT_ERRORS_H</a></td><td></td><td><a href="#FT_CACHE_IMAGE_H">FT_CACHE_IMAGE_H</a></td></tr>
+<tr><td></td><td><a href="#FT_MODULE_ERRORS_H">FT_MODULE_ERRORS_H</a></td><td></td><td><a href="#FT_CACHE_SMALL_BITMAPS_H">FT_CACHE_SMALL_BITMAPS_H</a></td></tr>
+<tr><td></td><td><a href="#FT_SYSTEM_H">FT_SYSTEM_H</a></td><td></td><td><a href="#FT_CACHE_CHARMAP_H">FT_CACHE_CHARMAP_H</a></td></tr>
+<tr><td></td><td><a href="#FT_IMAGE_H">FT_IMAGE_H</a></td><td></td><td><a href="#FT_MAC_H">FT_MAC_H</a></td></tr>
+<tr><td></td><td><a href="#FT_TYPES_H">FT_TYPES_H</a></td><td></td><td><a href="#FT_MULTIPLE_MASTERS_H">FT_MULTIPLE_MASTERS_H</a></td></tr>
+<tr><td></td><td><a href="#FT_LIST_H">FT_LIST_H</a></td><td></td><td><a href="#FT_SFNT_NAMES_H">FT_SFNT_NAMES_H</a></td></tr>
+<tr><td></td><td><a href="#FT_OUTLINE_H">FT_OUTLINE_H</a></td><td></td><td><a href="#FT_OPENTYPE_VALIDATE_H">FT_OPENTYPE_VALIDATE_H</a></td></tr>
+<tr><td></td><td><a href="#FT_SIZES_H">FT_SIZES_H</a></td><td></td><td><a href="#FT_GX_VALIDATE_H">FT_GX_VALIDATE_H</a></td></tr>
+<tr><td></td><td><a href="#FT_MODULE_H">FT_MODULE_H</a></td><td></td><td><a href="#FT_PFR_H">FT_PFR_H</a></td></tr>
+<tr><td></td><td><a href="#FT_RENDER_H">FT_RENDER_H</a></td><td></td><td><a href="#FT_STROKER_H">FT_STROKER_H</a></td></tr>
+<tr><td></td><td><a href="#FT_TYPE1_TABLES_H">FT_TYPE1_TABLES_H</a></td><td></td><td><a href="#FT_SYNTHESIS_H">FT_SYNTHESIS_H</a></td></tr>
+<tr><td></td><td><a href="#FT_TRUETYPE_IDS_H">FT_TRUETYPE_IDS_H</a></td><td></td><td><a href="#FT_XFREE86_H">FT_XFREE86_H</a></td></tr>
+<tr><td></td><td><a href="#FT_TRUETYPE_TABLES_H">FT_TRUETYPE_TABLES_H</a></td><td></td><td><a href="#FT_TRIGONOMETRY_H">FT_TRIGONOMETRY_H</a></td></tr>
+<tr><td></td><td><a href="#FT_TRUETYPE_TAGS_H">FT_TRUETYPE_TAGS_H</a></td><td></td><td><a href="#FT_LCD_FILTER_H">FT_LCD_FILTER_H</a></td></tr>
+<tr><td></td><td><a href="#FT_BDF_H">FT_BDF_H</a></td><td></td><td><a href="#FT_UNPATENTED_HINTING_H">FT_UNPATENTED_HINTING_H</a></td></tr>
+<tr><td></td><td><a href="#FT_CID_H">FT_CID_H</a></td><td></td><td><a href="#FT_INCREMENTAL_H">FT_INCREMENTAL_H</a></td></tr>
+<tr><td></td><td><a href="#FT_GZIP_H">FT_GZIP_H</a></td><td></td><td><a href="#FT_GASP_H">FT_GASP_H</a></td></tr>
+<tr><td></td><td><a href="#FT_LZW_H">FT_LZW_H</a></td><td></td><td><a href="#FT_ADVANCES_H">FT_ADVANCES_H</a></td></tr>
+<tr><td></td><td><a href="#FT_BZIP2_H">FT_BZIP2_H</a></td><td></td><td></td></tr>
 </table><br><br>
 
 <table align=center width="87%"><tr><td>
@@ -84,7 +83,7 @@ Header File Macros
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
 #ifndef <b>FT_CONFIG_CONFIG_H</b>
-#define <b>FT_CONFIG_CONFIG_H</b>  &lt;config/ftconfig.h&gt;
+#define <b>FT_CONFIG_CONFIG_H</b>  &lt;freetype/config/ftconfig.h&gt;
 #endif
 
 </pre></table><br>
@@ -102,7 +101,7 @@ Header File Macros
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
 #ifndef <b>FT_CONFIG_STANDARD_LIBRARY_H</b>
-#define <b>FT_CONFIG_STANDARD_LIBRARY_H</b>  &lt;config/ftstdlib.h&gt;
+#define <b>FT_CONFIG_STANDARD_LIBRARY_H</b>  &lt;freetype/config/ftstdlib.h&gt;
 #endif
 
 </pre></table><br>
@@ -120,7 +119,7 @@ Header File Macros
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
 #ifndef <b>FT_CONFIG_OPTIONS_H</b>
-#define <b>FT_CONFIG_OPTIONS_H</b>  &lt;config/ftoption.h&gt;
+#define <b>FT_CONFIG_OPTIONS_H</b>  &lt;freetype/config/ftoption.h&gt;
 #endif
 
 </pre></table><br>
@@ -138,7 +137,7 @@ Header File Macros
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
 #ifndef <b>FT_CONFIG_MODULES_H</b>
-#define <b>FT_CONFIG_MODULES_H</b>  &lt;config/ftmodule.h&gt;
+#define <b>FT_CONFIG_MODULES_H</b>  &lt;freetype/config/ftmodule.h&gt;
 #endif
 
 </pre></table><br>
@@ -155,7 +154,7 @@ Header File Macros
 <h4><a name="FT_FREETYPE_H">FT_FREETYPE_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_FREETYPE_H</b>  &lt;freetype.h&gt;
+#define <b>FT_FREETYPE_H</b>  &lt;freetype/freetype.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -171,7 +170,7 @@ Header File Macros
 <h4><a name="FT_ERRORS_H">FT_ERRORS_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_ERRORS_H</b>  &lt;fterrors.h&gt;
+#define <b>FT_ERRORS_H</b>  &lt;freetype/fterrors.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -188,7 +187,7 @@ Header File Macros
 <h4><a name="FT_MODULE_ERRORS_H">FT_MODULE_ERRORS_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_MODULE_ERRORS_H</b>  &lt;ftmoderr.h&gt;
+#define <b>FT_MODULE_ERRORS_H</b>  &lt;freetype/ftmoderr.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -204,7 +203,7 @@ Header File Macros
 <h4><a name="FT_SYSTEM_H">FT_SYSTEM_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_SYSTEM_H</b>  &lt;ftsystem.h&gt;
+#define <b>FT_SYSTEM_H</b>  &lt;freetype/ftsystem.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -221,7 +220,7 @@ Header File Macros
 <h4><a name="FT_IMAGE_H">FT_IMAGE_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_IMAGE_H</b>  &lt;ftimage.h&gt;
+#define <b>FT_IMAGE_H</b>  &lt;freetype/ftimage.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -238,7 +237,7 @@ Header File Macros
 <h4><a name="FT_TYPES_H">FT_TYPES_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_TYPES_H</b>  &lt;fttypes.h&gt;
+#define <b>FT_TYPES_H</b>  &lt;freetype/fttypes.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -255,7 +254,7 @@ Header File Macros
 <h4><a name="FT_LIST_H">FT_LIST_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_LIST_H</b>  &lt;ftlist.h&gt;
+#define <b>FT_LIST_H</b>  &lt;freetype/ftlist.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -272,7 +271,7 @@ Header File Macros
 <h4><a name="FT_OUTLINE_H">FT_OUTLINE_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_OUTLINE_H</b>  &lt;ftoutln.h&gt;
+#define <b>FT_OUTLINE_H</b>  &lt;freetype/ftoutln.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -288,7 +287,7 @@ Header File Macros
 <h4><a name="FT_SIZES_H">FT_SIZES_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_SIZES_H</b>  &lt;ftsizes.h&gt;
+#define <b>FT_SIZES_H</b>  &lt;freetype/ftsizes.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -304,7 +303,7 @@ Header File Macros
 <h4><a name="FT_MODULE_H">FT_MODULE_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_MODULE_H</b>  &lt;ftmodapi.h&gt;
+#define <b>FT_MODULE_H</b>  &lt;freetype/ftmodapi.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -320,7 +319,7 @@ Header File Macros
 <h4><a name="FT_RENDER_H">FT_RENDER_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_RENDER_H</b>  &lt;ftrender.h&gt;
+#define <b>FT_RENDER_H</b>  &lt;freetype/ftrender.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -333,58 +332,10 @@ Header File Macros
 <td><font size=-2>[<a href="ft2-toc.html">TOC</a>]</font></td></tr></table>
 
 <table align=center width="75%"><tr><td>
-<h4><a name="FT_AUTOHINTER_H">FT_AUTOHINTER_H</a></h4>
-<table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
-
-#define <b>FT_AUTOHINTER_H</b>  &lt;ftautoh.h&gt;
-
-</pre></table><br>
-<table align=center width="87%"><tr><td>
-<p>A macro used in #include statements to name the file containing structures and macros related to the auto-hinting module.</p>
-</td></tr></table><br>
-</td></tr></table>
-<hr width="75%">
-<table align=center width="75%"><tr><td><font size=-2>[<a href="ft2-index.html">Index</a>]</font></td>
-<td width="100%"></td>
-<td><font size=-2>[<a href="ft2-toc.html">TOC</a>]</font></td></tr></table>
-
-<table align=center width="75%"><tr><td>
-<h4><a name="FT_CFF_DRIVER_H">FT_CFF_DRIVER_H</a></h4>
-<table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
-
-#define <b>FT_CFF_DRIVER_H</b>  &lt;ftcffdrv.h&gt;
-
-</pre></table><br>
-<table align=center width="87%"><tr><td>
-<p>A macro used in #include statements to name the file containing structures and macros related to the CFF driver module.</p>
-</td></tr></table><br>
-</td></tr></table>
-<hr width="75%">
-<table align=center width="75%"><tr><td><font size=-2>[<a href="ft2-index.html">Index</a>]</font></td>
-<td width="100%"></td>
-<td><font size=-2>[<a href="ft2-toc.html">TOC</a>]</font></td></tr></table>
-
-<table align=center width="75%"><tr><td>
-<h4><a name="FT_TRUETYPE_DRIVER_H">FT_TRUETYPE_DRIVER_H</a></h4>
-<table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
-
-#define <b>FT_TRUETYPE_DRIVER_H</b>  &lt;ftttdrv.h&gt;
-
-</pre></table><br>
-<table align=center width="87%"><tr><td>
-<p>A macro used in #include statements to name the file containing structures and macros related to the TrueType driver module.</p>
-</td></tr></table><br>
-</td></tr></table>
-<hr width="75%">
-<table align=center width="75%"><tr><td><font size=-2>[<a href="ft2-index.html">Index</a>]</font></td>
-<td width="100%"></td>
-<td><font size=-2>[<a href="ft2-toc.html">TOC</a>]</font></td></tr></table>
-
-<table align=center width="75%"><tr><td>
 <h4><a name="FT_TYPE1_TABLES_H">FT_TYPE1_TABLES_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_TYPE1_TABLES_H</b>  &lt;t1tables.h&gt;
+#define <b>FT_TYPE1_TABLES_H</b>  &lt;freetype/t1tables.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -400,7 +351,7 @@ Header File Macros
 <h4><a name="FT_TRUETYPE_IDS_H">FT_TRUETYPE_IDS_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_TRUETYPE_IDS_H</b>  &lt;ttnameid.h&gt;
+#define <b>FT_TRUETYPE_IDS_H</b>  &lt;freetype/ttnameid.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -416,7 +367,7 @@ Header File Macros
 <h4><a name="FT_TRUETYPE_TABLES_H">FT_TRUETYPE_TABLES_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_TRUETYPE_TABLES_H</b>  &lt;tttables.h&gt;
+#define <b>FT_TRUETYPE_TABLES_H</b>  &lt;freetype/tttables.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -432,7 +383,7 @@ Header File Macros
 <h4><a name="FT_TRUETYPE_TAGS_H">FT_TRUETYPE_TAGS_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_TRUETYPE_TAGS_H</b>  &lt;tttags.h&gt;
+#define <b>FT_TRUETYPE_TAGS_H</b>  &lt;freetype/tttags.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -448,7 +399,7 @@ Header File Macros
 <h4><a name="FT_BDF_H">FT_BDF_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_BDF_H</b>  &lt;ftbdf.h&gt;
+#define <b>FT_BDF_H</b>  &lt;freetype/ftbdf.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -464,7 +415,7 @@ Header File Macros
 <h4><a name="FT_CID_H">FT_CID_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_CID_H</b>  &lt;ftcid.h&gt;
+#define <b>FT_CID_H</b>  &lt;freetype/ftcid.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -480,7 +431,7 @@ Header File Macros
 <h4><a name="FT_GZIP_H">FT_GZIP_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_GZIP_H</b>  &lt;ftgzip.h&gt;
+#define <b>FT_GZIP_H</b>  &lt;freetype/ftgzip.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -496,7 +447,7 @@ Header File Macros
 <h4><a name="FT_LZW_H">FT_LZW_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_LZW_H</b>  &lt;ftlzw.h&gt;
+#define <b>FT_LZW_H</b>  &lt;freetype/ftlzw.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -512,7 +463,7 @@ Header File Macros
 <h4><a name="FT_BZIP2_H">FT_BZIP2_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_BZIP2_H</b>  &lt;ftbzip2.h&gt;
+#define <b>FT_BZIP2_H</b>  &lt;freetype/ftbzip2.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -528,7 +479,7 @@ Header File Macros
 <h4><a name="FT_WINFONTS_H">FT_WINFONTS_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_WINFONTS_H</b>   &lt;ftwinfnt.h&gt;
+#define <b>FT_WINFONTS_H</b>   &lt;freetype/ftwinfnt.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -544,7 +495,7 @@ Header File Macros
 <h4><a name="FT_GLYPH_H">FT_GLYPH_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_GLYPH_H</b>  &lt;ftglyph.h&gt;
+#define <b>FT_GLYPH_H</b>  &lt;freetype/ftglyph.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -560,7 +511,7 @@ Header File Macros
 <h4><a name="FT_BITMAP_H">FT_BITMAP_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_BITMAP_H</b>  &lt;ftbitmap.h&gt;
+#define <b>FT_BITMAP_H</b>  &lt;freetype/ftbitmap.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -576,7 +527,7 @@ Header File Macros
 <h4><a name="FT_BBOX_H">FT_BBOX_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_BBOX_H</b>  &lt;ftbbox.h&gt;
+#define <b>FT_BBOX_H</b>  &lt;freetype/ftbbox.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -592,7 +543,7 @@ Header File Macros
 <h4><a name="FT_CACHE_H">FT_CACHE_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_CACHE_H</b>  &lt;ftcache.h&gt;
+#define <b>FT_CACHE_H</b>  &lt;freetype/ftcache.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -661,7 +612,7 @@ Header File Macros
 <h4><a name="FT_MAC_H">FT_MAC_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_MAC_H</b>  &lt;ftmac.h&gt;
+#define <b>FT_MAC_H</b>  &lt;freetype/ftmac.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -678,7 +629,7 @@ Header File Macros
 <h4><a name="FT_MULTIPLE_MASTERS_H">FT_MULTIPLE_MASTERS_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_MULTIPLE_MASTERS_H</b>  &lt;ftmm.h&gt;
+#define <b>FT_MULTIPLE_MASTERS_H</b>  &lt;freetype/ftmm.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -694,7 +645,7 @@ Header File Macros
 <h4><a name="FT_SFNT_NAMES_H">FT_SFNT_NAMES_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_SFNT_NAMES_H</b>  &lt;ftsnames.h&gt;
+#define <b>FT_SFNT_NAMES_H</b>  &lt;freetype/ftsnames.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -710,7 +661,7 @@ Header File Macros
 <h4><a name="FT_OPENTYPE_VALIDATE_H">FT_OPENTYPE_VALIDATE_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_OPENTYPE_VALIDATE_H</b>  &lt;ftotval.h&gt;
+#define <b>FT_OPENTYPE_VALIDATE_H</b>  &lt;freetype/ftotval.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -726,7 +677,7 @@ Header File Macros
 <h4><a name="FT_GX_VALIDATE_H">FT_GX_VALIDATE_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_GX_VALIDATE_H</b>  &lt;ftgxval.h&gt;
+#define <b>FT_GX_VALIDATE_H</b>  &lt;freetype/ftgxval.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -742,7 +693,7 @@ Header File Macros
 <h4><a name="FT_PFR_H">FT_PFR_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_PFR_H</b>  &lt;ftpfr.h&gt;
+#define <b>FT_PFR_H</b>  &lt;freetype/ftpfr.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -758,7 +709,7 @@ Header File Macros
 <h4><a name="FT_STROKER_H">FT_STROKER_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_STROKER_H</b>  &lt;ftstroke.h&gt;
+#define <b>FT_STROKER_H</b>  &lt;freetype/ftstroke.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -774,7 +725,7 @@ Header File Macros
 <h4><a name="FT_SYNTHESIS_H">FT_SYNTHESIS_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_SYNTHESIS_H</b>  &lt;ftsynth.h&gt;
+#define <b>FT_SYNTHESIS_H</b>  &lt;freetype/ftsynth.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -790,7 +741,7 @@ Header File Macros
 <h4><a name="FT_XFREE86_H">FT_XFREE86_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_XFREE86_H</b>  &lt;ftxf86.h&gt;
+#define <b>FT_XFREE86_H</b>  &lt;freetype/ftxf86.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -806,7 +757,7 @@ Header File Macros
 <h4><a name="FT_TRIGONOMETRY_H">FT_TRIGONOMETRY_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_TRIGONOMETRY_H</b>  &lt;fttrigon.h&gt;
+#define <b>FT_TRIGONOMETRY_H</b>  &lt;freetype/fttrigon.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -822,7 +773,7 @@ Header File Macros
 <h4><a name="FT_LCD_FILTER_H">FT_LCD_FILTER_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_LCD_FILTER_H</b>  &lt;ftlcdfil.h&gt;
+#define <b>FT_LCD_FILTER_H</b>  &lt;freetype/ftlcdfil.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -838,7 +789,7 @@ Header File Macros
 <h4><a name="FT_UNPATENTED_HINTING_H">FT_UNPATENTED_HINTING_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_UNPATENTED_HINTING_H</b>  &lt;ttunpat.h&gt;
+#define <b>FT_UNPATENTED_HINTING_H</b>  &lt;freetype/ttunpat.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -854,7 +805,7 @@ Header File Macros
 <h4><a name="FT_INCREMENTAL_H">FT_INCREMENTAL_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_INCREMENTAL_H</b>  &lt;ftincrem.h&gt;
+#define <b>FT_INCREMENTAL_H</b>  &lt;freetype/ftincrem.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -870,7 +821,7 @@ Header File Macros
 <h4><a name="FT_GASP_H">FT_GASP_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_GASP_H</b>  &lt;ftgasp.h&gt;
+#define <b>FT_GASP_H</b>  &lt;freetype/ftgasp.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>
@@ -886,7 +837,7 @@ Header File Macros
 <h4><a name="FT_ADVANCES_H">FT_ADVANCES_H</a></h4>
 <table align=center width="87%"><tr bgcolor="#D6E8FF"><td><pre>
 
-#define <b>FT_ADVANCES_H</b>  &lt;ftadvanc.h&gt;
+#define <b>FT_ADVANCES_H</b>  &lt;freetype/ftadvanc.h&gt;
 
 </pre></table><br>
 <table align=center width="87%"><tr><td>

@@ -9,10 +9,27 @@
 #include "nsCocoaFeatures.h"
 #import <Cocoa/Cocoa.h>
 
+extern "C" {
+  typedef CFTypeRef CUIRendererRef;
+  void CUIDraw(CUIRendererRef r, CGRect rect, CGContextRef ctx, CFDictionaryRef options, CFDictionaryRef* result);
+}
+
+@interface NSWindow(CoreUIRendererPrivate)
++ (CUIRendererRef)coreUIRenderer;
+@end
+
 enum ColorName {
   toolbarTopBorderGrey,
   toolbarFillGrey,
   toolbarBottomBorderGrey,
+};
+
+static const int sLeopardThemeColors[][2] = {
+  /* { active window, inactive window } */
+  // toolbar:
+  { 0xC0, 0xE2 }, // top separator line
+  { 0x96, 0xCA }, // fill color
+  { 0x42, 0x89 }, // bottom separator line
 };
 
 static const int sSnowLeopardThemeColors[][2] = {
@@ -37,7 +54,10 @@ static int NativeGreyColorAsInt(ColorName name, BOOL isMain)
   if (nsCocoaFeatures::OnLionOrLater())
     return sLionThemeColors[name][isMain ? 0 : 1];
 
-  return sSnowLeopardThemeColors[name][isMain ? 0 : 1];
+  if (nsCocoaFeatures::OnSnowLeopardOrLater())
+    return sSnowLeopardThemeColors[name][isMain ? 0 : 1];
+
+  return sLeopardThemeColors[name][isMain ? 0 : 1];
 }
 
 __attribute__((unused))

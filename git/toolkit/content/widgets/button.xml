@@ -9,8 +9,16 @@
    xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
    xmlns:xbl="http://www.mozilla.org/xbl">
 
-  <binding id="button-base" extends="chrome://global/content/bindings/general.xml#basetext" role="xul:button">
-    <implementation implements="nsIDOMXULButtonElement">
+  <binding id="button-base" extends="chrome://global/content/bindings/general.xml#basetext">
+    <implementation implements="nsIDOMXULButtonElement, nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            return Components.interfaces.nsIAccessibleProvider.XULButton;
+          ]]>
+        </getter>
+      </property>
+
       <property name="type"
                 onget="return this.getAttribute('type');"
                 onset="this.setAttribute('type', val); return val;"/>
@@ -25,7 +33,8 @@
 
       <property name="open" onget="return this.hasAttribute('open');">
         <setter><![CDATA[
-          if (this.boxObject instanceof MenuBoxObject) {
+          if (this.boxObject instanceof
+              Components.interfaces.nsIMenuBoxObject) {
             this.boxObject.openMenu(val);
           } else {
             // Fall back to just setting the attribute
@@ -104,7 +113,7 @@
         <![CDATA[
           var iterator = aSubtree.ownerDocument.createTreeWalker(aSubtree, 
                                                                  NodeFilter.SHOW_ELEMENT, 
-                                                                 this.filterButtons);
+                                                                 this.filterButtons, false);
           while (iterator.nextNode()) {
             var test = iterator.currentNode;
             if (test.accessKey.toLowerCase() == aAccessKeyLower && 
@@ -146,7 +155,7 @@
 
       <handler event="keypress">
       <![CDATA[
-        if (this.boxObject instanceof MenuBoxObject) {
+        if (this.boxObject instanceof Components.interfaces.nsIMenuBoxObject) {
           if (this.open)
             return;
         } else {
@@ -331,17 +340,6 @@
       </method>
 
     </implementation>
-
-    <handlers>
-      <handler event="keypress" keycode="VK_RETURN">
-        if (event.originalTarget == this)
-          this.open = true;
-      </handler>
-      <handler event="keypress" key=" ">
-        if (event.originalTarget == this)
-          this.open = true;
-      </handler>
-    </handlers>
   </binding>
 
   <binding id="menu-button" display="xul:menu"

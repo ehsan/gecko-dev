@@ -1,24 +1,38 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "vm/Xdr.h"
+#include "mozilla/Util.h"
+
+#include "jsversion.h"
 
 #include <string.h>
-
+#include "jstypes.h"
+#include "jsutil.h"
+#include "jsdhash.h"
+#include "jsprf.h"
 #include "jsapi.h"
+#include "jscntxt.h"
+#include "jsnum.h"
 #include "jsscript.h"
+#include "jsstr.h"
 
-#include "vm/Debugger.h"
+#include "Xdr.h"
+#include "Debugger.h"
 
+#include "jsobjinlines.h"
+
+using namespace mozilla;
 using namespace js;
+
+namespace js {
 
 void
 XDRBuffer::freeBuffer()
 {
-    js_free(base);
+    Foreground::free_(base);
 #ifdef DEBUG
     memset(this, 0xe2, sizeof *this);
 #endif
@@ -27,20 +41,17 @@ XDRBuffer::freeBuffer()
 bool
 XDRBuffer::grow(size_t n)
 {
-    MOZ_ASSERT(n > size_t(limit - cursor));
+    JS_ASSERT(n > size_t(limit - cursor));
 
-    const size_t MIN_CAPACITY = 8192;
+    const size_t MEM_BLOCK = 8192;
     size_t offset = cursor - base;
-    size_t newCapacity = mozilla::RoundUpPow2(offset + n);
-    if (newCapacity < MIN_CAPACITY)
-        newCapacity = MIN_CAPACITY;
+    size_t newCapacity = JS_ROUNDUP(offset + n, MEM_BLOCK);
     if (isUint32Overflow(newCapacity)) {
-        js::gc::AutoSuppressGC suppressGC(cx());
-        JS_ReportErrorNumber(cx(), js_GetErrorMessage, nullptr, JSMSG_TOO_BIG_TO_ENCODE);
+        JS_ReportErrorNumber(cx(), js_GetErrorMessage, NULL, JSMSG_TOO_BIG_TO_ENCODE);
         return false;
     }
 
-    void *data = js_realloc(base, newCapacity);
+    void *data = OffTheBooks::realloc_(base, newCapacity);
     if (!data) {
         js_ReportOutOfMemory(cx());
         return false;
@@ -53,33 +64,34 @@ XDRBuffer::grow(size_t n)
 
 template<XDRMode mode>
 bool
-XDRState<mode>::codeChars(const Latin1Char *chars, size_t nchars)
+XDRState<mode>::codeChars(jschar *chars, size_t nchars)
 {
-    static_assert(sizeof(Latin1Char) == sizeof(uint8_t), "Latin1Char must fit in 1 byte");
-
-    MOZ_ASSERT(mode == XDR_ENCODE);
-
-    uint8_t *ptr = buf.write(nchars);
-    if (!ptr)
-        return false;
-
-    mozilla::PodCopy(ptr, chars, nchars);
-    return true;
-}
-
-template<XDRMode mode>
-bool
-XDRState<mode>::codeChars(char16_t *chars, size_t nchars)
-{
-    size_t nbytes = nchars * sizeof(char16_t);
+    size_t nbytes = nchars * sizeof(jschar);
     if (mode == XDR_ENCODE) {
         uint8_t *ptr = buf.write(nbytes);
         if (!ptr)
             return false;
-        mozilla::NativeEndian::copyAndSwapToLittleEndian(ptr, chars, nchars);
+#ifdef IS_LITTLE_ENDIAN
+        memcpy(ptr, chars, nbytes);
+#else
+        for (size_t i = 0; i != nchars; i++) {
+            uint16_t tmp = NormalizeByteOrder16(chars[i]);
+            memcpy(ptr, &tmp, sizeof tmp);
+            ptr += sizeof tmp;
+        }
+#endif
     } else {
         const uint8_t *ptr = buf.read(nbytes);
-        mozilla::NativeEndian::copyAndSwapFromLittleEndian(chars, ptr, nchars);
+#ifdef IS_LITTLE_ENDIAN
+        memcpy(chars, ptr, nbytes);
+#else
+        for (size_t i = 0; i != nchars; i++) {
+            uint16_t tmp;
+            memcpy(&tmp, ptr, sizeof tmp);
+            chars[i] = NormalizeByteOrder16(tmp);
+            ptr += sizeof tmp;
+        }
+#endif
     }
     return true;
 }
@@ -97,7 +109,7 @@ VersionCheck(XDRState<mode> *xdr)
 
     if (mode == XDR_DECODE && bytecodeVer != XDR_BYTECODE_VERSION) {
         /* We do not provide binary compatibility with older scripts. */
-        JS_ReportErrorNumber(xdr->cx(), js_GetErrorMessage, nullptr, JSMSG_BAD_SCRIPT_MAGIC);
+        JS_ReportErrorNumber(xdr->cx(), js_GetErrorMessage, NULL, JSMSG_BAD_SCRIPT_MAGIC);
         return false;
     }
 
@@ -106,10 +118,10 @@ VersionCheck(XDRState<mode> *xdr)
 
 template<XDRMode mode>
 bool
-XDRState<mode>::codeFunction(MutableHandleFunction objp)
+XDRState<mode>::codeFunction(JSMutableHandleObject objp)
 {
     if (mode == XDR_DECODE)
-        objp.set(nullptr);
+        objp.set(NULL);
 
     if (!VersionCheck(this))
         return false;
@@ -119,32 +131,43 @@ XDRState<mode>::codeFunction(MutableHandleFunction objp)
 
 template<XDRMode mode>
 bool
-XDRState<mode>::codeScript(MutableHandleScript scriptp)
+XDRState<mode>::codeScript(JSScript **scriptp)
 {
-    if (mode == XDR_DECODE)
-        scriptp.set(nullptr);
+    JSScript *script;
+    if (mode == XDR_DECODE) {
+        script = NULL;
+        *scriptp = NULL;
+    } else {
+        script = *scriptp;
+    }
 
     if (!VersionCheck(this))
         return false;
 
-    if (!XDRScript(this, NullPtr(), NullPtr(), NullPtr(), scriptp))
+    if (!XDRScript(this, NullPtr(), NullPtr(), NullPtr(), &script))
         return false;
+
+    if (mode == XDR_DECODE) {
+        JS_ASSERT(!script->compileAndGo);
+        js_CallNewScriptHook(cx(), script, NULL);
+        Debugger::onNewScript(cx(), script, NULL);
+        *scriptp = script;
+    }
 
     return true;
 }
 
-template<XDRMode mode>
-bool
-XDRState<mode>::codeConstValue(MutableHandleValue vp)
-{
-    return XDRScriptConst(this, vp);
-}
-
-XDRDecoder::XDRDecoder(JSContext *cx, const void *data, uint32_t length)
+XDRDecoder::XDRDecoder(JSContext *cx, const void *data, uint32_t length,
+                       JSPrincipals *principals, JSPrincipals *originPrincipals)
   : XDRState<XDR_DECODE>(cx)
 {
     buf.setData(data, length);
+    this->principals = principals;
+    this->originPrincipals = JSScript::normalizeOriginPrincipals(principals, originPrincipals);
 }
 
-template class js::XDRState<XDR_ENCODE>;
-template class js::XDRState<XDR_DECODE>;
+template class XDRState<XDR_ENCODE>;
+template class XDRState<XDR_DECODE>;
+
+} /* namespace js */
+

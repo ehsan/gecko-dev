@@ -11,7 +11,6 @@
 #include "nsIChannelEventSink.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIStreamListener.h"
-#include "nsThreadUtils.h"
 
 #include "Database.h"
 #include "mozilla/storage.h"
@@ -58,7 +57,7 @@ struct IconData
   , fetchMode(FETCH_NEVER)
   , status(ICON_STATUS_UNKNOWN)
   {
-    guid.SetIsVoid(true);
+    guid.SetIsVoid(PR_TRUE);
   }
 
   int64_t id;
@@ -100,7 +99,7 @@ struct PageData
 class AsyncFaviconHelperBase : public nsRunnable
 {
 protected:
-  explicit AsyncFaviconHelperBase(nsCOMPtr<nsIFaviconDataCallback>& aCallback);
+  AsyncFaviconHelperBase(nsCOMPtr<nsIFaviconDataCallback>& aCallback);
 
   virtual ~AsyncFaviconHelperBase();
 
@@ -134,7 +133,6 @@ public:
   static nsresult start(nsIURI* aFaviconURI,
                         nsIURI* aPageURI,
                         enum AsyncFaviconFetchMode aFetchMode,
-                        uint32_t aFaviconLoadType,
                         nsIFaviconDataCallback* aCallback);
 
   /**
@@ -149,7 +147,6 @@ public:
    */
   AsyncFetchAndSetIconForPage(IconData& aIcon,
                               PageData& aPage,
-                              uint32_t aFaviconLoadType,
                               nsCOMPtr<nsIFaviconDataCallback>& aCallback);
 
   virtual ~AsyncFetchAndSetIconForPage();
@@ -157,7 +154,6 @@ public:
 protected:
   IconData mIcon;
   PageData mPage;
-  const bool mFaviconLoadPrivate;
 };
 
 /**
@@ -190,15 +186,14 @@ public:
    */
   AsyncFetchAndSetIconFromNetwork(IconData& aIcon,
                                   PageData& aPage,
-                                  bool aFaviconLoadPrivate,
                                   nsCOMPtr<nsIFaviconDataCallback>& aCallback);
 
-protected:
   virtual ~AsyncFetchAndSetIconFromNetwork();
 
+protected:
   IconData mIcon;
   PageData mPage;
-  const bool mFaviconLoadPrivate;
+  nsCOMPtr<nsIChannel> mChannel;
 };
 
 /**

@@ -16,8 +16,7 @@ const TEST_PRINCIPAL_2 = Services.scriptSecurityManager.getNoAppCodebasePrincipa
 const PERM_UNKNOWN = 0;
 const PERM_ALLOW = 1;
 const PERM_DENY = 2;
-// cookie specific permissions
-const PERM_FIRST_PARTY_ONLY = 9;
+const PERM_SESION = 8;
 
 // used to set permissions on test sites
 const TEST_PERMS = {
@@ -26,9 +25,8 @@ const TEST_PERMS = {
   "geo": PERM_UNKNOWN,
   "indexedDB": PERM_UNKNOWN,
   "popup": PERM_DENY,
+  "plugins" : PERM_ALLOW,
   "fullscreen" : PERM_UNKNOWN,
-  "camera": PERM_UNKNOWN,
-  "microphone": PERM_UNKNOWN
 };
 
 const NO_GLOBAL_ALLOW = [
@@ -38,34 +36,35 @@ const NO_GLOBAL_ALLOW = [
 ];
 
 // number of managed permissions in the interface
-const TEST_PERMS_COUNT = 8;
+const TEST_PERMS_COUNT = 7;
 
 function test() {
   waitForExplicitFinish();
   registerCleanupFunction(cleanUp);
 
   // add test history visit
-  addVisits(TEST_URI_1, function() {
-    // set permissions ourselves to avoid problems with different defaults
-    // from test harness configuration
-    for (let type in TEST_PERMS) {
-      if (type == "password") {
-        Services.logins.setLoginSavingEnabled(TEST_URI_2.prePath, true);
-      } else {
-        // set permissions on a site without history visits to test enumerateServices
-        Services.perms.addFromPrincipal(TEST_PRINCIPAL_2, type, TEST_PERMS[type]);
-      }
-    }
+  PlacesUtils.history.addVisit(TEST_URI_1, Date.now() * 1000, null,
+    Ci.nsINavHistoryService.TRANSITION_LINK, false, 0);
 
-    // open about:permissions
-    gBrowser.selectedTab = gBrowser.addTab("about:permissions");
-  });
+  // set permissions ourselves to avoid problems with different defaults
+  // from test harness configuration
+  for (let type in TEST_PERMS) {
+    if (type == "password") {
+      Services.logins.setLoginSavingEnabled(TEST_URI_2.prePath, true);
+    } else {
+      // set permissions on a site without history visits to test enumerateServices
+      Services.perms.addFromPrincipal(TEST_PRINCIPAL_2, type, TEST_PERMS[type]);
+    }
+  }
 
   function observer() {
-    Services.obs.removeObserver(observer, "browser-permissions-initialized");
+    Services.obs.removeObserver(observer, "browser-permissions-initialized", false);
     runNextTest();
   }
   Services.obs.addObserver(observer, "browser-permissions-initialized", false);
+
+  // open about:permissions
+  gBrowser.selectedTab = gBrowser.addTab("about:permissions");
 }
 
 function cleanUp() {
@@ -164,9 +163,6 @@ var tests = [
   },
 
   function test_all_sites_permission() {
-    // apply the old default of allowing all cookies
-    Services.prefs.setIntPref("network.cookie.cookieBehavior", 0);
-
     // there should be no user-set pref for cookie behavior
     is(Services.prefs.getIntPref("network.cookie.cookieBehavior"), PERM_UNKNOWN,
        "network.cookie.cookieBehavior is expected default");
@@ -191,12 +187,12 @@ var tests = [
     // make sure "Manage All Passwords..." button opens the correct dialog
     addWindowListener("chrome://passwordmgr/content/passwordManager.xul", runNextTest);
     gBrowser.contentDocument.getElementById("passwords-manage-all-button").doCommand();
-
+    
   },
 
   function test_manage_all_cookies() {
     // make sure "Manage All Cookies..." button opens the correct dialog
-    addWindowListener("chrome://browser/content/preferences/cookies.xul", runNextTest);
+    addWindowListener("chrome://browser/content/preferences/cookies.xul", runNextTest);    
     gBrowser.contentDocument.getElementById("cookies-manage-all-button").doCommand();
   },
 
@@ -257,48 +253,35 @@ var tests = [
     is(Services.perms.testPermissionFromPrincipal(TEST_PRINCIPAL_2, "geo"), PERM_ALLOW,
        "permission manager shows that geolocation is allowed");
 
-
-    // change a site-specific cookie permission, just for fun
-    let cookieMenuList = getPermissionMenulist("cookie");
-    let cookieItem = gBrowser.contentDocument.getElementById("cookie-" + PERM_FIRST_PARTY_ONLY);
-    cookieMenuList.selectedItem = cookieItem;
-    cookieMenuList.doCommand();
-    is(cookieMenuList.value, PERM_FIRST_PARTY_ONLY, "menulist correctly shows that " +
-       "first party only cookies are allowed");
-    is(Services.perms.testPermissionFromPrincipal(TEST_PRINCIPAL_2, "cookie"),
-       PERM_FIRST_PARTY_ONLY, "permission manager shows that first party cookies " +
-       "are allowed");
-
     runNextTest();
   },
 
   function test_forget_site() {
     // click "Forget About This Site" button
     gBrowser.contentDocument.getElementById("forget-site-button").doCommand();
-    waitForClearHistory(function() {
-      is(gSiteLabel.value, "", "site label cleared");
 
-      let allSitesItem = gBrowser.contentDocument.getElementById("all-sites-item");
-      is(gSitesList.selectedItem, allSitesItem,
-         "all sites item selected after forgetting selected site");
+    is(gSiteLabel.value, "", "site label cleared");
 
-      // check to make sure site is gone from sites list
-      let testSiteItem = getSiteItem(TEST_URI_2.host);
-      ok(!testSiteItem, "site removed from sites list");
+    let allSitesItem = gBrowser.contentDocument.getElementById("all-sites-item");
+    is(gSitesList.selectedItem, allSitesItem,
+       "all sites item selected after forgetting selected site");
 
-      // check to make sure we forgot all permissions corresponding to site
-      for (let type in TEST_PERMS) {
-        if (type == "password") {
-          ok(Services.logins.getLoginSavingEnabled(TEST_URI_2.prePath),
-             "password saving should be enabled by default");
-        } else {
-          is(Services.perms.testPermissionFromPrincipal(TEST_PRINCIPAL_2, type), PERM_UNKNOWN,
-             type + " permission should not be set for test site 2");
-        }
+    // check to make sure site is gone from sites list
+    let testSiteItem = getSiteItem(TEST_URI_2.host);
+    ok(!testSiteItem, "site removed from sites list");
+
+    // check to make sure we forgot all permissions corresponding to site
+    for (let type in TEST_PERMS) {
+      if (type == "password") {
+        ok(Services.logins.getLoginSavingEnabled(TEST_URI_2.prePath),
+           "password saving should be enabled by default");
+      } else {
+        is(Services.perms.testPermissionFromPrincipal(TEST_PRINCIPAL_2, type), PERM_UNKNOWN,
+           type + " permission should not be set for test site 2");
       }
+    }
 
-      runNextTest();
-    });
+    runNextTest();
   }
 ];
 

@@ -9,59 +9,19 @@
 #include "nsServiceManagerUtils.h"
 #include "nsString.h"
 #include "nsCRT.h"
-#include "mozilla/Preferences.h"
 
 #import <Cocoa/Cocoa.h>
 #import <netinet/in.h>
 
-#define NETWORK_NOTIFY_CHANGED_PREF "network.notify.changed"
-
-using namespace mozilla;
-
-// If non-successful, extract the error code and return it.  This
-// error code dance is inspired by
-// http://developer.apple.com/technotes/tn/tn1145.html
-static OSStatus getErrorCodeBool(Boolean success)
-{
-    OSStatus err = noErr;
-    if (!success) {
-        int scErr = ::SCError();
-        if (scErr == kSCStatusOK) {
-            scErr = kSCStatusFailed;
-        }
-        err = scErr;
-    }
-    return err;
-}
-
-// If given a NULL pointer, return the error code.
-static OSStatus getErrorCodePtr(const void *value)
-{
-    return getErrorCodeBool(value != NULL);
-}
-
-// Convenience function to allow NULL input.
-static void CFReleaseSafe(CFTypeRef cf)
-{
-    if (cf) {
-        // "If cf is NULL, this will cause a runtime error and your
-        // application will crash." / Apple docs
-        ::CFRelease(cf);
-    }
-}
-
-NS_IMPL_ISUPPORTS(nsNetworkLinkService,
-                  nsINetworkLinkService,
-                  nsIObserver)
+NS_IMPL_ISUPPORTS2(nsNetworkLinkService,
+                   nsINetworkLinkService,
+                   nsIObserver)
 
 nsNetworkLinkService::nsNetworkLinkService()
     : mLinkUp(true)
     , mStatusKnown(false)
-    , mAllowChangedEvent(true)
-    , mReachability(nullptr)
-    , mCFRunLoop(nullptr)
-    , mRunLoopSource(nullptr)
-    , mStoreRef(nullptr)
+    , mReachability(NULL)
+    , mCFRunLoop(NULL)
 {
 }
 
@@ -96,24 +56,13 @@ nsNetworkLinkService::GetLinkType(uint32_t *aLinkType)
 NS_IMETHODIMP
 nsNetworkLinkService::Observe(nsISupports *subject,
                               const char *topic,
-                              const char16_t *data)
+                              const PRUnichar *data)
 {
     if (!strcmp(topic, "xpcom-shutdown")) {
         Shutdown();
     }
 
     return NS_OK;
-}
-
-/* static */
-void
-nsNetworkLinkService::IPConfigChanged(SCDynamicStoreRef aStoreREf,
-                                      CFArrayRef aChangedKeys,
-                                      void *aInfo)
-{
-    nsNetworkLinkService *service =
-        static_cast<nsNetworkLinkService*>(aInfo);
-    service->SendEvent(true);
 }
 
 nsresult
@@ -127,9 +76,6 @@ nsNetworkLinkService::Init(void)
 
     rv = observerService->AddObserver(this, "xpcom-shutdown", false);
     NS_ENSURE_SUCCESS(rv, rv);
-
-    Preferences::AddBoolVarCache(&mAllowChangedEvent,
-                                 NETWORK_NOTIFY_CHANGED_PREF, true);
 
     // If the network reachability API can reach 0.0.0.0 without
     // requiring a connection, there is a network interface available.
@@ -154,67 +100,6 @@ nsNetworkLinkService::Init(void)
         return NS_ERROR_NOT_AVAILABLE;
     }
 
-    SCDynamicStoreContext storeContext = {0, this, NULL, NULL, NULL};
-    mStoreRef =
-        ::SCDynamicStoreCreate(NULL,
-                               CFSTR("AddIPAddressListChangeCallbackSCF"),
-                               IPConfigChanged, &storeContext);
-
-    CFStringRef patterns[2] = {NULL, NULL};
-    OSStatus err = getErrorCodePtr(mStoreRef);
-    if (err == noErr) {
-        // This pattern is "State:/Network/Service/[^/]+/IPv4".
-        patterns[0] =
-            ::SCDynamicStoreKeyCreateNetworkServiceEntity(NULL,
-                                                          kSCDynamicStoreDomainState,
-                                                          kSCCompAnyRegex,
-                                                          kSCEntNetIPv4);
-        err = getErrorCodePtr(patterns[0]);
-        if (err == noErr) {
-            // This pattern is "State:/Network/Service/[^/]+/IPv6".
-            patterns[1] =
-                ::SCDynamicStoreKeyCreateNetworkServiceEntity(NULL,
-                                                              kSCDynamicStoreDomainState,
-                                                              kSCCompAnyRegex,
-                                                              kSCEntNetIPv6);
-            err = getErrorCodePtr(patterns[1]);
-        }
-    }
-
-    CFArrayRef patternList = NULL;
-    // Create a pattern list containing just one pattern,
-    // then tell SCF that we want to watch changes in keys
-    // that match that pattern list, then create our run loop
-    // source.
-    if (err == noErr) {
-        patternList = ::CFArrayCreate(NULL, (const void **) patterns,
-                                      2, &kCFTypeArrayCallBacks);
-        if (!patternList) {
-            err = -1;
-        }
-    }
-    if (err == noErr) {
-        err =
-            getErrorCodeBool(::SCDynamicStoreSetNotificationKeys(mStoreRef,
-                                                                 NULL,
-                                                                 patternList));
-    }
-
-    if (err == noErr) {
-        mRunLoopSource =
-            ::SCDynamicStoreCreateRunLoopSource(NULL, mStoreRef, 0);
-        err = getErrorCodePtr(mRunLoopSource);
-    }
-
-    CFReleaseSafe(patterns[0]);
-    CFReleaseSafe(patterns[1]);
-    CFReleaseSafe(patternList);
-
-    if (err != noErr) {
-        CFReleaseSafe(mStoreRef);
-        return NS_ERROR_NOT_AVAILABLE;
-    }
-
     // Get the current run loop.  This service is initialized at startup,
     // so we shouldn't run in to any problems with modal dialog run loops.
     mCFRunLoop = [[NSRunLoop currentRunLoop] getCFRunLoop];
@@ -225,8 +110,6 @@ nsNetworkLinkService::Init(void)
         return NS_ERROR_NOT_AVAILABLE;
     }
     ::CFRetain(mCFRunLoop);
-
-    ::CFRunLoopAddSource(mCFRunLoop, mRunLoopSource, kCFRunLoopDefaultMode);
 
     if (!::SCNetworkReachabilityScheduleWithRunLoop(mReachability, mCFRunLoop,
                                                     kCFRunLoopDefaultMode)) {
@@ -252,19 +135,11 @@ nsNetworkLinkService::Shutdown()
         NS_WARNING("SCNetworkReachabilityUnscheduleFromRunLoop failed.");
     }
 
-    CFRunLoopRemoveSource(mCFRunLoop, mRunLoopSource, kCFRunLoopDefaultMode);
-
     ::CFRelease(mReachability);
-    mReachability = nullptr;
+    mReachability = NULL;
 
     ::CFRelease(mCFRunLoop);
-    mCFRunLoop = nullptr;
-
-    ::CFRelease(mStoreRef);
-    mStoreRef = nullptr;
-
-    ::CFRelease(mRunLoopSource);
-    mRunLoopSource = nullptr;
+    mCFRunLoop = NULL;
 
     return NS_OK;
 }
@@ -290,7 +165,7 @@ nsNetworkLinkService::UpdateReachability()
 }
 
 void
-nsNetworkLinkService::SendEvent(bool aNetworkChanged)
+nsNetworkLinkService::SendEvent()
 {
     nsCOMPtr<nsIObserverService> observerService =
         do_GetService("@mozilla.org/observer-service;1");
@@ -298,17 +173,11 @@ nsNetworkLinkService::SendEvent(bool aNetworkChanged)
         return;
 
     const char *event;
-    if (aNetworkChanged) {
-        if (!mAllowChangedEvent) {
-            return;
-        }
-        event = NS_NETWORK_LINK_DATA_CHANGED;
-    } else if (!mStatusKnown) {
+    if (!mStatusKnown)
         event = NS_NETWORK_LINK_DATA_UNKNOWN;
-    } else {
+    else
         event = mLinkUp ? NS_NETWORK_LINK_DATA_UP
-            : NS_NETWORK_LINK_DATA_DOWN;
-    }
+                        : NS_NETWORK_LINK_DATA_DOWN;
 
     observerService->NotifyObservers(static_cast<nsINetworkLinkService*>(this),
                                      NS_NETWORK_LINK_TOPIC,
@@ -325,5 +194,5 @@ nsNetworkLinkService::ReachabilityChanged(SCNetworkReachabilityRef target,
         static_cast<nsNetworkLinkService*>(info);
 
     service->UpdateReachability();
-    service->SendEvent(false);
+    service->SendEvent();
 }

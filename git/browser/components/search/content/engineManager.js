@@ -45,7 +45,6 @@ var gEngineManagerDialog = {
         break;
       case "engine-removed":
       case "engine-current":
-      case "engine-default":
         // Not relevant
         break;
       }
@@ -464,9 +463,9 @@ EngineView.prototype = {
   },
 
   selection: null,
-  getRowProperties: function(index) { return ""; },
-  getCellProperties: function(index, column) { return ""; },
-  getColumnProperties: function(column) { return ""; },
+  getRowProperties: function(index, properties) { },
+  getCellProperties: function(index, column, properties) { },
+  getColumnProperties: function(column, properties) { },
   isContainer: function(index) { return false; },
   isContainerOpen: function(index) { return false; },
   isContainerEmpty: function(index) { return false; },

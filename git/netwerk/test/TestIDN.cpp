@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
     nsCOMPtr<nsIIDNService> converter = do_GetService(NS_IDNSERVICE_CONTRACTID);
     NS_ASSERTION(converter, "idnSDK not installed!");
     if (converter) {
-        nsAutoCString buf;
+        nsCAutoString buf;
         nsresult rv = converter->ConvertUTF8toACE(NS_LITERAL_CSTRING(plain), buf);
         NS_ASSERTION(NS_SUCCEEDED(rv), "error ConvertUTF8toACE");
         NS_ASSERTION(buf.Equals(NS_LITERAL_CSTRING(encoded)), 
@@ -37,7 +37,7 @@ int main(int argc, char **argv) {
                      "decode result incorrect");
         printf("decoded = ");
         NS_ConvertUTF8toUTF16 utf(buf);
-        const char16_t *u = utf.get();
+        const PRUnichar *u = utf.get();
         for (int i = 0; u[i]; i++) {
           printf("U+%.4X ", u[i]);
         }

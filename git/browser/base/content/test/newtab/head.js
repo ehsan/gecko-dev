@@ -2,128 +2,35 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 const PREF_NEWTAB_ENABLED = "browser.newtabpage.enabled";
-const PREF_NEWTAB_DIRECTORYSOURCE = "browser.newtabpage.directory.source";
 
 Services.prefs.setBoolPref(PREF_NEWTAB_ENABLED, true);
 
 let tmp = {};
-Cu.import("resource://gre/modules/Promise.jsm", tmp);
-Cu.import("resource://gre/modules/NewTabUtils.jsm", tmp);
-Cu.import("resource:///modules/DirectoryLinksProvider.jsm", tmp);
+Cu.import("resource:///modules/NewTabUtils.jsm", tmp);
 Cc["@mozilla.org/moz/jssubscript-loader;1"]
   .getService(Ci.mozIJSSubScriptLoader)
   .loadSubScript("chrome://browser/content/sanitize.js", tmp);
-Cu.import("resource://gre/modules/Timer.jsm", tmp);
-let {Promise, NewTabUtils, Sanitizer, clearTimeout, setTimeout, DirectoryLinksProvider} = tmp;
+
+let {NewTabUtils, Sanitizer} = tmp;
 
 let uri = Services.io.newURI("about:newtab", null, null);
 let principal = Services.scriptSecurityManager.getNoAppCodebasePrincipal(uri);
 
-let isMac = ("nsILocalFileMac" in Ci);
-let isLinux = ("@mozilla.org/gnome-gconf-service;1" in Cc);
-let isWindows = ("@mozilla.org/windows-registry-key;1" in Cc);
-let gWindow = window;
-
-// Default to dummy/empty directory links
-let gDirectorySource = 'data:application/json,{"test":1}';
-let gOrigDirectorySource;
-
-// The tests assume all 3 rows and all 3 columns of sites are shown, but the
-// window may be too small to actually show everything.  Resize it if necessary.
-let requiredSize = {};
-requiredSize.innerHeight =
-  40 + 32 + // undo container + bottom margin
-  44 + 32 + // search bar + bottom margin
-  (3 * (180 + 32)) + // 3 rows * (tile height + title and bottom margin)
-  100; // breathing room
-requiredSize.innerWidth =
-  (3 * (290 + 20)) + // 3 cols * (tile width + side margins)
-  100; // breathing room
-
-let oldSize = {};
-Object.keys(requiredSize).forEach(prop => {
-  info([prop, gBrowser.contentWindow[prop], requiredSize[prop]]);
-  if (gBrowser.contentWindow[prop] < requiredSize[prop]) {
-    oldSize[prop] = gBrowser.contentWindow[prop];
-    info("Changing browser " + prop + " from " + oldSize[prop] + " to " +
-         requiredSize[prop]);
-    gBrowser.contentWindow[prop] = requiredSize[prop];
-  }
-});
-let (screenHeight = {}, screenWidth = {}) {
-  Cc["@mozilla.org/gfx/screenmanager;1"].
-    getService(Ci.nsIScreenManager).
-    primaryScreen.
-    GetAvailRectDisplayPix({}, {}, screenWidth, screenHeight);
-  screenHeight = screenHeight.value;
-  screenWidth = screenWidth.value;
-  if (screenHeight < gBrowser.contentWindow.outerHeight) {
-    info("Warning: Browser outer height is now " +
-         gBrowser.contentWindow.outerHeight + ", which is larger than the " +
-         "available screen height, " + screenHeight +
-         ". That may cause problems.");
-  }
-  if (screenWidth < gBrowser.contentWindow.outerWidth) {
-    info("Warning: Browser outer width is now " +
-         gBrowser.contentWindow.outerWidth + ", which is larger than the " +
-         "available screen width, " + screenWidth +
-         ". That may cause problems.");
-  }
-}
+let sm = Services.domStorageManager;
+let storage = sm.getLocalStorageForPrincipal(principal, "");
 
 registerCleanupFunction(function () {
-  while (gWindow.gBrowser.tabs.length > 1)
-    gWindow.gBrowser.removeTab(gWindow.gBrowser.tabs[1]);
-
-  Object.keys(oldSize).forEach(prop => {
-    if (oldSize[prop]) {
-      gBrowser.contentWindow[prop] = oldSize[prop];
-    }
-  });
-
-  // Stop any update timers to prevent unexpected updates in later tests
-  let timer = NewTabUtils.allPages._scheduleUpdateTimeout;
-  if (timer) {
-    clearTimeout(timer);
-    delete NewTabUtils.allPages._scheduleUpdateTimeout;
-  }
+  while (gBrowser.tabs.length > 1)
+    gBrowser.removeTab(gBrowser.tabs[1]);
 
   Services.prefs.clearUserPref(PREF_NEWTAB_ENABLED);
-  Services.prefs.setCharPref(PREF_NEWTAB_DIRECTORYSOURCE, gOrigDirectorySource);
-
-  return watchLinksChangeOnce();
 });
-
-/**
- * Resolves promise when directory links are downloaded and written to disk
- */
-function watchLinksChangeOnce() {
-  let deferred = Promise.defer();
-  let observer = {
-    onManyLinksChanged: () => {
-      DirectoryLinksProvider.removeObserver(observer);
-      deferred.resolve();
-    }
-  };
-  observer.onDownloadFail = observer.onManyLinksChanged;
-  DirectoryLinksProvider.addObserver(observer);
-  return deferred.promise;
-};
 
 /**
  * Provide the default test function to start our test runner.
  */
 function test() {
-  waitForExplicitFinish();
-  // start TestRunner.run() after directory links is downloaded and written to disk
-  watchLinksChangeOnce().then(() => {
-    // Wait for hidden page to update with the desired links
-    whenPagesUpdated(() => TestRunner.run(), true);
-  });
-
-  // Save the original directory source (which is set globally for tests)
-  gOrigDirectorySource = Services.prefs.getCharPref(PREF_NEWTAB_DIRECTORYSOURCE);
-  Services.prefs.setCharPref(PREF_NEWTAB_DIRECTORYSOURCE, gDirectorySource);
+  TestRunner.run();
 }
 
 /**
@@ -134,6 +41,8 @@ let TestRunner = {
    * Starts the test runner.
    */
   run: function () {
+    waitForExplicitFinish();
+
     this._iter = runTests();
     this.next();
   },
@@ -154,10 +63,9 @@ let TestRunner = {
    */
   finish: function () {
     function cleanupAndFinish() {
-      clearHistory(function () {
-        whenPagesUpdated(finish);
-        NewTabUtils.restore();
-      });
+      clearHistory();
+      whenPagesUpdated(finish);
+      NewTabUtils.restore();
     }
 
     let callbacks = NewTabUtils.links._populateCallbacks;
@@ -175,7 +83,7 @@ let TestRunner = {
  * @return The content window.
  */
 function getContentWindow() {
-  return gWindow.gBrowser.selectedBrowser.contentWindow;
+  return gBrowser.selectedBrowser.contentWindow;
 }
 
 /**
@@ -183,7 +91,7 @@ function getContentWindow() {
  * @return The content document.
  */
 function getContentDocument() {
-  return gWindow.gBrowser.selectedBrowser.contentDocument;
+  return gBrowser.selectedBrowser.contentDocument;
 }
 
 /**
@@ -207,78 +115,49 @@ function getCell(aIndex) {
  * Allows to provide a list of links that is used to construct the grid.
  * @param aLinksPattern the pattern (see below)
  *
- * Example: setLinks("-1,0,1,2,3")
- * Result: [{url: "http://example.com/", title: "site#-1"},
- *          {url: "http://example0.com/", title: "site#0"},
- *          {url: "http://example1.com/", title: "site#1"},
- *          {url: "http://example2.com/", title: "site#2"},
- *          {url: "http://example3.com/", title: "site#3"}]
+ * Example: setLinks("1,2,3")
+ * Result: [{url: "http://example.com/#1", title: "site#1"},
+ *          {url: "http://example.com/#2", title: "site#2"}
+ *          {url: "http://example.com/#3", title: "site#3"}]
  */
-function setLinks(aLinks, aCallback = TestRunner.next) {
+function setLinks(aLinks) {
   let links = aLinks;
 
   if (typeof links == "string") {
     links = aLinks.split(/\s*,\s*/).map(function (id) {
-      return {url: "http://example" + (id != "-1" ? id : "") + ".com/",
-              title: "site#" + id};
+      return {url: "http://example.com/#" + id, title: "site#" + id};
     });
   }
 
-  // Call populateCache() once to make sure that all link fetching that is
-  // currently in progress has ended. We clear the history, fill it with the
-  // given entries and call populateCache() now again to make sure the cache
-  // has the desired contents.
-  NewTabUtils.links.populateCache(function () {
-    clearHistory(function () {
-      fillHistory(links, function () {
-        NewTabUtils.links.populateCache(function () {
-          NewTabUtils.allPages.update();
-          aCallback();
-        }, true);
-      });
-    });
+  clearHistory();
+  fillHistory(links, function () {
+    NewTabUtils.links.populateCache(function () {
+      NewTabUtils.allPages.update();
+      TestRunner.next();
+    }, true);
   });
 }
 
-function clearHistory(aCallback) {
-  Services.obs.addObserver(function observe(aSubject, aTopic, aData) {
-    Services.obs.removeObserver(observe, aTopic);
-    executeSoon(aCallback);
-  }, PlacesUtils.TOPIC_EXPIRATION_FINISHED, false);
-
+function clearHistory() {
   PlacesUtils.history.removeAllPages();
 }
 
-function fillHistory(aLinks, aCallback = TestRunner.next) {
+function fillHistory(aLinks, aCallback) {
   let numLinks = aLinks.length;
-  if (!numLinks) {
-    if (aCallback)
-      executeSoon(aCallback);
-    return;
-  }
-
   let transitionLink = Ci.nsINavHistoryService.TRANSITION_LINK;
 
-  // Important: To avoid test failures due to clock jitter on Windows XP, call
-  // Date.now() once here, not each time through the loop.
-  let now = Date.now() * 1000;
-
-  for (let i = 0; i < aLinks.length; i++) {
-    let link = aLinks[i];
+  for (let link of aLinks.reverse()) {
     let place = {
       uri: makeURI(link.url),
       title: link.title,
-      // Links are secondarily sorted by visit date descending, so decrease the
-      // visit date as we progress through the array so that links appear in the
-      // grid in the order they're present in the array.
-      visits: [{visitDate: now - i, transitionType: transitionLink}]
+      visits: [{visitDate: Date.now() * 1000, transitionType: transitionLink}]
     };
 
     PlacesUtils.asyncHistory.updatePlaces(place, {
       handleError: function () ok(false, "couldn't add visit to history"),
       handleResult: function () {},
       handleCompletion: function () {
-        if (--numLinks == 0 && aCallback)
+        if (--numLinks == 0)
           aCallback();
       }
     });
@@ -291,7 +170,7 @@ function fillHistory(aLinks, aCallback = TestRunner.next) {
  * @param aLinksPattern the pattern (see below)
  *
  * Example: setPinnedLinks("3,,1")
- * Result: 'http://example3.com/' is pinned in the first cell. 'http://example1.com/' is
+ * Result: 'http://example.com/#3' is pinned in the first cell. 'http://example.com/#1' is
  *         pinned in the third cell.
  */
 function setPinnedLinks(aLinks) {
@@ -300,17 +179,11 @@ function setPinnedLinks(aLinks) {
   if (typeof links == "string") {
     links = aLinks.split(/\s*,\s*/).map(function (id) {
       if (id)
-        return {url: "http://example" + (id != "-1" ? id : "") + ".com/",
-                title: "site#" + id};
+        return {url: "http://example.com/#" + id, title: "site#" + id};
     });
   }
 
-  let string = Cc["@mozilla.org/supports-string;1"]
-                 .createInstance(Ci.nsISupportsString);
-  string.data = JSON.stringify(links);
-  Services.prefs.setComplexValue("browser.newtabpage.pinned",
-                                 Ci.nsISupportsString, string);
-
+  storage.setItem("pinnedLinks", JSON.stringify(links));
   NewTabUtils.pinnedLinks.resetCache();
   NewTabUtils.allPages.update();
 }
@@ -324,60 +197,27 @@ function restore() {
 }
 
 /**
- * Wait until a given condition becomes true.
- */
-function waitForCondition(aConditionFn, aMaxTries=50, aCheckInterval=100) {
-  return new Promise((resolve, reject) => {
-    let tries = 0;
-
-    function tryNow() {
-      tries++;
-
-      if (aConditionFn()) {
-        resolve();
-      } else if (tries < aMaxTries) {
-        tryAgain();
-      } else {
-        reject("Condition timed out: " + aConditionFn.toSource());
-      }
-    }
-
-    function tryAgain() {
-      setTimeout(tryNow, aCheckInterval);
-    }
-
-    tryAgain();
-  });
-}
-
-/**
  * Creates a new tab containing 'about:newtab'.
  */
 function addNewTabPageTab() {
-  addNewTabPageTabPromise().then(TestRunner.next);
-}
-
-function addNewTabPageTabPromise() {
-  let deferred = Promise.defer();
-
-  let tab = gWindow.gBrowser.selectedTab = gWindow.gBrowser.addTab("about:newtab");
+  let tab = gBrowser.selectedTab = gBrowser.addTab("about:newtab");
   let browser = tab.linkedBrowser;
 
   function whenNewTabLoaded() {
     if (NewTabUtils.allPages.enabled) {
       // Continue when the link cache has been populated.
       NewTabUtils.links.populateCache(function () {
-        deferred.resolve(whenSearchInitDone());
+        executeSoon(TestRunner.next);
       });
     } else {
-      deferred.resolve();
+      TestRunner.next();
     }
   }
 
   // The new tab page might have been preloaded in the background.
   if (browser.contentDocument.readyState == "complete") {
-    waitForCondition(() => !browser.contentDocument.hidden).then(whenNewTabLoaded);
-    return deferred.promise;
+    whenNewTabLoaded();
+    return;
   }
 
   // Wait for the new tab page to be loaded.
@@ -385,8 +225,6 @@ function addNewTabPageTabPromise() {
     browser.removeEventListener("load", onLoad, true);
     whenNewTabLoaded();
   }, true);
-
-  return deferred.promise;
 }
 
 /**
@@ -395,9 +233,9 @@ function addNewTabPageTabPromise() {
  * @param the array of sites to compare with (optional)
  *
  * Example: checkGrid("3p,2,,1p")
- * Result: We expect the first cell to contain the pinned site 'http://example3.com/'.
- *         The second cell contains 'http://example2.com/'. The third cell is empty.
- *         The fourth cell contains the pinned site 'http://example4.com/'.
+ * Result: We expect the first cell to contain the pinned site 'http://example.com/#3'.
+ *         The second cell contains 'http://example.com/#2'. The third cell is empty.
+ *         The fourth cell contains the pinned site 'http://example.com/#4'.
  */
 function checkGrid(aSitesPattern, aSites) {
   let length = aSitesPattern.split(",").length;
@@ -407,12 +245,13 @@ function checkGrid(aSitesPattern, aSites) {
       return "";
 
     let pinned = aSite.isPinned();
-    let hasPinnedAttr = aSite.node.hasAttribute("pinned");
+    let pinButton = aSite.node.querySelector(".newtab-control-pin");
+    let hasPinnedAttr = pinButton.hasAttribute("pinned");
 
     if (pinned != hasPinnedAttr)
       ok(false, "invalid state (site.isPinned() != site[pinned])");
 
-    return aSite.url.replace(/^http:\/\/example(\d+)\.com\/$/, "$1") + (pinned ? "p" : "");
+    return aSite.url.replace(/^http:\/\/example\.com\/#(\d+)$/, "$1") + (pinned ? "p" : "");
   });
 
   is(current, aSitesPattern, "grid status = " + aSitesPattern);
@@ -446,170 +285,26 @@ function unpinCell(aIndex) {
 }
 
 /**
- * Simulates a drag and drop operation.
- * @param aSourceIndex The cell index containing the dragged site.
- * @param aDestIndex The cell index of the drop target.
+ * Simulates a drop and drop operation.
+ * @param aDropIndex The cell index of the drop target.
+ * @param aDragIndex The cell index containing the dragged site (optional).
  */
-function simulateDrop(aSourceIndex, aDestIndex) {
-  let src = getCell(aSourceIndex).site.node;
-  let dest = getCell(aDestIndex).node;
+function simulateDrop(aDropIndex, aDragIndex) {
+  let draggedSite;
+  let {gDrag: drag, gDrop: drop} = getContentWindow();
+  let event = createDragEvent("drop", "http://example.com/#99\nblank");
 
-  // Drop 'src' onto 'dest' and continue testing when all newtab
-  // pages have been updated (i.e. the drop operation is completed).
-  startAndCompleteDragOperation(src, dest, whenPagesUpdated);
-}
+  if (typeof aDragIndex != "undefined")
+    draggedSite = getCell(aDragIndex).site;
 
-/**
- * Simulates a drag and drop operation. Instead of rearranging a site that is
- * is already contained in the newtab grid, this is used to simulate dragging
- * an external link onto the grid e.g. the text from the URL bar.
- * @param aDestIndex The cell index of the drop target.
- */
-function simulateExternalDrop(aDestIndex) {
-  let dest = getCell(aDestIndex).node;
+  if (draggedSite)
+    drag.start(draggedSite, event);
 
-  // Create an iframe that contains the external link we'll drag.
-  createExternalDropIframe().then(iframe => {
-    let link = iframe.contentDocument.getElementById("link");
+  whenPagesUpdated();
+  drop.drop(getCell(aDropIndex), event);
 
-    // Drop 'link' onto 'dest'.
-    startAndCompleteDragOperation(link, dest, () => {
-      // Wait until the drop operation is complete
-      // and all newtab pages have been updated.
-      whenPagesUpdated(() => {
-        // Clean up and remove the iframe.
-        iframe.remove();
-        // Continue testing.
-        TestRunner.next();
-      });
-    });
-  });
-}
-
-/**
- * Starts and complete a drag-and-drop operation.
- * @param aSource The node that is being dragged.
- * @param aDest The node we're dragging aSource onto.
- * @param aCallback The function that is called when we're done.
- */
-function startAndCompleteDragOperation(aSource, aDest, aCallback) {
-  // Start by pressing the left mouse button.
-  synthesizeNativeMouseLDown(aSource);
-
-  // Move the mouse in 5px steps until the drag operation starts.
-  let offset = 0;
-  let interval = setInterval(() => {
-    synthesizeNativeMouseDrag(aSource, offset += 5);
-  }, 10);
-
-  // When the drag operation has started we'll move
-  // the dragged element to its target position.
-  aSource.addEventListener("dragstart", function onDragStart() {
-    aSource.removeEventListener("dragstart", onDragStart);
-    clearInterval(interval);
-
-    // Place the cursor above the drag target.
-    synthesizeNativeMouseMove(aDest);
-  });
-
-  // As soon as the dragged element hovers the target, we'll drop it.
-  aDest.addEventListener("dragenter", function onDragEnter() {
-    aDest.removeEventListener("dragenter", onDragEnter);
-
-    // Finish the drop operation.
-    synthesizeNativeMouseLUp(aDest);
-    aCallback();
-  });
-}
-
-/**
- * Helper function that creates a temporary iframe in the about:newtab
- * document. This will contain a link we can drag to the test the dropping
- * of links from external documents.
- */
-function createExternalDropIframe() {
-  const url = "data:text/html;charset=utf-8," +
-              "<a id='link' href='http://example99.com/'>link</a>";
-
-  let deferred = Promise.defer();
-  let doc = getContentDocument();
-  let iframe = doc.createElement("iframe");
-  iframe.setAttribute("src", url);
-  iframe.style.width = "50px";
-  iframe.style.height = "50px";
-  iframe.style.position = "absolute";
-  iframe.style.zIndex = 50;
-
-  let margin = doc.getElementById("newtab-margin-top");
-  margin.appendChild(iframe);
-
-  iframe.addEventListener("load", function onLoad() {
-    iframe.removeEventListener("load", onLoad);
-    executeSoon(() => deferred.resolve(iframe));
-  });
-
-  return deferred.promise;
-}
-
-/**
- * Fires a synthetic 'mousedown' event on the current about:newtab page.
- * @param aElement The element used to determine the cursor position.
- */
-function synthesizeNativeMouseLDown(aElement) {
-  if (isLinux) {
-    let win = aElement.ownerDocument.defaultView;
-    EventUtils.synthesizeMouseAtCenter(aElement, {type: "mousedown"}, win);
-  } else {
-    let msg = isWindows ? 2 : 1;
-    synthesizeNativeMouseEvent(aElement, msg);
-  }
-}
-
-/**
- * Fires a synthetic 'mouseup' event on the current about:newtab page.
- * @param aElement The element used to determine the cursor position.
- */
-function synthesizeNativeMouseLUp(aElement) {
-  let msg = isWindows ? 4 : (isMac ? 2 : 7);
-  synthesizeNativeMouseEvent(aElement, msg);
-}
-
-/**
- * Fires a synthetic mouse drag event on the current about:newtab page.
- * @param aElement The element used to determine the cursor position.
- * @param aOffsetX The left offset that is added to the position.
- */
-function synthesizeNativeMouseDrag(aElement, aOffsetX) {
-  let msg = isMac ? 6 : 1;
-  synthesizeNativeMouseEvent(aElement, msg, aOffsetX);
-}
-
-/**
- * Fires a synthetic 'mousemove' event on the current about:newtab page.
- * @param aElement The element used to determine the cursor position.
- */
-function synthesizeNativeMouseMove(aElement) {
-  let msg = isMac ? 5 : 1;
-  synthesizeNativeMouseEvent(aElement, msg);
-}
-
-/**
- * Fires a synthetic mouse event on the current about:newtab page.
- * @param aElement The element used to determine the cursor position.
- * @param aOffsetX The left offset that is added to the position (optional).
- * @param aOffsetY The top offset that is added to the position (optional).
- */
-function synthesizeNativeMouseEvent(aElement, aMsg, aOffsetX = 0, aOffsetY = 0) {
-  let rect = aElement.getBoundingClientRect();
-  let win = aElement.ownerDocument.defaultView;
-  let x = aOffsetX + win.mozInnerScreenX + rect.left + rect.width / 2;
-  let y = aOffsetY + win.mozInnerScreenY + rect.top + rect.height / 2;
-
-  let utils = win.QueryInterface(Ci.nsIInterfaceRequestor)
-                 .getInterface(Ci.nsIDOMWindowUtils);
-
-  let scale = utils.screenPixelsPerCSSPixel;
-  utils.sendNativeMouseEvent(x * scale, y * scale, aMsg, 0, null);
+  if (draggedSite)
+    drag.end(draggedSite);
 }
 
 /**
@@ -632,8 +327,24 @@ function sendDragEvent(aEventType, aTarget, aData) {
  * @return The drag event.
  */
 function createDragEvent(aEventType, aData) {
-  let dataTransfer = new (getContentWindow()).DataTransfer("dragstart", false);
-  dataTransfer.mozSetDataAt("text/x-moz-url", aData, 0);
+  let dataTransfer = {
+    mozUserCancelled: false,
+    setData: function () null,
+    setDragImage: function () null,
+    getData: function () aData,
+
+    types: {
+      contains: function (aType) aType == "text/x-moz-url"
+    },
+
+    mozGetDataAt: function (aType, aIndex) {
+      if (aIndex || aType != "text/x-moz-url")
+        return null;
+
+      return aData;
+    }
+  };
+
   let event = getContentDocument().createEvent("DragEvents");
   event.initDragEvent(aEventType, true, true, getContentWindow(), 0, 0, 0, 0, 0,
                       false, false, false, false, 0, null, dataTransfer);
@@ -643,15 +354,12 @@ function createDragEvent(aEventType, aData) {
 
 /**
  * Resumes testing when all pages have been updated.
- * @param aCallback Called when done. If not specified, TestRunner.next is used.
  */
-function whenPagesUpdated(aCallback = TestRunner.next) {
+function whenPagesUpdated(aCallback) {
   let page = {
-    observe: _ => _,
-
-    update() {
+    update: function () {
       NewTabUtils.allPages.unregister(this);
-      executeSoon(aCallback);
+      executeSoon(aCallback || TestRunner.next);
     }
   };
 
@@ -659,22 +367,4 @@ function whenPagesUpdated(aCallback = TestRunner.next) {
   registerCleanupFunction(function () {
     NewTabUtils.allPages.unregister(page);
   });
-}
-
-/**
- * Waits for the response to the page's initial search state request.
- */
-function whenSearchInitDone() {
-  let deferred = Promise.defer();
-  if (getContentWindow().gSearch._initialStateReceived) {
-    return Promise.resolve();
-  }
-  let eventName = "ContentSearchService";
-  getContentWindow().addEventListener(eventName, function onEvent(event) {
-    if (event.detail.type == "State") {
-      getContentWindow().removeEventListener(eventName, onEvent);
-      deferred.resolve();
-    }
-  });
-  return deferred.promise;
 }

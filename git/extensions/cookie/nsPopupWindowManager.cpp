@@ -11,7 +11,6 @@
 #include "nsIPrefBranch.h"
 #include "nsIPrincipal.h"
 #include "nsIURI.h"
-#include "mozilla/Services.h"
 
 /**
  * The Popup Window Manager maintains popup window permissions by website.
@@ -32,16 +31,16 @@ nsPopupWindowManager::~nsPopupWindowManager()
 {
 }
 
-NS_IMPL_ISUPPORTS(nsPopupWindowManager, 
-                  nsIPopupWindowManager,
-                  nsIObserver,
-                  nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS3(nsPopupWindowManager, 
+                   nsIPopupWindowManager,
+                   nsIObserver,
+                   nsSupportsWeakReference)
 
 nsresult
 nsPopupWindowManager::Init()
 {
   nsresult rv;
-  mPermissionManager = mozilla::services::GetPermissionManager();
+  mPermissionManager = do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
 
   nsCOMPtr<nsIPrefBranch> prefBranch =
     do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
@@ -93,7 +92,7 @@ nsPopupWindowManager::TestPermission(nsIPrincipal* aPrincipal,
 NS_IMETHODIMP
 nsPopupWindowManager::Observe(nsISupports *aSubject, 
                               const char *aTopic,
-                              const char16_t *aData)
+                              const PRUnichar *aData)
 {
   nsCOMPtr<nsIPrefBranch> prefBranch = do_QueryInterface(aSubject);
   NS_ASSERTION(!nsCRT::strcmp(NS_PREFBRANCH_PREFCHANGE_TOPIC_ID, aTopic),

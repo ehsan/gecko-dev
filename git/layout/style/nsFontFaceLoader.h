@@ -9,58 +9,125 @@
 #ifndef nsFontFaceLoader_h_
 #define nsFontFaceLoader_h_
 
-#include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsIStreamLoader.h"
+#include "nsIURI.h"
 #include "nsIChannel.h"
+#include "nsITimer.h"
 #include "gfxUserFontSet.h"
 #include "nsHashKeys.h"
 #include "nsTHashtable.h"
 #include "nsCSSRules.h"
 
+class nsIRequest;
+class nsISupports;
 class nsPresContext;
 class nsIPrincipal;
+
+class nsFontFaceLoader;
+class nsCSSFontFaceRule;
+
+// nsUserFontSet - defines the loading mechanism for downloadable fonts
+class nsUserFontSet : public gfxUserFontSet
+{
+public:
+  nsUserFontSet(nsPresContext *aContext);
+  ~nsUserFontSet();
+
+  // Called when this font set is no longer associated with a presentation.
+  void Destroy();
+
+  // starts loading process, creating and initializing a nsFontFaceLoader obj
+  // returns whether load process successfully started or not
+  nsresult StartLoad(gfxProxyFontEntry *aFontToLoad,
+                     const gfxFontFaceSrc *aFontFaceSrc);
+
+  // Called by nsFontFaceLoader when the loader has completed normally.
+  // It's removed from the mLoaders set.
+  void RemoveLoader(nsFontFaceLoader *aLoader);
+
+  bool UpdateRules(const nsTArray<nsFontFaceRuleContainer>& aRules);
+
+  nsPresContext *GetPresContext() { return mPresContext; }
+
+  virtual void ReplaceFontEntry(gfxProxyFontEntry *aProxy,
+                                gfxFontEntry *aFontEntry);
+
+  nsCSSFontFaceRule *FindRuleForEntry(gfxFontEntry *aFontEntry);
+
+protected:
+  // The font-set keeps track of the collection of rules, and their
+  // corresponding font entries (whether proxies or real entries),
+  // so that we can update the set without having to throw away
+  // all the existing fonts.
+  struct FontFaceRuleRecord {
+    nsRefPtr<gfxFontEntry>       mFontEntry;
+    nsFontFaceRuleContainer      mContainer;
+  };
+
+  void InsertRule(nsCSSFontFaceRule *aRule, uint8_t aSheetType,
+                  nsTArray<FontFaceRuleRecord>& oldRules,
+                  bool& aFontSetModified);
+
+  virtual nsresult LogMessage(gfxProxyFontEntry *aProxy,
+                              const char *aMessage,
+                              uint32_t aFlags = nsIScriptError::errorFlag,
+                              nsresult aStatus = NS_OK);
+
+  nsresult CheckFontLoad(gfxProxyFontEntry *aFontToLoad,
+                         const gfxFontFaceSrc *aFontFaceSrc,
+                         nsIPrincipal **aPrincipal);
+
+  virtual nsresult SyncLoadFontData(gfxProxyFontEntry *aFontToLoad,
+                                    const gfxFontFaceSrc *aFontFaceSrc,
+                                    uint8_t* &aBuffer,
+                                    uint32_t &aBufferLength);
+
+  nsPresContext *mPresContext;  // weak reference
+
+  // Set of all loaders pointing to us. These are not strong pointers,
+  // but that's OK because nsFontFaceLoader always calls RemoveLoader on
+  // us before it dies (unless we die first).
+  nsTHashtable< nsPtrHashKey<nsFontFaceLoader> > mLoaders;
+
+  nsTArray<FontFaceRuleRecord>   mRules;
+};
 
 class nsFontFaceLoader : public nsIStreamLoaderObserver
 {
 public:
-  nsFontFaceLoader(gfxUserFontEntry* aFontToLoad, nsIURI* aFontURI,
-                   mozilla::dom::FontFaceSet* aFontFaceSet,
-                   nsIChannel* aChannel);
+
+  nsFontFaceLoader(gfxProxyFontEntry *aFontToLoad, nsIURI *aFontURI, 
+                   nsUserFontSet *aFontSet, nsIChannel *aChannel);
+  virtual ~nsFontFaceLoader();
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSISTREAMLOADEROBSERVER 
 
   // initiate the load
   nsresult Init();
-  // cancel the load and remove its reference to mFontFaceSet
+  // cancel the load and remove its reference to mFontSet
   void Cancel();
 
   void DropChannel() { mChannel = nullptr; }
 
-  void StartedLoading(nsIStreamLoader* aStreamLoader);
+  void StartedLoading(nsIStreamLoader *aStreamLoader);
 
-  static void LoadTimerCallback(nsITimer* aTimer, void* aClosure);
+  static void LoadTimerCallback(nsITimer *aTimer, void *aClosure);
 
   static nsresult CheckLoadAllowed(nsIPrincipal* aSourcePrincipal,
                                    nsIURI* aTargetURI,
                                    nsISupports* aContext);
 
-#ifdef PR_LOGGING
-  static PRLogModuleInfo* GetFontDownloaderLog();
-#endif
-
-protected:
-  virtual ~nsFontFaceLoader();
-
 private:
-  nsRefPtr<gfxUserFontEntry>  mUserFontEntry;
+  nsRefPtr<gfxProxyFontEntry>  mFontEntry;
+  nsRefPtr<gfxFontFamily>      mFontFamily;
   nsCOMPtr<nsIURI>        mFontURI;
-  nsRefPtr<mozilla::dom::FontFaceSet> mFontFaceSet;
+  nsRefPtr<nsUserFontSet> mFontSet;
   nsCOMPtr<nsIChannel>    mChannel;
   nsCOMPtr<nsITimer>      mLoadTimer;
 
-  nsIStreamLoader*        mStreamLoader;
+  nsIStreamLoader        *mStreamLoader;
 };
 
 #endif /* !defined(nsFontFaceLoader_h_) */

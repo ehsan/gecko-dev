@@ -7,21 +7,20 @@
 #define GFX_QUATERNION_H
 
 #include "mozilla/gfx/BasePoint4D.h"
-#include "mozilla/gfx/Matrix.h"
+#include "gfx3DMatrix.h"
 #include "nsAlgorithm.h"
-#include <algorithm>
 
-struct gfxQuaternion : public mozilla::gfx::BasePoint4D<gfxFloat, gfxQuaternion> {
+struct THEBES_API gfxQuaternion : public mozilla::gfx::BasePoint4D<gfxFloat, gfxQuaternion> {
     typedef mozilla::gfx::BasePoint4D<gfxFloat, gfxQuaternion> Super;
 
     gfxQuaternion() : Super() {}
     gfxQuaternion(gfxFloat aX, gfxFloat aY, gfxFloat aZ, gfxFloat aW) : Super(aX, aY, aZ, aW) {}
 
-    explicit gfxQuaternion(const mozilla::gfx::Matrix4x4& aMatrix) {
-        w = 0.5 * sqrt(std::max(1 + aMatrix[0][0] + aMatrix[1][1] + aMatrix[2][2], 0.0f));
-        x = 0.5 * sqrt(std::max(1 + aMatrix[0][0] - aMatrix[1][1] - aMatrix[2][2], 0.0f));
-        y = 0.5 * sqrt(std::max(1 - aMatrix[0][0] + aMatrix[1][1] - aMatrix[2][2], 0.0f));
-        z = 0.5 * sqrt(std::max(1 - aMatrix[0][0] - aMatrix[1][1] + aMatrix[2][2], 0.0f));
+    gfxQuaternion(const gfx3DMatrix& aMatrix) {
+        w = 0.5 * sqrt(NS_MAX(1 + aMatrix[0][0] + aMatrix[1][1] + aMatrix[2][2], 0.0f));
+        x = 0.5 * sqrt(NS_MAX(1 + aMatrix[0][0] - aMatrix[1][1] - aMatrix[2][2], 0.0f));
+        y = 0.5 * sqrt(NS_MAX(1 - aMatrix[0][0] + aMatrix[1][1] - aMatrix[2][2], 0.0f));
+        z = 0.5 * sqrt(NS_MAX(1 - aMatrix[0][0] - aMatrix[1][1] + aMatrix[2][2], 0.0f));
 
         if(aMatrix[2][1] > aMatrix[1][2])
             x = -x;
@@ -39,19 +38,19 @@ struct gfxQuaternion : public mozilla::gfx::BasePoint4D<gfxFloat, gfxQuaternion>
 
         gfxFloat theta = acos(dot);
         gfxFloat rsintheta = 1/sqrt(1 - dot*dot);
-        gfxFloat rightWeight = sin(aCoeff*theta)*rsintheta;
+        gfxFloat w = sin(aCoeff*theta)*rsintheta;
 
         gfxQuaternion left = *this;
         gfxQuaternion right = aOther;
 
-        left *= cos(aCoeff*theta) - dot*rightWeight;
-        right *= rightWeight;
+        left *= cos(aCoeff*theta) - dot*w;
+        right *= w;
 
         return left + right;
     }
 
-    mozilla::gfx::Matrix4x4 ToMatrix() {
-      mozilla::gfx::Matrix4x4 temp;
+    gfx3DMatrix ToMatrix() {
+        gfx3DMatrix temp;
 
         temp[0][0] = 1 - 2 * (y * y + z * z);
         temp[0][1] = 2 * (x * y + w * z);

@@ -6,9 +6,8 @@
 #ifndef MASKLAYERIMAGECACHE_H_
 #define MASKLAYERIMAGECACHE_H_
 
-#include "DisplayItemClip.h"
+#include "FrameLayerBuilder.h"
 #include "nsPresContext.h"
-#include "mozilla/gfx/Matrix.h"
 
 namespace mozilla {
 
@@ -38,51 +37,37 @@ public:
 
   /**
    * Representation of a rounded rectangle in device pixel coordinates, in
-   * contrast to DisplayItemClip::RoundedRect, which uses app units.
+   * contrast to FrameLayerBuilder::Clip::RoundedRect, which uses app units.
    * In particular, our internal representation uses a gfxRect, rather than
    * an nsRect, so this class is easier to use with transforms.
    */
   struct PixelRoundedRect
   {
-    PixelRoundedRect(const DisplayItemClip::RoundedRect& aRRect,
+    PixelRoundedRect(const FrameLayerBuilder::Clip::RoundedRect& aRRect,
                      nsPresContext* aPresContext)
       : mRect(aPresContext->AppUnitsToGfxUnits(aRRect.mRect.x),
               aPresContext->AppUnitsToGfxUnits(aRRect.mRect.y),
               aPresContext->AppUnitsToGfxUnits(aRRect.mRect.width),
               aPresContext->AppUnitsToGfxUnits(aRRect.mRect.height))
     {
-      MOZ_COUNT_CTOR(PixelRoundedRect);
       NS_FOR_CSS_HALF_CORNERS(corner) {
         mRadii[corner] = aPresContext->AppUnitsToGfxUnits(aRRect.mRadii[corner]);
       }
-    }
-    PixelRoundedRect(const PixelRoundedRect& aPRR)
-      : mRect(aPRR.mRect)
-    {
-      MOZ_COUNT_CTOR(PixelRoundedRect);
-      NS_FOR_CSS_HALF_CORNERS(corner) {
-        mRadii[corner] = aPRR.mRadii[corner];
-      }
-    }
-
-    ~PixelRoundedRect()
-    {
-      MOZ_COUNT_DTOR(PixelRoundedRect);
     }
 
     // Applies the scale and translate components of aTransform.
     // It is an error to pass a matrix which does more than just scale
     // and translate.
-    void ScaleAndTranslate(const gfx::Matrix& aTransform)
+    void ScaleAndTranslate(const gfxMatrix& aTransform)
     {
-      NS_ASSERTION(aTransform._12 == 0 && aTransform._21 == 0,
+      NS_ASSERTION(aTransform.xy == 0 && aTransform.yx == 0,
                    "Transform has a component other than scale and translate");
 
-      mRect = aTransform.TransformBounds(mRect);
+      mRect = aTransform.Transform(mRect);
 
       for (size_t i = 0; i < ArrayLength(mRadii); i += 2) {
-        mRadii[i] *= aTransform._11;
-        mRadii[i + 1] *= aTransform._22;
+        mRadii[i] *= aTransform.xx;
+        mRadii[i + 1] *= aTransform.yy;
       }
     }
 
@@ -111,12 +96,9 @@ public:
       return hash;
     }
 
-    gfx::Rect mRect;
+    gfxRect mRect;
     // Indices into mRadii are the NS_CORNER_* constants in nsStyleConsts.h
     gfxFloat mRadii[8];
-
-  private:
-    PixelRoundedRect() MOZ_DELETE;
   };
 
   /**
@@ -129,12 +111,14 @@ public:
    * pointers to a key object (the +1 being from the hashtable entry), but this
    * invariant may be temporarily broken.
    */
-  struct MaskLayerImageKey
+  class MaskLayerImageKey
   {
-    MaskLayerImageKey();
-    MaskLayerImageKey(const MaskLayerImageKey& aKey);
-
-    ~MaskLayerImageKey();
+  public:
+    MaskLayerImageKey(const nsTArray<PixelRoundedRect>& aRoundedClipRects, layers::LayersBackend aBackend)
+      : mBackend(aBackend)
+      , mLayerCount(0)
+      , mRoundedClipRects(aRoundedClipRects)
+    {}
 
     void AddRef() const { ++mLayerCount; }
     void Release() const
@@ -150,6 +134,7 @@ public:
       for (uint32_t i = 0; i < mRoundedClipRects.Length(); ++i) {
         hash = AddToHash(hash, mRoundedClipRects[i].Hash());
       }
+      hash = AddToHash(hash, mBackend);
 
       return hash;
     }
@@ -159,6 +144,7 @@ public:
       return mRoundedClipRects == aOther.mRoundedClipRects;
     }
 
+    layers::LayersBackend mBackend;
     mutable uint32_t mLayerCount;
     nsTArray<PixelRoundedRect> mRoundedClipRects;
   };
@@ -186,19 +172,11 @@ protected:
     typedef const MaskLayerImageKey& KeyType;
     typedef const MaskLayerImageKey* KeyTypePointer;
 
-    explicit MaskLayerImageEntry(KeyTypePointer aKey)
-      : mKey(aKey)
-    {
-      MOZ_COUNT_CTOR(MaskLayerImageEntry);
-    }
+    MaskLayerImageEntry(KeyTypePointer aKey) : mKey(aKey) {}
     MaskLayerImageEntry(const MaskLayerImageEntry& aOther)
       : mKey(aOther.mKey.get())
     {
       NS_ERROR("ALLOW_MEMMOVE == true, should never be called");
-    }
-    ~MaskLayerImageEntry()
-    {
-      MOZ_COUNT_DTOR(MaskLayerImageEntry);
     }
 
     // KeyEquals(): does this entry match this key?
@@ -234,7 +212,6 @@ protected:
   // helper funtion for Sweep(), called for each entry in the hashtable
   static PLDHashOperator SweepFunc(MaskLayerImageEntry* aEntry, void* aUserArg);
 };
-
 
 }
 

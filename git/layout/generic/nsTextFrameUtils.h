@@ -6,9 +6,9 @@
 #ifndef NSTEXTFRAMEUTILS_H_
 #define NSTEXTFRAMEUTILS_H_
 
+#include "gfxFont.h"
 #include "gfxSkipChars.h"
-#include "nsBidiUtils.h"
-#include "nsUnicodeProperties.h"
+#include "nsTextFragment.h"
 
 class nsIContent;
 struct nsStyleText;
@@ -18,6 +18,11 @@ struct nsStyleText;
 #define CH_NBSP   160
 #define CH_SHY    173
 #define CH_CJKSP  12288 // U+3000 IDEOGRAPHIC SPACE (CJK Full-Width Space)
+
+#define CH_LRM  8206  //<!ENTITY lrm     CDATA "&#8206;" -- left-to-right mark, U+200E NEW RFC 2070 -->
+#define CH_RLM  8207  //<!ENTITY rlm     CDATA "&#8207;" -- right-to-left mark, U+200F NEW RFC 2070 -->
+#define CH_LRE  8234  //<!CDATA "&#8234;" -- left-to-right embedding, U+202A -->
+#define CH_RLO  8238  //<!CDATA "&#8238;" -- right-to-left override, U+202E -->
 
 class nsTextFrameUtils {
 public:
@@ -44,21 +49,12 @@ public:
     // We normally don't use this break opportunity because the following text
     // will have a break opportunity at the start, but it's useful for line
     // layout to know about it in case the following content is not text
-    TEXT_HAS_TRAILING_BREAK  = 0x4000000,
-
-    // This is set if the textrun was created for a textframe whose
-    // NS_FRAME_IS_IN_SINGLE_CHAR_MI flag is set.  This occurs if the textframe
-    // belongs to a MathML <mi> element whose embedded text consists of a
-    // single character.
-    TEXT_IS_SINGLE_CHAR_MI   = 0x8000000
+    TEXT_HAS_TRAILING_BREAK  = 0x4000000
 
     // The following are defined by gfxTextRunWordCache rather than here,
     // so that it also has access to the _INCOMING flag
     // TEXT_TRAILING_ARABICCHAR
     // TEXT_INCOMING_ARABICCHAR
-
-    // This is defined in gfxTextRunFactory to allow access in gfxFont.
-    // TEXT_USE_MATH_SCRIPT
   };
 
   // These constants are used in TransformText to represent context information
@@ -71,25 +67,19 @@ public:
 
   /**
    * Returns true if aChars/aLength are something that make a space
-   * character not be whitespace when they follow the space character
-   * (combining mark or join control, ignoring intervening direction
-   * controls).
+   * character not be whitespace when they follow the space character.
+   * For now, this is true if and only if aChars starts with a ZWJ. (This
+   * is what Uniscribe assumes.)
    */
   static bool
-  IsSpaceCombiningSequenceTail(const char16_t* aChars, int32_t aLength) {
-    return aLength > 0 &&
-      (mozilla::unicode::IsClusterExtender(aChars[0]) ||
-       (IsBidiControl(aChars[0]) &&
-        IsSpaceCombiningSequenceTail(aChars + 1, aLength - 1)
-       )
-      );
+  IsSpaceCombiningSequenceTail(const PRUnichar* aChars, int32_t aLength) {
+    return aLength > 0 && aChars[0] == 0x200D; // ZWJ
   }
 
   enum CompressionMode {
     COMPRESS_NONE,
     COMPRESS_WHITESPACE,
-    COMPRESS_WHITESPACE_NEWLINE,
-    COMPRESS_NONE_TRANSFORM_TO_SPACE
+    COMPRESS_WHITESPACE_NEWLINE
   };
 
   /**
@@ -100,24 +90,23 @@ public:
    * 
    * @param aCompressWhitespace control what is compressed to a
    * single space character: no compression, compress spaces (not followed
-   * by combining mark) and tabs, compress those plus newlines, or
-   * no compression except newlines are discarded.
+   * by combining mark) and tabs, and compress those plus newlines.
    * @param aIncomingFlags a flag indicating whether there was whitespace
    * or an Arabic character preceding this text. We set it to indicate if
    * there's an Arabic character or whitespace preceding the end of this text.
    */
-  static char16_t* TransformText(const char16_t* aText, uint32_t aLength,
-                                  char16_t* aOutput,
+  static PRUnichar* TransformText(const PRUnichar* aText, uint32_t aLength,
+                                  PRUnichar* aOutput,
                                   CompressionMode aCompression,
                                   uint8_t * aIncomingFlags,
-                                  gfxSkipChars* aSkipChars,
+                                  gfxSkipCharsBuilder* aSkipChars,
                                   uint32_t* aAnalysisFlags);
 
   static uint8_t* TransformText(const uint8_t* aText, uint32_t aLength,
                                 uint8_t* aOutput,
                                 CompressionMode aCompression,
                                 uint8_t * aIncomingFlags,
-                                gfxSkipChars* aSkipChars,
+                                gfxSkipCharsBuilder* aSkipChars,
                                 uint32_t* aAnalysisFlags);
 
   static void

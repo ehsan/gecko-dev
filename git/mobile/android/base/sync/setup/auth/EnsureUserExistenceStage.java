@@ -12,10 +12,10 @@ import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
 import java.security.GeneralSecurityException;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.SyncConstants;
+import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.net.BaseResource;
-import org.mozilla.gecko.sync.net.BaseResourceDelegate;
+import org.mozilla.gecko.sync.net.SyncResourceDelegate;
+import org.mozilla.gecko.sync.setup.Constants;
 
 import ch.boye.httpclientandroidlib.HttpResponse;
 import ch.boye.httpclientandroidlib.client.ClientProtocolException;
@@ -53,14 +53,9 @@ public class EnsureUserExistenceStage implements AuthenticatorStage {
 
     };
 
-    // This is not the same as Utils.nodeWeaveURL: it's missing the trailing node/weave.
-    String userRequestUrl = aa.nodeServer + "user/1.0/" + aa.username;
+    String userRequestUrl = aa.nodeServer + Constants.AUTH_NODE_PATHNAME + Constants.AUTH_NODE_VERSION + aa.username;
     final BaseResource httpResource = new BaseResource(userRequestUrl);
-    httpResource.delegate = new BaseResourceDelegate(httpResource) {
-      @Override
-      public String getUserAgent() {
-        return SyncConstants.USER_AGENT;
-      }
+    httpResource.delegate = new SyncResourceDelegate(httpResource) {
 
       @Override
       public void handleHttpResponse(HttpResponse response) {

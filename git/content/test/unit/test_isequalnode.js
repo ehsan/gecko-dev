@@ -1,4 +1,4 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -374,10 +374,10 @@ function test_isEqualNode_wholeDoc()
   var doc2 = ParseFile("isequalnode_data.xml");
   var tw1 =
     doc.createTreeWalker(doc, Components.interfaces.nsIDOMNodeFilter.SHOW_ALL,
-                         null);
+                         null, false);
   var tw2 =
     doc2.createTreeWalker(doc2, Components.interfaces.nsIDOMNodeFilter.SHOW_ALL,
-                          null);
+                          null, false);
   do {
     check_eq_nodes(tw1.currentNode, tw2.currentNode);
     tw1.nextNode();

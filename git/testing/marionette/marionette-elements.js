@@ -1,4 +1,4 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: javascript; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7,39 +7,23 @@
  * The ElementManager manages DOM references and interactions with elements.
  * According to the WebDriver spec (http://code.google.com/p/selenium/wiki/JsonWireProtocol), the
  * server sends the client an element reference, and maintains the map of reference to element.
- * The client uses this reference when querying/interacting with the element, and the
+ * The client uses this reference when querying/interacting with the element, and the 
  * server uses maps this reference to the actual element when it executes the command.
  */
 
-this.EXPORTED_SYMBOLS = [
-  "ElementManager",
-  "CLASS_NAME",
-  "SELECTOR",
-  "ID",
-  "NAME",
-  "LINK_TEXT",
-  "PARTIAL_LINK_TEXT",
-  "TAG",
-  "XPATH",
-  "ANON",
-  "ANON_ATTRIBUTE"
-];
-
-const DOCUMENT_POSITION_DISCONNECTED = 1;
+let EXPORTED_SYMBOLS = ["ElementManager", "CLASS_NAME", "SELECTOR", "ID", "NAME", "LINK_TEXT", "PARTIAL_LINK_TEXT", "TAG", "XPATH"];
 
 let uuidGen = Components.classes["@mozilla.org/uuid-generator;1"]
              .getService(Components.interfaces.nsIUUIDGenerator);
 
-this.CLASS_NAME = "class name";
-this.SELECTOR = "css selector";
-this.ID = "id";
-this.NAME = "name";
-this.LINK_TEXT = "link text";
-this.PARTIAL_LINK_TEXT = "partial link text";
-this.TAG = "tag name";
-this.XPATH = "xpath";
-this.ANON= "anon";
-this.ANON_ATTRIBUTE = "anon attribute";
+let CLASS_NAME = "class name";
+let SELECTOR = "css selector";
+let ID = "id";
+let NAME = "name";
+let LINK_TEXT = "link text";
+let PARTIAL_LINK_TEXT = "partial link text";
+let TAG = "tag name";
+let XPATH = "xpath";
 
 function ElementException(msg, num, stack) {
   this.message = msg;
@@ -47,10 +31,12 @@ function ElementException(msg, num, stack) {
   this.stack = stack;
 }
 
-this.ElementManager = function ElementManager(notSupported) {
+/* NOTE: Bug 736592 has been created to replace seenItems with a weakRef map */
+function ElementManager(notSupported) {
+  this.searchTimeout = 0;
   this.seenItems = {};
   this.timer = Components.classes["@mozilla.org/timer;1"].createInstance(Components.interfaces.nsITimer);
-  this.elementStrategies = [CLASS_NAME, SELECTOR, ID, NAME, LINK_TEXT, PARTIAL_LINK_TEXT, TAG, XPATH, ANON, ANON_ATTRIBUTE];
+  this.elementStrategies = [CLASS_NAME, SELECTOR, ID, NAME, LINK_TEXT, PARTIAL_LINK_TEXT, TAG, XPATH];
   for (let i = 0; i < notSupported.length; i++) {
     this.elementStrategies.splice(this.elementStrategies.indexOf(notSupported[i]), 1);
   }
@@ -61,6 +47,7 @@ ElementManager.prototype = {
    * Reset values
    */
   reset: function EM_clear() {
+    this.searchTimeout = 0;
     this.seenItems = {};
   },
 
@@ -75,26 +62,15 @@ ElementManager.prototype = {
   */
   addToKnownElements: function EM_addToKnownElements(element) {
     for (let i in this.seenItems) {
-      let foundEl = null;
-      try {
-        foundEl = this.seenItems[i].get();
-      }
-      catch(e) {}
-      if (foundEl) {
-        if (XPCNativeWrapper(foundEl) == XPCNativeWrapper(element)) {
-          return i;
-        }
-      }
-      else {
-        //cleanup reference to GC'd element
-        delete this.seenItems[i];
+      if (XPCNativeWrapper(this.seenItems[i]) == XPCNativeWrapper(element)) {
+        return i;
       }
     }
     var id = uuidGen.generateUUID().toString();
-    this.seenItems[id] = Components.utils.getWeakReference(element);
+    this.seenItems[id] = element;
     return id;
   },
-
+  
   /**
    * Retrieve element from its unique ID
    *
@@ -109,62 +85,40 @@ ElementManager.prototype = {
   getKnownElement: function EM_getKnownElement(id, win) {
     let el = this.seenItems[id];
     if (!el) {
-      throw new ElementException("Element has not been seen before. Id given was " + id, 17, null);
+      throw new ElementException("Element has not been seen before", 17, null);
     }
-    try {
-      el = el.get();
-    }
-    catch(e) {
-      el = null;
-      delete this.seenItems[id];
-    }
-    // use XPCNativeWrapper to compare elements; see bug 834266
-    let wrappedWin = XPCNativeWrapper(win);
-    if (!el ||
-        !(XPCNativeWrapper(el).ownerDocument == wrappedWin.document) ||
-        (XPCNativeWrapper(el).compareDocumentPosition(wrappedWin.document.documentElement) &
-         DOCUMENT_POSITION_DISCONNECTED)) {
-      throw new ElementException("The element reference is stale. Either the element " +
-                                 "is no longer attached to the DOM or the page has been refreshed.", 10, null);
+    el = el;
+    if (!(el.ownerDocument == win.document)) {
+      throw new ElementException("Stale element reference", 10, null);
     }
     return el;
   },
-
+  
   /**
-   * Convert values to primitives that can be transported over the
-   * Marionette protocol.
-   *
-   * This function implements the marshaling algorithm defined in the
-   * WebDriver specification:
-   *
-   *     https://dvcs.w3.org/hg/webdriver/raw-file/tip/webdriver-spec.html#synchronous-javascript-execution
-   *
+   * Convert values to primitives that can be transported over the Marionette
+   * JSON protocol.
+   * 
    * @param object val
-   *        object to be marshaled
+   *        object to be wrapped
    *
    * @return object
-   *         Returns a JSON primitive or Object
+   *        Returns a JSON primitive or Object
    */
   wrapValue: function EM_wrapValue(val) {
-    let result = null;
-
-    switch (typeof(val)) {
+    let result;
+    switch(typeof(val)) {
       case "undefined":
         result = null;
         break;
-
       case "string":
       case "number":
       case "boolean":
         result = val;
         break;
-
       case "object":
-        let type = Object.prototype.toString.call(val);
-        if (type == "[object Array]" ||
-            type == "[object NodeList]") {
+        if (Object.prototype.toString.call(val) == '[object Array]') {
           result = [];
-          for (let i = 0; i < val.length; ++i) {
+          for (let i in val) {
             result.push(this.wrapValue(val[i]));
           }
         }
@@ -172,6 +126,11 @@ ElementManager.prototype = {
           result = null;
         }
         else if (val.nodeType == 1) {
+          for(let i in this.seenItems) {
+            if (this.seenItems[i] == val) {
+              result = {'ELEMENT': i};
+            }
+          }
           result = {'ELEMENT': this.addToKnownElements(val)};
         }
         else {
@@ -182,10 +141,9 @@ ElementManager.prototype = {
         }
         break;
     }
-
     return result;
   },
-
+  
   /**
    * Convert any ELEMENT references in 'args' to the actual elements
    *
@@ -232,11 +190,11 @@ ElementManager.prototype = {
     }
     return converted;
   },
-
+  
   /*
    * Execute* helpers
    */
-
+  
   /**
    * Return an object with any namedArgs applied to it. Used
    * to let clients use given names when refering to arguments
@@ -261,7 +219,7 @@ ElementManager.prototype = {
     });
     return namedArgs;
   },
-
+  
   /**
    * Find an element or elements starting at the document root or
    * given node, using the given search strategy. Search
@@ -277,69 +235,49 @@ ElementManager.prototype = {
    *        as the start node instead of the document root
    *        If this object has a 'time' member, this number will be
    *        used to see if we have hit the search timelimit.
-   * @param function on_success
-   *        The notification callback used when we are returning successfully.
-   * @param function on_error
-            The callback to invoke when an error occurs.
+   * @param function notify
+   *        The notification callback used when we are returning
    * @param boolean all
    *        If true, all found elements will be returned.
    *        If false, only the first element will be returned.
    *
    * @return nsIDOMElement or list of nsIDOMElements
-   *        Returns the element(s) by calling the on_success function.
+   *        Returns the element(s) by calling the notify function.
    */
-  find: function EM_find(win, values, searchTimeout, on_success, on_error, all, command_id) {
+  find: function EM_find(win, values, notify, all) {
     let startTime = values.time ? values.time : new Date().getTime();
-    let startNode = (values.element != undefined) ?
-                    this.getKnownElement(values.element, win) : win.document;
+    let startNode = (values.element != undefined) ? this.getKnownElement(values.element, win) : win.document;
     if (this.elementStrategies.indexOf(values.using) < 0) {
-      throw new ElementException("No such strategy.", 32, null);
+      throw new ElementException("No such strategy.", 17, null);
     }
-    let found = all ? this.findElements(values.using, values.value, win.document, startNode) :
-                      this.findElement(values.using, values.value, win.document, startNode);
-    let type = Object.prototype.toString.call(found);
-    let isArrayLike = ((type == '[object Array]') || (type == '[object HTMLCollection]') || (type == '[object NodeList]'));
-    if (found == null || (isArrayLike && found.length <= 0)) {
-      if (!searchTimeout || new Date().getTime() - startTime > searchTimeout) {
-        if (all) {
-          on_success([], command_id); // findElements should return empty list
-        } else {
-          // Format message depending on strategy if necessary
-          let message = "Unable to locate element: " + values.value;
-          if (values.using == ANON) {
-            message = "Unable to locate anonymous children";
-          } else if (values.using == ANON_ATTRIBUTE) {
-            message = "Unable to locate anonymous element: " + JSON.stringify(values.value);
-          }
-          on_error(message, 7, null, command_id);
-        }
-      } else {
-        values.time = startTime;
-        this.timer.initWithCallback(this.find.bind(this, win, values,
-                                                   searchTimeout,
-                                                   on_success, on_error, all,
-                                                   command_id),
-                                    100,
-                                    Components.interfaces.nsITimer.TYPE_ONE_SHOT);
-      }
-    } else {
-      if (isArrayLike) {
+    let found = all ? this.findElements(values.using, values.value, win.document, startNode) : this.findElement(values.using, values.value, win.document, startNode);
+    if (found) {
+      let type = Object.prototype.toString.call(found);
+      if ((type == '[object Array]') || (type == '[object HTMLCollection]')) {
         let ids = []
         for (let i = 0 ; i < found.length ; i++) {
           ids.push(this.addToKnownElements(found[i]));
         }
-        on_success(ids, command_id);
-      } else {
+        notify(ids);
+      }
+      else {
         let id = this.addToKnownElements(found);
-        on_success({'ELEMENT':id}, command_id);
+        notify(id);
       }
       return;
+    } else {
+      if (this.searchTimeout == 0 || new Date().getTime() - startTime > this.searchTimeout) {
+        throw new ElementException("Unable to locate element: " + values.value, 7, null);
+      } else {
+        values.time = startTime;
+        this.timer.initWithCallback(this.find.bind(this, win, values, notify, all), 100, Components.interfaces.nsITimer.TYPE_ONE_SHOT);
+      }
     }
   },
 
   /**
    * Find a value by XPATH
-   *
+   * 
    * @param nsIDOMElement root
    *        Document root
    * @param string value
@@ -357,7 +295,7 @@ ElementManager.prototype = {
 
   /**
    * Find values by XPATH
-   *
+   * 
    * @param nsIDOMElement root
    *        Document root
    * @param string value
@@ -379,10 +317,10 @@ ElementManager.prototype = {
     }
     return elements;
   },
-
+  
   /**
    * Helper method to find. Finds one element using find's criteria
-   *
+   * 
    * @param string using
    *        String identifying which search method to use
    * @param string value
@@ -400,12 +338,12 @@ ElementManager.prototype = {
     switch (using) {
       case ID:
         element = startNode.getElementById ?
-                  startNode.getElementById(value) :
+                  startNode.getElementById(value) : 
                   this.findByXPath(rootNode, './/*[@id="' + value + '"]', startNode);
         break;
       case NAME:
         element = startNode.getElementsByName ?
-                  startNode.getElementsByName(value)[0] :
+                  startNode.getElementsByName(value)[0] : 
                   this.findByXPath(rootNode, './/*[@name="' + value + '"]', startNode);
         break;
       case CLASS_NAME:
@@ -434,16 +372,6 @@ ElementManager.prototype = {
       case SELECTOR:
         element = startNode.querySelector(value);
         break;
-      case ANON:
-        element = rootNode.getAnonymousNodes(startNode);
-        if (element != null) {
-          element = element[0];
-        }
-        break;
-      case ANON_ATTRIBUTE:
-        let attr = Object.keys(value)[0];
-        element = rootNode.getAnonymousElementByAttribute(startNode, attr, value[attr]);
-        break;
       default:
         throw new ElementException("No such strategy", 500, null);
     }
@@ -452,7 +380,7 @@ ElementManager.prototype = {
 
   /**
    * Helper method to find. Finds all element using find's criteria
-   *
+   * 
    * @param string using
    *        String identifying which search method to use
    * @param string value
@@ -475,7 +403,7 @@ ElementManager.prototype = {
         break;
       case NAME:
         elements = startNode.getElementsByName ?
-                   startNode.getElementsByName(value) :
+                   startNode.getElementsByName(value) : 
                    this.findByXPathAll(rootNode, './/*[@name="' + value + '"]', startNode);
         break;
       case CLASS_NAME:
@@ -499,21 +427,24 @@ ElementManager.prototype = {
         }
         break;
       case SELECTOR:
-        elements = Array.slice(startNode.querySelectorAll(value));
-        break;
-      case ANON:
-        elements = rootNode.getAnonymousNodes(startNode) || [];
-        break;
-      case ANON_ATTRIBUTE:
-        let attr = Object.keys(value)[0];
-        let el = rootNode.getAnonymousElementByAttribute(startNode, attr, value[attr]);
-        if (el != null) {
-          elements = [el];
-        }
+        elements = Array.slice(rootNode.querySelectorAll(value));
         break;
       default:
         throw new ElementException("No such strategy", 500, null);
     }
     return elements;
+  },
+
+  /**
+   * Sets the timeout for searching for elements with find element
+   * 
+   * @param number value
+   *        Timeout value in milliseconds
+   */
+  setSearchTimeout: function EM_setSearchTimeout(value) {
+    this.searchTimeout = parseInt(value);
+    if(isNaN(this.searchTimeout)){
+      throw new ElementException("Not a Number", 500, null);
+    }
   },
 }

@@ -45,7 +45,7 @@
       <property name="view">
         <getter><![CDATA[
           try {
-            return this.treeBoxObject.view.wrappedJSObject || null;
+            return this.treeBoxObject.view.wrappedJSObject;
           }
           catch(e) {
             return null;
@@ -56,14 +56,9 @@
         ]]></setter>
       </property>
 
-      <property name="associatedElement"
-                readonly="true"
-                onget="return this"/>
-
       <method name="applyFilter">
         <parameter name="filterString"/>
         <parameter name="folderRestrict"/>
-        <parameter name="includeHidden"/>
         <body><![CDATA[
           // preserve grouping
           var queryNode = PlacesUtils.asQuery(this.result.root);
@@ -75,7 +70,7 @@
           if (PlacesUtils.nodeIsHistoryContainer(queryNode) ||
               options.resultType == options.RESULTS_AS_TAG_QUERY ||
               options.resultType == options.RESULTS_AS_TAG_CONTENTS)
-            options.resultType = options.RESULTS_AS_URI;
+            options.resultType = options.RESULT_TYPE_URI;
 
           var query = PlacesUtils.history.getNewQuery();
           query.searchTerms = filterString;
@@ -84,8 +79,6 @@
             query.setFolders(folderRestrict, folderRestrict.length);
             options.queryType = options.QUERY_TYPE_BOOKMARKS;
           }
-
-          options.includeHidden = !!includeHidden;
 
           this.load([query], options);
         ]]></body>
@@ -117,11 +110,6 @@
           // calls removeObserver.
           result.addObserver(treeView, false);
           this.view = treeView;
-
-          if (this.getAttribute("selectfirstnode") == "true" && treeView.rowCount > 0) {
-            treeView.selection.select(0);
-          }
-
           this._cachedInsertionPoint = undefined;
         ]]></body>
       </method>
@@ -312,9 +300,9 @@
           for (let i = 0; i < rc; ++i) {
             let min = { }, max = { };
             selection.getRangeAt(i, min, max);
-            for (let j = min.value; j <= max.value; ++j) {
+
+            for (let j = min.value; j <= max.value; ++j)
               nodes.push(resultview.nodeForTreeIndex(j));
-            }
           }
           return nodes;
         ]]></getter>
@@ -453,6 +441,8 @@
           //
           // If the sole selection is the bookmarks toolbar folder, we insert
           // into it even if it is not opened
+          var itemId =
+            PlacesUtils.getConcreteItemId(resultView.nodeForTreeIndex(max.value));
           if (selection.count == 1 && resultView.isContainer(max.value) &&
               !this.flatList)
             orientation = Ci.nsITreeView.DROP_ON;
@@ -529,11 +519,9 @@
           if (PlacesControllerDragHelper.disallowInsertion(container))
             return null;
 
-          let tagName = PlacesUtils.nodeIsTagQuery(container) ?
-                          container.title : null;
           return new InsertionPoint(PlacesUtils.getConcreteItemId(container),
                                     index, orientation,
-                                    tagName,
+                                    PlacesUtils.nodeIsTagQuery(container),
                                     dropNearItemId);
         ]]></body>
       </method>
@@ -546,16 +534,13 @@
       </method>
 
       <!-- This method will select the first node in the tree that matches
-           each given item id. It will open any folder nodes that it needs
+           each given item id. It will open any parent nodes that it needs
            to in order to show the selected items.
       -->
       <method name="selectItems">
         <parameter name="aIDs"/>
         <parameter name="aOpenContainers"/>
         <body><![CDATA[
-          // Never open containers in flat lists.
-          if (this.flatList)
-            aOpenContainers = false;
           // By default, we do search and select within containers which were
           // closed (note that containers in which nodes were not found are
           // closed).
@@ -604,13 +589,8 @@
                 nodesURIChecked.indexOf(node.uri) != -1)
               return foundOne;
 
-            // Don't try to open a query or a shurtcut, since it may return
-            // any duplicate data and be infinitely nested.  Though, if it has
-            // been explicitly opened by the caller, search into it.
-            let shouldOpen = aOpenContainers &&
-                             node.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER;
             PlacesUtils.asContainer(node);
-            if (!node.containerOpen && !shouldOpen)
+            if (!aOpenContainers && !node.containerOpen)
               return foundOne;
 
             nodesURIChecked.push(node.uri);
@@ -687,12 +667,6 @@
       <property name="ownerWindow"
                 readonly="true"
                 onget="return window;"/>
-
-      <field name="_active">true</field>
-      <property name="active"
-                onget="return this._active"
-                onset="return this._active = val"/>
-
     </implementation>
     <handlers>
       <handler event="focus"><![CDATA[
@@ -747,9 +721,11 @@
         if (event.target.localName != "treechildren")
           return;
 
-        let cell = this.treeBoxObject.getCellAt(event.clientX, event.clientY);
-        let node = cell.row != -1 ?
-                   this.view.nodeForTreeIndex(cell.row) :
+        let row = { }, col = { }, child = { };
+        this.treeBoxObject.getCellAt(event.clientX, event.clientY,
+                                     row, col, child);
+        let node = row.value != -1 ?
+                   this.view.nodeForTreeIndex(row.value) :
                    this.result.root;
         // cache the dropTarget for the view
         PlacesControllerDragHelper.currentDropTarget = node;
@@ -759,11 +735,11 @@
         let tbo = this.treeBoxObject;
         let rowHeight = tbo.rowHeight;
         let eventY = event.clientY - tbo.treeBody.boxObject.y -
-                     rowHeight * (cell.row - tbo.getFirstVisibleRow());
+                     rowHeight * (row.value - tbo.getFirstVisibleRow());
 
         let orientation = Ci.nsITreeView.DROP_BEFORE;
 
-        if (cell.row == -1) {
+        if (row.value == -1) {
           // If the row is not valid we try to insert inside the resultNode.
           orientation = Ci.nsITreeView.DROP_ON;
         }
@@ -780,7 +756,7 @@
           orientation = Ci.nsITreeView.DROP_ON;
         }
 
-        if (!this.view.canDrop(cell.row, orientation, event.dataTransfer))
+        if (!this.view.canDrop(row.value, orientation, event.dataTransfer))
           return;
 
         event.preventDefault();

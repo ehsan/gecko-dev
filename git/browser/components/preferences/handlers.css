@@ -2,11 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#handlersView > richlistitem {
+richlistitem {
   -moz-binding: url("chrome://browser/content/preferences/handlers.xml#handler");
 }
 
-#handlersView > richlistitem[selected="true"] {
+richlistitem[selected="true"] {
   -moz-binding: url("chrome://browser/content/preferences/handlers.xml#handler-selected");
 }
 
@@ -22,12 +22,4 @@
 
 listitem.offlineapp {
   -moz-binding: url("chrome://browser/content/preferences/handlers.xml#offlineapp");
-}
-
-/* Apply crisp rendering for favicons at exactly 2dppx resolution */
-@media (resolution: 2dppx) {
-  #handlersView > richlistitem,
-  .actionsMenu > menupopup > menuitem > .menu-iconic-left {
-    image-rendering: -moz-crisp-edges;
-  }
 }

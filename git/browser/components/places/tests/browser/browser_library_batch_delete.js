@@ -69,20 +69,19 @@ gTests.push({
   desc: "Ensure correct selection and functionality in Library",
   run: function() {
     let PO = gLibrary.PlacesOrganizer;
-    let ContentTree = gLibrary.ContentTree;
     // Move selection forth and back.
     PO.selectLeftPaneQuery("History");
     PO.selectLeftPaneQuery("UnfiledBookmarks");
     // Now select the "keepme" folder in the right pane and delete it.
-    ContentTree.view.selectNode(ContentTree.view.result.root.getChild(0));
-    is(ContentTree.view.selectedNode.title, "keepme",
+    PO._content.selectNode(PO._content.result.root.getChild(0));
+    is(PO._content.selectedNode.title, "keepme",
        "Found folder in content pane");
     // Test live update.
     PlacesUtils.bookmarks.insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
                                          makeURI(TEST_URL),
                                          PlacesUtils.bookmarks.DEFAULT_INDEX,
                                          "bm");
-    is(ContentTree.view.result.root.childCount, 2,
+    is(PO._content.result.root.childCount, 2,
        "Right pane was correctly updated");
     nextTest();
   }

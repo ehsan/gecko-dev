@@ -36,7 +36,7 @@ deactivate () {
     fi
 }
 
-# unset irrelevant variables
+# unset irrelavent variables
 deactivate nondestructive
 
 VIRTUAL_ENV="__VIRTUAL_ENV__"

@@ -20,7 +20,7 @@ DWORD WINAPI StartTaskThread(void *aManager);
 
 struct ReadbackTask;
 
-class ReadbackManagerD3D10 MOZ_FINAL : public IUnknown
+class ReadbackManagerD3D10 : public IUnknown
 {
 public:
   ReadbackManagerD3D10();
@@ -34,7 +34,7 @@ public:
    * @param aUpdate  ReadbackProcessor::Update object. This is a void pointer
    *                 since we cannot forward declare a nested class, and do not
    *                 export ReadbackProcessor.h
-   * @param aOrigin  Origin of the aTexture surface in the PaintedLayer
+   * @param aOrigin  Origin of the aTexture surface in the ThebesLayer
    *                 coordinate system.
    */
   void PostTask(ID3D10Texture2D *aTexture, void *aUpdate, const gfxPoint &aOrigin);

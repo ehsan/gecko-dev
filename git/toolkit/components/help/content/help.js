@@ -26,7 +26,11 @@ const platform = "win";
 #ifdef XP_MACOSX
 const platform = "mac";
 #else
+#ifdef XP_OS2
+const platform = "os2";
+#else
 const platform = "unix";
+#endif
 #endif
 #endif
 
@@ -521,6 +525,7 @@ nsHelpStatusHandler.prototype = {
     destroy : function() {},
 
     setJSStatus : function(status) {},
+    setJSDefaultStatus : function(status) {},
     setOverLink : function(link, context) {},
     onBeforeLinkTraversal: function(originalTarget, linkURI, linkNode, isAppTab) {}
 }

@@ -9,24 +9,45 @@
 #include "prmem.h"
 #include <tchar.h>
 
-NS_IMPL_ISUPPORTS(nsBidiKeyboard, nsIBidiKeyboard)
+NS_IMPL_ISUPPORTS1(nsBidiKeyboard, nsIBidiKeyboard)
 
 nsBidiKeyboard::nsBidiKeyboard() : nsIBidiKeyboard()
-{
-  Reset();
-}
-
-nsBidiKeyboard::~nsBidiKeyboard()
-{
-}
-
-NS_IMETHODIMP nsBidiKeyboard::Reset()
 {
   mInitialized = false;
   mHaveBidiKeyboards = false;
   mLTRKeyboard[0] = '\0';
   mRTLKeyboard[0] = '\0';
   mCurrentLocaleName[0] = '\0';
+}
+
+nsBidiKeyboard::~nsBidiKeyboard()
+{
+}
+
+NS_IMETHODIMP nsBidiKeyboard::SetLangFromBidiLevel(uint8_t aLevel)
+{
+  nsresult result = SetupBidiKeyboards();
+  if (NS_FAILED(result))
+    return result;
+
+  // call LoadKeyboardLayout() only if the target keyboard layout is different from the current
+  PRUnichar currentLocaleName[KL_NAMELENGTH];
+  wcsncpy(currentLocaleName, (aLevel & 1) ? mRTLKeyboard : mLTRKeyboard, KL_NAMELENGTH);
+  currentLocaleName[KL_NAMELENGTH-1] = '\0'; // null terminate
+
+  NS_ASSERTION(*currentLocaleName, 
+    "currentLocaleName has string length == 0");
+
+#if 0
+  /* This implementation of automatic keyboard layout switching is too buggy to be useful
+     and the feature itself is inconsistent with Windows. See Bug 162242 */
+  if (strcmp(mCurrentLocaleName, currentLocaleName)) {
+    if (!::LoadKeyboardLayout(currentLocaleName, KLF_ACTIVATE | KLF_SUBSTITUTE_OK)) {
+      return NS_ERROR_FAILURE;
+    }
+  }
+#endif
+
   return NS_OK;
 }
 
@@ -91,7 +112,7 @@ nsresult nsBidiKeyboard::SetupBidiKeyboards()
   int keyboards;
   HKL far* buf;
   HKL locale;
-  wchar_t localeName[KL_NAMELENGTH];
+  PRUnichar localeName[KL_NAMELENGTH];
   bool isLTRKeyboardSet = false;
   bool isRTLKeyboardSet = false;
   

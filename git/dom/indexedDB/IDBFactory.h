@@ -7,219 +7,134 @@
 #ifndef mozilla_dom_indexeddb_idbfactory_h__
 #define mozilla_dom_indexeddb_idbfactory_h__
 
-#include "mozilla/Attributes.h"
-#include "mozilla/dom/StorageTypeBinding.h"
-#include "nsAutoPtr.h"
-#include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsISupports.h"
-#include "nsString.h"
-#include "nsTArray.h"
-#include "nsWrapperCache.h"
+#include "mozilla/dom/indexedDB/IndexedDatabase.h"
 
-class nsIPrincipal;
+#include "mozIStorageConnection.h"
+#include "nsIIDBFactory.h"
+
+#include "nsCycleCollectionParticipant.h"
+
+class nsIAtom;
 class nsPIDOMWindow;
-struct PRThread;
 
 namespace mozilla {
-
-class ErrorResult;
-
-namespace ipc {
-
-class PBackgroundChild;
-class PrincipalInfo;
-
-} // namespace ipc
-
 namespace dom {
+class ContentParent;
+}
+}
 
-struct IDBOpenDBOptions;
-class TabChild;
+BEGIN_INDEXEDDB_NAMESPACE
 
-namespace indexedDB {
-
-class BackgroundFactoryChild;
-class FactoryRequestParams;
+struct DatabaseInfo;
+class IDBDatabase;
 class IDBOpenDBRequest;
+class IndexedDBChild;
+class IndexedDBParent;
 
-class IDBFactory MOZ_FINAL
-  : public nsISupports
-  , public nsWrapperCache
+struct ObjectStoreInfo;
+
+class IDBFactory MOZ_FINAL : public nsIIDBFactory
 {
-  typedef mozilla::dom::StorageType StorageType;
-  typedef mozilla::ipc::PBackgroundChild PBackgroundChild;
-  typedef mozilla::ipc::PrincipalInfo PrincipalInfo;
-
-  class BackgroundCreateCallback;
-  struct PendingRequestInfo;
-
-  nsAutoPtr<PrincipalInfo> mPrincipalInfo;
-
-  // If this factory lives on a window then mWindow must be non-null. Otherwise
-  // mOwningObject must be non-null.
-  nsCOMPtr<nsPIDOMWindow> mWindow;
-  JS::Heap<JSObject*> mOwningObject;
-
-  // This will only be set if the factory belongs to a window in a child
-  // process.
-  nsRefPtr<TabChild> mTabChild;
-
-  nsTArray<nsAutoPtr<PendingRequestInfo>> mPendingRequests;
-
-  BackgroundFactoryChild* mBackgroundActor;
-
-#ifdef DEBUG
-  PRThread* mOwningThread;
-#endif
-
-  uint64_t mInnerWindowID;
-
-  bool mBackgroundActorFailed;
-  bool mPrivateBrowsingMode;
+  typedef mozilla::dom::ContentParent ContentParent;
+  typedef nsTArray<nsRefPtr<ObjectStoreInfo> > ObjectStoreInfoArray;
 
 public:
-  static nsresult
-  CreateForWindow(nsPIDOMWindow* aWindow,
-                  IDBFactory** aFactory);
-
-  static nsresult
-  CreateForChromeJS(JSContext* aCx,
-                    JS::Handle<JSObject*> aOwningObject,
-                    IDBFactory** aFactory);
-
-  static nsresult
-  CreateForDatastore(JSContext* aCx,
-                    JS::Handle<JSObject*> aOwningObject,
-                    IDBFactory** aFactory);
-
-  void
-  AssertIsOnOwningThread() const
-#ifdef DEBUG
-  ;
-#else
-  { }
-#endif
-
-  void
-  SetBackgroundActor(BackgroundFactoryChild* aBackgroundActor);
-
-  void
-  ClearBackgroundActor()
-  {
-    AssertIsOnOwningThread();
-
-    mBackgroundActor = nullptr;
-  }
-
-  nsPIDOMWindow*
-  GetParentObject() const
-  {
-    return mWindow;
-  }
-
-  TabChild*
-  GetTabChild() const
-  {
-    return mTabChild;
-  }
-
-  PrincipalInfo*
-  GetPrincipalInfo() const
-  {
-    AssertIsOnOwningThread();
-
-    return mPrincipalInfo;
-  }
-
-  uint64_t
-  InnerWindowID() const
-  {
-    AssertIsOnOwningThread();
-
-    return mInnerWindowID;
-  }
-
-  bool
-  IsChrome() const;
-
-  already_AddRefed<IDBOpenDBRequest>
-  Open(const nsAString& aName,
-       uint64_t aVersion,
-       ErrorResult& aRv);
-
-  already_AddRefed<IDBOpenDBRequest>
-  Open(const nsAString& aName,
-       const IDBOpenDBOptions& aOptions,
-       ErrorResult& aRv);
-
-  already_AddRefed<IDBOpenDBRequest>
-  DeleteDatabase(const nsAString& aName,
-                 const IDBOpenDBOptions& aOptions,
-                 ErrorResult& aRv);
-
-  int16_t
-  Cmp(JSContext* aCx,
-      JS::Handle<JS::Value> aFirst,
-      JS::Handle<JS::Value> aSecond,
-      ErrorResult& aRv);
-
-  already_AddRefed<IDBOpenDBRequest>
-  OpenForPrincipal(nsIPrincipal* aPrincipal,
-                   const nsAString& aName,
-                   uint64_t aVersion,
-                   ErrorResult& aRv);
-
-  already_AddRefed<IDBOpenDBRequest>
-  OpenForPrincipal(nsIPrincipal* aPrincipal,
-                   const nsAString& aName,
-                   const IDBOpenDBOptions& aOptions,
-                   ErrorResult& aRv);
-
-  already_AddRefed<IDBOpenDBRequest>
-  DeleteForPrincipal(nsIPrincipal* aPrincipal,
-                     const nsAString& aName,
-                     const IDBOpenDBOptions& aOptions,
-                     ErrorResult& aRv);
-
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(IDBFactory)
+  NS_DECL_NSIIDBFACTORY
 
-  // nsWrapperCache
-  virtual JSObject*
-  WrapObject(JSContext* aCx) MOZ_OVERRIDE;
+  // Called when using IndexedDB from a window in a different process.
+  static nsresult Create(nsPIDOMWindow* aWindow,
+                         const nsACString& aASCIIOrigin,
+                         ContentParent* aContentParent,
+                         IDBFactory** aFactory);
+
+  // Called when using IndexedDB from a window in the current process.
+  static nsresult Create(nsPIDOMWindow* aWindow,
+                         ContentParent* aContentParent,
+                         nsIIDBFactory** aFactory)
+  {
+    nsRefPtr<IDBFactory> factory;
+    nsresult rv =
+      Create(aWindow, EmptyCString(), aContentParent, getter_AddRefs(factory));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    factory.forget(aFactory);
+    return NS_OK;
+  }
+
+  // Called when using IndexedDB from a JS component or a JSM in the current
+  // process.
+  static nsresult Create(JSContext* aCx,
+                         JSObject* aOwningObject,
+                         ContentParent* aContentParent,
+                         IDBFactory** aFactory);
+
+  // Called when using IndexedDB from a JS component or a JSM in a different
+  // process.
+  static nsresult Create(ContentParent* aContentParent,
+                         IDBFactory** aFactory);
+
+  static already_AddRefed<mozIStorageConnection>
+  GetConnection(const nsAString& aDatabaseFilePath);
+
+  static nsresult
+  LoadDatabaseInformation(mozIStorageConnection* aConnection,
+                          nsIAtom* aDatabaseId,
+                          uint64_t* aVersion,
+                          ObjectStoreInfoArray& aObjectStores);
+
+  static nsresult
+  SetDatabaseMetadata(DatabaseInfo* aDatabaseInfo,
+                      uint64_t aVersion,
+                      ObjectStoreInfoArray& aObjectStores);
+
+  nsresult
+  OpenCommon(const nsAString& aName,
+             int64_t aVersion,
+             bool aDeleting,
+             JSContext* aCallingCx,
+             IDBOpenDBRequest** _retval);
+
+  void
+  SetActor(IndexedDBChild* aActorChild)
+  {
+    NS_ASSERTION(!aActorChild || !mActorChild, "Shouldn't have more than one!");
+    mActorChild = aActorChild;
+  }
+
+  void
+  SetActor(IndexedDBParent* aActorParent)
+  {
+    NS_ASSERTION(!aActorParent || !mActorParent, "Shouldn't have more than one!");
+    mActorParent = aActorParent;
+  }
+
+  const nsCString&
+  GetASCIIOrigin() const
+  {
+    return mASCIIOrigin;
+  }
 
 private:
   IDBFactory();
   ~IDBFactory();
 
-  static nsresult
-  CreateForJSInternal(JSContext* aCx,
-                      JS::Handle<JSObject*> aOwningObject,
-                      nsAutoPtr<PrincipalInfo>& aPrincipalInfo,
-                      IDBFactory** aFactory);
+  nsCString mASCIIOrigin;
 
-  already_AddRefed<IDBOpenDBRequest>
-  OpenInternal(nsIPrincipal* aPrincipal,
-               const nsAString& aName,
-               const Optional<uint64_t>& aVersion,
-               const Optional<StorageType>& aStorageType,
-               bool aDeleting,
-               ErrorResult& aRv);
+  // If this factory lives on a window then mWindow must be non-null. Otherwise
+  // mOwningObject must be non-null.
+  nsCOMPtr<nsPIDOMWindow> mWindow;
+  JSObject* mOwningObject;
 
-  nsresult
-  BackgroundActorCreated(PBackgroundChild* aBackgroundActor);
+  IndexedDBChild* mActorChild;
+  IndexedDBParent* mActorParent;
 
-  void
-  BackgroundActorFailed();
+  mozilla::dom::ContentParent* mContentParent;
 
-  nsresult
-  InitiateRequest(IDBOpenDBRequest* aRequest,
-                  const FactoryRequestParams& aParams);
+  bool mRootedOwningObject;
 };
 
-} // namespace indexedDB
-} // namespace dom
-} // namespace mozilla
+END_INDEXEDDB_NAMESPACE
 
 #endif // mozilla_dom_indexeddb_idbfactory_h__

@@ -4,10 +4,10 @@
 
 body {
   -moz-text-size-adjust: none;
-  font-family: "Clear Sans",sans-serif;
+  font-family: Roboto,"Droid Sans",helvetica,arial,clean,sans-serif;
   font-size: 23px;
   color: #222222;
-  background-color: #ced7de;
+  background-image: url("chrome://browser/skin/images/about-bg-lightblue.png");
 }
 
 #header {
@@ -27,8 +27,9 @@ body {
 }
 
 #banner {
+  margin: 0 -10px;
   min-height: 150px;
-  background-color: #bdc7ce;
+  background-image: url("chrome://browser/skin/images/about-bg-darkblue.png");
 }
 
 #logo {
@@ -58,13 +59,11 @@ body {
 
 #update-message-checking,
 #update-message-none,
-#update-message-found,
-#update-message-downloading,
-#update-message-downloaded {
+#update-message-found {
   display: none;
 }
 
-#messages {
+#aboutTelemetry {
   position: relative;
   width: 70%;
   margin: 40px auto 0 auto;
@@ -73,12 +72,12 @@ body {
   text-align: center;
 }
 
-#telemetry a {
+#aboutTelemetry  a {
   text-decoration: underline;
 }
 
 #aboutLinks {
-  margin: 0 0 15px 0;
+  margin: 0 -10px 15px -10px;
   padding: 0;
 }
 

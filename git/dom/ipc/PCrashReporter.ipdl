@@ -6,7 +6,6 @@
 
 include protocol PContent;
 include protocol PPluginModule;
-include protocol PGMP;
 
 namespace mozilla {
 namespace dom {
@@ -19,9 +18,10 @@ struct Mapping {
   size_t file_offset;
 };
 
-async protocol PCrashReporter {
-  manager PContent or PPluginModule or PGMP;
+protocol PCrashReporter {
+  manager PContent or PPluginModule;
 parent:
+  AddLibraryMappings(Mapping[] m);
   AnnotateCrashReport(nsCString key, nsCString data);
   AppendAppNotes(nsCString data);
   __delete__();

@@ -45,6 +45,7 @@
 #include "nsIURI.h"
 #include "nsIWebProgress.h"
 #include "nsCWebBrowser.h"
+#include "nsIProfileChangeStatus.h"
 
 // Glue APIs (not frozen, but safe to use because they are statically linked)
 #include "nsComponentManagerUtils.h"
@@ -150,7 +151,7 @@ NS_IMETHODIMP WebBrowserChrome::GetInterface(const nsIID &aIID, void** aInstance
 // WebBrowserChrome::nsIWebBrowserChrome
 //*****************************************************************************   
 
-NS_IMETHODIMP WebBrowserChrome::SetStatus(uint32_t aType, const char16_t* aStatus)
+NS_IMETHODIMP WebBrowserChrome::SetStatus(uint32_t aType, const PRUnichar* aStatus)
 {
     WebBrowserChromeUI::UpdateStatusBarText(this, aStatus);
     return NS_OK;
@@ -298,7 +299,7 @@ NS_IMETHODIMP
 WebBrowserChrome::OnStatusChange(nsIWebProgress* aWebProgress,
                                  nsIRequest* aRequest,
                                  nsresult aStatus,
-                                 const char16_t* aMessage)
+                                 const PRUnichar* aMessage)
 {
     WebBrowserChromeUI::UpdateStatusBarText(this, aMessage);
     return NS_OK;
@@ -366,12 +367,6 @@ WebBrowserChrome::OnHistoryPurge(int32_t aNumEntries, bool *aContinue)
     return SendHistoryStatusMessage(nullptr, "purge", aNumEntries);
 }
 
-NS_IMETHODIMP
-WebBrowserChrome::OnHistoryReplaceEntry(int32_t aIndex)
-{
-    return SendHistoryStatusMessage(nullptr, "replace", aIndex);
-}
-
 static void
 AppendIntToCString(int32_t info1, nsCString& aResult)
 {
@@ -394,13 +389,13 @@ WebBrowserChrome::SendHistoryStatusMessage(nsIURI * aURI, char * operation, int3
 
     if(!(strcmp(operation, "back")))
     {
-        status.AssignLiteral("Going back to url: ");
+        status.Assign("Going back to url: ");
         status.Append(uriSpec);
     }
     else if (!(strcmp(operation, "forward")))
     {
         // Going forward. XXX Get string from a resource file
-        status.AssignLiteral("Going forward to url: ");
+        status.Assign("Going forward to url: ");
         status.Append(uriSpec);
     }
     else if (!(strcmp(operation, "reload")))
@@ -409,45 +404,40 @@ WebBrowserChrome::SendHistoryStatusMessage(nsIURI * aURI, char * operation, int3
         if (aReloadFlags & nsIWebNavigation::LOAD_FLAGS_BYPASS_PROXY && 
             aReloadFlags & nsIWebNavigation::LOAD_FLAGS_BYPASS_CACHE)
         {
-            status.AssignLiteral("Reloading url, (bypassing proxy and cache): ");
+            status.Assign("Reloading url, (bypassing proxy and cache): ");
         }
         else if (aReloadFlags & nsIWebNavigation::LOAD_FLAGS_BYPASS_PROXY)
         {
-            status.AssignLiteral("Reloading url, (bypassing proxy): ");
+            status.Assign("Reloading url, (bypassing proxy): ");
         }
         else if (aReloadFlags & nsIWebNavigation::LOAD_FLAGS_BYPASS_CACHE)
         {
-            status.AssignLiteral("Reloading url, (bypassing cache): ");
+            status.Assign("Reloading url, (bypassing cache): ");
         }
         else
         {
-            status.AssignLiteral("Reloading url, (normal): ");
+            status.Assign("Reloading url, (normal): ");
         }
         status.Append(uriSpec);
     }
     else if (!(strcmp(operation, "add")))
     {
         status.Assign(uriSpec);
-        status.AppendLiteral(" added to session History");
+        status.Append(" added to session History");
     }
     else if (!(strcmp(operation, "goto")))
     {
-        status.AssignLiteral("Going to HistoryIndex: ");
+        status.Assign("Going to HistoryIndex: ");
 
 	AppendIntToCString(info1, status);
 
-        status.AppendLiteral(" Url: ");
+        status.Append(" Url: ");
         status.Append(uriSpec);
     }
     else if (!(strcmp(operation, "purge")))
     {
         AppendIntToCString(info1, status);
-        status.AppendLiteral(" purged from Session History");
-    }
-    else if (!(strcmp(operation, "replace")))
-    {
-        status.AssignLiteral("Replacing HistoryIndex: ");
-        AppendIntToCString(info1, status);
+        status.Append(" purged from Session History");
     }
 
     nsString wstatus;
@@ -511,7 +501,7 @@ NS_IMETHODIMP WebBrowserChrome::Blur()
 }
 
 /* attribute wstring title; */
-NS_IMETHODIMP WebBrowserChrome::GetTitle(char16_t * *aTitle)
+NS_IMETHODIMP WebBrowserChrome::GetTitle(PRUnichar * *aTitle)
 {
    NS_ENSURE_ARG_POINTER(aTitle);
 
@@ -519,7 +509,7 @@ NS_IMETHODIMP WebBrowserChrome::GetTitle(char16_t * *aTitle)
    
    return NS_ERROR_NOT_IMPLEMENTED;
 }
-NS_IMETHODIMP WebBrowserChrome::SetTitle(const char16_t * aTitle)
+NS_IMETHODIMP WebBrowserChrome::SetTitle(const PRUnichar * aTitle)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -550,7 +540,7 @@ NS_IMETHODIMP WebBrowserChrome::GetSiteWindow(void * *aSiteWindow)
 // WebBrowserChrome::nsIObserver
 //*****************************************************************************   
 
-NS_IMETHODIMP WebBrowserChrome::Observe(nsISupports *aSubject, const char *aTopic, const char16_t *someData)
+NS_IMETHODIMP WebBrowserChrome::Observe(nsISupports *aSubject, const char *aTopic, const PRUnichar *someData)
 {
     nsresult rv = NS_OK;
     if (strcmp(aTopic, "profile-change-teardown") == 0)
@@ -577,7 +567,7 @@ NS_IMETHODIMP WebBrowserChrome::OnShowContextMenu(uint32_t aContextFlags, nsIDOM
 //*****************************************************************************   
 
 /* void OnShowTooltip (in long aXCoords, in long aYCoords, in wstring aTipText); */
-NS_IMETHODIMP WebBrowserChrome::OnShowTooltip(int32_t aXCoords, int32_t aYCoords, const char16_t *aTipText)
+NS_IMETHODIMP WebBrowserChrome::OnShowTooltip(int32_t aXCoords, int32_t aYCoords, const PRUnichar *aTipText)
 {
     WebBrowserChromeUI::ShowTooltip(this, aXCoords, aYCoords, aTipText);
     return NS_OK;

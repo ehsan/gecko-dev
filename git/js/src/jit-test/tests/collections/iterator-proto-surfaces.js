@@ -1,22 +1,20 @@
 // Iterator prototype surfaces.
 
 load(libdir + "asserts.js");
-load(libdir + "iteration.js");
 
 function test(constructor) {
-    var proto = Object.getPrototypeOf(constructor()[std_iterator]());
+    var proto = Object.getPrototypeOf(constructor().iterator());
     var names = Object.getOwnPropertyNames(proto);
-    names.sort();
-    assertDeepEq(names, JS_HAS_SYMBOLS ? ['next'] : ['@@iterator', 'next']);
-    assertEq(proto.hasOwnProperty(std_iterator), true);
+    assertEq(names.length, 1);
+    assertEq(names[0], 'next');
 
     var desc = Object.getOwnPropertyDescriptor(proto, 'next');
     assertEq(desc.configurable, true);
     assertEq(desc.enumerable, false);
     assertEq(desc.writable, true);
 
-    assertEq(proto[std_iterator](), proto);
-    assertIteratorDone(proto, undefined);
+    assertEq(proto.iterator(), proto);
+    assertThrowsValue(function () { proto.next(); }, StopIteration);
 }
 
 //test(Array);

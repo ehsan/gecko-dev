@@ -7,7 +7,14 @@
 
 <script type="text/javascript">
 
-SimpleTest.requestCompleteLog();
+function setDOMStorageEnabled(enabled)
+{
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
+  var prefs = Components.classes["@mozilla.org/preferences-service;1"]
+              .getService(Components.interfaces.nsIPrefBranch);
+  prefs.setBoolPref("dom.storage.enabled", enabled);
+}
 
 function checkException(func, exc)
 {
@@ -18,39 +25,51 @@ function checkException(func, exc)
   catch (ex) {
     exceptionThrew = true;
     is(ex.name, exc, "Expected "+exc+" exception");
-    if (ex.name != exc) {
-      info("The exception which was thrown is: " + ex);
-    }
   }
   ok(exceptionThrew, "Exception "+exc+" threw");
 }
 
-var storage;
-function test1() {
+function startTest()
+{
+  setDOMStorageEnabled(true);
+
   is(typeof(window.localStorage), "object", "Storage is present");
-  storage = window.localStorage;
+  var storage = window.localStorage;
 
-  SpecialPowers.pushPrefEnv({"set": [["dom.storage.enabled", false]]}, test2);
-}
+  setDOMStorageEnabled(false);
 
-function test2() {
   is(window.localStorage, null, "Storage is null");
 
   checkException(function() {storage.setItem("test", "value");}, "SecurityError");
 
-  SpecialPowers.pushPrefEnv({"set": [["dom.storage.enabled", true]]}, test3);
-}
+  setDOMStorageEnabled(true);
 
-function test3() {
   is(typeof(window.localStorage), "object", "Storage is present again");
   storage.setItem("test", "value");
   ok(storage.getItem("test"), "value", "value can be set");
+}
+
+function cleanup()
+{
+  setDOMStorageEnabled(true);
   window.localStorage.clear();
   SimpleTest.finish();
 }
 
-function doTest() {
-  SpecialPowers.pushPrefEnv({"set": [["dom.storage.enabled", true]]}, test1);
+function doTest()
+{
+  try
+  {
+    startTest();
+  }
+  catch(exc)
+  {
+    ok(false, exc+" was threw during the test")
+  }
+  finally
+  {
+    cleanup();
+  }
 }
 
 SimpleTest.waitForExplicitFinish();

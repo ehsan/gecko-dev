@@ -2,31 +2,41 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from by import By
-from errors import NoSuchElementException, ElementNotVisibleException
+import os
 from marionette_test import MarionetteTestCase
-from wait import Wait
-
 
 class TestClick(MarionetteTestCase):
     def test_click(self):
         test_html = self.marionette.absolute_url("test.html")
         self.marionette.navigate(test_html)
-        link = self.marionette.find_element(By.ID, "mozLink")
+        link = self.marionette.find_element("id", "mozLink")
         link.click()
         self.assertEqual("Clicked", self.marionette.execute_script("return document.getElementById('mozLink').innerHTML;"))
 
-    def test_clicking_a_link_made_up_of_numbers_is_handled_correctly(self):
+    def testClickingALinkMadeUpOfNumbersIsHandledCorrectly(self):
         test_html = self.marionette.absolute_url("clicks.html")
         self.marionette.navigate(test_html)
-        self.marionette.find_element(By.LINK_TEXT, "333333").click()
-        Wait(self.marionette, timeout=30, ignored_exceptions=NoSuchElementException).until(
-            lambda m: m.find_element(By.ID, 'username'))
+        self.marionette.find_element("link text", "333333").click()
         self.assertEqual(self.marionette.title, "XHTML Test Page")
 
-    def test_clicking_an_element_that_is_not_displayed_raises(self):
-        test_html = self.marionette.absolute_url('hidden.html')
-        self.marionette.navigate(test_html)
+class TestClickChrome(MarionetteTestCase):
+    def setUp(self):
+        MarionetteTestCase.setUp(self)
+        self.marionette.set_context("chrome")
+        self.win = self.marionette.current_window_handle
+        self.marionette.execute_script("window.open('chrome://marionette/content/test.xul', '_blank', 'chrome,centerscreen');")
 
-        with self.assertRaises(ElementNotVisibleException):
-            self.marionette.find_element(By.ID, 'child').click()
+    def tearDown(self):
+        self.marionette.execute_script("window.close();")
+        self.marionette.switch_to_window(self.win)
+        MarionetteTestCase.tearDown(self)
+
+    def test_click(self):
+        wins = self.marionette.window_handles
+        wins.remove(self.win)
+        newWin = wins.pop()
+        self.marionette.switch_to_window(newWin)
+        box = self.marionette.find_element("id", "testBox")
+        self.assertFalse(self.marionette.execute_script("return arguments[0].checked;", [box]))
+        box.click()
+        self.assertTrue(self.marionette.execute_script("return arguments[0].checked;", [box]))

@@ -11,9 +11,9 @@
 #include "mozilla/Services.h"
 #include "nsCRT.h"
 
-NS_IMPL_ISUPPORTS(nsQtNetworkLinkService,
-                  nsINetworkLinkService,
-                  nsIObserver)
+NS_IMPL_ISUPPORTS2(nsQtNetworkLinkService,
+                   nsINetworkLinkService,
+                   nsIObserver)
 
 nsQtNetworkLinkService::nsQtNetworkLinkService()
 {
@@ -50,7 +50,7 @@ nsQtNetworkLinkService::GetLinkType(uint32_t *aLinkType)
 NS_IMETHODIMP
 nsQtNetworkLinkService::Observe(nsISupports* aSubject,
                                 const char* aTopic,
-                                const char16_t* aData)
+                                const PRUnichar* aData)
 {
   if (!strcmp(aTopic, "xpcom-shutdown")) {
     Shutdown();

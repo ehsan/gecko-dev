@@ -5,15 +5,17 @@
 
 package org.mozilla.gecko.gfx;
 
+import org.mozilla.gecko.OnInterceptTouchListener;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
+import org.mozilla.gecko.ui.PanZoomController;
+import org.mozilla.gecko.ui.SimpleScaleGestureDetector;
 
 import android.content.Context;
 import android.os.SystemClock;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
-import android.view.View;
 
 import java.util.LinkedList;
 import java.util.Queue;
@@ -48,22 +50,25 @@ import java.util.Queue;
  * to respond to user actions a timely manner regardless of default-prevention,
  * and fix issues like bug 749384.
  */
-final class TouchEventHandler implements Tabs.OnTabsChangedListener {
+public final class TouchEventHandler implements Tabs.OnTabsChangedListener {
     private static final String LOGTAG = "GeckoTouchEventHandler";
 
     // The time limit for listeners to respond with preventDefault on touchevents
     // before we begin panning the page
     private final int EVENT_LISTENER_TIMEOUT = 200;
 
-    private final View mView;
+    private final LayerView mView;
     private final GestureDetector mGestureDetector;
     private final SimpleScaleGestureDetector mScaleGestureDetector;
-    private final JavaPanZoomController mPanZoomController;
+    private final PanZoomController mPanZoomController;
 
     // the queue of events that we are holding on to while waiting for a preventDefault
     // notification
     private final Queue<MotionEvent> mEventQueue;
     private final ListenerTimeoutProcessor mListenerTimeoutProcessor;
+
+    // the listener we use to notify gecko of touch events
+    private OnInterceptTouchListener mOnTouchListener;
 
     // whether or not we should wait for touch listeners to respond (this state is
     // per-tab and is updated when we switch tabs).
@@ -74,11 +79,11 @@ final class TouchEventHandler implements Tabs.OnTabsChangedListener {
     // default-prevented or not (or we time out waiting for that).
     private boolean mHoldInQueue;
 
-    // false if the current event block has been default-prevented. In this case,
-    // we still pass the event to both Gecko and the pan/zoom controller, but the
-    // latter will not use it to scroll content. It may still use the events for
-    // other things, such as making the dynamic toolbar visible.
-    private boolean mAllowDefaultAction;
+    // true if we should dispatch incoming events to the gesture detector and the pan/zoom
+    // controller. if this is false, then the current block of events has been
+    // default-prevented, and we should not dispatch these events (although we'll still send
+    // them to gecko listeners).
+    private boolean mDispatchEvents;
 
     // this next variable requires some explanation. strap yourself in.
     //
@@ -120,35 +125,48 @@ final class TouchEventHandler implements Tabs.OnTabsChangedListener {
     //   processed. (n is the absolute value of the balance.)
     private int mProcessingBalance;
 
-    TouchEventHandler(Context context, View view, JavaPanZoomController panZoomController) {
+    TouchEventHandler(Context context, LayerView view, GeckoLayerClient layerClient) {
         mView = view;
 
         mEventQueue = new LinkedList<MotionEvent>();
-        mPanZoomController = panZoomController;
+        mPanZoomController = layerClient.getPanZoomController();
         mGestureDetector = new GestureDetector(context, mPanZoomController);
         mScaleGestureDetector = new SimpleScaleGestureDetector(mPanZoomController);
         mListenerTimeoutProcessor = new ListenerTimeoutProcessor();
-        mAllowDefaultAction = true;
+        mDispatchEvents = true;
 
         mGestureDetector.setOnDoubleTapListener(mPanZoomController);
 
         Tabs.registerOnTabsChangedListener(this);
     }
 
-    public void destroy() {
-        Tabs.unregisterOnTabsChangedListener(this);
-    }
-
     /* This function MUST be called on the UI thread */
     public boolean handleEvent(MotionEvent event) {
+        // if we don't have gecko listeners, just dispatch the event
+        // and be done with it, no extra work needed.
+        if (mOnTouchListener == null) {
+            dispatchEvent(event);
+            return true;
+        }
+
+        if (mOnTouchListener.onInterceptTouchEvent(mView, event)) {
+            return true;
+        }
+
+        // if this is a hover event just notify gecko, we don't have any interest in the java layer.
+        if (isHoverEvent(event)) {
+            mOnTouchListener.onTouch(mView, event);
+            return true;
+        }
+
         if (isDownEvent(event)) {
             // this is the start of a new block of events! whee!
             mHoldInQueue = mWaitForTouchListeners;
 
-            // Set mAllowDefaultAction to true so that in the event we dispatch events, the
-            // PanZoomController doesn't treat them as if they've been prevent-defaulted
-            // when they haven't.
-            mAllowDefaultAction = true;
+            // Set mDispatchEvents to true so that we are guaranteed to either queue these
+            // events or dispatch them. The only time we should not do either is once we've
+            // heard back from content to preventDefault this block.
+            mDispatchEvents = true;
             if (mHoldInQueue) {
                 // if the new block we are starting is the current block (i.e. there are no
                 // other blocks waiting in the queue, then we should let the pan/zoom controller
@@ -170,15 +188,23 @@ final class TouchEventHandler implements Tabs.OnTabsChangedListener {
             mView.postDelayed(mListenerTimeoutProcessor, EVENT_LISTENER_TIMEOUT);
         }
 
-        // if we need to hold the events, add it to the queue, otherwise dispatch
-        // it directly.
+        // if we need to hold the events, add it to the queue. if we need to dispatch
+        // it directly, do that. it is possible that both mHoldInQueue and mDispatchEvents
+        // are false, in which case we are processing a block of events that we know
+        // has been default-prevented. in that case we don't keep the events as we don't
+        // need them (but we still pass them to the gecko listener).
         if (mHoldInQueue) {
             mEventQueue.add(MotionEvent.obtain(event));
-        } else {
-            dispatchEvent(event, mAllowDefaultAction);
+        } else if (mDispatchEvents) {
+            dispatchEvent(event);
+        } else if (touchFinished(event)) {
+            mPanZoomController.preventedTouchFinished();
         }
 
-        return false;
+        // notify gecko of the event
+        mOnTouchListener.onTouch(mView, event);
+
+        return true;
     }
 
     /**
@@ -206,6 +232,16 @@ final class TouchEventHandler implements Tabs.OnTabsChangedListener {
         mWaitForTouchListeners = aValue;
     }
 
+    /* This function MUST be called on the UI thread. */
+    public void setOnTouchListener(OnInterceptTouchListener onTouchListener) {
+        mOnTouchListener = onTouchListener;
+    }
+
+    private boolean isHoverEvent(MotionEvent event) {
+        int action = (event.getAction() & MotionEvent.ACTION_MASK);
+        return (action == MotionEvent.ACTION_HOVER_ENTER || action == MotionEvent.ACTION_HOVER_MOVE || action == MotionEvent.ACTION_HOVER_EXIT);
+    }
+
     private boolean isDownEvent(MotionEvent event) {
         int action = (event.getAction() & MotionEvent.ACTION_MASK);
         return (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN);
@@ -219,17 +255,15 @@ final class TouchEventHandler implements Tabs.OnTabsChangedListener {
     /**
      * Dispatch the event to the gesture detectors and the pan/zoom controller.
      */
-    private void dispatchEvent(MotionEvent event, boolean allowDefaultAction) {
-        if (allowDefaultAction) {
-            if (mGestureDetector.onTouchEvent(event)) {
-                return;
-            }
-            mScaleGestureDetector.onTouchEvent(event);
-            if (mScaleGestureDetector.isInProgress()) {
-                return;
-            }
+    private void dispatchEvent(MotionEvent event) {
+        if (mGestureDetector.onTouchEvent(event)) {
+            return;
         }
-        mPanZoomController.handleEvent(event, !allowDefaultAction);
+        mScaleGestureDetector.onTouchEvent(event);
+        if (mScaleGestureDetector.isInProgress()) {
+            return;
+        }
+        mPanZoomController.onTouchEvent(event);
     }
 
     /**
@@ -237,6 +271,13 @@ final class TouchEventHandler implements Tabs.OnTabsChangedListener {
      * whether it has been default-prevented or not.
      */
     private void processEventBlock(boolean allowDefaultAction) {
+        if (!allowDefaultAction) {
+            // if the block has been default-prevented, cancel whatever stuff we had in
+            // progress in the gesture detector and pan zoom controller
+            long now = SystemClock.uptimeMillis();
+            dispatchEvent(MotionEvent.obtain(now, now, MotionEvent.ACTION_CANCEL, 0, 0, 0));
+        }
+
         if (mEventQueue.isEmpty()) {
             Log.e(LOGTAG, "Unexpected empty event queue in processEventBlock!", new Exception());
             return;
@@ -253,9 +294,13 @@ final class TouchEventHandler implements Tabs.OnTabsChangedListener {
             // that has already been dispatched.
 
             if (event != null) {
-                dispatchEvent(event, allowDefaultAction);
-                event.recycle();
-                event = null;
+                // for each event we process, only dispatch it if the block hasn't been
+                // default-prevented.
+                if (allowDefaultAction) {
+                    dispatchEvent(event);
+                } else if (touchFinished(event)) {
+                    mPanZoomController.preventedTouchFinished();
+                }
             }
             if (mEventQueue.isEmpty()) {
                 // we have processed the backlog of events, and are all caught up.
@@ -264,7 +309,7 @@ final class TouchEventHandler implements Tabs.OnTabsChangedListener {
                 // remaining events in this block (which is still ongoing) without
                 // having to put them in the queue.
                 mHoldInQueue = false;
-                mAllowDefaultAction = allowDefaultAction;
+                mDispatchEvents = allowDefaultAction;
                 break;
             }
             event = mEventQueue.peek();
@@ -284,7 +329,6 @@ final class TouchEventHandler implements Tabs.OnTabsChangedListener {
 
     private class ListenerTimeoutProcessor implements Runnable {
         /* This MUST be run on the UI thread */
-        @Override
         public void run() {
             if (mProcessingBalance < 0) {
                 // gecko already responded with default-prevented notification, and so
@@ -299,7 +343,6 @@ final class TouchEventHandler implements Tabs.OnTabsChangedListener {
 
     // Tabs.OnTabsChangedListener implementation
 
-    @Override
     public void onTabChanged(Tab tab, Tabs.TabEvents msg, Object data) {
         if ((Tabs.getInstance().isSelectedTab(tab) && msg == Tabs.TabEvents.STOP) || msg == Tabs.TabEvents.SELECTED) {
             mWaitForTouchListeners = tab.getHasTouchListeners();

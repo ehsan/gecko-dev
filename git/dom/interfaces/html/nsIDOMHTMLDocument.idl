@@ -13,11 +13,15 @@
  */
 interface nsISelection;
 
-[uuid(bd2a0a46-17e4-46ea-9e5d-6a97cf5e3b28)]
+[scriptable, uuid(ecae54c6-2ab9-4167-b0ef-61960aadbb68)]
 interface nsIDOMHTMLDocument : nsIDOMDocument
 {
+  readonly attribute DOMString            URL;
            attribute DOMString            domain;
            attribute DOMString            cookie;
+  // returns "BackCompat" if we're in quirks mode,
+  // or "CSS1Compat" if we're in strict mode
+  readonly attribute DOMString            compatMode;
 
   readonly attribute nsIDOMHTMLHeadElement head;
            attribute nsIDOMHTMLElement    body;
@@ -90,11 +94,12 @@ interface nsIDOMHTMLDocument : nsIDOMDocument
   nsISelection                getSelection();
 
 
-  // More obsolete APIs
+  // Mozilla extensions
   /**
    * @deprecated These are old Netscape 4 methods. Do not use,
    *             the implementation is no-op.
    */
-  void                      captureEvents();
-  void                      releaseEvents();
+  void                      captureEvents(in long eventFlags);
+  void                      releaseEvents(in long eventFlags);
+  void                      routeEvent(in nsIDOMEvent evt);
 };

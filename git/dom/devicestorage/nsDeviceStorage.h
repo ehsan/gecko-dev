@@ -6,16 +6,16 @@
 #define nsDeviceStorage_h
 
 class nsPIDOMWindow;
-#include "mozilla/Attributes.h"
-#include "mozilla/dom/devicestorage/DeviceStorageRequestChild.h"
+#include "PCOMContentPermissionRequestChild.h"
 
 #include "DOMRequest.h"
-#include "DOMCursor.h"
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsDOMClassInfoID.h"
 #include "nsIClassInfo.h"
 #include "nsIContentPermissionPrompt.h"
+#include "nsIDOMDeviceStorageCursor.h"
+#include "nsIDOMDeviceStorageStat.h"
 #include "nsIDOMWindow.h"
 #include "nsIURI.h"
 #include "nsInterfaceHashtable.h"
@@ -23,198 +23,87 @@ class nsPIDOMWindow;
 #include "nsString.h"
 #include "nsWeakPtr.h"
 #include "nsIDOMEventListener.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIObserver.h"
-#include "nsIStringBundle.h"
 #include "mozilla/Mutex.h"
-#include "prtime.h"
 #include "DeviceStorage.h"
-#include "mozilla/StaticPtr.h"
 
-namespace mozilla {
-class ErrorResult;
-} // namespace mozilla
 
-#define POST_ERROR_EVENT_FILE_EXISTS                 "NoModificationAllowedError"
-#define POST_ERROR_EVENT_FILE_DOES_NOT_EXIST         "NotFoundError"
-#define POST_ERROR_EVENT_FILE_NOT_ENUMERABLE         "TypeMismatchError"
-#define POST_ERROR_EVENT_PERMISSION_DENIED           "SecurityError"
-#define POST_ERROR_EVENT_ILLEGAL_TYPE                "TypeMismatchError"
+#define POST_ERROR_EVENT_FILE_DOES_NOT_EXIST         "File location doesn't exists"
+#define POST_ERROR_EVENT_FILE_NOT_ENUMERABLE         "File location is not enumerable"
+#define POST_ERROR_EVENT_PERMISSION_DENIED           "Permission Denied"
+#define POST_ERROR_EVENT_ILLEGAL_FILE_NAME           "Illegal file name"
 #define POST_ERROR_EVENT_UNKNOWN                     "Unknown"
+#define POST_ERROR_EVENT_NON_STRING_TYPE_UNSUPPORTED "Non-string type unsupported"
+#define POST_ERROR_EVENT_NOT_IMPLEMENTED             "Not implemented"
 
-enum DeviceStorageRequestType {
-    DEVICE_STORAGE_REQUEST_READ,
-    DEVICE_STORAGE_REQUEST_WRITE,
-    DEVICE_STORAGE_REQUEST_APPEND,
-    DEVICE_STORAGE_REQUEST_CREATE,
-    DEVICE_STORAGE_REQUEST_DELETE,
-    DEVICE_STORAGE_REQUEST_WATCH,
-    DEVICE_STORAGE_REQUEST_FREE_SPACE,
-    DEVICE_STORAGE_REQUEST_USED_SPACE,
-    DEVICE_STORAGE_REQUEST_AVAILABLE,
-    DEVICE_STORAGE_REQUEST_STATUS,
-    DEVICE_STORAGE_REQUEST_FORMAT,
-    DEVICE_STORAGE_REQUEST_MOUNT,
-    DEVICE_STORAGE_REQUEST_UNMOUNT,
-    DEVICE_STORAGE_REQUEST_CREATEFD
-};
+using namespace mozilla::dom;
 
-class DeviceStorageUsedSpaceCache MOZ_FINAL
-{
+class DeviceStorageFile MOZ_FINAL
+  : public nsISupports {
 public:
-  static DeviceStorageUsedSpaceCache* CreateOrGet();
+  nsCOMPtr<nsIFile> mFile;
+  nsString mPath;
+  bool mEditable;
 
-  DeviceStorageUsedSpaceCache();
-  ~DeviceStorageUsedSpaceCache();
+  DeviceStorageFile(nsIFile* aFile, const nsAString& aPath);
+  DeviceStorageFile(nsIFile* aFile);
+  void SetPath(const nsAString& aPath);
+  void SetEditable(bool aEditable);
 
+  NS_DECL_ISUPPORTS
 
-  class InvalidateRunnable MOZ_FINAL : public nsRunnable
-  {
-    public:
-      InvalidateRunnable(DeviceStorageUsedSpaceCache* aCache, 
-                         const nsAString& aStorageName)
-        : mCache(aCache)
-        , mStorageName(aStorageName) {}
+  // we want to make sure that the names of file can't reach
+  // outside of the type of storage the user asked for.
+  bool IsSafePath();
 
-      ~InvalidateRunnable() {}
+  nsresult Remove();
+  nsresult Write(nsIInputStream* aInputStream);
+  nsresult Write(InfallibleTArray<uint8_t>& bits);
+  void CollectFiles(nsTArray<nsRefPtr<DeviceStorageFile> > &aFiles, uint64_t aSince = 0);
+  void collectFilesInternal(nsTArray<nsRefPtr<DeviceStorageFile> > &aFiles, uint64_t aSince, nsAString& aRootPath);
 
-      NS_IMETHOD Run() MOZ_OVERRIDE
-      {
-        nsRefPtr<DeviceStorageUsedSpaceCache::CacheEntry> cacheEntry;
-        cacheEntry = mCache->GetCacheEntry(mStorageName);
-        if (cacheEntry) {
-          cacheEntry->mDirty = true;
-        }
-        return NS_OK;
-      }
-    private:
-      DeviceStorageUsedSpaceCache* mCache;
-      nsString mStorageName;
-  };
-
-  void Invalidate(const nsAString& aStorageName)
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-    MOZ_ASSERT(mIOThread);
-
-    nsRefPtr<InvalidateRunnable> r = new InvalidateRunnable(this, aStorageName);
-    mIOThread->Dispatch(r, NS_DISPATCH_NORMAL);
-  }
-
-  void Dispatch(nsIRunnable* aRunnable)
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-    MOZ_ASSERT(mIOThread);
-
-    mIOThread->Dispatch(aRunnable, NS_DISPATCH_NORMAL);
-  }
-
-  nsresult AccumUsedSizes(const nsAString& aStorageName,
-                          uint64_t* aPictureSize, uint64_t* aVideosSize,
-                          uint64_t* aMusicSize, uint64_t* aTotalSize);
-
-  void SetUsedSizes(const nsAString& aStorageName,
-                    uint64_t aPictureSize, uint64_t aVideosSize,
-                    uint64_t aMusicSize, uint64_t aTotalSize);
+  static uint64_t DirectoryDiskUsage(nsIFile* aFile, uint64_t aSoFar = 0);
 
 private:
-  friend class InvalidateRunnable;
-
-  struct CacheEntry
-  {
-    // Technically, this doesn't need to be threadsafe, but the implementation
-    // of the non-thread safe one causes ASSERTS due to the underlying thread
-    // associated with a LazyIdleThread changing from time to time.
-    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(CacheEntry)
-
-    bool mDirty;
-    nsString mStorageName;
-    int64_t  mFreeBytes;
-    uint64_t mPicturesUsedSize;
-    uint64_t mVideosUsedSize;
-    uint64_t mMusicUsedSize;
-    uint64_t mTotalUsedSize;
-
-  private:
-    ~CacheEntry() {}
-  };
-  already_AddRefed<CacheEntry> GetCacheEntry(const nsAString& aStorageName);
-
-  nsTArray<nsRefPtr<CacheEntry>> mCacheEntries;
-
-  nsCOMPtr<nsIThread> mIOThread;
-
-  static mozilla::StaticAutoPtr<DeviceStorageUsedSpaceCache> sDeviceStorageUsedSpaceCache;
+  void NormalizeFilePath();
+  void AppendRelativePath();
 };
 
-class DeviceStorageTypeChecker MOZ_FINAL
+class ContinueCursorEvent MOZ_FINAL: public nsRunnable
 {
 public:
-  static DeviceStorageTypeChecker* CreateOrGet();
-
-  DeviceStorageTypeChecker();
-  ~DeviceStorageTypeChecker();
-
-  void InitFromBundle(nsIStringBundle* aBundle);
-
-  bool Check(const nsAString& aType, nsIDOMBlob* aBlob);
-  bool Check(const nsAString& aType, nsIFile* aFile);
-  bool Check(const nsAString& aType, const nsString& aPath);
-  void GetTypeFromFile(nsIFile* aFile, nsAString& aType);
-  void GetTypeFromFileName(const nsAString& aFileName, nsAString& aType);
-
-  static nsresult GetPermissionForType(const nsAString& aType, nsACString& aPermissionResult);
-  static nsresult GetAccessForRequest(const DeviceStorageRequestType aRequestType, nsACString& aAccessResult);
-  static bool IsVolumeBased(const nsAString& aType);
-  static bool IsSharedMediaRoot(const nsAString& aType);
-
-private:
-  nsString mPicturesExtensions;
-  nsString mVideosExtensions;
-  nsString mMusicExtensions;
-
-  static mozilla::StaticAutoPtr<DeviceStorageTypeChecker> sDeviceStorageTypeChecker;
-};
-
-class ContinueCursorEvent MOZ_FINAL : public nsRunnable
-{
-public:
-  explicit ContinueCursorEvent(already_AddRefed<mozilla::dom::DOMRequest> aRequest);
-  explicit ContinueCursorEvent(mozilla::dom::DOMRequest* aRequest);
+  ContinueCursorEvent(nsRefPtr<DOMRequest>& aRequest);
+  ContinueCursorEvent(DOMRequest* aRequest);
   ~ContinueCursorEvent();
-  void Continue();
-
-  NS_IMETHOD Run() MOZ_OVERRIDE;
+  NS_IMETHOD Run();
 private:
-  already_AddRefed<DeviceStorageFile> GetNextFile();
-  nsRefPtr<mozilla::dom::DOMRequest> mRequest;
+  nsRefPtr<DOMRequest> mRequest;
 };
 
 class nsDOMDeviceStorageCursor MOZ_FINAL
-  : public mozilla::dom::DOMCursor
+  : public nsIDOMDeviceStorageCursor
+  , public DOMRequest
   , public nsIContentPermissionRequest
-  , public mozilla::dom::devicestorage::DeviceStorageRequestChildCallback
+  , public PCOMContentPermissionRequestChild
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSICONTENTPERMISSIONREQUEST
-  NS_FORWARD_NSIDOMDOMCURSOR(mozilla::dom::DOMCursor::)
+  NS_DECL_NSIDOMDEVICESTORAGECURSOR
 
-  // DOMCursor
-  virtual void Continue(mozilla::ErrorResult& aRv) MOZ_OVERRIDE;
-
-  nsDOMDeviceStorageCursor(nsPIDOMWindow* aWindow,
+  nsDOMDeviceStorageCursor(nsIDOMWindow* aWindow,
                            nsIPrincipal* aPrincipal,
                            DeviceStorageFile* aFile,
-                           PRTime aSince);
+                           uint64_t aSince);
 
 
   nsTArray<nsRefPtr<DeviceStorageFile> > mFiles;
   bool mOkToCallContinue;
-  PRTime mSince;
+  uint64_t mSince;
 
-  void GetStorageType(nsAString & aType);
-
-  void RequestComplete() MOZ_OVERRIDE;
+  virtual bool Recv__delete__(const bool& allow);
+  virtual void IPDLRelease();
 
 private:
   ~nsDOMDeviceStorageCursor();
@@ -223,15 +112,28 @@ private:
   nsCOMPtr<nsIPrincipal> mPrincipal;
 };
 
+class nsDOMDeviceStorageStat MOZ_FINAL
+  : public nsIDOMDeviceStorageStat
+{
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDOMDEVICESTORAGESTAT
+
+  nsDOMDeviceStorageStat(uint64_t aFreeBytes, uint64_t aTotalBytes, nsAString& aState);
+
+private:
+  ~nsDOMDeviceStorageStat();
+  uint64_t mFreeBytes, mTotalBytes;
+  nsString mState;
+};
+
 //helpers
-bool
-StringToJsval(nsPIDOMWindow* aWindow, nsAString& aString,
-              JS::MutableHandle<JS::Value> result);
+jsval StringToJsval(nsPIDOMWindow* aWindow, nsAString& aString);
+jsval nsIFileToJsval(nsPIDOMWindow* aWindow, DeviceStorageFile* aFile);
+jsval InterfaceToJsval(nsPIDOMWindow* aWindow, nsISupports* aObject, const nsIID* aIID);
 
-JS::Value
-nsIFileToJsval(nsPIDOMWindow* aWindow, DeviceStorageFile* aFile);
-
-JS::Value
-InterfaceToJsval(nsPIDOMWindow* aWindow, nsISupports* aObject, const nsIID* aIID);
+#ifdef MOZ_WIDGET_GONK
+nsresult GetSDCardStatus(nsAString& aState);
+#endif
 
 #endif

@@ -6,7 +6,7 @@
 #ifndef mozilla_dom_permission_message_utils_h__
 #define mozilla_dom_permission_message_utils_h__
 
-#include "ipc/IPCMessageUtils.h"
+#include "IPC/IPCMessageUtils.h"
 #include "nsCOMPtr.h"
 #include "nsIPrincipal.h"
 
@@ -17,7 +17,7 @@ class Principal {
 
 public:
   Principal() : mPrincipal(nullptr) {}
-  explicit Principal(nsIPrincipal* aPrincipal) : mPrincipal(aPrincipal) {}
+  Principal(nsIPrincipal* aPrincipal) : mPrincipal(aPrincipal) {}
   operator nsIPrincipal*() const { return mPrincipal.get(); }
 
 private:

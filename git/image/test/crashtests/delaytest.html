@@ -20,16 +20,13 @@ var imgURL = document.location.search.substr(1);
 var img = document.images[0];
 img.src = imgURL;
 img.onload = forceDecode;
-img.onerror = forceDecode;
 
 function forceDecode() {
 
-  try {
-    // We need to force drawing of the image in an invisible context
-    var canvas = document.createElement("canvas");
-    var ctx = canvas.getContext("2d");
-    ctx.drawImage(img, 0, 0);
-  } catch(e) {}
+  // We need to force drawing of the image in an invisible context
+  var canvas = document.createElement("canvas");
+  var ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0);
 
   // We've force the decode. start the timer to trigger the reftest
   startTimer();

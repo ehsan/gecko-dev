@@ -139,7 +139,7 @@ recommended.
 
 =head1 LICENSE
 
-MPL 2.
+MPL 1.1/GPL 2.0/LGPL 2.1.  Your choice
 
 =head1 AUTHOR
 
@@ -1395,7 +1395,7 @@ sub readZipCRCs($) {
     if ($$this{'magicInit'}) {
       if (defined($$this{'magicErrno'})) {
         if (defined($$this{'magicErrMsg'})) {
-          main::complain(1, 'FileAttrCache::magic: '.$$this{'magicErrMsg'}.' for:',
+          complain(1, 'FileAttrCache::magic: '.$$this{'magicErrMsg'}.' for:',
                    $$this{'path'});
         }
         $! = $$this{'magicErrno'};
@@ -1409,7 +1409,7 @@ sub readZipCRCs($) {
     if (!sysopen($fh, $$this{'path'}, O_RDONLY)) {
       $$this{'magicErrno'} = $!;
       $$this{'magicErrMsg'} = 'open "'.$$this{'path'}.'": '.$!;
-      main::complain(1, 'FileAttrCache::magic: '.$$this{'magicErrMsg'}.' for:',
+      complain(1, 'FileAttrCache::magic: '.$$this{'magicErrMsg'}.' for:',
                $$this{'path'});
       return undef;
     }
@@ -1419,7 +1419,7 @@ sub readZipCRCs($) {
     if (!defined($bytes = sysread($fh, $magic, 4))) {
       $$this{'magicErrno'} = $!;
       $$this{'magicErrMsg'} = 'read "'.$$this{'path'}.'": '.$!;
-      main::complain(1, 'FileAttrCache::magic: '.$$this{'magicErrMsg'}.' for:',
+      complain(1, 'FileAttrCache::magic: '.$$this{'magicErrMsg'}.' for:',
                $$this{'path'});
       close($fh);
       return undef;

@@ -72,8 +72,9 @@ already_AddRefed<nsIParser>
 nsHtml5Module::NewHtml5Parser()
 {
   NS_ABORT_IF_FALSE(sNsHtml5ModuleInitialized, "nsHtml5Module not initialized.");
-  nsCOMPtr<nsIParser> rv = new nsHtml5Parser();
-  return rv.forget();
+  nsIParser* rv = static_cast<nsIParser*> (new nsHtml5Parser());
+  NS_ADDREF(rv);
+  return rv;
 }
 
 // static
@@ -89,10 +90,10 @@ class nsHtml5ParserThreadTerminator MOZ_FINAL : public nsIObserver
 {
   public:
     NS_DECL_ISUPPORTS
-    explicit nsHtml5ParserThreadTerminator(nsIThread* aThread)
+    nsHtml5ParserThreadTerminator(nsIThread* aThread)
       : mThread(aThread)
     {}
-    NS_IMETHODIMP Observe(nsISupports *, const char *topic, const char16_t *)
+    NS_IMETHODIMP Observe(nsISupports *, const char *topic, const PRUnichar *)
     {
       NS_ASSERTION(!strcmp(topic, "xpcom-shutdown-threads"), 
                    "Unexpected topic");
@@ -103,12 +104,10 @@ class nsHtml5ParserThreadTerminator MOZ_FINAL : public nsIObserver
       return NS_OK;
     }
   private:
-    ~nsHtml5ParserThreadTerminator() {}
-
     nsCOMPtr<nsIThread> mThread;
 };
 
-NS_IMPL_ISUPPORTS(nsHtml5ParserThreadTerminator, nsIObserver)
+NS_IMPL_ISUPPORTS1(nsHtml5ParserThreadTerminator, nsIObserver)
 
 // static 
 nsIThread*

@@ -67,7 +67,12 @@ function testDOMStringList() {
 function testMediaList() {
   var s = document.createElement("style");
   document.head.appendChild(s);
-  is(s.sheet.media[-1], undefined, "Wrong value for out of bounds access (MediaList)");
+  try {
+    is(s.sheet.media[-1], undefined, "Wrong value for out of bounds access (MediaList)");
+    todo(true, "Didn't throw");
+  } catch (e) {
+    todo(false, "Shouldn't throw");
+  }
   is(s.sheet.media[0], undefined, "Wrong value for out of bounds access (MediaList)");
   is(s.sheet.media[1], undefined, "Wrong value for out of bounds access (MediaList)");
   is(s.sheet.media[2], undefined, "Wrong value for out of bounds access (MediaList) (MediaList)");
@@ -78,7 +83,12 @@ function testMediaList() {
 
   s.setAttribute("media", "a, b");
 
-  is(s.sheet.media[-1], undefined, "Wrong value for out of bounds access (MediaList)");
+  try {
+    is(s.sheet.media[-1], undefined, "Wrong value for out of bounds access (MediaList)");
+    todo(true, "Didn't throw");
+  } catch (e) {
+    todo(false, "Shouldn't throw");
+  }
   is(s.sheet.media[0], "a", "Wrong value for in bounds access (MediaList)");
   is(s.sheet.media[1], "b", "Wrong value for in bounds access (MediaList)");
   is(s.sheet.media[2], undefined, "Wrong value for out of bounds access (MediaList) (MediaList)");

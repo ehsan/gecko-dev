@@ -5,28 +5,27 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdint.h>
+typedef short int16;
+typedef unsigned short uint16;
 
 #define NOMAPPING 0xfffd
 
 typedef struct {
-		uint16_t srcBegin;		/* 2 byte	*/
-		uint16_t srcEnd;		/* 2 byte	*/
-		uint16_t destBegin;		/* 2 byte	*/
+		uint16 srcBegin;		/* 2 byte	*/
+		uint16 srcEnd;			/* 2 byte	*/
+		uint16 destBegin;		/* 2 byte	*/
 } uFormat0;
 
 typedef struct {
-		uint16_t srcBegin;		/* 2 byte	*/
-		uint16_t srcEnd;		/* 2 byte	*/
-		uint16_t	mappingOffset;	/* 2 byte	*/
+		uint16 srcBegin;		/* 2 byte	*/
+		uint16 srcEnd;			/* 2 byte	*/
+		uint16	mappingOffset;	/* 2 byte	*/
 } uFormat1;
 
 typedef struct {
-		uint16_t srcBegin;		/* 2 byte	*/
-		uint16_t srcEnd;		/* 2 byte	-waste	*/
-		uint16_t destBegin;		/* 2 byte	*/
+		uint16 srcBegin;		/* 2 byte	*/
+		uint16 srcEnd;			/* 2 byte	-waste	*/
+		uint16 destBegin;		/* 2 byte	*/
 } uFormat2;
 
 typedef struct  {
@@ -41,14 +40,14 @@ typedef struct  {
 					uTable 
 ================================================= */
 typedef struct  {
-	uint16_t 		itemOfList;
-	uint16_t		offsetToFormatArray;
-	uint16_t		offsetToMapCellArray;
-	uint16_t		offsetToMappingTable;
-	uint16_t		data[1];
+	uint16 		itemOfList;
+	uint16		offsetToFormatArray;
+	uint16		offsetToMapCellArray;
+	uint16		offsetToMappingTable;
+	uint16		data[1];
 } uTable;
 
-uint16_t umap[256][256];
+uint16 umap[256][256];
 int bInitFromOrTo = 0;
 int bGenerateFromUnicodeTable = 0;
 
@@ -56,8 +55,8 @@ int bGenerateFromUnicodeTable = 0;
 
 static int numOfItem = 0;
 uMapCell cell[MAXCELLNUM];
-uint16_t    format[MAXCELLNUM / 4];
-uint16_t   mapping[256*256];
+uint16    format[MAXCELLNUM / 4];
+uint16   mapping[256*256];
 static int mappinglen  = 0;
 static int formatcount[4] = {0,0,0,0}; 
 
@@ -86,9 +85,9 @@ void SetMapValue(short u,short c)
            fprintf(stderr, "warning- duplicate mapping %x map to both %x and %x\n", u, MAPVALUE(u), c);
         }
 }
-void AddFormat2(uint16_t srcBegin)
+void AddFormat2(uint16 srcBegin)
 {
-	uint16_t destBegin = MAPVALUE(srcBegin);
+	uint16 destBegin = MAPVALUE(srcBegin);
 	printf("Begin of Item %04X\n",numOfItem);
 	printf(" Format 2\n");
 	printf("  srcBegin = %04X\n", srcBegin);
@@ -102,9 +101,9 @@ void AddFormat2(uint16_t srcBegin)
 	/*	Unmark the umap */
 	MAPVALUE(srcBegin) = NOMAPPING;
 }
-void AddFormat1(uint16_t srcBegin, uint16_t srcEnd)
+void AddFormat1(uint16 srcBegin, uint16 srcEnd)
 {
-	uint16_t i;
+	uint16 i;
 	printf("Begin of Item %04X\n",numOfItem);
 	printf(" Format 1\n");
 	printf("  srcBegin = %04X\n", srcBegin);
@@ -128,10 +127,10 @@ void AddFormat1(uint16_t srcBegin, uint16_t srcEnd)
 	printf("End of Item %04X \n\n",numOfItem);
 	numOfItem++;
 }
-void AddFormat0(uint16_t srcBegin, uint16_t srcEnd)
+void AddFormat0(uint16 srcBegin, uint16 srcEnd)
 {
-	uint16_t i;
-	uint16_t destBegin = MAPVALUE(srcBegin);
+	uint16 i;
+	uint16 destBegin = MAPVALUE(srcBegin);
 	printf("Begin of Item %04X\n",numOfItem);
 	printf(" Format 0\n");
 	printf("  srcBegin = %04X\n", srcBegin);
@@ -161,9 +160,9 @@ void gentable()
 {
 	/*	OK! For now, we just use format 1 for each row */
 	/*	We need to chage this to use other format to save the space */
-	uint16_t begin,end;
-	uint16_t ss,gs,gp,state,gc;	
-	uint16_t diff, lastdiff;
+	uint16 begin,end;
+	uint16 ss,gs,gp,state,gc;	
+	uint16 diff, lastdiff;
 
         printnpl();
 	printf("/*========================================================\n");
@@ -172,9 +171,9 @@ void gentable()
 	printf("  The tool which used to generate this file is called umaptable.\n");
 	printf("  You can find this tool under mozilla/intl/uconv/tools/umaptable.c.\n");
 
-	printf("  If you have any problems with this file, please file a bug\n");
-	printf("  under the \"Internationalization\" component in\n");
-	printf("  https://bugzilla.mozilla.org/enter_bug.cgi?product=Core\n");
+	printf("  If you have any problem of this file. Please contact \n"); 
+	printf("  Netscape Client International Team or \n");
+	printf("  ftang@netscape <Frank Tang> \n");
 	printf("\n");
 	printf("              Table in Debug form \n");
 
@@ -284,13 +283,13 @@ void gentable()
 }
 void writetable()
 {
-	uint16_t i;
-	uint16_t off1,off2,off3;
-	uint16_t cur = 0; 
-	uint16_t formatitem = (((numOfItem)>>2) + 1);
+	uint16 i;
+	uint16 off1,off2,off3;
+	uint16 cur = 0; 
+	uint16 formatitem = (((numOfItem)>>2) + 1);
 	off1 = 4;
 	off2 = off1 + formatitem ;
-	off3 = off2 + numOfItem * sizeof(uMapCell) / sizeof(uint16_t);
+	off3 = off2 + numOfItem * sizeof(uMapCell) / sizeof(uint16);
 	/*	write itemOfList		*/
 	printf("/* Offset=0x%04X  ItemOfList */\n  0x%04X,\n", cur++, numOfItem);
 
@@ -357,7 +356,7 @@ void usage()
   fprintf(stderr, "\t-uf : generate *.uf (from unicode) table, or\n");
   fprintf(stderr, "\t-ut : generate *.ut (to unicode) table\n");
 }
-void parsearg(int argc, char* argv[])
+parsearg(int argc, char* argv[])
 {
 	int i;
 	for(i=0;i<argc;i++)
@@ -429,32 +428,23 @@ void getinput()
 {
   char buf[256];
   short c,u;
-  for (; fgets(buf,sizeof(buf),stdin);)
+  for (; gets(buf);)
   {
      if(buf[0]=='0' && buf[1] == 'x')
         {
-          u=-1;
           sscanf(buf,"%hx %hx",&c,&u);
-          if (u == -1 && 0x80 <= c && c <=0x9f)
-            {
-              u = c;
-            }
-          if (u != -1)
-            {
-              if(bGenerateFromUnicodeTable)
-                SetMapValue(u, c);
-              else
-                SetMapValue(c, u);
-            }
+          if(bGenerateFromUnicodeTable)
+            SetMapValue(u, c);
+          else
+            SetMapValue(c, u);
         }
   }
 }
-int main(int argc, char* argv[])
+main(int argc, char* argv[])
 {
   parsearg(argc, argv);
   initmaps();
   getinput();
   gentable();
-  writetable();
-  return 0;
+  writetable();	
 }

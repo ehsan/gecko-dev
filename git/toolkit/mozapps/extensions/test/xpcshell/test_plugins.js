@@ -5,24 +5,9 @@
 // This verifies that plugins exist and can be enabled and disabled.
 var gID = null;
 
-function setTestPluginState(state) {
-  let tags = AM_Cc["@mozilla.org/plugin/host;1"].getService(AM_Ci.nsIPluginHost)
-    .getPluginTags();
-  for (let tag of tags) {
-    if (tag.name == "Test Plug-in") {
-      tag.enabledState = state;
-      return;
-    }
-  }
-  throw Error("No plugin tag found for the test plugin");
-}
-
 function run_test() {
   do_test_pending();
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1.9.2");
-  Services.prefs.setBoolPref("plugins.click_to_play", true);
-
-  setTestPluginState(AM_Ci.nsIPluginTag.STATE_CLICKTOPLAY);
 
   startupManager();
   AddonManager.addAddonListener(AddonListener);
@@ -33,31 +18,28 @@ function run_test() {
 
 // Finds the test plugin library
 function get_test_plugin() {
-  var pluginEnum = Services.dirsvc.get("APluginsDL", AM_Ci.nsISimpleEnumerator);
-  while (pluginEnum.hasMoreElements()) {
-    let dir = pluginEnum.getNext().QueryInterface(AM_Ci.nsILocalFile);
-    let plugin = dir.clone();
-    // OSX plugin
-    plugin.append("Test.plugin");
-    if (plugin.exists()) {
-      plugin.normalize();
-      return plugin;
-    }
-    plugin = dir.clone();
-    // *nix plugin
-    plugin.append("libnptest.so");
-    if (plugin.exists()) {
-      plugin.normalize();
-      return plugin;
-    }
-    // Windows plugin
-    plugin = dir.clone();
-    plugin.append("nptest.dll");
-    if (plugin.exists()) {
-      plugin.normalize();
-      return plugin;
-    }
-  }
+  var plugins = Services.dirsvc.get("CurProcD", AM_Ci.nsIFile);
+  plugins.append("plugins");
+  do_check_true(plugins.exists());
+
+  var plugin = plugins.clone();
+  // OSX plugin
+  plugin.append("Test.plugin");
+  if (plugin.exists())
+    return plugin;
+
+  plugin = plugins.clone();
+  // *nix plugin
+  plugin.append("libnptest.so");
+  if (plugin.exists())
+    return plugin;
+
+  // Windows plugin
+  plugin = plugins.clone();
+  plugin.append("nptest.dll");
+  if (plugin.exists())
+    return plugin;
+
   return null;
 }
 
@@ -72,21 +54,6 @@ function getFileSize(aFile) {
     size += getFileSize(entry);
   entries.close();
   return size;
-}
-
-function getPluginLastModifiedTime(aPluginFile) {
-  // On OS X we use the bundle contents last modified time as using
-  // the package directories modified date may be outdated.
-  // See bug 313700.
-  try {
-    let localFileMac = aPluginFile.QueryInterface(AM_Ci.nsILocalFileMac);
-    if (localFileMac) {
-      return localFileMac.bundleContentsLastModifiedTime;
-    }
-  } catch (e) {
-  }
-
-  return aPluginFile.lastModifiedTime;
 }
 
 // Tests that the test plugin exists
@@ -115,23 +82,32 @@ function run_test_1() {
       do_check_eq(p.creator, null);
       do_check_eq(p.version, "1.0.0.0");
       do_check_eq(p.type, "plugin");
-      do_check_eq(p.userDisabled, "askToActivate");
+      do_check_false(p.userDisabled);
       do_check_false(p.appDisabled);
       do_check_true(p.isActive);
       do_check_true(p.isCompatible);
       do_check_true(p.providesUpdatesSecurely);
       do_check_eq(p.blocklistState, 0);
-      do_check_eq(p.permissions, AddonManager.PERM_CAN_DISABLE | AddonManager.PERM_CAN_ENABLE);
+      do_check_eq(p.permissions, AddonManager.PERM_CAN_DISABLE);
       do_check_eq(p.pendingOperations, 0);
       do_check_true(p.size > 0);
       do_check_eq(p.size, getFileSize(testPlugin));
       do_check_true(p.updateDate > 0);
+      do_check_eq(p.updateDate.getTime(), testPlugin.lastModifiedTime);
+      do_check_eq(p.installDate.getTime(), testPlugin.lastModifiedTime);
+
+      // Work around the fact that on Linux source builds, if we're using
+      // symlinks (i.e. objdir), then Linux will see these as a different scope
+      // to non-symlinks.
+      // See Bug 562886 and Bug 568027.
+      if (testPlugin.isSymlink()) {
+        do_check_neq(p.scope, AddonManager.SCOPE_APPLICATION);
+        do_check_neq(p.scope, AddonManager.SCOPE_PROFILE);
+      } else {
+        do_check_eq(p.scope, AddonManager.SCOPE_APPLICATION);
+      }
       do_check_true("isCompatibleWith" in p);
       do_check_true("findUpdates" in p);
-
-      let lastModifiedTime = getPluginLastModifiedTime(testPlugin);
-      do_check_eq(p.updateDate.getTime(), lastModifiedTime);
-      do_check_eq(p.installDate.getTime(), lastModifiedTime);
 
       run_test_2(p);
     });
@@ -143,8 +119,7 @@ function run_test_2(p) {
   let test = {};
   test[gID] = [
     ["onDisabling", false],
-    "onDisabled",
-    ["onPropertyChanged", ["userDisabled"]]
+    "onDisabled"
   ];
   prepare_test(test);
 
@@ -191,7 +166,7 @@ function run_test_3(p) {
     do_check_true(p.isActive);
     do_check_eq(p.name, "Test Plug-in");
 
-    do_execute_soon(run_test_4);
+    run_test_4();
   });
 }
 
@@ -203,8 +178,6 @@ function run_test_4() {
     do_check_neq(p, null);
     do_check_eq(p.name, "Test Plug-in");
 
-    Services.prefs.clearUserPref("plugins.click_to_play");
-
-    do_execute_soon(do_test_finished);
+    do_test_finished();
   });
 }

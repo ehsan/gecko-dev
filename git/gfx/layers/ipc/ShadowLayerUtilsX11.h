@@ -8,21 +8,15 @@
 #ifndef mozilla_layers_ShadowLayerUtilsX11_h
 #define mozilla_layers_ShadowLayerUtilsX11_h
 
-#include "ipc/IPCMessageUtils.h"
-#include "mozilla/GfxMessageUtils.h"
-#include "nsCOMPtr.h"                   // for already_AddRefed
+#include <X11/extensions/Xrender.h>
+#include <X11/Xlib.h>
+
+#include "IPC/IPCMessageUtils.h"
 
 #define MOZ_HAVE_SURFACEDESCRIPTORX11
 #define MOZ_HAVE_PLATFORM_SPECIFIC_LAYER_BUFFERS
 
-typedef unsigned long XID;
-typedef XID Drawable;
-
 class gfxXlibSurface;
-
-namespace IPC {
-class Message;
-}
 
 namespace mozilla {
 namespace layers {
@@ -31,10 +25,10 @@ struct SurfaceDescriptorX11 {
   SurfaceDescriptorX11()
   { }
 
-  explicit SurfaceDescriptorX11(gfxXlibSurface* aSurf);
+  SurfaceDescriptorX11(gfxXlibSurface* aSurf);
 
   SurfaceDescriptorX11(Drawable aDrawable, XID aFormatID,
-                       const gfx::IntSize& aSize);
+                       const gfxIntSize& aSize);
 
   // Default copy ctor and operator= are OK
 
@@ -51,7 +45,7 @@ struct SurfaceDescriptorX11 {
 
   Drawable mId;
   XID mFormat; // either a PictFormat or VisualID
-  gfx::IntSize mSize;
+  gfxIntSize mSize;
 };
 
 } // namespace layers

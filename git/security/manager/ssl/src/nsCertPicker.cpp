@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsCertPicker.h"
-#include "pkix/pkixtypes.h"
 #include "nsMemory.h"
 #include "nsCOMPtr.h"
 #include "nsXPIDLString.h"
@@ -12,16 +11,17 @@
 #include "nsNSSComponent.h"
 #include "nsNSSCertificate.h"
 #include "nsReadableUtils.h"
+#include "nsNSSCleaner.h"
 #include "nsICertPickDialogs.h"
 #include "nsNSSShutDown.h"
 #include "nsNSSCertHelper.h"
-#include "ScopedNSSTypes.h"
+
+NSSCleanupAutoPtrClass(CERTCertNicknames, CERT_FreeNicknames)
+NSSCleanupAutoPtrClass(CERTCertList, CERT_DestroyCertList)
 
 #include "cert.h"
 
-using namespace mozilla;
-
-NS_IMPL_ISUPPORTS(nsCertPicker, nsIUserCertPicker)
+NS_IMPL_ISUPPORTS1(nsCertPicker, nsIUserCertPicker)
 
 nsCertPicker::nsCertPicker()
 {
@@ -32,7 +32,7 @@ nsCertPicker::~nsCertPicker()
 }
 
 NS_IMETHODIMP nsCertPicker::PickByUsage(nsIInterfaceRequestor *ctx, 
-                                        const char16_t *selectedNickname, 
+                                        const PRUnichar *selectedNickname, 
                                         int32_t certUsage, 
                                         bool allowInvalid, 
                                         bool allowDuplicateNicknames, 
@@ -42,37 +42,44 @@ NS_IMETHODIMP nsCertPicker::PickByUsage(nsIInterfaceRequestor *ctx,
   nsNSSShutDownPreventionLock locker;
   int32_t selectedIndex = -1;
   bool selectionFound = false;
-  char16_t **certNicknameList = nullptr;
-  char16_t **certDetailsList = nullptr;
+  PRUnichar **certNicknameList = nullptr;
+  PRUnichar **certDetailsList = nullptr;
   CERTCertListNode* node = nullptr;
   nsresult rv = NS_OK;
 
   {
     // Iterate over all certs. This assures that user is logged in to all hardware tokens.
+    CERTCertList *allcerts = nullptr;
     nsCOMPtr<nsIInterfaceRequestor> ctx = new PipUIContext();
-    ScopedCERTCertList allcerts(PK11_ListCerts(PK11CertListUnique, ctx));
+    allcerts = PK11_ListCerts(PK11CertListUnique, ctx);
+    CERT_DestroyCertList(allcerts);
   }
 
   /* find all user certs that are valid and for SSL */
   /* note that we are allowing expired certs in this list */
 
-  ScopedCERTCertList certList(
+  CERTCertList *certList = 
     CERT_FindUserCertsByUsage(CERT_GetDefaultCertDB(), 
                               (SECCertUsage)certUsage,
                               !allowDuplicateNicknames,
                               !allowInvalid,
-                              ctx));
+                              ctx);
+  CERTCertListCleaner clc(certList);
+
   if (!certList) {
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  ScopedCERTCertNicknames nicknames(getNSSCertNicknamesFromCertList(certList.get()));
+  CERTCertNicknames *nicknames = getNSSCertNicknamesFromCertList(certList);
+
+  CERTCertNicknamesCleaner cnc(nicknames);
+
   if (!nicknames) {
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  certNicknameList = (char16_t **)nsMemory::Alloc(sizeof(char16_t *) * nicknames->numnicknames);
-  certDetailsList = (char16_t **)nsMemory::Alloc(sizeof(char16_t *) * nicknames->numnicknames);
+  certNicknameList = (PRUnichar **)nsMemory::Alloc(sizeof(PRUnichar *) * nicknames->numnicknames);
+  certDetailsList = (PRUnichar **)nsMemory::Alloc(sizeof(PRUnichar *) * nicknames->numnicknames);
 
   if (!certNicknameList || !certDetailsList) {
     nsMemory::Free(certNicknameList);
@@ -82,9 +89,8 @@ NS_IMETHODIMP nsCertPicker::PickByUsage(nsIInterfaceRequestor *ctx,
 
   int32_t CertsToUse;
 
-  for (CertsToUse = 0, node = CERT_LIST_HEAD(certList.get());
-       !CERT_LIST_END(node, certList.get()) &&
-         CertsToUse < nicknames->numnicknames;
+  for (CertsToUse = 0, node = CERT_LIST_HEAD(certList);
+       !CERT_LIST_END(node, certList) && CertsToUse < nicknames->numnicknames;
        node = CERT_LIST_NEXT(node)
       )
   {
@@ -137,7 +143,7 @@ NS_IMETHODIMP nsCertPicker::PickByUsage(nsIInterfaceRequestor *ctx,
       else {
         /* Throw up the cert picker dialog and get back the index of the selected cert */
         rv = dialogs->PickCertificate(ctx,
-          (const char16_t**)certNicknameList, (const char16_t**)certDetailsList,
+          (const PRUnichar**)certNicknameList, (const PRUnichar**)certDetailsList,
           CertsToUse, &selectedIndex, canceled);
       }
 

@@ -51,8 +51,6 @@ enum gr_break_weight {
 };
 
 enum gr_justFlags {
-    /// Indicates that this segment is a complete line
-    gr_justCompleteLine = 0,
     /// Indicates that the start of the slot list is not at the start of a line
     gr_justStartInline = 1,
     /// Indicates that the end of the slot list is not at the end of a line
@@ -125,8 +123,6 @@ enum gr_attrCode {
     gr_slatSegSplit = gr_slatJStretch + 29,
     /// User defined attribute, see subattr for user attr number
     gr_slatUserDefn,
-    /// Bidi level
-    gr_slatBidiLevel,
                             
     /// not implemented
     gr_slatMax,             
@@ -157,21 +153,12 @@ GR2_API unsigned int gr_cinfo_unicode_char(const gr_char_info* p/*not NULL*/);
 /** Returns breakweight for a charinfo.
   * 
   * @return Breakweight is a number between -50 and 50 indicating the cost of a
-  * break before or after this character. If the value < 0, the absolute value
-  * is this character's contribution to the overall breakweight before it. If the value
-  * > 0, then the value is this character's contribution to the overall breakweight after it.
-  * The overall breakweight between two characters is the maximum of the breakweight
-  * contributions from the characters either side of it. If a character makes no
-  * contribution to the breakweight on one side of it, the contribution is considered
-  * to be 0.
+  * break before or after this character.
   * @param p Pointer to charinfo to return information on.
   */
 GR2_API int gr_cinfo_break_weight(const gr_char_info* p/*not NULL*/);
 
 /** Returns the slot index that after this character is after in the slot stream
-  *
-  * In effect each character is associated with a set of slots and this returns
-  * the index of the last slot in the segment this character is associated with.
   *
   * @return after slot index between 0 and gr_seg_n_slots()
   * @param p Pointer to charinfo to return information on.
@@ -179,9 +166,6 @@ GR2_API int gr_cinfo_break_weight(const gr_char_info* p/*not NULL*/);
 GR2_API int gr_cinfo_after(const gr_char_info* p/*not NULL*/);
 
 /** Returns the slot index that before this character is before in the slot stream
-  *
-  * In effect each character is associated with a set of slots and this returns
-  * the index of the first slot in the segment this character is associated with.
   *
   * @return before slot index between 0 and gr_seg_n_slots()
   * @param p Pointer to charinfo to return information on.
@@ -280,18 +264,15 @@ GR2_API const gr_slot* gr_seg_last_slot(gr_segment* pSeg/*not NULL*/);    //may 
   * This allows skipping of line initial or final whitespace, for example. While this will ensure
   * that the subrange fits width, the line will still be positioned with the first glyph of the
   * line at 0. So the resulting positions may be beyond width.
-  *
-  * @return float   The resulting width of the range of slots justified.
   * @param pSeg     Pointer to the segment
   * @param pStart   Pointer to the start of the line linked list (including skipped characters)
   * @param pFont    Font to use for positioning
-  * @param width    Width in pixels in which to fit the line. If < 0. don't adjust natural width, just run justification passes
-  *                 to handle line end contextuals, if there are any.
+  * @param width    Width in pixels in which to fit the line
   * @param flags    Indicates line ending types. Default is linked list is a full line
   * @param pFirst   If not NULL, the first slot in the list to be considered part of the line (so can skip)
   * @param pLast    If not NULL, the last slot to process in the line (allow say trailing whitespace to be skipped)
   */
-GR2_API float gr_seg_justify(gr_segment* pSeg/*not NULL*/, const gr_slot* pStart/*not NULL*/, const gr_font *pFont, double width, enum gr_justFlags flags, const gr_slot* pFirst, const gr_slot* pLast);
+GR2_API void gr_seg_justify(gr_segment* pSeg/*not NULL*/, gr_slot* pStart/*not NULL*/, const gr_font *pFont, double width, enum gr_justFlags flags, gr_slot* pFirst, gr_slot* pLast);
 
 /** Returns the next slot along in the segment.
   *
@@ -329,8 +310,8 @@ GR2_API const gr_slot* gr_slot_first_attachment(const gr_slot* p);
   *
   * This returns the next slot in the singly linked list of slots attached to this
   * slot's parent. If there are no more such slots, NULL is returned. If there is
-  * no parent, i.e. the passed slot is a cluster base, then the next cluster base
-  * in graphical order (ltr, even for rtl text) is returned.
+  * no parent, i.e. the passed slot is a base, then the next base in graphical order
+  * (ltr even for rtl text) is returned.
   *
   * if gr_slot_next_sibling_attachment(p) != NULL then gr_slot_attached_to(gr_slot_next_sibling_attachment(p)) == gr_slot_attached_to(p).
   */
@@ -354,42 +335,34 @@ GR2_API float gr_slot_origin_Y(const gr_slot* p);
   *
   * @param p    Slot to give results for
   * @param face gr_face of the glyphs. May be NULL if unhinted advances used
-  * @param font gr_font to scale for pixel results. If NULL returns design
-  *             units advance. If not NULL then returns pixel advance based
-  *             on hinted or scaled glyph advances in the font. face must be
-  *             passed for hinted advances to be used.
+  * @param font gr_font to scale for pixel results. If NULL returns design units advance. If not NULL then returns pixel advance based on hinted or scaled glyph advances in the font. face must be passed for hinted advances to be used.
   */
 GR2_API float gr_slot_advance_X(const gr_slot* p, const gr_face* face, const gr_font *font);
 
 /** Returns the vertical advance for the glyph in the slot adjusted for kerning
   *
-  * Returns design units unless font is not NULL in which case the pixel value
-  * is returned scaled for the given font
+  * Returns design units unless font is not NULL in which case the pixel value is returned scaled for the given font
   */
 GR2_API float gr_slot_advance_Y(const gr_slot* p, const gr_face* face, const gr_font *font);
 
 /** Returns the gr_char_info index before us
   *
   * Returns the index of the gr_char_info that a cursor before this slot, would put
-  * an underlying cursor before. This may also be interpretted as each slot holding
-  * a set of char_infos that it is associated with and this function returning the
-  * index of the char_info with lowest index, from this set.
+  * an underlying cursor before.
   */
 GR2_API int gr_slot_before(const gr_slot* p/*not NULL*/);
 
 /** Returns the gr_char_info index after us
   *
   * Returns the index of the gr_char_info that a cursor after this slot would put an
-  * underlying cursor after. This may also be interpretted as each slot holding a set
-  * of char_infos that it is associated with and this function returning the index of
-  * the char_info with the highest index, from this set.
+  * underlying cursor after.
   */
 GR2_API int gr_slot_after(const gr_slot* p/*not NULL*/);
 
 /** Returns the index of this slot in the segment
   *
-  * Returns the index given to this slot during final positioning. This corresponds
-  * to the value returned br gr_cinfo_before() and gr_cinfo_after()
+  * Returns the index given to this slot during final positioning. This corresponds to the value returned br gr_cinfo_before()
+  * and gr_cinfo_after()
   */
 GR2_API unsigned int gr_slot_index(const gr_slot* p/*not NULL*/);
 
@@ -400,19 +373,13 @@ GR2_API unsigned int gr_slot_index(const gr_slot* p/*not NULL*/);
   */
 GR2_API int gr_slot_attr(const gr_slot* p/*not NULL*/, const gr_segment* pSeg/*not NULL*/, enum gr_attrCode index, gr_uint8 subindex); //tbd - do we need to expose this?
 
-/** Returns whether text may be inserted before this glyph.
-  *
-  * This indicates whether a cursor can be put before this slot. It applies to
-  * base glyphs that have no parent as well as attached glyphs that have the
-  * .insert attribute explicitly set to true. This is the primary mechanism
-  * for identifying contiguous sequences of base plus diacritics.
-  */
+/** Returns whether text may be inserted before this glyph [check this isn't inverted] **/
 GR2_API int gr_slot_can_insert_before(const gr_slot* p);
 
 /** Returns the original gr_char_info index this slot refers to.
   *
-  * Each Slot has a gr_char_info that it originates from. This is that gr_char_info.
-  * The index is passed to gr_seg_cinfo(). This information is useful for testing.
+  * Each Slot has a gr_char_info that it originates from. This is that gr_char_info. The index is passed to gr_seg_cinfo(). This
+  * information is useful for testing.
   */
 GR2_API int gr_slot_original(const gr_slot* p/*not NULL*/);
 

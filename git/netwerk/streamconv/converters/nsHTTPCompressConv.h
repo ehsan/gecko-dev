@@ -7,11 +7,10 @@
 #define	__nsHTTPCompressConv__h__	1
 
 #include "nsIStreamConverter.h"
+#include "nsIStringStream.h"
 #include "nsCOMPtr.h"
 
 #include "zlib.h"
-
-class nsIStringInputStream;
 
 #define NS_HTTPCOMPRESSCONVERTER_CID                \
 {                                                   \
@@ -41,7 +40,7 @@ typedef enum    {
 class nsHTTPCompressConv	: public nsIStreamConverter	{
 public:
     // nsISupports methods
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
 
 	NS_DECL_NSIREQUESTOBSERVER
     NS_DECL_NSISTREAMLISTENER
@@ -51,10 +50,9 @@ public:
 
 
     nsHTTPCompressConv ();
+    virtual ~nsHTTPCompressConv ();
 
 private:
-
-    virtual ~nsHTTPCompressConv ();
 
     nsIStreamListener   *mListener; // this guy gets the converted data via his OnDataAvailable ()
 	CompressMode        mMode;
@@ -69,7 +67,7 @@ private:
     nsCOMPtr<nsIStringInputStream>  mStream;
 
     nsresult do_OnDataAvailable (nsIRequest *request, nsISupports *aContext,
-                                 uint64_t aSourceOffset, const char *buffer,
+                                 uint32_t aSourceOffset, const char *buffer,
                                  uint32_t aCount);
 
     bool        mCheckHeaderDone;

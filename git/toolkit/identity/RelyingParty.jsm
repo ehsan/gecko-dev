@@ -1,4 +1,4 @@
-/* -*- js-indent-level: 2; indent-tabs-mode: nil -*- */
+/* -*- Mode: js2; js2-basic-offset: 2; indent-tabs-mode: nil; -*- */
 /* vim: set ft=javascript ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -16,10 +16,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/identity/LogUtils.jsm");
 Cu.import("resource://gre/modules/identity/IdentityStore.jsm");
 
-this.EXPORTED_SYMBOLS = ["RelyingParty"];
-
-XPCOMUtils.defineLazyModuleGetter(this, "objectCopy",
-                                  "resource://gre/modules/identity/IdentityUtils.jsm");
+const EXPORTED_SYMBOLS = ["RelyingParty"];
 
 XPCOMUtils.defineLazyModuleGetter(this,
                                   "jwcrypto",
@@ -73,7 +70,7 @@ IdentityRelyingParty.prototype = {
    *        (Object)  an object that represents the caller document, and
    *                  is expected to have properties:
    *                  - id (unique, e.g. uuid)
-   *                  - loggedInUser (string or null)
+   *                  - loggedInEmail (string or null)
    *                  - origin (string)
    *
    *                  and a bunch of callbacks
@@ -91,7 +88,7 @@ IdentityRelyingParty.prototype = {
 
     log("watch: rpId:", aRpCaller.id,
         "origin:", origin,
-        "loggedInUser:", aRpCaller.loggedInUser,
+        "loggedInEmail:", aRpCaller.loggedInEmail,
         "loggedIn:", state.isLoggedIn,
         "email:", state.email);
 
@@ -102,20 +99,20 @@ IdentityRelyingParty.prototype = {
     //   2. the email is null:                 'login'; 'ready'
     //   3. the email has changed:             'login'; 'ready'
     if (state.isLoggedIn) {
-      if (state.email && aRpCaller.loggedInUser === state.email) {
+      if (state.email && aRpCaller.loggedInEmail === state.email) {
         this._notifyLoginStateChanged(aRpCaller.id, state.email);
         return aRpCaller.doReady();
 
-      } else if (aRpCaller.loggedInUser === null) {
+      } else if (aRpCaller.loggedInEmail === null) {
         // Generate assertion for existing login
-        let options = {loggedInUser: state.email, origin: origin};
+        let options = {loggedInEmail: state.email, origin: origin};
         return this._doLogin(aRpCaller, options);
 
       } else {
-        // A loggedInUser different from state.email has been specified.
+        // A loggedInEmail different from state.email has been specified.
         // Change login identity.
 
-        let options = {loggedInUser: state.email, origin: origin};
+        let options = {loggedInEmail: state.email, origin: origin};
         return this._doLogin(aRpCaller, options);
       }
 
@@ -125,7 +122,7 @@ IdentityRelyingParty.prototype = {
     //   2. not logged in, no email given:  'ready';
 
     } else {
-      if (aRpCaller.loggedInUser) {
+      if (aRpCaller.loggedInEmail) {
         return this._doLogout(aRpCaller, {origin: origin});
 
       } else {
@@ -144,8 +141,8 @@ IdentityRelyingParty.prototype = {
     log("_doLogin: rpId:", aRpCaller.id, "origin:", aOptions.origin);
 
     let loginWithAssertion = function loginWithAssertion(assertion) {
-      this._store.setLoginState(aOptions.origin, true, aOptions.loggedInUser);
-      this._notifyLoginStateChanged(aRpCaller.id, aOptions.loggedInUser);
+      this._store.setLoginState(aOptions.origin, true, aOptions.loggedInEmail);
+      this._notifyLoginStateChanged(aRpCaller.id, aOptions.loggedInEmail);
       aRpCaller.doLogin(assertion);
       aRpCaller.doReady();
     }.bind(this);
@@ -218,7 +215,6 @@ IdentityRelyingParty.prototype = {
     // Notify UX to display identity picker.
     // Pass the doc id to UX so it can pass it back to us later.
     let options = {rpId: aRPId, origin: rp.origin};
-    objectCopy(aOptions, options);
 
     // Append URLs after resolving
     let baseURI = Services.io.newURI(rp.origin, null, null);
@@ -294,7 +290,7 @@ IdentityRelyingParty.prototype = {
    */
   _getAssertion: function _getAssertion(aOptions, aCallback) {
     let audience = aOptions.origin;
-    let email = aOptions.loggedInUser || this.getDefaultEmailForOrigin(audience);
+    let email = aOptions.loggedInEmail || this.getDefaultEmailForOrigin(audience);
     log("_getAssertion: audience:", audience, "email:", email);
     if (!audience) {
       throw "audience required for _getAssertion";
@@ -369,4 +365,4 @@ IdentityRelyingParty.prototype = {
 
 };
 
-this.RelyingParty = new IdentityRelyingParty();
+let RelyingParty = new IdentityRelyingParty();

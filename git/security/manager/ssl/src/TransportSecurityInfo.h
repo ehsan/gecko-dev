@@ -7,18 +7,15 @@
 #ifndef _MOZILLA_PSM_TRANSPORTSECURITYINFO_H
 #define _MOZILLA_PSM_TRANSPORTSECURITYINFO_H
 
-#include "ScopedNSSTypes.h"
 #include "certt.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/RefPtr.h"
-#include "nsDataHashtable.h"
-#include "nsIAssociatedContentSecurity.h"
 #include "nsIInterfaceRequestor.h"
-#include "nsISSLStatusProvider.h"
 #include "nsITransportSecurityInfo.h"
-#include "nsNSSShutDown.h"
 #include "nsSSLStatus.h"
-#include "pkix/pkixtypes.h"
+#include "nsISSLStatusProvider.h"
+#include "nsIAssociatedContentSecurity.h"
+#include "nsNSSShutDown.h"
+#include "nsDataHashtable.h"
 
 namespace mozilla { namespace psm {
 
@@ -36,12 +33,11 @@ class TransportSecurityInfo : public nsITransportSecurityInfo,
                               public nsNSSShutDownObject,
                               public nsOnPK11LogoutCancelObject
 {
-protected:
-  virtual ~TransportSecurityInfo();
 public:
   TransportSecurityInfo();
+  virtual ~TransportSecurityInfo();
   
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSITRANSPORTSECURITYINFO
   NS_DECL_NSIINTERFACEREQUESTOR
   NS_DECL_NSISSLSTATUSPROVIDER
@@ -50,11 +46,11 @@ public:
   NS_DECL_NSICLASSINFO
 
   nsresult SetSecurityState(uint32_t aState);
-  nsresult SetShortSecurityDescription(const char16_t *aText);
+  nsresult SetShortSecurityDescription(const PRUnichar *aText);
 
-  const nsACString & GetHostName() const { return mHostName; }
-  const char * GetHostNameRaw() const { return mHostName.get(); }
-
+  const char * GetHostName() const {
+    return mHostName.get();
+  }
   nsresult GetHostName(char **aHostName);
   nsresult SetHostName(const char *aHostName);
 
@@ -76,7 +72,12 @@ public:
   nsSSLStatus* SSLStatus() { return mSSLStatus; }
   void SetStatusErrorBits(nsIX509Cert & cert, uint32_t collected_errors);
 
-  nsresult SetFailedCertChain(ScopedCERTCertList& certList);
+  bool IsCertIssuerBlacklisted() const {
+    return mIsCertIssuerBlacklisted;
+  }
+  void SetCertIssuerBlacklisted() {
+    mIsCertIssuerBlacklisted = true;
+  }
 
 private:
   mutable ::mozilla::Mutex mMutex;
@@ -86,8 +87,11 @@ protected:
 
 private:
   uint32_t mSecurityState;
+  int32_t mSubRequestsHighSecurity;
+  int32_t mSubRequestsLowSecurity;
   int32_t mSubRequestsBrokenSecurity;
   int32_t mSubRequestsNoSecurity;
+  nsString mShortDesc;
 
   PRErrorCode mErrorCode;
   ::mozilla::psm::SSLErrorMessageType mErrorMessageType;
@@ -100,12 +104,10 @@ private:
 
   int32_t mPort;
   nsXPIDLCString mHostName;
+  PRErrorCode mIsCertIssuerBlacklisted;
 
   /* SSL Status */
-  mozilla::RefPtr<nsSSLStatus> mSSLStatus;
-
-  /* Peer cert chain for failed connections (for error reporting) */
-  nsCOMPtr<nsIX509CertList> mFailedCertChain;
+  nsRefPtr<nsSSLStatus> mSSLStatus;
 
   virtual void virtualDestroyNSSReference();
   void destructorSafeDestroyNSSReference();
@@ -122,7 +124,7 @@ private:
     bool mIsNotValidAtThisTime;
     bool mIsUntrusted;
   };
-  nsDataHashtable<nsCStringHashKey, CertStateBits> mErrorHosts;
+  nsDataHashtableMT<nsCStringHashKey, CertStateBits> mErrorHosts;
 
 public:
   void RememberCertHasError(TransportSecurityInfo * infoobject,
@@ -134,6 +136,9 @@ public:
   static nsresult Init()
   {
     sInstance = new RememberCertErrorsTable();
+    if (!sInstance->mErrorHosts.IsInitialized())
+      return NS_ERROR_OUT_OF_MEMORY;
+
     return NS_OK;
   }
 

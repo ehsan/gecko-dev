@@ -17,7 +17,7 @@ function loadXULTreeAndDoTest(aDoTestFunc, aTreeID, aTreeView)
 
     this.invoke = function loadXULTree_invoke()
     {
-      this.treeNode.view = aTreeView;
+      this.treeNode.treeBoxObject.view = aTreeView;
     }
 
     this.getID = function loadXULTree_getID()
@@ -101,16 +101,17 @@ nsTreeView.prototype =
     var data = this.getDataForIndex(aRow);
     return data.value;
   },
-  getRowProperties: function getRowProperties(aIndex) { return ""; },
-  getCellProperties: function getCellProperties(aIndex, aCol)
+  getRowProperties: function getRowProperties(aIndex, aProperties) {},
+  getCellProperties: function getCellProperties(aIndex, aCol, aProperties)
   {
     if (!aCol.cycler)
-      return "";
+      return;
 
     var data = this.getDataForIndex(aIndex);
-    return this.mCyclerStates[data.cyclerState];
+    var atom = this.mCyclerStates[data.cyclerState];
+    aProperties.AppendElement(atom);
   },
-  getColumnProperties: function getColumnProperties(aCol) { return ""; },
+  getColumnProperties: function getColumnProperties(aCol, aProperties) {},
   getParentIndex: function getParentIndex(aRowIndex)
   {
     var info = this.getInfoByIndex(aRowIndex);
@@ -260,9 +261,9 @@ nsTreeView.prototype =
   },
 
   mCyclerStates: [
-    "cyclerState1",
-    "cyclerState2",
-    "cyclerState3"
+    createAtom("cyclerState1"),
+    createAtom("cyclerState2"),
+    createAtom("cyclerState3")
   ]
 };
 

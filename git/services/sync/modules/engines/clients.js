@@ -2,25 +2,24 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = [
-  "ClientEngine",
-  "ClientsRec"
-];
+const EXPORTED_SYMBOLS = ["Clients", "ClientsRec"];
 
-const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
 
 Cu.import("resource://services-common/stringbundle.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/record.js");
+Cu.import("resource://services-sync/resource.js");
 Cu.import("resource://services-sync/util.js");
+Cu.import("resource://services-sync/main.js");
 
 const CLIENTS_TTL = 1814400; // 21 days
 const CLIENTS_TTL_REFRESH = 604800; // 7 days
 
-const SUPPORTED_PROTOCOL_VERSIONS = ["1.1", "1.5"];
-
-this.ClientsRec = function ClientsRec(collection, id) {
+function ClientsRec(collection, id) {
   CryptoWrapper.call(this, collection, id);
 }
 ClientsRec.prototype = {
@@ -29,15 +28,15 @@ ClientsRec.prototype = {
   ttl: CLIENTS_TTL
 };
 
-Utils.deferGetSet(ClientsRec,
-                  "cleartext",
-                  ["name", "type", "commands",
-                   "version", "protocols",
-                   "formfactor", "os", "appPackage", "application", "device"]);
+Utils.deferGetSet(ClientsRec, "cleartext", ["name", "type", "commands"]);
 
 
-this.ClientEngine = function ClientEngine(service) {
-  SyncEngine.call(this, "Clients", service);
+XPCOMUtils.defineLazyGetter(this, "Clients", function () {
+  return new ClientEngine();
+});
+
+function ClientEngine() {
+  SyncEngine.call(this, "Clients");
 
   // Reset the client on every startup so that we fetch recent clients
   this._resetClient();
@@ -75,39 +74,12 @@ ClientEngine.prototype = {
     return stats;
   },
 
-  /**
-   * Obtain information about device types.
-   *
-   * Returns a Map of device types to integer counts.
-   */
-  get deviceTypes() {
-    let counts = new Map();
-
-    counts.set(this.localType, 1);
-
-    for each (let record in this._store._remoteClients) {
-      let type = record.type;
-      if (!counts.has(type)) {
-        counts.set(type, 0);
-      }
-
-      counts.set(type, counts.get(type) + 1);
-    }
-
-    return counts;
-  },
-
   get localID() {
     // Generate a random GUID id we don't have one
     let localID = Svc.Prefs.get("client.GUID", "");
     return localID == "" ? this.localID = Utils.makeGUID() : localID;
   },
   set localID(value) Svc.Prefs.set("client.GUID", value),
-
-  get brandName() {
-    let brand = new StringBundle("chrome://branding/locale/brand.properties");
-    return brand.get("brandShortName");
-  },
 
   get localName() {
     let localName = Svc.Prefs.get("client.name", "");
@@ -119,24 +91,15 @@ ClientEngine.prototype = {
                 .getService(Ci.nsIEnvironment);
     let user = env.get("USER") || env.get("USERNAME") ||
                Svc.Prefs.get("account") || Svc.Prefs.get("username");
+    let brand = new StringBundle("chrome://branding/locale/brand.properties");
+    let app = brand.get("brandShortName");
 
-    let brandName = this.brandName;
-    let appName;
-    try {
-      let syncStrings = new StringBundle("chrome://browser/locale/sync.properties");
-      appName = syncStrings.getFormattedString("sync.defaultAccountApplication", [brandName]);
-    } catch (ex) {}
-    appName = appName || brandName;
+    let system = Cc["@mozilla.org/system-info;1"]
+                   .getService(Ci.nsIPropertyBag2).get("device") ||
+                 Cc["@mozilla.org/network/protocol;1?name=http"]
+                   .getService(Ci.nsIHttpProtocolHandler).oscpu;
 
-    let system =
-      // 'device' is defined on unix systems
-      Cc["@mozilla.org/system-info;1"].getService(Ci.nsIPropertyBag2).get("device") ||
-      // hostname of the system, usually assigned by the user or admin
-      Cc["@mozilla.org/system-info;1"].getService(Ci.nsIPropertyBag2).get("host") ||
-      // fall back on ua info string
-      Cc["@mozilla.org/network/protocol;1?name=http"].getService(Ci.nsIHttpProtocolHandler).oscpu;
-
-    return this.localName = Str.sync.get("client.name2", [user, appName, system]);
+    return this.localName = Str.sync.get("client.name2", [user, app, system]);
   },
   set localName(value) Svc.Prefs.set("client.name", value),
 
@@ -172,7 +135,7 @@ ClientEngine.prototype = {
   },
 
   removeClientData: function removeClientData() {
-    let res = this.service.resource(this.engineURL + "/" + this.localID);
+    let res = new Resource(this.engineURL + "/" + this.localID);
     res.delete();
   },
 
@@ -277,16 +240,16 @@ ClientEngine.prototype = {
             engines = null;
             // Fallthrough
           case "resetEngine":
-            this.service.resetClient(engines);
+            Weave.Service.resetClient(engines);
             break;
           case "wipeAll":
             engines = null;
             // Fallthrough
           case "wipeEngine":
-            this.service.wipeClient(engines);
+            Weave.Service.wipeClient(engines);
             break;
           case "logout":
-            this.service.logout();
+            Weave.Service.logout();
             return false;
           case "displayURI":
             this._handleDisplayURI.apply(this, args);
@@ -361,7 +324,7 @@ ClientEngine.prototype = {
                    clientId + " (" + title + ")");
     this.sendCommand("displayURI", [uri, this.localID, title], clientId);
 
-    this._tracker.score += SCORE_INCREMENT_XLARGE;
+    Clients._tracker.score += SCORE_INCREMENT_XLARGE;
   },
 
   /**
@@ -394,8 +357,8 @@ ClientEngine.prototype = {
   }
 };
 
-function ClientStore(name, engine) {
-  Store.call(this, name, engine);
+function ClientStore(name) {
+  Store.call(this, name);
 }
 ClientStore.prototype = {
   __proto__: Store.prototype,
@@ -404,8 +367,8 @@ ClientStore.prototype = {
 
   update: function update(record) {
     // Only grab commands from the server; local name/type always wins
-    if (record.id == this.engine.localID)
-      this.engine.localCommands = record.commands;
+    if (record.id == Clients.localID)
+      Clients.localCommands = record.commands;
     else
       this._remoteClients[record.id] = record.cleartext;
   },
@@ -414,24 +377,13 @@ ClientStore.prototype = {
     let record = new ClientsRec(collection, id);
 
     // Package the individual components into a record for the local client
-    if (id == this.engine.localID) {
-      record.name = this.engine.localName;
-      record.type = this.engine.localType;
-      record.commands = this.engine.localCommands;
-      record.version = Services.appinfo.version;
-      record.protocols = SUPPORTED_PROTOCOL_VERSIONS;
-
-      // Optional fields.
-      record.os = Services.appinfo.OS;             // "Darwin"
-      record.appPackage = Services.appinfo.ID;
-      record.application = this.engine.brandName   // "Nightly"
-
-      // We can't compute these yet.
-      // record.device = "";            // Bug 1100723
-      // record.formfactor = "";        // Bug 1100722
-    } else {
-      record.cleartext = this._remoteClients[id];
+    if (id == Clients.localID) {
+      record.name = Clients.localName;
+      record.type = Clients.localType;
+      record.commands = Clients.localCommands;
     }
+    else
+      record.cleartext = this._remoteClients[id];
 
     return record;
   },
@@ -440,7 +392,7 @@ ClientStore.prototype = {
 
   getAllIDs: function getAllIDs() {
     let ids = {};
-    ids[this.engine.localID] = true;
+    ids[Clients.localID] = true;
     for (let id in this._remoteClients)
       ids[id] = true;
     return ids;
@@ -451,8 +403,8 @@ ClientStore.prototype = {
   },
 };
 
-function ClientsTracker(name, engine) {
-  Tracker.call(this, name, engine);
+function ClientsTracker(name) {
+  Tracker.call(this, name);
   Svc.Obs.add("weave:engine:start-tracking", this);
   Svc.Obs.add("weave:engine:stop-tracking", this);
 }

@@ -42,15 +42,15 @@ Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-common/async.js");
+Cu.import("resource://services-common/preferences.js");
 
-Cu.import("resource://gre/modules/Preferences.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "AddonManager",
                                   "resource://gre/modules/AddonManager.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "AddonRepository",
-                                  "resource://gre/modules/addons/AddonRepository.jsm");
+                                  "resource://gre/modules/AddonRepository.jsm");
 
-this.EXPORTED_SYMBOLS = ["AddonsEngine"];
+const EXPORTED_SYMBOLS = ["AddonsEngine"];
 
 // 7 days in milliseconds.
 const PRUNE_ADDON_CHANGES_THRESHOLD = 60 * 60 * 24 * 7 * 1000;
@@ -107,8 +107,8 @@ Utils.deferGetSet(AddonRecord, "cleartext", ["addonID",
  * The engine instance overrides a handful of functions on the base class. The
  * rationale for each is documented by that function.
  */
-this.AddonsEngine = function AddonsEngine(service) {
-  SyncEngine.call(this, "Addons", service);
+function AddonsEngine() {
+  SyncEngine.call(this, "Addons");
 
   this._reconciler = new AddonsReconciler();
 }
@@ -118,8 +118,6 @@ AddonsEngine.prototype = {
   _trackerObj:            AddonsTracker,
   _recordObj:             AddonRecord,
   version:                1,
-
-  syncPriority:           5,
 
   _reconciler:            null,
 
@@ -240,8 +238,8 @@ AddonsEngine.prototype = {
  * In addition to the core store APIs, we provide convenience functions to wrap
  * Add-on Manager APIs with Sync-specific semantics.
  */
-function AddonsStore(name, engine) {
-  Store.call(this, name, engine);
+function AddonsStore(name) {
+  Store.call(this, name);
 }
 AddonsStore.prototype = {
   __proto__: Store.prototype,
@@ -253,6 +251,13 @@ AddonsStore.prototype = {
 
   get reconciler() {
     return this.engine._reconciler;
+  },
+
+  get engine() {
+    // Ideally we'd link to a specific object, but the API doesn't provide an
+    // easy way to faciliate this. When the async API lands, this hackiness can
+    // go away.
+    return Engines.get("addons");
   },
 
   /**
@@ -655,18 +660,21 @@ AddonsStore.prototype = {
  *
  * It hooks up to the reconciler and receives notifications directly from it.
  */
-function AddonsTracker(name, engine) {
-  Tracker.call(this, name, engine);
+function AddonsTracker(name) {
+  Tracker.call(this, name);
+
+  Svc.Obs.add("weave:engine:start-tracking", this);
+  Svc.Obs.add("weave:engine:stop-tracking", this);
 }
 AddonsTracker.prototype = {
   __proto__: Tracker.prototype,
 
   get reconciler() {
-    return this.engine._reconciler;
+    return Engines.get("addons")._reconciler;
   },
 
   get store() {
-    return this.engine._store;
+    return Engines.get("addons")._store;
   },
 
   /**
@@ -690,16 +698,15 @@ AddonsTracker.prototype = {
     this.score += SCORE_INCREMENT_XLARGE;
   },
 
-  startTracking: function() {
-    if (this.engine.enabled) {
-      this.reconciler.startListening();
+  observe: function(subject, topic, data) {
+    switch (topic) {
+      case "weave:engine:start-tracking":
+        this.reconciler.addChangeListener(this);
+        break;
+
+      case "weave:engine:stop-tracking":
+        this.reconciler.removeChangeListener(this);
+        break;
     }
-
-    this.reconciler.addChangeListener(this);
-  },
-
-  stopTracking: function() {
-    this.reconciler.removeChangeListener(this);
-    this.reconciler.stopListening();
-  },
+  }
 };

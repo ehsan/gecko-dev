@@ -2,57 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-XPCOMUtils.defineLazyModuleGetter(this, "DownloadsCommon",
-                                  "resource:///modules/DownloadsCommon.jsm");
-
 var gMainPane = {
+  _pane: null,
+
   /**
    * Initialization of this.
    */
   init: function ()
   {
-    function setEventListener(aId, aEventType, aCallback)
-    {
-      document.getElementById(aId)
-              .addEventListener(aEventType, aCallback.bind(gMainPane));
-    }
-
-#ifdef HAVE_SHELL_SERVICE
-    this.updateSetDefaultBrowser();
-#ifdef XP_WIN
-    // In Windows 8 we launch the control panel since it's the only
-    // way to get all file type association prefs. So we don't know
-    // when the user will select the default.  We refresh here periodically
-    // in case the default changes.  On other Windows OS's defaults can also
-    // be set while the prefs are open.
-    window.setInterval(this.updateSetDefaultBrowser, 1000);
-
-#ifdef MOZ_METRO
-    // Pre Windows 8, we should hide the update related settings
-    // for the Metro browser
-    let version = Components.classes["@mozilla.org/system-info;1"].
-                  getService(Components.interfaces.nsIPropertyBag2).
-                  getProperty("version");
-    let preWin8 = parseFloat(version) < 6.2;
-    this._showingWin8Prefs = !preWin8;
-    if (preWin8) {
-      ["autoMetro", "autoMetroIndent"].forEach(
-        function(id) document.getElementById(id).collapsed = true
-      );
-    } else {
-      let brandShortName =
-        document.getElementById("bundleBrand").getString("brandShortName");
-      let bundlePrefs = document.getElementById("bundlePreferences");
-      let autoDesktop = document.getElementById("autoDesktop");
-      autoDesktop.label =
-        bundlePrefs.getFormattedString("updateAutoDesktop.label",
-                                       [brandShortName]);
-      autoDesktop.accessKey =
-        bundlePrefs.getString("updateAutoDesktop.accessKey");
-    }
-#endif
-#endif
-#endif
+    this._pane = document.getElementById("paneMain");
 
     // set up the "use current page" label-changing listener
     this._updateUseCurrentButton();
@@ -60,195 +18,11 @@ var gMainPane = {
 
     this.updateBrowserStartupLastSession();
 
-#ifdef XP_WIN
-    // Functionality for "Show tabs in taskbar" on Windows 7 and up.
-    try {
-      let sysInfo = Cc["@mozilla.org/system-info;1"].
-                    getService(Ci.nsIPropertyBag2);
-      let ver = parseFloat(sysInfo.getProperty("version"));
-      let showTabsInTaskbar = document.getElementById("showTabsInTaskbar");
-      showTabsInTaskbar.hidden = ver < 6.1;
-    } catch (ex) {}
-#endif
-
-    setEventListener("browser.privatebrowsing.autostart", "change",
-                     gMainPane.updateBrowserStartupLastSession);
-    setEventListener("browser.download.dir", "change",
-                     gMainPane.displayDownloadDirPref);
-#ifdef HAVE_SHELL_SERVICE
-    setEventListener("setDefaultButton", "command",
-                     gMainPane.setDefaultBrowser);
-#endif
-    setEventListener("useCurrent", "command",
-                     gMainPane.setHomePageToCurrent);
-    setEventListener("useBookmark", "command",
-                     gMainPane.setHomePageToBookmark);
-    setEventListener("restoreDefaultHomePage", "command",
-                     gMainPane.restoreDefaultHomePage);
-    setEventListener("chooseFolder", "command",
-                     gMainPane.chooseFolder);
-
-#ifdef E10S_TESTING_ONLY
-    setEventListener("e10sAutoStart", "command",
-                     gMainPane.enableE10SChange);
-    let e10sCheckbox = document.getElementById("e10sAutoStart");
-    e10sCheckbox.checked = Services.appinfo.browserTabsRemoteAutostart;
-
-    // If e10s is blocked for some reason unrelated to prefs, we want to disable
-    // the checkbox.
-    if (!Services.appinfo.browserTabsRemoteAutostart) {
-      let e10sBlockedReason = Cc["@mozilla.org/supports-string;1"].createInstance(Ci.nsISupportsString);
-      let appinfo = Services.appinfo.QueryInterface(Ci.nsIObserver);
-      appinfo.observe(e10sBlockedReason, "getE10SBlocked", "")
-      if (e10sBlockedReason.data) {
-        if (e10sBlockedReason.data == "Safe mode") {
-          // If the only reason we're disabled is because of safe mode, then
-          // we want to allow the user to un-toggle the pref.
-          // We're relying on the nsAppRunner code only specifying "Safe mode"
-          // as the reason if the pref is otherwise enabled, and there are no
-          // other reasons to block e10s.
-          // Update the checkbox to reflect the pref state.
-          e10sCheckbox.checked = true;
-        } else {
-          e10sCheckbox.disabled = true;
-          e10sCheckbox.label += " (disabled: " + e10sBlockedReason.data + ")";
-        }
-      }
-    }
-
-    // If E10S is blocked because of safe mode, we want the checkbox to be
-    // enabled
-#endif
-
-#ifdef MOZ_DEV_EDITION
-    Cu.import("resource://gre/modules/osfile.jsm");
-    let uAppData = OS.Constants.Path.userApplicationDataDir;
-    let ignoreSeparateProfile = OS.Path.join(uAppData, "ignore-dev-edition-profile");
-
-    setEventListener("separateProfileMode", "command", gMainPane.separateProfileModeChange);
-    let separateProfileModeCheckbox = document.getElementById("separateProfileMode");
-    setEventListener("getStarted", "click", gMainPane.onGetStarted);
-
-    OS.File.stat(ignoreSeparateProfile).then(() => separateProfileModeCheckbox.checked = false,
-                                             () => separateProfileModeCheckbox.checked = true);
-#endif
-
     // Notify observers that the UI is now ready
     Components.classes["@mozilla.org/observer-service;1"]
               .getService(Components.interfaces.nsIObserverService)
               .notifyObservers(window, "main-pane-loaded", null);
   },
-
-#ifdef E10S_TESTING_ONLY
-  enableE10SChange: function ()
-  {
-    let e10sCheckbox = document.getElementById("e10sAutoStart");
-    let e10sPref = document.getElementById("browser.tabs.remote.autostart");
-    let e10sTempPref = document.getElementById("e10sTempPref");
-
-    let prefsToChange;
-    if (e10sCheckbox.checked) {
-      // Enabling e10s autostart
-      prefsToChange = [e10sPref];
-    } else {
-      // Disabling e10s autostart
-      prefsToChange = [e10sPref];
-      if (e10sTempPref.value) {
-       prefsToChange.push(e10sTempPref);
-      }
-    }
-
-    const Cc = Components.classes, Ci = Components.interfaces;
-    let brandName = document.getElementById("bundleBrand").getString("brandShortName");
-    let bundle = document.getElementById("bundlePreferences");
-    let msg = bundle.getFormattedString(e10sCheckbox.checked ?
-                                        "featureEnableRequiresRestart" : "featureDisableRequiresRestart",
-                                        [brandName]);
-    let title = bundle.getFormattedString("shouldRestartTitle", [brandName]);
-    let shouldProceed = Services.prompt.confirm(window, title, msg)
-    if (shouldProceed) {
-      let cancelQuit = Cc["@mozilla.org/supports-PRBool;1"]
-                         .createInstance(Ci.nsISupportsPRBool);
-      Services.obs.notifyObservers(cancelQuit, "quit-application-requested",
-                                   "restart");
-      shouldProceed = !cancelQuit.data;
-
-      if (shouldProceed) {
-        for (let prefToChange of prefsToChange) {
-          prefToChange.value = e10sCheckbox.checked;
-        }
-        if (!e10sCheckbox.checked) {
-          Services.prefs.setBoolPref("browser.requestE10sFeedback", true);
-          Services.prompt.alert(window, brandName, "After restart, a tab will open to input.mozilla.org where you can provide us feedback about your e10s experience.");
-        }
-        Services.startup.quit(Ci.nsIAppStartup.eAttemptQuit |  Ci.nsIAppStartup.eRestart);
-      }
-    }
-
-    // Revert the checkbox in case we didn't quit
-    e10sCheckbox.checked = e10sPref.value || e10sTempPref.value;
-  },
-#endif
-
-#ifdef MOZ_DEV_EDITION
-  separateProfileModeChange: function ()
-  {
-    function quitApp() {
-      Services.startup.quit(Ci.nsIAppStartup.eAttemptQuit |  Ci.nsIAppStartup.eRestartNotSameProfile);
-    }
-    function revertCheckbox(error) {
-      separateProfileModeCheckbox.checked = !separateProfileModeCheckbox.checked;
-      if (error) {
-        Cu.reportError("Failed to toggle separate profile mode: " + error);
-      }
-    }
-
-    const Cc = Components.classes, Ci = Components.interfaces;
-    let separateProfileModeCheckbox = document.getElementById("separateProfileMode");
-    let brandName = document.getElementById("bundleBrand").getString("brandShortName");
-    let bundle = document.getElementById("bundlePreferences");
-    let msg = bundle.getFormattedString(separateProfileModeCheckbox.checked ?
-                                        "featureEnableRequiresRestart" : "featureDisableRequiresRestart",
-                                        [brandName]);
-    let title = bundle.getFormattedString("shouldRestartTitle", [brandName]);
-    let shouldProceed = Services.prompt.confirm(window, title, msg)
-    if (shouldProceed) {
-      let cancelQuit = Cc["@mozilla.org/supports-PRBool;1"]
-                         .createInstance(Ci.nsISupportsPRBool);
-      Services.obs.notifyObservers(cancelQuit, "quit-application-requested",
-                                   "restart");
-      shouldProceed = !cancelQuit.data;
-
-      if (shouldProceed) {
-        Cu.import("resource://gre/modules/osfile.jsm");
-        let uAppData = OS.Constants.Path.userApplicationDataDir;
-        let ignoreSeparateProfile = OS.Path.join(uAppData, "ignore-dev-edition-profile");
-
-        if (separateProfileModeCheckbox.checked) {
-          OS.File.remove(ignoreSeparateProfile).then(quitApp, revertCheckbox);
-        } else {
-          OS.File.writeAtomic(ignoreSeparateProfile, new Uint8Array()).then(quitApp, revertCheckbox);
-        }
-        return;
-      }
-    }
-
-    // Revert the checkbox in case we didn't quit
-    revertCheckbox();
-  },
-
-  onGetStarted: function (aEvent) {
-    const Cc = Components.classes, Ci = Components.interfaces;
-    let wm = Cc["@mozilla.org/appshell/window-mediator;1"]
-                .getService(Ci.nsIWindowMediator);
-    let win = wm.getMostRecentWindow("navigator:browser");
-
-    if (win) {
-      let accountsTab = win.gBrowser.addTab("about:accounts");
-      win.gBrowser.selectedTab = accountsTab;
-    }
-  },
-#endif
 
   // HOME PAGE
 
@@ -324,14 +98,8 @@ var gMainPane = {
   setHomePageToBookmark: function ()
   {
     var rv = { urls: null, names: null };
-    var dialog = gSubDialog.open("chrome://browser/content/preferences/selectBookmark.xul",
-                                 "resizable=yes, modal=yes", rv,
-                                 this._setHomePageToBookmarkClosed.bind(this, rv));
-  },
-
-  _setHomePageToBookmarkClosed: function(rv, aEvent) {
-    if (aEvent.detail.button != "accept")
-      return;
+    openDialog("chrome://browser/content/preferences/selectBookmark.xul",
+               "Select Bookmark", "resizable=yes, modal=yes", rv);
     if (rv.urls && rv.names) {
       var homePage = document.getElementById("browser.startup.homepage");
 
@@ -407,6 +175,12 @@ var gMainPane = {
   /*
    * Preferences:
    *
+   * browser.download.showWhenStarting - bool
+   *   True if the Download Manager should be opened when a download is
+   *   started, false if it shouldn't be opened.
+   * browser.download.closeWhenDone - bool
+   *   True if the Download Manager should be closed when all downloads
+   *   complete, false if it should be left open.
    * browser.download.useDownloadDir - bool
    *   True - Save files directly to the folder configured via the
    *   browser.download.folderList preference.
@@ -435,6 +209,30 @@ var gMainPane = {
    */
 
   /**
+   * Updates preferences which depend upon the value of the preference which
+   * determines whether the Downloads manager is opened at the start of a
+   * download.
+   */
+  readShowDownloadsWhenStarting: function ()
+  {
+    this.showDownloadsWhenStartingPrefChanged();
+
+    // don't override the preference's value in UI
+    return undefined;
+  },
+
+  /**
+   * Enables or disables the "close Downloads manager when downloads finished"
+   * preference element, consequently updating the associated UI.
+   */
+  showDownloadsWhenStartingPrefChanged: function ()
+  {
+    var showWhenStartingPref = document.getElementById("browser.download.manager.showWhenStarting");
+    var closeWhenDonePref = document.getElementById("browser.download.manager.closeWhenDone");
+    closeWhenDonePref.disabled = !showWhenStartingPref.value;
+  },
+
+  /**
    * Enables/disables the folder field and Browse button based on whether a
    * default download directory is being used.
    */
@@ -460,29 +258,17 @@ var gMainPane = {
     const nsIFilePicker = Components.interfaces.nsIFilePicker;
     const nsILocalFile = Components.interfaces.nsILocalFile;
 
-    let bundlePreferences = document.getElementById("bundlePreferences");
-    let title = bundlePreferences.getString("chooseDownloadFolderTitle");
-    let folderListPref = document.getElementById("browser.download.folderList");
-    let currentDirPref = this._indexToFolder(folderListPref.value); // file
-    let defDownloads = this._indexToFolder(1); // file
-    let fp = Components.classes["@mozilla.org/filepicker;1"].
-             createInstance(nsIFilePicker);
-    let fpCallback = function fpCallback_done(aResult) {
-      if (aResult == nsIFilePicker.returnOK) {
-        let file = fp.file.QueryInterface(nsILocalFile);
-        let downloadDirPref = document.getElementById("browser.download.dir");
-
-        downloadDirPref.value = file;
-        folderListPref.value = this._folderToIndex(file);
-        // Note, the real prefs will not be updated yet, so dnld manager's
-        // userDownloadsDirectory may not return the right folder after
-        // this code executes. displayDownloadDirPref will be called on
-        // the assignment above to update the UI.
-      }
-    }.bind(this);
-
+    var fp = Components.classes["@mozilla.org/filepicker;1"]
+                       .createInstance(nsIFilePicker);
+    var bundlePreferences = document.getElementById("bundlePreferences");
+    var title = bundlePreferences.getString("chooseDownloadFolderTitle");
     fp.init(window, title, nsIFilePicker.modeGetFolder);
     fp.appendFilters(nsIFilePicker.filterAll);
+
+    var folderListPref = document.getElementById("browser.download.folderList");
+    var currentDirPref = this._indexToFolder(folderListPref.value); // file
+    var defDownloads = this._indexToFolder(1); // file
+
     // First try to open what's currently configured
     if (currentDirPref && currentDirPref.exists()) {
       fp.displayDirectory = currentDirPref;
@@ -493,7 +279,18 @@ var gMainPane = {
     else {
       fp.displayDirectory = this._indexToFolder(0);
     }
-    fp.open(fpCallback);
+
+    if (fp.show() == nsIFilePicker.returnOK) {
+      var file = fp.file.QueryInterface(nsILocalFile);
+      var currentDirPref = document.getElementById("browser.download.dir");
+      currentDirPref.value = file;
+      var folderListPref = document.getElementById("browser.download.folderList");
+      folderListPref.value = this._folderToIndex(file);
+      // Note, the real prefs will not be updated yet, so dnld manager's
+      // userDownloadsDirectory may not return the right folder after
+      // this code executes. displayDownloadDirPref will be called on
+      // the assignment above to update the UI.
+    }
   },
 
   /**
@@ -643,6 +440,14 @@ var gMainPane = {
   },
 
   /**
+   * Displays the Add-ons Manager.
+   */
+  showAddonsMgr: function ()
+  {
+    openUILinkIn("about:addons", "tab");
+  },
+
+  /**
    * Hide/show the "Show my windows and tabs from last time" option based
    * on the value of the browser.privatebrowsing.autostart pref.
    */
@@ -661,98 +466,5 @@ var gMainPane = {
       option.removeAttribute("disabled");
       startupPref.updateElements(); // select the correct index in the startup menulist
     }
-  },
-
-  // TABS
-
-  /*
-   * Preferences:
-   *
-   * browser.link.open_newwindow - int
-   *   Determines where links targeting new windows should open.
-   *   Values:
-   *     1 - Open in the current window or tab.
-   *     2 - Open in a new window.
-   *     3 - Open in a new tab in the most recent window.
-   * browser.tabs.loadInBackground - bool
-   *   True - Whether browser should switch to a new tab opened from a link.
-   * browser.tabs.warnOnClose - bool
-   *   True - If when closing a window with multiple tabs the user is warned and
-   *          allowed to cancel the action, false to just close the window.
-   * browser.tabs.warnOnOpen - bool
-   *   True - Whether the user should be warned when trying to open a lot of
-   *          tabs at once (e.g. a large folder of bookmarks), allowing to
-   *          cancel the action.
-   * browser.taskbar.previews.enable - bool
-   *   True - Tabs are to be shown in Windows 7 taskbar.
-   *   False - Only the window is to be shown in Windows 7 taskbar.
-   */
-
-  /**
-   * Determines where a link which opens a new window will open.
-   *
-   * @returns |true| if such links should be opened in new tabs
-   */
-  readLinkTarget: function() {
-    var openNewWindow = document.getElementById("browser.link.open_newwindow");
-    return openNewWindow.value != 2;
-  },
-
-  /**
-   * Determines where a link which opens a new window will open.
-   *
-   * @returns 2 if such links should be opened in new windows,
-   *          3 if such links should be opened in new tabs
-   */
-  writeLinkTarget: function() {
-    var linkTargeting = document.getElementById("linkTargeting");
-    return linkTargeting.checked ? 3 : 2;
   }
-
-#ifdef HAVE_SHELL_SERVICE
-  ,
-  /*
-   * Preferences:
-   *
-   * browser.shell.checkDefault
-   * - true if a default-browser check (and prompt to make it so if necessary)
-   *   occurs at startup, false otherwise
-   */
-
-  /**
-   * Show button for setting browser as default browser or information that
-   * browser is already the default browser.
-   */
-  updateSetDefaultBrowser: function()
-  {
-    let shellSvc = getShellService();
-    let defaultBrowserBox = document.getElementById("defaultBrowserBox");
-    if (!shellSvc) {
-      defaultBrowserBox.hidden = true;
-      return;
-    }
-    let setDefaultPane = document.getElementById("setDefaultPane");
-    let selectedIndex = shellSvc.isDefaultBrowser(false, true) ? 1 : 0;
-    setDefaultPane.selectedIndex = selectedIndex;
-  },
-
-  /**
-   * Set browser as the operating system default browser.
-   */
-  setDefaultBrowser: function()
-  {
-    let shellSvc = getShellService();
-    if (!shellSvc)
-      return;
-    try {
-      shellSvc.setDefaultBrowser(true, false);
-    } catch (ex) {
-      Cu.reportError(ex);
-      return;
-    }
-    let selectedIndex =
-      shellSvc.isDefaultBrowser(false, true) ? 1 : 0;
-    document.getElementById("setDefaultPane").selectedIndex = selectedIndex;
-  }
-#endif
 };

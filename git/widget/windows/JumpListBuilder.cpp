@@ -17,11 +17,12 @@
 #include "nsDirectoryServiceUtils.h"
 #include "nsISimpleEnumerator.h"
 #include "mozilla/Preferences.h"
+#include "imgIContainer.h"
+#include "imgITools.h"
 #include "nsStringStream.h"
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
 #include "mozilla/LazyIdleThread.h"
-#include "nsIObserverService.h"
 
 #include "WinUtils.h"
 
@@ -41,17 +42,15 @@ extern const wchar_t *gMozillaJumpListIDGeneric;
 bool JumpListBuilder::sBuildingList = false;
 const char kPrefTaskbarEnabled[] = "browser.taskbar.lists.enabled";
 
-NS_IMPL_ISUPPORTS(JumpListBuilder, nsIJumpListBuilder, nsIObserver)
-#define TOPIC_PROFILE_BEFORE_CHANGE "profile-before-change"
-#define TOPIC_CLEAR_PRIVATE_DATA "clear-private-data"
+NS_IMPL_ISUPPORTS2(JumpListBuilder, nsIJumpListBuilder, nsIObserver)
 
 JumpListBuilder::JumpListBuilder() :
   mMaxItems(0),
   mHasCommit(false)
 {
-  ::CoInitialize(nullptr);
+  ::CoInitialize(NULL);
   
-  CoCreateInstance(CLSID_DestinationList, nullptr, CLSCTX_INPROC_SERVER,
+  CoCreateInstance(CLSID_DestinationList, NULL, CLSCTX_INPROC_SERVER,
                    IID_ICustomDestinationList, getter_AddRefs(mJumpListMgr));
 
   // Make a lazy thread for any IO
@@ -59,17 +58,11 @@ JumpListBuilder::JumpListBuilder() :
                                  NS_LITERAL_CSTRING("Jump List"),
                                  LazyIdleThread::ManualShutdown);
   Preferences::AddStrongObserver(this, kPrefTaskbarEnabled);
-
-  nsCOMPtr<nsIObserverService> observerService =
-    do_GetService("@mozilla.org/observer-service;1");
-  if (observerService) {
-    observerService->AddObserver(this, TOPIC_PROFILE_BEFORE_CHANGE, false);
-    observerService->AddObserver(this, TOPIC_CLEAR_PRIVATE_DATA, false);
-  }
 }
 
 JumpListBuilder::~JumpListBuilder()
 {
+  mIOThread->Shutdown();
   Preferences::RemoveObserver(this, kPrefTaskbarEnabled);
   mJumpListMgr = nullptr;
   ::CoUninitialize();
@@ -135,9 +128,6 @@ NS_IMETHODIMP JumpListBuilder::InitListBuild(nsIMutableArray *removedItems, bool
 
   IObjectArray *objArray;
 
-  // The returned objArray of removed items are for manually removed items.
-  // This does not return items which are removed because they were previously
-  // part of the jump list but are no longer part of the jump list.
   if (SUCCEEDED(mJumpListMgr->BeginList(&mMaxItems, IID_PPV_ARGS(&objArray)))) {
     if (objArray) {
       TransferIObjectArrayToIMutableArray(objArray, removedItems);
@@ -185,7 +175,7 @@ nsresult JumpListBuilder::RemoveIconCacheForItems(nsIMutableArray *items)
           
           // The local file path is stored inside the nsIURI
           // Get the nsIURI spec which stores the local path for the icon to remove
-          nsAutoCString spec;
+          nsCAutoString spec;
           nsresult rv = uri->GetSpec(spec);
           NS_ENSURE_SUCCESS(rv, rv);
 
@@ -269,9 +259,8 @@ NS_IMETHODIMP JumpListBuilder::AddListToBuild(int16_t aCatType, nsIArray *items,
 
       HRESULT hr;
       nsRefPtr<IObjectCollection> collection;
-      hr = CoCreateInstance(CLSID_EnumerableObjectCollection, nullptr,
-                            CLSCTX_INPROC_SERVER, IID_IObjectCollection,
-                            getter_AddRefs(collection));
+      hr = CoCreateInstance(CLSID_EnumerableObjectCollection, NULL, CLSCTX_INPROC_SERVER,
+                            IID_IObjectCollection, getter_AddRefs(collection));
       if (FAILED(hr))
         return NS_ERROR_UNEXPECTED;
 
@@ -335,9 +324,8 @@ NS_IMETHODIMP JumpListBuilder::AddListToBuild(int16_t aCatType, nsIArray *items,
 
       HRESULT hr;
       nsRefPtr<IObjectCollection> collection;
-      hr = CoCreateInstance(CLSID_EnumerableObjectCollection, nullptr,
-                            CLSCTX_INPROC_SERVER, IID_IObjectCollection,
-                            getter_AddRefs(collection));
+      hr = CoCreateInstance(CLSID_EnumerableObjectCollection, NULL, CLSCTX_INPROC_SERVER,
+                            IID_IObjectCollection, getter_AddRefs(collection));
       if (FAILED(hr))
         return NS_ERROR_UNEXPECTED;
 
@@ -388,15 +376,9 @@ NS_IMETHODIMP JumpListBuilder::AddListToBuild(int16_t aCatType, nsIArray *items,
         return NS_ERROR_UNEXPECTED;
 
       // Add the tasks
-      hr = mJumpListMgr->AppendCategory(reinterpret_cast<const wchar_t*>(catName.BeginReading()), pArray);
+      hr = mJumpListMgr->AppendCategory(catName.BeginReading(), pArray);
       if (SUCCEEDED(hr))
         *_retval = true;
-
-      // Get rid of the old icons
-      nsCOMPtr<nsIRunnable> event =
-        new mozilla::widget::AsyncDeleteAllFaviconsFromDisk(true);
-      mIOThread->Dispatch(event, NS_DISPATCH_NORMAL);
-
       return NS_OK;
     }
     break;
@@ -519,19 +501,10 @@ nsresult JumpListBuilder::TransferIObjectArrayToIMutableArray(IObjectArray *objA
 }
 
 NS_IMETHODIMP JumpListBuilder::Observe(nsISupports* aSubject,
-                                       const char* aTopic,
-                                       const char16_t* aData)
+                                        const char* aTopic,
+                                        const PRUnichar* aData)
 {
-  NS_ENSURE_ARG_POINTER(aTopic);
-  if (strcmp(aTopic, TOPIC_PROFILE_BEFORE_CHANGE) == 0) {
-    nsCOMPtr<nsIObserverService> observerService =
-      do_GetService("@mozilla.org/observer-service;1");
-    if (observerService) {
-      observerService->RemoveObserver(this, TOPIC_PROFILE_BEFORE_CHANGE);
-    }
-    mIOThread->Shutdown();
-  } else if (strcmp(aTopic, "nsPref:changed") == 0 &&
-             nsDependentString(aData).EqualsASCII(kPrefTaskbarEnabled)) {
+  if (nsDependentString(aData).EqualsASCII(kPrefTaskbarEnabled)) {
     bool enabled = Preferences::GetBool(kPrefTaskbarEnabled, true);
     if (!enabled) {
       
@@ -539,11 +512,6 @@ NS_IMETHODIMP JumpListBuilder::Observe(nsISupports* aSubject,
         new mozilla::widget::AsyncDeleteAllFaviconsFromDisk();
       mIOThread->Dispatch(event, NS_DISPATCH_NORMAL);
     }
-  } else if (strcmp(aTopic, TOPIC_CLEAR_PRIVATE_DATA) == 0) {
-    // Delete JumpListCache icons from Disk, if any.
-    nsCOMPtr<nsIRunnable> event =
-      new mozilla::widget::AsyncDeleteAllFaviconsFromDisk(false);
-    mIOThread->Dispatch(event, NS_DISPATCH_NORMAL);
   }
   return NS_OK;
 }

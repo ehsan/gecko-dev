@@ -1,9 +1,6 @@
-/* Any copyright is dedicated to the Public Domain.
- * http://creativecommons.org/publicdomain/zero/1.0/ */
+var EXPORTED_SYMBOLS = ["CrashTestUtils"];
 
-this.EXPORTED_SYMBOLS = ["CrashTestUtils"];
-
-this.CrashTestUtils = {
+let CrashTestUtils = {
   // These will be defined using ctypes APIs below.
   crash: null,
   lockDir: null,
@@ -17,7 +14,6 @@ this.CrashTestUtils = {
   CRASH_RUNTIMEABORT:          2,
   CRASH_OOM:                   3,
   CRASH_MOZ_CRASH:             4,
-  CRASH_ABORT:                 5,
 
   // Constants for dumpHasStream()
   // From google_breakpad/common/minidump_format.h
@@ -26,9 +22,8 @@ this.CrashTestUtils = {
 };
 
 // Grab APIs from the testcrasher shared library
-Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/ctypes.jsm");
-let dir = Services.dirsvc.get("CurWorkD", Components.interfaces.nsILocalFile);
+let dir = __LOCATION__.parent;
 let file = dir.clone();
 file.append(ctypes.libraryName("testcrasher"));
 let lib = ctypes.open(file.path);
@@ -45,13 +40,6 @@ CrashTestUtils.lockDir = lib.declare("LockDir",
                                      ctypes.voidptr_t,   // nsILocalFile*
                                      ctypes.voidptr_t);  // nsISupports*
 
-
-try {
-  CrashTestUtils.TryOverrideExceptionHandler = lib.declare("TryOverrideExceptionHandler",
-                                                           ctypes.default_abi,
-                                                           ctypes.void_t);
-}
-catch(ex) {}
 
 CrashTestUtils.dumpHasStream = lib.declare("DumpHasStream",
                                            ctypes.default_abi,

@@ -14,7 +14,7 @@ interface nsIDOMNode;
  * tabs contained in them.
  */
 
-[scriptable, uuid(da9ffc70-d444-47d4-b4ab-df3fb0fd24d0)]
+[scriptable, uuid(766a09c1-d21b-4bf8-9fe3-8b34b716251a)]
 interface nsISessionStore : nsISupports
 {
   /**
@@ -32,16 +32,16 @@ interface nsISessionStore : nsISupports
    * Get closed tab data
    *
    * @param aWindow is the browser window for which to get closed tab data
-   * @returns a JS array of closed tabs.
+   * @returns a JSON string representing the list of closed tabs.
    */
-  jsval getClosedTabs(in nsIDOMWindow aWindow);
+  AString getClosedTabData(in nsIDOMWindow aWindow);
 
   /**
    * @param aWindow is the browser window to reopen a closed tab in.
-   * @param aCloseTabData is the data of the tab to be restored.
+   * @param aIndex  is the index of the tab to be restored (FIFO ordered).
    * @returns a reference to the reopened tab.
    */
-  nsIDOMNode undoCloseTab(in nsIDOMWindow aWindow, in jsval aCloseTabData);
+  nsIDOMNode undoCloseTab(in nsIDOMWindow aWindow, in unsigned long aIndex);
 
   /**
    * @param aWindow is the browser window associated with the closed tab.
@@ -71,16 +71,14 @@ interface nsISessionStore : nsISupports
   void deleteTabValue(in jsval aTab, in AString aKey);
 
   /**
-   * Restores the previous browser session using a fast, lightweight strategy
-   * @param aSessionString The session string to restore from. If null, the
-   *                       backup session file is read from.
+   * @returns A boolean indicating we should restore previous browser session
    */
-  void restoreLastSession(in AString aSessionString);
+  boolean shouldRestore();
 
   /**
-   * Removes a window from the current session history. Data from this window
-   * won't be saved when its closed.
-   * @param aWindow The window to remove
+   * Restores the previous browser session using a fast, lightweight strategy
+   * @param aBringToFront should a restored tab be brought to the foreground?
+   * @param aForceRestore  whether we need to force a restore, regardless of the recent crash situation
    */
-  void removeWindow(in nsIDOMWindow aWindow);
+  void restoreLastSession(in boolean aBringToFront, in boolean aForceRestore);
 };

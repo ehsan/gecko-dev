@@ -4,21 +4,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// HttpLog.h should generally be included first
-#include "HttpLog.h"
-
 #include "nsHttp.h"
 #include "pldhash.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/HashFunctions.h"
 #include "nsCRT.h"
+#include "prbit.h"
+
+using namespace mozilla;
 
 #if defined(PR_LOGGING)
 PRLogModuleInfo *gHttpLog = nullptr;
 #endif
-
-namespace mozilla {
-namespace net {
 
 // define storage for all atoms
 #define HTTP_ATOM(_name, _value) nsHttpAtom nsHttp::_name = { _value };
@@ -33,6 +30,8 @@ enum {
 };
 #undef HTTP_ATOM
 
+using namespace mozilla;
+
 // we keep a linked list of atoms allocated on the heap for easy clean up when
 // the atom table is destroyed.  The structure and value string are allocated
 // as one contiguous block.
@@ -42,7 +41,7 @@ struct HttpHeapAtom {
     char                 value[1];
 };
 
-static struct PLDHashTable  sAtomTable;
+static struct PLDHashTable  sAtomTable = {0};
 static struct HttpHeapAtom *sHeapAtoms = nullptr;
 static Mutex               *sLock = nullptr;
 
@@ -99,18 +98,17 @@ static const PLDHashTableOps ops = {
 nsresult
 nsHttp::CreateAtomTable()
 {
-    MOZ_ASSERT(!sAtomTable.ops, "atom table already initialized");
+    NS_ASSERTION(!sAtomTable.ops, "atom table already initialized");
 
     if (!sLock) {
         sLock = new Mutex("nsHttp.sLock");
     }
 
-    // The initial length for this table is a value greater than the number of
-    // known atoms (NUM_HTTP_ATOMS) because we expect to encounter a few random
-    // headers right off the bat.
-    if (!PL_DHashTableInit(&sAtomTable, &ops, nullptr,
-                           sizeof(PLDHashEntryStub),
-                           fallible_t(), NUM_HTTP_ATOMS + 10)) {
+    // The capacity for this table is initialized to a value greater than the
+    // number of known atoms (NUM_HTTP_ATOMS) because we expect to encounter a
+    // few random headers right off the bat.
+    if (!PL_DHashTableInit(&sAtomTable, &ops, nullptr, sizeof(PLDHashEntryStub),
+                           NUM_HTTP_ATOMS + 10)) {
         sAtomTable.ops = nullptr;
         return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -128,8 +126,8 @@ nsHttp::CreateAtomTable()
                                                  (PL_DHashTableOperate(&sAtomTable, atoms[i], PL_DHASH_ADD));
         if (!stub)
             return NS_ERROR_OUT_OF_MEMORY;
-
-        MOZ_ASSERT(!stub->key, "duplicate static atom");
+        
+        NS_ASSERTION(!stub->key, "duplicate static atom");
         stub->key = atoms[i];
     }
 
@@ -243,24 +241,6 @@ nsHttp::IsValidToken(const char *start, const char *end)
     return true;
 }
 
-// static
-bool
-nsHttp::IsReasonableHeaderValue(const nsACString &s)
-{
-  // Header values MUST NOT contain line-breaks.  RFC 2616 technically
-  // permits CTL characters, including CR and LF, in header values provided
-  // they are quoted.  However, this can lead to problems if servers do not
-  // interpret quoted strings properly.  Disallowing CR and LF here seems
-  // reasonable and keeps things simple.  We also disallow a null byte.
-  const nsACString::char_type* end = s.EndReading();
-  for (const nsACString::char_type* i = s.BeginReading(); i != end; ++i) {
-    if (*i == '\r' || *i == '\n' || *i == '\0') {
-      return false;
-    }
-  }
-  return true;
-}
-
 const char *
 nsHttp::FindToken(const char *input, const char *token, const char *seps)
 {
@@ -306,168 +286,3 @@ nsHttp::ParseInt64(const char *input, const char **next, int64_t *r)
         *next = input;
     return true;
 }
-
-bool
-nsHttp::IsPermanentRedirect(uint32_t httpStatus)
-{
-  return httpStatus == 301 || httpStatus == 308;
-}
-
-
-template<typename T> void
-localEnsureBuffer(nsAutoArrayPtr<T> &buf, uint32_t newSize,
-             uint32_t preserve, uint32_t &objSize)
-{
-  if (objSize >= newSize)
-    return;
-
-  // Leave a little slop on the new allocation - add 2KB to
-  // what we need and then round the result up to a 4KB (page)
-  // boundary.
-
-  objSize = (newSize + 2048 + 4095) & ~4095;
-
-  static_assert(sizeof(T) == 1, "sizeof(T) must be 1");
-  nsAutoArrayPtr<T> tmp(new T[objSize]);
-  if (preserve) {
-    memcpy(tmp, buf, preserve);
-  }
-  buf = tmp;
-}
-
-void EnsureBuffer(nsAutoArrayPtr<char> &buf, uint32_t newSize,
-                  uint32_t preserve, uint32_t &objSize)
-{
-    localEnsureBuffer<char> (buf, newSize, preserve, objSize);
-}
-
-void EnsureBuffer(nsAutoArrayPtr<uint8_t> &buf, uint32_t newSize,
-                  uint32_t preserve, uint32_t &objSize)
-{
-    localEnsureBuffer<uint8_t> (buf, newSize, preserve, objSize);
-}
-///
-
-void
-ParsedHeaderValueList::Tokenize(char *input, uint32_t inputLen, char **token,
-                                uint32_t *tokenLen, bool *foundEquals, char **next)
-{
-    if (foundEquals) {
-        *foundEquals = false;
-    }
-    if (next) {
-        *next = nullptr;
-    }
-    if (inputLen < 1 || !input || !token) {
-        return;
-    }
-
-    bool foundFirst = false;
-    bool inQuote = false;
-    bool foundToken = false;
-    *token = input;
-    *tokenLen = inputLen;
-
-    for (uint32_t index = 0; !foundToken && index < inputLen; ++index) {
-        // strip leading cruft
-        if (!foundFirst &&
-            (input[index] == ' ' || input[index] == '"' || input[index] == '\t')) {
-            (*token)++;
-        } else {
-            foundFirst = true;
-        }
-
-        if (input[index] == '"') {
-            inQuote = !inQuote;
-            continue;
-        }
-
-        if (inQuote) {
-            continue;
-        }
-
-        if (input[index] == '=' || input[index] == ';') {
-            *tokenLen = (input + index) - *token;
-            if (next && ((index + 1) < inputLen)) {
-                *next = input + index + 1;
-            }
-            foundToken = true;
-            if (foundEquals && input[index] == '=') {
-                *foundEquals = true;
-            }
-            break;
-        }
-    }
-
-    if (!foundToken) {
-        *tokenLen = (input + inputLen) - *token;
-    }
-
-    // strip trailing cruft
-    for (char *index = *token + *tokenLen - 1; index >= *token; --index) {
-        if (*index != ' ' && *index != '\t' && *index != '"') {
-            break;
-        }
-        --(*tokenLen);
-        if (*index == '"') {
-            break;
-        }
-    }
-}
-
-ParsedHeaderValueList::ParsedHeaderValueList(char *t, uint32_t len)
-{
-    char *name = nullptr;
-    uint32_t nameLen = 0;
-    char *value = nullptr;
-    uint32_t valueLen = 0;
-    char *next = nullptr;
-    bool foundEquals;
-
-    while (t) {
-        Tokenize(t, len, &name, &nameLen, &foundEquals, &next);
-        if (next) {
-            len -= next - t;
-        }
-        t = next;
-        if (foundEquals && t) {
-            Tokenize(t, len, &value, &valueLen, nullptr, &next);
-            if (next) {
-                len -= next - t;
-            }
-            t = next;
-        }
-        mValues.AppendElement(ParsedHeaderPair(name, nameLen, value, valueLen));
-        value = name = nullptr;
-        valueLen = nameLen = 0;
-        next = nullptr;
-    }
-}
-
-ParsedHeaderValueListList::ParsedHeaderValueListList(const nsCString &fullHeader)
-    : mFull(fullHeader)
-{
-    char *t = mFull.BeginWriting();
-    uint32_t len = mFull.Length();
-    char *last = t;
-    bool inQuote = false;
-    for (uint32_t index = 0; index < len; ++index) {
-        if (t[index] == '"') {
-            inQuote = !inQuote;
-            continue;
-        }
-        if (inQuote) {
-            continue;
-        }
-        if (t[index] == ',') {
-            mValues.AppendElement(ParsedHeaderValueList(last, (t + index) - last));
-            last = t + index + 1;
-        }
-    }
-    if (!inQuote) {
-        mValues.AppendElement(ParsedHeaderValueList(last, (t + len) - last));
-    }
-}
-
-} // namespace mozilla::net
-} // namespace mozilla

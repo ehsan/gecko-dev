@@ -11,29 +11,14 @@ namespace mozilla {
 namespace layers {
 
 class TargetConfig;
-class LayerTransactionParent;
-class AsyncCompositionManager;
-class APZTestData;
+class ShadowLayersParent;
 
 class ShadowLayersManager
 {
 public:
-    virtual void ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
-                                     const uint64_t& aTransactionId,
+    virtual void ShadowLayersUpdated(ShadowLayersParent* aLayerTree,
                                      const TargetConfig& aTargetConfig,
-                                     bool aIsFirstPaint,
-                                     bool aScheduleComposite,
-                                     uint32_t aPaintSequenceNumber,
-                                     bool aIsRepeatTransaction) = 0;
-
-    virtual AsyncCompositionManager* GetCompositionManager(LayerTransactionParent* aLayerTree) { return nullptr; }
-
-    virtual void ForceComposite(LayerTransactionParent* aLayerTree) { }
-    virtual bool SetTestSampleTime(LayerTransactionParent* aLayerTree,
-                                   const TimeStamp& aTime) { return true; }
-    virtual void LeaveTestMode(LayerTransactionParent* aLayerTree) { }
-    virtual void GetAPZTestData(const LayerTransactionParent* aLayerTree,
-                                APZTestData* aOutData) { }
+                                     bool isFirstPaint) = 0;
 };
 
 } // layers

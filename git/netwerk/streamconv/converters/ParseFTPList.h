@@ -2,13 +2,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#ifndef ParseRTPList_h___
-#define ParseRTPList_h___
-
-#include <stdint.h>
-#include <string.h>
-#include "prtime.h"
+#include "nspr.h"
 
 /* ParseFTPList() parses lines from an FTP LIST command.
 **
@@ -71,10 +65,7 @@
 
 struct list_state
 {
-  list_state() {
-    memset(this, 0, sizeof(*this));
-  }
-
+  void           *magic;        /* to determine if previously initialized */
   PRTime         now_time;      /* needed for year determination */
   PRExplodedTime now_tm;        /* needed for year determination */
   int32_t        lstyle;        /* LISTing style */
@@ -97,8 +88,7 @@ struct list_result
                                   /* (converting all-upcase names may be desirable) */
 };
 
-int ParseFTPList(const char *line,
+int ParseFTPList(const char *line, 
                  struct list_state *state,
                  struct list_result *result );
 
-#endif /* !ParseRTPList_h___ */

@@ -7,11 +7,19 @@
 #include "mozilla/RangedPtr.h"
 
 #include "nsURLHelper.h"
+#include "nsReadableUtils.h"
+#include "nsIServiceManager.h"
+#include "nsIIOService.h"
 #include "nsIFile.h"
 #include "nsIURLParser.h"
+#include "nsIURI.h"
+#include "nsMemory.h"
+#include "nsEscape.h"
 #include "nsCOMPtr.h"
 #include "nsCRT.h"
 #include "nsNetCID.h"
+#include "netCore.h"
+#include "prprf.h"
 #include "prnetdb.h"
 
 using namespace mozilla;
@@ -99,7 +107,7 @@ net_GetStdURLParser()
 nsresult
 net_GetURLSpecFromDir(nsIFile *aFile, nsACString &result)
 {
-    nsAutoCString escPath;
+    nsCAutoString escPath;
     nsresult rv = net_GetURLSpecFromActualFile(aFile, escPath);
     if (NS_FAILED(rv))
         return rv;
@@ -115,7 +123,7 @@ net_GetURLSpecFromDir(nsIFile *aFile, nsACString &result)
 nsresult
 net_GetURLSpecFromFile(nsIFile *aFile, nsACString &result)
 {
-    nsAutoCString escPath;
+    nsCAutoString escPath;
     nsresult rv = net_GetURLSpecFromActualFile(aFile, escPath);
     if (NS_FAILED(rv))
         return rv;
@@ -388,12 +396,12 @@ net_ResolveRelativePath(const nsACString &relativePath,
                         const nsACString &basePath,
                         nsACString &result)
 {
-    nsAutoCString name;
-    nsAutoCString path(basePath);
+    nsCAutoString name;
+    nsCAutoString path(basePath);
     bool needsDelim = false;
 
     if ( !path.IsEmpty() ) {
-        char16_t last = path.Last();
+        PRUnichar last = path.Last();
         needsDelim = !(last == '/');
     }
 
@@ -614,7 +622,7 @@ net_FilterURIString(const char *str, nsACString& result)
     return writing;
 }
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) || defined(XP_OS2)
 bool
 net_NormalizeFileURL(const nsACString &aURL, nsCString &aResultBuf)
 {
@@ -873,7 +881,7 @@ net_ParseMediaType(const nsACString &aMediaTypeStr,
     // include a comma, so this check makes us a bit more tolerant.
 
     if (type != typeEnd && strncmp(type, "*/*", typeEnd - type) != 0 &&
-        memchr(type, '/', typeEnd - type) != nullptr) {
+        memchr(type, '/', typeEnd - type) != NULL) {
         // Common case here is that aContentType is empty
         bool eq = !aContentType.IsEmpty() &&
             aContentType.Equals(Substring(type, typeEnd),
@@ -1008,7 +1016,7 @@ net_IsValidHostName(const nsCSubstring &host)
         return true;
 
     // Might be a valid IPv6 link-local address containing a percent sign
-    nsAutoCString strhost(host);
+    nsCAutoString strhost(host);
     PRNetAddr addr;
     return PR_StringToNetAddr(strhost.get(), &addr) == PR_SUCCESS;
 }

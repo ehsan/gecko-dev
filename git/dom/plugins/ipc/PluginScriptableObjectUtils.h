@@ -112,7 +112,7 @@ ReleaseRemoteVariant(Variant& aVariant)
     }
 
     case Variant::TPPluginScriptableObjectChild: {
-      NS_ASSERTION(XRE_GetProcessType() == GeckoProcessType_Plugin,
+      NS_ASSERTION(PluginModuleChild::current(),
                    "Should only be running in the child!");
       PluginScriptableObjectChild* actor =
         const_cast<PluginScriptableObjectChild*>(
@@ -258,7 +258,7 @@ template<class ActorType, class Traits=ProtectedActorTraits<ActorType> >
 class ProtectedActor
 {
 public:
-  explicit ProtectedActor(ActorType* aActor) : mActor(aActor)
+  ProtectedActor(ActorType* aActor) : mActor(aActor)
   {
     if (!Traits::Nullable()) {
       NS_ASSERTION(mActor, "This should never be null!");

@@ -4,30 +4,24 @@
 
 package org.mozilla.gecko.sync.setup.activities;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.fxa.FirefoxAccounts;
-import org.mozilla.gecko.fxa.FxAccountConstants;
-import org.mozilla.gecko.fxa.activities.FxAccountGetStartedActivity;
-import org.mozilla.gecko.fxa.activities.FxAccountStatusActivity;
-import org.mozilla.gecko.fxa.authenticator.AndroidFxAccount;
-import org.mozilla.gecko.fxa.login.State.Action;
 import org.mozilla.gecko.sync.CommandProcessor;
 import org.mozilla.gecko.sync.CommandRunner;
+import org.mozilla.gecko.sync.CredentialException;
+import org.mozilla.gecko.sync.GlobalConstants;
 import org.mozilla.gecko.sync.GlobalSession;
+import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.SyncConfiguration;
-import org.mozilla.gecko.sync.SyncConstants;
+import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.repositories.NullCursorException;
 import org.mozilla.gecko.sync.repositories.android.ClientsDatabaseAccessor;
 import org.mozilla.gecko.sync.repositories.domain.ClientRecord;
+import org.mozilla.gecko.sync.setup.Constants;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
-import org.mozilla.gecko.LocaleAware.LocaleAwareActivity;
+import org.mozilla.gecko.sync.setup.SyncAccounts.SyncAccountParameters;
+import org.mozilla.gecko.sync.stage.SyncClientsEngineStage;
 import org.mozilla.gecko.sync.syncadapter.SyncAdapter;
 
 import android.accounts.Account;
@@ -40,222 +34,52 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ListView;
-import android.widget.TextView;
 import android.widget.Toast;
 
-public class SendTabActivity extends LocaleAwareActivity {
-  private interface TabSender {
-    public static final String[] STAGES_TO_SYNC = new String[] { "clients", "tabs" };
-
-    /**
-     * @return Return null if the account isn't correctly initialized. Return
-     *         the account GUID otherwise.
-     */
-    String getAccountGUID();
-
-    /**
-     * Sync this account, specifying only clients and tabs as the engines to sync.
-     */
-    void sync();
-  }
-
-  private static class FxAccountTabSender implements TabSender {
-    private final AndroidFxAccount fxAccount;
-
-    public FxAccountTabSender(Context context, AndroidFxAccount fxAccount) {
-      this.fxAccount = fxAccount;
-    }
-
-    @Override
-    public String getAccountGUID() {
-      try {
-        final SharedPreferences prefs = this.fxAccount.getSyncPrefs();
-        return prefs.getString(SyncConfiguration.PREF_ACCOUNT_GUID, null);
-      } catch (Exception e) {
-        Logger.warn(LOG_TAG, "Could not get Firefox Account parameters or preferences; aborting.");
-        return null;
-      }
-    }
-
-    @Override
-    public void sync() {
-      fxAccount.requestSync(FirefoxAccounts.FORCE, STAGES_TO_SYNC, null);
-    }
-  }
-
-  private static class Sync11TabSender implements TabSender {
-    private final Account account;
-    private final AccountManager accountManager;
-    private final Context context;
-
-    private Sync11TabSender(Context context, Account syncAccount, AccountManager accountManager) {
-      this.context = context;
-      this.account = syncAccount;
-      this.accountManager = accountManager;
-    }
-
-    @Override
-    public String getAccountGUID() {
-      try {
-        final SharedPreferences prefs = SyncAccounts.blockingPrefsFromDefaultProfileV0(this.context, this.accountManager, this.account);
-        return prefs.getString(SyncConfiguration.PREF_ACCOUNT_GUID, null);
-      } catch (Exception e) {
-        Logger.warn(LOG_TAG, "Could not get Sync account parameters or preferences; aborting.");
-        return null;
-      }
-    }
-
-    @Override
-    public void sync() {
-      SyncAdapter.requestImmediateSync(this.account, STAGES_TO_SYNC);
-    }
-  }
-
+public class SendTabActivity extends Activity {
   public static final String LOG_TAG = "SendTabActivity";
   private ClientRecordArrayAdapter arrayAdapter;
-
-  private TabSender tabSender;
-  private SendTabData sendTabData;
+  private AccountManager accountManager;
+  private Account localAccount;
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
+    setTheme(R.style.SyncTheme);
     super.onCreate(savedInstanceState);
-
-    try {
-      sendTabData = getSendTabData(getIntent());
-    } catch (IllegalArgumentException e) {
-      notifyAndFinish(false);
-      return;
-    }
-
-    setContentView(R.layout.sync_send_tab);
-
-    final ListView listview = (ListView) findViewById(R.id.device_list);
-    listview.setItemsCanFocus(true);
-    listview.setTextFilterEnabled(true);
-    listview.setChoiceMode(ListView.CHOICE_MODE_MULTIPLE);
-
-    arrayAdapter = new ClientRecordArrayAdapter(this, R.layout.sync_list_item);
-    listview.setAdapter(arrayAdapter);
-
-    TextView textView = (TextView) findViewById(R.id.title);
-    textView.setText(sendTabData.title);
-
-    textView = (TextView) findViewById(R.id.uri);
-    textView.setText(sendTabData.uri);
-
-    enableSend(false);
-
-    // Sending will be enabled in onResume, if appropriate.
-  }
-
-  protected static SendTabData getSendTabData(Intent intent) throws IllegalArgumentException {
-    if (intent == null) {
-      Logger.warn(LOG_TAG, "intent was null; aborting without sending tab.");
-      throw new IllegalArgumentException();
-    }
-
-    Bundle extras = intent.getExtras();
-    if (extras == null) {
-      Logger.warn(LOG_TAG, "extras was null; aborting without sending tab.");
-      throw new IllegalArgumentException();
-    }
-
-    SendTabData sendTabData = SendTabData.fromBundle(extras);
-    if (sendTabData == null) {
-      Logger.warn(LOG_TAG, "send tab data was null; aborting without sending tab.");
-      throw new IllegalArgumentException();
-    }
-
-    if (sendTabData.uri == null) {
-      Logger.warn(LOG_TAG, "uri was null; aborting without sending tab.");
-      throw new IllegalArgumentException();
-    }
-
-    if (sendTabData.title == null) {
-      Logger.warn(LOG_TAG, "title was null; ignoring and sending tab anyway.");
-    }
-
-    return sendTabData;
-  }
-
-  /**
-   * Ensure that the view's list of clients is backed by a recently populated
-   * array adapter.
-   */
-  protected synchronized void updateClientList(final TabSender sender, final ClientRecordArrayAdapter adapter) {
-    // Fetching the client list hits the clients database, so we spin this onto
-    // a background task.
-    new AsyncTask<Void, Void, Collection<ClientRecord>>() {
-
-      @Override
-      protected Collection<ClientRecord> doInBackground(Void... params) {
-        return getOtherClients(sender);
-      }
-
-      @Override
-      protected void onPostExecute(final Collection<ClientRecord> clientArray) {
-        // We're allowed to update the UI from here.
-
-        Logger.debug(LOG_TAG, "Got " + clientArray.size() + " clients.");
-        adapter.setClientRecordList(clientArray);
-        if (clientArray.size() == 1) {
-          adapter.checkItem(0, true);
-        }
-
-        enableSend(adapter.getNumCheckedGUIDs() > 0);
-      }
-    }.execute();
   }
 
   @Override
   public void onResume() {
-    ActivityUtils.prepareLogging();
     Logger.info(LOG_TAG, "Called SendTabActivity.onResume.");
     super.onResume();
 
-    /*
-     * First, decide if we are able to send anything.
-     */
-    final Context applicationContext = getApplicationContext();
-    final AccountManager accountManager = AccountManager.get(applicationContext);
+    redirectIfNoSyncAccount();
+    registerDisplayURICommand();
 
-    final Account[] fxAccounts = accountManager.getAccountsByType(FxAccountConstants.ACCOUNT_TYPE);
-    if (fxAccounts.length > 0) {
-      final AndroidFxAccount fxAccount = new AndroidFxAccount(applicationContext, fxAccounts[0]);
-      if (fxAccount.getState().getNeededAction() != Action.None) {
-        // We have a Firefox Account, but it's definitely not able to send a tab
-        // right now. Redirect to the status activity.
-        Logger.warn(LOG_TAG, "Firefox Account named like " + fxAccount.getObfuscatedEmail() +
-            " needs action before it can send a tab; redirecting to status activity.");
-        redirectToNewTask(FxAccountStatusActivity.class, false);
-        return;
+    setContentView(R.layout.sync_send_tab);
+    final ListView listview = (ListView) findViewById(R.id.device_list);
+    listview.setItemsCanFocus(true);
+    listview.setTextFilterEnabled(true);
+    listview.setChoiceMode(ListView.CHOICE_MODE_MULTIPLE);
+    enableSend(false);
+
+    // Fetching the client list hits the clients database, so we spin this onto
+    // a background task.
+    final Context context = this;
+    new AsyncTask<Void, Void, ClientRecord[]>() {
+
+      @Override
+      protected ClientRecord[] doInBackground(Void... params) {
+        return getClientArray();
       }
 
-      this.tabSender = new FxAccountTabSender(applicationContext, fxAccount);
-
-      // will enableSend if appropriate.
-      updateClientList(tabSender, this.arrayAdapter);
-
-      Logger.info(LOG_TAG, "Allowing tab send for Firefox Account.");
-      registerDisplayURICommand();
-      return;
-    }
-
-    final Account[] syncAccounts = accountManager.getAccountsByType(SyncConstants.ACCOUNTTYPE_SYNC);
-    if (syncAccounts.length > 0) {
-      this.tabSender = new Sync11TabSender(applicationContext, syncAccounts[0], accountManager);
-
-      // will enableSend if appropriate.
-      updateClientList(tabSender, this.arrayAdapter);
-
-      Logger.info(LOG_TAG, "Allowing tab send for Sync account.");
-      registerDisplayURICommand();
-      return;
-    }
-
-    // Offer to set up a Firefox Account, and finish this activity.
-    redirectToNewTask(FxAccountGetStartedActivity.class, false);
+      @Override
+      protected void onPostExecute(final ClientRecord[] clientArray) {
+        // We're allowed to update the UI from here.
+        arrayAdapter = new ClientRecordArrayAdapter(context, R.layout.sync_list_item, clientArray);
+        listview.setAdapter(arrayAdapter);
+      }
+    }.execute();
   }
 
   private static void registerDisplayURICommand() {
@@ -268,21 +92,77 @@ public class SendTabActivity extends LocaleAwareActivity {
     });
   }
 
+  private void redirectIfNoSyncAccount() {
+    accountManager = AccountManager.get(getApplicationContext());
+    Account[] accts = accountManager.getAccountsByType(GlobalConstants.ACCOUNTTYPE_SYNC);
+
+    // A Sync account exists.
+    if (accts.length > 0) {
+      localAccount = accts[0];
+      return;
+    }
+
+    Intent intent = new Intent(this, RedirectToSetupActivity.class);
+    intent.setFlags(Constants.FLAG_ACTIVITY_REORDER_TO_FRONT_NO_ANIMATION);
+    startActivity(intent);
+    finish();
+  }
+
+  /**
+   * @return Return null if there is no account set up. Return the account GUID otherwise.
+   */
+  private String getAccountGUID() {
+    if (localAccount == null) {
+      Logger.warn(LOG_TAG, "Null local account; aborting.");
+      return null;
+    }
+
+    SyncAccountParameters params;
+    try {
+      params = SyncAccounts.blockingFromAndroidAccountV0(this, accountManager, localAccount);
+    } catch (CredentialException e) {
+      Logger.warn(LOG_TAG, "Could not get sync account parameters; aborting.");
+      return null;
+    }
+
+    SharedPreferences prefs;
+    try {
+      final String product = GlobalConstants.BROWSER_INTENT_PACKAGE;
+      final String profile = Constants.DEFAULT_PROFILE;
+      final long version = SyncConfiguration.CURRENT_PREFS_VERSION;
+      prefs = Utils.getSharedPreferences(getApplicationContext(), product, params.username, params.serverURL, profile, version);
+      return prefs.getString(SyncConfiguration.PREF_ACCOUNT_GUID, null);
+    } catch (Exception e) {
+      return null;
+    }
+  }
+
   public void sendClickHandler(View view) {
     Logger.info(LOG_TAG, "Send was clicked.");
-    final List<String> remoteClientGuids = arrayAdapter.getCheckedGUIDs();
-
-    if (remoteClientGuids == null) {
-      // Should never happen.
-      Logger.warn(LOG_TAG, "guids was null; aborting without sending tab.");
+    Bundle extras = this.getIntent().getExtras();
+    if (extras == null) {
+      Logger.warn(LOG_TAG, "extras was null; aborting without sending tab.");
       notifyAndFinish(false);
       return;
     }
 
-    final TabSender sender = this.tabSender;
-    if (sender == null) {
-      // This should never happen.
-      Logger.warn(LOG_TAG, "tabSender was null; aborting without sending tab.");
+    final String uri = extras.getString(Intent.EXTRA_TEXT);
+    final String title = extras.getString(Intent.EXTRA_SUBJECT);
+    final List<String> guids = arrayAdapter.getCheckedGUIDs();
+
+    if (title == null) {
+      Logger.warn(LOG_TAG, "title was null; ignoring and sending tab anyway.");
+    }
+
+    if (uri == null) {
+      Logger.warn(LOG_TAG, "uri was null; aborting without sending tab.");
+      notifyAndFinish(false);
+      return;
+    }
+
+    if (guids == null) {
+      // Should never happen.
+      Logger.warn(LOG_TAG, "guids was null; aborting without sending tab.");
       notifyAndFinish(false);
       return;
     }
@@ -295,18 +175,18 @@ public class SendTabActivity extends LocaleAwareActivity {
       protected Boolean doInBackground(Void... params) {
         final CommandProcessor processor = CommandProcessor.getProcessor();
 
-        final String accountGUID = sender.getAccountGUID();
+        final String accountGUID = getAccountGUID();
         Logger.debug(LOG_TAG, "Retrieved local account GUID '" + accountGUID + "'.");
         if (accountGUID == null) {
           return false;
         }
 
-        for (String remoteClientGuid : remoteClientGuids) {
-          processor.sendURIToClientForDisplay(sendTabData.uri, remoteClientGuid, sendTabData.title, accountGUID, getApplicationContext());
+        for (String guid : guids) {
+          processor.sendURIToClientForDisplay(uri, guid, title, accountGUID, getApplicationContext());
         }
 
         Logger.info(LOG_TAG, "Requesting immediate clients stage sync.");
-        sender.sync();
+        SyncAdapter.requestImmediateSync(localAccount, new String[] { SyncClientsEngineStage.COLLECTION_NAME });
 
         return true;
       }
@@ -314,7 +194,7 @@ public class SendTabActivity extends LocaleAwareActivity {
       @Override
       protected void onPostExecute(final Boolean success) {
         // We're allowed to update the UI from here.
-        notifyAndFinish(success);
+        notifyAndFinish(success.booleanValue());
       }
     }.execute();
   }
@@ -347,58 +227,16 @@ public class SendTabActivity extends LocaleAwareActivity {
     sendButton.setClickable(shouldEnable);
   }
 
-  /**
-   * @return a map from GUID to client record, including our own.
-   */
-  protected Map<String, ClientRecord> getAllClients() {
+  protected ClientRecord[] getClientArray() {
     ClientsDatabaseAccessor db = new ClientsDatabaseAccessor(this.getApplicationContext());
+
     try {
-      return db.fetchAllClients();
+      return db.fetchAllClients().values().toArray(new ClientRecord[0]);
     } catch (NullCursorException e) {
       Logger.warn(LOG_TAG, "NullCursorException while populating device list.", e);
       return null;
     } finally {
       db.close();
     }
-  }
-
-  /**
-   * @return a collection of client records, excluding our own.
-   */
-  protected Collection<ClientRecord> getOtherClients(final TabSender sender) {
-    if (sender == null) {
-      Logger.warn(LOG_TAG, "No tab sender when fetching other client IDs.");
-      return new ArrayList<ClientRecord>(0);
-    }
-
-    final Map<String, ClientRecord> all = getAllClients();
-    if (all == null) {
-      return new ArrayList<ClientRecord>(0);
-    }
-
-    final String ourGUID = sender.getAccountGUID();
-    if (ourGUID == null) {
-      return all.values();
-    }
-
-    final ArrayList<ClientRecord> out = new ArrayList<ClientRecord>(all.size());
-    for (Entry<String, ClientRecord> entry : all.entrySet()) {
-      if (ourGUID.equals(entry.getKey())) {
-        continue;
-      }
-      out.add(entry.getValue());
-    }
-    return out;
-  }
-
-  // Adapted from FxAccountAbstractActivity.
-  protected void redirectToNewTask(Class<? extends Activity> activityClass, boolean success) {
-    Intent intent = new Intent(this, activityClass);
-    // Per http://stackoverflow.com/a/8992365, this triggers a known bug with
-    // the soft keyboard not being shown for the started activity. Why, Android, why?
-    intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
-    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-    startActivity(intent);
-    notifyAndFinish(success);
   }
 }

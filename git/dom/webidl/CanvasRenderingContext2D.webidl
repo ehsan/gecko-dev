@@ -11,173 +11,148 @@
  * and create derivative works of this document.
  */
 
-enum CanvasWindingRule { "nonzero", "evenodd" };
-
-dictionary ContextAttributes2D {
-  // whether or not we're planning to do a lot of readback operations
-  boolean willReadFrequently = false;
-  // signal if the canvas contains an alpha channel
-  boolean alpha = true;
-};
-
-dictionary HitRegionOptions {
-  DOMString id = "";
-  Element? control = null;
-};
+interface CanvasGradient;
+interface CanvasPattern;
+interface HitRegionOptions;
+interface HTMLCanvasElement;
+interface HTMLImageElement;
+interface HTMLVideoElement;
+interface ImageData;
+interface TextMetrics;
+interface Window;
+interface XULElement;
 
 interface CanvasRenderingContext2D {
 
-  // back-reference to the canvas.  Might be null if we're not
-  // associated with a canvas.
-  readonly attribute HTMLCanvasElement? canvas;
+  // back-reference to the canvas
+  [Infallible]
+  readonly attribute HTMLCanvasElement canvas;
 
   // state
+  [Infallible]
   void save(); // push state on state stack
+  [Infallible]
   void restore(); // pop state stack and restore state
 
   // transformations (default transform is the identity matrix)
 // NOT IMPLEMENTED           attribute SVGMatrix currentTransform;
-  [Throws, LenientFloat]
   void scale(double x, double y);
-  [Throws, LenientFloat]
   void rotate(double angle);
-  [Throws, LenientFloat]
   void translate(double x, double y);
-  [Throws, LenientFloat]
   void transform(double a, double b, double c, double d, double e, double f);
-  [Throws, LenientFloat]
   void setTransform(double a, double b, double c, double d, double e, double f);
-  [Throws]
-  void resetTransform();
+// NOT IMPLEMENTED  void resetTransform();
 
   // compositing
-           attribute unrestricted double globalAlpha; // (default 1.0)
-           [Throws]
+           [Infallible]
+           attribute double globalAlpha; // (default 1.0)
            attribute DOMString globalCompositeOperation; // (default source-over)
 
   // colors and styles (see also the CanvasDrawingStyles interface)
-           attribute (DOMString or CanvasGradient or CanvasPattern) strokeStyle; // (default black)
-           attribute (DOMString or CanvasGradient or CanvasPattern) fillStyle; // (default black)
-  [NewObject]
+           [SetterInfallible]
+           attribute any strokeStyle; // (default black)
+           [SetterInfallible]
+           attribute any fillStyle; // (default black)
   CanvasGradient createLinearGradient(double x0, double y0, double x1, double y1);
-  [NewObject, Throws]
   CanvasGradient createRadialGradient(double x0, double y0, double r0, double x1, double y1, double r1);
-  [NewObject, Throws]
-  CanvasPattern createPattern((HTMLImageElement or HTMLCanvasElement or HTMLVideoElement) image, [TreatNullAs=EmptyString] DOMString repetition);
+  CanvasPattern createPattern((HTMLImageElement or HTMLCanvasElement or HTMLVideoElement) image, DOMString? repetition);
 
   // shadows
-           [LenientFloat]
+           [Infallible]
            attribute double shadowOffsetX; // (default 0)
-           [LenientFloat]
+           [Infallible]
            attribute double shadowOffsetY; // (default 0)
-           [LenientFloat]
+           [Infallible]
            attribute double shadowBlur; // (default 0)
+           [Infallible]
            attribute DOMString shadowColor; // (default transparent black)
 
-  [Pref="canvas.filters.enabled", SetterThrows]
-  attribute DOMString filter; // (default empty string = no filter)
-
   // rects
-  [LenientFloat]
+  [Infallible]
   void clearRect(double x, double y, double w, double h);
-  [LenientFloat]
+  [Infallible]
   void fillRect(double x, double y, double w, double h);
-  [LenientFloat]
+  [Infallible]
   void strokeRect(double x, double y, double w, double h);
 
   // path API (see also CanvasPathMethods)
+  [Infallible]
   void beginPath();
-  void fill(optional CanvasWindingRule winding = "nonzero");
-  void fill(Path2D path, optional CanvasWindingRule winding = "nonzero");
+  [Infallible]
+  void fill();
+// NOT IMPLEMENTED  void fill(Path path);
+  [Infallible]
   void stroke();
-  void stroke(Path2D path);
-  [Pref="canvas.focusring.enabled"] void drawFocusIfNeeded(Element element);
-// NOT IMPLEMENTED  void drawSystemFocusRing(Path path, HTMLElement element);
-  [Pref="canvas.customfocusring.enabled"] boolean drawCustomFocusRing(Element element);
-// NOT IMPLEMENTED  boolean drawCustomFocusRing(Path path, HTMLElement element);
+// NOT IMPLEMENTED  void stroke(Path path);
+// NOT IMPLEMENTED  void drawSystemFocusRing(Element element);
+// NOT IMPLEMENTED  void drawSystemFocusRing(Path path, Element element);
+// NOT IMPLEMENTED  boolean drawCustomFocusRing(Element element);
+// NOT IMPLEMENTED  boolean drawCustomFocusRing(Path path, Element element);
 // NOT IMPLEMENTED  void scrollPathIntoView();
 // NOT IMPLEMENTED  void scrollPathIntoView(Path path);
-  void clip(optional CanvasWindingRule winding = "nonzero");
-  void clip(Path2D path, optional CanvasWindingRule winding = "nonzero");
+  [Infallible]
+  void clip();
+// NOT IMPLEMENTED  void clip(Path path);
 // NOT IMPLEMENTED  void resetClip();
-  boolean isPointInPath(unrestricted double x, unrestricted double y, optional CanvasWindingRule winding = "nonzero");
-  boolean isPointInPath(Path2D path, unrestricted double x, unrestricted double y, optional CanvasWindingRule winding = "nonzero");
-  boolean isPointInStroke(double x, double y);
-  boolean isPointInStroke(Path2D path, unrestricted double x, unrestricted double y);
+  [Infallible]
+  boolean isPointInPath(double x, double y);
+// NOT IMPLEMENTED  boolean isPointInPath(Path path, double x, double y);
 
   // text (see also the CanvasDrawingStyles interface)
-  [Throws, LenientFloat]
   void fillText(DOMString text, double x, double y, optional double maxWidth);
-  [Throws, LenientFloat]
   void strokeText(DOMString text, double x, double y, optional double maxWidth);
-  [NewObject, Throws]
   TextMetrics measureText(DOMString text);
 
   // drawing images
 // NOT IMPLEMENTED           attribute boolean imageSmoothingEnabled; // (default true)
-  [Throws, LenientFloat]
   void drawImage((HTMLImageElement or HTMLCanvasElement or HTMLVideoElement) image, double dx, double dy);
-  [Throws, LenientFloat]
   void drawImage((HTMLImageElement or HTMLCanvasElement or HTMLVideoElement) image, double dx, double dy, double dw, double dh);
-  [Throws, LenientFloat]
   void drawImage((HTMLImageElement or HTMLCanvasElement or HTMLVideoElement) image, double sx, double sy, double sw, double sh, double dx, double dy, double dw, double dh);
 
   // hit regions
-  [Pref="canvas.hitregions.enabled", Throws] void addHitRegion(optional HitRegionOptions options);
-  [Pref="canvas.hitregions.enabled"] void removeHitRegion(DOMString id);
+// NOT IMPLEMENTED  void addHitRegion(HitRegionOptions options);
 
   // pixel manipulation
-  [NewObject, Throws]
-  ImageData createImageData(double sw, double sh);
-  [NewObject, Throws]
-  ImageData createImageData(ImageData imagedata);
-  [NewObject, Throws]
-  ImageData getImageData(double sx, double sy, double sw, double sh);
-  [Throws]
+  [Creator] ImageData createImageData(double sw, double sh);
+  [Creator] ImageData createImageData(ImageData imagedata);
+  [Creator] ImageData getImageData(double sx, double sy, double sw, double sh);
   void putImageData(ImageData imagedata, double dx, double dy);
-  [Throws]
   void putImageData(ImageData imagedata, double dx, double dy, double dirtyX, double dirtyY, double dirtyWidth, double dirtyHeight);
 
   // Mozilla-specific stuff
   // FIXME Bug 768048 mozCurrentTransform/mozCurrentTransformInverse should return a WebIDL array.
-  [Throws]
   attribute object mozCurrentTransform; // [ m11, m12, m21, m22, dx, dy ], i.e. row major
-  [Throws]
   attribute object mozCurrentTransformInverse;
 
+  [Infallible]
   attribute DOMString mozFillRule; /* "evenodd", "nonzero" (default) */
 
-  [Throws]
   attribute any mozDash; /* default |null| */
 
-  [LenientFloat]
+  [Infallible]
   attribute double mozDashOffset; /* default 0.0 */
 
-  [SetterThrows]
+  [GetterInfallible]
   attribute DOMString mozTextStyle;
 
   // image smoothing mode -- if disabled, images won't be smoothed
   // if scaled.
+  [Infallible]
   attribute boolean mozImageSmoothingEnabled;
 
   // Show the caret if appropriate when drawing
-  [ChromeOnly]
   const unsigned long DRAWWINDOW_DRAW_CARET   = 0x01;
   // Don't flush pending layout notifications that could otherwise
   // be batched up
-  [ChromeOnly]
   const unsigned long DRAWWINDOW_DO_NOT_FLUSH = 0x02;
   // Draw scrollbars and scroll the viewport if they are present
-  [ChromeOnly]
   const unsigned long DRAWWINDOW_DRAW_VIEW    = 0x04;
   // Use the widget layer manager if available. This means hardware
   // acceleration may be used, but it might actually be slower or
   // lower quality than normal. It will however more accurately reflect
   // the pixels rendered to the screen.
-  [ChromeOnly]
   const unsigned long DRAWWINDOW_USE_WIDGET_LAYERS = 0x08;
   // Don't synchronously decode images - draw what we have
-  [ChromeOnly]
   const unsigned long DRAWWINDOW_ASYNC_DECODE_IMAGES = 0x10;
 
   /**
@@ -214,20 +189,14 @@ interface CanvasRenderingContext2D {
    *
    * This API cannot currently be used by Web content. It is chrome
    * only.
+   * FIXME Bug 767931 - Mark drawWindow and asyncDrawXULElement as ChromeOnly
+   *                    in WebIDL
    */
-  [Throws, ChromeOnly]
   void drawWindow(Window window, double x, double y, double w, double h,
                   DOMString bgColor, optional unsigned long flags = 0);
-  [Throws, ChromeOnly]
   void asyncDrawXULElement(XULElement elem, double x, double y, double w,
                            double h, DOMString bgColor,
                            optional unsigned long flags = 0);
-  /**
-   * This causes a context that is currently using a hardware-accelerated
-   * backend to fallback to a software one. All state should be preserved.
-   */
-  [ChromeOnly]
-  void demote();
 };
 CanvasRenderingContext2D implements CanvasDrawingStyles;
 CanvasRenderingContext2D implements CanvasPathMethods;
@@ -235,99 +204,53 @@ CanvasRenderingContext2D implements CanvasPathMethods;
 [NoInterfaceObject]
 interface CanvasDrawingStyles {
   // line caps/joins
-           [LenientFloat]
+           [Infallible]
            attribute double lineWidth; // (default 1)
+           [Infallible]
            attribute DOMString lineCap; // "butt", "round", "square" (default "butt")
-           [GetterThrows]
+           [SetterInfallible]
            attribute DOMString lineJoin; // "round", "bevel", "miter" (default "miter")
-           [LenientFloat]
+           [Infallible]
            attribute double miterLimit; // (default 10)
 
   // dashed lines
-    [LenientFloat] void setLineDash(sequence<double> segments); // default empty
-    sequence<double> getLineDash();
-    [LenientFloat] attribute double lineDashOffset;
+// NOT IMPLEMENTED    void setLineDash(sequence<double> segments); // default empty
+// NOT IMPLEMENTED    sequence<double> getLineDash();
+// NOT IMPLEMENTED             attribute double lineDashOffset;
 
   // text
-           [SetterThrows]
+           [GetterInfallible]
            attribute DOMString font; // (default 10px sans-serif)
+           [Infallible]
            attribute DOMString textAlign; // "start", "end", "left", "right", "center" (default: "start")
+           [Infallible]
            attribute DOMString textBaseline; // "top", "hanging", "middle", "alphabetic", "ideographic", "bottom" (default: "alphabetic")
 };
 
 [NoInterfaceObject]
 interface CanvasPathMethods {
   // shared path API methods
+  [Infallible]
   void closePath();
-  [LenientFloat]
+
+  [Infallible]
   void moveTo(double x, double y);
-  [LenientFloat]
+
+  [Infallible]
   void lineTo(double x, double y);
-  [LenientFloat]
+
+  [Infallible]
   void quadraticCurveTo(double cpx, double cpy, double x, double y);
 
-  [LenientFloat]
+  [Infallible]
   void bezierCurveTo(double cp1x, double cp1y, double cp2x, double cp2y, double x, double y);
 
-  [Throws, LenientFloat]
   void arcTo(double x1, double y1, double x2, double y2, double radius); 
-// NOT IMPLEMENTED  [LenientFloat] void arcTo(double x1, double y1, double x2, double y2, double radiusX, double radiusY, double rotation);
+// NOT IMPLEMENTED  void arcTo(double x1, double y1, double x2, double y2, double radiusX, double radiusY, double rotation);
 
-  [LenientFloat]
+  [Infallible]
   void rect(double x, double y, double w, double h);
 
-  [Throws, LenientFloat]
   void arc(double x, double y, double radius, double startAngle, double endAngle, optional boolean anticlockwise = false); 
-// NOT IMPLEMENTED  [LenientFloat] void ellipse(double x, double y, double radiusX, double radiusY, double rotation, double startAngle, double endAngle, boolean anticlockwise);
+// NOT IMPLEMENTED  void ellipse(double x, double y, double radiusX, double radiusY, double rotation, double startAngle, double endAngle, boolean anticlockwise);
 };
-
-interface CanvasGradient {
-  // opaque object
-  [Throws]
-  // addColorStop should take a double
-  void addColorStop(float offset, DOMString color);
-};
-
-interface CanvasPattern {
-  // opaque object
-  // [Throws, LenientFloat] - could not do this overload because of bug 1020975
-  // void setTransform(double a, double b, double c, double d, double e, double f);
-
-  // No throw necessary here - SVGMatrix is always good.
-  void setTransform(SVGMatrix matrix);
-};
-
-interface TextMetrics {
-
-  // x-direction
-  readonly attribute double width; // advance width
-
-  /*
-   * NOT IMPLEMENTED YET
-
-  readonly attribute double actualBoundingBoxLeft;
-  readonly attribute double actualBoundingBoxRight;
-
-  // y-direction
-  readonly attribute double fontBoundingBoxAscent;
-  readonly attribute double fontBoundingBoxDescent;
-  readonly attribute double actualBoundingBoxAscent;
-  readonly attribute double actualBoundingBoxDescent;
-  readonly attribute double emHeightAscent;
-  readonly attribute double emHeightDescent;
-  readonly attribute double hangingBaseline;
-  readonly attribute double alphabeticBaseline;
-  readonly attribute double ideographicBaseline;
-  */
-
-};
-
-[Pref="canvas.path.enabled",
- Constructor,
- Constructor(Path2D other),
- Constructor(DOMString pathString)]
-interface Path2D
-{
-  void addPath(Path2D path, optional SVGMatrix transformation);
-};
-Path2D implements CanvasPathMethods;

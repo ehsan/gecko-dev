@@ -11,63 +11,61 @@
 #define nsHTMLCSSStyleSheet_h_
 
 #include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
 
-#include "nsDataHashtable.h"
+#include "nsIStyleSheet.h"
 #include "nsIStyleRuleProcessor.h"
 
-class nsRuleWalker;
-struct MiscContainer;
-
-namespace mozilla {
-namespace dom {
-class Element;
-}
-}
-
-class nsHTMLCSSStyleSheet MOZ_FINAL : public nsIStyleRuleProcessor
-{
+class nsHTMLCSSStyleSheet MOZ_FINAL : public nsIStyleSheet,
+                                      public nsIStyleRuleProcessor {
 public:
   nsHTMLCSSStyleSheet();
 
   NS_DECL_ISUPPORTS
 
-  // nsIStyleRuleProcessor
-  virtual void RulesMatching(ElementRuleProcessorData* aData) MOZ_OVERRIDE;
-  virtual void RulesMatching(PseudoElementRuleProcessorData* aData) MOZ_OVERRIDE;
-  virtual void RulesMatching(AnonBoxRuleProcessorData* aData) MOZ_OVERRIDE;
-#ifdef MOZ_XUL
-  virtual void RulesMatching(XULTreeRuleProcessorData* aData) MOZ_OVERRIDE;
+  nsresult Init(nsIURI* aURL, nsIDocument* aDocument);
+  void Reset(nsIURI* aURL);
+
+  // nsIStyleSheet
+  virtual nsIURI* GetSheetURI() const;
+  virtual nsIURI* GetBaseURI() const;
+  virtual void GetTitle(nsString& aTitle) const;
+  virtual void GetType(nsString& aType) const;
+  virtual bool HasRules() const;
+  virtual bool IsApplicable() const;
+  virtual void SetEnabled(bool aEnabled);
+  virtual bool IsComplete() const;
+  virtual void SetComplete();
+  virtual nsIStyleSheet* GetParentSheet() const;  // will be null
+  virtual nsIDocument* GetOwningDocument() const;
+  virtual void SetOwningDocument(nsIDocument* aDocument);
+#ifdef DEBUG
+  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const;
 #endif
-  virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData) MOZ_OVERRIDE;
-  virtual nsRestyleHint HasStateDependentStyle(PseudoElementStateRuleProcessorData* aData) MOZ_OVERRIDE;
-  virtual bool HasDocumentStateDependentStyle(StateRuleProcessorData* aData) MOZ_OVERRIDE;
+
+  // nsIStyleRuleProcessor
+  virtual void RulesMatching(ElementRuleProcessorData* aData);
+  virtual void RulesMatching(PseudoElementRuleProcessorData* aData);
+  virtual void RulesMatching(AnonBoxRuleProcessorData* aData);
+#ifdef MOZ_XUL
+  virtual void RulesMatching(XULTreeRuleProcessorData* aData);
+#endif
+  virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
+  virtual bool HasDocumentStateDependentStyle(StateRuleProcessorData* aData);
   virtual nsRestyleHint
-    HasAttributeDependentStyle(AttributeRuleProcessorData* aData) MOZ_OVERRIDE;
-  virtual bool MediumFeaturesChanged(nsPresContext* aPresContext) MOZ_OVERRIDE;
-  virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf)
-    const MOZ_MUST_OVERRIDE MOZ_OVERRIDE;
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
-    const MOZ_MUST_OVERRIDE MOZ_OVERRIDE;
-
-  // Variant of RulesMatching method above that is specific to this
-  // rule processor.
-  void ElementRulesMatching(nsPresContext* aPresContext,
-                            mozilla::dom::Element* aElement,
-                            nsRuleWalker* aRuleWalker);
-
-  void CacheStyleAttr(const nsAString& aSerialized, MiscContainer* aValue);
-  void EvictStyleAttr(const nsAString& aSerialized, MiscContainer* aValue);
-  MiscContainer* LookupStyleAttr(const nsAString& aSerialized);
+    HasAttributeDependentStyle(AttributeRuleProcessorData* aData);
+  virtual bool MediumFeaturesChanged(nsPresContext* aPresContext);
+  virtual NS_MUST_OVERRIDE size_t
+    SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
+  virtual NS_MUST_OVERRIDE size_t
+    SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
 private: 
-  ~nsHTMLCSSStyleSheet();
-
   nsHTMLCSSStyleSheet(const nsHTMLCSSStyleSheet& aCopy) MOZ_DELETE;
   nsHTMLCSSStyleSheet& operator=(const nsHTMLCSSStyleSheet& aCopy) MOZ_DELETE;
 
 protected:
-  nsDataHashtable<nsStringHashKey, MiscContainer*> mCachedStyleAttrs;
+  nsCOMPtr<nsIURI> mURL;
+  nsIDocument*     mDocument;
 };
 
 #endif /* !defined(nsHTMLCSSStyleSheet_h_) */

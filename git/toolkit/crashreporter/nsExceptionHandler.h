@@ -6,10 +6,12 @@
 #ifndef nsExceptionHandler_h__
 #define nsExceptionHandler_h__
 
-#include <stddef.h>
-#include <stdint.h>
-#include "nsError.h"
+#include "nscore.h"
+#include "nsDataHashtable.h"
+#include "nsXPCOM.h"
 #include "nsStringGlue.h"
+
+#include "nsIFile.h"
 
 #if defined(XP_WIN32)
 #ifdef WIN32_LEAN_AND_MEAN
@@ -22,41 +24,9 @@
 #include <mach/mach.h>
 #endif
 
-#if defined(XP_LINUX)
-#include <signal.h>
-#endif
-
-class nsIFile;
-template<class KeyClass, class DataType> class nsDataHashtable;
-class nsCStringHashKey;
-
 namespace CrashReporter {
 nsresult SetExceptionHandler(nsIFile* aXREDirectory, bool force=false);
 nsresult UnsetExceptionHandler();
-
-/**
- * Tell the crash reporter to recalculate where crash events files should go.
- * SetCrashEventsDir is used before XPCOM is initialized from the startup
- * code.
- *
- * UpdateCrashEventsDir uses the directory service to re-set the
- * crash event directory based on the current profile.
- *
- * 1. If environment variable is present, use it. We don't expect
- *    the environment variable except for tests and other atypical setups.
- * 2. <profile>/crashes/events
- * 3. <UAppData>/Crash Reports/events
- */
-void SetUserAppDataDirectory(nsIFile* aDir);
-void SetProfileDirectory(nsIFile* aDir);
-void UpdateCrashEventsDir();
-void SetMemoryReportFile(nsIFile* aFile);
-
-/**
- * Get the path where crash event files should be written.
- */
-bool     GetCrashEventsDir(nsAString& aPath);
-
 bool     GetEnabled();
 bool     GetServerURL(nsACString& aServerURL);
 nsresult SetServerURL(const nsACString& aServerURL);
@@ -64,16 +34,13 @@ bool     GetMinidumpPath(nsAString& aPath);
 nsresult SetMinidumpPath(const nsAString& aPath);
 
 
-// AnnotateCrashReport, RemoveCrashReportAnnotation and
-// AppendAppNotesToCrashReport may be called from any thread in a chrome
-// process, but may only be called from the main thread in a content process.
+// AnnotateCrashReport and AppendAppNotesToCrashReport may be called from any
+// thread in a chrome process, but may only be called from the main thread in
+// a content process.
 nsresult AnnotateCrashReport(const nsACString& key, const nsACString& data);
-nsresult RemoveCrashReportAnnotation(const nsACString& key);
 nsresult AppendAppNotesToCrashReport(const nsACString& data);
 
-void AnnotateOOMAllocationSize(size_t size);
 nsresult SetGarbageCollecting(bool collecting);
-void SetEventloopNestingLevel(uint32_t level);
 
 nsresult SetRestartArgs(int argc, char** argv);
 nsresult SetupExtraData(nsIFile* aAppDataDirectory,
@@ -93,14 +60,9 @@ bool GetExtraFileForID(const nsAString& id, nsIFile** extraFile);
 bool GetExtraFileForMinidump(nsIFile* minidump, nsIFile** extraFile);
 bool AppendExtraData(const nsAString& id, const AnnotationTable& data);
 bool AppendExtraData(nsIFile* extraFile, const AnnotationTable& data);
-void RenameAdditionalHangMinidump(nsIFile* minidump, nsIFile* childMinidump,
-                                  const nsACString& name);
 
 #ifdef XP_WIN32
   nsresult WriteMinidumpForException(EXCEPTION_POINTERS* aExceptionInfo);
-#endif
-#ifdef XP_LINUX
-  bool WriteMinidumpForSigInfo(int signo, siginfo_t* info, void* uc);
 #endif
 #ifdef XP_MACOSX
   nsresult AppendObjCExceptionInfoToAppNotes(void *inException);
@@ -111,18 +73,16 @@ nsresult SetSubmitReports(bool aSubmitReport);
 // Out-of-process crash reporter API.
 
 // Initializes out-of-process crash reporting. This method must be called
-// before the platform-specific notification pipe APIs are called. If called
-// from off the main thread, this method will synchronously proxy to the main
-// thread.
+// before the platform-specifi notificationpipe APIs are called.
 void OOPInit();
 
 // Return true if a dump was found for |childPid|, and return the
 // path in |dump|.  The caller owns the last reference to |dump| if it
-// is non-nullptr. The sequence parameter will be filled with an ordinal
+// is non-NULL. The sequence parameter will be filled with an ordinal
 // indicating which remote process crashed first.
 bool TakeMinidumpForChild(uint32_t childPid,
                           nsIFile** dump,
-                          uint32_t* aSequence = nullptr);
+                          uint32_t* aSequence = NULL);
 
 #if defined(XP_WIN)
 typedef HANDLE ProcessHandle;
@@ -143,28 +103,18 @@ typedef int ThreadId;
 // hoops for us.
 ThreadId CurrentThreadId();
 
-// Create a hang report with two minidumps that are snapshots of the state
-// of this parent process and |childPid|. The "main" minidump will be the
-// child process, and this parent process will have the -browser extension.
+// Create new minidumps that are snapshots of the state of this parent
+// process and |childPid|.  Return true on success along with the
+// minidumps and a new UUID that can be used to correlate the dumps.
 //
-// Returns true on success. If this function fails, it will attempt to delete
-// any files that were created.
-//
-// The .extra information created will not include an additional_minidumps
-// annotation: the caller should annotate additional_minidumps with
-// at least "browser" and perhaps other minidumps attached to this report.
+// If this function fails, it's the caller's responsibility to clean
+// up |childDump| and |parentDump|.  Either or both can be created and
+// returned non-null on failure.
 bool CreatePairedMinidumps(ProcessHandle childPid,
                            ThreadId childBlamedThread,
-                           nsIFile** childDump);
-
-// Create an additional minidump for a child of a process which already has
-// a minidump (|parentMinidump|).
-// The resulting dump will get the id of the parent and use the |name| as
-// an extension.
-bool CreateAdditionalChildMinidump(ProcessHandle childPid,
-                                   ThreadId childBlamedThread,
-                                   nsIFile* parentMinidump,
-                                   const nsACString& name);
+                           nsAString* pairGUID,
+                           nsIFile** childDump,
+                           nsIFile** parentDump);
 
 #  if defined(XP_WIN32) || defined(XP_MACOSX)
 // Parent-side API for children
@@ -224,10 +174,18 @@ bool UnsetRemoteExceptionHandler();
 // info about the shared libraries that are mapped into these anonymous
 // mappings.
 void AddLibraryMapping(const char* library_name,
+                       const char* file_id,
                        uintptr_t   start_address,
                        size_t      mapping_length,
                        size_t      file_offset);
 
+void AddLibraryMappingForChild(uint32_t    childPid,
+                               const char* library_name,
+                               const char* file_id,
+                               uintptr_t   start_address,
+                               size_t      mapping_length,
+                               size_t      file_offset);
+void RemoveLibraryMappingsForChild(uint32_t childPid);
 #endif
 }
 

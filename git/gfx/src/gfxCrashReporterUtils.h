@@ -24,7 +24,7 @@ namespace mozilla {
 class NS_GFX ScopedGfxFeatureReporter
 {
 public:
-  explicit ScopedGfxFeatureReporter(const char *aFeature, bool force = false)
+  ScopedGfxFeatureReporter(const char *aFeature, bool force = false)
     : mFeature(aFeature), mStatusChar('-')
   {
     WriteAppNote(force ? '!' : '?');

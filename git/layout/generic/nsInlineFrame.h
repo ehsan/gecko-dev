@@ -8,12 +8,19 @@
 #ifndef nsInlineFrame_h___
 #define nsInlineFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsContainerFrame.h"
+#include "nsLineLayout.h"
 
-class nsLineLayout;
+/**  In Bidi left (or right) margin/padding/border should be applied to left
+ *  (or right) most frame (or a continuation frame).
+ *  This state value shows if this frame is left (or right) most continuation
+ *  or not.
+ */
+#define NS_INLINE_FRAME_BIDI_VISUAL_STATE_IS_SET     NS_FRAME_STATE_BIT(21)
 
-typedef nsContainerFrame nsInlineFrameBase;
+#define NS_INLINE_FRAME_BIDI_VISUAL_IS_LEFT_MOST     NS_FRAME_STATE_BIT(22)
+
+#define NS_INLINE_FRAME_BIDI_VISUAL_IS_RIGHT_MOST    NS_FRAME_STATE_BIT(23)
 
 /**
  * Inline frame class.
@@ -21,99 +28,89 @@ typedef nsContainerFrame nsInlineFrameBase;
  * This class manages a list of child frames that are inline frames. Working with
  * nsLineLayout, the class will reflow and place inline frames on a line.
  */
-class nsInlineFrame : public nsInlineFrameBase
+class nsInlineFrame : public nsContainerFrame
 {
 public:
   NS_DECL_QUERYFRAME_TARGET(nsInlineFrame)
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
-  friend nsInlineFrame* NS_NewInlineFrame(nsIPresShell* aPresShell,
-                                          nsStyleContext* aContext);
+  friend nsIFrame* NS_NewInlineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+
+  /** sets defaults for inline-specific style.
+    * @see nsIFrame::Init
+    */
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
 
   // nsIFrame overrides
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists);
 
 #ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
+  virtual already_AddRefed<Accessible> CreateAccessible();
 #endif
 
-#ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+#ifdef DEBUG
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
+  virtual bool IsFrameOfType(uint32_t aFlags) const
   {
-    if (aFlags & eSupportsCSSTransforms) {
-      return false;
-    }
     return nsContainerFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eBidiInlineContainer | nsIFrame::eLineParticipant));
   }
 
-  virtual void InvalidateFrame(uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
-  virtual void InvalidateFrameWithRect(const nsRect& aRect, uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
+  virtual bool IsEmpty();
+  virtual bool IsSelfEmpty();
 
-  virtual bool IsEmpty() MOZ_OVERRIDE;
-  virtual bool IsSelfEmpty() MOZ_OVERRIDE;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
-  virtual FrameSearchResult PeekOffsetCharacter(bool aForward, int32_t* aOffset,
-                                     bool aRespectClusters = true) MOZ_OVERRIDE;
+  virtual bool PeekOffsetCharacter(bool aForward, int32_t* aOffset,
+                                     bool aRespectClusters = true);
   
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
-
   // nsIHTMLReflow overrides
-  virtual void AddInlineMinISize(nsRenderingContext *aRenderingContext,
-                                 InlineMinISizeData *aData) MOZ_OVERRIDE;
-  virtual void AddInlinePrefISize(nsRenderingContext *aRenderingContext,
-                                  InlinePrefISizeData *aData) MOZ_OVERRIDE;
-  virtual mozilla::LogicalSize
-  ComputeSize(nsRenderingContext *aRenderingContext,
-              mozilla::WritingMode aWritingMode,
-              const mozilla::LogicalSize& aCBSize,
-              nscoord aAvailableISize,
-              const mozilla::LogicalSize& aMargin,
-              const mozilla::LogicalSize& aBorder,
-              const mozilla::LogicalSize& aPadding,
-              ComputeSizeFlags aFlags) MOZ_OVERRIDE;
-  virtual nsRect ComputeTightBounds(gfxContext* aContext) const MOZ_OVERRIDE;
-  virtual void Reflow(nsPresContext* aPresContext,
-                      nsHTMLReflowMetrics& aDesiredSize,
-                      const nsHTMLReflowState& aReflowState,
-                      nsReflowStatus& aStatus) MOZ_OVERRIDE;
+  virtual void AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+                                 InlineMinWidthData *aData);
+  virtual void AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+                                  InlinePrefWidthData *aData);
+  virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
+                             nsSize aCBSize, nscoord aAvailableWidth,
+                             nsSize aMargin, nsSize aBorder, nsSize aPadding,
+                             uint32_t aFlags) MOZ_OVERRIDE;
+  virtual nsRect ComputeTightBounds(gfxContext* aContext) const;
+  NS_IMETHOD Reflow(nsPresContext* aPresContext,
+                    nsHTMLReflowMetrics& aDesiredSize,
+                    const nsHTMLReflowState& aReflowState,
+                    nsReflowStatus& aStatus);
 
-  virtual nsresult AttributeChanged(int32_t aNameSpaceID,
-                                    nsIAtom* aAttribute,
-                                    int32_t aModType) MOZ_OVERRIDE;
+  virtual bool CanContinueTextRun() const;
 
-  virtual bool CanContinueTextRun() const MOZ_OVERRIDE;
-
-  virtual void PullOverflowsFromPrevInFlow() MOZ_OVERRIDE;
-  virtual nscoord GetLogicalBaseline(mozilla::WritingMode aWritingMode) const MOZ_OVERRIDE;
-  virtual bool DrainSelfOverflowList() MOZ_OVERRIDE;
+  virtual void PullOverflowsFromPrevInFlow();
+  virtual nscoord GetBaseline() const;
 
   /**
-   * Return true if the frame is first visual frame or first continuation
+   * Return true if the frame is leftmost frame or continuation.
    */
-  bool IsFirst() const {
-    // If the frame's bidi visual state is set, return is-first state
+  bool IsLeftMost() const {
+    // If the frame's bidi visual state is set, return is-leftmost state
     // else return true if it's the first continuation.
     return (GetStateBits() & NS_INLINE_FRAME_BIDI_VISUAL_STATE_IS_SET)
-             ? !!(GetStateBits() & NS_INLINE_FRAME_BIDI_VISUAL_IS_FIRST)
+             ? !!(GetStateBits() & NS_INLINE_FRAME_BIDI_VISUAL_IS_LEFT_MOST)
              : (!GetPrevInFlow());
   }
 
   /**
-   * Return true if the frame is last visual frame or last continuation.
+   * Return true if the frame is rightmost frame or continuation.
    */
-  bool IsLast() const {
-    // If the frame's bidi visual state is set, return is-last state
+  bool IsRightMost() const {
+    // If the frame's bidi visual state is set, return is-rightmost state
     // else return true if it's the last continuation.
     return (GetStateBits() & NS_INLINE_FRAME_BIDI_VISUAL_STATE_IS_SET)
-             ? !!(GetStateBits() & NS_INLINE_FRAME_BIDI_VISUAL_IS_LAST)
+             ? !!(GetStateBits() & NS_INLINE_FRAME_BIDI_VISUAL_IS_RIGHT_MOST)
              : (!GetNextInFlow());
   }
 
@@ -136,21 +133,21 @@ protected:
     }
   };
 
-  explicit nsInlineFrame(nsStyleContext* aContext) : nsContainerFrame(aContext) {}
+  nsInlineFrame(nsStyleContext* aContext) : nsContainerFrame(aContext) {}
 
-  virtual LogicalSides GetLogicalSkipSides(const nsHTMLReflowState* aReflowState = nullptr) const MOZ_OVERRIDE;
+  virtual int GetSkipSides() const;
 
-  void ReflowFrames(nsPresContext* aPresContext,
-                    const nsHTMLReflowState& aReflowState,
-                    InlineReflowState& rs,
-                    nsHTMLReflowMetrics& aMetrics,
-                    nsReflowStatus& aStatus);
+  nsresult ReflowFrames(nsPresContext* aPresContext,
+                        const nsHTMLReflowState& aReflowState,
+                        InlineReflowState& rs,
+                        nsHTMLReflowMetrics& aMetrics,
+                        nsReflowStatus& aStatus);
 
-  void ReflowInlineFrame(nsPresContext* aPresContext,
-                         const nsHTMLReflowState& aReflowState,
-                         InlineReflowState& rs,
-                         nsIFrame* aFrame,
-                         nsReflowStatus& aStatus);
+  nsresult ReflowInlineFrame(nsPresContext* aPresContext,
+                             const nsHTMLReflowState& aReflowState,
+                             InlineReflowState& rs,
+                             nsIFrame* aFrame,
+                             nsReflowStatus& aStatus);
 
   /**
    * Reparent floats whose placeholders are inline descendants of aFrame from
@@ -170,25 +167,6 @@ protected:
                           nsIFrame* aPrevSibling,
                           InlineReflowState& aState);
 
-private:
-  // Helper method for DrainSelfOverflowList() to deal with lazy parenting
-  // (which we only do for nsInlineFrame, not nsFirstLineFrame).
-  enum DrainFlags {
-    eDontReparentFrames = 1, // skip reparenting the overflow list frames
-    eInFirstLine = 2, // the request is for an inline descendant of a nsFirstLineFrame
-    eForDestroy = 4, // the request is from DestroyFrom; in this case we do the
-                     // minimal work required since the frame is about to be
-                     // destroyed (just fixup parent pointers)
-  };
-  /**
-   * Move any frames on our overflow list to the end of our principal list.
-   * @param aFlags one or more of the above DrainFlags
-   * @param aLineContainer the nearest line container ancestor
-   * @return true if there were any overflow frames
-   */
-  bool DrainSelfOverflowListInternal(DrainFlags aFlags,
-                                     nsIFrame* aLineContainer);
-protected:
   nscoord mBaseline;
 };
 
@@ -198,34 +176,29 @@ protected:
  * Variation on inline-frame used to manage lines for line layout in
  * special situations (:first-line style in particular).
  */
-class nsFirstLineFrame MOZ_FINAL : public nsInlineFrame {
+class nsFirstLineFrame : public nsInlineFrame {
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
-  friend nsFirstLineFrame* NS_NewFirstLineFrame(nsIPresShell* aPresShell,
-                                                nsStyleContext* aContext);
+  friend nsIFrame* NS_NewFirstLineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-#ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+#ifdef DEBUG
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
-  virtual void Reflow(nsPresContext* aPresContext,
-                      nsHTMLReflowMetrics& aDesiredSize,
-                      const nsHTMLReflowState& aReflowState,
-                      nsReflowStatus& aStatus) MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
+  NS_IMETHOD Reflow(nsPresContext* aPresContext,
+                    nsHTMLReflowMetrics& aDesiredSize,
+                    const nsHTMLReflowState& aReflowState,
+                    nsReflowStatus& aStatus);
 
-  virtual void Init(nsIContent*       aContent,
-                    nsContainerFrame* aParent,
-                    nsIFrame*         aPrevInFlow) MOZ_OVERRIDE;
-  virtual void PullOverflowsFromPrevInFlow() MOZ_OVERRIDE;
-  virtual bool DrainSelfOverflowList() MOZ_OVERRIDE;
+  virtual void PullOverflowsFromPrevInFlow();
 
 protected:
-  explicit nsFirstLineFrame(nsStyleContext* aContext) : nsInlineFrame(aContext) {}
+  nsFirstLineFrame(nsStyleContext* aContext) : nsInlineFrame(aContext) {}
 
   virtual nsIFrame* PullOneFrame(nsPresContext* aPresContext,
                                  InlineReflowState& rs,
-                                 bool* aIsComplete) MOZ_OVERRIDE;
+                                 bool* aIsComplete);
 };
 
 #endif /* nsInlineFrame_h___ */

@@ -21,21 +21,24 @@
  * This function may be used to instantiate a windows registry key object prior
  * to XPCOM being initialized.
  */
-extern "C" nsresult NS_NewWindowsRegKey(nsIWindowsRegKey** aResult);
+extern "C" nsresult
+NS_NewWindowsRegKey(nsIWindowsRegKey **result);
 
 //-----------------------------------------------------------------------------
 
-#ifdef IMPL_LIBXUL
+#ifdef _IMPL_NS_COM
+
+#define NS_WINDOWSREGKEY_CLASSNAME "nsWindowsRegKey"
 
 // a53bc624-d577-4839-b8ec-bb5040a52ff4
 #define NS_WINDOWSREGKEY_CID \
   { 0xa53bc624, 0xd577, 0x4839, \
     { 0xb8, 0xec, 0xbb, 0x50, 0x40, 0xa5, 0x2f, 0xf4 } }
 
-extern nsresult nsWindowsRegKeyConstructor(nsISupports* aOuter,
-                                           const nsIID& aIID, void** aResult);
+extern nsresult
+nsWindowsRegKeyConstructor(nsISupports *outer, const nsIID &iid, void **result);
 
-#endif  // IMPL_LIBXUL
+#endif  // _IMPL_NS_COM
 
 //-----------------------------------------------------------------------------
 

@@ -8,30 +8,14 @@
 
 interface nsIApplicationCache;
 interface nsIFile;
-interface nsIURI;
-interface nsILoadContextInfo;
 
 /**
  * The application cache service manages the set of application cache
  * groups.
  */
-[scriptable, uuid(03b41c3d-0816-4134-8b2e-4f5afbdb1f06)]
+[scriptable, uuid(28adfdc7-6718-4b3e-bdb2-ecfefa3c8910)]
 interface nsIApplicationCacheService : nsISupports
 {
-    /**
-     * Create group string identifying cache group according the manifest
-     * URL and the given load context.
-     */
-    ACString buildGroupID(in nsIURI aManifestURL,
-                          in nsILoadContextInfo aLoadContextInfo);
-
-    /**
-     * Same as buildGroupID method, just doesn't require load context.
-     */
-    ACString buildGroupIDForApp(in nsIURI aManifestURL,
-                                in unsigned long aAppID,
-                                in boolean aInBrowser);
-
     /**
      * Create a new, empty application cache for the given cache
      * group.
@@ -70,24 +54,9 @@ interface nsIApplicationCacheService : nsISupports
     void deactivateGroup(in ACString group);
 
     /**
-     * Deletes some or all of an application's cache entries.  
-     *
-     * @param appId
-     *    The mozIApplication.localId of the application.
-     * 
-     * @param discardOnlyBrowserEntries 
-     *    If true, only entries marked as 'inBrowserElement' are deleted 
-     *    (this is used by browser applications to delete user browsing 
-     *    data/history.).  If false, *all* entries for the given appId are
-     *    deleted (this is used for application uninstallation).
-     */
-    void discardByAppId(in int32_t appID, in boolean discardOnlyBrowserEntries);
-
-    /**
      * Try to find the best application cache to serve a resource.
      */
-    nsIApplicationCache chooseApplicationCache(in ACString key,
-                                               [optional] in nsILoadContextInfo aLoadContextInfo);
+    nsIApplicationCache chooseApplicationCache(in ACString key);
 
     /**
      * Flags the key as being opportunistically cached.

@@ -6,12 +6,10 @@ let tiltOpened = false;
 
 function test() {
   if (!isTiltEnabled()) {
-    aborting();
     info("Skipping destruction test because Tilt isn't enabled.");
     return;
   }
   if (!isWebGLSupported()) {
-    aborting();
     info("Skipping destruction test because WebGL isn't supported.");
     return;
   }
@@ -25,11 +23,11 @@ function test() {
         tiltOpened = true;
 
         Services.obs.addObserver(finalize, DESTROYED, false);
-        Tilt.destroy(Tilt.currentWindowId);
+        InspectorUI.closeInspectorUI();
       }
     }, false, function suddenDeath()
     {
-      ok(false, "Tilt could not be initialized properly.");
+      info("Tilt could not be initialized properly.");
       cleanup();
     });
   });

@@ -11,6 +11,8 @@ endif
 space=$(null) $(null)
 GENERATED_DIRS = bogus # test data
 
+NOWARN_AUTOTARGETS = 1 # Unit test includes makefile twice.
+
 undefine USE_AUTOTARGETS_MK
 undefine INCLUDED_AUTOTARGETS_MK
 include $(topsrcdir)/config/makefiles/autotargets.mk
@@ -23,7 +25,7 @@ $(call requiredfunction,mkdir_deps)
 
 
 # Verify test data populated makefile vars correctly
-vars = AUTO_DEPS GARBAGE_DIRS GENERATED_DIRS_DEPS
+vars = AUTO_DEPS GARBAGE_DIRS GENERATED_DIRS_DEPS 
 $(foreach var,$(vars),$(call errorIfEmpty,$(var)))
 
 # Data should also be valid

@@ -45,34 +45,33 @@
 #include "base/logging.h"
 #include "base/cpu.h"
 #include "base/singleton.h"
-#include "mozilla/Casting.h"
+#include "base/system_monitor.h"
 
 using base::Time;
 using base::TimeDelta;
 using base::TimeTicks;
-using mozilla::BitwiseCast;
 
 namespace {
 
 // From MSDN, FILETIME "Contains a 64-bit value representing the number of
 // 100-nanosecond intervals since January 1, 1601 (UTC)."
-int64_t FileTimeToMicroseconds(const FILETIME& ft) {
-  // Need to BitwiseCast to fix alignment, then divide by 10 to convert
+int64 FileTimeToMicroseconds(const FILETIME& ft) {
+  // Need to bit_cast to fix alignment, then divide by 10 to convert
   // 100-nanoseconds to milliseconds. This only works on little-endian
   // machines.
-  return BitwiseCast<int64_t>(ft) / 10;
+  return bit_cast<int64, FILETIME>(ft) / 10;
 }
 
-void MicrosecondsToFileTime(int64_t us, FILETIME* ft) {
+void MicrosecondsToFileTime(int64 us, FILETIME* ft) {
   DCHECK(us >= 0) << "Time is less than 0, negative values are not "
       "representable in FILETIME";
 
-  // Multiply by 10 to convert milliseconds to 100-nanoseconds. BitwiseCast will
+  // Multiply by 10 to convert milliseconds to 100-nanoseconds. Bit_cast will
   // handle alignment problems. This only works on little-endian machines.
-  *ft = BitwiseCast<FILETIME>(us * 10);
+  *ft = bit_cast<FILETIME, int64>(us * 10);
 }
 
-int64_t CurrentWallclockMicroseconds() {
+int64 CurrentWallclockMicroseconds() {
   FILETIME ft;
   ::GetSystemTimeAsFileTime(&ft);
   return FileTimeToMicroseconds(ft);
@@ -81,7 +80,7 @@ int64_t CurrentWallclockMicroseconds() {
 // Time between resampling the un-granular clock for this API.  60 seconds.
 const int kMaxMillisecondsToAvoidDrift = 60 * Time::kMillisecondsPerSecond;
 
-int64_t initial_time = 0;
+int64 initial_time = 0;
 TimeTicks initial_ticks;
 
 void InitializeClock() {
@@ -98,7 +97,7 @@ void InitializeClock() {
 // number of leap year days between 1601 and 1970: (1970-1601)/4 excluding
 // 1700, 1800, and 1900.
 // static
-const int64_t Time::kTimeTToMicrosecondsOffset = GG_INT64_C(11644473600000000);
+const int64 Time::kTimeTToMicrosecondsOffset = GG_INT64_C(11644473600000000);
 
 // static
 Time Time::Now() {
@@ -127,7 +126,7 @@ Time Time::Now() {
       continue;
     }
 
-    return Time(elapsed + Time(initial_time));
+    return Time(elapsed + initial_time);
   }
 }
 
@@ -196,7 +195,7 @@ void Time::Explode(bool is_local, Exploded* exploded) const {
   SYSTEMTIME st;
   if (!success || !FileTimeToSystemTime(&ft, &st)) {
     NOTREACHED() << "Unable to convert time, don't know why";
-    ZeroMemory(exploded, sizeof(*exploded));
+    ZeroMemory(exploded, sizeof(exploded));
     return;
   }
 
@@ -309,7 +308,7 @@ class HighResNowSingleton {
     const int kMaxTimeDrift = 50 * Time::kMicrosecondsPerMillisecond;
 
     if (IsUsingHighResClock()) {
-      int64_t now = UnreliableNow();
+      int64 now = UnreliableNow();
 
       // Verify that QPC does not seem to drift.
       DCHECK(now - ReliableNow() - skew_ < kMaxTimeDrift);
@@ -324,7 +323,7 @@ class HighResNowSingleton {
  private:
   // Synchronize the QPC clock with GetSystemTimeAsFileTime.
   void InitializeClock() {
-    LARGE_INTEGER ticks_per_sec = {{0}};
+    LARGE_INTEGER ticks_per_sec = {0};
     if (!QueryPerformanceFrequency(&ticks_per_sec))
       return;  // Broken, we don't guarantee this function works.
     ticks_per_microsecond_ = static_cast<float>(ticks_per_sec.QuadPart) /
@@ -334,21 +333,21 @@ class HighResNowSingleton {
   }
 
   // Get the number of microseconds since boot in a reliable fashion
-  int64_t UnreliableNow() {
+  int64 UnreliableNow() {
     LARGE_INTEGER now;
     QueryPerformanceCounter(&now);
-    return static_cast<int64_t>(now.QuadPart / ticks_per_microsecond_);
+    return static_cast<int64>(now.QuadPart / ticks_per_microsecond_);
   }
 
   // Get the number of microseconds since boot in a reliable fashion
-  int64_t ReliableNow() {
+  int64 ReliableNow() {
     return Singleton<NowSingleton>::get()->Now().InMicroseconds();
   }
 
   // Cached clock frequency -> microseconds. This assumes that the clock
   // frequency is faster than one microsecond (which is 1MHz, should be OK).
   float ticks_per_microsecond_;  // 0 indicates QPF failed and we're broken.
-  int64_t skew_;  // Skew between lo-res and hi-res clocks (for debugging).
+  int64 skew_;  // Skew between lo-res and hi-res clocks (for debugging).
 
   DISALLOW_COPY_AND_ASSIGN(HighResNowSingleton);
 };

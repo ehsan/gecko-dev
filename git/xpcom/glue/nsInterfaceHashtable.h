@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -19,27 +18,22 @@
  * @param Interface the interface-type being wrapped
  * @see nsDataHashtable, nsClassHashtable
  */
-template<class KeyClass, class Interface>
-class nsInterfaceHashtable
-  : public nsBaseHashtable<KeyClass, nsCOMPtr<Interface>, Interface*>
+template<class KeyClass,class Interface>
+class nsInterfaceHashtable :
+  public nsBaseHashtable< KeyClass, nsCOMPtr<Interface> , Interface* >
 {
 public:
   typedef typename KeyClass::KeyType KeyType;
   typedef Interface* UserDataType;
-  typedef nsBaseHashtable<KeyClass, nsCOMPtr<Interface>, Interface*> base_type;
-
-  nsInterfaceHashtable() {}
-  explicit nsInterfaceHashtable(uint32_t aInitLength)
-    : nsBaseHashtable<KeyClass, nsCOMPtr<Interface>, Interface*>(aInitLength)
-  {
-  }
+  typedef nsBaseHashtable< KeyClass, nsCOMPtr<Interface> , Interface* >
+          base_type;
 
   /**
    * @copydoc nsBaseHashtable::Get
-   * @param aData This is an XPCOM getter, so aData is already_addrefed.
-   *   If the key doesn't exist, aData will be set to nullptr.
+   * @param pData This is an XPCOM getter, so pData is already_addrefed.
+   *   If the key doesn't exist, pData will be set to nullptr.
    */
-  bool Get(KeyType aKey, UserDataType* aData) const;
+  bool Get(KeyType aKey, UserDataType* pData) const;
 
   /**
    * @copydoc nsBaseHashtable::Get
@@ -55,89 +49,134 @@ public:
   Interface* GetWeak(KeyType aKey, bool* aFound = nullptr) const;
 };
 
-template<typename K, typename T>
-inline void
-ImplCycleCollectionUnlink(nsInterfaceHashtable<K, T>& aField)
+/**
+ * Thread-safe version of nsInterfaceHashtable
+ * @param KeyClass a wrapper-class for the hashtable key, see nsHashKeys.h
+ *   for a complete specification.
+ * @param Interface the interface-type being wrapped
+ */
+template<class KeyClass,class Interface>
+class nsInterfaceHashtableMT :
+  public nsBaseHashtableMT< KeyClass, nsCOMPtr<Interface> , Interface* >
 {
-  aField.Clear();
-}
+public:
+  typedef typename KeyClass::KeyType KeyType;
+  typedef Interface* UserDataType;
+  typedef nsBaseHashtableMT< KeyClass, nsCOMPtr<Interface> , Interface* >
+          base_type;
 
-template<typename K, typename T>
-inline void
-ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
-                            const nsInterfaceHashtable<K, T>& aField,
-                            const char* aName,
-                            uint32_t aFlags = 0)
-{
-  nsBaseHashtableCCTraversalData userData(aCallback, aName, aFlags);
+  /**
+   * @copydoc nsBaseHashtable::Get
+   * @param pData This is an XPCOM getter, so pData is already_addrefed.
+   *   If the key doesn't exist, pData will be set to nullptr.
+   */
+  bool Get(KeyType aKey, UserDataType* pData) const;
 
-  aField.EnumerateRead(ImplCycleCollectionTraverse_EnumFunc<typename K::KeyType, T*>,
-                       &userData);
-}
+  // GetWeak does not make sense on a multi-threaded hashtable, where another
+  // thread may remove the entry (and hence release it) as soon as GetWeak
+  // returns
+};
+
 
 //
 // nsInterfaceHashtable definitions
 //
 
-template<class KeyClass, class Interface>
+template<class KeyClass,class Interface>
 bool
-nsInterfaceHashtable<KeyClass, Interface>::Get(KeyType aKey,
-                                               UserDataType* aInterface) const
+nsInterfaceHashtable<KeyClass,Interface>::Get
+  (KeyType aKey, UserDataType* pInterface) const
 {
   typename base_type::EntryType* ent = this->GetEntry(aKey);
 
-  if (ent) {
-    if (aInterface) {
-      *aInterface = ent->mData;
+  if (ent)
+  {
+    if (pInterface)
+    {
+      *pInterface = ent->mData;
 
-      NS_IF_ADDREF(*aInterface);
+      NS_IF_ADDREF(*pInterface);
     }
 
     return true;
   }
 
-  // if the key doesn't exist, set *aInterface to null
+  // if the key doesn't exist, set *pInterface to null
   // so that it is a valid XPCOM getter
-  if (aInterface) {
-    *aInterface = nullptr;
-  }
+  if (pInterface)
+    *pInterface = nullptr;
 
   return false;
 }
 
 template<class KeyClass, class Interface>
 already_AddRefed<Interface>
-nsInterfaceHashtable<KeyClass, Interface>::Get(KeyType aKey) const
+nsInterfaceHashtable<KeyClass,Interface>::Get(KeyType aKey) const
 {
   typename base_type::EntryType* ent = this->GetEntry(aKey);
-  if (!ent) {
-    return nullptr;
-  }
+  if (!ent)
+    return NULL;
 
   nsCOMPtr<Interface> copy = ent->mData;
   return copy.forget();
 }
 
-template<class KeyClass, class Interface>
+template<class KeyClass,class Interface>
 Interface*
-nsInterfaceHashtable<KeyClass, Interface>::GetWeak(KeyType aKey,
-                                                   bool* aFound) const
+nsInterfaceHashtable<KeyClass,Interface>::GetWeak
+  (KeyType aKey, bool* aFound) const
 {
   typename base_type::EntryType* ent = this->GetEntry(aKey);
 
-  if (ent) {
-    if (aFound) {
+  if (ent)
+  {
+    if (aFound)
       *aFound = true;
-    }
 
     return ent->mData;
   }
 
   // Key does not exist, return nullptr and set aFound to false
-  if (aFound) {
+  if (aFound)
     *aFound = false;
-  }
   return nullptr;
+}
+
+//
+// nsInterfaceHashtableMT definitions
+//
+
+template<class KeyClass,class Interface>
+bool
+nsInterfaceHashtableMT<KeyClass,Interface>::Get
+  (KeyType aKey, UserDataType* pInterface) const
+{
+  PR_Lock(this->mLock);
+
+  typename base_type::EntryType* ent = this->GetEntry(aKey);
+
+  if (ent)
+  {
+    if (pInterface)
+    {
+      *pInterface = ent->mData;
+
+      NS_IF_ADDREF(*pInterface);
+    }
+
+    PR_Unlock(this->mLock);
+
+    return true;
+  }
+
+  // if the key doesn't exist, set *pInterface to null
+  // so that it is a valid XPCOM getter
+  if (pInterface)
+    *pInterface = nullptr;
+
+  PR_Unlock(this->mLock);
+
+  return false;
 }
 
 #endif // nsInterfaceHashtable_h__

@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2014 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2012 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -10,191 +10,189 @@
 #ifndef LIBGLESV2_PROGRAM_BINARY_H_
 #define LIBGLESV2_PROGRAM_BINARY_H_
 
-#include "common/RefCountObject.h"
-#include "angletypes.h"
-#include "common/mathutil.h"
-#include "libGLESv2/Uniform.h"
+#define GL_APICALL
+#include <gles2/gl2.h>
+#include <gles2/gl2ext.h>
+
+#include <d3dx9.h>
+#include <d3dcompiler.h>
+#include <string>
+#include <vector>
+
 #include "libGLESv2/Shader.h"
-#include "libGLESv2/Constants.h"
-#include "libGLESv2/renderer/d3d/VertexDataManager.h"
-#include "libGLESv2/renderer/d3d/DynamicHLSL.h"
-
-#include "angle_gl.h"
-
-#include <string>
-#include <vector>
-
-namespace sh
-{
-class HLSLBlockEncoder;
-}
-
-#include <GLES3/gl3.h>
-#include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
-
-#include <string>
-#include <vector>
-
-namespace rx
-{
-class ShaderExecutable;
-class Renderer;
-struct TranslatedAttribute;
-class UniformStorage;
-class ProgramImpl;
-}
+#include "libGLESv2/Context.h"
 
 namespace gl
 {
-struct Caps;
-class Shader;
-class InfoLog;
-class AttributeBindings;
-class Buffer;
-class Framebuffer;
+class FragmentShader;
+class VertexShader;
+
+// Helper struct representing a single shader uniform
+struct Uniform
+{
+    Uniform(GLenum type, const std::string &_name, unsigned int arraySize);
+
+    ~Uniform();
+
+    bool isArray();
+
+    const GLenum type;
+    const std::string _name;   // Decorated name
+    const std::string name;    // Undecorated name
+    const unsigned int arraySize;
+
+    unsigned char *data;
+    bool dirty;
+
+    struct RegisterInfo
+    {
+        RegisterInfo()
+        {
+            float4Index = -1;
+            samplerIndex = -1;
+            boolIndex = -1;
+            registerCount = 0;
+        }
+
+        void set(const D3DXCONSTANT_DESC &constantDescription)
+        {
+            switch(constantDescription.RegisterSet)
+            {
+              case D3DXRS_BOOL:    boolIndex = constantDescription.RegisterIndex;    break;
+              case D3DXRS_FLOAT4:  float4Index = constantDescription.RegisterIndex;  break;
+              case D3DXRS_SAMPLER: samplerIndex = constantDescription.RegisterIndex; break;
+              default: UNREACHABLE();
+            }
+            
+            ASSERT(registerCount == 0 || registerCount == (int)constantDescription.RegisterCount);
+            registerCount = constantDescription.RegisterCount;
+        }
+
+        int float4Index;
+        int samplerIndex;
+        int boolIndex;
+
+        int registerCount;
+    };
+
+    RegisterInfo ps;
+    RegisterInfo vs;
+};
 
 // Struct used for correlating uniforms/elements of uniform arrays to handles
-struct VariableLocation
+struct UniformLocation
 {
-    VariableLocation()
+    UniformLocation()
     {
     }
 
-    VariableLocation(const std::string &name, unsigned int element, unsigned int index);
+    UniformLocation(const std::string &_name, unsigned int element, unsigned int index);
 
     std::string name;
     unsigned int element;
     unsigned int index;
 };
 
-struct LinkedVarying
-{
-    LinkedVarying();
-    LinkedVarying(const std::string &name, GLenum type, GLsizei size, const std::string &semanticName,
-                  unsigned int semanticIndex, unsigned int semanticIndexCount);
-
-    // Original GL name
-    std::string name;
-
-    GLenum type;
-    GLsizei size;
-
-    // DirectX semantic information
-    std::string semanticName;
-    unsigned int semanticIndex;
-    unsigned int semanticIndexCount;
-};
-
-struct LinkResult
-{
-    bool linkSuccess;
-    Error error;
-
-    LinkResult(bool linkSuccess, const Error &error);
-};
-
 // This is the result of linking a program. It is the state that would be passed to ProgramBinary.
 class ProgramBinary : public RefCountObject
 {
   public:
-    explicit ProgramBinary(rx::ProgramImpl *impl);
+    ProgramBinary();
     ~ProgramBinary();
 
-    rx::ProgramImpl *getImplementation() { return mProgram; }
-    const rx::ProgramImpl *getImplementation() const { return mProgram; }
+    IDirect3DPixelShader9 *getPixelShader();
+    IDirect3DVertexShader9 *getVertexShader();
 
     GLuint getAttributeLocation(const char *name);
     int getSemanticIndex(int attributeIndex);
 
-    GLint getSamplerMapping(SamplerType type, unsigned int samplerIndex, const Caps &caps);
-    GLenum getSamplerTextureType(SamplerType type, unsigned int samplerIndex);
+    GLint getSamplerMapping(SamplerType type, unsigned int samplerIndex);
+    TextureType getSamplerTextureType(SamplerType type, unsigned int samplerIndex);
     GLint getUsedSamplerRange(SamplerType type);
-    bool usesPointSize() const;
 
     GLint getUniformLocation(std::string name);
-    GLuint getUniformIndex(std::string name);
-    GLuint getUniformBlockIndex(std::string name);
-    void setUniform1fv(GLint location, GLsizei count, const GLfloat *v);
-    void setUniform2fv(GLint location, GLsizei count, const GLfloat *v);
-    void setUniform3fv(GLint location, GLsizei count, const GLfloat *v);
-    void setUniform4fv(GLint location, GLsizei count, const GLfloat *v);
-    void setUniform1iv(GLint location, GLsizei count, const GLint *v);
-    void setUniform2iv(GLint location, GLsizei count, const GLint *v);
-    void setUniform3iv(GLint location, GLsizei count, const GLint *v);
-    void setUniform4iv(GLint location, GLsizei count, const GLint *v);
-    void setUniform1uiv(GLint location, GLsizei count, const GLuint *v);
-    void setUniform2uiv(GLint location, GLsizei count, const GLuint *v);
-    void setUniform3uiv(GLint location, GLsizei count, const GLuint *v);
-    void setUniform4uiv(GLint location, GLsizei count, const GLuint *v);
-    void setUniformMatrix2fv(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
-    void setUniformMatrix3fv(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
-    void setUniformMatrix4fv(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
-    void setUniformMatrix2x3fv(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
-    void setUniformMatrix3x2fv(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
-    void setUniformMatrix2x4fv(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
-    void setUniformMatrix4x2fv(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
-    void setUniformMatrix3x4fv(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
-    void setUniformMatrix4x3fv(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
+    bool setUniform1fv(GLint location, GLsizei count, const GLfloat *v);
+    bool setUniform2fv(GLint location, GLsizei count, const GLfloat *v);
+    bool setUniform3fv(GLint location, GLsizei count, const GLfloat *v);
+    bool setUniform4fv(GLint location, GLsizei count, const GLfloat *v);
+    bool setUniformMatrix2fv(GLint location, GLsizei count, const GLfloat *value);
+    bool setUniformMatrix3fv(GLint location, GLsizei count, const GLfloat *value);
+    bool setUniformMatrix4fv(GLint location, GLsizei count, const GLfloat *value);
+    bool setUniform1iv(GLint location, GLsizei count, const GLint *v);
+    bool setUniform2iv(GLint location, GLsizei count, const GLint *v);
+    bool setUniform3iv(GLint location, GLsizei count, const GLint *v);
+    bool setUniform4iv(GLint location, GLsizei count, const GLint *v);
 
-    void getUniformfv(GLint location, GLfloat *params);
-    void getUniformiv(GLint location, GLint *params);
-    void getUniformuiv(GLint location, GLuint *params);
+    bool getUniformfv(GLint location, GLsizei *bufSize, GLfloat *params);
+    bool getUniformiv(GLint location, GLsizei *bufSize, GLint *params);
+
+    GLint getDxDepthRangeLocation() const;
+    GLint getDxDepthLocation() const;
+    GLint getDxCoordLocation() const;
+    GLint getDxHalfPixelSizeLocation() const;
+    GLint getDxFrontCCWLocation() const;
+    GLint getDxPointsOrLinesLocation() const;
 
     void dirtyAllUniforms();
+    void applyUniforms();
 
-    Error applyUniforms();
-    Error applyUniformBuffers(const std::vector<Buffer*> boundBuffers, const Caps &caps);
-
-    LinkResult load(InfoLog &infoLog, GLenum binaryFormat, const void *binary, GLsizei length);
-    Error save(GLenum *binaryFormat, void *binary, GLsizei bufSize, GLsizei *length);
+    bool load(InfoLog &infoLog, const void *binary, GLsizei length);
+    bool save(void* binary, GLsizei bufSize, GLsizei *length);
     GLint getLength();
 
-    LinkResult link(InfoLog &infoLog, const AttributeBindings &attributeBindings, Shader *fragmentShader, Shader *vertexShader,
-                    const std::vector<std::string>& transformFeedbackVaryings, GLenum transformFeedbackBufferMode,
-                    const Caps &caps);
+    bool link(InfoLog &infoLog, const AttributeBindings &attributeBindings, FragmentShader *fragmentShader, VertexShader *vertexShader);
     void getAttachedShaders(GLsizei maxCount, GLsizei *count, GLuint *shaders);
 
-    void getActiveAttribute(GLuint index, GLsizei bufsize, GLsizei *length, GLint *size, GLenum *type, GLchar *name) const;
-    GLint getActiveAttributeCount() const;
-    GLint getActiveAttributeMaxLength() const;
+    void getActiveAttribute(GLuint index, GLsizei bufsize, GLsizei *length, GLint *size, GLenum *type, GLchar *name);
+    GLint getActiveAttributeCount();
+    GLint getActiveAttributeMaxLength();
 
-    void getActiveUniform(GLuint index, GLsizei bufsize, GLsizei *length, GLint *size, GLenum *type, GLchar *name) const;
-    GLint getActiveUniformCount() const;
-    GLint getActiveUniformMaxLength() const;
-    GLint getActiveUniformi(GLuint index, GLenum pname) const;
-    bool isValidUniformLocation(GLint location) const;
-    LinkedUniform *getUniformByLocation(GLint location) const;
-    LinkedUniform *getUniformByName(const std::string &name) const;
+    void getActiveUniform(GLuint index, GLsizei bufsize, GLsizei *length, GLint *size, GLenum *type, GLchar *name);
+    GLint getActiveUniformCount();
+    GLint getActiveUniformMaxLength();
 
-    void getActiveUniformBlockName(GLuint uniformBlockIndex, GLsizei bufSize, GLsizei *length, GLchar *uniformBlockName) const;
-    void getActiveUniformBlockiv(GLuint uniformBlockIndex, GLenum pname, GLint *params) const;
-    GLuint getActiveUniformBlockCount() const;
-    GLuint getActiveUniformBlockMaxLength() const;
-    UniformBlock *getUniformBlockByIndex(GLuint blockIndex);
-
-    GLint getFragDataLocation(const char *name) const;
-
-    size_t getTransformFeedbackVaryingCount() const;
-    const LinkedVarying &getTransformFeedbackVarying(size_t idx) const;
-    GLenum getTransformFeedbackBufferMode() const;
-
-    void validate(InfoLog &infoLog, const Caps &caps);
-    bool validateSamplers(InfoLog *infoLog, const Caps &caps);
+    void validate(InfoLog &infoLog);
+    bool validateSamplers(InfoLog *infoLog);
     bool isValidated() const;
-    void updateSamplerMapping();
 
     unsigned int getSerial() const;
 
-    void initAttributesByLayout();
-    void sortAttributesByLayout(rx::TranslatedAttribute attributes[MAX_VERTEX_ATTRIBS], int sortedSemanticIndices[MAX_VERTEX_ATTRIBS]) const;
-
-    const std::vector<LinkedUniform*> &getUniforms() const { return mUniforms; }
-
-    static bool linkVaryings(InfoLog &infoLog, Shader *fragmentShader, Shader *vertexShader);
+    static std::string decorateAttribute(const std::string &name);    // Prepend an underscore
+    static std::string undecorateUniform(const std::string &_name);   // Remove leading underscore
 
   private:
     DISALLOW_COPY_AND_ASSIGN(ProgramBinary);
+
+    ID3D10Blob *compileToBinary(InfoLog &infoLog, const char *hlsl, const char *profile, ID3DXConstantTable **constantTable);
+
+    int packVaryings(InfoLog &infoLog, const Varying *packing[][4], FragmentShader *fragmentShader);
+    bool linkVaryings(InfoLog &infoLog, std::string& pixelHLSL, std::string& vertexHLSL, FragmentShader *fragmentShader, VertexShader *vertexShader);
+
+    bool linkAttributes(InfoLog &infoLog, const AttributeBindings &attributeBindings, FragmentShader *fragmentShader, VertexShader *vertexShader);
+
+    bool linkUniforms(InfoLog &infoLog, GLenum shader, ID3DXConstantTable *constantTable);
+    bool defineUniform(InfoLog &infoLog, GLenum shader, const D3DXHANDLE &constantHandle, const D3DXCONSTANT_DESC &constantDescription, std::string name = "");
+    bool defineUniform(GLenum shader, const D3DXCONSTANT_DESC &constantDescription, const std::string &name);
+    Uniform *createUniform(const D3DXCONSTANT_DESC &constantDescription, const std::string &name);
+    bool applyUniformnfv(Uniform *targetUniform, const GLfloat *v);
+    bool applyUniform1iv(Uniform *targetUniform, GLsizei count, const GLint *v);
+    bool applyUniform2iv(Uniform *targetUniform, GLsizei count, const GLint *v);
+    bool applyUniform3iv(Uniform *targetUniform, GLsizei count, const GLint *v);
+    bool applyUniform4iv(Uniform *targetUniform, GLsizei count, const GLint *v);
+    void applyUniformniv(Uniform *targetUniform, GLsizei count, const D3DXVECTOR4 *vector);
+    void applyUniformnbv(Uniform *targetUniform, GLsizei count, int width, const GLboolean *v);
+
+    IDirect3DDevice9 *mDevice;
+
+    IDirect3DPixelShader9 *mPixelExecutable;
+    IDirect3DVertexShader9 *mVertexExecutable;
+
+    // These are only used during linking.
+    ID3DXConstantTable *mConstantTablePS;
+    ID3DXConstantTable *mConstantTableVS;
+
+    Attribute mLinkedAttribute[MAX_VERTEX_ATTRIBS];
+    int mSemanticIndex[MAX_VERTEX_ATTRIBS];
 
     struct Sampler
     {
@@ -202,69 +200,25 @@ class ProgramBinary : public RefCountObject
 
         bool active;
         GLint logicalTextureUnit;
-        GLenum textureType;
+        TextureType textureType;
     };
 
-    void reset();
-
-    bool linkAttributes(InfoLog &infoLog, const AttributeBindings &attributeBindings, const Shader *vertexShader);
-
-    static bool linkValidateVariablesBase(InfoLog &infoLog,
-                                          const std::string &variableName,
-                                          const sh::ShaderVariable &vertexVariable,
-                                          const sh::ShaderVariable &fragmentVariable,
-                                          bool validatePrecision);
-
-    static bool linkValidateUniforms(InfoLog &infoLog, const std::string &uniformName, const sh::Uniform &vertexUniform, const sh::Uniform &fragmentUniform);
-    static bool linkValidateVaryings(InfoLog &infoLog, const std::string &varyingName, const sh::Varying &vertexVarying, const sh::Varying &fragmentVarying);
-    static bool linkValidateInterfaceBlockFields(InfoLog &infoLog, const std::string &uniformName, const sh::InterfaceBlockField &vertexUniform, const sh::InterfaceBlockField &fragmentUniform);
-    bool linkUniforms(InfoLog &infoLog, const Shader &vertexShader, const Shader &fragmentShader, const Caps &caps);
-    void defineUniformBase(GLenum shader, const sh::Uniform &uniform, unsigned int uniformRegister);
-    void defineUniform(GLenum shader, const sh::ShaderVariable &uniform, const std::string &fullName, sh::HLSLBlockEncoder *encoder);
-    bool indexSamplerUniform(const LinkedUniform &uniform, InfoLog &infoLog, const Caps &caps);
-    bool indexUniforms(InfoLog &infoLog, const Caps &caps);
-    static bool assignSamplers(unsigned int startSamplerIndex, GLenum samplerType, unsigned int samplerCount,
-                               std::vector<Sampler> &outSamplers, GLuint *outUsedRange);
-    bool areMatchingInterfaceBlocks(InfoLog &infoLog, const sh::InterfaceBlock &vertexInterfaceBlock, const sh::InterfaceBlock &fragmentInterfaceBlock);
-    bool linkUniformBlocks(InfoLog &infoLog, const Shader &vertexShader, const Shader &fragmentShader, const Caps &caps);
-    bool gatherTransformFeedbackLinkedVaryings(InfoLog &infoLog, const std::vector<LinkedVarying> &linkedVaryings,
-                                               const std::vector<std::string> &transformFeedbackVaryingNames,
-                                               GLenum transformFeedbackBufferMode,
-                                               std::vector<LinkedVarying> *outTransformFeedbackLinkedVaryings,
-                                               const Caps &caps) const;
-    template <typename VarT>
-    void defineUniformBlockMembers(const std::vector<VarT> &fields, const std::string &prefix, int blockIndex,
-                                   sh::BlockLayoutEncoder *encoder, std::vector<unsigned int> *blockUniformIndexes,
-                                   bool inRowMajorLayout);
-    bool defineUniformBlock(InfoLog &infoLog, const Shader &shader, const sh::InterfaceBlock &interfaceBlock, const Caps &caps);
-    bool assignUniformBlockRegister(InfoLog &infoLog, UniformBlock *uniformBlock, GLenum shader, unsigned int registerIndex, const Caps &caps);
-    void defineOutputVariables(Shader *fragmentShader);
-
-    template <typename T>
-    void setUniform(GLint location, GLsizei count, const T* v, GLenum targetUniformType);
-
-    template <int cols, int rows>
-    void setUniformMatrixfv(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value, GLenum targetUniformType);
-
-    template <typename T>
-    void getUniformv(GLint location, T *params, GLenum uniformType);
-
-    rx::ProgramImpl *mProgram;
-
-    sh::Attribute mLinkedAttribute[MAX_VERTEX_ATTRIBS];
-    int mSemanticIndex[MAX_VERTEX_ATTRIBS];
-    int mAttributesByLayout[MAX_VERTEX_ATTRIBS];
-
-    std::vector<Sampler> mSamplersPS;
-    std::vector<Sampler> mSamplersVS;
+    Sampler mSamplersPS[MAX_TEXTURE_IMAGE_UNITS];
+    Sampler mSamplersVS[MAX_VERTEX_TEXTURE_IMAGE_UNITS_VTF];
     GLuint mUsedVertexSamplerRange;
     GLuint mUsedPixelSamplerRange;
-    bool mDirtySamplerMapping;
 
-    std::vector<LinkedUniform*> mUniforms;
-    std::vector<UniformBlock*> mUniformBlocks;
-    std::vector<VariableLocation> mUniformIndex;
-    std::map<int, VariableLocation> mOutputVariables;
+    typedef std::vector<Uniform*> UniformArray;
+    UniformArray mUniforms;
+    typedef std::vector<UniformLocation> UniformIndex;
+    UniformIndex mUniformIndex;
+
+    GLint mDxDepthRangeLocation;
+    GLint mDxDepthLocation;
+    GLint mDxCoordLocation;
+    GLint mDxHalfPixelSizeLocation;
+    GLint mDxFrontCCWLocation;
+    GLint mDxPointsOrLinesLocation;
 
     bool mValidated;
 
@@ -273,7 +227,6 @@ class ProgramBinary : public RefCountObject
     static unsigned int issueSerial();
     static unsigned int mCurrentSerial;
 };
-
 }
 
 #endif   // LIBGLESV2_PROGRAM_BINARY_H_

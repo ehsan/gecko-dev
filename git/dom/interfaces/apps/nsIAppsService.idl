@@ -4,8 +4,7 @@
 
 #include "domstubs.idl"
 
-interface mozIApplication;
-interface nsIURI;
+interface mozIDOMApplication;
 
 %{C++
 #define APPS_SERVICE_CID { 0x05072afa, 0x92fe, 0x45bf, { 0xae, 0x22, 0x39, 0xb6, 0x9c, 0x11, 0x70, 0x58 } }
@@ -16,17 +15,10 @@ interface nsIURI;
  * This service allows accessing some DOMApplicationRegistry methods from
  * non-javascript code.
  */
-[scriptable, uuid(76ced447-6f92-48fb-b4e6-690e4859bc7f)]
+[scriptable, uuid(04e4ef3c-1a30-45bc-ab08-291820f13872)]
 interface nsIAppsService : nsISupports
 {
-  mozIApplication getAppByManifestURL(in DOMString manifestURL);
-
-  /**
-   * Returns a Promise for the manifest for a given manifestURL.
-   * This is only supported in the parent process: the promise will be rejected
-   * in content processes.
-   */
-  jsval getManifestFor(in DOMString manifestURL);
+  mozIDOMApplication getAppByManifestURL(in DOMString manifestURL);
 
   /**
    * Returns the |localId| of the app associated with the |manifestURL| passed
@@ -39,43 +31,10 @@ interface nsIAppsService : nsISupports
   /**
    * Returns the application associated to this localId.
    */
-  mozIApplication getAppByLocalId(in unsigned long localId);
+  mozIDOMApplication getAppByLocalId(in unsigned long localId);
 
   /**
    * Returns the manifest URL associated to this localId.
    */
   DOMString getManifestURLByLocalId(in unsigned long localId);
-
-  /**
-   * Returns the manifest CSP associated to this localId.
-   */
-  DOMString getManifestCSPByLocalId(in unsigned long localId);
-
-  /**
-   * Returns the default CSP associated to this localId.
-   */
-  DOMString getDefaultCSPByLocalId(in unsigned long localId);
-
-  /**
-   * Returns the basepath for core apps
-   */
-  DOMString getCoreAppsBasePath();
-
-  /**
-   * Returns the basepath for regular packaged apps
-   */
-  DOMString getWebAppsBasePath();
-
-  jsval getAppInfo(in DOMString appId);
-
-  /**
-   * Returns a URI to redirect to when we get a redirection to 'uri'.
-   * Returns null if no redirection is declared for this uri.
-   */
-  nsIURI getRedirect(in unsigned long localId, in nsIURI uri);
-
-  /**
-   * Returns the localId if the app was installed from a store
-   */
-  DOMString getAppLocalIdByStoreId(in DOMString storeID);
 };

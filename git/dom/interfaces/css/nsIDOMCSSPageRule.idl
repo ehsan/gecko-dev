@@ -5,10 +5,10 @@
 
 #include "nsIDOMCSSRule.idl"
 
-[scriptable, uuid(c119072b-7d2f-4aeb-a90d-e2d6b606c32a)]
+[scriptable, uuid(a6cf90bd-15b3-11d2-932e-00805f8add32)]
 interface nsIDOMCSSPageRule : nsIDOMCSSRule
 {
-           //attribute DOMString        selectorText;
+           attribute DOMString        selectorText;
                                         // raises(DOMException) on setting
 
   readonly attribute nsIDOMCSSStyleDeclaration  style;

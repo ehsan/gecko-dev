@@ -1,4 +1,4 @@
-# -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
+# -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -10,14 +10,17 @@ var SidebarUtils = {
       return;
 
     var tbo = aTree.treeBoxObject;
-    var cell = tbo.getCellAt(aEvent.clientX, aEvent.clientY);
+    var row = { }, col = { }, obj = { };
+    tbo.getCellAt(aEvent.clientX, aEvent.clientY, row, col, obj);
 
-    if (cell.row == -1 || cell.childElt == "twisty")
+    if (row.value == -1 || obj.value == "twisty")
       return;
 
     var mouseInGutter = false;
     if (aGutterSelect) {
-      var rect = tbo.getCoordsForCellItem(cell.row, cell.col, "image");
+      var x = { }, y = { }, w = { }, h = { };
+      tbo.getCoordsForCellItem(row.value, col.value, "image",
+                               x, y, w, h);
       // getCoordsForCellItem returns the x coordinate in logical coordinates
       // (i.e., starting from the left and right sides in LTR and RTL modes,
       // respectively.)  Therefore, we make sure to exclude the blank area
@@ -25,9 +28,9 @@ var SidebarUtils = {
       // LTR and RTL modes, respectively) from the click target area.
       var isRTL = window.getComputedStyle(aTree, null).direction == "rtl";
       if (isRTL)
-        mouseInGutter = aEvent.clientX > rect.x;
+        mouseInGutter = aEvent.clientX > x.value;
       else
-        mouseInGutter = aEvent.clientX < rect.x;
+        mouseInGutter = aEvent.clientX < x.value;
     }
 
 #ifdef XP_MACOSX
@@ -36,19 +39,19 @@ var SidebarUtils = {
     var modifKey = aEvent.ctrlKey || aEvent.shiftKey;
 #endif
 
-    var isContainer = tbo.view.isContainer(cell.row);
+    var isContainer = tbo.view.isContainer(row.value);
     var openInTabs = isContainer &&
                      (aEvent.button == 1 ||
                       (aEvent.button == 0 && modifKey)) &&
-                     PlacesUtils.hasChildURIs(tbo.view.nodeForTreeIndex(cell.row));
+                     PlacesUtils.hasChildURIs(tbo.view.nodeForTreeIndex(row.value));
 
     if (aEvent.button == 0 && isContainer && !openInTabs) {
-      tbo.view.toggleOpenState(cell.row);
+      tbo.view.toggleOpenState(row.value);
       return;
     }
     else if (!mouseInGutter && openInTabs &&
             aEvent.originalTarget.localName == "treechildren") {
-      tbo.view.selection.select(cell.row);
+      tbo.view.selection.select(row.value);
       PlacesUIUtils.openContainerNodeInTabs(aTree.selectedNode, aEvent, aTree);
     }
     else if (!mouseInGutter && !isContainer &&
@@ -56,7 +59,7 @@ var SidebarUtils = {
       // Clear all other selection since we're loading a link now. We must
       // do this *before* attempting to load the link since openURL uses
       // selection as an indication of which link to load.
-      tbo.view.selection.select(cell.row);
+      tbo.view.selection.select(row.value);
       PlacesUIUtils.openNodeWithEvent(aTree.selectedNode, aEvent, aTree);
     }
   },
@@ -81,13 +84,14 @@ var SidebarUtils = {
 
     var tree = aEvent.target.parentNode;
     var tbo = tree.treeBoxObject;
-    var cell = tbo.getCellAt(aEvent.clientX, aEvent.clientY);
+    var row = { }, col = { }, obj = { };
+    tbo.getCellAt(aEvent.clientX, aEvent.clientY, row, col, obj);
 
-    // cell.row is -1 when the mouse is hovering an empty area within the tree.
+    // row.value is -1 when the mouse is hovering an empty area within the tree.
     // To avoid showing a URL from a previously hovered node for a currently
     // hovered non-url node, we must clear the moused-over URL in these cases.
-    if (cell.row != -1) {
-      var node = tree.view.nodeForTreeIndex(cell.row);
+    if (row.value != -1) {
+      var node = tree.view.nodeForTreeIndex(row.value);
       if (PlacesUtils.nodeIsURI(node))
         this.setMouseoverURL(node.uri);
       else

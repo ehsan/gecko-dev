@@ -25,7 +25,6 @@ public:
   NS_DECL_NSIASN1OBJECT
 
   nsNSSASN1Sequence();
-protected:
   virtual ~nsNSSASN1Sequence();
   /* additional members */
 private:
@@ -46,7 +45,6 @@ public:
   NS_DECL_NSIASN1OBJECT
 
   nsNSSASN1PrintableItem();
-protected:
   virtual ~nsNSSASN1PrintableItem();
   /* additional members */
 private:

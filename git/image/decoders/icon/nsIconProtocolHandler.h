@@ -9,8 +9,7 @@
 #include "nsWeakReference.h"
 #include "nsIProtocolHandler.h"
 
-class nsIconProtocolHandler : public nsIProtocolHandler,
-                              public nsSupportsWeakReference
+class nsIconProtocolHandler : public nsIProtocolHandler, public nsSupportsWeakReference
 {
 public:
     NS_DECL_ISUPPORTS
@@ -18,9 +17,9 @@ public:
 
     // nsIconProtocolHandler methods:
     nsIconProtocolHandler();
+    virtual ~nsIconProtocolHandler();
 
 protected:
-    virtual ~nsIconProtocolHandler();
 };
 
 #endif /* nsIconProtocolHandler_h___ */

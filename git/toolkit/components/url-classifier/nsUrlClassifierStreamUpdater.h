@@ -14,6 +14,8 @@
 #include "nsIStreamListener.h"
 #include "nsNetUtil.h"
 #include "nsTArray.h"
+#include "nsIBadCertListener2.h"
+#include "nsISSLErrorListener.h"
 #include "nsITimer.h"
 #include "mozilla/Attributes.h"
 
@@ -24,18 +26,22 @@ class nsUrlClassifierStreamUpdater MOZ_FINAL : public nsIUrlClassifierStreamUpda
                                                public nsIUrlClassifierUpdateObserver,
                                                public nsIStreamListener,
                                                public nsIObserver,
+                                               public nsIBadCertListener2,
+                                               public nsISSLErrorListener,
                                                public nsIInterfaceRequestor,
                                                public nsITimerCallback
 {
 public:
   nsUrlClassifierStreamUpdater();
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIURLCLASSIFIERSTREAMUPDATER
   NS_DECL_NSIURLCLASSIFIERUPDATEOBSERVER
   NS_DECL_NSIINTERFACEREQUESTOR
   NS_DECL_NSIREQUESTOBSERVER
   NS_DECL_NSISTREAMLISTENER
+  NS_DECL_NSIBADCERTLISTENER2
+  NS_DECL_NSISSLERRORLISTENER
   NS_DECL_NSIOBSERVER
   NS_DECL_NSITIMERCALLBACK
 
@@ -52,43 +58,32 @@ private:
 
   nsresult AddRequestBody(const nsACString &aRequestBody);
 
-  // Fetches an update for a single table.
   nsresult FetchUpdate(nsIURI *aURI,
                        const nsACString &aRequestBody,
-                       const nsACString &aTable);
-  // Dumb wrapper so we don't have to create URIs.
+                       const nsACString &aTable,
+                       const nsACString &aServerMAC);
   nsresult FetchUpdate(const nsACString &aURI,
                        const nsACString &aRequestBody,
-                       const nsACString &aTable);
+                       const nsACString &aTable,
+                       const nsACString &aServerMAC);
 
-  // Fetches the next table, from mPendingUpdates.
   nsresult FetchNext();
-  // Fetches the next request, from mPendingRequests
-  nsresult FetchNextRequest();
-
 
   bool mIsUpdating;
   bool mInitialized;
   bool mDownloadError;
   bool mBeganStream;
+  nsCOMPtr<nsIURI> mUpdateUrl;
   nsCString mStreamTable;
+  nsCString mServerMAC;
   nsCOMPtr<nsIChannel> mChannel;
   nsCOMPtr<nsIUrlClassifierDBService> mDBService;
   nsCOMPtr<nsITimer> mTimer;
 
-  struct PendingRequest {
-    nsCString mTables;
-    nsCString mRequest;
-    nsCString mUrl;
-    nsCOMPtr<nsIUrlClassifierCallback> mSuccessCallback;
-    nsCOMPtr<nsIUrlClassifierCallback> mUpdateErrorCallback;
-    nsCOMPtr<nsIUrlClassifierCallback> mDownloadErrorCallback;
-  };
-  nsTArray<PendingRequest> mPendingRequests;
-
   struct PendingUpdate {
     nsCString mUrl;
     nsCString mTable;
+    nsCString mServerMAC;
   };
   nsTArray<PendingUpdate> mPendingUpdates;
 

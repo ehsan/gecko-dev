@@ -12,7 +12,6 @@
 #ifndef BasicTableLayoutStrategy_h_
 #define BasicTableLayoutStrategy_h_
 
-#include "mozilla/Attributes.h"
 #include "nsITableLayoutStrategy.h"
 
 class nsTableFrame;
@@ -20,25 +19,25 @@ class nsTableFrame;
 class BasicTableLayoutStrategy : public nsITableLayoutStrategy
 {
 public:
-    explicit BasicTableLayoutStrategy(nsTableFrame *aTableFrame);
+    BasicTableLayoutStrategy(nsTableFrame *aTableFrame);
     virtual ~BasicTableLayoutStrategy();
 
     // nsITableLayoutStrategy implementation
-    virtual nscoord GetMinISize(nsRenderingContext* aRenderingContext) MOZ_OVERRIDE;
-    virtual nscoord GetPrefISize(nsRenderingContext* aRenderingContext,
-                                 bool aComputingSize) MOZ_OVERRIDE;
-    virtual void MarkIntrinsicISizesDirty() MOZ_OVERRIDE;
-    virtual void ComputeColumnWidths(const nsHTMLReflowState& aReflowState) MOZ_OVERRIDE;
+    virtual nscoord GetMinWidth(nsRenderingContext* aRenderingContext);
+    virtual nscoord GetPrefWidth(nsRenderingContext* aRenderingContext,
+                                 bool aComputingSize);
+    virtual void MarkIntrinsicWidthsDirty();
+    virtual void ComputeColumnWidths(const nsHTMLReflowState& aReflowState);
 
 private:
     // NOTE: Using prefix "BTLS" to avoid overlapping names with 
-    // the values of nsLayoutUtils::IntrinsicISizeType
+    // the values of nsLayoutUtils::IntrinsicWidthType
     enum BtlsWidthType { BTLS_MIN_WIDTH, 
                          BTLS_PREF_WIDTH, 
                          BTLS_FINAL_WIDTH };
 
     // Compute intrinsic width member variables on the columns.
-    void ComputeColumnIntrinsicISizes(nsRenderingContext* aRenderingContext);
+    void ComputeColumnIntrinsicWidths(nsRenderingContext* aRenderingContext);
 
     // Distribute a colspanning cell's percent width (if any) to its columns.
     void DistributePctWidthToColumns(float aSpanPrefPct,
@@ -69,7 +68,7 @@ private:
 
     // Compute the min and pref widths of the table from the width
     // variables on the columns.
-    void ComputeIntrinsicISizes(nsRenderingContext* aRenderingContext);
+    void ComputeIntrinsicWidths(nsRenderingContext* aRenderingContext);
 
     nsTableFrame *mTableFrame;
     nscoord mMinWidth;

@@ -28,6 +28,7 @@
 
     function doTests()
     {
+
       if (MAC) {
         todo(false, "Make these tests pass on OSX (bug 650294)");
         SimpleTest.finish();
@@ -37,11 +38,10 @@
       gQueue = new eventQueue(EVENT_TEXT_CARET_MOVED);
 
       var id = "textbox";
-      var input = getNode(id).inputField;
-      gQueue.push(new synthFocus(id, new caretMoveChecker(5, input)));
-      gQueue.push(new synthSelectAll(id, new caretMoveChecker(5, input)));
-      gQueue.push(new synthHomeKey(id, new caretMoveChecker(0, input)));
-      gQueue.push(new synthRightKey(id, new caretMoveChecker(1, input)));
+      gQueue.push(new synthFocus(id, new caretMoveChecker(5, id)));
+      gQueue.push(new synthSelectAll(id, new caretMoveChecker(5, id)));
+      gQueue.push(new synthHomeKey(id, new caretMoveChecker(0, id)));
+      gQueue.push(new synthRightKey(id, new caretMoveChecker(1, id)));
 
       gQueue.invoke(); // Will call SimpleTest.finish();
     }

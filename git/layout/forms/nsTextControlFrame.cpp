@@ -3,49 +3,76 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "nsCOMPtr.h"
-#include "nsFontMetrics.h"
 #include "nsTextControlFrame.h"
+#include "nsIDocument.h"
+#include "nsIFormControl.h"
+#include "nsIServiceManager.h"
+#include "nsFrameSelection.h"
 #include "nsIPlaintextEditor.h"
+#include "nsEditorCID.h"
+#include "nsLayoutCID.h"
+#include "nsIDocumentEncoder.h"
 #include "nsCaret.h"
+#include "nsISelectionListener.h"
+#include "nsIController.h"
+#include "nsIControllers.h"
+#include "nsIControllerContext.h"
 #include "nsGenericHTMLElement.h"
-#include "nsIEditor.h"
 #include "nsIEditorIMESupport.h"
 #include "nsIPhonetic.h"
 #include "nsTextFragment.h"
+#include "nsIEditorObserver.h"
+#include "nsEditProperty.h"
 #include "nsIDOMHTMLTextAreaElement.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
+#include "nsINodeInfo.h"
 #include "nsFormControlFrame.h" //for registering accesskeys
 
 #include "nsIContent.h"
+#include "nsIAtom.h"
 #include "nsPresContext.h"
 #include "nsRenderingContext.h"
 #include "nsGkAtoms.h"
 #include "nsLayoutUtils.h"
+#include "nsIComponentManager.h"
+#include "nsIView.h"
+#include "nsIViewManager.h"
+#include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIPresShell.h"
 
-#include <algorithm>
+#include "nsBoxLayoutState.h"
+//for keylistener for "return" check
+#include "nsIDOMEventTarget.h"
+#include "nsIDocument.h" //observe documents to send onchangenotifications
+#include "nsIStyleSheet.h"//observe documents to send onchangenotifications
+#include "nsIStyleRule.h"//observe documents to send onchangenotifications
+#include "nsIDOMEventListener.h"//observe documents to send onchangenotifications
+#include "nsGUIEvent.h"
+
+#include "nsIDOMCharacterData.h" //for selection setting helper func
 #include "nsIDOMNodeList.h" //for selection setting helper func
 #include "nsIDOMRange.h" //for selection setting helper func
 #include "nsPIDOMWindow.h" //needed for notify selection changed to update the menus ect.
+#ifdef ACCESSIBILITY
+#include "nsAccessibilityService.h"
+#endif
 #include "nsIDOMNode.h"
 
+#include "nsITransactionManager.h"
 #include "nsIDOMText.h" //for multiline getselection
+#include "nsNodeInfoManager.h"
+#include "nsContentCreatorFunctions.h"
+#include "nsINativeKeyBindings.h"
+#include "nsIJSContextStack.h"
 #include "nsFocusManager.h"
 #include "nsTextEditRules.h"
 #include "nsPresState.h"
-#include "nsContentList.h"
-#include "nsAttrValueInlines.h"
-#include "mozilla/dom/Selection.h"
-#include "nsContentUtils.h"
-#include "nsTextNode.h"
-#include "nsStyleSet.h"
-#include "mozilla/dom/ScriptSettings.h"
-#include "mozilla/MathAlgorithms.h"
+
+#include "mozilla/FunctionTimer.h"
+#include "mozilla/Selection.h"
 
 #define DEFAULT_COLUMN_WIDTH 20
 
@@ -67,10 +94,16 @@ NS_QUERYFRAME_HEAD(nsTextControlFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
 #ifdef ACCESSIBILITY
-a11y::AccType
-nsTextControlFrame::AccessibleType()
+already_AddRefed<Accessible>
+nsTextControlFrame::CreateAccessible()
 {
-  return a11y::eHTMLTextFieldType;
+  nsAccessibilityService* accService = nsIPresShell::AccService();
+  if (accService) {
+    return accService->CreateHTMLTextFieldAccessible(mContent,
+                                                     PresContext()->PresShell());
+  }
+
+  return nullptr;
 }
 #endif
 
@@ -101,7 +134,7 @@ private:
 
 nsTextControlFrame::nsTextControlFrame(nsIPresShell* aShell, nsStyleContext* aContext)
   : nsContainerFrame(aContext)
-  , mEditorHasBeenInitialized(false)
+  , mUseEditor(false)
   , mIsProcessing(false)
 #ifdef DEBUG
   , mInEditorInitialization(false)
@@ -143,9 +176,8 @@ nsTextControlFrame::GetType() const
 
 nsresult
 nsTextControlFrame::CalcIntrinsicSize(nsRenderingContext* aRenderingContext,
-                                      WritingMode aWM,
-                                      LogicalSize& aIntrinsicSize,
-                                      float aFontSizeInflation)
+                                      nsSize&             aIntrinsicSize,
+                                      float               aFontSizeInflation)
 {
   // Get leading and the Average/MaxAdvance char width 
   nscoord lineHeight  = 0;
@@ -157,23 +189,25 @@ nsTextControlFrame::CalcIntrinsicSize(nsRenderingContext* aRenderingContext,
     nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fontMet),
                                           aFontSizeInflation);
   NS_ENSURE_SUCCESS(rv, rv);
+  aRenderingContext->SetFont(fontMet);
 
   lineHeight =
-    nsHTMLReflowState::CalcLineHeight(GetContent(), StyleContext(),
-                                      NS_AUTOHEIGHT, aFontSizeInflation);
+    nsHTMLReflowState::CalcLineHeight(GetStyleContext(), NS_AUTOHEIGHT,
+                                      aFontSizeInflation);
   charWidth = fontMet->AveCharWidth();
   charMaxAdvance = fontMet->MaxAdvance();
 
   // Set the width equal to the width in characters
   int32_t cols = GetCols();
-  aIntrinsicSize.ISize(aWM) = cols * charWidth;
+  aIntrinsicSize.width = cols * charWidth;
 
   // To better match IE, take the maximum character width(in twips) and remove
   // 4 pixels add this on as additional padding(internalPadding). But only do
-  // this if we think we have a fixed-width font.
-  if (mozilla::Abs(charWidth - charMaxAdvance) > (unsigned)nsPresContext::CSSPixelsToAppUnits(1)) {
-    nscoord internalPadding =
-      std::max(0, charMaxAdvance - nsPresContext::CSSPixelsToAppUnits(4));
+  // this if charMaxAdvance != charWidth; if they are equal, this is almost
+  // certainly a fixed-width font.
+  if (charWidth != charMaxAdvance) {
+    nscoord internalPadding = NS_MAX(0, charMaxAdvance -
+                                        nsPresContext::CSSPixelsToAppUnits(4));
     nscoord t = nsPresContext::CSSPixelsToAppUnits(1); 
    // Round to a multiple of t
     nscoord rest = internalPadding % t; 
@@ -183,29 +217,40 @@ nsTextControlFrame::CalcIntrinsicSize(nsRenderingContext* aRenderingContext,
       internalPadding += t - rest;
     }
     // Now add the extra padding on (so that small input sizes work well)
-    aIntrinsicSize.ISize(aWM) += internalPadding;
+    aIntrinsicSize.width += internalPadding;
   } else {
     // This is to account for the anonymous <br> having a 1 twip width
     // in Full Standards mode, see BRFrame::Reflow and bug 228752.
     if (PresContext()->CompatibilityMode() == eCompatibility_FullStandards) {
-      aIntrinsicSize.ISize(aWM) += 1;
+      aIntrinsicSize.width += 1;
+    }
+
+    // Also add in the padding of our value div child.  Note that it hasn't
+    // been reflowed yet, so we can't get its used padding, but it shouldn't be
+    // using percentage padding anyway.
+    nsMargin childPadding;
+    nsIFrame* firstChild = GetFirstPrincipalChild();
+    if (firstChild && firstChild->GetStylePadding()->GetPadding(childPadding)) {
+      aIntrinsicSize.width += childPadding.LeftRight();
+    } else {
+      NS_ERROR("Percentage padding on value div?");
     }
   }
 
   // Increment width with cols * letter-spacing.
   {
-    const nsStyleCoord& lsCoord = StyleText()->mLetterSpacing;
+    const nsStyleCoord& lsCoord = GetStyleText()->mLetterSpacing;
     if (eStyleUnit_Coord == lsCoord.GetUnit()) {
       nscoord letterSpacing = lsCoord.GetCoordValue();
       if (letterSpacing != 0) {
-        aIntrinsicSize.ISize(aWM) += cols * letterSpacing;
+        aIntrinsicSize.width += cols * letterSpacing;
       }
     }
   }
 
   // Set the height equal to total number of rows (times the height of each
   // line, of course)
-  aIntrinsicSize.BSize(aWM) = lineHeight * GetRows();
+  aIntrinsicSize.height = lineHeight * GetRows();
 
   // Add in the size of the scrollbars for textarea
   if (IsTextArea()) {
@@ -218,8 +263,9 @@ nsTextControlFrame::CalcIntrinsicSize(nsRenderingContext* aRenderingContext,
       nsMargin scrollbarSizes =
       scrollableFrame->GetDesiredScrollbarSizes(PresContext(), aRenderingContext);
 
-      aIntrinsicSize.Width(aWM) += scrollbarSizes.LeftRight();
-      aIntrinsicSize.Height(aWM) += scrollbarSizes.TopBottom();
+      aIntrinsicSize.width  += scrollbarSizes.LeftRight();
+
+      aIntrinsicSize.height += scrollbarSizes.TopBottom();;
     }
   }
 
@@ -241,10 +287,14 @@ nsTextControlFrame::EnsureEditorInitialized()
   // never get used.  So, now this method is being called lazily only
   // when we actually need an editor.
 
-  if (mEditorHasBeenInitialized)
+  // Check if this method has been called already.
+  // If so, just return early.
+  if (mUseEditor)
     return NS_OK;
 
-  nsIDocument* doc = mContent->GetComposedDoc();
+  NS_TIME_FUNCTION;
+
+  nsIDocument* doc = mContent->GetCurrentDoc();
   NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
 
   nsWeakFrame weakFrame(this);
@@ -262,7 +312,8 @@ nsTextControlFrame::EnsureEditorInitialized()
 
     // Time to mess with our security context... See comments in GetValue()
     // for why this is needed.
-    mozilla::dom::AutoNoJSAPI nojsapi;
+    nsCxPusher pusher;
+    pusher.PushNull();
 
     // Make sure that we try to focus the content even if the method fails
     class EnsureSetFocus {
@@ -293,9 +344,9 @@ nsTextControlFrame::EnsureEditorInitialized()
     NS_ENSURE_SUCCESS(rv, rv);
     NS_ENSURE_STATE(weakFrame.IsAlive());
 
-    // Set mEditorHasBeenInitialized so that subsequent calls will use the
+    // Turn on mUseEditor so that subsequent calls will use the
     // editor.
-    mEditorHasBeenInitialized = true;
+    mUseEditor = true;
 
     // Set the selection to the beginning of the text field.
     if (weakFrame.IsAlive()) {
@@ -338,26 +389,8 @@ nsTextControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
     nsIContent* placeholderNode = txtCtrl->CreatePlaceholderNode();
     NS_ENSURE_TRUE(placeholderNode, NS_ERROR_OUT_OF_MEMORY);
 
-    // Associate ::-moz-placeholder pseudo-element with the placeholder node.
-    nsCSSPseudoElements::Type pseudoType =
-      nsCSSPseudoElements::ePseudo_mozPlaceholder;
-
-    nsRefPtr<nsStyleContext> placeholderStyleContext =
-      PresContext()->StyleSet()->ResolvePseudoElementStyle(
-          mContent->AsElement(), pseudoType, StyleContext(),
-          placeholderNode->AsElement());
-
-    if (!aElements.AppendElement(ContentInfo(placeholderNode,
-                                 placeholderStyleContext))) {
+    if (!aElements.AppendElement(placeholderNode))
       return NS_ERROR_OUT_OF_MEMORY;
-    }
-
-    if (!IsSingleLineTextControl()) {
-      // For textareas, UpdateValueDisplay doesn't initialize the visibility
-      // status of the placeholder because it returns early, so we have to
-      // do that manually here.
-      txtCtrl->UpdatePlaceholderVisibility(true);
-    }
   }
 
   rv = UpdateValueDisplay(false);
@@ -401,89 +434,74 @@ nsTextControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 }
 
 void
-nsTextControlFrame::AppendAnonymousContentTo(nsTArray<nsIContent*>& aElements,
+nsTextControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
                                              uint32_t aFilter)
 {
   nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
   NS_ASSERTION(txtCtrl, "Content not a text control element");
 
-  nsIContent* root = txtCtrl->GetRootEditorNode();
-  if (root) {
-    aElements.AppendElement(root);
-  }
-
-  nsIContent* placeholder = txtCtrl->GetPlaceholderNode();
-  if (placeholder && !(aFilter & nsIContent::eSkipPlaceholderContent))
-    aElements.AppendElement(placeholder);
+  aElements.MaybeAppendElement(txtCtrl->GetRootEditorNode());
+  if (!(aFilter & nsIContent::eSkipPlaceholderContent))
+    aElements.MaybeAppendElement(txtCtrl->GetPlaceholderNode());
   
 }
 
 nscoord
-nsTextControlFrame::GetPrefISize(nsRenderingContext* aRenderingContext)
+nsTextControlFrame::GetPrefWidth(nsRenderingContext* aRenderingContext)
 {
-    DebugOnly<nscoord> result = 0;
+    nscoord result = 0;
     DISPLAY_PREF_WIDTH(this, result);
 
     float inflation = nsLayoutUtils::FontSizeInflationFor(this);
-    WritingMode wm = GetWritingMode();
-    LogicalSize autoSize(wm);
-    CalcIntrinsicSize(aRenderingContext, wm, autoSize, inflation);
+    nsSize autoSize;
+    CalcIntrinsicSize(aRenderingContext, autoSize, inflation);
 
-    return autoSize.ISize(wm);
+    return autoSize.width; 
 }
 
 nscoord
-nsTextControlFrame::GetMinISize(nsRenderingContext* aRenderingContext)
+nsTextControlFrame::GetMinWidth(nsRenderingContext* aRenderingContext)
 {
   // Our min width is just our preferred width if we have auto width.
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
 
-  result = GetPrefISize(aRenderingContext);
+  result = GetPrefWidth(aRenderingContext);
 
   return result;
 }
 
-LogicalSize
+nsSize
 nsTextControlFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
-                                    WritingMode aWM,
-                                    const LogicalSize& aCBSize,
-                                    nscoord aAvailableISize,
-                                    const LogicalSize& aMargin,
-                                    const LogicalSize& aBorder,
-                                    const LogicalSize& aPadding,
-                                    bool aShrinkWrap)
+                                    nsSize aCBSize, nscoord aAvailableWidth,
+                                    nsSize aMargin, nsSize aBorder,
+                                    nsSize aPadding, bool aShrinkWrap)
 {
   float inflation = nsLayoutUtils::FontSizeInflationFor(this);
-  LogicalSize autoSize(aWM);
-  nsresult rv = CalcIntrinsicSize(aRenderingContext, aWM, autoSize, inflation);
+  nsSize autoSize;
+  nsresult rv = CalcIntrinsicSize(aRenderingContext, autoSize, inflation);
   if (NS_FAILED(rv)) {
     // What now?
-    autoSize.SizeTo(aWM, 0, 0);
+    autoSize.SizeTo(0, 0);
   }
 #ifdef DEBUG
   // Note: Ancestor ComputeAutoSize only computes a width if we're auto-width
-  else {
-    const nsStyleCoord& inlineStyleCoord =
-      aWM.IsVertical() ? StylePosition()->mHeight : StylePosition()->mWidth;
-    if (inlineStyleCoord.GetUnit() == eStyleUnit_Auto) {
-      LogicalSize ancestorAutoSize =
-        nsContainerFrame::ComputeAutoSize(aRenderingContext, aWM,
-                                          aCBSize, aAvailableISize,
-                                          aMargin, aBorder,
-                                          aPadding, aShrinkWrap);
-      // Disabled when there's inflation; see comment in GetPrefSize.
-      MOZ_ASSERT(inflation != 1.0f ||
-                 ancestorAutoSize.ISize(aWM) == autoSize.ISize(aWM),
+  else if (GetStylePosition()->mWidth.GetUnit() == eStyleUnit_Auto) {
+    nsSize ancestorAutoSize =
+      nsContainerFrame::ComputeAutoSize(aRenderingContext,
+                                        aCBSize, aAvailableWidth,
+                                        aMargin, aBorder,
+                                        aPadding, aShrinkWrap);
+    // Disabled when there's inflation; see comment in GetPrefSize.
+    NS_ASSERTION(inflation != 1.0f || ancestorAutoSize.width == autoSize.width,
                  "Incorrect size computed by ComputeAutoSize?");
-    }
   }
 #endif
 
   return autoSize;
 }
 
-void
+NS_IMETHODIMP
 nsTextControlFrame::Reflow(nsPresContext*   aPresContext,
                            nsHTMLReflowMetrics&     aDesiredSize,
                            const nsHTMLReflowState& aReflowState,
@@ -498,30 +516,27 @@ nsTextControlFrame::Reflow(nsPresContext*   aPresContext,
   }
 
   // set values of reflow's out parameters
-  WritingMode wm = aReflowState.GetWritingMode();
-  LogicalSize
-    finalSize(wm,
-              aReflowState.ComputedISize() +
-              aReflowState.ComputedLogicalBorderPadding().IStartEnd(wm),
-              aReflowState.ComputedBSize() +
-              aReflowState.ComputedLogicalBorderPadding().BStartEnd(wm));
-  aDesiredSize.SetSize(wm, finalSize);
+  aDesiredSize.width = aReflowState.ComputedWidth() +
+                       aReflowState.mComputedBorderPadding.LeftRight();
+  aDesiredSize.height = aReflowState.ComputedHeight() +
+                        aReflowState.mComputedBorderPadding.TopBottom();
 
   // computation of the ascent wrt the input height
-  nscoord lineHeight = aReflowState.ComputedBSize();
+  nscoord lineHeight = aReflowState.ComputedHeight();
   float inflation = nsLayoutUtils::FontSizeInflationFor(this);
   if (!IsSingleLineTextControl()) {
-    lineHeight = nsHTMLReflowState::CalcLineHeight(GetContent(), StyleContext(),
-                                                   NS_AUTOHEIGHT, inflation);
+    lineHeight = nsHTMLReflowState::CalcLineHeight(GetStyleContext(), 
+                                                  NS_AUTOHEIGHT, inflation);
   }
   nsRefPtr<nsFontMetrics> fontMet;
-  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fontMet),
-                                        inflation);
+  nsresult rv = nsLayoutUtils::GetFontMetricsForFrame(this, 
+                                                      getter_AddRefs(fontMet), 
+                                                      inflation);
+  NS_ENSURE_SUCCESS(rv, rv);
   // now adjust for our borders and padding
-  aDesiredSize.SetBlockStartAscent(
-    nsLayoutUtils::GetCenteredFontBaseline(fontMet, lineHeight,
-                                           wm.IsLineInverted()) +
-    aReflowState.ComputedLogicalBorderPadding().BStart(wm));
+  aDesiredSize.ascent = 
+        nsLayoutUtils::GetCenteredFontBaseline(fontMet, lineHeight) 
+        + aReflowState.mComputedBorderPadding.top;
 
   // overflow handling
   aDesiredSize.SetOverflowAreasToDesiredBounds();
@@ -532,11 +547,15 @@ nsTextControlFrame::Reflow(nsPresContext*   aPresContext,
     kid = kid->GetNextSibling();
   }
 
+  // If we're resizing, we might need to invalidate our border areas and such
+  CheckInvalidateSizeChange(aDesiredSize);
+
   // take into account css properties that affect overflow handling
   FinishAndStoreOverflow(&aDesiredSize);
 
   aStatus = NS_FRAME_COMPLETE;
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
+  return NS_OK;
 }
 
 void
@@ -547,34 +566,41 @@ nsTextControlFrame::ReflowTextControlChild(nsIFrame*                aKid,
                                            nsHTMLReflowMetrics& aParentDesiredSize)
 {
   // compute available size and frame offsets for child
-  WritingMode wm = aKid->GetWritingMode();
-  LogicalSize availSize = aReflowState.ComputedSizeWithPadding(wm);
-  availSize.BSize(wm) = NS_UNCONSTRAINEDSIZE;
-
+  nsSize availSize(aReflowState.ComputedWidth(), 
+                   aReflowState.ComputedHeight());
+  availSize.width = NS_MAX(availSize.width, 0);
+  availSize.height = NS_MAX(availSize.height, 0);
+  
   nsHTMLReflowState kidReflowState(aPresContext, aReflowState, 
-                                   aKid, availSize, -1, -1,
-                                   nsHTMLReflowState::CALLER_WILL_INIT);
-  // Override padding with our computed padding in case we got it from theming or percentage
-  kidReflowState.Init(aPresContext, -1, -1, nullptr, &aReflowState.ComputedPhysicalPadding());
+                                   aKid, availSize);
 
   // Set computed width and computed height for the child
-  kidReflowState.SetComputedWidth(aReflowState.ComputedWidth());
-  kidReflowState.SetComputedHeight(aReflowState.ComputedHeight());
+  nscoord width = availSize.width;
+  width -= kidReflowState.mComputedMargin.LeftRight() +
+              kidReflowState.mComputedBorderPadding.LeftRight();
+  width = NS_MAX(width, 0);
+  kidReflowState.SetComputedWidth(width);
 
-  // Offset the frame by the size of the parent's border
-  nscoord xOffset = aReflowState.ComputedPhysicalBorderPadding().left -
-                    aReflowState.ComputedPhysicalPadding().left;
-  nscoord yOffset = aReflowState.ComputedPhysicalBorderPadding().top -
-                    aReflowState.ComputedPhysicalPadding().top;
+  nscoord height = availSize.height;
+  height -= kidReflowState.mComputedMargin.TopBottom() +
+              kidReflowState.mComputedBorderPadding.TopBottom();
+  height = NS_MAX(height, 0);       
+  kidReflowState.SetComputedHeight(height); 
+
+  // compute the offsets
+  nscoord xOffset = aReflowState.mComputedBorderPadding.left
+                      + kidReflowState.mComputedMargin.left;
+  nscoord yOffset = aReflowState.mComputedBorderPadding.top
+                      + kidReflowState.mComputedMargin.top;
 
   // reflow the child
-  nsHTMLReflowMetrics desiredSize(aReflowState);
+  nsHTMLReflowMetrics desiredSize;  
   ReflowChild(aKid, aPresContext, desiredSize, kidReflowState, 
               xOffset, yOffset, 0, aStatus);
 
   // place the child
-  FinishReflowChild(aKid, aPresContext, desiredSize,
-                    &kidReflowState, xOffset, yOffset, 0);
+  FinishReflowChild(aKid, aPresContext, &kidReflowState, 
+                    desiredSize, xOffset, yOffset, 0);
 
   // consider the overflow
   aParentDesiredSize.mOverflowAreas.UnionWith(desiredSize.mOverflowAreas);
@@ -626,12 +652,6 @@ void nsTextControlFrame::SetFocus(bool aOn, bool aRepaint)
   // Revoke the previous scroll event if one exists
   mScrollEvent.Revoke();
 
-  // If 'dom.placeholeder.show_on_focus' preference is 'false', focusing or
-  // blurring the frame can have an impact on the placeholder visibility.
-  if (mUsePlaceholder) {
-    txtCtrl->UpdatePlaceholderVisibility(true);
-  }
-
   if (!aOn) {
     return;
   }
@@ -650,12 +670,12 @@ void nsTextControlFrame::SetFocus(bool aOn, bool aRepaint)
   if (!caret) return;
 
   // Scroll the current selection into view
-  nsISelection *caretSelection = caret->GetSelection();
+  nsISelection *caretSelection = caret->GetCaretDOMSelection();
   const bool isFocusedRightNow = ourSel == caretSelection;
   if (!isFocusedRightNow) {
     // Don't scroll the current selection if we've been focused using the mouse.
     uint32_t lastFocusMethod = 0;
-    nsIDocument* doc = GetContent()->GetComposedDoc();
+    nsIDocument* doc = GetContent()->GetCurrentDoc();
     if (doc) {
       nsIFocusManager* fm = nsFocusManager::GetFocusManager();
       if (fm) {
@@ -672,7 +692,7 @@ void nsTextControlFrame::SetFocus(bool aOn, bool aRepaint)
   }
 
   // tell the caret to use our selection
-  caret->SetSelection(ourSel);
+  caret->SetCaretDOMSelection(ourSel);
 
   // mutual-exclusion: the selection is either controlled by the
   // document or by the text input/area. Clear any selection in the
@@ -716,6 +736,16 @@ nsresult nsTextControlFrame::SetFormProperty(nsIAtom* aName, const nsAString& aV
   return NS_OK;
 }
 
+nsresult
+nsTextControlFrame::GetFormProperty(nsIAtom* aName, nsAString& aValue) const
+{
+  NS_ASSERTION(nsGkAtoms::value != aName,
+               "Should get the value from the content node instead");
+  return NS_OK;
+}
+
+
+
 NS_IMETHODIMP
 nsTextControlFrame::GetEditor(nsIEditor **aEditor)
 {
@@ -731,6 +761,19 @@ nsTextControlFrame::GetEditor(nsIEditor **aEditor)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsTextControlFrame::GetTextLength(int32_t* aTextLength)
+{
+  NS_ENSURE_ARG_POINTER(aTextLength);
+
+  nsAutoString   textContents;
+  nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
+  NS_ASSERTION(txtCtrl, "Content not a text control element");
+  txtCtrl->GetTextEditorValue(textContents, false);   // this is expensive!
+  *aTextLength = textContents.Length();
+  return NS_OK;
+}
+
 nsresult
 nsTextControlFrame::SetSelectionInternal(nsIDOMNode *aStartNode,
                                          int32_t aStartOffset,
@@ -742,7 +785,7 @@ nsTextControlFrame::SetSelectionInternal(nsIDOMNode *aStartNode,
   // Note that we use a new range to avoid having to do
   // isIncreasing checks to avoid possible errors.
 
-  nsRefPtr<nsRange> range = new nsRange(mContent);
+  nsRefPtr<nsRange> range = new nsRange();
   nsresult rv = range->SetStart(aStartNode, aStartOffset);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1001,7 +1044,7 @@ nsTextControlFrame::OffsetToDOMPoint(int32_t aOffset,
     } else {
       // Otherwise, set the selection on the textnode itself.
       NS_IF_ADDREF(*aResult = firstNode);
-      *aPosition = std::min(aOffset, int32_t(textLength));
+      *aPosition = NS_MIN(aOffset, int32_t(textLength));
     }
   } else {
     NS_IF_ADDREF(*aResult = rootNode);
@@ -1038,10 +1081,18 @@ nsTextControlFrame::GetSelectionRange(int32_t* aSelectionStart,
   rv = selCon->GetSelection(nsISelectionController::SELECTION_NORMAL, getter_AddRefs(selection));  
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(selection, NS_ERROR_FAILURE);
+  nsCOMPtr<nsISelectionPrivate> selPriv = do_QueryInterface(selection);
+  NS_ENSURE_TRUE(selPriv, NS_ERROR_FAILURE);
+  nsRefPtr<nsFrameSelection> frameSel;
+  rv = selPriv->GetFrameSelection(getter_AddRefs(frameSel));
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(frameSel, NS_ERROR_FAILURE);
+  nsRefPtr<Selection> typedSel =
+    frameSel->GetSelection(nsISelectionController::SELECTION_NORMAL);
+  NS_ENSURE_TRUE(typedSel, NS_ERROR_FAILURE);
 
-  dom::Selection* sel = static_cast<dom::Selection*>(selection.get());
   if (aDirection) {
-    nsDirection direction = sel->GetSelectionDirection();
+    nsDirection direction = typedSel->GetSelectionDirection();
     if (direction == eDirNext) {
       *aDirection = eForward;
     } else if (direction == eDirPrevious) {
@@ -1057,7 +1108,7 @@ nsTextControlFrame::GetSelectionRange(int32_t* aSelectionStart,
 
   mozilla::dom::Element* root = GetRootNodeAndInitializeEditor();
   NS_ENSURE_STATE(root);
-  nsContentUtils::GetSelectionInTextControl(sel, root,
+  nsContentUtils::GetSelectionInTextControl(typedSel, root,
                                             *aSelectionStart, *aSelectionEnd);
 
   return NS_OK;
@@ -1066,7 +1117,7 @@ nsTextControlFrame::GetSelectionRange(int32_t* aSelectionStart,
 /////END INTERFACE IMPLEMENTATIONS
 
 ////NSIFRAME
-nsresult
+NS_IMETHODIMP
 nsTextControlFrame::AttributeChanged(int32_t         aNameSpaceID,
                                      nsIAtom*        aAttribute,
                                      int32_t         aModType)
@@ -1082,73 +1133,80 @@ nsTextControlFrame::AttributeChanged(int32_t         aNameSpaceID,
   if (needEditor) {
     GetEditor(getter_AddRefs(editor));
   }
-  if ((needEditor && !editor) || !selCon) {
+  if ((needEditor && !editor) || !selCon)
     return nsContainerFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
-  }
 
-  if (nsGkAtoms::maxlength == aAttribute) {
+  nsresult rv = NS_OK;
+
+  if (nsGkAtoms::maxlength == aAttribute) 
+  {
     int32_t maxLength;
     bool maxDefined = GetMaxLength(&maxLength);
+    
     nsCOMPtr<nsIPlaintextEditor> textEditor = do_QueryInterface(editor);
-    if (textEditor) {
-      if (maxDefined) { // set the maxLength attribute
-        textEditor->SetMaxTextLength(maxLength);
+    if (textEditor)
+    {
+      if (maxDefined) 
+      {  // set the maxLength attribute
+          textEditor->SetMaxTextLength(maxLength);
         // if maxLength>docLength, we need to truncate the doc content
-      } else { // unset the maxLength attribute
-        textEditor->SetMaxTextLength(-1);
+      }
+      else { // unset the maxLength attribute
+          textEditor->SetMaxTextLength(-1);
       }
     }
-    return NS_OK;
-  }
-
-  if (nsGkAtoms::readonly == aAttribute) {
+    rv = NS_OK; // don't propagate the error
+  } 
+  else if (nsGkAtoms::readonly == aAttribute) 
+  {
     uint32_t flags;
     editor->GetFlags(&flags);
-    if (AttributeExists(nsGkAtoms::readonly)) { // set readonly
+    if (AttributeExists(nsGkAtoms::readonly))
+    { // set readonly
       flags |= nsIPlaintextEditor::eEditorReadonlyMask;
-      if (nsContentUtils::IsFocusedContent(mContent)) {
+      if (nsContentUtils::IsFocusedContent(mContent))
         selCon->SetCaretEnabled(false);
-      }
-    } else { // unset readonly
+    }
+    else 
+    { // unset readonly
       flags &= ~(nsIPlaintextEditor::eEditorReadonlyMask);
       if (!(flags & nsIPlaintextEditor::eEditorDisabledMask) &&
-          nsContentUtils::IsFocusedContent(mContent)) {
+          nsContentUtils::IsFocusedContent(mContent))
+        selCon->SetCaretEnabled(true);
+    }
+    editor->SetFlags(flags);
+  }
+  else if (nsGkAtoms::disabled == aAttribute) 
+  {
+    uint32_t flags;
+    editor->GetFlags(&flags);
+    if (AttributeExists(nsGkAtoms::disabled))
+    { // set disabled
+      flags |= nsIPlaintextEditor::eEditorDisabledMask;
+      selCon->SetDisplaySelection(nsISelectionController::SELECTION_OFF);
+      if (nsContentUtils::IsFocusedContent(mContent))
+        selCon->SetCaretEnabled(false);
+    }
+    else 
+    { // unset disabled
+      flags &= ~(nsIPlaintextEditor::eEditorDisabledMask);
+      selCon->SetDisplaySelection(nsISelectionController::SELECTION_HIDDEN);
+      if (nsContentUtils::IsFocusedContent(mContent)) {
         selCon->SetCaretEnabled(true);
       }
     }
     editor->SetFlags(flags);
-    return NS_OK;
   }
-
-  if (nsGkAtoms::disabled == aAttribute) {
-    uint32_t flags;
-    editor->GetFlags(&flags);
-    int16_t displaySelection = nsISelectionController::SELECTION_OFF;
-    const bool focused = nsContentUtils::IsFocusedContent(mContent);
-    const bool hasAttr = AttributeExists(nsGkAtoms::disabled);
-    if (hasAttr) { // set disabled
-      flags |= nsIPlaintextEditor::eEditorDisabledMask;
-    } else { // unset disabled
-      flags &= ~(nsIPlaintextEditor::eEditorDisabledMask);
-      displaySelection = focused ? nsISelectionController::SELECTION_ON
-                                 : nsISelectionController::SELECTION_HIDDEN;
-    }
-    selCon->SetDisplaySelection(displaySelection);
-    if (focused) {
-      selCon->SetCaretEnabled(!hasAttr);
-    }
-    editor->SetFlags(flags);
-    return NS_OK;
-  }
-
-  if (!mEditorHasBeenInitialized && nsGkAtoms::value == aAttribute) {
+  else if (!mUseEditor && nsGkAtoms::value == aAttribute) {
     UpdateValueDisplay(true);
-    return NS_OK;
+  }
+  // Allow the base class to handle common attributes supported
+  // by all form elements... 
+  else {
+    rv = nsContainerFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
   }
 
-  // Allow the base class to handle common attributes supported by all form
-  // elements...
-  return nsContainerFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
+  return rv;
 }
 
 
@@ -1211,11 +1269,11 @@ nsTextControlFrame::GetMaxLength(int32_t* aSize)
 
 // END IMPLEMENTING NS_IFORMCONTROLFRAME
 
-void
+NS_IMETHODIMP
 nsTextControlFrame::SetInitialChildList(ChildListID     aListID,
                                         nsFrameList&    aChildList)
 {
-  nsContainerFrame::SetInitialChildList(aListID, aChildList);
+  nsresult rv = nsContainerFrame::SetInitialChildList(aListID, aChildList);
 
   nsIFrame* first = GetFirstPrincipalChild();
 
@@ -1243,6 +1301,13 @@ nsTextControlFrame::SetInitialChildList(ChildListID     aListID,
       delete contentScrollPos;
     }
   }
+  return rv;
+}
+
+bool
+nsTextControlFrame::IsScrollable() const
+{
+  return !IsSingleLineTextControl();
 }
 
 void
@@ -1252,8 +1317,11 @@ nsTextControlFrame::SetValueChanged(bool aValueChanged)
   NS_ASSERTION(txtCtrl, "Content not a text control element");
 
   if (mUsePlaceholder) {
+    int32_t textLength;
+    GetTextLength(&textLength);
+
     nsWeakFrame weakFrame(this);
-    txtCtrl->UpdatePlaceholderVisibility(true);
+    txtCtrl->SetPlaceholderClass(!textLength, true);
     if (!weakFrame.IsAlive()) {
       return;
     }
@@ -1276,7 +1344,7 @@ nsTextControlFrame::UpdateValueDisplay(bool aNotify,
   nsIContent* rootNode = txtCtrl->GetRootEditorNode();
 
   NS_PRECONDITION(rootNode, "Must have a div content\n");
-  NS_PRECONDITION(!mEditorHasBeenInitialized,
+  NS_PRECONDITION(!mUseEditor,
                   "Do not call this after editor has been initialized");
   NS_ASSERTION(!mUsePlaceholder || txtCtrl->GetPlaceholderNode(),
                "A placeholder div must exist");
@@ -1284,8 +1352,10 @@ nsTextControlFrame::UpdateValueDisplay(bool aNotify,
   nsIContent *textContent = rootNode->GetChildAt(0);
   if (!textContent) {
     // Set up a textnode with our value
-    nsRefPtr<nsTextNode> textNode =
-      new nsTextNode(mContent->NodeInfo()->NodeInfoManager());
+    nsCOMPtr<nsIContent> textNode;
+    nsresult rv = NS_NewTextNode(getter_AddRefs(textNode),
+                                 mContent->NodeInfo()->NodeInfoManager());
+    NS_ENSURE_SUCCESS(rv, rv);
 
     NS_ASSERTION(textNode, "Must have textcontent!\n");
 
@@ -1309,7 +1379,7 @@ nsTextControlFrame::UpdateValueDisplay(bool aNotify,
   if (mUsePlaceholder && !aBeforeEditorInit)
   {
     nsWeakFrame weakFrame(this);
-    txtCtrl->UpdatePlaceholderVisibility(aNotify);
+    txtCtrl->SetPlaceholderClass(value.IsEmpty(), aNotify);
     NS_ENSURE_STATE(weakFrame.IsAlive());
   }
 
@@ -1348,7 +1418,7 @@ nsTextControlFrame::GetOwnedFrameSelection()
 }
 
 NS_IMETHODIMP
-nsTextControlFrame::SaveState(nsPresState** aState)
+nsTextControlFrame::SaveState(nsIStatefulFrame::SpecialStateID aStateID, nsPresState** aState)
 {
   NS_ENSURE_ARG_POINTER(aState);
 
@@ -1362,7 +1432,7 @@ nsTextControlFrame::SaveState(nsPresState** aState)
     // Query the nsIStatefulFrame from the HTMLScrollFrame
     nsIStatefulFrame* scrollStateFrame = do_QueryFrame(rootNode->GetPrimaryFrame());
     if (scrollStateFrame) {
-      return scrollStateFrame->SaveState(aState);
+      return scrollStateFrame->SaveState(aStateID, aState);
     }
   }
 
@@ -1393,83 +1463,9 @@ nsTextControlFrame::RestoreState(nsPresState* aState)
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsTextControlFrame::PeekOffset(nsPeekOffsetStruct *aPos)
 {
   return NS_ERROR_FAILURE;
 }
 
-void
-nsTextControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                     const nsRect&           aDirtyRect,
-                                     const nsDisplayListSet& aLists)
-{
-  /*
-   * The implementation of this method is equivalent as:
-   * nsContainerFrame::BuildDisplayList()
-   * with the difference that we filter-out the placeholder frame when it
-   * should not be visible.
-   */
-  DO_GLOBAL_REFLOW_COUNT_DSP("nsTextControlFrame");
-
-  nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
-  NS_ASSERTION(txtCtrl, "Content not a text control element!");
-
-  DisplayBorderBackgroundOutline(aBuilder, aLists);
-
-  nsIFrame* kid = mFrames.FirstChild();
-  // Redirect all lists to the Content list so that nothing can escape, ie
-  // opacity creating stacking contexts that then get sorted with stacking
-  // contexts external to us.
-  nsDisplayList* content = aLists.Content();
-  nsDisplayListSet set(content, content, content, content, content, content);
-
-  while (kid) {
-    // If the frame is the placeholder frame, we should only show it if the
-    // placeholder has to be visible.
-    if (kid->GetContent() != txtCtrl->GetPlaceholderNode() ||
-        txtCtrl->GetPlaceholderVisibility()) {
-      BuildDisplayListForChild(aBuilder, kid, aDirtyRect, set, 0);
-    }
-    kid = kid->GetNextSibling();
-  }
-}
-
-mozilla::dom::Element*
-nsTextControlFrame::GetPseudoElement(nsCSSPseudoElements::Type aType)
-{
-  if (aType == nsCSSPseudoElements::ePseudo_mozPlaceholder) {
-    nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
-    return txtCtrl->GetPlaceholderNode();
-  }
-
-  return nsContainerFrame::GetPseudoElement(aType);
-}
-
-NS_IMETHODIMP
-nsTextControlFrame::EditorInitializer::Run()
-{
-  if (!mFrame) {
-    return NS_OK;
-  }
-
-  // Need to block script to avoid bug 669767.
-  nsAutoScriptBlocker scriptBlocker;
-
-  nsCOMPtr<nsIPresShell> shell =
-    mFrame->PresContext()->GetPresShell();
-  bool observes = shell->ObservesNativeAnonMutationsForPrint();
-  shell->ObserveNativeAnonMutationsForPrint(true);
-  // This can cause the frame to be destroyed (and call Revoke()).
-  mFrame->EnsureEditorInitialized();
-  shell->ObserveNativeAnonMutationsForPrint(observes);
-
-  // The frame can *still* be destroyed even though we have a scriptblocker,
-  // bug 682684.
-  if (!mFrame) {
-    return NS_ERROR_FAILURE;
-  }
-
-  mFrame->FinishedInitializer();
-  return NS_OK;
-}

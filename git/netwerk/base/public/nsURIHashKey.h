@@ -19,7 +19,7 @@ public:
     typedef nsIURI* KeyType;
     typedef const nsIURI* KeyTypePointer;
 
-    explicit nsURIHashKey(const nsIURI* aKey) :
+    nsURIHashKey(const nsIURI* aKey) :
         mKey(const_cast<nsIURI*>(aKey)) { MOZ_COUNT_CTOR(nsURIHashKey); }
     nsURIHashKey(const nsURIHashKey& toCopy) :
         mKey(toCopy.mKey) { MOZ_COUNT_CTOR(nsURIHashKey); }
@@ -37,7 +37,7 @@ public:
 
     static const nsIURI* KeyToPointer(nsIURI* aKey) { return aKey; }
     static PLDHashNumber HashKey(const nsIURI* aKey) {
-        nsAutoCString spec;
+        nsCAutoString spec;
         const_cast<nsIURI*>(aKey)->GetSpec(spec);
         return mozilla::HashString(spec);
     }

@@ -7,27 +7,34 @@
 #define nsFtpProtocolHandler_h__
 
 #include "nsFtpControlConnection.h"
+#include "nsIServiceManager.h"
 #include "nsIProxiedProtocolHandler.h"
 #include "nsTArray.h"
+#include "nsIIOService.h"
 #include "nsITimer.h"
+#include "nsIObserverService.h"
+#include "nsICacheSession.h"
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
+#include "nsCRT.h"
 
-class nsICacheSession;
+class nsITimer;
+class nsIStreamListener;
 
 //-----------------------------------------------------------------------------
 
-class nsFtpProtocolHandler MOZ_FINAL : public nsIProxiedProtocolHandler
-                                     , public nsIObserver
-                                     , public nsSupportsWeakReference
+class nsFtpProtocolHandler : public nsIProxiedProtocolHandler
+                           , public nsIObserver
+                           , public nsSupportsWeakReference
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIPROTOCOLHANDLER
     NS_DECL_NSIPROXIEDPROTOCOLHANDLER
     NS_DECL_NSIOBSERVER
     
     nsFtpProtocolHandler();
+    virtual ~nsFtpProtocolHandler();
     
     nsresult Init();
 
@@ -40,8 +47,6 @@ public:
     uint8_t GetControlQoSBits() { return mControlQoSBits; }
 
 private:
-    virtual ~nsFtpProtocolHandler();
-
     // Stuff for the timer callback function
     struct timerStruct {
         nsCOMPtr<nsITimer>      timer;

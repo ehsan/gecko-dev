@@ -5,24 +5,19 @@
 
 var oldVal = false;
   
-Object.defineProperty(Array.prototype, "remove", {
-  enumerable: false,
-  configurable: false,
-  writable: false,
-  value: function(from, to) {
-    // Array Remove - By John Resig (MIT Licensed)
-    var rest = this.slice((to || from) + 1 || this.length);
-    this.length = from < 0 ? this.length + from : from;
-    return this.push.apply(this, rest);
-  }
-});
+// Array Remove - By John Resig (MIT Licensed)
+Array.prototype.remove = function(from, to) {
+  var rest = this.slice((to || from) + 1 || this.length);
+  this.length = from < 0 ? this.length + from : from;
+  return this.push.apply(this, rest);
+};
 
 function devicestorage_setup() {
 
   // ensure that the directory we are writing into is empty
   try {
-    const Cc = SpecialPowers.Cc;
-    const Ci = SpecialPowers.Ci;
+    const Cc = SpecialPowers.wrap(Components).classes;
+    const Ci = Components.interfaces;
     var directoryService = Cc["@mozilla.org/file/directory_service;1"].getService(Ci.nsIProperties);
     var f = directoryService.get("TmpD", Ci.nsIFile);
     f.appendRelativePath("device-storage-testing");
@@ -59,8 +54,8 @@ function getRandomBuffer() {
   return buffer;
 }
 
-function createRandomBlob(mime) {
-  return blob = new Blob([getRandomBuffer()], {type: mime});
+function createRandomBlob() {
+  return blob = new Blob([getRandomBuffer()], {type: 'binary/random'});
 }
 
 function randomFilename(l) {

@@ -12,20 +12,19 @@
 struct PropertyInfo {
     const char *propName;
     const char *domName;
-    const char *pref;
 };
 
 const PropertyInfo gLonghandProperties[] = {
 
-#define CSS_PROP_PUBLIC_OR_PRIVATE(publicname_, privatename_) publicname_
+#define CSS_PROP_DOMPROP_PREFIXED(prop_) Moz ## prop_
 #define CSS_PROP(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, \
                  stylestruct_, stylestructoffset_, animtype_)                 \
-    { #name_, #method_, pref_ },
+    { #name_, #method_ },
 
 #include "nsCSSPropList.h"
 
 #undef CSS_PROP
-#undef CSS_PROP_PUBLIC_OR_PRIVATE
+#undef CSS_PROP_DOMPROP_PREFIXED
 
 };
 
@@ -50,21 +49,21 @@ const char* gLonghandPropertiesWithDOMProp[] = {
 
 const PropertyInfo gShorthandProperties[] = {
 
-#define CSS_PROP_PUBLIC_OR_PRIVATE(publicname_, privatename_) publicname_
+#define CSS_PROP_DOMPROP_PREFIXED(prop_) Moz ## prop_
 // Need an extra level of macro nesting to force expansion of method_
 // params before they get pasted.
-#define LISTCSSPROPERTIES_INNER_MACRO(method_) #method_
+#define LISTCSSPROPERTIES_INNER_MACRO(method_) #method_,
 #define CSS_PROP_SHORTHAND(name_, id_, method_, flags_, pref_)	\
-    { #name_, LISTCSSPROPERTIES_INNER_MACRO(method_), pref_ },
+    { #name_, LISTCSSPROPERTIES_INNER_MACRO(method_) },
 
 #include "nsCSSPropList.h"
 
 #undef CSS_PROP_SHORTHAND
 #undef LISTCSSPROPERTIES_INNER_MACRO
-#undef CSS_PROP_PUBLIC_OR_PRIVATE
+#undef CSS_PROP_DOMPROP_PREFIXED
 
 #define CSS_PROP_ALIAS(name_, id_, method_, pref_) \
-    { #name_, #method_, pref_ },
+    { #name_, #method_ },
 
 #include "nsCSSPropAliasList.h"
 
@@ -103,7 +102,6 @@ const char *gInaccessibleProperties[] = {
     "-x-lang",
     "-x-span",
     "-x-system-font",
-    "-x-text-zoom",
     "border-end-color-value",
     "border-end-style-value",
     "border-end-width-value",
@@ -144,12 +142,9 @@ const char *gInaccessibleProperties[] = {
     "padding-left-rtl-source",
     "padding-right-ltr-source",
     "padding-right-rtl-source",
-    "-moz-control-character-visibility",
     "-moz-script-level", // parsed by UA sheets only
     "-moz-script-size-multiplier",
-    "-moz-script-min-size",
-    "-moz-math-variant",
-    "-moz-math-display" // parsed by UA sheets only
+    "-moz-script-min-size"
 };
 
 inline int
@@ -196,10 +191,7 @@ print_array(const char *aName,
                 // lowercase the first letter
                 printf("\"%c%s\"", p->domName[0] + 32, p->domName + 1);
         }
-        if (p->pref[0]) {
-            printf(", pref: \"%s\"", p->pref);
-        }
-        printf(" }");
+        printf("}");
     }
 
     if (j != aDOMPropsLength) {

@@ -3,7 +3,7 @@ Makefile functions.
 """
 
 import parser, util
-import subprocess, os, logging, sys
+import subprocess, os, logging
 from globrelative import glob
 from cStringIO import StringIO
 
@@ -649,11 +649,7 @@ class ForEachFunction(Function):
             else:
                 fd.write(' ')
 
-            # The $(origin) of the local variable must be "automatic" to
-            # conform with GNU make. However, automatic variables have low
-            # priority. So, we must force its assignment to occur.
-            v.set(vname, data.Variables.FLAVOR_SIMPLE,
-                    data.Variables.SOURCE_AUTOMATIC, w, force=True)
+            v.set(vname, data.Variables.FLAVOR_SIMPLE, data.Variables.SOURCE_AUTOMATIC, w)
             e.resolve(makefile, v, fd, setting)
 
 class CallFunction(Function):
@@ -770,28 +766,16 @@ class ShellFunction(Function):
     __slots__ = Function.__slots__
 
     def resolve(self, makefile, variables, fd, setting):
-        from process import prepare_command
+        #TODO: call this once up-front somewhere and save the result?
+        shell, msys = util.checkmsyscompat()
         cline = self._arguments[0].resolvestr(makefile, variables, setting)
-        executable, cline = prepare_command(cline, makefile.workdir, self.loc)
 
-        # subprocess.Popen doesn't use the PATH set in the env argument for
-        # finding the executable on some platforms (but strangely it does on
-        # others!), so set os.environ['PATH'] explicitly.
-        oldpath = os.environ['PATH']
-        if makefile.env is not None and 'PATH' in makefile.env:
-            os.environ['PATH'] = makefile.env['PATH']
-
-        log.debug("%s: running command '%s'" % (self.loc, ' '.join(cline)))
-        try:
-            p = subprocess.Popen(cline, executable=executable, env=makefile.env, shell=False,
-                                 stdout=subprocess.PIPE, cwd=makefile.workdir)
-        except OSError, e:
-            print >>sys.stderr, "Error executing command %s" % cline[0], e
-            return
-        finally:
-            os.environ['PATH'] = oldpath
-
+        log.debug("%s: running shell command '%s'" % (self.loc, cline))
+        if msys:
+            cline = [shell, "-c", cline]
+        p = subprocess.Popen(cline, shell=not msys, stdout=subprocess.PIPE, cwd=makefile.workdir)
         stdout, stderr = p.communicate()
+
         stdout = stdout.replace('\r\n', '\n')
         if stdout.endswith('\n'):
             stdout = stdout[:-1]

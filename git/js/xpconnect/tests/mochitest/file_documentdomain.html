@@ -25,13 +25,6 @@
     } catch (e) { return false; }
   }
 
-  function invokingFunctionThrowsSecurityException(name) {
-    try {
-      window[name]();
-      return false;
-    } catch (e) { return /insecure|denied/.test(e); }
-  }
-
 
 </script>
 </head>

@@ -7,23 +7,14 @@
 
 #include "base/file_path.h"
 #include "base/process_util.h"
+#include "base/scoped_ptr.h"
 #include "base/waitable_event.h"
 #include "chrome/common/child_process_host.h"
 
-#include "mozilla/DebugOnly.h"
-#include "mozilla/ipc/FileDescriptor.h"
 #include "mozilla/Monitor.h"
-#include "mozilla/StaticPtr.h"
 
-#include "nsCOMPtr.h"
 #include "nsXULAppAPI.h"        // for GeckoProcessType
 #include "nsString.h"
-
-#if defined(XP_WIN) && defined(MOZ_SANDBOX)
-#include "sandboxBroker.h"
-#endif
-
-class nsIFile;
 
 namespace mozilla {
 namespace ipc {
@@ -35,19 +26,16 @@ protected:
   typedef std::vector<std::string> StringVector;
 
 public:
-  typedef base::ChildPrivileges ChildPrivileges;
   typedef base::ProcessHandle ProcessHandle;
 
-  static ChildPrivileges DefaultChildPrivileges();
-
-  explicit GeckoChildProcessHost(GeckoProcessType aProcessType,
-                                 ChildPrivileges aPrivileges=base::PRIVILEGES_DEFAULT);
+  GeckoChildProcessHost(GeckoProcessType aProcessType=GeckoProcessType_Default,
+                        base::WaitableEventWatcher::Delegate* aDelegate=nullptr);
 
   ~GeckoChildProcessHost();
 
-  static nsresult GetArchitecturesForBinary(const char *path, uint32_t *result);
+  static nsresult GetArchitecturesForBinary(const char *path, uint32 *result);
 
-  static uint32_t GetSupportedArchitecturesForProcessType(GeckoProcessType type);
+  static uint32 GetSupportedArchitecturesForProcessType(GeckoProcessType type);
 
   // Block until the IPC channel for our subprocess is initialized,
   // but no longer.  The child process may or may not have been
@@ -72,18 +60,18 @@ public:
   // the IPC channel, meaning it's fully initialized.  (Or until an
   // error occurs.)
   bool SyncLaunch(StringVector aExtraOpts=StringVector(),
-                  int32_t timeoutMs=0,
+                  int32 timeoutMs=0,
                   base::ProcessArchitecture arch=base::GetCurrentProcessArchitecture());
 
-  virtual bool PerformAsyncLaunch(StringVector aExtraOpts=StringVector(),
-                                  base::ProcessArchitecture aArch=base::GetCurrentProcessArchitecture());
+  bool PerformAsyncLaunch(StringVector aExtraOpts=StringVector(),
+                          base::ProcessArchitecture arch=base::GetCurrentProcessArchitecture());
 
-  virtual void OnChannelConnected(int32_t peer_pid);
+  virtual void OnChannelConnected(int32 peer_pid);
   virtual void OnMessageReceived(const IPC::Message& aMsg);
   virtual void OnChannelError();
   virtual void GetQueuedMessages(std::queue<IPC::Message>& queue);
 
-  virtual void InitializeChannel();
+  void InitializeChannel();
 
   virtual bool CanShutdown() { return true; }
 
@@ -97,26 +85,8 @@ public:
     return GetProcessEvent();
   }
 
-  // Returns a "borrowed" handle to the child process - the handle returned
-  // by this function must not be closed by the caller.
   ProcessHandle GetChildProcessHandle() {
     return mChildProcessHandle;
-  }
-
-  // Returns an "owned" handle to the child process - the handle returned
-  // by this function must be closed by the caller.
-  ProcessHandle GetOwnedChildProcessHandle() {
-    ProcessHandle handle;
-    // We use OpenPrivilegedProcessHandle as that is where our
-    // mChildProcessHandle initially came from.
-    bool ok = base::OpenPrivilegedProcessHandle(base::GetProcId(mChildProcessHandle),
-                                                &handle);
-    NS_ASSERTION(ok, "Failed to get owned process handle");
-    return ok ? handle : 0;
-  }
-
-  GeckoProcessType GetProcessType() {
-    return mProcessType;
   }
 
 #ifdef XP_MACOSX
@@ -125,21 +95,11 @@ public:
   }
 #endif
 
-  /**
-   * Must run on the IO thread.  Cause the OS process to exit and
-   * ensure its OS resources are cleaned up.
-   */
-  void Join();
-
-  // For bug 943174: Skip the EnsureProcessTerminated call in the destructor.
-  void SetAlreadyDead();
 
 protected:
   GeckoProcessType mProcessType;
-  ChildPrivileges mPrivileges;
   Monitor mMonitor;
   FilePath mProcessPath;
-
   // This value must be accessed while holding mMonitor.
   enum {
     // This object has been constructed, but the OS process has not
@@ -164,21 +124,7 @@ protected:
 #ifdef XP_WIN
   void InitWindowsGroupID();
   nsString mGroupId;
-
-#ifdef MOZ_SANDBOX
-  SandboxBroker mSandboxBroker;
-  std::vector<std::wstring> mAllowedFilesRead;
-
-  // XXX: Bug 1124167: We should get rid of the process specific logic for
-  // sandboxing in this class at some point. Unfortunately it will take a bit
-  // of reorganizing so I don't think this patch is the right time.
-  bool mEnableNPAPISandbox;
-#if defined(MOZ_CONTENT_SANDBOX)
-  bool mEnableContentSandbox;
-  bool mWarnOnlyContentSandbox;
 #endif
-#endif
-#endif // XP_WIN
 
 #if defined(OS_POSIX)
   base::file_handle_mapping_vector mFileMap;
@@ -191,8 +137,6 @@ protected:
   task_t mChildTask;
 #endif
 
-  void OpenPrivilegedHandle(base::ProcessId aPid);
-
 private:
   DISALLOW_EVIL_CONSTRUCTORS(GeckoChildProcessHost);
 
@@ -200,10 +144,7 @@ private:
   bool PerformAsyncLaunchInternal(std::vector<std::string>& aExtraOpts,
                                   base::ProcessArchitecture arch);
 
-  bool RunPerformAsyncLaunch(StringVector aExtraOpts=StringVector(),
-			     base::ProcessArchitecture aArch=base::GetCurrentProcessArchitecture());
-
-  static void GetPathToBinary(FilePath& exePath);
+  void OpenPrivilegedHandle(base::ProcessId aPid);
 
   // In between launching the subprocess and handing off its IPC
   // channel, there's a small window of time in which *we* might still
@@ -214,28 +155,6 @@ private:
   // FIXME/cjones: this strongly indicates bad design.  Shame on us.
   std::queue<IPC::Message> mQueue;
 };
-
-#ifdef MOZ_NUWA_PROCESS
-class GeckoExistingProcessHost MOZ_FINAL : public GeckoChildProcessHost
-{
-public:
-  GeckoExistingProcessHost(GeckoProcessType aProcessType,
-                           base::ProcessHandle aProcess,
-                           const FileDescriptor& aFileDescriptor,
-                           ChildPrivileges aPrivileges=base::PRIVILEGES_DEFAULT);
-
-  ~GeckoExistingProcessHost();
-
-  virtual bool PerformAsyncLaunch(StringVector aExtraOpts=StringVector(),
-          base::ProcessArchitecture aArch=base::GetCurrentProcessArchitecture()) MOZ_OVERRIDE;
-
-  virtual void InitializeChannel() MOZ_OVERRIDE;
-
-private:
-  base::ProcessHandle mExistingProcessHandle;
-  mozilla::ipc::FileDescriptor mExistingFileDescriptor;
-};
-#endif /* MOZ_NUWA_PROCESS */
 
 } /* namespace ipc */
 } /* namespace mozilla */

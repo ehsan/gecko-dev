@@ -5,6 +5,8 @@
 
 #include "domstubs.idl"
 
+interface nsIContent;
+
 /**
  * The nsIDOMNodeList interface provides the abstraction of an ordered 
  * collection of nodes, without defining or constraining how this collection 
@@ -15,11 +17,14 @@
  * http://www.w3.org/TR/DOM-Level-2-Core/
  */
 
-// NOTE: Please do not attempt to make this not scriptable,
-// see https://bugzilla.mozilla.org/show_bug.cgi?id=994964#c73.
-[scriptable, uuid(450cf0ba-de90-4f86-85bf-e10cc8b8713f)]
+[scriptable, uuid(496852ba-e48d-4fa5-982e-e0dc1b475bf1)]
 interface nsIDOMNodeList : nsISupports
 {
-  nsIDOMNode    item(in unsigned long index);
+  [getter,forward(getNodeAt)] nsIDOMNode    item(in unsigned long index);
   readonly attribute unsigned long          length;
+
+  /**
+   * Get the node at the index.  Returns null if the index is out of bounds
+   */
+  [noscript,notxpcom,nostdcall] nsIContent  getNodeAt(in unsigned long index);
 };

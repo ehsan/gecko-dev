@@ -8,22 +8,20 @@
 #define dom_plugins_PluginScriptableObjectChild_h 1
 
 #include "mozilla/plugins/PPluginScriptableObjectChild.h"
-#include "mozilla/plugins/PluginMessageUtils.h"
-#include "mozilla/plugins/PluginTypes.h"
 
 #include "npruntime.h"
-#include "nsDataHashtable.h"
 
 namespace mozilla {
 namespace plugins {
 
 class PluginInstanceChild;
 class PluginScriptableObjectChild;
+class PPluginIdentifierChild;
 
 struct ChildNPObject : NPObject
 {
   ChildNPObject()
-    : NPObject(), parent(nullptr), invalidated(false)
+    : NPObject(), parent(NULL), invalidated(false)
   {
     MOZ_COUNT_CTOR(ChildNPObject);
   }
@@ -44,10 +42,10 @@ class PluginScriptableObjectChild : public PPluginScriptableObjectChild
   friend class PluginInstanceChild;
 
 public:
-  explicit PluginScriptableObjectChild(ScriptableObjectType aType);
+  PluginScriptableObjectChild(ScriptableObjectType aType);
   virtual ~PluginScriptableObjectChild();
 
-  bool
+  void
   InitializeProxy();
 
   void
@@ -55,57 +53,57 @@ public:
 
 
   virtual bool
-  AnswerInvalidate() MOZ_OVERRIDE;
+  AnswerInvalidate();
 
   virtual bool
-  AnswerHasMethod(const PluginIdentifier& aId,
-                  bool* aHasMethod) MOZ_OVERRIDE;
+  AnswerHasMethod(PPluginIdentifierChild* aId,
+                  bool* aHasMethod);
 
   virtual bool
-  AnswerInvoke(const PluginIdentifier& aId,
+  AnswerInvoke(PPluginIdentifierChild* aId,
                const InfallibleTArray<Variant>& aArgs,
                Variant* aResult,
-               bool* aSuccess) MOZ_OVERRIDE;
+               bool* aSuccess);
 
   virtual bool
   AnswerInvokeDefault(const InfallibleTArray<Variant>& aArgs,
                       Variant* aResult,
-                      bool* aSuccess) MOZ_OVERRIDE;
+                      bool* aSuccess);
 
   virtual bool
-  AnswerHasProperty(const PluginIdentifier& aId,
-                    bool* aHasProperty) MOZ_OVERRIDE;
+  AnswerHasProperty(PPluginIdentifierChild* aId,
+                    bool* aHasProperty);
 
   virtual bool
-  AnswerGetChildProperty(const PluginIdentifier& aId,
+  AnswerGetChildProperty(PPluginIdentifierChild* aId,
                          bool* aHasProperty,
                          bool* aHasMethod,
                          Variant* aResult,
-                         bool* aSuccess) MOZ_OVERRIDE;
+                         bool* aSuccess);
 
   virtual bool
-  AnswerSetProperty(const PluginIdentifier& aId,
+  AnswerSetProperty(PPluginIdentifierChild* aId,
                     const Variant& aValue,
-                    bool* aSuccess) MOZ_OVERRIDE;
+                    bool* aSuccess);
 
   virtual bool
-  AnswerRemoveProperty(const PluginIdentifier& aId,
-                       bool* aSuccess) MOZ_OVERRIDE;
+  AnswerRemoveProperty(PPluginIdentifierChild* aId,
+                       bool* aSuccess);
 
   virtual bool
-  AnswerEnumerate(InfallibleTArray<PluginIdentifier>* aProperties,
-                  bool* aSuccess) MOZ_OVERRIDE;
+  AnswerEnumerate(InfallibleTArray<PPluginIdentifierChild*>* aProperties,
+                  bool* aSuccess);
 
   virtual bool
   AnswerConstruct(const InfallibleTArray<Variant>& aArgs,
                   Variant* aResult,
-                  bool* aSuccess) MOZ_OVERRIDE;
+                  bool* aSuccess);
 
   virtual bool
-  RecvProtect() MOZ_OVERRIDE;
+  RecvProtect();
 
   virtual bool
-  RecvUnprotect() MOZ_OVERRIDE;
+  RecvUnprotect();
 
   NPObject*
   GetObject(bool aCanResurrect);
@@ -156,82 +154,6 @@ public:
   Type() const {
     return mType;
   }
-
-private:
-  struct StoredIdentifier
-  {
-    nsCString mIdentifier;
-    nsAutoRefCnt mRefCnt;
-    bool mPermanent;
-
-    nsrefcnt AddRef() {
-      ++mRefCnt;
-      return mRefCnt;
-    }
-
-    nsrefcnt Release() {
-      --mRefCnt;
-      if (mRefCnt == 0) {
-        delete this;
-        return 0;
-      }
-      return mRefCnt;
-    }
-
-    explicit StoredIdentifier(const nsCString& aIdentifier)
-      : mIdentifier(aIdentifier), mRefCnt(), mPermanent(false)
-    { MOZ_COUNT_CTOR(StoredIdentifier); }
-
-    ~StoredIdentifier() { MOZ_COUNT_DTOR(StoredIdentifier); }
-  };
-
-public:
-  class MOZ_STACK_CLASS StackIdentifier
-  {
-  public:
-    explicit StackIdentifier(const PluginIdentifier& aIdentifier);
-    explicit StackIdentifier(NPIdentifier aIdentifier);
-    ~StackIdentifier();
-
-    void MakePermanent()
-    {
-      if (mStored) {
-        mStored->mPermanent = true;
-      }
-    }
-    NPIdentifier ToNPIdentifier() const;
-
-    bool IsString() const { return mIdentifier.type() == PluginIdentifier::TnsCString; }
-    const nsCString& GetString() const { return mIdentifier.get_nsCString(); }
-
-    int32_t GetInt() const { return mIdentifier.get_int32_t(); }
-
-    PluginIdentifier GetIdentifier() const { return mIdentifier; }
-
-   private:
-    DISALLOW_COPY_AND_ASSIGN(StackIdentifier);
-
-    PluginIdentifier mIdentifier;
-    nsRefPtr<StoredIdentifier> mStored;
-  };
-
-  static void ClearIdentifiers();
-
-  bool RegisterActor(NPObject* aObject);
-  void UnregisterActor(NPObject* aObject);
-
-  static PluginScriptableObjectChild* GetActorForNPObject(NPObject* aObject);
-
-  static void RegisterObject(NPObject* aObject, PluginInstanceChild* aInstance);
-  static void UnregisterObject(NPObject* aObject);
-
-  static PluginInstanceChild* GetInstanceForNPObject(NPObject* aObject);
-
-  /**
-   * Fill PluginInstanceChild.mDeletingHash with all the remaining NPObjects
-   * associated with that instance.
-   */
-  static void NotifyOfInstanceShutdown(PluginInstanceChild* aInstance);
 
 private:
   static NPObject*
@@ -307,35 +229,6 @@ private:
   ScriptableObjectType mType;
 
   static const NPClass sNPClass;
-
-  static StoredIdentifier* HashIdentifier(const nsCString& aIdentifier);
-  static void UnhashIdentifier(StoredIdentifier* aIdentifier);
-
-  typedef nsDataHashtable<nsCStringHashKey, nsRefPtr<StoredIdentifier>> IdentifierTable;
-  static IdentifierTable sIdentifiers;
-
-  struct NPObjectData : public nsPtrHashKey<NPObject>
-  {
-    explicit NPObjectData(const NPObject* key)
-    : nsPtrHashKey<NPObject>(key),
-      instance(nullptr),
-      actor(nullptr)
-    { }
-
-    // never nullptr
-    PluginInstanceChild* instance;
-
-    // sometimes nullptr (no actor associated with an NPObject)
-    PluginScriptableObjectChild* actor;
-  };
-
-  static PLDHashOperator CollectForInstance(NPObjectData* d, void* userArg);
-
-  /**
-   * mObjectMap contains all the currently active NPObjects (from NPN_CreateObject until the
-   * final release/dealloc, whether or not an actor is currently associated with the object.
-   */
-  static nsTHashtable<NPObjectData>* sObjectMap;
 };
 
 } /* namespace plugins */

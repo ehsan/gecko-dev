@@ -14,7 +14,6 @@
 
 #include "base/message_loop.h"
 #include "mozilla/Scoped.h"
-#include "mozilla/StaticPtr.h"
 
 #include <android/log.h>
 #include <cutils/sockets.h>
@@ -24,7 +23,7 @@
 namespace mozilla {
 namespace system {
 
-static StaticRefPtr<VolumeManager> sVolumeManager;
+static RefPtr<VolumeManager> sVolumeManager;
 
 VolumeManager::STATE VolumeManager::mState = VolumeManager::UNINITIALIZED;
 VolumeManager::StateObserverList VolumeManager::mStateObserverList;
@@ -32,32 +31,15 @@ VolumeManager::StateObserverList VolumeManager::mStateObserverList;
 /***************************************************************************/
 
 VolumeManager::VolumeManager()
-  : LineWatcher('\0', kRcvBufSize),
-    mSocket(-1),
-    mCommandPending(false)
+  : mSocket(-1),
+    mCommandPending(false),
+    mRcvIdx(0)
 {
   DBG("VolumeManager constructor called");
 }
 
 VolumeManager::~VolumeManager()
 {
-}
-
-//static
-void
-VolumeManager::Dump(const char* aLabel)
-{
-  if (!sVolumeManager) {
-    LOG("%s: sVolumeManager == null", aLabel);
-    return;
-  }
-
-  VolumeArray::size_type  numVolumes = NumVolumes();
-  VolumeArray::index_type volIndex;
-  for (volIndex = 0; volIndex < numVolumes; volIndex++) {
-    RefPtr<Volume> vol = GetVolume(volIndex);
-    vol->Dump(aLabel);
-  }
 }
 
 //static
@@ -112,23 +94,23 @@ VolumeManager::SetState(STATE aNewState)
 
 //static
 void
-VolumeManager::RegisterStateObserver(StateObserver* aObserver)
+VolumeManager::RegisterStateObserver(StateObserver *aObserver)
 {
   mStateObserverList.AddObserver(aObserver);
 }
 
 //static
-void VolumeManager::UnregisterStateObserver(StateObserver* aObserver)
+void VolumeManager::UnregisterStateObserver(StateObserver *aObserver)
 {
   mStateObserverList.RemoveObserver(aObserver);
 }
 
 //static
 TemporaryRef<Volume>
-VolumeManager::FindVolumeByName(const nsCSubstring& aName)
+VolumeManager::FindVolumeByName(const nsCSubstring &aName)
 {
   if (!sVolumeManager) {
-    return nullptr;
+    return NULL;
   }
   VolumeArray::size_type  numVolumes = NumVolumes();
   VolumeArray::index_type volIndex;
@@ -138,12 +120,12 @@ VolumeManager::FindVolumeByName(const nsCSubstring& aName)
       return vol;
     }
   }
-  return nullptr;
+  return NULL;
 }
 
 //static
 TemporaryRef<Volume>
-VolumeManager::FindAddVolumeByName(const nsCSubstring& aName)
+VolumeManager::FindAddVolumeByName(const nsCSubstring &aName)
 {
   RefPtr<Volume> vol = FindVolumeByName(aName);
   if (vol) {
@@ -155,67 +137,12 @@ VolumeManager::FindAddVolumeByName(const nsCSubstring& aName)
   return vol;
 }
 
-//static
-void VolumeManager::InitConfig()
-{
-  MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
-
-  // This function uses /system/etc/volume.cfg to add additional volumes
-  // to the Volume Manager.
-  //
-  // This is useful on devices like the Nexus 4, which have no physical sd card
-  // or dedicated partition.
-  //
-  // The format of the volume.cfg file is as follows:
-  // create volume-name mount-point
-  // Blank lines and lines starting with the hash character "#" will be ignored.
-
-  ScopedCloseFile fp;
-  int n = 0;
-  char line[255];
-  char *command, *volNamePtr, *mountPointPtr, *save_ptr;
-  const char *filename = "/system/etc/volume.cfg";
-  if (!(fp = fopen(filename, "r"))) {
-    LOG("Unable to open volume configuration file '%s' - ignoring", filename);
-    return;
-  }
-  while(fgets(line, sizeof(line), fp)) {
-    const char *delim = " \t\n";
-    n++;
-
-    if (line[0] == '#')
-      continue;
-    if (!(command = strtok_r(line, delim, &save_ptr))) {
-      // Blank line - ignore
-      continue;
-    }
-    if (!strcmp(command, "create")) {
-      if (!(volNamePtr = strtok_r(nullptr, delim, &save_ptr))) {
-        ERR("No vol_name in %s line %d",  filename, n);
-        continue;
-      }
-      if (!(mountPointPtr = strtok_r(nullptr, delim, &save_ptr))) {
-        ERR("No mount point for volume '%s'. %s line %d", volNamePtr, filename, n);
-        continue;
-      }
-      nsCString mountPoint(mountPointPtr);
-      nsCString volName(volNamePtr);
-
-      RefPtr<Volume> vol = FindAddVolumeByName(volName);
-      vol->SetFakeVolume(mountPoint);
-    }
-    else {
-      ERR("Unrecognized command: '%s'", command);
-    }
-  }
-}
-
 class VolumeListCallback : public VolumeResponseCallback
 {
-  virtual void ResponseReceived(const VolumeCommand* aCommand)
+  virtual void ResponseReceived(const VolumeCommand *aCommand)
   {
     switch (ResponseCode()) {
-      case ::ResponseCode::VolumeListResult: {
+      case ResponseCode::VolumeListResult: {
         // Each line will look something like:
         //
         //  sdcard /mnt/sdcard 1
@@ -229,12 +156,9 @@ class VolumeListCallback : public VolumeResponseCallback
         break;
       }
 
-      case ::ResponseCode::CommandOkay: {
-        // We've received the list of volumes. Now read the Volume.cfg
-        // file to perform customizations, and then tell everybody
-        // that we're ready for business.
-        VolumeManager::InitConfig();
-        VolumeManager::Dump("READY");
+      case ResponseCode::CommandOkay: {
+        // We've received the list of volumes. Tell anybody who
+        // is listening that we're open for business.
         VolumeManager::SetState(VolumeManager::VOLUMES_READY);
         break;
       }
@@ -281,7 +205,7 @@ VolumeManager::OpenSocket()
 
 //static
 void
-VolumeManager::PostCommand(VolumeCommand* aCommand)
+VolumeManager::PostCommand(VolumeCommand *aCommand)
 {
   if (!sVolumeManager) {
     ERR("VolumeManager not initialized. Dropping command '%s'", aCommand->Data());
@@ -316,7 +240,7 @@ VolumeManager::WriteCommandData()
     return;
   }
 
-  VolumeCommand* cmd = mCommands.front();
+  VolumeCommand *cmd = mCommands.front();
   if (cmd->BytesRemaining() == 0) {
     // All bytes have been written. We're waiting for a response.
     return;
@@ -347,37 +271,75 @@ VolumeManager::WriteCommandData()
 }
 
 void
-VolumeManager::OnLineRead(int aFd, nsDependentCSubstring& aMessage)
+VolumeManager::OnFileCanReadWithoutBlocking(int aFd)
 {
   MOZ_ASSERT(aFd == mSocket.get());
-  char* endPtr;
-  int responseCode = strtol(aMessage.Data(), &endPtr, 10);
-  if (*endPtr == ' ') {
-    endPtr++;
-  }
-
-  // Now fish out the rest of the line after the response code
-  nsDependentCString  responseLine(endPtr, aMessage.Length() - (endPtr - aMessage.Data()));
-  DBG("Rcvd: %d '%s'", responseCode, responseLine.Data());
-
-  if (responseCode >= ::ResponseCode::UnsolicitedInformational) {
-    // These are unsolicited broadcasts. We intercept these and process
-    // them ourselves
-    HandleBroadcast(responseCode, responseLine);
-  } else {
-    // Everything else is considered to be part of the command response.
-    if (mCommands.size() > 0) {
-      VolumeCommand* cmd = mCommands.front();
-      cmd->HandleResponse(responseCode, responseLine);
-      if (responseCode >= ::ResponseCode::CommandOkay) {
-        // That's a terminating response. We can remove the command.
-        mCommands.pop();
-        mCommandPending = false;
-        // Start the next command, if there is one.
-        WriteCommandData();
+  while (true) {
+    ssize_t bytesRemaining = read(aFd, &mRcvBuf[mRcvIdx], sizeof(mRcvBuf) - mRcvIdx);
+    if (bytesRemaining < 0) {
+      if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+        return;
       }
-    } else {
-      ERR("Response with no command");
+      if (errno == EINTR) {
+        continue;
+      }
+      ERR("Unknown read error: %d (%s) - restarting", errno, strerror(errno));
+      Restart();
+      return;
+    }
+    if (bytesRemaining == 0) {
+      // This means that vold probably crashed
+      ERR("Vold appears to have crashed - restarting");
+      Restart();
+      return;
+    }
+    // We got some data. Each line is terminated by a null character
+    DBG("Read %ld bytes", bytesRemaining);
+    while (bytesRemaining > 0) {
+      bytesRemaining--;
+      if (mRcvBuf[mRcvIdx] == '\0') {
+        // We found a line terminator. Each line is formatted as an
+        // integer response code followed by the rest of the line.
+        // Fish out the response code.
+        char *endPtr;
+        int responseCode = strtol(mRcvBuf, &endPtr, 10);
+        if (*endPtr == ' ') {
+          endPtr++;
+        }
+
+        // Now fish out the rest of the line after the response code
+        nsDependentCString  responseLine(endPtr, &mRcvBuf[mRcvIdx] - endPtr);
+        DBG("Rcvd: %d '%s'", responseCode, responseLine.Data());
+
+        if (responseCode >= ResponseCode::UnsolicitedInformational) {
+          // These are unsolicited broadcasts. We intercept these and process
+          // them ourselves
+          HandleBroadcast(responseCode, responseLine);
+        } else {
+          // Everything else is considered to be part of the command response.
+          if (mCommands.size() > 0) {
+            VolumeCommand *cmd = mCommands.front();
+            cmd->HandleResponse(responseCode, responseLine);
+            if (responseCode >= ResponseCode::CommandOkay) {
+              // That's a terminating response. We can remove the command.
+              mCommands.pop();
+              mCommandPending = false;
+              // Start the next command, if there is one.
+              WriteCommandData();
+            }
+          } else {
+            ERR("Response with no command");
+          }
+        }
+        if (bytesRemaining > 0) {
+          // There is data in the receive buffer beyond the current line.
+          // Shift it down to the beginning.
+          memmove(&mRcvBuf[0], &mRcvBuf[mRcvIdx + 1], bytesRemaining);
+        }
+        mRcvIdx = 0;
+      } else {
+        mRcvIdx++;
+      }
     }
   }
 }
@@ -390,7 +352,7 @@ VolumeManager::OnFileCanWriteWithoutBlocking(int aFd)
 }
 
 void
-VolumeManager::HandleBroadcast(int aResponseCode, nsCString& aResponseLine)
+VolumeManager::HandleBroadcast(int aResponseCode, nsCString &aResponseLine)
 {
   // Format of the line is something like:
   //
@@ -419,6 +381,7 @@ VolumeManager::Restart()
   }
   mCommandPending = false;
   mSocket.dispose();
+  mRcvIdx = 0;
   Start();
 }
 
@@ -441,12 +404,6 @@ VolumeManager::Start()
   }
 }
 
-void
-VolumeManager::OnError()
-{
-  Restart();
-}
-
 /***************************************************************************/
 
 static void
@@ -466,7 +423,7 @@ ShutdownVolumeManagerIOThread()
 {
   MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
 
-  sVolumeManager = nullptr;
+  sVolumeManager = NULL;
 }
 
 /**************************************************************************

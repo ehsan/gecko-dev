@@ -5,14 +5,12 @@
 package org.mozilla.gecko.sync.repositories.android;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Callable;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.db.BrowserContract;
 import org.mozilla.gecko.db.BrowserContract.DeletedFormHistory;
 import org.mozilla.gecko.db.BrowserContract.FormHistory;
+import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.repositories.InactiveSessionException;
 import org.mozilla.gecko.sync.repositories.NoContentProviderException;
 import org.mozilla.gecko.sync.repositories.NoStoreDelegateException;
@@ -37,15 +35,15 @@ import android.os.RemoteException;
 
 public class FormHistoryRepositorySession extends
     StoreTrackingRepositorySession {
-  public static final String LOG_TAG = "FormHistoryRepoSess";
+  public static String LOG_TAG = "FormHistoryRepoSess";
 
   /**
    * Number of records to insert in one batch.
    */
   public static final int INSERT_ITEM_THRESHOLD = 200;
 
-  private static final Uri FORM_HISTORY_CONTENT_URI = BrowserContractHelpers.FORM_HISTORY_CONTENT_URI;
-  private static final Uri DELETED_FORM_HISTORY_CONTENT_URI = BrowserContractHelpers.DELETED_FORM_HISTORY_CONTENT_URI;
+  private static Uri FORM_HISTORY_CONTENT_URI = BrowserContractHelpers.FORM_HISTORY_CONTENT_URI;
+  private static Uri DELETED_FORM_HISTORY_CONTENT_URI = BrowserContractHelpers.DELETED_FORM_HISTORY_CONTENT_URI;
 
   public static class FormHistoryRepository extends Repository {
 
@@ -76,7 +74,7 @@ public class FormHistoryRepositorySession extends
    */
   public static ContentProviderClient acquireContentProvider(final Context context)
       throws NoContentProviderException {
-    Uri uri = BrowserContract.FORM_HISTORY_AUTHORITY_URI;
+    Uri uri = FormHistory.CONTENT_URI;
     ContentProviderClient client = context.getContentResolver().acquireContentProviderClient(uri);
     if (client == null) {
       throw new NoContentProviderException(uri);
@@ -119,12 +117,11 @@ public class FormHistoryRepositorySession extends
     super.finish(delegate);
   }
 
-  protected static final String[] GUID_COLUMNS = new String[] { FormHistory.GUID };
+  protected static String[] GUID_COLUMNS = new String[] { FormHistory.GUID };
 
   @Override
   public void guidsSince(final long timestamp, final RepositorySessionGuidsSinceDelegate delegate) {
     Runnable command = new Runnable() {
-      @Override
       public void run() {
         if (!isActive()) {
           delegate.onGuidsSinceFailed(new InactiveSessionException(null));
@@ -142,7 +139,10 @@ public class FormHistoryRepositorySession extends
             guids.add(cur.getString(0));
             cur.moveToNext();
           }
-        } catch (RemoteException | NullCursorException e) {
+        } catch (RemoteException e) {
+          delegate.onGuidsSinceFailed(e);
+          return;
+        } catch (NullCursorException e) {
           delegate.onGuidsSinceFailed(e);
           return;
         } finally {
@@ -158,7 +158,10 @@ public class FormHistoryRepositorySession extends
             guids.add(cur.getString(0));
             cur.moveToNext();
           }
-        } catch (RemoteException | NullCursorException e) {
+        } catch (RemoteException e) {
+          delegate.onGuidsSinceFailed(e);
+          return;
+        } catch (NullCursorException e) {
           delegate.onGuidsSinceFailed(e);
           return;
         } finally {
@@ -167,7 +170,7 @@ public class FormHistoryRepositorySession extends
           }
         }
 
-        String guidsArray[] = guids.toArray(new String[guids.size()]);
+        String guidsArray[] = guids.toArray(new String[0]);
         delegate.onGuidsSinceSucceeded(guidsArray);
       }
     };
@@ -310,9 +313,9 @@ public class FormHistoryRepositorySession extends
       }
     };
 
-    @SuppressWarnings("unchecked")
-    List<Callable<Cursor>> callableCursors = Arrays.asList(regularCallable, deletedCallable);
-
+    ArrayList<Callable<Cursor>> callableCursors = new ArrayList<Callable<Cursor>>();
+    callableCursors.add(regularCallable);
+    callableCursors.add(deletedCallable);
     fetchHelper(delegate, sharedEnd, callableCursors);
   }
 
@@ -345,9 +348,9 @@ public class FormHistoryRepositorySession extends
       }
     };
 
-    @SuppressWarnings("unchecked")
-    List<Callable<Cursor>> callableCursors = Arrays.asList(regularCallable, deletedCallable);
-
+    ArrayList<Callable<Cursor>> callableCursors = new ArrayList<Callable<Cursor>>();
+    callableCursors.add(regularCallable);
+    callableCursors.add(deletedCallable);
     fetchHelper(delegate, sharedEnd, callableCursors);
   }
 
@@ -437,7 +440,7 @@ public class FormHistoryRepositorySession extends
     return cv;
   }
 
-  protected final Object recordsBufferMonitor = new Object();
+  protected Object recordsBufferMonitor = new Object();
   protected ArrayList<ContentValues> recordsBuffer = new ArrayList<ContentValues>();
 
   protected void enqueueRegularRecord(Record record) {
@@ -460,7 +463,7 @@ public class FormHistoryRepositorySession extends
   protected void flushInsertQueue() throws RemoteException {
     synchronized (recordsBufferMonitor) {
       if (recordsBuffer.size() > 0) {
-        final ContentValues[] outgoing = recordsBuffer.toArray(new ContentValues[recordsBuffer.size()]);
+        final ContentValues[] outgoing = recordsBuffer.toArray(new ContentValues[0]);
         recordsBuffer = new ArrayList<ContentValues>();
 
         if (outgoing == null || outgoing.length == 0) {
@@ -699,7 +702,6 @@ public class FormHistoryRepositorySession extends
   @Override
   public void wipe(final RepositorySessionWipeDelegate delegate) {
     Runnable command = new Runnable() {
-      @Override
       public void run() {
         if (!isActive()) {
           delegate.onWipeFailed(new InactiveSessionException(null));

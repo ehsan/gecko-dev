@@ -134,13 +134,13 @@ include = """
 #endif
 """
 
-jsvalue_include = """
-#include "js/Value.h"
+jspubtd_include = """
+#include "jspubtd.h"
 """
 
 infallible_includes = """
 #include "mozilla/Assertions.h"
-#include "mozilla/DebugOnly.h"
+#include "mozilla/Util.h"
 """
 
 header_end = """/* For IDL files that don't want to include root IDL files. */
@@ -173,7 +173,7 @@ def print_header(idl, fd, filename):
         fd.write(include % {'basename': idl_basename(inc.filename)})
 
     if idl.needsJSTypes():
-        fd.write(jsvalue_include)
+        fd.write(jspubtd_include)
 
     # Include some extra files if any attributes are infallible.
     for iface in [p for p in idl.productions if p.kind == 'interface']:
@@ -267,7 +267,7 @@ protected:
 };
 
 /* Implementation file */
-NS_IMPL_ISUPPORTS(%(implclass)s, %(name)s)
+NS_IMPL_ISUPPORTS1(%(implclass)s, %(name)s)
 
 %(implclass)s::%(implclass)s()
 {
@@ -400,13 +400,11 @@ def write_interface(iface, fd):
 
     for member in iface.members:
         if isinstance(member, xpidl.Attribute):
-            if member.infallible:
-                fd.write("\\\n  using %s::%s; " % (iface.name, attributeNativeName(member, True)))
-            fd.write("\\\n  %s MOZ_OVERRIDE; " % attributeAsNative(member, True))
+            fd.write("\\\n  %s; " % attributeAsNative(member, True))
             if not member.readonly:
-                fd.write("\\\n  %s MOZ_OVERRIDE; " % attributeAsNative(member, False))
+                fd.write("\\\n  %s; " % attributeAsNative(member, False))
         elif isinstance(member, xpidl.Method):
-            fd.write("\\\n  %s MOZ_OVERRIDE; " % methodAsNative(member))
+            fd.write("\\\n  %s; " % methodAsNative(member))
     if len(iface.members) == 0:
         fd.write('\\\n  /* no methods! */')
     elif not member.kind in ('attribute', 'method'):
@@ -414,13 +412,9 @@ def write_interface(iface, fd):
 
     fd.write(iface_forward % names)
 
-    def emitTemplate(forward_infallible, tmpl, tmpl_notxpcom=None):
-        if tmpl_notxpcom == None:
-            tmpl_notxpcom = tmpl
+    def emitTemplate(tmpl):
         for member in iface.members:
             if isinstance(member, xpidl.Attribute):
-                if forward_infallible and member.infallible:
-                    fd.write("\\\n  using %s::%s; " % (iface.name, attributeNativeName(member, True)))
                 fd.write(tmpl % {'asNative': attributeAsNative(member, True),
                                  'nativeName': attributeNativeName(member, True),
                                  'paramList': attributeParamNames(member)})
@@ -429,30 +423,19 @@ def write_interface(iface, fd):
                                      'nativeName': attributeNativeName(member, False),
                                      'paramList': attributeParamNames(member)})
             elif isinstance(member, xpidl.Method):
-                if member.notxpcom:
-                    fd.write(tmpl_notxpcom % {'asNative': methodAsNative(member),
-                                              'nativeName': methodNativeName(member),
-                                              'paramList': paramlistNames(member)})
-                else:
-                    fd.write(tmpl % {'asNative': methodAsNative(member),
-                                     'nativeName': methodNativeName(member),
-                                     'paramList': paramlistNames(member)})
+                fd.write(tmpl % {'asNative': methodAsNative(member),
+                                 'nativeName': methodNativeName(member),
+                                 'paramList': paramlistNames(member)})
         if len(iface.members) == 0:
             fd.write('\\\n  /* no methods! */')
         elif not member.kind in ('attribute', 'method'):
             fd.write('\\')
 
-    emitTemplate(True,
-                 "\\\n  %(asNative)s MOZ_OVERRIDE { return _to %(nativeName)s(%(paramList)s); } ")
+    emitTemplate("\\\n  %(asNative)s { return _to %(nativeName)s(%(paramList)s); } ")
 
     fd.write(iface_forward_safe % names)
 
-    # Don't try to safely forward notxpcom functions, because we have no
-    # sensible default error return.  Instead, the caller will have to
-    # implement them.
-    emitTemplate(False,
-                 "\\\n  %(asNative)s MOZ_OVERRIDE { return !_to ? NS_ERROR_NULL_POINTER : _to->%(nativeName)s(%(paramList)s); } ",
-                 "\\\n  %(asNative)s MOZ_OVERRIDE; ")
+    emitTemplate("\\\n  %(asNative)s { return !_to ? NS_ERROR_NULL_POINTER : _to->%(nativeName)s(%(paramList)s); } ")
 
     fd.write(iface_template_prolog % names)
 
@@ -544,5 +527,3 @@ if __name__ == '__main__':
         deps = [dep.replace('\\', '/') for dep in idl.deps]
 
         print >>depfd, "%s: %s" % (options.outfile, " ".join(deps))
-        for dep in deps:
-            print >>depfd, "%s:" % dep

@@ -7,76 +7,40 @@
 #ifndef mozilla_dom_domerror_h__
 #define mozilla_dom_domerror_h__
 
-#include "mozilla/Attributes.h"
-#include "nsWrapperCache.h"
-#include "nsCOMPtr.h"
-#include "nsString.h"
-#include "nsPIDOMWindow.h"
+#include "nsIDOMDOMError.h"
 
-#define DOMERROR_IID \
-{ 0x220cb63f, 0xa37d, 0x4ba4, \
- { 0x8e, 0x31, 0xfc, 0xde, 0xec, 0x48, 0xe1, 0x66 } }
+#include "nsCOMPtr.h"
+#include "nsStringGlue.h"
 
 namespace mozilla {
-
-class ErrorResult;
-
 namespace dom {
 
-class GlobalObject;
-
-class DOMError : public nsISupports,
-                 public nsWrapperCache
+class DOMError : public nsIDOMDOMError
 {
-  nsCOMPtr<nsPIDOMWindow> mWindow;
   nsString mName;
-  nsString mMessage;
-
-protected:
-  virtual ~DOMError();
 
 public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMError)
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDOMDOMERROR
 
-  NS_DECLARE_STATIC_IID_ACCESSOR(DOMERROR_IID)
+  static already_AddRefed<nsIDOMDOMError>
+  CreateForNSResult(nsresult rv);
 
-  // aWindow can be null if this DOMError is not associated with a particular
-  // window.
-
-  explicit DOMError(nsPIDOMWindow* aWindow);
-
-  DOMError(nsPIDOMWindow* aWindow, nsresult aValue);
-
-  DOMError(nsPIDOMWindow* aWindow, const nsAString& aName);
-
-  DOMError(nsPIDOMWindow* aWindow, const nsAString& aName,
-           const nsAString& aMessage);
-
-  nsPIDOMWindow* GetParentObject() const
+  static already_AddRefed<nsIDOMDOMError>
+  CreateWithName(const nsAString& aName)
   {
-    return mWindow;
+    nsCOMPtr<nsIDOMDOMError> error = new DOMError(aName);
+    return error.forget();
   }
 
-  virtual JSObject*
-  WrapObject(JSContext* aCx) MOZ_OVERRIDE;
+protected:
+  DOMError(const nsAString& aName)
+  : mName(aName)
+  { }
 
-  static already_AddRefed<DOMError>
-  Constructor(const GlobalObject& global, const nsAString& name,
-              const nsAString& message, ErrorResult& aRv);
-
-  void GetName(nsString& aRetval) const
-  {
-    aRetval = mName;
-  }
-
-  void GetMessage(nsString& aRetval) const
-  {
-    aRetval = mMessage;
-  }
+  virtual ~DOMError()
+  { }
 };
-
-NS_DEFINE_STATIC_IID_ACCESSOR(DOMError, DOMERROR_IID)
 
 } // namespace dom
 } // namespace mozilla

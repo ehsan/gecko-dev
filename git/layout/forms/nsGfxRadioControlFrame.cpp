@@ -4,17 +4,17 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsGfxRadioControlFrame.h"
-
-#include "gfx2DGlue.h"
-#include "gfxUtils.h"
-#include "mozilla/gfx/2D.h"
-#include "mozilla/gfx/PathHelpers.h"
-#include "nsLayoutUtils.h"
+#include "nsIContent.h"
+#include "nsCOMPtr.h"
+#include "nsCSSRendering.h"
 #include "nsRenderingContext.h"
+#ifdef ACCESSIBILITY
+#include "nsAccessibilityService.h"
+#endif
+#include "nsIServiceManager.h"
+#include "nsITheme.h"
 #include "nsDisplayList.h"
-
-using namespace mozilla;
-using namespace mozilla::gfx;
+#include "nsCSSAnonBoxes.h"
 
 nsIFrame*
 NS_NewGfxRadioControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -34,10 +34,16 @@ nsGfxRadioControlFrame::~nsGfxRadioControlFrame()
 }
 
 #ifdef ACCESSIBILITY
-a11y::AccType
-nsGfxRadioControlFrame::AccessibleType()
+already_AddRefed<Accessible>
+nsGfxRadioControlFrame::CreateAccessible()
 {
-  return a11y::eHTMLRadioButtonType;
+  nsAccessibilityService* accService = nsIPresShell::AccService();
+  if (accService) {
+    return accService->CreateHTMLRadioButtonAccessible(mContent,
+                                                       PresContext()->PresShell());
+  }
+
+  return nullptr;
 }
 #endif
 
@@ -56,38 +62,31 @@ PaintCheckedRadioButton(nsIFrame* aFrame,
   rect.Deflate(nsPresContext::CSSPixelsToAppUnits(2),
                nsPresContext::CSSPixelsToAppUnits(2));
 
-  Rect devPxRect =
-    ToRect(nsLayoutUtils::RectToGfxRect(rect,
-                                        aFrame->PresContext()->AppUnitsPerDevPixel()));
-
-  ColorPattern color(ToDeviceColor(aFrame->StyleColor()->mColor));
-
-  DrawTarget* drawTarget = aCtx->GetDrawTarget();
-  RefPtr<PathBuilder> builder = drawTarget->CreatePathBuilder();
-  AppendEllipseToPath(builder, devPxRect.Center(), devPxRect.Size());
-  RefPtr<Path> ellipse = builder->Finish();
-  drawTarget->Fill(ellipse, color);
+  aCtx->SetColor(aFrame->GetStyleColor()->mColor);
+  aCtx->FillEllipse(rect);
 }
 
-void
+NS_IMETHODIMP
 nsGfxRadioControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                          const nsRect&           aDirtyRect,
                                          const nsDisplayListSet& aLists)
 {
-  nsFormControlFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
-
+  nsresult rv = nsFormControlFrame::BuildDisplayList(aBuilder, aDirtyRect,
+                                                     aLists);
+  NS_ENSURE_SUCCESS(rv, rv);
+  
   if (!IsVisibleForPainting(aBuilder))
-    return;
+    return NS_OK;
   
   if (IsThemed())
-    return; // The theme will paint the check, if any.
+    return NS_OK; // The theme will paint the check, if any.
 
   bool checked = true;
   GetCurrentCheckState(&checked); // Get check state from the content model
   if (!checked)
-    return;
+    return NS_OK;
     
-  aLists.Content()->AppendNewToTop(new (aBuilder)
+  return aLists.Content()->AppendNewToTop(new (aBuilder)
     nsDisplayGeneric(aBuilder, this, PaintCheckedRadioButton,
                      "CheckedRadioButton",
                      nsDisplayItem::TYPE_CHECKED_RADIOBUTTON));

@@ -76,7 +76,7 @@ private:
   bool mIsUIForbidden;
 
   // nullptr means "no restriction"
-  // if not null, activity is only allowed on that thread
+  // if != nullptr, activity is only allowed on that thread
   PRThread* mNSSRestrictedThread;
 };
 
@@ -147,11 +147,11 @@ public:
   
 private:
   nsNSSShutDownList();
-  static PLDHashOperator
+  static PLDHashOperator PR_CALLBACK
   evaporateAllNSSResourcesHelper(PLDHashTable *table, PLDHashEntryHdr *hdr,
                                                         uint32_t number, void *arg);
 
-  static PLDHashOperator
+  static PLDHashOperator PR_CALLBACK
   doPK11LogoutHelper(PLDHashTable *table, PLDHashEntryHdr *hdr,
                                                     uint32_t number, void *arg);
 protected:
@@ -185,27 +185,21 @@ protected:
   class, and make the implementation of virtualDestroyNSSReference()
   call destructorSafeDestroyNSSReference().
 
-  The destructor of the derived class must prevent NSS shutdown on
-  another thread by acquiring an nsNSSShutDownPreventionLock. It must
-  then check to see if NSS has already been shut down by calling
-  isAlreadyShutDown(). If NSS has not been shut down, the destructor
-  must then call destructorSafeDestroyNSSReference() and then
-  shutdown(calledFromObject). The second call will deregister with
-  the tracking list, to ensure no additional attempt to free the resources
+  The destructor of the derived class should call 
+  destructorSafeDestroyNSSReference() and afterwards call
+  shutdown(calledFromObject), in order to deregister with the
+  tracking list, to ensure no additional attempt to free the resources
   will be made.
-
-  destructorSafeDestroyNSSReference() does not need to acquire an
-  nsNSSShutDownPreventionLock or check isAlreadyShutDown() as long as it
-  is only called by the destructor that has already acquired the lock and
-  checked for shutdown or by the NSS shutdown code itself (which acquires
-  the same lock and checks if objects it cleans up have already cleaned
-  up themselves).
-
-  destructorSafeDestroyNSSReference() MUST NOT cause any other
-  nsNSSShutDownObject to be deconstructed. Doing so can cause
-  unsupported concurrent operations on the hash table in the
-  nsNSSShutDownList.
-
+  
+  Function destructorSafeDestroyNSSReference() must
+  also ensure, that NSS resources have not been freed already.
+  To achieve this, the deriving class should call 
+  isAlreadyShutDown() to check.
+  
+  It is important that you make your implementation
+  failsafe, and check whether the resources have already been freed,
+  in each function that requires the resources.
+  
   class derivedClass : public nsISomeInterface,
                        public nsNSSShutDownObject
   {
@@ -216,15 +210,14 @@ protected:
     
     void destructorSafeDestroyNSSReference()
     {
+      if (isAlreadyShutDown())
+        return;
+      
       // clean up all NSS resources here
     }
 
     virtual ~derivedClass()
     {
-      nsNSSShutDownPreventionLock locker;
-      if (isAlreadyShutDown()) {
-        return;
-      }
       destructorSafeDestroyNSSReference();
       shutdown(calledFromObject);
     }
@@ -271,7 +264,7 @@ public:
     }
   }
   
-  bool isAlreadyShutDown() const { return mAlreadyShutDown; }
+  bool isAlreadyShutDown() { return mAlreadyShutDown; }
 
 protected:
   virtual void virtualDestroyNSSReference() = 0;

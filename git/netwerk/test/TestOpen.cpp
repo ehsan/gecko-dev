@@ -11,12 +11,8 @@
 #include "nsIHttpChannel.h"
 #include "nsIInputStream.h"
 #include "nsNetUtil.h"
-#include "mozilla/unused.h"
-#include "nsIScriptSecurityManager.h"
 
 #include <stdio.h>
-
-using namespace mozilla;
 
 /*
  * Test synchronous Open.
@@ -25,7 +21,7 @@ using namespace mozilla;
 #define RETURN_IF_FAILED(rv, what) \
     PR_BEGIN_MACRO \
     if (NS_FAILED(rv)) { \
-        printf(what ": failed - %08x\n", static_cast<uint32_t>(rv)); \
+        printf(what ": failed - %08x\n", rv); \
         return -1; \
     } \
     PR_END_MACRO
@@ -37,7 +33,7 @@ main(int argc, char **argv)
         return -1;
 
     nsresult rv = NS_InitXPCOM2(nullptr, nullptr, nullptr);
-    if (NS_FAILED(rv)) return -1;
+    if (NS_FAILED(rv)) return rv;
 
     char buf[256];
 
@@ -52,19 +48,7 @@ main(int argc, char **argv)
     rv = NS_NewURI(getter_AddRefs(uri), argv[1]);
     RETURN_IF_FAILED(rv, "NS_NewURI");
 
-    nsCOMPtr<nsIScriptSecurityManager> secman =
-      do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
-    RETURN_IF_FAILED(rv, "Couldn't get script security manager!");
-       nsCOMPtr<nsIPrincipal> systemPrincipal;
-    rv = secman->GetSystemPrincipal(getter_AddRefs(systemPrincipal));
-    RETURN_IF_FAILED(rv, "Couldn't get system principal!");
-
-    rv = NS_OpenURI(getter_AddRefs(stream),
-                    uri,
-                    systemPrincipal,
-                    nsILoadInfo::SEC_NORMAL,
-                    nsIContentPolicy::TYPE_OTHER);
-
+    rv = NS_OpenURI(getter_AddRefs(stream), uri);
     RETURN_IF_FAILED(rv, "NS_OpenURI");
 
     FILE* outfile = fopen(argv[2], "wb");
@@ -75,7 +59,7 @@ main(int argc, char **argv)
 
     uint32_t read;
     while (NS_SUCCEEDED(stream->Read(buf, sizeof(buf), &read)) && read) {
-      unused << fwrite(buf, 1, read, outfile);
+      fwrite(buf, 1, read, outfile);
     }
     printf("Done\n");
 

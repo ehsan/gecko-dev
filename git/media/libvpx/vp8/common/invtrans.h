@@ -9,20 +9,16 @@
  */
 
 
-#ifndef VP8_COMMON_INVTRANS_H_
-#define VP8_COMMON_INVTRANS_H_
+#ifndef __INC_INVTRANS_H
+#define __INC_INVTRANS_H
 
 #include "vpx_config.h"
-#include "vp8_rtcd.h"
+#include "idct.h"
 #include "blockd.h"
 #include "onyxc_int.h"
 
 #if CONFIG_MULTITHREAD
 #include "vpx_mem/vpx_mem.h"
-#endif
-
-#ifdef __cplusplus
-extern "C" {
 #endif
 
 static void eob_adjust(char *eobs, short *diff)
@@ -37,7 +33,8 @@ static void eob_adjust(char *eobs, short *diff)
     }
 }
 
-static void vp8_inverse_transform_mby(MACROBLOCKD *xd)
+static void vp8_inverse_transform_mby(MACROBLOCKD *xd,
+                                      const VP8_COMMON_RTCD *rtcd)
 {
     short *DQC = xd->dequant_y1;
 
@@ -46,25 +43,21 @@ static void vp8_inverse_transform_mby(MACROBLOCKD *xd)
         /* do 2nd order transform on the dc block */
         if (xd->eobs[24] > 1)
         {
-            vp8_short_inv_walsh4x4
+            IDCT_INVOKE(&rtcd->idct, iwalsh16)
                 (&xd->block[24].dqcoeff[0], xd->qcoeff);
         }
         else
         {
-            vp8_short_inv_walsh4x4_1
+            IDCT_INVOKE(&rtcd->idct, iwalsh1)
                 (&xd->block[24].dqcoeff[0], xd->qcoeff);
         }
         eob_adjust(xd->eobs, xd->qcoeff);
 
         DQC = xd->dequant_y1_dc;
     }
-    vp8_dequant_idct_add_y_block
+    DEQUANT_INVOKE (&rtcd->dequant, idct_add_y_block)
                     (xd->qcoeff, DQC,
                      xd->dst.y_buffer,
                      xd->dst.y_stride, xd->eobs);
 }
-#ifdef __cplusplus
-}  // extern "C"
 #endif
-
-#endif  // VP8_COMMON_INVTRANS_H_

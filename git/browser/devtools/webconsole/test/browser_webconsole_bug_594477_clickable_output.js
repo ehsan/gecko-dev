@@ -27,29 +27,27 @@ function consoleOpened(aHud) {
 function tabLoad2(aEvent) {
   browser.removeEventListener(aEvent.type, tabLoad2, true);
 
-  waitForMessages({
-    webconsole: HUD,
-    messages: [{
-      text: "test-console.html",
-      category: CATEGORY_NETWORK,
-      severity: SEVERITY_LOG,
-    }],
-  }).then(([result]) => {
-    let msg = [...result.matched][0];
-    outputItem = msg.querySelector(".message-body .url");
-    ok(outputItem, "found a network message");
-    document.addEventListener("popupshown", networkPanelShown, false);
+  waitForSuccess({
+    name: "network message displayed",
+    validatorFn: function()
+    {
+      return outputNode.querySelector(".hud-networkinfo .hud-clickable");
+    },
+    successFn: function() {
+      outputItem = outputNode.querySelector(".hud-networkinfo .hud-clickable");
+      ok(outputItem, "found a network message");
+      document.addEventListener("popupshown", networkPanelShown, false);
 
-    // Send the mousedown and click events such that the network panel opens.
-    EventUtils.sendMouseEvent({type: "mousedown"}, outputItem);
-    EventUtils.sendMouseEvent({type: "click"}, outputItem);
+      // Send the mousedown and click events such that the network panel opens.
+      EventUtils.sendMouseEvent({type: "mousedown"}, outputItem);
+      EventUtils.sendMouseEvent({type: "click"}, outputItem);
+    },
+    failureFn: finishTest,
   });
 }
 
 function networkPanelShown(aEvent) {
   document.removeEventListener(aEvent.type, networkPanelShown, false);
-
-  info("networkPanelShown");
 
   document.addEventListener("popupshown", networkPanelShowFailure, false);
 
@@ -71,8 +69,6 @@ function networkPanelShowFailure(aEvent) {
 
 function networkPanelHidden(aEvent) {
   this.removeEventListener(aEvent.type, networkPanelHidden, false);
-
-  info("networkPanelHidden");
 
   // The network panel should not show because this is a mouse event that starts
   // in a position and ends in another.
@@ -98,24 +94,73 @@ function networkPanelHidden(aEvent) {
 
     // Done with the network output. Now test the jsterm output and the property
     // panel.
-    HUD.jsterm.execute("document", (msg) => {
-      info("jsterm execute 'document' callback");
+    HUD.jsterm.setInputValue("document");
+    HUD.jsterm.execute();
 
-      HUD.jsterm.once("variablesview-open", onVariablesViewOpen);
-      let outputItem = msg.querySelector(".message-body a");
-      ok(outputItem, "jsterm output message found");
+    waitForSuccess({
+      name: "jsterm output message",
+      validatorFn: function()
+      {
+        return outputNode.querySelector(".webconsole-msg-output .hud-clickable");
+      },
+      successFn: function()
+      {
+        document.addEventListener("popupshown", propertyPanelShown, false);
 
-      // Send the mousedown and click events such that the property panel opens.
-      EventUtils.sendMouseEvent({type: "mousedown"}, outputItem);
-      EventUtils.sendMouseEvent({type: "click"}, outputItem);
+        // Send the mousedown and click events such that the property panel opens.
+        EventUtils.sendMouseEvent({type: "mousedown"}, outputItem);
+        EventUtils.sendMouseEvent({type: "click"}, outputItem);
+      },
+      failureFn: finishTest,
     });
   });
 }
 
-function onVariablesViewOpen() {
-  info("onVariablesViewOpen");
+function propertyPanelShown(aEvent) {
+  document.removeEventListener(aEvent.type, propertyPanelShown, false);
+
+  document.addEventListener("popupshown", propertyPanelShowFailure, false);
+
+  // The property panel should not open for the second time.
+  EventUtils.sendMouseEvent({type: "mousedown"}, outputItem);
+  EventUtils.sendMouseEvent({type: "click"}, outputItem);
 
   executeSoon(function() {
+    aEvent.target.addEventListener("popuphidden", propertyPanelHidden, false);
+    aEvent.target.hidePopup();
+  });
+}
+
+function propertyPanelShowFailure(aEvent) {
+  document.removeEventListener(aEvent.type, propertyPanelShowFailure, false);
+
+  ok(false, "the property panel should not show");
+}
+
+function propertyPanelHidden(aEvent) {
+  this.removeEventListener(aEvent.type, propertyPanelHidden, false);
+
+  // The property panel should not show because this is a mouse event that
+  // starts in a position and ends in another.
+  EventUtils.sendMouseEvent({type: "mousedown", clientX: 3, clientY: 4},
+    outputItem);
+  EventUtils.sendMouseEvent({type: "click", clientX: 5, clientY: 6},
+    outputItem);
+
+  // The property panel should not show because this is a middle-click.
+  EventUtils.sendMouseEvent({type: "mousedown", button: 1},
+    outputItem);
+  EventUtils.sendMouseEvent({type: "click", button: 1},
+    outputItem);
+
+  // The property panel should not show because this is a right-click.
+  EventUtils.sendMouseEvent({type: "mousedown", button: 2},
+    outputItem);
+  EventUtils.sendMouseEvent({type: "click", button: 2},
+    outputItem);
+
+  executeSoon(function() {
+    document.removeEventListener("popupshown", propertyPanelShowFailure, false);
     HUD = outputItem = null;
     executeSoon(finishTest);
   });

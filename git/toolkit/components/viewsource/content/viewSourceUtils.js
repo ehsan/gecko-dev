@@ -1,4 +1,4 @@
-// -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
+// -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -111,6 +111,14 @@ var gViewSourceUtils = {
           var file = this.getTemporaryFile(uri, aDocument, contentType);
           this.viewSourceProgressListener.file = file;
 
+          var webBrowserPersist = Components
+                                  .classes["@mozilla.org/embedding/browser/nsWebBrowserPersist;1"]
+                                  .createInstance(this.mnsIWebBrowserPersist);
+          // the default setting is to not decode. we need to decode.
+          webBrowserPersist.persistFlags = this.mnsIWebBrowserPersist.PERSIST_FLAGS_REPLACE_EXISTING_FILES;
+          webBrowserPersist.progressListener = this.viewSourceProgressListener;
+          webBrowserPersist.saveURI(uri, null, null, null, null, file);
+
           let fromPrivateWindow = false;
           if (aDocument) {
             try {
@@ -123,15 +131,6 @@ var gViewSourceUtils = {
             } catch (e) {
             }
           }
-
-          var webBrowserPersist = Components
-                                  .classes["@mozilla.org/embedding/browser/nsWebBrowserPersist;1"]
-                                  .createInstance(this.mnsIWebBrowserPersist);
-          // the default setting is to not decode. we need to decode.
-          webBrowserPersist.persistFlags = this.mnsIWebBrowserPersist.PERSIST_FLAGS_REPLACE_EXISTING_FILES;
-          webBrowserPersist.progressListener = this.viewSourceProgressListener;
-          let referrerPolicy = Components.interfaces.nsIHttpChannel.REFERRER_POLICY_NO_REFERRER;
-          webBrowserPersist.savePrivacyAwareURI(uri, null, null, referrerPolicy, null, null, file, fromPrivateWindow);
 
           let helperService = Components.classes["@mozilla.org/uriloader/external-helper-app-service;1"]
                                         .getService(Components.interfaces.nsPIExternalAppLauncher);
@@ -189,11 +188,14 @@ var gViewSourceUtils = {
   getExternalViewSourceEditor: function()
   {
     try {
-      let viewSourceAppPath =
+      let prefPath =
           Components.classes["@mozilla.org/preferences-service;1"]
                     .getService(Components.interfaces.nsIPrefBranch)
-                    .getComplexValue("view_source.editor.path",
-                                     Components.interfaces.nsIFile);
+                    .getCharPref("view_source.editor.path");
+      let viewSourceAppPath =
+              Components.classes["@mozilla.org/file/local;1"]
+                        .createInstance(Components.interfaces.nsILocalFile);
+      viewSourceAppPath.initWithPath(prefPath);
       let editor = Components.classes['@mozilla.org/process/util;1']
                              .createInstance(Components.interfaces.nsIProcess);
       editor.init(viewSourceAppPath);

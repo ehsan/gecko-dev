@@ -2,13 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef MERGED_COMPARTMENT
-
-this.EXPORTED_SYMBOLS = ["Async"];
+const EXPORTED_SYMBOLS = ["Async"];
 
 const {classes: Cc, interfaces: Ci, results: Cr, utils: Cu} = Components;
-
-#endif
 
 // Constants for makeSyncCallback, waitForSyncCallback.
 const CB_READY = {};
@@ -22,7 +18,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 /*
  * Helpers for various async operations.
  */
-this.Async = {
+let Async = {
 
   /**
    * Execute an arbitrary number of asynchronous functions one after the
@@ -63,12 +59,6 @@ this.Async = {
   /**
    * Create a sync callback that remembers state, in particular whether it has
    * been called.
-   * The returned callback can be called directly passing an optional arg which
-   * will be returned by waitForSyncCallback().  The callback also has a
-   * .throw() method, which takes an error object and will cause
-   * waitForSyncCallback to fail with the error object thrown as an exception
-   * (but note that the .throw method *does not* itself throw - it just causes
-   * the wait function to throw).
    */
   makeSyncCallback: function makeSyncCallback() {
     // The main callback remembers the value it was passed, and that it got data.
@@ -85,6 +75,9 @@ this.Async = {
     onComplete.throw = function onComplete_throw(data) {
       onComplete.state = CB_FAIL;
       onComplete.value = data;
+
+      // Cause the caller to get an exception and stop execution.
+      throw data;
     };
 
     return onComplete;
@@ -139,8 +132,7 @@ this.Async = {
     function callback(error, ret) {
       if (error)
         cb.throw(error);
-      else
-        cb(ret);
+      cb(ret);
     }
     callback.wait = function() Async.waitForSyncCallback(cb);
     return callback;

@@ -9,8 +9,6 @@ var gToolboxChanged = false;
 var gToolboxSheet = false;
 var gPaletteBox = null;
 
-Components.utils.import("resource://gre/modules/Services.jsm");
-
 function onLoad()
 {
   if ("arguments" in window && window.arguments[0]) {
@@ -459,7 +457,9 @@ function setDragActive(aItem, aValue)
 
 function addNewToolbar()
 {
-  var promptService = Services.prompt;
+  var promptService = Components.classes["@mozilla.org/embedcomp/prompt-service;1"]
+                                .getService(Components.interfaces.nsIPromptService);
+
   var stringBundle = document.getElementById("stringBundle");
   var message = stringBundle.getString("enterToolbarName");
   var title = stringBundle.getString("enterToolbarTitle");
@@ -622,10 +622,6 @@ function isToolbarItem(aElt)
 
 function onToolbarDragExit(aEvent)
 {
-  if (isUnwantedDragEvent(aEvent)) {
-    return;
-  }
-
   if (gCurrentDragOverItem)
     setDragActive(gCurrentDragOverItem, false);
 }
@@ -649,10 +645,6 @@ function onToolbarDragStart(aEvent)
 
 function onToolbarDragOver(aEvent)
 {
-  if (isUnwantedDragEvent(aEvent)) {
-    return;
-  }
-
   var documentId = gToolboxDocument.documentElement.id;
   if (!aEvent.dataTransfer.types.contains("text/toolbarwrapper-id/" + documentId.toLowerCase()))
     return;
@@ -705,10 +697,6 @@ function onToolbarDragOver(aEvent)
 
 function onToolbarDrop(aEvent)
 {
-  if (isUnwantedDragEvent(aEvent)) {
-    return;
-  }
-
   if (!gCurrentDragOverItem)
     return;
 
@@ -779,19 +767,13 @@ function onToolbarDrop(aEvent)
 
 function onPaletteDragOver(aEvent)
 {
-  if (isUnwantedDragEvent(aEvent)) {
-    return;
-  }
   var documentId = gToolboxDocument.documentElement.id;
   if (aEvent.dataTransfer.types.contains("text/toolbarwrapper-id/" + documentId.toLowerCase()))
     aEvent.preventDefault();
 }
 
 function onPaletteDrop(aEvent)
-{
-  if (isUnwantedDragEvent(aEvent)) {
-    return;
-  }
+ {
   var documentId = gToolboxDocument.documentElement.id;
   var itemId = aEvent.dataTransfer.getData("text/toolbarwrapper-id/" + documentId);
 
@@ -816,24 +798,3 @@ function onPaletteDrop(aEvent)
 
   toolboxChanged();
 }
-
-
-function isUnwantedDragEvent(aEvent) {
-  try {
-    if (Services.prefs.getBoolPref("toolkit.customization.unsafe_drag_events")) {
-      return false;
-    }
-  } catch (ex) {}
-
-  /* Discard drag events that originated from a separate window to
-     prevent content->chrome privilege escalations. */
-  let mozSourceNode = aEvent.dataTransfer.mozSourceNode;
-  // mozSourceNode is null in the dragStart event handler or if
-  // the drag event originated in an external application.
-  if (!mozSourceNode) {
-    return true;
-  }
-  let sourceWindow = mozSourceNode.ownerDocument.defaultView;
-  return sourceWindow != window && sourceWindow != gToolboxDocument.defaultView;
-}
-

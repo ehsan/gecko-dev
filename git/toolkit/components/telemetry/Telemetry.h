@@ -11,23 +11,18 @@
 #include "mozilla/StartupTimeline.h"
 #include "nsTArray.h"
 #include "nsStringGlue.h"
+#if defined(MOZ_ENABLE_PROFILER_SPS)
+#include "shared-libraries.h"
+#endif
 
 namespace base {
   class Histogram;
 }
 
 namespace mozilla {
-namespace HangMonitor {
-  class HangAnnotations;
-}
 namespace Telemetry {
 
 #include "TelemetryHistogramEnums.h"
-
-enum TimerResolution {
-  Millisecond,
-  Microsecond
-};
 
 /**
  * Initialize the Telemetry service on the main thread at startup.
@@ -43,26 +38,6 @@ void Init();
 void Accumulate(ID id, uint32_t sample);
 
 /**
- * Adds sample to a keyed histogram defined in TelemetryHistograms.h
- *
- * @param id - keyed histogram id
- * @param key - the string key
- * @param sample - (optional) value to record, defaults to 1.
- */
-void Accumulate(ID id, const nsCString& key, uint32_t sample = 1);
-
-/**
- * Adds a sample to a histogram defined in TelemetryHistograms.h.
- * This function is here to support telemetry measurements from Java,
- * where we have only names and not numeric IDs.  You should almost
- * certainly be using the by-enum-id version instead of this one.
- *
- * @param name - histogram name
- * @param sample - value to record
- */
-void Accumulate(const char* name, uint32_t sample);
-
-/**
  * Adds time delta in milliseconds to a histogram defined in TelemetryHistograms.h
  *
  * @param id - histogram id
@@ -76,79 +51,28 @@ void AccumulateTimeDelta(ID id, TimeStamp start, TimeStamp end = TimeStamp::Now(
  */
 base::Histogram* GetHistogramById(ID id);
 
-/**
- * Return a raw histogram for keyed histograms.
- */
-base::Histogram* GetKeyedHistogramById(ID id, const nsAString&);
-
-/**
- * Those wrappers are needed because the VS versions we use do not support free
- * functions with default template arguments.
- */
-template<TimerResolution res>
-struct AccumulateDelta_impl
-{
-  static void compute(ID id, TimeStamp start, TimeStamp end = TimeStamp::Now());
-  static void compute(ID id, const nsCString& key, TimeStamp start, TimeStamp end = TimeStamp::Now());
-};
-
-template<>
-struct AccumulateDelta_impl<Millisecond>
-{
-  static void compute(ID id, TimeStamp start, TimeStamp end = TimeStamp::Now()) {
-    Accumulate(id, static_cast<uint32_t>((end - start).ToMilliseconds()));
-  }
-  static void compute(ID id, const nsCString& key, TimeStamp start, TimeStamp end = TimeStamp::Now()) {
-    Accumulate(id, key, static_cast<uint32_t>((end - start).ToMilliseconds()));
-  }
-};
-
-template<>
-struct AccumulateDelta_impl<Microsecond>
-{
-  static void compute(ID id, TimeStamp start, TimeStamp end = TimeStamp::Now()) {
-    Accumulate(id, static_cast<uint32_t>((end - start).ToMicroseconds()));
-  }
-  static void compute(ID id, const nsCString& key, TimeStamp start, TimeStamp end = TimeStamp::Now()) {
-    Accumulate(id, key, static_cast<uint32_t>((end - start).ToMicroseconds()));
-  }
-};
-
-
-template<ID id, TimerResolution res = Millisecond>
+template<ID id>
 class AutoTimer {
 public:
-  explicit AutoTimer(TimeStamp aStart = TimeStamp::Now() MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+  AutoTimer(TimeStamp aStart = TimeStamp::Now() MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
      : start(aStart)
   {
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;
   }
 
-  explicit AutoTimer(const nsCString& aKey, TimeStamp aStart = TimeStamp::Now() MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-    : start(aStart)
-    , key(aKey)
-  {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-  }
-
   ~AutoTimer() {
-    if (key.IsEmpty()) {
-      AccumulateDelta_impl<res>::compute(id, start);
-    } else {
-      AccumulateDelta_impl<res>::compute(id, key, start);
-    }
+    AccumulateTimeDelta(id, start);
   }
 
 private:
   const TimeStamp start;
-  const nsCString key;
   MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 template<ID id>
 class AutoCounter {
 public:
-  explicit AutoCounter(uint32_t counterStart = 0 MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+  AutoCounter(uint32_t counterStart = 0 MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
     : counter(counterStart)
   {
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;
@@ -192,76 +116,23 @@ void RecordSlowSQLStatement(const nsACString &statement,
                             uint32_t delay);
 
 /**
- * Initialize I/O Reporting
- * Initially this only records I/O for files in the binary directory.
- *
- * @param aXreDir - XRE directory
+ * Threshold for a statement to be considered slow, in milliseconds
  */
-void InitIOReporting(nsIFile* aXreDir);
-
-/**
- * Set the profile directory. Once called, files in the profile directory will
- * be included in I/O reporting. We can't use the directory
- * service to obtain this information because it isn't running yet.
- */
-void SetProfileDir(nsIFile* aProfD);
-
-/**
- * Called to inform Telemetry that startup has completed.
- */
-void LeavingStartupStage();
-
-/**
- * Called to inform Telemetry that shutdown is commencing.
- */
-void EnteringShutdownStage();
-
-/**
- * Thresholds for a statement to be considered slow, in milliseconds
- */
-const uint32_t kSlowSQLThresholdForMainThread = 50;
-const uint32_t kSlowSQLThresholdForHelperThreads = 100;
+const uint32_t kSlowStatementThreshold = 100;
 
 class ProcessedStack;
 
 /**
  * Record the main thread's call stack after it hangs.
  *
- * @param aDuration - Approximate duration of main thread hang, in seconds
- * @param aStack - Array of PCs from the hung call stack
- * @param aSystemUptime - System uptime at the time of the hang, in minutes
- * @param aFirefoxUptime - Firefox uptime at the time of the hang, in minutes
- * @param aAnnotations - Any annotations to be added to the report
+ * @param duration - Approximate duration of main thread hang in seconds
+ * @param callStack - Array of PCs from the hung call stack
+ * @param moduleMap - Array of info about modules in memory (for symbolication)
  */
 #if defined(MOZ_ENABLE_PROFILER_SPS)
-void RecordChromeHang(uint32_t aDuration,
-                      ProcessedStack &aStack,
-                      int32_t aSystemUptime,
-                      int32_t aFirefoxUptime,
-                      mozilla::UniquePtr<mozilla::HangMonitor::HangAnnotations>
-                              aAnnotations);
+void RecordChromeHang(uint32_t duration,
+                      ProcessedStack &aStack);
 #endif
-
-class ThreadHangStats;
-
-/**
- * Move a ThreadHangStats to Telemetry storage. Normally Telemetry queries
- * for active ThreadHangStats through BackgroundHangMonitor, but once a
- * thread exits, the thread's copy of ThreadHangStats needs to be moved to
- * inside Telemetry using this function.
- *
- * @param aStats ThreadHangStats to save; the data inside aStats
- *               will be moved and aStats should be treated as
- *               invalid after this function returns
- */
-void RecordThreadHangStats(ThreadHangStats& aStats);
-
-/**
- * Record a failed attempt at locking the user's profile.
- *
- * @param aProfileDir The profile directory whose lock attempt failed
- */
-void WriteFailedProfileLock(nsIFile* aProfileDir);
 
 } // namespace Telemetry
 } // namespace mozilla

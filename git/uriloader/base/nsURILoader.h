@@ -16,6 +16,10 @@
 #include "nsIWeakReference.h"
 #include "mozilla/Attributes.h"
 
+#ifdef MOZ_LOGGING
+// Uncomment the next line to force logging on in release builds
+// #define FORCE_PR_LOG
+#endif
 #include "prlog.h"
 
 class nsDocumentOpenInfo;
@@ -27,15 +31,14 @@ public:
   NS_DECL_ISUPPORTS
 
   nsURILoader();
-
-protected:
   ~nsURILoader();
 
+protected:
   /**
    * Equivalent to nsIURILoader::openChannel, but allows specifying whether the
    * channel is opened already.
    */
-  nsresult OpenChannel(nsIChannel* channel,
+  NS_HIDDEN_(nsresult) OpenChannel(nsIChannel* channel,
                                    uint32_t aFlags,
                                    nsIInterfaceRequestor* aWindowContext,
                                    bool aChannelOpen,

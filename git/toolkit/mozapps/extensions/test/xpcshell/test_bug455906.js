@@ -2,28 +2,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
+const URI_EXTENSION_BLOCKLIST_DIALOG = "chrome://mozapps/content/extensions/blocklist.xul";
+
+// Workaround for Bug 658720 - URL formatter can leak during xpcshell tests
+const PREF_BLOCKLIST_ITEM_URL = "extensions.blocklist.itemURL";
+Services.prefs.setCharPref(PREF_BLOCKLIST_ITEM_URL, "http://localhost:4444/blocklist/%blockID%");
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 const Cr = Components.results;
 
-const URI_EXTENSION_BLOCKLIST_DIALOG = "chrome://mozapps/content/extensions/blocklist.xul";
-
 Cu.import("resource://testing-common/httpd.js");
-var gTestserver = new HttpServer();
-gTestserver.start(-1);
-gPort = gTestserver.identity.primaryPort;
-
-// register static files with server and interpolate port numbers in them
-mapFile("/data/bug455906_warn.xml", gTestserver);
-mapFile("/data/bug455906_start.xml", gTestserver);
-mapFile("/data/bug455906_block.xml", gTestserver);
-mapFile("/data/bug455906_empty.xml", gTestserver);
-
-// Workaround for Bug 658720 - URL formatter can leak during xpcshell tests
-const PREF_BLOCKLIST_ITEM_URL = "extensions.blocklist.itemURL";
-Services.prefs.setCharPref(PREF_BLOCKLIST_ITEM_URL, "http://localhost:" + gPort + "/blocklist/%blockID%");
 
 var ADDONS = [{
   // Tests how the blocklist affects a disabled add-on
@@ -81,40 +71,47 @@ var ADDONS = [{
   appVersion: "3"
 }];
 
-function MockPlugin(name, version, enabledState) {
-  this.name = name;
-  this.version = version;
-  this.enabledState = enabledState;
-}
-Object.defineProperty(MockPlugin.prototype, "blocklisted", {
-  get: function MockPlugin_getBlocklisted() {
-    let bls = Cc["@mozilla.org/extensions/blocklist;1"].getService(Ci.nsIBlocklistService);
-    return bls.getPluginBlocklistState(this) == bls.STATE_BLOCKED;
-  }
-});
-Object.defineProperty(MockPlugin.prototype, "disabled", {
-  get: function MockPlugin_getDisabled() {
-    return this.enabledState == Ci.nsIPluginTag.STATE_DISABLED;
-  }
-});
-
-var PLUGINS = [
+var PLUGINS = [{
   // Tests how the blocklist affects a disabled plugin
-  new MockPlugin("test_bug455906_1", "5", Ci.nsIPluginTag.STATE_DISABLED),
+  name: "test_bug455906_1",
+  version: "5",
+  disabled: true,
+  blocklisted: false
+}, {
   // Tests how the blocklist affects an enabled plugin
-  new MockPlugin("test_bug455906_2", "5", Ci.nsIPluginTag.STATE_ENABLED),
+  name: "test_bug455906_2",
+  version: "5",
+  disabled: false,
+  blocklisted: false
+}, {
   // Tests how the blocklist affects an enabled plugin, to be disabled by the notification
-  new MockPlugin("test_bug455906_3", "5", Ci.nsIPluginTag.STATE_ENABLED),
+  name: "test_bug455906_3",
+  version: "5",
+  disabled: false,
+  blocklisted: false
+}, {
   // Tests how the blocklist affects a disabled plugin that was already warned about
-  new MockPlugin("test_bug455906_4", "5", Ci.nsIPluginTag.STATE_DISABLED),
+  name: "test_bug455906_4",
+  version: "5",
+  disabled: true,
+  blocklisted: false
+}, {
   // Tests how the blocklist affects an enabled plugin that was already warned about
-  new MockPlugin("test_bug455906_5", "5", Ci.nsIPluginTag.STATE_ENABLED),
+  name: "test_bug455906_5",
+  version: "5",
+  disabled: false,
+  blocklisted: false
+}, {
   // Tests how the blocklist affects an already blocked plugin
-  new MockPlugin("test_bug455906_6", "5", Ci.nsIPluginTag.STATE_ENABLED)
-];
+  name: "test_bug455906_6",
+  version: "5",
+  disabled: false,
+  blocklisted: true
+}];
 
 var gNotificationCheck = null;
 var gTestCheck = null;
+var gTestserver = null;
 
 // A fake plugin host for the blocklist service to use
 var PluginHost = {
@@ -143,12 +140,12 @@ var PluginHostFactory = {
 // Don't need the full interface, attempts to call other methods will just
 // throw which is just fine
 var WindowWatcher = {
-  openWindow: function(parent, url, name, features, windowArguments) {
+  openWindow: function(parent, url, name, features, arguments) {
     // Should be called to list the newly blocklisted items
     do_check_eq(url, URI_EXTENSION_BLOCKLIST_DIALOG);
 
     if (gNotificationCheck) {
-      var args = windowArguments.wrappedJSObject;
+      var args = arguments.wrappedJSObject;
       gNotificationCheck(args);
     }
 
@@ -205,18 +202,16 @@ function create_addon(addon) {
   target.append("extensions");
   target.append(addon.id);
   target.append("install.rdf");
-  target.create(target.NORMAL_FILE_TYPE, FileUtils.PERMS_FILE);
+  target.create(target.NORMAL_FILE_TYPE, 0644);
   var stream = Cc["@mozilla.org/network/file-output-stream;1"].
                createInstance(Ci.nsIFileOutputStream);
-  stream.init(target,
-              FileUtils.MODE_WRONLY | FileUtils.MODE_CREATE | FileUtils.MODE_TRUNCATE,
-              FileUtils.PERMS_FILE, 0);
+  stream.init(target, 0x04 | 0x08 | 0x20, 0664, 0); // write, create, truncate
   stream.write(installrdf, installrdf.length);
   stream.close();
 }
 
 function load_blocklist(file) {
-  Services.prefs.setCharPref("extensions.blocklist.url", "http://localhost:" + gPort + "/data/" + file);
+  Services.prefs.setCharPref("extensions.blocklist.url", "http://localhost:4444/data/" + file);
   var blocklist = Cc["@mozilla.org/extensions/blocklist;1"].
                   getService(Ci.nsITimerCallback);
   blocklist.notify(null);
@@ -247,10 +242,19 @@ function run_test() {
 
   // Copy the initial blocklist into the profile to check add-ons start in the
   // right state.
-  copyBlocklistToProfile(do_get_file("data/bug455906_start.xml"));
+  var blocklistFile = gProfD.clone();
+  blocklistFile.append("blocklist.xml");
+  if (blocklistFile.exists())
+    blocklistFile.remove(false);
+  var blocklist = do_get_file("data/bug455906_start.xml")
+  blocklist.copyTo(gProfD, "blocklist.xml");
 
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "3", "8");
   startupManager();
+
+  gTestserver = new HttpServer();
+  gTestserver.registerDirectory("/data/", do_get_file("data"));
+  gTestserver.start(4444);
 
   do_test_pending();
   check_test_pt1();
@@ -282,7 +286,7 @@ function check_initial_state(callback) {
 function check_test_pt1() {
   dump("Checking pt 1\n");
 
-  AddonManager.getAddonsByIDs([a.id for each (a in ADDONS)], callback_soon(function(addons) {
+  AddonManager.getAddonsByIDs([a.id for each (a in ADDONS)], function(addons) {
     for (var i = 0; i < ADDONS.length; i++) {
       if (!addons[i])
         do_throw("Addon " + (i + 1) + " did not get installed correctly");
@@ -313,7 +317,7 @@ function check_test_pt1() {
       gTestCheck = check_test_pt2;
       load_blocklist("bug455906_warn.xml");
     });
-  }));
+  });
 }
 
 function check_notification_pt2(args) {
@@ -354,7 +358,7 @@ function check_test_pt2() {
   restartManager();
   dump("Checking results pt 2\n");
 
-  AddonManager.getAddonsByIDs([a.id for each (a in ADDONS)], callback_soon(function(addons) {
+  AddonManager.getAddonsByIDs([a.id for each (a in ADDONS)], function(addons) {
     // Should have disabled this add-on as requested
     do_check_eq(check_addon_state(addons[2]), "true,true,false");
     do_check_eq(check_plugin_state(PLUGINS[2]), "true,false");
@@ -377,13 +381,13 @@ function check_test_pt2() {
     // Back to starting state
     addons[2].userDisabled = false;
     addons[5].userDisabled = false;
-    PLUGINS[2].enabledState = Ci.nsIPluginTag.STATE_ENABLED;
-    PLUGINS[5].enabledState = Ci.nsIPluginTag.STATE_ENABLED;
+    PLUGINS[2].disabled = false;
+    PLUGINS[5].disabled = false;
     restartManager();
     gNotificationCheck = null;
     gTestCheck = run_test_pt3;
     load_blocklist("bug455906_start.xml");
-  }));
+  });
 }
 
 function run_test_pt3() {
@@ -456,11 +460,11 @@ function check_test_pt3() {
     do_check_eq(check_addon_state(addons[3]), "false,false,true");
 
     // Check blockIDs are correct
-    do_check_eq(blocklist.getAddonBlocklistURL(addons[0]),create_blocklistURL(addons[0].id));
-    do_check_eq(blocklist.getAddonBlocklistURL(addons[1]),create_blocklistURL(addons[1].id));
-    do_check_eq(blocklist.getAddonBlocklistURL(addons[2]),create_blocklistURL(addons[2].id));
-    do_check_eq(blocklist.getAddonBlocklistURL(addons[3]),create_blocklistURL(addons[3].id));
-    do_check_eq(blocklist.getAddonBlocklistURL(addons[4]),create_blocklistURL(addons[4].id));
+    do_check_eq(blocklist.getAddonBlocklistURL(addons[0].id,''),create_blocklistURL(addons[0].id));
+    do_check_eq(blocklist.getAddonBlocklistURL(addons[1].id,''),create_blocklistURL(addons[1].id));
+    do_check_eq(blocklist.getAddonBlocklistURL(addons[2].id,''),create_blocklistURL(addons[2].id));
+    do_check_eq(blocklist.getAddonBlocklistURL(addons[3].id,''),create_blocklistURL(addons[3].id));
+    do_check_eq(blocklist.getAddonBlocklistURL(addons[4].id,''),create_blocklistURL(addons[4].id));
 
     // All plugins have the same blockID on the test
     do_check_eq(blocklist.getPluginBlocklistURL(PLUGINS[0]), create_blocklistURL('test_bug455906_plugin'));
@@ -482,16 +486,16 @@ function check_test_pt3() {
 }
 
 function run_test_pt4() {
-  AddonManager.getAddonByID(ADDONS[4].id, callback_soon(function(addon) {
+  AddonManager.getAddonByID(ADDONS[4].id, function(addon) {
     addon.userDisabled = false;
-    PLUGINS[4].enabledState = Ci.nsIPluginTag.STATE_ENABLED;
+    PLUGINS[4].disabled = false;
     restartManager();
     check_initial_state(function() {
       gNotificationCheck = check_notification_pt4;
       gTestCheck = check_test_pt4;
       load_blocklist("bug455906_empty.xml");
     });
-  }));
+  });
 }
 
 function check_notification_pt4(args) {

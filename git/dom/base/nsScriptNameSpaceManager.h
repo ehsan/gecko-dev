@@ -1,6 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
@@ -21,8 +21,6 @@
 #ifndef nsScriptNameSpaceManager_h__
 #define nsScriptNameSpaceManager_h__
 
-#include "mozilla/MemoryReporting.h"
-#include "nsIMemoryReporter.h"
 #include "nsIScriptNameSpaceManager.h"
 #include "nsString.h"
 #include "nsID.h"
@@ -30,7 +28,6 @@
 #include "nsDOMClassInfo.h"
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
-#include "xpcpublic.h"
 
 
 struct nsGlobalNameStruct
@@ -49,6 +46,8 @@ struct nsGlobalNameStruct
     eTypeProperty,
     eTypeNavigatorProperty,
     eTypeExternalConstructor,
+    eTypeStaticNameSet,
+    eTypeDynamicNameSet,
     eTypeClassConstructor,
     eTypeClassProto,
     eTypeExternalClassInfoCreator,
@@ -56,11 +55,8 @@ struct nsGlobalNameStruct
     eTypeExternalConstructorAlias
   } mType;
 
-  // mChromeOnly is only used for structs that define non-WebIDL things
-  // (possibly in addition to WebIDL ones).  In particular, it's not even
-  // initialized for eTypeNewDOMBinding structs.
-  bool mChromeOnly : 1;
-  bool mAllowXBL : 1;
+  bool mChromeOnly;
+  bool mDisabled;
 
   union {
     int32_t mDOMClassInfoID; // eTypeClassConstructor
@@ -71,12 +67,11 @@ struct nsGlobalNameStruct
   };
 
   // For new style DOM bindings.
-  union {
-    mozilla::dom::DefineInterface mDefineDOMInterface; // for window
-    mozilla::dom::ConstructNavigatorProperty mConstructNavigatorProperty; // for navigator
-  };
-  // May be null if enabled unconditionally
-  mozilla::dom::ConstructorEnabled* mConstructorEnabled;
+  mozilla::dom::DefineInterface mDefineDOMInterface;
+
+private:
+
+  // copy constructor
 };
 
 
@@ -86,17 +81,17 @@ class GlobalNameMapEntry;
 
 
 class nsScriptNameSpaceManager : public nsIObserver,
-                                 public nsSupportsWeakReference,
-                                 public nsIMemoryReporter
+                                 public nsSupportsWeakReference
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
-  NS_DECL_NSIMEMORYREPORTER
 
   nsScriptNameSpaceManager();
+  virtual ~nsScriptNameSpaceManager();
 
   nsresult Init();
+  nsresult InitForContext(nsIScriptContext *aContext);
 
   // Returns a nsGlobalNameStruct for aName, or null if one is not
   // found. The returned nsGlobalNameStruct is only guaranteed to be
@@ -104,7 +99,7 @@ public:
   // It also returns a pointer to the string buffer of the classname
   // in the nsGlobalNameStruct.
   const nsGlobalNameStruct* LookupName(const nsAString& aName,
-                                       const char16_t **aClassName = nullptr)
+                                       const PRUnichar **aClassName = nullptr)
   {
     return LookupNameInternal(aName, aClassName);
   }
@@ -113,13 +108,14 @@ public:
   // null if one is not found. The returned nsGlobalNameStruct is only
   // guaranteed to be valid until the next call to any of the methods
   // in this class.
-  const nsGlobalNameStruct* LookupNavigatorName(const nsAString& aName);
+  nsresult LookupNavigatorName(const nsAString& aName,
+                               const nsGlobalNameStruct **aNameStruct);
 
   nsresult RegisterClassName(const char *aClassName,
                              int32_t aDOMClassInfoID,
                              bool aPrivileged,
-                             bool aXBLAllowed,
-                             const char16_t **aResult);
+                             bool aDisabled,
+                             const PRUnichar **aResult);
 
   nsresult RegisterClassProto(const char *aClassName,
                               const nsIID *aConstructorProtoIID,
@@ -143,63 +139,25 @@ public:
   nsGlobalNameStruct* GetConstructorProto(const nsGlobalNameStruct* aStruct);
 
   void RegisterDefineDOMInterface(const nsAFlatString& aName,
-    mozilla::dom::DefineInterface aDefineDOMInterface,
-    mozilla::dom::ConstructorEnabled* aConstructorEnabled);
-  template<size_t N>
-  void RegisterDefineDOMInterface(const char16_t (&aKey)[N],
-    mozilla::dom::DefineInterface aDefineDOMInterface,
-    mozilla::dom::ConstructorEnabled* aConstructorEnabled)
-  {
-    nsLiteralString key(aKey);
-    return RegisterDefineDOMInterface(key, aDefineDOMInterface,
-                                      aConstructorEnabled);
-  }
-
-  void RegisterNavigatorDOMConstructor(const nsAFlatString& aName,
-    mozilla::dom::ConstructNavigatorProperty aNavConstructor,
-    mozilla::dom::ConstructorEnabled* aConstructorEnabled);
-  template<size_t N>
-  void RegisterNavigatorDOMConstructor(const char16_t (&aKey)[N],
-    mozilla::dom::ConstructNavigatorProperty aNavConstructor,
-    mozilla::dom::ConstructorEnabled* aConstructorEnabled)
-  {
-    nsLiteralString key(aKey);
-    return RegisterNavigatorDOMConstructor(key, aNavConstructor,
-                                           aConstructorEnabled);
-  }
-
-  typedef PLDHashOperator
-  (* NameEnumerator)(const nsAString& aGlobalName,
-                     const nsGlobalNameStruct& aGlobalNameStruct,
-                     void* aClosure);
-
-  void EnumerateGlobalNames(NameEnumerator aEnumerator,
-                            void* aClosure);
-  void EnumerateNavigatorNames(NameEnumerator aEnumerator,
-                               void* aClosure);
-
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+    mozilla::dom::DefineInterface aDefineDOMInterface);
 
 private:
-  virtual ~nsScriptNameSpaceManager();
-
   // Adds a new entry to the hash and returns the nsGlobalNameStruct
   // that aKey will be mapped to. If mType in the returned
   // nsGlobalNameStruct is != eTypeNotInitialized, an entry for aKey
   // already existed.
   nsGlobalNameStruct *AddToHash(PLDHashTable *aTable, const nsAString *aKey,
-                                const char16_t **aClassName = nullptr);
+                                const PRUnichar **aClassName = nullptr);
   nsGlobalNameStruct *AddToHash(PLDHashTable *aTable, const char *aKey,
-                                const char16_t **aClassName = nullptr)
+                                const PRUnichar **aClassName = nullptr)
   {
     NS_ConvertASCIItoUTF16 key(aKey);
     return AddToHash(aTable, &key, aClassName);
   }
-  // Removes an existing entry from the hash.
-  void RemoveFromHash(PLDHashTable *aTable, const nsAString *aKey);
 
   nsresult FillHash(nsICategoryManager *aCategoryManager,
                     const char *aCategory);
+  nsresult FillHashWithDOMInterfaces();
   nsresult RegisterInterface(const char* aIfName,
                              const nsIID *aIfIID,
                              bool* aFoundOld);
@@ -217,26 +175,8 @@ private:
                                   const char* aCategory,
                                   nsISupports* aEntry);
 
-  /**
-   * Remove an existing category entry from the hash table.
-   * Only some categories can be removed (see the beginning of the definition).
-   * The other ones will be ignored.
-   *
-   * @aCategory        Category where the entry will be removed from.
-   * @aEntry           The entry that should be removed.
-   */
-  nsresult RemoveCategoryEntryFromHash(nsICategoryManager* aCategoryManager,
-                                       const char* aCategory,
-                                       nsISupports* aEntry);
-
-  // common helper for AddCategoryEntryToHash and RemoveCategoryEntryFromHash
-  nsresult OperateCategoryEntryHash(nsICategoryManager* aCategoryManager,
-                                    const char* aCategory,
-                                    nsISupports* aEntry,
-                                    bool aRemove);
-
   nsGlobalNameStruct* LookupNameInternal(const nsAString& aName,
-                                         const char16_t **aClassName = nullptr);
+                                         const PRUnichar **aClassName = nullptr);
 
   PLDHashTable mGlobalNames;
   PLDHashTable mNavigatorNames;

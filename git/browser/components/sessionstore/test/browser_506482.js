@@ -33,7 +33,7 @@ function test() {
   }
 
   // test content URL
-  const TEST_URL = "data:text/html;charset=utf-8,"
+  const TEST_URL = "data:text/html,"
     + "<body style='width: 100000px; height: 100000px;'><p>top</p></body>"
 
   // preferences that we use
@@ -47,7 +47,9 @@ function test() {
 
   // create and select a first tab
   let tab = gBrowser.addTab(TEST_URL);
-  whenBrowserLoaded(tab.linkedBrowser, function() {
+  tab.linkedBrowser.addEventListener("load", function loadListener(e) {
+    tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
+
     // step1: the above has triggered some saveStateDelayed(), sleep until
     // it's done, and get the initial sessionstore.js mtime
     setTimeout(function step1(e) {
@@ -70,5 +72,5 @@ function test() {
         finish();
       }, 3500); // end of sleep after tab selection and scrolling
     }, 3500); // end of sleep after initial saveStateDelayed()
-  });
+  }, true);
 }

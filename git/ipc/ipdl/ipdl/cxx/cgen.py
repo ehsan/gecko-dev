@@ -20,10 +20,7 @@ class CxxCodeGen(CodePrinter, Visitor):
         self.write(ws.ws)
 
     def visitCppDirective(self, cd):
-        if cd.rest:
-            self.println('#%s %s'% (cd.directive, cd.rest))
-        else:
-            self.println('#%s'% (cd.directive))
+        self.println('#%s %s'% (cd.directive, cd.rest))
 
     def visitNamespace(self, ns):
         self.println('namespace '+ ns.name +' {')
@@ -185,19 +182,14 @@ class CxxCodeGen(CodePrinter, Visitor):
 
         if md.inline:
             self.write('inline ')
-        if md.inline:
-            self.write('MOZ_NEVER_INLINE ')
         if md.static:
             self.write('static ')
         if md.virtual:
             self.write('virtual ')
         if md.ret:
-            if md.only_for_definition:
-                self.write('auto ')
-            else:
-                md.ret.accept(self)
-                self.println()
-                self.printdent()
+            md.ret.accept(self)
+            self.println()
+            self.printdent()
         if md.typeop is not None:
             self.write('operator ')
             md.typeop.accept(self)
@@ -210,9 +202,6 @@ class CxxCodeGen(CodePrinter, Visitor):
 
         if md.const:
             self.write(' const')
-        if md.ret and md.only_for_definition:
-            self.write(' -> ')
-            md.ret.accept(self)
         if md.warn_unused:
             self.write(' NS_WARN_UNUSED_RESULT')
         if md.pure:
@@ -220,9 +209,6 @@ class CxxCodeGen(CodePrinter, Visitor):
 
 
     def visitMethodDefn(self, md):
-        if md.decl.pure:
-            return
-
         self.printdent()
         md.decl.accept(self)
         self.println()
@@ -237,8 +223,6 @@ class CxxCodeGen(CodePrinter, Visitor):
     def visitConstructorDecl(self, cd):
         if cd.explicit:
             self.write('explicit ')
-        else:
-            self.write('MOZ_IMPLICIT ')
         self.visitMethodDecl(cd)
 
     def visitConstructorDefn(self, cd):

@@ -45,7 +45,7 @@ class MyHandler : public nsIOutputStreamCallback
                 , public nsIInputStreamCallback
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
 
     MyHandler(const char *path,
               nsIAsyncInputStream *in,
@@ -54,9 +54,9 @@ public:
         , mOutput(out)
         , mWriteOffset(0)
         {
-            mBuf.AssignLiteral("GET ");
+            mBuf.Assign(NS_LITERAL_CSTRING("GET "));
             mBuf.Append(path);
-            mBuf.AppendLiteral(" HTTP/1.0\r\n\r\n");
+            mBuf.Append(NS_LITERAL_CSTRING(" HTTP/1.0\r\n\r\n"));
         }
     virtual ~MyHandler() {}
 
@@ -115,9 +115,9 @@ private:
     uint32_t  mWriteOffset;
 };
 
-NS_IMPL_ISUPPORTS(MyHandler,
-                  nsIOutputStreamCallback,
-                  nsIInputStreamCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS2(MyHandler,
+                              nsIOutputStreamCallback,
+                              nsIInputStreamCallback)
 
 ////////////////////////////////////////////////////////////////////////////////
 

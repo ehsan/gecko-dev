@@ -18,39 +18,39 @@ function setWindowName()
   var typeFlag = gParams.GetString(0);
   var numberOfCerts = gParams.GetInt(0);
   
-  var bundle = document.getElementById("pippki_bundle");
+  var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
   var title;
   var confirm;
   var impact;
   
   if(typeFlag == "mine_tab")
   {
-     title = bundle.getString("deleteUserCertTitle");
-     confirm = bundle.getString("deleteUserCertConfirm");
-     impact = bundle.getString("deleteUserCertImpact");
+     title = bundle.GetStringFromName("deleteUserCertTitle");
+     confirm = bundle.GetStringFromName("deleteUserCertConfirm");
+     impact = bundle.GetStringFromName("deleteUserCertImpact");
   }
   else if(typeFlag == "websites_tab")
   {
-     title = bundle.getString("deleteSslCertTitle3");
-     confirm = bundle.getString("deleteSslCertConfirm3");
-     impact = bundle.getString("deleteSslCertImpact3");
+     title = bundle.GetStringFromName("deleteSslCertTitle3");
+     confirm = bundle.GetStringFromName("deleteSslCertConfirm3");
+     impact = bundle.GetStringFromName("deleteSslCertImpact3");
   }
   else if(typeFlag == "ca_tab")
   {
-     title = bundle.getString("deleteCaCertTitle2");
-     confirm = bundle.getString("deleteCaCertConfirm2");
-     impact = bundle.getString("deleteCaCertImpactX2");
+     title = bundle.GetStringFromName("deleteCaCertTitle2");
+     confirm = bundle.GetStringFromName("deleteCaCertConfirm2");
+     impact = bundle.GetStringFromName("deleteCaCertImpactX2");
   }
   else if(typeFlag == "others_tab")
   {
-     title = bundle.getString("deleteEmailCertTitle");
-     confirm = bundle.getString("deleteEmailCertConfirm");
-     impact = bundle.getString("deleteEmailCertImpactDesc");
+     title = bundle.GetStringFromName("deleteEmailCertTitle");
+     confirm = bundle.GetStringFromName("deleteEmailCertConfirm");
+     impact = bundle.GetStringFromName("deleteEmailCertImpactDesc");
   }
   else if(typeFlag == "orphan_tab")
   {
-     title = bundle.getString("deleteOrphanCertTitle");
-     confirm = bundle.getString("deleteOrphanCertConfirm");
+     title = bundle.GetStringFromName("deleteOrphanCertTitle");
+     confirm = bundle.GetStringFromName("deleteOrphanCertConfirm");
      impact = "";
   }
   else
@@ -60,17 +60,16 @@ function setWindowName()
   var confirReference = document.getElementById('confirm');
   var impactReference = document.getElementById('impact');
   document.title = title;
-
+  
   setText("confirm",confirm);
 
   var box=document.getElementById("certlist");
+  var text;
   for(var x=0;x<numberOfCerts;x++)
   {
-    var listItem = document.createElement("richlistitem");
-    var label = document.createElement("label");
-    label.setAttribute("value", gParams.GetString(x + 1));
-    listItem.appendChild(label);
-    box.appendChild(listItem);
+    text = document.createElement("text");
+    text.setAttribute("value", gParams.GetString(x+1));
+    box.appendChild(text);
   }
 
   setText("impact",impact);

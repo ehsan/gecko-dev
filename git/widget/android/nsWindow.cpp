@@ -7,17 +7,11 @@
 #include <math.h>
 #include <unistd.h>
 
-#include "mozilla/MiscEvents.h"
-#include "mozilla/MouseEvents.h"
-#include "mozilla/TextEvents.h"
-#include "mozilla/TouchEvents.h"
-
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/unused.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/layers/RenderTrace.h"
-#include <algorithm>
 
 using mozilla::dom::ContentParent;
 using mozilla::dom::ContentChild;
@@ -29,42 +23,35 @@ using mozilla::unused;
 #include "nsIObserverService.h"
 #include "nsFocusManager.h"
 #include "nsIWidgetListener.h"
-#include "nsViewManager.h"
 
+#include "nsRenderingContext.h"
 #include "nsIDOMSimpleGestureEvent.h"
+#include "nsDOMTouchEvent.h"
 
 #include "nsGkAtoms.h"
 #include "nsWidgetsCID.h"
 #include "nsGfxCIID.h"
 
+#include "gfxImageSurface.h"
 #include "gfxContext.h"
 
 #include "Layers.h"
-#include "mozilla/layers/LayerManagerComposite.h"
-#include "mozilla/layers/AsyncCompositionManager.h"
-#include "mozilla/layers/APZCTreeManager.h"
+#include "BasicLayers.h"
+#include "LayerManagerOGL.h"
 #include "GLContext.h"
 #include "GLContextProvider.h"
-#include "ScopedGLHelpers.h"
-#include "mozilla/layers/CompositorOGL.h"
-#include "APZCCallbackHandler.h"
 
 #include "nsTArray.h"
 
 #include "AndroidBridge.h"
-#include "AndroidBridgeUtilities.h"
 #include "android_npapi.h"
 
 #include "imgIEncoder.h"
 
-#include "nsString.h"
-#include "GeckoProfiler.h" // For PROFILER_LABEL
-#include "nsIXULRuntime.h"
+#include "nsStringGlue.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 using namespace mozilla::widget;
-using namespace mozilla::layers;
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsWindow, nsBaseWidget)
 
@@ -72,28 +59,25 @@ NS_IMPL_ISUPPORTS_INHERITED0(nsWindow, nsBaseWidget)
 static gfxIntSize gAndroidBounds = gfxIntSize(0, 0);
 static gfxIntSize gAndroidScreenBounds;
 
+#ifdef MOZ_JAVA_COMPOSITOR
 #include "mozilla/layers/CompositorChild.h"
 #include "mozilla/layers/CompositorParent.h"
-#include "mozilla/layers/LayerTransactionParent.h"
 #include "mozilla/Mutex.h"
 #include "nsThreadUtils.h"
+#endif
+
 
 class ContentCreationNotifier;
-static StaticRefPtr<ContentCreationNotifier> gContentCreationNotifier;
-
+static nsCOMPtr<ContentCreationNotifier> gContentCreationNotifier;
 // A helper class to send updates when content processes
 // are created. Currently an update for the screen size is sent.
-class ContentCreationNotifier MOZ_FINAL : public nsIObserver
+class ContentCreationNotifier : public nsIObserver
 {
-private:
-    ~ContentCreationNotifier() {}
-
-public:
     NS_DECL_ISUPPORTS
 
     NS_IMETHOD Observe(nsISupports* aSubject,
                        const char* aTopic,
-                       const char16_t* aData)
+                       const PRUnichar* aData)
     {
         if (!strcmp(aTopic, "ipc:content-created")) {
             nsCOMPtr<nsIObserver> cpo = do_QueryInterface(aSubject);
@@ -115,8 +99,8 @@ public:
     }
 };
 
-NS_IMPL_ISUPPORTS(ContentCreationNotifier,
-                  nsIObserver)
+NS_IMPL_ISUPPORTS1(ContentCreationNotifier,
+                   nsIObserver)
 
 static bool gMenu;
 static bool gMenuConsumed;
@@ -126,7 +110,11 @@ static bool gMenuConsumed;
 // one.
 static nsTArray<nsWindow*> gTopLevelWindows;
 
+static nsRefPtr<gl::GLContext> sGLContext;
 static bool sFailedToCreateGLContext = false;
+static bool sValidSurface;
+static bool sSurfaceExists = false;
+static void *sNativeWindow = nullptr;
 
 // Multitouch swipe thresholds in inches
 static const double SWIPE_MAX_PINCH_DELTA_INCHES = 0.4;
@@ -143,7 +131,6 @@ nsWindow::TopWindow()
 void
 nsWindow::LogWindow(nsWindow *win, int index, int indent)
 {
-#if defined(DEBUG) || defined(FORCE_ALOG)
     char spaces[] = "                    ";
     spaces[indent < 20 ? indent : 20] = 0;
     ALOG("%s [% 2d] 0x%08x [parent 0x%08x] [% 3d,% 3dx% 3d,% 3d] vis %d type %d",
@@ -151,7 +138,6 @@ nsWindow::LogWindow(nsWindow *win, int index, int indent)
          win->mBounds.x, win->mBounds.y,
          win->mBounds.width, win->mBounds.height,
          win->mIsVisible, win->mWindowType);
-#endif
 }
 
 void
@@ -174,14 +160,7 @@ nsWindow::nsWindow() :
     mIsVisible(false),
     mParent(nullptr),
     mFocus(nullptr),
-    mIMEComposing(false),
-    mIMEComposingStart(-1),
-    mIMEMaskSelectionUpdate(false),
-    mIMEMaskTextUpdate(false),
-    mIMEMaskEventsCount(1), // Mask IME events since there's no focus yet
-    mIMERanges(new TextRangeArray()),
-    mIMEUpdatingContext(false),
-    mIMESelectionChanged(false)
+    mIMEComposing(false)
 {
 }
 
@@ -192,11 +171,9 @@ nsWindow::~nsWindow()
     if (top->mFocus == this)
         top->mFocus = nullptr;
     ALOG("nsWindow %p destructor", (void*)this);
-    if (mLayerManager == sLayerManager) {
-        // If this window was the one that created the global OMTC layer manager
-        // and compositor, then we should null those out.
-        SetCompositor(nullptr, nullptr, nullptr);
-    }
+#ifdef MOZ_JAVA_COMPOSITOR
+    SetCompositor(NULL, NULL);
+#endif
 }
 
 bool
@@ -216,6 +193,11 @@ nsWindow::Create(nsIWidget *aParent,
 {
     ALOG("nsWindow[%p]::Create %p [%d %d %d %d]", (void*)this, (void*)aParent, aRect.x, aRect.y, aRect.width, aRect.height);
     nsWindow *parent = (nsWindow*) aParent;
+
+    if (!AndroidBridge::Bridge()) {
+        aNativeParent = nullptr;
+    }
+
     if (aNativeParent) {
         if (parent) {
             ALOG("Ignoring native parent on Android window [%p], since parent was specified (%p %p)", (void*)this, (void*)aNativeParent, (void*)aParent);
@@ -247,9 +229,9 @@ nsWindow::Create(nsIWidget *aParent,
         mParent = parent;
     }
 
-#ifdef DEBUG_ANDROID_WIDGET
-    DumpWindows();
-#endif
+    float dpi = GetDPI();
+    mSwipeMaxPinchDelta = SWIPE_MAX_PINCH_DELTA_INCHES * dpi;
+    mSwipeMinDistance = SWIPE_MIN_DISTANCE_INCHES * dpi;
 
     return NS_OK;
 }
@@ -272,10 +254,6 @@ nsWindow::Destroy(void)
 
     nsBaseWidget::OnDestroy();
 
-#ifdef DEBUG_ANDROID_WIDGET
-    DumpWindows();
-#endif
-
     return NS_OK;
 }
 
@@ -297,9 +275,9 @@ nsWindow::ConfigureChildren(const nsTArray<nsIWidget::Configuration>& config)
 void
 nsWindow::RedrawAll()
 {
-    if (mFocus && mFocus->mWidgetListener) {
-        mFocus->mWidgetListener->RequestRepaint();
-    }
+    nsIntRect entireRect(0, 0, gAndroidBounds.width, gAndroidBounds.height);
+    AndroidGeckoEvent *event = new AndroidGeckoEvent(AndroidGeckoEvent::DRAW, entireRect);
+    nsAppShell::gAppShell->PostEvent(event);
 }
 
 NS_IMETHODIMP
@@ -344,24 +322,6 @@ nsWindow::GetDPI()
     if (AndroidBridge::Bridge())
         return AndroidBridge::Bridge()->GetDPI();
     return 160.0f;
-}
-
-double
-nsWindow::GetDefaultScaleInternal()
-{
-    static double density = 0.0;
-
-    if (density != 0.0) {
-        return density;
-    }
-
-    density = mozilla::widget::android::GeckoAppShell::GetDensity();
-
-    if (!density) {
-        density = 1.0;
-    }
-
-    return density;
 }
 
 NS_IMETHODIMP
@@ -447,8 +407,8 @@ nsWindow::ConstrainPosition(bool aAllowSlop,
 }
 
 NS_IMETHODIMP
-nsWindow::Move(double aX,
-               double aY)
+nsWindow::Move(int32_t aX,
+               int32_t aY)
 {
     if (IsTopLevel())
         return NS_OK;
@@ -461,8 +421,8 @@ nsWindow::Move(double aX,
 }
 
 NS_IMETHODIMP
-nsWindow::Resize(double aWidth,
-                 double aHeight,
+nsWindow::Resize(int32_t aWidth,
+                 int32_t aHeight,
                  bool aRepaint)
 {
     return Resize(mBounds.x,
@@ -473,20 +433,20 @@ nsWindow::Resize(double aWidth,
 }
 
 NS_IMETHODIMP
-nsWindow::Resize(double aX,
-                 double aY,
-                 double aWidth,
-                 double aHeight,
+nsWindow::Resize(int32_t aX,
+                 int32_t aY,
+                 int32_t aWidth,
+                 int32_t aHeight,
                  bool aRepaint)
 {
-    ALOG("nsWindow[%p]::Resize [%f %f %f %f] (repaint %d)", (void*)this, aX, aY, aWidth, aHeight, aRepaint);
+    ALOG("nsWindow[%p]::Resize [%d %d %d %d] (repaint %d)", (void*)this, aX, aY, aWidth, aHeight, aRepaint);
 
     bool needSizeDispatch = aWidth != mBounds.width || aHeight != mBounds.height;
 
-    mBounds.x = NSToIntRound(aX);
-    mBounds.y = NSToIntRound(aY);
-    mBounds.width = NSToIntRound(aWidth);
-    mBounds.height = NSToIntRound(aHeight);
+    mBounds.x = aX;
+    mBounds.y = aY;
+    mBounds.width = aWidth;
+    mBounds.height = aHeight;
 
     if (needSizeDispatch)
         OnSizeChanged(gfxIntSize(aWidth, aHeight));
@@ -498,10 +458,12 @@ nsWindow::Resize(double aX,
     return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsWindow::SetZIndex(int32_t aZIndex)
 {
     ALOG("nsWindow[%p]::SetZIndex %d ignored", (void*)this, aZIndex);
+
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -517,7 +479,7 @@ nsWindow::SetSizeMode(int32_t aMode)
 {
     switch (aMode) {
         case nsSizeMode_Minimized:
-            mozilla::widget::android::GeckoAppShell::MoveTaskToBack();
+            AndroidBridge::Bridge()->MoveTaskToBack();
             break;
         case nsSizeMode_Fullscreen:
             MakeFullScreen(true);
@@ -542,6 +504,8 @@ nsWindow::IsEnabled() const
 NS_IMETHODIMP
 nsWindow::Invalidate(const nsIntRect &aRect)
 {
+    AndroidGeckoEvent *event = new AndroidGeckoEvent(AndroidGeckoEvent::DRAW, aRect);
+    nsAppShell::gAppShell->PostEvent(event);
     return NS_OK;
 }
 
@@ -566,6 +530,9 @@ nsWindow::SetFocus(bool aRaise)
     if (!aRaise) {
         ALOG("nsWindow::SetFocus: can't set focus without raising, ignoring aRaise = false!");
     }
+
+    if (!AndroidBridge::Bridge())
+        return NS_OK;
 
     nsWindow *top = FindTopLevel();
     top->mFocus = this;
@@ -657,7 +624,7 @@ nsWindow::WidgetToScreenOffset()
 }
 
 NS_IMETHODIMP
-nsWindow::DispatchEvent(WidgetGUIEvent* aEvent,
+nsWindow::DispatchEvent(nsGUIEvent *aEvent,
                         nsEventStatus &aStatus)
 {
     aStatus = DispatchEvent(aEvent);
@@ -665,26 +632,26 @@ nsWindow::DispatchEvent(WidgetGUIEvent* aEvent,
 }
 
 nsEventStatus
-nsWindow::DispatchEvent(WidgetGUIEvent* aEvent)
+nsWindow::DispatchEvent(nsGUIEvent *aEvent)
 {
     if (mWidgetListener) {
         nsEventStatus status = mWidgetListener->HandleEvent(aEvent, mUseAttachedEvents);
 
         switch (aEvent->message) {
         case NS_COMPOSITION_START:
-            MOZ_ASSERT(!mIMEComposing);
             mIMEComposing = true;
             break;
-        case NS_COMPOSITION_COMMIT_AS_IS:
-        case NS_COMPOSITION_COMMIT:
-            MOZ_ASSERT(mIMEComposing);
+        case NS_COMPOSITION_END:
             mIMEComposing = false;
-            mIMEComposingStart = -1;
-            mIMEComposingText.Truncate();
             break;
-        case NS_COMPOSITION_CHANGE:
-            MOZ_ASSERT(mIMEComposing);
-            mIMEComposingText = aEvent->AsCompositionEvent()->mData;
+        case NS_TEXT_TEXT:
+            mIMEComposingText = static_cast<nsTextEvent*>(aEvent)->theText;
+            break;
+        case NS_KEY_PRESS:
+            // Sometimes the text changes after a key press do not generate notifications (see Bug 723810)
+            // Call the corresponding methods explicitly to send those changes back to Java
+            OnIMETextChange(0, 0, 0);
+            OnIMESelectionChange();
             break;
         }
         return status;
@@ -693,9 +660,9 @@ nsWindow::DispatchEvent(WidgetGUIEvent* aEvent)
 }
 
 NS_IMETHODIMP
-nsWindow::MakeFullScreen(bool aFullScreen, nsIScreen*)
+nsWindow::MakeFullScreen(bool aFullScreen)
 {
-    mozilla::widget::android::GeckoAppShell::SetFullScreen(aFullScreen);
+    AndroidBridge::Bridge()->SetFullScreen(aFullScreen);
     return NS_OK;
 }
 
@@ -706,7 +673,7 @@ nsWindow::SetWindowClass(const nsAString& xulWinType)
 }
 
 mozilla::layers::LayerManager*
-nsWindow::GetLayerManager(PLayerTransactionChild*, LayersBackend, LayerManagerPersistence,
+nsWindow::GetLayerManager(PLayersChild*, LayersBackend, LayerManagerPersistence, 
                           bool* aAllowRetaining)
 {
     if (aAllowRetaining) {
@@ -715,55 +682,72 @@ nsWindow::GetLayerManager(PLayerTransactionChild*, LayersBackend, LayerManagerPe
     if (mLayerManager) {
         return mLayerManager;
     }
-    // for OMTC allow use of the single layer manager/compositor
-    // shared across all windows
-    if (ShouldUseOffMainThreadCompositing()) {
-        return sLayerManager;
-    }
-    return nullptr;
-}
 
-void
-nsWindow::CreateLayerManager(int aCompositorWidth, int aCompositorHeight)
-{
-    if (mLayerManager) {
-        return;
+    nsWindow *topWindow = TopWindow();
+
+    if (!topWindow) {
+        printf_stderr(" -- no topwindow\n");
+        mLayerManager = CreateBasicLayerManager();
+        return mLayerManager;
     }
 
-    nsWindow *topLevelWindow = FindTopLevel();
-    if (!topLevelWindow || topLevelWindow->mWindowType == eWindowType_invisible) {
-        // don't create a layer manager for an invisible top-level window
-        return;
-    }
+    mUseAcceleratedRendering = GetShouldAccelerate();
 
-    mUseLayersAcceleration = ComputeShouldAccelerate(mUseLayersAcceleration);
+#ifdef MOZ_JAVA_COMPOSITOR
+    bool useCompositor = UseOffMainThreadCompositing();
 
-    if (ShouldUseOffMainThreadCompositing()) {
-        if (sLayerManager) {
-            return;
-        }
-        CreateCompositor(aCompositorWidth, aCompositorHeight);
+    if (useCompositor) {
+        CreateCompositor();
         if (mLayerManager) {
-            // for OMTC create a single layer manager and compositor that will be
-            // used for all windows.
-            SetCompositor(mLayerManager, mCompositorParent, mCompositorChild);
-            sCompositorPaused = false;
-            return;
+            SetCompositor(mCompositorParent, mCompositorChild);
+            return mLayerManager;
         }
 
         // If we get here, then off main thread compositing failed to initialize.
         sFailedToCreateGLContext = true;
     }
+#endif
 
-    if (!mUseLayersAcceleration || sFailedToCreateGLContext) {
+    if (!mUseAcceleratedRendering ||
+        sFailedToCreateGLContext)
+    {
         printf_stderr(" -- creating basic, not accelerated\n");
         mLayerManager = CreateBasicLayerManager();
+        return mLayerManager;
     }
+
+    if (!mLayerManager) {
+        if (!sGLContext) {
+            // the window we give doesn't matter here
+            sGLContext = mozilla::gl::GLContextProvider::CreateForWindow(this);
+        }
+
+        if (sGLContext) {
+                nsRefPtr<mozilla::layers::LayerManagerOGL> layerManager =
+                        new mozilla::layers::LayerManagerOGL(this);
+
+                if (layerManager && layerManager->Initialize(sGLContext))
+                        mLayerManager = layerManager;
+                sValidSurface = true;
+        }
+
+        if (!sGLContext || !mLayerManager) {
+                sGLContext = nullptr;
+                sFailedToCreateGLContext = true;
+
+                mLayerManager = CreateBasicLayerManager();
+        }
+    }
+
+    return mLayerManager;
 }
 
 void
 nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
 {
+    if (!AndroidBridge::Bridge())
+        return;
+
     nsWindow *win = TopWindow();
     if (!win)
         return;
@@ -778,7 +762,7 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
                 win->mChildren[i]->mBounds.height = 0;
             }
         case AndroidGeckoEvent::SIZE_CHANGED: {
-            const nsTArray<nsIntPoint>& points = ae->Points();
+            nsTArray<nsIntPoint> points = ae->Points();
             NS_ASSERTION(points.Length() == 2, "Size changed does not have enough coordinates");
 
             int nw = points[0].x;
@@ -786,6 +770,7 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
 
             if (ae->Type() == AndroidGeckoEvent::FORCED_RESIZE || nw != gAndroidBounds.width ||
                 nh != gAndroidBounds.height) {
+
                 gAndroidBounds.width = nw;
                 gAndroidBounds.height = nh;
 
@@ -808,10 +793,8 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             gAndroidScreenBounds.width = newScreenWidth;
             gAndroidScreenBounds.height = newScreenHeight;
 
-            if (XRE_GetProcessType() != GeckoProcessType_Default &&
-                !Preferences::GetBool("browser.tabs.remote.desktopbehavior", false)) {
+            if (XRE_GetProcessType() != GeckoProcessType_Default)
                 break;
-            }
 
             // Tell the content process the new screen size.
             nsTArray<ContentParent*> cplist;
@@ -828,7 +811,7 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             if (!obs)
                 break;
 
-            nsRefPtr<ContentCreationNotifier> notifier = new ContentCreationNotifier;
+            nsCOMPtr<ContentCreationNotifier> notifier = new ContentCreationNotifier;
             if (NS_SUCCEEDED(obs->AddObserver(notifier, "ipc:content-created", false))) {
                 if (NS_SUCCEEDED(obs->AddObserver(notifier, "xpcom-shutdown", false)))
                     gContentCreationNotifier = notifier;
@@ -838,17 +821,16 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             break;
         }
 
-        case AndroidGeckoEvent::APZ_INPUT_EVENT:
         case AndroidGeckoEvent::MOTION_EVENT: {
             win->UserActivity();
             if (!gTopLevelWindows.IsEmpty()) {
                 nsIntPoint pt(0,0);
-                const nsTArray<nsIntPoint>& points = ae->Points();
+                nsTArray<nsIntPoint> points = ae->Points();
                 if (points.Length() > 0) {
                     pt = points[0];
                 }
-                pt.x = clamped(pt.x, 0, std::max(gAndroidBounds.width - 1, 0));
-                pt.y = clamped(pt.y, 0, std::max(gAndroidBounds.height - 1, 0));
+                pt.x = clamped(pt.x, 0, NS_MAX(gAndroidBounds.width - 1, 0));
+                pt.y = clamped(pt.y, 0, NS_MAX(gAndroidBounds.height - 1, 0));
                 nsWindow *target = win->FindWindowForPoint(pt);
 #if 0
                 ALOG("MOTION_EVENT %f,%f -> %p (visible: %d children: %d)", pt.x, pt.y, (void*)target,
@@ -859,6 +841,10 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
 #endif
                 if (target) {
                     bool preventDefaultActions = target->OnMultitouchEvent(ae);
+                    if (!preventDefaultActions && ae->Count() == 2) {
+                        target->OnGestureEvent(ae);
+                    }
+
                     if (!preventDefaultActions && ae->Count() < 2)
                         target->OnMouseEvent(ae);
                 }
@@ -866,49 +852,16 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             break;
         }
 
-        // LongPress events mostly trigger contextmenu options, but can also lead to
-        // textSelection processing.
-        case AndroidGeckoEvent::LONG_PRESS: {
-            win->UserActivity();
-
-            nsCOMPtr<nsIObserverService> obsServ = mozilla::services::GetObserverService();
-            obsServ->NotifyObservers(nullptr, "before-build-contextmenu", nullptr);
-
-            nsIntPoint pt;
-            const nsTArray<nsIntPoint>& points = ae->Points();
-            if (points.Length() > 0) {
-                pt = nsIntPoint(points[0].x, points[0].y);
-            }
-
-            // Clamp our point within bounds, and locate the target element for the event.
-            pt.x = clamped(pt.x, 0, std::max(gAndroidBounds.width - 1, 0));
-            pt.y = clamped(pt.y, 0, std::max(gAndroidBounds.height - 1, 0));
-            nsWindow *target = win->FindWindowForPoint(pt);
-            if (target) {
-                // Send the contextmenu event to Gecko.
-                target->OnContextmenuEvent(ae);
-            }
-            break;
-        }
-
-        case AndroidGeckoEvent::NATIVE_GESTURE_EVENT: {
-            nsIntPoint pt(0,0);
-            const nsTArray<nsIntPoint>& points = ae->Points();
-            if (points.Length() > 0) {
-                pt = points[0];
-            }
-            pt.x = clamped(pt.x, 0, std::max(gAndroidBounds.width - 1, 0));
-            pt.y = clamped(pt.y, 0, std::max(gAndroidBounds.height - 1, 0));
-            nsWindow *target = win->FindWindowForPoint(pt);
-
-            target->OnNativeGestureEvent(ae);
-            break;
-        }
-
         case AndroidGeckoEvent::KEY_EVENT:
             win->UserActivity();
             if (win->mFocus)
                 win->mFocus->OnKeyEvent(ae);
+            break;
+
+        case AndroidGeckoEvent::DRAW:
+            layers::renderTraceEventStart("Global draw start", "414141");
+            win->OnDraw(ae);
+            layers::renderTraceEventEnd("414141");
             break;
 
         case AndroidGeckoEvent::IME_EVENT:
@@ -921,15 +874,38 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             }
             break;
 
-        case AndroidGeckoEvent::IME_KEY_EVENT:
-            // Keys synthesized by Java IME code are saved in the mIMEKeyEvents
-            // array until the next IME_REPLACE_TEXT event, at which point
-            // these keys are dispatched in sequence.
-            if (win->mFocus) {
-                win->mFocus->mIMEKeyEvents.AppendElement(*ae);
+        case AndroidGeckoEvent::SURFACE_CREATED:
+            sSurfaceExists = true;
+
+            if (AndroidBridge::Bridge()->HasNativeWindowAccess()) {
+                AndroidGeckoSurfaceView& sview(AndroidBridge::Bridge()->SurfaceView());
+                JNIEnv *env = AndroidBridge::GetJNIEnv();
+                if (env) {
+                    AutoLocalJNIFrame jniFrame(env);
+                    jobject surface = sview.GetSurface(&jniFrame);
+                    if (surface) {
+                        sNativeWindow = AndroidBridge::Bridge()->AcquireNativeWindow(env, surface);
+                        if (sNativeWindow) {
+                            AndroidBridge::Bridge()->SetNativeWindowFormat(sNativeWindow, 0, 0, AndroidBridge::WINDOW_FORMAT_RGB_565);
+                        }
+                    }
+                }
             }
             break;
 
+        case AndroidGeckoEvent::SURFACE_DESTROYED:
+            if (sGLContext && sValidSurface) {
+                sGLContext->ReleaseSurface();
+            }
+            if (sNativeWindow) {
+                AndroidBridge::Bridge()->ReleaseNativeWindow(sNativeWindow);
+                sNativeWindow = nullptr;
+            }
+            sSurfaceExists = false;
+            sValidSurface = false;
+            break;
+
+#ifdef MOZ_JAVA_COMPOSITOR
         case AndroidGeckoEvent::COMPOSITOR_PAUSE:
             // The compositor gets paused when the app is about to go into the
             // background. While the compositor is paused, we need to ensure that
@@ -941,10 +917,6 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             sCompositorPaused = true;
             break;
 
-        case AndroidGeckoEvent::COMPOSITOR_CREATE:
-            win->CreateLayerManager(ae->Width(), ae->Height());
-            // Fallthrough
-
         case AndroidGeckoEvent::COMPOSITOR_RESUME:
             // When we receive this, the compositor has already been told to
             // resume. (It turns out that waiting till we reach here to tell
@@ -953,10 +925,304 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             // Since we might have prevented one or more draw events from
             // occurring while the compositor was paused, we need to schedule
             // a draw event now.
-            if (!sCompositorPaused) {
-                win->RedrawAll();
-            }
+            sCompositorPaused = false;
+            win->RedrawAll();
             break;
+#endif
+
+        case AndroidGeckoEvent::GECKO_EVENT_SYNC:
+            AndroidBridge::Bridge()->AcknowledgeEventSync();
+            break;
+
+        default:
+            break;
+    }
+}
+
+void
+nsWindow::OnAndroidEvent(AndroidGeckoEvent *ae)
+{
+    if (!AndroidBridge::Bridge())
+        return;
+
+    switch (ae->Type()) {
+        case AndroidGeckoEvent::DRAW:
+            OnDraw(ae);
+            break;
+
+        default:
+            ALOG("Window got targetted android event type %d, but didn't handle!", ae->Type());
+            break;
+    }
+}
+
+bool
+nsWindow::DrawTo(gfxASurface *targetSurface)
+{
+    nsIntRect boundsRect(0, 0, mBounds.width, mBounds.height);
+    return DrawTo(targetSurface, boundsRect);
+}
+
+bool
+nsWindow::DrawTo(gfxASurface *targetSurface, const nsIntRect &invalidRect)
+{
+    mozilla::layers::RenderTraceScope trace("DrawTo", "717171");
+    if (!mIsVisible || !mWidgetListener)
+        return false;
+
+    nsRefPtr<nsWindow> kungFuDeathGrip(this);
+    nsIntRect boundsRect(0, 0, mBounds.width, mBounds.height);
+
+    // Figure out if any of our children cover this widget completely
+    int32_t coveringChildIndex = -1;
+    for (uint32_t i = 0; i < mChildren.Length(); ++i) {
+        if (mChildren[i]->mBounds.IsEmpty())
+            continue;
+
+        if (mChildren[i]->mBounds.Contains(boundsRect)) {
+            coveringChildIndex = int32_t(i);
+        }
+    }
+
+    // If we have no covering child, then we need to render this.
+    if (coveringChildIndex == -1) {
+        bool painted = false;
+        nsIntRegion region = invalidRect;
+
+        switch (GetLayerManager(nullptr)->GetBackendType()) {
+            case mozilla::layers::LAYERS_BASIC: {
+
+                nsRefPtr<gfxContext> ctx = new gfxContext(targetSurface);
+
+                {
+                    mozilla::layers::RenderTraceScope trace2("Basic DrawTo", "727272");
+                    AutoLayerManagerSetup
+                      setupLayerManager(this, ctx, mozilla::layers::BUFFER_NONE);
+
+                    painted = mWidgetListener->PaintWindow(this, region, false, false);
+                }
+
+                // XXX uhh.. we can't just ignore this because we no longer have
+                // what we needed before, but let's keep drawing the children anyway?
+#if 0
+                if (!painted)
+                    return false;
+#endif
+
+                // XXX if we got an ignore for the parent, do we still want to draw the children?
+                // We don't really have a good way not to...
+                break;
+            }
+
+            case mozilla::layers::LAYERS_OPENGL: {
+
+                static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager(nullptr))->
+                    SetClippingRegion(nsIntRegion(boundsRect));
+
+                painted = mWidgetListener->PaintWindow(this, region, false, false);
+                break;
+            }
+
+            default:
+                NS_ERROR("Invalid layer manager");
+        }
+
+        // We had no covering child, so make sure we draw all the children,
+        // starting from index 0.
+        coveringChildIndex = 0;
+    }
+
+    gfxPoint offset;
+
+    if (targetSurface)
+        offset = targetSurface->GetDeviceOffset();
+
+    for (uint32_t i = coveringChildIndex; i < mChildren.Length(); ++i) {
+        if (mChildren[i]->mBounds.IsEmpty() ||
+            !mChildren[i]->mBounds.Intersects(boundsRect)) {
+            continue;
+        }
+
+        if (targetSurface)
+            targetSurface->SetDeviceOffset(offset + gfxPoint(mChildren[i]->mBounds.x,
+                                                             mChildren[i]->mBounds.y));
+
+        bool ok = mChildren[i]->DrawTo(targetSurface, invalidRect);
+
+        if (!ok) {
+            ALOG("nsWindow[%p]::DrawTo child %d[%p] returned FALSE!", (void*) this, i, (void*)mChildren[i]);
+        }
+    }
+
+    if (targetSurface)
+        targetSurface->SetDeviceOffset(offset);
+
+    return true;
+}
+
+void
+nsWindow::OnDraw(AndroidGeckoEvent *ae)
+{
+    if (!IsTopLevel()) {
+        ALOG("##### redraw for window %p, which is not a toplevel window -- sending to toplevel!", (void*) this);
+        DumpWindows();
+        return;
+    }
+
+    if (!mIsVisible) {
+        ALOG("##### redraw for window %p, which is not visible -- ignoring!", (void*) this);
+        DumpWindows();
+        return;
+    }
+
+    nsRefPtr<nsWindow> kungFuDeathGrip(this);
+
+    JNIEnv *env = AndroidBridge::GetJNIEnv();
+    if (!env)
+        return;
+    AutoLocalJNIFrame jniFrame;
+
+#ifdef MOZ_JAVA_COMPOSITOR
+    // We're paused, or we haven't been given a window-size yet, so do nothing
+    if (sCompositorPaused || gAndroidBounds.width <= 0 || gAndroidBounds.height <= 0) {
+        return;
+    }
+
+    layers::renderTraceEventStart("Get surface", "424545");
+    static unsigned char bits2[32 * 32 * 2];
+    nsRefPtr<gfxImageSurface> targetSurface =
+        new gfxImageSurface(bits2, gfxIntSize(32, 32), 32 * 2,
+                            gfxASurface::ImageFormatRGB16_565);
+    layers::renderTraceEventEnd("Get surface", "424545");
+
+    layers::renderTraceEventStart("Widget draw to", "434646");
+    if (targetSurface->CairoStatus()) {
+        ALOG("### Failed to create a valid surface from the bitmap");
+    } else {
+        DrawTo(targetSurface, ae->Rect());
+    }
+    layers::renderTraceEventEnd("Widget draw to", "434646");
+    return;
+#endif
+
+    if (!sSurfaceExists) {
+        return;
+    }
+
+    AndroidGeckoSurfaceView& sview(AndroidBridge::Bridge()->SurfaceView());
+
+    NS_ASSERTION(!sview.isNull(), "SurfaceView is null!");
+
+    AndroidBridge::Bridge()->HideProgressDialogOnce();
+
+    if (GetLayerManager(nullptr)->GetBackendType() == mozilla::layers::LAYERS_BASIC) {
+        if (sNativeWindow) {
+            unsigned char *bits;
+            int width, height, format, stride;
+            if (!AndroidBridge::Bridge()->LockWindow(sNativeWindow, &bits, &width, &height, &format, &stride)) {
+                ALOG("failed to lock buffer - skipping draw");
+                return;
+            }
+
+            if (!bits || format != AndroidBridge::WINDOW_FORMAT_RGB_565 ||
+                width != mBounds.width || height != mBounds.height) {
+
+                ALOG("surface is not expected dimensions or format - skipping draw");
+                AndroidBridge::Bridge()->UnlockWindow(sNativeWindow);
+                return;
+            }
+
+            nsRefPtr<gfxImageSurface> targetSurface =
+                new gfxImageSurface(bits,
+                                    gfxIntSize(mBounds.width, mBounds.height),
+                                    stride * 2,
+                                    gfxASurface::ImageFormatRGB16_565);
+            if (targetSurface->CairoStatus()) {
+                ALOG("### Failed to create a valid surface from the bitmap");
+            } else {
+                DrawTo(targetSurface);
+            }
+
+            AndroidBridge::Bridge()->UnlockWindow(sNativeWindow);
+        } else if (AndroidBridge::Bridge()->HasNativeBitmapAccess()) {
+            jobject bitmap = sview.GetSoftwareDrawBitmap(&jniFrame);
+            if (!bitmap) {
+                ALOG("no bitmap to draw into - skipping draw");
+                return;
+            }
+
+            if (!AndroidBridge::Bridge()->ValidateBitmap(bitmap, mBounds.width, mBounds.height))
+                return;
+
+            void *buf = AndroidBridge::Bridge()->LockBitmap(bitmap);
+            if (buf == nullptr) {
+                ALOG("### Software drawing, but failed to lock bitmap.");
+                return;
+            }
+
+            nsRefPtr<gfxImageSurface> targetSurface =
+                new gfxImageSurface((unsigned char *)buf,
+                                    gfxIntSize(mBounds.width, mBounds.height),
+                                    mBounds.width * 2,
+                                    gfxASurface::ImageFormatRGB16_565);
+            if (targetSurface->CairoStatus()) {
+                ALOG("### Failed to create a valid surface from the bitmap");
+            } else {
+                DrawTo(targetSurface);
+            }
+
+            AndroidBridge::Bridge()->UnlockBitmap(bitmap);
+            sview.Draw2D(bitmap, mBounds.width, mBounds.height);
+        } else {
+            jobject bytebuf = sview.GetSoftwareDrawBuffer(&jniFrame);
+            if (!bytebuf) {
+                ALOG("no buffer to draw into - skipping draw");
+                return;
+            }
+
+            void *buf = env->GetDirectBufferAddress(bytebuf);
+            int cap = env->GetDirectBufferCapacity(bytebuf);
+            if (!buf || cap != (mBounds.width * mBounds.height * 2)) {
+                ALOG("### Software drawing, but unexpected buffer size %d expected %d (or no buffer %p)!", cap, mBounds.width * mBounds.height * 2, buf);
+                return;
+            }
+
+            nsRefPtr<gfxImageSurface> targetSurface =
+                new gfxImageSurface((unsigned char *)buf,
+                                    gfxIntSize(mBounds.width, mBounds.height),
+                                    mBounds.width * 2,
+                                    gfxASurface::ImageFormatRGB16_565);
+            if (targetSurface->CairoStatus()) {
+                ALOG("### Failed to create a valid surface");
+            } else {
+                DrawTo(targetSurface);
+            }
+
+            sview.Draw2D(bytebuf, mBounds.width * 2);
+        }
+    } else {
+        int drawType = sview.BeginDrawing();
+
+        if (drawType == AndroidGeckoSurfaceView::DRAW_DISABLED) {
+            return;
+        }
+
+        if (drawType == AndroidGeckoSurfaceView::DRAW_ERROR) {
+            ALOG("##### BeginDrawing failed!");
+            return;
+        }
+
+        if (!sValidSurface) {
+            sGLContext->RenewSurface();
+            sValidSurface = true;
+        }
+
+
+        NS_ASSERTION(sGLContext, "Drawing with GLES without a GL context?");
+
+        DrawTo(nullptr);
+
+        sview.EndDrawing();
     }
 }
 
@@ -974,7 +1240,7 @@ nsWindow::OnSizeChanged(const gfxIntSize& aSize)
 }
 
 void
-nsWindow::InitEvent(WidgetGUIEvent& event, nsIntPoint* aPoint)
+nsWindow::InitEvent(nsGUIEvent& event, nsIntPoint* aPoint)
 {
     if (aPoint) {
         event.refPoint.x = aPoint->x;
@@ -1000,9 +1266,9 @@ void *
 nsWindow::GetNativeData(uint32_t aDataType)
 {
     switch (aDataType) {
-        // used by GLContextProviderEGL, nullptr is EGL_DEFAULT_DISPLAY
+        // used by GLContextProviderEGL, NULL is EGL_DEFAULT_DISPLAY
         case NS_NATIVE_DISPLAY:
-            return nullptr;
+            return NULL;
 
         case NS_NATIVE_WIDGET:
             return (void *) this;
@@ -1014,58 +1280,71 @@ nsWindow::GetNativeData(uint32_t aDataType)
 void
 nsWindow::OnMouseEvent(AndroidGeckoEvent *ae)
 {
+    uint32_t msg;
+    int16_t buttons = nsMouseEvent::eLeftButtonFlag;
+    switch (ae->Action() & AndroidMotionEvent::ACTION_MASK) {
+#ifndef MOZ_ONLY_TOUCH_EVENTS
+        case AndroidMotionEvent::ACTION_DOWN:
+            msg = NS_MOUSE_BUTTON_DOWN;
+            break;
+
+        case AndroidMotionEvent::ACTION_MOVE:
+            msg = NS_MOUSE_MOVE;
+            break;
+
+        case AndroidMotionEvent::ACTION_UP:
+        case AndroidMotionEvent::ACTION_CANCEL:
+            msg = NS_MOUSE_BUTTON_UP;
+            break;
+#endif
+
+        case AndroidMotionEvent::ACTION_HOVER_ENTER:
+        case AndroidMotionEvent::ACTION_HOVER_MOVE:
+        case AndroidMotionEvent::ACTION_HOVER_EXIT:
+            msg = NS_MOUSE_MOVE;
+            buttons = 0;
+            break;
+
+        default:
+            return;
+    }
+
     nsRefPtr<nsWindow> kungFuDeathGrip(this);
 
-    WidgetMouseEvent event = ae->MakeMouseEvent(this);
-    if (event.message == NS_EVENT_NULL) {
-        // invalid event type, abort
-        return;
-    }
+send_again:
+
+    nsMouseEvent event(true,
+                       msg, this,
+                       nsMouseEvent::eReal, nsMouseEvent::eNormal);
+    // XXX can we synthesize different buttons?
+    event.button = nsMouseEvent::eLeftButton;
+
+    if (msg != NS_MOUSE_MOVE)
+        event.clickCount = 1;
 
     // XXX add the double-click handling logic here
-    DispatchEvent(&event);
+    if (ae->Points().Length() > 0)
+        DispatchMotionEvent(event, ae, ae->Points()[0]);
+    if (Destroyed())
+        return;
+
+    if (msg == NS_MOUSE_BUTTON_DOWN) {
+        msg = NS_MOUSE_MOVE;
+        goto send_again;
+    }
 }
 
-void
-nsWindow::OnContextmenuEvent(AndroidGeckoEvent *ae)
+static double
+getDistance(const nsIntPoint &p1, const nsIntPoint &p2)
 {
-    nsRefPtr<nsWindow> kungFuDeathGrip(this);
-
-    CSSPoint pt;
-    const nsTArray<nsIntPoint>& points = ae->Points();
-    if (points.Length() > 0) {
-        pt = CSSPoint(points[0].x, points[0].y);
-    }
-
-    // Send the contextmenu event.
-    WidgetMouseEvent contextMenuEvent(true, NS_CONTEXTMENU, this,
-                                      WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
-    contextMenuEvent.refPoint =
-        LayoutDeviceIntPoint(RoundedToInt(pt * GetDefaultScale())) -
-        LayoutDeviceIntPoint::FromUntyped(WidgetToScreenOffset());
-    contextMenuEvent.ignoreRootScrollFrame = true;
-    contextMenuEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
-
-    nsEventStatus contextMenuStatus;
-    DispatchEvent(&contextMenuEvent, contextMenuStatus);
-
-    // If the contextmenu event was consumed (preventDefault issued), we follow with a
-    // touchcancel event. This avoids followup touchend events passsing through and
-    // triggering further element behaviour such as link-clicks.
-    if (contextMenuStatus == nsEventStatus_eConsumeNoDefault) {
-        WidgetTouchEvent canceltouchEvent = ae->MakeTouchEvent(this);
-        canceltouchEvent.message = NS_TOUCH_CANCEL;
-        DispatchEvent(&canceltouchEvent);
-    }
+    double deltaX = p2.x - p1.x;
+    double deltaY = p2.y - p1.y;
+    return sqrt(deltaX*deltaX + deltaY*deltaY);
 }
 
 bool nsWindow::OnMultitouchEvent(AndroidGeckoEvent *ae)
 {
     nsRefPtr<nsWindow> kungFuDeathGrip(this);
-
-    // End any composition in progress in case the touch event listener
-    // modifies the input field value (see bug 856155)
-    RemoveIMEComposition();
 
     // This is set to true once we have called SetPreventPanning() exactly
     // once for a given sequence of touch events. It is reset on the start
@@ -1075,31 +1354,31 @@ bool nsWindow::OnMultitouchEvent(AndroidGeckoEvent *ae)
 
     bool preventDefaultActions = false;
     bool isDownEvent = false;
-
-    WidgetTouchEvent event = ae->MakeTouchEvent(this);
-    if (event.message != NS_EVENT_NULL) {
-        nsEventStatus status;
-        DispatchEvent(&event, status);
-        // We check mMultipleActionsPrevented because that's what <input type=range>
-        // sets when someone starts dragging the thumb. It doesn't set the status
-        // because it doesn't want to prevent the code that gives the input focus
-        // from running.
-        preventDefaultActions = (status == nsEventStatus_eConsumeNoDefault ||
-                                event.mFlags.mMultipleActionsPrevented);
-        isDownEvent = (event.message == NS_TOUCH_START);
-    }
-
-    if (isDownEvent && event.touches.Length() == 1) {
-        // Since touch events don't get retargeted by PositionedEventTargeting.cpp
-        // code on Fennec, we dispatch a dummy mouse event that *does* get
-        // retargeted. The Fennec browser.js code can use this to activate the
-        // highlight element in case the this touchstart is the start of a tap.
-        WidgetMouseEvent hittest(true, NS_MOUSE_MOZHITTEST, this, WidgetMouseEvent::eReal);
-        hittest.refPoint = LayoutDeviceIntPoint::FromUntyped(event.touches[0]->mRefPoint);
-        hittest.ignoreRootScrollFrame = true;
-        hittest.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
-        nsEventStatus status;
-        DispatchEvent(&hittest, status);
+    switch (ae->Action() & AndroidMotionEvent::ACTION_MASK) {
+        case AndroidMotionEvent::ACTION_DOWN:
+        case AndroidMotionEvent::ACTION_POINTER_DOWN: {
+            nsTouchEvent event(true, NS_TOUCH_START, this);
+            preventDefaultActions = DispatchMultitouchEvent(event, ae);
+            isDownEvent = true;
+            break;
+        }
+        case AndroidMotionEvent::ACTION_MOVE: {
+            nsTouchEvent event(true, NS_TOUCH_MOVE, this);
+            preventDefaultActions = DispatchMultitouchEvent(event, ae);
+            break;
+        }
+        case AndroidMotionEvent::ACTION_UP:
+        case AndroidMotionEvent::ACTION_POINTER_UP: {
+            nsTouchEvent event(true, NS_TOUCH_END, this);
+            preventDefaultActions = DispatchMultitouchEvent(event, ae);
+            break;
+        }
+        case AndroidMotionEvent::ACTION_OUTSIDE:
+        case AndroidMotionEvent::ACTION_CANCEL: {
+            nsTouchEvent event(true, NS_TOUCH_CANCEL, this);
+            preventDefaultActions = DispatchMultitouchEvent(event, ae);
+            break;
+        }
     }
 
     // if the last event we got was a down event, then by now we know for sure whether
@@ -1109,11 +1388,7 @@ bool nsWindow::OnMultitouchEvent(AndroidGeckoEvent *ae)
         // if this event is a down event, that means it's the start of a new block, and the
         // previous block should not be default-prevented
         bool defaultPrevented = isDownEvent ? false : preventDefaultActions;
-        if (ae->Type() == AndroidGeckoEvent::APZ_INPUT_EVENT) {
-            mozilla::widget::android::APZCCallbackHandler::GetInstance()->NotifyDefaultPrevented(ae->ApzInputBlockId(), defaultPrevented);
-        } else {
-            mozilla::widget::android::GeckoAppShell::NotifyDefaultPrevented(defaultPrevented);
-        }
+        AndroidBridge::Bridge()->NotifyDefaultPrevented(defaultPrevented);
         sDefaultPreventedNotified = true;
     }
 
@@ -1122,11 +1397,7 @@ bool nsWindow::OnMultitouchEvent(AndroidGeckoEvent *ae)
     // for the next event.
     if (isDownEvent) {
         if (preventDefaultActions) {
-            if (ae->Type() == AndroidGeckoEvent::APZ_INPUT_EVENT) {
-                mozilla::widget::android::APZCCallbackHandler::GetInstance()->NotifyDefaultPrevented(ae->ApzInputBlockId(), true);
-            } else {
-                mozilla::widget::android::GeckoAppShell::NotifyDefaultPrevented(true);
-            }
+            AndroidBridge::Bridge()->NotifyDefaultPrevented(true);
             sDefaultPreventedNotified = true;
         } else {
             sDefaultPreventedNotified = false;
@@ -1137,339 +1408,247 @@ bool nsWindow::OnMultitouchEvent(AndroidGeckoEvent *ae)
     return preventDefaultActions;
 }
 
-void
-nsWindow::OnNativeGestureEvent(AndroidGeckoEvent *ae)
+bool
+nsWindow::DispatchMultitouchEvent(nsTouchEvent &event, AndroidGeckoEvent *ae)
 {
-  nsIntPoint pt(ae->Points()[0].x,
-                ae->Points()[0].y);
-  double delta = ae->X();
-  int msg = 0;
+    nsIntPoint offset = WidgetToScreenOffset();
 
-  switch (ae->Action()) {
-      case AndroidMotionEvent::ACTION_MAGNIFY_START:
-          msg = NS_SIMPLE_GESTURE_MAGNIFY_START;
-          mStartDist = delta;
-          mLastDist = delta;
-          break;
-      case AndroidMotionEvent::ACTION_MAGNIFY:
-          msg = NS_SIMPLE_GESTURE_MAGNIFY_UPDATE;
-          delta -= mLastDist;
-          mLastDist += delta;
-          break;
-      case AndroidMotionEvent::ACTION_MAGNIFY_END:
-          msg = NS_SIMPLE_GESTURE_MAGNIFY;
-          delta -= mStartDist;
-          break;
-      default:
-          return;
-  }
+    event.modifiers = 0;
+    event.time = ae->Time();
 
-  nsRefPtr<nsWindow> kungFuDeathGrip(this);
-  DispatchGestureEvent(msg, 0, delta, pt, ae->Time());
+    int action = ae->Action() & AndroidMotionEvent::ACTION_MASK;
+    if (action == AndroidMotionEvent::ACTION_UP ||
+        action == AndroidMotionEvent::ACTION_POINTER_UP) {
+        event.touches.SetCapacity(1);
+        int pointerIndex = ae->PointerIndex();
+        nsCOMPtr<nsIDOMTouch> t(new nsDOMTouch(ae->PointIndicies()[pointerIndex],
+                                               ae->Points()[pointerIndex] - offset,
+                                               ae->PointRadii()[pointerIndex],
+                                               ae->Orientations()[pointerIndex],
+                                               ae->Pressures()[pointerIndex]));
+        event.touches.AppendElement(t);
+    } else {
+        int count = ae->Count();
+        event.touches.SetCapacity(count);
+        for (int i = 0; i < count; i++) {
+            nsCOMPtr<nsIDOMTouch> t(new nsDOMTouch(ae->PointIndicies()[i],
+                                                   ae->Points()[i] - offset,
+                                                   ae->PointRadii()[i],
+                                                   ae->Orientations()[i],
+                                                   ae->Pressures()[i]));
+            event.touches.AppendElement(t);
+        }
+    }
+
+    nsEventStatus status;
+    DispatchEvent(&event, status);
+    return (status == nsEventStatus_eConsumeNoDefault);
+}
+
+void
+nsWindow::OnGestureEvent(AndroidGeckoEvent *ae)
+{
+    uint32_t msg = 0;
+
+    nsIntPoint midPoint;
+    midPoint.x = ((ae->Points()[0].x + ae->Points()[1].x) / 2);
+    midPoint.y = ((ae->Points()[0].y + ae->Points()[1].y) / 2);
+    nsIntPoint refPoint = midPoint - WidgetToScreenOffset();
+
+    double pinchDist = getDistance(ae->Points()[0], ae->Points()[1]);
+    double pinchDelta = 0;
+
+    switch (ae->Action() & AndroidMotionEvent::ACTION_MASK) {
+        case AndroidMotionEvent::ACTION_POINTER_DOWN:
+            msg = NS_SIMPLE_GESTURE_MAGNIFY_START;
+            mStartPoint = new nsIntPoint(midPoint);
+            mStartDist = mLastDist = pinchDist;
+            mGestureFinished = false;
+            break;
+        case AndroidMotionEvent::ACTION_MOVE:
+            msg = NS_SIMPLE_GESTURE_MAGNIFY_UPDATE;
+            pinchDelta = pinchDist - mLastDist;
+            mLastDist = pinchDist;
+            break;
+        case AndroidMotionEvent::ACTION_POINTER_UP:
+            msg = NS_SIMPLE_GESTURE_MAGNIFY;
+            pinchDelta = pinchDist - mStartDist;
+            mStartPoint = nullptr;
+            break;
+        default:
+            return;
+    }
+
+    if (!mGestureFinished) {
+        nsRefPtr<nsWindow> kungFuDeathGrip(this);
+        DispatchGestureEvent(msg, 0, pinchDelta, refPoint, ae->Time());
+        if (Destroyed())
+            return;
+
+        // If the cumulative pinch delta goes past the threshold, treat this
+        // as a pinch only, and not a swipe.
+        if (fabs(pinchDist - mStartDist) > mSwipeMaxPinchDelta)
+            mStartPoint = nullptr;
+
+        // If we have traveled more than SWIPE_MIN_DISTANCE from the start
+        // point, stop the pinch gesture and fire a swipe event.
+        if (mStartPoint) {
+            double swipeDistance = getDistance(midPoint, *mStartPoint);
+            if (swipeDistance > mSwipeMinDistance) {
+                uint32_t direction = 0;
+                nsIntPoint motion = midPoint - *mStartPoint;
+
+                if (motion.x < -swipeDistance/2)
+                    direction |= nsIDOMSimpleGestureEvent::DIRECTION_LEFT;
+                if (motion.x > swipeDistance/2)
+                    direction |= nsIDOMSimpleGestureEvent::DIRECTION_RIGHT;
+                if (motion.y < -swipeDistance/2)
+                    direction |= nsIDOMSimpleGestureEvent::DIRECTION_UP;
+                if (motion.y > swipeDistance/2)
+                    direction |= nsIDOMSimpleGestureEvent::DIRECTION_DOWN;
+
+                // Finish the pinch gesture, then fire the swipe event:
+                msg = NS_SIMPLE_GESTURE_MAGNIFY;
+                DispatchGestureEvent(msg, 0, pinchDist - mStartDist, refPoint, ae->Time());
+                if (Destroyed())
+                    return;
+                msg = NS_SIMPLE_GESTURE_SWIPE;
+                DispatchGestureEvent(msg, direction, 0, refPoint, ae->Time());
+
+                // Don't generate any more gesture events for this touch.
+                mGestureFinished = true;
+            }
+        }
+    }
 }
 
 void
 nsWindow::DispatchGestureEvent(uint32_t msg, uint32_t direction, double delta,
                                const nsIntPoint &refPoint, uint64_t time)
 {
-    WidgetSimpleGestureEvent event(true, msg, this);
+    nsSimpleGestureEvent event(true, msg, this, direction, delta);
 
-    event.direction = direction;
-    event.delta = delta;
     event.modifiers = 0;
     event.time = time;
-    event.refPoint = LayoutDeviceIntPoint::FromUntyped(refPoint);
+    event.refPoint = refPoint;
 
     DispatchEvent(&event);
 }
 
 
+void
+nsWindow::DispatchMotionEvent(nsInputEvent &event, AndroidGeckoEvent *ae,
+                              const nsIntPoint &refPoint)
+{
+    nsIntPoint offset = WidgetToScreenOffset();
+
+    event.modifiers = 0;
+    event.time = ae->Time();
+
+    // XXX possibly bound the range of event.refPoint here.
+    //     some code may get confused.
+    event.refPoint = refPoint - offset;
+
+    DispatchEvent(&event);
+}
+
 static unsigned int ConvertAndroidKeyCodeToDOMKeyCode(int androidKeyCode)
 {
     // Special-case alphanumeric keycodes because they are most common.
-    if (androidKeyCode >= AKEYCODE_A &&
-        androidKeyCode <= AKEYCODE_Z) {
-        return androidKeyCode - AKEYCODE_A + NS_VK_A;
+    if (androidKeyCode >= AndroidKeyEvent::KEYCODE_A &&
+        androidKeyCode <= AndroidKeyEvent::KEYCODE_Z) {
+        return androidKeyCode - AndroidKeyEvent::KEYCODE_A + NS_VK_A;
     }
 
-    if (androidKeyCode >= AKEYCODE_0 &&
-        androidKeyCode <= AKEYCODE_9) {
-        return androidKeyCode - AKEYCODE_0 + NS_VK_0;
+    if (androidKeyCode >= AndroidKeyEvent::KEYCODE_0 &&
+        androidKeyCode <= AndroidKeyEvent::KEYCODE_9) {
+        return androidKeyCode - AndroidKeyEvent::KEYCODE_0 + NS_VK_0;
     }
 
     switch (androidKeyCode) {
         // KEYCODE_UNKNOWN (0) ... KEYCODE_HOME (3)
-        case AKEYCODE_BACK:               return NS_VK_ESCAPE;
+        case AndroidKeyEvent::KEYCODE_BACK:               return NS_VK_ESCAPE;
         // KEYCODE_CALL (5) ... KEYCODE_POUND (18)
-        case AKEYCODE_DPAD_UP:            return NS_VK_UP;
-        case AKEYCODE_DPAD_DOWN:          return NS_VK_DOWN;
-        case AKEYCODE_DPAD_LEFT:          return NS_VK_LEFT;
-        case AKEYCODE_DPAD_RIGHT:         return NS_VK_RIGHT;
-        case AKEYCODE_DPAD_CENTER:        return NS_VK_RETURN;
-        case AKEYCODE_VOLUME_UP:          return NS_VK_VOLUME_UP;
-        case AKEYCODE_VOLUME_DOWN:        return NS_VK_VOLUME_DOWN;
-        // KEYCODE_VOLUME_POWER (26) ... KEYCODE_Z (54)
-        case AKEYCODE_COMMA:              return NS_VK_COMMA;
-        case AKEYCODE_PERIOD:             return NS_VK_PERIOD;
-        case AKEYCODE_ALT_LEFT:           return NS_VK_ALT;
-        case AKEYCODE_ALT_RIGHT:          return NS_VK_ALT;
-        case AKEYCODE_SHIFT_LEFT:         return NS_VK_SHIFT;
-        case AKEYCODE_SHIFT_RIGHT:        return NS_VK_SHIFT;
-        case AKEYCODE_TAB:                return NS_VK_TAB;
-        case AKEYCODE_SPACE:              return NS_VK_SPACE;
+        case AndroidKeyEvent::KEYCODE_DPAD_UP:            return NS_VK_UP;
+        case AndroidKeyEvent::KEYCODE_DPAD_DOWN:          return NS_VK_DOWN;
+        case AndroidKeyEvent::KEYCODE_DPAD_LEFT:          return NS_VK_LEFT;
+        case AndroidKeyEvent::KEYCODE_DPAD_RIGHT:         return NS_VK_RIGHT;
+        case AndroidKeyEvent::KEYCODE_DPAD_CENTER:        return NS_VK_RETURN;
+        // KEYCODE_VOLUME_UP (24) ... KEYCODE_Z (54)
+        case AndroidKeyEvent::KEYCODE_COMMA:              return NS_VK_COMMA;
+        case AndroidKeyEvent::KEYCODE_PERIOD:             return NS_VK_PERIOD;
+        case AndroidKeyEvent::KEYCODE_ALT_LEFT:           return NS_VK_ALT;
+        case AndroidKeyEvent::KEYCODE_ALT_RIGHT:          return NS_VK_ALT;
+        case AndroidKeyEvent::KEYCODE_SHIFT_LEFT:         return NS_VK_SHIFT;
+        case AndroidKeyEvent::KEYCODE_SHIFT_RIGHT:        return NS_VK_SHIFT;
+        case AndroidKeyEvent::KEYCODE_TAB:                return NS_VK_TAB;
+        case AndroidKeyEvent::KEYCODE_SPACE:              return NS_VK_SPACE;
         // KEYCODE_SYM (63) ... KEYCODE_ENVELOPE (65)
-        case AKEYCODE_ENTER:              return NS_VK_RETURN;
-        case AKEYCODE_DEL:                return NS_VK_BACK; // Backspace
-        case AKEYCODE_GRAVE:              return NS_VK_BACK_QUOTE;
+        case AndroidKeyEvent::KEYCODE_ENTER:              return NS_VK_RETURN;
+        case AndroidKeyEvent::KEYCODE_DEL:                return NS_VK_BACK; // Backspace
+        case AndroidKeyEvent::KEYCODE_GRAVE:              return NS_VK_BACK_QUOTE;
         // KEYCODE_MINUS (69)
-        case AKEYCODE_EQUALS:             return NS_VK_EQUALS;
-        case AKEYCODE_LEFT_BRACKET:       return NS_VK_OPEN_BRACKET;
-        case AKEYCODE_RIGHT_BRACKET:      return NS_VK_CLOSE_BRACKET;
-        case AKEYCODE_BACKSLASH:          return NS_VK_BACK_SLASH;
-        case AKEYCODE_SEMICOLON:          return NS_VK_SEMICOLON;
+        case AndroidKeyEvent::KEYCODE_EQUALS:             return NS_VK_EQUALS;
+        case AndroidKeyEvent::KEYCODE_LEFT_BRACKET:       return NS_VK_OPEN_BRACKET;
+        case AndroidKeyEvent::KEYCODE_RIGHT_BRACKET:      return NS_VK_CLOSE_BRACKET;
+        case AndroidKeyEvent::KEYCODE_BACKSLASH:          return NS_VK_BACK_SLASH;
+        case AndroidKeyEvent::KEYCODE_SEMICOLON:          return NS_VK_SEMICOLON;
         // KEYCODE_APOSTROPHE (75)
-        case AKEYCODE_SLASH:              return NS_VK_SLASH;
-        // KEYCODE_AT (77) ... KEYCODE_MEDIA_FAST_FORWARD (90)
-        case AKEYCODE_MUTE:               return NS_VK_VOLUME_MUTE;
-        case AKEYCODE_PAGE_UP:            return NS_VK_PAGE_UP;
-        case AKEYCODE_PAGE_DOWN:          return NS_VK_PAGE_DOWN;
+        case AndroidKeyEvent::KEYCODE_SLASH:              return NS_VK_SLASH;
+        // KEYCODE_AT (77) ... KEYCODE_MUTE (91)
+        case AndroidKeyEvent::KEYCODE_PAGE_UP:            return NS_VK_PAGE_UP;
+        case AndroidKeyEvent::KEYCODE_PAGE_DOWN:          return NS_VK_PAGE_DOWN;
         // KEYCODE_PICTSYMBOLS (94) ... KEYCODE_BUTTON_MODE (110)
-        case AKEYCODE_ESCAPE:             return NS_VK_ESCAPE;
-        case AKEYCODE_FORWARD_DEL:        return NS_VK_DELETE;
-        case AKEYCODE_CTRL_LEFT:          return NS_VK_CONTROL;
-        case AKEYCODE_CTRL_RIGHT:         return NS_VK_CONTROL;
-        case AKEYCODE_CAPS_LOCK:          return NS_VK_CAPS_LOCK;
-        case AKEYCODE_SCROLL_LOCK:        return NS_VK_SCROLL_LOCK;
+        case AndroidKeyEvent::KEYCODE_ESCAPE:             return NS_VK_ESCAPE;
+        case AndroidKeyEvent::KEYCODE_FORWARD_DEL:        return NS_VK_DELETE;
+        case AndroidKeyEvent::KEYCODE_CTRL_LEFT:          return NS_VK_CONTROL;
+        case AndroidKeyEvent::KEYCODE_CTRL_RIGHT:         return NS_VK_CONTROL;
+        case AndroidKeyEvent::KEYCODE_CAPS_LOCK:          return NS_VK_CAPS_LOCK;
+        case AndroidKeyEvent::KEYCODE_SCROLL_LOCK:        return NS_VK_SCROLL_LOCK;
         // KEYCODE_META_LEFT (117) ... KEYCODE_FUNCTION (119)
-        case AKEYCODE_SYSRQ:              return NS_VK_PRINTSCREEN;
-        case AKEYCODE_BREAK:              return NS_VK_PAUSE;
-        case AKEYCODE_MOVE_HOME:          return NS_VK_HOME;
-        case AKEYCODE_MOVE_END:           return NS_VK_END;
-        case AKEYCODE_INSERT:             return NS_VK_INSERT;
+        case AndroidKeyEvent::KEYCODE_SYSRQ:              return NS_VK_PRINTSCREEN;
+        case AndroidKeyEvent::KEYCODE_BREAK:              return NS_VK_PAUSE;
+        case AndroidKeyEvent::KEYCODE_MOVE_HOME:          return NS_VK_HOME;
+        case AndroidKeyEvent::KEYCODE_MOVE_END:           return NS_VK_END;
+        case AndroidKeyEvent::KEYCODE_INSERT:             return NS_VK_INSERT;
         // KEYCODE_FORWARD (125) ... KEYCODE_MEDIA_RECORD (130)
-        case AKEYCODE_F1:                 return NS_VK_F1;
-        case AKEYCODE_F2:                 return NS_VK_F2;
-        case AKEYCODE_F3:                 return NS_VK_F3;
-        case AKEYCODE_F4:                 return NS_VK_F4;
-        case AKEYCODE_F5:                 return NS_VK_F5;
-        case AKEYCODE_F6:                 return NS_VK_F6;
-        case AKEYCODE_F7:                 return NS_VK_F7;
-        case AKEYCODE_F8:                 return NS_VK_F8;
-        case AKEYCODE_F9:                 return NS_VK_F9;
-        case AKEYCODE_F10:                return NS_VK_F10;
-        case AKEYCODE_F11:                return NS_VK_F11;
-        case AKEYCODE_F12:                return NS_VK_F12;
-        case AKEYCODE_NUM_LOCK:           return NS_VK_NUM_LOCK;
-        case AKEYCODE_NUMPAD_0:           return NS_VK_NUMPAD0;
-        case AKEYCODE_NUMPAD_1:           return NS_VK_NUMPAD1;
-        case AKEYCODE_NUMPAD_2:           return NS_VK_NUMPAD2;
-        case AKEYCODE_NUMPAD_3:           return NS_VK_NUMPAD3;
-        case AKEYCODE_NUMPAD_4:           return NS_VK_NUMPAD4;
-        case AKEYCODE_NUMPAD_5:           return NS_VK_NUMPAD5;
-        case AKEYCODE_NUMPAD_6:           return NS_VK_NUMPAD6;
-        case AKEYCODE_NUMPAD_7:           return NS_VK_NUMPAD7;
-        case AKEYCODE_NUMPAD_8:           return NS_VK_NUMPAD8;
-        case AKEYCODE_NUMPAD_9:           return NS_VK_NUMPAD9;
-        case AKEYCODE_NUMPAD_DIVIDE:      return NS_VK_DIVIDE;
-        case AKEYCODE_NUMPAD_MULTIPLY:    return NS_VK_MULTIPLY;
-        case AKEYCODE_NUMPAD_SUBTRACT:    return NS_VK_SUBTRACT;
-        case AKEYCODE_NUMPAD_ADD:         return NS_VK_ADD;
-        case AKEYCODE_NUMPAD_DOT:         return NS_VK_DECIMAL;
-        case AKEYCODE_NUMPAD_COMMA:       return NS_VK_SEPARATOR;
-        case AKEYCODE_NUMPAD_ENTER:       return NS_VK_RETURN;
-        case AKEYCODE_NUMPAD_EQUALS:      return NS_VK_EQUALS;
+        case AndroidKeyEvent::KEYCODE_F1:                 return NS_VK_F1;
+        case AndroidKeyEvent::KEYCODE_F2:                 return NS_VK_F2;
+        case AndroidKeyEvent::KEYCODE_F3:                 return NS_VK_F3;
+        case AndroidKeyEvent::KEYCODE_F4:                 return NS_VK_F4;
+        case AndroidKeyEvent::KEYCODE_F5:                 return NS_VK_F5;
+        case AndroidKeyEvent::KEYCODE_F6:                 return NS_VK_F6;
+        case AndroidKeyEvent::KEYCODE_F7:                 return NS_VK_F7;
+        case AndroidKeyEvent::KEYCODE_F8:                 return NS_VK_F8;
+        case AndroidKeyEvent::KEYCODE_F9:                 return NS_VK_F9;
+        case AndroidKeyEvent::KEYCODE_F10:                return NS_VK_F10;
+        case AndroidKeyEvent::KEYCODE_F11:                return NS_VK_F11;
+        case AndroidKeyEvent::KEYCODE_F12:                return NS_VK_F12;
+        case AndroidKeyEvent::KEYCODE_NUM_LOCK:           return NS_VK_NUM_LOCK;
+        case AndroidKeyEvent::KEYCODE_NUMPAD_0:           return NS_VK_NUMPAD0;
+        case AndroidKeyEvent::KEYCODE_NUMPAD_1:           return NS_VK_NUMPAD1;
+        case AndroidKeyEvent::KEYCODE_NUMPAD_2:           return NS_VK_NUMPAD2;
+        case AndroidKeyEvent::KEYCODE_NUMPAD_3:           return NS_VK_NUMPAD3;
+        case AndroidKeyEvent::KEYCODE_NUMPAD_4:           return NS_VK_NUMPAD4;
+        case AndroidKeyEvent::KEYCODE_NUMPAD_5:           return NS_VK_NUMPAD5;
+        case AndroidKeyEvent::KEYCODE_NUMPAD_6:           return NS_VK_NUMPAD6;
+        case AndroidKeyEvent::KEYCODE_NUMPAD_7:           return NS_VK_NUMPAD7;
+        case AndroidKeyEvent::KEYCODE_NUMPAD_8:           return NS_VK_NUMPAD8;
+        case AndroidKeyEvent::KEYCODE_NUMPAD_9:           return NS_VK_NUMPAD9;
+        case AndroidKeyEvent::KEYCODE_NUMPAD_DIVIDE:      return NS_VK_DIVIDE;
+        case AndroidKeyEvent::KEYCODE_NUMPAD_MULTIPLY:    return NS_VK_MULTIPLY;
+        case AndroidKeyEvent::KEYCODE_NUMPAD_SUBTRACT:    return NS_VK_SUBTRACT;
+        case AndroidKeyEvent::KEYCODE_NUMPAD_ADD:         return NS_VK_ADD;
+        case AndroidKeyEvent::KEYCODE_NUMPAD_DOT:         return NS_VK_DECIMAL;
+        case AndroidKeyEvent::KEYCODE_NUMPAD_COMMA:       return NS_VK_SEPARATOR;
+        case AndroidKeyEvent::KEYCODE_NUMPAD_ENTER:       return NS_VK_RETURN;
+        case AndroidKeyEvent::KEYCODE_NUMPAD_EQUALS:      return NS_VK_EQUALS;
         // KEYCODE_NUMPAD_LEFT_PAREN (162) ... KEYCODE_CALCULATOR (210)
-
-        // Needs to confirm the behavior.  If the key switches the open state
-        // of Japanese IME (or switches input character between Hiragana and
-        // Roman numeric characters), then, it might be better to use
-        // NS_VK_KANJI which is used for Alt+Zenkaku/Hankaku key on Windows.
-        case AKEYCODE_ZENKAKU_HANKAKU:    return 0;
-        case AKEYCODE_EISU:               return NS_VK_EISU;
-        case AKEYCODE_MUHENKAN:           return NS_VK_NONCONVERT;
-        case AKEYCODE_HENKAN:             return NS_VK_CONVERT;
-        case AKEYCODE_KATAKANA_HIRAGANA:  return 0;
-        case AKEYCODE_YEN:                return NS_VK_BACK_SLASH; // Same as other platforms.
-        case AKEYCODE_RO:                 return NS_VK_BACK_SLASH; // Same as other platforms.
-        case AKEYCODE_KANA:               return NS_VK_KANA;
-        case AKEYCODE_ASSIST:             return NS_VK_HELP;
-
-        // the A key is the action key for gamepad devices.
-        case AKEYCODE_BUTTON_A:          return NS_VK_RETURN;
 
         default:
             ALOG("ConvertAndroidKeyCodeToDOMKeyCode: "
                  "No DOM keycode for Android keycode %d", androidKeyCode);
         return 0;
-    }
-}
-
-static KeyNameIndex
-ConvertAndroidKeyCodeToKeyNameIndex(AndroidGeckoEvent& aAndroidGeckoEvent)
-{
-    int keyCode = aAndroidGeckoEvent.KeyCode();
-    // Special-case alphanumeric keycodes because they are most common.
-    if (keyCode >= AKEYCODE_A && keyCode <= AKEYCODE_Z) {
-        return KEY_NAME_INDEX_USE_STRING;
-    }
-
-    if (keyCode >= AKEYCODE_0 && keyCode <= AKEYCODE_9) {
-        return KEY_NAME_INDEX_USE_STRING;
-    }
-
-    switch (keyCode) {
-
-#define NS_NATIVE_KEY_TO_DOM_KEY_NAME_INDEX(aNativeKey, aKeyNameIndex) \
-        case aNativeKey: return aKeyNameIndex;
-
-#include "NativeKeyToDOMKeyName.h"
-
-#undef NS_NATIVE_KEY_TO_DOM_KEY_NAME_INDEX
-
-        // KEYCODE_0 (7) ... KEYCODE_9 (16)
-        case AKEYCODE_STAR:               // '*' key
-        case AKEYCODE_POUND:              // '#' key
-
-        // KEYCODE_A (29) ... KEYCODE_Z (54)
-
-        case AKEYCODE_COMMA:              // ',' key
-        case AKEYCODE_PERIOD:             // '.' key
-        case AKEYCODE_SPACE:
-        case AKEYCODE_GRAVE:              // '`' key
-        case AKEYCODE_MINUS:              // '-' key
-        case AKEYCODE_EQUALS:             // '=' key
-        case AKEYCODE_LEFT_BRACKET:       // '[' key
-        case AKEYCODE_RIGHT_BRACKET:      // ']' key
-        case AKEYCODE_BACKSLASH:          // '\' key
-        case AKEYCODE_SEMICOLON:          // ';' key
-        case AKEYCODE_APOSTROPHE:         // ''' key
-        case AKEYCODE_SLASH:              // '/' key
-        case AKEYCODE_AT:                 // '@' key
-        case AKEYCODE_PLUS:               // '+' key
-
-        case AKEYCODE_NUMPAD_0:
-        case AKEYCODE_NUMPAD_1:
-        case AKEYCODE_NUMPAD_2:
-        case AKEYCODE_NUMPAD_3:
-        case AKEYCODE_NUMPAD_4:
-        case AKEYCODE_NUMPAD_5:
-        case AKEYCODE_NUMPAD_6:
-        case AKEYCODE_NUMPAD_7:
-        case AKEYCODE_NUMPAD_8:
-        case AKEYCODE_NUMPAD_9:
-        case AKEYCODE_NUMPAD_DIVIDE:
-        case AKEYCODE_NUMPAD_MULTIPLY:
-        case AKEYCODE_NUMPAD_SUBTRACT:
-        case AKEYCODE_NUMPAD_ADD:
-        case AKEYCODE_NUMPAD_DOT:
-        case AKEYCODE_NUMPAD_COMMA:
-        case AKEYCODE_NUMPAD_EQUALS:
-        case AKEYCODE_NUMPAD_LEFT_PAREN:
-        case AKEYCODE_NUMPAD_RIGHT_PAREN:
-
-        case AKEYCODE_YEN:                // yen sign key
-        case AKEYCODE_RO:                 // Japanese Ro key
-            return KEY_NAME_INDEX_USE_STRING;
-
-        case AKEYCODE_SOFT_LEFT:
-        case AKEYCODE_SOFT_RIGHT:
-        case AKEYCODE_CALL:
-        case AKEYCODE_ENDCALL:
-        case AKEYCODE_SYM:                // Symbol modifier
-        case AKEYCODE_NUM:                // XXX Not sure
-        case AKEYCODE_HEADSETHOOK:
-        case AKEYCODE_FOCUS:
-        case AKEYCODE_NOTIFICATION:       // XXX Not sure
-        case AKEYCODE_PICTSYMBOLS:
-
-        case AKEYCODE_BUTTON_A:
-        case AKEYCODE_BUTTON_B:
-        case AKEYCODE_BUTTON_C:
-        case AKEYCODE_BUTTON_X:
-        case AKEYCODE_BUTTON_Y:
-        case AKEYCODE_BUTTON_Z:
-        case AKEYCODE_BUTTON_L1:
-        case AKEYCODE_BUTTON_R1:
-        case AKEYCODE_BUTTON_L2:
-        case AKEYCODE_BUTTON_R2:
-        case AKEYCODE_BUTTON_THUMBL:
-        case AKEYCODE_BUTTON_THUMBR:
-        case AKEYCODE_BUTTON_START:
-        case AKEYCODE_BUTTON_SELECT:
-        case AKEYCODE_BUTTON_MODE:
-
-        case AKEYCODE_MUTE: // mutes the microphone
-        case AKEYCODE_MEDIA_CLOSE:
-
-        case AKEYCODE_ZOOM_IN:
-        case AKEYCODE_ZOOM_OUT:
-        case AKEYCODE_DVR:
-        case AKEYCODE_TV_POWER:
-        case AKEYCODE_TV_INPUT:
-        case AKEYCODE_STB_POWER:
-        case AKEYCODE_STB_INPUT:
-        case AKEYCODE_AVR_POWER:
-        case AKEYCODE_AVR_INPUT:
-
-        case AKEYCODE_BUTTON_1:
-        case AKEYCODE_BUTTON_2:
-        case AKEYCODE_BUTTON_3:
-        case AKEYCODE_BUTTON_4:
-        case AKEYCODE_BUTTON_5:
-        case AKEYCODE_BUTTON_6:
-        case AKEYCODE_BUTTON_7:
-        case AKEYCODE_BUTTON_8:
-        case AKEYCODE_BUTTON_9:
-        case AKEYCODE_BUTTON_10:
-        case AKEYCODE_BUTTON_11:
-        case AKEYCODE_BUTTON_12:
-        case AKEYCODE_BUTTON_13:
-        case AKEYCODE_BUTTON_14:
-        case AKEYCODE_BUTTON_15:
-        case AKEYCODE_BUTTON_16:
-
-        case AKEYCODE_LANGUAGE_SWITCH:
-        case AKEYCODE_MANNER_MODE:
-        case AKEYCODE_3D_MODE:
-        case AKEYCODE_CONTACTS:
-        case AKEYCODE_CALENDAR:
-        case AKEYCODE_MUSIC:
-        case AKEYCODE_CALCULATOR:
-
-        case AKEYCODE_ZENKAKU_HANKAKU:
-        case AKEYCODE_KATAKANA_HIRAGANA:
-            return KEY_NAME_INDEX_Unidentified;
-
-        case AKEYCODE_UNKNOWN:
-            MOZ_ASSERT(
-                aAndroidGeckoEvent.Action() != AKEY_EVENT_ACTION_MULTIPLE,
-                "Don't call this when action is AKEY_EVENT_ACTION_MULTIPLE!");
-            // It's actually an unknown key if the action isn't ACTION_MULTIPLE.
-            // However, it might cause text input.  So, let's check the value.
-            return aAndroidGeckoEvent.DOMPrintableKeyValue() ?
-                KEY_NAME_INDEX_USE_STRING : KEY_NAME_INDEX_Unidentified;
-
-        default:
-            ALOG("ConvertAndroidKeyCodeToKeyNameIndex: "
-                 "No DOM key name index for Android keycode %d", keyCode);
-            return KEY_NAME_INDEX_Unidentified;
-    }
-}
-
-static CodeNameIndex
-ConvertAndroidScanCodeToCodeNameIndex(AndroidGeckoEvent& aAndroidGeckoEvent)
-{
-    switch (aAndroidGeckoEvent.ScanCode()) {
-
-#define NS_NATIVE_KEY_TO_DOM_CODE_NAME_INDEX(aNativeKey, aCodeNameIndex) \
-        case aNativeKey: return aCodeNameIndex;
-
-#include "NativeKeyToDOMCodeName.h"
-
-#undef NS_NATIVE_KEY_TO_DOM_CODE_NAME_INDEX
-
-        default:
-          return CODE_NAME_INDEX_UNKNOWN;
     }
 }
 
@@ -1496,29 +1675,18 @@ static void InitPluginEvent(ANPEvent* pluginEvent, ANPKeyActions keyAction,
 }
 
 void
-nsWindow::InitKeyEvent(WidgetKeyboardEvent& event, AndroidGeckoEvent& key,
+nsWindow::InitKeyEvent(nsKeyEvent& event, AndroidGeckoEvent& key,
                        ANPEvent* pluginEvent)
 {
-    event.mKeyNameIndex = ConvertAndroidKeyCodeToKeyNameIndex(key);
-    if (event.mKeyNameIndex == KEY_NAME_INDEX_USE_STRING) {
-        int keyValue = key.DOMPrintableKeyValue();
-        if (keyValue) {
-            event.mKeyValue = static_cast<char16_t>(keyValue);
-        }
-    }
-    event.mCodeNameIndex = ConvertAndroidScanCodeToCodeNameIndex(key);
-    uint32_t domKeyCode = ConvertAndroidKeyCodeToDOMKeyCode(key.KeyCode());
+    int androidKeyCode = key.KeyCode();
+    uint32_t domKeyCode = ConvertAndroidKeyCodeToDOMKeyCode(androidKeyCode);
 
     if (event.message == NS_KEY_PRESS) {
         // Android gives us \n, so filter out some control characters.
-        int charCode = key.UnicodeChar();
-        if (!charCode) {
-            charCode = key.BaseUnicodeChar();
-        }
-        event.isChar = (charCode >= ' ');
-        event.charCode = event.isChar ? charCode : 0;
+        event.isChar = (key.UnicodeChar() >= ' ');
+        event.charCode = event.isChar ? key.UnicodeChar() : 0;
         event.keyCode = (event.charCode > 0) ? 0 : domKeyCode;
-        event.mPluginEvent.Clear();
+        event.pluginEvent = NULL;
     } else {
 #ifdef DEBUG
         if (event.message != NS_KEY_DOWN && event.message != NS_KEY_UP) {
@@ -1535,28 +1703,14 @@ nsWindow::InitKeyEvent(WidgetKeyboardEvent& event, AndroidGeckoEvent& key,
         event.isChar = false;
         event.charCode = 0;
         event.keyCode = domKeyCode;
-        event.mPluginEvent.Copy(*pluginEvent);
+        event.pluginEvent = pluginEvent;
     }
 
-    event.modifiers = key.DOMModifiers();
-    if (gMenu) {
-        event.modifiers |= MODIFIER_CONTROL;
-    }
-    // For keypress, if the unicode char already has modifiers applied, we
-    // don't specify extra modifiers. If UnicodeChar() != BaseUnicodeChar()
-    // it means UnicodeChar() already has modifiers applied.
-    // Note that on Android 4.x, Alt modifier isn't set when the key input
-    // causes text input even while right Alt key is pressed.  However, this
-    // is necessary for Android 2.3 compatibility.
-    if (event.message == NS_KEY_PRESS &&
-        key.UnicodeChar() && key.UnicodeChar() != key.BaseUnicodeChar()) {
-        event.modifiers &= ~(MODIFIER_ALT | MODIFIER_CONTROL | MODIFIER_META);
-    }
-
-    event.mIsRepeat =
-        (event.message == NS_KEY_DOWN || event.message == NS_KEY_PRESS) &&
-        (!!(key.Flags() & AKEY_EVENT_FLAG_LONG_PRESS) || !!key.RepeatCount());
-    event.location = key.DomKeyLocation();
+    event.InitBasicModifiers(gMenu,
+                             key.IsAltPressed(),
+                             key.IsShiftPressed(),
+                             false);
+    event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_MOBILE;
     event.time = key.Time();
 
     if (gMenu)
@@ -1568,42 +1722,49 @@ nsWindow::HandleSpecialKey(AndroidGeckoEvent *ae)
 {
     nsRefPtr<nsWindow> kungFuDeathGrip(this);
     nsCOMPtr<nsIAtom> command;
-    bool isDown = ae->Action() == AKEY_EVENT_ACTION_DOWN;
-    bool isLongPress = !!(ae->Flags() & AKEY_EVENT_FLAG_LONG_PRESS);
+    bool isDown = ae->Action() == AndroidKeyEvent::ACTION_DOWN;
+    bool isLongPress = !!(ae->Flags() & AndroidKeyEvent::FLAG_LONG_PRESS);
     bool doCommand = false;
     uint32_t keyCode = ae->KeyCode();
 
     if (isDown) {
         switch (keyCode) {
-            case AKEYCODE_BACK:
+            case AndroidKeyEvent::KEYCODE_BACK:
                 if (isLongPress) {
                     command = nsGkAtoms::Clear;
                     doCommand = true;
                 }
                 break;
-            case AKEYCODE_MENU:
+            case AndroidKeyEvent::KEYCODE_VOLUME_UP:
+                command = nsGkAtoms::VolumeUp;
+                doCommand = true;
+                break;
+            case AndroidKeyEvent::KEYCODE_VOLUME_DOWN:
+                command = nsGkAtoms::VolumeDown;
+                doCommand = true;
+                break;
+            case AndroidKeyEvent::KEYCODE_MENU:
                 gMenu = true;
                 gMenuConsumed = isLongPress;
                 break;
         }
     } else {
         switch (keyCode) {
-            case AKEYCODE_BACK: {
-                // XXX Where is the keydown event for this??
-                WidgetKeyboardEvent pressEvent(true, NS_KEY_PRESS, this);
+            case AndroidKeyEvent::KEYCODE_BACK: {
+                nsKeyEvent pressEvent(true, NS_KEY_PRESS, this);
                 ANPEvent pluginEvent;
                 InitKeyEvent(pressEvent, *ae, &pluginEvent);
                 DispatchEvent(&pressEvent);
                 return;
             }
-            case AKEYCODE_MENU:
+            case AndroidKeyEvent::KEYCODE_MENU:
                 gMenu = false;
                 if (!gMenuConsumed) {
                     command = nsGkAtoms::Menu;
                     doCommand = true;
                 }
                 break;
-            case AKEYCODE_SEARCH:
+            case AndroidKeyEvent::KEYCODE_SEARCH:
                 command = nsGkAtoms::Search;
                 doCommand = true;
                 break;
@@ -1613,7 +1774,7 @@ nsWindow::HandleSpecialKey(AndroidGeckoEvent *ae)
         }
     }
     if (doCommand) {
-        WidgetCommandEvent event(true, nsGkAtoms::onAppCommand, command, this);
+        nsCommandEvent event(true, nsGkAtoms::onAppCommand, command, this);
         InitEvent(event);
         DispatchEvent(&event);
     }
@@ -1623,55 +1784,59 @@ void
 nsWindow::OnKeyEvent(AndroidGeckoEvent *ae)
 {
     nsRefPtr<nsWindow> kungFuDeathGrip(this);
-    RemoveIMEComposition();
     uint32_t msg;
     switch (ae->Action()) {
-    case AKEY_EVENT_ACTION_DOWN:
+    case AndroidKeyEvent::ACTION_DOWN:
         msg = NS_KEY_DOWN;
         break;
-    case AKEY_EVENT_ACTION_UP:
+    case AndroidKeyEvent::ACTION_UP:
         msg = NS_KEY_UP;
         break;
-    case AKEY_EVENT_ACTION_MULTIPLE:
-        // Keys with multiple action are handled in Java,
-        // and we should never see one here
-        MOZ_CRASH("Cannot handle key with multiple action");
+    case AndroidKeyEvent::ACTION_MULTIPLE:
+        {
+            nsTextEvent event(true, NS_TEXT_TEXT, this);
+            event.theText.Assign(ae->Characters());
+            DispatchEvent(&event);
+        }
+        return;
     default:
         ALOG("Unknown key action event!");
         return;
     }
 
-    bool firePress = ae->Action() == AKEY_EVENT_ACTION_DOWN;
+    bool firePress = ae->Action() == AndroidKeyEvent::ACTION_DOWN;
     switch (ae->KeyCode()) {
-    case AKEYCODE_SHIFT_LEFT:
-    case AKEYCODE_SHIFT_RIGHT:
-    case AKEYCODE_ALT_LEFT:
-    case AKEYCODE_ALT_RIGHT:
-    case AKEYCODE_CTRL_LEFT:
-    case AKEYCODE_CTRL_RIGHT:
+    case AndroidKeyEvent::KEYCODE_SHIFT_LEFT:
+    case AndroidKeyEvent::KEYCODE_SHIFT_RIGHT:
+    case AndroidKeyEvent::KEYCODE_ALT_LEFT:
+    case AndroidKeyEvent::KEYCODE_ALT_RIGHT:
         firePress = false;
         break;
-    case AKEYCODE_BACK:
-    case AKEYCODE_MENU:
-    case AKEYCODE_SEARCH:
+    case AndroidKeyEvent::KEYCODE_BACK:
+    case AndroidKeyEvent::KEYCODE_MENU:
+    case AndroidKeyEvent::KEYCODE_SEARCH:
+    case AndroidKeyEvent::KEYCODE_VOLUME_UP:
+    case AndroidKeyEvent::KEYCODE_VOLUME_DOWN:
         HandleSpecialKey(ae);
         return;
     }
 
     nsEventStatus status;
-    WidgetKeyboardEvent event(true, msg, this);
+    nsKeyEvent event(true, msg, this);
     ANPEvent pluginEvent;
     InitKeyEvent(event, *ae, &pluginEvent);
     DispatchEvent(&event, status);
 
     if (Destroyed())
         return;
-    if (!firePress || status == nsEventStatus_eConsumeNoDefault) {
+    if (!firePress)
         return;
-    }
 
-    WidgetKeyboardEvent pressEvent(true, NS_KEY_PRESS, this);
+    nsKeyEvent pressEvent(true, NS_KEY_PRESS, this);
     InitKeyEvent(pressEvent, *ae, &pluginEvent);
+    if (status == nsEventStatus_eConsumeNoDefault) {
+        pressEvent.flags |= NS_EVENT_FLAG_NO_DEFAULT;
+    }
 #ifdef DEBUG_ANDROID_WIDGET
     __android_log_print(ANDROID_LOG_INFO, "Gecko", "Dispatching key pressEvent with keyCode %d charCode %d shift %d alt %d sym/ctrl %d metamask %d", pressEvent.keyCode, pressEvent.charCode, pressEvent.IsShift(), pressEvent.IsAlt(), pressEvent.IsControl(), ae->MetaState());
 #endif
@@ -1681,358 +1846,183 @@ nsWindow::OnKeyEvent(AndroidGeckoEvent *ae)
 #ifdef DEBUG_ANDROID_IME
 #define ALOGIME(args...) ALOG(args)
 #else
-#define ALOGIME(args...) ((void)0)
+#define ALOGIME(args...)
 #endif
 
-static nscolor
-ConvertAndroidColor(uint32_t argb)
-{
-    return NS_RGBA((argb & 0x00ff0000) >> 16,
-                   (argb & 0x0000ff00) >> 8,
-                   (argb & 0x000000ff),
-                   (argb & 0xff000000) >> 24);
-}
-
-class AutoIMEMask {
-private:
-    bool mOldMask, *mMask;
-public:
-    AutoIMEMask(bool &mask) : mOldMask(mask), mMask(&mask) {
-        mask = true;
-    }
-    ~AutoIMEMask() {
-        *mMask = mOldMask;
-    }
-};
-
-/*
-    Remove the composition but leave the text content as-is
-*/
 void
-nsWindow::RemoveIMEComposition()
+nsWindow::OnIMEAddRange(AndroidGeckoEvent *ae)
 {
-    // Remove composition on Gecko side
-    if (!mIMEComposing)
-        return;
-
-    nsRefPtr<nsWindow> kungFuDeathGrip(this);
-    AutoIMEMask selMask(mIMEMaskSelectionUpdate);
-    AutoIMEMask textMask(mIMEMaskTextUpdate);
-
-    WidgetCompositionEvent compositionCommitEvent(true,
-                                                  NS_COMPOSITION_COMMIT_AS_IS,
-                                                  this);
-    InitEvent(compositionCommitEvent, nullptr);
-    DispatchEvent(&compositionCommitEvent);
+    //ALOGIME("IME: IME_ADD_RANGE");
+    nsTextRange range;
+    range.mStartOffset = ae->Offset();
+    range.mEndOffset = range.mStartOffset + ae->Count();
+    range.mRangeType = ae->RangeType();
+    range.mRangeStyle.mDefinedStyles = ae->RangeStyles();
+    range.mRangeStyle.mLineStyle = nsTextRangeStyle::LINESTYLE_SOLID;
+    range.mRangeStyle.mForegroundColor = NS_RGBA(
+        ((ae->RangeForeColor() >> 16) & 0xff),
+        ((ae->RangeForeColor() >> 8) & 0xff),
+        (ae->RangeForeColor() & 0xff),
+        ((ae->RangeForeColor() >> 24) & 0xff));
+    range.mRangeStyle.mBackgroundColor = NS_RGBA(
+        ((ae->RangeBackColor() >> 16) & 0xff),
+        ((ae->RangeBackColor() >> 8) & 0xff),
+        (ae->RangeBackColor() & 0xff),
+        ((ae->RangeBackColor() >> 24) & 0xff));
+    mIMERanges.AppendElement(range);
+    return;
 }
 
 void
 nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
 {
-    MOZ_ASSERT(!mIMEMaskTextUpdate);
-    MOZ_ASSERT(!mIMEMaskSelectionUpdate);
-    /*
-        Rules for managing IME between Gecko and Java:
-
-        * Gecko controls the text content, and Java shadows the Gecko text
-           through text updates
-        * Java controls the selection, and Gecko shadows the Java selection
-           through set selection events
-        * Java controls the composition, and Gecko shadows the Java
-           composition through update composition events
-    */
     nsRefPtr<nsWindow> kungFuDeathGrip(this);
-
-    if (ae->Action() == AndroidGeckoEvent::IME_ACKNOWLEDGE_FOCUS) {
-        MOZ_ASSERT(mIMEMaskEventsCount > 0);
-        mIMEMaskEventsCount--;
-        if (!mIMEMaskEventsCount) {
-            // The focusing handshake sequence is complete, and Java is waiting
-            // on Gecko. Now we can notify Java of the newly focused content
-            mIMETextChanges.Clear();
-            mIMESelectionChanged = false;
-            // NotifyIMEOfTextChange also notifies selection
-            // Use 'INT32_MAX / 2' here because subsequent text changes might
-            // combine with this text change, and overflow might occur if
-            // we just use INT32_MAX
-            IMENotification notification(NOTIFY_IME_OF_TEXT_CHANGE);
-            notification.mTextChangeData.mOldEndOffset =
-                notification.mTextChangeData.mNewEndOffset = INT32_MAX / 2;
-            NotifyIMEOfTextChange(notification);
-            FlushIMEChanges();
-        }
-        mozilla::widget::android::GeckoAppShell::NotifyIME(AndroidBridge::NOTIFY_IME_REPLY_EVENT);
-        return;
-
-    } else if (ae->Action() == AndroidGeckoEvent::IME_UPDATE_CONTEXT) {
-        mozilla::widget::android::GeckoAppShell::NotifyIMEContext(mInputContext.mIMEState.mEnabled,
-                                        mInputContext.mHTMLInputType,
-                                        mInputContext.mHTMLInputInputmode,
-                                        mInputContext.mActionHint);
-        mIMEUpdatingContext = false;
-        return;
-    }
-
-    if (mIMEMaskEventsCount > 0) {
-        // Still reply to events, but don't do anything else
-        if (ae->Action() == AndroidGeckoEvent::IME_SYNCHRONIZE ||
-            ae->Action() == AndroidGeckoEvent::IME_COMPOSE_TEXT ||
-            ae->Action() == AndroidGeckoEvent::IME_REPLACE_TEXT) {
-            mozilla::widget::android::GeckoAppShell::NotifyIME(AndroidBridge::NOTIFY_IME_REPLY_EVENT);
-        }
-        return;
-    }
-
     switch (ae->Action()) {
-    case AndroidGeckoEvent::IME_FLUSH_CHANGES:
+    case AndroidGeckoEvent::IME_COMPOSITION_END:
         {
-            FlushIMEChanges();
+            ALOGIME("IME: IME_COMPOSITION_END");
+            MOZ_ASSERT(mIMEComposing,
+                       "IME_COMPOSITION_END when we are not composing?!");
+
+            nsCompositionEvent event(true, NS_COMPOSITION_END, this);
+            InitEvent(event, nullptr);
+            event.data = mIMELastDispatchedComposingText;
+            mIMELastDispatchedComposingText.Truncate();
+            DispatchEvent(&event);
         }
-        break;
-
-    case AndroidGeckoEvent::IME_SYNCHRONIZE:
+        return;
+    case AndroidGeckoEvent::IME_COMPOSITION_BEGIN:
         {
-            FlushIMEChanges();
-            mozilla::widget::android::GeckoAppShell::NotifyIME(AndroidBridge::NOTIFY_IME_REPLY_EVENT);
+            ALOGIME("IME: IME_COMPOSITION_BEGIN");
+            MOZ_ASSERT(!mIMEComposing,
+                       "IME_COMPOSITION_BEGIN when we are already composing?!");
+
+            mIMELastDispatchedComposingText.Truncate();
+            nsCompositionEvent event(true, NS_COMPOSITION_START, this);
+            InitEvent(event, nullptr);
+            DispatchEvent(&event);
         }
-        break;
-
-    case AndroidGeckoEvent::IME_REPLACE_TEXT:
-    case AndroidGeckoEvent::IME_COMPOSE_TEXT:
+        return;
+    case AndroidGeckoEvent::IME_ADD_RANGE:
         {
-            /*
-                Replace text in Gecko thread from ae->Start() to ae->End()
-                  with the string ae->Characters()
-
-                Selection updates are masked so the result of our temporary
-                  selection event is not passed on to Java
-
-                Text updates are passed on, so the Java text can shadow the
-                  Gecko text
-            */
-            AutoIMEMask selMask(mIMEMaskSelectionUpdate);
-
-            if (!mIMEKeyEvents.IsEmpty() ||
-                mIMEComposingStart < 0 ||
-                ae->Start() != mIMEComposingStart ||
-                ae->End() != mIMEComposingStart +
-                             int32_t(mIMEComposingText.Length())) {
-
-                // Only start a new composition if we have key events,
-                // if we don't have an existing composition, or
-                // the replaced text does not match our composition.
-                RemoveIMEComposition();
-
-                {
-                    WidgetSelectionEvent event(true, NS_SELECTION_SET, this);
-                    InitEvent(event, nullptr);
-                    event.mOffset = uint32_t(ae->Start());
-                    event.mLength = uint32_t(ae->End() - ae->Start());
-                    event.mExpandToClusterBoundary = false;
-                    DispatchEvent(&event);
-                }
-
-                if (!mIMEKeyEvents.IsEmpty()) {
-                    for (uint32_t i = 0; i < mIMEKeyEvents.Length(); i++) {
-                        OnKeyEvent(&mIMEKeyEvents[i]);
-                    }
-                    mIMEKeyEvents.Clear();
-                    FlushIMEChanges();
-                    mozilla::widget::android::GeckoAppShell::NotifyIME(
-                        AndroidBridge::NOTIFY_IME_REPLY_EVENT);
-                    // Break out of the switch block
-                    break;
-                }
-
-                {
-                    WidgetCompositionEvent event(
-                        true, NS_COMPOSITION_START, this);
-                    InitEvent(event, nullptr);
-                    DispatchEvent(&event);
-                    mIMEComposingStart = ae->Start();
-                }
-            }
-
-            {
-                WidgetCompositionEvent event(true, NS_COMPOSITION_CHANGE, this);
-                InitEvent(event, nullptr);
-                event.mData = ae->Characters();
-
-                if (ae->Action() == AndroidGeckoEvent::IME_COMPOSE_TEXT) {
-                    // Because we're leaving the composition open, we need to
-                    // include proper text ranges to make the editor happy.
-                    TextRange range;
-                    range.mStartOffset = 0;
-                    range.mEndOffset = event.mData.Length();
-                    range.mRangeType = NS_TEXTRANGE_RAWINPUT;
-                    event.mRanges = new TextRangeArray();
-                    event.mRanges->AppendElement(range);
-                }
-
-                DispatchEvent(&event);
-            }
-
-            // Don't end composition when composing text.
-            if (ae->Action() != AndroidGeckoEvent::IME_COMPOSE_TEXT)
-            {
-                WidgetCompositionEvent compositionCommitEvent(
-                                           true, NS_COMPOSITION_COMMIT, this);
-                InitEvent(compositionCommitEvent, nullptr);
-                compositionCommitEvent.mData = ae->Characters();
-                DispatchEvent(&compositionCommitEvent);
-            }
-
-            FlushIMEChanges();
-            mozilla::widget::android::GeckoAppShell::NotifyIME(
-                AndroidBridge::NOTIFY_IME_REPLY_EVENT);
+            NS_ASSERTION(mIMEComposing,
+                         "IME_ADD_RANGE when we are not composing?!");
+            OnIMEAddRange(ae);
         }
-        break;
-
-    case AndroidGeckoEvent::IME_SET_SELECTION:
+        return;
+    case AndroidGeckoEvent::IME_SET_TEXT:
         {
-            /*
-                Set Gecko selection to ae->Start() to ae->End()
+            NS_ASSERTION(mIMEComposing,
+                         "IME_SET_TEXT when we are not composing?!");
 
-                Selection updates are masked to prevent Java from being
-                  notified of the new selection
-            */
-            AutoIMEMask selMask(mIMEMaskSelectionUpdate);
-            RemoveIMEComposition();
-            WidgetSelectionEvent selEvent(true, NS_SELECTION_SET, this);
-            InitEvent(selEvent, nullptr);
+            OnIMEAddRange(ae);
 
-            int32_t start = ae->Start(), end = ae->End();
-
-            if (start < 0 || end < 0) {
-                WidgetQueryContentEvent event(true, NS_QUERY_SELECTED_TEXT,
-                                              this);
-                InitEvent(event, nullptr);
-                DispatchEvent(&event);
-                MOZ_ASSERT(event.mSucceeded && !event.mWasAsync);
-
-                if (start < 0)
-                    start = int32_t(event.GetSelectionStart());
-                if (end < 0)
-                    end = int32_t(event.GetSelectionEnd());
-            }
-
-            selEvent.mOffset = std::min(start, end);
-            selEvent.mLength = std::max(start, end) - selEvent.mOffset;
-            selEvent.mReversed = start > end;
-            selEvent.mExpandToClusterBoundary = false;
-
-            DispatchEvent(&selEvent);
-        }
-        break;
-    case AndroidGeckoEvent::IME_ADD_COMPOSITION_RANGE:
-        {
-            TextRange range;
-            range.mStartOffset = ae->Start();
-            range.mEndOffset = ae->End();
-            range.mRangeType = ae->RangeType();
-            range.mRangeStyle.mDefinedStyles = ae->RangeStyles();
-            range.mRangeStyle.mLineStyle = ae->RangeLineStyle();
-            range.mRangeStyle.mIsBoldLine = ae->RangeBoldLine();
-            range.mRangeStyle.mForegroundColor =
-                    ConvertAndroidColor(uint32_t(ae->RangeForeColor()));
-            range.mRangeStyle.mBackgroundColor =
-                    ConvertAndroidColor(uint32_t(ae->RangeBackColor()));
-            range.mRangeStyle.mUnderlineColor =
-                    ConvertAndroidColor(uint32_t(ae->RangeLineColor()));
-            mIMERanges->AppendElement(range);
-        }
-        break;
-    case AndroidGeckoEvent::IME_UPDATE_COMPOSITION:
-        {
-            /*
-                Update the composition from ae->Start() to ae->End() using
-                  information from added ranges. This is only used for
-                  visual indication and does not affect the text content.
-                  Only the offsets are specified and not the text content
-                  to eliminate the possibility of this event altering the
-                  text content unintentionally.
-
-                Selection and text updates are masked so the result of
-                  temporary events are not passed on to Java
-            */
-            AutoIMEMask selMask(mIMEMaskSelectionUpdate);
-            AutoIMEMask textMask(mIMEMaskTextUpdate);
-
-            WidgetCompositionEvent event(true, NS_COMPOSITION_CHANGE, this);
+            nsTextEvent event(true, NS_TEXT_TEXT, this);
             InitEvent(event, nullptr);
 
-            event.mRanges = new TextRangeArray();
-            mIMERanges.swap(event.mRanges);
+            event.theText.Assign(ae->Characters());
+            event.rangeArray = mIMERanges.Elements();
+            event.rangeCount = mIMERanges.Length();
 
-            if (mIMEComposingStart < 0 ||
-                ae->Start() != mIMEComposingStart ||
-                ae->End() != mIMEComposingStart +
-                             int32_t(mIMEComposingText.Length())) {
-
-                // Only start new composition if we don't have an existing one,
-                // or if the existing composition doesn't match the new one.
-                RemoveIMEComposition();
-
-                {
-                    WidgetSelectionEvent event(true, NS_SELECTION_SET, this);
-                    InitEvent(event, nullptr);
-                    event.mOffset = uint32_t(ae->Start());
-                    event.mLength = uint32_t(ae->End() - ae->Start());
-                    event.mExpandToClusterBoundary = false;
-                    DispatchEvent(&event);
-                }
-
-                {
-                    WidgetQueryContentEvent queryEvent(true,
-                                                       NS_QUERY_SELECTED_TEXT,
-                                                       this);
-                    InitEvent(queryEvent, nullptr);
-                    DispatchEvent(&queryEvent);
-                    MOZ_ASSERT(queryEvent.mSucceeded && !queryEvent.mWasAsync);
-                    event.mData = queryEvent.mReply.mString;
-
-                    mIMEComposingStart = queryEvent.mReply.mOffset;
-                }
-
-                {
-                    WidgetCompositionEvent event(
-                        true, NS_COMPOSITION_START, this);
-                    InitEvent(event, nullptr);
-                    DispatchEvent(&event);
-                }
-
-            } else {
-                // If the new composition matches the existing composition,
-                // reuse the old composition.
-                event.mData = mIMEComposingText;
+            if (mIMEComposing &&
+                event.theText != mIMELastDispatchedComposingText) {
+                nsCompositionEvent compositionUpdate(true,
+                                                     NS_COMPOSITION_UPDATE,
+                                                     this);
+                InitEvent(compositionUpdate, nullptr);
+                compositionUpdate.data = event.theText;
+                mIMELastDispatchedComposingText = event.theText;
+                DispatchEvent(&compositionUpdate);
+                if (Destroyed())
+                    return;
             }
 
 #ifdef DEBUG_ANDROID_IME
-            const NS_ConvertUTF16toUTF8 data(event.mData);
-            const char* text = data.get();
+            const NS_ConvertUTF16toUTF8 theText8(event.theText);
+            const char* text = theText8.get();
             ALOGIME("IME: IME_SET_TEXT: text=\"%s\", length=%u, range=%u",
-                    text, event.mData.Length(), event.mRanges->Length());
+                    text, event.theText.Length(), mIMERanges.Length());
 #endif // DEBUG_ANDROID_IME
 
             DispatchEvent(&event);
+            mIMERanges.Clear();
         }
-        break;
-
-    case AndroidGeckoEvent::IME_REMOVE_COMPOSITION:
+        return;
+    case AndroidGeckoEvent::IME_GET_TEXT:
         {
-            /*
-             *  Remove any previous composition.  This is only used for
-             *    visual indication and does not affect the text content.
-             *
-             *  Selection and text updates are masked so the result of
-             *    temporary events are not passed on to Java
-             */
-            AutoIMEMask selMask(mIMEMaskSelectionUpdate);
-            AutoIMEMask textMask(mIMEMaskTextUpdate);
-            RemoveIMEComposition();
-            mIMERanges->Clear();
+            ALOGIME("IME: IME_GET_TEXT: o=%u, l=%u", ae->Offset(), ae->Count());
+
+            nsQueryContentEvent event(true, NS_QUERY_TEXT_CONTENT, this);
+            InitEvent(event, nullptr);
+
+            event.InitForQueryTextContent(ae->Offset(), ae->Count());
+            
+            DispatchEvent(&event);
+
+            if (!event.mSucceeded) {
+                ALOGIME("IME:     -> failed");
+                AndroidBridge::Bridge()->ReturnIMEQueryResult(
+                    nullptr, 0, 0, 0);
+                return;
+            } else if (!event.mWasAsync) {
+                AndroidBridge::Bridge()->ReturnIMEQueryResult(
+                    event.mReply.mString.get(), 
+                    event.mReply.mString.Length(), 0, 0);
+            }
         }
-        break;
+        return;
+    case AndroidGeckoEvent::IME_DELETE_TEXT:
+        {
+            ALOGIME("IME: IME_DELETE_TEXT");
+            NS_ASSERTION(mIMEComposing,
+                         "IME_DELETE_TEXT when we are not composing?!");
+
+            nsKeyEvent event(true, NS_KEY_PRESS, this);
+            ANPEvent pluginEvent;
+            InitKeyEvent(event, *ae, &pluginEvent);
+            event.keyCode = NS_VK_BACK;
+            DispatchEvent(&event);
+        }
+        return;
+    case AndroidGeckoEvent::IME_SET_SELECTION:
+        {
+            ALOGIME("IME: IME_SET_SELECTION: o=%u, l=%d", ae->Offset(), ae->Count());
+
+            nsSelectionEvent selEvent(true, NS_SELECTION_SET, this);
+            InitEvent(selEvent, nullptr);
+
+            selEvent.mOffset = uint32_t(ae->Count() >= 0 ?
+                                        ae->Offset() :
+                                        ae->Offset() + ae->Count());
+            selEvent.mLength = uint32_t(NS_ABS(ae->Count()));
+            selEvent.mReversed = ae->Count() >= 0 ? false : true;
+
+            DispatchEvent(&selEvent);
+        }
+        return;
+    case AndroidGeckoEvent::IME_GET_SELECTION:
+        {
+            ALOGIME("IME: IME_GET_SELECTION");
+
+            nsQueryContentEvent event(true, NS_QUERY_SELECTED_TEXT, this);
+            InitEvent(event, nullptr);
+            DispatchEvent(&event);
+
+            if (!event.mSucceeded) {
+                ALOGIME("IME:     -> failed");
+                AndroidBridge::Bridge()->ReturnIMEQueryResult(
+                    nullptr, 0, 0, 0);
+                return;
+            } else if (!event.mWasAsync) {
+                AndroidBridge::Bridge()->ReturnIMEQueryResult(
+                    event.mReply.mString.get(),
+                    event.mReply.mString.Length(), 
+                    event.GetSelectionStart(),
+                    event.GetSelectionEnd() - event.GetSelectionStart());
+            }
+            //ALOGIME("IME:     -> o=%u, l=%u", event.mReply.mOffset, event.mReply.mString.Length());
+        }
+        return;
     }
 }
 
@@ -2066,78 +2056,38 @@ nsWindow::UserActivity()
 }
 
 NS_IMETHODIMP
-nsWindow::NotifyIME(const IMENotification& aIMENotification)
+nsWindow::ResetInputState()
 {
-    switch (aIMENotification.mMessage) {
-        case REQUEST_TO_COMMIT_COMPOSITION:
-            //ALOGIME("IME: REQUEST_TO_COMMIT_COMPOSITION: s=%d", aState);
-            RemoveIMEComposition();
-            mozilla::widget::android::GeckoAppShell::NotifyIME(REQUEST_TO_COMMIT_COMPOSITION);
-            return NS_OK;
-        case REQUEST_TO_CANCEL_COMPOSITION:
-            ALOGIME("IME: REQUEST_TO_CANCEL_COMPOSITION");
+    //ALOGIME("IME: ResetInputState: s=%d", aState);
 
-            // Cancel composition on Gecko side
-            if (mIMEComposing) {
-                nsRefPtr<nsWindow> kungFuDeathGrip(this);
+    // Cancel composition on Gecko side
+    if (mIMEComposing) {
+        nsRefPtr<nsWindow> kungFuDeathGrip(this);
 
-                WidgetCompositionEvent compositionCommitEvent(
-                                         true, NS_COMPOSITION_COMMIT, this);
-                InitEvent(compositionCommitEvent, nullptr);
-                // Dispatch it with empty mData value for canceling the
-                // composition
-                DispatchEvent(&compositionCommitEvent);
-            }
+        nsTextEvent textEvent(true, NS_TEXT_TEXT, this);
+        InitEvent(textEvent, nullptr);
+        textEvent.theText = mIMEComposingText;
+        DispatchEvent(&textEvent);
+        mIMEComposingText.Truncate(0);
 
-            mozilla::widget::android::GeckoAppShell::NotifyIME(REQUEST_TO_CANCEL_COMPOSITION);
-            return NS_OK;
-        case NOTIFY_IME_OF_FOCUS:
-            ALOGIME("IME: NOTIFY_IME_OF_FOCUS");
-            mozilla::widget::android::GeckoAppShell::NotifyIME(NOTIFY_IME_OF_FOCUS);
-            return NS_OK;
-        case NOTIFY_IME_OF_BLUR:
-            ALOGIME("IME: NOTIFY_IME_OF_BLUR");
-
-            // Mask events because we lost focus. On the next focus event,
-            // Gecko will notify Java, and Java will send an acknowledge focus
-            // event back to Gecko. That is where we unmask event handling
-            mIMEMaskEventsCount++;
-            mIMEComposing = false;
-            mIMEComposingText.Truncate();
-
-            mozilla::widget::android::GeckoAppShell::NotifyIME(NOTIFY_IME_OF_BLUR);
-            return NS_OK;
-        case NOTIFY_IME_OF_SELECTION_CHANGE:
-            if (mIMEMaskSelectionUpdate) {
-                return NS_OK;
-            }
-
-            ALOGIME("IME: NOTIFY_IME_OF_SELECTION_CHANGE");
-
-            PostFlushIMEChanges();
-            mIMESelectionChanged = true;
-            return NS_OK;
-        case NOTIFY_IME_OF_TEXT_CHANGE:
-            return NotifyIMEOfTextChange(aIMENotification);
-        default:
-            return NS_ERROR_NOT_IMPLEMENTED;
+        nsCompositionEvent event(true, NS_COMPOSITION_END, this);
+        InitEvent(event, nullptr);
+        DispatchEvent(&event);
     }
+
+    AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_RESETINPUTSTATE, 0);
+
+    // Send IME text/selection change notifications
+    OnIMETextChange(0, 0, 0);
+    OnIMESelectionChange();
+
+    return NS_OK;
 }
 
 NS_IMETHODIMP_(void)
 nsWindow::SetInputContext(const InputContext& aContext,
                           const InputContextAction& aAction)
 {
-    nsWindow *top = TopWindow();
-    if (top && top->mFocus && this != top->mFocus) {
-        // We are using an IME event later to notify Java, and the IME event
-        // will be processed by the focused window. Therefore, to ensure the
-        // IME event uses the correct mInputContext, we need to let the focused
-        // window process SetInputContext
-        top->mFocus->SetInputContext(aContext, aAction);
-        return;
-    }
-
     ALOGIME("IME: SetInputContext: s=0x%X, 0x%X, action=0x%X, 0x%X",
             aContext.mIMEState.mEnabled, aContext.mIMEState.mOpen,
             aAction.mCause, aAction.mFocusChange);
@@ -2154,276 +2104,179 @@ nsWindow::SetInputContext(const InputContext& aContext,
         return;
     }
 
-    IMEState::Enabled enabled = aContext.mIMEState.mEnabled;
+    int enabled = int(aContext.mIMEState.mEnabled);
 
     // Only show the virtual keyboard for plugins if mOpen is set appropriately.
     // This avoids showing it whenever a plugin is focused. Bug 747492
     if (aContext.mIMEState.mEnabled == IMEState::PLUGIN &&
         aContext.mIMEState.mOpen != IMEState::OPEN) {
-        enabled = IMEState::DISABLED;
+        enabled = int(IMEState::DISABLED);
     }
 
-    mInputContext.mIMEState.mEnabled = enabled;
-
-    if (enabled == IMEState::ENABLED && aAction.UserMightRequestOpenVKB()) {
-        // Don't reset keyboard when we should simply open the vkb
-        mozilla::widget::android::GeckoAppShell::NotifyIME(AndroidBridge::NOTIFY_IME_OPEN_VKB);
-        return;
-    }
-
-    if (mIMEUpdatingContext) {
-        return;
-    }
-    AndroidGeckoEvent *event = AndroidGeckoEvent::MakeIMEEvent(
-            AndroidGeckoEvent::IME_UPDATE_CONTEXT);
-    nsAppShell::gAppShell->PostEvent(event);
-    mIMEUpdatingContext = true;
+    AndroidBridge::NotifyIMEEnabled(enabled,
+                                    aContext.mHTMLInputType,
+                                    aContext.mHTMLInputInputmode,
+                                    aContext.mActionHint);
 }
 
 NS_IMETHODIMP_(InputContext)
 nsWindow::GetInputContext()
 {
-    nsWindow *top = TopWindow();
-    if (top && top->mFocus && this != top->mFocus) {
-        // We let the focused window process SetInputContext,
-        // so we should let it process GetInputContext as well.
-        return top->mFocus->GetInputContext();
-    }
-    InputContext context = mInputContext;
-    context.mIMEState.mOpen = IMEState::OPEN_STATE_NOT_SUPPORTED;
-    // We assume that there is only one context per process on Android
-    context.mNativeIMEContext = nullptr;
-    return context;
+    mInputContext.mIMEState.mOpen = IMEState::OPEN_STATE_NOT_SUPPORTED;
+    return mInputContext;
 }
 
-void
-nsWindow::PostFlushIMEChanges()
+NS_IMETHODIMP
+nsWindow::CancelIMEComposition()
 {
-    if (!mIMETextChanges.IsEmpty() || mIMESelectionChanged) {
-        // Already posted
-        return;
+    ALOGIME("IME: CancelIMEComposition");
+
+    // Cancel composition on Gecko side
+    if (mIMEComposing) {
+        nsRefPtr<nsWindow> kungFuDeathGrip(this);
+
+        nsTextEvent textEvent(true, NS_TEXT_TEXT, this);
+        InitEvent(textEvent, nullptr);
+        DispatchEvent(&textEvent);
+        mIMEComposingText.Truncate(0);
+
+        nsCompositionEvent compEvent(true, NS_COMPOSITION_END, this);
+        InitEvent(compEvent, nullptr);
+        DispatchEvent(&compEvent);
     }
-    AndroidGeckoEvent *event = AndroidGeckoEvent::MakeIMEEvent(
-            AndroidGeckoEvent::IME_FLUSH_CHANGES);
-    nsAppShell::gAppShell->PostEvent(event);
+
+    AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_CANCELCOMPOSITION, 0);
+    return NS_OK;
 }
 
-void
-nsWindow::FlushIMEChanges()
+NS_IMETHODIMP
+nsWindow::OnIMEFocusChange(bool aFocus)
 {
+    ALOGIME("IME: OnIMEFocusChange: f=%d", aFocus);
+
+    AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_FOCUSCHANGE, 
+                             int(aFocus));
+
+    if (aFocus) {
+        OnIMETextChange(0, 0, 0);
+        OnIMESelectionChange();
+    }
+
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsWindow::OnIMETextChange(uint32_t aStart, uint32_t aOldEnd, uint32_t aNewEnd)
+{
+    ALOGIME("IME: OnIMETextChange: s=%d, oe=%d, ne=%d",
+            aStart, aOldEnd, aNewEnd);
+
+    if (!mInputContext.mIMEState.mEnabled) {
+        AndroidBridge::NotifyIMEChange(nullptr, 0, 0, 0, 0);
+        return NS_OK;
+    }
+
+    // A quirk in Android makes it necessary to pass the whole text.
+    // The more efficient way would have been passing the substring from index
+    // aStart to index aNewEnd
+
     nsRefPtr<nsWindow> kungFuDeathGrip(this);
-    for (uint32_t i = 0; i < mIMETextChanges.Length(); i++) {
-        IMEChange &change = mIMETextChanges[i];
+    nsQueryContentEvent event(true, NS_QUERY_TEXT_CONTENT, this);
+    InitEvent(event, nullptr);
+    event.InitForQueryTextContent(0, PR_UINT32_MAX);
 
-        if (change.mStart == change.mOldEnd &&
-                change.mStart == change.mNewEnd) {
-            continue;
-        }
-
-        WidgetQueryContentEvent event(true, NS_QUERY_TEXT_CONTENT, this);
-
-        if (change.mNewEnd != change.mStart) {
-            InitEvent(event, nullptr);
-            event.InitForQueryTextContent(change.mStart,
-                                          change.mNewEnd - change.mStart);
-            DispatchEvent(&event);
-            if (!event.mSucceeded)
-                return;
-        }
-
-        mozilla::widget::android::GeckoAppShell::NotifyIMEChange(
-                event.mReply.mString, change.mStart,
-                change.mOldEnd, change.mNewEnd);
-    }
-    mIMETextChanges.Clear();
-
-    if (mIMESelectionChanged) {
-        WidgetQueryContentEvent event(true, NS_QUERY_SELECTED_TEXT, this);
-        InitEvent(event, nullptr);
-
-        DispatchEvent(&event);
-        if (!event.mSucceeded)
-            return;
-
-        mozilla::widget::android::GeckoAppShell::NotifyIMEChange(EmptyString(),
-                             (int32_t) event.GetSelectionStart(),
-                             (int32_t) event.GetSelectionEnd(), -1);
-        mIMESelectionChanged = false;
-    }
-}
-
-nsresult
-nsWindow::NotifyIMEOfTextChange(const IMENotification& aIMENotification)
-{
-    MOZ_ASSERT(aIMENotification.mMessage == NOTIFY_IME_OF_TEXT_CHANGE,
-               "NotifyIMEOfTextChange() is called with invaild notification");
-
-    if (mIMEMaskTextUpdate)
+    DispatchEvent(&event);
+    if (!event.mSucceeded)
         return NS_OK;
 
-    ALOGIME("IME: NotifyIMEOfTextChange: s=%d, oe=%d, ne=%d",
-            aIMENotification.mTextChangeData.mStartOffset,
-            aIMENotification.mTextChangeData.mOldEndOffset,
-            aIMENotification.mTextChangeData.mNewEndOffset);
+    AndroidBridge::NotifyIMEChange(event.mReply.mString.get(),
+                                   event.mReply.mString.Length(),
+                                   aStart, aOldEnd, aNewEnd);
 
-    /* Make sure Java's selection is up-to-date */
-    mIMESelectionChanged = false;
-    NotifyIME(NOTIFY_IME_OF_SELECTION_CHANGE);
-    PostFlushIMEChanges();
+    return NS_OK;
+}
 
-    mIMETextChanges.AppendElement(IMEChange(aIMENotification));
-    // Now that we added a new range we need to go back and
-    // update all the ranges before that.
-    // Ranges that have offsets which follow this new range
-    // need to be updated to reflect new offsets
-    int32_t delta = aIMENotification.mTextChangeData.AdditionalLength();
-    for (int32_t i = mIMETextChanges.Length() - 2; i >= 0; i--) {
-        IMEChange &previousChange = mIMETextChanges[i];
-        if (previousChange.mStart >
-                static_cast<int32_t>(
-                    aIMENotification.mTextChangeData.mOldEndOffset)) {
-            previousChange.mStart += delta;
-            previousChange.mOldEnd += delta;
-            previousChange.mNewEnd += delta;
-        }
+NS_IMETHODIMP
+nsWindow::OnIMESelectionChange(void)
+{
+    ALOGIME("IME: OnIMESelectionChange");
+
+    if (!mInputContext.mIMEState.mEnabled) {
+        AndroidBridge::NotifyIMEChange(nullptr, 0, 0, 0, -1);
+        return NS_OK;
     }
 
-    // Now go through all ranges to merge any ranges that are connected
-    // srcIndex is the index of the range to merge from
-    // dstIndex is the index of the range to potentially merge into
-    int32_t srcIndex = mIMETextChanges.Length() - 1;
-    int32_t dstIndex = srcIndex;
+    nsRefPtr<nsWindow> kungFuDeathGrip(this);
+    nsQueryContentEvent event(true, NS_QUERY_SELECTED_TEXT, this);
+    InitEvent(event, nullptr);
 
-    while (--dstIndex >= 0) {
-        IMEChange &src = mIMETextChanges[srcIndex];
-        IMEChange &dst = mIMETextChanges[dstIndex];
-        // When merging a more recent change into an older
-        // change, we need to compare recent change's (start, oldEnd)
-        // range to the older change's (start, newEnd)
-        if (src.mOldEnd < dst.mStart || dst.mNewEnd < src.mStart) {
-            // No overlap between ranges
-            continue;
-        }
-        // When merging two ranges, there are generally four posibilities:
-        // [----(----]----), (----[----]----),
-        // [----(----)----], (----[----)----]
-        // where [----] is the first range and (----) is the second range
-        // As seen above, the start of the merged range is always the lesser
-        // of the two start offsets. OldEnd and NewEnd then need to be
-        // adjusted separately depending on the case. In any case, the change
-        // in text length of the merged range should be the sum of text length
-        // changes of the two original ranges, i.e.,
-        // newNewEnd - newOldEnd == newEnd1 - oldEnd1 + newEnd2 - oldEnd2
-        dst.mStart = std::min(dst.mStart, src.mStart);
-        if (src.mOldEnd < dst.mNewEnd) {
-            // New range overlaps or is within previous range; merge
-            dst.mNewEnd += src.mNewEnd - src.mOldEnd;
-        } else { // src.mOldEnd >= dst.mNewEnd
-            // New range overlaps previous range; merge
-            dst.mOldEnd += src.mOldEnd - dst.mNewEnd;
-            dst.mNewEnd = src.mNewEnd;
-        }
-        // src merged to dst; delete src.
-        mIMETextChanges.RemoveElementAt(srcIndex);
-        // Any ranges that we skip over between src and dst are not mergeable
-        // so we can safely continue the merge starting at dst
-        srcIndex = dstIndex;
-    }
+    DispatchEvent(&event);
+    if (!event.mSucceeded)
+        return NS_OK;
+
+    AndroidBridge::NotifyIMEChange(nullptr, 0, int(event.mReply.mOffset),
+                                   int(event.mReply.mOffset + 
+                                       event.mReply.mString.Length()), -1);
     return NS_OK;
 }
 
 nsIMEUpdatePreference
 nsWindow::GetIMEUpdatePreference()
 {
-    return nsIMEUpdatePreference(
-        nsIMEUpdatePreference::NOTIFY_SELECTION_CHANGE |
-        nsIMEUpdatePreference::NOTIFY_TEXT_CHANGE);
+    return nsIMEUpdatePreference(true, true);
 }
 
+#ifdef MOZ_JAVA_COMPOSITOR
 void
-nsWindow::DrawWindowUnderlay(LayerManagerComposite* aManager, nsIntRect aRect)
+nsWindow::DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect)
 {
     JNIEnv *env = GetJNIForThread();
+    NS_ABORT_IF_FALSE(env, "No JNI environment at DrawWindowUnderlay()!");
+    if (!env)
+        return;
 
     AutoLocalJNIFrame jniFrame(env);
 
-    mozilla::widget::android::GeckoLayerClient* client = AndroidBridge::Bridge()->GetLayerClient();
-    if (!client || client->isNull()) {
-        ALOG_BRIDGE("Exceptional Exit: %s", __PRETTY_FUNCTION__);
-        return;
-    }
-
-    jobject frameObj = client->CreateFrame();
-    if (!frameObj) {
-        NS_WARNING("Warning: unable to obtain a LayerRenderer frame; aborting window underlay draw");
-        return;
-    }
-
-    mLayerRendererFrame.Init(env, frameObj);
-    if (!WidgetPaintsBackground()) {
-        return;
-    }
-
-    CompositorOGL *compositor = static_cast<CompositorOGL*>(aManager->GetCompositor());
-    compositor->ResetProgram();
-    gl::GLContext* gl = compositor->gl();
-    bool scissorEnabled = gl->fIsEnabled(LOCAL_GL_SCISSOR_TEST);
-    GLint scissorRect[4];
-    gl->fGetIntegerv(LOCAL_GL_SCISSOR_BOX, scissorRect);
-
-    client->ActivateProgram();
+    AndroidGeckoLayerClient& client = AndroidBridge::Bridge()->GetLayerClient();
+    if (!client.CreateFrame(&jniFrame, mLayerRendererFrame)) return;
+    if (!client.ActivateProgram(&jniFrame)) return;
     if (!mLayerRendererFrame.BeginDrawing(&jniFrame)) return;
     if (!mLayerRendererFrame.DrawBackground(&jniFrame)) return;
-    client->DeactivateProgramAndRestoreState(scissorEnabled,
-        scissorRect[0], scissorRect[1], scissorRect[2], scissorRect[3]);
+    if (!client.DeactivateProgram(&jniFrame)) return; // redundant, but in case somebody adds code after this...
 }
 
 void
-nsWindow::DrawWindowOverlay(LayerManagerComposite* aManager, nsIntRect aRect)
+nsWindow::DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect)
 {
-    PROFILER_LABEL("nsWindow", "DrawWindowOverlay",
-        js::ProfileEntry::Category::GRAPHICS);
-
     JNIEnv *env = GetJNIForThread();
+    NS_ABORT_IF_FALSE(env, "No JNI environment at DrawWindowOverlay()!");
+    if (!env)
+        return;
 
     AutoLocalJNIFrame jniFrame(env);
 
-    if (mLayerRendererFrame.isNull()) {
-        NS_WARNING("Warning: do not have a LayerRenderer frame; aborting window overlay draw");
-        return;
-    }
+    NS_ABORT_IF_FALSE(!mLayerRendererFrame.isNull(),
+                      "Frame should have been created in DrawWindowUnderlay()!");
 
-    mozilla::widget::android::GeckoLayerClient* client = AndroidBridge::Bridge()->GetLayerClient();
+    AndroidGeckoLayerClient& client = AndroidBridge::Bridge()->GetLayerClient();
 
-    CompositorOGL *compositor = static_cast<CompositorOGL*>(aManager->GetCompositor());
-    compositor->ResetProgram();
-    gl::GLContext* gl = compositor->gl();
-    bool scissorEnabled = gl->fIsEnabled(LOCAL_GL_SCISSOR_TEST);
-    GLint scissorRect[4];
-    gl->fGetIntegerv(LOCAL_GL_SCISSOR_BOX, scissorRect);
-
-    client->ActivateProgram();
+    if (!client.ActivateProgram(&jniFrame)) return;
     if (!mLayerRendererFrame.DrawForeground(&jniFrame)) return;
     if (!mLayerRendererFrame.EndDrawing(&jniFrame)) return;
-    client->DeactivateProgramAndRestoreState(scissorEnabled,
-        scissorRect[0], scissorRect[1], scissorRect[2], scissorRect[3]);
+    if (!client.DeactivateProgram(&jniFrame)) return;
     mLayerRendererFrame.Dispose(env);
 }
 
 // off-main-thread compositor fields and functions
 
-StaticRefPtr<mozilla::layers::APZCTreeManager> nsWindow::sApzcTreeManager;
-StaticRefPtr<mozilla::layers::LayerManager> nsWindow::sLayerManager;
-StaticRefPtr<mozilla::layers::CompositorParent> nsWindow::sCompositorParent;
-StaticRefPtr<mozilla::layers::CompositorChild> nsWindow::sCompositorChild;
-bool nsWindow::sCompositorPaused = true;
+nsRefPtr<mozilla::layers::CompositorParent> nsWindow::sCompositorParent = 0;
+nsRefPtr<mozilla::layers::CompositorChild> nsWindow::sCompositorChild = 0;
+bool nsWindow::sCompositorPaused = false;
 
 void
-nsWindow::SetCompositor(mozilla::layers::LayerManager* aLayerManager,
-                        mozilla::layers::CompositorParent* aCompositorParent,
+nsWindow::SetCompositor(mozilla::layers::CompositorParent* aCompositorParent,
                         mozilla::layers::CompositorChild* aCompositorChild)
 {
-    sLayerManager = aLayerManager;
     sCompositorParent = aCompositorParent;
     sCompositorChild = aCompositorChild;
 }
@@ -2437,80 +2290,32 @@ nsWindow::ScheduleComposite()
 }
 
 void
-nsWindow::ScheduleResumeComposition(int width, int height)
+nsWindow::SchedulePauseComposition()
 {
-    if (sCompositorParent && sCompositorParent->ScheduleResumeOnCompositorThread(width, height)) {
-        sCompositorPaused = false;
+    if (sCompositorParent) {
+        sCompositorParent->SchedulePauseOnCompositorThread();
     }
 }
 
 void
-nsWindow::ForceIsFirstPaint()
+nsWindow::ScheduleResumeComposition(int width, int height)
 {
     if (sCompositorParent) {
-        sCompositorParent->ForceIsFirstPaint();
+        sCompositorParent->ScheduleResumeOnCompositorThread(width, height);
     }
-}
-
-float
-nsWindow::ComputeRenderIntegrity()
-{
-    if (sCompositorParent) {
-        return sCompositorParent->ComputeRenderIntegrity();
-    }
-
-    return 1.f;
-}
-
-bool
-nsWindow::WidgetPaintsBackground()
-{
-    static bool sWidgetPaintsBackground = true;
-    static bool sWidgetPaintsBackgroundPrefCached = false;
-
-    if (!sWidgetPaintsBackgroundPrefCached) {
-        sWidgetPaintsBackgroundPrefCached = true;
-        mozilla::Preferences::AddBoolVarCache(&sWidgetPaintsBackground,
-                                              "android.widget_paints_background",
-                                              true);
-    }
-
-    return sWidgetPaintsBackground;
 }
 
 bool
 nsWindow::NeedsPaint()
 {
-  if (sCompositorPaused || FindTopLevel() != nsWindow::TopWindow() || !GetLayerManager(nullptr)) {
+  if (sCompositorPaused || FindTopLevel() != nsWindow::TopWindow()) {
     return false;
   }
-  return nsIWidget::NeedsPaint();
+  nsIntRect bounds;
+  nsresult rv = GetBounds(bounds);
+  NS_ENSURE_SUCCESS(rv, false);
+  return !bounds.IsEmpty();
 }
 
-CompositorParent*
-nsWindow::NewCompositorParent(int aSurfaceWidth, int aSurfaceHeight)
-{
-    return new CompositorParent(this, true, aSurfaceWidth, aSurfaceHeight);
-}
+#endif
 
-mozilla::layers::APZCTreeManager*
-nsWindow::GetAPZCTreeManager()
-{
-    if (!sApzcTreeManager) {
-        CompositorParent* compositor = sCompositorParent;
-        if (!compositor) {
-            return nullptr;
-        }
-        uint64_t rootLayerTreeId = compositor->RootLayerTreeId();
-        CompositorParent::SetControllerForLayerTree(rootLayerTreeId, mozilla::widget::android::APZCCallbackHandler::GetInstance());
-        sApzcTreeManager = CompositorParent::GetAPZCTreeManager(rootLayerTreeId);
-    }
-    return sApzcTreeManager;
-}
-
-uint64_t
-nsWindow::RootLayerTreeId()
-{
-    MOZ_ASSERT(sCompositorParent);
-    return sCompositorParent->RootLayerTreeId();
-}

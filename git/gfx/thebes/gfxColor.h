@@ -8,10 +8,30 @@
 
 #include "gfxTypes.h"
 
-#include "mozilla/Attributes.h" // for MOZ_ALWAYS_INLINE
-#include "mozilla/Endian.h" // for mozilla::NativeEndian::swapToBigEndian
+#include "prbit.h" // for PR_ROTATE_(LEFT,RIGHT)32
+#include "prio.h"  // for ntohl
 
 #define GFX_UINT32_FROM_BPTR(pbptr,i) (((uint32_t*)(pbptr))[i])
+
+#if defined(IS_BIG_ENDIAN)
+  #define GFX_NTOHL(x) (x)
+  #define GFX_HAVE_CHEAP_NTOHL
+#elif defined(_WIN32)
+  #if (_MSC_VER >= 1300) // also excludes MinGW
+    #include <stdlib.h>
+    #pragma intrinsic(_byteswap_ulong)
+    #define GFX_NTOHL(x) _byteswap_ulong(x)
+    #define GFX_HAVE_CHEAP_NTOHL
+  #else
+    // A reasonably fast generic little-endian implementation.
+    #define GFX_NTOHL(x) \
+         ( (PR_ROTATE_RIGHT32((x),8) & 0xFF00FF00) | \
+           (PR_ROTATE_LEFT32((x),8)  & 0x00FF00FF) )
+  #endif
+#else
+  #define GFX_NTOHL(x) ntohl(x)
+  #define GFX_HAVE_CHEAP_NTOHL
+#endif
 
 /**
  * GFX_0XFF_PPIXEL_FROM_BPTR(x)
@@ -23,8 +43,14 @@
  * Attempt to use fast byte-swapping instruction(s), e.g. bswap on x86, in
  *   preference to a sequence of shift/or operations.
  */
-#define GFX_0XFF_PPIXEL_FROM_UINT32(x) \
-  ( (mozilla::NativeEndian::swapToBigEndian(uint32_t(x)) >> 8) | (0xFFU << 24) )
+#if defined(GFX_HAVE_CHEAP_NTOHL)
+  #define GFX_0XFF_PPIXEL_FROM_UINT32(x) \
+       ( (GFX_NTOHL(x) >> 8) | (0xFF << 24) )
+#else
+  // A reasonably fast generic little-endian implementation.
+  #define GFX_0XFF_PPIXEL_FROM_UINT32(x) \
+       ( (PR_ROTATE_LEFT32((x),16) | 0xFF00FF00) & ((x) | 0xFFFF00FF) )
+#endif
 
 #define GFX_0XFF_PPIXEL_FROM_BPTR(x) \
      ( GFX_0XFF_PPIXEL_FROM_UINT32(GFX_UINT32_FROM_BPTR((x),0)) )
@@ -42,9 +68,9 @@
     uint32_t m0 = GFX_UINT32_FROM_BPTR(from,0), \
              m1 = GFX_UINT32_FROM_BPTR(from,1), \
              m2 = GFX_UINT32_FROM_BPTR(from,2), \
-             rgbr = mozilla::NativeEndian::swapToBigEndian(m0), \
-             gbrg = mozilla::NativeEndian::swapToBigEndian(m1), \
-             brgb = mozilla::NativeEndian::swapToBigEndian(m2), \
+             rgbr = GFX_NTOHL(m0), \
+             gbrg = GFX_NTOHL(m1), \
+             brgb = GFX_NTOHL(m2), \
              p0, p1, p2, p3; \
     p0 = 0xFF000000 | ((rgbr) >>  8); \
     p1 = 0xFF000000 | ((rgbr) << 16) | ((gbrg) >> 16); \
@@ -65,40 +91,34 @@
      (((((unsigned)(v)) << 8) + ((unsigned)(v)) + 255) >> 16)
 
 /**
- * Fast premultiply
+ * Fast premultiply macro
  *
  * equivalent to (((c)*(a))/255)
  */
-uint8_t MOZ_ALWAYS_INLINE gfxPreMultiply(uint8_t c, uint8_t a) {
-    return GFX_DIVIDE_BY_255((c)*(a));
-}
+#define GFX_PREMULTIPLY(c,a) GFX_DIVIDE_BY_255((c)*(a))
 
-/**
- * Pack the 4 8-bit channels (A,R,G,B)
+/** 
+ * Macro to pack the 4 8-bit channels (A,R,G,B) 
+ * into a 32-bit packed premultiplied pixel.
+ *
+ * The checks for 0 alpha or max alpha ensure that the
+ * compiler selects the quicked calculation when alpha is constant.
+ */
+#define GFX_PACKED_PIXEL(a,r,g,b)                                       \
+    ((a) == 0x00) ? 0x00000000 :                                        \
+    ((a) == 0xFF) ? ((0xFF << 24) | ((r) << 16) | ((g) << 8) | (b))     \
+                  : ((a) << 24) |                                       \
+                    (GFX_PREMULTIPLY(r,a) << 16) |                      \
+                    (GFX_PREMULTIPLY(g,a) << 8) |                       \
+                    (GFX_PREMULTIPLY(b,a))
+
+/** 
+ * Macro to pack the 4 8-bit channels (A,R,G,B) 
  * into a 32-bit packed NON-premultiplied pixel.
  */
-uint32_t MOZ_ALWAYS_INLINE
-gfxPackedPixelNoPreMultiply(uint8_t a, uint8_t r, uint8_t g, uint8_t b) {
-    return (((a) << 24) | ((r) << 16) | ((g) << 8) | (b));
-}
+#define GFX_PACKED_PIXEL_NO_PREMULTIPLY(a,r,g,b)                        \
+    (((a) << 24) | ((r) << 16) | ((g) << 8) | (b))
 
-/**
- * Pack the 4 8-bit channels (A,R,G,B)
- * into a 32-bit packed premultiplied pixel.
- */
-uint32_t MOZ_ALWAYS_INLINE
-gfxPackedPixel(uint8_t a, uint8_t r, uint8_t g, uint8_t b) {
-    if (a == 0x00)
-        return 0x00000000;
-    else if (a == 0xFF) {
-        return gfxPackedPixelNoPreMultiply(a, r, g, b);
-    } else {
-        return  ((a) << 24) |
-                (gfxPreMultiply(r,a) << 16) |
-                (gfxPreMultiply(g,a) << 8)  |
-                (gfxPreMultiply(b,a));
-    }
-}
 
 /**
  * A color value, storing red, green, blue and alpha components.
@@ -107,7 +127,7 @@ gfxPackedPixel(uint8_t a, uint8_t r, uint8_t g, uint8_t b) {
  * XXX should this use doubles (instead of gfxFloat), for consistency with
  * cairo?
  */
-struct gfxRGBA {
+struct THEBES_API gfxRGBA {
     gfxFloat r, g, b, a;
 
     enum PackedColorType {
@@ -125,7 +145,7 @@ struct gfxRGBA {
      * Intialize this color using explicit red, green, blue and alpha
      * values.
      */
-    MOZ_CONSTEXPR gfxRGBA(gfxFloat _r, gfxFloat _g, gfxFloat _b, gfxFloat _a=1.0) : r(_r), g(_g), b(_b), a(_a) {}
+    gfxRGBA(gfxFloat _r, gfxFloat _g, gfxFloat _b, gfxFloat _a=1.0) : r(_r), g(_g), b(_b), a(_a) {}
 
     /**
      * Initialize this color from a packed 32-bit color.
@@ -136,7 +156,7 @@ struct gfxRGBA {
      *
      * @see gfxRGBA::Packed
      */
-    MOZ_IMPLICIT gfxRGBA(uint32_t c, PackedColorType colorType = PACKED_ABGR) {
+    gfxRGBA(uint32_t c, PackedColorType colorType = PACKED_ABGR) {
         if (colorType == PACKED_ABGR ||
             colorType == PACKED_ABGR_PREMULTIPLIED)
         {
@@ -178,7 +198,7 @@ struct gfxRGBA {
 
     /**
      * Returns this color value as a packed 32-bit integer. This reconstructs
-     * the int32_t based on the given colorType, always in the native byte order.
+     * the int32 based on the given colorType, always in the native byte order.
      *
      * Note: gcc 4.2.3 on at least Ubuntu (x86) does something strange with
      * (uint8_t)(c * 255.0) << x, where the result is different than

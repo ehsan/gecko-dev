@@ -6,9 +6,6 @@
 #include "gfxFT2FontBase.h"
 #include "gfxFT2Utils.h"
 #include "harfbuzz/hb.h"
-#include "mozilla/Likely.h"
-#include "gfxFontConstants.h"
-#include "gfxFontUtils.h"
 
 using namespace mozilla::gfx;
 
@@ -93,7 +90,7 @@ gfxFT2FontBase::GetGlyph(uint32_t aCharCode)
 void
 gfxFT2FontBase::GetGlyphExtents(uint32_t aGlyph, cairo_text_extents_t* aExtents)
 {
-    NS_PRECONDITION(aExtents != nullptr, "aExtents must not be NULL");
+    NS_PRECONDITION(aExtents != NULL, "aExtents must not be NULL");
 
     cairo_glyph_t glyphs[1];
     glyphs[0].index = aGlyph;
@@ -108,18 +105,16 @@ gfxFT2FontBase::GetGlyphExtents(uint32_t aGlyph, cairo_text_extents_t* aExtents)
 }
 
 const gfxFont::Metrics&
-gfxFT2FontBase::GetHorizontalMetrics()
+gfxFT2FontBase::GetMetrics()
 {
     if (mHasMetrics)
         return mMetrics;
 
-    if (MOZ_UNLIKELY(GetStyle()->size <= 0.0)) {
+    if (NS_UNLIKELY(GetStyle()->size <= 0.0)) {
         new(&mMetrics) gfxFont::Metrics(); // zero initialize
         mSpaceGlyph = 0;
     } else {
-        gfxFT2LockedFace face(this);
-        mFUnitsConvFactor = face.XScale();
-        face.GetMetrics(&mMetrics, &mSpaceGlyph);
+        gfxFT2LockedFace(this).GetMetrics(&mMetrics, &mSpaceGlyph);
     }
 
     SanitizeMetrics(&mMetrics, false);
@@ -133,7 +128,7 @@ gfxFT2FontBase::GetHorizontalMetrics()
     fprintf (stderr, "    maxAscent: %f maxDescent: %f\n", mMetrics.maxAscent, mMetrics.maxDescent);
     fprintf (stderr, "    internalLeading: %f externalLeading: %f\n", mMetrics.externalLeading, mMetrics.internalLeading);
     fprintf (stderr, "    spaceWidth: %f aveCharWidth: %f xHeight: %f\n", mMetrics.spaceWidth, mMetrics.aveCharWidth, mMetrics.xHeight);
-    fprintf (stderr, "    uOff: %f uSize: %f stOff: %f stSize: %f\n", mMetrics.underlineOffset, mMetrics.underlineSize, mMetrics.strikeoutOffset, mMetrics.strikeoutSize);
+    fprintf (stderr, "    uOff: %f uSize: %f stOff: %f stSize: %f suOff: %f suSize: %f\n", mMetrics.underlineOffset, mMetrics.underlineSize, mMetrics.strikeoutOffset, mMetrics.strikeoutSize, mMetrics.superscriptOffset, mMetrics.subscriptOffset);
 #endif
 
     mHasMetrics = true;
@@ -146,8 +141,24 @@ gfxFT2FontBase::GetSpaceGlyph()
 {
     NS_ASSERTION(GetStyle()->size != 0,
                  "forgot to short-circuit a text run with zero-sized font?");
-    GetHorizontalMetrics();
+    GetMetrics();
     return mSpaceGlyph;
+}
+
+hb_blob_t *
+gfxFT2FontBase::GetFontTable(uint32_t aTag)
+{
+    hb_blob_t *blob;
+    if (mFontEntry->GetExistingFontTable(aTag, &blob))
+        return blob;
+
+    FallibleTArray<uint8_t> buffer;
+    bool haveTable = gfxFT2LockedFace(this).GetFontTable(aTag, buffer);
+
+    // Cache even when there is no table to save having to open the FT_Face
+    // again.
+    return mFontEntry->ShareFontTableAndGetBlob(aTag,
+                                                haveTable ? &buffer : nullptr);
 }
 
 uint32_t
@@ -158,17 +169,13 @@ gfxFT2FontBase::GetGlyph(uint32_t unicode, uint32_t variation_selector)
             gfxFT2LockedFace(this).GetUVSGlyph(unicode, variation_selector);
         if (id)
             return id;
-        id = gfxFontUtils::GetUVSFallback(unicode, variation_selector);
-        if (id) {
-            unicode = id;
-        }
     }
 
     return GetGlyph(unicode);
 }
 
 int32_t
-gfxFT2FontBase::GetGlyphWidth(DrawTarget& aDrawTarget, uint16_t aGID)
+gfxFT2FontBase::GetGlyphWidth(gfxContext *aCtx, uint16_t aGID)
 {
     cairo_text_extents_t extents;
     GetGlyphExtents(aGID, &extents);
@@ -226,15 +233,15 @@ gfxFT2FontBase::ConstructFontOptions()
   const gfxFontStyle* style = this->GetStyle();
   if (style->style == NS_FONT_STYLE_ITALIC) {
     if (style->weight == NS_FONT_WEIGHT_BOLD) {
-      mFontOptions.mStyle = FontStyle::BOLD_ITALIC;
+      mFontOptions.mStyle = FONT_STYLE_BOLD_ITALIC;
     } else {
-      mFontOptions.mStyle = FontStyle::ITALIC;
+      mFontOptions.mStyle = FONT_STYLE_ITALIC;
     }
   } else {
     if (style->weight == NS_FONT_WEIGHT_BOLD) {
-      mFontOptions.mStyle = FontStyle::BOLD;
+      mFontOptions.mStyle = FONT_STYLE_BOLD;
     } else {
-      mFontOptions.mStyle = FontStyle::NORMAL;
+      mFontOptions.mStyle = FONT_STYLE_NORMAL;
     }
   }
 }

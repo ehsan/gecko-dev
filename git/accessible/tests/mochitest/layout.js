@@ -47,18 +47,6 @@ function hitTest(aContainerID, aChildID, aGrandChildID)
 }
 
 /**
- * Test if getOffsetAtPoint returns the given text offset at given coordinates.
- */
-function testOffsetAtPoint(aHyperTextID, aX, aY, aCoordType, aExpectedOffset)
-{
-  var hyperText = getAccessible(aHyperTextID, [nsIAccessibleText]);
-  var offset = hyperText.getOffsetAtPoint(aX, aY, aCoordType);
-  is(offset, aExpectedOffset,
-     "Wrong offset at given point (" + aX + ", " + aY + ") for " +
-     prettyName(aHyperTextID));
-}
-
-/**
  * Zoom the given document.
  */
 function zoomDocument(aDocument, aZoom)
@@ -67,7 +55,8 @@ function zoomDocument(aDocument, aZoom)
     QueryInterface(Components.interfaces.nsIInterfaceRequestor).
     getInterface(Components.interfaces.nsIWebNavigation).
     QueryInterface(Components.interfaces.nsIDocShell);
-  var docViewer = docShell.contentViewer;
+  var docViewer = docShell.contentViewer.
+    QueryInterface(Components.interfaces.nsIMarkupDocumentViewer);
 
   docViewer.fullZoom = aZoom;
 }
@@ -103,19 +92,6 @@ function getChildAtPoint(aIdentifier, aX, aY, aFindDeepestChild)
 }
 
 /**
- * Test the accessible position.
- */
-function testPos(aID, aPoint)
-{
-  var [expectedX, expectedY] =
-    (aPoint != undefined) ? aPoint : getBoundsForDOMElm(aID);
-
-  var [x, y] = getBounds(aID);
-  is(x, expectedX, "Wrong x coordinate of " + prettyName(aID));
-  is(y, expectedY, "Wrong y coordinate of " + prettyName(aID));
-}
-
-/**
  * Test the accessible boundaries.
  */
 function testBounds(aID, aRect)
@@ -131,67 +107,7 @@ function testBounds(aID, aRect)
 }
 
 /**
- * Test text position at the given offset.
- */
-function testTextPos(aID, aOffset, aPoint, aCoordOrigin)
-{
-  var [expectedX, expectedY] = aPoint;
-
-  var xObj = {}, yObj = {};
-  var hyperText = getAccessible(aID, [nsIAccessibleText]);
-  hyperText.getCharacterExtents(aOffset, xObj, yObj, {}, {}, aCoordOrigin);
-  is(xObj.value, expectedX,
-     "Wrong x coordinate at offset " + aOffset + " for " + prettyName(aID));
-  ok(yObj.value - expectedY < 2 && expectedY - yObj.value < 2,
-     "Wrong y coordinate at offset " + aOffset + " for " + prettyName(aID) +
-     " - got " + yObj.value + ", expected " + expectedY +
-     "The difference doesn't exceed 1.");
-}
-
-/**
- * Test text bounds that is enclosed betwene the given offsets.
- */
-function testTextBounds(aID, aStartOffset, aEndOffset, aRect, aCoordOrigin)
-{
-  var [expectedX, expectedY, expectedWidth, expectedHeight] = aRect;
-
-  var xObj = {}, yObj = {}, widthObj = {}, heightObj = {};
-  var hyperText = getAccessible(aID, [nsIAccessibleText]);
-  hyperText.getRangeExtents(aStartOffset, aEndOffset,
-                            xObj, yObj, widthObj, heightObj, aCoordOrigin);
-  is(xObj.value, expectedX,
-     "Wrong x coordinate of text between offsets (" + aStartOffset + ", " +
-     aEndOffset + ") for " + prettyName(aID));
-  is(yObj.value, expectedY,
-     "Wrong y coordinate of text between offsets (" + aStartOffset + ", " +
-     aEndOffset + ") for " + prettyName(aID));
-
-  var msg = "Wrong width of text between offsets (" + aStartOffset + ", " +
-    aEndOffset + ") for " + prettyName(aID);
-  if (widthObj.value == expectedWidth)
-    ok(true, msg);
-  else
-    todo(false, msg); // fails on some windows machines
-
-  is(heightObj.value, expectedHeight,
-     "Wrong height of text between offsets (" + aStartOffset + ", " +
-     aEndOffset + ") for " + prettyName(aID));
-}
-
-/**
- * Return the accessible coordinates relative to the screen in device pixels.
- */
-function getPos(aID)
-{
-  var accessible = getAccessible(aID);
-  var x = {}, y = {};
-  accessible.getBounds(x, y, {}, {});
-  return [x.value, y.value];
-}
-
-/**
- * Return the accessible coordinates and size relative to the screen in device
- * pixels.
+ * Return the accessible coordinates and size relative to the screen.
  */
 function getBounds(aID)
 {

@@ -12,7 +12,7 @@
 
 //////////////////////////////////////////////////////////////////////////
 
-NS_IMPL_ISUPPORTS(nsSOCKSSocketProvider, nsISocketProvider)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsSOCKSSocketProvider, nsISocketProvider)
 
 nsresult
 nsSOCKSSocketProvider::CreateV4(nsISupports *aOuter, REFNSIID aIID, void **aResult)
@@ -47,7 +47,7 @@ nsSOCKSSocketProvider::NewSocket(int32_t family,
                                  const char *proxyHost,
                                  int32_t proxyPort,
                                  uint32_t flags,
-                                 PRFileDesc **result,
+                                 PRFileDesc **result, 
                                  nsISupports **socksInfo)
 {
     PRFileDesc *sock;
@@ -80,7 +80,7 @@ nsSOCKSSocketProvider::AddToSocket(int32_t family,
                                    const char *proxyHost,
                                    int32_t proxyPort,
                                    uint32_t flags,
-                                   PRFileDesc *sock,
+                                   PRFileDesc *sock, 
                                    nsISupports **socksInfo)
 {
     nsresult rv = nsSOCKSIOLayerAddToSocket(family,

@@ -3,34 +3,27 @@
 <head>
 <script type="application/javascript">
 
-  function waitForMessage() {
-    return new Promise(function(resolve) {
-      window.addEventListener('message', function l(evt) {
-        window.removeEventListener('message', l);
-        resolve(evt.data);
-      });
-    });
-  }
-
   // Set up the objects for cloning.
   function setup() {
     window.testObject = { myNumber: 42,
-                          myString: "hello",
-                          myImageData: new ImageData(10, 10) };
+                          myDomain: window.location.domain };
+    window.blob = (new MozBlobBuilder()).getBlob('text/plain');
+    window.fileList = document.getElementById('fileinput').files;
   }
 
   // Called by the chrome parent window.
   function tryToClone(obj, shouldSucceed, message) {
     var success = false;
-    try { window.postMessage(obj, '*'); success = true; }
+    var sink = window.frames[0];
+    try { sink.postMessage(obj, '*'); success = true; }
     catch (e) { message = message + ' (threw: ' + e.message + ')'; }
     is(success, shouldSucceed, message);
-    return (success && shouldSucceed) ? waitForMessage() : Promise.resolve();
   }
 
 </script>
 </head>
 <body onload="setup()">
 <input id="fileinput" type="file"></input>
+<iframe id="sink">
 </body>
 </html>

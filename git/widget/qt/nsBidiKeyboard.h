@@ -16,8 +16,6 @@ public:
     NS_DECL_NSIBIDIKEYBOARD
 
     nsBidiKeyboard();
-
-protected:
     virtual ~nsBidiKeyboard();
 };
 

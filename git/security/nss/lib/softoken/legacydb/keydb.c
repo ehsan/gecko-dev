@@ -1,6 +1,40 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Dr Vipul Gupta <vipul.gupta@sun.com>, Sun Microsystems Laboratories
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+/* $Id: keydb.c,v 1.12.2.1 2012/04/05 21:14:22 wtc%google.com Exp $ */
 
 #include "lowkeyi.h"
 #include "secasn1.h"
@@ -1143,12 +1177,12 @@ nsslowkey_KeyForCertExists(NSSLOWKEYDBHandle *handle, NSSLOWCERTCertificate *cer
 	namekey.data = pubkey->u.dh.publicValue.data;
 	namekey.size = pubkey->u.dh.publicValue.len;
 	break;
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
       case NSSLOWKEYECKey:
 	namekey.data = pubkey->u.ec.publicValue.data;
 	namekey.size = pubkey->u.ec.publicValue.len;
 	break;
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */
       default:
 	/* XXX We don't do Fortezza or DH yet. */
 	return PR_FALSE;
@@ -1475,7 +1509,7 @@ seckey_encrypt_private_key( PLArenaPool *permarena, NSSLOWKEYPrivateKey *pk,
     SECItem *der_item = NULL;
     SECItem *cipherText = NULL;
     SECItem *dummy = NULL;
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
     SECItem *fordebug = NULL;
     int savelen;
 #endif
@@ -1555,7 +1589,7 @@ seckey_encrypt_private_key( PLArenaPool *permarena, NSSLOWKEYPrivateKey *pk,
 	    goto loser;
 	}
 	break;
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
       case NSSLOWKEYECKey:
 	lg_prepare_low_ec_priv_key_for_asn1(pk);
 	/* Public value is encoded as a bit string so adjust length
@@ -1594,7 +1628,7 @@ seckey_encrypt_private_key( PLArenaPool *permarena, NSSLOWKEYPrivateKey *pk,
 		  pk->keyType, fordebug);
 
 	break;
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */
       default:
 	/* We don't support DH or Fortezza private keys yet */
 	PORT_Assert(PR_FALSE);
@@ -1704,7 +1738,7 @@ seckey_decrypt_private_key(SECItem*epki,
     SECStatus rv = SECFailure;
     PLArenaPool *temparena = NULL, *permarena = NULL;
     SECItem *dest = NULL;
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
     SECItem *fordebug = NULL;
 #endif
 
@@ -1812,7 +1846,7 @@ seckey_decrypt_private_key(SECItem*epki,
 					lg_nsslowkey_DHPrivateKeyTemplate,
 					&newPrivateKey);
 		break;
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
 	      case SEC_OID_ANSIX962_EC_PUBLIC_KEY:
 		pk->keyType = NSSLOWKEYECKey;
 		lg_prepare_low_ec_priv_key_for_asn1(pk);
@@ -1849,7 +1883,7 @@ seckey_decrypt_private_key(SECItem*epki,
 		}
 
 		break;
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */
 	      default:
 		rv = SECFailure;
 		break;

@@ -16,8 +16,6 @@
   <head>
     <title>&aboutSupport.pageTitle;</title>
 
-    <link rel="icon" type="image/png" id="favicon"
-          href="chrome://branding/content/icon32.png"/>
     <link rel="stylesheet" href="chrome://global/skin/aboutSupport.css"
           type="text/css"/>
 
@@ -29,10 +27,11 @@
 
   <body dir="&locale.dir;">
 
-    <div id="reset-box">
-      <h3>&refreshProfile.title;</h3>
-      <button id="reset-box-button">
-        &refreshProfile.button.label;
+    <div id="reset-box" style="visibility: hidden">
+      <h3>&resetProfile.title;</h3>
+      <p>&resetProfile.description;</p>
+      <button onclick="resetProfileAndRestart()">
+        &resetProfile.button.label;
       </button>
     </div>
 
@@ -45,11 +44,8 @@
     </div>
 
     <div>
-      <button id="copy-raw-data-to-clipboard">
-        &aboutSupport.copyRawDataToClipboard.label;
-      </button>
-      <button id="copy-to-clipboard">
-        &aboutSupport.copyTextToClipboard.label;
+      <button onclick="copyContentsToClipboard()">
+        &aboutSupport.copyToClipboard.label;
       </button>
     </div>
 
@@ -81,20 +77,6 @@
             </td>
           </tr>
 
-#ifndef ANDROID
-          <tr class="no-copy">
-            <th class="column">
-              &aboutSupport.appBasicsUpdateHistory;
-            </th>
-
-            <td>
-              <button id="show-update-history-button">
-                &aboutSupport.appBasicsShowUpdateHistory;
-              </button>
-            </td>
-          </tr>
-#endif
-
           <tr>
             <th class="column">
               &aboutSupport.appBasicsUserAgent;
@@ -104,7 +86,7 @@
             </td>
           </tr>
 
-          <tr id="profile-row" class="no-copy">
+          <tr>
             <th class="column">
 #ifdef XP_WIN
               &aboutSupport.appBasicsProfileDirWinMac;
@@ -118,7 +100,7 @@
             </th>
 
             <td>
-              <button id="profile-dir-button">
+              <button onclick="openProfileDirectory()">
 #ifdef XP_WIN
                 &aboutSupport.showWin.label;
 #else
@@ -132,7 +114,7 @@
             </td>
           </tr>
 
-          <tr class="no-copy">
+          <tr>
             <th class="column">
               &aboutSupport.appBasicsEnabledPlugins;
             </th>
@@ -142,7 +124,7 @@
             </td>
           </tr>
 
-          <tr class="no-copy">
+          <tr>
             <th class="column">
               &aboutSupport.appBasicsBuildConfig;
             </th>
@@ -152,7 +134,17 @@
             </td>
           </tr>
 
-          <tr class="no-copy">
+          <tr>
+            <th class="column">
+              &aboutSupport.appBasicsCrashIDs;
+            </th>
+
+            <td>
+              <a href="about:crashes">about:crashes</a>
+            </td>
+          </tr>
+
+          <tr>
             <th class="column">
               &aboutSupport.appBasicsMemoryUse;
             </th>
@@ -162,45 +154,9 @@
             </td>
           </tr>
 
-          <tr>
-            <th class="column">
-              &aboutSupport.appBasicsMultiProcessSupport;
-            </th>
-
-            <td id="multiprocess-box">
-            </td>
-          </tr>
-
         </tbody>
       </table>
 
-      <!-- - - - - - - - - - - - - - - - - - - - - -->
-#ifdef MOZ_CRASHREPORTER
-
-      <h2 class="major-section" id="crashes-title">
-        &aboutSupport.crashes.title;
-      </h2>
-
-      <table id="crashes-table">
-        <thead>
-          <tr>
-            <th>
-              &aboutSupport.crashes.id;
-            </th>
-            <th>
-              &aboutSupport.crashes.sendDate;
-            </th>
-          </tr>
-        </thead>
-        <tbody id="crashes-tbody">
-        </tbody>
-      </table>
-      <p id="crashes-allReports" class="hidden no-copy">
-        <a href="about:crashes" id="crashes-allReportsWithPending" class="block">&aboutSupport.crashes.allReports;</a>
-      </p>
-      <p id="crashes-noConfig" class="hidden no-copy">&aboutSupport.crashes.noConfig;</p>
-
-#endif
       <!-- - - - - - - - - - - - - - - - - - - - - -->
 
       <h2 class="major-section">
@@ -231,28 +187,11 @@
       <!-- - - - - - - - - - - - - - - - - - - - - -->
 
       <h2 class="major-section">
-        &aboutSupport.graphicsTitle;
-      </h2>
-
-      <table>
-        <tbody id="graphics-tbody">
-        </tbody>
-
-        <tbody id="graphics-info-properties">
-        </tbody>
-
-        <tbody id="graphics-failures-tbody">
-        </tbody>
-      </table>
-
-      <!-- - - - - - - - - - - - - - - - - - - - - -->
-
-      <h2 class="major-section">
         &aboutSupport.modifiedKeyPrefsTitle;
       </h2>
 
       <table class="prefs-table">
-        <thead class="no-copy">
+        <thead>
           <th class="name">
             &aboutSupport.modifiedPrefsName;
           </th>
@@ -266,29 +205,19 @@
         </tbody>
       </table>
 
-      <section id="prefs-user-js-section" class="hidden no-copy">
-        <h3>&aboutSupport.userJSTitle;</h3>
-        <p>&aboutSupport.userJSDescription;</p>
-      </section>
-
       <!-- - - - - - - - - - - - - - - - - - - - - -->
-
       <h2 class="major-section">
-        &aboutSupport.lockedKeyPrefsTitle;
+        &aboutSupport.graphicsTitle;
       </h2>
 
-      <table class="prefs-table">
-        <thead class="no-copy">
-          <th class="name">
-            &aboutSupport.lockedPrefsName;
-          </th>
+      <table>
+        <tbody id="graphics-tbody">
+        </tbody>
 
-          <th class="value">
-            &aboutSupport.lockedPrefsValue;
-          </th>
-        </thead>
+        <tbody id="graphics-info-properties">
+        </tbody>
 
-        <tbody id="locked-prefs-tbody">
+        <tbody id="graphics-failures-tbody">
         </tbody>
       </table>
 
@@ -307,7 +236,7 @@
             <td id="javascript-incremental-gc">
             </td>
           </tr>
-        </tbody>
+	</tbody>
       </table>
 
       <!-- - - - - - - - - - - - - - - - - - - - - -->
@@ -333,7 +262,7 @@
             <td id="a11y-force-disabled">
             </td>
           </tr>
-        </tbody>
+	</tbody>
       </table>
 
       <!-- - - - - - - - - - - - - - - - - - - - - -->
@@ -345,50 +274,6 @@
         <tbody id="libversions-tbody">
         </tbody>
       </table>
-
-
-      <h2 class="major-section">
-        &aboutSupport.experimentsTitle;
-      </h2>
-
-      <table>
-        <thead>
-          <tr>
-            <th>
-              &aboutSupport.experimentName;
-            </th>
-            <th>
-              &aboutSupport.experimentId;
-            </th>
-            <th>
-              &aboutSupport.experimentDescription;
-            </th>
-            <th>
-              &aboutSupport.experimentActive;
-            </th>
-            <th>
-              &aboutSupport.experimentEndDate;
-            </th>
-            <th>
-              &aboutSupport.experimentHomepage;
-            </th>
-          </tr>
-        </thead>
-        <tbody id="experiments-tbody">
-        </tbody>
-      </table>
-      <!-- - - - - - - - - - - - - - - - - - - - - -->
-
-#if defined(XP_LINUX) && defined(MOZ_SANDBOX)
-      <h2 class="major-section" id="sandbox">
-	&aboutSupport.sandboxTitle;
-      </h2>
-
-      <table>
-	<tbody id="sandbox-tbody">
-	</tbody>
-      </table>
-#endif
 
     </div>
 

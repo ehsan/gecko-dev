@@ -5,10 +5,6 @@
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIProgressEventSink.h"
-#include <algorithm>
-#include "nsIContentPolicy.h"
-#include "mozilla/LoadInfo.h"
-#include "nsContentUtils.h"
 
 #define RETURN_IF_FAILED(rv, step) \
     PR_BEGIN_MACRO \
@@ -37,9 +33,9 @@ public:
     virtual ~MyListener() {}
 };
 
-NS_IMPL_ISUPPORTS(MyListener,
-                  nsIRequestObserver,
-                  nsIStreamListener)
+NS_IMPL_ISUPPORTS2(MyListener,
+                   nsIRequestObserver,
+                   nsIStreamListener)
 
 NS_IMETHODIMP
 MyListener::OnStartRequest(nsIRequest *req, nsISupports *ctxt)
@@ -59,7 +55,7 @@ MyListener::OnStopRequest(nsIRequest *req, nsISupports *ctxt, nsresult status)
 NS_IMETHODIMP
 MyListener::OnDataAvailable(nsIRequest *req, nsISupports *ctxt,
                             nsIInputStream *stream,
-                            uint64_t offset, uint32_t count)
+                            uint32_t offset, uint32_t count)
 {
     printf(">>> OnDataAvailable [count=%u]\n", count);
 
@@ -68,7 +64,7 @@ MyListener::OnDataAvailable(nsIRequest *req, nsISupports *ctxt,
     uint32_t bytesRead=0;
 
     while (count) {
-        uint32_t amount = std::min<uint32_t>(count, sizeof(buf));
+        uint32_t amount = NS_MIN<uint32_t>(count, sizeof(buf));
 
         rv = stream->Read(buf, amount, &bytesRead);
         if (NS_FAILED(rv)) {
@@ -91,7 +87,7 @@ class MyNotifications : public nsIInterfaceRequestor
                       , public nsIProgressEventSink
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIINTERFACEREQUESTOR
     NS_DECL_NSIPROGRESSEVENTSINK
 
@@ -99,9 +95,9 @@ public:
     virtual ~MyNotifications() {}
 };
 
-NS_IMPL_ISUPPORTS(MyNotifications,
-                  nsIInterfaceRequestor,
-                  nsIProgressEventSink)
+NS_IMPL_THREADSAFE_ISUPPORTS2(MyNotifications,
+                              nsIInterfaceRequestor,
+                              nsIProgressEventSink)
 
 NS_IMETHODIMP
 MyNotifications::GetInterface(const nsIID &iid, void **result)
@@ -111,7 +107,7 @@ MyNotifications::GetInterface(const nsIID &iid, void **result)
 
 NS_IMETHODIMP
 MyNotifications::OnStatus(nsIRequest *req, nsISupports *ctx,
-                          nsresult status, const char16_t *statusText)
+                          nsresult status, const PRUnichar *statusText)
 {
     printf("status: %x\n", status);
     return NS_OK;
@@ -165,12 +161,7 @@ int main(int argc, char **argv)
         rv = NS_NewURI(getter_AddRefs(uri), argv[1]);
         RETURN_IF_FAILED(rv, "NS_NewURI");
 
-        rv = NS_NewChannel(getter_AddRefs(chan),
-                           uri,
-                           nsContentUtils::GetSystemPrincipal(),
-                           nsILoadInfo::SEC_NORMAL,
-                           nsIContentPolicy::TYPE_OTHER);
-
+        rv = NS_NewChannel(getter_AddRefs(chan), uri, nullptr, nullptr, callbacks);
         RETURN_IF_FAILED(rv, "NS_OpenURI");
 
         rv = chan->AsyncOpen(listener, nullptr);

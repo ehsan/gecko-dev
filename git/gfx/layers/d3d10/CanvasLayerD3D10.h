@@ -7,22 +7,29 @@
 #define GFX_CANVASLAYERD3D10_H
 
 #include "LayerManagerD3D10.h"
+#include "GLContext.h"
+#include "gfxASurface.h"
 
 #include "mozilla/Preferences.h"
 
 namespace mozilla {
-
-namespace gl {
-class GLContext;
-}
-
 namespace layers {
 
-class CanvasLayerD3D10 : public CanvasLayer,
-                         public LayerD3D10
+class THEBES_API CanvasLayerD3D10 : public CanvasLayer,
+                                    public LayerD3D10
 {
 public:
-  CanvasLayerD3D10(LayerManagerD3D10 *aManager);
+  CanvasLayerD3D10(LayerManagerD3D10 *aManager)
+    : CanvasLayer(aManager, NULL)
+    , LayerD3D10(aManager)
+    , mDataIsPremultiplied(false)
+    , mNeedsYFlip(false)
+    , mHasAlpha(true)
+  {
+      mImplData = static_cast<LayerD3D10*>(this);
+      mForceReadback = Preferences::GetBool("webgl.force-layers-readback", false);
+  }
+
   ~CanvasLayerD3D10();
 
   // CanvasLayer implementation
@@ -37,34 +44,35 @@ private:
 
   void UpdateSurface();
 
-  RefPtr<gfx::SourceSurface> mSurface;
+  nsRefPtr<gfxASurface> mSurface;
   mozilla::RefPtr<mozilla::gfx::DrawTarget> mDrawTarget;
   nsRefPtr<GLContext> mGLContext;
   nsRefPtr<ID3D10Texture2D> mTexture;
-  nsRefPtr<ID3D10ShaderResourceView> mUploadSRView;
   nsRefPtr<ID3D10ShaderResourceView> mSRView;
 
   bool mDataIsPremultiplied;
   bool mNeedsYFlip;
   bool mIsD2DTexture;
+  bool mUsingSharedTexture;
   bool mHasAlpha;
+  bool mForceReadback;
 
   nsAutoArrayPtr<uint8_t> mCachedTempBlob;
   uint32_t mCachedTempBlob_Size;
 
   uint8_t* GetTempBlob(const uint32_t aSize)
   {
-    if (!mCachedTempBlob || aSize != mCachedTempBlob_Size) {
-      mCachedTempBlob = new uint8_t[aSize];
-      mCachedTempBlob_Size = aSize;
-    }
+      if (!mCachedTempBlob || aSize != mCachedTempBlob_Size) {
+          mCachedTempBlob = new uint8_t[aSize];
+          mCachedTempBlob_Size = aSize;
+      }
 
-    return mCachedTempBlob;
+      return mCachedTempBlob;
   }
 
   void DiscardTempBlob()
   {
-    mCachedTempBlob = nullptr;
+      mCachedTempBlob = nullptr;
   }
 };
 

@@ -6,14 +6,12 @@
 #ifndef nsIMathMLFrame_h___
 #define nsIMathMLFrame_h___
 
-#include "nsQueryFrame.h"
-#include "nsMathMLOperators.h"
+#include "nsIFrame.h"
 
 struct nsPresentationData;
 struct nsEmbellishData;
-class nsHTMLReflowMetrics;
+struct nsHTMLReflowMetrics;
 class nsRenderingContext;
-class nsIFrame;
 
 // For MathML, this 'type' will be used to determine the spacing between frames
 // Subclasses can return a 'type' that will give them a particular spacing
@@ -143,13 +141,18 @@ public:
   NS_IMETHOD
   TransmitAutomaticData() = 0;
 
- /* UpdatePresentationData:
-  * Updates the frame's compression flag.
+ /* UpdatePresentationData :
+  * Updates the frame's displaystyle and compression flags. The displaystyle
+  * flag of an environment gets updated according to the MathML specification.
   * A frame becomes "compressed" (or "cramped") according to TeX rendering
   * rules (TeXBook, Ch.17, p.140-141).
   *
+  * Note that <mstyle> is the only tag which allows to set
+  * <mstyle displaystyle="true|false">
+  * Therefore <mstyle> has its own peculiar version of this method.
+  *
   * @param aFlagsValues [in]
-  *        The new values (e.g., compress) that are going to be
+  *        The new values (e.g., display, compress) that are going to be
   *        updated.
   *
   * @param aWhichFlags [in]
@@ -168,10 +171,14 @@ public:
                          uint32_t        aWhichFlags) = 0;
 
  /* UpdatePresentationDataFromChildAt :
-  * Sets compression flag on the whole tree. For child frames
-  * at aFirstIndex up to aLastIndex, this method sets their
+  * Sets displaystyle and compression flags on the whole tree. For child frames
+  * at aFirstIndex up to aLastIndex, this method sets their displaystyle and
   * compression flags. The update is propagated down the subtrees of each of
   * these child frames. 
+  *
+  * Note that <mstyle> is the only tag which allows
+  * <mstyle displaystyle="true|false">
+  * Therefore <mstyle> has its own peculiar version of this method.
   *
   * @param aFirstIndex [in]
   *        Index of the first child from where the update is propagated.
@@ -181,7 +188,7 @@ public:
   *        A value of -1 means up to last existing child.
   *
   * @param aFlagsValues [in]
-  *        The new values (e.g., compress) that are going to be
+  *        The new values (e.g., display, compress) that are going to be
   *        assigned in the whole sub-trees.
   *
   * @param aWhichFlags [in]
@@ -193,20 +200,6 @@ public:
                                     int32_t         aLastIndex,
                                     uint32_t        aFlagsValues,
                                     uint32_t        aWhichFlags) = 0;
-
-  // If aFrame is a child frame, returns the script increment which this frame
-  // imposes on the specified frame, ignoring any artificial adjustments to
-  // scriptlevel.
-  // Returns 0 if the specified frame isn't a child frame.
-  virtual uint8_t
-  ScriptIncrement(nsIFrame* aFrame) = 0;
-
-  // Returns true if the frame is considered to be an mrow for layout purposes.
-  // This includes inferred mrows, but excludes <mrow> elements with a single
-  // child.  In the latter case, the child is to be treated as if it wasn't
-  // within an mrow, so we pretend the mrow isn't mrow-like.
-  virtual bool
-  IsMrowLike() = 0;
 };
 
 // struct used by a container frame to keep track of its embellishments.
@@ -249,7 +242,7 @@ struct nsEmbellishData {
 // transmitted by our ancestors and is kept in sync with changes in our
 // descendants that affects us.
 struct nsPresentationData {
-  // bits for: compressed, etc
+  // bits for: displaystyle, compressed, etc
   uint32_t flags;
 
   // handy pointer on our base child (the 'nucleus' in TeX), but it may be
@@ -257,15 +250,27 @@ struct nsPresentationData {
   // pick a particular child in their child list to be the base)
   nsIFrame* baseFrame;
 
+  // up-pointer on the mstyle frame, if any, that defines the scope
+  nsIFrame* mstyle;
+
   nsPresentationData() {
     flags = 0;
     baseFrame = nullptr;
+    mstyle = nullptr;
   }
 };
 
 // ==========================================================================
 // Bits used for the presentation flags -- these bits are set
 // in their relevant situation as they become available
+
+// This bit is set if the frame is in the *context* of displaystyle=true.
+// Note: This doesn't mean that the frame has displaystyle=true as attribute,
+// the displaystyle attribute is only allowed on <mstyle> and <mtable>.
+// The bit merely tells the context of the frame. In the context of 
+// displaystyle="false", it is intended to slightly alter how the
+// rendering is done in inline mode.
+#define NS_MATHML_DISPLAYSTYLE                        0x00000001U
 
 // This bit is used to emulate TeX rendering. 
 // Internal use only, cannot be set by the user with an attribute.
@@ -283,12 +288,16 @@ struct nsPresentationData {
 // horizontal stretch command on all their non-empty children
 #define NS_MATHML_STRETCH_ALL_CHILDREN_HORIZONTALLY   0x00000008U
 
+// This bit is set if the frame has the explicit attribute
+// displaystyle="true" or "false". It is only relevant to <mstyle> and <mtable>
+// because they are the only tags where the attribute is allowed by the spec.
+#define NS_MATHML_EXPLICIT_DISPLAYSTYLE               0x00000020U
+
 // This bit is set if the frame is "space-like", as defined by the spec.
 #define NS_MATHML_SPACE_LIKE                          0x00000040U
 
-// This bit is set if a token frame should be rendered with the dtls font
-// feature setting.
-#define NS_MATHML_DTLS                                0x00000080U
+// This bit is set if the directionality of the frame is right-to-left
+#define NS_MATHML_RTL                                 0x00000080U
 
 // This bit is set when the frame cannot be formatted due to an
 // error (e.g., invalid markup such as a <msup> without an overscript).
@@ -306,6 +315,9 @@ struct nsPresentationData {
 
 // Macros that retrieve those bits
 
+#define NS_MATHML_IS_DISPLAYSTYLE(_flags) \
+  (NS_MATHML_DISPLAYSTYLE == ((_flags) & NS_MATHML_DISPLAYSTYLE))
+
 #define NS_MATHML_IS_COMPRESSED(_flags) \
   (NS_MATHML_COMPRESSED == ((_flags) & NS_MATHML_COMPRESSED))
 
@@ -315,11 +327,14 @@ struct nsPresentationData {
 #define NS_MATHML_WILL_STRETCH_ALL_CHILDREN_HORIZONTALLY(_flags) \
   (NS_MATHML_STRETCH_ALL_CHILDREN_HORIZONTALLY == ((_flags) & NS_MATHML_STRETCH_ALL_CHILDREN_HORIZONTALLY))
 
+#define NS_MATHML_HAS_EXPLICIT_DISPLAYSTYLE(_flags) \
+  (NS_MATHML_EXPLICIT_DISPLAYSTYLE == ((_flags) & NS_MATHML_EXPLICIT_DISPLAYSTYLE))
+
 #define NS_MATHML_IS_SPACE_LIKE(_flags) \
   (NS_MATHML_SPACE_LIKE == ((_flags) & NS_MATHML_SPACE_LIKE))
 
-#define NS_MATHML_IS_DTLS_SET(_flags) \
-  (NS_MATHML_DTLS == ((_flags) & NS_MATHML_DTLS))
+#define NS_MATHML_IS_RTL(_flags) \
+  (NS_MATHML_RTL == ((_flags) & NS_MATHML_RTL))
 
 #define NS_MATHML_HAS_ERROR(_flags) \
   (NS_MATHML_ERROR == ((_flags) & NS_MATHML_ERROR))

@@ -35,22 +35,8 @@ check_for_forced_update() {
     return 0;
   fi
 
-  if [ "$forced_file_chk" = "Contents/Resources/precomplete" ]; then
-    ## "true" *giggle*
-    return 0;
-  fi
-
-  if [ "$forced_file_chk" = "removed-files" ]; then
-    ## "true" *giggle*
-    return 0;
-  fi
-
-  if [ "$forced_file_chk" = "Contents/Resources/removed-files" ]; then
-    ## "true" *giggle*
-    return 0;
-  fi
-
-  if [ "${forced_file_chk##*.}" = "chk" ]; then
+  if [ "${forced_file_chk##*.}" = "chk" ]
+  then
     ## "true" *giggle*
     return 0;
   fi
@@ -100,11 +86,14 @@ if [ $(echo "$newdir" | grep -c '\/$') = 1 ]; then
   newdir=$(echo "$newdir" | sed -e 's:\/$::')
 fi
 workdir="$newdir.work"
+updatemanifestv1="$workdir/update.manifest"
 updatemanifestv2="$workdir/updatev2.manifest"
-updatemanifestv3="$workdir/updatev3.manifest"
-archivefiles="updatev2.manifest updatev3.manifest"
+archivefiles="update.manifest updatev2.manifest"
 
 mkdir -p "$workdir"
+
+# On Mac, the precomplete file added by Bug 386760 will cause OS X to reload the
+# Info.plist so it launches the right architecture, bug 600098
 
 # Generate a list of all files in the target directory.
 pushd "$olddir"
@@ -123,10 +112,8 @@ if test $? -ne 0 ; then
 fi
 
 if [ ! -f "precomplete" ]; then
-  if [ ! -f "Contents/Resources/precomplete" ]; then
-    notice "precomplete file is missing!"
-    exit 1
-  fi
+  notice "precomplete file is missing!"
+  exit 1
 fi
 
 list_dirs newdirs
@@ -134,17 +121,9 @@ list_files newfiles
 
 popd
 
-# Add the type of update to the beginning of the update manifests.
 notice ""
-notice "Adding type instruction to update manifests"
-> $updatemanifestv2
-> $updatemanifestv3
-notice "       type partial"
-echo "type \"partial\"" >> $updatemanifestv2
-echo "type \"partial\"" >> $updatemanifestv3
-
-notice ""
-notice "Adding file patch and add instructions to update manifests"
+notice "Adding file patch and add instructions to file 'update.manifest'"
+> $updatemanifestv1
 
 num_oldfiles=${#oldfiles[*]}
 remove_array=
@@ -153,25 +132,26 @@ num_removes=0
 for ((i=0; $i<$num_oldfiles; i=$i+1)); do
   f="${oldfiles[$i]}"
 
+  # This file is created by Talkback, so we can ignore it
+  if [ "$f" = "readme.txt" ]; then
+    continue 1
+  fi
+
+  # removed-files is excluded by make_incremental_updates.py so it is excluded
+  # here for consistency.
+  if [ `basename $f` = "removed-files" ]; then
+    continue 1
+  fi
+
   # If this file exists in the new directory as well, then check if it differs.
   if [ -f "$newdir/$f" ]; then
-
-    if check_for_add_if_not_update "$f"; then
-      # The full workdir may not exist yet, so create it if necessary.
-      mkdir -p `dirname "$workdir/$f"`
-      $BZIP2 -cz9 "$newdir/$f" > "$workdir/$f"
-      copy_perm "$newdir/$f" "$workdir/$f"
-      make_add_if_not_instruction "$f" "$updatemanifestv3"
-      archivefiles="$archivefiles \"$f\""
-      continue 1
-    fi
 
     if check_for_forced_update "$requested_forced_updates" "$f"; then
       # The full workdir may not exist yet, so create it if necessary.
       mkdir -p `dirname "$workdir/$f"`
       $BZIP2 -cz9 "$newdir/$f" > "$workdir/$f"
       copy_perm "$newdir/$f" "$workdir/$f"
-      make_add_instruction "$f" "$updatemanifestv2" "$updatemanifestv3" 1
+      make_add_instruction "$f" 1 >> $updatemanifestv1
       archivefiles="$archivefiles \"$f\""
       continue 1
     fi
@@ -181,34 +161,8 @@ for ((i=0; $i<$num_oldfiles; i=$i+1)); do
       # compare the sizes.  Then choose the smaller of the two to package.
       dir=$(dirname "$workdir/$f")
       mkdir -p "$dir"
-      notice "diffing \"$f\""
-      # MBSDIFF_HOOK represents the communication interface with funsize and,
-      # if enabled, caches the intermediate patches for future use and
-      # compute avoidance
-      #
-      # An example of MBSDIFF_HOOK env variable could look like this:
-      # export MBSDIFF_HOOK="myscript.sh -A https://funsize/api -c /home/user"
-      # where myscript.sh has the following usage:
-      # myscript.sh -A SERVER-URL [-c LOCAL-CACHE-DIR-PATH] [-g] [-u] \
-      #   PATH-FROM-URL PATH-TO-URL PATH-PATCH SERVER-URL
-      #
-      # Note: patches are bzipped stashed in funsize to gain more speed
-
-      # if service is not enabled then default to old behavior
-      if [ -z "$MBSDIFF_HOOK" ]; then
-        $MBSDIFF "$olddir/$f" "$newdir/$f" "$workdir/$f.patch"
-        $BZIP2 -z9 "$workdir/$f.patch"
-      else
-        # if service enabled then check patch existence for retrieval
-        if $MBSDIFF_HOOK -g "$olddir/$f" "$newdir/$f" "$workdir/$f.patch.bz2"; then
-          notice "file \"$f\" found in funsize, diffing skipped"
-        else
-          # if not found already - compute it and cache it for future use
-          $MBSDIFF "$olddir/$f" "$newdir/$f" "$workdir/$f.patch"
-          $BZIP2 -z9 "$workdir/$f.patch"
-          $MBSDIFF_HOOK -u "$olddir/$f" "$newdir/$f" "$workdir/$f.patch.bz2"
-        fi
-      fi
+      $MBSDIFF "$olddir/$f" "$newdir/$f" "$workdir/$f.patch"
+      $BZIP2 -z9 "$workdir/$f.patch"
       $BZIP2 -cz9 "$newdir/$f" > "$workdir/$f"
       copy_perm "$newdir/$f" "$workdir/$f"
       patchfile="$workdir/$f.patch.bz2"
@@ -216,12 +170,12 @@ for ((i=0; $i<$num_oldfiles; i=$i+1)); do
       fullsize=$(get_file_size "$workdir/$f")
 
       if [ $patchsize -lt $fullsize ]; then
-        make_patch_instruction "$f" "$updatemanifestv2" "$updatemanifestv3"
+        make_patch_instruction "$f" >> $updatemanifestv1
         mv -f "$patchfile" "$workdir/$f.patch"
         rm -f "$workdir/$f"
         archivefiles="$archivefiles \"$f.patch\""
       else
-        make_add_instruction "$f" "$updatemanifestv2" "$updatemanifestv3"
+        make_add_instruction "$f" >> $updatemanifestv1
         rm -f "$patchfile"
         archivefiles="$archivefiles \"$f\""
       fi
@@ -236,11 +190,17 @@ done
 
 # Newly added files
 notice ""
-notice "Adding file add instructions to update manifests"
+notice "Adding file add instructions to file 'update.manifest'"
 num_newfiles=${#newfiles[*]}
 
 for ((i=0; $i<$num_newfiles; i=$i+1)); do
   f="${newfiles[$i]}"
+
+  # removed-files is excluded by make_incremental_updates.py so it is excluded
+  # here for consistency.
+  if [ `basename $f` = "removed-files" ]; then
+    continue 1
+  fi
 
   # If we've already tested this file, then skip it
   for ((j=0; $j<$num_oldfiles; j=$j+1)); do
@@ -255,29 +215,34 @@ for ((i=0; $i<$num_newfiles; i=$i+1)); do
   $BZIP2 -cz9 "$newdir/$f" > "$workdir/$f"
   copy_perm "$newdir/$f" "$workdir/$f"
 
-  if check_for_add_if_not_update "$f"; then
-    make_add_if_not_instruction "$f" "$updatemanifestv3"
-  else
-    make_add_instruction "$f" "$updatemanifestv2" "$updatemanifestv3"
-  fi
-
-
+  make_add_instruction "$f" >> "$updatemanifestv1"
   archivefiles="$archivefiles \"$f\""
 done
 
 notice ""
-notice "Adding file remove instructions to update manifests"
+notice "Adding file remove instructions to file 'update.manifest'"
 for ((i=0; $i<$num_removes; i=$i+1)); do
   f="${remove_array[$i]}"
-  notice "     remove \"$f\""
-  echo "remove \"$f\"" >> $updatemanifestv2
-  echo "remove \"$f\"" >> $updatemanifestv3
+  notice "     remove: $f"
+  echo "remove \"$f\"" >> $updatemanifestv1
 done
 
-# Add remove instructions for any dead files.
+# Add the type of update to the beginning of and cat the contents of the version
+# 1 update manifest to the version 2 update manifest.
+notice ""
+notice "Adding type instruction to file 'updatev2.manifest'"
+> $updatemanifestv2
+notice "       type: partial"
+echo "type \"partial\"" >> $updatemanifestv2
+
+notice ""
+notice "Concatenating file 'update.manifest' to file 'updatev2.manifest'"
+cat $updatemanifestv1 >> $updatemanifestv2
+
+# Append remove instructions for any dead files.
 notice ""
 notice "Adding file and directory remove instructions from file 'removed-files'"
-append_remove_instructions "$newdir" "$updatemanifestv2" "$updatemanifestv3"
+append_remove_instructions "$newdir" "$updatemanifestv1" "$updatemanifestv2"
 
 notice ""
 notice "Adding directory remove instructions for directories that no longer exist"
@@ -287,26 +252,15 @@ for ((i=0; $i<$num_olddirs; i=$i+1)); do
   f="${olddirs[$i]}"
   # If this dir doesn't exist in the new directory remove it.
   if [ ! -d "$newdir/$f" ]; then
-    notice "      rmdir $f/"
+    notice "      rmdir: $f/"
     echo "rmdir \"$f/\"" >> $updatemanifestv2
-    echo "rmdir \"$f/\"" >> $updatemanifestv3
   fi
 done
 
+$BZIP2 -z9 "$updatemanifestv1" && mv -f "$updatemanifestv1.bz2" "$updatemanifestv1"
 $BZIP2 -z9 "$updatemanifestv2" && mv -f "$updatemanifestv2.bz2" "$updatemanifestv2"
-$BZIP2 -z9 "$updatemanifestv3" && mv -f "$updatemanifestv3.bz2" "$updatemanifestv3"
 
-mar_command="$MAR"
-if [[ -n $MOZ_PRODUCT_VERSION ]]
-then
-  mar_command="$mar_command -V $MOZ_PRODUCT_VERSION"
-fi
-if [[ -n $MOZ_CHANNEL_ID ]]
-then
-  mar_command="$mar_command -H $MOZ_CHANNEL_ID"
-fi
-mar_command="$mar_command -C \"$workdir\" -c output.mar"
-eval "$mar_command $archivefiles"
+eval "$MAR -C \"$workdir\" -c output.mar $archivefiles"
 mv -f "$workdir/output.mar" "$archive"
 
 # cleanup
@@ -314,4 +268,3 @@ rm -fr "$workdir"
 
 notice ""
 notice "Finished"
-notice ""

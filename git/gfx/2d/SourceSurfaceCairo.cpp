@@ -6,7 +6,6 @@
 #include "SourceSurfaceCairo.h"
 #include "DrawTargetCairo.h"
 #include "HelpersCairo.h"
-#include "DataSourceSurfaceWrapper.h"
 
 #include "cairo.h"
 
@@ -19,13 +18,13 @@ CairoFormatToSurfaceFormat(cairo_format_t format)
   switch (format)
   {
     case CAIRO_FORMAT_ARGB32:
-      return SurfaceFormat::B8G8R8A8;
+      return FORMAT_B8G8R8A8;
     case CAIRO_FORMAT_RGB24:
-      return SurfaceFormat::B8G8R8X8;
+      return FORMAT_B8G8R8X8;
     case CAIRO_FORMAT_A8:
-      return SurfaceFormat::A8;
+      return FORMAT_A8;
     default:
-      return SurfaceFormat::B8G8R8A8;
+      return FORMAT_B8G8R8A8;
   }
 }
 
@@ -43,6 +42,7 @@ SourceSurfaceCairo::SourceSurfaceCairo(cairo_surface_t* aSurface,
 
 SourceSurfaceCairo::~SourceSurfaceCairo()
 {
+  MarkIndependent();
   cairo_surface_destroy(mSurface);
 }
 
@@ -61,7 +61,7 @@ SourceSurfaceCairo::GetFormat() const
 TemporaryRef<DataSourceSurface>
 SourceSurfaceCairo::GetDataSurface()
 {
-  RefPtr<DataSourceSurface> dataSurf;
+  RefPtr<DataSourceSurfaceCairo> dataSurf;
 
   if (cairo_surface_get_type(mSurface) == CAIRO_SURFACE_TYPE_IMAGE) {
     dataSurf = new DataSourceSurfaceCairo(mSurface);
@@ -79,9 +79,7 @@ SourceSurfaceCairo::GetDataSurface()
     cairo_surface_destroy(imageSurf);
   }
 
-  // We also need to make sure that the returned surface has
-  // surface->GetType() == SurfaceType::DATA.
-  return new DataSourceSurfaceWrapper(dataSurf);
+  return dataSurf;
 }
 
 cairo_surface_t*
@@ -110,6 +108,15 @@ SourceSurfaceCairo::DrawTargetWillChange()
     // Swap in this new surface.
     cairo_surface_destroy(mSurface);
     mSurface = surface;
+  }
+}
+
+void
+SourceSurfaceCairo::MarkIndependent()
+{
+  if (mDrawTarget) {
+    mDrawTarget->RemoveSnapshot(this);
+    mDrawTarget = nullptr;
   }
 }
 

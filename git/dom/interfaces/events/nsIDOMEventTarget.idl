@@ -6,22 +6,16 @@
 #include "domstubs.idl"
 
 %{C++
-#include "mozilla/EventForwards.h"
+#include "nsEvent.h"
 #include "mozilla/dom/Nullable.h"
-#include "js/TypeDecls.h"
 
 using mozilla::dom::Nullable;
 
-namespace mozilla {
-class EventChainPostVisitor;
-class EventChainPreVisitor;
-class EventListenerManager;
-namespace dom {
-class EventTarget;
-} // namespace dom
-} // namespace mozilla
-
 class nsPresContext;
+class nsEventChainPreVisitor;
+class nsEventChainPostVisitor;
+struct JSContext;
+class nsEventListenerManager;
 %}
 
 /**
@@ -32,20 +26,19 @@ class nsPresContext;
  * http://www.w3.org/TR/DOM-Level-2-Events/
  */
 
-[ptr] native WidgetEventPtr(mozilla::WidgetEvent);
+[ref] native nsEventChainPreVisitorRef(nsEventChainPreVisitor);
+[ref] native nsEventChainPostVisitorRef(nsEventChainPostVisitor);
+[ptr] native nsEventPtr(nsEvent);
 [ptr] native nsPresContextPtr(nsPresContext);
 [ptr] native nsEventStatusPtr(nsEventStatus);
 [ptr] native JSContextPtr(JSContext);
-[ref] native EventChainPostVisitorRef(mozilla::EventChainPostVisitor);
-[ref] native EventChainPreVisitorRef(mozilla::EventChainPreVisitor);
-[ptr] native EventListenerManagerPtr(mozilla::EventListenerManager);
-[ptr] native EventTargetPtr(mozilla::dom::EventTarget);
+[ptr] native nsEventListenerManagerPtr(nsEventListenerManager);
 
 interface nsIScriptContext;
 interface nsIDOMEventListener;
 interface nsIDOMEvent;
 
-[scriptable, builtinclass, uuid(9a78ac3c-9507-4d00-b2d6-10b508d2ec31)]
+[scriptable, builtinclass, uuid(8e375931-298d-4d0a-9cb4-5668f0cdc5a8)]
 interface nsIDOMEventTarget : nsISupports
 {
   /**
@@ -110,7 +103,7 @@ interface nsIDOMEventTarget : nsISupports
                             nsIDOMEventListener* aListener,
                             bool aUseCapture)
   {
-    return AddEventListener(aType, aListener, aUseCapture, false, 1);
+    return AddEventListener(aType, aListener, aUseCapture, PR_FALSE, 1);
   }
   // non-virtual so it won't affect the vtable
   nsresult AddEventListener(const nsAString& aType,
@@ -125,7 +118,7 @@ interface nsIDOMEventTarget : nsISupports
                                   nsIDOMEventListener* aListener,
                                   bool aUseCapture)
   {
-    return AddSystemEventListener(aType, aListener, aUseCapture, false, 1);
+    return AddSystemEventListener(aType, aListener, aUseCapture, PR_FALSE, 1);
   }
   // non-virtual so it won't affect the vtable
   nsresult AddSystemEventListener(const nsAString& aType,
@@ -193,62 +186,62 @@ interface nsIDOMEventTarget : nsISupports
                                                raises(DOMException);
 
   /**
-   * Returns the nsIDOMEventTarget object which should be used as the target
+   * Returns the nsPIDOMEventTarget object which should be used as the target
    * of DOMEvents.
    * Usually |this| is returned, but for example global object returns
    * the outer object.
    */
-   [notxpcom, nostdcall] EventTargetPtr GetTargetForDOMEvent();
+   [notxpcom, nostdcall] nsIDOMEventTarget GetTargetForDOMEvent();
 
   /**
-   * Returns the nsIDOMEventTarget object which should be used as the target
+   * Returns the nsPIDOMEventTarget object which should be used as the target
    * of the event and when constructing event target chain.
    * Usually |this| is returned, but for example global object returns
    * the inner object.
    */
-   [notxpcom, nostdcall] EventTargetPtr GetTargetForEventTargetChain();
+   [notxpcom, nostdcall] nsIDOMEventTarget GetTargetForEventTargetChain();
 
   /**
    * Called before the capture phase of the event flow.
    * This is used to create the event target chain and implementations
-   * should set the necessary members of EventChainPreVisitor.
+   * should set the necessary members of nsEventChainPreVisitor.
    * At least aVisitor.mCanHandle must be set,
    * usually also aVisitor.mParentTarget if mCanHandle is PR_TRUE.
    * First one tells that this object can handle the aVisitor.mEvent event and
    * the latter one is the possible parent object for the event target chain.
-   * @see EventDispatcher.h for more documentation about aVisitor.
+   * @see nsEventDispatcher.h for more documentation about aVisitor.
    *
    * @param aVisitor the visitor object which is used to create the
    *                 event target chain for event dispatching.
    *
-   * @note Only EventDispatcher should call this method.
+   * @note Only nsEventDispatcher should call this method.
    */
   [noscript, nostdcall]
-  void PreHandleEvent(in EventChainPreVisitorRef aVisitor);
+  void PreHandleEvent(in nsEventChainPreVisitorRef aVisitor);
 
   /**
-   * If EventChainPreVisitor.mWantsWillHandleEvent is set PR_TRUE,
+   * If nsEventChainPreVisitor.mWantsWillHandleEvent is set PR_TRUE,
    * called just before possible event handlers on this object will be called.
    */
   [noscript, nostdcall]
-  void WillHandleEvent(in EventChainPostVisitorRef aVisitor);
+  void WillHandleEvent(in nsEventChainPostVisitorRef aVisitor);
 
   /**
    * Called after the bubble phase of the system event group.
    * The default handling of the event should happen here.
    * @param aVisitor the visitor object which is used during post handling.
    *
-   * @see EventDispatcher.h for documentation about aVisitor.
-   * @note Only EventDispatcher should call this method.
+   * @see nsEventDispatcher.h for documentation about aVisitor.
+   * @note Only nsEventDispatcher should call this method.
    */
   [noscript, nostdcall]
-  void PostHandleEvent(in EventChainPostVisitorRef aVisitor);
+  void PostHandleEvent(in nsEventChainPostVisitorRef aVisitor);
 
   /**
    * Dispatch an event.
    * @param aEvent the event that is being dispatched.
    * @param aDOMEvent the event that is being dispatched, use if you want to
-   *                  dispatch nsIDOMEvent, not only WidgetEvent.
+   *                  dispatch nsIDOMEvent, not only nsEvent.
    * @param aPresContext the current presentation context, can be nullptr.
    * @param aEventStatus the status returned from the function, can be nullptr.
    *
@@ -262,10 +255,19 @@ interface nsIDOMEventTarget : nsISupports
    *             have been converted to use nsIDOMEventTarget::dispatchEvent.
    */
   [noscript, nostdcall]
-  void DispatchDOMEvent(in WidgetEventPtr aEvent,
+  void DispatchDOMEvent(in nsEventPtr aEvent,
                         in nsIDOMEvent aDOMEvent,
                         in nsPresContextPtr aPresContext,
                         in nsEventStatusPtr aEventStatus);
+
+  /**
+   * Get the event listener manager, the guy you talk to to register for events
+   * on this node.
+   * @param aMayCreate If PR_FALSE, returns a listener manager only if
+   *                   one already exists.
+   */
+  [notxpcom, nostdcall]
+  nsEventListenerManagerPtr GetListenerManager(in boolean aMayCreate);
 
   /**
    * Get the script context in which the event handlers should be run.
@@ -284,10 +286,12 @@ interface nsIDOMEventTarget : nsISupports
 
 %{C++
 
+typedef nsIDOMEventTarget nsPIDOMEventTarget;
+
 #define NS_IMPL_DOMTARGET_DEFAULTS(_class) \
-mozilla::dom::EventTarget* _class::GetTargetForDOMEvent() { return this; } \
-mozilla::dom::EventTarget* _class::GetTargetForEventTargetChain() { return this; } \
-nsresult _class::WillHandleEvent(mozilla::EventChainPostVisitor& aVisitor) { return NS_OK; } \
+nsPIDOMEventTarget* _class::GetTargetForDOMEvent() { return this; } \
+nsPIDOMEventTarget* _class::GetTargetForEventTargetChain() { return this; } \
+nsresult _class::WillHandleEvent(nsEventChainPostVisitor& aVisitor) { return NS_OK; } \
 JSContext* _class::GetJSContextForEventHandlers() { return nullptr; }
 
 #define NS_IMPL_REMOVE_SYSTEM_EVENT_LISTENER(aClass) \
@@ -296,14 +300,12 @@ aClass::RemoveSystemEventListener(const nsAString& aType, \
                                   nsIDOMEventListener *aListener, \
                                   bool aUseCapture) \
 { \
-  mozilla::EventListenerManager* listenerManager = \
-    GetExistingListenerManager(); \
+  nsEventListenerManager* listenerManager = GetListenerManager(false); \
   if (!listenerManager) { \
     return NS_OK; \
   } \
-  mozilla::EventListenerFlags flags; \
-  flags.mInSystemGroup = true; \
-  flags.mCapture = aUseCapture; \
+  uint32_t flags = NS_EVENT_FLAG_SYSTEM_EVENT; \
+  flags |= aUseCapture ? NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE; \
   listenerManager->RemoveEventListenerByType(aListener, aType, flags); \
   return NS_OK; \
 }

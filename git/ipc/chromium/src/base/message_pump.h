@@ -5,16 +5,14 @@
 #ifndef BASE_MESSAGE_PUMP_H_
 #define BASE_MESSAGE_PUMP_H_
 
-#include "nsISupportsImpl.h"
+#include "base/ref_counted.h"
 
 namespace base {
 
-class TimeTicks;
+class Time;
 
-class MessagePump {
+class MessagePump : public RefCountedThreadSafe<MessagePump> {
  public:
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MessagePump)
-
   // Please see the comments above the Run method for an illustration of how
   // these delegate methods are used.
   class Delegate {
@@ -34,12 +32,14 @@ class MessagePump {
     // |next_delayed_work_time| is null (per Time::is_null), then the queue of
     // future delayed work (timer events) is currently empty, and no additional
     // calls to this function need to be scheduled.
-    virtual bool DoDelayedWork(TimeTicks* next_delayed_work_time) = 0;
+    virtual bool DoDelayedWork(Time* next_delayed_work_time) = 0;
 
     // Called from within Run just before the message pump goes to sleep.
     // Returns true to indicate that idle work was done.
     virtual bool DoIdleWork() = 0;
   };
+
+  virtual ~MessagePump() {}
 
   // The Run method is called to enter the message pump's run loop.
   //
@@ -122,10 +122,7 @@ class MessagePump {
   // Schedule a DoDelayedWork callback to happen at the specified time,
   // cancelling any pending DoDelayedWork callback.  This method may only be
   // used on the thread that called Run.
-  virtual void ScheduleDelayedWork(const TimeTicks& delayed_work_time) = 0;
-
-protected:
-  virtual ~MessagePump() {};
+  virtual void ScheduleDelayedWork(const Time& delayed_work_time) = 0;
 };
 
 }  // namespace base

@@ -10,7 +10,7 @@
 %{C++
 
 #include "nscore.h"
-typedef int64_t PRTime;
+#include "prtime.h"
 
 /*
  * Forward declarations for new string types
@@ -27,7 +27,7 @@ class nsACString;
 typedef boolean             bool   ;
 typedef octet               uint8_t  ;
 typedef unsigned short      uint16_t ;
-typedef unsigned short      char16_t;
+typedef unsigned short      PRUnichar;
 typedef unsigned long       uint32_t ;
 typedef unsigned long long  uint64_t ;
 typedef long long           PRTime   ;
@@ -44,7 +44,7 @@ typedef unsigned long       size_t;
 
 [ptr]         native voidPtr(void);
 [ptr]         native charPtr(char);
-[ptr]         native unicharPtr(char16_t);
+[ptr]         native unicharPtr(PRUnichar);
 
 [ref, nsid]   native nsIDRef(nsID);
 [ref, nsid]   native nsIIDRef(nsIID);

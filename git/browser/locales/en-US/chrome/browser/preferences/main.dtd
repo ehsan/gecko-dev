@@ -22,6 +22,10 @@
 
 <!ENTITY downloads.label     "Downloads">
 
+<!ENTITY showWhenDownloading.label     "Show the Downloads window when downloading a file">
+<!ENTITY showWhenDownloading.accesskey "D">
+<!ENTITY closeWhenDone.label "Close it when all downloads are finished">
+<!ENTITY closeWhenDone.accesskey "w">
 <!ENTITY saveTo.label "Save files to">
 <!ENTITY saveTo.accesskey "v">
 <!ENTITY chooseFolderWin.label        "Browse…">
@@ -31,13 +35,8 @@
 <!ENTITY alwaysAsk.label "Always ask me where to save files">
 <!ENTITY alwaysAsk.accesskey "A">
 
-<!ENTITY alwaysCheckDefault2.label        "Always check if &brandShortName; is your default browser">
-<!ENTITY alwaysCheckDefault2.accesskey    "w">
-<!ENTITY setAsMyDefaultBrowser2.label     "Make Default">
-<!ENTITY setAsMyDefaultBrowser2.accesskey "D">
-<!ENTITY isDefault.label                  "&brandShortName; is currently your default browser">
-<!ENTITY isNotDefault.label               "&brandShortName; is not your default browser">
-
-<!ENTITY separateProfileMode.label        "Allow &brandShortName; and Firefox to run at the same time">
-<!ENTITY useFirefoxSync.label             "Tip: This uses separate profiles. Use Sync to share data between them.">
-<!ENTITY getStarted.label                 "Start using Sync…">
+<!ENTITY addonsMgr.label               "Add-ons">
+<!ENTITY manageAddonsDescWin.label     "Change options for your add-ons">
+<!ENTITY manageAddonsDescUnix2.label   "Change preferences for your add-ons">
+<!ENTITY manageAddons.label            "Manage Add-ons…">
+<!ENTITY manageAddons.accesskey        "M">

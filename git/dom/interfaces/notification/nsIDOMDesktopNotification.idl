@@ -4,17 +4,24 @@
 
 #include "domstubs.idl"
 
-interface nsIObserver;
+interface nsIDOMEventListener;
+interface nsIDOMDesktopNotification;
 
-// Notification service that also provides the manifest URL
-[scriptable, uuid(50cb17d2-dc8a-4aa6-bcd3-94d76af14e20)]
-interface nsIAppNotificationService : nsISupports
+
+[scriptable, uuid(CCEA6185-0A3D-45AB-9058-1004DD4B8C50)]
+interface nsIDOMDesktopNotificationCenter : nsISupports
 {
-    void showAppNotification(in AString  imageUrl,
-                             in AString  title,
-                             in AString  text,
-                             in nsIObserver alertListener,
-                             // details should be a WebIDL
-                             // AppNotificationServiceOptions Dictionary object
-                             in jsval    details);
+  nsIDOMDesktopNotification createNotification(in DOMString title,
+                                               in DOMString description,
+                                               [optional] in DOMString iconURL);
+};
+
+
+[scriptable, uuid(9131FD07-A7DB-4B3A-A98B-6D9F3746682F)]
+interface nsIDOMDesktopNotification : nsISupports
+{
+  void show();
+
+  attribute nsIDOMEventListener onclick;
+  attribute nsIDOMEventListener onclose;
 };

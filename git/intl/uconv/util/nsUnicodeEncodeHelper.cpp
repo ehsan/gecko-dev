@@ -3,14 +3,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "pratom.h"
 #include "unicpriv.h"
+#include "nsIUnicodeEncoder.h"
 #include "nsUnicodeEncodeHelper.h"
-#include "nsDebug.h"
 
 //----------------------------------------------------------------------
 // Class nsUnicodeEncodeHelper [implementation]
 nsresult nsUnicodeEncodeHelper::ConvertByTable(
-                                     const char16_t * aSrc, 
+                                     const PRUnichar * aSrc, 
                                      int32_t * aSrcLength, 
                                      char * aDest, 
                                      int32_t * aDestLength, 
@@ -18,17 +19,17 @@ nsresult nsUnicodeEncodeHelper::ConvertByTable(
                                      uShiftOutTable * aShiftOutTable,
                                      uMappingTable  * aMappingTable)
 {
-  const char16_t * src = aSrc;
-  const char16_t * srcEnd = aSrc + *aSrcLength;
+  const PRUnichar * src = aSrc;
+  const PRUnichar * srcEnd = aSrc + *aSrcLength;
   char * dest = aDest;
   int32_t destLen = *aDestLength;
 
-  char16_t med;
+  PRUnichar med;
   int32_t bcw; // byte count for write;
   nsresult res = NS_OK;
 
   while (src < srcEnd) {
-    if (!uMapCode((uTable*) aMappingTable, static_cast<char16_t>(*(src++)), reinterpret_cast<uint16_t*>(&med))) {
+    if (!uMapCode((uTable*) aMappingTable, static_cast<PRUnichar>(*(src++)), reinterpret_cast<uint16_t*>(&med))) {
       if (aScanClass == u1ByteCharset && *(src - 1) < 0x20) {
         // some tables are missing the 0x00 - 0x20 part
         med = *(src - 1);
@@ -65,7 +66,7 @@ nsresult nsUnicodeEncodeHelper::ConvertByTable(
 }
 
 nsresult nsUnicodeEncodeHelper::ConvertByMultiTable(
-                                     const char16_t * aSrc, 
+                                     const PRUnichar * aSrc, 
                                      int32_t * aSrcLength, 
                                      char * aDest, 
                                      int32_t * aDestLength, 
@@ -74,12 +75,12 @@ nsresult nsUnicodeEncodeHelper::ConvertByMultiTable(
                                      uShiftOutTable ** aShiftOutTable, 
                                      uMappingTable  ** aMappingTable)
 {
-  const char16_t * src = aSrc;
-  const char16_t * srcEnd = aSrc + *aSrcLength;
+  const PRUnichar * src = aSrc;
+  const PRUnichar * srcEnd = aSrc + *aSrcLength;
   char * dest = aDest;
   int32_t destLen = *aDestLength;
 
-  char16_t med;
+  PRUnichar med;
   int32_t bcw; // byte count for write;
   nsresult res = NS_OK;
   int32_t i;

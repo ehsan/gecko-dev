@@ -8,29 +8,24 @@ const TEST_FILE = "test-network.html";
 function tabReload(aEvent) {
   browser.removeEventListener(aEvent.type, tabReload, true);
 
-  waitForMessages({
-    webconsole: hud,
-    messages: [{
-      text: "running network console logging tests",
-      category: CATEGORY_WEBDEV,
-      severity: SEVERITY_LOG,
-    },
+  outputNode = hud.outputNode;
+
+  waitForSuccess({
+    name: "console.log() message displayed",
+    validatorFn: function()
     {
-      text: "test-network.html",
-      category: CATEGORY_NETWORK,
-      severity: SEVERITY_LOG,
+      return outputNode.textContent
+             .indexOf("running network console logging tests") > -1;
     },
+    successFn: function()
     {
-      text: "test-image.png",
-      category: CATEGORY_NETWORK,
-      severity: SEVERITY_LOG,
+      findLogEntry("test-network.html");
+      findLogEntry("test-image.png");
+      findLogEntry("testscript.js");
+      finishTest();
     },
-    {
-      text: "testscript.js",
-      category: CATEGORY_NETWORK,
-      severity: SEVERITY_LOG,
-    }],
-  }).then(finishTest);
+    failureFn: finishTest,
+  });
 }
 
 function test() {
@@ -42,18 +37,14 @@ function test() {
 
   let uri = Services.io.newFileURI(dir);
 
-  const PREF = "devtools.webconsole.persistlog";
-  Services.prefs.setBoolPref(PREF, true);
-  registerCleanupFunction(() => Services.prefs.clearUserPref(PREF));
-
-  addTab("data:text/html;charset=utf8,<p>test file URI");
+  addTab(uri.spec);
   browser.addEventListener("load", function tabLoad() {
     browser.removeEventListener("load", tabLoad, true);
     openConsole(null, function(aHud) {
       hud = aHud;
       hud.jsterm.clearOutput();
       browser.addEventListener("load", tabReload, true);
-      content.location = uri.spec;
+      content.location.reload();
     });
   }, true);
 }

@@ -10,8 +10,6 @@ extern "C" {
 #include <libgnomevfs/gnome-vfs-mime-utils.h>
 }
 
-#include <algorithm>
-
 #include "nsServiceManagerUtils.h"
 #include "nsComponentManagerUtils.h"
 #include "mozilla/ModuleUtils.h"
@@ -159,7 +157,7 @@ ProxiedAuthCallback(gconstpointer in,
     //     that we originally gave to it.  In spite of the likelihood of
     //     false hits, this check is probably still valuable.
     //
-    nsAutoCString spec;
+    nsCAutoString spec;
     uri->GetSpec(spec);
     int uriLen = strlen(authIn->uri);
     if (!StringHead(spec, uriLen).Equals(nsDependentCString(authIn->uri, uriLen)))
@@ -170,7 +168,7 @@ ProxiedAuthCallback(gconstpointer in,
   }
 #endif
 
-  nsAutoCString scheme, hostPort;
+  nsCAutoString scheme, hostPort;
   uri->GetScheme(scheme);
   uri->GetHostPort(hostPort);
 
@@ -185,7 +183,7 @@ ProxiedAuthCallback(gconstpointer in,
   nsAutoString key, realm;
 
   NS_ConvertUTF8toUTF16 dispHost(scheme);
-  dispHost.AppendLiteral("://");
+  dispHost.Append(NS_LITERAL_STRING("://"));
   dispHost.Append(NS_ConvertUTF8toUTF16(hostPort));
 
   key = dispHost;
@@ -221,14 +219,14 @@ ProxiedAuthCallback(gconstpointer in,
   nsString message;
   if (!realm.IsEmpty())
   {
-    const char16_t *strings[] = { realm.get(), dispHost.get() };
-    bundle->FormatStringFromName(MOZ_UTF16("EnterUserPasswordForRealm"),
+    const PRUnichar *strings[] = { realm.get(), dispHost.get() };
+    bundle->FormatStringFromName(NS_LITERAL_STRING("EnterUserPasswordForRealm").get(),
                                  strings, 2, getter_Copies(message));
   }
   else
   {
-    const char16_t *strings[] = { dispHost.get() };
-    bundle->FormatStringFromName(MOZ_UTF16("EnterUserPasswordFor"),
+    const PRUnichar *strings[] = { dispHost.get() };
+    bundle->FormatStringFromName(NS_LITERAL_STRING("EnterUserPasswordFor").get(),
                                  strings, 1, getter_Copies(message));
   }
   if (message.IsEmpty())
@@ -237,7 +235,7 @@ ProxiedAuthCallback(gconstpointer in,
   // Prompt the user...
   nsresult rv;
   bool retval = false;
-  char16_t *user = nullptr, *pass = nullptr;
+  PRUnichar *user = nullptr, *pass = nullptr;
 
   rv = prompt->PromptUsernameAndPassword(nullptr, message.get(),
                                          key.get(),
@@ -314,14 +312,14 @@ FileInfoComparator(gconstpointer a, gconstpointer b)
 class nsGnomeVFSInputStream MOZ_FINAL : public nsIInputStream
 {
   public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIINPUTSTREAM
 
     nsGnomeVFSInputStream(const nsCString &uriSpec)
       : mSpec(uriSpec)
       , mChannel(nullptr)
       , mHandle(nullptr)
-      , mBytesRemaining(UINT64_MAX)
+      , mBytesRemaining(PR_UINT64_MAX)
       , mStatus(NS_OK)
       , mDirList(nullptr)
       , mDirListPtr(nullptr)
@@ -378,9 +376,9 @@ nsGnomeVFSInputStream::DoOpen()
   // nsIAuthPrompt instance.
 
   gnome_vfs_module_callback_push(GNOME_VFS_MODULE_CALLBACK_AUTHENTICATION,
-                                 AuthCallback, mChannel, nullptr);
+                                 AuthCallback, mChannel, NULL);
 
-  // Query the mime type first (this could return nullptr). 
+  // Query the mime type first (this could return NULL). 
   //
   // XXX We need to do this up-front in order to determine how to open the URI.
   //     Unfortunately, the error code GNOME_VFS_ERROR_IS_DIRECTORY is not
@@ -435,10 +433,9 @@ nsGnomeVFSInputStream::DoOpen()
 
       // Update the content length attribute on the channel.  We do this
       // synchronously without proxying.  This hack is not as bad as it looks!
-      if (mBytesRemaining > INT64_MAX) {
-        mChannel->SetContentLength(-1);
-      } else {
-        mChannel->SetContentLength(mBytesRemaining);
+      if (mBytesRemaining != PR_UINT64_MAX) {
+        // XXX 64-bit
+        mChannel->SetContentLength(NS_MAX((int32_t)mBytesRemaining, PR_INT32_MAX));
       }
     }
     else
@@ -450,18 +447,18 @@ nsGnomeVFSInputStream::DoOpen()
       mDirListPtr = mDirList;
 
       // Write base URL (make sure it ends with a '/')
-      mDirBuf.AppendLiteral("300: ");
+      mDirBuf.Append("300: ");
       mDirBuf.Append(mSpec);
       if (mSpec.get()[mSpec.Length() - 1] != '/')
         mDirBuf.Append('/');
       mDirBuf.Append('\n');
 
       // Write column names
-      mDirBuf.AppendLiteral("200: filename content-length last-modified file-type\n");
+      mDirBuf.Append("200: filename content-length last-modified file-type\n");
 
       // Write charset (assume UTF-8)
       // XXX is this correct?
-      mDirBuf.AppendLiteral("301: UTF-8\n");
+      mDirBuf.Append("301: UTF-8\n");
 
       SetContentTypeOfChannel(APPLICATION_HTTP_INDEX_FORMAT);
     }
@@ -497,7 +494,7 @@ nsGnomeVFSInputStream::DoRead(char *aBuf, uint32_t aCount, uint32_t *aCountRead)
       uint32_t bufLen = mDirBuf.Length() - mDirBufCursor;
       if (bufLen)
       {
-        uint32_t n = std::min(bufLen, aCount);
+        uint32_t n = NS_MIN(bufLen, aCount);
         memcpy(aBuf, mDirBuf.get() + mDirBufCursor, n);
         *aCountRead += n;
         aBuf += n;
@@ -522,7 +519,7 @@ nsGnomeVFSInputStream::DoRead(char *aBuf, uint32_t aCount, uint32_t *aCountRead)
           continue;
         }
 
-        mDirBuf.AssignLiteral("201: ");
+        mDirBuf.Assign("201: ");
 
         // The "filename" field
         nsCString escName;
@@ -558,13 +555,13 @@ nsGnomeVFSInputStream::DoRead(char *aBuf, uint32_t aCount, uint32_t *aCountRead)
         switch (info->type)
         {
           case GNOME_VFS_FILE_TYPE_REGULAR:
-            mDirBuf.AppendLiteral("FILE ");
+            mDirBuf.Append("FILE ");
             break;
           case GNOME_VFS_FILE_TYPE_DIRECTORY:
-            mDirBuf.AppendLiteral("DIRECTORY ");
+            mDirBuf.Append("DIRECTORY ");
             break;
           case GNOME_VFS_FILE_TYPE_SYMBOLIC_LINK:
-            mDirBuf.AppendLiteral("SYMBOLIC-LINK ");
+            mDirBuf.Append("SYMBOLIC-LINK ");
             break;
           default:
             break;
@@ -631,7 +628,7 @@ nsGnomeVFSInputStream::SetContentTypeOfChannel(const char *contentType)
   return rv;
 }
 
-NS_IMPL_ISUPPORTS(nsGnomeVFSInputStream, nsIInputStream)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsGnomeVFSInputStream, nsIInputStream)
 
 NS_IMETHODIMP
 nsGnomeVFSInputStream::Close()
@@ -755,7 +752,7 @@ class nsGnomeVFSProtocolHandler MOZ_FINAL : public nsIProtocolHandler
     nsCString mSupportedProtocols;
 };
 
-NS_IMPL_ISUPPORTS(nsGnomeVFSProtocolHandler, nsIProtocolHandler, nsIObserver)
+NS_IMPL_ISUPPORTS2(nsGnomeVFSProtocolHandler, nsIProtocolHandler, nsIObserver)
 
 nsresult
 nsGnomeVFSProtocolHandler::Init()
@@ -794,7 +791,7 @@ nsGnomeVFSProtocolHandler::InitSupportedProtocolsPref(nsIPrefBranch *prefs)
     ToLowerCase(mSupportedProtocols);
   }
   else
-    mSupportedProtocols.AssignLiteral("smb:,sftp:"); // use defaults
+    mSupportedProtocols.Assign("smb:,sftp:"); // use defaults
 
   LOG(("gnomevfs: supported protocols \"%s\"\n", mSupportedProtocols.get()));
 }
@@ -899,14 +896,12 @@ nsGnomeVFSProtocolHandler::NewURI(const nsACString &aSpec,
 }
 
 NS_IMETHODIMP
-nsGnomeVFSProtocolHandler::NewChannel2(nsIURI* aURI,
-                                       nsILoadInfo* aLoadInfo,
-                                       nsIChannel** aResult)
+nsGnomeVFSProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **aResult)
 {
   NS_ENSURE_ARG_POINTER(aURI);
   nsresult rv;
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   rv = aURI->GetSpec(spec);
   if (NS_FAILED(rv))
     return rv;
@@ -929,12 +924,6 @@ nsGnomeVFSProtocolHandler::NewChannel2(nsIURI* aURI,
 }
 
 NS_IMETHODIMP
-nsGnomeVFSProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **aResult)
-{
-    return NewChannel2(aURI, nullptr, aResult);
-}
-
-NS_IMETHODIMP
 nsGnomeVFSProtocolHandler::AllowPort(int32_t aPort,
                                      const char *aScheme,
                                      bool *aResult)
@@ -947,7 +936,7 @@ nsGnomeVFSProtocolHandler::AllowPort(int32_t aPort,
 NS_IMETHODIMP
 nsGnomeVFSProtocolHandler::Observe(nsISupports *aSubject,
                                    const char *aTopic,
-                                   const char16_t *aData)
+                                   const PRUnichar *aData)
 {
   if (strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID) == 0) {
     nsCOMPtr<nsIPrefBranch> prefs = do_QueryInterface(aSubject);
@@ -970,13 +959,13 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsGnomeVFSProtocolHandler, Init)
 NS_DEFINE_NAMED_CID(NS_GNOMEVFSPROTOCOLHANDLER_CID);
 
 static const mozilla::Module::CIDEntry kVFSCIDs[] = {
-  { &kNS_GNOMEVFSPROTOCOLHANDLER_CID, false, nullptr, nsGnomeVFSProtocolHandlerConstructor },
-  { nullptr }
+  { &kNS_GNOMEVFSPROTOCOLHANDLER_CID, false, NULL, nsGnomeVFSProtocolHandlerConstructor },
+  { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kVFSContracts[] = {
   { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX MOZ_GNOMEVFS_SCHEME, &kNS_GNOMEVFSPROTOCOLHANDLER_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module kVFSModule = {

@@ -29,9 +29,9 @@ public:
    * @param aName
    *        A name which can be used to reference this mutex.
    */
-  explicit SQLiteMutex(const char *aName)
+  SQLiteMutex(const char *aName)
   : BlockingResourceBase(aName, eMutex)
-  , mMutex(nullptr)
+  , mMutex(NULL)
   {
   }
 
@@ -88,10 +88,11 @@ public:
 
     // While SQLite Mutexes may be recursive, in our own code we do not want to
     // treat them as such.
+    CallStack callContext = CallStack();
 
-    CheckAcquire();
+    CheckAcquire(callContext);
     sqlite3_mutex_enter(mMutex);
-    Acquire(); // Call is protected by us holding the mutex.
+    Acquire(callContext); // Call is protected by us holding the mutex.
   }
 
   void unlock()
@@ -127,10 +128,10 @@ private:
  * Automatically acquires the mutex when it enters scope, and releases it when
  * it leaves scope.
  */
-class MOZ_STACK_CLASS SQLiteMutexAutoLock
+class NS_STACK_CLASS SQLiteMutexAutoLock
 {
 public:
-  explicit SQLiteMutexAutoLock(SQLiteMutex &aMutex)
+  SQLiteMutexAutoLock(SQLiteMutex &aMutex)
   : mMutex(aMutex)
   {
     mMutex.lock();
@@ -149,10 +150,10 @@ private:
  * Automatically releases the mutex when it enters scope, and acquires it when
  * it leaves scope.
  */
-class MOZ_STACK_CLASS SQLiteMutexAutoUnlock
+class NS_STACK_CLASS SQLiteMutexAutoUnlock
 {
 public:
-  explicit SQLiteMutexAutoUnlock(SQLiteMutex &aMutex)
+  SQLiteMutexAutoUnlock(SQLiteMutex &aMutex)
   : mMutex(aMutex)
   {
     mMutex.unlock();

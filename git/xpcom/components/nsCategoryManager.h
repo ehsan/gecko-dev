@@ -11,12 +11,10 @@
 #include "plarena.h"
 #include "nsClassHashtable.h"
 #include "nsICategoryManager.h"
-#include "nsIMemoryReporter.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/Attributes.h"
 
-class nsIMemoryReporter;
+#define NS_CATEGORYMANAGER_CLASSNAME     "Category Manager"
 
 /* 16d222a6-1dd2-11b2-b693-f38b02c021b2 */
 #define NS_CATEGORYMANAGER_CID \
@@ -34,7 +32,9 @@ class nsIMemoryReporter;
 class CategoryLeaf : public nsDepCharHashKey
 {
 public:
-  explicit CategoryLeaf(const char* aKey) : nsDepCharHashKey(aKey), value(nullptr) {}
+  CategoryLeaf(const char* aKey)
+    : nsDepCharHashKey(aKey),
+      value(NULL) { }
   const char* value;
 };
 
@@ -48,40 +48,38 @@ class CategoryNode
 {
 public:
   NS_METHOD GetLeaf(const char* aEntryName,
-                    char** aResult);
+                    char** _retval);
 
   NS_METHOD AddLeaf(const char* aEntryName,
                     const char* aValue,
                     bool aReplace,
-                    char** aResult,
+                    char** _retval,
                     PLArenaPool* aArena);
 
   void DeleteLeaf(const char* aEntryName);
 
-  void Clear()
-  {
+  void Clear() {
     mozilla::MutexAutoLock lock(mLock);
     mTable.Clear();
   }
 
-  uint32_t Count()
-  {
+  uint32_t Count() {
     mozilla::MutexAutoLock lock(mLock);
     uint32_t tCount = mTable.Count();
     return tCount;
   }
 
-  NS_METHOD Enumerate(nsISimpleEnumerator** aResult);
+  NS_METHOD Enumerate(nsISimpleEnumerator** _retval);
 
   // CategoryNode is arena-allocated, with the strings
   static CategoryNode* Create(PLArenaPool* aArena);
   ~CategoryNode();
-  void operator delete(void*) {}
-
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+  void operator delete(void*) { }
 
 private:
-  CategoryNode() : mLock("CategoryLeaf") {}
+  CategoryNode()
+    : mLock("CategoryLeaf")
+  { }
 
   void* operator new(size_t aSize, PLArenaPool* aArena);
 
@@ -97,12 +95,10 @@ private:
  */
 class nsCategoryManager MOZ_FINAL
   : public nsICategoryManager
-  , public nsIMemoryReporter
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSICATEGORYMANAGER
-  NS_DECL_NSIMEMORYREPORTER
 
   /**
    * Suppress or unsuppress notifications of category changes to the
@@ -115,10 +111,9 @@ public:
                         const char* aKey,
                         const char* aValue,
                         bool aReplace = true,
-                        char** aOldValue = nullptr);
+                        char** aOldValue = NULL);
 
   static nsresult Create(nsISupports* aOuter, REFNSIID aIID, void** aResult);
-  void InitMemoryReporter();
 
   static nsCategoryManager* GetSingleton();
   static void Destroy();
@@ -128,8 +123,6 @@ private:
 
   nsCategoryManager();
   ~nsCategoryManager();
-
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
 
   CategoryNode* get_category(const char* aName);
   void NotifyObservers(const char* aTopic,

@@ -30,11 +30,11 @@ except ImportError:
 here = os.path.dirname(os.path.abspath(__file__))
 
 ## Get long_description from index.txt:
-f = open(os.path.join(here, 'docs', 'index.rst'))
+f = open(os.path.join(here, 'docs', 'index.txt'))
 long_description = f.read().strip()
 long_description = long_description.split('split here', 1)[1]
 f.close()
-f = open(os.path.join(here, 'docs', 'news.rst'))
+f = open(os.path.join(here, 'docs', 'news.txt'))
 long_description += "\n\n" + f.read()
 f.close()
 
@@ -61,14 +61,17 @@ except ImportError:
 
 setup(
     name='virtualenv',
+    # If you change the version here, change it in virtualenv.py and
+    # docs/conf.py as well
     version=get_version(),
     description="Virtual Python Environment builder",
     long_description=long_description,
     classifiers=[
-        'Development Status :: 5 - Production/Stable',
+        'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 2',
+        'Programming Language :: Python :: 2.4',
         'Programming Language :: Python :: 2.5',
         'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
@@ -85,5 +88,5 @@ setup(
     license='MIT',
     py_modules=['virtualenv'],
     packages=['virtualenv_support'],
-    package_data={'virtualenv_support': ['*.whl']},
+    package_data={'virtualenv_support': ['*-py%s.egg' % sys.version[:3], '*.tar.gz']},
     **setup_params)

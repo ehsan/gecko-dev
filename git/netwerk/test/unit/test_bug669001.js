@@ -1,11 +1,13 @@
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
+
 Cu.import("resource://testing-common/httpd.js");
 
 var httpServer = null;
 var path = "/bug699001";
-
-XPCOMUtils.defineLazyGetter(this, "URI", function() {
-  return "http://localhost:" + httpServer.identity.primaryPort + path;
-});
+var URI = "http://localhost:4444" + path;
 
 function make_channel(url) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
@@ -91,7 +93,7 @@ function run_test()
 {
   httpServer = new HttpServer();
   httpServer.registerPathHandler(path, handler);
-  httpServer.start(-1);
+  httpServer.start(4444);
 
   do_test_pending();
 

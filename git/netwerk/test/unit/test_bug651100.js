@@ -1,3 +1,7 @@
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cr = Components.results;
+
 function gen_1MiB()
 {
   var i;
@@ -23,24 +27,18 @@ function write_big_datafile(status, entry)
   var os = entry.openOutputStream(0);
   var data = gen_1MiB();
 
-  // write 65MiB
+  // >64MiB
   var i;
   for (i=0 ; i<65 ; i++)
     write_and_check(os, data, data.length);
 
-  // another write should fail and the entry will be doomed
-  try {
-    write_and_check(os, data, data.length);
-    do_throw("write should fail");
-  } catch (e) {}
-
   os.close();
   entry.close();
 
-  // DoomEntry() is called while writing to the entry, but the data is really
-  // deleted (and the cache size updated) on the background thread when
-  // the entry is deactivated. We need to sync with the cache IO thread before
-  // we continue with the test.
+  // DoomEntry() is called when the cache is full, but the data is really
+  // deleted (and the cache size updated) on the background thread when the
+  // entry is deactivated. We need to sync with the cache IO thread before we
+  // continue with the test.
   syncWithCacheIOThread(run_test_2);
 }
 
@@ -50,12 +48,10 @@ function write_big_metafile(status, entry)
   var os = entry.openOutputStream(0);
   var data = gen_1MiB();
 
-  // > 64MiB
+  // >64MiB
   var i;
   for (i=0 ; i<65 ; i++)
     entry.setMetaDataElement("metadata_"+i, data);
-
-  entry.metaDataReady();
 
   os.close();
   entry.close();
@@ -63,8 +59,10 @@ function write_big_metafile(status, entry)
   // We don't check whether the cache is full while writing metadata. Also we
   // write the metadata when closing the entry, so we need to write some data
   // after closing this entry to invoke the cache cleanup.
-  asyncOpenCacheEntry("http://smalldata/",
-                      "disk", Ci.nsICacheStorage.OPEN_TRUNCATE, null,
+  asyncOpenCacheEntry("smalldata",
+                      "HTTP",
+                      Ci.nsICache.STORE_ON_DISK_AS_FILE,
+                      Ci.nsICache.ACCESS_WRITE,
                       write_and_doom_small_datafile);
 }
 
@@ -77,37 +75,36 @@ function write_and_doom_small_datafile(status, entry)
   write_and_check(os, data, data.length);
 
   os.close();
-  entry.asyncDoom(null);
+  entry.doom();
   entry.close();
   syncWithCacheIOThread(run_test_3);
 }
 
-function check_cache_size(cont) {
-  get_device_entry_count("disk", null, function(count, consumption) {
-    // Because the last entry we store is doomed using AsyncDoom and not Doom, it is still active
-    // during the visit processing, hence consumption is larger then 0 (one block is allocated).
-    // ...I really like all these small old-cache bugs, that will finally go away... :)
-    do_check_true(consumption <= 1024)
-    cont();
-  });
+function check_cache_size() {
+  var diskDeviceVisited;
+  var visitor = {
+    visitDevice: function (deviceID, deviceInfo) {
+      if (deviceID == "disk") {
+        diskDeviceVisited = true;
+        do_check_eq(deviceInfo.totalSize, 0)
+      }
+      return false;
+    },
+    visitEntry: function (deviceID, entryInfo) {
+      do_throw("unexpected call to visitEntry");
+    }
+  };
+
+  var cs = get_cache_service();
+  diskDeviceVisited = false;
+  cs.visitEntries(visitor);
+  do_check_true(diskDeviceVisited);
 }
 
 function run_test() {
-  if (newCacheBackEndUsed()) {
-    // browser.cache.disk.* (limits mainly) tests
-    do_check_true(true, "This test doesn't run with the new cache backend, the test or the cache needs to be fixed");
-    return;
-  }
-
   var prefBranch = Cc["@mozilla.org/preferences-service;1"].
                      getService(Ci.nsIPrefBranch);
-
-  // set max entry size bigger than 64MiB
-  prefBranch.setIntPref("browser.cache.disk.max_entry_size", 65*1024);
-  // disk cache capacity must be at least 8 times bigger
-  prefBranch.setIntPref("browser.cache.disk.capacity", 8*65*1024);
-  // disable smart size
-  prefBranch.setBoolPref("browser.cache.disk.smart_size.enabled", false);
+  prefBranch.setIntPref("browser.cache.disk.capacity", 50000);
 
   do_get_profile();
 
@@ -115,8 +112,10 @@ function run_test() {
   evict_cache_entries();
 
   // write an entry with data > 64MiB
-  asyncOpenCacheEntry("http://bigdata/",
-                      "disk", Ci.nsICacheStorage.OPEN_TRUNCATE, null,
+  asyncOpenCacheEntry("bigdata",
+                      "HTTP",
+                      Ci.nsICache.STORE_ON_DISK_AS_FILE,
+                      Ci.nsICache.ACCESS_WRITE,
                       write_big_datafile);
 
   do_test_pending();
@@ -124,25 +123,19 @@ function run_test() {
 
 function run_test_2()
 {
-  check_cache_size(run_test_2a);
-}
-
-function run_test_2a()
-{
-  var prefBranch = Cc["@mozilla.org/preferences-service;1"].
-                     getService(Ci.nsIPrefBranch);
-
-  // set cache capacity lower than max entry size (see comment in
-  // write_big_metafile)
-  prefBranch.setIntPref("browser.cache.disk.capacity", 64*1024);
+  check_cache_size();
 
   // write an entry with metadata > 64MiB
-  asyncOpenCacheEntry("http://bigmetadata/",
-                      "disk", Ci.nsICacheStorage.OPEN_TRUNCATE, null,
+  asyncOpenCacheEntry("bigmetadata",
+                      "HTTP",
+                      Ci.nsICache.STORE_ON_DISK_AS_FILE,
+                      Ci.nsICache.ACCESS_WRITE,
                       write_big_metafile);
 }
 
 function run_test_3()
 {
-  check_cache_size(do_test_finished);
+  check_cache_size();
+
+  do_test_finished();
 }

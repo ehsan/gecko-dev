@@ -9,22 +9,13 @@
  */
 
 
-#ifndef VPX_VPX_INTEGER_H_
-#define VPX_VPX_INTEGER_H_
+#ifndef VPX_INTEGER_H
+#define VPX_INTEGER_H
 
 /* get ptrdiff_t, size_t, wchar_t, NULL */
 #include <stddef.h>
 
 #if !defined(VPX_DONT_DEFINE_STDINT_TYPES)
-
-#if defined(_MSC_VER)
-#define VPX_FORCE_INLINE __forceinline
-#define VPX_INLINE __inline
-#else
-#define VPX_FORCE_INLINE __inline__ __attribute__(always_inline)
-// TODO(jbb): Allow a way to force inline off for older compilers.
-#define VPX_INLINE inline
-#endif
 
 #if (defined(_MSC_VER) && (_MSC_VER < 1600)) || defined(VPX_EMULATE_INTTYPES)
 typedef signed char  int8_t;
@@ -38,9 +29,6 @@ typedef unsigned int   uint32_t;
 #if (defined(_MSC_VER) && (_MSC_VER < 1600))
 typedef signed __int64   int64_t;
 typedef unsigned __int64 uint64_t;
-#define INT64_MAX _I64_MAX
-#define INT16_MAX _I16_MAX
-#define INT16_MIN _I16_MIN
 #endif
 
 #ifndef _UINTPTR_T_DEFINED
@@ -58,13 +46,13 @@ typedef size_t uintptr_t;
 
 #endif
 
-#endif // VPX_DONT_DEFINE_STDINT_TYPES
+#endif
 
 /* VS2010 defines stdint.h, but not inttypes.h */
-#if defined(_MSC_VER) && _MSC_VER < 1800
+#if defined(_MSC_VER)
 #define PRId64 "I64d"
 #else
 #include <inttypes.h>
 #endif
 
-#endif  // VPX_VPX_INTEGER_H_
+#endif

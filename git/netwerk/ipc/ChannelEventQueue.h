@@ -12,8 +12,6 @@
 #include <nsAutoPtr.h>
 
 class nsISupports;
-class nsIEventTarget;
-class nsIThread;
 
 namespace mozilla {
 namespace net {
@@ -35,17 +33,16 @@ class ChannelEvent
 
 class AutoEventEnqueuerBase;
 
-class ChannelEventQueue MOZ_FINAL
+class ChannelEventQueue
 {
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(ChannelEventQueue)
-
  public:
-  explicit ChannelEventQueue(nsISupports *owner)
-    : mSuspendCount(0)
+  ChannelEventQueue(nsISupports *owner)
+    : mForced(false)
     , mSuspended(false)
-    , mForced(false)
     , mFlushing(false)
     , mOwner(owner) {}
+
+  ~ChannelEventQueue() {}
 
   // Checks to determine if an IPDL-generated channel event can be processed
   // immediately, or needs to be queued using Enqueue().
@@ -66,36 +63,26 @@ class ChannelEventQueue MOZ_FINAL
   // Suspend/resume event queue.  ShouldEnqueue() will return true and no events
   // will be run/flushed until resume is called.  These should be called when
   // the channel owning the event queue is suspended/resumed.
+  // - Note: these suspend/resume functions are NOT meant to be called
+  //   recursively: call them only at initial suspend, and actual resume).
+  // - Note: Resume flushes the queue and invokes any pending callbacks
+  //   immediately--caller must arrange any needed asynchronicity vis a vis
+  //   the channel's own Resume() method.
   inline void Suspend();
-  // Resume flushes the queue asynchronously, i.e. items in queue will be
-  // dispatched in a new event on the current thread.
-  void Resume();
-
-  // Retargets delivery of events to the target thread specified.
-  nsresult RetargetDeliveryTo(nsIEventTarget* aTargetThread);
+  inline void Resume();
 
  private:
-  // Private destructor, to discourage deletion outside of Release():
-  ~ChannelEventQueue()
-  {
-  }
-
   inline void MaybeFlushQueue();
   void FlushQueue();
-  inline void CompleteResume();
 
   nsTArray<nsAutoPtr<ChannelEvent> > mEventQueue;
 
-  uint32_t mSuspendCount;
-  bool     mSuspended;
   bool mForced;
+  bool mSuspended;
   bool mFlushing;
 
   // Keep ptr to avoid refcount cycle: only grab ref during flushing.
   nsISupports *mOwner;
-
-  // EventTarget for delivery of events to the correct thread.
-  nsCOMPtr<nsIEventTarget> mTargetThread;
 
   friend class AutoEventEnqueuer;
 };
@@ -133,21 +120,20 @@ ChannelEventQueue::EndForcedQueueing()
 inline void
 ChannelEventQueue::Suspend()
 {
+  NS_ABORT_IF_FALSE(!mSuspended,
+                    "ChannelEventQueue::Suspend called recursively");
+
   mSuspended = true;
-  mSuspendCount++;
 }
 
 inline void
-ChannelEventQueue::CompleteResume()
+ChannelEventQueue::Resume()
 {
-  // channel may have been suspended again since Resume fired event to call this.
-  if (!mSuspendCount) {
-    // we need to remain logically suspended (for purposes of queuing incoming
-    // messages) until this point, else new incoming messages could run before
-    // queued ones.
-    mSuspended = false;
-    MaybeFlushQueue();
-  }
+  NS_ABORT_IF_FALSE(mSuspended,
+                    "ChannelEventQueue::Resume called when not suspended!");
+
+  mSuspended = false;
+  MaybeFlushQueue();
 }
 
 inline void
@@ -162,17 +148,17 @@ ChannelEventQueue::MaybeFlushQueue()
 // Ensures that ShouldEnqueue() will be true during its lifetime (letting
 // caller know incoming IPDL msgs should be queued). Flushes the queue when it
 // goes out of scope.
-class MOZ_STACK_CLASS AutoEventEnqueuer
+class AutoEventEnqueuer
 {
  public:
-  explicit AutoEventEnqueuer(ChannelEventQueue *queue) : mEventQueue(queue) {
-    mEventQueue->StartForcedQueueing();
+  AutoEventEnqueuer(ChannelEventQueue &queue) : mEventQueue(queue) {
+    mEventQueue.StartForcedQueueing();
   }
   ~AutoEventEnqueuer() {
-    mEventQueue->EndForcedQueueing();
+    mEventQueue.EndForcedQueueing();
   }
  private:
-  nsRefPtr<ChannelEventQueue> mEventQueue;
+  ChannelEventQueue &mEventQueue;
 };
 
 }

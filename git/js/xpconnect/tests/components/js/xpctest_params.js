@@ -73,7 +73,6 @@ TestParams.prototype = {
   testSizedWstring: f_is,
   testInterfaceIs: f_is,
   testInterfaceIsArray: f_size_and_iid,
-  testOutAString: function(o) { o.value = "out"; }
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([TestParams]);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([TestParams]);

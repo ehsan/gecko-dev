@@ -2,35 +2,30 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = ["XPCOMUtils", "Services", "Utils", "Async", "Svc", "Str"];
+const EXPORTED_SYMBOLS = ["XPCOMUtils", "Services", "NetUtil", "PlacesUtils",
+                          "FileUtils", "Utils", "Async", "Svc", "Str"];
 
 const {classes: Cc, interfaces: Ci, results: Cr, utils: Cu} = Components;
 
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-common/observers.js");
+Cu.import("resource://services-common/preferences.js");
 Cu.import("resource://services-common/stringbundle.js");
 Cu.import("resource://services-common/utils.js");
-Cu.import("resource://services-common/async.js", this);
+Cu.import("resource://services-common/async.js");
 Cu.import("resource://services-crypto/utils.js");
 Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://gre/modules/Preferences.jsm");
-Cu.import("resource://gre/modules/Services.jsm", this);
-Cu.import("resource://gre/modules/XPCOMUtils.jsm", this);
-Cu.import("resource://gre/modules/osfile.jsm", this);
-Cu.import("resource://gre/modules/Task.jsm", this);
-
-// FxAccountsCommon.js doesn't use a "namespace", so create one here.
-XPCOMUtils.defineLazyGetter(this, "FxAccountsCommon", function() {
-  let FxAccountsCommon = {};
-  Cu.import("resource://gre/modules/FxAccountsCommon.js", FxAccountsCommon);
-  return FxAccountsCommon;
-});
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/PlacesUtils.jsm");
+Cu.import("resource://gre/modules/NetUtil.jsm");
+Cu.import("resource://gre/modules/FileUtils.jsm");
 
 /*
  * Utility functions
  */
 
-this.Utils = {
+let Utils = {
   // Alias in functions from CommonUtils. These previously were defined here.
   // In the ideal world, references to these would be removed.
   nextTick: CommonUtils.nextTick,
@@ -43,7 +38,6 @@ this.Utils = {
   safeAtoB: CommonUtils.safeAtoB,
   byteArrayToString: CommonUtils.byteArrayToString,
   bytesAsHex: CommonUtils.bytesAsHex,
-  hexToBytes: CommonUtils.hexToBytes,
   encodeBase32: CommonUtils.encodeBase32,
   decodeBase32: CommonUtils.decodeBase32,
 
@@ -66,7 +60,7 @@ this.Utils = {
    *
    * @usage MyObj._catch = Utils.catch;
    *        MyObj.foo = function() { this._catch(func)(); }
-   *
+   *        
    * Optionally pass a function which will be called if an
    * exception occurs.
    */
@@ -107,7 +101,7 @@ this.Utils = {
       }
     };
   },
-
+  
   isLockException: function isLockException(ex) {
     return ex && ex.indexOf && ex.indexOf("Could not acquire lock.") == 0;
   },
@@ -115,14 +109,14 @@ this.Utils = {
   /**
    * Wrap functions to notify when it starts and finishes executing or if it
    * threw an error.
-   *
+   * 
    * The message is a combination of a provided prefix, the local name, and
    * the event. Possible events are: "start", "finish", "error". The subject
    * is the function's return value on "finish" or the caught exception on
    * "error". The data argument is the predefined data value.
-   *
+   * 
    * Example:
-   *
+   * 
    * @usage function MyObj(name) {
    *          this.name = name;
    *          this._notify = Utils.notify("obj:");
@@ -155,6 +149,22 @@ this.Utils = {
         }
       };
     };
+  },
+
+  runInTransaction: function(db, callback, thisObj) {
+    let hasTransaction = false;
+    try {
+      db.beginTransaction();
+      hasTransaction = true;
+    } catch(e) { /* om nom nom exceptions */ }
+
+    try {
+      return callback.call(thisObj);
+    } finally {
+      if (hasTransaction) {
+        db.commitTransaction();
+      }
+    }
   },
 
   /**
@@ -314,82 +324,24 @@ this.Utils = {
     return Utils.encodeKeyBase32(atob(encodedKey));
   },
 
-  /**
-   * Load a JSON file from disk in the profile directory.
-   *
-   * @param filePath
-   *        JSON file path load from profile. Loaded file will be
-   *        <profile>/<filePath>.json. i.e. Do not specify the ".json"
-   *        extension.
-   * @param that
-   *        Object to use for logging and "this" for callback.
-   * @param callback
-   *        Function to process json object as its first argument. If the file
-   *        could not be loaded, the first argument will be undefined.
-   */
-  jsonLoad: Task.async(function*(filePath, that, callback) {
-    let path = OS.Path.join(OS.Constants.Path.profileDir, "weave", filePath + ".json");
+  jsonLoad: function jsonLoad(path, that, callback) {
+    CommonUtils.jsonLoad("weave/" + path, that, callback);
+  },
 
-    if (that._log) {
-      that._log.trace("Loading json from disk: " + filePath);
-    }
+  jsonSave: function jsonSave(path, that, obj, callback) {
+    CommonUtils.jsonSave("weave/" + path, that, obj, callback);
+  },
 
-    let json;
-
+  getIcon: function(iconUri, defaultIcon) {
     try {
-      json = yield CommonUtils.readJSON(path);
-    } catch (e if e instanceof OS.File.Error && e.becauseNoSuchFile) {
-      // Ignore non-existent files.
-    } catch (e) {
-      if (that._log) {
-        that._log.debug("Failed to load json: " +
-                        CommonUtils.exceptionStr(e));
-      }
+      let iconURI = Utils.makeURI(iconUri);
+      return PlacesUtils.favicons.getFaviconLinkForIcon(iconURI).spec;
     }
+    catch(ex) {}
 
-    callback.call(that, json);
-  }),
-
-  /**
-   * Save a json-able object to disk in the profile directory.
-   *
-   * @param filePath
-   *        JSON file path save to <filePath>.json
-   * @param that
-   *        Object to use for logging and "this" for callback
-   * @param obj
-   *        Function to provide json-able object to save. If this isn't a
-   *        function, it'll be used as the object to make a json string.
-   * @param callback
-   *        Function called when the write has been performed. Optional.
-   *        The first argument will be a Components.results error
-   *        constant on error or null if no error was encountered (and
-   *        the file saved successfully).
-   */
-  jsonSave: Task.async(function*(filePath, that, obj, callback) {
-    let path = OS.Path.join(OS.Constants.Path.profileDir, "weave",
-                            ...(filePath + ".json").split("/"));
-    let dir = OS.Path.dirname(path);
-    let error = null;
-
-    try {
-      yield OS.File.makeDir(dir, { from: OS.Constants.Path.profileDir });
-
-      if (that._log) {
-        that._log.trace("Saving json to disk: " + path);
-      }
-
-      let json = typeof obj == "function" ? obj.call(that) : obj;
-
-      yield CommonUtils.writeJSON(json, path);
-    } catch (e) {
-      error = e
-    }
-
-    if (typeof callback == "function") {
-      callback.call(that, error);
-    }
-  }),
+    // Just give the provided default icon or the system's default
+    return defaultIcon || PlacesUtils.favicons.defaultFavicon.spec;
+  },
 
   getErrorString: function Utils_getErrorString(error, args) {
     try {
@@ -495,7 +447,7 @@ this.Utils = {
     // Something else -- just return.
     return pp;
   },
-
+  
   normalizeAccount: function normalizeAccount(acc) {
     return acc.trim();
   },
@@ -525,22 +477,6 @@ this.Utils = {
     return function innerBind() { return method.apply(object, arguments); };
   },
 
-  /**
-   * Is there a master password configured, regardless of current lock state?
-   */
-  mpEnabled: function mpEnabled() {
-    let modules = Cc["@mozilla.org/security/pkcs11moduledb;1"]
-                    .getService(Ci.nsIPKCS11ModuleDB);
-    let sdrSlot = modules.findSlotByName("");
-    let status  = sdrSlot.status;
-    let slots = Ci.nsIPKCS11Slot;
-
-    return status != slots.SLOT_UNINITIALIZED && status != slots.SLOT_READY;
-  },
-
-  /**
-   * Is there a master password configured and currently locked?
-   */
   mpLocked: function mpLocked() {
     let modules = Cc["@mozilla.org/security/pkcs11moduledb;1"]
                     .getService(Ci.nsIPKCS11ModuleDB);
@@ -554,7 +490,7 @@ this.Utils = {
 
     if (status == slots.SLOT_NOT_LOGGED_IN)
       return true;
-
+    
     // something wacky happened, pretend MP is locked
     return true;
   },
@@ -573,7 +509,7 @@ this.Utils = {
     } catch(e) {}
     return false;
   },
-
+  
   /**
    * Return a value for a backoff interval.  Maximum is eight hours, unless
    * Status.backoffInterval is higher.
@@ -587,42 +523,6 @@ this.Utils = {
     return Math.max(Math.min(backoffInterval, MAXIMUM_BACKOFF_INTERVAL),
                     statusInterval);
   },
-
-  /**
-   * Return a set of hostnames (including the protocol) which may have
-   * credentials for sync itself stored in the login manager.
-   *
-   * In general, these hosts will not have their passwords synced, will be
-   * reset when we drop sync credentials, etc.
-   */
-  getSyncCredentialsHosts: function() {
-    // This is somewhat expensive and the result static, so we cache the result.
-    if (this._syncCredentialsHosts) {
-      return this._syncCredentialsHosts;
-    }
-    let result = new Set();
-    // the legacy sync host
-    result.add(PWDMGR_HOST);
-    // the FxA host
-    result.add(FxAccountsCommon.FXA_PWDMGR_HOST);
-    //
-    // The FxA hosts - these almost certainly all have the same hostname, but
-    // better safe than sorry...
-    for (let prefName of ["identity.fxaccounts.remote.force_auth.uri",
-                          "identity.fxaccounts.remote.signup.uri",
-                          "identity.fxaccounts.remote.signin.uri",
-                          "identity.fxaccounts.settings.uri"]) {
-      let prefVal;
-      try {
-        prefVal = Services.prefs.getCharPref(prefName);
-      } catch (_) {
-        continue;
-      }
-      let uri = Services.io.newURI(prefVal, null, null);
-      result.add(uri.prePath);
-    }
-    return this._syncCredentialsHosts = result;
-  },
 };
 
 XPCOMUtils.defineLazyGetter(Utils, "_utf8Converter", function() {
@@ -635,7 +535,7 @@ XPCOMUtils.defineLazyGetter(Utils, "_utf8Converter", function() {
 /*
  * Commonly-used services
  */
-this.Svc = {};
+let Svc = {};
 Svc.Prefs = new Preferences(PREFS_BRANCH);
 Svc.DefaultPrefs = new Preferences({branch: PREFS_BRANCH, defaultBranch: true});
 Svc.Obs = Observers;
@@ -644,14 +544,22 @@ let _sessionCID = Services.appinfo.ID == SEAMONKEY_ID ?
   "@mozilla.org/suite/sessionstore;1" :
   "@mozilla.org/browser/sessionstore;1";
 
-[
+[["Form", "@mozilla.org/satchel/form-history;1", "nsIFormHistory2"],
  ["Idle", "@mozilla.org/widget/idleservice;1", "nsIIdleService"],
  ["Session", _sessionCID, "nsISessionStore"]
 ].forEach(function([name, contract, iface]) {
   XPCOMUtils.defineLazyServiceGetter(Svc, name, contract, iface);
 });
 
-XPCOMUtils.defineLazyModuleGetter(Svc, "FormHistory", "resource://gre/modules/FormHistory.jsm");
+// nsIPrivateBrowsingService is not implemented in mobile Firefox.
+// Svc.Private should just return undefined in this case instead of throwing.
+XPCOMUtils.defineLazyGetter(Svc, "Private", function() {
+  try {
+    return Cc["@mozilla.org/privatebrowsing;1"].getService(Ci["nsIPrivateBrowsingService"]);
+  } catch (e) {
+    return undefined;
+  }
+});
 
 Svc.__defineGetter__("Crypto", function() {
   let cryptoSvc;
@@ -662,7 +570,7 @@ Svc.__defineGetter__("Crypto", function() {
   return Svc.Crypto = cryptoSvc;
 });
 
-this.Str = {};
+let Str = {};
 ["errors", "sync"].forEach(function(lazy) {
   XPCOMUtils.defineLazyGetter(Str, lazy, Utils.lazyStrings(lazy));
 });

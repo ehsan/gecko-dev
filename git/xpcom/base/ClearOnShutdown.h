@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* vim: set sw=2 ts=8 et ft=cpp : */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -8,8 +8,7 @@
 #define mozilla_ClearOnShutdown_h
 
 #include "mozilla/LinkedList.h"
-#include "mozilla/StaticPtr.h"
-#include "MainThreadUtils.h"
+#include "nsThreadUtils.h"
 
 /*
  * This header exports one public method in the mozilla namespace:
@@ -42,68 +41,59 @@ class ShutdownObserver : public LinkedListElement<ShutdownObserver>
 {
 public:
   virtual void Shutdown() = 0;
-  virtual ~ShutdownObserver()
-  {
-  }
+  virtual ~ShutdownObserver() {}
 };
 
 template<class SmartPtr>
 class PointerClearer : public ShutdownObserver
 {
 public:
-  explicit PointerClearer(SmartPtr* aPtr)
+  PointerClearer(SmartPtr *aPtr)
     : mPtr(aPtr)
-  {
-  }
+  {}
 
   virtual void Shutdown()
   {
     if (mPtr) {
-      *mPtr = nullptr;
+      *mPtr = NULL;
     }
   }
 
 private:
-  SmartPtr* mPtr;
+  SmartPtr *mPtr;
 };
 
 extern bool sHasShutDown;
-extern StaticAutoPtr<LinkedList<ShutdownObserver>> sShutdownObservers;
+extern LinkedList<ShutdownObserver> sShutdownObservers;
 
 } // namespace ClearOnShutdown_Internal
 
 template<class SmartPtr>
-inline void
-ClearOnShutdown(SmartPtr* aPtr)
+inline void ClearOnShutdown(SmartPtr *aPtr)
 {
   using namespace ClearOnShutdown_Internal;
 
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(!sHasShutDown);
 
-  if (!sShutdownObservers) {
-    sShutdownObservers = new LinkedList<ShutdownObserver>();
-  }
-  sShutdownObservers->insertBack(new PointerClearer<SmartPtr>(aPtr));
+  MOZ_ASSERT(!sHasShutDown);
+  ShutdownObserver *observer = new PointerClearer<SmartPtr>(aPtr);
+  sShutdownObservers.insertBack(observer);
 }
 
 // Called when XPCOM is shutting down, after all shutdown notifications have
 // been sent and after all threads' event loops have been purged.
-inline void
-KillClearOnShutdown()
+inline void KillClearOnShutdown()
 {
   using namespace ClearOnShutdown_Internal;
 
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (sShutdownObservers) {
-    while (ShutdownObserver* observer = sShutdownObservers->popFirst()) {
-      observer->Shutdown();
-      delete observer;
-    }
+  ShutdownObserver *observer;
+  while ((observer = sShutdownObservers.popFirst())) {
+    observer->Shutdown();
+    delete observer;
   }
 
-  sShutdownObservers = nullptr;
   sHasShutDown = true;
 }
 

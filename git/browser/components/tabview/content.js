@@ -5,13 +5,12 @@
 "use strict";
 
 let Cu = Components.utils;
-let Ci = Components.interfaces;
 
 Cu.import("resource:///modules/tabview/utils.jsm");
 
 // Bug 671101 - directly using webProgress in this context
 // causes docShells to leak
-this.__defineGetter__("webProgress", function () {
+__defineGetter__("webProgress", function () {
   let ifaceReq = docShell.QueryInterface(Ci.nsIInterfaceRequestor);
   return ifaceReq.getInterface(Ci.nsIWebProgress);
 });
@@ -42,9 +41,7 @@ let WindowEventHandler = {
   // Sends an asynchronous message when the "onMozAfterPaint" event
   // is fired.
   onMozAfterPaint: function WEH_onMozAfterPaint(event) {
-    if (event.clientRects.length > 0) {
-      sendAsyncMessage("Panorama:MozAfterPaint");
-    }
+    sendAsyncMessage("Panorama:MozAfterPaint");
   }
 };
 
@@ -74,17 +71,10 @@ let WindowMessageHandler = {
     let isImageDocument = (content.document instanceof Ci.nsIImageDocument);
 
     sendAsyncMessage(cx.name, {isImageDocument: isImageDocument});
-  },
-
-  waitForDocumentLoad: function WMH_waitForDocumentLoad() {
-    addEventListener("load", function listener() {
-      removeEventListener("load", listener, true);
-      sendAsyncMessage("Panorama:documentLoaded");
-    }, true);
-  },
+  }
 };
 
 // add message listeners
 addMessageListener("Panorama:isDocumentLoaded", WindowMessageHandler.isDocumentLoaded);
 addMessageListener("Panorama:isImageDocument", WindowMessageHandler.isImageDocument);
-addMessageListener("Panorama:waitForDocumentLoad", WindowMessageHandler.waitForDocumentLoad);
+

@@ -7,13 +7,32 @@
 namespace mozilla {
 namespace net {
 
-NS_IMPL_ISUPPORTS(RedirectChannelRegistrar, nsIRedirectChannelRegistrar)
+template<class KeyClass, class T>
+bool
+RedirectChannelRegistrar::nsCOMPtrHashtable<KeyClass,T>::Get(KeyType aKey, T** retVal) const
+{
+  typename base_type::EntryType* ent = this->GetEntry(aKey);
+
+  if (ent) {
+    if (retVal)
+      NS_IF_ADDREF(*retVal = ent->mData);
+
+    return true;
+  }
+
+  if (retVal)
+    *retVal = nullptr;
+
+  return false;
+}
+
+NS_IMPL_ISUPPORTS1(RedirectChannelRegistrar, nsIRedirectChannelRegistrar)
 
 RedirectChannelRegistrar::RedirectChannelRegistrar()
-  : mRealChannels(32)
-  , mParentChannels(32)
-  , mId(1)
+  : mId(1)
 {
+  mRealChannels.Init(64);
+  mParentChannels.Init(64);
 }
 
 NS_IMETHODIMP

@@ -6,12 +6,9 @@
 #ifndef __nsUCConstructors_h
 #define __nsUCConstructors_h
 
-#include <stdint.h>
-#include "nscore.h"
-#include "nsID.h"
+#include "nsIUnicodeEncoder.h"
+#include "nsIUnicodeDecoder.h"
 #include "uconvutil.h"
-
-class nsISupports;
 
 // all the useful constructors
 NS_METHOD
@@ -56,6 +53,15 @@ CreateMultiTableEncoder(int32_t aTableCount,
 NS_METHOD
 CreateTableEncoder(uScanClassID aScanClass,
                    uMappingTable  * aMappingTable,
+                   uint32_t aMaxLengthFactor,
+                   nsISupports* aOuter,
+                   REFNSIID aIID,
+                   void** aResult);
+
+NS_METHOD
+CreateTableDecoder(uScanClassID aScanClass,
+                   uShiftInTable * aShiftInTable,
+                   uMappingTable * aMappingTable,
                    uint32_t aMaxLengthFactor,
                    nsISupports* aOuter,
                    REFNSIID aIID,

@@ -7,51 +7,64 @@
 #ifndef mozilla_dom_indexeddb_idbwrappercache_h__
 #define mozilla_dom_indexeddb_idbwrappercache_h__
 
-#include "js/RootingAPI.h"
-#include "mozilla/DOMEventTargetHelper.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsWrapperCache.h"
+#include "mozilla/dom/indexedDB/IndexedDatabase.h"
 
-class nsPIDOMWindow;
+#include "nsDOMEventTargetHelper.h"
 
-namespace mozilla {
-namespace dom {
-namespace indexedDB {
+BEGIN_INDEXEDDB_NAMESPACE
 
-class IDBWrapperCache : public DOMEventTargetHelper
+class IDBWrapperCache : public nsDOMEventTargetHelper
 {
-  JS::Heap<JSObject*> mScriptOwner;
-
 public:
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(IDBWrapperCache,
-                                                         DOMEventTargetHelper)
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(
+                                                   IDBWrapperCache,
+                                                   nsDOMEventTargetHelper)
 
-  JSObject*
-  GetScriptOwner() const
+  JSObject* GetScriptOwner() const
   {
     return mScriptOwner;
   }
+  bool SetScriptOwner(JSObject* aScriptOwner);
 
-  void
-  SetScriptOwner(JSObject* aScriptOwner);
+  JSObject* GetParentObject()
+  {
+    if (mScriptOwner) {
+      return mScriptOwner;
+    }
 
-  void AssertIsRooted() const
+    // Do what nsEventTargetSH::PreCreate does.
+    nsCOMPtr<nsIScriptGlobalObject> parent;
+    nsDOMEventTargetHelper::GetParentObject(getter_AddRefs(parent));
+
+    return parent ? parent->GetGlobalJSObject() : nullptr;
+  }
+
+  static IDBWrapperCache* FromSupports(nsISupports* aSupports)
+  {
+    return static_cast<IDBWrapperCache*>(
+      nsDOMEventTargetHelper::FromSupports(aSupports));
+  }
+
 #ifdef DEBUG
-  ;
+  void AssertIsRooted() const;
 #else
-  { }
+  inline void AssertIsRooted() const
+  {
+  }
 #endif
 
 protected:
-  explicit IDBWrapperCache(DOMEventTargetHelper* aOwner);
-  explicit IDBWrapperCache(nsPIDOMWindow* aOwner);
+  IDBWrapperCache()
+  : mScriptOwner(nullptr)
+  { }
 
   virtual ~IDBWrapperCache();
+
+private:
+  JSObject* mScriptOwner;
 };
 
-} // namespace indexedDB
-} // namespace dom
-} // namespace mozilla
+END_INDEXEDDB_NAMESPACE
 
 #endif // mozilla_dom_indexeddb_idbwrappercache_h__

@@ -41,7 +41,7 @@
  * buttons appear on the taskbar, so a magic pref-controlled number determines
  * when this threshold has been crossed.
  */
-this.EXPORTED_SYMBOLS = ["AeroPeek"];
+var EXPORTED_SYMBOLS = ["AeroPeek"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -49,7 +49,6 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
-Cu.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
 // Pref to enable/disable preview-per-tab
 const TOGGLE_PREF_NAME = "browser.taskbar.previews.enable";
@@ -73,14 +72,8 @@ XPCOMUtils.defineLazyServiceGetter(this, "faviconSvc",
                                    "nsIFaviconService");
 
 // nsIURI -> imgIContainer
-function _imageFromURI(uri, privateMode, callback) {
+function _imageFromURI(uri, callback) {
   let channel = ioSvc.newChannelFromURI(uri);
-  try {
-    channel.QueryInterface(Ci.nsIPrivateBrowsingChannel);
-    channel.setPrivate(privateMode);
-  } catch (e) {
-    // Ignore channels which do not support nsIPrivateBrowsingChannel
-  }
   NetUtil.asyncFetch(channel, function(inputStream, resultCode) {
     if (!Components.isSuccessCode(resultCode))
       return;
@@ -99,11 +92,11 @@ function _imageFromURI(uri, privateMode, callback) {
 }
 
 // string? -> imgIContainer
-function getFaviconAsImage(iconurl, privateMode, callback) {
+function getFaviconAsImage(iconurl, callback) {
   if (iconurl)
-    _imageFromURI(NetUtil.newURI(iconurl), privateMode, callback);
+    _imageFromURI(NetUtil.newURI(iconurl), callback);
   else
-    _imageFromURI(faviconSvc.defaultFavicon, privateMode, callback);
+    _imageFromURI(faviconSvc.defaultFavicon, callback);
 }
 
 // Snaps the given rectangle to be pixel-aligned at the given scale
@@ -139,10 +132,12 @@ function PreviewController(win, tab) {
   this.win = win;
   this.tab = tab;
   this.linkedBrowser = tab.linkedBrowser;
-  this.preview = this.win.createTabPreview(this);
 
   this.linkedBrowser.addEventListener("MozAfterPaint", this, false);
   this.tab.addEventListener("TabAttrModified", this, false);
+
+  // Cannot perform the lookup during construction. See TabWindow.newTab 
+  XPCOMUtils.defineLazyGetter(this, "preview", function () this.win.previewFromTab(this.tab));
 
   XPCOMUtils.defineLazyGetter(this, "canvasPreview", function () {
     let canvas = this.win.win.document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
@@ -207,11 +202,9 @@ PreviewController.prototype = {
   },
 
   get zoom() {
-    // Note that winutils.fullZoom accounts for "quantization" of the zoom factor
-    // from nsIContentViewer due to conversion through appUnits.
-    // We do -not- want screenPixelsPerCSSPixel here, because that would -also-
-    // incorporate any scaling that is applied due to hi-dpi resolution options.
-    return this.winutils.fullZoom;
+    // We use this property instead of the fullZoom property because this
+    // accurately reflects the actual zoom factor used when drawing.
+    return this.winutils.screenPixelsPerCSSPixel;
   },
 
   // Updates the controller's canvas with the parts of the <browser> that need
@@ -301,33 +294,18 @@ PreviewController.prototype = {
   },
 
   previewTabCallback: function (ctx) {
-    // This will extract the resolution-scale component of the scaling we need,
-    // which should be applied to both chrome and content;
-    // the page zoom component is applied (to content only) within updateCanvasPreview.
-    let scale = this.winutils.screenPixelsPerCSSPixel / this.winutils.fullZoom;
-    ctx.save();
-    ctx.scale(scale, scale);
     let width = this.win.width;
     let height = this.win.height;
     // Draw our toplevel window
     ctx.drawWindow(this.win.win, 0, 0, width, height, "transparent");
 
-    // XXX (jfkthame): Pending tabs don't seem to draw with the proper scaling
-    // unless we use this block of code; but doing this for "normal" (loaded) tabs
-    // results in blurry rendering on hidpi systems, so we avoid it if possible.
-    // I don't understand why pending and loaded tabs behave differently here...
-    // (see bug 857061).
-    if (this.tab.hasAttribute("pending")) {
-      // Compositor, where art thou?
-      // Draw the tab content on top of the toplevel window
-      this.updateCanvasPreview();
+    // Compositor, where art thou?
+    // Draw the tab content on top of the toplevel window
+    this.updateCanvasPreview();
 
-      let boxObject = this.linkedBrowser.boxObject;
-      ctx.translate(boxObject.x, boxObject.y);
-      ctx.drawImage(this.canvasPreview, 0, 0);
-    }
-
-    ctx.restore();
+    let boxObject = this.linkedBrowser.boxObject;
+    ctx.translate(boxObject.x, boxObject.y);
+    ctx.drawImage(this.canvasPreview, 0, 0);
   },
 
   drawThumbnail: function (ctx, width, height) {
@@ -397,7 +375,7 @@ function TabWindow(win) {
   this.win = win;
   this.tabbrowser = win.gBrowser;
 
-  this.previews = new Map();
+  this.previews = [];
 
   for (let i = 0; i < this.tabEvents.length; i++)
     this.tabbrowser.tabContainer.addEventListener(this.tabEvents[i], this, false);
@@ -450,31 +428,27 @@ TabWindow.prototype = {
   // Invoked when the given tab is added to this window
   newTab: function (tab) {
     let controller = new PreviewController(this, tab);
-    // It's OK to add the preview now while the favicon still loads.
-    this.previews.set(tab, controller.preview);
-    AeroPeek.addPreview(controller.preview);
-    // updateTitleAndTooltip relies on having controller.preview which is lazily resolved.
-    // Now that we've updated this.previews, it will resolve successfully.
-    controller.updateTitleAndTooltip();
-  },
-
-  createTabPreview: function (controller) {
     let docShell = this.win
                   .QueryInterface(Ci.nsIInterfaceRequestor)
                   .getInterface(Ci.nsIWebNavigation)
                   .QueryInterface(Ci.nsIDocShell);
     let preview = AeroPeek.taskbar.createTaskbarTabPreview(docShell, controller);
     preview.visible = AeroPeek.enabled;
-    preview.active = this.tabbrowser.selectedTab == controller.tab;
+    preview.active = this.tabbrowser.selectedTab == tab;
     // Grab the default favicon
-    getFaviconAsImage(null, PrivateBrowsingUtils.isWindowPrivate(this.win), function (img) {
+    getFaviconAsImage(null, function (img) {
       // It is possible that we've already gotten the real favicon, so make sure
       // we have not set one before setting this default one.
       if (!preview.icon)
         preview.icon = img;
     });
 
-    return preview;
+    // It's OK to add the preview now while the favicon still loads.
+    this.previews.splice(tab._tPos, 0, preview);
+    AeroPeek.addPreview(preview);
+    // updateTitleAndTooltip relies on having controller.preview which is lazily resolved.
+    // Now that we've updated this.previews, it will resolve successfully.
+    controller.updateTitleAndTooltip();
   },
 
   // Invoked when the given tab is closed
@@ -485,7 +459,10 @@ TabWindow.prototype = {
     preview.move(null);
     preview.controller.wrappedJSObject.destroy();
 
-    this.previews.delete(tab);
+    // We don't want to splice from the array if the tabs aren't being removed
+    // from the tab bar as well (as is the case when the window closes).
+    if (!this._destroying)
+      this.previews.splice(tab._tPos, 1);
     AeroPeek.removePreview(preview);
   },
 
@@ -498,31 +475,26 @@ TabWindow.prototype = {
     // Because making a tab visible requires that the tab it is next to be
     // visible, it is far simpler to unset the 'next' tab and recreate them all
     // at once.
-    for (let [tab, preview] of this.previews) {
+    this.previews.forEach(function (preview) {
       preview.move(null);
       preview.visible = enable;
-    }
+    });
     this.updateTabOrdering();
   },
 
   previewFromTab: function (tab) {
-    return this.previews.get(tab);
+    return this.previews[tab._tPos];
   },
 
   updateTabOrdering: function () {
-    let previews = this.previews;
-    let tabs = this.tabbrowser.tabs;
-
-    // Previews are internally stored using a map, so we need to iterate the
-    // tabbrowser's array of tabs to retrieve previews in the same order.
-    let inorder = [previews.get(t) for (t of tabs) if (previews.has(t))];
-
     // Since the internal taskbar array has not yet been updated we must force
     // on it the sorting order of our local array.  To do so we must walk
     // the local array backwards, otherwise we would send move requests in the
     // wrong order.  See bug 522610 for details.
-    for (let i = inorder.length - 1; i >= 0; i--) {
-      inorder[i].move(inorder[i + 1] || null);
+    for (let i = this.previews.length - 1; i >= 0; i--) {
+      let p = this.previews[i];
+      let next = i == this.previews.length - 1 ? null : this.previews[i+1];
+      p.move(next);
     }
   },
 
@@ -542,6 +514,11 @@ TabWindow.prototype = {
         this.previewFromTab(tab).active = true;
         break;
       case "TabMove":
+        let oldPos = evt.detail;
+        let newPos = tab._tPos;
+        let preview = this.previews[oldPos];
+        this.previews.splice(oldPos, 1);
+        this.previews.splice(newPos, 0, preview);
         this.updateTabOrdering();
         break;
       case "tabviewshown":
@@ -558,13 +535,11 @@ TabWindow.prototype = {
   //// Browser progress listener
   onLinkIconAvailable: function (aBrowser, aIconURL) {
     let self = this;
-    getFaviconAsImage(aIconURL, PrivateBrowsingUtils.isWindowPrivate(this.win), function (img) {
+    getFaviconAsImage(aIconURL, function (img) {
       let index = self.tabbrowser.browsers.indexOf(aBrowser);
       // Only add it if we've found the index.  The tab could have closed!
-      if (index != -1) {
-        let tab = self.tabbrowser.tabs[index];
-        self.previews.get(tab).icon = img;
-      }
+      if (index != -1)
+        self.previews[index].icon = img;
     });
   }
 }
@@ -576,7 +551,7 @@ TabWindow.prototype = {
  * This object acts as global storage and external interface for this feature.
  * It maintains the values of the prefs.
  */
-this.AeroPeek = {
+var AeroPeek = {
   available: false,
   // Does the pref say we're enabled?
   _prefenabled: true,

@@ -9,13 +9,21 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "AddonManager",
-                                  "resource://gre/modules/AddonManager.jsm");
+XPCOMUtils.defineLazyGetter(this, "AddonManager", function() {
+  Components.utils.import("resource://gre/modules/AddonManager.jsm");
+  return AddonManager;
+});
 
-XPCOMUtils.defineLazyModuleGetter(this, "AddonRepository",
-                                  "resource://gre/modules/addons/AddonRepository.jsm");
+XPCOMUtils.defineLazyGetter(this, "AddonRepository", function() {
+  Components.utils.import("resource://gre/modules/AddonRepository.jsm");
+  return AddonRepository;
+});
 
-XPCOMUtils.defineLazyModuleGetter(this, "OS", "resource://gre/modules/osfile.jsm");
+XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
+  Components.utils.import("resource://gre/modules/NetUtil.jsm");
+  return NetUtil;
+});
+
 
 function getPref(func, preference, defaultValue) {
   try {
@@ -68,6 +76,8 @@ AddonUpdateService.prototype = {
         }
       });
     });
+
+    RecommendedSearchResults.search();
   }
 };
 
@@ -111,5 +121,81 @@ UpdateCheckListener.prototype = {
   }
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([AddonUpdateService]);
+// -----------------------------------------------------------------------
+// RecommendedSearchResults fetches add-on data and saves it to a cache
+// -----------------------------------------------------------------------
+
+var RecommendedSearchResults = {
+  _getFile: function() {
+    let dirService = Cc["@mozilla.org/file/directory_service;1"].getService(Ci.nsIProperties);
+    let file = dirService.get("ProfD", Ci.nsILocalFile);
+    file.append("recommended-addons.json");
+    return file;
+  },
+
+  _writeFile: function (aFile, aData) {
+    if (!aData)
+      return;
+
+    // Initialize the file output stream.
+    let ostream = Cc["@mozilla.org/network/safe-file-output-stream;1"].createInstance(Ci.nsIFileOutputStream);
+    ostream.init(aFile, 0x02 | 0x08 | 0x20, 0600, ostream.DEFER_OPEN);
+
+    // Obtain a converter to convert our data to a UTF-8 encoded input stream.
+    let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].createInstance(Ci.nsIScriptableUnicodeConverter);
+    converter.charset = "UTF-8";
+
+    // Asynchronously copy the data to the file.
+    let istream = converter.convertToInputStream(aData);
+    NetUtil.asyncCopy(istream, ostream, function(rc) {
+      if (Components.isSuccessCode(rc))
+        Services.obs.notifyObservers(null, "recommended-addons-cache-updated", "");
+    });
+  },
+  
+  searchSucceeded: function(aAddons, aAddonCount, aTotalResults) {
+    let self = this;
+
+    // Filter addons already installed
+    AddonManager.getAllAddons(function(aAllAddons) {
+      let addons = aAddons.filter(function(addon) {
+        for (let i = 0; i < aAllAddons.length; i++)
+          if (addon.id == aAllAddons[i].id)
+            return false;
+
+        return true;
+      });
+
+      let json = {
+        addons: []
+      };
+
+      // Avoid any NSS costs. Convert https to http.
+      addons.forEach(function(aAddon){
+        json.addons.push({
+          id: aAddon.id,
+          name: aAddon.name,
+          version: aAddon.version,
+          homepageURL: aAddon.homepageURL.replace(/^https/, "http"),
+          iconURL: aAddon.iconURL.replace(/^https/, "http")
+        })
+      });
+
+      let file = self._getFile();
+      self._writeFile(file, JSON.stringify(json));
+    });
+  },
+  
+  searchFailed: function searchFailed() { },
+  
+  search: function() {
+    const kAddonsMaxDisplay = 2;
+
+    if (AddonRepository.isSearching)
+      AddonRepository.cancelSearch();
+    AddonRepository.retrieveRecommendedAddons(kAddonsMaxDisplay, RecommendedSearchResults);
+  }
+}
+
+const NSGetFactory = XPCOMUtils.generateNSGetFactory([AddonUpdateService]);
 

@@ -31,17 +31,16 @@
 typedef int16_t DownloadState;
 typedef int16_t DownloadType;
 
-class nsIArray;
 class nsDownload;
 
 #ifdef DOWNLOAD_SCANNER
 #include "nsDownloadScanner.h"
 #endif
 
-class nsDownloadManager MOZ_FINAL : public nsIDownloadManager,
-                                    public nsINavHistoryObserver,
-                                    public nsIObserver,
-                                    public nsSupportsWeakReference
+class nsDownloadManager : public nsIDownloadManager,
+                          public nsINavHistoryObserver,
+                          public nsIObserver,
+                          public nsSupportsWeakReference
 {
 public:
   NS_DECL_ISUPPORTS
@@ -53,26 +52,31 @@ public:
 
   static nsDownloadManager *GetSingleton();
 
-  nsDownloadManager()
+  virtual ~nsDownloadManager();
+  nsDownloadManager() :
+      mDBType(DATABASE_DISK)
+    , mInPrivateBrowsing(false)
 #ifdef DOWNLOAD_SCANNER
-    : mScanner(nullptr)
+    , mScanner(nullptr)
 #endif
   {
   }
 
 protected:
-  virtual ~nsDownloadManager();
+  enum DatabaseType
+  {
+    DATABASE_DISK = 0, // default
+    DATABASE_MEMORY
+  };
 
   nsresult InitDB();
   nsresult InitFileDB();
-  void CloseAllDBs();
-  void CloseDB(mozIStorageConnection* aDBConn,
-               mozIStorageStatement* aUpdateStmt,
-               mozIStorageStatement* aGetIdsStmt);
-  nsresult InitPrivateDB();
+  void CloseDB();
+  nsresult InitMemoryDB();
   already_AddRefed<mozIStorageConnection> GetFileDBConnection(nsIFile *dbFile) const;
-  already_AddRefed<mozIStorageConnection> GetPrivateDBConnection() const;
-  nsresult CreateTable(mozIStorageConnection* aDBConn);
+  already_AddRefed<mozIStorageConnection> GetMemoryDBConnection() const;
+  nsresult SwitchDatabaseTypeTo(enum DatabaseType aType);
+  nsresult CreateTable();
 
   /**
    * Fix up the database after a crash such as dealing with previously-active
@@ -87,11 +91,7 @@ protected:
    */
   nsresult RestoreActiveDownloads();
 
-  nsresult GetDownloadFromDB(const nsACString& aGUID, nsDownload **retVal);
   nsresult GetDownloadFromDB(uint32_t aID, nsDownload **retVal);
-  nsresult GetDownloadFromDB(mozIStorageConnection* aDBConn,
-                             mozIStorageStatement* stmt,
-                             nsDownload **retVal);
 
   /**
    * Specially track the active downloads so that we don't need to check
@@ -114,26 +114,23 @@ protected:
                           int64_t aEndTime,
                           const nsACString &aMimeType,
                           const nsACString &aPreferredApp,
-                          nsHandlerInfoAction aPreferredAction,
-                          bool aPrivate,
-                          nsACString &aNewGUID);
+                          nsHandlerInfoAction aPreferredAction);
 
   void NotifyListenersOnDownloadStateChange(int16_t aOldState,
-                                            nsDownload *aDownload);
+                                            nsIDownload *aDownload);
   void NotifyListenersOnProgressChange(nsIWebProgress *aProgress,
                                        nsIRequest *aRequest,
                                        int64_t aCurSelfProgress,
                                        int64_t aMaxSelfProgress,
                                        int64_t aCurTotalProgress,
                                        int64_t aMaxTotalProgress,
-                                       nsDownload *aDownload);
+                                       nsIDownload *aDownload);
   void NotifyListenersOnStateChange(nsIWebProgress *aProgress,
                                     nsIRequest *aRequest,
                                     uint32_t aStateFlags,
                                     nsresult aStatus,
-                                    nsDownload *aDownload);
+                                    nsIDownload *aDownload);
 
-  nsDownload *FindDownload(const nsACString& aGUID);
   nsDownload *FindDownload(uint32_t aID);
 
   /**
@@ -190,10 +187,10 @@ protected:
 
   void ConfirmCancelDownloads(int32_t aCount,
                               nsISupportsPRBool *aCancelDownloads,
-                              const char16_t *aTitle,
-                              const char16_t *aCancelMessageMultiple,
-                              const char16_t *aCancelMessageSingle,
-                              const char16_t *aDontCancelButton);
+                              const PRUnichar *aTitle,
+                              const PRUnichar *aCancelMessageMultiple,
+                              const PRUnichar *aCancelMessageSingle,
+                              const PRUnichar *aDontCancelButton);
 
   int32_t GetRetentionBehavior();
 
@@ -221,13 +218,6 @@ protected:
   void OnEnterPrivateBrowsingMode();
   void OnLeavePrivateBrowsingMode();
 
-  nsresult RetryDownload(const nsACString& aGUID);
-  nsresult RetryDownload(nsDownload* dl);
-
-  nsresult RemoveDownload(const nsACString& aGUID);
-
-  nsresult NotifyDownloadRemoval(nsDownload* aRemoved);
-
   // Virus scanner for windows
 #ifdef DOWNLOAD_SCANNER
 private:
@@ -235,36 +225,24 @@ private:
 #endif
 
 private:
-  nsresult CleanUp(mozIStorageConnection* aDBConn);
-  nsresult InitStatements(mozIStorageConnection* aDBConn,
-                          mozIStorageStatement** aUpdateStatement,
-                          mozIStorageStatement** aGetIdsStatement);
-  nsresult RemoveAllDownloads(nsCOMArray<nsDownload>& aDownloads);
-  nsresult PauseAllDownloads(nsCOMArray<nsDownload>& aDownloads, bool aSetResume);
-  nsresult ResumeAllDownloads(nsCOMArray<nsDownload>& aDownloads, bool aResumeAll);
-  nsresult RemoveDownloadsForURI(mozIStorageStatement* aStatement, nsIURI *aURI);
-
-  bool mUseJSTransfer;
   nsCOMArray<nsIDownloadProgressListener> mListeners;
-  nsCOMArray<nsIDownloadProgressListener> mPrivacyAwareListeners;
   nsCOMPtr<nsIStringBundle> mBundle;
   nsCOMPtr<mozIStorageConnection> mDBConn;
-  nsCOMPtr<mozIStorageConnection> mPrivateDBConn;
   nsCOMArray<nsDownload> mCurrentDownloads;
-  nsCOMArray<nsDownload> mCurrentPrivateDownloads;
   nsCOMPtr<nsIObserverService> mObserverService;
   nsCOMPtr<mozIStorageStatement> mUpdateDownloadStatement;
-  nsCOMPtr<mozIStorageStatement> mUpdatePrivateDownloadStatement;
   nsCOMPtr<mozIStorageStatement> mGetIdsForURIStatement;
-  nsCOMPtr<mozIStorageStatement> mGetPrivateIdsForURIStatement;
   nsAutoPtr<mozStorageTransaction> mHistoryTransaction;
+
+  enum DatabaseType mDBType;
+  bool mInPrivateBrowsing;
 
   static nsDownloadManager *gDownloadManagerService;
 
   friend class nsDownload;
 };
 
-class nsDownload MOZ_FINAL : public nsIDownload
+class nsDownload : public nsIDownload
 {
 public:
   NS_DECL_NSIWEBPROGRESSLISTENER
@@ -274,6 +252,7 @@ public:
   NS_DECL_ISUPPORTS
 
   nsDownload();
+  virtual ~nsDownload();
 
   /**
    * This method MUST be called when changing states on a download.  It will
@@ -283,8 +262,6 @@ public:
   nsresult SetState(DownloadState aState);
 
 protected:
-  virtual ~nsDownload();
-
   /**
    * Finish up the download by breaking reference cycles and clearing unneeded
    * data. Additionally, the download removes itself from the download
@@ -308,11 +285,6 @@ protected:
   nsresult MoveTempToTarget();
 
   /**
-   * Set the target file permissions to be appropriate.
-   */
-  nsresult FixTargetPermissions();
-
-  /**
    * Update the start time which also implies the last update time is the same.
    */
   void SetStartTime(int64_t aStartTime);
@@ -324,10 +296,21 @@ protected:
   void SetProgressBytes(int64_t aCurrBytes, int64_t aMaxBytes);
 
   /**
+   * Pause the download, but in certain cases it might get fake-paused instead
+   * of real-paused.
+   */
+  nsresult Pause();
+
+  /**
    * All this does is cancel the connection that the download is using. It does
    * not remove it from the download manager.
    */
-  nsresult CancelTransfer();
+  nsresult Cancel();
+
+  /**
+   * Resume the download.
+   */
+  nsresult Resume();
 
   /**
    * Download is not transferring?
@@ -370,7 +353,7 @@ protected:
    * Fail a download because of a failure status and prompt the provided
    * message or use a generic download failure message if nullptr.
    */
-  nsresult FailDownload(nsresult aStatus, const char16_t *aMessage);
+  nsresult FailDownload(nsresult aStatus, const PRUnichar *aMessage);
 
   /**
    * Opens the downloaded file with the appropriate application, which is
@@ -390,7 +373,6 @@ protected:
 private:
   nsString mDisplayName;
   nsCString mEntityID;
-  nsCString mGUID;
 
   nsCOMPtr<nsIURI> mSource;
   nsCOMPtr<nsIURI> mReferrer;
@@ -400,6 +382,7 @@ private:
   nsCOMPtr<nsIMIMEInfo> mMIMEInfo;
 
   DownloadState mDownloadState;
+  DownloadType mDownloadType;
 
   uint32_t mID;
   int32_t mPercentComplete;
@@ -418,7 +401,6 @@ private:
   double mSpeed;
 
   bool mHasMultipleFiles;
-  bool mPrivate;
 
   /**
    * Track various states of the download trying to auto-resume when starting
@@ -429,23 +411,6 @@ private:
    */
   enum AutoResume { DONT_RESUME, AUTO_RESUME };
   AutoResume mAutoResume;
-
-  /**
-   * Stores the SHA-256 hash associated with the downloaded file.
-   */
-  nsAutoCString mHash;
-
-  /**
-   * Stores the certificate chains in an nsIArray of nsIX509CertList of
-   * nsIX509Cert, if this binary is signed.
-   */
-  nsCOMPtr<nsIArray> mSignatureInfo;
-
-  /**
-   * Stores the redirects that led to this download in an nsIArray of
-   * nsIPrincipal.
-   */
-  nsCOMPtr<nsIArray> mRedirects;
 
   friend class nsDownloadManager;
 };

@@ -3,107 +3,130 @@
    - License, v. 2.0. If a copy of the MPL was not distributed with this
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
-<merge xmlns:android="http://schemas.android.com/apk/res/android">
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:id="@+id/browser_toolbar"
+              style="@style/BrowserToolbar">
 
-    <!-- Note: any layout parameters setting the right edge of
-         this View should be matched in the url_bar_translating_edge.
+    <RelativeLayout android:id="@+id/address_bar"
+                    style="@style/AddressBar">
 
-         Note 2: On devices where the editing mode cancel button is
-         wider than the tabs counter and nearby buttons, the url bar will
-         shrink, in which case the LayoutParams of this View are
-         changed dynamically. -->
-    <ImageView android:id="@+id/url_bar_entry"
-               style="@style/UrlBar.Button"
-               android:layout_marginLeft="8dp"
-               android:layout_marginRight="-6dp"
-               android:layout_marginTop="8dp"
-               android:layout_marginBottom="8dp"
-               android:layout_toLeftOf="@+id/tabs"
-               android:duplicateParentState="true"
-               android:clickable="false"
-               android:focusable="false"
-               android:src="@drawable/url_bar_entry"
-               android:scaleType="fitXY"/>
+        <ImageButton android:id="@+id/back"
+                     android:contentDescription="@string/back"
+                     style="@style/AddressBar.ImageButton.Unused"/>
 
-    <!-- A View that clips with url_bar_entry and translates
-         around it to animate shrinking or growing the url bar,
-         which occurs in the display/editing mode transitions. -->
-    <ImageView android:id="@+id/url_bar_translating_edge"
-               style="@style/UrlBar.Button"
-               android:layout_alignLeft="@id/url_bar_entry"
-               android:layout_alignRight="@+id/url_bar_entry"
-               android:layout_alignTop="@id/url_bar_entry"
-               android:layout_alignBottom="@id/url_bar_entry"
-               android:duplicateParentState="true"
-               android:clickable="false"
-               android:focusable="false"
-               android:visibility="invisible"
-               android:src="@drawable/url_bar_translating_edge"
-               android:scaleType="fitXY"/>
+        <ImageButton android:id="@+id/forward"
+                     android:contentDescription="@string/forward"
+                     style="@style/AddressBar.ImageButton.Unused"/>
 
-    <org.mozilla.gecko.toolbar.ShapedButton android:id="@+id/menu"
-                                            style="@style/UrlBar.ImageButton"
-                                            android:layout_alignParentRight="true"
-                                            android:contentDescription="@string/menu"
-                                            android:background="@drawable/shaped_button"
-                                            android:visibility="gone"/>
+        <LinearLayout android:id="@+id/menu_items"
+                      android:layout_width="0dip"
+                      android:layout_height="0dip"
+                      android:visibility="gone"/>
 
-    <org.mozilla.gecko.widget.ThemedImageView android:id="@+id/menu_icon"
-                                              style="@style/UrlBar.ImageButton"
-                                              android:layout_alignLeft="@id/menu"
-                                              android:layout_alignRight="@id/menu"
-                                              android:gravity="center_vertical"
-                                              android:src="@drawable/menu_level"
-                                              android:visibility="gone"/>
+        <View android:id="@+id/curve"
+              android:layout_width="72dip"
+              android:layout_height="fill_parent"
+              android:layout_alignParentRight="true"
+              android:background="@drawable/address_bar_bg_curve"/>
 
-    <org.mozilla.gecko.toolbar.PhoneTabsButton android:id="@+id/tabs"
-                                               style="@style/UrlBar.ImageButton"
-                                               android:layout_width="64dip"
-                                               android:layout_toLeftOf="@id/menu"
-                                               android:layout_alignWithParentIfMissing="true"
-                                               android:background="@drawable/shaped_button"/>
+        <View android:layout_width="fill_parent"
+              android:layout_height="fill_parent"
+              android:layout_alignParentLeft="true"
+              android:layout_alignParentBottom="true"
+              android:layout_toLeftOf="@id/curve"
+              android:background="@drawable/address_bar_bg"/>
 
-    <!-- The TextSwitcher should be shifted 24dp on the left, to avoid
-         the curve. On a 48dp space, centering 24dp image will leave
-         12dp on all sides. However this image has a perception of
-         2 layers. Hence to center this, an additional 4dp is added to the left.
-         The margins will be 40dp on left, 8dp on right, instead of ideal 30dp
-         and 12dp. -->
-    <org.mozilla.gecko.toolbar.TabCounter android:id="@+id/tabs_counter"
-                        style="@style/UrlBar.ImageButton.TabCount"
-                        android:layout_width="24dip"
-                        android:layout_height="24dip"
-                        android:layout_centerVertical="true"
-                        android:layout_marginRight="8dip"
-                        android:layout_alignRight="@id/tabs"/>
+        <ImageButton android:id="@+id/menu"
+                     style="@style/AddressBar.ImageButton.Unused"/>
 
-    <!-- Note that the edit components are invisible so that the views
-         depending on their location can properly layout. -->
-    <org.mozilla.gecko.widget.ThemedImageView
-            android:id="@+id/edit_cancel"
-            style="@style/UrlBar.ImageButton"
-            android:layout_alignParentRight="true"
-            android:src="@drawable/close_edit_mode_selector"
-            android:contentDescription="@string/edit_mode_cancel"
-            android:background="@drawable/action_bar_button"
-            android:visibility="invisible"/>
+        <ImageButton android:id="@+id/tabs"
+                     style="@style/AddressBar.ImageButton"
+                     android:layout_width="72dip"
+                     android:layout_alignParentRight="true"
+                     android:background="@drawable/tabs_crop_button"
+                     android:gravity="center_vertical"
+                     android:src="@drawable/tabs_level"
+                     android:paddingLeft="38dip"
+                     android:paddingRight="10dip"/>
 
-    <!-- The space to the left of the cancel button would be larger than the right because
-         the url bar drawable contains some whitespace, so we compensate by removing
-         some padding from the right (value determined through experimentation). -->
-    <org.mozilla.gecko.toolbar.ToolbarEditLayout android:id="@+id/edit_layout"
-                  style="@style/UrlBar.Button"
-                  android:layout_alignLeft="@id/url_bar_entry"
-                  android:layout_toLeftOf="@id/edit_cancel"
-                  android:visibility="invisible"
-                  android:paddingLeft="8dp"
-                  android:paddingRight="8dp"/>
+        <TextSwitcher android:id="@+id/tabs_count"
+                     style="@style/AddressBar.ImageButton"
+                     android:layout_width="44.5dip"
+                     android:layout_height="wrap_content"
+                     android:layout_marginTop="5dp"
+                     android:layout_alignRight="@id/tabs"
+                     android:gravity="center_horizontal"/>
 
-    <org.mozilla.gecko.toolbar.ToolbarDisplayLayout android:id="@+id/display_layout"
-                  style="@style/UrlBar.Button"
-                  android:layout_alignLeft="@id/url_bar_entry"
-                  android:layout_alignRight="@id/url_bar_entry"
-                  android:paddingLeft="8dip"
-                  android:paddingRight="4dip"/>
+        <FrameLayout style="@style/AddressBar.Button"
+                     android:layout_marginTop="4dp"
+                     android:layout_marginBottom="4dp"
+                     android:layout_marginLeft="4dp"
+                     android:layout_marginRight="52dp"
+                     android:layout_alignParentLeft="true"
+                     android:layout_alignParentBottom="true"
+                     android:layout_centerVertical="true">
 
-</merge>
+            <Button android:id="@+id/awesome_bar"
+                    style="@style/AddressBar.Button"
+                    android:background="@drawable/address_bar_url"/>
+
+            <LinearLayout style="@style/AddressBar.Button"
+                          android:orientation="horizontal">
+
+                <ImageButton android:id="@+id/favicon"
+                             style="@style/AddressBar.ImageButton"
+                             android:layout_width="29.33dip"
+                             android:layout_height="fill_parent"
+                             android:scaleType="fitCenter"
+                             android:paddingLeft="8dip"
+                             android:layout_marginRight="4dip"
+                             android:layout_gravity="center_vertical"
+                             android:src="@drawable/favicon"/>
+
+                <ImageButton android:id="@+id/site_security"
+                             style="@style/AddressBar.ImageButton"
+                             android:layout_width="@dimen/browser_toolbar_lock_width"
+                             android:scaleType="fitCenter"
+                             android:layout_marginLeft="-4dip"
+                             android:src="@drawable/site_security_level"
+                             android:contentDescription="@string/site_security"
+                             android:visibility="gone"/>
+
+                <TextView android:id="@+id/awesome_bar_title"
+                          style="@style/AddressBar.Button"
+                          android:layout_width="fill_parent"
+                          android:layout_height="fill_parent"
+                          android:layout_weight="1.0"
+                          android:singleLine="true"
+                          android:paddingRight="8dp"
+                          android:textColor="#222222"
+                          android:gravity="center_vertical|left"
+                          android:hint="@string/awesomebar_default_text"
+                          android:layout_gravity="center_vertical"/>
+
+                <ImageButton android:id="@+id/reader"
+                             style="@style/AddressBar.ImageButton.Icon"
+                             android:src="@drawable/reader"
+                             android:contentDescription="@string/reader_mode"
+                             android:visibility="gone"/>
+
+                <ImageButton android:id="@+id/stop"
+                             style="@style/AddressBar.ImageButton.Icon"
+                             android:src="@drawable/urlbar_stop"
+                             android:contentDescription="@string/stop"
+                             android:visibility="gone"/>
+
+            </LinearLayout>
+
+        </FrameLayout>
+
+         <ImageView android:id="@+id/shadow"
+                    android:layout_width="fill_parent"
+                    android:layout_height="2dp"
+                    android:layout_alignParentBottom="true"
+                    android:background="@drawable/address_bar_bg_shadow_repeat"
+                    android:visibility="gone"/>
+
+    </RelativeLayout>
+
+</LinearLayout>

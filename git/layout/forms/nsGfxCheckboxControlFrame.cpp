@@ -4,19 +4,17 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsGfxCheckboxControlFrame.h"
-
-#include "gfxUtils.h"
-#include "mozilla/gfx/2D.h"
 #include "nsIContent.h"
 #include "nsCOMPtr.h"
-#include "nsLayoutUtils.h"
+#include "nsCSSRendering.h"
 #include "nsRenderingContext.h"
+#ifdef ACCESSIBILITY
+#include "nsAccessibilityService.h"
+#endif
+#include "nsIServiceManager.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsDisplayList.h"
-#include <algorithm>
-
-using namespace mozilla;
-using namespace mozilla::gfx;
+#include "nsCSSAnonBoxes.h"
 
 static void
 PaintCheckMark(nsIFrame* aFrame,
@@ -35,25 +33,20 @@ PaintCheckMark(nsIFrame* aFrame,
                                     // of the 7x7 unit checkmark
 
   // Scale the checkmark based on the smallest dimension
-  nscoord paintScale = std::min(rect.width, rect.height) / checkSize;
+  nscoord paintScale = NS_MIN(rect.width, rect.height) / checkSize;
   nsPoint paintCenter(rect.x + rect.width  / 2,
                       rect.y + rect.height / 2);
 
-  DrawTarget* drawTarget = aCtx->GetDrawTarget();
-  RefPtr<PathBuilder> builder = drawTarget->CreatePathBuilder();
-  nsPoint p = paintCenter + nsPoint(checkPolygonX[0] * paintScale,
-                                    checkPolygonY[0] * paintScale);
-
-  int32_t appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
-  builder->MoveTo(NSPointToPoint(p, appUnitsPerDevPixel));
-  for (int32_t polyIndex = 1; polyIndex < checkNumPoints; polyIndex++) {
-    p = paintCenter + nsPoint(checkPolygonX[polyIndex] * paintScale,
-                              checkPolygonY[polyIndex] * paintScale);
-    builder->LineTo(NSPointToPoint(p, appUnitsPerDevPixel));
+  nsPoint paintPolygon[checkNumPoints];
+  // Convert checkmark for screen rendering
+  for (int32_t polyIndex = 0; polyIndex < checkNumPoints; polyIndex++) {
+    paintPolygon[polyIndex] = paintCenter +
+                              nsPoint(checkPolygonX[polyIndex] * paintScale,
+                                      checkPolygonY[polyIndex] * paintScale);
   }
-  RefPtr<Path> path = builder->Finish();
-  drawTarget->Fill(path,
-                   ColorPattern(ToDeviceColor(aFrame->StyleColor()->mColor)));
+
+  aCtx->SetColor(aFrame->GetStyleColor()->mColor);
+  aCtx->FillPolygon(paintPolygon, checkNumPoints);
 }
 
 static void
@@ -62,18 +55,14 @@ PaintIndeterminateMark(nsIFrame* aFrame,
                        const nsRect& aDirtyRect,
                        nsPoint aPt)
 {
-  DrawTarget* drawTarget = aCtx->GetDrawTarget();
-  int32_t appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
-
   nsRect rect(aPt, aFrame->GetSize());
   rect.Deflate(aFrame->GetUsedBorderAndPadding());
+
   rect.y += (rect.height - rect.height/4) / 2;
   rect.height /= 4;
 
-  Rect devPxRect = NSRectToSnappedRect(rect, appUnitsPerDevPixel, *drawTarget);
-
-  drawTarget->FillRect(devPxRect,
-                    ColorPattern(ToDeviceColor(aFrame->StyleColor()->mColor)));
+  aCtx->SetColor(aFrame->GetStyleColor()->mColor);
+  aCtx->FillRect(rect);
 }
 
 //------------------------------------------------------------
@@ -99,29 +88,37 @@ nsGfxCheckboxControlFrame::~nsGfxCheckboxControlFrame()
 }
 
 #ifdef ACCESSIBILITY
-a11y::AccType
-nsGfxCheckboxControlFrame::AccessibleType()
+already_AddRefed<Accessible>
+nsGfxCheckboxControlFrame::CreateAccessible()
 {
-  return a11y::eHTMLCheckboxType;
+  nsAccessibilityService* accService = nsIPresShell::AccService();
+  if (accService) {
+    return accService->CreateHTMLCheckboxAccessible(mContent,
+                                                    PresContext()->PresShell());
+  }
+
+  return nullptr;
 }
 #endif
 
 //------------------------------------------------------------
-void
+NS_IMETHODIMP
 nsGfxCheckboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                             const nsRect&           aDirtyRect,
                                             const nsDisplayListSet& aLists)
 {
-  nsFormControlFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
+  nsresult rv = nsFormControlFrame::BuildDisplayList(aBuilder, aDirtyRect,
+                                                     aLists);
+  NS_ENSURE_SUCCESS(rv, rv);
   
   // Get current checked state through content model.
   if ((!IsChecked() && !IsIndeterminate()) || !IsVisibleForPainting(aBuilder))
-    return;   // we're not checked or not visible, nothing to paint.
+    return NS_OK;   // we're not checked or not visible, nothing to paint.
     
   if (IsThemed())
-    return; // No need to paint the checkmark. The theme will do it.
+    return NS_OK; // No need to paint the checkmark. The theme will do it.
 
-  aLists.Content()->AppendNewToTop(new (aBuilder)
+  return aLists.Content()->AppendNewToTop(new (aBuilder)
     nsDisplayGeneric(aBuilder, this,
                      IsIndeterminate()
                      ? PaintIndeterminateMark : PaintCheckMark,

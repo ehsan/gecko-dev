@@ -21,6 +21,7 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 #include ./content/moz/protocol4.js
 
 #include ./content/request-backoff.js
+#include ./content/url-crypto-key-manager.js
 #include ./content/xml-fetcher.js
 
 // Expose this whole component.
@@ -32,4 +33,4 @@ function UrlClassifierLib() {
 UrlClassifierLib.prototype.classID = Components.ID("{26a4a019-2827-4a89-a85c-5931a678823a}");
 UrlClassifierLib.prototype.QueryInterface = XPCOMUtils.generateQI([]);
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([UrlClassifierLib]);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([UrlClassifierLib]);

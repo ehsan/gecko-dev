@@ -20,20 +20,25 @@ const IID IID_IDataObjCollection =
  */
 
 nsDataObjCollection::nsDataObjCollection()
-  : m_cRef(0)
+  : m_cRef(0), mIsAsyncMode(FALSE), mIsInOperation(FALSE)
 {
+  m_enumFE = new CEnumFormatEtc();
+  m_enumFE->AddRef();
 }
 
 nsDataObjCollection::~nsDataObjCollection()
 {
+  mDataFlavors.Clear();
   mDataObjects.Clear();
+
+  m_enumFE->Release();
 }
 
 
 // IUnknown interface methods - see iunknown.h for documentation
 STDMETHODIMP nsDataObjCollection::QueryInterface(REFIID riid, void** ppv)
 {
-  *ppv=nullptr;
+  *ppv=NULL;
 
   if ( (IID_IUnknown == riid) || (IID_IDataObject  == riid) ) {
     *ppv = static_cast<IDataObject*>(this); 
@@ -43,12 +48,6 @@ STDMETHODIMP nsDataObjCollection::QueryInterface(REFIID riid, void** ppv)
 
   if ( IID_IDataObjCollection  == riid ) {
     *ppv = static_cast<nsIDataObjCollection*>(this); 
-    AddRef();
-    return NOERROR;
-  }
-  //offer to operate asynchronously (required by nsDragService)
-  if (IID_IAsyncOperation == riid) {
-    *ppv = static_cast<IAsyncOperation*>(this);
     AddRef();
     return NOERROR;
   }
@@ -69,6 +68,18 @@ STDMETHODIMP_(ULONG) nsDataObjCollection::Release()
   delete this;
 
   return 0;
+}
+
+BOOL nsDataObjCollection::FormatsMatch(const FORMATETC& source,
+                                       const FORMATETC& target) const
+{
+  if ((source.cfFormat == target.cfFormat) &&
+      (source.dwAspect & target.dwAspect)  &&
+      (source.tymed    & target.tymed)) {
+    return TRUE;
+  } else {
+    return FALSE;
+  }
 }
 
 // IDataObject methods
@@ -122,6 +133,12 @@ STDMETHODIMP nsDataObjCollection::QueryGetData(LPFORMATETC pFE)
   return DV_E_FORMATETC;
 }
 
+STDMETHODIMP nsDataObjCollection::GetCanonicalFormatEtc(LPFORMATETC pFEIn,
+                                                        LPFORMATETC pFEOut)
+{
+  return E_NOTIMPL;
+}
+
 STDMETHODIMP nsDataObjCollection::SetData(LPFORMATETC pFE,
                                           LPSTGMEDIUM pSTM,
                                           BOOL fRelease)
@@ -131,6 +148,50 @@ STDMETHODIMP nsDataObjCollection::SetData(LPFORMATETC pFE,
   if (mDataObjects.Length() == 0)
     return E_FAIL;
   return mDataObjects.ElementAt(0)->SetData(pFE, pSTM, fRelease);
+}
+
+STDMETHODIMP nsDataObjCollection::EnumFormatEtc(DWORD dwDir,
+                                                LPENUMFORMATETC *ppEnum)
+{
+  if (dwDir == DATADIR_GET) {
+    // Clone addref's the new enumerator.
+    m_enumFE->Clone(ppEnum);
+    if (!(*ppEnum))
+      return E_FAIL;
+    (*ppEnum)->Reset();
+    return S_OK;
+  }
+
+  return E_NOTIMPL;
+}
+
+STDMETHODIMP nsDataObjCollection::DAdvise(LPFORMATETC pFE,
+                                          DWORD dwFlags,
+                                          LPADVISESINK pIAdviseSink,
+                                          DWORD* pdwConn)
+{
+  return OLE_E_ADVISENOTSUPPORTED;
+}
+
+STDMETHODIMP nsDataObjCollection::DUnadvise(DWORD dwConn)
+{
+  return OLE_E_ADVISENOTSUPPORTED;
+}
+
+STDMETHODIMP nsDataObjCollection::EnumDAdvise(LPENUMSTATDATA *ppEnum)
+{
+  return OLE_E_ADVISENOTSUPPORTED;
+}
+
+// GetData and SetData helper functions
+HRESULT nsDataObjCollection::AddSetFormat(FORMATETC& aFE)
+{
+  return S_OK;
+}
+
+HRESULT nsDataObjCollection::AddGetFormat(FORMATETC& aFE)
+{
+  return S_OK;
 }
 
 // Registers a DataFlavor/FE pair
@@ -171,9 +232,9 @@ HRESULT nsDataObjCollection::GetFile(LPFORMATETC pFE, LPSTGMEDIUM pSTM)
   HGLOBAL hGlobalMemory;
   HRESULT hr;
   // Make enough space for the header and the trailing null
-  uint32_t buffersize = sizeof(DROPFILES) + sizeof(char16_t);
+  uint32_t buffersize = sizeof(DROPFILES) + sizeof(PRUnichar);
   uint32_t alloclen = 0;
-  char16_t* realbuffer;
+  PRUnichar* realbuffer;
   nsAutoString filename;
   
   hGlobalMemory = GlobalAlloc(GHND, buffersize);
@@ -190,19 +251,19 @@ HRESULT nsDataObjCollection::GetFile(LPFORMATETC pFE, LPSTGMEDIUM pSTM)
       }
     }
     // Now we need to pull out the filename
-    char16_t* buffer = (char16_t*)GlobalLock(workingmedium.hGlobal);
-    if (buffer == nullptr)
+    PRUnichar* buffer = (PRUnichar*)GlobalLock(workingmedium.hGlobal);
+    if (buffer == NULL)
       return E_FAIL;
-    buffer += sizeof(DROPFILES)/sizeof(char16_t);
+    buffer += sizeof(DROPFILES)/sizeof(PRUnichar);
     filename = buffer;
     GlobalUnlock(workingmedium.hGlobal);
     ReleaseStgMedium(&workingmedium);
     // Now put the filename into our buffer
-    alloclen = (filename.Length() + 1) * sizeof(char16_t);
+    alloclen = (filename.Length() + 1) * sizeof(PRUnichar);
     hGlobalMemory = ::GlobalReAlloc(hGlobalMemory, buffersize + alloclen, GHND);
-    if (hGlobalMemory == nullptr)
+    if (hGlobalMemory == NULL)
       return E_FAIL;
-    realbuffer = (char16_t*)((char*)GlobalLock(hGlobalMemory) + buffersize);
+    realbuffer = (PRUnichar*)((char*)GlobalLock(hGlobalMemory) + buffersize);
     if (!realbuffer)
       return E_FAIL;
     realbuffer--; // Overwrite the preceding null
@@ -224,7 +285,7 @@ HRESULT nsDataObjCollection::GetFile(LPFORMATETC pFE, LPSTGMEDIUM pSTM)
   GlobalUnlock(hGlobalMemory);
   // Finally fill out the STGMEDIUM struct
   pSTM->tymed = TYMED_HGLOBAL;
-  pSTM->pUnkForRelease = nullptr; // Caller gets to free the data
+  pSTM->pUnkForRelease = NULL; // Caller gets to free the data
   pSTM->hGlobal = hGlobalMemory;
   return S_OK;
 }
@@ -241,7 +302,7 @@ HRESULT nsDataObjCollection::GetText(LPFORMATETC pFE, LPSTGMEDIUM pSTM)
   hGlobalMemory = GlobalAlloc(GHND, buffersize);
 
   if (pFE->cfFormat == CF_TEXT) {
-    nsAutoCString text;
+    nsCAutoString text;
     for (uint32_t i = 0; i < mDataObjects.Length(); ++i) {
       nsDataObj* dataObj = mDataObjects.ElementAt(i);
       hr = dataObj->GetData(&fe, &workingmedium);
@@ -255,7 +316,7 @@ HRESULT nsDataObjCollection::GetText(LPFORMATETC pFE, LPSTGMEDIUM pSTM)
       }
       // Now we need to pull out the text
       char* buffer = (char*)GlobalLock(workingmedium.hGlobal);
-      if (buffer == nullptr)
+      if (buffer == NULL)
         return E_FAIL;
       text = buffer;
       GlobalUnlock(workingmedium.hGlobal);
@@ -264,7 +325,7 @@ HRESULT nsDataObjCollection::GetText(LPFORMATETC pFE, LPSTGMEDIUM pSTM)
       alloclen = text.Length();
       hGlobalMemory = ::GlobalReAlloc(hGlobalMemory, buffersize + alloclen,
                                       GHND);
-      if (hGlobalMemory == nullptr)
+      if (hGlobalMemory == NULL)
         return E_FAIL;
       buffer = ((char*)GlobalLock(hGlobalMemory) + buffersize);
       if (!buffer)
@@ -275,12 +336,12 @@ HRESULT nsDataObjCollection::GetText(LPFORMATETC pFE, LPSTGMEDIUM pSTM)
       buffersize += alloclen;
     }
     pSTM->tymed = TYMED_HGLOBAL;
-    pSTM->pUnkForRelease = nullptr; // Caller gets to free the data
+    pSTM->pUnkForRelease = NULL; // Caller gets to free the data
     pSTM->hGlobal = hGlobalMemory;
     return S_OK;
   }
   if (pFE->cfFormat == CF_UNICODETEXT) {
-    buffersize = sizeof(char16_t);
+    buffersize = sizeof(PRUnichar);
     nsAutoString text;
     for (uint32_t i = 0; i < mDataObjects.Length(); ++i) {
       nsDataObj* dataObj = mDataObjects.ElementAt(i);
@@ -294,19 +355,19 @@ HRESULT nsDataObjCollection::GetText(LPFORMATETC pFE, LPSTGMEDIUM pSTM)
         }
       }
       // Now we need to pull out the text
-      char16_t* buffer = (char16_t*)GlobalLock(workingmedium.hGlobal);
-      if (buffer == nullptr)
+      PRUnichar* buffer = (PRUnichar*)GlobalLock(workingmedium.hGlobal);
+      if (buffer == NULL)
         return E_FAIL;
       text = buffer;
       GlobalUnlock(workingmedium.hGlobal);
       ReleaseStgMedium(&workingmedium);
       // Now put the text into our buffer
-      alloclen = text.Length() * sizeof(char16_t);
+      alloclen = text.Length() * sizeof(PRUnichar);
       hGlobalMemory = ::GlobalReAlloc(hGlobalMemory, buffersize + alloclen,
                                       GHND);
-      if (hGlobalMemory == nullptr)
+      if (hGlobalMemory == NULL)
         return E_FAIL;
-      buffer = (char16_t*)((char*)GlobalLock(hGlobalMemory) + buffersize);
+      buffer = (PRUnichar*)((char*)GlobalLock(hGlobalMemory) + buffersize);
       if (!buffer)
         return E_FAIL;
       buffer--; // Overwrite the preceding null
@@ -315,7 +376,7 @@ HRESULT nsDataObjCollection::GetText(LPFORMATETC pFE, LPSTGMEDIUM pSTM)
       buffersize += alloclen;
     }
     pSTM->tymed = TYMED_HGLOBAL;
-    pSTM->pUnkForRelease = nullptr; // Caller gets to free the data
+    pSTM->pUnkForRelease = NULL; // Caller gets to free the data
     pSTM->hGlobal = hGlobalMemory;
     return S_OK;
   }
@@ -330,7 +391,7 @@ HRESULT nsDataObjCollection::GetFileDescriptors(LPFORMATETC pFE,
   FORMATETC fe = *pFE;
   HGLOBAL hGlobalMemory;
   HRESULT hr;
-  uint32_t buffersize = sizeof(UINT);
+  uint32_t buffersize = sizeof(FILEGROUPDESCRIPTOR);
   uint32_t alloclen = sizeof(FILEDESCRIPTOR);
 
   hGlobalMemory = GlobalAlloc(GHND, buffersize);
@@ -349,17 +410,17 @@ HRESULT nsDataObjCollection::GetFileDescriptors(LPFORMATETC pFE,
     // Now we need to pull out the filedescriptor
     FILEDESCRIPTOR* buffer =
      (FILEDESCRIPTOR*)((char*)GlobalLock(workingmedium.hGlobal) + sizeof(UINT));
-    if (buffer == nullptr)
+    if (buffer == NULL)
       return E_FAIL;
     hGlobalMemory = ::GlobalReAlloc(hGlobalMemory, buffersize + alloclen, GHND);
-    if (hGlobalMemory == nullptr)
+    if (hGlobalMemory == NULL)
       return E_FAIL;
     FILEGROUPDESCRIPTOR* realbuffer =
                                 (FILEGROUPDESCRIPTOR*)GlobalLock(hGlobalMemory);
     if (!realbuffer)
       return E_FAIL;
     FILEDESCRIPTOR* copyloc = (FILEDESCRIPTOR*)((char*)realbuffer + buffersize);
-    memcpy(copyloc, buffer, alloclen);
+    memcpy(copyloc, buffer, sizeof(FILEDESCRIPTOR));
     realbuffer->cItems++;
     GlobalUnlock(hGlobalMemory);
     GlobalUnlock(workingmedium.hGlobal);
@@ -367,7 +428,7 @@ HRESULT nsDataObjCollection::GetFileDescriptors(LPFORMATETC pFE,
     buffersize += alloclen;
   }
   pSTM->tymed = TYMED_HGLOBAL;
-  pSTM->pUnkForRelease = nullptr; // Caller gets to free the data
+  pSTM->pUnkForRelease = NULL; // Caller gets to free the data
   pSTM->hGlobal = hGlobalMemory;
   return S_OK;
 }
@@ -387,7 +448,7 @@ HRESULT nsDataObjCollection::GetFileContents(LPFORMATETC pFE, LPSTGMEDIUM pSTM)
       continue;
     if (num == numwanted)
       return dataObj->GetData(pFE, pSTM);
-    num++;
+    numwanted++;
   }
   return DV_E_LINDEX;
 }

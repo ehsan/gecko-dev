@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 sw=2 et tw=78: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -8,9 +8,7 @@
 #define XPC_WRAPPER_H 1
 
 #include "xpcprivate.h"
-#include "jswrapper.h"
-
-class nsIScriptSecurityManager;
+#include "xpcpublic.h"
 
 namespace XPCNativeWrapper {
 
@@ -23,7 +21,7 @@ namespace XPCNativeWrapper {
    (_wn)->GetScriptableInfo()->GetFlags()._flag())
 
 bool
-AttachNewConstructorObject(JSContext *aCx, JS::HandleObject aGlobalObject);
+AttachNewConstructorObject(XPCCallContext &ccx, JSObject *aGlobalObject);
 
 } // namespace XPCNativeWrapper
 
@@ -33,6 +31,27 @@ AttachNewConstructorObject(JSContext *aCx, JS::HandleObject aGlobalObject);
 // do so (the decision is based on the principals of the wrapper and wrapped
 // objects).
 namespace XPCWrapper {
+
+/**
+ * Returns the script security manager used by XPConnect.
+ */
+inline nsIScriptSecurityManager *
+GetSecurityManager()
+{
+  return nsXPConnect::gScriptSecurityManager;
+}
+
+inline JSBool
+IsSecurityWrapper(JSObject *wrapper)
+{
+  return js::IsWrapper(wrapper);
+}
+
+inline JSObject *
+Unwrap(JSContext *cx, JSObject *wrapper, bool stopAtOuter = true)
+{
+  return xpc::Unwrap(cx, wrapper, stopAtOuter);
+}
 
 JSObject *
 UnsafeUnwrapSecurityWrapper(JSObject *obj);

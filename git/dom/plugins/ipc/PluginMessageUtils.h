@@ -7,10 +7,10 @@
 #ifndef DOM_PLUGINS_PLUGINMESSAGEUTILS_H
 #define DOM_PLUGINS_PLUGINMESSAGEUTILS_H
 
-#include "ipc/IPCMessageUtils.h"
+#include "IPC/IPCMessageUtils.h"
 #include "base/message_loop.h"
 
-#include "mozilla/ipc/MessageChannel.h"
+#include "mozilla/ipc/RPCChannel.h"
 #include "mozilla/ipc/CrossProcessMutex.h"
 #include "gfxipc/ShadowLayerUtils.h"
 
@@ -18,8 +18,9 @@
 #include "npruntime.h"
 #include "npfunctions.h"
 #include "nsAutoPtr.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsTArray.h"
+#include "nsThreadUtils.h"
 #include "prlog.h"
 #include "nsHashKeys.h"
 #ifdef MOZ_CRASHREPORTER
@@ -43,28 +44,38 @@ enum ScriptableObjectType
   Proxy
 };
 
-mozilla::ipc::RacyInterruptPolicy
-MediateRace(const mozilla::ipc::MessageChannel::Message& parent,
-            const mozilla::ipc::MessageChannel::Message& child);
+mozilla::ipc::RPCChannel::RacyRPCPolicy
+MediateRace(const mozilla::ipc::RPCChannel::Message& parent,
+            const mozilla::ipc::RPCChannel::Message& child);
 
 std::string
 MungePluginDsoPath(const std::string& path);
 std::string
 UnmungePluginDsoPath(const std::string& munged);
 
-extern PRLogModuleInfo* GetPluginLog();
+extern PRLogModuleInfo* gPluginLog;
+
+const uint32_t kAllowAsyncDrawing = 0x1;
+
+inline bool IsDrawingModelAsync(int16_t aModel) {
+  return aModel == NPDrawingModelAsyncBitmapSurface
+#ifdef XP_WIN
+         || aModel == NPDrawingModelAsyncWindowsDXGISurface
+#endif
+         ;
+}
 
 #if defined(_MSC_VER)
 #define FULLFUNCTION __FUNCSIG__
-#elif defined(__GNUC__)
+#elif (__GNUC__ >= 4)
 #define FULLFUNCTION __PRETTY_FUNCTION__
 #else
 #define FULLFUNCTION __FUNCTION__
 #endif
 
-#define PLUGIN_LOG_DEBUG(args) PR_LOG(GetPluginLog(), PR_LOG_DEBUG, args)
-#define PLUGIN_LOG_DEBUG_FUNCTION PR_LOG(GetPluginLog(), PR_LOG_DEBUG, ("%s", FULLFUNCTION))
-#define PLUGIN_LOG_DEBUG_METHOD PR_LOG(GetPluginLog(), PR_LOG_DEBUG, ("%s [%p]", FULLFUNCTION, (void*) this))
+#define PLUGIN_LOG_DEBUG(args) PR_LOG(gPluginLog, PR_LOG_DEBUG, args)
+#define PLUGIN_LOG_DEBUG_FUNCTION PR_LOG(gPluginLog, PR_LOG_DEBUG, ("%s", FULLFUNCTION))
+#define PLUGIN_LOG_DEBUG_METHOD PR_LOG(gPluginLog, PR_LOG_DEBUG, ("%s [%p]", FULLFUNCTION, (void*) this))
 
 /**
  * This is NPByteRange without the linked list.
@@ -95,9 +106,6 @@ struct NPRemoteWindow
 #endif /* XP_UNIX */
 #if defined(XP_WIN)
   base::SharedMemoryHandle surfaceHandle;
-#endif
-#if defined(XP_MACOSX)
-  double contentsScaleFactor;
 #endif
 };
 
@@ -222,7 +230,7 @@ inline void AssertPluginThread()
 void DeferNPObjectLastRelease(const NPNetscapeFuncs* f, NPObject* o);
 void DeferNPVariantLastRelease(const NPNetscapeFuncs* f, NPVariant* v);
 
-// in NPAPI, char* == nullptr is sometimes meaningful.  the following is
+// in NPAPI, char* == NULL is sometimes meaningful.  the following is
 // helper code for dealing with nullable nsCString's
 inline nsCString
 NullableString(const char* aString)
@@ -239,14 +247,14 @@ inline const char*
 NullableStringGet(const nsCString& str)
 {
   if (str.IsVoid())
-    return nullptr;
+    return NULL;
 
   return str.get();
 }
 
 struct DeletingObjectEntry : public nsPtrHashKey<NPObject>
 {
-  explicit DeletingObjectEntry(const NPObject* key)
+  DeletingObjectEntry(const NPObject* key)
     : nsPtrHashKey<NPObject>(key)
     , mDeleted(false)
   { }
@@ -308,12 +316,12 @@ struct ParamTraits<NPWindowType>
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
-    aMsg->WriteInt16(int16_t(aParam));
+    aMsg->WriteInt16(int16(aParam));
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    int16_t result;
+    int16 result;
     if (aMsg->ReadInt16(aIter, &result)) {
       *aResult = paramType(result);
       return true;
@@ -323,7 +331,33 @@ struct ParamTraits<NPWindowType>
 
   static void Log(const paramType& aParam, std::wstring* aLog)
   {
-    aLog->append(StringPrintf(L"%d", int16_t(aParam)));
+    aLog->append(StringPrintf(L"%d", int16(aParam)));
+  }
+};
+
+template <>
+struct ParamTraits<NPImageFormat>
+{
+  typedef NPImageFormat paramType;
+
+  static void Write(Message* aMsg, const paramType& aParam)
+  {
+    aMsg->WriteInt16(int16(aParam));
+  }
+
+  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
+  {
+    int16 result;
+    if (aMsg->ReadInt16(aIter, &result)) {
+      *aResult = paramType(result);
+      return true;
+    }
+    return false;
+  }
+
+  static void Log(const paramType& aParam, std::wstring* aLog)
+  {
+    aLog->append(StringPrintf(L"%d", int16(aParam)));
   }
 };
 
@@ -348,14 +382,11 @@ struct ParamTraits<mozilla::plugins::NPRemoteWindow>
 #if defined(XP_WIN)
     WriteParam(aMsg, aParam.surfaceHandle);
 #endif
-#if defined(XP_MACOSX)
-    aMsg->WriteDouble(aParam.contentsScaleFactor);
-#endif
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    uint64_t window;
+    uint64 window;
     int32_t x, y;
     uint32_t width, height;
     NPRect clipRect;
@@ -383,12 +414,6 @@ struct ParamTraits<mozilla::plugins::NPRemoteWindow>
       return false;
 #endif
 
-#if defined(XP_MACOSX)
-    double contentsScaleFactor;
-    if (!aMsg->ReadDouble(aIter, &contentsScaleFactor))
-      return false;
-#endif
-
     aResult->window = window;
     aResult->x = x;
     aResult->y = y;
@@ -402,9 +427,6 @@ struct ParamTraits<mozilla::plugins::NPRemoteWindow>
 #endif
 #if defined(XP_WIN)
     aResult->surfaceHandle = surfaceHandle;
-#endif
-#if defined(XP_MACOSX)
-    aResult->contentsScaleFactor = contentsScaleFactor;
 #endif
     return true;
   }
@@ -463,12 +485,12 @@ struct ParamTraits<NPNSString*>
   typedef NPNSString* paramType;
 
   // Empty string writes a length of 0 and no buffer.
-  // We don't write a nullptr terminating character in buffers.
+  // We don't write a NULL terminating character in buffers.
   static void Write(Message* aMsg, const paramType& aParam)
   {
     CFStringRef cfString = (CFStringRef)aParam;
 
-    // Write true if we have a string, false represents nullptr.
+    // Write true if we have a string, false represents NULL.
     aMsg->WriteBool(!!cfString);
     if (!cfString) {
       return;
@@ -498,7 +520,7 @@ struct ParamTraits<NPNSString*>
       return false;
     }
     if (!haveString) {
-      *aResult = nullptr;
+      *aResult = NULL;
       return true;
     }
 
@@ -573,7 +595,7 @@ struct ParamTraits<NSCursorInfo>
       return false;
     }
 
-    uint8_t* data = nullptr;
+    uint8_t* data = NULL;
     if (dataLength != 0) {
       if (!aMsg->ReadBytes(aIter, (const char**)&data, dataLength) || !data) {
         return false;
@@ -690,7 +712,7 @@ struct ParamTraits<NPVariant>
       } break;
 
       case 3: {
-        int32_t value;
+        int32 value;
         if (ReadParam(aMsg, aIter, &value)) {
           INT32_TO_NPVARIANT(value, *aResult);
           return true;
@@ -834,12 +856,12 @@ struct ParamTraits<NPCoordinateSpace>
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
-    WriteParam(aMsg, int32_t(aParam));
+    WriteParam(aMsg, int32(aParam));
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    int32_t intval;
+    int32 intval;
     if (ReadParam(aMsg, aIter, &intval)) {
       switch (intval) {
       case NPCoordinateSpacePlugin:
@@ -868,6 +890,8 @@ struct ParamTraits<NPCoordinateSpace>
 #  include "mozilla/plugins/NPEventOSX.h"
 #elif defined(XP_WIN)
 #  include "mozilla/plugins/NPEventWindows.h"
+#elif defined(XP_OS2)
+#  error Sorry, OS/2 is not supported
 #elif defined(ANDROID)
 #  include "mozilla/plugins/NPEventAndroid.h"
 #elif defined(XP_UNIX)

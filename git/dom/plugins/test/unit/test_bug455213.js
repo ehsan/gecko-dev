@@ -3,14 +3,24 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-Components.utils.import("resource://gre/modules/Services.jsm");
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+
+// v0.9 registry field meanings are different on Mac OS X
+const CWD = do_get_cwd();
+function checkOS(os) {
+  const nsILocalFile_ = "nsILocalFile" + os;
+  return nsILocalFile_ in Components.interfaces &&
+         CWD instanceof Components.interfaces[nsILocalFile_];
+}
+const isMac = checkOS("Mac");
 
 // Plugin registry uses different field delimeters on different platforms
 var DELIM = ":";
 if ("@mozilla.org/windows-registry-key;1" in Components.classes)
   DELIM = "|";
 
-var gProfD = do_get_profile_startup();
+var gProfD = do_get_profile();
 var gDirSvc = Cc["@mozilla.org/file/directory_service;1"].
              getService(Ci.nsIProperties);
 
@@ -38,17 +48,26 @@ function write_registry(version, info) {
   os.close();
 }
 
-function run_test() {
-  var plugin = get_test_plugintag();
-  do_check_true(plugin == null);
+// Finds the test nsIPluginTag
+function get_test_plugintag() {
+  var host = Cc["@mozilla.org/plugin/host;1"].
+             getService(Ci.nsIPluginHost);
+  var tags = host.getPluginTags();
+  for (var i = 0; i < tags.length; i++) {
+    if (tags[i].name == "Test Plug-in")
+      return tags[i];
+  }
+  return null;
+}
 
+function run_test() {
   var file = get_test_plugin();
   if (!file)
     do_throw("Plugin library not found");
 
   // Write out a 0.9 version registry that marks the test plugin as disabled
   var registry = "";
-  if (gIsOSX) {
+  if (isMac) {
     registry += file.leafName + DELIM + "$\n";
     registry += file.path + DELIM + "$\n";
   } else {
@@ -67,10 +86,7 @@ function run_test() {
               DELIM + "tst" + DELIM + "$\n";
   write_registry("0.9", registry);
 
-  // Initialise profile folder
-  do_get_profile();
-
-  plugin = get_test_plugintag();
+  var plugin = get_test_plugintag();
   if (!plugin)
     do_throw("Plugin tag not found");
 
@@ -84,7 +100,4 @@ function run_test() {
   // If the plugin registry was not read then the plugin will not be disabled
   do_check_true(plugin.disabled);
   do_check_false(plugin.blocklisted);
-
-  // Clean up
-  Services.prefs.clearUserPref("plugin.importedState");
 }

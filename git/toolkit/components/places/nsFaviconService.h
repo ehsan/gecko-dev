@@ -38,7 +38,7 @@ class mozIStorageStatementCallback;
 class UnassociatedIconHashKey : public nsURIHashKey
 {
 public:
-  explicit UnassociatedIconHashKey(const nsIURI* aURI)
+  UnassociatedIconHashKey(const nsIURI* aURI)
   : nsURIHashKey(aURI)
   {
   }
@@ -61,12 +61,16 @@ public:
   /**
    * Obtains the service's object.
    */
-  static already_AddRefed<nsFaviconService> GetSingleton();
+  static nsFaviconService* GetSingleton();
 
   /**
    * Initializes the service's object.  This should only be called once.
    */
   nsresult Init();
+
+  static nsFaviconService* GetFaviconServiceIfAvailable() {
+    return gFaviconService;
+  }
 
   /**
    * Returns a cached pointer to the favicon service for consumers in the
@@ -140,6 +144,10 @@ private:
    */
   nsCOMPtr<nsIURI> mDefaultIcon;
 
+  // Set to true during favicons expiration, addition of new favicons won't be
+  // allowed till expiration has finished since those should then be expired.
+  bool mFaviconsExpirationRunning;
+
   // The target dimension, in pixels, for favicons we optimize.
   // If we find images that are as large or larger than an uncompressed RGBA
   // image of this size (mOptimizedIconDimension*mOptimizedIconDimension*4),
@@ -153,6 +161,14 @@ private:
   friend class mozilla::places::AsyncFetchAndSetIconForPage;
   friend class mozilla::places::RemoveIconDataCacheEntry;
   nsTHashtable<UnassociatedIconHashKey> mUnassociatedIcons;
+
+  // Caches the content of the default favicon if it's not already cached and
+  // copies it into byteStr.
+  nsresult GetDefaultFaviconData(nsCString& byteStr);
+
+  // A string of bytes caching the default favicon's content.  Empty if not yet
+  // cached.  Rather than accessing this directly, use GetDefaultFaviconData.
+  nsCString mDefaultFaviconData;
 };
 
 #define FAVICON_ANNOTATION_NAME "favicon"

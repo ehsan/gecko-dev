@@ -8,6 +8,7 @@
 // This is the .cpp file where the globals live
 #define DHW_IMPLEMENT_GLOBALS
 #include <stdio.h>
+#include "prtypes.h"
 #include "prprf.h"
 #include "prlog.h"
 #include "plstr.h"
@@ -25,7 +26,7 @@
 
 PRLock*           DHWImportHooker::gLock  = nullptr;
 DHWImportHooker*  DHWImportHooker::gHooks = nullptr;
-decltype(GetProcAddress)* DHWImportHooker::gRealGetProcAddress = nullptr;
+GETPROCADDRESS    DHWImportHooker::gRealGetProcAddress = nullptr;
 
 
 static bool
@@ -47,7 +48,7 @@ dhwEnsureImageHlpInitialized()
     }
 
 #define INIT_PROC(typename_, name_) \
-    dhw##name_ = (decltype(name_)*) ::GetProcAddress(module, #name_); \
+    dhw##name_ = (typename_) ::GetProcAddress(module, #name_); \
     if(!dhw##name_) return false;
 
 #ifdef _WIN64
@@ -223,7 +224,7 @@ DHWImportHooker::PatchOneModule(HMODULE aModule, const char* name)
     // do the fun stuff...
 
     PIMAGE_IMPORT_DESCRIPTOR desc;
-    ULONG size;
+    uint32 size;
 
     desc = (PIMAGE_IMPORT_DESCRIPTOR) 
         dhwImageDirectoryEntryToData(aModule, true, 
@@ -312,7 +313,8 @@ HMODULE WINAPI
 DHWImportHooker::LoadLibraryW(PCWSTR path)
 {
     //wprintf(L"LoadLibraryW %s\n",path);
-    HMODULE hmod = DHW_ORIGINAL(::LoadLibraryW, getLoadLibraryWHooker())(path);
+    DHW_DECLARE_FUN_TYPE(HMODULE, __stdcall, LOADLIBRARYW_, (PCWSTR));
+    HMODULE hmod = DHW_ORIGINAL(LOADLIBRARYW_, getLoadLibraryWHooker())(path);
     ModuleLoaded(hmod, 0);
     return hmod;
 }
@@ -323,7 +325,8 @@ HMODULE WINAPI
 DHWImportHooker::LoadLibraryExW(PCWSTR path, HANDLE file, DWORD flags)
 {
     //wprintf(L"LoadLibraryExW %s\n",path);
-    HMODULE hmod = DHW_ORIGINAL(::LoadLibraryExW, getLoadLibraryExWHooker())(path, file, flags);
+    DHW_DECLARE_FUN_TYPE(HMODULE, __stdcall, LOADLIBRARYEXW_, (PCWSTR, HANDLE, DWORD));
+    HMODULE hmod = DHW_ORIGINAL(LOADLIBRARYEXW_, getLoadLibraryExWHooker())(path, file, flags);
     ModuleLoaded(hmod, flags);
     return hmod;
 }    
@@ -333,7 +336,9 @@ HMODULE WINAPI
 DHWImportHooker::LoadLibraryA(PCSTR path)
 {
     //printf("LoadLibraryA %s\n",path);
-    HMODULE hmod = DHW_ORIGINAL(::LoadLibraryA, getLoadLibraryAHooker())(path);
+
+    DHW_DECLARE_FUN_TYPE(HMODULE, __stdcall, LOADLIBRARYA_, (PCSTR));
+    HMODULE hmod = DHW_ORIGINAL(LOADLIBRARYA_, getLoadLibraryAHooker())(path);
     ModuleLoaded(hmod, 0);
     return hmod;
 }
@@ -343,7 +348,8 @@ HMODULE WINAPI
 DHWImportHooker::LoadLibraryExA(PCSTR path, HANDLE file, DWORD flags)
 {
     //printf("LoadLibraryExA %s\n",path);
-    HMODULE hmod = DHW_ORIGINAL(::LoadLibraryExA, getLoadLibraryExAHooker())(path, file, flags);
+    DHW_DECLARE_FUN_TYPE(HMODULE, __stdcall, LOADLIBRARYEXA_, (PCSTR, HANDLE, DWORD));
+    HMODULE hmod = DHW_ORIGINAL(LOADLIBRARYEXA_, getLoadLibraryExAHooker())(path, file, flags);
     ModuleLoaded(hmod, flags);
     return hmod;
 }     

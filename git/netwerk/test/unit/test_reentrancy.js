@@ -1,8 +1,9 @@
-Cu.import("resource://testing-common/httpd.js");
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
 
-XPCOMUtils.defineLazyGetter(this, "URL", function() {
-  return "http://localhost:" + httpserver.identity.primaryPort;
-});
+Cu.import("resource://testing-common/httpd.js");
 
 var httpserver = new HttpServer();
 var testpath = "/simple";
@@ -12,7 +13,7 @@ function syncXHR()
 {
   var xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
             .createInstance(Ci.nsIXMLHttpRequest);
-  xhr.open("GET", URL + testpath, false);
+  xhr.open("GET", "http://localhost:4444" + testpath, false);
   xhr.send(null);    
 }
 
@@ -45,7 +46,7 @@ var listener = {
         break;
       case 2:
         do_execute_soon(function() request.suspend());
-        do_execute_soon(function() request.resume());
+	do_execute_soon(function() request.resume());
         syncXHR();
         break;
     }
@@ -83,7 +84,7 @@ function makeChan(url) {
 
 function next_test()
 {
-  var chan = makeChan(URL + testpath);
+  var chan = makeChan("http://localhost:4444" + testpath);
   chan.QueryInterface(Ci.nsIRequest);
   chan.asyncOpen(listener, null);
 }
@@ -91,7 +92,7 @@ function next_test()
 function run_test()
 {
   httpserver.registerPathHandler(testpath, serverHandler);
-  httpserver.start(-1);
+  httpserver.start(4444);
 
   next_test();
 

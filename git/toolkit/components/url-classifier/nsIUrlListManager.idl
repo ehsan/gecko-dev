@@ -5,8 +5,6 @@
 
 #include "nsISupports.idl"
 
-interface nsIPrincipal;
-
 /**
  * Interface for a class that manages updates of the url classifier database.
  */
@@ -18,29 +16,36 @@ interface nsIUrlListManagerCallback : nsISupports {
 };
 
 
-[scriptable, uuid(5d5ed98f-72cd-46b6-a9fe-76418adfdfeb)]
+[scriptable, uuid(9c5598ec-9986-40cf-af40-b5e0d817a3a0)]
 interface nsIUrlListManager : nsISupports
 {
     /**
-     * Get the gethash url for this table
+     * Set the URL we check for updates.
      */
-    ACString getGethashUrl(in ACString tableName);
+    void setUpdateUrl(in ACString url);
 
     /**
-     * Add a table to the list of tables we are managing. The name is a
+     * Set the URL we use to get keys used to decrypt URLs in
+     * enchash tables.
+     */
+    void setKeyUrl(in ACString url);
+
+    /**
+     * Set the URL that we will query for complete hashes after a partial
+     * hash match.
+     */
+    void setGethashUrl(in ACString url);
+
+    /**
+     * Add a table to the list of tables we are managing.  The name is a
      * string of the format provider_name-semantic_type-table_type.  For
-     * @param tableName A string of the format
-     *        provider_name-semantic_type-table_type.  For example,
-     *        goog-white-enchash or goog-black-url.
-     * @param updateUrl The URL from which to fetch updates.
-     * @param gethashUrl The URL from which to fetch hash completions.
+     * example, goog-white-enchash or goog-black-url.
      */
     boolean registerTable(in ACString tableName,
-                          in ACString updateUrl,
-                          in ACString gethashUrl);
+                          in boolean requireMac);
 
     /**
-     * Turn on update checking for a table. I.e., during the next server
+     * Turn on update checking for a table.  I.e., during the next server
      * check, download updates for this table.
      */
     void enableUpdate(in ACString tableName);
@@ -51,15 +56,12 @@ interface nsIUrlListManager : nsISupports
     void disableUpdate(in ACString tableName);
 
     /**
-     * Toggle update checking, if necessary.
-     */
-    void maybeToggleUpdateChecking();
-
-    /**
      * Lookup a key.  Should not raise exceptions.  Calls the callback
      * function with a comma-separated list of tables to which the key
      * belongs.
      */
-    void safeLookup(in nsIPrincipal key,
+    void safeLookup(in ACString key,
                     in nsIUrlListManagerCallback cb);
+
+    void checkForUpdates();
 };

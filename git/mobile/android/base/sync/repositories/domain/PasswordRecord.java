@@ -4,8 +4,8 @@
 
 package org.mozilla.gecko.sync.repositories.domain;
 
-import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.ExtendedJSONObject;
+import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.repositories.android.RepoUtils;
 
@@ -110,7 +110,7 @@ public class PasswordRecord extends Record {
 
   @Override
   public boolean congruentWith(Object o) {
-    if (!(o instanceof PasswordRecord)) {
+    if (o == null || !(o instanceof PasswordRecord)) {
       return false;
     }
     PasswordRecord other = (PasswordRecord) o;
@@ -130,7 +130,7 @@ public class PasswordRecord extends Record {
 
   @Override
   public boolean equalPayloads(Object o) {
-    if (!(o instanceof PasswordRecord)) {
+    if (o == null || !(o instanceof PasswordRecord)) {
       return false;
     }
 
@@ -180,26 +180,5 @@ public class PasswordRecord extends Record {
         + "timeLastUsed: " + this.timeLastUsed + ", "
         + "timePasswordChanged: " + this.timePasswordChanged + ", "
         + "timesUsed: " + this.timesUsed;
-  }
-
-  /**
-   * A PasswordRecord is considered valid if it abides by the database
-   * constraints of the PasswordsProvider (moz_logins).
-   *
-   * See toolkit/components/passwordmgr/storage-mozStorage.js for the
-   * definitions:
-   *
-   * http://hg.mozilla.org/mozilla-central/file/00955d61cc94/toolkit/components/passwordmgr/storage-mozStorage.js#l98
-   */
-    public boolean isValid() {
-        if (this.deleted) {
-            return true;
-        }
-
-        return this.hostname != null &&
-               this.encryptedUsername != null &&
-               this.encryptedPassword != null &&
-               this.usernameField != null &&
-               this.passwordField != null;
   }
 }

@@ -8,7 +8,6 @@
 
 #include <windows.h>
 #include <shobjidl.h>
-#undef LogSeverity // SetupAPI.h #defines this as DWORD
 
 #include "nsIJumpListItem.h"  // defines nsIJumpListItem
 #include "nsIMIMEInfo.h" // defines nsILocalHandlerApp
@@ -37,15 +36,15 @@ public:
    mItemType(type)
   {}
 
+  virtual ~JumpListItem() 
+  {}
+
   NS_DECL_ISUPPORTS
   NS_DECL_NSIJUMPLISTITEM
 
   static const char kJumpListCacheDir[];
 
 protected:
-  virtual ~JumpListItem()
-  {}
-
   short Type() { return mItemType; }
   short mItemType;
 
@@ -53,8 +52,6 @@ protected:
 
 class JumpListSeparator : public JumpListItem, public nsIJumpListSeparator
 {
-  ~JumpListSeparator() {}
-
 public:
   JumpListSeparator() :
    JumpListItem(nsIJumpListItem::JUMPLIST_ITEM_SEPARATOR)
@@ -69,8 +66,6 @@ public:
 
 class JumpListLink : public JumpListItem, public nsIJumpListLink
 {
-  ~JumpListLink() {}
-
 public:
   JumpListLink() :
    JumpListItem(nsIJumpListItem::JUMPLIST_ITEM_LINK)
@@ -92,15 +87,13 @@ protected:
 
 class JumpListShortcut : public JumpListItem, public nsIJumpListShortcut
 {
-  ~JumpListShortcut() {}
-
 public:
   JumpListShortcut() :
    JumpListItem(nsIJumpListItem::JUMPLIST_ITEM_SHORTCUT)
   {}
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(JumpListShortcut, JumpListItem)
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(JumpListShortcut, JumpListItem);
   NS_IMETHOD GetType(int16_t *aType) { return JumpListItem::GetType(aType); }
   NS_IMETHOD Equals(nsIJumpListItem *item, bool *_retval);
   NS_DECL_NSIJUMPLISTSHORTCUT

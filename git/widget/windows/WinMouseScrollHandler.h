@@ -10,19 +10,18 @@
 #include "nscore.h"
 #include "nsDebug.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/EventForwards.h"
 #include "mozilla/TimeStamp.h"
 #include <windows.h>
 
-class nsWindowBase;
+class nsWindow;
+class nsGUIEvent;
 struct nsIntPoint;
 
 namespace mozilla {
 namespace widget {
 
 class ModifierKeyState;
-
-struct MSGResult;
+class WheelEvent;
 
 class MouseScrollHandler {
 public:
@@ -31,18 +30,18 @@ public:
   static void Initialize();
   static void Shutdown();
 
-  static bool NeedsMessage(UINT aMsg);
-  static bool ProcessMessage(nsWindowBase* aWidget,
+  static bool ProcessMessage(nsWindow* aWindow,
                              UINT msg,
                              WPARAM wParam,
                              LPARAM lParam,
-                             MSGResult& aResult);
+                             LRESULT *aRetValue,
+                             bool &aEatMessage);
 
   /**
    * See nsIWidget::SynthesizeNativeMouseScrollEvent() for the detail about
    * this method.
    */
-  static nsresult SynthesizeNativeMouseScrollEvent(nsWindowBase* aWidget,
+  static nsresult SynthesizeNativeMouseScrollEvent(nsWindow* aWindow,
                                                    const nsIntPoint& aPoint,
                                                    uint32_t aNativeMessage,
                                                    int32_t aDelta,
@@ -68,18 +67,18 @@ private:
   static MouseScrollHandler* sInstance;
 
   /**
-   * DispatchEvent() dispatches aEvent on aWidget.
+   * DispatchEvent() dispatches aEvent on aWindow.
    *
    * @return TRUE if the event was consumed.  Otherwise, FALSE.
    */
-  static bool DispatchEvent(nsWindowBase* aWidget, WidgetGUIEvent& aEvent);
+  static bool DispatchEvent(nsWindow* aWindow, nsGUIEvent& aEvent);
 
   /**
    * InitEvent() initializes the aEvent.  If aPoint is null, the result of
    * GetCurrentMessagePos() will be used.
    */
-  static void InitEvent(nsWindowBase* aWidget,
-                        WidgetGUIEvent& aEvent,
+  static void InitEvent(nsWindow* aWindow,
+                        nsGUIEvent& aEvent,
                         nsIntPoint* aPoint = nullptr);
 
   /**
@@ -107,13 +106,13 @@ private:
    * MOZ_WM_VSCROLL or MOZ_WM_HSCROLL if we need to dispatch mouse scroll
    * events.  That avoids deadlock with plugin process.
    *
-   * @param aWidget     A window which receives the message.
+   * @param aWindow     A window which receives the message.
    * @param aMessage    WM_MOUSEWHEEL, WM_MOUSEHWHEEL, WM_VSCROLL or
    *                    WM_HSCROLL.
    * @param aWParam     The wParam value of the message.
    * @param aLParam     The lParam value of the message.
    */
-  void ProcessNativeMouseWheelMessage(nsWindowBase* aWidget,
+  void ProcessNativeMouseWheelMessage(nsWindow* aWindow,
                                       UINT aMessage,
                                       WPARAM aWParam,
                                       LPARAM aLParam);
@@ -124,13 +123,13 @@ private:
    * processed as mouse wheel message.  Otherwise, dispatches a content
    * command event.
    *
-   * @param aWidget     A window which receives the message.
+   * @param aWindow     A window which receives the message.
    * @param aMessage    WM_VSCROLL or WM_HSCROLL.
    * @param aWParam     The wParam value of the message.
    * @param aLParam     The lParam value of the message.
    * @return            TRUE if the message is processed.  Otherwise, FALSE.
    */
-  bool ProcessNativeScrollMessage(nsWindowBase* aWidget,
+  bool ProcessNativeScrollMessage(nsWindow* aWindow,
                                   UINT aMessage,
                                   WPARAM aWParam,
                                   LPARAM aLParam);
@@ -140,12 +139,12 @@ private:
    * MOZ_WM_MOUSEHWHEEL which are posted when one of our windows received
    * WM_MOUSEWHEEL or WM_MOUSEHWHEEL for avoiding deadlock with OOPP.
    *
-   * @param aWidget     A window which receives the wheel message.
+   * @param aWindow     A window which receives the wheel message.
    * @param aMessage    MOZ_WM_MOUSEWHEEL or MOZ_WM_MOUSEHWHEEL.
    * @param aWParam     The wParam value of the original message.
    * @param aLParam     The lParam value of the original message.
    */
-  void HandleMouseWheelMessage(nsWindowBase* aWidget,
+  void HandleMouseWheelMessage(nsWindow* aWindow,
                                UINT aMessage,
                                WPARAM aWParam,
                                LPARAM aLParam);
@@ -156,12 +155,12 @@ private:
    * WM_VSCROLL or WM_HSCROLL and user wants them to emulate mouse wheel
    * message's behavior.
    *
-   * @param aWidget     A window which receives the scroll message.
+   * @param aWindow     A window which receives the scroll message.
    * @param aMessage    MOZ_WM_VSCROLL or MOZ_WM_HSCROLL.
    * @param aWParam     The wParam value of the original message.
    * @param aLParam     The lParam value of the original message.
    */
-  void HandleScrollMessageAsMouseWheelMessage(nsWindowBase* aWidget,
+  void HandleScrollMessageAsMouseWheelMessage(nsWindow* aWindow,
                                               UINT aMessage,
                                               WPARAM aWParam,
                                               LPARAM aLParam);
@@ -184,10 +183,10 @@ private:
   class EventInfo {
   public:
     /**
-     * @param aWidget   An nsWindow which is handling the event.
+     * @param aWindow   An nsWindow which is handling the event.
      * @param aMessage  Must be WM_MOUSEWHEEL or WM_MOUSEHWHEEL.
      */
-    EventInfo(nsWindowBase* aWidget, UINT aMessage, WPARAM aWParam, LPARAM aLParam);
+    EventInfo(nsWindow* aWindow, UINT aMessage, WPARAM aWParam, LPARAM aLParam);
 
     bool CanDispatchWheelEvent() const;
 
@@ -252,15 +251,15 @@ private:
      * This must be called only once during handling a message and after
      * RecordEvent() is called.
      *
-     * @param aWidget           A window which will dispatch the event.
+     * @param aWindow           A window which will dispatch the event.
      * @param aWheelEvent       An NS_WHEEL_WHEEL event, this will be
      *                          initialized.
      * @param aModKeyState      Current modifier key state.
      * @return                  TRUE if the event is ready to dispatch.
      *                          Otherwise, FALSE.
      */
-    bool InitWheelEvent(nsWindowBase* aWidget,
-                        WidgetWheelEvent& aWheelEvent,
+    bool InitWheelEvent(nsWindow* aWindow,
+                        WheelEvent& aWheelEvent,
                         const ModifierKeyState& aModKeyState);
 
   private:
@@ -334,9 +333,10 @@ private:
   private:
     void Init();
 
-    static void OnChange(const char* aPrefName, void* aClosure)
+    static int OnChange(const char* aPrefName, void* aClosure)
     {
       static_cast<UserPrefs*>(aClosure)->MarkDirty();
+      return 0;
     }
 
     bool mInitialized;
@@ -351,7 +351,7 @@ private:
   class SynthesizingEvent {
   public:
     SynthesizingEvent() :
-      mWnd(nullptr), mMessage(0), mWParam(0), mLParam(0),
+      mWnd(NULL), mMessage(0), mWParam(0), mLParam(0),
       mStatus(NOT_SYNTHESIZING)
     {
     }
@@ -364,7 +364,7 @@ private:
                         UINT aMessage, WPARAM aWParam, LPARAM aLParam,
                         const BYTE (&aKeyStates)[256]);
 
-    void NativeMessageReceived(nsWindowBase* aWidget, UINT aMessage,
+    void NativeMessageReceived(nsWindow* aWindow, UINT aMessage,
                                WPARAM aWParam, LPARAM aLParam);
 
     void NotifyNativeMessageHandlingFinished();
@@ -434,7 +434,7 @@ public:
        * Key message handler for Elantech's hack.  Returns TRUE if the message
        * is consumed by this handler.  Otherwise, FALSE.
        */
-      static bool HandleKeyMessage(nsWindowBase* aWidget,
+      static bool HandleKeyMessage(nsWindow* aWindow,
                                    UINT aMsg,
                                    WPARAM aWParam);
 

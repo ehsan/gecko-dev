@@ -11,15 +11,13 @@
 #include "xpcom-private.h"
 #include "nsIComponentManager.h"
 #include "nsIComponentRegistrar.h"
-#include "nsIMemoryReporter.h"
 #include "nsIServiceManager.h"
 #include "nsIFile.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Module.h"
 #include "mozilla/ModuleLoader.h"
-#include "mozilla/Mutex.h"
+#include "mozilla/ReentrantMonitor.h"
 #include "nsXULAppAPI.h"
-#include "nsNativeModuleLoader.h"
+#include "nsNativeComponentLoader.h"
 #include "nsIFactory.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -37,10 +35,6 @@
 
 #include "mozilla/Omnijar.h"
 #include "mozilla/Attributes.h"
-
-#ifdef MOZ_B2G_LOADER
-#include "mozilla/FileLocation.h"
-#endif
 
 struct nsFactoryEntry;
 class nsIServiceManager;
@@ -69,296 +63,205 @@ extern const char staticComponentType[];
 
 extern const mozilla::Module kXPCOMModule;
 
-/**
- * This is a wrapper around mozilla::Mutex which provides runtime
- * checking for a deadlock where the same thread tries to lock a mutex while
- * it is already locked. This checking is present in both debug and release
- * builds.
- */
-class SafeMutex
-{
-public:
-  explicit SafeMutex(const char* aName)
-    : mMutex(aName)
-    , mOwnerThread(nullptr)
-  {
-  }
-
-  ~SafeMutex() {}
-
-  void Lock()
-  {
-    AssertNotCurrentThreadOwns();
-    mMutex.Lock();
-    MOZ_ASSERT(mOwnerThread == nullptr);
-    mOwnerThread = PR_GetCurrentThread();
-  }
-
-  void Unlock()
-  {
-    MOZ_ASSERT(mOwnerThread == PR_GetCurrentThread());
-    mOwnerThread = nullptr;
-    mMutex.Unlock();
-  }
-
-  void AssertCurrentThreadOwns() const
-  {
-    // This method is a debug-only check
-    MOZ_ASSERT(mOwnerThread == PR_GetCurrentThread());
-  }
-
-  MOZ_NEVER_INLINE void AssertNotCurrentThreadOwns() const
-  {
-    // This method is a release-mode check
-    if (PR_GetCurrentThread() == mOwnerThread) {
-      MOZ_CRASH();
-    }
-  }
-
-private:
-  mozilla::Mutex mMutex;
-  volatile PRThread* mOwnerThread;
+// Array of Loaders and their type strings
+struct nsLoaderdata {
+    nsCOMPtr<mozilla::ModuleLoader> loader;
+    nsCString                 type;
 };
 
-typedef mozilla::BaseAutoLock<SafeMutex> SafeMutexAutoLock;
-typedef mozilla::BaseAutoUnlock<SafeMutex> SafeMutexAutoUnlock;
-
 class nsComponentManagerImpl MOZ_FINAL
-  : public nsIComponentManager
-  , public nsIServiceManager
-  , public nsSupportsWeakReference
-  , public nsIComponentRegistrar
-  , public nsIInterfaceRequestor
-  , public nsIMemoryReporter
+    : public nsIComponentManager
+    , public nsIServiceManager
+    , public nsSupportsWeakReference
+    , public nsIComponentRegistrar
+    , public nsIInterfaceRequestor
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
-  NS_DECL_NSIINTERFACEREQUESTOR
-  NS_DECL_NSICOMPONENTMANAGER
-  NS_DECL_NSICOMPONENTREGISTRAR
-  NS_DECL_NSIMEMORYREPORTER
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIINTERFACEREQUESTOR
+    NS_DECL_NSICOMPONENTMANAGER
+    NS_DECL_NSICOMPONENTREGISTRAR
 
-  static nsresult Create(nsISupports* aOuter, REFNSIID aIID, void** aResult);
+    static nsresult Create(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
-  nsresult RegistryLocationForFile(nsIFile* aFile,
-                                   nsCString& aResult);
-  nsresult FileForRegistryLocation(const nsCString& aLocation,
-                                   nsIFile** aSpec);
+    nsresult RegistryLocationForFile(nsIFile* aFile,
+                                     nsCString& aResult);
+    nsresult FileForRegistryLocation(const nsCString &aLocation,
+                                     nsIFile **aSpec);
 
-  NS_DECL_NSISERVICEMANAGER
+    NS_DECL_NSISERVICEMANAGER
 
-  // nsComponentManagerImpl methods:
-  nsComponentManagerImpl();
+    // nsComponentManagerImpl methods:
+    nsComponentManagerImpl();
 
-  static nsComponentManagerImpl* gComponentManager;
-  nsresult Init();
+    static nsComponentManagerImpl* gComponentManager;
+    nsresult Init();
 
-  nsresult Shutdown(void);
+    nsresult Shutdown(void);
 
-  nsresult FreeServices();
+    nsresult FreeServices();
 
-  already_AddRefed<mozilla::ModuleLoader> LoaderForExtension(const nsACString& aExt);
-  nsInterfaceHashtable<nsCStringHashKey, mozilla::ModuleLoader> mLoaderMap;
+    already_AddRefed<mozilla::ModuleLoader> LoaderForExtension(const nsACString& aExt);
+    nsInterfaceHashtable<nsCStringHashKey, mozilla::ModuleLoader> mLoaderMap;
 
-  already_AddRefed<nsIFactory> FindFactory(const nsCID& aClass);
-  already_AddRefed<nsIFactory> FindFactory(const char* aContractID,
-                                           uint32_t aContractIDLen);
+    already_AddRefed<nsIFactory> FindFactory(const nsCID& aClass);
+    already_AddRefed<nsIFactory> FindFactory(const char *contractID,
+                                             uint32_t aContractIDLen);
 
-  already_AddRefed<nsIFactory> LoadFactory(nsFactoryEntry* aEntry);
+    already_AddRefed<nsIFactory> LoadFactory(nsFactoryEntry *aEntry);
 
-  nsFactoryEntry* GetFactoryEntry(const char* aContractID,
-                                  uint32_t aContractIDLen);
-  nsFactoryEntry* GetFactoryEntry(const nsCID& aClass);
+    nsFactoryEntry *GetFactoryEntry(const char *aContractID,
+                                    uint32_t aContractIDLen);
+    nsFactoryEntry *GetFactoryEntry(const nsCID &aClass);
 
-  nsDataHashtable<nsIDHashKey, nsFactoryEntry*> mFactories;
-  nsDataHashtable<nsCStringHashKey, nsFactoryEntry*> mContractIDs;
+    nsDataHashtable<nsIDHashKey, nsFactoryEntry*> mFactories;
+    nsDataHashtable<nsCStringHashKey, nsFactoryEntry*> mContractIDs;
 
-  SafeMutex mLock;
+    mozilla::ReentrantMonitor mMon;
 
-  static void InitializeStaticModules();
-  static void InitializeModuleLocations();
+    static void InitializeStaticModules();
+    static void InitializeModuleLocations();
 
-  struct ComponentLocation
-  {
-    NSLocationType type;
-    mozilla::FileLocation location;
-  };
-
-  class ComponentLocationComparator
-  {
-  public:
-    bool Equals(const ComponentLocation& aA, const ComponentLocation& aB) const
+    struct ComponentLocation
     {
-      return (aA.type == aB.type && aA.location.Equals(aB.location));
-    }
-  };
+        NSLocationType type;
+        mozilla::FileLocation location;
+    };
 
-  static nsTArray<const mozilla::Module*>* sStaticModules;
-  static nsTArray<ComponentLocation>* sModuleLocations;
-
-  nsNativeModuleLoader mNativeModuleLoader;
-
-  class KnownModule
-  {
-  public:
-    /**
-     * Static or binary module.
-     */
-    KnownModule(const mozilla::Module* aModule, mozilla::FileLocation& aFile)
-      : mModule(aModule)
-      , mFile(aFile)
-      , mLoaded(false)
-      , mFailed(false)
+    class ComponentLocationComparator
     {
-    }
-
-    explicit KnownModule(const mozilla::Module* aModule)
-      : mModule(aModule)
-      , mLoaded(false)
-      , mFailed(false)
-    {
-    }
-
-    explicit KnownModule(mozilla::FileLocation& aFile)
-      : mModule(nullptr)
-      , mFile(aFile)
-      , mLoader(nullptr)
-      , mLoaded(false)
-      , mFailed(false)
-    {
-    }
-
-    ~KnownModule()
-    {
-      if (mLoaded && mModule->unloadProc) {
-        mModule->unloadProc();
+    public:
+      bool Equals(const ComponentLocation& a, const ComponentLocation& b) const
+      {
+        return (a.type == b.type && a.location.Equals(b.location));
       }
-    }
+    };
 
-    bool EnsureLoader();
-    bool Load();
+    static nsTArray<const mozilla::Module*>* sStaticModules;
+    static nsTArray<ComponentLocation>* sModuleLocations;
 
-    const mozilla::Module* Module() const { return mModule; }
+    nsNativeModuleLoader mNativeModuleLoader;
 
-    /**
-     * For error logging, get a description of this module, either the
-     * file path, or <static module>.
-     */
-    nsCString Description() const;
-
-  private:
-    const mozilla::Module* mModule;
-    mozilla::FileLocation mFile;
-    nsCOMPtr<mozilla::ModuleLoader> mLoader;
-    bool mLoaded;
-    bool mFailed;
-  };
-
-  // The KnownModule is kept alive by these members, it is
-  // referenced by pointer from the factory entries.
-  nsTArray<nsAutoPtr<KnownModule>> mKnownStaticModules;
-  // The key is the URI string of the module
-  nsClassHashtable<nsCStringHashKey, KnownModule> mKnownModules;
-
-  // Mutex not held
-  void RegisterModule(const mozilla::Module* aModule,
-                      mozilla::FileLocation* aFile);
-
-
-  // Mutex held
-  void RegisterCIDEntryLocked(const mozilla::Module::CIDEntry* aEntry,
-                              KnownModule* aModule);
-  void RegisterContractIDLocked(const mozilla::Module::ContractIDEntry* aEntry);
-
-  // Mutex not held
-  void RegisterManifest(NSLocationType aType, mozilla::FileLocation& aFile,
-                        bool aChromeOnly);
-
-  struct ManifestProcessingContext
-  {
-    ManifestProcessingContext(NSLocationType aType,
-                              mozilla::FileLocation& aFile, bool aChromeOnly)
-      : mType(aType)
-      , mFile(aFile)
-      , mChromeOnly(aChromeOnly)
+    class KnownModule
     {
-    }
+    public:
+        /**
+         * Static or binary module.
+         */
+        KnownModule(const mozilla::Module* aModule, mozilla::FileLocation &aFile)
+            : mModule(aModule)
+            , mFile(aFile)
+            , mLoaded(false)
+            , mFailed(false)
+        { }
 
-    ~ManifestProcessingContext() {}
+        KnownModule(const mozilla::Module* aModule)
+            : mModule(aModule)
+            , mLoaded(false)
+            , mFailed(false)
+        { }
 
-    NSLocationType mType;
-    mozilla::FileLocation mFile;
-    bool mChromeOnly;
-  };
+        KnownModule(mozilla::FileLocation &aFile)
+            : mModule(NULL)
+            , mFile(aFile)
+            , mLoader(NULL)
+            , mLoaded(false)
+            , mFailed(false)
+        { }
 
-  void ManifestManifest(ManifestProcessingContext& aCx, int aLineNo,
-                        char* const* aArgv);
-  void ManifestBinaryComponent(ManifestProcessingContext& aCx, int aLineNo,
-                               char* const* aArgv);
-  void ManifestXPT(ManifestProcessingContext& aCx, int aLineNo,
-                   char* const* aArgv);
-  void ManifestComponent(ManifestProcessingContext& aCx, int aLineNo,
-                         char* const* aArgv);
-  void ManifestContract(ManifestProcessingContext& aCx, int aLineNo,
-                        char* const* aArgv);
-  void ManifestCategory(ManifestProcessingContext& aCx, int aLineNo,
-                        char* const* aArgv);
+        ~KnownModule()
+        {
+            if (mLoaded && mModule->unloadProc)
+                mModule->unloadProc();
+        }
 
-  void RereadChromeManifests(bool aChromeOnly = true);
+        bool EnsureLoader();
+        bool Load();
 
-  // Shutdown
-  enum
-  {
-    NOT_INITIALIZED,
-    NORMAL,
-    SHUTDOWN_IN_PROGRESS,
-    SHUTDOWN_COMPLETE
-  } mStatus;
+        const mozilla::Module* Module() const
+        {
+            return mModule;
+        }
 
-  PLArenaPool   mArena;
+        /**
+         * For error logging, get a description of this module, either the
+         * file path, or <static module>.
+         */
+        nsCString Description() const;
 
-  struct PendingServiceInfo
-  {
-    const nsCID* cid;
-    PRThread* thread;
-  };
+    private:
+        const mozilla::Module* mModule;
+        mozilla::FileLocation mFile;
+        nsCOMPtr<mozilla::ModuleLoader> mLoader;
+        bool mLoaded;
+        bool mFailed;
+    };
 
-  inline PendingServiceInfo* AddPendingService(const nsCID& aServiceCID,
-                                               PRThread* aThread);
-  inline void RemovePendingService(const nsCID& aServiceCID);
-  inline PRThread* GetPendingServiceThread(const nsCID& aServiceCID) const;
+    // The KnownModule is kept alive by these members, it is
+    // referenced by pointer from the factory entries.
+    nsTArray< nsAutoPtr<KnownModule> > mKnownStaticModules;
+    // The key is the URI string of the module
+    nsClassHashtable<nsCStringHashKey, KnownModule> mKnownModules;
 
-  nsTArray<PendingServiceInfo> mPendingServices;
+    void RegisterModule(const mozilla::Module* aModule,
+                        mozilla::FileLocation* aFile);
+    void RegisterCIDEntry(const mozilla::Module::CIDEntry* aEntry,
+                          KnownModule* aModule);
+    void RegisterContractID(const mozilla::Module::ContractIDEntry* aEntry);
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+    void RegisterManifest(NSLocationType aType, mozilla::FileLocation &aFile,
+                          bool aChromeOnly);
 
-#ifdef MOZ_B2G_LOADER
-  // Preload XPT interface info for B2G loader.
-  // This function is called before XPCOM has been initialized.
-  static void PreloadXPT(nsIFile* aFile);
-#endif
-
-#ifdef MOZ_B2G_LOADER
-  // Parsing functions of directives of manifest for XPT only parsing.
-  struct XPTOnlyManifestProcessingContext
-  {
-    XPTOnlyManifestProcessingContext(mozilla::FileLocation& aFile)
-      : mFile(aFile)
+    struct ManifestProcessingContext
     {
-    }
+        ManifestProcessingContext(NSLocationType aType, mozilla::FileLocation &aFile, bool aChromeOnly)
+            : mType(aType)
+            , mFile(aFile)
+            , mChromeOnly(aChromeOnly)
+        { }
 
-    ~XPTOnlyManifestProcessingContext() {}
+        ~ManifestProcessingContext() { }
 
-    mozilla::FileLocation mFile;
-  };
-  static void XPTOnlyManifestManifest(XPTOnlyManifestProcessingContext& aCx,
-                                      int aLineNo, char* const* aArgv);
-  static void XPTOnlyManifestXPT(XPTOnlyManifestProcessingContext& aCx,
-                                 int aLineNo, char* const* aArgv);
-#endif
+        NSLocationType mType;
+        mozilla::FileLocation mFile;
+        bool mChromeOnly;
+    };
+
+    void ManifestManifest(ManifestProcessingContext& cx, int lineno, char *const * argv);
+    void ManifestBinaryComponent(ManifestProcessingContext& cx, int lineno, char *const * argv);
+    void ManifestXPT(ManifestProcessingContext& cx, int lineno, char *const * argv);
+    void ManifestComponent(ManifestProcessingContext& cx, int lineno, char *const * argv);
+    void ManifestContract(ManifestProcessingContext& cx, int lineno, char* const * argv);
+    void ManifestCategory(ManifestProcessingContext& cx, int lineno, char* const * argv);
+
+    void RereadChromeManifests(bool aChromeOnly = true);
+
+    // Shutdown
+    enum {
+        NOT_INITIALIZED,
+        NORMAL,
+        SHUTDOWN_IN_PROGRESS,
+        SHUTDOWN_COMPLETE
+    } mStatus;
+
+    nsTArray<nsLoaderdata> mLoaderData;
+
+    PLArenaPool   mArena;
+
+    struct PendingServiceInfo {
+      const nsCID* cid;
+      PRThread* thread;
+    };
+
+    inline PendingServiceInfo* AddPendingService(const nsCID& aServiceCID,
+                                                 PRThread* aThread);
+    inline void RemovePendingService(const nsCID& aServiceCID);
+    inline PRThread* GetPendingServiceThread(const nsCID& aServiceCID) const;
+
+    nsTArray<PendingServiceInfo> mPendingServices;
 
 private:
-  ~nsComponentManagerImpl();
+    ~nsComponentManagerImpl();
 };
 
 
@@ -368,23 +271,21 @@ private:
 
 struct nsFactoryEntry
 {
-  nsFactoryEntry(const mozilla::Module::CIDEntry* aEntry,
-                 nsComponentManagerImpl::KnownModule* aModule);
+    nsFactoryEntry(const mozilla::Module::CIDEntry* entry,
+                   nsComponentManagerImpl::KnownModule* module);
 
-  // nsIComponentRegistrar.registerFactory support
-  nsFactoryEntry(const nsCID& aClass, nsIFactory* aFactory);
+    // nsIComponentRegistrar.registerFactory support
+    nsFactoryEntry(const nsCID& aClass, nsIFactory* factory);
 
-  ~nsFactoryEntry();
+    ~nsFactoryEntry();
 
-  already_AddRefed<nsIFactory> GetFactory();
+    already_AddRefed<nsIFactory> GetFactory();
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+    const mozilla::Module::CIDEntry* mCIDEntry;
+    nsComponentManagerImpl::KnownModule* mModule;
 
-  const mozilla::Module::CIDEntry* mCIDEntry;
-  nsComponentManagerImpl::KnownModule* mModule;
-
-  nsCOMPtr<nsIFactory>   mFactory;
-  nsCOMPtr<nsISupports>  mServiceObject;
+    nsCOMPtr<nsIFactory>   mFactory;
+    nsCOMPtr<nsISupports>  mServiceObject;
 };
 
 #endif // nsComponentManager_h__

@@ -7,37 +7,37 @@ package org.mozilla.gecko.sync.repositories;
 import java.io.IOException;
 
 import org.json.simple.parser.ParseException;
-import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.ExtendedJSONObject;
+import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.NonObjectJSONException;
 
-public class RepositorySessionBundle {
-  public static final String LOG_TAG = RepositorySessionBundle.class.getSimpleName();
+public class RepositorySessionBundle extends ExtendedJSONObject {
 
-  protected static final String JSON_KEY_TIMESTAMP = "timestamp";
+  private static final String LOG_TAG = "RepositorySessionBundle";
 
-  protected final ExtendedJSONObject object;
+  public RepositorySessionBundle() {
+    super();
+  }
 
   public RepositorySessionBundle(String jsonString) throws IOException, ParseException, NonObjectJSONException {
-    object = ExtendedJSONObject.parseJSONObject(jsonString);
+    super(jsonString);
   }
 
   public RepositorySessionBundle(long lastSyncTimestamp) {
-    object = new ExtendedJSONObject();
+    this();
     this.setTimestamp(lastSyncTimestamp);
   }
 
   public long getTimestamp() {
-    if (object.containsKey(JSON_KEY_TIMESTAMP)) {
-      return object.getLong(JSON_KEY_TIMESTAMP);
+    if (this.containsKey("timestamp")) {
+      return this.getLong("timestamp");
     }
-
     return -1;
   }
 
   public void setTimestamp(long timestamp) {
-    Logger.debug(LOG_TAG, "Setting timestamp to " + timestamp + ".");
-    object.put(JSON_KEY_TIMESTAMP, timestamp);
+    Logger.debug(LOG_TAG, "Setting timestamp on RepositorySessionBundle to " + timestamp);
+    this.put("timestamp", new Long(timestamp));
   }
 
   public void bumpTimestamp(long timestamp) {
@@ -47,9 +47,5 @@ public class RepositorySessionBundle {
     } else {
       Logger.debug(LOG_TAG, "Timestamp " + timestamp + " not greater than " + existing + "; not bumping.");
     }
-  }
-
-  public String toJSONString() {
-    return object.toJSONString();
   }
 }

@@ -8,8 +8,6 @@
 #include "nsXULAppAPI.h"
 #include "nsLookAndFeel.h"
 #include "gfxFont.h"
-#include "gfxFontConstants.h"
-#include "mozilla/gfx/2D.h"
 
 using namespace mozilla;
 using mozilla::dom::ContentChild;
@@ -20,7 +18,7 @@ AndroidSystemColors nsLookAndFeel::mSystemColors;
 bool nsLookAndFeel::mInitializedShowPassword = false;
 bool nsLookAndFeel::mShowPassword = true;
 
-static const char16_t UNICODE_BULLET = 0x2022;
+static const PRUnichar UNICODE_BULLET = 0x2022;
 
 nsLookAndFeel::nsLookAndFeel()
     : nsXPLookAndFeel()
@@ -102,7 +100,7 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
         // (except here at least TextSelectBackground and TextSelectForeground)
         // The CSS2 colors below are used.
     case eColorID_WindowBackground:
-        aColor = NS_RGB(0xFF, 0xFF, 0xFF);
+        aColor = mSystemColors.colorBackground;
         break;
     case eColorID_WindowForeground:
         aColor = mSystemColors.textColorPrimary;
@@ -368,7 +366,7 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
 
         case eIntID_SelectTextfieldsOnKeyFocus:
             // Select textfield content when focused by kbd
-            // used by EventStateManager::sTextfieldSelectModel
+            // used by nsEventStateManager::sTextfieldSelectModel
             aResult = 1;
             break;
 
@@ -397,13 +395,9 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
             aResult = 1;
             break;
 
-        case eIntID_ColorPickerAvailable:
-            aResult = 1;
-            break;
-
         case eIntID_WindowsDefaultTheme:
+        case eIntID_MaemoClassic:
         case eIntID_WindowsThemeIdentifier:
-        case eIntID_OperatingSystemVersionIdentifier:
             aResult = 0;
             rv = NS_ERROR_NOT_IMPLEMENTED;
             break;
@@ -452,14 +446,13 @@ nsLookAndFeel::GetFloatImpl(FloatID aID, float &aResult)
 /*virtual*/
 bool
 nsLookAndFeel::GetFontImpl(FontID aID, nsString& aFontName,
-                           gfxFontStyle& aFontStyle,
-                           float aDevPixPerCSSPixel)
+                           gfxFontStyle& aFontStyle)
 {
     aFontName.AssignLiteral("\"Droid Sans\"");
     aFontStyle.style = NS_FONT_STYLE_NORMAL;
     aFontStyle.weight = NS_FONT_WEIGHT_NORMAL;
     aFontStyle.stretch = NS_FONT_STRETCH_NORMAL;
-    aFontStyle.size = 9.0 * 96.0f / 72.0f * aDevPixPerCSSPixel;
+    aFontStyle.size = 9.0 * 96.0f / 72.0f;
     aFontStyle.systemFont = true;
     return true;
 }
@@ -470,7 +463,10 @@ nsLookAndFeel::GetEchoPasswordImpl()
 {
     if (!mInitializedShowPassword) {
         if (XRE_GetProcessType() == GeckoProcessType_Default) {
-            mShowPassword = mozilla::widget::android::GeckoAppShell::GetShowPasswordSetting();
+            if (AndroidBridge::Bridge())
+                mShowPassword = AndroidBridge::Bridge()->GetShowPasswordSetting();
+            else
+                NS_ASSERTION(AndroidBridge::Bridge() != nullptr, "AndroidBridge is not available!");
         } else {
             ContentChild::GetSingleton()->SendGetShowPasswordSetting(&mShowPassword);
         }
@@ -487,7 +483,7 @@ nsLookAndFeel::GetPasswordMaskDelayImpl()
 }
 
 /* virtual */
-char16_t
+PRUnichar
 nsLookAndFeel::GetPasswordCharacterImpl()
 {
   // This value is hard-coded in Android OS's PasswordTransformationMethod.java

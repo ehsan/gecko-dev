@@ -3,7 +3,7 @@
 
 function test() {
   waitForExplicitFinish();
-  newWindowWithTabView(onTabViewShown, null, 850);
+  newWindowWithTabView(onTabViewShown);
 }
 
 function onTabViewShown(win) {
@@ -64,13 +64,14 @@ function resizeWindow(win, diffX, diffY, callback) {
   let targetWidth = win.outerWidth + diffX;
   let targetHeight = win.outerHeight + diffY;
 
-  (function tryResize() {
+  win.addEventListener("resize", function onResize() {
     let {outerWidth: width, outerHeight: height} = win;
-    if (width != targetWidth || height != targetHeight) {
-      win.resizeTo(targetWidth, targetHeight);
-      executeSoon(tryResize);
-    } else {
-      callback();
-    }
-  })();
+    if (width != targetWidth || height != targetHeight)
+      return;
+
+    win.removeEventListener("resize", onResize, false);
+    executeSoon(callback);
+  }, false);
+
+  win.resizeBy(diffX, diffY);
 }

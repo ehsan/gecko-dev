@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2013 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2012 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -11,20 +11,23 @@
 #ifndef LIBEGL_DISPLAY_H_
 #define LIBEGL_DISPLAY_H_
 
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#include <d3d9.h>
+
 #include <set>
 #include <vector>
 
-#include "libEGL/Config.h"
+#include "libGLESv2/Context.h"
 
-namespace gl
-{
-class Context;
-}
+#include "libEGL/Config.h"
+#include "libEGL/ShaderCache.h"
+#include "libEGL/Surface.h"
 
 namespace egl
 {
-class Surface;
-
 class Display
 {
   public:
@@ -33,19 +36,17 @@ class Display
     bool initialize();
     void terminate();
 
-    static egl::Display *getDisplay(EGLNativeDisplayType displayId, EGLint displayType);
+    virtual void startScene();
+    virtual void endScene();
 
-    static const char *getExtensionString(egl::Display *display);
-
-    static bool supportsPlatformD3D();
-    static bool supportsPlatformOpenGL();
+    static egl::Display *getDisplay(EGLNativeDisplayType displayId);
 
     bool getConfigs(EGLConfig *configs, const EGLint *attribList, EGLint configSize, EGLint *numConfig);
     bool getConfigAttrib(EGLConfig config, EGLint attribute, EGLint *value);
 
-    EGLSurface createWindowSurface(EGLNativeWindowType window, EGLConfig config, const EGLint *attribList);
+    EGLSurface createWindowSurface(HWND window, EGLConfig config, const EGLint *attribList);
     EGLSurface createOffscreenSurface(EGLConfig config, HANDLE shareHandle, const EGLint *attribList);
-    EGLContext createContext(EGLConfig configHandle, EGLint clientVersion, const gl::Context *shareContext, bool notifyResets, bool robustAccess);
+    EGLContext createContext(EGLConfig configHandle, const gl::Context *shareContext, bool notifyResets, bool robustAccess);
 
     void destroySurface(egl::Surface *surface);
     void destroyContext(gl::Context *context);
@@ -54,27 +55,83 @@ class Display
     bool isValidConfig(EGLConfig config);
     bool isValidContext(gl::Context *context);
     bool isValidSurface(egl::Surface *surface);
-    bool hasExistingWindowSurface(EGLNativeWindowType window);
+    bool hasExistingWindowSurface(HWND window);
 
-    rx::Renderer *getRenderer() { return mRenderer; };
+    EGLint getMinSwapInterval();
+    EGLint getMaxSwapInterval();
 
-    // exported methods must be virtual
+    virtual IDirect3DDevice9 *getDevice();
+    virtual D3DCAPS9 getDeviceCaps();
+    virtual D3DADAPTER_IDENTIFIER9 *getAdapterIdentifier();
+    virtual bool testDeviceLost();
+    virtual bool testDeviceResettable();
+    virtual void sync(bool block);
+    virtual IDirect3DQuery9* allocateEventQuery();
+    virtual void freeEventQuery(IDirect3DQuery9* query);
+    virtual void getMultiSampleSupport(D3DFORMAT format, bool *multiSampleArray);
+    virtual bool getDXT1TextureSupport();
+    virtual bool getDXT3TextureSupport();
+    virtual bool getDXT5TextureSupport();
+    virtual bool getEventQuerySupport();
+    virtual bool getFloat32TextureSupport(bool *filtering, bool *renderable);
+    virtual bool getFloat16TextureSupport(bool *filtering, bool *renderable);
+    virtual bool getLuminanceTextureSupport();
+    virtual bool getLuminanceAlphaTextureSupport();
+    virtual bool getVertexTextureSupport() const;
+    virtual bool getNonPower2TextureSupport() const;
+    virtual bool getDepthTextureSupport() const;
+    virtual bool getOcclusionQuerySupport() const;
+    virtual bool getInstancingSupport() const;
+    virtual float getTextureFilterAnisotropySupport() const;
+    virtual D3DPOOL getBufferPool(DWORD usage) const;
+    virtual D3DPOOL getTexturePool(DWORD usage) const;
+
     virtual void notifyDeviceLost();
-    virtual void recreateSwapChains();
+    bool isDeviceLost();
 
+    bool isD3d9ExDevice() const { return mD3d9Ex != NULL; }
     const char *getExtensionString() const;
-    const char *getVendorString() const;
+    bool shareHandleSupported() const;
+
+    virtual IDirect3DVertexShader9 *createVertexShader(const DWORD *function, size_t length);
+    virtual IDirect3DPixelShader9 *createPixelShader(const DWORD *function, size_t length);
 
   private:
     DISALLOW_COPY_AND_ASSIGN(Display);
 
-    Display(EGLNativeDisplayType displayId, EGLint displayType);
+    Display(EGLNativeDisplayType displayId, HDC deviceContext, bool software);
+
+    D3DPRESENT_PARAMETERS getDefaultPresentParameters();
 
     bool restoreLostDevice();
 
     EGLNativeDisplayType mDisplayId;
-    EGLint mRequestedDisplayType;
+    const HDC mDc;
 
+    HMODULE mD3d9Module;
+    
+    UINT mAdapter;
+    D3DDEVTYPE mDeviceType;
+    IDirect3D9 *mD3d9;  // Always valid after successful initialization.
+    IDirect3D9Ex *mD3d9Ex;  // Might be null if D3D9Ex is not supported.
+    IDirect3DDevice9 *mDevice;
+    IDirect3DDevice9Ex *mDeviceEx;  // Might be null if D3D9Ex is not supported.
+
+    // A pool of event queries that are currently unused.
+    std::vector<IDirect3DQuery9*> mEventQueryPool;
+
+    VertexShaderCache mVertexShaderCache;
+    PixelShaderCache mPixelShaderCache;
+
+    D3DCAPS9 mDeviceCaps;
+    D3DADAPTER_IDENTIFIER9 mAdapterIdentifier;
+    HWND mDeviceWindow;
+
+    bool mSceneStarted;
+    EGLint mMaxSwapInterval;
+    EGLint mMinSwapInterval;
+    bool mSoftwareDevice;
+    
     typedef std::set<Surface*> SurfaceSet;
     SurfaceSet mSurfaceSet;
 
@@ -82,16 +139,14 @@ class Display
 
     typedef std::set<gl::Context*> ContextSet;
     ContextSet mContextSet;
+    bool mDeviceLost;
 
-    rx::Renderer *mRenderer;
+    bool createDevice();
+    void initializeDevice();
+    bool resetDevice();
 
-    static std::string generateClientExtensionString();
-
-    void initDisplayExtensionString();
-    std::string mDisplayExtensionString;
-
-    void initVendorString();
-    std::string mVendorString;
+    void initExtensionString();
+    std::string mExtensionString;
 };
 }
 

@@ -20,11 +20,8 @@
 #include "nsStringAPI.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
-#include "nsIXPConnect.h"
-#include "prio.h"
-#include "mozilla/Maybe.h"
-
-using namespace JS;
+#include "nsITelemetry.h"
+#include "jsapi.h"
 
 namespace mozilla {
 namespace scache {
@@ -59,7 +56,7 @@ PR_END_MACRO
 nsresult
 WaitForStartupTimer() {
   nsresult rv;
-  nsCOMPtr<nsIStartupCache> sc
+  nsCOMPtr<nsIStartupCache> sc 
     = do_GetService("@mozilla.org/startupcache/cache;1");
   PR_Sleep(10 * PR_TicksPerSecond());
   
@@ -78,7 +75,7 @@ WaitForStartupTimer() {
 nsresult
 TestStartupWriteRead() {
   nsresult rv;
-  nsCOMPtr<nsIStartupCache> sc
+  nsCOMPtr<nsIStartupCache> sc 
     = do_GetService("@mozilla.org/startupcache/cache;1", &rv);
   if (!sc) {
     fail("didn't get a pointer...");
@@ -90,7 +87,7 @@ TestStartupWriteRead() {
   
   const char* buf = "Market opportunities for BeardBook";
   const char* id = "id";
-  char* outbufPtr = nullptr;
+  char* outbufPtr = NULL;
   nsAutoArrayPtr<char> outbuf;  
   uint32_t len;
   
@@ -119,9 +116,9 @@ TestWriteInvalidateRead() {
   nsresult rv;
   const char* buf = "BeardBook competitive analysis";
   const char* id = "id";
-  char* outbuf = nullptr;
+  char* outbuf = NULL;
   uint32_t len;
-  nsCOMPtr<nsIStartupCache> sc
+  nsCOMPtr<nsIStartupCache> sc 
     = do_GetService("@mozilla.org/startupcache/cache;1", &rv);
   sc->InvalidateCache();
 
@@ -171,7 +168,7 @@ TestWriteObject() {
     = do_CreateInstance("@mozilla.org/storagestream;1");
   NS_ENSURE_ARG_POINTER(storageStream);
   
-  rv = storageStream->Init(256, (uint32_t) -1);
+  rv = storageStream->Init(256, (uint32_t) -1, nullptr);
   NS_ENSURE_SUCCESS(rv, rv);
   
   nsCOMPtr<nsIObjectOutputStream> objectOutput
@@ -195,7 +192,7 @@ TestWriteObject() {
     return rv;
   }
 
-  char* bufPtr = nullptr;
+  char* bufPtr = NULL;
   nsAutoArrayPtr<char> buf;
   uint32_t len;
   NewBufferFromStorageStream(storageStream, &bufPtr, &len);
@@ -209,7 +206,7 @@ TestWriteObject() {
     return rv;
   }
     
-  char* buf2Ptr = nullptr;
+  char* buf2Ptr = NULL;
   nsAutoArrayPtr<char> buf2;
   uint32_t len2;
   nsCOMPtr<nsIObjectInputStream> objectInput;
@@ -251,119 +248,19 @@ TestWriteObject() {
 }
 
 nsresult
-LockCacheFile(bool protect, nsIFile* profileDir) {
-  NS_ENSURE_ARG(profileDir);
-
-  nsCOMPtr<nsIFile> startupCache;
-  profileDir->Clone(getter_AddRefs(startupCache));
-  NS_ENSURE_STATE(startupCache);
-  startupCache->AppendNative(NS_LITERAL_CSTRING("startupCache"));
-
-  nsresult rv;
-#ifndef XP_WIN
-  static uint32_t oldPermissions;
-#else
-  static PRFileDesc* fd = nullptr;
-#endif
-
-  // To prevent deletion of the startupcache file, we change the containing
-  // directory's permissions on Linux/Mac, and hold the file open on Windows
-  if (protect) {
-#ifndef XP_WIN
-    rv = startupCache->GetPermissions(&oldPermissions);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = startupCache->SetPermissions(0555);
-    NS_ENSURE_SUCCESS(rv, rv);
-#else
-    // Filename logic from StartupCache.cpp
-    #ifdef IS_BIG_ENDIAN
-    #define SC_ENDIAN "big"
-    #else
-    #define SC_ENDIAN "little"
-    #endif
-
-    #if PR_BYTES_PER_WORD == 4
-    #define SC_WORDSIZE "4"
-    #else
-    #define SC_WORDSIZE "8"
-    #endif
-    char sStartupCacheName[] = "startupCache." SC_WORDSIZE "." SC_ENDIAN;
-    startupCache->AppendNative(NS_LITERAL_CSTRING(sStartupCacheName));
-
-    rv = startupCache->OpenNSPRFileDesc(PR_RDONLY, 0, &fd);
-    NS_ENSURE_SUCCESS(rv, rv);
-#endif
-  } else {
-#ifndef XP_WIN
-    rv = startupCache->SetPermissions(oldPermissions);
-    NS_ENSURE_SUCCESS(rv, rv);
-#else
-   PR_Close(fd);
-#endif
-  }
-
-  return NS_OK;
-}
-
-nsresult
-TestIgnoreDiskCache(nsIFile* profileDir) {
-  nsresult rv;
-  nsCOMPtr<nsIStartupCache> sc
-    = do_GetService("@mozilla.org/startupcache/cache;1", &rv);
-  sc->InvalidateCache();
-  
-  const char* buf = "Get a Beardbook app for your smartphone";
-  const char* id = "id";
-  char* outbuf = nullptr;
-  uint32_t len;
-  
-  rv = sc->PutBuffer(id, buf, strlen(buf) + 1);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = sc->ResetStartupWriteTimer();
-  rv = WaitForStartupTimer();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Prevent StartupCache::InvalidateCache from deleting the disk file
-  rv = LockCacheFile(true, profileDir);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  sc->IgnoreDiskCache();
-
-  rv = sc->GetBuffer(id, &outbuf, &len);
-
-  nsresult r = LockCacheFile(false, profileDir);
-  NS_ENSURE_SUCCESS(r, r);
-
-  delete[] outbuf;
-
-  if (rv == NS_ERROR_NOT_AVAILABLE) {
-    passed("buffer not available after ignoring disk cache");
-  } else if (NS_SUCCEEDED(rv)) {
-    fail("GetBuffer succeeded unexpectedly after ignoring disk cache");
-    return NS_ERROR_UNEXPECTED;
-  } else {
-    fail("GetBuffer gave an unexpected failure, expected NOT_AVAILABLE");
-    return rv;
-  }
-
-  sc->InvalidateCache();
-  return NS_OK;
-}
-
-nsresult
 TestEarlyShutdown() {
   nsresult rv;
-  nsCOMPtr<nsIStartupCache> sc
+  nsCOMPtr<nsIStartupCache> sc 
     = do_GetService("@mozilla.org/startupcache/cache;1", &rv);
   sc->InvalidateCache();
 
   const char* buf = "Find your soul beardmate on BeardBook";
   const char* id = "id";
   uint32_t len;
-  char* outbuf = nullptr;
+  char* outbuf = NULL;
   
   sc->ResetStartupWriteTimer();
-  rv = sc->PutBuffer(id, buf, strlen(buf) + 1);
+  rv = sc->PutBuffer(buf, id, strlen(buf) + 1);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIObserver> obs;
@@ -375,27 +272,95 @@ TestEarlyShutdown() {
   rv = sc->GetBuffer(id, &outbuf, &len);
   delete[] outbuf;
 
-  if (NS_SUCCEEDED(rv)) {
-    passed("GetBuffer succeeded after early shutdown");
-  } else {
-    fail("GetBuffer failed after early shutdown");
-    return rv;
-  }
-
-  const char* other_id = "other_id";
-  rv = sc->PutBuffer(other_id, buf, strlen(buf) + 1);
-
   if (rv == NS_ERROR_NOT_AVAILABLE) {
-    passed("PutBuffer not available after early shutdown");
+    passed("buffer not available after early shutdown");
   } else if (NS_SUCCEEDED(rv)) {
-    fail("PutBuffer succeeded unexpectedly after early shutdown");
+    fail("GetBuffer succeeded unexpectedly after early shutdown");
     return NS_ERROR_UNEXPECTED;
   } else {
-    fail("PutBuffer gave an unexpected failure, expected NOT_AVAILABLE");
+    fail("GetBuffer gave an unexpected failure, expected NOT_AVAILABLE");
     return rv;
   }
  
   return NS_OK;
+}
+
+bool
+SetupJS(JSContext **cxp)
+{
+  JSRuntime *rt = JS_NewRuntime(32 * 1024 * 1024);
+  if (!rt)
+    return false;
+  JSContext *cx = JS_NewContext(rt, 8192);
+  if (!cx)
+    return false;
+  *cxp = cx;
+  return true;
+}
+
+bool
+GetHistogramCounts(const char *testmsg, JSContext *cx, jsval *counts)
+{
+  nsCOMPtr<nsITelemetry> telemetry = do_GetService("@mozilla.org/base/telemetry;1");
+  NS_NAMED_LITERAL_CSTRING(histogram_id, "STARTUP_CACHE_AGE_HOURS");
+  JS::AutoValueRooter h(cx);
+  nsresult trv = telemetry->GetHistogramById(histogram_id, cx, h.addr());
+  if (NS_FAILED(trv)) {
+    fail("%s: couldn't get histogram", testmsg);
+    return false;
+  }
+  passed(testmsg);
+
+  JS::AutoValueRooter snapshot_val(cx);
+  JSFunction *snapshot_fn = NULL;
+  JS::AutoValueRooter ss(cx);
+  return (JS_GetProperty(cx, JSVAL_TO_OBJECT(h.value()), "snapshot",
+                         snapshot_val.addr())
+          && (snapshot_fn = JS_ValueToFunction(cx, snapshot_val.value()))
+          && JS::Call(cx, JSVAL_TO_OBJECT(h.value()),
+                      snapshot_fn, 0, NULL, ss.addr())
+          && JS_GetProperty(cx, JSVAL_TO_OBJECT(ss.value()),
+                            "counts", counts));
+}
+
+nsresult
+CompareCountArrays(JSContext *cx, JSObject *before, JSObject *after)
+{
+  uint32_t before_size, after_size;
+  if (!(JS_GetArrayLength(cx, before, &before_size)
+        && JS_GetArrayLength(cx, after, &after_size))) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  if (before_size != after_size) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  for (uint32_t i = 0; i < before_size; ++i) {
+    jsval before_num, after_num;
+
+    if (!(JS_GetElement(cx, before, i, &before_num)
+          && JS_GetElement(cx, after, i, &after_num))) {
+      return NS_ERROR_UNEXPECTED;
+    }
+
+    JSBool same = JS_TRUE;
+    if (!JS_LooselyEqual(cx, before_num, after_num, &same)) {
+      return NS_ERROR_UNEXPECTED;
+    } else {
+      if (same) {
+        continue;
+      } else {
+        // Some element of the histograms's count arrays differed.
+        // That's a good thing!
+        return NS_OK;
+      }
+    }
+  }
+
+  // All of the elements of the histograms's count arrays differed.
+  // Not good, we should have recorded something.
+  return NS_ERROR_FAILURE;
 }
 
 int main(int argc, char** argv)
@@ -408,50 +373,39 @@ int main(int argc, char** argv)
   prefs->SetIntPref("hangmonitor.timeout", 0);
   
   int rv = 0;
+  // nsITelemetry doesn't have a nice C++ interface.
+  JSContext *cx;
+  bool use_js = true;
+  if (!SetupJS(&cx))
+    use_js = false;
+
+  JSAutoRequest req(cx);
+  static JSClass global_class = {
+    "global", JSCLASS_NEW_RESOLVE | JSCLASS_GLOBAL_FLAGS | JSCLASS_HAS_PRIVATE,
+    JS_PropertyStub,  JS_PropertyStub,
+    JS_PropertyStub,  JS_StrictPropertyStub,
+    JS_EnumerateStub, JS_ResolveStub,
+    JS_ConvertStub
+  };
+  JSObject *glob = nullptr;
+  if (use_js)
+    glob = JS_NewGlobalObject(cx, &global_class, NULL);
+  if (!glob)
+    use_js = false;
+  JSCrossCompartmentCall *compartment = nullptr;
+  if (use_js)
+    compartment = JS_EnterCrossCompartmentCall(cx, glob);
+  if (!compartment)
+    use_js = false;
+  if (use_js && !JS_InitStandardClasses(cx, glob))
+    use_js = false;
+
+  JS::AutoValueRooter before_counts(cx);
+  if (use_js && !GetHistogramCounts("STARTUP_CACHE_AGE_HOURS histogram before test",
+                                 cx, before_counts.addr()))
+    use_js = false;
+  
   nsresult scrv;
-
-  // Register TestStartupCacheTelemetry
-  nsCOMPtr<nsIFile> manifest;
-  scrv = NS_GetSpecialDirectory(NS_GRE_DIR,
-                                getter_AddRefs(manifest));
-  if (NS_FAILED(scrv)) {
-    fail("NS_XPCOM_CURRENT_PROCESS_DIR");
-    return 1;
-  }
-
-#ifdef XP_MACOSX
-  nsCOMPtr<nsIFile> tempManifest;
-  manifest->Clone(getter_AddRefs(tempManifest));
-  manifest->AppendNative(
-    NS_LITERAL_CSTRING("TestStartupCacheTelemetry.manifest"));
-  bool exists;
-  manifest->Exists(&exists);
-  if (!exists) {
-    // Workaround for bug 1080338 in mozharness.
-    manifest = tempManifest.forget();
-    manifest->SetNativeLeafName(NS_LITERAL_CSTRING("MacOS"));
-    manifest->AppendNative(
-      NS_LITERAL_CSTRING("TestStartupCacheTelemetry.manifest"));
-  }
-#else
-  manifest->AppendNative(
-    NS_LITERAL_CSTRING("TestStartupCacheTelemetry.manifest"));
-#endif
-
-  XRE_AddManifestLocation(NS_COMPONENT_LOCATION, manifest);
-
-  nsCOMPtr<nsIObserver> telemetryThing =
-    do_GetService("@mozilla.org/testing/startup-cache-telemetry.js");
-  if (!telemetryThing) {
-    fail("telemetryThing");
-    return 1;
-  }
-  scrv = telemetryThing->Observe(nullptr, "save-initial", nullptr);
-  if (NS_FAILED(scrv)) {
-    fail("save-initial");
-    rv = 1;
-  }
-
   nsCOMPtr<nsIStartupCache> sc 
     = do_GetService("@mozilla.org/startupcache/cache;1", &scrv);
   if (NS_FAILED(scrv))
@@ -464,17 +418,34 @@ int main(int argc, char** argv)
     rv = 1;
   if (NS_FAILED(TestWriteObject()))
     rv = 1;
-  nsCOMPtr<nsIFile> profileDir = xpcom.GetProfileDirectory();
-  if (NS_FAILED(TestIgnoreDiskCache(profileDir)))
-    rv = 1;
   if (NS_FAILED(TestEarlyShutdown()))
     rv = 1;
 
-  scrv = telemetryThing->Observe(nullptr, "save-initial", nullptr);
-  if (NS_FAILED(scrv)) {
-    fail("check-final");
+  JS::AutoValueRooter after_counts(cx);
+  if (use_js && !GetHistogramCounts("STARTUP_CACHE_AGE_HOURS histogram after test",
+                                    cx, after_counts.addr()))
+    use_js = false;
+
+  if (!use_js) {
+    fail("couldn't check histogram recording");
     rv = 1;
+  } else {
+    nsresult compare = CompareCountArrays(cx,
+                                          JSVAL_TO_OBJECT(before_counts.value()),
+                                          JSVAL_TO_OBJECT(after_counts.value()));
+    if (compare == NS_ERROR_UNEXPECTED) {
+      fail("count comparison error");
+      rv = 1;
+    } else if (compare == NS_ERROR_FAILURE) {
+      fail("histogram didn't record samples");
+      rv = 1;
+    } else {
+      passed("histogram records samples");
+    }
   }
+
+  if (use_js)
+    JS_LeaveCrossCompartmentCall(compartment);
 
   return rv;
 }

@@ -11,7 +11,6 @@
 #include <string>
 
 #include "base/message_loop.h"
-#include "mozilla/UniquePtr.h"
 
 class NonThreadSafe;
 
@@ -37,18 +36,8 @@ class Channel::ChannelImpl : public MessageLoopForIO::IOHandler {
     return old;
   }
   bool Send(Message* message);
-
-  // See the comment in ipc_channel.h for info on Unsound_IsClosed() and
-  // Unsound_NumQueuedMessages().
-  bool Unsound_IsClosed() const;
-  uint32_t Unsound_NumQueuedMessages() const;
-
  private:
   void Init(Mode mode, Listener* listener);
-
-  void OutputQueuePush(Message* msg);
-  void OutputQueuePop();
-
   const std::wstring PipeName(const std::wstring& channel_id) const;
   bool CreatePipe(const std::wstring& channel_id, Mode mode);
   bool EnqueueHelloMessage();
@@ -97,18 +86,9 @@ class Channel::ChannelImpl : public MessageLoopForIO::IOHandler {
   // problems.  TODO(darin): make this unnecessary
   bool processing_incoming_;
 
-  // This flag is set after Close() is run on the channel.
-  bool closed_;
-
-  // This variable is updated so it matches output_queue_.size(), except we can
-  // read output_queue_length_ from any thread (if we're OK getting an
-  // occasional out-of-date or bogus value).  We use output_queue_length_ to
-  // implement Unsound_NumQueuedMessages.
-  size_t output_queue_length_;
-
   ScopedRunnableMethodFactory<ChannelImpl> factory_;
 
-  mozilla::UniquePtr<NonThreadSafe> thread_check_;
+  scoped_ptr<NonThreadSafe> thread_check_;
 
   DISALLOW_COPY_AND_ASSIGN(ChannelImpl);
 };

@@ -7,10 +7,11 @@
 
 #include "nsIStreamConverter.h"
 #include "nsIChannel.h"
+#include "nsIURI.h"
 #include "nsString.h"
+#include "nsXPIDLString.h"
 #include "nsCOMPtr.h"
 #include "nsIByteRangeRequest.h"
-#include "nsILoadInfo.h"
 #include "nsIMultiPartChannel.h"
 #include "nsAutoPtr.h"
 #include "mozilla/Attributes.h"
@@ -42,7 +43,7 @@ public:
   void SetIsLastPart() { mIsLastPart = true; }
   nsresult SendOnStartRequest(nsISupports* aContext);
   nsresult SendOnDataAvailable(nsISupports* aContext, nsIInputStream* aStream,
-                               uint64_t aOffset, uint32_t aLen);
+                               uint32_t aOffset, uint32_t aLen);
   nsresult SendOnStopRequest(nsISupports* aContext, nsresult aStatus);
   /* SetContentDisposition expects the full value of the Content-Disposition
    * header */
@@ -127,10 +128,9 @@ public:
     NS_DECL_NSIREQUESTOBSERVER
 
     nsMultiMixedConv();
-
-protected:
     virtual ~nsMultiMixedConv();
 
+protected:
     nsresult SendStart(nsIChannel *aChannel);
     nsresult SendStop(nsresult aStatus);
     nsresult SendData(char *aBuffer, uint32_t aLen);

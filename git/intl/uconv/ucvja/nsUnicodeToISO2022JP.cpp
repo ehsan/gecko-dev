@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsUnicodeToISO2022JP.h"
+#include "nsIComponentManager.h"
 #include "nsUCVJADll.h"
 #include "nsUnicodeEncodeHelper.h"
 
@@ -12,7 +13,7 @@
 
 // Basic mapping from Hankaku to Zenkaku
 // Nigori and Maru are taken care of outside this basic mapping
-static const char16_t gBasicMapping[0x40] =
+static const PRUnichar gBasicMapping[0x40] =
 {
 // 0xff60
 0xff60,0x3002,0x300c,0x300d,0x3001,0x30fb,0x30f2,0x30a1,
@@ -49,8 +50,8 @@ static const uint16_t g_ufAsciiMapping [] = {
   0x0001, 0x0004, 0x0005, 0x0008, 0x0000, 0x0000, 0x007F, 0x0000
 };
 
-#define SIZE_OF_ISO2022JP_TABLES 5
-static const uint16_t * g_ufMappingTables[SIZE_OF_ISO2022JP_TABLES] = {
+#define SIZE_OF_TABLES 5
+static const uint16_t * g_ufMappingTables[SIZE_OF_TABLES] = {
   g_ufAsciiMapping,             // ASCII           ISOREG 6
   g_uf0201GLMapping,            // JIS X 0201-1976 ISOREG 14
   g_uf0208Mapping,              // JIS X 0208-1983 ISOREG 87
@@ -58,7 +59,7 @@ static const uint16_t * g_ufMappingTables[SIZE_OF_ISO2022JP_TABLES] = {
   g_uf0208Mapping,              // JIS X 0208-1978 ISOREG 42
 };
 
-static const uScanClassID g_ufScanClassIDs[SIZE_OF_ISO2022JP_TABLES] = {
+static const uScanClassID g_ufScanClassIDs[SIZE_OF_TABLES] = {
   u1ByteCharset,                // ASCII           ISOREG 6
   u1ByteCharset,                // JIS X 0201-1976 ISOREG 14
   u2BytesCharset,               // JIS X 0208-1983 ISOREG 87
@@ -138,18 +139,18 @@ nsresult nsUnicodeToISO2022JP::ChangeCharset(int32_t aCharset,
   return NS_OK;
 }
 
-nsresult nsUnicodeToISO2022JP::ConvertHankaku(const char16_t * aSrc,
+nsresult nsUnicodeToISO2022JP::ConvertHankaku(const PRUnichar * aSrc,
                                               int32_t * aSrcLength,
                                               char * aDest,
                                               int32_t * aDestLength)
 {
   nsresult res = NS_OK;
 
-  const char16_t * src = aSrc;
-  const char16_t * srcEnd = aSrc + *aSrcLength;
+  const PRUnichar * src = aSrc;
+  const PRUnichar * srcEnd = aSrc + *aSrcLength;
   char * dest = aDest;
   char * destEnd = aDest + *aDestLength;
-  char16_t srcChar, tempChar;
+  PRUnichar srcChar, tempChar;
   int32_t bcr, bcw;
 
   bcw = destEnd - dest;
@@ -169,7 +170,7 @@ nsresult nsUnicodeToISO2022JP::ConvertHankaku(const char16_t * aSrc,
 
     if (src < srcEnd) {
       // if the character could take a modifier, and the next char
-      // is a modifier, modify it and eat one char16_t
+      // is a modifier, modify it and eat one PRUnichar
       if (NEED_TO_CHECK_NIGORI(srcChar) && IS_NIGORI(*src)) {
         tempChar += NIGORI_MODIFIER;
         ++src;
@@ -196,22 +197,22 @@ nsresult nsUnicodeToISO2022JP::ConvertHankaku(const char16_t * aSrc,
 // Subclassing of nsTableEncoderSupport class [implementation]
 
 NS_IMETHODIMP nsUnicodeToISO2022JP::ConvertNoBuffNoErr(
-                                    const char16_t * aSrc, 
+                                    const PRUnichar * aSrc, 
                                     int32_t * aSrcLength, 
                                     char * aDest, 
                                     int32_t * aDestLength)
 {
   nsresult res = NS_OK;
 
-  const char16_t * src = aSrc;
-  const char16_t * srcEnd = aSrc + *aSrcLength;
+  const PRUnichar * src = aSrc;
+  const PRUnichar * srcEnd = aSrc + *aSrcLength;
   char * dest = aDest;
   char * destEnd = aDest + *aDestLength;
   int32_t bcr, bcw;
   int32_t i;
 
   while (src < srcEnd) {
-    for (i=0; i< SIZE_OF_ISO2022JP_TABLES ; i++) {
+    for (i=0; i< SIZE_OF_TABLES ; i++) {
       bcr = 1;
       bcw = destEnd - dest;
       res = nsUnicodeEncodeHelper::ConvertByTable(src, &bcr, dest, &bcw, 
@@ -220,7 +221,7 @@ NS_IMETHODIMP nsUnicodeToISO2022JP::ConvertNoBuffNoErr(
       if (res != NS_ERROR_UENC_NOMAPPING) break;
     }
 
-    if ( i>=  SIZE_OF_ISO2022JP_TABLES) {
+    if ( i>=  SIZE_OF_TABLES) {
       if (IS_HANKAKU(*src)) {
         bcr = srcEnd - src;
         bcw = destEnd - dest;

@@ -7,28 +7,24 @@
 #ifndef mozilla_dom_indexeddb_idbevents_h__
 #define mozilla_dom_indexeddb_idbevents_h__
 
-#include "js/RootingAPI.h"
-#include "mozilla/dom/BindingDeclarations.h"
-#include "mozilla/dom/Event.h"
-#include "mozilla/dom/Nullable.h"
+#include "mozilla/dom/indexedDB/IndexedDatabase.h"
 
-#define IDBVERSIONCHANGEEVENT_IID \
-  {0x3b65d4c3, 0x73ad, 0x492e, {0xb1, 0x2d, 0x15, 0xf9, 0xda, 0xc2, 0x08, 0x4b}}
+#include "nsIIDBVersionChangeEvent.h"
+#include "nsIRunnable.h"
 
-class nsAString;
-class nsDependentString;
+#include "nsDOMEvent.h"
 
-namespace mozilla {
+#include "mozilla/dom/indexedDB/IDBObjectStore.h"
 
-class ErrorResult;
+#define SUCCESS_EVT_STR "success"
+#define ERROR_EVT_STR "error"
+#define COMPLETE_EVT_STR "complete"
+#define ABORT_EVT_STR "abort"
+#define VERSIONCHANGE_EVT_STR "versionchange"
+#define BLOCKED_EVT_STR "blocked"
+#define UPGRADENEEDED_EVT_STR "upgradeneeded"
 
-namespace dom {
-
-class EventTarget;
-class GlobalObject;
-struct IDBVersionChangeEventInit;
-
-namespace indexedDB {
+BEGIN_INDEXEDDB_NAMESPACE
 
 enum Bubbles {
   eDoesNotBubble,
@@ -40,93 +36,80 @@ enum Cancelable {
   eCancelable
 };
 
-extern const char16_t* kAbortEventType;
-extern const char16_t* kBlockedEventType;
-extern const char16_t* kCompleteEventType;
-extern const char16_t* kErrorEventType;
-extern const char16_t* kSuccessEventType;
-extern const char16_t* kUpgradeNeededEventType;
-extern const char16_t* kVersionChangeEventType;
-
-already_AddRefed<nsIDOMEvent>
-CreateGenericEvent(EventTarget* aOwner,
-                   const nsDependentString& aType,
+already_AddRefed<nsDOMEvent>
+CreateGenericEvent(const nsAString& aType,
                    Bubbles aBubbles,
                    Cancelable aCancelable);
 
-class IDBVersionChangeEvent MOZ_FINAL : public Event
+class IDBVersionChangeEvent : public nsDOMEvent,
+                              public nsIIDBVersionChangeEvent
 {
-  uint64_t mOldVersion;
-  Nullable<uint64_t> mNewVersion;
-
 public:
-  static already_AddRefed<IDBVersionChangeEvent>
-  Create(EventTarget* aOwner,
-         const nsDependentString& aName,
-         uint64_t aOldVersion,
-         uint64_t aNewVersion)
-  {
-    Nullable<uint64_t> newVersion(aNewVersion);
-    return CreateInternal(aOwner, aName, aOldVersion, newVersion);
-  }
-
-  static already_AddRefed<IDBVersionChangeEvent>
-  Create(EventTarget* aOwner,
-         const nsDependentString& aName,
-         uint64_t aOldVersion)
-  {
-    Nullable<uint64_t> newVersion(0);
-    newVersion.SetNull();
-    return CreateInternal(aOwner, aName, aOldVersion, newVersion);
-  }
-
-  static already_AddRefed<IDBVersionChangeEvent>
-  Constructor(const GlobalObject& aGlobal,
-              const nsAString& aType,
-              const IDBVersionChangeEventInit& aOptions,
-              ErrorResult& aRv);
-
-  uint64_t
-  OldVersion() const
-  {
-    return mOldVersion;
-  }
-
-  Nullable<uint64_t>
-  GetNewVersion() const
-  {
-    return mNewVersion;
-  }
-
-  NS_DECLARE_STATIC_IID_ACCESSOR(IDBVERSIONCHANGEEVENT_IID)
-
   NS_DECL_ISUPPORTS_INHERITED
-  NS_FORWARD_TO_EVENT
+  NS_FORWARD_TO_NSDOMEVENT
+  NS_DECL_NSIIDBVERSIONCHANGEEVENT
 
-  virtual JSObject*
-  WrapObjectInternal(JSContext* aCx) MOZ_OVERRIDE;
-
-private:
-  IDBVersionChangeEvent(EventTarget* aOwner, uint64_t aOldVersion)
-    : Event(aOwner, nullptr, nullptr)
-    , mOldVersion(aOldVersion)
+  inline static already_AddRefed<nsDOMEvent>
+  Create(int64_t aOldVersion,
+         int64_t aNewVersion)
   {
+    return CreateInternal(NS_LITERAL_STRING(VERSIONCHANGE_EVT_STR),
+                          aOldVersion, aNewVersion);
   }
 
-  ~IDBVersionChangeEvent()
-  { }
+  inline static already_AddRefed<nsDOMEvent>
+  CreateBlocked(uint64_t aOldVersion,
+                uint64_t aNewVersion)
+  {
+    return CreateInternal(NS_LITERAL_STRING(BLOCKED_EVT_STR),
+                          aOldVersion, aNewVersion);
+  }
 
-  static already_AddRefed<IDBVersionChangeEvent>
-  CreateInternal(EventTarget* aOwner,
-                 const nsAString& aName,
+  inline static already_AddRefed<nsDOMEvent>
+  CreateUpgradeNeeded(uint64_t aOldVersion,
+                      uint64_t aNewVersion)
+  {
+    return CreateInternal(NS_LITERAL_STRING(UPGRADENEEDED_EVT_STR),
+                          aOldVersion, aNewVersion);
+  }
+
+  inline static already_AddRefed<nsIRunnable>
+  CreateRunnable(uint64_t aOldVersion,
+                 uint64_t aNewVersion,
+                 nsIDOMEventTarget* aTarget)
+  {
+    return CreateRunnableInternal(NS_LITERAL_STRING(VERSIONCHANGE_EVT_STR),
+                                  aOldVersion, aNewVersion, aTarget);
+  }
+
+  static already_AddRefed<nsIRunnable>
+  CreateBlockedRunnable(uint64_t aOldVersion,
+                        uint64_t aNewVersion,
+                        nsIDOMEventTarget* aTarget)
+  {
+    return CreateRunnableInternal(NS_LITERAL_STRING(BLOCKED_EVT_STR),
+                                  aOldVersion, aNewVersion, aTarget);
+  }
+
+protected:
+  IDBVersionChangeEvent() : nsDOMEvent(nullptr, nullptr) { }
+  virtual ~IDBVersionChangeEvent() { }
+
+  static already_AddRefed<nsDOMEvent>
+  CreateInternal(const nsAString& aType,
                  uint64_t aOldVersion,
-                 Nullable<uint64_t> aNewVersion);
+                 uint64_t aNewVersion);
+
+  static already_AddRefed<nsIRunnable>
+  CreateRunnableInternal(const nsAString& aType,
+                         uint64_t aOldVersion,
+                         uint64_t aNewVersion,
+                         nsIDOMEventTarget* aTarget);
+
+  uint64_t mOldVersion;
+  uint64_t mNewVersion;
 };
 
-NS_DEFINE_STATIC_IID_ACCESSOR(IDBVersionChangeEvent, IDBVERSIONCHANGEEVENT_IID)
-
-} // namespace indexedDB
-} // namespace dom
-} // namespace mozilla
+END_INDEXEDDB_NAMESPACE
 
 #endif // mozilla_dom_indexeddb_idbevents_h__

@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* vim:set st=2 sts=2 ts=2 et cin: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7,46 +6,47 @@
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
 #include "nsISupportsPrimitives.h"
-#include "nsIStringEnumerator.h"
 
 #include "nsXPCOMCID.h"
 
 #include "nsCategoryCache.h"
 
-nsCategoryObserver::nsCategoryObserver(const char* aCategory)
-  : mCategory(aCategory)
-  , mObserversRemoved(false)
+nsCategoryObserver::nsCategoryObserver(const char* aCategory,
+                                       nsCategoryListener* aListener)
+  : mListener(nullptr), mCategory(aCategory), mObserversRemoved(false)
 {
+  mHash.Init();
+  mListener = aListener;
+
   // First, enumerate the currently existing entries
   nsCOMPtr<nsICategoryManager> catMan =
     do_GetService(NS_CATEGORYMANAGER_CONTRACTID);
-  if (!catMan) {
+  if (!catMan)
     return;
-  }
 
   nsCOMPtr<nsISimpleEnumerator> enumerator;
   nsresult rv = catMan->EnumerateCategory(aCategory,
                                           getter_AddRefs(enumerator));
-  if (NS_FAILED(rv)) {
+  if (NS_FAILED(rv))
     return;
-  }
 
-  nsCOMPtr<nsIUTF8StringEnumerator> strings = do_QueryInterface(enumerator);
-  MOZ_ASSERT(strings);
+  nsTArray<nsCString> entries;
+  nsCOMPtr<nsISupports> entry;
+  while (NS_SUCCEEDED(enumerator->GetNext(getter_AddRefs(entry)))) {
+    nsCOMPtr<nsISupportsCString> entryName = do_QueryInterface(entry, &rv);
 
-  bool more;
-  while (NS_SUCCEEDED(strings->HasMore(&more)) && more) {
-    nsAutoCString entryName;
-    strings->GetNext(entryName);
-
-    nsCString entryValue;
-    rv = catMan->GetCategoryEntry(aCategory,
-                                  entryName.get(),
-                                  getter_Copies(entryValue));
     if (NS_SUCCEEDED(rv)) {
-      nsCOMPtr<nsISupports> service = do_GetService(entryValue.get());
-      if (service) {
-        mHash.Put(entryName, service);
+      nsCAutoString categoryEntry;
+      rv = entryName->GetData(categoryEntry);
+
+      nsCString entryValue;
+      catMan->GetCategoryEntry(aCategory,
+                               categoryEntry.get(),
+                               getter_Copies(entryValue));
+
+      if (NS_SUCCEEDED(rv)) {
+        mHash.Put(categoryEntry, entryValue);
+        entries.AppendElement(entryValue);
       }
     }
   }
@@ -60,26 +60,26 @@ nsCategoryObserver::nsCategoryObserver(const char* aCategory)
     serv->AddObserver(this, NS_XPCOM_CATEGORY_ENTRY_REMOVED_OBSERVER_ID, false);
     serv->AddObserver(this, NS_XPCOM_CATEGORY_CLEARED_OBSERVER_ID, false);
   }
+
+  for (int32_t i = entries.Length() - 1; i >= 0; --i)
+    mListener->EntryAdded(entries[i]);
 }
 
-nsCategoryObserver::~nsCategoryObserver()
-{
+nsCategoryObserver::~nsCategoryObserver() {
 }
 
-NS_IMPL_ISUPPORTS(nsCategoryObserver, nsIObserver)
+NS_IMPL_ISUPPORTS1(nsCategoryObserver, nsIObserver)
 
 void
-nsCategoryObserver::ListenerDied()
-{
+nsCategoryObserver::ListenerDied() {
+  mListener = nullptr;
   RemoveObservers();
 }
 
-void
-nsCategoryObserver::RemoveObservers()
-{
-  if (mObserversRemoved) {
+NS_HIDDEN_(void)
+nsCategoryObserver::RemoveObservers() {
+  if (mObserversRemoved)
     return;
-  }
 
   mObserversRemoved = true;
   nsCOMPtr<nsIObserverService> obsSvc =
@@ -94,25 +94,26 @@ nsCategoryObserver::RemoveObservers()
 
 NS_IMETHODIMP
 nsCategoryObserver::Observe(nsISupports* aSubject, const char* aTopic,
-                            const char16_t* aData)
-{
+                            const PRUnichar* aData) {
+  if (!mListener)
+    return NS_OK;
+
   if (strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0) {
     mHash.Clear();
+    mListener->CategoryCleared();
     RemoveObservers();
 
     return NS_OK;
   }
 
   if (!aData ||
-      !nsDependentString(aData).Equals(NS_ConvertASCIItoUTF16(mCategory))) {
+      !nsDependentString(aData).Equals(NS_ConvertASCIItoUTF16(mCategory)))
     return NS_OK;
-  }
 
-  nsAutoCString str;
+  nsCAutoString str;
   nsCOMPtr<nsISupportsCString> strWrapper(do_QueryInterface(aSubject));
-  if (strWrapper) {
+  if (strWrapper)
     strWrapper->GetData(str);
-  }
 
   if (strcmp(aTopic, NS_XPCOM_CATEGORY_ENTRY_ADDED_OBSERVER_ID) == 0) {
     // We may get an add notification even when we already have an entry. This
@@ -120,30 +121,30 @@ nsCategoryObserver::Observe(nsISupports* aSubject, const char* aTopic,
     // added and an nsCategoryObserver gets instantiated before events get
     // processed, we'd get the notification for an existing entry.
     // Do nothing in that case.
-    if (mHash.GetWeak(str)) {
+    if (mHash.Get(str, nullptr))
       return NS_OK;
-    }
 
     nsCOMPtr<nsICategoryManager> catMan =
       do_GetService(NS_CATEGORYMANAGER_CONTRACTID);
-    if (!catMan) {
+    if (!catMan)
       return NS_OK;
-    }
 
     nsCString entryValue;
     catMan->GetCategoryEntry(mCategory.get(),
                              str.get(),
                              getter_Copies(entryValue));
 
-    nsCOMPtr<nsISupports> service = do_GetService(entryValue.get());
-
-    if (service) {
-      mHash.Put(str, service);
-    }
+    mHash.Put(str, entryValue);
+    mListener->EntryAdded(entryValue);
   } else if (strcmp(aTopic, NS_XPCOM_CATEGORY_ENTRY_REMOVED_OBSERVER_ID) == 0) {
-    mHash.Remove(str);
+    nsCAutoString val;
+    if (mHash.Get(str, &val)) {
+      mHash.Remove(str);
+      mListener->EntryRemoved(val);
+    }
   } else if (strcmp(aTopic, NS_XPCOM_CATEGORY_CLEARED_OBSERVER_ID) == 0) {
     mHash.Clear();
+    mListener->CategoryCleared();
   }
   return NS_OK;
 }

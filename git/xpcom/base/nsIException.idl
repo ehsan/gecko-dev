@@ -9,38 +9,37 @@
 
 
 #include "nsISupports.idl"
+#include "nsIProgrammingLanguage.idl"
 
-[scriptable, uuid(f80ac10b-68dd-4482-a8c2-3cbe13fa89af)]
+// XXX - most "string"s in this file should probably move to Unicode
+//       so may as well use AStrings...
+
+
+[scriptable, uuid(91d82105-7c62-4f8b-9779-154277c0ee90)]
 interface nsIStackFrame : nsISupports
 {
     // see nsIProgrammingLanguage for list of language consts
     readonly attribute uint32_t                language;
-    readonly attribute AUTF8String             languageName;
-    readonly attribute AString                 filename;
-    readonly attribute AString                 name;
+    readonly attribute string                  languageName;
+    readonly attribute string                  filename;
+    readonly attribute string                  name;
     // Valid line numbers begin at '1'. '0' indicates unknown.
     readonly attribute int32_t                 lineNumber;
-    readonly attribute int32_t                 columnNumber;
-    readonly attribute AUTF8String             sourceLine;
+    readonly attribute string                  sourceLine;
     readonly attribute nsIStackFrame           caller;
 
-    // Returns a formatted stack string that looks like the sort of
-    // string that would be returned by .stack on JS Error objects.
-    // Only works on JS-language stack frames.
-    readonly attribute AString                 formattedStack;
-
-    AUTF8String toString();
+    string toString();
 };
 
-[scriptable, uuid(1caf1461-be1d-4b79-a552-5292b6bf3c35)]
+[scriptable, uuid(F3A8D3B4-C424-4edc-8BF6-8974C983BA78)]
 interface nsIException : nsISupports
 {
     // A custom message set by the thrower.
-    [binaryname(MessageMoz)] readonly attribute AUTF8String message;
+    [binaryname(MessageMoz)] readonly attribute string message;
     // The nsresult associated with this exception.
     readonly attribute nsresult                result;
     // The name of the error code (ie, a string repr of |result|)
-    readonly attribute AUTF8String             name;
+    readonly attribute string                  name;
 
     // Filename location.  This is the location that caused the
     // error, which may or may not be a source file location.
@@ -50,7 +49,7 @@ interface nsIException : nsISupports
     // etc.
 
     // null indicates "no data"
-    readonly attribute AString                 filename;
+    readonly attribute string                  filename;
     // Valid line numbers begin at '1'. '0' indicates unknown.
     readonly attribute uint32_t                lineNumber;
     // Valid column numbers begin at 0. 
@@ -66,5 +65,5 @@ interface nsIException : nsISupports
     readonly attribute nsISupports             data;
 
     // A generic formatter - make it suitable to print, etc.
-    AUTF8String toString();
+    string toString();
 };

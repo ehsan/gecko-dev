@@ -6,15 +6,14 @@
 user preferences
 """
 
-__all__ = ('PreferencesReadError', 'Preferences')
-
-import json
-import mozfile
 import os
 import re
-import tokenize
 from ConfigParser import SafeConfigParser as ConfigParser
-from StringIO import StringIO
+
+try:
+    import json
+except ImportError:
+    import simplejson as json
 
 class PreferencesReadError(Exception):
     """read error for prefrences files"""
@@ -30,8 +29,7 @@ class Preferences(object):
 
     def add(self, prefs, cast=False):
         """
-        :param prefs:
-        :param cast: whether to cast strings to value, e.g. '1' -> 1
+        - cast: whether to cast strings to value, e.g. '1' -> 1
         """
         # wants a list of 2-tuples
         if isinstance(prefs, dict):
@@ -41,10 +39,7 @@ class Preferences(object):
         self._prefs += prefs
 
     def add_file(self, path):
-        """a preferences from a file
-
-        :param path:
-        """
+        """a preferences from a file"""
         self.add(self.read(path))
 
     def __call__(self):
@@ -56,7 +51,6 @@ class Preferences(object):
         interpolate a preference from a string
         from the command line or from e.g. an .ini file, there is no good way to denote
         what type the preference value is, as natively it is a string
-
         - integers will get cast to integers
         - true/false will get cast to True/False
         - anything enclosed in single quotes will be treated as a string with the ''s removed from both sides
@@ -88,7 +82,7 @@ class Preferences(object):
             # section of INI file
             path, section = path.rsplit(':', 1)
 
-        if not os.path.exists(path) and not mozfile.is_url(path):
+        if not os.path.exists(path):
             raise PreferencesReadError("'%s' does not exist" % path)
 
         if section:
@@ -117,7 +111,7 @@ class Preferences(object):
         """read preferences from an .ini file"""
 
         parser = ConfigParser()
-        parser.readfp(mozfile.load(path))
+        parser.read(path)
 
         if section:
             if section not in parser.sections():
@@ -133,7 +127,7 @@ class Preferences(object):
     def read_json(cls, path):
         """read preferences from a JSON blob"""
 
-        prefs = json.loads(mozfile.load(path).read())
+        prefs = json.loads(file(path).read())
 
         if type(prefs) not in [list, dict]:
             raise PreferencesReadError("Malformed preferences: %s" % path)
@@ -152,44 +146,25 @@ class Preferences(object):
         return prefs
 
     @classmethod
-    def read_prefs(cls, path, pref_setter='user_pref', interpolation=None):
-        """
-        Read preferences from (e.g.) prefs.js
-
-        :param path: The path to the preference file to read.
-        :param pref_setter: The name of the function used to set preferences
-                            in the preference file.
-        :param interpolation: If provided, a dict that will be passed
-                              to str.format to interpolate preference values.
-        """
+    def read_prefs(cls, path, pref_setter='user_pref'):
+        """read preferences from (e.g.) prefs.js"""
 
         comment = re.compile('/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+/', re.MULTILINE)
 
-        marker = '##//' # magical marker
-        lines = [i.strip() for i in mozfile.load(path).readlines() if i.strip()]
+        token = '##//' # magical token
+        lines = [i.strip() for i in file(path).readlines() if i.strip()]
         _lines = []
         for line in lines:
-            if line.startswith(('#', '//')):
+            if line.startswith('#'):
                 continue
             if '//' in line:
-                line = line.replace('//', marker)
+                line = line.replace('//', token)
             _lines.append(line)
         string = '\n'.join(_lines)
         string = re.sub(comment, '', string)
 
-        # skip trailing comments
-        processed_tokens = []
-        f_obj = StringIO(string)
-        for token in tokenize.generate_tokens(f_obj.readline):
-            if token[0] == tokenize.COMMENT:
-                continue
-            processed_tokens.append(token[:2]) # [:2] gets around http://bugs.python.org/issue9974
-        string = tokenize.untokenize(processed_tokens)
-
         retval = []
         def pref(a, b):
-            if interpolation and isinstance(b, basestring):
-                b = b.format(**interpolation)
             retval.append((a, b))
         lines = [i.strip().rstrip(';') for i in string.split('\n') if i.strip()]
 
@@ -202,34 +177,34 @@ class Preferences(object):
                 print line
                 raise
 
-        # de-magic the marker
+        # de-magic the token
         for index, (key, value) in enumerate(retval):
-            if isinstance(value, basestring) and marker in value:
-                retval[index] = (key, value.replace(marker, '//'))
+            if isinstance(value, basestring) and token in value:
+                retval[index] = (key, value.replace(token, '//'))
 
         return retval
 
     @classmethod
-    def write(cls, _file, prefs, pref_string='user_pref(%s, %s);'):
+    def write(_file, prefs, pref_string='user_pref("%s", %s);'):
         """write preferences to a file"""
 
         if isinstance(_file, basestring):
-            f = file(_file, 'a')
+            f = file(_file, 'w')
         else:
             f = _file
 
         if isinstance(prefs, dict):
-            # order doesn't matter
             prefs = prefs.items()
 
-        # serialize -> JSON
-        _prefs = [(json.dumps(k), json.dumps(v) )
-                  for k, v in prefs]
+        for key, value in prefs:
+            if value is True:
+                print >> f, pref_string % (key, 'true')
+            elif value is False:
+                print >> f, pref_string % (key, 'false')
+            elif isinstance(value, basestring):
+                print >> f, pref_string % (key, repr(string(value)))
+            else:
+                print >> f, pref_string % (key, value) # should be numeric!
 
-        # write the preferences
-        for _pref in _prefs:
-            print >> f, pref_string % _pref
-
-        # close the file if opened internally
         if isinstance(_file, basestring):
             f.close()

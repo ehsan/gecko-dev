@@ -7,17 +7,21 @@
 #include "nsMemory.h"
 #include "plstr.h"
 #include "prlog.h"
+#include "nsIServiceManager.h"
+#include "nsXPIDLString.h"
+#include "nsReadableUtils.h"
 #include "nsCOMPtr.h"
 #include "nsEscape.h"
+#include "nsNetUtil.h"
 #include "nsStringStream.h"
+#include "nsIComponentManager.h"
+#include "nsDateTimeFormatCID.h"
 #include "nsIStreamListener.h"
 #include "nsCRT.h"
+#include "nsMimeTypes.h"
 #include "nsAutoPtr.h"
-#include "nsIChannel.h"
-#include "nsIURI.h"
 
 #include "ParseFTPList.h"
-#include <algorithm>
 
 #if defined(PR_LOGGING)
 //
@@ -36,10 +40,10 @@ PRLogModuleInfo* gFTPDirListConvLog = nullptr;
 #endif /* PR_LOGGING */
 
 // nsISupports implementation
-NS_IMPL_ISUPPORTS(nsFTPDirListingConv,
-                  nsIStreamConverter,
-                  nsIStreamListener, 
-                  nsIRequestObserver)
+NS_IMPL_ISUPPORTS3(nsFTPDirListingConv,
+                   nsIStreamConverter,
+                   nsIStreamListener, 
+                   nsIRequestObserver)
 
 
 // nsIStreamConverter implementation
@@ -73,7 +77,7 @@ nsFTPDirListingConv::AsyncConvertData(const char *aFromType, const char *aToType
 // nsIStreamListener implementation
 NS_IMETHODIMP
 nsFTPDirListingConv::OnDataAvailable(nsIRequest* request, nsISupports *ctxt,
-                                  nsIInputStream *inStr, uint64_t sourceOffset, uint32_t count) {
+                                  nsIInputStream *inStr, uint32_t sourceOffset, uint32_t count) {
     NS_ASSERTION(request, "FTP dir listing stream converter needs a request");
     
     nsresult rv;
@@ -86,7 +90,7 @@ nsFTPDirListingConv::OnDataAvailable(nsIRequest* request, nsISupports *ctxt,
     uint64_t streamLen64;
     rv = inStr->Available(&streamLen64);
     NS_ENSURE_SUCCESS(rv, rv);
-    streamLen = (uint32_t)std::min(streamLen64, uint64_t(UINT32_MAX - 1));
+    streamLen = (uint32_t)NS_MIN(streamLen64, uint64_t(PR_UINT32_MAX - 1));
 
     nsAutoArrayPtr<char> buffer(new char[streamLen + 1]);
     NS_ENSURE_TRUE(buffer, NS_ERROR_OUT_OF_MEMORY);
@@ -97,7 +101,7 @@ nsFTPDirListingConv::OnDataAvailable(nsIRequest* request, nsISupports *ctxt,
     // the dir listings are ascii text, null terminate this sucker.
     buffer[streamLen] = '\0';
 
-    PR_LOG(gFTPDirListConvLog, PR_LOG_DEBUG, ("nsFTPDirListingConv::OnData(request = %x, ctxt = %x, inStr = %x, sourceOffset = %llu, count = %u)\n", request, ctxt, inStr, sourceOffset, count));
+    PR_LOG(gFTPDirListConvLog, PR_LOG_DEBUG, ("nsFTPDirListingConv::OnData(request = %x, ctxt = %x, inStr = %x, sourceOffset = %d, count = %d)\n", request, ctxt, inStr, sourceOffset, count));
 
     if (!mBuffer.IsEmpty()) {
         // we have data left over from a previous OnDataAvailable() call.
@@ -117,7 +121,7 @@ nsFTPDirListingConv::OnDataAvailable(nsIRequest* request, nsISupports *ctxt,
     printf("::OnData() received the following %d bytes...\n\n%s\n\n", streamLen, buffer);
 #endif // DEBUG_dougt
 
-    nsAutoCString indexFormat;
+    nsCAutoString indexFormat;
     if (!mSentHeading) {
         // build up the 300: line
         nsCOMPtr<nsIURI> uri;
@@ -149,7 +153,7 @@ nsFTPDirListingConv::OnDataAvailable(nsIRequest* request, nsISupports *ctxt,
     if (line && *line) {
         mBuffer.Append(line);
         PR_LOG(gFTPDirListConvLog, PR_LOG_DEBUG, ("::OnData() buffering the following %d bytes...\n\n%s\n\n",
-            strlen(line), line) );
+            PL_strlen(line), line) );
     }
 
     // send the converted data out.
@@ -215,8 +219,8 @@ nsFTPDirListingConv::GetHeaders(nsACString& headers,
     headers.AppendLiteral("300: ");
 
     // Bug 111117 - don't print the password
-    nsAutoCString pw;
-    nsAutoCString spec;
+    nsCAutoString pw;
+    nsCAutoString spec;
     uri->GetPassword(pw);
     if (!pw.IsEmpty()) {
          rv = uri->SetPassword(EmptyCString());
@@ -248,6 +252,7 @@ nsFTPDirListingConv::DigestBufferLines(char *aBuffer, nsCString &aString) {
     bool cr = false;
 
     list_state state;
+    state.magic = 0;
 
     // while we have new lines, parse 'em into application/http-index-format.
     while ( line && (eol = PL_strchr(line, nsCRT::LF)) ) {
@@ -291,7 +296,7 @@ nsFTPDirListingConv::DigestBufferLines(char *aBuffer, nsCString &aString) {
             }
         }
 
-        nsAutoCString buf;
+        nsCAutoString buf;
         aString.Append('\"');
         aString.Append(NS_EscapeURL(Substring(result.fe_fname, 
                                               result.fe_fname+result.fe_fnlen),

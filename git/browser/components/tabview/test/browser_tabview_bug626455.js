@@ -7,45 +7,41 @@
  *   Raymond Lee <raymond@appcoast.com>
  */
 
-"use strict";
-
 const TEST_URL = 'data:text/html,<script>window.onbeforeunload=' +
-                 'function(e){e.returnValue="?"}</script>';
+                 'function(e){e.returnValue="?"}</script><body ' +
+                 'onunload="alert(\'onunload\')" onpagehide="' +
+                 'alert(\'onpagehide\')"></body>';
 
 let contentWindow;
 let activeGroup;
 
-Components.utils.import("resource://gre/modules/Promise.jsm", this);
-
 function test() {
   waitForExplicitFinish();
 
-  newWindowWithTabView(win => {
-    contentWindow = win.TabView.getContentWindow();
+  showTabView(function () {
+    contentWindow = TabView.getContentWindow();
     activeGroup = contentWindow.GroupItems.getActiveGroupItem();
 
-    win.gBrowser.browsers[0].loadURI("data:text/html,<p>test for bug 626455, tab1");
+    gBrowser.browsers[0].loadURI("data:text/html,<p>test for bug 626455, tab1");
+    gBrowser.addTab(TEST_URL);
 
-    let tab = win.gBrowser.addTab(TEST_URL);
-    afterAllTabsLoaded(() => testStayOnPage(win, tab));
+    afterAllTabsLoaded(testStayOnPage);
   });
 }
 
-function testStayOnPage(win, blockingTab) {
-  let browser = blockingTab.linkedBrowser;
-  waitForOnBeforeUnloadDialog(browser, function (btnLeave, btnStay) {
+function testStayOnPage() {
+  whenDialogOpened(function (dialog) {
     // stay on page
-    btnStay.click();
+    dialog.cancelDialog();
 
     executeSoon(function () {
       showTabView(function () {
-        is(win.gBrowser.tabs.length, 1,
+        is(gBrowser.tabs.length, 1,
            "The total number of tab is 1 when staying on the page");
 
-        // The other initial tab has been closed when trying to close the tab
-        // group. The only tab left is the one with the onbeforeunload dialog.
-        let url = win.gBrowser.browsers[0].currentURI.spec;
-        ok(url.contains("onbeforeunload"), "The open tab is the expected one");
+        let location = gBrowser.browsers[0].currentURI.spec;
+        isnot(location.indexOf("onbeforeunload"), -1,
+              "The open tab is the expected one");
 
         is(contentWindow.GroupItems.getActiveGroupItem(), activeGroup,
            "Active group is still the same");
@@ -54,32 +50,33 @@ function testStayOnPage(win, blockingTab) {
            "Only one group is open");
 
         // start the next test
-        testLeavePage(win, win.gBrowser.tabs[0]);
-      }, win);
+        testLeavePage();
+      });
     });
   });
 
   closeGroupItem(activeGroup);
 }
 
-function testLeavePage(win, blockingTab) {
-  let browser = blockingTab.linkedBrowser;
-  waitForOnBeforeUnloadDialog(browser, function (btnLeave, btnStay) {
+function testLeavePage() {
+  let dialogsAccepted = 0;
+
+  whenDialogOpened(function onDialogOpened(dialog) {
     // Leave page
-    btnLeave.click();
+    dialog.acceptDialog();
   });
 
-  whenGroupClosed(activeGroup, () => finishTest(win));
+  whenGroupClosed(activeGroup, finishTest);
   closeGroupItem(activeGroup);
 }
 
-function finishTest(win) {
-  is(win.gBrowser.tabs.length, 1,
+function finishTest() {
+  is(gBrowser.tabs.length, 1,
      "The total number of tab is 1 after leaving the page");
   is(contentWindow.TabItems.getItems().length, 1,
      "The total number of tab items is 1 after leaving the page");
 
-  let location = win.gBrowser.browsers[0].currentURI.spec;
+  let location = gBrowser.browsers[0].currentURI.spec;
   is(location, BROWSER_NEW_TAB_URL, "The open tab is the expected one");
 
   isnot(contentWindow.GroupItems.getActiveGroupItem(), activeGroup,
@@ -88,9 +85,7 @@ function finishTest(win) {
   is(contentWindow.GroupItems.groupItems.length, 1,
      "Only one group is open");
 
-  contentWindow = null;
-  activeGroup = null;
-  promiseWindowClosed(win).then(finish);
+  finish();
 }
 
 // ----------
@@ -99,4 +94,30 @@ function whenGroupClosed(group, callback) {
     group.removeSubscriber("close", onClose);
     callback();
   });
+}
+
+// ----------
+function whenDialogOpened(callback) {
+  let wm = Cc["@mozilla.org/appshell/window-mediator;1"]
+           .getService(Ci.nsIWindowMediator);
+
+  let listener = {
+    onCloseWindow: function () {},
+    onWindowTitleChange: function () {},
+
+    onOpenWindow: function (xulWin) {
+      let domWin = xulWin.QueryInterface(Ci.nsIInterfaceRequestor)
+                   .getInterface(Ci.nsIDOMWindow);
+
+      whenWindowLoaded(domWin, function () {
+        let dialog = domWin.document.querySelector("dialog");
+        if (dialog) {
+          wm.removeListener(listener);
+          callback(dialog);
+        }
+      });
+    }
+  };
+
+  wm.addListener(listener);
 }

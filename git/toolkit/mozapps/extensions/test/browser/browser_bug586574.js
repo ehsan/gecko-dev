@@ -21,13 +21,6 @@ var gSetDefault;
 var gResetToAutomatic;
 var gResetToManual;
 
-// Make sure we don't accidentally start a background update while the prefs
-// are enabled.
-disableBackgroundUpdateTimer();
-registerCleanupFunction(() => {
-  enableBackgroundUpdateTimer();
-});
-
 function test() {
   waitForExplicitFinish();
 

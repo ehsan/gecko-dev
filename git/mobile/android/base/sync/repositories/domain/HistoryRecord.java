@@ -8,8 +8,8 @@ import java.util.HashMap;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
-import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.ExtendedJSONObject;
+import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.NonArrayJSONException;
 import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.repositories.android.RepoUtils;
@@ -103,7 +103,7 @@ public class HistoryRecord extends Record {
    */
   @Override
   public boolean congruentWith(Object o) {
-    if (!(o instanceof HistoryRecord)) {
+    if (o == null || !(o instanceof HistoryRecord)) {
       return false;
     }
     HistoryRecord other = (HistoryRecord) o;
@@ -115,7 +115,7 @@ public class HistoryRecord extends Record {
 
   @Override
   public boolean equalPayloads(Object o) {
-    if (!(o instanceof HistoryRecord)) {
+    if (o == null || !(o instanceof HistoryRecord)) {
       Logger.debug(LOG_TAG, "Not a HistoryRecord: " + o.getClass());
       return false;
     }

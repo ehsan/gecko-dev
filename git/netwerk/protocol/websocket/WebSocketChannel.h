@@ -7,36 +7,29 @@
 #ifndef mozilla_net_WebSocketChannel_h
 #define mozilla_net_WebSocketChannel_h
 
+#include "nsIURI.h"
 #include "nsISupports.h"
 #include "nsIInterfaceRequestor.h"
+#include "nsIEventTarget.h"
 #include "nsIStreamListener.h"
+#include "nsIProtocolHandler.h"
+#include "nsISocketTransport.h"
 #include "nsIAsyncInputStream.h"
 #include "nsIAsyncOutputStream.h"
+#include "nsILoadGroup.h"
 #include "nsITimer.h"
 #include "nsIDNSListener.h"
-#include "nsIObserver.h"
-#include "nsIProtocolProxyCallback.h"
+#include "nsIHttpChannel.h"
 #include "nsIChannelEventSink.h"
-#include "nsIHttpChannelInternal.h"
+#include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIStringStream.h"
+#include "nsIHttpChannelInternal.h"
+#include "nsIRandomGenerator.h"
 #include "BaseWebSocketChannel.h"
-
-#ifdef MOZ_WIDGET_GONK
-#include "nsINetworkManager.h"
-#include "nsProxyRelease.h"
-#endif
 
 #include "nsCOMPtr.h"
 #include "nsString.h"
 #include "nsDeque.h"
-
-class nsIAsyncVerifyRedirectCallback;
-class nsIDashboardEventNotifier;
-class nsIEventTarget;
-class nsIHttpChannel;
-class nsIRandomGenerator;
-class nsISocketTransport;
-class nsIURI;
 
 namespace mozilla { namespace net {
 
@@ -64,13 +57,11 @@ class WebSocketChannel : public BaseWebSocketChannel,
                          public nsIOutputStreamCallback,
                          public nsITimerCallback,
                          public nsIDNSListener,
-                         public nsIObserver,
-                         public nsIProtocolProxyCallback,
                          public nsIInterfaceRequestor,
                          public nsIChannelEventSink
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIHTTPUPGRADELISTENER
   NS_DECL_NSIREQUESTOBSERVER
   NS_DECL_NSISTREAMLISTENER
@@ -78,10 +69,8 @@ public:
   NS_DECL_NSIOUTPUTSTREAMCALLBACK
   NS_DECL_NSITIMERCALLBACK
   NS_DECL_NSIDNSLISTENER
-  NS_DECL_NSIPROTOCOLPROXYCALLBACK
   NS_DECL_NSIINTERFACEREQUESTOR
   NS_DECL_NSICHANNELEVENTSINK
-  NS_DECL_NSIOBSERVER
 
   // nsIWebSocketChannel methods BaseWebSocketChannel didn't implement for us
   //
@@ -97,11 +86,6 @@ public:
 
   WebSocketChannel();
   static void Shutdown();
-  bool IsOnTargetThread();
-
-  // Off main thread URI access.
-  void GetEffectiveURL(nsAString& aEffectiveURL) const MOZ_OVERRIDE;
-  bool IsEncrypted() const MOZ_OVERRIDE;
 
   enum {
     // Non Control Frames
@@ -133,7 +117,7 @@ private:
 
   // Common send code for binary + text msgs
   nsresult SendMsgCommon(const nsACString *aMsg, bool isBinary,
-                         uint32_t length, nsIInputStream *aStream = nullptr);
+                         uint32_t length, nsIInputStream *aStream = NULL);
 
   void EnqueueOutgoingMessage(nsDeque &aQueue, OutboundMessage *aMsg);
 
@@ -146,10 +130,8 @@ private:
   nsresult HandleExtensions();
   nsresult SetupRequest();
   nsresult ApplyForAdmission();
-  nsresult DoAdmissionDNS();
   nsresult StartWebsocketData();
   uint16_t ResultToCloseCode(nsresult resultCode);
-  void     ReportConnectionTelemetry();
 
   void StopSession(nsresult reason);
   void AbortSession(nsresult reason);
@@ -167,18 +149,11 @@ private:
                         uint32_t accumulatedFragments,
                         uint32_t *available);
 
-  inline void ResetPingTimer()
-  {
-    mPingOutstanding = 0;
-    if (mPingTimer) {
-      mPingTimer->SetDelay(mPingInterval);
-    }
-  }
 
   nsCOMPtr<nsIEventTarget>                 mSocketThread;
   nsCOMPtr<nsIHttpChannelInternal>         mChannel;
   nsCOMPtr<nsIHttpChannel>                 mHttpChannel;
-  nsCOMPtr<nsICancelable>                  mCancelable;
+  nsCOMPtr<nsICancelable>                  mDNSRequest;
   nsCOMPtr<nsIAsyncVerifyRedirectCallback> mRedirectCallback;
   nsCOMPtr<nsIRandomGenerator>             mRandomGenerator;
 
@@ -188,10 +163,6 @@ private:
   // then to IP address (unless we're leaving DNS resolution to a proxy server)
   nsCString                       mAddress;
   int32_t                         mPort;          // WS server port
-
-  // Used for off main thread access to the URI string.
-  nsCString                       mHost;
-  nsString                        mEffectiveURL;
 
   nsCOMPtr<nsISocketTransport>    mTransport;
   nsCOMPtr<nsIAsyncInputStream>   mSocketIn;
@@ -206,6 +177,8 @@ private:
   nsCOMPtr<nsITimer>              mReconnectDelayTimer;
 
   nsCOMPtr<nsITimer>              mPingTimer;
+  uint32_t                        mPingTimeout;  /* milliseconds */
+  uint32_t                        mPingResponseTimeout;  /* milliseconds */
 
   nsCOMPtr<nsITimer>              mLingeringCloseTimer;
   const static int32_t            kLingeringCloseTimeout =   1000;
@@ -213,7 +186,7 @@ private:
 
   int32_t                         mMaxConcurrentConnections;
 
-  uint32_t                        mGotUpgradeOK              : 1;
+  uint32_t                        mRecvdHttpOnStartRequest   : 1;
   uint32_t                        mRecvdHttpUpgradeTransport : 1;
   uint32_t                        mRequestedClose            : 1;
   uint32_t                        mClientClosed              : 1;
@@ -225,6 +198,7 @@ private:
   uint32_t                        mAutoFollowRedirects       : 1;
   uint32_t                        mReleaseOnTransmit         : 1;
   uint32_t                        mTCPClosed                 : 1;
+  uint32_t                        mWasOpened                 : 1;
   uint32_t                        mOpenedHttpChannel         : 1;
   uint32_t                        mDataStarted               : 1;
   uint32_t                        mIncrementedSessionCount   : 1;
@@ -267,31 +241,6 @@ private:
   nsWSCompression                *mCompressor;
   uint32_t                        mDynamicOutputSize;
   uint8_t                        *mDynamicOutput;
-  bool                            mPrivateBrowsing;
-
-  nsCOMPtr<nsIDashboardEventNotifier> mConnectionLogService;
-  uint32_t mSerial;
-  static uint32_t sSerialSeed;
-
-// These members are used for network per-app metering (bug 855949)
-// Currently, they are only available on gonk.
-  uint64_t                        mCountRecv;
-  uint64_t                        mCountSent;
-  uint32_t                        mAppId;
-#ifdef MOZ_WIDGET_GONK
-  nsMainThreadPtrHandle<nsINetworkInterface> mActiveNetwork;
-#endif
-  nsresult                        SaveNetworkStats(bool);
-  void                            CountRecvBytes(uint64_t recvBytes)
-  {
-    mCountRecv += recvBytes;
-    SaveNetworkStats(false);
-  }
-  void                            CountSentBytes(uint64_t sentBytes)
-  {
-    mCountSent += sentBytes;
-    SaveNetworkStats(false);
-  }
 };
 
 class WebSocketSSLChannel : public WebSocketChannel

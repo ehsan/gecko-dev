@@ -12,7 +12,7 @@
 #include "nsCRT.h"
 #include <stdio.h>
 #include <stdlib.h>
-#if defined(XP_WIN)
+#if defined(XP_WIN) || defined(XP_OS2)
 #include <io.h>
 #endif
 #ifdef XP_UNIX
@@ -52,7 +52,7 @@ static nsICharsetConverterManager* gCCM = nullptr;
 //---------------------------------------------------------------------------
 uint8_t CyrillicClass(nsIUnicodeDecoder* decoder, uint8_t byte)
 {
-   char16_t ubuf[2];
+   PRUnichar ubuf[2];
    uint8_t bbuf[2];
 
    int32_t blen = 1;

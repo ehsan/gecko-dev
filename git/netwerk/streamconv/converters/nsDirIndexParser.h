@@ -6,20 +6,15 @@
 #ifndef __NSDIRINDEX_H_
 #define __NSDIRINDEX_H_
 
+#include "nsIDirIndex.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "nsIDirIndexListener.h"
-
-class nsIDirIndex;
-class nsITextToSubURI;
+#include "nsITextToSubURI.h"
 
 /* CID: {a0d6ad32-1dd1-11b2-aa55-a40187b54036} */
 
 class nsDirIndexParser : public nsIDirIndexParser {
-
-private:
-    virtual ~nsDirIndexParser();
-
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSISTREAMLISTENER
@@ -27,6 +22,7 @@ public:
     NS_DECL_NSIDIRINDEXPARSER
     
     nsDirIndexParser();
+    virtual ~nsDirIndexParser();
     nsresult Init();
 
     enum fieldType {

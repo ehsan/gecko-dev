@@ -8,11 +8,8 @@
 
 #include "nsIClipboard.h"
 
-class nsClipboard MOZ_FINAL : public nsIClipboard
+class nsClipboard : public nsIClipboard
 {
-private:
-  ~nsClipboard() {}
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSICLIPBOARD

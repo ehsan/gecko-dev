@@ -29,7 +29,7 @@ function testSteps()
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
   request.onsuccess = unexpectedSuccessHandler;
-  let event = yield undefined;
+  let event = yield;
 
   let db = event.target.result;
 
@@ -99,36 +99,11 @@ function testSteps()
     is(found, true, "transaction has correct objectStoreNames list");
   }
 
-  // Can't handle autoincrement and empty keypath
-  let ex;
-  try {
-    db.createObjectStore("storefail", { keyPath: "", autoIncrement: true });
-  }
-  catch(e) {
-    ex = e;
-  }
-  ok(ex, "createObjectStore with empty keyPath and autoIncrement should throw");
-  is(ex.name, "InvalidAccessError", "should throw right exception");
-  ok(ex instanceof DOMException, "should throw right exception");
-  is(ex.code, DOMException.INVALID_ACCESS_ERR, "should throw right exception");
-
-  // Can't handle autoincrement and array keypath
-  try {
-    db.createObjectStore("storefail", { keyPath: ["a"], autoIncrement: true });
-  }
-  catch(e) {
-    ex = e;
-  }
-  ok(ex, "createObjectStore with array keyPath and autoIncrement should throw");
-  is(ex.name, "InvalidAccessError", "should throw right exception");
-  ok(ex instanceof DOMException, "should throw right exception");
-  is(ex.code, DOMException.INVALID_ACCESS_ERR, "should throw right exception");
-
   request.onsuccess = grabEventAndContinueHandler;
   request.onupgradeneeded = unexpectedSuccessHandler;
 
-  event = yield undefined;
+  event = yield;
 
   finishTest();
-  yield undefined;
+  yield;
 }

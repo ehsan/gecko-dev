@@ -13,6 +13,11 @@
    notice, this list of conditions and the following disclaimer in the
    documentation and/or other materials provided with the distribution.
 
+   - Neither the name of Internet Society, IETF or IETF Trust, nor the
+   names of specific contributors, may be used to endorse or promote
+   products derived from this software without specific prior written
+   permission.
+
    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
    ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
    LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -45,12 +50,12 @@
 
 void compute_pulse_cache(CELTMode *m, int LM);
 
-static OPUS_INLINE int get_pulses(int i)
+static inline int get_pulses(int i)
 {
    return i<8 ? i : (8 + (i&7)) << ((i>>3)-1);
 }
 
-static OPUS_INLINE int bits2pulses(const CELTMode *m, int band, int LM, int bits)
+static inline int bits2pulses(const CELTMode *m, int band, int LM, int bits)
 {
    int i;
    int lo, hi;
@@ -66,18 +71,18 @@ static OPUS_INLINE int bits2pulses(const CELTMode *m, int band, int LM, int bits
    {
       int mid = (lo+hi+1)>>1;
       /* OPT: Make sure this is implemented with a conditional move */
-      if ((int)cache[mid] >= bits)
+      if (cache[mid] >= bits)
          hi = mid;
       else
          lo = mid;
    }
-   if (bits- (lo == 0 ? -1 : (int)cache[lo]) <= (int)cache[hi]-bits)
+   if (bits- (lo == 0 ? -1 : cache[lo]) <= cache[hi]-bits)
       return lo;
    else
       return hi;
 }
 
-static OPUS_INLINE int pulses2bits(const CELTMode *m, int band, int LM, int pulses)
+static inline int pulses2bits(const CELTMode *m, int band, int LM, int pulses)
 {
    const unsigned char *cache;
 
@@ -96,6 +101,6 @@ static OPUS_INLINE int pulses2bits(const CELTMode *m, int band, int LM, int puls
  @return Total number of bits allocated
 */
 int compute_allocation(const CELTMode *m, int start, int end, const int *offsets, const int *cap, int alloc_trim, int *intensity, int *dual_stero,
-      opus_int32 total, opus_int32 *balance, int *pulses, int *ebits, int *fine_priority, int C, int LM, ec_ctx *ec, int encode, int prev, int signalBandwidth);
+      opus_int32 total, opus_int32 *balance, int *pulses, int *ebits, int *fine_priority, int C, int LM, ec_ctx *ec, int encode, int prev);
 
 #endif

@@ -3,7 +3,6 @@
 
 Components.utils.import("resource://gre/modules/PlacesUtils.jsm");
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
-Components.utils.import("resource://gre/modules/ForgetAboutSite.jsm");
 
 const ABOUT_PERMISSIONS_SPEC = "about:permissions";
 
@@ -15,6 +14,7 @@ const TEST_URI_3 = NetUtil.newURI("http://wikipedia.org/");
 const PERM_UNKNOWN = 0;
 const PERM_ALLOW = 1;
 const PERM_DENY = 2;
+const PERM_SESION = 8;
 
 // used to set permissions on test sites
 const TEST_PERMS = {
@@ -28,28 +28,27 @@ const TEST_PERMS = {
 function test() {
   waitForExplicitFinish();
   registerCleanupFunction(cleanUp);
-  setup(function() {
-    runNextTest();
-  });
+  setup();
+  runNextTest();
 }
 
-function setup(aCallback) {
+function setup() {
   // add test history visit
-  addVisits(TEST_URI_1, function() {
-    // set permissions ourselves to avoid problems with different defaults
-    // from test harness configuration
-    for (let type in TEST_PERMS) {
-      if (type == "password") {
-        Services.logins.setLoginSavingEnabled(TEST_URI_2.prePath, true);
-      } else {
-        // set permissions on a site without history visits to test enumerateServices
-        Services.perms.add(TEST_URI_2, type, TEST_PERMS[type]);
-      }
-    }
+  PlacesUtils.history.addVisit(TEST_URI_1, Date.now() * 1000, null,
+    Ci.nsINavHistoryService.TRANSITION_LINK, false, 0);
 
-    Services.perms.add(TEST_URI_3, "popup", TEST_PERMS["popup"]);
-    aCallback();
-  });
+  // set permissions ourselves to avoid problems with different defaults
+  // from test harness configuration
+  for (let type in TEST_PERMS) {
+    if (type == "password") {
+      Services.logins.setLoginSavingEnabled(TEST_URI_2.prePath, true);
+    } else {
+      // set permissions on a site without history visits to test enumerateServices
+      Services.perms.add(TEST_URI_2, type, TEST_PERMS[type]);
+    }
+  }
+
+  Services.perms.add(TEST_URI_3, "popup", TEST_PERMS["popup"]);
 }
 
 function cleanUp() {
@@ -72,13 +71,13 @@ function runNextTest() {
   info(nextTest.desc);
 
   function preinit_observer() {
-    Services.obs.removeObserver(preinit_observer, "browser-permissions-preinit");
+    Services.obs.removeObserver(preinit_observer, "browser-permissions-preinit", false);
     nextTest.preInit();
   }
   Services.obs.addObserver(preinit_observer, "browser-permissions-preinit", false);
 
   function init_observer() {
-    Services.obs.removeObserver(init_observer, "browser-permissions-initialized");
+    Services.obs.removeObserver(init_observer, "browser-permissions-initialized", false);
     nextTest.run();
   }
   Services.obs.addObserver(init_observer, "browser-permissions-initialized", false);
@@ -117,15 +116,17 @@ var tests = [
   {
     desc: "test removing from sites-list before it is fully constructed.",
     preInit: function() {
-      ForgetAboutSite.removeDataFromDomain(TEST_URI_2.host);
+      let pb = Cc["@mozilla.org/privatebrowsing;1"].
+                 getService(Ci.nsIPrivateBrowsingService);
+      pb.removeDataFromDomain(TEST_URI_2.host);
     },
     run: function() {
       let testSite1 = getSiteItem(TEST_URI_1.host);
-      ok(testSite1, "test site 1 was not removed from sites list");
+      ok(!testSite2, "test site 1 was not removed from sites list");
       let testSite2 = getSiteItem(TEST_URI_2.host);
       ok(!testSite2, "test site 2 was pre-removed from sites list");
       let testSite3 = getSiteItem(TEST_URI_3.host);
-      ok(testSite3, "test site 3 was not removed from sites list");
+      ok(!testSite2, "test site 3 was not removed from sites list");
 
       runNextTest();
     }

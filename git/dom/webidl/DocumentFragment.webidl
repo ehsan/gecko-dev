@@ -4,24 +4,14 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * The origin of this IDL file is
- * http://www.w3.org/TR/2012/WD-dom-20120405/#interface-documentfragment
- * http://www.w3.org/TR/2012/WD-selectors-api-20120628/#interface-definitions
+ * http://www.w3.org/TR/2012/WD-dom-20120105/
  *
  * Copyright © 2012 W3C® (MIT, ERCIM, Keio), All Rights Reserved. W3C
  * liability, trademark and document use rules apply.
  */
 
-[Constructor]
 interface DocumentFragment : Node {
-  Element? getElementById(DOMString elementId);
+  // NEW
+  void prepend((Node or DOMString)... nodes);
+  void append((Node or DOMString)... nodes);
 };
-
-// http://www.w3.org/TR/2012/WD-selectors-api-20120628/#interface-definitions
-partial interface DocumentFragment {
-  [Throws]
-  Element?  querySelector(DOMString selectors);
-  [Throws]
-  NodeList  querySelectorAll(DOMString selectors);
-};
-
-DocumentFragment implements ParentNode;

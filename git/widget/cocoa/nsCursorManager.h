@@ -37,9 +37,8 @@
  @param aCursorImage the cursor image to use
  @param aHotSpotX the x coordinate of the cursor's hotspot
  @param aHotSpotY the y coordinate of the cursor's hotspot
- @param scaleFactor the scale factor of the target display (2 for a retina display)
  */
-- (nsresult) setCursorWithImage: (imgIContainer*) aCursorImage hotSpotX: (uint32_t) aHotspotX hotSpotY: (uint32_t) aHotspotY scaleFactor: (CGFloat) scaleFactor;
+- (nsresult) setCursorWithImage: (imgIContainer*) aCursorImage hotSpotX: (uint32_t) aHotspotX hotSpotY: (uint32_t) aHotspotY;
 
 
 /*! @method     sharedInstance
@@ -54,12 +53,6 @@
     @discussion Use dispose to clean up the cursor manager and associated cursors.
 */
 + (void) dispose;
-@end
-
-@interface NSCursor (Undocumented)
-// busyButClickableCursor is an undocumented NSCursor API, but has been in use since
-// at least OS X 10.4 and through 10.9.
-+ (NSCursor*)busyButClickableCursor;
 @end
 
 #endif // nsCursorManager_h_

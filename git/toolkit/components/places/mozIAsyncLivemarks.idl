@@ -4,6 +4,10 @@
 
 #include "nsISupports.idl"
 
+%{C++
+#include "jsapi.h"
+%}
+
 interface nsIURI;
 
 interface mozILivemarkCallback;
@@ -12,7 +16,7 @@ interface mozILivemark;
 
 interface nsINavHistoryResultObserver;
 
-[scriptable, uuid(5B48E5A2-F07A-4E64-A935-C722A3D60B65)]
+[scriptable, uuid(1dbf174c-696e-4d9b-af0f-350da50d2249)]
 interface mozIAsyncLivemarks : nsISupports
 {
   /**
@@ -24,15 +28,12 @@ interface mozIAsyncLivemarks : nsISupports
    * @param [optional] aCallback
    *        Invoked when the creation process is done.  In case of failure will
    *        receive an error code.
-   * @return {Promise}
+   *
    * @throws NS_ERROR_INVALID_ARG if the supplied information is insufficient
    *         for the creation.
-   * @deprecated passing a callback is deprecated. Moreover, for backwards
-   *             compatibility reasons, when a callback is provided this method
-   *             won't return a promise.
    */
-  jsval addLivemark(in jsval aLivemarkInfo,
-                    [optional] in mozILivemarkCallback aCallback);
+  void addLivemark(in jsval aLivemarkInfo,
+                   [optional]in mozILivemarkCallback aCallback);
 
   /**
    * Removes an existing livemark.
@@ -44,14 +45,10 @@ interface mozIAsyncLivemarks : nsISupports
    *        Invoked when the removal process is done.  In case of failure will
    *        receive an error code.
    *
-   * @return {Promise}
    * @throws NS_ERROR_INVALID_ARG if the id/guid is invalid.
-   * @deprecated passing a callback is deprecated. Moreover, for backwards
-   *             compatibility reasons, when a callback is provided this method
-   *             won't return a promise.
    */
-  jsval removeLivemark(in jsval aLivemarkInfo,
-                       [optional] in mozILivemarkCallback aCallback);
+  void removeLivemark(in jsval aLivemarkInfo,
+                      [optional]in mozILivemarkCallback aCallback);
 
   /**
    * Gets an existing livemark.
@@ -59,19 +56,15 @@ interface mozIAsyncLivemarks : nsISupports
    * @param aLivemarkInfo
    *        mozILivemarkInfo object containing either an id or a guid of the
    *        livemark to retrieve.
-   * @param [optional] aCallback
+   * @param aCallback
    *        Invoked when the fetching process is done.  In case of failure will
    *        receive an error code.
    *
-   * @return {Promise}
    * @throws NS_ERROR_INVALID_ARG if the id/guid is invalid or an invalid
    *         callback is provided.
-   * @deprecated passing a callback is deprecated. Moreover, for backwards
-   *             compatibility reasons, when a callback is provided this method
-   *             won't return a promise.
    */
-  jsval getLivemark(in jsval aLivemarkInfo,
-                    [optional] in mozILivemarkCallback aCallback);
+  void getLivemark(in jsval aLivemarkInfo,
+                   in mozILivemarkCallback aCallback);
 
   /**
    * Reloads all livemarks if they are expired or if forced to do so.
@@ -101,7 +94,7 @@ interface mozILivemarkCallback : nsISupports
                     in mozILivemark aLivemark);
 };
 
-[scriptable, uuid(E52B2273-729D-4EBC-A039-E9CD9E18FF86)]
+[scriptable, uuid(6e40d5b1-ce48-4458-8b68-6bee17d30ef3)]
 interface mozILivemarkInfo : nsISupports
 {
   /**
@@ -128,11 +121,6 @@ interface mozILivemarkInfo : nsISupports
    * The position of this livemark in the bookmarks parent folder.
    */
   readonly attribute long index;
-
-  /**
-   * Time this livemark was created.
-   */
-  readonly attribute PRTime dateAdded;
 
   /**
    * Time this livemark's details were last modified.  Doesn't track changes to

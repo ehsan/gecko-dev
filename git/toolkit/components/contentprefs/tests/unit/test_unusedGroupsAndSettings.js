@@ -2,7 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-var cps = new ContentPrefInstance(null);
+var cps = Cc["@mozilla.org/content-pref/service;1"].
+          getService(Ci.nsIContentPrefService);
           
 function run_test() {
   var uri1 = ContentPrefTest.getURI("http://www.domain1.com/");
@@ -30,10 +31,10 @@ function run_test() {
 }
 
 function checkForUnusedGroups() {
-  var stmt = cps.DBConnection.createStatement(`
-               SELECT COUNT(*) AS count FROM groups
-               WHERE id NOT IN (SELECT DISTINCT groupID FROM prefs)
-             `);
+  var stmt = cps.DBConnection.createStatement(
+               "SELECT COUNT(*) AS count FROM groups " +
+               "WHERE id NOT IN (SELECT DISTINCT groupID FROM prefs)"
+             );
   stmt.executeStep();
   do_check_eq(0, stmt.row.count);
   stmt.reset();
@@ -41,10 +42,10 @@ function checkForUnusedGroups() {
 }
 
 function checkForUnusedSettings() {
-  var stmt = cps.DBConnection.createStatement(`
-               SELECT COUNT(*) AS count FROM settings
-               WHERE id NOT IN (SELECT DISTINCT settingID FROM prefs)
-             `);
+  var stmt = cps.DBConnection.createStatement(
+               "SELECT COUNT(*) AS count FROM settings " +
+               "WHERE id NOT IN (SELECT DISTINCT settingID FROM prefs)"
+             );
   stmt.executeStep();
   do_check_eq(0, stmt.row.count);
   stmt.reset();

@@ -5,13 +5,14 @@
 
 "use strict";
 
-this.EXPORTED_SYMBOLS = [
+const EXPORTED_SYMBOLS = [
   "_",
   "assert",
+  "attr",
+  "getCurrentBrowserTabContentWindow",
   "log",
   "text",
-  "wire",
-  "showFilePicker"
+  "wire"
 ];
 
 const Cc = Components.classes;
@@ -22,8 +23,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 
 const PROPERTIES_URL = "chrome://browser/locale/devtools/styleeditor.properties";
 
-const require = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
-const console = require("resource://gre/modules/devtools/Console.jsm").console;
+const console = Services.console;
 const gStringBundle = Services.strings.createBundle(PROPERTIES_URL);
 
 
@@ -35,19 +35,14 @@ const gStringBundle = Services.strings.createBundle(PROPERTIES_URL);
  *        Optional arguments to format in the string.
  * @return string
  */
-this._ = function _(aName)
+function _(aName)
 {
-  try {
-    if (arguments.length == 1) {
-      return gStringBundle.GetStringFromName(aName);
-    }
-    let rest = Array.prototype.slice.call(arguments, 1);
-    return gStringBundle.formatStringFromName(aName, rest, rest.length);
+
+  if (arguments.length == 1) {
+    return gStringBundle.GetStringFromName(aName);
   }
-  catch (ex) {
-    console.error(ex);
-    throw new Error("L10N error. '" + aName + "' is missing from " + PROPERTIES_URL);
-  }
+  let rest = Array.prototype.slice.call(arguments, 1);
+  return gStringBundle.formatStringFromName(aName, rest, rest.length);
 }
 
 /**
@@ -58,7 +53,7 @@ this._ = function _(aName)
  *        Optional message.
  * @return aExpression
  */
-this.assert = function assert(aExpression, aMessage)
+function assert(aExpression, aMessage)
 {
   if (!!!(aExpression)) {
     let msg = aMessage ? "ASSERTION FAILURE:" + aMessage : "ASSERTION FAILURE";
@@ -81,7 +76,7 @@ this.assert = function assert(aExpression, aMessage)
  *         Text content of matching element or null if there were no element
  *         matching aSelector.
  */
-this.text = function text(aRoot, aSelector, aText)
+function text(aRoot, aSelector, aText)
 {
   let element = aRoot.querySelector(aSelector);
   if (!element) {
@@ -113,12 +108,12 @@ function forEach(aObject, aCallback)
 
 /**
  * Log a message to the console.
- *
+ * 
  * @param ...rest
  *        One or multiple arguments to log.
  *        If multiple arguments are given, they will be joined by " " in the log.
  */
-this.log = function log()
+function log()
 {
   console.logStringMessage(Array.prototype.slice.call(arguments).join(" "));
 }
@@ -133,14 +128,15 @@ this.log = function log()
  *        Selector string or DOMElement for the element(s) to wire up.
  * @param object aDescriptor
  *        An object describing how to wire matching selector, supported properties
- *        are "events" and "attributes" taking objects themselves.
- *        Each key of properties above represents the name of the event or
- *        attribute, with the value being a function used as an event handler or
- *        string to use as attribute value.
+ *        are "events", "attributes" and "userData" taking objects themselves.
+ *        Each key of properties above represents the name of the event, attribute
+ *        or userData, with the value being a function used as an event handler,
+ *        string to use as attribute value, or object to use as named userData
+ *        respectively.
  *        If aDescriptor is a function, the argument is equivalent to :
  *        {events: {'click': aDescriptor}}
  */
-this.wire = function wire(aRoot, aSelectorOrElement, aDescriptor)
+function wire(aRoot, aSelectorOrElement, aDescriptor)
 {
   let matches;
   if (typeof(aSelectorOrElement) == "string") { // selector
@@ -156,79 +152,13 @@ this.wire = function wire(aRoot, aSelectorOrElement, aDescriptor)
     aDescriptor = {events: {click: aDescriptor}};
   }
 
-  for (let i = 0; i < matches.length; i++) {
+  for (let i = 0; i < matches.length; ++i) {
     let element = matches[i];
     forEach(aDescriptor.events, function (aName, aHandler) {
       element.addEventListener(aName, aHandler, false);
     });
     forEach(aDescriptor.attributes, element.setAttribute);
+    forEach(aDescriptor.userData, element.setUserData);
   }
 }
 
-/**
- * Show file picker and return the file user selected.
- *
- * @param mixed file
- *        Optional nsIFile or string representing the filename to auto-select.
- * @param boolean toSave
- *        If true, the user is selecting a filename to save.
- * @param nsIWindow parentWindow
- *        Optional parent window. If null the parent window of the file picker
- *        will be the window of the attached input element.
- * @param callback
- *        The callback method, which will be called passing in the selected
- *        file or null if the user did not pick one.
- * @param AString suggestedFilename
- *        The suggested filename when toSave is true.
- */
-this.showFilePicker = function showFilePicker(path, toSave, parentWindow,
-                                              callback, suggestedFilename)
-{
-  if (typeof(path) == "string") {
-    try {
-      if (Services.io.extractScheme(path) == "file") {
-        let uri = Services.io.newURI(path, null, null);
-        let file = uri.QueryInterface(Ci.nsIFileURL).file;
-        callback(file);
-        return;
-      }
-    } catch (ex) {
-      callback(null);
-      return;
-    }
-    try {
-      let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
-      file.initWithPath(path);
-      callback(file);
-      return;
-    } catch (ex) {
-      callback(null);
-      return;
-    }
-  }
-  if (path) { // "path" is an nsIFile
-    callback(path);
-    return;
-  }
-
-  let fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
-  let mode = toSave ? fp.modeSave : fp.modeOpen;
-  let key = toSave ? "saveStyleSheet" : "importStyleSheet";
-  let fpCallback = function(result) {
-    if (result == Ci.nsIFilePicker.returnCancel) {
-      callback(null);
-    } else {
-      callback(fp.file);
-    }
-  };
-
-  if (toSave && suggestedFilename) {
-    fp.defaultString = suggestedFilename;
-  }
-
-  fp.init(parentWindow, _(key + ".title"), mode);
-  fp.appendFilters(_(key + ".filter"), "*.css");
-  fp.appendFilters(fp.filterAll);
-  fp.open(fpCallback);
-  return;
-}

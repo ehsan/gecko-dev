@@ -12,12 +12,10 @@
 #elif defined(XP_UNIX)
 #include <sys/time.h>
 #include <sys/resource.h>
-#include <unistd.h>
 #endif
 
 #include <stdio.h>
 #include <stdarg.h>
-#include <string.h>
 
 #include "nsCOMPtr.h"
 #include "nsIFile.h"
@@ -25,26 +23,15 @@
 
 #ifdef XP_WIN
 // we want a wmain entry point
-#define XRE_DONT_SUPPORT_XPSP2 // See https://bugzil.la/1023941#c32
 #include "nsWindowsWMain.cpp"
 #define snprintf _snprintf
 #define strcasecmp _stricmp
 #endif
-
-#ifdef MOZ_WIDGET_GONK
-#include "GonkDisplay.h"
-#endif
-
 #include "BinaryPath.h"
 
 #include "nsXPCOMPrivate.h" // for MAXPATHLEN and XPCOM_DLL
 
-#ifdef MOZ_WIDGET_GONK
-# include <binder/ProcessState.h>
-#endif
-
 #include "mozilla/Telemetry.h"
-#include "mozilla/WindowsDllBlocklist.h"
 
 static void Output(const char *fmt, ... )
 {
@@ -52,9 +39,9 @@ static void Output(const char *fmt, ... )
   va_start(ap, fmt);
 
 #if defined(XP_WIN) && !MOZ_WINCONSOLE
-  char16_t msg[2048];
+  PRUnichar msg[2048];
   _vsnwprintf(msg, sizeof(msg)/sizeof(msg[0]), NS_ConvertUTF8toUTF16(fmt).get(), ap);
-  MessageBoxW(nullptr, msg, L"XULRunner", MB_OK | MB_ICONERROR);
+  MessageBoxW(NULL, msg, L"XULRunner", MB_OK | MB_ICONERROR);
 #else
   vfprintf(stderr, fmt, ap);
 #endif
@@ -74,7 +61,7 @@ static bool IsArg(const char* arg, const char* s)
     return !strcasecmp(arg, s);
   }
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) || defined(XP_OS2)
   if (*arg == '/')
     return !strcasecmp(++arg, s);
 #endif
@@ -95,6 +82,9 @@ public:
 XRE_GetFileFromPathType XRE_GetFileFromPath;
 XRE_CreateAppDataType XRE_CreateAppData;
 XRE_FreeAppDataType XRE_FreeAppData;
+#ifdef XRE_HAS_DLL_BLOCKLIST
+XRE_SetupDllBlocklistType XRE_SetupDllBlocklist;
+#endif
 XRE_TelemetryAccumulateType XRE_TelemetryAccumulate;
 XRE_mainType XRE_main;
 
@@ -102,6 +92,9 @@ static const nsDynamicFunctionLoad kXULFuncs[] = {
     { "XRE_GetFileFromPath", (NSFuncPtr*) &XRE_GetFileFromPath },
     { "XRE_CreateAppData", (NSFuncPtr*) &XRE_CreateAppData },
     { "XRE_FreeAppData", (NSFuncPtr*) &XRE_FreeAppData },
+#ifdef XRE_HAS_DLL_BLOCKLIST
+    { "XRE_SetupDllBlocklist", (NSFuncPtr*) &XRE_SetupDllBlocklist },
+#endif
     { "XRE_TelemetryAccumulate", (NSFuncPtr*) &XRE_TelemetryAccumulate },
     { "XRE_main", (NSFuncPtr*) &XRE_main },
     { nullptr, nullptr }
@@ -145,11 +138,6 @@ static int do_main(int argc, char* argv[])
     argc -= 2;
   }
 
-#ifdef MOZ_WIDGET_GONK
-  /* Called to start the boot animation */
-  (void) mozilla::GetGonkDisplay();
-#endif
-
   if (appini) {
     nsXREAppData *appData;
     rv = XRE_CreateAppData(appini, &appData);
@@ -165,54 +153,21 @@ static int do_main(int argc, char* argv[])
   return XRE_main(argc, argv, &sAppData, 0);
 }
 
-#ifdef MOZ_B2G_LOADER
-/*
- * The main() in B2GLoader.cpp is the new main function instead of the
- * main() here if it is enabled.  So, rename it to b2g_man().
- */
-#define main b2g_main
-#define _CONST const
-#else
-#define _CONST
-#endif
-
-int main(int argc, _CONST char* argv[])
+int main(int argc, char* argv[])
 {
-#ifndef MOZ_B2G_LOADER
   char exePath[MAXPATHLEN];
-#endif
 
-#ifdef MOZ_WIDGET_GONK
-  // This creates a ThreadPool for binder ipc. A ThreadPool is necessary to
-  // receive binder calls, though not necessary to send binder calls.
-  // ProcessState::Self() also needs to be called once on the main thread to
-  // register the main thread with the binder driver.
-  android::ProcessState::self()->startThreadPool();
-#endif
-
-  nsresult rv;
-#ifndef MOZ_B2G_LOADER
-  rv = mozilla::BinaryPath::Get(argv[0], exePath);
+  nsresult rv = mozilla::BinaryPath::Get(argv[0], exePath);
   if (NS_FAILED(rv)) {
     Output("Couldn't calculate the application directory.\n");
     return 255;
   }
 
   char *lastSlash = strrchr(exePath, XPCOM_FILE_PATH_SEPARATOR[0]);
-  if (!lastSlash || ((lastSlash - exePath) + sizeof(XPCOM_DLL) + 1 > MAXPATHLEN))
+  if (!lastSlash || (lastSlash - exePath > MAXPATHLEN - sizeof(XPCOM_DLL) - 1))
     return 255;
 
   strcpy(++lastSlash, XPCOM_DLL);
-#endif // MOZ_B2G_LOADER
-
-#if defined(XP_UNIX)
-  // If the b2g app is launched from adb shell, then the shell will wind
-  // up being the process group controller. This means that we can't send
-  // signals to the process group (useful for profiling).
-  // We ignore the return value since setsid() fails if we're already the
-  // process group controller (the normal situation).
-  (void)setsid();
-#endif
 
   int gotCounters;
 #if defined(XP_UNIX)
@@ -223,13 +178,6 @@ int main(int argc, _CONST char* argv[])
   gotCounters = GetProcessIoCounters(GetCurrentProcess(), &ioCounters);
 #endif
 
-#ifdef HAS_DLL_BLOCKLIST
-  DllBlocklist_Initialize();
-#endif
-
-  // B2G loader has already initialized Gecko so we can't initialize
-  // it again here.
-#ifndef MOZ_B2G_LOADER
   // We do this because of data in bug 771745
   XPCOMGlueEnablePreload();
 
@@ -240,13 +188,16 @@ int main(int argc, _CONST char* argv[])
   }
   // Reset exePath so that it is the directory name and not the xpcom dll name
   *lastSlash = 0;
-#endif // MOZ_B2G_LOADER
 
   rv = XPCOMGlueLoadXULFunctions(kXULFuncs);
   if (NS_FAILED(rv)) {
     Output("Couldn't load XRE functions.\n");
     return 255;
   }
+
+#ifdef XRE_HAS_DLL_BLOCKLIST
+  XRE_SetupDllBlocklist();
+#endif
 
   if (gotCounters) {
 #if defined(XP_WIN)
@@ -275,28 +226,9 @@ int main(int argc, _CONST char* argv[])
   int result;
   {
     ScopedLogging log;
-    char **_argv;
-
-    /*
-     * Duplicate argument vector to conform non-const argv of
-     * do_main() since XRE_main() is very stupid with non-const argv.
-     */
-    _argv = new char *[argc + 1];
-    for (int i = 0; i < argc; i++) {
-      size_t len = strlen(argv[i]) + 1;
-      _argv[i] = new char[len];
-      MOZ_ASSERT(_argv[i] != nullptr);
-      memcpy(_argv[i], argv[i], len);
-    }
-    _argv[argc] = nullptr;
-
-    result = do_main(argc, _argv);
-
-    for (int i = 0; i < argc; i++) {
-      delete[] _argv[i];
-    }
-    delete[] _argv;
+    result = do_main(argc, argv);
   }
 
+  XPCOMGlueShutdown();
   return result;
 }

@@ -25,13 +25,9 @@ public:
     nsLookAndFeel();
     virtual ~nsLookAndFeel();
 
-    virtual bool GetFontImpl(FontID aID, nsString& aName, gfxFontStyle& aStyle,
-                             float aDevPixPerCSSPixel);
+    virtual bool GetFontImpl(FontID aID, nsString& aName, gfxFontStyle& aStyle);
     virtual nsresult GetIntImpl(IntID aID, int32_t &aResult);
-    virtual nsresult GetFloatImpl(FloatID aID, float &aResult);
     virtual bool GetEchoPasswordImpl();
-    virtual uint32_t GetPasswordMaskDelayImpl();
-    virtual char16_t GetPasswordCharacterImpl();
 
 protected:
     virtual nsresult NativeGetColor(ColorID aID, nscolor &aColor);

@@ -10,7 +10,7 @@
 #define ALLOW_LATE_NSHTTP_H_INCLUDE 1
 #include "base/basictypes.h"
 
-#include "ipc/IPCMessageUtils.h"
+#include "IPC/IPCMessageUtils.h"
 #include "nsHttp.h"
 #include "nsHttpHeaderArray.h"
 #include "nsHttpResponseHead.h"
@@ -25,12 +25,6 @@ struct RequestHeaderTuple {
   nsCString mHeader;
   nsCString mValue;
   bool      mMerge;
-
-  bool operator ==(const RequestHeaderTuple &other) const {
-    return mHeader.Equals(other.mHeader) &&
-           mValue.Equals(other.mValue) &&
-           mMerge == other.mMerge;
-  }
 };
 
 typedef nsTArray<RequestHeaderTuple> RequestHeaderTuples;
@@ -64,34 +58,34 @@ struct ParamTraits<mozilla::net::RequestHeaderTuple>
 };
 
 template<>
-struct ParamTraits<mozilla::net::nsHttpAtom>
+struct ParamTraits<nsHttpAtom>
 {
-  typedef mozilla::net::nsHttpAtom paramType;
+  typedef nsHttpAtom paramType;
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
     // aParam.get() cannot be null.
-    MOZ_ASSERT(aParam.get(), "null nsHTTPAtom value");
-    nsAutoCString value(aParam.get());
+    NS_ASSERTION(aParam.get(), "null nsHTTPAtom value");
+    nsCAutoString value(aParam.get());
     WriteParam(aMsg, value);
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    nsAutoCString value;
+    nsCAutoString value;
     if (!ReadParam(aMsg, aIter, &value))
       return false;
 
-    *aResult = mozilla::net::nsHttp::ResolveAtom(value.get());
-    MOZ_ASSERT(aResult->get(), "atom table not initialized");
+    *aResult = nsHttp::ResolveAtom(value.get());
+    NS_ASSERTION(aResult->get(), "atom table not initialized");
     return true;
   }
 };
 
 template<>
-struct ParamTraits<mozilla::net::nsHttpHeaderArray::nsEntry>
+struct ParamTraits<nsHttpHeaderArray::nsEntry>
 {
-  typedef mozilla::net::nsHttpHeaderArray::nsEntry paramType;
+  typedef nsHttpHeaderArray::nsEntry paramType;
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
@@ -111,9 +105,16 @@ struct ParamTraits<mozilla::net::nsHttpHeaderArray::nsEntry>
 
 
 template<>
-struct ParamTraits<mozilla::net::nsHttpHeaderArray>
+struct ParamTraits<mozilla::net::InfallableCopyCString>
+  : public ParamTraits<nsCString>
 {
-  typedef mozilla::net::nsHttpHeaderArray paramType;
+};
+
+
+template<>
+struct ParamTraits<nsHttpHeaderArray>
+{
+  typedef nsHttpHeaderArray paramType;
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
@@ -132,9 +133,9 @@ struct ParamTraits<mozilla::net::nsHttpHeaderArray>
 };
 
 template<>
-struct ParamTraits<mozilla::net::nsHttpResponseHead>
+struct ParamTraits<nsHttpResponseHead>
 {
-  typedef mozilla::net::nsHttpResponseHead paramType;
+  typedef nsHttpResponseHead paramType;
 
   static void Write(Message* aMsg, const paramType& aParam)
   {

@@ -1,38 +1,34 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=78:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "gc/Statistics.h"
-
-#include "mozilla/PodOperations.h"
-#include "mozilla/UniquePtr.h"
-
-#include <ctype.h>
-#include <stdarg.h>
 #include <stdio.h>
+#include <stdarg.h>
 
+#include "jscntxt.h"
+#include "jscompartment.h"
+#include "jscrashformat.h"
 #include "jscrashreport.h"
 #include "jsprf.h"
+#include "jsprobes.h"
 #include "jsutil.h"
 #include "prmjtime.h"
 
 #include "gc/Memory.h"
-#include "vm/HelperThreads.h"
-#include "vm/Runtime.h"
+#include "gc/Statistics.h"
 
-using namespace js;
-using namespace js::gc;
-using namespace js::gcstats;
+#include "gc/Barrier-inl.h"
 
-using mozilla::PodArrayZero;
-using mozilla::PodZero;
+namespace js {
+namespace gcstats {
 
-/* Except for the first and last, slices of less than 10ms are not reported. */
-static const int64_t SLICE_MIN_REPORT_TIME = 10 * PRMJ_USEC_PER_MSEC;
+/* Except for the first and last, slices of less than 42ms are not reported. */
+static const int64_t SLICE_MIN_REPORT_TIME = 42 * PRMJ_USEC_PER_MSEC;
 
-class gcstats::StatisticsSerializer
+class StatisticsSerializer
 {
     typedef Vector<char, 128, SystemAllocPolicy> CharBuffer;
     CharBuffer buf_;
@@ -40,7 +36,7 @@ class gcstats::StatisticsSerializer
     bool needComma_;
     bool oom_;
 
-    static const int MaxFieldValueLength = 128;
+    const static int MaxFieldValueLength = 128;
 
   public:
     enum Mode {
@@ -48,7 +44,7 @@ class gcstats::StatisticsSerializer
         AsText = false
     };
 
-    explicit StatisticsSerializer(Mode asJSON)
+    StatisticsSerializer(Mode asJSON)
       : buf_(), asJSON_(asJSON), needComma_(false), oom_(false)
     {}
 
@@ -82,8 +78,6 @@ class gcstats::StatisticsSerializer
     }
 
     void appendDecimal(const char *name, const char *units, double d) {
-        if (d < 0)
-            d = 0;
         if (asJSON_)
             appendNumber(name, "%d.%d", units, (int)d, (int)(d * 10.) % 10);
         else
@@ -127,29 +121,35 @@ class gcstats::StatisticsSerializer
         needComma_ = true;
     }
 
-    char16_t *finishJSString() {
+    jschar *finishJSString() {
         char *buf = finishCString();
         if (!buf)
-            return nullptr;
+            return NULL;
 
         size_t nchars = strlen(buf);
-        char16_t *out = js_pod_malloc<char16_t>(nchars + 1);
+        jschar *out = (jschar *)js_malloc(sizeof(jschar) * (nchars + 1));
         if (!out) {
             oom_ = true;
             js_free(buf);
-            return nullptr;
+            return NULL;
         }
 
-        CopyAndInflateChars(out, buf, nchars);
+        size_t outlen = nchars;
+        bool ok = InflateStringToBuffer(NULL, buf, nchars, out, &outlen);
         js_free(buf);
-
+        if (!ok) {
+            oom_ = true;
+            js_free(out);
+            return NULL;
+        }
         out[nchars] = 0;
+
         return out;
     }
 
     char *finishCString() {
         if (oom_)
-            return nullptr;
+            return NULL;
 
         buf_.append('\0');
 
@@ -241,29 +241,20 @@ class gcstats::StatisticsSerializer
  * larger-numbered reasons to pile up in the last telemetry bucket, or switch
  * to GC_REASON_3 and bump the max value.
  */
-JS_STATIC_ASSERT(JS::gcreason::NUM_TELEMETRY_REASONS >= JS::gcreason::NUM_REASONS);
+JS_STATIC_ASSERT(gcreason::NUM_TELEMETRY_REASONS >= gcreason::NUM_REASONS);
 
-const char *
-js::gcstats::ExplainInvocationKind(JSGCInvocationKind gckind)
-{
-    MOZ_ASSERT(gckind == GC_NORMAL || gckind == GC_SHRINK);
-    if (gckind == GC_NORMAL)
-         return "Normal";
-    else
-         return "Shrinking";
-}
-
-const char *
-js::gcstats::ExplainReason(JS::gcreason::Reason reason)
+static const char *
+ExplainReason(gcreason::Reason reason)
 {
     switch (reason) {
-#define SWITCH_REASON(name)                         \
-        case JS::gcreason::name:                    \
+#define SWITCH_REASON(name)                     \
+        case gcreason::name:                    \
           return #name;
         GCREASONS(SWITCH_REASON)
 
         default:
-          MOZ_CRASH("bad GC reason");
+          JS_NOT_REACHED("bad GC reason");
+          return "?";
 #undef SWITCH_REASON
     }
 }
@@ -276,67 +267,41 @@ t(int64_t t)
 
 struct PhaseInfo
 {
-    Phase index;
+    unsigned index;
     const char *name;
-    Phase parent;
 };
 
-static const Phase PHASE_NO_PARENT = PHASE_LIMIT;
-
-/*
- * Note that PHASE_MUTATOR, PHASE_GC_BEGIN, and PHASE_GC_END never have any
- * child phases. If beginPhase is called while one of these is active, they
- * will automatically be suspended and resumed when the phase stack is next
- * empty. Timings for these phases are thus exclusive of any other phase.
- */
-
-static const PhaseInfo phases[] = {
-    { PHASE_MUTATOR, "Mutator Running", PHASE_NO_PARENT },
-    { PHASE_GC_BEGIN, "Begin Callback", PHASE_NO_PARENT },
-    { PHASE_WAIT_BACKGROUND_THREAD, "Wait Background Thread", PHASE_NO_PARENT },
-    { PHASE_MARK_DISCARD_CODE, "Mark Discard Code", PHASE_NO_PARENT },
-    { PHASE_PURGE, "Purge", PHASE_NO_PARENT },
-    { PHASE_MARK, "Mark", PHASE_NO_PARENT },
-        { PHASE_MARK_ROOTS, "Mark Roots", PHASE_MARK },
-        { PHASE_MARK_DELAYED, "Mark Delayed", PHASE_MARK },
-    { PHASE_SWEEP, "Sweep", PHASE_NO_PARENT },
-        { PHASE_SWEEP_MARK, "Mark During Sweeping", PHASE_SWEEP },
-            { PHASE_SWEEP_MARK_TYPES, "Mark Types During Sweeping", PHASE_SWEEP_MARK },
-            { PHASE_SWEEP_MARK_INCOMING_BLACK, "Mark Incoming Black Pointers", PHASE_SWEEP_MARK },
-            { PHASE_SWEEP_MARK_WEAK, "Mark Weak", PHASE_SWEEP_MARK },
-            { PHASE_SWEEP_MARK_INCOMING_GRAY, "Mark Incoming Gray Pointers", PHASE_SWEEP_MARK },
-            { PHASE_SWEEP_MARK_GRAY, "Mark Gray", PHASE_SWEEP_MARK },
-            { PHASE_SWEEP_MARK_GRAY_WEAK, "Mark Gray and Weak", PHASE_SWEEP_MARK },
-        { PHASE_FINALIZE_START, "Finalize Start Callback", PHASE_SWEEP },
-        { PHASE_SWEEP_ATOMS, "Sweep Atoms", PHASE_SWEEP },
-        { PHASE_SWEEP_SYMBOL_REGISTRY, "Sweep Symbol Registry", PHASE_SWEEP },
-        { PHASE_SWEEP_COMPARTMENTS, "Sweep Compartments", PHASE_SWEEP },
-            { PHASE_SWEEP_DISCARD_CODE, "Sweep Discard Code", PHASE_SWEEP_COMPARTMENTS },
-            { PHASE_SWEEP_INNER_VIEWS, "Sweep Inner Views", PHASE_SWEEP_COMPARTMENTS },
-            { PHASE_SWEEP_CC_WRAPPER, "Sweep Cross Compartment Wrappers", PHASE_SWEEP_COMPARTMENTS },
-            { PHASE_SWEEP_BASE_SHAPE, "Sweep Base Shapes", PHASE_SWEEP_COMPARTMENTS },
-            { PHASE_SWEEP_INITIAL_SHAPE, "Sweep Initial Shapes", PHASE_SWEEP_COMPARTMENTS },
-            { PHASE_SWEEP_TYPE_OBJECT, "Sweep Type Objects", PHASE_SWEEP_COMPARTMENTS },
-            { PHASE_SWEEP_BREAKPOINT, "Sweep Breakpoints", PHASE_SWEEP_COMPARTMENTS },
-            { PHASE_SWEEP_REGEXP, "Sweep Regexps", PHASE_SWEEP_COMPARTMENTS },
-            { PHASE_SWEEP_MISC, "Sweep Miscellaneous", PHASE_SWEEP_COMPARTMENTS },
-            { PHASE_SWEEP_TYPES, "Sweep type information", PHASE_SWEEP_COMPARTMENTS },
-                { PHASE_SWEEP_TYPES_BEGIN, "Sweep type tables and compilations", PHASE_SWEEP_TYPES },
-                { PHASE_SWEEP_TYPES_END, "Free type arena", PHASE_SWEEP_TYPES },
-        { PHASE_SWEEP_OBJECT, "Sweep Object", PHASE_SWEEP },
-        { PHASE_SWEEP_STRING, "Sweep String", PHASE_SWEEP },
-        { PHASE_SWEEP_SCRIPT, "Sweep Script", PHASE_SWEEP },
-        { PHASE_SWEEP_SHAPE, "Sweep Shape", PHASE_SWEEP },
-        { PHASE_SWEEP_JITCODE, "Sweep JIT code", PHASE_SWEEP },
-        { PHASE_FINALIZE_END, "Finalize End Callback", PHASE_SWEEP },
-        { PHASE_DESTROY, "Deallocate", PHASE_SWEEP },
-    { PHASE_COMPACT, "Compact", PHASE_NO_PARENT },
-        { PHASE_COMPACT_MOVE, "Compact Move", PHASE_COMPACT },
-        { PHASE_COMPACT_UPDATE, "Compact Update", PHASE_COMPACT, },
-            { PHASE_COMPACT_UPDATE_CELLS, "Compact Update Cells", PHASE_COMPACT_UPDATE, },
-    { PHASE_GC_END, "End Callback", PHASE_NO_PARENT },
-    { PHASE_MINOR_GC, "Minor GC", PHASE_NO_PARENT },
-    { PHASE_LIMIT, nullptr, PHASE_NO_PARENT }
+static PhaseInfo phases[] = {
+    { PHASE_GC_BEGIN, "Begin Callback" },
+    { PHASE_WAIT_BACKGROUND_THREAD, "Wait Background Thread" },
+    { PHASE_PURGE, "Purge" },
+    { PHASE_MARK, "Mark" },
+    { PHASE_MARK_DISCARD_CODE, "Mark Discard Code" },
+    { PHASE_MARK_ROOTS, "Mark Roots" },
+    { PHASE_MARK_TYPES, "Mark Types" },
+    { PHASE_MARK_DELAYED, "Mark Delayed" },
+    { PHASE_MARK_WEAK, "Mark Weak" },
+    { PHASE_MARK_GRAY, "Mark Gray" },
+    { PHASE_MARK_GRAY_WEAK, "Mark Gray and Weak" },
+    { PHASE_FINALIZE_START, "Finalize Start Callback" },
+    { PHASE_SWEEP, "Sweep" },
+    { PHASE_SWEEP_ATOMS, "Sweep Atoms" },
+    { PHASE_SWEEP_COMPARTMENTS, "Sweep Compartments" },
+    { PHASE_SWEEP_TABLES, "Sweep Tables" },
+    { PHASE_SWEEP_OBJECT, "Sweep Object" },
+    { PHASE_SWEEP_STRING, "Sweep String" },
+    { PHASE_SWEEP_SCRIPT, "Sweep Script" },
+    { PHASE_SWEEP_SHAPE, "Sweep Shape" },
+    { PHASE_SWEEP_DISCARD_CODE, "Sweep Discard Code" },
+    { PHASE_DISCARD_ANALYSIS, "Discard Analysis" },
+    { PHASE_DISCARD_TI, "Discard TI" },
+    { PHASE_FREE_TI_ARENA, "Free TI Arena" },
+    { PHASE_SWEEP_TYPES, "Sweep Types" },
+    { PHASE_CLEAR_SCRIPT_ANALYSIS, "Clear Script Analysis" },
+    { PHASE_FINALIZE_END, "Finalize End Callback" },
+    { PHASE_DESTROY, "Deallocate" },
+    { PHASE_GC_END, "End Callback" },
+    { 0, NULL }
 };
 
 static void
@@ -357,8 +322,6 @@ Statistics::gcDuration(int64_t *total, int64_t *maxPause)
         if (slice->duration() > *maxPause)
             *maxPause = slice->duration();
     }
-    if (*maxPause > maxPauseInInterval)
-        maxPauseInInterval = *maxPause;
 }
 
 void
@@ -383,23 +346,20 @@ Statistics::formatData(StatisticsSerializer &ss, uint64_t timestamp)
     double mmu20 = computeMMU(20 * PRMJ_USEC_PER_MSEC);
     double mmu50 = computeMMU(50 * PRMJ_USEC_PER_MSEC);
 
-    ss.beginObject(nullptr);
+    ss.beginObject(NULL);
     if (ss.isJSON())
         ss.appendNumber("Timestamp", "%llu", "", (unsigned long long)timestamp);
-    if (slices.length() > 1 || ss.isJSON())
-        ss.appendDecimal("Max Pause", "ms", t(longest));
-    else
-        ss.appendString("Reason", ExplainReason(slices[0].reason));
     ss.appendDecimal("Total Time", "ms", t(total));
-    ss.appendNumber("Zones Collected", "%d", "", zoneStats.collectedZoneCount);
-    ss.appendNumber("Total Zones", "%d", "", zoneStats.zoneCount);
-    ss.appendNumber("Total Compartments", "%d", "", zoneStats.compartmentCount);
-    ss.appendNumber("Minor GCs", "%d", "", counts[STAT_MINOR_GC]);
-    ss.appendNumber("Store Buffer Overflows", "%d", "", counts[STAT_STOREBUFFER_OVERFLOW]);
+    ss.appendNumber("Compartments Collected", "%d", "", collectedCount);
+    ss.appendNumber("Total Compartments", "%d", "", compartmentCount);
     ss.appendNumber("MMU (20ms)", "%d", "%", int(mmu20 * 100));
     ss.appendNumber("MMU (50ms)", "%d", "%", int(mmu50 * 100));
     ss.appendDecimal("SCC Sweep Total", "ms", t(sccTotal));
     ss.appendDecimal("SCC Sweep Max Pause", "ms", t(sccLongest));
+    if (slices.length() > 1 || ss.isJSON())
+        ss.appendDecimal("Max Pause", "ms", t(longest));
+    else
+        ss.appendString("Reason", ExplainReason(slices[0].reason));
     if (nonincrementalReason || ss.isJSON()) {
         ss.appendString("Nonincremental Reason",
                         nonincrementalReason ? nonincrementalReason : "none");
@@ -419,7 +379,7 @@ Statistics::formatData(StatisticsSerializer &ss, uint64_t timestamp)
                 continue;
             }
 
-            ss.beginObject(nullptr);
+            ss.beginObject(NULL);
             ss.extra("    ");
             ss.appendNumber("Slice", "%d", "", i);
             ss.appendDecimal("Pause", "", t(width));
@@ -429,9 +389,6 @@ Statistics::formatData(StatisticsSerializer &ss, uint64_t timestamp)
             if (ss.isJSON()) {
                 ss.appendDecimal("Page Faults", "",
                                  double(slices[i].endFaults - slices[i].startFaults));
-
-                ss.appendNumber("Start Timestamp", "%llu", "", (unsigned long long)slices[i].start);
-                ss.appendNumber("End Timestamp", "%llu", "", (unsigned long long)slices[i].end);
             }
             if (slices[i].resetReason)
                 ss.appendString("Reset", slices[i].resetReason);
@@ -449,181 +406,7 @@ Statistics::formatData(StatisticsSerializer &ss, uint64_t timestamp)
     return !ss.isOOM();
 }
 
-typedef Vector<UniqueChars, 8, SystemAllocPolicy> FragmentVector;
-
-static UniqueChars
-Join(const FragmentVector &fragments) {
-    size_t length = 0;
-    for (size_t i = 0; i < fragments.length(); ++i)
-        length += fragments[i] ? strlen(fragments[i].get()) : 0;
-
-    char *joined = js_pod_malloc<char>(length + 1);
-    joined[length] = '\0';
-
-    char *cursor = joined;
-    for (size_t i = 0; i < fragments.length(); ++i) {
-        if (fragments[i])
-            strcpy(cursor, fragments[i].get());
-        cursor += fragments[i] ? strlen(fragments[i].get()) : 0;
-    }
-
-    return UniqueChars(joined);
-}
-
-UniqueChars
-Statistics::formatDescription()
-{
-    int64_t sccTotal, sccLongest;
-    sccDurations(&sccTotal, &sccLongest);
-
-    double mmu20 = computeMMU(20 * PRMJ_USEC_PER_MSEC);
-    double mmu50 = computeMMU(50 * PRMJ_USEC_PER_MSEC);
-
-    const char *format =
-"=================================================================\n\
-  Invocation Kind: %s\n\
-  Reason: %s\n\
-  Incremental: %s%s\n\
-  Zones Collected: %d of %d\n\
-  Compartments Collected: %d of %d\n\
-  MinorGCs since last GC: %d\n\
-  Store Buffer Overflows: %d\n\
-  MMU 20ms:%.1f%%; 50ms:%.1f%%\n\
-  SCC Sweep Total (MaxPause): %.3fms (%.3fms)\n\
-  HeapSize: %.3f MiB\n\
-  Chunk Delta (magnitude): %+d  (%d)\n\
-";
-    char buffer[1024];
-    memset(buffer, 0, sizeof(buffer));
-    JS_snprintf(buffer, sizeof(buffer), format,
-                ExplainInvocationKind(gckind),
-                ExplainReason(slices[0].reason),
-                nonincrementalReason ? "no - " : "yes",
-                                                  nonincrementalReason ? nonincrementalReason : "",
-                zoneStats.collectedZoneCount, zoneStats.zoneCount,
-                zoneStats.collectedCompartmentCount, zoneStats.compartmentCount,
-                counts[STAT_MINOR_GC],
-                counts[STAT_STOREBUFFER_OVERFLOW],
-                mmu20 * 100., mmu50 * 100.,
-                t(sccTotal), t(sccLongest),
-                double(preBytes) / 1024. / 1024.,
-                counts[STAT_NEW_CHUNK] - counts[STAT_DESTROY_CHUNK], counts[STAT_NEW_CHUNK] +
-                                                                  counts[STAT_DESTROY_CHUNK]);
-    return make_string_copy(buffer);
-}
-
-UniqueChars
-Statistics::formatSliceDescription(unsigned i, const SliceData &slice)
-{
-    const char *format =
-"\
-  ---- Slice %u ----\n\
-    Reason: %s\n\
-    Reset: %s%s\n\
-    Page Faults: %ld\n\
-    Pause: %.3fms  (@ %.3fms)\n\
-";
-    char buffer[1024];
-    memset(buffer, 0, sizeof(buffer));
-    JS_snprintf(buffer, sizeof(buffer), format, i,
-                ExplainReason(slice.reason),
-                slice.resetReason ? "yes - " : "no", slice.resetReason ? slice.resetReason : "",
-                uint64_t(slice.endFaults - slice.startFaults),
-                t(slice.duration()), t(slice.start - slices[0].start));
-    return make_string_copy(buffer);
-}
-
-UniqueChars
-Statistics::formatTotals()
-{
-    int64_t total, longest;
-    gcDuration(&total, &longest);
-
-    const char *format =
-"\
-  ---- Totals ----\n\
-    Total Time: %.3f\n\
-    Max Pause: %.3f\n\
-";
-    char buffer[1024];
-    memset(buffer, 0, sizeof(buffer));
-    JS_snprintf(buffer, sizeof(buffer), format, t(total), t(longest));
-    return make_string_copy(buffer);
-}
-
-static int64_t
-SumChildTimes(Phase phase, int64_t *phaseTimes)
-{
-    int64_t total = 0;
-    for (unsigned i = 0; phases[i].name; i++) {
-        if (phases[i].parent == phase)
-            total += phaseTimes[phases[i].index];
-    }
-    return total;
-}
-
-UniqueChars
-Statistics::formatPhaseTimes(int64_t *phaseTimes)
-{
-    static const char *LevelToIndent[] = { "", "  ", "    ", "      " };
-    static const int64_t MaxUnaccountedChildTimeUS = 50;
-
-    FragmentVector fragments;
-    char buffer[128];
-    for (unsigned i = 0; phases[i].name; i++) {
-        unsigned level = 0;
-        unsigned current = i;
-        while (phases[current].parent != PHASE_NO_PARENT) {
-            current = phases[current].parent;
-            level++;
-        }
-        MOZ_ASSERT(level < 4);
-
-        int64_t ownTime = phaseTimes[phases[i].index];
-        int64_t childTime = SumChildTimes(Phase(i), phaseTimes);
-        if (ownTime > 0) {
-            JS_snprintf(buffer, sizeof(buffer), "      %s%s: %.3fms\n",
-                        LevelToIndent[level], phases[i].name, t(ownTime));
-            if (!fragments.append(make_string_copy(buffer)))
-                return UniqueChars(nullptr);
-
-            if (childTime && (ownTime - childTime) > MaxUnaccountedChildTimeUS) {
-                MOZ_ASSERT(level < 3);
-                JS_snprintf(buffer, sizeof(buffer), "      %s%s: %.3fms\n",
-                            LevelToIndent[level + 1], "Other", t(ownTime - childTime));
-                if (!fragments.append(make_string_copy(buffer)))
-                    return UniqueChars(nullptr);
-            }
-        }
-    }
-    return Join(fragments);
-}
-
-UniqueChars
-Statistics::formatDetailedMessage()
-{
-    FragmentVector fragments;
-
-    if (!fragments.append(formatDescription()))
-        return UniqueChars(nullptr);
-
-    if (slices.length() > 1) {
-        for (unsigned i = 0; i < slices.length(); i++) {
-            if (!fragments.append(formatSliceDescription(i, slices[i])))
-                return UniqueChars(nullptr);
-            if (!fragments.append(formatPhaseTimes(slices[i].phaseTimes)))
-                return UniqueChars(nullptr);
-        }
-    }
-    if (!fragments.append(formatTotals()))
-        return UniqueChars(nullptr);
-    if (!fragments.append(formatPhaseTimes(phaseTimes)))
-        return UniqueChars(nullptr);
-
-    return Join(fragments);
-}
-
-char16_t *
+jschar *
 Statistics::formatMessage()
 {
     StatisticsSerializer ss(StatisticsSerializer::AsText);
@@ -631,7 +414,7 @@ Statistics::formatMessage()
     return ss.finishJSString();
 }
 
-char16_t *
+jschar *
 Statistics::formatJSON(uint64_t timestamp)
 {
     StatisticsSerializer ss(StatisticsSerializer::AsJSON);
@@ -642,25 +425,19 @@ Statistics::formatJSON(uint64_t timestamp)
 Statistics::Statistics(JSRuntime *rt)
   : runtime(rt),
     startupTime(PRMJ_Now()),
-    fp(nullptr),
+    fp(NULL),
     fullFormat(false),
     gcDepth(0),
-    nonincrementalReason(nullptr),
-    timedGCStart(0),
-    preBytes(0),
-    maxPauseInInterval(0),
-    phaseNestingDepth(0),
-    suspendedPhaseNestingDepth(0),
-    sliceCallback(nullptr)
+    collectedCount(0),
+    compartmentCount(0),
+    nonincrementalReason(NULL)
 {
     PodArrayZero(phaseTotals);
     PodArrayZero(counts);
-    PodArrayZero(phaseStartTimes);
-    PodArrayZero(phaseTimes);
 
     char *env = getenv("MOZ_GCTIMER");
     if (!env || strcmp(env, "none") == 0) {
-        fp = nullptr;
+        fp = NULL;
         return;
     }
 
@@ -674,7 +451,7 @@ Statistics::Statistics(JSRuntime *rt)
         fullFormat = true;
 
         fp = fopen(env, "a");
-        MOZ_ASSERT(fp);
+        JS_ASSERT(fp);
     }
 }
 
@@ -696,35 +473,17 @@ Statistics::~Statistics()
     }
 }
 
-JS::GCSliceCallback
-Statistics::setSliceCallback(JS::GCSliceCallback newCallback)
-{
-    JS::GCSliceCallback oldCallback = sliceCallback;
-    sliceCallback = newCallback;
-    return oldCallback;
-}
-
-int64_t
-Statistics::clearMaxGCPauseAccumulator()
-{
-    int64_t prior = maxPauseInInterval;
-    maxPauseInInterval = 0;
-    return prior;
-}
-
-int64_t
-Statistics::getMaxGCPauseSinceClear()
-{
-    return maxPauseInInterval;
-}
-
 void
 Statistics::printStats()
 {
     if (fullFormat) {
-        UniqueChars msg = formatDetailedMessage();
-        if (msg)
-            fprintf(fp, "GC(T+%.3fs) %s\n", t(slices[0].start - startupTime) / 1000.0, msg.get());
+        StatisticsSerializer ss(StatisticsSerializer::AsText);
+        formatData(ss, 0);
+        char *msg = ss.finishCString();
+        if (msg) {
+            fprintf(fp, "GC(T+%.3fs) %s\n", t(slices[0].start - startupTime) / 1000.0, msg);
+            js_free(msg);
+        }
     } else {
         int64_t total, longest;
         gcDuration(&total, &longest);
@@ -738,19 +497,24 @@ Statistics::printStats()
 }
 
 void
-Statistics::beginGC(JSGCInvocationKind kind)
+Statistics::beginGC()
 {
+    PodArrayZero(phaseStartTimes);
+    PodArrayZero(phaseTimes);
+
     slices.clearAndFree();
     sccTimes.clearAndFree();
-    gckind = kind;
-    nonincrementalReason = nullptr;
+    nonincrementalReason = NULL;
 
-    preBytes = runtime->gc.usage.gcBytes();
+    preBytes = runtime->gcBytes;
+
+    Probes::GCStart();
 }
 
 void
 Statistics::endGC()
 {
+    Probes::GCEnd();
     crash::SnapshotGCStack();
 
     for (int i = 0; i < PHASE_LIMIT; i++)
@@ -763,15 +527,15 @@ Statistics::endGC()
         int64_t sccTotal, sccLongest;
         sccDurations(&sccTotal, &sccLongest);
 
-        (*cb)(JS_TELEMETRY_GC_IS_COMPARTMENTAL, !zoneStats.isCollectingAllZones());
+        (*cb)(JS_TELEMETRY_GC_IS_COMPARTMENTAL, collectedCount == compartmentCount ? 0 : 1);
         (*cb)(JS_TELEMETRY_GC_MS, t(total));
         (*cb)(JS_TELEMETRY_GC_MAX_PAUSE_MS, t(longest));
         (*cb)(JS_TELEMETRY_GC_MARK_MS, t(phaseTimes[PHASE_MARK]));
         (*cb)(JS_TELEMETRY_GC_SWEEP_MS, t(phaseTimes[PHASE_SWEEP]));
         (*cb)(JS_TELEMETRY_GC_MARK_ROOTS_MS, t(phaseTimes[PHASE_MARK_ROOTS]));
-        (*cb)(JS_TELEMETRY_GC_MARK_GRAY_MS, t(phaseTimes[PHASE_SWEEP_MARK_GRAY]));
+        (*cb)(JS_TELEMETRY_GC_MARK_GRAY_MS, t(phaseTimes[PHASE_MARK_GRAY]));
         (*cb)(JS_TELEMETRY_GC_NON_INCREMENTAL, !!nonincrementalReason);
-        (*cb)(JS_TELEMETRY_GC_INCREMENTAL_DISABLED, !runtime->gc.isIncrementalGCAllowed());
+        (*cb)(JS_TELEMETRY_GC_INCREMENTAL_DISABLED, !runtime->gcIncrementalEnabled);
         (*cb)(JS_TELEMETRY_GC_SCC_SWEEP_TOTAL_MS, t(sccTotal));
         (*cb)(JS_TELEMETRY_GC_SCC_SWEEP_MAX_PAUSE_MS, t(sccLongest));
 
@@ -781,36 +545,29 @@ Statistics::endGC()
 
     if (fp)
         printStats();
-
-    // Clear the timers at the end of a GC because we accumulate time in
-    // between GCs for some (which come before PHASE_GC_BEGIN in the list.)
-    PodZero(&phaseStartTimes[PHASE_GC_BEGIN], PHASE_LIMIT - PHASE_GC_BEGIN);
-    PodZero(&phaseTimes[PHASE_GC_BEGIN], PHASE_LIMIT - PHASE_GC_BEGIN);
 }
 
 void
-Statistics::beginSlice(const ZoneGCStats &zoneStats, JSGCInvocationKind gckind,
-                       JS::gcreason::Reason reason)
+Statistics::beginSlice(int collectedCount, int compartmentCount, gcreason::Reason reason)
 {
-    this->zoneStats = zoneStats;
+    this->collectedCount = collectedCount;
+    this->compartmentCount = compartmentCount;
 
-    bool first = runtime->gc.state() == gc::NO_INCREMENTAL;
+    bool first = runtime->gcIncrementalState == gc::NO_INCREMENTAL;
     if (first)
-        beginGC(gckind);
+        beginGC();
 
-    SliceData data(reason, PRMJ_Now(), GetPageFaultCount());
-    if (!slices.append(data))
-        CrashAtUnhandlableOOM("Failed to allocate statistics slice.");
+    SliceData data(reason, PRMJ_Now(), gc::GetPageFaultCount());
+    (void) slices.append(data); /* Ignore any OOMs here. */
 
     if (JSAccumulateTelemetryDataCallback cb = runtime->telemetryCallback)
         (*cb)(JS_TELEMETRY_GC_REASON, reason);
 
     // Slice callbacks should only fire for the outermost level
     if (++gcDepth == 1) {
-        bool wasFullGC = zoneStats.isCollectingAllZones();
-        if (sliceCallback)
-            (*sliceCallback)(runtime, first ? JS::GC_CYCLE_BEGIN : JS::GC_SLICE_BEGIN,
-                             JS::GCDescription(!wasFullGC));
+        bool wasFullGC = collectedCount == compartmentCount;
+        if (GCSliceCallback cb = runtime->gcSliceCallback)
+            (*cb)(runtime, first ? GC_CYCLE_BEGIN : GC_SLICE_BEGIN, GCDescription(!wasFullGC));
     }
 }
 
@@ -818,23 +575,22 @@ void
 Statistics::endSlice()
 {
     slices.back().end = PRMJ_Now();
-    slices.back().endFaults = GetPageFaultCount();
+    slices.back().endFaults = gc::GetPageFaultCount();
 
     if (JSAccumulateTelemetryDataCallback cb = runtime->telemetryCallback) {
         (*cb)(JS_TELEMETRY_GC_SLICE_MS, t(slices.back().end - slices.back().start));
         (*cb)(JS_TELEMETRY_GC_RESET, !!slices.back().resetReason);
     }
 
-    bool last = runtime->gc.state() == gc::NO_INCREMENTAL;
+    bool last = runtime->gcIncrementalState == gc::NO_INCREMENTAL;
     if (last)
         endGC();
 
     // Slice callbacks should only fire for the outermost level
     if (--gcDepth == 0) {
-        bool wasFullGC = zoneStats.isCollectingAllZones();
-        if (sliceCallback)
-            (*sliceCallback)(runtime, last ? JS::GC_CYCLE_END : JS::GC_SLICE_END,
-                             JS::GCDescription(!wasFullGC));
+        bool wasFullGC = collectedCount == compartmentCount;
+        if (GCSliceCallback cb = runtime->gcSliceCallback)
+            (*cb)(runtime, last ? GC_CYCLE_END : GC_SLICE_END, GCDescription(!wasFullGC));
     }
 
     /* Do this after the slice callback since it uses these values. */
@@ -843,104 +599,31 @@ Statistics::endSlice()
 }
 
 void
-Statistics::startTimingMutator()
-{
-    // Should only be called from outside of GC
-    MOZ_ASSERT(phaseNestingDepth == 0);
-    MOZ_ASSERT(suspendedPhaseNestingDepth == 0);
-
-    timedGCTime = 0;
-    phaseStartTimes[PHASE_MUTATOR] = 0;
-    phaseTimes[PHASE_MUTATOR] = 0;
-    timedGCStart = 0;
-
-    beginPhase(PHASE_MUTATOR);
-}
-
-bool
-Statistics::stopTimingMutator(double &mutator_ms, double &gc_ms)
-{
-    // This should only be called from outside of GC, while timing the mutator.
-    if (phaseNestingDepth != 1 || phaseNesting[0] != PHASE_MUTATOR)
-        return false;
-
-    endPhase(PHASE_MUTATOR);
-    mutator_ms = t(phaseTimes[PHASE_MUTATOR]);
-    gc_ms = t(timedGCTime);
-
-    return true;
-}
-
-void
 Statistics::beginPhase(Phase phase)
 {
-    Phase parent = phaseNestingDepth ? phaseNesting[phaseNestingDepth - 1] : PHASE_NO_PARENT;
-
-    // Re-entry is allowed during callbacks, so pause callback phases while
-    // other phases are in progress, auto-resuming after they end. As a result,
-    // nested GC time will not be accounted against the callback phases.
-    //
-    // Reuse this mechanism for managing PHASE_MUTATOR.
-    if (parent == PHASE_GC_BEGIN || parent == PHASE_GC_END || parent == PHASE_MUTATOR) {
-        suspendedPhases[suspendedPhaseNestingDepth++] = parent;
-        MOZ_ASSERT(suspendedPhaseNestingDepth <= mozilla::ArrayLength(suspendedPhases));
-        recordPhaseEnd(parent);
-        parent = phaseNestingDepth ? phaseNesting[phaseNestingDepth - 1] : PHASE_NO_PARENT;
-    }
-
-    // Guard against any other re-entry.
-    MOZ_ASSERT(!phaseStartTimes[phase]);
-
-    MOZ_ASSERT(phases[phase].index == phase);
-    MOZ_ASSERT(phaseNestingDepth < MAX_NESTING);
-    MOZ_ASSERT_IF(gcDepth == 1 && phase != PHASE_MINOR_GC, phases[phase].parent == parent);
-
-    phaseNesting[phaseNestingDepth] = phase;
-    phaseNestingDepth++;
+    /* Guard against re-entry */
+    JS_ASSERT(!phaseStartTimes[phase]);
 
     phaseStartTimes[phase] = PRMJ_Now();
-}
 
-void
-Statistics::recordPhaseEnd(Phase phase)
-{
-    int64_t now = PRMJ_Now();
-
-    if (phase == PHASE_MUTATOR)
-        timedGCStart = now;
-
-    phaseNestingDepth--;
-
-    int64_t t = now - phaseStartTimes[phase];
-    if (!slices.empty())
-        slices.back().phaseTimes[phase] += t;
-    phaseTimes[phase] += t;
-    phaseStartTimes[phase] = 0;
+    if (phase == gcstats::PHASE_MARK)
+        Probes::GCStartMarkPhase();
+    else if (phase == gcstats::PHASE_SWEEP)
+        Probes::GCStartSweepPhase();
 }
 
 void
 Statistics::endPhase(Phase phase)
 {
-    recordPhaseEnd(phase);
-
-    // When emptying the stack, we may need to resume a callback phase
-    // (PHASE_GC_BEGIN/END) or return to timing the mutator (PHASE_MUTATOR).
-    if (phaseNestingDepth == 0 && suspendedPhaseNestingDepth > 0) {
-        Phase resumePhase = suspendedPhases[--suspendedPhaseNestingDepth];
-        if (resumePhase == PHASE_MUTATOR)
-            timedGCTime += PRMJ_Now() - timedGCStart;
-        beginPhase(resumePhase);
-    }
-}
-
-void
-Statistics::endParallelPhase(Phase phase, const GCParallelTask *task)
-{
-    phaseNestingDepth--;
-
-    slices.back().phaseTimes[phase] += task->duration();
-    phaseTimes[phase] += task->duration();
+    int64_t t = PRMJ_Now() - phaseStartTimes[phase];
+    slices.back().phaseTimes[phase] += t;
+    phaseTimes[phase] += t;
     phaseStartTimes[phase] = 0;
+
+    if (phase == gcstats::PHASE_MARK)
+        Probes::GCEndMarkPhase();
+    else if (phase == gcstats::PHASE_SWEEP)
+        Probes::GCEndSweepPhase();
 }
 
 int64_t
@@ -970,7 +653,7 @@ Statistics::endSCC(unsigned scc, int64_t start)
 double
 Statistics::computeMMU(int64_t window)
 {
-    MOZ_ASSERT(!slices.empty());
+    JS_ASSERT(!slices.empty());
 
     int64_t gc = slices[0].end - slices[0].start;
     int64_t gcMax = gc;
@@ -996,3 +679,6 @@ Statistics::computeMMU(int64_t window)
 
     return double(window - gcMax) / window;
 }
+
+} /* namespace gcstats */
+} /* namespace js */

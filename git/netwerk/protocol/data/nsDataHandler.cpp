@@ -3,8 +3,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nspr.h"
 #include "nsDataChannel.h"
 #include "nsDataHandler.h"
+#include "nsIURL.h"
+#include "nsCRT.h"
+#include "nsIComponentManager.h"
+#include "nsIServiceManager.h"
+#include "nsIInterfaceRequestor.h"
+#include "nsIInterfaceRequestorUtils.h"
+#include "nsIProgressEventSink.h"
 #include "nsNetCID.h"
 #include "nsError.h"
 
@@ -18,7 +26,7 @@ nsDataHandler::nsDataHandler() {
 nsDataHandler::~nsDataHandler() {
 }
 
-NS_IMPL_ISUPPORTS(nsDataHandler, nsIProtocolHandler)
+NS_IMPL_ISUPPORTS1(nsDataHandler, nsIProtocolHandler)
 
 nsresult
 nsDataHandler::Create(nsISupports* aOuter, const nsIID& aIID, void* *aResult) {
@@ -75,7 +83,7 @@ nsDataHandler::NewURI(const nsACString &aSpec,
         rv = uri->SetRef(spec);
     } else {
         // Otherwise, we'll assume |spec| is a fully-specified data URI
-        nsAutoCString contentType, contentCharset, dataBuffer, hashRef;
+        nsCAutoString contentType, contentCharset, dataBuffer, hashRef;
         bool base64;
         rv = ParseURI(spec, contentType, contentCharset, base64, dataBuffer, hashRef);
         if (NS_FAILED(rv))
@@ -103,10 +111,7 @@ nsDataHandler::NewURI(const nsACString &aSpec,
 }
 
 NS_IMETHODIMP
-nsDataHandler::NewChannel2(nsIURI* uri,
-                           nsILoadInfo* aLoadInfo,
-                           nsIChannel** result)
-{
+nsDataHandler::NewChannel(nsIURI* uri, nsIChannel* *result) {
     NS_ENSURE_ARG_POINTER(uri);
     nsDataChannel* channel = new nsDataChannel(uri);
     if (!channel)
@@ -121,12 +126,6 @@ nsDataHandler::NewChannel2(nsIURI* uri,
 
     *result = channel;
     return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDataHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
-{
-    return NewChannel2(uri, nullptr, result);
 }
 
 NS_IMETHODIMP 

@@ -4,15 +4,10 @@
 
 #include "base/thread.h"
 
+#include "base/lazy_instance.h"
 #include "base/string_util.h"
 #include "base/thread_local.h"
 #include "base/waitable_event.h"
-#include "GeckoProfiler.h"
-#include "mozilla/IOInterposer.h"
-
-#ifdef MOZ_TASK_TRACER
-#include "GeckoTaskTracer.h"
-#endif
 
 namespace base {
 
@@ -57,22 +52,19 @@ namespace {
 // because its Stop method was called.  This allows us to catch cases where
 // MessageLoop::Quit() is called directly, which is unexpected when using a
 // Thread to setup and run a MessageLoop.
-
-static base::ThreadLocalBoolean& get_tls_bool() {
-  static base::ThreadLocalBoolean tls_ptr;
-  return tls_ptr;
-}
+base::LazyInstance<base::ThreadLocalBoolean> lazy_tls_bool(
+    base::LINKER_INITIALIZED);
 
 }  // namespace
 
 void Thread::SetThreadWasQuitProperly(bool flag) {
-  get_tls_bool().Set(flag);
+  lazy_tls_bool.Pointer()->Set(flag);
 }
 
 bool Thread::GetThreadWasQuitProperly() {
   bool quit_properly = true;
 #ifndef NDEBUG
-  quit_properly = get_tls_bool().Get();
+  quit_properly = lazy_tls_bool.Pointer()->Get();
 #endif
   return quit_properly;
 }
@@ -144,10 +136,6 @@ void Thread::StopSoon() {
 }
 
 void Thread::ThreadMain() {
-  char aLocal;
-  profiler_register_thread(name_.c_str(), &aLocal);
-  mozilla::IOInterposer::RegisterCurrentThread();
-
   // The message loop for this thread.
   MessageLoop message_loop(startup_data_->options.message_loop_type);
 
@@ -155,8 +143,6 @@ void Thread::ThreadMain() {
   thread_id_ = PlatformThread::CurrentId();
   PlatformThread::SetName(name_.c_str());
   message_loop.set_thread_name(name_);
-  message_loop.set_hang_timeouts(startup_data_->options.transient_hang_timeout,
-                                 startup_data_->options.permanent_hang_timeout);
   message_loop_ = &message_loop;
 
   // Let the thread do extra initialization.
@@ -174,13 +160,6 @@ void Thread::ThreadMain() {
 
   // Assert that MessageLoop::Quit was called by ThreadQuitTask.
   DCHECK(GetThreadWasQuitProperly());
-
-  mozilla::IOInterposer::UnregisterCurrentThread();
-  profiler_unregister_thread();
-
-#ifdef MOZ_TASK_TRACER
-  mozilla::tasktracer::FreeTraceInfo();
-#endif
 
   // We can't receive messages anymore.
   message_loop_ = NULL;

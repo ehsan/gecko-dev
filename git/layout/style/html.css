@@ -16,9 +16,6 @@
   unicode-bidi: embed;
 }
 
-bdi:-moz-dir(ltr), [dir="auto"]:-moz-dir(ltr) { direction: ltr; }
-bdi:-moz-dir(rtl), [dir="auto"]:-moz-dir(rtl) { direction: rtl; }
-
 /* To ensure http://www.w3.org/TR/REC-html40/struct/dirlang.html#style-bidi:
  *
  * "When a block element that does not have a dir attribute is transformed to
@@ -62,7 +59,6 @@ html, html[dir],
 legend, legend[dir],
 li, li[dir],
 listing, listing[dir],
-main, main[dir],
 marquee, marquee[dir],
 menu, menu[dir],
 nav, nav[dir],
@@ -108,7 +104,6 @@ form,
 header,
 hgroup,
 html,
-main,
 nav,
 section {
   display: block;
@@ -247,7 +242,7 @@ table {
   margin-top: 0;
   margin-bottom: 0;
   /* XXXldb do we want this if we're border-collapse:collapse ? */
-  box-sizing: border-box;
+  -moz-box-sizing: border-box;
   text-indent: 0;
 }
 
@@ -509,6 +504,10 @@ s, strike, del {
   text-decoration: line-through;
 }
 
+blink {
+  text-decoration: blink;
+}
+
 big {
   font-size: larger;
 }
@@ -604,7 +603,7 @@ hr {
   margin: 0.5em auto 0.5em auto;
   color: gray;
   -moz-float-edge: margin-box;
-  box-sizing: border-box;
+  -moz-box-sizing: border-box;
 }
 
 hr[size="1"] {
@@ -654,12 +653,8 @@ frameset {
   border: none ! important;
 }
 
-link { 
-  display: none;
-}
-
 frame {
-  border-radius: 0 ! important;
+  border: none ! important;
 }
 
 iframe {
@@ -689,7 +684,7 @@ canvas {
 
 /* hidden elements */
 base, basefont, datalist, head, meta, script, style, title,
-noembed, param, template {
+noembed, param {
    display: none;
 }
 
@@ -713,18 +708,6 @@ video > xul|videocontrols, audio > xul|videocontrols {
 video:not([controls]) > xul|videocontrols,
 audio:not([controls]) > xul|videocontrols {
   visibility: hidden;
-  -moz-binding: none;
-}
-
-video {
-  object-fit: contain;
-}
-
-video > img:-moz-native-anonymous {
-  /* Video poster images should render with the video element's "object-fit" &
-     "object-position" properties */
-  object-fit: inherit !important;
-  object-position: inherit !important;
 }
 
 audio:not([controls]) {
@@ -735,11 +718,6 @@ audio:not([controls]) {
   display: block !important;
   /* we want to be an absolute and fixed container */
   -moz-transform: translate(0) !important;
-}
-
-video > .caption-box {
-  position: relative;
-  overflow: hidden;
 }
 
 /* emulation of non-standard HTML <marquee> tag */

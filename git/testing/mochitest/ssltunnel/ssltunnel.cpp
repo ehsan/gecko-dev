@@ -12,7 +12,6 @@
  *          be malicious.
  */
 
-#include "ScopedNSSTypes.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string>
@@ -22,17 +21,18 @@
 #include "prinit.h"
 #include "prerror.h"
 #include "prenv.h"
+#include "prio.h"
 #include "prnetdb.h"
 #include "prtpool.h"
+#include "prtypes.h"
 #include "nsAlgorithm.h"
 #include "nss.h"
+#include "pk11func.h"
 #include "key.h"
+#include "keyt.h"
 #include "ssl.h"
-#include "sslproto.h"
 #include "plhash.h"
 
-using namespace mozilla;
-using namespace mozilla::psm;
 using std::string;
 using std::vector;
 
@@ -135,7 +135,7 @@ char* strtok2(char* string, const char* delims, char* *newStr)
   }
   *newStr = str;
   
-  return str == result ? nullptr : result;
+  return str == result ? NULL : result;
 }
 
 
@@ -153,9 +153,6 @@ typedef struct {
   PLHashTable* host_cert_table;
   PLHashTable* host_clientauth_table;
   PLHashTable* host_redir_table;
-  PLHashTable* host_ssl3_table;
-  PLHashTable* host_rc4_table;
-  PLHashTable* host_failhandshake_table;
 } server_info_t;
 
 typedef struct {
@@ -207,6 +204,44 @@ struct relayBuffer
   size_t present() { return buffertail - bufferhead; }
 };
 
+// A couple of stack classes for managing NSS/NSPR resources
+class AutoCert {
+public:
+  AutoCert(CERTCertificate* cert) { cert_ = cert; }
+  ~AutoCert() { if (cert_) CERT_DestroyCertificate(cert_); }
+  operator CERTCertificate*() { return cert_; }
+private:
+  CERTCertificate* cert_;
+};
+
+class AutoKey {
+public:
+  AutoKey(SECKEYPrivateKey* key) { key_ = key; }
+  ~AutoKey() { if (key_)   SECKEY_DestroyPrivateKey(key_); }
+  operator SECKEYPrivateKey*() { return key_; }
+private:
+  SECKEYPrivateKey* key_;
+};
+
+class AutoFD {
+public:
+  AutoFD(PRFileDesc* fd) { fd_ = fd; }
+  ~AutoFD() {
+    if (fd_) {
+      PR_Shutdown(fd_, PR_SHUTDOWN_BOTH);
+      PR_Close(fd_);
+    }
+  }
+  operator PRFileDesc*() { return fd_; }
+  PRFileDesc* reset(PRFileDesc* newfd) {
+    PRFileDesc* oldfd = fd_;
+    fd_ = newfd;
+    return oldfd;
+  }
+private:
+  PRFileDesc* fd_;
+};
+
 // These numbers are multiplied by the number of listening ports (actual
 // servers running).  According the thread pool implementation there is no
 // need to limit the number of threads initially, threads are allocated
@@ -222,15 +257,15 @@ string nssconfigdir;
 vector<server_info_t> servers;
 PRNetAddr remote_addr;
 PRNetAddr websocket_server;
-PRThreadPool* threads = nullptr;
-PRLock* shutdown_lock = nullptr;
-PRCondVar* shutdown_condvar = nullptr;
+PRThreadPool* threads = NULL;
+PRLock* shutdown_lock = NULL;
+PRCondVar* shutdown_condvar = NULL;
 // Not really used, unless something fails to start
 bool shutdown_server = false;
 bool do_http_proxy = false;
 bool any_host_spec_config = false;
 
-int ClientAuthValueComparator(const void *v1, const void *v2)
+PR_CALLBACK int ClientAuthValueComparator(const void *v1, const void *v2)
 {
   int a = *static_cast<const client_auth_option*>(v1) -
           *static_cast<const client_auth_option*>(v2);
@@ -260,17 +295,9 @@ void SignalShutdown()
   PR_Unlock(shutdown_lock);
 }
 
-// available flags
-enum {
-  USE_SSL3 = 1 << 0,
-  USE_RC4 = 1 << 1,
-  FAIL_HANDSHAKE = 1 << 2
-};
-
 bool ReadConnectRequest(server_info_t* server_info, 
     relayBuffer& buffer, int32_t* result, string& certificate,
-    client_auth_option* clientauth, string& host, string& location,
-    int32_t* flags)
+    client_auth_option* clientauth, string& host, string& location)
 {
   if (buffer.present() < 4) {
     LOG_DEBUG((" !! only %d bytes present in the buffer", (int)buffer.present()));
@@ -319,18 +346,6 @@ bool ReadConnectRequest(server_info_t* server_info,
   if (redir)
     location = static_cast<char*>(redir);
 
-  if (PL_HashTableLookup(server_info->host_ssl3_table, token)) {
-    *flags |= USE_SSL3;
-  }
-
-  if (PL_HashTableLookup(server_info->host_rc4_table, token)) {
-    *flags |= USE_RC4;
-  }
-
-  if (PL_HashTableLookup(server_info->host_failhandshake_table, token)) {
-    *flags |= FAIL_HANDSHAKE;
-  }
-
   token = strtok2(_caret, "/", &_caret);
   if (strcmp(token, "HTTP")) {  
     LOG_ERRORD((" not tailed with HTTP but with %s", token));
@@ -341,34 +356,28 @@ bool ReadConnectRequest(server_info_t* server_info,
   return true;
 }
 
-bool ConfigureSSLServerSocket(PRFileDesc* socket, server_info_t* si, const string &certificate,
-                              const client_auth_option clientAuth, int32_t flags)
+bool ConfigureSSLServerSocket(PRFileDesc* socket, server_info_t* si, string &certificate, client_auth_option clientAuth)
 {
   const char* certnick = certificate.empty() ?
       si->cert_nickname.c_str() : certificate.c_str();
 
-  ScopedCERTCertificate cert(PK11_FindCertFromNickname(certnick, nullptr));
+  AutoCert cert(PK11_FindCertFromNickname(
+      certnick, NULL));
   if (!cert) {
     LOG_ERROR(("Failed to find cert %s\n", certnick));
     return false;
   }
 
-  ScopedSECKEYPrivateKey privKey(PK11_FindKeyByAnyCert(cert, nullptr));
+  AutoKey privKey(PK11_FindKeyByAnyCert(cert, NULL));
   if (!privKey) {
     LOG_ERROR(("Failed to find private key\n"));
     return false;
   }
 
-  PRFileDesc* ssl_socket = SSL_ImportFD(nullptr, socket);
+  PRFileDesc* ssl_socket = SSL_ImportFD(NULL, socket);
   if (!ssl_socket) {
     LOG_ERROR(("Error importing SSL socket\n"));
     return false;
-  }
-
-  if (flags & FAIL_HANDSHAKE) {
-    // deliberately cause handshake to fail by sending the client a client hello
-    SSL_ResetHandshake(ssl_socket, false);
-    return true;
   }
 
   SSLKEAType certKEA = NSS_FindCertKEAType(cert);
@@ -386,30 +395,6 @@ bool ConfigureSSLServerSocket(PRFileDesc* socket, server_info_t* si, const strin
   {
     SSL_OptionSet(ssl_socket, SSL_REQUEST_CERTIFICATE, true);
     SSL_OptionSet(ssl_socket, SSL_REQUIRE_CERTIFICATE, clientAuth == caRequire);
-  }
-
-  if (flags & USE_SSL3) {
-    SSLVersionRange range = { SSL_LIBRARY_VERSION_3_0,
-                              SSL_LIBRARY_VERSION_3_0 };
-    SSL_VersionRangeSet(ssl_socket, &range);
-  }
-
-  if (flags & USE_RC4) {
-    for (uint16_t i = 0; i < SSL_NumImplementedCiphers; ++i) {
-      uint16_t cipher_id = SSL_ImplementedCiphers[i];
-      switch (cipher_id) {
-      case TLS_ECDHE_ECDSA_WITH_RC4_128_SHA:
-      case TLS_ECDHE_RSA_WITH_RC4_128_SHA:
-      case TLS_RSA_WITH_RC4_128_SHA:
-      case TLS_RSA_WITH_RC4_128_MD5:
-        SSL_CipherPrefSet(ssl_socket, cipher_id, true);
-        break;
-
-      default:
-        SSL_CipherPrefSet(ssl_socket, cipher_id, false);
-        break;
-      }
-    }
   }
 
   SSL_ResetHandshake(ssl_socket, true);
@@ -592,7 +577,7 @@ void HandleConnection(void* data)
   connection_info_t* ci = static_cast<connection_info_t*>(data);
   PRIntervalTime connect_timeout = PR_SecondsToInterval(30);
 
-  ScopedPRFileDesc other_sock(PR_NewTCPSocket());
+  AutoFD other_sock(PR_NewTCPSocket());
   bool client_done = false;
   bool client_error = false;
   bool connect_accepted = !do_http_proxy;
@@ -602,7 +587,6 @@ void HandleConnection(void* data)
   string locationHeader;
   client_auth_option clientAuth;
   string fullHost;
-  int32_t flags = 0;
 
   LOG_DEBUG(("SSLTUNNEL(%p)): incoming connection csock(0)=%p, ssock(1)=%p\n",
          static_cast<void*>(data),
@@ -616,8 +600,7 @@ void HandleConnection(void* data)
 
     if (!do_http_proxy)
     {
-      if (!ConfigureSSLServerSocket(ci->client_sock, ci->server_info,
-                                    certificateToUse, caNone, flags))
+      if (!ConfigureSSLServerSocket(ci->client_sock, ci->server_info, certificateToUse, caNone))
         client_error = true;
       else if (!ConnectSocket(other_sock, &remote_addr, connect_timeout))
         client_error = true;
@@ -735,8 +718,7 @@ void HandleConnection(void* data)
             // We have to accept and handle the initial CONNECT request here
             int32_t response;
             if (!connect_accepted && ReadConnectRequest(ci->server_info, buffers[s],
-                &response, certificateToUse, &clientAuth, fullHost, locationHeader,
-                &flags))
+                &response, certificateToUse, &clientAuth, fullHost, locationHeader))
             {
               // Mark this as a proxy-only connection (no SSL) if the CONNECT
               // request didn't come for port 443 or from any of the server's
@@ -751,15 +733,6 @@ void HandleConnection(void* data)
                                              &match);
                 PL_HashTableEnumerateEntries(ci->server_info->host_clientauth_table, 
                                              match_hostname, 
-                                             &match);
-                PL_HashTableEnumerateEntries(ci->server_info->host_ssl3_table, 
-                                             match_hostname, 
-                                             &match);
-                PL_HashTableEnumerateEntries(ci->server_info->host_rc4_table, 
-                                             match_hostname, 
-                                             &match);
-                PL_HashTableEnumerateEntries(ci->server_info->host_failhandshake_table,
-                                             match_hostname,
                                              &match);
                 ci->http_proxy_only = !match.matched;
               }
@@ -896,7 +869,7 @@ void HandleConnection(void* data)
                   LOG_DEBUG((" not updating to SSL based on http_proxy_only for this socket"));
                 }
                 else if (!ConfigureSSLServerSocket(ci->client_sock, ci->server_info, 
-                                                   certificateToUse, clientAuth, flags))
+                                                   certificateToUse, clientAuth))
                 {
                   LOG_ERRORD((" failed to config server socket\n"));
                   client_error = true;
@@ -944,7 +917,7 @@ void StartServer(void* data)
   server_info_t* si = static_cast<server_info_t*>(data);
 
   //TODO: select ciphers?
-  ScopedPRFileDesc listen_socket(PR_NewTCPSocket());
+  AutoFD listen_socket(PR_NewTCPSocket());
   if (!listen_socket) {
     LOG_ERROR(("failed to create socket\n"));
     SignalShutdown();
@@ -1001,7 +974,7 @@ void StartServer(void* data)
 char* password_func(PK11SlotInfo* slot, PRBool retry, void* arg)
 {
   if (retry)
-    return nullptr;
+    return NULL;
 
   return PL_strdup("");
 }
@@ -1015,64 +988,7 @@ server_info_t* findServerInfo(int portnumber)
       return &(*it);
   }
 
-  return nullptr;
-}
-
-PLHashTable* get_ssl3_table(server_info_t* server)
-{
-  return server->host_ssl3_table;
-}
-
-PLHashTable* get_rc4_table(server_info_t* server)
-{
-  return server->host_rc4_table;
-}
-
-PLHashTable* get_failhandshake_table(server_info_t* server)
-{
-  return server->host_failhandshake_table;
-}
-
-int parseWeakCryptoConfig(char* const& keyword, char*& _caret,
-                          PLHashTable* (*get_table)(server_info_t*))
-{
-  char* hostname = strtok2(_caret, ":", &_caret);
-  char* hostportstring = strtok2(_caret, ":", &_caret);
-  char* serverportstring = strtok2(_caret, "\n", &_caret);
-
-  int port = atoi(serverportstring);
-  if (port <= 0) {
-    LOG_ERROR(("Invalid port specified: %s\n", serverportstring));
-    return 1;
-  }
-
-  if (server_info_t* existingServer = findServerInfo(port))
-  {
-    any_host_spec_config = true;
-
-    char *hostname_copy = new char[strlen(hostname)+strlen(hostportstring)+2];
-    if (!hostname_copy) {
-      LOG_ERROR(("Out of memory"));
-      return 1;
-    }
-
-    strcpy(hostname_copy, hostname);
-    strcat(hostname_copy, ":");
-    strcat(hostname_copy, hostportstring);
-
-    PLHashEntry* entry = PL_HashTableAdd(get_table(existingServer), hostname_copy, keyword);
-    if (!entry) {
-      LOG_ERROR(("Out of memory"));
-      return 1;
-    }
-  }
-  else
-  {
-    LOG_ERROR(("Server on port %d for redirhost option is not defined, use 'listen' option first", port));
-    return 1;
-  }
-
-  return 0;
+  return NULL;
 }
 
 int processConfigLine(char* configLine)
@@ -1133,7 +1049,7 @@ int processConfigLine(char* configLine)
   if (!strcmp(keyword, "listen"))
   {
     char* hostname = strtok2(_caret, ":", &_caret);
-    char* hostportstring = nullptr;
+    char* hostportstring = NULL;
     if (strcmp(hostname, "*"))
     {
       any_host_spec_config = true;
@@ -1170,52 +1086,24 @@ int processConfigLine(char* configLine)
       server_info_t server;
       server.cert_nickname = certnick;
       server.listen_port = port;
-      server.host_cert_table = PL_NewHashTable(0, PL_HashString, PL_CompareStrings,
-                                               PL_CompareStrings, nullptr, nullptr);
+      server.host_cert_table = PL_NewHashTable(0, PL_HashString, PL_CompareStrings, PL_CompareStrings, NULL, NULL);
       if (!server.host_cert_table)
       {
         LOG_ERROR(("Internal, could not create hash table\n"));
         return 1;
       }
-      server.host_clientauth_table = PL_NewHashTable(0, PL_HashString, PL_CompareStrings,
-                                                     ClientAuthValueComparator, nullptr, nullptr);
+      server.host_clientauth_table = PL_NewHashTable(0, PL_HashString, PL_CompareStrings, ClientAuthValueComparator, NULL, NULL);
       if (!server.host_clientauth_table)
       {
         LOG_ERROR(("Internal, could not create hash table\n"));
         return 1;
       }
-      server.host_redir_table = PL_NewHashTable(0, PL_HashString, PL_CompareStrings,
-                                                PL_CompareStrings, nullptr, nullptr);
+      server.host_redir_table = PL_NewHashTable(0, PL_HashString, PL_CompareStrings, PL_CompareStrings, NULL, NULL);
       if (!server.host_redir_table)
       {
         LOG_ERROR(("Internal, could not create hash table\n"));
         return 1;
       }
-
-      server.host_ssl3_table = PL_NewHashTable(0, PL_HashString, PL_CompareStrings,
-                                               PL_CompareStrings, nullptr, nullptr);;
-      if (!server.host_ssl3_table)
-      {
-        LOG_ERROR(("Internal, could not create hash table\n"));
-        return 1;
-      }
-
-      server.host_rc4_table = PL_NewHashTable(0, PL_HashString, PL_CompareStrings,
-                                              PL_CompareStrings, nullptr, nullptr);;
-      if (!server.host_rc4_table)
-      {
-        LOG_ERROR(("Internal, could not create hash table\n"));
-        return 1;
-      }
-
-      server.host_failhandshake_table = PL_NewHashTable(0, PL_HashString, PL_CompareStrings,
-                                              PL_CompareStrings, nullptr, nullptr);;
-      if (!server.host_failhandshake_table)
-      {
-        LOG_ERROR(("Internal, could not create hash table\n"));
-        return 1;
-      }
-
       servers.push_back(server);
     }
 
@@ -1327,18 +1215,6 @@ int processConfigLine(char* configLine)
     return 0;
   }
 
-  if (!strcmp(keyword, "ssl3")) {
-    return parseWeakCryptoConfig(keyword, _caret, get_ssl3_table);
-  }
-
-  if (!strcmp(keyword, "rc4")) {
-    return parseWeakCryptoConfig(keyword, _caret, get_rc4_table);
-  }
-
-  if (!strcmp(keyword, "failHandshake")) {
-    return parseWeakCryptoConfig(keyword, _caret, get_failhandshake_table);
-  }
-
   // Configure the NSS certificate database directory
   if (!strcmp(keyword, "certdbdir"))
   {
@@ -1410,18 +1286,6 @@ int freeClientAuthHashItems(PLHashEntry *he, int i, void *arg)
 {
   delete [] (char*)he->key;
   delete (client_auth_option*)he->value;
-  return HT_ENUMERATE_REMOVE;
-}
-
-int freeSSL3HashItems(PLHashEntry *he, int i, void *arg)
-{
-  delete [] (char*)he->key;
-  return HT_ENUMERATE_REMOVE;
-}
-
-int freeRC4HashItems(PLHashEntry *he, int i, void *arg)
-{
-  delete [] (char*)he->key;
   return HT_ENUMERATE_REMOVE;
 }
 
@@ -1521,7 +1385,7 @@ int main(int argc, char** argv)
   }
 
   // these values should make NSS use the defaults
-  if (SSL_ConfigServerSessionIDCache(0, 0, 0, nullptr) != SECSuccess) {
+  if (SSL_ConfigServerSessionIDCache(0, 0, 0, NULL) != SECSuccess) {
     LOG_ERROR(("SSL_ConfigServerSessionIDCache failed\n"));
     PR_ShutdownThreadPool(threads);
     PR_DestroyCondVar(shutdown_condvar);
@@ -1554,18 +1418,12 @@ int main(int argc, char** argv)
   for (vector<server_info_t>::iterator it = servers.begin();
        it != servers.end(); it++) 
   {
-    PL_HashTableEnumerateEntries(it->host_cert_table, freeHostCertHashItems, nullptr);
-    PL_HashTableEnumerateEntries(it->host_clientauth_table, freeClientAuthHashItems, nullptr);
-    PL_HashTableEnumerateEntries(it->host_redir_table, freeHostRedirHashItems, nullptr);
-    PL_HashTableEnumerateEntries(it->host_ssl3_table, freeSSL3HashItems, nullptr);
-    PL_HashTableEnumerateEntries(it->host_rc4_table, freeRC4HashItems, nullptr);
-    PL_HashTableEnumerateEntries(it->host_failhandshake_table, freeRC4HashItems, nullptr);
+    PL_HashTableEnumerateEntries(it->host_cert_table, freeHostCertHashItems, NULL);
+    PL_HashTableEnumerateEntries(it->host_clientauth_table, freeClientAuthHashItems, NULL);
+    PL_HashTableEnumerateEntries(it->host_redir_table, freeHostRedirHashItems, NULL);
     PL_HashTableDestroy(it->host_cert_table);
     PL_HashTableDestroy(it->host_clientauth_table);
     PL_HashTableDestroy(it->host_redir_table);
-    PL_HashTableDestroy(it->host_ssl3_table);
-    PL_HashTableDestroy(it->host_rc4_table);
-    PL_HashTableDestroy(it->host_failhandshake_table);
   }
 
   PR_Cleanup();

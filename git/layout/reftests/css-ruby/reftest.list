@@ -1,6 +1,0 @@
-default-preferences pref(layout.css.ruby.enabled,true)
-
-== ruby-whitespace-1.html ruby-whitespace-1-ref.html
-== ruby-whitespace-2.html ruby-whitespace-2-ref.html
-!= ruby-reflow-1-opaqueruby.html ruby-reflow-1-noruby.html
-== ruby-reflow-1-transparentruby.html ruby-reflow-1-noruby.html

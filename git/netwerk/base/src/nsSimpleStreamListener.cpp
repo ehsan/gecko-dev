@@ -10,10 +10,10 @@
 // nsISupports implementation...
 //----------------------------------------------------------------------------
 //
-NS_IMPL_ISUPPORTS(nsSimpleStreamListener,
-                  nsISimpleStreamListener,
-                  nsIStreamListener,
-                  nsIRequestObserver)
+NS_IMPL_ISUPPORTS3(nsSimpleStreamListener,
+                   nsISimpleStreamListener,
+                   nsIStreamListener,
+                   nsIRequestObserver)
 
 //
 //----------------------------------------------------------------------------
@@ -46,7 +46,7 @@ NS_IMETHODIMP
 nsSimpleStreamListener::OnDataAvailable(nsIRequest* request,
                                         nsISupports *aContext,
                                         nsIInputStream *aSource,
-                                        uint64_t aOffset,
+                                        uint32_t aOffset,
                                         uint32_t aCount)
 {
     uint32_t writeCount;

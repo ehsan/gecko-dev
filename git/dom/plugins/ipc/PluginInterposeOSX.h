@@ -33,6 +33,7 @@
 #include "base/basictypes.h"
 #include "nsPoint.h"
 #include "npapi.h"
+#include "nsRect.h"
 
 // Make this includable from non-Objective-C code.
 #ifndef __OBJC__
@@ -86,8 +87,8 @@ public:
   };
 
   NSCursorInfo();
-  explicit NSCursorInfo(NSCursor* aCursor);
-  explicit NSCursorInfo(const Cursor* aCursor);
+  NSCursorInfo(NSCursor* aCursor);
+  NSCursorInfo(const Cursor* aCursor);
   ~NSCursorInfo();
 
   NSCursor* GetNSCursor() const;

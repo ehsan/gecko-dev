@@ -11,6 +11,7 @@
 
 #include "nsCOMArray.h"
 #include "nsCOMPtr.h"
+#include "nsICacheService.h"
 #include "nsIDOMDocument.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
@@ -30,28 +31,29 @@ public:
 
     virtual bool
     RecvNotifyStateEvent(const uint32_t& stateEvent,
-                         const uint64_t& byteProgress) MOZ_OVERRIDE;
+                         const uint64_t& byteProgress);
 
     virtual bool
     RecvAssociateDocuments(
             const nsCString& cacheGroupId,
-            const nsCString& cacheClientId) MOZ_OVERRIDE;
+            const nsCString& cacheClientId);
 
     virtual bool
-    RecvFinish(const bool& succeeded,
-               const bool& isUpgrade) MOZ_OVERRIDE;
+    RecvFinish(const bool& succeded,
+               const bool& isUpgrade);
 
-    explicit OfflineCacheUpdateChild(nsIDOMWindow* aWindow);
+    OfflineCacheUpdateChild(nsIDOMWindow* aWindow);
+    ~OfflineCacheUpdateChild();
 
     void SetDocument(nsIDOMDocument *aDocument);
 
 private:
-    ~OfflineCacheUpdateChild();
-
     nsresult AssociateDocument(nsIDOMDocument *aDocument,
                                nsIApplicationCache *aApplicationCache);
-    void GatherObservers(nsCOMArray<nsIOfflineCacheUpdateObserver> &aObservers);
+    nsresult GatherObservers(nsCOMArray<nsIOfflineCacheUpdateObserver> &aObservers);
     nsresult Finish();
+
+    void RefcountHitZero();
 
     enum {
         STATE_UNINITIALIZED,
@@ -64,15 +66,15 @@ private:
 
     bool mIsUpgrade;
     bool mSucceeded;
+    bool mIPCActivated;
 
     nsCString mUpdateDomain;
     nsCOMPtr<nsIURI> mManifestURI;
     nsCOMPtr<nsIURI> mDocumentURI;
 
-    nsCOMPtr<nsIObserverService> mObserverService;
+    nsCString mClientID;
 
-    uint32_t mAppID;
-    bool mInBrowser;
+    nsCOMPtr<nsIObserverService> mObserverService;
 
     /* Clients watching this update for changes */
     nsCOMArray<nsIWeakReference> mWeakObservers;

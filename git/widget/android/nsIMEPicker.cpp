@@ -7,7 +7,7 @@
 
 using namespace mozilla;
 
-NS_IMPL_ISUPPORTS(nsIMEPicker, nsIIMEPicker)
+NS_IMPL_ISUPPORTS1(nsIMEPicker, nsIIMEPicker)
 
 nsIMEPicker::nsIMEPicker()
 {
@@ -22,6 +22,6 @@ nsIMEPicker::~nsIMEPicker()
 /* void show (); */
 NS_IMETHODIMP nsIMEPicker::Show()
 {
-    mozilla::widget::android::GeckoAppShell::ShowInputMethodPicker();
+    AndroidBridge::Bridge()->ShowInputMethodPicker();
     return NS_OK;
 }

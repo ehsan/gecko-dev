@@ -12,6 +12,7 @@
 #endif
 
 #include "GLDefs.h"
+#include "mozilla/Util.h"
 #include "nscore.h"
 #include "prlink.h"
 
@@ -26,7 +27,7 @@ public:
     typedef PRFuncPtr (GLAPIENTRY * PlatformLookupFunction) (const char *);
 
     enum {
-        MAX_SYMBOL_NAMES = 6,
+        MAX_SYMBOL_NAMES = 5,
         MAX_SYMBOL_LENGTH = 128
     };
 
@@ -36,9 +37,8 @@ public:
     } SymLoadStruct;
 
     bool LoadSymbols(SymLoadStruct *firstStruct,
-                     bool tryplatform = false,
-                     const char *prefix = nullptr,
-                     bool warnOnFailure = true);
+                       bool tryplatform = false,
+                       const char *prefix = nullptr);
 
     /*
      * Static version of the functions in this class
@@ -47,10 +47,9 @@ public:
                                   const char *symname,
                                   PlatformLookupFunction lookupFunction = nullptr);
     static bool LoadSymbols(PRLibrary *lib,
-                            SymLoadStruct *firstStruct,
-                            PlatformLookupFunction lookupFunction = nullptr,
-                            const char *prefix = nullptr,
-                            bool warnOnFailure = true);
+                              SymLoadStruct *firstStruct,
+                              PlatformLookupFunction lookupFunction = nullptr,
+                              const char *prefix = nullptr);
 protected:
     GLLibraryLoader() {
         mLibrary = nullptr;

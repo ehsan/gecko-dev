@@ -4,15 +4,7 @@
 
 #include "nsISupports.idl"
 
-%{ C++
-namespace mozilla {
-namespace net {
-union NetAddr;
-}
-}
-%}
-native NetAddr(mozilla::net::NetAddr);
-interface nsINetAddr;
+native PRNetAddr(union PRNetAddr);
 
 /**
  * nsIDNSRecord
@@ -22,7 +14,7 @@ interface nsINetAddr;
  * like an enumerator, allowing the caller to easily step through the
  * list of IP addresses.
  */
-[scriptable, uuid(95ced6f3-44b4-4427-a149-c9a1e033d852)]
+[scriptable, uuid(ead9e9d8-7eef-4dae-a7f0-a1edcfb20478)]
 interface nsIDNSRecord : nsISupports
 {
     /**
@@ -35,27 +27,15 @@ interface nsIDNSRecord : nsISupports
 
     /**
      * this function copies the value of the next IP address into the
-     * given NetAddr struct and increments the internal address iterator.
+     * given PRNetAddr struct and increments the internal address iterator.
      *
      * @param aPort
-     *        A port number to initialize the NetAddr with.
+     *        A port number to initialize the PRNetAddr with.
      *
      * @throws NS_ERROR_NOT_AVAILABLE if there is not another IP address in
      * the record.
      */
-    [noscript] NetAddr getNextAddr(in uint16_t aPort);
-
-    /**
-     * this function returns the value of the next IP address as a
-     * scriptable address and increments the internal address iterator.
-     *
-     * @param aPort
-     *        A port number to initialize the nsINetAddr with.
-     *
-     * @throws NS_ERROR_NOT_AVAILABLE if there is not another IP address in
-     * the record.
-     */
-    nsINetAddr getScriptableNextAddr(in uint16_t aPort);
+    [noscript] PRNetAddr getNextAddr(in uint16_t aPort);
 
     /**
      * this function returns the value of the next IP address as a

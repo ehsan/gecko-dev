@@ -1,6 +1,38 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
     Optimized ASN.1 DER decoder
@@ -16,110 +48,55 @@
  */
 
 static unsigned char* definite_length_decoder(const unsigned char *buf,
-                                              const unsigned int buf_length,
-                                              unsigned int *out_data_length,
+                                              const unsigned int length,
+                                              unsigned int *data_length,
                                               PRBool includeTag)
 {
     unsigned char tag;
-    unsigned int used_length = 0;
-    unsigned int data_length = 0;
-    unsigned char length_field_len = 0;
-    unsigned char byte;
-    unsigned int i;
+    unsigned int used_length= 0;
+    unsigned int data_len;
 
-    if (used_length >= buf_length)
+    if (used_length >= length)
     {
-        /* Tag field was not found! */
         return NULL;
     }
     tag = buf[used_length++];
 
+    /* blow out when we come to the end */
     if (tag == 0)
     {
-        /* End-of-contents octects should not be present in DER because
-           DER doesn't use the indefinite length form. */
         return NULL;
     }
 
-    if ((tag & 0x1F) == 0x1F)
+    if (used_length >= length)
     {
-        /* High tag number (a tag number > 30) is not supported */
         return NULL;
     }
+    data_len = buf[used_length++];
 
-    if (used_length >= buf_length)
+    if (data_len&0x80)
     {
-        /* Length field was not found! */
-        return NULL;
-    }
-    byte = buf[used_length++];
+        int  len_count = data_len & 0x7f;
 
-    if (!(byte & 0x80))
-    {
-        /* Short form: The high bit is not set. */
-        data_length = byte; /* clarity; we're returning a 32-bit int. */
-    }
-    else
-    {
-        /* Long form. Extract the field length */
-        length_field_len = byte & 0x7F;
-        if (length_field_len == 0)
+        data_len = 0;
+
+        while (len_count-- > 0)
         {
-            /* DER doesn't use the indefinite length form. */
-            return NULL;
-        }
-
-        if (length_field_len > sizeof(data_length))
-        {
-            /* We don't support an extended length field  longer than
-               4 bytes (2^32) */
-            return NULL;
-        }
-
-        if (length_field_len > (buf_length - used_length))
-        {
-            /* Extended length field was not found */
-            return NULL;
-        }
-
-        /* Iterate across the extended length field */
-        for (i = 0; i < length_field_len; i++)
-        {
-            byte = buf[used_length++];
-            data_length = (data_length << 8) | byte;
-
-            if (i == 0)
+            if (used_length >= length)
             {
-                PRBool too_long = PR_FALSE;
-                if (length_field_len == 1)
-                {
-                    too_long = ((byte & 0x80) == 0); /* Short form suffices */
-                }
-                else
-                {
-                    too_long = (byte == 0); /* This zero byte can be omitted */
-                }
-                if (too_long)
-                {
-                    /* The length is longer than needed. */
-                    return NULL;
-                }
+                return NULL;
             }
+            data_len = (data_len << 8) | buf[used_length++];
         }
     }
 
-    if (data_length > (buf_length - used_length))
+    if (data_len > (length-used_length) )
     {
-        /* The decoded length exceeds the available buffer */
         return NULL;
     }
+    if (includeTag) data_len += used_length;
 
-    if (includeTag)
-    {
-        data_length += used_length;
-    }
-
-    *out_data_length = data_length;
+    *data_length = data_len;
     return ((unsigned char*)buf + (includeTag ? 0 : used_length));
 }
 
@@ -388,11 +365,11 @@ static SECStatus CheckSequenceTemplate(const SEC_ASN1Template* sequenceTemplate)
 
 static SECStatus DecodeItem(void* dest,
                      const SEC_ASN1Template* templateEntry,
-                     SECItem* src, PLArenaPool* arena, PRBool checkTag);
+                     SECItem* src, PRArenaPool* arena, PRBool checkTag);
 
 static SECStatus DecodeSequence(void* dest,
                      const SEC_ASN1Template* templateEntry,
-                     SECItem* src, PLArenaPool* arena)
+                     SECItem* src, PRArenaPool* arena)
 {
     SECStatus rv = SECSuccess;
     SECItem source;
@@ -444,7 +421,7 @@ static SECStatus DecodeSequence(void* dest,
 
 static SECStatus DecodeInline(void* dest,
                      const SEC_ASN1Template* templateEntry,
-                     SECItem* src, PLArenaPool* arena, PRBool checkTag)
+                     SECItem* src, PRArenaPool* arena, PRBool checkTag)
 {
     const SEC_ASN1Template* inlineTemplate = 
         SEC_ASN1GetSubtemplate (templateEntry, dest, PR_FALSE);
@@ -454,7 +431,7 @@ static SECStatus DecodeInline(void* dest,
 
 static SECStatus DecodePointer(void* dest,
                      const SEC_ASN1Template* templateEntry,
-                     SECItem* src, PLArenaPool* arena, PRBool checkTag)
+                     SECItem* src, PRArenaPool* arena, PRBool checkTag)
 {
     const SEC_ASN1Template* ptrTemplate = 
         SEC_ASN1GetSubtemplate (templateEntry, dest, PR_FALSE);
@@ -473,7 +450,7 @@ static SECStatus DecodePointer(void* dest,
 
 static SECStatus DecodeImplicit(void* dest,
                      const SEC_ASN1Template* templateEntry,
-                     SECItem* src, PLArenaPool* arena)
+                     SECItem* src, PRArenaPool* arena)
 {
     if (templateEntry->kind & SEC_ASN1_POINTER)
     {
@@ -489,7 +466,7 @@ static SECStatus DecodeImplicit(void* dest,
 
 static SECStatus DecodeChoice(void* dest,
                      const SEC_ASN1Template* templateEntry,
-                     SECItem* src, PLArenaPool* arena)
+                     SECItem* src, PRArenaPool* arena)
 {
     SECStatus rv = SECSuccess;
     SECItem choice;
@@ -538,7 +515,7 @@ static SECStatus DecodeChoice(void* dest,
 
 static SECStatus DecodeGroup(void* dest,
                      const SEC_ASN1Template* templateEntry,
-                     SECItem* src, PLArenaPool* arena)
+                     SECItem* src, PRArenaPool* arena)
 {
     SECStatus rv = SECSuccess;
     SECItem source;
@@ -626,7 +603,7 @@ static SECStatus DecodeGroup(void* dest,
 
 static SECStatus DecodeExplicit(void* dest,
                      const SEC_ASN1Template* templateEntry,
-                     SECItem* src, PLArenaPool* arena)
+                     SECItem* src, PRArenaPool* arena)
 {
     SECStatus rv = SECSuccess;
     SECItem subItem;
@@ -653,7 +630,7 @@ static SECStatus DecodeExplicit(void* dest,
 
 static SECStatus DecodeItem(void* dest,
                      const SEC_ASN1Template* templateEntry,
-                     SECItem* src, PLArenaPool* arena, PRBool checkTag)
+                     SECItem* src, PRArenaPool* arena, PRBool checkTag)
 {
     SECStatus rv = SECSuccess;
     SECItem temp;
@@ -923,7 +900,7 @@ static SECStatus DecodeItem(void* dest,
 
 /* the function below is the public one */
 
-SECStatus SEC_QuickDERDecodeItem(PLArenaPool* arena, void* dest,
+SECStatus SEC_QuickDERDecodeItem(PRArenaPool* arena, void* dest,
                      const SEC_ASN1Template* templateEntry,
                      const SECItem* src)
 {

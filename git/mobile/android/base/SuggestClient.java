@@ -4,6 +4,14 @@
 
 package org.mozilla.gecko;
 
+import org.json.JSONArray;
+
+import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.text.TextUtils;
+import android.util.Log;
+
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,26 +20,12 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 
-import org.json.JSONArray;
-import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.util.HardwareUtils;
-
-import android.content.Context;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
-import android.text.TextUtils;
-import android.util.Log;
-
 /**
  * Use network-based search suggestions.
  */
 public class SuggestClient {
     private static final String LOGTAG = "GeckoSuggestClient";
-
-    // This should go through GeckoInterface to get the UA, but the search activity
-    // doesn't use a GeckoView yet. Until it does, get the UA directly.
-    private static final String USER_AGENT = HardwareUtils.isTablet() ?
-        AppConstants.USER_AGENT_FENNEC_TABLET : AppConstants.USER_AGENT_FENNEC_MOBILE;
+    private static final String USER_AGENT = GeckoApp.mAppContext.getDefaultUAString();
 
     private final Context mContext;
     private final int mTimeout;
@@ -42,29 +36,25 @@ public class SuggestClient {
     // the maximum number of suggestions to return
     private final int mMaxResults;
 
-    // used by robocop for testing
-    private final boolean mCheckNetwork;
+    // used by robocop for testing; referenced via reflection
+    private boolean mCheckNetwork;
 
-    // used to make suggestions appear instantly after opt-in
-    private String mPrevQuery;
-    private ArrayList<String> mPrevResults;
-
-    @RobocopTarget
-    public SuggestClient(Context context, String suggestTemplate, int timeout, int maxResults, boolean checkNetwork) {
+    public SuggestClient(Context context, String suggestTemplate, int timeout, int maxResults) {
         mContext = context;
         mMaxResults = maxResults;
         mSuggestTemplate = suggestTemplate;
         mTimeout = timeout;
-        mCheckNetwork = checkNetwork;
+        mCheckNetwork = true;
+    }
+
+    public SuggestClient(Context context, String suggestTemplate, int timeout) {
+        this(context, suggestTemplate, timeout, Integer.MAX_VALUE);
     }
 
     /**
      * Queries for a given search term and returns an ArrayList of suggestions.
      */
     public ArrayList<String> query(String query) {
-        if (query.equals(mPrevQuery))
-            return mPrevResults;
-
         ArrayList<String> suggestions = new ArrayList<String>();
         if (TextUtils.isEmpty(mSuggestTemplate) || TextUtils.isEmpty(query)) {
             return suggestions;
@@ -108,7 +98,7 @@ public class SuggestClient {
                  */
                 JSONArray results = new JSONArray(json);
                 JSONArray jsonSuggestions = results.getJSONArray(1);
-
+                
                 int added = 0;
                 for (int i = 0; (i < jsonSuggestions.length()) && (added < mMaxResults); i++) {
                     String suggestion = jsonSuggestions.getString(i);
@@ -123,9 +113,6 @@ public class SuggestClient {
         } catch (Exception e) {
             Log.e(LOGTAG, "Error", e);
         }
-
-        mPrevQuery = query;
-        mPrevResults = suggestions;
         return suggestions;
     }
 

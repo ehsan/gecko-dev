@@ -9,10 +9,19 @@ interface nsIFrameRequestCallback;
 interface nsIControllers;
 interface nsIDOMBlob;
 interface nsIDOMLocation;
+interface nsIDOMMediaQueryList;
 interface nsIDOMOfflineResourceList;
+interface nsIDOMStorage;
 interface nsIPrompt;
 interface nsISelection;
 interface nsIVariant;
+
+[scriptable, uuid(8fc58f56-f769-4368-a098-edd08550cf1a)]
+interface nsIDOMMozURLProperty : nsISupports
+{
+  DOMString createObjectURL(in nsIDOMBlob blob);
+  void revokeObjectURL(in DOMString URL);
+};
 
 /**
  * The nsIDOMWindow interface is the primary interface for a DOM
@@ -23,7 +32,7 @@ interface nsIVariant;
  * @see <http://www.whatwg.org/html/#window>
  */
 
-[scriptable, uuid(3addc629-754d-4a2a-99a3-449ed1a2e4bd)]
+[scriptable, uuid(A1AF6CD9-C6E7-4037-99F8-DBCA1B03E345)]
 interface nsIDOMWindow : nsISupports
 {
   // the current browsing context
@@ -47,20 +56,17 @@ interface nsIDOMWindow : nsISupports
   /* The setter that takes a string argument needs to be special cased! */
   readonly attribute nsIDOMLocation                     location;
 
-  readonly attribute nsISupports                        history;
+  readonly attribute nsIDOMHistory                      history;
 
 
   /* [replaceable] locationbar */
-  /* BarProp */
-  readonly attribute nsISupports                        locationbar;
+  readonly attribute nsIDOMBarProp                      locationbar;
 
   /* [replaceable] menubar */
-  /* BarProp */
-  readonly attribute nsISupports                        menubar;
+  readonly attribute nsIDOMBarProp                      menubar;
 
   /* [replaceable] personalbar */
-  /* BarProp */
-  readonly attribute nsISupports                        personalbar;
+  readonly attribute nsIDOMBarProp                      personalbar;
 
   /**
    * Accessor for the object that controls whether or not scrollbars
@@ -68,16 +74,13 @@ interface nsIDOMWindow : nsISupports
    *
    * This attribute is "replaceable" in JavaScript
    */
-  /* BarProp */
-  readonly attribute nsISupports                        scrollbars;
+  readonly attribute nsIDOMBarProp                      scrollbars;
 
   /* [replaceable] statusbar */
-  /* BarProp */
-  readonly attribute nsISupports                        statusbar;
+  readonly attribute nsIDOMBarProp                      statusbar;
 
   /* [replaceable] toolbar */
-  /* BarProp */
-  readonly attribute nsISupports                        toolbar;
+  readonly attribute nsIDOMBarProp                      toolbar;
 
   /* [replaceable] */
            attribute DOMString                          status;
@@ -150,11 +153,7 @@ interface nsIDOMWindow : nsISupports
   }
   %}
 
-  [implicit_jscontext, binaryname(ScriptableOpener)]
-           attribute jsval                              opener;
-
-  [noscript, binaryname(Opener)]
-           attribute nsIDOMWindow                       openerWindow;
+           attribute nsIDOMWindow                       opener;
 
   /**
    * |frameElement| gets this window's <iframe> or <frame> element, if it has
@@ -193,8 +192,8 @@ interface nsIDOMWindow : nsISupports
 
 
   // user prompts
-  void                      alert([optional, Null(Stringify)] in DOMString text);
-  boolean                   confirm([optional] in DOMString text);
+  void                      alert(in DOMString text);
+  boolean                   confirm(in DOMString text);
 
   // prompt() should return a null string if cancel is pressed
   DOMString                 prompt([optional] in DOMString aMessage,
@@ -202,7 +201,6 @@ interface nsIDOMWindow : nsISupports
 
   void                      print();
 
-  [optional_argc]
   nsIVariant                showModalDialog(in DOMString aURI,
                                             [optional] in nsIVariant aArgs,
                                             [optional] in DOMString aOptions);
@@ -227,8 +225,7 @@ interface nsIDOMWindow : nsISupports
    * @see <http://www.whatwg.org/html/#dom-window-postmessage>
    */
   [implicit_jscontext, binaryname(PostMessageMoz)]
-    void postMessage(in jsval message, in DOMString targetOrigin,
-                     [optional] in jsval transfer);
+    void postMessage(in jsval message, in DOMString targetOrigin);
 
 
   // WindowBase64
@@ -240,24 +237,15 @@ interface nsIDOMWindow : nsISupports
   // WindowSessionStorage
   /**
    * Session storage for the current browsing context.
-   * This attribute is a DOMStorage
    */
-  readonly attribute nsISupports sessionStorage;
+  readonly attribute nsIDOMStorage sessionStorage;
 
 
   // WindowLocalStorage
   /**
    * Local storage for the current browsing context.
-   * This attribute is a DOMStorage
    */
-  readonly attribute nsISupports localStorage;
-
-
-  // IndexedDB
-  // https://dvcs.w3.org/hg/IndexedDB/raw-file/tip/Overview.html#requests
-  // IDBEnvironment
-  readonly attribute nsISupports indexedDB;
-  readonly attribute nsISupports mozIndexedDB;
+  readonly attribute nsIDOMStorage localStorage;
 
 
   // DOM Range
@@ -269,7 +257,7 @@ interface nsIDOMWindow : nsISupports
 
   // CSSOM-View
   // http://dev.w3.org/csswg/cssom-view/#extensions-to-the-window-interface
-  nsISupports      matchMedia(in DOMString media_query_list);
+  nsIDOMMediaQueryList      matchMedia(in DOMString media_query_list);
 
   readonly attribute nsIDOMScreen                       screen;
 
@@ -328,8 +316,6 @@ interface nsIDOMWindow : nsISupports
    */
   nsIDOMCSSStyleDeclaration getComputedStyle(in nsIDOMElement elt, 
                                              [optional] in DOMString pseudoElt);
-  nsIDOMCSSStyleDeclaration getDefaultComputedStyle(in nsIDOMElement elt,
-                                                    [optional] in DOMString pseudoElt);
 
 
   // Mozilla extensions
@@ -371,21 +357,24 @@ interface nsIDOMWindow : nsISupports
   void                      sizeToContent();
 
   /* [replaceable] content */
-  [noscript] readonly attribute nsIDOMWindow            content;
+  readonly attribute nsIDOMWindow                       content;
 
   /* [replaceable] prompter */
   [noscript] readonly attribute nsIPrompt               prompter;
 
   readonly attribute boolean                            closed;
-
+  // http://wiki.whatwg.org/wiki/Crypto
   readonly attribute nsIDOMCrypto                       crypto;
+  readonly attribute nsIDOMPkcs11                       pkcs11;
 
-  // Note: this is [ChromeOnly] scriptable via WebIDL.
-  [noscript] readonly attribute nsIControllers          controllers;
+  // XXX Shouldn't this be in nsIDOMChromeWindow?
+  /* [replaceable] controllers */
+  readonly attribute nsIControllers                     controllers;
+
+           attribute DOMString                          defaultStatus;
 
   readonly attribute float                              mozInnerScreenX;
   readonly attribute float                              mozInnerScreenY;
-  readonly attribute float                              devicePixelRatio;
 
   /* The maximum offset that the window can be scrolled to
      (i.e., the document width/height minus the scrollport width/height) */
@@ -426,9 +415,7 @@ interface nsIDOMWindow : nsISupports
                                        in nsISupports aExtraArgument);
 
   // XXX Should this be in nsIDOMChromeWindow?
-  void                      updateCommands(in DOMString action,
-                                           [optional] in nsISelection sel,
-                                           [optional] in short reason);
+  void                      updateCommands(in DOMString action);
 
   /* Find in page.
    * @param str: the search pattern
@@ -461,9 +448,6 @@ interface nsIDOMWindow : nsISupports
   // Argument is optional only so we can warn when it's null
   long
     mozRequestAnimationFrame([optional] in nsIFrameRequestCallback aCallback);
-  // jsval because we want a WebIDL callback here
-  [implicit_jscontext]
-  long requestAnimationFrame(in jsval aCallback);
 
   /**
    * Cancel a refresh callback.
@@ -471,7 +455,6 @@ interface nsIDOMWindow : nsISupports
   void mozCancelAnimationFrame(in long aHandle);
   // Backwards-compat shim for now to make Google maps work
   void mozCancelRequestAnimationFrame(in long aHandle);
-  void cancelAnimationFrame(in long aHandle);
 
   /**
    * The current animation start time in milliseconds since the epoch.
@@ -479,14 +462,57 @@ interface nsIDOMWindow : nsISupports
   readonly attribute long long mozAnimationStartTime;
 
   /**
-   * Console API
+   * @see <http://dev.w3.org/2006/webapi/FileAPI/#creating-revoking>
    */
-  [implicit_jscontext] attribute jsval console;
+  readonly attribute nsIDOMMozURLProperty URL;
+
+  /**
+   * HTML5 event attributes that only apply to windows and <body>/<frameset>
+   */
+  [implicit_jscontext] attribute jsval onafterprint;
+  [implicit_jscontext] attribute jsval onbeforeprint;
+  [implicit_jscontext] attribute jsval onbeforeunload;
+  [implicit_jscontext] attribute jsval onhashchange;
+  [implicit_jscontext] attribute jsval onmessage;
+  [implicit_jscontext] attribute jsval onoffline;
+  [implicit_jscontext] attribute jsval ononline;
+  [implicit_jscontext] attribute jsval onpopstate;
+  [implicit_jscontext] attribute jsval onpagehide;
+  [implicit_jscontext] attribute jsval onpageshow;
+  // Not supported yet
+  // [implicit_jscontext] attribute jsval onredo;
+  [implicit_jscontext] attribute jsval onresize;
+  // Not supported yet
+  // [implicit_jscontext] attribute jsval onstorage;
+  // Not supported yet
+  // [implicit_jscontext] attribute jsval onundo;
+  [implicit_jscontext] attribute jsval onunload;
+
+  /**
+   * Non-HTML5 window-specific event attributes
+   */
+  [implicit_jscontext] attribute jsval ondevicemotion;
+  [implicit_jscontext] attribute jsval ondeviceorientation;
+  [implicit_jscontext] attribute jsval ondeviceproximity;
+  [implicit_jscontext] attribute jsval onuserproximity;
+  [implicit_jscontext] attribute jsval ondevicelight;
+
+  [implicit_jscontext] attribute jsval onmouseenter;
+  [implicit_jscontext] attribute jsval onmouseleave;
+};
+
+[scriptable, uuid(2146c906-57f7-486c-a1b4-8cdb57ef577f)]
+interface nsIDOMWindowPerformance : nsISupports
+{
+  /**
+   * A namespace to hold performance related data and statistics.
+   */
+  readonly attribute nsISupports performance;
 };
 
 /**
  * Empty interface for compatibility with older versions.
  * @deprecated Use nsIDOMWindow instead
  */
-[scriptable, uuid(2ec49e81-b2ba-4633-991a-f48f1e1d8800)]
+[scriptable, uuid(8da641ab-906a-456e-97f2-b77df4ca2d95)]
 interface nsIDOMWindowInternal : nsIDOMWindow {};

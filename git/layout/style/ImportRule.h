@@ -10,32 +10,27 @@
 
 #include "mozilla/Attributes.h"
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/Rule.h"
 #include "nsIDOMCSSImportRule.h"
+#include "nsCSSRules.h"
 
 class nsMediaList;
 class nsString;
 
 namespace mozilla {
-
-class CSSStyleSheet;
-
 namespace css {
 
 class ImportRule MOZ_FINAL : public Rule,
                              public nsIDOMCSSImportRule
 {
 public:
-  ImportRule(nsMediaList* aMedia, const nsString& aURLSpec,
-             uint32_t aLineNumber, uint32_t aColumnNumber);
+  ImportRule(nsMediaList* aMedia, const nsString& aURLSpec);
 private:
   // for |Clone|
   ImportRule(const ImportRule& aCopy);
   ~ImportRule();
 public:
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(ImportRule, nsIStyleRule)
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   DECL_STYLE_RULE_INHERIT
 
@@ -45,16 +40,16 @@ public:
 
   // nsIStyleRule methods
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
+  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const;
 #endif
 
   // Rule methods
   virtual int32_t GetType() const;
   virtual already_AddRefed<Rule> Clone() const;
 
-  void SetSheet(CSSStyleSheet*);
+  void SetSheet(nsCSSStyleSheet*);
 
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   // nsIDOMCSSRule interface
   NS_DECL_NSIDOMCSSRULE
@@ -65,7 +60,7 @@ public:
 private:
   nsString  mURLSpec;
   nsRefPtr<nsMediaList> mMedia;
-  nsRefPtr<CSSStyleSheet> mChildSheet;
+  nsRefPtr<nsCSSStyleSheet> mChildSheet;
 };
 
 } // namespace css

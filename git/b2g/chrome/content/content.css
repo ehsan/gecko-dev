@@ -10,24 +10,14 @@ xul|window xul|scrollbar {
   display: none;
 }
 
-/* Bug 1041576 - Scrollable with scrollgrab should not have scrollbars */
-@-moz-document domain(system.gaiamobile.org) {
-  .browser-container > xul|scrollbar {
-    display: none;
-  }
-}
-
-html xul|scrollbar[root="true"] {
-  position: relative;
-  z-index: 2147483647;
-}
-
 html xul|scrollbar {
   -moz-appearance: none !important;
+  position: relative;
   background-color: transparent !important;
   background-image: none !important;
   border: 0px solid transparent !important;
-  pointer-events: none;
+  z-index: 2147483647;
+  opacity: 1;
 }
 
 xul|scrollbar[orient="vertical"] {
@@ -55,6 +45,7 @@ xul|scrollbar[orient="horizontal"] xul|thumb {
 xul|scrollbar:not([active="true"]),
 xul|scrollbar[disabled] {
   opacity: 0;
+  -moz-transition: opacity 1s ease;
 }
 
 xul|scrollbarbutton {
@@ -77,10 +68,6 @@ xul|thumb {
   -moz-border-left-colors: none !important;
   border: 1px solid rgba(255, 255, 255, 0.4) !important;
   border-radius: 3px;
-}
-
-xul|scrollbarbutton {
-  background-image: none !important;
 }
 
 /* -moz-touch-enabled? media elements */
@@ -115,12 +102,17 @@ textarea,
   border-style: solid;
   border-color: #7d7d7d;
   color: #414141;
-  background: white linear-gradient(rgba(115,115,115,0.5) 0, rgba(215,215,215,0.5) 3px, rgba(255,255,255,0.2) 16px);
+  background: white -moz-linear-gradient(top, rgba(115,115,115,0.5) 0, rgba(215,215,215,0.5) 3px, rgba(255,255,255,0.2) 16px);
 }
 
 /* Selects are handled by the form helper, see bug 685197 */
 select option, select optgroup {
   pointer-events: none;
+}
+
+input:-moz-placeholder,
+textarea:-moz-placeholder {
+  color: GrayText;
 }
 
 select:not([size]):not([multiple]),
@@ -133,15 +125,15 @@ button {
   border-style: solid;
   border-color: #7d7d7d;
   color: #414141;
-  background: white linear-gradient(rgba(255,255,255,0.2) 0, rgba(215,215,215,0.5) 18px, rgba(115,115,115,0.5) 100%);
+  background: white -moz-linear-gradient(top, rgba(255,255,255,0.2) 0, rgba(215,215,215,0.5) 18px, rgba(115,115,115,0.5) 100%);
 }
 
 input[type="checkbox"] {
-  background: white linear-gradient(rgba(115,115,115,0.5) 0, rgba(215,215,215,0.5) 2px, rgba(255,255,255,0.2) 6px);
+  background: white -moz-linear-gradient(top, rgba(115,115,115,0.5) 0, rgba(215,215,215,0.5) 2px, rgba(255,255,255,0.2) 6px);
 }
 
 input[type="radio"] {
-  background: radial-gradient(at 6px 6px, rgba(255,255,255,0.2) 3px, rgba(195,195,195,0.5) 5px, rgba(115,115,115,0.5) 100%);
+  background: -moz-radial-gradient(6px 6px, cover, rgba(255,255,255,0.2) 3px, rgba(195,195,195,0.5) 5px, rgba(115,115,115,0.5) 100%);
 }
 
 select {
@@ -176,6 +168,8 @@ button {
 
 input[type="radio"],
 input[type="checkbox"] {
+  max-width: 14px;
+  max-height: 14px;
   border: 1px solid #a7a7a7 !important;
   padding: 2px 1px 2px 1px;
 }
@@ -187,11 +181,11 @@ select > button {
   border-radius: 0;
   color: #414141;
 
-  background-image: radial-gradient(at bottom left, #bbbbbb 40%, #f5f5f5), url(arrow.svg) !important;
+  background-image: -moz-radial-gradient(bottom left, #bbbbbb 40%, #f5f5f5), url(arrow.svg) !important;
   background-color: transparent;
   background-position: -15px center, 4px center !important;
   background-repeat: no-repeat, no-repeat !important;
-  background-size: 100% 90%, auto auto;
+  background-size: 100% 90%, normal normal;
 
   -moz-binding: none !important;
   position: relative !important;
@@ -207,7 +201,7 @@ input[type="file"]:focus > input[type="text"],
   outline: 0px !important;
   border-style: solid;
   border-color: rgb(94,128,153);
-  background: white linear-gradient(rgba(27,113,177,0.5) 0, rgba(198,225,246,0.2) 3px, rgba(255,255,255,0.2) 16px);
+  background: white -moz-linear-gradient(top, rgba(27,113,177,0.5) 0, rgba(198,225,246,0.2) 3px, rgba(255,255,255,0.2) 16px);
 }
 
 select:not([size]):not([multiple]):focus,
@@ -220,7 +214,7 @@ button:focus {
   outline: 0px !important;
   border-style: solid;
   border-color: rgb(94,128,153);
-  background: white linear-gradient(rgba(255,255,255,0.2) 0, rgba(198,225,256,0.2) 18px, rgba(27,113,177,0.5) 100%);
+  background: white -moz-linear-gradient(top, rgba(255,255,255,0.2) 0, rgba(198,225,256,0.2) 18px, rgba(27,113,177,0.5) 100%);
 }
 
 input[type="checkbox"]:focus,
@@ -229,11 +223,11 @@ input[type="radio"]:focus {
 }
 
 input[type="checkbox"]:focus {
-  background: white linear-gradient(rgba(27,113,177,0.5) 0, rgba(198,225,246,0.2) 2px, rgba(255,255,255,0.2) 6px);
+  background: white -moz-linear-gradient(top, rgba(27,113,177,0.5) 0, rgba(198,225,246,0.2) 2px, rgba(255,255,255,0.2) 6px);
 }
 
 input[type="radio"]:focus {
-  background: radial-gradient(at 6px 6px, rgba(255,255,255,0.2) 3px, rgba(198,225,246,0.2) 5px, rgba(27,113,177,0.5) 100%);
+  background: -moz-radial-gradient(6px 6px, cover, rgba(255,255,255,0.2) 3px, rgba(198,225,246,0.2) 5px, rgba(27,113,177,0.5) 100%);
 }
 
 /* we need to be specific for selects because the above rules are specific too */
@@ -250,21 +244,21 @@ button[disabled],
   border-color: rgba(125,125,125,0.4);
   border-style: solid;
   border-width: 1px;
-  background: transparent linear-gradient(rgba(185,185,185,0.4) 0, rgba(235,235,235,0.4) 3px, rgba(255,255,255,0.4) 100%);
+  background: transparent -moz-linear-gradient(top, rgba(185,185,185,0.4) 0, rgba(235,235,235,0.4) 3px, rgba(255,255,255,0.4) 100%);
 }
 
 select:not([size]):not([multiple])[disabled],
 select[size="0"][disabled],
 select[size="1"][disabled] {
-  background: transparent linear-gradient(rgba(255,255,255,0.4) 0, rgba(235,235,235,0.4) 3px, rgba(185,185,185,0.4) 100%);
+  background: transparent -moz-linear-gradient(top, rgba(255,255,255,0.4) 0, rgba(235,235,235,0.4) 3px, rgba(185,185,185,0.4) 100%);
 }
 
 input[type="button"][disabled],
 input[type="submit"][disabled],
 input[type="reset"][disabled],
-button[disabled] {
+button[disabled="true"] {
   padding: 0 7px 0 7px;
-  background: transparent linear-gradient(rgba(255,255,255,0.4) 0, rgba(235,235,235,0.4) 3px, rgba(185,185,185,0.4) 100%);
+  background: transparent -moz-linear-gradient(top, rgba(255,255,255,0.4) 0, rgba(235,235,235,0.4) 3px, rgba(185,185,185,0.4) 100%);
 }
 
 input[type="radio"][disabled],
@@ -286,21 +280,10 @@ select[disabled] > button {
 *:-moz-any-link:active,
 *[role=button]:active,
 button:active,
+input:active,
 option:active,
 select:active,
-label:active {
+label:active,
+textarea:active {
   background-color: rgba(141, 184, 216, 0.5);
 }
-
-input[type=number] > div > div, /* work around bug 946184 */
-input[type=number]::-moz-number-spin-box {
-  display: none;
-}
-
-%ifdef MOZ_WIDGET_GONK
-/* This binding only provide key shortcuts that we can't use on devices */
-input,
-textarea {
--moz-binding: none !important;
-}
-%endif

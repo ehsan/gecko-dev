@@ -4,20 +4,19 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsTXTToHTMLConv.h"
+#include "nsNetUtil.h"
 #include "nsEscape.h"
 #include "nsStringStream.h"
 #include "nsAutoPtr.h"
-#include "nsIChannel.h"
-#include <algorithm>
 
-#define TOKEN_DELIMITERS MOZ_UTF16("\t\r\n ")
+#define TOKEN_DELIMITERS NS_LITERAL_STRING("\t\r\n ").get()
 
 // nsISupports methods
-NS_IMPL_ISUPPORTS(nsTXTToHTMLConv,
-                  nsIStreamConverter,
-                  nsITXTToHTMLConv,
-                  nsIRequestObserver,
-                  nsIStreamListener)
+NS_IMPL_ISUPPORTS4(nsTXTToHTMLConv,
+                   nsIStreamConverter,
+                   nsITXTToHTMLConv,
+                   nsIRequestObserver,
+                   nsIStreamListener)
 
 
 // nsIStreamConverter methods
@@ -111,7 +110,7 @@ nsTXTToHTMLConv::OnStopRequest(nsIRequest* request, nsISupports *aContext,
 
 // nsITXTToHTMLConv methods
 NS_IMETHODIMP
-nsTXTToHTMLConv::SetTitle(const char16_t *aTitle)
+nsTXTToHTMLConv::SetTitle(const PRUnichar *aTitle)
 {
     mPageTitle.Assign(aTitle);
     return NS_OK;
@@ -128,7 +127,7 @@ nsTXTToHTMLConv::PreFormatHTML(bool value)
 NS_IMETHODIMP
 nsTXTToHTMLConv::OnDataAvailable(nsIRequest* request, nsISupports *aContext,
                                  nsIInputStream *aInStream,
-                                 uint64_t aOffset, uint32_t aCount)
+                                 uint32_t aOffset, uint32_t aCount)
 {
     nsresult rv = NS_OK;
     nsString pushBuffer;
@@ -169,8 +168,8 @@ nsTXTToHTMLConv::OnDataAvailable(nsIRequest* request, nsISupports *aContext,
         }
 
         int32_t end = mBuffer.RFind(TOKEN_DELIMITERS, mBuffer.Length());
-        mBuffer.Left(pushBuffer, std::max(cursor, end));
-        mBuffer.Cut(0, std::max(cursor, end));
+        mBuffer.Left(pushBuffer, NS_MAX(cursor, end));
+        mBuffer.Cut(0, NS_MAX(cursor, end));
         cursor = 0;
 
         if (!pushBuffer.IsEmpty()) {
@@ -211,21 +210,21 @@ nsTXTToHTMLConv::Init()
     convToken *token = new convToken;
     if (!token) return NS_ERROR_OUT_OF_MEMORY;
     token->prepend = false;
-    token->token.Assign(char16_t('<'));
+    token->token.Assign(PRUnichar('<'));
     token->modText.AssignLiteral("&lt;");
     mTokens.AppendElement(token);
 
     token = new convToken;
     if (!token) return NS_ERROR_OUT_OF_MEMORY;
     token->prepend = false;
-    token->token.Assign(char16_t('>'));
+    token->token.Assign(PRUnichar('>'));
     token->modText.AssignLiteral("&gt;");
     mTokens.AppendElement(token);
 
     token = new convToken;
     if (!token) return NS_ERROR_OUT_OF_MEMORY;
     token->prepend = false;
-    token->token.Assign(char16_t('&'));
+    token->token.Assign(PRUnichar('&'));
     token->modText.AssignLiteral("&amp;");
     mTokens.AppendElement(token);
 
@@ -238,7 +237,7 @@ nsTXTToHTMLConv::Init()
     token = new convToken;
     if (!token) return NS_ERROR_OUT_OF_MEMORY;
     token->prepend = true;
-    token->token.Assign(char16_t('@'));
+    token->token.Assign(PRUnichar('@'));
     token->modText.AssignLiteral("mailto:");
     mTokens.AppendElement(token);
 

@@ -31,10 +31,10 @@ nsUserInfo::~nsUserInfo()
 {
 }
 
-NS_IMPL_ISUPPORTS(nsUserInfo,nsIUserInfo)
+NS_IMPL_ISUPPORTS1(nsUserInfo,nsIUserInfo)
 
 NS_IMETHODIMP
-nsUserInfo::GetFullname(char16_t **aFullname)
+nsUserInfo::GetFullname(PRUnichar **aFullname)
 {
     struct passwd *pw = nullptr;
 
@@ -46,7 +46,7 @@ nsUserInfo::GetFullname(char16_t **aFullname)
     printf("fullname = %s\n", pw->PW_GECOS);
 #endif
 
-    nsAutoCString fullname(pw->PW_GECOS);
+    nsCAutoString fullname(pw->PW_GECOS);
 
     // now try to parse the GECOS information, which will be in the form
     // Full Name, <other stuff> - eliminate the ", <other stuff>
@@ -60,7 +60,7 @@ nsUserInfo::GetFullname(char16_t **aFullname)
 
     // replace ampersand with username
     if (pw->pw_name) {
-        nsAutoCString username(pw->pw_name);
+        nsCAutoString username(pw->pw_name);
         if (!username.IsEmpty() && nsCRT::IsLower(username.CharAt(0)))
             username.SetCharAt(nsCRT::ToUpper(username.CharAt(0)), 0);
             
@@ -92,7 +92,7 @@ nsUserInfo::GetUsername(char * *aUsername)
     printf("username = %s\n", pw->pw_name);
 #endif
 
-    *aUsername = strdup(pw->pw_name);
+    *aUsername = nsCRT::strdup(pw->pw_name);
 
     return NS_OK;
 }
@@ -110,12 +110,14 @@ nsUserInfo::GetDomain(char * *aDomain)
         return rv;
     }
 
-#if defined(__linux__)
+#if defined(HAVE_UNAME_DOMAINNAME_FIELD)
     domainname = buf.domainname;
+#elif defined(HAVE_UNAME_US_DOMAINNAME_FIELD)
+    domainname = buf.__domainname;
 #endif
 
     if (domainname && domainname[0]) {   
-        *aDomain = strdup(domainname);
+        *aDomain = nsCRT::strdup(domainname);
         rv = NS_OK;
     }
     else {
@@ -126,7 +128,7 @@ nsUserInfo::GetDomain(char * *aDomain)
             // if the nodename is foo.bar.org, use bar.org as the domain
             char *pos = strchr(buf.nodename,'.');
             if (pos) {
-                *aDomain = strdup(pos+1);
+                *aDomain = nsCRT::strdup(pos+1);
                 rv = NS_OK;
             }
         }
@@ -142,7 +144,7 @@ nsUserInfo::GetEmailAddress(char * *aEmailAddress)
 
     nsresult rv;
 
-    nsAutoCString emailAddress;
+    nsCAutoString emailAddress;
     nsXPIDLCString username;
     nsXPIDLCString domain;
 

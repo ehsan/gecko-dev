@@ -26,7 +26,7 @@ class nsIChannel;
 class nsAsyncRedirectVerifyHelper MOZ_FINAL : public nsIRunnable,
                                               public nsIAsyncVerifyRedirectCallback
 {
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIRUNNABLE
     NS_DECL_NSIASYNCVERIFYREDIRECTCALLBACK
 
@@ -92,7 +92,7 @@ private:
 class nsAsyncRedirectAutoCallback
 {
 public:
-    explicit nsAsyncRedirectAutoCallback(nsIAsyncVerifyRedirectCallback* aCallback)
+    nsAsyncRedirectAutoCallback(nsIAsyncVerifyRedirectCallback* aCallback)
         : mCallback(aCallback)
     {
         mResult = NS_OK;

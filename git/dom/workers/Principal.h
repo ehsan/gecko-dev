@@ -8,13 +8,12 @@
 
 #include "Workers.h"
 
+#include "jspubtd.h"
+
 BEGIN_WORKERS_NAMESPACE
 
 JSPrincipals*
 GetWorkerPrincipal();
-
-void
-DestroyWorkerPrincipals(JSPrincipals* aPrincipals);
 
 END_WORKERS_NAMESPACE
 

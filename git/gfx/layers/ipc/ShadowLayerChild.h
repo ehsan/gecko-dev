@@ -8,9 +8,7 @@
 #ifndef mozilla_layers_ShadowLayerChild_h
 #define mozilla_layers_ShadowLayerChild_h
 
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
-#include "mozilla/ipc/ProtocolUtils.h"
-#include "mozilla/layers/PLayerChild.h"  // for PLayerChild
+#include "mozilla/layers/PLayerChild.h"
 
 namespace mozilla {
 namespace layers {
@@ -20,7 +18,7 @@ class ShadowableLayer;
 class ShadowLayerChild : public PLayerChild
 {
 public:
-  explicit ShadowLayerChild(ShadowableLayer* aLayer);
+  ShadowLayerChild(ShadowableLayer* aLayer);
   virtual ~ShadowLayerChild();
 
   ShadowableLayer* layer() const { return mLayer; }

@@ -7,12 +7,10 @@ let presenter;
 
 function test() {
   if (!isTiltEnabled()) {
-    aborting();
     info("Skipping highlight test because Tilt isn't enabled.");
     return;
   }
   if (!isWebGLSupported()) {
-    aborting();
     info("Skipping highlight test because WebGL isn't supported.");
     return;
   }
@@ -33,7 +31,7 @@ function test() {
       }
     }, false, function suddenDeath()
     {
-      ok(false, "Tilt could not be initialized properly.");
+      info("Tilt could not be initialized properly.");
       cleanup();
     });
   });
@@ -61,7 +59,7 @@ function whenUnhighlighting() {
   executeSoon(function() {
     Services.obs.removeObserver(whenUnhighlighting, UNHIGHLIGHTING);
     Services.obs.addObserver(cleanup, DESTROYED, false);
-    Tilt.destroy(Tilt.currentWindowId);
+    InspectorUI.closeInspectorUI();
   });
 }
 

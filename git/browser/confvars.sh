@@ -9,31 +9,19 @@ MOZ_UPDATER=1
 MOZ_PHOENIX=1
 
 if test "$OS_ARCH" = "WINNT"; then
-  MOZ_MAINTENANCE_SERVICE=1
-  MOZ_VERIFY_MAR_SIGNATURE=1
-  if ! test "$HAVE_64BIT_BUILD"; then
-    if test "$MOZ_UPDATE_CHANNEL" = "nightly" -o \
-            "$MOZ_UPDATE_CHANNEL" = "aurora" -o \
-            "$MOZ_UPDATE_CHANNEL" = "beta" -o \
-            "$MOZ_UPDATE_CHANNEL" = "release"; then
-      if ! test "$MOZ_DEBUG"; then
-        MOZ_STUB_INSTALLER=1
-      fi
-    fi
+  if ! test "$HAVE_64BIT_OS"; then
+    MOZ_VERIFY_MAR_SIGNATURE=1
+    MOZ_MAINTENANCE_SERVICE=1
   fi
 fi
 
 MOZ_CHROME_FILE_FORMAT=omni
-MOZ_DISABLE_EXPORT_JS=1
 MOZ_SAFE_BROWSING=1
-MOZ_SERVICES_COMMON=1
-MOZ_SERVICES_CRYPTO=1
-MOZ_SERVICES_HEALTHREPORT=1
-MOZ_SERVICES_METRICS=1
+MOZ_SERVICES_AITC=1
+MOZ_SERVICES_NOTIFICATIONS=1
 MOZ_SERVICES_SYNC=1
-MOZ_SERVICES_CLOUDSYNC=1
 MOZ_APP_VERSION=$FIREFOX_VERSION
-MOZ_EXTENSIONS_DEFAULT=" gio"
+MOZ_EXTENSIONS_DEFAULT=" gnomevfs"
 # MOZ_APP_DISPLAYNAME will be set by branding/configure.sh
 # Changing MOZ_*BRANDING_DIRECTORY requires a clobber to ensure correct results,
 # because branding dependencies are broken.
@@ -52,15 +40,7 @@ ACCEPTED_MAR_CHANNEL_IDS=firefox-mozilla-beta,firefox-mozilla-release
 # The MAR_CHANNEL_ID must not contain the following 3 characters: ",\t "
 MAR_CHANNEL_ID=firefox-mozilla-beta
 MOZ_PROFILE_MIGRATOR=1
+MOZ_EXTENSION_MANAGER=1
 MOZ_APP_STATIC_INI=1
 MOZ_WEBAPP_RUNTIME=1
 MOZ_MEDIA_NAVIGATOR=1
-MOZ_WEBGL_CONFORMANT=1
-# Enable navigator.mozPay
-MOZ_PAY=1
-# Enable activities. These are used for FxOS developers currently.
-MOZ_ACTIVITIES=1
-MOZ_JSDOWNLOADS=1
-MOZ_WEBM_ENCODER=1
-# Enable generational GC on desktop.
-export JSGC_GENERATIONAL=1

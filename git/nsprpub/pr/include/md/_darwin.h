@@ -26,8 +26,6 @@
 #define _PR_SI_ARCHITECTURE "ppc"
 #elif defined(__arm__)
 #define _PR_SI_ARCHITECTURE "arm"
-#elif defined(__aarch64__)
-#define _PR_SI_ARCHITECTURE "aarch64"
 #else
 #error "Unknown CPU architecture"
 #endif
@@ -124,7 +122,7 @@ extern PRInt32 _PR_Darwin_x86_64_AtomicAdd(PRInt32 *ptr, PRInt32 val);
 #define _MD_ATOMIC_ADD(ptr, val)    _PR_Darwin_x86_64_AtomicAdd(ptr, val)
 #endif /* __x86_64__ */
 
-#if defined(__arm__) || defined(__aarch64__)
+#ifdef __arm__
 #define _PR_HAVE_ATOMIC_OPS
 #define _MD_INIT_ATOMIC()
 #define _MD_ATOMIC_INCREMENT(val)   OSAtomicIncrement32(val)
@@ -138,7 +136,7 @@ static inline PRInt32 _MD_ATOMIC_SET(PRInt32 *val, PRInt32 newval)
     return oldval;
 }
 #define _MD_ATOMIC_ADD(ptr, val)    OSAtomicAdd32(val, ptr)
-#endif /* __arm__ || __aarch64__ */
+#endif /* __arm__ */
 
 #define USE_SETJMP
 
@@ -282,14 +280,12 @@ extern void _MD_YIELD(void);
 
 #define _MD_EARLY_INIT          _MD_EarlyInit
 #define _MD_FINAL_INIT			_PR_UnixInit
-#define _MD_INTERVAL_INIT       _PR_Mach_IntervalInit
-#define _MD_GET_INTERVAL        _PR_Mach_GetInterval
-#define _MD_INTERVAL_PER_SEC    _PR_Mach_TicksPerSecond
+#define _MD_GET_INTERVAL        _PR_UNIX_GetInterval
+#define _MD_INTERVAL_PER_SEC    _PR_UNIX_TicksPerSecond
 
 extern void             _MD_EarlyInit(void);
-extern void             _PR_Mach_IntervalInit(void);
-extern PRIntervalTime   _PR_Mach_GetInterval(void);
-extern PRIntervalTime   _PR_Mach_TicksPerSecond(void);
+extern PRIntervalTime   _PR_UNIX_GetInterval(void);
+extern PRIntervalTime   _PR_UNIX_TicksPerSecond(void);
 
 /*
  * We wrapped the select() call.  _MD_SELECT refers to the built-in,

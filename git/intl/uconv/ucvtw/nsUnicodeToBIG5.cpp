@@ -12,7 +12,7 @@
 
 
 static const uint16_t *g_Big5MappingTable[2] = {
-  g_ASCIIMappingTable,
+  g_ASCIIMapping,
   g_ufBig5Mapping
 };
 

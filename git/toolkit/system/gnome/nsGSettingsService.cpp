@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "nsGSettingsService.h"
 #include "nsStringAPI.h"
@@ -77,17 +77,17 @@ GSETTINGS_FUNCTIONS
 
 static PRLibrary *gioLib = nullptr;
 
-class nsGSettingsCollection MOZ_FINAL : public nsIGSettingsCollection
+class nsGSettingsCollection : public nsIGSettingsCollection
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIGSETTINGSCOLLECTION
 
-  explicit nsGSettingsCollection(GSettings* aSettings) : mSettings(aSettings),
-                                                         mKeys(nullptr) {}
-private:
+  nsGSettingsCollection(GSettings* aSettings) : mSettings(aSettings),
+                                                mKeys(NULL) {};
   ~nsGSettingsCollection();
 
+private:
   bool KeyExists(const nsACString& aKey);
   bool SetValue(const nsACString& aKey,
                   GVariant *aValue);
@@ -108,7 +108,7 @@ nsGSettingsCollection::KeyExists(const nsACString& aKey)
   if (!mKeys)
     mKeys = g_settings_list_keys(mSettings);
 
-  for (uint32_t i = 0; mKeys[i] != nullptr; i++) {
+  for (uint32_t i = 0; mKeys[i] != NULL; i++) {
     if (aKey.Equals(mKeys[i]))
       return true;
   }
@@ -133,7 +133,7 @@ nsGSettingsCollection::SetValue(const nsACString& aKey,
                               aValue);
 }
 
-NS_IMPL_ISUPPORTS(nsGSettingsCollection, nsIGSettingsCollection)
+NS_IMPL_ISUPPORTS1(nsGSettingsCollection, nsIGSettingsCollection)
 
 NS_IMETHODIMP
 nsGSettingsCollection::SetString(const nsACString& aKey,
@@ -190,7 +190,7 @@ nsGSettingsCollection::GetString(const nsACString& aKey,
     return NS_ERROR_FAILURE;
   }
 
-  aResult.Assign(g_variant_get_string(value, nullptr));
+  aResult.Assign(g_variant_get_string(value, NULL));
   g_variant_unref(value);
 
   return NS_OK;
@@ -269,7 +269,7 @@ nsGSettingsCollection::GetStringList(const nsACString& aKey, nsIArray** aResult)
     return NS_ERROR_FAILURE;
   }
 
-  const gchar ** gs_strings = g_variant_get_strv(value, nullptr);
+  const gchar ** gs_strings = g_variant_get_strv(value, NULL);
   if (!gs_strings) {
     // empty array
     NS_ADDREF(*aResult = items);
@@ -278,7 +278,7 @@ nsGSettingsCollection::GetStringList(const nsACString& aKey, nsIArray** aResult)
   }
 
   const gchar** p_gs_strings = gs_strings;
-  while (*p_gs_strings != nullptr)
+  while (*p_gs_strings != NULL)
   {
     nsCOMPtr<nsISupportsCString> obj(do_CreateInstance(NS_SUPPORTS_CSTRING_CONTRACTID));
     if (obj) {
@@ -312,6 +312,7 @@ nsGSettingsService::Init()
     *kGSettingsSymbols[i].function =
       PR_FindFunctionSymbol(gioLib, kGSettingsSymbols[i].functionName);
     if (!*kGSettingsSymbols[i].function) {
+      PR_UnloadLibrary(gioLib);
       return NS_ERROR_FAILURE;
     }
   }
@@ -319,7 +320,7 @@ nsGSettingsService::Init()
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS(nsGSettingsService, nsIGSettingsService)
+NS_IMPL_ISUPPORTS1(nsGSettingsService, nsIGSettingsService)
 
 nsGSettingsService::~nsGSettingsService()
 {
@@ -337,7 +338,7 @@ nsGSettingsService::GetCollectionForSchema(const nsACString& schema,
 
   const char * const *schemas = g_settings_list_schemas();
 
-  for (uint32_t i = 0; schemas[i] != nullptr; i++) {
+  for (uint32_t i = 0; schemas[i] != NULL; i++) {
     if (schema.Equals(schemas[i])) {
       GSettings *settings = g_settings_new(PromiseFlatCString(schema).get());
       nsGSettingsCollection *mozGSettings = new nsGSettingsCollection(settings);

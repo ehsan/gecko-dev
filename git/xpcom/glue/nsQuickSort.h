@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -12,11 +11,10 @@
 #ifndef nsQuickSort_h___
 #define nsQuickSort_h___
 
+#include "prtypes.h"
 #include "nscore.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+PR_BEGIN_EXTERN_C
 
 /**
  * Parameters:
@@ -30,12 +28,10 @@ extern "C" {
  *      + greater than zero if the second element should be before the first
  *  5. extra data to pass to comparison function
  */
-void NS_QuickSort(void*, unsigned int, unsigned int,
-                  int (*)(const void*, const void*, void*),
-                  void*);
+NS_COM_GLUE void NS_QuickSort(void *, unsigned int, unsigned int,
+                              int (*)(const void *, const void *, void *), 
+                              void *);
 
-#ifdef __cplusplus
-}
-#endif
+PR_END_EXTERN_C
 
 #endif /* nsQuickSort_h___ */

@@ -27,30 +27,21 @@
 #include "nsIAssociatedContentSecurity.h"
 #include "nsIChildChannel.h"
 #include "nsIHttpChannelChild.h"
-#include "nsIDivertableChannel.h"
-#include "mozilla/net/DNS.h"
-
-class nsInputStreamPump;
 
 namespace mozilla {
 namespace net {
 
-class InterceptedChannelContent;
-class InterceptStreamListener;
-
-class HttpChannelChild MOZ_FINAL : public PHttpChannelChild
-                                 , public HttpBaseChannel
-                                 , public HttpAsyncAborter<HttpChannelChild>
-                                 , public nsICacheInfoChannel
-                                 , public nsIProxiedChannel
-                                 , public nsIApplicationCacheChannel
-                                 , public nsIAsyncVerifyRedirectCallback
-                                 , public nsIAssociatedContentSecurity
-                                 , public nsIChildChannel
-                                 , public nsIHttpChannelChild
-                                 , public nsIDivertableChannel
+class HttpChannelChild : public PHttpChannelChild
+                       , public HttpBaseChannel
+                       , public HttpAsyncAborter<HttpChannelChild>
+                       , public nsICacheInfoChannel
+                       , public nsIProxiedChannel
+                       , public nsIApplicationCacheChannel
+                       , public nsIAsyncVerifyRedirectCallback
+                       , public nsIAssociatedContentSecurity
+                       , public nsIChildChannel
+                       , public nsIHttpChannelChild
 {
-  virtual ~HttpChannelChild();
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSICACHEINFOCHANNEL
@@ -61,9 +52,9 @@ public:
   NS_DECL_NSIASSOCIATEDCONTENTSECURITY
   NS_DECL_NSICHILDCHANNEL
   NS_DECL_NSIHTTPCHANNELCHILD
-  NS_DECL_NSIDIVERTABLECHANNEL
 
   HttpChannelChild();
+  virtual ~HttpChannelChild();
 
   // Methods HttpBaseChannel didn't implement for us or that we override.
   //
@@ -75,10 +66,9 @@ public:
   NS_IMETHOD GetSecurityInfo(nsISupports **aSecurityInfo);
   NS_IMETHOD AsyncOpen(nsIStreamListener *listener, nsISupports *aContext);
   // HttpBaseChannel::nsIHttpChannel
-  NS_IMETHOD SetRequestHeader(const nsACString& aHeader,
-                              const nsACString& aValue,
+  NS_IMETHOD SetRequestHeader(const nsACString& aHeader, 
+                              const nsACString& aValue, 
                               bool aMerge);
-  NS_IMETHOD RedirectTo(nsIURI *newURI);
   // nsIHttpChannelInternal
   NS_IMETHOD SetupFallbackChannel(const char *aFallbackKey);
   NS_IMETHOD GetLocalAddress(nsACString& addr);
@@ -92,18 +82,14 @@ public:
 
   // IPDL holds a reference while the PHttpChannel protocol is live (starting at
   // AsyncOpen, and ending at either OnStopRequest or any IPDL error, either of
-  // which call NeckoChild::DeallocPHttpChannelChild()).
+  // which call NeckoChild::DeallocPHttpChannel()).
   void AddIPDLReference();
   void ReleaseIPDLReference();
 
   bool IsSuspended();
 
-  bool RecvNotifyTrackingProtectionDisabled() MOZ_OVERRIDE;
-  void FlushedForDiversion();
-
 protected:
-  bool RecvOnStartRequest(const nsresult& channelStatus,
-                          const nsHttpResponseHead& responseHead,
+  bool RecvOnStartRequest(const nsHttpResponseHead& responseHead,
                           const bool& useResponseHead,
                           const nsHttpHeaderArray& requestHeaders,
                           const bool& isFromCache,
@@ -111,57 +97,34 @@ protected:
                           const uint32_t& cacheExpirationTime,
                           const nsCString& cachedCharset,
                           const nsCString& securityInfoSerialization,
-                          const NetAddr& selfAddr,
-                          const NetAddr& peerAddr,
-                          const int16_t& redirectCount) MOZ_OVERRIDE;
-  bool RecvOnTransportAndData(const nsresult& channelStatus,
-                              const nsresult& status,
+                          const PRNetAddr& selfAddr,
+                          const PRNetAddr& peerAddr);
+  bool RecvOnTransportAndData(const nsresult& status,
                               const uint64_t& progress,
                               const uint64_t& progressMax,
                               const nsCString& data,
-                              const uint64_t& offset,
-                              const uint32_t& count) MOZ_OVERRIDE;
-  bool RecvOnStopRequest(const nsresult& statusCode, const ResourceTimingStruct& timing);
-  bool RecvOnProgress(const uint64_t& progress, const uint64_t& progressMax) MOZ_OVERRIDE;
-  bool RecvOnStatus(const nsresult& status) MOZ_OVERRIDE;
-  bool RecvFailedAsyncOpen(const nsresult& status) MOZ_OVERRIDE;
+                              const uint32_t& offset,
+                              const uint32_t& count);
+  bool RecvOnStopRequest(const nsresult& statusCode);
+  bool RecvOnProgress(const uint64_t& progress, const uint64_t& progressMax);
+  bool RecvOnStatus(const nsresult& status);
+  bool RecvFailedAsyncOpen(const nsresult& status);
   bool RecvRedirect1Begin(const uint32_t& newChannel,
                           const URIParams& newURI,
                           const uint32_t& redirectFlags,
-                          const nsHttpResponseHead& responseHead) MOZ_OVERRIDE;
-  bool RecvRedirect3Complete() MOZ_OVERRIDE;
+                          const nsHttpResponseHead& responseHead);
+  bool RecvRedirect3Complete();
   bool RecvAssociateApplicationCache(const nsCString& groupID,
-                                     const nsCString& clientID) MOZ_OVERRIDE;
-  bool RecvFlushedForDiversion() MOZ_OVERRIDE;
-  bool RecvDivertMessages() MOZ_OVERRIDE;
-  bool RecvDeleteSelf() MOZ_OVERRIDE;
+                                     const nsCString& clientID);
+  bool RecvDeleteSelf();
 
   bool GetAssociatedContentSecurity(nsIAssociatedContentSecurity** res = nullptr);
   virtual void DoNotifyListenerCleanup();
 
 private:
-  nsresult ContinueAsyncOpen();
-
-  void DoOnStartRequest(nsIRequest* aRequest, nsISupports* aContext);
-  void DoOnStatus(nsIRequest* aRequest, nsresult status);
-  void DoOnProgress(nsIRequest* aRequest, uint64_t progress, uint64_t progressMax);
-  void DoOnDataAvailable(nsIRequest* aRequest, nsISupports* aContext, nsIInputStream* aStream,
-                         uint64_t offset, uint32_t count);
-  void DoPreOnStopRequest(nsresult aStatus);
-  void DoOnStopRequest(nsIRequest* aRequest, nsISupports* aContext);
-
-  // Discard the prior interception and continue with the original network request.
-  void ResetInterception();
-
-  // Override this channel's pending response with a synthesized one. The content will be
-  // asynchronously read from the pump.
-  void OverrideWithSynthesizedResponse(nsHttpResponseHead* aResponseHead, nsInputStreamPump* aPump);
-
   RequestHeaderTuples mClientSetRequestHeaders;
   nsCOMPtr<nsIChildChannel> mRedirectChannelChild;
   nsCOMPtr<nsISupports> mSecurityInfo;
-  nsRefPtr<InterceptStreamListener> mInterceptListener;
-  nsRefPtr<nsInputStreamPump> mSynthesizedResponsePump;
 
   bool mIsFromCache;
   bool mCacheEntryAvailable;
@@ -173,24 +136,14 @@ private:
 
   bool mIPCOpen;
   bool mKeptAlive;            // IPC kept open, but only for security info
-  nsRefPtr<ChannelEventQueue> mEventQ;
-
-  // Once set, OnData and possibly OnStop will be diverted to the parent.
-  bool mDivertingToParent;
-  // Once set, no OnStart/OnData/OnStop callbacks should be received from the
-  // parent channel, nor dequeued from the ChannelEventQueue.
-  bool mFlushedForDiversion;
-  // Set if SendSuspend is called. Determines if SendResume is needed when
-  // diverting callbacks to parent.
-  bool mSuspendSent;
+  ChannelEventQueue mEventQ;
 
   // true after successful AsyncOpen until OnStopRequest completes.
   bool RemoteChannelExists() { return mIPCOpen && !mKeptAlive; }
 
   void AssociateApplicationCache(const nsCString &groupID,
                                  const nsCString &clientID);
-  void OnStartRequest(const nsresult& channelStatus,
-                      const nsHttpResponseHead& responseHead,
+  void OnStartRequest(const nsHttpResponseHead& responseHead,
                       const bool& useResponseHead,
                       const nsHttpHeaderArray& requestHeaders,
                       const bool& isFromCache,
@@ -198,16 +151,15 @@ private:
                       const uint32_t& cacheExpirationTime,
                       const nsCString& cachedCharset,
                       const nsCString& securityInfoSerialization,
-                      const NetAddr& selfAddr,
-                      const NetAddr& peerAddr);
-  void OnTransportAndData(const nsresult& channelStatus,
-                          const nsresult& status,
+                      const PRNetAddr& selfAddr,
+                      const PRNetAddr& peerAddr);
+  void OnTransportAndData(const nsresult& status,
                           const uint64_t progress,
                           const uint64_t& progressMax,
                           const nsCString& data,
-                          const uint64_t& offset,
+                          const uint32_t& offset,
                           const uint32_t& count);
-  void OnStopRequest(const nsresult& channelStatus, const ResourceTimingStruct& timing);
+  void OnStopRequest(const nsresult& statusCode);
   void OnProgress(const uint64_t& progress, const uint64_t& progressMax);
   void OnStatus(const nsresult& status);
   void FailedAsyncOpen(const nsresult& status);
@@ -218,6 +170,9 @@ private:
                       const nsHttpResponseHead& responseHead);
   void Redirect3Complete();
   void DeleteSelf();
+
+  // Called asynchronously from Resume: continues any pending calls into client.
+  void CompleteResume();
 
   friend class AssociateApplicationCacheEvent;
   friend class StartRequestEvent;
@@ -230,8 +185,6 @@ private:
   friend class Redirect3Event;
   friend class DeleteSelfEvent;
   friend class HttpAsyncAborter<HttpChannelChild>;
-  friend class InterceptStreamListener;
-  friend class InterceptedChannelContent;
 };
 
 //-----------------------------------------------------------------------------

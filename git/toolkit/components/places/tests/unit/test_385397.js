@@ -1,32 +1,33 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const TOTAL_SITES = 20;
-
-function run_test()
-{
-  run_next_test();
+// adds a test URI visit to the database, and checks for a valid place ID
+function add_visit(aURI, aWhen, aType) {
+  PlacesUtils.history.addVisit(aURI, aWhen, null, aType, false, 0);
 }
 
-add_task(function test_execute()
-{
+const TOTAL_SITES = 20;
+
+function run_test() {
   let now = Date.now() * 1000;
 
-  for (let i = 0; i < TOTAL_SITES; i++) {
-    let site = "http://www.test-" + i + ".com/";
-    let testURI = uri(site);
-    let testImageURI = uri(site + "blank.gif");
-    let when = now + (i * TOTAL_SITES);
-    yield promiseAddVisits([
-      { uri: testURI, visitDate: when, transition: TRANSITION_TYPED },
-      { uri: testImageURI, visitDate: ++when, transition: TRANSITION_EMBED },
-      { uri: testImageURI, visitDate: ++when, transition: TRANSITION_FRAMED_LINK },
-      { uri: testURI, visitDate: ++when, transition: TRANSITION_LINK },
-    ]);
-  }
+  PlacesUtils.history.runInBatchMode({
+    runBatched: function (aUserData) {
+      for (let i=0; i < TOTAL_SITES; i++) {
+        let site = "http://www.test-" + i + ".com/";
+        let testURI = uri(site);
+        let testImageURI = uri(site + "blank.gif");
+        let when = now + (i * TOTAL_SITES);
+        add_visit(testURI, when, PlacesUtils.history.TRANSITION_TYPED);
+        add_visit(testImageURI, ++when, PlacesUtils.history.TRANSITION_EMBED);
+        add_visit(testImageURI, ++when, PlacesUtils.history.TRANSITION_FRAMED_LINK);
+        add_visit(testURI, ++when, PlacesUtils.history.TRANSITION_LINK);
+      }
+    }
+  }, null);
 
   // verify our visits AS_VISIT, ordered by date descending
   // including hidden
@@ -55,13 +56,13 @@ add_task(function test_execute()
     let node = root.getChild(index);
     let site = "http://www.test-" + (TOTAL_SITES - 1 - i) + ".com/";
     do_check_eq(node.uri, site);
-    do_check_eq(node.type, Ci.nsINavHistoryResultNode.RESULT_TYPE_URI);
+    do_check_eq(node.type, options.RESULTS_AS_VISIT);
     node = root.getChild(++index);
     do_check_eq(node.uri, site + "blank.gif");
-    do_check_eq(node.type, Ci.nsINavHistoryResultNode.RESULT_TYPE_URI);
+    do_check_eq(node.type, options.RESULTS_AS_VISIT);
     node = root.getChild(++index);
     do_check_eq(node.uri, site);
-    do_check_eq(node.type, Ci.nsINavHistoryResultNode.RESULT_TYPE_URI);
+    do_check_eq(node.type, options.RESULTS_AS_VISIT);
   }
   root.containerOpen = false;
 
@@ -72,13 +73,13 @@ add_task(function test_execute()
   // ...
   // http://www.test-0.com/
   // http://www.test-0.com/
-  options = PlacesUtils.history.getNewQueryOptions();
+  let options = PlacesUtils.history.getNewQueryOptions();
   options.sortingMode = options.SORT_BY_DATE_DESCENDING;
   options.resultType = options.RESULTS_AS_VISIT;
-  root = PlacesUtils.history.executeQuery(PlacesUtils.history.getNewQuery(),
+  let root = PlacesUtils.history.executeQuery(PlacesUtils.history.getNewQuery(),
                                               options).root;
   root.containerOpen = true;
-  cc = root.childCount;
+  let cc = root.childCount;
   // 2 * TOTAL_SITES because we count the TYPED and LINK, but not EMBED or FRAMED
   do_check_eq(cc, 2 * TOTAL_SITES); 
   for (let i=0; i < TOTAL_SITES; i++) {
@@ -86,10 +87,10 @@ add_task(function test_execute()
     let node = root.getChild(index);
     let site = "http://www.test-" + (TOTAL_SITES - 1 - i) + ".com/";
     do_check_eq(node.uri, site);
-    do_check_eq(node.type, Ci.nsINavHistoryResultNode.RESULT_TYPE_URI);
+    do_check_eq(node.type, options.RESULTS_AS_VISIT);
     node = root.getChild(++index);
     do_check_eq(node.uri, site);
-    do_check_eq(node.type, Ci.nsINavHistoryResultNode.RESULT_TYPE_URI);
+    do_check_eq(node.type, options.RESULTS_AS_VISIT);
   }
   root.containerOpen = false;
 
@@ -100,20 +101,20 @@ add_task(function test_execute()
   // http://www.test-19.com/
   // ...
   // http://www.test-10.com/
-  options = PlacesUtils.history.getNewQueryOptions();
+  let options = PlacesUtils.history.getNewQueryOptions();
   options.sortingMode = options.SORT_BY_DATE_DESCENDING;
   options.maxResults = 10;
   options.resultType = options.RESULTS_AS_URI;
-  root = PlacesUtils.history.executeQuery(PlacesUtils.history.getNewQuery(),
+  let root = PlacesUtils.history.executeQuery(PlacesUtils.history.getNewQuery(),
                                               options).root;
   root.containerOpen = true;
-  cc = root.childCount;
+  let cc = root.childCount;
   do_check_eq(cc, options.maxResults);
   for (let i=0; i < cc; i++) {
     let node = root.getChild(i);
     let site = "http://www.test-" + (TOTAL_SITES - 1 - i) + ".com/";
     do_check_eq(node.uri, site);
-    do_check_eq(node.type, Ci.nsINavHistoryResultNode.RESULT_TYPE_URI);
+    do_check_eq(node.type, options.RESULTS_AS_URI);
   }
   root.containerOpen = false;
 
@@ -124,19 +125,19 @@ add_task(function test_execute()
   // http://www.test-19.com/
   // ...
   // http://www.test-10.com/
-  options = PlacesUtils.history.getNewQueryOptions();
+  let options = PlacesUtils.history.getNewQueryOptions();
   options.sortingMode = options.SORT_BY_DATE_DESCENDING;
   options.resultType = options.RESULTS_AS_URI;
-  root = PlacesUtils.history.executeQuery(PlacesUtils.history.getNewQuery(),
+  let root = PlacesUtils.history.executeQuery(PlacesUtils.history.getNewQuery(),
                                               options).root;
   root.containerOpen = true;
-  cc = root.childCount;
+  let cc = root.childCount;
   do_check_eq(cc, TOTAL_SITES);
   for (let i=0; i < 10; i++) {
     let node = root.getChild(i);
     let site = "http://www.test-" + (TOTAL_SITES - 1 - i) + ".com/";
     do_check_eq(node.uri, site);
-    do_check_eq(node.type, Ci.nsINavHistoryResultNode.RESULT_TYPE_URI);
+    do_check_eq(node.type, options.RESULTS_AS_URI);
   }
   root.containerOpen = false;
-});
+}

@@ -34,6 +34,7 @@ function GroupItem(listOfEls, options) {
   this._inited = false;
   this._uninited = false;
   this._children = []; // an array of Items
+  this.defaultSize = new Point(TabItems.tabWidth * 1.5, TabItems.tabHeight * 1.5);
   this.isAGroupItem = true;
   this.id = options.id || GroupItems.getNextID();
   this._isStacked = false;
@@ -93,7 +94,7 @@ function GroupItem(listOfEls, options) {
   // ___ Titlebar
   var html =
     "<div class='title-container'>" +
-      "<input class='name' />" +
+      "<input class='name' placeholder='" + this.defaultName + "'/>" +
       "<div class='title-shield' />" +
     "</div>";
 
@@ -112,13 +113,14 @@ function GroupItem(listOfEls, options) {
 
   // ___ Title
   this.$titleContainer = iQ('.title-container', this.$titlebar);
-  this.$title = iQ('.name', this.$titlebar).attr('placeholder', this.defaultName);
+  this.$title = iQ('.name', this.$titlebar);
   this.$titleShield = iQ('.title-shield', this.$titlebar);
   this.setTitle(options.title);
 
   var handleKeyPress = function (e) {
     if (e.keyCode == KeyEvent.DOM_VK_ESCAPE ||
-        e.keyCode == KeyEvent.DOM_VK_RETURN) {
+        e.keyCode == KeyEvent.DOM_VK_RETURN ||
+        e.keyCode == KeyEvent.DOM_VK_ENTER) {
       (self.$title)[0].blur();
       self.$title
         .addClass("transparentBorder")
@@ -1003,7 +1005,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
         // if it matches the selected tab or no active tab and the browser
         // tab is hidden, the active group item would be set.
-        if (item.tab.selected ||
+        if (item.tab == gBrowser.selectedTab ||
             (!GroupItems.getActiveGroupItem() && !item.tab.hidden))
           UI.setActive(this);
       }
@@ -2110,6 +2112,18 @@ let GroupItems = {
   },
 
   // ----------
+  // Function: getStorageData
+  // Returns an object for saving GroupItems state to persistent storage.
+  getStorageData: function GroupItems_getStorageData() {
+    var data = {nextID: this.nextID, groupItems: []};
+    this.groupItems.forEach(function(groupItem) {
+      data.groupItems.push(groupItem.getStorageData());
+    });
+
+    return data;
+  },
+
+  // ----------
   // Function: saveAll
   // Saves GroupItems state, as well as the state of all of the groupItems.
   saveAll: function GroupItems_saveAll() {
@@ -2292,10 +2306,6 @@ let GroupItems = {
   // Given some sort of identifier, returns the appropriate groupItem.
   // Currently only supports groupItem ids.
   groupItem: function GroupItems_groupItem(a) {
-    if (!this.groupItems) {
-      // uninit has been called
-      return null;
-    }
     var result = null;
     this.groupItems.forEach(function(candidate) {
       if (candidate.id == a)
@@ -2545,7 +2555,7 @@ let GroupItems = {
     let groupItem;
 
     // switch to the appropriate tab first.
-    if (tab.selected) {
+    if (gBrowser.selectedTab == tab) {
       if (gBrowser.visibleTabs.length > 1) {
         gBrowser._blurTab(tab);
         shouldUpdateTabBar = true;

@@ -12,7 +12,7 @@ Version:        %{moz_numeric_app_version}
 Release:        %{?moz_rpm_release:%{moz_rpm_release}}%{?buildid:.%{buildid}}
 Summary:        %{pr_name}
 Group:          Applications/Internet
-License:        MPL 2
+License:        MPLv1.1 or GPLv2+ or LGPLv2+
 Vendor:         Mozilla
 URL:            http://www.mozilla.org/projects/firefox/
 Source0:        %{name}.desktop
@@ -81,7 +81,7 @@ rm icons.list #cleanup
 make package-tests
 testdir=$RPM_BUILD_ROOT/%{_datadir}/%{_testsinstalldir}/tests
 mkdir -p $testdir
-cp -a dist/test-stage/* $testdir/
+cp -a dist/test-package-stage/* $testdir/
 %endif
 
 %clean

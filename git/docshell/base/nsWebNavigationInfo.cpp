@@ -5,14 +5,13 @@
 
 #include "nsWebNavigationInfo.h"
 #include "nsIWebNavigation.h"
+#include "nsString.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIDocumentLoaderFactory.h"
 #include "nsIPluginHost.h"
-#include "nsIDocShell.h"
 #include "nsContentUtils.h"
-#include "imgLoader.h"
 
-NS_IMPL_ISUPPORTS(nsWebNavigationInfo, nsIWebNavigationInfo)
+NS_IMPL_ISUPPORTS1(nsWebNavigationInfo, nsIWebNavigationInfo)
 
 #define CONTENT_DLF_CONTRACT "@mozilla.org/content/document-loader-factory;1"
 #define PLUGIN_DLF_CONTRACT \
@@ -25,7 +24,9 @@ nsWebNavigationInfo::Init()
   mCategoryManager = do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return NS_OK;
+  mImgLoader = do_GetService("@mozilla.org/image/loader;1", &rv);
+
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -50,22 +51,14 @@ nsWebNavigationInfo::IsTypeSupported(const nsACString& aType,
   if (*aIsTypeSupported) {
     return rv;
   }
-
-  // If this request is for a docShell that isn't going to allow plugins,
-  // there's no need to try and find a plugin to handle it.
-  nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(aWebNav));
-  bool allowed;
-  if (docShell && NS_SUCCEEDED(docShell->GetAllowPlugins(&allowed)) && !allowed) {
-    return NS_OK;
-  }
-
+  
   // Try reloading plugins in case they've changed.
   nsCOMPtr<nsIPluginHost> pluginHost =
     do_GetService(MOZ_PLUGIN_HOST_CONTRACTID);
   if (pluginHost) {
     // false will ensure that currently running plugins will not
     // be shut down
-    rv = pluginHost->ReloadPlugins();
+    rv = pluginHost->ReloadPlugins(false);
     if (NS_SUCCEEDED(rv)) {
       // OK, we reloaded plugins and there were new ones
       // (otherwise NS_ERROR_PLUGINS_PLUGINSNOTCHANGED would have
@@ -104,10 +97,9 @@ nsWebNavigationInfo::IsTypeSupportedInternal(const nsCString& aType,
     break;
 
   case nsContentUtils::TYPE_CONTENT:
-    // XXXbz we only need this because images register for the same
-    // contractid as documents, so we can't tell them apart based on
-    // contractid.
-    if (imgLoader::SupportImageWithMimeType(aType.get())) {
+    bool isImage = false;
+    mImgLoader->SupportImageWithMimeType(aType.get(), &isImage);
+    if (isImage) {
       *aIsSupported = nsIWebNavigationInfo::IMAGE;
     }
     else {

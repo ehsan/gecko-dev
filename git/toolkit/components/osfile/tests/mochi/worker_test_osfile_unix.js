@@ -1,7 +1,13 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-importScripts('worker_test_osfile_shared.js');
+function log(text) {
+  dump("WORKER "+text+"\n");
+}
+
+function send(message) {
+  self.postMessage(message);
+}
 
 self.onmessage = function(msg) {
   log("received message "+JSON.stringify(msg.data));
@@ -14,21 +20,37 @@ self.onmessage = function(msg) {
   test_create_file();
   test_access();
   test_read_write();
-  test_passing_undefined();
+  test_path();
   finish();
 };
 
+function finish() {
+  send({kind: "finish"});
+}
+
+function ok(condition, description) {
+  send({kind: "ok", condition: condition, description:description});
+}
+function is(a, b, description) {
+  let outcome = a == b; // Need to decide outcome here, as not everything can be serialized
+  send({kind: "is", outcome: outcome, description: description, a:""+a, b:""+b});
+}
+function isnot(a, b, description) {
+  let outcome = a != b; // Need to decide outcome here, as not everything can be serialized
+  send({kind: "isnot", outcome: outcome, description: description, a:""+a, b:""+b});
+}
+
 function test_init() {
-  info("Starting test_init");
-  importScripts("resource://gre/modules/osfile.jsm");
+  ok(true, "Starting test_init");
+  importScripts("resource:///modules/osfile.jsm");
 }
 
 function test_open_close() {
-  info("Starting test_open_close");
+  ok(true, "Starting test_open_close");
   is(typeof OS.Unix.File.open, "function", "OS.Unix.File.open is a function");
   let file = OS.Unix.File.open("chrome/toolkit/components/osfile/tests/mochi/worker_test_osfile_unix.js", OS.Constants.libc.O_RDONLY, 0);
   isnot(file, -1, "test_open_close: opening succeeded");
-  info("Close: "+OS.Unix.File.close.toSource());
+  ok(true, "Close: "+OS.Unix.File.close.toSource());
   let result = OS.Unix.File.close(file);
   is(result, 0, "test_open_close: close succeeded");
 
@@ -39,7 +61,7 @@ function test_open_close() {
 
 function test_create_file()
 {
-  info("Starting test_create_file");
+  ok(true, "Starting test_create_file");
   let file = OS.Unix.File.open("test.tmp", OS.Constants.libc.O_RDWR
                                | OS.Constants.libc.O_CREAT
                                | OS.Constants.libc.O_TRUNC,
@@ -50,7 +72,7 @@ function test_create_file()
 
 function test_access()
 {
-  info("Starting test_access");
+  ok(true, "Starting test_access");
   let file = OS.Unix.File.open("test1.tmp", OS.Constants.libc.O_RDWR
                                | OS.Constants.libc.O_CREAT
                                | OS.Constants.libc.O_TRUNC,
@@ -64,7 +86,7 @@ function test_access()
                                | OS.Constants.libc.O_TRUNC,
                                OS.Constants.libc.S_IWUSR);
 
-  info("test_access: preparing second call to access()");
+  ok(true, "test_access: preparing second call to access()");
   result = OS.Unix.File.access("test2.tmp", OS.Constants.libc.R_OK
                         | OS.Constants.libc.W_OK
                         | OS.Constants.libc.X_OK
@@ -128,15 +150,15 @@ function test_read_write()
     }
     total += write_from;
   }
-  info("test_read_write: copy complete " + total);
+  ok(true, "test_read_write: copy complete " + total);
 
   // Compare files
   let result;
-  info("SEEK_SET: " + OS.Constants.libc.SEEK_SET);
-  info("Input: " + input + "(" + input.toSource() + ")");
-  info("Output: " + output + "(" + output.toSource() + ")");
+  ok(true, "SEEK_SET: " + OS.Constants.libc.SEEK_SET);
+  ok(true, "Input: " + input + "(" + input.toSource() + ")");
+  ok(true, "Output: " + output + "(" + output.toSource() + ")");
   result = OS.Unix.File.lseek(input, 0, OS.Constants.libc.SEEK_SET);
-  info("Result of lseek: " + result);
+  ok(true, "Result of lseek: " + result);
   isnot(result, -1, "test_read_write: input seek succeeded " + ctypes.errno);
   result = OS.Unix.File.lseek(output, 0, OS.Constants.libc.SEEK_SET);
   isnot(result, -1, "test_read_write: output seek succeeded " + ctypes.errno);
@@ -172,30 +194,40 @@ function test_read_write()
       }
     }
   }
-  info("test_read_write test complete");
+  ok(true, "test_read_write test complete");
   result = OS.Unix.File.close(input);
   isnot(result, -1, "test_read_write: input close succeeded");
   result = OS.Unix.File.close(output);
   isnot(result, -1, "test_read_write: output close succeeded");
   result = OS.Unix.File.unlink(output_name);
   isnot(result, -1, "test_read_write: input remove succeeded");
-  info("test_read_write cleanup complete");
+  ok(true, "test_read_write cleanup complete");
 }
 
-function test_passing_undefined()
+function test_path()
 {
-  info("Testing that an exception gets thrown when an FFI function is passed undefined");
-  let exceptionRaised = false;
-
+  ok(true, "test_path: starting");
+  is(OS.Unix.Path.basename("a/b"), "b", "basename of a/b");
+  is(OS.Unix.Path.basename("a/b/"), "", "basename of a/b/");
+  is(OS.Unix.Path.basename("abc"), "abc", "basename of abc");
+  is(OS.Unix.Path.dirname("a/b"), "a", "basename of a/b");
+  is(OS.Unix.Path.dirname("a/b/"), "a/b", "basename of a/b/");
+  is(OS.Unix.Path.dirname("a////b"), "a", "basename of a///b");
+  is(OS.Unix.Path.dirname("abc"), ".", "basename of abc");
+  is(OS.Unix.Path.normalize("/a/b/c"), "/a/b/c", "normalize /a/b/c");
+  is(OS.Unix.Path.normalize("/a/b////c"), "/a/b/c", "normalize /a/b////c");
+  is(OS.Unix.Path.normalize("////a/b/c"), "/a/b/c", "normalize ///a/b/c");
+  is(OS.Unix.Path.normalize("/a/b/c///"), "/a/b/c", "normalize /a/b/c///");
+  is(OS.Unix.Path.normalize("/a/b/c/../../../d/e/f"), "/d/e/f", "normalize /a/b/c/../../../d/e/f");
+  is(OS.Unix.Path.normalize("a/b/c/../../../d/e/f"), "d/e/f", "normalize a/b/c/../../../d/e/f");
+  let error = false;
   try {
-    let file = OS.Unix.File.open(undefined, OS.Constants.libc.O_RDWR
-                                            | OS.Constants.libc.O_CREAT
-                                            | OS.Constants.libc.O_TRUNC,
-                                            OS.Constants.libc.S_IRWXU);
-  } catch(e if e instanceof TypeError && e.message.indexOf("open") > -1) {
-    exceptionRaised = true;
+    OS.Unix.Path.normalize("/a/b/c/../../../../d/e/f");
+  } catch (x) {
+    error = true;
   }
-
-  ok(exceptionRaised, "test_passing_undefined: exception gets thrown")
+  ok(error, "cannot normalize /a/b/c/../../../../d/e/f");
+  is(OS.Unix.Path.join("/tmp", "foo", "bar"), "/tmp/foo/bar", "join /tmp,foo,bar");
+  is(OS.Unix.Path.join("/tmp", "/foo", "bar"), "/foo/bar", "join /tmp,/foo,bar");
+  ok(true, "test_path: complete");
 }
-

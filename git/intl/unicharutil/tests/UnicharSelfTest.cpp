@@ -4,16 +4,22 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <stdio.h>
+#include "nsISupports.h"
 #include "nsXPCOM.h"
+#include "nsIServiceManager.h"
+#include "nsIComponentManager.h"
+#include "nsICaseConversion.h"
 #include "nsIEntityConverter.h"
 #include "nsISaveAsCharset.h"
+#include "nsIUnicodeEncoder.h"
+#include "nsUnicharUtilCIID.h"
+#include "nsIPersistentProperties2.h"
+#include "nsIURL.h"
+#include "nsNetUtil.h"
 #include "nsCOMPtr.h"
 #include "nsIUnicodeNormalizer.h"
 #include "nsStringAPI.h"
 #include "nsUnicharUtils.h"
-#include "nsMemory.h"
-#include "nsComponentManagerUtils.h"
-#include "nsServiceManagerUtils.h"
 
 NS_DEFINE_CID(kEntityConverterCID, NS_ENTITYCONVERTER_CID);
 NS_DEFINE_CID(kSaveAsCharsetCID, NS_SAVEASCHARSET_CID);
@@ -25,7 +31,7 @@ NS_DEFINE_CID(kUnicodeNormalizerCID, NS_UNICODE_NORMALIZER_CID);
 #define T4LEN TESTLEN
 
 // test data for ToUpper 
-static char16_t t2data  [T2LEN+1] = {
+static PRUnichar t2data  [T2LEN+1] = {
   0x0031 ,  //  0
   0x0019 ,  //  1
   0x0043 ,  //  2
@@ -61,7 +67,7 @@ static char16_t t2data  [T2LEN+1] = {
   0x00  
 };
 // expected result for ToUpper 
-static char16_t t2result[T2LEN+1] =  {
+static PRUnichar t2result[T2LEN+1] =  {
   0x0031 ,  //  0
   0x0019 ,  //  1
   0x0043 ,  //  2
@@ -97,7 +103,7 @@ static char16_t t2result[T2LEN+1] =  {
   0x00  
 };
 // test data for ToLower 
-static char16_t t3data  [T3LEN+1] =  {
+static PRUnichar t3data  [T3LEN+1] =  {
   0x0031 ,  //  0
   0x0019 ,  //  1
   0x0043 ,  //  2
@@ -133,7 +139,7 @@ static char16_t t3data  [T3LEN+1] =  {
   0x00  
 };
 // expected result for ToLower 
-static char16_t t3result[T3LEN+1] =  {
+static PRUnichar t3result[T3LEN+1] =  {
   0x0031 ,  //  0
   0x0019 ,  //  1
   0x0063 ,  //  2
@@ -169,7 +175,7 @@ static char16_t t3result[T3LEN+1] =  {
   0x00  
 };
 // test data for ToTitle 
-static char16_t t4data  [T4LEN+2] =  {
+static PRUnichar t4data  [T4LEN+2] =  {
   0x0031 ,  //  0
   0x0019 ,  //  1
   0x0043 ,  //  2
@@ -206,7 +212,7 @@ static char16_t t4data  [T4LEN+2] =  {
   0x00  
 };
 // expected result for ToTitle 
-static char16_t t4result[T4LEN+2] =  {
+static PRUnichar t4result[T4LEN+2] =  {
   0x0031 ,  //  0
   0x0019 ,  //  1
   0x0043 ,  //  2
@@ -347,34 +353,34 @@ void TestCaseConversion()
   printf("==========================\n");
 
   int i;
-  char16_t buf[256];
+  PRUnichar buf[256];
 
-  printf("Test 1 - ToUpper(char16_t, char16_t*):\n");
+  printf("Test 1 - ToUpper(PRUnichar, PRUnichar*):\n");
   for(i=0;i < T2LEN ; i++)
   {
-    char16_t ch = ToUpperCase(t2data[i]);
+    PRUnichar ch = ToUpperCase(t2data[i]);
     if(ch != t2result[i])
       printf("\tFailed!! result unexpected %d\n", i);
   }
 
 
-  printf("Test 2 - ToLower(char16_t, char16_t*):\n");
+  printf("Test 2 - ToLower(PRUnichar, PRUnichar*):\n");
   for(i=0;i < T3LEN; i++)
   {
-    char16_t ch = ToLowerCase(t3data[i]);
+    PRUnichar ch = ToLowerCase(t3data[i]);
     if(ch != t3result[i])
       printf("\tFailed!! result unexpected %d\n", i);
   }
 
-  printf("Test 3 - ToTitle(char16_t, char16_t*):\n");
+  printf("Test 3 - ToTitle(PRUnichar, PRUnichar*):\n");
   for(i=0;i < T4LEN; i++)
   {
-    char16_t ch = ToTitleCase(t4data[i]);
+    PRUnichar ch = ToTitleCase(t4data[i]);
     if(ch != t4result[i])
       printf("\tFailed!! result unexpected %d\n", i);
   }
 
-  printf("Test 4 - ToUpper(char16_t*, char16_t*, uint32_t):\n");
+  printf("Test 4 - ToUpper(PRUnichar*, PRUnichar*, uint32_t):\n");
   ToUpperCase(t2data, buf, T2LEN);
   for(i = 0; i < T2LEN; i++)
   {
@@ -385,7 +391,7 @@ void TestCaseConversion()
      }
   }
 
-  printf("Test 5 - ToLower(char16_t*, char16_t*, uint32_t):\n");
+  printf("Test 5 - ToLower(PRUnichar*, PRUnichar*, uint32_t):\n");
   ToLowerCase(t3data, buf, T3LEN);
   for(i = 0; i < T3LEN; i++)
   {
@@ -485,20 +491,20 @@ static void TestEntityConversion(uint32_t version)
 
   uint32_t i;
   nsString inString;
-  char16_t uChar;
+  PRUnichar uChar;
   nsresult res;
 
 
   inString.Assign(NS_ConvertASCIItoUTF16("\xA0\xA1\xA2\xA3"));
-  uChar = (char16_t) 8364; //euro
+  uChar = (PRUnichar) 8364; //euro
   inString.Append(&uChar, 1);
-  uChar = (char16_t) 9830; //
+  uChar = (PRUnichar) 9830; //
   inString.Append(&uChar, 1);
 
   nsCOMPtr <nsIEntityConverter> entityConv = do_CreateInstance(kEntityConverterCID, &res);;
   if (NS_FAILED(res)) {printf("\tFailed!! return value != NS_OK\n"); return;}
 
-  const char16_t *data;
+  const PRUnichar *data;
   uint32_t length = NS_StringGetData(inString, &data);
 
   // convert char by char
@@ -512,10 +518,10 @@ static void TestEntityConversion(uint32_t version)
   }
 
   // convert at once as a string
-  char16_t *entities;
+  PRUnichar *entities;
   res = entityConv->ConvertToEntities(inString.get(), version, &entities);
   if (NS_SUCCEEDED(res) && entities) {
-    for (char16_t *centity = entities; *centity; ++centity) {
+    for (PRUnichar *centity = entities; *centity; ++centity) {
       printf("%c", (char) *centity);
       if (';' == (char) *centity)
         printf("\n");
@@ -540,7 +546,7 @@ static void TestSaveAsCharset()
   inString.Assign(NS_ConvertASCIItoUTF16("\x61\x62\x80\xA0\x63"));
   char *outString;
   
-  const char16_t *data;
+  const PRUnichar *data;
   uint32_t length = NS_StringGetData(inString, &data);
 
   // first, dump input string
@@ -624,7 +630,7 @@ static void TestSaveAsCharset()
   printf("==============================\n\n");
 }
 
-static char16_t normStr[] = 
+static PRUnichar normStr[] = 
 {
   0x00E1,   
   0x0061,
@@ -635,7 +641,7 @@ static char16_t normStr[] =
   0x0000
 };
 
-static char16_t nfdForm[] = 
+static PRUnichar nfdForm[] = 
 {
   0x0061,
   0x0301,

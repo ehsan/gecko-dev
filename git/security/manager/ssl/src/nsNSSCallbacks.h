@@ -7,8 +7,6 @@
 #ifndef _NSNSSCALLBACKS_H_
 #define _NSNSSCALLBACKS_H_
 
-#include "nsAutoPtr.h"
-#include "nsCOMPtr.h"
 #include "pk11func.h"
 #include "nspr.h"
 #include "ocspt.h"
@@ -16,16 +14,14 @@
 #include "mozilla/CondVar.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/Attributes.h"
-#include "nsString.h"
 
-class nsILoadGroup;
-
-char*
+char* PR_CALLBACK
 PK11PasswordPrompt(PK11SlotInfo *slot, PRBool retry, void* arg);
 
-void HandshakeCallback(PRFileDesc *fd, void *client_data);
-SECStatus CanFalseStartCallback(PRFileDesc* fd, void* client_data,
-                                PRBool *canFalseStart);
+void PR_CALLBACK HandshakeCallback(PRFileDesc *fd, void *client_data);
+
+SECStatus RegisterMyOCSPAIAInfoCallback();
+SECStatus UnregisterMyOCSPAIAInfoCallback();
 
 class nsHTTPListener MOZ_FINAL : public nsIStreamLoaderObserver
 {
@@ -33,16 +29,12 @@ private:
   // For XPCOM implementations that are not a base class for some other
   // class, it is good practice to make the destructor non-virtual and
   // private.  Then the only way to delete the object is via Release.
-#ifdef _MSC_VER
-  // C4265: Class has virtual members but destructor is not virtual
-  __pragma(warning(disable:4265))
-#endif
   ~nsHTTPListener();
 
 public:
   nsHTTPListener();
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSISTREAMLOADEROBSERVER
 
   nsCOMPtr<nsIStreamLoader> mLoader;
@@ -53,7 +45,7 @@ public:
   uint16_t mHttpResponseCode;
   nsCString mHttpResponseContentType;
 
-  const uint8_t* mResultData; // allocated in loader, but owned by listener
+  const uint8_t* mResultData; // not owned, refers to mLoader
   uint32_t mResultLen;
   
   mozilla::Mutex mLock;
@@ -86,7 +78,7 @@ public:
 class nsNSSHttpRequestSession
 {
 protected:
-  mozilla::ThreadSafeAutoRefCnt mRefCount;
+  int32_t mRefCount;
 
 public:
   static SECStatus createFcn(SEC_HTTP_SERVER_SESSION session,
@@ -125,7 +117,7 @@ public:
   
   PRIntervalTime mTimeoutInterval;
   
-  nsRefPtr<nsHTTPListener> mListener;
+  nsCOMPtr<nsHTTPListener> mListener;
   
 protected:
   nsNSSHttpRequestSession();
@@ -220,6 +212,12 @@ public:
 
   static void initTable();
   static SEC_HttpClientFcn sNSSInterfaceTable;
+
+  void registerHttpClient();
+  void unregisterHttpClient();
 };
 
 #endif // _NSNSSCALLBACKS_H_
+
+
+

@@ -8,10 +8,7 @@
 #ifndef mozilla_layers_ShadowLayerParent_h
 #define mozilla_layers_ShadowLayerParent_h
 
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
-#include "mozilla/ipc/ProtocolUtils.h"
-#include "mozilla/layers/PLayerParent.h"  // for PLayerParent
-#include "nsAutoPtr.h"                  // for nsRefPtr
+#include "mozilla/layers/PLayerParent.h"
 
 namespace mozilla {
 namespace layers {
@@ -19,13 +16,7 @@ namespace layers {
 class ContainerLayer;
 class Layer;
 class LayerManager;
-
-class CanvasLayerComposite;
-class ColorLayerComposite;
-class ContainerLayerComposite;
-class ImageLayerComposite;
-class RefLayerComposite;
-class PaintedLayerComposite;
+class ShadowLayersParent;
 
 class ShadowLayerParent : public PLayerParent
 {
@@ -38,13 +29,7 @@ public:
   void Destroy();
 
   Layer* AsLayer() const { return mLayer; }
-
-  ContainerLayerComposite* AsContainerLayerComposite() const;
-  CanvasLayerComposite* AsCanvasLayerComposite() const;
-  ColorLayerComposite* AsColorLayerComposite() const;
-  ImageLayerComposite* AsImageLayerComposite() const;
-  RefLayerComposite* AsRefLayerComposite() const;
-  PaintedLayerComposite* AsPaintedLayerComposite() const;
+  ContainerLayer* AsContainer() const;
 
 private:
   virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;

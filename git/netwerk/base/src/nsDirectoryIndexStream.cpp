@@ -16,21 +16,24 @@
 
 #include "nsEscape.h"
 #include "nsDirectoryIndexStream.h"
+#include "nsXPIDLString.h"
+#include "prio.h"
 #include "prlog.h"
-#include "prtime.h"
+#include "prlong.h"
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gLog;
 #endif
 
 #include "nsISimpleEnumerator.h"
-#ifdef THREADSAFE_I18N
-#include "nsCollationCID.h"
 #include "nsICollation.h"
 #include "nsILocale.h"
 #include "nsILocaleService.h"
-#endif
-#include "nsIFile.h"
+#include "nsCollationCID.h"
+#include "nsIPlatformCharset.h"
+#include "nsReadableUtils.h"
 #include "nsURLHelper.h"
+#include "nsNetUtil.h"
+#include "nsCRT.h"
 #include "nsNativeCharsetUtils.h"
 
 // NOTE: This runs on the _file transport_ thread.
@@ -78,7 +81,7 @@ static int compare(nsIFile* aElement1, nsIFile* aElement2, void* aData)
         return Compare(name1, name2);
     }
 
-    nsAutoCString name1, name2;
+    nsCAutoString name1, name2;
     aElement1->GetNativeLeafName(name1);
     aElement2->GetNativeLeafName(name2);
 
@@ -98,7 +101,7 @@ nsDirectoryIndexStream::Init(nsIFile* aDir)
 
 #ifdef PR_LOGGING
     if (PR_LOG_TEST(gLog, PR_LOG_DEBUG)) {
-        nsAutoCString path;
+        nsCAutoString path;
         aDir->GetNativePath(path);
         PR_LOG(gLog, PR_LOG_DEBUG,
                ("nsDirectoryIndexStream[%p]: initialized on %s",
@@ -150,7 +153,7 @@ nsDirectoryIndexStream::Init(nsIFile* aDir)
 #endif
 
     mBuf.AppendLiteral("300: ");
-    nsAutoCString url;
+    nsCAutoString url;
     rv = net_GetURLSpecFromFile(aDir, url);
     if (NS_FAILED(rv)) return rv;
     mBuf.Append(url);
@@ -186,7 +189,7 @@ nsDirectoryIndexStream::Create(nsIFile* aDir, nsIInputStream** aResult)
     return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS(nsDirectoryIndexStream, nsIInputStream)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsDirectoryIndexStream, nsIInputStream)
 
 // The below routines are proxied to the UI thread!
 NS_IMETHODIMP
@@ -250,7 +253,7 @@ nsDirectoryIndexStream::Read(char* aBuf, uint32_t aCount, uint32_t* aReadCount)
 
 #ifdef PR_LOGGING
             if (PR_LOG_TEST(gLog, PR_LOG_DEBUG)) {
-                nsAutoCString path;
+                nsCAutoString path;
                 current->GetNativePath(path);
                 PR_LOG(gLog, PR_LOG_DEBUG,
                        ("nsDirectoryIndexStream[%p]: iterated %s",
@@ -290,7 +293,7 @@ nsDirectoryIndexStream::Read(char* aBuf, uint32_t aCount, uint32_t* aReadCount)
                 if (!leafname.IsEmpty())
                     escaped = nsEscape(NS_ConvertUTF16toUTF8(leafname).get(), url_Path);
             } else {
-                nsAutoCString leafname;
+                nsCAutoString leafname;
                 rv = current->GetNativeLeafName(leafname);
                 if (NS_FAILED(rv)) return rv;
                 if (!leafname.IsEmpty())

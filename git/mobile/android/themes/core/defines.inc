@@ -1,17 +1,5 @@
 %filter substitution
 
-%define form_border #bfbfbf
-%define form_border_radius-radius 2px
-%define form_text #363b40
-%define form_text_disabled #bebebe
-%define form_background white
-%define form_background_disabled #f5f5f5
-%define form_background white
-
-%define color_about_background #F5F5F5
-%define color_about_item #FFFFFF
-%define color_about_item_border #D7D9DB
-
 %define color_background_active #525252
 %define color_background_default #000
 %define color_text_default #fff
@@ -32,7 +20,7 @@
 %define color_text_as_link #febc2b
 
 %define color_background_highlight #febc2b
-%define color_background_highlight_overlay rgba(171, 171, 171, 0.5)
+%define color_background_highlight_overlay rgba(254, 188, 43, 0.8)
 %define color_text_highlight #000
 
 %define color_subtext_default lightgray

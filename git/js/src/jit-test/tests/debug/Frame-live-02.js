@@ -1,8 +1,9 @@
+// |jit-test| debug
 // Debugger.Frame.prototype.live is false for frames that have thrown or been thrown through
 
 load(libdir + "asserts.js");
 
-var g = newGlobal();
+var g = newGlobal('new-compartment');
 g.debuggeeGlobal = this;
 g.eval("var finalCheck;");
 g.eval("(" + function () {

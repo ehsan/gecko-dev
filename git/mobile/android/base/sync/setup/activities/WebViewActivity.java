@@ -5,7 +5,7 @@
 package org.mozilla.gecko.sync.setup.activities;
 
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.background.common.log.Logger;
+import org.mozilla.gecko.sync.Logger;
 
 import android.app.Activity;
 import android.net.Uri;
@@ -20,7 +20,7 @@ import android.webkit.WebViewClient;
  * @author liuche
  *
  */
-public class WebViewActivity extends SyncActivity {
+public class WebViewActivity extends Activity {
   private final static String LOG_TAG = "WebViewActivity";
 
   @Override
@@ -33,14 +33,12 @@ public class WebViewActivity extends SyncActivity {
     if (uri == null) {
       Logger.debug(LOG_TAG, "No URI passed to display.");
       finish();
-      return;
     }
 
     WebView wv = (WebView) findViewById(R.id.web_engine);
     // Add a progress bar.
     final Activity activity = this;
     wv.setWebChromeClient(new WebChromeClient() {
-      @Override
       public void onProgressChanged(WebView view, int progress) {
         // Activities and WebViews measure progress with different scales.
         // The progress meter will automatically disappear when we reach 100%

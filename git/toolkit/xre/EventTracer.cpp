@@ -45,31 +45,22 @@
  * When an event servicing time exceeds the threshold, a line of the form:
  *   MOZ_EVENT_TRACE sample <timestamp> <duration>
  * will be output, where <duration> is the number of milliseconds that
- * it took for the event to be serviced. Duration may contain a fractional
- * component.
+ * it took for the event to be serviced.
  */
 
-#include "GeckoProfiler.h"
+#include "sampler.h"
 
 #include "EventTracer.h"
 
 #include <stdio.h>
 
-#include "mozilla/Preferences.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/WidgetTraceEvent.h"
-#include "nsDebug.h"
 #include <limits.h>
 #include <prenv.h>
 #include <prinrval.h>
 #include <prthread.h>
 #include <prtime.h>
-
-#ifdef MOZ_WIDGET_GONK
-#include "nsThreadUtils.h"
-#include "nsIObserverService.h"
-#include "mozilla/Services.h"
-#endif
 
 using mozilla::TimeDuration;
 using mozilla::TimeStamp;
@@ -77,38 +68,8 @@ using mozilla::FireAndWaitForTracerEvent;
 
 namespace {
 
-PRThread* sTracerThread = nullptr;
+PRThread* sTracerThread = NULL;
 bool sExit = false;
-
-struct TracerStartClosure {
-  bool mLogTracing;
-  int32_t mThresholdInterval;
-};
-
-#ifdef MOZ_WIDGET_GONK
-class EventLoopLagDispatcher : public nsRunnable
-{
-  public:
-    explicit EventLoopLagDispatcher(int aLag)
-      : mLag(aLag) {}
-
-    NS_IMETHODIMP Run()
-    {
-      nsCOMPtr<nsIObserverService> obsService =
-        mozilla::services::GetObserverService();
-      if (!obsService) {
-        return NS_ERROR_FAILURE;
-      }
-
-      nsAutoString value;
-      value.AppendInt(mLag);
-      return obsService->NotifyObservers(nullptr, "event-loop-lag", value.get());
-    }
-
-  private:
-    int mLag;
-};
-#endif
 
 /*
  * The tracer thread fires events at the native event loop roughly
@@ -124,23 +85,20 @@ void TracerThread(void *arg)
 {
   PR_SetCurrentThreadName("Event Tracer");
 
-  TracerStartClosure* threadArgs = static_cast<TracerStartClosure*>(arg);
-
   // These are the defaults. They can be overridden by environment vars.
   // This should be set to the maximum latency we'd like to allow
   // for responsiveness.
-  int32_t thresholdInterval = threadArgs->mThresholdInterval;
-  PRIntervalTime threshold = PR_MillisecondsToInterval(thresholdInterval);
+  PRIntervalTime threshold = PR_MillisecondsToInterval(20);
   // This is the sampling interval.
-  PRIntervalTime interval = PR_MillisecondsToInterval(thresholdInterval / 2);
+  PRIntervalTime interval = PR_MillisecondsToInterval(10);
 
   sExit = false;
-  FILE* log = nullptr;
+  FILE* log = NULL;
   char* envfile = PR_GetEnv("MOZ_INSTRUMENT_EVENT_LOOP_OUTPUT");
   if (envfile) {
     log = fopen(envfile, "w");
   }
-  if (log == nullptr)
+  if (log == NULL)
     log = stdout;
 
   char* thresholdenv = PR_GetEnv("MOZ_INSTRUMENT_EVENT_LOOP_THRESHOLD");
@@ -159,14 +117,11 @@ void TracerThread(void *arg)
     }
   }
 
-  if (threadArgs->mLogTracing) {
-    long long now = PR_Now() / PR_USEC_PER_MSEC;
-    fprintf(log, "MOZ_EVENT_TRACE start %llu\n", now);
-  }
+  fprintf(log, "MOZ_EVENT_TRACE start %llu\n", PR_Now() / PR_USEC_PER_MSEC);
 
   while (!sExit) {
     TimeStamp start(TimeStamp::Now());
-    profiler_responsiveness(start);
+    SAMPLER_RESPONSIVENESS(start);
     PRIntervalTime next_sleep = interval;
 
     //TODO: only wait up to a maximum of interval; return
@@ -175,15 +130,10 @@ void TracerThread(void *arg)
     if (FireAndWaitForTracerEvent()) {
       TimeDuration duration = TimeStamp::Now() - start;
       // Only report samples that exceed our measurement threshold.
-      long long now = PR_Now() / PR_USEC_PER_MSEC;
-      if (threadArgs->mLogTracing && duration.ToMilliseconds() > threshold) {
-        fprintf(log, "MOZ_EVENT_TRACE sample %llu %lf\n",
-                now,
-                duration.ToMilliseconds());
-#ifdef MOZ_WIDGET_GONK
-        NS_DispatchToMainThread(
-         new EventLoopLagDispatcher(int(duration.ToSecondsSigDigits() * 1000)));
-#endif
+      if (duration.ToMilliseconds() > threshold) {
+        fprintf(log, "MOZ_EVENT_TRACE sample %llu %d\n",
+                PR_Now() / PR_USEC_PER_MSEC,
+                int(duration.ToSecondsSigDigits() * 1000));
       }
 
       if (next_sleep > duration.ToMilliseconds()) {
@@ -201,22 +151,17 @@ void TracerThread(void *arg)
     }
   }
 
-  if (threadArgs->mLogTracing) {
-    long long now = PR_Now() / PR_USEC_PER_MSEC;
-    fprintf(log, "MOZ_EVENT_TRACE stop %llu\n", now);
-  }
+  fprintf(log, "MOZ_EVENT_TRACE stop %llu\n", PR_Now() / PR_USEC_PER_MSEC);
 
   if (log != stdout)
     fclose(log);
-
-  delete threadArgs;
 }
 
 } // namespace
 
 namespace mozilla {
 
-bool InitEventTracing(bool aLog)
+bool InitEventTracing()
 {
   if (sTracerThread)
     return true;
@@ -225,26 +170,17 @@ bool InitEventTracing(bool aLog)
   if (!InitWidgetTracing())
     return false;
 
-  // The tracer thread owns the object and will delete it.
-  TracerStartClosure* args = new TracerStartClosure();
-  args->mLogTracing = aLog;
-
-  // Pass the default threshold interval.
-  int32_t thresholdInterval = 20;
-  Preferences::GetInt("devtools.eventlooplag.threshold", &thresholdInterval);
-  args->mThresholdInterval = thresholdInterval;
-
   // Create a thread that will fire events back at the
   // main thread to measure responsiveness.
   NS_ABORT_IF_FALSE(!sTracerThread, "Event tracing already initialized!");
   sTracerThread = PR_CreateThread(PR_USER_THREAD,
                                   TracerThread,
-                                  args,
+                                  NULL,
                                   PR_PRIORITY_NORMAL,
                                   PR_GLOBAL_THREAD,
                                   PR_JOINABLE_THREAD,
                                   0);
-  return sTracerThread != nullptr;
+  return sTracerThread != NULL;
 }
 
 void ShutdownEventTracing()
@@ -258,7 +194,7 @@ void ShutdownEventTracing()
 
   if (sTracerThread)
     PR_JoinThread(sTracerThread);
-  sTracerThread = nullptr;
+  sTracerThread = NULL;
 
   // Allow the widget backend to clean up.
   CleanUpWidgetTracing();

@@ -5,8 +5,6 @@
 #include "nsIServiceManager.h"
 #include "nsIComponentRegistrar.h"
 #include "nsISupportsArray.h"
-#include "nsContentUtils.h"
-#include <algorithm>
 
 namespace TestPerf {
 
@@ -19,19 +17,10 @@ load_sync_1(nsISupports *element, void *data)
 {
     nsCOMPtr<nsIInputStream> stream;
     nsCOMPtr<nsIURI> uri( do_QueryInterface(element) );
-    nsAutoCString spec;
+    nsCAutoString spec;
     nsresult rv;
 
-    rv = NS_OpenURI(getter_AddRefs(stream),
-                    uri,
-                    nsContentUtils::GetSystemPrincipal(),
-                    nsILoadInfo::SEC_NORMAL,
-                    nsIContentPolicy::TYPE_OTHER,
-                    nullptr, // aLoadGroup
-                    nullptr, // aCallbacks
-                    LOAD_NORMAL,
-                    gIOService);
-
+    rv = NS_OpenURI(getter_AddRefs(stream), uri, gIOService);
     if (NS_FAILED(rv)) {
         uri->GetAsciiSpec(spec);
         fprintf(stderr, "*** failed opening %s [rv=%x]\n", spec.get(), rv);
@@ -77,7 +66,7 @@ public:
     virtual ~MyListener() {}
 };
 
-NS_IMPL_ISUPPORTS(MyListener, nsIStreamListener, nsIRequestObserver)
+NS_IMPL_ISUPPORTS2(MyListener, nsIStreamListener, nsIRequestObserver)
 
 NS_IMETHODIMP
 MyListener::OnStartRequest(nsIRequest *req, nsISupports *ctx)
@@ -88,13 +77,13 @@ MyListener::OnStartRequest(nsIRequest *req, nsISupports *ctx)
 NS_IMETHODIMP
 MyListener::OnDataAvailable(nsIRequest *req, nsISupports *ctx,
                             nsIInputStream *stream,
-                            uint64_t offset, uint32_t count)
+                            uint32_t offset, uint32_t count)
 {
     nsresult rv;
     char buf[4096];
     uint32_t n, bytesRead;
     while (count) {
-        n = std::min<uint32_t>(count, sizeof(buf));
+        n = NS_MIN<uint32_t>(count, sizeof(buf));
         rv = stream->Read(buf, n, &bytesRead);
         if (NS_FAILED(rv))
             break;
@@ -109,7 +98,7 @@ NS_IMETHODIMP
 MyListener::OnStopRequest(nsIRequest *req, nsISupports *ctx, nsresult status)
 {
     if (NS_FAILED(status)) {
-        nsAutoCString spec;
+        nsCAutoString spec;
         req->GetName(spec);
         fprintf(stderr, "*** failed loading %s [reason=%x]\n", spec.get(), status);
     }
@@ -131,17 +120,7 @@ load_async_1(nsISupports *element, void *data)
     if (!listener)
         return true;
     NS_ADDREF(listener);
-
-    nsresult rv = NS_OpenURI(listener,
-                             nullptr,   // aContext
-                             uri,
-                             nsContentUtils::GetSystemPrincipal(),
-                             nsILoadInfo::SEC_NORMAL,
-                             nsIContentPolicy::TYPE_OTHER,
-                             nullptr,   // aLoadGroup
-                             nullptr,   // aCallbacks
-                             gIOService);
-
+    nsresult rv = NS_OpenURI(listener, nullptr, uri, gIOService);
     NS_RELEASE(listener);
     if (NS_SUCCEEDED(rv))
         gRequestCount++;

@@ -7,23 +7,19 @@
 
 /**
  * Android system headers have two different elf.h file. The one under linux/
- * is the most complete on older android API versions.
+ * is the most complete.
  */
-#if defined(ANDROID) && __ANDROID_API__ < 21
+#ifdef ANDROID
 #include <linux/elf.h>
 #else
 #include <elf.h>
 #endif
 #include <endian.h>
 
-#if defined(__ARM_EABI__) && !defined(PT_ARM_EXIDX)
-#define PT_ARM_EXIDX 0x70000001
-#endif
-
 /**
  * Generic ELF macros for the target system
  */
-#ifdef __LP64__
+#ifdef HAVE_64BIT_OS
 #define Elf_(type) Elf64_ ## type
 #define ELFCLASS ELFCLASS64
 #define ELF_R_TYPE ELF64_R_TYPE
@@ -31,6 +27,7 @@
 #ifndef ELF_ST_BIND
 #define ELF_ST_BIND ELF64_ST_BIND
 #endif
+#define PRIxAddr "lx"
 #else
 #define Elf_(type) Elf32_ ## type
 #define ELFCLASS ELFCLASS32
@@ -39,6 +36,7 @@
 #ifndef ELF_ST_BIND
 #define ELF_ST_BIND ELF32_ST_BIND
 #endif
+#define PRIxAddr "x"
 #endif
 
 #ifndef __BYTE_ORDER
@@ -152,9 +150,6 @@
 #endif
 #ifndef DT_VERNEEDNUM
 #define DT_VERNEEDNUM 0x6fffffff
-#endif
-#ifndef DT_FLAGS_1
-#define DT_FLAGS_1 0x6ffffffb
 #endif
 #ifndef DT_FLAGS
 #define DT_FLAGS 30

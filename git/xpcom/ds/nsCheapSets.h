@@ -7,7 +7,7 @@
 #define __nsCheapSets_h__
 
 #include "nsTHashtable.h"
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 /**
  * A set that takes up minimal size when there are 0 or 1 entries in the set.
@@ -18,30 +18,25 @@ class nsCheapSet
 {
 public:
   typedef typename EntryType::KeyType KeyType;
-  typedef PLDHashOperator (*Enumerator)(EntryType* aEntry, void* userArg);
 
-  nsCheapSet() : mState(ZERO) {}
-  ~nsCheapSet() { Clear(); }
-
-  /**
-   * Remove all entries.
-   */
-  void Clear()
+  nsCheapSet() : mState(ZERO)
+  {
+  }
+  ~nsCheapSet()
   {
     switch (mState) {
-      case ZERO:
-        break;
-      case ONE:
-        GetSingleEntry()->~EntryType();
-        break;
-      case MANY:
-        delete mUnion.table;
-        break;
-      default:
-        NS_NOTREACHED("bogus state");
-        break;
+    case ZERO:
+      break;
+    case ONE:
+      GetSingleEntry()->~EntryType();
+      break;
+    case MANY:
+      delete mUnion.table;
+      break;
+    default:
+      NS_NOTREACHED("bogus state");
+      break;
     }
-    mState = ZERO;
   }
 
   nsresult Put(const KeyType aVal);
@@ -51,34 +46,15 @@ public:
   bool Contains(const KeyType aVal)
   {
     switch (mState) {
-      case ZERO:
-        return false;
-      case ONE:
-        return GetSingleEntry()->KeyEquals(EntryType::KeyToPointer(aVal));
-      case MANY:
-        return !!mUnion.table->GetEntry(aVal);
-      default:
-        NS_NOTREACHED("bogus state");
-        return false;
-    }
-  }
-
-  uint32_t EnumerateEntries(Enumerator aEnumFunc, void* aUserArg)
-  {
-    switch (mState) {
-      case ZERO:
-        return 0;
-      case ONE:
-        if (aEnumFunc(GetSingleEntry(), aUserArg) == PL_DHASH_REMOVE) {
-          GetSingleEntry()->~EntryType();
-          mState = ZERO;
-        }
-        return 1;
-      case MANY:
-        return mUnion.table->EnumerateEntries(aEnumFunc, aUserArg);
-      default:
-        NS_NOTREACHED("bogus state");
-        return 0;
+    case ZERO:
+      return false;
+    case ONE:
+      return GetSingleEntry()->KeyEquals(EntryType::KeyToPointer(aVal));
+    case MANY:
+      return !!mUnion.table->GetEntry(aVal);
+    default:
+      NS_NOTREACHED("bogus state");
+      return false;
     }
   }
 
@@ -88,16 +64,14 @@ private:
     return reinterpret_cast<EntryType*>(&mUnion.singleEntry[0]);
   }
 
-  enum SetState
-  {
+  enum SetState {
     ZERO,
     ONE,
     MANY
   };
 
-  union
-  {
-    nsTHashtable<EntryType>* table;
+  union {
+    nsTHashtable<EntryType> *table;
     char singleEntry[sizeof(EntryType)];
   } mUnion;
   enum SetState mState;
@@ -108,25 +82,30 @@ nsresult
 nsCheapSet<EntryType>::Put(const KeyType aVal)
 {
   switch (mState) {
-    case ZERO:
-      new (GetSingleEntry()) EntryType(EntryType::KeyToPointer(aVal));
-      mState = ONE;
-      return NS_OK;
-    case ONE: {
-      nsTHashtable<EntryType>* table = new nsTHashtable<EntryType>();
-      EntryType* entry = GetSingleEntry();
+  case ZERO:
+    new (GetSingleEntry()) EntryType(EntryType::KeyToPointer(aVal));
+    mState = ONE;
+    return NS_OK;
+  case ONE:
+    {
+      nsTHashtable<EntryType> *table = new nsTHashtable<EntryType>();
+      if (!table) {
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
+      table->Init();
+      EntryType *entry = GetSingleEntry();
       table->PutEntry(entry->GetKey());
       entry->~EntryType();
       mUnion.table = table;
       mState = MANY;
     }
     // Fall through.
-    case MANY:
-      mUnion.table->PutEntry(aVal);
-      return NS_OK;
-    default:
-      NS_NOTREACHED("bogus state");
-      return NS_OK;
+  case MANY:
+    mUnion.table->PutEntry(aVal);
+    return NS_OK;
+  default:
+    NS_NOTREACHED("bogus state");
+    return NS_OK;
   }
 }
 
@@ -135,20 +114,20 @@ void
 nsCheapSet<EntryType>::Remove(const KeyType aVal)
 {
   switch (mState) {
-    case ZERO:
-      break;
-    case ONE:
-      if (Contains(aVal)) {
-        GetSingleEntry()->~EntryType();
-        mState = ZERO;
-      }
-      break;
-    case MANY:
-      mUnion.table->RemoveEntry(aVal);
-      break;
-    default:
-      NS_NOTREACHED("bogus state");
-      break;
+  case ZERO:
+    break;
+  case ONE:
+    if (Contains(aVal)) {
+      GetSingleEntry()->~EntryType();
+      mState = ZERO;
+    }
+    break;
+  case MANY:
+    mUnion.table->RemoveEntry(aVal);
+    break;
+  default:
+    NS_NOTREACHED("bogus state");
+    break;
   }
 }
 

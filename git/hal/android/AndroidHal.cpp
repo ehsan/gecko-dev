@@ -10,11 +10,9 @@
 #include "mozilla/dom/network/Constants.h"
 #include "mozilla/dom/ScreenOrientation.h"
 #include "nsIScreenManager.h"
-#include "nsServiceManagerUtils.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::hal;
-using namespace mozilla::widget::android;
 
 namespace mozilla {
 namespace hal_impl {
@@ -55,55 +53,97 @@ CancelVibrate(const WindowIdentifier &)
 {
   // Ignore WindowIdentifier parameter.
 
-  mozilla::widget::android::GeckoAppShell::CancelVibrate();
+  AndroidBridge* b = AndroidBridge::Bridge();
+  if (b)
+    b->CancelVibrate();
 }
 
 void
 EnableBatteryNotifications()
 {
-  mozilla::widget::android::GeckoAppShell::EnableBatteryNotifications();
+  AndroidBridge* bridge = AndroidBridge::Bridge();
+  if (!bridge) {
+    return;
+  }
+
+  bridge->EnableBatteryNotifications();
 }
 
 void
 DisableBatteryNotifications()
 {
-  mozilla::widget::android::GeckoAppShell::DisableBatteryNotifications();
+  AndroidBridge* bridge = AndroidBridge::Bridge();
+  if (!bridge) {
+    return;
+  }
+
+  bridge->DisableBatteryNotifications();
 }
 
 void
 GetCurrentBatteryInformation(hal::BatteryInformation* aBatteryInfo)
 {
-  AndroidBridge::Bridge()->GetCurrentBatteryInformation(aBatteryInfo);
+  AndroidBridge* bridge = AndroidBridge::Bridge();
+  if (!bridge) {
+    return;
+  }
+
+  bridge->GetCurrentBatteryInformation(aBatteryInfo);
 }
 
 void
 EnableNetworkNotifications()
 {
-  mozilla::widget::android::GeckoAppShell::EnableNetworkNotifications();
+  AndroidBridge* bridge = AndroidBridge::Bridge();
+  if (!bridge) {
+    return;
+  }
+
+  bridge->EnableNetworkNotifications();
 }
 
 void
 DisableNetworkNotifications()
 {
-  mozilla::widget::android::GeckoAppShell::DisableNetworkNotifications();
+  AndroidBridge* bridge = AndroidBridge::Bridge();
+  if (!bridge) {
+    return;
+  }
+
+  bridge->DisableNetworkNotifications();
 }
 
 void
 GetCurrentNetworkInformation(hal::NetworkInformation* aNetworkInfo)
 {
-  AndroidBridge::Bridge()->GetCurrentNetworkInformation(aNetworkInfo);
+  AndroidBridge* bridge = AndroidBridge::Bridge();
+  if (!bridge) {
+    return;
+  }
+
+  bridge->GetCurrentNetworkInformation(aNetworkInfo);
 }
 
 void
 EnableScreenConfigurationNotifications()
 {
-  mozilla::widget::android::GeckoAppShell::EnableScreenOrientationNotifications();
+  AndroidBridge* bridge = AndroidBridge::Bridge();
+  if (!bridge) {
+    return;
+  }
+
+  bridge->EnableScreenOrientationNotifications();
 }
 
 void
 DisableScreenConfigurationNotifications()
 {
-  mozilla::widget::android::GeckoAppShell::DisableScreenOrientationNotifications();
+  AndroidBridge* bridge = AndroidBridge::Bridge();
+  if (!bridge) {
+    return;
+  }
+
+  bridge->DisableScreenOrientationNotifications();
 }
 
 void
@@ -140,26 +180,24 @@ GetCurrentScreenConfiguration(ScreenConfiguration* aScreenConfiguration)
 bool
 LockScreenOrientation(const ScreenOrientation& aOrientation)
 {
-  switch (aOrientation) {
-    // The Android backend only supports these orientations.
-    case eScreenOrientation_PortraitPrimary:
-    case eScreenOrientation_PortraitSecondary:
-    case eScreenOrientation_PortraitPrimary | eScreenOrientation_PortraitSecondary:
-    case eScreenOrientation_LandscapePrimary:
-    case eScreenOrientation_LandscapeSecondary:
-    case eScreenOrientation_LandscapePrimary | eScreenOrientation_LandscapeSecondary:
-    case eScreenOrientation_Default:
-      mozilla::widget::android::GeckoAppShell::LockScreenOrientation(aOrientation);
-      return true;
-    default:
-      return false;
+  AndroidBridge* bridge = AndroidBridge::Bridge();
+  if (!bridge) {
+    return false;
   }
+
+  bridge->LockScreenOrientation(aOrientation);
+  return true;
 }
 
 void
 UnlockScreenOrientation()
 {
-  mozilla::widget::android::GeckoAppShell::UnlockScreenOrientation();
+  AndroidBridge* bridge = AndroidBridge::Bridge();
+  if (!bridge) {
+    return;
+  }
+
+  bridge->UnlockScreenOrientation();
 }
 
 } // hal_impl

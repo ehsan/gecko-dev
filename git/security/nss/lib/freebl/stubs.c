@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ /* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Network Security Services.
+ *
+ * The Initial Developer of the Original Code is
+ * Red Hat Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *	Robert Relyea <rrelyea@redhat.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * Allow freebl and softoken to be loaded without util or NSPR.
@@ -32,6 +65,7 @@
 #include <prtime.h>
 #include <prcvar.h>
 #include <secasn1.h>
+#include <secoid.h>
 #include <secdig.h>
 #include <secport.h>
 #include <secitem.h>
@@ -105,7 +139,6 @@
 
 
 STUB_DECLARE(void *,PORT_Alloc_Util,(size_t len));
-STUB_DECLARE(void *,PORT_ArenaAlloc_Util,(PLArenaPool *arena, size_t size));
 STUB_DECLARE(void *,PORT_ArenaZAlloc_Util,(PLArenaPool *arena, size_t size));
 STUB_DECLARE(void ,PORT_Free_Util,(void *ptr));
 STUB_DECLARE(void ,PORT_FreeArena_Util,(PLArenaPool *arena, PRBool zero));
@@ -140,15 +173,14 @@ STUB_DECLARE(PRStatus,PR_WaitCondVar,(PRCondVar *cvar,
 			PRIntervalTime timeout));
 
 
-STUB_DECLARE(SECItem *,SECITEM_AllocItem_Util,(PLArenaPool *arena,
+STUB_DECLARE(SECItem *,SECITEM_AllocItem_Util,(PRArenaPool *arena, 
 			SECItem *item,unsigned int len));
-STUB_DECLARE(SECComparison,SECITEM_CompareItem_Util,(const SECItem *a,
+STUB_DECLARE(SECComparison,SECITEM_CompareItem_Util,(const SECItem *a, 
 			const SECItem *b));
-STUB_DECLARE(SECStatus,SECITEM_CopyItem_Util,(PLArenaPool *arena,
+STUB_DECLARE(SECStatus,SECITEM_CopyItem_Util,(PRArenaPool *arena, 
 			SECItem *to,const SECItem *from));
 STUB_DECLARE(void,SECITEM_FreeItem_Util,(SECItem *zap, PRBool freeit));
 STUB_DECLARE(void,SECITEM_ZfreeItem_Util,(SECItem *zap, PRBool freeit));
-STUB_DECLARE(SECOidTag,SECOID_FindOIDTag_Util,(const SECItem *oid));
 STUB_DECLARE(int, NSS_SecureMemcmp,(const void *a, const void *b, size_t n));
 
 
@@ -214,18 +246,9 @@ PR_Free_stub(void *ptr)
  *
  */
 extern PLArenaPool *
-PORT_NewArena_stub(unsigned long chunksize)
+PORT_NewArena_stub(unsigned long chunksize) 
 {
     STUB_SAFE_CALL1(PORT_NewArena_Util, chunksize);
-    abort();
-    return NULL;
-}
-
-extern void *
-PORT_ArenaAlloc_stub(PLArenaPool *arena, size_t size)
-{
-
-    STUB_SAFE_CALL2(PORT_ArenaZAlloc_Util, arena, size);
     abort();
     return NULL;
 }
@@ -496,7 +519,7 @@ SECITEM_FreeItem_stub(SECItem *zap, PRBool freeit)
 }
 
 extern SECItem *
-SECITEM_AllocItem_stub(PLArenaPool *arena, SECItem *item, unsigned int len)
+SECITEM_AllocItem_stub(PRArenaPool *arena, SECItem *item, unsigned int len)
 {
     STUB_SAFE_CALL3(SECITEM_AllocItem_Util, arena, item, len); 
     abort();
@@ -511,20 +534,12 @@ SECITEM_CompareItem_stub(const SECItem *a, const SECItem *b)
     return SECEqual;
 }
 
-extern SECStatus
-SECITEM_CopyItem_stub(PLArenaPool *arena, SECItem *to, const SECItem *from)
+extern SECStatus 
+SECITEM_CopyItem_stub(PRArenaPool *arena, SECItem *to, const SECItem *from)
 {
     STUB_SAFE_CALL3(SECITEM_CopyItem_Util, arena, to, from);
     abort();
     return SECFailure;
-}
-
-extern SECOidTag
-SECOID_FindOIDTag_stub(const SECItem *oid)
-{
-    STUB_SAFE_CALL1(SECOID_FindOIDTag_Util, oid);
-    abort();
-    return SEC_OID_UNKNOWN;
 }
 
 extern void
@@ -579,7 +594,6 @@ freebl_InitNSSUtil(void *lib)
     STUB_FETCH_FUNCTION(PORT_ZAlloc_Util);
     STUB_FETCH_FUNCTION(PORT_ZFree_Util);
     STUB_FETCH_FUNCTION(PORT_NewArena_Util);
-    STUB_FETCH_FUNCTION(PORT_ArenaAlloc_Util);
     STUB_FETCH_FUNCTION(PORT_ArenaZAlloc_Util);
     STUB_FETCH_FUNCTION(PORT_FreeArena_Util);
     STUB_FETCH_FUNCTION(PORT_GetError_Util);
@@ -589,7 +603,6 @@ freebl_InitNSSUtil(void *lib)
     STUB_FETCH_FUNCTION(SECITEM_CompareItem_Util);
     STUB_FETCH_FUNCTION(SECITEM_CopyItem_Util);
     STUB_FETCH_FUNCTION(SECITEM_ZfreeItem_Util);
-    STUB_FETCH_FUNCTION(SECOID_FindOIDTag_Util);
     STUB_FETCH_FUNCTION(NSS_SecureMemcmp);
     return SECSuccess;
 }

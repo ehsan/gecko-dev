@@ -7,7 +7,6 @@
 
 #include "nsITransactionManager.h"
 #include "nsComponentManagerUtils.h"
-#include "mozilla/Likely.h"
 
 static int32_t sConstructorCount     = 0;
 static int32_t sDestructorCount      = 0;
@@ -405,17 +404,15 @@ int32_t sAggregateBatchTestRedoOrderArr[] = {
 
 class TestTransaction : public nsITransaction
 {
-protected:
-  virtual ~TestTransaction() {}
-
 public:
 
   TestTransaction() {}
+  virtual ~TestTransaction() {}
 
   NS_DECL_ISUPPORTS
 };
 
-NS_IMPL_ISUPPORTS(TestTransaction, nsITransaction)
+NS_IMPL_ISUPPORTS1(TestTransaction, nsITransaction)
 
 class SimpleTransaction : public TestTransaction
 {
@@ -435,8 +432,8 @@ protected:
 
 public:
 
-  explicit SimpleTransaction(int32_t aFlags=NONE_FLAG)
-    : mVal(++sConstructorCount), mFlags(aFlags)
+  SimpleTransaction(int32_t aFlags=NONE_FLAG)
+                    : mVal(++sConstructorCount), mFlags(aFlags)
   {}
 
   virtual ~SimpleTransaction()
@@ -447,14 +444,11 @@ public:
     // This is done on purpose since we want to crash if the order array is out
     // of date.
     //
-    /* Disabled because the current cycle collector doesn't delete
-       cycle collectable objects synchronously, nor doesn't guarantee any order.
     if (sDestructorOrderArr && mVal != sDestructorOrderArr[sDestructorCount]) {
       fail("~SimpleTransaction expected %d got %d.\n",
            mVal, sDestructorOrderArr[sDestructorCount]);
       exit(-1);
     }
-    */
 
     ++sDestructorCount;
 
@@ -618,7 +612,7 @@ public:
       return NS_OK;
 
     if (mFlags & BATCH_FLAG) {
-      result = mTXMgr->BeginBatch(nullptr);
+      result = mTXMgr->BeginBatch();
       if (NS_FAILED(result)) {
         return result;
       }
@@ -652,7 +646,7 @@ public:
              i, mLevel, result);
 
         if (mFlags & BATCH_FLAG)
-          mTXMgr->EndBatch(false);
+          mTXMgr->EndBatch();
 
         return NS_ERROR_OUT_OF_MEMORY;
       }
@@ -664,7 +658,7 @@ public:
              i, mLevel, result);
 
         if (mFlags & BATCH_FLAG)
-          mTXMgr->EndBatch(false);
+          mTXMgr->EndBatch();
 
         return result;
       }
@@ -677,7 +671,7 @@ public:
         tx->Release();
 
         if (mFlags & BATCH_FLAG)
-          mTXMgr->EndBatch(false);
+          mTXMgr->EndBatch();
 
         return result;
       }
@@ -686,7 +680,7 @@ public:
     }
 
     if (mFlags & BATCH_FLAG)
-      mTXMgr->EndBatch(false);
+      mTXMgr->EndBatch();
 
     return result;
   }
@@ -2607,13 +2601,11 @@ quick_test(TestTransactionFactory *factory)
    *
    *******************************************************************/
 
-  /* Disabled because the current cycle collector doesn't delete
-     cycle collectable objects synchronously.
   if (sConstructorCount != sDestructorCount) {
     fail("Transaction constructor count (%d) != destructor count (%d).\n",
          sConstructorCount, sDestructorCount);
     return NS_ERROR_FAILURE;
-  }*/
+  }
 
   passed("Number of transactions created and destroyed match");
   passed("%d transactions processed during quick test", sConstructorCount);
@@ -2707,7 +2699,7 @@ quick_batch_test(TestTransactionFactory *factory)
 
   /*******************************************************************
    *
-   * Make sure an unbalanced call to EndBatch(false) with empty undo stack
+   * Make sure an unbalanced call to EndBatch() with empty undo stack
    * throws an error!
    *
    *******************************************************************/
@@ -2726,10 +2718,10 @@ quick_batch_test(TestTransactionFactory *factory)
     return NS_ERROR_FAILURE;
   }
 
-  result = mgr->EndBatch(false);
+  result = mgr->EndBatch();
 
   if (result != NS_ERROR_FAILURE) {
-    fail("EndBatch(false) returned unexpected status. (%d)\n", result);
+    fail("EndBatch() returned unexpected status. (%d)\n", result);
     return result;
   }
 
@@ -2747,7 +2739,7 @@ quick_batch_test(TestTransactionFactory *factory)
     return NS_ERROR_FAILURE;
   }
 
-  passed("Test unbalanced EndBatch(false) with empty undo stack");
+  passed("Test unbalanced EndBatch() with empty undo stack");
 
   /*******************************************************************
    *
@@ -2770,10 +2762,10 @@ quick_batch_test(TestTransactionFactory *factory)
     return NS_ERROR_FAILURE;
   }
 
-  result = mgr->BeginBatch(nullptr);
+  result = mgr->BeginBatch();
 
   if (NS_FAILED(result)) {
-    fail("BeginBatch(nullptr) failed. (%d)\n", result);
+    fail("BeginBatch() failed. (%d)\n", result);
     return result;
   }
 
@@ -2791,10 +2783,10 @@ quick_batch_test(TestTransactionFactory *factory)
     return NS_ERROR_FAILURE;
   }
 
-  result = mgr->EndBatch(false);
+  result = mgr->EndBatch();
 
   if (NS_FAILED(result)) {
-    fail("EndBatch(false) failed. (%d)\n", result);
+    fail("EndBatch() failed. (%d)\n", result);
     return result;
   }
 
@@ -2825,10 +2817,10 @@ quick_batch_test(TestTransactionFactory *factory)
    *
    *******************************************************************/
 
-  result = mgr->BeginBatch(nullptr);
+  result = mgr->BeginBatch();
 
   if (NS_FAILED(result)) {
-    fail("BeginBatch(nullptr) failed. (%d)\n", result);
+    fail("BeginBatch() failed. (%d)\n", result);
     return result;
   }
 
@@ -2871,10 +2863,10 @@ quick_batch_test(TestTransactionFactory *factory)
     return NS_ERROR_FAILURE;
   }
 
-  result = mgr->EndBatch(false);
+  result = mgr->EndBatch();
 
   if (NS_FAILED(result)) {
-    fail("EndBatch(false) failed. (%d)\n", result);
+    fail("EndBatch() failed. (%d)\n", result);
     return result;
   }
 
@@ -2924,10 +2916,10 @@ quick_batch_test(TestTransactionFactory *factory)
     return result;
   }
 
-  result = mgr->BeginBatch(nullptr);
+  result = mgr->BeginBatch();
 
   if (NS_FAILED(result)) {
-    fail("BeginBatch(nullptr) failed. (%d)\n", result);
+    fail("BeginBatch() failed. (%d)\n", result);
     return result;
   }
 
@@ -2956,10 +2948,10 @@ quick_batch_test(TestTransactionFactory *factory)
     tx->Release();
   }
 
-  result = mgr->EndBatch(false);
+  result = mgr->EndBatch();
 
   if (NS_FAILED(result)) {
-    fail("EndBatch(false) failed. (%d)\n", result);
+    fail("EndBatch() failed. (%d)\n", result);
     return result;
   }
 
@@ -3028,10 +3020,10 @@ quick_batch_test(TestTransactionFactory *factory)
    *
    *******************************************************************/
 
-  result = mgr->BeginBatch(nullptr);
+  result = mgr->BeginBatch();
 
   if (NS_FAILED(result)) {
-    fail("BeginBatch(nullptr) failed. (%d)\n", result);
+    fail("BeginBatch() failed. (%d)\n", result);
     return result;
   }
 
@@ -3071,10 +3063,10 @@ quick_batch_test(TestTransactionFactory *factory)
     return NS_ERROR_FAILURE;
   }
 
-  result = mgr->BeginBatch(nullptr);
+  result = mgr->BeginBatch();
 
   if (NS_FAILED(result)) {
-    fail("BeginBatch(nullptr) failed. (%d)\n", result);
+    fail("BeginBatch() failed. (%d)\n", result);
     return result;
   }
 
@@ -3114,10 +3106,10 @@ quick_batch_test(TestTransactionFactory *factory)
     return NS_ERROR_FAILURE;
   }
 
-  result = mgr->BeginBatch(nullptr);
+  result = mgr->BeginBatch();
 
   if (NS_FAILED(result)) {
-    fail("BeginBatch(nullptr) failed. (%d)\n", result);
+    fail("BeginBatch() failed. (%d)\n", result);
     return result;
   }
 
@@ -3157,24 +3149,24 @@ quick_batch_test(TestTransactionFactory *factory)
     return NS_ERROR_FAILURE;
   }
 
-  result = mgr->EndBatch(false);
+  result = mgr->EndBatch();
 
   if (NS_FAILED(result)) {
-    fail("EndBatch(false) failed. (%d)\n", result);
+    fail("EndBatch() failed. (%d)\n", result);
     return result;
   }
 
-  result = mgr->EndBatch(false);
+  result = mgr->EndBatch();
 
   if (NS_FAILED(result)) {
-    fail("EndBatch(false) failed. (%d)\n", result);
+    fail("EndBatch() failed. (%d)\n", result);
     return result;
   }
 
-  result = mgr->EndBatch(false);
+  result = mgr->EndBatch();
 
   if (NS_FAILED(result)) {
-    fail("EndBatch(false) failed. (%d)\n", result);
+    fail("EndBatch() failed. (%d)\n", result);
     return result;
   }
 
@@ -3330,15 +3322,15 @@ quick_batch_test(TestTransactionFactory *factory)
 
   /*******************************************************************
    *
-   * Make sure an unbalanced call to EndBatch(false) throws an error and
+   * Make sure an unbalanced call to EndBatch() throws an error and
    * doesn't affect the undo and redo stacks!
    *
    *******************************************************************/
 
-  result = mgr->EndBatch(false);
+  result = mgr->EndBatch();
 
   if (result != NS_ERROR_FAILURE) {
-    fail("EndBatch(false) returned unexpected status. (%d)\n", result);
+    fail("EndBatch() returned unexpected status. (%d)\n", result);
     return result;
   }
 
@@ -3370,7 +3362,7 @@ quick_batch_test(TestTransactionFactory *factory)
     return NS_ERROR_FAILURE;
   }
 
-  passed("Test effect of unbalanced EndBatch(false) on undo and redo stacks");
+  passed("Test effect of unbalanced EndBatch() on undo and redo stacks");
 
   /*******************************************************************
    *
@@ -3380,10 +3372,10 @@ quick_batch_test(TestTransactionFactory *factory)
    *
    *******************************************************************/
 
-  result = mgr->BeginBatch(nullptr);
+  result = mgr->BeginBatch();
 
   if (NS_FAILED(result)) {
-    fail("BeginBatch(nullptr) failed. (%d)\n", result);
+    fail("BeginBatch() failed. (%d)\n", result);
     return result;
   }
 
@@ -3415,10 +3407,10 @@ quick_batch_test(TestTransactionFactory *factory)
     return NS_ERROR_FAILURE;
   }
 
-  result = mgr->EndBatch(false);
+  result = mgr->EndBatch();
 
   if (NS_FAILED(result)) {
-    fail("EndBatch(false) failed. (%d)\n", result);
+    fail("EndBatch() failed. (%d)\n", result);
     return result;
   }
 
@@ -3458,10 +3450,10 @@ quick_batch_test(TestTransactionFactory *factory)
    *
    *******************************************************************/
 
-  result = mgr->BeginBatch(nullptr);
+  result = mgr->BeginBatch();
 
   if (NS_FAILED(result)) {
-    fail("BeginBatch(nullptr) failed. (%d)\n", result);
+    fail("BeginBatch() failed. (%d)\n", result);
     return result;
   }
 
@@ -3518,10 +3510,10 @@ quick_batch_test(TestTransactionFactory *factory)
     return NS_ERROR_FAILURE;
   }
 
-  result = mgr->EndBatch(false);
+  result = mgr->EndBatch();
 
   if (NS_FAILED(result)) {
-    fail("EndBatch(false) failed. (%d)\n", result);
+    fail("EndBatch() failed. (%d)\n", result);
     return result;
   }
 
@@ -3643,10 +3635,10 @@ quick_batch_test(TestTransactionFactory *factory)
     return result;
   }
 
-  result = mgr->BeginBatch(nullptr);
+  result = mgr->BeginBatch();
 
   if (NS_FAILED(result)) {
-    fail("BeginBatch(nullptr) failed. (%d)\n", result);
+    fail("BeginBatch() failed. (%d)\n", result);
     return result;
   }
 
@@ -3659,10 +3651,10 @@ quick_batch_test(TestTransactionFactory *factory)
 
   tx->Release();
 
-  result = mgr->EndBatch(false);
+  result = mgr->EndBatch();
 
   if (NS_FAILED(result)) {
-    fail("EndBatch(false) failed. (%d)\n", result);
+    fail("EndBatch() failed. (%d)\n", result);
     return result;
   }
 
@@ -3746,10 +3738,10 @@ quick_batch_test(TestTransactionFactory *factory)
     return result;
   }
 
-  result = mgr->BeginBatch(nullptr);
+  result = mgr->BeginBatch();
 
   if (NS_FAILED(result)) {
-    fail("BeginBatch(nullptr) failed. (%d)\n", result);
+    fail("BeginBatch() failed. (%d)\n", result);
     return result;
   }
 
@@ -3762,10 +3754,10 @@ quick_batch_test(TestTransactionFactory *factory)
 
   tx->Release();
 
-  result = mgr->EndBatch(false);
+  result = mgr->EndBatch();
 
   if (NS_FAILED(result)) {
-    fail("EndBatch(false) failed. (%d)\n", result);
+    fail("EndBatch() failed. (%d)\n", result);
     return result;
   }
 
@@ -3877,10 +3869,10 @@ quick_batch_test(TestTransactionFactory *factory)
     return result;
   }
 
-  result = mgr->BeginBatch(nullptr);
+  result = mgr->BeginBatch();
 
   if (NS_FAILED(result)) {
-    fail("BeginBatch(nullptr) failed. (%d)\n", result);
+    fail("BeginBatch() failed. (%d)\n", result);
     return result;
   }
 
@@ -3893,10 +3885,10 @@ quick_batch_test(TestTransactionFactory *factory)
 
   tx->Release();
 
-  result = mgr->EndBatch(false);
+  result = mgr->EndBatch();
 
   if (NS_FAILED(result)) {
-    fail("EndBatch(false) failed. (%d)\n", result);
+    fail("EndBatch() failed. (%d)\n", result);
     return result;
   }
 
@@ -4089,10 +4081,10 @@ quick_batch_test(TestTransactionFactory *factory)
       return result;
     }
 
-    result = mgr->BeginBatch(nullptr);
+    result = mgr->BeginBatch();
 
     if (NS_FAILED(result)) {
-      fail("BeginBatch(nullptr) failed. (%d)\n", result);
+      fail("BeginBatch() failed. (%d)\n", result);
       return result;
     }
 
@@ -4104,10 +4096,10 @@ quick_batch_test(TestTransactionFactory *factory)
 
     tx->Release();
 
-    result = mgr->EndBatch(false);
+    result = mgr->EndBatch();
 
     if (NS_FAILED(result)) {
-      fail("EndBatch(false) failed. (%d)\n", result);
+      fail("EndBatch() failed. (%d)\n", result);
       return result;
     }
 
@@ -4174,10 +4166,10 @@ quick_batch_test(TestTransactionFactory *factory)
       return result;
     }
 
-    result = mgr->BeginBatch(nullptr);
+    result = mgr->BeginBatch();
 
     if (NS_FAILED(result)) {
-      fail("BeginBatch(nullptr) failed. (%d)\n", result);
+      fail("BeginBatch() failed. (%d)\n", result);
       return result;
     }
 
@@ -4189,10 +4181,10 @@ quick_batch_test(TestTransactionFactory *factory)
 
     tx->Release();
 
-    result = mgr->EndBatch(false);
+    result = mgr->EndBatch();
 
     if (NS_FAILED(result)) {
-      fail("EndBatch(false) failed. (%d)\n", result);
+      fail("EndBatch() failed. (%d)\n", result);
       return result;
     }
 
@@ -4276,13 +4268,11 @@ quick_batch_test(TestTransactionFactory *factory)
    *
    *******************************************************************/
 
-  /* Disabled because the current cycle collector doesn't delete
-     cycle collectable objects synchronously.
   if (sConstructorCount != sDestructorCount) {
     fail("Transaction constructor count (%d) != destructor count (%d).\n",
          sConstructorCount, sDestructorCount);
     return NS_ERROR_FAILURE;
-  }*/
+  }
 
   passed("Number of transactions created and destroyed match");
   passed("%d transactions processed during quick batch test",
@@ -4456,7 +4446,7 @@ stress_test(TestTransactionFactory *factory, int32_t iterations)
     }
 
     // Trivial feedback not to let the user think the test is stuck.
-    if (MOZ_UNLIKELY(j % 100 == 0))
+    if (NS_UNLIKELY(j % 100 == 0))
       printf("%i ", j);
   } // for, iterations.
 
@@ -4468,13 +4458,11 @@ stress_test(TestTransactionFactory *factory, int32_t iterations)
     return result;
   }
 
-  /* Disabled because the current cycle collector doesn't delete
-     cycle collectable objects synchronously.
   if (sConstructorCount != sDestructorCount) {
     fail("Transaction constructor count (%d) != destructor count (%d).\n",
          sConstructorCount, sDestructorCount);
     return NS_ERROR_FAILURE;
-  }*/
+  }
 
   passed("%d transactions processed during stress test", sConstructorCount);
 
@@ -4580,15 +4568,10 @@ aggregation_batch_stress_test()
 #ifdef DEBUG
   10
 #else
-#if defined(MOZ_ASAN) || defined(MOZ_WIDGET_ANDROID)
-  // See Bug 929985: 500 is too many for ASAN and Android, 100 is safe.
-  100
-#else
   //
   // 500 iterations sends 2,630,250 transactions through the system!!
   //
   500
-#endif
 #endif
   ;
   return stress_test(&factory, iterations);

@@ -4,11 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsJSUtils.h"
 #include "nsMemory.h"
 #include "nsString.h"
-
-#include "jsapi.h"
 
 #include "mozStoragePrivateHelpers.h"
 #include "mozStorageStatementParams.h"
@@ -27,7 +24,7 @@ StatementParams::StatementParams(mozIStorageStatement *aStatement) :
   (void)mStatement->GetParameterCount(&mParamCount);
 }
 
-NS_IMPL_ISUPPORTS(
+NS_IMPL_ISUPPORTS2(
   StatementParams,
   mozIStorageStatementParams,
   nsIXPCScriptable
@@ -40,7 +37,7 @@ NS_IMPL_ISUPPORTS(
 #define XPC_MAP_QUOTED_CLASSNAME "StatementParams"
 #define XPC_MAP_WANT_SETPROPERTY
 #define XPC_MAP_WANT_NEWENUMERATE
-#define XPC_MAP_WANT_RESOLVE
+#define XPC_MAP_WANT_NEWRESOLVE
 #define XPC_MAP_FLAGS nsIXPCScriptable::ALLOW_PROP_MODS_DURING_RESOLVE
 #include "xpc_map_end.h"
 
@@ -49,7 +46,7 @@ StatementParams::SetProperty(nsIXPConnectWrappedNative *aWrapper,
                              JSContext *aCtx,
                              JSObject *aScopeObj,
                              jsid aId,
-                             JS::Value *_vp,
+                             jsval *_vp,
                              bool *_retval)
 {
   NS_ENSURE_TRUE(mStatement, NS_ERROR_NOT_INITIALIZED);
@@ -64,12 +61,10 @@ StatementParams::SetProperty(nsIXPConnectWrappedNative *aWrapper,
   }
   else if (JSID_IS_STRING(aId)) {
     JSString *str = JSID_TO_STRING(aId);
-    nsAutoJSString autoStr;
-    if (!autoStr.init(aCtx, str)) {
-      return NS_ERROR_FAILURE;
-    }
-
-    NS_ConvertUTF16toUTF8 name(autoStr);
+    size_t length;
+    const jschar *chars = JS_GetStringCharsAndLength(aCtx, str, &length);
+    NS_ENSURE_TRUE(chars, NS_ERROR_UNEXPECTED);
+    NS_ConvertUTF16toUTF8 name(chars, length);
 
     // check to see if there's a parameter with this name
     nsCOMPtr<nsIVariant> variant(convertJSValToVariant(aCtx, *_vp));
@@ -114,29 +109,27 @@ StatementParams::NewEnumerate(nsIXPConnectWrappedNative *aWrapper,
       NS_ASSERTION(*_statep != JSVAL_NULL, "Internal state is null!");
 
       // Make sure we are in range first.
-      uint32_t index = static_cast<uint32_t>(_statep->toInt32());
+      uint32_t index = static_cast<uint32_t>(JSVAL_TO_INT(*_statep));
       if (index >= mParamCount) {
         *_statep = JSVAL_NULL;
         return NS_OK;
       }
 
       // Get the name of our parameter.
-      nsAutoCString name;
+      nsCAutoString name;
       nsresult rv = mStatement->GetParameterName(index, name);
       NS_ENSURE_SUCCESS(rv, rv);
 
       // But drop the first character, which is going to be a ':'.
-      JS::RootedString jsname(aCtx, ::JS_NewStringCopyN(aCtx, &(name.get()[1]),
-                                                        name.Length() - 1));
+      JSString *jsname = ::JS_NewStringCopyN(aCtx, &(name.get()[1]),
+                                             name.Length() - 1);
       NS_ENSURE_TRUE(jsname, NS_ERROR_OUT_OF_MEMORY);
 
       // Set our name.
-      JS::Rooted<jsid> id(aCtx);
-      if (!::JS_StringToId(aCtx, jsname, &id)) {
+      if (!::JS_ValueToId(aCtx, STRING_TO_JSVAL(jsname), _idp)) {
         *_retval = false;
         return NS_OK;
       }
-      *_idp = id;
 
       // And increment our index.
       *_statep = INT_TO_JSVAL(++index);
@@ -156,53 +149,53 @@ StatementParams::NewEnumerate(nsIXPConnectWrappedNative *aWrapper,
 }
 
 NS_IMETHODIMP
-StatementParams::Resolve(nsIXPConnectWrappedNative *aWrapper,
-                         JSContext *aCtx,
-                         JSObject *aScopeObj,
-                         jsid aId,
-                         bool *resolvedp,
-                         bool *_retval)
+StatementParams::NewResolve(nsIXPConnectWrappedNative *aWrapper,
+                            JSContext *aCtx,
+                            JSObject *aScopeObj,
+                            jsid aId,
+                            uint32_t aFlags,
+                            JSObject **_objp,
+                            bool *_retval)
 {
   NS_ENSURE_TRUE(mStatement, NS_ERROR_NOT_INITIALIZED);
   // We do not throw at any point after this unless our index is out of range
   // because we want to allow the prototype chain to be checked for the
   // property.
 
-  JS::RootedObject scope(aCtx, aScopeObj);
-  JS::RootedId id(aCtx, aId);
   bool resolved = false;
   bool ok = true;
-  if (JSID_IS_INT(id)) {
-    uint32_t idx = JSID_TO_INT(id);
+  if (JSID_IS_INT(aId)) {
+    uint32_t idx = JSID_TO_INT(aId);
 
     // Ensure that our index is within range.  We do not care about the
     // prototype chain being checked here.
     if (idx >= mParamCount)
       return NS_ERROR_INVALID_ARG;
 
-    ok = ::JS_DefineElement(aCtx, scope, idx, JS::UndefinedHandleValue, JSPROP_ENUMERATE);
+    ok = ::JS_DefineElement(aCtx, aScopeObj, idx, JSVAL_VOID, nullptr,
+                            nullptr, JSPROP_ENUMERATE);
     resolved = true;
   }
-  else if (JSID_IS_STRING(id)) {
-    JSString *str = JSID_TO_STRING(id);
-    nsAutoJSString autoStr;
-    if (!autoStr.init(aCtx, str)) {
-      return NS_ERROR_FAILURE;
-    }
+  else if (JSID_IS_STRING(aId)) {
+    JSString *str = JSID_TO_STRING(aId);
+    size_t nameLength;
+    const jschar *nameChars = JS_GetStringCharsAndLength(aCtx, str, &nameLength);
+    NS_ENSURE_TRUE(nameChars, NS_ERROR_UNEXPECTED);
 
     // Check to see if there's a parameter with this name, and if not, let
     // the rest of the prototype chain be checked.
-    NS_ConvertUTF16toUTF8 name(autoStr);
+    NS_ConvertUTF16toUTF8 name(nameChars, nameLength);
     uint32_t idx;
     nsresult rv = mStatement->GetParameterIndex(name, &idx);
     if (NS_SUCCEEDED(rv)) {
-      ok = ::JS_DefinePropertyById(aCtx, scope, id, JS::UndefinedHandleValue, JSPROP_ENUMERATE);
+      ok = ::JS_DefinePropertyById(aCtx, aScopeObj, aId, JSVAL_VOID, nullptr,
+                                   nullptr, JSPROP_ENUMERATE);
       resolved = true;
     }
   }
 
   *_retval = ok;
-  *resolvedp = resolved && ok;
+  *_objp = resolved && ok ? aScopeObj : nullptr;
   return NS_OK;
 }
 

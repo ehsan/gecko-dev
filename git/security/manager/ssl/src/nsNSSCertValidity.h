@@ -12,13 +12,11 @@
 class nsX509CertValidity : public nsIX509CertValidity
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIX509CERTVALIDITY
 
   nsX509CertValidity();
-  explicit nsX509CertValidity(CERTCertificate *cert);
-
-protected:
+  nsX509CertValidity(CERTCertificate *cert);
   virtual ~nsX509CertValidity();
   /* additional members */
 

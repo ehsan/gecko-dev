@@ -108,29 +108,15 @@
             newitem.eventCallback = aEventCallback;
 
             if (aButtons) {
-              // The notification-button-default class is added to the button
-              // with isDefault set to true. If there is no such button, it is
-              // added to the first button (unless that button has isDefault
-              // set to false). There cannot be multiple default buttons.
-              var defaultElem;
-
               for (var b = 0; b < aButtons.length; b++) {
                 var button = aButtons[b];
                 var buttonElem = document.createElementNS(XULNS, "button");
                 buttonElem.setAttribute("label", button.label);
                 buttonElem.setAttribute("accesskey", button.accessKey);
-                buttonElem.classList.add("notification-button");
-
-                if (button.isDefault ||
-                    b == 0 && !("isDefault" in button))
-                  defaultElem = buttonElem;
 
                 newitem.appendChild(buttonElem);
                 buttonElem.buttonInfo = button;
               }
-
-              if (defaultElem)
-                defaultElem.classList.add("notification-button-default");
             }
 
             newitem.setAttribute("priority", aPriority);
@@ -359,7 +345,7 @@
 
   </binding>
 
-  <binding id="notification" role="xul:alert">
+  <binding id="notification">
     <content>
       <xul:hbox class="notification-inner outset" flex="1" xbl:inherits="type">
         <xul:hbox anonid="details" align="center" flex="1"
@@ -370,7 +356,7 @@
           <children/>
         </xul:hbox>
         <xul:toolbarbutton ondblclick="event.stopPropagation();"
-                           class="messageCloseButton close-icon tabbable"
+                           class="messageCloseButton tabbable"
                            xbl:inherits="hidden=hideclose"
                            tooltiptext="&closeNotification.tooltip;"
                            oncommand="document.getBindingParent(this).close();"/>
@@ -379,7 +365,15 @@
     <resources>
       <stylesheet src="chrome://global/skin/notification.css"/>
     </resources>
-    <implementation>
+    <implementation implements="nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            return Components.interfaces.nsIAccessibleProvider.XULAlert;
+          ]]>
+        </getter>
+      </property>
+
       <property name="label" onset="this.setAttribute('label', val); return val;"
                              onget="return this.getAttribute('label');"/>
       <property name="value" onset="this.setAttribute('value', val); return val;"
@@ -455,9 +449,6 @@
       <xul:vbox flex="1">
         <xul:description class="popup-notification-description"
                          xbl:inherits="xbl:text=label"/>
-        <children includes="popupnotificationcontent"/>
-        <xul:label class="text-link popup-notification-learnmore-link"
-               xbl:inherits="href=learnmoreurl">&learnMore;</xul:label>
         <xul:spacer flex="1"/>
         <xul:hbox class="popup-notification-button-container"
                   pack="end" align="center">
@@ -470,14 +461,14 @@
               <children/>
               <xul:menuitem class="menuitem-iconic popup-notification-closeitem"
                             label="&closeNotificationItem.label;"
-                            xbl:inherits="oncommand=closeitemcommand,hidden=hidenotnow"/>
+                            xbl:inherits="oncommand=closeitemcommand"/>
             </xul:menupopup>
           </xul:button>
         </xul:hbox>
       </xul:vbox>
       <xul:vbox pack="start">
         <xul:toolbarbutton anonid="closebutton"
-                           class="messageCloseButton close-icon popup-notification-closebutton tabbable"
+                           class="messageCloseButton popup-notification-closebutton tabbable"
                            xbl:inherits="oncommand=closebuttoncommand"
                            tooltiptext="&closeNotification.tooltip;"/>
       </xul:vbox>

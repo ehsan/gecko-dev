@@ -88,7 +88,7 @@ gTests.push({
     isnot(gLibrary.PlacesOrganizer._places.selectedNode, null,
           "We correctly have selection in the Library left pane");
     // Get our bookmark in the right pane.
-    var bookmarkNode = gLibrary.ContentTree.view.view.nodeForTreeIndex(0);
+    var bookmarkNode = gLibrary.PlacesOrganizer._content.view.nodeForTreeIndex(0);
     is(bookmarkNode.uri, this.URIs[0], "Found bookmark in the right pane");
   },
 
@@ -130,7 +130,7 @@ gTests.push({
     isnot(gLibrary.PlacesOrganizer._places.selectedNode, null,
           "We correctly have selection in the Library left pane");
     // Get our bookmark in the right pane.
-    var folderNode = gLibrary.ContentTree.view.view.nodeForTreeIndex(0);
+    var folderNode = gLibrary.PlacesOrganizer._content.view.nodeForTreeIndex(0);
     is(folderNode.title, "Folder", "Found folder in the right pane");
   },
 
@@ -187,7 +187,7 @@ gTests.push({
     isnot(gLibrary.PlacesOrganizer._places.selectedNode, null,
           "We correctly have selection in the Library left pane");
     // Get our bookmark in the right pane.
-    var folderNode = gLibrary.ContentTree.view.view.nodeForTreeIndex(0);
+    var folderNode = gLibrary.PlacesOrganizer._content.view.nodeForTreeIndex(0);
     is(folderNode.title, "Query", "Found query in the right pane");
   },
 
@@ -243,7 +243,7 @@ function runNextTest() {
     // Middle click on first node in the content tree of the Library.
     gLibrary.focus();
     waitForFocus(function() {
-      mouseEventOnCell(gLibrary.ContentTree.view, 0, 0, { button: 1 });
+      mouseEventOnCell(gLibrary.PlacesOrganizer._content, 0, 0, { button: 1 });
     }, gLibrary);
   }
   else {
@@ -272,8 +272,10 @@ function mouseEventOnCell(aTree, aRowIndex, aColumnIndex, aEventDetails) {
   var column = aTree.columns[aColumnIndex];
 
   // get cell coordinates
-  var rect = aTree.treeBoxObject.getCoordsForCellItem(aRowIndex, column, "text");
+  var x = {}, y = {}, width = {}, height = {};
+  aTree.treeBoxObject.getCoordsForCellItem(aRowIndex, column, "text",
+                                           x, y, width, height);
 
-  EventUtils.synthesizeMouse(aTree.body, rect.x, rect.y,
+  EventUtils.synthesizeMouse(aTree.body, x.value, y.value,
                              aEventDetails, gLibrary);
 }

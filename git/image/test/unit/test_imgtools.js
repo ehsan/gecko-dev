@@ -13,7 +13,11 @@ const Cc = Components.classes;
  * Call |dumpToFile(outData);| in a test to file to a file.
  */
 function dumpToFile(aData) {
-    var outputFile = do_get_tempdir();
+    const path = "/tmp";
+
+    var outputFile = Cc["@mozilla.org/file/local;1"].
+                     createInstance(Ci.nsILocalFile);
+    outputFile.initWithPath(path);
     outputFile.append("testdump.png");
 
     var outputStream = Cc["@mozilla.org/network/file-output-stream;1"].
@@ -145,8 +149,6 @@ var imgFile = do_get_file(imgName);
 var istream = getFileInputStream(imgFile);
 do_check_eq(istream.available(), 8415);
 
-// Use decodeImageData for this test even though it's deprecated to ensure that
-// it correctly forwards to decodeImage and continues to work.
 var outParam = { value: null };
 imgTools.decodeImageData(istream, inMimeType, outParam);
 var container = outParam.value;
@@ -207,7 +209,9 @@ imgFile = do_get_file(imgName);
 istream = getFileInputStream(imgFile);
 do_check_eq(istream.available(), 3494);
 
-container = imgTools.decodeImage(istream, inMimeType);
+outParam = {};
+imgTools.decodeImageData(istream, inMimeType, outParam);
+container = outParam.value;
 
 // It's not easy to look at the pixel values from JS, so just
 // check the container's size.
@@ -269,7 +273,9 @@ imgFile = do_get_file(imgName);
 istream = getFileInputStream(imgFile);
 do_check_eq(istream.available(), 1406);
 
-container = imgTools.decodeImage(istream, inMimeType);
+outParam = { value: null };
+imgTools.decodeImageData(istream, inMimeType, outParam);
+container = outParam.value;
 
 // It's not easy to look at the pixel values from JS, so just
 // check the container's size.
@@ -289,7 +295,7 @@ encodedBytes = streamToArray(istream);
 refName = "image3ico32x32.png";
 refFile = do_get_file(refName);
 istream = getFileInputStream(refFile);
-do_check_eq(istream.available(), 2285);
+do_check_eq(istream.available(), 2281);
 referenceBytes = streamToArray(istream);
 
 // compare the encoder's output to the reference file.
@@ -327,7 +333,9 @@ imgFile = do_get_file(imgName);
 istream = getFileInputStream(imgFile);
 do_check_eq(istream.available(), 1809);
 
-container = imgTools.decodeImage(istream, inMimeType);
+outParam = { value: null };
+imgTools.decodeImageData(istream, inMimeType, outParam);
+container = outParam.value;
 
 // It's not easy to look at the pixel values from JS, so just
 // check the container's size.
@@ -435,7 +443,9 @@ imgFile = do_get_file(imgName);
 istream = getFileInputStream(imgFile);
 do_check_eq(istream.available(), 3494);
 
-container = imgTools.decodeImage(istream, inMimeType);
+outParam = {};
+imgTools.decodeImageData(istream, inMimeType, outParam);
+container = outParam.value;
 
 // It's not easy to look at the pixel values from JS, so just
 // check the container's size.
@@ -653,7 +663,9 @@ for(var i=0; i<testData.length; ++i) {
     imgFile = do_get_file(dict["preImage"]);
     istream = getFileInputStream(imgFile);
 
-    var container = imgTools.decodeImage(istream, dict["preImageMimeType"]);
+    var outParam = { value: null };
+    imgTools.decodeImageData(istream, dict["preImageMimeType"], outParam);
+    var container = outParam.value;
 
     istream = imgTools.encodeImage(container, dict["refImageMimeType"]);
 
@@ -689,9 +701,11 @@ do_check_eq(istream.available(), 17759);
 var errsrc = "none";
 
 try {
-  container = imgTools.decodeImage(istream, inMimeType);
+  outParam = { value: null };
+  imgTools.decodeImageData(istream, inMimeType, outParam);
+  container = outParam.value;
 
-  // We should never hit this - decodeImage throws an assertion because the
+  // We should never hit this - decodeImageData throws an assertion because the
   // image decoded doesn't have enough frames.
   try {
       istream = imgTools.encodeImage(container, "image/png");
@@ -706,25 +720,6 @@ try {
 
 do_check_eq(errsrc, "decode");
 checkExpectedError(/NS_ERROR_FAILURE/, err);
-
-
-/* ========== bug 815359  ========== */
-testnum = 815359;
-testdesc = "test correct ico hotspots (bug 815359)";
-
-imgName = "bug815359.ico";
-inMimeType = "image/x-icon";
-imgFile = do_get_file(imgName);
-
-istream = getFileInputStream(imgFile);
-do_check_eq(istream.available(), 4286);
-
-container = imgTools.decodeImage(istream, inMimeType);
-
-var props = container.QueryInterface(Ci.nsIProperties);
-
-do_check_eq(props.get("hotspotX", Ci.nsISupportsPRUint32).data, 10);
-do_check_eq(props.get("hotspotY", Ci.nsISupportsPRUint32).data, 9);
 
 
 /* ========== end ========== */

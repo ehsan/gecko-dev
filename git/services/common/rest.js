@@ -2,26 +2,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef MERGED_COMPARTMENT
-
 const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
-this.EXPORTED_SYMBOLS = [
+const EXPORTED_SYMBOLS = [
   "RESTRequest",
   "RESTResponse",
-  "TokenAuthenticatedRESTRequest",
+  "TokenAuthenticatedRESTRequest"
 ];
 
-#endif
-
-Cu.import("resource://gre/modules/Preferences.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-crypto/utils.js");
+Cu.import("resource://services-common/log4moz.js");
+Cu.import("resource://services-common/preferences.js");
 Cu.import("resource://services-common/utils.js");
-
-XPCOMUtils.defineLazyModuleGetter(this, "CryptoUtils",
-                                  "resource://services-crypto/utils.js");
 
 const Prefs = new Preferences("services.common.rest.");
 
@@ -80,7 +74,7 @@ const Prefs = new Preferences("services.common.rest.");
  *   });
  *   request.get();
  */
-this.RESTRequest = function RESTRequest(uri) {
+function RESTRequest(uri) {
   this.status = this.NOT_SENT;
 
   // If we don't have an nsIURI object yet, make one. This will throw if
@@ -91,9 +85,9 @@ this.RESTRequest = function RESTRequest(uri) {
   this.uri = uri;
 
   this._headers = {};
-  this._log = Log.repository.getLogger(this._logName);
+  this._log = Log4Moz.repository.getLogger(this._logName);
   this._log.level =
-    Log.Level[Prefs.get("log.logger.rest.request")];
+    Log4Moz.Level[Prefs.get("log.logger.rest.request")];
 }
 RESTRequest.prototype = {
 
@@ -123,10 +117,9 @@ RESTRequest.prototype = {
   response: null,
 
   /**
-   * nsIRequest load flags. Don't do any caching by default. Don't send user
-   * cookies and such over the wire (Bug 644734).
+   * nsIRequest load flags. Don't do any caching by default.
    */
-  loadFlags: Ci.nsIRequest.LOAD_BYPASS_CACHE | Ci.nsIRequest.INHIBIT_CACHING | Ci.nsIRequest.LOAD_ANONYMOUS,
+  loadFlags: Ci.nsIRequest.LOAD_BYPASS_CACHE | Ci.nsIRequest.INHIBIT_CACHING,
 
   /**
    * nsIHttpChannel
@@ -145,11 +138,6 @@ RESTRequest.prototype = {
   IN_PROGRESS: 2,
   COMPLETED:   4,
   ABORTED:     8,
-
-  /**
-   * HTTP status text of response
-   */
-  statusText: null,
 
   /**
    * Request timeout (in seconds, though decimal values can be used for
@@ -205,23 +193,6 @@ RESTRequest.prototype = {
    */
   get: function get(onComplete, onProgress) {
     return this.dispatch("GET", null, onComplete, onProgress);
-  },
-
-  /**
-   * Perform an HTTP PATCH.
-   *
-   * @param data
-   *        Data to be used as the request body. If this isn't a string
-   *        it will be JSONified automatically.
-   * @param onComplete
-   *        Short-circuit way to set the 'onComplete' method. Optional.
-   * @param onProgress
-   *        Short-circuit way to set the 'onProgress' method. Optional.
-   *
-   * @return the request object.
-   */
-  patch: function patch(data, onComplete, onProgress) {
-    return this.dispatch("PATCH", data, onComplete, onProgress);
   },
 
   /**
@@ -324,14 +295,14 @@ RESTRequest.prototype = {
     }
 
     // Set HTTP request body.
-    if (method == "PUT" || method == "POST" || method == "PATCH") {
+    if (method == "PUT" || method == "POST") {
       // Convert non-string bodies into JSON.
       if (typeof data != "string") {
         data = JSON.stringify(data);
       }
 
       this._log.debug(method + " Length: " + data.length);
-      if (this._log.level <= Log.Level.Trace) {
+      if (this._log.level <= Log4Moz.Level.Trace) {
         this._log.trace(method + " Body: " + data);
       }
 
@@ -352,13 +323,7 @@ RESTRequest.prototype = {
     channel.contentCharset = this.charset;
 
     // Blast off!
-    try {
-      channel.asyncOpen(this, null);
-    } catch (ex) {
-      // asyncOpen can throw in a bunch of cases -- e.g., a forbidden port.
-      this._log.warn("Caught an error in asyncOpen: " + CommonUtils.exceptionStr(ex));
-      CommonUtils.nextTick(onComplete.bind(this, ex));
-    }
+    channel.asyncOpen(this, null);
     this.status = this.SENT;
     this.delayTimeout();
     return this;
@@ -383,7 +348,7 @@ RESTRequest.prototype = {
                                      Cr.NS_ERROR_NET_TIMEOUT);
     if (!this.onComplete) {
       this._log.error("Unexpected error: onComplete not defined in " +
-                      "abortTimeout.");
+                      "abortTimeout.")
       return;
     }
     this.onComplete(error);
@@ -466,7 +431,7 @@ RESTRequest.prototype = {
     this._log.debug(this.method + " " + uri + " " + this.response.status);
 
     // Additionally give the full response body when Trace logging.
-    if (this._log.level <= Log.Level.Trace) {
+    if (this._log.level <= Log4Moz.Level.Trace) {
       this._log.trace(this.method + " body: " + this.response.body);
     }
 
@@ -614,10 +579,10 @@ RESTRequest.prototype = {
  * Response object for a RESTRequest. This will be created automatically by
  * the RESTRequest.
  */
-this.RESTResponse = function RESTResponse() {
-  this._log = Log.repository.getLogger(this._logName);
+function RESTResponse() {
+  this._log = Log4Moz.repository.getLogger(this._logName);
   this._log.level =
-    Log.Level[Prefs.get("log.logger.rest.response")];
+    Log4Moz.Level[Prefs.get("log.logger.rest.response")];
 }
 RESTResponse.prototype = {
 
@@ -634,30 +599,15 @@ RESTResponse.prototype = {
   get status() {
     let status;
     try {
-      status = this.request.channel.responseStatus;
+      let channel = this.request.channel.QueryInterface(Ci.nsIHttpChannel);
+      status = channel.responseStatus;
     } catch (ex) {
       this._log.debug("Caught exception fetching HTTP status code:" +
                       CommonUtils.exceptionStr(ex));
       return null;
     }
-    Object.defineProperty(this, "status", {value: status});
-    return status;
-  },
-
-  /**
-   * HTTP status text
-   */
-  get statusText() {
-    let statusText;
-    try {
-      statusText = this.request.channel.responseStatusText;
-    } catch (ex) {
-      this._log.debug("Caught exception fetching HTTP status text:" +
-                      CommonUtils.exceptionStr(ex));
-      return null;
-    }
-    Object.defineProperty(this, "statusText", {value: statusText});
-    return statusText;
+    delete this.status;
+    return this.status = status;
   },
 
   /**
@@ -666,14 +616,15 @@ RESTResponse.prototype = {
   get success() {
     let success;
     try {
-      success = this.request.channel.requestSucceeded;
+      let channel = this.request.channel.QueryInterface(Ci.nsIHttpChannel);
+      success = channel.requestSucceeded;
     } catch (ex) {
       this._log.debug("Caught exception fetching HTTP success flag:" +
                       CommonUtils.exceptionStr(ex));
       return null;
     }
-    Object.defineProperty(this, "success", {value: success});
-    return success;
+    delete this.success;
+    return this.success = success;
   },
 
   /**
@@ -693,8 +644,8 @@ RESTResponse.prototype = {
       return null;
     }
 
-    Object.defineProperty(this, "headers", {value: headers});
-    return headers;
+    delete this.headers;
+    return this.headers = headers;
   },
 
   /**
@@ -719,8 +670,7 @@ RESTResponse.prototype = {
  *        nonce, and ext. See CrytoUtils.computeHTTPMACSHA1 for information on
  *        the purpose of these values.
  */
-this.TokenAuthenticatedRESTRequest =
- function TokenAuthenticatedRESTRequest(uri, authToken, extra) {
+function TokenAuthenticatedRESTRequest(uri, authToken, extra) {
   RESTRequest.call(this, uri);
   this.authToken = authToken;
   this.extra = extra || {};

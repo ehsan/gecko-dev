@@ -13,7 +13,7 @@
 #include "nsIOutputStream.h"
 #include "gfxContext.h"
 
-class gfxPSSurface : public gfxASurface {
+class THEBES_API gfxPSSurface : public gfxASurface {
 public:
     enum PageOrientation {
         PORTRAIT,
@@ -39,6 +39,12 @@ public:
     virtual const gfxIntSize GetSize() const
     {
         return mSize;
+    }
+
+    virtual int32_t GetDefaultContextFlags() const
+    {
+        return gfxContext::FLAG_SIMPLIFY_OPERATORS |
+               gfxContext::FLAG_DISABLE_SNAPPING;
     }
 
 private:

@@ -7,8 +7,8 @@ package org.mozilla.gecko.sync.setup;
 import java.io.UnsupportedEncodingException;
 import java.security.NoSuchAlgorithmException;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.SyncConstants;
+import org.mozilla.gecko.sync.GlobalConstants;
+import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.setup.activities.SetupSyncActivity;
 
@@ -99,7 +99,7 @@ public class SyncAuthenticatorService extends Service {
     final Bundle result = new Bundle();
 
     // This is a Sync account.
-    result.putString(AccountManager.KEY_ACCOUNT_TYPE, SyncConstants.ACCOUNTTYPE_SYNC);
+    result.putString(AccountManager.KEY_ACCOUNT_TYPE, GlobalConstants.ACCOUNTTYPE_SYNC);
 
     // Server.
     String serverURL = am.getUserData(account, Constants.OPTION_SERVER);
@@ -114,9 +114,10 @@ public class SyncAuthenticatorService extends Service {
       Logger.pii(LOG_TAG, "Account " + account.name + " hashes to " + username + ".");
       Logger.debug(LOG_TAG, "Setting username. Null? " + (username == null));
       result.putString(Constants.OPTION_USERNAME, username);
-    } catch (NoSuchAlgorithmException | UnsupportedEncodingException e) {
+    } catch (NoSuchAlgorithmException e) {
       // Do nothing. Calling code must check for missing value.
-      Logger.debug(LOG_TAG, "Exception in account lookup: " + e);
+    } catch (UnsupportedEncodingException e) {
+      // Do nothing. Calling code must check for missing value.
     }
 
     // Sync key.
@@ -130,7 +131,7 @@ public class SyncAuthenticatorService extends Service {
   }
 
   private static class SyncAccountAuthenticator extends AbstractAccountAuthenticator {
-    private final Context mContext;
+    private Context mContext;
     public SyncAccountAuthenticator(Context context) {
       super(context);
       mContext = context;
@@ -144,7 +145,7 @@ public class SyncAuthenticatorService extends Service {
       final Intent intent = new Intent(mContext, SetupSyncActivity.class);
       intent.putExtra(AccountManager.KEY_ACCOUNT_AUTHENTICATOR_RESPONSE,
                       response);
-      intent.putExtra("accountType", SyncConstants.ACCOUNTTYPE_SYNC);
+      intent.putExtra("accountType", GlobalConstants.ACCOUNTTYPE_SYNC);
       intent.putExtra(Constants.INTENT_EXTRA_IS_SETUP, true);
 
       final Bundle result = new Bundle();
@@ -246,7 +247,7 @@ public class SyncAuthenticatorService extends Service {
       final Intent intent = SyncAccounts.makeSyncAccountDeletedIntent(mContext, AccountManager.get(mContext), account);
       Logger.info(LOG_TAG, "Account named " + account.name + " being removed; " +
           "broadcasting secure intent " + intent.getAction() + ".");
-      mContext.sendBroadcast(intent, SyncConstants.PER_ACCOUNT_TYPE_PERMISSION);
+      mContext.sendBroadcast(intent, GlobalConstants.PER_ACCOUNT_TYPE_PERMISSION);
 
       return result;
     }

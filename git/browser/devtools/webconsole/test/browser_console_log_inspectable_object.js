@@ -8,7 +8,7 @@ function test()
 {
   waitForExplicitFinish();
 
-  addTab("data:text/html;charset=utf8,test for bug 676722 - inspectable objects for window.console");
+  addTab("data:text/html,test for bug 676722 - inspectable objects for window.console");
 
   gBrowser.selectedBrowser.addEventListener("load", function onLoad() {
     gBrowser.selectedBrowser.removeEventListener("load", onLoad, true);
@@ -22,37 +22,36 @@ function performTest(hud)
 
   hud.jsterm.execute("myObj = {abba: 'omgBug676722'}");
   hud.jsterm.execute("console.log('fooBug676722', myObj)");
+  waitForSuccess({
+    name: "eval results are shown",
+    validatorFn: function()
+    {
+      return hud.outputNode.textContent.indexOf("fooBug676722") > -1 &&
+             hud.outputNode.querySelector(".hud-clickable");
+    },
+    successFn: function()
+    {
+      isnot(hud.outputNode.textContent.indexOf("myObj = {"), -1,
+            "myObj = ... is shown");
 
-  waitForMessages({
-    webconsole: hud,
-    messages: [{
-      text: "fooBug676722",
-      category: CATEGORY_WEBDEV,
-      severity: SEVERITY_LOG,
-      objects: true,
-    }],
-  }).then(([result]) => {
-    let msg = [...result.matched][0];
-    ok(msg, "message element");
-    let body = msg.querySelector(".message-body");
-    ok(body, "message body");
-    let clickable = result.clickableElements[0];
-    ok(clickable, "the console.log() object anchor was found");
-    ok(body.textContent.contains('{ abba: "omgBug676722" }'),
-       "clickable node content is correct");
+      let clickable = hud.outputNode.querySelector(".hud-clickable");
+      ok(clickable, "the console.log() object .hud-clickable was found");
+      isnot(clickable.textContent.indexOf("omgBug676722"), -1,
+            "clickable node content is correct");
 
-    hud.jsterm.once("variablesview-fetched",
-      (aEvent, aVar) => {
-        ok(aVar, "object inspector opened on click");
+      document.addEventListener("popupshown", function _onPopupShown(aEvent) {
+        document.removeEventListener("popupshown", _onPopupShown);
 
-        findVariableViewProperties(aVar, [{
-          name: "abba",
-          value: "omgBug676722",
-        }], { webconsole: hud }).then(finishTest);
+        isnot(aEvent.target.label.indexOf("omgBug676722"), -1,
+           "object inspector opened on click");
+
+        executeSoon(finishTest);
       });
 
-    executeSoon(function() {
-      EventUtils.synthesizeMouse(clickable, 2, 2, {}, hud.iframeWindow);
-    });
+      executeSoon(function() {
+        EventUtils.synthesizeMouse(clickable, 2, 2, {}, hud.iframeWindow);
+      });
+    },
+    failureFn: finishTest,
   });
 }

@@ -5,7 +5,6 @@
 
 #include "gfxMatrix.h"
 #include "cairo.h"
-#include "mozilla/gfx/Tools.h"
 
 #define CAIRO_MATRIX(x) reinterpret_cast<cairo_matrix_t*>((x))
 #define CONST_CAIRO_MATRIX(x) reinterpret_cast<const cairo_matrix_t*>((x))
@@ -17,27 +16,28 @@ gfxMatrix::Reset()
     return *this;
 }
 
-bool
+const gfxMatrix&
 gfxMatrix::Invert()
 {
-    return cairo_matrix_invert(CAIRO_MATRIX(this)) == CAIRO_STATUS_SUCCESS;
+    cairo_matrix_invert(CAIRO_MATRIX(this));
+    return *this;
 }
 
-gfxMatrix&
+const gfxMatrix&
 gfxMatrix::Scale(gfxFloat x, gfxFloat y)
 {
     cairo_matrix_scale(CAIRO_MATRIX(this), x, y);
     return *this;
 }
 
-gfxMatrix&
+const gfxMatrix&
 gfxMatrix::Translate(const gfxPoint& pt)
 {
     cairo_matrix_translate(CAIRO_MATRIX(this), pt.x, pt.y);
     return *this;
 }
 
-gfxMatrix&
+const gfxMatrix&
 gfxMatrix::Rotate(gfxFloat radians)
 {
     cairo_matrix_rotate(CAIRO_MATRIX(this), radians);
@@ -45,33 +45,17 @@ gfxMatrix::Rotate(gfxFloat radians)
 }
 
 const gfxMatrix&
-gfxMatrix::operator *= (const gfxMatrix& m)
+gfxMatrix::Multiply(const gfxMatrix& m)
 {
     cairo_matrix_multiply(CAIRO_MATRIX(this), CAIRO_MATRIX(this), CONST_CAIRO_MATRIX(&m));
     return *this;
 }
 
-gfxMatrix&
+const gfxMatrix&
 gfxMatrix::PreMultiply(const gfxMatrix& m)
 {
     cairo_matrix_multiply(CAIRO_MATRIX(this), CONST_CAIRO_MATRIX(&m), CAIRO_MATRIX(this));
     return *this;
-}
-
-/* static */ gfxMatrix
-gfxMatrix::Rotation(gfxFloat aAngle)
-{
-    gfxMatrix newMatrix;
-
-    gfxFloat s = sin(aAngle);
-    gfxFloat c = cos(aAngle);
-
-    newMatrix._11 = c;
-    newMatrix._12 = s;
-    newMatrix._21 = -s;
-    newMatrix._22 = c;
-
-    return newMatrix;
 }
 
 gfxPoint
@@ -143,18 +127,19 @@ gfxMatrix::TransformBounds(const gfxRect& rect) const
 static void NudgeToInteger(double *aVal)
 {
     float f = float(*aVal);
-    mozilla::gfx::NudgeToInteger(&f);
-    *aVal = f;
+    float r = NS_roundf(f);
+    if (f == r) {
+        *aVal = r;
+    }
 }
 
-gfxMatrix&
+void
 gfxMatrix::NudgeToIntegers(void)
 {
-    NudgeToInteger(&_11);
-    NudgeToInteger(&_21);
-    NudgeToInteger(&_12);
-    NudgeToInteger(&_22);
-    NudgeToInteger(&_31);
-    NudgeToInteger(&_32);
-    return *this;
+    NudgeToInteger(&xx);
+    NudgeToInteger(&xy);
+    NudgeToInteger(&yx);
+    NudgeToInteger(&yy);
+    NudgeToInteger(&x0);
+    NudgeToInteger(&y0);
 }

@@ -11,6 +11,7 @@ let TabView = {
   _closedLastVisibleTabBeforeFrameInitialized: false,
   _isFrameLoading: false,
   _initFrameCallbacks: [],
+  _lastSessionGroupName: null,
   PREF_BRANCH: "browser.panorama.",
   PREF_FIRST_RUN: "browser.panorama.experienced_first_run",
   PREF_STARTUP_PAGE: "browser.startup.page",
@@ -67,13 +68,15 @@ let TabView = {
 
     if (this.firstUseExperienced) {
       // ___ visibility
+      let sessionstore =
+        Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
 
-      let data = SessionStore.getWindowValue(window, this.VISIBILITY_IDENTIFIER);
+      let data = sessionstore.getWindowValue(window, this.VISIBILITY_IDENTIFIER);
       if (data && data == "true") {
         this.show();
       } else {
         try {
-          data = SessionStore.getWindowValue(window, this.GROUPS_IDENTIFIER);
+          data = sessionstore.getWindowValue(window, this.GROUPS_IDENTIFIER);
           if (data) {
             let parsedData = JSON.parse(data);
             this.updateGroupNumberBroadcaster(parsedData.totalNumber || 1);
@@ -151,15 +154,6 @@ let TabView = {
         "SSWindowStateReady", this._SSWindowStateReadyListener, false);
 
     this._initialized = false;
-
-    if (this._window) {
-      this._window = null;
-    }
-
-    if (this._iframe) {
-      this._iframe.remove();
-      this._iframe = null;
-    }
   },
 
   // ----------
@@ -262,9 +256,10 @@ let TabView = {
 
   // ----------
   hide: function TabView_hide() {
-    if (this.isVisible() && this._window) {
-      this._window.UI.exit();
-    }
+    if (!this.isVisible())
+      return;
+
+    this._window.UI.exit();
   },
 
   // ----------
@@ -421,16 +416,21 @@ let TabView = {
   _addToolbarButton: function TabView__addToolbarButton() {
     let buttonId = "tabview-button";
 
-    if (CustomizableUI.getPlacementOfWidget(buttonId))
+    if (document.getElementById(buttonId))
       return;
 
-    let allTabsBtnPlacement = CustomizableUI.getPlacementOfWidget("alltabs-button");
-    // allTabsBtnPlacement can never be null because the button isn't removable
-    let desiredPosition = allTabsBtnPlacement.position + 1;
-    CustomizableUI.addWidgetToArea(buttonId, "TabsToolbar", desiredPosition);
-    // NB: this is for backwards compatibility, and should be removed by
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=976041
-    document.persist("TabsToolbar", "currentset");
+    let toolbar = document.getElementById("TabsToolbar");
+    let currentSet = toolbar.currentSet.split(",");
+
+    let alltabsPos = currentSet.indexOf("alltabs-button");
+    if (-1 == alltabsPos)
+      return;
+
+    currentSet[alltabsPos] += "," + buttonId;
+    currentSet = currentSet.join(",");
+    toolbar.currentSet = currentSet;
+    toolbar.setAttribute("currentset", currentSet);
+    document.persist(toolbar.id, "currentset");
   },
 
   // ----------

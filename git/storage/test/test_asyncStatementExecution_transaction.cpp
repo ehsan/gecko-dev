@@ -48,7 +48,7 @@ check_transaction(mozIStorageConnection *aDB,
 {
   // -- install a transaction commit hook.
   int commit = 0;
-  static_cast<Connection *>(aDB)->setCommitHook(commit_hook, &commit);
+  ::sqlite3_commit_hook(*static_cast<Connection *>(aDB), commit_hook, &commit);
 
   nsRefPtr<AsyncStatementSpinner> asyncSpin(new AsyncStatementSpinner());
   nsCOMPtr<mozIStoragePendingStatement> asyncPend;
@@ -60,7 +60,7 @@ check_transaction(mozIStorageConnection *aDB,
   asyncSpin->SpinUntilCompleted();
 
   // -- uninstall the transaction commit hook.
-  static_cast<Connection *>(aDB)->setCommitHook(nullptr);
+  ::sqlite3_commit_hook(*static_cast<Connection *>(aDB), NULL, NULL);
 
   // -- check transaction
   do_check_eq(aTransactionExpected, !!commit);

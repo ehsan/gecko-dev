@@ -12,32 +12,31 @@
 #define mozilla_css_StyleRule_h__
 
 #include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
+
+#include "mozilla/Attributes.h"
 #include "mozilla/css/Rule.h"
 
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "nsCSSPseudoElements.h"
 #include "nsCSSPseudoClasses.h"
+#include "nsAutoPtr.h"
 
 class nsIAtom;
+class nsCSSStyleSheet;
 struct nsCSSSelectorList;
 class nsCSSCompressedDataBlock;
 
-namespace mozilla {
-class CSSStyleSheet;
-} // namespace mozilla
-
 struct nsAtomList {
 public:
-  explicit nsAtomList(nsIAtom* aAtom);
-  explicit nsAtomList(const nsString& aAtomValue);
+  nsAtomList(nsIAtom* aAtom);
+  nsAtomList(const nsString& aAtomValue);
   ~nsAtomList(void);
 
   /** Do a deep clone.  Should be used only on the first in the linked list. */
   nsAtomList* Clone() const { return Clone(true); }
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   nsCOMPtr<nsIAtom> mAtom;
   nsAtomList*       mNext;
@@ -50,8 +49,8 @@ private:
 
 struct nsPseudoClassList {
 public:
-  explicit nsPseudoClassList(nsCSSPseudoClasses::Type aType);
-  nsPseudoClassList(nsCSSPseudoClasses::Type aType, const char16_t *aString);
+  nsPseudoClassList(nsCSSPseudoClasses::Type aType);
+  nsPseudoClassList(nsCSSPseudoClasses::Type aType, const PRUnichar *aString);
   nsPseudoClassList(nsCSSPseudoClasses::Type aType, const int32_t *aIntPair);
   nsPseudoClassList(nsCSSPseudoClasses::Type aType,
                     nsCSSSelectorList *aSelectorList /* takes ownership */);
@@ -60,7 +59,7 @@ public:
   /** Do a deep clone.  Should be used only on the first in the linked list. */
   nsPseudoClassList* Clone() const { return Clone(true); }
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   union {
     // For a given value of mType, we have either:
@@ -73,7 +72,7 @@ public:
     //   d. a selector list, which means mSelectors is non-null
     //      (if nsCSSPseudoClasses::HasSelectorListArg(mType))
     void*           mMemory; // mString and mNumbers use NS_Alloc/NS_Free
-    char16_t*      mString;
+    PRUnichar*      mString;
     int32_t*        mNumbers;
     nsCSSSelectorList* mSelectors;
   } u;
@@ -136,7 +135,7 @@ public:
   void AddID(const nsString& aID);
   void AddClass(const nsString& aClass);
   void AddPseudoClass(nsCSSPseudoClasses::Type aType);
-  void AddPseudoClass(nsCSSPseudoClasses::Type aType, const char16_t* aString);
+  void AddPseudoClass(nsCSSPseudoClasses::Type aType, const PRUnichar* aString);
   void AddPseudoClass(nsCSSPseudoClasses::Type aType, const int32_t* aIntPair);
   // takes ownership of aSelectorList
   void AddPseudoClass(nsCSSPseudoClasses::Type aType,
@@ -144,7 +143,7 @@ public:
   void AddAttribute(int32_t aNameSpace, const nsString& aAttr);
   void AddAttribute(int32_t aNameSpace, const nsString& aAttr, uint8_t aFunc, 
                     const nsString& aValue, bool aCaseSensitive);
-  void SetOperator(char16_t aOperator);
+  void SetOperator(PRUnichar aOperator);
 
   inline bool HasTagSelector() const {
     return !!mCasedTag;
@@ -157,7 +156,7 @@ public:
   // Calculate the specificity of this selector (not including its mNext!).
   int32_t CalcWeight() const;
 
-  void ToString(nsAString& aString, mozilla::CSSStyleSheet* aSheet,
+  void ToString(nsAString& aString, nsCSSStyleSheet* aSheet,
                 bool aAppend = false) const;
 
 private:
@@ -165,9 +164,9 @@ private:
   nsCSSSelector* Clone(bool aDeepNext, bool aDeepNegations) const;
 
   void AppendToStringWithoutCombinators(nsAString& aString,
-                                        mozilla::CSSStyleSheet* aSheet) const;
+                                        nsCSSStyleSheet* aSheet) const;
   void AppendToStringWithoutCombinatorsOrNegations(nsAString& aString,
-                                                   mozilla::CSSStyleSheet* aSheet,
+                                                   nsCSSStyleSheet* aSheet,
                                                    bool aIsNegated)
                                                         const;
   // Returns true if this selector can have a namespace specified (which
@@ -184,13 +183,11 @@ public:
     return static_cast<nsCSSPseudoElements::Type>(mPseudoType);
   }
   void SetPseudoType(nsCSSPseudoElements::Type aType) {
-    NS_ASSERTION(static_cast<int32_t>(aType) >= INT16_MIN &&
-                 static_cast<int32_t>(aType) <= INT16_MAX,
-                 "Out of bounds - this will overflow mPseudoType");
+    NS_ASSERTION(aType > PR_INT16_MIN && aType < PR_INT16_MAX, "Out of bounds");
     mPseudoType = static_cast<int16_t>(aType);
   }
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   // For case-sensitive documents, mLowercaseTag is the same as mCasedTag,
   // but in case-insensitive documents (HTML) mLowercaseTag is lowercase.
@@ -206,7 +203,7 @@ public:
   nsCSSSelector*  mNegations;
   nsCSSSelector*  mNext;
   int32_t         mNameSpace;
-  char16_t       mOperator;
+  PRUnichar       mOperator;
 private:
   // int16_t to make sure it packs well with mOperator
   int16_t        mPseudoType;
@@ -221,8 +218,6 @@ private:
  * items (where each |nsCSSSelectorList| object's |mSelectors| has
  * an |mNext| for the P or H1).  We represent them as linked lists.
  */
-class inDOMUtils;
-
 struct nsCSSSelectorList {
   nsCSSSelectorList(void);
   ~nsCSSSelectorList(void);
@@ -231,40 +226,31 @@ struct nsCSSSelectorList {
    * Create a new selector and push it onto the beginning of |mSelectors|,
    * setting its |mNext| to the current value of |mSelectors|.  If there is an
    * earlier selector, set its |mOperator| to |aOperator|; else |aOperator|
-   * must be char16_t(0).
+   * must be PRUnichar(0).
    * Returns the new selector.
    * The list owns the new selector.
    * The caller is responsible for updating |mWeight|.
    */
-  nsCSSSelector* AddSelector(char16_t aOperator);
-
-  /**
-   * Point |mSelectors| to its |mNext|, and delete the first node in the old
-   * |mSelectors|.
-   * Should only be used on a list with more than one selector in it.
-   */
-  void RemoveRightmostSelector();
+  nsCSSSelector* AddSelector(PRUnichar aOperator);
 
   /**
    * Should be used only on the first in the list
    */
-  void ToString(nsAString& aResult, mozilla::CSSStyleSheet* aSheet);
+  void ToString(nsAString& aResult, nsCSSStyleSheet* aSheet);
 
   /**
    * Do a deep clone.  Should be used only on the first in the list.
    */
   nsCSSSelectorList* Clone() const { return Clone(true); }
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   nsCSSSelector*     mSelectors;
   int32_t            mWeight;
   nsCSSSelectorList* mNext;
-protected:
-  friend class inDOMUtils;
+private: 
   nsCSSSelectorList* Clone(bool aDeep) const;
 
-private:
   nsCSSSelectorList(const nsCSSSelectorList& aCopy) MOZ_DELETE;
   nsCSSSelectorList& operator=(const nsCSSSelectorList& aCopy) MOZ_DELETE;
 };
@@ -282,16 +268,16 @@ class DOMCSSStyleRule;
 
 class StyleRule;
 
-class ImportantRule MOZ_FINAL : public nsIStyleRule {
+class ImportantRule : public nsIStyleRule {
 public:
-  explicit ImportantRule(Declaration *aDeclaration);
+  ImportantRule(Declaration *aDeclaration);
 
   NS_DECL_ISUPPORTS
 
   // nsIStyleRule interface
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData) MOZ_OVERRIDE;
+  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
+  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const;
 #endif
 
 protected:
@@ -309,8 +295,7 @@ class StyleRule MOZ_FINAL : public Rule
 {
  public:
   StyleRule(nsCSSSelectorList* aSelector,
-            Declaration *aDeclaration,
-            uint32_t aLineNumber, uint32_t aColumnNumber);
+            Declaration *aDeclaration);
 private:
   // for |Clone|
   StyleRule(const StyleRule& aCopy);
@@ -324,6 +309,9 @@ public:
 
   // null for style attribute
   nsCSSSelectorList* Selector() { return mSelector; }
+
+  uint32_t GetLineNumber() const { return mLineNumber; }
+  void SetLineNumber(uint32_t aLineNumber) { mLineNumber = aLineNumber; }
 
   Declaration* GetDeclaration() const { return mDeclaration; }
 
@@ -362,13 +350,13 @@ public:
   virtual nsIDOMCSSRule* GetExistingDOMRule();
 
   // The new mapping function.
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData) MOZ_OVERRIDE;
+  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
 
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
+  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const;
 #endif
 
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 private:
   ~StyleRule();
@@ -376,16 +364,19 @@ private:
 private:
   nsCSSSelectorList*      mSelector; // null for style attribute
   Declaration*            mDeclaration;
-  nsRefPtr<ImportantRule> mImportantRule; // initialized by RuleMatched
-  nsRefPtr<DOMCSSStyleRule> mDOMRule;
+  ImportantRule*          mImportantRule; // initialized by RuleMatched
+  DOMCSSStyleRule*        mDOMRule;
+  // Keep the same type so that MSVC packs them.
+  uint32_t                mLineNumber : 31;
+  uint32_t                mWasMatched : 1;
 
 private:
   StyleRule& operator=(const StyleRule& aCopy) MOZ_DELETE;
 };
 
-NS_DEFINE_STATIC_IID_ACCESSOR(StyleRule, NS_CSS_STYLE_RULE_IMPL_CID)
-
 } // namespace css
 } // namespace mozilla
+
+NS_DEFINE_STATIC_IID_ACCESSOR(mozilla::css::StyleRule, NS_CSS_STYLE_RULE_IMPL_CID)
 
 #endif /* mozilla_css_StyleRule_h__ */

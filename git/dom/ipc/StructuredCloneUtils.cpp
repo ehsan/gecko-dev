@@ -6,18 +6,15 @@
 
 #include "StructuredCloneUtils.h"
 
+#include "nsIDOMFile.h"
 #include "nsIDOMDOMException.h"
 #include "nsIMutable.h"
 #include "nsIXPConnect.h"
 
-#include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/BlobBinding.h"
-#include "mozilla/dom/File.h"
 #include "nsContentUtils.h"
 #include "nsJSEnvironment.h"
-#include "MainThreadUtils.h"
+#include "nsThreadUtils.h"
 #include "StructuredCloneTags.h"
-#include "jsapi.h"
 
 using namespace mozilla::dom;
 
@@ -40,45 +37,76 @@ Read(JSContext* aCx, JSStructuredCloneReader* aReader, uint32_t aTag,
   StructuredCloneClosure* closure =
     static_cast<StructuredCloneClosure*>(aClosure);
 
-  if (aTag == SCTAG_DOM_BLOB) {
-    // nsRefPtr<File> needs to go out of scope before toObjectOrNull() is
-    // called because the static analysis thinks dereferencing XPCOM objects
-    // can GC (because in some cases it can!), and a return statement with a
-    // JSObject* type means that JSObject* is on the stack as a raw pointer
-    // while destructors are running.
-    JS::Rooted<JS::Value> val(aCx);
-    {
-      MOZ_ASSERT(aData < closure->mBlobs.Length());
-      nsRefPtr<File> blob = closure->mBlobs[aData];
+  if (aTag == SCTAG_DOM_FILE) {
+    MOZ_ASSERT(aData < closure->mBlobs.Length());
+
+    nsCOMPtr<nsIDOMFile> file = do_QueryInterface(closure->mBlobs[aData]);
+    MOZ_ASSERT(file);
 
 #ifdef DEBUG
-      {
-        // File should not be mutable.
-        bool isMutable;
-        MOZ_ASSERT(NS_SUCCEEDED(blob->GetMutable(&isMutable)));
+    {
+      // File should not be mutable.
+      nsCOMPtr<nsIMutable> mutableFile = do_QueryInterface(file);
+      bool isMutable;
+      if (NS_FAILED(mutableFile->GetMutable(&isMutable))) {
+        MOZ_NOT_REACHED("GetMutable failed!");
+      }
+      else {
         MOZ_ASSERT(!isMutable);
       }
+    }
 #endif
 
-      // Let's create a new blob with the correct parent.
-      nsIGlobalObject *global = xpc::NativeGlobal(JS::CurrentGlobalOrNull(aCx));
-      MOZ_ASSERT(global);
-
-      nsRefPtr<File> newBlob = new File(global, blob->Impl());
-      if (!GetOrCreateDOMReflector(aCx, newBlob, &val)) {
-        return nullptr;
-      }
+    jsval wrappedFile;
+    nsresult rv =
+      nsContentUtils::WrapNative(aCx, JS_GetGlobalForScopeChain(aCx), file,
+                                  &NS_GET_IID(nsIDOMFile), &wrappedFile);
+    if (NS_FAILED(rv)) {
+      Error(aCx, nsIDOMDOMException::DATA_CLONE_ERR);
+      return nullptr;
     }
 
-    return &val.toObject();
+    return &wrappedFile.toObject();
+  }
+
+  if (aTag == SCTAG_DOM_BLOB) {
+    MOZ_ASSERT(aData < closure->mBlobs.Length());
+
+    nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(closure->mBlobs[aData]);
+    MOZ_ASSERT(blob);
+
+#ifdef DEBUG
+    {
+      // Blob should not be mutable.
+      nsCOMPtr<nsIMutable> mutableBlob = do_QueryInterface(blob);
+      bool isMutable;
+      if (NS_FAILED(mutableBlob->GetMutable(&isMutable))) {
+        MOZ_NOT_REACHED("GetMutable failed!");
+      }
+      else {
+        MOZ_ASSERT(!isMutable);
+      }
+    }
+#endif
+
+    jsval wrappedBlob;
+    nsresult rv =
+      nsContentUtils::WrapNative(aCx, JS_GetGlobalForScopeChain(aCx), blob,
+                                  &NS_GET_IID(nsIDOMBlob), &wrappedBlob);
+    if (NS_FAILED(rv)) {
+      Error(aCx, nsIDOMDOMException::DATA_CLONE_ERR);
+      return nullptr;
+    }
+
+    return &wrappedBlob.toObject();
   }
 
   return NS_DOMReadStructuredClone(aCx, aReader, aTag, aData, nullptr);
 }
 
-bool
-Write(JSContext* aCx, JSStructuredCloneWriter* aWriter,
-      JS::Handle<JSObject*> aObj, void* aClosure)
+JSBool
+Write(JSContext* aCx, JSStructuredCloneWriter* aWriter, JSObject* aObj,
+      void* aClosure)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aClosure);
@@ -86,15 +114,40 @@ Write(JSContext* aCx, JSStructuredCloneWriter* aWriter,
   StructuredCloneClosure* closure =
     static_cast<StructuredCloneClosure*>(aClosure);
 
-  // See if the wrapped native is a File/Blob.
-  {
-    File* blob = nullptr;
-    if (NS_SUCCEEDED(UNWRAP_OBJECT(Blob, aObj, blob)) &&
-        NS_SUCCEEDED(blob->SetMutable(false)) &&
-        JS_WriteUint32Pair(aWriter, SCTAG_DOM_BLOB,
-                           closure->mBlobs.Length())) {
-      closure->mBlobs.AppendElement(blob);
-      return true;
+  // See if this is a wrapped native.
+  nsCOMPtr<nsIXPConnectWrappedNative> wrappedNative;
+  nsContentUtils::XPConnect()->
+    GetWrappedNativeOfJSObject(aCx, aObj, getter_AddRefs(wrappedNative));
+
+  if (wrappedNative) {
+    // Get the raw nsISupports out of it.
+    nsISupports* wrappedObject = wrappedNative->Native();
+    MOZ_ASSERT(wrappedObject);
+
+    // See if the wrapped native is a nsIDOMFile.
+    nsCOMPtr<nsIDOMFile> file = do_QueryInterface(wrappedObject);
+    if (file) {
+      nsCOMPtr<nsIMutable> mutableFile = do_QueryInterface(file);
+      if (mutableFile &&
+          NS_SUCCEEDED(mutableFile->SetMutable(false)) &&
+          JS_WriteUint32Pair(aWriter, SCTAG_DOM_FILE,
+                             closure->mBlobs.Length())) {
+        closure->mBlobs.AppendElement(file);
+        return true;
+      }
+    }
+
+    // See if the wrapped native is a nsIDOMBlob.
+    nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(wrappedObject);
+    if (blob) {
+      nsCOMPtr<nsIMutable> mutableBlob = do_QueryInterface(blob);
+      if (mutableBlob &&
+          NS_SUCCEEDED(mutableBlob->SetMutable(false)) &&
+          JS_WriteUint32Pair(aWriter, SCTAG_DOM_BLOB,
+                             closure->mBlobs.Length())) {
+        closure->mBlobs.AppendElement(blob);
+        return true;
+      }
     }
   }
 
@@ -104,10 +157,7 @@ Write(JSContext* aCx, JSStructuredCloneWriter* aWriter,
 JSStructuredCloneCallbacks gCallbacks = {
   Read,
   Write,
-  Error,
-  nullptr,
-  nullptr,
-  nullptr
+  Error
 };
 
 } // anonymous namespace
@@ -116,9 +166,8 @@ namespace mozilla {
 namespace dom {
 
 bool
-ReadStructuredClone(JSContext* aCx, uint64_t* aData, size_t aDataLength,
-                    const StructuredCloneClosure& aClosure,
-                    JS::MutableHandle<JS::Value> aClone)
+ReadStructuredClone(JSContext* aCx, const uint64_t* aData, size_t aDataLength,
+                    const StructuredCloneClosure& aClosure, JS::Value* aClone)
 {
   void* closure = &const_cast<StructuredCloneClosure&>(aClosure);
   return !!JS_ReadStructuredClone(aCx, aData, aDataLength,
@@ -127,7 +176,7 @@ ReadStructuredClone(JSContext* aCx, uint64_t* aData, size_t aDataLength,
 }
 
 bool
-WriteStructuredClone(JSContext* aCx, JS::Handle<JS::Value> aSource,
+WriteStructuredClone(JSContext* aCx, const JS::Value& aSource,
                      JSAutoStructuredCloneBuffer& aBuffer,
                      StructuredCloneClosure& aClosure)
 {

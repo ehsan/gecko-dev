@@ -1,71 +1,74 @@
-/* Any copyright is dedicated to the Public Domain.
- * http://creativecommons.org/publicdomain/zero/1.0/ */
+function test() {
+  /** Test for Bug 393716 **/
 
-"use strict";
+  waitForExplicitFinish();
 
-const URL = "about:config";
-
-/**
- * Bug 393716 - Basic tests for getTabState(), setTabState(), and duplicateTab().
- */
-add_task(function test_set_tabstate() {
+  /////////////////
+  // getTabState //
+  /////////////////
   let key = "Unique key: " + Date.now();
   let value = "Unique value: " + Math.random();
+  let testURL = "about:config";
 
   // create a new tab
-  let tab = gBrowser.addTab(URL);
+  let tab = gBrowser.addTab(testURL);
   ss.setTabValue(tab, key, value);
-  yield promiseBrowserLoaded(tab.linkedBrowser);
+  tab.linkedBrowser.addEventListener("load", function(aEvent) {
+    this.removeEventListener("load", arguments.callee, true);
+    // get the tab's state
+    let state = ss.getTabState(tab);
+    ok(state, "get the tab's state");
 
-  // get the tab's state
-  TabState.flush(tab.linkedBrowser);
-  let state = ss.getTabState(tab);
-  ok(state, "get the tab's state");
+    // verify the tab state's integrity
+    state = JSON.parse(state);
+    ok(state instanceof Object && state.entries instanceof Array && state.entries.length > 0,
+       "state object seems valid");
+    ok(state.entries.length == 1 && state.entries[0].url == testURL,
+       "Got the expected state object (test URL)");
+    ok(state.extData && state.extData[key] == value,
+       "Got the expected state object (test manually set tab value)");
 
-  // verify the tab state's integrity
-  state = JSON.parse(state);
-  ok(state instanceof Object && state.entries instanceof Array && state.entries.length > 0,
-     "state object seems valid");
-  ok(state.entries.length == 1 && state.entries[0].url == URL,
-     "Got the expected state object (test URL)");
-  ok(state.extData && state.extData[key] == value,
-     "Got the expected state object (test manually set tab value)");
+    // clean up
+    gBrowser.removeTab(tab);
+  }, true);
 
-  // clean up
-  gBrowser.removeTab(tab);
-});
-
-add_task(function test_set_tabstate_and_duplicate() {
+  //////////////////////////////////
+  // setTabState and duplicateTab //
+  //////////////////////////////////
   let key2 = "key2";
   let value2 = "Value " + Math.random();
   let value3 = "Another value: " + Date.now();
-  let state = { entries: [{ url: URL }], extData: { key2: value2 } };
+  let state = { entries: [{ url: testURL }], extData: { key2: value2 } };
 
   // create a new tab
-  let tab = gBrowser.addTab();
+  let tab2 = gBrowser.addTab();
   // set the tab's state
-  ss.setTabState(tab, JSON.stringify(state));
-  yield promiseBrowserLoaded(tab.linkedBrowser);
+  ss.setTabState(tab2, JSON.stringify(state));
+  tab2.linkedBrowser.addEventListener("load", function(aEvent) {
+    this.removeEventListener("load", arguments.callee, true);
+    // verify the correctness of the restored tab
+    ok(ss.getTabValue(tab2, key2) == value2 && this.currentURI.spec == testURL,
+       "the tab's state was correctly restored");
 
-  // verify the correctness of the restored tab
-  ok(ss.getTabValue(tab, key2) == value2 && tab.linkedBrowser.currentURI.spec == URL,
-     "the tab's state was correctly restored");
+    // add text data
+    let textbox = this.contentDocument.getElementById("textbox");
+    textbox.value = value3;
 
-  // add text data
-  yield setInputValue(tab.linkedBrowser, {id: "textbox", value: value3});
+    // duplicate the tab
+    let duplicateTab = ss.duplicateTab(window, tab2);
+    gBrowser.removeTab(tab2);
 
-  // duplicate the tab
-  let tab2 = ss.duplicateTab(window, tab);
-  yield promiseTabRestored(tab2);
+    duplicateTab.linkedBrowser.addEventListener("load", function(aEvent) {
+      this.removeEventListener("load", arguments.callee, true);
+      // verify the correctness of the duplicated tab
+      ok(ss.getTabValue(duplicateTab, key2) == value2 && this.currentURI.spec == testURL,
+         "correctly duplicated the tab's state");
+      let textbox = this.contentDocument.getElementById("textbox");
+      is(textbox.value, value3, "also duplicated text data");
 
-  // verify the correctness of the duplicated tab
-  ok(ss.getTabValue(tab2, key2) == value2 &&
-     tab2.linkedBrowser.currentURI.spec == URL,
-     "correctly duplicated the tab's state");
-  let textbox = yield getInputValue(tab2.linkedBrowser, {id: "textbox"});
-  is(textbox, value3, "also duplicated text data");
-
-  // clean up
-  gBrowser.removeTab(tab2);
-  gBrowser.removeTab(tab);
-});
+      // clean up
+      gBrowser.removeTab(duplicateTab);
+      finish();
+    }, true);
+  }, true);
+}

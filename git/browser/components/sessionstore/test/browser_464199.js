@@ -2,18 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-Components.utils.import("resource://gre/modules/ForgetAboutSite.jsm");
-
-function waitForClearHistory(aCallback) {
-  let observer = {
-    observe: function(aSubject, aTopic, aData) {
-      Services.obs.removeObserver(this, "browser:purge-domain-data");
-      setTimeout(aCallback, 0);
-    }
-  };
-  Services.obs.addObserver(observer, "browser:purge-domain-data", false);
-}
-
 function test() {
   /** Test for Bug 464199 **/
 
@@ -52,7 +40,9 @@ function test() {
 
   // open a window and add the above closed tab list
   let newWin = openDialog(location, "", "chrome,all,dialog=no");
-  promiseWindowLoaded(newWin).then(() => {
+  newWin.addEventListener("load", function(aEvent) {
+    newWin.removeEventListener("load", arguments.callee, false);
+
     gPrefService.setIntPref("browser.sessionstore.max_tabs_undo",
                             test_state.windows[0]._closedTabs.length);
     ss.setWindowState(newWin, JSON.stringify(test_state), true);
@@ -66,20 +56,21 @@ function test() {
     is(countByTitle(closedTabs, REMEMBER), remember_count,
        "Everything is set up.");
 
-    ForgetAboutSite.removeDataFromDomain("example.net");
-    waitForClearHistory(function() {
-      closedTabs = JSON.parse(ss.getClosedTabData(newWin));
-      is(closedTabs.length, remember_count,
-         "The correct amout of tabs was removed");
-      is(countByTitle(closedTabs, FORGET), 0,
-         "All tabs to be forgotten were indeed removed");
-      is(countByTitle(closedTabs, REMEMBER), remember_count,
-         "... and tabs to be remembered weren't.");
+    let pb = Cc["@mozilla.org/privatebrowsing;1"].
+             getService(Ci.nsIPrivateBrowsingService);
+    pb.removeDataFromDomain("example.net");
 
-      // clean up
-      newWin.close();
-      gPrefService.clearUserPref("browser.sessionstore.max_tabs_undo");
-     finish();
-    });
-  });
+    closedTabs = JSON.parse(ss.getClosedTabData(newWin));
+    is(closedTabs.length, remember_count,
+       "The correct amout of tabs was removed");
+    is(countByTitle(closedTabs, FORGET), 0,
+       "All tabs to be forgotten were indeed removed");
+    is(countByTitle(closedTabs, REMEMBER), remember_count,
+       "... and tabs to be remembered weren't.");
+
+    // clean up
+    newWin.close();
+    gPrefService.clearUserPref("browser.sessionstore.max_tabs_undo");
+    finish();
+  }, false);
 }

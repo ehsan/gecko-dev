@@ -5,37 +5,13 @@
  * accompanying file LICENSE for details.
  */
 #undef NDEBUG
-#define __MSVCRT_VERSION__ 0x0700
-#undef WINVER
-#define WINVER 0x0501
-#undef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-
-#include <malloc.h>
 #include <assert.h>
 #include <windows.h>
 #include <mmreg.h>
 #include <mmsystem.h>
 #include <process.h>
 #include <stdlib.h>
-#include <math.h>
 #include "cubeb/cubeb.h"
-#include "cubeb-internal.h"
-
-/* This is missing from the MinGW headers. Use a safe fallback. */
-#if !defined(MEMORY_ALLOCATION_ALIGNMENT)
-#define MEMORY_ALLOCATION_ALIGNMENT 16
-#endif
-
-/**This is also missing from the MinGW headers. It  also appears to be undocumented by Microsoft.*/
-#ifndef WAVE_FORMAT_48S16
-#define WAVE_FORMAT_48S16      0x00008000       /* 48     kHz, Stereo, 16-bit */
-#endif
-
-/**Taken from winbase.h, also not in MinGW.*/
-#ifndef STACK_SIZE_PARAM_IS_A_RESERVATION
-#define STACK_SIZE_PARAM_IS_A_RESERVATION   0x00010000    // Threads only
-#endif
 
 #define CUBEB_STREAM_MAX 32
 #define NBUFS 4
@@ -50,17 +26,13 @@ struct cubeb_stream_item {
   cubeb_stream * stream;
 };
 
-static struct cubeb_ops const winmm_ops;
-
 struct cubeb {
-  struct cubeb_ops const * ops;
   HANDLE event;
   HANDLE thread;
   int shutdown;
   PSLIST_HEADER work;
   CRITICAL_SECTION lock;
   unsigned int active_streams;
-  unsigned int minimum_latency;
 };
 
 struct cubeb_stream {
@@ -78,8 +50,6 @@ struct cubeb_stream {
   HANDLE event;
   HWAVEOUT waveout;
   CRITICAL_SECTION lock;
-  uint64_t written;
-  float soft_volume;
 };
 
 static size_t
@@ -102,7 +72,7 @@ bytes_per_frame(cubeb_stream_params params)
 }
 
 static WAVEHDR *
-winmm_get_next_buffer(cubeb_stream * stm)
+cubeb_get_next_buffer(cubeb_stream * stm)
 {
   WAVEHDR * hdr = NULL;
 
@@ -117,7 +87,7 @@ winmm_get_next_buffer(cubeb_stream * stm)
 }
 
 static void
-winmm_refill_stream(cubeb_stream * stm)
+cubeb_refill_stream(cubeb_stream * stm)
 {
   WAVEHDR * hdr;
   long got;
@@ -143,7 +113,7 @@ winmm_refill_stream(cubeb_stream * stm)
     return;
   }
 
-  hdr = winmm_get_next_buffer(stm);
+  hdr = cubeb_get_next_buffer(stm);
 
   wanted = (DWORD) stm->buffer_size / bytes_per_frame(stm->params);
 
@@ -160,28 +130,11 @@ winmm_refill_stream(cubeb_stream * stm)
   } else if (got < wanted) {
     stm->draining = 1;
   }
-  stm->written += got;
 
   assert(hdr->dwFlags & WHDR_PREPARED);
 
   hdr->dwBufferLength = got * bytes_per_frame(stm->params);
   assert(hdr->dwBufferLength <= stm->buffer_size);
-
-  if (stm->soft_volume != -1.0) {
-    if (stm->params.format == CUBEB_SAMPLE_FLOAT32NE) {
-      float * b = (float *) hdr->lpData;
-      uint32_t i;
-      for (i = 0; i < got * stm->params.channels; i++) {
-        b[i] *= stm->soft_volume;
-      }
-    } else {
-      short * b = (short *) hdr->lpData;
-      uint32_t i;
-      for (i = 0; i < got * stm->params.channels; i++) {
-        b[i] *= stm->soft_volume;
-      }
-    }
-  }
 
   r = waveOutWrite(stm->waveout, hdr, sizeof(*hdr));
   if (r != MMSYSERR_NOERROR) {
@@ -194,7 +147,7 @@ winmm_refill_stream(cubeb_stream * stm)
 }
 
 static unsigned __stdcall
-winmm_buffer_thread(void * user_ptr)
+cubeb_buffer_thread(void * user_ptr)
 {
   cubeb * ctx = (cubeb *) user_ptr;
   assert(ctx);
@@ -206,15 +159,9 @@ winmm_buffer_thread(void * user_ptr)
     rv = WaitForSingleObject(ctx->event, INFINITE);
     assert(rv == WAIT_OBJECT_0);
 
-    /* Process work items in batches so that a single stream can't
-       starve the others by continuously adding new work to the top of
-       the work item stack. */
-    item = InterlockedFlushSList(ctx->work);
-    while (item != NULL) {
-      PSLIST_ENTRY tmp = item;
-      winmm_refill_stream(((struct cubeb_stream_item *) tmp)->stream);
-      item = item->Next;
-      _aligned_free(tmp);
+    while ((item = InterlockedPopEntrySList(ctx->work)) != NULL) {
+      cubeb_refill_stream(((struct cubeb_stream_item *) item)->stream);
+      _aligned_free(item);
     }
 
     if (ctx->shutdown) {
@@ -226,7 +173,7 @@ winmm_buffer_thread(void * user_ptr)
 }
 
 static void CALLBACK
-winmm_buffer_callback(HWAVEOUT waveout, UINT msg, DWORD_PTR user_ptr, DWORD_PTR p1, DWORD_PTR p2)
+cubeb_buffer_callback(HWAVEOUT waveout, UINT msg, DWORD_PTR user_ptr, DWORD_PTR p1, DWORD_PTR p2)
 {
   cubeb_stream * stm = (cubeb_stream *) user_ptr;
   struct cubeb_stream_item * item;
@@ -243,38 +190,8 @@ winmm_buffer_callback(HWAVEOUT waveout, UINT msg, DWORD_PTR user_ptr, DWORD_PTR 
   SetEvent(stm->context->event);
 }
 
-static unsigned int
-calculate_minimum_latency(void)
-{
-  OSVERSIONINFOEX osvi;
-  DWORDLONG mask;
-
-  /* Running under Terminal Services results in underruns with low latency. */
-  if (GetSystemMetrics(SM_REMOTESESSION) == TRUE) {
-    return 500;
-  }
-
-  /* Vista's WinMM implementation underruns when less than 200ms of audio is buffered. */
-  memset(&osvi, 0, sizeof(OSVERSIONINFOEX));
-  osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
-  osvi.dwMajorVersion = 6;
-  osvi.dwMinorVersion = 0;
-
-  mask = 0;
-  VER_SET_CONDITION(mask, VER_MAJORVERSION, VER_EQUAL);
-  VER_SET_CONDITION(mask, VER_MINORVERSION, VER_EQUAL);
-
-  if (VerifyVersionInfo(&osvi, VER_MAJORVERSION | VER_MINORVERSION, mask) != 0) {
-    return 200;
-  }
-
-  return 100;
-}
-
-static void winmm_destroy(cubeb * ctx);
-
-/*static*/ int
-winmm_init(cubeb ** context, char const * context_name)
+int
+cubeb_init(cubeb ** context, char const * context_name)
 {
   cubeb * ctx;
 
@@ -284,21 +201,19 @@ winmm_init(cubeb ** context, char const * context_name)
   ctx = calloc(1, sizeof(*ctx));
   assert(ctx);
 
-  ctx->ops = &winmm_ops;
-
   ctx->work = _aligned_malloc(sizeof(*ctx->work), MEMORY_ALLOCATION_ALIGNMENT);
   assert(ctx->work);
   InitializeSListHead(ctx->work);
 
   ctx->event = CreateEvent(NULL, FALSE, FALSE, NULL);
   if (!ctx->event) {
-    winmm_destroy(ctx);
+    cubeb_destroy(ctx);
     return CUBEB_ERROR;
   }
 
-  ctx->thread = (HANDLE) _beginthreadex(NULL, 256 * 1024, winmm_buffer_thread, ctx, STACK_SIZE_PARAM_IS_A_RESERVATION, NULL);
+  ctx->thread = (HANDLE) _beginthreadex(NULL, 64 * 1024, cubeb_buffer_thread, ctx, 0, NULL);
   if (!ctx->thread) {
-    winmm_destroy(ctx);
+    cubeb_destroy(ctx);
     return CUBEB_ERROR;
   }
 
@@ -307,21 +222,19 @@ winmm_init(cubeb ** context, char const * context_name)
   InitializeCriticalSection(&ctx->lock);
   ctx->active_streams = 0;
 
-  ctx->minimum_latency = calculate_minimum_latency();
-
   *context = ctx;
 
   return CUBEB_OK;
 }
 
-static char const *
-winmm_get_backend_id(cubeb * ctx)
+char const *
+cubeb_get_backend_id(cubeb * ctx)
 {
   return "winmm";
 }
 
-static void
-winmm_destroy(cubeb * ctx)
+void
+cubeb_destroy(cubeb * ctx)
 {
   DWORD rv;
 
@@ -347,10 +260,8 @@ winmm_destroy(cubeb * ctx)
   free(ctx);
 }
 
-static void winmm_stream_destroy(cubeb_stream * stm);
-
-static int
-winmm_stream_init(cubeb * context, cubeb_stream ** stream, char const * stream_name,
+int
+cubeb_stream_init(cubeb * context, cubeb_stream ** stream, char const * stream_name,
                   cubeb_stream_params stream_params, unsigned int latency,
                   cubeb_data_callback data_callback,
                   cubeb_state_callback state_callback,
@@ -366,6 +277,12 @@ winmm_stream_init(cubeb * context, cubeb_stream ** stream, char const * stream_n
   assert(stream);
 
   *stream = NULL;
+
+  if (stream_params.rate < 1 || stream_params.rate > 192000 ||
+      stream_params.channels < 1 || stream_params.channels > 32 ||
+      latency < 1 || latency > 2000) {
+    return CUBEB_ERROR_INVALID_FORMAT;
+  }
 
   memset(&wfx, 0, sizeof(wfx));
   if (stream_params.channels > 2) {
@@ -399,7 +316,9 @@ winmm_stream_init(cubeb * context, cubeb_stream ** stream, char const * stream_n
 
   wfx.Format.nBlockAlign = (wfx.Format.wBitsPerSample * wfx.Format.nChannels) / 8;
   wfx.Format.nAvgBytesPerSec = wfx.Format.nSamplesPerSec * wfx.Format.nBlockAlign;
-  wfx.Samples.wValidBitsPerSample = wfx.Format.wBitsPerSample;
+  wfx.Samples.wValidBitsPerSample = 0;
+  wfx.Samples.wSamplesPerBlock = 0;
+  wfx.Samples.wReserved = 0;
 
   EnterCriticalSection(&context->lock);
   /* CUBEB_STREAM_MAX is a horrible hack to avoid a situation where, when
@@ -422,11 +341,6 @@ winmm_stream_init(cubeb * context, cubeb_stream ** stream, char const * stream_n
   stm->data_callback = data_callback;
   stm->state_callback = state_callback;
   stm->user_ptr = user_ptr;
-  stm->written = 0;
-
-  if (latency < context->minimum_latency) {
-    latency = context->minimum_latency;
-  }
 
   bufsz = (size_t) (stm->params.rate / 1000.0 * latency * bytes_per_frame(stm->params) / NBUFS);
   if (bufsz % bytes_per_frame(stm->params) != 0) {
@@ -440,28 +354,25 @@ winmm_stream_init(cubeb * context, cubeb_stream ** stream, char const * stream_n
 
   stm->event = CreateEvent(NULL, FALSE, FALSE, NULL);
   if (!stm->event) {
-    winmm_stream_destroy(stm);
+    cubeb_stream_destroy(stm);
     return CUBEB_ERROR;
   }
 
-  stm->soft_volume = -1.0;
-
-  /* winmm_buffer_callback will be called during waveOutOpen, so all
+  /* cubeb_buffer_callback will be called during waveOutOpen, so all
      other initialization must be complete before calling it. */
   r = waveOutOpen(&stm->waveout, WAVE_MAPPER, &wfx.Format,
-                  (DWORD_PTR) winmm_buffer_callback, (DWORD_PTR) stm,
+                  (DWORD_PTR) cubeb_buffer_callback, (DWORD_PTR) stm,
                   CALLBACK_FUNCTION);
   if (r != MMSYSERR_NOERROR) {
-    winmm_stream_destroy(stm);
+    cubeb_stream_destroy(stm);
     return CUBEB_ERROR;
   }
 
   r = waveOutPause(stm->waveout);
   if (r != MMSYSERR_NOERROR) {
-    winmm_stream_destroy(stm);
+    cubeb_stream_destroy(stm);
     return CUBEB_ERROR;
   }
-
 
   for (i = 0; i < NBUFS; ++i) {
     WAVEHDR * hdr = &stm->buffers[i];
@@ -473,11 +384,11 @@ winmm_stream_init(cubeb * context, cubeb_stream ** stream, char const * stream_n
 
     r = waveOutPrepareHeader(stm->waveout, hdr, sizeof(*hdr));
     if (r != MMSYSERR_NOERROR) {
-      winmm_stream_destroy(stm);
+      cubeb_stream_destroy(stm);
       return CUBEB_ERROR;
     }
 
-    winmm_refill_stream(stm);
+    cubeb_refill_stream(stm);
   }
 
   *stream = stm;
@@ -485,8 +396,8 @@ winmm_stream_init(cubeb * context, cubeb_stream ** stream, char const * stream_n
   return CUBEB_OK;
 }
 
-static void
-winmm_stream_destroy(cubeb_stream * stm)
+void
+cubeb_stream_destroy(cubeb_stream * stm)
 {
   DWORD rv;
   int i;
@@ -542,51 +453,8 @@ winmm_stream_destroy(cubeb_stream * stm)
   free(stm);
 }
 
-static int
-winmm_get_max_channel_count(cubeb * ctx, uint32_t * max_channels)
-{
-  assert(ctx && max_channels);
-
-  /* We don't support more than two channels in this backend. */
-  *max_channels = 2;
-
-  return CUBEB_OK;
-}
-
-static int
-winmm_get_min_latency(cubeb * ctx, cubeb_stream_params params, uint32_t * latency)
-{
-  // 100ms minimum, if we are not in a bizarre configuration.
-  *latency = ctx->minimum_latency;
-
-  return CUBEB_OK;
-}
-
-static int
-winmm_get_preferred_sample_rate(cubeb * ctx, uint32_t * rate)
-{
-  WAVEOUTCAPS woc;
-  MMRESULT r;
-
-  r = waveOutGetDevCaps(WAVE_MAPPER, &woc, sizeof(WAVEOUTCAPS));
-  if (r != MMSYSERR_NOERROR) {
-    return CUBEB_ERROR;
-  }
-
-  /* Check if we support 48kHz, but not 44.1kHz. */
-  if (!(woc.dwFormats & WAVE_FORMAT_4S16) &&
-      woc.dwFormats & WAVE_FORMAT_48S16) {
-    *rate = 48000;
-    return CUBEB_OK;
-  }
-  /* Prefer 44.1kHz between 44.1kHz and 48kHz. */
-  *rate = 44100;
-
-  return CUBEB_OK;
-}
-
-static int
-winmm_stream_start(cubeb_stream * stm)
+int
+cubeb_stream_start(cubeb_stream * stm)
 {
   MMRESULT r;
 
@@ -603,8 +471,8 @@ winmm_stream_start(cubeb_stream * stm)
   return CUBEB_OK;
 }
 
-static int
-winmm_stream_stop(cubeb_stream * stm)
+int
+cubeb_stream_stop(cubeb_stream * stm)
 {
   MMRESULT r;
 
@@ -621,8 +489,8 @@ winmm_stream_stop(cubeb_stream * stm)
   return CUBEB_OK;
 }
 
-static int
-winmm_stream_get_position(cubeb_stream * stm, uint64_t * position)
+int
+cubeb_stream_get_position(cubeb_stream * stm, uint64_t * position)
 {
   MMRESULT r;
   MMTIME time;
@@ -641,56 +509,3 @@ winmm_stream_get_position(cubeb_stream * stm, uint64_t * position)
   return CUBEB_OK;
 }
 
-static int
-winmm_stream_get_latency(cubeb_stream * stm, uint32_t * latency)
-{
-  MMRESULT r;
-  MMTIME time;
-  uint64_t written;
-
-  EnterCriticalSection(&stm->lock);
-  time.wType = TIME_SAMPLES;
-  r = waveOutGetPosition(stm->waveout, &time, sizeof(time));
-  written = stm->written;
-  LeaveCriticalSection(&stm->lock);
-
-  *latency = written - time.u.sample;
-
-  return CUBEB_OK;
-}
-
-static int
-winmm_stream_set_volume(cubeb_stream * stm, float volume)
-{
-  EnterCriticalSection(&stm->lock);
-  stm->soft_volume = volume;
-  LeaveCriticalSection(&stm->lock);
-  return CUBEB_OK;
-}
-
-static int
-winmm_stream_set_panning(cubeb_stream * stream, float panning)
-{
-  assert(0 && "not implemented");
-  return CUBEB_OK;
-}
-
-static struct cubeb_ops const winmm_ops = {
-  /*.init =*/ winmm_init,
-  /*.get_backend_id =*/ winmm_get_backend_id,
-  /*.get_max_channel_count=*/ winmm_get_max_channel_count,
-  /*.get_min_latency=*/ winmm_get_min_latency,
-  /*.get_preferred_sample_rate =*/ winmm_get_preferred_sample_rate,
-  /*.destroy =*/ winmm_destroy,
-  /*.stream_init =*/ winmm_stream_init,
-  /*.stream_destroy =*/ winmm_stream_destroy,
-  /*.stream_start =*/ winmm_stream_start,
-  /*.stream_stop =*/ winmm_stream_stop,
-  /*.stream_get_position =*/ winmm_stream_get_position,
-  /*.stream_get_latency = */ winmm_stream_get_latency,
-  /*.stream_set_volume =*/ winmm_stream_set_volume,
-  /*.stream_set_panning =*/ winmm_stream_set_panning,
-  /*.stream_get_current_device =*/ NULL,
-  /*.stream_device_destroy =*/ NULL,
-  /*.stream_register_device_changed_callback=*/ NULL
-};

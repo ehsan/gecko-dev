@@ -220,6 +220,7 @@ var bookmarksObserver = {
 
   onBeginUpdateBatch: function PSB_onBeginUpdateBatch() {},
   onEndUpdateBatch: function PSB_onEndUpdateBatch() {},
+  onBeforeItemRemoved: function PSB_onBeforeItemRemoved(aItemId) {},
   onItemVisited: function() {},
   onItemChanged: function PSB_onItemChanged(aItemId, aProperty,
                                             aIsAnnotationProperty, aNewValue) {

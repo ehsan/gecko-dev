@@ -3,9 +3,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <windows.h>
-#include <wtsapi32.h>
 #include "uachelper.h"
 #include "updatelogging.h"
+
+typedef BOOL (WINAPI *LPWTSQueryUserToken)(ULONG, PHANDLE);
 
 // See the MSDN documentation with title: Privilege Constants
 // At the time of this writing, this documentation is located at: 
@@ -55,6 +56,20 @@ LPCTSTR UACHelper::PrivsToDisable[] = {
 };
 
 /**
+ * Determines if the OS is vista or later
+ *
+ * @return TRUE if the OS is vista or later.
+ */
+BOOL
+UACHelper::IsVistaOrLater()
+{
+  // Check if we are running Vista or later.
+  OSVERSIONINFO osInfo;
+  osInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+  return GetVersionEx(&osInfo) && osInfo.dwMajorVersion >= 6;
+}
+
+/**
  * Opens a user token for the given session ID
  *
  * @param  sessionID  The session ID for the token to obtain
@@ -65,9 +80,9 @@ HANDLE
 UACHelper::OpenUserToken(DWORD sessionID)
 {
   HMODULE module = LoadLibraryW(L"wtsapi32.dll");
-  HANDLE token = nullptr;
-  decltype(WTSQueryUserToken)* wtsQueryUserToken = 
-    (decltype(WTSQueryUserToken)*) GetProcAddress(module, "WTSQueryUserToken");
+  HANDLE token = NULL;
+  LPWTSQueryUserToken wtsQueryUserToken = 
+    (LPWTSQueryUserToken)GetProcAddress(module, "WTSQueryUserToken");
   if (wtsQueryUserToken) {
     wtsQueryUserToken(sessionID, &token);
   }
@@ -79,7 +94,7 @@ UACHelper::OpenUserToken(DWORD sessionID)
  * Opens a linked token for the specified token.
  *
  * @param  token The token to get the linked token from
- * @return A linked token or nullptr if one does not exist.
+ * @return A linked token or NULL if one does not exist.
  *         Caller should close the handle.
  */
 HANDLE
@@ -90,7 +105,7 @@ UACHelper::OpenLinkedToken(HANDLE token)
   // the other is the UAC elevated one. Since we are running as a service
   // as the system account we have access to both.
   TOKEN_LINKED_TOKEN tlt;
-  HANDLE hNewLinkedToken = nullptr;
+  HANDLE hNewLinkedToken = NULL;
   DWORD len;
   if (GetTokenInformation(token, (TOKEN_INFORMATION_CLASS)TokenLinkedToken, 
                           &tlt, sizeof(TOKEN_LINKED_TOKEN), &len)) {
@@ -113,7 +128,7 @@ BOOL
 UACHelper::SetPrivilege(HANDLE token, LPCTSTR priv, BOOL enable)
 {
   LUID luidOfPriv;
-  if (!LookupPrivilegeValue(nullptr, priv, &luidOfPriv)) {
+  if (!LookupPrivilegeValue(NULL, priv, &luidOfPriv)) {
     return FALSE; 
   }
 
@@ -124,7 +139,7 @@ UACHelper::SetPrivilege(HANDLE token, LPCTSTR priv, BOOL enable)
 
   SetLastError(ERROR_SUCCESS);
   if (!AdjustTokenPrivileges(token, false, &tokenPriv,
-                             sizeof(tokenPriv), nullptr, nullptr)) {
+                             sizeof(tokenPriv), NULL, NULL)) {
     return FALSE; 
   } 
 
@@ -136,7 +151,7 @@ UACHelper::SetPrivilege(HANDLE token, LPCTSTR priv, BOOL enable)
  * drop the privilege. 
  * 
  * @param  token         The token to adjust the privilege on. 
- *         Pass nullptr for current token.
+ *         Pass NULL for current token.
  * @param  unneededPrivs An array of unneeded privileges.
  * @param  count         The size of the array
  * @return TRUE if there were no errors
@@ -146,13 +161,13 @@ UACHelper::DisableUnneededPrivileges(HANDLE token,
                                      LPCTSTR *unneededPrivs, 
                                      size_t count)
 {
-  HANDLE obtainedToken = nullptr;
+  HANDLE obtainedToken = NULL;
   if (!token) {
     // Note: This handle is a pseudo-handle and need not be closed
     HANDLE process = GetCurrentProcess();
     if (!OpenProcessToken(process, TOKEN_ALL_ACCESS_P, &obtainedToken)) {
-      LOG_WARN(("Could not obtain token for current process, no "
-                "privileges changed. (%d)", GetLastError()));
+      LOG(("Could not obtain token for current process, no "
+           "privileges changed. (%d)\n", GetLastError()));
       return FALSE;
     }
     token = obtainedToken;
@@ -161,10 +176,10 @@ UACHelper::DisableUnneededPrivileges(HANDLE token,
   BOOL result = TRUE;
   for (size_t i = 0; i < count; i++) {
     if (SetPrivilege(token, unneededPrivs[i], FALSE)) {
-      LOG(("Disabled unneeded token privilege: %s.",
+      LOG(("Disabled unneeded token privilege: %s.\n", 
            unneededPrivs[i]));
     } else {
-      LOG(("Could not disable token privilege value: %s. (%d)",
+      LOG(("Could not disable token privilege value: %s. (%d)\n", 
            unneededPrivs[i], GetLastError()));
       result = FALSE;
     }
@@ -183,7 +198,7 @@ UACHelper::DisableUnneededPrivileges(HANDLE token,
  * explicitly disable these or not. 
  * 
  * @param  token The token to drop the privilege on.
- *         Pass nullptr for current token.
+ *         Pass NULL for current token.
  * @return TRUE if there were no errors
  */
 BOOL
@@ -194,29 +209,4 @@ UACHelper::DisablePrivileges(HANDLE token)
 
   return DisableUnneededPrivileges(token, UACHelper::PrivsToDisable, 
                                    PrivsToDisableSize);
-}
-
-/**
- * Check if the current user can elevate.
- *
- * @return true if the user can elevate.
- *         false otherwise.
- */
-bool
-UACHelper::CanUserElevate()
-{
-  HANDLE token;
-  if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
-    return false;
-  }
-
-  TOKEN_ELEVATION_TYPE elevationType;
-  DWORD len;
-  bool canElevate = GetTokenInformation(token, TokenElevationType,
-                                        &elevationType,
-                                        sizeof(elevationType), &len) &&
-                    (elevationType == TokenElevationTypeLimited);
-  CloseHandle(token);
-
-  return canElevate;
 }

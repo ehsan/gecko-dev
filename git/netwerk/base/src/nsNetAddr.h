@@ -8,21 +8,19 @@
 #define nsNetAddr_h__
 
 #include "nsINetAddr.h"
-#include "mozilla/net/DNS.h"
+#include "prio.h"
 #include "mozilla/Attributes.h"
 
 class nsNetAddr MOZ_FINAL : public nsINetAddr
 {
-  ~nsNetAddr() {}
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSINETADDR
 
-  explicit nsNetAddr(mozilla::net::NetAddr* addr);
+  nsNetAddr(PRNetAddr* addr);
 
 private:
-  mozilla::net::NetAddr mAddr;
+  PRNetAddr mAddr;
 
 protected:
   /* additional members */

@@ -10,13 +10,14 @@ Setup mozbase packages for development.
 Packages may be specified as command line arguments.
 If no arguments are given, install all packages.
 
-See https://wiki.mozilla.org/Auto-tools/Projects/Mozbase
+See https://wiki.mozilla.org/Auto-tools/Projects/MozBase
 """
 
+import pkg_resources
 import os
-import subprocess
 import sys
 from optparse import OptionParser
+
 from subprocess import PIPE
 try:
     from subprocess import check_call as call
@@ -28,12 +29,8 @@ except ImportError:
 here = os.path.dirname(os.path.abspath(__file__))
 
 # all python packages
-mozbase_packages = [i for i in os.listdir(here)
-                    if os.path.exists(os.path.join(here, i, 'setup.py'))]
-test_packages = [ "mock" # testing: https://wiki.mozilla.org/Auto-tools/Projects/Mozbase#Tests
-                  ]
-extra_packages = [ "sphinx" # documentation: https://wiki.mozilla.org/Auto-tools/Projects/Mozbase#Documentation
-                  ]
+all_packages = [i for i in os.listdir(here)
+                if os.path.exists(os.path.join(here, i, 'setup.py'))]
 
 def cycle_check(order, dependencies):
     """ensure no cyclic dependencies"""
@@ -49,11 +46,7 @@ def info(directory):
     assert os.path.exists(os.path.join(directory, 'setup.py'))
 
     # setup the egg info
-    try:
-        call([sys.executable, 'setup.py', 'egg_info'], cwd=directory, stdout=PIPE)
-    except subprocess.CalledProcessError:
-        print "Error running setup.py in %s" % directory
-        raise
+    call([sys.executable, 'setup.py', 'egg_info'], cwd=directory, stdout=PIPE)
 
     # get the .egg-info directory
     egg_info = [entry for entry in os.listdir(directory)
@@ -107,7 +100,7 @@ def dependency_info(dep):
             retval['Version'] = version
             break
     else:
-        retval['Name'] = dep.strip()
+        retval['name'] = dep.strip()
     return retval
 
 def unroll_dependencies(dependencies):
@@ -153,16 +146,14 @@ def main(args=sys.argv[1:]):
                       help="list dependencies for the packages")
     parser.add_option('--list', action='store_true', default=False,
                       help="list what will be installed")
-    parser.add_option('--extra', '--install-extra-packages', action='store_true', default=False,
-                      help="installs extra supporting packages as well as core mozbase ones")
     options, packages = parser.parse_args(args)
 
     if not packages:
         # install all packages
-        packages = sorted(mozbase_packages)
+        packages = sorted(all_packages)
 
     # ensure specified packages are in the list
-    assert set(packages).issubset(mozbase_packages), "Packages should be in %s (You gave: %s)" % (mozbase_packages, packages)
+    assert set(packages).issubset(all_packages), "Packages should be in %s (You gave: %s)" % (all_packages, packages)
 
     if options.list_dependencies:
         # list the package dependencies
@@ -191,12 +182,12 @@ def main(args=sys.argv[1:]):
         flag = False
         for value in deps.values():
             for dep in value:
-                if dep in mozbase_packages and dep not in deps:
+                if dep in all_packages and dep not in deps:
                     key, value = get_dependencies(os.path.join(here, dep))
-                    deps[key] = [dep for dep in value]
+                    deps[key] = [sanitize_dependency(dep) for dep in value]
 
                     for dep in value:
-                        alldeps[dep] = ''.join(dep.split())
+                        alldeps[sanitize_dependency(dep)] = ''.join(dep.split())
                     mapping[package] = key
                     flag = True
                     break
@@ -204,7 +195,7 @@ def main(args=sys.argv[1:]):
                 break
 
     # get the remaining names for the mapping
-    for package in mozbase_packages:
+    for package in all_packages:
         if package in mapping:
             continue
         key, value = get_dependencies(os.path.join(here, package))
@@ -225,19 +216,8 @@ def main(args=sys.argv[1:]):
             print package
         parser.exit()
 
-    # set up the packages for development
-    for package in unrolled:
-        call([sys.executable, 'setup.py', 'develop', '--no-deps'],
-             cwd=os.path.join(here, reverse_mapping[package]))
-
-    # add the directory of sys.executable to path to aid the correct
-    # `easy_install` getting called
-    # https://bugzilla.mozilla.org/show_bug.cgi?id=893878
-    os.environ['PATH'] = '%s%s%s' % (os.path.dirname(os.path.abspath(sys.executable)),
-                                     os.path.pathsep,
-                                     os.environ.get('PATH', '').strip(os.path.pathsep))
-
     # install non-mozbase dependencies
+    # (currently none on modern python)
     # these need to be installed separately and the --no-deps flag
     # subsequently used due to a bug in setuptools; see
     # https://bugzilla.mozilla.org/show_bug.cgi?id=759836
@@ -247,14 +227,10 @@ def main(args=sys.argv[1:]):
         # easy_install should be available since we rely on setuptools
         call(['easy_install', version])
 
-    # install packages required for unit testing
-    for package in test_packages:
-        call(['easy_install', package])
-
-    # install extra non-mozbase packages if desired
-    if options.extra:
-        for package in extra_packages:
-            call(['easy_install', package])
+    # set up the packages for development
+    for package in unrolled:
+        call([sys.executable, 'setup.py', 'develop', '--no-deps'],
+             cwd=os.path.join(here, reverse_mapping[package]))
 
 if __name__ == '__main__':
     main()

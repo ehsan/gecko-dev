@@ -8,13 +8,12 @@ import java.io.File;
 import java.io.UnsupportedEncodingException;
 import java.security.NoSuchAlgorithmException;
 
-import org.mozilla.gecko.background.common.GlobalConstants;
-import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.db.BrowserContract;
 import org.mozilla.gecko.sync.CredentialException;
 import org.mozilla.gecko.sync.ExtendedJSONObject;
+import org.mozilla.gecko.sync.GlobalConstants;
+import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.SyncConfiguration;
-import org.mozilla.gecko.sync.SyncConstants;
 import org.mozilla.gecko.sync.ThreadPool;
 import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.config.AccountPickler;
@@ -28,6 +27,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager.NameNotFoundException;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.util.Log;
@@ -44,15 +44,16 @@ public class SyncAccounts {
   private static final String MOTO_BLUR_SETTINGS_ACTIVITY = "com.motorola.blur.settings.AccountsAndServicesPreferenceActivity";
   private static final String MOTO_BLUR_PACKAGE           = "com.motorola.blur.setup";
 
+  public final static String DEFAULT_SERVER = "https://auth.services.mozilla.com/";
+
   /**
    * Return Sync accounts.
    *
-   * @param c
-   *          Android context.
+   * @param c Android context.
    * @return Sync accounts.
    */
   public static Account[] syncAccounts(final Context c) {
-    return AccountManager.get(c).getAccountsByType(SyncConstants.ACCOUNTTYPE_SYNC);
+    return AccountManager.get(c).getAccountsByType(GlobalConstants.ACCOUNTTYPE_SYNC);
   }
 
   /**
@@ -63,7 +64,7 @@ public class SyncAccounts {
    * Do not call this method from the main thread.
    */
   public static boolean syncAccountsExist(Context c) {
-    final boolean accountsExist = AccountManager.get(c).getAccountsByType(SyncConstants.ACCOUNTTYPE_SYNC).length > 0;
+    final boolean accountsExist = AccountManager.get(c).getAccountsByType(GlobalConstants.ACCOUNTTYPE_SYNC).length > 0;
     if (accountsExist) {
       return true;
     }
@@ -78,6 +79,20 @@ public class SyncAccounts {
     // exist.
     final Account account = AccountPickler.unpickle(c, Constants.ACCOUNT_PICKLE_FILENAME);
     return (account != null);
+  }
+
+  /**
+   * This class provides background-thread abstracted access to whether a
+   * Firefox Sync account has been set up on this device.
+   * <p>
+   * Subclass this task and override `onPostExecute` to act on the result.
+   */
+  public static class AccountsExistTask extends AsyncTask<Context, Void, Boolean> {
+    @Override
+    protected Boolean doInBackground(Context... params) {
+      Context c = params[0];
+      return syncAccountsExist(c);
+    }
   }
 
   /**
@@ -180,6 +195,37 @@ public class SyncAccounts {
   }
 
   /**
+   * This class provides background-thread abstracted access to creating a
+   * Firefox Sync account.
+   * <p>
+   * Subclass this task and override `onPostExecute` to act on the result. The
+   * <code>Result</code> (of type <code>Account</code>) is null if an error
+   * occurred and the account could not be added.
+   */
+  public static class CreateSyncAccountTask extends AsyncTask<SyncAccountParameters, Void, Account> {
+    protected final boolean syncAutomatically;
+
+    public CreateSyncAccountTask() {
+      this(true);
+    }
+
+    public CreateSyncAccountTask(final boolean syncAutomically) {
+      this.syncAutomatically = syncAutomically;
+    }
+
+    @Override
+    protected Account doInBackground(SyncAccountParameters... params) {
+      SyncAccountParameters syncAccount = params[0];
+      try {
+        return createSyncAccount(syncAccount, syncAutomatically);
+      } catch (Exception e) {
+        Log.e(Logger.GLOBAL_LOG_TAG, "Unable to create account.", e);
+        return null;
+      }
+    }
+  }
+
+  /**
    * Create a sync account, clearing any existing preferences, and set it to
    * sync automatically.
    * <p>
@@ -247,20 +293,20 @@ public class SyncAccounts {
     final String syncKey   = syncAccount.syncKey;
     final String password  = syncAccount.password;
     final String serverURL = (syncAccount.serverURL == null) ?
-        SyncConstants.DEFAULT_AUTH_SERVER : syncAccount.serverURL;
+        DEFAULT_SERVER : syncAccount.serverURL;
 
     Logger.debug(LOG_TAG, "Using account manager " + accountManager);
-    if (!RepoUtils.stringsEqual(syncAccount.serverURL, SyncConstants.DEFAULT_AUTH_SERVER)) {
+    if (!RepoUtils.stringsEqual(syncAccount.serverURL, DEFAULT_SERVER)) {
       Logger.info(LOG_TAG, "Setting explicit server URL: " + serverURL);
     }
 
-    final Account account = new Account(username, SyncConstants.ACCOUNTTYPE_SYNC);
+    final Account account = new Account(username, GlobalConstants.ACCOUNTTYPE_SYNC);
     final Bundle userbundle = new Bundle();
 
     // Add sync key and server URL.
     userbundle.putString(Constants.OPTION_SYNCKEY, syncKey);
     userbundle.putString(Constants.OPTION_SERVER, serverURL);
-    Logger.debug(LOG_TAG, "Adding account for " + SyncConstants.ACCOUNTTYPE_SYNC);
+    Logger.debug(LOG_TAG, "Adding account for " + GlobalConstants.ACCOUNTTYPE_SYNC);
     boolean result = false;
     try {
       result = accountManager.addAccountExplicitly(account, password, userbundle);
@@ -268,13 +314,13 @@ public class SyncAccounts {
       // We use Log rather than Logger here to avoid possibly hiding these errors.
       final String message = e.getMessage();
       if (message != null && (message.indexOf("is different than the authenticator's uid") > 0)) {
-        Log.wtf(SyncConstants.GLOBAL_LOG_TAG,
+        Log.wtf(Logger.GLOBAL_LOG_TAG,
                 "Unable to create account. " +
                 "If you have more than one version of " +
                 "Firefox/Beta/Aurora/Nightly/Fennec installed, that's why.",
                 e);
       } else {
-        Log.e(SyncConstants.GLOBAL_LOG_TAG, "Unable to create account.", e);
+        Log.e(Logger.GLOBAL_LOG_TAG, "Unable to create account.", e);
       }
     }
 
@@ -392,7 +438,7 @@ public class SyncAccounts {
    *
    * @param context
    *          current Android context.
-   * @return the <code>Intent</code> started, or null if we couldn't start settings.
+   * @return the <code>Intent</code> started.
    */
   public static Intent openSyncSettings(Context context) {
     // Bug 721760 - opening Sync settings takes user to Battery & Data Manager
@@ -406,14 +452,7 @@ public class SyncAccounts {
     // Open default Sync settings activity.
     intent = new Intent(Settings.ACTION_SYNC_SETTINGS);
     // Bug 774233: do not start activity as a new task (second run fails on some HTC devices).
-    try {
-      context.startActivity(intent); // We should always find this Activity.
-    } catch (ActivityNotFoundException ex) {
-      // We're probably on a Kindle, and the user hasn't installed the Android
-      // settings app. See Bug 945341.
-      // We simply mute the error.
-      return null;
-    }
+    context.startActivity(intent); // We should always find this Activity.
     return intent;
   }
 
@@ -428,7 +467,7 @@ public class SyncAccounts {
    * @param accountManager
    *          Android account manager.
    * @param account
-   *          Android Account.
+   *          Android account.
    * @return Sync account parameters, always non-null; fields username,
    *         password, serverURL, and syncKey always non-null.
    */
@@ -437,7 +476,9 @@ public class SyncAccounts {
     String username;
     try {
       username = Utils.usernameFromAccount(account.name);
-    } catch (NoSuchAlgorithmException | UnsupportedEncodingException e) {
+    } catch (NoSuchAlgorithmException e) {
+      throw new CredentialException.MissingCredentialException("username");
+    } catch (UnsupportedEncodingException e) {
       throw new CredentialException.MissingCredentialException("username");
     }
 
@@ -518,9 +559,9 @@ public class SyncAccounts {
    * @return <code>Intent</code> to broadcast.
    */
   public static Intent makeSyncAccountDeletedIntent(final Context context, final AccountManager accountManager, final Account account) {
-    final Intent intent = new Intent(SyncConstants.SYNC_ACCOUNT_DELETED_ACTION);
+    final Intent intent = new Intent(GlobalConstants.SYNC_ACCOUNT_DELETED_ACTION);
 
-    intent.putExtra(Constants.JSON_KEY_VERSION, Long.valueOf(SyncConstants.SYNC_ACCOUNT_DELETED_INTENT_VERSION));
+    intent.putExtra(Constants.JSON_KEY_VERSION, Long.valueOf(GlobalConstants.SYNC_ACCOUNT_DELETED_INTENT_VERSION));
     intent.putExtra(Constants.JSON_KEY_TIMESTAMP, Long.valueOf(System.currentTimeMillis()));
     intent.putExtra(Constants.JSON_KEY_ACCOUNT, account.name);
 
@@ -538,65 +579,5 @@ public class SyncAccounts {
     }
 
     return intent;
-  }
-
-  /**
-   * Synchronously fetch SharedPreferences of a profile associated with a Sync
-   * account.
-   * <p>
-   * Safe to call from main thread.
-   *
-   * @param context
-   *          Android context.
-   * @param accountManager
-   *          Android account manager.
-   * @param account
-   *          Android Account.
-   * @param product
-   *          package.
-   * @param profile
-   *          of account.
-   * @param version
-   *          number.
-   * @return SharedPreferences associated with Sync account.
-   * @throws CredentialException
-   * @throws NoSuchAlgorithmException
-   * @throws UnsupportedEncodingException
-   */
-  public static SharedPreferences blockingPrefsFromAndroidAccountV0(final Context context, final AccountManager accountManager, final Account account,
-      final String product, final String profile, final long version)
-          throws CredentialException, NoSuchAlgorithmException, UnsupportedEncodingException {
-    SyncAccountParameters params = SyncAccounts.blockingFromAndroidAccountV0(context, accountManager, account);
-    String prefsPath = Utils.getPrefsPath(product, params.username, params.serverURL, profile, version);
-
-    return context.getSharedPreferences(prefsPath, Utils.SHARED_PREFERENCES_MODE);
-  }
-
-  /**
-   * Synchronously fetch SharedPreferences of a profile associated with the
-   * default Firefox profile of a Sync Account.
-   * <p>
-   * Uses the default package, default profile, and current version.
-   * <p>
-   * Safe to call from main thread.
-   *
-   * @param context
-   *          Android context.
-   * @param accountManager
-   *          Android account manager.
-   * @param account
-   *          Android Account.
-   * @return SharedPreferences associated with Sync account.
-   * @throws CredentialException
-   * @throws NoSuchAlgorithmException
-   * @throws UnsupportedEncodingException
-   */
-  public static SharedPreferences blockingPrefsFromDefaultProfileV0(final Context context, final AccountManager accountManager, final Account account)
-      throws CredentialException, NoSuchAlgorithmException, UnsupportedEncodingException {
-    final String product = GlobalConstants.BROWSER_INTENT_PACKAGE;
-    final String profile = Constants.DEFAULT_PROFILE;
-    final long version = SyncConfiguration.CURRENT_PREFS_VERSION;
-
-    return blockingPrefsFromAndroidAccountV0(context, accountManager, account, product, profile, version);
   }
 }

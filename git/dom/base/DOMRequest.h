@@ -8,95 +8,60 @@
 #define mozilla_dom_domrequest_h__
 
 #include "nsIDOMDOMRequest.h"
+#include "nsIDOMDOMError.h"
+#include "nsDOMEventTargetHelper.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/DOMEventTargetHelper.h"
-#include "mozilla/dom/DOMError.h"
-#include "mozilla/dom/DOMRequestBinding.h"
 
 #include "nsCOMPtr.h"
 
 namespace mozilla {
-
-class ErrorResult;
-
 namespace dom {
 
-class AnyCallback;
-class Promise;
-
-class DOMRequest : public DOMEventTargetHelper,
+class DOMRequest : public nsDOMEventTargetHelper,
                    public nsIDOMDOMRequest
 {
 protected:
-  JS::Heap<JS::Value> mResult;
-  nsRefPtr<DOMError> mError;
-  nsRefPtr<Promise> mPromise;
+  jsval mResult;
+  nsCOMPtr<nsIDOMDOMError> mError;
   bool mDone;
+  bool mRooted;
+
+  NS_DECL_EVENT_HANDLER(success)
+  NS_DECL_EVENT_HANDLER(error)
 
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMDOMREQUEST
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(DOMEventTargetHelper)
+  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
 
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(DOMRequest,
-                                                         DOMEventTargetHelper)
+                                                         nsDOMEventTargetHelper)
 
-  // WrapperCache
-  nsPIDOMWindow* GetParentObject() const
-  {
-    return GetOwner();
-  }
-
-  virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
-
-  // WebIDL Interface
-  DOMRequestReadyState ReadyState() const
-  {
-    return mDone ? DOMRequestReadyState::Done
-                 : DOMRequestReadyState::Pending;
-  }
-
-  void GetResult(JSContext*, JS::MutableHandle<JS::Value> aRetval) const
-  {
-    NS_ASSERTION(mDone || mResult == JSVAL_VOID,
-                 "Result should be undefined when pending");
-    JS::ExposeValueToActiveJS(mResult);
-    aRetval.set(mResult);
-  }
-
-  DOMError* GetError() const
-  {
-    NS_ASSERTION(mDone || !mError,
-                 "Error should be null when pending");
-    return mError;
-  }
-
-  IMPL_EVENT_HANDLER(success)
-  IMPL_EVENT_HANDLER(error)
-
-  already_AddRefed<mozilla::dom::Promise>
-  Then(JSContext* aCx, AnyCallback* aResolveCallback,
-       AnyCallback* aRejectCallback, mozilla::ErrorResult& aRv);
-
-  void FireSuccess(JS::Handle<JS::Value> aResult);
+  void FireSuccess(jsval aResult);
   void FireError(const nsAString& aError);
   void FireError(nsresult aError);
-  void FireDetailedError(DOMError* aError);
 
-  explicit DOMRequest(nsPIDOMWindow* aWindow);
+  DOMRequest(nsIDOMWindow* aWindow);
+  DOMRequest();
+
+  virtual ~DOMRequest()
+  {
+    if (mRooted) {
+      UnrootResultVal();
+    }
+  }
 
 protected:
-  virtual ~DOMRequest();
-
   void FireEvent(const nsAString& aType, bool aBubble, bool aCancelable);
 
-  void RootResultVal();
+  virtual void RootResultVal();
+  virtual void UnrootResultVal();
+
+  void Init(nsIDOMWindow* aWindow);
 };
 
 class DOMRequestService MOZ_FINAL : public nsIDOMRequestService
 {
-  ~DOMRequestService() {}
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMREQUESTSERVICE

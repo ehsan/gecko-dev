@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -18,24 +17,57 @@
 /* Definitions of functions and operators that allocate memory. */
 #if !defined(XPCOM_GLUE) && !defined(NS_NO_XPCOM) && !defined(MOZ_NO_MOZALLOC)
 #  include "mozilla/mozalloc.h"
+#  include "mozilla/mozalloc_macro_wrappers.h"
 #endif
 
 /**
- * Incorporate the integer data types which XPCOM uses.
+ * Incorporate the core NSPR data types which XPCOM uses.
  */
-#include <stddef.h>
-#include <stdint.h>
+#include "prtypes.h"
+#include "mozilla/StandardInteger.h"
 
-#ifdef __cplusplus
-#  include "mozilla/NullPtr.h"
-#endif
-
-#include "mozilla/RefCountType.h"
+/*
+ * This is for functions that are like malloc_usable_size.  Such functions are
+ * used for measuring the size of data structures.
+ */
+typedef size_t(*nsMallocSizeOfFun)(const void *p);
 
 /* Core XPCOM declarations. */
 
 /*----------------------------------------------------------------------*/
 /* Import/export defines */
+
+/**
+ * Using the visibility("hidden") attribute allows the compiler to use
+ * PC-relative addressing to call this function.  If a function does not
+ * access any global data, and does not call any methods which are not either
+ * file-local or hidden, then on ELF systems we avoid loading the address of
+ * the PLT into a register at the start of the function, which reduces code
+ * size and frees up a register for general use.
+ *
+ * As a general rule, this should be used for any non-exported symbol
+ * (including virtual method implementations).  NS_IMETHOD uses this by
+ * default; if you need to have your NS_IMETHOD functions exported, you can
+ * wrap your class as follows:
+ *
+ * #undef  IMETHOD_VISIBILITY
+ * #define IMETHOD_VISIBILITY NS_VISIBILITY_DEFAULT
+ *
+ * class Foo {
+ * ...
+ * };
+ *
+ * #undef  IMETHOD_VISIBILITY
+ * #define IMETHOD_VISIBILITY NS_VISIBILITY_HIDDEN
+ *
+ * Don't forget to change the visibility back to hidden before the end
+ * of a header!
+ *
+ * Other examples:
+ *
+ * NS_HIDDEN_(int) someMethod();
+ * SomeCtor() NS_HIDDEN;
+ */
 
 #ifdef HAVE_VISIBILITY_HIDDEN_ATTRIBUTE
 #define NS_VISIBILITY_HIDDEN   __attribute__ ((visibility ("hidden")))
@@ -56,6 +88,9 @@
 
 #define NS_HIDDEN           NS_VISIBILITY_HIDDEN
 #define NS_EXTERNAL_VIS     NS_VISIBILITY_DEFAULT
+
+#undef  IMETHOD_VISIBILITY
+#define IMETHOD_VISIBILITY  NS_VISIBILITY_HIDDEN
 
 /**
  * Mark a function as using a potentially non-standard function calling
@@ -80,7 +115,8 @@
  *           NS_HIDDEN_(int) NS_FASTCALL func2(char *foo);
  */
 
-#if defined(__i386__) && defined(__GNUC__)
+#if defined(__i386__) && defined(__GNUC__) && \
+    (__GNUC__ >= 3) && !defined(XP_OS2)
 #define NS_FASTCALL __attribute__ ((regparm (3), stdcall))
 #define NS_CONSTRUCTOR_FASTCALL __attribute__ ((regparm (3), stdcall))
 #elif defined(XP_WIN) && !defined(_WIN64)
@@ -101,13 +137,7 @@
 #define NS_IMETHODIMP_(type) type __stdcall
 #define NS_METHOD_(type) type __stdcall
 #define NS_CALLBACK_(_type, _name) _type (__stdcall * _name)
-#ifndef _WIN64
-// Win64 has only one calling convention.  __stdcall will be ignored by the compiler.
 #define NS_STDCALL __stdcall
-#define NS_HAVE_STDCALL
-#else
-#define NS_STDCALL
-#endif
 #define NS_FROZENCALL __cdecl
 
 /*
@@ -118,13 +148,28 @@
 #define NS_EXPORT_STATIC_MEMBER_(type) type
 #define NS_IMPORT_STATIC_MEMBER_(type) type
 
+#elif defined(XP_OS2)
+
+#define NS_IMPORT __declspec(dllimport)
+#define NS_IMPORT_(type) type __declspec(dllimport)
+#define NS_EXPORT __declspec(dllexport)
+#define NS_EXPORT_(type) type __declspec(dllexport)
+#define NS_IMETHOD_(type) virtual type
+#define NS_IMETHODIMP_(type) type
+#define NS_METHOD_(type) type
+#define NS_CALLBACK_(_type, _name) _type (* _name)
+#define NS_STDCALL
+#define NS_FROZENCALL
+#define NS_EXPORT_STATIC_MEMBER_(type) NS_EXTERNAL_VIS_(type)
+#define NS_IMPORT_STATIC_MEMBER_(type) NS_EXTERNAL_VIS_(type)
+
 #else
 
 #define NS_IMPORT NS_EXTERNAL_VIS
 #define NS_IMPORT_(type) NS_EXTERNAL_VIS_(type)
 #define NS_EXPORT NS_EXTERNAL_VIS
 #define NS_EXPORT_(type) NS_EXTERNAL_VIS_(type)
-#define NS_IMETHOD_(type) virtual type
+#define NS_IMETHOD_(type) virtual IMETHOD_VISIBILITY type
 #define NS_IMETHODIMP_(type) type
 #define NS_METHOD_(type) type
 #define NS_CALLBACK_(_type, _name) _type (* _name)
@@ -165,22 +210,12 @@
 /**
  * Deprecated declarations.
  */
-#ifdef __GNUC__
+#if (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1))
 # define MOZ_DEPRECATED __attribute__((deprecated))
 #elif defined(_MSC_VER)
 # define MOZ_DEPRECATED __declspec(deprecated)
 #else
 # define MOZ_DEPRECATED
-#endif
-
-/**
- * Printf style formats
- */
-#ifdef __GNUC__
-#define MOZ_FORMAT_PRINTF(stringIndex, firstToCheck)  \
-    __attribute__ ((format (printf, stringIndex, firstToCheck)))
-#else
-#define MOZ_FORMAT_PRINTF(stringIndex, firstToCheck)
 #endif
 
 /**
@@ -205,7 +240,7 @@
 #define IMPORT_XPCOM_API(type) NS_EXTERN_C NS_IMPORT type NS_FROZENCALL
 #define GLUE_XPCOM_API(type) NS_EXTERN_C NS_HIDDEN_(type) NS_FROZENCALL
 
-#ifdef IMPL_LIBXUL
+#ifdef _IMPL_NS_COM
 #define XPCOM_API(type) EXPORT_XPCOM_API(type)
 #elif defined(XPCOM_GLUE)
 #define XPCOM_API(type) GLUE_XPCOM_API(type)
@@ -214,6 +249,7 @@
 #endif
 
 #ifdef MOZILLA_INTERNAL_API
+#  define NS_COM_GLUE
    /*
      The frozen string API has different definitions of nsAC?String
      classes than the internal API. On systems that explicitly declare
@@ -223,12 +259,18 @@
    */
 #  define nsAString nsAString_internal
 #  define nsACString nsACString_internal
+#else
+#  ifdef HAVE_VISIBILITY_ATTRIBUTE
+#    define NS_COM_GLUE NS_VISIBILITY_HIDDEN
+#  else
+#    define NS_COM_GLUE
+#  endif
 #endif
 
 #if (defined(DEBUG) || defined(FORCE_BUILD_REFCNT_LOGGING))
 /* Make refcnt logging part of the build. This doesn't mean that
  * actual logging will occur (that requires a separate enable; see
- * nsTraceRefcnt and nsISupportsImpl.h for more information).  */
+ * nsTraceRefcnt.h for more information).  */
 #define NS_BUILD_REFCNT_LOGGING
 #endif
 
@@ -256,7 +298,7 @@
 #ifdef NS_NO_VTABLE
 #undef NS_NO_VTABLE
 #endif
-#if defined(_MSC_VER) && !defined(__clang__)
+#if defined(_MSC_VER)
 #define NS_NO_VTABLE __declspec(novtable)
 #else
 #define NS_NO_VTABLE
@@ -266,17 +308,68 @@
 /**
  * Generic XPCOM result data type
  */
+typedef uint32_t nsresult;
+
+/**
+ * Reference count values
+ *
+ * This is the return type for AddRef() and Release() in nsISupports.
+ * IUnknown of COM returns an unsigned long from equivalent functions.
+ * The following ifdef exists to maintain binary compatibility with
+ * IUnknown.
+ */
+#if defined(XP_WIN) && PR_BYTES_PER_LONG == 4
+typedef unsigned long nsrefcnt;
+#else
+typedef uint32_t nsrefcnt;
+#endif
+
+/**
+ * Use C++11 nullptr if available; otherwise use a C++ typesafe template; and
+ * for C, fall back to longs.  See bugs 547964 and 626472.
+ */
+#ifndef HAVE_NULLPTR
+#ifndef __cplusplus
+# define nullptr ((void*)0)
+#elif defined(__GNUC__)
+# define nullptr __null
+#elif defined(_WIN64)
+# define nullptr 0LL
+#else
+# define nullptr 0L
+#endif
+#endif /* defined(HAVE_NULLPTR) */
+
 #include "nsError.h"
 
-typedef MozRefCountType nsrefcnt;
+/* ------------------------------------------------------------------------ */
+/* Casting macros for hiding C++ features from older compilers */
+
+  /* under VC++ (Windows), we don't have autoconf yet */
+#if defined(_MSC_VER)
+  #define HAVE_CPP_2BYTE_WCHAR_T
+#endif
+
+#ifndef __PRUNICHAR__
+#define __PRUNICHAR__
+  /* For now, don't use wchar_t on Unix because it breaks the Netscape
+   * commercial build.  When this is fixed there will be no need for the
+   * |reinterpret_cast| in nsLiteralString.h either.
+   */
+  #if defined(HAVE_CPP_2BYTE_WCHAR_T) && defined(XP_WIN)
+    typedef wchar_t PRUnichar;
+  #else
+    typedef uint16_t PRUnichar;
+  #endif
+#endif
 
 /*
  * Use these macros to do 64bit safe pointer conversions.
  */
 
-#define NS_PTR_TO_INT32(x) ((int32_t)(intptr_t)(x))
-#define NS_PTR_TO_UINT32(x) ((uint32_t)(intptr_t)(x))
-#define NS_INT32_TO_PTR(x) ((void*)(intptr_t)(x))
+#define NS_PTR_TO_INT32(x)  ((int32_t)  (intptr_t) (x))
+#define NS_PTR_TO_UINT32(x) ((uint32_t) (intptr_t) (x))
+#define NS_INT32_TO_PTR(x)  ((void *)   (intptr_t) (x))
 
 /*
  * Use NS_STRINGIFY to form a string literal from the value of a macro.
@@ -285,16 +378,69 @@ typedef MozRefCountType nsrefcnt;
 #define NS_STRINGIFY(x_) NS_STRINGIFY_HELPER(x_)
 
 /*
- * If we're being linked as standalone glue, we don't want a dynamic
- * dependency on NSPR libs, so we skip the debug thread-safety
- * checks, and we cannot use the THREADSAFE_ISUPPORTS macros.
+ * These macros allow you to give a hint to the compiler about branch
+ * probability so that it can better optimize.  Use them like this:
+ *
+ *  if (NS_LIKELY(v == 1)) {
+ *    ... expected code path ...
+ *  }
+ *
+ *  if (NS_UNLIKELY(v == 0)) {
+ *    ... non-expected code path ...
+ *  }
+ *
+ * These macros are guaranteed to always return 0 or 1.
+ * The NS_FAILED/NS_SUCCEEDED macros depends on this.
+ * @return 0 or 1
  */
+
+#if defined(__GNUC__) && (__GNUC__ > 2)
+#define NS_LIKELY(x)    (__builtin_expect(!!(x), 1))
+#define NS_UNLIKELY(x)  (__builtin_expect(!!(x), 0))
+#else
+#define NS_LIKELY(x)    (!!(x))
+#define NS_UNLIKELY(x)  (!!(x))
+#endif
+
+ /*
+  * If we're being linked as standalone glue, we don't want a dynamic
+  * dependency on NSPR libs, so we skip the debug thread-safety
+  * checks, and we cannot use the THREADSAFE_ISUPPORTS macros.
+  */
 #if defined(XPCOM_GLUE) && !defined(XPCOM_GLUE_USE_NSPR)
 #define XPCOM_GLUE_AVOID_NSPR
 #endif
 
 #if defined(HAVE_THREAD_TLS_KEYWORD)
 #define NS_TLS __thread
+#endif
+
+/**
+ * Static type annotations, enforced when static-checking is enabled:
+ *
+ * NS_STACK_CLASS: a class which must only be instantiated on the stack
+ *
+ * NS_MUST_OVERRIDE:
+ *   a method which every immediate subclass of this class must
+ *   override.  A subclass override can itself be NS_MUST_OVERRIDE, in
+ *   which case its own subclasses must override the method as well.
+ *
+ *   This is similar to, but not the same as, marking a method pure
+ *   virtual.  It has no effect on the class in which the annotation
+ *   appears, you can still provide a definition for the method, and
+ *   it objects to the mere existence of a subclass that doesn't
+ *   override the method.  See examples in analysis/must-override.js.
+ */
+#ifdef NS_STATIC_CHECKING
+#define NS_STACK_CLASS __attribute__((user("NS_stack")))
+#define NS_OKONHEAP    __attribute__((user("NS_okonheap")))
+#define NS_SUPPRESS_STACK_CHECK __attribute__((user("NS_suppress_stackcheck")))
+#define NS_MUST_OVERRIDE __attribute__((user("NS_must_override")))
+#else
+#define NS_STACK_CLASS
+#define NS_OKONHEAP
+#define NS_SUPPRESS_STACK_CHECK
+#define NS_MUST_OVERRIDE
 #endif
 
 /*

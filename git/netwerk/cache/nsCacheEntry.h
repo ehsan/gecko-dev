@@ -14,7 +14,6 @@
 
 #include "nspr.h"
 #include "pldhash.h"
-#include "nsAutoPtr.h"
 #include "nscore.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
@@ -117,8 +116,7 @@ public:
         eActiveMask          = 0x00002000,
         eInitializedMask     = 0x00004000,
         eValidMask           = 0x00008000,
-        eBindingMask         = 0x00010000,
-        ePrivateMask         = 0x00020000
+        eBindingMask         = 0x00010000
     };
     
     void MarkBinding()         { mFlags |=  eBindingMask; }
@@ -134,8 +132,6 @@ public:
     void MarkStreamData()      { mFlags |=  eStreamDataMask; }
     void MarkValid()           { mFlags |=  eValidMask; }
     void MarkInvalid()         { mFlags &= ~eValidMask; }
-    void MarkPrivate()         { mFlags |=  ePrivateMask; }
-    void MarkPublic()          { mFlags &= ~ePrivateMask; }
     //    void MarkAllowedInMemory() { mFlags |=  eAllowedInMemoryMask; }
     //    void MarkAllowedOnDisk()   { mFlags |=  eAllowedOnDiskMask; }
 
@@ -152,7 +148,6 @@ public:
                                         !(PR_CLIST_IS_EMPTY(&mRequestQ) &&
                                           PR_CLIST_IS_EMPTY(&mDescriptorQ)); }
     bool IsNotInUse()        { return !IsInUse(); }
-    bool IsPrivate()         { return (mFlags & ePrivateMask) != 0; }
 
 
     bool IsAllowedInMemory()
@@ -163,8 +158,9 @@ public:
 
     bool IsAllowedOnDisk()
     {
-        return !IsPrivate() && ((StoragePolicy() == nsICache::STORE_ANYWHERE) ||
-            (StoragePolicy() == nsICache::STORE_ON_DISK));
+        return (StoragePolicy() == nsICache::STORE_ANYWHERE) ||
+            (StoragePolicy() == nsICache::STORE_ON_DISK) ||
+            (StoragePolicy() == nsICache::STORE_ON_DISK_AS_FILE);
     }
 
     bool IsAllowedOffline()
@@ -191,17 +187,16 @@ public:
                                nsCacheAccessMode          accessGranted,
                                nsICacheEntryDescriptor ** result);
 
+    //    nsresult Open(nsCacheRequest *request, nsICacheEntryDescriptor ** result);
+    //    nsresult AsyncOpen(nsCacheRequest *request);
     bool     RemoveRequest( nsCacheRequest * request);
-    bool     RemoveDescriptor( nsCacheEntryDescriptor * descriptor,
-                               bool                   * doomEntry);
-
-    void     GetDescriptors(nsTArray<nsRefPtr<nsCacheEntryDescriptor> > &outDescriptors);
-
+    bool     RemoveDescriptor( nsCacheEntryDescriptor * descriptor);
+    
 private:
     friend class nsCacheEntryHashTable;
     friend class nsCacheService;
 
-    void     DetachDescriptors();
+    void     DetachDescriptors(void);
 
     // internal methods
     void MarkDoomed()          { mFlags |=  eDoomedMask; }
@@ -238,17 +233,16 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSICACHEENTRYINFO
 
-    explicit nsCacheEntryInfo(nsCacheEntry* entry)
+    nsCacheEntryInfo(nsCacheEntry* entry)
         :   mCacheEntry(entry)
     {
     }
 
+    virtual ~nsCacheEntryInfo() {}
     void    DetachEntry() { mCacheEntry = nullptr; }
-
+    
 private:
     nsCacheEntry * mCacheEntry;
-
-    virtual ~nsCacheEntryInfo() {}
 };
 
 
@@ -304,9 +298,9 @@ private:
                                      void *                 arg);
                                      
     // member variables
-    static const PLDHashTableOps ops;
-    PLDHashTable                 table;
-    bool                         initialized;
+    static PLDHashTableOps ops;
+    PLDHashTable           table;
+    bool                   initialized;
 };
 
 #endif // _nsCacheEntry_h_

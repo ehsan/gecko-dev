@@ -3,9 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/PowerManager.h"
-
 #include "mozilla/Hal.h"
+#include "PowerManager.h"
 #include "WakeLock.h"
 #include "nsDOMClassInfoID.h"
 #include "nsIDOMWakeLockListener.h"
@@ -16,33 +15,27 @@
 #include "nsPIDOMWindow.h"
 #include "nsServiceManagerUtils.h"
 #include "nsError.h"
-#include "mozilla/dom/MozPowerManagerBinding.h"
-#include "mozilla/Services.h"
+
+DOMCI_DATA(MozPowerManager, mozilla::dom::power::PowerManager)
 
 namespace mozilla {
 namespace dom {
+namespace power {
 
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(PowerManager)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_BEGIN(PowerManager)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMMozPowerManager)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMMozPowerManager)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMozWakeLockListener)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MozPowerManager)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(PowerManager, mListeners, mWindow)
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(PowerManager)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(PowerManager)
-
-/* virtual */ JSObject*
-PowerManager::WrapObject(JSContext* aCx)
-{
-  return MozPowerManagerBinding::Wrap(aCx, this);
-}
+NS_IMPL_ADDREF(PowerManager)
+NS_IMPL_RELEASE(PowerManager)
 
 nsresult
 PowerManager::Init(nsIDOMWindow *aWindow)
 {
-  mWindow = aWindow;
+  mWindow = do_GetWeakReference(aWindow);
 
   nsCOMPtr<nsIPowerManagerService> pmService =
     do_GetService(POWERMANAGERSERVICE_CONTRACTID);
@@ -65,62 +58,56 @@ PowerManager::Shutdown()
   return NS_OK;
 }
 
-void
-PowerManager::Reboot(ErrorResult& aRv)
+NS_IMETHODIMP
+PowerManager::Reboot()
 {
   nsCOMPtr<nsIPowerManagerService> pmService =
     do_GetService(POWERMANAGERSERVICE_CONTRACTID);
-  if (pmService) {
-    pmService->Reboot();
-  } else {
-    aRv.Throw(NS_ERROR_UNEXPECTED);
-  }
+  NS_ENSURE_STATE(pmService);
+
+  pmService->Reboot();
+
+  return NS_OK;
 }
 
-void
-PowerManager::FactoryReset(mozilla::dom::FactoryResetReason& aReason)
-{
-  hal::FactoryReset(aReason);
-}
-
-void
-PowerManager::PowerOff(ErrorResult& aRv)
+NS_IMETHODIMP
+PowerManager::PowerOff()
 {
   nsCOMPtr<nsIPowerManagerService> pmService =
     do_GetService(POWERMANAGERSERVICE_CONTRACTID);
-  if (pmService) {
-    pmService->PowerOff();
-  } else {
-    aRv.Throw(NS_ERROR_UNEXPECTED);
-  }
+  NS_ENSURE_STATE(pmService);
+
+  pmService->PowerOff();
+
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 PowerManager::AddWakeLockListener(nsIDOMMozWakeLockListener *aListener)
 {
-  if (!mListeners.Contains(aListener)) {
-    mListeners.AppendElement(aListener);
-  }
+  // already added? bail out.
+  if (mListeners.Contains(aListener))
+    return NS_OK;
+
+  mListeners.AppendElement(aListener);
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 PowerManager::RemoveWakeLockListener(nsIDOMMozWakeLockListener *aListener)
 {
   mListeners.RemoveElement(aListener);
+  return NS_OK;
 }
 
-void
-PowerManager::GetWakeLockState(const nsAString& aTopic,
-                               nsAString& aState,
-                               ErrorResult& aRv)
+NS_IMETHODIMP
+PowerManager::GetWakeLockState(const nsAString &aTopic, nsAString &aState)
 {
   nsCOMPtr<nsIPowerManagerService> pmService =
     do_GetService(POWERMANAGERSERVICE_CONTRACTID);
-  if (pmService) {
-    aRv = pmService->GetWakeLockState(aTopic, aState);
-  } else {
-    aRv.Throw(NS_ERROR_UNEXPECTED);
-  }
+  NS_ENSURE_STATE(pmService);
+
+  return pmService->GetWakeLockState(aTopic, aState);
 }
 
 NS_IMETHODIMP
@@ -142,68 +129,79 @@ PowerManager::Callback(const nsAString &aTopic, const nsAString &aState)
   return NS_OK;
 }
 
-bool
-PowerManager::ScreenEnabled()
+NS_IMETHODIMP
+PowerManager::GetScreenEnabled(bool *aEnabled)
 {
-  return hal::GetScreenEnabled();
+  *aEnabled = hal::GetScreenEnabled();
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 PowerManager::SetScreenEnabled(bool aEnabled)
 {
   hal::SetScreenEnabled(aEnabled);
+  return NS_OK;
 }
 
-bool
-PowerManager::KeyLightEnabled()
+NS_IMETHODIMP
+PowerManager::GetScreenBrightness(double *aBrightness)
 {
-  return hal::GetKeyLightEnabled();
+  *aBrightness = hal::GetScreenBrightness();
+  return NS_OK;
 }
 
-void
-PowerManager::SetKeyLightEnabled(bool aEnabled)
+NS_IMETHODIMP
+PowerManager::SetScreenBrightness(double aBrightness)
 {
-  hal::SetKeyLightEnabled(aEnabled);
+  NS_ENSURE_TRUE(0 <= aBrightness && aBrightness <= 1, NS_ERROR_INVALID_ARG);
+  hal::SetScreenBrightness(aBrightness);
+  return NS_OK;
 }
 
-double
-PowerManager::ScreenBrightness()
+NS_IMETHODIMP
+PowerManager::GetCpuSleepAllowed(bool *aAllowed)
 {
-  return hal::GetScreenBrightness();
+  *aAllowed = hal::GetCpuSleepAllowed();
+  return NS_OK;
 }
 
-void
-PowerManager::SetScreenBrightness(double aBrightness, ErrorResult& aRv)
-{
-  if (0 <= aBrightness && aBrightness <= 1) {
-    hal::SetScreenBrightness(aBrightness);
-  } else {
-    aRv.Throw(NS_ERROR_INVALID_ARG);
-  }
-}
-
-bool
-PowerManager::CpuSleepAllowed()
-{
-  return hal::GetCpuSleepAllowed();
-}
-
-void
+NS_IMETHODIMP
 PowerManager::SetCpuSleepAllowed(bool aAllowed)
 {
   hal::SetCpuSleepAllowed(aAllowed);
+  return NS_OK;
 }
 
 already_AddRefed<PowerManager>
-PowerManager::CreateInstance(nsPIDOMWindow* aWindow)
+PowerManager::CheckPermissionAndCreateInstance(nsPIDOMWindow* aWindow)
 {
-  nsRefPtr<PowerManager> powerManager = new PowerManager();
-  if (NS_FAILED(powerManager->Init(aWindow))) {
-    powerManager = nullptr;
+  nsPIDOMWindow* innerWindow = aWindow->IsInnerWindow() ?
+    aWindow :
+    aWindow->GetCurrentInnerWindow();
+
+  // Need the document for security check.
+  nsCOMPtr<nsIDocument> document = innerWindow->GetExtantDoc();
+  NS_ENSURE_TRUE(document, nullptr);
+
+  nsCOMPtr<nsIPrincipal> principal = document->NodePrincipal();
+
+  nsCOMPtr<nsIPermissionManager> permMgr =
+    do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
+  NS_ENSURE_TRUE(permMgr, nullptr);
+
+  uint32_t permission = nsIPermissionManager::DENY_ACTION;
+  permMgr->TestPermissionFromPrincipal(principal, "power", &permission);
+
+  if (permission != nsIPermissionManager::ALLOW_ACTION) {
+    return nullptr;
   }
+
+  nsRefPtr<PowerManager> powerManager = new PowerManager();
+  powerManager->Init(aWindow);
 
   return powerManager.forget();
 }
 
+} // power
 } // dom
 } // mozilla

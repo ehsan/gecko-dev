@@ -10,14 +10,15 @@
 #include "nsCOMPtr.h"
 #include "nsICollation.h"
 #include "nsIFile.h"
-#include "nsIMemoryReporter.h"
 #include "nsIObserver.h"
 #include "nsTArray.h"
 #include "mozilla/Mutex.h"
 
 #include "mozIStorageService.h"
+#include "mozIStorageServiceQuotaManagement.h"
 
 class nsIMemoryReporter;
+class nsIMemoryMultiReporter;
 class nsIXPConnect;
 struct sqlite3_vfs;
 
@@ -27,7 +28,7 @@ namespace storage {
 class Connection;
 class Service : public mozIStorageService
               , public nsIObserver
-              , public nsIMemoryReporter
+              , public mozIStorageServiceQuotaManagement
 {
 public:
   /**
@@ -54,10 +55,10 @@ public:
 
   static Service *getSingleton();
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_MOZISTORAGESERVICE
   NS_DECL_NSIOBSERVER
-  NS_DECL_NSIMEMORYREPORTER
+  NS_DECL_MOZISTORAGESERVICEQUOTAMANAGEMENT
 
   /**
    * Obtains an already AddRefed pointer to XPConnect.  This is used by
@@ -69,27 +70,6 @@ public:
    * Obtains the cached data for the toolkit.storage.synchronous preference.
    */
   static int32_t getSynchronousPref();
-
-  /**
-   * Obtains the default page size for this platform. The default value is
-   * specified in the SQLite makefile (SQLITE_DEFAULT_PAGE_SIZE) but it may be
-   * overriden with the PREF_TS_PAGESIZE hidden preference.
-   */
-  static int32_t getDefaultPageSize()
-  {
-    return sDefaultPageSize;
-  }
-
-  /**
-   * Returns a boolean value indicating whether or not the given page size is
-   * valid (currently understood as a power of 2 between 512 and 65536).
-   */
-  static bool pageSizeIsValid(int32_t aPageSize)
-  {
-    return aPageSize == 512 || aPageSize == 1024 || aPageSize == 2048 ||
-           aPageSize == 4096 || aPageSize == 8192 || aPageSize == 16384 ||
-           aPageSize == 32768 || aPageSize == 65536;
-  }
 
   /**
    * Registers the connection with the storage service.  Connections are
@@ -151,12 +131,6 @@ private:
   nsTArray<nsRefPtr<Connection> > mConnections;
 
   /**
-   * Frees as much heap memory as possible from all of the known open
-   * connections.
-   */
-  void minimizeMemory();
-
-  /**
    * Shuts down the storage service, freeing all of the acquired resources.
    */
   void shutdown();
@@ -182,13 +156,15 @@ private:
   nsCOMPtr<nsIFile> mProfileStorageFile;
 
   nsCOMPtr<nsIMemoryReporter> mStorageSQLiteReporter;
+  nsCOMPtr<nsIMemoryMultiReporter> mStorageSQLiteMultiReporter;
 
   static Service *gService;
 
   static nsIXPConnect *sXPConnect;
 
   static int32_t sSynchronousPref;
-  static int32_t sDefaultPageSize;
+
+  friend class ServiceMainThreadInitializer;
 };
 
 } // namespace storage

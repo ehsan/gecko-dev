@@ -3,6 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#ifdef MOZ_LOGGING
+// sorry, this has to be before the pre-compiled header
+#define FORCE_PR_LOG /* Allow logging in the release build */
+#endif
 #include "nsReadConfig.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsIAppStartup.h"
@@ -23,7 +27,6 @@
 #include "nsString.h"
 #include "nsCRT.h"
 #include "nspr.h"
-#include "nsXULAppAPI.h"
 
 extern PRLogModuleInfo *MCD;
 
@@ -55,12 +58,12 @@ static void DisplayError(void)
         return;
 
     nsXPIDLString title;
-    rv = bundle->GetStringFromName(MOZ_UTF16("readConfigTitle"), getter_Copies(title));
+    rv = bundle->GetStringFromName(NS_LITERAL_STRING("readConfigTitle").get(), getter_Copies(title));
     if (NS_FAILED(rv))
         return;
 
     nsXPIDLString err;
-    rv = bundle->GetStringFromName(MOZ_UTF16("readConfigMsg"), getter_Copies(err));
+    rv = bundle->GetStringFromName(NS_LITERAL_STRING("readConfigMsg").get(), getter_Copies(err));
     if (NS_FAILED(rv))
         return;
 
@@ -69,7 +72,7 @@ static void DisplayError(void)
 
 // nsISupports Implementation
 
-NS_IMPL_ISUPPORTS(nsReadConfig, nsIReadConfig, nsIObserver)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsReadConfig, nsIReadConfig, nsIObserver)
 
 nsReadConfig::nsReadConfig() :
     mRead(false)
@@ -96,7 +99,7 @@ nsReadConfig::~nsReadConfig()
     CentralizedAdminPrefManagerFinish();
 }
 
-NS_IMETHODIMP nsReadConfig::Observe(nsISupports *aSubject, const char *aTopic, const char16_t *someData)
+NS_IMETHODIMP nsReadConfig::Observe(nsISupports *aSubject, const char *aTopic, const PRUnichar *someData)
 {
     nsresult rv = NS_OK;
 
@@ -164,7 +167,7 @@ nsresult nsReadConfig::readConfigFile()
 
         mRead = true;
     }
-    // If the lockFileName is nullptr return ok, because no lockFile will be used
+    // If the lockFileName is NULL return ok, because no lockFile will be used
   
   
     // Once the config file is read, we should check that the vendor name 
@@ -196,10 +199,10 @@ nsresult nsReadConfig::readConfigFile()
   
     rv = prefBranch->GetCharPref("general.config.vendor", 
                                   getter_Copies(lockVendor));
-    // If vendor is not nullptr, do this check
+    // If vendor is not NULL, do this check
     if (NS_SUCCEEDED(rv)) {
 
-        fileNameLen = strlen(lockFileName);
+        fileNameLen = PL_strlen(lockFileName);
     
         // lockVendor and lockFileName should be the same with the addtion of 
         // .cfg to the filename by checking this post reading of the cfg file 
@@ -239,7 +242,7 @@ nsresult nsReadConfig::openAndEvaluateJSFile(const char *aFileName, int32_t obsc
     nsCOMPtr<nsIInputStream> inStr;
     if (isBinDir) {
         nsCOMPtr<nsIFile> jsFile;
-        rv = NS_GetSpecialDirectory(NS_GRE_DIR,
+        rv = NS_GetSpecialDirectory(NS_XPCOM_CURRENT_PROCESS_DIR, 
                                     getter_AddRefs(jsFile));
         if (NS_FAILED(rv)) 
             return rv;
@@ -257,7 +260,7 @@ nsresult nsReadConfig::openAndEvaluateJSFile(const char *aFileName, int32_t obsc
         if (NS_FAILED(rv)) 
             return rv;
 
-        nsAutoCString location("resource://gre/defaults/autoconfig/");
+        nsCAutoString location("resource://gre/defaults/autoconfig/");
         location += aFileName;
 
         nsCOMPtr<nsIURI> uri;
@@ -281,7 +284,7 @@ nsresult nsReadConfig::openAndEvaluateJSFile(const char *aFileName, int32_t obsc
     if (NS_FAILED(rv))
         return rv;
     // PR_Malloc dones't support over 4GB
-    if (fs64 > UINT32_MAX)
+    if (fs64 > PR_UINT32_MAX)
       return NS_ERROR_FILE_TOO_BIG;
     uint32_t fs = (uint32_t)fs64;
 

@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "TestCommon.h"
-#include <algorithm>
 #ifdef WIN32 
 #include <windows.h>
 #endif
@@ -33,11 +32,10 @@ static PRLogModuleInfo *gTestLog = nullptr;
 
 class InputTestConsumer : public nsIStreamListener
 {
-  virtual ~InputTestConsumer();
-
 public:
 
   InputTestConsumer();
+  virtual ~InputTestConsumer();
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIREQUESTOBSERVER
@@ -52,9 +50,9 @@ InputTestConsumer::~InputTestConsumer()
 {
 }
 
-NS_IMPL_ISUPPORTS(InputTestConsumer,
-                  nsIStreamListener,
-                  nsIRequestObserver)
+NS_IMPL_ISUPPORTS2(InputTestConsumer,
+                   nsIStreamListener,
+                   nsIRequestObserver)
 
 NS_IMETHODIMP
 InputTestConsumer::OnStartRequest(nsIRequest *request, nsISupports* context)
@@ -67,7 +65,7 @@ NS_IMETHODIMP
 InputTestConsumer::OnDataAvailable(nsIRequest *request, 
                                    nsISupports* context,
                                    nsIInputStream *aIStream, 
-                                   uint64_t aSourceOffset,
+                                   uint32_t aSourceOffset,
                                    uint32_t aLength)
 {
   char buf[1025];
@@ -75,7 +73,7 @@ InputTestConsumer::OnDataAvailable(nsIRequest *request,
   nsresult rv;
 
   while (aLength) {
-    size = std::min<uint32_t>(aLength, sizeof(buf));
+    size = NS_MIN<uint32_t>(aLength, sizeof(buf));
     rv = aIStream->Read(buf, size, &amt);
     if (NS_FAILED(rv)) {
       NS_ASSERTION((NS_BASE_STREAM_WOULD_BLOCK != rv), 
@@ -121,24 +119,24 @@ main(int argc, char* argv[])
         nsCOMPtr<nsIServiceManager> servMan;
         NS_InitXPCOM2(getter_AddRefs(servMan), nullptr, nullptr);
 
+        nsCOMPtr<nsIIOService> ioService(do_GetService(kIOServiceCID, &rv));
         // first thing to do is create ourselves a stream that
         // is to be uploaded.
         nsCOMPtr<nsIInputStream> uploadStream;
         rv = NS_NewPostDataStream(getter_AddRefs(uploadStream),
                                   true,
-                                  nsDependentCString(fileName)); // XXX UTF-8
-        if (NS_FAILED(rv)) return -1;
-
-        nsCOMPtr<nsIIOService> ioService(do_GetService(kIOServiceCID, &rv));
+                                  nsDependentCString(fileName), // XXX UTF-8
+                                  0, ioService);
+        if (NS_FAILED(rv)) return rv;
 
         // create our url.
         nsCOMPtr<nsIURI> uri;
         rv = NS_NewURI(getter_AddRefs(uri), uriSpec);
-        if (NS_FAILED(rv)) return -1;
+        if (NS_FAILED(rv)) return rv;
 
         nsCOMPtr<nsIChannel> channel;
         rv = ioService->NewChannelFromURI(uri, getter_AddRefs(channel));
-        if (NS_FAILED(rv)) return -1;
+        if (NS_FAILED(rv)) return rv;
 	
         // QI and set the upload stream
         nsCOMPtr<nsIUploadChannel> uploadChannel(do_QueryInterface(channel));

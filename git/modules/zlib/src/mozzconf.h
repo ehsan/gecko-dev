@@ -6,10 +6,8 @@
 #ifndef MOZZCONF_H
 #define MOZZCONF_H
 
-#include "mozilla/Types.h"
-
-#if defined(ZLIB_IN_MOZGLUE)
-#define ZEXTERN MFBT_API
+#if defined(XP_WIN)
+#define ZLIB_DLL 1
 #endif
 
 /* Exported Symbols */
@@ -120,10 +118,5 @@
 
 /* New as of zlib-1.2.7 */
 #define gzopen_w MOZ_Z_gzopen_w
-
-/* New as of zlib-1.2.8 */
-#define _tr_flush_bits MOZ_Z__tr_flush_bits
-#define gzvprintf MOZ_Z_gzvprintf
-#define inflateGetDictionary MOZ_Z_inflateGetDictionary
 
 #endif

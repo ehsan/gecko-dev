@@ -2,11 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
  
-#ifndef nsHtml5SpeculativeLoad_h
-#define nsHtml5SpeculativeLoad_h
+#ifndef nsHtml5SpeculativeLoad_h_
+#define nsHtml5SpeculativeLoad_h_
 
 #include "nsString.h"
-#include "nsContentUtils.h"
 
 class nsHtml5TreeOpExecutor;
 
@@ -15,10 +14,8 @@ enum eHtml5SpeculativeLoad {
   eSpeculativeLoadUninitialized,
 #endif
   eSpeculativeLoadBase,
-  eSpeculativeLoadMetaReferrer,
   eSpeculativeLoadImage,
   eSpeculativeLoadScript,
-  eSpeculativeLoadScriptFromHead,
   eSpeculativeLoadStyle,
   eSpeculativeLoadManifest,
   eSpeculativeLoadSetDocumentCharset
@@ -29,25 +26,15 @@ class nsHtml5SpeculativeLoad {
     nsHtml5SpeculativeLoad();
     ~nsHtml5SpeculativeLoad();
     
-    inline void InitBase(const nsAString& aUrl)
-    {
+    inline void InitBase(const nsAString& aUrl) {
       NS_PRECONDITION(mOpCode == eSpeculativeLoadUninitialized,
                       "Trying to reinitialize a speculative load!");
       mOpCode = eSpeculativeLoadBase;
       mUrl.Assign(aUrl);
     }
 
-    inline void InitMetaReferrerPolicy(const nsAString& aReferrerPolicy) {
-      NS_PRECONDITION(mOpCode == eSpeculativeLoadUninitialized,
-                      "Trying to reinitialize a speculative load!");
-      mOpCode = eSpeculativeLoadMetaReferrer;
-      mMetaReferrerPolicy.Assign(
-        nsContentUtils::TrimWhitespace<nsContentUtils::IsHTMLWhitespace>(aReferrerPolicy));
-    }
-
     inline void InitImage(const nsAString& aUrl,
-                          const nsAString& aCrossOrigin)
-    {
+                          const nsAString& aCrossOrigin) {
       NS_PRECONDITION(mOpCode == eSpeculativeLoadUninitialized,
                       "Trying to reinitialize a speculative load!");
       mOpCode = eSpeculativeLoadImage;
@@ -58,28 +45,22 @@ class nsHtml5SpeculativeLoad {
     inline void InitScript(const nsAString& aUrl,
                            const nsAString& aCharset,
                            const nsAString& aType,
-                           const nsAString& aCrossOrigin,
-                           bool aParserInHead)
-    {
+                           const nsAString& aCrossOrigin) {
       NS_PRECONDITION(mOpCode == eSpeculativeLoadUninitialized,
                       "Trying to reinitialize a speculative load!");
-      mOpCode = aParserInHead ?
-          eSpeculativeLoadScriptFromHead : eSpeculativeLoadScript;
+      mOpCode = eSpeculativeLoadScript;
       mUrl.Assign(aUrl);
       mCharset.Assign(aCharset);
       mTypeOrCharsetSource.Assign(aType);
       mCrossOrigin.Assign(aCrossOrigin);
     }
     
-    inline void InitStyle(const nsAString& aUrl, const nsAString& aCharset,
-			  const nsAString& aCrossOrigin)
-    {
+    inline void InitStyle(const nsAString& aUrl, const nsAString& aCharset) {
       NS_PRECONDITION(mOpCode == eSpeculativeLoadUninitialized,
                       "Trying to reinitialize a speculative load!");
       mOpCode = eSpeculativeLoadStyle;
       mUrl.Assign(aUrl);
       mCharset.Assign(aCharset);
-      mCrossOrigin.Assign(aCrossOrigin);
     }
 
     /**
@@ -93,8 +74,7 @@ class nsHtml5SpeculativeLoad {
      * manifests seen by the parser thread have to maintain the queue order
      * relative to true speculative loads. See bug 541079.
      */
-    inline void InitManifest(const nsAString& aUrl)
-    {
+    inline void InitManifest(const nsAString& aUrl) {
       NS_PRECONDITION(mOpCode == eSpeculativeLoadUninitialized,
                       "Trying to reinitialize a speculative load!");
       mOpCode = eSpeculativeLoadManifest;
@@ -112,13 +92,12 @@ class nsHtml5SpeculativeLoad {
      * the queue order relative to true speculative loads. See bug 675499.
      */
     inline void InitSetDocumentCharset(nsACString& aCharset,
-                                       int32_t aCharsetSource)
-    {
+                                       int32_t aCharsetSource) {
       NS_PRECONDITION(mOpCode == eSpeculativeLoadUninitialized,
                       "Trying to reinitialize a speculative load!");
       mOpCode = eSpeculativeLoadSetDocumentCharset;
       CopyUTF8toUTF16(aCharset, mCharset);
-      mTypeOrCharsetSource.Assign((char16_t)aCharsetSource);
+      mTypeOrCharsetSource.Assign((PRUnichar)aCharsetSource);
     }
 
     void Perform(nsHtml5TreeOpExecutor* aExecutor);
@@ -126,9 +105,8 @@ class nsHtml5SpeculativeLoad {
   private:
     eHtml5SpeculativeLoad mOpCode;
     nsString mUrl;
-    nsString mMetaReferrerPolicy;
     /**
-     * If mOpCode is eSpeculativeLoadStyle or eSpeculativeLoadScript[FromHead]
+     * If mOpCode is eSpeculativeLoadStyle or eSpeculativeLoadScript
      * then this is the value of the "charset" attribute. For
      * eSpeculativeLoadSetDocumentCharset it is the charset that the
      * document's charset is being set to. Otherwise it's empty.
@@ -142,11 +120,11 @@ class nsHtml5SpeculativeLoad {
      */
     nsString mTypeOrCharsetSource;
     /**
-     * If mOpCode is eSpeculativeLoadImage or eSpeculativeLoadScript[FromHead],
+     * If mOpCode is eSpeculativeLoadImage or eSpeculativeLoadScript,
      * this is the value of the "crossorigin" attribute.  If the
      * attribute is not set, this will be a void string.
      */
     nsString mCrossOrigin;
 };
 
-#endif // nsHtml5SpeculativeLoad_h
+#endif // nsHtml5SpeculativeLoad_h_

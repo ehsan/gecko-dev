@@ -27,7 +27,7 @@ class nsProxyInfo MOZ_FINAL : public nsIProxyInfo
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_PROXYINFO_IID)
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIPROXYINFO
 
   // Cheap accessors for use within Necko
@@ -36,20 +36,15 @@ public:
   const char      *Type()  { return mType; }
   uint32_t         Flags() { return mFlags; }
 
-  bool IsDirect();
-  bool IsHTTP();
-  bool IsHTTPS();
-  bool IsSOCKS();
-
 private:
   friend class nsProtocolProxyService;
 
-  explicit nsProxyInfo(const char *type = nullptr)
+  nsProxyInfo(const char *type = nullptr)
     : mType(type)
     , mPort(-1)
     , mFlags(0)
     , mResolveFlags(0)
-    , mTimeout(UINT32_MAX)
+    , mTimeout(PR_UINT32_MAX)
     , mNext(nullptr)
   {}
 

@@ -15,12 +15,13 @@
 #include "mozilla/Attributes.h"
 
 // Interfaces needed
+#include "nsIInputStream.h"
 #include "nsISHEntry.h"
 #include "nsISHContainer.h"
+#include "nsIURI.h"
+#include "nsIHistoryEntry.h"
 
 class nsSHEntryShared;
-class nsIInputStream;
-class nsIURI;
 
 class nsSHEntry MOZ_FINAL : public nsISHEntry,
                             public nsISHContainer,
@@ -31,6 +32,7 @@ public:
   nsSHEntry(const nsSHEntry &other);
 
   NS_DECL_ISUPPORTS
+  NS_DECL_NSIHISTORYENTRY
   NS_DECL_NSISHENTRY
   NS_DECL_NSISHENTRYINTERNAL
   NS_DECL_NSISHCONTAINER
@@ -50,7 +52,6 @@ private:
   // See nsSHEntry.idl for comments on these members.
   nsCOMPtr<nsIURI>         mURI;
   nsCOMPtr<nsIURI>         mReferrerURI;
-  uint32_t                 mReferrerPolicy;
   nsString                 mTitle;
   nsCOMPtr<nsIInputStream> mPostData;
   uint32_t                 mLoadType;
@@ -61,9 +62,6 @@ private:
   nsCOMArray<nsISHEntry>   mChildren;
   bool                     mURIWasModified;
   nsCOMPtr<nsIStructuredCloneContainer> mStateData;
-  bool                     mIsSrcdocEntry;
-  nsString                 mSrcdocData;
-  nsCOMPtr<nsIURI>         mBaseURI;
 };
 
 #endif /* nsSHEntry_h */

@@ -15,19 +15,10 @@
 #define BUILD_BUILD_CONFIG_H_
 
 // A set of macros to use for platform detection.
-#if defined(ANDROID)
-#define OS_ANDROID 1
-#define OS_LINUX 1
-#elif defined(__APPLE__)
+#if defined(__APPLE__)
 #define OS_MACOSX 1
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(ANDROID)
 #define OS_LINUX 1
-#elif defined(__DragonFly__)
-#define OS_DRAGONFLY 1
-#elif defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
-#define OS_FREEBSD 1
-#elif defined(__NetBSD__)
-#define OS_NETBSD 1
 #elif defined(__OpenBSD__)
 #define OS_OPENBSD 1
 #elif defined(_WIN32)
@@ -36,16 +27,9 @@
 #error Please add support for your platform in build/build_config.h
 #endif
 
-// For access to standard BSD features, use OS_BSD instead of a
-// more specific macro.
-#if defined(OS_DRAGONFLY) || defined(OS_FREEBSD)	\
-  || defined(OS_NETBSD) || defined(OS_OPENBSD)
-#define OS_BSD 1
-#endif
-
 // For access to standard POSIX features, use OS_POSIX instead of a more
 // specific macro.
-#if defined(OS_MACOSX) || defined(OS_LINUX) || defined(OS_BSD)
+#if defined(OS_MACOSX) || defined(OS_LINUX) || defined(OS_OPENBSD)
 #define OS_POSIX 1
 #endif
 
@@ -104,9 +88,6 @@
 #define ARCH_CPU_32_BITS 1
 #elif defined(__alpha__)
 #define ARCH_CPU_ALPHA 1
-#define ARCH_CPU_64_BITS 1
-#elif defined(__aarch64__)
-#define ARCH_CPU_AARCH64 1
 #define ARCH_CPU_64_BITS 1
 #else
 #error Please add support for your architecture in build/build_config.h

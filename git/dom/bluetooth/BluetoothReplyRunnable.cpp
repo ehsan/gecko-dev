@@ -5,11 +5,9 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "base/basictypes.h"
+#include "BluetoothTypes.h"
 #include "BluetoothReplyRunnable.h"
-#include "DOMRequest.h"
-#include "mozilla/dom/ScriptSettings.h"
-#include "mozilla/dom/bluetooth/BluetoothTypes.h"
-#include "nsServiceManagerUtils.h"
+#include "nsIDOMDOMRequest.h"
 
 USING_BLUETOOTH_NAMESPACE
 
@@ -33,15 +31,20 @@ BluetoothReplyRunnable::~BluetoothReplyRunnable()
 {}
 
 nsresult
-BluetoothReplyRunnable::FireReply(JS::Handle<JS::Value> aVal)
+BluetoothReplyRunnable::FireReply(const jsval& aVal)
 {
   nsCOMPtr<nsIDOMRequestService> rs =
-    do_GetService(DOMREQUEST_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(rs, NS_ERROR_FAILURE);
-
+    do_GetService("@mozilla.org/dom/dom-request-service;1");
+  
+  if (!rs) {
+    NS_WARNING("No DOMRequest Service!");
+    return NS_ERROR_FAILURE;
+  }
+  
+  
   return mReply->type() == BluetoothReply::TBluetoothReplySuccess ?
-    rs->FireSuccessAsync(mDOMRequest, aVal) :
-    rs->FireErrorAsync(mDOMRequest, mReply->get_BluetoothReplyError().error());
+    rs->FireSuccess(mDOMRequest, aVal) :
+    rs->FireError(mDOMRequest, mReply->get_BluetoothReplyError().error());
 }
 
 nsresult
@@ -49,26 +52,28 @@ BluetoothReplyRunnable::FireErrorString()
 {
   nsCOMPtr<nsIDOMRequestService> rs =
     do_GetService("@mozilla.org/dom/dom-request-service;1");
-  NS_ENSURE_TRUE(rs, NS_ERROR_FAILURE);
-
-  return rs->FireErrorAsync(mDOMRequest, mErrorString);
+  
+  if (!rs) {
+    NS_WARNING("No DOMRequest Service!");
+    return NS_ERROR_FAILURE;
+  }
+  
+  return rs->FireError(mDOMRequest, mErrorString);
 }
 
 NS_IMETHODIMP
 BluetoothReplyRunnable::Run()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(mDOMRequest);
-  MOZ_ASSERT(mReply);
 
   nsresult rv;
 
-  AutoSafeJSContext cx;
-  JS::Rooted<JS::Value> v(cx, JSVAL_VOID);
+  MOZ_ASSERT(mDOMRequest);
 
   if (mReply->type() != BluetoothReply::TBluetoothReplySuccess) {
-    rv = FireReply(v);
+    rv = FireReply(JSVAL_VOID);
   } else {
+    jsval v; 
     if (!ParseSuccessfulReply(&v)) {
       rv = FireErrorString();
     } else {
@@ -77,13 +82,13 @@ BluetoothReplyRunnable::Run()
   }
 
   if (NS_FAILED(rv)) {
-    BT_WARNING("Could not fire DOMRequest!");
+    NS_WARNING("Could not fire DOMRequest!");
   }
 
   ReleaseMembers();
-  MOZ_ASSERT(!mDOMRequest,
-             "mDOMRequest still alive! Deriving class should call "
-             "BluetoothReplyRunnable::ReleaseMembers()!");
+  if (mDOMRequest) {
+    NS_WARNING("mDOMRequest still alive! Deriving class should call BluetoothReplyRunnable::ReleaseMembers()!");
+  }
 
   return rv;
 }

@@ -12,17 +12,16 @@ import java.util.List;
 import java.util.Map;
 
 import org.json.simple.JSONArray;
-
 import org.mozilla.gecko.sync.CommandProcessor.Command;
 import org.mozilla.gecko.sync.repositories.NullCursorException;
 import org.mozilla.gecko.sync.repositories.domain.ClientRecord;
-import org.mozilla.gecko.sync.setup.Constants;
 
 import android.content.Context;
 import android.database.Cursor;
 
 public class ClientsDatabaseAccessor {
 
+  public static final String PROFILE_ID = "default";     // Generic profile id for now, until multiple profiles are implemented.
   public static final String LOG_TAG = "ClientsDatabaseAccessor";
 
   private ClientsDatabase db;
@@ -118,21 +117,12 @@ public class ClientsDatabaseAccessor {
   }
 
   protected static ClientRecord recordFromCursor(Cursor cur) {
-    final String accountGUID = RepoUtils.getStringFromCursor(cur, ClientsDatabase.COL_ACCOUNT_GUID);
-    final String clientName = RepoUtils.getStringFromCursor(cur, ClientsDatabase.COL_NAME);
-    final String clientType = RepoUtils.getStringFromCursor(cur, ClientsDatabase.COL_TYPE);
-
-    final ClientRecord record = new ClientRecord(accountGUID);
+    String accountGUID = RepoUtils.getStringFromCursor(cur, ClientsDatabase.COL_ACCOUNT_GUID);
+    String clientName = RepoUtils.getStringFromCursor(cur, ClientsDatabase.COL_NAME);
+    String clientType = RepoUtils.getStringFromCursor(cur, ClientsDatabase.COL_TYPE);
+    ClientRecord record = new ClientRecord(accountGUID);
     record.name = clientName;
     record.type = clientType;
-
-    // Optional fields. These will either be null or strings.
-    record.formfactor = RepoUtils.optStringFromCursor(cur, ClientsDatabase.COL_FORMFACTOR);
-    record.os = RepoUtils.optStringFromCursor(cur, ClientsDatabase.COL_OS);
-    record.device = RepoUtils.optStringFromCursor(cur, ClientsDatabase.COL_DEVICE);
-    record.appPackage = RepoUtils.optStringFromCursor(cur, ClientsDatabase.COL_APP_PACKAGE);
-    record.application = RepoUtils.optStringFromCursor(cur, ClientsDatabase.COL_APPLICATION);
-
     return record;
   }
 
@@ -157,7 +147,7 @@ public class ClientsDatabaseAccessor {
   }
 
   private String getProfileId() {
-    return Constants.DEFAULT_PROFILE;
+    return ClientsDatabaseAccessor.PROFILE_ID;
   }
 
   public void wipeDB() {

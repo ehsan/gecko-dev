@@ -66,10 +66,6 @@ const DownloadData = [
     state: Ci.nsIDownloadManager.DOWNLOAD_FINISHED}
 ];
 
-function compareStrFunc(actualData, expectedData) {
-  return expectedData === actualData;
-}
-
 function compareFunc(actualData, expectedData) {
   return expectedData.equals(actualData);
 }
@@ -77,24 +73,12 @@ function compareFunc(actualData, expectedData) {
 var dragRealFile = [[
   { type  :"application/x-moz-file",
     data  : realFile,
-    eqTest  : compareFunc },
-  { type  : "text/uri-list",
-    data  : realFilePath,
-    eqTest  : compareStrFunc },
-  { type  : "text/plain",
-    data  : realFilePath,
-    eqTest  : compareStrFunc }
+    eqTest  : compareFunc }
 ]];
 var dragMissingFile = [[
   { type  :"application/x-moz-file",
     data  : missingFile,
-    eqTest  : compareFunc },
-  { type  : "text/uri-list",
-    data  : missingFilePath,
-    eqTest  : compareStrFunc },
-  { type  : "text/plain",
-    data  : missingFilePath,
-    eqTest  : compareStrFunc }
+    eqTest  : compareFunc }
 ]];
 
 function test() {

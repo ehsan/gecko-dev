@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2013 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -9,62 +9,39 @@
 #ifndef LIBGLESV2_FENCE_H_
 #define LIBGLESV2_FENCE_H_
 
-#include "common/angleutils.h"
-#include "common/RefCountObject.h"
+#define GL_APICALL
+#include <GLES2/gl2.h>
+#include <d3d9.h>
 
-namespace rx
+#include "common/angleutils.h"
+
+namespace egl
 {
-class Renderer;
-class FenceImpl;
+class Display;
 }
 
 namespace gl
 {
 
-class FenceNV
+class Fence
 {
   public:
-    explicit FenceNV(rx::Renderer *renderer);
-    virtual ~FenceNV();
+    explicit Fence(egl::Display* display);
+    virtual ~Fence();
 
-    GLboolean isFence() const;
+    GLboolean isFence();
     void setFence(GLenum condition);
     GLboolean testFence();
     void finishFence();
-    GLint getFencei(GLenum pname);
-
-    GLboolean getStatus() const { return mStatus; }
-    GLuint getCondition() const { return mCondition; }
+    void getFenceiv(GLenum pname, GLint *params);
 
   private:
-    DISALLOW_COPY_AND_ASSIGN(FenceNV);
+    DISALLOW_COPY_AND_ASSIGN(Fence);
 
-    rx::FenceImpl *mFence;
-
+    egl::Display* mDisplay;
+    IDirect3DQuery9* mQuery;
+    GLenum mCondition;
     GLboolean mStatus;
-    GLenum mCondition;
-};
-
-class FenceSync : public RefCountObject
-{
-  public:
-    explicit FenceSync(rx::Renderer *renderer, GLuint id);
-    virtual ~FenceSync();
-
-    void set(GLenum condition);
-    GLenum clientWait(GLbitfield flags, GLuint64 timeout);
-    void serverWait();
-    GLenum getStatus() const;
-
-    GLuint getCondition() const { return mCondition; }
-
-  private:
-    DISALLOW_COPY_AND_ASSIGN(FenceSync);
-
-    rx::FenceImpl *mFence;
-    LONGLONG mCounterFrequency;
-
-    GLenum mCondition;
 };
 
 }

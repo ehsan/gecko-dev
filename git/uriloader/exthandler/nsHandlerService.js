@@ -569,8 +569,8 @@ HandlerService.prototype = {
       if (!objpath)
         return null;
       
-      let iface = this._getValue(aHandlerAppID, NC_INTERFACE);
-      if (!iface)
+      let interface = this._getValue(aHandlerAppID, NC_INTERFACE);
+      if (!interface)
         return null;
       
       handlerApp = Cc["@mozilla.org/uriloader/dbus-handler-app;1"].
@@ -578,7 +578,7 @@ HandlerService.prototype = {
       handlerApp.service   = service;
       handlerApp.method    = method;
       handlerApp.objectPath   = objpath;
-      handlerApp.dBusInterface = iface;
+      handlerApp.dBusInterface = interface;
       
     }
     else
@@ -1404,4 +1404,4 @@ HandlerService.prototype = {
 //****************************************************************************//
 // More XPCOM Plumbing
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([HandlerService]);
+NSGetFactory = XPCOMUtils.generateNSGetFactory([HandlerService]);

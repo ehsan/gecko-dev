@@ -2,8 +2,6 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-const Ci = Components.interfaces;
-
 // This verifies that duplicate plugins are coalesced and maintain their ID
 // across restarts.
 
@@ -12,16 +10,14 @@ var PLUGINS = [{
   description: "A duplicate plugin",
   version: "1",
   blocklisted: false,
-  enabledState: Ci.nsIPluginTag.STATE_ENABLED,
-  get disabled() this.enabledState == Ci.nsIPluginTag.STATE_DISABLED,
+  disabled: false,
   filename: "/home/mozilla/.plugins/dupplugin1.so"
 }, {
   name: "Duplicate Plugin 1",
   description: "A duplicate plugin",
   version: "1",
   blocklisted: false,
-  enabledState: Ci.nsIPluginTag.STATE_ENABLED,
-  get disabled() this.enabledState == Ci.nsIPluginTag.STATE_DISABLED,
+  disabled: false,
   filename: "",
   filename: "/usr/lib/plugins/dupplugin1.so"
 }, {
@@ -29,16 +25,14 @@ var PLUGINS = [{
   description: "Another duplicate plugin",
   version: "1",
   blocklisted: false,
-  enabledState: Ci.nsIPluginTag.STATE_ENABLED,
-  get disabled() this.enabledState == Ci.nsIPluginTag.STATE_DISABLED,
+  disabled: false,
   filename: "/home/mozilla/.plugins/dupplugin2.so"
 }, {
   name: "Duplicate Plugin 2",
   description: "Another duplicate plugin",
   version: "1",
   blocklisted: false,
-  enabledState: Ci.nsIPluginTag.STATE_ENABLED,
-  get disabled() this.enabledState == Ci.nsIPluginTag.STATE_DISABLED,
+  disabled: false,
   filename: "",
   filename: "/usr/lib/plugins/dupplugin2.so"
 }, {
@@ -46,16 +40,14 @@ var PLUGINS = [{
   description: "Not a duplicate plugin",
   version: "1",
   blocklisted: false,
-  enabledState: Ci.nsIPluginTag.STATE_ENABLED,
-  get disabled() this.enabledState == Ci.nsIPluginTag.STATE_DISABLED,
+  disabled: false,
   filename: "/home/mozilla/.plugins/dupplugin3.so"
 }, {
   name: "Non-duplicate Plugin", // 4
   description: "Not a duplicate because the descriptions are different",
   version: "1",
   blocklisted: false,
-  enabledState: Ci.nsIPluginTag.STATE_ENABLED,
-  get disabled() this.enabledState == Ci.nsIPluginTag.STATE_DISABLED,
+  disabled: false,
   filename: "",
   filename: "/usr/lib/plugins/dupplugin4.so"
 }, {
@@ -63,8 +55,7 @@ var PLUGINS = [{
   description: "Not a duplicate plugin",
   version: "1",
   blocklisted: false,
-  enabledState: Ci.nsIPluginTag.STATE_ENABLED,
-  get disabled() this.enabledState == Ci.nsIPluginTag.STATE_DISABLED,
+  disabled: false,
   filename: "/home/mozilla/.plugins/dupplugin5.so"
 }];
 
@@ -102,7 +93,6 @@ var gPluginIDs = [null, null, null, null, null];
 function run_test() {
   do_test_pending();
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1.9.2");
-  Services.prefs.setBoolPref("media.gmp-gmpopenh264.provider.enabled", false);
 
   startupManager();
 
@@ -157,7 +147,7 @@ function run_test_2() {
     do_check_true(PLUGINS[0].disabled);
     do_check_true(PLUGINS[1].disabled);
 
-    do_execute_soon(run_test_3);
+    run_test_3();
   });
 }
 
@@ -165,7 +155,7 @@ function run_test_2() {
 function run_test_3() {
   restartManager();
 
-  AddonManager.getAddonByID(gPluginIDs[0], callback_soon(function(p) {
+  AddonManager.getAddonByID(gPluginIDs[0], function(p) {
     do_check_neq(p, null);
     do_check_eq(p.name, "Duplicate Plugin 1");
     do_check_eq(p.description, "A duplicate plugin");
@@ -179,7 +169,7 @@ function run_test_3() {
       do_check_eq(p.name, "Duplicate Plugin 1");
       do_check_eq(p.description, "A duplicate plugin");
 
-      do_execute_soon(do_test_finished);
+      do_test_finished();
     });
-  }));
+  });
 }

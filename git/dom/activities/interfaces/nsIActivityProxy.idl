@@ -4,16 +4,18 @@
 
 #include "nsISupports.idl"
 
+interface nsIDOMMozActivity;
+interface nsIDOMMozActivityOptions;
 interface nsIDOMWindow;
 
 /**
   * Implemented by @mozilla.org/dom/activities/proxy;1
   */
-[scriptable, uuid(60adef0f-c1a7-4dc5-bc0d-4b879f1e59ca)]
+[scriptable, uuid(3f9e0695-f466-4111-a8fa-ed5c0751c42b)]
 interface nsIActivityProxy : nsISupports
 {
-    void startActivity(in nsISupports /* MozActivity */ activity,
-                       in jsval options,
+    void startActivity(in nsIDOMMozActivity activity,
+                       in nsIDOMMozActivityOptions options,
                        in nsIDOMWindow window);
     void cleanup();
 };

@@ -205,7 +205,7 @@ var bookmarksObserver = {
     }
   },
 
-  onItemRemoved: function PSB_onItemRemoved(aItemId, aFolderId, aIndex,
+  onItemRemoved: function PSB_onItemRemoved(aItemId, aFolder, aIndex,
                                             aItemType) {
     var views = getViewsForFolder(aFolderId);
     ok(views.length > 0, "Found affected views (" + views.length + "): " + views);
@@ -237,6 +237,7 @@ var bookmarksObserver = {
 
   onBeginUpdateBatch: function PSB_onBeginUpdateBatch() {},
   onEndUpdateBatch: function PSB_onEndUpdateBatch() {},
+  onBeforeItemRemoved: function PSB_onBeforeItemRemoved(aItemId) {},
   onItemVisited: function() {},
 
   onItemChanged: function PSB_onItemChanged(aItemId, aProperty,

@@ -138,7 +138,7 @@ void JapaneseContextAnalysis::HandleData(const char* aBuf, uint32_t aLen)
   return;
 }
 
-void JapaneseContextAnalysis::Reset()
+void JapaneseContextAnalysis::Reset(bool aIsPreferredLanguage)
 {
   mTotalRel = 0;
   for (uint32_t i = 0; i < NUM_OF_CATEGORY; i++)
@@ -146,7 +146,7 @@ void JapaneseContextAnalysis::Reset()
   mNeedToSkipCharNum = 0;
   mLastCharOrder = -1;
   mDone = false;
-  mDataThreshold = 0;
+  mDataThreshold = aIsPreferredLanguage ? 0 : MINIMUM_DATA_THRESHOLD;
 }
 #define DONT_KNOW (float)-1
 
@@ -181,8 +181,8 @@ int32_t EUCJPContextAnalysis::GetOrder(const char* str, uint32_t *charLen)
 {
   //find out current char's byte length
   if ((unsigned char)*str == (unsigned char)0x8e ||
-      ((unsigned char)*str >= (unsigned char)0xa1 &&
-       (unsigned char)*str <= (unsigned char)0xfe))
+      (unsigned char)*str >= (unsigned char)0xa1 && 
+      (unsigned char)*str <= (unsigned char)0xfe)
       *charLen = 2;
   else if ((unsigned char)*str == (unsigned char)0x8f)
     *charLen = 3;

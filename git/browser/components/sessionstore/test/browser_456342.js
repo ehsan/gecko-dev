@@ -1,49 +1,53 @@
-/* Any copyright is dedicated to the Public Domain.
- * http://creativecommons.org/publicdomain/zero/1.0/ */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-"use strict";
+function test() {
+  /** Test for Bug 456342 **/
 
-const URL = ROOT + "browser_456342_sample.xhtml";
+  waitForExplicitFinish();
 
-/**
- * Bug 456342 - Restore values from non-standard input field types.
- */
-add_task(function test_restore_nonstandard_input_values() {
-  // Add tab with various non-standard input field types.
-  let tab = gBrowser.addTab(URL);
-  let browser = tab.linkedBrowser;
-  yield promiseBrowserLoaded(browser);
+  // make sure we do save form data
+  gPrefService.setIntPref("browser.sessionstore.privacy_level", 0);
 
-  // Fill in form values.
-  let expectedValue = Math.random();
-  yield setFormElementValues(browser, {value: expectedValue});
+  let rootDir = getRootDirectory(gTestPath);
+  let testURL = rootDir + "browser_456342_sample.xhtml";
+  let tab = gBrowser.addTab(testURL);
+  tab.linkedBrowser.addEventListener("load", function(aEvent) {
+    this.removeEventListener("load", arguments.callee, true);
 
-  // Remove tab and check collected form data.
-  gBrowser.removeTab(tab);
-  let undoItems = JSON.parse(ss.getClosedTabData(window));
-  let savedFormData = undoItems[0].state.formdata;
+    let expectedValue = "try to save me";
+    // Since bug 537289 we only save non-default values, so we need to set each
+    // form field's value after load.
+    let formEls = aEvent.originalTarget.forms[0].elements;
+    for (let i = 0; i < formEls.length; i++)
+      formEls[i].value = expectedValue;
 
-  let countGood = 0, countBad = 0;
-  for (let id of Object.keys(savedFormData.id)) {
-    if (savedFormData.id[id] == expectedValue) {
-      countGood++;
-    } else {
-      countBad++;
+    gBrowser.removeTab(tab);
+
+    let undoItems = JSON.parse(ss.getClosedTabData(window));
+    let savedFormData = undoItems[0].state.entries[0].formdata;
+
+    let countGood = 0, countBad = 0;
+    for each (let value in savedFormData.id) {
+      if (value == expectedValue)
+        countGood++;
+      else
+        countBad++;
     }
-  }
-
-  for (let exp of Object.keys(savedFormData.xpath)) {
-    if (savedFormData.xpath[exp] == expectedValue) {
-      countGood++;
-    } else {
-      countBad++;
+    for each (let value in savedFormData.xpath) {
+      if (value == expectedValue)
+        countGood++;
+      else
+        countBad++;
     }
-  }
 
-  is(countGood, 4, "Saved text for non-standard input fields");
-  is(countBad,  0, "Didn't save text for ignored field types");
-});
+    is(countGood, 4, "Saved text for non-standard input fields");
+    is(countBad,  0, "Didn't save text for ignored field types");
 
-function setFormElementValues(browser, data) {
-  return sendMessage(browser, "ss-test:setFormElementValues", data);
+    // clean up
+    if (gPrefService.prefHasUserValue("browser.sessionstore.privacy_level"))
+      gPrefService.clearUserPref("browser.sessionstore.privacy_level");
+    finish();
+  }, true);
 }

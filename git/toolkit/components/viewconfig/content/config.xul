@@ -13,7 +13,6 @@
         title="&window.title;"
         windowtype="Preferences:ConfigManager"
         role="application"
-        aria-describedby="warningTitle warningText"
         width="750"
         height="500"
         disablefastfind="true"
@@ -46,6 +45,7 @@
 </menupopup>
 
 <keyset id="configTreeKeyset" disabled="true">
+  <key keycode="VK_ENTER" oncommand="ModifySelected();"/>
   <key keycode="VK_RETURN" oncommand="ModifySelected();"/>
   <key key="&focusSearch.key;" modifiers="accel" oncommand="document.getElementById('textbox').focus();"/>
 </keyset>

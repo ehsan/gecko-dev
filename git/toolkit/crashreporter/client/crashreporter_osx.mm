@@ -22,7 +22,7 @@ using namespace CrashReporter;
 
 static NSAutoreleasePool* gMainPool;
 static CrashReporterUI* gUI = 0;
-static StringTable gFiles;
+static string gDumpFile;
 static StringTable gQueryParameters;
 static string gURLParameter;
 static string gSendURL;
@@ -103,11 +103,11 @@ static bool RestartApplication()
                       objectForInfoDictionaryKey:@"CFBundleName"]];
 }
 
--(void)showCrashUI:(const StringTable&)files
+-(void)showCrashUI:(const string&)dumpfile
    queryParameters:(const StringTable&)queryParameters
            sendURL:(const string&)sendURL
 {
-  gFiles = files;
+  gDumpFile = dumpfile;
   gQueryParameters = queryParameters;
   gSendURL = sendURL;
 
@@ -573,12 +573,7 @@ static bool RestartApplication()
     [parameters setObject: value forKey: key];
   }
 
-  for (StringTable::const_iterator i = gFiles.begin();
-       i != gFiles.end();
-       i++) {
-    [mPost addFileAtPath: NSSTR(i->second) name: NSSTR(i->first)];
-  }
-
+  [mPost addFileAtPath: NSSTR(gDumpFile) name: @"upload_file_minidump"];
   [mPost setParameters: parameters];
   [parameters release];
 
@@ -778,14 +773,14 @@ void UIShowDefaultUI()
   [NSApp run];
 }
 
-bool UIShowCrashUI(const StringTable& files,
+bool UIShowCrashUI(const string& dumpfile,
                    const StringTable& queryParameters,
                    const string& sendURL,
                    const vector<string>& restartArgs)
 {
   gRestartArgs = restartArgs;
 
-  [gUI showCrashUI: files
+  [gUI showCrashUI: dumpfile
        queryParameters: queryParameters
        sendURL: sendURL];
   [NSApp run];
@@ -807,14 +802,9 @@ void UIError_impl(const string& message)
 
 bool UIGetIniPath(string& path)
 {
-  NSString* tmpPath = [NSString stringWithUTF8String:gArgv[0]];
-  NSString* iniName = [tmpPath lastPathComponent];
-  iniName = [iniName stringByAppendingPathExtension:@"ini"];
-  tmpPath = [tmpPath stringByDeletingLastPathComponent];
-  tmpPath = [tmpPath stringByDeletingLastPathComponent];
-  tmpPath = [tmpPath stringByAppendingPathComponent:@"Resources"];
-  tmpPath = [tmpPath stringByAppendingPathComponent:iniName];
-  path = [tmpPath UTF8String];
+  path = gArgv[0];
+  path.append(".ini");
+
   return true;
 }
 
@@ -897,19 +887,9 @@ std::ifstream* UIOpenRead(const string& filename)
   return new std::ifstream(filename.c_str(), std::ios::in);
 }
 
-std::ofstream* UIOpenWrite(const string& filename,
-                           bool append, // append=false
-                           bool binary) // binary=false
+std::ofstream* UIOpenWrite(const string& filename, bool append) // append=false
 {
-  std::ios_base::openmode mode = std::ios::out;
-
-  if (append) {
-    mode = mode | std::ios::app;
-  }
-
-  if (binary) {
-    mode = mode | std::ios::binary;
-  }
-
-  return new std::ofstream(filename.c_str(), mode);
+  return new std::ofstream(filename.c_str(),
+                           append ? std::ios::out | std::ios::app
+                                  : std::ios::out);
 }

@@ -4,12 +4,12 @@
  * This program is made available under an ISC-style license.  See the
  * accompanying file LICENSE for details.
  */
-#if !defined(CUBEB_c2f983e9_c96f_e71c_72c3_bbf62992a382)
-#define CUBEB_c2f983e9_c96f_e71c_72c3_bbf62992a382
+#ifndef   CUBEB_c2f983e9_c96f_e71c_72c3_bbf62992a382
+#define   CUBEB_c2f983e9_c96f_e71c_72c3_bbf62992a382
 
 #include <cubeb/cubeb-stdint.h>
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -71,6 +71,7 @@ extern "C" {
     @endcode
 */
 
+
 /** @file
     The <tt>libcubeb</tt> C API. */
 
@@ -100,40 +101,13 @@ typedef enum {
 #endif
 } cubeb_sample_format;
 
-#if defined(__ANDROID__)
-typedef enum {
-    CUBEB_STREAM_TYPE_VOICE_CALL = 0,
-    CUBEB_STREAM_TYPE_SYSTEM = 1,
-    CUBEB_STREAM_TYPE_RING = 2,
-    CUBEB_STREAM_TYPE_MUSIC = 3,
-    CUBEB_STREAM_TYPE_ALARM = 4,
-    CUBEB_STREAM_TYPE_NOTIFICATION = 5,
-    CUBEB_STREAM_TYPE_BLUETOOTH_SCO = 6,
-    CUBEB_STREAM_TYPE_SYSTEM_ENFORCED = 7,
-    CUBEB_STREAM_TYPE_DTMF = 8,
-    CUBEB_STREAM_TYPE_TTS = 9,
-    CUBEB_STREAM_TYPE_FM = 10,
-
-    CUBEB_STREAM_TYPE_MAX
-} cubeb_stream_type;
-#endif
-
 /** Stream format initialization parameters. */
 typedef struct {
   cubeb_sample_format format; /**< Requested sample format.  One of
                                    #cubeb_sample_format. */
   unsigned int rate;          /**< Requested sample rate.  Valid range is [1, 192000]. */
   unsigned int channels;      /**< Requested channel count.  Valid range is [1, 32]. */
-#if defined(__ANDROID__)
-  cubeb_stream_type stream_type; /**< Used to map Android audio stream types */
-#endif
 } cubeb_stream_params;
-
-/** Output device description */
-typedef struct {
-  char * output_name; /**< The name of the output device */
-  char * input_name; /**< The name of the input device */
-} cubeb_device;
 
 /** Stream states signaled via state_callback. */
 typedef enum {
@@ -145,10 +119,9 @@ typedef enum {
 
 /** Result code enumeration. */
 enum {
-  CUBEB_OK = 0,                       /**< Success. */
-  CUBEB_ERROR = -1,                   /**< Unclassified error. */
-  CUBEB_ERROR_INVALID_FORMAT = -2,    /**< Unsupported #cubeb_stream_params requested. */
-  CUBEB_ERROR_INVALID_PARAMETER = -3  /**< Invalid parameter specified. */
+  CUBEB_OK = 0,                   /**< Success. */
+  CUBEB_ERROR = -1,               /**< Unclassified error. */
+  CUBEB_ERROR_INVALID_FORMAT = -2 /**< Unsupported #cubeb_stream_params requested. */
 };
 
 /** User supplied data callback.
@@ -172,11 +145,6 @@ typedef void (* cubeb_state_callback)(cubeb_stream * stream,
                                       void * user_ptr,
                                       cubeb_state state);
 
-/**
- * User supplied callback called when the underlying device changed.
- * @param user */
-typedef void (* cubeb_device_changed_callback)(void * user_ptr);
-
 /** Initialize an application context.  This will perform any library or
     application scoped initialization.
     @param context
@@ -189,33 +157,6 @@ int cubeb_init(cubeb ** context, char const * context_name);
     @param context
     @retval Read-only string identifying current backend. */
 char const * cubeb_get_backend_id(cubeb * context);
-
-/** Get the maximum possible number of channels.
-    @param context
-    @param max_channels The maximum number of channels.
-    @retval CUBEB_OK
-    @retval CUBEB_ERROR_INVALID_PARAMETER
-    @retval CUBEB_ERROR */
-int cubeb_get_max_channel_count(cubeb * context, uint32_t * max_channels);
-
-/** Get the minimal latency value, in milliseconds, that is guaranteed to work
-    when creating a stream for the specified sample rate. This is platform and
-    backend dependant.
-    @param context
-    @param params On some backends, the minimum achievable latency depends on
-                  the characteristics of the stream.
-    @param latency_ms The latency value, in ms, to pass to cubeb_stream_init.
-    @retval CUBEB_ERROR_INVALID_PARAMETER
-    @retval CUBEB_OK */
-int cubeb_get_min_latency(cubeb * context, cubeb_stream_params params, uint32_t * latency_ms);
-
-/** Get the preferred sample rate for this backend: this is hardware and platform
-   dependant, and can avoid resampling, and/or trigger fastpaths.
-   @param context
-   @param rate The samplerate (in Hz) the current configuration prefers.
-   @return CUBEB_ERROR_INVALID_PARAMETER
-   @return CUBEB_OK */
-int cubeb_get_preferred_sample_rate(cubeb * context, uint32_t * rate);
 
 /** Destroy an application context.
     @param context */
@@ -263,73 +204,7 @@ int cubeb_stream_stop(cubeb_stream * stream);
     @retval CUBEB_ERROR */
 int cubeb_stream_get_position(cubeb_stream * stream, uint64_t * position);
 
-/** Get the latency for this stream, in frames. This is the number of frames
-    between the time cubeb acquires the data in the callback and the listener
-    can hear the sound.
-    @param stream
-    @param latency Current approximate stream latency in frames.
-    @retval CUBEB_OK
-    @retval CUBEB_ERROR */
-int cubeb_stream_get_latency(cubeb_stream * stream, uint32_t * latency);
-
-/**
- * Set the volume for a stream.
- * @param stream the stream for which to adjust the volume.
- * @param volume a float between 0.0 (muted) and 1.0 (maximum volume)
- * @return CUBEB_ERROR_INVALID_PARAMETER if volume is outside [0.0; 1.0]
- * @return CUBEB_ERROR_INVALID_PARAMETER if stream is an invalid pointer
- * @return CUBEB_OK otherwise
- */
-int cubeb_stream_set_volume(cubeb_stream * stream, float volume);
-
-/**
- * If the stream is stereo, set the left/right panning. If the stream is mono,
- * this has no effect.
- * @param stream the stream for which to change the panning
- * @param panning a number from -1.0 to 1.0. -1.0 means that the stream is fully
- * mixed in the left channel, 1.0 means the stream is fully mixed in the right
- * channel. 0.0 is equal power in the right and left channel (default).
- * @return CUBEB_ERROR_INVALID_PARAMETER if stream is null or if panning is outside
- * the [-1.0; 1.0] range.
- * @return CUBEB_ERROR if this stream is not mono nor stereo.
- * @return CUBEB_OK otherwise.
- */
-int cubeb_stream_set_panning(cubeb_stream * stream, float panning);
-
-/**
- * Get the current output device for this stream.
- * @param stm the stream for which to query the current output device
- * @param device a pointer in which the current output device will be stored.
- * @return CUBEB_OK in case of success
- * @return CUBEB_ERROR_INVALID_PARAMETER if either stm, device or count are
- *         invalid pointers
- */
-int cubeb_stream_get_current_device(cubeb_stream * stm,
-                                    cubeb_device ** const device);
-
-/**
- * Destroy a cubeb_device structure.
- * @param stream the stream passed in cubeb_stream_get_current_device
- * @param devices the devices to destroy
- * @return CUBEB_OK in case of success
- * @return CUBEB_ERROR_INVALID_PARAMETER if devices is an invalid pointer
- */
-int cubeb_stream_device_destroy(cubeb_stream * stream,
-                                cubeb_device * devices);
-
-/**
- * Set a callback to be notified when the output device changes.
- * @param stream the stream for which to set the callback.
- * @param device_changed_callback a function called whenever the device has
- *        changed. Passing NULL allow to unregister a function
- * @return CUBEB_ERROR_INVALID_PARAMETER if either stream or
- *         device_changed_callback are invalid pointers.
- * @return CUBEB_OK
- */
-int cubeb_stream_register_device_changed_callback(cubeb_stream * stream,
-                                                  cubeb_device_changed_callback  device_changed_callback);
-
-#if defined(__cplusplus)
+#ifdef __cplusplus
 }
 #endif
 

@@ -14,8 +14,7 @@
 #include <winuser.h>
 #include <tpcshrd.h>
 #include "nsPoint.h"
-#include "mozilla/EventForwards.h"
-#include "mozilla/TouchEvents.h"
+#include "nsGUIEvent.h"
 
 // Desktop builds target apis for 502. Win8 Metro builds target 602.
 #if WINVER < 0x0602
@@ -198,7 +197,7 @@ public:
   nsWinGesture();
 
 public:
-  bool SetWinGestureSupport(HWND hWnd, mozilla::WidgetGestureNotifyEvent::ePanDirection aDirection);
+  bool SetWinGestureSupport(HWND hWnd, nsGestureNotifyEvent::ePanDirection aDirection);
   bool ShutdownWinGestureSupport();
   bool RegisterTouchWindow(HWND hWnd);
   bool UnregisterTouchWindow(HWND hWnd);
@@ -207,12 +206,12 @@ public:
   bool IsAvailable();
   
   // Simple gesture process
-  bool ProcessGestureMessage(HWND hWnd, WPARAM wParam, LPARAM lParam, mozilla::WidgetSimpleGestureEvent& evt);
+  bool ProcessGestureMessage(HWND hWnd, WPARAM wParam, LPARAM lParam, nsSimpleGestureEvent& evt);
 
   // Pan processing
   bool IsPanEvent(LPARAM lParam);
   bool ProcessPanMessage(HWND hWnd, WPARAM wParam, LPARAM lParam);
-  bool PanDeltaToPixelScroll(mozilla::WidgetWheelEvent& aWheelEvent);
+  bool PanDeltaToPixelScroll(mozilla::widget::WheelEvent& aWheelEvent);
   void UpdatePanFeedbackX(HWND hWnd, int32_t scrollOverflow, bool& endFeedback);
   void UpdatePanFeedbackY(HWND hWnd, int32_t scrollOverflow, bool& endFeedback);
   void PanFeedbackFinalize(HWND hWnd, bool endFeedback);
@@ -263,7 +262,7 @@ private:
   bool InitLibrary();
 
   static HMODULE sLibraryHandle;
-  static const wchar_t kGestureLibraryName[];
+  static const PRUnichar kGestureLibraryName[];
 
   // Pan and feedback state
   nsPointWin mPanIntermediate;

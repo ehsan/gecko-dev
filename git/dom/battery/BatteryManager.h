@@ -6,10 +6,12 @@
 #ifndef mozilla_dom_battery_BatteryManager_h
 #define mozilla_dom_battery_BatteryManager_h
 
-#include "Types.h"
-#include "mozilla/DOMEventTargetHelper.h"
-#include "mozilla/Observer.h"
+#include "nsIDOMBatteryManager.h"
+#include "nsDOMEventTargetHelper.h"
 #include "nsCycleCollectionParticipant.h"
+#include "mozilla/Observer.h"
+#include "Types.h"
+#include "nsDOMEventTargetHelper.h"
 
 class nsPIDOMWindow;
 class nsIScriptContext;
@@ -23,49 +25,39 @@ class BatteryInformation;
 namespace dom {
 namespace battery {
 
-class BatteryManager : public DOMEventTargetHelper
+class BatteryManager : public nsDOMEventTargetHelper
+                     , public nsIDOMBatteryManager
                      , public BatteryObserver
 {
 public:
-  explicit BatteryManager(nsPIDOMWindow* aWindow);
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDOMBATTERYMANAGER
+  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
 
-  void Init();
+  BatteryManager();
+
+  void Init(nsPIDOMWindow *aWindow);
   void Shutdown();
 
   // For IObserver.
   void Notify(const hal::BatteryInformation& aBatteryInfo);
 
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(BatteryManager,
+                                           nsDOMEventTargetHelper)
+
   /**
-   * WebIDL Interface
+   * Returns whether the battery api is supported (ie. not disabled by the user)
+   * @return whether the battery api is supported.
    */
+  static bool HasSupport();
 
-  nsPIDOMWindow* GetParentObject() const
-  {
-     return GetOwner();
-  }
-
-  virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
-
-  bool Charging() const
-  {
-    return mCharging;
-  }
-
-  double ChargingTime() const;
-
-  double DischargingTime() const;
-
-  double Level() const
-  {
-    return mLevel;
-  }
-
-  IMPL_EVENT_HANDLER(chargingchange)
-  IMPL_EVENT_HANDLER(chargingtimechange)
-  IMPL_EVENT_HANDLER(dischargingtimechange)
-  IMPL_EVENT_HANDLER(levelchange)
 
 private:
+  /**
+   * Dispatch a trusted non-cancellable and non-bubbling event to itself.
+   */
+  nsresult DispatchTrustedEventToSelf(const nsAString& aEventName);
+
   /**
    * Update the battery information stored in the battery manager object using
    * a battery information object.
@@ -79,6 +71,11 @@ private:
    * current battery status (charging or not).
    */
   double mRemainingTime;
+
+  NS_DECL_EVENT_HANDLER(levelchange)
+  NS_DECL_EVENT_HANDLER(chargingchange)
+  NS_DECL_EVENT_HANDLER(chargingtimechange)
+  NS_DECL_EVENT_HANDLER(dischargingtimechange)
 };
 
 } // namespace battery

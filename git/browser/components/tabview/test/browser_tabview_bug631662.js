@@ -17,7 +17,7 @@ function test() {
 
   let actionAddTab = function () {
     storeTimestamp();
-    gBrowser.addTab("about:mozilla");
+    gBrowser.addTab("about:home");
 
     afterAllTabsLoaded(function () {
       checkTimestamp();

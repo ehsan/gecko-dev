@@ -19,6 +19,7 @@ class nsPrintDialogServiceX : public nsIPrintDialogService
 {
 public:
   nsPrintDialogServiceX();
+  virtual ~nsPrintDialogServiceX();
 
   NS_DECL_ISUPPORTS
 
@@ -27,9 +28,6 @@ public:
                      nsIWebBrowserPrint *aWebBrowserPrint);
   NS_IMETHODIMP ShowPageSetup(nsIDOMWindow *aParent,
                               nsIPrintSettings *aSettings);
-
-protected:
-  virtual ~nsPrintDialogServiceX();
 };
 
 @interface PrintPanelAccessoryView : NSView

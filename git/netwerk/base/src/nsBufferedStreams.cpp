@@ -3,14 +3,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ipc/IPCMessageUtils.h"
+#include "IPC/IPCMessageUtils.h"
 
+#include "nsAlgorithm.h"
 #include "nsBufferedStreams.h"
 #include "nsStreamUtils.h"
+#include "nsCRT.h"
 #include "nsNetCID.h"
 #include "nsIClassInfoImpl.h"
 #include "mozilla/ipc/InputStreamUtils.h"
-#include <algorithm>
 
 #ifdef DEBUG_brendan
 # define METERING
@@ -59,7 +60,7 @@ nsBufferedStream::~nsBufferedStream()
     Close();
 }
 
-NS_IMPL_ISUPPORTS(nsBufferedStream, nsISeekableStream)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsBufferedStream, nsISeekableStream)
 
 nsresult
 nsBufferedStream::Init(nsISupports* stream, uint32_t bufferSize)
@@ -71,8 +72,7 @@ nsBufferedStream::Init(nsISupports* stream, uint32_t bufferSize)
     mBufferSize = bufferSize;
     mBufferStartOffset = 0;
     mCursor = 0;
-    const mozilla::fallible_t fallible = mozilla::fallible_t();
-    mBuffer = new (fallible) char[bufferSize];
+    mBuffer = new char[bufferSize];
     if (mBuffer == nullptr)
         return NS_ERROR_OUT_OF_MEMORY;
     return NS_OK;
@@ -96,7 +96,7 @@ nsBufferedStream::Close()
         if (!tfp) {
             tfp = fopen("/tmp/bufstats", "w");
             if (tfp)
-                setvbuf(tfp, nullptr, _IOLBF, 0);
+                setvbuf(tfp, NULL, _IOLBF, 0);
         }
         if (tfp) {
             fprintf(tfp, "seeks within buffer:    %u\n",
@@ -247,7 +247,7 @@ nsBufferedStream::SetEOF()
 NS_IMPL_ADDREF_INHERITED(nsBufferedInputStream, nsBufferedStream)
 NS_IMPL_RELEASE_INHERITED(nsBufferedInputStream, nsBufferedStream)
 
-NS_IMPL_CLASSINFO(nsBufferedInputStream, nullptr, nsIClassInfo::THREADSAFE,
+NS_IMPL_CLASSINFO(nsBufferedInputStream, NULL, nsIClassInfo::THREADSAFE,
                   NS_BUFFEREDINPUTSTREAM_CID)
 
 NS_INTERFACE_MAP_BEGIN(nsBufferedInputStream)
@@ -258,11 +258,11 @@ NS_INTERFACE_MAP_BEGIN(nsBufferedInputStream)
     NS_IMPL_QUERY_CLASSINFO(nsBufferedInputStream)
 NS_INTERFACE_MAP_END_INHERITING(nsBufferedStream)
 
-NS_IMPL_CI_INTERFACE_GETTER(nsBufferedInputStream,
-                            nsIInputStream,
-                            nsIBufferedInputStream,
-                            nsISeekableStream,
-                            nsIStreamBufferAccess)
+NS_IMPL_CI_INTERFACE_GETTER4(nsBufferedInputStream,
+                             nsIInputStream,
+                             nsIBufferedInputStream,
+                             nsISeekableStream,
+                             nsIStreamBufferAccess)
 
 nsresult
 nsBufferedInputStream::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
@@ -341,7 +341,7 @@ nsBufferedInputStream::ReadSegments(nsWriteSegmentFun writer, void *closure,
 
     nsresult rv = NS_OK;
     while (count > 0) {
-        uint32_t amt = std::min(count, mFillPoint - mCursor);
+        uint32_t amt = NS_MIN(count, mFillPoint - mCursor);
         if (amt > 0) {
             uint32_t read = 0;
             rv = writer(this, closure, mBuffer + mCursor, *result, amt, &read);
@@ -486,17 +486,20 @@ nsBufferedInputStream::GetUnbufferedStream(nsISupports* *aStream)
 }
 
 void
-nsBufferedInputStream::Serialize(InputStreamParams& aParams,
-                                 FileDescriptorArray& aFileDescriptors)
+nsBufferedInputStream::Serialize(InputStreamParams& aParams)
 {
     BufferedInputStreamParams params;
 
     if (mStream) {
-        nsCOMPtr<nsIInputStream> stream = do_QueryInterface(mStream);
-        MOZ_ASSERT(stream);
+        nsCOMPtr<nsIIPCSerializableInputStream> stream =
+            do_QueryInterface(mStream);
+        NS_ASSERTION(stream, "Wrapped stream is not serializable!");
 
         InputStreamParams wrappedParams;
-        SerializeInputStream(stream, wrappedParams, aFileDescriptors);
+        stream->Serialize(wrappedParams);
+
+        NS_ASSERTION(wrappedParams.type() != InputStreamParams::T__None,
+                     "Wrapped stream failed to serialize!");
 
         params.optionalStream() = wrappedParams;
     }
@@ -510,8 +513,7 @@ nsBufferedInputStream::Serialize(InputStreamParams& aParams,
 }
 
 bool
-nsBufferedInputStream::Deserialize(const InputStreamParams& aParams,
-                                   const FileDescriptorArray& aFileDescriptors)
+nsBufferedInputStream::Deserialize(const InputStreamParams& aParams)
 {
     if (aParams.type() != InputStreamParams::TBufferedInputStreamParams) {
         NS_ERROR("Received unknown parameters from the other process!");
@@ -524,8 +526,7 @@ nsBufferedInputStream::Deserialize(const InputStreamParams& aParams,
 
     nsCOMPtr<nsIInputStream> stream;
     if (wrappedParams.type() == OptionalInputStreamParams::TInputStreamParams) {
-        stream = DeserializeInputStream(wrappedParams.get_InputStreamParams(),
-                                        aFileDescriptors);
+        stream = DeserializeInputStream(wrappedParams.get_InputStreamParams());
         if (!stream) {
             NS_WARNING("Failed to deserialize wrapped stream!");
             return false;
@@ -603,7 +604,7 @@ nsBufferedOutputStream::Write(const char *buf, uint32_t count, uint32_t *result)
     nsresult rv = NS_OK;
     uint32_t written = 0;
     while (count > 0) {
-        uint32_t amt = std::min(count, mBufferSize - mCursor);
+        uint32_t amt = NS_MIN(count, mBufferSize - mCursor);
         if (amt > 0) {
             memcpy(mBuffer + mCursor, buf + written, amt);
             written += amt;
@@ -628,7 +629,7 @@ nsBufferedOutputStream::Flush()
     nsresult rv;
     uint32_t amt;
     if (!mStream) {
-        // Stream already cancelled/flushed; probably because of previous error.
+        // Stream already cancelled/flushed; probably because of error.
         return NS_OK;
     }
     rv = Sink()->Write(mBuffer, mFillPoint, &amt);
@@ -643,7 +644,7 @@ nsBufferedOutputStream::Flush()
     // |<-------------->|<---|----->|
     // b                a    c      s
     uint32_t rem = mFillPoint - amt;
-    memmove(mBuffer, mBuffer + amt, rem);
+    memcpy(mBuffer, mBuffer + amt, rem);
     mFillPoint = mCursor = rem;
     return NS_ERROR_FAILURE;        // didn't flush all
 }
@@ -694,11 +695,11 @@ nsBufferedOutputStream::WriteSegments(nsReadSegmentFun reader, void * closure, u
     *_retval = 0;
     nsresult rv;
     while (count > 0) {
-        uint32_t left = std::min(count, mBufferSize - mCursor);
+        uint32_t left = NS_MIN(count, mBufferSize - mCursor);
         if (left == 0) {
             rv = Flush();
             if (NS_FAILED(rv))
-                return (*_retval > 0) ? NS_OK : rv;
+              return rv;
 
             continue;
         }
@@ -711,7 +712,7 @@ nsBufferedOutputStream::WriteSegments(nsReadSegmentFun reader, void * closure, u
         mCursor += read;
         *_retval += read;
         count -= read;
-        mFillPoint = std::max(mFillPoint, mCursor);
+        mFillPoint = NS_MAX(mFillPoint, mCursor);
     }
     return NS_OK;
 }
@@ -814,7 +815,5 @@ nsBufferedOutputStream::GetUnbufferedStream(nsISupports* *aStream)
     NS_IF_ADDREF(*aStream);
     return NS_OK;
 }
-
-#undef METER
 
 ////////////////////////////////////////////////////////////////////////////////

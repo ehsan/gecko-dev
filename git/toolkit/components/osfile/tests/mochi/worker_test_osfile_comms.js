@@ -3,19 +3,41 @@
 
 "use strict";
 
-importScripts('worker_test_osfile_shared.js');
+function log(text) {
+  dump("WORKER "+text+"\n");
+}
+
+function send(message) {
+  self.postMessage(message);
+}
+
+function finish() {
+  send({kind: "finish"});
+}
+
+function ok(condition, description) {
+  send({kind: "ok", condition: condition, description:description});
+}
+function is(a, b, description) {
+  let outcome = a == b; // Need to decide outcome here, as not everything can be serialized
+  send({kind: "is", outcome: outcome, description: description, a:""+a, b:""+b});
+}
+function isnot(a, b, description) {
+  let outcome = a != b; // Need to decide outcome here, as not everything can be serialized
+  send({kind: "isnot", outcome: outcome, description: description, a:""+a, b:""+b});
+}
 
 // The set of samples for communications test. Declare as a global
 // variable to prevent this from being garbage-collected too early.
 let samples;
 
 self.onmessage = function(msg) {
-  info("Initializing");
+  ok(true, "Initializing");
   self.onmessage = function on_unexpected_message(msg) {
     throw new Error("Unexpected message " + JSON.stringify(msg.data));
   };
-  importScripts("resource://gre/modules/osfile.jsm");
-  info("Initialization complete");
+  importScripts("resource:///modules/osfile.jsm");
+  ok(true, "Initialization complete");
 
   samples = [
     { typename: "OS.Shared.Type.char.in_ptr",
@@ -26,13 +48,14 @@ self.onmessage = function(msg) {
         is(candidate, "This is a test", prefix);
       }},
     { typename: "OS.Shared.Type.char.in_ptr",
-      valuedescr: "Typed array",
+      valuedescr: "ArrayBuffer",
       value: (function() {
-                let view = new Uint8Array(15);
+                let buf = new ArrayBuffer(15);
+                let view = new Uint8Array(buf);
                 for (let i = 0; i < 15; ++i) {
                   view[i] = i;
                 }
-                return view;
+                return buf;
               })(),
       type: OS.Shared.Type.char.in_ptr,
       check: function check_ArrayBuffer(candidate, prefix) {
@@ -79,7 +102,7 @@ self.onmessage = function(msg) {
            prefix + "Error code is correct");
         try {
           let string = candidate.toString();
-          info(prefix + ".toString() works " + string);
+          ok(true, prefix + ".toString() works " + string);
         } catch (x) {
           ok(false, prefix + ".toString() fails " + x);
         }
@@ -90,7 +113,7 @@ self.onmessage = function(msg) {
     let type = sample.type;
     let value = sample.value;
     let check = sample.check;
-    info("Testing handling of type " + sample.typename + " communicating " + sample.valuedescr);
+    ok(true, "Testing handling of type " + sample.typename + " communicating " + sample.valuedescr);
 
     // 1. Test serialization
     let serialized;
@@ -120,11 +143,11 @@ self.onmessage = function(msg) {
     }
 
     // 3. Local test deserialized value
-    info("Running test on deserialized value " + serialized);
+    ok(true, "Running test on deserialized value " + serialized);
     check(deserialized, "Local test: ");
 
     // 4. Test sending serialized
-    info("Attempting to send message");
+    ok(true, "Attempting to send message");
     try {
       self.postMessage({kind:"value",
         typename: sample.typename,

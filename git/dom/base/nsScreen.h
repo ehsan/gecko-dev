@@ -5,124 +5,35 @@
 #ifndef nsScreen_h___
 #define nsScreen_h___
 
-#include "mozilla/Attributes.h"
 #include "mozilla/dom/ScreenOrientation.h"
-#include "mozilla/DOMEventTargetHelper.h"
-#include "mozilla/ErrorResult.h"
-#include "mozilla/HalScreenConfiguration.h"
+#include "mozilla/Hal.h"
 #include "nsIDOMScreen.h"
+#include "nsISupports.h"
+#include "nsIScriptContext.h"
 #include "nsCOMPtr.h"
-#include "nsRect.h"
+#include "nsDOMEventTargetHelper.h"
+#include "mozilla/Attributes.h"
 
+class nsIDocShell;
 class nsDeviceContext;
+struct nsRect;
 
 // Script "screen" object
-class nsScreen : public mozilla::DOMEventTargetHelper
+class nsScreen : public nsDOMEventTargetHelper
                , public nsIDOMScreen
                , public mozilla::hal::ScreenConfigurationObserver
 {
-  typedef mozilla::ErrorResult ErrorResult;
 public:
   static already_AddRefed<nsScreen> Create(nsPIDOMWindow* aWindow);
 
-  NS_DECL_ISUPPORTS_INHERITED
+  void Reset();
+
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMSCREEN
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(mozilla::DOMEventTargetHelper)
+  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
 
-  nsPIDOMWindow* GetParentObject() const
-  {
-    return GetOwner();
-  }
-
-  int32_t GetTop(ErrorResult& aRv)
-  {
-    nsRect rect;
-    aRv = GetRect(rect);
-    return rect.y;
-  }
-
-  int32_t GetLeft(ErrorResult& aRv)
-  {
-    nsRect rect;
-    aRv = GetRect(rect);
-    return rect.x;
-  }
-
-  int32_t GetWidth(ErrorResult& aRv)
-  {
-    nsRect rect;
-    if (IsDeviceSizePageSize()) {
-      nsCOMPtr<nsPIDOMWindow> owner = GetOwner();
-      if (owner) {
-        int32_t innerWidth = 0;
-        aRv = owner->GetInnerWidth(&innerWidth);
-        return innerWidth;
-      }
-    }
-
-    aRv = GetRect(rect);
-    return rect.width;
-  }
-
-  int32_t GetHeight(ErrorResult& aRv)
-  {
-    nsRect rect;
-    if (IsDeviceSizePageSize()) {
-      nsCOMPtr<nsPIDOMWindow> owner = GetOwner();
-      if (owner) {
-        int32_t innerHeight = 0;
-        aRv = owner->GetInnerHeight(&innerHeight);
-        return innerHeight;
-      }
-    }
-
-    aRv = GetRect(rect);
-    return rect.height;
-  }
-
-  int32_t GetPixelDepth(ErrorResult& aRv);
-  int32_t GetColorDepth(ErrorResult& aRv)
-  {
-    return GetPixelDepth(aRv);
-  }
-
-  int32_t GetAvailTop(ErrorResult& aRv)
-  {
-    nsRect rect;
-    aRv = GetAvailRect(rect);
-    return rect.y;
-  }
-
-  int32_t GetAvailLeft(ErrorResult& aRv)
-  {
-    nsRect rect;
-    aRv = GetAvailRect(rect);
-    return rect.x;
-  }
-
-  int32_t GetAvailWidth(ErrorResult& aRv)
-  {
-    nsRect rect;
-    aRv = GetAvailRect(rect);
-    return rect.width;
-  }
-
-  int32_t GetAvailHeight(ErrorResult& aRv)
-  {
-    nsRect rect;
-    aRv = GetAvailRect(rect);
-    return rect.height;
-  }
-
-  void GetMozOrientation(nsString& aOrientation);
-
-  IMPL_EVENT_HANDLER(mozorientationchange)
-
-  bool MozLockOrientation(const nsAString& aOrientation, ErrorResult& aRv);
-  bool MozLockOrientation(const mozilla::dom::Sequence<nsString>& aOrientations, ErrorResult& aRv);
-  void MozUnlockOrientation();
-
-  virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsScreen,
+                                           nsDOMEventTargetHelper)
 
   void Notify(const mozilla::hal::ScreenConfiguration& aConfiguration);
 
@@ -136,28 +47,19 @@ protected:
 private:
   class FullScreenEventListener MOZ_FINAL : public nsIDOMEventListener
   {
-    ~FullScreenEventListener() {}
   public:
-    FullScreenEventListener() {}
+    FullScreenEventListener() {};
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIDOMEVENTLISTENER
   };
 
-  explicit nsScreen(nsPIDOMWindow* aWindow);
+  nsScreen();
   virtual ~nsScreen();
 
-  enum LockPermission {
-    LOCK_DENIED,
-    FULLSCREEN_LOCK_ALLOWED,
-    LOCK_ALLOWED
-  };
-
-  LockPermission GetLockOrientationPermission() const;
-
-  bool IsDeviceSizePageSize();
-
   nsRefPtr<FullScreenEventListener> mEventListener;
+
+  NS_DECL_EVENT_HANDLER(mozorientationchange)
 };
 
 #endif /* nsScreen_h___ */

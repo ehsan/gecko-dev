@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/Likely.h"
 #include "mozilla/Services.h"
 #include "nsComponentManager.h"
 #include "nsIIOService.h"
@@ -21,10 +20,6 @@
 #include "nsIXULOverlayProvider.h"
 #include "IHistory.h"
 #include "nsIXPConnect.h"
-#include "inIDOMUtils.h"
-#include "nsIPermissionManager.h"
-#include "nsIServiceWorkerManager.h"
-#include "nsIAsyncShutdown.h"
 
 using namespace mozilla;
 using namespace mozilla::services;
@@ -34,20 +29,17 @@ using namespace mozilla::services;
  * eg. gIOService and GetIOService()
  */
 #define MOZ_SERVICE(NAME, TYPE, CONTRACT_ID)                            \
-  static TYPE* g##NAME = nullptr;                                       \
+  static TYPE* g##NAME = nullptr;                                        \
                                                                         \
   already_AddRefed<TYPE>                                                \
   mozilla::services::Get##NAME()                                        \
   {                                                                     \
-    if (MOZ_UNLIKELY(gXPCOMShuttingDown)) {                             \
-      return nullptr;                                                   \
-    }                                                                   \
     if (!g##NAME) {                                                     \
       nsCOMPtr<TYPE> os = do_GetService(CONTRACT_ID);                   \
-      os.swap(g##NAME);                                                 \
+      g##NAME = os.forget().get();                                      \
     }                                                                   \
-    nsCOMPtr<TYPE> ret = g##NAME;                                       \
-    return ret.forget();                                                \
+    NS_IF_ADDREF(g##NAME);                                              \
+    return g##NAME;                                                     \
   }                                                                     \
   NS_EXPORT_(already_AddRefed<TYPE>)                                    \
   mozilla::services::_external_Get##NAME()                              \
@@ -61,7 +53,7 @@ using namespace mozilla::services;
 /**
  * Clears service cache, sets gXPCOMShuttingDown
  */
-void
+void 
 mozilla::services::Shutdown()
 {
   gXPCOMShuttingDown = true;

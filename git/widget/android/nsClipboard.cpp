@@ -13,7 +13,7 @@
 using namespace mozilla;
 using mozilla::dom::ContentChild;
 
-NS_IMPL_ISUPPORTS(nsClipboard, nsIClipboard)
+NS_IMPL_ISUPPORTS1(nsClipboard, nsIClipboard)
 
 /* The Android clipboard only supports text and doesn't support mime types
  * so we assume all clipboard data is text/unicode for now. Documentation
@@ -43,7 +43,19 @@ nsClipboard::SetData(nsITransferable *aTransferable,
   nsAutoString buffer;
   supportsString->GetData(buffer);
 
-  mozilla::widget::android::Clipboard::SetClipboardText(buffer);
+  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+    if (AndroidBridge::Bridge())
+      AndroidBridge::Bridge()->SetClipboardText(buffer);
+    else
+      return NS_ERROR_NOT_IMPLEMENTED;
+
+  } else {
+    bool isPrivateData = false;
+    aTransferable->GetIsPrivateData(&isPrivateData);
+    ContentChild::GetSingleton()->SendSetClipboardText(buffer, isPrivateData,
+                                                       aWhichClipboard);
+  }
+
   return NS_OK;
 }
 
@@ -54,10 +66,14 @@ nsClipboard::GetData(nsITransferable *aTransferable, int32_t aWhichClipboard)
     return NS_ERROR_NOT_IMPLEMENTED;
 
   nsAutoString buffer;
-  if (!AndroidBridge::Bridge())
-    return NS_ERROR_NOT_IMPLEMENTED;
-  if (!AndroidBridge::Bridge()->GetClipboardText(buffer))
-    return NS_ERROR_UNEXPECTED;
+  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+    if (!AndroidBridge::Bridge())
+      return NS_ERROR_NOT_IMPLEMENTED;
+    if (!AndroidBridge::Bridge()->GetClipboardText(buffer))
+      return NS_ERROR_UNEXPECTED;
+  } else {
+    ContentChild::GetSingleton()->SendGetClipboardText(aWhichClipboard, &buffer);
+  }
 
   nsresult rv;
   nsCOMPtr<nsISupportsString> dataWrapper =
@@ -73,7 +89,7 @@ nsClipboard::GetData(nsITransferable *aTransferable, int32_t aWhichClipboard)
   nsCOMPtr<nsISupports> nsisupportsDataWrapper =
     do_QueryInterface(dataWrapper);
   rv = aTransferable->SetTransferData(kUnicodeMime, nsisupportsDataWrapper,
-                                      buffer.Length() * sizeof(char16_t));
+                                      buffer.Length() * sizeof(PRUnichar));
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -84,8 +100,13 @@ nsClipboard::EmptyClipboard(int32_t aWhichClipboard)
 {
   if (aWhichClipboard != kGlobalClipboard)
     return NS_ERROR_NOT_IMPLEMENTED;
-  mozilla::widget::android::Clipboard::ClearText();
-  
+  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+    if (AndroidBridge::Bridge())
+      AndroidBridge::Bridge()->EmptyClipboard();
+  } else {
+    ContentChild::GetSingleton()->SendEmptyClipboard();
+  }
+
   return NS_OK;
 }
 
@@ -97,7 +118,12 @@ nsClipboard::HasDataMatchingFlavors(const char **aFlavorList,
   *aHasText = false;
   if (aWhichClipboard != kGlobalClipboard)
     return NS_ERROR_NOT_IMPLEMENTED;
-  *aHasText = mozilla::widget::android::Clipboard::HasText();
+  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+    if (AndroidBridge::Bridge())
+      *aHasText = AndroidBridge::Bridge()->ClipboardHasText();
+  } else {
+    ContentChild::GetSingleton()->SendClipboardHasText(aHasText);
+  }
   return NS_OK;
 }
 
@@ -108,9 +134,3 @@ nsClipboard::SupportsSelectionClipboard(bool *aIsSupported)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsClipboard::SupportsFindClipboard(bool* _retval)
-{
-  *_retval = false;
-  return NS_OK;
-}

@@ -3,13 +3,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 /* $Id: nsPKCS12Blob.cpp,v 1.49 2007/09/05 07:13:46 jwalden%mit.edu Exp $ */
 
-#include "nsPKCS12Blob.h"
-
-#include "pkix/pkixtypes.h"
-
 #include "prmem.h"
 #include "prprf.h"
 
+#include "nsISupportsArray.h"
 #include "nsIFile.h"
 #include "nsNetUtil.h"
 #include "nsIDirectoryService.h"
@@ -17,6 +14,7 @@
 
 #include "nsNSSComponent.h"
 #include "nsNSSHelper.h"
+#include "nsPKCS12Blob.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsXPIDLString.h"
@@ -28,14 +26,17 @@
 #include "nsICertificateDialogs.h"
 #include "nsNSSShutDown.h"
 #include "nsCRT.h"
-
+#include "pk11func.h"
 #include "secerr.h"
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gPIPNSSLog;
 #endif
 
-using namespace mozilla;
+#include "nsNSSCleaner.h"
+NSSCleanupAutoPtrClass(CERTCertificate, CERT_DestroyCertificate)
+
+static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 
 #define PIP_PKCS12_TMPFILENAME   NS_LITERAL_CSTRING(".pip_p12tmp")
 #define PIP_PKCS12_BUFFER_SIZE   2048
@@ -50,6 +51,7 @@ using namespace mozilla;
 // constructor
 nsPKCS12Blob::nsPKCS12Blob():mCertArray(0),
                              mTmpFile(nullptr),
+                             mTmpFilePath(nullptr),
                              mDigest(nullptr),
                              mDigestIterator(nullptr),
                              mTokenSet(false)
@@ -100,7 +102,7 @@ nsPKCS12Blob::ImportFromFile(nsIFile *file)
 
   if (!mToken) {
     if (!mTokenSet) {
-      rv = SetToken(nullptr); // Ask the user to pick a slot
+      rv = SetToken(NULL); // Ask the user to pick a slot
       if (NS_FAILED(rv)) {
         handleError(PIP_PKCS12_USER_CANCELED);
         return rv;
@@ -138,14 +140,14 @@ nsPKCS12Blob::ImportFromFileHelper(nsIFile *file,
                                    nsPKCS12Blob::RetryReason &aWantRetry)
 {
   nsNSSShutDownPreventionLock locker;
-  nsresult rv = NS_OK;
+  nsresult rv;
   SECStatus srv = SECSuccess;
-  SEC_PKCS12DecoderContext *dcx = nullptr;
+  SEC_PKCS12DecoderContext *dcx = NULL;
   SECItem unicodePw;
 
   PK11SlotInfo *slot=nullptr;
   nsXPIDLString tokenName;
-  unicodePw.data = nullptr;
+  unicodePw.data = NULL;
   
   aWantRetry = rr_do_not_retry;
 
@@ -158,7 +160,7 @@ nsPKCS12Blob::ImportFromFileHelper(nsIFile *file,
     // get file password (unicode)
     rv = getPKCS12FilePassword(&unicodePw);
     if (NS_FAILED(rv)) goto finish;
-    if (!unicodePw.data) {
+    if (unicodePw.data == NULL) {
       handleError(PIP_PKCS12_USER_CANCELED);
       return NS_OK;
     }
@@ -175,7 +177,7 @@ nsPKCS12Blob::ImportFromFileHelper(nsIFile *file,
   }
 
   // initialize the decoder
-  dcx = SEC_PKCS12DecoderStart(&unicodePw, slot, nullptr,
+  dcx = SEC_PKCS12DecoderStart(&unicodePw, slot, NULL,
                                digest_open, digest_close,
                                digest_read, digest_write,
                                this);
@@ -209,7 +211,7 @@ finish:
   // for every error possible.
   if (srv != SECSuccess) {
     if (SEC_ERROR_BAD_PASSWORD == PORT_GetError()) {
-      if (unicodePw.len == sizeof(char16_t))
+      if (unicodePw.len == sizeof(PRUnichar))
       {
         // no password chars available, 
         // unicodeToItem allocated space for the trailing zero character only.
@@ -237,6 +239,46 @@ finish:
   return NS_OK;
 }
 
+#if 0
+// nsPKCS12Blob::LoadCerts
+//
+// Given an array of certificate nicknames, load the corresponding
+// certificates into a local array.
+nsresult
+nsPKCS12Blob::LoadCerts(const PRUnichar **certNames, int numCerts)
+{
+  nsresult rv;
+  char namecpy[256];
+  /* Create the local array if needed */
+  if (!mCertArray) {
+    rv = NS_NewISupportsArray(getter_AddRefs(mCertArray));
+    if (NS_FAILED(rv)) {
+      if (!handleError())
+        return NS_ERROR_OUT_OF_MEMORY;
+    }
+  }
+  /* Add the certs */
+  for (int i=0; i<numCerts; i++) {
+    strcpy(namecpy, NS_ConvertUTF16toUTF8(certNames[i]));
+    CERTCertificate *nssCert = PK11_FindCertFromNickname(namecpy, NULL);
+    if (!nssCert) {
+      if (!handleError())
+        return NS_ERROR_FAILURE;
+      else continue; /* user may request to keep going */
+    }
+    nsCOMPtr<nsIX509Cert> cert = nsNSSCertificate::Create(nssCert);
+    CERT_DestroyCertificate(nssCert);
+    if (!cert) {
+      if (!handleError())
+        return NS_ERROR_OUT_OF_MEMORY;
+    } else {
+      mCertArray->AppendElement(cert);
+    }
+  }
+  return NS_OK;
+}
+#endif
+
 static bool
 isExtractable(SECKEYPrivateKey *privKey)
 {
@@ -248,7 +290,7 @@ isExtractable(SECKEYPrivateKey *privKey)
   if (rv != SECSuccess) {
     return false;
   }
-  if ((value.len == 1) && value.data) {
+  if ((value.len == 1) && (value.data != NULL)) {
     isExtractable = !!(*(CK_BBOOL*)value.data);
   }
   SECITEM_FreeItem(&value, false);
@@ -272,8 +314,8 @@ nsPKCS12Blob::ExportToFile(nsIFile *file,
   nsNSSShutDownPreventionLock locker;
   nsresult rv;
   SECStatus srv = SECSuccess;
-  SEC_PKCS12ExportContext *ecx = nullptr;
-  SEC_PKCS12SafeInfo *certSafe = nullptr, *keySafe = nullptr;
+  SEC_PKCS12ExportContext *ecx = NULL;
+  SEC_PKCS12SafeInfo *certSafe = NULL, *keySafe = NULL;
   SECItem unicodePw;
   nsAutoString filePath;
   int i;
@@ -287,16 +329,16 @@ nsPKCS12Blob::ExportToFile(nsIFile *file,
   rv = mToken->Login(true);
   if (NS_FAILED(rv)) goto finish;
   // get file password (unicode)
-  unicodePw.data = nullptr;
+  unicodePw.data = NULL;
   rv = newPKCS12FilePassword(&unicodePw);
   if (NS_FAILED(rv)) goto finish;
-  if (!unicodePw.data) {
+  if (unicodePw.data == NULL) {
     handleError(PIP_PKCS12_USER_CANCELED);
     return NS_OK;
   }
   // what about slotToUse in psm 1.x ???
   // create export context
-  ecx = SEC_PKCS12CreateExportContext(nullptr, nullptr, nullptr /*slot*/, nullptr);
+  ecx = SEC_PKCS12CreateExportContext(NULL, NULL, NULL /*slot*/, NULL);
   if (!ecx) {
     srv = SECFailure;
     goto finish;
@@ -304,10 +346,23 @@ nsPKCS12Blob::ExportToFile(nsIFile *file,
   // add password integrity
   srv = SEC_PKCS12AddPasswordIntegrity(ecx, &unicodePw, SEC_OID_SHA1);
   if (srv) goto finish;
+#if 0
+  // count the number of certs to export
+  nrv = mCertArray->Count(&numCerts);
+  if (NS_FAILED(nrv)) goto finish;
+  // loop over the certs
   for (i=0; i<numCerts; i++) {
+    nsCOMPtr<nsIX509Cert> cert;
+    nrv = mCertArray->GetElementAt(i, getter_AddRefs(cert));
+    if (NS_FAILED(nrv)) goto finish;
+#endif
+  for (i=0; i<numCerts; i++) {
+//    nsNSSCertificate *cert = reinterpret_cast<nsNSSCertificate *>(certs[i]);
     nsNSSCertificate *cert = (nsNSSCertificate *)certs[i];
     // get it as a CERTCertificate XXX
-    ScopedCERTCertificate nssCert(cert->GetCert());
+    CERTCertificate *nssCert = NULL;
+    CERTCertificateCleaner nssCertCleaner(nssCert);
+    nssCert = cert->GetCert();
     if (!nssCert) {
       rv = NS_ERROR_FAILURE;
       goto finish;
@@ -320,7 +375,7 @@ nsPKCS12Blob::ExportToFile(nsIFile *file,
     if (nssCert->slot && !PK11_IsInternal(nssCert->slot)) {
       // we aren't the internal token, see if the key is extractable.
       SECKEYPrivateKey *privKey=PK11_FindKeyByDERCert(nssCert->slot,
-                                                      nssCert.get(), this);
+                                                      nssCert, this);
 
       if (privKey) {
         bool privKeyIsExtractable = isExtractable(privKey);
@@ -338,7 +393,7 @@ nsPKCS12Blob::ExportToFile(nsIFile *file,
     }
 
     // XXX this is why, to verify the slot is the same
-    // PK11_FindObjectForCert(nssCert, nullptr, slot);
+    // PK11_FindObjectForCert(nssCert, NULL, slot);
     // create the cert and key safes
     keySafe = SEC_PKCS12CreateUnencryptedSafe(ecx);
     if (!SEC_PKCS12IsEncryptionAllowed() || PK11_IsFIPS()) {
@@ -352,9 +407,9 @@ nsPKCS12Blob::ExportToFile(nsIFile *file,
       goto finish;
     }
     // add the cert and key to the blob
-    srv = SEC_PKCS12AddCertAndKey(ecx, certSafe, nullptr, nssCert.get(),
+    srv = SEC_PKCS12AddCertAndKey(ecx, certSafe, NULL, nssCert,
                                   CERT_GetDefaultCertDB(), // XXX
-                                  keySafe, nullptr, true, &unicodePw,
+                                  keySafe, NULL, true, &unicodePw,
                       SEC_OID_PKCS12_V2_PBE_WITH_SHA1_AND_3KEY_TRIPLE_DES_CBC);
     if (srv) goto finish;
     // cert was dup'ed, so release it
@@ -364,7 +419,7 @@ nsPKCS12Blob::ExportToFile(nsIFile *file,
   if (!numCertsExported) goto finish;
   
   // prepare the instance to write to an export file
-  this->mTmpFile = nullptr;
+  this->mTmpFile = NULL;
   file->GetPath(filePath);
   // Use the nsCOMPtr var localFileRef so that
   // the reference to the nsIFile we create gets released as soon as
@@ -394,7 +449,7 @@ finish:
     SEC_PKCS12DestroyExportContext(ecx);
   if (this->mTmpFile) {
     PR_Close(this->mTmpFile);
-    this->mTmpFile = nullptr;
+    this->mTmpFile = NULL;
   }
   SECITEM_ZfreeItem(&unicodePw, false);
   return rv;
@@ -412,11 +467,11 @@ finish:
 // a buffer of octets.  Must handle byte order correctly.
 // TODO: Is there a mozilla way to do this?  In the string lib?
 void
-nsPKCS12Blob::unicodeToItem(const char16_t *uni, SECItem *item)
+nsPKCS12Blob::unicodeToItem(const PRUnichar *uni, SECItem *item)
 {
   int len = 0;
   while (uni[len++] != 0);
-  SECITEM_AllocItem(nullptr, item, sizeof(char16_t) * len);
+  SECITEM_AllocItem(NULL, item, sizeof(PRUnichar) * len);
 #ifdef IS_LITTLE_ENDIAN
   int i = 0;
   for (i=0; i<len; i++) {
@@ -532,7 +587,7 @@ nsPKCS12Blob::inputToDecoder(SEC_PKCS12DecoderContext *dcx, nsIFile *file)
 
 // digest_open
 // prepare a memory buffer for reading/writing digests
-SECStatus
+SECStatus PR_CALLBACK
 nsPKCS12Blob::digest_open(void *arg, PRBool reading)
 {
   nsPKCS12Blob *cx = reinterpret_cast<nsPKCS12Blob *>(arg);
@@ -567,7 +622,7 @@ nsPKCS12Blob::digest_open(void *arg, PRBool reading)
 // digest_close
 // destroy a possibly active iterator
 // remove the data buffer if requested
-SECStatus
+SECStatus PR_CALLBACK
 nsPKCS12Blob::digest_close(void *arg, PRBool remove_it)
 {
   nsPKCS12Blob *cx = reinterpret_cast<nsPKCS12Blob *>(arg);
@@ -586,7 +641,7 @@ nsPKCS12Blob::digest_close(void *arg, PRBool remove_it)
 
 // digest_read
 // read bytes from the memory buffer
-int
+int PR_CALLBACK
 nsPKCS12Blob::digest_read(void *arg, unsigned char *buf, unsigned long len)
 {
   nsPKCS12Blob *cx = reinterpret_cast<nsPKCS12Blob *>(arg);
@@ -609,7 +664,7 @@ nsPKCS12Blob::digest_read(void *arg, unsigned char *buf, unsigned long len)
 
 // digest_write
 // append bytes to the memory buffer
-int
+int PR_CALLBACK
 nsPKCS12Blob::digest_write(void *arg, unsigned char *buf, unsigned long len)
 {
   nsPKCS12Blob *cx = reinterpret_cast<nsPKCS12Blob *>(arg);
@@ -628,11 +683,9 @@ nsPKCS12Blob::digest_write(void *arg, unsigned char *buf, unsigned long len)
 // nickname_collision
 // what to do when the nickname collides with one already in the db.
 // TODO: not handled, throw a dialog allowing the nick to be changed?
-SECItem *
+SECItem * PR_CALLBACK
 nsPKCS12Blob::nickname_collision(SECItem *oldNick, PRBool *cancel, void *wincx)
 {
-  static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
-
   nsNSSShutDownPreventionLock locker;
   *cancel = false;
   nsresult rv;
@@ -685,14 +738,14 @@ nsPKCS12Blob::nickname_collision(SECItem *oldNick, PRBool *cancel, void *wincx)
     return nullptr;
 
   newNick->type = siAsciiString;
-  newNick->data = (unsigned char*) strdup(nickname.get());
+  newNick->data = (unsigned char*) nsCRT::strdup(nickname.get());
   newNick->len  = strlen((char*)newNick->data);
   return newNick;
 }
 
 // write_export_file
 // write bytes to the exported PKCS#12 file
-void
+void PR_CALLBACK
 nsPKCS12Blob::write_export_file(void *arg, const char *buf, unsigned long len)
 {
   nsPKCS12Blob *cx = (nsPKCS12Blob *)arg;
@@ -720,8 +773,6 @@ pip_ucs2_ascii_conversion_fn(PRBool toUnicode,
 void
 nsPKCS12Blob::handleError(int myerr)
 {
-  static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
-
   if (!NS_IsMainThread()) {
     NS_ERROR("nsPKCS12Blob::handleError called off the mai nthread.");
     return;
@@ -751,6 +802,15 @@ nsPKCS12Blob::handleError(int myerr)
       /* ask to keep going?  what happens if one collision but others ok? */
       // The following errors cannot be "handled", notify the user (via an alert)
       // that the operation failed.
+#if 0
+      // XXX a boy can dream...
+      //     but the PKCS12 lib never throws this error
+      //     but then again, how would it?  anyway, convey the info below
+    case SEC_ERROR_PKCS12_PRIVACY_PASSWORD_INCORRECT:
+      msgID = "PKCS12PasswordInvalid";
+      break;
+#endif
+
     case SEC_ERROR_BAD_PASSWORD: msgID = "PK11BadPassword"; break;
 
     case SEC_ERROR_BAD_DER:
@@ -772,3 +832,4 @@ nsPKCS12Blob::handleError(int myerr)
   if (NS_SUCCEEDED(rv))
     (void) nssComponent->ShowAlertFromStringBundle(msgID);
 }
+

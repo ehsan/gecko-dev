@@ -26,7 +26,7 @@
 // avoided when authenticating over the internet since it may use a lower-grade
 // version of password hashing depending on the version of Windows being used.
 
-class nsAuthSSPI MOZ_FINAL : public nsIAuthModule
+class nsAuthSSPI : public nsIAuthModule
 {
 public:
     NS_DECL_ISUPPORTS
@@ -38,8 +38,6 @@ private:
     ~nsAuthSSPI();
 
     void Reset();
-
-    typedef TimeStamp MS_TimeStamp;
 
 private:
     CredHandle   mCred;

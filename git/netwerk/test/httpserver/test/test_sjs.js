@@ -1,4 +1,4 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -6,17 +6,10 @@
 
 // tests support for server JS-generated pages
 
-var srv = createServer();
+const BASE = "http://localhost:4444";
 
 var sjs = do_get_file("data/sjs/cgi.sjs");
-// NB: The server has no state at this point -- all state is set up and torn
-//     down in the tests, because we run the same tests twice with only a
-//     different query string on the requests, followed by the oddball
-//     test that doesn't care about throwing or not.
-srv.start(-1);
-const PORT = srv.identity.primaryPort;
-
-const BASE = "http://localhost:" + PORT;
+var srv;
 var test;
 var tests = [];
 
@@ -237,6 +230,8 @@ tests.push(test);
 
 function run_test()
 {
+  srv = createServer();
+
   // Test for a content-type which isn't a field-value
   try
   {
@@ -247,5 +242,13 @@ function run_test()
   {
     isException(e, Cr.NS_ERROR_INVALID_ARG);
   }
+
+
+  // NB: The server has no state at this point -- all state is set up and torn
+  //     down in the tests, because we run the same tests twice with only a
+  //     different query string on the requests, followed by the oddball
+  //     test that doesn't care about throwing or not.
+
+  srv.start(4444);
   runHttpTests(tests, testComplete(srv));
 }

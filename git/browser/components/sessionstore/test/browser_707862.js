@@ -2,7 +2,7 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 let tabState = {
-  entries: [{url: "about:robots", children: [{url: "about:mozilla"}]}]
+  entries: [{url: "about:home", children: [{url: "about:mozilla"}]}]
 };
 
 function test() {
@@ -48,10 +48,6 @@ function test() {
       iframe.setAttribute("src", "about:mozilla");
     });
   });
-
-  // This test relies on the test timing out in order to indicate failure so
-  // let's add a dummy pass.
-  ok(true, "Each test requires at least one pass, fail or todo so here is a pass.");
 }
 
 function whenChildCount(aEntry, aChildCount, aCallback) {

@@ -1,3 +1,4 @@
+// |jit-test| error: TypeError
 function f() {
     "use strict";
 }

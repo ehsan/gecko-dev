@@ -5,18 +5,24 @@
 package org.mozilla.gecko.sync.setup.activities;
 
 import org.mozilla.gecko.R;
+import org.mozilla.gecko.sync.GlobalConstants;
+import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.setup.Constants;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
 
+import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.TextView;
 
-public class SetupSuccessActivity extends SyncActivity {
+public class SetupSuccessActivity extends Activity {
+  private final static String LOG_TAG = "SetupSuccessActivity";
   private TextView setupSubtitle;
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
+    setTheme(R.style.SyncTheme);
     super.onCreate(savedInstanceState);
     Bundle extras = this.getIntent().getExtras();
     setContentView(R.layout.sync_setup_success);
@@ -31,6 +37,7 @@ public class SetupSuccessActivity extends SyncActivity {
 
   @Override
   public void onDestroy() {
+    Logger.debug(LOG_TAG, "onDestroy() called.");
     super.onDestroy();
   }
 
@@ -40,6 +47,8 @@ public class SetupSuccessActivity extends SyncActivity {
   }
 
   public void launchBrowser(View target) {
-    ActivityUtils.openURLInFennec(this, null);
+    Intent intent = new Intent(Intent.ACTION_MAIN);
+    intent.setClassName(GlobalConstants.BROWSER_INTENT_PACKAGE, GlobalConstants.BROWSER_INTENT_CLASS);
+    startActivity(intent);
   }
 }
