@@ -48,8 +48,6 @@ public:
 private:
   ~GeckoMediaPluginService();
 
-  void ClearStorage();
-
   GMPParent* SelectPluginForAPI(const nsACString& aNodeId,
                                 const nsCString& aAPI,
                                 const nsTArray<nsCString>& aTags);

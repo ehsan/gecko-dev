@@ -349,12 +349,9 @@ MobileConnection::GetNetworkSelectionMode() const
     return retVal;
   }
 
-  int32_t mode = nsIMobileConnection::NETWORK_SELECTION_MODE_UNKNOWN;
-  if (NS_SUCCEEDED(mMobileConnection->GetNetworkSelectionMode(&mode)) &&
-      mode != nsIMobileConnection::NETWORK_SELECTION_MODE_UNKNOWN) {
-    MOZ_ASSERT(mode < static_cast<int32_t>(MobileNetworkSelectionMode::EndGuard_));
-    retVal.SetValue(static_cast<MobileNetworkSelectionMode>(mode));
-  }
+  nsAutoString mode;
+  mMobileConnection->GetNetworkSelectionMode(mode);
+  CONVERT_STRING_TO_NULLABLE_ENUM(mode, MobileNetworkSelectionMode, retVal);
 
   return retVal;
 }
