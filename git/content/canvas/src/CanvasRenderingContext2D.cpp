@@ -2348,8 +2348,6 @@ struct MOZ_STACK_CLASS CanvasBidiProcessor : public nsBidiPresUtils::BidiProcess
         return;
       }
 
-      RefPtr<GlyphRenderingOptions> renderingOptions = font->GetGlyphRenderingOptions();
-
       GlyphBuffer buffer;
 
       std::vector<Glyph> glyphBuf;
@@ -2421,8 +2419,7 @@ struct MOZ_STACK_CLASS CanvasBidiProcessor : public nsBidiPresUtils::BidiProcess
           FillGlyphs(scaledFont, buffer,
                      CanvasGeneralPattern().
                        ForStyle(mCtx, CanvasRenderingContext2D::STYLE_FILL, mCtx->mTarget),
-                     DrawOptions(mState->globalAlpha, mCtx->UsedOperation()),
-                     renderingOptions);
+                     DrawOptions(mState->globalAlpha, mCtx->UsedOperation()));
       } else if (mOp == CanvasRenderingContext2D::TEXT_DRAW_OPERATION_STROKE) {
         // stroke glyphs one at a time to avoid poor CoreGraphics performance
         // when stroking a path with a very large number of points

@@ -288,17 +288,9 @@ EventLoopStack.prototype = {
    * The URL of the debuggee who pushed the event loop on top of the stack.
    */
   get lastPausedUrl() {
-    let url = null;
-    if (this.size > 0) {
-      try {
-        url = this._inspector.lastNestRequestor.url
-      } catch (e) {
-        // The tab's URL getter may throw if the tab is destroyed by the time
-        // this code runs, but we don't really care at this point.
-        dumpn(e);
-      }
-    }
-    return url;
+    return this.size > 0
+      ? this._inspector.lastNestRequestor.url
+      : null;
   },
 
   /**
@@ -739,7 +731,7 @@ ThreadActor.prototype = {
     // In case of multiple nested event loops (due to multiple debuggers open in
     // different tabs or multiple debugger clients connected to the same tab)
     // only allow resumption in a LIFO order.
-    if (this._nestedEventLoops.size && this._nestedEventLoops.lastPausedUrl
+    if (this._nestedEventLoops.size
         && this._nestedEventLoops.lastPausedUrl !== this._hooks.url) {
       return {
         error: "wrongOrder",
