@@ -94,8 +94,6 @@ using mozilla::gfx::SharedDIB;
 // helpers' section for details.
 const int kFlashWMUSERMessageThrottleDelayMs = 5;
 
-static const TCHAR kPluginIgnoreSubclassProperty[] = TEXT("PluginIgnoreSubclassProperty");
-
 #elif defined(XP_MACOSX)
 #include <ApplicationServices/ApplicationServices.h>
 #endif // defined(XP_MACOSX)
@@ -132,19 +130,19 @@ PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface,
     , mDrawingModel(NPDrawingModelCoreGraphics)
     , mCurrentEvent(nsnull)
 #endif
-    , mLayersRendering(PR_FALSE)
+    , mLayersRendering(false)
     , mAccumulatedInvalidRect(0,0,0,0)
-    , mIsTransparent(PR_FALSE)
+    , mIsTransparent(false)
     , mSurfaceType(gfxASurface::SurfaceTypeMax)
-    , mPendingForcePaint(PR_FALSE)
+    , mPendingForcePaint(false)
     , mCurrentInvalidateTask(nsnull)
-    , mPendingPluginCall(PR_FALSE)
-    , mDoAlphaExtraction(PR_FALSE)
+    , mPendingPluginCall(false)
+    , mDoAlphaExtraction(false)
     , mSurfaceDifferenceRect(0,0,0,0)
 #ifdef MOZ_X11
-    , mFlash10Quirks(PR_FALSE)
+    , mFlash10Quirks(false)
 #endif
-#if (MOZ_PLATFORM_MAEMO == 5) || (MOZ_PLATFORM_MAEMO == 6)
+#if (MOZ_PLATFORM_MAEMO == 5)
     , mMaemoImageRendering(PR_FALSE)
 #endif
 {
@@ -205,7 +203,6 @@ PluginInstanceChild::InitQuirksModes(const nsCString& aMimeType)
     else if (FindInReadable(flash, aMimeType)) {
         mQuirks |= QUIRK_WINLESS_TRACKPOPUP_HOOK;
         mQuirks |= QUIRK_FLASH_THROTTLE_WMUSER_EVENTS; 
-        mQuirks |= QUIRK_FLASH_HOOK_SETLONGPTR;
     }
 #endif
 }
@@ -306,7 +303,7 @@ PluginInstanceChild::NPN_GetValue(NPNVariable aVar,
 #endif
         return NPERR_NO_ERROR;
 
-#if (MOZ_PLATFORM_MAEMO == 5) || (MOZ_PLATFORM_MAEMO == 6)
+#if (MOZ_PLATFORM_MAEMO == 5)
     case NPNVSupportsWindowlessLocal: {
 #ifdef MOZ_WIDGET_QT
         const char *graphicsSystem = PR_GetEnv("MOZ_QT_GRAPHICSSYSTEM");
@@ -874,7 +871,7 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
                          &mWsInfo.visual, &mWsInfo.depth))
         return false;
 
-    mLayersRendering = PR_FALSE;
+    mLayersRendering = false;
 
 #ifdef MOZ_WIDGET_GTK2
     if (gtk_check_version(2,18,7) != NULL) { // older
@@ -932,7 +929,6 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
           mWindow.type = aWindow.type;
 
           if (mPluginIface->setwindow) {
-              SetProp(mPluginWindowHWND, kPluginIgnoreSubclassProperty, (HANDLE)1);
               (void) mPluginIface->setwindow(&mData, &mWindow);
               WNDPROC wndProc = reinterpret_cast<WNDPROC>(
                   GetWindowLongPtr(mPluginWindowHWND, GWLP_WNDPROC));
@@ -941,8 +937,6 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
                       SetWindowLongPtr(mPluginWindowHWND, GWLP_WNDPROC,
                                        reinterpret_cast<LONG_PTR>(PluginWindowProc)));
               }
-              RemoveProp(mPluginWindowHWND, kPluginIgnoreSubclassProperty);
-              HookSetWindowLongPtr();
           }
       }
       break;
@@ -1000,7 +994,6 @@ PluginInstanceChild::Initialize()
 
 static const TCHAR kWindowClassName[] = TEXT("GeckoPluginWindow");
 static const TCHAR kPluginInstanceChildProperty[] = TEXT("PluginInstanceChildProperty");
-static const TCHAR kFlashThrottleProperty[] = TEXT("MozillaFlashThrottleProperty");
 
 // static
 bool
@@ -1065,14 +1058,14 @@ PluginInstanceChild::DestroyPluginWindow()
         // Unsubclass the window.
         WNDPROC wndProc = reinterpret_cast<WNDPROC>(
             GetWindowLongPtr(mPluginWindowHWND, GWLP_WNDPROC));
-        // Removed prior to SetWindowLongPtr, see HookSetWindowLongPtr.
-        RemoveProp(mPluginWindowHWND, kPluginInstanceChildProperty);
         if (wndProc == PluginWindowProc) {
             NS_ASSERTION(mPluginWndProc, "Should have old proc here!");
             SetWindowLongPtr(mPluginWindowHWND, GWLP_WNDPROC,
                              reinterpret_cast<LONG_PTR>(mPluginWndProc));
             mPluginWndProc = 0;
         }
+
+        RemoveProp(mPluginWindowHWND, kPluginInstanceChildProperty);
         DestroyWindow(mPluginWindowHWND);
         mPluginWindowHWND = 0;
     }
@@ -1129,6 +1122,7 @@ PluginInstanceChild::PluginWindowProc(HWND hWnd,
 {
     NS_ASSERTION(!mozilla::ipc::SyncChannel::IsPumpingMessages(),
                  "Failed to prevent a nonqueued message from running!");
+
     PluginInstanceChild* self = reinterpret_cast<PluginInstanceChild*>(
         GetProp(hWnd, kPluginInstanceChildProperty));
     if (!self) {
@@ -1161,7 +1155,7 @@ PluginInstanceChild::PluginWindowProc(HWND hWnd,
 
     // The plugin received keyboard focus, let the parent know so the dom is up to date.
     if (message == WM_MOUSEACTIVATE)
-      self->CallPluginFocusChange(PR_TRUE);
+      self->CallPluginFocusChange(true);
 
     // Prevent lockups due to plugins making rpc calls when the parent
     // is making a synchronous SendMessage call to the child window. Add
@@ -1179,28 +1173,12 @@ PluginInstanceChild::PluginWindowProc(HWND hWnd,
     }
 
     if (message == WM_KILLFOCUS)
-      self->CallPluginFocusChange(PR_FALSE);
+      self->CallPluginFocusChange(false);
 
     if (message == WM_USER+1 &&
         (self->mQuirks & PluginInstanceChild::QUIRK_FLASH_THROTTLE_WMUSER_EVENTS)) {
         self->FlashThrottleMessage(hWnd, message, wParam, lParam, true);
         return 0;
-    }
-
-    // Make sure capture is released by the child on mouse events. Fixes a
-    // problem with flash full screen mode mouse input. Appears to be
-    // caused by a bug in flash, since we are not setting the capture
-    // on the window. (In non-oopp land, we would set and release via
-    // widget for other reasons.)
-    switch(message) {    
-      case WM_LBUTTONDOWN:
-      case WM_MBUTTONDOWN:
-      case WM_RBUTTONDOWN:
-      case WM_LBUTTONUP:
-      case WM_MBUTTONUP:
-      case WM_RBUTTONUP:
-      ReleaseCapture();
-      break;
     }
 
     LRESULT res = CallWindowProc(self->mPluginWndProc, hWnd, message, wParam,
@@ -1213,158 +1191,6 @@ PluginInstanceChild::PluginWindowProc(HWND hWnd,
         RemoveProp(hWnd, kPluginInstanceChildProperty);
 
     return res;
-}
-
-/* set window long ptr hook for flash */
-
-/*
- * Flash will reset the subclass of our widget at various times.
- * (Notably when entering and exiting full screen mode.) This
- * occurs independent of the main plugin window event procedure.
- * We trap these subclass calls to prevent our subclass hook from
- * getting dropped.
- * Note, ascii versions can be nixed once flash versions < 10.1
- * are considered obsolete.
- */
- 
-#ifdef _WIN64
-typedef LONG_PTR
-  (WINAPI *User32SetWindowLongPtrA)(HWND hWnd,
-                                    int nIndex,
-                                    LONG_PTR dwNewLong);
-typedef LONG_PTR
-  (WINAPI *User32SetWindowLongPtrW)(HWND hWnd,
-                                    int nIndex,
-                                    LONG_PTR dwNewLong);
-static User32SetWindowLongPtrA sUser32SetWindowLongAHookStub = NULL;
-static User32SetWindowLongPtrW sUser32SetWindowLongWHookStub = NULL;
-#else
-typedef LONG
-(WINAPI *User32SetWindowLongA)(HWND hWnd,
-                               int nIndex,
-                               LONG dwNewLong);
-typedef LONG
-(WINAPI *User32SetWindowLongW)(HWND hWnd,
-                               int nIndex,
-                               LONG dwNewLong);
-static User32SetWindowLongA sUser32SetWindowLongAHookStub = NULL;
-static User32SetWindowLongW sUser32SetWindowLongWHookStub = NULL;
-#endif
-
-extern LRESULT CALLBACK
-NeuteredWindowProc(HWND hwnd,
-                   UINT uMsg,
-                   WPARAM wParam,
-                   LPARAM lParam);
-
-const wchar_t kOldWndProcProp[] = L"MozillaIPCOldWndProc";
-
-// static
-PRBool
-PluginInstanceChild::SetWindowLongHookCheck(HWND hWnd,
-                                            int nIndex,
-                                            LONG_PTR newLong)
-{
-      // Let this go through if it's not a subclass
-  if (nIndex != GWLP_WNDPROC ||
-      // if it's not a subclassed plugin window
-      !GetProp(hWnd, kPluginInstanceChildProperty) ||
-      // if we're not disabled
-      GetProp(hWnd, kPluginIgnoreSubclassProperty) ||
-      // if the subclass is set to a known procedure
-      newLong == reinterpret_cast<LONG_PTR>(PluginWindowProc) ||
-      newLong == reinterpret_cast<LONG_PTR>(NeuteredWindowProc) ||
-      newLong == reinterpret_cast<LONG_PTR>(DefWindowProcA) ||
-      newLong == reinterpret_cast<LONG_PTR>(DefWindowProcW) ||
-      // if the subclass is a WindowsMessageLoop subclass restore
-      GetProp(hWnd, kOldWndProcProp))
-      return PR_TRUE;
-  // prevent the subclass
-  return PR_FALSE;
-}
-
-#ifdef _WIN64
-LONG_PTR WINAPI
-PluginInstanceChild::SetWindowLongPtrAHook(HWND hWnd,
-                                           int nIndex,
-                                           LONG_PTR newLong)
-#else
-LONG WINAPI
-PluginInstanceChild::SetWindowLongAHook(HWND hWnd,
-                                        int nIndex,
-                                        LONG newLong)
-#endif
-{
-    if (SetWindowLongHookCheck(hWnd, nIndex, newLong))
-        return sUser32SetWindowLongAHookStub(hWnd, nIndex, newLong);
-
-    // Set flash's new subclass to get the result. 
-    LONG_PTR proc = sUser32SetWindowLongAHookStub(hWnd, nIndex, newLong);
-
-    // We already checked this in SetWindowLongHookCheck
-    PluginInstanceChild* self = reinterpret_cast<PluginInstanceChild*>(
-        GetProp(hWnd, kPluginInstanceChildProperty));
-
-    // Hook our subclass back up, just like we do on setwindow.   
-    self->mPluginWndProc =
-        reinterpret_cast<WNDPROC>(sUser32SetWindowLongAHookStub(hWnd, nIndex,
-            reinterpret_cast<LONG_PTR>(PluginWindowProc)));
-    return proc;
-}
-
-#ifdef _WIN64
-LONG_PTR WINAPI
-PluginInstanceChild::SetWindowLongPtrWHook(HWND hWnd,
-                                           int nIndex,
-                                           LONG_PTR newLong)
-#else
-LONG WINAPI
-PluginInstanceChild::SetWindowLongWHook(HWND hWnd,
-                                        int nIndex,
-                                        LONG newLong)
-#endif
-{
-    if (SetWindowLongHookCheck(hWnd, nIndex, newLong))
-        return sUser32SetWindowLongWHookStub(hWnd, nIndex, newLong);
-
-    // Set flash's new subclass to get the result. 
-    LONG_PTR proc = sUser32SetWindowLongWHookStub(hWnd, nIndex, newLong);
-
-    // We already checked this in SetWindowLongHookCheck
-    PluginInstanceChild* self = reinterpret_cast<PluginInstanceChild*>(
-        GetProp(hWnd, kPluginInstanceChildProperty));
-
-    // Hook our subclass back up, just like we do on setwindow.   
-    self->mPluginWndProc =
-        reinterpret_cast<WNDPROC>(sUser32SetWindowLongWHookStub(hWnd, nIndex,
-            reinterpret_cast<LONG_PTR>(PluginWindowProc)));
-    return proc;
-}
-
-void
-PluginInstanceChild::HookSetWindowLongPtr()
-{
-#ifdef _WIN64
-    // XXX WindowsDllInterceptor doesn't support hooks
-    // in 64-bit builds, disabling this code for now.
-    return;
-#endif
-
-    if (!(GetQuirks() & QUIRK_FLASH_HOOK_SETLONGPTR))
-        return;
-
-    sUser32Intercept.Init("user32.dll");
-#ifdef _WIN64
-    sUser32Intercept.AddHook("SetWindowLongPtrA", SetWindowLongPtrAHook,
-                             (void**) &sUser32SetWindowLongAHookStub);
-    sUser32Intercept.AddHook("SetWindowLongPtrW", SetWindowLongPtrWHook,
-                             (void**) &sUser32SetWindowLongWHookStub);
-#else
-    sUser32Intercept.AddHook("SetWindowLongA", SetWindowLongAHook,
-                             (void**) &sUser32SetWindowLongAHookStub);
-    sUser32Intercept.AddHook("SetWindowLongW", SetWindowLongWHook,
-                             (void**) &sUser32SetWindowLongWHookStub);
-#endif
 }
 
 /* windowless track popup menu helpers */
@@ -1771,7 +1597,7 @@ PluginInstanceChild::UnhookWinlessFlashThrottle()
                    reinterpret_cast<LONG_PTR>(tmpProc));
 
   // Remove our instance prop
-  RemoveProp(mWinlessHiddenMsgHWND, kFlashThrottleProperty);
+  RemoveProp(mWinlessHiddenMsgHWND, kPluginInstanceChildProperty);
   mWinlessHiddenMsgHWND = nsnull;
 }
 
@@ -1783,7 +1609,7 @@ PluginInstanceChild::WinlessHiddenFlashWndProc(HWND hWnd,
                                                LPARAM lParam)
 {
     PluginInstanceChild* self = reinterpret_cast<PluginInstanceChild*>(
-        GetProp(hWnd, kFlashThrottleProperty));
+        GetProp(hWnd, kPluginInstanceChildProperty));
     if (!self) {
         NS_NOTREACHED("Badness!");
         return 0;
@@ -1841,7 +1667,7 @@ PluginInstanceChild::EnumThreadWindowsCallback(HWND hWnd,
             self->mWinlessThrottleOldWndProc =
                 reinterpret_cast<WNDPROC>(SetWindowLongPtr(hWnd, GWLP_WNDPROC,
                 reinterpret_cast<LONG_PTR>(WinlessHiddenFlashWndProc)));
-            SetProp(hWnd, kFlashThrottleProperty, self);
+            SetProp(hWnd, kPluginInstanceChildProperty, self);
             NS_ASSERTION(self->mWinlessThrottleOldWndProc,
                          "SetWindowLongPtr failed?!");
         }
@@ -2177,7 +2003,7 @@ PluginInstanceChild::RecvPaintFinished(void)
     if (mPendingForcePaint) {
         nsIntRect r(0, 0, mWindow.width, mWindow.height);
         mAccumulatedInvalidRect.UnionRect(r, mAccumulatedInvalidRect);
-        mPendingForcePaint = PR_FALSE;
+        mPendingForcePaint = false;
     }
     if (!mAccumulatedInvalidRect.IsEmpty()) {
         AsyncShowPluginFrame();
@@ -2196,7 +2022,7 @@ PluginInstanceChild::RecvAsyncSetWindow(const gfxSurfaceType& aSurfaceType,
     if (mWindow.width != aWindow.width || mWindow.height != aWindow.height) {
         mCurrentSurface = nsnull;
         mHelperSurface = nsnull;
-        mPendingForcePaint = PR_TRUE;
+        mPendingForcePaint = true;
     }
     mWindow.x = aWindow.x;
     mWindow.y = aWindow.y;
@@ -2205,9 +2031,9 @@ PluginInstanceChild::RecvAsyncSetWindow(const gfxSurfaceType& aSurfaceType,
     mWindow.clipRect = aWindow.clipRect;
     mWindow.type = aWindow.type;
 
-    mLayersRendering = PR_TRUE;
+    mLayersRendering = true;
     mSurfaceType = aSurfaceType;
-    UpdateWindowAttributes(PR_TRUE);
+    UpdateWindowAttributes(true);
 
     return true;
 }
@@ -2218,7 +2044,7 @@ GfxFromNsRect(const nsIntRect& aRect)
     return gfxRect(aRect.x, aRect.y, aRect.width, aRect.height);
 }
 
-PRBool
+bool
 PluginInstanceChild::CreateOptSurface(void)
 {
     nsRefPtr<gfxASurface> retsurf;
@@ -2226,7 +2052,7 @@ PluginInstanceChild::CreateOptSurface(void)
         mIsTransparent ? gfxASurface::ImageFormatARGB32 :
                          gfxASurface::ImageFormatRGB24;
 
-#if (MOZ_PLATFORM_MAEMO == 5) || (MOZ_PLATFORM_MAEMO == 6)
+#if (MOZ_PLATFORM_MAEMO == 5)
     // On Maemo 5, we must send the Visibility event to activate the plugin
     if (mMaemoImageRendering) {
         NPEvent pluginEvent;
@@ -2249,7 +2075,7 @@ PluginInstanceChild::CreateOptSurface(void)
         XRenderPictFormat* xfmt = gfxXlibSurface::FindRenderFormat(dpy, format);
         if (!xfmt) {
             NS_ERROR("Need X falback surface, but FindRenderFormat failed");
-            return PR_FALSE;
+            return false;
         }
         mCurrentSurface =
             gfxXlibSurface::Create(screen, xfmt,
@@ -2263,33 +2089,33 @@ PluginInstanceChild::CreateOptSurface(void)
     mCurrentSurface = new gfxSharedImageSurface();
     if (NS_FAILED(static_cast<gfxSharedImageSurface*>(mCurrentSurface.get())->
         Init(this, gfxIntSize(mWindow.width, mWindow.height), format))) {
-        return PR_FALSE;
+        return false;
     }
 
-    return PR_TRUE;
+    return true;
 }
 
-PRBool
+bool
 PluginInstanceChild::MaybeCreatePlatformHelperSurface(void)
 {
     if (!mCurrentSurface) {
         NS_ERROR("Cannot create helper surface without mCurrentSurface");
-        return PR_FALSE;
+        return false;
     }
 
 #ifdef MOZ_PLATFORM_MAEMO
     // On maemo plugins support non-default visual rendering
-    PRBool supportNonDefaultVisual = PR_TRUE;
+    bool supportNonDefaultVisual = true;
 #else
-    PRBool supportNonDefaultVisual = PR_FALSE;
+    bool supportNonDefaultVisual = false;
 #endif
 #ifdef MOZ_X11
     Screen* screen = DefaultScreenOfDisplay(mWsInfo.display);
     Visual* defaultVisual = DefaultVisualOfScreen(screen);
     Visual* visual = nsnull;
     Colormap colormap = 0;
-    mDoAlphaExtraction = PR_FALSE;
-    PRBool createHelperSurface = PR_FALSE;
+    mDoAlphaExtraction = false;
+    bool createHelperSurface = false;
 
     if (mCurrentSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
         static_cast<gfxXlibSurface*>(mCurrentSurface.get())->
@@ -2297,12 +2123,12 @@ PluginInstanceChild::MaybeCreatePlatformHelperSurface(void)
         // Create helper surface if layer surface visual not same as default
         // and we don't support non-default visual rendering
         if (!visual || (defaultVisual != visual && !supportNonDefaultVisual)) {
-            createHelperSurface = PR_TRUE;
+            createHelperSurface = true;
             visual = defaultVisual;
             mDoAlphaExtraction = mIsTransparent;
         }
     } else if (mCurrentSurface->GetType() == gfxASurface::SurfaceTypeImage) {
-#if (MOZ_PLATFORM_MAEMO == 5) || (MOZ_PLATFORM_MAEMO == 6)
+#if (MOZ_PLATFORM_MAEMO == 5)
         if (mMaemoImageRendering) {
             // No helper surface needed, when mMaemoImageRendering is TRUE.
             // we can rendering directly into image memory
@@ -2311,7 +2137,7 @@ PluginInstanceChild::MaybeCreatePlatformHelperSurface(void)
         }
 #endif
         // For image layer surface we should always create helper surface
-        createHelperSurface = PR_TRUE;
+        createHelperSurface = true;
         // Check if we can create helper surface with non-default visual
         visual = gfxXlibSurface::FindVisual(screen,
             static_cast<gfxImageSurface*>(mCurrentSurface.get())->Format());
@@ -2324,50 +2150,50 @@ PluginInstanceChild::MaybeCreatePlatformHelperSurface(void)
     if (createHelperSurface) {
         if (!visual) {
             NS_ERROR("Need X falback surface, but visual failed");
-            return PR_FALSE;
+            return false;
         }
         mHelperSurface =
             gfxXlibSurface::Create(screen, visual,
                                    mCurrentSurface->GetSize());
         if (!mHelperSurface) {
             NS_WARNING("Fail to create create helper surface");
-            return PR_FALSE;
+            return false;
         }
     }
 #endif
 
-    return PR_TRUE;
+    return true;
 }
 
-PRBool
+bool
 PluginInstanceChild::EnsureCurrentBuffer(void)
 {
     if (mCurrentSurface) {
-       return PR_TRUE;
+       return true;
     }
 
     if (!mWindow.width || !mWindow.height) {
-        return PR_FALSE;
+        return false;
     }
 
     if (!CreateOptSurface()) {
         NS_ERROR("Cannot create optimized surface");
-        return PR_FALSE;
+        return false;
     }
 
     if (!MaybeCreatePlatformHelperSurface()) {
         NS_ERROR("Cannot create helper surface");
-        return PR_FALSE;
+        return false;
     }
 
-    return PR_TRUE;
+    return true;
 }
 
 void
-PluginInstanceChild::UpdateWindowAttributes(PRBool aForceSetWindow)
+PluginInstanceChild::UpdateWindowAttributes(bool aForceSetWindow)
 {
     nsRefPtr<gfxASurface> curSurface = mHelperSurface ? mHelperSurface : mCurrentSurface;
-    PRBool needWindowUpdate = aForceSetWindow;
+    bool needWindowUpdate = aForceSetWindow;
 #ifdef MOZ_X11
     Visual* visual = nsnull;
     Colormap colormap = 0;
@@ -2377,10 +2203,10 @@ PluginInstanceChild::UpdateWindowAttributes(PRBool aForceSetWindow)
         if (visual != mWsInfo.visual || colormap != mWsInfo.colormap) {
             mWsInfo.visual = visual;
             mWsInfo.colormap = colormap;
-            needWindowUpdate = PR_TRUE;
+            needWindowUpdate = true;
         }
     }
-#if (MOZ_PLATFORM_MAEMO == 5) || (MOZ_PLATFORM_MAEMO == 6)
+#if (MOZ_PLATFORM_MAEMO == 5)
     else if (curSurface && curSurface->GetType() == gfxASurface::SurfaceTypeImage
              && mMaemoImageRendering) {
         // For maemo5 we need to setup window/colormap to 0
@@ -2428,7 +2254,7 @@ PluginInstanceChild::PaintRectToPlatformSurface(const nsIntRect& aRect,
 {
     UpdateWindowAttributes();
 #ifdef MOZ_X11
-#if (MOZ_PLATFORM_MAEMO == 5) || (MOZ_PLATFORM_MAEMO == 6)
+#if (MOZ_PLATFORM_MAEMO == 5)
     // On maemo5 we do support Image rendering NPAPI
     if (mMaemoImageRendering &&
         aSurface->GetType() == gfxASurface::SurfaceTypeImage) {
@@ -2472,7 +2298,7 @@ PluginInstanceChild::PaintRectToPlatformSurface(const nsIntRect& aRect,
     NS_ASSERTION(aSurface->GetType() == gfxASurface::SurfaceTypeXlib,
                  "Non supported platform surface type");
 
-    mPendingPluginCall = PR_TRUE;
+    mPendingPluginCall = true;
     NPEvent pluginEvent;
     XGraphicsExposeEvent& exposeEvent = pluginEvent.xgraphicsexpose;
     exposeEvent.type = GraphicsExpose;
@@ -2489,7 +2315,7 @@ PluginInstanceChild::PaintRectToPlatformSurface(const nsIntRect& aRect,
     exposeEvent.major_code = 0;
     exposeEvent.minor_code = 0;
     mPluginIface->event(&mData, reinterpret_cast<void*>(&exposeEvent));
-    mPendingPluginCall = PR_FALSE;
+    mPendingPluginCall = false;
 #endif
 }
 
@@ -2511,7 +2337,7 @@ PluginInstanceChild::PaintRectToSurface(const nsIntRect& aRect,
     }
     if (renderSurface->GetType() != gfxASurface::SurfaceTypeXlib) {
         // On X11 we can paint to non Xlib surface only with HelperSurface
-#if (MOZ_PLATFORM_MAEMO == 5) || (MOZ_PLATFORM_MAEMO == 6)
+#if (MOZ_PLATFORM_MAEMO == 5)
         // Don't use mHelperSurface if surface is image and mMaemoImageRendering is TRUE
         if (!mMaemoImageRendering ||
             renderSurface->GetType() != gfxASurface::SurfaceTypeImage)
@@ -2546,7 +2372,7 @@ PluginInstanceChild::PaintRectWithAlphaExtraction(const nsIntRect& aRect,
                                                   gfxASurface* aSurface)
 {
     // Paint onto black image
-    PRBool needImageSurface = PR_TRUE;
+    bool needImageSurface = true;
     nsRefPtr<gfxImageSurface> blackImage;
     gfxIntSize clipSize(aRect.width, aRect.height);
     gfxPoint deviceOffset(-aRect.x, -aRect.y);
@@ -2554,7 +2380,7 @@ PluginInstanceChild::PaintRectWithAlphaExtraction(const nsIntRect& aRect,
     if (aSurface->GetType() == gfxASurface::SurfaceTypeImage) {
         gfxImageSurface *surface = static_cast<gfxImageSurface*>(aSurface);
         if (surface->Format() == gfxASurface::ImageFormatARGB32) {
-            needImageSurface = PR_FALSE;
+            needImageSurface = false;
             blackImage = surface->GetSubimage(GfxFromNsRect(aRect));
         }
     }
@@ -2589,15 +2415,15 @@ PluginInstanceChild::PaintRectWithAlphaExtraction(const nsIntRect& aRect,
     }
 }
 
-PRBool
+bool
 PluginInstanceChild::ShowPluginFrame()
 {
     if (mPendingPluginCall) {
-        return PR_FALSE;
+        return false;
     }
 
     if (!EnsureCurrentBuffer()) {
-        return PR_FALSE;
+        return false;
     }
 
     // Make expose rect not bigger than clip rect
@@ -2606,12 +2432,13 @@ PluginInstanceChild::ShowPluginFrame()
                   mWindow.clipRect.right - mWindow.clipRect.left,
                   mWindow.clipRect.bottom - mWindow.clipRect.top));
 
-    // Cleare accRect here to be able to pass test_invalidate_during_plugin_paint  test
+    // Clear accRect here to be able to pass
+    // test_invalidate_during_plugin_paint  test
     nsIntRect rect = mAccumulatedInvalidRect;
     mAccumulatedInvalidRect.Empty();
 
 #ifdef MOZ_X11
-    // We can read safetly from XSurface, because PluginHost is not able to modify that surface
+    // We can read safely from XSurface, because PluginHost is not able to modify that surface
     if (mBackSurface && mBackSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
         if (!mSurfaceDifferenceRect.IsEmpty()) {
             // Read back previous content
@@ -2658,10 +2485,10 @@ PluginInstanceChild::ShowPluginFrame()
         currSurf = static_cast<gfxSharedImageSurface*>(mCurrentSurface.get())->GetShmem();
     } else {
         NS_RUNTIMEABORT("Surface type is not remotable");
-        return PR_FALSE;
+        return false;
     }
     if (!SendShow(r, currSurf, &outSurf)) {
-        return PR_FALSE;
+        return false;
     }
 
     nsRefPtr<gfxASurface> tmp = mCurrentSurface;
@@ -2674,7 +2501,7 @@ PluginInstanceChild::ShowPluginFrame()
         mCurrentSurface = nsnull;
     }
     mSurfaceDifferenceRect = rect;
-    return PR_TRUE;
+    return true;
 }
 
 void
@@ -2810,10 +2637,6 @@ PluginInstanceChild::AnswerNPP_Destroy(NPError* aResult)
     PLUGIN_LOG_DEBUG_METHOD;
     AssertPluginThread();
 
-#if defined(OS_WIN)
-    SetProp(mPluginWindowHWND, kPluginIgnoreSubclassProperty, (HANDLE)1);
-#endif
-
     if (mBackSurface) {
         // Get last surface back, and drop it
         SurfaceDescriptor temp = null_t();
@@ -2827,7 +2650,7 @@ PluginInstanceChild::AnswerNPP_Destroy(NPError* aResult)
     mCurrentSurface = nsnull;
     mBackSurface = nsnull;
 
-    InfallibleTArray<PBrowserStreamChild*> streams;
+    nsTArray<PBrowserStreamChild*> streams;
     ManagedPBrowserStreamChild(streams);
 
     // First make sure none of these streams become deleted

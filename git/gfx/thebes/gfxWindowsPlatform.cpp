@@ -201,8 +201,6 @@ gfxWindowsPlatform::gfxWindowsPlatform()
     mUseClearTypeForDownloadableFonts = UNINITIALIZED_VALUE;
     mUseClearTypeAlways = UNINITIALIZED_VALUE;
 
-    mUsingGDIFonts = PR_FALSE;
-
     /* 
      * Initialize COM 
      */ 
@@ -237,7 +235,8 @@ gfxWindowsPlatform::~gfxWindowsPlatform()
     /* 
      * Uninitialize COM 
      */ 
-    CoUninitialize();
+    CoUninitialize(); 
+
 }
 
 void
@@ -286,11 +285,11 @@ gfxWindowsPlatform::UpdateRenderMode()
     if (gfxInfo) {
         PRInt32 status;
         if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_DIRECT2D, &status))) {
-            if (status != nsIGfxInfo::FEATURE_NO_INFO) {
+            if (status != nsIGfxInfo::FEATURE_STATUS_UNKNOWN &&
+                status != nsIGfxInfo::FEATURE_AVAILABLE)
+            {
                 d2dDisabled = PR_TRUE;
-                if (status == nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION ||
-                    status == nsIGfxInfo::FEATURE_BLOCKED_DEVICE)
-                {
+                if (status == nsIGfxInfo::FEATURE_BLOCKED) {
                     d2dBlocked = PR_TRUE;
                 }
             }
@@ -302,13 +301,12 @@ gfxWindowsPlatform::UpdateRenderMode()
         d2dDisabled = PR_FALSE;
     rv = pref->GetBoolPref("gfx.direct2d.force-enabled", &d2dForceEnabled);
     if (NS_FAILED(rv))
-        d2dForceEnabled = PR_FALSE;
+        d2dDisabled = PR_FALSE;
 
     bool tryD2D = !d2dBlocked || d2dForceEnabled;
     
-    // Do not ever try if d2d is explicitly disabled,
-    // or if we're not using DWrite fonts.
-    if (d2dDisabled || mUsingGDIFonts) {
+    // Do not ever try if d2d is explicitly disabled.
+    if (d2dDisabled) {
         tryD2D = false;
     }
 
@@ -408,38 +406,22 @@ gfxWindowsPlatform::VerifyD2DDevice(PRBool aAttemptForce)
     }
 #endif
 }
-
 gfxPlatformFontList*
 gfxWindowsPlatform::CreatePlatformFontList()
 {
-    mUsingGDIFonts = PR_FALSE;
-    gfxPlatformFontList *pfl;
 #ifdef MOZ_FT2_FONTS
-    pfl = new gfxFT2FontList();
+    return new gfxFT2FontList();
 #else
 #ifdef CAIRO_HAS_DWRITE_FONT
-    if (GetDWriteFactory()) {
-        pfl = new gfxDWriteFontList();
-        if (NS_SUCCEEDED(pfl->InitFontList())) {
-            return pfl;
-        }
-        // DWrite font initialization failed! Don't know why this would happen,
-        // but apparently it can - see bug 594865.
-        // So we're going to fall back to GDI fonts & rendering.
-        gfxPlatformFontList::Shutdown();
-        SetRenderMode(RENDER_GDI);
+    if (!GetDWriteFactory()) {
+#endif
+        return new gfxGDIFontList();
+#ifdef CAIRO_HAS_DWRITE_FONT
+    } else {
+        return new gfxDWriteFontList();
     }
 #endif
-    pfl = new gfxGDIFontList();
-    mUsingGDIFonts = PR_TRUE;
 #endif
-
-    if (NS_SUCCEEDED(pfl->InitFontList())) {
-        return pfl;
-    }
-
-    gfxPlatformFontList::Shutdown();
-    return nsnull;
 }
 
 already_AddRefed<gfxASurface>

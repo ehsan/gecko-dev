@@ -49,7 +49,7 @@
 #  include <unistd.h>           // for _exit
 #endif
 
-#if defined(XP_WIN) || defined(XP_OS2)
+#if defined(XP_WIN) || (defined(XP_OS2) && defined(__declspec))
 #  define MOZALLOC_EXPORT __declspec(dllexport)
 #endif
 

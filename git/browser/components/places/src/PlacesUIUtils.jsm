@@ -720,7 +720,7 @@ var PlacesUIUtils = {
    * This is actually used to distinguish user-initiated visits in frames
    * so automatic visits can be correctly ignored.
    */
-  markPageAsFollowedLink: function PUIU_markPageAsFollowedLink(aURL) {
+  markPageAsFollowedLink: function PUIU_markPageAsUserClicked(aURL) {
     PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory)
                .markPageAsFollowedLink(this.createFixedURI(aURL));
   },
@@ -1381,7 +1381,7 @@ XPCOMUtils.defineLazyGetter(PlacesUIUtils, "ptm", function() {
     },
 
    /**
-    * Transaction for editing the description of a bookmark or a folder.
+    * Transaction for editing a the description of a bookmark or a folder.
     *
     * @param aItemId
     *        id of the item to edit.

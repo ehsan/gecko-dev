@@ -531,7 +531,8 @@ nsBrowserContentHandler.prototype = {
     }
     if (cmdLine.handleFlag("silent", false))
       cmdLine.preventDefault = true;
-    if (cmdLine.findFlag("private-toggle", false) >= 0)
+    if (cmdLine.findFlag("private-toggle", false) >= 0 &&
+        cmdLine.state != cmdLine.STATE_INITIAL_LAUNCH)
       cmdLine.preventDefault = true;
 
     var searchParam = cmdLine.handleFlagWithParam("search", false);
@@ -574,6 +575,8 @@ nsBrowserContentHandler.prototype = {
   get defaultArgs() {
     var prefb = Components.classes["@mozilla.org/preferences-service;1"]
                           .getService(nsIPrefBranch);
+    var formatter = Components.classes["@mozilla.org/toolkit/URLFormatterService;1"]
+                              .getService(Components.interfaces.nsIURLFormatter);
 
     var overridePage = "";
     var haveUpdateSession = false;
@@ -587,7 +590,7 @@ nsBrowserContentHandler.prototype = {
         switch (override) {
           case OVERRIDE_NEW_PROFILE:
             // New profile.
-            overridePage = Services.urlFormatter.formatURLPref("startup.homepage_welcome_url");
+            overridePage = formatter.formatURLPref("startup.homepage_welcome_url");
             break;
           case OVERRIDE_NEW_MSTONE:
             // Existing profile, new milestone build.
@@ -598,17 +601,10 @@ nsBrowserContentHandler.prototype = {
             var ss = Components.classes["@mozilla.org/browser/sessionstartup;1"]
                                .getService(Components.interfaces.nsISessionStartup);
             haveUpdateSession = ss.doRestore();
-            overridePage = Services.urlFormatter.formatURLPref("startup.homepage_override_url");
+            overridePage = formatter.formatURLPref("startup.homepage_override_url");
             if (prefb.prefHasUserValue("app.update.postupdate"))
               overridePage = getPostUpdateOverridePage(overridePage);
             break;
-        }
-      }
-      else {
-        // No need to override homepage, but update snippets url if the pref has
-        // been manually changed.
-        if (Services.prefs.prefHasUserValue(AboutHomeUtils.SNIPPETS_URL_PREF)) {
-          AboutHomeUtils.loadSnippetsURL();
         }
       }
     } catch (ex) {}
@@ -887,7 +883,6 @@ nsDefaultCommandLineHandler.prototype = {
 };
 
 let AboutHomeUtils = {
-  SNIPPETS_URL_PREF: "browser.aboutHomeSnippets.updateUrl",
   get _storage() {
     let aboutHomeURI = Services.io.newURI("moz-safe-about:home", null, null);
     let principal = Components.classes["@mozilla.org/scriptsecuritymanager;1"].
@@ -914,10 +909,10 @@ let AboutHomeUtils = {
   loadSnippetsURL: function AHU_loadSnippetsURL()
   {
     const STARTPAGE_VERSION = 1;
-    let updateURL = Services.prefs
-                            .getCharPref(this.SNIPPETS_URL_PREF)
-                            .replace("%STARTPAGE_VERSION%", STARTPAGE_VERSION);
-    updateURL = Services.urlFormatter.formatURL(updateURL);
+    const SNIPPETS_URL = "http://snippets.mozilla.com/" + STARTPAGE_VERSION + "/%NAME%/%VERSION%/%APPBUILDID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/";
+    let updateURL = Components.classes["@mozilla.org/toolkit/URLFormatterService;1"].
+                    getService(Components.interfaces.nsIURLFormatter).
+                    formatURL(SNIPPETS_URL);
     this._storage.setItem("snippets-update-url", updateURL);
   },
 };

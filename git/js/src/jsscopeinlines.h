@@ -60,45 +60,19 @@ js::Shape::freeTable(JSContext *cx)
 }
 
 inline js::EmptyShape *
-JSObject::getEmptyShape(JSContext *cx, js::Class *aclasp,
-                        /* gc::FinalizeKind */ unsigned kind)
+JSObject::getEmptyShape(JSContext *cx, js::Class *aclasp)
 {
-    JS_ASSERT(kind >= js::gc::FINALIZE_OBJECT0 && kind <= js::gc::FINALIZE_OBJECT_LAST);
-    int i = kind - js::gc::FINALIZE_OBJECT0;
-
-    if (!emptyShapes) {
-        emptyShapes = (js::EmptyShape**)
-            cx->calloc(sizeof(js::EmptyShape*) * js::gc::JS_FINALIZE_OBJECT_LIMIT);
-        if (!emptyShapes)
-            return NULL;
-
-        /*
-         * Always fill in emptyShapes[0], so canProvideEmptyShape works.
-         * Other empty shapes are filled in lazily.
-         */
-        emptyShapes[0] = js::EmptyShape::create(cx, aclasp);
-        if (!emptyShapes[0]) {
-            cx->free(emptyShapes);
-            emptyShapes = NULL;
-            return NULL;
-        }
-    }
-
-    JS_ASSERT(aclasp == emptyShapes[0]->getClass());
-
-    if (!emptyShapes[i]) {
-        emptyShapes[i] = js::EmptyShape::create(cx, aclasp);
-        if (!emptyShapes[i])
-            return NULL;
-    }
-
-    return emptyShapes[i];
+    if (emptyShape)
+        JS_ASSERT(aclasp == emptyShape->getClass());
+    else
+        emptyShape = js::EmptyShape::create(cx, aclasp);
+    return emptyShape;
 }
 
 inline bool
 JSObject::canProvideEmptyShape(js::Class *aclasp)
 {
-    return !emptyShapes || emptyShapes[0]->getClass() == aclasp;
+    return !emptyShape || emptyShape->getClass() == aclasp;
 }
 
 inline void
@@ -173,10 +147,6 @@ Shape::Shape(jsid id, js::PropertyOp getter, js::PropertyOp setter, uint32 slot,
     table(NULL), id(id), rawGetter(getter), rawSetter(setter), slot(slot), attrs(uint8(attrs)),
     flags(uint8(flags)), shortid(int16(shortid)), parent(NULL)
 {
-#define JS_CRASH(addr) *(int *) addr = 0
-    if (JSID_IS_ZERO(id))
-        JS_CRASH(0xa8);
-#undef JS_CRASH
     JS_ASSERT_IF(slotSpan != SHAPE_INVALID_SLOT, slotSpan < JSObject::NSLOTS_LIMIT);
     JS_ASSERT_IF(getter && (attrs & JSPROP_GETTER), getterObj->isCallable());
     JS_ASSERT_IF(setter && (attrs & JSPROP_SETTER), setterObj->isCallable());

@@ -63,7 +63,7 @@ public:
   virtual nsresult AddNameValuePair(const nsAString& aName,
                                     const nsAString& aValue);
   virtual nsresult AddNameFilePair(const nsAString& aName,
-                                   nsIDOMBlob* aBlob);
+                                   nsIDOMFile* aFile);
 
   NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aCx, JSObject* aObj,
                         PRUint32 aArgc, jsval* aArgv);
@@ -72,7 +72,7 @@ private:
   {
     nsString name;
     nsString stringValue;
-    nsCOMPtr<nsIDOMBlob> fileValue;
+    nsCOMPtr<nsIDOMFile> fileValue;
     PRBool valueIsFile;
   };
   

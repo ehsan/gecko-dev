@@ -38,10 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_IPC
-# include "mozilla/layers/ShadowLayers.h"
-#endif  // MOZ_IPC
-
 #include "ImageLayers.h"
 #include "Layers.h"
 #include "gfxPlatform.h"
@@ -204,169 +200,7 @@ Layer::CanUseOpaqueSurface()
     parent->CanUseOpaqueSurface();
 }
 
-
-#ifdef MOZ_IPC
-// NB: eventually these methods will be defined unconditionally, and
-// can be moved into Layers.h
-const nsIntRect*
-Layer::GetEffectiveClipRect()
-{
-  if (ShadowLayer* shadow = AsShadowLayer()) {
-    return shadow->GetShadowClipRect();
-  }
-  return GetClipRect();
-}
-
-const nsIntRegion&
-Layer::GetEffectiveVisibleRegion()
-{
-  if (ShadowLayer* shadow = AsShadowLayer()) {
-    return shadow->GetShadowVisibleRegion();
-  }
-  return GetVisibleRegion();
-}
-
-#else
-
-const nsIntRect* Layer::GetEffectiveClipRect() { return GetClipRect(); }
-const nsIntRegion& Layer::GetEffectiveVisibleRegion() { return GetVisibleRegion(); }
-
-#endif  // MOZ_IPC
-
-gfx3DMatrix
-Layer::SnapTransform(const gfx3DMatrix& aTransform,
-                     const gfxRect& aSnapRect,
-                     gfxMatrix* aResidualTransform)
-{
-  if (aResidualTransform) {
-    *aResidualTransform = gfxMatrix();
-  }
-
-  gfxMatrix matrix2D;
-  gfx3DMatrix result;
-  if (mManager->IsSnappingEffectiveTransforms() &&
-      aTransform.Is2D(&matrix2D) &&
-      matrix2D.HasNonIntegerTranslation() &&
-      !matrix2D.IsSingular() &&
-      !matrix2D.HasNonAxisAlignedTransform()) {
-    gfxMatrix snappedMatrix;
-    gfxPoint topLeft = matrix2D.Transform(aSnapRect.TopLeft());
-    topLeft.Round();
-    // first compute scale factors that scale aSnapRect to the snapped rect
-    if (aSnapRect.IsEmpty()) {
-      snappedMatrix.xx = matrix2D.xx;
-      snappedMatrix.yy = matrix2D.yy;
-    } else {
-      gfxPoint bottomRight = matrix2D.Transform(aSnapRect.BottomRight());
-      bottomRight.Round();
-      snappedMatrix.xx = (bottomRight.x - topLeft.x)/aSnapRect.Width();
-      snappedMatrix.yy = (bottomRight.y - topLeft.y)/aSnapRect.Height();
-    }
-    // compute translation factors that will move aSnapRect to the snapped rect
-    // given those scale factors
-    snappedMatrix.x0 = topLeft.x - aSnapRect.pos.x*snappedMatrix.xx;
-    snappedMatrix.y0 = topLeft.y - aSnapRect.pos.y*snappedMatrix.yy;
-    result = gfx3DMatrix::From2D(snappedMatrix);
-    if (aResidualTransform && !snappedMatrix.IsSingular()) {
-      // set aResidualTransform so that aResidual * snappedMatrix == matrix2D.
-      // (i.e., appying snappedMatrix after aResidualTransform gives the
-      // ideal transform.
-      gfxMatrix snappedMatrixInverse = snappedMatrix;
-      snappedMatrixInverse.Invert();
-      *aResidualTransform = matrix2D * snappedMatrixInverse;
-    }
-  } else {
-    result = aTransform;
-  }
-  return result;
-}
-
-const gfx3DMatrix&
-Layer::GetLocalTransform()
-{
-#ifdef MOZ_IPC
-  if (ShadowLayer* shadow = AsShadowLayer())
-    return shadow->GetShadowTransform();
-#endif
-  return mTransform;
-}
-
-float
-Layer::GetEffectiveOpacity()
-{
-  float opacity = GetOpacity();
-  for (ContainerLayer* c = GetParent(); c && !c->UseIntermediateSurface();
-       c = c->GetParent()) {
-    opacity *= c->GetOpacity();
-  }
-  return opacity;
-}
-
-PRBool
-ContainerLayer::HasMultipleChildren()
-{
-  PRUint32 count = 0;
-  for (Layer* child = GetFirstChild(); child; child = child->GetNextSibling()) {
-    const nsIntRect *clipRect = child->GetEffectiveClipRect();
-    if (clipRect && clipRect->IsEmpty())
-      continue;
-    if (child->GetVisibleRegion().IsEmpty())
-      continue;
-    ++count;
-    if (count > 1)
-      return PR_TRUE;
-  }
-
-  return PR_FALSE;
-}
-
-void
-ContainerLayer::DefaultComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface)
-{
-  gfxMatrix residual;
-  gfx3DMatrix idealTransform = GetLocalTransform()*aTransformToSurface;
-  mEffectiveTransform = SnapTransform(idealTransform, gfxRect(0, 0, 0, 0), &residual);
-
-  PRBool useIntermediateSurface;
-  float opacity = GetEffectiveOpacity();
-  if (opacity != 1.0f && HasMultipleChildren()) {
-    useIntermediateSurface = PR_TRUE;
-  } else {
-    useIntermediateSurface = PR_FALSE;
-    if (!mEffectiveTransform.IsIdentity()) {
-      for (Layer* child = GetFirstChild(); child; child = child->GetNextSibling()) {
-        const nsIntRect *clipRect = child->GetEffectiveClipRect();
-        /* We can't (easily) forward our transform to children with a non-empty clip
-         * rect since it would need to be adjusted for the transform.
-         * TODO: This is easily solvable for translation/scaling transforms.
-         */
-        if (clipRect && !clipRect->IsEmpty() && !child->GetVisibleRegion().IsEmpty()) {
-          useIntermediateSurface = PR_TRUE;
-          break;
-        }
-      }
-    }
-  }
-
-  mUseIntermediateSurface = useIntermediateSurface;
-  if (useIntermediateSurface) {
-    ComputeEffectiveTransformsForChildren(gfx3DMatrix::From2D(residual));
-  } else {
-    ComputeEffectiveTransformsForChildren(idealTransform);
-  }
-}
-
-void
-ContainerLayer::ComputeEffectiveTransformsForChildren(const gfx3DMatrix& aTransformToSurface)
-{
-  for (Layer* l = mFirstChild; l; l = l->GetNextSibling()) {
-    l->ComputeEffectiveTransforms(aTransformToSurface);
-  }
-}
-
 #ifdef MOZ_LAYERS_HAVE_LOG
-
-static nsACString& PrintInfo(nsACString& aTo, ShadowLayer* aShadowLayer);
 
 void
 Layer::Dump(FILE* aFile, const char* aPrefix)
@@ -426,8 +260,6 @@ Layer::PrintInfo(nsACString& aTo, const char* aPrefix)
   aTo += aPrefix;
   aTo += nsPrintfCString(64, "%s%s (0x%p)", mManager->Name(), Name(), this);
 
-  ::PrintInfo(aTo, AsShadowLayer());
-
   if (mUseClipRect) {
     AppendToString(aTo, mClipRect, " [clip=", "]");
   }
@@ -457,13 +289,8 @@ nsACString&
 ThebesLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
   Layer::PrintInfo(aTo, aPrefix);
-  if (!mValidRegion.IsEmpty()) {
-    AppendToString(aTo, mValidRegion, " [valid=", "]");
-  }
-  if (mXResolution != 1.0 || mYResolution != 1.0) {
-    aTo.AppendPrintf(" [xres=%g yres=%g]", mXResolution, mYResolution);
-  }
-  return aTo;
+  return mValidRegion.IsEmpty() ?
+    aTo : AppendToString(aTo, mValidRegion, " [valid=", "]");
 }
 
 nsACString&
@@ -577,31 +404,6 @@ LayerManager::IsLogEnabled()
                     "layer manager must be created before logging is allowed");
   return PR_LOG_TEST(sLog, PR_LOG_DEBUG);
 }
-
-# ifdef MOZ_IPC
-static nsACString&
-PrintInfo(nsACString& aTo, ShadowLayer* aShadowLayer)
-{
-  if (!aShadowLayer) {
-    return aTo;
-  }
-  if (const nsIntRect* clipRect = aShadowLayer->GetShadowClipRect()) {
-    AppendToString(aTo, *clipRect, " [shadow-clip=", "]");
-  }
-  if (!aShadowLayer->GetShadowTransform().IsIdentity()) {
-    AppendToString(aTo, aShadowLayer->GetShadowTransform(), " [shadow-transform=", "]");
-  }
-  if (!aShadowLayer->GetShadowVisibleRegion().IsEmpty()) {
-    AppendToString(aTo, aShadowLayer->GetShadowVisibleRegion(), " [shadow-visible=", "]");
-  }
-  return aTo;
-}
-# else
-static nsACString& PrintInfo(nsACString& aTo, ShadowLayer* aShadowLayer)
-{
-  return aTo;
-}
-# endif  // MOZ_IPC
 
 #else  // !MOZ_LAYERS_HAVE_LOG
 

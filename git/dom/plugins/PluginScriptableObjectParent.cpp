@@ -439,7 +439,7 @@ PluginScriptableObjectParent::ScriptableEnumerate(NPObject* aObject,
     return false;
   }
 
-  AutoInfallibleTArray<PPluginIdentifierParent*, 10> identifiers;
+  nsAutoTArray<PPluginIdentifierParent*, 10> identifiers;
   bool success;
   if (!actor->CallEnumerate(&identifiers, &success)) {
     NS_WARNING("Failed to send message!");
@@ -730,7 +730,7 @@ PluginScriptableObjectParent::AnswerHasMethod(PPluginIdentifierParent* aId,
 
 bool
 PluginScriptableObjectParent::AnswerInvoke(PPluginIdentifierParent* aId,
-                                           const InfallibleTArray<Variant>& aArgs,
+                                           const nsTArray<Variant>& aArgs,
                                            Variant* aResult,
                                            bool* aSuccess)
 {
@@ -813,7 +813,7 @@ PluginScriptableObjectParent::AnswerInvoke(PPluginIdentifierParent* aId,
 }
 
 bool
-PluginScriptableObjectParent::AnswerInvokeDefault(const InfallibleTArray<Variant>& aArgs,
+PluginScriptableObjectParent::AnswerInvokeDefault(const nsTArray<Variant>& aArgs,
                                                   Variant* aResult,
                                                   bool* aSuccess)
 {
@@ -1057,7 +1057,7 @@ PluginScriptableObjectParent::AnswerRemoveProperty(PPluginIdentifierParent* aId,
 }
 
 bool
-PluginScriptableObjectParent::AnswerEnumerate(InfallibleTArray<PPluginIdentifierParent*>* aProperties,
+PluginScriptableObjectParent::AnswerEnumerate(nsTArray<PPluginIdentifierParent*>* aProperties,
                                               bool* aSuccess)
 {
   if (!mObject) {
@@ -1106,7 +1106,7 @@ PluginScriptableObjectParent::AnswerEnumerate(InfallibleTArray<PPluginIdentifier
 }
 
 bool
-PluginScriptableObjectParent::AnswerConstruct(const InfallibleTArray<Variant>& aArgs,
+PluginScriptableObjectParent::AnswerConstruct(const nsTArray<Variant>& aArgs,
                                               Variant* aResult,
                                               bool* aSuccess)
 {

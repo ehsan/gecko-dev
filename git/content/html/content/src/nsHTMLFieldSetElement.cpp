@@ -58,10 +58,6 @@ nsHTMLFieldSetElement::nsHTMLFieldSetElement(already_AddRefed<nsINodeInfo> aNode
 
 nsHTMLFieldSetElement::~nsHTMLFieldSetElement()
 {
-  PRUint32 length = mDependentElements.Length();
-  for (PRUint32 i=0; i<length; ++i) {
-    mDependentElements[i]->ForgetFieldSet(this);
-  }
 }
 
 // nsISupports
@@ -126,7 +122,7 @@ nsHTMLFieldSetElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
     PRUint32 length = mElements->Length(PR_TRUE);
     for (PRUint32 i=0; i<length; ++i) {
       static_cast<nsGenericHTMLFormElement*>(mElements->GetNodeAt(i))
-        ->FieldSetDisabledChanged(nsEventStates(), aNotify);
+        ->FieldSetDisabledChanged(0);
     }
   }
 
@@ -197,7 +193,7 @@ nsHTMLFieldSetElement::InsertChildAt(nsIContent* aChild, PRUint32 aIndex,
     } else {
       // If mFirstLegend is before aIndex, we do not change it.
       // Otherwise, mFirstLegend is now aChild.
-      if (PRInt32(aIndex) <= IndexOf(mFirstLegend)) {
+      if (aIndex <= IndexOf(mFirstLegend)) {
         mFirstLegend = aChild;
         firstLegendHasChanged = true;
       }
@@ -208,7 +204,7 @@ nsHTMLFieldSetElement::InsertChildAt(nsIContent* aChild, PRUint32 aIndex,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (firstLegendHasChanged) {
-    NotifyElementsForFirstLegendChange(aNotify);
+    NotifyElementsForFirstLegendChange();
   }
 
   return rv;
@@ -220,15 +216,13 @@ nsHTMLFieldSetElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify,
 {
   bool firstLegendHasChanged = false;
 
-  if (mFirstLegend && (GetChildAt(aIndex) == mFirstLegend)) {
+  if (GetChildAt(aIndex) == mFirstLegend) {
     // If we are removing the first legend we have to found another one.
-    nsIContent* child = mFirstLegend->GetNextSibling();
-    mFirstLegend = nsnull;
-    firstLegendHasChanged = true;
-
-    for (; child; child = child->GetNextSibling()) {
+    for (nsIContent* child = mFirstLegend; child;
+         child = child->GetNextSibling()) {
       if (child->IsHTML(nsGkAtoms::legend)) {
         mFirstLegend = child;
+        firstLegendHasChanged = true;
         break;
       }
     }
@@ -238,14 +232,14 @@ nsHTMLFieldSetElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (firstLegendHasChanged) {
-    NotifyElementsForFirstLegendChange(aNotify);
+    NotifyElementsForFirstLegendChange();
   }
 
   return rv;
 }
 
 void
-nsHTMLFieldSetElement::NotifyElementsForFirstLegendChange(PRBool aNotify)
+nsHTMLFieldSetElement::NotifyElementsForFirstLegendChange()
 {
   /**
    * NOTE: this could be optimized if only call when the fieldset is currently
@@ -261,7 +255,7 @@ nsHTMLFieldSetElement::NotifyElementsForFirstLegendChange(PRBool aNotify)
   PRUint32 length = mElements->Length(PR_TRUE);
   for (PRUint32 i=0; i<length; ++i) {
     static_cast<nsGenericHTMLFormElement*>(mElements->GetNodeAt(i))
-      ->FieldSetFirstLegendChanged(aNotify);
+      ->FieldSetFirstLegendChanged();
   }
 }
 

@@ -137,9 +137,7 @@ MacOSFontEntry::MacOSFontEntry(const nsAString& aPostscriptName,
     : gfxFontEntry(aPostscriptName, aFamily, aIsStandardFace),
       mATSFontRef(0),
       mATSFontRefInitialized(PR_FALSE),
-      mRequiresAAT(PR_FALSE),
-      mIsCFF(PR_FALSE),
-      mIsCFFInitialized(PR_FALSE)
+      mRequiresAAT(PR_FALSE)
 {
     mWeight = aWeight;
 }
@@ -150,8 +148,7 @@ MacOSFontEntry::MacOSFontEntry(const nsAString& aPostscriptName, ATSFontRef aFon
     : gfxFontEntry(aPostscriptName),
       mATSFontRef(aFontRef),
       mATSFontRefInitialized(PR_TRUE),
-      mRequiresAAT(PR_FALSE),
-      mIsCFFInitialized(PR_FALSE)
+      mRequiresAAT(PR_FALSE)
 {
     // xxx - stretch is basically ignored for now
 
@@ -314,26 +311,6 @@ gfxFont*
 MacOSFontEntry::CreateFontInstance(const gfxFontStyle *aFontStyle, PRBool aNeedsBold)
 {
     return new gfxMacFont(this, aFontStyle, aNeedsBold);
-}
-
-PRBool
-MacOSFontEntry::IsCFF()
-{
-    if (!mIsCFFInitialized) {
-        mIsCFFInitialized = PR_TRUE;
-        ATSFontRef fontRef = GetFontRef();
-        if (fontRef != (ATSFontRef)kATSUInvalidFontID) {
-            ByteCount dataLength;
-            OSStatus status = ::ATSFontGetTable(fontRef,
-                                                TRUETYPE_TAG('C','F','F',' '),
-                                                0, 0, 0, &dataLength);
-            if (status == noErr && dataLength > 0) {
-                mIsCFF = PR_TRUE;
-            }
-        }
-    }
-
-    return mIsCFF;
 }
 
 
@@ -608,7 +585,7 @@ gfxMacPlatformFontList::gfxMacPlatformFontList() :
     sFontManager = [NSFontManager sharedFontManager];
 }
 
-nsresult
+void
 gfxMacPlatformFontList::InitFontList()
 {
     nsAutoreleasePool localPool;
@@ -617,7 +594,7 @@ gfxMacPlatformFontList::InitFontList()
 
     // need to ignore notifications after adding each font
     if (mATSGeneration == currentGeneration)
-        return NS_OK;
+        return;
 
     mATSGeneration = currentGeneration;
     PR_LOG(gFontInfoLog, PR_LOG_DEBUG, ("(fontinit) updating to generation: %d", mATSGeneration));
@@ -672,8 +649,6 @@ gfxMacPlatformFontList::InitFontList()
 
     // start the delayed cmap loader
     StartLoader(kDelayBeforeLoadingCmaps, kIntervalBetweenLoadingCmaps);
-
-	return NS_OK;
 }
 
 void

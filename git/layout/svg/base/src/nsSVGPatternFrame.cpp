@@ -536,17 +536,12 @@ nsSVGPatternFrame::ConstructCTM(const gfxRect &callerBBox,
                                 nsIFrame *aTarget)
 {
   gfxMatrix tCTM;
-  nsSVGSVGElement *ctx = nsnull;
-  nsIContent* targetContent = aTarget->GetContent();
 
   // The objectBoundingBox conversion must be handled in the CTM:
   if (GetPatternContentUnits() ==
       nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
     tCTM.Scale(callerBBox.Width(), callerBBox.Height());
   } else {
-    if (targetContent->IsSVG()) {
-      ctx = static_cast<nsSVGElement*>(targetContent)->GetCtx();
-    }
     float scale = nsSVGUtils::MaxExpansion(callerCTM);
     tCTM.Scale(scale, scale);
   }
@@ -558,10 +553,12 @@ nsSVGPatternFrame::ConstructCTM(const gfxRect &callerBBox,
 
   if (viewBox.height > 0.0f && viewBox.width > 0.0f) {
     float viewportWidth, viewportHeight, refX, refY;
+    nsIContent* targetContent = aTarget->GetContent();
     if (targetContent->IsSVG()) {
       // If we're dealing with an SVG target only retrieve the context once.
       // Calling the nsIFrame* variant of GetAnimValue would look it up on
       // every call.
+      nsSVGSVGElement *ctx = static_cast<nsSVGElement*>(targetContent)->GetCtx();
       viewportWidth = GetWidth()->GetAnimValue(ctx);
       viewportHeight = GetHeight()->GetAnimValue(ctx);
       refX = GetX()->GetAnimValue(ctx);
@@ -674,7 +671,7 @@ nsSVGPatternFrame::GetPaintServerPattern(nsIFrame *aSource,
   nsRefPtr<gfxPattern> pattern = new gfxPattern(surface);
 
   if (!pattern || pattern->CairoStatus())
-    return nsnull;
+    return PR_FALSE;
 
   pattern->SetMatrix(pMatrix);
   pattern->SetExtend(gfxPattern::EXTEND_REPEAT);

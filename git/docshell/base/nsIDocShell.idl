@@ -71,7 +71,7 @@ interface nsIPrincipal;
 interface nsIWebBrowserPrint;
 interface nsIVariant;
 
-[scriptable, uuid(98cdbcc4-2d81-4191-a63f-b6c52085edbc)]
+[scriptable, uuid(0e1e1ee5-5baa-4e27-98af-3197d70d0304)]
 interface nsIDocShell : nsISupports
 {
   /**
@@ -155,6 +155,10 @@ interface nsIDocShell : nsISupports
    * @param aLoadFlags      - Flags to modify load behaviour. Flags are defined
    *                          in nsIWebNavigation.
    * @param aSHEntry        - Active Session History entry (if loading from SH)
+   * @param firstParty      - 
+   * @param aDocShell       - 
+   * @param aRequest        - 
+   * @param aHttpMethod     - Force the HTTP channel to use a specific HTTP method
    */
   [noscript]void internalLoad(in nsIURI aURI,
                               in nsIURI aReferrer,
@@ -168,7 +172,8 @@ interface nsIDocShell : nsISupports
                               in nsISHEntry aSHEntry,
                               in boolean firstParty,
                               out nsIDocShell aDocShell,
-                              out nsIRequest aRequest);
+                              out nsIRequest aRequest,
+                              in string aHttpMethod);
 
   /**
    * Do either a history.pushState() or history.replaceState() operation,
@@ -529,24 +534,9 @@ interface nsIDocShell : nsISupports
    */
   attribute boolean isActive;
 
+
   /**
    * The ID of the docshell in the session history.
    */
   readonly attribute unsigned long long historyID;
-
-  /**
-   * Sets whether a docshell is an app tab. An app tab docshell may behave
-   * differently than a non-app tab docshell in some cases, such as when
-   * handling link clicks. Docshells are not app tabs unless told otherwise.
-   */
-  attribute boolean isAppTab;
-};
-
-[uuid(5f7a2184-31b6-4d67-9c75-0c17477766e2)]
-interface nsIDocShell_MOZILLA_2_0_BRANCH : nsISupports {
-  /**
-   * Create a new about:blank document and content viewer.
-   * @param aPrincipal the principal to use for the new document.
-   */
-  void createAboutBlankContentViewer(in nsIPrincipal aPrincipal);
 };

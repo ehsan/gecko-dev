@@ -119,7 +119,7 @@ GLIB_VERSION=1.2.0
 LIBIDL_VERSION=0.6.3
 PERL_VERSION=5.006
 PYTHON_VERSION=2.5
-CAIRO_VERSION=1.10
+CAIRO_VERSION=1.8.8
 PANGO_VERSION=1.14.0
 GTK2_VERSION=2.10.0
 WINDRES_VERSION=2.14.90
@@ -336,7 +336,6 @@ if test "$target" = "arm-android-eabi" ; then
     AC_SUBST(ANDROID_VERSION)
     CROSS_COMPILE=1
     MOZ_CHROME_FILE_FORMAT=omni
-    ZLIB_DIR=yes
 fi
 
 AC_SUBST(ANDROID_NDK)
@@ -992,7 +991,7 @@ else
     AC_MSG_RESULT([yes])    
 fi
 
-MOZ_PATH_PROGS(PYTHON, $PYTHON python2.7 python2.6 python2.5 python)
+MOZ_PATH_PROGS(PYTHON, $PYTHON python2.6 python2.5 python2.4 python)
 if test -z "$PYTHON"; then
     AC_MSG_ERROR([python was not found in \$PATH])
 fi
@@ -1828,14 +1827,6 @@ MOZ_ARG_DISABLE_BOOL(os2-high-mem,
 AC_SUBST(MOZ_OS2_HIGH_MEMORY)
 
 dnl ========================================================
-dnl = Use profiling compile flags
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(profiling,
-[  --enable-profiling      Set compile flags necessary for using sampling profilers (e.g. shark, perf)],
-    MOZ_PROFILING=1,
-    MOZ_PROFILING= )
-
-dnl ========================================================
 dnl System overrides of the defaults for host
 dnl ========================================================
 case "$host" in
@@ -1846,6 +1837,8 @@ case "$host" in
     ;;
 
 *cygwin*|*mingw*|*mks*|*msvc*|*wince|*winmo)
+    # we need Python 2.5 on Windows
+    PYTHON_VERSION=2.5
     if test -n "$_WIN32_MSVC"; then
         HOST_AR=lib
         HOST_AR_FLAGS='-NOLOGO -OUT:"$@"'
@@ -1919,7 +1912,8 @@ case "$host" in
     ;;
 esac
 
-dnl We require version 2.5 or newer of Python to build.
+dnl We require version 2.4 or newer of Python to build,
+dnl and 2.5 or newer on Windows.
 AC_MSG_CHECKING([for minimum required Python version >= $PYTHON_VERSION])
 changequote(,)
 $PYTHON -c "import sys; sys.exit(sys.version[:3] < sys.argv[1])" $PYTHON_VERSION
@@ -2040,12 +2034,7 @@ case "$target" in
 *-darwin*) 
     MKSHLIB='$(CXX) $(CXXFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -o $@'
     MKCSHLIB='$(CC) $(CFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -o $@'
-    # If we're building with --enable-profiling, we need a frame pointer.
-    if test -z "$MOZ_PROFILING"; then
-        MOZ_OPTIMIZE_FLAGS="-O3 -fomit-frame-pointer"
-    else
-        MOZ_OPTIMIZE_FLAGS="-O3 -fno-omit-frame-pointer"
-    fi
+    MOZ_OPTIMIZE_FLAGS="-O3 -fomit-frame-pointer"
     _PEDANTIC=
     CFLAGS="$CFLAGS -fpascal-strings -fno-common"
     CXXFLAGS="$CXXFLAGS -fpascal-strings -fno-common"
@@ -2204,12 +2193,7 @@ ia64*-hpux*)
             # -Os is broken on gcc 4.1.x 4.2.x, 4.5.x we need to tweak it to get good results.
             MOZ_OPTIMIZE_SIZE_TWEAK="-finline-limit=50"
         esac
-        # If we're building with --enable-profiling, we need a frame pointer.
-        if test -z "$MOZ_PROFILING"; then
-            MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fomit-frame-pointer $MOZ_OPTIMIZE_SIZE_TWEAK"
-        else
-            MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fno-omit-frame-pointer $MOZ_OPTIMIZE_SIZE_TWEAK"
-        fi
+        MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fomit-frame-pointer $MOZ_OPTIMIZE_SIZE_TWEAK"
         MOZ_DEBUG_FLAGS="-g"
     fi
 
@@ -2401,12 +2385,7 @@ ia64*-hpux*)
         MOZ_DEBUG_FLAGS='-Zi'
         MOZ_DEBUG_LDFLAGS='-DEBUG -DEBUGTYPE:CV'
         WARNINGS_AS_ERRORS='-WX'
-        # If we're building with --enable-profiling, we need -Oy-, which forces a frame pointer.
-        if test -z "$MOZ_PROFILING"; then
-            MOZ_OPTIMIZE_FLAGS='-O1'
-        else
-            MOZ_OPTIMIZE_FLAGS='-O1 -Oy-'
-        fi
+    	MOZ_OPTIMIZE_FLAGS='-O1'
         MOZ_JS_STATIC_LIBS='$(LIBXUL_DIST)/lib/js_static.lib'
         MOZ_JS_SHARED_LIBS='$(LIBXUL_DIST)/lib/mozjs.lib'
         MOZ_FIX_LINK_PATHS=
@@ -2642,7 +2621,7 @@ ia64*-hpux*)
     DSO_LDOPTS='-Zdll'
     BIN_FLAGS='-Zlinker /ST:0x100000'
     IMPLIB='emximp -o'
-    FILTER='true'
+    FILTER='emxexp -o'
     LDFLAGS='-Zmap'
     WARNINGS_AS_ERRORS='-Werror'
     MOZ_DEBUG_FLAGS="-g -fno-inline"
@@ -2678,8 +2657,9 @@ ia64*-hpux*)
                         [return 0;],
                         ac_os2_declspec="yes",
                         ac_os2_declspec="no")])
-    if test "$ac_os2_declspec" != "yes"; then
-        AC_MSG_ERROR([Compiler does not support __declspec(dllexport), install GCC-4.3.2 or newer])
+    if test "$ac_os2_declspec" = "yes"; then
+        FILTER='true'
+        MOZ_OS2_USE_DECLSPEC='1'
     fi
     ;;
 
@@ -2847,12 +2827,7 @@ alpha*-*-osf*)
     TARGET_NSPR_MDCPUCFG='\"md/_linux.cfg\"'
 
     MOZ_GFX_OPTIMIZE_MOBILE=1
-    # If we're building with --enable-profiling, we need a frame pointer.
-    if test -z "$MOZ_PROFILING"; then
-        MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fno-reorder-functions -fomit-frame-pointer"
-    else
-        MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fno-reorder-functions -fno-omit-frame-pointer"
-    fi
+    MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fno-reorder-functions -fomit-frame-pointer"
     ;;
 
 esac
@@ -3166,14 +3141,7 @@ dnl Note that we assume that mac & win32 have short wchar (see nscore.h)
     if test "$ac_cv_have_usable_wchar_option_v2" = "yes"; then
         AC_DEFINE(HAVE_CPP_2BYTE_WCHAR_T)
         HAVE_CPP_2BYTE_WCHAR_T=1
-        if test "$OS_TARGET" = Android; then
-            WCHAR_CFLAGS="-fshort-wchar -Wl,--no-wchar-size-warning"
-            CXXFLAGS="$CXXFLAGS -Wl,--no-wchar-size-warning"
-            CFLAGS="$CFLAGS -Wl,--no-wchar-size-warning"
-            DSO_LDOPTS="$DSO_LDOPTS -Wl,--no-wchar-size-warning"
-        else
-            WCHAR_CFLAGS="-fshort-wchar"
-        fi
+        WCHAR_CFLAGS="-fshort-wchar"
     else    
         CXXFLAGS=$_SAVE_CXXFLAGS
     fi
@@ -3404,9 +3372,11 @@ case $target in
 *-os2*)
     ;;
 *)
-    AC_SEARCH_LIBS(dlopen, dl, 
-        AC_CHECK_HEADER(dlfcn.h, 
-        AC_DEFINE(HAVE_DLOPEN)))
+    AC_CHECK_LIB(m, atan)
+    AC_CHECK_LIB(dl, dlopen,
+    AC_CHECK_HEADER(dlfcn.h, 
+        LIBS="-ldl $LIBS"
+        AC_DEFINE(HAVE_LIBDL)))
     ;;
 esac
 
@@ -4722,10 +4692,10 @@ AC_CHECK_PROGS(YASM, yasm, "")
 if test -n "$YASM"; then
   dnl Pull out yasm's version string
   changequote(,)
-  _YASM_VER_FILTER='s|.* \([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\).*|\1|p'
+  _YASM_VER_FILTER='s|.* ([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*|\1|p'
   changequote([,])
 
-  YASM_VERSION=`yasm --version | sed -ne "$_YASM_VER_FILTER"`
+  YASM_VERSION=`yasm --version | sed -nre "$_YASM_VER_FILTER"`
   _YASM_MAJOR_VERSION=`echo ${YASM_VERSION} | $AWK -F\. '{ print $1 }'`
   _YASM_MINOR_VERSION=`echo ${YASM_VERSION} | $AWK -F\. '{ print $2 }'`
   _YASM_RELEASE=`      echo ${YASM_VERSION} | $AWK -F\. '{ print $3 }'`
@@ -4936,6 +4906,7 @@ MOZ_ACTIVEX_SCRIPTING_SUPPORT=
 MOZ_BRANDING_DIRECTORY=
 MOZ_OFFICIAL_BRANDING=
 MOZ_FEEDS=1
+MOZ_IMG_ENCODERS_DEFAULT="png jpeg"
 MOZ_INSTALLER=1
 MOZ_IPC=1
 MOZ_JAVAXPCOM=
@@ -4948,20 +4919,15 @@ MOZ_AUTH_EXTENSION=1
 MOZ_NO_ACTIVEX_SUPPORT=1
 MOZ_NO_FAST_LOAD=
 MOZ_OGG=1
-MOZ_RAW=
+MOZ_RAW=1
 MOZ_SYDNEYAUDIO=
 MOZ_VORBIS=
-MOZ_TREMOR=
 MOZ_WAVE=1
 MOZ_MEDIA=
 MOZ_WEBM=1
 VPX_AS=
 VPX_ASFLAGS=
-VPX_AS_DASH_C_FLAG=
-VPX_AS_CONVERSION=
-VPX_ASM_SUFFIX=
 VPX_X86_ASM=
-VPX_ARM_ASM=
 MOZ_PANGO=1
 MOZ_PERMISSIONS=1
 MOZ_PLACES=1
@@ -4992,19 +4958,18 @@ MOZ_XTF=1
 MOZ_XUL=1
 MOZ_ZIPWRITER=1
 NS_PRINTING=1
-MOZ_DISABLE_DOMCRYPTO=
 NSS_DISABLE_DBM=
 NECKO_WIFI=1
 NECKO_COOKIES=1
 NECKO_DISK_CACHE=1
-NECKO_PROTOCOLS_DEFAULT="about data file ftp http res viewsource wyciwyg"
+NECKO_PROTOCOLS_DEFAULT="about data device file ftp http res viewsource"
 USE_ARM_KUSER=
 BUILD_CTYPES=1
 XPC_IDISPATCH_SUPPORT=
 
 
-case "${target}" in
-*android*|*darwin*|*wince*|*winmo*)
+case "$target_os" in
+darwin*|*wince*|*winmo*)
     ACCESSIBILITY=
     ;;
 *)
@@ -5031,6 +4996,7 @@ case "${target}" in
         NSS_DISABLE_DBM=1
         USE_ARM_KUSER=1
         MOZ_INSTALLER=
+        MOZ_CRASHREPORTER=
         NS_PRINTING=
         NECKO_WIFI=
         MOZ_THUMB2=1
@@ -5229,6 +5195,7 @@ cairo-qt)
     MOZ_WEBGL=1
     MOZ_WEBGL_GLX=1
     USE_ELF_DYNSTR_GC=
+    NS_PRINTING=
 
     AC_DEFINE(MOZ_X11)
     MOZ_X11=1
@@ -5878,6 +5845,11 @@ MOZ_ARG_DISABLE_BOOL(printing,
     NS_PRINTING=,
     NS_PRINTING=1)
 
+if test "$MOZ_WIDGET_TOOLKIT" = "qt"; then
+    AC_MSG_WARN([Printing does not work with Qt at this time. Omitting printing support.])
+    NS_PRINTING=
+fi
+
 if test "$NS_PRINTING"; then
     AC_DEFINE(NS_PRINTING)
     AC_DEFINE(NS_PRINT_PREVIEW)
@@ -5926,12 +5898,12 @@ if test -n "$MOZ_NO_FAST_LOAD"; then
 fi
 
 dnl ========================================================
-dnl = Enable Raw Codecs
+dnl = Disable Raw Codecs
 dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(raw,
-[  --enable-raw           Enable support for RAW media],
-    MOZ_RAW=1,
-    MOZ_RAW=)
+MOZ_ARG_DISABLE_BOOL(raw,
+[  --disable-raw           Disable support for RAW media],
+    MOZ_RAW=,
+    MOZ_RAW=1)
 
 if test -n "$MOZ_RAW"; then
     AC_DEFINE(MOZ_RAW)
@@ -5952,14 +5924,7 @@ if test -n "$MOZ_OGG"; then
     AC_DEFINE(MOZ_OGG)
     MOZ_SYDNEYAUDIO=1
     MOZ_MEDIA=1
-    case "$target_cpu" in
-    arm*)
-        MOZ_TREMOR=1
-    ;;
-    *)
-        MOZ_VORBIS=1
-    ;;
-    esac
+    MOZ_VORBIS=1
 
     dnl Checks for __attribute__(aligned()) directive
     AC_CACHE_CHECK([__attribute__ ((aligned ())) support],
@@ -5991,67 +5956,15 @@ MOZ_ARG_DISABLE_BOOL(webm,
     MOZ_WEBM=,
     MOZ_WEBM=1)
 
-dnl system libvpx Support
-dnl ========================================================
-MOZ_ARG_WITH_STRING(system-libvpx,
-[  --with-system-libvpx=[PFX]
-                          Use system libvpx [installed at prefix PFX]],
-    LIBVPX_DIR=$withval)
-
-MOZ_NATIVE_LIBVPX=
-MOZ_LIBVPX_INCLUDES=
-MOZ_LIBVPX_LIBS=
-
 if test -n "$MOZ_WEBM"; then
     AC_DEFINE(MOZ_WEBM)
-
-    if test -n "$LIBVPX_DIR" -a "$LIBVPX_DIR" != no; then
-        _SAVE_CFLAGS=$CFLAGS
-        _SAVE_LDFLAGS=$LDFLAGS
-        _SAVE_LIBS=$LIBS
-        if test "${LIBVPX_DIR}" = "yes"; then
-            LIBVPX_DIR=/usr
-        fi
-        CFLAGS="-I${LIBVPX_DIR}/include $CFLAGS"
-        LDFLAGS="-L${LIBVPX_DIR}/lib $LDFLAGS"
-        AC_CHECK_HEADER(vpx/vpx_decoder.h,
-                        [if test ! -f "${LIBVPX_DIR}/include/vpx/vpx_decoder.h"; then
-                             AC_MSG_ERROR([vpx/vpx_decoder.h found, but is not in ${LIBVPX_DIR}/include])
-                         fi],
-                        AC_MSG_ERROR([--with-system-libvpx requested but vpx/vpx_decoder.h not found]))
-        AC_CHECK_LIB(vpx, vpx_codec_dec_init_ver,
-                     [MOZ_NATIVE_LIBVPX=1
-                      MOZ_LIBVPX_INCLUDES="-I${LIBVPX_DIR}/include"
-                      MOZ_LIBVPX_LIBS="-L${LIBVPX_DIR}/lib -lvpx"],
-                     ([--with-system-libvpx requested but symbol vpx_codec_dec_init_ver not found]))
-        CFLAGS=$_SAVE_CFLAGS
-        LDFLAGS=$_SAVE_LDFLAGS
-        LIBS=$_SAVE_LIBS
-    fi
-fi
-
-AC_SUBST(MOZ_NATIVE_LIBVPX)
-AC_SUBST(MOZ_LIBVPX_INCLUDES)
-AC_SUBST(MOZ_LIBVPX_LIBS)
-
-if test -n "$MOZ_WEBM" -a -z "$MOZ_NATIVE_LIBVPX"; then
     MOZ_SYDNEYAUDIO=1
     MOZ_MEDIA=1
-    case "$target_cpu" in
-    arm*)
-        MOZ_TREMOR=1
-    ;;
-    *)
-        MOZ_VORBIS=1
-    ;;
-    esac
-
+    MOZ_VORBIS=1
 
     dnl Detect if we can use an assembler to compile optimized assembly for libvpx.
-    dnl We currently require yasm on all x86 platforms and require yasm 1.1.0 on Win32.
-    dnl We currently require gcc on all arm platforms.
+    dnl We currently require yasm on all platforms and require yasm 1.1.0 on Win32.
     VPX_AS=$YASM
-    VPX_ASM_SUFFIX=asm
 
     dnl See if we have assembly on this platform.  
     case "$OS_ARCH:$CPU_ARCH" in
@@ -6098,17 +6011,6 @@ if test -n "$MOZ_WEBM" -a -z "$MOZ_NATIVE_LIBVPX"; then
         fi
       fi
     ;;
-    *:arm*)
-      if test -n "$GNU_AS" ; then
-        VPX_AS=$AS
-        dnl These flags are a lie; they're just used to enable the requisite
-        dnl opcodes; actual arch detection is done at runtime.
-        VPX_ASFLAGS="-march=armv7-a -mfpu=neon"
-        VPX_DASH_C_FLAG="-c"
-        VPX_AS_CONVERSION="$PERL ${srcdir}/media/libvpx/build/make/ads2gas.pl"
-        VPX_ASM_SUFFIX="$ASM_SUFFIX"
-        VPX_ARM_ASM=1
-      fi
     esac
 
     if test -n "$COMPILE_ENVIRONMENT" -a -n "$VPX_X86_ASM" -a -z "$VPX_AS"; then
@@ -6117,8 +6019,6 @@ if test -n "$MOZ_WEBM" -a -z "$MOZ_NATIVE_LIBVPX"; then
 
     if test -n "$VPX_X86_ASM"; then
       AC_DEFINE(VPX_X86_ASM)
-    elif test -n "$VPX_ARM_ASM"; then
-      AC_DEFINE(VPX_ARM_ASM)
     else
       AC_MSG_WARN([No assembler or assembly support for libvpx. Using unoptimized C routines.])
     fi
@@ -6150,16 +6050,8 @@ if test -n "$MOZ_MEDIA"; then
     AC_DEFINE(MOZ_MEDIA)
 fi
 
-if test -n "$MOZ_VORBIS" -a -n "$MOZ_TREMOR"; then
-    AC_MSG_ERROR([MOZ_VORBIS and MOZ_TREMOR are mutually exclusive!  The build system should not allow them both to be set, but they are.  Please file a bug at https://bugzilla.mozilla.org/])
-fi
-
 if test -n "$MOZ_VORBIS"; then
     AC_DEFINE(MOZ_VORBIS)
-fi
-
-if test -n "$MOZ_TREMOR"; then
-    AC_DEFINE(MOZ_TREMOR)
 fi
 
 dnl ========================================================
@@ -6310,16 +6202,13 @@ dnl = Breakpad crash reporting (on by default on supported platforms)
 dnl ========================================================
 
 case $target in
-i?86-*-mingw*|x86_64-*-mingw*)
+i?86-*-mingw*)
   MOZ_CRASHREPORTER=1
   ;;
 i?86-apple-darwin*|powerpc-apple-darwin*|x86_64-apple-darwin*)
   MOZ_CRASHREPORTER=1
   ;;
 i?86-*-linux*|x86_64-*-linux*|arm-*-linux*)
-  MOZ_CRASHREPORTER=1
-  ;;
-arm-android-eabi)
   MOZ_CRASHREPORTER=1
   ;;
 *solaris*)
@@ -6335,7 +6224,7 @@ MOZ_ARG_DISABLE_BOOL(crashreporter,
 if test -n "$MOZ_CRASHREPORTER"; then
    AC_DEFINE(MOZ_CRASHREPORTER)
 
-  if (test "$OS_TARGET" = "Linux" -o "$OS_ARCH" = "SunOS") && \
+  if (test "$OS_ARCH" = "Linux" -o "$OS_ARCH" = "SunOS") && \
     test -z "$SKIP_LIBRARY_CHECKS"; then
     PKG_CHECK_MODULES(MOZ_GTHREAD, gthread-2.0)
     AC_SUBST(MOZ_GTHREAD_CFLAGS)
@@ -6421,9 +6310,13 @@ if test `echo "$MOZ_EXTENSIONS" | grep -c tridentprofile` -ne 0; then
   MOZ_EXTENSIONS="$MOZ_EXTENSIONS tridentprofile"
 fi
 
-dnl xforms requires xtf
+dnl xforms requires xtf and schema-validation
 if test -z "$MOZ_XTF" -a `echo "$MOZ_EXTENSIONS" | grep -c xforms` -ne 0; then
     AC_MSG_WARN([Cannot build XForms without XTF support.  Removing XForms from MOZ_EXTENSIONS.])
+    MOZ_EXTENSIONS=`echo $MOZ_EXTENSIONS | sed -e 's|xforms||g'`
+fi
+if test `echo "$MOZ_EXTENSIONS" | grep -c xforms` -ne 0 && test `echo "$MOZ_EXTENSIONS" | grep -c schema-validation` -eq 0; then
+    AC_MSG_WARN([Cannot build XForms without schema validation.  Removing XForms from MOZ_EXTENSIONS.])
     MOZ_EXTENSIONS=`echo $MOZ_EXTENSIONS | sed -e 's|xforms||g'`
 fi
 
@@ -6467,6 +6360,33 @@ for extension in $MOZ_EXTENSIONS; do
         AC_MSG_ERROR([Unrecognized extension provided to --enable-extensions: ${extension}.])
     fi
 done
+
+dnl ========================================================
+dnl Image encoders
+dnl ========================================================
+MOZ_ARG_ENABLE_STRING(image-encoders,
+[  --enable-image-encoders[={mod1,mod2,default,all,none}]
+                          Enable specific image encoders],
+[ for option in `echo $enableval | sed 's/,/ /g'`; do
+    if test "$option" = "yes" -o "$option" = "all"; then
+        addencoder="$MOZ_IMG_ENCODERS_DEFAULT"
+    elif test "$option" = "no" -o "$option" = "none"; then
+        MOZ_IMG_ENCODERS=""
+        addencoder=""
+    elif test "$option" = "default"; then
+        addencoder="$MOZ_IMG_ENCODERS_DEFAULT"
+    elif test `echo "$option" | grep -c \^-` != 0; then
+        option=`echo $option | sed 's/^-//'`
+        addencoder=`echo "$MOZ_IMG_ENCODERS" | sed "s/ ${option}//"`
+    else
+        addencoder="$option"
+    fi
+    MOZ_IMG_ENCODERS="$MOZ_IMG_ENCODERS $addencoder"
+done],
+    MOZ_IMG_ENCODERS="$MOZ_IMG_ENCODERS_DEFAULT")
+
+dnl Remove dupes
+MOZ_IMG_ENCODERS=`${PERL} ${srcdir}/build/unix/uniq.pl ${MOZ_IMG_ENCODERS}`
 
 dnl ========================================================
 dnl MathML on by default
@@ -6690,13 +6610,6 @@ if test -n "$MOZ_DISABLE_PARENTAL_CONTROLS"; then
 fi
 
 AC_SUBST(MOZ_DISABLE_PARENTAL_CONTROLS)
-
-dnl ========================================================
-dnl = Disable DOMCrypto
-dnl ========================================================
-if test -n "$MOZ_DISABLE_DOMCRYPTO"; then
-    AC_DEFINE(MOZ_DISABLE_DOMCRYPTO)
-fi
 
 dnl ========================================================
 dnl =
@@ -7057,17 +6970,6 @@ if test $MOZ_PLATFORM_MAEMO; then
    fi
    AC_SUBST(MOZ_MAEMO_LIBLOCATION)
 
-   PKG_CHECK_MODULES(LIBMEEGOTOUCHSHARE, ShareUiInterface-maemo-meegotouch >= 0.3.31 mdatauri, _LIB_FOUND=1, _LIB_FOUND=)
-   MOZ_PLATFORM_MAEMO_LIBS="$MOZ_PLATFORM_MAEMO_LIBS $LIBMEEGOTOUCHSHARE_LIBS"
-   MOZ_PLATFORM_MAEMO_CFLAGS="$MOZ_PLATFORM_MAEMO_CFLAGS $LIBMEEGOTOUCHSHARE_CFLAGS"
-   if test "$_LIB_FOUND"; then
-      MOZ_ENABLE_MEEGOTOUCHSHARE=1
-      AC_DEFINE(MOZ_ENABLE_MEEGOTOUCHSHARE)
-   else
-      AC_MSG_WARN([Cannot find maemo-meegotouch-interfaces-dev or libmdatauri-dev. Disabling meegotouch share ui.])
-   fi
-   AC_SUBST(MOZ_ENABLE_MEEGOTOUCHSHARE)
-
    AC_SUBST(MOZ_PLATFORM_MAEMO_LIBS)
    AC_SUBST(MOZ_PLATFORM_MAEMO_CFLAGS)
 fi
@@ -7096,8 +6998,6 @@ if test -n "$MOZ_THUMB2"; then
     ;;
   esac
 fi
-
-AC_SUBST(MOZ_THUMB2)
 
 dnl ========================================================
 dnl = faststripe theme
@@ -7427,8 +7327,7 @@ if test "$MOZ_MEMORY"; then
     AC_DEFINE(MOZ_MEMORY_LINUX)
     AC_DEFINE(MOZ_MEMORY_ANDROID)
     _WRAP_MALLOC=1
-    export WRAP_MALLOC_LIB="-L$_objdir/dist/lib -lmozalloc -lmozutils"
-    WRAP_MALLOC_CFLAGS="-Wl,--wrap=dlopen -Wl,--wrap=dlclose -Wl,--wrap=dlerror -Wl,--wrap=dlsym -Wl,--wrap=dladdr"
+    export WRAP_MALLOC_LIB="-L$_objdir/dist/lib -lmozalloc"
     ;;
   *)
     AC_MSG_ERROR([--enable-jemalloc not supported on ${target}])
@@ -7458,7 +7357,7 @@ MOZ_ARG_ENABLE_BOOL(wrap-malloc,
 
 if test -n "$_WRAP_MALLOC"; then
     if test "$GNU_CC"; then
-    WRAP_MALLOC_CFLAGS="${LDFLAGS} ${WRAP_MALLOC_CFLAGS} -Wl,--wrap -Wl,malloc -Wl,--wrap -Wl,calloc -Wl,--wrap -Wl,valloc -Wl,--wrap -Wl,free -Wl,--wrap -Wl,realloc -Wl,--wrap -Wl,memalign -Wl,--wrap -Wl,__builtin_new -Wl,--wrap -Wl,__builtin_vec_new -Wl,--wrap -Wl,__builtin_delete -Wl,--wrap -Wl,__builtin_vec_delete -Wl,--wrap -Wl,PR_Free -Wl,--wrap -Wl,PR_Malloc -Wl,--wrap -Wl,PR_Calloc -Wl,--wrap -Wl,PR_Realloc -Wl,--wrap -Wl,strdup -Wl,--wrap -Wl,strndup -Wl,--wrap -Wl,posix_memalign"
+    WRAP_MALLOC_CFLAGS="${LDFLAGS} -Wl,--wrap -Wl,malloc -Wl,--wrap -Wl,calloc -Wl,--wrap -Wl,valloc -Wl,--wrap -Wl,free -Wl,--wrap -Wl,realloc -Wl,--wrap -Wl,memalign -Wl,--wrap -Wl,__builtin_new -Wl,--wrap -Wl,__builtin_vec_new -Wl,--wrap -Wl,__builtin_delete -Wl,--wrap -Wl,__builtin_vec_delete -Wl,--wrap -Wl,PR_Free -Wl,--wrap -Wl,PR_Malloc -Wl,--wrap -Wl,PR_Calloc -Wl,--wrap -Wl,PR_Realloc -Wl,--wrap -Wl,strdup -Wl,--wrap -Wl,strndup -Wl,--wrap -Wl,posix_memalign"
     MKSHLIB='$(CXX) $(DSO_LDOPTS) $(WRAP_MALLOC_CFLAGS) $(WRAP_MALLOC_LIB) -o $@'
     fi
 fi
@@ -7521,11 +7420,10 @@ dnl ========================================================
 dnl jprof
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(jprof,
-[  --enable-jprof          Enable jprof profiling tool (needs mozilla/tools/jprof). Implies --enable-profiling.],
+[  --enable-jprof          Enable jprof profiling tool (needs mozilla/tools/jprof)],
     MOZ_JPROF=1,
     MOZ_JPROF= )
 if test -n "$MOZ_JPROF"; then
-    MOZ_PROFILING=1
     AC_DEFINE(MOZ_JPROF)
 fi
 
@@ -7533,11 +7431,10 @@ dnl ========================================================
 dnl shark
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(shark,
-[  --enable-shark          Enable shark remote profiling (needs CHUD framework). Implies --enable-profiling.],
+[  --enable-shark          Enable shark remote profiling (needs CHUD framework)],
     MOZ_SHARK=1,
     MOZ_SHARK= )
 if test -n "$MOZ_SHARK"; then
-    MOZ_PROFILING=1
     AC_DEFINE(MOZ_SHARK)
 fi
 
@@ -7556,11 +7453,10 @@ dnl ========================================================
 dnl vtune
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(vtune,
-[  --enable-vtune          Enable vtune profiling. Implies --enable-profiling.],
+[  --enable-vtune          Enable vtune profiling],
     MOZ_VTUNE=1,
     MOZ_VTUNE= )
 if test -n "$MOZ_VTUNE"; then
-    MOZ_PROFILING=1
     AC_DEFINE(MOZ_VTUNE)
 fi
 
@@ -8530,9 +8426,29 @@ if test "$MOZ_TREE_CAIRO"; then
 
         AC_CHECK_HEADER(d3d9.h, MOZ_ENABLE_D3D9_LAYER=1)
 
-        dnl D3D10 Layers depend on D2D Surfaces.
-        if test -n "$WIN32_D2D_SURFACE_FEATURE"; then
-          AC_CHECK_HEADER(d3d10.h, MOZ_ENABLE_D3D10_LAYER=1)
+        AC_TRY_COMPILE([#include <ddraw.h>], [int foo = DDLOCK_WAITNOTBUSY;], HAS_DDRAW=1, HAS_DDRAW=)
+        if test -z "$HAS_DDRAW"; then
+            AC_MSG_WARN([DirectDraw ddraw.h header not found or it's missing DDLOCK_WAITNOTBUSY, disabling DirectDraw surface.  If you have an older SDK (such as the CE5 SDK), try copying in ddraw.lib and ddraw.h from the WM6 SDK.])
+            DDRAW_SURFACE_FEATURE=
+        else
+            DDRAW_SURFACE_FEATURE="#define CAIRO_HAS_DDRAW_SURFACE 1"
+        fi
+
+        if test -z "$OGLES_SDK_DIR"; then
+            OGLES_SURFACE_FEATURE=
+        else
+            AC_TRY_COMPILE([
+              #include <EGL/egl.h>
+              #include <EGL/eglext.h>
+              #include <GLES2/gl2.h>
+              #include <GLES2/gl2ext.h>
+            ], [ EGLDisplay _cairo_ddraw_egl_dpy = EGL_NO_DISPLAY;], HAS_OGLES=1, HAS_OGLES=)
+            if test -z "$HAS_OGLES"; then
+              AC_MSG_WARN([OpenGL ES2 headers not found, disabling OpenGL acceleration surfaces.])
+              OGLES_SURFACE_FEATURE=
+            else
+              OGLES_SURFACE_FEATURE="#define CAIRO_DDRAW_USE_GL 1"
+            fi
         fi
 
         PDF_SURFACE_FEATURE="#define CAIRO_HAS_PDF_SURFACE 1"
@@ -8558,7 +8474,6 @@ if test "$MOZ_TREE_CAIRO"; then
     AC_SUBST(MOZ_ENABLE_DWRITE_FONT)
     AC_SUBST(MOZ_ENABLE_D2D_SURFACE)
     AC_SUBST(MOZ_ENABLE_D3D9_LAYER)
-    AC_SUBST(MOZ_ENABLE_D3D10_LAYER)
     AC_SUBST(CAIRO_FT_CFLAGS)
     AC_SUBST(HAS_OGLES)
 
@@ -8579,6 +8494,8 @@ if test "$MOZ_TREE_CAIRO"; then
     AC_SUBST(QUARTZ_IMAGE_SURFACE_FEATURE)
     AC_SUBST(XCB_SURFACE_FEATURE)
     AC_SUBST(WIN32_SURFACE_FEATURE)
+    AC_SUBST(DDRAW_SURFACE_FEATURE)
+    AC_SUBST(OGLES_SURFACE_FEATURE)    
     AC_SUBST(OS2_SURFACE_FEATURE)
     AC_SUBST(BEOS_SURFACE_FEATURE)
     AC_SUBST(DIRECTFB_SURFACE_FEATURE)
@@ -8596,7 +8513,7 @@ if test "$MOZ_TREE_CAIRO"; then
     if test "$MOZ_TREE_PIXMAN"; then
         MOZ_CAIRO_LIBS="$MOZ_CAIRO_LIBS"' $(call EXPAND_LIBNAME_PATH,mozlibpixman,$(DEPTH)/gfx/cairo/libpixman/src)'
     else
-        PKG_CHECK_MODULES(PIXMAN, pixman-1 >= 0.19.2)
+        PKG_CHECK_MODULES(PIXMAN, pixman-1 >= 0.17.3)
         MOZ_CAIRO_CFLAGS="$MOZ_CAIRO_CFLAGS $PIXMAN_CFLAGS"
         MOZ_CAIRO_LIBS="$MOZ_CAIRO_LIBS $PIXMAN_LIBS"
     fi
@@ -8636,12 +8553,6 @@ dnl HarfBuzz
 dnl ========================================================
 MOZ_HARFBUZZ_LIBS='$(DEPTH)/gfx/harfbuzz/src/$(LIB_PREFIX)mozharfbuzz.$(LIB_SUFFIX)'
 AC_SUBST(MOZ_HARFBUZZ_LIBS)
-
-dnl ========================================================
-dnl OTS
-dnl ========================================================
-MOZ_OTS_LIBS='$(DEPTH)/gfx/ots/src/$(LIB_PREFIX)mozots.$(LIB_SUFFIX)'
-AC_SUBST(MOZ_OTS_LIBS)
 
 dnl ========================================================
 dnl disable xul
@@ -8871,6 +8782,7 @@ AC_SUBST(MOZ_DEBUG_FLAGS)
 AC_SUBST(MOZ_DEBUG_LDFLAGS)
 AC_SUBST(WARNINGS_AS_ERRORS)
 AC_SUBST(MOZ_EXTENSIONS)
+AC_SUBST(MOZ_IMG_ENCODERS)
 AC_SUBST(MOZ_JSDEBUGGER)
 AC_SUBST(MOZ_PLUGINS)
 AC_SUBST(MOZ_LOG_REFCNT)
@@ -8879,7 +8791,6 @@ AC_SUBST(MOZ_JPROF)
 AC_SUBST(MOZ_SHARK)
 AC_SUBST(MOZ_CALLGRIND)
 AC_SUBST(MOZ_VTUNE)
-AC_SUBST(MOZ_PROFILING)
 AC_SUBST(MOZ_JSLOADER)
 AC_SUBST(MOZ_USE_NATIVE_UCONV)
 AC_SUBST(MOZ_QUANTIFY)
@@ -8933,6 +8844,7 @@ AC_SUBST(USE_DEPENDENT_LIBS)
 
 AC_SUBST(MOZ_BUILD_ROOT)
 AC_SUBST(MOZ_OS2_TOOLS)
+AC_SUBST(MOZ_OS2_USE_DECLSPEC)
 
 AC_SUBST(MOZ_POST_DSO_LIB_COMMAND)
 AC_SUBST(MOZ_POST_PROGRAM_COMMAND)
@@ -9093,17 +9005,12 @@ AC_SUBST(MOZ_MEDIA)
 AC_SUBST(MOZ_SYDNEYAUDIO)
 AC_SUBST(MOZ_WAVE)
 AC_SUBST(MOZ_VORBIS)
-AC_SUBST(MOZ_TREMOR)
 AC_SUBST(MOZ_WEBM)
 AC_SUBST(MOZ_OGG)
 AC_SUBST(MOZ_ALSA_LIBS)
 AC_SUBST(VPX_AS)
 AC_SUBST(VPX_ASFLAGS)
-AC_SUBST(VPX_DASH_C_FLAG)
-AC_SUBST(VPX_AS_CONVERSION)
-AC_SUBST(VPX_ASM_SUFFIX)
 AC_SUBST(VPX_X86_ASM)
-AC_SUBST(VPX_ARM_ASM)
 
 if test "$USING_HCC"; then
    CC='${topsrcdir}/build/hcc'

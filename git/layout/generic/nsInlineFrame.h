@@ -117,7 +117,6 @@ public:
   virtual PRBool CanContinueTextRun() const;
 
   virtual void PullOverflowsFromPrevInFlow();
-  virtual nscoord GetBaseline() const;
 
   /**
    * Return true if the frame is leftmost frame or continuation.
@@ -193,6 +192,7 @@ protected:
                           nsIFrame* aFromChild,
                           nsIFrame* aPrevSibling,
                           InlineReflowState& aState);
+
 };
 
 //----------------------------------------------------------------------

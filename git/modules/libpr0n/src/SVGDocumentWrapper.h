@@ -45,7 +45,6 @@
 #include "nsIStreamListener.h"
 #include "nsIObserver.h"
 #include "nsIDocumentViewer.h"
-#include "nsWeakReference.h"
 
 class nsIAtom;
 class nsIPresShell;
@@ -64,8 +63,7 @@ namespace mozilla {
 namespace imagelib {
 
 class SVGDocumentWrapper : public nsIStreamListener,
-                           public nsIObserver,
-                           nsSupportsWeakReference
+                           public nsIObserver
 {
 public:
   SVGDocumentWrapper();
@@ -167,7 +165,6 @@ private:
                        nsILoadGroup** aLoadGroup);
   void     DestroyViewer();
   void     RegisterForXPCOMShutdown();
-  void     UnregisterForXPCOMShutdown();
 
   void     FlushLayout();
 
@@ -175,7 +172,6 @@ private:
   nsCOMPtr<nsILoadGroup>      mLoadGroup;
   nsCOMPtr<nsIStreamListener> mListener;
   PRPackedBool                mIgnoreInvalidation;
-  PRPackedBool                mRegisteredForXPCOMShutdown;
 
   // Lazily-initialized pointer to nsGkAtoms::svg, to make life easier in
   // non-libxul builds, which don't let us reference nsGkAtoms from imagelib.

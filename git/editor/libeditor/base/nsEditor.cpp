@@ -224,18 +224,15 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsEditor, nsIEditor)
 NS_IMETHODIMP
 nsEditor::Init(nsIDOMDocument *aDoc, nsIPresShell* aPresShell, nsIContent *aRoot, nsISelectionController *aSelCon, PRUint32 aFlags)
 {
-  NS_PRECONDITION(aDoc && aPresShell, "bad arg");
-  if (!aDoc || !aPresShell)
+  NS_PRECONDITION(nsnull!=aDoc && nsnull!=aPresShell, "bad arg");
+  if ((nsnull==aDoc) || (nsnull==aPresShell))
     return NS_ERROR_NULL_POINTER;
 
   // First only set flags, but other stuff shouldn't be initialized now.
   // Don't move this call after initializing mDocWeak and mPresShellWeak.
   // SetFlags() can check whether it's called during initialization or not by
   // them.  Note that SetFlags() will be called by PostCreate().
-#ifdef DEBUG
-  nsresult rv =
-#endif
-  SetFlags(aFlags);
+  nsresult rv = SetFlags(aFlags);
   NS_ASSERTION(NS_SUCCEEDED(rv), "SetFlags() failed");
 
   mDocWeak = do_GetWeakReference(aDoc);  // weak reference to doc
@@ -314,19 +311,19 @@ nsEditor::PostCreate()
   NotifyDocumentListeners(eDocumentCreated);
   NotifyDocumentListeners(eDocumentStateChanged);
   
-  // update nsTextStateManager and caret if we have focus
-  nsCOMPtr<nsIContent> focusedContent = GetFocusedContent();
-  if (focusedContent) {
-    nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
-    NS_ASSERTION(ps, "no pres shell even though we have focus");
-    nsPresContext* pc = ps->GetPresContext(); 
+  // update nsTextStateManager if we have focus
+  if (HasFocus()) {
+    nsFocusManager* fm = nsFocusManager::GetFocusManager();
+    NS_ASSERTION(fm, "no focus manager?");
 
-    nsIMEStateManager::OnTextStateBlur(pc, nsnull);
-    nsIMEStateManager::OnTextStateFocus(pc, focusedContent);
+    nsCOMPtr<nsIContent> focusedContent = fm->GetFocusedContent();
+    if (focusedContent) {
+      nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
+      NS_ASSERTION(ps, "no pres shell even though we have focus");
+      nsPresContext* pc = ps->GetPresContext(); 
 
-    nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(focusedContent);
-    if (target) {
-      InitializeSelection(target);
+      nsIMEStateManager::OnTextStateBlur(pc, nsnull);
+      nsIMEStateManager::OnTextStateFocus(pc, focusedContent);
     }
   }
   return NS_OK;
@@ -487,8 +484,7 @@ nsEditor::SetFlags(PRUint32 aFlags)
 
   // Might be changing editable state, so, we need to reset current IME state
   // if we're focused and the flag change causes IME state change.
-  nsCOMPtr<nsIContent> focusedContent = GetFocusedContent();
-  if (focusedContent) {
+  if (HasFocus()) {
     // Use "enable" for the default value because if IME is disabled
     // unexpectedly, it makes serious a11y problem.
     PRUint32 newState = nsIContent::IME_STATUS_ENABLE;
@@ -2276,8 +2272,22 @@ NS_IMETHODIMP nsEditor::ScrollSelectionIntoView(PRBool aScrollToAnchor)
     if (aScrollToAnchor)
       region = nsISelectionController::SELECTION_ANCHOR_REGION;
 
+    PRBool syncScroll = PR_TRUE;
+    PRUint32 flags = 0;
+
+    if (NS_SUCCEEDED(GetFlags(&flags)))
+    {
+      // If the editor is relying on asynchronous reflows, we have
+      // to use asynchronous requests to scroll, so that the scrolling happens
+      // after reflow requests are processed.
+      // XXXbz why not just always do async scroll?
+      syncScroll = !(flags & nsIPlaintextEditor::eEditorUseAsyncUpdatesMask);
+    }
+
+    // After ScrollSelectionIntoView(), the pending notifications might be
+    // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
     selCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL,
-                                    region, 0);
+                                    region, syncScroll);
   }
 
   return NS_OK;
@@ -2319,8 +2329,8 @@ NS_IMETHODIMP nsEditor::InsertTextImpl(const nsAString& aStringToInsert,
       res = (*aInOutNode)->GetChildNodes(getter_AddRefs(children));
       if (NS_SUCCEEDED(res)) {
         nsCOMPtr<nsIDOMNode> possibleMozBRNode;
-        children->Item(*aInOutOffset, getter_AddRefs(possibleMozBRNode));
-        if (possibleMozBRNode && nsTextEditUtils::IsMozBR(possibleMozBRNode)) {
+        res = children->Item(*aInOutOffset, getter_AddRefs(possibleMozBRNode));
+        if (NS_SUCCEEDED(res) && nsTextEditUtils::IsMozBR(possibleMozBRNode)) {
           nsCOMPtr<nsIDOMNode> possibleTextNode;
           res = children->Item(*aInOutOffset - 1, getter_AddRefs(possibleTextNode));
           if (NS_SUCCEEDED(res)) {
@@ -2332,20 +2342,6 @@ NS_IMETHODIMP nsEditor::InsertTextImpl(const nsAString& aStringToInsert,
                 *aInOutOffset = PRInt32(length);
                 *aInOutNode = possibleTextNode;
               }
-            }
-          }
-        } else {
-          // The selection might be at the end of the last textnode child,
-          // in which case we can just append to the textnode in question.
-          nsCOMPtr<nsIDOMNode> possibleTextNode;
-          res = children->Item(*aInOutOffset - 1, getter_AddRefs(possibleTextNode));
-          nodeAsText = do_QueryInterface(possibleTextNode);
-          if (nodeAsText) {
-            PRUint32 length;
-            res = nodeAsText->GetLength(&length);
-            if (NS_SUCCEEDED(res)) {
-              *aInOutOffset = PRInt32(length);
-              *aInOutNode = possibleTextNode;
             }
           }
         }
@@ -2877,7 +2873,7 @@ nsEditor::JoinNodesImpl(nsIDOMNode * aNodeToKeep,
                         PRBool       aNodeToKeepIsFirst)
 {
   NS_ASSERTION(aNodeToKeep && aNodeToJoin && aParent, "null arg");
-  nsresult result = NS_OK;
+  nsresult result;
   if (aNodeToKeep && aNodeToJoin && aParent)
   {
     // get selection
@@ -4221,6 +4217,11 @@ nsresult nsEditor::EndUpdateViewBatch()
       // the reflows we caused will get processed before the invalidates.
       if (flags & nsIPlaintextEditor::eEditorUseAsyncUpdatesMask) {
         updateFlag = NS_VMREFRESH_DEFERRED;
+      } else if (presShell) {
+        // Flush out layout.  Need to do this because if we have no invalidates
+        // to flush the viewmanager code won't flush our reflow here, and we
+        // have selection code that does sync caret scrolling in this case.
+        presShell->FlushPendingNotifications(Flush_Layout);
       }
       mBatch.EndUpdateViewBatch(updateFlag);
     }
@@ -5259,19 +5260,19 @@ nsEditor::GetNativeKeyEvent(nsIDOMKeyEvent* aDOMKeyEvent)
   return static_cast<nsKeyEvent*>(nativeEvent);
 }
 
-already_AddRefed<nsIContent>
-nsEditor::GetFocusedContent()
+PRBool
+nsEditor::HasFocus()
 {
   nsCOMPtr<nsPIDOMEventTarget> piTarget = GetPIDOMEventTarget();
   if (!piTarget) {
-    return nsnull;
+    return PR_FALSE;
   }
 
   nsFocusManager* fm = nsFocusManager::GetFocusManager();
-  NS_ENSURE_TRUE(fm, nsnull);
+  NS_ENSURE_TRUE(fm, PR_FALSE);
 
   nsCOMPtr<nsIContent> content = fm->GetFocusedContent();
-  return SameCOMIdentity(content, piTarget) ? content.forget() : nsnull;
+  return SameCOMIdentity(content, piTarget);
 }
 
 PRBool

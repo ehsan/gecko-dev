@@ -38,13 +38,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "jscntxt.h"
 #include "jscompartment.h"
 #include "jsgc.h"
-#include "jsiter.h"
+#include "jscntxt.h"
 #include "jsproxy.h"
 #include "jsscope.h"
-#include "methodjit/MethodJIT.h"
 #include "methodjit/PolyIC.h"
 #include "methodjit/MonoIC.h"
 
@@ -54,49 +52,54 @@ using namespace js;
 using namespace js::gc;
 
 JSCompartment::JSCompartment(JSRuntime *rt)
-  : rt(rt), principals(NULL), data(NULL), marked(false), debugMode(rt->debugMode),
-    anynameObject(NULL), functionNamespaceObject(NULL)
+  : rt(rt), principals(NULL), data(NULL), marked(false), debugMode(false)
 {
     JS_INIT_CLIST(&scripts);
 }
 
 JSCompartment::~JSCompartment()
 {
-#ifdef JS_METHODJIT
-    delete jaegerCompartment;
-#endif
 }
 
 bool
 JSCompartment::init()
 {
     chunk = NULL;
-    for (unsigned i = 0; i < FINALIZE_LIMIT; i++)
-        arenas[i].init();
+    shortStringArena.init();
+    stringArena.init();
+    funArena.init();
+#if JS_HAS_XML_SUPPORT
+    xmlArena.init();
+#endif
+    objArena.init();
+    for (unsigned i = 0; i < JS_EXTERNAL_STRING_LIMIT; i++)
+        externalStringArenas[i].init();
     for (unsigned i = 0; i < FINALIZE_LIMIT; i++)
         freeLists.finalizables[i] = NULL;
 #ifdef JS_GCMETER
     memset(&compartmentStats, 0, sizeof(JSGCArenaStats) * FINALIZE_LIMIT);
 #endif
-    if (!crossCompartmentWrappers.init())
-        return false;
-
-#ifdef JS_METHODJIT
-    if (!(jaegerCompartment = new mjit::JaegerCompartment))
-        return false;
-    return jaegerCompartment->Initialize();
-#else
-    return true;
-#endif
+    return crossCompartmentWrappers.init();
 }
 
 bool
 JSCompartment::arenaListsAreEmpty()
 {
-  for (unsigned i = 0; i < FINALIZE_LIMIT; i++) {
-       if (!arenas[i].isEmpty())
+    bool empty = objArena.isEmpty() &&
+                 funArena.isEmpty() &&
+#if JS_HAS_XML_SUPPORT
+                 xmlArena.isEmpty() &&
+#endif
+                 shortStringArena.isEmpty() &&
+                 stringArena.isEmpty();
+  if (!empty)
+      return false;
+
+  for (unsigned i = 0; i < JS_EXTERNAL_STRING_LIMIT; i++) {
+       if (!externalStringArenas[i].isEmpty())
            return false;
   }
+
   return true;
 }
 
@@ -113,91 +116,36 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
     if (!vp->isMarkable())
         return true;
 
-    if (vp->isString()) {
-        JSString *str = vp->toString();
-
-        /* Static strings do not have to be wrapped. */
-        if (JSString::isStatic(str))
-            return true;
-
-        /* If the string is already in this compartment, we are done. */
-        if (str->asCell()->compartment() == this)
-            return true;
-
-        /* If the string is an atom, we don't have to copy. */
-        if (str->isAtomized()) {
-            JS_ASSERT(str->asCell()->compartment() == cx->runtime->defaultCompartment);
-            return true;
-        }
-    }
-
-    /*
-     * Wrappers should really be parented to the wrapped parent of the wrapped
-     * object, but in that case a wrapped global object would have a NULL
-     * parent without being a proper global object (JSCLASS_IS_GLOBAL). Instead
-,
-     * we parent all wrappers to the global object in their home compartment.
-     * This loses us some transparency, and is generally very cheesy.
-     */
-    JSObject *global;
-    if (cx->hasfp()) {
-        global = cx->fp()->scopeChain().getGlobal();
-    } else {
-        global = cx->globalObject;
-        OBJ_TO_INNER_OBJECT(cx, global);
-        if (!global)
-            return false;
-    }
+    /* Static strings do not have to be wrapped. */
+    if (vp->isString() && JSString::isStatic(vp->toString()))
+        return true;
 
     /* Unwrap incoming objects. */
     if (vp->isObject()) {
         JSObject *obj = &vp->toObject();
 
         /* If the object is already in this compartment, we are done. */
-        if (obj->compartment() == this)
+        if (obj->getCompartment(cx) == this)
             return true;
-
-        /* Translate StopIteration singleton. */
-        if (obj->getClass() == &js_StopIterationClass)
-            return js_FindClassObject(cx, NULL, JSProto_StopIteration, vp);
 
         /* Don't unwrap an outer window proxy. */
         if (!obj->getClass()->ext.innerObject) {
             obj = vp->toObject().unwrap(&flags);
-            vp->setObject(*obj);
-            if (obj->getCompartment() == this)
-                return true;
-
-            if (cx->runtime->preWrapObjectCallback)
-                obj = cx->runtime->preWrapObjectCallback(cx, global, obj, flags);
+            OBJ_TO_OUTER_OBJECT(cx, obj);
             if (!obj)
                 return false;
 
             vp->setObject(*obj);
-            if (obj->getCompartment() == this)
-                return true;
-        } else {
-            if (cx->runtime->preWrapObjectCallback)
-                obj = cx->runtime->preWrapObjectCallback(cx, global, obj, flags);
-
-            JS_ASSERT(!obj->isWrapper() || obj->getClass()->ext.innerObject);
-            vp->setObject(*obj);
         }
 
-#ifdef DEBUG
-        {
-            JSObject *outer = obj;
-            OBJ_TO_OUTER_OBJECT(cx, outer);
-            JS_ASSERT(outer && outer == obj);
-        }
-#endif
+        /* If the wrapped object is already in this compartment, we are done. */
+        if (obj->getCompartment(cx) == this)
+            return true;
     }
 
     /* If we already have a wrapper for this value, use it. */
     if (WrapperMap::Ptr p = crossCompartmentWrappers.lookup(*vp)) {
         *vp = p->value;
-        if (vp->isObject())
-            vp->toObject().setParent(global);
         return true;
     }
 
@@ -232,15 +180,30 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
      * the wrap hook to reason over what wrappers are currently applied
      * to the object.
      */
-    JSObject *wrapper = cx->runtime->wrapObjectCallback(cx, obj, proto, global, flags);
+    JSObject *wrapper = cx->runtime->wrapObjectCallback(cx, obj, proto, flags);
     if (!wrapper)
         return false;
-
-    vp->setObject(*wrapper);
-
     wrapper->setProto(proto);
+    vp->setObject(*wrapper);
     if (!crossCompartmentWrappers.put(wrapper->getProxyPrivate(), *vp))
         return false;
+
+    /*
+     * Wrappers should really be parented to the wrapped parent of the wrapped
+     * object, but in that case a wrapped global object would have a NULL
+     * parent without being a proper global object (JSCLASS_IS_GLOBAL). Instead,
+     * we parent all wrappers to the global object in their home compartment.
+     * This loses us some transparency, and is generally very cheesy.
+     */
+    JSObject *global;
+    if (cx->hasfp()) {
+        global = cx->fp()->scopeChain().getGlobal();
+    } else {
+        global = cx->globalObject;
+        OBJ_TO_INNER_OBJECT(cx, global);
+        if (!global)
+            return false;
+    }
 
     wrapper->setParent(global);
     return true;
@@ -334,19 +297,14 @@ JSCompartment::sweep(JSContext *cx)
     chunk = NULL;
     /* Remove dead wrappers from the table. */
     for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
-        JS_ASSERT_IF(IsAboutToBeFinalized(e.front().key.toGCThing()) &&
-                     !IsAboutToBeFinalized(e.front().value.toGCThing()),
-                     e.front().key.isString());
-        if (IsAboutToBeFinalized(e.front().key.toGCThing()) ||
-            IsAboutToBeFinalized(e.front().value.toGCThing())) {
+        if (IsAboutToBeFinalized(e.front().value.toGCThing()))
             e.removeFront();
-        }
     }
 
 #if defined JS_METHODJIT && defined JS_MONOIC
     for (JSCList *cursor = scripts.next; cursor != &scripts; cursor = cursor->next) {
         JSScript *script = reinterpret_cast<JSScript *>(cursor);
-        if (script->hasJITCode())
+        if (script->jit)
             mjit::ic::SweepCallICs(script);
     }
 #endif
@@ -361,7 +319,7 @@ JSCompartment::purge(JSContext *cx)
     for (JSScript *script = (JSScript *)scripts.next;
          &script->links != &scripts;
          script = (JSScript *)script->links.next) {
-        if (script->hasJITCode()) {
+        if (script->jit) {
 # if defined JS_POLYIC
             mjit::ic::PurgePICs(cx, script);
 # endif

@@ -59,11 +59,6 @@
 #include "nsIDOMStorageManager.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsIObserver.h"
-#include "nsITimer.h"
-#include "nsWeakReference.h"
-#include "mozilla/TimeStamp.h"
-
-#define NS_DOMSTORAGE_FLUSH_TIMER_OBSERVER "domstorage-flush-timer"
 
 #ifdef MOZ_STORAGE
 #include "nsDOMStorageDBWrapper.h"
@@ -76,9 +71,6 @@
 class nsDOMStorage;
 class nsIDOMStorage;
 class nsDOMStorageItem;
-
-using mozilla::TimeStamp;
-using mozilla::TimeDuration;
 
 class nsDOMStorageEntry : public nsVoidPtrHashKey
 {
@@ -136,20 +128,19 @@ protected:
 };
 
 class nsDOMStorage : public nsIDOMStorageObsolete,
-                     public nsPIDOMStorage,
-                     public nsIObserver,
-                     public nsSupportsWeakReference
+                     public nsPIDOMStorage
 {
 public:
   nsDOMStorage();
   nsDOMStorage(nsDOMStorage& aThat);
   virtual ~nsDOMStorage();
 
+  // nsISupports
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDOMStorage, nsIDOMStorageObsolete)
 
+  // nsIDOMStorageObsolete
   NS_DECL_NSIDOMSTORAGEOBSOLETE
-  NS_DECL_NSIOBSERVER
 
   // Helpers for implementing nsIDOMStorage
   nsresult GetItem(const nsAString& key, nsAString& aData);
@@ -193,23 +184,10 @@ public:
   static PRBool
   CanUseStorage(PRPackedBool* aSessionOnly);
 
-  // Check whether this URI can use chrome persist storage.  This kind of
-  // storage can bypass cookies limits, private browsing and uses the offline
-  // apps quota.
-  static PRBool
-  URICanUseChromePersist(nsIURI* aURI);
-  
   // Check whether storage may be used.  Updates mSessionOnly based on
   // the result of CanUseStorage.
   PRBool
   CacheStoragePermissions();
-
-  // retrieve the value and secure state corresponding to a key out of storage
-  // that has been cached in mItems hash table.
-  nsresult
-  GetCachedValue(const nsAString& aKey,
-                 nsAString& aValue,
-                 PRBool* aSecure);
 
   // retrieve the value and secure state corresponding to a key out of storage.
   nsresult
@@ -242,17 +220,10 @@ public:
     return static_cast<nsDOMStorage*>(static_cast<nsIDOMStorageObsolete*>(aSupports));
   }
 
-  nsresult RegisterObservers();
-  nsresult MaybeCommitTemporaryTable(bool force);
-
-  bool WasTemporaryTableLoaded();
-  void SetTemporaryTableLoaded(bool loaded);
-
 protected:
 
   friend class nsDOMStorageManager;
   friend class nsDOMStorage2;
-  friend class nsDOMStoragePersistentDB;
 
   static nsresult InitDB();
 
@@ -300,10 +271,6 @@ protected:
   nsPIDOMStorage* mEventBroadcaster;
 
   bool mCanUseChromePersist;
-
-  bool mLoadedTemporaryTable;
-  TimeStamp mLastTemporaryTableAccessTime;
-  TimeStamp mTemporaryTableAge;
 
 public:
   // e.g. "moc.rab.oof.:" or "moc.rab.oof.:http:80" depending

@@ -13,6 +13,7 @@ function startTest() {
 }
 
 function done(evt) {
+  evt.stopPropagation();
   ok(true, "We don't acutally test anything...");
   finish();
 }

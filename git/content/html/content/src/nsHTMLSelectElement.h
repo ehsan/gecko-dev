@@ -244,7 +244,7 @@ public:
   using nsIConstraintValidation::GetValidationMessage;
 
   nsHTMLSelectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                      mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
+                      PRUint32 aFromParser = 0);
   virtual ~nsHTMLSelectElement();
 
   // nsISupports
@@ -277,9 +277,9 @@ public:
   NS_IMETHOD SaveState();
   virtual PRBool RestoreState(nsPresState* aState);
 
-  virtual void FieldSetDisabledChanged(nsEventStates aStates, PRBool aNotify);
+  virtual void FieldSetDisabledChanged(PRInt32 aStates);
 
-  nsEventStates IntrinsicState() const;
+  PRInt32 IntrinsicState() const;
 
   // nsISelectElement
   NS_DECL_NSISELECTELEMENT
@@ -466,13 +466,11 @@ protected:
    * Is this a combobox?
    */
   PRBool IsCombobox() {
-    if (HasAttr(kNameSpaceID_None, nsGkAtoms::multiple)) {
-      return PR_FALSE;
-    }
-
+    PRBool isMultiple = PR_TRUE;
     PRInt32 size = 1;
     GetSize(&size);
-    return size <= 1;
+    GetMultiple(&isMultiple);
+    return !isMultiple && size <= 1;
   }
 
   /**
@@ -493,6 +491,14 @@ protected:
   virtual PRBool AcceptAutofocus() const
   {
     return PR_TRUE;
+  }
+
+  /**
+   * Helper method to get the default size.
+   */
+  PRInt32 GetDefaultSize() const
+  {
+    return HasAttr(kNameSpaceID_None, nsGkAtoms::multiple) ? 4 : 1;
   }
 
   /** The options[] array */

@@ -357,26 +357,22 @@ WeaveSvc.prototype = {
     dapp.level = Log4Moz.Level[Svc.Prefs.get("log.appender.dump")];
     root.addAppender(dapp);
 
-    let enabled = Svc.Prefs.get("log.appender.debugLog.enabled", false);
-    if (enabled) {
-      let verbose = Svc.Directory.get("ProfD", Ci.nsIFile);
-      verbose.QueryInterface(Ci.nsILocalFile);
-      verbose.append("weave");
-      verbose.append("logs");
-      verbose.append("verbose-log.txt");
-      if (!verbose.exists())
-        verbose.create(verbose.NORMAL_FILE_TYPE, PERMS_FILE);
-  
-      let maxSize = 65536; // 64 * 1024 (64KB)
-      this._debugApp = new Log4Moz.RotatingFileAppender(verbose, formatter, maxSize);
-      this._debugApp.level = Log4Moz.Level[Svc.Prefs.get("log.appender.debugLog")];
-      root.addAppender(this._debugApp);
-    }
+    let verbose = Svc.Directory.get("ProfD", Ci.nsIFile);
+    verbose.QueryInterface(Ci.nsILocalFile);
+    verbose.append("weave");
+    verbose.append("logs");
+    verbose.append("verbose-log.txt");
+    if (!verbose.exists())
+      verbose.create(verbose.NORMAL_FILE_TYPE, PERMS_FILE);
+
+    let maxSize = 65536; // 64 * 1024 (64KB)
+    this._debugApp = new Log4Moz.RotatingFileAppender(verbose, formatter, maxSize);
+    this._debugApp.level = Log4Moz.Level[Svc.Prefs.get("log.appender.debugLog")];
+    root.addAppender(this._debugApp);
   },
 
   clearLogs: function WeaveSvc_clearLogs() {
-    if (this._debugApp)
-      this._debugApp.clear();
+    this._debugApp.clear();
   },
 
   /**
@@ -1685,7 +1681,7 @@ WeaveSvc.prototype = {
 
       // Fully wipe each engine if it's able to decrypt data
       for each (let engine in engines)
-        if (engine.canDecrypt())
+        if (engine._testDecrypt())
           engine.wipeClient();
 
       // Save the password/passphrase just in-case they aren't restored by sync

@@ -70,10 +70,6 @@ JSScript::getRegExp(size_t index)
 inline bool
 JSScript::isEmpty() const
 {
-    return (this == emptyScript());
-
-    // See bug 603044 comment #21.
-#if 0
     if (this == emptyScript())
         return true;
 
@@ -86,7 +82,6 @@ JSScript::isEmpty() const
             return true;
     }
     return false;
-#endif
 }
 
 #endif /* jsscriptinlines_h___ */

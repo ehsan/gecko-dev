@@ -90,10 +90,6 @@ public:
           return sBridge->AttachThread();
         return nsnull;
     }
-    
-    static jclass GetGeckoAppShellClass() {
-        return sBridge->mGeckoAppShellClass;
-    }
 
     // The bridge needs to be constructed via ConstructBridge first,
     // and then once the Gecko main thread is spun up (Gecko side),
@@ -115,8 +111,6 @@ public:
 
     void ReturnIMEQueryResult(const PRUnichar *aResult, PRUint32 aLen, int aSelStart, int aSelLen);
 
-    void NotifyAppShellReady();
-
     void NotifyXreExit();
 
     void ScheduleRestart();
@@ -134,13 +128,12 @@ public:
                                   nsIHandlerApp **aDefaultApp = nsnull,
                                   const nsAString& aAction = EmptyString());
 
-    PRBool OpenUriExternal(const nsACString& aUriSpec, const nsACString& aMimeType,
-                           const nsAString& aPackageName = EmptyString(),
+    PRBool OpenUriExternal(const nsACString& aUriSpec, const nsACString& aMimeType, 
+                           const nsAString& aPackageName = EmptyString(), 
                            const nsAString& aClassName = EmptyString(),
-                           const nsAString& aAction = EmptyString(),
-                           const nsAString& aTitle = EmptyString());
+                           const nsAString& aAction = EmptyString());
 
-    void GetMimeTypeFromExtensions(const nsACString& aFileExt, nsCString& aMimeType);
+    void GetMimeTypeFromExtension(const nsACString& aFileExt, nsCString& aMimeType);
 
     void MoveTaskToBack();
 
@@ -159,18 +152,7 @@ public:
                                nsIObserver *aAlertListener,
                                const nsAString& aAlertName);
 
-    void AlertsProgressListener_OnProgress(const nsAString& aAlertName,
-                                           PRInt64 aProgress,
-                                           PRInt64 aProgressMax,
-                                           const nsAString& aAlertText);
-
-    void AlertsProgressListener_OnCancel(const nsAString& aAlertName);
-
-    int GetDPI();
-
-    void ShowFilePicker(nsAString& aFilePath, nsAString& aFilters);
-
-    void SetFullScreen(PRBool aFullScreen);
+    void ShowFilePicker(nsAString& aFilePath);
 
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
@@ -221,23 +203,18 @@ protected:
     jmethodID jEnableAccelerometer;
     jmethodID jEnableLocation;
     jmethodID jReturnIMEQueryResult;
-    jmethodID jNotifyAppShellReady;
     jmethodID jNotifyXreExit;
     jmethodID jScheduleRestart;
     jmethodID jGetOutstandingDrawEvents;
     jmethodID jGetHandlersForMimeType;
     jmethodID jGetHandlersForProtocol;
     jmethodID jOpenUriExternal;
-    jmethodID jGetMimeTypeFromExtensions;
+    jmethodID jGetMimeTypeFromExtension;
     jmethodID jMoveTaskToBack;
     jmethodID jGetClipboardText;
     jmethodID jSetClipboardText;
     jmethodID jShowAlertNotification;
     jmethodID jShowFilePicker;
-    jmethodID jAlertsProgressListener_OnProgress;
-    jmethodID jAlertsProgressListener_OnCancel;
-    jmethodID jGetDpi;
-    jmethodID jSetFullScreen;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;
@@ -252,6 +229,5 @@ protected:
 
 extern "C" JNIEnv * GetJNIForThread();
 extern PRBool mozilla_AndroidBridge_SetMainThread(void *);
-extern jclass GetGeckoAppShellClass();
 
 #endif /* AndroidBridge_h__ */

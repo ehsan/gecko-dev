@@ -3647,7 +3647,7 @@ nsHTMLEditor::AddNewStyleSheetToList(const nsAString &aURL,
   PRUint32 countSS = mStyleSheets.Length();
   PRUint32 countU = mStyleSheetURLs.Length();
 
-  if (countSS != countU)
+  if (countU < 0 || countSS != countU)
     return NS_ERROR_UNEXPECTED;
 
   if (!mStyleSheetURLs.AppendElement(aURL))
@@ -3909,7 +3909,7 @@ nsHTMLEditor::IsModifiableNode(nsIDOMNode *aNode)
 {
   nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
 
-  return !content || !content->IntrinsicState().HasState(NS_EVENT_STATE_MOZ_READONLY);
+  return !content || !(content->IntrinsicState() & NS_EVENT_STATE_MOZ_READONLY);
 }
 
 static nsresult SetSelectionAroundHeadChildren(nsCOMPtr<nsISelection> aSelection, nsWeakPtr aDocWeak)
@@ -5763,13 +5763,13 @@ nsHTMLEditor::GetReturnInParagraphCreatesNewParagraph(PRBool *aCreatesNewParagra
   return NS_OK;
 }
 
-already_AddRefed<nsIContent>
-nsHTMLEditor::GetFocusedContent()
+PRBool
+nsHTMLEditor::HasFocus()
 {
-  NS_ENSURE_TRUE(mDocWeak, nsnull);
+  NS_ENSURE_TRUE(mDocWeak, PR_FALSE);
 
   nsFocusManager* fm = nsFocusManager::GetFocusManager();
-  NS_ENSURE_TRUE(fm, nsnull);
+  NS_ENSURE_TRUE(fm, PR_FALSE);
 
   nsCOMPtr<nsIContent> focusedContent = fm->GetFocusedContent();
 
@@ -5777,17 +5777,12 @@ nsHTMLEditor::GetFocusedContent()
   PRBool inDesignMode = doc->HasFlag(NODE_IS_EDITABLE);
   if (!focusedContent) {
     // in designMode, nobody gets focus in most cases.
-    if (inDesignMode && OurWindowHasFocus()) {
-      nsCOMPtr<nsIContent> docRoot = doc->GetRootElement();
-      return docRoot.forget();
-    }
-    return nsnull;
+    return inDesignMode ? OurWindowHasFocus() : PR_FALSE;
   }
 
   if (inDesignMode) {
-    return OurWindowHasFocus() &&
-      nsContentUtils::ContentIsDescendantOf(focusedContent, doc) ?
-      focusedContent.forget() : nsnull;
+    return OurWindowHasFocus() ?
+      nsContentUtils::ContentIsDescendantOf(focusedContent, doc) : PR_FALSE;
   }
 
   // We're HTML editor for contenteditable
@@ -5796,10 +5791,10 @@ nsHTMLEditor::GetFocusedContent()
   // we don't have focus.
   if (!focusedContent->HasFlag(NODE_IS_EDITABLE) ||
       focusedContent->HasIndependentSelection()) {
-    return nsnull;
+    return PR_FALSE;
   }
   // If our window is focused, we're focused.
-  return OurWindowHasFocus() ? focusedContent.forget() : nsnull;
+  return OurWindowHasFocus();
 }
 
 PRBool
@@ -5912,8 +5907,7 @@ nsHTMLEditor::GetBodyElement(nsIDOMHTMLElement** aBody)
 already_AddRefed<nsINode>
 nsHTMLEditor::GetFocusedNode()
 {
-  nsCOMPtr<nsIContent> focusedContent = GetFocusedContent();
-  if (!focusedContent) {
+  if (!HasFocus()) {
     return nsnull;
   }
 

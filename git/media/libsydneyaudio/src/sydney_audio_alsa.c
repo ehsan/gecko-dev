@@ -50,10 +50,6 @@ struct sa_stream {
   /* audio format info */
   unsigned int      rate;
   unsigned int      n_channels;
-
-  /* work around bug 573924 */
-  int               pulseaudio;
-  int               resumed;
 };
 
 /*
@@ -115,8 +111,6 @@ sa_stream_create_pcm(
   s->last_position = 0;
   s->rate         = rate;
   s->n_channels   = n_channels;
-  s->pulseaudio   = 0;
-  s->resumed      = 0;
 
   *_s = s;
   return SA_SUCCESS;
@@ -125,9 +119,6 @@ sa_stream_create_pcm(
 
 int
 sa_stream_open(sa_stream_t *s) {
-  snd_output_t* out;
-  char* buf;
-  size_t bufsz;
 
   if (s == NULL) {
     return SA_ERROR_NO_INIT;
@@ -159,22 +150,13 @@ sa_stream_open(sa_stream_t *s) {
                          s->n_channels,
                          s->rate,
                          1,
-                         500000) < 0) {
+                         250000) < 0) {
     snd_pcm_close(s->output_unit);
     s->output_unit = NULL;
     pthread_mutex_unlock(&sa_alsa_mutex);
     return SA_ERROR_NOT_SUPPORTED;
   }
   
-  /* ugly alsa-pulse plugin detection */
-  snd_output_buffer_open(&out);
-  snd_pcm_dump(s->output_unit, out);
-  bufsz = snd_output_buffer_string(out, &buf);
-  if (strncmp(buf, "ALSA <-> PulseAudio PCM I/O Plugin", bufsz) > 0 ) {
-    s->pulseaudio = 1;
-  }
-  snd_output_close(out);
-
   pthread_mutex_unlock(&sa_alsa_mutex);
 
   return SA_SUCCESS;
@@ -212,7 +194,7 @@ sa_stream_destroy(sa_stream_t *s) {
 
 int
 sa_stream_write(sa_stream_t *s, const void *data, size_t nbytes) {
-  snd_pcm_sframes_t frames, nframes, avail;
+  snd_pcm_sframes_t frames, nframes;
 
   if (s == NULL || s->output_unit == NULL) {
     return SA_ERROR_NO_INIT;
@@ -224,14 +206,7 @@ sa_stream_write(sa_stream_t *s, const void *data, size_t nbytes) {
   nframes = snd_pcm_bytes_to_frames(s->output_unit, nbytes);
 
   while(nframes>0) {
-    if (s->resumed) {
-      avail = snd_pcm_avail_update(s->output_unit);
-      frames = snd_pcm_writei(s->output_unit, data, nframes > avail ? avail : nframes);
-      avail = snd_pcm_avail_update(s->output_unit);
-      s->resumed = avail != 0;
-    } else {
-      frames = snd_pcm_writei(s->output_unit, data, nframes);
-    }
+    frames = snd_pcm_writei(s->output_unit, data, nframes);
     if (frames < 0) {
       int r = snd_pcm_recover(s->output_unit, frames, 1);
       if (r < 0) {
@@ -345,10 +320,6 @@ sa_stream_resume(sa_stream_t *s) {
 
   if (s == NULL || s->output_unit == NULL) {
     return SA_ERROR_NO_INIT;
-  }
-
-  if (s->pulseaudio) {
-    s->resumed = 1;
   }
 
   if (snd_pcm_pause(s->output_unit, 0) != 0)

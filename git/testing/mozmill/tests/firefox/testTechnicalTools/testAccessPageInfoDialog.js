@@ -58,8 +58,7 @@ var testAccessPageInfo = function () {
   controller.waitForPageLoad();
 
   // Open context menu on the html element and select Page Info entry
-  var content = new elementslib.ID(controller.tabs.activeTab, "content");
-  controller.rightClick(content);
+  controller.rightclick(new elementslib.XPath(controller.tabs.activeTab, "/html"));
   controller.click(new elementslib.ID(controller.window.document, "context-viewinfo"));
 
   UtilsAPI.handleWindow("type", "Browser:page-info", checkPageInfoWindow);

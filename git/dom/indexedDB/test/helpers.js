@@ -111,7 +111,7 @@ function removePermission(permission, url)
 
   Components.classes["@mozilla.org/permissionmanager;1"]
             .getService(Components.interfaces.nsIPermissionManager)
-            .remove(uri.host, permission);
+            .remove(uri, permission);
 }
 
 function setQuota(quota)

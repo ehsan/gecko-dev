@@ -66,20 +66,8 @@ class ThebesLayerD3D9;
 struct ShaderConstantRect
 {
   float mX, mY, mWidth, mHeight;
-
-  // Provide all the commonly used argument types to prevent all the local
-  // casts in the code.
   ShaderConstantRect(float aX, float aY, float aWidth, float aHeight)
     : mX(aX), mY(aY), mWidth(aWidth), mHeight(aHeight)
-  { }
-
-  ShaderConstantRect(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight)
-    : mX((float)aX), mY((float)aY)
-    , mWidth((float)aWidth), mHeight((float)aHeight)
-  { }
-
-  ShaderConstantRect(PRInt32 aX, PRInt32 aY, float aWidth, float aHeight)
-    : mX((float)aX), mY((float)aY), mWidth(aWidth), mHeight(aHeight)
   { }
 
   // For easy passing to SetVertexShaderConstantF.
@@ -189,8 +177,6 @@ public:
   virtual const char* Name() const { return "D3D9"; }
 #endif // MOZ_LAYERS_HAVE_LOG
 
-  void ReportFailure(const nsACString &aMsg, HRESULT aCode);
-
 private:
   /* Default device manager instance */
   static DeviceManagerD3D9 *mDefaultDeviceManager;
@@ -253,7 +239,6 @@ public:
 
   virtual void RenderLayer() = 0;
 
-  /**
   /* This function may be used on device resets to clear all VRAM resources
    * that a layer might be using.
    */
@@ -263,26 +248,6 @@ public:
 
   /* Called by the layer manager when it's destroyed */
   virtual void LayerManagerDestroyed() {}
-
-  void ReportFailure(const nsACString &aMsg, HRESULT aCode) {
-    return mD3DManager->ReportFailure(aMsg, aCode);
-  }
-
-  void SetShaderTransformAndOpacity()
-  {
-    Layer* layer = GetLayer();
-    const gfx3DMatrix& transform = layer->GetEffectiveTransform();
-    device()->SetVertexShaderConstantF(CBmLayerTransform, &transform._11, 4);
-
-    float opacity[4];
-    /*
-     * We always upload a 4 component float, but the shader will use only the
-     * first component since it's declared as a 'float'.
-     */
-    opacity[0] = layer->GetEffectiveOpacity();
-    device()->SetPixelShaderConstantF(CBfLayerOpacity, opacity, 1);
-  }
-
 protected:
   LayerManagerD3D9 *mD3DManager;
 };

@@ -452,9 +452,6 @@
       </constructor>
       <destructor>
         <![CDATA[
-          if (!this.radioGroup)
-            return;
-
           var radioList = this.radioGroup.mRadioChildren;
           if (!radioList)
             return;

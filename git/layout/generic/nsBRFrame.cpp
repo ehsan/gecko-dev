@@ -58,8 +58,6 @@
 #include "nsFrameSelection.h"
 //END INCLUDES FOR SELECTION
 
-#define BR_USING_CENTERED_FONT_BASELINE NS_FRAME_STATE_BIT(63)
-
 class BRFrame : public nsFrame {
 public:
   NS_DECL_FRAMEARENA_HELPERS
@@ -84,7 +82,6 @@ public:
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
   virtual nsIAtom* GetType() const;
-  virtual nscoord GetBaseline() const;
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
@@ -126,7 +123,6 @@ BRFrame::Reflow(nsPresContext* aPresContext,
                        // However, it's not always 0.  See below.
   aMetrics.width = 0;
   aMetrics.ascent = 0;
-  RemoveStateBits(BR_USING_CENTERED_FONT_BASELINE);
 
   // Only when the BR is operating in a line-layout situation will it
   // behave like a BR.
@@ -158,7 +154,6 @@ BRFrame::Reflow(nsPresContext* aPresContext,
         aMetrics.height = logicalHeight;
         aMetrics.ascent =
           nsLayoutUtils::GetCenteredFontBaseline(fm, logicalHeight);
-        AddStateBits(BR_USING_CENTERED_FONT_BASELINE);
       }
       else {
         aMetrics.ascent = aMetrics.height = 0;
@@ -186,8 +181,8 @@ BRFrame::Reflow(nsPresContext* aPresContext,
   else {
     aStatus = NS_FRAME_COMPLETE;
   }
-
-  aMetrics.SetOverflowAreasToDesiredBounds();
+  
+  aMetrics.mOverflowArea = nsRect(0, 0, aMetrics.width, aMetrics.height);
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aMetrics);
   return NS_OK;
@@ -227,24 +222,6 @@ nsIAtom*
 BRFrame::GetType() const
 {
   return nsGkAtoms::brFrame;
-}
-
-nscoord
-BRFrame::GetBaseline() const
-{
-  nscoord ascent = 0;
-  nsCOMPtr<nsIFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-  if (fm) {
-    nscoord logicalHeight = GetRect().height;
-    if (GetStateBits() & BR_USING_CENTERED_FONT_BASELINE) {
-      ascent = nsLayoutUtils::GetCenteredFontBaseline(fm, logicalHeight);
-    } else {
-      fm->GetMaxAscent(ascent);
-      ascent += GetUsedBorderAndPadding().top;
-    }
-  }
-  return ascent;
 }
 
 nsIFrame::ContentOffsets BRFrame::CalcContentOffsetsFromFramePoint(nsPoint aPoint)

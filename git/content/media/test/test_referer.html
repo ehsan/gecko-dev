@@ -21,16 +21,19 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=584480
 var media = [];
 
 function checkComplete() {
+  complete = true;
   for (var i=0; i<media.length; ++i) {
-    if (!media[i]._complete) {
-      return;
-    }
+    complete = media[i]._complete;
   }
 
-  SimpleTest.finish();
+  if (complete) {
+    SimpleTest.finish();
+  }
 }
  
 function loadError(evt) {
+  // Prevent mochitest's onerror handler catching the 'error' event on bubble.
+  evt.stopPropagation();
   // If no referer is sent then the sjs returns an error
   ok(false, "check referer is sent with media request");
   evt.target._complete = true;

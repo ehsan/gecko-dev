@@ -230,14 +230,6 @@ function synthesizeMouse(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
   }
 }
 
-// Call synthesizeMouse with coordinates at the center of aTarget.
-function synthesizeMouseAtCenter(aTarget, aEvent, aWindow)
-{
-  var rect = aTarget.getBoundingClientRect();
-  synthesizeMouse(aTarget, rect.width / 2, rect.height / 2, aEvent,
-                  aWindow);
-}
-
 /**
  * Synthesize a mouse scroll event on a target. The actual client point is determined
  * by taking the aTarget's client box and offseting it by aOffsetX and
@@ -257,8 +249,6 @@ function synthesizeMouseAtCenter(aTarget, aEvent, aWindow)
  *
  * 'hasPixels' specifies whether kHasPixels should be set in the scrollFlags.
  *
- * 'isMomentum' specifies whether kIsMomentum should be set in the scrollFlags.
- *
  * aWindow is optional, and defaults to the current window object.
  */
 function synthesizeMouseScroll(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
@@ -275,7 +265,6 @@ function synthesizeMouseScroll(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
     const kIsVertical = 0x02;
     const kIsHorizontal = 0x04;
     const kHasPixels = 0x08;
-    const kIsMomentum = 0x40;
 
     var button = aEvent.button || 0;
     var modifiers = _parseModifiers(aEvent);
@@ -290,9 +279,6 @@ function synthesizeMouseScroll(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
     var scrollFlags = (axis == "horizontal") ? kIsHorizontal : kIsVertical;
     if (aEvent.hasPixels) {
       scrollFlags |= kHasPixels;
-    }
-    if (aEvent.isMomentum) {
-      scrollFlags |= kIsMomentum;
     }
     utils.sendMouseScrollEvent(type, left + aOffsetX, top + aOffsetY, button,
                                scrollFlags, aEvent.delta, modifiers);

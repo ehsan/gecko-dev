@@ -67,8 +67,6 @@ components/nsUrlClassifierTable.js
 components/nsXmlRpcClient.js
 components/pluginGlue.js
 components/sidebar.xpt
-components/WeaveCrypto.js
-components/WeaveCrypto.manifest
 components/xmlextras.xpt
 components/xpcom.xpt
 components/xpti.dat
@@ -623,6 +621,7 @@ xpicleanup@BIN_SUFFIX@
   components/storage-Legacy.js
   components/storage-mozStorage.js
   components/txEXSLTRegExFunctions.js
+  components/WeaveCrypto.js
   components/Weave.js
   components/WebContentConverter.js
   defaults/autoconfig/platform.js

@@ -1,6 +1,5 @@
 pref("startup.homepage_override_url","http://www.mozilla.com/%LOCALE%/%APP%/%VERSION%/whatsnew/");
 pref("startup.homepage_welcome_url","http://www.mozilla.com/%LOCALE%/%APP%/%VERSION%/firstrun/");
-pref("browser.panorama.welcome_url", "http://www.mozilla.com/firefox/panorama/");
 // Interval: Time between checks for a new version (in seconds)
 // nightly=6 hours, official=24 hours
 pref("app.update.interval", 86400);
@@ -17,7 +16,6 @@ pref("app.update.url.details", "http://www.mozilla.com/%LOCALE%/%APP%/releases/"
 // Release notes URL
 pref("app.releaseNotesURL", "http://www.mozilla.com/%LOCALE%/%APP%/%VERSION%/releasenotes/");
 
-pref("browser.search.param.ms-pc", "MOZI");
 pref("browser.search.param.yahoo-fr", "moz35");
 pref("browser.search.param.yahoo-fr-cjkt", "moz35"); // now unused
 pref("browser.search.param.yahoo-fr-ja", "mozff");

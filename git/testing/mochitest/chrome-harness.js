@@ -91,38 +91,35 @@ function getChromeDir(resolvedURI) {
 /*
  * given a .jar file, we get all test files located inside the archive
  *
- * aBasePath: base URL to determine chrome location and search for tests
- * aTestPath: passed in testPath value from command line such as: dom/tests/mochitest
- * aDir: the test dir to append to the baseURL after getting a directory interface
+ * basePath: base URL to determine chrome location and search for tests
+ * testPath: passed in testPath value from command line such as: dom/tests/mochitest
+ * dir: the test dir to append to the baseURL after getting a directory interface
  *
  * As a note, this is hardcoded to the .jar structure we use for mochitest.  
  * Please don't assume this works for all jar files.
  */
-function getMochitestJarListing(aBasePath, aTestPath, aDir)
+function getMochitestJarListing(basePath, testPath, dir)
 {
   var zReader = Components.classes["@mozilla.org/libjar/zip-reader;1"].
                   createInstance(Components.interfaces.nsIZipReader);
   var fileHandler = Components.classes["@mozilla.org/network/protocol;1?name=file"].
                     getService(Components.interfaces.nsIFileProtocolHandler);
 
-  var fileName = fileHandler.getFileFromURLSpec(getResolvedURI(aBasePath).JARFile.spec);
+  var fileName = fileHandler.getFileFromURLSpec(getResolvedURI(basePath).JARFile.spec);
   zReader.open(fileName);
   //hardcoded 'content' as that is the root dir in the mochikit.jar file
-  var idx = aBasePath.indexOf('/content');
-  var basePath = aBasePath.slice(0, idx);
-
-  var base = "content/" + aDir + "/";
+  var base = "content/" + dir + "/";
 
   var singleTestPath;
-  if (aTestPath) {
-    var extraPath = aTestPath;
-    var pathToCheck = base + aTestPath;
+  if (testPath) {
+    var extraPath = testPath;
+    var pathToCheck = base + testPath;
     if (zReader.hasEntry(pathToCheck)) {
       var pathEntry = zReader.getEntry(pathToCheck);
       if (pathEntry.isDirectory) {
         base = pathToCheck;
       } else {
-        singleTestPath = basePath + '/' + base + aTestPath;
+        singleTestPath = '/' + base + testPath;
         var singleObject = {};
         singleObject[singleTestPath] = true;
         return [singleObject, singleTestPath];
@@ -132,7 +129,7 @@ function getMochitestJarListing(aBasePath, aTestPath, aDir)
       base = pathToCheck + "/";
     }
   }
-  var [links, count] = zList(base, zReader, basePath, true);
+  var [links, count] = zList(base, zReader, true);
   return [links, null];
 }
 
@@ -146,7 +143,7 @@ function getMochitestJarListing(aBasePath, aTestPath, aDir)
  * returns:
  *  [json object of {dir:{subdir:{file:true, file:true, ...}}}, count of tests]
  */
-function zList(base, zReader, baseJarName, recurse) {
+function zList(base, zReader, recurse) {
   var dirs = zReader.findEntries(base + "*");
   var links = {};
   var count = 0;
@@ -165,12 +162,12 @@ function zList(base, zReader, baseJarName, recurse) {
     var myFile = fileArray[i];
     if (myFile.substr(-1) === '/' && recurse) {
       var childCount = 0;
-      [links[myFile], childCount] = zList(myFile, zReader, baseJarName, recurse);
+      [links[myFile], childCount] = zList(myFile, zReader, recurse);
       count += childCount;
     } else {
       if (myFile.indexOf("SimpleTest") == -1) {
         //we add the '/' so we don't try to run content/content/chrome
-        links[baseJarName + '/' + myFile] = true;
+        links['/' + myFile] = true;
       }
     }
   }
@@ -237,14 +234,8 @@ function getRootDirectory(path, chromeURI) {
     chromeURI = getChromeURI(path);
   }
   var myURL = chromeURI.QueryInterface(Components.interfaces.nsIURL);
-  var mydir = myURL.directory;
 
-  if (mydir.match('/$') != '/')
-  {
-    mydir += '/';
-  }
-
-  return chromeURI.prePath + mydir;
+  return chromeURI.prePath + myURL.directory;
 }
 
 //used by tests to determine their directory based off window.location.path

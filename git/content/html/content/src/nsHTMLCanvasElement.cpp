@@ -41,7 +41,6 @@
 #include "nsNetUtil.h"
 #include "prmem.h"
 #include "nsDOMFile.h"
-#include "CheckedInt.h"
 
 #include "nsIScriptSecurityManager.h"
 #include "nsIXPConnect.h"
@@ -56,12 +55,11 @@
 #define DEFAULT_CANVAS_HEIGHT 150
 
 using namespace mozilla;
-using namespace mozilla::dom;
 using namespace mozilla::layers;
 
 nsGenericHTMLElement*
 NS_NewHTMLCanvasElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                        FromParser aFromParser)
+                        PRUint32 aFromParser)
 {
   return new nsHTMLCanvasElement(aNodeInfo);
 }
@@ -261,29 +259,23 @@ nsHTMLCanvasElement::ExtractData(const nsAString& aType,
   // for us to read right away, so optimize this case.
   PRUint32 bufSize;
   rv = imgStream->Available(&bufSize);
-  CheckedInt32 safeBufSize(bufSize);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // ...leave a little extra room so we can call read again and make sure we
   // got everything. 16 bytes for better padding (maybe)
-  safeBufSize += 16;
-  NS_ENSURE_TRUE(safeBufSize.valid(), NS_ERROR_FAILURE);
+  bufSize += 16;
   aSize = 0;
-  aResult = (char*)PR_Malloc(safeBufSize.value());
+  aResult = (char*)PR_Malloc(bufSize);
   if (!aResult)
     return NS_ERROR_OUT_OF_MEMORY;
   PRUint32 numReadThisTime = 0;
-  while ((rv = imgStream->Read(&aResult[aSize], safeBufSize.value() - aSize,
+  while ((rv = imgStream->Read(&aResult[aSize], bufSize - aSize,
                          &numReadThisTime)) == NS_OK && numReadThisTime > 0) {
     aSize += numReadThisTime;
-    if (aSize == safeBufSize.value()) {
+    if (aSize == bufSize) {
       // need a bigger buffer, just double
-      safeBufSize *= 2;
-      if (!safeBufSize.valid()) {
-        PR_Free(aResult);
-        return NS_ERROR_FAILURE;
-      }
-      char* newImgData = (char*)PR_Realloc(aResult, safeBufSize.value());
+      bufSize *= 2;
+      char* newImgData = (char*)PR_Realloc(aResult, aSize);
       if (! newImgData) {
         PR_Free(aResult);
         return NS_ERROR_OUT_OF_MEMORY;
@@ -373,7 +365,8 @@ nsHTMLCanvasElement::GetContextHelper(const nsAString& aContextId,
 {
   NS_ENSURE_ARG(aContext);
 
-  NS_LossyConvertUTF16toASCII ctxId(aContextId);
+  nsCString ctxId;
+  ctxId.Assign(NS_LossyConvertUTF16toASCII(aContextId));
 
   // check that ctxId is clamped to A-Za-z0-9_-
   for (PRUint32 i = 0; i < ctxId.Length(); i++) {

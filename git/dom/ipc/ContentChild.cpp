@@ -41,10 +41,6 @@
 #include <gtk/gtk.h>
 #endif
 
-#ifdef MOZ_WIDGET_QT
-#include "nsQAppInstance.h"
-#endif
-
 #include "ContentChild.h"
 #include "TabChild.h"
 
@@ -61,8 +57,6 @@
 #include "nsServiceManagerUtils.h"
 #include "nsXULAppAPI.h"
 #include "nsWeakReference.h"
-#include "nsIScriptError.h"
-#include "nsIConsoleService.h"
 
 #include "History.h"
 #include "nsDocShellCID.h"
@@ -77,25 +71,9 @@
 
 #include "nsIGeolocationProvider.h"
 
-#ifdef MOZ_PERMISSIONS
-#include "nsPermission.h"
-#include "nsPermissionManager.h"
-#endif
-
-#if defined(ANDROID) || defined(LINUX)
-#include <sys/time.h>
-#include <sys/resource.h>
-// TODO: For other platforms that support setpriority, figure out
-//       appropriate values of niceness
-static const int kRelativeNiceness = 10;
-#endif
-
-#include "nsAccelerometer.h"
-
 using namespace mozilla::ipc;
 using namespace mozilla::net;
 using namespace mozilla::places;
-using namespace mozilla::docshell;
 
 namespace mozilla {
 namespace dom {
@@ -134,59 +112,6 @@ private:
     nsString mData;
 };
 
-class ConsoleListener : public nsIConsoleListener
-{
-public:
-    ConsoleListener(ContentChild* aChild)
-    : mChild(aChild) {}
-
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSICONSOLELISTENER
-
-private:
-    ContentChild* mChild;
-    friend class ContentChild;
-};
-
-NS_IMPL_ISUPPORTS1(ConsoleListener, nsIConsoleListener)
-
-NS_IMETHODIMP
-ConsoleListener::Observe(nsIConsoleMessage* aMessage)
-{
-    if (!mChild)
-        return NS_OK;
-    
-    nsCOMPtr<nsIScriptError> scriptError = do_QueryInterface(aMessage);
-    if (scriptError) {
-        nsString msg, sourceName, sourceLine;
-        nsXPIDLCString category;
-        PRUint32 lineNum, colNum, flags;
-
-        nsresult rv = scriptError->GetErrorMessage(msg);
-        NS_ENSURE_SUCCESS(rv, rv);
-        rv = scriptError->GetSourceName(sourceName);
-        NS_ENSURE_SUCCESS(rv, rv);
-        rv = scriptError->GetSourceLine(sourceLine);
-        NS_ENSURE_SUCCESS(rv, rv);
-        rv = scriptError->GetCategory(getter_Copies(category));
-        NS_ENSURE_SUCCESS(rv, rv);
-        rv = scriptError->GetLineNumber(&lineNum);
-        NS_ENSURE_SUCCESS(rv, rv);
-        rv = scriptError->GetColumnNumber(&colNum);
-        NS_ENSURE_SUCCESS(rv, rv);
-        rv = scriptError->GetFlags(&flags);
-        NS_ENSURE_SUCCESS(rv, rv);
-        mChild->SendScriptError(msg, sourceName, sourceLine,
-                               lineNum, colNum, flags, category);
-        return NS_OK;
-    }
-
-    nsXPIDLString msg;
-    nsresult rv = aMessage->GetMessageMoz(getter_Copies(msg));
-    NS_ENSURE_SUCCESS(rv, rv);
-    mChild->SendConsoleMessage(msg);
-    return NS_OK;
-}
 
 ContentChild* ContentChild::sSingleton;
 
@@ -208,48 +133,17 @@ ContentChild::Init(MessageLoop* aIOLoop,
     gtk_init(NULL, NULL);
 #endif
 
-#ifdef MOZ_WIDGET_QT
-    // sigh, seriously
-    nsQAppInstance::AddRef();
-#endif
-
 #ifdef MOZ_X11
     // Do this after initializing GDK, or GDK will install its own handler.
     XRE_InstallX11ErrorHandler();
 #endif
 
     NS_ASSERTION(!sSingleton, "only one ContentChild per child");
-
-#if defined(ANDROID) || defined(LINUX)
-    // XXX We change the behavior of Linux child processes here. That
-    // means that, not just in Fennec, but also in Firefox, once it has
-    // child processes, those will be niced. IOW, Firefox with child processes
-    // will have different performance profiles on Linux than other
-    // platforms. This may alter Talos results and so forth.
-    char* relativeNicenessStr = getenv("MOZ_CHILD_PROCESS_RELATIVE_NICENESS");
-    setpriority(PRIO_PROCESS, 0, getpriority(PRIO_PROCESS, 0) +
-            (relativeNicenessStr ? atoi(relativeNicenessStr) :
-             kRelativeNiceness));
-#endif
-
+  
     Open(aChannel, aParentHandle, aIOLoop);
     sSingleton = this;
 
     return true;
-}
-
-void
-ContentChild::InitXPCOM()
-{
-    nsCOMPtr<nsIConsoleService> svc(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
-    if (!svc) {
-        NS_WARNING("Couldn't acquire console service");
-        return;
-    }
-
-    mConsoleListener = new ConsoleListener(this);
-    if (NS_FAILED(svc->RegisterListener(mConsoleListener)))
-        NS_WARNING("Couldn't register console listener for child process");
 }
 
 PBrowserChild*
@@ -321,9 +215,9 @@ ContentChild::DeallocPExternalHelperApp(PExternalHelperAppChild* aService)
 }
 
 bool
-ContentChild::RecvRegisterChrome(const InfallibleTArray<ChromePackage>& packages,
-                                 const InfallibleTArray<ResourceMapping>& resources,
-                                 const InfallibleTArray<OverrideMapping>& overrides)
+ContentChild::RecvRegisterChrome(const nsTArray<ChromePackage>& packages,
+                                 const nsTArray<ResourceMapping>& resources,
+                                 const nsTArray<OverrideMapping>& overrides)
 {
     nsCOMPtr<nsIChromeRegistry> registrySvc = nsChromeRegistry::GetService();
     nsChromeRegistryContent* chromeRegistry =
@@ -359,13 +253,6 @@ ContentChild::ActorDestroy(ActorDestroyReason why)
 #endif
 
     mAlertObservers.Clear();
-    
-    nsCOMPtr<nsIConsoleService> svc(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
-    if (svc) {
-        svc->UnregisterListener(mConsoleListener);
-        mConsoleListener->mChild = nsnull;
-    }
-
     XRE_ShutdownChildProcess();
 }
 
@@ -406,14 +293,10 @@ ContentChild::AddRemoteAlertObserver(const nsString& aData,
 }
 
 bool
-ContentChild::RecvPreferenceUpdate(const PrefTuple& aPref)
+ContentChild::RecvPreferenceUpdate(const nsCString& aPref)
 {
     nsCOMPtr<nsIPrefServiceInternal> prefs = do_GetService("@mozilla.org/preferences-service;1");
-    if (!prefs)
-        return false;
-
-    prefs->SetPreference(&aPref);
-
+    prefs->ReadPrefBuffer(aPref);
     return true;
 }
 
@@ -466,38 +349,6 @@ ContentChild::RecvGeolocationUpdate(const GeoPosition& somewhere)
   nsCOMPtr<nsIDOMGeoPosition> position = somewhere;
   gs->Update(position);
   return true;
-}
-
-bool
-ContentChild::RecvAddPermission(const IPC::Permission& permission)
-{
-#if MOZ_PERMISSIONS
-  nsRefPtr<nsPermissionManager> permissionManager =
-    nsPermissionManager::GetSingleton();
-  NS_ABORT_IF_FALSE(permissionManager, 
-                   "We have no permissionManager in the Content process !");
-
-  permissionManager->AddInternal(nsCString(permission.host),
-                                 nsCString(permission.type),
-                                 permission.capability,
-                                 0,
-                                 permission.expireType,
-                                 permission.expireTime,
-                                 nsPermissionManager::eNotify,
-                                 nsPermissionManager::eNoDBOperation);
-#endif
-
-  return true;
-}
-bool
-ContentChild::RecvAccelerationChanged(const double& x, const double& y,
-                                      const double& z)
-{
-    nsCOMPtr<nsIAccelerometerUpdate> acu = 
-        do_GetService(NS_ACCELEROMETER_CONTRACTID);
-    if (acu)
-        acu->AccelerationChanged(x, y, z);
-    return true;
 }
 
 } // namespace dom

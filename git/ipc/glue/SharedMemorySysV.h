@@ -74,13 +74,15 @@ public:
 
   SharedMemorySysV() :
     mHandle(-1),
-    mData(nsnull)
+    mData(nsnull),
+    mSize(0)
   {
   }
 
   SharedMemorySysV(Handle aHandle) :
     mHandle(aHandle),
-    mData(nsnull)
+    mData(nsnull),
+    mSize(0)
   {
   }
 
@@ -89,6 +91,8 @@ public:
     shmdt(mData);
     mHandle = -1;
     mData = nsnull;
+    mSize = 0;
+    
   }
 
   NS_OVERRIDE
@@ -99,10 +103,11 @@ public:
       return false;
 
     mHandle = id;
-    mAllocSize = aNbytes;
-    Created(aNbytes);
 
-    return Map(aNbytes);
+    if (!Map(aNbytes))
+      return false;
+
+    return true;
   }
 
   NS_OVERRIDE
@@ -131,6 +136,7 @@ public:
     shmctl(mHandle, IPC_RMID, 0);
 
     mData = mem;
+    mSize = nBytes;
 
 #ifdef NS_DEBUG
     struct shmid_ds info;
@@ -141,8 +147,13 @@ public:
                       "Segment doesn't have enough space!");
 #endif
 
-    Mapped(nBytes);
     return true;
+  }
+
+  NS_OVERRIDE
+  virtual size_t Size() const
+  {
+    return mSize;
   }
 
   NS_OVERRIDE
@@ -176,6 +187,7 @@ public:
 private:
   Handle mHandle;
   void* mData;
+  size_t mSize;
 };
 
 } // namespace ipc

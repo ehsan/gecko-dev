@@ -1151,9 +1151,6 @@ struct cached_bitmap {
 	_cairo_d2d_release_factory();
     }
 
-    /* Device this cached bitmap was created with, we should really have a per
-     * device cache, see bug 607408 */
-    cairo_d2d_device_t *device;
     /** The cached bitmap */
     RefPtr<ID2D1Bitmap> bitmap;
     /** The cached bitmap is dirty and needs its data refreshed */
@@ -1720,13 +1717,6 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 		 */
 		return NULL;
 	    }
-            if (srcSurf->device != d2dsurf->device) {
-		/* This code does not work if the source surface does not use
-		 * the same device. Some work could be done to do something
-		 * fairly efficient here, for now, fallback.
-		 */
-		return NULL;
-	    }
 
 	    _cairo_d2d_update_surface_bitmap(srcSurf);
 	    _cairo_d2d_flush(srcSurf);
@@ -1867,9 +1857,6 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 		    (cached_bitmap*)cairo_surface_get_user_data(
 		    surfacePattern->surface,
 		    key);
-		if (cachebitmap && cachebitmap->device != d2dsurf->device) {
-		    cachebitmap = NULL;
-		}
 	    }
 
 	    if (cachebitmap) {
@@ -1939,7 +1926,6 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 		    /* We can cache it if it isn't a partial bitmap */
 		    cachebitmap->dirty = false;
 		    cachebitmap->bitmap = sourceBitmap;
-		    cachebitmap->device = d2dsurf->device;
                     /*
                      * This will start out with two references, one on the snapshot
                      * and one more in the user data structure.
@@ -3300,7 +3286,7 @@ _cairo_d2d_stroke(void			*surface,
 
     if (target_rt.get() != d2dsurf->rt.get()) {
 	D2D1_RECT_F bounds;
-	trans_geom->GetWidenedBounds((FLOAT)style->line_width, strokeStyle, mat, &bounds);
+	trans_geom->GetWidenedBounds((FLOAT)style->line_width, strokeStyle, D2D1::IdentityMatrix(), &bounds);
 	cairo_rectangle_int_t bound_rect;
 	_cairo_d2d_round_out_to_int_rect(&bound_rect, bounds.left, bounds.top, bounds.right, bounds.bottom);
 	return _cairo_d2d_blend_temp_surface(d2dsurf, op, target_rt, clip, &bound_rect);
@@ -3803,89 +3789,6 @@ FAIL_CREATEHANDLE:
     newSurf->~cairo_d2d_surface_t();
     free(newSurf);
     return _cairo_surface_create_in_error(_cairo_error(status));
-}
-
-cairo_surface_t *
-cairo_d2d_surface_create_for_texture(cairo_device_t *device,
-				     ID3D10Texture2D *texture,
-				     cairo_content_t content)
-{
-    cairo_d2d_device_t *d2d_device = reinterpret_cast<cairo_d2d_device_t*>(device);
-    cairo_d2d_surface_t *newSurf = static_cast<cairo_d2d_surface_t*>(malloc(sizeof(cairo_d2d_surface_t)));
-    new (newSurf) cairo_d2d_surface_t();
-
-    D2D1_ALPHA_MODE alpha = D2D1_ALPHA_MODE_PREMULTIPLIED;
-    if (content == CAIRO_CONTENT_COLOR) {
-	_cairo_surface_init(&newSurf->base, &cairo_d2d_surface_backend, CAIRO_CONTENT_COLOR);
-	alpha = D2D1_ALPHA_MODE_IGNORE;
-    } else {
-	_cairo_surface_init(&newSurf->base, &cairo_d2d_surface_backend, content);
-    }
-
-    D2D1_SIZE_U sizePixels;
-    HRESULT hr;
-
-    D3D10_TEXTURE2D_DESC desc;
-    RefPtr<IDXGISurface> dxgiSurface;
-    D2D1_BITMAP_PROPERTIES bitProps;
-    D2D1_RENDER_TARGET_PROPERTIES props;
-
-    texture->GetDesc(&desc);
-
-    sizePixels.width = desc.Width;
-    sizePixels.height = desc.Height;
-
-    newSurf->surface = texture;
-
-    /** Create the DXGI surface. */
-    hr = newSurf->surface->QueryInterface(IID_IDXGISurface, (void**)&dxgiSurface);
-    if (FAILED(hr)) {
-	goto FAIL_CREATE;
-    }
-
-    props = D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT,
-					 D2D1::PixelFormat(DXGI_FORMAT_UNKNOWN, alpha));
-
-    if (desc.MiscFlags & D3D10_RESOURCE_MISC_GDI_COMPATIBLE)
-	props.usage = D2D1_RENDER_TARGET_USAGE_GDI_COMPATIBLE;
-
-    hr = sD2DFactory->CreateDxgiSurfaceRenderTarget(dxgiSurface,
-						    props,
-						    &newSurf->rt);
-
-    if (FAILED(hr)) {
-	goto FAIL_CREATE;
-    }
-
-    bitProps = D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_UNKNOWN, 
-				      alpha));
-
-    if (content != CAIRO_CONTENT_ALPHA) {
-	/* For some reason creation of shared bitmaps for A8 UNORM surfaces
-	 * doesn't work even though the documentation suggests it does. The
-	 * function will return an error if we try */
-	hr = newSurf->rt->CreateSharedBitmap(IID_IDXGISurface,
-					     dxgiSurface,
-					     &bitProps,
-					     &newSurf->surfaceBitmap);
-
-	if (FAILED(hr)) {
-	    goto FAIL_CREATE;
-	}
-    }
-
-    newSurf->rt->CreateSolidColorBrush(D2D1::ColorF(0, 1.0), &newSurf->solidColorBrush);
-
-    newSurf->device = d2d_device;
-    cairo_addref_device(device);
-    d2d_device->mVRAMUsage += _cairo_d2d_compute_surface_mem_size(newSurf);
-
-    return reinterpret_cast<cairo_surface_t*>(newSurf);
-
-FAIL_CREATE:
-    newSurf->~cairo_d2d_surface_t();
-    free(newSurf);
-    return _cairo_surface_create_in_error(_cairo_error(CAIRO_STATUS_NO_MEMORY));
 }
 
 void cairo_d2d_scroll(cairo_surface_t *surface, int x, int y, cairo_rectangle_t *clip)

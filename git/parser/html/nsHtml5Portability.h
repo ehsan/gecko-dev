@@ -81,6 +81,9 @@ class nsHtml5Portability
     static void releaseStatics();
 };
 
+#ifdef nsHtml5Portability_cpp__
+#endif
+
 
 
 #endif

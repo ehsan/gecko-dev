@@ -53,7 +53,6 @@ ContentProcess::Init()
                          ParentHandle(),
                          IOThreadChild::channel());
     mXREEmbed.Start();
-    mContent.InitXPCOM();
     
     return true;
 }

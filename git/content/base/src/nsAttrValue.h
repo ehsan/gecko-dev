@@ -58,9 +58,8 @@ class nsIAtom;
 class nsICSSStyleRule;
 class nsISVGValue;
 class nsIDocument;
-template<class E, class A> class nsTArray;
-template<class E, class A> class nsTPtrArray;
-struct nsTArrayDefaultAllocator;
+template<class E> class nsTArray;
+template<class E> class nsTPtrArray;
 
 #define NS_ATTRVALUE_MAX_STRINGLENGTH_ATOM 12
 
@@ -382,7 +381,7 @@ private:
                           PRBool aCanBePercent = PR_FALSE,
                           PRBool* aIsPercent = nsnull) const;
 
-  static nsTPtrArray<const EnumTable, nsTArrayDefaultAllocator>* sEnumTableArray;
+  static nsTPtrArray<const EnumTable>* sEnumTableArray;
 
   PtrBits mBits;
 };

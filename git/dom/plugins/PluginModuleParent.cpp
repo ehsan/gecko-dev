@@ -127,12 +127,6 @@ PluginModuleParent::~PluginModuleParent()
 {
     NS_ASSERTION(OkToCleanup(), "unsafe destruction");
 
-#ifdef OS_MACOSX
-    if (mCATimer) {
-        mCATimer->Cancel();
-    }
-#endif
-
     if (!mShutdown) {
         NS_WARNING("Plugin host deleted the module without shutting down.");
         NPError err;
@@ -361,8 +355,8 @@ PluginModuleParent::DeallocPPluginIdentifier(PPluginIdentifierParent* aActor)
 PPluginInstanceParent*
 PluginModuleParent::AllocPPluginInstance(const nsCString& aMimeType,
                                          const uint16_t& aMode,
-                                         const InfallibleTArray<nsCString>& aNames,
-                                         const InfallibleTArray<nsCString>& aValues,
+                                         const nsTArray<nsCString>& aNames,
+                                         const nsTArray<nsCString>& aValues,
                                          NPError* rv)
 {
     NS_ERROR("Not reachable!");
@@ -543,19 +537,6 @@ PluginModuleParent::NPP_SetValue(NPP instance, NPNVariable variable,
         return NPERR_GENERIC_ERROR;
 
     return i->NPP_SetValue(variable, value);
-}
-
-bool
-PluginModuleParent::RecvBackUpXResources(const FileDescriptor& aXSocketFd)
-{
-#ifndef MOZ_X11
-    NS_RUNTIMEABORT("This message only makes sense on X11 platforms");
-#else
-    NS_ABORT_IF_FALSE(0 > mPluginXSocketFdDup.mFd,
-                      "Already backed up X resources??");
-    mPluginXSocketFdDup.mFd = aXSocketFd.fd;
-#endif
-    return true;
 }
 
 bool
@@ -784,8 +765,8 @@ PluginModuleParent::NPP_New(NPMIMEType pluginType, NPP instance,
     }
 
     // create the instance on the other side
-    InfallibleTArray<nsCString> names;
-    InfallibleTArray<nsCString> values;
+    nsTArray<nsCString> names;
+    nsTArray<nsCString> values;
 
     for (int i = 0; i < argc; ++i) {
         names.AppendElement(NullableString(argn[i]));
@@ -930,17 +911,6 @@ PluginModuleParent::RecvPluginHideWindow(const uint32_t& aWindowId)
 
 #ifdef OS_MACOSX
 #define DEFAULT_REFRESH_MS 20 // CoreAnimation: 50 FPS
-
-void
-CAUpdate(nsITimer *aTimer, void *aClosure) {
-    nsTObserverArray<PluginInstanceParent*> *ips =
-        static_cast<nsTObserverArray<PluginInstanceParent*> *>(aClosure);
-    nsTObserverArray<PluginInstanceParent*>::ForwardIterator iter(*ips);
-    while (iter.HasMore()) {
-        iter.GetNext()->Invalidate();
-    }
-}
-
 void
 PluginModuleParent::AddToRefreshTimer(PluginInstanceParent *aInstance) {
     if (mCATimerTargets.Contains(aInstance)) {
@@ -949,17 +919,8 @@ PluginModuleParent::AddToRefreshTimer(PluginInstanceParent *aInstance) {
 
     mCATimerTargets.AppendElement(aInstance);
     if (mCATimerTargets.Length() == 1) {
-        if (!mCATimer) {
-            nsresult rv;
-            nsCOMPtr<nsITimer> xpcomTimer = do_CreateInstance(NS_TIMER_CONTRACTID, &rv);
-            if (NS_FAILED(rv)) {
-                NS_WARNING("Could not create Core Animation timer for plugin.");
-                return;
-            }
-            mCATimer = xpcomTimer;
-        }
-        mCATimer->InitWithFuncCallback(CAUpdate, &mCATimerTargets, DEFAULT_REFRESH_MS,
-                                       nsITimer::TYPE_REPEATING_SLACK);
+        mCATimer.Start(base::TimeDelta::FromMilliseconds(DEFAULT_REFRESH_MS),
+                       this, &PluginModuleParent::CAUpdate);
     }
 }
 
@@ -967,7 +928,15 @@ void
 PluginModuleParent::RemoveFromRefreshTimer(PluginInstanceParent *aInstance) {
     PRBool visibleRemoved = mCATimerTargets.RemoveElement(aInstance);
     if (visibleRemoved && mCATimerTargets.IsEmpty()) {
-        mCATimer->Cancel();
+        mCATimer.Stop();
+    }
+}
+
+void
+PluginModuleParent::CAUpdate() {
+    nsTObserverArray<PluginInstanceParent*>::ForwardIterator iter(mCATimerTargets);
+    while (iter.HasMore()) {
+        iter.GetNext()->Invalidate();
     }
 }
 #endif

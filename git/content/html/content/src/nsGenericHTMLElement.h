@@ -509,6 +509,19 @@ public:
   NS_HIDDEN_(nsresult) GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsAString& aResult);
 
   /**
+   * Helper method for NS_IMPL_ENUM_ATTR_DEFAULT_VALUE.
+   * Gets the enum value string of an attribute and using a default value if
+   * the attribute is missing or the string is an invalid enum value.
+   *
+   * @param aType     the name of the attribute.
+   * @param aDefault  the default value if the attribute is missing or invalid.
+   * @param aResult   string corresponding to the value [out].
+   */
+  NS_HIDDEN_(nsresult) GetEnumAttr(nsIAtom* aAttr,
+                                   const char* aDefault,
+                                   nsAString& aResult);
+
+  /**
    * Returns the current disabled state of the element.
    */
   virtual bool IsDisabled() const {
@@ -654,29 +667,6 @@ protected:
   NS_HIDDEN_(nsresult) SetIntAttr(nsIAtom* aAttr, PRInt32 aValue);
 
   /**
-   * Helper method for NS_IMPL_UINT_ATTR macro.
-   * Gets the unsigned integer-value of an attribute, returns specified default
-   * value if the attribute isn't set or isn't set to an integer. Only works for
-   * attributes in null namespace.
-   *
-   * @param aAttr    name of attribute.
-   * @param aDefault default-value to return if attribute isn't set.
-   * @param aResult  result value [out]
-   */
-  NS_HIDDEN_(nsresult) GetUnsignedIntAttr(nsIAtom* aAttr, PRUint32 aDefault,
-                                          PRUint32* aValue);
-
-  /**
-   * Helper method for NS_IMPL_UINT_ATTR macro.
-   * Sets value of attribute to specified unsigned integer. Only works for
-   * attributes in null namespace.
-   *
-   * @param aAttr    name of attribute.
-   * @param aValue   Integer value of attribute.
-   */
-  NS_HIDDEN_(nsresult) SetUnsignedIntAttr(nsIAtom* aAttr, PRUint32 aValue);
-
-  /**
    * Helper method for NS_IMPL_FLOAT_ATTR macro.
    * Gets the float-value of an attribute, returns specified default value
    * if the attribute isn't set or isn't set to a float. Only works for
@@ -723,19 +713,6 @@ protected:
    * @param aResult  result value [out]
    */
   NS_HIDDEN_(nsresult) GetURIListAttr(nsIAtom* aAttr, nsAString& aResult);
-
-  /**
-   * Helper method for NS_IMPL_ENUM_ATTR_DEFAULT_VALUE.
-   * Gets the enum value string of an attribute and using a default value if
-   * the attribute is missing or the string is an invalid enum value.
-   *
-   * @param aType     the name of the attribute.
-   * @param aDefault  the default value if the attribute is missing or invalid.
-   * @param aResult   string corresponding to the value [out].
-   */
-  NS_HIDDEN_(nsresult) GetEnumAttr(nsIAtom* aAttr,
-                                   const char* aDefault,
-                                   nsAString& aResult);
 
   /**
    * Locates the nsIEditor associated with this node.  In general this is
@@ -797,6 +774,7 @@ protected:
   // Used by A, AREA, LINK, and STYLE.
   already_AddRefed<nsIURI> GetHrefURIForAnchors() const;
 
+private:
   /**
    * Returns whether this element is an editable root. There are two types of
    * editable roots:
@@ -809,7 +787,6 @@ protected:
    */
   PRBool IsEditableRoot() const;
 
-private:
   void ChangeEditableState(PRInt32 aChange);
 };
 
@@ -869,7 +846,7 @@ public:
   virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
                               PRBool aNullParent = PR_TRUE);
   virtual PRUint32 GetDesiredIMEState();
-  virtual nsEventStates IntrinsicState() const;
+  virtual PRInt32 IntrinsicState() const;
 
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
@@ -887,27 +864,14 @@ public:
    * @note Classes redefining this method should not call ContentStatesChanged
    * but they should pass aStates instead.
    */
-  virtual void FieldSetDisabledChanged(nsEventStates aStates, PRBool aNotify);
+  virtual void FieldSetDisabledChanged(PRInt32 aStates);
 
-  void FieldSetFirstLegendChanged(PRBool aNotify) {
+  void FieldSetFirstLegendChanged() {
     UpdateFieldSet();
 
     // The disabled state may have change because the element might not be in
     // the first legend anymore.
-    FieldSetDisabledChanged(nsEventStates(), aNotify);
-  }
-
-  /**
-   * This callback is called by a fieldset on all it's elements when it's being
-   * destroyed. When called, the elements should check that aFieldset is there
-   * first parent fieldset and null mFieldset in that case only.
-   *
-   * @param aFieldSet The fieldset being removed.
-   */
-  void ForgetFieldSet(nsIContent* aFieldset) {
-    if (mFieldSet == aFieldset) {
-      mFieldSet = nsnull;
-    }
+    FieldSetDisabledChanged(0);
   }
 
   /**
@@ -1023,10 +987,10 @@ class nsGenericHTMLFrameElement : public nsGenericHTMLElement,
 {
 public:
   nsGenericHTMLFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                            mozilla::dom::FromParser aFromParser)
+                            PRUint32 aFromParser)
     : nsGenericHTMLElement(aNodeInfo)
   {
-    mNetworkCreated = aFromParser == mozilla::dom::FROM_PARSER_NETWORK;
+    mNetworkCreated = aFromParser == NS_FROM_PARSER_NETWORK;
   }
   virtual ~nsGenericHTMLFrameElement();
 
@@ -1082,6 +1046,25 @@ protected:
 //----------------------------------------------------------------------
 
 /**
+ * A macro to implement the NS_NewHTMLXXXElement() functions.
+ */
+#define NS_IMPL_NS_NEW_HTML_ELEMENT(_elementName)                            \
+nsGenericHTMLElement*                                                        \
+NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo,   \
+                                  PRUint32 aFromParser)                      \
+{                                                                            \
+  return new nsHTML##_elementName##Element(aNodeInfo);                       \
+}
+
+#define NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(_elementName)               \
+nsGenericHTMLElement*                                                        \
+NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo,   \
+                                  PRUint32 aFromParser)                      \
+{                                                                            \
+  return new nsHTML##_elementName##Element(aNodeInfo, aFromParser);          \
+}
+
+/**
  * A macro to implement the getter and setter for a given string
  * valued content property. The method uses the generic GetAttr and
  * SetAttr methods.
@@ -1090,12 +1073,12 @@ protected:
   NS_IMETHODIMP                                                      \
   _class::Get##_method(nsAString& aValue)                            \
   {                                                                  \
-    return GetAttrHelper(nsGkAtoms::_atom, aValue);                  \
+    return GetAttrHelper(nsGkAtoms::_atom, aValue);                \
   }                                                                  \
   NS_IMETHODIMP                                                      \
   _class::Set##_method(const nsAString& aValue)                      \
   {                                                                  \
-    return SetAttrHelper(nsGkAtoms::_atom, aValue);                  \
+    return SetAttrHelper(nsGkAtoms::_atom, aValue);                \
   }
 
 /**
@@ -1138,7 +1121,7 @@ protected:
  * SetAttr methods.
  */
 #define NS_IMPL_INT_ATTR(_class, _method, _atom)                    \
-  NS_IMPL_INT_ATTR_DEFAULT_VALUE(_class, _method, _atom, 0)
+  NS_IMPL_INT_ATTR_DEFAULT_VALUE(_class, _method, _atom, -1)
 
 #define NS_IMPL_INT_ATTR_DEFAULT_VALUE(_class, _method, _atom, _default)  \
   NS_IMETHODIMP                                                           \
@@ -1150,50 +1133,6 @@ protected:
   _class::Set##_method(PRInt32 aValue)                                    \
   {                                                                       \
     return SetIntAttr(nsGkAtoms::_atom, aValue);                        \
-  }
-
-/**
- * A macro to implement the getter and setter for a given unsigned integer
- * valued content property. The method uses GetUnsignedIntAttr and
- * SetUnsignedIntAttr methods.
- */
-#define NS_IMPL_UINT_ATTR(_class, _method, _atom)                         \
-  NS_IMPL_UINT_ATTR_DEFAULT_VALUE(_class, _method, _atom, 0)
-
-#define NS_IMPL_UINT_ATTR_DEFAULT_VALUE(_class, _method, _atom, _default) \
-  NS_IMETHODIMP                                                           \
-  _class::Get##_method(PRUint32* aValue)                                  \
-  {                                                                       \
-    return GetUnsignedIntAttr(nsGkAtoms::_atom, _default, aValue);        \
-  }                                                                       \
-  NS_IMETHODIMP                                                           \
-  _class::Set##_method(PRUint32 aValue)                                   \
-  {                                                                       \
-    return SetUnsignedIntAttr(nsGkAtoms::_atom, aValue);                  \
-  }
-
-/**
- * A macro to implement the getter and setter for a given unsigned integer
- * valued content property. The method uses GetUnsignedIntAttr and
- * SetUnsignedIntAttr methods. This macro is similar to NS_IMPL_UINT_ATTR except
- * that it throws an exception if the set value is null.
- */
-#define NS_IMPL_UINT_ATTR_NON_ZERO(_class, _method, _atom)                \
-  NS_IMPL_UINT_ATTR_NON_ZERO_DEFAULT_VALUE(_class, _method, _atom, 1)
-
-#define NS_IMPL_UINT_ATTR_NON_ZERO_DEFAULT_VALUE(_class, _method, _atom, _default) \
-  NS_IMETHODIMP                                                           \
-  _class::Get##_method(PRUint32* aValue)                                  \
-  {                                                                       \
-    return GetUnsignedIntAttr(nsGkAtoms::_atom, _default, aValue);        \
-  }                                                                       \
-  NS_IMETHODIMP                                                           \
-  _class::Set##_method(PRUint32 aValue)                                   \
-  {                                                                       \
-    if (aValue == 0) {                                                    \
-      return NS_ERROR_DOM_INDEX_SIZE_ERR;                                 \
-    }                                                                     \
-    return SetUnsignedIntAttr(nsGkAtoms::_atom, aValue);                  \
   }
 
 /**
@@ -1245,27 +1184,6 @@ protected:
   _class::Set##_method(const nsAString& aValue)                              \
   {                                                                          \
     return SetAttrHelper(nsGkAtoms::_atom, aValue);                        \
-  }
-
-/**
- * A macro to implement getter and setter for action and form action content
- * attributes. It's very similar to NS_IMPL_URI_ATTR excepted that if the
- * content attribute is the empty string, the empty string is returned.
- */
-#define NS_IMPL_ACTION_ATTR(_class, _method, _atom)                 \
-  NS_IMETHODIMP                                                     \
-  _class::Get##_method(nsAString& aValue)                           \
-  {                                                                 \
-    GetAttr(kNameSpaceID_None, nsGkAtoms::_atom, aValue);           \
-    if (aValue.IsEmpty()) {                                         \
-      return NS_OK;                                                 \
-    }                                                               \
-    return GetURIAttr(nsGkAtoms::_atom, nsnull, aValue);            \
-  }                                                                 \
-  NS_IMETHODIMP                                                     \
-  _class::Set##_method(const nsAString& aValue)                     \
-  {                                                                 \
-    return SetAttrHelper(nsGkAtoms::_atom, aValue);                 \
   }
 
 /**
@@ -1491,46 +1409,26 @@ protected:
   NS_OFFSET_AND_INTERFACE_TABLE_END
 
 
-/**
- * A macro to declare the NS_NewHTMLXXXElement() functions.
- */
+// Element class factory methods
+
 #define NS_DECLARE_NS_NEW_HTML_ELEMENT(_elementName)                       \
 nsGenericHTMLElement*                                                      \
 NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo, \
-                                  mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
+                                  PRUint32 aFromParser = 0);
 
 #define NS_DECLARE_NS_NEW_HTML_ELEMENT_AS_SHARED(_elementName)             \
 inline nsGenericHTMLElement*                                               \
 NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo, \
-                                  mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER) \
+                                  PRUint32 aFromParser = 0)                \
 {                                                                          \
   return NS_NewHTMLSharedElement(aNodeInfo, aFromParser);                  \
-}
-
-/**
- * A macro to implement the NS_NewHTMLXXXElement() functions.
- */
-#define NS_IMPL_NS_NEW_HTML_ELEMENT(_elementName)                            \
-nsGenericHTMLElement*                                                        \
-NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo,   \
-                                  mozilla::dom::FromParser aFromParser)      \
-{                                                                            \
-  return new nsHTML##_elementName##Element(aNodeInfo);                       \
-}
-
-#define NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(_elementName)               \
-nsGenericHTMLElement*                                                        \
-NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo,   \
-                                  mozilla::dom::FromParser aFromParser)      \
-{                                                                            \
-  return new nsHTML##_elementName##Element(aNodeInfo, aFromParser);          \
 }
 
 // Here, we expand 'NS_DECLARE_NS_NEW_HTML_ELEMENT()' by hand.
 // (Calling the macro directly (with no args) produces compiler warnings.)
 nsGenericHTMLElement*
 NS_NewHTMLElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                  mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
+                  PRUint32 aFromParser = 0);
 
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Shared)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(SharedList)

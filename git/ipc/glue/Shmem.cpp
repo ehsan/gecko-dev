@@ -38,6 +38,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include <math.h>
+
 #include "Shmem.h"
 
 #include "ProtocolUtils.h"
@@ -194,6 +196,14 @@ DestroySegment(SharedMemory* aSegment)
     aSegment->Release();
 }
 
+static size_t
+PageAlignedSize(size_t aSize)
+{
+  size_t pageSize = SharedMemory::SystemPageSize();
+  size_t nPagesNeeded = int(ceil(double(aSize) / double(pageSize)));
+  return pageSize * nPagesNeeded;
+}
+
 
 #if defined(DEBUG)
 
@@ -206,16 +216,14 @@ static const char sMagic[] =
 
 
 struct Header {
-  // Don't use size_t or bool here because their size depends on the
-  // architecture.
+  // Don't use size_t here because the data type's length depends
+  // on the architecture.
   uint32 mSize;
-  uint32 mUnsafe;
   char mMagic[sizeof(sMagic)];
 };
 
 static void
 GetSections(Shmem::SharedMemory* aSegment,
-            Header** aHeader,
             char** aFrontSentinel,
             char** aData,
             char** aBackSentinel)
@@ -226,21 +234,10 @@ GetSections(Shmem::SharedMemory* aSegment,
   *aFrontSentinel = reinterpret_cast<char*>(aSegment->memory());
   NS_ABORT_IF_FALSE(*aFrontSentinel, "NULL memory()");
 
-  *aHeader = reinterpret_cast<Header*>(*aFrontSentinel);
-
   size_t pageSize = Shmem::SharedMemory::SystemPageSize();
   *aData = *aFrontSentinel + pageSize;
 
   *aBackSentinel = *aFrontSentinel + aSegment->Size() - pageSize;
-}
-
-static Header*
-GetHeader(Shmem::SharedMemory* aSegment)
-{
-  Header* header;
-  char* dontcare;
-  GetSections(aSegment, &header, &dontcare, &dontcare, &dontcare);
-  return header;
 }
 
 static void
@@ -321,16 +318,16 @@ Shmem::Shmem(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
 
   Unprotect(mSegment);
 
-  Header* header;
   char* frontSentinel;
   char* data;
   char* backSentinel;
-  GetSections(aSegment, &header, &frontSentinel, &data, &backSentinel);
+  GetSections(aSegment, &frontSentinel, &data, &backSentinel);
 
   // do a quick validity check to avoid weird-looking crashes in libc
   char check = *frontSentinel;
   (void)check;
 
+  Header* header = reinterpret_cast<Header*>(frontSentinel);
   NS_ABORT_IF_FALSE(!strncmp(header->mMagic, sMagic, sizeof(sMagic)),
                       "invalid segment");
   mSize = static_cast<size_t>(header->mSize);
@@ -363,18 +360,7 @@ void
 Shmem::RevokeRights(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead)
 {
   AssertInvariants();
-
-  size_t pageSize = SharedMemory::SystemPageSize();
-  Header* header = GetHeader(mSegment);
-
-  // Open this up for reading temporarily
-  mSegment->Protect(reinterpret_cast<char*>(header), pageSize, RightsRead);
-
-  if (!header->mUnsafe) {
-    Protect(mSegment);
-  } else {
-    mSegment->Protect(reinterpret_cast<char*>(header), pageSize, RightsNone);
-  }
+  Protect(mSegment);
 }
 
 // static
@@ -382,16 +368,14 @@ Shmem::SharedMemory*
 Shmem::Alloc(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
              size_t aNBytes,
              SharedMemoryType aType,
-             bool aUnsafe,
              bool aProtect)
 {
   NS_ASSERTION(aNBytes <= PR_UINT32_MAX, "Will truncate shmem segment size!");
-  NS_ABORT_IF_FALSE(!aProtect || !aUnsafe, "protect => !unsafe");
 
   size_t pageSize = SharedMemory::SystemPageSize();
   SharedMemory* segment = nsnull;
   // |2*pageSize| is for the front and back sentinel
-  size_t segmentSize = SharedMemory::PageAlignedSize(aNBytes + 2*pageSize);
+  size_t segmentSize = PageAlignedSize(aNBytes + 2*pageSize);
 
   if (aType == SharedMemory::TYPE_BASIC)
     segment = CreateSegment(segmentSize, SharedMemoryBasic::NULLHandle());
@@ -405,22 +389,15 @@ Shmem::Alloc(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
   if (!segment)
     return 0;
 
-  Header* header;
   char *frontSentinel;
   char *data;
   char *backSentinel;
-  GetSections(segment, &header, &frontSentinel, &data, &backSentinel);
+  GetSections(segment, &frontSentinel, &data, &backSentinel);
 
   // initialize the segment with Shmem-internal information
-
-  // NB: this can't be a static assert because technically pageSize
-  // isn't known at compile time, event though in practice it's always
-  // going to be 4KiB
-  NS_ABORT_IF_FALSE(sizeof(Header) <= pageSize,
-                    "Shmem::Header has gotten too big");
+  Header* header = reinterpret_cast<Header*>(frontSentinel);
   memcpy(header->mMagic, sMagic, sizeof(sMagic));
   header->mSize = static_cast<uint32>(aNBytes);
-  header->mUnsafe = aUnsafe;
 
   if (aProtect)
     Protect(segment);
@@ -447,7 +424,7 @@ Shmem::OpenExisting(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
   SharedMemory* segment = 0;
   size_t pageSize = SharedMemory::SystemPageSize();
   // |2*pageSize| is for the front and back sentinels
-  size_t segmentSize = SharedMemory::PageAlignedSize(size + 2*pageSize);
+  size_t segmentSize = PageAlignedSize(size + 2*pageSize);
 
   if (SharedMemory::TYPE_BASIC == type) {
     SharedMemoryBasic::Handle handle;
@@ -476,10 +453,7 @@ Shmem::OpenExisting(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
   if (!segment)
     return 0;
 
-  // The caller of this function may not know whether the segment is
-  // unsafe or not
-  Header* header = GetHeader(segment);
-  if (!header->mUnsafe && aProtect)
+  if (aProtect)
     Protect(segment);
 
   return segment;
@@ -494,16 +468,15 @@ Shmem::Dealloc(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
     return;
 
   size_t pageSize = SharedMemory::SystemPageSize();
-  Header* header;
   char *frontSentinel;
   char *data;
   char *backSentinel;
-  GetSections(aSegment, &header, &frontSentinel, &data, &backSentinel);
+  GetSections(aSegment, &frontSentinel, &data, &backSentinel);
 
   aSegment->Protect(frontSentinel, pageSize, RightsWrite | RightsRead);
+  Header* header = reinterpret_cast<Header*>(frontSentinel);
   memset(header->mMagic, 0, sizeof(sMagic));
   header->mSize = 0;
-  header->mUnsafe = false;          // make it "safe" so as to catch errors
 
   DestroySegment(aSegment);
 }
@@ -516,17 +489,16 @@ Shmem::SharedMemory*
 Shmem::Alloc(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
              size_t aNBytes, 
              SharedMemoryType aType,
-             bool /*unused*/,
              bool /*unused*/)
 {
   SharedMemory *segment = nsnull;
 
   if (aType == SharedMemory::TYPE_BASIC)
-    segment = CreateSegment(SharedMemory::PageAlignedSize(aNBytes + sizeof(uint32)),
+    segment = CreateSegment(PageAlignedSize(aNBytes + sizeof(uint32)),
                             SharedMemoryBasic::NULLHandle());
 #ifdef MOZ_HAVE_SHAREDMEMORYSYSV
   else if (aType == SharedMemory::TYPE_SYSV)
-    segment = CreateSegment(SharedMemory::PageAlignedSize(aNBytes + sizeof(uint32)),
+    segment = CreateSegment(PageAlignedSize(aNBytes + sizeof(uint32)),
                             SharedMemorySysV::NULLHandle());
 #endif
   else
@@ -558,7 +530,7 @@ Shmem::OpenExisting(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
     return 0;
 
   SharedMemory* segment = 0;
-  size_t segmentSize = SharedMemory::PageAlignedSize(size + sizeof(size_t));
+  size_t segmentSize = PageAlignedSize(size + sizeof(size_t));
 
   if (SharedMemory::TYPE_BASIC == type) {
     SharedMemoryBasic::Handle handle;

@@ -365,17 +365,24 @@ nsCaret::GetGeometryForFrame(nsIFrame* aFrame,
 {
   nsPoint framePos(0, 0);
   aFrame->GetPointFromOffset(aFrameOffset, &framePos);
-  nscoord baseline = aFrame->GetCaretBaseline();
-  nscoord ascent = 0, descent = 0;
-  nsCOMPtr<nsIFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(aFrame, getter_AddRefs(fm));
-  NS_ASSERTION(fm, "We should be able to get the font metrics");
-  if (fm) {
-    fm->GetMaxAscent(ascent);
-    fm->GetMaxDescent(descent);
+  nscoord height = aFrame->GetContentRect().height;
+  if (height == 0) {
+    nsCOMPtr<nsIFontMetrics> fm;
+    nsLayoutUtils::GetFontMetricsForFrame(aFrame, getter_AddRefs(fm));
+    if (fm) {
+      nscoord ascent, descent;
+      fm->GetMaxAscent(ascent);
+      fm->GetMaxDescent(descent);
+      height = ascent + descent;
+
+      // Place the caret on the baseline for inline frames, except when there is
+      // a frame on the line with non-zero height.  XXXmats why the exception? --
+      // I don't know but it seems to be necessary, see bug 503531.
+      if (aFrame->GetStyleDisplay()->IsInlineOutside() &&
+          !FramesOnSameLineHaveZeroHeight(aFrame))
+        framePos.y -= ascent;
+    }
   }
-  nscoord height = ascent + descent;
-  framePos.y = baseline - ascent;
   Metrics caretMetrics = ComputeMetrics(aFrame, aFrameOffset, height);
   *aRect = nsRect(framePos, nsSize(caretMetrics.mCaretWidth, height));
 
@@ -392,7 +399,7 @@ nsCaret::GetGeometryForFrame(nsIFrame* aFrame,
     // Now see if thet caret extends beyond the view's bounds. If it does,
     // then snap it back, put it as close to the edge as it can.
     nscoord overflow = caretInScroll.XMost() -
-      scrolled->GetVisualOverflowRectRelativeToSelf().width;
+      scrolled->GetOverflowRectRelativeToSelf().width;
     if (overflow > 0)
       aRect->x -= overflow;
   }
@@ -517,7 +524,7 @@ void nsCaret::InvalidateOutsideCaret()
   nsIFrame *frame = GetCaretFrame();
 
   // Only invalidate if we are not fully contained by our frame's rect.
-  if (frame && !frame->GetVisualOverflowRect().Contains(GetCaretRect()))
+  if (frame && !frame->GetOverflowRect().Contains(GetCaretRect()))
     InvalidateRects(mCaretRect, GetHookRect(), frame);
 }
 

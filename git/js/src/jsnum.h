@@ -615,9 +615,6 @@ extern JSBool
 js_strtod(JSContext *cx, const jschar *s, const jschar *send,
           const jschar **ep, jsdouble *dp);
 
-extern JSBool
-js_num_valueOf(JSContext *cx, uintN argc, js::Value *vp);
-
 namespace js {
 
 static JS_ALWAYS_INLINE bool

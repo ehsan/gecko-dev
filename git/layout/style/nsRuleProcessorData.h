@@ -106,13 +106,13 @@ private:
   }
 public:
   const nsString* GetLang();
-  nsEventStates ContentState();
-  nsEventStates DocumentState();
+  PRUint32 ContentState();
+  PRUint32 DocumentState();
   PRBool IsLink();
 
-  nsEventStates GetContentStateForVisitedHandling(
-                  nsRuleWalker::VisitedHandlingType aVisitedHandling,
-                  PRBool aIsRelevantLink);
+  PRUint32 GetContentStateForVisitedHandling(
+             nsRuleWalker::VisitedHandlingType aVisitedHandling,
+             PRBool aIsRelevantLink);
 
   // Returns a 1-based index of the child in its parent.  If the child
   // is not in its parent's child list (i.e., it is anonymous content),
@@ -155,11 +155,10 @@ private:
   PRInt32 mNthIndices[2][2];
 
   // mContentState is initialized lazily.
-  nsEventStates mContentState;  // eventStateMgr->GetContentState() or
-                                // mElement->IntrinsicState() if we have no ESM
-                                // adjusted for not supporting :visited (but
-                                // with visitedness information when we support
-                                // it).
+  PRInt32 mContentState;  // eventStateMgr->GetContentState() or
+                          // mElement->IntrinsicState() if we have no ESM
+                          // adjusted for not supporting :visited (but with
+                          // visitedness information when we support it)
   PRPackedBool mGotContentState;
 };
 
@@ -235,14 +234,14 @@ struct XULTreeRuleProcessorData : public RuleProcessorData {
 struct StateRuleProcessorData : public RuleProcessorData {
   StateRuleProcessorData(nsPresContext* aPresContext,
                          mozilla::dom::Element* aElement,
-                         nsEventStates aStateMask)
+                         PRInt32 aStateMask)
     : RuleProcessorData(aPresContext, aElement, nsnull),
       mStateMask(aStateMask)
   {
     NS_PRECONDITION(aPresContext, "null pointer");
   }
-  const nsEventStates mStateMask; // |HasStateDependentStyle| for which state(s)?
-                                  //  Constants defined in nsEventStates.h .
+  const PRInt32 mStateMask; // |HasStateDependentStyle| for which state(s)?
+                            //  Constants defined in nsIEventStateManager.h .
 };
 
 struct AttributeRuleProcessorData : public RuleProcessorData {

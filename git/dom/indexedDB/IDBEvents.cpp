@@ -51,18 +51,34 @@
 #include "IDBRequest.h"
 #include "IDBTransaction.h"
 
+#define NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_CONDITIONAL(_class, _condition)  \
+  if ((_condition) && (aIID.Equals(NS_GET_IID(nsIClassInfo)) ||               \
+                       aIID.Equals(NS_GET_IID(nsXPCClassInfo)))) {            \
+    foundInterface = NS_GetDOMClassInfoInstance(eDOMClassInfo_##_class##_id); \
+    if (!foundInterface) {                                                    \
+      *aInstancePtr = nsnull;                                                 \
+      return NS_ERROR_OUT_OF_MEMORY;                                          \
+    }                                                                         \
+  } else
+
 USING_INDEXEDDB_NAMESPACE
 
 namespace {
 
-template <class T>
+template<class Class>
 inline
-already_AddRefed<nsIDOMEvent>
-ForgetEvent(nsRefPtr<T>& aRefPtr)
+nsIDOMEvent*
+idomevent_cast(Class* aClassPtr)
 {
-  T* result;
-  aRefPtr.forget(&result);
-  return static_cast<nsIDOMEvent*>(static_cast<nsDOMEvent*>(result));
+  return static_cast<nsIDOMEvent*>(static_cast<nsDOMEvent*>(aClassPtr));
+}
+
+template<class Class>
+inline
+nsIDOMEvent*
+idomevent_cast(nsRefPtr<Class> aClassAutoPtr)
+{
+  return idomevent_cast(aClassAutoPtr.get());
 }
 
 class EventFiringRunnable : public nsRunnable
@@ -229,7 +245,9 @@ IDBErrorEvent::Create(IDBRequest* aRequest,
   rv = event->SetTrusted(PR_TRUE);
   NS_ENSURE_SUCCESS(rv, nsnull);
 
-  return ForgetEvent(event);
+  IDBErrorEvent* result;
+  event.forget(&result);
+  return idomevent_cast(result);
 }
 
 // static
@@ -237,7 +255,7 @@ already_AddRefed<nsIRunnable>
 IDBErrorEvent::CreateRunnable(IDBRequest* aRequest,
                               PRUint16 aCode)
 {
-  nsCOMPtr<nsIDOMEvent> event(Create(aRequest, aCode));
+  nsCOMPtr<nsIDOMEvent> event(IDBErrorEvent::Create(aRequest, aCode));
   NS_ENSURE_TRUE(event, nsnull);
 
   nsCOMPtr<nsIRunnable> runnable(new EventFiringRunnable(aRequest, event));
@@ -301,7 +319,9 @@ IDBSuccessEvent::Create(IDBRequest* aRequest,
   rv = event->SetTrusted(PR_TRUE);
   NS_ENSURE_SUCCESS(rv, nsnull);
 
-  return ForgetEvent(event);
+  IDBSuccessEvent* result;
+  event.forget(&result);
+  return idomevent_cast(result);
 }
 
 // static
@@ -310,7 +330,8 @@ IDBSuccessEvent::CreateRunnable(IDBRequest* aRequest,
                                 nsIVariant* aResult,
                                 nsIIDBTransaction* aTransaction)
 {
-  nsCOMPtr<nsIDOMEvent> event(Create(aRequest, aResult, aTransaction));
+  nsCOMPtr<nsIDOMEvent> event =
+    IDBSuccessEvent::Create(aRequest, aResult, aTransaction);
   NS_ENSURE_TRUE(event, nsnull);
 
   nsCOMPtr<nsIRunnable> runnable(new EventFiringRunnable(aRequest, event));
@@ -587,56 +608,5 @@ GetAllKeySuccessEvent::GetResult(JSContext* aCx,
   }
 
   *aResult = mCachedValue;
-  return NS_OK;
-}
-
-// static
-already_AddRefed<nsIDOMEvent>
-IDBVersionChangeEvent::CreateInternal(nsISupports* aSource,
-                                      const nsAString& aType,
-                                      const nsAString& aVersion)
-{
-  nsRefPtr<IDBVersionChangeEvent> event(new IDBVersionChangeEvent());
-
-  event->mSource = aSource;
-  event->mVersion = aVersion;
-
-  nsresult rv = event->InitEvent(aType, PR_FALSE, PR_FALSE);
-  NS_ENSURE_SUCCESS(rv, nsnull);
-
-  rv = event->SetTrusted(PR_TRUE);
-  NS_ENSURE_SUCCESS(rv, nsnull);
-
-  return ForgetEvent(event);
-}
-
-// static
-already_AddRefed<nsIRunnable>
-IDBVersionChangeEvent::CreateRunnableInternal(nsISupports* aSource,
-                                              const nsAString& aType,
-                                              const nsAString& aVersion,
-                                              nsIDOMEventTarget* aTarget)
-{
-  nsCOMPtr<nsIDOMEvent> event = CreateInternal(aSource, aType, aVersion);
-  NS_ENSURE_TRUE(event, nsnull);
-
-  nsCOMPtr<nsIRunnable> runnable(new EventFiringRunnable(aTarget, event));
-  return runnable.forget();
-}
-
-NS_IMPL_ADDREF_INHERITED(IDBVersionChangeEvent, IDBEvent)
-NS_IMPL_RELEASE_INHERITED(IDBVersionChangeEvent, IDBEvent)
-
-NS_INTERFACE_MAP_BEGIN(IDBVersionChangeEvent)
-  NS_INTERFACE_MAP_ENTRY(nsIIDBVersionChangeEvent)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(IDBVersionChangeEvent)
-NS_INTERFACE_MAP_END_INHERITING(IDBEvent)
-
-DOMCI_DATA(IDBVersionChangeEvent, IDBVersionChangeEvent)
-
-NS_IMETHODIMP
-IDBVersionChangeEvent::GetVersion(nsAString& aVersion)
-{
-  aVersion.Assign(mVersion);
   return NS_OK;
 }

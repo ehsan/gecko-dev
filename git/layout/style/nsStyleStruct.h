@@ -20,7 +20,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *   Masayuki Nakano <masayuki@d-toybox.com>
  *   Rob Arnold <robarnold@mozilla.com>
  *   Jonathon Jongsma <jonathon.jongsma@collabora.co.uk>, Collabora Ltd.
@@ -481,9 +481,12 @@ struct nsStyleBackground {
     // True if the rendering of this layer might change when the size
     // of the corresponding frame changes.  This is true for any
     // non-solid-color background whose position or size depends on
-    // the frame size.  It's also true for SVG images whose root <svg>
-    // node has a viewBox.
-    PRBool RenderingMightDependOnFrameSize() const;
+    // the frame size.
+    PRBool RenderingMightDependOnFrameSize() const {
+      return (!mImage.IsEmpty() &&
+              (mPosition.DependsOnFrameSize() ||
+               mSize.DependsOnFrameSize(mImage.GetType())));
+    }
 
     // An equality operator that compares the images using URL-equality
     // rather than pointer-equality.
@@ -568,7 +571,6 @@ struct nsStyleMargin {
 
   nsStyleSides  mMargin;          // [reset] coord, percent, calc, auto
 
-  PRBool IsWidthDependent() const { return !mHasCachedMargin; }
   PRBool GetMargin(nsMargin& aMargin) const
   {
     if (mHasCachedMargin) {
@@ -603,7 +605,6 @@ struct nsStylePadding {
 
   nsStyleSides  mPadding;         // [reset] coord, percent, calc
 
-  PRBool IsWidthDependent() const { return !mHasCachedPadding; }
   PRBool GetPadding(nsMargin& aPadding) const
   {
     if (mHasCachedPadding) {

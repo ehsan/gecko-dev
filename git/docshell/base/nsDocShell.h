@@ -186,8 +186,7 @@ class nsDocShell : public nsDocLoader,
                    public nsILoadContext,
                    public nsIWebShellServices,
                    public nsILinkHandler,
-                   public nsIClipboardCommands,
-                   public nsIDocShell_MOZILLA_2_0_BRANCH
+                   public nsIClipboardCommands
 {
     friend class nsDSURIContentListener;
 
@@ -202,7 +201,6 @@ public:
     NS_DECL_ISUPPORTS_INHERITED
 
     NS_DECL_NSIDOCSHELL
-    NS_DECL_NSIDOCSHELL_MOZILLA_2_0_BRANCH
     NS_DECL_NSIDOCSHELLTREEITEM
     NS_DECL_NSIDOCSHELLTREENODE
     NS_DECL_NSIDOCSHELLHISTORY
@@ -245,7 +243,8 @@ public:
         nsIInputStream* aPostDataStream = 0,
         nsIInputStream* aHeadersDataStream = 0,
         nsIDocShell** aDocShell = 0,
-        nsIRequest** aRequest = 0);
+        nsIRequest** aRequest = 0,
+        const char* aHttpMethod = 0);
     NS_IMETHOD OnOverLink(nsIContent* aContent,
         nsIURI* aURI,
         const PRUnichar* aTargetSpec);
@@ -327,7 +326,8 @@ protected:
                                nsIRequest ** aRequest,
                                PRBool aIsNewWindowTarget,
                                PRBool aBypassClassifier,
-                               PRBool aForceAllowCookies);
+                               PRBool aForceAllowCookies,
+                               const char* aHttpMethod);
     NS_IMETHOD AddHeadersToChannel(nsIInputStream * aHeadersData, 
                                   nsIChannel * aChannel);
     virtual nsresult DoChannelLoad(nsIChannel * aChannel,
@@ -436,10 +436,10 @@ protected:
 
     // overridden from nsDocLoader, this provides more information than the
     // normal OnStateChange with flags STATE_REDIRECTING
-    virtual void OnRedirectStateChange(nsIChannel* aOldChannel,
-                                       nsIChannel* aNewChannel,
-                                       PRUint32 aRedirectFlags,
-                                       PRUint32 aStateFlags);
+    virtual nsresult OnRedirectStateChange(nsIChannel* aOldChannel,
+                                           nsIChannel* aNewChannel,
+                                           PRUint32 aRedirectFlags,
+                                           PRUint32 aStateFlags);
 
     /**
      * Helper function that determines if channel is an HTTP POST.
@@ -449,7 +449,17 @@ protected:
      *
      * @return True iff channel is an HTTP post.
      */
-    bool ChannelIsPost(nsIChannel* aChannel);
+     static bool ChannelIsPost(nsIChannel* aChannel);
+
+     /**
+      * Helper function that determines if the HTTP channel has a safe method
+      *
+      * @param aChannel The channel to test
+      *
+      * @return Whether the channel has a safe HTTP method.
+      * @note Will return true if the channel isn't an HTTP channel.
+      */
+     static bool ChannelIsSafeHTTPMethod(nsIChannel* aChannel);
 
     /**
      * Helper function that finds the last URI and its transition flags for a
@@ -790,7 +800,6 @@ protected:
     PRPackedBool               mAllowKeywordFixup;
     PRPackedBool               mIsOffScreenBrowser;
     PRPackedBool               mIsActive;
-    PRPackedBool               mIsAppTab;
 
     // This boolean is set to true right before we fire pagehide and generally
     // unset when we embed a new content viewer.  While it's true no navigation

@@ -618,7 +618,7 @@ NS_IMETHODIMP nsJSSh::Init()
   nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
   xpc->InitClassesWithNewWrappedGlobal(mJSContext, (nsIJSSh*)this,
                                        NS_GET_IID(nsISupports),
-                                       mPrincipal, nsnull, PR_TRUE,
+                                       PR_TRUE,
                                        getter_AddRefs(holder));
   if (!holder) {
     NS_ERROR("global initialization failed");

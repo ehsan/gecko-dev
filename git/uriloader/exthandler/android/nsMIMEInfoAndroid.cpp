@@ -102,7 +102,7 @@ nsMIMEInfoAndroid::GetMimeInfoForFileExt(const nsACString& aFileExt,
   nsCString mimeType;
   if (mozilla::AndroidBridge::Bridge())
     mozilla::AndroidBridge::Bridge()->
-      GetMimeTypeFromExtensions(aFileExt, mimeType);
+      GetMimeTypeFromExtension(aFileExt, mimeType);
   return GetMimeInfoForMimeType(mimeType, aMimeInfo);
 }
 
@@ -168,7 +168,11 @@ NS_IMETHODIMP
 nsMIMEInfoAndroid::GetPreferredApplicationHandler(nsIHandlerApp** aApp)
 {
   *aApp = mPrefApp;
-  NS_IF_ADDREF(*aApp);
+  if (*aApp) {
+    nsAutoString appName;
+    (*aApp)->GetName(appName);
+  }
+
   return NS_OK;
 }
 

@@ -39,14 +39,6 @@
 
 #ifndef mozilla_FileUtils_h
 #define mozilla_FileUtils_h
-
-#if defined(XP_UNIX)
-# include <unistd.h>
-#elif defined(XP_WIN)
-# include <io.h>
-#endif
-#include "prio.h"
-
 namespace mozilla {
 
 /**
@@ -69,20 +61,6 @@ public:
 
 private:
   PRFileDesc *mFD;
-};
-
-/**
- * Instances close() their fds when they go out of scope.
- */
-struct ScopedClose
-{
-  ScopedClose(int aFd=-1) : mFd(aFd) {}
-  ~ScopedClose() {
-    if (0 <= mFd) {
-      close(mFd);
-    }
-  }
-  int mFd;
 };
 
 /**

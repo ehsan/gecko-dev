@@ -199,6 +199,12 @@ StubCompiler::fixCrossJumps(uint8 *ncode, size_t offset, size_t total)
         slow.link(joins[i].from, fast.locationOf(joins[i].to));
 }
 
+void
+StubCompiler::finalize(uint8 *ncode)
+{
+    masm.finalize(ncode);
+}
+
 JSC::MacroAssembler::Call
 StubCompiler::vpInc(JSOp op, uint32 depth)
 {
@@ -240,14 +246,12 @@ StubCompiler::crossJump(Jump j, Label L)
     joins.append(CrossPatch(j, L));
 }
 
-bool
+void
 StubCompiler::jumpInScript(Jump j, jsbytecode *target)
 {
-    if (cc.knownJump(target)) {
+    if (cc.knownJump(target))
         crossJump(j, cc.labelOf(target));
-        return true;
-    } else {
-        return scriptJoins.append(CrossJumpInScript(j, target));
-    }
+    else
+        scriptJoins.append(CrossJumpInScript(j, target));
 }
 

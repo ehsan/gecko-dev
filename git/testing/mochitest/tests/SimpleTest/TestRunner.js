@@ -226,9 +226,9 @@ TestRunner.runNextTest = function() {
 TestRunner.testFinished = function(tests) {
     if (TestRunner.logEnabled) {
         var runtime = new Date().valueOf() - TestRunner._currentTestStartTime;
-        TestRunner.logger.log("TEST-END | " +
+        TestRunner.logger.log("SimpleTest finished " +
                               TestRunner._urls[TestRunner._currentTest] +
-                              " | finished in " + runtime + "ms");
+                              " in " + runtime + "ms");
     }
 
     TestRunner.updateUI(tests);

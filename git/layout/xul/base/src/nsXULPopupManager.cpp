@@ -607,17 +607,6 @@ nsXULPopupManager::ShowTooltipAtScreen(nsIContent* aPopup,
 
   InitTriggerEvent(nsnull, nsnull, nsnull);
 
-  mCachedMousePoint = nsIntPoint(aXPos, aYPos);
-  // coordinates are relative to the root widget
-  nsPresContext* rootPresContext =
-    popupFrame->PresContext()->GetRootPresContext();
-  if (rootPresContext) {
-    nsCOMPtr<nsIWidget> widget;
-    rootPresContext->PresShell()->GetViewManager()->
-      GetRootWidget(getter_AddRefs(widget));
-    mCachedMousePoint -= widget->WidgetToScreenOffset();
-  }
-
   popupFrame->InitializePopupAtScreen(aTriggerContent, aXPos, aYPos, PR_FALSE);
 
   FirePopupShowingEvent(aPopup, PR_FALSE, PR_FALSE);
@@ -2264,8 +2253,7 @@ nsXULMenuCommandEvent::Run()
     if (mCloseMenuMode != CloseMenuMode_None)
       menuFrame->SelectMenu(PR_FALSE);
 
-    nsAutoHandlingUserInputStatePusher userInpStatePusher(mUserInput, nsnull,
-                                                          shell->GetDocument());
+    nsAutoHandlingUserInputStatePusher userInpStatePusher(mUserInput, PR_FALSE);
     nsContentUtils::DispatchXULCommand(mMenu, mIsTrusted, nsnull, shell,
                                        mControl, mAlt, mShift, mMeta);
   }

@@ -77,10 +77,15 @@ var gUpdateWizard = {
     catch (e) {
     }
 
-    if (Services.io.offline)
-      document.documentElement.currentPage = document.getElementById("offline");
-    else
-      document.documentElement.currentPage = document.getElementById("versioninfo");
+    // Retrieve all add-ons in order to sync their app compatibility information
+    AddonManager.getAllAddons(function(aAddons) {
+      gUpdateWizard.addons = aAddons;
+
+      if (Services.io.offline)
+        document.documentElement.currentPage = document.getElementById("offline");
+      else
+        document.documentElement.currentPage = document.getElementById("versioninfo");
+    });
   },
 
   onWizardFinish: function ()
@@ -155,19 +160,11 @@ var gVersionInfoPage = {
     gUpdateWizard.setButtonLabels(null, true,
                                   "nextButtonText", true,
                                   "cancelButtonText", false);
+    this._totalCount = gUpdateWizard.addons.length;
 
-    // Retrieve all add-ons in order to sync their app compatibility information
-    AddonManager.getAllAddons(function(aAddons) {
-      gUpdateWizard.addons = aAddons.filter(function(a) {
-        return a.type != "plugin";
-      });
-
-      gVersionInfoPage._totalCount = gUpdateWizard.addons.length;
-
-      gUpdateWizard.addons.forEach(function(aAddon) {
-        aAddon.findUpdates(gVersionInfoPage, AddonManager.UPDATE_WHEN_NEW_APP_INSTALLED);
-      }, this);
-    });
+    gUpdateWizard.addons.forEach(function(aAddon) {
+      aAddon.findUpdates(this, AddonManager.UPDATE_WHEN_NEW_APP_INSTALLED);
+    }, this);
   },
 
   onAllUpdatesFinished: function() {
@@ -403,7 +400,6 @@ var gInstallingPage = {
   /////////////////////////////////////////////////////////////////////////////
   // InstallListener
   onDownloadStarted: function(aInstall) {
-    var strings = document.getElementById("updateStrings");
     var label = strings.getFormattedString("downloadingPrefix", [aInstall.name]);
     var actionItem = document.getElementById("actionItem");
     actionItem.value = label;
@@ -424,7 +420,6 @@ var gInstallingPage = {
   },
 
   onInstallStarted: function(aInstall) {
-    var strings = document.getElementById("updateStrings");
     var label = strings.getFormattedString("installingPrefix", [aInstall.name]);
     var actionItem = document.getElementById("actionItem");
     actionItem.value = label;

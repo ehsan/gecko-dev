@@ -173,23 +173,23 @@ const js::Class ObjectWrapperParent::sCPOW_JSClass = {
       "CrossProcessObjectWrapper",
       JSCLASS_NEW_RESOLVE | JSCLASS_NEW_ENUMERATE |
       JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(sNumSlots),
-      JS_VALUEIFY(js::PropertyOp, ObjectWrapperParent::CPOW_AddProperty),
-      JS_VALUEIFY(js::PropertyOp, ObjectWrapperParent::CPOW_DelProperty),
-      JS_VALUEIFY(js::PropertyOp, ObjectWrapperParent::CPOW_GetProperty),
-      JS_VALUEIFY(js::PropertyOp, ObjectWrapperParent::CPOW_SetProperty),
+      js::Valueify(ObjectWrapperParent::CPOW_AddProperty),
+      js::Valueify(ObjectWrapperParent::CPOW_DelProperty),
+      js::Valueify(ObjectWrapperParent::CPOW_GetProperty),
+      js::Valueify(ObjectWrapperParent::CPOW_SetProperty),
       (JSEnumerateOp) ObjectWrapperParent::CPOW_NewEnumerate,
       (JSResolveOp) ObjectWrapperParent::CPOW_NewResolve,
-      JS_VALUEIFY(js::ConvertOp, ObjectWrapperParent::CPOW_Convert),
+      js::Valueify(ObjectWrapperParent::CPOW_Convert),
       ObjectWrapperParent::CPOW_Finalize,
       nsnull, // reserved1
       nsnull, // checkAccess
-      JS_VALUEIFY(js::CallOp, ObjectWrapperParent::CPOW_Call),
-      JS_VALUEIFY(js::CallOp, ObjectWrapperParent::CPOW_Construct),
+      js::Valueify(ObjectWrapperParent::CPOW_Call),
+      js::Valueify(ObjectWrapperParent::CPOW_Construct),
       nsnull, // xdrObject
-      JS_VALUEIFY(js::HasInstanceOp, ObjectWrapperParent::CPOW_HasInstance),
+      js::Valueify(ObjectWrapperParent::CPOW_HasInstance),
       nsnull, // mark
       {
-          JS_VALUEIFY(js::EqualityOp, ObjectWrapperParent::CPOW_Equality),
+          js::Valueify(ObjectWrapperParent::CPOW_Equality),
           nsnull, // outerObject
           nsnull, // innerObject
           nsnull, // iteratorObject
@@ -666,7 +666,7 @@ ObjectWrapperParent::CPOW_Call(JSContext* cx, uintN argc, jsval* vp)
         receiver = manager->GetGlobalObjectWrapper();
     }
 
-    InfallibleTArray<JSVariant> in_argv(argc);
+    nsTArray<JSVariant> in_argv(argc);
     jsval* argv = JS_ARGV(cx, vp);
     for (uintN i = 0; i < argc; i++)
         if (!jsval_to_JSVariant(cx, argv[i], in_argv.AppendElement()))
@@ -692,7 +692,7 @@ ObjectWrapperParent::CPOW_Construct(JSContext* cx, uintN argc, jsval* vp)
 
     AutoCheckOperation aco(cx, constructor);
 
-    InfallibleTArray<JSVariant> in_argv(argc);
+    nsTArray<JSVariant> in_argv(argc);
     jsval* argv = JS_ARGV(cx, vp);
     for (uintN i = 0; i < argc; i++)
         if (!jsval_to_JSVariant(cx, argv[i], in_argv.AppendElement()))

@@ -159,7 +159,7 @@ jsd_IsValueNative(JSDContext* jsdc, JSDValue* jsdval)
     {
         JSBool ok = JS_FALSE;
         JS_BeginRequest(cx);
-        call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, JSVAL_TO_OBJECT(val));
+        call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, jsdc->glob);
         if(!call) {
             JS_EndRequest(cx);
 
@@ -222,9 +222,7 @@ jsd_GetValueString(JSDContext* jsdc, JSDValue* jsdval)
         else
         {
             JS_BeginRequest(cx);
-            call = JSVAL_IS_PRIMITIVE(jsdval->val)
-                   ? NULL
-                   : JS_EnterCrossCompartmentCall(jsdc->dumbContext, JSVAL_TO_OBJECT(jsdval->val));
+            call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, jsdc->glob);
             if(!call) {
                 JS_EndRequest(cx);
 
@@ -258,7 +256,7 @@ jsd_GetValueFunctionName(JSDContext* jsdc, JSDValue* jsdval)
     {
         JS_BeginRequest(cx);
 
-        call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, JSVAL_TO_OBJECT(jsdval->val));
+        call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, jsdc->glob);
         if(!call) {
             JS_EndRequest(cx);
 
@@ -410,7 +408,6 @@ static void _freeProps(JSDContext* jsdc, JSDValue* jsdval)
 static JSBool _buildProps(JSDContext* jsdc, JSDValue* jsdval)
 {
     JSContext* cx = jsdc->dumbContext;
-    JSObject *obj;
     JSPropertyDescArray pda;
     uintN i;
     JSCrossCompartmentCall *call = NULL;
@@ -419,20 +416,18 @@ static JSBool _buildProps(JSDContext* jsdc, JSDValue* jsdval)
     JS_ASSERT(!(CHECK_BIT_FLAG(jsdval->flags, GOT_PROPS)));
     JS_ASSERT(JSVAL_IS_OBJECT(jsdval->val));
 
-    if(JSVAL_IS_PRIMITIVE(jsdval->val))
+    if(!JSVAL_IS_OBJECT(jsdval->val) || JSVAL_IS_NULL(jsdval->val))
         return JS_FALSE;
 
-    obj = JSVAL_TO_OBJECT(jsdval->val);
-
     JS_BeginRequest(cx);
-    call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, obj);
-    if(!call)
-    {
+    call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, jsdc->glob);
+    if(!call) {
         JS_EndRequest(jsdc->dumbContext);
+
         return JS_FALSE;
     }
 
-    if(!JS_GetPropertyDescArray(cx, obj, &pda))
+    if(!JS_GetPropertyDescArray(cx, JSVAL_TO_OBJECT(jsdval->val), &pda))
     {
         JS_EndRequest(cx);
         JS_LeaveCrossCompartmentCall(call);
@@ -573,7 +568,7 @@ jsd_GetValueProperty(JSDContext* jsdc, JSDValue* jsdval, JSString* name)
     nameLen   = JS_GetStringLength(name);
 
     JS_BeginRequest(cx);
-    call = JS_EnterCrossCompartmentCall(cx, obj);
+    call = JS_EnterCrossCompartmentCall(cx, jsdc->glob);
     if(!call) {
         JS_EndRequest(cx);
 
@@ -648,7 +643,7 @@ jsd_GetValuePrototype(JSDContext* jsdc, JSDValue* jsdval)
         if(!(obj = JSVAL_TO_OBJECT(jsdval->val)))
             return NULL;
         JS_BeginRequest(jsdc->dumbContext);
-        call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, obj);
+        call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, jsdc->glob);
         if(!call) {
             JS_EndRequest(jsdc->dumbContext);
 
@@ -682,10 +677,10 @@ jsd_GetValueParent(JSDContext* jsdc, JSDValue* jsdval)
         if(!(obj = JSVAL_TO_OBJECT(jsdval->val)))
             return NULL;
         JS_BeginRequest(jsdc->dumbContext);
-        call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, obj);
+        call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, jsdc->glob);
         if(!call) {
             JS_EndRequest(jsdc->dumbContext);
-
+            
             return NULL;
         }
         parent = JS_GetParent(jsdc->dumbContext,obj);
@@ -717,7 +712,7 @@ jsd_GetValueConstructor(JSDContext* jsdc, JSDValue* jsdval)
         if(!(obj = JSVAL_TO_OBJECT(jsdval->val)))
             return NULL;
         JS_BeginRequest(jsdc->dumbContext);
-        call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, obj);
+        call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, jsdc->glob);
         if(!call) {
             JS_EndRequest(jsdc->dumbContext);
 
@@ -754,7 +749,7 @@ jsd_GetValueClassName(JSDContext* jsdc, JSDValue* jsdval)
         if(!(obj = JSVAL_TO_OBJECT(val)))
             return NULL;
         JS_BeginRequest(jsdc->dumbContext);
-        call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, obj);
+        call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, jsdc->glob);
         if(!call) {
             JS_EndRequest(jsdc->dumbContext);
 
@@ -789,7 +784,6 @@ jsd_GetScriptForValue(JSDContext* jsdc, JSDValue* jsdval)
 
         return NULL;
     }
-
     exceptionState = JS_SaveExceptionState(cx);
     fun = JS_ValueToFunction(cx, val);
     JS_RestoreExceptionState(cx, exceptionState);

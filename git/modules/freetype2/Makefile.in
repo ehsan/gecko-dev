@@ -80,6 +80,7 @@ CSRCS = \
 	ftbitmap.c	\
 	ftdebug.c	\
 	ftgasp.c	\
+	ftgloadr.c	\
 	ftglyph.c	\
 	ftinit.c	\
 	ftmm.c		\
@@ -125,7 +126,11 @@ CSRCS = \
 	afcjk.c		\
 	afdummy.c	\
 	afpic.c		\
+	basepic.c	\
+	ftadvanc.c	\
 	ftfstype.c	\
+	ftpic.c		\
+	ftsnames.c	\
 	cffpic.c	\
 	pshpic.c	\
 	pspic.c		\

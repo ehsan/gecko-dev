@@ -110,12 +110,6 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   - (CGFloat)deviceDeltaY;
 @end
 
-// Undocumented scrollPhase flag that lets us discern between real scrolls and
-// automatically firing momentum scroll events.
-@interface NSEvent (ScrollPhase)
-- (long long)_scrollPhase;
-@end
-
 @interface ChildView : NSView<
 #ifdef ACCESSIBILITY
                               mozAccessible,
@@ -217,7 +211,7 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 
 - (void)handleMouseMoved:(NSEvent*)aEvent;
 
-- (void)drawRect:(NSRect)aRect inTitlebarContext:(CGContextRef)aContext;
+- (void)drawRect:(NSRect)aRect inContext:(CGContextRef)aContext;
 
 - (void)sendMouseEnterOrExitEvent:(NSEvent*)aEvent
                             enter:(BOOL)aEnter
@@ -233,6 +227,8 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 - (void) _surfaceNeedsUpdate:(NSNotification*)notification;
 
 - (BOOL)isPluginView;
+
+- (BOOL)isUsingOpenGL;
 
 // Simple gestures support
 //
@@ -401,6 +397,10 @@ public:
   static PRBool DoHasPendingInputEvent();
   static PRUint32 GetCurrentInputEventCount();
   static void UpdateCurrentInputEventCount();
+
+  static void ApplyConfiguration(nsIWidget* aExpectedParent,
+                                 const nsIWidget::Configuration& aConfiguration,
+                                 PRBool aRepaint);
 
   nsCocoaTextInputHandler* TextInputHandler() { return &mTextInputHandler; }
   NSView<mozView>* GetEditorView();

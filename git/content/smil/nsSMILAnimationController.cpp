@@ -21,7 +21,6 @@
  * Contributor(s):
  *   Brian Birtles <birtles@gmail.com>
  *   Daniel Holbert <dholbert@mozilla.com>
- *   Robert Longson <longsonr@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -74,7 +73,9 @@ GetRefreshDriverForDoc(nsIDocument* aDoc)
 nsSMILAnimationController::nsSMILAnimationController()
   : mResampleNeeded(PR_FALSE),
     mDeferredStartSampling(PR_FALSE),
+#ifdef DEBUG
     mRunningSample(PR_FALSE),
+#endif
     mDocument(nsnull)
 {
   mAnimationElementTable.Init();
@@ -133,7 +134,6 @@ nsSMILAnimationController::Pause(PRUint32 aType)
   nsSMILTimeContainer::Pause(aType);
 
   if (mPauseState) {
-    mDeferredStartSampling = PR_FALSE;
     StopSampling(GetRefreshDriverForDoc(mDocument));
   }
 }
@@ -187,16 +187,15 @@ void
 nsSMILAnimationController::RegisterAnimationElement(
                                   nsISMILAnimationElement* aAnimationElement)
 {
+  NS_ASSERTION(!mRunningSample, "Registering content during sample.");
   mAnimationElementTable.PutEntry(aAnimationElement);
   if (mDeferredStartSampling) {
+    // mAnimationElementTable was empty until we just inserted its first element
+    NS_ABORT_IF_FALSE(mAnimationElementTable.Count() == 1,
+                      "we shouldn't have deferred sampling if we already had "
+                      "animations registered");
     mDeferredStartSampling = PR_FALSE;
-    if (mChildContainerTable.Count()) {
-      // mAnimationElementTable was empty, but now we've added its 1st element
-      NS_ABORT_IF_FALSE(mAnimationElementTable.Count() == 1,
-                        "we shouldn't have deferred sampling if we already had "
-                        "animations registered");
-      StartSampling(GetRefreshDriverForDoc(mDocument));
-    } // else, don't sample until a time container is registered (via AddChild)
+    StartSampling(GetRefreshDriverForDoc(mDocument));
   }
 }
 
@@ -204,6 +203,7 @@ void
 nsSMILAnimationController::UnregisterAnimationElement(
                                   nsISMILAnimationElement* aAnimationElement)
 {
+  NS_ASSERTION(!mRunningSample, "Unregistering content during sample.");
   mAnimationElementTable.RemoveEntry(aAnimationElement);
 }
 
@@ -254,35 +254,12 @@ nsSMILAnimationController::Unlink()
 }
 
 //----------------------------------------------------------------------
-// Refresh driver lifecycle related methods
-
-void
-nsSMILAnimationController::NotifyRefreshDriverCreated(
-    nsRefreshDriver* aRefreshDriver)
-{
-  if (!mPauseState && !mDeferredStartSampling) {
-    StartSampling(aRefreshDriver);
-  }
-}
-
-void
-nsSMILAnimationController::NotifyRefreshDriverDestroying(
-    nsRefreshDriver* aRefreshDriver)
-{
-  if (!mPauseState && !mDeferredStartSampling) {
-    StopSampling(aRefreshDriver);
-  }
-}
-
-//----------------------------------------------------------------------
 // Timer-related implementation helpers
 
 void
 nsSMILAnimationController::StartSampling(nsRefreshDriver* aRefreshDriver)
 {
   NS_ASSERTION(mPauseState == 0, "Starting sampling but controller is paused");
-  NS_ASSERTION(!mDeferredStartSampling,
-               "Started sampling but the deferred start flag is still set");
   if (aRefreshDriver) {
     NS_ABORT_IF_FALSE(!GetRefreshDriverForDoc(mDocument) ||
                       aRefreshDriver == GetRefreshDriverForDoc(mDocument),
@@ -358,11 +335,16 @@ nsSMILAnimationController::DoSample()
 void
 nsSMILAnimationController::DoSample(PRBool aSkipUnchangedContainers)
 {
+  // Reset resample flag -- do this before flushing styles since flushing styles
+  // will also flush animation resample requests
   mResampleNeeded = PR_FALSE;
-  // Set running sample flag -- do this before flushing styles so that when we
-  // flush styles we don't end up requesting extra samples
-  mRunningSample = PR_TRUE;
   mDocument->FlushPendingNotifications(Flush_Style);
+#ifdef DEBUG
+  mRunningSample = PR_TRUE;
+#endif
+  // Reset resample flag again -- flushing styles may have set this flag but
+  // since we're about to do a sample now, reset it
+  mResampleNeeded = PR_FALSE;
 
   // STEP 1: Bring model up to date
   // (i)  Rewind elements where necessary
@@ -436,7 +418,9 @@ nsSMILAnimationController::DoSample(PRBool aSkipUnchangedContainers)
   // when the inherited value is *also* being animated, we really should be
   // traversing our animated nodes in an ancestors-first order (bug 501183)
   currentCompositorTable->EnumerateEntries(DoComposeAttribute, nsnull);
+#ifdef DEBUG
   mRunningSample = PR_FALSE;
+#endif
 
   // Update last compositor table
   mLastCompositorTable = currentCompositorTable.forget();
@@ -736,12 +720,12 @@ nsSMILAnimationController::GetTargetIdentifierForAnimation(
     return PR_FALSE;
 
   // Look up target (animated) attribute
-  // SMILANIM section 3.1, attributeName may
-  // have an XMLNS prefix to indicate the XML namespace.
-  nsCOMPtr<nsIAtom> attributeName;
-  PRInt32 attributeNamespaceID;
-  if (!aAnimElem->GetTargetAttributeName(&attributeNamespaceID,
-                                         getter_AddRefs(attributeName)))
+  //
+  // XXXdholbert As mentioned in SMILANIM section 3.1, attributeName may
+  // have an XMLNS prefix to indicate the XML namespace. Need to parse
+  // that somewhere.
+  nsIAtom* attributeName = aAnimElem->GetTargetAttributeName();
+  if (!attributeName)
     // Animation has no target attr -- skip it.
     return PR_FALSE;
 
@@ -751,13 +735,11 @@ nsSMILAnimationController::GetTargetIdentifierForAnimation(
   // Check if an 'auto' attributeType refers to a CSS property or XML attribute.
   // Note that SMIL requires we search for CSS properties first. So if they
   // overlap, 'auto' = 'CSS'. (SMILANIM 3.1)
-  PRBool isCSS = PR_FALSE;
+  PRBool isCSS;
   if (attributeType == eSMILTargetAttrType_auto) {
-    if (attributeNamespaceID == kNameSpaceID_None) {
-      nsCSSProperty prop =
-        nsCSSProps::LookupProperty(nsDependentAtomString(attributeName));
-      isCSS = nsSMILCSSProperty::IsPropertyAnimatable(prop);
-    }
+    nsCSSProperty prop =
+      nsCSSProps::LookupProperty(nsDependentAtomString(attributeName));
+    isCSS = nsSMILCSSProperty::IsPropertyAnimatable(prop);
   } else {
     isCSS = (attributeType == eSMILTargetAttrType_CSS);
   }
@@ -765,7 +747,6 @@ nsSMILAnimationController::GetTargetIdentifierForAnimation(
   // Construct the key
   aResult.mElement = targetElem;
   aResult.mAttributeName = attributeName;
-  aResult.mAttributeNamespaceID = attributeNamespaceID;
   aResult.mIsCSS = isCSS;
 
   return PR_TRUE;

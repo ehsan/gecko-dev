@@ -246,7 +246,7 @@ nsSMILAnimationFunction::ComposeResult(const nsISMILAttr& aSMILAttr,
       mSimpleDuration.IsIndefinite() || mLastValue,
       "Unresolved simple duration for active or frozen animation");
 
-  nsSMILValue result;
+  nsSMILValue result(aResult.mType);
 
   if (mSimpleDuration.IsIndefinite() ||
       (values.Length() == 1 && TreatSingleValueAsStatic())) {
@@ -402,19 +402,15 @@ nsSMILAnimationFunction::InterpolateResult(const nsSMILValueArray& aValues,
     // NS_ABORT_IF_FALSE that tests that intervalProgress is in range will fail.
     double intervalProgress = -1.f;
     if (IsToAnimation()) {
-      if (aBaseValue.IsNull()) {
-        rv = NS_ERROR_FAILURE;
+      from = &aBaseValue;
+      to = &aValues[0];
+      if (calcMode == CALC_PACED) {
+        // Note: key[Times/Splines/Points] are ignored for calcMode="paced"
+        intervalProgress = simpleProgress;
       } else {
-        from = &aBaseValue;
-        to = &aValues[0];
-        if (calcMode == CALC_PACED) {
-          // Note: key[Times/Splines/Points] are ignored for calcMode="paced"
-          intervalProgress = simpleProgress;
-        } else {
-          double scaledSimpleProgress =
-            ScaleSimpleProgress(simpleProgress, calcMode);
-          intervalProgress = ScaleIntervalProgress(scaledSimpleProgress, 0);
-        }
+        double scaledSimpleProgress =
+          ScaleSimpleProgress(simpleProgress, calcMode);
+        intervalProgress = ScaleIntervalProgress(scaledSimpleProgress, 0);
       }
     } else {
       if (calcMode == CALC_PACED) {

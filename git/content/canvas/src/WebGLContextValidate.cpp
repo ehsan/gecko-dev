@@ -111,7 +111,7 @@ WebGLContext::ValidateBuffers(PRUint32 count)
             continue;
 
         if (vd.buf == nsnull) {
-            LogMessageIfVerbose("No VBO bound to enabled attrib index %d!", i);
+            LogMessage(mVerbose, "No VBO bound to enabled attrib index %d!", i);
             return PR_FALSE;
         }
 
@@ -126,12 +126,12 @@ WebGLContext::ValidateBuffers(PRUint32 count)
             CheckedUint32(vd.componentSize()) * vd.size;   // and the number of bytes needed for these components
 
         if (!checked_needed.valid()) {
-            LogMessageIfVerbose("Integer overflow computing the size of bound vertex attrib buffer at index %d", i);
+            LogMessage(mVerbose, "Integer overflow computing the size of bound vertex attrib buffer at index %d", i);
             return PR_FALSE;
         }
 
         if (vd.buf->ByteLength() < checked_needed.value()) {
-            LogMessageIfVerbose("VBO too small for bound attrib index %d: need at least %d bytes, but have only %d",
+            LogMessage(mVerbose, "VBO too small for bound attrib index %d: need at least %d bytes, but have only %d",
                        i, checked_needed.value(), vd.buf->ByteLength());
             return PR_FALSE;
         }
@@ -301,6 +301,9 @@ PRBool WebGLContext::ValidateTexFormatAndType(WebGLenum format, WebGLenum type,
     if (type == LOCAL_GL_UNSIGNED_BYTE)
     {
         switch (format) {
+            case LOCAL_GL_RED:
+            case LOCAL_GL_GREEN:
+            case LOCAL_GL_BLUE:
             case LOCAL_GL_ALPHA:
             case LOCAL_GL_LUMINANCE:
                 *texelSize = 1;
@@ -361,6 +364,10 @@ WebGLContext::InitAndValidateGL()
     mBoundArrayBuffer = nsnull;
     mBoundElementArrayBuffer = nsnull;
     mCurrentProgram = nsnull;
+
+    mFramebufferColorAttachments.Clear();
+    mFramebufferDepthAttachment = nsnull;
+    mFramebufferStencilAttachment = nsnull;
 
     mBoundFramebuffer = nsnull;
     mBoundRenderbuffer = nsnull;
@@ -429,7 +436,7 @@ WebGLContext::InitAndValidateGL()
     // Always 1 for GLES2
     val = 1;
 #endif
-    mMaxFramebufferColorAttachments = val;
+    mFramebufferColorAttachments.SetLength(val);
 
 #if defined(DEBUG_vladimir) && defined(USE_GLES2)
     gl->fGetIntegerv(LOCAL_GL_IMPLEMENTATION_COLOR_READ_FORMAT, (GLint*) &val);
@@ -444,25 +451,11 @@ WebGLContext::InitAndValidateGL()
         // specifically enabled on desktop GLSL.
         gl->fEnable(LOCAL_GL_VERTEX_PROGRAM_POINT_SIZE);
 
-        // we don't do the following glEnable(GL_POINT_SPRITE) on ATI cards on Windows, because bug 602183 shows that it causes
-        // crashes in the ATI/Windows driver; and point sprites on ATI seem like a lost cause anyway, see
-        //    http://www.gamedev.net/community/forums/topic.asp?topic_id=525643
-        // Also, if the ATI/Windows driver implements a recent GL spec version, this shouldn't be needed anyway.
-#ifdef XP_WIN
-        if (gl->Vendor() != gl::GLContext::VendorATI)
-#else
-        if (true)
-#endif
-        {
-            // gl_PointCoord is always available in ES2 GLSL and in newer desktop GLSL versions, but apparently
-            // not in OpenGL 2 and apparently not (due to a driver bug) on certain NVIDIA setups. See:
-            //   http://www.opengl.org/discussion_boards/ubbthreads.php?ubb=showflat&Number=261472
-            gl->fEnable(LOCAL_GL_POINT_SPRITE);
-        }
+        // gl_PointCoord is always available in ES2 GLSL and in newer desktop GLSL versions, but apparently
+        // not in OpenGL 2 and apparently not (due to a driver bug) on certain NVIDIA setups. See:
+        //   http://www.opengl.org/discussion_boards/ubbthreads.php?ubb=showflat&Number=261472
+        gl->fEnable(LOCAL_GL_POINT_SPRITE);
     }
-
-    gl->fGetIntegerv(LOCAL_GL_PACK_ALIGNMENT,   (GLint*) &mPixelStorePackAlignment);
-    gl->fGetIntegerv(LOCAL_GL_UNPACK_ALIGNMENT, (GLint*) &mPixelStoreUnpackAlignment);
 
     // Check the shader validator pref
     nsCOMPtr<nsIPrefBranch> prefService = do_GetService(NS_PREFSERVICE_CONTRACTID);

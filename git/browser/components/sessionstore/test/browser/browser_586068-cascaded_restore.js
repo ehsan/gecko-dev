@@ -41,26 +41,16 @@ let ss = Cc["@mozilla.org/browser/sessionstore;1"].
 
 let stateBackup = ss.getBrowserState();
 
-const TAB_STATE_NEEDS_RESTORE = 1;
-const TAB_STATE_RESTORING = 2;
 
 function test() {
   /** Test for Bug 586068 - Cascade page loads when restoring **/
   waitForExplicitFinish();
-  // This test does a lot of window opening / closing and waiting for loads.
-  // In order to prevent timeouts, we'll extend the default that mochitest uses.
-  requestLongerTimeout(4);
   runNextTest();
 }
 
-// test_reloadCascade, test_reloadReload are generated tests that are run out
-// of cycle (since they depend on current state). They're listed in [tests] here
-// so that it is obvious when they run in respect to the other tests.
 let tests = [test_cascade, test_select, test_multiWindowState,
              test_setWindowStateNoOverwrite, test_setWindowStateOverwrite,
-             test_setBrowserStateInterrupted, test_reload,
-             /* test_reloadReload, */ test_reloadCascadeSetup,
-             /* test_reloadCascade */];
+             test_setBrowserStateInterrupted, test_reload];
 function runNextTest() {
   // Reset the pref
   try {
@@ -69,10 +59,9 @@ function runNextTest() {
 
   // set an empty state & run the next test, or finish
   if (tests.length) {
-    ss.setBrowserState(JSON.stringify({ windows: [{ tabs: [{ url: 'about:blank' }] }] }));
-    let test = tests.shift();
-    info("running " + test.name);
-    executeSoon(test);
+    ss.setBrowserState(JSON.stringify({ windows: [{ tabs: [{ url: 'about:blank' }], }] }));
+    info("running next test");
+    executeSoon(tests.shift());
   }
   else {
     ss.setBrowserState(stateBackup);
@@ -88,8 +77,7 @@ function test_cascade() {
   // We have our own progress listener for this test, which we'll attach before our state is set
   let progressListener = {
     onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
-      dump("\n\nload: " + aBrowser.currentURI.spec + "\n" + JSON.stringify(countTabs()) + "\n\n");
-      if (aBrowser.__SS_restoreState == TAB_STATE_RESTORING &&
+      if (aBrowser.__SS_restoring &&
           aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
           aStateFlags & Ci.nsIWebProgressListener.STATE_IS_NETWORK &&
           aStateFlags & Ci.nsIWebProgressListener.STATE_IS_WINDOW)
@@ -150,7 +138,7 @@ function test_select() {
   // We have our own progress listener for this test, which we'll attach before our state is set
   let progressListener = {
     onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
-      if (aBrowser.__SS_restoreState == TAB_STATE_RESTORING &&
+      if (aBrowser.__SS_restoring &&
           aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
           aStateFlags & Ci.nsIWebProgressListener.STATE_IS_NETWORK &&
           aStateFlags & Ci.nsIWebProgressListener.STATE_IS_WINDOW)
@@ -218,10 +206,9 @@ function test_multiWindowState() {
   // We have our own progress listener for this test, which we'll attach before our state is set
   let progressListener = {
     onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
-      // We only care about load events when the tab still has
-      // __SS_restoreState == TAB_STATE_RESTORING on it.
+      // We only care about load events when the tab still has __SS_restoring on it.
       // Since our listener is attached before the sessionstore one, this works out.
-      if (aBrowser.__SS_restoreState == TAB_STATE_RESTORING &&
+      if (aBrowser.__SS_restoring &&
           aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
           aStateFlags & Ci.nsIWebProgressListener.STATE_IS_NETWORK &&
           aStateFlags & Ci.nsIWebProgressListener.STATE_IS_WINDOW)
@@ -298,10 +285,9 @@ function test_setWindowStateNoOverwrite() {
   // We have our own progress listener for this test, which we'll attach before our state is set
   let progressListener = {
     onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
-      // We only care about load events when the tab still has
-      // __SS_restoreState == TAB_STATE_RESTORING on it.
+      // We only care about load events when the tab still has __SS_restoring on it.
       // Since our listener is attached before the sessionstore one, this works out.
-      if (aBrowser.__SS_restoreState == TAB_STATE_RESTORING &&
+      if (aBrowser.__SS_restoring &&
           aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
           aStateFlags & Ci.nsIWebProgressListener.STATE_IS_NETWORK &&
           aStateFlags & Ci.nsIWebProgressListener.STATE_IS_WINDOW)
@@ -342,10 +328,7 @@ function test_setWindowStateNoOverwrite() {
     // We don't actually care about load order in this test, just that they all
     // do load.
     is(loadCount, numTabs, "test_setWindowStateNoOverwrite: all tabs were restored");
-    // window.__SS_tabsToRestore isn't decremented until after the progress
-    // listener is called. Since we get in here before that, we still expect
-    // the count to be 1.
-    is(window.__SS_tabsToRestore, 1,
+    is(window.__SS_tabsToRestore, 0,
        "test_setWindowStateNoOverwrite: window doesn't think there are more tabs to restore");
     let count = countTabs();
     is(count[0], 0,
@@ -370,10 +353,9 @@ function test_setWindowStateOverwrite() {
   // We have our own progress listener for this test, which we'll attach before our state is set
   let progressListener = {
     onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
-      // We only care about load events when the tab still has
-      // __SS_restoreState == TAB_STATE_RESTORING on it.
+      // We only care about load events when the tab still has __SS_restoring on it.
       // Since our listener is attached before the sessionstore one, this works out.
-      if (aBrowser.__SS_restoreState == TAB_STATE_RESTORING &&
+      if (aBrowser.__SS_restoring &&
           aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
           aStateFlags & Ci.nsIWebProgressListener.STATE_IS_NETWORK &&
           aStateFlags & Ci.nsIWebProgressListener.STATE_IS_WINDOW)
@@ -414,10 +396,7 @@ function test_setWindowStateOverwrite() {
     // We don't actually care about load order in this test, just that they all
     // do load.
     is(loadCount, numTabs, "test_setWindowStateOverwrite: all tabs were restored");
-    // window.__SS_tabsToRestore isn't decremented until after the progress
-    // listener is called. Since we get in here before that, we still expect
-    // the count to be 1.
-    is(window.__SS_tabsToRestore, 1,
+    is(window.__SS_tabsToRestore, 0,
        "test_setWindowStateOverwrite: window doesn't think there are more tabs to restore");
     let count = countTabs();
     is(count[0], 0,
@@ -442,10 +421,9 @@ function test_setBrowserStateInterrupted() {
   // We have our own progress listener for this test, which we'll attach before our state is set
   let progressListener = {
     onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
-      // We only care about load events when the tab still has
-      // __SS_restoreState == TAB_STATE_RESTORING on it.
+      // We only care about load events when the tab still has __SS_restoring on it.
       // Since our listener is attached before the sessionstore one, this works out.
-      if (aBrowser.__SS_restoreState == TAB_STATE_RESTORING &&
+      if (aBrowser.__SS_restoring &&
           aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
           aStateFlags & Ci.nsIWebProgressListener.STATE_IS_NETWORK &&
           aStateFlags & Ci.nsIWebProgressListener.STATE_IS_WINDOW)
@@ -562,7 +540,7 @@ function test_reload() {
   // We have our own progress listener for this test, which we'll attach before our state is set
   let progressListener = {
     onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
-      if (aBrowser.__SS_restoreState == TAB_STATE_RESTORING &&
+      if (aBrowser.__SS_restoring &&
           aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
           aStateFlags & Ci.nsIWebProgressListener.STATE_IS_NETWORK &&
           aStateFlags & Ci.nsIWebProgressListener.STATE_IS_WINDOW)
@@ -576,19 +554,7 @@ function test_reload() {
     { entries: [{ url: "http://example.org/#3" }], extData: { "uniq": r() } },
     { entries: [{ url: "http://example.org/#4" }], extData: { "uniq": r() } },
     { entries: [{ url: "http://example.org/#5" }], extData: { "uniq": r() } },
-    { entries: [{ url: "http://example.org/#6" }], extData: { "uniq": r() } },
-    { entries: [{ url: "http://example.org/#7" }], extData: { "uniq": r() } },
-    { entries: [{ url: "http://example.org/#8" }], extData: { "uniq": r() } },
-    { entries: [{ url: "http://example.org/#9" }], extData: { "uniq": r() } },
-    { entries: [{ url: "http://example.org/#10" }], extData: { "uniq": r() } },
-    { entries: [{ url: "http://example.org/#11" }], extData: { "uniq": r() } },
-    { entries: [{ url: "http://example.org/#12" }], extData: { "uniq": r() } },
-    { entries: [{ url: "http://example.org/#13" }], extData: { "uniq": r() } },
-    { entries: [{ url: "http://example.org/#14" }], extData: { "uniq": r() } },
-    { entries: [{ url: "http://example.org/#15" }], extData: { "uniq": r() } },
-    { entries: [{ url: "http://example.org/#16" }], extData: { "uniq": r() } },
-    { entries: [{ url: "http://example.org/#17" }], extData: { "uniq": r() } },
-    { entries: [{ url: "http://example.org/#18" }], extData: { "uniq": r() } }
+    { entries: [{ url: "http://example.org/#6" }], extData: { "uniq": r() } }
   ], selected: 1 }] };
 
   let loadCount = 0;
@@ -611,9 +577,7 @@ function test_reload() {
 
       if (loadCount == state.windows[0].tabs.length) {
         window.gBrowser.removeTabsProgressListener(progressListener);
-        executeSoon(function() {
-          _test_reloadAfter("test_reloadReload", state, runNextTest);
-        });
+        runNextTest();
       }
       else {
         // reload the next tab
@@ -625,104 +589,6 @@ function test_reload() {
 
   window.gBrowser.addTabsProgressListener(progressListener);
   ss.setBrowserState(JSON.stringify(state));
-}
-
-
-// This doesn't actually test anything, just does a cascaded restore with default
-// settings. This really just sets up to test that reloads work.
-function test_reloadCascadeSetup() {
-  // We have our own progress listener for this test, which we'll attach before our state is set
-  let progressListener = {
-    onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
-      if (aBrowser.__SS_restoreState == TAB_STATE_RESTORING &&
-          aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
-          aStateFlags & Ci.nsIWebProgressListener.STATE_IS_NETWORK &&
-          aStateFlags & Ci.nsIWebProgressListener.STATE_IS_WINDOW)
-        test_cascadeReloadSetup_progressCallback();
-    }
-  }
-
-  let state = { windows: [{ tabs: [
-    { entries: [{ url: "http://example.com/#1" }], extData: { "uniq": r() } },
-    { entries: [{ url: "http://example.com/#2" }], extData: { "uniq": r() } },
-    { entries: [{ url: "http://example.com/#3" }], extData: { "uniq": r() } },
-    { entries: [{ url: "http://example.com/#4" }], extData: { "uniq": r() } },
-    { entries: [{ url: "http://example.com/#5" }], extData: { "uniq": r() } },
-    { entries: [{ url: "http://example.com/#6" }], extData: { "uniq": r() } }
-  ] }] };
-
-  let loadCount = 0;
-  function test_cascadeReloadSetup_progressCallback() {
-    loadCount++;
-    if (loadCount < state.windows[0].tabs.length)
-      return;
-
-    window.gBrowser.removeTabsProgressListener(progressListener);
-    executeSoon(function() {
-      _test_reloadAfter("test_reloadCascade", state, runNextTest);
-    });
-  }
-
-  // This progress listener will get attached before the listener in session store.
-  window.gBrowser.addTabsProgressListener(progressListener);
-  ss.setBrowserState(JSON.stringify(state));
-}
-
-
-// This is a generic function that will attempt to reload each test. We do this
-// a couple times, so make it utilitarian.
-// This test expects that aState contains a single window and that each tab has
-// a unique extData value eg. { "uniq": value }.
-function _test_reloadAfter(aTestName, aState, aCallback) {
-  info("starting " + aTestName);
-  let progressListener = {
-    onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
-      if (aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
-          aStateFlags & Ci.nsIWebProgressListener.STATE_IS_NETWORK &&
-          aStateFlags & Ci.nsIWebProgressListener.STATE_IS_WINDOW)
-        test_reloadAfter_progressCallback(aBrowser);
-    }
-  }
-
-  // Simulate a left mouse button click with no modifiers, which is what
-  // Command-R, or clicking reload does.
-  let fakeEvent = {
-    button: 0,
-    metaKey: false,
-    altKey: false,
-    ctrlKey: false,
-    shiftKey: false,
-  }
-
-  let loadCount = 0;
-  function test_reloadAfter_progressCallback(aBrowser) {
-    loadCount++;
-
-    if (loadCount <= aState.windows[0].tabs.length) {
-      // double check that this tab was the right one
-      let expectedData = aState.windows[0].tabs[loadCount - 1].extData.uniq;
-      let tab;
-      for (let i = 0; i < window.gBrowser.tabs.length; i++) {
-        if (!tab && window.gBrowser.tabs[i].linkedBrowser == aBrowser)
-          tab = window.gBrowser.tabs[i];
-      }
-      is(ss.getTabValue(tab, "uniq"), expectedData,
-         aTestName + ": load " + loadCount + " - correct tab was reloaded");
-
-      if (loadCount == aState.windows[0].tabs.length) {
-        window.gBrowser.removeTabsProgressListener(progressListener);
-        aCallback();
-      }
-      else {
-        // reload the next tab
-        window.gBrowser.selectTabAtIndex(loadCount);
-        BrowserReloadOrDuplicate(fakeEvent);
-      }
-    }
-  }
-
-  window.gBrowser.addTabsProgressListener(progressListener);
-  BrowserReloadOrDuplicate(fakeEvent);
 }
 
 
@@ -740,9 +606,9 @@ function countTabs() {
 
     for (let i = 0; i < window.gBrowser.tabs.length; i++) {
       let browser = window.gBrowser.tabs[i].linkedBrowser;
-      if (browser.__SS_restoreState == TAB_STATE_RESTORING)
+      if (browser.__SS_restoring)
         isRestoring++;
-      else if (browser.__SS_restoreState == TAB_STATE_NEEDS_RESTORE)
+      else if (browser.__SS_needsRestore)
         needsRestore++;
       else
         wasRestored++;

@@ -89,7 +89,7 @@ JSBool
 TestShellParent::GetGlobalJSObject(JSContext* cx, JSObject** globalp)
 {
     // TODO Unify this code with TabParent::GetGlobalJSObject.
-    InfallibleTArray<PContextWrapperParent*> cwps(1);
+    nsTArray<PContextWrapperParent*> cwps(1);
     ManagedPContextWrapperParent(cwps);
     if (cwps.Length() < 1)
         return JS_FALSE;
@@ -121,12 +121,6 @@ TestShellCommandParent::RunCallback(const nsString& aResponse)
 
   JSObject* global = JS_GetGlobalObject(mCx);
   NS_ENSURE_TRUE(global, JS_FALSE);
-
-  JSAutoEnterCompartment ac;
-  if (!ac.enter(mCx, global)) {
-    NS_ERROR("Failed to enter compartment!");
-    return false;
-  }
 
   JSString* str = JS_NewUCStringCopyN(mCx, aResponse.get(), aResponse.Length());
   NS_ENSURE_TRUE(str, JS_FALSE);

@@ -60,9 +60,10 @@ CSRCS   = iccjpeg.c \
 LOCAL_INCLUDES += -I$(topsrcdir)/modules/libpr0n/src/
 
 # PNG read/write stuff
-DEFINES		+= -DMOZ_PNG_WRITE \
-	-DMOZ_PNG_READ \
-	$(NULL)
+ifneq (,$(filter png,$(MOZ_IMG_ENCODERS)))
+DEFINES		+= -DMOZ_PNG_WRITE
+endif
+DEFINES		+= -DMOZ_PNG_READ
 
 
 # The Icon Channel stuff really shouldn't live in decoders/icon, but we'll

@@ -43,7 +43,6 @@
 
 #include <QKeyEvent>
 #include <qgraphicswidget.h>
-#include <QTime>
 
 #include "nsAutoPtr.h"
 
@@ -111,7 +110,7 @@ public:
     nsWindow();
     virtual ~nsWindow();
 
-    nsEventStatus DoPaint( QPainter* aPainter, const QStyleOptionGraphicsItem * aOption, QWidget* aWidget);
+    nsEventStatus DoPaint( QPainter* aPainter, const QStyleOptionGraphicsItem * aOption );
 
     static void ReleaseGlobals();
 
@@ -290,11 +289,7 @@ protected:
 //Gestures are only supported in qt > 4.6
 #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
     virtual nsEventStatus OnTouchEvent(QTouchEvent *event, PRBool &handled);
-
     virtual nsEventStatus OnGestureEvent(QGestureEvent *event, PRBool &handled);
-    nsEventStatus DispatchGestureEvent(PRUint32 aMsg, PRUint32 aDirection,
-                                       double aDelta, const nsIntPoint& aRefPoint);
-
     double DistanceBetweenPoints(const QPointF &aFirstPoint, const QPointF &aSecondPoint);
 #endif
 
@@ -393,15 +388,13 @@ private:
 #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
     double mTouchPointDistance;
     double mLastPinchDistance;
-    double mPinchStartDistance;
-    QTime mLastMultiTouchTime;
+    PRBool mMouseEventsDisabled;
 #endif
 
     PRPackedBool mNeedsResize;
     PRPackedBool mNeedsMove;
     PRPackedBool mListenForResizes;
     PRPackedBool mNeedsShow;
-    PRPackedBool mGesturesCancelled;
 };
 
 class nsChildWindow : public nsWindow

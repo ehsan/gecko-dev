@@ -134,9 +134,6 @@ SRGBOverrideObserver::Observe(nsISupports *aSubject,
 }
 
 #define GFX_DOWNLOADABLE_FONTS_ENABLED "gfx.downloadable_fonts.enabled"
-#define GFX_DOWNLOADABLE_FONTS_SANITIZE "gfx.downloadable_fonts.sanitize"
-#define GFX_DOWNLOADABLE_FONTS_SANITIZE_PRESERVE_OTL \
-            "gfx.downloadable_fonts.sanitize.preserve_otl_tables"
 
 #define GFX_PREF_HARFBUZZ_LEVEL "gfx.font_rendering.harfbuzz.level"
 #define HARFBUZZ_LEVEL_DEFAULT  0
@@ -210,8 +207,6 @@ gfxPlatform::gfxPlatform()
 {
     mUseHarfBuzzLevel = UNINITIALIZED_VALUE;
     mAllowDownloadableFonts = UNINITIALIZED_VALUE;
-    mDownloadableFontsSanitize = UNINITIALIZED_VALUE;
-    mSanitizePreserveOTLTables = UNINITIALIZED_VALUE;
 }
 
 gfxPlatform*
@@ -256,6 +251,15 @@ gfxPlatform::Init()
     if (!gPlatform)
         return NS_ERROR_OUT_OF_MEMORY;
 
+    gPlatform->mScreenReferenceSurface =
+      gPlatform->CreateOffscreenSurface(gfxIntSize(1,1),
+                                        gfxASurface::CONTENT_COLOR_ALPHA);
+    if (!gPlatform->mScreenReferenceSurface) {
+      NS_ERROR("Could not initialize mScreenReferenceSurface");
+      Shutdown();
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+
     nsresult rv;
 
 #if defined(XP_MACOSX) || defined(XP_WIN) || defined(ANDROID) // temporary, until this is implemented on others
@@ -266,15 +270,6 @@ gfxPlatform::Init()
         return rv;
     }
 #endif
-
-    gPlatform->mScreenReferenceSurface =
-        gPlatform->CreateOffscreenSurface(gfxIntSize(1,1),
-                                          gfxASurface::CONTENT_COLOR_ALPHA);
-    if (!gPlatform->mScreenReferenceSurface) {
-        NS_ERROR("Could not initialize mScreenReferenceSurface");
-        Shutdown();
-        return NS_ERROR_OUT_OF_MEMORY;
-    }
 
     rv = gfxFontCache::Init();
     if (NS_FAILED(rv)) {
@@ -307,7 +302,7 @@ gfxPlatform::Init()
     nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (prefs) {
         prefs->AddObserver(CMForceSRGBPrefName, gPlatform->overrideObserver, PR_TRUE);
-        prefs->AddObserver("gfx.downloadable_fonts.", fontPrefObserver, PR_FALSE);
+        prefs->AddObserver(GFX_DOWNLOADABLE_FONTS_ENABLED, fontPrefObserver, PR_FALSE);
         prefs->AddObserver("gfx.font_rendering.", fontPrefObserver, PR_FALSE);
     }
 
@@ -420,33 +415,10 @@ PRBool
 gfxPlatform::DownloadableFontsEnabled()
 {
     if (mAllowDownloadableFonts == UNINITIALIZED_VALUE) {
-        mAllowDownloadableFonts =
-            GetBoolPref(GFX_DOWNLOADABLE_FONTS_ENABLED, PR_FALSE);
+        mAllowDownloadableFonts = GetBoolPref(GFX_DOWNLOADABLE_FONTS_ENABLED, PR_FALSE);
     }
 
     return mAllowDownloadableFonts;
-}
-
-PRBool
-gfxPlatform::SanitizeDownloadedFonts()
-{
-    if (mDownloadableFontsSanitize == UNINITIALIZED_VALUE) {
-        mDownloadableFontsSanitize =
-            GetBoolPref(GFX_DOWNLOADABLE_FONTS_SANITIZE, PR_TRUE);
-    }
-
-    return mDownloadableFontsSanitize;
-}
-
-PRBool
-gfxPlatform::PreserveOTLTablesWhenSanitizing()
-{
-    if (mSanitizePreserveOTLTables == UNINITIALIZED_VALUE) {
-        mSanitizePreserveOTLTables =
-            GetBoolPref(GFX_DOWNLOADABLE_FONTS_SANITIZE_PRESERVE_OTL, PR_FALSE);
-    }
-
-    return mSanitizePreserveOTLTables;
 }
 
 PRInt8
@@ -1172,10 +1144,6 @@ gfxPlatform::FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref)
     NS_ASSERTION(aPref != nsnull, "null preference");
     if (!strcmp(GFX_DOWNLOADABLE_FONTS_ENABLED, aPref)) {
         mAllowDownloadableFonts = UNINITIALIZED_VALUE;
-    } else if (!strcmp(GFX_DOWNLOADABLE_FONTS_SANITIZE, aPref)) {
-        mDownloadableFontsSanitize = UNINITIALIZED_VALUE;
-    } else if (!strcmp(GFX_DOWNLOADABLE_FONTS_SANITIZE_PRESERVE_OTL, aPref)) {
-        mSanitizePreserveOTLTables = UNINITIALIZED_VALUE;
     } else if (!strcmp(GFX_PREF_HARFBUZZ_LEVEL, aPref)) {
         mUseHarfBuzzLevel = UNINITIALIZED_VALUE;
         gfxTextRunWordCache::Flush();

@@ -37,21 +37,21 @@ tabbrowser {
   min-width: 1px;
 }
 
-.tab-throbber:not([fadein]):not([pinned]),
+.tab-progress:not([fadein]):not([pinned]),
 .tab-label:not([fadein]):not([pinned]),
 .tab-icon-image:not([fadein]):not([pinned]),
 .tab-close-button:not([fadein]):not([pinned]) {
   opacity: 0 !important;
 }
 
-.tab-throbber,
+.tab-progress,
 .tab-label,
 .tab-icon-image,
 .tab-close-button {
   -moz-transition: opacity .25s;
 }
 
-.tabbrowser-tabs:not([pinnedonly]) > .tabbrowser-tab[pinned] {
+.tabbrowser-tab[pinned] {
   position: fixed;
   display: block; /* position:fixed already does this (bug 579776), but let's be explicit */
 }
@@ -80,7 +80,7 @@ toolbar[printpreview="true"] {
   -moz-box-ordinal-group: 10;
 }
 
-%ifdef CAN_DRAW_IN_TITLEBAR
+%ifdef MENUBAR_CAN_AUTOHIDE
 #main-window[inFullscreen] > #titlebar {
   display: none;
 }
@@ -104,14 +104,6 @@ toolbar[mode="icons"] > #urlbar-container > #urlbar > #urlbar-reload-button[disp
 toolbar[mode="icons"] > #reload-button:not([displaystop]) + #stop-button,
 toolbar[mode="icons"] > #reload-button[displaystop] {
   visibility: collapse;
-}
-
-#feed-button > .toolbarbutton-menu-dropmarker {
-  display: none;
-}
-
-#feed-menu > .feed-menuitem:-moz-locale-dir(rtl) {
-  direction: rtl;
 }
 
 #main-window:-moz-lwtheme {
@@ -154,8 +146,13 @@ toolbar[mode="icons"] > #reload-button[displaystop] {
   -moz-binding: url(chrome://browser/content/urlbarBindings.xml#urlbar);
 }
 
+#urlbar-progress {
+  -moz-binding: url("chrome://global/content/bindings/progressmeter.xml#progressmeter");
+}
+
 /* Some child nodes want to be ordered based on the locale's direction, while
    everything else should be ltr. */
+#urlbar-progress:-moz-locale-dir(rtl),
 .urlbar-input-box:-moz-locale-dir(rtl) {
   direction: rtl;
 }
@@ -165,6 +162,15 @@ html|*.urlbar-input {
 }
 
 /* over-link in location bar */
+
+/* Delay transitions on mouseout.  (Mouseover transitions are delayed by a
+   timeout in urlbarBindings.xml.) */
+.urlbar-textbox-container:not([overlinkstate]),
+.urlbar-over-link-layer:not([overlinkstate]),
+.urlbar-textbox-container-children:not([overlinkstate]),
+.urlbar-over-link-box:not([overlinkstate]) {
+  -moz-transition-delay: 100ms;
+}
 
 .urlbar-over-link-layer[overlinkstate="fade-in"],
 .urlbar-textbox-container:not([overlinkstate]) {
@@ -262,7 +268,9 @@ richlistitem[type~="action"]:-moz-locale-dir(rtl) > .ac-url-box {
 
 /* ::::: Unified Back-/Forward Button ::::: */
 #back-button > .toolbarbutton-menu-dropmarker,
-#forward-button > .toolbarbutton-menu-dropmarker {
+#forward-button > .toolbarbutton-menu-dropmarker,
+#back-forward-dropmarker > .toolbarbutton-icon,
+#back-forward-dropmarker > .toolbarbutton-text {
   display: none;
 }
 .unified-nav-current {

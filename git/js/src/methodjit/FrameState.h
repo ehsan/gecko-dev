@@ -50,6 +50,15 @@
 namespace js {
 namespace mjit {
 
+struct StateRemat {
+    typedef JSC::MacroAssembler::RegisterID RegisterID;
+    union {
+        RegisterID reg : 31;
+        uint32 offset  : 31;
+    };
+    bool inReg : 1;
+};
+
 struct Uses {
     explicit Uses(uint32 nuses)
       : nuses(nuses)
@@ -62,6 +71,38 @@ struct Changes {
       : nchanges(nchanges)
     { }
     uint32 nchanges;
+};
+
+class MaybeRegisterID {
+    typedef JSC::MacroAssembler::RegisterID RegisterID;
+
+  public:
+    MaybeRegisterID()
+      : reg_(Registers::ReturnReg), set(false)
+    { }
+
+    MaybeRegisterID(RegisterID reg)
+      : reg_(reg), set(true)
+    { }
+
+    inline RegisterID reg() const { JS_ASSERT(set); return reg_; }
+    inline void setReg(const RegisterID r) { reg_ = r; set = true; }
+    inline bool isSet() const { return set; }
+
+    MaybeRegisterID & operator =(const MaybeRegisterID &other) {
+        set = other.set;
+        reg_ = other.reg_;
+        return *this;
+    }
+
+    MaybeRegisterID & operator =(RegisterID r) {
+        setReg(r);
+        return *this;
+    }
+
+  private:
+    RegisterID reg_;
+    bool set;
 };
 
 /*
@@ -207,14 +248,12 @@ class FrameState
         }
 
         void pin() {
-            JS_ASSERT(fe_ != NULL);
             assertConsistency();
             save_ = fe_;
             fe_ = NULL;
         }
 
         void unpin() {
-            JS_ASSERT(save_ != NULL);
             assertConsistency();
             fe_ = save_;
             save_ = NULL;
@@ -370,6 +409,13 @@ class FrameState
     inline RegisterID tempRegForData(FrameEntry *fe, RegisterID reg, Assembler &masm) const;
 
     /*
+     * Forcibly loads the type tag for the specified FrameEntry
+     * into a register already marked as owning the type.
+     */
+    inline void emitLoadTypeTag(FrameEntry *fe, RegisterID reg) const;
+    inline void emitLoadTypeTag(Assembler &masm, FrameEntry *fe, RegisterID reg) const;
+
+    /*
      * Convert an integer to a double without applying
      * additional Register pressure.
      */
@@ -444,7 +490,7 @@ class FrameState
     void unpinEntry(const ValueRemat &vr);
 
     /* Syncs fe to memory, given its state as constructed by a call to pinEntry. */
-    void ensureValueSynced(Assembler &masm, FrameEntry *fe, const ValueRemat &vr);
+    void syncEntry(Assembler &masm, FrameEntry *fe, const ValueRemat &vr);
 
     struct BinaryAlloc {
         MaybeRegisterID lhsType;
@@ -470,7 +516,7 @@ class FrameState
                         bool resultNeeded = true);
 
     /* Ensures that an FE has both type and data remat'd in registers. */
-    void ensureFullRegs(FrameEntry *fe, MaybeRegisterID *typeReg, MaybeRegisterID *dataReg);
+    void ensureFullRegs(FrameEntry *fe);
 
     /*
      * Similar to allocForBinary, except works when the LHS and RHS have the
@@ -541,12 +587,6 @@ class FrameState
     void storeTo(FrameEntry *fe, Address address, bool popHint = false);
 
     /*
-     * Fully stores a FrameEntry into two arbitrary registers. tempReg may be
-     * used as a temporary.
-     */
-    void loadForReturn(FrameEntry *fe, RegisterID typeReg, RegisterID dataReg, RegisterID tempReg);
-
-    /*
      * Stores the top stack slot back to a slot.
      */
     void storeLocal(uint32 n, bool popGuaranteed = false, bool typeChange = true);
@@ -609,54 +649,43 @@ class FrameState
     inline void forgetType(FrameEntry *fe);
 
     /*
-     * Discards a FrameEntry, tricking the FS into thinking it's synced.
-     */
-    void discardFe(FrameEntry *fe);
-
-    /*
-     * Helper function. Tests if a slot's type is null. Condition must
+     * Helper function. Tests if a slot's type is null. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testNull(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is undefined. Condition must
-     * be Equal or NotEqual.
-     */
-    inline Jump testUndefined(Assembler::Condition cond, FrameEntry *fe);
-
-    /*
-     * Helper function. Tests if a slot's type is an integer. Condition must
+     * Helper function. Tests if a slot's type is an integer. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testInt32(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is a double. Condition must
+     * Helper function. Tests if a slot's type is a double. Condition should
      * be Equal or Not Equal.
      */
     inline Jump testDouble(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is a boolean. Condition must
+     * Helper function. Tests if a slot's type is a boolean. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testBoolean(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is a string. Condition must
+     * Helper function. Tests if a slot's type is a string. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testString(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is a non-funobj. Condition must
+     * Helper function. Tests if a slot's type is a non-funobj. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testObject(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is primitive. Condition must
+     * Helper function. Tests if a slot's type is primitve. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testPrimitive(Assembler::Condition cond, FrameEntry *fe);
@@ -678,11 +707,6 @@ class FrameState
      * Same as unpinReg(), but does not restore the FrameEntry.
      */
     inline void unpinKilledReg(RegisterID reg);
-
-    /* Pins a data or type register if one exists. */
-    MaybeRegisterID maybePinData(FrameEntry *fe);
-    MaybeRegisterID maybePinType(FrameEntry *fe);
-    void maybeUnpinReg(MaybeRegisterID reg);
 
     /*
      * Dups the top item on the stack.
@@ -742,9 +766,10 @@ class FrameState
     void shift(int32 n);
 
     /*
-     * Notifies the frame of a slot that can escape.
+     * Notifies the frame of a slot that can escape. Returns whether or not
+     * the slot was added.
      */
-    inline void setClosedVar(uint32 slot);
+    inline bool addEscaping(uint32 local);
 
     inline void setInTryBlock(bool inTryBlock) {
         this->inTryBlock = inTryBlock;
@@ -757,26 +782,15 @@ class FrameState
     void evictReg(RegisterID reg);
     inline FrameEntry *rawPush();
     inline void addToTracker(FrameEntry *fe);
-
-    /* Guarantee sync, but do not set any sync flag. */
-    inline void ensureFeSynced(const FrameEntry *fe, Assembler &masm) const;
-    inline void ensureTypeSynced(const FrameEntry *fe, Assembler &masm) const;
-    inline void ensureDataSynced(const FrameEntry *fe, Assembler &masm) const;
-
-    /* Guarantee sync, even if register allocation is required, and set sync. */
-    inline void syncFe(FrameEntry *fe);
-    inline void syncType(FrameEntry *fe);
-    inline void syncData(FrameEntry *fe);
-
+    inline void syncType(const FrameEntry *fe, Address to, Assembler &masm) const;
+    inline void syncData(const FrameEntry *fe, Address to, Assembler &masm) const;
     inline FrameEntry *getLocal(uint32 slot);
     inline void forgetAllRegs(FrameEntry *fe);
     inline void swapInTracker(FrameEntry *lhs, FrameEntry *rhs);
     inline uint32 localIndex(uint32 n);
     void pushCopyOf(uint32 index);
-#if defined JS_NUNBOX32
     void syncFancy(Assembler &masm, Registers avail, FrameEntry *resumeAt,
                    FrameEntry *bottom) const;
-#endif
     inline bool tryFastDoubleLoad(FrameEntry *fe, FPRegisterID fpReg, Assembler &masm) const;
     void resetInternalState();
 
@@ -815,8 +829,6 @@ class FrameState
         return uint32(fe - entries);
     }
 
-    inline bool isClosedVar(uint32 slot);
-
   private:
     JSContext *cx;
     JSScript *script;
@@ -850,11 +862,9 @@ class FrameState
      */
     RegisterState regstate[Assembler::TotalRegisters];
 
-#if defined JS_NUNBOX32
     mutable ImmutableSync reifier;
-#endif
 
-    JSPackedBool *closedVars;
+    uint32 *escaping;
     bool eval;
     bool inTryBlock;
 };

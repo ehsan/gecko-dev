@@ -48,15 +48,12 @@
 //
 // Parameters:
 //   tab - a xul:tab
-function TabItem(tab, options) {
+function TabItem(tab) {
   Utils.assert(tab, "tab");
 
   this.tab = tab;
   // register this as the tab's tabItem
   this.tab.tabItem = this;
-
-  if (!options)
-    options = {};
 
   // ___ set up div
   var $div = iQ('<div>')
@@ -98,10 +95,6 @@ function TabItem(tab, options) {
 
   // ___ superclass setup
   this._init($div[0]);
-
-  // ___ reconnect to data from Storage
-  this._hasBeenDrawn = false;
-  let reconnected = TabItems.reconnect(this);
 
   // ___ drag/drop
   // override dropOptions with custom tabitem methods
@@ -170,6 +163,7 @@ function TabItem(tab, options) {
   };
 
   this.draggable();
+  this.droppable(true);
 
   // ___ more div setup
   $div.mousedown(function(e) {
@@ -199,19 +193,17 @@ function TabItem(tab, options) {
     .addClass('expander')
     .appendTo($div);
 
+  // ___ additional setup
+  this.reconnected = false;
+  this._hasBeenDrawn = false;
+  this.setResizable(true);
+
   this._updateDebugBounds();
 
   TabItems.register(this);
 
-  if (!this.reconnected)
-    GroupItems.newTab(this, options);
-
-  // tabs which were not reconnected at all or were not immediately added
-  // to a group get the same treatment.
-  if (!this.reconnected || (reconnected && !reconnected.addedToGroup) ) {
-    this.setResizable(true, options.immediately);
-    this.droppable(true);
-  }
+  if (!TabItems.reconnect(this))
+    GroupItems.newTab(this);
 };
 
 TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
@@ -371,9 +363,9 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
       if (css.fontSize && !this.inStack()) {
         if (css.fontSize < fontSizeRange.min)
-          immediately ? $title.hide() : $title.fadeOut();
+          $title.fadeOut();
         else
-          immediately ? $title.show() : $title.fadeIn();
+          $title.fadeIn();
       }
 
       if (css.width) {
@@ -387,14 +379,12 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
           proportion = widthRange.proportion(css.width); // between 0 and 1
         } else {
           $fav.css({top:4,left:4});
-          widthRange = new Range(40, 45);
+          widthRange = new Range(60, 70);
           proportion = widthRange.proportion(css.width); // between 0 and 1
-        }
-
-        if (proportion <= .1)
-          $close.hide();
-        else
           $close.show().css({opacity:proportion});
+          if (proportion <= .1)
+            $close.hide()
+        }
 
         var pad = 1 + 5 * proportion;
         var alphaRange = new Range(0.1,0.2);
@@ -479,16 +469,17 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Function: setResizable
   // If value is true, makes this item resizable, otherwise non-resizable.
   // Shows/hides a visible resize handle as appropriate.
-  setResizable: function TabItem_setResizable(value, immediately) {
+  setResizable: function TabItem_setResizable(value) {
     var $resizer = iQ('.expander', this.container);
 
+    this.resizeOptions.minWidth = TabItems.minTabWidth;
+    this.resizeOptions.minHeight = TabItems.minTabWidth * (TabItems.tabHeight / TabItems.tabWidth);
+
     if (value) {
-      this.resizeOptions.minWidth = TabItems.minTabWidth;
-      this.resizeOptions.minHeight = TabItems.minTabWidth * (TabItems.tabHeight / TabItems.tabWidth);
-      immediately ? $resizer.show() : $resizer.fadeIn();
+      $resizer.fadeIn();
       this.resizable(true);
     } else {
-      immediately ? $resizer.hide() : $resizer.fadeOut();
+      $resizer.fadeOut();
       this.resizable(false);
     }
   },
@@ -534,6 +525,12 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       var tab = this.tab;
 
       function onZoomDone() {
+        TabItems.resumePainting();
+
+        $tabEl
+          .css(orig.css())
+          .removeClass("front");
+
         UI.goToTab(tab);
 
         if (isNewBlankTab)
@@ -550,11 +547,9 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       // right animation function so that you don't see a change in percieved
       // animation speed.
       var scaleCheat = 1.7;
-
-      let animateZoom = gPrefBranch.getBoolPref("animate_zoom");
-      if (animateZoom) {
-        TabItems.pausePainting();
-        $tabEl.addClass("front")
+      TabItems.pausePainting();
+      $tabEl
+        .addClass("front")
         .animate({
           top:    orig.top    * (1 - 1/scaleCheat),
           left:   orig.left   * (1 - 1/scaleCheat),
@@ -563,18 +558,8 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         }, {
           duration: 230,
           easing: 'fast',
-          complete: function() {
-            TabItems.resumePainting();
-    
-            $tabEl
-              .css(orig.css())
-              .removeClass("front");
-
-            onZoomDone();
-          }
+          complete: onZoomDone
         });
-      } else
-        setTimeout(onZoomDone, 0);
     }
   },
 
@@ -592,36 +577,28 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     box.width -= this.sizeExtra.x;
     box.height -= this.sizeExtra.y;
 
+    TabItems.pausePainting();
+
     var self = this;
-    
-    let onZoomDone = function onZoomDone() {
-      self.setZoomPrep(false);
+    $tab.animate({
+      left: box.left,
+      top: box.top,
+      width: box.width,
+      height: box.height
+    }, {
+      duration: 300,
+      easing: 'cubic-bezier', // note that this is legal easing, even without parameters
+      complete: function() { // note that this will happen on the DOM thread
+        self.setZoomPrep(false);
 
-      GroupItems.setActiveOrphanTab(null);
+        GroupItems.setActiveOrphanTab(null);
 
-      if (typeof complete == "function")
-        complete();
-    };
-    
-    let animateZoom = gPrefBranch.getBoolPref("animate_zoom");
-    if (animateZoom) {
-      TabItems.pausePainting();
-      $tab.animate({
-        left: box.left,
-        top: box.top,
-        width: box.width,
-        height: box.height
-      }, {
-        duration: 300,
-        easing: 'cubic-bezier', // note that this is legal easing, even without parameters
-        complete: function() {
-          TabItems.resumePainting();
-          onZoomDone();
-        }
-      });
-    } else {
-      onZoomDone();
-    }
+        TabItems.resumePainting();
+
+        if (typeof complete == "function")
+          complete();
+      }
+    });
   },
 
   // ----------
@@ -630,13 +607,11 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // where the tab fills a large portion of the screen in anticipation of
   // the zoom out animation.
   setZoomPrep: function TabItem_setZoomPrep(value) {
-    let animateZoom = gPrefBranch.getBoolPref("animate_zoom");
-
     var $div = iQ(this.container);
     var data;
 
     var box = this.getBounds();
-    if (value && animateZoom) {
+    if (value) {
       this._zoomPrep = true;
 
       // The divide by two part here is a clever way to speed up the zoom-out code.
@@ -719,7 +694,7 @@ let TabItems = {
       if (tab.ownerDocument.defaultView != gWindow || tab.pinned)
         return;
 
-      self.link(tab, {immediately: true});
+      self.link(tab);
       self.update(tab);
     });
   },
@@ -803,7 +778,7 @@ let TabItems = {
         let oldURL = tabItem.url;
         tabItem.url = tabUrl;
 
-        if (!tabItem.reconnected)
+        if (!tabItem.reconnected && (oldURL == 'about:blank' || !oldURL))
           this.reconnect(tabItem);
 
         tabItem.save();
@@ -842,12 +817,12 @@ let TabItems = {
   // ----------
   // Function: link
   // Takes in a xul:tab, creates a TabItem for it and adds it to the scene. 
-  link: function TabItems_link(tab, options) {
+  link: function TabItems_link(tab){
     try {
       Utils.assertThrow(tab, "tab");
       Utils.assertThrow(!tab.pinned, "shouldn't be an app tab");
       Utils.assertThrow(!tab.tabItem, "shouldn't already be linked");
-      new TabItem(tab, options); // sets tab.tabItem to itself
+      new TabItem(tab); // sets tab.tabItem to itself
     } catch(e) {
       Utils.log(e);
     }
@@ -1022,7 +997,7 @@ let TabItems = {
       let tabData = Storage.getTabData(item.tab);
       if (tabData && this.storageSanity(tabData)) {
         if (item.parent)
-          item.parent.remove(item, {immediately: true});
+          item.parent.remove(item);
 
         item.setBounds(tabData.bounds, true);
 
@@ -1032,7 +1007,7 @@ let TabItems = {
         if (tabData.groupID) {
           var groupItem = GroupItems.groupItem(tabData.groupID);
           if (groupItem) {
-            groupItem.add(item, null, {immediately: true});
+            groupItem.add(item);
 
             // if it matches the selected tab or no active tab and the browser 
             // tab is hidden, the active group item would be set.
@@ -1054,17 +1029,11 @@ let TabItems = {
         }
 
         item.reconnected = true;
-        found = {addedToGroup: tabData.groupID};
-      } else {
-        // We should never have any orphaned tabs. Therefore, item is not 
-        // connected if it has no parent and GroupItems.newTab() would handle 
-        // the group creation.
-        item.reconnected = (item.parent != null);
-      }
-      item.save();
+        found = true;
+      } else
+        item.reconnected = item.tab.linkedBrowser.currentURI.spec != 'about:blank';
 
-      if (item.reconnected)
-        item._sendToSubscribers("reconnected");
+      item.save();
     } catch(e) {
       Utils.log(e);
     }

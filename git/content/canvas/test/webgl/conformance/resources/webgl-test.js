@@ -102,7 +102,7 @@ function getGLErrorAsString(ctx, err) {
       return name;
     }
   }
-  return "0x" + err.toString(16);
+  return err.toString();
 }
 
 function shouldGenerateGLError(ctx, glError, evalStr) {

@@ -41,7 +41,6 @@
 /* Per JSRuntime object */
 
 #include "xpcprivate.h"
-#include "WrapperFactory.h"
 #include "dom_quickstubs.h"
 
 #include "jsgcchunk.h"
@@ -67,8 +66,7 @@ const char* XPCJSRuntime::mStrings[] = {
     "item",                 // IDX_ITEM
     "__proto__",            // IDX_PROTO
     "__iterator__",         // IDX_ITERATOR
-    "__exposedProps__",     // IDX_EXPOSEDPROPS
-    "__scriptOnly__"        // IDX_SCRIPTONLY
+    "__exposedProps__"      // IDX_EXPOSEDPROPS
 };
 
 /***************************************************************************/
@@ -246,37 +244,19 @@ CompartmentCallback(JSContext *cx, JSCompartment *compartment, uintN op)
     if(!self)
         return JS_TRUE;
 
-    nsAutoPtr<xpc::CompartmentPrivate> priv(
-        static_cast<xpc::CompartmentPrivate*>(JS_SetCompartmentPrivate(cx, compartment, nsnull)));
-    if(!priv)
-        return JS_TRUE;
+    XPCCompartmentMap& map = self->GetCompartmentMap();
+    nsAdoptingCString origin;
+    origin.Adopt(static_cast<char *>(JS_SetCompartmentPrivate(cx, compartment, nsnull)));
 
-    if(xpc::PtrAndPrincipalHashKey *key = priv->key)
-    {
-        XPCCompartmentMap &map = self->GetCompartmentMap();
 #ifdef DEBUG
-        {
-            JSCompartment *current;
-            NS_ASSERTION(map.Get(key, &current), "no compartment?");
-            NS_ASSERTION(current == compartment, "compartment mismatch");
-        }
-#endif
-        map.Remove(key);
-    }
-    else
     {
-        nsISupports *ptr = priv->ptr;
-        XPCMTCompartmentMap &map = self->GetMTCompartmentMap();
-#ifdef DEBUG
-        {
-            JSCompartment *current;
-            NS_ASSERTION(map.Get(ptr, &current), "no compartment?");
-            NS_ASSERTION(current == compartment, "compartment mismatch");
-        }
-#endif
-        map.Remove(ptr);
+        JSCompartment *current;
+        NS_ASSERTION(map.Get(origin, &current), "no compartment?");
+        NS_ASSERTION(current == compartment, "compartment mismatch");
     }
+#endif
 
+    map.Remove(origin);
     return JS_TRUE;
 }
 
@@ -408,51 +388,23 @@ void XPCJSRuntime::TraceXPConnectRoots(JSTracer *trc)
         JS_DHashTableEnumerate(&mJSHolders, TraceJSHolder, trc);
 }
 
-struct Closure
-{
-    JSContext *cx;
-    bool cycleCollectionEnabled;
-    nsCycleCollectionTraversalCallback *cb;
-};
-
-static void
-CheckParticipatesInCycleCollection(PRUint32 aLangID, void *aThing, void *aClosure)
-{
-    Closure *closure = static_cast<Closure*>(aClosure);
-
-    if(!closure->cycleCollectionEnabled &&
-       aLangID == nsIProgrammingLanguage::JAVASCRIPT &&
-       js_GetGCThingTraceKind(aThing) == JSTRACE_OBJECT)
-    {
-        closure->cycleCollectionEnabled =
-            xpc::ParticipatesInCycleCollection(closure->cx,
-                                               static_cast<JSObject*>(aThing));
-    }
-}
-
 static JSDHashOperator
 NoteJSHolder(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32 number,
              void *arg)
 {
     ObjectHolder* entry = reinterpret_cast<ObjectHolder*>(hdr);
-    Closure *closure = static_cast<Closure*>(arg);
 
-    closure->cycleCollectionEnabled = PR_FALSE;
-    entry->tracer->Trace(entry->holder, CheckParticipatesInCycleCollection,
-                         closure);
-    if(!closure->cycleCollectionEnabled)
-        return JS_DHASH_NEXT;
-
-    closure->cb->NoteRoot(nsIProgrammingLanguage::CPLUSPLUS, entry->holder,
-                          entry->tracer);
+    nsCycleCollectionTraversalCallback* cb =
+        static_cast<nsCycleCollectionTraversalCallback*>(arg);
+    cb->NoteRoot(nsIProgrammingLanguage::CPLUSPLUS, entry->holder,
+                 entry->tracer);
 
     return JS_DHASH_NEXT;
 }
 
 
-void
-XPCJSRuntime::AddXPConnectRoots(JSContext* cx,
-                                nsCycleCollectionTraversalCallback &cb)
+void XPCJSRuntime::AddXPConnectRoots(JSContext* cx,
+                                     nsCycleCollectionTraversalCallback &cb)
 {
     // For all JS objects that are held by native objects but aren't held
     // through rooting or locking, we need to add all the native objects that
@@ -475,8 +427,6 @@ XPCJSRuntime::AddXPConnectRoots(JSContext* cx,
                     nsXPConnect::JSContextParticipant());
     }
 
-    XPCAutoLock lock(mMapLock);
-
     XPCWrappedNativeScope::SuspectAllWrappers(this, cx, cb);
 
     for(XPCRootSetElem *e = mVariantRoots; e ; e = e->GetNextRoot())
@@ -484,22 +434,12 @@ XPCJSRuntime::AddXPConnectRoots(JSContext* cx,
 
     for(XPCRootSetElem *e = mWrappedJSRoots; e ; e = e->GetNextRoot())
     {
-        nsXPCWrappedJS *wrappedJS = static_cast<nsXPCWrappedJS*>(e);
-        JSObject *obj = wrappedJS->GetJSObject();
-
-        // Only suspect wrappedJSObjects that are in a compartment that
-        // participates in cycle collection.
-        if(!xpc::ParticipatesInCycleCollection(cx, obj))
-            continue;
-
-        cb.NoteXPCOMRoot(static_cast<nsIXPConnectWrappedJS *>(wrappedJS));
+        nsIXPConnectWrappedJS *wrappedJS = static_cast<nsXPCWrappedJS*>(e);
+        cb.NoteXPCOMRoot(wrappedJS);
     }
 
     if(mJSHolders.ops)
-    {
-        Closure closure = { cx, PR_TRUE, &cb };
-        JS_DHashTableEnumerate(&mJSHolders, NoteJSHolder, &closure);
-    }
+        JS_DHashTableEnumerate(&mJSHolders, NoteJSHolder, &cb);
 }
 
 void
@@ -1120,11 +1060,9 @@ public:
     }
 private:
     virtual void *doAlloc() {
-        void *chunk;
+        void *chunk = 0;
 #ifdef MOZ_MEMORY
-        // posix_memalign returns zero on success, nonzero on failure.
-        if (posix_memalign(&chunk, js::GC_CHUNK_SIZE, js::GC_CHUNK_SIZE))
-            chunk = 0;
+        posix_memalign(&chunk, js::GC_CHUNK_SIZE, js::GC_CHUNK_SIZE);
 #else
         chunk = js::AllocGCChunk();
 #endif
@@ -1206,9 +1144,6 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
         JS_SetCompartmentCallback(mJSRuntime, CompartmentCallback);
         JS_SetGCCallbackRT(mJSRuntime, GCCallback);
         JS_SetExtraGCRoots(mJSRuntime, TraceJS, this);
-        JS_SetWrapObjectCallbacks(mJSRuntime,
-                                  xpc::WrapperFactory::Rewrap,
-                                  xpc::WrapperFactory::PrepareForWrapping);
         mWatchdogWakeup = JS_NEW_CONDVAR(mJSRuntime->gcLock);
 
         mJSRuntime->setActivityCallback(ActivityCallback, this);
@@ -1223,7 +1158,6 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
         mJSHolders.ops = nsnull;
 
     mCompartmentMap.Init();
-    mMTCompartmentMap.Init();
 
     // Install a JavaScript 'debugger' keyword handler in debug builds only
 #ifdef DEBUG

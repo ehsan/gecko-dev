@@ -41,15 +41,19 @@
 #if !defined jsjaeger_assembler_h__ && defined JS_METHODJIT && defined JS_NUNBOX32
 #define jsjaeger_assembler_h__
 
-#include "assembler/assembler/MacroAssembler.h"
+#include "methodjit/BaseAssembler.h"
 #include "methodjit/RematInfo.h"
 
 namespace js {
 namespace mjit {
 
-/* Don't use ImmTag. Use ImmType instead. */
-struct ImmTag : JSC::MacroAssembler::Imm32
+/* 
+ * Don't use ImmTag. Use ImmType instead.
+ * TODO: ImmTag should really just be for internal use...
+ */
+class ImmTag : public JSC::MacroAssembler::Imm32
 {
+  public:
     ImmTag(JSValueTag mask)
       : Imm32(int32(mask))
     { }
@@ -62,14 +66,7 @@ struct ImmType : ImmTag
     { }
 };
 
-struct ImmPayload : JSC::MacroAssembler::Imm32
-{
-    ImmPayload(uint32 payload)
-      : Imm32(payload)
-    { }
-};
-
-class NunboxAssembler : public JSC::MacroAssembler
+class Assembler : public BaseAssembler
 {
     static const uint32 PAYLOAD_OFFSET = 0;
     static const uint32 TAG_OFFSET     = 4;
@@ -90,15 +87,21 @@ class NunboxAssembler : public JSC::MacroAssembler
         return BaseIndex(address.base, address.index, address.scale, address.offset + TAG_OFFSET);
     }
 
-    void loadInlineSlot(RegisterID objReg, uint32 slot,
-                        RegisterID typeReg, RegisterID dataReg) {
-        Address address(objReg, JSObject::getFixedSlotOffset(slot));
-        if (objReg == typeReg) {
-            loadPayload(address, dataReg);
-            loadTypeTag(address, typeReg);
+    void loadSlot(RegisterID obj, RegisterID clobber, uint32 slot, RegisterID type, RegisterID data) {
+        JS_ASSERT(type != data);
+        Address address(obj, offsetof(JSObject, fslots) + slot * sizeof(Value));
+        RegisterID activeAddressReg = obj;
+        if (slot >= JS_INITIAL_NSLOTS) {
+            loadPtr(Address(obj, offsetof(JSObject, dslots)), clobber);
+            address = Address(clobber, (slot - JS_INITIAL_NSLOTS) * sizeof(Value));
+            activeAddressReg = clobber;
+        }
+        if (activeAddressReg == type) {
+            loadPayload(address, data);
+            loadTypeTag(address, type);
         } else {
-            loadTypeTag(address, typeReg);
-            loadPayload(address, dataReg);
+            loadTypeTag(address, type);
+            loadPayload(address, data);
         }
     }
 
@@ -108,7 +111,7 @@ class NunboxAssembler : public JSC::MacroAssembler
     }
 
     template <typename T>
-    void storeTypeTag(ImmTag imm, T address) {
+    void storeTypeTag(ImmType imm, T address) {
         store32(imm, tagOf(address));
     }
 
@@ -128,16 +131,8 @@ class NunboxAssembler : public JSC::MacroAssembler
     }
 
     template <typename T>
-    void storePayload(ImmPayload imm, T address) {
+    void storePayload(Imm32 imm, T address) {
         store32(imm, payloadOf(address));
-    }
-
-    bool addressUsesRegister(BaseIndex address, RegisterID reg) {
-        return (address.base == reg) || (address.index == reg);
-    }
-
-    bool addressUsesRegister(Address address, RegisterID reg) {
-        return address.base == reg;
     }
 
     /* Loads type first, then payload, returning label after type load. */
@@ -148,14 +143,6 @@ class NunboxAssembler : public JSC::MacroAssembler
         Label l = label();
         loadPayload(address, payload);
         return l;
-    }
-
-    void loadValueAsComponents(const Value &val, RegisterID type, RegisterID payload) {
-        jsval_layout jv;
-        jv.asBits = JSVAL_BITS(Jsvalify(val));
-
-        move(ImmTag(jv.s.tag), type);
-        move(Imm32(jv.s.payload.u32), payload);
     }
 
     /*
@@ -186,15 +173,15 @@ class NunboxAssembler : public JSC::MacroAssembler
 
     template <typename T>
     Label storeValue(const ValueRemat &vr, T address) {
-        if (vr.isConstant()) {
-            return storeValue(vr.value(), address);
+        if (vr.isConstant) {
+            return storeValue(Valueify(vr.u.v), address);
         } else {
-            if (vr.isTypeKnown())
-                storeTypeTag(ImmType(vr.knownType()), address);
+            if (vr.u.s.isTypeKnown)
+                storeTypeTag(ImmType(vr.u.s.type.knownType), address);
             else
-                storeTypeTag(vr.typeReg(), address);
+                storeTypeTag(vr.u.s.type.reg, address);
             Label l = label();
-            storePayload(vr.dataReg(), address);
+            storePayload(vr.u.s.data, address);
             return l;
         }
     }
@@ -204,106 +191,89 @@ class NunboxAssembler : public JSC::MacroAssembler
     }
 
     void loadFunctionPrivate(RegisterID base, RegisterID to) {
-        Address priv(base, offsetof(JSObject, privateData));
-        loadPtr(priv, to);
+        Address privSlot(base, offsetof(JSObject, fslots) +
+                               JSSLOT_PRIVATE * sizeof(Value));
+        loadPtr(privSlot, to);
     }
 
-    Jump testNull(Condition cond, RegisterID reg) {
+    Jump testNull(Assembler::Condition cond, RegisterID reg) {
         return branch32(cond, reg, ImmTag(JSVAL_TAG_NULL));
     }
 
-    Jump testNull(Condition cond, Address address) {
+    Jump testNull(Assembler::Condition cond, Address address) {
         return branch32(cond, tagOf(address), ImmTag(JSVAL_TAG_NULL));
     }
 
-    Jump testUndefined(Condition cond, RegisterID reg) {
-        return branch32(cond, reg, ImmTag(JSVAL_TAG_UNDEFINED));
-    }
-
-    Jump testUndefined(Condition cond, Address address) {
-        return branch32(cond, tagOf(address), ImmTag(JSVAL_TAG_UNDEFINED));
-    }
-
-    Jump testInt32(Condition cond, RegisterID reg) {
+    Jump testInt32(Assembler::Condition cond, RegisterID reg) {
         return branch32(cond, reg, ImmTag(JSVAL_TAG_INT32));
     }
 
-    Jump testInt32(Condition cond, Address address) {
+    Jump testInt32(Assembler::Condition cond, Address address) {
         return branch32(cond, tagOf(address), ImmTag(JSVAL_TAG_INT32));
     }
 
-    Jump testNumber(Condition cond, RegisterID reg) {
-        cond = (cond == Equal) ? BelowOrEqual : Above;
+    Jump testNumber(Assembler::Condition cond, RegisterID reg) {
+        cond = (cond == Assembler::Equal) ? Assembler::BelowOrEqual : Assembler::Above;
         return branch32(cond, reg, ImmTag(JSVAL_TAG_INT32));
     }
 
-    Jump testNumber(Condition cond, Address address) {
-        cond = (cond == Equal) ? BelowOrEqual : Above;
+    Jump testNumber(Assembler::Condition cond, Address address) {
+        cond = (cond == Assembler::Equal) ? Assembler::BelowOrEqual : Assembler::Above;
         return branch32(cond, tagOf(address), ImmTag(JSVAL_TAG_INT32));
     }
 
-    Jump testPrimitive(Condition cond, RegisterID reg) {
-        cond = (cond == NotEqual) ? AboveOrEqual : Below;
+    Jump testPrimitive(Assembler::Condition cond, RegisterID reg) {
+        cond = (cond == Assembler::NotEqual) ? Assembler::AboveOrEqual : Assembler::Below;
         return branch32(cond, reg, ImmTag(JSVAL_TAG_OBJECT));
     }
 
-    Jump testPrimitive(Condition cond, Address address) {
-        cond = (cond == NotEqual) ? AboveOrEqual : Below;
+    Jump testPrimitive(Assembler::Condition cond, Address address) {
+        cond = (cond == Assembler::NotEqual) ? Assembler::AboveOrEqual : Assembler::Below;
         return branch32(cond, tagOf(address), ImmTag(JSVAL_TAG_OBJECT));
     }
 
-    Jump testObject(Condition cond, RegisterID reg) {
+    Jump testObject(Assembler::Condition cond, RegisterID reg) {
         return branch32(cond, reg, ImmTag(JSVAL_TAG_OBJECT));
     }
 
-    Jump testObject(Condition cond, Address address) {
+    Jump testObject(Assembler::Condition cond, Address address) {
         return branch32(cond, tagOf(address), ImmTag(JSVAL_TAG_OBJECT));
     }
 
-    Jump testDouble(Condition cond, RegisterID reg) {
-        Condition opcond;
-        if (cond == Equal)
-            opcond = Below;
+    Jump testDouble(Assembler::Condition cond, RegisterID reg) {
+        Assembler::Condition opcond;
+        if (cond == Assembler::Equal)
+            opcond = Assembler::Below;
         else
-            opcond = AboveOrEqual;
+            opcond = Assembler::AboveOrEqual;
         return branch32(opcond, reg, ImmTag(JSVAL_TAG_CLEAR));
     }
 
-    Jump testDouble(Condition cond, Address address) {
-        Condition opcond;
-        if (cond == Equal)
-            opcond = Below;
+    Jump testDouble(Assembler::Condition cond, Address address) {
+        Assembler::Condition opcond;
+        if (cond == Assembler::Equal)
+            opcond = Assembler::Below;
         else
-            opcond = AboveOrEqual;
+            opcond = Assembler::AboveOrEqual;
         return branch32(opcond, tagOf(address), ImmTag(JSVAL_TAG_CLEAR));
     }
 
-    Jump testBoolean(Condition cond, RegisterID reg) {
+    Jump testBoolean(Assembler::Condition cond, RegisterID reg) {
         return branch32(cond, reg, ImmTag(JSVAL_TAG_BOOLEAN));
     }
 
-    Jump testBoolean(Condition cond, Address address) {
+    Jump testBoolean(Assembler::Condition cond, Address address) {
         return branch32(cond, tagOf(address), ImmTag(JSVAL_TAG_BOOLEAN));
     }
 
-    Jump testString(Condition cond, RegisterID reg) {
+    Jump testString(Assembler::Condition cond, RegisterID reg) {
         return branch32(cond, reg, ImmTag(JSVAL_TAG_STRING));
     }
 
-    Jump testString(Condition cond, Address address) {
+    Jump testString(Assembler::Condition cond, Address address) {
         return branch32(cond, tagOf(address), ImmTag(JSVAL_TAG_STRING));
     }
-
-    template <typename T>
-    Jump fastArrayLoadSlot(T address, RegisterID typeReg, RegisterID dataReg) {
-        loadTypeTag(address, typeReg);
-        Jump notHole = branch32(Equal, typeReg, ImmType(JSVAL_TYPE_MAGIC));
-        loadPayload(address, dataReg);
-        return notHole;
-    }
 };
-
-typedef NunboxAssembler ValueAssembler;
 
 } /* namespace mjit */
 } /* namespace js */

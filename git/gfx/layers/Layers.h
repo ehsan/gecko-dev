@@ -77,7 +77,6 @@ class ImageLayer;
 class ColorLayer;
 class ImageContainer;
 class CanvasLayer;
-class ShadowLayer;
 class SpecificLayerAttributes;
 
 /**
@@ -225,11 +224,10 @@ public:
   enum LayersBackend {
     LAYERS_BASIC = 0,
     LAYERS_OPENGL,
-    LAYERS_D3D9,
-    LAYERS_D3D10
+    LAYERS_D3D9
   };
 
-  LayerManager() : mDestroyed(PR_FALSE), mSnapEffectiveTransforms(PR_TRUE)
+  LayerManager() : mDestroyed(PR_FALSE)
   {
     InitLog();
   }
@@ -299,8 +297,6 @@ public:
    */
   virtual void EndTransaction(DrawThebesLayerCallback aCallback,
                               void* aCallbackData) = 0;
-
-  PRBool IsSnappingEffectiveTransforms() { return mSnapEffectiveTransforms; } 
 
   /**
    * CONSTRUCTION PHASE ONLY
@@ -427,7 +423,6 @@ protected:
   nsRefPtr<Layer> mRoot;
   LayerUserDataSet mUserData;
   PRPackedBool mDestroyed;
-  PRPackedBool mSnapEffectiveTransforms;
 
   // Print interesting information about this into aTo.  Internally
   // used to implement Dump*() and Log*().
@@ -647,45 +642,6 @@ public:
    */
   virtual ThebesLayer* AsThebesLayer() { return nsnull; }
 
-  /**
-   * Dynamic cast to a ShadowLayer.  Return null if this is not a
-   * ShadowLayer.  Can be used anytime.
-   */
-  virtual ShadowLayer* AsShadowLayer() { return nsnull; }
-
-  // These getters can be used anytime.  They return the effective
-  // values that should be used when drawing this layer to screen,
-  // accounting for this layer possibly being a shadow.
-  const nsIntRect* GetEffectiveClipRect();
-  const nsIntRegion& GetEffectiveVisibleRegion();
-  /**
-   * Returns the product of the opacities of this layer and all ancestors up
-   * to and excluding the nearest ancestor that has UseIntermediateSurface() set.
-   */
-  float GetEffectiveOpacity();
-  /**
-   * This returns the effective transform computed by
-   * ComputeEffectiveTransforms. Typically this is a transform that transforms
-   * this layer all the way to some intermediate surface or destination
-   * surface. For non-BasicLayers this will be a transform to the nearest
-   * ancestor with UseIntermediateSurface() (or to the root, if there is no
-   * such ancestor), but for BasicLayers it's different.
-   */
-  const gfx3DMatrix& GetEffectiveTransform() const { return mEffectiveTransform; }
-
-  /**
-   * @param aTransformToSurface the composition of the transforms
-   * from the parent layer (if any) to the destination pixel grid.
-   *
-   * Computes mEffectiveTransform for this layer and all its descendants.
-   * mEffectiveTransform transforms this layer up to the destination
-   * pixel grid (whatever aTransformToSurface is relative to).
-   * 
-   * We promise that when this is called on a layer, all ancestor layers
-   * have already had ComputeEffectiveTransforms called.
-   */
-  virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface) = 0;
-
   virtual const char* Name() const =0;
   virtual LayerType GetType() const =0;
 
@@ -748,27 +704,6 @@ protected:
   // appends additional info to aTo.
   virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
-  /**
-   * Returns the local transform for this layer: either mTransform or,
-   * for shadow layers, GetShadowTransform()
-   */
-  const gfx3DMatrix& GetLocalTransform();
-
-  /**
-   * Computes a tweaked version of aTransform that snaps a point or a rectangle
-   * to pixel boundaries. Snapping is only performed if this layer's
-   * layer manager has enabled snapping (which is the default).
-   * @param aSnapRect a rectangle whose edges should be snapped to pixel
-   * boundaries in the destination surface. If the rectangle is empty,
-   * then the snapping process should preserve the scale factors of the
-   * transform matrix
-   * @param aResidualTransform a transform to apply before mEffectiveTransform
-   * in order to get the results to completely match aTransform
-   */
-  gfx3DMatrix SnapTransform(const gfx3DMatrix& aTransform,
-                            const gfxRect& aSnapRect,
-                            gfxMatrix* aResidualTransform);
-
   LayerManager* mManager;
   ContainerLayer* mParent;
   Layer* mNextSibling;
@@ -777,7 +712,6 @@ protected:
   LayerUserDataSet mUserData;
   nsIntRegion mVisibleRegion;
   gfx3DMatrix mTransform;
-  gfx3DMatrix mEffectiveTransform;
   float mOpacity;
   nsIntRect mClipRect;
   PRUint32 mContentFlags;
@@ -815,13 +749,6 @@ public:
   virtual ThebesLayer* AsThebesLayer() { return this; }
 
   MOZ_LAYER_DECL_NAME("ThebesLayer", TYPE_THEBES)
-
-  virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface)
-  {
-    // The default implementation just snaps 0,0 to pixels.
-    gfx3DMatrix idealTransform = GetLocalTransform()*aTransformToSurface;
-    mEffectiveTransform = SnapTransform(idealTransform, gfxRect(0, 0, 0, 0), nsnull);
-  }
 
 protected:
   ThebesLayer(LayerManager* aManager, void* aImplData)
@@ -889,50 +816,16 @@ public:
 
   MOZ_LAYER_DECL_NAME("ContainerLayer", TYPE_CONTAINER)
 
-  /**
-   * ContainerLayer backends need to override ComputeEffectiveTransforms
-   * since the decision about whether to use a temporary surface for the
-   * container is backend-specific. ComputeEffectiveTransforms must also set
-   * mUseIntermediateSurface.
-   */
-  virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface) = 0;
-
-  /**
-   * Call this only after ComputeEffectiveTransforms has been invoked
-   * on this layer.
-   * Returns true if this will use an intermediate surface. This is largely
-   * backend-dependent, but it affects the operation of GetEffectiveOpacity().
-   */
-  PRBool UseIntermediateSurface() { return mUseIntermediateSurface; }
-
-  /**
-   * Returns true if this container has more than one non-empty child
-   */
-  PRBool HasMultipleChildren();
-
 protected:
   ContainerLayer(LayerManager* aManager, void* aImplData)
     : Layer(aManager, aImplData),
-      mFirstChild(nsnull),
-      mUseIntermediateSurface(PR_FALSE)
+      mFirstChild(nsnull)
   {}
-
-  /**
-   * A default implementation of ComputeEffectiveTransforms for use by OpenGL
-   * and D3D.
-   */
-  void DefaultComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface);
-
-  /**
-   * Loops over the children calling ComputeEffectiveTransforms on them.
-   */
-  void ComputeEffectiveTransformsForChildren(const gfx3DMatrix& aTransformToSurface);
 
   virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
   Layer* mFirstChild;
   FrameMetrics mFrameMetrics;
-  PRPackedBool mUseIntermediateSurface;
 };
 
 /**
@@ -955,13 +848,6 @@ public:
   virtual const gfxRGBA& GetColor() { return mColor; }
 
   MOZ_LAYER_DECL_NAME("ColorLayer", TYPE_COLOR)
-
-  virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface)
-  {
-    // Snap 0,0 to pixel boundaries, no extra internal transform.
-    gfx3DMatrix idealTransform = GetLocalTransform()*aTransformToSurface;
-    mEffectiveTransform = SnapTransform(idealTransform, gfxRect(0, 0, 0, 0), nsnull);
-  }
 
 protected:
   ColorLayer(LayerManager* aManager, void* aImplData)
@@ -1033,28 +919,12 @@ public:
 
   MOZ_LAYER_DECL_NAME("CanvasLayer", TYPE_CANVAS)
 
-  virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface)
-  {
-    // Snap our local transform first, and snap the inherited transform as well.
-    // This makes our snapping equivalent to what would happen if our content
-    // was drawn into a ThebesLayer (gfxContext would snap using the local
-    // transform, then we'd snap again when compositing the ThebesLayer).
-    mEffectiveTransform =
-        SnapTransform(GetLocalTransform(), gfxRect(0, 0, mBounds.width, mBounds.height),
-                      nsnull)*
-        SnapTransform(aTransformToSurface, gfxRect(0, 0, 0, 0), nsnull);
-  }
-
 protected:
   CanvasLayer(LayerManager* aManager, void* aImplData)
     : Layer(aManager, aImplData), mFilter(gfxPattern::FILTER_GOOD) {}
 
   virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
-  /**
-   * 0, 0, canvaswidth, canvasheight
-   */
-  nsIntRect mBounds;
   gfxPattern::GraphicsFilter mFilter;
 };
 

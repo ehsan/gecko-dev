@@ -52,8 +52,6 @@ CPPSRCS		= \
 		DOMSVGAnimatedLengthList.cpp \
 		DOMSVGLength.cpp \
 		DOMSVGLengthList.cpp \
-		DOMSVGPathSeg.cpp \
-		DOMSVGPathSegList.cpp \
 		nsDOMSVGZoomEvent.cpp \
 		nsDOMSVGEvent.cpp \
 		nsSVGAElement.cpp \
@@ -92,6 +90,8 @@ CPPSRCS		= \
 		nsSVGPathDataParser.cpp \
 		nsSVGPathElement.cpp \
 		nsSVGPathGeometryElement.cpp \
+		nsSVGPathSeg.cpp \
+		nsSVGPathSegList.cpp \
 		nsSVGPatternElement.cpp \
 		nsSVGPoint.cpp \
 		nsSVGPointList.cpp \
@@ -123,11 +123,8 @@ CPPSRCS		= \
 		nsSVGValue.cpp \
 		nsSVGViewBox.cpp \
 		SVGAnimatedLengthList.cpp \
-		SVGAnimatedPathSegList.cpp \
 		SVGLength.cpp \
 		SVGLengthList.cpp \
-		SVGPathData.cpp \
-		SVGPathSegUtils.cpp \
 		$(NULL)
 
 ifdef MOZ_SMIL
@@ -145,7 +142,6 @@ CPPSRCS += nsSVGAnimateElement.cpp \
            SVGMotionSMILAnimationFunction.cpp \
            SVGMotionSMILPathUtils.cpp \
            SVGOrientSMILType.cpp \
-           SVGPathSegListSMILType.cpp \
            SVGViewBoxSMILType.cpp \
            $(NULL)
 endif

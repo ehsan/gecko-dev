@@ -188,9 +188,13 @@ nsTSubstring_CharT::Finalize()
   }
 
 PRBool
-nsTSubstring_CharT::ReplacePrepInternal(index_type cutStart, size_type cutLen,
-                                        size_type fragLen, size_type newLen)
+nsTSubstring_CharT::ReplacePrep( index_type cutStart, size_type cutLen, size_type fragLen )
   {
+    // bound cut length
+    cutLen = NS_MIN(cutLen, mLength - cutStart);
+
+    PRUint32 newLen = mLength - cutLen + fragLen;
+
     char_type* oldData;
     PRUint32 oldFlags;
     if (!MutatePrep(newLen, &oldData, &oldFlags))
@@ -601,7 +605,7 @@ nsTSubstring_CharT::Equals( const self_type& str ) const
 PRBool
 nsTSubstring_CharT::Equals( const self_type& str, const comparator_type& comp ) const
   {
-    return mLength == str.mLength && comp(mData, str.mData, mLength, str.mLength) == 0;
+    return mLength == str.mLength && comp(mData, str.mData, mLength) == 0;
   }
 
 PRBool
@@ -631,7 +635,7 @@ nsTSubstring_CharT::Equals( const char_type* data, const comparator_type& comp )
 
     // XXX avoid length calculation?
     size_type length = char_traits::length(data);
-    return mLength == length && comp(mData, data, mLength, length) == 0;
+    return mLength == length && comp(mData, data, mLength) == 0;
   }
 
 PRBool

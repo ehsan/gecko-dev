@@ -43,10 +43,17 @@ window.addEventListener("message", function(e) {
       }, false);
     }
   }
-  xhr.onload = xhr.onerror = function (event) {
-    if (event.type == "error") {
-      res.didFail = true;
-    }
+  xhr.onload = function () {
+    res.status = xhr.status;
+    res.statusText = xhr.statusText;
+    res.responseXML = xhr.responseXML ?
+      (new XMLSerializer()).serializeToString(xhr.responseXML) :
+      null;
+    res.responseText = xhr.responseText;
+    post(e, res);
+  };
+  xhr.onerror = function () {
+    res.didFail = true;
     res.status = xhr.status;
     try {
       res.statusText = xhr.statusText;
@@ -56,13 +63,6 @@ window.addEventListener("message", function(e) {
       (new XMLSerializer()).serializeToString(xhr.responseXML) :
       null;
     res.responseText = xhr.responseText;
-
-    res.responseHeaders = {};
-    for (responseHeader in req.responseHeaders) {
-      res.responseHeaders[responseHeader] =
-        xhr.getResponseHeader(responseHeader);
-    }
-
     post(e, res);
   }
 

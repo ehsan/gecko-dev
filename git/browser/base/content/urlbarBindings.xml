@@ -47,53 +47,58 @@
   <binding id="urlbar" extends="chrome://global/content/bindings/autocomplete.xml#autocomplete">
 
     <content sizetopopup="pref">
-      <xul:hbox class="urlbar-frontcap-and-textbox" flex="1">
-        <xul:hbox class="urlbar-frontcap">
-          <children includes="image|deck|stack|box">
-            <xul:image class="autocomplete-icon" allowevents="true"/>
-          </children>
-        </xul:hbox>
-        <xul:stack anonid="stack" class="urlbar-stack" flex="1">
-          <xul:scrollbox class="urlbar-over-link-layer" flex="1"
-                         xbl:inherits="overlinkstate" align="center">
-            <xul:label anonid="origin-label" class="urlbar-origin-label" flex="1"
-                       crop="end"/>
-            <xul:hbox anonid="over-link-box" class="urlbar-over-link-box"
-                      xbl:inherits="overlinkstate" align="center">
-              <xul:label anonid="over-link-host-label"
-                         class="urlbar-over-link-host-label"/>
-              <xul:label anonid="over-link-path-label"
-                         class="urlbar-over-link-path-label" flex="1"/>
-            </xul:hbox>
-          </xul:scrollbox>
-          <xul:hbox anonid="textbox-container"
-                    class="autocomplete-textbox-container urlbar-textbox-container"
-                    flex="1" xbl:inherits="focused,overlinkstate">
-            <xul:hbox anonid="textbox-input-box"
-                      class="textbox-input-box urlbar-input-box"
-                      flex="1" xbl:inherits="tooltiptext=inputtooltiptext">
+      <xul:vbox class="urlbar-contents" flex="1">
+        <xul:hbox class="urlbar-frontcap-and-textbox" flex="1">
+          <xul:hbox class="urlbar-frontcap">
+            <children includes="image|deck|stack|box">
+              <xul:image class="autocomplete-icon" allowevents="true"/>
+            </children>
+          </xul:hbox>
+          <xul:stack anonid="stack" class="urlbar-stack" flex="1">
+            <xul:scrollbox class="urlbar-over-link-layer" flex="1"
+                           xbl:inherits="overlinkstate" align="center">
+              <xul:label anonid="origin-label" class="urlbar-origin-label" flex="1"
+                         crop="end"/>
+              <xul:hbox anonid="over-link-box" class="urlbar-over-link-box"
+                        xbl:inherits="overlinkstate" align="center">
+                <xul:label anonid="over-link-host-label"
+                           class="urlbar-over-link-host-label"/>
+                <xul:label anonid="over-link-path-label"
+                           class="urlbar-over-link-path-label" flex="1"/>
+              </xul:hbox>
+            </xul:scrollbox>
+            <xul:hbox anonid="textbox-container"
+                      class="autocomplete-textbox-container urlbar-textbox-container"
+                      flex="1" xbl:inherits="focused,overlinkstate">
+              <xul:hbox anonid="textbox-input-box"
+                        class="textbox-input-box urlbar-input-box"
+                        flex="1" xbl:inherits="tooltiptext=inputtooltiptext">
+                <xul:hbox class="urlbar-textbox-container-children"
+                          xbl:inherits="overlinkstate">
+                  <children/>
+                </xul:hbox>
+                <html:input anonid="input"
+                            class="autocomplete-textbox urlbar-input textbox-input"
+                            flex="1" allowevents="true"
+                            xbl:inherits="tooltiptext=inputtooltiptext,onfocus,onblur,value,type,maxlength,disabled,size,readonly,placeholder,tabindex,accesskey"/>
+              </xul:hbox>
               <xul:hbox class="urlbar-textbox-container-children"
                         xbl:inherits="overlinkstate">
-                <children/>
+                <children includes="hbox"/>
               </xul:hbox>
-              <html:input anonid="input"
-                          class="autocomplete-textbox urlbar-input textbox-input"
-                          flex="1" allowevents="true"
-                          xbl:inherits="tooltiptext=inputtooltiptext,onfocus,onblur,value,type,maxlength,disabled,size,readonly,placeholder,tabindex,accesskey"/>
             </xul:hbox>
-            <xul:hbox class="urlbar-textbox-container-children"
-                      xbl:inherits="overlinkstate">
-              <children includes="hbox"/>
-            </xul:hbox>
-          </xul:hbox>
-        </xul:stack>
-        <xul:dropmarker anonid="historydropmarker"
-                        class="autocomplete-history-dropmarker urlbar-history-dropmarker"
-                        allowevents="true"
-                        xbl:inherits="open,enablehistory,parentfocused=focused"/>
-        <xul:popupset anonid="popupset"
-                      class="autocomplete-result-popupset"/>
-      </xul:hbox>
+          </xul:stack>
+          <xul:dropmarker anonid="historydropmarker"
+                          class="autocomplete-history-dropmarker urlbar-history-dropmarker"
+                          allowevents="true"
+                          xbl:inherits="open,enablehistory,parentfocused=focused"/>
+          <xul:popupset anonid="popupset"
+                        class="autocomplete-result-popupset"/>
+        </xul:hbox>
+        <xul:vbox class="urlbar-progress-container" flex="1" pack="end">
+          <children includes="progressmeter"/>
+        </xul:vbox>
+      </xul:vbox>
       <children includes="toolbarbutton"/>
     </content>
 
@@ -118,7 +123,6 @@
         this.inputField.addEventListener("mouseout", this, false);
         this.inputField.addEventListener("overflow", this, false);
         this.inputField.addEventListener("underflow", this, false);
-        this._overLinkBox.addEventListener("transitionend", this, false);
 
         const kXULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
         var textBox = document.getAnonymousElementByAttribute(this,
@@ -130,24 +134,11 @@
           if (!pasteAndGo)
             return;
           var controller = document.commandDispatcher.getControllerForCommand("cmd_paste");
-          var couldBeURL = controller.isCommandEnabled("cmd_paste");
-          if (couldBeURL) {
-            let cbSvc = Cc["@mozilla.org/widget/clipboard;1"].
-                          getService(Ci.nsIClipboard);
-            let xferable = Cc["@mozilla.org/widget/transferable;1"].
-                            createInstance(Ci.nsITransferable);
-            xferable.addDataFlavor("text/unicode");
-            cbSvc.getData(xferable, cbSvc.kGlobalClipboard);
-            let data = {};
-            xferable.getTransferData("text/unicode", data, {});
-            data = data.value.QueryInterface(Ci.nsISupportsString).data;
-            try {
-              makeURI(data);
-            } catch (ex) { // clipboard data is not a URL
-              couldBeURL = false;
-            }
-          }
-          pasteAndGo.hidden = !couldBeURL;
+          var enabled = controller.isCommandEnabled("cmd_paste");
+          if (enabled)
+            pasteAndGo.removeAttribute("disabled");
+          else
+            pasteAndGo.setAttribute("disabled", "true");
         }, false);
 
         var insertLocation = cxmenu.firstChild;
@@ -160,8 +151,7 @@
                                    GetStringFromName("pasteAndGo.label");
           pasteAndGo.setAttribute("label", label);
           pasteAndGo.setAttribute("anonid", "paste-and-go");
-          pasteAndGo.setAttribute("oncommand",
-              "gURLBar.select(); goDoCommand('cmd_paste'); gURLBar.handleCommand();");
+          pasteAndGo.setAttribute("oncommand", "goDoCommand('cmd_paste'); gURLBar.handleCommand();");
           cxmenu.insertBefore(pasteAndGo, insertLocation.nextSibling);
         }
       ]]></constructor>
@@ -175,7 +165,6 @@
         this.inputField.removeEventListener("mouseout", this, false);
         this.inputField.removeEventListener("overflow", this, false);
         this.inputField.removeEventListener("underflow", this, false);
-        this._overLinkBox.removeEventListener("transitionend", this, false);
       ]]></destructor>
 
       <field name="_value"></field>
@@ -248,13 +237,8 @@
           if (action) {
             url = action.param;
             if (!(aTriggeringEvent && aTriggeringEvent.altKey)) {
-              if (action.type == "switchtab") {
-                this.handleRevert();
-                let prevTab = gBrowser.selectedTab;
-                if (switchToTabHavingURI(url) &&
-                    isTabEmpty(prevTab))
-                  gBrowser.removeTab(prevTab);
-              }
+              if (action.type == "switchtab")
+                switchToTabHavingURI(url);
               return;
             }
           }
@@ -277,13 +261,8 @@
           if (aTriggeringEvent instanceof MouseEvent) {
             // We have a mouse event (from the go button), so use the standard
             // UI link behaviors
-            let where = whereToOpenLink(aTriggeringEvent, false, false);
-            if (where != "current") {
-              this.handleRevert();
-              content.focus();
-            }
-            openUILinkIn(url, where,
-                        { allowThirdPartyFixup: true, postData: postData });
+            openUILink(url, aTriggeringEvent, false, false,
+                       true /* allow third party fixup */, postData);
             return;
           }
 
@@ -555,12 +534,6 @@
               this._contentIsCropped = false;
               this._hideURLTooltip();
               break;
-            case "transitionend":
-              if (aEvent.target == this._overLinkBox &&
-                  aEvent.propertyName == "opacity") {
-                this._overLinkTransitioning = false;
-              }
-              break;
           }
         ]]></body>
       </method>
@@ -627,69 +600,38 @@
                                                 "textbox-container");
       ]]></field>
 
-      <field name="_overLinkInDelay" readonly="true"><![CDATA[
-        100
-      ]]></field>
-
-      <field name="_overLinkOutDelay" readonly="true"><![CDATA[
+      <field name="_overLinkDelay" readonly="true"><![CDATA[
         100
       ]]></field>
 
       <field name="_overLinkDelayTimer"><![CDATA[
-        null
+        undefined
       ]]></field>
 
       <method name="setOverLink">
         <parameter name="aURL"/>
         <body><![CDATA[
-          // If the over-link is already scheduled to appear or hide, cancel it.
+          // If the over-link is already scheduled to fade-in, cancel it.
           if (this._overLinkDelayTimer) {
             clearTimeout(this._overLinkDelayTimer);
-            this._overLinkDelayTimer = null;
+            delete this._overLinkDelayTimer;
           }
 
           // Hide the over-link if aURL is falsey or if the URL bar is focused.
           if (!aURL || this.focused) {
-            this._overLinkDelayTimer = setTimeout(function overLinkOut(self) {
-              self._overLinkDelayTimer = null;
-              let style = window.getComputedStyle(self._overLinkBox, null);
-              self._overLinkTransitioning = style.opacity != 0;
-              self.removeAttribute("overlinkstate");
-            }, this._overLinkOutDelay, this);
+            // Over-link is fading in or showing.  Fade out.
+            if (this.hasAttribute("overlinkstate"))
+              this.removeAttribute("overlinkstate");
             return;
           }
 
-          // If it's in transition, update and show it immediately.
-          if (this._overLinkTransitioning) {
-            this._updateOverLink(aURL);
-            this._overLinkTransitioning = false;
-            this.setAttribute("overlinkstate", "showing");
-            return;
-          }
-
-          // Delay the update if it's hidden or shown.  We delay when shown in
-          // part for performance reasons: otherwise mousing over the bookmarks
-          // menu for example is very laggy.
-          this._overLinkDelayTimer = setTimeout(function overLinkIn(self) {
-            self._overLinkDelayTimer = null;
-            self._updateOverLink(aURL);
-            let style = window.getComputedStyle(self._overLinkBox, null);
-            self._overLinkTransitioning = style.opacity != 1;
-            self.setAttribute("overlinkstate", "fade-in");
-          }, this._overLinkInDelay, this);
-        ]]></body>
-      </method>
-
-      <method name="_updateOverLink">
-        <parameter name="aURL"/>
-        <body><![CDATA[
           // Get the width of the bar before we go modifying it.
           var barWidth = this._stack.boxObject.width;
 
           // Determine the pre-path and path of the over-link.  Include the
           // path's leading slash in the pre-path so that if the path is
           // truncated its leading slash is visible.
-          var re = new RegExp("^([a-z0-9+.-]+://[^/]+/)(.*)$");
+          var re = new RegExp("([a-z0-9+.-]+://[^/]+/)(.*)");
           var match = re.exec(aURL);
           var host = match ? match[1] : "";
           var path = match ? match[2] : aURL;
@@ -725,6 +667,21 @@
           }
 
           this._originLabel.value = this.value;
+
+          // Finally, show the over-link.
+          if (window.getComputedStyle(overLink, null).opacity != 0) {
+            // It's currently becoming transparent, becoming opaque, or is
+            // opaque.  Show it immediately.
+            this.setAttribute("overlinkstate", "showing");
+          }
+          else {
+            // It's not showing at all.  Start fade-in after some delay.
+            this._overLinkDelayTimer =
+              setTimeout(function overLinkDelayTimer(self) {
+                delete self._overLinkDelayTimer;
+                self.setAttribute("overlinkstate", "fade-in");
+              }, this._overLinkDelay, this);
+          }
         ]]></body>
       </method>
     </implementation>
@@ -994,5 +951,4 @@
       ]]></constructor>
     </implementation>
   </binding>
-  
 </bindings>

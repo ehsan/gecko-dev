@@ -93,7 +93,6 @@ public:
     NS_IMETHOD ConfigureChildren(const nsTArray<nsIWidget::Configuration>&);
     NS_IMETHOD SetParent(nsIWidget* aNewParent);
     virtual nsIWidget *GetParent(void);
-    virtual float GetDPI();
     NS_IMETHOD Show(PRBool aState);
     NS_IMETHOD SetModal(PRBool aModal);
     NS_IMETHOD IsVisible(PRBool & aState);
@@ -125,7 +124,6 @@ public:
     virtual nsIntPoint WidgetToScreenOffset();
     NS_IMETHOD DispatchEvent(nsGUIEvent *aEvent, nsEventStatus &aStatus);
     nsEventStatus DispatchEvent(nsGUIEvent *aEvent);
-    NS_IMETHOD MakeFullScreen(PRBool aFullScreen);
     NS_IMETHOD SetWindowClass(const nsAString& xulWinType);
 
 
@@ -139,6 +137,7 @@ public:
     NS_IMETHOD SetHasTransparentBackground(PRBool aTransparent) { return NS_OK; }
     NS_IMETHOD GetHasTransparentBackground(PRBool& aTransparent) { aTransparent = PR_FALSE; return NS_OK; }
     NS_IMETHOD HideWindowChrome(PRBool aShouldHide) { return NS_ERROR_NOT_IMPLEMENTED; }
+    NS_IMETHOD MakeFullScreen(PRBool aFullScreen) { return NS_ERROR_NOT_IMPLEMENTED; }
     virtual void* GetNativeData(PRUint32 aDataType);
     NS_IMETHOD SetTitle(const nsAString& aTitle) { return NS_OK; }
     NS_IMETHOD SetIcon(const nsAString& aIconSpec) { return NS_OK; }
@@ -162,7 +161,7 @@ public:
     NS_IMETHOD OnIMESelectionChange(void);
     virtual nsIMEUpdatePreference GetIMEUpdatePreference();
 
-    LayerManager* GetLayerManager(bool* aAllowRetaining = nsnull);
+    LayerManager* GetLayerManager();
     gfxASurface* GetThebesSurface();
 
     NS_IMETHOD ReparentNativeWidget(nsIWidget* aNewParent);

@@ -69,7 +69,7 @@
 
 #include "mozilla/BlockingResourceBase.h"
 
-#ifdef HAVE_DLOPEN
+#ifdef HAVE_LIBDL
 #include <dlfcn.h>
 #endif
 
@@ -730,7 +730,7 @@ static void InitTraceLog(void)
   if (defined) {
     gLogToLeaky = PR_TRUE;
     PRFuncPtr p = nsnull, q = nsnull;
-#ifdef HAVE_DLOPEN
+#ifdef HAVE_LIBDL
     {
       PRLibrary *lib = nsnull;
       p = PR_FindFunctionSymbolAndLibrary("__log_addref", &lib);

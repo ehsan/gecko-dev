@@ -56,8 +56,8 @@
 #include <math.h>
 #include "jstypes.h"
 #include "jsstdint.h"
-#include "jsarena.h"
-#include "jsutil.h"
+#include "jsarena.h" /* Added by JSIFY */
+#include "jsutil.h" /* Added by JSIFY */
 #include "jsapi.h"
 #include "jsarray.h"
 #include "jsatom.h"
@@ -828,7 +828,7 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *calle
         if (source) {
             /*
              * Save eval program source in script->atomMap.vector[0] for the
-             * eval cache (see EvalCacheLookup in jsobj.cpp).
+             * eval cache (see obj_eval in jsobj.cpp).
              */
             JSAtom *atom = js_AtomizeString(cx, source, 0);
             if (!atom || !cg.atomList.add(&parser, atom))
@@ -864,6 +864,11 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *calle
     bool onlyXML;
     onlyXML = true;
 #endif
+
+    CG_SWITCH_TO_PROLOG(&cg);
+    if (js_Emit1(cx, &cg, JSOP_TRACE) < 0)
+        goto out;
+    CG_SWITCH_TO_MAIN(&cg);
 
     inDirectivePrologue = true;
     for (;;) {
@@ -978,7 +983,7 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *calle
 #ifdef JS_ARENAMETER
     JS_DumpArenaStats(stdout);
 #endif
-    script = JSScript::NewScriptFromCG(cx, &cg);
+    script = js_NewScriptFromCG(cx, &cg);
     if (script && funbox && script != script->emptyScript())
         script->savedCallerFun = true;
 
@@ -1054,6 +1059,8 @@ Compiler::defineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *scrip
         JS_ASSERT(prop);
         const Shape *shape = (const Shape *)prop;
         def.knownSlot = shape->slot;
+
+        globalObj->dropProperty(cx, prop);
     }
 
     js::Vector<JSScript *, 16, ContextAllocPolicy> worklist(cx);
@@ -1544,9 +1551,9 @@ static JSParseNode *
 MakeDefIntoUse(JSDefinition *dn, JSParseNode *pn, JSAtom *atom, JSTreeContext *tc)
 {
     /*
-     * If dn is arg, or in [var, const, let] and has an initializer, then we
-     * must rewrite it to be an assignment node, whose freshly allocated
-     * left-hand side becomes a use of pn.
+     * If dn is var, const, or let, and it has an initializer, then we must
+     * rewrite it to be an assignment node, whose freshly allocated left-hand
+     * side becomes a use of pn.
      */
     if (dn->isBindingForm()) {
         JSParseNode *rhs = dn->expr();
@@ -2603,7 +2610,7 @@ LeaveFunction(JSParseNode *fn, JSTreeContext *funtc, JSAtom *funAtom = NULL,
              * Make sure to deoptimize lexical dependencies that are polluted
              * by eval or with, to safely statically bind globals (see bug 561923).
              */
-            if (funtc->callsEval() ||
+            if ((funtc->flags & TCF_FUN_CALLS_EVAL) ||
                 (outer_ale && tc->innermostWith &&
                  ALE_DEFN(outer_ale)->pn_pos < tc->innermostWith->pn_pos)) {
                 DeoptimizeUsesWithin(dn, fn->pn_pos);
@@ -2778,7 +2785,7 @@ Parser::functionArguments(JSTreeContext &funtc, JSFunctionBox *funbox, JSFunctio
                     list = ListNode::create(&funtc);
                     if (!list)
                         return false;
-                    list->pn_type = TOK_VAR;
+                    list->pn_type = TOK_COMMA;
                     list->makeEmpty();
                     *listp = list;
                 }
@@ -3156,9 +3163,6 @@ Parser::functionDef(JSAtom *funAtom, FunctionType type, uintN lambda)
     if (!LeaveFunction(pn, &funtc, funAtom, lambda))
         return NULL;
 
-    if (funtc.inStrictMode())
-        fun->flags |= JSFUN_PRIMITIVE_THIS;
-
     /* If the surrounding function is not strict code, reset the lexer. */
     if (!outertc->inStrictMode())
         tokenStream.setStrictMode(false);
@@ -3359,7 +3363,7 @@ BindLet(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
     if (!CheckStrictBinding(cx, tc, atom, pn))
         return false;
 
-    blockObj = tc->blockChain();
+    blockObj = tc->blockChain;
     ale = tc->decls.lookup(atom);
     if (ale && ALE_DEFN(ale)->pn_blockid == tc->blockid()) {
         const char *name = js_AtomToPrintableString(cx, atom);
@@ -3424,7 +3428,7 @@ PopStatement(JSTreeContext *tc)
     JSStmtInfo *stmt = tc->topStmt;
 
     if (stmt->flags & SIF_SCOPE) {
-        JSObject *obj = stmt->blockBox->object;
+        JSObject *obj = stmt->blockObj;
         JS_ASSERT(!obj->isClonedBlock());
 
         for (Shape::Range r = obj->lastProperty()->all(); !r.empty(); r.popFront()) {
@@ -3479,6 +3483,7 @@ DefineGlobal(JSParseNode *pn, JSCodeGenerator *cg, JSAtom *atom)
     JSAtomListElement *ale = globalScope->names.lookup(atom);
     if (!ale) {
         JSContext *cx = cg->parser->context;
+        AutoObjectLocker locker(cx, globalObj);
 
         JSObject *holder;
         JSProperty *prop;
@@ -3489,6 +3494,8 @@ DefineGlobal(JSParseNode *pn, JSCodeGenerator *cg, JSAtom *atom)
 
         GlobalScope::GlobalDef def;
         if (prop) {
+            AutoPropertyDropper dropper(cx, globalObj, prop);
+
             /*
              * A few cases where we don't bother aggressively caching:
              *   1) Function value changes.
@@ -4208,8 +4215,8 @@ CheckDestructuring(JSContext *cx, BindData *data,
      */
     if (data &&
         data->binder == BindLet &&
-        OBJ_BLOCK_COUNT(cx, tc->blockChain()) == 0) {
-        ok = !!js_DefineNativeProperty(cx, tc->blockChain(),
+        OBJ_BLOCK_COUNT(cx, tc->blockChain) == 0) {
+        ok = !!js_DefineNativeProperty(cx, tc->blockChain,
                                        ATOM_TO_JSID(cx->runtime->atomState.emptyAtom),
                                        UndefinedValue(), NULL, NULL,
                                        JSPROP_ENUMERATE | JSPROP_PERMANENT,
@@ -4573,7 +4580,7 @@ PushLexicalScope(JSContext *cx, TokenStream *ts, JSTreeContext *tc,
     if (!blockbox)
         return NULL;
 
-    js_PushBlockScope(tc, stmt, blockbox, -1);
+    js_PushBlockScope(tc, stmt, obj, -1);
     pn->pn_type = TOK_LEXICALSCOPE;
     pn->pn_op = JSOP_LEAVEBLOCK;
     pn->pn_objbox = blockbox;
@@ -5704,8 +5711,8 @@ Parser::statement()
         }
 
         if (stmt && (stmt->flags & SIF_SCOPE)) {
-            JS_ASSERT(tc->blockChainBox == stmt->blockBox);
-            obj = tc->blockChain();
+            JS_ASSERT(tc->blockChain == stmt->blockObj);
+            obj = tc->blockChain;
         } else {
             if (!stmt || (stmt->flags & SIF_BODY_BLOCK)) {
                 /*
@@ -5755,10 +5762,9 @@ Parser::statement()
             JS_SCOPE_DEPTH_METERING(++tc->scopeDepth > tc->maxScopeDepth &&
                                     (tc->maxScopeDepth = tc->scopeDepth));
 
-            obj->setParent(tc->blockChain());
-            blockbox->parent = tc->blockChainBox;
-            tc->blockChainBox = blockbox;
-            stmt->blockBox = blockbox;
+            obj->setParent(tc->blockChain);
+            tc->blockChain = obj;
+            stmt->blockObj = obj;
 
 #ifdef DEBUG
             pn1 = tc->blockNode;
@@ -6006,7 +6012,7 @@ Parser::variables(bool inLetHead)
      * this code will change soon.
      */
     if (let) {
-        JS_ASSERT(tc->blockChainBox == scopeStmt->blockBox);
+        JS_ASSERT(tc->blockChain == scopeStmt->blockObj);
         data.binder = BindLet;
         data.let.overflow = JSMSG_TOO_MANY_LOCALS;
     } else {

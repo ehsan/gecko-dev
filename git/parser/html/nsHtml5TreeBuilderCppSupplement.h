@@ -552,7 +552,7 @@ nsHtml5TreeBuilder::elementPopped(PRInt32 aNamespace, nsIAtom* aName, nsIContent
     treeOp->Init(eTreeOpDoneCreatingElement, aElement);
     return;
   }
-  if (aName == nsHtml5Atoms::meta && !fragment) {
+  if (aName == nsHtml5Atoms::meta) {
     nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
     NS_ASSERTION(treeOp, "Tree op allocation failed.");
     treeOp->Init(eTreeOpProcessMeta, aElement);
@@ -567,8 +567,9 @@ nsHtml5TreeBuilder::accumulateCharacters(const PRUnichar* aBuf, PRInt32 aStart, 
   PRInt32 newFillLen = charBufferLen + aLength;
   if (newFillLen > charBuffer.length) {
     PRInt32 newAllocLength = newFillLen + (newFillLen >> 1);
-    jArray<PRUnichar,PRInt32> newBuf = jArray<PRUnichar,PRInt32>::newJArray(newAllocLength);
+    jArray<PRUnichar,PRInt32> newBuf(newAllocLength);
     memcpy(newBuf, charBuffer, sizeof(PRUnichar) * charBufferLen);
+    charBuffer.release();
     charBuffer = newBuf;
   }
   memcpy(charBuffer + charBufferLen, aBuf + aStart, sizeof(PRUnichar) * aLength);

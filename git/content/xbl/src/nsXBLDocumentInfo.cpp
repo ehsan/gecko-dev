@@ -327,10 +327,12 @@ nsXBLDocGlobalObject::EnsureScriptEnvironment(PRUint32 aLangID)
   JS_SetErrorReporter(cx, XBL_ProtoErrorReporter);
 
   nsIPrincipal *principal = GetPrincipal();
+  nsCString origin;
   JSCompartment *compartment;
 
-  rv = xpc_CreateGlobalObject(cx, &gSharedGlobalClass, principal, nsnull,
-                              false, &mJSObject, &compartment);
+  principal->GetOrigin(getter_Copies(origin));
+  rv = xpc_CreateGlobalObject(cx, &gSharedGlobalClass, origin, principal,
+                              &mJSObject, &compartment);
   NS_ENSURE_SUCCESS(rv, nsnull);
 
   ::JS_SetGlobalObject(cx, mJSObject);

@@ -199,7 +199,11 @@ gfxDWriteFont::ComputeMetrics()
         mFontFace->ReleaseFontTable(tableContext);
     }
 
-    mMetrics.internalLeading = NS_MAX(mMetrics.maxHeight - mMetrics.emHeight, 0.0);
+    mMetrics.internalLeading = 
+        ceil(((gfxFloat)(fontMetrics.ascent + 
+                    fontMetrics.descent - 
+                    fontMetrics.designUnitsPerEm) / 
+                    fontMetrics.designUnitsPerEm) * mAdjustedSize);
     mMetrics.externalLeading = 
         ceil(((gfxFloat)fontMetrics.lineGap /
                    fontMetrics.designUnitsPerEm) * mAdjustedSize);
@@ -416,12 +420,6 @@ gfxDWriteFont::GetFontTable(PRUint32 aTag)
         return hb_blob_create(static_cast<const char*>(data), size,
                               HB_MEMORY_MODE_READONLY,
                               DestroyBlobFunc, ftr);
-    }
-
-    if (mFontEntry->IsUserFont() && !mFontEntry->IsLocalUserFont()) {
-        // for downloaded fonts, there may be layout tables cached in the entry
-        // even though they're absent from the sanitized platform font
-        return mFontEntry->GetFontTable(aTag);
     }
 
     return nsnull;

@@ -261,13 +261,13 @@ STATIC_LIBS += morkreader_s
 COMPONENT_LIBS += \
 	places \
 	$(NULL)
-endif
-
+else
 ifdef MOZ_MORK
 ifdef MOZ_XUL
 COMPONENT_LIBS += \
 	mork \
 	$(NULL)
+endif
 endif
 endif
 
@@ -367,7 +367,6 @@ EXTRA_DSO_LDOPTS += \
 	$(NSS_LIBS) \
 	$(MOZ_CAIRO_LIBS) \
 	$(MOZ_HARFBUZZ_LIBS) \
-	$(MOZ_OTS_LIBS) \
 	$(MOZ_APP_EXTRA_LIBS) \
 	$(NULL)
 
@@ -383,10 +382,6 @@ endif
 
 ifdef MOZ_NATIVE_LIBEVENT
 EXTRA_DSO_LDOPTS += $(MOZ_LIBEVENT_LIBS)
-endif
-
-ifdef MOZ_NATIVE_LIBVPX
-EXTRA_DSO_LDOPTS += $(MOZ_LIBVPX_LIBS)
 endif
 
 ifdef MOZ_SYDNEYAUDIO
