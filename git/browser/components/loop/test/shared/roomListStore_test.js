@@ -135,9 +135,9 @@ describe("loop.store.RoomListStore", function () {
         });
       });
 
-      describe("delete", function() {
-        it("should delete a room from the list", function() {
-          fakeMozLoop.rooms.trigger("delete", "delete", {
+      describe("remove", function() {
+        it("should remove a room from the list", function() {
+          fakeMozLoop.rooms.trigger("remove", "remove", {
             roomToken: "_nxD4V4FflQ"
           });
 
@@ -324,29 +324,6 @@ describe("loop.store.RoomListStore", function () {
 
         expect(store.getStoreState().pendingInitialRetrieval).eql(false);
       });
-    });
-  });
-
-  describe("#openRoom", function() {
-    var store, fakeMozLoop;
-
-    beforeEach(function() {
-      fakeMozLoop = {
-        rooms: {
-          open: sinon.spy()
-        }
-      };
-      store = new loop.store.RoomListStore({
-        dispatcher: dispatcher,
-        mozLoop: fakeMozLoop
-      });
-    });
-
-    it("should open the room via mozLoop", function() {
-      dispatcher.dispatch(new sharedActions.OpenRoom({roomToken: "42abc"}));
-
-      sinon.assert.calledOnce(fakeMozLoop.rooms.open);
-      sinon.assert.calledWithExactly(fakeMozLoop.rooms.open, "42abc");
     });
   });
 });

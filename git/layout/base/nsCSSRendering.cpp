@@ -705,11 +705,12 @@ nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
 
   // Convert to dev pixels.
   nscoord twipsPerPixel = aPresContext->DevPixelsToAppUnits(1);
-  Rect joinedBorderAreaPx = NSRectToRect(joinedBorderArea, twipsPerPixel);
-  Float borderWidths[4] = { Float(border.top / twipsPerPixel),
-                            Float(border.right / twipsPerPixel),
-                            Float(border.bottom / twipsPerPixel),
-                            Float(border.left / twipsPerPixel) };
+  gfxRect joinedBorderAreaPx =
+    nsLayoutUtils::RectToGfxRect(joinedBorderArea, twipsPerPixel);
+  gfxFloat borderWidths[4] = { gfxFloat(border.top / twipsPerPixel),
+                               gfxFloat(border.right / twipsPerPixel),
+                               gfxFloat(border.bottom / twipsPerPixel),
+                               gfxFloat(border.left / twipsPerPixel) };
 
   uint8_t borderStyles[4];
   nscolor borderColors[4];
@@ -732,13 +733,14 @@ nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
 #if 0
   // this will draw a transparent red backround underneath the border area
   ctx->Save();
-  ctx->Rectangle(ThebesRect(joinedBorderAreaPx));
+  ctx->Rectangle(joinedBorderAreaPx);
   ctx->SetColor(gfxRGBA(1.0, 0.0, 0.0, 0.5));
   ctx->Fill();
   ctx->Restore();
 #endif
 
-  nsCSSBorderRenderer br(ctx,
+  nsCSSBorderRenderer br(twipsPerPixel,
+                         ctx,
                          joinedBorderAreaPx,
                          borderStyles,
                          borderWidths,
@@ -827,7 +829,7 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
   nscoord twipsPerPixel = aPresContext->DevPixelsToAppUnits(1);
 
   // get the outer rectangles
-  Rect oRect(NSRectToRect(outerRect, twipsPerPixel));
+  gfxRect oRect(nsLayoutUtils::RectToGfxRect(outerRect, twipsPerPixel));
 
   // convert the radii
   nsMargin outlineMargin(width, width, width, width);
@@ -865,17 +867,18 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
                                outlineColor };
 
   // convert the border widths
-  Float outlineWidths[4] = { Float(width / twipsPerPixel),
-                             Float(width / twipsPerPixel),
-                             Float(width / twipsPerPixel),
-                             Float(width / twipsPerPixel) };
+  gfxFloat outlineWidths[4] = { gfxFloat(width / twipsPerPixel),
+                                gfxFloat(width / twipsPerPixel),
+                                gfxFloat(width / twipsPerPixel),
+                                gfxFloat(width / twipsPerPixel) };
 
   // start drawing
   gfxContext *ctx = aRenderingContext.ThebesContext();
 
   ctx->Save();
 
-  nsCSSBorderRenderer br(ctx,
+  nsCSSBorderRenderer br(twipsPerPixel,
+                         ctx,
                          oRect,
                          outlineStyles,
                          outlineWidths,
@@ -899,17 +902,17 @@ nsCSSRendering::PaintFocus(nsPresContext* aPresContext,
   nscoord oneCSSPixel = nsPresContext::CSSPixelsToAppUnits(1);
   nscoord oneDevPixel = aPresContext->DevPixelsToAppUnits(1);
 
-  Rect focusRect(NSRectToRect(aFocusRect, oneDevPixel));
+  gfxRect focusRect(nsLayoutUtils::RectToGfxRect(aFocusRect, oneDevPixel));
 
   RectCornerRadii focusRadii;
   {
     nscoord twipsRadii[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
     ComputePixelRadii(twipsRadii, oneDevPixel, &focusRadii);
   }
-  Float focusWidths[4] = { Float(oneCSSPixel / oneDevPixel),
-                           Float(oneCSSPixel / oneDevPixel),
-                           Float(oneCSSPixel / oneDevPixel),
-                           Float(oneCSSPixel / oneDevPixel) };
+  gfxFloat focusWidths[4] = { gfxFloat(oneCSSPixel / oneDevPixel),
+                              gfxFloat(oneCSSPixel / oneDevPixel),
+                              gfxFloat(oneCSSPixel / oneDevPixel),
+                              gfxFloat(oneCSSPixel / oneDevPixel) };
 
   uint8_t focusStyles[4] = { NS_STYLE_BORDER_STYLE_DOTTED,
                              NS_STYLE_BORDER_STYLE_DOTTED,
@@ -927,7 +930,8 @@ nsCSSRendering::PaintFocus(nsPresContext* aPresContext,
   // something that CSS can style, this function will then have access
   // to a style context and can use the same logic that PaintBorder
   // and PaintOutline do.)
-  nsCSSBorderRenderer br(ctx,
+  nsCSSBorderRenderer br(oneDevPixel,
+                         ctx,
                          focusRect,
                          focusStyles,
                          focusWidths,

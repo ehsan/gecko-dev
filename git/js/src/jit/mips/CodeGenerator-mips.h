@@ -156,11 +156,6 @@ class CodeGeneratorMIPS : public CodeGeneratorShared
     {
         emitBranch(value.typeReg(), (Imm32)ImmType(JSVAL_TYPE_UNDEFINED), cond, ifTrue, ifFalse);
     }
-    void testObjectEmitBranch(Assembler::Condition cond, const ValueOperand &value,
-                              MBasicBlock *ifTrue, MBasicBlock *ifFalse)
-    {
-        emitBranch(value.typeReg(), (Imm32)ImmType(JSVAL_TYPE_OBJECT), cond, ifTrue, ifFalse);
-    }
 
     bool emitTableSwitchDispatch(MTableSwitch *mir, Register index, Register base);
 

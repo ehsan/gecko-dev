@@ -8,7 +8,6 @@
 #define NS_CSS_RENDERING_BORDERS_H
 
 #include "gfxRect.h"
-#include "mozilla/Attributes.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/PathHelpers.h"
 #include "mozilla/RefPtr.h"
@@ -76,62 +75,44 @@ typedef enum {
   BorderColorStyleDark
 } BorderColorStyle;
 
-class nsCSSBorderRenderer MOZ_FINAL
-{
+struct nsCSSBorderRenderer {
   typedef mozilla::gfx::ColorPattern ColorPattern;
-  typedef mozilla::gfx::DrawTarget DrawTarget;
   typedef mozilla::gfx::Float Float;
-  typedef mozilla::gfx::Path Path;
   typedef mozilla::gfx::Rect Rect;
   typedef mozilla::gfx::RectCornerRadii RectCornerRadii;
 
-public:
-
-  nsCSSBorderRenderer(gfxContext* aDestContext,
-                      Rect& aOuterRect,
+  nsCSSBorderRenderer(int32_t aAppUnitsPerPixel,
+                      gfxContext* aDestContext,
+                      gfxRect& aOuterRect,
                       const uint8_t* aBorderStyles,
-                      const Float* aBorderWidths,
+                      const gfxFloat* aBorderWidths,
                       RectCornerRadii& aBorderRadii,
                       const nscolor* aBorderColors,
                       nsBorderColors* const* aCompositeColors,
                       nscolor aBackgroundColor);
 
-  // draw the entire border
-  void DrawBorders();
-
-  // utility function used for background painting as well as borders
-  static void ComputeInnerRadii(const RectCornerRadii& aRadii,
-                                const Float* aBorderSizes,
-                                RectCornerRadii* aInnerRadiiRet);
-
-  // Given aRadii as the border radii for a rectangle, compute the
-  // appropriate radii for another rectangle *outside* that rectangle
-  // by increasing the radii, except keeping sharp corners sharp.
-  // Used for spread box-shadows
-  static void ComputeOuterRadii(const RectCornerRadii& aRadii,
-                                const Float* aBorderSizes,
-                                RectCornerRadii* aOuterRadiiRet);
-
-private:
-
   RectCornerRadii mBorderCornerDimensions;
 
   // destination context
-  DrawTarget* mDrawTarget;
   gfxContext* mContext;
 
   // the rectangle of the outside and the inside of the border
-  Rect mOuterRect;
-  Rect mInnerRect;
+  gfxRect mOuterRect;
+  gfxRect mInnerRect;
 
   // the style and size of the border
   const uint8_t* mBorderStyles;
-  const Float* mBorderWidths;
+  const gfxFloat* mBorderWidths;
+  uint8_t* mSanitizedStyles;
+  gfxFloat* mSanitizedWidths;
   RectCornerRadii mBorderRadii;
 
   // colors
   const nscolor* mBorderColors;
   nsBorderColors* const* mCompositeColors;
+
+  // core app units per pixel
+  int32_t mAUPP;
 
   // the background color
   nscolor mBackgroundColor;
@@ -155,10 +136,10 @@ private:
   // Path generation functions
   //
 
-  // Get the Rect for drawing the given corner
-  Rect GetCornerRect(mozilla::css::Corner aCorner);
+  // add the path for drawing the given corner to the context
+  void DoCornerSubPath(mozilla::css::Corner aCorner);
   // add the path for drawing the given side without any adjacent corners to the context
-  Rect GetSideClipWithoutCornersRect(mozilla::css::Side aSide);
+  void DoSideClipWithoutCornersSubPath(mozilla::css::Side aSide);
 
   // Create a clip path for the wedge that this side of
   // the border should take up.  This is only called
@@ -168,7 +149,7 @@ private:
   // This code needs to make sure that the individual pieces
   // don't ever (mathematically) overlap; the pixel overlap
   // is taken care of by the ADD compositing.
-  mozilla::TemporaryRef<Path> GetSideClipSubPath(mozilla::css::Side aSide);
+  void DoSideClipSubPath(mozilla::css::Side aSide);
 
   // Given a set of sides to fill and a color, do so in the fastest way.
   //
@@ -230,25 +211,41 @@ private:
   // Draw a solid border that has no border radius (i.e. is rectangular) and
   // uses CompositeColors.
   void DrawRectangularCompositeColors();
+
+  // draw the entire border
+  void DrawBorders ();
+
+  // utility function used for background painting as well as borders
+  static void ComputeInnerRadii(const RectCornerRadii& aRadii,
+                                const Float* aBorderSizes,
+                                RectCornerRadii* aInnerRadiiRet);
+
+  // Given aRadii as the border radii for a rectangle, compute the
+  // appropriate radii for another rectangle *outside* that rectangle
+  // by increasing the radii, except keeping sharp corners sharp.
+  // Used for spread box-shadows
+  static void ComputeOuterRadii(const RectCornerRadii& aRadii,
+                                const Float* aBorderSizes,
+                                RectCornerRadii* aOuterRadiiRet);
 };
 
 namespace mozilla {
 #ifdef DEBUG_NEW_BORDERS
 #include <stdarg.h>
 
-static inline void PrintAsString(const mozilla::gfx::Point& p) {
+static inline void PrintAsString(const gfxPoint& p) {
   fprintf (stderr, "[%f,%f]", p.x, p.y);
 }
 
-static inline void PrintAsString(const mozilla::gfx::Size& s) {
+static inline void PrintAsString(const gfxSize& s) {
   fprintf (stderr, "[%f %f]", s.width, s.height);
 }
 
-static inline void PrintAsString(const mozilla::gfx::Rect& r) {
+static inline void PrintAsString(const gfxRect& r) {
   fprintf (stderr, "[%f %f %f %f]", r.X(), r.Y(), r.Width(), r.Height());
 }
 
-static inline void PrintAsString(const mozilla::gfx::Float f) {
+static inline void PrintAsString(const gfxFloat f) {
   fprintf (stderr, "%f", f);
 }
 
@@ -271,20 +268,20 @@ static inline void PrintAsFormatString(const char *fmt, ...) {
 }
 
 static inline void PrintGfxContext(gfxContext *ctx) {
-  mozilla::gfx::Point p = ctx->CurrentPoint();
+  gfxPoint p = ctx->CurrentPoint();
   fprintf (stderr, "p: %f %f\n", p.x, p.y);
   return;
-  ctx->MoveTo(p + Point(-2, -2)); ctx->LineTo(p + Point(2, 2));
-  ctx->MoveTo(p + Point(-2, 2)); ctx->LineTo(p + Point(2, -2));
+  ctx->MoveTo(p + gfxPoint(-2, -2)); ctx->LineTo(p + gfxPoint(2, 2));
+  ctx->MoveTo(p + gfxPoint(-2, 2)); ctx->LineTo(p + gfxPoint(2, -2));
   ctx->MoveTo(p);
 }
 
 
 #else
-static inline void PrintAsString(const mozilla::gfx::Point& p) {}
-static inline void PrintAsString(const mozilla::gfx::Size& s) {}
-static inline void PrintAsString(const mozilla::gfx::Rect& r) {}
-static inline void PrintAsString(const mozilla::gfx::Float f) {}
+static inline void PrintAsString(const gfxPoint& p) {}
+static inline void PrintAsString(const gfxSize& s) {}
+static inline void PrintAsString(const gfxRect& r) {}
+static inline void PrintAsString(const gfxFloat f) {}
 static inline void PrintAsString(const char *s) {}
 static inline void PrintAsStringNewline(const char *s = nullptr) {}
 static inline void PrintAsFormatString(const char *fmt, ...) {}

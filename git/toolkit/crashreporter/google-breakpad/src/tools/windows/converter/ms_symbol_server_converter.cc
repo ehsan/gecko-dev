@@ -34,8 +34,8 @@
 //
 // Author: Mark Mentovai
 
-#include <windows.h>
-#include <dbghelp.h>
+#include <Windows.h>
+#include <DbgHelp.h>
 
 #include <cassert>
 #include <cstdio>

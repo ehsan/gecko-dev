@@ -140,12 +140,6 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared
         cond = masm.testUndefined(cond, value);
         emitBranch(cond, ifTrue, ifFalse);
     }
-    void testObjectEmitBranch(Assembler::Condition cond, const ValueOperand &value,
-                                 MBasicBlock *ifTrue, MBasicBlock *ifFalse)
-    {
-        cond = masm.testObject(cond, value);
-        emitBranch(cond, ifTrue, ifFalse);
-    }
 
     bool emitTableSwitchDispatch(MTableSwitch *mir, Register index, Register base);
 

@@ -613,27 +613,27 @@ gfxContext::CurrentOperator() const
 }
 
 void
-gfxContext::SetLineCap(CapStyle cap)
+gfxContext::SetLineCap(GraphicsLineCap cap)
 {
-  CurrentState().strokeOptions.mLineCap = cap;
+  CurrentState().strokeOptions.mLineCap = ToCapStyle(cap);
 }
 
-CapStyle
+gfxContext::GraphicsLineCap
 gfxContext::CurrentLineCap() const
 {
-  return CurrentState().strokeOptions.mLineCap;
+  return ThebesLineCap(CurrentState().strokeOptions.mLineCap);
 }
 
 void
-gfxContext::SetLineJoin(JoinStyle join)
+gfxContext::SetLineJoin(GraphicsLineJoin join)
 {
-  CurrentState().strokeOptions.mLineJoin = join;
+  CurrentState().strokeOptions.mLineJoin = ToJoinStyle(join);
 }
 
-JoinStyle
+gfxContext::GraphicsLineJoin
 gfxContext::CurrentLineJoin() const
 {
-  return CurrentState().strokeOptions.mLineJoin;
+  return ThebesLineJoin(CurrentState().strokeOptions.mLineJoin);
 }
 
 void

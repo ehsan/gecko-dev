@@ -4335,16 +4335,6 @@ class MToDouble
         implicitTruncate_ = Max(implicitTruncate_, kind);
     }
 
-    bool writeRecoverData(CompactBufferWriter &writer) const;
-    bool canRecoverOnBailout() const {
-        if (input()->type() == MIRType_Value)
-            return false;
-        if (input()->type() == MIRType_Symbol)
-            return false;
-
-        return true;
-    }
-
     ALLOW_CLONE(MToDouble)
 };
 

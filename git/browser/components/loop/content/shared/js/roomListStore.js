@@ -71,8 +71,6 @@ loop.store = loop.store || {};
     this._dispatcher.register(this, [
       "createRoom",
       "createRoomError",
-      "deleteRoom",
-      "deleteRoomError",
       "getAllRooms",
       "getAllRoomsError",
       "openRoom",
@@ -141,7 +139,7 @@ loop.store = loop.store || {};
       // Rooms event registration
       this._mozLoop.rooms.on("add", this._onRoomAdded.bind(this));
       this._mozLoop.rooms.on("update", this._onRoomUpdated.bind(this));
-      this._mozLoop.rooms.on("delete", this._onRoomRemoved.bind(this));
+      this._mozLoop.rooms.on("remove", this._onRoomRemoved.bind(this));
     },
 
     /**
@@ -183,7 +181,7 @@ loop.store = loop.store || {};
     },
 
     /**
-     * Executed when a room is deleted.
+     * Executed when a room is removed.
      *
      * @param {String} eventName       The event name (unused).
      * @param {Object} removedRoomData The removed room data.
@@ -195,6 +193,7 @@ loop.store = loop.store || {};
         })
       }));
     },
+
 
     /**
      * Maps and sorts the raw room list received from the mozLoop API.
@@ -268,7 +267,7 @@ loop.store = loop.store || {};
       this._mozLoop.rooms.create(roomCreationData, function(err) {
         this.setStoreState({pendingCreation: false});
         if (err) {
-          this._dispatchAction(new sharedActions.CreateRoomError({error: err}));
+         this._dispatchAction(new sharedActions.CreateRoomError({error: err}));
         }
       }.bind(this));
     },
@@ -283,28 +282,6 @@ loop.store = loop.store || {};
         error: actionData.error,
         pendingCreation: false
       });
-    },
-
-    /**
-     * Creates a new room.
-     *
-     * @param {sharedActions.DeleteRoom} actionData The action data.
-     */
-    deleteRoom: function(actionData) {
-      this._mozLoop.rooms.delete(actionData.roomToken, function(err) {
-        if (err) {
-         this._dispatchAction(new sharedActions.DeleteRoomError({error: err}));
-        }
-      }.bind(this));
-    },
-
-    /**
-     * Executed when a room deletion error occurs.
-     *
-     * @param {sharedActions.DeleteRoomError} actionData The action data.
-     */
-    deleteRoomError: function(actionData) {
-      this.setStoreState({error: actionData.error});
     },
 
     /**
@@ -351,15 +328,6 @@ loop.store = loop.store || {};
         rooms: this._processRoomList(actionData.roomList)
       });
     },
-
-    /**
-     * Opens a room
-     *
-     * @param {sharedActions.OpenRoom} actionData The action data.
-     */
-    openRoom: function(actionData) {
-      this._mozLoop.rooms.open(actionData.roomToken);
-    }
   }, Backbone.Events);
 
   loop.store.RoomListStore = RoomListStore;
