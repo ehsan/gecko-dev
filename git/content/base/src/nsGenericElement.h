@@ -247,7 +247,7 @@ public:
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
-  NS_DECL_SIZEOF_EXCLUDING_THIS
+  NS_DECL_DOM_MEMORY_REPORTER_SIZEOF
 
   /**
    * Called during QueryInterface to give the binding manager a chance to
@@ -597,7 +597,7 @@ public:
   nsIContent* GetLastElementChild();
   nsIContent* GetPreviousElementSibling();
   nsIContent* GetNextElementSibling();
-  nsDOMTokenList* GetClassList(nsresult *aResult);
+  nsIDOMDOMTokenList* GetClassList(nsresult *aResult);
   bool MozMatchesSelector(const nsAString& aSelector, nsresult* aResult);
 
   /**

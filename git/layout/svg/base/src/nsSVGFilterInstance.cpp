@@ -364,9 +364,8 @@ nsSVGFilterInstance::BuildSourceImages()
     if (!offscreen || offscreen->CairoStatus())
       return NS_ERROR_OUT_OF_MEMORY;
     offscreen->SetDeviceOffset(gfxPoint(-mSurfaceRect.x, -mSurfaceRect.y));
-
-    nsRenderingContext tmpCtx;
-    tmpCtx.Init(mTargetFrame->PresContext()->DeviceContext(), offscreen);
+  
+    nsSVGRenderState tmpState(offscreen);
     gfxMatrix userSpaceToFilterSpace = GetUserSpaceToFilterSpaceTransform();
 
     gfxRect r(neededRect.x, neededRect.y, neededRect.width, neededRect.height);
@@ -390,8 +389,8 @@ nsSVGFilterInstance::BuildSourceImages()
     // code more complex while being hard to get right without introducing
     // subtle bugs, and in practice it probably makes no real difference.)
     gfxMatrix deviceToFilterSpace = GetFilterSpaceToDeviceSpaceTransform().Invert();
-    tmpCtx.ThebesContext()->Multiply(deviceToFilterSpace);
-    mPaintCallback->Paint(&tmpCtx, mTargetFrame, &dirty);
+    tmpState.GetGfxContext()->Multiply(deviceToFilterSpace);
+    mPaintCallback->Paint(&tmpState, mTargetFrame, &dirty);
 
     gfxContext copyContext(sourceColorAlpha);
     copyContext.SetSource(offscreen);

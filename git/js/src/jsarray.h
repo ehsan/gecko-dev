@@ -60,7 +60,8 @@ inline JSBool
 js_IdIsIndex(jsid id, jsuint *indexp)
 {
     if (JSID_IS_INT(id)) {
-        int32_t i = JSID_TO_INT(id);
+        jsint i;
+        i = JSID_TO_INT(id);
         if (i < 0)
             return JS_FALSE;
         *indexp = (jsuint)i;

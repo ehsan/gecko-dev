@@ -219,7 +219,7 @@ nsSVGTextFrame::NotifyRedrawUnsuspended()
 }
 
 NS_IMETHODIMP
-nsSVGTextFrame::PaintSVG(nsRenderingContext* aContext,
+nsSVGTextFrame::PaintSVG(nsSVGRenderState* aContext,
                          const nsIntRect *aDirtyRect)
 {
   UpdateGlyphPositioning(true);

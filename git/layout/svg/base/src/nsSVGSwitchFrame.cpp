@@ -41,8 +41,6 @@
 #include "gfxRect.h"
 #include "gfxMatrix.h"
 
-class nsRenderingContext;
-
 typedef nsSVGGFrame nsSVGSwitchFrameBase;
 
 class nsSVGSwitchFrame : public nsSVGSwitchFrameBase
@@ -77,7 +75,7 @@ public:
 #endif
 
   // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(nsRenderingContext* aContext, const nsIntRect *aDirtyRect);
+  NS_IMETHOD PaintSVG(nsSVGRenderState* aContext, const nsIntRect *aDirtyRect);
   NS_IMETHODIMP_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
   NS_IMETHODIMP_(nsRect) GetCoveredRegion();
   NS_IMETHOD UpdateCoveredRegion();
@@ -121,7 +119,7 @@ nsSVGSwitchFrame::GetType() const
 }
 
 NS_IMETHODIMP
-nsSVGSwitchFrame::PaintSVG(nsRenderingContext* aContext,
+nsSVGSwitchFrame::PaintSVG(nsSVGRenderState* aContext,
                            const nsIntRect *aDirtyRect)
 {
   const nsStyleDisplay *display = mStyleContext->GetStyleDisplay();

@@ -352,7 +352,7 @@ static bool ApplyOverflowClipping(nsDisplayListBuilder* aBuilder,
                                     const nsStyleDisplay* aDisp, 
                                     nsRect* aRect);
 
-static bool ApplyClipPropClipping(nsDisplayListBuilder* aBuilder,
+static bool ApplyAbsPosClipping(nsDisplayListBuilder* aBuilder,
                                   const nsStyleDisplay* aDisp, 
                                   const nsIFrame* aFrame,
                                   nsRect* aRect);
@@ -962,7 +962,7 @@ nsIFrame::Preserves3DChildren() const
 
   nsRect temp;
   return (!ApplyOverflowClipping(nsnull, this, GetStyleDisplay(), &temp) &&
-      !ApplyClipPropClipping(nsnull, GetStyleDisplay(), this, &temp) &&
+      !ApplyAbsPosClipping(nsnull, GetStyleDisplay(), this, &temp) &&
       !nsSVGIntegrationUtils::UsingEffectsForFrame(this));
 }
 
@@ -1448,8 +1448,8 @@ nsFrame::DisplayBorderBackgroundOutline(nsDisplayListBuilder*   aBuilder,
 }
 
 bool
-nsIFrame::GetClipPropClipRect(const nsStyleDisplay* aDisp, nsRect* aRect,
-                              const nsSize& aSize) const
+nsIFrame::GetAbsPosClipRect(const nsStyleDisplay* aDisp, nsRect* aRect,
+                            const nsSize& aSize) const
 {
   NS_PRECONDITION(aRect, "Must have aRect out parameter");
 
@@ -1467,10 +1467,10 @@ nsIFrame::GetClipPropClipRect(const nsStyleDisplay* aDisp, nsRect* aRect,
   return true;
 }
 
-static bool ApplyClipPropClipping(nsDisplayListBuilder* aBuilder,
+static bool ApplyAbsPosClipping(nsDisplayListBuilder* aBuilder,
                                   const nsStyleDisplay* aDisp, const nsIFrame* aFrame,
                                   nsRect* aRect) {
-  if (!aFrame->GetClipPropClipRect(aDisp, aRect, aFrame->GetSize()))
+  if (!aFrame->GetAbsPosClipRect(aDisp, aRect, aFrame->GetSize()))
     return false;
 
   if (aBuilder) {
@@ -1562,10 +1562,10 @@ protected:
   bool mHaveRadius;
 };
 
-class nsDisplayClipPropWrapper : public nsDisplayWrapper
+class nsAbsPosClipWrapper : public nsDisplayWrapper
 {
 public:
-  nsDisplayClipPropWrapper(const nsRect& aRect)
+  nsAbsPosClipWrapper(const nsRect& aRect)
     : mRect(aRect) {}
   virtual nsDisplayItem* WrapList(nsDisplayListBuilder* aBuilder,
                                   nsIFrame* aFrame, nsDisplayList* aList) {
@@ -1734,15 +1734,15 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   if (IsFrameOfType(eReplaced) && !IsVisibleForPainting(aBuilder))
     return NS_OK;
 
-  nsRect clipPropClip;
+  nsRect absPosClip;
   const nsStyleDisplay* disp = GetStyleDisplay();
   // We can stop right away if this is a zero-opacity stacking context and
   // we're painting.
   if (disp->mOpacity == 0.0 && aBuilder->IsForPainting())
     return NS_OK;
 
-  bool applyClipPropClipping =
-      ApplyClipPropClipping(aBuilder, disp, this, &clipPropClip);
+  bool applyAbsPosClipping =
+      ApplyAbsPosClipping(aBuilder, disp, this, &absPosClip);
   nsRect dirtyRect = aDirtyRect;
 
   bool inTransform = aBuilder->IsInTransform();
@@ -1770,9 +1770,9 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
     inTransform = true;
   }
 
-  if (applyClipPropClipping) {
+  if (applyAbsPosClipping) {
     dirtyRect.IntersectRect(dirtyRect,
-                            clipPropClip - aBuilder->ToReferenceFrame(this));
+                            absPosClip - aBuilder->ToReferenceFrame(this));
   }
 
   bool usingSVGEffects = nsSVGIntegrationUtils::UsingEffectsForFrame(this);
@@ -1863,9 +1863,9 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   /* If we have absolute position clipping and we have, or will have, items to
    * be clipped, wrap the list in a clip wrapper.
    */
-  if (applyClipPropClipping &&
+  if (applyAbsPosClipping &&
       (!resultList.IsEmpty() || usingSVGEffects)) {
-    nsDisplayClipPropWrapper wrapper(clipPropClip);
+    nsAbsPosClipWrapper wrapper(absPosClip);
     nsDisplayItem* item = wrapper.WrapList(aBuilder, this, &resultList);
     if (!item)
       return NS_ERROR_OUT_OF_MEMORY;
@@ -2088,15 +2088,15 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     }
   } else {
     nsRect clipRect;
-    bool applyClipPropClipping =
-        ApplyClipPropClipping(aBuilder, disp, child, &clipRect);
+    bool applyAbsPosClipping =
+        ApplyAbsPosClipping(aBuilder, disp, child, &clipRect);
     // A pseudo-stacking context (e.g., a positioned element with z-index auto).
     // We allow positioned descendants of the child to escape to our parent
     // stacking context's positioned descendant list, because they might be
     // z-index:non-auto
     nsDisplayListCollection pseudoStack;
     nsRect clippedDirtyRect = dirty;
-    if (applyClipPropClipping) {
+    if (applyAbsPosClipping) {
       // clipRect is in builder-reference-frame coordinates,
       // dirty/clippedDirtyRect are in child coordinates
       clippedDirtyRect.IntersectRect(clippedDirtyRect,
@@ -2115,8 +2115,8 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     }
     
     if (NS_SUCCEEDED(rv)) {
-      if (applyClipPropClipping) {
-        nsDisplayClipPropWrapper wrapper(clipRect);
+      if (applyAbsPosClipping) {
+        nsAbsPosClipWrapper wrapper(clipRect);
         rv = wrapper.WrapListsInPlace(aBuilder, child, pseudoStack);
       }
     }
@@ -6738,13 +6738,13 @@ nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
                                  true);
 
   // Absolute position clipping
-  bool didHaveClipPropClip = (GetStateBits() & NS_FRAME_HAS_CLIP) != 0;
-  nsRect clipPropClipRect;
-  bool hasClipPropClip = GetClipPropClipRect(disp, &clipPropClipRect, aNewSize);
-  if (hasClipPropClip) {
+  bool didHaveAbsPosClip = (GetStateBits() & NS_FRAME_HAS_CLIP) != 0;
+  nsRect absPosClipRect;
+  bool hasAbsPosClip = GetAbsPosClipRect(disp, &absPosClipRect, aNewSize);
+  if (hasAbsPosClip) {
     NS_FOR_FRAME_OVERFLOW_TYPES(otype) {
       nsRect& o = aOverflowAreas.Overflow(otype);
-      o.IntersectRect(o, clipPropClipRect);
+      o.IntersectRect(o, absPosClipRect);
     }
     AddStateBits(NS_FRAME_HAS_CLIP);
   } else {
@@ -6799,7 +6799,7 @@ nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
       // to do anything here since removing those styles can't require
       // repainting of areas that weren't in the old overflow area.
       Invalidate(aOverflowAreas.VisualOverflow());
-    } else if (hasClipPropClip || didHaveClipPropClip) {
+    } else if (hasAbsPosClip || didHaveAbsPosClip) {
       // If we are (or were) clipped by the 'clip' property, and our
       // overflow area changes, it might be because the clipping changed.
       // The nsChangeHint_RepaintFrame for the style change will only

@@ -45,7 +45,6 @@
 #include "nsGkAtoms.h"
 #include "nsSVGGeometryFrame.h"
 
-class nsRenderingContext;
 class nsSVGMarkerFrame;
 class nsSVGMarkerProperty;
 
@@ -90,7 +89,7 @@ public:
 
 protected:
   // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(nsRenderingContext *aContext,
+  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext,
                       const nsIntRect *aDirtyRect);
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
   NS_IMETHOD_(nsRect) GetCoveredRegion();
@@ -111,7 +110,7 @@ protected:
                     const gfxMatrix *aOverrideTransform = nsnull);
 
 private:
-  void Render(nsRenderingContext *aContext);
+  void Render(nsSVGRenderState *aContext);
 
   struct MarkerProperties {
     nsSVGMarkerProperty* mMarkerStart;

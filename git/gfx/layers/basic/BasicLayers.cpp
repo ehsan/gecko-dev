@@ -904,11 +904,9 @@ BasicImageLayer::GetAndPaintCurrentImage(gfxContext* aContext,
 
   mContainer->SetImageFactory(mManager->IsCompositingCheap() ? nsnull : BasicManager()->GetImageFactory());
 
-  nsRefPtr<gfxASurface> surface;
-  AutoLockImage autoLock(mContainer, getter_AddRefs(surface));
-  Image *image = autoLock.GetImage();
-  mSize = autoLock.GetSize();
+  nsRefPtr<Image> image = mContainer->GetCurrentImage();
 
+  nsRefPtr<gfxASurface> surface = mContainer->GetCurrentAsSurface(&mSize);
   if (!surface || surface->CairoStatus()) {
     return nsnull;
   }
@@ -2524,16 +2522,13 @@ BasicShadowableImageLayer::Paint(gfxContext* aContext)
     return;
   }
 
-  AutoLockImage autoLock(mContainer);
-
-  Image *image = autoLock.GetImage();
-
+  nsRefPtr<Image> image = mContainer->GetCurrentImage();
   if (!image) {
     return;
   }
 
   if (image->GetFormat() == Image::PLANAR_YCBCR && BasicManager()->IsCompositingCheap()) {
-    PlanarYCbCrImage *YCbCrImage = static_cast<PlanarYCbCrImage*>(image);
+    PlanarYCbCrImage *YCbCrImage = static_cast<PlanarYCbCrImage*>(image.get());
     const PlanarYCbCrImage::Data *data = YCbCrImage->GetData();
     NS_ASSERTION(data, "Must be able to retrieve yuv data from image!");
 

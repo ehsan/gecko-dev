@@ -42,7 +42,6 @@
 #include "gfxMatrix.h"
 
 class gfxContext;
-class nsRenderingContext;
 
 typedef nsSVGContainerFrame nsSVGMaskFrameBase;
 
@@ -59,7 +58,7 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
   // nsSVGMaskFrame method:
-  already_AddRefed<gfxPattern> ComputeMaskAlpha(nsRenderingContext *aContext,
+  already_AddRefed<gfxPattern> ComputeMaskAlpha(nsSVGRenderState *aContext,
                                                 nsIFrame* aParent,
                                                 const gfxMatrix &aMatrix,
                                                 float aOpacity = 1.0f);

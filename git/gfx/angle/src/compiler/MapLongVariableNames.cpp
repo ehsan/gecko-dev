@@ -5,7 +5,6 @@
 //
 
 #include "compiler/MapLongVariableNames.h"
-#include "spooky.h"
 
 namespace {
 
@@ -13,13 +12,11 @@ TString mapLongName(int id, const TString& name, bool isGlobal)
 {
     ASSERT(name.size() > MAX_SHORTENED_IDENTIFIER_SIZE);
     TStringStream stream;
-    uint64 hash = SpookyHash::Hash64(name.data(), name.length(), 0);
-    stream << "webgl_"
-           << name.substr(0, 9)
-           << "_"
-           << std::hex
-           << hash;
-    ASSERT(stream.str().length() == MAX_SHORTENED_IDENTIFIER_SIZE);
+    stream << "webgl_";
+    if (isGlobal)
+        stream << "g";
+    stream << id << "_";
+    stream << name.substr(0, MAX_SHORTENED_IDENTIFIER_SIZE - stream.str().size());
     return stream.str();
 }
 

@@ -108,7 +108,7 @@ nsSVGPathGeometryFrame::GetType() const
 // nsISVGChildFrame methods
 
 NS_IMETHODIMP
-nsSVGPathGeometryFrame::PaintSVG(nsRenderingContext *aContext,
+nsSVGPathGeometryFrame::PaintSVG(nsSVGRenderState *aContext,
                                  const nsIntRect *aDirtyRect)
 {
   if (!GetStyleVisibility()->IsVisible())
@@ -437,11 +437,11 @@ nsSVGPathGeometryFrame::MarkerProperties::GetMarkerEndFrame()
 }
 
 void
-nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext)
+nsSVGPathGeometryFrame::Render(nsSVGRenderState *aContext)
 {
-  gfxContext *gfx = aContext->ThebesContext();
+  gfxContext *gfx = aContext->GetGfxContext();
 
-  PRUint16 renderMode = SVGAutoRenderState::GetRenderMode(aContext);
+  PRUint16 renderMode = aContext->GetRenderMode();
 
   switch (GetStyleSVG()->mShapeRendering) {
   case NS_STYLE_SHAPE_RENDERING_OPTIMIZESPEED:
@@ -458,7 +458,7 @@ nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext)
 
   GeneratePath(gfx);
 
-  if (renderMode != SVGAutoRenderState::NORMAL) {
+  if (renderMode != nsSVGRenderState::NORMAL) {
     gfx->Restore();
 
     if (GetClipRule() == NS_STYLE_FILL_RULE_EVENODD)
@@ -466,7 +466,7 @@ nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext)
     else
       gfx->SetFillRule(gfxContext::FILL_RULE_WINDING);
 
-    if (renderMode == SVGAutoRenderState::CLIP_MASK) {
+    if (renderMode == nsSVGRenderState::CLIP_MASK) {
       gfx->SetColor(gfxRGBA(1.0f, 1.0f, 1.0f, 1.0f));
       gfx->Fill();
       gfx->NewPath();

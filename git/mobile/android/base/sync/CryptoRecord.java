@@ -236,22 +236,12 @@ public class CryptoRecord extends Record {
   }
 
   @Override
-  public void initFromEnvelope(CryptoRecord payload) {
+  public void initFromPayload(CryptoRecord payload) {
     throw new IllegalStateException("Can't do this with a CryptoRecord.");
   }
 
   @Override
-  public CryptoRecord getEnvelope() {
-    throw new IllegalStateException("Can't do this with a CryptoRecord.");
-  }
-
-  @Override
-  protected void populatePayload(ExtendedJSONObject payload) {
-    throw new IllegalStateException("Can't do this with a CryptoRecord.");
-  }
-
-  @Override
-  protected void initFromPayload(ExtendedJSONObject payload) {
+  public CryptoRecord getPayload() {
     throw new IllegalStateException("Can't do this with a CryptoRecord.");
   }
 

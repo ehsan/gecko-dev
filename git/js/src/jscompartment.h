@@ -125,17 +125,17 @@ class MathCache;
  */
 class DtoaCache {
     double        d;
-    int         base;
+    jsint         base;
     JSFixedString *s;      // if s==NULL, d and base are not valid
   public:
     DtoaCache() : s(NULL) {}
     void purge() { s = NULL; }
 
-    JSFixedString *lookup(int base, double d) {
+    JSFixedString *lookup(jsint base, double d) {
         return this->s && base == this->base && d == this->d ? this->s : NULL;
     }
 
-    void cache(int base, double d, JSFixedString *s) {
+    void cache(jsint base, double d, JSFixedString *s) {
         this->base = base;
         this->d = d;
         this->s = s;
@@ -193,6 +193,7 @@ struct JSCompartment
     js::gc::ArenaLists           arenas;
 
     bool                         needsBarrier_;
+    js::BarrierGCMarker          barrierMarker_;
 
     bool needsBarrier() {
         return needsBarrier_;
@@ -200,7 +201,7 @@ struct JSCompartment
 
     js::GCMarker *barrierTracer() {
         JS_ASSERT(needsBarrier_);
-        return &rt->gcMarker;
+        return &barrierMarker_;
     }
 
     size_t                       gcBytes;
@@ -230,6 +231,7 @@ struct JSCompartment
 
     void                         *data;
     bool                         active;  // GC flag, whether there are active frames
+    bool                         hasDebugModeCodeToDrop;
     js::WrapperMap               crossCompartmentWrappers;
 
 #ifdef JS_METHODJIT
@@ -269,10 +271,10 @@ struct JSCompartment
 
 #ifdef DEBUG
     /* Property metering. */
-    unsigned                     livePropTreeNodes;
-    unsigned                     totalPropTreeNodes;
-    unsigned                     propTreeKidsChunks;
-    unsigned                     liveDictModeNodes;
+    jsrefcount                   livePropTreeNodes;
+    jsrefcount                   totalPropTreeNodes;
+    jsrefcount                   propTreeKidsChunks;
+    jsrefcount                   liveDictModeNodes;
 #endif
 
     /* Set of all unowned base shapes in the compartment. */

@@ -148,7 +148,7 @@ size_t
 js_GetVariableBytecodeLength(jsbytecode *pc)
 {
     unsigned ncases;
-    int32_t low, high;
+    jsint low, high;
 
     JSOp op = JSOp(*pc);
     JS_ASSERT(js_CodeSpec[op].length == -1);
@@ -586,7 +586,7 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
 
       case JOF_TABLESWITCH:
       {
-        int32_t i, low, high;
+        jsint i, low, high;
 
         ptrdiff_t off = GET_JUMP_OFFSET(pc);
         jsbytecode *pc2 = pc + JUMP_OFFSET_LEN;
@@ -651,18 +651,18 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
         int i;
 
       case JOF_UINT16PAIR:
-        i = (int)GET_UINT16(pc);
+        i = (jsint)GET_UINT16(pc);
         Sprint(sp, " %d", i);
         pc += UINT16_LEN;
         /* FALL THROUGH */
 
       case JOF_UINT16:
-        i = (int)GET_UINT16(pc);
+        i = (jsint)GET_UINT16(pc);
         goto print_int;
 
       case JOF_UINT24:
         JS_ASSERT(op == JSOP_UINT24 || op == JSOP_NEWARRAY);
-        i = (int)GET_UINT24(pc);
+        i = (jsint)GET_UINT24(pc);
         goto print_int;
 
       case JOF_UINT8:
@@ -1558,7 +1558,7 @@ struct TableEntry {
     jsval       key;
     ptrdiff_t   offset;
     JSAtom      *label;
-    int         order;          /* source order for stable tableswitch sort */
+    jsint       order;          /* source order for stable tableswitch sort */
 };
 
 inline bool
@@ -1766,7 +1766,7 @@ GetArgOrVarAtom(JSPrinter *jp, unsigned slot)
 #define LOCAL_ASSERT(expr)      LOCAL_ASSERT_RV(expr, "")
 
 static const char *
-GetLocalInSlot(SprintStack *ss, int i, int slot, JSObject *obj)
+GetLocalInSlot(SprintStack *ss, jsint i, jsint slot, JSObject *obj)
 {
     for (Shape::Range r(obj->lastProperty()); !r.empty(); r.popFront()) {
         const Shape &shape = r.front();
@@ -1790,7 +1790,7 @@ GetLocalInSlot(SprintStack *ss, int i, int slot, JSObject *obj)
 }
 
 const char *
-GetLocal(SprintStack *ss, int i)
+GetLocal(SprintStack *ss, jsint i)
 {
     ptrdiff_t off = ss->offsets[i];
     if (off >= 0)
@@ -1826,7 +1826,7 @@ GetLocal(SprintStack *ss, int i)
                 uint32_t depth = obj->asBlock().stackDepth();
                 uint32_t count = obj->asBlock().slotCount();
                 if (jsuint(i - depth) < jsuint(count))
-                    return GetLocalInSlot(ss, i, int(i - depth), obj);
+                    return GetLocalInSlot(ss, i, jsint(i - depth), obj);
             }
         }
     }
@@ -1839,7 +1839,7 @@ GetLocal(SprintStack *ss, int i)
             uint32_t depth = obj->asBlock().stackDepth();
             uint32_t count = obj->asBlock().slotCount();
             if (jsuint(i - depth) < jsuint(count))
-                return GetLocalInSlot(ss, i, int(i - depth), obj);
+                return GetLocalInSlot(ss, i, jsint(i - depth), obj);
         }
     }
 
@@ -1849,7 +1849,7 @@ GetLocal(SprintStack *ss, int i)
 #undef LOCAL_ASSERT
 
 static JSBool
-IsVarSlot(JSPrinter *jp, jsbytecode *pc, int *indexp)
+IsVarSlot(JSPrinter *jp, jsbytecode *pc, jsint *indexp)
 {
     unsigned slot;
 
@@ -1900,7 +1900,7 @@ DecompileDestructuringLHS(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc, JS
     JSOp op;
     const JSCodeSpec *cs;
     unsigned oplen;
-    int i;
+    jsint i;
     const char *lval, *xval;
     JSAtom *atom;
 
@@ -2117,7 +2117,7 @@ DecompileDestructuring(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc,
           case JSOP_DOUBLE:
             d = jp->script->getConst(GET_UINT32_INDEX(pc)).toDouble();
             LOCAL_ASSERT(JSDOUBLE_IS_FINITE(d) && !JSDOUBLE_IS_NEGZERO(d));
-            i = (int)d;
+            i = (jsint)d;
 
           do_getelem:
           {
@@ -2561,7 +2561,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
     jssrcnote *sn, *sn2;
     const char *lval, *rval, *xval, *fmt, *token;
     unsigned nuses;
-    int i, argc;
+    jsint i, argc;
     JSAtom *atom;
     JSObject *obj;
     JSFunction *fun = NULL; /* init to shut GCC up */
@@ -4681,11 +4681,11 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                 break;
 
               case JSOP_UINT16:
-                i = (int) GET_UINT16(pc);
+                i = (jsint) GET_UINT16(pc);
                 goto do_sprint_int;
 
               case JSOP_UINT24:
-                i = (int) GET_UINT24(pc);
+                i = (jsint) GET_UINT24(pc);
                 goto do_sprint_int;
 
               case JSOP_INT8:
@@ -4893,7 +4893,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
               case JSOP_TABLESWITCH:
               {
                 ptrdiff_t off, off2;
-                int32_t j, n, low, high;
+                jsint j, n, low, high;
                 TableEntry *table, *tmp;
 
                 sn = js_GetSrcNote(jp->script, pc);
@@ -4998,7 +4998,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
               case JSOP_CONDSWITCH:
               {
                 ptrdiff_t off, off2, caseOff;
-                int ncases;
+                jsint ncases;
                 TableEntry *table;
 
                 sn = js_GetSrcNote(jp->script, pc);
@@ -5040,7 +5040,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                     pc2 += off2;
                     LOCAL_ASSERT(*pc2 == JSOP_CASE || *pc2 == JSOP_DEFAULT);
                     caseOff = pc2 - pc;
-                    table[i].key = INT_TO_JSVAL((int32_t) caseOff);
+                    table[i].key = INT_TO_JSVAL((jsint) caseOff);
                     table[i].offset = caseOff + GET_JUMP_OFFSET(pc2);
                     if (*pc2 == JSOP_CASE) {
                         sn = js_GetSrcNote(jp->script, pc2);

@@ -575,7 +575,7 @@ js_IntToString(JSContext *cx, int32_t si)
 
 /* Returns a non-NULL pointer to inside cbuf.  */
 static char *
-IntToCString(ToCStringBuf *cbuf, int i, int base = 10)
+IntToCString(ToCStringBuf *cbuf, jsint i, jsint base = 10)
 {
     jsuint u = (i < 0) ? -i : i;
 
@@ -610,7 +610,7 @@ IntToCString(ToCStringBuf *cbuf, int i, int base = 10)
 }
 
 static JSString * JS_FASTCALL
-js_NumberToStringWithBase(JSContext *cx, double d, int base);
+js_NumberToStringWithBase(JSContext *cx, double d, jsint base);
 
 static JS_ALWAYS_INLINE bool
 num_toStringHelper(JSContext *cx, Native native, unsigned argc, Value *vp)
@@ -623,7 +623,7 @@ num_toStringHelper(JSContext *cx, Native native, unsigned argc, Value *vp)
         return ok;
 
     int32_t base = 10;
-    if (args.hasDefined(0)) {
+    if (args.length() != 0 && !args[0].isUndefined()) {
         double d2;
         if (!ToInteger(cx, args[0], &d2))
             return false;
@@ -788,7 +788,7 @@ js_num_valueOf(JSContext *cx, unsigned argc, Value *vp)
 
 static JSBool
 num_to(JSContext *cx, Native native, JSDToStrMode zeroArgMode, JSDToStrMode oneArgMode,
-       int precisionMin, int precisionMax, int precisionOffset,
+       jsint precisionMin, jsint precisionMax, jsint precisionOffset,
        CallArgs args)
 {
     /* Use MAX_PRECISION+1 because precisionOffset can be 1. */
@@ -809,7 +809,7 @@ num_to(JSContext *cx, Native native, JSDToStrMode zeroArgMode, JSDToStrMode oneA
             return false;
         if (precision < precisionMin || precision > precisionMax) {
             ToCStringBuf cbuf;
-            numStr = IntToCString(&cbuf, int(precision));
+            numStr = IntToCString(&cbuf, jsint(precision));
             JS_ASSERT(numStr);
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_PRECISION_RANGE, numStr);
             return JS_FALSE;
@@ -817,7 +817,7 @@ num_to(JSContext *cx, Native native, JSDToStrMode zeroArgMode, JSDToStrMode oneA
     }
 
     numStr = js_dtostr(cx->runtime->dtoaState, buf, sizeof buf,
-                       oneArgMode, (int)precision + precisionOffset, d);
+                       oneArgMode, (jsint)precision + precisionOffset, d);
     if (!numStr) {
         JS_ReportOutOfMemory(cx);
         return JS_FALSE;
@@ -850,11 +850,10 @@ num_toExponential(JSContext *cx, unsigned argc, Value *vp)
 static JSBool
 num_toPrecision(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (!args.hasDefined(0))
+    if (argc == 0 || vp[2].isUndefined())
         return num_toStringHelper(cx, num_toPrecision, 0, vp);
     return num_to(cx, num_toPrecision, DTOSTR_STANDARD, DTOSTR_PRECISION, 1, MAX_PRECISION, 0,
-                  args);
+                  CallArgsFromVp(argc, vp));
 }
 
 static JSFunctionSpec number_methods[] = {
@@ -1065,7 +1064,7 @@ extern char* DoubleToCString(double v, char* buffer, int buflen);
 namespace js {
 
 static char *
-FracNumberToCString(JSContext *cx, ToCStringBuf *cbuf, double d, int base = 10)
+FracNumberToCString(JSContext *cx, ToCStringBuf *cbuf, double d, jsint base = 10)
 {
 #ifdef DEBUG
     {
@@ -1097,7 +1096,7 @@ FracNumberToCString(JSContext *cx, ToCStringBuf *cbuf, double d, int base = 10)
 }
 
 char *
-NumberToCString(JSContext *cx, ToCStringBuf *cbuf, double d, int base/* = 10*/)
+NumberToCString(JSContext *cx, ToCStringBuf *cbuf, double d, jsint base/* = 10*/)
 {
     int32_t i;
     return (JSDOUBLE_IS_INT32(d, &i))
@@ -1108,7 +1107,7 @@ NumberToCString(JSContext *cx, ToCStringBuf *cbuf, double d, int base/* = 10*/)
 }
 
 static JSString * JS_FASTCALL
-js_NumberToStringWithBase(JSContext *cx, double d, int base)
+js_NumberToStringWithBase(JSContext *cx, double d, jsint base)
 {
     ToCStringBuf cbuf;
     char *numStr;

@@ -46,7 +46,6 @@ EXPORTS_mozilla += \
   Attributes.h \
   BloomFilter.h \
   GuardObjects.h \
-  HashFunctions.h \
   Likely.h \
   LinkedList.h \
   MSStdInt.h \

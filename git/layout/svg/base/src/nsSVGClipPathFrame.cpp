@@ -56,7 +56,7 @@ NS_NewSVGClipPathFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsSVGClipPathFrame)
 
 nsresult
-nsSVGClipPathFrame::ClipPaint(nsRenderingContext* aContext,
+nsSVGClipPathFrame::ClipPaint(nsSVGRenderState* aContext,
                               nsIFrame* aParent,
                               const gfxMatrix &aMatrix)
 {
@@ -78,11 +78,12 @@ nsSVGClipPathFrame::ClipPaint(nsRenderingContext* aContext,
 
   bool isTrivial = IsTrivial();
 
-  SVGAutoRenderState mode(aContext,
-                          isTrivial ? SVGAutoRenderState::CLIP
-                                    : SVGAutoRenderState::CLIP_MASK);
+  nsAutoSVGRenderMode mode(aContext,
+                           isTrivial ? nsSVGRenderState::CLIP
+                                     : nsSVGRenderState::CLIP_MASK);
 
-  gfxContext *gfx = aContext->ThebesContext();
+
+  gfxContext *gfx = aContext->GetGfxContext();
 
   nsSVGClipPathFrame *clipPathFrame =
     nsSVGEffects::GetEffectProperties(this).GetClipPathFrame(nsnull);

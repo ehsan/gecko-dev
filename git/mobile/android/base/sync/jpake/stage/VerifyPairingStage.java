@@ -54,7 +54,6 @@ public class VerifyPairingStage extends JPakeStage {
     } else {
       Logger.error(LOG_TAG, "Keys don't match.");
       jClient.abort(Constants.JPAKE_ERROR_KEYMISMATCH);
-      return;
     }
   }
 

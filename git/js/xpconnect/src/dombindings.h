@@ -43,7 +43,6 @@
 #include "jsapi.h"
 #include "jsproxy.h"
 #include "xpcpublic.h"
-#include "nsString.h"
 
 namespace mozilla {
 namespace dom {
@@ -213,11 +212,7 @@ public:
     static JSObject *create(JSContext *cx, XPCWrappedNativeScope *scope, ListType *list,
                             nsWrapperCache* cache, bool *triedToWrap);
 
-    static JSObject *getPrototype(JSContext *cx, XPCWrappedNativeScope *scope, bool *enabled)
-    {
-        *enabled = true;
-        return getPrototype(cx, scope);
-    }
+    static JSObject *getPrototype(JSContext *cx, XPCWrappedNativeScope *scope, bool *enabled);
 
     bool getPropertyDescriptor(JSContext *cx, JSObject *proxy, jsid id, bool set,
                                JSPropertyDescriptor *desc);

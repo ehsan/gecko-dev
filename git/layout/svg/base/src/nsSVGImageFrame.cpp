@@ -50,7 +50,6 @@
 
 using namespace mozilla;
 
-class nsRenderingContext;
 class nsSVGImageFrame;
 
 class nsSVGImageListener MOZ_FINAL : public nsStubImageDecoderObserver
@@ -91,7 +90,7 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
   // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(nsRenderingContext *aContext, const nsIntRect *aDirtyRect);
+  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, const nsIntRect *aDirtyRect);
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
 
   // nsSVGPathGeometryFrame methods:
@@ -310,7 +309,7 @@ nsSVGImageFrame::TransformContextForPainting(gfxContext* aGfxContext)
 //----------------------------------------------------------------------
 // nsISVGChildFrame methods:
 NS_IMETHODIMP
-nsSVGImageFrame::PaintSVG(nsRenderingContext *aContext,
+nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext,
                           const nsIntRect *aDirtyRect)
 {
   nsresult rv = NS_OK;
@@ -321,8 +320,8 @@ nsSVGImageFrame::PaintSVG(nsRenderingContext *aContext,
   float x, y, width, height;
   nsSVGImageElement *imgElem = static_cast<nsSVGImageElement*>(mContent);
   imgElem->GetAnimatedLengthValues(&x, &y, &width, &height, nsnull);
-  NS_ASSERTION(width > 0 && height > 0,
-               "Should only be painting things with valid width/height");
+  if (width <= 0 || height <= 0)
+    return NS_OK;
 
   if (!mImageContainer) {
     nsCOMPtr<imgIRequest> currentRequest;
@@ -336,7 +335,7 @@ nsSVGImageFrame::PaintSVG(nsRenderingContext *aContext,
   }
 
   if (mImageContainer) {
-    gfxContext* ctx = aContext->ThebesContext();
+    gfxContext* ctx = aContext->GetGfxContext();
     gfxContextAutoSaveRestore autoRestorer(ctx);
 
     if (GetStyleDisplay()->IsScrollableOverflow()) {
@@ -405,7 +404,7 @@ nsSVGImageFrame::PaintSVG(nsRenderingContext *aContext,
       // That method needs our image to have a fixed native width & height,
       // and that's not always true for TYPE_VECTOR images.
       nsLayoutUtils::DrawSingleImage(
-        aContext,
+        aContext->GetRenderingContext(this),
         mImageContainer,
         nsLayoutUtils::GetGraphicsFilterForFrame(this),
         destRect,
@@ -415,7 +414,7 @@ nsSVGImageFrame::PaintSVG(nsRenderingContext *aContext,
       rootSVGElem->ClearImageOverridePreserveAspectRatio();
     } else { // mImageContainer->GetType() == TYPE_RASTER
       nsLayoutUtils::DrawSingleUnscaledImage(
-        aContext,
+        aContext->GetRenderingContext(this),
         mImageContainer,
         nsLayoutUtils::GetGraphicsFilterForFrame(this),
         nsPoint(0, 0),

@@ -433,7 +433,7 @@ js_math_min(JSContext *cx, unsigned argc, Value *vp)
 }
 
 static double
-powi(double x, int y)
+powi(double x, jsint y)
 {
     jsuint n = (y < 0) ? -y : y;
     double m = x;

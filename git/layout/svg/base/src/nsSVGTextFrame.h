@@ -43,8 +43,6 @@
 #include "gfxRect.h"
 #include "gfxMatrix.h"
 
-class nsRenderingContext;
-
 typedef nsSVGTextContainerFrame nsSVGTextFrameBase;
 
 class nsSVGTextFrame : public nsSVGTextFrameBase
@@ -89,7 +87,7 @@ public:
   virtual void NotifyRedrawUnsuspended();
   // Override these four to ensure that UpdateGlyphPositioning is called
   // to bring glyph positions up to date
-  NS_IMETHOD PaintSVG(nsRenderingContext* aContext,
+  NS_IMETHOD PaintSVG(nsSVGRenderState* aContext,
                       const nsIntRect *aDirtyRect);
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint & aPoint);
   NS_IMETHOD UpdateCoveredRegion();

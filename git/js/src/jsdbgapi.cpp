@@ -155,8 +155,9 @@ ScriptDebugEpilogue(JSContext *cx, StackFrame *fp, bool okArg)
                 hook(cx, Jsvalify(fp), false, &ok, hookData);
         }
     }
+    Debugger::onLeaveFrame(cx);
 
-    return Debugger::onLeaveFrame(cx, ok);
+    return ok;
 }
 
 } /* namespace js */

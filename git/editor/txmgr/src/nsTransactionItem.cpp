@@ -106,7 +106,8 @@ nsTransactionItem::AddChild(nsTransactionItem *aTransactionItem)
   NS_ENSURE_TRUE(aTransactionItem, NS_ERROR_NULL_POINTER);
 
   if (!mUndoStack) {
-    mUndoStack = new nsTransactionStack(nsTransactionStack::FOR_UNDO);
+    mUndoStack = new nsTransactionStack();
+    NS_ENSURE_TRUE(mUndoStack, NS_ERROR_OUT_OF_MEMORY);
   }
 
   mUndoStack->Push(aTransactionItem);
@@ -186,9 +187,7 @@ nsTransactionItem::GetChild(PRInt32 aIndex, nsTransactionItem **aChild)
   if (numItems > 0 && aIndex < numItems) {
     NS_ENSURE_TRUE(mUndoStack, NS_ERROR_FAILURE);
 
-    nsRefPtr<nsTransactionItem> child = mUndoStack->GetItem(aIndex);
-    child.forget(aChild);
-    return *aChild ? NS_OK : NS_ERROR_FAILURE;
+    return mUndoStack->GetItem(aIndex, aChild);
   }
 
   // Adjust the index for the redo stack:
@@ -201,9 +200,7 @@ nsTransactionItem::GetChild(PRInt32 aIndex, nsTransactionItem **aChild)
 
   NS_ENSURE_TRUE(mRedoStack && numItems != 0 && aIndex < numItems, NS_ERROR_FAILURE);
 
-  nsRefPtr<nsTransactionItem> child = mRedoStack->GetItem(aIndex);
-  child.forget(aChild);
-  return *aChild ? NS_OK : NS_ERROR_FAILURE;
+  return mRedoStack->GetItem(numItems - aIndex - 1, aChild);
 }
 
 nsresult
@@ -246,17 +243,20 @@ nsTransactionItem::UndoChildren(nsTransactionManager *aTxMgr)
 
   if (mUndoStack) {
     if (!mRedoStack && mUndoStack) {
-      mRedoStack = new nsTransactionStack(nsTransactionStack::FOR_REDO);
+      mRedoStack = new nsTransactionRedoStack();
+      NS_ENSURE_TRUE(mRedoStack, NS_ERROR_OUT_OF_MEMORY);
     }
 
     /* Undo all of the transaction items children! */
-    sz = mUndoStack->GetSize();
+    result = mUndoStack->GetSize(&sz);
+
+    NS_ENSURE_SUCCESS(result, result);
 
     while (sz-- > 0) {
-      item = mUndoStack->Peek();
+      result = mUndoStack->Peek(getter_AddRefs(item));
 
-      if (!item) {
-        return NS_ERROR_FAILURE;
+      if (NS_FAILED(result) || !item) {
+        return result;
       }
 
       nsCOMPtr<nsITransaction> t;
@@ -282,8 +282,15 @@ nsTransactionItem::UndoChildren(nsTransactionManager *aTxMgr)
       result = item->UndoTransaction(aTxMgr);
 
       if (NS_SUCCEEDED(result)) {
-        item = mUndoStack->Pop();
-        mRedoStack->Push(item);
+        result = mUndoStack->Pop(getter_AddRefs(item));
+
+        if (NS_SUCCEEDED(result)) {
+          result = mRedoStack->Push(item);
+
+          /* XXX: If we got an error here, I doubt we can recover!
+           * XXX: Should we just push the item back on the undo stack?
+           */
+        }
       }
 
       nsresult result2 = aTxMgr->DidUndoNotify(t, result);
@@ -324,18 +331,22 @@ nsTransactionItem::RedoChildren(nsTransactionManager *aTxMgr)
 {
   nsRefPtr<nsTransactionItem> item;
   nsresult result = NS_OK;
+  PRInt32 sz = 0;
 
   if (!mRedoStack)
     return NS_OK;
 
   /* Redo all of the transaction items children! */
-  PRInt32 sz = mRedoStack->GetSize();
+  result = mRedoStack->GetSize(&sz);
+
+  NS_ENSURE_SUCCESS(result, result);
+
 
   while (sz-- > 0) {
-    item = mRedoStack->Peek();
+    result = mRedoStack->Peek(getter_AddRefs(item));
 
-    if (!item) {
-      return NS_ERROR_FAILURE;
+    if (NS_FAILED(result) || !item) {
+      return result;
     }
 
     nsCOMPtr<nsITransaction> t;
@@ -361,8 +372,14 @@ nsTransactionItem::RedoChildren(nsTransactionManager *aTxMgr)
     result = item->RedoTransaction(aTxMgr);
 
     if (NS_SUCCEEDED(result)) {
-      item = mRedoStack->Pop();
-      mUndoStack->Push(item);
+      result = mRedoStack->Pop(getter_AddRefs(item));
+
+      if (NS_SUCCEEDED(result)) {
+        result = mUndoStack->Push(item);
+
+        // XXX: If we got an error here, I doubt we can recover!
+        // XXX: Should we just push the item back on the redo stack?
+      }
     }
 
     nsresult result2 = aTxMgr->DidUndoNotify(t, result);
@@ -385,8 +402,7 @@ nsTransactionItem::GetNumberOfUndoItems(PRInt32 *aNumItems)
     return NS_OK;
   }
 
-  *aNumItems = mUndoStack->GetSize();
-  return *aNumItems ? NS_OK : NS_ERROR_FAILURE;
+  return mUndoStack->GetSize(aNumItems);
 }
 
 nsresult
@@ -399,8 +415,7 @@ nsTransactionItem::GetNumberOfRedoItems(PRInt32 *aNumItems)
     return NS_OK;
   }
 
-  *aNumItems = mRedoStack->GetSize();
-  return *aNumItems ? NS_OK : NS_ERROR_FAILURE;
+  return mRedoStack->GetSize(aNumItems);
 }
 
 nsresult
