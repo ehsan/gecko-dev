@@ -191,15 +191,6 @@ protected:
   DoRequest(const IsScoConnectedRequest& aRequest);
 
   bool
-  DoRequest(const AnswerWaitingCallRequest& aRequest);
-
-  bool
-  DoRequest(const IgnoreWaitingCallRequest& aRequest);
-
-  bool
-  DoRequest(const ToggleCallsRequest& aRequest);
-
-  bool
   DoRequest(const SendMetaDataRequest& aRequest);
 
   bool

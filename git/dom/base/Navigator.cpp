@@ -1716,13 +1716,8 @@ Navigator::HasCameraSupport(JSContext* /* unused */, JSObject* aGlobal)
 bool
 Navigator::HasTelephonySupport(JSContext* /* unused */, JSObject* aGlobal)
 {
-  // First of all, the general pref has to be turned on.
-  bool enabled = false;
-  Preferences::GetBool("dom.telephony.enabled", &enabled);
-  NS_ENSURE_TRUE(enabled, false);
-
   nsCOMPtr<nsPIDOMWindow> win = GetWindowFromGlobal(aGlobal);
-  return win && CheckPermission(win, "telephony");
+  return win && Telephony::CheckPermission(win);
 }
 
 /* static */
@@ -1730,11 +1725,6 @@ bool
 Navigator::HasMobileConnectionSupport(JSContext* /* unused */,
                                       JSObject* aGlobal)
 {
-  // First of all, the general pref has to be turned on.
-  bool enabled = false;
-  Preferences::GetBool("dom.mobileconnection.enabled", &enabled);
-  NS_ENSURE_TRUE(enabled, false);
-
   nsCOMPtr<nsPIDOMWindow> win = GetWindowFromGlobal(aGlobal);
   return win && (CheckPermission(win, "mobileconnection") ||
                  CheckPermission(win, "mobilenetwork"));
@@ -1745,11 +1735,6 @@ bool
 Navigator::HasCellBroadcastSupport(JSContext* /* unused */,
                                    JSObject* aGlobal)
 {
-  // First of all, the general pref has to be turned on.
-  bool enabled = false;
-  Preferences::GetBool("dom.cellbroadcast.enabled", &enabled);
-  NS_ENSURE_TRUE(enabled, false);
-
   nsCOMPtr<nsPIDOMWindow> win = GetWindowFromGlobal(aGlobal);
   return win && CheckPermission(win, "cellbroadcast");
 }
@@ -1759,11 +1744,6 @@ bool
 Navigator::HasVoicemailSupport(JSContext* /* unused */,
                                JSObject* aGlobal)
 {
-  // First of all, the general pref has to be turned on.
-  bool enabled = false;
-  Preferences::GetBool("dom.voicemail.enabled", &enabled);
-  NS_ENSURE_TRUE(enabled, false);
-
   nsCOMPtr<nsPIDOMWindow> win = GetWindowFromGlobal(aGlobal);
   return win && CheckPermission(win, "voicemail");
 }
@@ -1773,11 +1753,6 @@ bool
 Navigator::HasIccManagerSupport(JSContext* /* unused */,
                                 JSObject* aGlobal)
 {
-  // First of all, the general pref has to be turned on.
-  bool enabled = false;
-  Preferences::GetBool("dom.icc.enabled", &enabled);
-  NS_ENSURE_TRUE(enabled, false);
-
   nsCOMPtr<nsPIDOMWindow> win = GetWindowFromGlobal(aGlobal);
   return win && CheckPermission(win, "mobileconnection");
 }

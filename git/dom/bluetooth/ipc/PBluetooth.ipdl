@@ -134,18 +134,6 @@ struct IsScoConnectedRequest
 {
 };
 
-struct AnswerWaitingCallRequest
-{
-};
-
-struct IgnoreWaitingCallRequest
-{
-};
-
-struct ToggleCallsRequest
-{
-};
-
 struct SendMetaDataRequest
 {
   nsString title;
@@ -187,9 +175,6 @@ union Request
   ConnectScoRequest;
   DisconnectScoRequest;
   IsScoConnectedRequest;
-  AnswerWaitingCallRequest;
-  IgnoreWaitingCallRequest;
-  ToggleCallsRequest;
   SendMetaDataRequest;
   SendPlayStatusRequest;
 };

@@ -186,8 +186,9 @@ ImageContainer::ClearCurrentImage()
 void
 ImageContainer::SetCurrentImage(Image *aImage)
 {
-  if (!aImage) {
-    ClearAllImages();
+  if (IsAsync() && !aImage) {
+    // Let ImageClient to release all TextureClients.
+    ImageBridgeChild::FlushImage(mImageClient, this);
     return;
   }
 
@@ -196,27 +197,6 @@ ImageContainer::SetCurrentImage(Image *aImage)
     ImageBridgeChild::DispatchImageClientUpdate(mImageClient, this);
   }
   SetCurrentImageInternal(aImage);
-}
-
- void
-ImageContainer::ClearAllImages()
-{
-  if (IsAsync()) {
-    // Let ImageClient release all TextureClients.
-    ImageBridgeChild::FlushAllImages(mImageClient, this, false);
-    return;
-  }
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-  SetCurrentImageInternal(nullptr);
-}
-
-void
-ImageContainer::ClearAllImagesExceptFront()
-{
-  if (IsAsync()) {
-    // Let ImageClient release all TextureClients except front one.
-    ImageBridgeChild::FlushAllImages(mImageClient, this, true);
-  }
 }
 
 void

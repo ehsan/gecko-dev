@@ -156,8 +156,8 @@ this.SessionStore = {
     SessionStoreInternal.canRestoreLastSession = val;
   },
 
-  init: function ss_init() {
-    SessionStoreInternal.init();
+  init: function ss_init(aWindow) {
+    SessionStoreInternal.init(aWindow);
   },
 
   getBrowserState: function ss_getBrowserState() {
@@ -368,9 +368,13 @@ let SessionStoreInternal = {
   /**
    * Initialize the sessionstore service.
    */
-  init: function () {
+  init: function (aWindow) {
     if (this._initialized) {
       throw new Error("SessionStore.init() must only be called once!");
+    }
+
+    if (!aWindow) {
+      throw new Error("SessionStore.init() must be called with a valid window.");
     }
 
     this._disabledForMultiProcess = Services.prefs.getBoolPref("browser.tabs.remote");
@@ -386,6 +390,20 @@ let SessionStoreInternal = {
 
     this._initPrefs();
     this._initialized = true;
+
+    // Wait until nsISessionStartup has finished reading the session data.
+    gSessionStartup.onceInitialized.then(() => {
+      // Parse session data and start restoring.
+      let initialState = this.initSession();
+
+      // Start tracking the given (initial) browser window.
+      if (!aWindow.closed) {
+        this.onLoad(aWindow, initialState);
+      }
+
+      // Let everyone know we're done.
+      this._deferredInitialized.resolve();
+    }, Cu.reportError);
   },
 
   initSession: function ssi_initSession() {
@@ -471,6 +489,7 @@ let SessionStoreInternal = {
       this._prefBranch.setBoolPref("sessionstore.resume_session_once", false);
 
     this._performUpgradeBackup();
+    this._sessionInitialized = true;
 
     return state;
   },
@@ -857,34 +876,7 @@ let SessionStoreInternal = {
   onOpen: function ssi_onOpen(aWindow) {
     let onload = () => {
       aWindow.removeEventListener("load", onload);
-
-      if (this._sessionInitialized) {
-        this.onLoad(aWindow);
-        return;
-      }
-
-      // We can't call this.onLoad since initialization
-      // hasn't completed, so we'll wait until it is done.
-      // Even if additional windows are opened and wait
-      // for initialization as well, the first opened
-      // window should execute first, and this.onLoad
-      // will be called with the initialState.
-      gSessionStartup.onceInitialized.then(() => {
-        if (aWindow.closed) {
-          return;
-        }
-
-        if (this._sessionInitialized) {
-          this.onLoad(aWindow);
-        } else {
-          let initialState = this.initSession();
-          this._sessionInitialized = true;
-          this.onLoad(aWindow, initialState);
-
-          // Let everyone know we're done.
-          this._deferredInitialized.resolve();
-        }
-      }, Cu.reportError);
+      this.onLoad(aWindow);
     };
 
     aWindow.addEventListener("load", onload);

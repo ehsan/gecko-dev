@@ -214,9 +214,6 @@ TelephonyListener::SupplementaryServiceNotification(int32_t aCallIndex,
 NS_IMETHODIMP
 TelephonyListener::NotifyCdmaCallWaiting(const nsAString& aNumber)
 {
-  BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
-  hfp->UpdateSecondNumber(aNumber);
-
   return NS_OK;
 }
 
@@ -292,9 +289,8 @@ BluetoothRilListener::StartMobileConnectionListening()
     do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
   NS_ENSURE_TRUE(provider, false);
 
-  // TODO: Bug 921991 - B2G BT: support multiple sim cards
   nsresult rv = provider->
-                  RegisterMobileConnectionMsg(0, mMobileConnectionListener);
+                  RegisterMobileConnectionMsg(mMobileConnectionListener);
   return NS_SUCCEEDED(rv);
 }
 
@@ -305,9 +301,8 @@ BluetoothRilListener::StopMobileConnectionListening()
     do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
   NS_ENSURE_TRUE(provider, false);
 
-  // TODO: Bug 921991 - B2G BT: support multiple sim cards
   nsresult rv = provider->
-                  UnregisterMobileConnectionMsg(0, mMobileConnectionListener);
+                  UnregisterMobileConnectionMsg(mMobileConnectionListener);
   return NS_SUCCEEDED(rv);
 }
 

@@ -223,8 +223,7 @@ function validateArrayField(data, createCb) {
   if (data) {
     data = Array.isArray(data) ? data : [data];
     let filtered = [];
-    for (let i = 0, n = data.length; i < n; ++i) {
-      let obj = data[i];
+    for (let obj of data) {
       if (obj && isVanillaObj(obj)) {
         filtered.push(createCb(obj));
       }
