@@ -840,6 +840,9 @@ bool GetPrimitiveThis(JSContext *cx, Value *vp, T *v);
 inline void
 PutActivationObjects(JSContext *cx, JSStackFrame *fp);
 
+inline void
+PutOwnedActivationObjects(JSContext *cx, JSStackFrame *fp);
+
 /*
  * For a call's vp (which necessarily includes callee at vp[0] and the original
  * specified |this| at vp[1]), convert null/undefined |this| into the global
