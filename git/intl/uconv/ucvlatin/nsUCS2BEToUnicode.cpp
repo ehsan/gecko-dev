@@ -221,10 +221,9 @@ nsUTF16BEToUnicode::Convert(const char * aSrc, PRInt32 * aSrcLength,
 {
     if(STATE_FIRST_CALL == mState && *aSrcLength < 2)
     {
-      nsresult res = (*aSrcLength == 0) ? NS_OK : NS_ERROR_ILLEGAL_INPUT;
       *aSrcLength=0;
       *aDestLength=0;
-      return res;
+      return NS_ERROR_ILLEGAL_INPUT;
     }
 #ifdef IS_LITTLE_ENDIAN
     // Remove the BOM if we're little-endian. The 'same endian' case with the
@@ -261,10 +260,9 @@ nsUTF16LEToUnicode::Convert(const char * aSrc, PRInt32 * aSrcLength,
 {
     if(STATE_FIRST_CALL == mState && *aSrcLength < 2)
     {
-      nsresult res = (*aSrcLength == 0) ? NS_OK : NS_ERROR_ILLEGAL_INPUT;
       *aSrcLength=0;
       *aDestLength=0;
-      return res;
+      return NS_ERROR_ILLEGAL_INPUT;
     }
 #ifdef IS_BIG_ENDIAN
     // Remove the BOM if we're big-endian. The 'same endian' case with the
@@ -309,10 +307,9 @@ nsUTF16ToUnicode::Convert(const char * aSrc, PRInt32 * aSrcLength,
 {
     if(STATE_FIRST_CALL == mState && *aSrcLength < 2)
     {
-      nsresult res = (*aSrcLength == 0) ? NS_OK : NS_ERROR_ILLEGAL_INPUT;
       *aSrcLength=0;
       *aDestLength=0;
-      return res;
+      return NS_ERROR_ILLEGAL_INPUT;
     }
     if(STATE_FIRST_CALL == mState) // first time called
     {

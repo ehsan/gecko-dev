@@ -246,8 +246,7 @@ function getLocale() {
   try {
       // Get the default branch
       var defaultPrefs = gPref.getDefaultBranch(null);
-      return defaultPrefs.getComplexPref(PREF_GENERAL_USERAGENT_LOCALE,
-                                         Ci.nsIPrefLocalizedString).data;
+      return defaultPrefs.getCharPref(PREF_GENERAL_USERAGENT_LOCALE);
   } catch (e) {}
 
   return gPref.getCharPref(PREF_GENERAL_USERAGENT_LOCALE);

@@ -4661,16 +4661,18 @@ nsGenericElement::SetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
 
   // Hold a script blocker while calling ParseAttribute since that can call
   // out to id-observers
-  nsAutoRemovableScriptBlocker scriptBlocker;
+  nsContentUtils::AddRemovableScriptBlocker();
 
   nsAttrValue attrValue;
   if (!ParseAttribute(aNamespaceID, aName, aValue, attrValue)) {
     attrValue.SetTo(aValue);
   }
 
-  return SetAttrAndNotify(aNamespaceID, aName, aPrefix, oldValue,
-                          attrValue, modType, hasListeners, aNotify,
-                          &aValue);
+  rv = SetAttrAndNotify(aNamespaceID, aName, aPrefix, oldValue,
+                        attrValue, modType, hasListeners, aNotify,
+                        &aValue);
+  nsContentUtils::RemoveRemovableScriptBlocker();
+  return rv;
 }
 
 nsresult

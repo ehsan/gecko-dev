@@ -124,11 +124,6 @@ public:
 
   virtual void PresShellDestroyed(nsIPresShell* aPresShell);
 
-  /**
-   * Notify that presshell is activated.
-   */
-  virtual void PresShellActivated(nsIPresShell* aPresShell);
-
   virtual void RecreateAccessible(nsIPresShell* aPresShell,
                                   nsIContent* aContent);
 

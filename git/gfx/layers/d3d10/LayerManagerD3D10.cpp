@@ -52,8 +52,6 @@
 
 #include "../d3d9/Nv3DVUtils.h"
 
-#include "gfxCrashReporterUtils.h"
-
 namespace mozilla {
 namespace layers {
 
@@ -121,8 +119,6 @@ LayerManagerD3D10::~LayerManagerD3D10()
 bool
 LayerManagerD3D10::Initialize()
 {
-  ScopedGfxFeatureReporter reporter("D3D10 Layers");
-
   HRESULT hr;
 
   /* Create an Nv3DVUtils instance */
@@ -274,7 +270,6 @@ LayerManagerD3D10::Initialize()
   // We need this because we don't want DXGI to respond to Alt+Enter.
   dxgiFactory->MakeWindowAssociation(swapDesc.OutputWindow, DXGI_MWA_NO_WINDOW_CHANGES);
 
-  reporter.SetSuccessful();
   return true;
 }
 

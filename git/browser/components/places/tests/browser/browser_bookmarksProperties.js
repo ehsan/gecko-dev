@@ -200,7 +200,6 @@ gTests.push({
   itemType: null,
   window: null,
   _itemId: null,
-  _cleanShutdown: false,
 
   setup: function() {
     // Add a bookmark in unsorted bookmarks folder.
@@ -223,27 +222,31 @@ gTests.push({
     var tagsField = this.window.document.getElementById("editBMPanel_tagsField");
     var self = this;
 
-    this.window.addEventListener("unload", function(event) {
-      self.window.removeEventListener("unload", arguments.callee, true);
-      tagsField.popup.removeEventListener("popuphidden", popupListener, true);
-      ok(self._cleanShutdown, "Dialog window should not be closed by pressing Enter on the autocomplete popup");
-      executeSoon(function () {
+    function windowObserver(aSubject, aTopic, aData) {
+      if (aTopic == "domwindowclosed" &&
+          aSubject.QueryInterface(Ci.nsIDOMWindow).location == DIALOG_URL) {
+        ww.unregisterNotification(windowObserver);
+        tagsField.popup.removeEventListener("popuphidden", popupListener, true);
+        ok(false, "Dialog window should not be closed by pressing Enter on the autocomplete popup");
         self.finish();
-      });
-    }, true);
+      }
+    }
 
     var popupListener = {
       handleEvent: function(aEvent) {
         switch (aEvent.type) {
           case "popuphidden":
             // Everything worked fine, we can stop observing the window.
-            self._cleanShutdown = true;
+            ww.unregisterNotification(windowObserver);
+            tagsField.popup.removeEventListener("popuphidden", this, true);
             self.window.document.documentElement.cancelDialog();
+            self.finish();
             break;
           case "popupshown":
             tagsField.popup.removeEventListener("popupshown", this, true);
-            // In case this test fails the window will close, the test will fail
-            // since we didn't set _cleanShutdown.
+            // In case this test fails the window will close, we should mark the
+            // failure and continue, to avoid timing out.
+            ww.registerNotification(windowObserver);
             var tree = tagsField.popup.tree;
             // Focus and select first result.
             isnot(tree, null, "Autocomplete results tree exists");
@@ -315,14 +318,12 @@ gTests.push({
     var namePicker = this.window.document.getElementById("editBMPanel_namePicker");
     var userEnteredName = this.window.document.getElementById("editBMPanel_userEnteredName");
     var self = this;
-
     this.window.addEventListener("unload", function(event) {
-      self.window.removeEventListener("unload", arguments.callee, false);
-      executeSoon(function () {
-        self.finish();
-      });
-    }, false);
-
+        this.window.removeEventListener("unload", arguments.callee, false);
+        executeSoon(function() {
+          self.finish();
+        });
+      }, false);
     namePicker.value = "n";
     userEnteredName.label = "n";
     info("About to focus the namePicker field");
@@ -356,7 +357,6 @@ gTests.push({
   itemType: null,
   window: null,
   _itemId: null,
-  _cleanShutdown: false,
 
   setup: function() {
     // Add a bookmark in unsorted bookmarks folder.
@@ -379,27 +379,31 @@ gTests.push({
     var tagsField = this.window.document.getElementById("editBMPanel_tagsField");
     var self = this;
 
-    this.window.addEventListener("unload", function(event) {
-      self.window.removeEventListener("unload", arguments.callee, true);
-      tagsField.popup.removeEventListener("popuphidden", popupListener, true);
-      ok(self._cleanShutdown, "Dialog window should not be closed by pressing Escape on the autocomplete popup");
-      executeSoon(function () {
+    function windowObserver(aSubject, aTopic, aData) {
+      if (aTopic == "domwindowclosed" &&
+          aSubject.QueryInterface(Ci.nsIDOMWindow).location == DIALOG_URL) {
+        ww.unregisterNotification(windowObserver);
+        tagsField.popup.removeEventListener("popuphidden", popupListener, true);
+        ok(false, "Dialog window should not be closed by pressing Escape on the autocomplete popup");
         self.finish();
-      });
-    }, true);
+      }
+    }
 
     var popupListener = {
       handleEvent: function(aEvent) {
         switch (aEvent.type) {
           case "popuphidden":
-            // Everything worked fine.
-            self._cleanShutdown = true;
+            // Everything worked fine, we can stop observing the window.
+            ww.unregisterNotification(windowObserver);
+            tagsField.popup.removeEventListener("popuphidden", this, true);
             self.window.document.documentElement.cancelDialog();
+            self.finish();
             break;
           case "popupshown":
             tagsField.popup.removeEventListener("popupshown", this, true);
-            // In case this test fails the window will close, the test will fail
-            // since we didn't set _cleanShutdown.
+            // In case this test fails the window will close, we should mark the
+            // failure and continue, to avoid timing out.
+            ww.registerNotification(windowObserver);
             var tree = tagsField.popup.tree;
             // Focus and select first result.
             isnot(tree, null, "Autocomplete results tree exists");
@@ -475,13 +479,16 @@ gTests.push({
     var folderTree = this.window.document.getElementById("editBMPanel_folderTree");
     var self = this;
 
-    this.window.addEventListener("unload", function(event) {
-      self.window.removeEventListener("unload", arguments.callee, true);
-      ok(self._cleanShutdown, "Dialog window should not be closed by pressing ESC in folder name textbox");
-      executeSoon(function () {
+    function windowObserver(aSubject, aTopic, aData) {
+      if (aTopic == "domwindowclosed" &&
+          aSubject.QueryInterface(Ci.nsIDOMWindow).location == DIALOG_URL_MINIMAL_UI) {
+        ww.unregisterNotification(windowObserver);
+        ok(self._cleanShutdown,
+           "Dialog window should not be closed by pressing ESC in folder name textbox");
         self.finish();
-      });
-    }, true);
+      }
+    }
+    ww.registerNotification(windowObserver);
 
     folderTree.addEventListener("DOMAttrModified", function onDOMAttrModified(event) {
       if (event.attrName != "place")

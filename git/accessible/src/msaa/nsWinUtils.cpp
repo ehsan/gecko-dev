@@ -40,9 +40,8 @@
 
 #include "nsWinUtils.h"
 
+#include "nsAccessibleWrap.h"
 #include "nsIWinAccessNode.h"
-#include "nsRootAccessible.h"
-
 #include "nsArrayUtils.h"
 #include "nsIDocShellTreeItem.h"
 
@@ -117,41 +116,25 @@ nsWinUtils::RegisterNativeWindow(LPCWSTR aWindowClass)
 }
 
 HWND
-nsWinUtils::CreateNativeWindow(LPCWSTR aWindowClass, HWND aParentWnd,
-                               int aX, int aY, int aWidth, int aHeight,
-                               bool aIsActive)
+nsWinUtils::CreateNativeWindow(LPCWSTR aWindowClass, HWND aParentWnd)
 {
-  return ::CreateWindowExW(WS_EX_TRANSPARENT, aWindowClass,
-                           L"NetscapeDispatchWnd",
-                           WS_CHILD | (aIsActive ? WS_VISIBLE : 0),
-                           aX, aY, aWidth, aHeight,
-                           aParentWnd,
-                           NULL,
-                           GetModuleHandle(NULL),
-                           NULL);
-}
-
-void
-nsWinUtils::ShowNativeWindow(HWND aWnd)
-{
-  ::ShowWindow(aWnd, SW_SHOW);
-}
-
-void
-nsWinUtils::HideNativeWindow(HWND aWnd)
-{
-  ::SetWindowPos(aWnd, NULL, 0, 0, 0, 0,
-                 SWP_HIDEWINDOW | SWP_NOSIZE | SWP_NOMOVE |
-                 SWP_NOZORDER | SWP_NOACTIVATE);
+  return ::CreateWindowW(aWindowClass,
+                         L"NetscapeDispatchWnd",
+                         WS_CHILD | WS_VISIBLE,
+                         CW_USEDEFAULT, CW_USEDEFAULT,
+                         0, 0,
+                         aParentWnd,
+                         NULL,
+                         GetModuleHandle(NULL),
+                         NULL);
 }
 
 bool
-nsWinUtils::IsWindowEmulationEnabled(LPCWSTR kModuleHandle)
+nsWinUtils::IsWindowEmulationEnabled()
 {
-  return kModuleHandle ? ::GetModuleHandleW(kModuleHandle) :
-    ::GetModuleHandleW(kJAWSModuleHandle) ||
+  return ::GetModuleHandleW(kJAWSModuleHandle) ||
     ::GetModuleHandleW(kWEModuleHandle)  ||
-    ::GetModuleHandleW(kDolphinModuleHandle);
+    ::GetModuleHandleW(kDolphnModuleHandle);
 }
 
 bool

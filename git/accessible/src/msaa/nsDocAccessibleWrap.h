@@ -90,6 +90,7 @@ public:
         /* [retval][out] */ BSTR __RPC_FAR *pszValue);
 
   // nsAccessNode
+  virtual PRBool Init();
   virtual void Shutdown();
 
   // nsAccessibleWrap
@@ -97,10 +98,6 @@ public:
 
   // nsDocAccessible
   virtual void* GetNativeWindow() const;
-
-protected:
-  // nsDocAccessible
-  virtual void NotifyOfInitialUpdate();
 
 protected:
   void* mHWND;

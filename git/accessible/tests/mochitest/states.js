@@ -59,14 +59,13 @@ const EXT_STATE_VERTICAL = nsIAccessibleStates.EXT_STATE_VERTICAL;
  * @param aExtraState        The extra state bits that are wanted.
  * @param aAbsentState       State bits that are not wanted.
  * @param aAbsentExtraState  Extra state bits that are not wanted.
- * @param aTestName          The test name.
  */
 function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
-                    aAbsentExtraState, aTestName)
+                    aAbsentExtraState)
 {
   var [state, extraState] = getStates(aAccOrElmOrID);
 
-  var id = prettyName(aAccOrElmOrID) + (aTestName ? " [" + aTestName + "]": "");
+  var id = prettyName(aAccOrElmOrID);
 
   // Primary test.
   isState(state & aState, aState, false,

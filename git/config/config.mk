@@ -738,7 +738,7 @@ endif # OS2
 endif # NSINSTALL_BIN
 
 
-ifeq (,$(CROSS_COMPILE)$(filter-out OS2, $(OS_ARCH)))
+ifeq (,$(CROSS_COMPILE)$(filter-out WINNT OS2, $(OS_ARCH)))
 INSTALL		= $(NSINSTALL)
 else
 ifeq ($(NSDISTMODE),copy)
@@ -792,16 +792,6 @@ ifdef LOCALE_MERGEDIR
 MAKE_JARS_FLAGS += -c $(topsrcdir)/$(relativesrcdir)/en-US
 endif
 endif
-
-ifdef LOCALE_MERGEDIR
-MERGE_FILE = $(firstword \
-  $(wildcard $(LOCALE_MERGEDIR)/$(subst /locales,,$(relativesrcdir))/$(1)) \
-  $(wildcard $(LOCALE_SRCDIR)/$(1)) \
-  $(srcdir)/en-US/$(1) )
-else
-MERGE_FILE = $(LOCALE_SRCDIR)/$(1)
-endif
-MERGE_FILES = $(foreach f,$(1),$(call MERGE_FILE,$(f)))
 
 ifdef WINCE
 RUN_TEST_PROGRAM = $(PYTHON) $(topsrcdir)/build/mobile/devicemanager-run-test.py

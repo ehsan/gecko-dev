@@ -309,9 +309,6 @@ nsresult nsRootAccessible::RemoveEventListeners()
   return NS_OK;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// public
-
 nsCaretAccessible*
 nsRootAccessible::GetCaretAccessible()
 {
@@ -437,11 +434,6 @@ nsRootAccessible::FireCurrentFocusEvent()
       HandleEvent(event);
     }
   }
-}
-
-void
-nsRootAccessible::DocumentActivated(nsDocAccessible* aDocument)
-{
 }
 
 ////////////////////////////////////////////////////////////////////////////////

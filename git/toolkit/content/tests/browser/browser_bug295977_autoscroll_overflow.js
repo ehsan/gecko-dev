@@ -71,6 +71,7 @@ function test()
 
   waitForExplicitFinish();
   var dataUri = 'data:text/html,<body><style type="text/css">div { display: inline-block; }</style>\
+    <div id="forceredraw" style="height: 1px"></div>\
     <div id="a" style="width: 100px; height: 100px; overflow: hidden;"><div style="width: 200px; height: 200px;"></div></div>\
     <div id="b" style="width: 100px; height: 100px; overflow: auto;"><div style="width: 200px; height: 200px;"></div></div>\
     <div id="c" style="width: 100px; height: 100px; overflow-x: auto; overflow-y: hidden;"><div style="width: 200px; height: 200px;"></div></div>\
@@ -97,7 +98,7 @@ function test()
     doc = gBrowser.contentDocument;
     // force redraws, so we actually get AfterPaint events
     window.addEventListener("MozBeforePaint", function(ev) {
-      doc.body.appendChild(doc.createTextNode('.'));
+      doc.getElementById("forceredraw").style.left = ev.timeStamp % 100;
     }, false);
     nextTest();
   }

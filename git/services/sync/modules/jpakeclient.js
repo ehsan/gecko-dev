@@ -475,8 +475,7 @@ JPAKEClient.prototype = {
     }
 
     this._crypto_key = aes256Key.value;
-    let hmac_key = Utils.makeHMACKey(Utils.safeAtoB(hmac256Key.value));
-    this._hmac_hasher = Utils.makeHMACHasher(Ci.nsICryptoHMAC.SHA256, hmac_key);
+    this._hmac_key = Utils.makeHMACKey(Utils.safeAtoB(hmac256Key.value));
 
     callback();
   },
@@ -524,7 +523,7 @@ JPAKEClient.prototype = {
     try {
       iv = Svc.Crypto.generateRandomIV();
       ciphertext = Svc.Crypto.encrypt(this._data, this._crypto_key, iv);
-      hmac = Utils.bytesAsHex(Utils.digestUTF8(ciphertext, this._hmac_hasher));
+      hmac = Utils.sha256HMAC(ciphertext, this._hmac_key);
     } catch (ex) {
       this._log.error("Failed to encrypt data.");
       this.abort(JPAKE_ERROR_INTERNAL);
@@ -546,8 +545,7 @@ JPAKEClient.prototype = {
     }
     let step3 = this._incoming.payload;
     try {
-      let hmac = Utils.bytesAsHex(
-        Utils.digestUTF8(step3.ciphertext, this._hmac_hasher));
+      let hmac = Utils.sha256HMAC(step3.ciphertext, this._hmac_key);
       if (hmac != step3.hmac)
         throw "HMAC validation failed!";
     } catch (ex) {
