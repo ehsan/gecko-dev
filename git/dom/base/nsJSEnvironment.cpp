@@ -1322,7 +1322,6 @@ nsJSContext::nsJSContext(JSRuntime *aRuntime)
     ::JS_SetLocaleCallbacks(mContext, &localeCallbacks);
   }
   mIsInitialized = PR_FALSE;
-  mNumEvaluations = 0;
   mTerminations = nsnull;
   mScriptsEnabled = PR_TRUE;
   mOperationCallbackTime = 0;
@@ -2138,9 +2137,8 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
   // xxxmarkh - this comment is no longer true - principals are not used at
   // all now, and never were in some cases.
 
-  nsCOMPtr<nsIJSContextStack> stack =
-    do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv);
-  if (NS_FAILED(rv) || NS_FAILED(stack->Push(mContext)))
+  nsCxPusher pusher;
+  if (!pusher.Push(mContext, PR_TRUE))
     return NS_ERROR_FAILURE;
 
   // check if the event handler can be run on the object in question
@@ -2163,15 +2161,24 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
     // in the same scope as aTarget.
     rv = ConvertSupportsTojsvals(aargv, target, &argc,
                                  &argv, poolRelease, tvr);
-    if (NS_FAILED(rv)) {
-      stack->Pop(nsnull);
-      return rv;
-    }
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    jsval funval = OBJECT_TO_JSVAL(static_cast<JSObject *>(aHandler));
+    JSObject *funobj = static_cast<JSObject *>(aHandler);
+    nsCOMPtr<nsIPrincipal> principal;
+    rv = sSecurityManager->GetObjectPrincipal(mContext, funobj,
+                                              getter_AddRefs(principal));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    JSStackFrame *currentfp = nsnull;
+    rv = sSecurityManager->PushContextPrincipal(mContext,
+                                                JS_FrameIterator(mContext, &currentfp),
+                                                principal);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    jsval funval = OBJECT_TO_JSVAL(funobj);
     JSAutoEnterCompartment ac;
     if (!ac.enter(mContext, target)) {
-      stack->Pop(nsnull);
+      sSecurityManager->PopContextPrincipal(mContext);
       return NS_ERROR_FAILURE;
     }
 
@@ -2193,10 +2200,11 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
       // Tell the caller that the handler threw an error.
       rv = NS_ERROR_FAILURE;
     }
+
+    sSecurityManager->PopContextPrincipal(mContext);
   }
 
-  if (NS_FAILED(stack->Pop(nsnull)))
-    return NS_ERROR_FAILURE;
+  pusher.Pop();
 
   // Convert to variant before calling ScriptEvaluated, as it may GC, meaning
   // we would need to root rval.
@@ -3523,17 +3531,11 @@ nsJSContext::ScriptEvaluated(PRBool aTerminated)
     delete start;
   }
 
-  mNumEvaluations++;
-
 #ifdef JS_GC_ZEAL
   if (mContext->runtime->gcZeal >= 2) {
     JS_MaybeGC(mContext);
-  } else
-#endif
-  if (mNumEvaluations > 20) {
-    mNumEvaluations = 0;
-    JS_MaybeGC(mContext);
   }
+#endif
 
   if (aTerminated) {
     mOperationCallbackTime = 0;
@@ -4015,6 +4017,16 @@ SetMemoryGCFrequencyPrefChangedCallback(const char* aPrefName, void* aClosure)
   return 0;
 }
 
+static int
+SetMemoryGCModePrefChangedCallback(const char* aPrefName, void* aClosure)
+{
+  PRBool enableCompartmentGC = nsContentUtils::GetBoolPref(aPrefName);
+  JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MODE, enableCompartmentGC
+                                                      ? JSGC_MODE_COMPARTMENT
+                                                      : JSGC_MODE_GLOBAL);
+  return 0;
+}
+
 static JSPrincipals *
 ObjectPrincipalFinder(JSContext *cx, JSObject *obj)
 {
@@ -4154,6 +4166,12 @@ nsJSRuntime::Init()
                                        nsnull);
   SetMemoryGCFrequencyPrefChangedCallback("javascript.options.mem.gc_frequency",
                                           nsnull);
+
+  nsContentUtils::RegisterPrefCallback("javascript.options.mem.gc_per_compartment",
+                                       SetMemoryGCModePrefChangedCallback,
+                                       nsnull);
+  SetMemoryGCModePrefChangedCallback("javascript.options.mem.gc_per_compartment",
+                                     nsnull);
 
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (!obs)

@@ -579,66 +579,6 @@ mjit::Compiler::jsop_bitop(JSOp op)
         stubcc.rejoin(Changes(1));
 }
 
-void
-mjit::Compiler::jsop_globalinc(JSOp op, uint32 index)
-{
-    uint32 slot = script->getGlobalSlot(index);
-
-    bool popped = false;
-    PC += JSOP_GLOBALINC_LENGTH;
-    if (JSOp(*PC) == JSOP_POP && !analysis->jumpTarget(PC)) {
-        popped = true;
-        PC += JSOP_POP_LENGTH;
-    }
-
-    int amt = (js_CodeSpec[op].format & JOF_INC) ? 1 : -1;
-    bool post = !!(js_CodeSpec[op].format & JOF_POST);
-
-    RegisterID data;
-    RegisterID reg = frame.allocReg();
-    Address addr = masm.objSlotRef(globalObj, reg, slot);
-    uint32 depth = frame.stackDepth();
-
-    if (post && !popped) {
-        frame.push(addr);
-        FrameEntry *fe = frame.peek(-1);
-        Jump notInt = frame.testInt32(Assembler::NotEqual, fe);
-        stubcc.linkExit(notInt, Uses(0));
-        data = frame.copyDataIntoReg(fe);
-    } else {
-        Jump notInt = masm.testInt32(Assembler::NotEqual, addr);
-        stubcc.linkExit(notInt, Uses(0));
-        data = frame.allocReg();
-        masm.loadPayload(addr, data);
-    }
-
-    Jump ovf;
-    if (amt > 0)
-        ovf = masm.branchAdd32(Assembler::Overflow, Imm32(1), data);
-    else
-        ovf = masm.branchSub32(Assembler::Overflow, Imm32(1), data);
-    stubcc.linkExit(ovf, Uses(0));
-
-    stubcc.leave();
-    stubcc.masm.lea(addr, Registers::ArgReg1);
-    stubcc.vpInc(op, depth);
-
-#if defined JS_NUNBOX32
-    masm.storePayload(data, addr);
-#elif defined JS_PUNBOX64
-    masm.storeValueFromComponents(ImmType(JSVAL_TYPE_INT32), data, addr);
-#endif
-
-    if (!post && !popped)
-        frame.pushInt32(data);
-    else
-        frame.freeReg(data);
-
-    frame.freeReg(reg);
-
-    stubcc.rejoin(Changes((!post && !popped) ? 1 : 0));
-}
-
 static inline bool
 CheckNullOrUndefined(FrameEntry *fe)
 {
@@ -1316,10 +1256,12 @@ mjit::Compiler::jsop_setelem(bool popGuaranteed)
     ic.objRemat = frame.dataRematInfo(obj);
 
     // All patchable guards must occur after this point.
+    RESERVE_IC_SPACE(masm);
     ic.fastPathStart = masm.label();
 
     // Create the common out-of-line sync block, taking care to link previous
     // guards here after.
+    RESERVE_OOL_SPACE(stubcc.masm);
     ic.slowPathStart = stubcc.syncExit(Uses(3));
 
     // Guard obj is a dense array.
@@ -1346,7 +1288,7 @@ mjit::Compiler::jsop_setelem(bool popGuaranteed)
     stubcc.linkExitDirect(ic.holeGuard, ic.slowPathStart);
 
     stubcc.leave();
-#ifdef JS_POLYIC
+#if defined JS_POLYIC
     passICAddress(&ic);
     ic.slowPathCall = OOL_STUBCALL(STRICT_VARIANT(ic::SetElement));
 #else
@@ -1386,7 +1328,7 @@ mjit::Compiler::jsop_setelem(bool popGuaranteed)
     frame.shimmy(2);
     stubcc.rejoin(Changes(2));
 
-#ifdef JS_POLYIC
+#if defined JS_POLYIC
     if (!setElemICs.append(ic))
         return false;
 #endif
@@ -1401,7 +1343,7 @@ IsCacheableGetElem(FrameEntry *obj, FrameEntry *id)
         return false;
     if (id->isTypeKnown() &&
         !(id->getKnownType() == JSVAL_TYPE_INT32
-#ifdef JS_POLYIC
+#if defined JS_POLYIC
           || id->getKnownType() == JSVAL_TYPE_STRING
 #endif
          )) {
@@ -1487,9 +1429,11 @@ mjit::Compiler::jsop_getelem(bool isCall)
             ic.id = ValueRemat::FromRegisters(ic.typeReg, dataReg);
     }
 
+    RESERVE_IC_SPACE(masm);
     ic.fastPathStart = masm.label();
 
     // Note: slow path here is safe, since the frame will not be modified.
+    RESERVE_OOL_SPACE(stubcc.masm);
     ic.slowPathStart = stubcc.masm.label();
     frame.sync(stubcc.masm, Uses(2));
 

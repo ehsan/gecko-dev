@@ -86,6 +86,10 @@ function GroupItem(listOfEls, options) {
 
   this.keepProportional = false;
 
+  // Double click tracker
+  this._lastClick = 0;
+  this._lastClickPositions = null;
+
   // Variable: _activeTab
   // The <TabItem> for the groupItem's active tab.
   this._activeTab = null;
@@ -149,7 +153,7 @@ function GroupItem(listOfEls, options) {
     .html(html)
     .appendTo($container);
 
-  var $close = iQ('<div>')
+  this.$closeButton = iQ('<div>')
     .addClass('close')
     .click(function() {
       self.closeAll();
@@ -238,7 +242,7 @@ function GroupItem(listOfEls, options) {
     $container.css({cursor: 'default'});
 
   if (this.locked.close)
-    $close.hide();
+    this.$closeButton.hide();
 
   // ___ Undo Close
   this.$undoContainer = null;
@@ -276,6 +280,8 @@ function GroupItem(listOfEls, options) {
 
   this._inited = true;
   this.save();
+
+  GroupItems.updateGroupCloseButtons();
 };
 
 // ----------
@@ -423,8 +429,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     if (!options)
       options = {};
 
-    rect.width = Math.max(110, rect.width);
-    rect.height = Math.max(125, rect.height);
+    GroupItems.enforceMinSize(rect);
 
     var titleHeight = this.$titlebar.height();
 
@@ -536,6 +541,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       this.removeTrenches();
       Items.unsquish();
       this._sendToSubscribers("close");
+      GroupItems.updateGroupCloseButtons();
     } else {
       let self = this;
       iQ(this.container).animate({
@@ -548,6 +554,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
           self.removeTrenches();
           Items.unsquish();
           self._sendToSubscribers("close");
+          GroupItems.updateGroupCloseButtons();
         }
       });
     }
@@ -620,6 +627,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       }
     });
 
+    GroupItems.updateGroupCloseButtons();
     self._sendToSubscribers("groupShown", { groupItemId: self.id });
   },
 
@@ -752,6 +760,8 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     this.$undoContainer.mouseout(function() {
       self.setupFadeAwayUndoButtonTimer();
     });
+
+    GroupItems.updateGroupCloseButtons();
   },
 
   // ----------
@@ -828,6 +838,10 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
         item.addSubscriber(this, "close", function() {
           self.remove(item);
+          if (self._children.length > 0 && self._activeTab) {
+            GroupItems.setActiveGroupItem(self);
+            UI.setActiveTab(self._activeTab);
+          }
         });
 
         item.setParent(this);
@@ -890,7 +904,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       if (index != -1)
         this._children.splice(index, 1);
 
-      if (item == this._activeTab) {
+      if (item == this._activeTab || !this._activeTab) {
         if (this._children.length > 0)
           this._activeTab = this._children[0];
         else
@@ -909,14 +923,18 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       if (typeof item.setResizable == 'function')
         item.setResizable(true, options.immediately);
 
-      if (!this._children.length && !this.locked.close && !this.getTitle() && !options.dontClose) {
-        this.close();
+      if (this._children.length == 0 && !this.locked.close && !this.getTitle() && 
+          !options.dontClose) {
+        if (!GroupItems.getUnclosableGroupItemId()) {
+          this.close();
+        } else {
+          // this.close();  this line is causing the leak but the leak doesn't happen after re-enabling it
+        }
       } else if (!options.dontArrange) {
         this.arrange({animate: !options.immediately});
       }
 
       this._sendToSubscribers("childRemoved",{ groupItemId: this.id, item: item });
-
     } catch(e) {
       Utils.log(e);
     }
@@ -1193,14 +1211,14 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
     var self = this;
     var children = [];
-    this._children.forEach(function(child) {
+    this._children.forEach(function GroupItem__stackArrange_order(child) {
       if (child == self.topChild)
         children.unshift(child);
       else
         children.push(child);
     });
 
-    children.forEach(function(child, index) {
+    children.forEach(function GroupItem__stackArrange_apply(child, index) {
       if (!child.locked.bounds) {
         child.setZ(zIndex);
         zIndex--;
@@ -1376,7 +1394,24 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Function: _addHandlers
   // Helper routine for the constructor; adds various event handlers to the container.
   _addHandlers: function GroupItem__addHandlers(container) {
-    var self = this;
+    let self = this;
+
+    // Create new tab and zoom in on it after a double click
+    container.mousedown(function(e) {
+      if (Date.now() - self._lastClick <= UI.DBLCLICK_INTERVAL &&
+          (self._lastClickPositions.x - UI.DBLCLICK_OFFSET) <= e.clientX &&
+          (self._lastClickPositions.x + UI.DBLCLICK_OFFSET) >= e.clientX &&
+          (self._lastClickPositions.y - UI.DBLCLICK_OFFSET) <= e.clientY &&
+          (self._lastClickPositions.y + UI.DBLCLICK_OFFSET) >= e.clientY) {
+        self.newTab();
+        self._lastClick = 0;
+        self._lastClickPositions = null;
+      } else {
+        self._lastClick = Date.now();
+        self._lastClickPositions = new Point(e.clientX, e.clientY);
+      }
+    });
+
     var dropIndex = false;
     var dropSpaceTimer = null;
 
@@ -1473,8 +1508,8 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Function: setResizable
   // Sets whether the groupItem is resizable and updates the UI accordingly.
   setResizable: function GroupItem_setResizable(value, immediately) {
-    this.resizeOptions.minWidth = 110;
-    this.resizeOptions.minHeight = 125;
+    this.resizeOptions.minWidth = GroupItems.minGroupWidth;
+    this.resizeOptions.minHeight = GroupItems.minGroupHeight;
 
     if (value) {
       immediately ? this.$resizer.show() : this.$resizer.fadeIn();
@@ -1592,6 +1627,8 @@ let GroupItems = {
   _arrangePaused: false,
   _arrangesPending: [],
   _removingHiddenGroups: false,
+  minGroupHeight: 110,
+  minGroupWidth: 125,
 
   // ----------
   // Function: init
@@ -1695,6 +1732,7 @@ let GroupItems = {
     this.groupItems.forEach(function(groupItem) {
       groupItem.addAppTab(xulTab);
     });
+    this.updateGroupCloseButtons();
   },
 
   // ----------
@@ -1704,6 +1742,7 @@ let GroupItems = {
     this.groupItems.forEach(function(groupItem) {
       groupItem.removeAppTab(xulTab);
     });
+    this.updateGroupCloseButtons();
   },
 
   // ----------
@@ -2269,5 +2308,56 @@ let GroupItems = {
      });
 
     this._removingHiddenGroups = false;
+  },
+
+  // ----------
+  // Function: enforceMinSize
+  // Takes a <Rect> and modifies that <Rect> in case it is too small to be
+  // the bounds of a <GroupItem>.
+  //
+  // Parameters:
+  //   bounds - (<Rect>) the target bounds of a <GroupItem>
+  enforceMinSize: function GroupItems_enforceMinSize(bounds) {
+    bounds.width = Math.max(bounds.width, this.minGroupWidth);
+    bounds.height = Math.max(bounds.height, this.minGroupHeight);
+  },
+
+  // ----------
+  // Function: getUnclosableGroupItemId
+  // If there's only one (non-hidden) group, and there are app tabs present, 
+  // returns that group.
+  // Return the <GroupItem>'s Id
+  getUnclosableGroupItemId: function GroupItems_getUnclosableGroupItemId() {
+    let unclosableGroupItemId = null;
+
+    if (gBrowser._numPinnedTabs > 0) {
+      let hiddenGroupItems = 
+        this.groupItems.concat().filter(function(groupItem) {
+          return !groupItem.hidden;
+        });
+      if (hiddenGroupItems.length == 1)
+        unclosableGroupItemId = hiddenGroupItems[0].id;
+    }
+
+    return unclosableGroupItemId;
+  },
+
+  // ----------
+  // Function: updateGroupCloseButtons
+  // Updates group close buttons.
+  updateGroupCloseButtons: function GroupItems_updateGroupCloseButtons() {
+    let unclosableGroupItemId = this.getUnclosableGroupItemId();
+
+    if (unclosableGroupItemId) {
+      let groupItem = this.groupItem(unclosableGroupItemId);
+
+      if (groupItem) {
+        groupItem.$closeButton.hide();
+      }
+    } else {
+      this.groupItems.forEach(function(groupItem) {
+        groupItem.$closeButton.show();
+      });
+    }
   }
 };

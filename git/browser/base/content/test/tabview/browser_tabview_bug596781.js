@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,14 +11,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is JavaScript Engine testing utilities.
+ * The Original Code is tabview bug 596781 test.
  *
  * The Initial Developer of the Original Code is
  * Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2006
+ * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
- * Contributor(s): Jesse Ruderman
+ * Contributor(s):
+ * Raymond Lee <raymond@appcoast.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,32 +35,41 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-//-----------------------------------------------------------------------------
-var BUGNUMBER = 348904;
-var summary = 'decompilation for "let" in lvalue part of for..in';
-var actual = '';
-var expect = '';
+let newTab;
 
+function test() {
+  waitForExplicitFinish();
 
-//-----------------------------------------------------------------------------
-test();
-//-----------------------------------------------------------------------------
+  newTab = gBrowser.addTab();
+  gBrowser.pinTab(newTab);
 
-function test()
-{
-  enterFunc ('test');
-  printBugNumber(BUGNUMBER);
-  printStatus (summary);
+  window.addEventListener("tabviewshown", onTabViewWindowLoaded, false);
+  TabView.toggle();
+}
 
-  var f = function () { for (let i = 3 in {}); }
-  actual = f + '';
-  expect = 'function () {\n    for (let i in {}) {\n    }\n}';
-  compareSource(expect, actual, summary);
+function onTabViewWindowLoaded() {
+  window.removeEventListener("tabviewshown", onTabViewWindowLoaded, false);
+  ok(TabView.isVisible(), "Tab View is visible");
 
-  var f = function () { for (let i = (y = 4) in {}); }
-  actual = f + '';
-  expect = 'function () {\n    y = 4;\n    for (let i in {}) {\n    }\n}';
-  compareSource(expect, actual, summary);
+  let contentWindow = document.getElementById("tab-view").contentWindow;
 
-  exitFunc ('test');
+  is(contentWindow.GroupItems.groupItems.length, 1, "Only one group exists"); 
+  is(gBrowser.tabs.length, 2, "Only one tab exists");
+  ok(newTab.pinned, "The original tab is pinned");
+
+  let groupItem = contentWindow.GroupItems.groupItems[0];
+  is(groupItem.$closeButton[0].style.display, "none", 
+     "The close button is hidden");
+
+  gBrowser.unpinTab(newTab);
+  is(groupItem.$closeButton[0].style.display, "", 
+     "The close button is visible");
+
+  let onTabViewHidden = function() {
+    window.removeEventListener("tabviewhidden", onTabViewHidden, false);
+    gBrowser.removeTab(newTab);
+    finish();
+  }
+  window.addEventListener("tabviewhidden", onTabViewHidden, false);
+  TabView.toggle();
 }

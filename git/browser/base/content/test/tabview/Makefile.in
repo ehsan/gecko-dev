@@ -53,6 +53,7 @@ _BROWSER_FILES = \
                  browser_tabview_bug587351.js \
                  browser_tabview_bug587503.js \
                  browser_tabview_bug587990.js \
+                 browser_tabview_bug588265.js \
                  browser_tabview_bug589324.js \
                  browser_tabview_bug590606.js \
                  browser_tabview_bug591706.js \
@@ -65,16 +66,19 @@ _BROWSER_FILES = \
                  browser_tabview_bug595804.js \
                  browser_tabview_bug595930.js \
                  browser_tabview_bug595943.js \
+                 browser_tabview_bug596781.js \
                  browser_tabview_bug597248.js \
                  browser_tabview_bug597360.js \
                  browser_tabview_bug597399.js \
                  browser_tabview_bug598600.js \
                  browser_tabview_bug599626.js \
                  browser_tabview_bug600645.js \
+                 browser_tabview_bug604098.js \
                  browser_tabview_bug606657.js \
                  browser_tabview_bug606905.js \
                  browser_tabview_bug608037.js \
                  browser_tabview_bug608158.js \
+                 browser_tabview_bug610242.js \
                  browser_tabview_bug618828.js \
                  browser_tabview_bug619937.js \
                  browser_tabview_bug624265.js \

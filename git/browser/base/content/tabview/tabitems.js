@@ -364,7 +364,9 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       if (tabData.imageData)
         this.showCachedData(tabData);
     } else {
-      GroupItems.newTab(this, {immediately: true});
+      // create tab by double click is handled in UI_init().
+      if (!TabItems.creatingNewOrphanTab)
+        GroupItems.newTab(this, {immediately: true});
     }
 
     this._reconnected = true;  
@@ -391,6 +393,8 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
     if (!options)
       options = {};
+
+    TabItems.enforceMinSize(rect);
 
     if (this._zoomPrep)
       this.bounds.copy(rect);
@@ -574,7 +578,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
     if (value) {
       this.resizeOptions.minWidth = TabItems.minTabWidth;
-      this.resizeOptions.minHeight = TabItems.minTabWidth * (TabItems.tabHeight / TabItems.tabWidth);
+      this.resizeOptions.minHeight = TabItems.minTabHeight;
       immediately ? $resizer.show() : $resizer.fadeIn();
       this.resizable(true);
     } else {
@@ -742,9 +746,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     let animateZoom = gPrefBranch.getBoolPref("animate_zoom");
 
     var $div = iQ(this.container);
-    var data;
 
-    var box = this.getBounds();
     if (value && animateZoom) {
       this._zoomPrep = true;
 
@@ -761,6 +763,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         .addClass('front')
         .css(this.getZoomRect(2));
     } else {
+      let box = this.getBounds();
       this._zoomPrep = false;
       $div.removeClass('front');
 
@@ -787,6 +790,7 @@ let TabItems = {
   _lastUpdateTime: Date.now(),
   _eventListeners: [],
   _pauseUpdateForTest: false,
+  creatingNewOrphanTab: false,
   tempCanvas: null,
   _reconnectingPaused: false,
 
@@ -796,6 +800,8 @@ let TabItems = {
   init: function TabItems_init() {
     Utils.assert(window.AllTabs, "AllTabs must be initialized first");
     let self = this;
+    
+    this.minTabHeight = this.minTabWidth * this.tabHeight / this.tabWidth;
 
     let $canvas = iQ("<canvas>");
     $canvas.appendTo(iQ("body"));
@@ -927,12 +933,20 @@ let TabItems = {
       let tabItem = tab._tabViewTabItem;
 
       // ___ icon
-      let iconUrl = tab.image;
-      if (!iconUrl)
-        iconUrl = Utils.defaultFaviconURL;
+      if (this.shouldLoadFavIcon(tab.linkedBrowser)) {
+        let iconUrl = tab.image;
+        if (!iconUrl)
+          iconUrl = Utils.defaultFaviconURL;
 
-      if (iconUrl != tabItem.favImgEl.src)
-        tabItem.favImgEl.src = iconUrl;
+        if (iconUrl != tabItem.favImgEl.src)
+          tabItem.favImgEl.src = iconUrl;
+
+        iQ(tabItem.favEl).show();
+      } else {
+        if (tabItem.favImgEl.hasAttribute("src"))
+          tabItem.favImgEl.removeAttribute("src");
+        iQ(tabItem.favEl).hide();
+      }
 
       // ___ URL
       let tabUrl = tab.linkedBrowser.currentURI.spec;
@@ -970,6 +984,14 @@ let TabItems = {
     } catch(e) {
       Utils.log(e);
     }
+  },
+
+  // ----------
+  // Function: shouldLoadFavIcon
+  // Takes a xul:browser and checks whether we should display a favicon for it.
+  shouldLoadFavIcon: function TabItems_shouldLoadFavIcon(browser) {
+    return !(browser.contentDocument instanceof window.ImageDocument) &&
+           gBrowser.shouldLoadFavIcon(browser.contentDocument.documentURIObject);
   },
 
   // ----------
@@ -1172,6 +1194,18 @@ let TabItems = {
     }
 
     return sane;
+  },
+
+  // ----------
+  // Function: enforceMinSize
+  // Takes a <Rect> and modifies that <Rect> in case it is too small to be
+  // the bounds of a <TabItem>.
+  //
+  // Parameters:
+  //   bounds - (<Rect>) the target bounds of a <TabItem>
+  enforceMinSize: function TabItems_enforceMinSize(bounds) {
+    bounds.width = Math.max(bounds.width, this.minTabWidth);
+    bounds.height = Math.max(bounds.height, this.minTabHeight);
   }
 };
 

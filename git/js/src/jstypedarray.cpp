@@ -121,9 +121,10 @@ void
 ArrayBuffer::class_finalize(JSContext *cx, JSObject *obj)
 {
     ArrayBuffer *abuf = ArrayBuffer::fromJSObject(obj);
-    if (abuf)
+    if (abuf) {
         abuf->freeStorage(cx);
-    delete abuf;
+        cx->destroy<ArrayBuffer>(abuf);
+    }
 }
 
 /*
@@ -161,14 +162,14 @@ ArrayBuffer::create(JSContext *cx, uintN argc, Value *argv, Value *rval)
         return false;
     }
 
-    ArrayBuffer *abuf = new ArrayBuffer();
+    ArrayBuffer *abuf = cx->create<ArrayBuffer>();
     if (!abuf) {
         JS_ReportOutOfMemory(cx);
         return false;
     }
 
     if (!abuf->allocateStorage(cx, nbytes)) {
-        delete abuf;
+        cx->destroy<ArrayBuffer>(abuf);
         return false;
     }
 
@@ -757,14 +758,14 @@ class TypedArrayTemplate
             hasLen = ValueIsLength(cx, argv[0], &len);
 
         if (hasLen) {
-            tarray = new ThisTypeArray();
+            tarray = cx->create<ThisTypeArray>();
             if (!tarray) {
                 JS_ReportOutOfMemory(cx);
                 return false;
             }
 
             if (!tarray->init(cx, len)) {
-                delete tarray;
+                cx->destroy<ThisTypeArray>(tarray);
                 return false;
             }
         } else if (argv[0].isObject()) {
@@ -791,14 +792,14 @@ class TypedArrayTemplate
                 }
             }
 
-            tarray = new ThisTypeArray();
+            tarray = cx->create<ThisTypeArray>();
             if (!tarray) {
                 JS_ReportOutOfMemory(cx);
                 return false;
             }
 
             if (!tarray->init(cx, &argv[0].toObject(), byteOffset, length)) {
-                delete tarray;
+                cx->destroy<ThisTypeArray>(tarray);
                 return false;
             }
         } else {
@@ -815,7 +816,8 @@ class TypedArrayTemplate
     class_finalize(JSContext *cx, JSObject *obj)
     {
         ThisTypeArray *tarray = ThisTypeArray::fromJSObject(obj);
-        delete tarray;
+        if (tarray)
+            cx->destroy<ThisTypeArray>(tarray);
     }
 
     /* slice(start[, end]) */
@@ -871,7 +873,7 @@ class TypedArrayTemplate
         if (begin > end)
             begin = end;
 
-        ThisTypeArray *ntarray = tarray->slice(begin, end);
+        ThisTypeArray *ntarray = tarray->slice(cx, begin, end);
         if (!ntarray) {
             // this should rarely ever happen
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
@@ -884,7 +886,7 @@ class TypedArrayTemplate
         JS_ASSERT(slowClass() != &js_FunctionClass);
         JSObject *nobj = NewNonFunction<WithProto::Class>(cx, slowClass(), NULL, NULL);
         if (!nobj) {
-            delete ntarray;
+            cx->destroy<ThisTypeArray>(ntarray);
             return false;
         }
 
@@ -1087,12 +1089,12 @@ class TypedArrayTemplate
     inline void copyIndexToValue(JSContext *cx, uint32 index, Value *vp);
 
     ThisTypeArray *
-    slice(uint32 begin, uint32 end)
+    slice(JSContext *cx, uint32 begin, uint32 end)
     {
         if (begin > length || end > length)
             return NULL;
 
-        ThisTypeArray *tarray = new ThisTypeArray();
+        ThisTypeArray *tarray = cx->create<ThisTypeArray>();
         if (!tarray)
             return NULL;
 
@@ -1114,8 +1116,12 @@ class TypedArrayTemplate
         if (v.isInt32())
             return NativeType(v.toInt32());
 
-        if (v.isDouble())
-            return NativeType(v.toDouble());
+        if (v.isDouble()) {
+            double d = v.toDouble();
+            if (!ArrayTypeIsFloatingPoint() && JS_UNLIKELY(JSDOUBLE_IS_NaN(d)))
+                return NativeType(int32(0));
+            return NativeType(d);
+        }
 
         if (v.isPrimitive() && !v.isMagic()) {
             jsdouble dval;

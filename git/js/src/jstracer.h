@@ -666,6 +666,7 @@ public:
         OP_FWDJUMP, // Jumps with positive delta
         OP_NEW, // JSOP_NEW instructions
         OP_RECURSIVE, // Recursive calls
+        OP_ARRAY_READ, // Reads from dense arrays
         OP_TYPED_ARRAY, // Accesses to typed arrays
         OP_LIMIT
     };
@@ -685,8 +686,14 @@ public:
     /* Whether we have run a complete profile of the loop. */
     bool profiled;
 
+    /* Sometimes we can't decide in one profile run whether to trace, so we set undecided. */
+    bool undecided;
+
     /* If we have profiled the loop, this saves the decision of whether to trace it. */
     bool traceOK;
+
+    /* Memoized value of isCompilationUnprofitable. */
+    bool unprofitable;
 
     /*
      * Sometimes loops are not good tracing opportunities, but they are nested inside
@@ -814,7 +821,7 @@ public:
 
     /* Once a loop's profile is done, these decide whether it should be traced. */
     bool isCompilationExpensive(JSContext *cx, uintN depth);
-    bool isCompilationUnprofitable(JSContext *cx, uintN depth);
+    bool isCompilationUnprofitable(JSContext *cx, uintN goodOps);
     void decide(JSContext *cx);
 };
 
@@ -831,7 +838,13 @@ typedef enum BuiltinStatus {
 static JS_INLINE void
 SetBuiltinError(JSContext *cx)
 {
-    cx->tracerState->builtinStatus |= BUILTIN_ERROR;
+    JS_TRACE_MONITOR(cx).tracerState->builtinStatus |= BUILTIN_ERROR;
+}
+
+static JS_INLINE bool
+WasBuiltinSuccessful(JSContext *cx)
+{
+    return JS_TRACE_MONITOR(cx).tracerState->builtinStatus == 0;
 }
 
 #ifdef DEBUG_RECORDING_STATUS_NOT_BOOL
@@ -1110,7 +1123,7 @@ class TraceRecorder
     nanojit::LIns*                  pendingGuardCondition;
 
     /* See AbortRecordingIfUnexpectedGlobalWrite. */
-    int                             pendingGlobalSlotToSet;
+    js::Vector<unsigned>            pendingGlobalSlotsToSet;
 
     /* Carry whether we have an always-exit from emitIf to checkTraceEnd. */
     bool                            pendingLoop;
@@ -1472,7 +1485,7 @@ class TraceRecorder
                                                                            nanojit::LIns* obj_ins,
                                                                            VMSideExit *exit);
     JS_REQUIRES_STACK RecordingStatus guardNativeConversion(Value& v);
-    JS_REQUIRES_STACK void clearReturningFrameFromNativeveTracker();
+    JS_REQUIRES_STACK void clearReturningFrameFromNativeTracker();
     JS_REQUIRES_STACK void putActivationObjects();
     JS_REQUIRES_STACK RecordingStatus guardCallee(Value& callee);
     JS_REQUIRES_STACK JSStackFrame      *guardArguments(JSObject *obj, nanojit::LIns* obj_ins,
@@ -1608,7 +1621,8 @@ class TraceRecorder
     void forgetGuardedShapesForObject(JSObject* obj);
 
     bool globalSetExpected(unsigned slot) {
-        if (pendingGlobalSlotToSet != (int)slot) {
+        unsigned *pi = Find(pendingGlobalSlotsToSet, slot);
+        if (pi == pendingGlobalSlotsToSet.end()) {
             /*
              * Do slot arithmetic manually to avoid getSlotRef assertions which
              * do not need to be satisfied for this purpose.
@@ -1626,9 +1640,9 @@ class TraceRecorder
              * could lazily resolve. Since resolving adds properties to
              * reserved slots, the tracer will never have imported them.
              */
-            return tree->globalSlots->offsetOf(nativeGlobalSlot(vp)) == -1;
+            return tree->globalSlots->offsetOf((uint16)nativeGlobalSlot(vp)) == -1;
         }
-        pendingGlobalSlotToSet = -1;
+        pendingGlobalSlotsToSet.erase(pi);
         return true;
     }
 
@@ -1697,7 +1711,7 @@ RecordTracePoint(JSContext*, uintN& inlineCallCount, bool* blacklist);
 
 extern JS_REQUIRES_STACK TracePointAction
 MonitorTracePoint(JSContext*, uintN& inlineCallCount, bool* blacklist,
-                  void** traceData, uintN *traceEpoch);
+                  void** traceData, uintN *traceEpoch, uint32 *loopCounter, uint32 hits);
 
 extern JS_REQUIRES_STACK TraceRecorder::AbortResult
 AbortRecording(JSContext* cx, const char* reason);
@@ -1871,9 +1885,9 @@ namespace js {
  * While recording, the slots of the global object may change payload or type.
  * This is fine as long as the recorder expects this change (and therefore has
  * generated the corresponding LIR, snapshots, etc). The recorder indicates
- * that it expects a write to a global slot by setting pendingGlobalSlotToSet
+ * that it expects a write to a global slot by setting pendingGlobalSlotsToSet
  * in the recorder, before the write is made by the interpreter, and clearing
- * pendingGlobalSlotToSet before recording the next op. Any global slot write
+ * pendingGlobalSlotsToSet before recording the next op. Any global slot write
  * that has not been whitelisted in this manner is therefore unexpected and, if
  * the global slot is actually being tracked, recording must be aborted.
  */

@@ -290,6 +290,7 @@ PopupNotifications.prototype = {
         return true;
       }
 
+      this._fireCallback(notification, "removed");
       return false;
     }, this);
 
@@ -306,7 +307,7 @@ PopupNotifications.prototype = {
     this._remove(notification);
 
     // update the panel, if needed
-    if (this.isPanelOpen && isCurrent)
+    if (isCurrent)
       this._update();
   },
 
@@ -373,6 +374,7 @@ PopupNotifications.prototype = {
       // in the document.
       popupnotification.setAttribute("id", n.id + "-notification");
       popupnotification.setAttribute("popupid", n.id);
+      popupnotification.setAttribute("closebuttoncommand", "PopupNotifications._dismiss();");
       if (n.mainAction) {
         popupnotification.setAttribute("buttonlabel", n.mainAction.label);
         popupnotification.setAttribute("buttonaccesskey", n.mainAction.accessKey);
