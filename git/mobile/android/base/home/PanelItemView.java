@@ -68,9 +68,9 @@ class PanelItemView extends LinearLayout {
         image.setVisibility(hasImageUrl ? View.VISIBLE : View.GONE);
 
         if (hasImageUrl) {
-            ImageLoader.with(getContext())
-                       .load(imageUrl)
-                       .into(image);
+            Picasso.with(getContext())
+                   .load(imageUrl)
+                   .into(image);
         }
     }
 

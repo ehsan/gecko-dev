@@ -74,14 +74,11 @@ let UI = {
       }, console.error);
     }
     Services.prefs.setBoolPref("devtools.webide.autoinstallADBHelper", false);
-
-    this.setupDeck();
   },
 
   openLastProject: function() {
     let lastProjectLocation = Services.prefs.getCharPref("devtools.webide.lastprojectlocation");
-    let shouldRestore = Services.prefs.getBoolPref("devtools.webide.restoreLastProject");
-    if (lastProjectLocation && shouldRestore) {
+    if (lastProjectLocation) {
       let lastProject = AppProjects.get(lastProjectLocation);
       if (lastProject) {
         AppManager.selectedProject = lastProject;
@@ -472,13 +469,6 @@ let UI = {
 
   /********** DECK **********/
 
-  setupDeck: function() {
-    let iframes = document.querySelectorAll("#deck > iframe");
-    for (let iframe of iframes) {
-      iframe.tooltip = "aHTMLTooltip";
-    }
-  },
-
   resetFocus: function() {
     document.commandDispatcher.focusedElement = document.documentElement;
   },
@@ -583,12 +573,14 @@ let UI = {
       permissionsCmd.removeAttribute("disabled");
       disconnectCmd.removeAttribute("disabled");
       detailsCmd.removeAttribute("disabled");
+      box.removeAttribute("hidden");
       runtimePanelButton.setAttribute("active", "true");
     } else {
       screenshotCmd.setAttribute("disabled", "true");
       permissionsCmd.setAttribute("disabled", "true");
       disconnectCmd.setAttribute("disabled", "true");
       detailsCmd.setAttribute("disabled", "true");
+      box.setAttribute("hidden", "true");
       runtimePanelButton.removeAttribute("active");
     }
 
@@ -917,9 +909,5 @@ let Cmds = {
 
   showAddons: function() {
     UI.selectDeckPanel("addons");
-  },
-
-  showPrefs: function() {
-    UI.selectDeckPanel("prefs");
   },
 }

@@ -474,7 +474,9 @@ public class BrowserApp extends GeckoApp
         ((GeckoApplication) getApplication()).prepareLightweightTheme();
         super.onCreate(savedInstanceState);
 
-        final Context appContext = getApplicationContext();
+        // Init suggested sites engine in BrowserDB.
+        final SuggestedSites suggestedSites = new SuggestedSites(getApplicationContext());
+        BrowserDB.setSuggestedSites(suggestedSites);
 
         mViewFlipper = (ViewFlipper) findViewById(R.id.browser_actionbar);
         mActionBar = (ActionModeCompatView) findViewById(R.id.actionbar);
@@ -548,11 +550,7 @@ public class BrowserApp extends GeckoApp
             "Telemetry:Gather",
             "Updater:Launch");
 
-        Distribution distribution = Distribution.init(this);
-
-        // Init suggested sites engine in BrowserDB.
-        final SuggestedSites suggestedSites = new SuggestedSites(appContext, distribution);
-        BrowserDB.setSuggestedSites(suggestedSites);
+        Distribution.init(this);
 
         // Shipping Native casting is optional and dependent on whether you've downloaded the support
         // and google play libraries
@@ -567,9 +565,9 @@ public class BrowserApp extends GeckoApp
             }
         }
 
-        JavaAddonManager.getInstance().init(appContext);
-        mSharedPreferencesHelper = new SharedPreferencesHelper(appContext);
-        mOrderedBroadcastHelper = new OrderedBroadcastHelper(appContext);
+        JavaAddonManager.getInstance().init(getApplicationContext());
+        mSharedPreferencesHelper = new SharedPreferencesHelper(getApplicationContext());
+        mOrderedBroadcastHelper = new OrderedBroadcastHelper(getApplicationContext());
         mBrowserHealthReporter = new BrowserHealthReporter();
 
         if (AppConstants.MOZ_ANDROID_BEAM && Build.VERSION.SDK_INT >= 14) {

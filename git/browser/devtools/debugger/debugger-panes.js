@@ -146,13 +146,8 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
     contents.setAttribute("flex", "1");
     contents.setAttribute("tooltiptext", unicodeUrl);
 
-    // If the source is blackboxed, apply the appropriate style.
-    if (gThreadClient.source(aSource).isBlackBoxed) {
-      contents.classList.add("black-boxed");
-    }
-
     // Append a source item to this container.
-    this.push([contents, fullUrl], {
+    const item = this.push([contents, fullUrl], {
       staged: aOptions.staged, /* stage the item to be appended later? */
       attachment: {
         label: label,
@@ -162,6 +157,11 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
         source: aSource
       }
     });
+
+    // If source is blackboxed, apply appropriate style
+    if (gThreadClient.source(aSource).isBlackBoxed) {
+      item.target.classList.add("black-boxed");
+    }
   },
 
   /**

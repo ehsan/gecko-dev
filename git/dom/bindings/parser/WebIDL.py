@@ -569,19 +569,13 @@ class IDLInterface(IDLObjectWithScope):
         assert not parent or isinstance(parent, IDLInterface)
 
         if self.getExtendedAttribute("FeatureDetectible"):
-            if not (self.getExtendedAttribute("Func") or
-                    self.getExtendedAttribute("AvailableIn") or
-                    self.getExtendedAttribute("CheckPermissions")):
-                raise WebIDLError("[FeatureDetectible] is only allowed in combination "
-                                  "with [Func], [AvailableIn] or [CheckPermissions]",
+            if self.getExtendedAttribute("NoInterfaceObject"):
+                raise WebIDLError("[FeatureDetectible] not allowed on interface "
+                                  " with [NoInterfaceObject]",
                                   [self.location])
             if self.getExtendedAttribute("Pref"):
                 raise WebIDLError("[FeatureDetectible] must not be specified "
                                   "in combination with [Pref]",
-                                  [self.location])
-            if not self.hasInterfaceObject():
-                raise WebIDLError("[FeatureDetectible] not allowed on interface "
-                                  "with [NoInterfaceObject]",
                                   [self.location])
 
         self.parent = parent
@@ -2911,9 +2905,9 @@ class IDLAttribute(IDLInterfaceMember):
             if not (self.getExtendedAttribute("Func") or
                     self.getExtendedAttribute("AvailableIn") or
                     self.getExtendedAttribute("CheckPermissions")):
-                raise WebIDLError("[FeatureDetectible] is only allowed in combination "
-                                  "with [Func], [AvailableIn] or [CheckPermissions]",
-                                  [self.location])
+                raise WebIDLError("[%s] is only allowed in combination with [Func], "
+                                  "[AvailableIn] or [CheckPermissions]" % identifier,
+                                  [attr.location, self.location])
             if self.getExtendedAttribute("Pref"):
                 raise WebIDLError("[FeatureDetectible] must not be specified "
                                   "in combination with [Pref]",
@@ -3037,6 +3031,13 @@ class IDLAttribute(IDLInterfaceMember):
                 raise WebIDLError("[LenientThis] is not allowed in combination "
                                   "with [%s]" % identifier,
                                   [attr.location, self.location])
+        elif identifier == "FeatureDetectible":
+            if not (self.getExtendedAttribute("Func") or
+                    self.getExtendedAttribute("AvailableIn") or
+                    self.getExtendedAttribute("CheckPermissions")):
+                raise WebIDLError("[%s] is only allowed in combination with [Func], "
+                                  "[AvailableIn] or [CheckPermissions]" % identifier,
+                                  [attr.location, self.location])
         elif (identifier == "Pref" or
               identifier == "SetterThrows" or
               identifier == "Pure" or
@@ -3049,8 +3050,7 @@ class IDLAttribute(IDLInterfaceMember):
               identifier == "Frozen" or
               identifier == "AvailableIn" or
               identifier == "NewObject" or
-              identifier == "CheckPermissions" or
-              identifier == "FeatureDetectible"):
+              identifier == "CheckPermissions"):
             # Known attributes that we don't need to do anything with here
             pass
         else:
@@ -3462,8 +3462,8 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
                                   [self.location])
             if self.getExtendedAttribute("Pref"):
                 raise WebIDLError("[FeatureDetectible] must not be specified "
-                                  "in combination with [Pref]",
-                                  [self.location])
+                                      "in combination with [Pref]",
+                                      [self.location])
 
         overloadWithPromiseReturnType = None
         overloadWithoutPromiseReturnType = None

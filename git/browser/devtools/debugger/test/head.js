@@ -752,11 +752,8 @@ function getBlackBoxButton(aPanel) {
   return aPanel.panelWin.document.getElementById("black-box");
 }
 
-/**
- * Returns the node that has the black-boxed class applied to it.
- */
 function getSelectedSourceElement(aPanel) {
-    return aPanel.panelWin.DebuggerView.Sources.selectedItem.prebuiltNode;
+    return gPanel.panelWin.DebuggerView.Sources.selectedItem.target;
 }
 
 function toggleBlackBoxing(aPanel, aSource = null) {
