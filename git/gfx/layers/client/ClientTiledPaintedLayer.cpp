@@ -350,9 +350,7 @@ ClientTiledPaintedLayer::RenderLayer()
     // we always have valid content or transparent pixels to sample from.
     nsIntRect bounds = neededRegion.GetBounds();
     nsIntRect wholeTiles = bounds;
-    wholeTiles.Inflate(nsIntSize(
-      gfxPlatform::GetPlatform()->GetTileWidth(),
-      gfxPlatform::GetPlatform()->GetTileHeight()));
+    wholeTiles.Inflate(nsIntSize(gfxPrefs::LayersTileWidth(), gfxPrefs::LayersTileHeight()));
     nsIntRect padded = bounds;
     padded.Inflate(1);
     padded.IntersectRect(padded, wholeTiles);

@@ -5,12 +5,13 @@
  * Make sure that the variables view is keyboard accessible.
  */
 
-let gTab, gPanel, gDebugger;
+let gTab, gDebuggee, gPanel, gDebugger;
 let gVariablesView;
 
 function test() {
-  initDebugger("about:blank").then(([aTab,, aPanel]) => {
+  initDebugger("about:blank").then(([aTab, aDebuggee, aPanel]) => {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
     gVariablesView = gDebugger.DebuggerView.Variables;
@@ -503,6 +504,7 @@ function performTest() {
 
 registerCleanupFunction(function() {
   gTab = null;
+  gDebuggee = null;
   gPanel = null;
   gDebugger = null;
   gVariablesView = null;

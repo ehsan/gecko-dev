@@ -201,27 +201,6 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
         JSSLOT_DEBUG_MEMORY_INSTANCE = JSSLOT_DEBUG_HOOK_STOP,
         JSSLOT_DEBUG_COUNT
     };
-
-    class ExecutionObservableSet
-    {
-      public:
-        typedef HashSet<Zone *>::Range ZoneRange;
-
-        virtual Zone *singleZone() const { return nullptr; }
-        virtual JSScript *singleScriptForZoneInvalidation() const { return nullptr; }
-        virtual const HashSet<Zone *> *zones() const { return nullptr; }
-
-        virtual bool shouldRecompileOrInvalidate(JSScript *script) const = 0;
-        virtual bool shouldMarkAsDebuggee(ScriptFrameIter &iter) const = 0;
-    };
-
-    // This enum is converted to and compare with bool values; NotObserving
-    // must be 0 and Observing must be 1.
-    enum IsObserving {
-        NotObserving = 0,
-        Observing = 1
-    };
-
   private:
     HeapPtrNativeObject object;         /* The Debugger object. Strong reference. */
     GlobalObjectSet debuggees;          /* Debuggee globals. Cross-compartment weak references. */
@@ -295,7 +274,17 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     class ObjectQuery;
 
     bool addDebuggeeGlobal(JSContext *cx, Handle<GlobalObject*> obj);
-    void removeDebuggeeGlobal(FreeOp *fop, GlobalObject *global, GlobalObjectSet::Enum *debugEnum);
+    bool addDebuggeeGlobal(JSContext *cx, Handle<GlobalObject*> obj,
+                           AutoDebugModeInvalidation &invalidate);
+    void cleanupDebuggeeGlobalBeforeRemoval(FreeOp *fop, GlobalObject *global,
+                                            GlobalObjectSet::Enum *debugEnum);
+    bool removeDebuggeeGlobal(JSContext *cx, Handle<GlobalObject *> global,
+                              GlobalObjectSet::Enum *debugEnum);
+    bool removeDebuggeeGlobal(JSContext *cx, Handle<GlobalObject *> global,
+                              AutoDebugModeInvalidation &invalidate,
+                              GlobalObjectSet::Enum *debugEnum);
+    void removeDebuggeeGlobalUnderGC(FreeOp *fop, GlobalObject *global,
+                                     GlobalObjectSet::Enum *debugEnum);
 
     /*
      * Cope with an error or exception in a debugger hook.
@@ -387,27 +376,6 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     static bool construct(JSContext *cx, unsigned argc, Value *vp);
     static const JSPropertySpec properties[];
     static const JSFunctionSpec methods[];
-
-    static bool updateExecutionObservabilityOfFrames(JSContext *cx, const ExecutionObservableSet &obs,
-                                                     IsObserving observing);
-    static bool updateExecutionObservabilityOfScripts(JSContext *cx, const ExecutionObservableSet &obs,
-                                                      IsObserving observing);
-    static bool updateExecutionObservability(JSContext *cx, ExecutionObservableSet &obs,
-                                             IsObserving observing);
-
-  public:
-    // Public for DebuggerScript_setBreakpoint.
-    static bool ensureExecutionObservabilityOfScript(JSContext *cx, JSScript *script);
-
-  private:
-    static bool ensureExecutionObservabilityOfFrame(JSContext *cx, AbstractFramePtr frame);
-    static bool ensureExecutionObservabilityOfCompartment(JSContext *cx, JSCompartment *comp);
-
-    static bool hookObservesAllExecution(Hook which);
-    bool anyOtherDebuggerObservingAllExecution(GlobalObject *global) const;
-    bool hasAnyLiveHooksThatObserveAllExecution() const;
-    bool hasAnyHooksThatObserveAllExecution() const;
-    bool setObservesAllExecution(JSContext *cx, IsObserving observing);
 
     JSObject *getHook(Hook hook) const;
     bool hasAnyLiveHooks() const;
@@ -531,8 +499,7 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
      */
     static inline bool onLeaveFrame(JSContext *cx, AbstractFramePtr frame, bool ok);
 
-    static inline JSTrapStatus onDebuggerStatement(JSContext *cx, AbstractFramePtr frame,
-                                                   MutableHandleValue vp);
+    static inline JSTrapStatus onDebuggerStatement(JSContext *cx, MutableHandleValue vp);
 
     /*
      * Announce to the debugger that an exception has been thrown and propagated
@@ -559,7 +526,6 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     static bool handleBaselineOsr(JSContext *cx, InterpreterFrame *from, jit::BaselineFrame *to);
     static bool handleIonBailout(JSContext *cx, jit::RematerializedFrame *from, jit::BaselineFrame *to);
     static void propagateForcedReturn(JSContext *cx, AbstractFramePtr frame, HandleValue rval);
-    static bool hasLiveOnExceptionUnwind(GlobalObject *global);
 
     /************************************* Functions for use by Debugger.cpp. */
 
@@ -826,7 +792,31 @@ Debugger::observesGlobal(GlobalObject *global) const
     return debuggees.has(global);
 }
 
-void
+/* static */ JSTrapStatus
+Debugger::onEnterFrame(JSContext *cx, AbstractFramePtr frame)
+{
+    if (!cx->compartment()->debugMode())
+        return JSTRAP_CONTINUE;
+    return slowPathOnEnterFrame(cx, frame);
+}
+
+/* static */ JSTrapStatus
+Debugger::onDebuggerStatement(JSContext *cx, MutableHandleValue vp)
+{
+    return cx->compartment()->debugMode()
+           ? dispatchHook(cx, vp, OnDebuggerStatement)
+           : JSTRAP_CONTINUE;
+}
+
+/* static */ JSTrapStatus
+Debugger::onExceptionUnwind(JSContext *cx, AbstractFramePtr frame)
+{
+    if (!cx->compartment()->debugMode())
+        return JSTRAP_CONTINUE;
+    return slowPathOnExceptionUnwind(cx, frame);
+}
+
+/* static */ void
 Debugger::onNewScript(JSContext *cx, HandleScript script, GlobalObject *compileAndGoGlobal)
 {
     MOZ_ASSERT_IF(script->compileAndGo(), compileAndGoGlobal);
@@ -837,7 +827,7 @@ Debugger::onNewScript(JSContext *cx, HandleScript script, GlobalObject *compileA
                   !script->selfHosted(),
                   script->compartment()->firedOnNewGlobalObject);
     MOZ_ASSERT_IF(!script->compileAndGo(), !compileAndGoGlobal);
-    if (script->compartment()->isDebuggee())
+    if (script->compartment()->debugMode())
         slowPathOnNewScript(cx, script, compileAndGoGlobal);
 }
 

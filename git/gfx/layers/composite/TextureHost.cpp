@@ -348,22 +348,6 @@ BufferTextureHost::BufferTextureHost(gfx::SurfaceFormat aFormat,
 , mNeedsFullUpdate(false)
 {}
 
-void
-BufferTextureHost::InitSize()
-{
-  if (mFormat == gfx::SurfaceFormat::YUV) {
-    YCbCrImageDataDeserializer yuvDeserializer(GetBuffer(), GetBufferSize());
-    if (yuvDeserializer.IsValid()) {
-      mSize = yuvDeserializer.GetYSize();
-    }
-  } else if (mFormat != gfx::SurfaceFormat::UNKNOWN) {
-    ImageDataDeserializer deserializer(GetBuffer(), GetBufferSize());
-    if (deserializer.IsValid()) {
-      mSize = deserializer.GetSize();
-    }
-  }
-}
-
 BufferTextureHost::~BufferTextureHost()
 {}
 
@@ -613,7 +597,6 @@ ShmemTextureHost::ShmemTextureHost(const ipc::Shmem& aShmem,
 , mDeallocator(aDeallocator)
 {
   MOZ_COUNT_CTOR(ShmemTextureHost);
-  InitSize();
 }
 
 ShmemTextureHost::~ShmemTextureHost()
@@ -666,7 +649,6 @@ MemoryTextureHost::MemoryTextureHost(uint8_t* aBuffer,
 , mBuffer(aBuffer)
 {
   MOZ_COUNT_CTOR(MemoryTextureHost);
-  InitSize();
 }
 
 MemoryTextureHost::~MemoryTextureHost()

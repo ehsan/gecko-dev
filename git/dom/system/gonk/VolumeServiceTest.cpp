@@ -17,7 +17,6 @@
 
 #include "mozilla/Services.h"
 
-#undef VOLUME_MANAGER_LOG_TAG
 #define VOLUME_MANAGER_LOG_TAG  "VolumeServiceTest"
 #include "VolumeManagerLog.h"
 

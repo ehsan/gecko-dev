@@ -136,12 +136,8 @@ class GeneratorObject : public NativeObject
         return getFixedSlot(YIELD_INDEX_SLOT).toInt32() == YIELD_INDEX_CLOSING;
     }
     bool isSuspended() const {
-        // Note: also update Baseline's IsSuspendedStarGenerator code if this
-        // changes.
         MOZ_ASSERT(!isClosed());
-        static_assert(YIELD_INDEX_CLOSING < YIELD_INDEX_RUNNING,
-                      "test below should return false for YIELD_INDEX_RUNNING");
-        return getFixedSlot(YIELD_INDEX_SLOT).toInt32() < YIELD_INDEX_CLOSING;
+        return !isRunning() && !isClosing();
     }
     void setRunning() {
         MOZ_ASSERT(isSuspended());

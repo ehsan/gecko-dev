@@ -60,7 +60,7 @@ static const unsigned BASELINE_MAX_ARGS_LENGTH = 20000;
 static bool
 CheckFrame(InterpreterFrame *fp)
 {
-    if (fp->isDebuggerEvalFrame()) {
+    if (fp->isDebuggerFrame()) {
         // Debugger eval-in-frame. These are likely short-running scripts so
         // don't bother compiling them for now.
         JitSpew(JitSpew_BaselineAbort, "debugger frame");
@@ -158,10 +158,8 @@ jit::EnterBaselineAtBranch(JSContext *cx, InterpreterFrame *fp, jsbytecode *pc)
 
     // Skip debug breakpoint/trap handler, the interpreter already handled it
     // for the current op.
-    if (fp->isDebuggee()) {
-        MOZ_ASSERT(baseline->hasDebugInstrumentation());
+    if (cx->compartment()->debugMode())
         data.jitcode += MacroAssembler::ToggledCallSize(data.jitcode);
-    }
 
     data.osrFrame = fp;
     data.osrNumStackValues = fp->script()->nfixed() + cx->interpreterRegs().stackDepth();
@@ -203,7 +201,7 @@ jit::EnterBaselineAtBranch(JSContext *cx, InterpreterFrame *fp, jsbytecode *pc)
 }
 
 MethodStatus
-jit::BaselineCompile(JSContext *cx, JSScript *script, bool forceDebugInstrumentation)
+jit::BaselineCompile(JSContext *cx, JSScript *script)
 {
     MOZ_ASSERT(!script->hasBaselineScript());
     MOZ_ASSERT(script->canBaselineCompile());
@@ -221,8 +219,6 @@ jit::BaselineCompile(JSContext *cx, JSScript *script, bool forceDebugInstrumenta
     BaselineCompiler compiler(cx, *temp, script);
     if (!compiler.init())
         return Method_Error;
-    if (forceDebugInstrumentation)
-        compiler.setCompileDebugInstrumentation();
 
     MethodStatus status = compiler.compile();
 
@@ -236,7 +232,7 @@ jit::BaselineCompile(JSContext *cx, JSScript *script, bool forceDebugInstrumenta
 }
 
 static MethodStatus
-CanEnterBaselineJIT(JSContext *cx, HandleScript script, InterpreterFrame *osrFrame)
+CanEnterBaselineJIT(JSContext *cx, HandleScript script, bool osr)
 {
     MOZ_ASSERT(jit::IsBaselineEnabled(cx));
 
@@ -264,7 +260,7 @@ CanEnterBaselineJIT(JSContext *cx, HandleScript script, InterpreterFrame *osrFra
     // warm-up and only gathering type information for the loop, and not the
     // rest of the function.
     if (cx->runtime()->forkJoinWarmup > 0) {
-        if (osrFrame)
+        if (osr)
             return Method_Skipped;
     } else if (script->incWarmUpCounter() <= js_JitOptions.baselineWarmUpThreshold) {
         return Method_Skipped;
@@ -286,10 +282,7 @@ CanEnterBaselineJIT(JSContext *cx, HandleScript script, InterpreterFrame *osrFra
         }
     }
 
-    // Frames can be marked as debuggee frames independently of its underlying
-    // script being a debuggee script, e.g., when performing
-    // Debugger.Frame.prototype.eval.
-    return BaselineCompile(cx, script, osrFrame && osrFrame->isDebuggee());
+    return BaselineCompile(cx, script);
 }
 
 MethodStatus
@@ -308,7 +301,7 @@ jit::CanEnterBaselineAtBranch(JSContext *cx, InterpreterFrame *fp, bool newType)
        return Method_CantCompile;
 
    RootedScript script(cx, fp->script());
-   return CanEnterBaselineJIT(cx, script, fp);
+   return CanEnterBaselineJIT(cx, script, /* osr = */true);
 }
 
 MethodStatus
@@ -334,7 +327,7 @@ jit::CanEnterBaselineMethod(JSContext *cx, RunState &state)
     }
 
     RootedScript script(cx, state.script());
-    return CanEnterBaselineJIT(cx, script, /* osrFrame = */ nullptr);
+    return CanEnterBaselineJIT(cx, script, /* osr = */false);
 };
 
 BaselineScript *
@@ -780,7 +773,7 @@ BaselineScript::toggleDebugTraps(JSScript *script, jsbytecode *pc)
     MOZ_ASSERT(script->baselineScript() == this);
 
     // Only scripts compiled for debug mode have toggled calls.
-    if (!hasDebugInstrumentation())
+    if (!debugMode())
         return;
 
     SrcNoteLineScanner scanner(script->notes(), script->lineno());

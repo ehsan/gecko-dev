@@ -209,9 +209,8 @@ TextureImageTextureSourceOGL::Update(gfx::DataSourceSurface* aSurface,
                                      nsIntRegion* aDestRegion,
                                      gfx::IntPoint* aSrcOffset)
 {
-  GLContext *gl = mCompositor->gl();
-  MOZ_ASSERT(gl);
-  if (!gl) {
+  MOZ_ASSERT(mGL);
+  if (!mGL) {
     NS_WARNING("trying to update TextureImageTextureSourceOGL without a GLContext");
     return false;
   }
@@ -223,7 +222,7 @@ TextureImageTextureSourceOGL::Update(gfx::DataSourceSurface* aSurface,
       mTexImage->GetContentType() != gfx::ContentForFormat(aSurface->GetFormat())) {
     if (mFlags & TextureFlags::DISALLOW_BIGIMAGE) {
       GLint maxTextureSize;
-      gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &maxTextureSize);
+      mGL->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &maxTextureSize);
       if (size.width > maxTextureSize || size.height > maxTextureSize) {
         NS_WARNING("Texture exceeds maximum texture size, refusing upload");
         return false;
@@ -231,7 +230,7 @@ TextureImageTextureSourceOGL::Update(gfx::DataSourceSurface* aSurface,
       // Explicitly use CreateBasicTextureImage instead of CreateTextureImage,
       // because CreateTextureImage might still choose to create a tiled
       // texture image.
-      mTexImage = CreateBasicTextureImage(gl, size,
+      mTexImage = CreateBasicTextureImage(mGL, size,
                                           gfx::ContentForFormat(aSurface->GetFormat()),
                                           LOCAL_GL_CLAMP_TO_EDGE,
                                           FlagsToGLFlags(mFlags),
@@ -241,7 +240,7 @@ TextureImageTextureSourceOGL::Update(gfx::DataSourceSurface* aSurface,
       // require the size of the destination surface to be different from
       // the size of aSurface.
       // See bug 893300 (tracks the implementation of ContentHost for new textures).
-      mTexImage = CreateTextureImage(gl,
+      mTexImage = CreateTextureImage(mGL,
                                      size,
                                      gfx::ContentForFormat(aSurface->GetFormat()),
                                      LOCAL_GL_CLAMP_TO_EDGE,
@@ -276,7 +275,7 @@ TextureImageTextureSourceOGL::EnsureBuffer(const nsIntSize& aSize,
   if (!mTexImage ||
       mTexImage->GetSize() != aSize.ToIntSize() ||
       mTexImage->GetContentType() != aContentType) {
-    mTexImage = CreateTextureImage(mCompositor->gl(),
+    mTexImage = CreateTextureImage(mGL,
                                    aSize.ToIntSize(),
                                    aContentType,
                                    LOCAL_GL_CLAMP_TO_EDGE,
@@ -295,7 +294,7 @@ TextureImageTextureSourceOGL::CopyTo(const nsIntRect& aSourceRect,
     aDest->AsSourceOGL()->AsTextureImageTextureSource();
   MOZ_ASSERT(dest, "Incompatible destination type!");
 
-  mCompositor->BlitTextureImageHelper()->BlitTextureImage(mTexImage, aSourceRect,
+  mGL->BlitTextureImageHelper()->BlitTextureImage(mTexImage, aSourceRect,
                                                   dest->mTexImage, aDestRect);
   dest->mTexImage->MarkValid();
 }
@@ -305,9 +304,9 @@ TextureImageTextureSourceOGL::SetCompositor(Compositor* aCompositor)
 {
   CompositorOGL* glCompositor = static_cast<CompositorOGL*>(aCompositor);
 
-  if (!glCompositor || (mCompositor != glCompositor)) {
+  if (!glCompositor || (mGL != glCompositor->gl())) {
     DeallocateDeviceData();
-    mCompositor = glCompositor;
+    mGL = glCompositor ? glCompositor->gl() : nullptr;
   }
 }
 
@@ -345,7 +344,7 @@ TextureImageTextureSourceOGL::BindTexture(GLenum aTextureUnit, gfx::Filter aFilt
   MOZ_ASSERT(mTexImage,
     "Trying to bind a TextureSource that does not have an underlying GL texture.");
   mTexImage->BindTexture(aTextureUnit);
-  SetFilter(mCompositor->gl(), aFilter);
+  SetFilter(mGL, aFilter);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -535,7 +534,9 @@ SurfaceTextureHost::Lock()
                                               mSize);
   }
 
-  return NS_SUCCEEDED(mSurfTex->Attach(gl()));
+  mSurfTex->Attach(gl());
+
+  return true;
 }
 
 void

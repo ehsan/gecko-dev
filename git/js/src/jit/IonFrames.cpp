@@ -36,7 +36,6 @@
 #include "jsscriptinlines.h"
 #include "gc/Nursery-inl.h"
 #include "jit/JitFrameIterator-inl.h"
-#include "vm/Debugger-inl.h"
 #include "vm/Probes-inl.h"
 
 namespace js {
@@ -420,39 +419,24 @@ HandleExceptionIon(JSContext *cx, const InlineFrameIterator &frame, ResumeFromEx
     RootedScript script(cx, frame.script());
     jsbytecode *pc = frame.pc();
 
-    if (cx->compartment()->isDebuggee()) {
-        // We need to bail when debug mode is active to observe the Debugger's
-        // exception unwinding handler if either a Debugger is observing all
-        // execution in the compartment, or it has a live onExceptionUnwind
-        // hook, or it has observed this frame (e.g., for onPop).
-        bool shouldBail = cx->compartment()->debugObservesAllExecution() ||
-                          Debugger::hasLiveOnExceptionUnwind(cx->global());
-        if (!shouldBail) {
-            JitActivation *act = cx->mainThread().activation()->asJit();
-            RematerializedFrame *rematFrame =
-                act->lookupRematerializedFrame(frame.frame().fp(), frame.frameNo());
-            shouldBail = rematFrame && rematFrame->isDebuggee();
-        }
-
-        if (shouldBail) {
-            // If we have an exception from within Ion and the debugger is active,
-            // we do the following:
-            //
-            //   1. Bailout to baseline to reconstruct a baseline frame.
-            //   2. Resume immediately into the exception tail afterwards, and
-            //      handle the exception again with the top frame now a baseline
-            //      frame.
-            //
-            // An empty exception info denotes that we're propagating an Ion
-            // exception due to debug mode, which BailoutIonToBaseline needs to
-            // know. This is because we might not be able to fully reconstruct up
-            // to the stack depth at the snapshot, as we could've thrown in the
-            // middle of a call.
-            ExceptionBailoutInfo propagateInfo;
-            uint32_t retval = ExceptionHandlerBailout(cx, frame, rfe, propagateInfo, overrecursed);
-            if (retval == BAILOUT_RETURN_OK)
-                return;
-        }
+    bool bailedOutForDebugMode = false;
+    if (cx->compartment()->debugMode()) {
+        // If we have an exception from within Ion and the debugger is active,
+        // we do the following:
+        //
+        //   1. Bailout to baseline to reconstruct a baseline frame.
+        //   2. Resume immediately into the exception tail afterwards, and
+        //   handle the exception again with the top frame now a baseline
+        //   frame.
+        //
+        // An empty exception info denotes that we're propagating an Ion
+        // exception due to debug mode, which BailoutIonToBaseline needs to
+        // know. This is because we might not be able to fully reconstruct up
+        // to the stack depth at the snapshot, as we could've thrown in the
+        // middle of a call.
+        ExceptionBailoutInfo propagateInfo;
+        uint32_t retval = ExceptionHandlerBailout(cx, frame, rfe, propagateInfo, overrecursed);
+        bailedOutForDebugMode = retval == BAILOUT_RETURN_OK;
     }
 
     if (!script->hasTrynotes())
@@ -482,7 +466,7 @@ HandleExceptionIon(JSContext *cx, const InlineFrameIterator &frame, ResumeFromEx
             break;
 
           case JSTRY_CATCH:
-            if (cx->isExceptionPending()) {
+            if (cx->isExceptionPending() && !bailedOutForDebugMode) {
                 // Ion can compile try-catch, but bailing out to catch
                 // exceptions is slow. Reset the warm-up counter so that if we
                 // catch many exceptions we won't Ion-compile the script.
@@ -544,7 +528,7 @@ HandleClosingGeneratorReturn(JSContext *cx, const JitFrameIterator &frame, jsbyt
     cx->clearPendingException();
     frame.baselineFrame()->setReturnValue(UndefinedValue());
 
-    if (frame.baselineFrame()->isDebuggee() && unwoundScopeToPc)
+    if (cx->compartment()->debugMode() && unwoundScopeToPc)
         frame.baselineFrame()->setUnwoundScopeOverridePc(unwoundScopeToPc);
 
     ForcedReturn(cx, frame, pc, rfe, calledDebugEpilogue);
@@ -570,10 +554,11 @@ HandleExceptionBaseline(JSContext *cx, const JitFrameIterator &frame, ResumeFrom
     }
 
     RootedValue exception(cx);
-    if (cx->isExceptionPending() && cx->compartment()->isDebuggee() &&
+    if (cx->isExceptionPending() && cx->compartment()->debugMode() &&
         cx->getPendingException(&exception) && !exception.isMagic(JS_GENERATOR_CLOSING))
     {
-        switch (Debugger::onExceptionUnwind(cx, frame.baselineFrame())) {
+        BaselineFrame *baselineFrame = frame.baselineFrame();
+        switch (Debugger::onExceptionUnwind(cx, baselineFrame)) {
           case JSTRAP_ERROR:
             // Uncatchable exception.
             MOZ_ASSERT(!cx->isExceptionPending());
@@ -708,13 +693,7 @@ HandleException(ResumeFromException *rfe)
     if (cx->runtime()->jitRuntime()->hasIonReturnOverride())
         cx->runtime()->jitRuntime()->takeIonReturnOverride();
 
-    // The Debugger onExceptionUnwind hook (reachable via
-    // HandleExceptionBaseline below) may cause on-stack recompilation of
-    // baseline scripts, which may patch return addresses on the stack. Since
-    // JitFrameIterators cache the previous frame's return address when
-    // iterating, we need a variant here that is automatically updated should
-    // on-stack recompilation occur.
-    DebugModeOSRVolatileJitFrameIterator iter(cx);
+    JitFrameIterator iter(cx);
     while (!iter.isEntry()) {
         bool overrecursed = false;
         if (iter.isIonJS()) {
@@ -799,7 +778,7 @@ HandleException(ResumeFromException *rfe)
             // it doesn't try to pop the SPS frame again.
             iter.baselineFrame()->unsetPushedSPSFrame();
 
-            if (iter.baselineFrame()->isDebuggee() && !calledDebugEpilogue) {
+            if (cx->compartment()->debugMode() && !calledDebugEpilogue) {
                 // If we still need to call the DebugEpilogue, we must
                 // remember the pc we unwound the scope chain to, as it will
                 // be out of sync with the frame's actual pc.

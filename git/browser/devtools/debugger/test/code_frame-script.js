@@ -24,10 +24,3 @@ addMessageListener("test:click", function (message) {
   EventUtils.synthesizeMouseAtCenter(target, {},
                                      target.ownerDocument.defaultView);
 });
-
-addMessageListener("test:eval", function (message) {
-  dump("Evalling string " + message.data.string + ".\n");
-
-  content.eval(message.data.string);
-  sendAsyncMessage("test:eval");
-});
