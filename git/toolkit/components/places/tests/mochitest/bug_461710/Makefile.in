@@ -12,15 +12,15 @@
 # for the specific language governing rights and limitations under the
 # License.
 #
-# The Original Code is mozilla.org code.
+# The Original Code is Bug 461710 test code.
 #
 # The Initial Developer of the Original Code is
-# the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2010
+# Ehsan Akhgari.
+# Portions created by the Initial Developer are Copyright (C) 2005
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#   Robert Strong <robert.bugzilla@gmail.com> (Original Author)
+#   Ehsan Akhgari <ehsan.akhgari@gmail.com> (Original Author)
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -36,13 +36,21 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH     = ../../..
-topsrcdir = @top_srcdir@
-srcdir    = @srcdir@
-VPATH     = @srcdir@
+DEPTH		= ../../../../../..
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+relativesrcdir = toolkit/components/places/tests/bug_461710
 
 include $(DEPTH)/config/autoconf.mk
-
-DIRS = browser
-
 include $(topsrcdir)/config/rules.mk
+
+_HTTP_FILES	= \
+		visited_page.html \
+		link_page.html \
+		link_page-2.html \
+		link_page-3.html \
+		$(NULL)
+
+libs:: $(_HTTP_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
