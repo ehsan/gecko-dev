@@ -13,6 +13,7 @@
 #include "mozilla/dom/MessageEvent.h"
 #include "mozilla/dom/ScriptSettings.h"
 
+#include "js/OldDebugAPI.h"
 #include "nsNetUtil.h"
 #include "nsMimeTypes.h"
 #include "nsIPromptFactory.h"

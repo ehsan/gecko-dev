@@ -8,6 +8,7 @@
 
 #include "mozilla/ArrayUtils.h"
 
+#include "js/OldDebugAPI.h"
 #include "xpcprivate.h"
 #include "XPCWrapper.h"
 #include "nsIAppsService.h"

@@ -43,7 +43,7 @@
 
 #include "xpcpublic.h"
 
-#include "jsapi.h"
+#include "js/OldDebugAPI.h"
 #include "jswrapper.h"
 #include "nsIArray.h"
 #include "nsIObjectInputStream.h"

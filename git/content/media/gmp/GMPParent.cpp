@@ -150,22 +150,6 @@ GMPParent::LoadProcess()
       return NS_ERROR_FAILURE;
     }
     LOGD(("%s::%s: Created new process %p", __CLASS__, __FUNCTION__, (void *)mProcess));
-
-    bool ok = SendSetNodeId(mNodeId);
-    if (!ok) {
-      mProcess->Delete();
-      mProcess = nullptr;
-      return NS_ERROR_FAILURE;
-    }
-    LOGD(("%s::%s: Failed to send node id %p", __CLASS__, __FUNCTION__, (void *)mProcess));
-
-    ok = SendStartPlugin();
-    if (!ok) {
-      mProcess->Delete();
-      mProcess = nullptr;
-      return NS_ERROR_FAILURE;
-    }
-    LOGD(("%s::%s: Failed to send start %p", __CLASS__, __FUNCTION__, (void *)mProcess));
   }
 
   mState = GMPStateLoaded;
@@ -696,7 +680,7 @@ GMPParent::DeallocPGMPAudioDecoderParent(PGMPAudioDecoderParent* aActor)
 PGMPStorageParent*
 GMPParent::AllocPGMPStorageParent()
 {
-  GMPStorageParent* p = new GMPStorageParent(mNodeId, this);
+  GMPStorageParent* p = new GMPStorageParent(mOrigin, this);
   mStorage.AppendElement(p); // Addrefs, released in DeallocPGMPStorageParent.
   return p;
 }
@@ -711,12 +695,8 @@ GMPParent::DeallocPGMPStorageParent(PGMPStorageParent* aActor)
 }
 
 bool
-GMPParent::RecvPGMPStorageConstructor(PGMPStorageParent* aActor)
+GMPParent::RecvPGMPStorageConstructor(PGMPStorageParent* actor)
 {
-  GMPStorageParent* p  = (GMPStorageParent*)aActor;
-  if (NS_WARN_IF(NS_FAILED(p->Init()))) {
-    return false;
-  }
   return true;
 }
 
@@ -897,24 +877,24 @@ GMPParent::ReadGMPMetaData()
 }
 
 bool
-GMPParent::CanBeSharedCrossNodeIds() const
+GMPParent::CanBeSharedCrossOrigin() const
 {
-  return mNodeId.IsEmpty();
+  return mOrigin.IsEmpty();
 }
 
 bool
-GMPParent::CanBeUsedFrom(const nsACString& aNodeId) const
+GMPParent::CanBeUsedFrom(const nsAString& aOrigin) const
 {
-  return (mNodeId.IsEmpty() && State() == GMPStateNotLoaded) ||
-         mNodeId == aNodeId;
+  return (mOrigin.IsEmpty() && State() == GMPStateNotLoaded) ||
+         mOrigin.Equals(aOrigin);
 }
 
 void
-GMPParent::SetNodeId(const nsACString& aNodeId)
+GMPParent::SetOrigin(const nsAString& aOrigin)
 {
-  MOZ_ASSERT(!aNodeId.IsEmpty());
-  MOZ_ASSERT(CanBeUsedFrom(aNodeId));
-  mNodeId = aNodeId;
+  MOZ_ASSERT(!aOrigin.IsEmpty());
+  MOZ_ASSERT(CanBeUsedFrom(aOrigin));
+  mOrigin = aOrigin;
 }
 
 bool

@@ -45,6 +45,7 @@
 // Helper Classes
 #include "nsJSUtils.h"
 #include "jsapi.h"              // for JSAutoRequest
+#include "js/OldDebugAPI.h"     // for JS_ClearWatchPointsForObject
 #include "jswrapper.h"
 #include "nsReadableUtils.h"
 #include "nsDOMClassInfo.h"

@@ -8,7 +8,7 @@
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/PromiseNativeHandler.h"
 
-#include "jsapi.h"
+#include "js/OldDebugAPI.h"
 
 namespace mozilla {
 namespace dom {

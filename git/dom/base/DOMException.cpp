@@ -6,6 +6,7 @@
 #include "mozilla/dom/DOMException.h"
 
 #include "jsprf.h"
+#include "js/OldDebugAPI.h"
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/HoldDropJSObjects.h"
 #include "mozilla/dom/Exceptions.h"

@@ -7,6 +7,7 @@
 #include "nsIXPConnect.h"
 #include "nsThreadUtils.h"
 #include "jsfriendapi.h"
+#include "js/OldDebugAPI.h"
 #include "mozilla/HoldDropJSObjects.h"
 #include "mozilla/ModuleUtils.h"
 #include "mozilla/dom/ScriptSettings.h"

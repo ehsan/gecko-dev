@@ -18,6 +18,7 @@
 
 #include "AccessCheck.h"
 #include "jsfriendapi.h"
+#include "js/OldDebugAPI.h"
 #include "nsContentUtils.h"
 #include "nsGlobalWindow.h"
 #include "nsIDOMGlobalPropertyInitializer.h"

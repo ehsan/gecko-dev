@@ -17,8 +17,6 @@
 #include "nsIThread.h"
 #include "nsThreadUtils.h"
 #include "nsITimer.h"
-#include "nsClassHashtable.h"
-#include "nsDataHashtable.h"
 
 template <class> struct already_AddRefed;
 
@@ -34,7 +32,7 @@ public:
   static already_AddRefed<GeckoMediaPluginService> GetGeckoMediaPluginService();
 
   GeckoMediaPluginService();
-  nsresult Init();
+  void Init();
 
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_MOZIGECKOMEDIAPLUGINSERVICE
@@ -47,10 +45,10 @@ public:
 private:
   ~GeckoMediaPluginService();
 
-  GMPParent* SelectPluginForAPI(const nsACString& aNodeId,
+  GMPParent* SelectPluginForAPI(const nsAString& aOrigin,
                                 const nsCString& aAPI,
                                 const nsTArray<nsCString>& aTags,
-                                bool aCloneCrossNodeIds = true);
+                                bool aCloneCrossOrigin = true);
 
   void UnloadPlugins();
   void CrashPlugins();
@@ -113,18 +111,6 @@ private:
 
   nsTArray<nsRefPtr<GMPParent>> mAsyncShutdownPlugins; // GMP Thread only.
   nsCOMPtr<nsITimer> mAsyncShutdownTimeout; // GMP Thread only.
-
-#ifndef MOZ_WIDGET_GONK
-  nsCOMPtr<nsIFile> mStorageBaseDir;
-#endif
-
-  // Hashes of (origin,topLevelOrigin) to the node id for
-  // non-persistent sessions.
-  nsClassHashtable<nsUint32HashKey, nsCString> mTempNodeIds;
-
-  // Hashes node id to whether that node id is allowed to store data
-  // persistently on disk.
-  nsDataHashtable<nsCStringHashKey, bool> mPersistentStorageAllowed;
 };
 
 } // namespace gmp
