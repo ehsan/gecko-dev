@@ -294,23 +294,13 @@ void nsHTMLReflowState::InitCBReflowState()
     return;
   }
 
-  // If outer tables ever become containing blocks, we need to make sure to use
-  // their mCBReflowState in the non-absolutely-positioned case for inner
-  // tables.
-  NS_ASSERTION(frame->GetType() != nsGkAtoms::tableFrame ||
-               !frame->GetParent()->IsContainingBlock(),
-               "Outer table should not be containing block");
-
   if (parentReflowState->frame->IsContainingBlock() ||
       // Absolutely positioned frames should always be kids of the frames that
       // determine their containing block
       (NS_FRAME_GET_TYPE(mFrameType) == NS_CSS_FRAME_TYPE_ABSOLUTE)) {
-    // a block inside a table cell needs to use the table cell, and an
-    // absolutely positioned inner table needs to use the parent of the outer
-    // table.
+    // a block inside a table cell needs to use the table cell
     if (parentReflowState->parentReflowState &&
-        (IS_TABLE_CELL(parentReflowState->parentReflowState->frame->GetType()) ||
-         frame->GetType() == nsGkAtoms::tableFrame)) {
+        IS_TABLE_CELL(parentReflowState->parentReflowState->frame->GetType())) {
       mCBReflowState = parentReflowState->parentReflowState;
     } else {
       mCBReflowState = parentReflowState;
@@ -491,27 +481,18 @@ nsHTMLReflowState::InitFrameType()
 
   // Section 9.7 of the CSS2 spec indicates that absolute position
   // takes precedence over float which takes precedence over display.
-  // XXXldb nsRuleNode::ComputeDisplayData should take care of this, right?
   // Make sure the frame was actually moved out of the flow, and don't
-
-  // just assume what the style says, because we might not have had a
-  // useful float/absolute containing block
-  nsIFrame* frameToTest =
-    frame->GetType() == nsGkAtoms::tableFrame ? frame->GetParent() : frame;
-  NS_ASSERTION(frameToTest->GetStyleDisplay()->IsAbsolutelyPositioned() ==
-                 disp->IsAbsolutelyPositioned(),
-               "Unexpected position style");
-  NS_ASSERTION(frameToTest->GetStyleDisplay()->IsFloating() ==
-                 disp->IsFloating(), "Unexpected float style");
-  if (frameToTest->GetStateBits() & NS_FRAME_OUT_OF_FLOW) {
+  // just assume what the style says
+  // XXXldb nsRuleNode::ComputeDisplayData should take care of this, right?
+  if (frame->GetStateBits() & NS_FRAME_OUT_OF_FLOW) {
     if (disp->IsAbsolutelyPositioned()) {
       frameType = NS_CSS_FRAME_TYPE_ABSOLUTE;
       //XXXfr hack for making frames behave properly when in overflow container lists
       //      see bug 154892; need to revisit later
-      if (frameToTest->GetPrevInFlow())
+      if (frame->GetPrevInFlow())
         frameType = NS_CSS_FRAME_TYPE_BLOCK;
     }
-    else if (disp->IsFloating()) {
+    else if (NS_STYLE_FLOAT_NONE != disp->mFloats) {
       frameType = NS_CSS_FRAME_TYPE_FLOATING;
     } else {
       NS_ASSERTION(disp->mDisplay == NS_STYLE_DISPLAY_POPUP,
@@ -1136,16 +1117,10 @@ nsHTMLReflowState::InitAbsoluteConstraints(nsPresContext* aPresContext,
   NS_PRECONDITION(containingBlockHeight != NS_AUTOHEIGHT,
                   "containing block height must be constrained");
 
-  nsIFrame* outOfFlow = 
-    frame->GetType() == nsGkAtoms::tableFrame ? frame->GetParent() : frame;
-  NS_ASSERTION(outOfFlow->GetStateBits() & NS_FRAME_OUT_OF_FLOW,
-               "Why are we here?");
-
   // Get the placeholder frame
   nsIFrame*     placeholderFrame;
 
-  aPresContext->PresShell()->GetPlaceholderFrameFor(outOfFlow,
-                                                    &placeholderFrame);
+  aPresContext->PresShell()->GetPlaceholderFrameFor(frame, &placeholderFrame);
   NS_ASSERTION(nsnull != placeholderFrame, "no placeholder frame");
 
   // If both 'left' and 'right' are 'auto' or both 'top' and 'bottom' are

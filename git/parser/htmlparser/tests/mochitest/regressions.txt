@@ -430,6 +430,5 @@ x { content:"</style" } "
 | <html>
 |   <head>
 |   <body>
-|     <source>
 |     "text"
 |     <link>

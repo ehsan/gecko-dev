@@ -385,10 +385,6 @@ static const char* const kGenericFont[] = {
   ".fantasy."
 };
 
-// whether no native theme service exists;
-// if this gets set to true, we'll stop asking for it.
-static PRBool sNoTheme = PR_FALSE;
-
 // Set to true when LookAndFeelChanged needs to be called.  This is used
 // because the look and feel is a service, so there's no need to notify it from
 // more than one prescontext.
@@ -1205,7 +1201,7 @@ nsPresContext::GetDefaultFont(PRUint8 aFontID) const
 void
 nsPresContext::SetFullZoom(float aZoom)
 {
-  if (!mShell || mFullZoom == aZoom || !IsDynamic()) {
+  if (!mShell || mFullZoom == aZoom) {
     return;
   }
   // Re-fetch the view manager's window dimensions in case there's a deferred
@@ -1391,10 +1387,10 @@ nsPresContext::GetBidi() const
 nsITheme*
 nsPresContext::GetTheme()
 {
-  if (!sNoTheme && !mTheme) {
+  if (!mNoTheme && !mTheme) {
     mTheme = do_GetService("@mozilla.org/chrome/chrome-native-theme;1");
     if (!mTheme)
-      sNoTheme = PR_TRUE;
+      mNoTheme = PR_TRUE;
   }
 
   return mTheme;
@@ -1646,6 +1642,7 @@ InsertFontFaceRule(nsCSSFontFaceRule *aRule, gfxUserFontSet* aFontSet,
   unit = val.GetUnit();
   if (unit == eCSSUnit_String) {
     val.GetStringValue(fontfamily);
+    fontfamily.Trim("\"");
   } else {
     NS_ASSERTION(unit == eCSSUnit_Null,
                  "@font-face family name has unexpected unit");

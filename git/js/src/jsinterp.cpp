@@ -831,8 +831,7 @@ js_ComputeGlobalThis(JSContext *cx, JSBool lazy, jsval *argv)
             thisp = parent;
     }
 
-    /* Some objects (e.g., With) delegate 'this' to another object. */
-    thisp = OBJ_THIS_OBJECT(cx, thisp);
+    OBJ_TO_OUTER_OBJECT(cx, thisp);
     if (!thisp)
         return NULL;
     argv[-1] = OBJECT_TO_JSVAL(thisp);
@@ -856,11 +855,18 @@ ComputeThis(JSContext *cx, JSBool lazy, jsval *argv)
             return js_ComputeGlobalThis(cx, lazy, argv);
         }
 
-        /* Some objects (e.g., With) delegate 'this' to another object. */
-        thisp = OBJ_THIS_OBJECT(cx, thisp);
+        OBJ_TO_OUTER_OBJECT(cx, thisp);
         if (!thisp)
             return NULL;
         argv[-1] = OBJECT_TO_JSVAL(thisp);
+
+        if (thisp->map->ops->thisObject) {
+            /* Some objects (e.g., With) delegate 'this' to another object. */
+            thisp = thisp->map->ops->thisObject(cx, thisp);
+            if (!thisp)
+                return NULL;
+            argv[-1] = OBJECT_TO_JSVAL(thisp);
+       }
     }
     return thisp;
 }
@@ -1545,7 +1551,7 @@ js_Execute(JSContext *cx, JSObject *chain, JSScript *script,
 
     cx->fp = &frame;
     if (!down) {
-        frame.thisp = OBJ_THIS_OBJECT(cx, frame.thisp);
+        OBJ_TO_OUTER_OBJECT(cx, frame.thisp);
         if (!frame.thisp) {
             ok = JS_FALSE;
             goto out2;

@@ -90,15 +90,11 @@ public:
                     nsIZipReaderCache *jarCache)
         : mJarCache(jarCache)
         , mJarFile(jarFile)
+        , mFullJarURI(fullJarURI)
         , mJarEntry(jarEntry)
         , mContentLength(-1)
     {
         NS_ASSERTION(mJarFile, "no jar file");
-
-        if (fullJarURI) {
-            nsresult rv = fullJarURI->GetAsciiSpec(mJarDirSpec);
-            NS_ASSERTION(NS_SUCCEEDED(rv), "this shouldn't fail");
-        }
     }
 
     virtual ~nsJARInputThunk()
@@ -124,7 +120,7 @@ private:
     nsCOMPtr<nsIZipReaderCache> mJarCache;
     nsCOMPtr<nsIZipReader>      mJarReader;
     nsCOMPtr<nsIFile>           mJarFile;
-    nsCString                   mJarDirSpec;
+    nsCOMPtr<nsIURI>            mFullJarURI;
     nsCOMPtr<nsIInputStream>    mJarStream;
     nsCString                   mJarEntry;
     PRInt32                     mContentLength;
@@ -154,9 +150,11 @@ nsJARInputThunk::EnsureJarStream()
         // A directory stream also needs the Spec of the FullJarURI
         // because is included in the stream data itself.
 
-        NS_ENSURE_STATE(!mJarDirSpec.IsEmpty());
+        nsCAutoString jarDirSpec;
+        rv = mFullJarURI->GetAsciiSpec(jarDirSpec);
+        if (NS_FAILED(rv)) return rv;
 
-        rv = mJarReader->GetInputStreamWithSpec(mJarDirSpec,
+        rv = mJarReader->GetInputStreamWithSpec(jarDirSpec,
                                                 mJarEntry.get(),
                                                 getter_AddRefs(mJarStream));
     }
@@ -694,30 +692,21 @@ nsJARChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctx)
     nsresult rv = EnsureJarInput(PR_FALSE);
     if (NS_FAILED(rv)) return rv;
 
-    // These variables must only be set if we're going to trigger an
-    // OnStartRequest, either from AsyncRead or OnDownloadComplete.
-    mListener = listener;
-    mListenerContext = ctx;
-    mIsPending = PR_TRUE;
     if (mJarInput) {
-        // create input stream pump and call AsyncRead as a block
+        // create input stream pump
         rv = NS_NewInputStreamPump(getter_AddRefs(mPump), mJarInput);
-        if (NS_SUCCEEDED(rv))
-            rv = mPump->AsyncRead(this, nsnull);
+        if (NS_FAILED(rv)) return rv;
 
-        // If we failed to create the pump or initiate the AsyncRead,
-        // then we need to clear these variables.
-        if (NS_FAILED(rv)) {
-            mIsPending = PR_FALSE;
-            mListenerContext = nsnull;
-            mListener = nsnull;
-            return rv;
-        }
+        rv = mPump->AsyncRead(this, nsnull);
+        if (NS_FAILED(rv)) return rv;
     }
 
     if (mLoadGroup)
         mLoadGroup->AddRequest(this, nsnull);
 
+    mListener = listener;
+    mListenerContext = ctx;
+    mIsPending = PR_TRUE;
     return NS_OK;
 }
 

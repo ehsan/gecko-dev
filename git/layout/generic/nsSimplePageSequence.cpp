@@ -172,8 +172,8 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
   // it right in paginated mode.
   if (!(GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
     // Return our desired size
-    aDesiredSize.height  = mSize.height * PresContext()->GetPrintPreviewScale();
-    aDesiredSize.width   = mSize.width * PresContext()->GetPrintPreviewScale();
+    aDesiredSize.height  = mSize.height;
+    aDesiredSize.width   = mSize.width;
     aDesiredSize.mOverflowArea = nsRect(0, 0, aDesiredSize.width,
                                         aDesiredSize.height);
     FinishAndStoreOverflow(&aDesiredSize);
@@ -355,9 +355,8 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
   // Return our desired size
   // Adjustr the reflow size by PrintPreviewScale so the scrollbars end up the
   // correct size
-  nscoord w = (x + availSize.width + deadSpaceGap);
   aDesiredSize.height  = y * PresContext()->GetPrintPreviewScale(); // includes page heights and dead space
-  aDesiredSize.width   = w * PresContext()->GetPrintPreviewScale();
+  aDesiredSize.width   = (x + availSize.width + deadSpaceGap) * PresContext()->GetPrintPreviewScale();
 
   aDesiredSize.mOverflowArea = nsRect(0, 0, aDesiredSize.width,
                                       aDesiredSize.height);
@@ -365,8 +364,8 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
 
   // cache the size so we can set the desired size 
   // for the other reflows that happen
-  mSize.width  = w;
-  mSize.height = y;
+  mSize.width  = aDesiredSize.width;
+  mSize.height = aDesiredSize.height;
 
   NS_FRAME_TRACE_REFLOW_OUT("nsSimplePageSequeceFrame::Reflow", aStatus);
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);

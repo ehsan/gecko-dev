@@ -198,8 +198,7 @@ nsDocAccessible::GetName(nsAString& aName)
   return rv;
 }
 
-nsresult
-nsDocAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsDocAccessible::GetRole(PRUint32 *aRole)
 {
   *aRole = nsIAccessibleRole::ROLE_PANE; // Fall back
 

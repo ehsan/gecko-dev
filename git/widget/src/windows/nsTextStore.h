@@ -41,8 +41,6 @@
 
 #include "nsAutoPtr.h"
 #include "nsString.h"
-#include "nsCOMPtr.h"
-#include "nsITimer.h"
 
 #include <msctf.h>
 #include <textstor.h>
@@ -151,12 +149,6 @@ public:
     return sTsfTextStore->OnSelectionChangeInternal();
   }
 
-  static void CompositionTimerCallbackFunc(nsITimer *aTimer, void *aClosure)
-  {
-    nsTextStore *ts = static_cast<nsTextStore*>(aClosure);
-    ts->OnCompositionTimer();
-  }
-
   // Returns the address of the pointer so that the TSF automatic test can
   // replace the system object with a custom implementation for testing.
   static void*    GetThreadMgr(void)
@@ -181,6 +173,8 @@ protected:
 
   PRBool   Create(nsWindow*, PRUint32);
   PRBool   Destroy(void);
+  PRBool   Focus(void);
+  PRBool   Blur(void);
 
   // If aDispatchTextEvent is true, this method will dispatch text event if
   // this is called during IME composing.  aDispatchTextEvent should be true
@@ -197,10 +191,8 @@ protected:
   HRESULT  GetDisplayAttribute(ITfProperty* aProperty,
                                ITfRange* aRange,
                                TF_DISPLAYATTRIBUTE* aResult);
-  HRESULT  UpdateCompositionExtent(ITfRange* pRangeNew);
   HRESULT  SendTextEventForCompositionString();
   HRESULT  SaveTextEvent(const nsTextEvent* aEvent);
-  nsresult OnCompositionTimer();
 
   // Document manager for the currently focused editor
   nsRefPtr<ITfDocumentMgr>     mDocumentMgr;
@@ -240,9 +232,6 @@ protected:
   // The latest text event which was dispatched for composition string
   // of the current composing transaction.
   nsTextEvent*                 mLastDispatchedTextEvent;
-  // Timer for calling ITextStoreACPSink::OnLayoutChange. This is only used
-  // during composing.
-  nsCOMPtr<nsITimer>           mCompositionTimer;
 
   // TSF thread manager object for the current application
   static ITfThreadMgr*  sTsfThreadMgr;

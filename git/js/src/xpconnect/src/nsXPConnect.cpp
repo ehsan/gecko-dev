@@ -2362,42 +2362,30 @@ nsXPConnect::GetWrapperForObject(JSContext* aJSContext,
 
     *_retval = OBJECT_TO_JSVAL(aObject);
 
-    JSBool sameOrigin;
-    JSBool sameScope = xpc_SameScope(objectscope, xpcscope, &sameOrigin);
-    JSBool forceXOW = XPC_XOW_ClassNeedsXOW(STOBJ_GET_CLASS(aObject)->name);
-
-    // We can do nothing if:
-    // - We're wrapping a system object
-    // or
-    //   - We're from the same *scope* AND
-    //   - We're not about to force a XOW (e.g. for "window") OR
-    //   - We're not actually going to create a XOW (we're wrapping for
-    //     chrome).
+    JSBool sameScope = objectscope == xpcscope;
     if(STOBJ_IS_SYSTEM(aObject) ||
        (sameScope &&
-        (!forceXOW || (aFilenameFlags & JSFILENAME_SYSTEM))))
+        (!XPC_XOW_ClassNeedsXOW(STOBJ_GET_CLASS(aObject)->name) ||
+         (aFilenameFlags & JSFILENAME_SYSTEM))))
         return NS_OK;
 
     JSObject* wrappedObj = nsnull;
 
     if(aFilenameFlags & JSFILENAME_PROTECTED)
     {
+        NS_ASSERTION(!sameScope, "Bad filename flags");
         wrappedObj = XPCNativeWrapper::GetNewOrUsed(aJSContext, wrapper,
                                                     aPrincipal);
     }
     else if(aFilenameFlags & JSFILENAME_SYSTEM)
     {
+        NS_ASSERTION(!sameScope, "Bad filename flags");
         jsval val = OBJECT_TO_JSVAL(aObject);
         if(XPC_SJOW_Construct(aJSContext, nsnull, 1, &val, &val))
             wrappedObj = JSVAL_TO_OBJECT(val);
     }
     else
     {
-        // We don't wrap anything same origin unless the class name requires
-        // it.
-        if(sameOrigin && !forceXOW)
-            return NS_OK;
-
         jsval val = OBJECT_TO_JSVAL(aObject);
         if(XPC_XOW_WrapObject(aJSContext, aScope, &val, wrapper))
             wrappedObj = JSVAL_TO_OBJECT(val);
@@ -2570,7 +2558,7 @@ JS_EXPORT_API(void) DumpJSObject(JSObject* obj)
 
 JS_EXPORT_API(void) DumpJSValue(jsval val)
 {
-    printf("Dumping 0x%p. Value tag is %u.\n", (void *) val, (PRUint32) JSVAL_TAG(val));
+    printf("Dumping 0x%lx. Value tag is %lu.\n", val, JSVAL_TAG(val));
     if(JSVAL_IS_NULL(val)) {
         printf("Value is null\n");
     }

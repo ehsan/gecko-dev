@@ -270,13 +270,11 @@ nsHTMLLinkElement::CreateAndDispatchEvent(nsIDocument* aDoc,
                       strings, eIgnoreCase) != ATTR_VALUE_NO_MATCH)
     return;
 
-  nsRefPtr<nsPLDOMEvent> event = new nsPLDOMEvent(this, aEventName, PR_TRUE);
+  nsRefPtr<nsPLDOMEvent> event = new nsPLDOMEvent(this, aEventName);
   if (event) {
     // If we have script blockers on the stack then we want to run as soon as
     // they are removed. Otherwise punt the runable to the event loop as we
-    // don't know when it will be safe to run script.  In particular, we might
-    // be in the middle of a pagehide right now, and firing this event at that
-    // point is not such a great idea.
+    // don't know when it will be safe to run script.
     if (nsContentUtils::IsSafeToRunScript())
       event->PostDOMEvent();
     else

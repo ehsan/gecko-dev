@@ -135,7 +135,6 @@ NS_IMPL_ISUPPORTS5(nsXULPopupManager,
 
 nsXULPopupManager::nsXULPopupManager() :
   mRangeOffset(0),
-  mCachedMousePoint(nsIntPoint(0, 0)),
   mActiveMenuBar(nsnull),
   mPopups(nsnull),
   mNoHidePanels(nsnull),
@@ -1169,13 +1168,13 @@ nsXULPopupManager::GetTopPopup(nsPopupType aType)
 }
 
 nsTArray<nsIFrame *>
-nsXULPopupManager::GetVisiblePopups()
+nsXULPopupManager::GetOpenPopups()
 {
   nsTArray<nsIFrame *> popups;
 
   nsMenuChainItem* item = mPopups;
   while (item) {
-    if (item->Frame()->PopupState() == ePopupOpenAndVisible)
+    if (item->Frame()->PopupState() != ePopupInvisible)
       popups.AppendElement(static_cast<nsIFrame*>(item->Frame()));
     item = item->GetParent();
   }

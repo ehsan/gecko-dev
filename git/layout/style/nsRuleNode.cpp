@@ -152,6 +152,22 @@ static void EnsureBlockDisplay(PRUint8& display)
   }
 }
 
+// XXX This should really be done in the CSS parser.
+static nsString& Unquote(nsString& aString)
+{
+  PRUnichar start = aString.First();
+  PRUnichar end = aString.Last();
+
+  if ((start == end) && 
+      ((start == PRUnichar('\"')) || 
+       (start == PRUnichar('\'')))) {
+    PRInt32 length = aString.Length();
+    aString.Truncate(length - 1);
+    aString.Cut(0, 1);
+  }
+  return aString;
+}
+
 static inline nscoord ScaleCoord(const nsCSSValue &aValue, float factor)
 {
   return NSToCoordRoundWithClamp(aValue.GetFloatValue() * factor);
@@ -420,7 +436,7 @@ static PRBool SetColor(const nsCSSValue& aValue, const nscolor aParentColor,
     aResult = aValue.GetColorValue();
     result = PR_TRUE;
   }
-  else if (eCSSUnit_Ident == unit) {
+  else if (eCSSUnit_String == unit) {
     nsAutoString  value;
     aValue.GetStringValue(value);
     nscolor rgba;
@@ -2541,7 +2557,7 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
   // font-family: string list, enum, inherit
   NS_ASSERTION(eCSSUnit_Enumerated != aFontData.mFamily.GetUnit(),
                "system fonts should not be in mFamily anymore");
-  if (eCSSUnit_Families == aFontData.mFamily.GetUnit()) {
+  if (eCSSUnit_String == aFontData.mFamily.GetUnit()) {
     // set the correct font if we are using DocumentFonts OR we are overriding for XUL
     // MJA: bug 31816
     if (aGenericFontID == kGenericFont_NONE) {
@@ -2880,7 +2896,7 @@ nsRuleNode::ComputeFontData(void* aStartStruct,
   PRUint8 generic = kGenericFont_NONE;
   // XXXldb What if we would have had a string if we hadn't been doing
   // the optimization with a non-null aStartStruct?
-  if (eCSSUnit_Families == fontData.mFamily.GetUnit()) {
+  if (eCSSUnit_String == fontData.mFamily.GetUnit()) {
     fontData.mFamily.GetStringValue(font->mFont.name);
     // XXXldb Do we want to extract the generic for this if it's not only a
     // generic?
@@ -3719,7 +3735,7 @@ nsRuleNode::ComputeVisibilityData(void* aStartStruct,
 
   // lang: string, inherit
   // this is not a real CSS property, it is a html attribute mapped to CSS struture
-  if (eCSSUnit_Ident == displayData.mLang.GetUnit()) {
+  if (eCSSUnit_String == displayData.mLang.GetUnit()) {
     if (!gLangService) {
       CallGetService(NS_LANGUAGEATOMSERVICE_CONTRACTID, &gLangService);
     }
@@ -4835,6 +4851,7 @@ nsRuleNode::ComputeContentData(void* aStartStruct,
           }
           else if (type <= eStyleContentType_Attr) {
             value.GetStringValue(buffer);
+            Unquote(buffer);
             data.mContent.mString = NS_strdup(buffer.get());
           }
           else if (type <= eStyleContentType_Counters) {
@@ -4868,7 +4885,7 @@ nsRuleNode::ComputeContentData(void* aStartStruct,
         }
       }
     }
-    else if (eCSSUnit_Ident == ourIncrement->mXValue.GetUnit()) {
+    else if (eCSSUnit_String == ourIncrement->mXValue.GetUnit()) {
       count = 0;
       while (ourIncrement) {
         count++;
@@ -4911,7 +4928,7 @@ nsRuleNode::ComputeContentData(void* aStartStruct,
         }
       }
     }
-    else if (eCSSUnit_Ident == ourReset->mXValue.GetUnit()) {
+    else if (eCSSUnit_String == ourReset->mXValue.GetUnit()) {
       count = 0;
       while (ourReset) {
         count++;
@@ -4983,6 +5000,8 @@ nsRuleNode::ComputeQuotesData(void* aStartStruct,
         while (ourQuotes) {
           ourQuotes->mXValue.GetStringValue(buffer);
           ourQuotes->mYValue.GetStringValue(closeBuffer);
+          Unquote(buffer);
+          Unquote(closeBuffer);
           quotes->SetQuotesAt(count++, buffer, closeBuffer);
           ourQuotes = ourQuotes->mNext;
         }

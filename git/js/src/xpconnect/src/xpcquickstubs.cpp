@@ -69,8 +69,8 @@ static const xpc_qsHashEntry *
 LookupInterfaceOrAncestor(PRUint32 tableSize, const xpc_qsHashEntry *table,
                           const nsID &iid)
 {
-    const xpc_qsHashEntry *entry = LookupEntry(tableSize, table, iid);
-    if(!entry)
+    const xpc_qsHashEntry *p = LookupEntry(tableSize, table, iid);
+    if(!p)
     {
         /*
          * On a miss, we have to search for every interface the object
@@ -81,23 +81,23 @@ LookupInterfaceOrAncestor(PRUint32 tableSize, const xpc_qsHashEntry *table,
                           &iid, getter_AddRefs(info))))
             return nsnull;
 
-        const nsIID *piid;
+        nsIID *piid;
         for(;;)
         {
             nsCOMPtr<nsIInterfaceInfo> parent;
             if(NS_FAILED(info->GetParent(getter_AddRefs(parent))) ||
                !parent ||
-               NS_FAILED(parent->GetIIDShared(&piid)))
+               NS_FAILED(parent->GetInterfaceIID(&piid)))
             {
                 break;
             }
-            entry = LookupEntry(tableSize, table, *piid);
-            if(entry)
+            p = LookupEntry(tableSize, table, *piid);
+            if(p)
                 break;
             info.swap(parent);
         }
     }
-    return entry;
+    return p;
 }
 
 static JSBool

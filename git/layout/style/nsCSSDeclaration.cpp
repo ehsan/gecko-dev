@@ -94,11 +94,16 @@ nsCSSDeclaration::~nsCSSDeclaration(void)
 nsresult
 nsCSSDeclaration::ValueAppended(nsCSSProperty aProperty)
 {
-  NS_ABORT_IF_FALSE(!nsCSSProps::IsShorthand(aProperty),
-                    "shorthands forbidden");
   // order IS important for CSS, so remove and add to the end
-  mOrder.RemoveElement(aProperty);
-  mOrder.AppendElement(aProperty);
+  if (nsCSSProps::IsShorthand(aProperty)) {
+    CSSPROPS_FOR_SHORTHAND_SUBPROPERTIES(p, aProperty) {
+      mOrder.RemoveElement(*p);
+      mOrder.AppendElement(*p);
+    }
+  } else {
+    mOrder.RemoveElement(aProperty);
+    mOrder.AppendElement(aProperty);
+  }
   return NS_OK;
 }
 
@@ -241,11 +246,7 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
     }
     nsAutoString  buffer;
     aValue.GetStringValue(buffer);
-    if (unit == eCSSUnit_String) {
-      nsStyleUtil::AppendEscapedCSSString(buffer, aResult);
-    } else {
-      aResult.Append(buffer);
-    }
+    aResult.Append(buffer);
   }
   else if (eCSSUnit_Array <= unit && unit <= eCSSUnit_Counters) {
     switch (unit) {
@@ -311,19 +312,22 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
   else if (eCSSUnit_Enumerated == unit) {
     if (eCSSProperty_text_decoration == aProperty) {
       PRInt32 intValue = aValue.GetIntValue();
-      NS_ABORT_IF_FALSE(NS_STYLE_TEXT_DECORATION_NONE != intValue,
-                        "none should be parsed as eCSSUnit_None");
-      PRInt32 mask;
-      for (mask = NS_STYLE_TEXT_DECORATION_UNDERLINE;
-           mask <= NS_STYLE_TEXT_DECORATION_PREF_ANCHORS; 
-           mask <<= 1) {
-        if ((mask & intValue) == mask) {
-          AppendASCIItoUTF16(nsCSSProps::LookupPropertyValue(aProperty, mask), aResult);
-          intValue &= ~mask;
-          if (0 != intValue) { // more left
-            aResult.Append(PRUnichar(' '));
+      if (NS_STYLE_TEXT_DECORATION_NONE != intValue) {
+        PRInt32 mask;
+        for (mask = NS_STYLE_TEXT_DECORATION_UNDERLINE;
+             mask <= NS_STYLE_TEXT_DECORATION_BLINK; 
+             mask <<= 1) {
+          if ((mask & intValue) == mask) {
+            AppendASCIItoUTF16(nsCSSProps::LookupPropertyValue(aProperty, mask), aResult);
+            intValue &= ~mask;
+            if (0 != intValue) { // more left
+              aResult.Append(PRUnichar(' '));
+            }
           }
         }
+      }
+      else {
+        AppendASCIItoUTF16(nsCSSProps::LookupPropertyValue(aProperty, NS_STYLE_TEXT_DECORATION_NONE), aResult);
       }
     }
     else if (eCSSProperty_azimuth == aProperty) {
@@ -393,10 +397,9 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
     }
   }
   else if (eCSSUnit_URL == unit || eCSSUnit_Image == unit) {
-    aResult.Append(NS_LITERAL_STRING("url("));
-    nsStyleUtil::AppendEscapedCSSString(
-      nsDependentString(aValue.GetOriginalURLValue()), aResult);
-    aResult.Append(NS_LITERAL_STRING(")"));
+    aResult.Append(NS_LITERAL_STRING("url(") +
+                   nsDependentString(aValue.GetOriginalURLValue()) +
+                   NS_LITERAL_STRING(")"));
   }
   else if (eCSSUnit_Percent == unit) {
     nsAutoString tmpStr;
@@ -424,8 +427,6 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
       break;
 
     case eCSSUnit_String:       break;
-    case eCSSUnit_Ident:        break;
-    case eCSSUnit_Families:     break;
     case eCSSUnit_URL:          break;
     case eCSSUnit_Image:        break;
     case eCSSUnit_Array:        break;

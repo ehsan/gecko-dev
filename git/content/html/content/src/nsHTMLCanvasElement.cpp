@@ -95,7 +95,6 @@ public:
   NS_IMETHOD InvalidateFrameSubrect (const nsRect& damageRect);
   virtual PRInt32 CountContexts();
   virtual nsICanvasRenderingContextInternal *GetContextAtIndex (PRInt32 index);
-  virtual PRBool GetIsOpaque();
 
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
@@ -119,6 +118,7 @@ public:
 
 protected:
   nsIntSize GetWidthHeight();
+  PRBool GetIsOpaque();
 
   nsresult UpdateContext();
   nsresult ToDataURLImpl(const nsAString& aMimeType,
@@ -193,6 +193,12 @@ nsHTMLCanvasElement::GetWidthHeight()
     size.height = DEFAULT_CANVAS_HEIGHT;
 
   return size;
+}
+
+PRBool
+nsHTMLCanvasElement::GetIsOpaque()
+{
+  return HasAttr(kNameSpaceID_None, nsGkAtoms::moz_opaque);
 }
 
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLCanvasElement, Width, width, DEFAULT_CANVAS_WIDTH)
@@ -581,10 +587,4 @@ nsHTMLCanvasElement::GetContextAtIndex (PRInt32 index)
     return mCurrentContext.get();
 
   return NULL;
-}
-
-PRBool
-nsHTMLCanvasElement::GetIsOpaque()
-{
-  return HasAttr(kNameSpaceID_None, nsGkAtoms::moz_opaque);
 }

@@ -123,11 +123,8 @@ class nsEnumRoleAccessible : public nsAccessibleWrap
 public:
   nsEnumRoleAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell, PRUint32 aRole);
   virtual ~nsEnumRoleAccessible() { }
-
   NS_DECL_ISUPPORTS_INHERITED
-
-  // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  NS_IMETHODIMP GetRole(PRUint32 *aRole) { *aRole = mRole; return NS_OK; }
 
 protected:
   PRUint32 mRole;

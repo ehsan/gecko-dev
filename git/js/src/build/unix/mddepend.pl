@@ -64,8 +64,6 @@ while (<>) {
     next;
   }
 
-  $line =~ s|\\|/|g;
-
   my ($obj,$rest) = split /\s*:\s+/, $line, 2;
   $line = '';
   next if !$obj || !$rest;

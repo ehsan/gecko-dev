@@ -77,10 +77,6 @@ nsTextStore::nsTextStore()
 
 nsTextStore::~nsTextStore()
 {
-  if (mCompositionTimer) {
-    mCompositionTimer->Cancel();
-    mCompositionTimer = nsnull;
-  }
   SaveTextEvent(nsnull);
 }
 
@@ -116,6 +112,7 @@ nsTextStore::Create(nsWindow* aWindow,
 PRBool
 nsTextStore::Destroy(void)
 {
+  Blur();
   if (mWindow) {
     // When blurred, Tablet Input Panel posts "blur" messages
     // and try to insert text when the message is retrieved later.
@@ -137,6 +134,25 @@ nsTextStore::Destroy(void)
   PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
          ("TSF: Destroyed, window=%08x\n", mWindow));
   mWindow = NULL;
+  return PR_TRUE;
+}
+
+PRBool
+nsTextStore::Focus(void)
+{
+  HRESULT hr = sTsfThreadMgr->SetFocus(mDocumentMgr);
+  NS_ENSURE_TRUE(SUCCEEDED(hr), PR_FALSE);
+  PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
+         ("TSF: Focused\n"));
+  return PR_TRUE;
+}
+
+PRBool
+nsTextStore::Blur(void)
+{
+  sTsfThreadMgr->SetFocus(NULL);
+  PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
+         ("TSF: Blurred\n"));
   return PR_TRUE;
 }
 
@@ -582,46 +598,6 @@ IsSameTextEvent(const nsTextEvent* aEvent1, const nsTextEvent* aEvent2)
 }
 
 HRESULT
-nsTextStore::UpdateCompositionExtent(ITfRange* aRangeNew)
-{
-  NS_ENSURE_TRUE(mCompositionView, E_FAIL);
-
-  HRESULT hr;
-  nsRefPtr<ITfCompositionView> pComposition(mCompositionView);
-  nsRefPtr<ITfRange> composingRange(aRangeNew);
-  if (!composingRange) {
-    hr = pComposition->GetRange(getter_AddRefs(composingRange));
-    NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
-  }
-
-  // Get starting offset of the composition
-  LONG compStart = 0, compLength = 0;
-  hr = GetRangeExtent(composingRange, &compStart, &compLength);
-  NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
-  if (mCompositionStart != compStart ||
-      mCompositionString.Length() != compLength) {
-    // If the queried composition length is different from the length
-    // of our composition string, OnUpdateComposition is being called
-    // because a part of the original composition was committed.
-    // Reflect that by committing existing composition and starting
-    // a new one. OnEndComposition followed by OnStartComposition
-    // will accomplish this automagically.
-    OnEndComposition(pComposition);
-    OnStartCompositionInternal(pComposition, composingRange, PR_TRUE);
-    PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
-           ("TSF: UpdateCompositionExtent, (reset) range=%ld-%ld\n",
-            compStart, compStart + compLength));
-  } else {
-    mCompositionLength = compLength;
-    PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
-           ("TSF: UpdateCompositionExtent, range=%ld-%ld\n",
-            compStart, compStart + compLength));
-  }
-
-  return S_OK;
-}
-
-HRESULT
 nsTextStore::SendTextEventForCompositionString()
 {
   PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
@@ -724,10 +700,6 @@ nsTextStore::SetSelectionInternal(const TS_SELECTION_ACP* pSelection,
          ("TSF: SetSelection, sel=%ld-%ld\n",
           pSelection->acpStart, pSelection->acpEnd));
   if (mCompositionView) {
-    if (aDispatchTextEvent) {
-      HRESULT hr = UpdateCompositionExtent(nsnull);
-      NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
-    }
     // Emulate selection during compositions
     NS_ENSURE_TRUE(pSelection->acpStart >= mCompositionStart &&
                    pSelection->acpEnd <= mCompositionStart +
@@ -1232,29 +1204,6 @@ nsTextStore::OnStartCompositionInternal(ITfCompositionView* pComposition,
   return S_OK;
 }
 
-static PRUint32
-GetLayoutChangeIntervalTime()
-{
-  static PRInt32 sTime = -1;
-  if (sTime > 0)
-    return PRUint32(sTime);
-
-  sTime = 100;
-  nsCOMPtr<nsIPrefService> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-  if (!prefs)
-    return PRUint32(sTime);
-  nsCOMPtr<nsIPrefBranch> prefBranch;
-  prefs->GetBranch(nsnull, getter_AddRefs(prefBranch));
-  if (!prefBranch)
-    return PRUint32(sTime);
-  nsresult rv =
-    prefBranch->GetIntPref("intl.tsf.on_layout_change_interval", &sTime);
-  if (NS_FAILED(rv))
-    return PRUint32(sTime);
-  sTime = PR_MAX(10, sTime);
-  return PRUint32(sTime);
-}
-
 STDMETHODIMP
 nsTextStore::OnStartComposition(ITfCompositionView* pComposition,
                                 BOOL* pfOk)
@@ -1269,18 +1218,9 @@ nsTextStore::OnStartComposition(ITfCompositionView* pComposition,
   HRESULT hr = pComposition->GetRange(getter_AddRefs(range));
   NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
   hr = OnStartCompositionInternal(pComposition, range, PR_FALSE);
-  if (FAILED(hr))
-    return hr;
-
-  NS_ASSERTION(!mCompositionTimer, "The timer is alive!");
-  mCompositionTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
-  if (mCompositionTimer) {
-    mCompositionTimer->InitWithFuncCallback(CompositionTimerCallbackFunc, this,
-                                            GetLayoutChangeIntervalTime(),
-                                            nsITimer::TYPE_REPEATING_SLACK);
-  }
-  *pfOk = TRUE;
-  return S_OK;
+  if (SUCCEEDED(hr))
+    *pfOk = TRUE;
+  return hr;
 }
 
 STDMETHODIMP
@@ -1294,8 +1234,29 @@ nsTextStore::OnUpdateComposition(ITfCompositionView* pComposition,
   if (!pRangeNew) // pRangeNew is null when the update is not complete
     return S_OK;
 
-  HRESULT hr = UpdateCompositionExtent(pRangeNew);
+  // Get starting offset of the composition
+  LONG compStart = 0, compLength = 0;
+  HRESULT hr = GetRangeExtent(pRangeNew, &compStart, &compLength);
   NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
+  if (mCompositionStart != compStart ||
+      mCompositionString.Length() != compLength) {
+    // If the queried composition length is different from the length
+    // of our composition string, OnUpdateComposition is being called
+    // because a part of the original composition was committed.
+    // Reflect that by committing existing composition and starting
+    // a new one. OnEndComposition followed by OnStartComposition
+    // will accomplish this automagically.
+    OnEndComposition(pComposition);
+    OnStartCompositionInternal(pComposition, pRangeNew, PR_TRUE);
+    PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
+           ("TSF: OnUpdateComposition, (reset) range=%ld-%ld\n",
+            compStart, compStart + compLength));
+  } else {
+    mCompositionLength = compLength;
+    PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
+           ("TSF: OnUpdateComposition, range=%ld-%ld\n",
+            compStart, compStart + compLength));
+  }
 
   return SendTextEventForCompositionString();
 }
@@ -1310,11 +1271,6 @@ nsTextStore::OnEndComposition(ITfCompositionView* pComposition)
 
   // Clear the saved text event
   SaveTextEvent(nsnull);
-
-  if (mCompositionTimer) {
-    mCompositionTimer->Cancel();
-    mCompositionTimer = nsnull;
-  }
 
   // Use NS_TEXT_TEXT to commit composition string
   nsTextEvent textEvent(PR_TRUE, NS_TEXT_TEXT, mWindow);
@@ -1354,11 +1310,8 @@ nsTextStore::OnFocusChange(PRBool aFocus,
     return NS_ERROR_NOT_AVAILABLE;
 
   if (aFocus) {
-    PRBool bRet = sTsfTextStore->Create(aWindow, aIMEEnabled);
-    NS_ENSURE_TRUE(bRet, NS_ERROR_FAILURE);
-    NS_ENSURE_TRUE(sTsfTextStore->mDocumentMgr, NS_ERROR_FAILURE);
-    HRESULT hr = sTsfThreadMgr->SetFocus(sTsfTextStore->mDocumentMgr);
-    NS_ENSURE_TRUE(SUCCEEDED(hr), NS_ERROR_FAILURE);
+    if (sTsfTextStore->Create(aWindow, aIMEEnabled))
+      sTsfTextStore->Focus();
   } else {
     sTsfTextStore->Destroy();
   }
@@ -1397,22 +1350,6 @@ nsTextStore::OnSelectionChangeInternal(void)
   if (!mLock && mSink && 0 != (mSinkMask & TS_AS_SEL_CHANGE)) {
     mSink->OnSelectionChange();
   }
-  return NS_OK;
-}
-
-nsresult
-nsTextStore::OnCompositionTimer()
-{
-  NS_ENSURE_TRUE(mContext, NS_ERROR_FAILURE);
-  NS_ENSURE_TRUE(mSink, NS_ERROR_FAILURE);
-
-  // XXXmnakano We always call OnLayoutChange for now, but this might use CPU
-  // power when the focused editor has very long text. Ideally, we should call
-  // this only when the composition string screen position is changed by window
-  // moving, resizing. And also reflowing and scrolling the contents.
-  HRESULT hr = mSink->OnLayoutChange(TS_LC_CHANGE, TEXTSTORE_DEFAULT_VIEW);
-  NS_ENSURE_TRUE(SUCCEEDED(hr), NS_ERROR_FAILURE);
-
   return NS_OK;
 }
 

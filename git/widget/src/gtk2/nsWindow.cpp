@@ -119,13 +119,6 @@ static const char sAccessibilityKey [] = "config.use_system_prefs.accessibility"
 #include "gfxXlibSurface.h"
 #endif
 
-#if defined(MOZ_PLATFORM_HILDON) && defined(MOZ_ENABLE_GCONF)
-#include "gconf/gconf-client.h"
-static PRBool gWidgetCompletionEnabled = PR_FALSE;
-static const char sWidgetCompletionGConfPref [] =
-    "/apps/osso/inputmethod/hildon-im-languages/en_GB/word-completion";
-#endif
-
 #ifdef MOZ_DFB
 extern "C" {
 #ifdef MOZ_DIRECT_DEBUG
@@ -432,7 +425,7 @@ nsWindow::nsWindow()
     mDFBLayer       = NULL;
 #endif
 
-
+    
     if (gUseBufferPixmap) {
         if (gBufferPixmapMaxSize.width == 0) {
             gBufferPixmapMaxSize.width = gdk_screen_width();
@@ -457,7 +450,7 @@ nsWindow::~nsWindow()
 #ifdef MOZ_DFB
     if (mDFBLayer)
          mDFBLayer->Release( mDFBLayer );
-
+         
     if (mDFB)
          mDFB->Release( mDFB );
 #endif
@@ -537,7 +530,7 @@ nsWindow::DispatchResizeEvent(nsIntRect &aRect, nsEventStatus &aStatus)
     event.mWinHeight = aRect.height;
 
     nsEventStatus status;
-    DispatchEvent(&event, status);
+    DispatchEvent(&event, status); 
 }
 
 void
@@ -566,7 +559,8 @@ nsWindow::DispatchDeactivateEvent(void)
 
 
 nsresult
-nsWindow::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus &aStatus)
+nsWindow::DispatchEvent(nsGUIEvent *aEvent,
+                              nsEventStatus &aStatus)
 {
 #ifdef DEBUG
     debug_DumpEvent(stdout, aEvent->widget, aEvent,
@@ -719,11 +713,6 @@ nsWindow::Destroy(void)
     if (mDragMotionTimerID) {
         g_source_remove(mDragMotionTimerID);
         mDragMotionTimerID = 0;
-    }
-
-    if (mDragLeaveTimer) {
-        mDragLeaveTimer->Cancel();
-        mDragLeaveTimer = nsnull;
     }
 
     if (mDrawingarea) {
@@ -1045,7 +1034,7 @@ nsWindow::GetPreferredSize(PRInt32 &aWidth,
 {
     aWidth  = mPreferredWidth;
     aHeight = mPreferredHeight;
-    return (mPreferredWidth != 0 && mPreferredHeight != 0) ?
+    return (mPreferredWidth != 0 && mPreferredHeight != 0) ? 
         NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -1138,7 +1127,7 @@ nsWindow::SetZIndex(PRInt32 aZIndex)
         if (mDrawingarea)
             gdk_window_raise(mDrawingarea->clip_window);
     } else {
-        // All the siblings before us need to be below our widget.
+        // All the siblings before us need to be below our widget. 
         for (nsWindow* w = this; w;
              w = static_cast<nsWindow*>(w->GetPrevSibling())) {
             if (w->mDrawingarea)
@@ -1213,7 +1202,7 @@ SetUserTimeAndStartupIDForActivatedWindow(GtkWidget* aWindow)
         }
         return;
     }
-
+ 
 #ifdef MOZ_ENABLE_STARTUP_NOTIFICATION
     GdkDrawable* drawable = GDK_DRAWABLE(aWindow->window);
     GtkWindow* win = GTK_WINDOW(aWindow);
@@ -1250,9 +1239,9 @@ SetUserTimeAndStartupIDForActivatedWindow(GtkWidget* aWindow)
     sn_launchee_context_unref(ctx);
     sn_display_unref(snd);
 #endif
-
+ 
     GTKToolkit->SetDesktopStartupID(EmptyCString());
-}
+} 
 
 NS_IMETHODIMP
 nsWindow::SetFocus(PRBool aRaise)
@@ -1290,13 +1279,13 @@ nsWindow::SetFocus(PRBool aRaise)
     if (!GTK_WIDGET_HAS_FOCUS(owningWidget)) {
         LOGFOCUS(("  grabbing focus for the toplevel [%p]\n", (void *)this));
         owningWindow->mContainerBlockFocus = PR_TRUE;
-
+        
         // Set focus to the window
         if (gRaiseWindows && aRaise && toplevelWidget &&
             !GTK_WIDGET_HAS_FOCUS(toplevelWidget) &&
             owningWindow->mIsShown && GTK_IS_WINDOW(owningWindow->mShell))
           gtk_window_present(GTK_WINDOW(owningWindow->mShell));
-
+        
         gtk_widget_grab_focus(owningWidget);
         owningWindow->mContainerBlockFocus = PR_FALSE;
 
@@ -1419,7 +1408,7 @@ PRUint8* Data32BitTo1Bit(PRUint8* aImageData,
                          PRUint32 aWidth, PRUint32 aHeight)
 {
   PRUint32 outBpr = (aWidth + 7) / 8;
-
+  
   PRUint8* outData = new PRUint8[outBpr * aHeight];
   if (!outData)
       return NULL;
@@ -2057,12 +2046,12 @@ gdk_window_flash(GdkWindow *    aGdkWindow,
   gdk_gc_set_foreground(gc,&white);
   gdk_gc_set_function(gc,GDK_XOR);
   gdk_gc_set_subwindow(gc,GDK_INCLUDE_INFERIORS);
-
+  
   gdk_region_offset(aRegion, x, y);
   gdk_gc_set_clip_region(gc, aRegion);
 
   /*
-   * Need to do this twice so that the XOR effect can replace
+   * Need to do this twice so that the XOR effect can replace 
    * the original window contents.
    */
   for (i = 0; i < aTimes * 2; i++)
@@ -2076,7 +2065,7 @@ gdk_window_flash(GdkWindow *    aGdkWindow,
                        height);
 
     gdk_flush();
-
+    
     PR_Sleep(PR_MillisecondsToInterval(aInterval));
   }
 
@@ -2258,7 +2247,7 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
             }
             if (bufferPixmapSurface) {
                 gfxPlatformGtk::GetPlatform()->SetGdkDrawable(
-                        static_cast<gfxASurface *>(bufferPixmapSurface),
+                        static_cast<gfxASurface *>(bufferPixmapSurface), 
                         GDK_DRAWABLE(bufferPixmap));
 
                 bufferPixmapSurface->SetDeviceOffset(gfxPoint(-boundsRect.x, -boundsRect.y));
@@ -2317,7 +2306,7 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
                                         gfxImageSurface::ImageFormatA8);
                 if (img && !img->CairoStatus()) {
                     img->SetDeviceOffset(gfxPoint(-boundsRect.x, -boundsRect.y));
-
+            
                     nsRefPtr<gfxContext> imgCtx = new gfxContext(img);
                     if (imgCtx) {
                         imgCtx->SetPattern(pattern);
@@ -2824,33 +2813,9 @@ nsWindow::OnContainerFocusInEvent(GtkWidget *aWidget, GdkEventFocus *aEvent)
         return;
     }
 
-    if (mIsTopLevel) {
+    if (mIsTopLevel)
         mActivatePending = PR_TRUE;
-#if defined(MOZ_PLATFORM_HILDON) && defined(MOZ_ENABLE_GCONF)
-        // For mobile/maemo, it is desired to disable the word completion widget
-        // at the bottom of the screen for some reasons: it interacts badly with
-        // keyboard events sometimes and disabling it will give more screen space
-        // for web content. So whenever a topLevel mobile window gets the focus we
-        // verify what is the current state of the widget-completion through query
-        // the proper gconf property. If it is enabled, we store the property value
-        // and disable it. Where the toplevel window loses the focus we restore the
-        // previous state of the widget completion property so other applications in
-        // the system do not get affected. See 'OnContainerFocusOutEvent'.
-        if (mWindowType == eWindowType_toplevel)
-            if (GConfClient *gConfClient = gconf_client_get_default()) {
-                GError* error = nsnull;
-                gWidgetCompletionEnabled = gconf_client_get_bool(gConfClient,
-                                                                 sWidgetCompletionGConfPref,
-                                                                 &error);
-                if (error)
-                    g_error_free(error);
-                else if (gWidgetCompletionEnabled)
-                    gconf_client_set_bool(gConfClient, sWidgetCompletionGConfPref,
-                                          PR_FALSE, nsnull);
-                g_object_unref(gConfClient);
-            }
-#endif
-    }
+
     // Unset the urgency hint, if possible
     GtkWidget* top_window = nsnull;
     GetToplevelWidget(&top_window);
@@ -2889,16 +2854,6 @@ nsWindow::OnContainerFocusOutEvent(GtkWidget *aWidget, GdkEventFocus *aEvent)
     if (!gFocusWindow)
         return;
 
-#if defined(MOZ_PLATFORM_HILDON) && defined(MOZ_ENABLE_GCONF)
-    if (mIsTopLevel && mWindowType == eWindowType_toplevel)
-        if(GConfClient *gConfClient = gconf_client_get_default()) {
-            GError* error = nsnull;
-            gconf_client_set_bool(gConfClient, sWidgetCompletionGConfPref, gWidgetCompletionEnabled, &error);
-            if (error)
-                g_error_free(error);
-            g_object_unref(gConfClient);
-        }
-#endif
     GdkWindow *tmpWindow;
     tmpWindow = (GdkWindow *)gFocusWindow->GetNativeData(NS_NATIVE_WINDOW);
     nsWindow *tmpnsWindow = get_window_for_gdk_window(tmpWindow);
@@ -3021,7 +2976,7 @@ nsWindow::OnKeyPressEvent(GtkWidget *aWidget, GdkEventKey *aEvent)
     // us.
 
     PRBool isKeyDownCancelled = PR_FALSE;
-
+    
     PRUint32 domVirtualKeyCode = GdkKeyCodeToDOMKeyCode(aEvent->keyval);
 
     if (!IsKeyDown(domVirtualKeyCode)) {
@@ -3460,16 +3415,12 @@ nsWindow::OnDragLeaveEvent(GtkWidget *aWidget,
 {
     // XXX Do we want to pass this on only if the event's subwindow is null?
 
-    LOG(("nsWindow::OnDragLeaveSignal(%p)\n", (void*)this));
+    LOG(("nsWindow::OnDragLeaveSignal(%p)\n", this));
 
     sIsDraggingOutOf = PR_TRUE;
 
     // make sure to unset any drag motion timers here.
     ResetDragMotionTimer(0, 0, 0, 0, 0);
-
-    if (mDragLeaveTimer) {
-        return;
-    }
 
     // create a fast timer - we're delaying the drag leave until the
     // next mainloop in hopes that we might be able to get a drag drop
@@ -3531,7 +3482,7 @@ nsWindow::OnDragDropEvent(GtkWidget *aWidget,
     // doesn't get processed when we actually go out to get data.
     if (mDragLeaveTimer) {
         mDragLeaveTimer->Cancel();
-        mDragLeaveTimer = nsnull;
+        mDragLeaveTimer = 0;
     }
 
     // set the last window to this
@@ -3597,7 +3548,7 @@ nsWindow::OnDragDataReceivedEvent(GtkWidget *aWidget,
                                   guint aTime,
                                   gpointer aData)
 {
-    LOG(("nsWindow::OnDragDataReceived(%p)\n", (void*)this));
+    LOG(("nsWindow::OnDragDataReceived(%p)\n", this));
 
     // get our drag context
     nsCOMPtr<nsIDragService> dragService = do_GetService(kCDragServiceCID);
@@ -3610,7 +3561,7 @@ nsWindow::OnDragDataReceivedEvent(GtkWidget *aWidget,
 void
 nsWindow::OnDragLeave(void)
 {
-    LOG(("nsWindow::OnDragLeave(%p)\n", (void*)this));
+    LOG(("nsWindow::OnDragLeave(%p)\n", this));
 
     nsDragEvent event(PR_TRUE, NS_DRAGDROP_EXIT, this);
 
@@ -3643,7 +3594,7 @@ nsWindow::OnDragEnter(nscoord aX, nscoord aY)
 {
     // XXX Do we want to pass this on only if the event's subwindow is null?
 
-    LOG(("nsWindow::OnDragEnter(%p)\n", (void*)this));
+    LOG(("nsWindow::OnDragEnter(%p)\n", this));
 
     nsCOMPtr<nsIDragService> dragService = do_GetService(kCDragServiceCID);
 
@@ -3664,7 +3615,7 @@ nsWindow::OnDragEnter(nscoord aX, nscoord aY)
 static void
 GetBrandName(nsXPIDLString& brandName)
 {
-    nsCOMPtr<nsIStringBundleService> bundleService =
+    nsCOMPtr<nsIStringBundleService> bundleService = 
         do_GetService(NS_STRINGBUNDLE_CONTRACTID);
 
     nsCOMPtr<nsIStringBundle> bundle;
@@ -5829,7 +5780,7 @@ nsWindow::ResetDragMotionTimer(GtkWidget *aWidget,
 void
 nsWindow::FireDragMotionTimer(void)
 {
-    LOG(("nsWindow::FireDragMotionTimer(%p)\n", (void*)this));
+    LOG(("nsWindow::FireDragMotionTimer(%p)\n", this));
 
     OnDragMotionEvent(mDragMotionWidget, mDragMotionContext,
                       mDragMotionX, mDragMotionY, mDragMotionTime,
@@ -5839,9 +5790,9 @@ nsWindow::FireDragMotionTimer(void)
 void
 nsWindow::FireDragLeaveTimer(void)
 {
-    LOG(("nsWindow::FireDragLeaveTimer(%p)\n", (void*)this));
+    LOG(("nsWindow::FireDragLeaveTimer(%p)\n", this));
 
-    mDragLeaveTimer = nsnull;
+    mDragLeaveTimer = 0;
 
     // clean up any pending drag motion window info
     if (mLastDragMotionWindow) {
@@ -6162,8 +6113,8 @@ nsWindow::IMEReleaseData(void)
 // The GTK+ XIM and IIIM modules register handlers for the "closed" signal
 // on the display, but:
 //  * The signal handlers are not disconnected when the module is unloaded.
-//
-// The GTK+ XIM module has another problem:
+// 
+// The GTK+ XIM module has another problem: 
 //  * When the signal handler is run (with the module loaded) it tries
 //    XFree (and fails) on a pointer that did not come from Xmalloc.
 //
@@ -6171,7 +6122,7 @@ nsWindow::IMEReleaseData(void)
 // hold ref of GtkIMContext class.
 // For GTK+ XIM module, to prevent the signal handler from being run,
 // find the signal handlers and remove them.
-//
+//  
 // GtkIMContextXIMs share XOpenIM connections and display closed signal
 // handlers (where possible).
 
@@ -6209,15 +6160,11 @@ static void workaround_gtk_im_display_closed(GtkWidget *aGtkWidget,
         // opens (and doesn't close) new XOpenIM connections.
         static gpointer gtk_xim_context_class =
             g_type_class_ref(slaveType);
-        // Mute unused variable warning:
-        gtk_xim_context_class = gtk_xim_context_class;
     }
     else if (strcmp(im_type_name, "GtkIMContextIIIM") == 0) {
         // Add a reference to prevent the IIIM module from being unloaded
         static gpointer gtk_iiim_context_class =
             g_type_class_ref(slaveType);
-        // Mute unused variable warning:
-        gtk_iiim_context_class = gtk_iiim_context_class;
     }
 }
 
@@ -6637,7 +6584,7 @@ nsWindow::SetIMEEnabled(PRUint32 aState)
             hildon_gtk_im_context_hide (focusedIm);
         }
 #endif
-
+        
     } else {
         if (IsIMEEditableState(mIMEData->mEnabled))
             ResetInputState();
@@ -7067,7 +7014,7 @@ nsWindow::BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVert
     }
 
     nsMouseEvent* mouse_event = static_cast<nsMouseEvent*>(aEvent);
-
+    
     if (mouse_event->button != nsMouseEvent::eLeftButton) {
       // you can only begin a resize drag with the left mouse button
       return NS_ERROR_INVALID_ARG;

@@ -278,8 +278,6 @@ function manifestUpdated()
 
 function manifestNoUpdate()
 {
-  applicationCache.onnoupdate = null;
-
   OfflineTest.ok(gStep == 3);
 
   OfflineTest.is(applicationCache.status, Components.interfaces.nsIDOMOfflineResourceList.UPDATEREADY,

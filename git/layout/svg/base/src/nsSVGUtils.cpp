@@ -208,29 +208,6 @@ GetFrameForContent(nsIContent* aContent)
   return nsGenericElement::GetPrimaryFrameFor(aContent, doc);
 }
 
-nsIContent*
-nsSVGUtils::GetParentElement(nsIContent *aContent)
-{
-  // XXXbz I _think_ this is right.  We want to be using the binding manager
-  // that would have attached the binding that gives us our anonymous parent.
-  // That's the binding manager for the document we actually belong to, which
-  // is our owner doc.
-  nsIDocument* ownerDoc = aContent->GetOwnerDoc();
-  nsBindingManager* bindingManager =
-    ownerDoc ? ownerDoc->BindingManager() : nsnull;
-
-  if (bindingManager) {
-    // if we have a binding manager -- do we have an anonymous parent?
-    nsIContent *result = bindingManager->GetInsertionParent(aContent);
-    if (result) {
-      return result;
-    }
-  }
-
-  // otherewise use the explicit one, whether it's null or not...
-  return aContent->GetParent();
-}
-
 float
 nsSVGUtils::GetFontSize(nsIContent *aContent)
 {
@@ -409,13 +386,31 @@ nsSVGUtils::GetNearestViewportElement(nsIContent *aContent,
 {
   *aNearestViewportElement = nsnull;
 
+  nsBindingManager *bindingManager = nsnull;
+  // XXXbz I _think_ this is right.  We want to be using the binding manager
+  // that would have attached the bindings that gives us our anonymous
+  // ancestors. That's the binding manager for the document we actually belong
+  // to, which is our owner doc.
+  nsIDocument* ownerDoc = aContent->GetOwnerDoc();
+  if (ownerDoc) {
+    bindingManager = ownerDoc->BindingManager();
+  }
+
   nsCOMPtr<nsIContent> element = aContent;
   nsCOMPtr<nsIContent> ancestor;
   unsigned short ancestorCount = 0;
 
   while (1) {
 
-    ancestor = GetParentElement(element);
+    ancestor = nsnull;
+    if (bindingManager) {
+      // check for an anonymous ancestor first
+      ancestor = bindingManager->GetInsertionParent(element);
+    }
+    if (!ancestor) {
+      // if we didn't find an anonymous ancestor, use the explicit one
+      ancestor = element->GetParent();
+    }
 
     nsCOMPtr<nsIDOMSVGFitToViewBox> fitToViewBox = do_QueryInterface(element);
 
@@ -444,6 +439,16 @@ nsSVGUtils::GetFarthestViewportElement(nsIContent *aContent,
 {
   *aFarthestViewportElement = nsnull;
 
+  nsBindingManager *bindingManager = nsnull;
+  // XXXbz I _think_ this is right.  We want to be using the binding manager
+  // that would have attached the bindings that gives us our anonymous
+  // ancestors. That's the binding manager for the document we actually belong
+  // to, which is our owner doc.
+  nsIDocument* ownerDoc = aContent->GetOwnerDoc();
+  if (ownerDoc) {
+    bindingManager = ownerDoc->BindingManager();
+  }
+
   nsCOMPtr<nsIContent> element = aContent;
   nsCOMPtr<nsIContent> ancestor;
   nsCOMPtr<nsIDOMSVGElement> SVGElement;
@@ -451,7 +456,15 @@ nsSVGUtils::GetFarthestViewportElement(nsIContent *aContent,
 
   while (1) {
 
-    ancestor = GetParentElement(element);
+    ancestor = nsnull;
+    if (bindingManager) {
+      // check for an anonymous ancestor first
+      ancestor = bindingManager->GetInsertionParent(element);
+    }
+    if (!ancestor) {
+      // if we didn't find an anonymous ancestor, use the explicit one
+      ancestor = element->GetParent();
+    }
 
     nsCOMPtr<nsIDOMSVGFitToViewBox> fitToViewBox = do_QueryInterface(element);
 
@@ -816,16 +829,9 @@ nsSVGUtils::GetCanvasTM(nsIFrame *aFrame)
   if (!aFrame->IsFrameOfType(nsIFrame::eSVG))
     return nsSVGIntegrationUtils::GetInitialMatrix(aFrame);
 
-  nsIAtom* type = aFrame->GetType();
-  if (!aFrame->IsLeaf() || type == nsGkAtoms::svgUseFrame) {
+  if (!aFrame->IsLeaf()) {
     // foreignObject is the one non-leaf svg frame that isn't a SVGContainer
-    // XXXbz no, no, and once again NO.  If you're going to call virtual
-    // methods on frames you best make VERY sure you have the right classes.
-    // How about... an actual interface with GetCanvasTM hanging off it, and an
-    // actual QI to that here?  Otherwise any time someone happens to touch an
-    // IsLeaf() implementation we'll end up calling virtual methods on an
-    // object via the wrong vtable.  See bug 481100.
-    if (type == nsGkAtoms::svgForeignObjectFrame) {
+    if (aFrame->GetType() == nsGkAtoms::svgForeignObjectFrame) {
       nsSVGForeignObjectFrame *foreignFrame =
         static_cast<nsSVGForeignObjectFrame*>(aFrame);
       return foreignFrame->GetCanvasTM();

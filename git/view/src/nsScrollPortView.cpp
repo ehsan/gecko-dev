@@ -525,8 +525,7 @@ void nsScrollPortView::Scroll(nsView *aScrolledView, nsPoint aTwipsDelta, nsIntP
     nsRegion updateRegion;
     PRBool canBitBlit = scrollWidget &&
                         ((mScrollProperties & NS_SCROLL_PROPERTY_ALWAYS_BLIT) ||
-                         mViewManager->CanScrollWithBitBlt(aScrolledView, aTwipsDelta, &updateRegion)) &&
-                        scrollWidget->GetTransparencyMode() != eTransparencyTransparent;
+                         mViewManager->CanScrollWithBitBlt(aScrolledView, aTwipsDelta, &updateRegion));
 
     if (canBitBlit) {
       // We're going to bit-blit.  Let the viewmanager know so it can

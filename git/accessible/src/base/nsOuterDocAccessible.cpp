@@ -53,8 +53,7 @@ nsOuterDocAccessible::nsOuterDocAccessible(nsIDOMNode* aNode,
 }
 
 /* unsigned long getRole (); */
-nsresult
-nsOuterDocAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsOuterDocAccessible::GetRole(PRUint32 *aRole)
 {
   *aRole = nsIAccessibleRole::ROLE_INTERNAL_FRAME;
   return NS_OK;

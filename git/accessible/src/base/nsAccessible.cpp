@@ -308,11 +308,9 @@ nsAccessible::GetName(nsAString& aName)
   if (content->GetAttr(kNameSpaceID_None, tooltipAttr, name)) {
     name.CompressWhitespace();
     aName = name;
-    return NS_OK_NAME_FROM_TOOLTIP;
-  }
-
-  if (rv != NS_OK_EMPTY_NAME)
+  } else if (rv != NS_OK_EMPTY_NAME) {
     aName.SetIsVoid(PR_TRUE);
+  }
 
   return NS_OK;
 }
@@ -1193,9 +1191,7 @@ nsAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
     return NS_OK;
 
   // Get direct child containing the deepest child at the given point.
-  nsCOMPtr<nsIAccessible> parent, accessible;
-  accessible.swap(*aAccessible);
-
+  nsCOMPtr<nsIAccessible> parent, accessible(*aAccessible);
   while (PR_TRUE) {
     accessible->GetParent(getter_AddRefs(parent));
     if (!parent) {
@@ -1588,8 +1584,7 @@ nsAccessible::FireAccessibleEvent(nsIAccessibleEvent *aEvent)
   return obsService->NotifyObservers(aEvent, NS_ACCESSIBLE_EVENT_TOPIC, nsnull);
 }
 
-NS_IMETHODIMP
-nsAccessible::GetRole(PRUint32 *aRole)
+NS_IMETHODIMP nsAccessible::GetFinalRole(PRUint32 *aRole)
 {
   NS_ENSURE_ARG_POINTER(aRole);
   *aRole = nsIAccessibleRole::ROLE_NOTHING;
@@ -1646,10 +1641,7 @@ nsAccessible::GetRole(PRUint32 *aRole)
       return NS_OK;
     }
   }
-
-  return mDOMNode ?
-    GetRoleInternal(aRole) :
-    NS_ERROR_FAILURE;  // Node already shut down
+  return mDOMNode ? GetRole(aRole) : NS_ERROR_FAILURE;  // Node already shut down
 }
 
 NS_IMETHODIMP
@@ -1993,13 +1985,13 @@ nsAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   }
 
   PRUint32 role;
-  rv = GetRole(&role);
+  rv = GetFinalRole(&role);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (role == nsIAccessibleRole::ROLE_ENTRY ||
       role == nsIAccessibleRole::ROLE_COMBOBOX) {
 
-    nsCOMPtr<nsIContent> content = nsCoreUtils::GetRoleContent(mDOMNode);
+    nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
     NS_ENSURE_STATE(content);
 
     nsAutoString autocomplete;
@@ -2250,9 +2242,9 @@ nsAccessible::GetKeyBindings(PRUint8 aActionIndex,
 }
 
 /* unsigned long getRole (); */
-nsresult
-nsAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsAccessible::GetRole(PRUint32 *aRole)
 {
+  NS_ENSURE_ARG_POINTER(aRole);
   *aRole = nsIAccessibleRole::ROLE_NOTHING;
 
   if (IsDefunct())
@@ -2308,9 +2300,7 @@ nsAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
      return NS_OK;
 
    case eCheckUncheckAction:
-     if (states & nsIAccessibleStates::STATE_MIXED)
-       aName.AssignLiteral("cycle");
-     else if (states & nsIAccessibleStates::STATE_CHECKED)
+     if (states & nsIAccessibleStates::STATE_CHECKED)
        aName.AssignLiteral("uncheck");
      else
        aName.AssignLiteral("check");

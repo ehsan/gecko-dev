@@ -264,9 +264,11 @@ nsXFormsContainerAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell):
 {
 }
 
-nsresult
-nsXFormsContainerAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP
+nsXFormsContainerAccessible::GetRole(PRUint32 *aRole)
 {
+  NS_ENSURE_ARG_POINTER(aRole);
+
   *aRole = nsIAccessibleRole::ROLE_GROUPING;
   return NS_OK;
 }

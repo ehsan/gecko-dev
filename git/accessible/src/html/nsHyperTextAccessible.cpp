@@ -133,8 +133,7 @@ nsAccessibleWrap(aNode, aShell)
 {
 }
 
-nsresult
-nsHyperTextAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsHyperTextAccessible::GetRole(PRUint32 *aRole)
 {
   nsCOMPtr<nsIContent> content = do_QueryInterface(mDOMNode);
   if (!content) {
@@ -212,7 +211,7 @@ void nsHyperTextAccessible::CacheChildren()
   // Special case for text entry fields, go directly to editor's root for children
   if (mAccChildCount == eChildCountUninitialized) {
     PRUint32 role;
-    GetRoleInternal(&role);
+    GetRole(&role);
     if (role != nsIAccessibleRole::ROLE_ENTRY && role != nsIAccessibleRole::ROLE_PASSWORD_TEXT) {
       nsAccessible::CacheChildren();
       return;

@@ -56,10 +56,9 @@ nsFormControlAccessible(aNode, aShell)
 /**
   * We are a pushbutton
   */
-nsresult
-nsXULColorPickerTileAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULColorPickerTileAccessible::GetRole(PRUint32 *_retval)
 {
-  *aRole = nsIAccessibleRole::ROLE_PUSHBUTTON;
+  *_retval = nsIAccessibleRole::ROLE_PUSHBUTTON;
   return NS_OK;
 }
 
@@ -131,10 +130,9 @@ nsXULColorPickerAccessible::GetStateInternal(PRUint32 *aState,
   return NS_OK;
 }
 
-nsresult
-nsXULColorPickerAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULColorPickerAccessible::GetRole(PRUint32 *_retval)
 {
-  *aRole = nsIAccessibleRole::ROLE_BUTTONDROPDOWNGRID;
+  *_retval = nsIAccessibleRole::ROLE_BUTTONDROPDOWNGRID;
   return NS_OK;
 }
 

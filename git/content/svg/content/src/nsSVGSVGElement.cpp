@@ -50,6 +50,7 @@
 #include "nsSVGPoint.h"
 #include "nsSVGTransform.h"
 #include "nsIDOMEventTarget.h"
+#include "nsBindingManager.h"
 #include "nsIFrame.h"
 #include "nsISVGSVGFrame.h" //XXX
 #include "nsSVGNumber.h"
@@ -774,13 +775,31 @@ nsSVGSVGElement::GetCTM(nsIDOMSVGMatrix **_retval)
 
   // first try to get the "screen" CTM of our nearest SVG ancestor
 
+  nsBindingManager *bindingManager = nsnull;
+  // XXXbz I _think_ this is right.  We want to be using the binding manager
+  // that would have attached the bindings that gives us our anonymous
+  // ancestors. That's the binding manager for the document we actually belong
+  // to, which is our owner doc.
+  nsIDocument* ownerDoc = GetOwnerDoc();
+  if (ownerDoc) {
+    bindingManager = ownerDoc->BindingManager();
+  }
+
   nsCOMPtr<nsIContent> element = this;
   nsCOMPtr<nsIContent> ancestor;
   unsigned short ancestorCount = 0;
   nsCOMPtr<nsIDOMSVGMatrix> ancestorCTM;
 
   while (1) {
-    ancestor = nsSVGUtils::GetParentElement(element);
+    ancestor = nsnull;
+    if (bindingManager) {
+      // check for an anonymous ancestor first
+      ancestor = bindingManager->GetInsertionParent(element);
+    }
+    if (!ancestor) {
+      // if we didn't find an anonymous ancestor, use the explicit one
+      ancestor = element->GetParent();
+    }
     if (!ancestor) {
       // reached the top of our parent chain without finding an SVG ancestor
       break;
@@ -878,13 +897,31 @@ nsSVGSVGElement::GetScreenCTM(nsIDOMSVGMatrix **_retval)
 
   // first try to get the "screen" CTM of our nearest SVG ancestor
 
+  nsBindingManager *bindingManager = nsnull;
+  // XXXbz I _think_ this is right.  We want to be using the binding manager
+  // that would have attached the bindings that gives us our anonymous
+  // ancestors. That's the binding manager for the document we actually belong
+  // to, which is our owner doc.
+  nsIDocument* ownerDoc = GetOwnerDoc();
+  if (ownerDoc) {
+    bindingManager = ownerDoc->BindingManager();
+  }
+
   nsCOMPtr<nsIContent> element = this;
   nsCOMPtr<nsIContent> ancestor;
   unsigned short ancestorCount = 0;
   nsCOMPtr<nsIDOMSVGMatrix> ancestorScreenCTM;
 
   while (1) {
-    ancestor = nsSVGUtils::GetParentElement(element);
+    ancestor = nsnull;
+    if (bindingManager) {
+      // check for an anonymous ancestor first
+      ancestor = bindingManager->GetInsertionParent(element);
+    }
+    if (!ancestor) {
+      // if we didn't find an anonymous ancestor, use the explicit one
+      ancestor = element->GetParent();
+    }
     if (!ancestor) {
       // reached the top of our parent chain without finding an SVG ancestor
       break;
@@ -1284,26 +1321,15 @@ nsSVGSVGElement::BindToTree(nsIDocument* aDocument,
                             nsIContent* aBindingParent,
                             PRBool aCompileEventHandlers)
 {
-  nsSMILAnimationController* smilController = nsnull;
+  PRBool outermost = WillBeOutermostSVG(aParent, aBindingParent);
 
-  if (aDocument) {
-    smilController = aDocument->GetAnimationController();
-    if (smilController) {
-      // SMIL is enabled in this document
-      if (WillBeOutermostSVG(aParent, aBindingParent)) {
-        // We'll be the outermost <svg> element.  We'll need a time container.
-        if (!mTimedDocumentRoot) {
-          mTimedDocumentRoot = new nsSMILTimeContainer();
-          NS_ENSURE_TRUE(mTimedDocumentRoot, NS_ERROR_OUT_OF_MEMORY);
-        }
-      } else {
-        // We're a child of some other <svg> element, so we don't need our own
-        // time container. However, we need to make sure that we'll get a
-        // kick-start if we get promoted to be outermost later on.
-        mTimedDocumentRoot = nsnull;
-        mStartAnimationOnBindToTree = PR_TRUE;
-      }
-    }
+  if (!mTimedDocumentRoot && outermost) {
+    // We will now be the outermost SVG element
+    mTimedDocumentRoot = new nsSMILTimeContainer();
+    NS_ENSURE_TRUE(mTimedDocumentRoot, NS_ERROR_OUT_OF_MEMORY);
+  } else if (!outermost) {
+    mTimedDocumentRoot = nsnull;
+    mStartAnimationOnBindToTree = PR_TRUE;
   }
 
   nsresult rv = nsSVGSVGElementBase::BindToTree(aDocument, aParent,
@@ -1311,8 +1337,14 @@ nsSVGSVGElement::BindToTree(nsIDocument* aDocument,
                                                 aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv,rv);
 
-  if (mTimedDocumentRoot && smilController) {
-    rv = mTimedDocumentRoot->SetParent(smilController);
+  if (mTimedDocumentRoot) {
+    if (aDocument) {
+      nsSMILAnimationController* smilController = 
+        aDocument->GetAnimationController();
+      if (smilController) {
+        rv = mTimedDocumentRoot->SetParent(smilController);
+      }
+    }
     if (mStartAnimationOnBindToTree) {
       mTimedDocumentRoot->Begin();
     }
@@ -1330,6 +1362,7 @@ nsSVGSVGElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 
   nsSVGSVGElementBase::UnbindFromTree(aDeep, aNullParent);
 }
+
 #endif // MOZ_SMIL
 
 //----------------------------------------------------------------------

@@ -352,8 +352,10 @@ nsHttpTransaction::OnTransportStatus(nsresult status, PRUint64 progress)
     
     NS_ASSERTION(PR_GetCurrentThread() == gSocketThread, "wrong thread");
 
-    // Need to do this before the STATUS_RECEIVING_FROM check below, to make
-    // sure that the activity distributor gets told about all status events.
+    // nsHttpChannel synthesizes progress events in OnDataAvailable
+    if (status == nsISocketTransport::STATUS_RECEIVING_FROM)
+        return;
+
     if (mActivityDistributor) {
         // upon STATUS_WAITING_FOR; report request body sent
         if ((mHasRequestBody) &&
@@ -373,10 +375,6 @@ nsHttpTransaction::OnTransportStatus(nsresult status, PRUint64 progress)
             progress,
             EmptyCString());
     }
-
-    // nsHttpChannel synthesizes progress events in OnDataAvailable
-    if (status == nsISocketTransport::STATUS_RECEIVING_FROM)
-        return;
 
     nsUint64 progressMax;
 

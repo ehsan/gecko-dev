@@ -355,8 +355,7 @@ nsHTMLSelectListAccessible::GetStateInternal(PRUint32 *aState,
   return NS_OK;
 }
 
-nsresult
-nsHTMLSelectListAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsHTMLSelectListAccessible::GetRole(PRUint32 *aRole)
 {
   if (nsAccUtils::Role(mParent) == nsIAccessibleRole::ROLE_COMBOBOX)
     *aRole = nsIAccessibleRole::ROLE_COMBOBOX_LIST;
@@ -487,8 +486,9 @@ nsHyperTextAccessibleWrap(aDOMNode, aShell)
     // where there is no DOM node for it.
     accService->GetAccessibleInWeakShell(parentNode, mWeakShell, getter_AddRefs(parentAccessible));
     if (parentAccessible) {
-      if (nsAccUtils::RoleInternal(parentAccessible) ==
-          nsIAccessibleRole::ROLE_COMBOBOX) {
+      PRUint32 role;
+      parentAccessible->GetRole(&role);
+      if (role == nsIAccessibleRole::ROLE_COMBOBOX) {
         nsCOMPtr<nsIAccessible> comboAccessible(parentAccessible);
         comboAccessible->GetLastChild(getter_AddRefs(parentAccessible));
       }
@@ -498,8 +498,7 @@ nsHyperTextAccessibleWrap(aDOMNode, aShell)
 }
 
 /** We are a ListItem */
-nsresult
-nsHTMLSelectOptionAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsHTMLSelectOptionAccessible::GetRole(PRUint32 *aRole)
 {
   if (nsAccUtils::Role(mParent) == nsIAccessibleRole::ROLE_COMBOBOX_LIST)
     *aRole = nsIAccessibleRole::ROLE_COMBOBOX_OPTION;
@@ -904,8 +903,8 @@ nsHTMLSelectOptionAccessible(aDOMNode, aShell)
 {
 }
 
-nsresult
-nsHTMLSelectOptGroupAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP
+nsHTMLSelectOptGroupAccessible::GetRole(PRUint32 *aRole)
 {
   *aRole = nsIAccessibleRole::ROLE_HEADING;
   return NS_OK;
@@ -970,10 +969,9 @@ nsAccessibleWrap(aDOMNode, aShell)
 }
 
 /** We are a combobox */
-nsresult
-nsHTMLComboboxAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsHTMLComboboxAccessible::GetRole(PRUint32 *_retval)
 {
-  *aRole = nsIAccessibleRole::ROLE_COMBOBOX;
+  *_retval = nsIAccessibleRole::ROLE_COMBOBOX;
   return NS_OK;
 }
 
@@ -1351,10 +1349,9 @@ void nsHTMLComboboxButtonAccessible::GetBoundsRect(nsRect& aBounds, nsIFrame** a
 }
 
 /** We are a button. */
-nsresult
-nsHTMLComboboxButtonAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsHTMLComboboxButtonAccessible::GetRole(PRUint32 *_retval)
 {
-  *aRole = nsIAccessibleRole::ROLE_PUSHBUTTON;
+  *_retval = nsIAccessibleRole::ROLE_PUSHBUTTON;
   return NS_OK;
 }
 

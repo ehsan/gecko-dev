@@ -105,10 +105,9 @@ NS_IMETHODIMP nsXULButtonAccessible::DoAction(PRUint8 index)
 /**
   * We are a pushbutton
   */
-nsresult
-nsXULButtonAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULButtonAccessible::GetRole(PRUint32 *_retval)
 {
-  *aRole = nsIAccessibleRole::ROLE_PUSHBUTTON;
+  *_retval = nsIAccessibleRole::ROLE_PUSHBUTTON;
   return NS_OK;
 }
 
@@ -193,9 +192,10 @@ void nsXULButtonAccessible::CacheChildren()
     // and the last one is a push button, then use it as the only accessible 
     // child -- because this is the scenario where we have a dropmarker child
 
-    if (dropMarkerAccessible) {
-      if (nsAccUtils::RoleInternal(dropMarkerAccessible) ==
-          nsIAccessibleRole::ROLE_PUSHBUTTON) {
+    if (dropMarkerAccessible) {    
+      PRUint32 role;
+      if (NS_SUCCEEDED(dropMarkerAccessible->GetRole(&role)) &&
+          role == nsIAccessibleRole::ROLE_PUSHBUTTON) {
         SetFirstChild(dropMarkerAccessible);
         nsCOMPtr<nsPIAccessible> privChildAcc = do_QueryInterface(dropMarkerAccessible);
         privChildAcc->SetNextSibling(nsnull);
@@ -283,10 +283,9 @@ NS_IMETHODIMP nsXULDropmarkerAccessible::DoAction(PRUint8 index)
 /**
   * We are a pushbutton
   */
-nsresult
-nsXULDropmarkerAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULDropmarkerAccessible::GetRole(PRUint32 *aResult)
 {
-  *aRole = nsIAccessibleRole::ROLE_PUSHBUTTON;
+  *aResult = nsIAccessibleRole::ROLE_PUSHBUTTON;
   return NS_OK;
 }
 
@@ -327,10 +326,9 @@ nsFormControlAccessible(aNode, aShell)
 /**
   * We are a CheckButton
   */
-nsresult
-nsXULCheckboxAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULCheckboxAccessible::GetRole(PRUint32 *_retval)
 {
-  *aRole = nsIAccessibleRole::ROLE_CHECKBUTTON;
+  *_retval = nsIAccessibleRole::ROLE_CHECKBUTTON;
   return NS_OK;
 }
 
@@ -414,8 +412,7 @@ nsAccessibleWrap(aNode, aShell)
 { 
 }
 
-nsresult
-nsXULGroupboxAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULGroupboxAccessible::GetRole(PRUint32 *aRole)
 {
   *aRole = nsIAccessibleRole::ROLE_GROUPING;
   return NS_OK;
@@ -478,10 +475,9 @@ nsFormControlAccessible(aNode, aShell)
 { 
 }
 
-nsresult
-nsXULProgressMeterAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULProgressMeterAccessible::GetRole(PRUint32 *_retval)
 {
-  *aRole = nsIAccessibleRole::ROLE_PROGRESSBAR;
+  *_retval = nsIAccessibleRole::ROLE_PROGRESSBAR;
   return NS_OK;
 }
 
@@ -605,10 +601,9 @@ nsXULSelectableAccessible(aNode, aShell)
 { 
 }
 
-nsresult
-nsXULRadioGroupAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULRadioGroupAccessible::GetRole(PRUint32 *_retval)
 {
-  *aRole = nsIAccessibleRole::ROLE_GROUPING;
+  *_retval = nsIAccessibleRole::ROLE_GROUPING;
   return NS_OK;
 }
 
@@ -642,10 +637,9 @@ nsAccessibleWrap(aNode, aShell)
 /**
   * We are a statusbar
   */
-nsresult
-nsXULStatusBarAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULStatusBarAccessible::GetRole(PRUint32 *_retval)
 {
-  *aRole = nsIAccessibleRole::ROLE_STATUSBAR;
+  *_retval = nsIAccessibleRole::ROLE_STATUSBAR;
   return NS_OK;
 }
 
@@ -719,10 +713,9 @@ nsAccessibleWrap(aNode, aShell)
 { 
 }
 
-nsresult
-nsXULToolbarAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULToolbarAccessible::GetRole(PRUint32 *_retval)
 {
-  *aRole = nsIAccessibleRole::ROLE_TOOLBAR;
+  *_retval = nsIAccessibleRole::ROLE_TOOLBAR;
   return NS_OK;
 }
 
@@ -735,10 +728,9 @@ nsLeafAccessible(aNode, aShell)
 { 
 }
 
-nsresult
-nsXULToolbarSeparatorAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULToolbarSeparatorAccessible::GetRole(PRUint32 *_retval)
 {
-  *aRole = nsIAccessibleRole::ROLE_SEPARATOR;
+  *_retval = nsIAccessibleRole::ROLE_SEPARATOR;
   return NS_OK;
 }
 
@@ -873,8 +865,7 @@ nsXULTextFieldAccessible::GetStateInternal(PRUint32 *aState,
   return NS_OK;
 }
 
-nsresult
-nsXULTextFieldAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULTextFieldAccessible::GetRole(PRUint32 *aRole)
 {
   *aRole = nsIAccessibleRole::ROLE_ENTRY;
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));

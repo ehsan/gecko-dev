@@ -71,8 +71,7 @@ nsHyperTextAccessibleWrap(aDomNode, aShell)
 }
 
 /* unsigned long getRole (); */
-nsresult
-nsHTMLTableCellAccessible::GetRoleInternal(PRUint32 *aResult)
+NS_IMETHODIMP nsHTMLTableCellAccessible::GetRole(PRUint32 *aResult)
 {
   *aResult = nsIAccessibleRole::ROLE_CELL;
   return NS_OK;
@@ -189,8 +188,7 @@ void nsHTMLTableAccessible::CacheChildren()
 }
 
 /* unsigned long getRole (); */
-nsresult
-nsHTMLTableAccessible::GetRoleInternal(PRUint32 *aResult)
+NS_IMETHODIMP nsHTMLTableAccessible::GetRole(PRUint32 *aResult)
 {
   *aResult = nsIAccessibleRole::ROLE_TABLE;
   return NS_OK;
@@ -1209,10 +1207,10 @@ nsHTMLTableAccessible(aDomNode, aShell)
 {
 }
 
-nsresult
-nsHTMLTableHeadAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP
+nsHTMLTableHeadAccessible::GetRole(PRUint32 *aResult)
 {
-  *aRole = nsIAccessibleRole::ROLE_COLUMNHEADER;
+  *aResult = nsIAccessibleRole::ROLE_COLUMNHEADER;
   return NS_OK;
 }
 
@@ -1249,9 +1247,6 @@ nsHTMLTableHeadAccessible::GetRows(PRInt32 *aRows)
   return rows->GetLength((PRUint32 *)aRows);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsHTMLCaptionAccessible
-
 NS_IMETHODIMP
 nsHTMLCaptionAccessible::GetRelationByType(PRUint32 aRelationType,
                                            nsIAccessibleRelation **aRelation)
@@ -1269,9 +1264,5 @@ nsHTMLCaptionAccessible::GetRelationByType(PRUint32 aRelationType,
   return NS_OK;
 }
 
-nsresult
-nsHTMLCaptionAccessible::GetRoleInternal(PRUint32 *aRole)
-{
-  *aRole = nsIAccessibleRole::ROLE_CAPTION;
-  return NS_OK;
-}
+
+

@@ -54,7 +54,6 @@
 #include "gfxMatrix.h"
 #include "gfxPlatform.h"
 #include "gfxTextRunWordCache.h"
-#include "nsTextFrame.h"
 
 struct CharacterPosition {
   gfxPoint pos;
@@ -299,11 +298,6 @@ nsSVGGlyphFrame::Init(nsIContent* aContent,
   NS_ASSERTION(aContent->IsNodeOfType(nsINode::eTEXT),
                "trying to construct an SVGGlyphFrame for wrong content element");
 
-  nsresult rv = nsLayoutUtils::InitTextRunContainerForPrinting(aContent,
-                                                               this,
-                                                               NS_STATE_SVG_PRINTING);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   return nsSVGGlyphFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
 #endif /* DEBUG */
@@ -546,7 +540,7 @@ nsSVGGlyphFrame::AddBoundingBoxesToPath(CharacterIterator *aIter,
   if (aIter->SetupForDirectTextRunMetrics(aContext)) {
     gfxTextRun::Metrics metrics =
       mTextRun->MeasureText(0, mTextRun->GetLength(),
-                            gfxFont::LOOSE_INK_EXTENTS, nsnull, nsnull);
+                            PR_FALSE, nsnull, nsnull);
     aContext->Rectangle(metrics.mBoundingBox);
     return;
   }
@@ -555,7 +549,7 @@ nsSVGGlyphFrame::AddBoundingBoxesToPath(CharacterIterator *aIter,
   while ((i = aIter->NextChar()) >= 0) {
     aIter->SetupForMetrics(aContext);
     gfxTextRun::Metrics metrics =
-      mTextRun->MeasureText(i, 1, gfxFont::LOOSE_INK_EXTENTS, nsnull, nsnull);
+      mTextRun->MeasureText(i, 1, PR_FALSE, nsnull, nsnull);
     aContext->Rectangle(metrics.mBoundingBox);
   }
 }
@@ -616,7 +610,7 @@ PRBool
 nsSVGGlyphFrame::GetCharacterData(nsAString & aCharacterData)
 {
   nsAutoString characterData;
-  GetFragment()->AppendTo(characterData);
+  mContent->AppendTextTo(characterData);
 
   if (mWhitespaceHandling & COMPRESS_WHITESPACE) {
     PRBool trimLeadingWhitespace, trimTrailingWhitespace;
@@ -768,7 +762,7 @@ nsSVGGlyphFrame::GetHighlight(PRUint32 *charnum, PRUint32 *nchars,
 
   // The selection ranges are relative to the uncompressed text in
   // the content element. We'll need the text fragment:
-  const nsTextFragment* fragment = GetFragment();
+  const nsTextFragment *fragment = mContent->GetText();
   NS_ASSERTION(fragment, "no text");
   
   // get the selection details 
@@ -895,8 +889,7 @@ nsSVGGlyphFrame::GetExtentOfChar(PRUint32 charnum, nsIDOMSVGRect **_retval)
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
   gfxTextRun::Metrics metrics =
-    mTextRun->MeasureText(start, limit - start, gfxFont::LOOSE_INK_EXTENTS,
-                          nsnull, nsnull);
+    mTextRun->MeasureText(start, limit - start, PR_FALSE, nsnull, nsnull);
 
   nsRefPtr<gfxContext> tmpCtx = MakeTmpCtx();
   iter.SetupForMetrics(tmpCtx);
@@ -934,7 +927,7 @@ nsSVGGlyphFrame::GetBaselineOffset(PRUint16 baselineIdentifier,
 
   gfxTextRun::Metrics metrics =
     mTextRun->MeasureText(0, mTextRun->GetLength(),
-                          gfxFont::LOOSE_INK_EXTENTS, nsnull, nsnull);
+                          PR_FALSE, nsnull, nsnull);
 
   gfxFloat baselineAppUnits;
   switch (baselineIdentifier) {
@@ -1086,7 +1079,7 @@ NS_IMETHODIMP_(PRUint32)
 nsSVGGlyphFrame::GetNumberOfChars()
 {
   if (mWhitespaceHandling == PRESERVE_WHITESPACE)
-    return GetFragment()->GetLength();
+    return mContent->TextLength();
 
   nsAutoString text;
   GetCharacterData(text);
@@ -1132,8 +1125,7 @@ nsSVGGlyphFrame::GetCharNumAtPosition(nsIDOMSVGPoint *point)
       ++limit;
     }
     gfxTextRun::Metrics metrics =
-      mTextRun->MeasureText(i, limit - i, gfxFont::LOOSE_INK_EXTENTS,
-                            nsnull, nsnull);
+      mTextRun->MeasureText(i, limit - i, PR_FALSE, nsnull, nsnull);
 
     // the SVG spec tells us to divide the width of the cluster equally among
     // its chars, so we'll step through the chars, allocating a share of the
@@ -1228,7 +1220,7 @@ nsSVGGlyphFrame::ContainsPoint(const nsPoint &aPoint)
   PRInt32 i;
   while ((i = iter.NextChar()) >= 0) {
     gfxTextRun::Metrics metrics =
-      mTextRun->MeasureText(i, 1, gfxFont::LOOSE_INK_EXTENTS, nsnull, nsnull);
+      mTextRun->MeasureText(i, 1, PR_FALSE, nsnull, nsnull);
     iter.SetupForMetrics(tmpCtx);
     tmpCtx->Rectangle(metrics.mBoundingBox);
   }

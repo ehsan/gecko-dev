@@ -676,7 +676,6 @@ nsHttpChannel::SetupTransaction()
     // See bug #466080. Transfer LOAD_ANONYMOUS flag to socket-layer.
     if (mLoadFlags & LOAD_ANONYMOUS) {
         mCaps |= NS_HTTP_LOAD_ANONYMOUS;
-        mConnectionInfo->SetAnonymous();
     }
 
     nsCOMPtr<nsIAsyncInputStream> responseStream;
@@ -1062,9 +1061,6 @@ nsHttpChannel::ProcessNormal()
 nsresult
 nsHttpChannel::PromptTempRedirect()
 {
-    if (!gHttpHandler->PromptTempRedirect()) {
-        return NS_OK;
-    }
     nsresult rv;
     nsCOMPtr<nsIStringBundleService> bundleService =
             do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);

@@ -84,7 +84,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericDOMDataNode)
   nsIDocument* currentDoc = tmp->GetCurrentDoc();
   if (currentDoc && nsCCUncollectableMarker::InGeneration(
                       currentDoc->GetMarkedCCGeneration())) {
-    return NS_SUCCESS_INTERRUPTED_TRAVERSE;
+    return NS_OK;
   }
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mNodeInfo)
@@ -545,7 +545,8 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                  "Trying to re-bind content from native anonymous subtree to "
                  "non-native anonymous parent!");
     slots->mBindingParent = aBindingParent; // Weak, so no addref happens.
-    if (aParent->IsInNativeAnonymousSubtree()) {
+    if (IsRootOfNativeAnonymousSubtree() ||
+        aParent->IsInNativeAnonymousSubtree()) {
       SetFlags(NODE_IS_IN_ANONYMOUS_SUBTREE);
     }
   }

@@ -777,7 +777,7 @@ getRoleCB(AtkObject *aAtkObj)
 
     if (aAtkObj->role == ATK_ROLE_INVALID) {
         PRUint32 accRole, atkRole;
-        nsresult rv = accWrap->GetRole(&accRole);
+        nsresult rv = accWrap->GetFinalRole(&accRole);
         NS_ENSURE_SUCCESS(rv, ATK_ROLE_INVALID);
 
         atkRole = atkRoleMap[accRole]; // map to the actual value

@@ -354,11 +354,6 @@ nsPluginInstanceTag::~nsPluginInstanceTag()
       rv = peer->GetOwner(getter_AddRefs(owner));
       if (owner)
         owner->SetInstance(nsnull);
-
-      nsCOMPtr<nsIPluginInstancePeer2> peer2(do_QueryInterface(peer));
-
-      if (peer2)
-        peer2->InvalidateOwner();
     }
 
     // now check for cached plugins because they haven't had nsIPluginInstance::Destroy()
@@ -3783,7 +3778,7 @@ nsPluginHostImpl::TrySetUpPluginInstance(const char *aMimeType,
   // legacy plugin
   if (NS_FAILED(result)) {
     if (plugin) {
-#if defined(XP_WIN) && !defined(WINCE)
+#ifdef XP_WIN
       static BOOL firstJavaPlugin = FALSE;
       BOOL restoreOrigDir = FALSE;
       char origDir[_MAX_PATH];
@@ -3803,7 +3798,7 @@ nsPluginHostImpl::TrySetUpPluginInstance(const char *aMimeType,
 #endif
       result = plugin->CreateInstance(NULL, kIPluginInstanceIID, (void **)getter_AddRefs(instance));
 
-#if defined(XP_WIN) && !defined(WINCE)
+#ifdef XP_WIN
       if (!firstJavaPlugin && restoreOrigDir) {
         BOOL bCheck = ::SetCurrentDirectory(origDir);
         NS_ASSERTION(bCheck, " Error restoring driectoy");

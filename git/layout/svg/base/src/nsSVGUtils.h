@@ -93,9 +93,6 @@ class nsISVGChildFrame;
 
 #define NS_STATE_SVG_PROPAGATE_TRANSFORM 0x00800000
 
-// nsSVGGlyphFrame uses this when the frame is within a non-dynamic PresContext.
-#define NS_STATE_SVG_PRINTING 0x01000000
-
 /**
  * Byte offsets of channels in a native packed gfxColor or cairo image surface.
  */
@@ -184,11 +181,6 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsISVGFilterProperty, NS_ISVGFILTERPROPERTY_IID)
 class nsSVGUtils
 {
 public:
-  /*
-   * Get the parent element of an nsIContent
-   */
-  static nsIContent *GetParentElement(nsIContent *aContent);
-
   /*
    * Get a font-size (em) of an nsIContent
    */

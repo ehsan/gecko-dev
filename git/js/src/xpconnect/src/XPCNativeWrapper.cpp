@@ -193,8 +193,7 @@ ThrowException(nsresult ex, JSContext *cx)
 
 static inline
 JSBool
-EnsureLegalActivity(JSContext *cx, JSObject *obj,
-                    jsval id = JSVAL_VOID, PRUint32 accessType = 0)
+EnsureLegalActivity(JSContext *cx, JSObject *obj)
 {
   nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
   if (!ssm) {
@@ -228,18 +227,6 @@ EnsureLegalActivity(JSContext *cx, JSObject *obj,
     PRBool subsumes;
     if (NS_FAILED(subjectPrincipal->Subsumes(objectPrincipal, &subsumes)) ||
         !subsumes) {
-
-      JSObject* flatObj;
-      if (!JSVAL_IS_VOID(id) &&
-          (accessType & (XPCWrapper::sSecMgrSetProp |
-                         XPCWrapper::sSecMgrGetProp)) &&
-          (flatObj = wn->GetFlatJSObject())) {
-        rv = ssm->CheckPropertyAccess(cx, flatObj,
-                                      STOBJ_GET_CLASS(flatObj)->name,
-                                      id, accessType);
-        return NS_SUCCEEDED(rv);
-      }
-
       return ThrowException(NS_ERROR_XPC_SECURITY_MANAGER_VETO, cx);
     }
   }
@@ -349,9 +336,6 @@ XPC_NW_WrapFunction(JSContext* cx, JSObject* funobj, jsval *rval)
   JSObject* funWrapperObj = ::JS_GetFunctionObject(funWrapper);
   ::JS_SetParent(cx, funWrapperObj, funobj);
   *rval = OBJECT_TO_JSVAL(funWrapperObj);
-
-  JS_SetReservedSlot(cx, funWrapperObj, XPCWrapper::eAllAccessSlot, JSVAL_FALSE);
-
   return JS_TRUE;
 }
 
@@ -379,17 +363,13 @@ XPC_NW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 
   jsval flags;
   ::JS_GetReservedSlot(cx, obj, 0, &flags);
-  // The purpose of XPC_NW_AddProperty is to wrap any object set on the
-  // XPCNativeWrapper by the wrapped object's scriptable helper, so bail
-  // here if the scriptable helper is not currently adding a property.
-  // See comment above #define FLAG_RESOLVING in XPCWrapper.h.
   if (!HAS_FLAGS(flags, FLAG_RESOLVING)) {
     return JS_TRUE;
   }
 
   // Note: no need to protect *vp from GC here, since it's already in the slot
   // on |obj|.
-  return EnsureLegalActivity(cx, obj, id, XPCWrapper::sSecMgrSetProp) &&
+  return EnsureLegalActivity(cx, obj) &&
          XPC_NW_RewrapIfDeepWrapper(cx, obj, *vp, vp);
 }
 
@@ -518,19 +498,11 @@ XPC_NW_FunctionWrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
   // The real method we're going to call is the parent of this
   // function's JSObject.
   JSObject *methodToCallObj = STOBJ_GET_PARENT(funObj);
-  XPCWrappedNative* wrappedNative = nsnull;
+  XPCWrappedNative *wrappedNative;
 
-  jsval isAllAccess;
-  if (::JS_GetReservedSlot(cx, funObj,
-                           XPCWrapper::eAllAccessSlot,
-                           &isAllAccess) &&
-      JSVAL_TO_BOOLEAN(isAllAccess)) {
-    wrappedNative = XPCNativeWrapper::SafeGetWrappedNative(obj);
-  } else if (!XPCNativeWrapper::GetWrappedNative(cx, obj, &wrappedNative)) {
-    wrappedNative = nsnull;
-  }
-
-  if (!wrappedNative || !::JS_ObjectIsFunction(cx, methodToCallObj)) {
+  if (!XPCNativeWrapper::GetWrappedNative(cx, obj, &wrappedNative) ||
+      !::JS_ObjectIsFunction(cx, methodToCallObj) ||
+      !wrappedNative) {
     return ThrowException(NS_ERROR_UNEXPECTED, cx);
   }
 
@@ -566,9 +538,7 @@ XPC_NW_GetOrSetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp,
     }
   }
 
-  if (!EnsureLegalActivity(cx, obj, id,
-                           aIsSet ? XPCWrapper::sSecMgrSetProp
-                                  : XPCWrapper::sSecMgrGetProp)) {
+  if (!EnsureLegalActivity(cx, obj)) {
     return JS_FALSE;
   }
 
@@ -675,26 +645,11 @@ XPC_NW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
 
   if (id == GetRTStringByIndex(cx, XPCJSRuntime::IDX_TO_STRING)) {
     *objp = obj;
-
-    // See the comment in XPC_NW_WrapFunction for why we create this function
-    // like this.
-    JSFunction *fun = JS_NewFunction(cx, XPC_NW_toString, 0, 0, nsnull,
-                                     "toString");
-    if (!fun) {
-      return JS_FALSE;
-    }
-
-    JSObject *funobj = JS_GetFunctionObject(fun);
-    STOBJ_SET_PARENT(funobj, obj);
-
-    return JS_DefineProperty(cx, obj, "toString", OBJECT_TO_JSVAL(funobj),
-                             nsnull, nsnull, 0);
+    return JS_DefineFunction(cx, obj, "toString",
+                             XPC_NW_toString, 0, 0) != nsnull;
   }
 
-  PRUint32 accessType =
-    (flags & JSRESOLVE_ASSIGNING) ? XPCWrapper::sSecMgrSetProp
-                                  : XPCWrapper::sSecMgrGetProp;
-  if (!EnsureLegalActivity(cx, obj, id, accessType)) {
+  if (!EnsureLegalActivity(cx, obj)) {
     return JS_FALSE;
   }
 
@@ -1244,16 +1199,7 @@ XPCNativeWrapper::GetNewOrUsed(JSContext *cx, XPCWrappedNative *wrapper,
   nsCOMPtr<nsIXPConnectWrappedJS> xpcwrappedjs(do_QueryWrappedNative(wrapper));
 
   if (xpcwrappedjs) {
-    JSObject *flat = wrapper->GetFlatJSObject();
-    jsval v = OBJECT_TO_JSVAL(flat);
-
-    XPCCallContext ccx(JS_CALLER, cx);
-
-    // Make sure v doesn't get collected while we're re-wrapping it.
-    AUTO_MARK_JSVAL(ccx, v);
-
-    if (XPC_SJOW_Construct(cx, nsnull, 1, &v, &v))
-        return JSVAL_TO_OBJECT(v);
+    XPCThrower::Throw(NS_ERROR_INVALID_ARG, cx);
 
     return nsnull;
   }

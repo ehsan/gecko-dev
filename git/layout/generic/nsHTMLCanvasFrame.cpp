@@ -49,41 +49,6 @@
 
 #include "nsTransform2D.h"
 
-
-class nsDisplayItemCanvas : public nsDisplayItem {
-public:
-  nsDisplayItemCanvas(nsIFrame* aFrame)
-    : nsDisplayItem(aFrame)
-  {
-    MOZ_COUNT_CTOR(nsDisplayItemCanvas);
-  }
-#ifdef NS_BUILD_REFCNT_LOGGING
-  virtual ~nsDisplayItemCanvas() {
-    MOZ_COUNT_DTOR(nsDisplayItemCanvas);
-  }
-#endif
-
-  NS_DISPLAY_DECL_NAME("nsDisplayItemCanvas")
-  
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
-                     const nsRect& aDirtyRect) {
-    nsHTMLCanvasFrame* f = static_cast<nsHTMLCanvasFrame*>(GetUnderlyingFrame());
-    f->PaintCanvas(*aCtx, aDirtyRect, aBuilder->ToReferenceFrame(f));
-  }
-
-  virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder) {
-    nsIFrame* f = GetUnderlyingFrame();
-    nsCOMPtr<nsICanvasElement> canvas(do_QueryInterface(f->GetContent()));
-    return canvas->GetIsOpaque();
-  }
-
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder) {
-    nsHTMLCanvasFrame* f = static_cast<nsHTMLCanvasFrame*>(GetUnderlyingFrame());
-    return f->GetInnerArea() + aBuilder->ToReferenceFrame(f);
-  }
-};
-
-
 nsIFrame*
 NS_NewHTMLCanvasFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
@@ -264,6 +229,12 @@ nsHTMLCanvasFrame::PaintCanvas(nsIRenderingContext& aRenderingContext,
   }
 }
 
+static void PaintCanvas(nsIFrame* aFrame, nsIRenderingContext* aCtx,
+                        const nsRect& aDirtyRect, nsPoint aPt)
+{
+  static_cast<nsHTMLCanvasFrame*>(aFrame)->PaintCanvas(*aCtx, aDirtyRect, aPt);
+}
+
 NS_IMETHODIMP
 nsHTMLCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                     const nsRect&           aDirtyRect,
@@ -276,7 +247,7 @@ nsHTMLCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = aLists.Content()->AppendNewToTop(new (aBuilder)
-         nsDisplayItemCanvas(this));
+         nsDisplayGeneric(this, ::PaintCanvas, "Canvas"));
   NS_ENSURE_SUCCESS(rv, rv);
 
   return DisplaySelectionOverlay(aBuilder, aLists,

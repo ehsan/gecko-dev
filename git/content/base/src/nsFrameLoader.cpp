@@ -297,11 +297,11 @@ static void
 FirePageHideEvent(nsIDocShellTreeItem* aItem,
                   nsIDOMEventTarget* aChromeEventHandler)
 {
+  nsPageTransitionEvent event(PR_TRUE, NS_PAGE_HIDE, PR_TRUE);
   nsCOMPtr<nsIDOMDocument> doc = do_GetInterface(aItem);
-  nsCOMPtr<nsIDocument> internalDoc = do_QueryInterface(doc);
-  NS_ASSERTION(internalDoc, "What happened here?");
-  internalDoc->OnPageHide(PR_TRUE, aChromeEventHandler);
-
+  event.target = do_QueryInterface(doc);
+  nsEventDispatcher::Dispatch(aChromeEventHandler, nsnull, &event);
+  
   PRInt32 childCount = 0;
   aItem->GetChildCount(&childCount);
   nsAutoTArray<nsCOMPtr<nsIDocShellTreeItem>, 8> kids;
@@ -344,7 +344,9 @@ FirePageShowEvent(nsIDocShellTreeItem* aItem,
   nsCOMPtr<nsIDocument> internalDoc = do_QueryInterface(doc);
   NS_ASSERTION(internalDoc, "What happened here?");
   if (internalDoc->IsShowing() == aFireIfShowing) {
-    internalDoc->OnPageShow(PR_TRUE, aChromeEventHandler);
+    nsPageTransitionEvent event(PR_TRUE, NS_PAGE_SHOW, PR_TRUE);
+    event.target = do_QueryInterface(doc);
+    nsEventDispatcher::Dispatch(aChromeEventHandler, nsnull, &event);
   }
 }
 

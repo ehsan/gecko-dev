@@ -497,14 +497,20 @@ typedef enum {
 #define LDR_chk(_d,_b,_off,_chk) do {                                   \
         if (IsFpReg(_d)) {                                              \
             FLDD_chk(_d,_b,_off,_chk);                                  \
-        } else if ((_off) > -4096 && (_off) < 4096) {                   \
+        } else if ((_off)<0) {                                          \
             if (_chk) underrunProtect(4);                               \
-            *(--_nIns) = (NIns)( COND_AL | (((_off) < 0 ? 0x51 : 0x59)<<20) | ((_b)<<16) | ((_d)<<12) | (((_off) < 0 ? -(_off) : (_off))&0xFFF) ); \
+            NanoAssert((_off)>-4096);                                   \
+            *(--_nIns) = (NIns)( COND_AL | (0x51<<20) | ((_b)<<16) | ((_d)<<12) | ((-(_off))&0xFFF) ); \
         } else {                                                        \
-            if (_chk) underrunProtect(4+LD32_size);                     \
-            NanoAssert((_b) != IP);                                     \
-            *(--_nIns) = (NIns)( COND_AL | (0x79<<20) | ((_b)<<16) | ((_d)<<12) | Scratch ); \
-            LD32_nochk(Scratch, _off);                                  \
+            if (isS16(_off) || isU16(_off)) {                           \
+                if (_chk) underrunProtect(4);                           \
+                NanoAssert((_off)<4096);                                \
+                *(--_nIns) = (NIns)( COND_AL | (0x59<<20) | ((_b)<<16) | ((_d)<<12) | ((_off)&0xFFF) ); \
+            } else {                                                    \
+                if (_chk) underrunProtect(4+LD32_size);                 \
+                *(--_nIns) = (NIns)( COND_AL | (0x79<<20) | ((_b)<<16) | ((_d)<<12) | Scratch ); \
+                LD32_nochk(Scratch, _off);                              \
+            }                                                           \
         }                                                               \
         asm_output("ldr %s, [%s, #%d]",gpn(_d),gpn(_b),(_off));        \
     } while(0)
@@ -785,13 +791,6 @@ typedef enum {
         NanoAssert(IsGpReg(_Rd) && IsGpReg(_Rn) && IsFpReg(_Dm));       \
         *(--_nIns) = (NIns)( COND_AL | (0xC5<<20) | ((_Rn)<<16) | ((_Rd)<<12) | (0xB1<<4) | (FpRegNum(_Dm)) ); \
         asm_output("fmrrd %s,%s,%s", gpn(_Rd), gpn(_Rn), gpn(_Dm));    \
-    } while (0)
-
-#define FMRDH(_Rd,_Dn) do {                                             \
-        underrunProtect(4);                                             \
-        NanoAssert(IsGpReg(_Rd) && IsFpReg(_Dm));                       \
-        *(--_nIns) = (NIns)( COND_AL | (0xE3<<20) | (FpRegNum(_Dn)<<16) | ((_Rd)<<12) | (0xB<<8) | (1<<4) ); \
-        asm_output("fmrdh %s,%s", gpn(_Rd), gpn(_Dn));                  \
     } while (0)
 
 #define FSTD(_Dd,_Rn,_offs) do {                                        \

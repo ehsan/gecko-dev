@@ -119,12 +119,9 @@ struct InlineBackgroundData
                            NS_STYLE_DIRECTION_RTL);      
       nscoord curOffset = aFrame->GetOffsetTo(mBlockFrame).x;
 
-      // No need to use our GetPrevContinuation/GetNextContinuation methods
-      // here, since ib special siblings are certainly not on the same line.
-      
       nsIFrame* inlineFrame = aFrame->GetPrevContinuation();
       // If the continuation is fluid we know inlineFrame is not on the same line.
-      // If it's not fluid, we need to test further to be sure.
+      // If it's not fluid, we need to test furhter to be sure.
       while (inlineFrame && !inlineFrame->GetNextInFlow() &&
              AreOnSameLine(aFrame, inlineFrame)) {
         nscoord frameXOffset = inlineFrame->GetOffsetTo(mBlockFrame).x;
@@ -191,7 +188,7 @@ protected:
   {
     NS_PRECONDITION(aFrame, "Need a frame");
 
-    nsIFrame *prevContinuation = GetPrevContinuation(aFrame);
+    nsIFrame *prevContinuation = aFrame->GetPrevContinuation();
 
     if (!prevContinuation || mFrame != prevContinuation) {
       // Ok, we've got the wrong frame.  We have to start from scratch.
@@ -213,56 +210,18 @@ protected:
     mFrame = aFrame;
   }
 
-  nsIFrame* GetPrevContinuation(nsIFrame* aFrame)
-  {
-    nsIFrame* prevCont = aFrame->GetPrevContinuation();
-    if (!prevCont && (aFrame->GetStateBits() && NS_FRAME_IS_SPECIAL)) {
-      nsIFrame* block =
-        static_cast<nsIFrame*>
-                   (aFrame->GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling));
-      if (block) {
-        // The {ib} properties are only stored on first continuations
-        block = block->GetFirstContinuation();
-        prevCont =
-          static_cast<nsIFrame*>
-                     (block->GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling));
-        NS_ASSERTION(prevCont, "How did that happen?");
-      }
-    }
-    return prevCont;
-  }
-
-  nsIFrame* GetNextContinuation(nsIFrame* aFrame)
-  {
-    nsIFrame* nextCont = aFrame->GetNextContinuation();
-    if (!nextCont && (aFrame->GetStateBits() && NS_FRAME_IS_SPECIAL)) {
-      // The {ib} properties are only stored on first continuations
-      aFrame = aFrame->GetFirstContinuation();
-      nsIFrame* block =
-        static_cast<nsIFrame*>
-                   (aFrame->GetProperty(nsGkAtoms::IBSplitSpecialSibling));
-      if (block) {
-        nextCont =
-          static_cast<nsIFrame*>
-                     (block->GetProperty(nsGkAtoms::IBSplitSpecialSibling));
-        NS_ASSERTION(nextCont, "How did that happen?");
-      }
-    }
-    return nextCont;
-  }
-
   void Init(nsIFrame* aFrame)
   {    
     // Start with the previous flow frame as our continuation point
     // is the total of the widths of the previous frames.
-    nsIFrame* inlineFrame = GetPrevContinuation(aFrame);
+    nsIFrame* inlineFrame = aFrame->GetPrevContinuation();
 
     while (inlineFrame) {
       nsRect rect = inlineFrame->GetRect();
       mContinuationPoint += rect.width;
       mUnbrokenWidth += rect.width;
       mBoundingBox.UnionRect(mBoundingBox, rect);
-      inlineFrame = GetPrevContinuation(inlineFrame);
+      inlineFrame = inlineFrame->GetPrevContinuation();
     }
 
     // Next add this frame and subsequent frames to the bounding box and
@@ -272,7 +231,7 @@ protected:
       nsRect rect = inlineFrame->GetRect();
       mUnbrokenWidth += rect.width;
       mBoundingBox.UnionRect(mBoundingBox, rect);
-      inlineFrame = GetNextContinuation(inlineFrame);
+      inlineFrame = inlineFrame->GetNextContinuation();
     }
 
     mFrame = aFrame;
@@ -1977,10 +1936,6 @@ DrawBorderImage(nsPresContext*       aPresContext,
     split.bottom,
   };
 
-  // In all the 'factor' calculations below, 'border' measurements are
-  // in app units but 'split' measurements are in image/CSS pixels, so
-  // the factor corresponding to no additional scaling is
-  // CSSPixelsToAppUnits(1), not simply 1.
   for (int i = LEFT; i <= RIGHT; i++) {
     for (int j = TOP; j <= BOTTOM; j++) {
       nsRect destArea(borderX[i], borderY[j], borderWidth[i], borderHeight[j]);
@@ -1991,14 +1946,14 @@ DrawBorderImage(nsPresContext*       aPresContext,
 
       if (i == MIDDLE && j == MIDDLE) {
         // css-background:
-        //     The middle image's width is scaled by the same factor as the
-        //     top image unless that factor is zero or infinity, in which
-        //     case the scaling factor of the bottom is substituted, and
-        //     failing that, the width is not scaled. The height of the
-        //     middle image is scaled by the same factor as the left image
-        //     unless that factor is zero or infinity, in which case the
-        //     scaling factor of the right image is substituted, and failing
-        //     that, the height is not scaled.
+        //     The middle image's width is scaled by the same factor as
+        //     the top image unless that factor is zero or infinity, in
+        //     which case the scaling factor of the bottom is substituted,
+        //     and failing that, the width is not scaled. The height of
+        //     the middle image is scaled by the same factor as the left
+        //     image unless that factor is zero or infinity, in which case
+        //     the scaling factor of the right image is substituted, and
+        //     failing that, the height is not scaled.
         gfxFloat hFactor, vFactor;
 
         if (0 < border.left && 0 < split.left)
@@ -2006,14 +1961,14 @@ DrawBorderImage(nsPresContext*       aPresContext,
         else if (0 < border.right && 0 < split.right)
           vFactor = gfxFloat(border.right)/split.right;
         else
-          vFactor = nsPresContext::CSSPixelsToAppUnits(1);
+          vFactor = 1.0;
 
         if (0 < border.top && 0 < split.top)
           hFactor = gfxFloat(border.top)/split.top;
         else if (0 < border.bottom && 0 < split.bottom)
           hFactor = gfxFloat(border.bottom)/split.bottom;
         else
-          hFactor = nsPresContext::CSSPixelsToAppUnits(1);
+          hFactor = 1.0;
 
         unitSize.width = splitWidth[i]*hFactor;
         unitSize.height = splitHeight[j]*vFactor;
@@ -2023,11 +1978,9 @@ DrawBorderImage(nsPresContext*       aPresContext,
       } else if (i == MIDDLE) { // top, bottom
         // Sides are always stretched to the thickness of their border,
         // and stretched proportionately on the other axis.
-        gfxFloat factor;
+        gfxFloat factor = 1.0;
         if (0 < borderHeight[j] && 0 < splitHeight[j])
           factor = gfxFloat(borderHeight[j])/splitHeight[j];
-        else
-          factor = nsPresContext::CSSPixelsToAppUnits(1);
 
         unitSize.width = splitWidth[i]*factor;
         unitSize.height = borderHeight[j];
@@ -2035,11 +1988,9 @@ DrawBorderImage(nsPresContext*       aPresContext,
         fillStyleV = NS_STYLE_BORDER_IMAGE_STRETCH;
 
       } else if (j == MIDDLE) { // left, right
-        gfxFloat factor;
+        gfxFloat factor = 1.0;
         if (0 < borderWidth[i] && 0 < splitWidth[i])
           factor = gfxFloat(borderWidth[i])/splitWidth[i];
-        else
-          factor = nsPresContext::CSSPixelsToAppUnits(1);
 
         unitSize.width = borderWidth[i];
         unitSize.height = splitHeight[j]*factor;

@@ -298,11 +298,6 @@ nsContentSink::Init(nsIDocument* aDoc,
   mCanInterruptParser =
     nsContentUtils::GetBoolPref("content.interrupt.parsing", PR_TRUE);
 
-  // 200 determined empirically to provide good user response without
-  // sampling the clock too often.
-  mMaxTokensDeflectedInLowFreqMode =
-    nsContentUtils::GetIntPref("content.max.deflected.tokens", 200);
-
   return NS_OK;
 
 }
@@ -1048,12 +1043,6 @@ nsContentSink::ProcessOfflineManifest(nsIContent *aElement)
     return;
   }
 
-  // Don't bother processing offline manifest for documents
-  // without a docshell
-  if (!mDocShell) {
-    return;
-  }
-
   nsresult rv;
 
   // Check for a manifest= attribute.
@@ -1543,22 +1532,23 @@ nsContentSink::DidProcessATokenImpl()
       // If we can't get the last input time from the widget
       // then we will get it from the viewmanager.
       rv = vm->GetLastUserEventTime(eventTime);
+      NS_ENSURE_SUCCESS(rv , NS_ERROR_FAILURE);
   }
+
 
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
   if (!mDynamicLowerValue && mLastSampledUserEventTime == eventTime) {
-    // The default value of mMaxTokensDeflectedInLowFreqMode (200)
+    // The magic value of NS_MAX_TOKENS_DEFLECTED_IN_LOW_FREQ_MODE
     // was selected by empirical testing. It provides reasonable
     // user response and prevents us from sampling the clock too
-    // frequently.  This value may be decreased if responsiveness is
-    // valued more than end-to-end pageload time (e.g., for mobile).
-    if (mDeflectedCount < mMaxTokensDeflectedInLowFreqMode) {
+    // frequently.
+    if (mDeflectedCount < NS_MAX_TOKENS_DEFLECTED_IN_LOW_FREQ_MODE) {
       mDeflectedCount++;
       // return early to prevent sampling the clock. Note: This
       // prevents us from switching to higher frequency (better UI
       // responsive) mode, so limit ourselves to doing for no more
-      // than mMaxTokensDeflectedInLowFreqMode tokens.
+      // than NS_MAX_TOKENS_DEFLECTED_IN_LOW_FREQ_MODE tokens.
 
       return NS_OK;
     }

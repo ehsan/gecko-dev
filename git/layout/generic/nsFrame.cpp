@@ -1659,11 +1659,10 @@ nsFrame::GetContentForEvent(nsPresContext* aPresContext,
 void
 nsFrame::FireDOMEvent(const nsAString& aDOMEventName, nsIContent *aContent)
 {
-  nsIContent* target = aContent ? aContent : mContent;
-
-  if (target) {
-    nsRefPtr<nsPLDOMEvent> event =
-      new nsPLDOMEvent(target, aDOMEventName, PR_FALSE);
+  nsCOMPtr<nsIDOMNode> domNode = do_QueryInterface(aContent ? aContent : mContent);
+  
+  if (domNode) {
+    nsRefPtr<nsPLDOMEvent> event = new nsPLDOMEvent(domNode, aDOMEventName);
     if (!event || NS_FAILED(event->PostDOMEvent()))
       NS_WARNING("Failed to dispatch nsPLDOMEvent");
   }

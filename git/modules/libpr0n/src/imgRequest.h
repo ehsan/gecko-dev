@@ -164,11 +164,6 @@ private:
   // Return whether we've seen some data at this point
   PRBool HasTransferredData() const { return mGotData; }
 
-  // Set whether this request is cacheable. By default, all requests are
-  // cacheable, but they might not be if there is already a request with this
-  // key URI in the cache.
-  void SetCacheable(PRBool cacheable);
-
 public:
   NS_DECL_IMGILOAD
   NS_DECL_IMGIDECODEROBSERVER
@@ -194,6 +189,10 @@ private:
 
   nsTObserverArray<imgRequestProxy*> mObservers;
 
+  PRPackedBool mLoading;
+  PRPackedBool mProcessing;
+  PRPackedBool mHadLastPart;
+  PRPackedBool mGotData;
   PRUint32 mImageStatus;
   PRUint32 mState;
   nsCString mContentType;
@@ -206,14 +205,9 @@ private:
   PRTime mLoadTime;
 
   imgCacheValidator *mValidator;
-  nsCategoryCache<nsIContentSniffer> mImageSniffers;
+  PRBool   mIsMultiPartChannel;
 
-  PRPackedBool mIsMultiPartChannel : 1;
-  PRPackedBool mLoading : 1;
-  PRPackedBool mProcessing : 1;
-  PRPackedBool mHadLastPart : 1;
-  PRPackedBool mGotData : 1;
-  PRPackedBool mIsCacheable : 1;
+  nsCategoryCache<nsIContentSniffer> mImageSniffers;
 };
 
 #endif

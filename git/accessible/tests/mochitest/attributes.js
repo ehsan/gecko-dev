@@ -180,13 +180,8 @@ function compareAttrs(aErrorMsg, aAttrs, aExpectedAttrs, aSkipUnexpectedAttrs)
         ok(false, "Unexpected attribute '" + prop.key + "' having '" +
            prop.value + "'" + aErrorMsg);
     } else {
-      var msg = "Attribute '" + prop.key + " 'has wrong value" + aErrorMsg;
-      var expectedValue = aExpectedAttrs[prop.key];
-
-      if (typeof expectedValue == "function")
-        ok(expectedValue(prop.value), msg);
-      else
-        is(prop.value, expectedValue, msg);
+      is(prop.value, aExpectedAttrs[prop.key],
+         "Attribute '" + prop.key + " 'has wrong value" + aErrorMsg);
     }
   }
 

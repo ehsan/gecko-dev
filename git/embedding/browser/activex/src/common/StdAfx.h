@@ -70,6 +70,7 @@
 
 #include "nsIDocument.h"
 #include "nsIDocumentObserver.h"
+#include "nsVoidArray.h"
 
 #include "nsIDOMNode.h"
 #include "nsIDOMNodeList.h"

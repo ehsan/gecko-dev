@@ -164,8 +164,7 @@ NS_IMETHODIMP nsRootAccessible::GetParent(nsIAccessible * *aParent)
 }
 
 /* readonly attribute unsigned long accRole; */
-nsresult
-nsRootAccessible::GetRoleInternal(PRUint32 *aRole) 
+NS_IMETHODIMP nsRootAccessible::GetRole(PRUint32 *aRole) 
 { 
   if (!mDocument) {
     return NS_ERROR_FAILURE;
@@ -185,7 +184,7 @@ nsRootAccessible::GetRoleInternal(PRUint32 *aRole)
     }
   }
 
-  return nsDocAccessibleWrap::GetRoleInternal(aRole);
+  return nsDocAccessibleWrap::GetRole(aRole);
 }
 
 #ifdef MOZ_XUL
@@ -494,8 +493,8 @@ PRBool nsRootAccessible::FireAccessibleFocusEvent(nsIAccessible *aAccessible,
   PRUint32 role = nsAccUtils::Role(finalFocusAccessible);
   if (role == nsIAccessibleRole::ROLE_MENUITEM) {
     if (!mCurrentARIAMenubar) {  // Entering menus
-      // The natural role is the role that this type of element normally has
-      PRUint32 naturalRole = nsAccUtils::RoleInternal(finalFocusAccessible);
+      PRUint32 naturalRole; // The natural role is the role that this type of element normally has
+      finalFocusAccessible->GetRole(&naturalRole);
       if (role != naturalRole) { // Must be a DHTML menuitem
         nsCOMPtr<nsIAccessible> menuBarAccessible =
           nsAccUtils::GetAncestorWithRole(finalFocusAccessible,
@@ -993,14 +992,7 @@ nsRootAccessible::GetContentDocShell(nsIDocShellTreeItem *aStart)
   if (itemType == nsIDocShellTreeItem::typeContent) {
     nsCOMPtr<nsIAccessibleDocument> accDoc =
       GetDocAccessibleFor(aStart, PR_TRUE);
-
-    // Hidden documents don't have accessibles (like SeaMonkey's sidebar),
-    // they are of no interest for a11y.
-    if (!accDoc)
-      return nsnull;
-
     nsCOMPtr<nsIAccessible> accessible = do_QueryInterface(accDoc);
-
     // If ancestor chain of accessibles is not completely visible,
     // don't use this one. This happens for example if it's inside
     // a background tab (tabbed browsing)

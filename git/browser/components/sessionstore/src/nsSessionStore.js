@@ -519,19 +519,16 @@ SessionStoreService.prototype = {
         this._restoreCount = this._initialState.windows ? this._initialState.windows.length : 0;
         this.restoreWindow(aWindow, this._initialState, this._isCmdLineEmpty(aWindow));
         delete this._initialState;
-        
-        // mark ourselves as running
-        this.saveState(true);
       }
       else {
         // Nothing to restore, notify observers things are complete.
         var observerService = Cc["@mozilla.org/observer-service;1"].
                               getService(Ci.nsIObserverService);
         observerService.notifyObservers(null, NOTIFY_WINDOWS_RESTORED, "");
-        
-        // the next delayed save request should execute immediately
-        this._lastSaveTime -= this._interval;
       }
+      
+      // mark ourselves as running
+      this.saveState(true);
     }
     // this window was opened by _openWindowWithState
     else if (!this._isWindowLoaded(aWindow)) {
@@ -1530,7 +1527,7 @@ SessionStoreService.prototype = {
         nonPopupCount++;
     }
     this._updateCookies(total);
-
+    
     // collect the data for all windows yet to be restored
     for (ix in this._statesToRestore) {
       for each (let winData in this._statesToRestore[ix].windows) {
@@ -1539,16 +1536,13 @@ SessionStoreService.prototype = {
           nonPopupCount++;
       }
     }
-
-#ifndef XP_MACOSX
+    
     // if no non-popup browser window remains open, return the state of the last closed window(s)
     if (nonPopupCount == 0 && this._lastClosedWindows) {
       // prepend the last non-popup browser window, so that if the user loads more tabs
       // at startup we don't accidentally add them to a popup window
       total = this._lastClosedWindows.concat(total);
     }
-#endif
-
     if (activeWindow) {
       this.activeWindowSSiCache = activeWindow.__SSi || "";
     }

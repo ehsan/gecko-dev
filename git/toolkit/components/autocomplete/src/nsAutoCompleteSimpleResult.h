@@ -41,6 +41,7 @@
 #include "nsIAutoCompleteResult.h"
 #include "nsIAutoCompleteSimpleResult.h"
 
+#include "nsVoidArray.h"
 #include "nsString.h"
 #include "prtypes.h"
 #include "nsCOMPtr.h"

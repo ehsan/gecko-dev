@@ -118,7 +118,6 @@
                           anonid="undoCloseTabMenuItem"/>
             <xul:menuseparator/>
             <xul:menuitem id="context_closeTab" label="&closeTab.label;" accesskey="&closeTab.accesskey;"
-                          tbattr="tabbrowser-multiple"
                           oncommand="var tabbrowser = this.parentNode.parentNode.parentNode.parentNode;
                                      tabbrowser.removeTab(tabbrowser.mContextTab);"/>
           </xul:menupopup>
@@ -1016,10 +1015,7 @@
             if (event.button != 1 || event.target.localName != 'tab')
               return;
 
-            if (this.mTabs.length > 1 ||
-                !this.mPrefs.getBoolPref("browser.tabs.closeWindowWithLastTab"))
-              this.removeTab(event.target);
-
+            this.removeTab(event.target);
             event.stopPropagation();
           ]]>
         </body>
@@ -1924,9 +1920,6 @@
             // the tab by dropping it on the desktop would result in an
             // "internet shortcut"
             dt.mozSetDataAt("text/plain", spec, 0);
-            
-            // Set the cursor to an arrow during tab drags.
-            dt.mozCursor = "default";
 
             var canvas = tabPreviews.capture(target, false);
             dt.setDragImage(canvas, 0, 0);
@@ -2208,25 +2201,16 @@
         <parameter name="aEvent"/>
         <body>
           <![CDATA[
-            // Note: while this case is correctly handled here, this event
-            // isn't dispatched when the tab is moved within the tabstript,
-            // see bug 460801.
-
-            // * mozUserCancelled = the user pressed ESC to cancel the drag
-            // * Within our browser window, the detach-target is the content
-            //   area. That case is handled by contentAreaDNDObserver.
-            // * The dragLeftWindow solution is suboptimal, a better solution
-            //   is on bug 466379.
-            var dt = aEvent.dataTransfer;
-            if (dt.mozUserCancelled || !this._dragLeftWindow)
+            // Within our browser window, the detach-target is the content area.
+            // That case is handled by contentAreaDNDObserver.
+            if (!this._dragLeftWindow || this.mTabs.length == 1)
               return;
 
+            var dt = aEvent.dataTransfer;
             // The dropEffect == "none" scenarios:
-            // 1. No-op (no postion change) - "catched" by !dragLeftWindow
-            // 2. On the browser chrome (on element which don't handle
-            //    text/plain or the tab type) - ditto.
-            // 2. Drop outside the browser window - the case that is handled
-            //    here.
+            // 1. Drop-within-the-tabbae
+            // 2. Drop on some other tabbar
+            // 3. Drop on text fields (even outside our window)
             if (dt.dropEffect == "none") {
               var draggedTab = dt.mozGetDataAt(TAB_DROP_TYPE, 0);
               this.replaceTabWithWindow(draggedTab);
@@ -2258,15 +2242,10 @@
         </body>
       </method>
 
-      <!-- Moves a tab to a new browser window, unless it's already the only tab
-           in the current window, in which case this will do nothing. -->
       <method name="replaceTabWithWindow">
         <parameter name="aTab"/>
         <body>
           <![CDATA[
-            if (this.mTabs.length == 1)
-              return;
-
             // tell a new window to take the "dropped" tab
             var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
                       getService(Ci.nsIWindowWatcher);
@@ -2769,7 +2748,6 @@
 
           // set up the shared autoscroll popup
           this._autoScrollPopup = this.mCurrentBrowser._createAutoScrollPopup();
-          this._autoScrollPopup.id = "autoscroller";
           this.appendChild(this._autoScrollPopup);
           this.mCurrentBrowser.setAttribute("autoscrollpopup", this._autoScrollPopup.id);
         ]]>
@@ -3371,26 +3349,11 @@
         if (anonid == "close-button")
           this.mOverCloseButton = false;
       </handler>
-      <handler event="dragstart" phase="capturing">
-        this.style.MozUserFocus = '';
-      </handler>
       <handler event="mousedown" button="0" phase="capturing">
       <![CDATA[
-        if (this.mOverCloseButton) {
+        if (this.mOverCloseButton)
           event.stopPropagation();
-        }
-        else {
-          this.style.MozUserFocus = 'ignore';
-          this.clientTop; // just using this to flush style updates
-        }
       ]]>
-      </handler>
-      <handler event="mousedown" button="2">
-        this.style.MozUserFocus = 'ignore';
-        this.clientTop;
-      </handler>
-      <handler event="mouseup">
-        this.style.MozUserFocus = '';
       </handler>
     </handlers>
   </binding>

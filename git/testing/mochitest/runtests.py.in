@@ -88,23 +88,6 @@ LEAK_REPORT_FILE = PROFILE_DIRECTORY + "/" + "leaks-report.log"
 
 log = logging.getLogger()
 
-# Map of debugging programs to information about them, like default arguments
-# and whether or not they are interactive.
-DEBUGGER_INFO = {
-  # gdb requires that you supply the '--args' flag in order to pass arguments
-  # after the executable name to the executable.
-  "gdb": {
-    "interactive": True,
-    "args": "-q --args"
-  },
-
-  # valgrind doesn't explain much about leaks unless you set the
-  # '--leak-check=full' flag.
-  "valgrind": {
-    "interactive": False,
-    "args": "--leak-check=full"
-  }
-}
 
 #######################
 # COMMANDLINE OPTIONS #
@@ -210,7 +193,7 @@ class MochitestOptions(optparse.OptionParser):
                            "refcounted objects (or bytes in classes with "
                            "MOZ_COUNT_CTOR and MOZ_COUNT_DTOR) is greater "
                            "than the given number")
-    defaults["leakThreshold"] = 0
+    defaults["leakThreshold"] = INFINITY
 
     self.add_option("--fatal-assertions",
                     action = "store_true", dest = "fatalAssertions",
@@ -222,20 +205,6 @@ class MochitestOptions(optparse.OptionParser):
                     action = "append", dest = "extraProfileFiles",
                     help = "copy specified files/dirs to testing profile")
     defaults["extraProfileFiles"] = []
-
-    self.add_option("--debugger",
-                    action = "store", dest = "debugger",
-                    help = "use the given debugger to launch the application")
-
-    self.add_option("--debugger-args",
-                    action = "store", dest = "debuggerArgs",
-                    help = "pass the given args to the debugger _before_ "
-                           "the application on the command line")
-
-    self.add_option("--debugger-interactive",
-                    action = "store_true", dest = "debuggerInteractive",
-                    help = "prevents the test harness from redirecting stdout "
-                           "and stderr for interactive debuggers")
 
     # -h, --help are automatically handled by OptionParser
 
@@ -319,22 +288,6 @@ def getFullPath(path):
   "Get an absolute path relative to oldcwd."
   return os.path.normpath(os.path.join(oldcwd, os.path.expanduser(path)))
 
-def searchPath(path):
-  "Go one step beyond getFullPath and try the various folders in PATH"
-  # Try looking in the current working directory first.
-  newpath = getFullPath(path)
-  if os.path.exists(newpath):
-    return newpath
-
-  # At this point we have to fail if a directory was given (to prevent cases
-  # like './gdb' from matching '/usr/bin/./gdb').
-  if not os.path.dirname(path):
-    for dir in os.environ['PATH'].split(os.pathsep):
-      newpath = os.path.join(dir, path)
-      if os.path.exists(newpath):
-        return newpath
-  return None
-
 #################
 # MAIN FUNCTION #
 #################
@@ -342,6 +295,12 @@ def searchPath(path):
 def main():
   parser = MochitestOptions()
   options, args = parser.parse_args()
+
+  # If the leak threshold wasn't explicitly set, we override the default of
+  # infinity when the set of tests we're running are known to leak only a
+  # particular amount.  If for some reason you don't want a new leak threshold
+  # enforced, just pass an explicit --leak-threshold=N to prevent the override.
+  maybeForceLeakThreshold(options)
 
   options.app = getFullPath(options.app)
   if not os.path.exists(options.app):
@@ -360,32 +319,6 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
 
   options.utilityPath = getFullPath(options.utilityPath)
   options.certPath = getFullPath(options.certPath)
-
-  debuggerInfo = None
-
-  if options.debugger:
-    debuggerPath = searchPath(options.debugger)
-    if not debuggerPath:
-      print "Error: Path %s doesn't exist." % options.debugger
-      sys.exit(1)
-
-    debuggerName = os.path.basename(debuggerPath).lower()
-
-    def getDebuggerInfo(type, default):
-      if debuggerName in DEBUGGER_INFO and type in DEBUGGER_INFO[debuggerName]:
-        return DEBUGGER_INFO[debuggerName][type]
-      return default
-
-    debuggerInfo = {
-      "path": debuggerPath,
-      "interactive" : getDebuggerInfo("interactive", False),
-      "args": getDebuggerInfo("args", "").split()
-    }
-
-    if options.debuggerArgs:
-      debuggerInfo["args"] = options.debuggerArgs.split()
-    if options.debuggerInteractive:
-      debuggerInfo["interactive"] = options.debuggerInteractive
 
   # browser environment
   browserEnv = dict(os.environ)
@@ -467,13 +400,12 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
   if options.fatalAssertions:
     browserEnv["XPCOM_DEBUG_BREAK"] = "stack-and-abort"
 
-  status = automation.runApp(testURL, browserEnv, options.app,
-                             PROFILE_DIRECTORY, options.browserArgs,
-                             runSSLTunnel = True,
-                             utilityPath = options.utilityPath,
-                             xrePath = options.xrePath,
-                             certPath=options.certPath,
-                             debuggerInfo=debuggerInfo)
+  (status, start) = automation.runApp(testURL, browserEnv, options.app,
+                                      PROFILE_DIRECTORY, options.browserArgs,
+                                      runSSLTunnel = True,
+                                      utilityPath=options.utilityPath,
+                                      xrePath=options.xrePath,
+                                      certPath=options.certPath)
 
   # Server's no longer needed, and perhaps more importantly, anything it might
   # spew to console shouldn't disrupt the leak information table we print next.
@@ -525,9 +457,11 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
                     " %d bytes during test execution" % bytesLeaked
         else:
           leakLog = "TEST-PASS | runtests-leaks | no leaks detected!"
-        # Remind the threshold if it is not 0, which is the default/goal.
+        # Remind the threshold if it is not 0, which is the goal.
         if threshold != 0:
-          leakLog += " (threshold set at %d bytes)" % threshold
+          leakLog += (threshold == INFINITY) \
+                     and (" (no threshold set)") \
+                     or  (" (threshold set at %d bytes)" % threshold)
         # Log the information.
         log.info(leakLog)
       else:
@@ -550,6 +484,12 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
       log.info("TEST-UNEXPECTED-FAIL | runtests-leaks | missing output line for total leaks!")
     leaks.close()
 
+
+  # print test run times
+  finish = datetime.now()
+  log.info(" started: %s", str(start))
+  log.info("finished: %s", str(finish))
+
   # delete the profile and manifest
   os.remove(manifest)
 
@@ -562,6 +502,26 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
 #######################
 # CONFIGURATION SETUP #
 #######################
+
+def maybeForceLeakThreshold(options):
+  """
+  Modifies an unset leak threshold if it is known that a particular leak
+  threshold can be successfully forced for the particular Mochitest type
+  and platform in use.
+  """
+  if options.leakThreshold == INFINITY:
+    if options.chrome:
+      # We don't leak running the --chrome tests.
+      options.leakThreshold = 0
+    elif options.browserChrome:
+      # We don't leak running the --browser-chrome tests.
+      options.leakThreshold = 0
+    elif options.a11y:
+      # We don't leak running the --a11y tests.
+      options.leakThreshold = 0
+    else:
+      # Normal Mochitests: no leaks.
+      options.leakThreshold = 0
 
 def makeTestConfig(options):
   "Creates a test configuration file for customizing test execution."

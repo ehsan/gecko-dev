@@ -406,6 +406,13 @@ WrapSameOriginProp(JSContext *cx, JSObject *outerObj, jsval *vp)
     return XPC_XOW_WrapObject(cx, STOBJ_GET_PARENT(outerObj), vp);
   }
 
+  if (JS_ObjectIsFunction(cx, wrappedObj) &&
+      JS_GetFunctionNative(cx, reinterpret_cast<JSFunction *>
+                                               (xpc_GetJSPrivate(wrappedObj))) ==
+      XPCWrapper::sEvalNative) {
+    return XPC_XOW_WrapFunction(cx, outerObj, wrappedObj, vp);
+  }
+
   return JS_TRUE;
 }
 
@@ -432,13 +439,11 @@ XPC_XOW_WrapFunction(JSContext *cx, JSObject *outerObj, JSObject *funobj,
   }
 
   JSObject *funWrapperObj = JS_GetFunctionObject(funWrapper);
-  *rval = OBJECT_TO_JSVAL(funWrapperObj);
-
-  if (!JS_SetReservedSlot(cx, funWrapperObj, XPCWrapper::eXOWWrappedFunctionSlot, funobjVal) ||
-      !JS_SetReservedSlot(cx, funWrapperObj, XPCWrapper::eAllAccessSlot, JSVAL_FALSE)) {
+  if (!JS_SetReservedSlot(cx, funWrapperObj, 0, funobjVal)) {
     return JS_FALSE;
   }
 
+  *rval = OBJECT_TO_JSVAL(funWrapperObj);
   return JS_TRUE;
 }
 
@@ -671,10 +676,13 @@ XPC_XOW_GetOrSetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp,
       if (!ssm) {
         return ThrowException(NS_ERROR_NOT_INITIALIZED, cx);
       }
+
+      PRUint32 check = isSet
+                       ? (PRUint32)nsIXPCSecurityManager::ACCESS_SET_PROPERTY
+                       : (PRUint32)nsIXPCSecurityManager::ACCESS_GET_PROPERTY;
       rv = ssm->CheckPropertyAccess(cx, wrappedObj,
                                     STOBJ_GET_CLASS(wrappedObj)->name,
-                                    id, isSet ? XPCWrapper::sSecMgrSetProp
-                                              : XPCWrapper::sSecMgrGetProp);
+                                    id, check);
       if (NS_FAILED(rv)) {
         // The security manager threw an exception for us.
         return JS_FALSE;
@@ -1005,12 +1013,15 @@ XPC_XOW_Construct(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     return JS_FALSE;
   }
 
-  if (!JS_CallFunctionValue(cx, obj, OBJECT_TO_JSVAL(wrappedObj), argc, argv,
+  JSObject *callee = JSVAL_TO_OBJECT(argv[-2]);
+  NS_ASSERTION(GetWrappedObject(cx, callee), "How'd we get here?");
+  callee = GetWrappedObject(cx, callee);
+  if (!JS_CallFunctionValue(cx, obj, OBJECT_TO_JSVAL(callee), argc, argv,
                             rval)) {
     return JS_FALSE;
   }
 
-  return XPC_XOW_RewrapIfNeeded(cx, wrappedObj, rval);
+  return XPC_XOW_RewrapIfNeeded(cx, callee, rval);
 }
 
 static JSBool

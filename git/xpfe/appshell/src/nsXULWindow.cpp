@@ -371,9 +371,9 @@ NS_IMETHODIMP nsXULWindow::GetContentShellById(const PRUnichar* aID,
   NS_ENSURE_ARG_POINTER(aDocShellTreeItem);
   *aDocShellTreeItem = nsnull;
 
-  PRUint32 count = mContentShells.Length();
-  for (PRUint32 i = 0; i < count; i++) {
-    nsContentShellInfo* shellInfo = mContentShells.ElementAt(i);
+  PRInt32 count = mContentShells.Count();
+  for (PRInt32 i = 0; i < count; i++) {
+    nsContentShellInfo* shellInfo = (nsContentShellInfo*)mContentShells.ElementAt(i);
     if (shellInfo->id.Equals(aID)) {
       *aDocShellTreeItem = nsnull;
       if (shellInfo->child)
@@ -524,9 +524,11 @@ NS_IMETHODIMP nsXULWindow::Destroy()
   }
 
   // Remove our ref on the content shells
-  PRUint32 count = mContentShells.Length();
-  for (PRUint32 i = 0; i < count; i++) {
-    nsContentShellInfo* shellInfo = mContentShells.ElementAt(i);
+  PRInt32 count;
+  count = mContentShells.Count();
+  for (PRInt32 i = 0; i < count; i++) {
+    nsContentShellInfo* shellInfo =
+        static_cast<nsContentShellInfo *>(mContentShells.ElementAt(i));
     delete shellInfo;
   }
   mContentShells.Clear();
@@ -1615,10 +1617,11 @@ nsresult nsXULWindow::ContentShellAdded(nsIDocShellTreeItem* aContentShell,
 {
   nsContentShellInfo* shellInfo = nsnull;
 
-  PRUint32 i, count = mContentShells.Length();
+  PRInt32 count = mContentShells.Count();
+  PRInt32 i;
   nsWeakPtr contentShellWeak = do_GetWeakReference(aContentShell);
   for (i = 0; i < count; i++) {
-    nsContentShellInfo* info = mContentShells.ElementAt(i);
+    nsContentShellInfo* info = (nsContentShellInfo*)mContentShells.ElementAt(i);
     if (info->id.Equals(aID)) {
       // We already exist. Do a replace.
       info->child = contentShellWeak;
@@ -1630,7 +1633,7 @@ nsresult nsXULWindow::ContentShellAdded(nsIDocShellTreeItem* aContentShell,
 
   if (!shellInfo) {
     shellInfo = new nsContentShellInfo(aID, contentShellWeak);
-    mContentShells.AppendElement(shellInfo);
+    mContentShells.AppendElement((void*)shellInfo);
   }
     
   // Set the default content tree owner
@@ -1686,9 +1689,10 @@ nsresult nsXULWindow::ContentShellRemoved(nsIDocShellTreeItem* aContentShell)
     mPrimaryContentShell = nsnull;
   }
 
-  PRInt32 i, count = mContentShells.Length();
+  PRInt32 count = mContentShells.Count();
+  PRInt32 i;
   for (i = count - 1; i >= 0; --i) {
-    nsContentShellInfo* info = mContentShells.ElementAt(i);
+    nsContentShellInfo* info = (nsContentShellInfo*)mContentShells.ElementAt(i);
     nsCOMPtr<nsIDocShellTreeItem> curItem = do_QueryReferent(info->child);
     if (!curItem || SameCOMIdentity(curItem, aContentShell)) {
       mContentShells.RemoveElementAt(i);

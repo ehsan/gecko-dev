@@ -223,10 +223,9 @@ nsHTMLAnchorElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 void
 nsHTMLAnchorElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
-  nsIDocument* doc = GetCurrentDoc();
-  if (doc) {
+  if (IsInDoc()) {
     RegUnRegAccessKey(PR_FALSE);
-    doc->ForgetLink(this);
+    GetCurrentDoc()->ForgetLink(this);
     // If this link is ever reinserted into a document, it might
     // be under a different xml:base, so forget the cached state now
     mLinkState = eLinkState_Unknown;

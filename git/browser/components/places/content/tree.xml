@@ -404,7 +404,7 @@
       </method>
       
       <!-- nsIPlacesView -->
-      <method name="getDraggableSelection">
+      <method name="getDragableSelection">
         <body><![CDATA[
           return this.getSelectionNodes();
         ]]></body>

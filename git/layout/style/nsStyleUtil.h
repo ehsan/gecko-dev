@@ -82,9 +82,7 @@ public:
                                 const nsAString& aSelectorValue,
                                 const nsStringComparator& aComparator);
                                 
-  // Append a quoted (with "") and escaped version of aString to aResult.
-  static void AppendEscapedCSSString(const nsString& aString,
-                                     nsAString& aResult);
+  static void EscapeCSSString(const nsString& aString, nsAString& aReturn);
 
   /*
    * Convert an author-provided floating point number to an integer (0

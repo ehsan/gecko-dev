@@ -210,9 +210,7 @@ KeyboardLayout::KeyboardLayout () :
 {
   mDeadKeyTableListHead = nsnull;
 
-  // Note: Don't call LoadLayout from here. Because an instance of this class
-  // can be static. In that case, we cannot use any services in LoadLayout,
-  // e.g., pref service.
+  LoadLayout (::GetKeyboardLayout(0));
 }
 
 KeyboardLayout::~KeyboardLayout ()

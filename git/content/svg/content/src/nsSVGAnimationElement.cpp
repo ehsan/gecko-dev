@@ -42,6 +42,7 @@
 #include "nsSMILAnimationController.h"
 #include "nsSMILAnimationFunction.h"
 #include "nsISMILAttr.h"
+#include "nsBindingManager.h"
 
 //----------------------------------------------------------------------
 // nsISupports methods
@@ -111,7 +112,7 @@ nsSVGAnimationElement::GetTargetElementContent()
   }
 
   // No "xlink:href" attribute --> target is my parent.
-  return nsSVGUtils::GetParentElement(this);
+  return GetParentElement();
 }
 
 nsIAtom*
@@ -356,6 +357,28 @@ nsSVGAnimationElement::GetTimeContainer()
       static_cast<nsSVGSVGElement*>(ownerDOMSVG.get());
     result = ownerSVG->GetTimedDocumentRoot();
   }
+
+  return result;
+}
+
+nsIContent*
+nsSVGAnimationElement::GetParentElement()
+{
+  nsCOMPtr<nsIContent> result;
+  nsBindingManager*   bindingManager = nsnull;
+  nsIDocument*        ownerDoc = GetOwnerDoc();
+
+  if (ownerDoc)
+    bindingManager = ownerDoc->BindingManager();
+
+  if (bindingManager)
+    // we have a binding manager -- do we have an anonymous parent?
+    result = bindingManager->GetInsertionParent(this);
+
+  if (!result)
+    // if we didn't find an anonymous parent, use the explicit one,
+    // whether it's null or not...
+    result = GetParent();
 
   return result;
 }

@@ -82,7 +82,6 @@ public:
     PRBool shouldFlush = PR_FALSE;
     nsIFrame* frame = mWeakFrame.GetFrame();
     if (frame) {
-      nsAutoScriptBlocker scriptBlocker;
       frame->AttributeChanged(kNameSpaceID_None, nsGkAtoms::value, 0);
       shouldFlush = PR_TRUE;
     }
@@ -116,8 +115,6 @@ nsProgressMeterFrame::AttributeChanged(PRInt32 aNameSpaceID,
                                        nsIAtom* aAttribute,
                                        PRInt32 aModType)
 {
-  NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
-      "Scripts not blocked in nsProgressMeterFrame::AttributeChanged!");
   nsresult rv = nsBoxFrame::AttributeChanged(aNameSpaceID, aAttribute,
                                              aModType);
   if (NS_OK != rv) {

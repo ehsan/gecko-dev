@@ -87,10 +87,9 @@ NS_IMETHODIMP nsXULTabAccessible::DoAction(PRUint8 index)
 }
 
 /** We are a tab */
-nsresult
-nsXULTabAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULTabAccessible::GetRole(PRUint32 *_retval)
 {
-  *aRole = nsIAccessibleRole::ROLE_PAGETAB;
+  *_retval = nsIAccessibleRole::ROLE_PAGETAB;
   return NS_OK;
 }
 
@@ -228,10 +227,9 @@ nsAccessibleWrap(aNode, aShell)
 }
 
 /** We are a window*/
-nsresult
-nsXULTabBoxAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULTabBoxAccessible::GetRole(PRUint32 *_retval)
 {
-  *aRole = nsIAccessibleRole::ROLE_PANE;
+  *_retval = nsIAccessibleRole::ROLE_PANE;
   return NS_OK;
 }
 
@@ -255,10 +253,9 @@ nsXULSelectableAccessible(aNode, aShell)
 }
 
 /** We are a Page Tab List */
-nsresult
-nsXULTabsAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULTabsAccessible::GetRole(PRUint32 *_retval)
 {
-  *aRole = nsIAccessibleRole::ROLE_PAGETABLIST;
+  *_retval = nsIAccessibleRole::ROLE_PAGETABLIST;
   return NS_OK;
 }
 
@@ -291,9 +288,11 @@ nsXULTabpanelAccessible::
 {
 }
 
-nsresult
-nsXULTabpanelAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP
+nsXULTabpanelAccessible::GetRole(PRUint32 *aRole)
 {
+  NS_ENSURE_ARG_POINTER(aRole);
+
   *aRole = nsIAccessibleRole::ROLE_PROPERTYPAGE;
   return NS_OK;
 }
@@ -374,6 +373,6 @@ nsXULTabpanelAccessible::GetRelationByType(PRUint32 aRelationType,
     childAcc.swap(acc);
   }
 
-  return nsRelUtils::AddTarget(aRelationType, aRelation, foundTabAcc);
+  return NS_OK;
 }
 
