@@ -432,25 +432,25 @@ let MozLoopServiceInternal = {
    * @param {String} method The request method, e.g. 'POST', 'GET'.
    * @param {Object} payloadObj An object which is converted to JSON and
    *                            transmitted with the request.
-   * @param {Boolean} [retryOn401=true] Whether to retry if authentication fails.
    * @returns {Promise}
    *        Returns a promise that resolves to the response of the API call,
    *        or is rejected with an error.  If the server response can be parsed
    *        as JSON and contains an 'error' property, the promise will be
    *        rejected with this JSON-parsed response.
    */
-  hawkRequestInternal: function(sessionType, path, method, payloadObj, retryOn401 = true) {
+  hawkRequestInternal: function(sessionType, path, method, payloadObj) {
     if (!gHawkClient) {
       gHawkClient = new HawkClient(this.loopServerUri);
     }
 
-    let sessionToken, credentials;
+    let sessionToken;
     try {
       sessionToken = Services.prefs.getCharPref(this.getSessionTokenPrefName(sessionType));
     } catch (x) {
       // It is ok for this not to exist, we'll default to sending no-creds
     }
 
+    let credentials;
     if (sessionToken) {
       // true = use a hex key, as required by the server (see bug 1032738).
       credentials = deriveHawkCredentials(sessionToken, "sessionToken",
@@ -471,40 +471,27 @@ let MozLoopServiceInternal = {
       payloadObj = newPayloadObj;
     }
 
-    let handle401Error = (error) => {
-      if (sessionType === LOOP_SESSION_TYPE.FXA) {
-        MozLoopService.logOutFromFxA().then(() => {
-          // Set a user-visible error after logOutFromFxA clears existing ones.
-          this.setError("login", error);
-        });
-      } else if (this.urlExpiryTimeIsInFuture()) {
-        // If there are no Guest URLs in the future, don't use setError to notify the user since
-        // there isn't a need for a Guest registration at this time.
-        this.setError("registration", error);
-      }
-    };
-
-    return gHawkClient.request(path, method, credentials, payloadObj).then(
-      (result) => {
-        this.clearError("network");
-        return result;
-      },
-      (error) => {
-      if (error.code && error.code == 401) {
+    return gHawkClient.request(path, method, credentials, payloadObj).then((result) => {
+      this.clearError("network");
+      return result;
+    }, (error) => {
+      if (error.code == 401) {
         this.clearSessionToken(sessionType);
-        if (retryOn401 && sessionType === LOOP_SESSION_TYPE.GUEST) {
-          log.info("401 and INVALID_AUTH_TOKEN - retry registration");
-          return this.registerWithLoopServer(sessionType, false).then(
-            () => {
-              return this.hawkRequestInternal(sessionType, path, method, payloadObj, false);
-            },
-            () => {
-              handle401Error(error); //Process the original error that triggered the retry.
-              throw error;
-            }
-          );
+
+        if (sessionType == LOOP_SESSION_TYPE.FXA) {
+          MozLoopService.logOutFromFxA().then(() => {
+            // Set a user-visible error after logOutFromFxA clears existing ones.
+            this.setError("login", error);
+          });
+        } else {
+          if (!this.urlExpiryTimeIsInFuture()) {
+            // If there are no Guest URLs in the future, don't use setError to notify the user since
+            // there isn't a need for a Guest registration at this time.
+            throw error;
+          }
+
+          this.setError("registration", error);
         }
-        handle401Error(error);
       }
       throw error;
     });
@@ -638,7 +625,7 @@ let MozLoopServiceInternal = {
           rooms: roomsPushURL,
         },
     };
-    return this.hawkRequestInternal(sessionType, "/registration", "POST", msg, false)
+    return this.hawkRequestInternal(sessionType, "/registration", "POST", msg)
       .then((response) => {
         // If this failed we got an invalid token.
         if (!this.storeSessionToken(sessionType, response.headers)) {

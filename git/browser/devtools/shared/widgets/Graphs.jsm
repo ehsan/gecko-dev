@@ -2101,11 +2101,7 @@ this.CanvasGraphUtils = {
  * @return number
  */
 function map(value, istart, istop, ostart, ostop) {
-  let ratio = istop - istart;
-  if (ratio == 0) {
-    return value;
-  }
-  return ostart + (ostop - ostart) * ((value - istart) / ratio);
+  return ostart + (ostop - ostart) * ((value - istart) / (istop - istart));
 }
 
 /**
