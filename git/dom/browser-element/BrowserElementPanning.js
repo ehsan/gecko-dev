@@ -410,7 +410,6 @@ const ContentPanning = {
 
     function scroll(delta) {
       current = root;
-      firstScroll = true;
       while (current) {
         if (doScroll(current, delta)) {
           firstScroll = false;
