@@ -810,12 +810,9 @@ int main()
 
         {
             JSAutoRequest ar(jscontext);
-            glob = JS_NewCompartmentAndGlobalObject(jscontext, &global_class, NULL);
+            glob = JS_NewGlobalObject(jscontext, &global_class);
             if (!glob)
                 DIE("FAILED to create global object");
-
-            JSAutoEnterCompartment autoCompartment(jscontext, glob);
-
             if (!JS_InitStandardClasses(jscontext, glob))
                 DIE("FAILED to init standard classes");
             if (!JS_DefineFunctions(jscontext, glob, glob_functions))
