@@ -8,10 +8,11 @@
 #include "jsapi.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
-#include "nsIGlobalObject.h"
+#include "nsIScriptGlobalObject.h"
 #include "nsUnicharUtils.h"
 #include "nsReadableUtils.h"
 #include "nsXBLProtoImplMethod.h"
+#include "nsIScriptContext.h"
 #include "nsJSUtils.h"
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
@@ -19,7 +20,6 @@
 #include "nsIXPConnect.h"
 #include "xpcpublic.h"
 #include "nsXBLPrototypeBinding.h"
-#include "mozilla/dom/ScriptSettings.h"
 
 using namespace mozilla;
 
@@ -278,24 +278,35 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement, JSAddonId* aAd
   // nsXBLProtoImpl::InstallImplementation does.
   nsIDocument* document = aBoundElement->OwnerDoc();
 
-  nsCOMPtr<nsIGlobalObject> global =
-    do_QueryInterface(document->GetInnerWindow());
+  nsCOMPtr<nsIScriptGlobalObject> global =
+    do_QueryInterface(document->GetWindow());
   if (!global) {
+    return NS_OK;
+  }
+
+  nsCOMPtr<nsIScriptContext> context = global->GetContext();
+  if (!context) {
     return NS_OK;
   }
 
   nsAutoMicroTask mt;
 
-  // We are going to run script via JS::Call, so we need a script entry point,
-  // but as this is XBL related it does not appear in the HTML spec.
-  dom::AutoEntryScript aes(global);
-  JSContext* cx = aes.cx();
+  AutoPushJSContext cx(context->GetNativeContext());
 
   JS::Rooted<JSObject*> globalObject(cx, global->GetGlobalJSObject());
 
   JS::Rooted<JS::Value> v(cx);
   nsresult rv = nsContentUtils::WrapNative(cx, aBoundElement, &v);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  // Use nsCxPusher to make sure we call ScriptEvaluated when we're done.
+  //
+  // Make sure to do this before entering the compartment, since pushing Push()
+  // may call JS_SaveFrameChain(), which puts us back in an unentered state.
+  nsCxPusher pusher;
+  if (!pusher.Push(aBoundElement))
+    return NS_ERROR_UNEXPECTED;
+  MOZ_ASSERT(cx == nsContentUtils::GetCurrentJSContext());
 
   JS::Rooted<JSObject*> thisObject(cx, &v.toObject());
   JS::Rooted<JSObject*> scopeObject(cx, xpc::GetScopeForXBLExecution(cx, globalObject, aAddonId));

@@ -317,7 +317,6 @@
               openUILinkIn(url, "current", {
                 allowThirdPartyFixup: true,
                 disallowInheritPrincipal: !mayInheritPrincipal,
-                allowPinnedTabHostChange: true,
                 postData: postData
               });
             }
