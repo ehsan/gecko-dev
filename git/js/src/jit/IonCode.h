@@ -199,9 +199,6 @@ struct IonScript
     // Flag set if IonScript was compiled with SPS profiling enabled.
     bool hasSPSInstrumentation_;
 
-    // Flag for if this script is getting recompiled.
-    bool recompiling_;
-
     // Any kind of data needed by the runtime, these can be either cache
     // information or profiling info.
     uint32_t runtimeData_;
@@ -531,18 +528,6 @@ struct IonScript
     }
     void resetOsrPcMismatchCounter() {
         osrPcMismatchCounter_ = 0;
-    }
-
-    void setRecompiling() {
-        recompiling_ = true;
-    }
-
-    bool isRecompiling() const {
-        return recompiling_;
-    }
-
-    void clearRecompiling() {
-        recompiling_ = false;
     }
 
     static void writeBarrierPre(Zone *zone, IonScript *ionScript);

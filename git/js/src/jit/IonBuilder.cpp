@@ -3435,7 +3435,8 @@ IonBuilder::jsop_try()
         return abort("Has try-finally");
 
     // Try-catch within inline frames is not yet supported.
-    JS_ASSERT(script()->uninlineable && !isInlineBuilder());
+    if (isInlineBuilder())
+        return abort("try-catch within inline frame");
 
     graph().setHasTryBlock();
 
@@ -9149,8 +9150,9 @@ IonBuilder::jsop_setarg(uint32_t arg)
     // required, then it means that any aliased argument set can never be observed, and
     // the frame does not actually need to be updated with the new arg value.
     if (info().argumentsAliasesFormals()) {
-        // JSOP_SETARG with magic arguments within inline frames is not yet supported.
-        JS_ASSERT(script()->uninlineable && !isInlineBuilder());
+        // Try-catch within inline frames is not yet supported.
+        if (isInlineBuilder())
+            return abort("JSOP_SETARG with magic arguments in inlined function.");
 
         MSetFrameArgument *store = MSetFrameArgument::New(alloc(), arg, val);
         current->add(store);

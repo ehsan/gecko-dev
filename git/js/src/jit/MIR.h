@@ -2192,9 +2192,6 @@ class MCompare
         // Int32   compared to Int32
         // Boolean compared to Boolean
         Compare_Int32,
-        Compare_Int32MaybeCoerceBoth,
-        Compare_Int32MaybeCoerceLHS,
-        Compare_Int32MaybeCoerceRHS,
 
         // Int32 compared as unsigneds
         Compare_UInt32,
@@ -2260,12 +2257,6 @@ class MCompare
     void infer(BaselineInspector *inspector, jsbytecode *pc);
     CompareType compareType() const {
         return compareType_;
-    }
-    bool isInt32Comparison() const {
-        return compareType() == Compare_Int32 ||
-               compareType() == Compare_Int32MaybeCoerceBoth ||
-               compareType() == Compare_Int32MaybeCoerceLHS ||
-               compareType() == Compare_Int32MaybeCoerceRHS;
     }
     bool isDoubleComparison() const {
         return compareType() == Compare_Double ||
@@ -3050,12 +3041,10 @@ class MToInt32
     public ToInt32Policy
 {
     bool canBeNegativeZero_;
-    MacroAssembler::IntConversionInputKind conversion_;
 
-    MToInt32(MDefinition *def, MacroAssembler::IntConversionInputKind conversion)
+    MToInt32(MDefinition *def)
       : MUnaryInstruction(def),
-        canBeNegativeZero_(true),
-        conversion_(conversion)
+        canBeNegativeZero_(true)
     {
         setResultType(MIRType_Int32);
         setMovable();
@@ -3063,11 +3052,9 @@ class MToInt32
 
   public:
     INSTRUCTION_HEADER(ToInt32)
-    static MToInt32 *New(TempAllocator &alloc, MDefinition *def,
-                         MacroAssembler::IntConversionInputKind conversion =
-                             MacroAssembler::IntConversion_Any)
+    static MToInt32 *New(TempAllocator &alloc, MDefinition *def)
     {
-        return new(alloc) MToInt32(def, conversion);
+        return new(alloc) MToInt32(def);
     }
 
     MDefinition *foldsTo(TempAllocator &alloc, bool useValueNumbers);
@@ -3084,10 +3071,6 @@ class MToInt32
 
     TypePolicy *typePolicy() {
         return this;
-    }
-
-    MacroAssembler::IntConversionInputKind conversion() const {
-        return conversion_;
     }
 
     bool congruentTo(MDefinition *ins) const {
