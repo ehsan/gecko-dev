@@ -548,14 +548,12 @@ nsPlaintextEditor::InsertBR(nsCOMPtr<nsIDOMNode>* outBRNode)
   nsCOMPtr<nsISelection> selection;
   nsresult res = GetSelection(getter_AddRefs(selection));
   NS_ENSURE_SUCCESS(res, res);
-  bool bCollapsed;
-  res = selection->GetIsCollapsed(&bCollapsed);
-  NS_ENSURE_SUCCESS(res, res);
-  if (!bCollapsed)
-  {
+
+  if (!selection->Collapsed()) {
     res = DeleteSelection(nsIEditor::eNone, nsIEditor::eStrip);
     NS_ENSURE_SUCCESS(res, res);
   }
+
   nsCOMPtr<nsIDOMNode> selNode;
   PRInt32 selOffset;
   res = GetStartNodeAndOffset(selection, getter_AddRefs(selNode), &selOffset);
@@ -664,11 +662,9 @@ nsresult
 nsPlaintextEditor::ExtendSelectionForDelete(nsISelection *aSelection,
                                             nsIEditor::EDirection *aAction)
 {
-  nsresult result;
+  nsresult result = NS_OK;
 
-  bool bCollapsed;
-  result = aSelection->GetIsCollapsed(&bCollapsed);
-  NS_ENSURE_SUCCESS(result, result);
+  bool bCollapsed = aSelection->Collapsed();
 
   if (*aAction == eNextWord || *aAction == ePreviousWord
       || (*aAction == eNext && bCollapsed)
@@ -769,10 +765,7 @@ nsPlaintextEditor::DeleteSelection(EDirection aAction,
   //  selection to the  start and then create a new selection.
   //  Platforms that use "selection-style" caret positioning just delete the
   //  existing selection without extending it.
-  bool bCollapsed;
-  result  = selection->GetIsCollapsed(&bCollapsed);
-  NS_ENSURE_SUCCESS(result, result);
-  if (!bCollapsed &&
+  if (!selection->Collapsed() &&
       (aAction == eNextWord || aAction == ePreviousWord ||
        aAction == eToBeginningOfLine || aAction == eToEndOfLine))
   {
@@ -1265,9 +1258,7 @@ nsPlaintextEditor::CanCutOrCopy()
   if (NS_FAILED(GetSelection(getter_AddRefs(selection))))
     return false;
 
-  bool isCollapsed;
-  selection->GetIsCollapsed(&isCollapsed);
-  return !isCollapsed;
+  return !selection->Collapsed();
 }
 
 bool
@@ -1574,8 +1565,7 @@ nsPlaintextEditor::SharedOutputString(PRUint32 aFlags,
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(selection, NS_ERROR_NOT_INITIALIZED);
 
-  rv = selection->GetIsCollapsed(aIsCollapsed);
-  NS_ENSURE_SUCCESS(rv, rv);
+  *aIsCollapsed = selection->Collapsed();
 
   if (!*aIsCollapsed)
     aFlags |= nsIDocumentEncoder::OutputSelectionOnly;
