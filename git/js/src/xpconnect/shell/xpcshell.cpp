@@ -288,7 +288,7 @@ my_ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
     // Don't report an exception from inner JS frames as the callers may intend
     // to handle it.
     while ((fp = JS_FrameIterator(cx, &fp))) {
-        if (JS_IsScriptFrame(cx, fp)) {
+        if (!JS_IsNativeFrame(cx, fp)) {
             return;
         }
     }
@@ -371,7 +371,7 @@ my_ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
 }
 
 static JSBool
-ReadLine(JSContext *cx, uintN argc, jsval *vp)
+ReadLine(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     // While 4096 might be quite arbitrary, this is something to be fixed in
     // bug 105707. It is also the same limit as in ProcessFile.
@@ -380,9 +380,10 @@ ReadLine(JSContext *cx, uintN argc, jsval *vp)
 
     /* If a prompt was specified, construct the string */
     if (argc > 0) {
-        str = JS_ValueToString(cx, JS_ARGV(cx, vp)[0]);
+        str = JS_ValueToString(cx, argv[0]);
         if (!str)
             return JS_FALSE;
+        argv[0] = STRING_TO_JSVAL(str);
     } else {
         str = JSVAL_TO_STRING(JS_GetEmptyStringValue(cx));
     }
@@ -395,7 +396,7 @@ ReadLine(JSContext *cx, uintN argc, jsval *vp)
     unsigned int buflen = strlen(buf);
     if (buflen == 0) {
         if (feof(gInFile)) {
-            JS_SET_RVAL(cx, vp, JSVAL_NULL);
+            *rval = JSVAL_NULL;
             return JS_TRUE;
         }
     } else if (buf[buflen - 1] == '\n') {
@@ -407,17 +408,16 @@ ReadLine(JSContext *cx, uintN argc, jsval *vp)
     if (!str)
         return JS_FALSE;
 
-    JS_SET_RVAL(cx, vp, STRING_TO_JSVAL(str));
+    *rval = STRING_TO_JSVAL(str);
     return JS_TRUE;
 }
 
 static JSBool
-Print(JSContext *cx, uintN argc, jsval *vp)
+Print(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     uintN i, n;
     JSString *str;
 
-    jsval *argv = JS_ARGV(cx, vp);
     for (i = n = 0; i < argc; i++) {
         str = JS_ValueToString(cx, argv[i]);
         if (!str)
@@ -428,20 +428,17 @@ Print(JSContext *cx, uintN argc, jsval *vp)
     n++;
     if (n)
         fputc('\n', gOutFile);
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSBool
-Dump(JSContext *cx, uintN argc, jsval *vp)
+Dump(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
-
     JSString *str;
     if (!argc)
         return JS_TRUE;
 
-    str = JS_ValueToString(cx, JS_ARGV(cx, vp)[0]);
+    str = JS_ValueToString(cx, argv[0]);
     if (!str)
         return JS_FALSE;
 
@@ -451,7 +448,7 @@ Dump(JSContext *cx, uintN argc, jsval *vp)
 }
 
 static JSBool
-Load(JSContext *cx, uintN argc, jsval *vp)
+Load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     uintN i;
     JSString *str;
@@ -461,11 +458,6 @@ Load(JSContext *cx, uintN argc, jsval *vp)
     jsval result;
     FILE *file;
 
-    JSObject *obj = JS_THIS_OBJECT(cx, vp);
-    if (!obj)
-        return JS_FALSE;
-
-    jsval *argv = JS_ARGV(cx, vp);
     for (i = 0; i < argc; i++) {
         str = JS_ValueToString(cx, argv[i]);
         if (!str)
@@ -490,33 +482,31 @@ Load(JSContext *cx, uintN argc, jsval *vp)
         if (!ok)
             return JS_FALSE;
     }
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSBool
-Version(JSContext *cx, uintN argc, jsval *vp)
+Version(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
-    if (argc > 0 && JSVAL_IS_INT(JS_ARGV(cx, vp)[0]))
-        JS_SET_RVAL(cx, vp, INT_TO_JSVAL(JS_SetVersion(cx, JSVersion(JSVAL_TO_INT(JS_ARGV(cx, vp)[0])))));
+    if (argc > 0 && JSVAL_IS_INT(argv[0]))
+        *rval = INT_TO_JSVAL(JS_SetVersion(cx, JSVersion(JSVAL_TO_INT(argv[0]))));
     else
-        JS_SET_RVAL(cx, vp, INT_TO_JSVAL(JS_GetVersion(cx)));
+        *rval = INT_TO_JSVAL(JS_GetVersion(cx));
     return JS_TRUE;
 }
 
 static JSBool
-BuildDate(JSContext *cx, uintN argc, jsval *vp)
+BuildDate(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     fprintf(gOutFile, "built on %s at %s\n", __DATE__, __TIME__);
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSBool
-Quit(JSContext *cx, uintN argc, jsval *vp)
+Quit(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     gExitCode = 0;
-    JS_ConvertArguments(cx, argc, JS_ARGV(cx, vp),"/ i", &gExitCode);
+    JS_ConvertArguments(cx, argc, argv,"/ i", &gExitCode);
 
     gQuitting = JS_TRUE;
 //    exit(0);
@@ -524,24 +514,23 @@ Quit(JSContext *cx, uintN argc, jsval *vp)
 }
 
 static JSBool
-DumpXPC(JSContext *cx, uintN argc, jsval *vp)
+DumpXPC(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     int32 depth = 2;
 
     if (argc > 0) {
-        if (!JS_ValueToInt32(cx, JS_ARGV(cx, vp)[0], &depth))
+        if (!JS_ValueToInt32(cx, argv[0], &depth))
             return JS_FALSE;
     }
 
     nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID());
     if(xpc)
         xpc->DebugDump((int16)depth);
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSBool
-GC(JSContext *cx, uintN argc, jsval *vp)
+GC(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     JSRuntime *rt;
     uint32 preBytes;
@@ -560,20 +549,18 @@ GC(JSContext *cx, uintN argc, jsval *vp)
 #ifdef JS_GCMETER
     js_DumpGCStats(rt, stdout);
 #endif
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 #ifdef JS_GC_ZEAL
 static JSBool
-GCZeal(JSContext *cx, uintN argc, jsval *vp)
+GCZeal(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     uint32 zeal;
-    if (!JS_ValueToECMAUint32(cx, argc ? JS_ARGV(cx, vp)[0] : JSVAL_VOID, &zeal))
+    if (!JS_ValueToECMAUint32(cx, argv[0], &zeal))
         return JS_FALSE;
 
     JS_SetGCZeal(cx, (PRUint8)zeal);
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 #endif
@@ -581,7 +568,7 @@ GCZeal(JSContext *cx, uintN argc, jsval *vp)
 #ifdef DEBUG
 
 static JSBool
-DumpHeap(JSContext *cx, uintN argc, jsval *vp)
+DumpHeap(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     char *fileName = NULL;
     void* startThing = NULL;
@@ -589,14 +576,12 @@ DumpHeap(JSContext *cx, uintN argc, jsval *vp)
     void *thingToFind = NULL;
     size_t maxDepth = (size_t)-1;
     void *thingToIgnore = NULL;
+    jsval *vp;
     FILE *dumpFile;
     JSBool ok;
 
-    jsval *argv = JS_ARGV(cx, vp);
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
-
-    vp = argv + 0;
-    if (argc > 0 && *vp != JSVAL_NULL && *vp != JSVAL_VOID) {
+    vp = &argv[0];
+    if (*vp != JSVAL_NULL && *vp != JSVAL_VOID) {
         JSString *str;
 
         str = JS_ValueToString(cx, *vp);
@@ -606,23 +591,23 @@ DumpHeap(JSContext *cx, uintN argc, jsval *vp)
         fileName = JS_GetStringBytes(str);
     }
 
-    vp = argv + 1;
-    if (argc > 1 && *vp != JSVAL_NULL && *vp != JSVAL_VOID) {
+    vp = &argv[1];
+    if (*vp != JSVAL_NULL && *vp != JSVAL_VOID) {
         if (!JSVAL_IS_TRACEABLE(*vp))
             goto not_traceable_arg;
         startThing = JSVAL_TO_TRACEABLE(*vp);
         startTraceKind = JSVAL_TRACE_KIND(*vp);
     }
 
-    vp = argv + 2;
-    if (argc > 2 && *vp != JSVAL_NULL && *vp != JSVAL_VOID) {
+    vp = &argv[2];
+    if (*vp != JSVAL_NULL && *vp != JSVAL_VOID) {
         if (!JSVAL_IS_TRACEABLE(*vp))
             goto not_traceable_arg;
         thingToFind = JSVAL_TO_TRACEABLE(*vp);
     }
 
-    vp = argv + 3;
-    if (argc > 3 && *vp != JSVAL_NULL && *vp != JSVAL_VOID) {
+    vp = &argv[3];
+    if (*vp != JSVAL_NULL && *vp != JSVAL_VOID) {
         uint32 depth;
 
         if (!JS_ValueToECMAUint32(cx, *vp, &depth))
@@ -630,8 +615,8 @@ DumpHeap(JSContext *cx, uintN argc, jsval *vp)
         maxDepth = depth;
     }
 
-    vp = argv + 4;
-    if (argc > 4 && *vp != JSVAL_NULL && *vp != JSVAL_VOID) {
+    vp = &argv[4];
+    if (*vp != JSVAL_NULL && *vp != JSVAL_VOID) {
         if (!JSVAL_IS_TRACEABLE(*vp))
             goto not_traceable_arg;
         thingToIgnore = JSVAL_TO_TRACEABLE(*vp);
@@ -664,15 +649,14 @@ DumpHeap(JSContext *cx, uintN argc, jsval *vp)
 #endif /* DEBUG */
 
 static JSBool
-Clear(JSContext *cx, uintN argc, jsval *vp)
+Clear(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
-    if (argc > 0 && !JSVAL_IS_PRIMITIVE(JS_ARGV(cx, vp)[0])) {
-        JS_ClearScope(cx, JSVAL_TO_OBJECT(JS_ARGV(cx, vp)[0]));
+    if (argc > 0 && !JSVAL_IS_PRIMITIVE(argv[0])) {
+        JS_ClearScope(cx, JSVAL_TO_OBJECT(argv[0]));
     } else {
         JS_ReportError(cx, "'clear' requires an object");
         return JS_FALSE;
     }
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
@@ -680,15 +664,16 @@ Clear(JSContext *cx, uintN argc, jsval *vp)
 
 static JSBool
 SendCommand(JSContext* cx,
+            JSObject* obj,
             uintN argc,
-            jsval* vp)
+            jsval* argv,
+            jsval* rval)
 {
     if (argc == 0) {
         JS_ReportError(cx, "Function takes at least one argument!");
         return JS_FALSE;
     }
 
-    jsval *argv = JS_ARGV(cx, vp);
     JSString* str = JS_ValueToString(cx, argv[0]);
     if (!str) {
         JS_ReportError(cx, "Could not convert argument 1 to string!");
@@ -705,18 +690,19 @@ SendCommand(JSContext* cx,
         return JS_FALSE;
     }
 
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSBool
 GetChildGlobalObject(JSContext* cx,
+                     JSObject*,
                      uintN,
-                     jsval* vp)
+                     jsval*,
+                     jsval* rval)
 {
     JSObject* global;
     if (XRE_GetChildGlobalObject(cx, &global)) {
-        JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(global));
+        *rval = OBJECT_TO_JSVAL(global);
         return JS_TRUE;
     }
     return JS_FALSE;
@@ -772,7 +758,7 @@ MapContextOptionNameToFlag(JSContext* cx, const char* name)
 }
 
 static JSBool
-Options(JSContext *cx, uintN argc, jsval *vp)
+Options(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     uint32 optset, flag;
     JSString *str;
@@ -781,7 +767,6 @@ Options(JSContext *cx, uintN argc, jsval *vp)
     JSBool found;
 
     optset = 0;
-    jsval *argv = JS_ARGV(cx, vp);
     for (uintN i = 0; i < argc; i++) {
         str = JS_ValueToString(cx, argv[i]);
         if (!str)
@@ -819,7 +804,7 @@ Options(JSContext *cx, uintN argc, jsval *vp)
         free(names);
         return JS_FALSE;
     }
-    JS_SET_RVAL(cx, vp, STRING_TO_JSVAL(str));
+    *rval = STRING_TO_JSVAL(str);
     return JS_TRUE;
 }
 
@@ -842,40 +827,40 @@ Parent(JSContext *cx, uintN argc, jsval *vp)
 }
 
 static JSFunctionSpec glob_functions[] = {
-    {"print",           Print,          0,0},
-    {"readline",        ReadLine,       1,0},
-    {"load",            Load,           1,0},
-    {"quit",            Quit,           0,0},
-    {"version",         Version,        1,0},
-    {"build",           BuildDate,      0,0},
-    {"dumpXPC",         DumpXPC,        1,0},
-    {"dump",            Dump,           1,0},
-    {"gc",              GC,             0,0},
+    {"print",           Print,          0,0,0},
+    {"readline",        ReadLine,       1,0,0},
+    {"load",            Load,           1,0,0},
+    {"quit",            Quit,           0,0,0},
+    {"version",         Version,        1,0,0},
+    {"build",           BuildDate,      0,0,0},
+    {"dumpXPC",         DumpXPC,        1,0,0},
+    {"dump",            Dump,           1,0,0},
+    {"gc",              GC,             0,0,0},
 #ifdef JS_GC_ZEAL
-    {"gczeal",          GCZeal,         1,0},
+    {"gczeal",          GCZeal,         1,0,0},
 #endif
-    {"clear",           Clear,          1,0},
-    {"options",         Options,        0,0},
+    {"clear",           Clear,          1,0,0},
+    {"options",         Options,        0,0,0},
     JS_FN("parent",     Parent,         1,0),
 #ifdef DEBUG
-    {"dumpHeap",        DumpHeap,       5,0},
+    {"dumpHeap",        DumpHeap,       5,0,0},
 #endif
 #ifdef MOZ_IPC
-    {"sendCommand",     SendCommand,    1,0},
-    {"getChildGlobalObject", GetChildGlobalObject, 0,0},
+    {"sendCommand",     SendCommand,    1,0,0},
+    {"getChildGlobalObject", GetChildGlobalObject, 0,0,0},
 #endif
 #ifdef MOZ_SHARK
-    {"startShark",      js_StartShark,      0,0},
-    {"stopShark",       js_StopShark,       0,0},
-    {"connectShark",    js_ConnectShark,    0,0},
-    {"disconnectShark", js_DisconnectShark, 0,0},
+    {"startShark",      js_StartShark,      0,0,0},
+    {"stopShark",       js_StopShark,       0,0,0},
+    {"connectShark",    js_ConnectShark,    0,0,0},
+    {"disconnectShark", js_DisconnectShark, 0,0,0},
 #endif
 #ifdef MOZ_CALLGRIND
-    {"startCallgrind",  js_StartCallgrind,  0,0},
-    {"stopCallgrind",   js_StopCallgrind,   0,0},
-    {"dumpCallgrind",   js_DumpCallgrind,   1,0},
+    {"startCallgrind",  js_StartCallgrind,  0,0,0},
+    {"stopCallgrind",   js_StopCallgrind,   0,0,0},
+    {"dumpCallgrind",   js_DumpCallgrind,   1,0,0},
 #endif
-    {nsnull,nsnull,0,0}
+    {nsnull,nsnull,0,0,0}
 };
 
 JSClass global_class = {

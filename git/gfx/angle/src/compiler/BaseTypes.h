@@ -23,7 +23,7 @@ enum TPrecision
     EbpHigh,
 };
 
-inline const char* getPrecisionString(TPrecision p)
+__inline const char* getPrecisionString(TPrecision p)
 {
     switch(p)
     {
@@ -51,7 +51,7 @@ enum TBasicType
     EbtAddress,            // should be deprecated??
 };
 
-inline bool IsSampler(TBasicType type)
+__inline bool IsSampler(TBasicType type)
 {
     return type > EbtGuardSamplerBegin && type < EbtGuardSamplerEnd;
 }
@@ -104,7 +104,7 @@ enum TQualifier
 //
 // This is just for debug print out, carried along with the definitions above.
 //
-inline const char* getQualifierString(TQualifier q)
+__inline const char* getQualifierString(TQualifier q)
 {
     switch(q)
     {

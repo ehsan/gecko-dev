@@ -47,11 +47,12 @@
 #include "jsiter.h"
 #include "jslock.h"
 #include "jsobj.h"
-#include "jsprobes.h"
 #include "jspropertytree.h"
 #include "jsscope.h"
 #include "jsstaticcheck.h"
 #include "jsxml.h"
+
+#include "jsdtracef.h"
 
 /* Headers included for inline implementations used by this header. */
 #include "jsbool.h"
@@ -289,24 +290,6 @@ JSObject::setDenseArrayCapacity(uint32 capacity)
     fslots[JSSLOT_DENSE_ARRAY_CAPACITY].setPrivateUint32(capacity);
 }
 
-inline size_t
-JSObject::slotsAndStructSize(uint32 nslots) const
-{
-    int ndslots;
-    if (isDenseArray())
-        ndslots = getDenseArrayCapacity() + 1;
-    else {
-        ndslots = nslots - JS_INITIAL_NSLOTS;
-        if (ndslots <= 0)
-            ndslots = 0;
-        else
-            ndslots++; /* number of total slots is stored at index -1 */
-    }
-
-    return sizeof(js::Value) * ndslots
-           + (isFunction() && !getPrivate()) ? sizeof(JSFunction) : sizeof(JSObject);
-}
-
 inline const js::Value &
 JSObject::getDenseArrayElement(uint32 i) const
 {
@@ -451,6 +434,13 @@ JSObject::setDateUTCTime(const js::Value &time)
 {
     JS_ASSERT(isDate());
     fslots[JSSLOT_DATE_UTC_TIME] = time;
+}
+
+inline JSFunction *
+JSObject::getFunctionPrivate() const
+{
+    JS_ASSERT(isFunction());
+    return reinterpret_cast<JSFunction *>(getPrivate());
 }
 
 inline js::Value *
@@ -796,6 +786,8 @@ NewNativeClassInstance(JSContext *cx, Class *clasp, JSObject *proto, JSObject *p
     JS_ASSERT(proto->isNative());
     JS_ASSERT(parent);
 
+    DTrace::ObjectCreationScope objectCreationScope(cx, cx->maybefp(), clasp);
+
     /*
      * Allocate an object from the GC heap and initialize all its fields before
      * doing any operation that can potentially trigger GC.
@@ -820,6 +812,7 @@ NewNativeClassInstance(JSContext *cx, Class *clasp, JSObject *proto, JSObject *p
             obj = NULL;
     }
 
+    objectCreationScope.handleCreation(obj);
     return obj;
 }
 
@@ -926,6 +919,8 @@ NewObject(JSContext *cx, js::Class *clasp, JSObject *proto, JSObject *parent)
      }
 
 
+    DTrace::ObjectCreationScope objectCreationScope(cx, cx->maybefp(), clasp);
+
     /*
      * Allocate an object from the GC heap and initialize all its fields before
      * doing any operation that can potentially trigger GC. Functions have a
@@ -956,7 +951,7 @@ NewObject(JSContext *cx, js::Class *clasp, JSObject *proto, JSObject *parent)
     }
 
 out:
-    Probes::createObject(cx, obj);
+    objectCreationScope.handleCreation(obj);
     return obj;
 }
 }

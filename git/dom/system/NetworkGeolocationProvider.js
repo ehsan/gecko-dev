@@ -14,7 +14,7 @@ function nowInSeconds()
 function LOG(aMsg) {
   if (gLoggingEnabled)
   {
-    aMsg = "*** WIFI GEO: " + aMsg + "\n";
+    aMsg = ("*** WIFI GEO: " + aMsg);
     Cc["@mozilla.org/consoleservice;1"].getService(Ci.nsIConsoleService).logStringMessage(aMsg);
     dump(aMsg);
   }
@@ -227,18 +227,25 @@ WifiGeoPositionProvider.prototype = {
                                              Ci.nsITimerCallback]),
 
     prefService:     null,
+
+    provider_url:    null,
     wifi_service:    null,
     timer:           null,
+    protocol:        null,
     hasSeenWiFi:     false,
-    started:         false,
 
     startup:         function() {
-        if (this.started == true)
-            return;
+        LOG("startup called");
 
-        this.started = true;
+        this.provider_url = this.prefService.getCharPref("geo.wifi.uri");
+        LOG("provider url = " + this.provider_url);
 
-        LOG("startup called.  testing mode is" + gTestingEnabled);
+        try {
+            this.protocol = this.prefService.getIntPref("geo.wifi.protocol");
+            LOG("protocol = " + this.protocol);
+        } catch (e) {
+            this.protocol = 0;
+        }
         // if we don't see anything in 5 seconds, kick of one IP geo lookup.
         // if we are testing, just hammer this callback so that we are more or less
         // always sending data.  It doesn't matter if we have an access point or not.
@@ -277,8 +284,6 @@ WifiGeoPositionProvider.prototype = {
         let prefBranch = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
         if (prefBranch.getIntPref("network.cookie.lifetimePolicy") != 0)
             prefBranch.deleteBranch("geo.wifi.access_token.");
-
-        this.started = false;
     },
 
     getAccessTokenForURL: function(url)
@@ -303,6 +308,7 @@ WifiGeoPositionProvider.prototype = {
         }
         catch (e) {
             accessToken = "";
+            LOG("Error: "+ e);
         }
         return accessToken;
     },
@@ -312,22 +318,16 @@ WifiGeoPositionProvider.prototype = {
         LOG("onChange called");
         this.hasSeenWiFi = true;
 
+        // Cache the preferred protocol for use inside the XHR callback
+        var protocol = this.protocol;
+
         // send our request to a wifi geolocation network provider:
-        var xhr = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"]
-                            .createInstance(Ci.nsIXMLHttpRequest);
+        var xhr = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest);
 
         // This is a background load
         xhr.mozBackgroundRequest = true;
 
-        var provider_url      = this.prefService.getCharPref("geo.wifi.uri");
-        var provider_protocol = 0;
-        try {
-            provider_protocol = this.prefService.getIntPref("geo.wifi.protocol");
-        } catch (e) {}
-
-        LOG("provider url = " + provider_url);
-
-        xhr.open("POST", provider_url, false);
+        xhr.open("POST", this.provider_url, false);
         
         // set something so that we can strip cookies
         xhr.channel.loadFlags = Ci.nsIChannel.LOAD_ANONYMOUS;
@@ -340,22 +340,17 @@ WifiGeoPositionProvider.prototype = {
 
             LOG("xhr onload...");
 
-            try { 
-                // if we get a bad response, we will throw and never report a location
-                var response;
-                switch (provider_protocol) {
-                    case 1:
-                        LOG("service returned: " + req.target.responseXML);
-                        response = HELD.decode(req.target.responseXML);
-                        break;
-                    case 0:
-                    default:
-                        LOG("service returned: " + req.target.responseText);
-                        response = JSON.parse(req.target.responseText);
-                }
-            } catch (e) {
-                LOG("Parse failed");
-                return;
+            // if we get a bad response, we will throw and never report a location
+            var response;
+            switch (protocol) {
+                case 1:
+                    LOG("service returned: " + req.target.responseXML);
+                    response = HELD.decode(req.target.responseXML);
+                    break;
+                case 0:
+                default:
+                    LOG("service returned: " + req.target.responseText);
+                    response = JSON.parse(req.target.responseText);
             }
 
             // response looks something like:
@@ -398,7 +393,7 @@ WifiGeoPositionProvider.prototype = {
             update.update(newLocation);
         };
 
-        var accessToken = this.getAccessTokenForURL(provider_url);
+        var accessToken = this.getAccessTokenForURL(this.provider_url);
 
         var request = {
             version: "1.1.0",
@@ -419,7 +414,7 @@ WifiGeoPositionProvider.prototype = {
         }
 
         var requestString;
-        switch (provider_protocol) {
+        switch (protocol) {
           case 1:
               requestString = HELD.encode(request);
               break;
@@ -439,14 +434,9 @@ WifiGeoPositionProvider.prototype = {
     },
 
     notify: function (timer) {
-        if (!gTestingEnabled) {
-            if (this.hasSeenWiFi == false)
-                this.onChange(null);
-            this.timer = null;
-            return;
-        }
-        // if we are testing, we need to hammer this.
-        this.onChange(null);
+        if (this.hasSeenWiFi == false)
+            this.onChange(null);
+        this.timer = null;
     },
 
 };
