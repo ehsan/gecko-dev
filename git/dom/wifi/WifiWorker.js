@@ -198,15 +198,15 @@ var WifiManager = (function() {
       // can trigger bugs in some drivers.
       // On properly written drivers, bringing the interface
       // down powers down the interface.
-      notify("supplicantlost", { success: true });
       callback(0);
+      notify("supplicantlost", { success: true });
       return;
     }
 
     wifiCommand.unloadDriver(function(status) {
       driverLoaded = (status < 0);
-      notify("supplicantlost", { success: true });
       callback(status);
+      notify("supplicantlost", { success: true });
     });
   }
 
@@ -419,6 +419,12 @@ var WifiManager = (function() {
   }
 
   function notifyStateChange(fields) {
+    // Don't handle any state change when and after disabling.
+    if (manager.state === "DISABLING" ||
+        manager.state === "UNINITIALIZED") {
+      return false;
+    }
+
     // If we're already in the COMPLETED state, we might receive events from
     // the supplicant that tell us that we're re-authenticating or reminding
     // us that we're associated to a network. In those cases, we don't need to
@@ -440,19 +446,12 @@ var WifiManager = (function() {
          fields.state === "COMPLETED")) {
       setBackgroundScan("OFF", function() {});
     }
-
     fields.prevState = manager.state;
+    manager.state = fields.state;
+
     // Detect wpa_supplicant's loop iterations.
     manager.supplicantLoopDetection(fields.prevState, fields.state);
     notify("statechange", fields);
-
-    // Don't update state when and after disabling.
-    if (manager.state === "DISABLING" ||
-        manager.state === "UNINITIALIZED") {
-      return false;
-    }
-
-    manager.state = fields.state;
     return true;
   }
 
