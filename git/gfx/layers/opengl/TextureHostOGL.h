@@ -652,8 +652,6 @@ private:
   android::sp<android::GraphicBuffer> mGraphicBuffer;
   GLenum mTextureTarget;
   EGLImage mEGLImage;
-  //Set when the composer needs to swap RB pixels of gralloc buffer
-  bool mIsRBSwapped;
 };
 #endif
 

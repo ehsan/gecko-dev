@@ -36,6 +36,46 @@ USING_BLUETOOTH_NAMESPACE
 using namespace mozilla;
 using namespace mozilla::ipc;
 
+class BluetoothOppManagerObserver : public nsIObserver
+{
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIOBSERVER
+
+  BluetoothOppManagerObserver()
+  {
+  }
+
+  bool Init()
+  {
+    nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
+    if (!obs || NS_FAILED(obs->AddObserver(this,
+                                           NS_XPCOM_SHUTDOWN_OBSERVER_ID,
+                                           false))) {
+      NS_WARNING("Failed to add shutdown observer!");
+      return false;
+    }
+
+    return true;
+  }
+
+  bool Shutdown()
+  {
+    nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
+    if (!obs ||
+        (NS_FAILED(obs->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID)))) {
+      NS_WARNING("Can't unregister observers, or already unregistered!");
+      return false;
+    }
+    return true;
+  }
+
+  ~BluetoothOppManagerObserver()
+  {
+    Shutdown();
+  }
+};
+
 namespace {
 // Sending system message "bluetooth-opp-update-progress" every 50kb
 static const uint32_t kUpdateProgressBase = 50 * 1024;
@@ -66,15 +106,14 @@ static bool sWaitingToSendPutFinal = false;
 }
 
 NS_IMETHODIMP
-BluetoothOppManager::Observe(nsISupports* aSubject,
-                             const char* aTopic,
-                             const PRUnichar* aData)
+BluetoothOppManagerObserver::Observe(nsISupports* aSubject,
+                                     const char* aTopic,
+                                     const PRUnichar* aData)
 {
   MOZ_ASSERT(sInstance);
 
   if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
-    HandleShutdown();
-    return NS_OK;
+    return sInstance->HandleShutdown();
   }
 
   MOZ_ASSERT(false, "BluetoothOppManager got unexpected topic!");
@@ -192,31 +231,11 @@ BluetoothOppManager::BluetoothOppManager() : mConnected(false)
                                            , mCurrentBlobIndex(-1)
 {
   mConnectedDeviceAddress.AssignLiteral(BLUETOOTH_ADDRESS_NONE);
-  Init();
+  Listen();
 }
 
 BluetoothOppManager::~BluetoothOppManager()
 {
-  nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
-  NS_ENSURE_TRUE_VOID(obs);
-  if (NS_FAILED(obs->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID))) {
-    BT_WARNING("Failed to remove shutdown observer!");
-  }
-}
-
-bool
-BluetoothOppManager::Init()
-{
-  nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
-  NS_ENSURE_TRUE(obs, false);
-  if (NS_FAILED(obs->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false))) {
-    BT_WARNING("Failed to add shutdown observer!");
-    return false;
-  }
-
-  Listen();
-
-  return true;
 }
 
 //static
@@ -227,7 +246,6 @@ BluetoothOppManager::Get()
 
   if (!sInstance) {
     sInstance = new BluetoothOppManager();
-    NS_ENSURE_TRUE(sInstance->Init(), nullptr);
   }
 
   return sInstance;
@@ -290,13 +308,14 @@ BluetoothOppManager::Disconnect()
   }
 }
 
-void
+nsresult
 BluetoothOppManager::HandleShutdown()
 {
   MOZ_ASSERT(NS_IsMainThread());
   sInShutdown = true;
   Disconnect();
   sInstance = nullptr;
+  return NS_OK;
 }
 
 bool
@@ -1497,7 +1516,7 @@ BluetoothOppManager::OnUpdateSdpRecords(const nsAString& aDeviceAddress)
   }
 }
 
-NS_IMPL_ISUPPORTS1(BluetoothOppManager, nsIObserver)
+NS_IMPL_ISUPPORTS0(BluetoothOppManager)
 
 bool
 BluetoothOppManager::AcquireSdcardMountLock()
