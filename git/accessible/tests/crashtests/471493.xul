@@ -9,8 +9,10 @@
   <![CDATA[
     function doTest()
     {
-      var accRetrieval = SpecialPowers.Cc["@mozilla.org/accessibleRetrieval;1"].
-        getService(SpecialPowers.Ci.nsIAccessibleRetrieval);
+      netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
+      var accRetrieval = Components.classes["@mozilla.org/accessibleRetrieval;1"].
+        getService(Components.interfaces.nsIAccessibleRetrieval);
 
       var treecol = document.getElementById("col");
       var x = treecol.boxObject.screenX;

@@ -4522,7 +4522,6 @@ var Utils = {
       case "CSP":
       case "Invalid HSTS Headers":
       case "Insecure Password Field":
-      case "SSL":
         return CATEGORY_SECURITY;
 
       default:

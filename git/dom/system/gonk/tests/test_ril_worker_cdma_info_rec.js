@@ -31,7 +31,7 @@ function newWorkerWithParcel(parcelBuf) {
     return buf[index++];
   };
 
-  worker.Buf.readInt32 = function () {
+  worker.Buf.readUint32 = function () {
     return buf[index++];
   };
 
