@@ -63,6 +63,8 @@ protected:
   virtual bool DeallocPHttpChannel(PHttpChannelChild*);
   virtual PCookieServiceChild* AllocPCookieService();
   virtual bool DeallocPCookieService(PCookieServiceChild*);
+  virtual PWyciwygChannelChild* AllocPWyciwygChannel();
+  virtual bool DeallocPWyciwygChannel(PWyciwygChannelChild*);
 };
 
 /**
