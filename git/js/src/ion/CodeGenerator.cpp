@@ -49,9 +49,6 @@
 using namespace js;
 using namespace js::ion;
 
-namespace js {
-namespace ion {
-
 CodeGenerator::CodeGenerator(MIRGenerator *gen, LIRGraph &graph)
   : CodeGeneratorSpecific(gen, graph)
 {
@@ -306,9 +303,6 @@ CodeGenerator::visitTypeBarrier(LTypeBarrier *lir)
     return true;
 }
 
-// Registers safe for use before generatePrologue().
-static const uint32 EntryTempMask = Registers::TempMask & ~(1 << OsrFrameReg.code());
-
 bool
 CodeGenerator::generateArgumentsChecks()
 {
@@ -321,7 +315,7 @@ CodeGenerator::generateArgumentsChecks()
     masm.reserveStack(frameSize());
 
     // No registers are allocated yet, so it's safe to grab anything.
-    Register temp = GeneralRegisterSet(EntryTempMask).getAny();
+    Register temp = GeneralRegisterSet(Registers::TempMask).getAny();
 
     Label mismatched;
     for (uint32 i = 0; i < CountArgSlots(gen->info().fun()); i++) {
@@ -342,78 +336,6 @@ CodeGenerator::generateArgumentsChecks()
 
     masm.freeStack(frameSize());
 
-    return true;
-}
-
-// Out-of-line path to report over-recursed error and fail.
-class CheckOverRecursedFailure : public OutOfLineCodeBase<CodeGenerator>
-{
-    LCheckOverRecursed *lir_;
-
-  public:
-    CheckOverRecursedFailure(LCheckOverRecursed *lir)
-      : lir_(lir)
-    { }
-
-    bool accept(CodeGenerator *codegen) {
-        return codegen->visitCheckOverRecursedFailure(this);
-    }
-
-    LCheckOverRecursed *lir() const {
-        return lir_;
-    }
-};
-
-bool
-CodeGenerator::visitCheckOverRecursed(LCheckOverRecursed *lir)
-{
-    // Ensure that this frame will not cross the stack limit.
-    // This is a weak check, justified by Ion using the C stack: we must always
-    // be some distance away from the actual limit, since if the limit is
-    // crossed, an error must be thrown, which requires more frames.
-    //
-    // It must always be possible to trespass past the stack limit.
-    // Ion may legally place frames very close to the limit. Calling additional
-    // C functions may then violate the limit without any checking.
-
-    ThreadData *threadData = gen->cx->threadData();
-
-    // No registers are allocated yet, so it's safe to grab anything.
-    const LAllocation *limit = lir->limitTemp();
-    Register limitReg = ToRegister(limit);
-
-    // Since Ion frames exist on the C stack, the stack limit may be
-    // dynamically set by JS_SetThreadStackLimit() and JS_SetNativeStackQuota().
-    jsuword *limitAddr = &threadData->ionStackLimit;
-    masm.loadPtr(ImmWord(limitAddr), limitReg);
-
-    CheckOverRecursedFailure *ool = new CheckOverRecursedFailure(lir);
-    if (!addOutOfLineCode(ool))
-        return false;
-
-    // Conditional forward (unlikely) branch to failure.
-    masm.branchPtr(Assembler::BelowOrEqual, StackPointer, limitReg, ool->entry());
-
-    return true;
-}
-
-bool
-CodeGenerator::visitCheckOverRecursedFailure(CheckOverRecursedFailure *ool)
-{
-    // The OOL path is hit if the recursion depth has been exceeded.
-    // Throw an InternalError for over-recursion.
-
-    typedef bool (*pf)(JSContext *);
-    static const VMFunction ReportOverRecursedInfo =
-        FunctionInfo<pf>(ReportOverRecursed);
-
-    if (!callVM(ReportOverRecursedInfo, ool->lir()))
-        return false;
-
-#ifdef DEBUG
-    // Do not rejoin: the above call causes failure.
-    masm.breakpoint();
-#endif
     return true;
 }
 
@@ -505,7 +427,7 @@ CodeGenerator::generate()
 }
 
 // An out-of-line path to convert a boxed int32 to a double.
-class OutOfLineUnboxDouble : public OutOfLineCodeBase<CodeGenerator>
+class ion::OutOfLineUnboxDouble : public OutOfLineCodeBase<CodeGenerator>
 {
     LUnboxDouble *unboxDouble_;
 
@@ -556,6 +478,3 @@ CodeGenerator::visitOutOfLineUnboxDouble(OutOfLineUnboxDouble *ool)
     masm.jump(ool->rejoin());
     return true;
 }
-
-} // namespace ion
-} // namespace js

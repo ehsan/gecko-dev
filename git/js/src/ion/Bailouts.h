@@ -122,7 +122,6 @@ namespace ion {
 // 10 byte cost is more optimal than a bailout table. See IonFrames.h for more
 // detail.
 
-typedef uint32 BailoutId;
 static const BailoutId INVALID_BAILOUT_ID = BailoutId(-1);
 
 // Different kinds of bailouts. When extending this enum, make sure to check
@@ -197,8 +196,8 @@ uint32 ReflowTypeInfo(uint32 bailoutResult);
 // frames. The return value is how much stack to adjust before returning.
 // uint32 HandleException(JSContext *cx);
 
-} // namespace ion
-} // namespace js
+}
+}
 
 #endif // jsion_bailouts_h__
 

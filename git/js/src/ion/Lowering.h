@@ -107,7 +107,6 @@ class LIRGenerator : public LIRGeneratorSpecific
     bool visitParameter(MParameter *param);
     bool visitGoto(MGoto *ins);
     bool visitNewArray(MNewArray *ins);
-    bool visitCheckOverRecursed(MCheckOverRecursed *ins);
     bool visitPrepareCall(MPrepareCall *ins);
     bool visitPassArg(MPassArg *arg);
     bool visitCall(MCall *call);

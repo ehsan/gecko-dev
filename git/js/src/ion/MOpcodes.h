@@ -55,7 +55,6 @@ namespace ion {
     _(Compare)                                                              \
     _(Phi)                                                                  \
     _(OsrValue)                                                             \
-    _(CheckOverRecursed)                                                    \
     _(PrepareCall)                                                          \
     _(PassArg)                                                              \
     _(Call)                                                                 \

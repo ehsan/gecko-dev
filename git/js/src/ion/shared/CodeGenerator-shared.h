@@ -242,8 +242,8 @@ class OutOfLineCodeBase : public OutOfLineCode
     virtual bool accept(T *codegen) = 0;
 };
 
-} // namespace ion
-} // namespace js
+} // ion
+} // js
 
 #endif // jsion_codegen_shared_h__
 
