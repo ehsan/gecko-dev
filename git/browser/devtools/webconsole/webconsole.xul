@@ -183,8 +183,7 @@ function goUpdateConsoleCommands() {
             <textbox class="jsterm-complete-node devtools-monospace"
                      multiline="true" rows="1" tabindex="-1"/>
             <textbox class="jsterm-input-node devtools-monospace"
-                     multiline="true" rows="1" tabindex="0"
-                     aria-autocomplete="list"/>
+                     multiline="true" rows="1" tabindex="0"/>
           </stack>
         </hbox>
       </notificationbox>

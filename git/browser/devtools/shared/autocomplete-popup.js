@@ -65,8 +65,6 @@ function AutocompletePopup(aDocument, aOptions = {})
     if (!aOptions.onKeypress) {
       this._panel.setAttribute("ignorekeys", "true");
     }
-    // Stop this appearing as an alert to accessibility.
-    this._panel.setAttribute("role", "presentation");
 
     let mainPopupSet = this._document.getElementById("mainPopupSet");
     if (mainPopupSet) {
@@ -108,7 +106,6 @@ function AutocompletePopup(aDocument, aOptions = {})
   if (this.onKeypress) {
     this._list.addEventListener("keypress", this.onKeypress, false);
   }
-  this._itemIdCounter = 0;
 }
 exports.AutocompletePopup = AutocompletePopup;
 
@@ -151,8 +148,6 @@ AutocompletePopup.prototype = {
    */
   hidePopup: function AP_hidePopup()
   {
-    // Return accessibility focus to the input.
-    this._document.activeElement.removeAttribute("aria-activedescendant");
     this._panel.hidePopup();
   },
 
@@ -301,23 +296,6 @@ AutocompletePopup.prototype = {
   },
 
   /**
-   * Update accessibility appropriately when the selected item is changed.
-   *
-   * @private
-   */
-  _updateAriaActiveDescendant: function AP__updateAriaActiveDescendant()
-  {
-    if (!this._list.selectedItem) {
-      // Return accessibility focus to the input.
-      this._document.activeElement.removeAttribute("aria-activedescendant");
-      return;
-    }
-    // Focus this for accessibility so users know about the selected item.
-    this._document.activeElement.setAttribute("aria-activedescendant",
-                                              this._list.selectedItem.id);
-  },
-
-  /**
    * Clear all the items from the autocomplete list.
    */
   clearItems: function AP_clearItems()
@@ -362,7 +340,6 @@ AutocompletePopup.prototype = {
     if (this.isOpen && this._list.ensureIndexIsVisible) {
       this._list.ensureIndexIsVisible(this._list.selectedIndex);
     }
-    this._updateAriaActiveDescendant();
   },
 
   /**
@@ -385,7 +362,6 @@ AutocompletePopup.prototype = {
     if (this.isOpen) {
       this._list.ensureIndexIsVisible(this._list.selectedIndex);
     }
-    this._updateAriaActiveDescendant();
   },
 
   /**
@@ -407,8 +383,6 @@ AutocompletePopup.prototype = {
   appendItem: function AP_appendItem(aItem)
   {
     let listItem = this._document.createElementNS(XUL_NS, "richlistitem");
-    // Items must have an id for accessibility.
-    listItem.id = this._panel.id + "_item_" + this._itemIdCounter++;
     if (this.direction) {
       listItem.setAttribute("dir", this.direction);
     }

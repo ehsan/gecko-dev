@@ -117,9 +117,6 @@ SessionStore.prototype = {
         }
 
         Services.obs.notifyObservers(null, "sessionstore-state-purge-complete", "");
-        if (this._notifyClosedTabs) {
-          this._sendClosedTabsToJava(Services.wm.getMostRecentWindow("navigator:browser"));
-        }
         break;
       case "timer-callback":
         // Timer call back for delayed saving
