@@ -238,9 +238,6 @@ class CompileInfo
     bool hasArguments() const {
         return script()->argumentsHasVarBinding();
     }
-    bool argumentsAliasesFormals() const {
-        return script()->argumentsAliasesFormals();
-    }
     bool needsArgsObj() const {
         return script()->needsArgsObj();
     }

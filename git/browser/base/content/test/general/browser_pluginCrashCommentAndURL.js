@@ -12,7 +12,6 @@ function test() {
   // Crashing the plugin takes up a lot of time, so extend the test timeout.
   requestLongerTimeout(runs.length);
   waitForExplicitFinish();
-  setTestPluginEnabledState(Ci.nsIPluginTag.STATE_ENABLED);
 
   // The test harness sets MOZ_CRASHREPORTER_NO_REPORT, which disables plugin
   // crash reports.  This test needs them enabled.  The test also needs a mock

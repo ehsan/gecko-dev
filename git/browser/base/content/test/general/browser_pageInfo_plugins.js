@@ -41,6 +41,8 @@ function finishTest() {
   gPermissionManager.remove("127.0.0.1:8888", gTestPermissionString);
   gPermissionManager.remove("127.0.0.1:8888", gSecondTestPermissionString);
   Services.prefs.clearUserPref("plugins.click_to_play");
+  getTestPlugin().enabledState = Ci.nsIPluginTag.STATE_ENABLED;
+  getTestPlugin("Second Test Plug-in").enabledState = Ci.nsIPluginTag.STATE_ENABLED;
   gBrowser.removeCurrentTab();
   finish();
 }
@@ -48,8 +50,8 @@ function finishTest() {
 function test() {
   waitForExplicitFinish();
   Services.prefs.setBoolPref("plugins.click_to_play", true);
-  setTestPluginEnabledState(Ci.nsIPluginTag.STATE_CLICKTOPLAY);
-  setTestPluginEnabledState(Ci.nsIPluginTag.STATE_ENABLED, "Second Test Plug-in");
+  getTestPlugin().enabledState = Ci.nsIPluginTag.STATE_CLICKTOPLAY;
+  getTestPlugin("Second Test Plug-in").enabledState = Ci.nsIPluginTag.STATE_ENABLED;
   gBrowser.selectedTab = gBrowser.addTab();
   gTestBrowser = gBrowser.selectedBrowser;
   gPermissionManager.remove("127.0.0.1:8888", gTestPermissionString);

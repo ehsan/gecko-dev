@@ -166,10 +166,6 @@ BytecodeAnalysis::init(JSContext *cx)
             hasTryFinally_ = true;
             break;
 
-          case JSOP_SETARG:
-            hasSetArg_ = true;
-            break;
-
           default:
             break;
         }
