@@ -55,8 +55,6 @@ GMPParent::GMPParent()
   , mProcess(nullptr)
   , mDeleteProcessOnlyOnUnload(false)
   , mAbnormalShutdownInProgress(false)
-  , mAsyncShutdownRequired(false)
-  , mAsyncShutdownInProgress(false)
 {
 }
 
@@ -151,8 +149,6 @@ void
 GMPParent::CloseIfUnused()
 {
   MOZ_ASSERT(GMPThread() == NS_GetCurrentThread());
-  LOGD(("%s::%s: %p mAsyncShutdownRequired=%d", __CLASS__, __FUNCTION__, this,
-        mAsyncShutdownRequired));
 
   if ((mDeleteProcessOnlyOnUnload ||
        mState == GMPStateLoaded ||
@@ -161,32 +157,8 @@ GMPParent::CloseIfUnused()
       mVideoEncoders.IsEmpty() &&
       mDecryptors.IsEmpty() &&
       mAudioDecoders.IsEmpty()) {
-    if (mAsyncShutdownRequired) {
-      if (!mAsyncShutdownInProgress) {
-        LOGD(("%s::%s: %p sending async shutdown notification", __CLASS__,
-              __FUNCTION__, this));
-        mAsyncShutdownInProgress = true;
-        if (!SendBeginAsyncShutdown()) {
-          AbortAsyncShutdown();
-        }
-      }
-    } else {
-      Shutdown();
-    }
+    Shutdown();
   }
-}
-
-void
-GMPParent::AbortAsyncShutdown()
-{
-  MOZ_ASSERT(GMPThread() == NS_GetCurrentThread());
-  LOGD(("%s::%s: %p", __CLASS__, __FUNCTION__, this));
-
-  nsRefPtr<GMPParent> kungFuDeathGrip(this);
-  mService->AsyncShutdownComplete(this);
-  mAsyncShutdownRequired = false;
-  mAsyncShutdownInProgress = false;
-  CloseIfUnused();
 }
 
 void
@@ -233,10 +205,6 @@ GMPParent::CloseActive(bool aDieWhenUnloaded)
     mAudioDecoders[i - 1]->Shutdown();
   }
 
-  for (uint32_t i = mTimers.Length(); i > 0; i--) {
-    mTimers[i - 1]->Shutdown();
-  }
-
   // Note: the shutdown of the codecs is async!  don't kill
   // the plugin-container until they're all safely shut down via
   // CloseIfUnused();
@@ -257,6 +225,7 @@ GMPParent::Shutdown()
     return;
   }
 
+  mState = GMPStateClosing;
   DeleteProcess();
   // XXX Get rid of mDeleteProcessOnlyOnUnload and this code when
   // Bug 1043671 is fixed
@@ -272,13 +241,10 @@ void
 GMPParent::DeleteProcess()
 {
   LOGD(("%s::%s: %p", __CLASS__, __FUNCTION__, this));
-
-  if (mState != GMPStateClosing) {
-    // Don't Close() twice!
-    // Probably remove when bug 1043671 is resolved
-    mState = GMPStateClosing;
-    Close();
-  }
+  // Don't Close() twice!
+  // Probably remove when bug 1043671 is resolved
+  MOZ_ASSERT(mState == GMPStateClosing);
+  Close();
   mProcess->Delete();
   LOGD(("%s::%s: Shut down process %p", __CLASS__, __FUNCTION__, (void *) mProcess));
   mProcess = nullptr;
@@ -562,15 +528,8 @@ GMPParent::ActorDestroy(ActorDestroyReason aWhy)
 
   // Normal Shutdown() will delete the process on unwind.
   if (AbnormalShutdown == aWhy) {
+    mState = GMPStateClosing;
     nsRefPtr<GMPParent> self(this);
-    if (mAsyncShutdownRequired) {
-      mService->AsyncShutdownComplete(this);
-      mAsyncShutdownRequired = false;
-    }
-    // Must not call Close() again in DeleteProcess(), as we'll recurse
-    // infinitely if we do.
-    MOZ_ASSERT(mState == GMPStateClosing);
-    DeleteProcess();
     // Note: final destruction will be Dispatched to ourself
     mService->ReAddOnGMPThread(self);
   }
@@ -668,7 +627,7 @@ PGMPTimerParent*
 GMPParent::AllocPGMPTimerParent()
 {
   GMPTimerParent* p = new GMPTimerParent(GMPThread());
-  mTimers.AppendElement(p); // Released in DeallocPGMPTimerParent, or on shutdown.
+  NS_ADDREF(p); // Released in DeallocPGMPTimerParent.
   return p;
 }
 
@@ -676,8 +635,7 @@ bool
 GMPParent::DeallocPGMPTimerParent(PGMPTimerParent* aActor)
 {
   GMPTimerParent* p = static_cast<GMPTimerParent*>(aActor);
-  p->Shutdown();
-  mTimers.RemoveElement(p);
+  NS_RELEASE(p);
   return true;
 }
 
@@ -842,25 +800,6 @@ GMPParent::SetOrigin(const nsAString& aOrigin)
   MOZ_ASSERT(!aOrigin.IsEmpty());
   MOZ_ASSERT(CanBeUsedFrom(aOrigin));
   mOrigin = aOrigin;
-}
-
-bool
-GMPParent::RecvAsyncShutdownRequired()
-{
-  LOGD(("%s::%s: %p", __CLASS__, __FUNCTION__, this));
-  mAsyncShutdownRequired = true;
-  mService->AsyncShutdownNeeded(this);
-  return true;
-}
-
-bool
-GMPParent::RecvAsyncShutdownComplete()
-{
-  LOGD(("%s::%s: %p", __CLASS__, __FUNCTION__, this));
-
-  MOZ_ASSERT(mAsyncShutdownRequired);
-  AbortAsyncShutdown();
-  return true;
 }
 
 } // namespace gmp
