@@ -100,23 +100,6 @@ using mozilla::PodZero;
 
 using js::frontend::Parser;
 
-bool
-JS::detail::CallMethodIfWrapped(JSContext *cx, IsAcceptableThis test, NativeImpl impl,
-                               CallArgs args)
-{
-    HandleValue thisv = args.thisv();
-    JS_ASSERT(!test(thisv));
-
-    if (thisv.isObject()) {
-        JSObject &thisObj = args.thisv().toObject();
-        if (thisObj.is<ProxyObject>())
-            return Proxy::nativeCall(cx, test, impl, args);
-    }
-
-    ReportIncompatible(cx, args);
-    return false;
-}
-
 #ifdef HAVE_VA_LIST_AS_ARRAY
 #define JS_ADDRESSOF_VA_LIST(ap) ((va_list *)(ap))
 #else
@@ -6433,22 +6416,26 @@ JS_SetParallelIonCompilationEnabled(JSContext *cx, bool enabled)
 }
 
 JS_PUBLIC_API(void)
-JS_SetGlobalCompilerOption(JSContext *cx, JSCompilerOption opt, uint32_t value)
+JS_SetGlobalJitCompilerOption(JSContext *cx, JSJitCompilerOption opt, uint32_t value)
 {
 #ifdef JS_ION
     jit::IonOptions defaultValues;
 
     switch (opt) {
-      case JSCOMPILER_BASELINE_USECOUNT_TRIGGER:
+      case JSJITCOMPILER_BASELINE_USECOUNT_TRIGGER:
         if (value == uint32_t(-1))
             value = defaultValues.baselineUsesBeforeCompile;
         jit::js_IonOptions.baselineUsesBeforeCompile = value;
         break;
-      case JSCOMPILER_ION_USECOUNT_TRIGGER:
+      case JSJITCOMPILER_ION_USECOUNT_TRIGGER:
         if (value == uint32_t(-1))
             value = defaultValues.usesBeforeCompile;
         jit::js_IonOptions.usesBeforeCompile = value;
-        jit::js_IonOptions.eagerCompilation = (value == 0);
+        if (value == 0)
+            jit::js_IonOptions.setEagerCompilation();
+        break;
+
+      default:
         break;
     }
 #endif
