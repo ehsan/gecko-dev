@@ -76,7 +76,7 @@ toolbarbutton {
   -moz-margin-end: 0px;
 }
 
-toolbarbutton:not(.searchengine) .toolbarbutton-text {
+toolbarbutton .toolbarbutton-text {
   display: none !important;
 }
 
@@ -87,177 +87,94 @@ toolbarbutton[open="true"] {
 }
 
 #toolbar-main {
-  -moz-appearance: none;
   -moz-box-align: center;
-  background-image: url("chrome://browser/skin/images/toolbar-background.png");
-  background-repeat: repeat-x;
-  background-position: top left;
-  padding: 4px 12px;
-  border: none;
+  background: url("chrome://browser/skin/images/toolbar-background.png") repeat-x top left;
+  padding: 8px;
 }
 
 toolbarbutton.urlbar-icon-button {
-  list-style-image: url("chrome://browser/skin/images/titlebar.png");
-  -moz-padding-start: 24px !important;
+  list-style-image: url("chrome://browser/skin/images/mono-toolbar.png");
 }
 
 #tool-reload {
-  -moz-image-region: rect(0px 222px 24px 198px);
+  -moz-image-region: rect(0px 108px 36px 72px);
 }
 
 #tool-stop {
-  -moz-image-region: rect(0px 246px 24px 222px);
+  -moz-image-region: rect(0px 216px 36px 180px);
 }
 
 #tool-go {
-  -moz-image-region: rect(0px 198px 24px 174px);
-}
-
-#tool-bookmarks {
-  -moz-image-region: rect(0px 174px 48px 126px);
-}
-
-#tool-bookmarks:hover:active {
-  -moz-image-region: rect(48px 174px 96px 126px);
+  -moz-image-region: rect(0px 72px 36px 36px);
 }
 
 #browser-controls {
-  background: url("images/right_sidebar_middle.png") transparent top left repeat-y;
+  background-color: rgb(123,125,123);
 }
 
 toolbarbutton.browser-control-button {
-  list-style-image: url("chrome://browser/skin/images/right_buttons.png");
+  list-style-image: url("chrome://browser/skin/images/mono-sidebar.png");
 }
 
 #tool-star {
-  -moz-image-region: rect(0px 48px 48px 0px);
-}
-
-#tool-star:hover:active {
-  -moz-image-region: rect(0px 96px 48px 48px);
+  -moz-image-region: rect(180px 59px 239px 0px);
 }
 
 #tool-star[starred="true"] {
-  -moz-image-region: rect(0px 192px 48px 144px);
+  -moz-image-region: rect(120px 59px 179px 0px);
 }
 
 #tool-back {
-  -moz-image-region: rect(48px 64px 112px 0px);
-  padding-bottom: 0px !important;
-}
-
-#tool-back:hover:active {
-  -moz-image-region: rect(48px 128px 112px 64px);
-  padding-bottom: 0px !important;
-}
-
-#tool-back[disabled="true"] {
-  -moz-image-region: rect(48px 192px 112px 128px) !important;
-  padding-bottom: 0px !important;
+  -moz-image-region: rect(0px 59px 59px 0px);
+  padding-bottom: 0px;
 }
 
 #tool-forward {
-  -moz-image-region: rect(112px 48px 160px 0px);
-  padding-top: 0px !important;
+  -moz-image-region: rect(60px 59px 119px 0px);
+  padding-top: 0px;
 }
 
-#tool-forward:hover:active {
-  -moz-image-region: rect(112px 96px 160px 48px);
-  padding-top: 0px !important;
-}
-
-#tool-forward[disabled="true"] {
-  -moz-image-region: rect(112px 144px 160px 96px) !important;
-  padding-top: 0px !important;
+#tool-bookmarks {
+  -moz-image-region: rect(240px 59px 299px 0px);
 }
 
 #tool-actions {
-  -moz-image-region: rect(160px 48px 208px 0px);
+  -moz-image-region: rect(300px 59px 359px 0px);
 }
 
-#tool-actions:hover:active {
-  -moz-image-region: rect(160px 96px 208px 48px);
-}
-
-#tool-stuff {
-  -moz-image-region: rect(208px 48px 256px 0px);
-}
-
-#tool-stuff:hover:active {
-  -moz-image-region: rect(208px 96px 256px 48px);
-}
-
-#tool-addons {
-  -moz-image-region: rect(2px 151px 39px 113px);
-}
-
-#tool-downloads {
-  -moz-image-region: rect(2px 151px 39px 113px);
-}
-
-#tool-preferences {
-  -moz-image-region: rect(2px 151px 39px 113px);
-}
-
-.tool-search {
+#tool-search {
   list-style-image: url("chrome://browser/skin/images/mono-toolbar.png");
   -moz-image-region: rect(0px 36px 36px 0px);
 }
 
-#toolbar-main[mode="loading"] > #urlbar-container > #urlbar-icons > #tool-go,
-#toolbar-main[mode="loading"] > #urlbar-container > #urlbar-icons > #tool-reload {
+#toolbar-main[mode="loading"] > #urlbar-icons > #tool-go,
+#toolbar-main[mode="loading"] > #urlbar-icons > #tool-reload {
   visibility: collapse;
 }
 
-#toolbar-main[mode="view"] > #urlbar-container > #urlbar-icons > #tool-go,
-#toolbar-main[mode="view"] > #urlbar-container > #urlbar-icons > #tool-stop {
+#toolbar-main[mode="view"] > #urlbar-icons > #tool-go,
+#toolbar-main[mode="view"] > #urlbar-icons > #tool-stop {
   visibility: collapse;
 }
 
-#toolbar-main[mode="edit"] > #urlbar-container > #urlbar-icons > #tool-reload,
-#toolbar-main[mode="edit"] > #urlbar-container > #urlbar-icons > #tool-stop {
+#toolbar-main[mode="edit"] > #urlbar-icons > #tool-reload,
+#toolbar-main[mode="edit"] > #urlbar-icons > #tool-stop {
   visibility: collapse;
-}
-
-.searchengine {
-  -moz-box-orient: horizontal;
 }
 
 #urlbar-container {
-  background-color: transparent;
+  background-color: rgba(207,207,207,0.9);
+  border: 1px solid rgba(255,255,255,0.9);
+  -moz-border-radius: 10px;
   color: #000;
+  padding: 2px !important;
   -moz-box-orient: horizontal;
   -moz-box-align: center;
-  min-height: 60px;
 }
 
-#identity-box {
-  min-height: 49px;
-  min-width: 65px;
-  background: url("images/addressbar_endcap_l_off.png") transparent top right no-repeat;
-}
-
-#identity-box:hover:active {
-  background: url("images/addressbar_endcap_l_on.png") transparent top right no-repeat;
-}
-
-/* favicon images are 16x16 */
-#urlbar-image-deck {
-  max-width: 24px;
-  max-height: 24px;
-  min-width: 24px;
-  min-height: 24px;
-  margin: 12px 2px 2px 12px;
-}
-
-#urlbar-throbber[loading] {
-  list-style-image: url("chrome://browser/skin/images/throbber.gif");
-}
-
-#urlbar-editarea {
-  min-height: 49px;
-  -moz-box-align: center;
-  background: url("images/addressbar_middle.png") transparent top left repeat-x;
+#toolbar-main[mode="edit"] > #urlbar-container {
+  background-color: rgba(247,247,247,0.9);
+  border-color: rgba(0,0,0,0.9);
 }
 
 #urlbar-caption {
@@ -268,20 +185,22 @@ toolbarbutton.browser-control-button {
   -moz-appearance: none !important;
   padding: 0px !important;
   border: none !important;
-  background-color: transparent;
+  background-color: rgba(247,247,247,0.9);
+}
+
+/* favicon images are 16x16 */
+#urlbar-image-stack {
+  width: 36px;
+  height: 36px;
+  margin: 2px 2px 2px 12px;
 }
 
 /* urlbar toolbuttons images are 36x36 */
 #urlbar-icons {
-  min-height: 49px;
-  min-width: 65px;
+  height: 36px;
   -moz-box-align: center;
-  background: url("images/addressbar_endcap_r_off.png") transparent top left no-repeat;
 }
 
-#urlbar-icons:hover:active {
-  background: url("images/addressbar_endcap_r_on.png") transparent top left no-repeat;
-}
 
 /* URL List */
 #urllist-container {
@@ -289,16 +208,7 @@ toolbarbutton.browser-control-button {
   padding: 8px;
 }
 
-#urllist-close {
-  -moz-appearance: none;
-  border: none;
-  background-color: transparent;
-  margin: 0;
-  padding: 0;
-  list-style-image: url("chrome://browser/skin/images/close-small.png");
-}
-
-#urllist-items, .autocomplete-richlistbox {
+#urllist-items {
   -moz-appearance: none !important;
   background-color: rgba(207,207,207,0.9);
   border: 2px solid #fff !important;
@@ -316,118 +226,13 @@ toolbarbutton.browser-control-button {
   height: 24px;
 }
 
-#urllist-search, #autocomplete_navbuttons {
+#urllist-search {
   background-color: rgba(207,207,207,0.9);
   border: 2px solid #fff !important;
   -moz-border-radius: 10px;
   _moz-box-align: start;
 }
 
-/* tab list */
-
-#tab-list-container {
-  background: url("images/left_sidebar_middle.png") transparent top left repeat-y;
-  min-width: 132px;
-}
-
-#tab-list {
-  -moz-appearance: none;
-  margin: 0;
-  padding: 4px;
-  -moz-padding-end: 12px;
-  background-color: transparent;
-}
-
-richlistitem[type="documenttab"] {
-  -moz-appearance: none;
-  border: 1px solid transparent;
-  -moz-border-radius: 5px;
-  background: none;
-  padding: 4px;
-}
-
-richlistitem[type="documenttab"][selected="true"] {
-  border: 1px solid white !important;
-}
-
-#newtab-button {
-  list-style-image: url("images/left_buttons.png");
-  -moz-image-region: rect(0px 48px 48px 0px);
-}
-
-#newtab-button:hover:active {
-  list-style-image: url("images/left_buttons.png");
-  -moz-image-region: rect(0px 96px 48px 48px);
-}
-
-#retrievetab-button {
-  list-style-image: url("images/left_buttons.png");
-  -moz-image-region: rect(48px 48px 96px 0px);
-}
-
-#retrievetab-button:hover:active {
-  list-style-image: url("images/left_buttons.png");
-  -moz-image-region: rect(48px 96px 96px 48px);
-}
-
-/* autocomplete */
-
-#popup_autocomplete {
-  -moz-appearance: none;
-  background-color: rgba(207,207,207,0.9);
-}
-
-#autocomplete_navbuttons {
-  margin-top: 12px;
-}
-
-#PopupAutoCompleteRichResult {
-  direction: ltr !important;
-}
-
-.ac-result-type-bookmark {
-   list-style-image: url("chrome://browser/skin/images/page-starred.png");
-   width: 16px;
-   height: 16px;
- }
-
-.ac-result-type-tag {
-   list-style-image: url("chrome://browser/skin/images/tag.png");
-   width: 16px;
-   height: 16px;
- }
-
-.ac-comment {
-  font-size: 1.15em;
-}
-
-.ac-extra > .ac-comment {
-  font-size: inherit;
-}
-
-.ac-url-box {
-  display: none;
-}
-
-.ac-url-text {
-  color: GrayText;
-}
-
-.ac-comment[selected="true"], .ac-url-text[selected="true"] {
-  color: inherit !important;
-}
-
-/* find bar */
-
-#findpanel {
-  padding: 0 !important;
-  -moz-appearance: none;
-  background: transparent;
-}
-
-findbar {
-  background: rgba(128, 128, 128, 0.75);
-}
 
 /* Bookmark editor */
 #bookmark-container {
@@ -545,45 +350,11 @@ findbar {
   padding: 10px;
 }
 
-/* Preferences window */
-#prefs-container
-{
+#tool-shortcuts {
+  -moz-image-region: rect(300px 59px 359px 0px);
+}
+
+#shortcuts-container {
   background-color: rgba(123,125,123,0.9);
-}
-
-richpref
-{
-  background-color: white;
-}
-
-.prefsection
-{
-  font-size: 1.5em ! important;
-  color: white;
-  background-color: grey;
-  padding: .2em 0 .2em 0;
-}
-
-.prefbox
-{
-  padding: .3em .3em .3em .5em;
-  border: thin solid lightgrey;
-}
-
-.preftitle
-{
-  font-size: 1.25em ! important;
-}
-
-.prefdesc
-{
-  font-size: 1em ! important;
-  color: grey;
-  background-color: white;
-}
-
-/* BUG: This rule doesn't actually work; I don't know why. */
-richpref > button
-{
-  font-size: 1em ! important;
+  padding: 8px;
 }

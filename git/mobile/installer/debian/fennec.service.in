@@ -1,4 +1,4 @@
 [D-BUS Service]
-Name=Mozilla.@MOZ_APP_DISPLAYNAME@
+Name=org.mozilla.fennec
 Exec=/usr/local/fennec/fennec 
 

@@ -1,4 +1,3 @@
-// -*- Mode: js2; tab-width: 2; indent-tabs-mode: nil; js2-basic-offset: 2; js2-skip-preprocessor-directives: t; -*-
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -40,39 +39,27 @@ const TOOLBARSTATE_LOADING        = 1;
 const TOOLBARSTATE_LOADED         = 2;
 const TOOLBARSTATE_INDETERMINATE  = 3;
 
-const UIMODE_NONE              = 0;
-const UIMODE_URLVIEW           = 1;
-const UIMODE_URLEDIT           = 2;
-const UIMODE_BOOKMARK          = 3;
-const UIMODE_BOOKMARKLIST      = 4;
-const UIMODE_TABS              = 5;
-const UIMODE_CONTROLS          = 6;
-const UIMODE_PANEL             = 7;
-
-const kMaxEngines = 4;
-const kDefaultFavIconURL = "chrome://browser/skin/images/default-favicon.png";
+const PANELMODE_VIEW              = 1;
+const PANELMODE_EDIT              = 2;
+const PANELMODE_BOOKMARK          = 3;
+const PANELMODE_BOOKMARKLIST      = 4;
+const PANELMODE_SHORTCUTLIST      = 5;
 
 var BrowserUI = {
   _panel : null,
   _caption : null,
   _edit : null,
   _throbber : null,
-  _autocompleteNavbuttons : null,
   _favicon : null,
   _faviconAdded : false,
+  _fadeoutID : null,
+  _allowHide : true,
 
-  _titleChanged : function(aDocument) {
-    var browser = Browser.currentBrowser;
-    if (browser && aDocument != browser.contentDocument)
+  _titleChanged : function(aEvent) {
+    if (aEvent.target != getBrowser().contentDocument)
       return;
 
-    this._caption.value = aDocument.title;
-
-    var docElem = document.documentElement;
-    var title = "";
-    if (aDocument.title)
-      title = aDocument.title + docElem.getAttribute("titleseparator");
-    document.title = title + docElem.getAttribute("titlemodifier");
+    this._caption.value = aEvent.target.title;
   },
 
   _linkAdded : function(aEvent) {
@@ -83,48 +70,22 @@ var BrowserUI = {
     var rel = link.rel && link.rel.toLowerCase();
     var rels = rel.split(/\s+/);
     if (rels.indexOf("icon") != -1) {
+      this._throbber.setAttribute("src", "");
       this._setIcon(link.href);
     }
-  },
-
-  _tabSelect : function(aEvent) {
-    var browser = Browser.currentBrowser;
-    this.setURI();
-    this._titleChanged(browser.contentDocument);
-    this._favicon.src = browser.mIconURL || kDefaultFavIconURL;
-
-    let toolbar = document.getElementById("toolbar-main");
-    let browserBox = document.getElementById("browser");
-    if (Browser.content.currentTab.chromeTop) {
-      // Browser box was panned, so let's reset it
-      browserBox.top = Browser.content.currentTab.chromeTop;
-      browserBox.left = 0;
-      toolbar.top = browserBox.top - toolbar.boxObject.height;
-    }
-    else {
-      // Must be initial conditions
-      toolbar.top = 0;
-      browserBox.top = toolbar.boxObject.height;
-      browserBox.left = 0;
-    }
-
-    this.show(UIMODE_NONE);
   },
 
   _setIcon : function(aURI) {
     var ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
     var faviconURI = ios.newURI(aURI, null, null);
+    if (faviconURI.schemeIs("javascript"))
+      return;
 
     var fis = Cc["@mozilla.org/browser/favicon-service;1"].getService(Ci.nsIFaviconService);
-    if (faviconURI.schemeIs("javascript") ||
-        fis.isFailedFavicon(faviconURI))
-      faviconURI = ios.newURI(kDefaultFavIconURL, null, null);
-
-    var browser = getBrowser();
-    browser.mIconURL = faviconURI.spec;
-
-    fis.setAndLoadFaviconForPage(browser.currentURI, faviconURI, true);
-    this._favicon.src = faviconURI.spec;
+    if (fis.isFailedFavicon(faviconURI))
+      faviconURI = ios.newURI("chrome://browser/skin/images/default-favicon.png", null, null);
+    fis.setAndLoadFaviconForPage(getBrowser().currentURI, faviconURI, true);
+    this._favicon.setAttribute("src", faviconURI.spec);
     this._faviconAdded = true;
   },
 
@@ -172,266 +133,22 @@ var BrowserUI = {
     return items;
   },
 
-  _dragData :  {
-    dragging : false,
-    startX : 0,
-    startY : 0,
-    dragX : 0,
-    dragY : 0,
-    lastX : 0,
-    lastY : 0,
-    sTop : 0,
-    sLeft : 0
-  },
-
-  _scrollToolbar : function bui_scrollToolbar(aEvent) {
-    var [scrollWidth, ] = Browser.content._contentAreaDimensions;
-    var [canvasW, ] = Browser.content._effectiveCanvasDimensions;
-
-    var pannedUI = false;
-
-    if (this._dragData.dragging && Browser.content.scrollY == 0) {
-      let toolbar = document.getElementById("toolbar-main");
-      let browser = document.getElementById("browser");
-      let dy = this._dragData.lastY - aEvent.screenY;
-      this._dragData.dragY += dy;
-
-      // NOTE: We should only be scrolling the toolbar if the sidebars are not
-      // visible (browser.left == 0)
-
-      let newTop = null;
-      if (dy > 0 && (toolbar.top > -toolbar.boxObject.height && browser.left == 0)) {
-        // Scroll the toolbar up unless it is already scrolled up
-        newTop = this._dragData.sTop - dy;
-
-        // Clip the adjustment to just enough to hide the toolbar
-        if (newTop < -toolbar.boxObject.height)
-          newTop = -toolbar.boxObject.height;
-
-        // Reset the browser start point
-        Browser.content.dragData.sX = aEvent.screenX;
-        Browser.content.dragData.sY = aEvent.screenY;
-      }
-      else if (dy < 0 && (toolbar.top < 0 && browser.left == 0)) {
-        // Scroll the toolbar down unless it is already down
-        newTop = this._dragData.sTop - dy;
-
-        // Clip the adjustment to just enough to fully show the toolbar
-        if (newTop > 0)
-          newTop = 0;
-      }
-
-      // Update the toolbar and browser tops. Stop the mousemove from
-      // getting to the deckbrowser.
-      if (newTop != null) {
-        toolbar.top = newTop;
-        browser.top = newTop + toolbar.boxObject.height;
-
-        // Cache the current top so we can use it when switching tabs
-        Browser.content.currentTab.chromeTop = browser.top;
-
-        pannedUI = true;
-      }
-    }
-
-    if (this._dragData.dragging && (Browser.content.scrollX == 0 || (Browser.content.scrollX + canvasW) == scrollWidth)) {
-      let tabbar = document.getElementById("tab-list-container");
-      let sidebar = document.getElementById("browser-controls");
-      let panelUI = document.getElementById("panel-container");
-      let toolbar = document.getElementById("toolbar-main");
-      let browser = document.getElementById("browser");
-      let dx = this._dragData.lastX - aEvent.screenX;
-      this._dragData.dragX += dx;
-
-      if (Math.abs(this._dragData.screenX - aEvent.screenX) > 30) {
-        let newLeft = this._dragData.sLeft - dx;
-        let oldLeft = tabbar.left;
-
-        let tabbarW = tabbar.boxObject.width;
-        let sidebarW = sidebar.boxObject.width;
-        let browserW = browser.boxObject.width;
-
-        // Limit the panning
-        if (newLeft > 0)
-          newLeft = 0;
-        else if (newLeft < -(tabbarW + sidebarW))
-          newLeft = -(tabbarW + sidebarW);
-
-        tabbar.left = newLeft;
-
-        // Never let the toolbar pan off the screen
-        let newToolbarLeft = newLeft;
-        if (newToolbarLeft < 0)
-          newToolbarLeft = 0;
-        toolbar.left = newToolbarLeft;
-
-        // Make the toolbar appear/disappear depending on the state of the sidebars
-        if (newLeft + tabbarW != 0)
-          toolbar.top = 0;
-        else
-          toolbar.top = browser.top - toolbar.boxObject.height;
-
-        browser.left = newLeft + tabbarW;
-        sidebar.left = newLeft + tabbarW + browserW;
-        panelUI.left = newLeft + tabbarW + browserW + sidebarW;
-
-        // Set the UI mode based on where we ended up
-        if (newLeft > -(tabbarW - tabbarW / 3) && newLeft <= 0)
-          this.mode = UIMODE_TABS;
-        else if (newLeft >= -(tabbarW + sidebarW) && newLeft < -(tabbarW + sidebarW / 3))
-          this.mode = UIMODE_CONTROLS;
-        else
-          this.mode = (browser.top == 0 ? UIMODE_NONE : UIMODE_URLVIEW);
-
-        pannedUI = true;
-      }
-    }
-
-    if (pannedUI) {
-      aEvent.stopPropagation();
-
-      // Force a sync redraw
-      window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-            .getInterface(Components.interfaces.nsIDOMWindowUtils)
-            .processUpdates();
-    }
-    else {
-      // Reset our start point while the browser is doing its panning
-      this._dragData.lastX = aEvent.screenX;
-      this._dragData.lastY = aEvent.screenY;
-    }
-  },
-
-  _showToolbar : function(aShow) {
-    var toolbar = document.getElementById("toolbar-main");
-    var browser = document.getElementById("browser");
-
-    if (aShow) {
-      // Always show the toolbar, either by floating or panning
-      if (toolbar.top == -toolbar.boxObject.height) {
-        // Float the toolbar over content
-        toolbar.top = 0;
-      }
-      else if (toolbar.top < 0) {
-        // Partially showing, so show it completely
-        toolbar.top = 0;
-        browser.top = toolbar.boxObject.height;
-      }
-    }
-    else {
-      // If we are floating the toolbar, then hide it again
-      if (browser.top == 0) {
-        toolbar.top = -toolbar.boxObject.height;
-      }
-    }
-  },
-
-  _editToolbar : function(aEdit) {
-    var toolbar = document.getElementById("toolbar-main");
-    if (aEdit) {
-      toolbar.setAttribute("mode", "edit");
-      this._caption.hidden = true;
-      this._edit.hidden = false;
-      this._edit.inputField.focus();
-    }
-    else {
-      toolbar.setAttribute("mode", "view");
-      this._edit.hidden = true;
-      this._edit.reallyClosePopup();
-      this._caption.hidden = false;
-    }
-  },
-
-  _showPanel : function(aMode) {
-      let tabbar = document.getElementById("tab-list-container");
-      let sidebar = document.getElementById("browser-controls");
-      let panelUI = document.getElementById("panel-container");
-      let toolbar = document.getElementById("toolbar-main");
-      let browser = document.getElementById("browser");
-
-      let tabbarW = tabbar.boxObject.width;
-      let sidebarW = sidebar.boxObject.width;
-      let browserW = browser.boxObject.width;
-
-      let newLeft = -tabbarW;
-      switch (aMode) {
-        case UIMODE_PANEL:
-          newLeft = -browserW;
-          break;
-        case UIMODE_CONTROLS:
-          newLeft = -(tabbarW + sidebarW);
-          break;
-        case UIMODE_TABS:
-          newLeft = 0;
-          break;
-      }
-      tabbar.left = newLeft;
-
-      let newToolbarLeft = newLeft;
-      if (newToolbarLeft < 0 && aMode != UIMODE_PANEL)
-        newToolbarLeft = 0;
-      else if (newToolbarLeft < 0 && aMode == UIMODE_PANEL)
-        newToolbarLeft += tabbarW + sidebarW;
-      toolbar.left = newToolbarLeft;
-
-      browser.left = newLeft + tabbarW;
-      sidebar.left = newLeft + tabbarW + browserW;
-      panelUI.left = newLeft + tabbarW + browserW + sidebarW;
-      panelUI.width = browserW;
-  },
-
-  _sizeControls : function(aEvent) {
-    var rect = document.getElementById("browser-container").getBoundingClientRect();
-    var containerW = rect.right - rect.left;
-    var containerH = rect.bottom - rect.top;
-    var toolbar = document.getElementById("toolbar-main");
-    var toolbarH = toolbar.boxObject.height;
-
-    var browser = document.getElementById("browser");
-    browser.width = containerW;
-    browser.height = containerH;
-
-    var sidebar = document.getElementById("browser-controls");
-    var panelUI = document.getElementById("panel-container");
-    var tabbar = document.getElementById("tab-list-container");
-    if (window == aEvent.target) {
-      tabbar.left = -tabbar.boxObject.width;
-      panelUI.left = containerW + sidebar.boxObject.width;
-      sidebar.left = containerW;
-      sidebar.height = tabbar.height = (panelUI.height = containerH) - toolbarH;
-    }
-    panelUI.width = containerW - sidebar.boxObject.width - tabbar.boxObject.width;
-
-    var popup = document.getElementById("popup_autocomplete");
-    toolbar.width = containerW;
-    popup.height = containerH - toolbarH;
-  },
-
   init : function() {
     this._caption = document.getElementById("urlbar-caption");
     this._caption.addEventListener("click", this, false);
     this._edit = document.getElementById("urlbar-edit");
+    this._edit.addEventListener("focus", this, false);
     this._edit.addEventListener("blur", this, false);
-    this._edit.addEventListener("keypress", this, true);
-    this._edit.addEventListener("input", this, false);
+    this._edit.addEventListener("keypress", this, false);
     this._throbber = document.getElementById("urlbar-throbber");
     this._favicon = document.getElementById("urlbar-favicon");
     this._favicon.addEventListener("error", this, false);
-    this._autocompleteNavbuttons = document.getElementById("autocomplete_navbuttons");
 
-    Browser.content.addEventListener("DOMTitleChanged", this, true);
-    Browser.content.addEventListener("DOMLinkAdded", this, true);
-
-    document.getElementById("tab-list").addEventListener("TabSelect", this, true);
-
-    Browser.content.addEventListener("mousedown", this, true);
-    Browser.content.addEventListener("mouseup", this, true);
-    Browser.content.addEventListener("mousemove", this, true);
-
-    window.addEventListener("resize", this, false);
+    getBrowser().addEventListener("DOMTitleChanged", this, true);
+    getBrowser().addEventListener("DOMLinkAdded", this, true);
   },
 
-  update : function(aState, aBrowser) {
+  update : function(aState) {
     if (aState == TOOLBARSTATE_INDETERMINATE) {
       this._faviconAdded = false;
       aState = TOOLBARSTATE_LOADED;
@@ -440,39 +157,31 @@ var BrowserUI = {
 
     var toolbar = document.getElementById("toolbar-main");
     if (aState == TOOLBARSTATE_LOADING) {
-      this.show(UIMODE_URLVIEW);
-      Browser.content.setLoading(aBrowser);
+      this._showMode(PANELMODE_VIEW);
 
-      toolbar.top = 0;
       toolbar.setAttribute("mode", "loading");
-      document.getElementById("urlbar-image-deck").selectedIndex = 0;
-      this._favicon.src = "";
-      this._throbber.setAttribute("loading", "true");
+      this._throbber.setAttribute("src", "chrome://browser/skin/images/throbber.gif");
+      this._favicon.setAttribute("src", "");
       this._faviconAdded = false;
     }
     else if (aState == TOOLBARSTATE_LOADED) {
-      var container = document.getElementById("browser");
-      container.top = toolbar.boxObject.height;
-
       toolbar.setAttribute("mode", "view");
-
-      document.getElementById("urlbar-image-deck").selectedIndex = 1;
-      this._throbber.removeAttribute("loading");
+      this._throbber.setAttribute("src", "");
       if (this._faviconAdded == false) {
-        var faviconURI = aBrowser.currentURI.prePath + "/favicon.ico";
+        var faviconURI = getBrowser().currentURI.prePath + "/favicon.ico";
         this._setIcon(faviconURI);
       }
+/*
+      if (this._allowHide)
+        this.hide(3000);
+      this._allowHide = true;
+*/
     }
   },
 
   /* Set the location to the current content */
   setURI : function() {
-    var browser = Browser.currentBrowser;
-
-    // FIXME: deckbrowser should not fire TebSelect on the initial tab (bug 454028)
-    if (!browser.currentURI)
-      return;
-
+    var browser = getBrowser();
     var back = document.getElementById("cmd_back");
     var forward = document.getElementById("cmd_forward");
 
@@ -502,7 +211,8 @@ var BrowserUI = {
     var urlString = uri.spec;
     if (urlString == "about:blank") {
       urlString = "";
-      this.show(UIMODE_URLEDIT);
+      this._showMode(PANELMODE_EDIT);
+      this._allowHide = false;
     }
 
     this._caption.value = urlString;
@@ -510,155 +220,77 @@ var BrowserUI = {
   },
 
   goToURI : function(aURI) {
-    this._edit.reallyClosePopup();
-
     if (!aURI)
       aURI = this._edit.value;
 
-    var flags = Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP;
-    getBrowser().loadURIWithFlags(aURI, flags, null, null);
-    this.show(UIMODE_URLVIEW);
+    if (!this._URIFixup)
+      this._URIFixup = Cc["@mozilla.org/docshell/urifixup;1"].getService(Ci.nsIURIFixup);
+
+    try {
+      aURI = this._URIFixup.createFixupURI(aURI, 0);
+      aURI = this._URIFixup.createExposableURI(aURI);
+    }
+    catch (ex) {
+      aURI = null;
+    }
+
+    if (aURI == null)
+      this.search();
+    else
+      getBrowser().loadURI(aURI.spec, null, null, false);
+
+    this._showMode(PANELMODE_VIEW);
   },
 
   search : function() {
     var queryURI = "http://www.google.com/search?q=" + this._edit.value + "&hl=en&lr=&btnG=Search";
     getBrowser().loadURI(queryURI, null, null, false);
 
-    this.show(UIMODE_URLVIEW);
+    this._showMode(PANELMODE_VIEW);
   },
 
-  updateAutoComplete : function(showDefault)
-  {
-    this.updateSearchEngines();
-    if (showDefault || this._edit.getAttribute("nomatch"))
-      this._edit.showHistoryPopup();
-  },
-
-  doButtonSearch : function(button)
-  {
-    if (!("engine" in button) || !button.engine)
-      return;
-
-    var urlbar = this._edit;
-    urlbar.open = false;
-    var value = urlbar.value;
-
-    var submission = button.engine.getSubmission(value, null);
-    getBrowser().loadURI(submission.uri.spec, null, submission.postData, false);
-  },
-
-  engines : null,
-  updateSearchEngines : function () {
-    if (this.engines)
-      return;
-
-    // XXXndeakin remove the try-catch once the search service is properly built
-    try {
-      var searchService = Cc["@mozilla.org/browser/search-service;1"].
-                          getService(Ci.nsIBrowserSearchService);
-    } catch (ex) {
-      this.engines = [ ];
-      return;
+  _showMode : function(aMode) {
+    if (this._fadeoutID) {
+      clearTimeout(this._fadeoutID);
+      this._fadeoutID = null;
     }
-
-    var engines = searchService.getVisibleEngines({ });
-    this.engines = engines;
-    const kXULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
-    var container = this._autocompleteNavbuttons;
-    for (var e = 0; e < kMaxEngines && e < engines.length; e++) {
-      var button = document.createElementNS(kXULNS, "toolbarbutton");
-      var engine = engines[e];
-      button.id = engine.name;
-      button.setAttribute("label", engine.name);
-      button.className = "searchengine";
-      if (engine.iconURI)
-        button.setAttribute("image", engine.iconURI.spec);
-      container.appendChild(button);
-      button.engine = engine;
-    }
-  },
-
-  mode : UIMODE_NONE,
-  show : function(aMode) {
-    if (this.mode == aMode)
-      return;
-
-    if (this.mode == UIMODE_BOOKMARKLIST && aMode != UIMODE_BOOKMARKLIST)
-      window.removeEventListener("keypress", BrowserUI.closePopup, false);
-
-    this.mode = aMode;
 
     var toolbar = document.getElementById("toolbar-main");
     var bookmark = document.getElementById("bookmark-container");
     var urllist = document.getElementById("urllist-container");
-    var container = document.getElementById("browser-container");
-
-    if (aMode == UIMODE_URLVIEW)
-    {
-      this._showToolbar(true);
-      this._editToolbar(false);
-
+    if (aMode == PANELMODE_VIEW) {
+      toolbar.setAttribute("mode", "view");
+      this._edit.hidden = true;
+      this._caption.hidden = false;
       bookmark.hidden = true;
       urllist.hidden = true;
-
-      this._showPanel(UIMODE_NONE);
     }
-    else if (aMode == UIMODE_URLEDIT) {
-      this._showToolbar(true);
-      this._editToolbar(true);
+    else if (aMode == PANELMODE_EDIT) {
+      toolbar.setAttribute("mode", "edit");
+      this._caption.hidden = true;
+      this._edit.hidden = false;
+      this._edit.focus();
 
-      bookmark.hidden = true;
-      urllist.hidden = true;
-
-      this._showPanel(UIMODE_NONE);
-    }
-    else if (aMode == UIMODE_BOOKMARK) {
-      this._showToolbar(true);
-      this._editToolbar(false);
-
-      urllist.hidden = true;
-      bookmark.hidden = false;
-      bookmark.width = container.boxObject.width;
-
-      this._showPanel(UIMODE_NONE);
-    }
-    else if (aMode == UIMODE_BOOKMARKLIST) {
-      this._showToolbar(false);
-      this._editToolbar(false);
-
-      window.addEventListener("keypress", this.closePopup, false);
+      this.showHistory();
 
       bookmark.hidden = true;
       urllist.hidden = false;
-      urllist.width = container.boxObject.width;
-      urllist.height = container.boxObject.height;
-
-      this._showPanel(UIMODE_NONE);
     }
-    else if (aMode == UIMODE_PANEL) {
-      this._showToolbar(true);
-      this._editToolbar(false);
+    else if (aMode == PANELMODE_BOOKMARK) {
+      toolbar.setAttribute("mode", "view");
+      this._edit.hidden = true;
+      this._caption.hidden = false;
 
-      bookmark.hidden = true;
-
-      let addons = document.getElementById("addons-container");
-      if (addons.getAttribute("src") == "")
-        addons.setAttribute("src", "chrome://mozapps/content/extensions/extensions.xul");
-      let dloads = document.getElementById("downloads-container");
-      if (dloads.getAttribute("src") == "")
-        dloads.setAttribute("src", "chrome://mozapps/content/downloads/downloads.xul");
-
-      this._showPanel(aMode);
-    }
-    else if (aMode == UIMODE_TABS || aMode == UIMODE_CONTROLS) {
-      this._showPanel(aMode);
-    }
-    else if (aMode == UIMODE_NONE) {
-      this._showToolbar(false);
-      this._edit.reallyClosePopup();
       urllist.hidden = true;
+      bookmark.hidden = false;
+    }
+    else if (aMode == PANELMODE_BOOKMARKLIST) {
+      toolbar.setAttribute("mode", "view");
+      this._edit.hidden = true;
+      this._caption.hidden = false;
+
+      urllist.hidden = false;
       bookmark.hidden = true;
-      this._showPanel(aMode);
     }
   },
 
@@ -675,7 +307,6 @@ var BrowserUI = {
       let node = aItems[i];
       let listItem = document.createElement("richlistitem");
       listItem.setAttribute("class", "urllist-item");
-      listItem.setAttribute("value", node.uri);
 
       let box = document.createElement("vbox");
       box.setAttribute("pack", "center");
@@ -699,84 +330,56 @@ var BrowserUI = {
     list.focus();
   },
 
-  closePopup : function(aEvent)
-  {
-    if (aEvent.keyCode == aEvent.DOM_VK_ESCAPE)
-      BrowserUI.show(UIMODE_NONE);
-  },
-
   showHistory : function() {
     this._showPlaces(this._getHistory(6));
   },
 
   showBookmarks : function () {
-    this.show(UIMODE_BOOKMARKLIST);
-
     var bms = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].getService(Ci.nsINavBookmarksService);
     this._showPlaces(this._getBookmarks([bms.bookmarksMenuFolder]));
   },
 
-  newTab : function() {
-    Browser.content.newTab(true);
-    this.show(UIMODE_URLEDIT);
+  show : function() {
+    this._showMode(PANELMODE_VIEW);
   },
 
-  selectTab : function(aTab) {
-    Browser.content.selectTab(aTab);
-    this.show(UIMODE_NONE);
+  hide : function(aFadeout) {
+    if (!aFadeout) {
+      //FIXME hide toolbar stuff
+      this._showMode(PANELMODE_VIEW);
+    }
+    else {
+      //FIXME animate the close
+      //var self = this;
+      //this.fadeoutID = setTimeout(function() { self.hide(); }, aFadeout);
+    }
   },
 
   handleEvent: function (aEvent) {
     switch (aEvent.type) {
       // Browser events
       case "DOMTitleChanged":
-        this._titleChanged(aEvent.target);
+        this._titleChanged(aEvent);
         break;
       case "DOMLinkAdded":
         this._linkAdded(aEvent);
         break;
-      case "TabSelect":
-        this._tabSelect(aEvent);
-        break;
       // URL textbox events
       case "click":
-        this.show(UIMODE_URLEDIT);
-        this.updateAutoComplete(true);
+        this._showMode(PANELMODE_EDIT);
         break;
-      case "input":
-        this.updateAutoComplete(false);
+      case "focus":
+        setTimeout(function() { aEvent.target.select(); }, 0);
         break;
       case "keypress":
-        if (aEvent.keyCode == aEvent.DOM_VK_ESCAPE) {
-          this._edit.reallyClosePopup();
-          this.show(UIMODE_URLVIEW);
-        }
+        if (aEvent.keyCode == aEvent.DOM_VK_RETURN)
+          this.goToURI();
+        if (aEvent.keyCode == aEvent.DOM_VK_ESCAPE)
+          this._showMode(PANELMODE_VIEW);
         break;
       // Favicon events
       case "error":
-        this._favicon.src = "chrome://browser/skin/images/default-favicon.png";
-        break;
-      // UI panning events
-      case "mousedown":
-        this._dragData.dragging = true;
-        this._dragData.dragX = 0;
-        this._dragData.dragY = 0;
-        this._dragData.screenX = this._dragData.lastX = aEvent.screenX;
-        this._dragData.screenY = this._dragData.lastY = aEvent.screenY;
-        this._dragData.sTop = document.getElementById("toolbar-main").top;
-        this._dragData.sLeft = document.getElementById("tab-list-container").left;
-        break;
-      case "mouseup":
-        this._dragData.dragging = false;
-        // Cause the UI to snap, if needed
-        this._showPanel(this.mode);
-        break;
-      case "mousemove":
-        this._scrollToolbar(aEvent);
-        break;
-      // Window size events
-      case "resize":
-        this._sizeControls(aEvent);
+        this._favicon.setAttribute("src", "chrome://browser/skin/images/default-favicon.png");
         break;
     }
   },
@@ -792,12 +395,7 @@ var BrowserUI = {
       case "cmd_go":
       case "cmd_star":
       case "cmd_bookmarks":
-      case "cmd_menu":
-      case "cmd_newTab":
-      case "cmd_closeTab":
-      case "cmd_actions":
-      case "cmd_panel":
-      case "cmd_sanitize":
+      case "cmd_shortcuts":
         isSupported = true;
         break;
       default:
@@ -849,35 +447,21 @@ var BrowserUI = {
 
           var fis = Cc["@mozilla.org/browser/favicon-service;1"].getService(Ci.nsIFaviconService);
           fis.setAndLoadFaviconForPage(bookmarkURI, faviconURI, true);
-
-          this.show(UIMODE_NONE);
         }
         else {
-          this.show(UIMODE_BOOKMARK);
+          this._showMode(PANELMODE_BOOKMARK);
           BookmarkHelper.edit(bookmarkURI);
         }
         break;
       }
       case "cmd_bookmarks":
+         this._showMode(PANELMODE_BOOKMARKLIST);
         this.showBookmarks();
         break;
-      case "cmd_menu":
+      case "cmd_bookmarks":
+        this._showMode(PANELMODE_SHORTCUTLIST);
+        Shortcuts.edit();
         break;
-      case "cmd_newTab":
-        this.newTab();
-        break;
-      case "cmd_closeTab":
-        Browser.content.removeTab(Browser.content.browser);
-        break;
-      case "cmd_sanitize":
-        Sanitizer.sanitize();
-        break;
-      case "cmd_panel":
-      {
-        var mode = (this.mode != UIMODE_PANEL ? UIMODE_PANEL : UIMODE_CONTROLS);
-        this.show(mode);
-        break;
-      }
     }
   }
 };
@@ -887,22 +471,6 @@ var BookmarkHelper = {
   _uri : null,
   _bmksvc : null,
   _tagsvc : null,
-
-  _getTagsArrayFromTagField : function() {
-    // we don't require the leading space (after each comma)
-    var tags = document.getElementById("bookmark-tags").value.split(",");
-    for (var i=0; i<tags.length; i++) {
-      // remove trailing and leading spaces
-      tags[i] = tags[i].replace(/^\s+/, "").replace(/\s+$/, "");
-
-      // remove empty entries from the array.
-      if (tags[i] == "") {
-        tags.splice(i, 1);
-        i--;
-      }
-    }
-    return tags;
-  },
 
   edit : function(aURI) {
     this._bmksvc = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].getService(Ci.nsINavBookmarksService);
@@ -914,11 +482,8 @@ var BookmarkHelper = {
       this._item = bookmarkIDs[0];
       document.getElementById("bookmark-name").value = this._bmksvc.getItemTitle(this._item);
       var currentTags = this._tagsvc.getTagsForURI(this._uri, {});
-      document.getElementById("bookmark-tags").value = currentTags.join(", ");
-      document.getElementById("bookmark-folder").value = ""; // XXX either use this or remove it
+      document.getElementById("bookmark-tags").value = currentTags.join(" ");
     }
-
-    window.addEventListener("keypress", this, true);
   },
 
   remove : function() {
@@ -935,8 +500,9 @@ var BookmarkHelper = {
       this._bmksvc.setItemTitle(this._item, document.getElementById("bookmark-name").value);
 
       // Update the tags
-      var tags = this._getTagsArrayFromTagField();
+      var taglist = document.getElementById("hudbookmark-tags").value;
       var currentTags = this._tagsvc.getTagsForURI(this._uri, {});
+      var tags = taglist.split(" ");
       if (tags.length > 0 || currentTags.length > 0) {
         var tagsToRemove = [];
         var tagsToAdd = [];
@@ -961,17 +527,7 @@ var BookmarkHelper = {
   },
 
   close : function() {
-    window.removeEventListener("keypress", this, true);
     this._item = null;
-    BrowserUI.show(UIMODE_NONE);
-  },
-
-  handleEvent: function (aEvent) {
-    switch (aEvent.type) {
-      case "keypress":
-        if (aEvent.keyCode == aEvent.DOM_VK_ESCAPE)
-          this.close();
-        break;
-    }
+    BrowserUI.hide();
   }
 };
