@@ -356,18 +356,6 @@ static void DebugPrintAllKeyboardLayouts()
 
 #endif // defined(DEBUG) && defined(PR_LOGGING)
 
-void EnsureLogInitialized()
-{
-#ifdef PR_LOGGING
-  if (!sCocoaLog) {
-    sCocoaLog = PR_NewLogModule("nsCocoaWidgets");
-#ifdef DEBUG
-    DebugPrintAllKeyboardLayouts();
-#endif // DEBUG
-  }
-#endif // PR_LOGGING
-}
-
 #pragma mark -
 
 nsChildView::nsChildView() : nsBaseWidget()
@@ -380,7 +368,14 @@ nsChildView::nsChildView() : nsBaseWidget()
 , mIsDispatchPaint(PR_FALSE)
 , mPluginInstanceOwner(nsnull)
 {
-  EnsureLogInitialized();
+#ifdef PR_LOGGING
+  if (!sCocoaLog) {
+    sCocoaLog = PR_NewLogModule("nsCocoaWidgets");
+#ifdef DEBUG
+    DebugPrintAllKeyboardLayouts();
+#endif // DEBUG
+  }
+#endif // PR_LOGGING
 
   memset(&mPluginCGContext, 0, sizeof(mPluginCGContext));
 #ifndef NP_NO_QUICKDRAW
@@ -2078,7 +2073,8 @@ nsChildView::DrawOver(LayerManager* aManager, nsIntRect aRect)
   float bottomX = aRect.x + aRect.width;
   float bottomY = aRect.y + aRect.height;
 
-  TextureImage::ScopedBindTexture texBind(mResizerImage, LOCAL_GL_TEXTURE0);
+  manager->gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
+  manager->gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mResizerImage->Texture());
 
   ColorTextureLayerProgram *program =
     manager->GetColorTextureLayerProgram(mResizerImage->GetShaderProgramType());

@@ -973,13 +973,6 @@ nsXULAppInfo::AppendAppNotesToCrashReport(const nsACString& data)
 }
 
 NS_IMETHODIMP
-nsXULAppInfo::RegisterAppMemory(PRUint64 pointer,
-                                PRUint64 len)
-{
-  return CrashReporter::RegisterAppMemory((void *)pointer, len);
-}
-
-NS_IMETHODIMP
 nsXULAppInfo::WriteMinidumpForException(void* aExceptionInfo)
 {
 #ifdef XP_WIN32
@@ -2543,9 +2536,9 @@ NS_VISIBILITY_DEFAULT PRBool nspr_use_zone_allocator = PR_FALSE;
 #include <dwrite.h>
 
 typedef HRESULT (WINAPI*DWriteCreateFactoryFunc)(
-  DWRITE_FACTORY_TYPE factoryType,
-  REFIID iid,
-  IUnknown **factory
+  __in   DWRITE_FACTORY_TYPE factoryType,
+  __in   REFIID iid,
+  __out  IUnknown **factory
 );
 
 #ifdef DEBUG_DWRITE_STARTUP

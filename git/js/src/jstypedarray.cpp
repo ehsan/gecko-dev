@@ -61,7 +61,6 @@
 #include "jsbit.h"
 #include "jsvector.h"
 #include "jstypedarray.h"
-#include "jsutil.h"
 
 #include "jsobjinlines.h"
 #include "jstypedarrayinlines.h"
@@ -106,16 +105,10 @@ ValueIsLength(JSContext *cx, const Value &v, jsuint *len)
  * access.  It can be created explicitly and passed to a TypedArray, or
  * can be created implicitly by constructing a TypedArray with a size.
  */
-
-/**
- * Walks up the prototype chain to find the actual ArrayBuffer data.
- * This MAY return NULL. Callers should always use js_IsArrayBuffer()
- * first.
- */
 JSObject *
 ArrayBuffer::getArrayBuffer(JSObject *obj)
 {
-    while (obj && !js_IsArrayBuffer(obj))
+    while (!js_IsArrayBuffer(obj))
         obj = obj->getProto();
     return obj;
 }
@@ -124,10 +117,6 @@ JSBool
 ArrayBuffer::prop_getByteLength(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
     JSObject *arrayBuffer = getArrayBuffer(obj);
-    if (!arrayBuffer) {
-        vp->setInt32(0);
-        return true;
-    }
     vp->setInt32(jsint(ArrayBuffer::getByteLength(arrayBuffer)));
     return true;
 }
@@ -152,19 +141,11 @@ ArrayBuffer::class_constructor(JSContext *cx, uintN argc, Value *vp)
 static inline JSBool
 AllocateSlots(JSContext *cx, JSObject *obj, uint32 size)
 {
-    uint32 bytes = size + sizeof(Value);
-    if (size > sizeof(Value) * ARRAYBUFFER_RESERVED_SLOTS - sizeof(Value) ) {
-        JS_ASSERT(!obj->hasSlotsArray());
-        Value *tmpslots = (Value *)cx->calloc_(bytes);
-        if (!tmpslots)
+    uint32 bytes = size + sizeof(js::Value);
+    if (size > sizeof(js::Value) * ARRAYBUFFER_RESERVED_SLOTS - sizeof(js::Value) ) {
+        obj->slots = (js::Value *)cx->calloc_(bytes);
+        if (!obj->slots)
             return false;
-        obj->slots = tmpslots;
-        /*
-         * Note that |bytes| may not be a multiple of |sizeof(Value)|, so
-         * |capacity * sizeof(Value)| may underestimate the size by up to
-         * |sizeof(Value) - 1| bytes.
-         */
-        obj->capacity = bytes / sizeof(Value);
     } else {
         memset(obj->slots, 0, bytes);
     }
@@ -176,7 +157,7 @@ static JSObject *
 DelegateObject(JSContext *cx, JSObject *obj)
 {
     if (!obj->getPrivate()) {
-        JSObject *delegate = NewNonFunction<WithProto::Given>(cx, &js_ObjectClass, obj->getProto(), NULL);
+        JSObject *delegate = NewNonFunction<WithProto::Class>(cx, &js_ObjectClass, NULL, NULL);
         obj->setPrivate(delegate);
         return delegate;
     }
@@ -249,11 +230,8 @@ ArrayBuffer::obj_lookupProperty(JSContext *cx, JSObject *obj, jsid id,
     if (!delegateResult)
         return false;
 
-    if (*propp != NULL) {
-        if (*objp == delegate)
-            *objp = obj;
+    if (*propp != NULL)
         return true;
-    }
 
     JSObject *proto = obj->getProto();
     if (!proto) {
@@ -298,29 +276,6 @@ ArrayBuffer::obj_setProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp, J
 {
     if (JSID_IS_ATOM(id, cx->runtime->atomState.byteLengthAtom))
         return true;
-
-    if (JSID_IS_ATOM(id, cx->runtime->atomState.protoAtom)) {
-        if (!vp->isObjectOrNull())
-            return JS_TRUE;
-
-        JSObject *pobj = vp->toObjectOrNull();
-
-        JSObject *delegate = DelegateObject(cx, obj);
-        if (!delegate)
-            return false;
-
-        // save the old prototype
-        JSObject *oldDelegateProto = delegate->getProto();
-        if (!SetProto(cx, delegate, pobj, true))
-            return false;
-
-        if (!SetProto(cx, obj, pobj, true)) {
-            // restore proto on delegate
-            JS_ALWAYS_TRUE(SetProto(cx, delegate, oldDelegateProto, true));
-            return false;
-        }
-        return true;
-    }
 
     JSObject *delegate = DelegateObject(cx, obj);
     if (!delegate)

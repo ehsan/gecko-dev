@@ -58,6 +58,9 @@ const INSPECTOR_INVISIBLE_ELEMENTS = {
 
 // Inspector notifications dispatched through the nsIObserverService.
 const INSPECTOR_NOTIFICATIONS = {
+  // Fires once the Inspector highlighter is initialized and ready for use.
+  HIGHLIGHTER_READY: "highlighter-ready",
+
   // Fires once the Inspector highlights an element in the page.
   HIGHLIGHTING: "inspector-highlighting",
 
@@ -73,153 +76,86 @@ const INSPECTOR_NOTIFICATIONS = {
 };
 
 ///////////////////////////////////////////////////////////////////////////
-//// Highlighter
+//// IFrameHighlighter
 
 /**
- * A highlighter mechanism.
- *
- * The highlighter is built dynamically once the Inspector is invoked:
- * <stack id="highlighter-container">
- *   <vbox id="highlighter-veil-container">...</vbox>
- *   <box id="highlighter-controls>...</vbox>
- * </stack>
+ * A highlighter mechanism using a transparent xul iframe.
  *
  * @param nsIDOMNode aBrowser
  *        The xul:browser object for the content window being highlighted.
  */
-function Highlighter(aBrowser)
+function IFrameHighlighter(aBrowser)
 {
   this._init(aBrowser);
 }
 
-Highlighter.prototype = {
+IFrameHighlighter.prototype = {
 
-  _init: function Highlighter__init(aBrowser)
+  _init: function IFH__init(aBrowser)
   {
     this.browser = aBrowser;
     let stack = this.browser.parentNode;
     this.win = this.browser.contentWindow;
     this._highlighting = false;
 
-    this.highlighterContainer = document.createElement("stack");
-    this.highlighterContainer.id = "highlighter-container";
+    let div = document.createElement("div");
+    div.flex = 1;
+    div.setAttribute("style", "pointer-events: none; -moz-user-focus: ignore");
 
-    let veilBox = document.createElement("vbox");
-    veilBox.id = "highlighter-veil-container";
+    let iframe = document.createElement("iframe");
+    iframe.setAttribute("id", "highlighter-frame");
+    iframe.setAttribute("transparent", "true");
+    iframe.setAttribute("type", "content");
+    iframe.addEventListener("DOMTitleChanged", function(aEvent) {
+      aEvent.stopPropagation();
+    }, true);
+    iframe.flex = 1;
+    iframe.setAttribute("style", "-moz-user-focus: ignore");
 
-    let controlsBox = document.createElement("box");
-    controlsBox.id = "highlighter-controls";
+    this.listenOnce(iframe, "load", (function iframeLoaded() {
+      this.iframeDoc = iframe.contentDocument;
 
-    // The veil will make the whole page darker except
-    // for the region of the selected box.
-    this.buildVeil(veilBox);
+      this.veilTopDiv = this.iframeDoc.getElementById("veil-topbox");
+      this.veilLeftDiv = this.iframeDoc.getElementById("veil-leftbox");
+      this.veilMiddleDiv = this.iframeDoc.getElementById("veil-middlebox");
+      this.veilTransparentDiv = this.iframeDoc.getElementById("veil-transparentbox");
 
-    // The controlsBox will host the different interactive
-    // elements of the highlighter (buttons, toolbars, ...).
-    this.buildControls(controlsBox);
+      let closeButton = this.iframeDoc.getElementById("close-button");
+      this.listenOnce(closeButton, "click",
+        InspectorUI.closeInspectorUI.bind(InspectorUI, false), false);
 
-    this.highlighterContainer.appendChild(veilBox);
-    this.highlighterContainer.appendChild(controlsBox);
+      this.browser.addEventListener("click", this, true);
+      iframe.contentWindow.addEventListener("resize", this, false);
+      this.handleResize();
+      Services.obs.notifyObservers(null,
+        INSPECTOR_NOTIFICATIONS.HIGHLIGHTER_READY, null);
+    }).bind(this), true);
 
-    stack.appendChild(this.highlighterContainer);
+    iframe.setAttribute("src", "chrome://browser/content/highlighter.xhtml");
 
-    this.browser.addEventListener("resize", this, true);
-    this.browser.addEventListener("scroll", this, true);
-
-    this.handleResize();
-  },
-
-
-  /**
-   * Build the veil:
-   *
-   * <vbox id="highlighter-veil-container">
-   *   <box id="highlighter-veil-topbox" class="highlighter-veil"/>
-   *   <hbox id="highlighter-veil-middlebox">
-   *     <box id="highlighter-veil-leftbox" class="highlighter-veil"/>
-   *     <box id="highlighter-veil-transparentbox"/>
-   *     <box id="highlighter-veil-rightbox" class="highlighter-veil"/>
-   *   </hbox>
-   *   <box id="highlighter-veil-bottombox" class="highlighter-veil"/>
-   * </vbox>
-   *
-   * @param nsIDOMNode aParent
-   */
-  buildVeil: function Highlighter_buildVeil(aParent)
-  {
-
-    // We will need to resize these boxes to surround a node.
-    // See highlightRectangle().
-
-    this.veilTopBox = document.createElement("box");
-    this.veilTopBox.id = "highlighter-veil-topbox";
-    this.veilTopBox.className = "highlighter-veil";
-
-    this.veilMiddleBox = document.createElement("hbox");
-    this.veilMiddleBox.id = "highlighter-veil-middlebox";
-
-    this.veilLeftBox = document.createElement("box");
-    this.veilLeftBox.id = "highlighter-veil-leftbox";
-    this.veilLeftBox.className = "highlighter-veil";
-
-    this.veilTransparentBox = document.createElement("box");
-    this.veilTransparentBox.id = "highlighter-veil-transparentbox";
-
-    // We don't need any references to veilRightBox and veilBottomBox.
-    // These boxes are automatically resized (flex=1)
-
-    let veilRightBox = document.createElement("box");
-    veilRightBox.id = "highlighter-veil-rightbox";
-    veilRightBox.className = "highlighter-veil";
-
-    let veilBottomBox = document.createElement("box");
-    veilBottomBox.id = "highlighter-veil-bottombox";
-    veilBottomBox.className = "highlighter-veil";
-
-    this.veilMiddleBox.appendChild(this.veilLeftBox);
-    this.veilMiddleBox.appendChild(this.veilTransparentBox);
-    this.veilMiddleBox.appendChild(veilRightBox);
-
-    aParent.appendChild(this.veilTopBox);
-    aParent.appendChild(this.veilMiddleBox);
-    aParent.appendChild(veilBottomBox);
+    div.appendChild(iframe);
+    stack.appendChild(div);
+    this.iframe = iframe;
+    this.iframeContainer = div;
   },
 
   /**
-   * Build the controls:
-   *
-   * <box id="highlighter-close-button"/>
-   *
-   * @param nsIDOMNode aParent
+   * Destroy the iframe and its nodes.
    */
-  buildControls: function Highlighter_buildControls(aParent)
+  destroy: function IFH_destroy()
   {
-    let closeButton = document.createElement("box");
-    closeButton.id = "highlighter-close-button";
-    closeButton.appendChild(document.createElement("image"));
-
-    closeButton.setAttribute("onclick", "InspectorUI.closeInspectorUI(false);");
-
-    aParent.appendChild(closeButton);
-  },
-
-
-  /**
-   * Destroy the nodes.
-   */
-  destroy: function Highlighter_destroy()
-  {
-    this.browser.removeEventListener("scroll", this, true);
-    this.browser.removeEventListener("resize", this, true);
+    this.browser.removeEventListener("click", this, true);
     this._highlightRect = null;
     this._highlighting = false;
-    this.veilTopBox = null;
-    this.veilLeftBox = null;
-    this.veilMiddleBox = null;
-    this.veilTransparentBox = null;
+    this.veilTopDiv = null;
+    this.veilLeftDiv = null;
+    this.veilMiddleDiv = null;
+    this.veilTransparentDiv = null;
     this.node = null;
-    this.highlighterContainer.parentNode.removeChild(this.highlighterContainer);
-    this.highlighterContainer = null;
+    this.iframeDoc = null;
+    this.browser.parentNode.removeChild(this.iframeContainer);
+    this.iframeContainer = null;
+    this.iframe = null;
     this.win = null
     this.browser = null;
   },
@@ -238,7 +174,7 @@ Highlighter.prototype = {
    * @param boolean aScroll
    *        Boolean determining whether to scroll or not.
    */
-  highlight: function Highlighter_highlight(aScroll)
+  highlight: function IFH_highlight(aScroll)
   {
     // node is not set or node is not highlightable, bail
     if (!this.node || !this.isNodeHighlightable()) {
@@ -252,6 +188,12 @@ Highlighter.prototype = {
                 left: clientRect.left,
                 width: clientRect.width,
                 height: clientRect.height};
+    let oldRect = this._highlightRect;
+
+    if (oldRect && rect.top == oldRect.top && rect.left == oldRect.left &&
+        rect.width == oldRect.width && rect.height == oldRect.height) {
+      return; // same rectangle
+    }
 
     if (aScroll) {
       this.node.scrollIntoView();
@@ -306,7 +248,7 @@ Highlighter.prototype = {
    * @param object aParams
    *        extra parameters object
    */
-  highlightNode: function Highlighter_highlightNode(aNode, aParams)
+  highlightNode: function IFH_highlightNode(aNode, aParams)
   {
     this.node = aNode;
     this.highlight(aParams && aParams.scroll);
@@ -320,23 +262,16 @@ Highlighter.prototype = {
    * @returns boolean
    *          True if the rectangle was highlighted, false otherwise.
    */
-  highlightRectangle: function Highlighter_highlightRectangle(aRect)
+  highlightRectangle: function IFH_highlightRectangle(aRect)
   {
-    let oldRect = this._highlightRect;
-
-    if (oldRect && aRect.top == oldRect.top && aRect.left == oldRect.left &&
-        aRect.width == oldRect.width && aRect.height == oldRect.height) {
-      return this._highlighting; // same rectangle
-    }
-
     if (aRect.left >= 0 && aRect.top >= 0 &&
         aRect.width > 0 && aRect.height > 0) {
       // The bottom div and the right div are flexibles (flex=1).
       // We don't need to resize them.
-      this.veilTopBox.style.height = aRect.top + "px";
-      this.veilLeftBox.style.width = aRect.left + "px";
-      this.veilMiddleBox.style.height = aRect.height + "px";
-      this.veilTransparentBox.style.width = aRect.width + "px";
+      this.veilTopDiv.style.height = aRect.top + "px";
+      this.veilLeftDiv.style.width = aRect.left + "px";
+      this.veilMiddleDiv.style.height = aRect.height + "px";
+      this.veilTransparentDiv.style.width = aRect.width + "px";
 
       this._highlighting = true;
     } else {
@@ -351,11 +286,11 @@ Highlighter.prototype = {
   /**
    * Clear the highlighter surface.
    */
-  unhighlight: function Highlighter_unhighlight()
+  unhighlight: function IFH_unhighlight()
   {
     this._highlighting = false;
-    this.veilMiddleBox.style.height = 0;
-    this.veilTransparentBox.style.width = 0;
+    this.veilMiddleDiv.style.height = 0;
+    this.veilTransparentDiv.style.width = 0;
     Services.obs.notifyObservers(null,
       INSPECTOR_NOTIFICATIONS.UNHIGHLIGHTING, null);
   },
@@ -370,7 +305,7 @@ Highlighter.prototype = {
    * @returns object
    *          An object with x and y properties.
    */
-  midPoint: function Highlighter_midPoint(aPointA, aPointB)
+  midPoint: function IFH_midPoint(aPointA, aPointB)
   {
     let pointC = { };
     pointC.x = (aPointB.x - aPointA.x) / 2 + aPointA.x;
@@ -417,7 +352,7 @@ Highlighter.prototype = {
    * @returns boolean
    *          True if the node is highlightable or false otherwise.
    */
-  isNodeHighlightable: function Highlighter_isNodeHighlightable()
+  isNodeHighlightable: function IFH_isNodeHighlightable()
   {
     if (!this.node || this.node.nodeType != Node.ELEMENT_NODE) {
       return false;
@@ -429,24 +364,21 @@ Highlighter.prototype = {
   /////////////////////////////////////////////////////////////////////////
   //// Event Handling
 
-  attachInspectListeners: function Highlighter_attachInspectListeners()
+  attachInspectListeners: function IFH_attachInspectListeners()
   {
     this.browser.addEventListener("mousemove", this, true);
-    this.browser.addEventListener("click", this, true);
     this.browser.addEventListener("dblclick", this, true);
     this.browser.addEventListener("mousedown", this, true);
     this.browser.addEventListener("mouseup", this, true);
   },
 
-  detachInspectListeners: function Highlighter_detachInspectListeners()
+  detachInspectListeners: function IFH_detachInspectListeners()
   {
     this.browser.removeEventListener("mousemove", this, true);
-    this.browser.removeEventListener("click", this, true);
     this.browser.removeEventListener("dblclick", this, true);
     this.browser.removeEventListener("mousedown", this, true);
     this.browser.removeEventListener("mouseup", this, true);
   },
-
 
   /**
    * Generic event handler.
@@ -454,7 +386,7 @@ Highlighter.prototype = {
    * @param nsIDOMEvent aEvent
    *        The DOM event object.
    */
-  handleEvent: function Highlighter_handleEvent(aEvent)
+  handleEvent: function IFH_handleEvent(aEvent)
   {
     switch (aEvent.type) {
       case "click":
@@ -472,28 +404,54 @@ Highlighter.prototype = {
         aEvent.stopPropagation();
         aEvent.preventDefault();
         break;
-      case "scroll":
-        this.highlight();
-        break;
     }
   },
 
   /**
-   * Handle clicks.
+   * Handle clicks on the iframe.
    *
    * @param nsIDOMEvent aEvent
    *        The DOM event.
    */
-  handleClick: function Highlighter_handleClick(aEvent)
+  handleClick: function IFH_handleClick(aEvent)
   {
-    // Stop inspection when the user clicks on a node.
-    if (aEvent.button == 0) {
-      let win = aEvent.target.ownerDocument.defaultView;
-      InspectorUI.stopInspecting();
-      win.focus();
+    // Proxy the click event to the iframe.
+    let x = aEvent.clientX;
+    let y = aEvent.clientY;
+    let frameWin = aEvent.view;
+    while (frameWin != this.win) {
+      if (frameWin.frameElement) {
+        let frameRect = frameWin.frameElement.getBoundingClientRect();
+        x += frameRect.left;
+        y += frameRect.top;
+      }
+      frameWin = frameWin.parent;
     }
-    aEvent.preventDefault();
-    aEvent.stopPropagation();
+
+    let element = this.iframeDoc.elementFromPoint(x, y);
+    if (element && element.classList &&
+        element.classList.contains("clickable")) {
+      let newEvent = this.iframeDoc.createEvent("MouseEvents");
+      newEvent.initMouseEvent(aEvent.type, aEvent.bubbles, aEvent.cancelable,
+        this.iframeDoc.defaultView, aEvent.detail, aEvent.screenX,
+        aEvent.screenY, x, y, aEvent.ctrlKey, aEvent.altKey, aEvent.shiftKey,
+        aEvent.metaKey, aEvent.button, null);
+      element.dispatchEvent(newEvent);
+      aEvent.preventDefault();
+      aEvent.stopPropagation();
+      return;
+    }
+
+    // Stop inspection when the user clicks on a node.
+    if (InspectorUI.inspecting) {
+      if (aEvent.button == 0) {
+        let win = aEvent.target.ownerDocument.defaultView;
+        InspectorUI.stopInspecting();
+        win.focus();
+      }
+      aEvent.preventDefault();
+      aEvent.stopPropagation();
+    }
   },
 
   /**
@@ -502,8 +460,12 @@ Highlighter.prototype = {
    * @param nsiDOMEvent aEvent
    *        The MouseEvent triggering the method.
    */
-  handleMouseMove: function Highlighter_handleMouseMove(aEvent)
+  handleMouseMove: function IFH_handleMouseMove(aEvent)
   {
+    if (!InspectorUI.inspecting) {
+      return;
+    }
+
     let element = InspectorUI.elementFromPoint(aEvent.target.ownerDocument,
       aEvent.clientX, aEvent.clientY);
     if (element && element != this.node) {
@@ -514,9 +476,68 @@ Highlighter.prototype = {
   /**
    * Handle window resize events.
    */
-  handleResize: function Highlighter_handleResize()
+  handleResize: function IFH_handleResize()
   {
+    let style = this.iframeContainer.style;
+    if (this.win.scrollMaxY && this.win.scrollbars.visible) {
+      style.paddingRight = this.getScrollbarWidth() + "px";
+    } else {
+      style.paddingRight = 0;
+    }
+    if (this.win.scrollMaxX && this.win.scrollbars.visible) {
+      style.paddingBottom = this.getScrollbarWidth() + "px";
+    } else {
+      style.paddingBottom = 0;
+    }
+
     this.highlight();
+  },
+
+  /**
+   * Determine the scrollbar width in the current document.
+   *
+   * @returns number
+   *          The scrollbar width in pixels.
+   */
+  getScrollbarWidth: function IFH_getScrollbarWidth()
+  {
+    if (this._scrollbarWidth) {
+      return this._scrollbarWidth;
+    }
+
+    let hbox = document.createElement("hbox");
+    hbox.setAttribute("style", "height: 0%; overflow: hidden");
+
+    let scrollbar = document.createElement("scrollbar");
+    scrollbar.setAttribute("orient", "vertical");
+    hbox.appendChild(scrollbar);
+
+    document.documentElement.appendChild(hbox);
+    this._scrollbarWidth = scrollbar.clientWidth;
+    document.documentElement.removeChild(hbox);
+
+    return this._scrollbarWidth;
+  },
+
+  /**
+   * Helper to listen for an event only once.
+   *
+   * @param nsIDOMEventTarget aTarget
+   *        The DOM event target you want to add an event listener to.
+   * @param string aName
+   *        The event name you want to listen for.
+   * @param function aCallback
+   *        The function you want to execute once for the given event.
+   * @param boolean aCapturing
+   *        Tells if you want to use capture for the event listener.
+   * @returns void
+   */
+  listenOnce: function IFH_listenOnce(aTarget, aName, aCallback, aCapturing)
+  {
+    aTarget.addEventListener(aName, function listenOnce_handler(aEvent) {
+      aTarget.removeEventListener(aName, listenOnce_handler, aCapturing);
+      aCallback.call(this, aEvent);
+    }, aCapturing);
   },
 };
 
@@ -680,10 +701,14 @@ var InspectorUI = {
       if (parentNode.defaultView) {
         return parentNode.defaultView.frameElement;
       }
-      // parent is document element, but no window at defaultView.
-      return null;
-    }
-    if (!parentNode.localName) {
+      if (this.embeddedBrowserParents) {
+        let skipParent = this.embeddedBrowserParents[node];
+        // HTML element? could be iframe?
+        if (skipParent)
+          return skipParent;
+      } else // parent is document element, but no window at defaultView.
+        return null;
+    } else if (!parentNode.localName) {
       return null;
     }
     return parentNode;
@@ -697,7 +722,11 @@ var InspectorUI = {
     if (node.contentDocument) {
       // then the node is a frame
       if (index == 0) {
-        return node.contentDocument.documentElement;  // the node's HTMLElement
+        if (!this.embeddedBrowserParents)
+          this.embeddedBrowserParents = {};
+        let skipChild = node.contentDocument.documentElement;
+        this.embeddedBrowserParents[skipChild] = node;
+        return skipChild;  // the node's HTMLElement
       }
       return null;
     }
@@ -707,7 +736,11 @@ var InspectorUI = {
       if (svgDocument) {
         // then the node is a frame
         if (index == 0) {
-          return svgDocument.documentElement;  // the node's SVGElement
+          if (!this.embeddedBrowserParents)
+            this.embeddedBrowserParents = {};
+          let skipChild = svgDocument.documentElement;
+          this.embeddedBrowserParents[skipChild] = node;
+          return skipChild;  // the node's SVGElement
         }
         return null;
       }
@@ -764,6 +797,7 @@ var InspectorUI = {
 
     this.openTreePanel();
 
+    this.browser.addEventListener("scroll", this, true);
     this.inspectCmd.setAttribute("checked", true);
   },
 
@@ -772,8 +806,9 @@ var InspectorUI = {
    */
   initializeHighlighter: function IUI_initializeHighlighter()
   {
-    this.highlighter = new Highlighter(this.browser);
-    this.highlighterReady();
+    Services.obs.addObserver(this.highlighterReady,
+      INSPECTOR_NOTIFICATIONS.HIGHLIGHTER_READY, false);
+    this.highlighter = new IFrameHighlighter(this.browser);
   },
 
   /**
@@ -834,6 +869,7 @@ var InspectorUI = {
       gBrowser.tabContainer.removeEventListener("TabSelect", this, false);
     }
 
+    this.browser.removeEventListener("scroll", this, true);
     this.stopInspecting();
     if (this.highlighter) {
       this.highlighter.destroy();
@@ -929,7 +965,7 @@ var InspectorUI = {
   /////////////////////////////////////////////////////////////////////////
   //// Event Handling
 
-  highlighterReady: function IUI_highlighterReady()
+  notifyReady: function IUI_notifyReady()
   {
     // Setup the InspectorStore or restore state
     this.initializeStore();
@@ -940,6 +976,13 @@ var InspectorUI = {
 
     this.win.focus();
     Services.obs.notifyObservers(null, INSPECTOR_NOTIFICATIONS.OPENED, null);
+  },
+
+  highlighterReady: function IUI_highlighterReady()
+  {
+    Services.obs.removeObserver(InspectorUI.highlighterReady,
+      INSPECTOR_NOTIFICATIONS.HIGHLIGHTER_READY, false);
+    InspectorUI.notifyReady();
   },
 
   /**
@@ -1008,6 +1051,9 @@ var InspectorUI = {
             }
             break;
         }
+        break;
+      case "scroll":
+        this.highlighter.highlight();
         break;
     }
   },

@@ -16,14 +16,16 @@ function onContentLoaded()
 {
   browser.removeEventListener("load", arguments.callee, true);
 
-  let HUD = HUDService.getHudByWindow(content);
-  let hudId = HUD.hudId;
-  let outputNode = HUD.outputNode;
+  hudId = HUDService.displaysIndex()[0];
+  HUD = HUDService.hudReferences[hudId].HUDBox;
+  let filterBox = HUD.querySelector(".hud-filter-box");
+  let outputNode = HUD.querySelector(".hud-output-node");
 
   let msg = "the unknown CSS property warning is displayed";
   testLogEntry(outputNode, "foobarCssParser", msg, true);
 
   HUDService.setFilterState(hudId, "cssparser", false);
+  let nodes = HUD.querySelectorAll(".hud-msg-node");
 
   executeSoon(
     function (){

@@ -61,7 +61,6 @@ CPPSRCS = \
   testDefineProperty.cpp \
   testExtendedEq.cpp \
   testFuncCallback.cpp \
-  testFunctionProperties.cpp \
   testGCChunkAlloc.cpp \
   testGetPropertyDefault.cpp \
   testIntString.cpp \
@@ -75,7 +74,6 @@ CPPSRCS = \
   testRegExp.cpp \
   testResolveRecursion.cpp \
   testSameValue.cpp \
-  testScriptInfo.cpp \
   testScriptObject.cpp \
   testSetProperty.cpp \
   testStringBuffer.cpp \
@@ -87,7 +85,6 @@ CPPSRCS = \
   testXDR.cpp \
   testCustomIterator.cpp \
   testExternalStrings.cpp \
-  testChromeBuffer.cpp \
   $(NULL)
 
 # Disabled: an entirely unrelated test seems to cause this to fail.  Moreover,

@@ -193,6 +193,9 @@ js_GetLengthProperty(JSContext *cx, JSObject *obj, jsuint *lengthp);
 extern JSBool
 js_SetLengthProperty(JSContext *cx, JSObject *obj, jsdouble length);
 
+extern JSBool
+js_HasLengthProperty(JSContext *cx, JSObject *obj, jsuint *lengthp);
+
 namespace js {
 
 extern JSBool
@@ -250,15 +253,8 @@ extern JSBool
 js_ArrayInfo(JSContext *cx, uintN argc, jsval *vp);
 #endif
 
-/*
- * Append the given (non-hole) value to the end of an array.  The array must be
- * a newborn array -- that is, one which has not been exposed to script for
- * arbitrary manipulation.  (This method optimizes on the assumption that
- * extending the array to accommodate the element will never make the array
- * sparse, which requires that the array be completely filled.)
- */
 extern JSBool
-js_NewbornArrayPush(JSContext *cx, JSObject *obj, const js::Value &v);
+js_ArrayCompPush(JSContext *cx, JSObject *obj, const js::Value &vp);
 
 JSBool
 js_PrototypeHasIndexedProperties(JSContext *cx, JSObject *obj);

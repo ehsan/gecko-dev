@@ -287,13 +287,11 @@ nsHTMLImageElement::GetWidthHeight()
     }
   }
 
-  NS_ASSERTION(size.width >= 0, "negative width");
-  NS_ASSERTION(size.height >= 0, "negative height");
   return size;
 }
 
 NS_IMETHODIMP
-nsHTMLImageElement::GetHeight(PRUint32* aHeight)
+nsHTMLImageElement::GetHeight(PRInt32* aHeight)
 {
   *aHeight = GetWidthHeight().height;
 
@@ -301,7 +299,7 @@ nsHTMLImageElement::GetHeight(PRUint32* aHeight)
 }
 
 NS_IMETHODIMP
-nsHTMLImageElement::SetHeight(PRUint32 aHeight)
+nsHTMLImageElement::SetHeight(PRInt32 aHeight)
 {
   nsAutoString val;
   val.AppendInt(aHeight);
@@ -311,7 +309,7 @@ nsHTMLImageElement::SetHeight(PRUint32 aHeight)
 }
 
 NS_IMETHODIMP
-nsHTMLImageElement::GetWidth(PRUint32* aWidth)
+nsHTMLImageElement::GetWidth(PRInt32* aWidth)
 {
   *aWidth = GetWidthHeight().width;
 
@@ -319,7 +317,7 @@ nsHTMLImageElement::GetWidth(PRUint32* aWidth)
 }
 
 NS_IMETHODIMP
-nsHTMLImageElement::SetWidth(PRUint32 aWidth)
+nsHTMLImageElement::SetWidth(PRInt32 aWidth)
 {
   nsAutoString val;
   val.AppendInt(aWidth);
@@ -578,7 +576,7 @@ nsHTMLImageElement::Initialize(nsISupports* aOwner, JSContext* aContext,
 }
 
 NS_IMETHODIMP
-nsHTMLImageElement::GetNaturalHeight(PRUint32* aNaturalHeight)
+nsHTMLImageElement::GetNaturalHeight(PRInt32* aNaturalHeight)
 {
   NS_ENSURE_ARG_POINTER(aNaturalHeight);
 
@@ -594,15 +592,12 @@ nsHTMLImageElement::GetNaturalHeight(PRUint32* aNaturalHeight)
     return NS_OK;
   }
 
-  PRInt32 height;
-  if (NS_SUCCEEDED(image->GetHeight(&height))) {
-    *aNaturalHeight = height;
-  }
+  image->GetHeight(aNaturalHeight);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsHTMLImageElement::GetNaturalWidth(PRUint32* aNaturalWidth)
+nsHTMLImageElement::GetNaturalWidth(PRInt32* aNaturalWidth)
 {
   NS_ENSURE_ARG_POINTER(aNaturalWidth);
 
@@ -618,10 +613,7 @@ nsHTMLImageElement::GetNaturalWidth(PRUint32* aNaturalWidth)
     return NS_OK;
   }
 
-  PRInt32 width;
-  if (NS_SUCCEEDED(image->GetWidth(&width))) {
-    *aNaturalWidth = width;
-  }
+  image->GetWidth(aNaturalWidth);
   return NS_OK;
 }
 

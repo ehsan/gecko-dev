@@ -186,7 +186,7 @@ PluginInstanceChild::~PluginInstanceChild()
         ::CGContextRelease(mShContext);
     }
     if (mCGLayer) {
-        PluginUtilsOSX::ReleaseCGLayer(mCGLayer);
+        mozilla::plugins::PluginUtilsOSX::ReleaseCGLayer(mCGLayer);
     }
 #endif
 }
@@ -844,7 +844,7 @@ PluginInstanceChild::AnswerNPP_HandleEvent_IOSurface(const NPRemoteEvent& event,
     PaintTracker pt;
 
     NPCocoaEvent evcopy = event.event;
-    nsRefPtr<nsIOSurface> surf = nsIOSurface::LookupSurface(surfaceid);
+    nsIOSurface* surf = nsIOSurface::LookupSurface(surfaceid);
     if (!surf) {
         NS_ERROR("Invalid IOSurface.");
         *handled = false;
@@ -2577,18 +2577,44 @@ PluginInstanceChild::EnsureCurrentBuffer(void)
 
     return true;
 #else // XP_MACOSX
+    if (mCurrentIOSurface && 
+        (mCurrentIOSurface->GetWidth() != mWindow.width ||
+         mCurrentIOSurface->GetHeight() != mWindow.height) ) {
+        mCurrentIOSurface = nsnull;
+    }
 
-    if (!mDoubleBufferCARenderer.HasCALayer()) {
+    if (!mCARenderer.isInit() || !mCurrentIOSurface) {
+        if (!mCurrentIOSurface) {
+            mCurrentIOSurface = nsIOSurface::CreateIOSurface(mWindow.width, mWindow.height);
+
+            nsIntRect toInvalidate(0, 0, mWindow.width, mWindow.height);
+            mAccumulatedInvalidRect.UnionRect(mAccumulatedInvalidRect, toInvalidate);
+        }
+
+        if (!mCurrentIOSurface) {
+            NS_WARNING("Failed to allocate IOSurface");
+            return false;
+        }
+
+        nsIOSurface *rendererSurface = nsIOSurface::LookupSurface(mCurrentIOSurface->GetIOSurfaceID()); 
+        if (!rendererSurface) {
+            NS_WARNING("Failed to lookup IOSurface");
+            return false;
+        }
+        mCARenderer.AttachIOSurface(rendererSurface);
+
         void *caLayer = nsnull;
         if (mDrawingModel == NPDrawingModelCoreGraphics) {
-            if (!mCGLayer) {
-                caLayer = mozilla::plugins::PluginUtilsOSX::GetCGLayer(CallCGDraw, this);
-
-                if (!caLayer) {
-                    PLUGIN_LOG_DEBUG(("GetCGLayer failed."));
-                    return false;
-                }
+            if (mCGLayer) {
+                mozilla::plugins::PluginUtilsOSX::ReleaseCGLayer(mCGLayer);
+                mCGLayer = nsnull;
             }
+
+            caLayer = mozilla::plugins::PluginUtilsOSX::GetCGLayer(CallCGDraw, this);
+            if (!caLayer) {
+                return false;
+            }
+
             mCGLayer = caLayer;
         } else {
             NPError result = mPluginIface->getvalue(GetNPP(),
@@ -2600,30 +2626,13 @@ PluginInstanceChild::EnsureCurrentBuffer(void)
                 return false;
             }
         }
-        mDoubleBufferCARenderer.SetCALayer(caLayer);
-    }
 
-    if (mDoubleBufferCARenderer.HasFrontSurface() &&
-        (mDoubleBufferCARenderer.GetFrontSurfaceWidth() != mWindow.width ||
-         mDoubleBufferCARenderer.GetFrontSurfaceHeight() != mWindow.height) ) {
-        mDoubleBufferCARenderer.ClearFrontSurface();
-    }
-
-    if (!mDoubleBufferCARenderer.HasFrontSurface()) {
-        bool allocSurface = mDoubleBufferCARenderer.InitFrontSurface(mWindow.width, 
-                                                           mWindow.height);
-        if (!allocSurface) {
-            PLUGIN_LOG_DEBUG(("Fail to allocate front IOSurface"));
-            return false;
-        }
-
+        mCARenderer.SetupRenderer(caLayer, mWindow.width, mWindow.height);
+        // Flash needs to have the window set again after this step
         if (mPluginIface->setwindow)
             (void) mPluginIface->setwindow(&mData, &mWindow);
-
-        nsIntRect toInvalidate(0, 0, mWindow.width, mWindow.height);
-        mAccumulatedInvalidRect.UnionRect(mAccumulatedInvalidRect, toInvalidate);
     }
-  
+
     return true;
 #endif
 }
@@ -3021,7 +3030,7 @@ PluginInstanceChild::ShowPluginFrame()
         return false;
     }
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
     // We can't use the thebes code with CoreAnimation so we will
     // take a different code path.
     if (mDrawingModel == NPDrawingModelCoreAnimation ||
@@ -3032,11 +3041,6 @@ PluginInstanceChild::ShowPluginFrame()
             return true;
         }
 
-        if (!mDoubleBufferCARenderer.HasFrontSurface()) {
-            NS_ERROR("CARenderer not initialized for rendering");
-            return false;
-        }
-
         // Clear accRect here to be able to pass
         // test_invalidate_during_plugin_paint  test
         nsIntRect rect = mAccumulatedInvalidRect;
@@ -3045,30 +3049,33 @@ PluginInstanceChild::ShowPluginFrame()
         // Fix up old invalidations that might have been made when our
         // surface was a different size
         rect.IntersectRect(rect,
-                          nsIntRect(0, 0, 
-                          mDoubleBufferCARenderer.GetFrontSurfaceWidth(), 
-                          mDoubleBufferCARenderer.GetFrontSurfaceHeight()));
+                         nsIntRect(0, 0, mCurrentIOSurface->GetWidth(), mCurrentIOSurface->GetHeight()));
+      
+        if (!mCARenderer.isInit()) {
+            NS_ERROR("CARenderer not initialized");
+            return false;
+        }
 
         if (mDrawingModel == NPDrawingModelCoreGraphics) {
             mozilla::plugins::PluginUtilsOSX::Repaint(mCGLayer, rect);
         }
 
-        mDoubleBufferCARenderer.Render();
+        mCARenderer.Render(mWindow.width, mWindow.height, nsnull);
 
         NPRect r = { (uint16_t)rect.y, (uint16_t)rect.x,
                      (uint16_t)rect.YMost(), (uint16_t)rect.XMost() };
         SurfaceDescriptor currSurf;
-        currSurf = IOSurfaceDescriptor(mDoubleBufferCARenderer.GetFrontSurfaceID());
+        currSurf = IOSurfaceDescriptor(mCurrentIOSurface->GetIOSurfaceID());
 
         mHasPainted = true;
 
+        // Unused
         SurfaceDescriptor returnSurf;
 
         if (!SendShow(r, currSurf, &returnSurf)) {
             return false;
         }
 
-        SwapSurfaces();
         return true;
     } else {
         NS_ERROR("Unsupported drawing model for async layer rendering");
@@ -3504,32 +3511,19 @@ PluginInstanceChild::SwapSurfaces()
     mBackSurfaceActor = tmpactor;
 #endif
 
-#ifdef MOZ_WIDGET_COCOA
-    mDoubleBufferCARenderer.SwapSurfaces();
-
     // Outdated back surface... not usable anymore due to changed plugin size.
     // Dropping obsolete surface
-    if (mDoubleBufferCARenderer.HasFrontSurface() && 
-        mDoubleBufferCARenderer.HasBackSurface() &&
-        (mDoubleBufferCARenderer.GetFrontSurfaceWidth() != 
-            mDoubleBufferCARenderer.GetBackSurfaceWidth() ||
-        mDoubleBufferCARenderer.GetFrontSurfaceHeight() != 
-            mDoubleBufferCARenderer.GetBackSurfaceHeight())) {
-
-        mDoubleBufferCARenderer.ClearFrontSurface();
+    if (mCurrentSurface && mBackSurface &&
+        (mCurrentSurface->GetSize() != mBackSurface->GetSize() ||
+         mCurrentSurface->GetContentType() != mBackSurface->GetContentType())) {
+        ClearCurrentSurface();
     }
-#endif //MOZ_WIDGET_COCOA
 }
 
 void
 PluginInstanceChild::ClearCurrentSurface()
 {
     mCurrentSurface = nsnull;
-#ifdef MOZ_WIDGET_COCOA
-    if (mDoubleBufferCARenderer.HasFrontSurface()) {
-        mDoubleBufferCARenderer.ClearFrontSurface();
-    }
-#endif
 #ifdef XP_WIN
     if (mCurrentSurfaceActor) {
         PPluginSurfaceChild::Send__delete__(mCurrentSurfaceActor);
@@ -3548,7 +3542,6 @@ PluginInstanceChild::ClearAllSurfaces()
         NPRect r = { 0, 0, 1, 1 };
         SendShow(r, temp, &temp);
     }
-
     if (gfxSharedImageSurface::IsSharedImage(mCurrentSurface))
         DeallocShmem(static_cast<gfxSharedImageSurface*>(mCurrentSurface.get())->GetShmem());
     if (gfxSharedImageSurface::IsSharedImage(mBackSurface))
@@ -3567,8 +3560,8 @@ PluginInstanceChild::ClearAllSurfaces()
     }
 #endif
 
-#ifdef MOZ_WIDGET_COCOA
-    if (mDoubleBufferCARenderer.HasBackSurface()) {
+#ifdef XP_MACOSX
+    if (mCurrentIOSurface) {
         // Get last surface back, and drop it
         SurfaceDescriptor temp = null_t();
         NPRect r = { 0, 0, 1, 1 };
@@ -3580,8 +3573,7 @@ PluginInstanceChild::ClearAllSurfaces()
         mCGLayer = nsnull;
     }
 
-    mDoubleBufferCARenderer.ClearFrontSurface();
-    mDoubleBufferCARenderer.ClearBackSurface();
+    mCurrentIOSurface = nsnull;
 #endif
 }
 

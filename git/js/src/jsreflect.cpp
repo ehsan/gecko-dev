@@ -907,20 +907,29 @@ bool
 NodeBuilder::tryStatement(Value body, NodeVector &catches, Value finally,
                           TokenPos *pos, Value *dst)
 {
-    Value handlers;
+    Value handler;
 
     Value cb = callbacks[AST_TRY_STMT];
     if (!cb.isNull()) {
-        return newArray(catches, &handlers) &&
-               callback(cb, body, handlers, opt(finally), pos, dst);
+        return newArray(catches, &handler) &&
+               callback(cb, body, handler, opt(finally), pos, dst);
     }
 
-    if (!newArray(catches, &handlers))
-        return false;
+    switch (catches.length()) {
+      case 0:
+        handler.setNull();
+        break;
+      case 1:
+        handler = catches[0];
+        break;
+      default:
+        if (!newArray(catches, &handler))
+            return false;
+    }
 
     return newNode(AST_TRY_STMT, pos,
                    "block", body,
-                   "handlers", handlers,
+                   "handler", handler,
                    "finalizer", finally,
                    dst);
 }
@@ -3139,6 +3148,20 @@ ASTSerializer::functionBody(JSParseNode *pn, TokenPos *pos, Value *dst)
 
 } /* namespace js */
 
+/* Reflect class */
+
+Class js_ReflectClass = {
+    js_Reflect_str,
+    JSCLASS_HAS_CACHED_PROTO(JSProto_Reflect),
+    PropertyStub,
+    PropertyStub,
+    PropertyStub,
+    StrictPropertyStub,
+    EnumerateStub,
+    ResolveStub,
+    ConvertStub
+};
+
 static JSBool
 reflect_parse(JSContext *cx, uint32 argc, jsval *vp)
 {
@@ -3262,16 +3285,14 @@ static JSFunctionSpec static_methods[] = {
 };
 
 
-JS_BEGIN_EXTERN_C
-
-JS_PUBLIC_API(JSObject *)
-JS_InitReflect(JSContext *cx, JSObject *obj)
+JSObject *
+js_InitReflectClass(JSContext *cx, JSObject *obj)
 {
-    JSObject *Reflect = NewNonFunction<WithProto::Class>(cx, &js_ObjectClass, NULL, obj);
+    JSObject *Reflect = NewNonFunction<WithProto::Class>(cx, &js_ReflectClass, NULL, obj);
     if (!Reflect)
         return NULL;
 
-    if (!JS_DefineProperty(cx, obj, "Reflect", OBJECT_TO_JSVAL(Reflect),
+    if (!JS_DefineProperty(cx, obj, js_Reflect_str, OBJECT_TO_JSVAL(Reflect),
                            JS_PropertyStub, JS_StrictPropertyStub, 0)) {
         return NULL;
     }
@@ -3279,7 +3300,7 @@ JS_InitReflect(JSContext *cx, JSObject *obj)
     if (!JS_DefineFunctions(cx, Reflect, static_methods))
         return NULL;
 
+    MarkStandardClassInitializedNoProto(obj, &js_ReflectClass);
+
     return Reflect;
 }
-
-JS_END_EXTERN_C

@@ -625,7 +625,7 @@ Invoke(JSContext *cx, const CallArgs &argsRef, MaybeConstruct construct)
     /* N.B. Must be kept in sync with InvokeSessionGuard::start/invoke */
 
     CallArgs args = argsRef;
-    JS_ASSERT(args.argc() <= StackSpace::ARGS_LENGTH_MAX);
+    JS_ASSERT(args.argc() <= JS_ARGS_LENGTH_MAX);
 
     if (args.calleev().isPrimitive()) {
         js_ReportIsNotFunction(cx, &args.calleev(), ToReportFlags(construct));
@@ -746,7 +746,7 @@ InvokeSessionGuard::start(JSContext *cx, const Value &calleev, const Value &this
 
         /* Hoist dynamic checks from CheckStackAndEnterMethodJIT. */
         JS_CHECK_RECURSION(cx, return false);
-        stackLimit_ = stack.space().getStackLimit(cx, REPORT_ERROR);
+        stackLimit_ = stack.space().getStackLimit(cx);
         if (!stackLimit_)
             return false;
 
@@ -906,7 +906,7 @@ Execute(JSContext *cx, JSScript *script, JSObject &scopeChain, const Value &this
 
     AutoPreserveEnumerators preserve(cx);
     JSBool ok = RunScript(cx, script, fp);
-    if (result && ok)
+    if (result)
         *result = fp->returnValue();
 
     Probes::stopExecution(cx, script);
@@ -1201,10 +1201,7 @@ InvokeConstructor(JSContext *cx, const CallArgs &argsRef)
 
             if (fun->isConstructor()) {
                 args.thisv().setMagicWithObjectOrNullPayload(NULL);
-            Probes::calloutBegin(cx, fun);
-            bool ok = CallJSNativeConstructor(cx, fun->u.n.native, args);
-            Probes::calloutEnd(cx, fun);
-            return ok;
+                return CallJSNativeConstructor(cx, fun->u.n.native, args);
             }
 
             if (!fun->isInterpretedConstructor())
@@ -1248,9 +1245,7 @@ InvokeConstructorWithGivenThis(JSContext *cx, JSObject *thisobj, const Value &fv
     bool ok;
     if (clasp == &js_FunctionClass && (fun = callee.getFunctionPrivate())->isConstructor()) {
         args.thisv().setMagicWithObjectOrNullPayload(thisobj);
-        Probes::calloutBegin(cx, fun);
         ok = CallJSNativeConstructor(cx, fun->u.n.native, args);
-        Probes::calloutEnd(cx, fun);
     } else if (clasp->construct) {
         args.thisv().setMagicWithObjectOrNullPayload(thisobj);
         ok = CallJSNativeConstructor(cx, clasp->construct, args);
@@ -1598,10 +1593,18 @@ AssertValidPropertyCacheHit(JSContext *cx, JSScript *script, FrameRegs& regs,
  * same way as non-call bytecodes.
  */
 JS_STATIC_ASSERT(JSOP_NAME_LENGTH == JSOP_CALLNAME_LENGTH);
+JS_STATIC_ASSERT(JSOP_GETUPVAR_DBG_LENGTH == JSOP_GETFCSLOT_LENGTH);
+JS_STATIC_ASSERT(JSOP_GETUPVAR_DBG_LENGTH == JSOP_CALLUPVAR_DBG_LENGTH);
 JS_STATIC_ASSERT(JSOP_GETFCSLOT_LENGTH == JSOP_CALLFCSLOT_LENGTH);
 JS_STATIC_ASSERT(JSOP_GETARG_LENGTH == JSOP_CALLARG_LENGTH);
 JS_STATIC_ASSERT(JSOP_GETLOCAL_LENGTH == JSOP_CALLLOCAL_LENGTH);
 JS_STATIC_ASSERT(JSOP_XMLNAME_LENGTH == JSOP_CALLXMLNAME_LENGTH);
+
+/*
+ * Same for debuggable flat closures defined at top level in another function
+ * or program fragment.
+ */
+JS_STATIC_ASSERT(JSOP_DEFFUN_FC_LENGTH == JSOP_DEFFUN_DBGFC_LENGTH);
 
 /*
  * Same for JSOP_SETNAME and JSOP_SETPROP, which differ only slightly but
@@ -4074,8 +4077,6 @@ BEGIN_CASE(JSOP_FUNAPPLY)
 
     JSObject *callee;
     JSFunction *fun;
-
-    /* Don't bother trying to fast-path calls to scripted non-constructors. */
     if (!IsFunctionObject(args.calleev(), &callee, &fun) || !fun->isInterpretedConstructor()) {
         if (construct) {
             if (!InvokeConstructor(cx, args))
@@ -4092,7 +4093,7 @@ BEGIN_CASE(JSOP_FUNAPPLY)
     }
 
     JSScript *newScript = fun->script();
-    if (!cx->stack.pushInlineFrame(cx, regs, args, *callee, fun, newScript, construct))
+    if (!cx->stack.pushInlineFrame(cx, regs, args, *callee, fun, newScript, construct, OOMCheck()))
         goto error;
 
     /* Refresh local js::Interpret state. */
@@ -4574,6 +4575,47 @@ BEGIN_CASE(JSOP_SETLOCAL)
 }
 END_SET_CASE(JSOP_SETLOCAL)
 
+BEGIN_CASE(JSOP_GETUPVAR_DBG)
+BEGIN_CASE(JSOP_CALLUPVAR_DBG)
+{
+    JSFunction *fun = regs.fp()->fun();
+    JS_ASSERT(FUN_KIND(fun) == JSFUN_INTERPRETED);
+    JS_ASSERT(fun->u.i.wrapper);
+
+    /* Scope for tempPool mark and local names allocation in it. */
+    JSObject *obj, *obj2;
+    JSProperty *prop;
+    jsid id;
+    JSAtom *atom;
+    {
+        AutoLocalNameArray names(cx, fun);
+        if (!names)
+            goto error;
+
+        uintN index = fun->script()->bindings.countArgsAndVars() + GET_UINT16(regs.pc);
+        atom = JS_LOCAL_NAME_TO_ATOM(names[index]);
+        id = ATOM_TO_JSID(atom);
+
+        if (!js_FindProperty(cx, id, &obj, &obj2, &prop))
+            goto error;
+    }
+
+    if (!prop) {
+        atomNotDefined = atom;
+        goto atom_not_defined;
+    }
+
+    /* Minimize footprint with generic code instead of NATIVE_GET. */
+    Value *vp = regs.sp;
+    PUSH_NULL();
+    if (!obj->getProperty(cx, id, vp))
+        goto error;
+
+    if (op == JSOP_CALLUPVAR_DBG)
+        PUSH_UNDEFINED();
+}
+END_CASE(JSOP_GETUPVAR_DBG)
+
 BEGIN_CASE(JSOP_GETFCSLOT)
 BEGIN_CASE(JSOP_CALLFCSLOT)
 {
@@ -4758,11 +4800,14 @@ BEGIN_CASE(JSOP_DEFFUN)
 END_CASE(JSOP_DEFFUN)
 
 BEGIN_CASE(JSOP_DEFFUN_FC)
+BEGIN_CASE(JSOP_DEFFUN_DBGFC)
 {
     JSFunction *fun;
     LOAD_FUNCTION(0);
 
-    JSObject *obj = js_NewFlatClosure(cx, fun, JSOP_DEFFUN_FC, JSOP_DEFFUN_FC_LENGTH);
+    JSObject *obj = (op == JSOP_DEFFUN_FC)
+                    ? js_NewFlatClosure(cx, fun, JSOP_DEFFUN_FC, JSOP_DEFFUN_FC_LENGTH)
+                    : js_NewDebuggableFlatClosure(cx, fun);
     if (!obj)
         goto error;
 
@@ -4844,6 +4889,20 @@ BEGIN_CASE(JSOP_DEFLOCALFUN_FC)
     regs.fp()->slots()[slot].setObject(*obj);
 }
 END_CASE(JSOP_DEFLOCALFUN_FC)
+
+BEGIN_CASE(JSOP_DEFLOCALFUN_DBGFC)
+{
+    JSFunction *fun;
+    LOAD_FUNCTION(SLOTNO_LEN);
+
+    JSObject *obj = js_NewDebuggableFlatClosure(cx, fun);
+    if (!obj)
+        goto error;
+
+    uint32 slot = GET_SLOTNO(regs.pc);
+    regs.fp()->slots()[slot].setObject(*obj);
+}
+END_CASE(JSOP_DEFLOCALFUN_DBGFC)
 
 BEGIN_CASE(JSOP_LAMBDA)
 {
@@ -4957,6 +5016,19 @@ BEGIN_CASE(JSOP_LAMBDA_FC)
     PUSH_OBJECT(*obj);
 }
 END_CASE(JSOP_LAMBDA_FC)
+
+BEGIN_CASE(JSOP_LAMBDA_DBGFC)
+{
+    JSFunction *fun;
+    LOAD_FUNCTION(0);
+
+    JSObject *obj = js_NewDebuggableFlatClosure(cx, fun);
+    if (!obj)
+        goto error;
+
+    PUSH_OBJECT(*obj);
+}
+END_CASE(JSOP_LAMBDA_DBGFC)
 
 BEGIN_CASE(JSOP_CALLEE)
     JS_ASSERT(regs.fp()->isNonEvalFunctionFrame());
@@ -5236,7 +5308,7 @@ BEGIN_CASE(JSOP_INITELEM)
     if (rref.isMagic(JS_ARRAY_HOLE)) {
         JS_ASSERT(obj->isArray());
         JS_ASSERT(JSID_IS_INT(id));
-        JS_ASSERT(jsuint(JSID_TO_INT(id)) < StackSpace::ARGS_LENGTH_MAX);
+        JS_ASSERT(jsuint(JSID_TO_INT(id)) < JS_ARGS_LENGTH_MAX);
         if (js_GetOpcode(cx, script, regs.pc + JSOP_INITELEM_LENGTH) == JSOP_ENDINIT &&
             !js_SetLengthProperty(cx, obj, (jsuint) (JSID_TO_INT(id) + 1))) {
             goto error;
@@ -5889,7 +5961,7 @@ BEGIN_CASE(JSOP_ARRAYPUSH)
     JS_ASSERT(script->nfixed <= slot);
     JS_ASSERT(slot < script->nslots);
     JSObject *obj = &regs.fp()->slots()[slot].toObject();
-    if (!js_NewbornArrayPush(cx, obj, regs.sp[-1]))
+    if (!js_ArrayCompPush(cx, obj, regs.sp[-1]))
         goto error;
     regs.sp--;
 }
@@ -6173,16 +6245,7 @@ END_CASE(JSOP_ARRAYPUSH)
 # endif
 #endif
 
-    JS_ASSERT_IF(!regs.fp()->isGeneratorFrame(),
-                 !js_IsActiveWithOrBlock(cx, &regs.fp()->scopeChain(), 0));
-
-#ifdef JS_METHODJIT
-    /*
-     * This path is used when it's guaranteed the method can be finished
-     * inside the JIT.
-     */
-  leave_on_safe_point:
-#endif
+    JS_ASSERT_IF(!regs.fp()->isGeneratorFrame(), !js_IsActiveWithOrBlock(cx, &regs.fp()->scopeChain(), 0));
 
     return interpReturnOK;
 
@@ -6193,6 +6256,15 @@ END_CASE(JSOP_ARRAYPUSH)
             js_ReportIsNotDefined(cx, printable.ptr());
     }
     goto error;
+
+    /*
+     * This path is used when it's guaranteed the method can be finished
+     * inside the JIT.
+     */
+#if defined(JS_METHODJIT)
+  leave_on_safe_point:
+#endif
+    return interpReturnOK;
 }
 
 } /* namespace js */

@@ -478,11 +478,6 @@
 #define WTF_OS_UNIX 1
 #endif
 
-/* WTF_OS_OS2 - OS/2 */
-#if defined (__OS2__)
-#define WTF_OS_OS2 1
-#endif
-
 /* Operating environments */
 
 /* FIXME: these are all mixes of OS, operating environment and policy choices. */
@@ -851,18 +846,6 @@
 #define HAVE_SYS_PARAM_H 1
 #define HAVE_SYS_TIME_H 1
 
-#elif WTF_OS_OS2
-
-#define USE_SYSTEM_MALLOC 1
-#define HAVE_ERRNO_H 1
-#define HAVE_LANGINFO_H 1
-#define HAVE_MMAP 0
-#define HAVE_POSIX_MEMALIGN 1
-#define HAVE_SBRK 1
-#define HAVE_SYS_PARAM_H 1
-#define HAVE_SYS_TIME_H 1
-#define HAVE_STRINGS_H 1
-
 #else
 
 /* FIXME: is this actually used or do other platforms generate their own config.h? */
@@ -1028,7 +1011,7 @@
 
 /* The JIT is enabled by default on all x86, x64-64, ARM & MIPS platforms. */
 #if !defined(ENABLE_JIT) \
-    && (WTF_CPU_X86 || WTF_CPU_X86_64 || WTF_CPU_ARM || WTF_CPU_MIPS || WTF_CPU_SPARC32) \
+    && (WTF_CPU_X86 || WTF_CPU_X86_64 || WTF_CPU_ARM || WTF_CPU_MIPS) \
     && (WTF_OS_DARWIN || !WTF_COMPILER_GCC || GCC_VERSION_AT_LEAST(4, 1, 0)) \
     && !WTF_OS_WINCE
 #define ENABLE_JIT 1

@@ -5,7 +5,6 @@ var gConfig;
 if (Cc === undefined) {
   var Cc = Components.classes;
   var Ci = Components.interfaces;
-  var Cu = Components.utils;
 }
 window.addEventListener("load", testOnLoad, false);
 
@@ -200,9 +199,7 @@ Tester.prototype = {
     // is invoked to start the tests.
     this.waitForWindowsState((function () {
       if (this.done) {
-        // Schedule GC before finishing in order to be able to report an accurate
-        // DOM window count at the end of this test suite.
-        Cu.schedulePreciseGC(this.finish.bind(this));
+        this.finish();
         return;
       }
 

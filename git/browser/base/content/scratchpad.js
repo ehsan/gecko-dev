@@ -643,9 +643,6 @@ var Scratchpad = {
     this._tabCharacter = expandtab ? (new Array(tabsize + 1)).join(" ") : "\t";
     this.textbox.style.MozTabSize = tabsize;
 
-    // Force LTR direction (otherwise the textbox inherits the locale direction)
-    this.textbox.style.direction = "ltr";
-
     this.insertIntro();
 
     // Make the Tab key work.

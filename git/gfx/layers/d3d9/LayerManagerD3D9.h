@@ -141,14 +141,6 @@ public:
 
   void SetRoot(Layer* aLayer);
 
-  virtual bool CanUseCanvasLayerForSize(const gfxIntSize &aSize)
-  {
-    if (!mDeviceManager)
-      return false;
-    PRInt32 maxSize = mDeviceManager->GetMaxTextureSize();
-    return aSize <= gfxIntSize(maxSize, maxSize);
-  }
-
   virtual already_AddRefed<ThebesLayer> CreateThebesLayer();
 
   virtual already_AddRefed<ContainerLayer> CreateContainerLayer();
