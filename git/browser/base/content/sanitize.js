@@ -73,23 +73,11 @@ Sanitizer.prototype = {
     if (openWindowsIndex != -1) {
       itemsToClear.splice(openWindowsIndex, 1);
       let item = this.items.openWindows;
-
-      let ok = item.clear(() => {
-        try {
-          let clearedPromise = this.sanitize(itemsToClear);
-          clearedPromise.then(deferred.resolve, deferred.reject);
-        } catch(e) {
-          let error = "Sanitizer threw after closing windows: " + e;
-          Cu.reportError(error);
-          deferred.reject(error);
-        }
-      });
-      // When cancelled, reject immediately
-      if (!ok) {
-        deferred.reject("Sanitizer canceled closing windows");
+      if (!item.clear()) {
+        // When cancelled, reject the deferred and return the promise:
+        deferred.reject();
+        return deferred.promise;
       }
-
-      return deferred.promise;
     }
 
     // Cache the range of times to clear
@@ -406,31 +394,17 @@ Sanitizer.prototype = {
       clear: function ()
       {
         // Clear site-specific permissions like "Allow this site to open popups"
-        // we ignore the "end" range and hope it is now() - none of the
-        // interfaces used here support a true range anyway.
-        let startDateMS = this.range == null ? null : this.range[0] / 1000;
         var pm = Components.classes["@mozilla.org/permissionmanager;1"]
                            .getService(Components.interfaces.nsIPermissionManager);
-        if (startDateMS == null) {
-          pm.removeAll();
-        } else {
-          pm.removeAllSince(startDateMS);
-        }
+        pm.removeAll();
 
         // Clear site-specific settings like page-zoom level
         var cps = Components.classes["@mozilla.org/content-pref/service;1"]
                             .getService(Components.interfaces.nsIContentPrefService2);
-        if (startDateMS == null) {
-          cps.removeAllDomains(null);
-        } else {
-          cps.removeAllDomainsSince(startDateMS, null);
-        }
+        cps.removeAllDomains(null);
 
         // Clear "Never remember passwords for this site", which is not handled by
         // the permission manager
-        // (Note the login manager doesn't support date ranges yet, and bug
-        //  1058438 is calling for loginSaving stuff to end up in the
-        // permission manager)
         var pwmgr = Components.classes["@mozilla.org/login-manager;1"]
                               .getService(Components.interfaces.nsILoginManager);
         var hosts = pwmgr.getAllDisabledHosts();
@@ -438,8 +412,7 @@ Sanitizer.prototype = {
           pwmgr.setLoginSavingEnabled(host, true);
         }
 
-        // Clear site security settings - no support for ranges in this
-        // interface either, so we clearAll().
+        // Clear site security settings
         var sss = Cc["@mozilla.org/ssservice;1"]
                     .getService(Ci.nsISiteSecurityService);
         sss.clearAll();
@@ -477,14 +450,10 @@ Sanitizer.prototype = {
           win.getInterface(Ci.nsIDocShell).contentViewer.resetCloseWindow();
         }
       },
-      clear: function(aCallback)
+      clear: function()
       {
         // NB: this closes all *browser* windows, not other windows like the library, about window,
         // browser console, etc.
-
-        if (!aCallback) {
-          throw "Sanitizer's openWindows clear() requires a callback.";
-        }
 
         // Keep track of the time in case we get stuck in la-la-land because of onbeforeunload
         // dialogs
@@ -522,57 +491,8 @@ Sanitizer.prototype = {
         let features = "chrome,all,dialog=no," + this.privateStateForNewWindow;
         let newWindow = existingWindow.openDialog("chrome://browser/content/", "_blank",
                                                   features, defaultArgs);
-#ifdef XP_MACOSX
-        function onFullScreen(e) {
-          newWindow.removeEventListener("fullscreen", onFullScreen);
-          let docEl = newWindow.document.documentElement;
-          let sizemode = docEl.getAttribute("sizemode");
-          if (!newWindow.fullScreen && sizemode == "fullscreen") {
-            docEl.setAttribute("sizemode", "normal");
-            e.preventDefault();
-            e.stopPropagation();
-            return false;
-          }
-        }
-        newWindow.addEventListener("fullscreen", onFullScreen);
-#endif
 
-        // Window creation and destruction is asynchronous. We need to wait
-        // until all existing windows are fully closed, and the new window is
-        // fully open, before continuing. Otherwise the rest of the sanitizer
-        // could run too early (and miss new cookies being set when a page
-        // closes) and/or run too late (and not have a fully-formed window yet
-        // in existence). See bug 1088137.
-        let newWindowOpened = false;
-        function onWindowOpened(subject, topic, data) {
-          if (subject != newWindow)
-            return;
-
-          Services.obs.removeObserver(onWindowOpened, "browser-delayed-startup-finished");
-#ifdef XP_MACOSX
-          newWindow.removeEventListener("fullscreen", onFullScreen);
-#endif
-          newWindowOpened = true;
-          // If we're the last thing to happen, invoke callback.
-          if (numWindowsClosing == 0)
-            aCallback();
-        }
-
-        let numWindowsClosing = windowList.length;
-        function onWindowClosed() {
-          numWindowsClosing--;
-          if (numWindowsClosing == 0) {
-            Services.obs.removeObserver(onWindowClosed, "xul-window-destroyed");
-            // If we're the last thing to happen, invoke callback.
-            if (newWindowOpened)
-              aCallback();
-          }
-        }
-
-        Services.obs.addObserver(onWindowOpened, "browser-delayed-startup-finished", false);
-        Services.obs.addObserver(onWindowClosed, "xul-window-destroyed", false);
-
-        // Start the process of closing windows
+        // Then close all those windows we checked:
         while (windowList.length) {
           windowList.pop().close();
         }

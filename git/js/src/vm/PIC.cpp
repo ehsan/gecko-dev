@@ -6,38 +6,31 @@
 
 #include "vm/PIC.h"
 #include "jscntxt.h"
-#include "jscompartment.h"
 #include "jsobj.h"
 #include "gc/Marking.h"
 
 #include "vm/GlobalObject.h"
+#include "vm/ObjectImpl.h"
 #include "vm/SelfHosting.h"
-
 #include "jsobjinlines.h"
-#include "vm/NativeObject-inl.h"
+#include "vm/ObjectImpl-inl.h"
 
 using namespace js;
 using namespace js::gc;
 
-#ifdef JS_HAS_SYMBOLS
-#define STD_ITERATOR_ID  SYMBOL_TO_JSID(cx->wellKnownSymbols().iterator)
-#else
-#define STD_ITERATOR_ID  ::js::NameToId(cx->names().std_iterator)
-#endif
-
 bool
 js::ForOfPIC::Chain::initialize(JSContext *cx)
 {
-    MOZ_ASSERT(!initialized_);
+    JS_ASSERT(!initialized_);
 
     // Get the canonical Array.prototype
-    RootedNativeObject arrayProto(cx, GlobalObject::getOrCreateArrayPrototype(cx, cx->global()));
+    RootedObject arrayProto(cx, GlobalObject::getOrCreateArrayPrototype(cx, cx->global()));
     if (!arrayProto)
         return false;
 
     // Get the canonical ArrayIterator.prototype
-    RootedNativeObject arrayIteratorProto(cx,
-        GlobalObject::getOrCreateArrayIteratorPrototype(cx, cx->global()));
+    RootedObject arrayIteratorProto(cx,
+                    GlobalObject::getOrCreateArrayIteratorPrototype(cx, cx->global()));
     if (!arrayIteratorProto)
         return false;
 
@@ -51,8 +44,8 @@ js::ForOfPIC::Chain::initialize(JSContext *cx)
     // do set disabled_ now, and clear it later when we succeed.
     disabled_ = true;
 
-    // Look up Array.prototype[@@iterator], ensure it's a slotful shape.
-    Shape *iterShape = arrayProto->lookup(cx, STD_ITERATOR_ID);
+    // Look up '@@iterator' on Array.prototype, ensure it's a slotful shape.
+    Shape *iterShape = arrayProto->nativeLookup(cx, cx->names().std_iterator);
     if (!iterShape || !iterShape->hasSlot() || !iterShape->hasDefaultGetter())
         return true;
 
@@ -65,7 +58,7 @@ js::ForOfPIC::Chain::initialize(JSContext *cx)
         return true;
 
     // Look up the 'next' value on ArrayIterator.prototype
-    Shape *nextShape = arrayIteratorProto->lookup(cx, cx->names().next);
+    Shape *nextShape = arrayIteratorProto->nativeLookup(cx, cx->names().next);
     if (!nextShape || !nextShape->hasSlot())
         return true;
 
@@ -106,9 +99,10 @@ js::ForOfPIC::Chain::isArrayOptimized(ArrayObject *obj)
 }
 
 bool
-js::ForOfPIC::Chain::tryOptimizeArray(JSContext *cx, HandleArrayObject array, bool *optimized)
+js::ForOfPIC::Chain::tryOptimizeArray(JSContext *cx, HandleObject array, bool *optimized)
 {
-    MOZ_ASSERT(optimized);
+    JS_ASSERT(array->is<ArrayObject>());
+    JS_ASSERT(optimized);
 
     *optimized = false;
 
@@ -124,14 +118,14 @@ js::ForOfPIC::Chain::tryOptimizeArray(JSContext *cx, HandleArrayObject array, bo
         if (!initialize(cx))
             return false;
     }
-    MOZ_ASSERT(initialized_);
+    JS_ASSERT(initialized_);
 
     // If PIC is disabled, don't bother trying to optimize.
     if (disabled_)
         return true;
 
     // By the time we get here, we should have a sane array state to work with.
-    MOZ_ASSERT(isArrayStateStillSane());
+    JS_ASSERT(isArrayStateStillSane());
 
     // Check if stub already exists.
     ForOfPIC::Stub *stub = isArrayOptimized(&array->as<ArrayObject>());
@@ -150,8 +144,8 @@ js::ForOfPIC::Chain::tryOptimizeArray(JSContext *cx, HandleArrayObject array, bo
     if (!isOptimizableArray(array))
         return true;
 
-    // Ensure array doesn't define @@iterator directly.
-    if (array->lookup(cx, STD_ITERATOR_ID))
+    // Ensure array doesn't define '@@iterator' directly.
+    if (array->nativeLookup(cx, cx->names().std_iterator))
         return true;
 
     // Good to optimize now, create stub to add.
@@ -186,7 +180,7 @@ js::ForOfPIC::Chain::getMatchingStub(JSObject *obj)
 bool
 js::ForOfPIC::Chain::isOptimizableArray(JSObject *obj)
 {
-    MOZ_ASSERT(obj->is<ArrayObject>());
+    JS_ASSERT(obj->is<ArrayObject>());
 
     // Ensure object's prototype is the actual Array.prototype
     if (!obj->getTaggedProto().isObject())
@@ -204,7 +198,7 @@ js::ForOfPIC::Chain::isArrayStateStillSane()
     if (arrayProto_->lastProperty() != arrayProtoShape_)
         return false;
 
-    // Ensure that Array.prototype[@@iterator] contains the
+    // Ensure that Array.prototype['@@iterator'] contains the
     // canonical iterator function.
     if (arrayProto_->getSlot(arrayProtoIteratorSlot_) != canonicalIteratorFunc_)
         return false;
@@ -217,7 +211,7 @@ void
 js::ForOfPIC::Chain::reset(JSContext *cx)
 {
     // Should never reset a disabled_ stub.
-    MOZ_ASSERT(!disabled_);
+    JS_ASSERT(!disabled_);
 
     // Erase the chain.
     eraseChain();
@@ -240,7 +234,7 @@ void
 js::ForOfPIC::Chain::eraseChain()
 {
     // Should never need to clear the chain of a disabled stub.
-    MOZ_ASSERT(!disabled_);
+    JS_ASSERT(!disabled_);
 
     // Free all stubs.
     Stub *stub = stubs_;
@@ -289,14 +283,14 @@ js::ForOfPIC::Chain::sweep(FreeOp *fop)
 static void
 ForOfPIC_finalize(FreeOp *fop, JSObject *obj)
 {
-    if (ForOfPIC::Chain *chain = ForOfPIC::fromJSObject(&obj->as<NativeObject>()))
+    if (ForOfPIC::Chain *chain = ForOfPIC::fromJSObject(obj))
         chain->sweep(fop);
 }
 
 static void
 ForOfPIC_traceObject(JSTracer *trc, JSObject *obj)
 {
-    if (ForOfPIC::Chain *chain = ForOfPIC::fromJSObject(&obj->as<NativeObject>()))
+    if (ForOfPIC::Chain *chain = ForOfPIC::fromJSObject(obj))
         chain->mark(trc);
 }
 
@@ -310,11 +304,11 @@ const Class ForOfPIC::jsclass = {
     ForOfPIC_traceObject
 };
 
-/* static */ NativeObject *
+/* static */ JSObject *
 js::ForOfPIC::createForOfPICObject(JSContext *cx, Handle<GlobalObject*> global)
 {
     assertSameCompartment(cx, global);
-    NativeObject *obj = NewNativeObjectWithGivenProto(cx, &ForOfPIC::jsclass, nullptr, global);
+    JSObject *obj = NewObjectWithGivenProto(cx, &ForOfPIC::jsclass, nullptr, global);
     if (!obj)
         return nullptr;
     ForOfPIC::Chain *chain = cx->new_<ForOfPIC::Chain>();
@@ -327,9 +321,9 @@ js::ForOfPIC::createForOfPICObject(JSContext *cx, Handle<GlobalObject*> global)
 /* static */ js::ForOfPIC::Chain *
 js::ForOfPIC::create(JSContext *cx)
 {
-    MOZ_ASSERT(!cx->global()->getForOfPICObject());
+    JS_ASSERT(!cx->global()->getForOfPICObject());
     Rooted<GlobalObject *> global(cx, cx->global());
-    NativeObject *obj = GlobalObject::getOrCreateForOfPICObject(cx, global);
+    JSObject *obj = GlobalObject::getOrCreateForOfPICObject(cx, global);
     if (!obj)
         return nullptr;
     return fromJSObject(obj);

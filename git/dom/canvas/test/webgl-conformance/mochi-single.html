@@ -1,33 +1,31 @@
 <!DOCTYPE HTML>
-<meta http-equiv='content-type' content='text/html; charset=utf-8' />
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
 <html>
 <head>
 <title>
 WebGL Conformance Test Suite Single Test Wrapper
 </title>
 <!-- Uncomment this to use this without mochi-wrapper.html files.
-<script type='application/javascript' src='/tests/SimpleTest/SimpleTest.js'></script>
-<link rel='stylesheet' type='text/css' href='/tests/SimpleTest/test.css'/>
+<script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+<link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 -->
-<script src='../webgl-mochitest/driver-info.js'></script>
-<script src='iframe-autoresize.js'></script>
+<script src="../webgl-mochitest/driver-info.js"></script>
 </head>
-<body style='margin:0'>
-
+<body>
 <div>Status: <span id='status'>Initializing</span></div>
 <div>Path: <span id='path'>-</span></div>
 <div>Failures: <span id='results'>-</span></div>
-<hr/>
-<iframe style='border:none' id='test-frame' width='100%' scrolling='no'></iframe>
+<iframe id='test-frame' width='100%' scrolling='no'></iframe>
 <script>
 'use strict';
+
+var IFRAME_BODY_MARGIN = 8;
+var IFRAME_SIZE_UPDATE_INTERVAL = 100; // ms
 
 var statusElem = document.getElementById('status');
 var pathElem = document.getElementById('path');
 var resultsElem = document.getElementById('results');
 var frameElem = document.getElementById('test-frame');
-
-IFrameAutoresize.Start(frameElem, true);
 
 ////////////////////////////////////////////////////////////////////////
 // Forward SimpleTest functions and replace if missing.
@@ -44,19 +42,18 @@ if (!window.SimpleTest) {
 
 if (!window.ok) {
   window.ok = function(status, message) {
-    console.log('ok(' + status + ', \'' + message + '\')');
+    console.log('ok(' + status + ', "' + message + '")');
   }
 }
 if (!window.todo) {
   window.todo = function(status, message) {
-    console.log('todo(' + status + ', \'' + message + '\')');
+    console.log('todo(' + status + ', "' + message + '")');
   }
 }
 if (!window.SimpleTest) {
   window.SimpleTest = {
-    finish: function(){},
-    requestLongerTimeout: function(){},
     waitForExplicitFinish: function(){},
+    finish: function(){},
   };
 }
 
@@ -130,7 +127,9 @@ function GetExpectedTestFailSet() {
       } else {
         // Android 2.3 slaves.
         failSet['conformance/glsl/functions/glsl-function-sin.html'] = true;
+        failSet['conformance/misc/error-reporting.html'] = true;
         failSet['conformance/misc/object-deletion-behaviour.html'] = true;
+        failSet['conformance/programs/get-active-test.html'] = true;
         failSet['conformance/textures/tex-image-and-sub-image-2d-with-video.html'] = true;
         failSet['conformance/textures/texture-mips.html'] = true;
         failSet['conformance/textures/texture-npot.html'] = true;
@@ -161,8 +160,6 @@ function GetExpectedTestFailSet() {
 // Test running and harness.
 
 var gTestPath = null;
-var gExpectFailures;
-var gIsComplete;
 
 function RunTest(testPath) {
   console.log('testPath: ' + testPath);
@@ -174,46 +171,45 @@ function RunTest(testPath) {
     console.log('Driver: ' + DriverInfo.getDriver());
   }
 
+  pathElem.innerHTML = testPath;
   gTestPath = testPath;
-  pathElem.innerHTML = gTestPath;
 
-  gExpectFailures = (gTestPath in GetExpectedTestFailSet());
+  // Auto-update to grow the size of the doc.
+  function UpdateFrameSize() {
+    var frameBody = frameElem.contentWindow.document.body;
+
+    if (frameBody) {
+      var scrollHeight = frameBody.scrollHeight;
+      frameElem.height = scrollHeight + 2*IFRAME_BODY_MARGIN;
+    }
+
+    setTimeout(UpdateFrameSize, IFRAME_SIZE_UPDATE_INTERVAL);
+  }
+  UpdateFrameSize();
 
   // Load the iframe.
   statusElem.innerHTML = 'Loading';
 
-  gIsComplete = false;
-  frameElem.onload = function() {
-    if (!gIsComplete)
-      statusElem.innerHTML = 'Running';
+  frameElem.onloadstart = function() {
+    statusElem.innerHTML = 'Running';
   };
-  frameElem.src = gTestPath;
+  frameElem.src = testPath;
 }
 
-var gFailureCount = 0;
-var gResultCount = 0;
+var failureCount = 0;
+var resultCount = 0;
 window.webglTestHarness = {
   reportResults: function(success, message) {
-    if (gExpectFailures) {
-      if (success) {
-        ok(success, message);
-      } else {
-        todo(success, message);
-      }
-    } else {
-      ok(success, message);
-    }
-
-    gResultCount++;
+    resultCount++;
     if (!success) {
-      gFailureCount++;
+      failureCount++;
     }
 
-    var color = gFailureCount ? 'red' : 'green';
+    var color = failureCount ? 'red' : 'green';
 
     resultsElem.innerHTML = [
-      '<font color=\'' + color + '\'>',
-      '' + gFailureCount + '/' + gResultCount,
+      '<font color="' + color + '">',
+      '' + failureCount + '/' + resultCount,
       '</font>',
     ].join('\n');
   },
@@ -225,15 +221,17 @@ window.webglTestHarness = {
 
 function OnTestComplete() {
   statusElem.innerHTML = 'Complete';
-  gIsComplete = true;
 
-  var hadFailures = gFailureCount != 0;
+  var passed = failureCount == 0;
 
-  if (gExpectFailures) {
-    todo(!hadFailures, 'Expected failures: ' + gTestPath);
-  } else {
-    ok(!hadFailures, 'Expected no failures: ' + gTestPath);
-  }
+  var passExpected = true;
+  if (gTestPath in GetExpectedTestFailSet())
+    passExpected = false;
+
+  var expectedStatus = passExpected ? 'pass' : 'fail';
+  var text = 'Should ' + expectedStatus + ': ' + gTestPath;
+
+  ok(passed == passExpected, text);
   SimpleTest.finish();
 }
 
@@ -241,13 +239,6 @@ function OnTestComplete() {
 // Begin execution
 
 SimpleTest.waitForExplicitFinish();
-
-var isAndroid2_3 = (DriverInfo.getOS() == DriverInfo.OS.ANDROID &&
-                    DriverInfo.getOSVersion() < OS_VERSION_ANDROID_ICS);
-if (isAndroid2_3) {
-  var timeoutLengthMultiplier = 2.0;
-  SimpleTest.requestLongerTimeout(timeoutLengthMultiplier);
-}
 
 do {
   var arg = location.search.substr(1);

@@ -89,7 +89,7 @@ class PanelViewAdapter extends CursorAdapter {
     }
 
     private boolean isShowingBack() {
-        return filterManager != null && filterManager.canGoBack();
+        return (filterManager != null ? filterManager.canGoBack() : false);
     }
 
     private final Cursor getCursor(int position) {

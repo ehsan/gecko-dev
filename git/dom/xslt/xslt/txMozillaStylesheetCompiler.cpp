@@ -368,7 +368,7 @@ class txCompileObserver MOZ_FINAL : public txACompileObserver
 {
 public:
     txCompileObserver(txMozillaXSLTProcessor* aProcessor,
-                      nsIDocument* aLoaderDocument);
+                      nsILoadGroup* aLoadGroup);
 
     TX_DECL_ACOMPILEOBSERVER
     NS_INLINE_DECL_REFCOUNTING(txCompileObserver)
@@ -378,7 +378,8 @@ public:
 
 private:
     nsRefPtr<txMozillaXSLTProcessor> mProcessor;
-    nsCOMPtr<nsIDocument> mLoaderDocument;
+    nsCOMPtr<nsILoadGroup> mLoadGroup;
+    nsCOMPtr<nsIPrincipal> mCallerPrincipal;
 
     // This exists solely to suppress a warning from nsDerivedSafe
     txCompileObserver();
@@ -390,9 +391,9 @@ private:
 };
 
 txCompileObserver::txCompileObserver(txMozillaXSLTProcessor* aProcessor,
-                                     nsIDocument* aLoaderDocument)
+                                     nsILoadGroup* aLoadGroup)
     : mProcessor(aProcessor),
-      mLoaderDocument(aLoaderDocument)
+      mLoadGroup(aLoadGroup)
 {
 }
 
@@ -424,7 +425,7 @@ txCompileObserver::loadURI(const nsAString& aUri,
     rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_STYLESHEET,
                                    uri,
                                    referrerPrincipal,
-                                   mLoaderDocument,
+                                   nullptr,
                                    NS_LITERAL_CSTRING("application/xml"),
                                    nullptr,
                                    &shouldLoad);
@@ -454,22 +455,16 @@ nsresult
 txCompileObserver::startLoad(nsIURI* aUri, txStylesheetCompiler* aCompiler,
                              nsIPrincipal* aReferrerPrincipal)
 {
-    nsCOMPtr<nsILoadGroup> loadGroup = mLoaderDocument->GetDocumentLoadGroup();
-    if (!loadGroup) {
-        return NS_ERROR_FAILURE;
-    }
-
     nsCOMPtr<nsIChannel> channel;
-    nsresult rv = NS_NewChannelWithTriggeringPrincipal(
-                    getter_AddRefs(channel),
-                    aUri,
-                    mLoaderDocument,
-                    aReferrerPrincipal, // triggeringPrincipal
-                    nsILoadInfo::SEC_NORMAL,
-                    nsIContentPolicy::TYPE_XSLT,
-                    loadGroup);
+    nsresult rv = NS_NewChannel(getter_AddRefs(channel),
+                                aUri,
+                                aReferrerPrincipal,
+                                nsILoadInfo::SEC_NORMAL,
+                                nsIContentPolicy::TYPE_STYLESHEET);
 
     NS_ENSURE_SUCCESS(rv, rv);
+
+    channel->SetLoadGroup(mLoadGroup);
 
     channel->SetContentType(NS_LITERAL_CSTRING("text/xml"));
 
@@ -509,10 +504,8 @@ txCompileObserver::startLoad(nsIURI* aUri, txStylesheetCompiler* aCompiler,
 
 nsresult
 TX_LoadSheet(nsIURI* aUri, txMozillaXSLTProcessor* aProcessor,
-             nsIDocument* aLoaderDocument)
+             nsILoadGroup* aLoadGroup, nsIPrincipal* aCallerPrincipal)
 {
-    nsIPrincipal* principal = aLoaderDocument->NodePrincipal();
-
     nsAutoCString spec;
     aUri->GetSpec(spec);
     PR_LOG(txLog::xslt, PR_LOG_ALWAYS, ("TX_LoadSheet: %s\n", spec.get()));
@@ -522,8 +515,8 @@ TX_LoadSheet(nsIURI* aUri, txMozillaXSLTProcessor* aProcessor,
     nsresult rv =
         NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_STYLESHEET,
                                   aUri,
-                                  principal,
-                                  aLoaderDocument,
+                                  aCallerPrincipal,
+                                  aProcessor->GetSourceContentModel(),
                                   NS_LITERAL_CSTRING("application/xml"),
                                   nullptr,
                                   &shouldLoad);
@@ -533,14 +526,14 @@ TX_LoadSheet(nsIURI* aUri, txMozillaXSLTProcessor* aProcessor,
     }
 
     nsRefPtr<txCompileObserver> observer =
-        new txCompileObserver(aProcessor, aLoaderDocument);
+        new txCompileObserver(aProcessor, aLoadGroup);
     NS_ENSURE_TRUE(observer, NS_ERROR_OUT_OF_MEMORY);
 
     nsRefPtr<txStylesheetCompiler> compiler =
         new txStylesheetCompiler(NS_ConvertUTF8toUTF16(spec), observer);
     NS_ENSURE_TRUE(compiler, NS_ERROR_OUT_OF_MEMORY);
 
-    return observer->startLoad(aUri, compiler, principal);
+    return observer->startLoad(aUri, compiler, aCallerPrincipal);
 }
 
 /**
@@ -707,6 +700,7 @@ void txSyncCompileObserver::onDoneCompiling(txStylesheetCompiler* aCompiler,
 
 nsresult
 TX_CompileStylesheet(nsINode* aNode, txMozillaXSLTProcessor* aProcessor,
+                     nsIPrincipal* aCallerPrincipal,
                      txStylesheet** aStylesheet)
 {
     // If we move GetBaseURI to nsINode this can be simplified.

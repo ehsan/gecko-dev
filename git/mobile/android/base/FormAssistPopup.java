@@ -73,13 +73,13 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
     private static final String LOGTAG = "GeckoFormAssistPopup";
 
     // The blocklist is so short that ArrayList is probably cheaper than HashSet.
-    private static final Collection<String> sInputMethodBlocklist = Arrays.asList(
+    private static final Collection<String> sInputMethodBlocklist = Arrays.asList(new String[] {
                                             InputMethods.METHOD_GOOGLE_JAPANESE_INPUT, // bug 775850
                                             InputMethods.METHOD_OPENWNN_PLUS,          // bug 768108
                                             InputMethods.METHOD_SIMEJI,                // bug 768108
                                             InputMethods.METHOD_SWYPE,                 // bug 755909
-                                            InputMethods.METHOD_SWYPE_BETA            // bug 755909
-                                            );
+                                            InputMethods.METHOD_SWYPE_BETA,            // bug 755909
+                                            });
 
     public FormAssistPopup(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -401,8 +401,8 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
     }
 
     private class AutoCompleteListAdapter extends ArrayAdapter<Pair<String, String>> {
-        private final LayoutInflater mInflater;
-        private final int mTextViewResourceId;
+        private LayoutInflater mInflater;
+        private int mTextViewResourceId;
 
         public AutoCompleteListAdapter(Context context, int textViewResourceId) {
             super(context, textViewResourceId);

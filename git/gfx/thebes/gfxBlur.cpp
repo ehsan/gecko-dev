@@ -4,13 +4,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "gfxBlur.h"
-
-#include "gfx2DGlue.h"
 #include "gfxContext.h"
 #include "gfxPlatform.h"
-#include "mozilla/gfx/2D.h"
+
 #include "mozilla/gfx/Blur.h"
-#include "mozilla/gfx/PathHelpers.h"
+#include "mozilla/gfx/2D.h"
 #include "mozilla/UniquePtr.h"
 #include "nsExpirationTracker.h"
 #include "nsClassHashtable.h"
@@ -364,45 +362,47 @@ gfxAlphaBoxBlur::ShutdownBlurCache()
 /* static */ void
 gfxAlphaBoxBlur::BlurRectangle(gfxContext *aDestinationCtx,
                                const gfxRect& aRect,
-                               RectCornerRadii* aCornerRadii,
+                               gfxCornerSizes* aCornerRadii,
                                const gfxPoint& aBlurStdDev,
                                const gfxRGBA& aShadowColor,
                                const gfxRect& aDirtyRect,
                                const gfxRect& aSkipRect)
 {
-  DrawTarget& aDrawTarget = *aDestinationCtx->GetDrawTarget();
-
   gfxIntSize blurRadius = CalculateBlurRadius(aBlurStdDev);
+    
+  DrawTarget *dt = aDestinationCtx->GetDrawTarget();
+  if (!dt) {
+    NS_WARNING("Blurring not supported for Thebes contexts!");
+    return;
+  }
 
   IntPoint topLeft;
-  RefPtr<SourceSurface> surface = GetCachedBlur(&aDrawTarget, aRect, blurRadius, aSkipRect, aDirtyRect, &topLeft);
+  RefPtr<SourceSurface> surface = GetCachedBlur(dt, aRect, blurRadius, aSkipRect, aDirtyRect, &topLeft);
   if (!surface) {
     // Create the temporary surface for blurring
     gfxAlphaBoxBlur blur;
-    gfxContext* blurCtx = blur.Init(aRect, gfxIntSize(), blurRadius, &aDirtyRect, &aSkipRect);
-    if (!blurCtx) {
+    gfxContext *dest = blur.Init(aRect, gfxIntSize(), blurRadius, &aDirtyRect, &aSkipRect);
+
+    if (!dest) {
       return;
     }
-    DrawTarget* blurDT = blurCtx->GetDrawTarget();
 
-    Rect shadowGfxRect = ToRect(aRect);
+    gfxRect shadowGfxRect = aRect;
     shadowGfxRect.Round();
 
-    ColorPattern black(Color(0.f, 0.f, 0.f, 1.f)); // For masking, so no ToDeviceColor!
+    dest->NewPath();
     if (aCornerRadii) {
-      RefPtr<Path> roundedRect = MakePathForRoundedRect(*blurDT,
-                                                        shadowGfxRect,
-                                                        *aCornerRadii);
-      blurDT->Fill(roundedRect, black);
+      dest->RoundedRectangle(shadowGfxRect, *aCornerRadii);
     } else {
-      blurDT->FillRect(shadowGfxRect, black);
+      dest->Rectangle(shadowGfxRect);
     }
+    dest->Fill();
 
-    surface = blur.DoBlur(&aDrawTarget, &topLeft);
+    surface = blur.DoBlur(dt, &topLeft);
     if (!surface) {
       return;
     }
-    CacheBlur(&aDrawTarget, aRect, blurRadius, aSkipRect, surface, topLeft, aDirtyRect);
+    CacheBlur(dt, aRect, blurRadius, aSkipRect, surface, topLeft, aDirtyRect);
   }
 
   aDestinationCtx->SetColor(aShadowColor);

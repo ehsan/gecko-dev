@@ -263,7 +263,7 @@ void
 nsTSubstring_CharT::Assign(char_type aChar)
 {
   if (!ReplacePrep(0, mLength, 1)) {
-    AllocFailed(mLength);
+    NS_ABORT_OOM(mLength);
   }
 
   *mData = aChar;
@@ -284,7 +284,7 @@ void
 nsTSubstring_CharT::Assign(const char_type* aData)
 {
   if (!Assign(aData, size_type(-1), fallible_t())) {
-    AllocFailed(char_traits::length(aData));
+    NS_ABORT_OOM(char_traits::length(aData));
   }
 }
 
@@ -292,8 +292,7 @@ void
 nsTSubstring_CharT::Assign(const char_type* aData, size_type aLength)
 {
   if (!Assign(aData, aLength, fallible_t())) {
-    AllocFailed(aLength == size_type(-1) ? char_traits::length(aData)
-                                         : aLength);
+    NS_ABORT_OOM(aLength);
   }
 }
 
@@ -326,7 +325,7 @@ void
 nsTSubstring_CharT::AssignASCII(const char* aData, size_type aLength)
 {
   if (!AssignASCII(aData, aLength, fallible_t())) {
-    AllocFailed(aLength);
+    NS_ABORT_OOM(aLength);
   }
 }
 
@@ -363,7 +362,7 @@ void
 nsTSubstring_CharT::Assign(const self_type& aStr)
 {
   if (!Assign(aStr, fallible_t())) {
-    AllocFailed(aStr.Length());
+    NS_ABORT_OOM(aStr.Length());
   }
 }
 
@@ -413,7 +412,7 @@ void
 nsTSubstring_CharT::Assign(const substring_tuple_type& aTuple)
 {
   if (!Assign(aTuple, fallible_t())) {
-    AllocFailed(aTuple.Length());
+    NS_ABORT_OOM(aTuple.Length());
   }
 }
 
@@ -505,7 +504,7 @@ nsTSubstring_CharT::Replace(index_type aCutStart, size_type aCutLength,
 {
   if (!Replace(aCutStart, aCutLength, aData, aLength,
                mozilla::fallible_t())) {
-    AllocFailed(Length() - aCutLength + 1);
+    NS_ABORT_OOM(Length() - aCutLength + 1);
   }
 }
 
@@ -603,7 +602,7 @@ void
 nsTSubstring_CharT::SetCapacity(size_type aCapacity)
 {
   if (!SetCapacity(aCapacity, fallible_t())) {
-    AllocFailed(aCapacity);
+    NS_ABORT_OOM(aCapacity);
   }
 }
 
@@ -784,7 +783,7 @@ nsTSubstring_CharT::StripChar(char_type aChar, int32_t aOffset)
   }
 
   if (!EnsureMutable()) { // XXX do this lazily?
-    AllocFailed(mLength);
+    NS_ABORT_OOM(mLength);
   }
 
   // XXX(darin): this code should defer writing until necessary.
@@ -811,7 +810,7 @@ nsTSubstring_CharT::StripChars(const char_type* aChars, uint32_t aOffset)
   }
 
   if (!EnsureMutable()) { // XXX do this lazily?
-    AllocFailed(mLength);
+    NS_ABORT_OOM(mLength);
   }
 
   // XXX(darin): this code should defer writing until necessary.

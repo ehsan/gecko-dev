@@ -142,6 +142,9 @@ BEGIN_TEST(testJitNotTest)
     MTest *test = MTest::New(func.alloc, not0, then, else_);
     block->end(test);
 
+    MNop *anchor = MNop::New(func.alloc);
+    anchor->setGuard();
+    then->add(anchor);
     then->end(MGoto::New(func.alloc, exit));
 
     else_->end(MGoto::New(func.alloc, exit));
@@ -181,6 +184,9 @@ BEGIN_TEST(testJitNotNotTest)
     MTest *test = MTest::New(func.alloc, not1, then, else_);
     block->end(test);
 
+    MNop *anchor = MNop::New(func.alloc);
+    anchor->setGuard();
+    then->add(anchor);
     then->end(MGoto::New(func.alloc, exit));
 
     else_->end(MGoto::New(func.alloc, exit));

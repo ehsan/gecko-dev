@@ -23,11 +23,9 @@ import org.mozilla.gecko.mozglue.RobocopTarget;
 import org.mozilla.gecko.util.INIParser;
 import org.mozilla.gecko.util.INISection;
 
-import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.support.v4.content.LocalBroadcastManager;
 import android.text.TextUtils;
 import android.util.Log;
@@ -40,7 +38,7 @@ public final class GeckoProfile {
     public static final String DEFAULT_PROFILE = "default";
     public static final String GUEST_PROFILE = "guest";
 
-    private static final HashMap<String, GeckoProfile> sProfileCache = new HashMap<String, GeckoProfile>();
+    private static HashMap<String, GeckoProfile> sProfileCache = new HashMap<String, GeckoProfile>();
     private static String sDefaultProfileName;
 
     // Caches the guest profile dir.
@@ -92,19 +90,9 @@ public final class GeckoProfile {
             }
         }
 
-        final String args;
-        if (context instanceof Activity) {
-            args = ((Activity) context).getIntent().getStringExtra("args");
-        } else {
-            args = null;
-        }
-
-        if (GuestSession.shouldUse(context, args)) {
-            GeckoProfile p = GeckoProfile.getOrCreateGuestProfile(context);
-            if (isGeckoApp) {
-                ((GeckoApp) context).mProfile = p;
-            }
-            return p;
+        // If the guest profile should be used return it.
+        if (GuestSession.shouldUse(context, "")) {
+            return GeckoProfile.getGuestProfile(context);
         }
 
         if (isGeckoApp) {
@@ -203,8 +191,6 @@ public final class GeckoProfile {
         return success;
     }
 
-    // Only public for access from tests.
-    @RobocopTarget
     public static GeckoProfile createGuestProfile(Context context) {
         try {
             // We need to force the creation of a new guest profile if we want it outside of the normal profile path,
@@ -244,18 +230,6 @@ public final class GeckoProfile {
             sGuestDir = context.getFileStreamPath("guest");
         }
         return sGuestDir;
-    }
-
-    /**
-     * Performs IO. Be careful of using this on the main thread.
-     */
-    public static GeckoProfile getOrCreateGuestProfile(Context context) {
-        GeckoProfile p = getGuestProfile(context);
-        if (p == null) {
-            return createGuestProfile(context);
-        }
-
-        return p;
     }
 
     public static GeckoProfile getGuestProfile(Context context) {
@@ -693,11 +667,9 @@ public final class GeckoProfile {
             Log.w(LOGTAG, "Couldn't write times.json.", e);
         }
 
-        // Initialize pref flag for displaying the start pane for a new non-webapp profile.
-        if (!mIsWebAppProfile) {
-            final SharedPreferences prefs = GeckoSharedPrefs.forProfile(mApplicationContext);
-            prefs.edit().putBoolean(BrowserApp.PREF_STARTPANE_ENABLED, true).apply();
-        }
+        LocalBroadcastManager lbm = LocalBroadcastManager.getInstance(mApplicationContext);
+        final Intent intent = new Intent(BrowserApp.ACTION_NEW_PROFILE);
+        lbm.sendBroadcast(intent);
 
         return profileDir;
     }

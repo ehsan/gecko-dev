@@ -1928,19 +1928,13 @@ nsComputedDOMStyle::GetCSSGradientString(const nsStyleGradient* aGradient,
     if (needSep) {
       aString.AppendLiteral(", ");
     }
+    SetToRGBAColor(tmpVal, aGradient->mStops[i].mColor);
+    tmpVal->GetCssText(tokenString);
+    aString.Append(tokenString);
 
-    const auto& stop = aGradient->mStops[i];
-    if (!stop.mIsInterpolationHint) {
-      SetToRGBAColor(tmpVal, stop.mColor);
-      tmpVal->GetCssText(tokenString);
-      aString.Append(tokenString);
-    }
-
-    if (stop.mLocation.GetUnit() != eStyleUnit_None) {
-      if (!stop.mIsInterpolationHint) {
-        aString.Append(' ');
-      }
-      AppendCSSGradientLength(stop.mLocation, tmpVal, aString);
+    if (aGradient->mStops[i].mLocation.GetUnit() != eStyleUnit_None) {
+      aString.Append(' ');
+      AppendCSSGradientLength(aGradient->mStops[i].mLocation, tmpVal, aString);
     }
     needSep = true;
   }
@@ -2710,16 +2704,6 @@ nsComputedDOMStyle::DoGetOrient()
   val->SetIdent(
     nsCSSProps::ValueToKeywordEnum(StyleDisplay()->mOrient,
                                    nsCSSProps::kOrientKTable));
-  return val;
-}
-
-CSSValue*
-nsComputedDOMStyle::DoGetScrollBehavior()
-{
-  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
-  val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(StyleDisplay()->mScrollBehavior,
-                                   nsCSSProps::kScrollBehaviorKTable));
   return val;
 }
 
@@ -4245,15 +4229,6 @@ nsComputedDOMStyle::DoGetMixBlendMode()
 }
 
 CSSValue*
-nsComputedDOMStyle::DoGetIsolation()
-{
-  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
-  val->SetIdent(nsCSSProps::ValueToKeywordEnum(StyleDisplay()->mIsolation,
-                                               nsCSSProps::kIsolationKTable));
-  return val;
-}
-
-CSSValue*
 nsComputedDOMStyle::DoGetObjectFit()
 {
   nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
@@ -5200,94 +5175,44 @@ nsComputedDOMStyle::DoGetStopColor()
   return val;
 }
 
-inline void AppendBasicShapeTypeToString(nsStyleBasicShape::Type aType,
-                                         nsAutoString& aString)
-{
-  nsCSSKeyword functionName;
-  switch (aType) {
-    case nsStyleBasicShape::Type::ePolygon:
-      functionName = eCSSKeyword_polygon;
-      break;
-    case nsStyleBasicShape::Type::eCircle:
-      functionName = eCSSKeyword_circle;
-      break;
-    case nsStyleBasicShape::Type::eEllipse:
-      functionName = eCSSKeyword_ellipse;
-      break;
-    default:
-      NS_NOTREACHED("unexpected type");
-  }
-  AppendASCIItoUTF16(nsCSSKeywords::GetStringValue(functionName),
-                     aString);
-}
-
 CSSValue*
 nsComputedDOMStyle::CreatePrimitiveValueForClipPath(
   const nsStyleBasicShape* aStyleBasicShape, uint8_t aSizingBox)
 {
   nsDOMCSSValueList* valueList = GetROCSSValueList(false);
-  if (aStyleBasicShape) {
-    nsStyleBasicShape::Type type = aStyleBasicShape->GetShapeType();
+
+  if (aStyleBasicShape &&
+      aStyleBasicShape->GetShapeType() == nsStyleBasicShape::Type::ePolygon) {
+    nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
+
     // Shape function name and opening parenthesis.
     nsAutoString shapeFunctionString;
-    AppendBasicShapeTypeToString(type, shapeFunctionString);
+    AppendASCIItoUTF16(nsCSSKeywords::GetStringValue(eCSSKeyword_polygon),
+                       shapeFunctionString);
     shapeFunctionString.Append('(');
-    switch (type) {
-      case nsStyleBasicShape::Type::ePolygon: {
-        bool hasEvenOdd = aStyleBasicShape->GetFillRule() ==
-                              NS_STYLE_FILL_RULE_EVENODD;
-        if (hasEvenOdd) {
-          shapeFunctionString.AppendLiteral("evenodd");
-        }
-        for (size_t i = 0;
-             i < aStyleBasicShape->Coordinates().Length(); i += 2) {
-          nsAutoString coordString;
-          if (i > 0 || hasEvenOdd) {
-            shapeFunctionString.AppendLiteral(", ");
-          }
-          SetCssTextToCoord(coordString,
-                            aStyleBasicShape->Coordinates()[i]);
-          shapeFunctionString.Append(coordString);
-          shapeFunctionString.Append(' ');
-          SetCssTextToCoord(coordString,
-                            aStyleBasicShape->Coordinates()[i + 1]);
-          shapeFunctionString.Append(coordString);
-        }
-        break;
+    uint8_t fillRule = aStyleBasicShape->GetFillRule();
+    if (fillRule == NS_STYLE_FILL_RULE_EVENODD) {
+      shapeFunctionString.AppendLiteral("evenodd");
+    }
+    for (size_t i = 0; i < aStyleBasicShape->Coordinates().Length(); i += 2) {
+      nsAutoString coordString;
+      if (i > 0 || fillRule) {
+        shapeFunctionString.AppendLiteral(", ");
       }
-      case nsStyleBasicShape::Type::eCircle:
-      case nsStyleBasicShape::Type::eEllipse: {
-        const nsTArray<nsStyleCoord>& radii = aStyleBasicShape->Coordinates();
-        NS_ABORT_IF_FALSE(radii.Length() ==
-                          (nsStyleBasicShape::Type::eCircle ? 1 : 2),
-                          "wrong number of radii");
-        for (size_t i = 0; i < radii.Length(); ++i) {
-          nsAutoString radius;
-          nsRefPtr<nsROCSSPrimitiveValue> value = new nsROCSSPrimitiveValue;
-          bool clampNegativeCalc = true;
-          SetValueToCoord(value, radii[i], clampNegativeCalc, nullptr,
-                          nsCSSProps::kShapeRadiusKTable);
-          value->GetCssText(radius);
-          shapeFunctionString.Append(radius);
-          shapeFunctionString.Append(' ');
-        }
-        shapeFunctionString.AppendLiteral("at ");
-
-        nsRefPtr<nsDOMCSSValueList> position = GetROCSSValueList(false);
-        nsAutoString positionString;
-        SetValueToPosition(aStyleBasicShape->GetPosition(), position);
-        position->GetCssText(positionString);
-        shapeFunctionString.Append(positionString);
-        break;
-      }
-      default:
-        NS_NOTREACHED("unexpected type");
+      SetCssTextToCoord(coordString,
+                        aStyleBasicShape->Coordinates()[i]);
+      shapeFunctionString.Append(coordString);
+      shapeFunctionString.Append(' ');
+      SetCssTextToCoord(coordString,
+                        aStyleBasicShape->Coordinates()[i + 1]);
+      shapeFunctionString.Append(coordString);
     }
     shapeFunctionString.Append(')');
-    nsROCSSPrimitiveValue* functionValue = new nsROCSSPrimitiveValue;
-    functionValue->SetString(shapeFunctionString);
-    valueList->AppendCSSValue(functionValue);
+    val->SetString(shapeFunctionString);
+    valueList->AppendCSSValue(val);
   }
+
+  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
 
   if (aSizingBox == NS_STYLE_CLIP_SHAPE_SIZING_NOBOX) {
     return valueList;
@@ -5298,7 +5223,6 @@ nsComputedDOMStyle::CreatePrimitiveValueForClipPath(
     nsCSSProps::ValueToKeyword(aSizingBox,
                                nsCSSProps::kClipShapeSizingKTable),
                                boxString);
-  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
   val->SetString(boxString);
   valueList->AppendCSSValue(val);
 

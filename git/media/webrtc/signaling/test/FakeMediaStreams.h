@@ -12,16 +12,17 @@
 #include "nsComponentManagerUtils.h"
 #include "nsIComponentManager.h"
 #include "nsIComponentRegistrar.h"
-#include "nsISupportsImpl.h"
 
 // #includes from MediaStream.h
 #include "mozilla/Mutex.h"
+#include "mozilla/RefPtr.h"
 #include "AudioSegment.h"
 #include "MediaSegment.h"
 #include "StreamBuffer.h"
 #include "nsTArray.h"
 #include "nsIRunnable.h"
 #include "nsISupportsImpl.h"
+#include "nsIDOMMediaStream.h"
 
 class nsIDOMWindow;
 
@@ -70,8 +71,6 @@ class Fake_MediaStream {
 
  public:
   Fake_MediaStream () : mListeners(), mMutex("Fake MediaStream") {}
-
-  uint32_t GraphRate() { return 16000; }
 
   void AddListener(Fake_MediaStreamListener *aListener) {
     mozilla::MutexAutoLock lock(mMutex);
@@ -215,11 +214,9 @@ class Fake_SourceMediaStream : public Fake_MediaStream {
 
 class Fake_DOMMediaStream;
 
-class Fake_MediaStreamTrack
+class Fake_MediaStreamTrack : public mozilla::RefCounted<Fake_MediaStreamTrack>
 {
 public:
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(Fake_MediaStreamTrack)
-
   explicit Fake_MediaStreamTrack(bool aIsVideo) : mIsVideo (aIsVideo) {}
   mozilla::TrackID GetTrackID() { return mIsVideo ? 1 : 0; }
   Fake_DOMMediaStream *GetStream() { return nullptr; }
@@ -232,12 +229,10 @@ public:
     return mIsVideo? nullptr : this;
   }
 private:
-  ~Fake_MediaStreamTrack() {}
-
   const bool mIsVideo;
 };
 
-class Fake_DOMMediaStream : public nsISupports
+class Fake_DOMMediaStream : public nsIDOMMediaStream
 {
 protected:
   virtual ~Fake_DOMMediaStream() {

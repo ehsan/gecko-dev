@@ -35,8 +35,6 @@ public:
   virtual Point CurrentPoint() const;
   virtual TemporaryRef<Path> Finish();
 
-  virtual BackendType GetBackendType() const { return BackendType::CAIRO; }
-
 private: // data
   friend class PathCairo;
 

@@ -32,7 +32,6 @@
 
 #include "mozilla/NullPtr.h"
 #include "mozilla/mozalloc.h"
-#include "nsTArray.h"
 #include "prnetdb.h"
 #include "prerr.h"
 #include "prerror.h"
@@ -284,9 +283,8 @@ void ARTPConnection::onPollStreams() {
     }
 
     uint32_t pollCount = mStreams.size() * 2;
-    nsTArray<PRPollDesc> pollList;
-    pollList.AppendElements(pollCount);
-    memset(pollList.Elements(), 0, sizeof(PRPollDesc) * pollCount);
+    PRPollDesc *pollList = (PRPollDesc *)
+        moz_xcalloc(pollCount, sizeof(PRPollDesc));
 
     // |pollIndex| is used to map different RTP & RTCP socket pairs.
     uint32_t numSocketsToPoll = 0, pollIndex = 0;
@@ -320,9 +318,8 @@ void ARTPConnection::onPollStreams() {
         return;
     }
 
-    const int32_t numSocketsReadyToRead =
-        PR_Poll(pollList.Elements(), pollList.Length(),
-                PR_MicrosecondsToInterval(kSocketPollTimeoutUs));
+    int32_t numSocketsReadyToRead = PR_Poll(pollList, pollCount,
+        PR_MicrosecondsToInterval(kSocketPollTimeoutUs));
 
     if (numSocketsReadyToRead > 0) {
         pollIndex = 0;

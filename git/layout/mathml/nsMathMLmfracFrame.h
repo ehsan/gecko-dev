@@ -83,8 +83,7 @@ public:
                     nsStyleContext*  aStyleContext,
                     nsString&        aThicknessAttribute,
                     nscoord          onePixel,
-                    nscoord          aDefaultRuleThickness,
-                    float            aFontSizeInflation);
+                    nscoord          aDefaultRuleThickness);
 
   uint8_t
   ScriptIncrement(nsIFrame* aFrame) MOZ_OVERRIDE;

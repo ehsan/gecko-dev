@@ -75,7 +75,7 @@ GetTransformToAncestorsParentLayer(Layer* aStart, const LayerMetricsWrapper& aAn
     // If the layer has a non-transient async transform then we need to apply it here
     // because it will get applied by the APZ in the compositor as well
     const FrameMetrics& metrics = iter.Metrics();
-    transform.PostScale(metrics.mPresShellResolution, metrics.mPresShellResolution, 1.f);
+    transform = transform * gfx::Matrix4x4().Scale(metrics.mResolution.scale, metrics.mResolution.scale, 1.f);
   }
   return transform;
 }
@@ -149,10 +149,16 @@ ClientTiledPaintedLayer::BeginPaint()
     GetTransformToAncestorsParentLayer(this, displayPortAncestor);
   transformDisplayPortToLayer.Invert();
 
+  // Note that below we use GetZoomToParent() in a number of places. Because this
+  // code runs on the client side, the mTransformScale field of the FrameMetrics
+  // will not have been set. This can result in incorrect values being returned
+  // by GetZoomToParent() when we have CSS transforms set on some of these layers.
+  // This code should be audited and updated as part of fixing bug 993525.
+
   // Compute the critical display port that applies to this layer in the
   // LayoutDevice space of this layer.
   ParentLayerRect criticalDisplayPort =
-    (displayportMetrics.mCriticalDisplayPort * displayportMetrics.GetZoom())
+    (displayportMetrics.mCriticalDisplayPort * displayportMetrics.GetZoomToParent())
     + displayportMetrics.mCompositionBounds.TopLeft();
   mPaintData.mCriticalDisplayPort = RoundedOut(
     ApplyParentLayerToLayerTransform(transformDisplayPortToLayer, criticalDisplayPort));
@@ -160,8 +166,8 @@ ClientTiledPaintedLayer::BeginPaint()
 
   // Store the resolution from the displayport ancestor layer. Because this is Gecko-side,
   // before any async transforms have occurred, we can use the zoom for this.
-  mPaintData.mResolution = displayportMetrics.GetZoom();
-  TILING_LOG("TILING %p: Resolution %f\n", this, mPaintData.mPresShellResolution.scale);
+  mPaintData.mResolution = displayportMetrics.GetZoomToParent();
+  TILING_LOG("TILING %p: Resolution %f\n", this, mPaintData.mResolution.scale);
 
   // Store the applicable composition bounds in this layer's Layer units.
   mPaintData.mTransformToCompBounds =
@@ -173,7 +179,7 @@ ClientTiledPaintedLayer::BeginPaint()
   TILING_LOG("TILING %p: Composition bounds %s\n", this, Stringify(mPaintData.mCompositionBounds).c_str());
 
   // Calculate the scroll offset since the last transaction
-  mPaintData.mScrollOffset = displayportMetrics.GetScrollOffset() * displayportMetrics.GetZoom();
+  mPaintData.mScrollOffset = displayportMetrics.GetScrollOffset() * displayportMetrics.GetZoomToParent();
   TILING_LOG("TILING %p: Scroll offset %s\n", this, Stringify(mPaintData.mScrollOffset).c_str());
 }
 
@@ -187,7 +193,7 @@ ClientTiledPaintedLayer::UseFastPath()
   }
   const FrameMetrics& parentMetrics = scrollAncestor.Metrics();
 
-  bool multipleTransactionsNeeded = gfxPlatform::GetPlatform()->UseProgressivePaint()
+  bool multipleTransactionsNeeded = gfxPrefs::UseProgressiveTilePainting()
                                  || gfxPrefs::UseLowPrecisionBuffer()
                                  || !parentMetrics.mCriticalDisplayPort.IsEmpty();
   bool isFixed = GetIsFixedPosition() || GetParent()->GetIsFixedPosition();
@@ -208,7 +214,7 @@ ClientTiledPaintedLayer::RenderHighPrecision(nsIntRegion& aInvalidRegion,
 
   // Only draw progressively when the resolution is unchanged, and we're not
   // in a reftest scenario (that's what the HasShadowManager() check is for).
-  if (gfxPlatform::GetPlatform()->UseProgressivePaint() &&
+  if (gfxPrefs::UseProgressiveTilePainting() &&
       !ClientManager()->HasShadowTarget() &&
       mContentClient->mTiledBuffer.GetFrameResolution() == mPaintData.mResolution) {
     // Store the old valid region, then clear it before painting.
@@ -350,9 +356,7 @@ ClientTiledPaintedLayer::RenderLayer()
     // we always have valid content or transparent pixels to sample from.
     nsIntRect bounds = neededRegion.GetBounds();
     nsIntRect wholeTiles = bounds;
-    wholeTiles.Inflate(nsIntSize(
-      gfxPlatform::GetPlatform()->GetTileWidth(),
-      gfxPlatform::GetPlatform()->GetTileHeight()));
+    wholeTiles.Inflate(nsIntSize(gfxPrefs::LayersTileWidth(), gfxPrefs::LayersTileHeight()));
     nsIntRect padded = bounds;
     padded.Inflate(1);
     padded.IntersectRect(padded, wholeTiles);

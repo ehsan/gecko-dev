@@ -43,16 +43,12 @@ class FixedList
         return list_ != nullptr;
     }
 
-    size_t empty() const {
-        return length_ == 0;
-    }
-
     size_t length() const {
         return length_;
     }
 
     void shrink(size_t num) {
-        MOZ_ASSERT(num < length_);
+        JS_ASSERT(num < length_);
         length_ -= num;
     }
 
@@ -75,19 +71,12 @@ class FixedList
     }
 
     T &operator[](size_t index) {
-        MOZ_ASSERT(index < length_);
+        JS_ASSERT(index < length_);
         return list_[index];
     }
     const T &operator [](size_t index) const {
-        MOZ_ASSERT(index < length_);
+        JS_ASSERT(index < length_);
         return list_[index];
-    }
-
-    T *begin() {
-        return list_;
-    }
-    T *end() {
-        return list_ + length_;
     }
 };
 

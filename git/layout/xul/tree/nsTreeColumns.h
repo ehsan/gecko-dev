@@ -22,10 +22,8 @@ class nsIContent;
 struct nsRect;
 
 namespace mozilla {
-class ErrorResult;
 namespace dom {
 class Element;
-class TreeBoxObject;
 } // namespace dom
 } // namespace mozilla
 
@@ -39,42 +37,15 @@ class TreeBoxObject;
 
 // This class is our column info.  We use it to iterate our columns and to obtain
 // information about each column.
-class nsTreeColumn MOZ_FINAL : public nsITreeColumn
-                             , public nsWrapperCache
-{
+class nsTreeColumn MOZ_FINAL : public nsITreeColumn {
 public:
   nsTreeColumn(nsTreeColumns* aColumns, nsIContent* aContent);
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_TREECOLUMN_IMPL_CID)
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsTreeColumn)
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsTreeColumn)
   NS_DECL_NSITREECOLUMN
-
-  // WebIDL
-  nsIContent* GetParentObject() const;
-  virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
-
-  mozilla::dom::Element* GetElement(mozilla::ErrorResult& aRv);
-
-  nsTreeColumns* GetColumns() const { return mColumns; }
-
-  int32_t GetX(mozilla::ErrorResult& aRv);
-  int32_t GetWidth(mozilla::ErrorResult& aRv);
-
-  // GetId is fine
-  int32_t Index() const { return mIndex; }
-
-  bool Primary() const { return mIsPrimary; }
-  bool Cycler() const { return mIsCycler; }
-  bool Editable() const { return mIsEditable; }
-  bool Selectable() const { return mIsSelectable; }
-  int16_t Type() const { return mType; }
-
-  nsTreeColumn* GetNext() const { return mNext; }
-  nsTreeColumn* GetPrevious() const { return mPrevious; }
-
-  void Invalidate(mozilla::ErrorResult& aRv);
 
   friend class nsTreeBodyFrame;
   friend class nsTreeColumns;
@@ -114,6 +85,8 @@ protected:
   int8_t GetCropStyle() { return mCropStyle; }
   int32_t GetTextAlignment() { return mTextAlignment; }
 
+  nsTreeColumn* GetNext() { return mNext; }
+  nsTreeColumn* GetPrevious() { return mPrevious; }
   void SetNext(nsTreeColumn* aNext) {
     NS_ASSERTION(!mNext, "already have a next sibling");
     mNext = aNext;
@@ -167,7 +140,7 @@ public:
   virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 
   // WebIDL
-  mozilla::dom::TreeBoxObject* GetTree() const;
+  nsITreeBoxObject* GetTree() const;
   uint32_t Count();
   uint32_t Length()
   {

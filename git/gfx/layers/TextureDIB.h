@@ -70,7 +70,7 @@ public:
   DIBTextureHost(TextureFlags aFlags,
                  const SurfaceDescriptorDIB& aDescriptor);
 
-  virtual TextureSource* GetTextureSources() MOZ_OVERRIDE;
+  virtual NewTextureSource* GetTextureSources() MOZ_OVERRIDE;
 
   virtual void DeallocateDeviceData() MOZ_OVERRIDE;
 

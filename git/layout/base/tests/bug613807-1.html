@@ -50,7 +50,8 @@
     synthesizeComposition({ type: "compositionstart" });
 
     // input raw characters
-    synthesizeCompositionChange(
+    synthesizeComposition({ type: "compositionupdate", data: "\u306D" });
+    synthesizeText(
       { composition:
         { string: "\u306D",
           clauses: [
@@ -59,7 +60,8 @@
         },
         caret: { start: 1, length: 0 }
       });
-    synthesizeCompositionChange(
+    synthesizeComposition({ type: "compositionupdate", data: "\u306D\u3053" });
+    synthesizeText(
       { composition:
         { string: "\u306D\u3053",
           clauses: [
@@ -70,7 +72,8 @@
       });
 
     // convert
-    synthesizeCompositionChange(
+    synthesizeComposition({ type: "compositionupdate", data: "\u732B" });
+    synthesizeText(
       { composition:
         { string: "\u732B",
           clauses: [
@@ -81,7 +84,7 @@
       });
 
     // commit
-    synthesizeCompositionChange(
+    synthesizeText(
       { composition:
         { string: "\u732B",
           clauses: [

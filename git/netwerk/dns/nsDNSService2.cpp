@@ -582,11 +582,14 @@ nsDNSService::Init()
 
         mLocalDomains.Clear();
         if (localDomains) {
-            nsCCharSeparatedTokenizer tokenizer(localDomains, ',',
-                                                nsCCharSeparatedTokenizer::SEPARATOR_OPTIONAL);
+            nsAdoptingString domains;
+            domains.AssignASCII(nsDependentCString(localDomains).get());
+            nsCharSeparatedTokenizer tokenizer(domains, ',',
+                                               nsCharSeparatedTokenizerTemplate<>::SEPARATOR_OPTIONAL);
 
             while (tokenizer.hasMoreTokens()) {
-                mLocalDomains.PutEntry(tokenizer.nextToken());
+                const nsSubstring& domain = tokenizer.nextToken();
+                mLocalDomains.PutEntry(nsDependentCString(NS_ConvertUTF16toUTF8(domain).get()));
             }
         }
         mNotifyResolution = notifyResolution;
@@ -645,26 +648,9 @@ nsDNSService::SetPrefetchEnabled(bool inVal)
     return NS_OK;
 }
 
-static inline bool PreprocessHostname(bool              aLocalDomain,
-                                      const nsACString &aInput,
-                                      nsIIDNService    *aIDN,
-                                      nsACString       &aACE)
-{
-    if (aLocalDomain) {
-        aACE.AssignLiteral("localhost");
-        return true;
-    }
-
-    if (!aIDN || IsASCII(aInput)) {
-        aACE = aInput;
-        return true;
-    }
-
-    return IsUTF8(aInput) && NS_SUCCEEDED(aIDN->ConvertUTF8toACE(aInput, aACE));
-}
 
 NS_IMETHODIMP
-nsDNSService::AsyncResolve(const nsACString  &aHostname,
+nsDNSService::AsyncResolve(const nsACString  &hostname,
                            uint32_t           flags,
                            nsIDNSListener    *listener,
                            nsIEventTarget    *target_,
@@ -684,12 +670,12 @@ nsDNSService::AsyncResolve(const nsACString  &aHostname,
 
         res = mResolver;
         idn = mIDN;
-        localDomain = mLocalDomains.GetEntry(aHostname);
+        localDomain = mLocalDomains.GetEntry(hostname);
     }
 
     if (mNotifyResolution) {
         NS_DispatchToMainThread(new NotifyDNSResolution(mObserverService,
-                                                        aHostname));
+                                                        hostname));
     }
 
     if (!res)
@@ -698,9 +684,23 @@ nsDNSService::AsyncResolve(const nsACString  &aHostname,
     if (mOffline)
         flags |= RESOLVE_OFFLINE;
 
-    nsCString hostname;
-    if (!PreprocessHostname(localDomain, aHostname, idn, hostname))
-        return NS_ERROR_FAILURE;
+    const nsACString *hostPtr = &hostname;
+
+    nsAutoCString strLocalhost(NS_LITERAL_CSTRING("localhost"));
+    if (localDomain) {
+        hostPtr = &strLocalhost;
+    }
+
+    nsresult rv;
+    nsAutoCString hostACE;
+    if (idn && !IsASCII(*hostPtr)) {
+        if (IsUTF8(*hostPtr) &&
+            NS_SUCCEEDED(idn->ConvertUTF8toACE(*hostPtr, hostACE))) {
+            hostPtr = &hostACE;
+        } else {
+            return NS_ERROR_FAILURE;
+        }
+    }
 
     // make sure JS callers get notification on the main thread
     nsCOMPtr<nsIXPConnectWrappedJS> wrappedListener = do_QueryInterface(listener);
@@ -714,20 +714,20 @@ nsDNSService::AsyncResolve(const nsACString  &aHostname,
       listener = new DNSListenerProxy(listener, target);
     }
 
-    uint16_t af = GetAFForLookup(hostname, flags);
+    uint16_t af = GetAFForLookup(*hostPtr, flags);
 
     nsDNSAsyncRequest *req =
-            new nsDNSAsyncRequest(res, hostname, listener, flags, af);
+            new nsDNSAsyncRequest(res, *hostPtr, listener, flags, af);
     if (!req)
         return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(*result = req);
 
-    MOZ_EVENT_TRACER_NAME_OBJECT(req, aHostname.BeginReading());
+    MOZ_EVENT_TRACER_NAME_OBJECT(req, hostname.BeginReading());
     MOZ_EVENT_TRACER_WAIT(req, "net::dns::lookup");
 
     // addref for resolver; will be released when OnLookupComplete is called.
     NS_ADDREF(req);
-    nsresult rv = res->ResolveHost(req->mHost.get(), flags, af, req);
+    rv = res->ResolveHost(req->mHost.get(), flags, af, req);
     if (NS_FAILED(rv)) {
         NS_RELEASE(req);
         NS_RELEASE(*result);
@@ -745,7 +745,6 @@ nsDNSService::CancelAsyncResolve(const nsACString  &aHostname,
     // simultaneous shutdown!!
     nsRefPtr<nsHostResolver> res;
     nsCOMPtr<nsIIDNService> idn;
-    bool localDomain = false;
     {
         MutexAutoLock lock(mLock);
 
@@ -754,14 +753,21 @@ nsDNSService::CancelAsyncResolve(const nsACString  &aHostname,
 
         res = mResolver;
         idn = mIDN;
-        localDomain = mLocalDomains.GetEntry(aHostname);
     }
     if (!res)
         return NS_ERROR_OFFLINE;
 
-    nsCString hostname;
-    if (!PreprocessHostname(localDomain, aHostname, idn, hostname))
-        return NS_ERROR_FAILURE;
+    nsCString hostname(aHostname);
+
+    nsAutoCString hostACE;
+    if (idn && !IsASCII(aHostname)) {
+        if (IsUTF8(aHostname) &&
+            NS_SUCCEEDED(idn->ConvertUTF8toACE(aHostname, hostACE))) {
+            hostname = hostACE;
+        } else {
+            return NS_ERROR_FAILURE;
+        }
+    }
 
     uint16_t af = GetAFForLookup(hostname, aFlags);
 
@@ -770,7 +776,7 @@ nsDNSService::CancelAsyncResolve(const nsACString  &aHostname,
 }
 
 NS_IMETHODIMP
-nsDNSService::Resolve(const nsACString &aHostname,
+nsDNSService::Resolve(const nsACString &hostname,
                       uint32_t          flags,
                       nsIDNSRecord    **result)
 {
@@ -783,12 +789,12 @@ nsDNSService::Resolve(const nsACString &aHostname,
         MutexAutoLock lock(mLock);
         res = mResolver;
         idn = mIDN;
-        localDomain = mLocalDomains.GetEntry(aHostname);
+        localDomain = mLocalDomains.GetEntry(hostname);
     }
 
     if (mNotifyResolution) {
         NS_DispatchToMainThread(new NotifyDNSResolution(mObserverService,
-                                                        aHostname));
+                                                        hostname));
     }
 
     NS_ENSURE_TRUE(res, NS_ERROR_OFFLINE);
@@ -796,9 +802,23 @@ nsDNSService::Resolve(const nsACString &aHostname,
     if (mOffline)
         flags |= RESOLVE_OFFLINE;
 
-    nsCString hostname;
-    if (!PreprocessHostname(localDomain, aHostname, idn, hostname))
-        return NS_ERROR_FAILURE;
+    const nsACString *hostPtr = &hostname;
+
+    nsAutoCString strLocalhost(NS_LITERAL_CSTRING("localhost"));
+    if (localDomain) {
+        hostPtr = &strLocalhost;
+    }
+
+    nsresult rv;
+    nsAutoCString hostACE;
+    if (idn && !IsASCII(*hostPtr)) {
+        if (IsUTF8(*hostPtr) &&
+            NS_SUCCEEDED(idn->ConvertUTF8toACE(*hostPtr, hostACE))) {
+            hostPtr = &hostACE;
+        } else {
+            return NS_ERROR_FAILURE;
+        }
+    }
 
     //
     // sync resolve: since the host resolver only works asynchronously, we need
@@ -815,9 +835,9 @@ nsDNSService::Resolve(const nsACString &aHostname,
     PR_EnterMonitor(mon);
     nsDNSSyncRequest syncReq(mon);
 
-    uint16_t af = GetAFForLookup(hostname, flags);
+    uint16_t af = GetAFForLookup(*hostPtr, flags);
 
-    nsresult rv = res->ResolveHost(hostname.get(), flags, af, &syncReq);
+    rv = res->ResolveHost(PromiseFlatCString(*hostPtr).get(), flags, af, &syncReq);
     if (NS_SUCCEEDED(rv)) {
         // wait for result
         while (!syncReq.mDone)

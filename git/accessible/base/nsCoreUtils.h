@@ -44,7 +44,7 @@ public:
    */
   static void DispatchClickEvent(nsITreeBoxObject *aTreeBoxObj,
                                  int32_t aRowIndex, nsITreeColumn *aColumn,
-                                 const nsAString& aPseudoElt = EmptyString());
+                                 const nsCString& aPseudoElt = EmptyCString());
 
   /**
    * Send mouse event to the given element.
@@ -314,3 +314,4 @@ public:
 };
 
 #endif
+

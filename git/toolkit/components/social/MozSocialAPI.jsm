@@ -46,7 +46,7 @@ this.MozSocialAPI = {
 function injectController(doc, topic, data) {
   try {
     let window = doc.defaultView;
-    if (!window || PrivateBrowsingUtils.isContentWindowPrivate(window))
+    if (!window || PrivateBrowsingUtils.isWindowPrivate(window))
       return;
 
     // Do not attempt to load the API into about: error pages
@@ -108,27 +108,12 @@ function attachToWindow(provider, targetWindow) {
       configurable: true,
       writable: true,
       value: function() {
-
-        // We do a bunch of hacky stuff to expose this API to content without
-        // relying on ChromeObjectWrapper functionality that is now unsupported.
-        // The content-facing API here should really move to JS-Implemented
-        // WebIDL.
-        let workerAPI = Cu.cloneInto({
-          port: {
-            postMessage: port.postMessage.bind(port),
-            close: port.close.bind(port),
-            toString: port.toString.bind(port)
+        return {
+          port: port,
+          __exposedProps__: {
+            port: "r"
           }
-        }, targetWindow, {cloneFunctions: true});
-
-        // Jump through hoops to define the accessor property.
-        let abstractPortPrototype = Object.getPrototypeOf(Object.getPrototypeOf(port));
-        let desc = Object.getOwnPropertyDescriptor(port.__proto__.__proto__, 'onmessage');
-        desc.get = Cu.exportFunction(desc.get.bind(port), targetWindow);
-        desc.set = Cu.exportFunction(desc.set.bind(port), targetWindow);
-        Object.defineProperty(workerAPI.wrappedJSObject.port, 'onmessage', desc);
-
-        return workerAPI;
+        };
       }
     },
     hasBeenIdleFor: {

@@ -42,7 +42,7 @@ let res2 = [
       {selector: ".border.right > span",       value: 10},
 ];
 
-add_task(function*() {
+let test = asyncTest(function*() {
   let style = "div { position: absolute; top: 42px; left: 42px; height: 100px; width: 100px; border: 10px solid black; padding: 20px; margin: 30px auto;}";
   let html = "<style>" + style + "</style><div></div>"
 
@@ -51,6 +51,8 @@ add_task(function*() {
   yield selectNode("div", inspector);
 
   yield runTests(inspector, view);
+
+  yield destroyToolbox(inspector);
 });
 
 addTest("Test that the initial values of the box model are correct",

@@ -19,7 +19,7 @@ class Renderer11;
 class SwapChain11 : public SwapChain
 {
   public:
-    SwapChain11(Renderer11 *renderer, rx::NativeWindow nativeWindow, HANDLE shareHandle,
+    SwapChain11(Renderer11 *renderer, HWND window, HANDLE shareHandle,
                 GLenum backBufferFormat, GLenum depthBufferFormat);
     virtual ~SwapChain11();
 
@@ -38,7 +38,6 @@ class SwapChain11 : public SwapChain
 
     EGLint getWidth() const { return mWidth; }
     EGLint getHeight() const { return mHeight; }
-    virtual void* getKeyedMutex() { return mKeyedMutex; };
 
     static SwapChain11 *makeSwapChain11(SwapChain *swapChain);
 
@@ -58,7 +57,6 @@ class SwapChain11 : public SwapChain
     bool mPassThroughResourcesInit;
 
     IDXGISwapChain *mSwapChain;
-    IDXGIKeyedMutex *mKeyedMutex;
 
     ID3D11Texture2D *mBackBufferTexture;
     ID3D11RenderTargetView *mBackBufferRTView;

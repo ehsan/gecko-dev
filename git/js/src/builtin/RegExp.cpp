@@ -16,8 +16,6 @@
 
 #include "jsobjinlines.h"
 
-#include "vm/NativeObject-inl.h"
-
 using namespace js;
 using namespace js::types;
 
@@ -28,7 +26,7 @@ bool
 js::CreateRegExpMatchResult(JSContext *cx, HandleString input, const MatchPairs &matches,
                             MutableHandleValue rval)
 {
-    MOZ_ASSERT(input);
+    JS_ASSERT(input);
 
     /*
      * Create the (slow) result array for a match.
@@ -46,9 +44,9 @@ js::CreateRegExpMatchResult(JSContext *cx, HandleString input, const MatchPairs 
         return false;
 
     size_t numPairs = matches.length();
-    MOZ_ASSERT(numPairs > 0);
+    JS_ASSERT(numPairs > 0);
 
-    RootedArrayObject arr(cx, NewDenseFullyAllocatedArrayWithTemplate(cx, numPairs, templateObject));
+    RootedObject arr(cx, NewDenseFullyAllocatedArrayWithTemplate(cx, numPairs, templateObject));
     if (!arr)
         return false;
 
@@ -57,34 +55,37 @@ js::CreateRegExpMatchResult(JSContext *cx, HandleString input, const MatchPairs 
         const MatchPair &pair = matches[i];
 
         if (pair.isUndefined()) {
-            MOZ_ASSERT(i != 0); /* Since we had a match, first pair must be present. */
+            JS_ASSERT(i != 0); /* Since we had a match, first pair must be present. */
             arr->setDenseInitializedLength(i + 1);
-            arr->initDenseElement(i, UndefinedValue());
+            arr->initDenseElementWithType(cx, i, UndefinedValue());
         } else {
             JSLinearString *str = NewDependentString(cx, input, pair.start, pair.length());
             if (!str)
                 return false;
             arr->setDenseInitializedLength(i + 1);
+
+            // We don't have to update type information here, since the match
+            // result template is already known to have string elements.
             arr->initDenseElement(i, StringValue(str));
         }
     }
 
     /* Set the |index| property. (TemplateObject positions it in slot 0) */
-    arr->setSlot(0, Int32Value(matches[0].start));
+    arr->nativeSetSlot(0, Int32Value(matches[0].start));
 
     /* Set the |input| property. (TemplateObject positions it in slot 1) */
-    arr->setSlot(1, StringValue(input));
+    arr->nativeSetSlot(1, StringValue(input));
 
 #ifdef DEBUG
     RootedValue test(cx);
     RootedId id(cx, NameToId(cx->names().index));
     if (!baseops::GetProperty(cx, arr, id, &test))
         return false;
-    MOZ_ASSERT(test == arr->getSlot(0));
+    JS_ASSERT(test == arr->nativeGetSlot(0));
     id = NameToId(cx->names().input);
     if (!baseops::GetProperty(cx, arr, id, &test))
         return false;
-    MOZ_ASSERT(test == arr->getSlot(1));
+    JS_ASSERT(test == arr->nativeGetSlot(1));
 #endif
 
     rval.setObject(*arr);
@@ -254,9 +255,7 @@ CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args)
         if (!JSObject::getProperty(cx, sourceObj, sourceObj, cx->names().source, &v))
             return false;
 
-        // For proxies like CPOWs, we can't assume the result of a property get
-        // for 'source' is atomized.
-        Rooted<JSAtom*> sourceAtom(cx, AtomizeString(cx, v.toString()));
+        Rooted<JSAtom*> sourceAtom(cx, &v.toString()->asAtom());
         RegExpObject *reobj = builder.build(sourceAtom, flags);
         if (!reobj)
             return false;
@@ -315,7 +314,7 @@ IsRegExp(HandleValue v)
 MOZ_ALWAYS_INLINE bool
 regexp_compile_impl(JSContext *cx, CallArgs args)
 {
-    MOZ_ASSERT(IsRegExp(args.thisv()));
+    JS_ASSERT(IsRegExp(args.thisv()));
     RegExpObjectBuilder builder(cx, &args.thisv().toObject().as<RegExpObject>());
     return CompileRegExpObject(cx, builder, args);
 }
@@ -354,7 +353,7 @@ regexp_construct(JSContext *cx, unsigned argc, Value *vp)
 MOZ_ALWAYS_INLINE bool
 regexp_toString_impl(JSContext *cx, CallArgs args)
 {
-    MOZ_ASSERT(IsRegExp(args.thisv()));
+    JS_ASSERT(IsRegExp(args.thisv()));
 
     JSString *str = args.thisv().toObject().as<RegExpObject>().toString(cx);
     if (!str)
@@ -503,11 +502,11 @@ static const JSPropertySpec regexp_static_props[] = {
 JSObject *
 js_InitRegExpClass(JSContext *cx, HandleObject obj)
 {
-    MOZ_ASSERT(obj->isNative());
+    JS_ASSERT(obj->isNative());
 
     Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
 
-    RootedNativeObject proto(cx, global->createBlankPrototype(cx, &RegExpObject::class_));
+    RootedObject proto(cx, global->createBlankPrototype(cx, &RegExpObject::class_));
     if (!proto)
         return nullptr;
     proto->setPrivate(nullptr);
@@ -675,13 +674,8 @@ js::regexp_exec(JSContext *cx, unsigned argc, Value *vp)
 
 /* Separate interface for use by IonMonkey. */
 bool
-js::regexp_exec_raw(JSContext *cx, HandleObject regexp, HandleString input,
-                    MatchPairs *maybeMatches, MutableHandleValue output)
+js::regexp_exec_raw(JSContext *cx, HandleObject regexp, HandleString input, MutableHandleValue output)
 {
-    // The MatchPairs will always be passed in, but RegExp execution was
-    // successful only if the pairs have actually been filled in.
-    if (maybeMatches && maybeMatches->pairsRaw()[0] >= 0)
-        return CreateRegExpMatchResult(cx, input, *maybeMatches, output);
     return regexp_exec_impl(cx, regexp, input, UpdateRegExpStatics, output);
 }
 
@@ -689,9 +683,9 @@ bool
 js::regexp_exec_no_statics(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    MOZ_ASSERT(args.length() == 2);
-    MOZ_ASSERT(IsRegExp(args[0]));
-    MOZ_ASSERT(args[1].isString());
+    JS_ASSERT(args.length() == 2);
+    JS_ASSERT(IsRegExp(args[0]));
+    JS_ASSERT(args[1].isString());
 
     RootedObject regexp(cx, &args[0].toObject());
     RootedString string(cx, args[1].toString());
@@ -728,9 +722,9 @@ bool
 js::regexp_test_no_statics(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    MOZ_ASSERT(args.length() == 2);
-    MOZ_ASSERT(IsRegExp(args[0]));
-    MOZ_ASSERT(args[1].isString());
+    JS_ASSERT(args.length() == 2);
+    JS_ASSERT(IsRegExp(args[0]));
+    JS_ASSERT(args[1].isString());
 
     RootedObject regexp(cx, &args[0].toObject());
     RootedString string(cx, args[1].toString());

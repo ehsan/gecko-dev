@@ -145,7 +145,9 @@ function popupShown()
     ok(!gOverflowed && gUnderflowed, gTests[gTestIndex] + " overflow")
   }
 
-  is(sbo.positionY, expectedScrollPos, "menu scroll position");
+  var sx = { }, sy = { };
+  sbo.getPosition(sx, sy);
+  is(sy.value, expectedScrollPos, "menu scroll position");
 
   hidePopup();
 }

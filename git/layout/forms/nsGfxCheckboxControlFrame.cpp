@@ -4,19 +4,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsGfxCheckboxControlFrame.h"
-
-#include "gfxUtils.h"
-#include "mozilla/gfx/2D.h"
 #include "nsIContent.h"
 #include "nsCOMPtr.h"
-#include "nsLayoutUtils.h"
 #include "nsRenderingContext.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsDisplayList.h"
 #include <algorithm>
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 
 static void
 PaintCheckMark(nsIFrame* aFrame,
@@ -39,21 +34,16 @@ PaintCheckMark(nsIFrame* aFrame,
   nsPoint paintCenter(rect.x + rect.width  / 2,
                       rect.y + rect.height / 2);
 
-  DrawTarget* drawTarget = aCtx->GetDrawTarget();
-  RefPtr<PathBuilder> builder = drawTarget->CreatePathBuilder();
-  nsPoint p = paintCenter + nsPoint(checkPolygonX[0] * paintScale,
-                                    checkPolygonY[0] * paintScale);
-
-  int32_t appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
-  builder->MoveTo(NSPointToPoint(p, appUnitsPerDevPixel));
-  for (int32_t polyIndex = 1; polyIndex < checkNumPoints; polyIndex++) {
-    p = paintCenter + nsPoint(checkPolygonX[polyIndex] * paintScale,
-                              checkPolygonY[polyIndex] * paintScale);
-    builder->LineTo(NSPointToPoint(p, appUnitsPerDevPixel));
+  nsPoint paintPolygon[checkNumPoints];
+  // Convert checkmark for screen rendering
+  for (int32_t polyIndex = 0; polyIndex < checkNumPoints; polyIndex++) {
+    paintPolygon[polyIndex] = paintCenter +
+                              nsPoint(checkPolygonX[polyIndex] * paintScale,
+                                      checkPolygonY[polyIndex] * paintScale);
   }
-  RefPtr<Path> path = builder->Finish();
-  drawTarget->Fill(path,
-                   ColorPattern(ToDeviceColor(aFrame->StyleColor()->mColor)));
+
+  aCtx->SetColor(aFrame->StyleColor()->mColor);
+  aCtx->FillPolygon(paintPolygon, checkNumPoints);
 }
 
 static void
@@ -62,18 +52,14 @@ PaintIndeterminateMark(nsIFrame* aFrame,
                        const nsRect& aDirtyRect,
                        nsPoint aPt)
 {
-  DrawTarget* drawTarget = aCtx->GetDrawTarget();
-  int32_t appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
-
   nsRect rect(aPt, aFrame->GetSize());
   rect.Deflate(aFrame->GetUsedBorderAndPadding());
+
   rect.y += (rect.height - rect.height/4) / 2;
   rect.height /= 4;
 
-  Rect devPxRect = NSRectToSnappedRect(rect, appUnitsPerDevPixel, *drawTarget);
-
-  drawTarget->FillRect(devPxRect,
-                    ColorPattern(ToDeviceColor(aFrame->StyleColor()->mColor)));
+  aCtx->SetColor(aFrame->StyleColor()->mColor);
+  aCtx->FillRect(rect);
 }
 
 //------------------------------------------------------------

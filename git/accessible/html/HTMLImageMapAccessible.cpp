@@ -85,8 +85,7 @@ HTMLImageMapAccessible::UpdateChildAreas(bool aDoFireEvents)
   if (!imageMapObj)
     return;
 
-  bool treeChanged = false;
-  AutoTreeMutation mut(this);
+  bool doReorderEvent = false;
   nsRefPtr<AccReorderEvent> reorderEvent = new AccReorderEvent(this);
 
   // Remove areas that are not a valid part of the image map anymore.
@@ -99,10 +98,10 @@ HTMLImageMapAccessible::UpdateChildAreas(bool aDoFireEvents)
       nsRefPtr<AccHideEvent> event = new AccHideEvent(area, area->GetContent());
       mDoc->FireDelayedEvent(event);
       reorderEvent->AddSubMutationEvent(event);
+      doReorderEvent = true;
     }
 
     RemoveChild(area);
-    treeChanged = true;
   }
 
   // Insert new areas into the tree.
@@ -124,18 +123,14 @@ HTMLImageMapAccessible::UpdateChildAreas(bool aDoFireEvents)
         nsRefPtr<AccShowEvent> event = new AccShowEvent(area, areaContent);
         mDoc->FireDelayedEvent(event);
         reorderEvent->AddSubMutationEvent(event);
+        doReorderEvent = true;
       }
-
-      treeChanged = true;
     }
   }
 
   // Fire reorder event if needed.
-  if (treeChanged && aDoFireEvents)
+  if (doReorderEvent)
     mDoc->FireDelayedEvent(reorderEvent);
-
-  if (!treeChanged)
-    mut.mInvalidationRequired = false;
 }
 
 Accessible*
@@ -175,7 +170,7 @@ HTMLAreaAccessible::
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// HTMLAreaAccessible: Accessible
+// HTMLAreaAccessible: nsIAccessible
 
 ENameValueFlag
 HTMLAreaAccessible::NativeName(nsString& aName)
@@ -185,7 +180,7 @@ HTMLAreaAccessible::NativeName(nsString& aName)
     return nameFlag;
 
   if (!mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::alt, aName))
-    Value(aName);
+    GetValue(aName);
 
   return eNameOK;
 }

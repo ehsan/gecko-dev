@@ -28,12 +28,19 @@ NS_IMPL_QUERY_INTERFACE_INHERITED(Connection, DOMEventTargetHelper,
 NS_IMPL_ADDREF_INHERITED(dom::network::Connection, DOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(dom::network::Connection, DOMEventTargetHelper)
 
-Connection::Connection(nsPIDOMWindow* aWindow)
-  : DOMEventTargetHelper(aWindow)
-  , mType(static_cast<ConnectionType>(kDefaultType))
+Connection::Connection()
+  : mType(static_cast<ConnectionType>(kDefaultType))
   , mIsWifi(kDefaultIsWifi)
   , mDHCPGateway(kDefaultDHCPGateway)
 {
+  SetIsDOMBinding();
+}
+
+void
+Connection::Init(nsPIDOMWindow* aWindow)
+{
+  BindToOwner(aWindow);
+
   hal::RegisterNetworkObserver(this);
 
   hal::NetworkInformation networkInfo;

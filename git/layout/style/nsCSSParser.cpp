@@ -963,9 +963,8 @@ protected:
   }
 
   /* Functions for basic shapes */
-  bool ParseBasicShape(nsCSSValue& aValue, bool* aConsumedTokens);
+  bool ParseBasicShape(nsCSSValue& aValue);
   bool ParsePolygonFunction(nsCSSValue& aValue);
-  bool ParseCircleOrEllipseFunction(nsCSSKeyword, nsCSSValue& aValue);
 
   /* Functions for transform Parsing */
   bool ParseSingleTransform(bool aIsPrefixed, nsCSSValue& aValue);
@@ -5394,11 +5393,9 @@ CSSParserImpl::ParsePseudoSelector(int32_t&       aDataMask,
     nsCSSPseudoClasses::IsUserActionPseudoClass(pseudoClassType);
 
   if (!mUnsafeRulesEnabled &&
-      ((pseudoElementType < nsCSSPseudoElements::ePseudo_PseudoElementCount &&
-        nsCSSPseudoElements::PseudoElementIsUASheetOnly(pseudoElementType)) ||
-       (pseudoClassType != nsCSSPseudoClasses::ePseudoClass_NotPseudoClass &&
-        nsCSSPseudoClasses::PseudoClassIsUASheetOnly(pseudoClassType)))) {
-    // This pseudo-element or pseudo-class is not exposed to content.
+      pseudoElementType < nsCSSPseudoElements::ePseudo_PseudoElementCount &&
+      nsCSSPseudoElements::PseudoElementIsChromeOnly(pseudoElementType)) {
+    // This pseudo-element is not exposed to content.
     REPORT_UNEXPECTED_TOKEN(PEPseudoSelUnknown);
     UngetToken();
     return eSelectorParsingStatus_Error;
@@ -8806,15 +8803,12 @@ CSSParserImpl::ParseColorStop(nsCSSValueGradient* aGradient)
 {
   nsCSSValueGradientStop* stop = aGradient->mStops.AppendElement();
   if (!ParseVariant(stop->mColor, VARIANT_COLOR, nullptr)) {
-    stop->mIsInterpolationHint = true;
+    return false;
   }
 
   // Stop positions do not have to fall between the starting-point and
   // ending-point, so we don't use ParseNonNegativeVariant.
   if (!ParseVariant(stop->mLocation, VARIANT_LP | VARIANT_CALC, nullptr)) {
-    if (stop->mIsInterpolationHint) {
-      return false;
-    }
     stop->mLocation.SetNoneValue();
   }
   return true;
@@ -9159,20 +9153,6 @@ CSSParserImpl::ParseGradientColorStops(nsCSSValueGradient* aGradient,
 
   if (!ExpectSymbol(')', true)) {
     SkipUntil(')');
-    return false;
-  }
-
-  // Check if interpolation hints are in the correct location
-  bool previousPointWasInterpolationHint = true;
-  for (size_t x = 0; x < aGradient->mStops.Length(); x++) {
-    bool isInterpolationHint = aGradient->mStops[x].mIsInterpolationHint;
-    if (isInterpolationHint && previousPointWasInterpolationHint) {
-      return false;
-    }
-    previousPointWasInterpolationHint = isInterpolationHint;
-  }
-
-  if (previousPointWasInterpolationHint) {
     return false;
   }
 
@@ -13864,64 +13844,7 @@ CSSParserImpl::ParsePolygonFunction(nsCSSValue& aValue)
 }
 
 bool
-CSSParserImpl::ParseCircleOrEllipseFunction(nsCSSKeyword aKeyword,
-                                            nsCSSValue& aValue)
-{
-  nsCSSValue radiusX, radiusY, position;
-  bool hasRadius = false, hasPosition = false;
-
-  int32_t mask = VARIANT_LPCALC | VARIANT_NONNEGATIVE_DIMENSION |
-                 VARIANT_KEYWORD;
-  if (ParseVariant(radiusX, mask, nsCSSProps::kShapeRadiusKTable)) {
-    if (aKeyword == eCSSKeyword_ellipse) {
-      if (!ParseVariant(radiusY, mask, nsCSSProps::kShapeRadiusKTable)) {
-        REPORT_UNEXPECTED_TOKEN(PEExpectedRadius);
-        SkipUntil(')');
-        return false;
-      }
-    }
-    hasRadius = true;
-  }
-
-  if (!ExpectSymbol(')', true)) {
-    if (!GetToken(true)) {
-      REPORT_UNEXPECTED_EOF(PEPositionEOF);
-      return false;
-    }
-
-    if (mToken.mType != eCSSToken_Ident ||
-        !mToken.mIdent.LowerCaseEqualsLiteral("at") ||
-        !ParsePositionValue(position)) {
-      REPORT_UNEXPECTED_TOKEN(PEExpectedPosition);
-      SkipUntil(')');
-      return false;
-    }
-    if (!ExpectSymbol(')', true)) {
-      REPORT_UNEXPECTED_TOKEN(PEExpectedCloseParen);
-      SkipUntil(')');
-      return false;
-    }
-    hasPosition = true;
-  }
-
-  size_t count = aKeyword == eCSSKeyword_circle ? 2 : 3;
-  nsRefPtr<nsCSSValue::Array> functionArray =
-    aValue.InitFunction(aKeyword, count);
-  if (hasRadius) {
-    functionArray->Item(1) = radiusX;
-    if (aKeyword == eCSSKeyword_ellipse) {
-      functionArray->Item(2) = radiusY;
-    }
-  }
-  if (hasPosition) {
-    functionArray->Item(count) = position;
-  }
-
-  return true;
-}
-
-bool
-CSSParserImpl::ParseBasicShape(nsCSSValue& aValue, bool* aConsumedTokens)
+CSSParserImpl::ParseBasicShape(nsCSSValue& aValue)
 {
   if (!GetToken(true)) {
     return false;
@@ -13932,15 +13855,10 @@ CSSParserImpl::ParseBasicShape(nsCSSValue& aValue, bool* aConsumedTokens)
     return false;
   }
 
-  // Specific shape function parsing always consumes tokens.
-  *aConsumedTokens = true;
   nsCSSKeyword keyword = nsCSSKeywords::LookupKeyword(mToken.mIdent);
   switch (keyword) {
   case eCSSKeyword_polygon:
     return ParsePolygonFunction(aValue);
-  case eCSSKeyword_circle:
-  case eCSSKeyword_ellipse:
-    return ParseCircleOrEllipseFunction(keyword, aValue);
   default:
     return false;
   }
@@ -13958,40 +13876,29 @@ bool CSSParserImpl::ParseClipPath()
       return false;
     }
 
+    bool shape = false, box = false;
     nsCSSValueList* cur = value.SetListValue();
-
-    nsCSSValue referenceBox;
-    bool hasBox = ParseEnum(referenceBox, nsCSSProps::kClipShapeSizingKTable);
-
-    nsCSSValue basicShape;
-    bool basicShapeConsumedTokens = false;
-    bool hasShape = ParseBasicShape(basicShape, &basicShapeConsumedTokens);
-
-    // Parsing wasn't successful if ParseBasicShape consumed tokens but failed
-    // or if the token was neither a reference box nor a basic shape.
-    if ((!hasShape && basicShapeConsumedTokens) || (!hasBox && !hasShape)) {
-      return false;
-    }
-
-    // We need to preserve the specified order of arguments for inline style.
-    if (hasBox) {
-      cur->mValue = referenceBox;
-    }
-
-    if (hasShape) {
-      if (hasBox) {
-        cur->mNext = new nsCSSValueList;
-        cur = cur->mNext;
+    bool eof = false;
+    for (int i = 0; i < 2; ++i) {
+      if (ParseBasicShape(cur->mValue) && !shape) {
+        shape = true;
+      } else if (ParseEnum(cur->mValue, nsCSSProps::kClipShapeSizingKTable) &&
+                 !box) {
+        box = true;
+      } else {
+        break;
       }
-      cur->mValue = basicShape;
+      if (!GetToken(true)) {
+        eof = true;
+        break;
+      }
+      UngetToken();
+      cur->mNext = new nsCSSValueList;
+      cur = cur->mNext;
     }
-
-    // Check if the second argument is a reference box if the first wasn't.
-    if (!hasBox &&
-        ParseEnum(referenceBox, nsCSSProps::kClipShapeSizingKTable)) {
-        cur->mNext = new nsCSSValueList;
-        cur = cur->mNext;
-        cur->mValue = referenceBox;
+    if (!shape && !box && !eof) {
+      REPORT_UNEXPECTED_EOF(PEClipPathEOF);
+      return false;
     }
   }
 

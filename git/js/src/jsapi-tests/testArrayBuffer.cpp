@@ -44,18 +44,16 @@ BEGIN_TEST(testArrayBuffer_bug720949_steal)
         CHECK_SAME(v, INT_TO_JSVAL(size));
 
         // Modifying the underlying data should update the value returned through the view
-        {
-            JS::AutoCheckCannotGC nogc;
-            uint8_t *data = JS_GetArrayBufferData(obj, nogc);
-            CHECK(data != nullptr);
-            *reinterpret_cast<uint32_t*>(data) = MAGIC_VALUE_2;
-        }
+        uint8_t *data = JS_GetStableArrayBufferData(cx, obj);
+        CHECK(data != nullptr);
+        *reinterpret_cast<uint32_t*>(data) = MAGIC_VALUE_2;
         CHECK(JS_GetElement(cx, view, 0, &v));
         CHECK_SAME(v, INT_TO_JSVAL(MAGIC_VALUE_2));
 
         // Steal the contents
         void *contents = JS_StealArrayBufferContents(cx, obj);
         CHECK(contents != nullptr);
+        CHECK(data != nullptr);
 
         // Check that the original ArrayBuffer is neutered
         CHECK_EQUAL(JS_GetArrayBufferByteLength(obj), 0u);
@@ -75,21 +73,15 @@ BEGIN_TEST(testArrayBuffer_bug720949_steal)
         // Transfer to a new ArrayBuffer
         JS::RootedObject dst(cx, JS_NewArrayBufferWithContents(cx, size, contents));
         CHECK(JS_IsArrayBufferObject(dst));
-        {
-            JS::AutoCheckCannotGC nogc;
-            (void) JS_GetArrayBufferData(obj, nogc);
-        }
+        data = JS_GetStableArrayBufferData(cx, obj);
 
         JS::RootedObject dstview(cx, JS_NewInt32ArrayWithBuffer(cx, dst, 0, -1));
         CHECK(dstview != nullptr);
 
         CHECK_EQUAL(JS_GetArrayBufferByteLength(dst), size);
-        {
-            JS::AutoCheckCannotGC nogc;
-            uint8_t *data = JS_GetArrayBufferData(dst, nogc);
-            CHECK(data != nullptr);
-            CHECK_EQUAL(*reinterpret_cast<uint32_t*>(data), MAGIC_VALUE_2);
-        }
+        data = JS_GetStableArrayBufferData(cx, dst);
+        CHECK(data != nullptr);
+        CHECK_EQUAL(*reinterpret_cast<uint32_t*>(data), MAGIC_VALUE_2);
         CHECK(JS_GetElement(cx, dstview, 0, &v));
         CHECK_SAME(v, INT_TO_JSVAL(MAGIC_VALUE_2));
     }

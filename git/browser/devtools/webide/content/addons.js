@@ -30,14 +30,13 @@ function CloseUI() {
 }
 
 function BuildUI(addons) {
-  BuildItem(addons.adb, "adb");
-  BuildItem(addons.adapters, "adapters");
+  BuildItem(addons.adb, true /* is adb */);
   for (let addon of addons.simulators) {
-    BuildItem(addon, "simulator");
+    BuildItem(addon, false /* is adb */);
   }
 }
 
-function BuildItem(addon, type) {
+function BuildItem(addon, isADB) {
 
   function onAddonUpdate(event, arg) {
     switch (event) {
@@ -74,29 +73,20 @@ function BuildItem(addon, type) {
   let li = document.createElement("li");
   li.setAttribute("status", addon.status);
 
+  // Used in tests
+  if (isADB) {
+    li.setAttribute("addon", "adb");
+  } else {
+    li.setAttribute("addon", "simulator-" + addon.version);
+  }
+
   let name = document.createElement("span");
   name.className = "name";
-
-  switch (type) {
-    case "adb":
-      li.setAttribute("addon", type);
-      name.textContent = Strings.GetStringFromName("addons_adb_label");
-      break;
-    case "adapters":
-      li.setAttribute("addon", type);
-      try {
-        name.textContent = Strings.GetStringFromName("addons_adapters_label");
-      } catch(e) {
-        // This code (bug 1081093) will be backported to Aurora, which doesn't
-        // contain this string.
-        name.textContent = "Tools Adapters Add-on";
-      }
-      break;
-    case "simulator":
-      li.setAttribute("addon", "simulator-" + addon.version);
-      let stability = Strings.GetStringFromName("addons_" + addon.stability);
-      name.textContent = Strings.formatStringFromName("addons_simulator_label", [addon.version, stability], 2);
-      break;
+  if (isADB) {
+    name.textContent = Strings.GetStringFromName("addons_adb_label");
+  } else {
+    let stability = Strings.GetStringFromName("addons_" + addon.stability);
+    name.textContent = Strings.formatStringFromName("addons_simulator_label", [addon.version, stability], 2);
   }
 
   li.appendChild(name);
@@ -121,7 +111,7 @@ function BuildItem(addon, type) {
   let progress = document.createElement("progress");
   li.appendChild(progress);
 
-  if (type == "adb") {
+  if (isADB) {
     let warning = document.createElement("p");
     warning.textContent = Strings.GetStringFromName("addons_adb_warning");
     warning.className = "warning";

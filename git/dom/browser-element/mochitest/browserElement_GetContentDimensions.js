@@ -17,7 +17,7 @@ var resizeContent = function() {
 function runTest() {
 
   var iframe1 = document.createElement('iframe');
-  iframe1.setAttribute('mozbrowser', 'true');
+  SpecialPowers.wrap(iframe1).mozbrowser = true;
 
   var iframeWidth = 400;
   var iframeHeight = 400;

@@ -80,8 +80,7 @@ using mozilla::PluginLibrary;
 using mozilla::PluginPRLibrary;
 
 #include "mozilla/plugins/PluginModuleParent.h"
-using mozilla::plugins::PluginModuleChromeParent;
-using mozilla::plugins::PluginModuleContentParent;
+using mozilla::plugins::PluginModuleParent;
 
 #ifdef MOZ_X11
 #include "mozilla/X11Util.h"
@@ -165,7 +164,10 @@ static NPNetscapeFuncs sBrowserFuncs = {
   _convertpoint,
   nullptr, // handleevent, unimplemented
   nullptr, // unfocusinstance, unimplemented
-  _urlredirectresponse
+  _urlredirectresponse,
+  _initasyncsurface,
+  _finalizeasyncsurface,
+  _setcurrentasyncsurface
 };
 
 static Mutex *sPluginThreadAsyncCallLock = nullptr;
@@ -248,10 +250,6 @@ nsNPAPIPlugin::PluginCrashed(const nsAString& pluginDumpID,
 bool
 nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    return true;
-  }
-
 #if (MOZ_WIDGET_GTK == 3)
   // We force OOP on Linux/GTK3 because some plugins use GTK2 and both GTK
   // libraries can't be loaded in the same process.
@@ -393,12 +391,8 @@ GetNewPluginLibrary(nsPluginTag *aPluginTag)
     return nullptr;
   }
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    return PluginModuleContentParent::LoadModule(aPluginTag->mId);
-  }
-
   if (nsNPAPIPlugin::RunPluginOOP(aPluginTag)) {
-    return PluginModuleChromeParent::LoadModule(aPluginTag->mFullPath.get(), aPluginTag->mId);
+    return PluginModuleParent::LoadModule(aPluginTag->mFullPath.get());
   }
   return new PluginPRLibrary(aPluginTag->mFullPath.get(), aPluginTag->mLibrary);
 }
@@ -1553,12 +1547,7 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
   options.setFileAndLine(spec, 0)
          .setVersion(JSVERSION_DEFAULT);
   JS::Rooted<JS::Value> rval(cx);
-  nsJSUtils::EvaluateOptions evalOptions(cx);
-  if (obj != js::GetGlobalForObjectCrossCompartment(obj) &&
-      !evalOptions.scopeChain.append(obj)) {
-    return false;
-  }
-  obj = js::GetGlobalForObjectCrossCompartment(obj);
+  nsJSUtils::EvaluateOptions evalOptions;
   nsresult rv = nsJSUtils::EvaluateString(cx, utf16script, obj, options,
                                           evalOptions, &rval);
 
@@ -1890,10 +1879,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
 
   PluginDestructionGuard guard(npp);
 
-  // Cast NPNVariable enum to int to avoid warnings about including switch
-  // cases for android_npapi.h's non-standard ANPInterface values.
-  switch (static_cast<int>(variable)) {
-
+  switch(variable) {
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
   case NPNVxDisplay : {
 #if defined(MOZ_X11)
@@ -2316,6 +2302,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
       return NPERR_NO_ERROR;
     }
 
+
     case kSystemInterfaceV1_ANPGetValue: {
       LOG("get system interface v1");
       ANPSystemInterfaceV1* i = reinterpret_cast<ANPSystemInterfaceV1*>(result);
@@ -2329,6 +2316,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
       InitSystemInterfaceV2(i);
       return NPERR_NO_ERROR;
     }
+
 #endif
 
   // we no longer hand out any XPCOM objects
@@ -2369,9 +2357,7 @@ _setvalue(NPP npp, NPPVariable variable, void *result)
 
   PluginDestructionGuard guard(inst);
 
-  // Cast NPNVariable enum to int to avoid warnings about including switch
-  // cases for android_npapi.h's non-standard ANPInterface values.
-  switch (static_cast<int>(variable)) {
+  switch (variable) {
 
     // we should keep backward compatibility with NPAPI where the
     // actual pointer value is checked rather than its content
@@ -2789,6 +2775,36 @@ _popupcontextmenu(NPP instance, NPMenu* menu)
     return NPERR_GENERIC_ERROR;
 
   return inst->PopUpContextMenu(menu);
+}
+
+NPError
+_initasyncsurface(NPP instance, NPSize *size, NPImageFormat format, void *initData, NPAsyncSurface *surface)
+{
+  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *)instance->ndata;
+  if (!inst)
+    return NPERR_GENERIC_ERROR;
+
+  return inst->InitAsyncSurface(size, format, initData, surface);
+}
+
+NPError
+_finalizeasyncsurface(NPP instance, NPAsyncSurface *surface)
+{
+  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *)instance->ndata;
+  if (!inst)
+    return NPERR_GENERIC_ERROR;
+
+  return inst->FinalizeAsyncSurface(surface);
+}
+
+void
+_setcurrentasyncsurface(NPP instance, NPAsyncSurface *surface, NPRect *changed)
+{
+  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *)instance->ndata;
+  if (!inst)
+    return;
+
+  inst->SetCurrentAsyncSurface(surface, changed);
 }
 
 NPBool

@@ -34,46 +34,43 @@ HCIEventTransactionSystemMessageConfigurator.prototype = {
   },
 
   shouldDispatch: function shouldDispatch(aManifestURL, aPageURL, aType, aMessage, aExtra) {
-    DEBUG && debug("message to dispatch: " + JSON.stringify(aMessage));
+    let deferred = Promise.defer();
+    debug("message to dispatch: " + JSON.stringify(aMessage));
     debug("aManifest url: " + aManifestURL);
-
-    if (!aMessage) {
-      return Promise.resolve(false);
+    if(!aMessage) {
+      return deferred.resolve(false);
     }
+    let aid = this._byteAIDToHex(aMessage.aid);
+    let seName = aMessage.seName;
 
-    return new Promise((resolve, reject) => {
-      appsService.getManifestFor(aManifestURL)
-      .then((aManifest) => this._checkAppManifest(aMessage.origin, aMessage.aid, aManifest))
-      .then(() => {
-        // FIXME: Bug 884594: Access Control Enforcer
-        // Here we will call ace.isAllowed function which will also return
-        // a Promise, for now we're just resolving shouldDispatch promise
-        debug("dispatching message");
-        resolve(true);
-      })
-      .catch(() => {
-        // if the Promise chain was broken we don't dispatch the message
-        debug("not dispatching");
-        resolve(false);
-      });
+    appsService.getManifestFor(aManifestURL)
+    .then((aManifest) => this._checkAppManifest(seName, aid, aManifest))
+    .then(() => {
+      // FIXME: Bug 884594: Access Control Enforcer
+      // Here we will call ace.isAllowed function which will also return
+      // a Promise, for now we're just resolving shouldDispatch promise
+      debug("dispatching message");
+      deferred.resolve(true);
+    })
+    .catch(() => {
+      // if the Promise chain was broken we don't dispatch the message
+      debug("not dispatching");
+      deferred.resolve(false);
     });
+
+    return deferred.promise;
   },
 
   // we might be doing some async hash computations here, returning
   // a resolved/rejected promise for now so we can easily fit the method
   // into a Promise chain
-  _checkAppManifest: function _checkAppManifest(aOrigin, aAid, aManifest) {
-    DEBUG && debug("aManifest " + JSON.stringify(aManifest));
-
-    // convert AID and Secure Element name to uppercased string for comparison
-    // with manifest secure_element_access rules
-    let aid = this._byteAIDToHex(aAid);
-    let seName = (aOrigin) ? aOrigin.toUpperCase() : "";
+  _checkAppManifest: function _checkAppManifest(aSeName, aAid, aManifest) {
+    debug("aManifest " + JSON.stringify(aManifest));
 
     let hciRules = aManifest["secure_element_access"] || [];
     let matchingRule = hciRules.find((rule) => {
       rule = rule.toUpperCase();
-      if(rule === "*" || rule === (seName + "/" + aid)) {
+      if(rule === "*" || rule === (aSeName + "/" + aAid)) {
         return true;
       }
 
@@ -88,8 +85,8 @@ HCIEventTransactionSystemMessageConfigurator.prototype = {
         return match === element;
       };
 
-      return isMatching(rule.split('/')[0], seName) &&
-             isMatching(rule.split('/')[1], aid);
+      return isMatching(rule.split('/')[0], aSeName) &&
+             isMatching(rule.split('/')[1], aAid);
     });
 
     return (matchingRule) ? Promise.resolve() : Promise.reject();

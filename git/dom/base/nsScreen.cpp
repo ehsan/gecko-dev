@@ -305,19 +305,6 @@ void
 nsScreen::MozUnlockOrientation()
 {
   hal::UnlockScreenOrientation();
-
-  if (!mEventListener) {
-    return;
-  }
-
-  // Remove event listener in case of fullscreen lock.
-  nsCOMPtr<EventTarget> target = do_QueryInterface(GetOwner()->GetDoc());
-  if (target) {
-    target->RemoveSystemEventListener(NS_LITERAL_STRING("mozfullscreenchange"),
-                                      mEventListener, /* useCapture */ true);
-  }
-
-  mEventListener = nullptr;
 }
 
 bool

@@ -160,14 +160,15 @@ WebGLContext::BufferData(GLenum target, WebGLsizeiptr size,
     if (!boundBuffer)
         return ErrorInvalidOperation("bufferData: no buffer bound!");
 
-    UniquePtr<uint8_t> zeroBuffer((uint8_t*)moz_calloc(size, 1));
+    void* zeroBuffer = calloc(size, 1);
     if (!zeroBuffer)
         return ErrorOutOfMemory("bufferData: out of memory");
 
     MakeContextCurrent();
     InvalidateBufferFetching();
 
-    GLenum error = CheckedBufferData(target, size, zeroBuffer.get(), usage);
+    GLenum error = CheckedBufferData(target, size, zeroBuffer, usage);
+    free(zeroBuffer);
 
     if (error) {
         GenerateWarning("bufferData generated error %s", ErrorName(error));
@@ -361,11 +362,7 @@ WebGLContext::CreateBuffer()
     if (IsContextLost())
         return nullptr;
 
-    GLuint buf = 0;
-    MakeContextCurrent();
-    gl->fGenBuffers(1, &buf);
-
-    nsRefPtr<WebGLBuffer> globj = new WebGLBuffer(this, buf);
+    nsRefPtr<WebGLBuffer> globj = new WebGLBuffer(this);
     return globj.forget();
 }
 

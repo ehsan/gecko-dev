@@ -64,10 +64,6 @@ checkSize(JS::HandleObject map, uint32_t expected)
 }
 END_TEST(testWeakMap_basicOperations)
 
-// TODO: this test stores object pointers in a private slot which is not marked
-// and so doesn't work with compacting GC.
-#ifndef JSGC_COMPACTING
-
 BEGIN_TEST(testWeakMap_keyDelegates)
 {
     JS_SetGCParameter(rt, JSGC_MODE, JSGC_MODE_INCREMENTAL);
@@ -89,8 +85,7 @@ BEGIN_TEST(testWeakMap_keyDelegates)
      * zone to finish marking before the delegate zone.
      */
     CHECK(newCCW(map, delegate));
-    js::SliceBudget budget(js::WorkBudget(1000000));
-    rt->gc.gcDebugSlice(budget);
+    rt->gc.gcDebugSlice(true, 1000000);
 #ifdef DEBUG
     CHECK(map->zone()->lastZoneGroupIndex() < delegate->zone()->lastZoneGroupIndex());
 #endif
@@ -103,8 +98,7 @@ BEGIN_TEST(testWeakMap_keyDelegates)
     /* Check the delegate keeps the entry alive even if the key is not reachable. */
     key = nullptr;
     CHECK(newCCW(map, delegate));
-    budget = js::SliceBudget(js::WorkBudget(100000));
-    rt->gc.gcDebugSlice(budget);
+    rt->gc.gcDebugSlice(true, 100000);
     CHECK(checkSize(map, 1));
 
     /*
@@ -152,6 +146,7 @@ JSObject *newKey()
         nullptr,
         JS_NULL_CLASS_SPEC,
         {
+            nullptr,
             nullptr,
             nullptr,
             false,
@@ -243,5 +238,3 @@ checkSize(JS::HandleObject map, uint32_t expected)
     return true;
 }
 END_TEST(testWeakMap_keyDelegates)
-
-#endif

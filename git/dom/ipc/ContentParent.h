@@ -22,7 +22,6 @@
 #include "nsIObserver.h"
 #include "nsIThreadInternal.h"
 #include "nsIDOMGeoPositionCallback.h"
-#include "nsIDOMGeoPositionErrorCallback.h"
 #include "PermissionMessageUtils.h"
 
 #define CHILD_PROCESS_SHUTDOWN_MESSAGE NS_LITERAL_STRING("child-process-shutdown")
@@ -46,7 +45,7 @@ class TestShellParent;
 } // namespace ipc
 
 namespace jsipc {
-class JavaScriptShared;
+class JavaScriptParent;
 class PJavaScriptParent;
 }
 
@@ -69,7 +68,6 @@ class ContentParent MOZ_FINAL : public PContentParent
                               , public nsIContentParent
                               , public nsIObserver
                               , public nsIDOMGeoPositionCallback
-                              , public nsIDOMGeoPositionErrorCallback
                               , public mozilla::LinkedListElement<ContentParent>
 {
     typedef mozilla::ipc::GeckoChildProcessHost GeckoChildProcessHost;
@@ -141,28 +139,18 @@ public:
 
     static bool IgnoreIPCPrincipal();
 
-    static void NotifyUpdatedDictionaries();
-
     virtual bool RecvCreateChildProcess(const IPCTabContext& aContext,
                                         const hal::ProcessPriority& aPriority,
-                                        const TabId& aOpenerTabId,
-                                        ContentParentId* aCpId,
+                                        uint64_t* aId,
                                         bool* aIsForApp,
-                                        bool* aIsForBrowser,
-                                        TabId* aTabId) MOZ_OVERRIDE;
-    virtual bool AnswerBridgeToChildProcess(const ContentParentId& aCpId) MOZ_OVERRIDE;
-
-    virtual bool AnswerLoadPlugin(const uint32_t& aPluginId) MOZ_OVERRIDE;
-    virtual bool RecvFindPlugins(const uint32_t& aPluginEpoch,
-                                 nsTArray<PluginTag>* aPlugins,
-                                 uint32_t* aNewPluginEpoch) MOZ_OVERRIDE;
+                                        bool* aIsForBrowser) MOZ_OVERRIDE;
+    virtual bool AnswerBridgeToChildProcess(const uint64_t& id) MOZ_OVERRIDE;
 
     NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(ContentParent, nsIObserver)
 
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
     NS_DECL_NSIOBSERVER
     NS_DECL_NSIDOMGEOPOSITIONCALLBACK
-    NS_DECL_NSIDOMGEOPOSITIONERRORCALLBACK
 
     /**
      * MessageManagerCallback methods that we override.
@@ -187,14 +175,7 @@ public:
     TestShellParent* CreateTestShell();
     bool DestroyTestShell(TestShellParent* aTestShell);
     TestShellParent* GetTestShellSingleton();
-    jsipc::JavaScriptShared* GetCPOWManager() MOZ_OVERRIDE;
-
-    static TabId
-    AllocateTabId(const TabId& aOpenerTabId,
-                  const IPCTabContext& aContext,
-                  const ContentParentId& aCpId);
-    static void
-    DeallocateTabId(const TabId& aTabId, const ContentParentId& aCpId);
+    jsipc::JavaScriptParent *GetCPOWManager();
 
     void ReportChildAlreadyBlocked();
     bool RequestRunToCompletion();
@@ -234,7 +215,7 @@ public:
      */
     void KillHard();
 
-    ContentParentId ChildID() MOZ_OVERRIDE { return mChildID; }
+    uint64_t ChildID() MOZ_OVERRIDE { return mChildID; }
     const nsString& AppManifestURL() const { return mAppManifestURL; }
 
     bool IsPreallocated();
@@ -261,10 +242,6 @@ public:
     virtual bool RecvPNeckoConstructor(PNeckoParent* aActor) MOZ_OVERRIDE {
         return PContentParent::RecvPNeckoConstructor(aActor);
     }
-
-    virtual PPrintingParent* AllocPPrintingParent() MOZ_OVERRIDE;
-    virtual bool RecvPPrintingConstructor(PPrintingParent* aActor) MOZ_OVERRIDE;
-    virtual bool DeallocPPrintingParent(PPrintingParent* aActor) MOZ_OVERRIDE;
 
     virtual PScreenManagerParent*
     AllocPScreenManagerParent(uint32_t* aNumberOfScreens,
@@ -303,31 +280,6 @@ public:
         PBlobParent* aActor,
         const BlobConstructorParams& aParams) MOZ_OVERRIDE;
 
-    virtual bool RecvAllocateTabId(const TabId& aOpenerTabId,
-                                   const IPCTabContext& aContext,
-                                   const ContentParentId& aCpId,
-                                   TabId* aTabId) MOZ_OVERRIDE;
-
-    virtual bool RecvDeallocateTabId(const TabId& aTabId) MOZ_OVERRIDE;
-
-    nsTArray<TabContext> GetManagedTabContext();
-
-    virtual POfflineCacheUpdateParent*
-    AllocPOfflineCacheUpdateParent(const URIParams& aManifestURI,
-                                   const URIParams& aDocumentURI,
-                                   const bool& aStickDocument,
-                                   const TabId& aTabId) MOZ_OVERRIDE;
-    virtual bool
-    RecvPOfflineCacheUpdateConstructor(POfflineCacheUpdateParent* aActor,
-                                       const URIParams& aManifestURI,
-                                       const URIParams& aDocumentURI,
-                                       const bool& stickDocument,
-                                       const TabId& aTabId) MOZ_OVERRIDE;
-    virtual bool
-    DeallocPOfflineCacheUpdateParent(POfflineCacheUpdateParent* aActor) MOZ_OVERRIDE;
-
-    virtual bool RecvSetOfflinePermission(const IPC::Principal& principal) MOZ_OVERRIDE;
-
 protected:
     void OnChannelConnected(int32_t pid) MOZ_OVERRIDE;
     virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
@@ -356,18 +308,15 @@ private:
     static hal::ProcessPriority GetInitialProcessPriority(Element* aFrameElement);
 
     static ContentBridgeParent* CreateContentBridgeParent(const TabContext& aContext,
-                                                          const hal::ProcessPriority& aPriority,
-                                                          const TabId& aOpenerTabId,
-                                                          /*out*/ TabId* aTabId);
+                                                          const hal::ProcessPriority& aPriority);
 
     // Hide the raw constructor methods since we don't want client code
     // using them.
     virtual PBrowserParent* SendPBrowserConstructor(
         PBrowserParent* actor,
-        const TabId& aTabId,
         const IPCTabContext& context,
         const uint32_t& chromeFlags,
-        const ContentParentId& aCpId,
+        const uint64_t& aId,
         const bool& aIsForApp,
         const bool& aIsForBrowser) MOZ_OVERRIDE;
     using PContentParent::SendPTestShellConstructor;
@@ -458,21 +407,17 @@ private:
     AllocPBackgroundParent(Transport* aTransport, ProcessId aOtherProcess)
                            MOZ_OVERRIDE;
 
-    virtual bool RecvGetProcessAttributes(ContentParentId* aCpId,
+    virtual bool RecvGetProcessAttributes(uint64_t* aId,
                                           bool* aIsForApp,
                                           bool* aIsForBrowser) MOZ_OVERRIDE;
-    virtual bool RecvGetXPCOMProcessAttributes(bool* aIsOffline,
-                                               InfallibleTArray<nsString>* dictionaries,
-                                               ClipboardCapabilities* clipboardCaps)
-        MOZ_OVERRIDE;
+    virtual bool RecvGetXPCOMProcessAttributes(bool* aIsOffline) MOZ_OVERRIDE;
 
     virtual bool DeallocPJavaScriptParent(mozilla::jsipc::PJavaScriptParent*) MOZ_OVERRIDE;
 
     virtual bool DeallocPRemoteSpellcheckEngineParent(PRemoteSpellcheckEngineParent*) MOZ_OVERRIDE;
-    virtual PBrowserParent* AllocPBrowserParent(const TabId& aTabId,
-                                                const IPCTabContext& aContext,
+    virtual PBrowserParent* AllocPBrowserParent(const IPCTabContext& aContext,
                                                 const uint32_t& aChromeFlags,
-                                                const ContentParentId& aCpId,
+                                                const uint64_t& aId,
                                                 const bool& aIsForApp,
                                                 const bool& aIsForBrowser) MOZ_OVERRIDE;
     virtual bool DeallocPBrowserParent(PBrowserParent* frame) MOZ_OVERRIDE;
@@ -614,11 +559,11 @@ private:
                                  const InfallibleTArray<CpowEntry>& aCpows,
                                  const IPC::Principal& aPrincipal,
                                  InfallibleTArray<nsString>* aRetvals) MOZ_OVERRIDE;
-    virtual bool RecvRpcMessage(const nsString& aMsg,
-                                const ClonedMessageData& aData,
-                                const InfallibleTArray<CpowEntry>& aCpows,
-                                const IPC::Principal& aPrincipal,
-                                InfallibleTArray<nsString>* aRetvals) MOZ_OVERRIDE;
+    virtual bool AnswerRpcMessage(const nsString& aMsg,
+                                  const ClonedMessageData& aData,
+                                  const InfallibleTArray<CpowEntry>& aCpows,
+                                  const IPC::Principal& aPrincipal,
+                                  InfallibleTArray<nsString>* aRetvals) MOZ_OVERRIDE;
     virtual bool RecvAsyncMessage(const nsString& aMsg,
                                   const ClonedMessageData& aData,
                                   const InfallibleTArray<CpowEntry>& aCpows,
@@ -686,13 +631,8 @@ private:
 
     virtual bool RecvSetFakeVolumeState(const nsString& fsName, const int32_t& fsState) MOZ_OVERRIDE;
 
-    virtual bool RecvKeywordToURI(const nsCString& aKeyword,
-                                  nsString* aProviderName,
-                                  OptionalInputStreamParams* aPostData,
+    virtual bool RecvKeywordToURI(const nsCString& aKeyword, OptionalInputStreamParams* aPostData,
                                   OptionalURIParams* aURI) MOZ_OVERRIDE;
-
-    virtual bool RecvNotifyKeywordSearchLoading(const nsString &aProvider,
-                                                const nsString &aKeyword) MOZ_OVERRIDE; 
 
     virtual void ProcessingError(Result what) MOZ_OVERRIDE;
 
@@ -730,11 +670,6 @@ private:
                           int32_t* aSliceRefCnt,
                           bool* aResult) MOZ_OVERRIDE;
 
-    virtual PDocAccessibleParent* AllocPDocAccessibleParent(PDocAccessibleParent*, const uint64_t&) MOZ_OVERRIDE;
-    virtual bool DeallocPDocAccessibleParent(PDocAccessibleParent*) MOZ_OVERRIDE;
-    virtual bool RecvPDocAccessibleConstructor(PDocAccessibleParent* aDoc,
-                                               PDocAccessibleParent* aParentDoc, const uint64_t& aParentID) MOZ_OVERRIDE;
-
     // If you add strong pointers to cycle collected objects here, be sure to
     // release these objects in ShutDownProcess.  See the comment there for more
     // details.
@@ -742,7 +677,7 @@ private:
     GeckoChildProcessHost* mSubprocess;
     ContentParent* mOpener;
 
-    ContentParentId mChildID;
+    uint64_t mChildID;
     int32_t mGeolocationWatchID;
 
     nsString mAppManifestURL;

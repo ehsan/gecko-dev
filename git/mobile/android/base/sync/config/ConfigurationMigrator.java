@@ -55,13 +55,13 @@ public class ConfigurationMigrator {
 
       Object value = entry.getValue();
       if (value instanceof Boolean) {
-         to.putBoolean(toKey, (Boolean) value);
+         to.putBoolean(toKey, ((Boolean) value).booleanValue());
       } else if (value instanceof Float) {
-         to.putFloat(toKey, (Float) value);
+         to.putFloat(toKey, ((Float) value).floatValue());
       } else if (value instanceof Integer) {
-         to.putInt(toKey, (Integer) value);
+         to.putInt(toKey, ((Integer) value).intValue());
       } else if (value instanceof Long) {
-         to.putLong(toKey, (Long) value);
+         to.putLong(toKey, ((Long) value).longValue());
       } else if (value instanceof String) {
          to.putString(toKey, (String) value);
       } else {
@@ -239,7 +239,7 @@ public class ConfigurationMigrator {
     }
     if (numClients > -1) {
       Logger.debug(LOG_TAG, "Migrated clients count.");
-      accountManager.setUserData(account, V1_PREF_NUM_CLIENTS, Long.toString(numClients));
+      accountManager.setUserData(account, V1_PREF_NUM_CLIENTS, new Long(numClients).toString());
       count += 1;
     }
     return count;
@@ -371,7 +371,7 @@ public class ConfigurationMigrator {
       upgrade0to1(context, accountManager, account, product, username, serverURL, profile);
     } else if (currentVersion == 1 && desiredVersion == 0) {
       Logger.info(LOG_TAG, "Upgrading from version 0 to version 1.");
-      downgrade1to0(context, accountManager, account, product, username, serverURL, profile);
+      upgrade0to1(context, accountManager, account, product, username, serverURL, profile);
     } else {
       Logger.warn(LOG_TAG, "Don't know how to migrate from version " + currentVersion + " to " + desiredVersion + ".");
     }

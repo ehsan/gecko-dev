@@ -8,7 +8,6 @@
 
 #ifdef GL_PROVIDER_GLX
 
-#include "mozilla/layers/CompositorOGL.h"
 #include "mozilla/layers/TextureHostOGL.h"
 #include "mozilla/gfx/2D.h"
 
@@ -18,7 +17,7 @@ namespace layers {
 // TextureSource for Xlib-backed surfaces.
 class X11TextureSourceOGL
   : public TextureSourceOGL
-  , public TextureSource
+  , public NewTextureSource
 {
 public:
   X11TextureSourceOGL(CompositorOGL* aCompositor, gfxXlibSurface* aSurface);
@@ -47,7 +46,7 @@ public:
   static gfx::SurfaceFormat ContentTypeToSurfaceFormat(gfxContentType aType);
 
 protected:
-  RefPtr<CompositorOGL> mCompositor;
+  CompositorOGL* mCompositor;
   nsRefPtr<gfxXlibSurface> mSurface;
   RefPtr<gfx::SourceSurface> mSourceSurface;
   GLuint mTexture;

@@ -20,10 +20,8 @@ from manifestparser import TestManifest
 from marionette import Marionette
 from mixins.b2g import B2GTestResultMixin, get_b2g_pid, get_dm
 from mozhttpd import MozHttpd
-from mozlog.structured.structuredlog import get_default_logger
 from moztest.adapters.unit import StructuredTestRunner, StructuredTestResult
 from moztest.results import TestResultCollection, TestResult, relevant_line
-import mozversion
 
 class MarionetteTest(TestResult):
 
@@ -47,13 +45,12 @@ class MarionetteTestResult(StructuredTestResult, TestResultCollection):
         self.testsRun = 0
         self.result_modifiers = [] # used by mixins to modify the result
         pid = kwargs.pop('b2g_pid')
-        logcat_stdout = kwargs.pop('logcat_stdout')
         if pid:
             if B2GTestResultMixin not in self.__class__.__bases__:
                 bases = [b for b in self.__class__.__bases__]
                 bases.append(B2GTestResultMixin)
                 self.__class__.__bases__ = tuple(bases)
-            B2GTestResultMixin.__init__(self, b2g_pid=pid, logcat_stdout=logcat_stdout)
+            B2GTestResultMixin.__init__(self, b2g_pid=pid)
         StructuredTestResult.__init__(self, *args, **kwargs)
 
     @property
@@ -205,7 +202,6 @@ class MarionetteTextTestRunner(StructuredTestRunner):
         self.capabilities = kwargs.pop('capabilities')
         self.pre_run_functions = []
         self.b2g_pid = None
-        self.logcat_stdout = kwargs.pop('logcat_stdout')
 
         if self.capabilities["device"] != "desktop" and self.capabilities["browserName"] == "B2G":
             def b2g_pre_run():
@@ -223,9 +219,7 @@ class MarionetteTextTestRunner(StructuredTestRunner):
                                 self.verbosity,
                                 marionette=self.marionette,
                                 b2g_pid=self.b2g_pid,
-                                logger=self.logger,
-                                logcat_stdout=self.logcat_stdout,
-                                result_callbacks=self.result_callbacks)
+                                logger=self.logger)
 
     def run(self, test):
         "Run the given test case or test suite."
@@ -277,11 +271,6 @@ class BaseMarionetteOptions(OptionParser):
                         dest='logdir',
                         action='store',
                         help='directory to store logcat dump files')
-        self.add_option('--logcat-stdout',
-                        action='store_true',
-                        dest='logcat_stdout',
-                        default=False,
-                        help='dump adb logcat to stdout')
         self.add_option('--address',
                         dest='address',
                         action='store',
@@ -448,13 +437,12 @@ class BaseMarionetteTestRunner(object):
     def __init__(self, address=None, emulator=None, emulator_binary=None,
                  emulator_img=None, emulator_res='480x800', homedir=None,
                  app=None, app_args=None, binary=None, profile=None,
-                 logger=None, no_window=False, logdir=None, logcat_stdout=False,
-                 xml_output=None, repeat=0, testvars=None, tree=None, type=None,
+                 logger=None, no_window=False, logdir=None, xml_output=None,
+                 repeat=0, testvars=None, tree=None, type=None,
                  device_serial=None, symbols_path=None, timeout=None,
                  shuffle=False, shuffle_seed=random.randint(0, sys.maxint),
                  sdcard=None, this_chunk=1, total_chunks=1, sources=None,
-                 server_root=None, gecko_log=None, result_callbacks=None,
-                 **kwargs):
+                 server_root=None, gecko_log=None, **kwargs):
         self.address = address
         self.emulator = emulator
         self.emulator_binary = emulator_binary
@@ -470,7 +458,6 @@ class BaseMarionetteTestRunner(object):
         self.httpd = None
         self.marionette = None
         self.logdir = logdir
-        self.logcat_stdout = logcat_stdout
         self.xml_output = xml_output
         self.repeat = repeat
         self.testvars = {}
@@ -494,25 +481,6 @@ class BaseMarionetteTestRunner(object):
         self.mixin_run_tests = []
         self.manifest_skipped_tests = []
         self.tests = []
-        self.result_callbacks = result_callbacks if result_callbacks is not None else []
-
-        def gather_debug(test, status):
-            rv = {}
-            marionette = test._marionette_weakref()
-
-            # In the event we're gathering debug without starting a session, skip marionette commands
-            if marionette.session is not None:
-                try:
-                    marionette.set_context(marionette.CONTEXT_CHROME)
-                    rv['screenshot'] = marionette.screenshot()
-                    marionette.set_context(marionette.CONTEXT_CONTENT)
-                    rv['source'] = marionette.page_source
-                except:
-                    logger = get_default_logger()
-                    logger.warning('Failed to gather test failure debug.', exc_info=True)
-            return rv
-
-        self.result_callbacks.append(gather_debug)
 
         if testvars:
             if not os.path.exists(testvars):
@@ -642,53 +610,6 @@ class BaseMarionetteTestRunner(object):
     def start_marionette(self):
         self.marionette = Marionette(**self._build_kwargs())
 
-    def launch_test_container(self):
-        if self.marionette.session is None:
-            self.marionette.start_session()
-        self.marionette.set_context(self.marionette.CONTEXT_CONTENT)
-
-        result = self.marionette.execute_async_script("""
-if((navigator.mozSettings == undefined) || (navigator.mozSettings == null) || (navigator.mozApps == undefined) || (navigator.mozApps == null)) {
-    marionetteScriptFinished(false);
-    return;
-}
-let setReq = navigator.mozSettings.createLock().set({'lockscreen.enabled': false});
-setReq.onsuccess = function() {
-    let appName = 'Test Container';
-    let activeApp = window.wrappedJSObject.System.currentApp;
-
-    // if the Test Container is already open then do nothing
-    if(activeApp.name === appName){
-        marionetteScriptFinished(true);
-    }
-
-    let appsReq = navigator.mozApps.mgmt.getAll();
-    appsReq.onsuccess = function() {
-        let apps = appsReq.result;
-        for (let i = 0; i < apps.length; i++) {
-            let app = apps[i];
-            if (app.manifest.name === appName) {
-                app.launch();
-                window.addEventListener('appopen', function apploadtime(){
-                    window.removeEventListener('appopen', apploadtime);
-                    marionetteScriptFinished(true);
-                });
-                return;
-            }
-        }
-        marionetteScriptFinished(false);
-    }
-    appsReq.onerror = function() {
-        marionetteScriptFinished(false);
-    }
-}
-setReq.onerror = function() {
-    marionetteScriptFinished(false);
-}""", script_timeout=60000)
-
-        if not result:
-            raise Exception("Could not launch test container app")
-
     def run_tests(self, tests):
         self.reset_test_stats()
         self.start_time = time.time()
@@ -713,19 +634,7 @@ setReq.onerror = function() {
         for test in tests:
             self.add_test(test)
 
-        version_info = mozversion.get_version(binary=self.bin,
-                                              sources=self.sources,
-                                              dm_type=os.environ.get('DM_TRANS', 'adb'),
-                                              device_serial=self.device_serial)
-
-        device_info = None
-        if self.capabilities['device'] != 'desktop' and self.capabilities['browserName'] == 'B2G':
-            dm = get_dm(self.marionette)
-            device_info = dm.getInfo()
-
-        self.logger.suite_start(self.tests,
-                                version_info=version_info,
-                                device_info=device_info)
+        self.logger.suite_start(self.tests)
 
         for test in self.manifest_skipped_tests:
             name = os.path.basename(test['path'])
@@ -787,7 +696,7 @@ setReq.onerror = function() {
 
         self.logger.suite_end()
 
-    def add_test(self, test, expected='pass', test_container=None):
+    def add_test(self, test, expected='pass', test_container=False):
         filepath = os.path.abspath(test)
 
         if os.path.isdir(filepath):
@@ -841,13 +750,9 @@ setReq.onerror = function() {
                     raise IOError("test file: %s does not exist" % i["path"])
 
                 file_ext = os.path.splitext(os.path.split(i['path'])[-1])[-1]
-                test_container = None
-                if i.get('test_container') and testarg_b2g:
-                    if i.get('test_container') == "true":
-                        test_container = True
-                    elif i.get('test_container') == "false":
-                        test_container = False
-
+                test_container = False
+                if i.get('test_container') and i.get('test_container') == 'true' and testarg_b2g:
+                    test_container = True
                 self.add_test(i["path"], i["expected"], test_container)
             return
 
@@ -874,13 +779,7 @@ setReq.onerror = function() {
         if suite.countTestCases():
             runner = self.textrunnerclass(logger=self.logger,
                                           marionette=self.marionette,
-                                          capabilities=self.capabilities,
-                                          logcat_stdout=self.logcat_stdout,
-                                          result_callbacks=self.result_callbacks)
-
-            if test_container:
-                self.launch_test_container()
-
+                                          capabilities=self.capabilities)
             results = runner.run(suite)
             self.results.append(results)
 

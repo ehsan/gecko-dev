@@ -118,9 +118,7 @@ nsAboutProtocolHandler::NewURI(const nsACString &aSpec,
 }
 
 NS_IMETHODIMP
-nsAboutProtocolHandler::NewChannel2(nsIURI* uri,
-                                    nsILoadInfo* aLoadInfo,
-                                    nsIChannel** result)
+nsAboutProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
 {
     NS_ENSURE_ARG_POINTER(uri);
 
@@ -140,7 +138,7 @@ nsAboutProtocolHandler::NewChannel2(nsIURI* uri,
 
     if (NS_SUCCEEDED(rv)) {
         // The standard return case:
-        rv = aboutMod->NewChannel(uri, aLoadInfo, result);
+        rv = aboutMod->NewChannel(uri, result);
         if (NS_SUCCEEDED(rv)) {
             // If this URI is safe for untrusted content, enforce that its
             // principal be based on the channel's originalURI by setting the
@@ -176,12 +174,6 @@ nsAboutProtocolHandler::NewChannel2(nsIURI* uri,
     }
 
     return rv;
-}
-
-NS_IMETHODIMP
-nsAboutProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
-{
-    return NewChannel2(uri, nullptr, result);
 }
 
 NS_IMETHODIMP 
@@ -241,15 +233,6 @@ nsSafeAboutProtocolHandler::NewURI(const nsACString &aSpec,
     *result = nullptr;
     url.swap(*result);
     return rv;
-}
-
-NS_IMETHODIMP
-nsSafeAboutProtocolHandler::NewChannel2(nsIURI* uri,
-                                        nsILoadInfo* aLoadInfo,
-                                        nsIChannel** result)
-{
-    *result = nullptr;
-    return NS_ERROR_NOT_AVAILABLE;
 }
 
 NS_IMETHODIMP

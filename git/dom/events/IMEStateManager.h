@@ -11,7 +11,6 @@
 
 class nsIContent;
 class nsIDOMMouseEvent;
-class nsIEditor;
 class nsINode;
 class nsPIDOMWindow;
 class nsPresContext;
@@ -66,8 +65,7 @@ public:
   // Note that this method changes the IME state of the active element in the
   // widget.  So, the caller must have focus.
   static void UpdateIMEState(const IMEState &aNewIMEState,
-                             nsIContent* aContent,
-                             nsIEditor* aEditor);
+                             nsIContent* aContent);
 
   // This method is called when user operates mouse button in focused editor
   // and before the editor handles it.
@@ -91,29 +89,27 @@ public:
   //   If the editor is for contenteditable, the active editinghost.
   //   If the editor is for designMode, nullptr.
   static void OnFocusInEditor(nsPresContext* aPresContext,
-                              nsIContent* aContent,
-                              nsIEditor* aEditor);
+                              nsIContent* aContent);
 
   /**
-   * All composition events must be dispatched via DispatchCompositionEvent()
-   * for storing the composition target and ensuring a set of composition
-   * events must be fired the stored target.  If the stored composition event
-   * target is destroying, this removes the stored composition automatically.
+   * All DOM composition events and DOM text events must be dispatched via
+   * DispatchCompositionEvent() for storing the composition target
+   * and ensuring a set of composition events must be fired the stored target.
+   * If the stored composition event target is destroying, this removes the
+   * stored composition automatically.
    */
-  static void DispatchCompositionEvent(
-                nsINode* aEventTargetNode,
-                nsPresContext* aPresContext,
-                WidgetCompositionEvent* aCompositionEvent,
-                nsEventStatus* aStatus,
-                EventDispatchingCallback* aCallBack,
-                bool aIsSynthesized = false);
+  static void DispatchCompositionEvent(nsINode* aEventTargetNode,
+                                       nsPresContext* aPresContext,
+                                       WidgetEvent* aEvent,
+                                       nsEventStatus* aStatus,
+                                       EventDispatchingCallback* aCallBack,
+                                       bool aIsSynthesized = false);
 
   /**
-   * This is called when PresShell ignores a composition event due to not safe
-   * to dispatch events.
+   * This is called when PresShell ignores composition event or text event due
+   * to not safe to dispatch events.
    */
-  static void OnCompositionEventDiscarded(
-                const WidgetCompositionEvent* aCompositionEvent);
+  static void OnCompositionEventDiscarded(WidgetEvent* aEvent);
 
   /**
    * Get TextComposition from widget.
@@ -124,10 +120,11 @@ public:
   /**
    * Returns TextComposition instance for the event.
    *
-   * @param aGUIEvent Should be a composition event which is being dispatched.
+   * @param aEvent      Should be a composition event or a text event which is
+   *                    being dispatched.
    */
   static already_AddRefed<TextComposition>
-    GetTextCompositionFor(WidgetGUIEvent* aGUIEvent);
+    GetTextCompositionFor(WidgetGUIEvent* aEvent);
 
   /**
    * Send a notification to IME.  It depends on the IME or platform spec what
@@ -152,7 +149,7 @@ protected:
                                  nsIContent* aContent);
 
   static void EnsureTextCompositionArray();
-  static void CreateIMEContentObserver(nsIEditor* aEditor);
+  static void CreateIMEContentObserver();
   static void DestroyIMEContentObserver();
 
   static bool IsEditable(nsINode* node);

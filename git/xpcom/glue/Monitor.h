@@ -96,6 +96,7 @@ private:
   MonitorAutoLock(const MonitorAutoLock&);
   MonitorAutoLock& operator=(const MonitorAutoLock&);
   static void* operator new(size_t) CPP_THROW_NEW;
+  static void operator delete(void*);
 
   Monitor* mMonitor;
 };
@@ -126,6 +127,7 @@ private:
   MonitorAutoUnlock(const MonitorAutoUnlock&);
   MonitorAutoUnlock& operator=(const MonitorAutoUnlock&);
   static void* operator new(size_t) CPP_THROW_NEW;
+  static void operator delete(void*);
 
   Monitor* mMonitor;
 };

@@ -125,7 +125,7 @@ enum JSGCTraceKind {
 struct JSClass;
 struct JSCompartment;
 struct JSCrossCompartmentCall;
-class JSErrorReport;
+struct JSErrorReport;
 struct JSExceptionState;
 struct JSFunctionSpec;
 struct JSIdArray;

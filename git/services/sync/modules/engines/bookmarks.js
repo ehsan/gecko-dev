@@ -203,8 +203,6 @@ BookmarksEngine.prototype = {
   _trackerObj: BookmarksTracker,
   version: 2,
 
-  syncPriority: 4,
-
   _sync: function _sync() {
     let engine = this;
     let batchEx = null;

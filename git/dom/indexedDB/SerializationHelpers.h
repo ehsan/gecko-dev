@@ -12,6 +12,7 @@
 #include "mozilla/dom/indexedDB/IDBCursor.h"
 #include "mozilla/dom/indexedDB/IDBTransaction.h"
 #include "mozilla/dom/quota/PersistenceType.h"
+#include "mozilla/dom/quota/StoragePrivilege.h"
 
 namespace IPC {
 
@@ -21,6 +22,13 @@ struct ParamTraits<mozilla::dom::quota::PersistenceType> :
                                mozilla::dom::quota::PersistenceType,
                                mozilla::dom::quota::PERSISTENCE_TYPE_PERSISTENT,
                                mozilla::dom::quota::PERSISTENCE_TYPE_INVALID>
+{ };
+
+template <>
+struct ParamTraits<mozilla::dom::quota::StoragePrivilege> :
+  public ContiguousEnumSerializer<mozilla::dom::quota::StoragePrivilege,
+                                  mozilla::dom::quota::Chrome,
+                                  mozilla::dom::quota::Invalid>
 { };
 
 template <>

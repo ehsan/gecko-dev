@@ -8,6 +8,7 @@
 
 #include "mozilla/ArrayUtils.h"
 
+#include "js/OldDebugAPI.h"
 #include "xpcprivate.h"
 #include "XPCWrapper.h"
 #include "nsIAppsService.h"
@@ -332,7 +333,7 @@ nsScriptSecurityManager::GetChannelResultPrincipal(nsIChannel* aChannel,
         }
 
         if (loadInfo->GetForceInheritPrincipal()) {
-            NS_ADDREF(*aPrincipal = loadInfo->TriggeringPrincipal());
+            NS_ADDREF(*aPrincipal = loadInfo->LoadingPrincipal());
             return NS_OK;
         }
     }
@@ -439,6 +440,39 @@ nsScriptSecurityManager::JSPrincipalsSubsume(JSPrincipals *first,
                                              JSPrincipals *second)
 {
     return nsJSPrincipals::get(first)->Subsumes(nsJSPrincipals::get(second));
+}
+
+NS_IMETHODIMP
+nsScriptSecurityManager::CheckSameOrigin(JSContext* cx,
+                                         nsIURI* aTargetURI)
+{
+    MOZ_ASSERT_IF(cx, cx == nsContentUtils::GetCurrentJSContext());
+
+    // Get a principal from the context
+    nsIPrincipal* sourcePrincipal = nsContentUtils::SubjectPrincipal();
+    if (sourcePrincipal == mSystemPrincipal)
+    {
+        // This is a system (chrome) script, so allow access
+        return NS_OK;
+    }
+
+    // Get the original URI from the source principal.
+    // This has the effect of ignoring any change to document.domain
+    // which must be done to avoid DNS spoofing (bug 154930)
+    nsCOMPtr<nsIURI> sourceURI;
+    sourcePrincipal->GetDomain(getter_AddRefs(sourceURI));
+    if (!sourceURI) {
+      sourcePrincipal->GetURI(getter_AddRefs(sourceURI));
+      NS_ENSURE_TRUE(sourceURI, NS_ERROR_FAILURE);
+    }
+
+    // Compare origins
+    if (!SecurityCompareURIs(sourceURI, aTargetURI))
+    {
+         ReportError(cx, NS_LITERAL_STRING("CheckSameOriginError"), sourceURI, aTargetURI);
+         return NS_ERROR_DOM_BAD_URI;
+    }
+    return NS_OK;
 }
 
 NS_IMETHODIMP

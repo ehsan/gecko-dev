@@ -53,7 +53,7 @@ IsShiftInScaleRange(int i)
 static inline Scale
 ShiftToScale(int i)
 {
-    MOZ_ASSERT(IsShiftInScaleRange(i));
+    JS_ASSERT(IsShiftInScaleRange(i));
     return Scale(i);
 }
 
@@ -144,42 +144,42 @@ struct ImmPtr
     {
         // To make code serialization-safe, asm.js compilation should only
         // compile pointer immediates using AsmJSImmPtr.
-        MOZ_ASSERT(CanUsePointerImmediates());
+        JS_ASSERT(CanUsePointerImmediates());
     }
 
     template <class R>
     explicit ImmPtr(R (*pf)())
       : value(JS_FUNC_TO_DATA_PTR(void *, pf))
     {
-        MOZ_ASSERT(CanUsePointerImmediates());
+        JS_ASSERT(CanUsePointerImmediates());
     }
 
     template <class R, class A1>
     explicit ImmPtr(R (*pf)(A1))
       : value(JS_FUNC_TO_DATA_PTR(void *, pf))
     {
-        MOZ_ASSERT(CanUsePointerImmediates());
+        JS_ASSERT(CanUsePointerImmediates());
     }
 
     template <class R, class A1, class A2>
     explicit ImmPtr(R (*pf)(A1, A2))
       : value(JS_FUNC_TO_DATA_PTR(void *, pf))
     {
-        MOZ_ASSERT(CanUsePointerImmediates());
+        JS_ASSERT(CanUsePointerImmediates());
     }
 
     template <class R, class A1, class A2, class A3>
     explicit ImmPtr(R (*pf)(A1, A2, A3))
       : value(JS_FUNC_TO_DATA_PTR(void *, pf))
     {
-        MOZ_ASSERT(CanUsePointerImmediates());
+        JS_ASSERT(CanUsePointerImmediates());
     }
 
     template <class R, class A1, class A2, class A3, class A4>
     explicit ImmPtr(R (*pf)(A1, A2, A3, A4))
       : value(JS_FUNC_TO_DATA_PTR(void *, pf))
     {
-        MOZ_ASSERT(CanUsePointerImmediates());
+        JS_ASSERT(CanUsePointerImmediates());
     }
 
 };
@@ -198,53 +198,34 @@ struct PatchedImmPtr {
     { }
 };
 
-class AssemblerShared;
-class ImmGCPtr;
-
-// Used for immediates which require relocation and may be traced during minor GC.
-class ImmMaybeNurseryPtr
-{
-    friend class AssemblerShared;
-    friend class ImmGCPtr;
-    const gc::Cell *value;
-
-    ImmMaybeNurseryPtr() : value(0) {}
-
-  public:
-    explicit ImmMaybeNurseryPtr(const gc::Cell *ptr) : value(ptr)
-    {
-        MOZ_ASSERT(!IsPoisonedPtr(ptr));
-
-        // asm.js shouldn't be creating GC things
-        MOZ_ASSERT(!IsCompilingAsmJS());
-    }
-};
-
 // Used for immediates which require relocation.
-class ImmGCPtr
+struct ImmGCPtr
 {
-  public:
     const gc::Cell *value;
 
     explicit ImmGCPtr(const gc::Cell *ptr) : value(ptr)
     {
-        MOZ_ASSERT(!IsPoisonedPtr(ptr));
-        MOZ_ASSERT_IF(ptr, ptr->isTenured());
+        JS_ASSERT(!IsPoisonedPtr(ptr));
+        JS_ASSERT_IF(ptr, ptr->isTenured());
 
         // asm.js shouldn't be creating GC things
-        MOZ_ASSERT(!IsCompilingAsmJS());
+        JS_ASSERT(!IsCompilingAsmJS());
     }
 
-  private:
+  protected:
     ImmGCPtr() : value(0) {}
+};
 
-    friend class AssemblerShared;
-    explicit ImmGCPtr(ImmMaybeNurseryPtr ptr) : value(ptr.value)
+// Used for immediates which require relocation and may be traced during minor GC.
+struct ImmMaybeNurseryPtr : public ImmGCPtr
+{
+    explicit ImmMaybeNurseryPtr(gc::Cell *ptr)
     {
-        MOZ_ASSERT(!IsPoisonedPtr(ptr.value));
+        this->value = ptr;
+        JS_ASSERT(!IsPoisonedPtr(ptr));
 
         // asm.js shouldn't be creating GC things
-        MOZ_ASSERT(!IsCompilingAsmJS());
+        JS_ASSERT(!IsCompilingAsmJS());
     }
 };
 
@@ -257,7 +238,7 @@ struct AbsoluteAddress
     explicit AbsoluteAddress(const void *addr)
       : addr(const_cast<void*>(addr))
     {
-        MOZ_ASSERT(CanUsePointerImmediates());
+        JS_ASSERT(CanUsePointerImmediates());
     }
 
     AbsoluteAddress offset(ptrdiff_t delta) {
@@ -332,27 +313,27 @@ class RepatchLabel
     RepatchLabel() : offset_(INVALID_OFFSET), bound_(0) {}
 
     void use(uint32_t newOffset) {
-        MOZ_ASSERT(offset_ == INVALID_OFFSET);
-        MOZ_ASSERT(newOffset != (uint32_t)INVALID_OFFSET);
+        JS_ASSERT(offset_ == INVALID_OFFSET);
+        JS_ASSERT(newOffset != (uint32_t)INVALID_OFFSET);
         offset_ = newOffset;
     }
     bool bound() const {
         return bound_;
     }
     void bind(int32_t dest) {
-        MOZ_ASSERT(!bound_);
-        MOZ_ASSERT(dest != INVALID_OFFSET);
+        JS_ASSERT(!bound_);
+        JS_ASSERT(dest != INVALID_OFFSET);
         offset_ = dest;
         bound_ = true;
     }
     int32_t target() {
-        MOZ_ASSERT(bound());
+        JS_ASSERT(bound());
         int32_t ret = offset_;
         offset_ = INVALID_OFFSET;
         return ret;
     }
     int32_t offset() {
-        MOZ_ASSERT(!bound());
+        JS_ASSERT(!bound());
         return offset_;
     }
     bool used() const {
@@ -371,7 +352,7 @@ struct AbsoluteLabel : public LabelBase
     AbsoluteLabel(const AbsoluteLabel &label) : LabelBase(label)
     { }
     int32_t prev() const {
-        MOZ_ASSERT(!bound());
+        JS_ASSERT(!bound());
         if (!used())
             return INVALID_OFFSET;
         return offset();
@@ -518,17 +499,17 @@ class CodeLocationJump
     void repoint(JitCode *code, MacroAssembler* masm = nullptr);
 
     uint8_t *raw() const {
-        MOZ_ASSERT(state_ == Absolute);
+        JS_ASSERT(state_ == Absolute);
         return raw_;
     }
     uint8_t *offset() const {
-        MOZ_ASSERT(state_ == Relative);
+        JS_ASSERT(state_ == Relative);
         return raw_;
     }
 
 #ifdef JS_SMALL_BRANCH
     uint8_t *jumpTableEntry() const {
-        MOZ_ASSERT(state_ == Absolute);
+        JS_ASSERT(state_ == Absolute);
         return jumpTableEntry_;
     }
 #endif
@@ -593,11 +574,11 @@ class CodeLocationLabel
 #endif
 
     uint8_t *raw() const {
-        MOZ_ASSERT(state_ == Absolute);
+        JS_ASSERT(state_ == Absolute);
         return raw_;
     }
     uint8_t *offset() const {
-        MOZ_ASSERT(state_ == Relative);
+        JS_ASSERT(state_ == Relative);
         return raw_;
     }
 };
@@ -623,7 +604,7 @@ class CallSiteDesc
     CallSiteDesc(uint32_t line, uint32_t column, Kind kind)
       : line_(line), column_(column), kind_(kind)
     {
-        MOZ_ASSERT(column <= INT32_MAX);
+        JS_ASSERT(column <= INT32_MAX);
     }
     uint32_t line() const { return line_; }
     uint32_t column() const { return column_; }
@@ -681,7 +662,6 @@ static const uint32_t AsmJSFrameBytesAfterReturnAddress = sizeof(void*);
 // A hoisting of constants that would otherwise require #including AsmJSModule.h
 // everywhere. Values are asserted in AsmJSModule.h.
 static const unsigned AsmJSActivationGlobalDataOffset = 0;
-static const unsigned AsmJSHeapGlobalDataOffset = sizeof(void*);
 static const unsigned AsmJSNaN64GlobalDataOffset = 2 * sizeof(void*);
 static const unsigned AsmJSNaN32GlobalDataOffset = 2 * sizeof(void*) + sizeof(double);
 
@@ -783,10 +763,9 @@ enum AsmJSImmKind
     AsmJSImm_PowD            = AsmJSExit::Builtin_PowD,
     AsmJSImm_ATan2D          = AsmJSExit::Builtin_ATan2D,
     AsmJSImm_Runtime,
-    AsmJSImm_RuntimeInterruptUint32,
+    AsmJSImm_RuntimeInterrupt,
     AsmJSImm_StackLimit,
     AsmJSImm_ReportOverRecursed,
-    AsmJSImm_OnDetached,
     AsmJSImm_HandleExecutionInterrupt,
     AsmJSImm_InvokeFromAsmJS_Ignore,
     AsmJSImm_InvokeFromAsmJS_ToInt32,
@@ -818,7 +797,7 @@ class AsmJSImmPtr
   public:
     AsmJSImmKind kind() const { return kind_; }
     // This needs to be MOZ_IMPLICIT in order to make MacroAssember::CallWithABINoProfiling compile.
-    MOZ_IMPLICIT AsmJSImmPtr(AsmJSImmKind kind) : kind_(kind) { MOZ_ASSERT(IsCompilingAsmJS()); }
+    MOZ_IMPLICIT AsmJSImmPtr(AsmJSImmKind kind) : kind_(kind) { JS_ASSERT(IsCompilingAsmJS()); }
     AsmJSImmPtr() {}
 };
 
@@ -829,7 +808,7 @@ class AsmJSAbsoluteAddress
     AsmJSImmKind kind_;
   public:
     AsmJSImmKind kind() const { return kind_; }
-    explicit AsmJSAbsoluteAddress(AsmJSImmKind kind) : kind_(kind) { MOZ_ASSERT(IsCompilingAsmJS()); }
+    explicit AsmJSAbsoluteAddress(AsmJSImmKind kind) : kind_(kind) { JS_ASSERT(IsCompilingAsmJS()); }
     AsmJSAbsoluteAddress() {}
 };
 
@@ -854,12 +833,10 @@ class AssemblerShared
 
   protected:
     bool enoughMemory_;
-    bool embedsNurseryPointers_;
 
   public:
     AssemblerShared()
-     : enoughMemory_(true),
-       embedsNurseryPointers_(false)
+     : enoughMemory_(true)
     {}
 
     void propagateOOM(bool success) {
@@ -868,23 +845,6 @@ class AssemblerShared
 
     bool oom() const {
         return !enoughMemory_;
-    }
-
-    bool embedsNurseryPointers() const {
-        return embedsNurseryPointers_;
-    }
-
-    ImmGCPtr noteMaybeNurseryPtr(ImmMaybeNurseryPtr ptr) {
-#ifdef JSGC_GENERATIONAL
-        if (ptr.value && gc::IsInsideNursery(ptr.value)) {
-            // FIXME: Ideally we'd assert this in all cases, but PJS needs to
-            //        compile IC's from off-main-thread; it will not touch
-            //        nursery pointers, however.
-            MOZ_ASSERT(GetIonContext()->runtime->onMainThread());
-            embedsNurseryPointers_ = true;
-        }
-#endif
-        return ImmGCPtr(ptr);
     }
 
     void append(const CallSiteDesc &desc, size_t currentOffset, size_t framePushed) {
@@ -905,8 +865,6 @@ class AssemblerShared
     void append(AsmJSAbsoluteLink link) { enoughMemory_ &= asmJSAbsoluteLinks_.append(link); }
     size_t numAsmJSAbsoluteLinks() const { return asmJSAbsoluteLinks_.length(); }
     AsmJSAbsoluteLink asmJSAbsoluteLink(size_t i) const { return asmJSAbsoluteLinks_[i]; }
-
-    static bool canUseInSingleByteInstruction(Register reg) { return true; }
 };
 
 } // namespace jit

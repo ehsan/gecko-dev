@@ -35,7 +35,6 @@ dictionary MediaPlayStatus
 [CheckPermissions="bluetooth"]
 interface BluetoothAdapter : EventTarget {
   readonly attribute BluetoothAdapterState  state;
-  [AvailableIn=CertifiedApps]
   readonly attribute DOMString              address;
   readonly attribute DOMString              name;
   readonly attribute boolean                discoverable;
@@ -94,7 +93,7 @@ interface BluetoothAdapter : EventTarget {
 
   sequence<BluetoothDevice> getPairedDevices();
 
-  [NewObject, Throws, AvailableIn=CertifiedApps]
+  [NewObject, Throws]
   DOMRequest getConnectedDevices(unsigned short serviceUuid);
 
   /**
@@ -114,26 +113,26 @@ interface BluetoothAdapter : EventTarget {
    * @param device Remote device
    * @param profile 2-octets service UUID. This is optional.
    */
-  [NewObject, Throws, AvailableIn=CertifiedApps]
+  [NewObject, Throws]
   DOMRequest connect(BluetoothDevice device, optional unsigned short serviceUuid);
 
-  [NewObject, Throws, AvailableIn=CertifiedApps]
+  [NewObject, Throws]
   DOMRequest disconnect(BluetoothDevice device, optional unsigned short serviceUuid);
 
   // One device can only send one file at a time
-  [NewObject, Throws, AvailableIn=CertifiedApps]
+  [NewObject, Throws]
   DOMRequest sendFile(DOMString deviceAddress, Blob blob);
-  [NewObject, Throws, AvailableIn=CertifiedApps]
+  [NewObject, Throws]
   DOMRequest stopSendingFile(DOMString deviceAddress);
-  [NewObject, Throws, AvailableIn=CertifiedApps]
+  [NewObject, Throws]
   DOMRequest confirmReceivingFile(DOMString deviceAddress, boolean confirmation);
 
   // Connect/Disconnect SCO (audio) connection
-  [NewObject, Throws, AvailableIn=CertifiedApps]
+  [NewObject, Throws]
   DOMRequest connectSco();
-  [NewObject, Throws, AvailableIn=CertifiedApps]
+  [NewObject, Throws]
   DOMRequest disconnectSco();
-  [NewObject, Throws, AvailableIn=CertifiedApps]
+  [NewObject, Throws]
   DOMRequest isScoConnected();
 
   /**
@@ -146,17 +145,17 @@ interface BluetoothAdapter : EventTarget {
    *
    * For more information please refer to bug 912005 and 925638.
    */
-  [NewObject, Throws, AvailableIn=CertifiedApps]
+  [NewObject, Throws]
   DOMRequest answerWaitingCall();
-  [NewObject, Throws, AvailableIn=CertifiedApps]
+  [NewObject, Throws]
   DOMRequest ignoreWaitingCall();
-  [NewObject, Throws, AvailableIn=CertifiedApps]
+  [NewObject, Throws]
   DOMRequest toggleCalls();
 
   // AVRCP 1.3 methods
-  [NewObject, Throws, AvailableIn=CertifiedApps]
+  [NewObject,Throws]
   DOMRequest sendMediaMetaData(optional MediaMetaData mediaMetaData);
-  [NewObject, Throws, AvailableIn=CertifiedApps]
+  [NewObject,Throws]
   DOMRequest sendMediaPlayStatus(optional MediaPlayStatus mediaPlayStatus);
 };
 

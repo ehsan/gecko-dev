@@ -45,13 +45,9 @@ function TCPServerSocket() {
   this.useWin = null;
 }
 
-// When this API moves to WebIDL and these __exposedProps__ go away, remove
-// this call here and remove the API from XPConnect.
-Cu.skipCOWCallableChecks();
-
 TCPServerSocket.prototype = {
   __exposedProps__: {
-    localPort: 'r',
+    port: 'r',
     onconnect: 'rw',
     onerror: 'rw'
   },
@@ -77,7 +73,7 @@ TCPServerSocket.prototype = {
         this["onconnect"].call(null, socket);
       } catch (e) {
         socket.close();
-      }
+      }      
     }
     else {
       socket.close();
@@ -128,7 +124,7 @@ TCPServerSocket.prototype = {
       var error = new Error(message, filename, lineNumber, columnNumber);
 
       this["onerror"].call(null, new TCPSocketEvent(type, this, error));
-    }
+    }    
   },
   /* end nsITCPServerSocketInternal method */
 
@@ -148,8 +144,7 @@ TCPServerSocket.prototype = {
   onSocketAccepted: function tss_onSocketAccepted(server, trans) {
     // precondition: this._inChild == false
     try {
-      let that = TCPSocketInternal.createAcceptedParent(trans, this._binaryType,
-                                                        this.useWin);
+      let that = TCPSocketInternal.createAcceptedParent(trans, this._binaryType);
       this._callListenerAcceptCommon(that);
     }
     catch(e) {

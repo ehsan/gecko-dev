@@ -24,6 +24,7 @@ NS_INTERFACE_MAP_END
 DOMError::DOMError(nsPIDOMWindow* aWindow)
   : mWindow(aWindow)
 {
+  SetIsDOMBinding();
 }
 
 DOMError::DOMError(nsPIDOMWindow* aWindow, nsresult aValue)
@@ -34,12 +35,15 @@ DOMError::DOMError(nsPIDOMWindow* aWindow, nsresult aValue)
 
   CopyUTF8toUTF16(name, mName);
   CopyUTF8toUTF16(message, mMessage);
+
+  SetIsDOMBinding();
 }
 
 DOMError::DOMError(nsPIDOMWindow* aWindow, const nsAString& aName)
   : mWindow(aWindow)
   , mName(aName)
 {
+  SetIsDOMBinding();
 }
 
 DOMError::DOMError(nsPIDOMWindow* aWindow, const nsAString& aName,
@@ -48,6 +52,7 @@ DOMError::DOMError(nsPIDOMWindow* aWindow, const nsAString& aName,
   , mName(aName)
   , mMessage(aMessage)
 {
+  SetIsDOMBinding();
 }
 
 DOMError::~DOMError()

@@ -21,19 +21,19 @@ class VertexBuffer11 : public VertexBuffer
     explicit VertexBuffer11(rx::Renderer11 *const renderer);
     virtual ~VertexBuffer11();
 
-    virtual gl::Error initialize(unsigned int size, bool dynamicUsage);
+    virtual bool initialize(unsigned int size, bool dynamicUsage);
 
     static VertexBuffer11 *makeVertexBuffer11(VertexBuffer *vetexBuffer);
 
-    virtual gl::Error storeVertexAttributes(const gl::VertexAttribute &attrib, const gl::VertexAttribCurrentValueData &currentValue,
-                                            GLint start, GLsizei count, GLsizei instances, unsigned int offset);
+    virtual bool storeVertexAttributes(const gl::VertexAttribute &attrib, const gl::VertexAttribCurrentValueData &currentValue,
+                                       GLint start, GLsizei count, GLsizei instances, unsigned int offset);
 
-    virtual gl::Error getSpaceRequired(const gl::VertexAttribute &attrib, GLsizei count, GLsizei instances,
-                                       unsigned int *outSpaceRequired) const;
+    virtual bool getSpaceRequired(const gl::VertexAttribute &attrib, GLsizei count, GLsizei instances,
+                                  unsigned int *outSpaceRequired) const;
 
     virtual unsigned int getBufferSize() const;
-    virtual gl::Error setBufferSize(unsigned int size);
-    virtual gl::Error discard();
+    virtual bool setBufferSize(unsigned int size);
+    virtual bool discard();
 
     ID3D11Buffer *getBuffer() const;
 

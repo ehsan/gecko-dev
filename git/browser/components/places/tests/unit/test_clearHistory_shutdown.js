@@ -28,7 +28,7 @@ const UNEXPECTED_NOTIFICATIONS = [
   "xpcom-shutdown"
 ];
 
-const FTP_URL = "ftp://localhost/clearHistoryOnShutdown/";
+const URL = "ftp://localhost/clearHistoryOnShutdown/";
 
 // Send the profile-after-change notification to the form history component to ensure
 // that it has been initialized.
@@ -72,7 +72,7 @@ let notificationsObserver = {
     }
 
     // Check cache.
-    checkCache(FTP_URL);
+    checkCache(URL);
   }
 }
 
@@ -111,7 +111,7 @@ add_task(function test_execute() {
                             transition: PlacesUtils.history.TRANSITION_TYPED})
   }
   print("Add cache.");
-  storeCache(FTP_URL, "testData");
+  storeCache(URL, "testData");
 });
 
 function run_test_continue()

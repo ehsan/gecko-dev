@@ -83,6 +83,7 @@ DataTransfer::DataTransfer(nsISupports* aParent, uint32_t aEventType,
     mDragImageY(0)
 {
   MOZ_ASSERT(mParent);
+  SetIsDOMBinding();
   // For these events, we want to be able to add data to the data transfer, so
   // clear the readonly state. Otherwise, the data is already present. For
   // external usage, cache the data from the native clipboard or drag.
@@ -128,6 +129,7 @@ DataTransfer::DataTransfer(nsISupports* aParent,
     mDragImageY(aDragImageY)
 {
   MOZ_ASSERT(mParent);
+  SetIsDOMBinding();
   // The items are copied from aItems into mItems. There is no need to copy
   // the actual data in the items as the data transfer will be read only. The
   // draggesture and dragstart events are the only times when items are
@@ -269,7 +271,7 @@ DataTransfer::GetMozUserCancelled(bool* aUserCancelled)
   return NS_OK;
 }
 
-FileList*
+nsDOMFileList*
 DataTransfer::GetFiles(ErrorResult& aRv)
 {
   if (mEventType != NS_DRAGDROP_DROP && mEventType != NS_DRAGDROP_DRAGDROP &&
@@ -278,7 +280,7 @@ DataTransfer::GetFiles(ErrorResult& aRv)
   }
 
   if (!mFiles) {
-    mFiles = new FileList(static_cast<nsIDOMDataTransfer*>(this));
+    mFiles = new nsDOMFileList(static_cast<nsIDOMDataTransfer*>(this));
 
     uint32_t count = mItems.Length();
 
@@ -303,7 +305,7 @@ DataTransfer::GetFiles(ErrorResult& aRv)
       if (!file)
         continue;
 
-      nsRefPtr<File> domFile = File::CreateFromFile(GetParentObject(), file);
+      nsRefPtr<DOMFile> domFile = DOMFile::CreateFromFile(file);
 
       if (!mFiles->Append(domFile)) {
         aRv.Throw(NS_ERROR_FAILURE);

@@ -19,8 +19,6 @@
 #include "libEGL/Display.h"
 #include "libEGL/Surface.h"
 
-#include "common/NativeWindow.h"
-
 bool validateDisplay(egl::Display *display)
 {
     if (display == EGL_NO_DISPLAY)
@@ -326,12 +324,14 @@ EGLSurface __stdcall eglCreateWindowSurface(EGLDisplay dpy, EGLConfig config, EG
         return EGL_NO_SURFACE;
     }
 
-    if (!isValidEGLNativeWindowType(win))
+    HWND window = (HWND)win;
+
+    if (!IsWindow(window))
     {
         return egl::error(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
     }
 
-    return display->createWindowSurface(win, config, attrib_list);
+    return display->createWindowSurface(window, config, attrib_list);
 }
 
 EGLSurface __stdcall eglCreatePbufferSurface(EGLDisplay dpy, EGLConfig config, const EGLint *attrib_list)
@@ -493,12 +493,6 @@ EGLBoolean __stdcall eglQuerySurfacePointerANGLE(EGLDisplay dpy, EGLSurface surf
         {
             rx::SwapChain *swapchain = eglSurface->getSwapChain();
             *value = (void*) (swapchain ? swapchain->getShareHandle() : NULL);
-        }
-        break;
-      case EGL_DXGI_KEYED_MUTEX_ANGLE:
-        {
-            rx::SwapChain *swapchain = eglSurface->getSwapChain();
-            *value = (void*) (swapchain ? swapchain->getKeyedMutex() : NULL);
         }
         break;
       default:

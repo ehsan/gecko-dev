@@ -12,7 +12,6 @@ this.EXPORTED_SYMBOLS = ["OnRefTestLoad"];
 const CC = Components.classes;
 const CI = Components.interfaces;
 const CR = Components.results;
-const CU = Components.utils;
 
 const XHTML_NS = "http://www.w3.org/1999/xhtml";
 const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
@@ -601,15 +600,15 @@ function BuildConditionSandbox(aURL) {
     var xr = CC[NS_XREAPPINFO_CONTRACTID].getService(CI.nsIXULRuntime);
     var appInfo = CC[NS_XREAPPINFO_CONTRACTID].getService(CI.nsIXULAppInfo);
     sandbox.isDebugBuild = gDebug.isDebugBuild;
+    sandbox.xulRuntime = {widgetToolkit: xr.widgetToolkit, OS: xr.OS, __exposedProps__: { widgetToolkit: "r", OS: "r", XPCOMABI: "r", shell: "r" } };
 
     // xr.XPCOMABI throws exception for configurations without full ABI
     // support (mobile builds on ARM)
-    var XPCOMABI = "";
     try {
-        XPCOMABI = xr.XPCOMABI;
-    } catch(e) {}
-
-    sandbox.xulRuntime = CU.cloneInto({widgetToolkit: xr.widgetToolkit, OS: xr.OS, XPCOMABI: XPCOMABI}, sandbox);
+        sandbox.xulRuntime.XPCOMABI = xr.XPCOMABI;
+    } catch(e) {
+        sandbox.xulRuntime.XPCOMABI = "";
+    }
 
     var testRect = gBrowser.getBoundingClientRect();
     sandbox.smallScreen = false;
@@ -670,11 +669,14 @@ function BuildConditionSandbox(aURL) {
 
     var hh = CC[NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX + "http"].
                  getService(CI.nsIHttpProtocolHandler);
-    var httpProps = ["userAgent", "appName", "appVersion", "vendor",
-                     "vendorSub", "product", "productSub", "platform",
-                     "oscpu", "language", "misc"];
-    sandbox.http = new sandbox.Object();
-    httpProps.forEach((x) => sandbox.http[x] = hh[x]);
+    sandbox.http = { __exposedProps__: {} };
+    for each (var prop in [ "userAgent", "appName", "appVersion",
+                            "vendor", "vendorSub",
+                            "product", "productSub",
+                            "platform", "oscpu", "language", "misc" ]) {
+        sandbox.http[prop] = hh[prop];
+        sandbox.http.__exposedProps__[prop] = "r";
+    }
 
     // Set OSX to the Mac OS X version for Mac, and 0 otherwise.
     var osxmatch = /Mac OS X (\d+.\d+)$/.exec(hh.oscpu);
@@ -684,7 +686,7 @@ function BuildConditionSandbox(aURL) {
     // and set a sandox prop accordingly
     var navigator = gContainingWindow.navigator;
     var testPlugin = navigator.plugins["Test Plug-in"];
-    sandbox.haveTestPlugin = !!testPlugin;
+    sandbox.haveTestPlugin = !!testPlugin && !gBrowserIsRemote;
 
     // Set a flag on sandbox if the windows default theme is active
     sandbox.windowsDefaultTheme = gContainingWindow.matchMedia("(-moz-windows-default-theme)").matches;
@@ -697,12 +699,21 @@ function BuildConditionSandbox(aURL) {
         sandbox.nativeThemePref = true;
     }
 
-    sandbox.prefs = CU.cloneInto({
-        getBoolPref: function(p) { return prefs.getBoolPref(p); },
-        getIntPref:  function(p) { return prefs.getIntPref(p); }
-    }, sandbox, { cloneFunctions: true });
+    sandbox.prefs = {
+        __exposedProps__: {
+            getBoolPref: 'r',
+            getIntPref: 'r',
+        },
+        _prefs:      prefs,
+        getBoolPref: function(p) { return this._prefs.getBoolPref(p); },
+        getIntPref:  function(p) { return this._prefs.getIntPref(p); }
+    }
 
     sandbox.testPluginIsOOP = function () {
+        try {
+            netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+        } catch (ex) {}
+
         var prefservice = Components.classes["@mozilla.org/preferences-service;1"]
                                     .getService(CI.nsIPrefBranch);
 
@@ -745,7 +756,7 @@ function BuildConditionSandbox(aURL) {
 
     if (!gDumpedConditionSandbox) {
         dump("REFTEST INFO | Dumping JSON representation of sandbox \n");
-        dump("REFTEST INFO | " + JSON.stringify(CU.waiveXrays(sandbox)) + " \n");
+        dump("REFTEST INFO | " + JSON.stringify(sandbox) + " \n");
         gDumpedConditionSandbox = true;
     }
     return sandbox;
@@ -1780,6 +1791,7 @@ function FinishTestItem()
     gDumpLog("REFTEST INFO | Loading a blank page\n");
     // After clearing, content will notify us of the assertion count
     // and tests will continue.
+    SetAsyncScroll(false);
     SendClear();
     gFailedNoPaint = false;
 }
@@ -1909,8 +1921,19 @@ function RegisterMessageListenersAndLoadContentScript()
         "reftest:ExpectProcessCrash",
         function (m) { RecvExpectProcessCrash(); }
     );
+    gBrowserMessageManager.addMessageListener(
+        "reftest:EnableAsyncScroll",
+        function (m) { SetAsyncScroll(true); }
+    );
 
     gBrowserMessageManager.loadFrameScript("chrome://reftest/content/reftest-content.js", true, true);
+}
+
+function SetAsyncScroll(enabled)
+{
+    gBrowser.QueryInterface(CI.nsIFrameLoaderOwner).frameLoader.renderMode =
+        enabled ? CI.nsIFrameLoader.RENDER_MODE_ASYNC_SCROLL :
+                  CI.nsIFrameLoader.RENDER_MODE_DEFAULT;
 }
 
 function RecvAssertionCount(count)

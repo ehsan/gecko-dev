@@ -17,6 +17,7 @@ nsDOMCSSRect::nsDOMCSSRect(nsROCSSPrimitiveValue* aTop,
                            nsROCSSPrimitiveValue* aLeft)
   : mTop(aTop), mRight(aRight), mBottom(aBottom), mLeft(aLeft)
 {
+  SetIsDOMBinding();
 }
 
 nsDOMCSSRect::~nsDOMCSSRect(void)

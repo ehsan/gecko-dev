@@ -6,17 +6,17 @@ include protocol PContent;
 
 namespace mozilla {
 
-sync protocol PRemoteSpellcheckEngine {
+rpc protocol PRemoteSpellcheckEngine {
   manager PContent;
 
 parent:
   __delete__();
 
-  sync Check(nsString aWord) returns (bool aIsMisspelled);
+  rpc Check(nsString aWord) returns (bool aIsMisspelled);
 
-  sync CheckAndSuggest(nsString aWord) returns (bool aIsMisspelled, nsString[] aSuggestions);
+  rpc CheckAndSuggest(nsString aWord) returns (bool aIsMisspelled, nsString[] aSuggestions);
 
-  sync SetDictionary(nsString aDictionary) returns (bool success);
+  rpc SetDictionary(nsString aDictionary) returns (bool success);
 };
 
 } // namespace mozilla

@@ -334,7 +334,7 @@ public class BrowserSearch extends HomeFragment
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
 
-        // Initialize the search adapter
+        // Intialize the search adapter
         mAdapter = new SearchAdapter(getActivity());
         mList.setAdapter(mAdapter);
 
@@ -441,7 +441,7 @@ public class BrowserSearch extends HomeFragment
 
             if (searchCount == 0) {
                 // Prefetch the first item in the list since it's weighted the highest
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Session:Prefetch", url));
+                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Session:Prefetch", url.toString()));
             }
 
             // Does the completion match against the whole URL? This will match
@@ -822,9 +822,7 @@ public class BrowserSearch extends HomeFragment
 
             if (engine == -1) {
                 return ROW_STANDARD;
-            }
-
-            if (engine == 0 && mSuggestionsEnabled) {
+            } else if (engine == 0 && mSuggestionsEnabled) {
                 // Give suggestion views their own type to prevent them from
                 // sharing other recycled search engine views. Using other
                 // recycled views for the suggestion row can break animations

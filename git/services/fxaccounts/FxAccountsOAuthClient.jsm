@@ -185,7 +185,7 @@ this.FxAccountsOAuthClient.prototype = {
               let tabbrowser = target.getTabBrowser();
 
               if (tabbrowser) {
-                let tab = tabbrowser.getTabForBrowser(target);
+                let tab = tabbrowser._getTabForBrowser(target);
 
                 if (tab) {
                   tabbrowser.removeTab(tab);

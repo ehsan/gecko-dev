@@ -14,7 +14,7 @@
 
 namespace js {
 
-class SavedFrame : public NativeObject {
+class SavedFrame : public JSObject {
     friend class SavedStacks;
 
   public:
@@ -233,9 +233,6 @@ class SavedStacks {
 
         void trace(JSTracer *trc);
 
-        // Note: we don't have to hold/drop principals, because we're
-        // only alive while the stack is being walked and during this
-        // time the principals are kept alive by the stack itself.
         JSPrincipals  *principals;
         JSAtom        *name;
         LocationValue location;
@@ -248,7 +245,7 @@ class SavedStacks {
             frames(cx)
         { }
 
-        typedef Vector<FrameState, 20> FrameStateVector;
+        typedef Vector<FrameState> FrameStateVector;
         inline FrameStateVector *operator->() { return &frames; }
         inline FrameState &operator[](size_t i) { return frames[i]; }
 

@@ -34,6 +34,7 @@ class nsXULElement;
 namespace mozilla {
 namespace gl {
 class SourceSurface;
+class SurfaceStream;
 }
 
 namespace dom {
@@ -114,7 +115,6 @@ private:
 
 struct CanvasBidiProcessor;
 class CanvasRenderingContext2DUserData;
-class CanvasDrawObserver;
 
 /**
  ** CanvasRenderingContext2D
@@ -699,9 +699,7 @@ protected:
   /**
    * Check if the target is valid after calling EnsureTarget.
    */
-  bool IsTargetValid() const {
-    return mTarget != sErrorTarget && mTarget != nullptr;
-  }
+  bool IsTargetValid() { return mTarget != sErrorTarget && mTarget != nullptr; }
 
   /**
     * Returns the surface format this canvas should be allocated using. Takes
@@ -715,9 +713,6 @@ protected:
    */
   void UpdateFilter();
 
-  nsLayoutUtils::SurfaceFromElementResult
-    CachedSurfaceFromElement(Element* aElement);
-
   void DrawImage(const HTMLImageOrCanvasOrVideoElement &imgElt,
                  double sx, double sy, double sw, double sh,
                  double dx, double dy, double dw, double dh,
@@ -727,7 +722,7 @@ protected:
                             mozilla::gfx::Rect* bounds,
                             mozilla::gfx::Rect dest,
                             mozilla::gfx::Rect src,
-                            gfx::IntSize imgSize);
+                            gfxIntSize imgSize);
 
   nsString& GetFont()
   {
@@ -744,10 +739,6 @@ protected:
   static void RemoveDemotableContext(CanvasRenderingContext2D* context);
 
   RenderingMode mRenderingMode;
-
-  // Texture informations for fast video rendering
-  unsigned int mVideoTexture;
-  nsIntSize mCurrentVideoSize;
 
   // Member vars
   int32_t mWidth, mHeight;
@@ -774,13 +765,7 @@ protected:
   // sErrorTarget.
   mozilla::RefPtr<mozilla::gfx::DrawTarget> mTarget;
 
-  uint32_t SkiaGLTex() const;
-
-  // This observes our draw calls at the beginning of the canvas
-  // lifetime and switches to software or GPU mode depending on
-  // what it thinks is best
-  CanvasDrawObserver* mDrawObserver;
-  void RemoveDrawObserver();
+  RefPtr<gl::SurfaceStream> mStream;
 
   /**
     * Flag to avoid duplicate calls to InvalidateFrame. Set to true whenever
@@ -1096,7 +1081,6 @@ protected:
   }
 
   friend struct CanvasBidiProcessor;
-  friend class CanvasDrawObserver;
 };
 
 MOZ_FINISH_NESTED_ENUM_CLASS(CanvasRenderingContext2D::CanvasMultiGetterType)

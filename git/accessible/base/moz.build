@@ -60,10 +60,8 @@ if CONFIG['A11Y_LOG']:
 LOCAL_INCLUDES += [
     '/accessible/generic',
     '/accessible/html',
-    '/accessible/ipc',
     '/accessible/xpcom',
     '/accessible/xul',
-    '/dom/base',
     '/dom/xbl',
     '/ipc/chromium/src',
     '/layout/generic',
@@ -95,5 +93,3 @@ FINAL_LIBRARY = 'xul'
 
 if CONFIG['MOZ_ENABLE_GTK']:
     CXXFLAGS += CONFIG['MOZ_CAIRO_CFLAGS']
-
-include('/ipc/chromium/chromium-config.mozbuild')

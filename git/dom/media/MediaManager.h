@@ -2,9 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef MOZILLA_MEDIAMANAGER_H
-#define MOZILLA_MEDIAMANAGER_H
-
 #include "MediaEngine.h"
 #include "mozilla/Services.h"
 #include "mozilla/unused.h"
@@ -26,7 +23,6 @@
 #include "mozilla/StaticPtr.h"
 #include "mozilla/dom/MediaStreamBinding.h"
 #include "mozilla/dom/MediaStreamTrackBinding.h"
-#include "mozilla/dom/MediaStreamError.h"
 #include "prlog.h"
 #include "DOMMediaStream.h"
 
@@ -47,7 +43,6 @@ namespace dom {
 struct MediaStreamConstraints;
 class NavigatorUserMediaSuccessCallback;
 class NavigatorUserMediaErrorCallback;
-struct MediaTrackConstraintSet;
 }
 
 #ifdef PR_LOGGING
@@ -269,7 +264,7 @@ class GetUserMediaNotificationEvent: public nsRunnable
                                   already_AddRefed<nsIDOMGetUserMediaErrorCallback> aError)
     : mStream(aStream), mOnTracksAvailableCallback(aOnTracksAvailableCallback),
       mStatus(aStatus), mIsAudio(aIsAudio), mIsVideo(aIsVideo), mWindowID(aWindowID),
-      mOnFailure(aError) {}
+      mError(aError) {}
     virtual ~GetUserMediaNotificationEvent()
     {
 
@@ -285,7 +280,7 @@ class GetUserMediaNotificationEvent: public nsRunnable
     bool mIsAudio;
     bool mIsVideo;
     uint64_t mWindowID;
-    nsRefPtr<nsIDOMGetUserMediaErrorCallback> mOnFailure;
+    nsRefPtr<nsIDOMGetUserMediaErrorCallback> mError;
 };
 
 typedef enum {
@@ -299,24 +294,24 @@ class MediaManager;
 class GetUserMediaTask;
 
 /**
- * Send an error back to content.
- * Do this only on the main thread. The onSuccess callback is also passed here
+ * Send an error back to content. The error is the form a string.
+ * Do this only on the main thread. The success callback is also passed here
  * so it can be released correctly.
  */
 class ErrorCallbackRunnable : public nsRunnable
 {
 public:
   ErrorCallbackRunnable(
-    nsCOMPtr<nsIDOMGetUserMediaSuccessCallback>& aOnSuccess,
-    nsCOMPtr<nsIDOMGetUserMediaErrorCallback>& aOnFailure,
-    MediaMgrError& aError, uint64_t aWindowID);
+    nsCOMPtr<nsIDOMGetUserMediaSuccessCallback>& aSuccess,
+    nsCOMPtr<nsIDOMGetUserMediaErrorCallback>& aError,
+    const nsAString& aErrorMsg, uint64_t aWindowID);
   NS_IMETHOD Run();
 private:
   ~ErrorCallbackRunnable();
 
-  nsCOMPtr<nsIDOMGetUserMediaSuccessCallback> mOnSuccess;
-  nsCOMPtr<nsIDOMGetUserMediaErrorCallback> mOnFailure;
-  nsRefPtr<MediaMgrError> mError;
+  nsCOMPtr<nsIDOMGetUserMediaSuccessCallback> mSuccess;
+  nsCOMPtr<nsIDOMGetUserMediaErrorCallback> mError;
+  const nsString mErrorMsg;
   uint64_t mWindowID;
   nsRefPtr<MediaManager> mManager; // get ref to this when creating the runnable
 };
@@ -358,7 +353,7 @@ public:
     , mListener(aListener)
     , mBool(aBool)
     , mWindowID(aWindowID)
-    , mOnFailure(aError)
+    , mError(aError)
   {}
 
   ~MediaOperationTask()
@@ -374,12 +369,10 @@ public:
           mOnTracksAvailableCallback.forget()));
     nsString log;
 
-    log.AssignASCII(errorLog);
-    nsCOMPtr<nsIDOMGetUserMediaSuccessCallback> onSuccess;
-    nsRefPtr<MediaMgrError> error = new MediaMgrError(
-        NS_LITERAL_STRING("InternalError"), log);
-    NS_DispatchToMainThread(new ErrorCallbackRunnable(onSuccess, mOnFailure,
-        *error, mWindowID));
+    log.AssignASCII(errorLog, strlen(errorLog));
+    nsCOMPtr<nsIDOMGetUserMediaSuccessCallback> success;
+    NS_DispatchToMainThread(new ErrorCallbackRunnable(success, mError,
+      log, mWindowID));
   }
 
   void
@@ -431,7 +424,7 @@ public:
                                               mOnTracksAvailableCallback.forget(),
                                               mAudioSource != nullptr,
                                               mVideoSource != nullptr,
-                                              mWindowID, mOnFailure.forget());
+                                              mWindowID, mError.forget());
           // event must always be released on mainthread due to the JS callbacks
           // in the TracksAvailableCallback
           NS_DispatchToMainThread(event);
@@ -493,7 +486,7 @@ private:
   nsRefPtr<GetUserMediaCallbackMediaStreamListener> mListener; // threadsafe
   bool mBool;
   uint64_t mWindowID;
-  nsCOMPtr<nsIDOMGetUserMediaErrorCallback> mOnFailure;
+  nsCOMPtr<nsIDOMGetUserMediaErrorCallback> mError;
 };
 
 typedef nsTArray<nsRefPtr<GetUserMediaCallbackMediaStreamListener> > StreamListeners;
@@ -504,6 +497,9 @@ class MediaDevice : public nsIMediaDevice
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIMEDIADEVICE
+
+  static MediaDevice* Create(MediaEngineVideoSource* source);
+  static MediaDevice* Create(MediaEngineAudioSource* source);
 
 protected:
   virtual ~MediaDevice() {}
@@ -519,25 +515,17 @@ protected:
 class VideoDevice : public MediaDevice
 {
 public:
-  typedef MediaEngineVideoSource Source;
-
-  explicit VideoDevice(Source* aSource);
+  explicit VideoDevice(MediaEngineVideoSource* aSource);
   NS_IMETHOD GetType(nsAString& aType);
-  Source* GetSource();
-  bool SatisfiesConstraintSets(
-    const nsTArray<const dom::MediaTrackConstraintSet*>& aConstraintSets);
+  MediaEngineVideoSource* GetSource();
 };
 
 class AudioDevice : public MediaDevice
 {
 public:
-  typedef MediaEngineAudioSource Source;
-
-  explicit AudioDevice(Source* aSource);
+  explicit AudioDevice(MediaEngineAudioSource* aSource);
   NS_IMETHOD GetType(nsAString& aType);
-  Source* GetSource();
-  bool SatisfiesConstraintSets(
-    const nsTArray<const dom::MediaTrackConstraintSet*>& aConstraintSets);
+  MediaEngineAudioSource* GetSource();
 };
 
 // we could add MediaManager if needed
@@ -586,9 +574,9 @@ public:
   void RemoveFromWindowList(uint64_t aWindowID,
     GetUserMediaCallbackMediaStreamListener *aListener);
 
-  nsresult GetUserMedia(
+  nsresult GetUserMedia(bool aPrivileged,
     nsPIDOMWindow* aWindow,
-    const dom::MediaStreamConstraints& aConstraints,
+    const dom::MediaStreamConstraints& aRawConstraints,
     nsIDOMGetUserMediaSuccessCallback* onSuccess,
     nsIDOMGetUserMediaErrorCallback* onError);
 
@@ -644,5 +632,3 @@ private:
 };
 
 } // namespace mozilla
-
-#endif // MOZILLA_MEDIAMANAGER_H

@@ -101,7 +101,6 @@ class SourceSurfaceCGContext : public DataSourceSurface
 public:
   MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DataSourceSurfaceCGContext)
   virtual void DrawTargetWillChange() = 0;
-  virtual void DrawTargetWillGoAway() = 0;
   virtual CGImageRef GetImage() = 0;
 };
 
@@ -140,7 +139,6 @@ private:
   //XXX: do the other backends friend their DrawTarget?
   friend class DrawTargetCG;
   virtual void DrawTargetWillChange();
-  virtual void DrawTargetWillGoAway();
   void EnsureImage() const;
 
   // We hold a weak reference to these two objects.
@@ -183,7 +181,6 @@ private:
   //XXX: do the other backends friend their DrawTarget?
   friend class DrawTargetCG;
   virtual void DrawTargetWillChange();
-  virtual void DrawTargetWillGoAway() { DrawTargetWillChange(); }
   void EnsureImage() const;
 
   SurfaceFormat mFormat;

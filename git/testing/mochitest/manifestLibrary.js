@@ -25,11 +25,9 @@ function parseTestManifest(testManifest, params, callback) {
       continue;
     }
     if (params.testRoot != 'tests' && params.testRoot !== undefined) {
-      name = params.baseurl + '/' + params.testRoot + '/' + path;
-      links[name] = {'test': {'url': name, 'expected': obj['expected']}};
+      links[params.baseurl + '/' + params.testRoot + '/' + path] = true
     } else {
-      name = params.testPrefix + path;
-      paths.push({'test': {'url': name, 'expected': obj['expected']}});
+      paths.push(params.testPrefix + path);
     }
   }
   if (paths.length > 0) {
@@ -102,11 +100,7 @@ function filterTests(filter, testList, runOnly) {
   // filteredTests.
   if (Object.keys(runtests).length) {
     for (var i = 0; i < testList.length; i++) {
-      if ((testList[i] instanceof Object) && ('test' in testList[i])) {
-        var testpath = testList[i]['test']['url'];
-      } else {
-        var testpath = testList[i];
-      }
+      var testpath = testList[i];
       var tmppath = testpath.replace(/^\//, '');
       for (var f in runtests) {
         // Remove leading /tests/ if exists
@@ -133,11 +127,7 @@ function filterTests(filter, testList, runOnly) {
   var refilteredTests = [];
   for (var i = 0; i < filteredTests.length; i++) {
     var found = false;
-    if ((filteredTests[i] instanceof Object) && ('test' in filteredTests[i])) {
-      var testpath = filteredTests[i]['test']['url'];
-    } else {
-      var testpath = filteredTests[i];
-    }
+    var testpath = filteredTests[i];
     var tmppath = testpath.replace(/^\//, '');
     for (var f in excludetests) {
       // Remove leading /tests/ if exists

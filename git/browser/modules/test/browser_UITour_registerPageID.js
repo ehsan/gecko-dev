@@ -66,10 +66,8 @@ let tests = [
 
     done();
   },
-  taskify(function* test_seenPageIDs_set_1() {
+  function test_seenPageIDs_set_1(done) {
     gContentAPI.registerPageID("testpage1");
-
-    yield waitForConditionPromise(() => UITour.seenPageIDs.size == 3, "Waiting for page to be registered.");
 
     checkExpectedSeenPageIDs(["savedID1", "savedID2", "testpage1"]);
 
@@ -87,11 +85,10 @@ let tests = [
     gBrowser.removeTab(gBrowser.selectedTab);
     gBrowser.selectedTab = gTestTab;
     BrowserUITelemetry.setBucket(null);
-  }),
-  taskify(function* test_seenPageIDs_set_2() {
+    done();
+  },
+  function test_seenPageIDs_set_2(done) {
     gContentAPI.registerPageID("testpage2");
-
-    yield waitForConditionPromise(() => UITour.seenPageIDs.size == 4, "Waiting for page to be registered.");
 
     checkExpectedSeenPageIDs(["savedID1", "savedID2", "testpage1", "testpage2"]);
 
@@ -108,5 +105,6 @@ let tests = [
        "After closing tab, bucket should be expiring");
 
     BrowserUITelemetry.setBucket(null);
-  }),
+    done();
+  },
 ];

@@ -95,15 +95,6 @@ this.BingTranslator.prototype = {
   },
 
   /**
-   * Resets the expiration time of the current token, in order to
-   * force the token manager to ask for a new token during the next request.
-   */
-  _resetToken : function() {
-    // Force the token manager to get update token
-    BingTokenManager._currentExpiryTime = 0;
-  },
-
-  /**
    * Function called when a request sent to the server completed successfully.
    * This function handles calling the function to parse the result and the
    * function to resolve the promise returned by the public `translate()`
@@ -124,19 +115,17 @@ this.BingTranslator.prototype = {
   /**
    * Function called when a request sent to the server has failed.
    * This function handles deciding if the error is transient or means the
-   * service is unavailable (zero balance on the key or request credentials are
-   * not in an active state) and calling the function to resolve the promise
-   * returned by the public `translate()` method when there's no pending.
-   * request left.
+   * service is unavailable (zero balance on the key) and calling the
+   * function to resolve the promise returned by the public `translate()`
+   * method when there's no pending request left.
    *
    * @param   aError   [optional] The RESTRequest that failed.
    */
   _chunkFailed: function(aError) {
     if (aError instanceof RESTRequest &&
-        [400, 401].indexOf(aError.response.status) != -1) {
+        aError.response.status == 400) {
       let body = aError.response.body;
-      if (body.contains("TranslateApiException") &&
-          (body.contains("balance") || body.contains("active state")))
+      if (body.contains("TranslateApiException") && body.contains("balance"))
         this._serviceUnavailable = true;
     }
 

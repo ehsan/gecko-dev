@@ -46,7 +46,6 @@ class APZPaintLogHelper;
 class OverscrollHandoffChain;
 struct OverscrollHandoffState;
 class LayerMetricsWrapper;
-class InputQueue;
 
 /**
  * ****************** NOTE ON LOCK ORDERING IN APZ **************************
@@ -85,8 +84,6 @@ class InputQueue;
  *
  * Note that the ClearTree function MUST be called when this class is no longer needed;
  * see the method documentation for details.
- *
- * Behaviour of APZ is controlled by a number of preferences shown \ref APZCPrefs "here".
  */
 class APZCTreeManager {
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(APZCTreeManager)
@@ -162,12 +159,9 @@ public:
    * @param aEvent input event object; is modified in-place
    * @param aOutTargetGuid returns the guid of the apzc this event was
    * delivered to. May be null.
-   * @param aOutInputBlockId returns the id of the input block that this event
-   * was added to, if that was the case. May be null.
    */
   nsEventStatus ReceiveInputEvent(InputData& aEvent,
-                                  ScrollableLayerGuid* aOutTargetGuid,
-                                  uint64_t* aOutInputBlockId);
+                                  ScrollableLayerGuid* aOutTargetGuid);
 
   /**
    * WidgetInputEvent handler. Transforms |aEvent| (which is assumed to be an
@@ -181,11 +175,13 @@ public:
    * NOTE: On unix, mouse events are treated as touch and are forwarded
    * to the appropriate apz as such.
    *
-   * See documentation for other ReceiveInputEvent above.
+   * @param aEvent input event object; is modified in-place
+   * @param aOutTargetGuid returns the guid of the apzc this event was
+   * delivered to. May be null.
+   * @return See documentation for other ReceiveInputEvent above.
    */
   nsEventStatus ReceiveInputEvent(WidgetInputEvent& aEvent,
-                                  ScrollableLayerGuid* aOutTargetGuid,
-                                  uint64_t* aOutInputBlockId);
+                                  ScrollableLayerGuid* aOutTargetGuid);
 
   /**
    * A helper for transforming coordinates to gecko coordinate space.
@@ -210,20 +206,8 @@ public:
    * that have come in. If |aPreventDefault| is true, any touch events in the
    * queue will be discarded.
    */
-  void ContentReceivedTouch(uint64_t aInputBlockId,
+  void ContentReceivedTouch(const ScrollableLayerGuid& aGuid,
                             bool aPreventDefault);
-
-  /**
-   * When the event regions code is enabled, this function should be invoked to
-   * to confirm the target of the input block. This is only needed in cases
-   * where the initial input event of the block hit a dispatch-to-content region
-   * but is safe to call for all input blocks. This function should always be
-   * invoked on the controller thread.
-   * In the case where the input block has no target, or the target is not a
-   * scrollable frame, |aGuid.mScrollId| should be set to FrameMetrics::
-   * NULL_SCROLL_ID.
-   */
-  void SetTargetAPZC(uint64_t aInputBlockId, const ScrollableLayerGuid& aGuid);
 
   /**
    * Updates any zoom constraints contained in the <meta name="viewport"> tag.
@@ -253,16 +237,6 @@ public:
   bool HitTestAPZC(const ScreenIntPoint& aPoint);
 
   /**
-   * See AsyncPanZoomController::CalculatePendingDisplayPort. This
-   * function simply delegates to that one, so that non-layers code
-   * never needs to include AsyncPanZoomController.h
-   */
-  static const ScreenMargin CalculatePendingDisplayPort(
-    const FrameMetrics& aFrameMetrics,
-    const ParentLayerPoint& aVelocity,
-    double aEstimatedPaintDuration);
-
-  /**
    * Set the dpi value used by all AsyncPanZoomControllers.
    * DPI defaults to 72 if not set using SetDPI() at any point.
    */
@@ -282,14 +256,12 @@ public:
                                nsTArray<TouchBehaviorFlags>& aOutValues);
 
   /**
-   * Sets allowed touch behavior values for current touch-session for specific
-   * input block (determined by aInputBlock).
-   * Should be invoked by the widget. Each value of the aValues arrays
-   * corresponds to the different touch point that is currently active.
-   * Must be called after receiving the TOUCH_START event that starts the
-   * touch-session.
+   * Sets allowed touch behavior values for current touch-session for specific apzc (determined by guid).
+   * Should be invoked by the widget. Each value of the aValues arrays corresponds to the different
+   * touch point that is currently active.
+   * Must be called after receiving the TOUCH_START event that starts the touch-session.
    */
-  void SetAllowedTouchBehavior(uint64_t aInputBlockId,
+  void SetAllowedTouchBehavior(const ScrollableLayerGuid& aGuid,
                                const nsTArray<TouchBehaviorFlags>& aValues);
 
   /**
@@ -339,8 +311,8 @@ public:
    *       a fling, use DispatchFling().
    */
   bool DispatchScroll(AsyncPanZoomController* aApzc,
-                      ParentLayerPoint aStartPoint,
-                      ParentLayerPoint aEndPoint,
+                      ScreenPoint aStartPoint,
+                      ScreenPoint aEndPoint,
                       OverscrollHandoffState& aOverscrollHandoffState);
 
   /**
@@ -365,15 +337,16 @@ public:
    * the excess fling itself by going into an overscroll fling.
    */
   bool DispatchFling(AsyncPanZoomController* aApzc,
-                     ParentLayerPoint aVelocity,
+                     ScreenPoint aVelocity,
                      nsRefPtr<const OverscrollHandoffChain> aOverscrollHandoffChain,
                      bool aHandoff);
+
+  void SnapBackOverscrolledApzc(AsyncPanZoomController* aStart);
 
   /*
    * Build the chain of APZCs that will handle overscroll for a pan starting at |aInitialTarget|.
    */
   nsRefPtr<const OverscrollHandoffChain> BuildOverscrollHandoffChain(const nsRefPtr<AsyncPanZoomController>& aInitialTarget);
-
 protected:
   // Protected destructor, to discourage deletion outside of Release():
   virtual ~APZCTreeManager();
@@ -385,16 +358,9 @@ public:
      about it going away. These are public for testing code and generally should not be
      used by other production code.
   */
-  enum HitTestResult {
-    NoApzcHit,
-    ApzcHitRegion,
-    ApzcContentRegion,
-    OverscrolledApzc,
-  };
-
   already_AddRefed<AsyncPanZoomController> GetTargetAPZC(const ScrollableLayerGuid& aGuid);
   already_AddRefed<AsyncPanZoomController> GetTargetAPZC(const ScreenPoint& aPoint,
-                                                         HitTestResult* aOutHitResult);
+                                                         bool* aOutInOverscrolledApzc);
   gfx::Matrix4x4 GetScreenToApzcTransform(const AsyncPanZoomController *aApzc) const;
   gfx::Matrix4x4 GetApzcToGeckoTransform(const AsyncPanZoomController *aApzc) const;
 private:
@@ -403,17 +369,15 @@ private:
   AsyncPanZoomController* FindTargetAPZC(AsyncPanZoomController* aApzc, const ScrollableLayerGuid& aGuid);
   AsyncPanZoomController* GetAPZCAtPoint(AsyncPanZoomController* aApzc,
                                          const gfx::Point& aHitTestPoint,
-                                         HitTestResult* aOutHitResult);
+                                         bool* aOutInOverscrolledApzc);
   already_AddRefed<AsyncPanZoomController> CommonAncestor(AsyncPanZoomController* aApzc1, AsyncPanZoomController* aApzc2);
   already_AddRefed<AsyncPanZoomController> RootAPZCForLayersId(AsyncPanZoomController* aApzc);
   already_AddRefed<AsyncPanZoomController> GetTouchInputBlockAPZC(const MultiTouchInput& aEvent,
-                                                                  HitTestResult* aOutHitResult);
+                                                                  bool* aOutInOverscrolledApzc);
   nsEventStatus ProcessTouchInput(MultiTouchInput& aInput,
-                                  ScrollableLayerGuid* aOutTargetGuid,
-                                  uint64_t* aOutInputBlockId);
+                                  ScrollableLayerGuid* aOutTargetGuid);
   nsEventStatus ProcessEvent(WidgetInputEvent& inputEvent,
-                             ScrollableLayerGuid* aOutTargetGuid,
-                             uint64_t* aOutInputBlockId);
+                             ScrollableLayerGuid* aOutTargetGuid);
   void UpdateZoomConstraintsRecursively(AsyncPanZoomController* aApzc,
                                         const ZoomConstraints& aConstraints);
   void FlushRepaintsRecursively(AsyncPanZoomController* aApzc);
@@ -446,13 +410,6 @@ private:
 
   void PrintAPZCInfo(const LayerMetricsWrapper& aLayer,
                      const AsyncPanZoomController* apzc);
-
-protected:
-  /* The input queue where input events are held until we know enough to
-   * figure out where they're going. Protected so gtests can access it.
-   */
-  nsRefPtr<InputQueue> mInputQueue;
-
 private:
   /* Whenever walking or mutating the tree rooted at mRootApzc, mTreeLock must be held.
    * This lock does not need to be held while manipulating a single APZC instance in
@@ -469,10 +426,10 @@ private:
    * input delivery thread, and so does not require locking.
    */
   nsRefPtr<AsyncPanZoomController> mApzcForInputBlock;
-  /* The hit result for the current input event block; this should always be in
-   * sync with mApzcForInputBlock.
+  /* Whether the current input event block is being ignored because the touch-start
+   * was inside an overscrolled APZC.
    */
-  HitTestResult mHitResultForInputBlock;
+  bool mInOverscrolledApzc;
   /* Sometimes we want to ignore all touches except one. In such cases, this
    * is set to the identifier of the touch we are not ignoring; in other cases,
    * this is set to -1.

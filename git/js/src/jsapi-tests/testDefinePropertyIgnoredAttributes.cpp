@@ -47,8 +47,8 @@ BEGIN_TEST(testDefinePropertyIgnoredAttributes)
 
     // Try a getter. Allow it to fill in the defaults.
     CHECK(JS_DefineProperty(cx, obj, "foo", defineValue,
-                            IgnoreAll | JSPROP_SHARED,
-                            Getter));
+                            IgnoreAll | JSPROP_NATIVE_ACCESSORS | JSPROP_SHARED,
+                            (JSPropertyOp)Getter));
 
     CHECK(JS_GetPropertyDescriptor(cx, obj, "foo", &desc));
 
@@ -58,8 +58,8 @@ BEGIN_TEST(testDefinePropertyIgnoredAttributes)
 
     // Install another configurable property, so we can futz with it.
     CHECK(JS_DefineProperty(cx, obj, "bar", defineValue,
-                            AllowConfigure | JSPROP_SHARED,
-                            Getter));
+                            AllowConfigure | JSPROP_NATIVE_ACCESSORS | JSPROP_SHARED,
+                            (JSPropertyOp)Getter));
     CHECK(JS_GetPropertyDescriptor(cx, obj, "bar", &desc));
     CHECK(CheckDescriptor(desc, false, true, true));
 
@@ -68,8 +68,9 @@ BEGIN_TEST(testDefinePropertyIgnoredAttributes)
     CHECK(JS_DefineProperty(cx, obj, "bar", defineValue,
                             AllowEnumerate |
                             JSPROP_ENUMERATE |
+                            JSPROP_NATIVE_ACCESSORS |
                             JSPROP_SHARED,
-                            Getter));
+                            (JSPropertyOp)Getter));
     CHECK(JS_GetPropertyDescriptor(cx, obj, "bar", &desc));
     CHECK(CheckDescriptor(desc, true, true, true));
 
@@ -89,7 +90,7 @@ BEGIN_TEST(testDefinePropertyIgnoredAttributes)
     CHECK(JS_DefineProperty(cx, obj, "quox", defineValue, AllowWritable));
     CHECK(JS_GetPropertyDescriptor(cx, obj, "quox", &desc));
     CHECK(CheckDescriptor(desc, false, true, true));
-    CHECK_SAME(JS::ObjectValue(*obj), desc.value());
+    CHECK_SAME(ObjectValue(*obj), desc.value());
 
     return true;
 }

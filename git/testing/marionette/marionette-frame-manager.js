@@ -13,12 +13,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Log.jsm");
 let logger = Log.repository.getLogger("Marionette");
 
-let loader = Cc["@mozilla.org/moz/jssubscript-loader;1"]
-               .getService(Ci.mozIJSSubScriptLoader);
-let specialpowers = {};
-loader.loadSubScript("chrome://specialpowers/content/SpecialPowersObserver.js",
-                     specialpowers);
-
 //list of OOP frames that has the frame script loaded
 let remoteFrames = [];
 
@@ -127,30 +121,20 @@ FrameManager.prototype = {
       if (frameMessageManager == mm) {
         this.currentRemoteFrame = frame;
         this.addMessageManagerListeners(mm);
-        if (!frame.specialPowersObserver) {
-          frame.specialPowersObserver = new specialpowers.SpecialPowersObserver();
-          frame.specialPowersObserver.init(mm);
-        }
-
         mm.sendAsyncMessage("Marionette:restart", {});
-        return oopFrame.id;
+        return;
       }
     }
 
     // If we get here, then we need to load the frame script in this frame,
     // and set the frame's ChromeMessageSender as the active message manager the server will listen to
     this.addMessageManagerListeners(mm);
+    logger.info("frame-manager load script: " + mm.toString());
+    mm.loadFrameScript(FRAME_SCRIPT, true, true);
     let aFrame = new MarionetteRemoteFrame(message.json.win, message.json.frame);
     aFrame.messageManager = Cu.getWeakReference(mm);
     remoteFrames.push(aFrame);
     this.currentRemoteFrame = aFrame;
-
-    logger.info("frame-manager load script: " + mm.toString());
-    mm.loadFrameScript(FRAME_SCRIPT, true, true);
-
-    aFrame.specialPowersObserver = new specialpowers.SpecialPowersObserver();
-    aFrame.specialPowersObserver.init(mm);
-    return oopFrame.id;
   },
 
   /*
@@ -164,20 +148,6 @@ FrameManager.prototype = {
       this.addMessageManagerListeners(this.currentRemoteFrame.messageManager.get());
     }
     this.handledModal = false;
-  },
-
-  /**
-   * This function removes any SpecialPowersObservers from OOP frames.
-   */
-  removeSpecialPowers: function FM_removeSpecialPowers() {
-    for (let i = 0; i < remoteFrames.length; i++) {
-      let frame = remoteFrames[i];
-
-      if (frame.specialPowersObserver) {
-        frame.specialPowersObserver.uninit();
-        frame.specialPowersObserver = null;
-      }
-    }
   },
 
   /**
@@ -202,9 +172,6 @@ FrameManager.prototype = {
     messageManager.addWeakMessageListener("Marionette:switchToModalOrigin", this.server);
     messageManager.addWeakMessageListener("Marionette:switchToFrame", this.server);
     messageManager.addWeakMessageListener("Marionette:switchedToFrame", this.server);
-    messageManager.addWeakMessageListener("Marionette:addCookie", this.server);
-    messageManager.addWeakMessageListener("Marionette:getVisibleCookies", this.server);
-    messageManager.addWeakMessageListener("Marionette:deleteCookie", this.server);
     messageManager.addWeakMessageListener("MarionetteFrame:handleModal", this);
     messageManager.addWeakMessageListener("MarionetteFrame:getCurrentFrameId", this);
     messageManager.addWeakMessageListener("MarionetteFrame:getInterruptedState", this);
@@ -233,9 +200,6 @@ FrameManager.prototype = {
     messageManager.removeWeakMessageListener("Marionette:runEmulatorShell", this.server);
     messageManager.removeWeakMessageListener("Marionette:switchToFrame", this.server);
     messageManager.removeWeakMessageListener("Marionette:switchedToFrame", this.server);
-    messageManager.removeWeakMessageListener("Marionette:addCookie", this.server);
-    messageManager.removeWeakMessageListener("Marionette:getVisibleCookies", this.server);
-    messageManager.removeWeakMessageListener("Marionette:deleteCookie", this.server);
     messageManager.removeWeakMessageListener("MarionetteFrame:handleModal", this);
     messageManager.removeWeakMessageListener("MarionetteFrame:getCurrentFrameId", this);
   },

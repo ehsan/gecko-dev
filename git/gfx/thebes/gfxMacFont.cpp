@@ -25,7 +25,6 @@ gfxMacFont::gfxMacFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aFontStyl
                        bool aNeedsBold)
     : gfxFont(aFontEntry, aFontStyle),
       mCGFont(nullptr),
-      mCTFont(nullptr),
       mFontFace(nullptr)
 {
     mApplySyntheticBold = aNeedsBold;
@@ -111,9 +110,6 @@ gfxMacFont::gfxMacFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aFontStyl
 
 gfxMacFont::~gfxMacFont()
 {
-    if (mCTFont) {
-        ::CFRelease(mCTFont);
-    }
     if (mScaledFont) {
         cairo_scaled_font_destroy(mScaledFont);
     }
@@ -128,7 +124,6 @@ gfxMacFont::ShapeText(gfxContext     *aContext,
                       uint32_t        aOffset,
                       uint32_t        aLength,
                       int32_t         aScript,
-                      bool            aVertical,
                       gfxShapedText  *aShapedText)
 {
     if (!mIsValid) {
@@ -136,22 +131,19 @@ gfxMacFont::ShapeText(gfxContext     *aContext,
         return false;
     }
 
-    // Currently, we don't support vertical shaping via CoreText,
-    // so we ignore RequiresAATLayout if vertical is requested.
-    if (static_cast<MacOSFontEntry*>(GetFontEntry())->RequiresAATLayout() &&
-        !aVertical) {
+    if (static_cast<MacOSFontEntry*>(GetFontEntry())->RequiresAATLayout()) {
         if (!mCoreTextShaper) {
             mCoreTextShaper = new gfxCoreTextShaper(this);
         }
         if (mCoreTextShaper->ShapeText(aContext, aText, aOffset, aLength,
-                                       aScript, aVertical, aShapedText)) {
+                                       aScript, aShapedText)) {
             PostShapingFixup(aContext, aText, aOffset, aLength, aShapedText);
             return true;
         }
     }
 
     return gfxFont::ShapeText(aContext, aText, aOffset, aLength, aScript,
-                              aVertical, aShapedText);
+                              aShapedText);
 }
 
 bool
@@ -171,13 +163,11 @@ gfxMacFont::Measure(gfxTextRun *aTextRun,
                     uint32_t aStart, uint32_t aEnd,
                     BoundingBoxType aBoundingBoxType,
                     gfxContext *aRefContext,
-                    Spacing *aSpacing,
-                    uint16_t aOrientation)
+                    Spacing *aSpacing)
 {
     gfxFont::RunMetrics metrics =
         gfxFont::Measure(aTextRun, aStart, aEnd,
-                         aBoundingBoxType, aRefContext, aSpacing,
-                         aOrientation);
+                         aBoundingBoxType, aRefContext, aSpacing);
 
     // if aBoundingBoxType is not TIGHT_HINTED_OUTLINE_EXTENTS then we need to add
     // a pixel column each side of the bounding box in case of antialiasing "bleed"
@@ -366,24 +356,6 @@ gfxMacFont::GetCharWidth(CFDataRef aCmap, char16_t aUniChar,
     return 0;
 }
 
-int32_t
-gfxMacFont::GetGlyphWidth(DrawTarget& aDrawTarget, uint16_t aGID)
-{
-    if (!mCTFont) {
-        mCTFont = ::CTFontCreateWithGraphicsFont(mCGFont, mAdjustedSize,
-                                                 nullptr, nullptr);
-        if (!mCTFont) { // shouldn't happen, but let's be safe
-            NS_WARNING("failed to create CTFontRef to measure glyph width");
-            return 0;
-        }
-    }
-
-    CGSize advance;
-    ::CTFontGetAdvancesForGlyphs(mCTFont, kCTFontDefaultOrientation, &aGID,
-                                 &advance, 1);
-    return advance.width * 0x10000;
-}
-
 // Try to initialize font metrics via platform APIs (CG/CT),
 // and set mIsValid = TRUE on success.
 // We ONLY call this for local (platform) fonts that are not sfnt format;
@@ -439,15 +411,6 @@ gfxMacFont::GetScaledFont(DrawTarget *aTarget)
   }
 
   return mAzureScaledFont;
-}
-
-TemporaryRef<mozilla::gfx::GlyphRenderingOptions>
-gfxMacFont::GetGlyphRenderingOptions(const TextRunDrawParams* aRunParams)
-{
-    if (aRunParams) {
-        return mozilla::gfx::Factory::CreateCGGlyphRenderingOptions(aRunParams->fontSmoothingBGColor);
-    }
-    return nullptr;
 }
 
 void

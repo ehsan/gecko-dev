@@ -31,7 +31,7 @@ class LIRGenerator;
 //   streamline the process of prototyping new allocators.
 struct AllocationIntegrityState
 {
-    explicit AllocationIntegrityState(LIRGraph &graph)
+    explicit AllocationIntegrityState(const LIRGraph &graph)
       : graph(graph)
     {}
 
@@ -47,7 +47,7 @@ struct AllocationIntegrityState
 
   private:
 
-    LIRGraph &graph;
+    const LIRGraph &graph;
 
     // For all instructions and phis in the graph, keep track of the virtual
     // registers for all inputs and outputs of the nodes. These are overwritten
@@ -161,8 +161,8 @@ class CodePosition
     { }
 
     CodePosition(uint32_t instruction, SubPosition where) {
-        MOZ_ASSERT(instruction < 0x80000000u);
-        MOZ_ASSERT(((uint32_t)where & SUBPOSITION_MASK) == (uint32_t)where);
+        JS_ASSERT(instruction < 0x80000000u);
+        JS_ASSERT(((uint32_t)where & SUBPOSITION_MASK) == (uint32_t)where);
         bits_ = (instruction << INSTRUCTION_SHIFT) | (uint32_t)where;
     }
 
@@ -203,24 +203,59 @@ class CodePosition
     }
 
     uint32_t operator -(CodePosition other) const {
-        MOZ_ASSERT(bits_ >= other.bits_);
+        JS_ASSERT(bits_ >= other.bits_);
         return bits_ - other.bits_;
     }
 
     CodePosition previous() const {
-        MOZ_ASSERT(*this != MIN);
+        JS_ASSERT(*this != MIN);
         return CodePosition(bits_ - 1);
     }
     CodePosition next() const {
-        MOZ_ASSERT(*this != MAX);
+        JS_ASSERT(*this != MAX);
         return CodePosition(bits_ + 1);
+    }
+};
+
+// Structure to track moves inserted before or after an instruction.
+class InstructionData
+{
+    LInstruction *ins_;
+    LBlock *block_;
+    LMoveGroup *inputMoves_;
+    LMoveGroup *movesAfter_;
+
+  public:
+    void init(LInstruction *ins, LBlock *block) {
+        JS_ASSERT(!ins_);
+        JS_ASSERT(!block_);
+        ins_ = ins;
+        block_ = block;
+    }
+    LInstruction *ins() const {
+        return ins_;
+    }
+    LBlock *block() const {
+        return block_;
+    }
+    void setInputMoves(LMoveGroup *moves) {
+        inputMoves_ = moves;
+    }
+    LMoveGroup *inputMoves() const {
+        return inputMoves_;
+    }
+    void setMovesAfter(LMoveGroup *moves) {
+        movesAfter_ = moves;
+    }
+    LMoveGroup *movesAfter() const {
+        return movesAfter_;
     }
 };
 
 // Structure to track all moves inserted next to instructions in a graph.
 class InstructionDataMap
 {
-    FixedList<LNode *> insData_;
+    FixedList<InstructionData> insData_;
 
   public:
     InstructionDataMap()
@@ -230,20 +265,26 @@ class InstructionDataMap
     bool init(MIRGenerator *gen, uint32_t numInstructions) {
         if (!insData_.init(gen->alloc(), numInstructions))
             return false;
-        memset(&insData_[0], 0, sizeof(LNode *) * numInstructions);
+        memset(&insData_[0], 0, sizeof(InstructionData) * numInstructions);
         return true;
     }
 
-    LNode *&operator[](CodePosition pos) {
+    InstructionData &operator[](CodePosition pos) {
         return operator[](pos.ins());
     }
-    LNode *const &operator[](CodePosition pos) const {
+    const InstructionData &operator[](CodePosition pos) const {
         return operator[](pos.ins());
     }
-    LNode *&operator[](uint32_t ins) {
+    InstructionData &operator[](LInstruction *ins) {
+        return operator[](ins->id());
+    }
+    const InstructionData &operator[](LInstruction *ins) const {
+        return operator[](ins->id());
+    }
+    InstructionData &operator[](uint32_t ins) {
         return insData_[ins];
     }
-    LNode *const &operator[](uint32_t ins) const {
+    const InstructionData &operator[](uint32_t ins) const {
         return insData_[ins];
     }
 };
@@ -291,54 +332,56 @@ class RegisterAllocator
         return mir->alloc();
     }
 
-    CodePosition outputOf(const LNode *ins) const {
-        return ins->isPhi()
-               ? outputOf(ins->toPhi())
-               : outputOf(ins->toInstruction());
-    }
-    CodePosition outputOf(const LPhi *ins) const {
+    CodePosition outputOf(uint32_t pos) const {
         // All phis in a block write their outputs after all of them have
         // read their inputs. Consequently, it doesn't make sense to talk
         // about code positions in the middle of a series of phis.
-        LBlock *block = ins->block();
-        return CodePosition(block->getPhi(block->numPhis() - 1)->id(), CodePosition::OUTPUT);
+        if (insData[pos].ins()->isPhi()) {
+            while (insData[pos + 1].ins()->isPhi())
+                ++pos;
+        }
+        return CodePosition(pos, CodePosition::OUTPUT);
     }
     CodePosition outputOf(const LInstruction *ins) const {
-        return CodePosition(ins->id(), CodePosition::OUTPUT);
+        return outputOf(ins->id());
     }
-    CodePosition inputOf(const LNode *ins) const {
-        return ins->isPhi()
-               ? inputOf(ins->toPhi())
-               : inputOf(ins->toInstruction());
-    }
-    CodePosition inputOf(const LPhi *ins) const {
+    CodePosition inputOf(uint32_t pos) const {
         // All phis in a block read their inputs before any of them write their
         // outputs. Consequently, it doesn't make sense to talk about code
         // positions in the middle of a series of phis.
-        return CodePosition(ins->block()->getPhi(0)->id(), CodePosition::INPUT);
+        if (insData[pos].ins()->isPhi()) {
+            while (pos > 0 && insData[pos - 1].ins()->isPhi())
+                --pos;
+        }
+        return CodePosition(pos, CodePosition::INPUT);
     }
     CodePosition inputOf(const LInstruction *ins) const {
-        return CodePosition(ins->id(), CodePosition::INPUT);
+        return inputOf(ins->id());
     }
     CodePosition entryOf(const LBlock *block) {
-        return block->numPhis() != 0
-               ? CodePosition(block->getPhi(0)->id(), CodePosition::INPUT)
-               : inputOf(block->firstInstructionWithId());
+        return inputOf(block->firstId());
     }
     CodePosition exitOf(const LBlock *block) {
-        return outputOf(block->lastInstructionWithId());
+        return outputOf(block->lastId());
     }
 
-    LMoveGroup *getInputMoveGroup(LInstruction *ins);
-    LMoveGroup *getMoveGroupAfter(LInstruction *ins);
+    LMoveGroup *getInputMoveGroup(uint32_t ins);
+    LMoveGroup *getMoveGroupAfter(uint32_t ins);
 
-    CodePosition minimalDefEnd(LNode *ins) {
+    LMoveGroup *getInputMoveGroup(CodePosition pos) {
+        return getInputMoveGroup(pos.ins());
+    }
+    LMoveGroup *getMoveGroupAfter(CodePosition pos) {
+        return getMoveGroupAfter(pos.ins());
+    }
+
+    CodePosition minimalDefEnd(LInstruction *ins) {
         // Compute the shortest interval that captures vregs defined by ins.
         // Watch for instructions that are followed by an OSI point and/or Nop.
         // If moves are introduced between the instruction and the OSI point then
         // safepoint information for the instruction may be incorrect.
         while (true) {
-            LNode *next = insData[ins->id() + 1];
+            LInstruction *next = insData[outputOf(ins).next()].ins();
             if (!next->isNop() && !next->isOsiPoint())
                 break;
             ins = next;

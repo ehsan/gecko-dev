@@ -37,7 +37,7 @@ class AutoEntryHolder {
     AutoEntryHolder(JSContext *cx, Map &map, Map::Ptr p)
       : map(map), p(p), gen(map.generation()), obj(cx, p->key().object), id(cx, p->key().id)
     {
-        MOZ_ASSERT(!p->value().held);
+        JS_ASSERT(!p->value().held);
         p->value().held = true;
     }
 
@@ -61,7 +61,7 @@ bool
 WatchpointMap::watch(JSContext *cx, HandleObject obj, HandleId id,
                      JSWatchPointHandler handler, HandleObject closure)
 {
-    MOZ_ASSERT(JSID_IS_STRING(id) || JSID_IS_INT(id) || JSID_IS_SYMBOL(id));
+    JS_ASSERT(JSID_IS_STRING(id) || JSID_IS_INT(id) || JSID_IS_SYMBOL(id));
 
     if (!obj->setWatched(cx))
         return false;
@@ -129,10 +129,9 @@ WatchpointMap::triggerWatchpoint(JSContext *cx, HandleObject obj, HandleId id, M
     Value old;
     old.setUndefined();
     if (obj->isNative()) {
-        NativeObject *nobj = &obj->as<NativeObject>();
-        if (Shape *shape = nobj->lookup(cx, id)) {
+        if (Shape *shape = obj->nativeLookup(cx, id)) {
             if (shape->hasSlot())
-                old = nobj->getSlot(shape->slot());
+                old = obj->nativeGetSlot(shape->slot());
         }
     }
 
@@ -169,9 +168,9 @@ WatchpointMap::markIteratively(JSTracer *trc)
                 marked = true;
             }
 
-            MOZ_ASSERT(JSID_IS_STRING(priorKeyId) ||
-                       JSID_IS_INT(priorKeyId) ||
-                       JSID_IS_SYMBOL(priorKeyId));
+            JS_ASSERT(JSID_IS_STRING(priorKeyId) ||
+                      JSID_IS_INT(priorKeyId) ||
+                      JSID_IS_SYMBOL(priorKeyId));
             MarkId(trc, const_cast<PreBarrieredId *>(&entry.key().id), "WatchKey::id");
 
             if (entry.value().closure && !IsObjectMarked(&entry.value().closure)) {
@@ -194,7 +193,7 @@ WatchpointMap::markAll(JSTracer *trc)
         Map::Entry &entry = e.front();
         WatchKey key = entry.key();
         WatchKey prior = key;
-        MOZ_ASSERT(JSID_IS_STRING(prior.id) || JSID_IS_INT(prior.id) || JSID_IS_SYMBOL(prior.id));
+        JS_ASSERT(JSID_IS_STRING(prior.id) || JSID_IS_INT(prior.id) || JSID_IS_SYMBOL(prior.id));
 
         MarkObject(trc, const_cast<PreBarrieredObject *>(&key.object),
                    "held Watchpoint object");
@@ -222,7 +221,7 @@ WatchpointMap::sweep()
         Map::Entry &entry = e.front();
         JSObject *obj(entry.key().object);
         if (IsObjectAboutToBeFinalized(&obj)) {
-            MOZ_ASSERT(!entry.value().held);
+            JS_ASSERT(!entry.value().held);
             e.removeFront();
         } else if (obj != entry.key().object) {
             e.rekeyFront(WatchKey(obj, entry.key().id));

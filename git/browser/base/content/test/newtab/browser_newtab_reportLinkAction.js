@@ -35,31 +35,21 @@ function runTests() {
   expected.type = "sponsored";
   expected.action = "view";
   expected.pinned = false;
-  addNewTabPageTab();
-
-  // Wait for addNewTabPageTab and reportSitesAction
-  yield null;
-  yield null;
+  yield addNewTabPageTab();
+  yield null; // wait for reportSitesAction
 
   // Click the pin button on the link in the 1th tile spot
   let siteNode = getCell(1).node.querySelector(".newtab-site");
   let pinButton = siteNode.querySelector(".newtab-control-pin");
   expected.action = "pin";
   expected.pinned = true;
-  EventUtils.synthesizeMouseAtCenter(pinButton, {}, getContentWindow());
-
-  // Wait for reportSitesAction
-  yield null;
+  yield EventUtils.synthesizeMouseAtCenter(pinButton, {}, getContentWindow());
 
   // Unpin that link
   expected.action = "unpin";
   expected.pinned = false;
-  whenPagesUpdated();
-  EventUtils.synthesizeMouseAtCenter(pinButton, {}, getContentWindow());
-
-  // Wait for whenPagesUpdated and reportSitesAction
-  yield null;
-  yield null;
+  yield EventUtils.synthesizeMouseAtCenter(pinButton, {}, getContentWindow());
+  yield whenPagesUpdated();
 
   // Block the site in the 0th tile spot
   let blockedSite = getCell(0).node.querySelector(".newtab-site");
@@ -67,18 +57,11 @@ function runTests() {
   expected.type = "organic";
   expected.action = "block";
   expected.pinned = false;
-  whenPagesUpdated();
-  EventUtils.synthesizeMouseAtCenter(blockButton, {}, getContentWindow());
-
-  // Wait for whenPagesUpdated and reportSitesAction
-  yield null;
-  yield null;
+  yield EventUtils.synthesizeMouseAtCenter(blockButton, {}, getContentWindow());
+  yield whenPagesUpdated();
 
   // Click the 1th link now in the 0th tile spot
   expected.type = "sponsored";
   expected.action = "click";
-  EventUtils.synthesizeMouseAtCenter(siteNode, {}, getContentWindow());
-
-  // Wait for reportSitesAction
-  yield null;
+  yield EventUtils.synthesizeMouseAtCenter(siteNode, {}, getContentWindow());
 }

@@ -12,8 +12,10 @@
 using namespace mozilla;
 
 ClearKeySession::ClearKeySession(const std::string& aSessionId,
+                                 GMPDecryptorHost* aHost,
                                  GMPDecryptorCallback* aCallback)
   : mSessionId(aSessionId)
+  , mHost(aHost)
   , mCallback(aCallback)
 {
   CK_LOGD("ClearKeySession ctor %p", this);

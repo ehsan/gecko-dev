@@ -43,23 +43,23 @@ class KidsPointer {
 
     bool isShape() const { return (w & TAG) == SHAPE && !isNull(); }
     Shape *toShape() const {
-        MOZ_ASSERT(isShape());
+        JS_ASSERT(isShape());
         return reinterpret_cast<Shape *>(w & ~uintptr_t(TAG));
     }
     void setShape(Shape *shape) {
-        MOZ_ASSERT(shape);
-        MOZ_ASSERT((reinterpret_cast<uintptr_t>(static_cast<Shape *>(shape)) & TAG) == 0);
+        JS_ASSERT(shape);
+        JS_ASSERT((reinterpret_cast<uintptr_t>(static_cast<Shape *>(shape)) & TAG) == 0);
         w = reinterpret_cast<uintptr_t>(static_cast<Shape *>(shape)) | SHAPE;
     }
 
     bool isHash() const { return (w & TAG) == HASH; }
     KidsHash *toHash() const {
-        MOZ_ASSERT(isHash());
+        JS_ASSERT(isHash());
         return reinterpret_cast<KidsHash *>(w & ~uintptr_t(TAG));
     }
     void setHash(KidsHash *hash) {
-        MOZ_ASSERT(hash);
-        MOZ_ASSERT((reinterpret_cast<uintptr_t>(hash) & TAG) == 0);
+        JS_ASSERT(hash);
+        JS_ASSERT((reinterpret_cast<uintptr_t>(hash) & TAG) == 0);
         w = reinterpret_cast<uintptr_t>(hash) | HASH;
     }
 
@@ -96,6 +96,7 @@ class PropertyTree
 
     JSCompartment *compartment() { return compartment_; }
 
+    Shape *newShape(ExclusiveContext *cx);
     Shape *getChild(ExclusiveContext *cx, Shape *parent, StackShape &child);
     Shape *lookupChild(ThreadSafeContext *cx, Shape *parent, const StackShape &child);
 };

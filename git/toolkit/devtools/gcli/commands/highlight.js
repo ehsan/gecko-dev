@@ -13,19 +13,17 @@ const {BoxModelHighlighter} = HIGHLIGHTER_CLASSES;
 // How many maximum nodes can be highlighted in parallel
 const MAX_HIGHLIGHTED_ELEMENTS = 100;
 
-// Stores the highlighters instances so they can be destroyed later.
-// also export them so tests can access those and assert they got created
-// correctly.
-exports.highlighters = [];
+// Stores the highlighters instances so they can be destroyed
+let highlighters = [];
 
 /**
  * Destroy all existing highlighters
  */
 function unhighlightAll() {
-  for (let highlighter of exports.highlighters) {
+  for (let highlighter of highlighters) {
     highlighter.destroy();
   }
-  exports.highlighters.length = 0;
+  highlighters = [];
 }
 
 exports.items = [
@@ -121,7 +119,7 @@ exports.items = [
           hideGuides: args.hideguides,
           showOnly: args.region
         });
-        exports.highlighters.push(highlighter);
+        highlighters.push(highlighter);
         i ++;
       }
 

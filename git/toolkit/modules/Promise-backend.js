@@ -37,12 +37,6 @@ const STATUS_REJECTED = 2;
 const salt = Math.floor(Math.random() * 100);
 const N_INTERNALS = "{private:internals:" + salt + "}";
 
-const JS_HAS_SYMBOLS = typeof Symbol === "function";
-const ITERATOR_SYMBOL = JS_HAS_SYMBOLS ? Symbol.iterator : "@@iterator";
-
-// We use DOM Promise for scheduling the walker loop.
-const DOMPromise = Promise;
-
 /////// Warn-upon-finalization mechanism
 //
 // One of the difficult problems with promises is locating uncaught
@@ -275,7 +269,7 @@ PendingErrors.addObserver(function(details) {
   }
   error.init(
              /*message*/ generalDescription +
-             "Date: " + details.date + "\nFull Message: " + message,
+             "Date: " + details.date + "\nFull Message: " + details.message,
              /*sourceName*/ details.fileName,
              /*sourceLine*/ details.lineNumber?("" + details.lineNumber):0,
              /*lineNumber*/ details.lineNumber || 0,
@@ -517,7 +511,7 @@ Promise.reject = function (aReason)
  */
 Promise.all = function (aValues)
 {
-  if (aValues == null || typeof(aValues[ITERATOR_SYMBOL]) != "function") {
+  if (aValues == null || typeof(aValues["@@iterator"]) != "function") {
     throw new Error("Promise.all() expects an iterable.");
   }
 
@@ -568,7 +562,7 @@ Promise.all = function (aValues)
  */
 Promise.race = function (aValues)
 {
-  if (aValues == null || typeof(aValues[ITERATOR_SYMBOL]) != "function") {
+  if (aValues == null || typeof(aValues["@@iterator"]) != "function") {
     throw new Error("Promise.race() expects an iterable.");
   }
 
@@ -688,7 +682,8 @@ this.PromiseWalker = {
   scheduleWalkerLoop: function()
   {
     this.walkerLoopScheduled = true;
-    DOMPromise.resolve().then(() => this.walkerLoop());
+    Services.tm.currentThread.dispatch(this.walkerLoop,
+                                       Ci.nsIThread.DISPATCH_NORMAL);
   },
 
   /**

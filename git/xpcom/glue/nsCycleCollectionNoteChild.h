@@ -78,24 +78,13 @@ struct CycleCollectionNoteChildImpl<T, false>
   }
 };
 
-// We declare CycleCollectionNoteChild in 3-argument and 4-argument variants,
-// rather than using default arguments, so that forward declarations work
-// regardless of header inclusion order.
 template<typename T>
 inline void
 CycleCollectionNoteChild(nsCycleCollectionTraversalCallback& aCallback,
-                         T* aChild, const char* aName, uint32_t aFlags)
+                         T* aChild, const char* aName, uint32_t aFlags = 0)
 {
   CycleCollectionNoteEdgeName(aCallback, aName, aFlags);
   CycleCollectionNoteChildImpl<T>::Run(aCallback, aChild);
-}
-
-template<typename T>
-inline void
-CycleCollectionNoteChild(nsCycleCollectionTraversalCallback& aCallback,
-                         T* aChild, const char* aName)
-{
-  CycleCollectionNoteChild(aCallback, aChild, aName, 0);
 }
 
 #endif // nsCycleCollectionNoteChild_h__

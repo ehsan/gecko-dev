@@ -18,8 +18,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-Cu.importGlobalProperties(["File"]);
-
 // Allow stuff from this scope to be accessed from non-privileged scopes. This
 // would crash if used outside of automation.
 Cu.forcePermissiveCOWs();
@@ -846,12 +844,6 @@ SpecialPowersAPI.prototype = {
   },
 
 
-  setTestPluginEnabledState: function(newEnabledState, pluginName) {
-    return this._sendSyncMessage("SPSetTestPluginEnabledState",
-                                 { newEnabledState: newEnabledState, pluginName: pluginName })[0];
-  },
-
-
   _permissionObserver: {
     _self: null,
     _lastPermission: {},
@@ -1157,7 +1149,7 @@ SpecialPowersAPI.prototype = {
   // Returns a privileged getter from an object. GetOwnPropertyDescriptor does
   // not work here because xray wrappers don't properly implement it.
   //
-  // This terribleness is used by dom/base/test/test_object.html because
+  // This terribleness is used by content/base/test/test_object.html because
   // <object> and <embed> tags will spawn plugins if their prototype is touched,
   // so we need to get and cache the getter of |hasRunningPlugin| if we want to
   // call it without paradoxically spawning the plugin.
@@ -1400,18 +1392,21 @@ SpecialPowersAPI.prototype = {
     var self = this;
     let count = 0;
 
-    function genGCCallback(cb) {
-      return function() {
+    function doPreciseGCandCC() {
+      function scheduledGCCallback() {
         self.getDOMWindowUtils(win).cycleCollect();
+
         if (++count < 2) {
-          Cu.schedulePreciseGC(genGCCallback(cb));
+          doPreciseGCandCC();
         } else {
-          cb();
+          callback();
         }
       }
+
+      Cu.schedulePreciseGC(scheduledGCCallback);
     }
 
-    Cu.schedulePreciseGC(genGCCallback(callback));
+    doPreciseGCandCC();
   },
 
   setGCZeal: function(zeal) {
@@ -1881,10 +1876,6 @@ SpecialPowersAPI.prototype = {
 
     let msg = { op: op, uri: uri, appId: appId, inBrowser: inBrowser, id: id };
     this._sendAsyncMessage(messageTopic, msg);
-  },
-
-  createDOMFile: function(path, options) {
-    return new File(path, options);
   },
 };
 

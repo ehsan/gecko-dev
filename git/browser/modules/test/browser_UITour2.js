@@ -56,22 +56,19 @@ let tests = [
             waitForPopupAtAnchor(popup, target.node, function checkMenuIsStillOpen() {
               isnot(PanelUI.panel.state, "closed",
                     "Menu should remain open since UITour didn't open it in the first place");
-              waitForElementToBeHidden(window.PanelUI.panel, () => {
-                ok(!PanelUI.panel.hasAttribute("noautohide"), "@noautohide on the menu panel should have been cleaned up on close");
-                done();
-              });
               gContentAPI.hideMenu("appMenu");
+              ok(!PanelUI.panel.hasAttribute("noautohide"), "@noautohide on the menu panel should have been cleaned up on close");
+              done();
             }, "Info should move to the appMenu button");
           });
         }, "Info should be shown after showInfo() for fixed menu panel items");
       });
     }).then(null, Components.utils.reportError);
   },
-  taskify(function* test_pinnedTab() {
+  function test_pinnedTab(done) {
     is(UITour.pinnedTabs.get(window), null, "Should not already have a pinned tab");
 
-    yield addPinnedTabPromise();
-
+    gContentAPI.addPinnedTab();
     let tabInfo = UITour.pinnedTabs.get(window);
     isnot(tabInfo, null, "Should have recorded data about a pinned tab after addPinnedTab()");
     isnot(tabInfo.tab, null, "Should have added a pinned tab after addPinnedTab()");
@@ -79,29 +76,28 @@ let tests = [
 
     let tab = tabInfo.tab;
 
-    yield removePinnedTabPromise();
+    gContentAPI.removePinnedTab();
     isnot(gBrowser.tabs[0], tab, "First tab should not be the pinned tab");
     tabInfo = UITour.pinnedTabs.get(window);
     is(tabInfo, null, "Should not have any data about the removed pinned tab after removePinnedTab()");
 
-    yield addPinnedTabPromise();
-    yield addPinnedTabPromise();
-    yield addPinnedTabPromise();
+    gContentAPI.addPinnedTab();
+    gContentAPI.addPinnedTab();
+    gContentAPI.addPinnedTab();
     is(gBrowser.tabs[1].pinned, false, "After multiple calls of addPinnedTab, should still only have one pinned tab");
-  }),
-  taskify(function* test_menu() {
+
+    done();
+  },
+  function test_menu(done) {
     let bookmarksMenuButton = document.getElementById("bookmarks-menu-button");
-
     ise(bookmarksMenuButton.open, false, "Menu should initially be closed");
-    gContentAPI.showMenu("bookmarks");
 
-    yield waitForConditionPromise(() => {
-      return bookmarksMenuButton.open;
-    }, "Menu should be visible after showMenu()");
+    gContentAPI.showMenu("bookmarks");
+    ise(bookmarksMenuButton.open, true, "Menu should be shown after showMenu()");
 
     gContentAPI.hideMenu("bookmarks");
-    yield waitForConditionPromise(() => {
-        return !bookmarksMenuButton.open;
-    }, "Menu should be hidden after hideMenu()");
-  }),
+    ise(bookmarksMenuButton.open, false, "Menu should be closed after hideMenu()");
+
+    done();
+  },
 ];

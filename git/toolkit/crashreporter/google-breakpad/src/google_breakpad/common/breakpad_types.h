@@ -58,7 +58,7 @@
  */
 #include BREAKPAD_CUSTOM_STDINT_H
 #else
-#include <wtypes.h>
+#include <WTypes.h>
 
 typedef unsigned __int8  uint8_t;
 typedef unsigned __int16 uint16_t;

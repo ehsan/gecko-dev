@@ -25,21 +25,17 @@ class nsIFrame;
 class nsINode;
 class nsIPresShell;
 class nsITimer;
+class nsRenderingContext;
 
 namespace mozilla {
 namespace dom {
 class Selection;
-}
-namespace gfx {
-class DrawTarget;
 }
 }
 
 //-----------------------------------------------------------------------------
 class nsCaret MOZ_FINAL : public nsISelectionListener
 {
-    typedef mozilla::gfx::DrawTarget DrawTarget;
-
   public:
     nsCaret();
 
@@ -123,7 +119,7 @@ class nsCaret MOZ_FINAL : public nsISelectionListener
      *  Actually paint the caret onto the given rendering context.
      */
     void PaintCaret(nsDisplayListBuilder *aBuilder,
-                    DrawTarget& aDrawTarget,
+                    nsRenderingContext *aCtx,
                     nsIFrame *aForFrame,
                     const nsPoint &aOffset);
 
@@ -149,9 +145,6 @@ class nsCaret MOZ_FINAL : public nsISelectionListener
                                                uint8_t aBidiLevel,
                                                nsIFrame** aReturnFrame,
                                                int32_t* aReturnOffset);
-    static nsRect GetGeometryForFrame(nsIFrame* aFrame,
-                                      int32_t   aFrameOffset,
-                                      nscoord*  aBidiIndicatorSize);
 
     size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
@@ -171,6 +164,9 @@ protected:
     };
     static Metrics ComputeMetrics(nsIFrame* aFrame, int32_t aOffset,
                                   nscoord aCaretHeight);
+    static nsRect GetGeometryForFrame(nsIFrame* aFrame,
+                                      int32_t   aFrameOffset,
+                                      nscoord*  aBidiIndicatorSize);
 
     void          ComputeCaretRects(nsIFrame* aFrame, int32_t aFrameOffset,
                                     nsRect* aCaretRect, nsRect* aHookRect);

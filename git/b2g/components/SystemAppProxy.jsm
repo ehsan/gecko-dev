@@ -117,16 +117,23 @@ let SystemAppProxy = {
     }
   },
 
-  getFrames: function systemApp_getFrames() {
+  getAppFrames: function systemApp_getAppFrames() {
     let systemAppFrame = this._frame;
     if (!systemAppFrame) {
       return [];
     }
+
     let list = [systemAppFrame];
-    let frames = systemAppFrame.contentDocument.querySelectorAll('iframe');
+
+    // List all app frames hosted in the system app: the homescreen,
+    // all regular apps, activities, rocket bar, attention screen and the keyboard.
+    // Bookmark apps and other system app internal frames like captive portal
+    // are also hosted in system app, but they are not using mozapp attribute.
+    let frames = systemAppFrame.contentDocument.querySelectorAll("iframe[mozapp]");
     for (let i = 0; i < frames.length; i++) {
       list.push(frames[i]);
     }
+
     return list;
   }
 };

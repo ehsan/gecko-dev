@@ -8,6 +8,7 @@
 #include "ia2AccessibleRelation.h"
 
 #include "Relation.h"
+#include "nsIAccessibleRelation.h"
 #include "nsID.h"
 
 #include "AccessibleRelation_i.c"

@@ -11,7 +11,7 @@ browserElementTestHelpers.addPermission();
 
 function runTest() {
   var iframe1 = document.createElement('iframe');
-  iframe1.setAttribute('mozbrowser', 'true');
+  SpecialPowers.wrap(iframe1).mozbrowser = true;
   iframe1.src = 'data:text/html,<html>' +
     '<body style="background:green">hello</body></html>';
   document.body.appendChild(iframe1);

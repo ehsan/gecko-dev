@@ -52,9 +52,7 @@ nsBaseURLParser::ParseURL(const char *spec, int32_t specLen,
                           uint32_t *authorityPos, int32_t *authorityLen,
                           uint32_t *pathPos, int32_t *pathLen)
 {
-    if (NS_WARN_IF(!spec)) {
-        return NS_ERROR_INVALID_POINTER;
-    }
+    NS_PRECONDITION(spec, "null pointer");
 
     if (specLen < 0)
         specLen = strlen(spec);
@@ -167,9 +165,7 @@ nsBaseURLParser::ParseAuthority(const char *auth, int32_t authLen,
                                 uint32_t *hostnamePos, int32_t *hostnameLen,
                                 int32_t *port)
 {
-    if (NS_WARN_IF(!auth)) {
-        return NS_ERROR_INVALID_POINTER;
-    }
+    NS_PRECONDITION(auth, "null pointer");
 
     if (authLen < 0)
         authLen = strlen(auth);
@@ -209,9 +205,7 @@ nsBaseURLParser::ParsePath(const char *path, int32_t pathLen,
                            uint32_t *queryPos, int32_t *queryLen,
                            uint32_t *refPos, int32_t *refLen)
 {
-    if (NS_WARN_IF(!path)) {
-        return NS_ERROR_INVALID_POINTER;
-    }
+    NS_PRECONDITION(path, "null pointer");
 
     if (pathLen < 0)
         pathLen = strlen(path);
@@ -272,9 +266,7 @@ nsBaseURLParser::ParseFilePath(const char *filepath, int32_t filepathLen,
                                uint32_t *basenamePos, int32_t *basenameLen,
                                uint32_t *extensionPos, int32_t *extensionLen)
 {
-    if (NS_WARN_IF(!filepath)) {
-        return NS_ERROR_INVALID_POINTER;
-    }
+    NS_PRECONDITION(filepath, "null pointer");
 
     if (filepathLen < 0)
         filepathLen = strlen(filepath);
@@ -320,9 +312,7 @@ nsBaseURLParser::ParseFileName(const char *filename, int32_t filenameLen,
                                uint32_t *basenamePos, int32_t *basenameLen,
                                uint32_t *extensionPos, int32_t *extensionLen)
 {
-    if (NS_WARN_IF(!filename)) {
-        return NS_ERROR_INVALID_POINTER;
-    }
+    NS_PRECONDITION(filename, "null pointer");
 
     if (filenameLen < 0)
         filenameLen = strlen(filename);
@@ -418,9 +408,7 @@ nsNoAuthURLParser::ParseFilePath(const char *filepath, int32_t filepathLen,
                                  uint32_t *basenamePos, int32_t *basenameLen,
                                  uint32_t *extensionPos, int32_t *extensionLen)
 {
-    if (NS_WARN_IF(!filepath)) {
-        return NS_ERROR_INVALID_POINTER;
-    }
+    NS_PRECONDITION(filepath, "null pointer");
 
     if (filepathLen < 0)
         filepathLen = strlen(filepath);
@@ -462,9 +450,7 @@ nsAuthURLParser::ParseAuthority(const char *auth, int32_t authLen,
 {
     nsresult rv;
 
-    if (NS_WARN_IF(!auth)) {
-        return NS_ERROR_INVALID_POINTER;
-    }
+    NS_PRECONDITION(auth, "null pointer");
 
     if (authLen < 0)
         authLen = strlen(auth);
@@ -512,9 +498,7 @@ nsAuthURLParser::ParseUserInfo(const char *userinfo, int32_t userinfoLen,
                                uint32_t *usernamePos, int32_t *usernameLen,
                                uint32_t *passwordPos, int32_t *passwordLen)
 {
-    if (NS_WARN_IF(!userinfo)) {
-        return NS_ERROR_INVALID_POINTER;
-    }
+    NS_PRECONDITION(userinfo, "null pointer");
 
     if (userinfoLen < 0)
         userinfoLen = strlen(userinfo);
@@ -548,9 +532,7 @@ nsAuthURLParser::ParseServerInfo(const char *serverinfo, int32_t serverinfoLen,
                                  uint32_t *hostnamePos, int32_t *hostnameLen,
                                  int32_t *port)
 {
-    if (NS_WARN_IF(!serverinfo)) {
-        return NS_ERROR_INVALID_POINTER;
-    }
+    NS_PRECONDITION(serverinfo, "null pointer");
 
     if (serverinfoLen < 0)
         serverinfoLen = strlen(serverinfo);

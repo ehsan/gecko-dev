@@ -60,7 +60,7 @@
 #include "gfxPrefs.h"
 #include "nsIDOMChromeWindow.h"
 #include "nsFrameLoader.h"
-#include "mozilla/dom/FontFaceSet.h"
+
 #include "nsContentUtils.h"
 #include "nsPIWindowRoot.h"
 #include "mozilla/Preferences.h"
@@ -189,9 +189,7 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
   : mType(aType), mDocument(aDocument), mBaseMinFontSize(0),
     mTextZoom(1.0), mFullZoom(1.0), mLastFontInflationScreenWidth(-1.0),
     mPageSize(-1, -1), mPPScale(1.0f),
-    mViewportStyleScrollbar(NS_STYLE_OVERFLOW_AUTO,
-                            NS_STYLE_OVERFLOW_AUTO,
-                            NS_STYLE_SCROLL_BEHAVIOR_AUTO),
+    mViewportStyleOverflow(NS_STYLE_OVERFLOW_AUTO, NS_STYLE_OVERFLOW_AUTO),
     mImageAnimationModePref(imgIContainer::kNormalAnimMode),
     mAllInvalidated(false),
     mPaintFlashing(false), mPaintFlashingInitialized(false)
@@ -239,7 +237,8 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
     mNeverAnimate = false;
   }
   NS_ASSERTION(mDocument, "Null document");
-  mFontFaceSetDirty = true;
+  mUserFontSet = nullptr;
+  mUserFontSetDirty = true;
 
   mCounterStylesDirty = true;
 
@@ -252,14 +251,24 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
   PR_INIT_CLIST(&mDOMMediaQueryLists);
 }
 
-void
-nsPresContext::Destroy()
+nsPresContext::~nsPresContext()
 {
+  NS_PRECONDITION(!mShell, "Presshell forgot to clear our mShell pointer");
+  SetShell(nullptr);
+
+  NS_ABORT_IF_FALSE(PR_CLIST_IS_EMPTY(&mDOMMediaQueryLists),
+                    "must not have media query lists left");
+
+  // Disconnect the refresh driver *after* the transition manager, which
+  // needs it.
+  if (mRefreshDriver && mRefreshDriver->PresContext() == this) {
+    mRefreshDriver->Disconnect();
+  }
+
   if (mEventManager) {
     // unclear if these are needed, but can't hurt
     mEventManager->NotifyDestroyPresContext(this);
     mEventManager->SetPresContext(nullptr);
-    mEventManager = nullptr;
   }
 
   if (mPrefChangedTimer)
@@ -311,24 +320,6 @@ nsPresContext::Destroy()
   Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
                                   "nglayout.debug.paint_flashing_chrome",
                                   this);
-
-  // Disconnect the refresh driver *after* the transition manager, which
-  // needs it.
-  if (mRefreshDriver && mRefreshDriver->PresContext() == this) {
-    mRefreshDriver->Disconnect();
-    mRefreshDriver = nullptr;
-  }
-}
-
-nsPresContext::~nsPresContext()
-{
-  NS_PRECONDITION(!mShell, "Presshell forgot to clear our mShell pointer");
-  SetShell(nullptr);
-
-  NS_ABORT_IF_FALSE(PR_CLIST_IS_EMPTY(&mDOMMediaQueryLists),
-                    "must not have media query lists left");
-
-  Destroy();
 }
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsPresContext)
@@ -376,6 +367,13 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mDocument);
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mDeviceContext); // worth bothering?
+  if (tmp->mEventManager) {
+    // unclear if these are needed, but can't hurt
+    tmp->mEventManager->NotifyDestroyPresContext(tmp);
+    tmp->mEventManager->SetPresContext(nullptr);
+    tmp->mEventManager = nullptr;
+  }
+
   // We own only the items in mDOMMediaQueryLists that have listeners;
   // this reference is managed by their AddListener and RemoveListener
   // methods.
@@ -388,11 +386,15 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
   }
 
   // NS_RELEASE(tmp->mLanguage); // an atom
+
   // NS_IMPL_CYCLE_COLLECTION_UNLINK(mTheme); // a service
   // NS_IMPL_CYCLE_COLLECTION_UNLINK(mLangService); // a service
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mPrintSettings);
-
-  tmp->Destroy();
+  if (tmp->mPrefChangedTimer)
+  {
+    tmp->mPrefChangedTimer->Cancel();
+    tmp->mPrefChangedTimer = nullptr;
+  }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 
@@ -846,7 +848,7 @@ nsPresContext::AppUnitsPerDevPixelChanged()
 
   if (HasCachedStyleData()) {
     // All cached style data must be recomputed.
-    MediaFeatureValuesChanged(eRestyle_ForceDescendants, NS_STYLE_HINT_REFLOW);
+    MediaFeatureValuesChanged(eAlwaysRebuildStyle, NS_STYLE_HINT_REFLOW);
   }
 
   mCurAppUnitsPerDevPixel = AppUnitsPerDevPixel();
@@ -944,9 +946,7 @@ nsPresContext::UpdateAfterPreferencesChanged()
     NS_UpdateHint(hint, NS_STYLE_HINT_REFLOW);
   }
 
-  // Preferences require rerunning selector matching because we rebuild
-  // the pref style sheet for some preference changes.
-  RebuildAllStyleData(hint, eRestyle_Subtree);
+  RebuildAllStyleData(hint);
 }
 
 nsresult
@@ -966,6 +966,11 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
   mTransitionManager = new nsTransitionManager(this);
 
   mAnimationManager = new nsAnimationManager(this);
+
+  // Since CounterStyleManager is also the name of a method of
+  // nsPresContext, it is necessary to prefix the class with the mozilla
+  // namespace here.
+  mCounterStyleManager = new mozilla::CounterStyleManager(this);
 
   if (mDocument->GetDisplayDocument()) {
     NS_ASSERTION(mDocument->GetDisplayDocument()->GetShell() &&
@@ -1089,14 +1094,10 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
 void
 nsPresContext::SetShell(nsIPresShell* aShell)
 {
-  if (mFontFaceSet) {
+  if (mUserFontSet) {
     // Clear out user font set if we have one
-    mFontFaceSet->DestroyUserFontSet();
-    mFontFaceSet = nullptr;
-  }
-  if (mCounterStyleManager) {
-    mCounterStyleManager->Disconnect();
-    mCounterStyleManager = nullptr;
+    mUserFontSet->Destroy();
+    NS_RELEASE(mUserFontSet);
   }
 
   if (mShell) {
@@ -1111,11 +1112,6 @@ nsPresContext::SetShell(nsIPresShell* aShell)
   mShell = aShell;
 
   if (mShell) {
-    // Since CounterStyleManager is also the name of a method of
-    // nsPresContext, it is necessary to prefix the class with the mozilla
-    // namespace here.
-    mCounterStyleManager = new mozilla::CounterStyleManager(this);
-
     nsIDocument *doc = mShell->GetDocument();
     NS_ASSERTION(doc, "expect document here");
     if (doc) {
@@ -1159,6 +1155,10 @@ nsPresContext::SetShell(nsIPresShell* aShell)
       mRestyleManager->Disconnect();
       mRestyleManager = nullptr;
     }
+    if (mCounterStyleManager) {
+      mCounterStyleManager->Disconnect();
+      mCounterStyleManager = nullptr;
+    }
 
     if (IsRoot()) {
       // Have to cancel our plugin geometry timer, because the
@@ -1173,7 +1173,7 @@ nsPresContext::DoChangeCharSet(const nsCString& aCharSet)
 {
   UpdateCharSet(aCharSet);
   mDeviceContext->FlushFontCache();
-  RebuildAllStyleData(NS_STYLE_HINT_REFLOW, nsRestyleHint(0));
+  RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
 }
 
 void
@@ -1558,7 +1558,7 @@ nsPresContext::Detach()
 }
 
 bool
-nsPresContext::StyleUpdateForAllAnimationsIsUpToDate() const
+nsPresContext::StyleUpdateForAllAnimationsIsUpToDate()
 {
   return mLastStyleUpdateForAllAnimations == mRefreshDriver->MostRecentRefresh();
 }
@@ -1567,12 +1567,6 @@ void
 nsPresContext::TickLastStyleUpdateForAllAnimations()
 {
   mLastStyleUpdateForAllAnimations = mRefreshDriver->MostRecentRefresh();
-}
-
-void
-nsPresContext::ClearLastStyleUpdateForAllAnimations()
-{
-  mLastStyleUpdateForAllAnimations = TimeStamp();
 }
 
 bool
@@ -1711,13 +1705,12 @@ nsPresContext::ThemeChangedInternal()
   // This will force the system metrics to be generated the next time they're used
   nsCSSRuleProcessor::FreeSystemMetrics();
 
-  // Changes to system metrics can change media queries on them, or
-  // :-moz-system-metric selectors (which requires eRestyle_Subtree).
+  // Changes to system metrics can change media queries on them.
   // Changes in theme can change system colors (whose changes are
   // properly reflected in computed style data), system fonts (whose
   // changes are not), and -moz-appearance (whose changes likewise are
   // not), so we need to reflow.
-  MediaFeatureValuesChanged(eRestyle_Subtree, NS_STYLE_HINT_REFLOW);
+  MediaFeatureValuesChanged(eAlwaysRebuildStyle, NS_STYLE_HINT_REFLOW);
 }
 
 void
@@ -1750,7 +1743,7 @@ nsPresContext::SysColorChangedInternal()
 
   // The system color values are computed to colors in the style data,
   // so normal style data comparison is sufficient here.
-  RebuildAllStyleData(nsChangeHint(0), nsRestyleHint(0));
+  RebuildAllStyleData(nsChangeHint(0));
 }
 
 void
@@ -1846,7 +1839,7 @@ nsPresContext::EmulateMedium(const nsAString& aMediaType)
 
   mMediaEmulated = do_GetAtom(mediaType);
   if (mMediaEmulated != previousMedium && mShell) {
-    MediaFeatureValuesChanged(nsRestyleHint(0), nsChangeHint(0));
+    MediaFeatureValuesChanged(eRebuildStyleIfNeeded, nsChangeHint(0));
   }
 }
 
@@ -1855,13 +1848,12 @@ void nsPresContext::StopEmulatingMedium()
   nsIAtom* previousMedium = Medium();
   mIsEmulatingMedia = false;
   if (Medium() != previousMedium) {
-    MediaFeatureValuesChanged(nsRestyleHint(0), nsChangeHint(0));
+    MediaFeatureValuesChanged(eRebuildStyleIfNeeded, nsChangeHint(0));
   }
 }
 
 void
-nsPresContext::RebuildAllStyleData(nsChangeHint aExtraHint,
-                                   nsRestyleHint aRestyleHint)
+nsPresContext::RebuildAllStyleData(nsChangeHint aExtraHint)
 {
   if (!mShell) {
     // We must have been torn down. Nothing to do here.
@@ -1873,38 +1865,36 @@ nsPresContext::RebuildAllStyleData(nsChangeHint aExtraHint,
   RebuildUserFontSet();
   RebuildCounterStyles();
 
-  RestyleManager()->RebuildAllStyleData(aExtraHint, aRestyleHint);
+  RestyleManager()->RebuildAllStyleData(aExtraHint);
 }
 
 void
-nsPresContext::PostRebuildAllStyleDataEvent(nsChangeHint aExtraHint,
-                                            nsRestyleHint aRestyleHint)
+nsPresContext::PostRebuildAllStyleDataEvent(nsChangeHint aExtraHint)
 {
   if (!mShell) {
     // We must have been torn down. Nothing to do here.
     return;
   }
-  RestyleManager()->PostRebuildAllStyleDataEvent(aExtraHint, aRestyleHint);
+  RestyleManager()->PostRebuildAllStyleDataEvent(aExtraHint);
 }
 
 void
-nsPresContext::MediaFeatureValuesChanged(nsRestyleHint aRestyleHint,
+nsPresContext::MediaFeatureValuesChanged(StyleRebuildType aShouldRebuild,
                                          nsChangeHint aChangeHint)
 {
+  NS_ASSERTION(aShouldRebuild == eAlwaysRebuildStyle || aChangeHint == 0,
+               "If you don't know if we need a rebuild, how can you provide a hint?");
+
   mPendingMediaFeatureValuesChanged = false;
 
   // MediumFeaturesChanged updates the applied rules, so it always gets called.
-  if (mShell && mShell->StyleSet()->MediumFeaturesChanged(this)) {
-    aRestyleHint |= eRestyle_Subtree;
-  }
+  bool mediaFeaturesDidChange = mShell ? mShell->StyleSet()->MediumFeaturesChanged(this)
+                                       : false;
 
-  if (mUsesViewportUnits && mPendingViewportChange) {
-    // Rebuild all style data without rerunning selector matching.
-    aRestyleHint |= eRestyle_ForceDescendants;
-  }
-
-  if (aRestyleHint || aChangeHint) {
-    RebuildAllStyleData(aChangeHint, aRestyleHint);
+  if (aShouldRebuild == eAlwaysRebuildStyle ||
+      mediaFeaturesDidChange ||
+      (mUsesViewportUnits && mPendingViewportChange)) {
+    RebuildAllStyleData(aChangeHint);
   }
 
   mPendingViewportChange = false;
@@ -1978,7 +1968,7 @@ nsPresContext::HandleMediaFeatureValuesChangedEvent()
   // Null-check mShell in case the shell has been destroyed (and the
   // event is the only thing holding the pres context alive).
   if (mPendingMediaFeatureValuesChanged && mShell) {
-    MediaFeatureValuesChanged(nsRestyleHint(0));
+    MediaFeatureValuesChanged(eRebuildStyleIfNeeded);
   }
 }
 
@@ -2078,7 +2068,7 @@ nsPresContext::GetUserFontSetInternal()
   // Set mGetUserFontSetCalled up front, so that FlushUserFontSet will actually
   // flush.
   mGetUserFontSetCalled = true;
-  if (mFontFaceSetDirty) {
+  if (mUserFontSetDirty) {
     // If this assertion fails, and there have actually been changes to
     // @font-face rules, then we will call StyleChangeReflow in
     // FlushUserFontSet.  If we're in the middle of reflow,
@@ -2090,11 +2080,7 @@ nsPresContext::GetUserFontSetInternal()
     FlushUserFontSet();
   }
 
-  if (!mFontFaceSet) {
-    return nullptr;
-  }
-
-  return mFontFaceSet->GetUserFontSet();
+  return mUserFontSet;
 }
 
 gfxUserFontSet*
@@ -2112,22 +2098,36 @@ nsPresContext::FlushUserFontSet()
 
   if (!mGetUserFontSetCalled) {
     return; // No one cares about this font set yet, but we want to be careful
-            // to not unset our mFontFaceSetDirty bit, so when someone really
+            // to not unset our mUserFontSetDirty bit, so when someone really
             // does we'll create it.
   }
 
-  if (mFontFaceSetDirty) {
+  if (mUserFontSetDirty) {
     if (gfxPlatform::GetPlatform()->DownloadableFontsEnabled()) {
       nsTArray<nsFontFaceRuleContainer> rules;
       if (!mShell->StyleSet()->AppendFontFaceRules(this, rules)) {
+        if (mUserFontSet) {
+          mUserFontSet->Destroy();
+          NS_RELEASE(mUserFontSet);
+        }
         return;
       }
 
-      if (!mFontFaceSet) {
-        mFontFaceSet = new FontFaceSet(mDocument->GetInnerWindow(), this);
+      bool changed = false;
+
+      if (rules.Length() == 0) {
+        if (mUserFontSet) {
+          mUserFontSet->Destroy();
+          NS_RELEASE(mUserFontSet);
+          changed = true;
+        }
+      } else {
+        if (!mUserFontSet) {
+          mUserFontSet = new nsUserFontSet(this);
+          NS_ADDREF(mUserFontSet);
+        }
+        changed = mUserFontSet->UpdateRules(rules);
       }
-      mFontFaceSet->EnsureUserFontSet(this);
-      bool changed = mFontFaceSet->UpdateRules(rules);
 
       // We need to enqueue a style change reflow (for later) to
       // reflect that we're modifying @font-face rules.  (However,
@@ -2138,7 +2138,7 @@ nsPresContext::FlushUserFontSet()
       }
     }
 
-    mFontFaceSetDirty = false;
+    mUserFontSetDirty = false;
   }
 }
 
@@ -2152,7 +2152,7 @@ nsPresContext::RebuildUserFontSet()
     return;
   }
 
-  mFontFaceSetDirty = true;
+  mUserFontSetDirty = true;
   mDocument->SetNeedStyleFlush();
 
   // Somebody has already asked for the user font set, so we need to
@@ -2189,17 +2189,7 @@ nsPresContext::UserFontSetUpdated()
   //      requires rebuilding the rule tree from the top, avoiding the
   //      reuse of cached data even when no style rules have changed.
 
-  PostRebuildAllStyleDataEvent(NS_STYLE_HINT_REFLOW, eRestyle_ForceDescendants);
-}
-
-FontFaceSet*
-nsPresContext::Fonts()
-{
-  if (!mFontFaceSet) {
-    mFontFaceSet = new FontFaceSet(mDocument->GetInnerWindow(), this);
-    GetUserFontSet();  // this will cause the user font set to be created/updated
-  }
-  return mFontFaceSet;
+  PostRebuildAllStyleDataEvent(NS_STYLE_HINT_REFLOW);
 }
 
 void
@@ -2217,8 +2207,7 @@ nsPresContext::FlushCounterStyles()
     bool changed = mCounterStyleManager->NotifyRuleChanged();
     if (changed) {
       PresShell()->NotifyCounterStylesAreDirty();
-      PostRebuildAllStyleDataEvent(NS_STYLE_HINT_REFLOW,
-                                   eRestyle_ForceDescendants);
+      PostRebuildAllStyleDataEvent(NS_STYLE_HINT_REFLOW);
     }
     mCounterStylesDirty = false;
   }
@@ -2254,7 +2243,7 @@ nsPresContext::EnsureSafeToHandOutCSSRules()
   }
 
   MOZ_ASSERT(res == CSSStyleSheet::eUniqueInner_ClonedInner);
-  RebuildAllStyleData(nsChangeHint(0), eRestyle_Subtree);
+  RebuildAllStyleData(nsChangeHint(0));
 }
 
 void
@@ -2527,11 +2516,6 @@ nsPresContext::NotifyDidPaintForSubtree(uint32_t aFlags)
       return;
     }
   }
-
-  if (!PresShell()->IsVisible() && !mFireAfterPaintEvents) {
-    return;
-  }
-
   // Non-root prescontexts fire MozAfterPaint to all their descendants
   // unconditionally, even if no invalidations have been collected. This is
   // because we don't want to eat the cost of collecting invalidations for
@@ -2661,21 +2645,6 @@ nsPresContext::HavePendingInputEvent()
       return false;
     }
   }
-}
-
-void
-nsPresContext::NotifyFontFaceSetOnRefresh()
-{
-  if (mFontFaceSet) {
-    mFontFaceSet->DidRefresh();
-  }
-}
-
-bool
-nsPresContext::HasPendingRestyleOrReflow()
-{
-  return (mRestyleManager && mRestyleManager->HasPendingRestyles()) ||
-         PresShell()->HasPendingReflow();
 }
 
 void

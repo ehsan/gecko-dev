@@ -18,7 +18,6 @@
 
 class nsCycleCollectionNoteRootCallback;
 class nsIException;
-class nsIRunnable;
 
 namespace js {
 struct Class;
@@ -29,24 +28,20 @@ namespace mozilla {
 class JSGCThingParticipant: public nsCycleCollectionParticipant
 {
 public:
-  NS_IMETHOD_(void) Root(void*)
+  NS_IMETHOD_(void) Root(void* aPtr)
   {
-    MOZ_ASSERT(false, "Don't call Root on GC things");
   }
 
-  NS_IMETHOD_(void) Unlink(void*)
+  NS_IMETHOD_(void) Unlink(void* aPtr)
   {
-    MOZ_ASSERT(false, "Don't call Unlink on GC things, as they may be dead");
   }
 
-  NS_IMETHOD_(void) Unroot(void*)
+  NS_IMETHOD_(void) Unroot(void* aPtr)
   {
-    MOZ_ASSERT(false, "Don't call Unroot on GC things, as they may be dead");
   }
 
   NS_IMETHOD_(void) DeleteCycleCollectable(void* aPtr)
   {
-    MOZ_ASSERT(false, "Can't directly delete a cycle collectable GC thing");
   }
 
   NS_IMETHOD Traverse(void* aPtr, nsCycleCollectionTraversalCallback& aCb);
@@ -59,24 +54,20 @@ public:
   {
   }
 
-  NS_IMETHOD_(void) Root(void*)
+  NS_IMETHOD_(void) Root(void* aPtr)
   {
-    MOZ_ASSERT(false, "Don't call Root on GC things");
   }
 
-  NS_IMETHOD_(void) Unlink(void*)
+  NS_IMETHOD_(void) Unlink(void* aPtr)
   {
-    MOZ_ASSERT(false, "Don't call Unlink on GC things, as they may be dead");
   }
 
-  NS_IMETHOD_(void) Unroot(void*)
+  NS_IMETHOD_(void) Unroot(void* aPtr)
   {
-    MOZ_ASSERT(false, "Don't call Unroot on GC things, as they may be dead");
   }
 
-  NS_IMETHOD_(void) DeleteCycleCollectable(void*)
+  NS_IMETHOD_(void) DeleteCycleCollectable(void* aPtr)
   {
-    MOZ_ASSERT(false, "Can't directly delete a cycle collectable GC thing");
   }
 
   NS_IMETHOD Traverse(void* aPtr, nsCycleCollectionTraversalCallback& aCb);
@@ -102,7 +93,6 @@ struct CycleCollectorResults
     mVisitedGCed = 0;
     mFreedRefCounted = 0;
     mFreedGCed = 0;
-    mFreedJSZones = 0;
     mNumSlices = 1;
     // mNumSlices is initialized to one, because we call Init() after the
     // per-slice increment of mNumSlices has already occurred.
@@ -114,7 +104,6 @@ struct CycleCollectorResults
   uint32_t mVisitedGCed;
   uint32_t mFreedRefCounted;
   uint32_t mFreedGCed;
-  uint32_t mFreedJSZones;
   uint32_t mNumSlices;
 };
 
@@ -258,8 +247,6 @@ public:
   already_AddRefed<nsIException> GetPendingException() const;
   void SetPendingException(nsIException* aException);
 
-  nsTArray<nsRefPtr<nsIRunnable>>& GetPromiseMicroTaskQueue();
-
   nsCycleCollectionParticipant* GCThingParticipant();
   nsCycleCollectionParticipant* ZoneParticipant();
 
@@ -308,8 +295,6 @@ private:
   nsRefPtr<IncrementalFinalizeRunnable> mFinalizeRunnable;
 
   nsCOMPtr<nsIException> mPendingException;
-
-  nsTArray<nsRefPtr<nsIRunnable>> mPromiseMicroTaskQueue;
 
   OOMState mOutOfMemoryState;
   OOMState mLargeAllocationFailureState;

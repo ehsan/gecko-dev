@@ -4,6 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+
 #include "vm/SavedStacks.h"
 
 #include "mozilla/Attributes.h"
@@ -16,7 +17,6 @@
 #include "jshashutil.h"
 #include "jsmath.h"
 #include "jsnum.h"
-#include "prmjtime.h"
 
 #include "gc/Marking.h"
 #include "js/Vector.h"
@@ -25,8 +25,7 @@
 #include "vm/StringBuffer.h"
 
 #include "jscntxtinlines.h"
-
-#include "vm/NativeObject-inl.h"
+#include "jsobjinlines.h"
 
 using mozilla::AddToHash;
 using mozilla::HashString;
@@ -43,7 +42,7 @@ struct SavedFrame::Lookup {
         parent(parent),
         principals(principals)
     {
-        MOZ_ASSERT(source);
+        JS_ASSERT(source);
     }
 
     JSAtom       *source;
@@ -213,8 +212,8 @@ SavedFrame::getPrincipals()
 void
 SavedFrame::initFromLookup(SavedFrame::HandleLookup lookup)
 {
-    MOZ_ASSERT(lookup->source);
-    MOZ_ASSERT(getReservedSlot(JSSLOT_SOURCE).isUndefined());
+    JS_ASSERT(lookup->source);
+    JS_ASSERT(getReservedSlot(JSSLOT_SOURCE).isUndefined());
     setReservedSlot(JSSLOT_SOURCE, StringValue(lookup->source));
 
     setReservedSlot(JSSLOT_LINE, NumberValue(lookup->line));
@@ -226,7 +225,7 @@ SavedFrame::initFromLookup(SavedFrame::HandleLookup lookup)
     setReservedSlot(JSSLOT_PARENT, ObjectOrNullValue(lookup->parent));
     setReservedSlot(JSSLOT_PRIVATE_PARENT, PrivateValue(lookup->parent));
 
-    MOZ_ASSERT(getReservedSlot(JSSLOT_PRINCIPALS).isUndefined());
+    JS_ASSERT(getReservedSlot(JSSLOT_PRINCIPALS).isUndefined());
     if (lookup->principals)
         JS_HoldPrincipals(lookup->principals);
     setReservedSlot(JSSLOT_PRINCIPALS, PrivateValue(lookup->principals));
@@ -281,7 +280,7 @@ SavedFrame::checkThis(JSContext *cx, CallArgs &args, const char *fnName)
     // Check for SavedFrame.prototype, which has the same class as SavedFrame
     // instances, however doesn't actually represent a captured stack frame. It
     // is the only object that is<SavedFrame>() but doesn't have a source.
-    if (thisObject.as<SavedFrame>().getReservedSlot(JSSLOT_SOURCE).isNull()) {
+    if (thisObject.getReservedSlot(JSSLOT_SOURCE).isNull()) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO,
                              SavedFrame::class_.name, fnName, "prototype object");
         return nullptr;
@@ -419,7 +418,7 @@ SavedStacks::init()
 bool
 SavedStacks::saveCurrentStack(JSContext *cx, MutableHandleSavedFrame frame, unsigned maxFrameCount)
 {
-    MOZ_ASSERT(initialized());
+    JS_ASSERT(initialized());
     assertSameCompartment(cx, this);
 
     FrameIter iter(cx, FrameIter::ALL_CONTEXTS, FrameIter::GO_THROUGH_SAVED);
@@ -431,10 +430,10 @@ SavedStacks::sweep(JSRuntime *rt)
 {
     if (frames.initialized()) {
         for (SavedFrame::Set::Enum e(frames); !e.empty(); e.popFront()) {
-            JSObject *obj = e.front().unbarrieredGet();
+            JSObject *obj = static_cast<JSObject *>(e.front());
             JSObject *temp = obj;
 
-            if (IsObjectAboutToBeFinalizedFromAnyThread(&obj)) {
+            if (IsObjectAboutToBeFinalized(&obj)) {
                 e.removeFront();
             } else {
                 SavedFrame *frame = &obj->as<SavedFrame>();
@@ -459,9 +458,7 @@ SavedStacks::sweep(JSRuntime *rt)
 
     sweepPCLocationMap();
 
-    if (savedFrameProto.unbarrieredGet() &&
-        IsObjectAboutToBeFinalizedFromAnyThread(savedFrameProto.unsafeGet()))
-    {
+    if (savedFrameProto && IsObjectAboutToBeFinalized(savedFrameProto.unsafeGet())) {
         savedFrameProto.set(nullptr);
     }
 }
@@ -482,7 +479,7 @@ SavedStacks::trace(JSTracer *trc)
 uint32_t
 SavedStacks::count()
 {
-    MOZ_ASSERT(initialized());
+    JS_ASSERT(initialized());
     return frames.count();
 }
 
@@ -595,10 +592,9 @@ SavedStacks::getOrCreateSavedFramePrototype(JSContext *cx)
     if (!global)
         return nullptr;
 
-    RootedNativeObject proto(cx,
-        NewNativeObjectWithGivenProto(cx, &SavedFrame::class_,
-                                      global->getOrCreateObjectPrototype(cx),
-                                      global));
+    RootedObject proto(cx, NewObjectWithGivenProto(cx, &SavedFrame::class_,
+                                                   global->getOrCreateObjectPrototype(cx),
+                                                   global));
     if (!proto
         || !JS_DefineProperties(cx, proto, SavedFrame::properties)
         || !JS_DefineFunctions(cx, proto, SavedFrame::methods)
@@ -607,11 +603,10 @@ SavedStacks::getOrCreateSavedFramePrototype(JSContext *cx)
         return nullptr;
     }
 
+    savedFrameProto.set(proto);
     // The only object with the SavedFrame::class_ that doesn't have a source
     // should be the prototype.
-    proto->setReservedSlot(SavedFrame::JSSLOT_SOURCE, NullValue());
-
-    savedFrameProto.set(proto);
+    savedFrameProto->setReservedSlot(SavedFrame::JSSLOT_SOURCE, NullValue());
     return savedFrameProto;
 }
 
@@ -652,7 +647,7 @@ SavedStacks::sweepPCLocationMap()
     for (PCLocationMap::Enum e(pcLocationMap); !e.empty(); e.popFront()) {
         PCKey key = e.front().key();
         JSScript *script = key.script.get();
-        if (IsScriptAboutToBeFinalizedFromAnyThread(&script)) {
+        if (IsScriptAboutToBeFinalized(&script)) {
             e.removeFront();
         } else if (script != key.script.get()) {
             key.script = script;
@@ -676,12 +671,10 @@ SavedStacks::getLocation(JSContext *cx, const FrameIter &iter, MutableHandleLoca
     // that doesn't employ memoization, and update |locationp|'s slots directly.
 
     if (!iter.hasScript()) {
-        if (const char16_t *displayURL = iter.scriptDisplayURL()) {
-            locationp->source = AtomizeChars(cx, displayURL, js_strlen(displayURL));
-        } else {
-            const char *filename = iter.scriptFilename() ? iter.scriptFilename() : "";
-            locationp->source = Atomize(cx, filename, strlen(filename));
-        }
+        const char *filename = iter.scriptFilename();
+        if (!filename)
+            filename = "";
+        locationp->source = Atomize(cx, filename, strlen(filename));
         if (!locationp->source)
             return false;
 
@@ -696,13 +689,8 @@ SavedStacks::getLocation(JSContext *cx, const FrameIter &iter, MutableHandleLoca
     PCLocationMap::AddPtr p = pcLocationMap.lookupForAdd(key);
 
     if (!p) {
-        RootedAtom source(cx);
-        if (const char16_t *displayURL = iter.scriptDisplayURL()) {
-            source = AtomizeChars(cx, displayURL, js_strlen(displayURL));
-        } else {
-            const char *filename = script->filename() ? script->filename() : "";
-            source = Atomize(cx, filename, strlen(filename));
-        }
+        const char *filename = script->filename() ? script->filename() : "";
+        RootedAtom source(cx, Atomize(cx, filename, strlen(filename)));
         if (!source)
             return false;
 
@@ -731,7 +719,7 @@ SavedStacks::chooseSamplingProbability(JSContext *cx)
     for (Debugger **dbgp = dbgs->begin(); dbgp < dbgs->end(); dbgp++) {
         // The set of debuggers had better not change while we're iterating,
         // such that the vector gets reallocated.
-        MOZ_ASSERT(dbgs->begin() == begin);
+        JS_ASSERT(dbgs->begin() == begin);
 
         if ((*dbgp)->trackingAllocationSites && (*dbgp)->enabled)
             allocationTrackingDbg = *dbgp;
@@ -748,6 +736,8 @@ SavedStacks::FrameState::FrameState(const FrameIter &iter)
       name(iter.isNonEvalFunctionFrame() ? iter.functionDisplayAtom() : nullptr),
       location()
 {
+    if (principals)
+        JS_HoldPrincipals(principals);
 }
 
 SavedStacks::FrameState::FrameState(const FrameState &fs)
@@ -755,10 +745,13 @@ SavedStacks::FrameState::FrameState(const FrameState &fs)
       name(fs.name),
       location(fs.location)
 {
+    if (principals)
+        JS_HoldPrincipals(principals);
 }
 
-SavedStacks::FrameState::~FrameState()
-{
+SavedStacks::FrameState::~FrameState() {
+    if (principals)
+        JS_DropPrincipals(TlsPerThreadData.get()->runtimeFromMainThread(), principals);
 }
 
 void
@@ -811,7 +804,7 @@ SavedStacksMetadataCallback(JSContext *cx, JSObject **pmetadata)
         return false;
     *pmetadata = frame;
 
-    return Debugger::onLogAllocationSite(cx, frame, PRMJ_Now());
+    return Debugger::onLogAllocationSite(cx, frame);
 }
 
 #ifdef JS_CRASH_DIAGNOSTICS

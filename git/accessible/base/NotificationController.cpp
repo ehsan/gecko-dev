@@ -6,11 +6,9 @@
 #include "NotificationController.h"
 
 #include "DocAccessible-inl.h"
-#include "DocAccessibleChild.h"
 #include "TextLeafAccessible.h"
 #include "TextUpdater.h"
 
-#include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/Telemetry.h"
 
@@ -219,10 +217,8 @@ NotificationController::WillRefresh(mozilla::TimeStamp aTime)
     if (ownerContent) {
       Accessible* outerDocAcc = mDocument->GetAccessible(ownerContent);
       if (outerDocAcc && outerDocAcc->AppendChild(childDoc)) {
-        if (mDocument->AppendChildDocument(childDoc)) {
-
+        if (mDocument->AppendChildDocument(childDoc))
           continue;
-        }
 
         outerDocAcc->RemoveChild(childDoc);
       }
@@ -231,8 +227,7 @@ NotificationController::WillRefresh(mozilla::TimeStamp aTime)
       childDoc->Shutdown();
     }
   }
-
-  nsTArray<nsRefPtr<DocAccessible>> newChildDocs = Move(mHangingChildDocuments);
+  mHangingChildDocuments.Clear();
 
   // If the document is ready and all its subdocuments are completely loaded
   // then process the document load.
@@ -274,20 +269,6 @@ NotificationController::WillRefresh(mozilla::TimeStamp aTime)
   mObservingState = eRefreshProcessing;
 
   ProcessEventQueue();
-
-  if (IPCAccessibilityActive()) {
-    size_t newDocCount = newChildDocs.Length();
-    for (size_t i = 0; i < newDocCount; i++) {
-      DocAccessible* childDoc = newChildDocs[i];
-      DocAccessibleChild* ipcDoc = new DocAccessibleChild(childDoc);
-      childDoc->SetIPCDoc(ipcDoc);
-      auto contentChild = dom::ContentChild::GetSingleton();
-      DocAccessibleChild* parentIPCDoc = mDocument->IPCDoc();
-      uint64_t id = reinterpret_cast<uintptr_t>(childDoc->Parent()->UniqueID());
-      contentChild->SendPDocAccessibleConstructor(ipcDoc, parentIPCDoc, id);
-    }
-  }
-
   mObservingState = eRefreshObserving;
   if (!mDocument)
     return;

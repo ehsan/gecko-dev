@@ -11,7 +11,6 @@ add_task(function* test_default_behavior_host() {
   let uri2 = NetUtil.newURI("http://visited/");
   let uri3 = NetUtil.newURI("http://bookmarked/");
   let uri4 = NetUtil.newURI("http://tpbk/");
-  let uri5 = NetUtil.newURI("http://tagged/");
 
   yield promiseAddVisits([
     { uri: uri1, title: "typed", transition: TRANSITION_TYPED },
@@ -20,12 +19,9 @@ add_task(function* test_default_behavior_host() {
   ]);
   addBookmark( { uri: uri3, title: "bookmarked" } );
   addBookmark( { uri: uri4, title: "tpbk" } );
-  addBookmark( { uri: uri5, title: "title", tags: ["foo"] } );
 
   // RESTRICT TO HISTORY.
-  Services.prefs.setBoolPref("browser.urlbar.suggest.history", true);
-  Services.prefs.setBoolPref("browser.urlbar.suggest.history.onlyTyped", false);
-  Services.prefs.setBoolPref("browser.urlbar.suggest.bookmark", false);
+  Services.prefs.setIntPref("browser.urlbar.default.behavior", 1);
 
   do_log_info("Restrict history, common visit, should not autoFill");
   yield check_autocomplete({
@@ -38,7 +34,7 @@ add_task(function* test_default_behavior_host() {
   do_log_info("Restrict history, typed visit, should autoFill");
   yield check_autocomplete({
     search: "ty",
-    matches: [ { uri: uri1, title: "typed", style: [ "autofill" ] } ],
+    matches: [ { uri: uri1, title: "typed" } ],
     autofilled: "typed/",
     completed: "typed/"
   });
@@ -56,7 +52,7 @@ add_task(function* test_default_behavior_host() {
   do_log_info("Restrict history, typed bookmark, should autoFill");
   yield check_autocomplete({
     search: "tp",
-    matches: [ { uri: uri4, title: "tpbk", style: [ "autofill" ] } ],
+    matches: [ { uri: uri4, title: "tpbk" } ],
     autofilled: "tpbk/",
     completed: "tpbk/"
   });
@@ -69,7 +65,7 @@ add_task(function* test_default_behavior_host() {
   do_log_info("Restrict history, bookmark, autoFill.typed = false, should autoFill");
   yield check_autocomplete({
     search: "bo",
-    matches: [ { uri: uri3, title: "bookmarked", style: [ "bookmark" ], style: [ "autofill" ] } ],
+    matches: [ { uri: uri3, title: "bookmarked" } ],
     autofilled: "bookmarked/",
     completed: "bookmarked/"
   });
@@ -77,14 +73,14 @@ add_task(function* test_default_behavior_host() {
   do_log_info("Restrict history, common visit, autoFill.typed = false, should autoFill");
   yield check_autocomplete({
     search: "vi",
-    matches: [ { uri: uri2, title: "visited", style: [ "autofill" ] } ],
+    matches: [ { uri: uri2, title: "visited" } ],
     autofilled: "visited/",
     completed: "visited/"
   });
 
   // RESTRICT TO TYPED.
   // This should basically ignore autoFill.typed and acts as if it would be set.
-  Services.prefs.setBoolPref("browser.urlbar.suggest.history.onlyTyped", true);
+  Services.prefs.setIntPref("browser.urlbar.default.behavior", 32);
 
   // Typed behavior basically acts like history, but filters on typed.
   do_log_info("Restrict typed, common visit, autoFill.typed = false, should not autoFill");
@@ -98,7 +94,7 @@ add_task(function* test_default_behavior_host() {
   do_log_info("Restrict typed, typed visit, autofill.typed = false, should autoFill");
   yield check_autocomplete({
     search: "ty",
-    matches: [ { uri: uri1, title: "typed", style: [ "autofill" ] } ],
+    matches: [ { uri: uri1, title: "typed" } ],
     autofilled: "typed/",
     completed: "typed/"
   });
@@ -114,14 +110,13 @@ add_task(function* test_default_behavior_host() {
   do_log_info("Restrict typed, typed bookmark, autofill.typed = false, should autoFill");
   yield check_autocomplete({
     search: "tp",
-    matches: [ { uri: uri4, title: "tpbk", style: [ "autofill" ] } ],
+    matches: [ { uri: uri4, title: "tpbk" } ],
     autofilled: "tpbk/",
     completed: "tpbk/"
   });
 
   // RESTRICT BOOKMARKS.
-  Services.prefs.setBoolPref("browser.urlbar.suggest.history", false);
-  Services.prefs.setBoolPref("browser.urlbar.suggest.bookmark", true);
+  Services.prefs.setIntPref("browser.urlbar.default.behavior", 2);
   Services.prefs.setBoolPref("browser.urlbar.autoFill.typed", true);
 
   do_log_info("Restrict bookmarks, common visit, should not autoFill");
@@ -144,7 +139,7 @@ add_task(function* test_default_behavior_host() {
   do_log_info("Restrict bookmarks, bookmark, should not autoFill");
   yield check_autocomplete({
     search: "bo",
-    matches: [ { uri: uri3, title: "bookmarked", style: [ "bookmark" ] } ],
+    matches: [ { uri: uri3, title: "bookmarked" } ],
     autofilled: "bo",
     completed: "bo"
   });
@@ -153,7 +148,7 @@ add_task(function* test_default_behavior_host() {
   do_log_info("Restrict bookmarks, typed bookmark, should autoFill");
   yield check_autocomplete({
     search: "tp",
-    matches: [ { uri: uri4, title: "tpbk", style: [ "autofill" ] } ],
+    matches: [ { uri: uri4, title: "tpbk" } ],
     autofilled: "tpbk/",
     completed: "tpbk/"
   });
@@ -163,27 +158,9 @@ add_task(function* test_default_behavior_host() {
   do_log_info("Restrict bookmarks, bookmark, autofill.typed = false, should autoFill");
   yield check_autocomplete({
     search: "bo",
-    matches: [ { uri: uri3, title: "bookmarked", style: [ "autofill" ] } ],
+    matches: [ { uri: uri3, title: "bookmarked" } ],
     autofilled: "bookmarked/",
     completed: "bookmarked/"
-  });
-
-  // Don't autofill because it's a title.
-  do_log_info("Restrict bookmarks, title, autofill.typed = false, should not autoFill");
-  yield check_autocomplete({
-    search: "# ta",
-    matches: [ ],
-    autofilled: "# ta",
-    completed: "# ta"
-  });
-
-  // Don't autofill because it's a tag.
-  do_log_info("Restrict bookmarks, tag, autofill.typed = false, should not autoFill");
-  yield check_autocomplete({
-    search: "+ ta",
-    matches: [ { uri: uri5, title: "title", tags: [ "foo" ], style: [ "tag" ] } ],
-    autofilled: "+ ta",
-    completed: "+ ta"
   });
 
   yield cleanup();
@@ -204,11 +181,8 @@ add_task(function* test_default_behavior_url() {
   addBookmark( { uri: uri4, title: "tpbk" } );
 
   // RESTRICT TO HISTORY.
-  Services.prefs.setBoolPref("browser.urlbar.suggest.history", true);
-  Services.prefs.setBoolPref("browser.urlbar.suggest.history.onlyTyped", false);
-  Services.prefs.setBoolPref("browser.urlbar.suggest.bookmark", false);
+  Services.prefs.setIntPref("browser.urlbar.default.behavior", 1);
   Services.prefs.setBoolPref("browser.urlbar.autoFill.typed", true);
-  Services.prefs.setBoolPref("browser.urlbar.autoFill.searchEngines", false);
 
   do_log_info("URL: Restrict history, common visit, should not autoFill");
   yield check_autocomplete({
@@ -221,7 +195,7 @@ add_task(function* test_default_behavior_url() {
   do_log_info("URL: Restrict history, typed visit, should autoFill");
   yield check_autocomplete({
     search: "typed/t",
-    matches: [ { uri: uri1, title: "typed/ty/", style: [ "autofill" ] } ],
+    matches: [ { uri: uri1, title: "typed/ty/" } ],
     autofilled: "typed/ty/",
     completed: "http://typed/ty/"
   });
@@ -239,14 +213,13 @@ add_task(function* test_default_behavior_url() {
   do_log_info("URL: Restrict history, typed bookmark, should autoFill");
   yield check_autocomplete({
     search: "tpbk/t",
-    matches: [ { uri: uri4, title: "tpbk/tp/", style: [ "autofill" ] } ],
+    matches: [ { uri: uri4, title: "tpbk/tp/" } ],
     autofilled: "tpbk/tp/",
     completed: "http://tpbk/tp/"
   });
 
   // RESTRICT BOOKMARKS.
-  Services.prefs.setBoolPref("browser.urlbar.suggest.history", false);
-  Services.prefs.setBoolPref("browser.urlbar.suggest.bookmark", true);
+  Services.prefs.setIntPref("browser.urlbar.default.behavior", 2);
 
   do_log_info("URL: Restrict bookmarks, common visit, should not autoFill");
   yield check_autocomplete({
@@ -268,7 +241,7 @@ add_task(function* test_default_behavior_url() {
   do_log_info("URL: Restrict bookmarks, bookmark, should not autoFill");
   yield check_autocomplete({
     search: "bookmarked/b",
-    matches: [ { uri: uri3, title: "bookmarked", style: [ "bookmark" ] } ],
+    matches: [ { uri: uri3, title: "bookmarked" } ],
     autofilled: "bookmarked/b",
     completed: "bookmarked/b"
   });
@@ -277,7 +250,7 @@ add_task(function* test_default_behavior_url() {
   do_log_info("URL: Restrict bookmarks, typed bookmark, should autoFill");
   yield check_autocomplete({
     search: "tpbk/t",
-    matches: [ { uri: uri4, title: "tpbk/tp/", style: [ "autofill" ] } ],
+    matches: [ { uri: uri4, title: "tpbk/tp/" } ],
     autofilled: "tpbk/tp/",
     completed: "http://tpbk/tp/"
   });
@@ -287,7 +260,7 @@ add_task(function* test_default_behavior_url() {
   do_log_info("URL: Restrict bookmarks, bookmark, autofill.typed = false, should autoFill");
   yield check_autocomplete({
     search: "bookmarked/b",
-    matches: [ { uri: uri3, title: "bookmarked/bo/", style: [ "autofill" ] } ],
+    matches: [ { uri: uri3, title: "bookmarked/bo/" } ],
     autofilled: "bookmarked/bo/",
     completed: "http://bookmarked/bo/"
   });

@@ -27,9 +27,8 @@ class CppEclipseBackend(CommonBackend):
         CommonBackend._init(self)
 
         self._paths_to_defines = {}
-        self._project_name = 'Gecko'
-        self._workspace_dir = self._get_workspace_path()
-        self._project_dir = os.path.join(self._workspace_dir, self._project_name)
+        self._workspace_dir = self.get_workspace_path()
+        self._project_dir = os.path.join(self._workspace_dir, 'gecko')
         self._overwriting_workspace = os.path.isdir(self._workspace_dir)
 
         self._macbundle = self.environment.substs['MOZ_MACBUNDLE_NAME']
@@ -49,16 +48,12 @@ class CppEclipseBackend(CommonBackend):
         self.summary.backend_detailed_summary = types.MethodType(detailed,
             self.summary)
 
-    def _get_workspace_path(self):
-        return CppEclipseBackend.get_workspace_path(self.environment.topsrcdir, self.environment.topobjdir)
-
-    @staticmethod
-    def get_workspace_path(topsrcdir, topobjdir):
+    def get_workspace_path(self):
         # Eclipse doesn't support having the workspace inside the srcdir.
         # Since most people have their objdir inside their srcdir it's easier
         # and more consistent to just put the workspace along side the srcdir
-        srcdir_parent = os.path.dirname(topsrcdir)
-        workspace_dirname = "eclipse_" + os.path.basename(topobjdir)
+        srcdir_parent = os.path.dirname(self.environment.topsrcdir)
+        workspace_dirname = "eclipse_" + os.path.basename(self.environment.topobjdir)
         return os.path.join(srcdir_parent, workspace_dirname)
 
     def consume_object(self, obj):
@@ -200,7 +195,7 @@ class CppEclipseBackend(CommonBackend):
     def _write_project(self, fh):
         project = PROJECT_TEMPLATE;
 
-        project = project.replace('@PROJECT_NAME@', self._project_name)
+        project = project.replace('@PROJECT_NAME@', 'Gecko')
         project = project.replace('@PROJECT_TOPSRCDIR@', self.environment.topsrcdir)
         fh.write(project)
 

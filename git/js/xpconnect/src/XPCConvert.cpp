@@ -1366,8 +1366,7 @@ CheckTargetAndPopulate(const nsXPTType& type,
         return false;
     }
 
-    JS::AutoCheckCannotGC nogc;
-    memcpy(*output, JS_GetArrayBufferViewData(tArr, nogc), byteSize);
+    memcpy(*output, JS_GetArrayBufferViewData(tArr), byteSize);
     return true;
 }
 

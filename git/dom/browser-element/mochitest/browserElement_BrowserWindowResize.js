@@ -33,7 +33,7 @@ function runTest() {
 
   function testIFrameWithSrc(src) {
     var iframe = document.createElement('iframe');
-    iframe.setAttribute('mozbrowser', 'true');
+    SpecialPowers.wrap(iframe).mozbrowser = true;
     iframe.style = "border:none; width:400px; height:400px;";
     iframe.src = src;
     iframe.addEventListener("mozbrowserresize", function (e) {

@@ -33,7 +33,7 @@ function promiseObserverCalled(aTopic, aAction) {
     ok(true, "got " + aTopic + " notification");
     Services.obs.removeObserver(observer, aTopic);
 
-    if (kObservedTopics.indexOf(aTopic) != -1) {
+    if (kObservedTopics.contains(aTopic)) {
       if (!(aTopic in gObservedTopics))
         gObservedTopics[aTopic] = -1;
       else
@@ -178,7 +178,7 @@ function getMediaCaptureState() {
   return "none";
 }
 
-function* closeStream(aAlreadyClosed) {
+function closeStream(aAlreadyClosed) {
   expectNoObserverCalled();
 
   info("closing the stream");
@@ -191,7 +191,7 @@ function* closeStream(aAlreadyClosed) {
   if (!aAlreadyClosed)
     expectObserverCalled("recording-window-ended");
 
-  yield* assertWebRTCIndicatorStatus(null);
+  assertWebRTCIndicatorStatus(null);
 }
 
 function checkDeviceSelectors(aAudio, aVideo) {
@@ -208,22 +208,20 @@ function checkDeviceSelectors(aAudio, aVideo) {
     ok(cameraSelector.hidden, "camera selector hidden");
 }
 
-function* checkSharingUI(aExpected) {
+function checkSharingUI(aExpected) {
   yield promisePopupNotification("webRTC-sharingDevices");
 
-  yield* assertWebRTCIndicatorStatus(aExpected);
+  assertWebRTCIndicatorStatus(aExpected);
 }
 
-function* checkNotSharing() {
+function checkNotSharing() {
   is(getMediaCaptureState(), "none", "expected nothing to be shared");
 
   ok(!PopupNotifications.getNotification("webRTC-sharingDevices"),
      "no webRTC-sharingDevices popup notification");
 
-  yield* assertWebRTCIndicatorStatus(null);
+  assertWebRTCIndicatorStatus(null);
 }
-
-const permissionError = "error: PermissionDeniedError: The user did not grant permission for the operation.";
 
 let gTests = [
 
@@ -383,7 +381,7 @@ let gTests = [
     enableDevice("Camera", false);
     enableDevice("Microphone", false);
 
-    yield promiseMessage(permissionError, () => {
+    yield promiseMessage("error: PERMISSION_DENIED", () => {
       PopupNotifications.panel.firstChild.button.click();
     });
 
@@ -393,7 +391,7 @@ let gTests = [
 
     expectObserverCalled("getUserMedia:response:deny");
     expectObserverCalled("recording-window-ended");
-    yield checkNotSharing();
+    checkNotSharing();
   }
 },
 
@@ -407,13 +405,13 @@ let gTests = [
     expectObserverCalled("getUserMedia:request");
     checkDeviceSelectors(true, true);
 
-    yield promiseMessage(permissionError, () => {
+    yield promiseMessage("error: PERMISSION_DENIED", () => {
       activateSecondaryAction(kActionDeny);
     });
 
     expectObserverCalled("getUserMedia:response:deny");
     expectObserverCalled("recording-window-ended");
-    yield checkNotSharing();
+    checkNotSharing();
   }
 },
 
@@ -452,7 +450,7 @@ let gTests = [
     }
 
     expectNoObserverCalled();
-    yield checkNotSharing();
+    checkNotSharing();
 
     // the stream is already closed, but this will do some cleanup anyway
     yield closeStream(true);
@@ -484,7 +482,7 @@ let gTests = [
         enableDevice("Camera", aAllowVideo || aNever);
 
       let expectedMessage =
-        (aAllowVideo || aAllowAudio) ? "ok" : permissionError;
+        (aAllowVideo || aAllowAudio) ? "ok" : "error: PERMISSION_DENIED";
       yield promiseMessage(expectedMessage, () => {
         activateSecondaryAction(aNever ? kActionNever : kActionAlways);
       });
@@ -589,14 +587,14 @@ let gTests = [
         expectObserverCalled("getUserMedia:request");
 
         // Deny the request to cleanup...
-        yield promiseMessage(permissionError, () => {
+        yield promiseMessage("error: PERMISSION_DENIED", () => {
           activateSecondaryAction(kActionDeny);
         });
         expectObserverCalled("getUserMedia:response:deny");
         expectObserverCalled("recording-window-ended");
       }
       else {
-        let expectedMessage = aExpectStream ? "ok" : permissionError;
+        let expectedMessage = aExpectStream ? "ok" : "error: PERMISSION_DENIED";
         yield promiseMessage(expectedMessage, gum);
 
         if (expectedMessage == "ok") {
@@ -829,7 +827,7 @@ let gTests = [
       if (node.localName == "menuitem")
         labels.push(node.getAttribute("label"));
     }
-    is(labels.indexOf(alwaysLabel), -1, "The 'Always Allow' item isn't shown");
+    ok(!labels.contains(alwaysLabel), "The 'Always Allow' item isn't shown");
 
     // Cleanup.
     yield closeStream(true);

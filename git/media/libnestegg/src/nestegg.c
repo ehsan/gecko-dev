@@ -321,9 +321,18 @@ struct block_additional {
   struct block_additional * next;
 };
 
+#define NE_IO_BUFSZ 16384
+
+struct nestegg_io_buf {
+  nestegg_io io;
+  unsigned char buffer[NE_IO_BUFSZ];
+  size_t bufsz;
+  int offset;
+};
+
 /* Public (opaque) Structures */
 struct nestegg {
-  nestegg_io * io;
+  struct nestegg_io_buf * io;
   nestegg_log log;
   struct pool_ctx * alloc_pool;
   uint64_t last_id;
@@ -546,19 +555,99 @@ ne_alloc(size_t size)
 }
 
 static int
-ne_io_read(nestegg_io * io, void * buffer, size_t length)
+ne_io_read(struct nestegg_io_buf * io, void * buffer, size_t length)
 {
-  return io->read(buffer, length, io->userdata);
+  int64_t off;
+  int r;
+  size_t avail;
+
+  assert(io->offset == -1 || (io->offset >= 0 && (unsigned int) io->offset < io->bufsz));
+
+  /* Too big to buffer, invalidate buffer and read through */
+  if (length > io->bufsz) {
+    if (io->offset != -1) {
+      r = io->io.seek(-(io->bufsz - io->offset), NESTEGG_SEEK_CUR, io->io.userdata);
+      if (r != 0) {
+        return -1;
+      }
+    }
+    io->offset = -1;
+    return io->io.read(buffer, length, io->io.userdata);
+  }
+
+  /* Buffer invalid */
+  if (io->offset == -1) {
+    off = io->io.tell(io->io.userdata);
+    if (off == -1) {
+      return -1;
+    }
+    /* Refill buffer */
+    r = io->io.read(io->buffer, io->bufsz, io->io.userdata);
+    if (r != 1) {
+      /* Read truncated due to being within io->bufsz of EOS, reset read
+         position and switch to read through mode */
+      io->offset = -1;
+      io->bufsz = 0;
+      if (r == 0) {
+        r = io->io.seek(off, NESTEGG_SEEK_SET, io->io.userdata);
+      }
+      if (r == 0) {
+        return io->io.read(buffer, length, io->io.userdata);
+      }
+      return -1;
+    }
+    if (r == 1) {
+      io->offset = 0;
+    }
+  }
+
+  /* Service request with what we have */
+  avail = length;
+  if (io->bufsz - io->offset < length) {
+    avail = io->bufsz - io->offset;
+  }
+  memcpy(buffer, io->buffer + io->offset, avail);
+  io->offset += avail;
+
+  if ((unsigned int) io->offset == io->bufsz) {
+    io->offset = -1;
+  }
+
+  /* Still more to read, invalidate buffer and read more */
+  if (length - avail > 0) {
+    return ne_io_read(io, (char *) buffer + avail, length - avail);
+  }
+
+  return 1;
 }
 
 static int
-ne_io_seek(nestegg_io * io, int64_t offset, int whence)
+ne_io_seek(struct nestegg_io_buf * io, int64_t offset, int whence)
 {
-  return io->seek(offset, whence, io->userdata);
+  /* Invalidate buffer */
+  io->offset = -1;
+
+  return io->io.seek(offset, whence, io->io.userdata);
+}
+
+static int64_t
+ne_io_tell(struct nestegg_io_buf * io)
+{
+  int64_t off;
+
+  off = io->io.tell(io->io.userdata);
+  if (off == -1) {
+    return -1;
+  }
+  if (io->offset == -1) {
+    return off;
+  }
+  assert(off >= (int64_t) io->bufsz - io->offset);
+  return off - io->bufsz + (unsigned int) io->offset;
 }
 
 static int
-ne_io_read_skip(nestegg_io * io, size_t length)
+ne_io_read_skip(struct nestegg_io_buf * io, size_t length)
 {
   size_t get;
   unsigned char buf[8192];
@@ -575,14 +664,8 @@ ne_io_read_skip(nestegg_io * io, size_t length)
   return r;
 }
 
-static int64_t
-ne_io_tell(nestegg_io * io)
-{
-  return io->tell(io->userdata);
-}
-
 static int
-ne_bare_read_vint(nestegg_io * io, uint64_t * value, uint64_t * length, enum vint_mask maskflag)
+ne_bare_read_vint(struct nestegg_io_buf * io, uint64_t * value, uint64_t * length, enum vint_mask maskflag)
 {
   int r;
   unsigned char b;
@@ -619,19 +702,19 @@ ne_bare_read_vint(nestegg_io * io, uint64_t * value, uint64_t * length, enum vin
 }
 
 static int
-ne_read_id(nestegg_io * io, uint64_t * value, uint64_t * length)
+ne_read_id(struct nestegg_io_buf * io, uint64_t * value, uint64_t * length)
 {
   return ne_bare_read_vint(io, value, length, MASK_NONE);
 }
 
 static int
-ne_read_vint(nestegg_io * io, uint64_t * value, uint64_t * length)
+ne_read_vint(struct nestegg_io_buf * io, uint64_t * value, uint64_t * length)
 {
   return ne_bare_read_vint(io, value, length, MASK_FIRST_BIT);
 }
 
 static int
-ne_read_svint(nestegg_io * io, int64_t * value, uint64_t * length)
+ne_read_svint(struct nestegg_io_buf * io, int64_t * value, uint64_t * length)
 {
   int r;
   uint64_t uvalue;
@@ -653,7 +736,7 @@ ne_read_svint(nestegg_io * io, int64_t * value, uint64_t * length)
 }
 
 static int
-ne_read_uint(nestegg_io * io, uint64_t * val, uint64_t length)
+ne_read_uint(struct nestegg_io_buf * io, uint64_t * val, uint64_t length)
 {
   unsigned char b;
   int r;
@@ -675,7 +758,7 @@ ne_read_uint(nestegg_io * io, uint64_t * val, uint64_t length)
 }
 
 static int
-ne_read_int(nestegg_io * io, int64_t * val, uint64_t length)
+ne_read_int(struct nestegg_io_buf * io, int64_t * val, uint64_t length)
 {
   int r;
   uint64_t uval, base;
@@ -702,7 +785,7 @@ ne_read_int(nestegg_io * io, int64_t * val, uint64_t length)
 }
 
 static int
-ne_read_float(nestegg_io * io, double * val, uint64_t length)
+ne_read_float(struct nestegg_io_buf * io, double * val, uint64_t length)
 {
   union {
     uint64_t u;
@@ -1137,7 +1220,7 @@ ne_xiph_lace_value(unsigned char ** np)
 }
 
 static int
-ne_read_xiph_lace_value(nestegg_io * io, uint64_t * value, size_t * consumed)
+ne_read_xiph_lace_value(struct nestegg_io_buf * io, uint64_t * value, size_t * consumed)
 {
   int r;
   uint64_t lace;
@@ -1160,7 +1243,7 @@ ne_read_xiph_lace_value(nestegg_io * io, uint64_t * value, size_t * consumed)
 }
 
 static int
-ne_read_xiph_lacing(nestegg_io * io, size_t block, size_t * read, uint64_t n, uint64_t * sizes)
+ne_read_xiph_lacing(struct nestegg_io_buf * io, size_t block, size_t * read, uint64_t n, uint64_t * sizes)
 {
   int r;
   size_t i = 0;
@@ -1183,7 +1266,7 @@ ne_read_xiph_lacing(nestegg_io * io, size_t block, size_t * read, uint64_t n, ui
 }
 
 static int
-ne_read_ebml_lacing(nestegg_io * io, size_t block, size_t * read, uint64_t n, uint64_t * sizes)
+ne_read_ebml_lacing(struct nestegg_io_buf * io, size_t block, size_t * read, uint64_t n, uint64_t * sizes)
 {
   int r;
   uint64_t lace, sum, length;
@@ -1861,7 +1944,9 @@ ne_match_webm(nestegg_io io, int64_t max_offset)
     nestegg_destroy(ctx);
     return -1;
   }
-  *ctx->io = io;
+  ctx->io->io = io;
+  ctx->io->bufsz = NE_IO_BUFSZ;
+  ctx->io->offset = -1;
   ctx->alloc_pool = ne_pool_init();
   if (!ctx->alloc_pool) {
     nestegg_destroy(ctx);
@@ -1919,7 +2004,9 @@ nestegg_init(nestegg ** context, nestegg_io io, nestegg_log callback, int64_t ma
     nestegg_destroy(ctx);
     return -1;
   }
-  *ctx->io = io;
+  ctx->io->io = io;
+  ctx->io->bufsz = NE_IO_BUFSZ;
+  ctx->io->offset = -1;
   ctx->log = callback;
   ctx->alloc_pool = ne_pool_init();
   if (!ctx->alloc_pool) {
@@ -2070,7 +2157,7 @@ nestegg_get_cue_point(nestegg * ctx, unsigned int cluster_num, int64_t max_offse
     while (cue_pos_node) {
       assert(cue_pos_node->id == ID_CUE_TRACK_POSITIONS);
       pos = cue_pos_node->data;
-      for (track = 0; track < track_count; ++track) {
+      for (track = 0; track < track_count; track++) {
         if (ne_get_uint(pos->track, &track_number) != 0)
           return -1;
 
@@ -2081,12 +2168,12 @@ nestegg_get_cue_point(nestegg * ctx, unsigned int cluster_num, int64_t max_offse
           if (ne_get_uint(pos->cluster_position, &seek_pos) != 0)
             return -1;
           if (cluster_count == cluster_num) {
-            *start_pos = ctx->segment_offset + seek_pos;
+            *start_pos = ctx->segment_offset+seek_pos;
             if (ne_get_uint(cue_point->time, &time) != 0)
               return -1;
             *tstamp = time * tc_scale;
-          } else if (cluster_count == cluster_num + 1) {
-            *end_pos = ctx->segment_offset + seek_pos - 1;
+          } else if (cluster_count == cluster_num+1) {
+            *end_pos = (ctx->segment_offset+seek_pos)-1;
             range_obtained = 1;
             break;
           }
@@ -2105,9 +2192,6 @@ int
 nestegg_offset_seek(nestegg * ctx, uint64_t offset)
 {
   int r;
-
-  if (offset > INT64_MAX)
-    return -1;
 
   /* Seek and set up parser state for segment-level element (Cluster). */
   r = ne_io_seek(ctx->io, offset, NESTEGG_SEEK_SET);

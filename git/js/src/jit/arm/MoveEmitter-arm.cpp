@@ -42,7 +42,7 @@ Operand
 MoveEmitterARM::cycleSlot(uint32_t slot, uint32_t subslot) const
 {
     int32_t offset =  masm.framePushed() - pushedAtCycle_;
-    MOZ_ASSERT(offset < 4096 && offset > -4096);
+    JS_ASSERT(offset < 4096 && offset > -4096);
     return Operand(StackPointer, offset + slot * sizeof(double) + subslot);
 }
 
@@ -51,7 +51,7 @@ Operand
 MoveEmitterARM::spillSlot() const
 {
     int32_t offset =  masm.framePushed() - pushedAtSpill_;
-    MOZ_ASSERT(offset < 4096 && offset > -4096);
+    JS_ASSERT(offset < 4096 && offset > -4096);
     return Operand(StackPointer, offset);
 }
 
@@ -60,11 +60,11 @@ MoveEmitterARM::toOperand(const MoveOperand &operand, bool isFloat) const
 {
     if (operand.isMemoryOrEffectiveAddress()) {
         if (operand.base() != StackPointer) {
-            MOZ_ASSERT(operand.disp() < 1024 && operand.disp() > -1024);
+            JS_ASSERT(operand.disp() < 1024 && operand.disp() > -1024);
             return Operand(operand.base(), operand.disp());
         }
 
-        MOZ_ASSERT(operand.disp() >= 0);
+        JS_ASSERT(operand.disp() >= 0);
 
         // Otherwise, the stack offset may need to be adjusted.
         return Operand(StackPointer, operand.disp() + (masm.framePushed() - pushedAtStart_));
@@ -73,7 +73,7 @@ MoveEmitterARM::toOperand(const MoveOperand &operand, bool isFloat) const
     if (operand.isGeneralReg())
         return Operand(operand.reg());
 
-    MOZ_ASSERT(operand.isFloatReg());
+    JS_ASSERT(operand.isFloatReg());
     return Operand(operand.floatReg());
 }
 
@@ -180,7 +180,7 @@ MoveEmitterARM::completeCycle(const MoveOperand &from, const MoveOperand &to, Mo
         break;
       case MoveOp::INT32:
       case MoveOp::GENERAL:
-        MOZ_ASSERT(slotId == 0);
+        JS_ASSERT(slotId == 0);
         if (to.isMemory()) {
             Register temp = tempReg();
             masm.ma_ldr(cycleSlot(slotId, 0), temp);
@@ -226,7 +226,7 @@ MoveEmitterARM::emitMove(const MoveOperand &from, const MoveOperand &to)
             MOZ_CRASH("strange move!");
         }
     } else if (to.isGeneralReg()) {
-        MOZ_ASSERT(from.isMemoryOrEffectiveAddress());
+        JS_ASSERT(from.isMemoryOrEffectiveAddress());
         if (from.isMemory())
             masm.ma_ldr(toOperand(from, false), to.reg());
         else
@@ -235,12 +235,12 @@ MoveEmitterARM::emitMove(const MoveOperand &from, const MoveOperand &to)
         // Memory to memory gpr move.
         Register reg = tempReg();
 
-        MOZ_ASSERT(from.isMemoryOrEffectiveAddress());
+        JS_ASSERT(from.isMemoryOrEffectiveAddress());
         if (from.isMemory())
             masm.ma_ldr(toOperand(from, false), reg);
         else
             masm.ma_add(from.base(), Imm32(from.disp()), reg);
-        MOZ_ASSERT(to.base() != reg);
+        JS_ASSERT(to.base() != reg);
         masm.ma_str(reg, toOperand(to, false));
     }
 }
@@ -259,7 +259,7 @@ MoveEmitterARM::emitFloat32Move(const MoveOperand &from, const MoveOperand &to)
                      VFPRegister(to.floatReg()).singleOverlay());
     } else {
         // Memory to memory move.
-        MOZ_ASSERT(from.isMemory());
+        JS_ASSERT(from.isMemory());
         FloatRegister reg = ScratchFloat32Reg;
         masm.ma_vldr(toOperand(from, true),
                      VFPRegister(reg).singleOverlay());
@@ -280,7 +280,7 @@ MoveEmitterARM::emitDoubleMove(const MoveOperand &from, const MoveOperand &to)
         masm.ma_vldr(toOperand(from, true), to.floatReg());
     } else {
         // Memory to memory move.
-        MOZ_ASSERT(from.isMemory());
+        JS_ASSERT(from.isMemory());
         FloatRegister reg = ScratchDoubleReg;
         masm.ma_vldr(toOperand(from, true), reg);
         masm.ma_vstr(reg, toOperand(to, true));
@@ -302,9 +302,9 @@ MoveEmitterARM::emit(const MoveOp &move)
     }
 
     if (move.isCycleEnd()) {
-        MOZ_ASSERT(inCycle_);
+        JS_ASSERT(inCycle_);
         completeCycle(from, to, move.type(), move.cycleEndSlot());
-        MOZ_ASSERT(inCycle_ > 0);
+        JS_ASSERT(inCycle_ > 0);
         inCycle_--;
         return;
     }
@@ -333,7 +333,7 @@ MoveEmitterARM::emit(const MoveOp &move)
 void
 MoveEmitterARM::assertDone()
 {
-    MOZ_ASSERT(inCycle_ == 0);
+    JS_ASSERT(inCycle_ == 0);
 }
 
 void

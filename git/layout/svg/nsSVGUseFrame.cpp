@@ -124,9 +124,7 @@ nsSVGUseFrame::AttributeChanged(int32_t         aNameSpaceID,
         aAttribute == nsGkAtoms::y) {
       // make sure our cached transform matrix gets (lazily) updated
       mCanvasTM = nullptr;
-      nsLayoutUtils::PostRestyleEvent(
-        useElement, nsRestyleHint(0),
-        nsChangeHint_InvalidateRenderingObservers);
+      nsSVGEffects::InvalidateRenderingObservers(this);
       nsSVGUtils::ScheduleReflowSVG(this);
       nsSVGUtils::NotifyChildrenOfSVGChange(this, TRANSFORM_CHANGED);
     } else if (aAttribute == nsGkAtoms::width ||
@@ -141,18 +139,14 @@ nsSVGUseFrame::AttributeChanged(int32_t         aNameSpaceID,
         useElement->SyncWidthOrHeight(aAttribute);
       }
       if (invalidate) {
-        nsLayoutUtils::PostRestyleEvent(
-          useElement, nsRestyleHint(0),
-          nsChangeHint_InvalidateRenderingObservers);
+        nsSVGEffects::InvalidateRenderingObservers(this);
         nsSVGUtils::ScheduleReflowSVG(this);
       }
     }
   } else if (aNameSpaceID == kNameSpaceID_XLink &&
              aAttribute == nsGkAtoms::href) {
     // we're changing our nature, clear out the clone information
-    nsLayoutUtils::PostRestyleEvent(
-      useElement, nsRestyleHint(0),
-      nsChangeHint_InvalidateRenderingObservers);
+    nsSVGEffects::InvalidateRenderingObservers(this);
     nsSVGUtils::ScheduleReflowSVG(this);
     useElement->mOriginal = nullptr;
     useElement->UnlinkSource();
@@ -240,8 +234,7 @@ nsSVGUseFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   SVGUseElement *use = static_cast<SVGUseElement*>(mContent);
 
   nsIContent* clone = use->CreateAnonymousContent();
-  nsLayoutUtils::PostRestyleEvent(
-    use, nsRestyleHint(0), nsChangeHint_InvalidateRenderingObservers);
+  nsSVGEffects::InvalidateRenderingObservers(this);
   if (!clone)
     return NS_ERROR_FAILURE;
   if (!aElements.AppendElement(clone))

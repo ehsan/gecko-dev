@@ -8,7 +8,6 @@
 
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/DOMTypes.h"
-#include "mozilla/dom/File.h"
 #include "mozilla/dom/PermissionMessageUtils.h"
 #include "mozilla/dom/StructuredCloneUtils.h"
 #include "mozilla/dom/TabChild.h"
@@ -16,6 +15,7 @@
 #include "mozilla/ipc/InputStreamUtils.h"
 
 #include "JavaScriptChild.h"
+#include "nsDOMFile.h"
 #include "nsIJSRuntimeService.h"
 #include "nsPrintfCString.h"
 
@@ -50,10 +50,9 @@ nsIContentChild::DeallocPJavaScriptChild(PJavaScriptChild* aChild)
 }
 
 PBrowserChild*
-nsIContentChild::AllocPBrowserChild(const TabId& aTabId,
-                                    const IPCTabContext& aContext,
+nsIContentChild::AllocPBrowserChild(const IPCTabContext& aContext,
                                     const uint32_t& aChromeFlags,
-                                    const ContentParentId& aCpID,
+                                    const uint64_t& aID,
                                     const bool& aIsForApp,
                                     const bool& aIsForBrowser)
 {
@@ -70,7 +69,7 @@ nsIContentChild::AllocPBrowserChild(const TabId& aTabId,
   }
 
   nsRefPtr<TabChild> child =
-    TabChild::Create(this, aTabId, tc.GetTabContext(), aChromeFlags);
+    TabChild::Create(this, tc.GetTabContext(), aChromeFlags);
 
   // The ref here is released in DeallocPBrowserChild.
   return child.forget().take();
@@ -98,12 +97,12 @@ nsIContentChild::DeallocPBlobChild(PBlobChild* aActor)
 }
 
 BlobChild*
-nsIContentChild::GetOrCreateActorForBlob(File* aBlob)
+nsIContentChild::GetOrCreateActorForBlob(nsIDOMBlob* aBlob)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aBlob);
 
-  nsRefPtr<FileImpl> blobImpl = aBlob->Impl();
+  nsRefPtr<DOMFileImpl> blobImpl = static_cast<DOMFile*>(aBlob)->Impl();
   MOZ_ASSERT(blobImpl);
 
   BlobChild* actor = BlobChild::GetOrCreate(this, blobImpl);
@@ -121,7 +120,7 @@ nsIContentChild::RecvAsyncMessage(const nsString& aMsg,
   nsRefPtr<nsFrameMessageManager> cpm = nsFrameMessageManager::sChildProcessManager;
   if (cpm) {
     StructuredCloneData cloneData = ipc::UnpackClonedMessageDataForChild(aData);
-    CpowIdHolder cpows(this, aCpows);
+    CpowIdHolder cpows(GetCPOWManager(), aCpows);
     cpm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(cpm.get()),
                         aMsg, false, &cloneData, &cpows, aPrincipal, nullptr);
   }

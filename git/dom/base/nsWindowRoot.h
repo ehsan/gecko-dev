@@ -10,7 +10,6 @@
 class nsPIDOMWindow;
 class nsIDOMEventListener;
 class nsIDOMEvent;
-class nsIGlobalObject;
 
 namespace mozilla {
 class EventChainPostVisitor;
@@ -61,10 +60,6 @@ public:
   }
   virtual mozilla::dom::EventTarget* GetParentTarget() MOZ_OVERRIDE { return mParent; }
   virtual nsIDOMWindow* GetOwnerGlobal() MOZ_OVERRIDE;
-
-  nsIGlobalObject* GetParentObject();
-
-  virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsWindowRoot,
                                                          nsIDOMEventTarget)

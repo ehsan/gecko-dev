@@ -57,13 +57,9 @@ function webNavigation() {
     return docShell.QueryInterface(CI.nsIWebNavigation);
 }
 
-function windowUtilsForWindow(w) {
-    return w.QueryInterface(CI.nsIInterfaceRequestor)
-            .getInterface(CI.nsIDOMWindowUtils);
-}
-
 function windowUtils() {
-    return windowUtilsForWindow(content);
+    return content.QueryInterface(CI.nsIInterfaceRequestor)
+                  .getInterface(CI.nsIDOMWindowUtils);
 }
 
 function IDForEventTarget(event)
@@ -212,33 +208,29 @@ function setupDisplayport(contentRootElement) {
         return;
     }
 
-    function setupDisplayportForElement(element, winUtils) {
+    function setupDisplayportForElement(element) {
         var dpw = attrOrDefault(element, "reftest-displayport-w", 0);
         var dph = attrOrDefault(element, "reftest-displayport-h", 0);
         var dpx = attrOrDefault(element, "reftest-displayport-x", 0);
         var dpy = attrOrDefault(element, "reftest-displayport-y", 0);
         if (dpw !== 0 || dph !== 0 || dpx != 0 || dpy != 0) {
             LogInfo("Setting displayport to <x="+ dpx +", y="+ dpy +", w="+ dpw +", h="+ dph +">");
-            winUtils.setDisplayPortForElement(dpx, dpy, dpw, dph, element, 1);
+            windowUtils().setDisplayPortForElement(dpx, dpy, dpw, dph, element, 1);
         }
     }
 
-    function setupDisplayportForElementSubtree(element, winUtils) {
-        setupDisplayportForElement(element, winUtils);
+    function setupDisplayportForElementSubtree(element) {
+        setupDisplayportForElement(element);
         for (var c = element.firstElementChild; c; c = c.nextElementSibling) {
-            setupDisplayportForElementSubtree(c, winUtils);
-        }
-        if (element.contentDocument) {
-            LogInfo("Descending into subdocument");
-            setupDisplayportForElementSubtree(element.contentDocument.documentElement,
-                                              windowUtilsForWindow(element.contentWindow));
+            setupDisplayportForElementSubtree(c);
         }
     }
 
     if (contentRootElement.hasAttribute("reftest-async-scroll")) {
-        setupDisplayportForElementSubtree(contentRootElement, windowUtils());
+        SendEnableAsyncScroll();
+        setupDisplayportForElementSubtree(contentRootElement);
     } else {
-        setupDisplayportForElement(contentRootElement, windowUtils());
+        setupDisplayportForElement(contentRootElement);
     }
 }
 
@@ -250,14 +242,14 @@ function setupAsyncScrollOffsets(options) {
         return;
     }
 
-    function setupAsyncScrollOffsetsForElement(element, winUtils) {
+    function setupAsyncScrollOffsetsForElement(element) {
         var sx = attrOrDefault(element, "reftest-async-scroll-x", 0);
         var sy = attrOrDefault(element, "reftest-async-scroll-y", 0);
         if (sx != 0 || sy != 0) {
             try {
                 // This might fail when called from RecordResult since layers
                 // may not have been constructed yet
-                winUtils.setAsyncScrollOffset(element, sx, sy);
+                windowUtils().setAsyncScrollOffset(element, sx, sy);
             } catch (e) {
                 if (!options.allowFailure) {
                     throw e;
@@ -266,21 +258,16 @@ function setupAsyncScrollOffsets(options) {
         }
     }
 
-    function setupAsyncScrollOffsetsForElementSubtree(element, winUtils) {
-        setupAsyncScrollOffsetsForElement(element, winUtils);
+    function setupAsyncScrollOffsetsForElementSubtree(element) {
+        setupAsyncScrollOffsetsForElement(element);
         for (var c = element.firstElementChild; c; c = c.nextElementSibling) {
-            setupAsyncScrollOffsetsForElementSubtree(c, winUtils);
-        }
-        if (element.contentDocument) {
-            LogInfo("Descending into subdocument (async offsets)");
-            setupAsyncScrollOffsetsForElementSubtree(element.contentDocument.documentElement,
-                                                     windowUtilsForWindow(element.contentWindow));
+            setupAsyncScrollOffsetsForElementSubtree(c);
         }
     }
 
     var asyncScroll = contentRootElement.hasAttribute("reftest-async-scroll");
     if (asyncScroll) {
-        setupAsyncScrollOffsetsForElementSubtree(contentRootElement, windowUtils());
+        setupAsyncScrollOffsetsForElementSubtree(contentRootElement);
     }
 }
 
@@ -798,7 +785,13 @@ function SynchronizeForSnapshot(flags)
         }
     }
 
-    windowUtils().updateLayerTree();
+    var dummyCanvas = content.document.createElementNS(XHTML_NS, "canvas");
+    dummyCanvas.setAttribute("width", 1);
+    dummyCanvas.setAttribute("height", 1);
+
+    var ctx = dummyCanvas.getContext("2d");
+    var flags = ctx.DRAWWINDOW_DRAW_CARET | ctx.DRAWWINDOW_DRAW_VIEW | ctx.DRAWWINDOW_USE_WIDGET_LAYERS;
+    ctx.drawWindow(content, 0, 0, 1, 1, "rgb(255,255,255)", flags);
 
     // Setup async scroll offsets now, because any scrollable layers should
     // have had their AsyncPanZoomControllers created.
@@ -870,6 +863,11 @@ function SendFailedLoad(why)
 function SendFailedNoPaint()
 {
     sendAsyncMessage("reftest:FailedNoPaint");
+}
+
+function SendEnableAsyncScroll()
+{
+    sendAsyncMessage("reftest:EnableAsyncScroll");
 }
 
 // Return true if a snapshot was taken.

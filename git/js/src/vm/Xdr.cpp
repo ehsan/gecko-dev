@@ -27,13 +27,11 @@ XDRBuffer::freeBuffer()
 bool
 XDRBuffer::grow(size_t n)
 {
-    MOZ_ASSERT(n > size_t(limit - cursor));
+    JS_ASSERT(n > size_t(limit - cursor));
 
-    const size_t MIN_CAPACITY = 8192;
+    const size_t MEM_BLOCK = 8192;
     size_t offset = cursor - base;
-    size_t newCapacity = mozilla::RoundUpPow2(offset + n);
-    if (newCapacity < MIN_CAPACITY)
-        newCapacity = MIN_CAPACITY;
+    size_t newCapacity = JS_ROUNDUP(offset + n, MEM_BLOCK);
     if (isUint32Overflow(newCapacity)) {
         js::gc::AutoSuppressGC suppressGC(cx());
         JS_ReportErrorNumber(cx(), js_GetErrorMessage, nullptr, JSMSG_TOO_BIG_TO_ENCODE);
@@ -106,7 +104,7 @@ VersionCheck(XDRState<mode> *xdr)
 
 template<XDRMode mode>
 bool
-XDRState<mode>::codeFunction(MutableHandleFunction objp)
+XDRState<mode>::codeFunction(MutableHandleObject objp)
 {
     if (mode == XDR_DECODE)
         objp.set(nullptr);

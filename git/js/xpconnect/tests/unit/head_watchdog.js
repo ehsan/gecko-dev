@@ -20,11 +20,6 @@ function isWatchdogEnabled() {
   return gPrefs.getBoolPref("dom.use_watchdog");
 }
 
-function setScriptTimeout(seconds) {
-  var oldTimeout = gPrefs.getIntPref("dom.max_script_run_time");
-  gPrefs.setIntPref("dom.max_script_run_time", seconds);
-}
-
 //
 // Utilities.
 //
@@ -51,14 +46,12 @@ function executeSoon(fn) {
 // Asynchronous watchdog diagnostics.
 //
 // When running, the watchdog wakes up every second, and fires the operation
-// callback if the script has been running for >= the minimum script timeout.
-// As such, if the script timeout is 1 second, a script should never be able to
-// run for two seconds or longer without servicing the operation callback.
-// We wait 3 seconds, just to be safe.
+// callback if the script has been running for >= one second. As such, a script
+// should never be able to run for two seconds or longer without servicing the
+// operation callback. We wait 3 seconds, just to be safe.
 //
 
 function checkWatchdog(expectInterrupt, continuation) {
-  var oldTimeout = setScriptTimeout(1);
   var lastWatchdogWakeup = Cu.getWatchdogTimestamp("WatchdogWakeup");
   setInterruptCallback(function() {
     // If the watchdog didn't actually trigger the operation callback, ignore
@@ -69,7 +62,6 @@ function checkWatchdog(expectInterrupt, continuation) {
     }
     do_check_true(expectInterrupt);
     setInterruptCallback(undefined);
-    setScriptTimeout(oldTimeout);
     // Schedule our continuation before we kill this script.
     executeSoon(continuation);
     return false;
@@ -78,7 +70,6 @@ function checkWatchdog(expectInterrupt, continuation) {
     busyWait(3000);
     do_check_true(!expectInterrupt);
     setInterruptCallback(undefined);
-    setScriptTimeout(oldTimeout);
     continuation();
   });
 }

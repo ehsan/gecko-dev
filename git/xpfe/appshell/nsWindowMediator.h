@@ -6,6 +6,7 @@
 #ifndef nsWindowMediator_h_
 #define nsWindowMediator_h_
 
+#include "mozilla/Mutex.h"
 #include "nsCOMPtr.h"
 #include "nsIWindowMediator.h"
 #include "nsIObserver.h"
@@ -23,6 +24,7 @@ class nsASDOMWindowBackToFrontEnumerator;
 class nsASXULWindowBackToFrontEnumerator;
 class nsIWindowMediatorListener;
 struct nsWindowInfo;
+struct PRLock;
 
 class nsWindowMediator :
   public nsIWindowMediator,
@@ -69,6 +71,7 @@ private:
   int32_t       mTimeStamp;
   bool          mSortingZOrder;
   bool          mReady;
+  mozilla::Mutex mListLock;
 
   nsCOMArray<nsIWindowMediatorListener> mListeners;
 };

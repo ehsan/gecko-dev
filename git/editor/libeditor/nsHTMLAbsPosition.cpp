@@ -38,6 +38,7 @@
 #include "nsIHTMLObjectResizer.h"
 #include "nsINode.h"
 #include "nsIPresShell.h"
+#include "nsISelection.h"
 #include "nsISupportsImpl.h"
 #include "nsISupportsUtils.h"
 #include "nsLiteralString.h"
@@ -437,7 +438,8 @@ nsHTMLEditor::EndMoving()
 
   mGrabberClicked = false;
   mIsMoving = false;
-  nsRefPtr<Selection> selection = GetSelection();
+  nsCOMPtr<nsISelection> selection;
+  GetSelection(getter_AddRefs(selection));
   if (!selection) {
     return NS_ERROR_NOT_INITIALIZED;
   }

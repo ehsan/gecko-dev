@@ -155,6 +155,9 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
       Logger.error(LOG_TAG, "ProfileDatabaseException from begin. Fennec must be launched once until this error is fixed");
       deferredDelegate.onBeginFailed(e);
       return;
+    } catch (NullCursorException e) {
+      deferredDelegate.onBeginFailed(e);
+      return;
     } catch (Exception e) {
       deferredDelegate.onBeginFailed(e);
       return;
@@ -197,8 +200,8 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
 
   class GuidsSinceRunnable implements Runnable {
 
-    private final RepositorySessionGuidsSinceDelegate delegate;
-    private final long                                timestamp;
+    private RepositorySessionGuidsSinceDelegate delegate;
+    private long                                timestamp;
 
     public GuidsSinceRunnable(long timestamp,
                               RepositorySessionGuidsSinceDelegate delegate) {
@@ -216,6 +219,9 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
       Cursor cur;
       try {
         cur = dbHelper.getGUIDsSince(timestamp);
+      } catch (NullCursorException e) {
+        delegate.onGuidsSinceFailed(e);
+        return;
       } catch (Exception e) {
         delegate.onGuidsSinceFailed(e);
         return;
@@ -251,7 +257,7 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
   }
 
   abstract class FetchingRunnable implements Runnable {
-    protected final RepositorySessionFetchRecordsDelegate delegate;
+    protected RepositorySessionFetchRecordsDelegate delegate;
 
     public FetchingRunnable(RepositorySessionFetchRecordsDelegate delegate) {
       this.delegate = delegate;
@@ -294,9 +300,9 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
   }
 
   public class FetchRunnable extends FetchingRunnable {
-    private final String[] guids;
-    private final long     end;
-    private final RecordFilter filter;
+    private String[] guids;
+    private long     end;
+    private RecordFilter filter;
 
     public FetchRunnable(String[] guids,
                          long end,
@@ -343,9 +349,9 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
   }
 
   class FetchSinceRunnable extends FetchingRunnable {
-    private final long since;
-    private final long end;
-    private final RecordFilter filter;
+    private long since;
+    private long end;
+    private RecordFilter filter;
 
     public FetchSinceRunnable(long since,
                               long end,
@@ -532,6 +538,10 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
           Logger.error(LOG_TAG, "Store failed for " + record.guid, e);
           delegate.onRecordStoreFailed(e, record.guid);
           return;
+        } catch (NullCursorException e) {
+          Logger.error(LOG_TAG, "Store failed for " + record.guid, e);
+          delegate.onRecordStoreFailed(e, record.guid);
+          return;
         } catch (Exception e) {
           Logger.error(LOG_TAG, "Store failed for " + record.guid, e);
           delegate.onRecordStoreFailed(e, record.guid);
@@ -672,7 +682,7 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
     if (recordToGuid == null) {
       createRecordToGuidMap();
     }
-    return recordToGuid.get(recordString.hashCode());
+    return recordToGuid.get(Integer.valueOf(recordString.hashCode()));
   }
 
   protected void createRecordToGuidMap() throws NoGuidForIdException, NullCursorException, ParentNotFoundException {
@@ -692,7 +702,7 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
         if (record != null) {
           final String recordString = buildRecordString(record);
           if (recordString != null) {
-            recordToGuid.put(recordString.hashCode(), record.guid);
+            recordToGuid.put(Integer.valueOf(recordString.hashCode()), record.guid);
           }
         }
         cur.moveToNext();
@@ -750,7 +760,7 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
     if (recordToGuid == null) {
       createRecordToGuidMap();
     }
-    recordToGuid.put(recordString.hashCode(), guid);
+    recordToGuid.put(Integer.valueOf(recordString.hashCode()), guid);
   }
 
   protected abstract Record prepareRecord(Record record);

@@ -32,14 +32,14 @@ template<>
 inline bool
 JSObject::is<js::WrapperObject>() const
 {
-    return js::IsWrapper(const_cast<JSObject*>(this));
+    return IsWrapper(const_cast<JSObject*>(this));
 }
 
 template<>
 inline bool
 JSObject::is<js::CrossCompartmentWrapperObject>() const
 {
-    return js::IsCrossCompartmentWrapper(const_cast<JSObject*>(this));
+    return IsCrossCompartmentWrapper(const_cast<JSObject*>(this));
 }
 
 #endif /* vm_WrapperObject_h */

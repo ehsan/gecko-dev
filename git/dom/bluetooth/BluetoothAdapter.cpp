@@ -16,7 +16,6 @@
 #include "mozilla/dom/BluetoothDiscoveryStateChangedEvent.h"
 #include "mozilla/dom/BluetoothStatusChangedEvent.h"
 #include "mozilla/dom/ContentChild.h"
-#include "mozilla/dom/File.h"
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/LazyIdleThread.h"
 
@@ -170,6 +169,7 @@ BluetoothAdapter::BluetoothAdapter(nsPIDOMWindow* aWindow,
   , mIsRooted(false)
 {
   MOZ_ASSERT(aWindow);
+  MOZ_ASSERT(IsDOMBinding());
 
   const InfallibleTArray<BluetoothNamedValue>& values =
     aValue.get_ArrayOfBluetoothNamedValue();
@@ -771,7 +771,7 @@ BluetoothAdapter::IsConnected(const uint16_t aServiceUuid, ErrorResult& aRv)
 
 already_AddRefed<DOMRequest>
 BluetoothAdapter::SendFile(const nsAString& aDeviceAddress,
-                           File& aBlob, ErrorResult& aRv)
+                           nsIDOMBlob* aBlob, ErrorResult& aRv)
 {
   nsCOMPtr<nsPIDOMWindow> win = GetOwner();
   if (!win) {
@@ -791,7 +791,7 @@ BluetoothAdapter::SendFile(const nsAString& aDeviceAddress,
 
   if (XRE_GetProcessType() == GeckoProcessType_Default) {
     // In-process transfer
-    bs->SendFile(aDeviceAddress, &aBlob, results);
+    bs->SendFile(aDeviceAddress, aBlob, results);
   } else {
     ContentChild *cc = ContentChild::GetSingleton();
     if (!cc) {
@@ -799,7 +799,7 @@ BluetoothAdapter::SendFile(const nsAString& aDeviceAddress,
       return nullptr;
     }
 
-    BlobChild* actor = cc->GetOrCreateActorForBlob(&aBlob);
+    BlobChild* actor = cc->GetOrCreateActorForBlob(aBlob);
     if (!actor) {
       aRv.Throw(NS_ERROR_FAILURE);
       return nullptr;

@@ -30,7 +30,7 @@ public class PanelGridView extends GridView
 
     private final ViewConfig viewConfig;
     private final PanelViewAdapter adapter;
-    private final PanelViewItemHandler itemHandler;
+    private PanelViewItemHandler itemHandler;
     private OnItemOpenListener itemOpenListener;
     private HomeContextMenuInfo mContextMenuInfo;
     private HomeContextMenuInfo.Factory mContextMenuInfoFactory;

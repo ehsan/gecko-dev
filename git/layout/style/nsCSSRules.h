@@ -14,7 +14,6 @@
 
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/css/GroupRule.h"
-#include "mozilla/dom/FontFace.h"
 #include "nsIDOMCSSConditionRule.h"
 #include "nsIDOMCSSCounterStyleRule.h"
 #include "nsIDOMCSSFontFaceRule.h"
@@ -210,6 +209,11 @@ public:
     MOZ_OVERRIDE;
   using nsICSSDeclaration::GetPropertyCSSValue;
 
+  nsCSSFontFaceStyleDecl()
+  {
+    SetIsDOMBinding();
+  }
+
   virtual nsINode *GetParentObject() MOZ_OVERRIDE;
   virtual void IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aPropName) MOZ_OVERRIDE;
 
@@ -271,9 +275,6 @@ public:
   void GetDesc(nsCSSFontDesc aDescID, nsCSSValue & aValue);
 
   virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
-
-  void GetDescriptors(mozilla::CSSFontFaceDescriptors& aDescriptors) const
-    { aDescriptors = mDecl.mDescriptors; }
 
 protected:
   ~nsCSSFontFaceRule() {}

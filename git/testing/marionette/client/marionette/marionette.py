@@ -13,7 +13,6 @@ import time
 import traceback
 import warnings
 
-from contextlib import contextmanager
 
 from application_cache import ApplicationCache
 from decorators import do_crash_check
@@ -479,7 +478,6 @@ class Marionette(object):
         self.bin = bin
         self.instance = None
         self.session = None
-        self.session_id = None
         self.window = None
         self.runner = None
         self.emulator = None
@@ -588,32 +586,28 @@ class Marionette(object):
 
     def wait_for_port(self, timeout=60):
         starttime = datetime.datetime.now()
-        poll_interval = 0.1
         while datetime.datetime.now() - starttime < datetime.timedelta(seconds=timeout):
-            sock = None
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.connect((self.host, self.port))
                 data = sock.recv(16)
                 sock.close()
                 if ':' in data:
+                    time.sleep(5)
                     return True
             except socket.error:
                 pass
-            finally:
-                if sock:
-                    sock.close()
-            time.sleep(poll_interval)
+            time.sleep(1)
         return False
 
     @do_crash_check
     def _send_message(self, command, response_key="ok", **kwargs):
-        if not self.session_id and command != "newSession":
+        if not self.session and command != "newSession":
             raise errors.MarionetteException("Please start a session")
 
         message = {"name": command}
-        if self.session_id:
-            message["sessionId"] = self.session_id
+        if self.session:
+            message["sessionId"] = self.session
         if kwargs:
             message["parameters"] = kwargs
 
@@ -638,8 +632,6 @@ class Marionette(object):
                 continue;
 
             break;
-        if not self.session_id:
-            self.session_id = response.get("sessionId", None)
 
         if response_key in response:
             return response[response_key]
@@ -814,7 +806,7 @@ class Marionette(object):
         '''
         return "%s%s" % (self.baseurl, relative_url)
 
-    def start_session(self, desired_capabilities=None, session_id=None):
+    def start_session(self, desired_capabilities=None):
         """Create a new Marionette session.
 
         This method must be called before performing any other action.
@@ -823,7 +815,7 @@ class Marionette(object):
             capabilities.  This is currently ignored.
 
         :returns: A dict of the capabilities offered."""
-        self.session = self._send_message('newSession', 'value', capabilities=desired_capabilities, session_id=session_id)
+        self.session = self._send_message('newSession', 'value')
         self.b2g = 'b2g' in self.session
         return self.session
 
@@ -839,7 +831,6 @@ class Marionette(object):
     def delete_session(self):
         """Close the current session and disconnect from the server."""
         response = self._send_message('deleteSession', 'ok')
-        self.session_id = None
         self.session = None
         self.window = None
         self.client.close()
@@ -961,40 +952,19 @@ class Marionette(object):
 
     def set_context(self, context):
         '''
-        Sets the context that Marionette commands are running in.
+        Sets the context that marionette commands are running in.
 
         :param context: Context, may be one of the class properties
          `CONTEXT_CHROME` or `CONTEXT_CONTENT`.
 
-        Usage example::
+        Usage example:
+
+        ::
 
           marionette.set_context(marionette.CONTEXT_CHROME)
         '''
         assert(context == self.CONTEXT_CHROME or context == self.CONTEXT_CONTENT)
         return self._send_message('setContext', 'ok', value=context)
-
-    @contextmanager
-    def using_context(self, context):
-        '''
-        Sets the context that Marionette commands are running in using
-        a `with` statement. The state of the context on the server is
-        saved before entering the block, and restored upon exiting it.
-
-        :param context: Context, may be one of the class properties
-         `CONTEXT_CHROME` or `CONTEXT_CONTENT`.
-
-        Usage example::
-
-          with marionette.using_context(marionette.CONTEXT_CHROME):
-              # chrome scope
-              ... do stuff ...
-        '''
-        scope = self._send_message('getContext', 'value')
-        self.set_context(context)
-        try:
-            yield
-        finally:
-            self.set_context(scope)
 
     def switch_to_window(self, window_id):
         '''
@@ -1311,15 +1281,14 @@ class Marionette(object):
         NoSuchElementException will be raised.
 
         :param method: The method to use to locate the element; one of: "id",
-                       "name", "class name", "tag name", "css selector", "link text",
-                       "partial link text", "xpath", "anon" and "anon attribute".
-                       Note that the "name", "css selector", "link text" and
-                       "partial link test" methods are not supported in the chrome dom.
+         "name", "class name", "tag name", "css selector", "link text",
+         "partial link text" and "xpath". Note that the methods supported in
+         the chrome dom are only "id", "class name", "tag name" and "xpath".
         :param target: The target of the search.  For example, if method =
-                       "tag", target might equal "div".  If method = "id", target would be
-                       an element id.
+         "tag", target might equal "div".  If method = "id", target would be
+         an element id.
         :param id: If specified, search for elements only inside the element
-                   with the specified id.
+         with the specified id.
         '''
         kwargs = { 'value': target, 'using': method }
         if id:
@@ -1338,15 +1307,14 @@ class Marionette(object):
         time set by set_search_timeout().
 
         :param method: The method to use to locate the elements; one of:
-                       "id", "name", "class name", "tag name", "css selector", "link text",
-                       "partial link text", "xpath", "anon" and "anon attribute".
-                       Note that the "name", "css selector", "link text" and
-                       "partial link test" methods are not supported in the chrome dom.
+         "id", "name", "class name", "tag name", "css selector", "link text",
+         "partial link text" and "xpath". Note that the methods supported in
+         the chrome dom are only "id", "class name", "tag name" and "xpath".
         :param target: The target of the search.  For example, if method =
-                       "tag", target might equal "div".  If method = "id", target would be
-                       an element id.
+         "tag", target might equal "div".  If method = "id", target would be
+         an element id.
         :param id: If specified, search for elements only inside the element
-                   with the specified id.
+         with the specified id.
         '''
         kwargs = { 'value': target, 'using': method }
         if id:

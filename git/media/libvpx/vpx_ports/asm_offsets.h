@@ -9,8 +9,8 @@
  */
 
 
-#ifndef VPX_PORTS_ASM_OFFSETS_H_
-#define VPX_PORTS_ASM_OFFSETS_H_
+#ifndef VPX_PORTS_ASM_OFFSETS_H
+#define VPX_PORTS_ASM_OFFSETS_H
 
 #include <stddef.h>
 
@@ -28,4 +28,4 @@
 #define END
 #endif
 
-#endif  // VPX_PORTS_ASM_OFFSETS_H_
+#endif /* VPX_PORTS_ASM_OFFSETS_H */

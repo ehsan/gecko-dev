@@ -55,14 +55,13 @@ config = {
     "xpcshell_options": [
         "--deviceIP=%(device_ip)s",
         "--xre-path=../hostutils/xre",
-        "--manifest=xpcshell/tests/xpcshell.ini",
+        "--manifest=xpcshell/tests/xpcshell_android.ini",
         "--build-info-json=xpcshell/mozinfo.json",
         "--testing-modules-dir=modules",
         "--local-lib-dir=../fennec",
         "--apk=../%(apk_name)s",
         "--no-logfiles",
-        "--symbols-path=%(symbols_path)s",
-        "--log-raw=%(raw_log_file)s",
+        "--symbols-path=%(symbols_path)s"
     ],
     "jittest_options": [
         "bin/js",

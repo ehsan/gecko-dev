@@ -7,7 +7,6 @@
 
 #include "nsTextFrame.h"
 
-#include "gfx2DGlue.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Likely.h"
@@ -18,7 +17,6 @@
 #include "nsCOMPtr.h"
 #include "nsBlockFrame.h"
 #include "nsCRT.h"
-#include "nsFontMetrics.h"
 #include "nsSplittableFrame.h"
 #include "nsLineLayout.h"
 #include "nsString.h"
@@ -89,7 +87,6 @@
 
 using namespace mozilla;
 using namespace mozilla::dom;
-using namespace mozilla::gfx;
 
 struct TabWidth {
   TabWidth(uint32_t aOffset, uint32_t aWidth)
@@ -129,7 +126,7 @@ namespace {
 struct TabwidthAdaptor
 {
   const nsTArray<TabWidth>& mWidths;
-  explicit TabwidthAdaptor(const nsTArray<TabWidth>& aWidths)
+  TabwidthAdaptor(const nsTArray<TabWidth>& aWidths)
     : mWidths(aWidths) {}
   uint32_t operator[](size_t aIdx) const {
     return mWidths[aIdx].mOffset;
@@ -1769,7 +1766,11 @@ GetFontGroupForFrame(nsIFrame* aFrame, float aFontSizeInflation,
 static already_AddRefed<gfxContext>
 CreateReferenceThebesContext(nsTextFrame* aTextFrame)
 {
-  return aTextFrame->PresContext()->PresShell()->CreateReferenceRenderingContext();
+  nsRefPtr<nsRenderingContext> tmp =
+    aTextFrame->PresContext()->PresShell()->CreateReferenceRenderingContext();
+
+  nsRefPtr<gfxContext> ctx = tmp->ThebesContext();
+  return ctx.forget();
 }
 
 /**
@@ -1790,13 +1791,14 @@ GetHyphenTextRun(gfxTextRun* aTextRun, gfxContext* aContext, nsTextFrame* aTextF
 }
 
 static gfxFont::Metrics
-GetFirstFontMetrics(gfxFontGroup* aFontGroup, bool aVerticalMetrics)
+GetFirstFontMetrics(gfxFontGroup* aFontGroup)
 {
   if (!aFontGroup)
     return gfxFont::Metrics();
   gfxFont* font = aFontGroup->GetFirstValidFont();
-  return font->GetMetrics(aVerticalMetrics ? gfxFont::eVertical
-                                           : gfxFont::eHorizontal);
+  if (!font)
+    return gfxFont::Metrics();
+  return font->GetMetrics(gfxFont::eHorizontal); // XXX vertical
 }
 
 PR_STATIC_ASSERT(NS_STYLE_WHITESPACE_NORMAL == 0);
@@ -2102,7 +2104,7 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
   if (anyMathMLStyling) {
     transformingFactory =
       new MathMLTextRunFactory(transformingFactory.forget(), mathFlags,
-                               sstyScriptLevel, fontInflation);
+                               sstyScriptLevel);
   }
   nsTArray<nsStyleContext*> styles;
   if (transformingFactory) {
@@ -2808,9 +2810,9 @@ public:
       mLength(aLength),
       mWordSpacing(WordSpacing(aFrame, aTextStyle)),
       mLetterSpacing(LetterSpacing(aFrame, aTextStyle)),
+      mJustificationSpacing(0),
       mHyphenWidth(-1),
       mOffsetFromBlockOriginForTabs(aOffsetFromBlockOriginForTabs),
-      mJustificationSpacing(0),
       mReflowing(true),
       mWhichTextRun(aWhichTextRun)
   {
@@ -2833,9 +2835,9 @@ public:
       mLength(aFrame->GetContentLength()),
       mWordSpacing(WordSpacing(aFrame)),
       mLetterSpacing(LetterSpacing(aFrame)),
+      mJustificationSpacing(0),
       mHyphenWidth(-1),
       mOffsetFromBlockOriginForTabs(0),
-      mJustificationSpacing(0),
       mReflowing(false),
       mWhichTextRun(aWhichTextRun)
   {
@@ -2867,10 +2869,16 @@ public:
                           bool aIgnoreTabs);
 
   /**
-   * Compute the justification information in given DOM range, and fill data
-   * necessary for computation of spacing.
+   * Count the number of justifiable characters in the given DOM range
    */
-  void ComputeJustification(int32_t aOffset, int32_t aLength);
+  uint32_t ComputeJustifiableCharacters(int32_t aOffset, int32_t aLength);
+  /**
+   * Find the start and end of the justifiable characters. Does not depend on the
+   * position of aStart or aEnd, although it's most efficient if they are near the
+   * start and end of the text frame.
+   */
+  void FindJustificationRange(gfxSkipCharsIterator* aStart,
+                              gfxSkipCharsIterator* aEnd);
 
   const nsStyleText* StyleText() { return mTextStyle; }
   nsTextFrame* GetFrame() { return mFrame; }
@@ -2900,11 +2908,6 @@ public:
   void CalcTabWidths(uint32_t aTransformedStart, uint32_t aTransformedLength);
 
   const gfxSkipCharsIterator& GetEndHint() { return mTempIterator; }
-
-  const JustificationInfo& GetJustificationInfo() const
-  {
-    return mJustificationInfo;
-  }
 
 protected:
   void SetupJustificationSpacing(bool aPostReflow);
@@ -2936,21 +2939,30 @@ protected:
   int32_t               mLength; // DOM string length, may be INT32_MAX
   gfxFloat              mWordSpacing;     // space for each whitespace char
   gfxFloat              mLetterSpacing;   // space for each letter
+  gfxFloat              mJustificationSpacing;
   gfxFloat              mHyphenWidth;
   gfxFloat              mOffsetFromBlockOriginForTabs;
-
-  // The total spacing for justification
-  gfxFloat              mJustificationSpacing;
-  int32_t               mTotalJustificationGaps;
-  JustificationInfo     mJustificationInfo;
-  // The values in mJustificationAssignments corresponds to unskipped
-  // characters start from mJustificationArrayStart.
-  uint32_t              mJustificationArrayStart;
-  nsTArray<JustificationAssignment> mJustificationAssignments;
-
   bool                  mReflowing;
   nsTextFrame::TextRunType mWhichTextRun;
 };
+
+uint32_t
+PropertyProvider::ComputeJustifiableCharacters(int32_t aOffset, int32_t aLength)
+{
+  // Scan non-skipped characters and count justifiable chars.
+  nsSkipCharsRunIterator
+    run(mStart, nsSkipCharsRunIterator::LENGTH_INCLUDES_SKIPPED, aLength);
+  run.SetOriginalOffset(aOffset);
+  uint32_t justifiableChars = 0;
+  bool isCJK = IsChineseOrJapanese(mFrame);
+  while (run.NextRun()) {
+    for (int32_t i = 0; i < run.GetRunLength(); ++i) {
+      justifiableChars +=
+        IsJustifiableCharacter(mFrag, run.GetOriginalOffset() + i, isCJK);
+    }
+  }
+  return justifiableChars;
+}
 
 /**
  * Finds the offset of the first character of the cluster containing aPos
@@ -2989,73 +3001,6 @@ static void FindClusterEnd(gfxTextRun* aTextRun, int32_t aOriginalEnd,
     aPos->AdvanceOriginal(1);
   }
   aPos->AdvanceOriginal(-1);
-}
-
-void
-PropertyProvider::ComputeJustification(int32_t aOffset, int32_t aLength)
-{
-  bool isCJ = IsChineseOrJapanese(mFrame);
-  nsSkipCharsRunIterator
-    run(mStart, nsSkipCharsRunIterator::LENGTH_INCLUDES_SKIPPED, aLength);
-  run.SetOriginalOffset(aOffset);
-  mJustificationArrayStart = run.GetSkippedOffset();
-
-  MOZ_ASSERT(mJustificationAssignments.IsEmpty());
-  mJustificationAssignments.SetCapacity(aLength);
-  while (run.NextRun()) {
-    uint32_t originalOffset = run.GetOriginalOffset();
-    uint32_t skippedOffset = run.GetSkippedOffset();
-    uint32_t length = run.GetRunLength();
-    mJustificationAssignments.SetLength(
-      skippedOffset + length - mJustificationArrayStart);
-
-    gfxSkipCharsIterator iter = run.GetPos();
-    for (uint32_t i = 0; i < length; ++i) {
-      uint32_t offset = originalOffset + i;
-      if (!IsJustifiableCharacter(mFrag, offset, isCJ)) {
-        continue;
-      }
-
-      iter.SetOriginalOffset(offset);
-
-      FindClusterStart(mTextRun, originalOffset, &iter);
-      uint32_t firstCharOffset = iter.GetSkippedOffset();
-      uint32_t firstChar = firstCharOffset > mJustificationArrayStart ?
-        firstCharOffset - mJustificationArrayStart : 0;
-      if (!firstChar) {
-        mJustificationInfo.mIsStartJustifiable = true;
-      } else {
-        auto& assign = mJustificationAssignments[firstChar];
-        auto& prevAssign = mJustificationAssignments[firstChar - 1];
-        if (prevAssign.mGapsAtEnd) {
-          prevAssign.mGapsAtEnd = 1;
-          assign.mGapsAtStart = 1;
-        } else {
-          assign.mGapsAtStart = 2;
-          mJustificationInfo.mInnerOpportunities++;
-        }
-      }
-
-      FindClusterEnd(mTextRun, originalOffset + length, &iter);
-      uint32_t lastChar = iter.GetSkippedOffset() - mJustificationArrayStart;
-      // Assign the two gaps temporary to the last char. If the next cluster is
-      // justifiable as well, one of the gaps will be removed by code above.
-      mJustificationAssignments[lastChar].mGapsAtEnd = 2;
-      mJustificationInfo.mInnerOpportunities++;
-
-      // Skip the whole cluster
-      i = iter.GetOriginalOffset() - originalOffset;
-    }
-  }
-
-  if (!mJustificationAssignments.IsEmpty() &&
-      mJustificationAssignments.LastElement().mGapsAtEnd) {
-    // We counted the expansion opportunity after the last character,
-    // but it is not an inner opportunity.
-    MOZ_ASSERT(mJustificationInfo.mInnerOpportunities > 0);
-    mJustificationInfo.mInnerOpportunities--;
-    mJustificationInfo.mIsEndJustifiable = true;
-  }
 }
 
 // aStart, aLength in transformed string offsets
@@ -3132,21 +3077,35 @@ PropertyProvider::GetSpacingInternal(uint32_t aStart, uint32_t aLength,
   }
 
   // Now add in justification spacing
-  if (mJustificationSpacing > 0 && mTotalJustificationGaps) {
-    // If there is any spaces trimmed at the end, aStart + aLength may
-    // be larger than the flags array. When that happens, we can simply
-    // ignore those spaces.
-    auto arrayEnd = mJustificationArrayStart +
-      static_cast<uint32_t>(mJustificationAssignments.Length());
-    auto end = std::min(aStart + aLength, arrayEnd);
-    MOZ_ASSERT(aStart >= mJustificationArrayStart);
-    JustificationApplicationState state(
-        mTotalJustificationGaps, NSToCoordRound(mJustificationSpacing));
-    for (auto i = aStart; i < end; i++) {
-      const auto& assign =
-        mJustificationAssignments[i - mJustificationArrayStart];
-      aSpacing[i - aStart].mBefore += state.Consume(assign.mGapsAtStart);
-      aSpacing[i - aStart].mAfter += state.Consume(assign.mGapsAtEnd);
+  if (mJustificationSpacing) {
+    gfxFloat halfJustificationSpace = mJustificationSpacing/2;
+    // Scan non-skipped characters and adjust justifiable chars, adding
+    // justification space on either side of the cluster
+    bool isCJK = IsChineseOrJapanese(mFrame);
+    gfxSkipCharsIterator justificationStart(mStart), justificationEnd(mStart);
+    FindJustificationRange(&justificationStart, &justificationEnd);
+
+    nsSkipCharsRunIterator
+      run(start, nsSkipCharsRunIterator::LENGTH_UNSKIPPED_ONLY, aLength);
+    while (run.NextRun()) {
+      gfxSkipCharsIterator iter = run.GetPos();
+      int32_t runOriginalOffset = run.GetOriginalOffset();
+      for (int32_t i = 0; i < run.GetRunLength(); ++i) {
+        int32_t iterOriginalOffset = runOriginalOffset + i;
+        if (IsJustifiableCharacter(mFrag, iterOriginalOffset, isCJK)) {
+          iter.SetOriginalOffset(iterOriginalOffset);
+          FindClusterStart(mTextRun, runOriginalOffset, &iter);
+          uint32_t clusterFirstChar = iter.GetSkippedOffset();
+          FindClusterEnd(mTextRun, runOriginalOffset + run.GetRunLength(), &iter);
+          uint32_t clusterLastChar = iter.GetSkippedOffset();
+          // Only apply justification to characters before justificationEnd
+          if (clusterFirstChar >= justificationStart.GetSkippedOffset() &&
+              clusterLastChar < justificationEnd.GetSkippedOffset()) {
+            aSpacing[clusterFirstChar - aStart].mBefore += halfJustificationSpace;
+            aSpacing[clusterLastChar - aStart].mAfter += halfJustificationSpace;
+          }
+        }
+      }
     }
   }
 }
@@ -3160,9 +3119,8 @@ ComputeTabWidthAppUnits(nsIFrame* aFrame, gfxTextRun* aTextRun)
   // Round the space width when converting to appunits the same way
   // textruns do
   gfxFloat spaceWidthAppUnits =
-    NS_round(GetFirstFontMetrics(aTextRun->GetFontGroup(),
-                                 aTextRun->UseCenterBaseline()).spaceWidth *
-             aTextRun->GetAppUnitsPerDevUnit());
+    NS_round(GetFirstFontMetrics(aTextRun->GetFontGroup()).spaceWidth *
+              aTextRun->GetAppUnitsPerDevUnit());
   return textStyle->mTabSize * spaceWidthAppUnits;
 }
 
@@ -3355,6 +3313,37 @@ static uint32_t GetSkippedDistance(const gfxSkipCharsIterator& aStart,
 }
 
 void
+PropertyProvider::FindJustificationRange(gfxSkipCharsIterator* aStart,
+                                         gfxSkipCharsIterator* aEnd)
+{
+  NS_PRECONDITION(mLength != INT32_MAX, "Can't call this with undefined length");
+  NS_ASSERTION(aStart && aEnd, "aStart or/and aEnd is null");
+
+  aStart->SetOriginalOffset(mStart.GetOriginalOffset());
+  aEnd->SetOriginalOffset(mStart.GetOriginalOffset() + mLength);
+
+  // Ignore first cluster at start of line for justification purposes
+  if (mFrame->GetStateBits() & TEXT_START_OF_LINE) {
+    while (aStart->GetOriginalOffset() < aEnd->GetOriginalOffset()) {
+      aStart->AdvanceOriginal(1);
+      if (!aStart->IsOriginalCharSkipped() &&
+          mTextRun->IsClusterStart(aStart->GetSkippedOffset()))
+        break;
+    }
+  }
+
+  // Ignore trailing cluster at end of line for justification purposes
+  if (mFrame->GetStateBits() & TEXT_END_OF_LINE) {
+    while (aEnd->GetOriginalOffset() > aStart->GetOriginalOffset()) {
+      aEnd->AdvanceOriginal(-1);
+      if (!aEnd->IsOriginalCharSkipped() &&
+          mTextRun->IsClusterStart(aEnd->GetSkippedOffset()))
+        break;
+    }
+  }
+}
+
+void
 PropertyProvider::SetupJustificationSpacing(bool aPostReflow)
 {
   NS_PRECONDITION(mLength != INT32_MAX, "Can't call this with undefined length");
@@ -3370,13 +3359,12 @@ PropertyProvider::SetupJustificationSpacing(bool aPostReflow)
     mFrame->GetTrimmedOffsets(mFrag, true, aPostReflow);
   end.AdvanceOriginal(trimmed.mLength);
   gfxSkipCharsIterator realEnd(end);
-  ComputeJustification(start.GetOriginalOffset(),
-                       end.GetOriginalOffset() - start.GetOriginalOffset());
+  FindJustificationRange(&start, &end);
 
-  auto assign = mFrame->GetJustificationAssignment();
-  mTotalJustificationGaps =
-    JustificationUtils::CountGaps(mJustificationInfo, assign);
-  if (!mTotalJustificationGaps || mJustificationAssignments.IsEmpty()) {
+  int32_t justifiableCharacters =
+    ComputeJustifiableCharacters(start.GetOriginalOffset(),
+                                 end.GetOriginalOffset() - start.GetOriginalOffset());
+  if (justifiableCharacters == 0) {
     // Nothing to do, nothing is justifiable and we shouldn't have any
     // justification space assigned
     return;
@@ -3388,14 +3376,13 @@ PropertyProvider::SetupJustificationSpacing(bool aPostReflow)
   if (mFrame->GetStateBits() & TEXT_HYPHEN_BREAK) {
     naturalWidth += GetHyphenWidth();
   }
-  mJustificationSpacing = mFrame->GetSize().width - naturalWidth;
-  if (mJustificationSpacing <= 0) {
+  gfxFloat totalJustificationSpace = mFrame->GetSize().width - naturalWidth;
+  if (totalJustificationSpace <= 0) {
     // No space available
     return;
   }
-
-  mJustificationAssignments[0].mGapsAtStart = assign.mGapsAtStart;
-  mJustificationAssignments.LastElement().mGapsAtEnd = assign.mGapsAtEnd;
+  
+  mJustificationSpacing = totalJustificationSpace/justifiableCharacters;
 }
 
 //----------------------------------------------------------------------
@@ -4230,10 +4217,9 @@ nsresult
 nsTextFrame::GetCursor(const nsPoint& aPoint,
                        nsIFrame::Cursor& aCursor)
 {
-  FillCursorInformationFromStyle(StyleUserInterface(), aCursor);
+  FillCursorInformationFromStyle(StyleUserInterface(), aCursor);  
   if (NS_STYLE_CURSOR_AUTO == aCursor.mCursor) {
-    aCursor.mCursor = GetWritingMode().IsVertical()
-                      ? NS_STYLE_CURSOR_VERTICAL_TEXT : NS_STYLE_CURSOR_TEXT;
+    aCursor.mCursor = NS_STYLE_CURSOR_TEXT;
     // If this is editable, we should ignore tabindex value.
     if (mContent->IsEditable()) {
       return NS_OK;
@@ -4256,10 +4242,9 @@ nsTextFrame::GetCursor(const nsPoint& aPoint,
         }
       }
     }
-    return NS_OK;
-  } else {
-    return nsFrame::GetCursor(aPoint, aCursor);
   }
+
+  return NS_OK;
 }
 
 nsIFrame*
@@ -4490,15 +4475,6 @@ nsTextFrame::CharacterDataChanged(CharacterDataChangeInfo* aInfo)
 /* virtual */ void
 nsTextFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
-  // A belt-and-braces check just in case we never get the
-  // MarkIntrinsicISizesDirty call from the style system.
-  if (StyleText()->mTextTransform == NS_STYLE_TEXT_TRANSFORM_CAPITALIZE &&
-      mTextRun &&
-      !(mTextRun->GetFlags() & nsTextFrameUtils::TEXT_IS_TRANSFORMED)) {
-    NS_ERROR("the current textrun doesn't match the style");
-    // The current textrun is now of the wrong type.
-    ClearTextRuns();
-  }
   nsFrame::DidSetStyleContext(aOldStyleContext);
 }
 
@@ -4768,16 +4744,15 @@ nsTextFrame::GetTextDecorations(
   bool useOverride = false;
   nscolor overrideColor = NS_RGBA(0, 0, 0, 0);
 
-  // frameBStartOffset represents the offset to f's BStart from our baseline in our
+  // frameTopOffset represents the offset to f's top from our baseline in our
   // coordinate space
   // baselineOffset represents the offset from our baseline to f's baseline or
   // the nearest block's baseline, in our coordinate space, whichever is closest
   // during the particular iteration
-  nscoord frameBStartOffset = mAscent,
+  nscoord frameTopOffset = mAscent,
           baselineOffset = 0;
 
   bool nearestBlockFound = false;
-  bool vertical = GetWritingMode().IsVertical();
 
   for (nsIFrame* f = this, *fChild = nullptr;
        f;
@@ -4820,20 +4795,18 @@ nsTextFrame::GetTextDecorations(
         const nscoord lineBaselineOffset = LazyGetLineBaselineOffset(fChild,
                                                                      fBlock);
 
-        baselineOffset = frameBStartOffset - lineBaselineOffset -
-          (vertical ? fChild->GetNormalPosition().x
-                    : fChild->GetNormalPosition().y);
+        baselineOffset =
+          frameTopOffset - fChild->GetNormalPosition().y - lineBaselineOffset;
       }
     }
     else if (!nearestBlockFound) {
       // use a dummy WritingMode, because nsTextFrame::GetLogicalBaseLine
       // doesn't use it anyway
-      baselineOffset = frameBStartOffset - f->GetLogicalBaseline(WritingMode());
+      baselineOffset = frameTopOffset - f->GetLogicalBaseline(WritingMode());
     }
 
     nearestBlockFound = nearestBlockFound || firstBlock;
-    frameBStartOffset +=
-      vertical ? f->GetNormalPosition().x : f->GetNormalPosition().y;
+    frameTopOffset += f->GetNormalPosition().y;
 
     const uint8_t style = styleText->GetDecorationStyle();
     if (textDecorations) {
@@ -4918,9 +4891,6 @@ nsTextFrame::UnionAdditionalOverflow(nsPresContext* aPresContext,
   nsRect shadowRect =
     nsLayoutUtils::GetTextShadowRectsUnion(*aVisualOverflowRect, this);
   aVisualOverflowRect->UnionRect(*aVisualOverflowRect, shadowRect);
-  bool verticalRun = mTextRun->IsVertical();
-  bool useVerticalMetrics = verticalRun && mTextRun->UseCenterBaseline();
-  bool inverted = GetWritingMode().IsLineInverted();
 
   if (IsFloatingFirstLetterChild()) {
     // The underline/overline drawable area must be contained in the overflow
@@ -4937,14 +4907,10 @@ nsTextFrame::UnionAdditionalOverflow(nsPresContext* aPresContext,
     nsFontMetrics* fontMetrics = aProvider.GetFontMetrics();
     nscoord underlineOffset, underlineSize;
     fontMetrics->GetUnderline(underlineOffset, underlineSize);
-    nscoord maxAscent = inverted ? fontMetrics->MaxDescent()
-                                 : fontMetrics->MaxAscent();
+    nscoord maxAscent = fontMetrics->MaxAscent();
 
     gfxFloat appUnitsPerDevUnit = aPresContext->AppUnitsPerDevPixel();
-    gfxFloat gfxWidth =
-      (verticalRun ? aVisualOverflowRect->height
-                   : aVisualOverflowRect->width) /
-      appUnitsPerDevUnit;
+    gfxFloat gfxWidth = aVisualOverflowRect->width / appUnitsPerDevUnit;
     gfxFloat gfxAscent = gfxFloat(mAscent) / appUnitsPerDevUnit;
     gfxFloat gfxMaxAscent = maxAscent / appUnitsPerDevUnit;
     gfxFloat gfxUnderlineSize = underlineSize / appUnitsPerDevUnit;
@@ -4952,11 +4918,11 @@ nsTextFrame::UnionAdditionalOverflow(nsPresContext* aPresContext,
     nsRect underlineRect =
       nsCSSRendering::GetTextDecorationRect(aPresContext,
         gfxSize(gfxWidth, gfxUnderlineSize), gfxAscent, gfxUnderlineOffset,
-        NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE, decorationStyle, verticalRun);
+        NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE, decorationStyle);
     nsRect overlineRect =
       nsCSSRendering::GetTextDecorationRect(aPresContext,
         gfxSize(gfxWidth, gfxUnderlineSize), gfxAscent, gfxMaxAscent,
-        NS_STYLE_TEXT_DECORATION_LINE_OVERLINE, decorationStyle, verticalRun);
+        NS_STYLE_TEXT_DECORATION_LINE_OVERLINE, decorationStyle);
 
     aVisualOverflowRect->UnionRect(*aVisualOverflowRect, underlineRect);
     aVisualOverflowRect->UnionRect(*aVisualOverflowRect, overlineRect);
@@ -4976,16 +4942,11 @@ nsTextFrame::UnionAdditionalOverflow(nsPresContext* aPresContext,
       nscoord inflationMinFontSize =
         nsLayoutUtils::InflationMinFontSizeFor(aBlock);
 
-      const nscoord measure = verticalRun ? GetSize().height : GetSize().width;
+      const nscoord width = GetSize().width;
       const gfxFloat appUnitsPerDevUnit = aPresContext->AppUnitsPerDevPixel(),
-                     gfxWidth = measure / appUnitsPerDevUnit;
-      gfxFloat ascent = gfxFloat(mAscent) / appUnitsPerDevUnit;
-      const WritingMode wm = GetWritingMode();
-      if (wm.IsVerticalRL()) {
-        ascent = -ascent;
-      }
-
-      nscoord topOrLeft(nscoord_MAX), bottomOrRight(nscoord_MIN);
+                     gfxWidth = width / appUnitsPerDevUnit,
+                     ascent = gfxFloat(mAscent) / appUnitsPerDevUnit;
+      nscoord top(nscoord_MAX), bottom(nscoord_MIN);
       // Below we loop through all text decorations and compute the rectangle
       // containing all of them, in this frame's coordinate space
       for (uint32_t i = 0; i < textDecs.mUnderlines.Length(); ++i) {
@@ -5001,24 +4962,17 @@ nsTextFrame::UnionAdditionalOverflow(nsPresContext* aPresContext,
         float inflation =
           GetInflationForTextDecorations(dec.mFrame, inflationMinFontSize);
         const gfxFont::Metrics metrics =
-          GetFirstFontMetrics(GetFontGroupForFrame(dec.mFrame, inflation),
-                              useVerticalMetrics);
+          GetFirstFontMetrics(GetFontGroupForFrame(dec.mFrame, inflation));
 
         const nsRect decorationRect =
           nsCSSRendering::GetTextDecorationRect(aPresContext,
             gfxSize(gfxWidth, metrics.underlineSize),
             ascent, metrics.underlineOffset,
-            NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE, decorationStyle,
-            verticalRun) +
+            NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE, decorationStyle) +
           nsPoint(0, -dec.mBaselineOffset);
 
-        if (verticalRun) {
-          topOrLeft = std::min(decorationRect.x, topOrLeft);
-          bottomOrRight = std::max(decorationRect.XMost(), bottomOrRight);
-        } else {
-          topOrLeft = std::min(decorationRect.y, topOrLeft);
-          bottomOrRight = std::max(decorationRect.YMost(), bottomOrRight);
-        }
+        top = std::min(decorationRect.y, top);
+        bottom = std::max(decorationRect.YMost(), bottom);
       }
       for (uint32_t i = 0; i < textDecs.mOverlines.Length(); ++i) {
         const LineDecoration& dec = textDecs.mOverlines[i];
@@ -5033,24 +4987,17 @@ nsTextFrame::UnionAdditionalOverflow(nsPresContext* aPresContext,
         float inflation =
           GetInflationForTextDecorations(dec.mFrame, inflationMinFontSize);
         const gfxFont::Metrics metrics =
-          GetFirstFontMetrics(GetFontGroupForFrame(dec.mFrame, inflation),
-                              useVerticalMetrics);
+          GetFirstFontMetrics(GetFontGroupForFrame(dec.mFrame, inflation));
 
         const nsRect decorationRect =
           nsCSSRendering::GetTextDecorationRect(aPresContext,
             gfxSize(gfxWidth, metrics.underlineSize),
             ascent, metrics.maxAscent,
-            NS_STYLE_TEXT_DECORATION_LINE_OVERLINE, decorationStyle,
-            verticalRun) +
+            NS_STYLE_TEXT_DECORATION_LINE_OVERLINE, decorationStyle) +
           nsPoint(0, -dec.mBaselineOffset);
 
-        if (verticalRun) {
-          topOrLeft = std::min(decorationRect.x, topOrLeft);
-          bottomOrRight = std::max(decorationRect.XMost(), bottomOrRight);
-        } else {
-          topOrLeft = std::min(decorationRect.y, topOrLeft);
-          bottomOrRight = std::max(decorationRect.YMost(), bottomOrRight);
-        }
+        top = std::min(decorationRect.y, top);
+        bottom = std::max(decorationRect.YMost(), bottom);
       }
       for (uint32_t i = 0; i < textDecs.mStrikes.Length(); ++i) {
         const LineDecoration& dec = textDecs.mStrikes[i];
@@ -5065,30 +5012,20 @@ nsTextFrame::UnionAdditionalOverflow(nsPresContext* aPresContext,
         float inflation =
           GetInflationForTextDecorations(dec.mFrame, inflationMinFontSize);
         const gfxFont::Metrics metrics =
-          GetFirstFontMetrics(GetFontGroupForFrame(dec.mFrame, inflation),
-                              useVerticalMetrics);
+          GetFirstFontMetrics(GetFontGroupForFrame(dec.mFrame, inflation));
 
         const nsRect decorationRect =
           nsCSSRendering::GetTextDecorationRect(aPresContext,
             gfxSize(gfxWidth, metrics.strikeoutSize),
             ascent, metrics.strikeoutOffset,
-            NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH, decorationStyle,
-            verticalRun) +
+            NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH, decorationStyle) +
           nsPoint(0, -dec.mBaselineOffset);
-
-        if (verticalRun) {
-          topOrLeft = std::min(decorationRect.x, topOrLeft);
-          bottomOrRight = std::max(decorationRect.XMost(), bottomOrRight);
-        } else {
-          topOrLeft = std::min(decorationRect.y, topOrLeft);
-          bottomOrRight = std::max(decorationRect.YMost(), bottomOrRight);
-        }
+        top = std::min(decorationRect.y, top);
+        bottom = std::max(decorationRect.YMost(), bottom);
       }
 
-      aVisualOverflowRect->UnionRect(
-        *aVisualOverflowRect,
-        verticalRun ? nsRect(topOrLeft, 0, bottomOrRight - topOrLeft, measure)
-                    : nsRect(0, topOrLeft, measure, bottomOrRight - topOrLeft));
+      aVisualOverflowRect->UnionRect(*aVisualOverflowRect,
+                                     nsRect(0, top, width, bottom - top));
     }
   }
   // When this frame is not selected, the text-decoration area must be in
@@ -5168,7 +5105,7 @@ PaintDecorationLine(nsIFrame* aFrame,
                     nscolor aColor,
                     const nscolor* aOverrideColor,
                     const gfxPoint& aPt,
-                    gfxFloat aICoordInFrame,
+                    gfxFloat aXInFrame,
                     const gfxSize& aLineSize,
                     gfxFloat aAscent,
                     gfxFloat aOffset,
@@ -5176,7 +5113,6 @@ PaintDecorationLine(nsIFrame* aFrame,
                     uint8_t aStyle,
                     DecorationType aDecorationType,
                     nsTextFrame::DrawPathCallbacks* aCallbacks,
-                    bool aVertical,
                     gfxFloat aDescentLimit = -1.0)
 {
   nscolor lineColor = aOverrideColor ? *aOverrideColor : aColor;
@@ -5187,18 +5123,17 @@ PaintDecorationLine(nsIFrame* aFrame,
       aCallbacks->NotifyBeforeSelectionDecorationLine(lineColor);
     }
     nsCSSRendering::DecorationLineToPath(aFrame, aCtx, aDirtyRect, lineColor,
-      aPt, aICoordInFrame, aLineSize, aAscent, aOffset, aDecoration, aStyle,
-      aVertical, aDescentLimit);
+      aPt, aXInFrame, aLineSize, aAscent, aOffset, aDecoration, aStyle,
+      aDescentLimit);
     if (aDecorationType == eNormalDecoration) {
       aCallbacks->NotifyDecorationLinePathEmitted();
     } else {
       aCallbacks->NotifySelectionDecorationLinePathEmitted();
     }
   } else {
-    nsCSSRendering::PaintDecorationLine(aFrame, *aCtx->GetDrawTarget(),
-                                        ToRect(aDirtyRect), lineColor,
-      aPt, Float(aICoordInFrame), aLineSize, aAscent, aOffset, aDecoration, aStyle,
-      aVertical, aDescentLimit);
+    nsCSSRendering::PaintDecorationLine(aFrame, aCtx, aDirtyRect, lineColor,
+      aPt, aXInFrame, aLineSize, aAscent, aOffset, aDecoration, aStyle,
+      aDescentLimit);
   }
 }
 
@@ -5212,10 +5147,9 @@ static void DrawSelectionDecorations(gfxContext* aContext,
     nsTextFrame* aFrame,
     nsTextPaintStyle& aTextPaintStyle,
     const TextRangeStyle &aRangeStyle,
-    const gfxPoint& aPt, gfxFloat aICoordInFrame, gfxFloat aWidth,
+    const gfxPoint& aPt, gfxFloat aXInFrame, gfxFloat aWidth,
     gfxFloat aAscent, const gfxFont::Metrics& aFontMetrics,
-    nsTextFrame::DrawPathCallbacks* aCallbacks,
-    bool aVertical)
+    nsTextFrame::DrawPathCallbacks* aCallbacks)
 {
   gfxPoint pt(aPt);
   gfxSize size(aWidth,
@@ -5292,10 +5226,9 @@ static void DrawSelectionDecorations(gfxContext* aContext,
   }
   size.height *= relativeSize;
   PaintDecorationLine(aFrame, aContext, aDirtyRect, color, nullptr, pt,
-    (aVertical ? (pt.y - aPt.y) : (pt.x - aPt.x)) + aICoordInFrame,
-    size, aAscent, aFontMetrics.underlineOffset,
+    pt.x - aPt.x + aXInFrame, size, aAscent, aFontMetrics.underlineOffset,
     NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE, style, eSelectionDecoration,
-    aCallbacks, aVertical, descentLimit);
+    aCallbacks, descentLimit);
 }
 
 /**
@@ -5618,18 +5551,16 @@ nsTextFrame::PaintTextWithSelectionColors(gfxContext* aCtx,
     return false;
   }
 
-  bool vertical = mTextRun->IsVertical();
-  const gfxFloat startIOffset = vertical ?
-    aTextBaselinePt.y - aFramePt.y : aTextBaselinePt.x - aFramePt.x;
-  gfxFloat iOffset, hyphenWidth;
+  const gfxFloat startXOffset = aTextBaselinePt.x - aFramePt.x;
+  gfxFloat xOffset, hyphenWidth;
   uint32_t offset, length; // in transformed string
   SelectionType type;
   TextRangeStyle rangeStyle;
   // Draw background colors
   if (anyBackgrounds) {
     SelectionIterator iterator(prevailingSelections, aContentOffset, aContentLength,
-                               aProvider, mTextRun, startIOffset);
-    while (iterator.GetNextSegment(&iOffset, &offset, &length, &hyphenWidth,
+                               aProvider, mTextRun, startXOffset);
+    while (iterator.GetNextSegment(&xOffset, &offset, &length, &hyphenWidth,
                                    &type, &rangeStyle)) {
       nscolor foreground, background;
       GetSelectionTextColors(type, aTextPaintStyle, rangeStyle,
@@ -5638,18 +5569,11 @@ nsTextFrame::PaintTextWithSelectionColors(gfxContext* aCtx,
       gfxFloat advance = hyphenWidth +
         mTextRun->GetAdvanceWidth(offset, length, &aProvider);
       if (NS_GET_A(background) > 0) {
-        gfxRect bgRect;
-        gfxFloat offs = iOffset - (mTextRun->IsRightToLeft() ? advance : 0);
-        if (vertical) {
-          bgRect = gfxRect(aFramePt.x, aFramePt.y + offs,
-                           GetSize().width, advance);
-        } else {
-          bgRect = gfxRect(aFramePt.x + offs, aFramePt.y,
-                           advance, GetSize().height);
-        }
+        gfxFloat x = xOffset - (mTextRun->IsRightToLeft() ? advance : 0);
         PaintSelectionBackground(aCtx, aTextPaintStyle.PresContext(),
                                  background, aDirtyRect,
-                                 bgRect, aCallbacks);
+                                 gfxRect(aFramePt.x + x, aFramePt.y, advance,
+                                 GetSize().height), aCallbacks);
       }
       iterator.UpdateWithAdvance(advance);
     }
@@ -5660,15 +5584,13 @@ nsTextFrame::PaintTextWithSelectionColors(gfxContext* aCtx,
   nsRect dirtyRect(aDirtyRect.x, aDirtyRect.y,
                    aDirtyRect.width, aDirtyRect.height);
   SelectionIterator iterator(prevailingSelections, aContentOffset, aContentLength,
-                             aProvider, mTextRun, startIOffset);
-  while (iterator.GetNextSegment(&iOffset, &offset, &length, &hyphenWidth,
+                             aProvider, mTextRun, startXOffset);
+  while (iterator.GetNextSegment(&xOffset, &offset, &length, &hyphenWidth,
                                  &type, &rangeStyle)) {
     nscolor foreground, background;
     GetSelectionTextColors(type, aTextPaintStyle, rangeStyle,
                            &foreground, &background);
-    gfxPoint textBaselinePt = vertical ?
-      gfxPoint(aTextBaselinePt.x, aFramePt.y + iOffset) :
-      gfxPoint(aFramePt.x + iOffset, aTextBaselinePt.y);
+    gfxPoint textBaselinePt(aFramePt.x + xOffset, aTextBaselinePt.y);
 
     // Determine what shadow, if any, to draw - either from textStyle
     // or from the ::-moz-selection pseudo-class if specified there
@@ -5689,7 +5611,7 @@ nsTextFrame::PaintTextWithSelectionColors(gfxContext* aCtx,
                        shadow->ShadowAt(i - 1), &aProvider,
                        dirtyRect, aFramePt, textBaselinePt, aCtx,
                        foreground, aClipEdges, 
-                       iOffset - (mTextRun->IsRightToLeft() ?
+                       xOffset - (mTextRun->IsRightToLeft() ?
                                   shadowMetrics.mBoundingBox.width : 0),
                        shadowMetrics.mBoundingBox);
       }
@@ -5748,54 +5670,38 @@ nsTextFrame::PaintTextSelectionDecorations(gfxContext* aCtx,
   }
 
   gfxFont* firstFont = aProvider.GetFontGroup()->GetFirstValidFont();
-  bool verticalRun = mTextRun->IsVertical();
-  bool useVerticalMetrics = verticalRun && mTextRun->UseCenterBaseline();
+  if (!firstFont)
+    return; // OOM
   gfxFont::Metrics
-    decorationMetrics(firstFont->GetMetrics(useVerticalMetrics ?
-      gfxFont::eVertical : gfxFont::eHorizontal));
-  if (!useVerticalMetrics) {
-    // The potential adjustment from using gfxFontGroup::GetUnderlineOffset
-    // is only valid for horizontal font metrics.
-    decorationMetrics.underlineOffset =
-      aProvider.GetFontGroup()->GetUnderlineOffset();
-  }
+    decorationMetrics(firstFont->GetMetrics(gfxFont::eHorizontal)); // XXX vertical?
+  decorationMetrics.underlineOffset =
+    aProvider.GetFontGroup()->GetUnderlineOffset();
 
-  gfxFloat startIOffset =
-    verticalRun ? aTextBaselinePt.y - aFramePt.y : aTextBaselinePt.x - aFramePt.x;
+  gfxFloat startXOffset = aTextBaselinePt.x - aFramePt.x;
   SelectionIterator iterator(selectedChars, aContentOffset, aContentLength,
-                             aProvider, mTextRun, startIOffset);
-  gfxFloat iOffset, hyphenWidth;
+                             aProvider, mTextRun, startXOffset);
+  gfxFloat xOffset, hyphenWidth;
   uint32_t offset, length;
   int32_t app = aTextPaintStyle.PresContext()->AppUnitsPerDevPixel();
   // XXX aTextBaselinePt is in AppUnits, shouldn't it be nsFloatPoint?
-  gfxPoint pt;
-  if (verticalRun) {
-    pt.x = (aTextBaselinePt.x - mAscent) / app;
-  } else {
-    pt.y = (aTextBaselinePt.y - mAscent) / app;
-  }
+  gfxPoint pt(0.0, (aTextBaselinePt.y - mAscent) / app);
   gfxRect dirtyRect(aDirtyRect.x / app, aDirtyRect.y / app,
                     aDirtyRect.width / app, aDirtyRect.height / app);
   SelectionType type;
   TextRangeStyle selectedStyle;
-  while (iterator.GetNextSegment(&iOffset, &offset, &length, &hyphenWidth,
+  while (iterator.GetNextSegment(&xOffset, &offset, &length, &hyphenWidth,
                                  &type, &selectedStyle)) {
     gfxFloat advance = hyphenWidth +
       mTextRun->GetAdvanceWidth(offset, length, &aProvider);
     if (type == aSelectionType) {
-      if (verticalRun) {
-        pt.y = (aFramePt.y + iOffset -
-               (mTextRun->IsRightToLeft() ? advance : 0)) / app;
-      } else {
-        pt.x = (aFramePt.x + iOffset -
-               (mTextRun->IsRightToLeft() ? advance : 0)) / app;
-      }
+      pt.x = (aFramePt.x + xOffset -
+             (mTextRun->IsRightToLeft() ? advance : 0)) / app;
       gfxFloat width = Abs(advance) / app;
       gfxFloat xInFrame = pt.x - (aFramePt.x / app);
       DrawSelectionDecorations(aCtx, dirtyRect, aSelectionType, this,
                                aTextPaintStyle, selectedStyle, pt, xInFrame,
                                width, mAscent / app, decorationMetrics,
-                               aCallbacks, verticalRun);
+                               aCallbacks);
     }
     iterator.UpdateWithAdvance(advance);
   }
@@ -6039,19 +5945,10 @@ nsTextFrame::PaintText(nsRenderingContext* aRenderingContext, nsPoint aPt,
 
   gfxContext* ctx = aRenderingContext->ThebesContext();
   const bool rtl = mTextRun->IsRightToLeft();
-  const bool verticalRun = mTextRun->IsVertical();
-  WritingMode wm = GetWritingMode();
   const nscoord frameWidth = GetSize().width;
   gfxPoint framePt(aPt.x, aPt.y);
-  gfxPoint textBaselinePt;
-  if (verticalRun) {
-    textBaselinePt = // XXX sideways-left will need different handling here
-      gfxPoint(aPt.x + (wm.IsVerticalLR() ? mAscent : frameWidth - mAscent),
-               rtl ? aPt.y + GetSize().height : aPt.y);
-  } else {
-    textBaselinePt = gfxPoint(rtl ? gfxFloat(aPt.x + frameWidth) : framePt.x,
+  gfxPoint textBaselinePt(rtl ? gfxFloat(aPt.x + frameWidth) : framePt.x,
              nsLayoutUtils::GetSnappedBaselineY(this, ctx, aPt.y, mAscent));
-  }
   uint32_t startOffset = provider.GetStart().GetSkippedOffset();
   uint32_t maxLength = ComputeTransformedLength(provider);
   nscoord snappedLeftEdge, snappedRightEdge;
@@ -6059,11 +5956,7 @@ nsTextFrame::PaintText(nsRenderingContext* aRenderingContext, nsPoint aPt,
          &startOffset, &maxLength, &snappedLeftEdge, &snappedRightEdge)) {
     return;
   }
-  if (verticalRun) {
-    textBaselinePt.y += rtl ? -snappedRightEdge : snappedLeftEdge;
-  } else {
-    textBaselinePt.x += rtl ? -snappedRightEdge : snappedLeftEdge;
-  }
+  textBaselinePt.x += rtl ? -snappedRightEdge : snappedLeftEdge;
   nsCharClipDisplayItem::ClipEdges clipEdges(aItem, snappedLeftEdge,
                                              snappedRightEdge);
   nsTextPaintStyle textPaintStyle(this);
@@ -6184,43 +6077,16 @@ nsTextFrame::DrawTextRunAndDecorations(
     nsTextFrame::DrawPathCallbacks* aCallbacks)
 {
     const gfxFloat app = aTextStyle.PresContext()->AppUnitsPerDevPixel();
-    bool verticalRun = mTextRun->IsVertical();
-    bool useVerticalMetrics = verticalRun && mTextRun->UseCenterBaseline();
 
     // XXX aFramePt is in AppUnits, shouldn't it be nsFloatPoint?
     nscoord x = NSToCoordRound(aFramePt.x);
-    nscoord y = NSToCoordRound(aFramePt.y);
+    nscoord width = GetRect().width;
+    aClipEdges.Intersect(&x, &width);
 
-    // 'measure' here is textrun-relative, so for a horizontal run it's the
-    // width, while for a vertical run it's the height of the decoration
-    const nsSize frameSize = GetSize();
-    nscoord measure = verticalRun ? frameSize.height : frameSize.width;
-
-    // XXX todo: probably should have a vertical version of this...
-    if (!verticalRun) {
-      aClipEdges.Intersect(&x, &measure);
-    }
-
-    // decPt is the physical point where the decoration is to be drawn,
-    // relative to the frame; one of its coordinates will be updated below.
-    gfxPoint decPt(x / app, y / app);
-    gfxFloat& bCoord = verticalRun ? decPt.x : decPt.y;
-
-    // decSize is a textrun-relative size, so its 'width' field is actually
-    // the run-relative measure, and 'height' will be the line thickness
-    gfxSize decSize(measure / app, 0);
-    gfxFloat ascent = gfxFloat(mAscent) / app;
-
-    // The starting edge of the frame in block direction
-    gfxFloat frameBStart = verticalRun ? aFramePt.x : aFramePt.y;
-
-    // In vertical-rl mode, block coordinates are measured from the right,
-    // so we need to adjust here.
-    const WritingMode wm = GetWritingMode();
-    if (wm.IsVerticalRL()) {
-      frameBStart += frameSize.width;
-      ascent = -ascent;
-    }
+    gfxPoint decPt(x / app, 0);
+    gfxSize decSize(width / app, 0);
+    const gfxFloat ascent = gfxFloat(mAscent) / app;
+    const gfxFloat frameTop = aFramePt.y;
 
     gfxRect dirtyRect(aDirtyRect.x / app, aDirtyRect.y / app,
                       aDirtyRect.Width() / app, aDirtyRect.Height() / app);
@@ -6238,16 +6104,15 @@ nsTextFrame::DrawTextRunAndDecorations(
       float inflation =
         GetInflationForTextDecorations(dec.mFrame, inflationMinFontSize);
       const gfxFont::Metrics metrics =
-        GetFirstFontMetrics(GetFontGroupForFrame(dec.mFrame, inflation),
-                            useVerticalMetrics);
+        GetFirstFontMetrics(GetFontGroupForFrame(dec.mFrame, inflation));
 
       decSize.height = metrics.underlineSize;
-      bCoord = (frameBStart - dec.mBaselineOffset) / app;
+      decPt.y = (frameTop - dec.mBaselineOffset) / app;
 
       PaintDecorationLine(this, aCtx, dirtyRect, dec.mColor,
         aDecorationOverrideColor, decPt, 0.0, decSize, ascent,
         metrics.underlineOffset, NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE,
-        dec.mStyle, eNormalDecoration, aCallbacks, verticalRun);
+        dec.mStyle, eNormalDecoration, aCallbacks);
     }
     // Overlines
     for (uint32_t i = aDecorations.mOverlines.Length(); i-- > 0; ) {
@@ -6259,16 +6124,15 @@ nsTextFrame::DrawTextRunAndDecorations(
       float inflation =
         GetInflationForTextDecorations(dec.mFrame, inflationMinFontSize);
       const gfxFont::Metrics metrics =
-        GetFirstFontMetrics(GetFontGroupForFrame(dec.mFrame, inflation),
-                            useVerticalMetrics);
+        GetFirstFontMetrics(GetFontGroupForFrame(dec.mFrame, inflation));
 
       decSize.height = metrics.underlineSize;
-      bCoord = (frameBStart - dec.mBaselineOffset) / app;
+      decPt.y = (frameTop - dec.mBaselineOffset) / app;
 
       PaintDecorationLine(this, aCtx, dirtyRect, dec.mColor,
         aDecorationOverrideColor, decPt, 0.0, decSize, ascent,
         metrics.maxAscent, NS_STYLE_TEXT_DECORATION_LINE_OVERLINE, dec.mStyle,
-        eNormalDecoration, aCallbacks, verticalRun);
+        eNormalDecoration, aCallbacks);
     }
 
     // CSS 2.1 mandates that text be painted after over/underlines, and *then*
@@ -6286,16 +6150,15 @@ nsTextFrame::DrawTextRunAndDecorations(
       float inflation =
         GetInflationForTextDecorations(dec.mFrame, inflationMinFontSize);
       const gfxFont::Metrics metrics =
-        GetFirstFontMetrics(GetFontGroupForFrame(dec.mFrame, inflation),
-                            useVerticalMetrics);
+        GetFirstFontMetrics(GetFontGroupForFrame(dec.mFrame, inflation));
 
       decSize.height = metrics.strikeoutSize;
-      bCoord = (frameBStart - dec.mBaselineOffset) / app;
+      decPt.y = (frameTop - dec.mBaselineOffset) / app;
 
       PaintDecorationLine(this, aCtx, dirtyRect, dec.mColor,
         aDecorationOverrideColor, decPt, 0.0, decSize, ascent,
         metrics.strikeoutOffset, NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH,
-        dec.mStyle, eNormalDecoration, aCallbacks, verticalRun);
+        dec.mStyle, eNormalDecoration, aCallbacks);
     }
 }
 
@@ -6419,17 +6282,15 @@ nsTextFrame::GetCharacterOffsetAtFramePointInternal(nsPoint aPoint,
                                                     bool aForInsertionPoint)
 {
   ContentOffsets offsets;
-
+  
   gfxSkipCharsIterator iter = EnsureTextRun(nsTextFrame::eInflated);
   if (!mTextRun)
     return offsets;
-
+  
   PropertyProvider provider(this, iter, nsTextFrame::eInflated);
   // Trim leading but not trailing whitespace if possible
   provider.InitializeForDisplay(false);
-  gfxFloat width = mTextRun->IsVertical() ?
-    (mTextRun->IsRightToLeft() ? mRect.height - aPoint.y : aPoint.y) :
-    (mTextRun->IsRightToLeft() ? mRect.width - aPoint.x : aPoint.x);
+  gfxFloat width = mTextRun->IsRightToLeft() ? mRect.width - aPoint.x : aPoint.x;
   gfxFloat fitWidth;
   uint32_t skippedLength = ComputeTransformedLength(provider);
 
@@ -6447,14 +6308,11 @@ nsTextFrame::GetCharacterOffsetAtFramePointInternal(nsPoint aPoint,
     FindClusterEnd(mTextRun,
                    provider.GetStart().GetOriginalOffset() + provider.GetOriginalLength(),
                    &extraClusterLastChar);
-    PropertyProvider::Spacing spacing;
     gfxFloat charWidth =
         mTextRun->GetAdvanceWidth(extraCluster.GetSkippedOffset(),
                                   GetSkippedDistance(extraCluster, extraClusterLastChar) + 1,
-                                  &provider, &spacing);
-    charWidth -= spacing.mBefore + spacing.mAfter;
-    selectedOffset = !aForInsertionPoint ||
-      width <= fitWidth + spacing.mBefore + charWidth/2
+                                  &provider);
+    selectedOffset = !aForInsertionPoint || width <= fitWidth + charWidth/2
         ? extraCluster.GetOriginalOffset()
         : extraClusterLastChar.GetOriginalOffset() + 1;
   } else {
@@ -6494,12 +6352,10 @@ nsTextFrame::CombineSelectionUnderlineRect(nsPresContext* aPresContext,
                                         GetFontSizeInflation());
   gfxFontGroup* fontGroup = fm->GetThebesFontGroup();
   gfxFont* firstFont = fontGroup->GetFirstValidFont();
-  WritingMode wm = GetWritingMode();
-  bool verticalRun = wm.IsVertical();
-  bool useVerticalMetrics = verticalRun && !wm.IsSideways();
+  if (!firstFont)
+    return false; // OOM
   const gfxFont::Metrics& metrics =
-    firstFont->GetMetrics(useVerticalMetrics ? gfxFont::eVertical
-                                             : gfxFont::eHorizontal);
+    firstFont->GetMetrics(gfxFont::eHorizontal); // XXX vertical?
   gfxFloat underlineOffset = fontGroup->GetUnderlineOffset();
   gfxFloat ascent = aPresContext->AppUnitsToGfxUnits(mAscent);
   gfxFloat descentLimit =
@@ -6544,7 +6400,7 @@ nsTextFrame::CombineSelectionUnderlineRect(nsPresContext* aPresContext,
     decorationArea =
       nsCSSRendering::GetTextDecorationRect(aPresContext, size,
         ascent, underlineOffset, NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE,
-        style, verticalRun, descentLimit);
+        style, descentLimit);
     aRect.UnionRect(aRect, decorationArea);
   }
   DestroySelectionDetails(details);
@@ -6649,25 +6505,18 @@ nsTextFrame::GetPointFromOffset(int32_t inOffset,
     FindClusterStart(mTextRun, trimmedOffset, &iter);
   }
 
-  gfxFloat advance =
+  gfxFloat advanceWidth =
     mTextRun->GetAdvanceWidth(properties.GetStart().GetSkippedOffset(),
                               GetSkippedDistance(properties.GetStart(), iter),
                               &properties);
-  nscoord iSize = NSToCoordCeilClamped(advance);
+  nscoord width = NSToCoordCeilClamped(advanceWidth);
 
-  if (mTextRun->IsVertical()) {
-    if (mTextRun->IsRightToLeft()) {
-      outPoint->y = mRect.height - iSize;
-    } else {
-      outPoint->y = iSize;
-    }
+  if (mTextRun->IsRightToLeft()) {
+    outPoint->x = mRect.width - width;
   } else {
-    if (mTextRun->IsRightToLeft()) {
-      outPoint->x = mRect.width - iSize;
-    } else {
-      outPoint->x = iSize;
-    }
+    outPoint->x = width;
   }
+  outPoint->y = 0;
 
   return NS_OK;
 }
@@ -7613,7 +7462,7 @@ nsTextFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                          const LogicalSize& aMargin,
                          const LogicalSize& aBorder,
                          const LogicalSize& aPadding,
-                         ComputeSizeFlags aFlags)
+                         uint32_t aFlags)
 {
   // Inlines and text don't compute size before reflow.
   return LogicalSize(aWM, NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
@@ -7656,17 +7505,7 @@ nsTextFrame::ComputeTightBounds(gfxContext* aContext) const
                               aContext, &provider);
   // mAscent should be the same as metrics.mAscent, but it's what we use to
   // paint so that's the one we'll use.
-  nsRect boundingBox = RoundOut(metrics.mBoundingBox);
-  if (GetWritingMode().IsLineInverted()) {
-    boundingBox.y = -boundingBox.YMost();
-  }
-  boundingBox += nsPoint(0, mAscent);
-  if (mTextRun->IsVertical()) {
-    // Swap line-relative textMetrics dimensions to physical coordinates.
-    Swap(boundingBox.x, boundingBox.y);
-    Swap(boundingBox.width, boundingBox.height);
-  }
-  return boundingBox;
+  return RoundOut(metrics.mBoundingBox) + nsPoint(0, mAscent);
 }
 
 /* virtual */ nsresult
@@ -8191,15 +8030,16 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
                "We shouldn't be passed NS_REFLOW_CALC_BOUNDING_METRICS anymore");
 
   int32_t limitLength = length;
-  int32_t forceBreak = aLineLayout.GetForcedBreakPosition(this);
+  int32_t forceBreak = aLineLayout.GetForcedBreakPosition(mContent);
   bool forceBreakAfter = false;
-  if (forceBreak >= length) {
-    forceBreakAfter = forceBreak == length;
+  if (forceBreak >= offset + length) {
+    forceBreakAfter = forceBreak == offset + length;
     // The break is not within the text considered for this textframe.
     forceBreak = -1;
   }
   if (forceBreak >= 0) {
-    limitLength = forceBreak;
+    limitLength = forceBreak - offset;
+    NS_ASSERTION(limitLength >= 0, "Weird break found!");
   }
   // This is the heart of text reflow right here! We don't know where
   // to break, so we need to see how much text fits in the available width.
@@ -8316,9 +8156,7 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
     // record the last break opportunity
     NS_ASSERTION(textMetrics.mAdvanceWidth - trimmableWidth <= aAvailableWidth,
                  "If the text doesn't fit, and we have a break opportunity, why didn't MeasureText use it?");
-    MOZ_ASSERT(lastBreak >= offset, "Strange break position");
-    aLineLayout.NotifyOptionalBreakPosition(this, lastBreak - offset,
-                                            true, breakPriority);
+    aLineLayout.NotifyOptionalBreakPosition(mContent, lastBreak, true, breakPriority);
   }
 
   int32_t contentLength = offset + charsFit - GetContentOffset();
@@ -8346,15 +8184,9 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
     finalSize.BSize(wm) = 0;
   } else if (boundingBoxType != gfxFont::LOOSE_INK_EXTENTS) {
     // Use actual text metrics for floating first letter frame.
-    if (wm.IsLineInverted()) {
-      aMetrics.SetBlockStartAscent(NSToCoordCeil(textMetrics.mDescent));
-      finalSize.BSize(wm) = aMetrics.BlockStartAscent() +
-        NSToCoordCeil(textMetrics.mAscent);
-    } else {
-      aMetrics.SetBlockStartAscent(NSToCoordCeil(textMetrics.mAscent));
-      finalSize.BSize(wm) = aMetrics.BlockStartAscent() +
-        NSToCoordCeil(textMetrics.mDescent);
-    }
+    aMetrics.SetBlockStartAscent(NSToCoordCeil(textMetrics.mAscent));
+    finalSize.BSize(wm) = aMetrics.BlockStartAscent() +
+      NSToCoordCeil(textMetrics.mDescent);
   } else {
     // Otherwise, ascent should contain the overline drawable area.
     // And also descent should contain the underline drawable area.
@@ -8362,15 +8194,9 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
     nsFontMetrics* fm = provider.GetFontMetrics();
     nscoord fontAscent = fm->MaxAscent();
     nscoord fontDescent = fm->MaxDescent();
-    if (wm.IsLineInverted()) {
-      aMetrics.SetBlockStartAscent(std::max(NSToCoordCeil(textMetrics.mDescent), fontDescent));
-      nscoord descent = std::max(NSToCoordCeil(textMetrics.mAscent), fontAscent);
-      finalSize.BSize(wm) = aMetrics.BlockStartAscent() + descent;
-    } else {
-      aMetrics.SetBlockStartAscent(std::max(NSToCoordCeil(textMetrics.mAscent), fontAscent));
-      nscoord descent = std::max(NSToCoordCeil(textMetrics.mDescent), fontDescent);
-      finalSize.BSize(wm) = aMetrics.BlockStartAscent() + descent;
-    }
+    aMetrics.SetBlockStartAscent(std::max(NSToCoordCeil(textMetrics.mAscent), fontAscent));
+    nscoord descent = std::max(NSToCoordCeil(textMetrics.mDescent), fontDescent);
+    finalSize.BSize(wm) = aMetrics.BlockStartAscent() + descent;
   }
   aMetrics.SetSize(wm, finalSize);
 
@@ -8383,16 +8209,7 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
   mAscent = aMetrics.BlockStartAscent();
 
   // Handle text that runs outside its normal bounds.
-  nsRect boundingBox = RoundOut(textMetrics.mBoundingBox);
-  if (wm.IsLineInverted()) {
-    boundingBox.y = -boundingBox.YMost();
-  }
-  boundingBox += nsPoint(0, mAscent);
-  if (mTextRun->IsVertical()) {
-    // Swap line-relative textMetrics dimensions to physical coordinates.
-    Swap(boundingBox.x, boundingBox.y);
-    Swap(boundingBox.width, boundingBox.height);
-  }
+  nsRect boundingBox = RoundOut(textMetrics.mBoundingBox) + nsPoint(0, mAscent);
   aMetrics.SetOverflowAreasToDesiredBounds();
   aMetrics.VisualOverflow().UnionRect(aMetrics.VisualOverflow(), boundingBox);
 
@@ -8412,17 +8229,16 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
   // at most one space so there's no way for trimmable width from a previous
   // frame to accumulate with trimmable width from this frame.)
   if (transformedCharsFit > 0) {
-    aLineLayout.SetTrimmableISize(NSToCoordFloor(trimmableWidth));
+    aLineLayout.SetTrimmableWidth(NSToCoordFloor(trimmableWidth));
     AddStateBits(TEXT_HAS_NONCOLLAPSED_CHARACTERS);
   }
   if (charsFit > 0 && charsFit == length &&
       textStyle->mHyphens != NS_STYLE_HYPHENS_NONE &&
       HasSoftHyphenBefore(frag, mTextRun, offset, end)) {
-    bool fits =
-      textMetrics.mAdvanceWidth + provider.GetHyphenWidth() <= availWidth;
     // Record a potential break after final soft hyphen
-    aLineLayout.NotifyOptionalBreakPosition(this, length, fits,
-                                            gfxBreakPriority::eNormalBreak);
+    aLineLayout.NotifyOptionalBreakPosition(mContent, offset + length,
+        textMetrics.mAdvanceWidth + provider.GetHyphenWidth() <= availWidth,
+                                           gfxBreakPriority::eNormalBreak);
   }
   bool breakAfter = forceBreakAfter;
   // length == 0 means either the text is empty or it's all collapsed away
@@ -8441,8 +8257,8 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
     if (textMetrics.mAdvanceWidth - trimmableWidth > availWidth) {
       breakAfter = true;
     } else {
-      aLineLayout.NotifyOptionalBreakPosition(this, length, true,
-                                              gfxBreakPriority::eNormalBreak);
+      aLineLayout.NotifyOptionalBreakPosition(mContent, offset + length,
+                                              true, gfxBreakPriority::eNormalBreak);
     }
   }
 
@@ -8491,9 +8307,15 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
       (lineContainer->StyleText()->mTextAlign == NS_STYLE_TEXT_ALIGN_JUSTIFY ||
        lineContainer->StyleText()->mTextAlignLast == NS_STYLE_TEXT_ALIGN_JUSTIFY) &&
       !lineContainer->IsSVGText()) {
-    AddStateBits(TEXT_JUSTIFICATION_ENABLED);
-    provider.ComputeJustification(offset, charsFit);
-    aLineLayout.SetJustificationInfo(provider.GetJustificationInfo());
+    AddStateBits(TEXT_JUSTIFICATION_ENABLED);    // This will include a space for trailing whitespace, if any is present.
+    // This is corrected for in nsLineLayout::TrimWhiteSpaceIn.
+    int32_t numJustifiableCharacters =
+      provider.ComputeJustifiableCharacters(offset, charsFit);
+
+    NS_ASSERTION(numJustifiableCharacters <= charsFit,
+                 "Bad justifiable character count");
+    aLineLayout.SetTextJustificationWeights(numJustifiableCharacters,
+        charsFit - numJustifiableCharacters);
   }
 
   SetLength(contentLength, &aLineLayout, ALLOW_FRAME_CREATION_AND_DESTRUCTION);
@@ -8520,6 +8342,7 @@ nsTextFrame::TrimTrailingWhiteSpace(nsRenderingContext* aRC)
 {
   TrimOutput result;
   result.mChanged = false;
+  result.mLastCharIsJustifiable = false;
   result.mDeltaWidth = 0;
 
   AddStateBits(TEXT_END_OF_LINE);
@@ -8542,8 +8365,10 @@ nsTextFrame::TrimTrailingWhiteSpace(nsRenderingContext* aRC)
   gfxFloat delta = 0;
   uint32_t trimmedEnd = trimmedEndIter.ConvertOriginalToSkipped(trimmed.GetEnd());
   
-  if (!(GetStateBits() & TEXT_TRIMMED_TRAILING_WHITESPACE) &&
-      trimmed.GetEnd() < GetContentEnd()) {
+  if (GetStateBits() & TEXT_TRIMMED_TRAILING_WHITESPACE) {
+    // We pre-trimmed this frame, so the last character is justifiable
+    result.mLastCharIsJustifiable = true;
+  } else if (trimmed.GetEnd() < GetContentEnd()) {
     gfxSkipCharsIterator end = trimmedEndIter;
     uint32_t endOffset = end.ConvertOriginalToSkipped(GetContentOffset() + contentLength);
     if (trimmedEnd < endOffset) {
@@ -8552,7 +8377,28 @@ nsTextFrame::TrimTrailingWhiteSpace(nsRenderingContext* aRC)
       PropertyProvider provider(mTextRun, textStyle, frag, this, start, contentLength,
                                 nullptr, 0, nsTextFrame::eInflated);
       delta = mTextRun->GetAdvanceWidth(trimmedEnd, endOffset - trimmedEnd, &provider);
+      // non-compressed whitespace being skipped at end of line -> justifiable
+      // XXX should we actually *count* justifiable characters that should be
+      // removed from the overall count? I think so...
+      result.mLastCharIsJustifiable = true;
       result.mChanged = true;
+    }
+  }
+
+  if (!result.mLastCharIsJustifiable &&
+      (GetStateBits() & TEXT_JUSTIFICATION_ENABLED)) {
+    // Check if any character in the last cluster is justifiable
+    PropertyProvider provider(mTextRun, textStyle, frag, this, start, contentLength,
+                              nullptr, 0, nsTextFrame::eInflated);
+    bool isCJK = IsChineseOrJapanese(this);
+    gfxSkipCharsIterator justificationStart(start), justificationEnd(trimmedEndIter);
+    provider.FindJustificationRange(&justificationStart, &justificationEnd);
+
+    for (int32_t i = justificationEnd.GetOriginalOffset();
+         i < trimmed.GetEnd(); ++i) {
+      if (IsJustifiableCharacter(frag, i, isCJK)) {
+        result.mLastCharIsJustifiable = true;
+      }
     }
   }
 
@@ -8610,23 +8456,12 @@ nsTextFrame::RecomputeOverflow(const nsHTMLReflowState& aBlockReflowState)
                           ComputeTransformedLength(provider),
                           gfxFont::LOOSE_INK_EXTENTS, nullptr,
                           &provider);
-  nsRect boundingBox = RoundOut(textMetrics.mBoundingBox);
-  if (GetWritingMode().IsLineInverted()) {
-    boundingBox.y = -boundingBox.YMost();
-  }
-  boundingBox += nsPoint(0, mAscent);
-  if (mTextRun->IsVertical()) {
-    // Swap line-relative textMetrics dimensions to physical coordinates.
-    Swap(boundingBox.x, boundingBox.y);
-    Swap(boundingBox.width, boundingBox.height);
-  }
   nsRect &vis = result.VisualOverflow();
-  vis.UnionRect(vis, boundingBox);
+  vis.UnionRect(vis, RoundOut(textMetrics.mBoundingBox) + nsPoint(0, mAscent));
   UnionAdditionalOverflow(PresContext(), aBlockReflowState.frame, provider,
                           &vis, true);
   return result;
 }
-
 static char16_t TransformChar(const nsStyleText* aStyle, gfxTextRun* aTextRun,
                                uint32_t aSkippedOffset, char16_t aChar)
 {
@@ -8954,26 +8789,4 @@ nsTextFrame::UpdateOverflow()
   UnionAdditionalOverflow(PresContext(), decorationsBlock, provider,
                           &overflowAreas.VisualOverflow(), true);
   return FinishAndStoreOverflow(overflowAreas, GetSize());
-}
-
-void
-nsTextFrame::AssignJustificationGaps(
-    const mozilla::JustificationAssignment& aAssign)
-{
-  int32_t encoded = (aAssign.mGapsAtStart << 8) | aAssign.mGapsAtEnd;
-  static_assert(sizeof(aAssign) == 1,
-                "The encoding might be broken if JustificationAssignment "
-                "is larger than 1 byte");
-  Properties().Set(JustificationAssignment(), NS_INT32_TO_PTR(encoded));
-}
-
-mozilla::JustificationAssignment
-nsTextFrame::GetJustificationAssignment() const
-{
-  int32_t encoded =
-    NS_PTR_TO_INT32(Properties().Get(JustificationAssignment()));
-  mozilla::JustificationAssignment result;
-  result.mGapsAtStart = encoded >> 8;
-  result.mGapsAtEnd = encoded & 0xFF;
-  return result;
 }

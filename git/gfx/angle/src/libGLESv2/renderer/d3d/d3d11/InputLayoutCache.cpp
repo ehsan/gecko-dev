@@ -12,7 +12,6 @@
 #include "libGLESv2/renderer/d3d/d3d11/Buffer11.h"
 #include "libGLESv2/renderer/d3d/d3d11/ShaderExecutable11.h"
 #include "libGLESv2/renderer/d3d/d3d11/formatutils11.h"
-#include "libGLESv2/renderer/d3d/ProgramD3D.h"
 #include "libGLESv2/renderer/d3d/VertexDataManager.h"
 #include "libGLESv2/ProgramBinary.h"
 #include "libGLESv2/VertexAttribute.h"
@@ -86,15 +85,16 @@ void InputLayoutCache::markDirty()
     }
 }
 
-gl::Error InputLayoutCache::applyVertexBuffers(TranslatedAttribute attributes[gl::MAX_VERTEX_ATTRIBS],
-                                               gl::ProgramBinary *programBinary)
+GLenum InputLayoutCache::applyVertexBuffers(TranslatedAttribute attributes[gl::MAX_VERTEX_ATTRIBS],
+                                            gl::ProgramBinary *programBinary)
 {
     int sortedSemanticIndices[gl::MAX_VERTEX_ATTRIBS];
     programBinary->sortAttributesByLayout(attributes, sortedSemanticIndices);
 
     if (!mDevice || !mDeviceContext)
     {
-        return gl::Error(GL_OUT_OF_MEMORY, "Internal input layout cache is not initialized.");
+        ERR("InputLayoutCache is not initialized.");
+        return GL_INVALID_OPERATION;
     }
 
     InputLayoutKey ilKey = { 0 };
@@ -138,16 +138,7 @@ gl::Error InputLayoutCache::applyVertexBuffers(TranslatedAttribute attributes[gl
     {
         gl::VertexFormat shaderInputLayout[gl::MAX_VERTEX_ATTRIBS];
         GetInputLayout(attributes, shaderInputLayout);
-        ProgramD3D *programD3D = ProgramD3D::makeProgramD3D(programBinary->getImplementation());
-
-        ShaderExecutable *shader = NULL;
-        gl::Error error = programD3D->getVertexExecutableForInputLayout(shaderInputLayout, &shader);
-        if (error.isError())
-        {
-            return error;
-        }
-
-        ShaderExecutable *shader11 = ShaderExecutable11::makeShaderExecutable11(shader);
+        ShaderExecutable11 *shader = ShaderExecutable11::makeShaderExecutable11(programBinary->getVertexExecutableForInputLayout(shaderInputLayout));
 
         D3D11_INPUT_ELEMENT_DESC descs[gl::MAX_VERTEX_ATTRIBS];
         for (unsigned int j = 0; j < ilKey.elementCount; ++j)
@@ -155,10 +146,11 @@ gl::Error InputLayoutCache::applyVertexBuffers(TranslatedAttribute attributes[gl
             descs[j] = ilKey.elements[j].desc;
         }
 
-        HRESULT result = mDevice->CreateInputLayout(descs, ilKey.elementCount, shader11->getFunction(), shader11->getLength(), &inputLayout);
+        HRESULT result = mDevice->CreateInputLayout(descs, ilKey.elementCount, shader->getFunction(), shader->getLength(), &inputLayout);
         if (FAILED(result))
         {
-            return gl::Error(GL_OUT_OF_MEMORY, "Failed to create internal input layout, HRESULT: 0x%08x", result);
+            ERR("Failed to crate input layout, result: 0x%08x", result);
+            return GL_INVALID_OPERATION;
         }
 
         if (mInputLayoutMap.size() >= kMaxInputLayouts)
@@ -203,7 +195,7 @@ gl::Error InputLayoutCache::applyVertexBuffers(TranslatedAttribute attributes[gl
             VertexBuffer11 *vertexBuffer = VertexBuffer11::makeVertexBuffer11(attributes[i].vertexBuffer);
             Buffer11 *bufferStorage = attributes[i].storage ? Buffer11::makeBuffer11(attributes[i].storage) : NULL;
 
-            buffer = bufferStorage ? bufferStorage->getBuffer(BUFFER_USAGE_VERTEX_OR_TRANSFORM_FEEDBACK)
+            buffer = bufferStorage ? bufferStorage->getBuffer(BUFFER_USAGE_VERTEX)
                                    : vertexBuffer->getBuffer();
         }
 
@@ -230,7 +222,7 @@ gl::Error InputLayoutCache::applyVertexBuffers(TranslatedAttribute attributes[gl
                                            mCurrentVertexStrides + minDiff, mCurrentVertexOffsets + minDiff);
     }
 
-    return gl::Error(GL_NO_ERROR);
+    return GL_NO_ERROR;
 }
 
 std::size_t InputLayoutCache::hashInputLayout(const InputLayoutKey &inputLayout)

@@ -101,9 +101,7 @@ SVGFEContainerFrame::AttributeChanged(int32_t  aNameSpaceID,
 {
   nsSVGFE *element = static_cast<nsSVGFE*>(mContent);
   if (element->AttributeAffectsRendering(aNameSpaceID, aAttribute)) {
-    MOZ_ASSERT(GetParent()->GetType() == nsGkAtoms::svgFilterFrame,
-               "Observers observe the filter, so that's what we must invalidate");
-    nsSVGEffects::InvalidateDirectRenderingObservers(GetParent());
+    nsSVGEffects::InvalidateRenderingObservers(this);
   }
 
   return SVGFEContainerFrameBase::AttributeChanged(aNameSpaceID,

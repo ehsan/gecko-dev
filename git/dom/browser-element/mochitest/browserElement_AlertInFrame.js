@@ -10,7 +10,7 @@ browserElementTestHelpers.addPermission();
 
 function runTest() {
   var iframe = document.createElement('iframe');
-  iframe.setAttribute('mozbrowser', 'true');
+  SpecialPowers.wrap(iframe).mozbrowser = true;
 
   iframe.addEventListener('mozbrowsershowmodalprompt', function(e) {
     is(e.detail.message, 'Hello');

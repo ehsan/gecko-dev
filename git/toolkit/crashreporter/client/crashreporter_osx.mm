@@ -807,14 +807,9 @@ void UIError_impl(const string& message)
 
 bool UIGetIniPath(string& path)
 {
-  NSString* tmpPath = [NSString stringWithUTF8String:gArgv[0]];
-  NSString* iniName = [tmpPath lastPathComponent];
-  iniName = [iniName stringByAppendingPathExtension:@"ini"];
-  tmpPath = [tmpPath stringByDeletingLastPathComponent];
-  tmpPath = [tmpPath stringByDeletingLastPathComponent];
-  tmpPath = [tmpPath stringByAppendingPathComponent:@"Resources"];
-  tmpPath = [tmpPath stringByAppendingPathComponent:iniName];
-  path = [tmpPath UTF8String];
+  path = gArgv[0];
+  path.append(".ini");
+
   return true;
 }
 

@@ -98,27 +98,17 @@ public:
   // Clear overscroll all the way up the chain.
   void ClearOverscroll() const;
 
-  // Snap back the APZC that is overscrolled on the subset of the chain from
-  // |aStart| onwards, if any.
-  void SnapBackOverscrolledApzc(const AsyncPanZoomController* aStart) const;
+  // Snap back the APZC that is overscrolled, if any.
+  void SnapBackOverscrolledApzc() const;
 
   // Determine whether the given APZC, or any APZC further in the chain,
   // has room to be panned.
   bool CanBePanned(const AsyncPanZoomController* aApzc) const;
-
-  // Determine whether any APZC along this handoff chain is overscrolled.
-  bool HasOverscrolledApzc() const;
-
-  // Determine whether any APZC along this handoff chain is moving fast.
-  bool HasFastMovingApzc() const;
-
 private:
   std::vector<nsRefPtr<AsyncPanZoomController>> mChain;
 
   typedef void (AsyncPanZoomController::*APZCMethod)();
-  typedef bool (AsyncPanZoomController::*APZCPredicate)() const;
   void ForEachApzc(APZCMethod aMethod) const;
-  bool AnyApzc(APZCPredicate aPredicate) const;
 };
 
 /**

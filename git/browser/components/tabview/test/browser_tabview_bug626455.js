@@ -15,8 +15,6 @@ const TEST_URL = 'data:text/html,<script>window.onbeforeunload=' +
 let contentWindow;
 let activeGroup;
 
-Components.utils.import("resource://gre/modules/Promise.jsm", this);
-
 function test() {
   waitForExplicitFinish();
 

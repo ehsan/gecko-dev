@@ -36,8 +36,6 @@ public:
 
   void AppendPath(const SkPath &aPath);
 
-  virtual BackendType GetBackendType() const { return BackendType::SKIA; }
-
 private:
 
   void SetFillRule(FillRule aFillRule);

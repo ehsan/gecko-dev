@@ -13,10 +13,8 @@ const {GetAddonsJSON} = require("devtools/webide/remote-resources");
 
 let SIMULATOR_LINK = Services.prefs.getCharPref("devtools.webide.simulatorAddonsURL");
 let ADB_LINK = Services.prefs.getCharPref("devtools.webide.adbAddonURL");
-let ADAPTERS_LINK = Services.prefs.getCharPref("devtools.webide.adaptersAddonURL");
 let SIMULATOR_ADDON_ID = Services.prefs.getCharPref("devtools.webide.simulatorAddonID");
 let ADB_ADDON_ID = Services.prefs.getCharPref("devtools.webide.adbAddonID");
-let ADAPTERS_ADDON_ID = Services.prefs.getCharPref("devtools.webide.adaptersAddonID");
 
 let platform = Services.appShell.hiddenDOMWindow.navigator.platform;
 let OS = "";
@@ -28,24 +26,36 @@ if (platform.indexOf("Win") != -1) {
   if (platform.indexOf("x86_64") != -1) {
     OS = "linux64";
   } else {
-    OS = "linux32";
+    OS = "linux";
   }
 }
 
-let addonsListener = {};
-addonsListener.onEnabled =
-addonsListener.onDisabled =
-addonsListener.onInstalled =
-addonsListener.onUninstalled = (updatedAddon) => {
+Simulator.on("unregister", updateSimulatorAddons);
+Simulator.on("register", updateSimulatorAddons);
+Devices.on("addon-status-updated", updateAdbAddon);
+
+function updateSimulatorAddons(event, version) {
   GetAvailableAddons().then(addons => {
-    for (let a of [...addons.simulators, addons.adb, addons.adapters]) {
-      if (a.addonID == updatedAddon.id) {
-        a.updateInstallStatus();
+    let foundAddon = null;
+    for (let addon of addons.simulators) {
+      if (addon.version == version) {
+        foundAddon = addon;
+        break;
       }
     }
+    if (!foundAddon) {
+      console.warn("An unknown simulator (un)registered", version);
+      return;
+    }
+    foundAddon.updateInstallStatus();
   });
 }
-AddonManager.addAddonListener(addonsListener);
+
+function updateAdbAddon() {
+  GetAvailableAddons().then(addons => {
+    addons.adb.updateInstallStatus();
+  });
+}
 
 let GetAvailableAddons_promise = null;
 let GetAvailableAddons = exports.GetAvailableAddons = function() {
@@ -63,7 +73,6 @@ let GetAvailableAddons = exports.GetAvailableAddons = function() {
         }
       }
       addons.adb = new ADBAddon();
-      addons.adapters = new AdaptersAddon();
       deferred.resolve(addons);
     }, e => {
       GetAvailableAddons_promise = null;
@@ -90,23 +99,13 @@ Addon.prototype = {
     return this._status;
   },
 
-  updateInstallStatus: function() {
-    AddonManager.getAddonByID(this.addonID, (addon) => {
-      if (addon && !addon.userDisabled) {
-        this.status = "installed";
-      } else {
-        this.status = "uninstalled";
-      }
-    });
-  },
-
   install: function() {
+    if (this.status != "uninstalled") {
+      throw new Error("Not uninstalled");
+    }
+    this.status = "preparing";
+
     AddonManager.getAddonByID(this.addonID, (addon) => {
-      if (addon && !addon.userDisabled) {
-        this.status = "installed";
-        return;
-      }
-      this.status = "preparing";
       if (addon && addon.userDisabled) {
         addon.userDisabled = false;
       } else {
@@ -116,6 +115,7 @@ Addon.prototype = {
         }, "application/x-xpinstall");
       }
     });
+
   },
 
   uninstall: function() {
@@ -167,30 +167,44 @@ function SimulatorAddon(stability, version) {
   EventEmitter.decorate(this);
   this.stability = stability;
   this.version = version;
-  // This addon uses the string "linux" for "linux32"
-  let fixedOS = OS == "linux32" ? "linux" : OS;
-  this.xpiLink = SIMULATOR_LINK.replace(/#OS#/g, fixedOS)
+  this.xpiLink = SIMULATOR_LINK.replace(/#OS#/g, OS)
                                .replace(/#VERSION#/g, version)
                                .replace(/#SLASHED_VERSION#/g, version.replace(/\./g, "_"));
   this.addonID = SIMULATOR_ADDON_ID.replace(/#SLASHED_VERSION#/g, version.replace(/\./g, "_"));
   this.updateInstallStatus();
 }
-SimulatorAddon.prototype = Object.create(Addon.prototype);
+
+SimulatorAddon.prototype = Object.create(Addon.prototype, {
+  updateInstallStatus: {
+    enumerable: true,
+    value: function() {
+      let sim = Simulator.getByVersion(this.version);
+      if (sim) {
+        this.status = "installed";
+      } else {
+        this.status = "uninstalled";
+      }
+    }
+  },
+});
 
 function ADBAddon() {
   EventEmitter.decorate(this);
-  // This addon uses the string "linux" for "linux32"
-  let fixedOS = OS == "linux32" ? "linux" : OS;
-  this.xpiLink = ADB_LINK.replace(/#OS#/g, fixedOS);
+  this.xpiLink = ADB_LINK.replace(/#OS#/g, OS);
   this.addonID = ADB_ADDON_ID;
   this.updateInstallStatus();
 }
-ADBAddon.prototype = Object.create(Addon.prototype);
 
-function AdaptersAddon() {
-  EventEmitter.decorate(this);
-  this.xpiLink = ADAPTERS_LINK.replace(/#OS#/g, OS);
-  this.addonID = ADAPTERS_ADDON_ID;
-  this.updateInstallStatus();
-}
-AdaptersAddon.prototype = Object.create(Addon.prototype);
+ADBAddon.prototype = Object.create(Addon.prototype, {
+  updateInstallStatus: {
+    enumerable: true,
+    value: function() {
+      if (Devices.helperAddonInstalled) {
+        this.status = "installed";
+      } else {
+        this.status = "uninstalled";
+      }
+    }
+  },
+});
+

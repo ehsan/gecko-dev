@@ -22,8 +22,7 @@ namespace gl
 
 ////// FramebufferAttachment Implementation //////
 
-FramebufferAttachment::FramebufferAttachment(GLenum binding)
-    : mBinding(binding)
+FramebufferAttachment::FramebufferAttachment()
 {
 }
 
@@ -76,85 +75,320 @@ bool FramebufferAttachment::isTexture() const
     return (type() != GL_RENDERBUFFER);
 }
 
-///// TextureAttachment Implementation ////////
+///// Texture2DAttachment Implementation ////////
 
-TextureAttachment::TextureAttachment(GLenum binding, Texture *texture, const ImageIndex &index)
-    : FramebufferAttachment(binding),
-      mIndex(index)
+Texture2DAttachment::Texture2DAttachment(Texture2D *texture, GLint level) : mLevel(level)
 {
-    mTexture.set(texture);
+    mTexture2D.set(texture);
 }
 
-TextureAttachment::~TextureAttachment()
+Texture2DAttachment::~Texture2DAttachment()
 {
-    mTexture.set(NULL);
+    mTexture2D.set(NULL);
 }
 
-GLsizei TextureAttachment::getSamples() const
+rx::RenderTarget *Texture2DAttachment::getRenderTarget()
+{
+    return mTexture2D->getRenderTarget(mLevel);
+}
+
+rx::TextureStorage *Texture2DAttachment::getTextureStorage()
+{
+    return mTexture2D->getNativeTexture()->getStorageInstance();
+}
+
+GLsizei Texture2DAttachment::getWidth() const
+{
+    return mTexture2D->getWidth(mLevel);
+}
+
+GLsizei Texture2DAttachment::getHeight() const
+{
+    return mTexture2D->getHeight(mLevel);
+}
+
+GLenum Texture2DAttachment::getInternalFormat() const
+{
+    return mTexture2D->getInternalFormat(mLevel);
+}
+
+GLenum Texture2DAttachment::getActualFormat() const
+{
+    return mTexture2D->getActualFormat(mLevel);
+}
+
+GLsizei Texture2DAttachment::getSamples() const
 {
     return 0;
 }
 
-GLuint TextureAttachment::id() const
+unsigned int Texture2DAttachment::getSerial() const
 {
-    return mTexture->id();
+    return mTexture2D->getRenderTargetSerial(mLevel);
 }
 
-GLsizei TextureAttachment::getWidth() const
+GLuint Texture2DAttachment::id() const
 {
-    return mTexture->getWidth(mIndex);
+    return mTexture2D->id();
 }
 
-GLsizei TextureAttachment::getHeight() const
+GLenum Texture2DAttachment::type() const
 {
-    return mTexture->getHeight(mIndex);
+    return GL_TEXTURE_2D;
 }
 
-GLenum TextureAttachment::getInternalFormat() const
+GLint Texture2DAttachment::mipLevel() const
 {
-    return mTexture->getInternalFormat(mIndex);
+    return mLevel;
 }
 
-GLenum TextureAttachment::getActualFormat() const
+GLint Texture2DAttachment::layer() const
 {
-    return mTexture->getActualFormat(mIndex);
+    return 0;
 }
 
-GLenum TextureAttachment::type() const
+unsigned int Texture2DAttachment::getTextureSerial() const
 {
-    return mIndex.type;
+    return mTexture2D->getTextureSerial();
 }
 
-GLint TextureAttachment::mipLevel() const
+///// TextureCubeMapAttachment Implementation ////////
+
+TextureCubeMapAttachment::TextureCubeMapAttachment(TextureCubeMap *texture, GLenum faceTarget, GLint level)
+    : mFaceTarget(faceTarget), mLevel(level)
 {
-    return mIndex.mipIndex;
+    mTextureCubeMap.set(texture);
 }
 
-GLint TextureAttachment::layer() const
+TextureCubeMapAttachment::~TextureCubeMapAttachment()
 {
-    return mIndex.layerIndex;
+    mTextureCubeMap.set(NULL);
 }
 
-Texture *TextureAttachment::getTexture()
+rx::RenderTarget *TextureCubeMapAttachment::getRenderTarget()
 {
-    return mTexture.get();
+    return mTextureCubeMap->getRenderTarget(mFaceTarget, mLevel);
 }
 
-const ImageIndex *TextureAttachment::getTextureImageIndex() const
+rx::TextureStorage *TextureCubeMapAttachment::getTextureStorage()
 {
-    return &mIndex;
+    return mTextureCubeMap->getNativeTexture()->getStorageInstance();
 }
 
-Renderbuffer *TextureAttachment::getRenderbuffer()
+GLsizei TextureCubeMapAttachment::getWidth() const
 {
-    UNREACHABLE();
-    return NULL;
+    return mTextureCubeMap->getWidth(mFaceTarget, mLevel);
+}
+
+GLsizei TextureCubeMapAttachment::getHeight() const
+{
+    return mTextureCubeMap->getHeight(mFaceTarget, mLevel);
+}
+
+GLenum TextureCubeMapAttachment::getInternalFormat() const
+{
+    return mTextureCubeMap->getInternalFormat(mFaceTarget, mLevel);
+}
+
+GLenum TextureCubeMapAttachment::getActualFormat() const
+{
+    return mTextureCubeMap->getActualFormat(mFaceTarget, mLevel);
+}
+
+GLsizei TextureCubeMapAttachment::getSamples() const
+{
+    return 0;
+}
+
+unsigned int TextureCubeMapAttachment::getSerial() const
+{
+    return mTextureCubeMap->getRenderTargetSerial(mFaceTarget, mLevel);
+}
+
+GLuint TextureCubeMapAttachment::id() const
+{
+    return mTextureCubeMap->id();
+}
+
+GLenum TextureCubeMapAttachment::type() const
+{
+    return mFaceTarget;
+}
+
+GLint TextureCubeMapAttachment::mipLevel() const
+{
+    return mLevel;
+}
+
+GLint TextureCubeMapAttachment::layer() const
+{
+    return 0;
+}
+
+unsigned int TextureCubeMapAttachment::getTextureSerial() const
+{
+    return mTextureCubeMap->getTextureSerial();
+}
+
+///// Texture3DAttachment Implementation ////////
+
+Texture3DAttachment::Texture3DAttachment(Texture3D *texture, GLint level, GLint layer)
+    : mLevel(level), mLayer(layer)
+{
+    mTexture3D.set(texture);
+}
+
+Texture3DAttachment::~Texture3DAttachment()
+{
+    mTexture3D.set(NULL);
+}
+
+rx::RenderTarget *Texture3DAttachment::getRenderTarget()
+{
+    return mTexture3D->getRenderTarget(mLevel, mLayer);
+}
+
+rx::TextureStorage *Texture3DAttachment::getTextureStorage()
+{
+    return mTexture3D->getNativeTexture()->getStorageInstance();
+}
+
+GLsizei Texture3DAttachment::getWidth() const
+{
+    return mTexture3D->getWidth(mLevel);
+}
+
+GLsizei Texture3DAttachment::getHeight() const
+{
+    return mTexture3D->getHeight(mLevel);
+}
+
+GLenum Texture3DAttachment::getInternalFormat() const
+{
+    return mTexture3D->getInternalFormat(mLevel);
+}
+
+GLenum Texture3DAttachment::getActualFormat() const
+{
+    return mTexture3D->getActualFormat(mLevel);
+}
+
+GLsizei Texture3DAttachment::getSamples() const
+{
+    return 0;
+}
+
+unsigned int Texture3DAttachment::getSerial() const
+{
+    return mTexture3D->getRenderTargetSerial(mLevel, mLayer);
+}
+
+GLuint Texture3DAttachment::id() const
+{
+    return mTexture3D->id();
+}
+
+GLenum Texture3DAttachment::type() const
+{
+    return GL_TEXTURE_3D;
+}
+
+GLint Texture3DAttachment::mipLevel() const
+{
+    return mLevel;
+}
+
+GLint Texture3DAttachment::layer() const
+{
+    return mLayer;
+}
+
+unsigned int Texture3DAttachment::getTextureSerial() const
+{
+    return mTexture3D->getTextureSerial();
+}
+
+////// Texture2DArrayAttachment Implementation //////
+
+Texture2DArrayAttachment::Texture2DArrayAttachment(Texture2DArray *texture, GLint level, GLint layer)
+    : mLevel(level), mLayer(layer)
+{
+    mTexture2DArray.set(texture);
+}
+
+Texture2DArrayAttachment::~Texture2DArrayAttachment()
+{
+    mTexture2DArray.set(NULL);
+}
+
+rx::RenderTarget *Texture2DArrayAttachment::getRenderTarget()
+{
+    return mTexture2DArray->getRenderTarget(mLevel, mLayer);
+}
+
+rx::TextureStorage *Texture2DArrayAttachment::getTextureStorage()
+{
+    return mTexture2DArray->getNativeTexture()->getStorageInstance();
+}
+
+GLsizei Texture2DArrayAttachment::getWidth() const
+{
+    return mTexture2DArray->getWidth(mLevel);
+}
+
+GLsizei Texture2DArrayAttachment::getHeight() const
+{
+    return mTexture2DArray->getHeight(mLevel);
+}
+
+GLenum Texture2DArrayAttachment::getInternalFormat() const
+{
+    return mTexture2DArray->getInternalFormat(mLevel);
+}
+
+GLenum Texture2DArrayAttachment::getActualFormat() const
+{
+    return mTexture2DArray->getActualFormat(mLevel);
+}
+
+GLsizei Texture2DArrayAttachment::getSamples() const
+{
+    return 0;
+}
+
+unsigned int Texture2DArrayAttachment::getSerial() const
+{
+    return mTexture2DArray->getRenderTargetSerial(mLevel, mLayer);
+}
+
+GLuint Texture2DArrayAttachment::id() const
+{
+    return mTexture2DArray->id();
+}
+
+GLenum Texture2DArrayAttachment::type() const
+{
+    return GL_TEXTURE_2D_ARRAY;
+}
+
+GLint Texture2DArrayAttachment::mipLevel() const
+{
+    return mLevel;
+}
+
+GLint Texture2DArrayAttachment::layer() const
+{
+    return mLayer;
+}
+
+unsigned int Texture2DArrayAttachment::getTextureSerial() const
+{
+    return mTexture2DArray->getTextureSerial();
 }
 
 ////// RenderbufferAttachment Implementation //////
 
-RenderbufferAttachment::RenderbufferAttachment(GLenum binding, Renderbuffer *renderbuffer)
-    : FramebufferAttachment(binding)
+RenderbufferAttachment::RenderbufferAttachment(Renderbuffer *renderbuffer)
 {
     ASSERT(renderbuffer);
     mRenderbuffer.set(renderbuffer);
@@ -163,6 +397,17 @@ RenderbufferAttachment::RenderbufferAttachment(GLenum binding, Renderbuffer *ren
 RenderbufferAttachment::~RenderbufferAttachment()
 {
     mRenderbuffer.set(NULL);
+}
+
+rx::RenderTarget *RenderbufferAttachment::getRenderTarget()
+{
+    return mRenderbuffer->getStorage()->getRenderTarget();
+}
+
+rx::TextureStorage *RenderbufferAttachment::getTextureStorage()
+{
+    UNREACHABLE();
+    return NULL;
 }
 
 GLsizei RenderbufferAttachment::getWidth() const
@@ -190,6 +435,11 @@ GLsizei RenderbufferAttachment::getSamples() const
     return mRenderbuffer->getStorage()->getSamples();
 }
 
+unsigned int RenderbufferAttachment::getSerial() const
+{
+    return mRenderbuffer->getStorage()->getSerial();
+}
+
 GLuint RenderbufferAttachment::id() const
 {
     return mRenderbuffer->id();
@@ -210,21 +460,10 @@ GLint RenderbufferAttachment::layer() const
     return 0;
 }
 
-Texture *RenderbufferAttachment::getTexture()
+unsigned int RenderbufferAttachment::getTextureSerial() const
 {
     UNREACHABLE();
-    return NULL;
-}
-
-const ImageIndex *RenderbufferAttachment::getTextureImageIndex() const
-{
-    UNREACHABLE();
-    return NULL;
-}
-
-Renderbuffer *RenderbufferAttachment::getRenderbuffer()
-{
-    return mRenderbuffer.get();
+    return 0;
 }
 
 }

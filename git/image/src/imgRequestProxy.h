@@ -39,7 +39,6 @@ namespace mozilla {
 namespace image {
 class Image;
 class ImageURL;
-class ProgressTracker;
 } // namespace image
 } // namespace mozilla
 
@@ -53,11 +52,8 @@ protected:
   virtual ~imgRequestProxy();
 
 public:
-  typedef mozilla::image::Image Image;
-  typedef mozilla::image::ImageURL ImageURL;
-  typedef mozilla::image::ProgressTracker ProgressTracker;
-
   MOZ_DECLARE_REFCOUNTED_TYPENAME(imgRequestProxy)
+  typedef mozilla::image::ImageURL ImageURL;
   NS_DECL_ISUPPORTS
   NS_DECL_IMGIREQUEST
   NS_DECL_NSIREQUEST
@@ -95,7 +91,7 @@ public:
   // asynchronously-called function.
   void SyncNotifyListener();
 
-  // Whether we want notifications from ProgressTracker to be deferred until
+  // Whether we want notifications from imgStatusTracker to be deferred until
   // an event it has scheduled has been fired.
   bool NotificationsDeferred() const
   {
@@ -121,7 +117,7 @@ public:
   nsresult GetURI(ImageURL **aURI);
 
 protected:
-  friend class mozilla::image::ProgressTracker;
+  friend class imgStatusTracker;
   friend class imgStatusNotifyRunnable;
   friend class imgRequestNotifyRunnable;
 
@@ -146,9 +142,10 @@ protected:
   };
 
   // The following notification functions are protected to ensure that (friend
-  // class) ProgressTracker is the only class allowed to send us
+  // class) imgStatusTracker is the only class allowed to send us
   // notifications.
 
+  /* non-virtual imgDecoderObserver methods */
   void OnStartDecode     ();
   void OnStartContainer  ();
   void OnFrameUpdate     (const nsIntRect * aRect);
@@ -176,11 +173,11 @@ protected:
     RemoveFromLoadGroup(true);
   }
 
-  // Return the ProgressTracker associated with mOwner and/or mImage. It may
+  // Return the imgStatusTracker associated with mOwner and/or mImage. It may
   // live either on mOwner or mImage, depending on whether
   //   (a) we have an mOwner at all
   //   (b) whether mOwner has instantiated its image yet
-  already_AddRefed<ProgressTracker> GetProgressTracker() const;
+  already_AddRefed<imgStatusTracker> GetStatusTracker() const;
 
   nsITimedChannel* TimedChannel()
   {
@@ -189,7 +186,7 @@ protected:
     return GetOwner()->mTimedChannel;
   }
 
-  already_AddRefed<Image> GetImage() const;
+  already_AddRefed<mozilla::image::Image> GetImage() const;
   bool HasImage() const;
   imgRequest* GetOwner() const;
 
@@ -239,7 +236,8 @@ class imgRequestProxyStatic : public imgRequestProxy
 {
 
 public:
-  imgRequestProxyStatic(Image* aImage, nsIPrincipal* aPrincipal);
+  imgRequestProxyStatic(mozilla::image::Image* aImage,
+                        nsIPrincipal* aPrincipal);
 
   NS_IMETHOD GetImagePrincipal(nsIPrincipal** aPrincipal) MOZ_OVERRIDE;
 

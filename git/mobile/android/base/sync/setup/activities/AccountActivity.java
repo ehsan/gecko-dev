@@ -188,7 +188,6 @@ public class AccountActivity extends AccountAuthenticatorActivity {
         cancelConnectHandler(v);
         // Set cancel click handler to leave account setup.
         cancelButton.setOnClickListener(new OnClickListener() {
-          @Override
           public void onClick(View v) {
             cancelClickHandler(v);
           }

@@ -157,21 +157,20 @@ IDBMutableFile::Create(IDBDatabase* aDatabase,
     return nullptr;
   }
 
-  const DatabaseSpec* spec = aDatabase->Spec();
-  MOZ_ASSERT(spec);
-
-  PersistenceType persistenceType = spec->metadata().persistenceType();
-
   nsCString group;
   nsCString origin;
   if (NS_WARN_IF(NS_FAILED(QuotaManager::GetInfoFromPrincipal(principal,
-                                                              persistenceType,
                                                               &group,
                                                               &origin,
                                                               nullptr,
                                                               nullptr)))) {
     return nullptr;
   }
+
+  const DatabaseSpec* spec = aDatabase->Spec();
+  MOZ_ASSERT(spec);
+
+  PersistenceType persistenceType = spec->metadata().persistenceType();
 
   nsCString storageId;
   QuotaManager::GetStorageId(persistenceType,
@@ -321,11 +320,6 @@ IDBMutableFile::Open(FileMode aMode, ErrorResult& aError)
     return nullptr;
   }
 
-  if (mInvalidated) {
-    aError.Throw(NS_ERROR_DOM_FILEHANDLE_NOT_ALLOWED_ERR);
-    return nullptr;
-  }
-
   nsRefPtr<IDBFileHandle> fileHandle =
     IDBFileHandle::Create(aMode, FileHandleBase::NORMAL, this);
   if (!fileHandle) {
@@ -349,7 +343,7 @@ already_AddRefed<nsIDOMFile>
 IDBMutableFile::CreateFileObject(IDBFileHandle* aFileHandle,
                                  MetadataParameters* aMetadataParams)
 {
-  nsRefPtr<FileImpl> impl =
+  nsRefPtr<DOMFileImpl> impl =
     new FileImplSnapshot(mName,
                          mType,
                          aMetadataParams,
@@ -357,7 +351,7 @@ IDBMutableFile::CreateFileObject(IDBFileHandle* aFileHandle,
                          aFileHandle,
                          mFileInfo);
 
-  nsCOMPtr<nsIDOMFile> fileSnapshot = new File(GetOwner(), impl);
+  nsCOMPtr<nsIDOMFile> fileSnapshot = new DOMFile(impl);
   return fileSnapshot.forget();
 }
 

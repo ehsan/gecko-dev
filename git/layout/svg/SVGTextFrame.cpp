@@ -12,7 +12,6 @@
 #include "gfxFont.h"
 #include "gfxSkipChars.h"
 #include "gfxTypes.h"
-#include "gfxUtils.h"
 #include "LookAndFeel.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/PatternHelpers.h"
@@ -2710,6 +2709,7 @@ public:
                            bool aShouldPaintSVGGlyphs)
     : DrawPathCallbacks(aShouldPaintSVGGlyphs),
       gfx(aContext->ThebesContext()),
+      mRenderMode(SVGAutoRenderState::GetRenderMode(aContext->GetDrawTarget())),
       mFrame(aFrame),
       mCanvasTM(aCanvasTM)
   {
@@ -2729,13 +2729,6 @@ public:
 
 private:
   void SetupContext();
-
-  bool IsClipPathChild() const {
-    // parent is the CSS text frame, grand parent must be
-    // an SVG frame of some kind
-    return mFrame->GetParent()->GetParent()->GetStateBits() &
-             NS_STATE_SVG_CLIPPATH_CHILD;
-  }
 
   /**
    * Paints a piece of text geometry.  This is called when glyphs
@@ -2766,6 +2759,7 @@ private:
   void StrokeGeometry();
 
   gfxContext* gfx;
+  uint16_t mRenderMode;
   nsTextFrame* mFrame;
   const gfxMatrix& mCanvasTM;
 
@@ -2815,7 +2809,7 @@ SVGTextDrawPathCallbacks::NotifyAfterText()
 void
 SVGTextDrawPathCallbacks::NotifyBeforeSelectionBackground(nscolor aColor)
 {
-  if (IsClipPathChild()) {
+  if (mRenderMode != SVGAutoRenderState::NORMAL) {
     // Don't paint selection backgrounds when in a clip path.
     return;
   }
@@ -2827,7 +2821,7 @@ SVGTextDrawPathCallbacks::NotifyBeforeSelectionBackground(nscolor aColor)
 void
 SVGTextDrawPathCallbacks::NotifySelectionBackgroundPathEmitted()
 {
-  if (IsClipPathChild()) {
+  if (mRenderMode != SVGAutoRenderState::NORMAL) {
     // Don't paint selection backgrounds when in a clip path.
     return;
   }
@@ -2860,7 +2854,7 @@ SVGTextDrawPathCallbacks::NotifyDecorationLinePathEmitted()
 void
 SVGTextDrawPathCallbacks::NotifyBeforeSelectionDecorationLine(nscolor aColor)
 {
-  if (IsClipPathChild()) {
+  if (mRenderMode != SVGAutoRenderState::NORMAL) {
     // Don't paint selection decorations when in a clip path.
     return;
   }
@@ -2872,7 +2866,7 @@ SVGTextDrawPathCallbacks::NotifyBeforeSelectionDecorationLine(nscolor aColor)
 void
 SVGTextDrawPathCallbacks::NotifySelectionDecorationLinePathEmitted()
 {
-  if (IsClipPathChild()) {
+  if (mRenderMode != SVGAutoRenderState::NORMAL) {
     // Don't paint selection decorations when in a clip path.
     return;
   }
@@ -2902,7 +2896,7 @@ SVGTextDrawPathCallbacks::SetupContext()
 void
 SVGTextDrawPathCallbacks::HandleTextGeometry()
 {
-  if (IsClipPathChild()) {
+  if (mRenderMode == SVGAutoRenderState::CLIP_MASK) {
     gfx->SetColor(gfxRGBA(1.0f, 1.0f, 1.0f, 1.0f));
     gfx->Fill();
   } else {
@@ -2927,7 +2921,7 @@ SVGTextDrawPathCallbacks::MakeFillPattern(GeneralPattern* aOutPattern)
     return;
   }
 
-  aOutPattern->InitColorPattern(ToDeviceColor(mColor));
+  aOutPattern->InitColorPattern(ToColor(gfxRGBA(mColor)));
 }
 
 void
@@ -2971,10 +2965,7 @@ SVGTextDrawPathCallbacks::FillGeometry()
   GeneralPattern fillPattern;
   MakeFillPattern(&fillPattern);
   if (fillPattern.GetPattern()) {
-    gfx->SetFillRule(
-      nsSVGUtils::ToFillRule(
-        IsClipPathChild() ?
-          mFrame->StyleSVG()->mClipRule : mFrame->StyleSVG()->mFillRule));
+    gfx->SetFillRule(nsSVGUtils::ToFillRule(mFrame->StyleSVG()->mFillRule));
     gfx->Fill(fillPattern);
   }
 }
@@ -2989,30 +2980,8 @@ SVGTextDrawPathCallbacks::StrokeGeometry()
       GeneralPattern strokePattern;
       nsSVGUtils::MakeStrokePatternFor(mFrame, gfx, &strokePattern, /*aContextPaint*/ nullptr);
       if (strokePattern.GetPattern()) {
-        if (!mFrame->GetParent()->GetContent()->IsSVG()) {
-          // The cast that follows would be unsafe
-          MOZ_ASSERT(false, "Our nsTextFrame's parent's content should be SVG");
-          return;
-        }
-        nsSVGElement* svgOwner =
-          static_cast<nsSVGElement*>(mFrame->GetParent()->GetContent());
-
-        // Apply any stroke-specific transform
-        gfxMatrix outerSVGToUser;
-        if (nsSVGUtils::GetNonScalingStrokeTransform(mFrame, &outerSVGToUser) &&
-            outerSVGToUser.Invert()) {
-          gfx->Multiply(outerSVGToUser);
-        }
-
-        RefPtr<Path> path = gfx->GetPath();
-        SVGContentUtils::AutoStrokeOptions strokeOptions;
-        SVGContentUtils::GetStrokeOptions(&strokeOptions, svgOwner,
-                                          mFrame->StyleContext(),
-                                          /*aContextPaint*/ nullptr);
-        DrawOptions drawOptions;
-        drawOptions.mAntialiasMode =
-          nsSVGUtils::ToAntialiasMode(mFrame->StyleSVG()->mTextRendering);
-        gfx->GetDrawTarget()->Stroke(path, strokePattern, strokeOptions);
+        nsSVGUtils::SetupCairoStrokeGeometry(mFrame, gfx, /*aContextPaint*/ nullptr);
+        gfx->Stroke(strokePattern);
       }
     }
   }
@@ -3170,10 +3139,8 @@ void
 nsDisplaySVGText::Paint(nsDisplayListBuilder* aBuilder,
                         nsRenderingContext* aCtx)
 {
-  gfxContext* ctx = aCtx->ThebesContext();
-
   gfxContextAutoDisableSubpixelAntialiasing
-    disable(ctx, mDisableSubpixelAA);
+    disable(aCtx->ThebesContext(), mDisableSubpixelAA);
 
   uint32_t appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
 
@@ -3188,9 +3155,9 @@ nsDisplaySVGText::Paint(nsDisplayListBuilder* aBuilder,
   gfxMatrix tm = nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(mFrame) *
                    gfxMatrix::Translation(devPixelOffset);
 
-  ctx->Save();
-  static_cast<SVGTextFrame*>(mFrame)->PaintSVG(*ctx, tm);
-  ctx->Restore();
+  aCtx->ThebesContext()->Save();
+  static_cast<SVGTextFrame*>(mFrame)->PaintSVG(aCtx, tm);
+  aCtx->ThebesContext()->Restore();
 }
 
 // ---------------------------------------------------------------------
@@ -3324,9 +3291,7 @@ SVGTextFrame::ReflowSVGNonDisplayText()
   // element is within a <mask>, say, the element referencing the <mask> will
   // be updated, which will then cause this SVGTextFrame to be painted and
   // in doing so cause the anonymous block frame to be reflowed.
-  nsLayoutUtils::PostRestyleEvent(
-    mContent->AsElement(), nsRestyleHint(0),
-    nsChangeHint_InvalidateRenderingObservers);
+  nsSVGEffects::InvalidateRenderingObservers(this);
 
   // Finally, we need to actually reflow the anonymous block frame and update
   // mPositions, in case we are being reflowed immediately after a DOM
@@ -3621,19 +3586,18 @@ ShouldPaintCaret(const TextRenderedRun& aThisRun, nsCaret* aCaret)
 }
 
 nsresult
-SVGTextFrame::PaintSVG(gfxContext& aContext,
+SVGTextFrame::PaintSVG(nsRenderingContext* aContext,
                        const gfxMatrix& aTransform,
                        const nsIntRect *aDirtyRect)
 {
-  DrawTarget& aDrawTarget = *aContext.GetDrawTarget();
-
   nsIFrame* kid = GetFirstPrincipalChild();
   if (!kid)
     return NS_OK;
 
   nsPresContext* presContext = PresContext();
 
-  gfxMatrix initialMatrix = aContext.CurrentMatrix();
+  gfxContext *gfx = aContext->ThebesContext();
+  gfxMatrix initialMatrix = gfx->CurrentMatrix();
 
   if (mState & NS_FRAME_IS_NONDISPLAY) {
     // If we are in a canvas DrawWindow call that used the
@@ -3691,10 +3655,10 @@ SVGTextFrame::PaintSVG(gfxContext& aContext,
   canvasTMForChildren.Scale(cssPxPerDevPx, cssPxPerDevPx);
   initialMatrix.Scale(1 / cssPxPerDevPx, 1 / cssPxPerDevPx);
 
-  gfxContextAutoSaveRestore save(&aContext);
-  aContext.NewPath();
-  aContext.Multiply(canvasTMForChildren);
-  gfxMatrix currentMatrix = aContext.CurrentMatrix();
+  gfxContextAutoSaveRestore save(gfx);
+  gfx->NewPath();
+  gfx->Multiply(canvasTMForChildren);
+  gfxMatrix currentMatrix = gfx->CurrentMatrix();
 
   nsRefPtr<nsCaret> caret = presContext->PresShell()->GetCaret();
   nsRect caretRect;
@@ -3702,12 +3666,6 @@ SVGTextFrame::PaintSVG(gfxContext& aContext,
 
   TextRenderedRunIterator it(this, TextRenderedRunIterator::eVisibleFrames);
   TextRenderedRun run = it.Current();
-
-  gfxTextContextPaint *outerContextPaint =
-    (gfxTextContextPaint*)aDrawTarget.GetUserData(&gfxTextContextPaint::sUserDataKey);
-
-  nsRenderingContext rendCtx(&aContext);
-
   while (run.mFrame) {
     nsTextFrame* frame = run.mFrame;
 
@@ -3717,17 +3675,19 @@ SVGTextFrame::PaintSVG(gfxContext& aContext,
 
     // Set up the fill and stroke so that SVG glyphs can get painted correctly
     // when they use context-fill etc.
-    aContext.SetMatrix(initialMatrix);
+    gfx->SetMatrix(initialMatrix);
+    gfxTextContextPaint *outerContextPaint =
+      (gfxTextContextPaint*)aContext->GetDrawTarget()->GetUserData(&gfxTextContextPaint::sUserDataKey);
 
     SVGTextContextPaint contextPaint;
     DrawMode drawMode =
-      SetupContextPaint(&aDrawTarget, aContext.CurrentMatrix(),
+      SetupContextPaint(gfx->GetDrawTarget(), gfx->CurrentMatrix(),
                         frame, outerContextPaint, &contextPaint);
 
     if (int(drawMode) & int(DrawMode::GLYPH_STROKE)) {
       // This may change the gfxContext's transform (for non-scaling stroke),
       // in which case this needs to happen before we call SetMatrix() below.
-      nsSVGUtils::SetupCairoStrokeGeometry(frame, &aContext, outerContextPaint);
+      nsSVGUtils::SetupCairoStrokeGeometry(frame, gfx, outerContextPaint);
     }
 
     // Set up the transform for painting the text frame for the substring
@@ -3735,19 +3695,19 @@ SVGTextFrame::PaintSVG(gfxContext& aContext,
     gfxMatrix runTransform =
       run.GetTransformFromUserSpaceForPainting(presContext, item) *
       currentMatrix;
-    aContext.SetMatrix(runTransform);
+    gfx->SetMatrix(runTransform);
 
     if (drawMode != DrawMode(0)) {
       nsRect frameRect = frame->GetVisualOverflowRect();
       bool paintSVGGlyphs;
-      if (ShouldRenderAsPath(frame, paintSVGGlyphs)) {
-        SVGTextDrawPathCallbacks callbacks(&rendCtx, frame,
+      if (ShouldRenderAsPath(aContext, frame, paintSVGGlyphs)) {
+        SVGTextDrawPathCallbacks callbacks(aContext, frame,
                                            matrixForPaintServers,
                                            paintSVGGlyphs);
-        frame->PaintText(&rendCtx, nsPoint(), frameRect, item,
+        frame->PaintText(aContext, nsPoint(), frameRect, item,
                          &contextPaint, &callbacks);
       } else {
-        frame->PaintText(&rendCtx, nsPoint(), frameRect, item,
+        frame->PaintText(aContext, nsPoint(), frameRect, item,
                          &contextPaint, nullptr);
       }
     }
@@ -3755,8 +3715,8 @@ SVGTextFrame::PaintSVG(gfxContext& aContext,
     if (frame == caretFrame && ShouldPaintCaret(run, caret)) {
       // XXX Should we be looking at the fill/stroke colours to paint the
       // caret with, rather than using the color property?
-      caret->PaintCaret(nullptr, aDrawTarget, frame, nsPoint());
-      aContext.NewPath();
+      caret->PaintCaret(nullptr, aContext, frame, nsPoint());
+      gfx->NewPath();
     }
 
     run = it.Next();
@@ -4845,7 +4805,7 @@ SVGTextFrame::GetTextPath(nsIFrame* aTextPathFrame)
   nsSVGPathGeometryElement *element =
     static_cast<nsSVGPathGeometryElement*>(pathFrame->GetContent());
 
-  RefPtr<Path> path = element->GetOrBuildPathForMeasuring();
+  RefPtr<Path> path = element->GetPathForLengthOrPositionMeasuring();
   if (!path) {
     return nullptr;
   }
@@ -5152,11 +5112,13 @@ SVGTextFrame::DoGlyphPositioning()
 }
 
 bool
-SVGTextFrame::ShouldRenderAsPath(nsTextFrame* aFrame,
+SVGTextFrame::ShouldRenderAsPath(nsRenderingContext* aContext,
+                                 nsTextFrame* aFrame,
                                  bool& aShouldPaintSVGGlyphs)
 {
   // Rendering to a clip path.
-  if (aFrame->GetParent()->GetParent()->GetStateBits() & NS_STATE_SVG_CLIPPATH_CHILD) {
+  if (SVGAutoRenderState::GetRenderMode(aContext->GetDrawTarget()) !=
+        SVGAutoRenderState::NORMAL) {
     aShouldPaintSVGGlyphs = false;
     return true;
   }
@@ -5197,9 +5159,7 @@ void
 SVGTextFrame::NotifyGlyphMetricsChange()
 {
   AddStateBits(NS_STATE_SVG_POSITIONING_DIRTY);
-  nsLayoutUtils::PostRestyleEvent(
-    mContent->AsElement(), nsRestyleHint(0),
-    nsChangeHint_InvalidateRenderingObservers);
+  nsSVGEffects::InvalidateRenderingObservers(this);
   ScheduleReflowSVG();
 }
 
@@ -5266,8 +5226,8 @@ SVGTextFrame::DoReflow()
   if (!kid)
     return;
 
-  nsRenderingContext renderingContext(
-    presContext->PresShell()->CreateReferenceRenderingContext());
+  nsRefPtr<nsRenderingContext> renderingContext =
+    presContext->PresShell()->CreateReferenceRenderingContext();
 
   if (UpdateFontSizeScaleFactor()) {
     // If the font size scale factor changed, we need the block to report
@@ -5277,10 +5237,10 @@ SVGTextFrame::DoReflow()
 
   mState |= NS_STATE_SVG_TEXT_IN_REFLOW;
 
-  nscoord inlineSize = kid->GetPrefISize(&renderingContext);
+  nscoord inlineSize = kid->GetPrefISize(renderingContext);
   WritingMode wm = kid->GetWritingMode();
   nsHTMLReflowState reflowState(presContext, kid,
-                                &renderingContext,
+                                renderingContext,
                                 LogicalSize(wm, inlineSize,
                                             NS_UNCONSTRAINEDSIZE));
   nsHTMLReflowMetrics desiredSize(reflowState);

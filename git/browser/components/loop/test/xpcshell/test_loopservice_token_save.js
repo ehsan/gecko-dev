@@ -16,7 +16,7 @@ add_test(function test_registration_returns_hawk_session_token() {
     response.finish();
   });
 
-  MozLoopService.promiseRegisteredWithServers().then(() => {
+  MozLoopService.register(mockPushHandler).then(() => {
     var hawkSessionPref;
     try {
       hawkSessionPref = Services.prefs.getCharPref("loop.hawk-session-token");
@@ -31,10 +31,9 @@ add_test(function test_registration_returns_hawk_session_token() {
   });
 });
 
-function run_test() {
+function run_test()
+{
   setupFakeLoopServer();
-
-  mockPushHandler.registrationPushURL = kEndPointUrl;
 
   do_register_cleanup(function() {
     Services.prefs.clearUserPref("loop.hawk-session-token");

@@ -228,12 +228,6 @@ this.PermissionsTable =  { geolocation: {
                              privileged: DENY_ACTION,
                              certified: ALLOW_ACTION
                            },
-                           "homescreen-webapps-manage": {
-                             app: DENY_ACTION,
-                             trusted: DENY_ACTION,
-                             privileged: ALLOW_ACTION,
-                             certified: ALLOW_ACTION
-                           },
                            "backgroundservice": {
                              app: DENY_ACTION,
                              trusted: DENY_ACTION,
@@ -495,17 +489,6 @@ this.PermissionsTable =  { geolocation: {
                              additional: ["settings-api"]
                            },
                            "engineering-mode": {
-                             app: DENY_ACTION,
-                             trusted: DENY_ACTION,
-                             privileged: DENY_ACTION,
-                             certified: ALLOW_ACTION
-                           },
-                           "tv": {
-                             app: DENY_ACTION,
-                             privileged: DENY_ACTION,
-                             certified: ALLOW_ACTION
-                           },
-                           "before-after-keyboard-event": {
                              app: DENY_ACTION,
                              trusted: DENY_ACTION,
                              privileged: DENY_ACTION,

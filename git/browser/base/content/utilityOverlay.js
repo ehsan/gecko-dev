@@ -13,11 +13,11 @@ XPCOMUtils.defineLazyGetter(this, "BROWSER_NEW_TAB_URL", function () {
   const PREF = "browser.newtab.url";
 
   function getNewTabPageURL() {
-    if (PrivateBrowsingUtils.isWindowPrivate(window) &&
-        !PrivateBrowsingUtils.permanentPrivateBrowsing) {
-      return "about:privatebrowsing";
+    if (!Services.prefs.prefHasUserValue(PREF)) {
+      if (PrivateBrowsingUtils.isWindowPrivate(window) &&
+          !PrivateBrowsingUtils.permanentPrivateBrowsing)
+        return "about:privatebrowsing";
     }
-
     let url = Services.prefs.getComplexValue(PREF, Ci.nsISupportsString).data;
     return url || "about:blank";
   }
@@ -712,27 +712,8 @@ function openPrefsHelp() {
 function trimURL(aURL) {
   // This function must not modify the given URL such that calling
   // nsIURIFixup::createFixupURI with the result will produce a different URI.
-
-  // remove single trailing slash for http/https/ftp URLs
-  let url = aURL.replace(/^((?:http|https|ftp):\/\/[^/]+)\/$/, "$1");
-
-  // remove http://
-  if (!url.startsWith("http://")) {
-    return url;
-  }
-  let urlWithoutProtocol = url.substring(7);
-
-  let flags = Services.uriFixup.FIXUP_FLAG_ALLOW_KEYWORD_LOOKUP |
-              Services.uriFixup.FIXUP_FLAG_FIX_SCHEME_TYPOS;
-  let fixedUpURL = Services.uriFixup.createFixupURI(urlWithoutProtocol, flags);
-  let expectedURLSpec;
-  try {
-    expectedURLSpec = makeURI(aURL).spec;
-  } catch (ex) {
-    return url;
-  }
-  if (fixedUpURL.spec == expectedURLSpec) {
-    return urlWithoutProtocol;
-  }
-  return url;
+  return aURL /* remove single trailing slash for http/https/ftp URLs */
+             .replace(/^((?:http|https|ftp):\/\/[^/]+)\/$/, "$1")
+              /* remove http:// unless the host starts with "ftp\d*\." or contains "@" */
+             .replace(/^http:\/\/((?!ftp\d*\.)[^\/@]+(?:\/|$))/, "$1");
 }

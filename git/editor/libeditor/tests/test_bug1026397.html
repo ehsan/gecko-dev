@@ -47,7 +47,8 @@ function runTests()
     }
 
     synthesizeComposition({ type: "compositionstart" });
-    synthesizeCompositionChange(
+    synthesizeComposition({ type: "compositionupdate", data: aInsertString });
+    synthesizeText(
       { "composition":
         { "string": aInsertString,
           "clauses":
@@ -60,7 +61,7 @@ function runTests()
     is(input.value, aExpectedValueDuringComposition,
        "The value of input whose maxlength is " + maxLengthStr + " should be "
          + aExpectedValueDuringComposition + " during composition" + aAdditionalExplanation);
-    synthesizeCompositionChange(
+    synthesizeText(
       { "composition":
         { "string": aInsertString,
           "clauses":

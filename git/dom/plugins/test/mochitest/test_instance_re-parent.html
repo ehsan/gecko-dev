@@ -10,7 +10,7 @@
 <body onload="begin()">
   <script type="application/javascript;version=1.8">
   SimpleTest.waitForExplicitFinish();
-  setTestPluginEnabledState(SpecialPowers.Ci.nsIPluginTag.STATE_ENABLED);
+  getTestPlugin().enabledState = SpecialPowers.Ci.nsIPluginTag.STATE_ENABLED;
 
   var exceptionThrown = false;
   var p = null;

@@ -129,7 +129,7 @@ let gUpdater = {
     // Delete sites that were removed from the grid.
     gGrid.sites.forEach(function (aSite) {
       // The site must be valid and not in the current grid.
-      if (!aSite || aSites.indexOf(aSite) != -1)
+      if (!aSite || aSites.contains(aSite))
         return;
 
       batch.push(new Promise(resolve => {
@@ -154,13 +154,14 @@ let gUpdater = {
    */
   _fillEmptyCells: function Updater_fillEmptyCells(aLinks, aCallback) {
     let {cells, sites} = gGrid;
+    let batch = [];
 
     // Find empty cells and fill them.
-    Promise.all(sites.map((aSite, aIndex) => {
+    sites.forEach(function (aSite, aIndex) {
       if (aSite || !aLinks[aIndex])
-        return null;
+        return;
 
-      return new Promise(resolve => {
+      batch.push(new Promise(resolve => {
         // Create the new site and fade it in.
         let site = gGrid.createSite(aLinks[aIndex], cells[aIndex]);
 
@@ -171,7 +172,9 @@ let gUpdater = {
         // the fade-in transition work.
         window.getComputedStyle(site.node).opacity;
         gTransformation.showSite(site, resolve);
-      });
-    })).then(aCallback).catch(console.exception);
+      }));
+    });
+
+    Promise.all(batch).then(aCallback);
   }
 };

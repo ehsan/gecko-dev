@@ -67,7 +67,7 @@ let SessionHistoryInternal = {
     let data = {entries: []};
     let isPinned = docShell.isAppTab;
     let webNavigation = docShell.QueryInterface(Ci.nsIWebNavigation);
-    let history = webNavigation.sessionHistory.QueryInterface(Ci.nsISHistoryInternal);
+    let history = webNavigation.sessionHistory;
 
     if (history && history.count > 0) {
       let oldest;
@@ -88,28 +88,17 @@ let SessionHistoryInternal = {
         newest = history.count - 1;
       }
 
-      // Loop over the transaction linked list directly so we can get the
-      // persist property for each transaction.
-      let txn = history.rootTransaction;
-      let i = 0;
-      while (txn && i < oldest) {
-        txn = txn.next;
-        i++;
-      }
-
-      while (txn && i <= newest) {
-        let shEntry = txn.sHEntry;
-        let entry = this.serializeEntry(shEntry, isPinned);
-        entry.persist = txn.persist;
-        data.entries.push(entry);
-        txn = txn.next;
-        i++;
-      }
-
-      if (i <= newest) {
-        // In some cases, there don't seem to be as many history entries as
-        // history.count claims. we'll save whatever history we can, print an
-        // error message, and still save sessionstore.js.
+      try {
+        for (let i = oldest; i <= newest; i++) {
+          let shEntry = history.getEntryAtIndex(i, false);
+          let entry = this.serializeEntry(shEntry, isPinned);
+          data.entries.push(entry);
+        }
+      } catch (ex) {
+        // In some cases, getEntryAtIndex will throw. This seems to be due to
+        // history.count being higher than it should be. By doing this in a
+        // try-catch, we'll update history to where it breaks, print an error
+        // message, and still save sessionstore.js.
         debug("SessionStore failed gathering complete history " +
               "for the focused window/tab. See bug 669196.");
       }
@@ -308,12 +297,11 @@ let SessionHistoryInternal = {
     let idMap = { used: {} };
     let docIdentMap = {};
     for (let i = 0; i < tabData.entries.length; i++) {
-      let entry = tabData.entries[i];
       //XXXzpao Wallpaper patch for bug 514751
-      if (!entry.url)
+      if (!tabData.entries[i].url)
         continue;
-      let persist = "persist" in entry ? entry.persist : true;
-      history.addEntry(this.deserializeEntry(entry, idMap, docIdentMap), persist);
+      history.addEntry(this.deserializeEntry(tabData.entries[i],
+                                             idMap, docIdentMap), true);
     }
   },
 

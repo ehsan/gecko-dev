@@ -6,8 +6,6 @@
 /* rendering object that goes directly inside the document's scrollbars */
 
 #include "nsCanvasFrame.h"
-
-#include "gfxUtils.h"
 #include "nsContainerFrame.h"
 #include "nsCSSRendering.h"
 #include "nsPresContext.h"
@@ -21,7 +19,6 @@
 #include "nsFrameManager.h"
 #include "gfxPlatform.h"
 #include "nsPrintfCString.h"
-#include "mozilla/dom/AnonymousContent.h"
 // for touchcaret
 #include "nsContentList.h"
 #include "nsContentCreatorFunctions.h"
@@ -36,7 +33,6 @@
 //#define DEBUG_CANVAS_FOCUS
 
 using namespace mozilla;
-using namespace mozilla::dom;
 using namespace mozilla::layout;
 using namespace mozilla::gfx;
 
@@ -65,7 +61,7 @@ nsCanvasFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   ErrorResult er;
   // We won't create touch caret element if preference is not enabled.
   if (PresShell::TouchCaretPrefEnabled()) {
-    nsRefPtr<NodeInfo> nodeInfo;
+    nsRefPtr<dom::NodeInfo> nodeInfo;
 
     // Create and append touch caret frame.
     nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::div, nullptr,
@@ -74,9 +70,14 @@ nsCanvasFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
     NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
     rv = NS_NewHTMLElement(getter_AddRefs(mTouchCaretElement), nodeInfo.forget(),
-                           NOT_FROM_PARSER);
+                           mozilla::dom::NOT_FROM_PARSER);
     NS_ENSURE_SUCCESS(rv, rv);
     aElements.AppendElement(mTouchCaretElement);
+
+    // Add a _moz_anonclass attribute as touch caret selector.
+    mTouchCaretElement->SetAttribute(NS_LITERAL_STRING("_moz_anonclass"),
+                                     NS_LITERAL_STRING("mozTouchCaret"), er);
+    NS_ENSURE_SUCCESS(er.ErrorCode(), er.ErrorCode());
 
     // Set touch caret to visibility: hidden by default.
     nsAutoString classValue;
@@ -90,40 +91,23 @@ nsCanvasFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
     // Selection caret
     mSelectionCaretsStartElement = doc->CreateHTMLElement(nsGkAtoms::div);
     aElements.AppendElement(mSelectionCaretsStartElement);
-    nsCOMPtr<mozilla::dom::Element> selectionCaretsStartElementInner = doc->CreateHTMLElement(nsGkAtoms::div);
-    mSelectionCaretsStartElement->AppendChildTo(selectionCaretsStartElementInner, false);
 
     mSelectionCaretsEndElement = doc->CreateHTMLElement(nsGkAtoms::div);
     aElements.AppendElement(mSelectionCaretsEndElement);
-    nsCOMPtr<mozilla::dom::Element> selectionCaretsEndElementInner = doc->CreateHTMLElement(nsGkAtoms::div);
-    mSelectionCaretsEndElement->AppendChildTo(selectionCaretsEndElementInner, false);
 
+    mSelectionCaretsStartElement->SetAttribute(NS_LITERAL_STRING("_moz_anonclass"),
+                                               NS_LITERAL_STRING("mozTouchCaret"), er);
     rv = mSelectionCaretsStartElement->SetAttr(kNameSpaceID_None, nsGkAtoms::_class,
                                                NS_LITERAL_STRING("moz-selectioncaret-left hidden"),
                                                true);
     NS_ENSURE_SUCCESS(rv, rv);
 
+    mSelectionCaretsEndElement->SetAttribute(NS_LITERAL_STRING("_moz_anonclass"),
+                                             NS_LITERAL_STRING("mozTouchCaret"), er);
     rv = mSelectionCaretsEndElement->SetAttr(kNameSpaceID_None, nsGkAtoms::_class,
                                              NS_LITERAL_STRING("moz-selectioncaret-right hidden"),
                                              true);
     NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  // Create the custom content container.
-  mCustomContentContainer = doc->CreateHTMLElement(nsGkAtoms::div);
-  aElements.AppendElement(mCustomContentContainer);
-
-  // XXX add :moz-native-anonymous or will that be automatically set?
-  rv = mCustomContentContainer->SetAttr(kNameSpaceID_None, nsGkAtoms::_class,
-                                        NS_LITERAL_STRING("moz-custom-content-container"),
-                                        true);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Append all existing AnonymousContent nodes stored at document level if any.
-  int32_t anonymousContentCount = doc->GetAnonymousContents().Length();
-  for (int32_t i = 0; i < anonymousContentCount; ++i) {
-    nsCOMPtr<Element> node = doc->GetAnonymousContents()[i]->GetContentNode();
-    mCustomContentContainer->AppendChildTo(node->AsContent(), true);
   }
 
   return NS_OK;
@@ -143,8 +127,6 @@ nsCanvasFrame::AppendAnonymousContentTo(nsTArray<nsIContent*>& aElements, uint32
   if (mSelectionCaretsEndElement) {
     aElements.AppendElement(mSelectionCaretsEndElement);
   }
-
-  aElements.AppendElement(mCustomContentContainer);
 }
 
 void
@@ -159,22 +141,6 @@ nsCanvasFrame::DestroyFrom(nsIFrame* aDestructRoot)
   nsContentUtils::DestroyAnonymousContent(&mTouchCaretElement);
   nsContentUtils::DestroyAnonymousContent(&mSelectionCaretsStartElement);
   nsContentUtils::DestroyAnonymousContent(&mSelectionCaretsEndElement);
-
-  // Elements inserted in the custom content container have the same lifetime as
-  // the document, so before destroying the container, make sure to keep a clone
-  // of each of them at document level so they can be re-appended on reframe.
-  if (mCustomContentContainer) {
-    nsCOMPtr<nsIDocument> doc = mContent->OwnerDoc();
-    ErrorResult rv;
-
-    for (int32_t i = doc->GetAnonymousContents().Length() - 1; i >= 0; --i) {
-      AnonymousContent* content = doc->GetAnonymousContents()[i];
-      nsCOMPtr<nsINode> clonedElement = content->GetContentNode()->CloneNode(true, rv);
-      content->SetContentNode(clonedElement->AsElement());
-    }
-  }
-  nsContentUtils::DestroyAnonymousContent(&mCustomContentContainer);
-
   nsContainerFrame::DestroyFrom(aDestructRoot);
 }
 
@@ -276,11 +242,8 @@ nsDisplayCanvasBackgroundColor::Paint(nsDisplayListBuilder* aBuilder,
   nsPoint offset = ToReferenceFrame();
   nsRect bgClipRect = frame->CanvasArea() + offset;
   if (NS_GET_A(mColor) > 0) {
-    DrawTarget* drawTarget = aCtx->GetDrawTarget();
-    int32_t appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
-    Rect devPxRect =
-      NSRectToSnappedRect(bgClipRect, appUnitsPerDevPixel, *drawTarget);
-    drawTarget->FillRect(devPxRect, ColorPattern(ToDeviceColor(mColor)));
+    aCtx->SetColor(mColor);
+    aCtx->FillRect(bgClipRect);
   }
 }
 
@@ -310,7 +273,7 @@ nsDisplayCanvasBackgroundImage::Paint(nsDisplayListBuilder* aBuilder,
   nsPoint offset = ToReferenceFrame();
   nsRect bgClipRect = frame->CanvasArea() + offset;
 
-  nsRenderingContext context;
+  nsRefPtr<nsRenderingContext> context;
   nsRefPtr<gfxContext> dest = aCtx->ThebesContext();
   RefPtr<DrawTarget> dt;
   gfxRect destRect;
@@ -332,13 +295,14 @@ nsDisplayCanvasBackgroundImage::Paint(nsDisplayListBuilder* aBuilder,
       nsRefPtr<gfxContext> ctx = new gfxContext(dt);
       ctx->SetMatrix(
         ctx->CurrentMatrix().Translate(-destRect.x, -destRect.y));
-      context.Init(ctx);
+      context = new nsRenderingContext();
+      context->Init(aCtx->DeviceContext(), ctx);
     }
   }
 #endif
 
   PaintInternal(aBuilder,
-                dt ? &context : aCtx,
+                dt ? context.get() : aCtx,
                 dt ? bgClipRect: mVisibleRect,
                 &bgClipRect);
 

@@ -643,7 +643,7 @@ namespace {
 struct PublicIdComparator
 {
   const nsAutoCString& mPublicId;
-  explicit PublicIdComparator(const nsAutoCString& aPublicId)
+  PublicIdComparator(const nsAutoCString& aPublicId)
     : mPublicId(aPublicId) {}
   int operator()(const PubIDInfo& aInfo) const {
     return nsCRT::strcmp(mPublicId.get(), aInfo.name);

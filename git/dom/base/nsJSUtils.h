@@ -25,7 +25,6 @@ class nsIScriptGlobalObject;
 namespace mozilla {
 namespace dom {
 class AutoJSAPI;
-class Element;
 }
 }
 
@@ -57,7 +56,7 @@ public:
   static void ReportPendingException(JSContext *aContext);
 
   static nsresult CompileFunction(mozilla::dom::AutoJSAPI& jsapi,
-                                  JS::AutoObjectVector& aScopeChain,
+                                  JS::Handle<JSObject*> aTarget,
                                   JS::CompileOptions& aOptions,
                                   const nsACString& aName,
                                   uint32_t aArgCount,
@@ -65,17 +64,14 @@ public:
                                   const nsAString& aBody,
                                   JSObject** aFunctionObject);
 
-  struct MOZ_STACK_CLASS EvaluateOptions {
+  struct EvaluateOptions {
     bool coerceToString;
     bool reportUncaught;
     bool needResult;
-    JS::AutoObjectVector scopeChain;
 
-    explicit EvaluateOptions(JSContext* cx)
-      : coerceToString(false)
-      , reportUncaught(true)
-      , needResult(true)
-      , scopeChain(cx)
+    explicit EvaluateOptions() : coerceToString(false)
+                               , reportUncaught(true)
+                               , needResult(true)
     {}
 
     EvaluateOptions& setCoerceToString(bool aCoerce) {
@@ -94,12 +90,9 @@ public:
     }
   };
 
-  // aEvaluationGlobal is the global to evaluate in.  The return value
-  // will then be wrapped back into the compartment aCx is in when
-  // this function is called.
   static nsresult EvaluateString(JSContext* aCx,
                                  const nsAString& aScript,
-                                 JS::Handle<JSObject*> aEvaluationGlobal,
+                                 JS::Handle<JSObject*> aScopeObject,
                                  JS::CompileOptions &aCompileOptions,
                                  const EvaluateOptions& aEvaluateOptions,
                                  JS::MutableHandle<JS::Value> aRetValue,
@@ -107,7 +100,7 @@ public:
 
   static nsresult EvaluateString(JSContext* aCx,
                                  JS::SourceBufferHolder& aSrcBuf,
-                                 JS::Handle<JSObject*> aEvaluationGlobal,
+                                 JS::Handle<JSObject*> aScopeObject,
                                  JS::CompileOptions &aCompileOptions,
                                  const EvaluateOptions& aEvaluateOptions,
                                  JS::MutableHandle<JS::Value> aRetValue,
@@ -116,21 +109,16 @@ public:
 
   static nsresult EvaluateString(JSContext* aCx,
                                  const nsAString& aScript,
-                                 JS::Handle<JSObject*> aEvaluationGlobal,
+                                 JS::Handle<JSObject*> aScopeObject,
                                  JS::CompileOptions &aCompileOptions,
                                  void **aOffThreadToken = nullptr);
 
   static nsresult EvaluateString(JSContext* aCx,
                                  JS::SourceBufferHolder& aSrcBuf,
-                                 JS::Handle<JSObject*> aEvaluationGlobal,
+                                 JS::Handle<JSObject*> aScopeObject,
                                  JS::CompileOptions &aCompileOptions,
                                  void **aOffThreadToken = nullptr);
 
-  // Returns false if an exception got thrown on aCx.  Passing a null
-  // aElement is allowed; that wil produce an empty aScopeChain.
-  static bool GetScopeChainForElement(JSContext* aCx,
-                                      mozilla::dom::Element* aElement,
-                                      JS::AutoObjectVector& aScopeChain);
 };
 
 class MOZ_STACK_CLASS AutoDontReportUncaught {

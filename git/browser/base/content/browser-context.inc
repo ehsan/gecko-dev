@@ -72,8 +72,8 @@
                 accesskey="&bookmarkThisLinkCmd.accesskey;"
                 oncommand="gContextMenu.bookmarkLink();"/>
       <menuitem id="context-sharelink"
-                label="&shareLink.label;"
-                accesskey="&shareLink.accesskey;"
+                label="&shareLinkCmd.label;"
+                accesskey="&shareLinkCmd.accesskey;"
                 oncommand="gContextMenu.shareLink();"/>
       <menuitem id="context-savelink"
                 label="&saveLinkCmd.label;"
@@ -200,8 +200,8 @@
                 accesskey="&saveImageCmd.accesskey;"
                 oncommand="gContextMenu.saveMedia();"/>
       <menuitem id="context-shareimage"
-                label="&shareImage.label;"
-                accesskey="&shareImage.accesskey;"
+                label="&shareImageCmd.label;"
+                accesskey="&shareImageCmd.accesskey;"
                 oncommand="gContextMenu.shareImage();"/>
       <menuitem id="context-sendimage"
                 label="&emailImageCmd.label;"
@@ -225,8 +225,8 @@
                 accesskey="&saveVideoCmd.accesskey;"
                 oncommand="gContextMenu.saveMedia();"/>
       <menuitem id="context-sharevideo"
-                label="&shareVideo.label;"
-                accesskey="&shareVideo.accesskey;"
+                label="&shareVideoCmd.label;"
+                accesskey="&shareVideoCmd.accesskey;"
                 oncommand="gContextMenu.shareVideo();"/>
       <menuitem id="context-saveaudio"
                 label="&saveAudioCmd.label;"
@@ -240,11 +240,6 @@
                 label="&emailVideoCmd.label;"
                 accesskey="&emailVideoCmd.accesskey;"
                 oncommand="gContextMenu.sendMedia();"/>
-      <menu id="context-castvideo"
-                label="&castVideoCmd.label;"
-                accesskey="&castVideoCmd.accesskey;">
-        <menupopup id="context-castvideo-popup" onpopupshowing="gContextMenu.populateCastVideoMenu(this)"/>
-      </menu>
       <menuitem id="context-sendaudio"
                 label="&emailAudioCmd.label;"
                 accesskey="&emailAudioCmd.accesskey;"
@@ -310,8 +305,8 @@
       <menuitem id="context-searchselect"
                 oncommand="BrowserSearch.loadSearchFromContext(this.searchTerms);"/>
       <menuitem id="context-shareselect"
-                label="&shareSelect.label;"
-                accesskey="&shareSelect.accesskey;"
+                label="&shareSelectCmd.label;"
+                accesskey="&shareSelectCmd.accesskey;"
                 oncommand="gContextMenu.shareSelect(getBrowserSelection());"/>
       <menuseparator id="frame-sep"/>
       <menu id="frame" label="&thisFrameMenu.label;" accesskey="&thisFrameMenu.accesskey;">

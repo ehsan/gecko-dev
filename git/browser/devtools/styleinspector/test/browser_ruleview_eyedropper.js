@@ -7,24 +7,16 @@
 const PAGE_CONTENT = [
   '<style type="text/css">',
   '  body {',
-  '    background-color: white;',
-  '    padding: 0px',
-  '  }',
-  '',
-  '  #div1 {',
   '    background-color: #ff5;',
-  '    width: 20px;',
-  '    height: 20px;',
+  '    padding: 50px',
   '  }',
-  '',
-  '  #div2 {',
-  '    margin-left: 20px;',
-  '    width: 20px;',
-  '    height: 20px;',
+  '  div {',
+  '    width: 100px;',
+  '    height: 100px;',
   '    background-color: #f09;',
   '  }',
   '</style>',
-  '<body><div id="div1"></div><div id="div2"></div></body>'
+  '<body><div></div></body>'
 ].join("\n");
 
 const ORIGINAL_COLOR = "rgb(255, 0, 153)";  // #f09
@@ -38,9 +30,9 @@ let test = asyncTest(function*() {
   content.document.body.innerHTML = PAGE_CONTENT;
 
   let {toolbox, inspector, view} = yield openRuleView();
-  yield selectNode("#div2", inspector);
+  yield selectNode("div", inspector);
 
-  let property = getRuleViewProperty(view, "#div2", "background-color");
+  let property = getRuleViewProperty(view, "div", "background-color");
   let swatch = property.valueSpan.querySelector(".ruleview-colorswatch");
   ok(swatch, "Color swatch is displayed for the bg-color property");
 
@@ -120,38 +112,24 @@ function openEyedropper(view, swatch) {
 }
 
 function inspectPage(dropper, click=true) {
-  let target = document.documentElement;
-  let win = window;
+  let target = content.document.body;
+  let win = content.window;
 
-  // get location of the content, offset from browser window
-  let box = gBrowser.selectedTab.linkedBrowser.getBoundingClientRect();
-  let x = box.left + 1;
-  let y = box.top + 1;
+  EventUtils.synthesizeMouse(target, 10, 10, { type: "mousemove" }, win);
 
-  return dropperStarted(dropper).then(() => {
-    EventUtils.synthesizeMouse(target, x, y, { type: "mousemove" }, win);
-
-    return dropperLoaded(dropper).then(() => {
-      EventUtils.synthesizeMouse(target, x + 10, y + 10, { type: "mousemove" }, win);
-
-      if (click) {
-        EventUtils.synthesizeMouse(target, x + 10, y + 10, {}, win);
-      }
-    });
+  return dropperLoaded(dropper).then(() => {
+    EventUtils.synthesizeMouse(target, 20, 20, { type: "mousemove" }, win);
+    if (click) {
+      EventUtils.synthesizeMouse(target, 20, 20, {}, win);
+    }
   });
-}
-
-function dropperStarted(dropper) {
-  if (dropper.isStarted) {
-    return promise.resolve();
-  }
-  return dropper.once("started");
 }
 
 function dropperLoaded(dropper) {
   if (dropper.loaded) {
     return promise.resolve();
   }
+
   return dropper.once("load");
 }
 

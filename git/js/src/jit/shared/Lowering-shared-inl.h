@@ -18,7 +18,7 @@ namespace jit {
 bool
 LIRGeneratorShared::emitAtUses(MInstruction *mir)
 {
-    MOZ_ASSERT(mir->canEmitAtUses());
+    JS_ASSERT(mir->canEmitAtUses());
     mir->setEmittedAtUses();
     mir->setVirtualRegister(0);
     return true;
@@ -29,7 +29,7 @@ LIRGeneratorShared::use(MDefinition *mir, LUse policy)
 {
     // It is illegal to call use() on an instruction with two defs.
 #if BOX_PIECES > 1
-    MOZ_ASSERT(mir->type() != MIRType_Value);
+    JS_ASSERT(mir->type() != MIRType_Value);
 #endif
     if (!ensureDefined(mir))
         return policy;
@@ -41,7 +41,7 @@ template <size_t X, size_t Y> bool
 LIRGeneratorShared::define(LInstructionHelper<1, X, Y> *lir, MDefinition *mir, const LDefinition &def)
 {
     // Call instructions should use defineReturn.
-    MOZ_ASSERT(!lir->isCall());
+    JS_ASSERT(!lir->isCall());
 
     uint32_t vreg = getVirtualRegister();
     if (vreg >= MAX_VIRTUAL_REGISTERS)
@@ -88,7 +88,7 @@ template <size_t Ops, size_t Temps> bool
 LIRGeneratorShared::defineReuseInput(LInstructionHelper<1, Ops, Temps> *lir, MDefinition *mir, uint32_t operand)
 {
     // The input should be used at the start of the instruction, to avoid moves.
-    MOZ_ASSERT(lir->getOperand(operand)->toUse()->usedAtStart());
+    JS_ASSERT(lir->getOperand(operand)->toUse()->usedAtStart());
 
     LDefinition::Type type = LDefinition::TypeFrom(mir->type());
 
@@ -103,7 +103,7 @@ LIRGeneratorShared::defineBox(LInstructionHelper<BOX_PIECES, Ops, Temps> *lir, M
                               LDefinition::Policy policy)
 {
     // Call instructions should use defineReturn.
-    MOZ_ASSERT(!lir->isCall());
+    JS_ASSERT(!lir->isCall());
 
     uint32_t vreg = getVirtualRegister();
     if (vreg >= MAX_VIRTUAL_REGISTERS)
@@ -128,7 +128,7 @@ LIRGeneratorShared::defineReturn(LInstruction *lir, MDefinition *mir)
 {
     lir->setMir(mir);
 
-    MOZ_ASSERT(lir->isCall());
+    JS_ASSERT(lir->isCall());
 
     uint32_t vreg = getVirtualRegister();
     if (vreg >= MAX_VIRTUAL_REGISTERS)
@@ -162,7 +162,7 @@ LIRGeneratorShared::defineReturn(LInstruction *lir, MDefinition *mir)
         break;
       default:
         LDefinition::Type type = LDefinition::TypeFrom(mir->type());
-        MOZ_ASSERT(type != LDefinition::DOUBLE && type != LDefinition::FLOAT32);
+        JS_ASSERT(type != LDefinition::DOUBLE && type != LDefinition::FLOAT32);
         lir->setDef(0, LDefinition(vreg, type, LGeneralReg(ReturnReg)));
         break;
     }
@@ -201,7 +201,7 @@ IsCompatibleLIRCoercion(MIRType to, MIRType from)
 bool
 LIRGeneratorShared::redefine(MDefinition *def, MDefinition *as)
 {
-    MOZ_ASSERT(IsCompatibleLIRCoercion(def->type(), as->type()));
+    JS_ASSERT(IsCompatibleLIRCoercion(def->type(), as->type()));
 
     // Try to emit MIR marked as emitted-at-uses at, well, uses. For
     // snapshotting reasons we delay the MIRTypes match, or when we are
@@ -212,18 +212,17 @@ LIRGeneratorShared::redefine(MDefinition *def, MDefinition *as)
           (def->type() == MIRType_Int32 || def->type() == MIRType_Boolean) &&
           (as->type() == MIRType_Int32 || as->type() == MIRType_Boolean))))
     {
-        MInstruction *replacement;
+        MDefinition *replacement;
         if (def->type() != as->type()) {
             Value v = as->toConstant()->value();
             if (as->type() == MIRType_Int32)
                 replacement = MConstant::New(alloc(), BooleanValue(v.toInt32()));
             else
                 replacement = MConstant::New(alloc(), Int32Value(v.toBoolean()));
-            def->block()->insertBefore(def->toInstruction(), replacement);
             if (!emitAtUses(replacement->toInstruction()))
                 return false;
         } else {
-            replacement = as->toInstruction();
+            replacement = as;
         }
         def->replaceAllUsesWith(replacement);
         return true;
@@ -241,7 +240,7 @@ LIRGeneratorShared::ensureDefined(MDefinition *mir)
     if (mir->isEmittedAtUses()) {
         if (!mir->toInstruction()->accept(this))
             return false;
-        MOZ_ASSERT(mir->isLowered());
+        JS_ASSERT(mir->isLowered());
     }
     return true;
 }
@@ -431,7 +430,7 @@ LIRGeneratorShared::tempDouble()
 LDefinition
 LIRGeneratorShared::tempCopy(MDefinition *input, uint32_t reusedInput)
 {
-    MOZ_ASSERT(input->virtualRegister());
+    JS_ASSERT(input->virtualRegister());
     LDefinition t = temp(LDefinition::TypeFrom(input->type()), LDefinition::MUST_REUSE_INPUT);
     t.setReusedInput(reusedInput);
     return t;
@@ -446,10 +445,10 @@ LIRGeneratorShared::annotate(T *ins)
 template <typename T> bool
 LIRGeneratorShared::add(T *ins, MInstruction *mir)
 {
-    MOZ_ASSERT(!ins->isPhi());
+    JS_ASSERT(!ins->isPhi());
     current->add(ins);
     if (mir) {
-        MOZ_ASSERT(current == mir->block()->lir());
+        JS_ASSERT(current == mir->block()->lir());
         ins->setMir(mir);
     }
     annotate(ins);
@@ -479,7 +478,7 @@ VirtualRegisterOfPayload(MDefinition *mir)
 LUse
 LIRGeneratorShared::useType(MDefinition *mir, LUse::Policy policy)
 {
-    MOZ_ASSERT(mir->type() == MIRType_Value);
+    JS_ASSERT(mir->type() == MIRType_Value);
 
     return LUse(mir->virtualRegister() + VREG_TYPE_OFFSET, policy);
 }
@@ -487,7 +486,7 @@ LIRGeneratorShared::useType(MDefinition *mir, LUse::Policy policy)
 LUse
 LIRGeneratorShared::usePayload(MDefinition *mir, LUse::Policy policy)
 {
-    MOZ_ASSERT(mir->type() == MIRType_Value);
+    JS_ASSERT(mir->type() == MIRType_Value);
 
     return LUse(VirtualRegisterOfPayload(mir), policy);
 }
@@ -495,7 +494,7 @@ LIRGeneratorShared::usePayload(MDefinition *mir, LUse::Policy policy)
 LUse
 LIRGeneratorShared::usePayloadAtStart(MDefinition *mir, LUse::Policy policy)
 {
-    MOZ_ASSERT(mir->type() == MIRType_Value);
+    JS_ASSERT(mir->type() == MIRType_Value);
 
     return LUse(VirtualRegisterOfPayload(mir), policy, true);
 }

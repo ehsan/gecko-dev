@@ -6,7 +6,6 @@
 #include "mozilla/BasicEvents.h"
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/EventListenerManager.h"
-#include "mozilla/dom/WindowRootBinding.h"
 #include "nsCOMPtr.h"
 #include "nsWindowRoot.h"
 #include "nsPIDOMWindow.h"
@@ -21,7 +20,7 @@
 #include "nsIDOMHTMLTextAreaElement.h"
 #include "nsIControllers.h"
 #include "nsIController.h"
-#include "xpcpublic.h"
+
 #include "nsCycleCollectionParticipant.h"
 
 #ifdef MOZ_XUL
@@ -291,18 +290,6 @@ void
 nsWindowRoot::SetPopupNode(nsIDOMNode* aNode)
 {
   mPopupNode = aNode;
-}
-
-nsIGlobalObject*
-nsWindowRoot::GetParentObject()
-{
-  return xpc::NativeGlobal(xpc::PrivilegedJunkScope());
-}
-
-JSObject*
-nsWindowRoot::WrapObject(JSContext* aCx)
-{
-  return mozilla::dom::WindowRootBinding::Wrap(aCx, this);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////

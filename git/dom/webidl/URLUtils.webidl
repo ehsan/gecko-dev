@@ -17,39 +17,35 @@
  Exposed=(Window, Worker)]
 interface URLUtils {
   // Bug 824857: no support for stringifier attributes yet.
-  //  stringifier attribute ScalarValueString href;
+  //  stringifier attribute DOMString href;
   [Throws, CrossOriginWritable=Location]
-           attribute ScalarValueString href;
+           attribute DOMString href;
   [Throws]
-  readonly attribute ScalarValueString origin;
+  readonly attribute DOMString origin;
 
   [Throws]
-           attribute ScalarValueString protocol;
+           attribute DOMString protocol;
   [Throws]
-           attribute ScalarValueString username;
+           attribute DOMString username;
   [Throws]
-           attribute ScalarValueString password;
+           attribute DOMString password;
   [Throws]
-           attribute ScalarValueString host;
+           attribute DOMString host;
   [Throws]
-           attribute ScalarValueString hostname;
+           attribute DOMString hostname;
   [Throws]
-           attribute ScalarValueString port;
+           attribute DOMString port;
   [Throws]
-           attribute ScalarValueString pathname;
+           attribute DOMString pathname;
   [Throws]
-           attribute ScalarValueString search;
+           attribute DOMString search;
+
+           attribute URLSearchParams searchParams;
 
   [Throws]
-           attribute ScalarValueString hash;
+           attribute DOMString hash;
 
   // Bug 824857 should remove this.
   [Throws]
   stringifier;
-};
-
-[NoInterfaceObject,
- Exposed=(Window, Worker)]
-interface URLUtilsSearchParams {
-           attribute URLSearchParams searchParams;
 };

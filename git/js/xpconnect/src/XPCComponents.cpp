@@ -233,7 +233,7 @@ NS_IMPL_RELEASE(nsXPCComponents_Interfaces)
 // The nsIXPCScriptable map declaration that will generate stubs for us...
 #define XPC_MAP_CLASSNAME           nsXPCComponents_Interfaces
 #define XPC_MAP_QUOTED_CLASSNAME   "nsXPCComponents_Interfaces"
-#define                             XPC_MAP_WANT_RESOLVE
+#define                             XPC_MAP_WANT_NEWRESOLVE
 #define                             XPC_MAP_WANT_NEWENUMERATE
 #define XPC_MAP_FLAGS               nsIXPCScriptable::DONT_ENUM_STATIC_PROPS |\
                                     nsIXPCScriptable::ALLOW_PROP_MODS_DURING_RESOLVE
@@ -291,11 +291,12 @@ nsXPCComponents_Interfaces::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
     }
 }
 
+/* bool newResolve (in nsIXPConnectWrappedNative wrapper, in JSContextPtr cx, in JSObjectPtr obj, in jsval id, out JSObjectPtr objp); */
 NS_IMETHODIMP
-nsXPCComponents_Interfaces::Resolve(nsIXPConnectWrappedNative *wrapper,
-                                    JSContext *cx, JSObject *objArg,
-                                    jsid idArg, bool *resolvedp,
-                                    bool *_retval)
+nsXPCComponents_Interfaces::NewResolve(nsIXPConnectWrappedNative *wrapper,
+                                       JSContext *cx, JSObject *objArg,
+                                       jsid idArg, JSObject **objp,
+                                       bool *_retval)
 {
     RootedObject obj(cx, objArg);
     RootedId id(cx, idArg);
@@ -330,7 +331,7 @@ nsXPCComponents_Interfaces::Resolve(nsIXPConnectWrappedNative *wrapper,
                 if (holder &&
                     // Assign, not compare
                     (idobj = holder->GetJSObject())) {
-                    *resolvedp = true;
+                    *objp = obj;
                     *_retval = JS_DefinePropertyById(cx, obj, id, idobj,
                                                      JSPROP_ENUMERATE |
                                                      JSPROP_READONLY |
@@ -483,7 +484,7 @@ NS_IMPL_RELEASE(nsXPCComponents_InterfacesByID)
 // The nsIXPCScriptable map declaration that will generate stubs for us...
 #define XPC_MAP_CLASSNAME           nsXPCComponents_InterfacesByID
 #define XPC_MAP_QUOTED_CLASSNAME   "nsXPCComponents_InterfacesByID"
-#define                             XPC_MAP_WANT_RESOLVE
+#define                             XPC_MAP_WANT_NEWRESOLVE
 #define                             XPC_MAP_WANT_NEWENUMERATE
 #define XPC_MAP_FLAGS               nsIXPCScriptable::DONT_ENUM_STATIC_PROPS |\
                                     nsIXPCScriptable::ALLOW_PROP_MODS_DURING_RESOLVE
@@ -541,11 +542,12 @@ nsXPCComponents_InterfacesByID::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
     }
 }
 
+/* bool newResolve (in nsIXPConnectWrappedNative wrapper, in JSContextPtr cx, in JSObjectPtr obj, in jsval id, out JSObjectPtr objp); */
 NS_IMETHODIMP
-nsXPCComponents_InterfacesByID::Resolve(nsIXPConnectWrappedNative *wrapper,
-                                        JSContext *cx, JSObject *objArg,
-                                        jsid idArg, bool *resolvedp,
-                                        bool *_retval)
+nsXPCComponents_InterfacesByID::NewResolve(nsIXPConnectWrappedNative *wrapper,
+                                           JSContext *cx, JSObject *objArg,
+                                           jsid idArg, JSObject **objp,
+                                           bool *_retval)
 {
     RootedObject obj(cx, objArg);
     RootedId id(cx, idArg);
@@ -584,7 +586,7 @@ nsXPCComponents_InterfacesByID::Resolve(nsIXPConnectWrappedNative *wrapper,
             if (holder &&
                 // Assign, not compare
                 (idobj = holder->GetJSObject())) {
-                *resolvedp = true;
+                *objp = obj;
                 *_retval =
                     JS_DefinePropertyById(cx, obj, id, idobj,
                                           JSPROP_ENUMERATE |
@@ -735,7 +737,7 @@ NS_IMPL_RELEASE(nsXPCComponents_Classes)
 // The nsIXPCScriptable map declaration that will generate stubs for us...
 #define XPC_MAP_CLASSNAME           nsXPCComponents_Classes
 #define XPC_MAP_QUOTED_CLASSNAME   "nsXPCComponents_Classes"
-#define                             XPC_MAP_WANT_RESOLVE
+#define                             XPC_MAP_WANT_NEWRESOLVE
 #define                             XPC_MAP_WANT_NEWENUMERATE
 #define XPC_MAP_FLAGS               nsIXPCScriptable::DONT_ENUM_STATIC_PROPS |\
                                     nsIXPCScriptable::ALLOW_PROP_MODS_DURING_RESOLVE
@@ -800,11 +802,12 @@ nsXPCComponents_Classes::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
     }
 }
 
+/* bool newResolve (in nsIXPConnectWrappedNative wrapper, in JSContextPtr cx, in JSObjectPtr obj, in jsval id, out JSObjectPtr objp); */
 NS_IMETHODIMP
-nsXPCComponents_Classes::Resolve(nsIXPConnectWrappedNative *wrapper,
-                                 JSContext *cx, JSObject *objArg,
-                                 jsid idArg, bool *resolvedp,
-                                 bool *_retval)
+nsXPCComponents_Classes::NewResolve(nsIXPConnectWrappedNative *wrapper,
+                                    JSContext *cx, JSObject *objArg,
+                                    jsid idArg, JSObject **objp,
+                                    bool *_retval)
 
 {
     RootedId id(cx, idArg);
@@ -826,7 +829,7 @@ nsXPCComponents_Classes::Resolve(nsIXPConnectWrappedNative *wrapper,
                 if (holder &&
                     // Assign, not compare
                         (idobj = holder->GetJSObject())) {
-                    *resolvedp = true;
+                    *objp = obj;
                     *_retval = JS_DefinePropertyById(cx, obj, id, idobj,
                                                      JSPROP_ENUMERATE |
                                                      JSPROP_READONLY |
@@ -975,7 +978,7 @@ NS_IMPL_RELEASE(nsXPCComponents_ClassesByID)
 // The nsIXPCScriptable map declaration that will generate stubs for us...
 #define XPC_MAP_CLASSNAME           nsXPCComponents_ClassesByID
 #define XPC_MAP_QUOTED_CLASSNAME   "nsXPCComponents_ClassesByID"
-#define                             XPC_MAP_WANT_RESOLVE
+#define                             XPC_MAP_WANT_NEWRESOLVE
 #define                             XPC_MAP_WANT_NEWENUMERATE
 #define XPC_MAP_FLAGS               nsIXPCScriptable::DONT_ENUM_STATIC_PROPS |\
                                     nsIXPCScriptable::ALLOW_PROP_MODS_DURING_RESOLVE
@@ -1057,11 +1060,12 @@ IsRegisteredCLSID(const char* str)
     return registered;
 }
 
+/* bool newResolve (in nsIXPConnectWrappedNative wrapper, in JSContextPtr cx, in JSObjectPtr obj, in jsval id, out JSObjectPtr objp); */
 NS_IMETHODIMP
-nsXPCComponents_ClassesByID::Resolve(nsIXPConnectWrappedNative *wrapper,
-                                     JSContext *cx, JSObject *objArg,
-                                     jsid idArg, bool *resolvedp,
-                                     bool *_retval)
+nsXPCComponents_ClassesByID::NewResolve(nsIXPConnectWrappedNative *wrapper,
+                                        JSContext *cx, JSObject *objArg,
+                                        jsid idArg, JSObject **objp,
+                                        bool *_retval)
 {
     RootedObject obj(cx, objArg);
     RootedId id(cx, idArg);
@@ -1086,7 +1090,7 @@ nsXPCComponents_ClassesByID::Resolve(nsIXPConnectWrappedNative *wrapper,
                 if (holder &&
                     // Assign, not compare
                     (idobj = holder->GetJSObject())) {
-                    *resolvedp = true;
+                    *objp = obj;
                     *_retval = JS_DefinePropertyById(cx, obj, id, idobj,
                                                      JSPROP_ENUMERATE |
                                                      JSPROP_READONLY |
@@ -1239,7 +1243,7 @@ NS_IMPL_RELEASE(nsXPCComponents_Results)
 // The nsIXPCScriptable map declaration that will generate stubs for us...
 #define XPC_MAP_CLASSNAME           nsXPCComponents_Results
 #define XPC_MAP_QUOTED_CLASSNAME   "nsXPCComponents_Results"
-#define                             XPC_MAP_WANT_RESOLVE
+#define                             XPC_MAP_WANT_NEWRESOLVE
 #define                             XPC_MAP_WANT_NEWENUMERATE
 #define XPC_MAP_FLAGS               nsIXPCScriptable::DONT_ENUM_STATIC_PROPS |\
                                     nsIXPCScriptable::ALLOW_PROP_MODS_DURING_RESOLVE
@@ -1290,11 +1294,13 @@ nsXPCComponents_Results::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
     }
 }
 
+
+/* bool newResolve (in nsIXPConnectWrappedNative wrapper, in JSContextPtr cx, in JSObjectPtr obj, in jsval id, out JSObjectPtr objp); */
 NS_IMETHODIMP
-nsXPCComponents_Results::Resolve(nsIXPConnectWrappedNative *wrapper,
-                                 JSContext *cx, JSObject *objArg,
-                                 jsid idArg, bool *resolvedp,
-                                 bool *_retval)
+nsXPCComponents_Results::NewResolve(nsIXPConnectWrappedNative *wrapper,
+                                    JSContext *cx, JSObject *objArg,
+                                    jsid idArg, JSObject * *objp,
+                                    bool *_retval)
 {
     RootedObject obj(cx, objArg);
     RootedId id(cx, idArg);
@@ -1306,7 +1312,7 @@ nsXPCComponents_Results::Resolve(nsIXPConnectWrappedNative *wrapper,
         nsresult rv;
         while (nsXPCException::IterateNSResults(&rv, &rv_name, nullptr, &iter)) {
             if (!strcmp(name.ptr(), rv_name)) {
-                *resolvedp = true;
+                *objp = obj;
                 if (!JS_DefinePropertyById(cx, obj, id, (uint32_t)rv,
                                            JSPROP_ENUMERATE |
                                            JSPROP_READONLY |
@@ -3100,16 +3106,6 @@ nsXPCComponents_Utils::IsCrossProcessWrapper(HandleValue obj, bool *out)
     return NS_OK;
 }
 
-NS_IMETHODIMP
-nsXPCComponents_Utils::GetCrossProcessWrapperTag(HandleValue obj, nsACString &out)
-{
-    if (obj.isPrimitive() || !jsipc::IsWrappedCPOW(&obj.toObject()))
-        return NS_ERROR_INVALID_ARG;
-
-    jsipc::GetWrappedCPOWTag(&obj.toObject(), out);
-    return NS_OK;
-}
-
 /* void recomputerWrappers(jsval vobj); */
 NS_IMETHODIMP
 nsXPCComponents_Utils::RecomputeWrappers(HandleValue vobj, JSContext *cx)
@@ -3151,14 +3147,6 @@ nsXPCComponents_Utils::ForcePermissiveCOWs(JSContext *cx)
 {
     CrashIfNotInAutomation();
     CompartmentPrivate::Get(CurrentGlobalOrNull(cx))->forcePermissiveCOWs = true;
-    return NS_OK;
-}
-
-/* jsval skipCOWCallableChecks(); */
-NS_IMETHODIMP
-nsXPCComponents_Utils::SkipCOWCallableChecks(JSContext *cx)
-{
-    CompartmentPrivate::Get(CurrentGlobalOrNull(cx))->skipCOWCallableChecks = true;
     return NS_OK;
 }
 

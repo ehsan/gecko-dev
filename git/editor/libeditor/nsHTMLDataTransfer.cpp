@@ -48,6 +48,7 @@
 #include "nsIDOMHTMLObjectElement.h"
 #include "nsIDOMHTMLScriptElement.h"
 #include "nsIDOMNode.h"
+#include "nsIDOMRange.h"
 #include "nsIDocument.h"
 #include "nsIEditor.h"
 #include "nsIEditorIMESupport.h"
@@ -59,6 +60,7 @@
 #include "nsINode.h"
 #include "nsIParserUtils.h"
 #include "nsIPlaintextEditor.h"
+#include "nsISelection.h"
 #include "nsISupportsImpl.h"
 #include "nsISupportsPrimitives.h"
 #include "nsISupportsUtils.h"
@@ -167,7 +169,9 @@ NS_IMETHODIMP nsHTMLEditor::LoadHTML(const nsAString & aInputString)
     }
 
     // Get the first range in the selection, for context:
-    nsRefPtr<nsRange> range = selection->GetRangeAt(0);
+    nsCOMPtr<nsIDOMRange> range;
+    rv = selection->GetRangeAt(0, getter_AddRefs(range));
+    NS_ENSURE_SUCCESS(rv, rv);
     NS_ENSURE_TRUE(range, NS_ERROR_NULL_POINTER);
 
     // create fragment for pasted html
@@ -629,9 +633,8 @@ nsHTMLEditor::DoInsertHTMLWithContext(const nsAString & aInputString,
       // but don't cross tables
       if (!nsHTMLEditUtils::IsTable(lastInsertNode))
       {
-        nsCOMPtr<nsINode> lastInsertNode_ = do_QueryInterface(lastInsertNode);
-        NS_ENSURE_STATE(lastInsertNode_ || !lastInsertNode);
-        selNode = GetAsDOMNode(GetLastEditableLeaf(*lastInsertNode_));
+        rv = GetLastEditableLeaf(lastInsertNode, address_of(selNode));
+        NS_ENSURE_SUCCESS(rv, rv);
         tmp = selNode;
         while (tmp && (tmp != lastInsertNode))
         {
@@ -655,9 +658,6 @@ nsHTMLEditor::DoInsertHTMLWithContext(const nsAString & aInputString,
       {
         tmp = selNode;
         selNode = GetNodeLocation(tmp, &selOffset);
-        // selNode might be null in case a mutation listener removed
-        // the stuff we just inserted from the DOM.
-        NS_ENSURE_STATE(selNode);
         ++selOffset;  // want to be *after* last leaf node in paste
       }
 
@@ -1592,13 +1592,16 @@ NS_IMETHODIMP nsHTMLEditor::PasteAsCitedQuotation(const nsAString & aCitation,
     return NS_OK; // rules canceled the operation
   }
 
-  nsCOMPtr<Element> newNode =
-    DeleteSelectionAndCreateElement(*nsGkAtoms::blockquote);
+  nsCOMPtr<nsIDOMNode> newNode;
+  rv = DeleteSelectionAndCreateNode(NS_LITERAL_STRING("blockquote"), getter_AddRefs(newNode));
+  NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(newNode, NS_ERROR_NULL_POINTER);
 
   // Try to set type=cite.  Ignore it if this fails.
-  newNode->SetAttr(kNameSpaceID_None, nsGkAtoms::type,
-                   NS_LITERAL_STRING("cite"), true);
+  nsCOMPtr<nsIDOMElement> newElement = do_QueryInterface(newNode);
+  if (newElement) {
+    newElement->SetAttribute(NS_LITERAL_STRING("type"), NS_LITERAL_STRING("cite"));
+  }
 
   // Set the selection to the underneath the node we just inserted:
   rv = selection->Collapse(newNode, 0);
@@ -1768,6 +1771,7 @@ nsHTMLEditor::InsertAsPlaintextQuotation(const nsAString & aQuotedText,
   if (mWrapToWindow)
     return nsPlaintextEditor::InsertAsQuotation(aQuotedText, aNodeInserted);
 
+  nsCOMPtr<nsIDOMNode> newNode;
   // get selection
   nsRefPtr<Selection> selection = GetSelection();
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
@@ -1787,22 +1791,25 @@ nsHTMLEditor::InsertAsPlaintextQuotation(const nsAString & aQuotedText,
   }
 
   // Wrap the inserted quote in a <span> so it won't be wrapped:
-  nsCOMPtr<Element> newNode =
-    DeleteSelectionAndCreateElement(*nsGkAtoms::span);
+  rv = DeleteSelectionAndCreateNode(NS_LITERAL_STRING("span"), getter_AddRefs(newNode));
 
   // If this succeeded, then set selection inside the pre
   // so the inserted text will end up there.
   // If it failed, we don't care what the return value was,
   // but we'll fall through and try to insert the text anyway.
-  if (newNode) {
+  if (NS_SUCCEEDED(rv) && newNode)
+  {
     // Add an attribute on the pre node so we'll know it's a quotation.
     // Do this after the insertion, so that
-    newNode->SetAttr(kNameSpaceID_None, nsGkAtoms::mozquote,
-                     NS_LITERAL_STRING("true"), true);
-    // turn off wrapping on spans
-    newNode->SetAttr(kNameSpaceID_None, nsGkAtoms::style,
-                     NS_LITERAL_STRING("white-space: pre;"), true);
-
+    nsCOMPtr<nsIDOMElement> preElement = do_QueryInterface(newNode);
+    if (preElement)
+    {
+      preElement->SetAttribute(NS_LITERAL_STRING("_moz_quote"),
+                               NS_LITERAL_STRING("true"));
+      // turn off wrapping on spans
+      preElement->SetAttribute(NS_LITERAL_STRING("style"),
+                               NS_LITERAL_STRING("white-space: pre;"));
+    }
     // and set the selection inside it:
     selection->Collapse(newNode, 0);
   }
@@ -1817,15 +1824,15 @@ nsHTMLEditor::InsertAsPlaintextQuotation(const nsAString & aQuotedText,
 
   if (aNodeInserted && NS_SUCCEEDED(rv))
   {
-    *aNodeInserted = GetAsDOMNode(newNode);
+    *aNodeInserted = newNode;
     NS_IF_ADDREF(*aNodeInserted);
   }
 
   // Set the selection to just after the inserted node:
   if (NS_SUCCEEDED(rv) && newNode)
   {
-    nsCOMPtr<nsINode> parent = newNode->GetParentNode();
-    int32_t offset = parent ? parent->IndexOf(newNode) : -1;
+    int32_t offset;
+    nsCOMPtr<nsIDOMNode> parent = GetNodeLocation(newNode, &offset);
     if (parent) {
       selection->Collapse(parent, offset + 1);
     }
@@ -1858,6 +1865,8 @@ nsHTMLEditor::InsertAsCitedQuotation(const nsAString & aQuotedText,
     return InsertAsPlaintextQuotation(aQuotedText, true, aNodeInserted);
   }
 
+  nsCOMPtr<nsIDOMNode> newNode;
+
   // get selection
   nsRefPtr<Selection> selection = GetSelection();
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
@@ -1876,20 +1885,23 @@ nsHTMLEditor::InsertAsCitedQuotation(const nsAString & aQuotedText,
     return NS_OK; // rules canceled the operation
   }
 
-  nsCOMPtr<Element> newNode =
-    DeleteSelectionAndCreateElement(*nsGkAtoms::blockquote);
+  rv = DeleteSelectionAndCreateNode(NS_LITERAL_STRING("blockquote"), getter_AddRefs(newNode));
+  NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(newNode, NS_ERROR_NULL_POINTER);
 
   // Try to set type=cite.  Ignore it if this fails.
-  newNode->SetAttr(kNameSpaceID_None, nsGkAtoms::type,
-                   NS_LITERAL_STRING("cite"), true);
+  nsCOMPtr<nsIDOMElement> newElement = do_QueryInterface(newNode);
+  if (newElement)
+  {
+    NS_NAMED_LITERAL_STRING(citeStr, "cite");
+    newElement->SetAttribute(NS_LITERAL_STRING("type"), citeStr);
 
-  if (!aCitation.IsEmpty()) {
-    newNode->SetAttr(kNameSpaceID_None, nsGkAtoms::cite, aCitation, true);
+    if (!aCitation.IsEmpty())
+      newElement->SetAttribute(citeStr, aCitation);
+
+    // Set the selection inside the blockquote so aQuotedText will go there:
+    selection->Collapse(newNode, 0);
   }
-
-  // Set the selection inside the blockquote so aQuotedText will go there:
-  selection->Collapse(newNode, 0);
 
   if (aInsertHTML)
     rv = LoadHTML(aQuotedText);
@@ -1898,15 +1910,15 @@ nsHTMLEditor::InsertAsCitedQuotation(const nsAString & aQuotedText,
 
   if (aNodeInserted && NS_SUCCEEDED(rv))
   {
-    *aNodeInserted = GetAsDOMNode(newNode);
+    *aNodeInserted = newNode;
     NS_IF_ADDREF(*aNodeInserted);
   }
 
   // Set the selection to just after the inserted node:
   if (NS_SUCCEEDED(rv) && newNode)
   {
-    nsCOMPtr<nsINode> parent = newNode->GetParentNode();
-    int32_t offset = parent ? parent->IndexOf(newNode) : -1;
+    int32_t offset;
+    nsCOMPtr<nsIDOMNode> parent = GetNodeLocation(newNode, &offset);
     if (parent) {
       selection->Collapse(parent, offset + 1);
     }

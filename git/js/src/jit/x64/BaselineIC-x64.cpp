@@ -79,9 +79,9 @@ ICBinaryArith_Int32::Compiler::generateStubCode(MacroAssembler &masm)
         break;
       case JSOP_DIV:
       {
-        MOZ_ASSERT(R2.scratchReg() == rax);
-        MOZ_ASSERT(R0.valueReg() != rdx);
-        MOZ_ASSERT(R1.valueReg() != rdx);
+        JS_ASSERT(R2.scratchReg() == rax);
+        JS_ASSERT(R0.valueReg() != rdx);
+        JS_ASSERT(R1.valueReg() != rdx);
         masm.unboxInt32(R0, eax);
         masm.unboxInt32(R1, ExtractTemp0);
 
@@ -108,9 +108,9 @@ ICBinaryArith_Int32::Compiler::generateStubCode(MacroAssembler &masm)
       }
       case JSOP_MOD:
       {
-        MOZ_ASSERT(R2.scratchReg() == rax);
-        MOZ_ASSERT(R0.valueReg() != rdx);
-        MOZ_ASSERT(R1.valueReg() != rdx);
+        JS_ASSERT(R2.scratchReg() == rax);
+        JS_ASSERT(R0.valueReg() != rdx);
+        JS_ASSERT(R1.valueReg() != rdx);
         masm.unboxInt32(R0, eax);
         masm.unboxInt32(R1, ExtractTemp0);
 

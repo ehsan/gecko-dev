@@ -42,6 +42,8 @@ public:
     , mHasOrHasHadOwnerWindow(false)
   {
     BindToOwner(aWindow);
+    // All objects coming through here are WebIDL objects
+    SetIsDOMBinding();
   }
   explicit DOMEventTargetHelper(DOMEventTargetHelper* aOther)
     : mParentObject(nullptr)
@@ -49,6 +51,8 @@ public:
     , mHasOrHasHadOwnerWindow(false)
   {
     BindToOwner(aOther);
+    // All objects coming through here are WebIDL objects
+    SetIsDOMBinding();
   }
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS

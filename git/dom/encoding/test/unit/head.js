@@ -88,8 +88,8 @@ function test(func, msg) {
 
 function run_test() {
   tests.forEach(function(t) {
-    do_print("test group: " + t.msg,
-             {source_file: t.filename});
+    _log("test_info", {source_file: t.filename,
+                       diagnostic: "test group: " + t.msg});
     t.func();
   });
 };

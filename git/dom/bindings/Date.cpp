@@ -7,9 +7,10 @@
 #include "mozilla/dom/Date.h"
 
 #include "jsapi.h" // for JS_ObjectIsDate, JS_NewDateObjectMsec
-#include "jsfriendapi.h" // for DateGetMsecSinceEpoch
+#include "jsfriendapi.h" // for js_DateGetMsecSinceEpoch
 #include "js/RootingAPI.h" // for Rooted, MutableHandle
 #include "js/Value.h" // for Value
+#include "jswrapper.h" // for CheckedUnwrap
 #include "mozilla/FloatingPoint.h" // for IsNaN, UnspecifiedNaN
 
 namespace mozilla {
@@ -31,7 +32,14 @@ Date::SetTimeStamp(JSContext* aCx, JSObject* aObject)
 {
   JS::Rooted<JSObject*> obj(aCx, aObject);
   MOZ_ASSERT(JS_ObjectIsDate(aCx, obj));
-  mMsecSinceEpoch = js::DateGetMsecSinceEpoch(aCx, obj);
+
+  obj = js::CheckedUnwrap(obj);
+  // This really sucks: even if JS_ObjectIsDate, CheckedUnwrap can _still_ fail.
+  if (!obj) {
+    return false;
+  }
+
+  mMsecSinceEpoch = js_DateGetMsecSinceEpoch(obj);
   return true;
 }
 

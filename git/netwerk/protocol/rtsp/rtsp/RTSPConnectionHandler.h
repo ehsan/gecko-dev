@@ -22,10 +22,6 @@
 #include "ARTSPConnection.h"
 #include "ASessionDescription.h"
 
-#include "RtspPrlog.h"
-
-#include "nsIOService.h"
-
 #include <ctype.h>
 #include <cutils/properties.h>
 
@@ -565,13 +561,10 @@ struct RtspConnectionHandler : public AHandler {
                                      "get something usable...");
 
                                 AString tmp;
-                                if (!MakeURL(
+                                CHECK(MakeURL(
                                             mSessionURL.c_str(),
                                             mBaseURL.c_str(),
-                                            &tmp)) {
-                                    LOGE("Fail to make url");
-                                    result = ERROR_UNSUPPORTED;
-                                }
+                                            &tmp));
 
                                 mBaseURL = tmp;
                             }
@@ -783,9 +776,9 @@ struct RtspConnectionHandler : public AHandler {
                         static_cast<ARTSPResponse *>(obj.get());
                     if (response->mStatusCode != 200) {
                         result = UNKNOWN_ERROR;
-                    } else if (!parsePlayResponse(response)) {
-                        result = UNKNOWN_ERROR;
                     } else {
+                        parsePlayResponse(response);
+
                         sp<AMessage> timeout = new AMessage(kWhatTimeout, id());
                         timeout->post(kPlayTimeoutUs);
                         mPausePending = false;
@@ -963,12 +956,6 @@ struct RtspConnectionHandler : public AHandler {
 
                 if (track->mNumAccessUnitsReceiveds == 0) {
                     LOGI("stream ended? aborting.");
-                    if (gIOService->IsOffline()) {
-                        sp<AMessage> reply = new AMessage(kWhatDisconnected, id());
-                        reply->setInt32("result", ERROR_CONNECTION_LOST);
-                        mConn->disconnect(reply);
-                        break;
-                    }
                     sp<AMessage> endStreamMsg = new AMessage(kWhatEndOfStream, id());
                     endStreamMsg->setSize("trackIndex", trackIndex);
                     endStreamMsg->post();
@@ -1158,14 +1145,11 @@ struct RtspConnectionHandler : public AHandler {
 
                     if (response->mStatusCode != 200) {
                         result = UNKNOWN_ERROR;
-                    } else if (!parsePlayResponse(response)) {
-                        result = UNKNOWN_ERROR;
                     } else {
+                        parsePlayResponse(response);
+
                         ssize_t i = response->mHeaders.indexOfKey("rtp-info");
-                        if (i < 0) {
-                            LOGE("No RTP info in response");
-                            (new AMessage(kWhatAbort, id()))->post();
-                        }
+                        CHECK_GE(i, 0);
 
                         LOGV("rtp-info: %s", response->mHeaders.valueAt(i).c_str());
 
@@ -1194,10 +1178,7 @@ struct RtspConnectionHandler : public AHandler {
                 sp<ABuffer> buffer = static_cast<ABuffer *>(obj.get());
 
                 int32_t index;
-                if (!buffer->meta()->findInt32("index", &index)) {
-                    LOGW("Cannot find index");
-                    break;
-                }
+                CHECK(buffer->meta()->findInt32("index", &index));
 
                 mRTPConn->injectPacket(index, buffer);
                 break;
@@ -1285,7 +1266,7 @@ struct RtspConnectionHandler : public AHandler {
         }
     }
 
-    bool parsePlayResponse(const sp<ARTSPResponse> &response) {
+    void parsePlayResponse(const sp<ARTSPResponse> &response) {
         mSeekable = false;
 
         for (size_t i = 0; i < mTracks.size(); ++i) {
@@ -1297,31 +1278,25 @@ struct RtspConnectionHandler : public AHandler {
         if (i < 0) {
             // Server doesn't even tell use what range it is going to
             // play, therefore we won't support seeking.
-            return false;
+            return;
         }
 
         AString range = response->mHeaders.valueAt(i);
         LOGV("Range: %s", range.c_str());
 
         AString val;
-        if (!GetAttribute(range.c_str(), "npt", &val)) {
-            LOGE("No npt attribute in range");
-            return false;
-        }
+        CHECK(GetAttribute(range.c_str(), "npt", &val));
 
         float npt1, npt2;
         if (!ASessionDescription::parseNTPRange(val.c_str(), &npt1, &npt2)) {
             // This is a live stream and therefore not seekable.
 
             LOGI("This is a live stream");
-            return false;
+            return;
         }
 
         i = response->mHeaders.indexOfKey("rtp-info");
-        if (i < 0) {
-            LOGE("No RTP info");
-            return false;
-        }
+        CHECK_GE(i, 0);
 
         AString rtpInfo = response->mHeaders.valueAt(i);
         List<AString> streamInfos;
@@ -1333,25 +1308,16 @@ struct RtspConnectionHandler : public AHandler {
             (*it).trim();
             LOGV("streamInfo[%d] = %s", n, (*it).c_str());
 
-            if (!GetAttribute((*it).c_str(), "url", &val)) {
-                LOGE("No url attribute");
-                return false;
-            }
+            CHECK(GetAttribute((*it).c_str(), "url", &val));
 
             size_t trackIndex = 0;
             while (trackIndex < mTracks.size()
                     && !(val == mTracks.editItemAt(trackIndex).mURL)) {
                 ++trackIndex;
             }
-            if (trackIndex >= mTracks.size()) {
-                LOGE("No matching url");
-                return false;
-            }
+            CHECK_LT(trackIndex, mTracks.size());
 
-            if (!GetAttribute((*it).c_str(), "seq", &val)) {
-                LOGE("No seq attribute");
-                return false;
-            }
+            CHECK(GetAttribute((*it).c_str(), "seq", &val));
 
             char *end;
             unsigned long seq = strtoul(val.c_str(), &end, 10);
@@ -1360,10 +1326,7 @@ struct RtspConnectionHandler : public AHandler {
             info->mFirstSeqNumInSegment = seq;
             info->mNewSegment = true;
 
-            if (!GetAttribute((*it).c_str(), "rtptime", &val)) {
-                LOGE("No rtptime attribute");
-                return false;
-            }
+            CHECK(GetAttribute((*it).c_str(), "rtptime", &val));
 
             uint32_t rtpTime = strtoul(val.c_str(), &end, 10);
 
@@ -1382,7 +1345,6 @@ struct RtspConnectionHandler : public AHandler {
         }
 
         mSeekable = true;
-        return true;
     }
 
     sp<MetaData> getTrackFormat(size_t index, int32_t *timeScale) {
@@ -1478,26 +1440,10 @@ private:
         }
 
         AString url;
-        if (!mSessionDesc->findAttribute(index, "a=control", &url)) {
-            LOGW("Unsupported format. Ignoring track #%d.", index);
-
-            sp<AMessage> reply = new AMessage(kWhatSetup, id());
-            reply->setSize("index", index);
-            reply->setInt32("result", ERROR_UNSUPPORTED);
-            reply->post();
-            return;
-        }
+        CHECK(mSessionDesc->findAttribute(index, "a=control", &url));
 
         AString trackURL;
-        if (!MakeURL(mBaseURL.c_str(), url.c_str(), &trackURL)) {
-            LOGW("Unsupported format. Ignoring track #%d.", index);
-
-            sp<AMessage> reply = new AMessage(kWhatSetup, id());
-            reply->setSize("index", index);
-            reply->setInt32("result", ERROR_UNSUPPORTED);
-            reply->post();
-            return;
-        }
+        CHECK(MakeURL(mBaseURL.c_str(), url.c_str(), &trackURL));
 
         mTracks.push(TrackInfo());
         TrackInfo *info = &mTracks.editItemAt(mTracks.size() - 1);
@@ -1521,16 +1467,8 @@ private:
 
         int32_t timescale;
         int32_t numChannels;
-        if (!ASessionDescription::ParseFormatDesc(
-                    formatDesc.c_str(), &timescale, &numChannels)) {
-            LOGW("Unsupported format. Ignoring track #%d.", index);
-
-            sp<AMessage> reply = new AMessage(kWhatSetup, id());
-            reply->setSize("index", index);
-            reply->setInt32("result", ERROR_UNSUPPORTED);
-            reply->post();
-            return;
-        }
+        ASessionDescription::ParseFormatDesc(
+                formatDesc.c_str(), &timescale, &numChannels);
 
         info->mTimeScale = timescale;
 
@@ -1679,11 +1617,8 @@ private:
             int32_t trackIndex, const TrackInfo *track,
             const sp<ABuffer> &accessUnit) {
         uint32_t rtpTime;
-        if (!accessUnit->meta()->findInt32(
-                    "rtp-time", (int32_t *)&rtpTime)) {
-            LOGE("No RTP time in access unit meta");
-            return false;
-        }
+        CHECK(accessUnit->meta()->findInt32(
+                    "rtp-time", (int32_t *)&rtpTime));
 
         int64_t relRtpTimeUs =
             (((int64_t)rtpTime - (int64_t)track->mNormalPlayTimeRTP) * 1000000ll)

@@ -3,7 +3,8 @@
    - License, v. 2.0. If a copy of the MPL was not distributed with this
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
-<resources xmlns:android="http://schemas.android.com/apk/res/android">
+<resources>
+
     <!-- Theme level attributes -->
     <declare-styleable name="GeckoTheme">
 
@@ -97,7 +98,7 @@
         <attr name="entryKeys" format="string"/>
     </declare-styleable>
 
-    <declare-styleable name="TabsLayout">
+    <declare-styleable name="TabsTray">
         <attr name="tabs">
             <flag name="tabs_normal" value="0x00" />
             <flag name="tabs_private" value ="0x01" />
@@ -105,7 +106,7 @@
     </declare-styleable>
 
     <declare-styleable name="TabCounter">
-        <attr name="android:layout"/>
+        <attr name="layout" format="reference"/>
     </declare-styleable>
 
     <declare-styleable name="TextSelectionHandle">
@@ -180,11 +181,6 @@
 
     <declare-styleable name="FloatingHintEditText">
         <attr name="floatingHintEditTextStyle" format="reference" />
-    </declare-styleable>
-
-    <declare-styleable name="FaviconView">
-        <attr name="dominantBorderEnabled" format="boolean" />
-        <attr name="overrideScaleType" format="boolean" />
     </declare-styleable>
 
 </resources>

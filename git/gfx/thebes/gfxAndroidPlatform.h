@@ -87,7 +87,6 @@ public:
       return true;
     }
 
-    virtual bool HaveChoiceOfHWAndSWCanvas() MOZ_OVERRIDE;
     virtual bool UseAcceleratedSkiaCanvas() MOZ_OVERRIDE;
 
 #ifdef MOZ_WIDGET_GONK

@@ -17,11 +17,9 @@ namespace image {
 Decoder::Decoder(RasterImage &aImage)
   : mImage(aImage)
   , mCurrentFrame(nullptr)
-  , mProgress(NoProgress)
   , mImageData(nullptr)
   , mColormap(nullptr)
   , mDecodeFlags(0)
-  , mBytesDecoded(0)
   , mDecodeDone(false)
   , mDataError(false)
   , mFrameCount(0)
@@ -31,7 +29,8 @@ Decoder::Decoder(RasterImage &aImage)
   , mSizeDecode(false)
   , mInFrame(false)
   , mIsAnimated(false)
-{ }
+{
+}
 
 Decoder::~Decoder()
 {
@@ -47,11 +46,11 @@ Decoder::Init()
 {
   // No re-initializing
   NS_ABORT_IF_FALSE(!mInitialized, "Can't re-initialize a decoder!");
+  NS_ABORT_IF_FALSE(mObserver, "Need an observer!");
 
   // Fire OnStartDecode at init time to support bug 512435.
-  if (!IsSizeDecode()) {
-      mProgress |= FLAG_DECODE_STARTED | FLAG_ONLOAD_BLOCKED;
-  }
+  if (!IsSizeDecode())
+      mObserver->OnStartDecode();
 
   // Implementation-specific initialization
   InitInternal();
@@ -68,6 +67,7 @@ Decoder::InitSharedDecoder(uint8_t* imageData, uint32_t imageDataLength,
 {
   // No re-initializing
   NS_ABORT_IF_FALSE(!mInitialized, "Can't re-initialize a decoder!");
+  NS_ABORT_IF_FALSE(mObserver, "Need an observer!");
 
   mImageData = imageData;
   mImageDataLength = imageDataLength;
@@ -93,11 +93,8 @@ Decoder::Write(const char* aBuffer, uint32_t aCount, DecodeStrategy aStrategy)
   MOZ_ASSERT(NS_IsMainThread() || aStrategy == DECODE_ASYNC);
 
   // We're strict about decoder errors
-  MOZ_ASSERT(!HasDecoderError(),
-             "Not allowed to make more decoder calls after error!");
-
-  // Keep track of the total number of bytes written.
-  mBytesDecoded += aCount;
+  NS_ABORT_IF_FALSE(!HasDecoderError(),
+                    "Not allowed to make more decoder calls after error!");
 
   // If a data error occured, just ignore future data
   if (HasDataError())
@@ -176,10 +173,9 @@ Decoder::Finish(RasterImage::eShutdownIntent aShutdownIntent)
       }
       PostDecodeDone();
     } else {
-      if (!IsSizeDecode()) {
-        mProgress |= FLAG_DECODE_STOPPED | FLAG_ONLOAD_UNBLOCKED;
+      if (mObserver) {
+        mObserver->OnStopDecode(NS_ERROR_FAILURE);
       }
-      mProgress |= FLAG_HAS_ERROR;
     }
   }
 
@@ -246,6 +242,35 @@ Decoder::AllocateFrame()
 }
 
 void
+Decoder::FlushInvalidations()
+{
+  NS_ABORT_IF_FALSE(!HasDecoderError(),
+                    "Not allowed to make more decoder calls after error!");
+
+  // If we've got an empty invalidation rect, we have nothing to do
+  if (mInvalidRect.IsEmpty())
+    return;
+
+  if (mObserver) {
+#ifdef XP_MACOSX
+    // Bug 703231
+    // Because of high quality down sampling on mac we show scan lines while decoding.
+    // Bypass this problem by redrawing the border.
+    if (mImageMetadata.HasSize()) {
+      nsIntRect mImageBound(0, 0, mImageMetadata.GetWidth(), mImageMetadata.GetHeight());
+
+      mInvalidRect.Inflate(1);
+      mInvalidRect = mInvalidRect.Intersect(mImageBound);
+    }
+#endif
+    mObserver->FrameChanged(&mInvalidRect);
+  }
+
+  // Clear the invalidation rectangle
+  mInvalidRect.SetEmpty();
+}
+
+void
 Decoder::SetSizeOnImage()
 {
   MOZ_ASSERT(mImageMetadata.HasSize(), "Should have size");
@@ -280,8 +305,9 @@ Decoder::PostSize(int32_t aWidth,
   // Tell the image
   mImageMetadata.SetSize(aWidth, aHeight, aOrientation);
 
-  // Record this notification.
-  mProgress |= FLAG_HAS_SIZE;
+  // Notify the observer
+  if (mObserver)
+    mObserver->OnStartContainer();
 }
 
 void
@@ -290,21 +316,25 @@ Decoder::PostFrameStart()
   // We shouldn't already be mid-frame
   NS_ABORT_IF_FALSE(!mInFrame, "Starting new frame but not done with old one!");
 
+  // We should take care of any invalidation region when wrapping up the
+  // previous frame
+  NS_ABORT_IF_FALSE(mInvalidRect.IsEmpty(),
+                    "Start image frame with non-empty invalidation region!");
+
   // Update our state to reflect the new frame
   mFrameCount++;
   mInFrame = true;
-
-  // If we just became animated, record that fact.
-  if (mFrameCount > 1) {
-    mIsAnimated = true;
-    mProgress |= FLAG_IS_ANIMATED;
-  }
 
   // Decoder implementations should only call this method if they successfully
   // appended the frame to the image. So mFrameCount should always match that
   // reported by the Image.
   NS_ABORT_IF_FALSE(mFrameCount == mImage.GetNumFrames(),
                     "Decoder frame count doesn't match image's!");
+
+  // Fire notifications
+  if (mObserver) {
+    mObserver->OnStartFrame();
+  }
 }
 
 void
@@ -314,9 +344,8 @@ Decoder::PostFrameStop(FrameBlender::FrameAlpha aFrameAlpha /* = FrameBlender::k
                        FrameBlender::FrameBlendMethod aBlendMethod /* = FrameBlender::kBlendOver */)
 {
   // We should be mid-frame
-  MOZ_ASSERT(!IsSizeDecode(), "Stopping frame during a size decode");
-  MOZ_ASSERT(mInFrame, "Stopping frame when we didn't start one");
-  MOZ_ASSERT(mCurrentFrame, "Stopping frame when we don't have one");
+  NS_ABORT_IF_FALSE(mInFrame, "Stopping frame when we didn't start one!");
+  NS_ABORT_IF_FALSE(mCurrentFrame, "Stopping frame when we don't have one!");
 
   // Update our state
   mInFrame = false;
@@ -330,7 +359,17 @@ Decoder::PostFrameStop(FrameBlender::FrameAlpha aFrameAlpha /* = FrameBlender::k
   mCurrentFrame->SetBlendMethod(aBlendMethod);
   mCurrentFrame->ImageUpdated(mCurrentFrame->GetRect());
 
-  mProgress |= FLAG_FRAME_STOPPED | FLAG_ONLOAD_UNBLOCKED;
+  // Flush any invalidations before we finish the frame
+  FlushInvalidations();
+
+  // Fire notifications
+  if (mObserver) {
+    mObserver->OnStopFrame();
+    if (mFrameCount > 1 && !mIsAnimated) {
+      mIsAnimated = true;
+      mObserver->OnImageIsAnimated();
+    }
+  }
 }
 
 void
@@ -356,7 +395,9 @@ Decoder::PostDecodeDone(int32_t aLoopCount /* = 0 */)
   mImageMetadata.SetLoopCount(aLoopCount);
   mImageMetadata.SetIsNonPremultiplied(GetDecodeFlags() & DECODER_NO_PREMULTIPLY_ALPHA);
 
-  mProgress |= FLAG_DECODE_STOPPED;
+  if (mObserver) {
+    mObserver->OnStopDecode(NS_OK);
+  }
 }
 
 void

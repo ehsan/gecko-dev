@@ -49,11 +49,11 @@ private:
     List<sp<ABuffer> > mNALUnits;
 
     AssemblyStatus addNALUnit(const sp<ARTPSource> &source);
-    bool addSingleNALUnit(const sp<ABuffer> &buffer);
+    void addSingleNALUnit(const sp<ABuffer> &buffer);
     AssemblyStatus addFragmentedNALUnit(List<sp<ABuffer> > *queue);
     bool addSingleTimeAggregationPacket(const sp<ABuffer> &buffer);
 
-    bool submitAccessUnit();
+    void submitAccessUnit();
 
     DISALLOW_EVIL_CONSTRUCTORS(AAVCAssembler);
 };

@@ -5,6 +5,7 @@
 
 #include "mozilla/layers/ContentClient.h"
 #include "BasicLayers.h"                // for BasicLayerManager
+#include "CompositorChild.h"            // for CompositorChild
 #include "gfxColor.h"                   // for gfxRGBA
 #include "gfxContext.h"                 // for gfxContext, etc
 #include "gfxPlatform.h"                // for gfxPlatform
@@ -19,7 +20,6 @@
 #include "mozilla/gfx/BaseSize.h"       // for BaseSize
 #include "mozilla/gfx/Rect.h"           // for Rect
 #include "mozilla/gfx/Types.h"
-#include "mozilla/layers/CompositorChild.h" // for CompositorChild
 #include "mozilla/layers/LayerManagerComposite.h"
 #include "mozilla/layers/LayersMessages.h"  // for ThebesBufferData
 #include "mozilla/layers/LayersTypes.h"

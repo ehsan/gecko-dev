@@ -62,8 +62,8 @@ public class testThumbnails extends BaseTest {
     }
 
     private class ThumbnailTest implements BooleanTest {
-        private final String mTitle;
-        private final int mColor;
+        private String mTitle;
+        private int mColor;
 
         public ThumbnailTest(String title, int color) {
             mTitle = title;

@@ -75,7 +75,7 @@ public:
 
   void Delete(const nsAString& aName);
 
-  void Stringify(nsString& aRetval) const
+  void Stringify(nsString& aRetval)
   {
     Serialize(aRetval);
   }

@@ -12,7 +12,7 @@ import android.preference.Preference;
 import android.util.AttributeSet;
 
 class LinkPreference extends Preference {
-    private final String mUrl;
+    private String mUrl;
 
     public LinkPreference(Context context, AttributeSet attrs) {
         super(context, attrs);

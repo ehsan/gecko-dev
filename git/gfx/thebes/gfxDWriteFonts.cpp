@@ -219,10 +219,9 @@ gfxDWriteFont::ComputeMetrics(AntialiasOption anAAOption)
                                       TRUETYPE_TAG('h','h','e','a'));
     if (hheaTable) {
         uint32_t len;
-        const MetricsHeader* hhea =
-            reinterpret_cast<const MetricsHeader*>
-                (hb_blob_get_data(hheaTable, &len));
-        if (len >= sizeof(MetricsHeader)) {
+        const HheaTable* hhea =
+            reinterpret_cast<const HheaTable*>(hb_blob_get_data(hheaTable, &len));
+        if (len >= sizeof(HheaTable)) {
             mMetrics->maxAdvance =
                 uint16_t(hhea->advanceWidthMax) * mFUnitsConvFactor;
         }
@@ -469,7 +468,7 @@ gfxDWriteFont::SetupCairoFont(gfxContext *aContext)
 }
 
 bool
-gfxDWriteFont::IsValid() const
+gfxDWriteFont::IsValid()
 {
     return mFontFace != nullptr;
 }
@@ -552,13 +551,11 @@ gfxDWriteFont::Measure(gfxTextRun *aTextRun,
                     uint32_t aStart, uint32_t aEnd,
                     BoundingBoxType aBoundingBoxType,
                     gfxContext *aRefContext,
-                    Spacing *aSpacing,
-                    uint16_t aOrientation)
+                    Spacing *aSpacing)
 {
     gfxFont::RunMetrics metrics =
         gfxFont::Measure(aTextRun, aStart, aEnd,
-                         aBoundingBoxType, aRefContext, aSpacing,
-                         aOrientation);
+                         aBoundingBoxType, aRefContext, aSpacing);
 
     // if aBoundingBoxType is LOOSE_INK_EXTENTS
     // and the underlying cairo font may be antialiased,
@@ -584,7 +581,7 @@ gfxDWriteFont::ProvidesGlyphWidths() const
 }
 
 int32_t
-gfxDWriteFont::GetGlyphWidth(DrawTarget& aDrawTarget, uint16_t aGID)
+gfxDWriteFont::GetGlyphWidth(gfxContext *aCtx, uint16_t aGID)
 {
     if (!mGlyphWidths) {
         mGlyphWidths = new nsDataHashtable<nsUint32HashKey,int32_t>(128);
@@ -601,7 +598,7 @@ gfxDWriteFont::GetGlyphWidth(DrawTarget& aDrawTarget, uint16_t aGID)
 }
 
 TemporaryRef<GlyphRenderingOptions>
-gfxDWriteFont::GetGlyphRenderingOptions(const TextRunDrawParams* aRunParams)
+gfxDWriteFont::GetGlyphRenderingOptions()
 {
   if (UsingClearType()) {
     return Factory::CreateDWriteGlyphRenderingOptions(

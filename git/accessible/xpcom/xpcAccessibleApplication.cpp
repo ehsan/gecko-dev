@@ -10,25 +10,15 @@
 
 using namespace mozilla::a11y;
 
-////////////////////////////////////////////////////////////////////////////////
-// nsISupports
-
-NS_IMPL_ISUPPORTS_INHERITED(xpcAccessibleApplication,
-                            xpcAccessibleGeneric,
-                            nsIAccessibleApplication)
-
-////////////////////////////////////////////////////////////////////////////////
-// nsIAccessibleApplication
-
 NS_IMETHODIMP
 xpcAccessibleApplication::GetAppName(nsAString& aName)
 {
   aName.Truncate();
 
-  if (!Intl())
+  if (static_cast<ApplicationAccessible*>(this)->IsDefunct())
     return NS_ERROR_FAILURE;
 
-  Intl()->AppName(aName);
+  static_cast<ApplicationAccessible*>(this)->AppName(aName);
   return NS_OK;
 }
 
@@ -37,10 +27,10 @@ xpcAccessibleApplication::GetAppVersion(nsAString& aVersion)
 {
   aVersion.Truncate();
 
-  if (!Intl())
+  if (static_cast<ApplicationAccessible*>(this)->IsDefunct())
     return NS_ERROR_FAILURE;
 
-  Intl()->AppVersion(aVersion);
+  static_cast<ApplicationAccessible*>(this)->AppVersion(aVersion);
   return NS_OK;
 }
 
@@ -49,10 +39,10 @@ xpcAccessibleApplication::GetPlatformName(nsAString& aName)
 {
   aName.Truncate();
 
-  if (!Intl())
+  if (static_cast<ApplicationAccessible*>(this)->IsDefunct())
     return NS_ERROR_FAILURE;
 
-  Intl()->PlatformName(aName);
+  static_cast<ApplicationAccessible*>(this)->PlatformName(aName);
   return NS_OK;
 }
 
@@ -61,9 +51,9 @@ xpcAccessibleApplication::GetPlatformVersion(nsAString& aVersion)
 {
   aVersion.Truncate();
 
-  if (!Intl())
+  if (static_cast<ApplicationAccessible*>(this)->IsDefunct())
     return NS_ERROR_FAILURE;
 
-  Intl()->PlatformVersion(aVersion);
+  static_cast<ApplicationAccessible*>(this)->PlatformVersion(aVersion);
   return NS_OK;
 }

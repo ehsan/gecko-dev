@@ -11,6 +11,7 @@
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
 #include "DocAccessible.h"
+#include "nsIAccessibleRelation.h"
 #include "nsTextEquivUtils.h"
 #include "Relation.h"
 #include "Role.h"
@@ -46,15 +47,27 @@ using namespace mozilla::a11y;
 
 HTMLTableCellAccessible::
   HTMLTableCellAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-  HyperTextAccessibleWrap(aContent, aDoc)
+  HyperTextAccessibleWrap(aContent, aDoc), xpcAccessibleTableCell(this)
 {
   mGenericTypes |= eTableCell;
 }
 
-NS_IMPL_ISUPPORTS_INHERITED0(HTMLTableCellAccessible, HyperTextAccessible)
+////////////////////////////////////////////////////////////////////////////////
+// HTMLTableCellAccessible: nsISupports implementation
+
+NS_IMPL_ISUPPORTS_INHERITED(HTMLTableCellAccessible,
+                            HyperTextAccessible,
+                            nsIAccessibleTableCell)
 
 ////////////////////////////////////////////////////////////////////////////////
 // HTMLTableCellAccessible: Accessible implementation
+
+void
+HTMLTableCellAccessible::Shutdown()
+{
+  mTableCell = nullptr;
+  HyperTextAccessibleWrap::Shutdown();
+}
 
 role
 HTMLTableCellAccessible::NativeRole()
@@ -133,7 +146,7 @@ HTMLTableCellAccessible::NativeAttributes()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// HTMLTableCellAccessible: TableCellAccessible implementation
+// HTMLTableCellAccessible: nsIAccessibleTableCell implementation
 
 TableAccessible*
 HTMLTableCellAccessible::Table() const
@@ -348,10 +361,18 @@ HTMLTableRowAccessible::NativeRole()
 // HTMLTableAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
-NS_IMPL_ISUPPORTS_INHERITED0(HTMLTableAccessible, Accessible)
+NS_IMPL_ISUPPORTS_INHERITED(HTMLTableAccessible, Accessible,
+                            nsIAccessibleTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 // HTMLTableAccessible: Accessible
+
+void
+HTMLTableAccessible::Shutdown()
+{
+  mTable = nullptr;
+  AccessibleWrap::Shutdown();
+}
 
 void
 HTMLTableAccessible::CacheChildren()
@@ -423,7 +444,7 @@ HTMLTableAccessible::NativeAttributes()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// HTMLTableAccessible: Accessible
+// HTMLTableAccessible: nsIAccessible implementation
 
 Relation
 HTMLTableAccessible::RelationByType(RelationType aType)
@@ -436,7 +457,7 @@ HTMLTableAccessible::RelationByType(RelationType aType)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// HTMLTableAccessible: Table
+// HTMLTableAccessible: nsIAccessibleTable implementation
 
 Accessible*
 HTMLTableAccessible::Caption() const
@@ -992,17 +1013,18 @@ HTMLTableAccessible::IsProbablyLayoutTable()
   }
 
   // If only 1 column or only 1 row, it's for layout
-  uint32_t colCount = ColCount();
-  if (colCount <=1) {
+  int32_t columns, rows;
+  GetColumnCount(&columns);
+  if (columns <=1) {
     RETURN_LAYOUT_ANSWER(true, "Has only 1 column");
   }
-  uint32_t rowCount = RowCount();
-  if (rowCount <=1) {
+  GetRowCount(&rows);
+  if (rows <=1) {
     RETURN_LAYOUT_ANSWER(true, "Has only 1 row");
   }
 
   // Check for many columns
-  if (colCount >= 5) {
+  if (columns >= 5) {
     RETURN_LAYOUT_ANSWER(false, ">=5 columns");
   }
 
@@ -1045,8 +1067,8 @@ HTMLTableAccessible::IsProbablyLayoutTable()
   }
 
   // Check for many rows
-  const uint32_t kMaxLayoutRows = 20;
-  if (rowCount > kMaxLayoutRows) { // A ton of rows, this is probably for data
+  const int32_t kMaxLayoutRows = 20;
+  if (rows > kMaxLayoutRows) { // A ton of rows, this is probably for data
     RETURN_LAYOUT_ANSWER(false, ">= kMaxLayoutRows (20) and non-bordered");
   }
 
@@ -1065,7 +1087,7 @@ HTMLTableAccessible::IsProbablyLayoutTable()
   }
 
   // Two column rules
-  if (rowCount * colCount <= 10) {
+  if (rows * columns <= 10) {
     RETURN_LAYOUT_ANSWER(true, "2-4 columns, 10 cells or less, non-bordered");
   }
 

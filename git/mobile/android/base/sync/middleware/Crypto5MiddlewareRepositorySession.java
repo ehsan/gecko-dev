@@ -58,8 +58,8 @@ import org.mozilla.gecko.sync.repositories.domain.Record;
  *
  */
 public class Crypto5MiddlewareRepositorySession extends MiddlewareRepositorySession {
-  private final KeyBundle keyBundle;
-  private final RecordFactory recordFactory;
+  private KeyBundle keyBundle;
+  private RecordFactory recordFactory;
 
   public Crypto5MiddlewareRepositorySession(RepositorySession session, Crypto5MiddlewareRepository repository, RecordFactory recordFactory) {
     super(session, repository);
@@ -68,9 +68,9 @@ public class Crypto5MiddlewareRepositorySession extends MiddlewareRepositorySess
   }
 
   public class DecryptingTransformingFetchDelegate implements RepositorySessionFetchRecordsDelegate {
-    private final RepositorySessionFetchRecordsDelegate next;
-    private final KeyBundle keyBundle;
-    private final RecordFactory recordFactory;
+    private RepositorySessionFetchRecordsDelegate next;
+    private KeyBundle keyBundle;
+    private RecordFactory recordFactory;
 
     DecryptingTransformingFetchDelegate(RepositorySessionFetchRecordsDelegate next, KeyBundle bundle, RecordFactory recordFactory) {
       this.next = next;
@@ -162,7 +162,10 @@ public class Crypto5MiddlewareRepositorySession extends MiddlewareRepositorySess
     rec.keyBundle = this.keyBundle;
     try {
       rec.encrypt();
-    } catch (UnsupportedEncodingException | CryptoException e) {
+    } catch (UnsupportedEncodingException e) {
+      delegate.onRecordStoreFailed(e, record.guid);
+      return;
+    } catch (CryptoException e) {
       delegate.onRecordStoreFailed(e, record.guid);
       return;
     }

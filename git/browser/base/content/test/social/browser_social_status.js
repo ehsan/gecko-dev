@@ -66,13 +66,7 @@ var tests = {
     let activationURL = manifest3.origin + "/browser/browser/base/content/test/social/social_activate.html"
     addTab(activationURL, function(tab) {
       let doc = tab.linkedBrowser.contentDocument;
-      let data = {
-        origin: doc.nodePrincipal.origin,
-        url: doc.location.href,
-        manifest: manifest3,
-        window: window
-      }
-      Social.installProvider(data, function(addonManifest) {
+      Social.installProvider(doc, manifest3, function(addonManifest) {
         // enable the provider so we know the button would have appeared
         SocialService.enableProvider(manifest3.origin, function(provider) {
           is(provider.origin, manifest3.origin, "provider is installed");
@@ -99,14 +93,7 @@ var tests = {
     let activationURL = manifest2.origin + "/browser/browser/base/content/test/social/social_activate.html"
     addTab(activationURL, function(tab) {
       let doc = tab.linkedBrowser.contentDocument;
-      let data = {
-        origin: doc.nodePrincipal.origin,
-        url: doc.location.href,
-        manifest: manifest2,
-        window: window
-      }
-
-      Social.installProvider(data, function(addonManifest) {
+      Social.installProvider(doc, manifest2, function(addonManifest) {
         SocialService.enableProvider(manifest2.origin, function(provider) {
           is(provider.origin, manifest2.origin, "provider is installed");
           let id = SocialStatus._toolbarHelper.idFromOrigin(manifest2.origin);

@@ -113,13 +113,6 @@ MozMtpDatabase::AddEntry(DbEntry *entry)
 }
 
 void
-MozMtpDatabase::AddEntryAndNotify(DbEntry* entry, RefCountedMtpServer* aMtpServer)
-{
-  AddEntry(entry);
-  aMtpServer->sendObjectAdded(entry->mHandle);
-}
-
-void
 MozMtpDatabase::DumpEntries(const char* aLabel)
 {
   MutexAutoLock lock(mMutex);
@@ -171,37 +164,10 @@ void
 MozMtpDatabase::RemoveEntry(MtpObjectHandle aHandle)
 {
   MutexAutoLock lock(mMutex);
-  if (!IsValidHandle(aHandle)) {
-    return;
-  }
 
-  RefPtr<DbEntry> removedEntry = mDb[aHandle];
-  mDb[aHandle] = nullptr;
-  MTP_DBG("0x%08x removed", aHandle);
-  // if the entry is not a folder, just return.
-  if (removedEntry->mObjectFormat != MTP_FORMAT_ASSOCIATION) {
-    return;
+  if (aHandle > 0 && aHandle < mDb.Length()) {
+    mDb[aHandle] = nullptr;
   }
-
-  // Find out and remove the children of aHandle.
-  // Since the index for a directory will always be less than the index of any of its children,
-  // we can remove the entire subtree in one pass.
-  ProtectedDbArray::size_type numEntries = mDb.Length();
-  ProtectedDbArray::index_type entryIndex;
-  for (entryIndex = aHandle+1; entryIndex < numEntries; entryIndex++) {
-    RefPtr<DbEntry> entry = mDb[entryIndex];
-    if (entry && IsValidHandle(entry->mParent) && !mDb[entry->mParent]) {
-      mDb[entryIndex] = nullptr;
-      MTP_DBG("0x%08x removed", aHandle);
-    }
-  }
-}
-
-void
-MozMtpDatabase::RemoveEntryAndNotify(MtpObjectHandle aHandle, RefCountedMtpServer* aMtpServer)
-{
-  RemoveEntry(aHandle);
-  aMtpServer->sendObjectRemoved(aHandle);
 }
 
 class FileWatcherNotifyRunnable MOZ_FINAL : public nsRunnable
@@ -301,16 +267,20 @@ MozMtpDatabase::FileWatcherUpdate(RefCountedMtpServer* aMtpServer,
 
   MtpObjectHandle entryHandle = FindEntryByPath(filePath);
 
-  if (aEventType.EqualsLiteral("modified")) {
-    // To update the file information to the newest, we remove the entry for
-    // the existing file, then re-add the entry for the file.
+  if (aEventType.EqualsLiteral("created")) {
     if (entryHandle != 0) {
-      MTP_LOG("About to call sendObjectRemoved Handle 0x%08x file %s", entryHandle, filePath.get());
-      RemoveEntryAndNotify(entryHandle, aMtpServer);
-    }
+      // The entry already exists. This means that we're being notified
+      // about a file added by MTP. So we can ignore it.
 
-    // create entry for the file and tell MTP.
-    CreateEntryForFileAndNotify(filePath, aFile, aMtpServer);
+      return;
+    }
+    entryHandle = CreateEntryForFile(filePath, aFile);
+    if (entryHandle == 0) {
+      // CreateEntryForFile didn't create a new entry. We can't tell MTP.
+      return;
+    }
+    MTP_LOG("About to call sendObjectAdded Handle 0x%08x file %s", entryHandle, filePath.get());
+    aMtpServer->sendObjectAdded(entryHandle);
     return;
   }
 
@@ -319,8 +289,11 @@ MozMtpDatabase::FileWatcherUpdate(RefCountedMtpServer* aMtpServer,
       // The entry has already been removed. We can't tell MTP.
       return;
     }
+
     MTP_LOG("About to call sendObjectRemoved Handle 0x%08x file %s", entryHandle, filePath.get());
-    RemoveEntryAndNotify(entryHandle, aMtpServer);
+    aMtpServer->sendObjectRemoved(entryHandle);
+
+    RemoveEntry(entryHandle);
     return;
   }
 }
@@ -354,10 +327,8 @@ GetPathWithoutFileName(const nsCString& aFullPath)
   return path;
 }
 
-void
-MozMtpDatabase::CreateEntryForFileAndNotify(const nsACString& aPath,
-                                            DeviceStorageFile* aFile,
-                                            RefCountedMtpServer* aMtpServer)
+MtpObjectHandle
+MozMtpDatabase::CreateEntryForFile(const nsACString& aPath, DeviceStorageFile* aFile)
 {
   // Find the StorageID that this path corresponds to.
 
@@ -366,7 +337,7 @@ MozMtpDatabase::CreateEntryForFileAndNotify(const nsACString& aPath,
   if (storageID == 0) {
     // The path in question isn't for a storage area we're monitoring.
     nsCString path(aPath);
-    return;
+    return 0;
   }
 
   bool exists = false;
@@ -376,7 +347,7 @@ MozMtpDatabase::CreateEntryForFileAndNotify(const nsACString& aPath,
     // This could happen if Device Storage created and deleted a file right
     // away. Since the notifications wind up being async, the file might
     // not exist any more.
-    return;
+    return 0;
   }
 
   // Now walk the remaining directories, finding or creating as required.
@@ -436,14 +407,12 @@ MozMtpDatabase::CreateEntryForFileAndNotify(const nsACString& aPath,
     }
     entry->mDateModified = entry->mDateCreated;
 
-    AddEntryAndNotify(entry, aMtpServer);
-    MTP_LOG("About to call sendObjectAdded Handle 0x%08x file %s", entry->mHandle, entry->mPath.get());
-
+    AddEntry(entry);
     parent = entry->mHandle;
     offset = slash + 1;
   } while (slash != kNotFound);
 
-  return;
+  return parent; // parent will be entry->mHandle
 }
 
 void
@@ -544,9 +513,6 @@ MozMtpDatabase::AddStorage(MtpStorageID aStorageID,
 {
   // This is called on the IOThread from MozMtpStorage::StorageAvailable
   MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
-
-  MTP_DBG("StorageID: 0x%08x aPath: '%s' aName: '%s'",
-          aStorageID, aPath, aName);
 
   PRFileInfo  fileInfo;
   if (PR_GetFileInfo(aPath, &fileInfo) != PR_SUCCESS) {
@@ -650,7 +616,11 @@ MozMtpDatabase::endSendObject(const char* aPath,
   if (aSucceeded) {
     RefPtr<DbEntry> entry = GetEntry(aHandle);
     if (entry) {
-      FileWatcherNotify(entry, "modified");
+      if (mBeginSendObjectCalled) {
+        FileWatcherNotify(entry, "created");
+      } else {
+        FileWatcherNotify(entry, "modified");
+      }
     }
   } else {
     RemoveEntry(aHandle);
@@ -732,18 +702,12 @@ MozMtpDatabase::getNumObjects(MtpStorageID aStorageID,
 MtpObjectFormatList*
 MozMtpDatabase::getSupportedPlaybackFormats()
 {
-  static const uint16_t init_data[] = {MTP_FORMAT_UNDEFINED, MTP_FORMAT_ASSOCIATION,
-                                       MTP_FORMAT_TEXT, MTP_FORMAT_HTML, MTP_FORMAT_WAV,
-                                       MTP_FORMAT_MP3, MTP_FORMAT_MPEG, MTP_FORMAT_EXIF_JPEG,
-                                       MTP_FORMAT_TIFF_EP, MTP_FORMAT_BMP, MTP_FORMAT_GIF,
-                                       MTP_FORMAT_PNG, MTP_FORMAT_TIFF, MTP_FORMAT_WMA,
-                                       MTP_FORMAT_OGG, MTP_FORMAT_AAC, MTP_FORMAT_MP4_CONTAINER,
-                                       MTP_FORMAT_MP2, MTP_FORMAT_3GP_CONTAINER, MTP_FORMAT_FLAC};
+  static const uint16_t init_data[] = {MTP_FORMAT_UNDEFINED, MTP_FORMAT_ASSOCIATION, MTP_FORMAT_PNG};
 
   MtpObjectFormatList *list = new MtpObjectFormatList();
   list->appendArray(init_data, MOZ_ARRAY_LENGTH(init_data));
 
-  MTP_LOG("returning Supported Playback Formats");
+  MTP_LOG("returning MTP_FORMAT_UNDEFINED, MTP_FORMAT_ASSOCIATION, MTP_FORMAT_PNG");
   return list;
 }
 

@@ -475,7 +475,7 @@ var ScrollUtils = {
       try {
         if (elem.anonScrollBox) {
           scrollbox = elem.anonScrollBox;
-          qinterface = scrollbox.boxObject;
+          qinterface = scrollbox.boxObject.QueryInterface(Ci.nsIScrollBoxObject);
         } else if (elem.scrollBoxObject) {
           scrollbox = elem;
           qinterface = elem.scrollBoxObject;
@@ -485,7 +485,7 @@ var ScrollUtils = {
           break;
         } else if (elem.boxObject) {
           let qi = (elem._cachedSBO) ? elem._cachedSBO
-                                     : elem.boxObject;
+                                     : elem.boxObject.QueryInterface(Ci.nsIScrollBoxObject);
           if (qi) {
             scrollbox = elem;
             scrollbox._cachedSBO = qinterface = qi;
@@ -512,9 +512,13 @@ var ScrollUtils = {
    */
   _defaultDragger: {
     isDraggable: function isDraggable(target, scroller) {
+      let sX = {}, sY = {},
+          pX = {}, pY = {};
+      scroller.getPosition(pX, pY);
+      scroller.getScrolledSize(sX, sY);
       let rect = target.getBoundingClientRect();
-      return { x: (scroller.scrolledWidth > rect.width   || scroller.positionX != 0),
-               y: (scroller.scrolledHeight > rect.height || scroller.positionY != 0) };
+      return { x: (sX.value > rect.width  || pX.value != 0),
+               y: (sY.value > rect.height || pY.value != 0) };
     },
 
     dragStart: function dragStart(cx, cy, target, scroller) {
@@ -527,18 +531,21 @@ var ScrollUtils = {
     },
 
     dragMove: function dragMove(dx, dy, scroller) {
+      if (scroller.getPosition) {
         try {
-        let oldX = scroller.positionX,
-            oldY = scroller.positionY;
+          let oldX = {}, oldY = {};
+          scroller.getPosition(oldX, oldY);
 
           scroller.scrollBy(dx, dy);
 
-        let newX = scroller.positionX,
-            newY = scroller.positionY;
+          let newX = {}, newY = {};
+          scroller.getPosition(newX, newY);
 
-        return (newX != oldX) || (newY != oldY);
+          return (newX.value != oldX.value) || (newY.value != oldY.value);
 
         } catch (e) { /* we have no time for whiny scrollers! */ }
+      }
+
       return false;
     },
 

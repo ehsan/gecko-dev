@@ -4,10 +4,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-EXPORTS.mozilla.dom += [
-    'txMozillaXSLTProcessor.h'
-]
-
 UNIFIED_SOURCES += [
     'txBufferingHandler.cpp',
     'txCurrentFunctionCall.cpp',
@@ -55,7 +51,7 @@ LOCAL_INCLUDES += [
     '../base',
     '../xml',
     '../xpath',
-    '/dom/base',
+    '/content/base/src',
 ]
 
 FINAL_LIBRARY = 'xul'

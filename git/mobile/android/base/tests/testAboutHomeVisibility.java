@@ -1,7 +1,6 @@
 package org.mozilla.gecko.tests;
 
-import org.mozilla.gecko.home.HomeConfig;
-import org.mozilla.gecko.home.HomeConfig.PanelType;
+import org.mozilla.gecko.tests.components.AboutHomeComponent.PanelType;
 import org.mozilla.gecko.tests.helpers.GeckoHelper;
 import org.mozilla.gecko.tests.helpers.NavigationHelper;
 
@@ -13,20 +12,18 @@ public class testAboutHomeVisibility extends UITest {
         GeckoHelper.blockForReady();
 
         // Check initial state on about:home.
-        mToolbar.assertTitle(StringHelper.ABOUT_HOME_TITLE, StringHelper.ABOUT_HOME_URL);
+        mToolbar.assertTitle(StringHelper.ABOUT_HOME_TITLE);
         mAboutHome.assertVisible()
                   .assertCurrentPanel(PanelType.TOP_SITES);
 
         // Go to blank 01.
         NavigationHelper.enterAndLoadUrl(StringHelper.ROBOCOP_BLANK_PAGE_01_URL);
-        mToolbar.assertTitle(StringHelper.ROBOCOP_BLANK_PAGE_01_TITLE,
-                StringHelper.ROBOCOP_BLANK_PAGE_01_URL);
+        mToolbar.assertTitle(StringHelper.ROBOCOP_BLANK_PAGE_01_TITLE);
         mAboutHome.assertNotVisible();
 
         // Go to blank 02.
         NavigationHelper.enterAndLoadUrl(StringHelper.ROBOCOP_BLANK_PAGE_02_URL);
-        mToolbar.assertTitle(StringHelper.ROBOCOP_BLANK_PAGE_02_TITLE,
-                StringHelper.ROBOCOP_BLANK_PAGE_02_URL);
+        mToolbar.assertTitle(StringHelper.ROBOCOP_BLANK_PAGE_02_TITLE);
         mAboutHome.assertNotVisible();
 
         // Enter editing mode, where the about:home UI should be visible.
@@ -40,16 +37,10 @@ public class testAboutHomeVisibility extends UITest {
 
         // Loading about:home should show about:home again.
         NavigationHelper.enterAndLoadUrl(StringHelper.ABOUT_HOME_URL);
-        mToolbar.assertTitle(StringHelper.ABOUT_HOME_TITLE, StringHelper.ABOUT_HOME_URL);
+        mToolbar.assertTitle(StringHelper.ABOUT_HOME_TITLE);
         mAboutHome.assertVisible()
                   .assertCurrentPanel(PanelType.TOP_SITES);
 
-        // We can navigate to about:home panels by panel UUID.
-        mAboutHome.navigateToBuiltinPanelType(PanelType.BOOKMARKS)
-                  .assertVisible()
-                  .assertCurrentPanel(PanelType.BOOKMARKS);
-        mAboutHome.navigateToBuiltinPanelType(PanelType.HISTORY)
-                  .assertVisible()
-                  .assertCurrentPanel(PanelType.HISTORY);
+        // TODO: Type in a url and assert the go button is visible.
     }
 }

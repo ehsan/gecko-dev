@@ -11,7 +11,7 @@ EXPORTS.mozilla.dom += [
     'CellBroadcastMessage.h',
 ]
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'CellBroadcast.cpp',
     'CellBroadcastMessage.cpp',
     'ipc/CellBroadcastIPCService.cpp',

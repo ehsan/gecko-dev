@@ -21,7 +21,7 @@
 #include "nsAutoPtr.h"
 #include "nsIRunnable.h"
 #include "GLContextTypes.h"
-#include "AndroidSurfaceTexture.h"
+#include "nsSurfaceTexture.h"
 #include "AndroidBridge.h"
 #include <map>
 class PluginEventRunnable;
@@ -192,12 +192,12 @@ public:
   void* AcquireContentWindow();
 
   EGLImage AsEGLImage();
-  mozilla::gl::AndroidSurfaceTexture* AsSurfaceTexture();
+  nsSurfaceTexture* AsSurfaceTexture();
 
   // For ANPVideo
   class VideoInfo {
   public:
-    VideoInfo(mozilla::gl::AndroidSurfaceTexture* aSurfaceTexture) :
+    VideoInfo(nsSurfaceTexture* aSurfaceTexture) :
       mSurfaceTexture(aSurfaceTexture)
     {
     }
@@ -207,7 +207,7 @@ public:
       mSurfaceTexture = nullptr;
     }
 
-    mozilla::RefPtr<mozilla::gl::AndroidSurfaceTexture> mSurfaceTexture;
+    nsRefPtr<nsSurfaceTexture> mSurfaceTexture;
     gfxRect mDimensions;
   };
 
@@ -274,6 +274,11 @@ public:
 
   void URLRedirectResponse(void* notifyData, NPBool allow);
 
+  NPError InitAsyncSurface(NPSize *size, NPImageFormat format,
+                           void *initData, NPAsyncSurface *surface);
+  NPError FinalizeAsyncSurface(NPAsyncSurface *surface);
+  void SetCurrentAsyncSurface(NPAsyncSurface *surface, NPRect *changed);
+
   // Called when the instance fails to instantiate beceause the Carbon
   // event model is not supported.
   void CarbonNPAPIFailure();
@@ -328,8 +333,8 @@ protected:
   bool mFullScreen;
   bool mInverted;
 
-  mozilla::RefPtr<SharedPluginTexture> mContentTexture;
-  mozilla::RefPtr<mozilla::gl::AndroidSurfaceTexture> mContentSurface;
+  nsRefPtr<SharedPluginTexture> mContentTexture;
+  nsRefPtr<nsSurfaceTexture> mContentSurface;
 #endif
 
   enum {
@@ -378,7 +383,7 @@ private:
 
 #ifdef MOZ_WIDGET_ANDROID
   void EnsureSharedTexture();
-  mozilla::TemporaryRef<mozilla::gl::AndroidSurfaceTexture> CreateSurfaceTexture();
+  nsSurfaceTexture* CreateSurfaceTexture();
 
   std::map<void*, VideoInfo*> mVideos;
   bool mOnScreen;

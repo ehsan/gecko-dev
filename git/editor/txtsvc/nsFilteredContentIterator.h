@@ -17,7 +17,6 @@ class nsIDOMNode;
 class nsIDOMRange;
 class nsINode;
 class nsITextServicesFilter;
-class nsRange;
 
 class nsFilteredContentIterator MOZ_FINAL : public nsIContentIterator
 {
@@ -66,7 +65,7 @@ protected:
   nsCOMPtr<nsIAtom> mMapAtom;
 
   nsCOMPtr<nsITextServicesFilter> mFilter;
-  nsRefPtr<nsRange>               mRange;
+  nsCOMPtr<nsIDOMRange>           mRange;
   bool                            mDidSkip;
   bool                            mIsOutOfRange;
   eDirectionType                  mDirection;

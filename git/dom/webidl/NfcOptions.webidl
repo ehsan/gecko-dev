@@ -2,12 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-enum RFState {
-  "idle",
-  "listen",
-  "discovery"
-};
-
 dictionary NfcCommandOptions
 {
   DOMString type = "";
@@ -15,11 +9,10 @@ dictionary NfcCommandOptions
   long sessionId;
   DOMString requestId = "";
 
-  RFState rfState;
+  long powerLevel;
 
   long techType;
 
-  boolean isP2P;
   sequence<MozNDEFRecordOptions> records;
 };
 
@@ -28,7 +21,6 @@ dictionary NfcEventOptions
   DOMString type = "";
 
   long status;
-  NfcErrorMessage errorMsg;
   long sessionId;
   DOMString requestId;
 
@@ -38,12 +30,11 @@ dictionary NfcEventOptions
   sequence<NFCTechType> techList;
   sequence<MozNDEFRecordOptions> records;
 
-  NFCTagType tagType;
-  long maxNDEFSize;
   boolean isReadOnly;
-  boolean isFormatable;
+  boolean canBeMadeReadOnly;
+  long maxSupportedLength;
 
-  RFState rfState;
+  long powerLevel;
 
   // HCI Event Transaction fields
   DOMString origin;

@@ -76,8 +76,6 @@ GrallocImage::SetData(const Data& aData)
        new GrallocTextureClientOGL(ImageBridgeChild::GetSingleton(),
                                    gfx::SurfaceFormat::UNKNOWN,
                                    gfx::BackendType::NONE);
-  // GrallocImages are all YUV and don't support alpha.
-  textureClient->SetIsOpaque(true);
   bool result =
     textureClient->AllocateGralloc(mData.mYSize,
                                    HAL_PIXEL_FORMAT_YV12,
@@ -136,13 +134,6 @@ GrallocImage::SetData(const Data& aData)
     }
   }
   graphicBuffer->unlock();
-  // Initialze the channels' addresses.
-  // Do not cache the addresses when gralloc buffer is not locked.
-  // gralloc hal could map gralloc buffer only when the buffer is locked,
-  // though some gralloc hals implementation maps it when it is allocated.
-  mData.mYChannel     = nullptr;
-  mData.mCrChannel    = nullptr;
-  mData.mCbChannel    = nullptr;
 }
 
 void GrallocImage::SetData(const GrallocData& aData)
@@ -339,17 +330,11 @@ ConvertOmxYUVFormatToRGB565(android::sp<GraphicBuffer>& aBuffer,
       ycbcrData.mCbSkip       = 0;
       ycbcrData.mCbCrSize     = aSurface->GetSize() / 2;
       ycbcrData.mPicSize      = aSurface->GetSize();
-      ycbcrData.mCrChannel    = buffer + ycbcrData.mYStride * aBuffer->getHeight();
+      ycbcrData.mCrChannel    = buffer + ycbcrData.mYStride * ycbcrData.mYSize.height;
       ycbcrData.mCrSkip       = 0;
       // Align to 16 bytes boundary
-      ycbcrData.mCbCrStride   = ALIGN(ycbcrData.mYStride / 2, 16);
-      ycbcrData.mCbChannel    = ycbcrData.mCrChannel + (ycbcrData.mCbCrStride * aBuffer->getHeight() / 2);
-    } else {
-      // Update channels' address.
-      // Gralloc buffer could map gralloc buffer only when the buffer is locked.
-      ycbcrData.mYChannel     = buffer;
-      ycbcrData.mCrChannel    = buffer + ycbcrData.mYStride * aBuffer->getHeight();
-      ycbcrData.mCbChannel    = ycbcrData.mCrChannel + (ycbcrData.mCbCrStride * aBuffer->getHeight() / 2);
+      ycbcrData.mCbCrStride   = ((ycbcrData.mYStride / 2) + 15) & ~0x0F;
+      ycbcrData.mCbChannel    = ycbcrData.mCrChannel + (ycbcrData.mCbCrStride * ycbcrData.mCbCrSize.height);
     }
     gfx::ConvertYCbCrToRGB(ycbcrData,
                            aSurface->GetFormat(),

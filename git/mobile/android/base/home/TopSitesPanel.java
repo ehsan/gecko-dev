@@ -16,8 +16,6 @@ import java.util.Map;
 
 import org.mozilla.gecko.GeckoProfile;
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.Telemetry;
 import org.mozilla.gecko.TelemetryContract;
 import org.mozilla.gecko.db.BrowserContract.Thumbnails;
@@ -32,8 +30,6 @@ import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
 import org.mozilla.gecko.home.PinSiteDialog.OnSiteSelectedListener;
 import org.mozilla.gecko.home.TopSitesGridView.OnEditPinnedSiteListener;
 import org.mozilla.gecko.home.TopSitesGridView.TopSitesGridContextMenuInfo;
-import org.mozilla.gecko.tiles.TilesRecorder;
-import org.mozilla.gecko.tiles.Tile;
 import org.mozilla.gecko.util.StringUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 
@@ -102,9 +98,6 @@ public class TopSitesPanel extends HomeFragment {
     // Max number of entries shown in the grid from the cursor.
     private int mMaxGridEntries;
 
-    // Fields used for tiles metrics recording.
-    private TilesRecorder mTilesRecorder;
-
     // Time in ms until the Gecko thread is reset to normal priority.
     private static final long PRIORITY_RESET_TIMEOUT = 10000;
 
@@ -112,8 +105,8 @@ public class TopSitesPanel extends HomeFragment {
         return new TopSitesPanel();
     }
 
-    private static final boolean logDebug = Log.isLoggable(LOGTAG, Log.DEBUG);
-    private static final boolean logVerbose = Log.isLoggable(LOGTAG, Log.VERBOSE);
+    private static boolean logDebug = Log.isLoggable(LOGTAG, Log.DEBUG);
+    private static boolean logVerbose = Log.isLoggable(LOGTAG, Log.VERBOSE);
 
     private static void debug(final String message) {
         if (logDebug) {
@@ -127,22 +120,11 @@ public class TopSitesPanel extends HomeFragment {
         }
     }
 
-    public interface BrowserTilesRecorderProvider {
-        public TilesRecorder getTilesRecorder();
-    }
-
     @Override
     public void onAttach(Activity activity) {
         super.onAttach(activity);
 
         mMaxGridEntries = activity.getResources().getInteger(R.integer.number_of_top_sites);
-
-        try {
-            mTilesRecorder = ((BrowserTilesRecorderProvider) activity).getTilesRecorder();
-        } catch (ClassCastException e) {
-            throw new ClassCastException(activity.toString()
-                    + " must implement TopSitesPanel.BrowserTilesRecorderProvider");
-        }
     }
 
     @Override
@@ -211,98 +193,11 @@ public class TopSitesPanel extends HomeFragment {
             }
         });
 
-        mGrid.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                TopSitesGridItemView item = (TopSitesGridItemView) view;
-
-                // Decode "user-entered" URLs before loading them.
-                String url = StringUtils.decodeUserEnteredUrl(item.getUrl());
-                int type = item.getType();
-
-                // If the url is empty, the user can pin a site.
-                // If not, navigate to the page given by the url.
-                if (type != TopSites.TYPE_BLANK) {
-                    if (mUrlOpenListener != null) {
-                        final TelemetryContract.Method method;
-                        if (type == TopSites.TYPE_SUGGESTED) {
-                            method = TelemetryContract.Method.SUGGESTION;
-                        } else {
-                            method = TelemetryContract.Method.GRID_ITEM;
-                        }
-                        Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL, method, Integer.toString(position));
-
-                        // Record tile click events on non-private tabs.
-                        final Tab tab = Tabs.getInstance().getSelectedTab();
-                        if (!tab.isPrivate()) {
-                            mTilesRecorder.recordAction(tab, TilesRecorder.ACTION_CLICK, position, getTilesSnapshot());
-                        }
-
-                        mUrlOpenListener.onUrlOpen(url, EnumSet.noneOf(OnUrlOpenListener.Flags.class));
-                    }
-                } else {
-                    if (mEditPinnedSiteListener != null) {
-                        mEditPinnedSiteListener.onEditPinnedSite(position, "");
-                    }
-                }
-            }
-        });
-
-        mGrid.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
-            @Override
-            public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
-
-                Cursor cursor = (Cursor) parent.getItemAtPosition(position);
-
-                TopSitesGridItemView item = (TopSitesGridItemView) view;
-                if (cursor == null || item.getType() == TopSites.TYPE_BLANK) {
-                    mGrid.setContextMenuInfo(null);
-                    return false;
-                }
-
-                TopSitesGridContextMenuInfo contextMenuInfo = new TopSitesGridContextMenuInfo(view, position, id);
-                updateContextMenuFromCursor(contextMenuInfo, cursor);
-                mGrid.setContextMenuInfo(contextMenuInfo);
-                return mGrid.showContextMenuForChild(mGrid);
-            }
-
-            /*
-             * Update the fields of a TopSitesGridContextMenuInfo object
-             * from a cursor.
-             *
-             * @param  info    context menu info object to be updated
-             * @param  cursor  used to update the context menu info object
-             */
-            private void updateContextMenuFromCursor(TopSitesGridContextMenuInfo info, Cursor cursor) {
-                info.url = cursor.getString(cursor.getColumnIndexOrThrow(TopSites.URL));
-                info.title = cursor.getString(cursor.getColumnIndexOrThrow(TopSites.TITLE));
-                info.type = cursor.getInt(cursor.getColumnIndexOrThrow(TopSites.TYPE));
-                info.historyId = cursor.getInt(cursor.getColumnIndexOrThrow(TopSites.HISTORY_ID));
-            }
-        });
+        mGrid.setOnUrlOpenListener(mUrlOpenListener);
+        mGrid.setOnEditPinnedSiteListener(mEditPinnedSiteListener);
 
         registerForContextMenu(mList);
         registerForContextMenu(mGrid);
-    }
-
-    private List<Tile> getTilesSnapshot() {
-        final int count = mGrid.getCount();
-        final ArrayList<Tile> snapshot = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
-            final Cursor cursor = (Cursor) mGrid.getItemAtPosition(i);
-            final int type = cursor.getInt(cursor.getColumnIndexOrThrow(TopSites.TYPE));
-
-            if (type == TopSites.TYPE_BLANK) {
-                snapshot.add(null);
-                continue;
-            }
-
-            final String url = cursor.getString(cursor.getColumnIndexOrThrow(TopSites.URL));
-            final int id = BrowserDB.getTrackingIdForUrl(url);
-            final boolean pinned = (type == TopSites.TYPE_PINNED);
-            snapshot.add(new Tile(id, pinned));
-        }
-        return snapshot;
     }
 
     @Override
@@ -389,7 +284,7 @@ public class TopSitesPanel extends HomeFragment {
 
         ContextMenuInfo menuInfo = item.getMenuInfo();
 
-        if (!(menuInfo instanceof TopSitesGridContextMenuInfo)) {
+        if (menuInfo == null || !(menuInfo instanceof TopSitesGridContextMenuInfo)) {
             return false;
         }
 
@@ -511,7 +406,7 @@ public class TopSitesPanel extends HomeFragment {
         // Max number of search results.
         private static final int SEARCH_LIMIT = 30;
         private static final String TELEMETRY_HISTOGRAM_LOAD_CURSOR = "FENNEC_TOPSITES_LOADER_TIME_MS";
-        private final int mMaxGridEntries;
+        private int mMaxGridEntries;
 
         public TopSitesLoader(Context context) {
             super(context);
@@ -630,15 +525,12 @@ public class TopSitesPanel extends HomeFragment {
                 return;
             }
 
-            // Make sure we query suggested images without the user-entered wrapper.
-            final String decodedUrl = StringUtils.decodeUserEnteredUrl(url);
-
             // Suggested images have precedence over thumbnails, no need to wait
             // for them to be loaded. See: CursorLoaderCallbacks.onLoadFinished()
-            final String imageUrl = BrowserDB.getSuggestedImageUrlForUrl(decodedUrl);
+            final String imageUrl = cursor.getString(cursor.getColumnIndexOrThrow(TopSites.IMAGEURL));
             if (!TextUtils.isEmpty(imageUrl)) {
-                final int bgColor = BrowserDB.getSuggestedBackgroundColorForUrl(decodedUrl);
-                view.displayThumbnail(imageUrl, bgColor);
+                final String bgColor = cursor.getString(cursor.getColumnIndexOrThrow(TopSites.BGCOLOR));
+                view.displayThumbnail(imageUrl, Color.parseColor(bgColor));
                 return;
             }
 
@@ -729,10 +621,11 @@ public class TopSitesPanel extends HomeFragment {
             int i = 1;
             do {
                 final String url = c.getString(col);
+                final String imageUrl = c.getString(c.getColumnIndexOrThrow(TopSites.IMAGEURL));
 
                 // Only try to fetch thumbnails for non-empty URLs that
                 // don't have an associated suggested image URL.
-                if (TextUtils.isEmpty(url) || BrowserDB.hasSuggestedImageUrl(url)) {
+                if (TextUtils.isEmpty(url) || !TextUtils.isEmpty(imageUrl)) {
                     continue;
                 }
 
@@ -806,7 +699,7 @@ public class TopSitesPanel extends HomeFragment {
     @SuppressWarnings("serial")
     static class ThumbnailsLoader extends AsyncTaskLoader<Map<String, ThumbnailInfo>> {
         private Map<String, ThumbnailInfo> mThumbnailInfos;
-        private final ArrayList<String> mUrls;
+        private ArrayList<String> mUrls;
 
         private static final ArrayList<String> COLUMNS = new ArrayList<String>() {{
             add(TILE_IMAGE_URL_COLUMN);

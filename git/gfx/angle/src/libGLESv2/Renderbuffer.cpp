@@ -125,6 +125,11 @@ rx::RenderTarget *RenderbufferStorage::getRenderTarget()
     return NULL;
 }
 
+rx::RenderTarget *RenderbufferStorage::getDepthStencil()
+{
+    return NULL;
+}
+
 GLsizei RenderbufferStorage::getWidth() const
 {
     return mWidth;
@@ -155,7 +160,7 @@ unsigned int RenderbufferStorage::getSerial() const
     return mSerial;
 }
 
-unsigned int RenderbufferStorage::issueSerials(unsigned int count)
+unsigned int RenderbufferStorage::issueSerials(GLuint count)
 {
     unsigned int firstSerial = mCurrentSerial;
     mCurrentSerial += count;
@@ -172,9 +177,9 @@ unsigned int RenderbufferStorage::getTextureSerial() const
     return -1;
 }
 
-Colorbuffer::Colorbuffer(rx::Renderer *renderer, egl::Surface *surface)
+Colorbuffer::Colorbuffer(rx::Renderer *renderer, rx::SwapChain *swapChain)
 {
-    mRenderTarget = renderer->createRenderTarget(surface, false);
+    mRenderTarget = renderer->createRenderTarget(swapChain, false); 
 
     if (mRenderTarget)
     {
@@ -213,9 +218,9 @@ rx::RenderTarget *Colorbuffer::getRenderTarget()
     return mRenderTarget;
 }
 
-DepthStencilbuffer::DepthStencilbuffer(rx::Renderer *renderer, egl::Surface *surface)
+DepthStencilbuffer::DepthStencilbuffer(rx::Renderer *renderer, rx::SwapChain *swapChain)
 {
-    mDepthStencil = renderer->createRenderTarget(surface, true);
+    mDepthStencil = renderer->createRenderTarget(swapChain, true);
     if (mDepthStencil)
     {
         mWidth = mDepthStencil->getWidth();

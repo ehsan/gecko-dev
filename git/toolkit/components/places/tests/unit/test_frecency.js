@@ -281,10 +281,8 @@ add_task(function test_frecency()
   // always search in history + bookmarks, no matter what the default is
   var prefs = Cc["@mozilla.org/preferences-service;1"].
               getService(Ci.nsIPrefBranch);
-
-  prefs.setBoolPref("browser.urlbar.suggest.history", true);
-  prefs.setBoolPref("browser.urlbar.suggest.bookmark", true);
-  prefs.setBoolPref("browser.urlbar.suggest.openpage", false);
+  prefs.setIntPref("browser.urlbar.search.sources", 3);
+  prefs.setIntPref("browser.urlbar.default.behavior", 0);
   for (let [, test] in Iterator(tests)) {
     remove_all_bookmarks();
     yield promiseClearHistory();
@@ -292,8 +290,5 @@ add_task(function test_frecency()
     deferEnsureResults = Promise.defer();
     yield test();
     yield deferEnsureResults.promise;
-  }
-  for (let type of ["history", "bookmark", "openpage"]) {
-    prefs.clearUserPref("browser.urlbar.suggest." + type);
   }
 });

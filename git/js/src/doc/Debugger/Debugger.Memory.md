@@ -91,25 +91,12 @@ Function Properties of the `Debugger.Memory.prototype` Object
 
 <code id='drain-alloc-log'>drainAllocationsLog()</code>
 :   When `trackingAllocationSites` is `true`, this method returns an array of
-    recent `Object` allocations within the set of debuggees. *Recent* is
-    defined as the `maxAllocationsLogLength` most recent `Object` allocations
-    since the last call to `drainAllocationsLog`. Therefore, calling this
-    method effectively clears the log.
-
-    Objects in the array are of the form:
-
-    <pre class='language-js'><code>
-    {
-      "timestamp": <i>timestamp</i>,
-      "frame": <i>allocationSite</i>
-    }
-    </code></pre>
-
-    Here <i>timestamp</i> is the timestamp of the event in units of
-    microseconds since the epoch and <i>allocationSite</i> is an
-    allocation site (as a [captured stack][saved-frame]).
-    <i>allocationSite</i> is `null` for objects allocated with no
-    JavaScript frames on the stack.
+    allocation sites (as [captured stacks][saved-frame]) for recent `Object`
+    allocations within the set of debuggees. Entries for objects allocated with
+    no JavaScript frames on the stack are `null`. *Recent* is defined as the
+    `maxAllocationsLogLength` most recent `Object` allocations since the last
+    call to `drainAllocationsLog`. Therefore, calling this method effectively
+    clears the log.
 
     When `trackingAllocationSites` is `false`, `drainAllocationsLog()` throws an
     `Error`.

@@ -6,11 +6,25 @@
 
 XPCSHELL_TESTS_MANIFESTS += ['unit/xpcshell.ini']
 
-GeckoSimplePrograms([
+SimplePrograms([
     'NormalizationTest',
     'UnicharSelfTest',
-], msvcrt='static')
+])
+
+USE_STATIC_LIBS = True
 
 USE_LIBS += [
+    'mozalloc',
+    'nspr',
     'unicharutil_external_s',
+    'xul',
 ]
+
+if CONFIG['OS_ARCH'] == 'WINNT':
+    USE_LIBS += [
+        'xpcomglue_staticruntime_s',
+    ]
+else:
+    USE_LIBS += [
+        'xpcomglue_s',
+    ]

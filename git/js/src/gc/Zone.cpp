@@ -28,7 +28,6 @@ JS::Zone::Zone(JSRuntime *rt)
     gcMallocBytes(0),
     gcMallocGCTriggered(false),
     usage(&rt->gc.usage),
-    gcDelayBytes(0),
     data(nullptr),
     isSystem(false),
     usedByExclusiveThread(false),
@@ -40,8 +39,8 @@ JS::Zone::Zone(JSRuntime *rt)
     jitUsingBarriers_(false)
 {
     /* Ensure that there are no vtables to mess us up here. */
-    MOZ_ASSERT(reinterpret_cast<JS::shadow::Zone *>(this) ==
-               static_cast<JS::shadow::Zone *>(this));
+    JS_ASSERT(reinterpret_cast<JS::shadow::Zone *>(this) ==
+              static_cast<JS::shadow::Zone *>(this));
 
     threshold.updateAfterGC(8192, GC_NORMAL, rt->gc.tunables, rt->gc.schedulingState);
     setGCMaxMallocBytes(rt->gc.maxMallocBytesAllocated() * 0.9);
@@ -71,9 +70,9 @@ Zone::setNeedsIncrementalBarrier(bool needs, ShouldUpdateJit updateJit)
     }
 
     if (needs && runtimeFromMainThread()->isAtomsZone(this))
-        MOZ_ASSERT(!runtimeFromMainThread()->exclusiveThreadsPresent());
+        JS_ASSERT(!runtimeFromMainThread()->exclusiveThreadsPresent());
 
-    MOZ_ASSERT_IF(needs, canCollect());
+    JS_ASSERT_IF(needs, canCollect());
     needsIncrementalBarrier_ = needs;
 }
 
@@ -105,15 +104,27 @@ Zone::onTooMuchMalloc()
 }
 
 void
-Zone::beginSweepTypes(FreeOp *fop, bool releaseTypes)
+Zone::sweepAnalysis(FreeOp *fop, bool releaseTypes)
 {
     // Periodically release observed types for all scripts. This is safe to
     // do when there are no frames for the zone on the stack.
     if (active)
         releaseTypes = false;
 
-    types::AutoClearTypeInferenceStateOnOOM oom(this);
-    types.beginSweep(fop, releaseTypes, oom);
+    bool oom = false;
+    types.sweep(fop, releaseTypes, &oom);
+
+    // If there was an OOM while sweeping types, the type information needs to
+    // be deoptimized so that it will still correct (i.e.  overapproximates the
+    // possible types in the zone), but the constraints might not have been
+    // triggered on the deoptimization or even copied over completely. In this
+    // case, destroy all JIT code and new script information in the zone, the
+    // only things whose correctness depends on the type constraints.
+    if (oom) {
+        setPreservingCode(false);
+        discardJitCode(fop);
+        types.clearAllNewScriptsOnOOM();
+    }
 }
 
 void
@@ -127,15 +138,15 @@ Zone::sweepBreakpoints(FreeOp *fop)
      * to iterate over the scripts belonging to a single compartment in a zone.
      */
 
-    MOZ_ASSERT(isGCSweepingOrCompacting());
+    JS_ASSERT(isGCSweepingOrCompacting());
     for (ZoneCellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
-        MOZ_ASSERT_IF(isGCSweeping(), script->zone()->isGCSweeping());
+        JS_ASSERT_IF(isGCSweeping(), script->zone()->isGCSweeping());
         if (!script->hasAnyBreakpointsOrStepMode())
             continue;
 
         bool scriptGone = IsScriptAboutToBeFinalized(&script);
-        MOZ_ASSERT(script == i.get<JSScript>());
+        JS_ASSERT(script == i.get<JSScript>());
         for (unsigned i = 0; i < script->length(); i++) {
             BreakpointSite *site = script->getBreakpointSite(script->offsetToPC(i));
             if (!site)
@@ -144,11 +155,11 @@ Zone::sweepBreakpoints(FreeOp *fop)
             Breakpoint *nextbp;
             for (Breakpoint *bp = site->firstBreakpoint(); bp; bp = nextbp) {
                 nextbp = bp->nextInSite();
-                HeapPtrNativeObject &dbgobj = bp->debugger->toJSObjectRef();
-                MOZ_ASSERT_IF(isGCSweeping() && dbgobj->zone()->isCollecting(),
-                              dbgobj->zone()->isGCSweeping());
+                HeapPtrObject &dbgobj = bp->debugger->toJSObjectRef();
+                JS_ASSERT_IF(isGCSweeping() && dbgobj->zone()->isCollecting(),
+                             dbgobj->zone()->isGCSweeping());
                 bool dying = scriptGone || IsObjectAboutToBeFinalized(&dbgobj);
-                MOZ_ASSERT_IF(!dying, !IsAboutToBeFinalized(&bp->getHandlerRef()));
+                JS_ASSERT_IF(!dying, !IsAboutToBeFinalized(&bp->getHandlerRef()));
                 if (dying)
                     bp->destroy(fop);
             }
@@ -170,7 +181,7 @@ Zone::discardJitCode(FreeOp *fop)
         /* Assert no baseline scripts are marked as active. */
         for (ZoneCellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
             JSScript *script = i.get<JSScript>();
-            MOZ_ASSERT_IF(script->hasBaselineScript(), !script->baselineScript()->active());
+            JS_ASSERT_IF(script->hasBaselineScript(), !script->baselineScript()->active());
         }
 #endif
 
@@ -254,7 +265,7 @@ Zone::canCollect()
 JS::Zone *
 js::ZoneOfValue(const JS::Value &value)
 {
-    MOZ_ASSERT(value.isMarkable());
+    JS_ASSERT(value.isMarkable());
     if (value.isObject())
         return value.toObject().zone();
     return js::gc::TenuredCell::fromPointer(value.toGCThing())->zone();

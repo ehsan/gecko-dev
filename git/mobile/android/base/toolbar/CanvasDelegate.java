@@ -21,16 +21,19 @@ class CanvasDelegate {
 
     // DrawManager would do a default draw of the background.
     static interface DrawManager {
-        public void defaultDraw(Canvas canvas);
+        public void defaultDraw(Canvas cavas);
     }
 
-    CanvasDelegate(DrawManager drawManager, Mode mode, Paint paint) {
+    CanvasDelegate(DrawManager drawManager, Mode mode) {
         mDrawManager = drawManager;
 
         // DST_IN masks, DST_OUT clips.
         mMode = new PorterDuffXfermode(mode);
 
-        mPaint = paint;
+        mPaint = new Paint();
+        mPaint.setAntiAlias(true);
+        mPaint.setColor(0xFFFF0000);
+        mPaint.setStrokeWidth(0.0f);
     }
 
     void draw(Canvas canvas, Path path, int width, int height) {

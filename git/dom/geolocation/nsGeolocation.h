@@ -154,10 +154,6 @@ public:
   // Remove request from all callbacks arrays
   void RemoveRequest(nsGeolocationRequest* request);
 
-  // Check if there is already ClearWatch called for current
-  // request & clear if yes
-  bool ClearPendingRequest(nsGeolocationRequest* aRequest);
-
   // Shutting down.
   void Shutdown();
 
@@ -189,9 +185,6 @@ private:
   nsresult GetCurrentPositionReady(nsGeolocationRequest* aRequest);
   nsresult WatchPositionReady(nsGeolocationRequest* aRequest);
 
-  // Check if clearWatch is already called
-  bool IsAlreadyCleared(nsGeolocationRequest* aRequest);
-
   // Two callback arrays.  The first |mPendingCallbacks| holds objects for only
   // one callback and then they are released/removed from the array.  The second
   // |mWatchingCallbacks| holds objects until the object is explictly removed or
@@ -215,9 +208,6 @@ private:
 
   // Pending requests are used when the service is not ready
   nsTArray<nsRefPtr<nsGeolocationRequest> > mPendingRequests;
-
-  // Array containing already cleared watch IDs
-  nsTArray<int32_t> mClearedWatchIDs;
 };
 
 class PositionError MOZ_FINAL : public nsIDOMGeoPositionError,

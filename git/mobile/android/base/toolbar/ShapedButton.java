@@ -14,7 +14,6 @@ import org.mozilla.gecko.widget.ThemedImageButton;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Canvas;
-import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PorterDuff.Mode;
 import android.graphics.drawable.Drawable;
@@ -34,12 +33,7 @@ public class ShapedButton extends ThemedImageButton
 
         // Path is clipped.
         mPath = new Path();
-
-        final Paint paint = new Paint();
-        paint.setAntiAlias(true);
-        paint.setColor(getResources().getColor(R.color.canvas_delegate_paint));
-        paint.setStrokeWidth(0.0f);
-        mCanvasDelegate = new CanvasDelegate(this, Mode.DST_IN, paint);
+        mCanvasDelegate = new CanvasDelegate(this, Mode.DST_IN);
 
         setWillNotDraw(false);
     }

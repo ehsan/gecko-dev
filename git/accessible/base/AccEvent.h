@@ -75,7 +75,7 @@ public:
     eDoNotEmit
   };
 
-  // Initialize with an accessible.
+  // Initialize with an nsIAccessible
   AccEvent(uint32_t aEventType, Accessible* aAccessible,
            EIsFromUserInput aIsFromUserInput = eAutoDetect,
            EEventRule aEventRule = eRemoveDupes);
@@ -231,8 +231,6 @@ public:
   // MutationEvent
   bool IsShow() const { return mEventType == nsIAccessibleEvent::EVENT_SHOW; }
   bool IsHide() const { return mEventType == nsIAccessibleEvent::EVENT_HIDE; }
-
-  Accessible* Parent() const { return mParent; }
 
 protected:
   nsCOMPtr<nsINode> mNode;
@@ -470,7 +468,7 @@ class AccVCChangeEvent : public AccEvent
 {
 public:
   AccVCChangeEvent(Accessible* aAccessible,
-                   Accessible* aOldAccessible,
+                   nsIAccessible* aOldAccessible,
                    int32_t aOldStart, int32_t aOldEnd,
                    int16_t aReason,
                    EIsFromUserInput aIsFromUserInput = eFromUserInput);
@@ -485,13 +483,13 @@ public:
   }
 
   // AccTableChangeEvent
-  Accessible* OldAccessible() const { return mOldAccessible; }
+  nsIAccessible* OldAccessible() const { return mOldAccessible; }
   int32_t OldStartOffset() const { return mOldStart; }
   int32_t OldEndOffset() const { return mOldEnd; }
   int32_t Reason() const { return mReason; }
 
 private:
-  nsRefPtr<Accessible> mOldAccessible;
+  nsRefPtr<nsIAccessible> mOldAccessible;
   int32_t mOldStart;
   int32_t mOldEnd;
   int16_t mReason;

@@ -5,8 +5,7 @@
 
 package org.mozilla.gecko.home;
 
-import java.util.EnumMap;
-import java.util.Map;
+import java.util.HashMap;
 
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.fxa.AccountLoader;
@@ -51,13 +50,9 @@ public class RemoteTabsPanel extends HomeFragment {
 
     // A lazily-populated cache of fragments corresponding to the possible
     // system account states. We don't want to re-create panels unnecessarily,
-    // because that can cause flickering. `null` is not a valid key.
-    private final Map<Action, Fragment> mFragmentCache = new EnumMap<>(Action.class);
-
-    // The fragment that corresponds to the null action -- "no Account,
-    // neither Firefox nor Legacy Sync."
-    // Lazily populated.
-    private Fragment mFallbackFragment;
+    // because that can cause flickering. Be aware that null is a valid key; it
+    // corresponds to "no Account, neither Firefox nor Legacy Sync."
+    private final HashMap<Action, Fragment> mFragmentCache = new HashMap<Action, Fragment>();
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -178,20 +173,12 @@ public class RemoteTabsPanel extends HomeFragment {
     private Fragment getFragmentNeeded(Account account) {
         final Action actionNeeded = getActionNeeded(account);
 
-        if (actionNeeded == null) {
-            if (mFallbackFragment == null) {
-                mFallbackFragment = makeFragmentForAction(null);
-            }
-            return mFallbackFragment;
-        }
-
-        Fragment fragment = mFragmentCache.get(actionNeeded);
-        if (fragment == null) {
-            fragment = makeFragmentForAction(actionNeeded);
+        // We use containsKey rather than get because null is a valid key.
+        if (!mFragmentCache.containsKey(actionNeeded)) {
+            final Fragment fragment = makeFragmentForAction(actionNeeded);
             mFragmentCache.put(actionNeeded, fragment);
         }
-
-        return fragment;
+        return mFragmentCache.get(actionNeeded);
     }
 
     /**

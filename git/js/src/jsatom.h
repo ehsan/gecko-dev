@@ -64,7 +64,7 @@ class AtomStateEntry
     AtomStateEntry(JSAtom *ptr, bool tagged)
       : bits(uintptr_t(ptr) | uintptr_t(tagged))
     {
-        MOZ_ASSERT((uintptr_t(ptr) & 0x1) == 0);
+        JS_ASSERT((uintptr_t(ptr) & 0x1) == 0);
     }
 
     bool isTagged() const {

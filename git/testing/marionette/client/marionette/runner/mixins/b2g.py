@@ -26,14 +26,11 @@ def get_dm(marionette=None,**kwargs):
 
 
 def get_b2g_pid(dm):
-    b2g_output = dm.shellCheckOutput(['b2g-ps']).split('\n')
-    first_line = b2g_output[0].split()
-    app_index = first_line.index('APPLICATION')
-    pid_index = first_line.index('PID')
-    for line in b2g_output:
-        split_line = line.split()
-        if split_line[app_index] == 'b2g':
-            return split_line[pid_index]
+    b2g_output = dm.shellCheckOutput(['b2g-ps'])
+    pid_re = re.compile(r"""[\s\S]*root[\s]*([\d]+)[\s]*(?:[\w]*[\s]*){6}/system/b2g/b2g""")
+    if '/system/b2g/b2g' in b2g_output:
+        pid = pid_re.match(b2g_output)
+        return pid.group(1)
 
 
 class B2GTestCaseMixin(object):
@@ -60,7 +57,6 @@ class B2GTestResultMixin(object):
     def __init__(self, *args, **kwargs):
         self.result_modifiers.append(self.b2g_output_modifier)
         self.b2g_pid = kwargs.pop('b2g_pid')
-        self.logcat_stdout = kwargs.pop('logcat_stdout')
 
     def _diagnose_socket(self):
         # This function will check if b2g is running and report any recent errors. This is
@@ -113,12 +109,5 @@ class B2GTestResultMixin(object):
             if extra_output:
                 self.logger.error(extra_output)
                 output += extra_output
-
-        if self.logcat_stdout:
-            dm = get_dm(self.marionette)
-            for next_line in dm.getLogcat():
-                self.logger.info(next_line)
-            self.logger.info("--------- end logcat")
-            dm.shellCheckOutput(['/system/bin/logcat', '-c'])
 
         return result_expected, result_actual, output, context

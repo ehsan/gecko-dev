@@ -19,7 +19,7 @@ class ClearKeyDecryptor;
 class ClearKeyDecryptionManager MOZ_FINAL : public GMPDecryptor
 {
 public:
-  ClearKeyDecryptionManager();
+  ClearKeyDecryptionManager(GMPDecryptorHost* aHost);
   ~ClearKeyDecryptionManager();
 
   virtual void Init(GMPDecryptorCallback* aCallback) MOZ_OVERRIDE;
@@ -60,6 +60,7 @@ public:
 
 private:
   GMPDecryptorCallback* mCallback;
+  GMPDecryptorHost* mHost;
 
   std::map<KeyId, ClearKeyDecryptor*> mDecryptors;
   std::map<std::string, ClearKeySession*> mSessions;

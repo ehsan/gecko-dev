@@ -134,11 +134,7 @@ WebGLContext::DrawArrays(GLenum mode, GLint first, GLsizei count)
         return;
 
     RunContextLossTimer();
-
-    {
-        ScopedMaskWorkaround autoMask(*this);
-        gl->fDrawArrays(mode, first, count);
-    }
+    gl->fDrawArrays(mode, first, count);
 
     Draw_cleanup();
 }
@@ -156,11 +152,7 @@ WebGLContext::DrawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsiz
         return;
 
     RunContextLossTimer();
-
-    {
-        ScopedMaskWorkaround autoMask(*this);
-        gl->fDrawArraysInstanced(mode, first, count, primcount);
-    }
+    gl->fDrawArraysInstanced(mode, first, count, primcount);
 
     Draw_cleanup();
 }
@@ -321,16 +313,11 @@ WebGLContext::DrawElements(GLenum mode, GLsizei count, GLenum type,
 
     RunContextLossTimer();
 
-    {
-        ScopedMaskWorkaround autoMask(*this);
-
-        if (gl->IsSupported(gl::GLFeature::draw_range_elements)) {
-            gl->fDrawRangeElements(mode, 0, upperBound, count, type,
-                                   reinterpret_cast<GLvoid*>(byteOffset));
-        } else {
-            gl->fDrawElements(mode, count, type,
-                              reinterpret_cast<GLvoid*>(byteOffset));
-        }
+    if (gl->IsSupported(gl::GLFeature::draw_range_elements)) {
+        gl->fDrawRangeElements(mode, 0, upperBound,
+                               count, type, reinterpret_cast<GLvoid*>(byteOffset));
+    } else {
+        gl->fDrawElements(mode, count, type, reinterpret_cast<GLvoid*>(byteOffset));
     }
 
     Draw_cleanup();
@@ -347,20 +334,12 @@ WebGLContext::DrawElementsInstanced(GLenum mode, GLsizei count, GLenum type,
         return;
 
     GLuint upperBound = 0;
-    if (!DrawElements_check(count, type, byteOffset, primcount,
-                            "drawElementsInstanced", &upperBound))
-    {
+    if (!DrawElements_check(count, type, byteOffset, primcount, "drawElementsInstanced",
+                            &upperBound))
         return;
-    }
 
     RunContextLossTimer();
-
-    {
-        ScopedMaskWorkaround autoMask(*this);
-        gl->fDrawElementsInstanced(mode, count, type,
-                                   reinterpret_cast<GLvoid*>(byteOffset),
-                                   primcount);
-    }
+    gl->fDrawElementsInstanced(mode, count, type, reinterpret_cast<GLvoid*>(byteOffset), primcount);
 
     Draw_cleanup();
 }
@@ -578,18 +557,14 @@ WebGLContext::DoFakeVertexAttrib0(GLuint vertexCount)
         GetAndFlushUnderlyingGLErrors();
 
         if (mFakeVertexAttrib0BufferStatus == WebGLVertexAttrib0Status::EmulatedInitializedArray) {
-            UniquePtr<GLfloat[]> array(new ((fallible_t())) GLfloat[4 * vertexCount]);
-            if (!array) {
-                ErrorOutOfMemory("Fake attrib0 array.");
-                return false;
-            }
+            nsAutoArrayPtr<GLfloat> array(new GLfloat[4 * vertexCount]);
             for(size_t i = 0; i < vertexCount; ++i) {
                 array[4 * i + 0] = mVertexAttrib0Vector[0];
                 array[4 * i + 1] = mVertexAttrib0Vector[1];
                 array[4 * i + 2] = mVertexAttrib0Vector[2];
                 array[4 * i + 3] = mVertexAttrib0Vector[3];
             }
-            gl->fBufferData(LOCAL_GL_ARRAY_BUFFER, dataSize, array.get(), LOCAL_GL_DYNAMIC_DRAW);
+            gl->fBufferData(LOCAL_GL_ARRAY_BUFFER, dataSize, array, LOCAL_GL_DYNAMIC_DRAW);
         } else {
             gl->fBufferData(LOCAL_GL_ARRAY_BUFFER, dataSize, nullptr, LOCAL_GL_DYNAMIC_DRAW);
         }
@@ -680,7 +655,7 @@ WebGLContext::BindFakeBlackTexturesHelper(
         }
 
         bool alpha = s == WebGLTextureFakeBlackStatus::UninitializedImageData &&
-                     FormatHasAlpha(boundTexturesArray[i]->ImageInfoBase().EffectiveInternalFormat());
+                     FormatHasAlpha(boundTexturesArray[i]->ImageInfoBase().WebGLFormat());
         UniquePtr<FakeBlackTexture>&
             blackTexturePtr = alpha
                               ? transparentTextureScopedPtr
@@ -754,16 +729,17 @@ WebGLContext::FakeBlackTexture::FakeBlackTexture(GLContext *gl, TexTarget target
   // to minimize the risk of running into a driver bug in texImage2D, as it is
   // a bit unusual maybe to create 1x1 textures, and the stack may not have the alignment
   // that texImage2D expects.
-  UniquePtr<uint8_t> zeros((uint8_t*)moz_xcalloc(1, 16));
+  void* zeros = calloc(1, 16);
   if (target == LOCAL_GL_TEXTURE_2D) {
       gl->fTexImage2D(target.get(), 0, format, 1, 1,
-                      0, format, LOCAL_GL_UNSIGNED_BYTE, zeros.get());
+                      0, format, LOCAL_GL_UNSIGNED_BYTE, zeros);
   } else {
       for (GLuint i = 0; i < 6; ++i) {
           gl->fTexImage2D(LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, format, 1, 1,
-                          0, format, LOCAL_GL_UNSIGNED_BYTE, zeros.get());
+                          0, format, LOCAL_GL_UNSIGNED_BYTE, zeros);
       }
   }
+  free(zeros);
 
   gl->fBindTexture(target.get(), formerBinding);
 }

@@ -115,12 +115,6 @@ namespace js {
 bool
 SymbolDescriptiveString(JSContext *cx, JS::Symbol *sym, JS::MutableHandleValue result);
 
-bool
-IsSymbolOrSymbolWrapper(JS::Value v);
-
-JS::Symbol *
-ToSymbolPrimitive(JS::Value v);
-
 } /* namespace js */
 
 #endif /* vm_Symbol_h */

@@ -8,6 +8,7 @@ package org.mozilla.gecko.tabs;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.mozilla.gecko.AboutPages;
 import org.mozilla.gecko.animation.PropertyAnimator.Property;
 import org.mozilla.gecko.animation.PropertyAnimator;
 import org.mozilla.gecko.animation.ViewHelper;
@@ -15,6 +16,7 @@ import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Tab;
+import org.mozilla.gecko.tabs.TabsLayoutAdapter;
 import org.mozilla.gecko.tabs.TabsPanel.TabsLayout;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.util.ThreadUtils;
@@ -36,18 +38,18 @@ class TabsListLayout extends TwoWayView
                                 Tabs.OnTabsChangedListener {
     private static final String LOGTAG = "Gecko" + TabsListLayout.class.getSimpleName();
 
-    private final Context mContext;
+    private Context mContext;
     private TabsPanel mTabsPanel;
 
     final private boolean mIsPrivate;
 
-    private final TabsLayoutAdapter mTabsAdapter;
+    private TabsLayoutAdapter mTabsAdapter;
 
-    private final List<View> mPendingClosedTabs;
+    private List<View> mPendingClosedTabs;
     private int mCloseAnimationCount;
     private int mCloseAllAnimationCount;
 
-    private final TabSwipeGestureListener mSwipeListener;
+    private TabSwipeGestureListener mSwipeListener;
 
     // Time to animate non-flinged tabs of screen, in milliseconds
     private static final int ANIMATION_DURATION = 250;
@@ -65,8 +67,8 @@ class TabsListLayout extends TwoWayView
 
         setItemsCanFocus(true);
 
-        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.TabsLayout);
-        mIsPrivate = (a.getInt(R.styleable.TabsLayout_tabs, 0x0) == 1);
+        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.TabsTray);
+        mIsPrivate = (a.getInt(R.styleable.TabsTray_tabs, 0x0) == 1);
         a.recycle();
 
         mTabsAdapter = new TabsListLayoutAdapter(mContext);
@@ -79,46 +81,47 @@ class TabsListLayout extends TwoWayView
         setRecyclerListener(new RecyclerListener() {
             @Override
             public void onMovedToScrapHeap(View view) {
-                TabsLayoutItemView item = (TabsLayoutItemView) view;
-                item.setThumbnail(null);
-                item.setCloseVisible(true);
+                TabsLayoutItemView item = (TabsLayoutItemView) view.getTag();
+                item.thumbnail.setImageDrawable(null);
+                item.close.setVisibility(View.VISIBLE);
             }
         });
     }
 
     private class TabsListLayoutAdapter extends TabsLayoutAdapter {
-        private final Button.OnClickListener mCloseOnClickListener;
+        private Button.OnClickListener mOnClickListener;
         public TabsListLayoutAdapter (Context context) {
-            super(context, R.layout.tabs_layout_item_view);
+            super(context);
 
-            mCloseOnClickListener = new Button.OnClickListener() {
+            mOnClickListener = new Button.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    // The view here is the close button, which has a reference
-                    // to the parent TabsLayoutItemView in it's tag, hence the getTag() call
-                    TabsLayoutItemView item = (TabsLayoutItemView) v.getTag();
-                    final int pos = (isVertical() ? item.getWidth() : 0 - item.getHeight());
-                    animateClose(item, pos);
+                    TabsLayoutItemView tab = (TabsLayoutItemView) v.getTag();
+                    final int pos = (isVertical() ? tab.info.getWidth() : 0 - tab.info.getHeight());
+                    animateClose(tab.info, pos);
                 }
             };
         }
 
         @Override
-        public TabsLayoutItemView newView(int position, ViewGroup parent) {
-            TabsLayoutItemView item = super.newView(position, parent);
+        public View newView(int position, ViewGroup parent) {
+            View view = super.newView(position, parent);
 
-            item.setCloseOnClickListener(mCloseOnClickListener);
+            // This is nasty and once we change TabsLayoutItemView to an actual view
+            // we can get rid of it.
+            TabsLayoutItemView item = (TabsLayoutItemView) view.getTag();
+            item.close.setOnClickListener(mOnClickListener);
 
-            return item;
+            return view;
         }
 
         @Override
-        public void bindView(TabsLayoutItemView view, Tab tab) {
+        public void bindView(View view, Tab tab) {
             super.bindView(view, tab);
 
             // If we're recycling this view, there's a chance it was transformed during
             // the close animation. Remove any of those properties.
-            resetTransforms(view);
+            TabsListLayout.this.resetTransforms(view);
         }
 
     }
@@ -182,7 +185,7 @@ class TabsListLayout extends TwoWayView
                 if (view == null)
                     return;
 
-                TabsLayoutItemView item = (TabsLayoutItemView) view;
+                TabsLayoutItemView item = (TabsLayoutItemView) view.getTag();
                 item.assignValues(tab);
                 break;
         }
@@ -360,7 +363,8 @@ class TabsListLayout extends TwoWayView
         else
             animator.attach(view, Property.WIDTH, 1);
 
-        final int tabId = ((TabsLayoutItemView) view).getTabId();
+        TabsLayoutItemView tab = (TabsLayoutItemView)view.getTag();
+        final int tabId = tab.id;
 
         // Caching this assumes that all rows are the same height
         if (mOriginalSize == 0) {
@@ -396,8 +400,8 @@ class TabsListLayout extends TwoWayView
             public void onPropertyAnimationStart() { }
             @Override
             public void onPropertyAnimationEnd() {
-                TabsLayoutItemView tab = (TabsLayoutItemView) view;
-                tab.setCloseVisible(true);
+                TabsLayoutItemView tab = (TabsLayoutItemView) view.getTag();
+                tab.close.setVisibility(View.VISIBLE);
             }
         });
 
@@ -409,10 +413,10 @@ class TabsListLayout extends TwoWayView
         // http://androidxref.com/4.0.4/xref/packages/apps/Browser/src/com/android/browser/NavTabScroller.java#61
         private static final float MIN_VELOCITY = 750;
 
-        private final int mSwipeThreshold;
-        private final int mMinFlingVelocity;
+        private int mSwipeThreshold;
+        private int mMinFlingVelocity;
 
-        private final int mMaxFlingVelocity;
+        private int mMaxFlingVelocity;
         private VelocityTracker mVelocityTracker;
 
         private int mListWidth = 1;
@@ -494,8 +498,8 @@ class TabsListLayout extends TwoWayView
                     mSwipeView.setPressed(false);
 
                     if (!mSwiping) {
-                        TabsLayoutItemView item = (TabsLayoutItemView) mSwipeView;
-                        Tabs.getInstance().selectTab(item.getTabId());
+                        TabsLayoutItemView tab = (TabsLayoutItemView) mSwipeView.getTag();
+                        Tabs.getInstance().selectTab(tab.id);
                         autoHidePanel();
 
                         mVelocityTracker.recycle();
@@ -582,7 +586,8 @@ class TabsListLayout extends TwoWayView
                         mSwiping = true;
                         TabsListLayout.this.requestDisallowInterceptTouchEvent(true);
 
-                        ((TabsLayoutItemView) mSwipeView).setCloseVisible(false);
+                        TabsLayoutItemView tab = (TabsLayoutItemView) mSwipeView.getTag();
+                        tab.close.setVisibility(View.INVISIBLE);
 
                         // Stops listview from highlighting the touched item
                         // in the list when swiping.

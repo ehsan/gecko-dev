@@ -3040,21 +3040,19 @@ nsWindow::OnKeyPressEvent(GdkEventKey *aEvent)
     }
     else {
         // If the character code is in the BMP, send the key press event.
-        // Otherwise, send a compositionchange event with the equivalent UTF-16
-        // string.
+        // Otherwise, send a text event with the equivalent UTF-16 string.
         if (IS_IN_BMP(event.charCode)) {
             DispatchEvent(&event, status);
         }
         else {
-            WidgetCompositionEvent compositionChangeEvent(
-                                     true, NS_COMPOSITION_CHANGE, this);
+            WidgetTextEvent textEvent(true, NS_TEXT_TEXT, this);
             char16_t textString[3];
             textString[0] = H_SURROGATE(event.charCode);
             textString[1] = L_SURROGATE(event.charCode);
             textString[2] = 0;
-            compositionChangeEvent.mData = textString;
-            compositionChangeEvent.time = event.time;
-            DispatchEvent(&compositionChangeEvent, status);
+            textEvent.theText = textString;
+            textEvent.time = event.time;
+            DispatchEvent(&textEvent, status);
         }
     }
 
@@ -3186,8 +3184,10 @@ nsWindow::OnVisibilityNotifyEvent(GdkEventVisibility *aEvent)
 
         mIsFullyObscured = false;
 
-        // if we have to retry the grab, retry it.
-        EnsureGrabs();
+        if (!nsGtkIMModule::IsVirtualKeyboardOpened()) {
+            // if we have to retry the grab, retry it.
+            EnsureGrabs();
+        }
         break;
     default: // includes GDK_VISIBILITY_FULLY_OBSCURED
         mIsFullyObscured = true;
@@ -3626,8 +3626,6 @@ nsWindow::Create(nsIWidget        *aParent,
     }
         break;
     case eWindowType_plugin:
-    case eWindowType_plugin_ipc_chrome:
-    case eWindowType_plugin_ipc_content:
     case eWindowType_child: {
         if (parentMozContainer) {
             mGdkWindow = CreateGdkWindow(parentGdkWindow, parentMozContainer);
@@ -4087,13 +4085,6 @@ nsWindow::GetTransparencyMode()
 nsresult
 nsWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
 {
-    // If this is a remotely updated widget we receive clipping, position, and
-    // size information from a source other than our owner. Don't let our parent
-    // update this information.
-    if (mWindowType == eWindowType_plugin_ipc_chrome) {
-      return NS_OK;
-    }
-
     for (uint32_t i = 0; i < aConfigurations.Length(); ++i) {
         const Configuration& configuration = aConfigurations[i];
         nsWindow* w = static_cast<nsWindow*>(configuration.mChild);
@@ -4161,7 +4152,7 @@ GetIntRects(pixman_region32& aRegion, nsTArray<nsIntRect>* aRects)
     }
 }
 
-nsresult
+void
 nsWindow::SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
                               bool aIntersectWithExisting)
 {
@@ -4185,7 +4176,7 @@ nsWindow::SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
         // need to set the clip even if it is equal.
         if (mClipRects &&
             pixman_region32_equal(&intersectRegion, &existingRegion)) {
-            return NS_OK;
+            return;
         }
 
         if (!pixman_region32_equal(&intersectRegion, &newRegion)) {
@@ -4195,10 +4186,10 @@ nsWindow::SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
     }
 
     if (!StoreWindowClipRegion(*newRects))
-        return NS_OK;
+        return;
 
     if (!mGdkWindow)
-        return NS_OK;
+        return;
 
 #if (MOZ_WIDGET_GTK == 2)
     GdkRegion *region = gdk_region_new(); // aborts on OOM
@@ -4221,8 +4212,8 @@ nsWindow::SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
     gdk_window_shape_combine_region(mGdkWindow, region, 0, 0);
     cairo_region_destroy(region);
 #endif
-
-    return NS_OK;
+  
+    return;
 }
 
 void
@@ -6006,7 +5997,7 @@ nsWindow::GetIMEUpdatePreference()
         nsIMEUpdatePreference::NOTIFY_SELECTION_CHANGE);
     // We shouldn't notify IME of selection change caused by changes of
     // composition string.  Therefore, we don't need to be notified selection
-    // changes which are caused by compositionchange events handled.
+    // changes which are caused by text events handled.
     updatePreference.DontNotifyChangesCausedByComposition();
     return updatePreference;
 }

@@ -24,8 +24,8 @@ let utils = {};
 loader.loadSubScript("chrome://marionette/content/EventUtils.js", utils);
 loader.loadSubScript("chrome://marionette/content/ChromeUtils.js", utils);
 
-function sendKeysToElement (document, element, keysToSend, successCallback, errorCallback, command_id, context) {
-  if (context == "chrome" || checkVisible(element)) {
+function sendKeysToElement (document, element, keysToSend, successCallback, errorCallback, command_id) {
+  if (checkVisible(element)) {
     element.focus();
     var value = keysToSend.join("");
     let hasShift = null;
@@ -33,6 +33,7 @@ function sendKeysToElement (document, element, keysToSend, successCallback, erro
     let hasAlt = null;
     let hasMeta = null;
     for (var i = 0; i < value.length; i++) {
+      let upper = value.charAt(i).toUpperCase();
       var keyCode = null;
       var c = value.charAt(i);
       switch (c) {
@@ -61,15 +62,15 @@ function sendKeysToElement (document, element, keysToSend, successCallback, erro
           break;
         case '\uE009':
           keyCode = "VK_CONTROL";
-          hasCtrl = !hasCtrl;
+          controlKey = !controlKey;
           break;
         case '\uE00A':
           keyCode = "VK_ALT";
-          hasAlt = !hasAlt;
+          altKey = !altKey;
           break;
         case '\uE03D':
           keyCode = "VK_META";
-          hasMeta = !hasMeta;
+          metaKey = !metaKey;
           break;
         case '\uE00B':
           keyCode = "VK_PAUSE";
@@ -201,9 +202,7 @@ function sendKeysToElement (document, element, keysToSend, successCallback, erro
           keyCode = "VK_F12";
           break;
       }
-      let charCode = c.charCodeAt(0);
-      let isUpper = charCode >= 65 && charCode <= 90;
-      hasShift = isUpper || hasShift;
+      hasShift = value.charAt(i) == upper;
       utils.synthesizeKey(keyCode || value[i],
                           { shiftKey: hasShift, ctrlKey: hasCtrl, altKey: hasAlt, metaKey: hasMeta },
                           document);

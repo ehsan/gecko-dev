@@ -6,7 +6,6 @@
 
 #include "common/angleutils.h"
 
-#include <stdio.h>
 #include <vector>
 
 std::string FormatString(const char *fmt, va_list vararg)
@@ -25,7 +24,7 @@ std::string FormatString(const char *fmt, va_list vararg)
         vsnprintf(&buffer[0], buffer.size(), fmt, vararg);
     }
 
-    return std::string(&buffer[0], len);
+    return std::string(buffer.data(), len);
 }
 
 std::string FormatString(const char *fmt, ...)

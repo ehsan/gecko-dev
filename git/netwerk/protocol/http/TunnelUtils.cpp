@@ -353,9 +353,6 @@ TLSFilterTransaction::WriteSegments(nsAHttpSegmentWriter *aWriter,
   if (NS_SUCCEEDED(rv) && NS_FAILED(mFilterReadCode) && !(*outCountWritten)) {
     // nsPipe turns failures into silent OK.. undo that!
     rv = mFilterReadCode;
-    if (mFilterReadCode == NS_BASE_STREAM_WOULD_BLOCK) {
-      Connection()->ResumeRecv();
-    }
   }
   LOG(("TLSFilterTransaction %p called trans->WriteSegments rv=%x %d\n",
        this, rv, *outCountWritten));
@@ -369,8 +366,7 @@ TLSFilterTransaction::GetTransactionSecurityInfo(nsISupports **outSecInfo)
     return NS_ERROR_FAILURE;
   }
 
-  nsCOMPtr<nsISupports> temp(mSecInfo);
-  temp.forget(outSecInfo);
+  NS_ADDREF(*outSecInfo = mSecInfo);
   return NS_OK;
 }
 
@@ -386,13 +382,7 @@ TLSFilterTransaction::NudgeTunnel(NudgeTunnelCallback *aCallback)
   }
 
   uint32_t notUsed;
-  int32_t written = PR_Write(mFD, "", 0);
-  if ((written < 0) && (PR_GetError() != PR_WOULD_BLOCK_ERROR)) {
-    // fatal handshake failure
-    LOG(("TLSFilterTransaction %p Fatal Handshake Failure: %d\n", this, PR_GetError()));
-    return NS_ERROR_FAILURE;
-  }
-
+  PR_Write(mFD, "", 0);
   OnReadSegment("", 0, &notUsed);
 
   // The SSL Layer does some unusual things with PR_Poll that makes it a bad
@@ -1550,12 +1540,6 @@ SocketTransportShim::Close(nsresult aReason)
 
 NS_IMETHODIMP
 SocketTransportShim::SetEventSink(nsITransportEventSink *aSink, nsIEventTarget *aEventTarget)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-SocketTransportShim::Bind(NetAddr *aLocalAddr)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }

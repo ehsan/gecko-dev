@@ -30,7 +30,6 @@ __declspec(dllimport) unsigned long __stdcall TlsAlloc();
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/NullPtr.h"
-#include "mozilla/TypeTraits.h"
 
 namespace mozilla {
 
@@ -79,20 +78,10 @@ class ThreadLocal
   typedef pthread_key_t key_t;
 #endif
 
-  // Integral types narrower than void* must be extended to avoid
-  // warnings from valgrind on some platforms.  This helper type
-  // achieves that without penalizing the common case of ThreadLocals
-  // instantiated using a pointer type.
-  template<typename S>
-  struct Helper
+  union Helper
   {
-    typedef uintptr_t Type;
-  };
-
-  template<typename S>
-  struct Helper<S *>
-  {
-    typedef S *Type;
+    void* mPtr;
+    T mValue;
   };
 
 public:
@@ -113,9 +102,6 @@ template<typename T>
 inline bool
 ThreadLocal<T>::init()
 {
-  static_assert(mozilla::IsPointer<T>::value || mozilla::IsIntegral<T>::value,
-                "mozilla::ThreadLocal must be used with a pointer or "
-                "integral type");
   static_assert(sizeof(T) <= sizeof(void*),
                 "mozilla::ThreadLocal can't be used for types larger than "
                 "a pointer");
@@ -134,13 +120,13 @@ inline T
 ThreadLocal<T>::get() const
 {
   MOZ_ASSERT(initialized());
-  void* h;
+  Helper h;
 #ifdef XP_WIN
-  h = TlsGetValue(mKey);
+  h.mPtr = TlsGetValue(mKey);
 #else
-  h = pthread_getspecific(mKey);
+  h.mPtr = pthread_getspecific(mKey);
 #endif
-  return static_cast<T>(reinterpret_cast<typename Helper<T>::Type>(h));
+  return h.mValue;
 }
 
 template<typename T>
@@ -148,11 +134,12 @@ inline void
 ThreadLocal<T>::set(const T aValue)
 {
   MOZ_ASSERT(initialized());
-  void* h = reinterpret_cast<void*>(static_cast<typename Helper<T>::Type>(aValue));
+  Helper h;
+  h.mValue = aValue;
 #ifdef XP_WIN
-  bool succeeded = TlsSetValue(mKey, h);
+  bool succeeded = TlsSetValue(mKey, h.mPtr);
 #else
-  bool succeeded = !pthread_setspecific(mKey, h);
+  bool succeeded = !pthread_setspecific(mKey, h.mPtr);
 #endif
   if (!succeeded) {
     MOZ_CRASH();

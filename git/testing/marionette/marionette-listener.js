@@ -102,15 +102,13 @@ function registerSelf() {
 
   if (register[0]) {
     listenerId = register[0][0].id;
-    if (typeof listenerId != "undefined") {
-      // check if we're the main process
-      if (register[0][1] == true) {
-        addMessageListener("MarionetteMainListener:emitTouchEvent", emitTouchEventForIFrame);
-      }
-      importedScripts = FileUtils.getDir('TmpD', [], false);
-      importedScripts.append('marionetteContentScripts');
-      startListeners();
+    // check if we're the main process
+    if (register[0][1] == true) {
+      addMessageListener("MarionetteMainListener:emitTouchEvent", emitTouchEventForIFrame);
     }
+    importedScripts = FileUtils.getDir('TmpD', [], false);
+    importedScripts.append('marionetteContentScripts');
+    startListeners();
   }
 }
 
@@ -266,7 +264,6 @@ function deleteSession(msg) {
   removeMessageListenerId("Marionette:getActiveElement", getActiveElement);
   removeMessageListenerId("Marionette:clickElement", clickElement);
   removeMessageListenerId("Marionette:getElementAttribute", getElementAttribute);
-  removeMessageListenerId("Marionette:getElementText", getElementText);
   removeMessageListenerId("Marionette:getElementTagName", getElementTagName);
   removeMessageListenerId("Marionette:isElementDisplayed", isElementDisplayed);
   removeMessageListenerId("Marionette:getElementValueOfCssProperty", getElementValueOfCssProperty);
@@ -782,42 +779,33 @@ function coordinates(target, x, y) {
 }
 
 /**
- * This function returns true if the given coordinates are in the viewport.
- * @param 'x', and 'y' are the coordinates relative to the target.
- *        If they are not specified, then the center of the target is used.
+ * This function returns if the element is in viewport
  */
-function elementInViewport(el, x, y) {
-  let c = coordinates(el, x, y);
+function elementInViewport(el) {
+  let rect = el.getBoundingClientRect();
   let viewPort = {top: curFrame.pageYOffset,
                   left: curFrame.pageXOffset,
                   bottom: (curFrame.pageYOffset + curFrame.innerHeight),
                   right:(curFrame.pageXOffset + curFrame.innerWidth)};
-  return (viewPort.left <= c.x + curFrame.pageXOffset &&
-          c.x + curFrame.pageXOffset <= viewPort.right &&
-          viewPort.top <= c.y + curFrame.pageYOffset &&
-          c.y + curFrame.pageYOffset <= viewPort.bottom);
+  return (viewPort.left <= rect.right + curFrame.pageXOffset &&
+          rect.left + curFrame.pageXOffset <= viewPort.right &&
+          viewPort.top <= rect.bottom + curFrame.pageYOffset &&
+          rect.top + curFrame.pageYOffset <= viewPort.bottom);
 }
 
 /**
- * This function throws the visibility of the element error if the element is
- * not displayed or the given coordinates are not within the viewport.
- * @param 'x', and 'y' are the coordinates relative to the target.
- *        If they are not specified, then the center of the target is used.
+ * This function throws the visibility of the element error
  */
-function checkVisible(el, x, y) {
-  // Bug 1094246 - Webdriver's isShown doesn't work with content xul
-  if (utils.getElementAttribute(el, "namespaceURI").indexOf("there.is.only.xul") == -1) {
-    //check if the element is visible
-    let visible = utils.isElementDisplayed(el);
-    if (!visible) {
-      return false;
-    }
+function checkVisible(el) {
+  //check if the element is visible
+  let visible = utils.isElementDisplayed(el);
+  if (!visible) {
+    return false;
   }
-
   if (el.tagName.toLowerCase() === 'body') {
     return true;
   }
-  if (!elementInViewport(el, x, y)) {
+  if (!elementInViewport(el)) {
     //check if scroll function exist. If so, call it.
     if (el.scrollIntoView) {
       el.scrollIntoView(false);
@@ -946,14 +934,14 @@ function singleTap(msg) {
   try {
     let el = elementManager.getKnownElement(msg.json.id, curFrame);
     // after this block, the element will be scrolled into view
-    if (!checkVisible(el, msg.json.corx, msg.json.cory)) {
+    if (!checkVisible(el)) {
        sendError("Element is not currently visible and may not be manipulated", 11, null, command_id);
        return;
     }
     if (!curFrame.document.createTouch) {
       mouseEventsOnly = true;
     }
-    c = coordinates(el, msg.json.corx, msg.json.cory);
+    let c = coordinates(el, msg.json.corx, msg.json.cory);
     generateEvents('tap', c.x, c.y, null, el);
     sendOk(msg.json.command_id);
   }
@@ -1765,10 +1753,8 @@ function switchToFrame(msg) {
         // and we land up here. Let's not give up and check if there are
         // iframes and switch to the indexed frame there
         let iframes = curFrame.document.getElementsByTagName("iframe");
-        if (msg.json.id >= 0 && msg.json.id < iframes.length) {
-          curFrame = iframes[msg.json.id];
-          foundFrame = msg.json.id;
-        }
+        curFrame = iframes[msg.json.id];
+        foundFrame = msg.json.id
       }
     }
   }
@@ -1804,7 +1790,8 @@ function switchToFrame(msg) {
   * Add a cookie to the document
   */
 function addCookie(msg) {
-  let cookie = msg.json.cookie;
+  cookie = msg.json.cookie;
+
   if (!cookie.expiry) {
     var date = new Date();
     var thePresent = new Date(Date.now());
@@ -1835,12 +1822,10 @@ function addCookie(msg) {
   if (!document || !document.contentType.match(/html/i)) {
     sendError('You may only set cookies on html documents', 25, null, msg.json.command_id);
   }
-
-  let added = sendSyncMessage("Marionette:addCookie", {value: cookie});
-  if (added[0] !== true) {
-    sendError("Error setting cookie", 13, null, msg.json.command_id);
-    return;
-  }
+  var cookieManager = Cc['@mozilla.org/cookiemanager;1'].
+                        getService(Ci.nsICookieManager2);
+  cookieManager.add(cookie.domain, cookie.path, cookie.name, cookie.value,
+                   cookie.secure, false, false, cookie.expiry);
   sendOk(msg.json.command_id);
 }
 
@@ -1850,7 +1835,8 @@ function addCookie(msg) {
 function getCookies(msg) {
   var toReturn = [];
   var cookies = getVisibleCookies(curFrame.location);
-  for (let cookie of cookies) {
+  for (var i = 0; i < cookies.length; i++) {
+    var cookie = cookies[i];
     var expires = cookie.expires;
     if (expires == 0) {  // Session cookie, don't return an expiry.
       expires = null;
@@ -1866,6 +1852,7 @@ function getCookies(msg) {
       'expiry': expires
     });
   }
+
   sendResponse({value: toReturn}, msg.json.command_id);
 }
 
@@ -1873,15 +1860,15 @@ function getCookies(msg) {
  * Delete a cookie by name
  */
 function deleteCookie(msg) {
-  let toDelete = msg.json.name;
-  let cookies = getVisibleCookies(curFrame.location);
-  for (let cookie of cookies) {
+  var toDelete = msg.json.name;
+  var cookieManager = Cc['@mozilla.org/cookiemanager;1'].
+                        getService(Ci.nsICookieManager);
+
+  var cookies = getVisibleCookies(curFrame.location);
+  for (var i = 0; i < cookies.length; i++) {
+    var cookie = cookies[i];
     if (cookie.name == toDelete) {
-      let deleted = sendSyncMessage("Marionette:deleteCookie", {value: cookie});
-      if (deleted[0] !== true) {
-        sendError("Could not delete cookie: " + msg.json.name, 13, null, msg.json.command_id);
-        return;
-      }
+      cookieManager.remove(cookie.host, cookie.name, cookie.path, false);
     }
   }
 
@@ -1892,13 +1879,12 @@ function deleteCookie(msg) {
  * Delete all the visibile cookies on a page
  */
 function deleteAllCookies(msg) {
+  let cookieManager = Cc['@mozilla.org/cookiemanager;1'].
+                        getService(Ci.nsICookieManager);
   let cookies = getVisibleCookies(curFrame.location);
-  for (let cookie of cookies) {
-    let deleted = sendSyncMessage("Marionette:deleteCookie", {value: cookie});
-    if (!deleted[0]) {
-      sendError("Could not delete cookie: " + JSON.stringify(cookie), 13, null, msg.json.command_id);
-      return;
-    }
+  for (let i = 0; i < cookies.length; i++) {
+    let cookie = cookies[i];
+    cookieManager.remove(cookie.host, cookie.name, cookie.path, false);
   }
   sendOk(msg.json.command_id);
 }
@@ -1907,10 +1893,32 @@ function deleteAllCookies(msg) {
  * Get all the visible cookies from a location
  */
 function getVisibleCookies(location) {
-  let currentPath = location.pathname || '/';
-  let result = sendSyncMessage("Marionette:getVisibleCookies",
-                               {value: [currentPath, location.hostname]});
-  return result[0];
+  let results = [];
+  let currentPath = location.pathname;
+  if (!currentPath) currentPath = '/';
+  let isForCurrentPath = function(aPath) {
+    return currentPath.indexOf(aPath) != -1;
+  }
+
+  let cookieManager = Cc['@mozilla.org/cookiemanager;1'].
+                        getService(Ci.nsICookieManager);
+  let enumerator = cookieManager.enumerator;
+  while (enumerator.hasMoreElements()) {
+    let cookie = enumerator.getNext().QueryInterface(Ci['nsICookie']);
+
+    // Take the hostname and progressively shorten
+    let hostname = location.hostname;
+    do {
+      if ((cookie.host == '.' + hostname || cookie.host == hostname)
+          && isForCurrentPath(cookie.path)) {
+          results.push(cookie);
+          break;
+      }
+      hostname = hostname.replace(/^.*?\./, '');
+    } while (hostname.indexOf('.') != -1);
+  }
+
+  return results;
 }
 
 function getAppCacheStatus(msg) {

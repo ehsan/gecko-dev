@@ -18,7 +18,6 @@ import org.mozilla.gecko.GeckoThread;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.mozglue.ContextUtils.SafeIntent;
 import org.mozilla.gecko.util.NativeJSObject;
 import org.mozilla.gecko.webapp.InstallHelper.InstallCallback;
 
@@ -150,15 +149,15 @@ public class WebappImpl extends GeckoApp implements InstallCallback {
                 installHelper.registerGeckoListener();
             }
             return;
+        } else {
+            launchWebapp(origin);
         }
-
-        launchWebapp(origin);
 
         setTitle(mAppName);
     }
 
     @Override
-    protected String getURIFromIntent(SafeIntent intent) {
+    protected String getURIFromIntent(Intent intent) {
         String uri = super.getURIFromIntent(intent);
         if (uri != null) {
             return uri;

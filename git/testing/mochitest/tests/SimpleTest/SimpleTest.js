@@ -238,33 +238,14 @@ SimpleTest.testPluginIsOOP = function () {
 SimpleTest._tests = [];
 SimpleTest._stopOnLoad = true;
 SimpleTest._cleanupFunctions = [];
-SimpleTest.expected = 'pass';
-SimpleTest.num_failed = 0;
-
-SimpleTest.setExpected = function () {
-  if (parent.TestRunner) {
-    SimpleTest.expected = parent.TestRunner.expected;
-  }
-}
-SimpleTest.setExpected();
 
 /**
  * Something like assert.
 **/
 SimpleTest.ok = function (condition, name, diag) {
-
     var test = {'result': !!condition, 'name': name, 'diag': diag};
-    if (SimpleTest.expected == 'fail') {
-      if (!test.result) {
-        SimpleTest.num_failed++;
-        test.result = !test.result;
-      }
-      var successInfo = {status:"PASS", expected:"PASS", message:"TEST-PASS"};
-      var failureInfo = {status:"FAIL", expected:"FAIL", message:"TEST-KNOWN-FAIL"};
-    } else {
-      var successInfo = {status:"PASS", expected:"PASS", message:"TEST-PASS"};
-      var failureInfo = {status:"FAIL", expected:"PASS", message:"TEST-UNEXPECTED-FAIL"};
-    }
+    var successInfo = {status:"PASS", expected:"PASS", message:"TEST-PASS"};
+    var failureInfo = {status:"FAIL", expected:"PASS", message:"TEST-UNEXPECTED-FAIL"};
     SimpleTest._logResult(test, successInfo, failureInfo);
     SimpleTest._tests.push(test);
 };
@@ -680,7 +661,7 @@ SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
             !SimpleTest.waitForFocus_started) {
             SimpleTest._pendingWaitForFocusCount--;
             SimpleTest.waitForFocus_started = true;
-            SimpleTest.executeSoon(function() { callback(targetWindow) });
+            setTimeout(callback, 0, targetWindow);
         }
     }
 
@@ -838,16 +819,6 @@ SimpleTest.finish = function() {
         } else {
             dump(err + '\n');
         }
-    }
-
-    if (SimpleTest.expected == 'fail' && SimpleTest.num_failed <= 0) {
-        msg = 'We expected at least one failure';
-        var test = {'result': false, 'name': 'fail-if condition in manifest', 'diag': msg};
-        var successInfo = {status:"PASS", expected:"PASS", message:"TEST-PASS"};
-        var failureInfo = {status:"FAIL", expected:"FAIL", message:"TEST-KNOWN-FAIL"};
-
-        SimpleTest._logResult(test, successInfo, failureInfo);
-        SimpleTest._tests.push(test);
     }
 
     SimpleTest.testsLength = SimpleTest._tests.length;

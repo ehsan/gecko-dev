@@ -30,7 +30,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource:///modules/XPCOMUtils.jsm");
 
-const SOURCE = "https://chromium.googlesource.com/chromium/src/net/+/master/http/transport_security_state_static.json?format=TEXT";
+const SOURCE = "https://src.chromium.org/chrome/trunk/src/net/http/transport_security_state_static.json";
 const OUTPUT = "nsSTSPreloadList.inc";
 const ERROR_OUTPUT = "nsSTSPreloadList.errors";
 const MINIMUM_REQUIRED_MAX_AGE = 60 * 60 * 24 * 7 * 18;
@@ -77,16 +77,8 @@ function download() {
     throw "ERROR: problem downloading '" + SOURCE + "': status " + req.status;
   }
 
-  var resultDecoded;
-  try {
-    resultDecoded = atob(req.responseText);
-  }
-  catch (e) {
-    throw "ERROR: could not decode data as base64 from '" + SOURCE + "': " + e;
-  }
-
   // we have to filter out '//' comments
-  var result = resultDecoded.replace(/\/\/[^\n]*\n/g, "");
+  var result = req.responseText.replace(/\/\/[^\n]*\n/g, "");
   var data = null;
   try {
     data = JSON.parse(result);
@@ -122,18 +114,15 @@ function getHosts(rawdata) {
 var gSSService = Cc["@mozilla.org/ssservice;1"]
                    .getService(Ci.nsISiteSecurityService);
 
-function processStsHeader(host, header, status, securityInfo) {
+function processStsHeader(host, header, status) {
   var maxAge = { value: 0 };
   var includeSubdomains = { value: false };
   var error = ERROR_NONE;
-  if (header != null && securityInfo != null) {
+  if (header != null) {
     try {
       var uri = Services.io.newURI("https://" + host.name, null, null);
-      var sslStatus = securityInfo.QueryInterface(Ci.nsISSLStatusProvider)
-                                  .SSLStatus;
       gSSService.processHeader(Ci.nsISiteSecurityService.HEADER_HSTS,
-                               uri, header, sslStatus, 0, maxAge,
-                               includeSubdomains);
+                               uri, header, 0, maxAge, includeSubdomains);
     }
     catch (e) {
       dump("ERROR: could not process header '" + header + "' from " +
@@ -164,30 +153,19 @@ function processStsHeader(host, header, status, securityInfo) {
            originalIncludeSubdomains: host.originalIncludeSubdomains };
 }
 
-// RedirectAndAuthStopper prevents redirects and HTTP authentication
-function RedirectAndAuthStopper() {};
+function RedirectStopper() {};
 
-RedirectAndAuthStopper.prototype = {
+RedirectStopper.prototype = {
   // nsIChannelEventSink
   asyncOnChannelRedirect: function(oldChannel, newChannel, flags, callback) {
     throw Cr.NS_ERROR_ENTITY_CHANGED;
-  },
-
-  // nsIAuthPrompt2
-  promptAuth: function(channel, level, authInfo) {
-    return false;
-  },
-
-  asyncPromptAuth: function(channel, callback, context, level, authInfo) {
-    throw Cr.NS_ERROR_NOT_IMPLEMENTED;
   },
 
   getInterface: function(iid) {
     return this.QueryInterface(iid);
   },
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIChannelEventSink,
-                                         Ci.nsIAuthPrompt2])
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIChannelEventSink])
 };
 
 function getHSTSStatus(host, resultList) {
@@ -197,13 +175,12 @@ function getHSTSStatus(host, resultList) {
   var uri = "https://" + host.name + "/";
   req.open("GET", uri, true);
   req.timeout = REQUEST_TIMEOUT;
-  req.channel.notificationCallbacks = new RedirectAndAuthStopper();
+  req.channel.notificationCallbacks = new RedirectStopper();
   req.onreadystatechange = function(event) {
     if (!inResultList && req.readyState == 4) {
       inResultList = true;
       var header = req.getResponseHeader("strict-transport-security");
-      resultList.push(processStsHeader(host, header, req.status,
-                                       req.channel.securityInfo));
+      resultList.push(processStsHeader(host, header, req.status));
     }
   };
 

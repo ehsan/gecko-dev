@@ -28,10 +28,9 @@ UNIFIED_SOURCES += [
 LOCAL_INCLUDES += [
     '/accessible/base',
     '/accessible/html',
-    '/accessible/ipc',
     '/accessible/xpcom',
     '/accessible/xul',
-    '/dom/base',
+    '/content/base/src',
     '/layout/generic',
     '/layout/xul',
 ]
@@ -55,5 +54,3 @@ else:
     ]
 
 FINAL_LIBRARY = 'xul'
-
-include('/ipc/chromium/chromium-config.mozbuild')

@@ -134,13 +134,9 @@ class DMCli(object):
         self.parser = argparse.ArgumentParser()
         self.add_options(self.parser)
         self.add_commands(self.parser)
-        mozlog.structured.commandline.add_logging_group(self.parser)
 
     def run(self, args=sys.argv[1:]):
         args = self.parser.parse_args()
-
-        mozlog.structured.commandline.setup_logging(
-            'mozdevice', args, {'mach': sys.stdout})
 
         if args.dmtype == "sut" and not args.host and not args.hwid:
             self.parser.error("Must specify device ip in TEST_DEVICE or "
@@ -286,11 +282,14 @@ class DMCli(object):
         info = self.dm.getInfo(directive=args.directive)
         for (infokey, infoitem) in sorted(info.iteritems()):
             if infokey == "process":
-                pass  # skip process list: get that through ps
-            elif args.directive is None:
-                print "%s: %s" % (infokey.upper(), infoitem)
+                pass # skip process list: get that through ps
+            elif not args.directive and not infoitem:
+                print "%s:" % infokey.upper()
+            elif not args.directive:
+                for line in infoitem:
+                    print "%s: %s" % (infokey.upper(), line)
             else:
-                print infoitem
+                print "%s" % "\n".join(infoitem)
 
     def logcat(self, args):
         print ''.join(self.dm.getLogcat())

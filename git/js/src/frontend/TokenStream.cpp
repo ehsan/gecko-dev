@@ -8,7 +8,6 @@
 
 #include "frontend/TokenStream.h"
 
-#include "mozilla/IntegerTypeTraits.h"
 #include "mozilla/PodOperations.h"
 #include "mozilla/UniquePtr.h"
 
@@ -58,7 +57,7 @@ template <typename CharT>
 static const KeywordInfo *
 FindKeyword(const CharT *s, size_t length)
 {
-    MOZ_ASSERT(length != 0);
+    JS_ASSERT(length != 0);
 
     size_t i;
     const KeywordInfo *kw;
@@ -150,7 +149,7 @@ TokenStream::SourceCoords::SourceCoords(ExclusiveContext *cx, uint32_t ln)
     // The first line begins at buffer offset 0.  MAX_PTR is the sentinel.  The
     // appends cannot fail because |lineStartOffsets_| has statically-allocated
     // elements.
-    MOZ_ASSERT(lineStartOffsets_.capacity() >= 2);
+    JS_ASSERT(lineStartOffsets_.capacity() >= 2);
     (void)lineStartOffsets_.reserve(2);
     lineStartOffsets_.infallibleAppend(0);
     lineStartOffsets_.infallibleAppend(maxPtr);
@@ -162,7 +161,7 @@ TokenStream::SourceCoords::add(uint32_t lineNum, uint32_t lineStartOffset)
     uint32_t lineIndex = lineNumToIndex(lineNum);
     uint32_t sentinelIndex = lineStartOffsets_.length() - 1;
 
-    MOZ_ASSERT(lineStartOffsets_[0] == 0 && lineStartOffsets_[sentinelIndex] == MAX_PTR);
+    JS_ASSERT(lineStartOffsets_[0] == 0 && lineStartOffsets_[sentinelIndex] == MAX_PTR);
 
     if (lineIndex == sentinelIndex) {
         // We haven't seen this newline before.  Update lineStartOffsets_.
@@ -178,15 +177,15 @@ TokenStream::SourceCoords::add(uint32_t lineNum, uint32_t lineStartOffset)
     } else {
         // We have seen this newline before (and ungot it).  Do nothing (other
         // than checking it hasn't mysteriously changed).
-        MOZ_ASSERT(lineStartOffsets_[lineIndex] == lineStartOffset);
+        JS_ASSERT(lineStartOffsets_[lineIndex] == lineStartOffset);
     }
 }
 
 MOZ_ALWAYS_INLINE bool
 TokenStream::SourceCoords::fill(const TokenStream::SourceCoords &other)
 {
-    MOZ_ASSERT(lineStartOffsets_.back() == MAX_PTR);
-    MOZ_ASSERT(other.lineStartOffsets_.back() == MAX_PTR);
+    JS_ASSERT(lineStartOffsets_.back() == MAX_PTR);
+    JS_ASSERT(other.lineStartOffsets_.back() == MAX_PTR);
 
     if (lineStartOffsets_.length() >= other.lineStartOffsets_.length())
         return true;
@@ -228,7 +227,7 @@ TokenStream::SourceCoords::lineIndexOf(uint32_t offset) const
         // No luck.  Oh well, we have a better-than-default starting point for
         // the binary search.
         iMin = lastLineIndex_ + 1;
-        MOZ_ASSERT(iMin < lineStartOffsets_.length() - 1);   // -1 due to the sentinel
+        JS_ASSERT(iMin < lineStartOffsets_.length() - 1);   // -1 due to the sentinel
 
     } else {
         iMin = 0;
@@ -246,8 +245,8 @@ TokenStream::SourceCoords::lineIndexOf(uint32_t offset) const
         else
             iMax = iMid;        // offset is below or within lineStartOffsets_[iMid]
     }
-    MOZ_ASSERT(iMax == iMin);
-    MOZ_ASSERT(lineStartOffsets_[iMin] <= offset && offset < lineStartOffsets_[iMin + 1]);
+    JS_ASSERT(iMax == iMin);
+    JS_ASSERT(lineStartOffsets_[iMin] <= offset && offset < lineStartOffsets_[iMin + 1]);
     lastLineIndex_ = iMin;
     return iMin;
 }
@@ -264,7 +263,7 @@ TokenStream::SourceCoords::columnIndex(uint32_t offset) const
 {
     uint32_t lineIndex = lineIndexOf(offset);
     uint32_t lineStartOffset = lineStartOffsets_[lineIndex];
-    MOZ_ASSERT(offset >= lineStartOffset);
+    JS_ASSERT(offset >= lineStartOffset);
     return offset - lineStartOffset;
 }
 
@@ -275,7 +274,7 @@ TokenStream::SourceCoords::lineNumAndColumnIndex(uint32_t offset, uint32_t *line
     uint32_t lineIndex = lineIndexOf(offset);
     *lineNum = lineIndexToNum(lineIndex);
     uint32_t lineStartOffset = lineStartOffsets_[lineIndex];
-    MOZ_ASSERT(offset >= lineStartOffset);
+    JS_ASSERT(offset >= lineStartOffset);
     *columnIndex = offset - lineStartOffset;
 }
 
@@ -284,6 +283,7 @@ TokenStream::SourceCoords::lineNumAndColumnIndex(uint32_t offset, uint32_t *line
 #pragma warning(disable:4351)
 #endif
 
+// Initialize members that aren't initialized in |init|.
 TokenStream::TokenStream(ExclusiveContext *cx, const ReadOnlyCompileOptions &options,
                          const char16_t *base, size_t length, StrictModeGetter *smg)
   : srcCoords(cx, options.lineno),
@@ -293,9 +293,9 @@ TokenStream::TokenStream(ExclusiveContext *cx, const ReadOnlyCompileOptions &opt
     lookahead(),
     lineno(options.lineno),
     flags(),
-    linebase(0),
-    prevLinebase(size_t(-1)),
-    userbuf(cx, base, length, options.column),
+    linebase(base - options.column),
+    prevLinebase(nullptr),
+    userbuf(cx, base - options.column, length + options.column), // See comment below
     filename(options.filename()),
     displayURL_(nullptr),
     sourceMapURL_(nullptr),
@@ -304,6 +304,12 @@ TokenStream::TokenStream(ExclusiveContext *cx, const ReadOnlyCompileOptions &opt
     mutedErrors(options.mutedErrors()),
     strictModeGetter(smg)
 {
+    // Column numbers are computed as offsets from the current line's base, so the
+    // initial line's base must be included in the buffer. linebase and userbuf
+    // were adjusted above, and if we are starting tokenization part way through
+    // this line then adjust the next character.
+    userbuf.setAddressOfNextRawChar(base, /* allowPoisoned = */ true);
+
     // Nb: the following tables could be static, but initializing them here is
     // much easier.  Don't worry, the time to initialize them for each
     // TokenStream is trivial.  See bug 639420.
@@ -342,19 +348,6 @@ TokenStream::TokenStream(ExclusiveContext *cx, const ReadOnlyCompileOptions &opt
 #pragma warning(pop)
 #endif
 
-bool
-TokenStream::checkOptions()
-{
-    // Constrain starting columns to half of the range of a signed 32-bit value,
-    // to avoid overflow.
-    if (options().column >= mozilla::MaxValue<int32_t>::value / 2 + 1) {
-        reportErrorNoOffset(JSMSG_BAD_COLUMN_NUMBER);
-        return false;
-    }
-
-    return true;
-}
-
 TokenStream::~TokenStream()
 {
 }
@@ -372,9 +365,9 @@ MOZ_ALWAYS_INLINE void
 TokenStream::updateLineInfoForEOL()
 {
     prevLinebase = linebase;
-    linebase = userbuf.offset();
+    linebase = userbuf.addressOfNextRawChar();
     lineno++;
-    srcCoords.add(lineno, linebase);
+    srcCoords.add(lineno, linebase - userbuf.base());
 }
 
 MOZ_ALWAYS_INLINE void
@@ -447,24 +440,24 @@ TokenStream::ungetChar(int32_t c)
 {
     if (c == EOF)
         return;
-    MOZ_ASSERT(!userbuf.atStart());
+    JS_ASSERT(!userbuf.atStart());
     userbuf.ungetRawChar();
     if (c == '\n') {
 #ifdef DEBUG
         int32_t c2 = userbuf.peekRawChar();
-        MOZ_ASSERT(TokenBuf::isRawEOLChar(c2));
+        JS_ASSERT(TokenBuf::isRawEOLChar(c2));
 #endif
 
         // If it's a \r\n sequence, also unget the \r.
         if (!userbuf.atStart())
             userbuf.matchRawCharBackwards('\r');
 
-        MOZ_ASSERT(prevLinebase != size_t(-1));    // we should never get more than one EOL char
+        JS_ASSERT(prevLinebase);    // we should never get more than one EOL char
         linebase = prevLinebase;
-        prevLinebase = size_t(-1);
+        prevLinebase = nullptr;
         lineno--;
     } else {
-        MOZ_ASSERT(userbuf.peekRawChar() == c);
+        JS_ASSERT(userbuf.peekRawChar() == c);
     }
 }
 
@@ -473,7 +466,7 @@ TokenStream::ungetCharIgnoreEOL(int32_t c)
 {
     if (c == EOF)
         return;
-    MOZ_ASSERT(!userbuf.atStart());
+    JS_ASSERT(!userbuf.atStart());
     userbuf.ungetRawChar();
 }
 
@@ -502,10 +495,10 @@ TokenStream::peekChars(int n, char16_t *cp)
     return i == n;
 }
 
-size_t
-TokenStream::TokenBuf::findEOLMax(size_t start, size_t max)
+const char16_t *
+TokenStream::TokenBuf::findEOLMax(const char16_t *p, size_t max)
 {
-    const char16_t *p = rawCharPtrAt(start);
+    JS_ASSERT(base_ <= p && p <= limit_);
 
     size_t n = 0;
     while (true) {
@@ -513,23 +506,23 @@ TokenStream::TokenBuf::findEOLMax(size_t start, size_t max)
             break;
         if (n >= max)
             break;
-        n++;
         if (TokenBuf::isRawEOLChar(*p++))
             break;
+        n++;
     }
-    return start + n;
+    return p;
 }
 
 void
 TokenStream::advance(size_t position)
 {
-    const char16_t *end = userbuf.rawCharPtrAt(position);
+    const char16_t *end = userbuf.base() + position;
     while (userbuf.addressOfNextRawChar() < end)
         getChar();
 
     Token *cur = &tokens[cursor];
-    cur->pos.begin = userbuf.offset();
-    MOZ_MAKE_MEM_UNDEFINED(&cur->type, sizeof(cur->type));
+    cur->pos.begin = userbuf.addressOfNextRawChar() - userbuf.base();
+    cur->type = TOK_ERROR;
     lookahead = 0;
 }
 
@@ -683,6 +676,8 @@ TokenStream::reportCompileErrorNumberVA(uint32_t offset, unsigned flags, unsigne
     // means that any error involving a multi-line token (e.g. an unterminated
     // multi-line string literal) won't have a context printed.
     if (offset != NoOffset && err.report.lineno == lineno && !callerFilename) {
+        const char16_t *tokenStart = userbuf.base() + offset;
+
         // We show only a portion (a "window") of the line around the erroneous
         // token -- the first char in the token, plus |windowRadius| chars
         // before it and |windowRadius - 1| chars after it.  This is because
@@ -690,27 +685,20 @@ TokenStream::reportCompileErrorNumberVA(uint32_t offset, unsigned flags, unsigne
         // helpful, and (b) can waste a lot of memory.  See bug 634444.
         static const size_t windowRadius = 60;
 
-        // The window must start within the current line, no earlier than
-        // windowRadius characters before offset.
-        size_t windowStart = (offset - linebase > windowRadius) ?
-                             offset - windowRadius :
-                             linebase;
+        // Truncate at the front if necessary.
+        const char16_t *windowBase = (linebase + windowRadius < tokenStart)
+                                 ? tokenStart - windowRadius
+                                 : linebase;
+        uint32_t windowOffset = tokenStart - windowBase;
 
-        // The window must start within the portion of the current line
-        // that we actually have in our buffer.
-        if (windowStart < userbuf.startOffset())
-            windowStart = userbuf.startOffset();
-
-        // The window must end within the current line, no later than
-        // windowRadius after offset.
-        size_t windowEnd = userbuf.findEOLMax(offset, windowRadius);
-        size_t windowLength = windowEnd - windowStart;
-        MOZ_ASSERT(windowLength <= windowRadius * 2);
+        // Find EOL, or truncate at the back if necessary.
+        const char16_t *windowLimit = userbuf.findEOLMax(tokenStart, windowRadius);
+        size_t windowLength = windowLimit - windowBase;
+        JS_ASSERT(windowLength <= windowRadius * 2);
 
         // Create the windowed strings.
         StringBuffer windowBuf(cx);
-        if (!windowBuf.append(userbuf.rawCharPtrAt(windowStart), windowLength) ||
-            !windowBuf.append((char16_t)0))
+        if (!windowBuf.append(windowBase, windowLength) || !windowBuf.append((char16_t)0))
             return false;
 
         // Unicode and char versions of the window into the offending source
@@ -724,8 +712,8 @@ TokenStream::reportCompileErrorNumberVA(uint32_t offset, unsigned flags, unsigne
         if (!err.report.linebuf)
             return false;
 
-        err.report.tokenptr = err.report.linebuf + (offset - windowStart);
-        err.report.uctokenptr = err.report.uclinebuf + (offset - windowStart);
+        err.report.tokenptr = err.report.linebuf + windowOffset;
+        err.report.uctokenptr = err.report.uclinebuf + windowOffset;
     }
 
     if (cx->isJSContext())
@@ -751,17 +739,6 @@ TokenStream::reportError(unsigned errorNumber, ...)
     va_list args;
     va_start(args, errorNumber);
     bool result = reportCompileErrorNumberVA(currentToken().pos.begin, JSREPORT_ERROR, errorNumber,
-                                             args);
-    va_end(args);
-    return result;
-}
-
-bool
-TokenStream::reportErrorNoOffset(unsigned errorNumber, ...)
-{
-    va_list args;
-    va_start(args, errorNumber);
-    bool result = reportCompileErrorNumberVA(NoOffset, JSREPORT_ERROR, errorNumber,
                                              args);
     va_end(args);
     return result;
@@ -874,7 +851,7 @@ TokenStream::getDirective(bool isMultiline, bool shouldWarnDeprecated,
                           const char *errorMsgPragma,
                           UniquePtr<char16_t[], JS::FreePolicy> *destination)
 {
-    MOZ_ASSERT(directiveLength <= 18);
+    JS_ASSERT(directiveLength <= 18);
     char16_t peeked[18];
     int32_t c;
 
@@ -946,7 +923,7 @@ TokenStream::newToken(ptrdiff_t adjust)
 {
     cursor = (cursor + 1) & ntokensMask;
     Token *tp = &tokens[cursor];
-    tp->pos.begin = userbuf.offset() + adjust;
+    tp->pos.begin = userbuf.addressOfNextRawChar() + adjust - userbuf.base();
 
     // NOTE: tp->pos.end is not set until the very end of getTokenInternal().
     MOZ_MAKE_MEM_UNDEFINED(&tp->pos.end, sizeof(tp->pos.end));
@@ -966,7 +943,7 @@ IsTokenSane(Token *tp)
 {
     // Nb: TOK_EOL should never be used in an actual Token;  it should only be
     // returned as a TokenKind from peekTokenSameLine().
-    if (tp->type < 0 || tp->type >= TOK_LIMIT || tp->type == TOK_EOL)
+    if (tp->type < TOK_ERROR || tp->type >= TOK_LIMIT || tp->type == TOK_EOL)
         return false;
 
     if (tp->pos.end < tp->pos.begin)
@@ -1116,8 +1093,8 @@ static const uint8_t firstCharKinds[] = {
 static_assert(LastCharKind < (1 << (sizeof(firstCharKinds[0]) * 8)),
               "Elements of firstCharKinds[] are too small");
 
-bool
-TokenStream::getTokenInternal(TokenKind *ttp, Modifier modifier)
+TokenKind
+TokenStream::getTokenInternal(Modifier modifier)
 {
     int c, qc;
     Token *tp;
@@ -1145,7 +1122,7 @@ TokenStream::getTokenInternal(TokenKind *ttp, Modifier modifier)
     }
 
     c = userbuf.getRawChar();
-    MOZ_ASSERT(c != EOF);
+    JS_ASSERT(c != EOF);
 
     // Chars not in the range 0..127 are rare.  Getting them out of the way
     // early allows subsequent checking to be faster.
@@ -1418,7 +1395,7 @@ TokenStream::getTokenInternal(TokenKind *ttp, Modifier modifier)
 
     // This handles everything else.
     //
-    MOZ_ASSERT(c1kind == Other);
+    JS_ASSERT(c1kind == Other);
     tp = newToken(-1);
     switch (c) {
       case '.':
@@ -1646,25 +1623,17 @@ TokenStream::getTokenInternal(TokenKind *ttp, Modifier modifier)
 
   out:
     flags.isDirtyLine = true;
-    tp->pos.end = userbuf.offset();
-    MOZ_ASSERT(IsTokenSane(tp));
-    *ttp = tp->type;
-    return true;
+    tp->pos.end = userbuf.addressOfNextRawChar() - userbuf.base();
+    JS_ASSERT(IsTokenSane(tp));
+    return tp->type;
 
   error:
     flags.isDirtyLine = true;
-    tp->pos.end = userbuf.offset();
-    MOZ_MAKE_MEM_UNDEFINED(&tp->type, sizeof(tp->type));
-    flags.hadError = true;
-#ifdef DEBUG
-    // Poisoning userbuf on error establishes an invariant: once an erroneous
-    // token has been seen, userbuf will not be consulted again.  This is true
-    // because the parser will deal with the illegal token by aborting parsing
-    // immediately.
-    userbuf.poison();
-#endif
-    MOZ_MAKE_MEM_UNDEFINED(ttp, sizeof(*ttp));
-    return false;
+    tp->pos.end = userbuf.addressOfNextRawChar() - userbuf.base();
+    tp->type = TOK_ERROR;
+    JS_ASSERT(IsTokenSane(tp));
+    onError();
+    return TOK_ERROR;
 }
 
 bool TokenStream::getStringOrTemplateToken(int qc, Token **tp)
@@ -1768,8 +1737,6 @@ bool TokenStream::getStringOrTemplateToken(int qc, Token **tp)
                     if (userbuf.peekRawChar() == '\n')
                         skipChars(1);
                 }
-                updateLineInfoForEOL();
-                updateFlagsForEOL();
             } else if (qc == '`' && c == '$') {
                 if ((nc = getCharIgnoreEOL()) == '{')
                     break;
@@ -1792,6 +1759,22 @@ bool TokenStream::getStringOrTemplateToken(int qc, Token **tp)
     }
     (*tp)->setAtom(atom);
     return true;
+}
+
+void
+TokenStream::onError()
+{
+    flags.hadError = true;
+#ifdef DEBUG
+    // Poisoning userbuf on error establishes an invariant: once an erroneous
+    // token has been seen, userbuf will not be consulted again.  This is true
+    // because the parser will either (a) deal with the TOK_ERROR token by
+    // aborting parsing immediately; or (b) if the TOK_ERROR token doesn't
+    // match what it expected, it will unget the token, and the next getToken()
+    // call will immediately return the just-gotten TOK_ERROR token again
+    // without consulting userbuf, thanks to the lookahead buffer.
+    userbuf.poison();
+#endif
 }
 
 JS_FRIEND_API(int)
@@ -1829,6 +1812,9 @@ frontend::TokenKindToDesc(TokenKind tt)
 #define EMIT_CASE(name, desc) case TOK_##name: return desc;
       FOR_EACH_TOKEN_KIND(EMIT_CASE)
 #undef EMIT_CASE
+      case TOK_ERROR:
+        MOZ_ASSERT_UNREACHABLE("TOK_ERROR should not be passed.");
+        break;
       case TOK_LIMIT:
         MOZ_ASSERT_UNREACHABLE("TOK_LIMIT should not be passed.");
         break;
@@ -1845,6 +1831,7 @@ TokenKindToString(TokenKind tt)
 #define EMIT_CASE(name, desc) case TOK_##name: return "TOK_" #name;
       FOR_EACH_TOKEN_KIND(EMIT_CASE)
 #undef EMIT_CASE
+      case TOK_ERROR: return "TOK_ERROR";
       case TOK_LIMIT: break;
     }
 

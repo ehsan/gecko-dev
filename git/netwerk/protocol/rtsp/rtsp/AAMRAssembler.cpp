@@ -137,20 +137,13 @@ ARTPAssembler::AssemblyStatus AAMRAssembler::addPacket(
         queue->erase(queue->begin());
         ++mNextExpectedSeqNo;
 
-        LOGW("AMR packet too short.");
+        LOGV("AMR packet too short.");
 
         return MALFORMED_PACKET;
     }
 
     unsigned payloadHeader = buffer->data()[0];
-    if (payloadHeader & 0x0f != 0u) {
-        queue->erase(queue->begin());
-        ++mNextExpectedSeqNo;
-
-        LOGW("Wrong payload header");
-
-        return MALFORMED_PACKET;
-    }
+    CHECK_EQ(payloadHeader & 0x0f, 0u);  // RR
 
     Vector<uint8_t> tableOfContents;
 
@@ -161,7 +154,7 @@ ARTPAssembler::AssemblyStatus AAMRAssembler::addPacket(
             queue->erase(queue->begin());
             ++mNextExpectedSeqNo;
 
-            LOGW("Unable to parse TOC.");
+            LOGV("Unable to parse TOC.");
 
             return MALFORMED_PACKET;
         }
@@ -175,7 +168,7 @@ ARTPAssembler::AssemblyStatus AAMRAssembler::addPacket(
             queue->erase(queue->begin());
             ++mNextExpectedSeqNo;
 
-            LOGW("Illegal TOC entry.");
+            LOGV("Illegal TOC entry.");
 
             return MALFORMED_PACKET;
         }
@@ -190,12 +183,7 @@ ARTPAssembler::AssemblyStatus AAMRAssembler::addPacket(
     }
 
     sp<ABuffer> accessUnit = new ABuffer(totalSize);
-    if (!CopyTimes(accessUnit, buffer)) {
-        queue->erase(queue->begin());
-        ++mNextExpectedSeqNo;
-
-        return MALFORMED_PACKET;
-    }
+    CopyTimes(accessUnit, buffer);
 
     size_t dstOffset = 0;
     for (size_t i = 0; i < tableOfContents.size(); ++i) {
@@ -207,7 +195,7 @@ ARTPAssembler::AssemblyStatus AAMRAssembler::addPacket(
             queue->erase(queue->begin());
             ++mNextExpectedSeqNo;
 
-            LOGW("AMR packet too short.");
+            LOGV("AMR packet too short.");
 
             return MALFORMED_PACKET;
         }

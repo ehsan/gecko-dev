@@ -177,9 +177,7 @@ nsFileProtocolHandler::NewURI(const nsACString &spec,
 }
 
 NS_IMETHODIMP
-nsFileProtocolHandler::NewChannel2(nsIURI* uri,
-                                   nsILoadInfo* aLoadInfo,
-                                   nsIChannel** result)
+nsFileProtocolHandler::NewChannel(nsIURI *uri, nsIChannel **result)
 {
     nsFileChannel *chan = new nsFileChannel(uri);
     if (!chan)
@@ -194,12 +192,6 @@ nsFileProtocolHandler::NewChannel2(nsIURI* uri,
 
     *result = chan;
     return NS_OK;
-}
-
-NS_IMETHODIMP
-nsFileProtocolHandler::NewChannel(nsIURI *uri, nsIChannel **result)
-{
-    return NewChannel2(uri, nullptr, result);
 }
 
 NS_IMETHODIMP 

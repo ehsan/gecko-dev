@@ -9,7 +9,7 @@
 
 #include "imgLoader.h"
 #include "imgRequestProxy.h"
-#include "ProgressTracker.h"
+#include "imgStatusTracker.h"
 #include "ImageFactory.h"
 #include "Image.h"
 #include "RasterImage.h"
@@ -40,17 +40,14 @@ using namespace mozilla;
 using namespace mozilla::image;
 
 #if defined(PR_LOGGING)
-PRLogModuleInfo*
+PRLogModuleInfo *
 GetImgLog()
 {
-  static PRLogModuleInfo* sImgLog;
+  static PRLogModuleInfo *sImgLog;
   if (!sImgLog)
     sImgLog = PR_NewLogModule("imgRequest");
   return sImgLog;
 }
-#define LOG_TEST(level) (GetImgLog() && PR_LOG_TEST(GetImgLog(), (level)))
-#else
-#define LOG_TEST(level) false
 #endif
 
 NS_IMPL_ISUPPORTS(imgRequest,
@@ -62,7 +59,7 @@ NS_IMPL_ISUPPORTS(imgRequest,
 
 imgRequest::imgRequest(imgLoader* aLoader)
  : mLoader(aLoader)
- , mProgressTracker(new ProgressTracker(nullptr))
+ , mStatusTracker(new imgStatusTracker(nullptr))
  , mValidator(nullptr)
  , mInnerWindowId(0)
  , mCORSMode(imgIRequest::CORS_NONE)
@@ -136,19 +133,19 @@ void imgRequest::ClearLoader() {
   mLoader = nullptr;
 }
 
-already_AddRefed<ProgressTracker>
-imgRequest::GetProgressTracker()
+already_AddRefed<imgStatusTracker>
+imgRequest::GetStatusTracker()
 {
   if (mImage && mGotData) {
-    NS_ABORT_IF_FALSE(!mProgressTracker,
-                      "Should have given mProgressTracker to mImage");
-    return mImage->GetProgressTracker();
+    NS_ABORT_IF_FALSE(!mStatusTracker,
+                      "Should have given mStatusTracker to mImage");
+    return mImage->GetStatusTracker();
   } else {
-    NS_ABORT_IF_FALSE(mProgressTracker,
-                      "Should have mProgressTracker until we create mImage");
-    nsRefPtr<ProgressTracker> progressTracker = mProgressTracker;
-    MOZ_ASSERT(progressTracker);
-    return progressTracker.forget();
+    NS_ABORT_IF_FALSE(mStatusTracker,
+                      "Should have mStatusTracker until we create mImage");
+    nsRefPtr<imgStatusTracker> statusTracker = mStatusTracker;
+    MOZ_ASSERT(statusTracker);
+    return statusTracker.forget();
   }
 }
 
@@ -176,15 +173,15 @@ void imgRequest::AddProxy(imgRequestProxy *proxy)
 
   // If we're empty before adding, we have to tell the loader we now have
   // proxies.
-  nsRefPtr<ProgressTracker> progressTracker = GetProgressTracker();
-  if (progressTracker->ConsumerCount() == 0) {
+  nsRefPtr<imgStatusTracker> statusTracker = GetStatusTracker();
+  if (statusTracker->ConsumerCount() == 0) {
     NS_ABORT_IF_FALSE(mURI, "Trying to SetHasProxies without key uri.");
     if (mLoader) {
       mLoader->SetHasProxies(this);
     }
   }
 
-  progressTracker->AddConsumer(proxy);
+  statusTracker->AddConsumer(proxy);
 }
 
 nsresult imgRequest::RemoveProxy(imgRequestProxy *proxy, nsresult aStatus)
@@ -200,11 +197,11 @@ nsresult imgRequest::RemoveProxy(imgRequestProxy *proxy, nsresult aStatus)
   // below, because Cancel() may result in OnStopRequest being called back
   // before Cancel() returns, leaving the image in a different state then the
   // one it was in at this point.
-  nsRefPtr<ProgressTracker> progressTracker = GetProgressTracker();
-  if (!progressTracker->RemoveConsumer(proxy, aStatus))
+  nsRefPtr<imgStatusTracker> statusTracker = GetStatusTracker();
+  if (!statusTracker->RemoveConsumer(proxy, aStatus))
     return NS_OK;
 
-  if (progressTracker->ConsumerCount() == 0) {
+  if (statusTracker->ConsumerCount() == 0) {
     // If we have no observers, there's nothing holding us alive. If we haven't
     // been cancelled and thus removed from the cache, tell the image loader so
     // we can be evicted from the cache.
@@ -228,7 +225,7 @@ nsresult imgRequest::RemoveProxy(imgRequestProxy *proxy, nsresult aStatus)
        This way, if a proxy is destroyed without calling cancel on it, it won't leak
        and won't leave a bad pointer in the observer list.
      */
-    if (progressTracker->IsLoading() && NS_FAILED(aStatus)) {
+    if (statusTracker->IsLoading() && NS_FAILED(aStatus)) {
       LOG_MSG(GetImgLog(), "imgRequest::RemoveProxy", "load in progress.  canceling");
 
       this->Cancel(NS_BINDING_ABORTED);
@@ -286,7 +283,14 @@ private:
 void imgRequest::Cancel(nsresult aStatus)
 {
   /* The Cancel() method here should only be called by this class. */
+
   LOG_SCOPE(GetImgLog(), "imgRequest::Cancel");
+
+  nsRefPtr<imgStatusTracker> statusTracker = GetStatusTracker();
+
+  statusTracker->MaybeUnblockOnload();
+
+  statusTracker->RecordCancel();
 
   if (NS_IsMainThread()) {
     ContinueCancel(aStatus);
@@ -299,12 +303,10 @@ void imgRequest::ContinueCancel(nsresult aStatus)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  nsRefPtr<ProgressTracker> progressTracker = GetProgressTracker();
-  progressTracker->SyncNotifyProgress(FLAG_HAS_ERROR | FLAG_ONLOAD_UNBLOCKED);
-
   RemoveFromCache();
 
-  if (mRequest && progressTracker->IsLoading()) {
+  nsRefPtr<imgStatusTracker> statusTracker = GetStatusTracker();
+  if (mRequest && statusTracker->IsLoading()) {
      mRequest->Cancel(aStatus);
   }
 }
@@ -365,21 +367,6 @@ nsresult imgRequest::GetURI(ImageURL **aURI)
   return NS_ERROR_FAILURE;
 }
 
-nsresult imgRequest::GetCurrentURI(nsIURI **aURI)
-{
-  MOZ_ASSERT(aURI);
-
-  LOG_FUNC(GetImgLog(), "imgRequest::GetCurrentURI");
-
-  if (mCurrentURI) {
-    *aURI = mCurrentURI;
-    NS_ADDREF(*aURI);
-    return NS_OK;
-  }
-
-  return NS_ERROR_FAILURE;
-}
-
 nsresult imgRequest::GetImageErrorCode()
 {
   return mImageErrorCode;
@@ -413,8 +400,8 @@ void imgRequest::RemoveFromCache()
 
 bool imgRequest::HasConsumers()
 {
-  nsRefPtr<ProgressTracker> progressTracker = GetProgressTracker();
-  return progressTracker && progressTracker->ConsumerCount() > 0;
+  nsRefPtr<imgStatusTracker> statusTracker = GetStatusTracker();
+  return statusTracker && statusTracker->ConsumerCount() > 0;
 }
 
 int32_t imgRequest::Priority() const
@@ -435,8 +422,8 @@ void imgRequest::AdjustPriority(imgRequestProxy *proxy, int32_t delta)
   // concern though is that image loads remain lower priority than other pieces
   // of content such as link clicks, CSS, and JS.
   //
-  nsRefPtr<ProgressTracker> progressTracker = GetProgressTracker();
-  if (!progressTracker->FirstConsumerIs(proxy))
+  nsRefPtr<imgStatusTracker> statusTracker = GetStatusTracker();
+  if (!statusTracker->FirstConsumerIs(proxy))
     return;
 
   nsCOMPtr<nsISupportsPriority> p = do_QueryInterface(mChannel);
@@ -630,10 +617,10 @@ NS_IMETHODIMP imgRequest::OnStartRequest(nsIRequest *aRequest, nsISupports *ctxt
 
   // Figure out if we're multipart
   nsCOMPtr<nsIMultiPartChannel> mpchan(do_QueryInterface(aRequest));
-  nsRefPtr<ProgressTracker> progressTracker = GetProgressTracker();
+  nsRefPtr<imgStatusTracker> statusTracker = GetStatusTracker();
   if (mpchan) {
     mIsMultiPartChannel = true;
-    progressTracker->SetIsMultipart();
+    statusTracker->SetIsMultipart();
   } else {
     NS_ABORT_IF_FALSE(!mIsMultiPartChannel, "Something went wrong");
   }
@@ -670,10 +657,9 @@ NS_IMETHODIMP imgRequest::OnStartRequest(nsIRequest *aRequest, nsISupports *ctxt
     mRequest = chan;
   }
 
-  // Note: refreshing progressTracker in case OnNewSourceData changed it.
-  progressTracker = GetProgressTracker();
-  progressTracker->ResetForNewRequest();
-  progressTracker->SyncNotifyProgress(FLAG_REQUEST_STARTED);
+  // Note: refreshing statusTracker in case OnNewSourceData changed it.
+  statusTracker = GetStatusTracker();
+  statusTracker->OnStartRequest();
 
   nsCOMPtr<nsIChannel> channel(do_QueryInterface(aRequest));
   if (channel)
@@ -697,7 +683,7 @@ NS_IMETHODIMP imgRequest::OnStartRequest(nsIRequest *aRequest, nsISupports *ctxt
   mApplicationCache = GetApplicationCache(aRequest);
 
   // Shouldn't we be dead already if this gets hit?  Probably multipart/x-mixed-replace...
-  if (progressTracker->ConsumerCount() == 0) {
+  if (statusTracker->ConsumerCount() == 0) {
     this->Cancel(NS_IMAGELIB_ERROR_FAILURE);
   }
 
@@ -728,7 +714,6 @@ NS_IMETHODIMP imgRequest::OnStartRequest(nsIRequest *aRequest, nsISupports *ctxt
 NS_IMETHODIMP imgRequest::OnStopRequest(nsIRequest *aRequest, nsISupports *ctxt, nsresult status)
 {
   LOG_FUNC(GetImgLog(), "imgRequest::OnStopRequest");
-  MOZ_ASSERT(NS_IsMainThread(), "Can't send notifications off-main-thread");
 
   // XXXldb What if this is a non-last part of a multipart request?
   // xxx before we release our reference to mRequest, lets
@@ -790,13 +775,10 @@ NS_IMETHODIMP imgRequest::OnStopRequest(nsIRequest *aRequest, nsISupports *ctxt,
   }
 
   if (!mImage) {
-    // We have to fire the OnStopRequest notifications ourselves because there's
+    // We have to fire imgStatusTracker::OnStopRequest ourselves because there's
     // no image capable of doing so.
-    Progress progress =
-      OnStopRequestProgress(lastPart, /* aError = */ false, status);
-
-    nsRefPtr<ProgressTracker> progressTracker = GetProgressTracker();
-    progressTracker->SyncNotifyProgress(progress);
+    nsRefPtr<imgStatusTracker> statusTracker = GetStatusTracker();
+    statusTracker->OnStopRequest(lastPart, status);
   }
 
   mTimedChannel = nullptr;
@@ -890,17 +872,12 @@ imgRequest::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctxt,
       // new status tracker to give to the image, because we don't have one of
       // our own any more.
       if (resniffMimeType) {
-        MOZ_ASSERT(mIsMultiPartChannel, "Resniffing a non-multipart image");
+        NS_ABORT_IF_FALSE(mIsMultiPartChannel, "Resniffing a non-multipart image");
 
-        // Initialize a new status tracker.
-        nsRefPtr<ProgressTracker> freshTracker = new ProgressTracker(nullptr);
-        freshTracker->SetIsMultipart();
-        freshTracker->SyncNotifyProgress(FLAG_REQUEST_STARTED);
-
-        // Replace the old status tracker with it.
-        nsRefPtr<ProgressTracker> oldProgressTracker = GetProgressTracker();
-        freshTracker->AdoptConsumers(oldProgressTracker);
-        mProgressTracker = freshTracker.forget();
+        nsRefPtr<imgStatusTracker> freshTracker = new imgStatusTracker(nullptr);
+        nsRefPtr<imgStatusTracker> oldStatusTracker = GetStatusTracker();
+        freshTracker->AdoptConsumers(oldStatusTracker);
+        mStatusTracker = freshTracker.forget();
       }
 
       SetProperties(chan);
@@ -913,16 +890,17 @@ imgRequest::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctxt,
 
       // Now we can create a new image to hold the data. If we don't have a decoder
       // for this mimetype we'll find out about it here.
-      mImage = ImageFactory::CreateImage(aRequest, mProgressTracker, mContentType,
+      mImage = ImageFactory::CreateImage(aRequest, mStatusTracker, mContentType,
                                          mURI, mIsMultiPartChannel,
                                          static_cast<uint32_t>(mInnerWindowId));
 
       // Release our copy of the status tracker since the image owns it now.
-      mProgressTracker = nullptr;
+      mStatusTracker = nullptr;
 
       // Notify listeners that we have an image.
-      nsRefPtr<ProgressTracker> progressTracker = GetProgressTracker();
-      progressTracker->OnImageAvailable();
+      // XXX(seth): The name of this notification method is pretty misleading.
+      nsRefPtr<imgStatusTracker> statusTracker = GetStatusTracker();
+      statusTracker->OnDataAvailable();
 
       if (mImage->HasError() && !mIsMultiPartChannel) { // Probably bad mimetype
         // We allow multipart images to fail to initialize without cancelling the
@@ -932,7 +910,7 @@ imgRequest::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctxt,
         return NS_BINDING_ABORTED;
       }
 
-      NS_ABORT_IF_FALSE(progressTracker->HasImage(), "Status tracker should have an image!");
+      NS_ABORT_IF_FALSE(statusTracker->HasImage(), "Status tracker should have an image!");
       NS_ABORT_IF_FALSE(mImage, "imgRequest should have an image!");
 
       if (mDecodeRequested)
@@ -1086,24 +1064,16 @@ imgRequest::OnRedirectVerifyCallback(nsresult result)
   mTimedChannel = do_QueryInterface(mChannel);
   mNewRedirectChannel = nullptr;
 
-  if (LOG_TEST(PR_LOG_DEBUG)) {
-    nsAutoCString spec;
-    if (mCurrentURI)
-      mCurrentURI->GetSpec(spec);
-    LOG_MSG_WITH_PARAM(GetImgLog(), "imgRequest::OnChannelRedirect", "old", spec.get());
-  }
+#if defined(PR_LOGGING)
+  nsAutoCString oldspec;
+  if (mCurrentURI)
+    mCurrentURI->GetSpec(oldspec);
+  LOG_MSG_WITH_PARAM(GetImgLog(), "imgRequest::OnChannelRedirect", "old", oldspec.get());
+#endif
 
   // make sure we have a protocol that returns data rather than opens
   // an external application, e.g. mailto:
   mChannel->GetURI(getter_AddRefs(mCurrentURI));
-
-  if (LOG_TEST(PR_LOG_DEBUG)) {
-    nsAutoCString spec;
-    if (mCurrentURI)
-      mCurrentURI->GetSpec(spec);
-    LOG_MSG_WITH_PARAM(GetImgLog(), "imgRequest::OnChannelRedirect", "new", spec.get());
-  }
-
   bool doesNotReturnData = false;
   nsresult rv =
     NS_URIChainHasFlags(mCurrentURI, nsIProtocolHandler::URI_DOES_NOT_RETURN_DATA,

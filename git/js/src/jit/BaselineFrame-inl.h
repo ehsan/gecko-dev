@@ -20,8 +20,8 @@ namespace jit {
 inline void
 BaselineFrame::pushOnScopeChain(ScopeObject &scope)
 {
-    MOZ_ASSERT(*scopeChain() == scope.enclosingScope() ||
-               *scopeChain() == scope.as<CallObject>().enclosingScope().as<DeclEnvObject>().enclosingScope());
+    JS_ASSERT(*scopeChain() == scope.enclosingScope() ||
+              *scopeChain() == scope.as<CallObject>().enclosingScope().as<DeclEnvObject>().enclosingScope());
     scopeChain_ = &scope;
 }
 
@@ -34,17 +34,17 @@ BaselineFrame::popOffScopeChain()
 inline void
 BaselineFrame::popWith(JSContext *cx)
 {
-    if (MOZ_UNLIKELY(isDebuggee()))
+    if (MOZ_UNLIKELY(cx->compartment()->debugMode()))
         DebugScopes::onPopWith(this);
 
-    MOZ_ASSERT(scopeChain()->is<DynamicWithObject>());
+    JS_ASSERT(scopeChain()->is<DynamicWithObject>());
     popOffScopeChain();
 }
 
 inline bool
 BaselineFrame::pushBlock(JSContext *cx, Handle<StaticBlockObject *> block)
 {
-    MOZ_ASSERT(block->needsClone());
+    JS_ASSERT(block->needsClone());
 
     ClonedBlockObject *clone = ClonedBlockObject::create(cx, block, this);
     if (!clone)
@@ -57,7 +57,7 @@ BaselineFrame::pushBlock(JSContext *cx, Handle<StaticBlockObject *> block)
 inline void
 BaselineFrame::popBlock(JSContext *cx)
 {
-    MOZ_ASSERT(scopeChain_->is<ClonedBlockObject>());
+    JS_ASSERT(scopeChain_->is<ClonedBlockObject>());
 
     popOffScopeChain();
 }
@@ -65,8 +65,8 @@ BaselineFrame::popBlock(JSContext *cx)
 inline CallObject &
 BaselineFrame::callObj() const
 {
-    MOZ_ASSERT(hasCallObj());
-    MOZ_ASSERT(fun()->isHeavyweight());
+    JS_ASSERT(hasCallObj());
+    JS_ASSERT(fun()->isHeavyweight());
 
     JSObject *obj = scopeChain();
     while (!obj->is<CallObject>())

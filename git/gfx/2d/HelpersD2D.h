@@ -513,8 +513,7 @@ CreateStrokeStyleForOptions(const StrokeOptions &aStrokeOptions)
 static TemporaryRef<ID2D1Bitmap>
 CreatePartialBitmapForSurface(DataSourceSurface *aSurface, const Matrix &aDestinationTransform,
                               const IntSize &aDestinationSize, ExtendMode aExtendMode,
-                              Matrix &aSourceTransform, ID2D1RenderTarget *aRT,
-                              const IntRect* aSourceRect = nullptr)
+                              Matrix &aSourceTransform, ID2D1RenderTarget *aRT)
 {
   RefPtr<ID2D1Bitmap> bitmap;
 
@@ -539,9 +538,6 @@ CreatePartialBitmapForSurface(DataSourceSurface *aSurface, const Matrix &aDestin
   IntSize size = aSurface->GetSize();
 
   Rect uploadRect(0, 0, Float(size.width), Float(size.height));
-  if (aSourceRect) {
-    uploadRect = Rect(aSourceRect->x, aSourceRect->y, aSourceRect->width, aSourceRect->height);
-  }
 
   // Limit the uploadRect as much as possible without supporting discontiguous uploads 
   //

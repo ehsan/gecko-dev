@@ -30,7 +30,9 @@ public:
 
     virtual gfxFontGroup *Copy(const gfxFontStyle *aStyle);
 
-    virtual gfxFont* GetFirstValidFont(uint32_t aCh = 0x20);
+    virtual gfxFont* GetFirstValidFont();
+
+    virtual gfxFont *GetFontAt(int32_t i);
 
     virtual void UpdateUserFonts();
 
@@ -55,9 +57,6 @@ public:
                                       uint32_t aLength);
 
 private:
-
-    virtual gfxFont *GetFontAt(int32_t i, uint32_t aCh = 0x20);
-
     // @param aLang [in] language to use for pref fonts and system default font
     //        selection, or nullptr for the language guessed from the
     //        gfxFontStyle.

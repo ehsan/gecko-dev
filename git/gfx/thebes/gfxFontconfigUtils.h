@@ -302,6 +302,8 @@ protected:
     nsTHashtable<LangSupportEntry> mLangSupportTable;
     const nsTArray< nsCountedRef<FcPattern> > mEmptyPatternArray;
 
+    nsTArray<nsCString> mAliasForMultiFonts;
+
     FcConfig *mLastConfig;
 
 #ifdef MOZ_BUNDLED_FONTS

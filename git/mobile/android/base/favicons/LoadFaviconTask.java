@@ -20,7 +20,6 @@ import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.favicons.decoders.FaviconDecoder;
 import org.mozilla.gecko.favicons.decoders.LoadFaviconResult;
 import org.mozilla.gecko.util.GeckoJarReader;
-import org.mozilla.gecko.util.IOUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import java.io.IOException;
@@ -32,8 +31,6 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.mozilla.gecko.util.IOUtils.ConsumedInputStream;
 
 /**
  * Class representing the asynchronous task to load a Favicon which is not currently in the in-memory
@@ -52,7 +49,7 @@ public class LoadFaviconTask {
     private static final int MAX_REDIRECTS_TO_FOLLOW = 5;
     // The default size of the buffer to use for downloading Favicons in the event no size is given
     // by the server.
-    public static final int DEFAULT_FAVICON_BUFFER_SIZE = 25000;
+    private static final int DEFAULT_FAVICON_BUFFER_SIZE = 25000;
 
     private static final AtomicInteger nextFaviconLoadId = new AtomicInteger(0);
     private final Context context;
@@ -284,19 +281,46 @@ public class LoadFaviconTask {
             bufferSize = DEFAULT_FAVICON_BUFFER_SIZE;
         }
 
-        // Read the InputStream into a byte[].
-        ConsumedInputStream result = IOUtils.readFully(entity.getContent(), bufferSize);
-        if (result == null) {
-            return null;
+        // Allocate a buffer to hold the raw favicon data downloaded.
+        byte[] buffer = new byte[bufferSize];
+
+        // The offset of the start of the buffer's free space.
+        int bPointer = 0;
+
+        // The quantity of bytes the last call to read yielded.
+        int lastRead = 0;
+        InputStream contentStream = entity.getContent();
+        try {
+            // Fully read the entity into the buffer - decoding of streams is not supported
+            // (and questionably pointful - what would one do with a half-decoded Favicon?)
+            while (lastRead != -1) {
+                // Read as many bytes as are currently available into the buffer.
+                lastRead = contentStream.read(buffer, bPointer, buffer.length - bPointer);
+                bPointer += lastRead;
+
+                // If buffer has overflowed, double its size and carry on.
+                if (bPointer == buffer.length) {
+                    bufferSize *= 2;
+                    byte[] newBuffer = new byte[bufferSize];
+
+                    // Copy the contents of the old buffer into the new buffer.
+                    System.arraycopy(buffer, 0, newBuffer, 0, buffer.length);
+                    buffer = newBuffer;
+                }
+            }
+        } finally {
+            contentStream.close();
         }
 
         // Having downloaded the image, decode it.
-        return FaviconDecoder.decodeFavicon(result.getData(), 0, result.consumedLength);
+        return FaviconDecoder.decodeFavicon(buffer, 0, bPointer + 1);
     }
 
-    // LoadFaviconTasks are performed on a unique background executor thread
+    // LoadFavicon tasks are performed on a unique background executor thread
     // to avoid network blocking.
     public final void execute() {
+        ThreadUtils.assertOnUiThread();
+
         try {
             Favicons.longRunningExecutor.execute(new Runnable() {
                 @Override
@@ -335,23 +359,12 @@ public class LoadFaviconTask {
             return null;
         }
 
-        // Attempt to decode the favicon URL as a data URL. We don't bother storing such URIs in
-        // the database: the cost of decoding them here probably doesn't exceed the cost of mucking
-        // about with the DB.
-        final boolean isEmpty = TextUtils.isEmpty(faviconURL);
-        if (!isEmpty) {
-            LoadFaviconResult uriBitmaps = FaviconDecoder.decodeDataURI(faviconURL);
-            if (uriBitmaps != null) {
-                return pushToCacheAndGetResult(uriBitmaps);
-            }
-        }
-
         String storedFaviconUrl;
         boolean isUsingDefaultURL = false;
 
         // Handle the case of malformed favicon URL.
         // If favicon is empty, fall back to the stored one.
-        if (isEmpty) {
+        if (TextUtils.isEmpty(faviconURL)) {
             // Try to get the favicon URL from the memory cache.
             storedFaviconUrl = Favicons.getFaviconURLForPageURLFromCache(pageUrl);
 

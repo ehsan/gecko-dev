@@ -16,12 +16,6 @@
 #include "nsDeviceContext.h"
 #include "nsIFrame.h"
 #include <algorithm>
-#include "LayersLogging.h"
-
-// If debugging this code you may wish to enable this logging, and also
-// uncomment the DumpFrameTree call near the bottom of the file.
-#define PET_LOG(...)
-// #define PET_LOG(...) printf_stderr("PET: " __VA_ARGS__);
 
 namespace mozilla {
 
@@ -74,7 +68,6 @@ struct EventRadiusPrefs
   bool mEnabled;
   bool mRegistered;
   bool mTouchOnly;
-  bool mRepositionEventCoords;
 };
 
 static EventRadiusPrefs sMouseEventRadiusPrefs;
@@ -118,9 +111,6 @@ GetPrefsFor(EventClassID aEventClassID)
     } else {
       prefs->mTouchOnly = false;
     }
-
-    nsPrintfCString repositionPref("ui.%s.radius.reposition", prefBranch);
-    Preferences::AddBoolVarCache(&prefs->mRepositionEventCoords, repositionPref.get(), false);
   }
 
   return prefs;
@@ -253,8 +243,7 @@ ClipToFrame(nsIFrame* aRootFrame, nsIFrame* aFrame, nsRect& aRect)
 
 static nsRect
 GetTargetRect(nsIFrame* aRootFrame, const nsPoint& aPointRelativeToRootFrame,
-              nsIFrame* aRestrictToDescendants, const EventRadiusPrefs* aPrefs,
-              uint32_t aFlags)
+              nsIFrame* aRestrictToDescendants, const EventRadiusPrefs* aPrefs)
 {
   nsMargin m(AppUnitsFromMM(aRootFrame, aPrefs->mSideRadii[0], true),
              AppUnitsFromMM(aRootFrame, aPrefs->mSideRadii[1], false),
@@ -262,13 +251,7 @@ GetTargetRect(nsIFrame* aRootFrame, const nsPoint& aPointRelativeToRootFrame,
              AppUnitsFromMM(aRootFrame, aPrefs->mSideRadii[3], false));
   nsRect r(aPointRelativeToRootFrame, nsSize(0,0));
   r.Inflate(m);
-  if (!(aFlags & INPUT_IGNORE_ROOT_SCROLL_FRAME)) {
-    // Don't clip this rect to the root scroll frame if the flag to ignore the
-    // root scroll frame is set. Note that the GetClosest code will still enforce
-    // that the target found is a descendant of aRestrictToDescendants.
-    r = ClipToFrame(aRootFrame, aRestrictToDescendants, r);
-  }
-  return r;
+  return ClipToFrame(aRootFrame, aRestrictToDescendants, r);
 }
 
 static float
@@ -324,7 +307,6 @@ GetClosest(nsIFrame* aRoot, const nsPoint& aPointRelativeToRootFrame,
   nsRegion exposedRegion(aTargetRect);
   for (uint32_t i = 0; i < aCandidates.Length(); ++i) {
     nsIFrame* f = aCandidates[i];
-    PET_LOG("Checking candidate %p\n", f);
 
     bool preservesAxisAlignedRectangles = false;
     nsRect borderBox = nsLayoutUtils::TransformFrameRectToAncestor(f,
@@ -333,7 +315,6 @@ GetClosest(nsIFrame* aRoot, const nsPoint& aPointRelativeToRootFrame,
     region.And(exposedRegion, borderBox);
 
     if (region.IsEmpty()) {
-      PET_LOG("  candidate %p had empty hit region\n", f);
       continue;
     }
 
@@ -343,18 +324,15 @@ GetClosest(nsIFrame* aRoot, const nsPoint& aPointRelativeToRootFrame,
       SubtractFromExposedRegion(&exposedRegion, region);
     }
 
-    if (!IsElementClickable(f, nsGkAtoms::body)) {
-      PET_LOG("  candidate %p was not clickable\n", f);
+    if (!IsElementClickable(f)) {
       continue;
     }
     // If our current closest frame is a descendant of 'f', skip 'f' (prefer
     // the nested frame).
     if (bestTarget && nsLayoutUtils::IsProperAncestorFrameCrossDoc(f, bestTarget, aRoot)) {
-      PET_LOG("  candidate %p was ancestor for bestTarget %p\n", f, bestTarget);
       continue;
     }
     if (!nsLayoutUtils::IsAncestorFrameCrossDoc(aRestrictToDescendants, f, aRoot)) {
-      PET_LOG("  candidate %p was not descendant of restrictroot %p\n", f, aRestrictToDescendants);
       continue;
     }
 
@@ -367,7 +345,6 @@ GetClosest(nsIFrame* aRoot, const nsPoint& aPointRelativeToRootFrame,
       distance *= aPrefs->mVisitedWeight / 100.0f;
     }
     if (distance < bestDistance) {
-      PET_LOG("  candidate %p is the new best\n", f);
       bestDistance = distance;
       bestTarget = f;
     }
@@ -376,7 +353,7 @@ GetClosest(nsIFrame* aRoot, const nsPoint& aPointRelativeToRootFrame,
 }
 
 nsIFrame*
-FindFrameTargetedByInputEvent(WidgetGUIEvent* aEvent,
+FindFrameTargetedByInputEvent(const WidgetGUIEvent* aEvent,
                               nsIFrame* aRootFrame,
                               const nsPoint& aPointRelativeToRootFrame,
                               uint32_t aFlags)
@@ -385,14 +362,9 @@ FindFrameTargetedByInputEvent(WidgetGUIEvent* aEvent,
      nsLayoutUtils::IGNORE_ROOT_SCROLL_FRAME : 0;
   nsIFrame* target =
     nsLayoutUtils::GetFrameForPoint(aRootFrame, aPointRelativeToRootFrame, flags);
-  PET_LOG("Found initial target %p for event class %s point %s relative to root frame %p\n",
-    target, (aEvent->mClass == eMouseEventClass ? "mouse" :
-             (aEvent->mClass == eTouchEventClass ? "touch" : "other")),
-    mozilla::layers::Stringify(aPointRelativeToRootFrame).c_str(), aRootFrame);
 
   const EventRadiusPrefs* prefs = GetPrefsFor(aEvent->mClass);
   if (!prefs || !prefs->mEnabled || (target && IsElementClickable(target, nsGkAtoms::body))) {
-    PET_LOG("Retargeting disabled or target %p is clickable\n", target);
     return target;
   }
 
@@ -402,7 +374,6 @@ FindFrameTargetedByInputEvent(WidgetGUIEvent* aEvent,
       prefs->mTouchOnly &&
       aEvent->AsMouseEvent()->inputSource !=
         nsIDOMMouseEvent::MOZ_SOURCE_TOUCH) {
-    PET_LOG("Mouse input event is not from a touch source\n");
     return target;
   }
 
@@ -415,9 +386,7 @@ FindFrameTargetedByInputEvent(WidgetGUIEvent* aEvent,
     target->PresContext()->PresShell()->GetRootFrame() : aRootFrame;
 
   nsRect targetRect = GetTargetRect(aRootFrame, aPointRelativeToRootFrame,
-                                    restrictToDescendants, prefs, aFlags);
-  PET_LOG("Expanded point to target rect %s\n",
-    mozilla::layers::Stringify(targetRect).c_str());
+                                    restrictToDescendants, prefs);
   nsAutoTArray<nsIFrame*,8> candidates;
   nsresult rv = nsLayoutUtils::GetFramesForArea(aRootFrame, targetRect, candidates, flags);
   if (NS_FAILED(rv)) {
@@ -427,44 +396,7 @@ FindFrameTargetedByInputEvent(WidgetGUIEvent* aEvent,
   nsIFrame* closestClickable =
     GetClosest(aRootFrame, aPointRelativeToRootFrame, targetRect, prefs,
                restrictToDescendants, candidates);
-  if (closestClickable) {
-    target = closestClickable;
-  }
-  PET_LOG("Final target is %p\n", target);
-
-  // Uncomment this to dump the frame tree to help with debugging.
-  // Note that dumping the frame tree at the top of the function may flood
-  // logcat on Android devices and cause the PET_LOGs to get dropped.
-  // aRootFrame->DumpFrameTree();
-
-  if (!target || !prefs->mRepositionEventCoords) {
-    // No repositioning required for this event
-    return target;
-  }
-
-  // Take the point relative to the root frame, make it relative to the target,
-  // clamp it to the bounds, and then make it relative to the root frame again.
-  nsPoint point = aPointRelativeToRootFrame;
-  if (nsLayoutUtils::TRANSFORM_SUCCEEDED != nsLayoutUtils::TransformPoint(aRootFrame, target, point)) {
-    return target;
-  }
-  point = target->GetRectRelativeToSelf().ClampPoint(point);
-  if (nsLayoutUtils::TRANSFORM_SUCCEEDED != nsLayoutUtils::TransformPoint(target, aRootFrame, point)) {
-    return target;
-  }
-  // Now we basically undo the operations in GetEventCoordinatesRelativeTo, to
-  // get back the (now-clamped) coordinates in the event's widget's space.
-  nsView* view = aRootFrame->GetView();
-  if (!view) {
-    return target;
-  }
-  nsIntPoint widgetPoint = nsLayoutUtils::TranslateViewToWidget(
-        aRootFrame->PresContext(), view, point, aEvent->widget);
-  if (widgetPoint.x != NS_UNCONSTRAINEDSIZE) {
-    // If that succeeded, we update the point in the event
-    aEvent->refPoint = LayoutDeviceIntPoint::FromUntyped(widgetPoint);
-  }
-  return target;
+  return closestClickable ? closestClickable : target;
 }
 
 }

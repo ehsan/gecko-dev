@@ -10,7 +10,7 @@
  * liability, trademark and document use rules apply.
  */
 
-[Constructor, Pref="media.webspeech.recognition.enable"]
+[Pref="media.webspeech.recognition.enable"]
 interface SpeechGrammarList {
     readonly attribute unsigned long length;
     [Throws]

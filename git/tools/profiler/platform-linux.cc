@@ -252,9 +252,15 @@ static void ProfilerSignalThread(ThreadProfile *profile,
   }
 }
 
+// If the Nuwa process is enabled, we need to use the wrapper of tgkill() to
+// perform the mapping of thread ID.
+#ifdef MOZ_NUWA_PROCESS
+extern "C" MFBT_API int tgkill(pid_t tgid, pid_t tid, int signalno);
+#else
 int tgkill(pid_t tgid, pid_t tid, int signalno) {
   return syscall(SYS_tgkill, tgid, tid, signalno);
 }
+#endif
 
 class PlatformData : public Malloced {
  public:
@@ -305,7 +311,7 @@ static void* SignalSender(void* arg) {
         ThreadInfo* info = threads[i];
 
         // This will be null if we're not interested in profiling this thread.
-        if (!info->Profile() || info->IsPendingDelete())
+        if (!info->Profile())
           continue;
 
         PseudoStack::SleepState sleeping = info->Stack()->observeSleeping();
@@ -441,18 +447,6 @@ void Sampler::Stop() {
   }
 }
 
-#ifdef MOZ_NUWA_PROCESS
-static void
-UpdateThreadId(void* aThreadInfo) {
-  ThreadInfo* info = static_cast<ThreadInfo*>(aThreadInfo);
-  // Note that this function is called during thread recreation. Only the thread
-  // calling this method is running. We can't try to acquire
-  // Sampler::sRegisteredThreadsMutex because it could be held by another
-  // thread.
-  info->SetThreadId(gettid());
-}
-#endif
-
 bool Sampler::RegisterCurrentThread(const char* aName,
                                     PseudoStack* aPseudoStack,
                                     bool aIsMainThread, void* stackTop)
@@ -465,7 +459,7 @@ bool Sampler::RegisterCurrentThread(const char* aName,
   int id = gettid();
   for (uint32_t i = 0; i < sRegisteredThreads->size(); i++) {
     ThreadInfo* info = sRegisteredThreads->at(i);
-    if (info->ThreadId() == id && !info->IsPendingDelete()) {
+    if (info->ThreadId() == id) {
       // Thread already registered. This means the first unregister will be
       // too early.
       ASSERT(false);
@@ -484,20 +478,6 @@ bool Sampler::RegisterCurrentThread(const char* aName,
 
   sRegisteredThreads->push_back(info);
 
-#ifdef MOZ_NUWA_PROCESS
-  if (IsNuwaProcess()) {
-    if (info->IsMainThread()) {
-      // Main thread isn't a marked thread. Register UpdateThreadId() to
-      // NuwaAddConstructor(), which runs before all other threads are
-      // recreated.
-      NuwaAddConstructor(UpdateThreadId, info);
-    } else {
-      // Register UpdateThreadInfo() to be run when the thread is recreated.
-      NuwaAddThreadConstructor(UpdateThreadId, info);
-    }
-  }
-#endif
-
   uwt__register_thread_for_profiling(stackTop);
   return true;
 }
@@ -515,18 +495,10 @@ void Sampler::UnregisterCurrentThread()
 
   for (uint32_t i = 0; i < sRegisteredThreads->size(); i++) {
     ThreadInfo* info = sRegisteredThreads->at(i);
-    if (info->ThreadId() == id && !info->IsPendingDelete()) {
-      if (profiler_is_active()) {
-        // We still want to show the results of this thread if you
-        // save the profile shortly after a thread is terminated.
-        // For now we will defer the delete to profile stop.
-        info->SetPendingDelete();
-        break;
-      } else {
-        delete info;
-        sRegisteredThreads->erase(sRegisteredThreads->begin() + i);
-        break;
-      }
+    if (info->ThreadId() == id) {
+      delete info;
+      sRegisteredThreads->erase(sRegisteredThreads->begin() + i);
+      break;
     }
   }
 

@@ -289,15 +289,6 @@ static const FeatureInfo sFeatureInfoArr[] = {
          */
     },
     {
-        "invalidate_framebuffer",
-        430, // OpenGL version
-        300, // OpenGL ES version
-        GLContext::ARB_invalidate_subdata,
-        {
-            GLContext::Extensions_End
-        }
-    },
-    {
         "map_buffer_range",
         300, // OpenGL version
         300, // OpenGL ES version
@@ -554,8 +545,9 @@ static const FeatureInfo sFeatureInfoArr[] = {
         "transform_feedback2",
         400, // OpenGL version
         300, // OpenGL ES version
-        GLContext::ARB_transform_feedback2,
+        GLContext::Extension_None,
         {
+            GLContext::ARB_transform_feedback2,
             GLContext::NV_transform_feedback2,
             GLContext::Extensions_End
         }

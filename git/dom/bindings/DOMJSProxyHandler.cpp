@@ -7,6 +7,7 @@
 #include "mozilla/dom/DOMJSProxyHandler.h"
 #include "xpcpublic.h"
 #include "xpcprivate.h"
+#include "XPCQuickStubs.h"
 #include "XPCWrapper.h"
 #include "WrapperFactory.h"
 #include "nsDOMClassInfo.h"
@@ -59,7 +60,7 @@ struct SetDOMProxyInformation
 {
   SetDOMProxyInformation() {
     js::SetDOMProxyInformation((const void*) &DOMProxyHandler::family,
-                               JSPROXYSLOT_EXPANDO, DOMProxyShadows);
+                               js::PROXY_EXTRA_SLOT + JSPROXYSLOT_EXPANDO, DOMProxyShadows);
   }
 };
 
@@ -140,19 +141,20 @@ DOMProxyHandler::EnsureExpandoObject(JSContext* cx, JS::Handle<JSObject*> obj)
 }
 
 bool
-DOMProxyHandler::preventExtensions(JSContext *cx, JS::Handle<JSObject*> proxy,
-                                   bool *succeeded) const
+DOMProxyHandler::isExtensible(JSContext *cx, JS::Handle<JSObject*> proxy, bool *extensible) const
 {
   // always extensible per WebIDL
-  *succeeded = false;
+  *extensible = true;
   return true;
 }
 
 bool
-DOMProxyHandler::isExtensible(JSContext *cx, JS::Handle<JSObject*> proxy, bool *extensible) const
+DOMProxyHandler::preventExtensions(JSContext *cx, JS::Handle<JSObject*> proxy) const
 {
-  *extensible = true;
-  return true;
+  // Throw a TypeError, per WebIDL.
+  JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+                       JSMSG_CANT_CHANGE_EXTENSIBILITY);
+  return false;
 }
 
 bool
@@ -268,6 +270,18 @@ DOMProxyHandler::delete_(JSContext* cx, JS::Handle<JSObject*> proxy,
 }
 
 bool
+BaseDOMProxyHandler::enumerate(JSContext* cx, JS::Handle<JSObject*> proxy,
+                               AutoIdVector& props) const
+{
+  JS::Rooted<JSObject*> proto(cx);
+  if (!JS_GetPrototype(cx, proxy, &proto))  {
+    return false;
+  }
+  return keys(cx, proxy, props) &&
+         (!proto || js::GetPropertyNames(cx, proto, 0, &props));
+}
+
+bool
 BaseDOMProxyHandler::watch(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id,
                            JS::Handle<JSObject*> callable) const
 {
@@ -281,32 +295,19 @@ BaseDOMProxyHandler::unwatch(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Han
 }
 
 bool
-BaseDOMProxyHandler::ownPropertyKeys(JSContext* cx,
-                                     JS::Handle<JSObject*> proxy,
-                                     JS::AutoIdVector& props) const
+BaseDOMProxyHandler::getOwnPropertyNames(JSContext* cx,
+                                         JS::Handle<JSObject*> proxy,
+                                         JS::AutoIdVector& props) const
 {
-  return ownPropNames(cx, proxy, JSITER_OWNONLY | JSITER_HIDDEN | JSITER_SYMBOLS, props);
+  return ownPropNames(cx, proxy, JSITER_OWNONLY | JSITER_HIDDEN, props);
 }
 
 bool
-BaseDOMProxyHandler::getOwnEnumerablePropertyKeys(JSContext* cx,
-                                                  JS::Handle<JSObject*> proxy,
-                                                  JS::AutoIdVector& props) const
+BaseDOMProxyHandler::keys(JSContext* cx,
+                          JS::Handle<JSObject*> proxy,
+                          JS::AutoIdVector& props) const
 {
   return ownPropNames(cx, proxy, JSITER_OWNONLY, props);
-}
-
-bool
-BaseDOMProxyHandler::getEnumerablePropertyKeys(JSContext* cx,
-                                               JS::Handle<JSObject*> proxy,
-                                               AutoIdVector& props) const
-{
-  JS::Rooted<JSObject*> proto(cx);
-  if (!JS_GetPrototype(cx, proxy, &proto))  {
-    return false;
-  }
-  return getOwnEnumerablePropertyKeys(cx, proxy, props) &&
-         (!proto || js::GetPropertyKeys(cx, proto, 0, &props));
 }
 
 bool
@@ -344,8 +345,7 @@ IdToInt32(JSContext* cx, JS::Handle<jsid> id)
   JS::Rooted<JS::Value> idval(cx);
   double array_index;
   int32_t i;
-  if (JSID_IS_SYMBOL(id) ||
-      !::JS_IdToValue(cx, id, &idval) ||
+  if (!::JS_IdToValue(cx, id, &idval) ||
       !JS::ToNumber(cx, idval, &array_index) ||
       !::JS_DoubleIsInt32(array_index, &i)) {
     return -1;

@@ -37,7 +37,6 @@ class Tickler;
 class nsHttpConnection;
 class nsHttpConnectionInfo;
 class nsHttpTransaction;
-class AltSvcMapping;
 
 //-----------------------------------------------------------------------------
 // nsHttpHandler - protocol handler for HTTP and HTTPS
@@ -109,8 +108,6 @@ public:
     PRIntervalTime SpdyPingThreshold() { return mSpdyPingThreshold; }
     PRIntervalTime SpdyPingTimeout() { return mSpdyPingTimeout; }
     bool           AllowPush()   { return mAllowPush; }
-    bool           AllowAltSvc() { return mEnableAltSvc; }
-    bool           AllowAltSvcOE() { return mEnableAltSvcOE; }
     uint32_t       ConnectTimeout()  { return mConnectTimeout; }
     uint32_t       ParallelSpeculativeConnectLimit() { return mParallelSpeculativeConnectLimit; }
     bool           CriticalRequestPrioritization() { return mCriticalRequestPrioritization; }
@@ -149,9 +146,6 @@ public:
     int32_t GetTCPKeepaliveLongLivedIdleTime() {
       return mTCPKeepaliveLongLivedIdleTimeS;
     }
-
-    // returns the network.http.enforce-framing.http1 preference
-    bool GetEnforceH1Framing() { return mEnforceH1Framing; }
 
     nsHttpAuthCache     *AuthCache(bool aPrivate) {
         return aPrivate ? &mPrivateAuthCache : &mAuthCache;
@@ -223,22 +217,6 @@ public:
     {
         TickleWifi(callbacks);
         return mConnMgr->SpeculativeConnect(ci, callbacks, caps);
-    }
-
-    // Alternate Services Maps are main thread only
-    void UpdateAltServiceMapping(AltSvcMapping *map,
-                                 nsProxyInfo *proxyInfo,
-                                 nsIInterfaceRequestor *callbacks,
-                                 uint32_t caps)
-    {
-        mConnMgr->UpdateAltServiceMapping(map, proxyInfo, callbacks, caps);
-    }
-
-    AltSvcMapping *GetAltServiceMapping(const nsACString &scheme,
-                                        const nsACString &host,
-                                        int32_t port, bool pb)
-    {
-        return mConnMgr->GetAltServiceMapping(scheme, host, port, pb);
     }
 
     //
@@ -435,7 +413,6 @@ private:
     nsCString      mCompatFirefox;
     bool           mCompatFirefoxEnabled;
     nsXPIDLCString mCompatDevice;
-    nsCString      mDeviceModelId;
 
     nsCString      mUserAgent;
     nsXPIDLCString mUserAgentOverride;
@@ -453,6 +430,7 @@ private:
 
     // For broadcasting tracking preference
     bool           mDoNotTrackEnabled;
+    uint8_t        mDoNotTrackValue;
 
     // for broadcasting safe hint;
     bool           mSafeHintEnabled;
@@ -476,8 +454,6 @@ private:
     uint32_t           mCoalesceSpdy : 1;
     uint32_t           mSpdyPersistentSettings : 1;
     uint32_t           mAllowPush : 1;
-    uint32_t           mEnableAltSvc : 1;
-    uint32_t           mEnableAltSvcOE : 1;
 
     // Try to use SPDY features instead of HTTP/1.1 over SSL
     SpdyInformation    mSpdyInfo;
@@ -524,10 +500,6 @@ private:
     bool mTCPKeepaliveLongLivedEnabled;
     // Time (secs) before first keepalive probe; between successful probes.
     int32_t mTCPKeepaliveLongLivedIdleTimeS;
-
-    // if true, generate NS_ERROR_PARTIAL_TRANSFER for h1 responses with
-    // incorrect content lengths or malformed chunked encodings
-    bool mEnforceH1Framing;
 
 private:
     // For Rate Pacing Certain Network Events. Only assign this pointer on

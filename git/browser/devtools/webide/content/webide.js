@@ -21,17 +21,11 @@ const {Devices} = Cu.import("resource://gre/modules/devtools/Devices.jsm");
 const {GetAvailableAddons} = require("devtools/webide/addons");
 const {GetTemplatesJSON, GetAddonsJSON} = require("devtools/webide/remote-resources");
 const utils = require("devtools/webide/utils");
-const Telemetry = require("devtools/shared/telemetry");
-const {RuntimeScanners, WiFiScanner} = require("devtools/webide/runtimes");
-const {showDoorhanger} = require("devtools/shared/doorhanger");
 
 const Strings = Services.strings.createBundle("chrome://browser/locale/devtools/webide.properties");
 
 const HTML = "http://www.w3.org/1999/xhtml";
 const HELP_URL = "https://developer.mozilla.org/docs/Tools/WebIDE/Troubleshooting";
-
-const MAX_ZOOM = 1.4;
-const MIN_ZOOM = 0.6;
 
 // download template index early
 GetTemplatesJSON(true);
@@ -53,9 +47,6 @@ window.addEventListener("unload", function onUnload() {
 
 let UI = {
   init: function() {
-    this._telemetry = new Telemetry();
-    this._telemetry.toolOpened("webide");
-
     AppManager.init();
 
     this.onMessage = this.onMessage.bind(this);
@@ -74,38 +65,19 @@ let UI = {
       this.autoSelectProject();
     });
 
-    // Auto install the ADB Addon Helper and Tools Adapters. Only once.
-    // If the user decides to uninstall any of this addon, we won't install it again.
-    let autoinstallADBHelper = Services.prefs.getBoolPref("devtools.webide.autoinstallADBHelper");
-    let autoinstallFxdtAdapters = Services.prefs.getBoolPref("devtools.webide.autoinstallFxdtAdapters");
-    if (autoinstallADBHelper) {
+    // Auto install the ADB Addon Helper. Only once.
+    // If the user decides to uninstall the addon, we won't install it again.
+    let autoInstallADBHelper = Services.prefs.getBoolPref("devtools.webide.autoinstallADBHelper");
+    if (autoInstallADBHelper && !Devices.helperAddonInstalled) {
       GetAvailableAddons().then(addons => {
         addons.adb.install();
       }, console.error);
     }
-    if (autoinstallFxdtAdapters) {
-      GetAvailableAddons().then(addons => {
-        addons.adapters.install();
-      }, console.error);
-    }
     Services.prefs.setBoolPref("devtools.webide.autoinstallADBHelper", false);
-    Services.prefs.setBoolPref("devtools.webide.autoinstallFxdtAdapters", false);
 
     this.lastConnectedRuntime = Services.prefs.getCharPref("devtools.webide.lastConnectedRuntime");
 
-    if (Services.prefs.getBoolPref("devtools.webide.widget.autoinstall") &&
-        !Services.prefs.getBoolPref("devtools.webide.widget.enabled")) {
-      Services.prefs.setBoolPref("devtools.webide.widget.enabled", true);
-      gDevToolsBrowser.moveWebIDEWidgetInNavbar();
-    }
-
     this.setupDeck();
-
-    this.contentViewer = window.QueryInterface(Ci.nsIInterfaceRequestor)
-                               .getInterface(Ci.nsIWebNavigation)
-                               .QueryInterface(Ci.nsIDocShell)
-                               .contentViewer;
-    this.contentViewer.fullZoom = Services.prefs.getCharPref("devtools.webide.zoom");
   },
 
   uninit: function() {
@@ -113,8 +85,6 @@ let UI = {
     AppManager.off("app-manager-update", this.appManagerUpdate);
     AppManager.uninit();
     window.removeEventListener("message", this.onMessage);
-    this.updateConnectionTelemetry();
-    this._telemetry.toolClosed("webide");
   },
 
   canWindowClose: function() {
@@ -135,11 +105,6 @@ let UI = {
         AppManager.selectedProject.type != "tab") {
       AppManager.validateProject(AppManager.selectedProject);
     }
-
-    // Hook to display promotional Developer Edition doorhanger. Only displayed once.
-    // Hooked into the `onfocus` event because sometimes does not work
-    // when run at the end of `init`. ¯\(°_o)/¯
-    showDoorhanger({ window, type: "deveditionpromo", anchor: document.querySelector("#deck") });
   },
 
   appManagerUpdate: function(event, what, details) {
@@ -152,7 +117,6 @@ let UI = {
       case "connection":
         this.updateRuntimeButton();
         this.updateCommands();
-        this.updateConnectionTelemetry();
         break;
       case "project":
         this._updatePromise = Task.spawn(function() {
@@ -170,10 +134,7 @@ let UI = {
       case "list-tabs-response":
         this.updateCommands();
         break;
-      case "runtime-details":
-        this.updateRuntimeButton();
-        break;
-      case "runtime-changed":
+      case "runtime":
         this.updateRuntimeButton();
         this.saveLastConnectedRuntime();
         break;
@@ -264,13 +225,12 @@ let UI = {
   },
 
   busyWithProgressUntil: function(promise, operationDescription) {
-    let busy = this.busyUntil(promise, operationDescription);
+    this.busyUntil(promise, operationDescription);
     let win = document.querySelector("window");
     let progress = document.querySelector("#action-busy-determined");
     progress.mode = "undetermined";
     win.classList.add("busy-determined");
     win.classList.remove("busy-undetermined");
-    return busy;
   },
 
   busyUntil: function(promise, operationDescription) {
@@ -285,14 +245,7 @@ let UI = {
       this.cancelBusyTimeout();
       this.unbusy();
     }, (e) => {
-      let message;
-      if (e.error && e.message) {
-        // Some errors come from fronts that are not based on protocol.js.
-        // Errors are not translated to strings.
-        message = operationDescription + " (" + e.error + "): " + e.message;
-      } else {
-        message = operationDescription + (e ? (": " + e) : "");
-      }
+      let message = operationDescription + (e ? (": " + e) : "");
       this.cancelBusyTimeout();
       let operationCanceled = e && e.canceled;
       if (!operationCanceled) {
@@ -337,17 +290,17 @@ let UI = {
   /********** RUNTIME **********/
 
   updateRuntimeList: function() {
-    let wifiHeaderNode = document.querySelector("#runtime-header-wifi");
-    if (WiFiScanner.allowed) {
+    let wifiHeaderNode = document.querySelector("#runtime-header-wifi-devices");
+    if (AppManager.isWiFiScanningEnabled) {
       wifiHeaderNode.removeAttribute("hidden");
     } else {
       wifiHeaderNode.setAttribute("hidden", "true");
     }
 
-    let usbListNode = document.querySelector("#runtime-panel-usb");
-    let wifiListNode = document.querySelector("#runtime-panel-wifi");
-    let simulatorListNode = document.querySelector("#runtime-panel-simulator");
-    let otherListNode = document.querySelector("#runtime-panel-other");
+    let USBListNode = document.querySelector("#runtime-panel-usbruntime");
+    let WiFiListNode = document.querySelector("#runtime-panel-wifi-devices");
+    let simulatorListNode = document.querySelector("#runtime-panel-simulators");
+    let customListNode = document.querySelector("#runtime-panel-custom");
 
     let noHelperNode = document.querySelector("#runtime-panel-noadbhelper");
     let noUSBNode = document.querySelector("#runtime-panel-nousbdevice");
@@ -358,27 +311,25 @@ let UI = {
       noHelperNode.removeAttribute("hidden");
     }
 
-    let runtimeList = AppManager.runtimeList;
-
-    if (runtimeList.usb.length === 0 && Devices.helperAddonInstalled) {
+    if (AppManager.runtimeList.usb.length == 0 && Devices.helperAddonInstalled) {
       noUSBNode.removeAttribute("hidden");
     } else {
       noUSBNode.setAttribute("hidden", "true");
     }
 
     for (let [type, parent] of [
-      ["usb", usbListNode],
-      ["wifi", wifiListNode],
+      ["usb", USBListNode],
+      ["wifi", WiFiListNode],
       ["simulator", simulatorListNode],
-      ["other", otherListNode],
+      ["custom", customListNode],
     ]) {
       while (parent.hasChildNodes()) {
         parent.firstChild.remove();
       }
-      for (let runtime of runtimeList[type]) {
+      for (let runtime of AppManager.runtimeList[type]) {
         let panelItemNode = document.createElement("toolbarbutton");
         panelItemNode.className = "panel-item runtime-panel-item-" + type;
-        panelItemNode.setAttribute("label", runtime.name);
+        panelItemNode.setAttribute("label", runtime.getName());
         parent.appendChild(panelItemNode);
         let r = runtime;
         panelItemNode.addEventListener("click", () => {
@@ -400,18 +351,18 @@ let UI = {
 
     type = type.toLowerCase();
 
-    // Local connection is mapped to AppManager.runtimeList.other array
+    // Local connection is mapped to AppManager.runtimeList.custom array
     if (type == "local") {
-      type = "other";
+      type = "custom";
     }
 
     // We support most runtimes except simulator, that needs to be manually
     // launched
-    if (type == "usb" || type == "wifi" || type == "other") {
+    if (type == "usb" || type == "wifi" || type == "custom") {
       for (let runtime of AppManager.runtimeList[type]) {
-        // Some runtimes do not expose an id and don't support autoconnect (like
-        // remote connection)
-        if (runtime.id == id) {
+        // Some runtimes do not expose getID function and don't support
+        // autoconnect (like remote connection)
+        if (typeof(runtime.getID) == "function" && runtime.getID() == id) {
           this.connectToRuntime(runtime);
         }
       }
@@ -419,10 +370,9 @@ let UI = {
   },
 
   connectToRuntime: function(runtime) {
-    let name = runtime.name;
+    let name = runtime.getName();
     let promise = AppManager.connectToRuntime(runtime);
-    promise.then(() => this.initConnectionTelemetry());
-    return this.busyUntil(promise, "connecting to runtime " + name);
+    return this.busyUntil(promise, "connecting to runtime");
   },
 
   updateRuntimeButton: function() {
@@ -430,62 +380,20 @@ let UI = {
     if (!AppManager.selectedRuntime) {
       labelNode.setAttribute("value", Strings.GetStringFromName("runtimeButton_label"));
     } else {
-      let name = AppManager.selectedRuntime.name;
+      let name = AppManager.selectedRuntime.getName();
       labelNode.setAttribute("value", name);
     }
   },
 
   saveLastConnectedRuntime: function () {
     if (AppManager.selectedRuntime &&
-        AppManager.selectedRuntime.id !== undefined) {
-      this.lastConnectedRuntime = AppManager.selectedRuntime.type + ":" +
-                                  AppManager.selectedRuntime.id;
+        typeof(AppManager.selectedRuntime.getID) === "function") {
+      this.lastConnectedRuntime = AppManager.selectedRuntime.type + ":" + AppManager.selectedRuntime.getID();
     } else {
       this.lastConnectedRuntime = "";
     }
     Services.prefs.setCharPref("devtools.webide.lastConnectedRuntime",
                                this.lastConnectedRuntime);
-  },
-
-  _actionsToLog: new Set(),
-
-  /**
-   * For each new connection, track whether play and debug were ever used.  Only
-   * one value is collected for each button, even if they are used multiple
-   * times during a connection.
-   */
-  initConnectionTelemetry: function() {
-    this._actionsToLog.add("play");
-    this._actionsToLog.add("debug");
-  },
-
-  /**
-   * Action occurred.  Log that it happened, and remove it from the loggable
-   * set.
-   */
-  onAction: function(action) {
-    if (!this._actionsToLog.has(action)) {
-      return;
-    }
-    this.logActionState(action, true);
-    this._actionsToLog.delete(action);
-  },
-
-  /**
-   * Connection status changed or we are shutting down.  Record any loggable
-   * actions as having not occurred.
-   */
-  updateConnectionTelemetry: function() {
-    for (let action of this._actionsToLog.values()) {
-      this.logActionState(action, false);
-    }
-    this._actionsToLog.clear();
-  },
-
-  logActionState: function(action, state) {
-    let histogramId = "DEVTOOLS_WEBIDE_CONNECTION_" +
-                      action.toUpperCase() + "_USED";
-    this._telemetry.log(histogramId, state);
   },
 
   /********** PROJECTS **********/
@@ -754,7 +662,6 @@ let UI = {
     }
     deck.selectedPanel = panel;
     this.updateProjectEditorMenusVisibility();
-    this.updateToolboxFullscreenState();
   },
 
   resetDeck: function() {
@@ -782,7 +689,6 @@ let UI = {
       document.querySelector("#cmd_play").setAttribute("disabled", "true");
       document.querySelector("#cmd_stop").setAttribute("disabled", "true");
       document.querySelector("#cmd_toggleToolbox").setAttribute("disabled", "true");
-      document.querySelector("#cmd_showDevicePrefs").setAttribute("disabled", "true");
       return;
     }
 
@@ -796,7 +702,6 @@ let UI = {
     let playCmd = document.querySelector("#cmd_play");
     let stopCmd = document.querySelector("#cmd_stop");
     let debugCmd = document.querySelector("#cmd_toggleToolbox");
-    let playButton = document.querySelector('#action-button-play');
 
     if (!AppManager.selectedProject || AppManager.connection.status != Connection.Status.CONNECTED) {
       playCmd.setAttribute("disabled", "true");
@@ -805,11 +710,9 @@ let UI = {
     } else {
       let isProjectRunning = AppManager.isProjectRunning();
       if (isProjectRunning) {
-        playButton.classList.add("reload");
         stopCmd.removeAttribute("disabled");
         debugCmd.removeAttribute("disabled");
       } else {
-        playButton.classList.remove("reload");
         stopCmd.setAttribute("disabled", "true");
         debugCmd.setAttribute("disabled", "true");
       }
@@ -824,8 +727,7 @@ let UI = {
         playCmd.setAttribute("disabled", "true");
         stopCmd.setAttribute("disabled", "true");
       } else {
-        if (AppManager.selectedProject.errorsCount == 0 &&
-            AppManager.runtimeCanHandleApps()) {
+        if (AppManager.selectedProject.errorsCount == 0) {
           playCmd.removeAttribute("disabled");
         } else {
           playCmd.setAttribute("disabled", "true");
@@ -846,7 +748,6 @@ let UI = {
     let permissionsCmd = document.querySelector("#cmd_showPermissionsTable");
     let detailsCmd = document.querySelector("#cmd_showRuntimeDetails");
     let disconnectCmd = document.querySelector("#cmd_disconnectRuntime");
-    let devicePrefsCmd = document.querySelector("#cmd_showDevicePrefs");
 
     let box = document.querySelector("#runtime-actions");
 
@@ -857,9 +758,6 @@ let UI = {
         permissionsCmd.removeAttribute("disabled");
         screenshotCmd.removeAttribute("disabled");
       }
-      if (AppManager.preferenceFront) {
-        devicePrefsCmd.removeAttribute("disabled");
-      }
       disconnectCmd.removeAttribute("disabled");
       runtimePanelButton.setAttribute("active", "true");
     } else {
@@ -867,7 +765,6 @@ let UI = {
       permissionsCmd.setAttribute("disabled", "true");
       screenshotCmd.setAttribute("disabled", "true");
       disconnectCmd.setAttribute("disabled", "true");
-      devicePrefsCmd.setAttribute("disabled", "true");
       runtimePanelButton.removeAttribute("active");
     }
 
@@ -914,11 +811,9 @@ let UI = {
     splitter.removeAttribute("hidden");
 
     let iframe = document.createElement("iframe");
-    iframe.id = "toolbox";
-
     document.querySelector("notificationbox").insertBefore(iframe, splitter.nextSibling);
     let host = devtools.Toolbox.HostType.CUSTOM;
-    let options = { customIframe: iframe, zoom: false };
+    let options = { customIframe: iframe };
     this.toolboxIframe = iframe;
 
     let height = Services.prefs.getIntPref("devtools.toolbox.footer.height");
@@ -926,20 +821,7 @@ let UI = {
 
     document.querySelector("#action-button-debug").setAttribute("active", "true");
 
-    this.updateToolboxFullscreenState();
     return gDevTools.showToolbox(target, null, host, options);
-  },
-
-  updateToolboxFullscreenState: function() {
-    let panel = document.querySelector("#deck").selectedPanel;
-    let nbox = document.querySelector("#notificationbox");
-    if (panel.id == "deck-panel-details" &&
-        AppManager.selectedProject.type != "packaged" &&
-        this.toolboxIframe) {
-      nbox.setAttribute("toolboxfullscreen", "true");
-    } else {
-      nbox.removeAttribute("toolboxfullscreen");
-    }
   },
 
   closeToolboxUI: function() {
@@ -954,9 +836,9 @@ let UI = {
     let splitter = document.querySelector(".devtools-horizontal-splitter");
     splitter.setAttribute("hidden", "true");
     document.querySelector("#action-button-debug").removeAttribute("active");
-    this.updateToolboxFullscreenState();
   },
-};
+}
+
 
 let Cmds = {
   quit: function() {
@@ -1184,7 +1066,7 @@ let Cmds = {
   },
 
   showRuntimePanel: function() {
-    RuntimeScanners.scan();
+    AppManager.scanForWiFiRuntimes();
 
     let panel = document.querySelector("#runtime-panel");
     let anchor = document.querySelector("#runtime-panel-button > .panel-button-anchor");
@@ -1221,37 +1103,22 @@ let Cmds = {
     UI.selectDeckPanel("runtimedetails");
   },
 
-  showDevicePrefs: function() {
-    UI.selectDeckPanel("devicepreferences");
-  },
-
   showMonitor: function() {
     UI.selectDeckPanel("monitor");
   },
 
   play: function() {
-    let busy;
     switch(AppManager.selectedProject.type) {
       case "packaged":
-        busy = UI.busyWithProgressUntil(AppManager.installAndRunProject(),
-                                        "installing and running app");
-        break;
+        return UI.busyWithProgressUntil(AppManager.installAndRunProject(), "installing and running app");
       case "hosted":
-        busy = UI.busyUntil(AppManager.installAndRunProject(),
-                            "installing and running app");
-        break;
+        return UI.busyUntil(AppManager.installAndRunProject(), "installing and running app");
       case "runtimeApp":
-        busy = UI.busyUntil(AppManager.launchOrReloadRuntimeApp(), "launching / reloading app");
-        break;
+        return UI.busyUntil(AppManager.launchOrReloadRuntimeApp(), "launching / reloading app");
       case "tab":
-        busy = UI.busyUntil(AppManager.reloadTab(), "reloading tab");
-        break;
+        return UI.busyUntil(AppManager.reloadTab(), "reloading tab");
     }
-    if (!busy) {
-      return promise.reject();
-    }
-    UI.onAction("play");
-    return busy;
+    return promise.reject();
   },
 
   stop: function() {
@@ -1259,7 +1126,6 @@ let Cmds = {
   },
 
   toggleToolbox: function() {
-    UI.onAction("debug");
     if (UI.toolboxIframe) {
       UI.destroyToolbox();
       return promise.resolve();
@@ -1291,24 +1157,5 @@ let Cmds = {
 
   showPrefs: function() {
     UI.selectDeckPanel("prefs");
-  },
-
-  zoomIn: function() {
-    if (UI.contentViewer.fullZoom < MAX_ZOOM) {
-      UI.contentViewer.fullZoom += 0.1;
-      Services.prefs.setCharPref("devtools.webide.zoom", UI.contentViewer.fullZoom);
-    }
-  },
-
-  zoomOut: function() {
-    if (UI.contentViewer.fullZoom > MIN_ZOOM) {
-      UI.contentViewer.fullZoom -= 0.1;
-      Services.prefs.setCharPref("devtools.webide.zoom", UI.contentViewer.fullZoom);
-    }
-  },
-
-  resetZoom: function() {
-    UI.contentViewer.fullZoom = 1;
-    Services.prefs.setCharPref("devtools.webide.zoom", 1);
   },
 };

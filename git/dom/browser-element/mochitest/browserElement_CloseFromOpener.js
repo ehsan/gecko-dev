@@ -10,7 +10,7 @@ browserElementTestHelpers.addPermission();
 
 function runTest() {
   var iframe = document.createElement('iframe');
-  iframe.setAttribute('mozbrowser', 'true');
+  SpecialPowers.wrap(iframe).mozbrowser = true;
 
   iframe.addEventListener('mozbrowseropenwindow', function(e) {
     ok(true, "got openwindow event.");

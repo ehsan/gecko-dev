@@ -51,6 +51,12 @@ public:
   }
 
   void
+  ClearDBRefs()
+  {
+    UpdateReferences(mDBRefCnt, 0, true);
+  }
+
+  void
   UpdateSliceRefs(int32_t aDelta)
   {
     UpdateReferences(mSliceRefCnt, aDelta);
@@ -74,10 +80,8 @@ protected:
 private:
   void
   UpdateReferences(ThreadSafeAutoRefCnt& aRefCount,
-                   int32_t aDelta);
-
-  bool
-  LockedClearDBRefs();
+                   int32_t aDelta,
+                   bool aClear = false);
 
   void
   Cleanup();

@@ -6,6 +6,7 @@
 #include "mozilla/dom/Exceptions.h"
 
 #include "js/GCAPI.h"
+#include "js/OldDebugAPI.h"
 #include "jsapi.h"
 #include "jsprf.h"
 #include "mozilla/CycleCollectedJSRuntime.h"

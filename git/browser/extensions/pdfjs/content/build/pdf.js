@@ -22,8 +22,8 @@ if (typeof PDFJS === 'undefined') {
   (typeof window !== 'undefined' ? window : this).PDFJS = {};
 }
 
-PDFJS.version = '1.0.937';
-PDFJS.build = '308646d';
+PDFJS.version = '1.0.801';
+PDFJS.build = 'e77e5c4';
 
 (function pdfjsWrapper() {
   // Use strict in our context only - users might not want it
@@ -1363,14 +1363,6 @@ PDFJS.disableRange = (PDFJS.disableRange === undefined ?
                       false : PDFJS.disableRange);
 
 /**
- * Disable streaming of PDF file data. By default PDF.js attempts to load PDF
- * in chunks. This default behavior can be disabled.
- * @var {boolean}
- */
-PDFJS.disableStream = (PDFJS.disableStream === undefined ?
-                       false : PDFJS.disableStream);
-
-/**
  * Disable pre-fetching of PDF file data. When range requests are enabled PDF.js
  * will automatically keep fetching more data even if it isn't needed to display
  * the current page. This default behavior can be disabled.
@@ -1568,19 +1560,9 @@ var PDFDocumentProxy = (function PDFDocumentProxyClosure() {
     /**
      * @return {Promise} A promise that is resolved with a lookup table for
      * mapping named destinations to reference numbers.
-     *
-     * This can be slow for large documents: use getDestination instead
      */
     getDestinations: function PDFDocumentProxy_getDestinations() {
       return this.transport.getDestinations();
-    },
-    /**
-     * @param {string} id The named destination to get.
-     * @return {Promise} A promise that is resolved with all information
-     * of the given named destination.
-     */
-    getDestination: function PDFDocumentProxy_getDestination(id) {
-      return this.transport.getDestination(id);
     },
     /**
      * @return {Promise} A promise that is resolved with a lookup table for
@@ -2135,12 +2117,6 @@ var WorkerTransport = (function WorkerTransportClosure() {
           });
         });
 
-        pdfDataRangeTransport.addProgressiveReadListener(function(chunk) {
-          messageHandler.send('OnDataRange', {
-            chunk: chunk
-          });
-        });
-
         messageHandler.on('RequestDataRange',
           function transportDataRange(data) {
             pdfDataRangeTransport.requestDataRange(data.begin, data.end);
@@ -2201,12 +2177,6 @@ var WorkerTransport = (function WorkerTransportClosure() {
         this.downloadInfoCapability.resolve(data);
       }, this);
 
-      messageHandler.on('PDFManagerReady', function transportPage(data) {
-        if (this.pdfDataRangeTransport) {
-          this.pdfDataRangeTransport.transportReady();
-        }
-      }, this);
-
       messageHandler.on('StartRenderPage', function transportRender(data) {
         var page = this.pageCache[data.pageIndex];
 
@@ -2238,7 +2208,7 @@ var WorkerTransport = (function WorkerTransportClosure() {
               this.commonObjs.resolve(id, error);
               break;
             } else {
-              font = new FontFaceObject(exportedData);
+              font = new FontFace(exportedData);
             }
 
             FontLoader.bind(
@@ -2351,7 +2321,6 @@ var WorkerTransport = (function WorkerTransportClosure() {
 
     fetchDocument: function WorkerTransport_fetchDocument(source) {
       source.disableAutoFetch = PDFJS.disableAutoFetch;
-      source.disableStream = PDFJS.disableStream;
       source.chunkedViewerLoading = !!this.pdfDataRangeTransport;
       this.messageHandler.send('GetDocRequest', {
         source: source,
@@ -2401,10 +2370,6 @@ var WorkerTransport = (function WorkerTransportClosure() {
 
     getDestinations: function WorkerTransport_getDestinations() {
       return this.messageHandler.sendWithPromise('GetDestinations', null);
-    },
-
-    getDestination: function WorkerTransport_getDestination(id) {
-      return this.messageHandler.sendWithPromise('GetDestination', { id: id } );
     },
 
     getAttachments: function WorkerTransport_getAttachments() {
@@ -2799,8 +2764,6 @@ var Metadata = PDFJS.Metadata = (function MetadataClosure() {
 
 // Minimal font size that would be used during canvas fillText operations.
 var MIN_FONT_SIZE = 16;
-// Maximum font size that would be used during canvas fillText operations.
-var MAX_FONT_SIZE = 100;
 var MAX_GROUP_SIZE = 4096;
 
 var COMPILE_TYPE3_GLYPHS = true;
@@ -4001,9 +3964,9 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       // Keeping the font at minimal size and using the fontSizeScale to change
       // the current transformation matrix before the fillText/strokeText.
       // See https://bugzilla.mozilla.org/show_bug.cgi?id=726227
-      var browserFontSize = size < MIN_FONT_SIZE ? MIN_FONT_SIZE :
-                            size > MAX_FONT_SIZE ? MAX_FONT_SIZE : size;
-      this.current.fontSizeScale = size / browserFontSize;
+      var browserFontSize = size >= MIN_FONT_SIZE ? size : MIN_FONT_SIZE;
+      this.current.fontSizeScale = browserFontSize !== MIN_FONT_SIZE ? 1.0 :
+                                   size / MIN_FONT_SIZE;
 
       var rule = italic + ' ' + bold + ' ' + browserFontSize + 'px ' + typeface;
       this.ctx.font = rule;
@@ -4238,11 +4201,9 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       var textHScale = current.textHScale * fontDirection;
       var fontMatrix = current.fontMatrix || FONT_IDENTITY_MATRIX;
       var glyphsLength = glyphs.length;
-      var isTextInvisible =
-        current.textRenderingMode === TextRenderingMode.INVISIBLE;
       var i, glyph, width;
 
-      if (isTextInvisible || fontSize === 0) {
+      if (fontSize === 0) {
         return;
       }
 
@@ -5770,8 +5731,8 @@ var FontLoader = {
   }
 };
 
-var FontFaceObject = (function FontFaceObjectClosure() {
-  function FontFaceObject(name, file, properties) {
+var FontFace = (function FontFaceClosure() {
+  function FontFace(name, file, properties) {
     this.compiledGlyphs = {};
     if (arguments.length === 1) {
       // importing translated data
@@ -5782,9 +5743,8 @@ var FontFaceObject = (function FontFaceObjectClosure() {
       return;
     }
   }
-  FontFaceObject.prototype = {
-
-    bindDOM: function FontFaceObject_bindDOM() {
+  FontFace.prototype = {
+    bindDOM: function FontFace_bindDOM() {
       if (!this.data) {
         return null;
       }
@@ -5811,7 +5771,7 @@ var FontFaceObject = (function FontFaceObjectClosure() {
       return rule;
     },
 
-    getPathGenerator: function FontLoader_getPathGenerator(objs, character) {
+    getPathGenerator: function (objs, character) {
       if (!(character in this.compiledGlyphs)) {
         var js = objs.get(this.loadedName + '_path_' + character);
         /*jshint -W054 */
@@ -5820,7 +5780,7 @@ var FontFaceObject = (function FontFaceObjectClosure() {
       return this.compiledGlyphs[character];
     }
   };
-  return FontFaceObject;
+  return FontFace;
 })();
 
 

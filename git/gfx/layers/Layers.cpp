@@ -7,7 +7,6 @@
 
 #include "Layers.h"
 #include <algorithm>                    // for max, min
-#include "apz/src/AsyncPanZoomController.h"
 #include "CompositableHost.h"           // for CompositableHost
 #include "ImageContainer.h"             // for ImageContainer, etc
 #include "ImageLayers.h"                // for ImageLayer
@@ -24,6 +23,7 @@
 #include "mozilla/gfx/2D.h"             // for DrawTarget
 #include "mozilla/gfx/BaseSize.h"       // for BaseSize
 #include "mozilla/gfx/Matrix.h"         // for Matrix4x4
+#include "mozilla/layers/AsyncPanZoomController.h"
 #include "mozilla/layers/Compositor.h"  // for Compositor
 #include "mozilla/layers/CompositorTypes.h"
 #include "mozilla/layers/LayerManagerComposite.h"  // for LayerComposite
@@ -715,10 +715,10 @@ const Matrix4x4
 Layer::GetTransform() const
 {
   Matrix4x4 transform = mTransform;
-  transform.PostScale(mPostXScale, mPostYScale, 1.0f);
   if (const ContainerLayer* c = AsContainerLayer()) {
-    transform.PreScale(c->GetPreXScale(), c->GetPreYScale(), 1.0f);
+    transform.Scale(c->GetPreXScale(), c->GetPreYScale(), 1.0f);
   }
+  transform = transform * Matrix4x4().Scale(mPostXScale, mPostYScale, 1.0f);
   return transform;
 }
 
@@ -730,11 +730,10 @@ Layer::GetLocalTransform()
     transform = shadow->GetShadowTransform();
   else
     transform = mTransform;
-
-  transform.PostScale(mPostXScale, mPostYScale, 1.0f);
   if (ContainerLayer* c = AsContainerLayer()) {
-    transform.PreScale(c->GetPreXScale(), c->GetPreYScale(), 1.0f);
+    transform.Scale(c->GetPreXScale(), c->GetPreYScale(), 1.0f);
   }
+  transform = transform * Matrix4x4().Scale(mPostXScale, mPostYScale, 1.0f);
 
   return transform;
 }
@@ -1476,8 +1475,11 @@ Layer::PrintInfo(std::stringstream& aStream, const char* aPrefix)
   } else {
     aStream << " [not visible]";
   }
-  if (!mEventRegions.IsEmpty()) {
-    AppendToString(aStream, mEventRegions, " ", "");
+  if (!mEventRegions.mHitRegion.IsEmpty()) {
+    AppendToString(aStream, mEventRegions.mHitRegion, " [hitregion=", "]");
+  }
+  if (!mEventRegions.mDispatchToContentHitRegion.IsEmpty()) {
+    AppendToString(aStream, mEventRegions.mDispatchToContentHitRegion, " [dispatchtocontentregion=", "]");
   }
   if (1.0 != mOpacity) {
     aStream << nsPrintfCString(" [opacity=%g]", mOpacity).get();

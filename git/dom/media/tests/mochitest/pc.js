@@ -225,20 +225,6 @@ CommandChain.prototype = {
   },
 
   /**
-   * Replaces a single command.
-   *
-   * @param {string} id
-   *        Identifier of the command to be replaced
-   * @param {Array[]} commands
-   *        List of commands
-   * @returns {object[]} Removed commands
-   */
-  replace : function (id, commands) {
-    this.insertBefore(id, commands);
-    return this.remove(id);
-  },
-
-  /**
    * Replaces all commands after the specified one.
    *
    * @param {string} id
@@ -1303,8 +1289,6 @@ DataChannelTest.prototype = Object.create(PeerConnectionTest.prototype, {
           is(channel.readyState, "open", peer + " dataChannels[0] switched to state: 'open'");
           dcOpened = true;
           onSuccess();
-        } else {
-          info("dataChannelConnected() called, but data channel was open already");
         }
       }
 
@@ -1534,7 +1518,7 @@ function PeerConnectionWrapper(label, configuration, h264) {
   this.onAddStreamFired = false;
   this.addStreamCallbacks = {};
 
-  this.holdIceCandidates = true;
+  this.remoteDescriptionSet = false;
   this.endOfTrickleIce = false;
   this.localRequiresTrickleIce = false;
   this.remoteRequiresTrickleIce  = false;
@@ -1851,15 +1835,10 @@ PeerConnectionWrapper.prototype = {
    */
   setLocalDescription : function PCW_setLocalDescription(desc, onSuccess) {
     var self = this;
-
-    if (onSuccess) {
-      this._pc.setLocalDescription(desc, function () {
-        info(self + ": Successfully set the local description");
-        onSuccess();
-      }, generateErrorCallback());
-    } else {
-      this._pc.setLocalDescription(desc);
-    }
+    this._pc.setLocalDescription(desc, function () {
+      info(self + ": Successfully set the local description");
+      onSuccess();
+    }, generateErrorCallback());
   },
 
   /**
@@ -1891,15 +1870,17 @@ PeerConnectionWrapper.prototype = {
    */
   setRemoteDescription : function PCW_setRemoteDescription(desc, onSuccess) {
     var self = this;
-
-    if (!onSuccess) {
-      this._pc.setRemoteDescription(desc);
-      this.addStoredIceCandidates();
-      return;
-    }
     this._pc.setRemoteDescription(desc, function () {
       info(self + ": Successfully set remote description");
-      self.addStoredIceCandidates();
+      self.remoteDescriptionSet = true;
+      if ((self._ice_candidates_to_add) &&
+          (self._ice_candidates_to_add.length > 0)) {
+        info("adding stored ice candidates");
+        for (var i = 0; i < self._ice_candidates_to_add.length; i++) {
+          self.addIceCandidate(self._ice_candidates_to_add[i]);
+        }
+        self._ice_candidates_to_add = [];
+      }
       onSuccess();
     }, generateErrorCallback());
   },
@@ -1960,24 +1941,10 @@ PeerConnectionWrapper.prototype = {
       info("Received ICE candidate for closed PeerConnection - discarding");
       return;
     }
-    if (!self.holdIceCandidates) {
+    if (self.remoteDescriptionSet) {
       self.addIceCandidate(candidate);
     } else {
       self._ice_candidates_to_add.push(candidate);
-    }
-  },
-
-  addStoredIceCandidates : function PCW_addStoredIceCandidates() {
-    var self = this;
-
-    self.holdIceCandidates = false;
-    if ((self._ice_candidates_to_add) &&
-        (self._ice_candidates_to_add.length > 0)) {
-      info("adding stored ice candidates");
-      for (var i = 0; i < self._ice_candidates_to_add.length; i++) {
-        self.addIceCandidate(self._ice_candidates_to_add[i]);
-      }
-      self._ice_candidates_to_add = [];
     }
   },
 
@@ -2118,22 +2085,18 @@ PeerConnectionWrapper.prototype = {
    *        A PeerConnectionTest object to which the ice candidates gets
    *        forwarded.
    */
-  setupIceCandidateHandler : function
-    PCW_setupIceCandidateHandler(test, candidateHandler, endHandler) {
+  setupIceCandidateHandler : function PCW_setupIceCandidateHandler(test) {
     var self = this;
     self._local_ice_candidates = [];
     self._remote_ice_candidates = [];
     self._ice_candidates_to_add = [];
-
-    candidateHandler = candidateHandler || test.iceCandidateHandler.bind(test);
-    endHandler = endHandler || test.signalEndOfTrickleIce.bind(test);
 
     function iceCandidateCallback (anEvent) {
       info(self.label + ": received iceCandidateEvent");
       if (!anEvent.candidate) {
         info(self.label + ": received end of trickle ICE event");
         self.endOfTrickleIce = true;
-        endHandler(self.label);
+        test.signalEndOfTrickleIce(self.label);
       } else {
         if (self.endOfTrickleIce) {
           ok(false, "received ICE candidate after end of trickle");
@@ -2144,7 +2107,7 @@ PeerConnectionWrapper.prototype = {
         ok(anEvent.candidate.sdpMid.length === 0, "SDP MID has length zero");
         ok(typeof anEvent.candidate.sdpMLineIndex === 'number', "SDP MLine Index needs to exist");
         self._local_ice_candidates.push(anEvent.candidate);
-        candidateHandler(self.label, anEvent.candidate);
+        test.iceCandidateHandler(self.label, anEvent.candidate);
       }
     }
 
@@ -2354,11 +2317,10 @@ PeerConnectionWrapper.prototype = {
     }
   },
 
-  verifySdp : function PCW_verifySdp(desc, expectedType, offerConstraintsList,
-      answerConstraintsList, offerOptions, trickleIceCallback) {
+  verifySdp : function PCW_verifySdp(desc, expectedType, constraints,
+      offerOptions, trickleIceCallback) {
     info("Examining this SessionDescription: " + JSON.stringify(desc));
-    info("offerConstraintsList: " + JSON.stringify(offerConstraintsList));
-    info("answerConstraintsList: " + JSON.stringify(answerConstraintsList));
+    info("constraints: " + JSON.stringify(constraints));
     info("offerOptions: " + JSON.stringify(offerOptions));
     ok(desc, "SessionDescription is not null");
     is(desc.type, expectedType, "SessionDescription type is " + expectedType);
@@ -2377,11 +2339,11 @@ PeerConnectionWrapper.prototype = {
     }
     //TODO: how can we check for absence/presence of m=application?
 
-    var audioTracks =
-      Math.max(this.countAudioTracksInMediaConstraint(offerConstraintsList),
-               this.countAudioTracksInMediaConstraint(answerConstraintsList)) ||
-      this.audioInOfferOptions(offerOptions);
-
+    //TODO: how to handle media contraints + offer options
+    var audioTracks = this.countAudioTracksInMediaConstraint(constraints);
+    if (constraints.length === 0) {
+      audioTracks = this.audioInOfferOptions(offerOptions);
+    }
     info("expected audio tracks: " + audioTracks);
     if (audioTracks == 0) {
       ok(!desc.sdp.contains("m=audio"), "audio m-line is absent from SDP");
@@ -2394,11 +2356,11 @@ PeerConnectionWrapper.prototype = {
 
     }
 
-    var videoTracks =
-      Math.max(this.countVideoTracksInMediaConstraint(offerConstraintsList),
-               this.countVideoTracksInMediaConstraint(answerConstraintsList)) ||
-      this.videoInOfferOptions(offerOptions);
-
+    //TODO: how to handle media contraints + offer options
+    var videoTracks = this.countVideoTracksInMediaConstraint(constraints);
+    if (constraints.length === 0) {
+      videoTracks = this.videoInOfferOptions(offerOptions);
+    }
     info("expected video tracks: " + videoTracks);
     if (videoTracks == 0) {
       ok(!desc.sdp.contains("m=video"), "video m-line is absent from SDP");
@@ -2459,7 +2421,7 @@ PeerConnectionWrapper.prototype = {
    * @param {object} stats
    *        The stats to check from this PeerConnectionWrapper
    */
-  checkStats : function PCW_checkStats(stats, twoMachines) {
+  checkStats : function PCW_checkStats(stats) {
     function toNum(obj) {
       return obj? obj : 0;
     }
@@ -2481,13 +2443,7 @@ PeerConnectionWrapper.prototype = {
         // validate stats
         ok(res.id == key, "Coherent stats id");
         var nowish = Date.now() + 1000;        // TODO: clock drift observed
-        if (twoMachines) {
-          nowish += 10000; // let's be very relaxed about clock sync
-        }
         var minimum = this.whenCreated - 1000; // on Windows XP (Bug 979649)
-        if (twoMachines) {
-          minimum -= 10000; // let's be very relaxed about clock sync
-        }
         if (isWinXP) {
           todo(false, "Can't reliably test rtcp timestamps on WinXP (Bug 979649)");
         } else {
@@ -2626,12 +2582,11 @@ PeerConnectionWrapper.prototype = {
    *        Callback to execute when the data channel has been opened
    */
   registerDataChannelOpenEvents : function (onDataChannelOpened) {
-    info(this + ": Register callback for 'ondatachannel'");
+    info(this + ": Register callbacks for 'ondatachannel' and 'onopen'");
 
     this.ondatachannel = function (targetChannel) {
-      this.dataChannels.push(targetChannel);
-      info(this + ": 'ondatachannel' fired, registering 'onopen' callback");
       targetChannel.onopen = onDataChannelOpened;
+      this.dataChannels.push(targetChannel);
     };
   },
 

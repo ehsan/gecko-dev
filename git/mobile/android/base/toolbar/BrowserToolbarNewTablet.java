@@ -10,7 +10,7 @@ import org.mozilla.gecko.animation.PropertyAnimator;
 import org.mozilla.gecko.animation.ViewHelper;
 
 import android.content.Context;
-import android.graphics.drawable.Drawable;
+import android.content.res.Resources;
 import android.util.AttributeSet;
 
 /**
@@ -21,41 +21,15 @@ class BrowserToolbarNewTablet extends BrowserToolbarTabletBase {
 
     private static final int FORWARD_ANIMATION_DURATION = 450;
 
-    private enum ForwardButtonState {
-        HIDDEN,
-        DISPLAYED,
-        TRANSITIONING,
-    }
-
-    private final int forwardButtonTranslationWidth;
-
-    private ForwardButtonState forwardButtonState;
-
-    private boolean backButtonWasEnabledOnStartEditing;
+    private final int urlBarViewOffset;
+    private final int defaultForwardMargin;
 
     public BrowserToolbarNewTablet(final Context context, final AttributeSet attrs) {
         super(context, attrs);
 
-        forwardButtonTranslationWidth =
-                getResources().getDimensionPixelOffset(R.dimen.new_tablet_nav_button_width);
-
-        // The forward button is initially expanded (in the layout file)
-        // so translate it for start of the expansion animation; future
-        // iterations translate it to this position when hiding and will already be set up.
-        ViewHelper.setTranslationX(forwardButton, -forwardButtonTranslationWidth);
-
-        // TODO: Move this to *TabletBase when old tablet is removed.
-        // We don't want users clicking the forward button in transitions, but we don't want it to
-        // look disabled to avoid flickering complications (e.g. disabled in editing mode), so undo
-        // the work of the super class' constructor.
-        setButtonEnabled(forwardButton, true);
-
-        updateForwardButtonState(ForwardButtonState.HIDDEN);
-    }
-
-    private void updateForwardButtonState(final ForwardButtonState state) {
-        forwardButtonState = state;
-        forwardButton.setEnabled(forwardButtonState == ForwardButtonState.DISPLAYED);
+        final Resources res = getResources();
+        urlBarViewOffset = res.getDimensionPixelSize(R.dimen.url_bar_offset_left);
+        defaultForwardMargin = res.getDimensionPixelSize(R.dimen.new_tablet_forward_default_offset);
     }
 
     @Override
@@ -75,21 +49,25 @@ class BrowserToolbarNewTablet extends BrowserToolbarTabletBase {
 
     @Override
     protected void animateForwardButton(final ForwardButtonAnimation animation) {
-        final boolean willShowForward = (animation == ForwardButtonAnimation.SHOW);
-        if ((forwardButtonState != ForwardButtonState.HIDDEN && willShowForward) ||
-                (forwardButtonState != ForwardButtonState.DISPLAYED && !willShowForward)) {
+        final boolean showing = (animation == ForwardButtonAnimation.SHOW);
+
+        // if the forward button's margin is non-zero, this means it has already
+        // been animated to be visible¸ and vice-versa.
+        MarginLayoutParams fwdParams = (MarginLayoutParams) forwardButton.getLayoutParams();
+        if ((fwdParams.leftMargin > defaultForwardMargin && showing) ||
+            (fwdParams.leftMargin == defaultForwardMargin && !showing)) {
             return;
         }
-        updateForwardButtonState(ForwardButtonState.TRANSITIONING);
 
         // We want the forward button to show immediately when switching tabs
         final PropertyAnimator forwardAnim =
                 new PropertyAnimator(isSwitchingTabs ? 10 : FORWARD_ANIMATION_DURATION);
+        final int width = Math.round(forwardButton.getWidth() * .75f);
 
         forwardAnim.addPropertyAnimationListener(new PropertyAnimator.PropertyAnimationListener() {
             @Override
             public void onPropertyAnimationStart() {
-                if (!willShowForward) {
+                if (!showing) {
                     // Set the margin before the transition when hiding the forward button. We
                     // have to do this so that the favicon isn't clipped during the transition
                     MarginLayoutParams layoutParams =
@@ -109,29 +87,26 @@ class BrowserToolbarNewTablet extends BrowserToolbarTabletBase {
 
             @Override
             public void onPropertyAnimationEnd() {
-                final ForwardButtonState newForwardButtonState;
-                if (willShowForward) {
-                    // Increase the margins to ensure the text does not run outside the View.
+                if (showing) {
                     MarginLayoutParams layoutParams =
                         (MarginLayoutParams) urlDisplayLayout.getLayoutParams();
-                    layoutParams.leftMargin = forwardButtonTranslationWidth;
+                    layoutParams.leftMargin = urlBarViewOffset;
 
                     layoutParams = (MarginLayoutParams) urlEditLayout.getLayoutParams();
-                    layoutParams.leftMargin = forwardButtonTranslationWidth;
-
-                    newForwardButtonState = ForwardButtonState.DISPLAYED;
-                } else {
-                    newForwardButtonState = ForwardButtonState.HIDDEN;
+                    layoutParams.leftMargin = urlBarViewOffset;
                 }
 
                 urlDisplayLayout.finishForwardAnimation();
-                updateForwardButtonState(newForwardButtonState);
+
+                MarginLayoutParams layoutParams = (MarginLayoutParams) forwardButton.getLayoutParams();
+                layoutParams.leftMargin = defaultForwardMargin + (showing ? width : 0);
+                ViewHelper.setTranslationX(forwardButton, 0);
 
                 requestLayout();
             }
         });
 
-        prepareForwardAnimation(forwardAnim, animation, forwardButtonTranslationWidth);
+        prepareForwardAnimation(forwardAnim, animation, width);
         forwardAnim.start();
     }
 
@@ -147,7 +122,7 @@ class BrowserToolbarNewTablet extends BrowserToolbarTabletBase {
         } else {
             anim.attach(forwardButton,
                       PropertyAnimator.Property.TRANSLATION_X,
-                      0);
+                      width);
             anim.attach(forwardButton,
                       PropertyAnimator.Property.ALPHA,
                       1);
@@ -159,39 +134,5 @@ class BrowserToolbarNewTablet extends BrowserToolbarTabletBase {
     @Override
     public void triggerTabsPanelTransition(final PropertyAnimator animator, final boolean areTabsShown) {
         // Do nothing.
-    }
-
-    @Override
-    public void startEditing(final String url, final PropertyAnimator animator) {
-        // We already know the forward button state - no need to store it here.
-        backButtonWasEnabledOnStartEditing = backButton.isEnabled();
-
-        setButtonEnabled(backButton, false);
-        setButtonEnabled(forwardButton, false);
-
-        super.startEditing(url, animator);
-    }
-
-    @Override
-    public String commitEdit() {
-        stopEditingNewTablet();
-        return super.commitEdit();
-    }
-
-    @Override
-    public String cancelEdit() {
-        stopEditingNewTablet();
-
-        setButtonEnabled(backButton, backButtonWasEnabledOnStartEditing);
-        updateForwardButtonState(forwardButtonState);
-
-        return super.cancelEdit();
-    }
-
-    private void stopEditingNewTablet() {
-        // Undo the changes caused by calling setButtonEnabled in startEditing.
-        // Note that this should be called first so the enabled state of the
-        // forward button is set to the proper value.
-        setButtonEnabled(forwardButton, true);
     }
 }

@@ -57,7 +57,7 @@ nsCoreUtils::HasClickListener(nsIContent *aContent)
 void
 nsCoreUtils::DispatchClickEvent(nsITreeBoxObject *aTreeBoxObj,
                                 int32_t aRowIndex, nsITreeColumn *aColumn,
-                                const nsAString& aPseudoElt)
+                                const nsCString& aPseudoElt)
 {
   nsCOMPtr<nsIDOMElement> tcElm;
   aTreeBoxObj->GetTreeBody(getter_AddRefs(tcElm));

@@ -5,58 +5,29 @@
 /* global loop:true */
 
 var loop = loop || {};
-loop.store = loop.store || {};
+loop.store = (function() {
 
-loop.store.ConversationStore = (function() {
   var sharedActions = loop.shared.actions;
-  var CALL_TYPES = loop.shared.utils.CALL_TYPES;
+  var sharedUtils = loop.shared.utils;
 
-  /**
-   * Websocket states taken from:
-   * https://docs.services.mozilla.com/loop/apis.html#call-progress-state-change-progress
-   */
-  var WS_STATES = loop.store.WS_STATES = {
-    // The call is starting, and the remote party is not yet being alerted.
-    INIT: "init",
-    // The called party is being alerted.
-    ALERTING: "alerting",
-    // The call is no longer being set up and has been aborted for some reason.
-    TERMINATED: "terminated",
-    // The called party has indicated that he has answered the call,
-    // but the media is not yet confirmed.
-    CONNECTING: "connecting",
-    // One of the two parties has indicated successful media set up,
-    // but the other has not yet.
-    HALF_CONNECTED: "half-connected",
-    // Both endpoints have reported successfully establishing media.
-    CONNECTED: "connected"
-  };
-
-  var CALL_STATES = loop.store.CALL_STATES = {
+  var CALL_STATES = {
     // The initial state of the view.
-    INIT: "cs-init",
+    INIT: "init",
     // The store is gathering the call data from the server.
-    GATHER: "cs-gather",
-    // The initial data has been gathered, the websocket is connecting, or has
-    // connected, and waiting for the other side to connect to the server.
-    CONNECTING: "cs-connecting",
+    GATHER: "gather",
+    // The websocket has connected to the server and is waiting
+    // for the other peer to connect to the websocket.
+    CONNECTING: "connecting",
     // The websocket has received information that we're now alerting
     // the peer.
-    ALERTING: "cs-alerting",
-    // The call is ongoing.
-    ONGOING: "cs-ongoing",
-    // The call ended successfully.
-    FINISHED: "cs-finished",
-    // The user has finished with the window.
-    CLOSE: "cs-close",
+    ALERTING: "alerting",
     // The call was terminated due to an issue during connection.
-    TERMINATED: "cs-terminated"
+    TERMINATED: "terminated"
   };
+
 
   var ConversationStore = Backbone.Model.extend({
     defaults: {
-      // The id of the window. Currently used for getting the window id.
-      windowId: undefined,
       // The current state of the call
       callState: CALL_STATES.INIT,
       // The reason if a call was terminated
@@ -65,11 +36,11 @@ loop.store.ConversationStore = (function() {
       error: undefined,
       // True if the call is outgoing, false if not, undefined if unknown
       outgoing: undefined,
-      // The contact being called for outgoing calls
-      contact: undefined,
+      // The id of the person being called for outgoing calls
+      calleeId: undefined,
       // The call type for the call.
       // XXX Don't hard-code, this comes from the data in bug 1072323
-      callType: CALL_TYPES.AUDIO_VIDEO,
+      callType: sharedUtils.CALL_TYPES.AUDIO_VIDEO,
 
       // Call Connection information
       // The call id from the loop-server
@@ -83,11 +54,7 @@ loop.store.ConversationStore = (function() {
       // SDK session ID
       sessionId: undefined,
       // SDK session token
-      sessionToken: undefined,
-      // If the audio is muted
-      audioMuted: false,
-      // If the video is muted
-      videoMuted: false
+      sessionToken: undefined
     },
 
     /**
@@ -110,20 +77,15 @@ loop.store.ConversationStore = (function() {
       if (!options.client) {
         throw new Error("Missing option client");
       }
-      if (!options.sdkDriver) {
-        throw new Error("Missing option sdkDriver");
-      }
 
       this.client = options.client;
       this.dispatcher = options.dispatcher;
-      this.sdkDriver = options.sdkDriver;
 
-      // XXX Further actions are registered in setupWindowData when
-      // we know what window type this is. At some stage, we might want to
-      // consider store mixins or some alternative which means the stores
-      // would only be created when we want them.
       this.dispatcher.register(this, [
-        "setupWindowData"
+        "connectionFailure",
+        "connectionProgress",
+        "gatherCallData",
+        "connectCall"
       ]);
     },
 
@@ -134,7 +96,6 @@ loop.store.ConversationStore = (function() {
      * @param {sharedActions.ConnectionFailure} actionData The action data.
      */
     connectionFailure: function(actionData) {
-      this._endSession();
       this.set({
         callState: CALL_STATES.TERMINATED,
         callStateReason: actionData.reason
@@ -148,68 +109,34 @@ loop.store.ConversationStore = (function() {
      * @param {sharedActions.ConnectionProgress} actionData The action data.
      */
     connectionProgress: function(actionData) {
-      var callState = this.get("callState");
-
-      switch(actionData.wsState) {
-        case WS_STATES.INIT: {
-          if (callState === CALL_STATES.GATHER) {
-            this.set({callState: CALL_STATES.CONNECTING});
-          }
-          break;
-        }
-        case WS_STATES.ALERTING: {
-          this.set({callState: CALL_STATES.ALERTING});
-          break;
-        }
-        case WS_STATES.CONNECTING: {
-          this.sdkDriver.connectSession({
-            apiKey: this.get("apiKey"),
-            sessionId: this.get("sessionId"),
-            sessionToken: this.get("sessionToken")
-          });
-          this.set({callState: CALL_STATES.ONGOING});
-          break;
-        }
-        case WS_STATES.HALF_CONNECTED:
-        case WS_STATES.CONNECTED: {
-          this.set({callState: CALL_STATES.ONGOING});
-          break;
-        }
-        default: {
-          console.error("Unexpected websocket state passed to connectionProgress:",
-            actionData.wsState);
-        }
+      // XXX Turn this into a state machine?
+      if (actionData.state === "alerting" &&
+          (this.get("callState") === CALL_STATES.CONNECTING ||
+           this.get("callState") === CALL_STATES.GATHER)) {
+        this.set({
+          callState: CALL_STATES.ALERTING
+        });
+      }
+      if (actionData.state === "connecting" &&
+          this.get("callState") === CALL_STATES.GATHER) {
+        this.set({
+          callState: CALL_STATES.CONNECTING
+        });
       }
     },
 
-    setupWindowData: function(actionData) {
-      var windowType = actionData.type;
-      if (windowType !== "outgoing" &&
-          windowType !== "incoming") {
-        // Not for this store, don't do anything.
-        return;
-      }
-
-      this.dispatcher.register(this, [
-        "connectionFailure",
-        "connectionProgress",
-        "connectCall",
-        "hangupCall",
-        "remotePeerDisconnected",
-        "cancelCall",
-        "retryCall",
-        "mediaConnected",
-        "setMute",
-        "fetchEmailLink"
-      ]);
-
+    /**
+     * Handles the gather call data action, setting the state
+     * and starting to get the appropriate data for the type of call.
+     *
+     * @param {sharedActions.GatherCallData} actionData The action data.
+     */
+    gatherCallData: function(actionData) {
       this.set({
-        contact: actionData.contact,
-        outgoing: windowType === "outgoing",
-        windowId: actionData.windowId,
-        callType: actionData.callType,
-        callState: CALL_STATES.GATHER,
-        videoMuted: actionData.callType === CALL_TYPES.AUDIO_ONLY
+        calleeId: actionData.calleeId,
+        outgoing: !!actionData.calleeId,
+        callId: actionData.callId,
+        callState: CALL_STATES.GATHER
       });
 
       if (this.get("outgoing")) {
@@ -230,132 +157,12 @@ loop.store.ConversationStore = (function() {
     },
 
     /**
-     * Hangs up an ongoing call.
-     */
-    hangupCall: function() {
-      if (this._websocket) {
-        // Let the server know the user has hung up.
-        this._websocket.mediaFail();
-      }
-
-      this._endSession();
-      this.set({callState: CALL_STATES.FINISHED});
-    },
-
-    /**
-     * The remote peer disconnected from the session.
-     *
-     * @param {sharedActions.RemotePeerDisconnected} actionData
-     */
-    remotePeerDisconnected: function(actionData) {
-      this._endSession();
-
-      // If the peer hungup, we end normally, otherwise
-      // we treat this as a call failure.
-      if (actionData.peerHungup) {
-        this.set({callState: CALL_STATES.FINISHED});
-      } else {
-        this.set({
-          callState: CALL_STATES.TERMINATED,
-          callStateReason: "peerNetworkDisconnected"
-        });
-      }
-    },
-
-    /**
-     * Cancels a call
-     */
-    cancelCall: function() {
-      var callState = this.get("callState");
-      if (this._websocket &&
-          (callState === CALL_STATES.CONNECTING ||
-           callState === CALL_STATES.ALERTING)) {
-         // Let the server know the user has hung up.
-        this._websocket.cancel();
-      }
-
-      this._endSession();
-      this.set({callState: CALL_STATES.CLOSE});
-    },
-
-    /**
-     * Retries a call
-     */
-    retryCall: function() {
-      var callState = this.get("callState");
-      if (callState !== CALL_STATES.TERMINATED) {
-        console.error("Unexpected retry in state", callState);
-        return;
-      }
-
-      this.set({callState: CALL_STATES.GATHER});
-      if (this.get("outgoing")) {
-        this._setupOutgoingCall();
-      }
-    },
-
-    /**
-     * Notifies that all media is now connected
-     */
-    mediaConnected: function() {
-      this._websocket.mediaUp();
-    },
-
-    /**
-     * Records the mute state for the stream.
-     *
-     * @param {sharedActions.setMute} actionData The mute state for the stream type.
-     */
-    setMute: function(actionData) {
-      var muteType = actionData.type + "Muted";
-      this.set(muteType, !actionData.enabled);
-    },
-
-    /**
-     * Fetches a new call URL intended to be sent over email when a contact
-     * can't be reached.
-     */
-    fetchEmailLink: function() {
-      // XXX This is an empty string as a conversation identifier. Bug 1015938 implements
-      // a user-set string.
-      this.client.requestCallUrl("", function(err, callUrlData) {
-        if (err) {
-          this.trigger("error:emailLink");
-          return;
-        }
-        this.set("emailLink", callUrlData.callUrl);
-      }.bind(this));
-    },
-
-    /**
      * Obtains the outgoing call data from the server and handles the
      * result.
      */
     _setupOutgoingCall: function() {
-      var contactAddresses = [];
-      var contact = this.get("contact");
-
-      navigator.mozLoop.calls.setCallInProgress(this.get("windowId"));
-
-      function appendContactValues(property, strip) {
-        if (contact.hasOwnProperty(property)) {
-          contact[property].forEach(function(item) {
-            if (strip) {
-              contactAddresses.push(item.value
-                .replace(/^(\+)?(.*)$/g, function(m, prefix, number) {
-                  return (prefix || "") + number.replace(/[\D]+/g, "");
-                }));
-            } else {
-              contactAddresses.push(item.value);
-            }
-          });
-        }
-      }
-
-      appendContactValues("email");
-      appendContactValues("tel", true);
-
-      this.client.setupOutgoingCall(contactAddresses,
+      // XXX For now, we only have one calleeId, so just wrap that in an array.
+      this.client.setupOutgoingCall([this.get("calleeId")],
         this.get("callType"),
         function(err, result) {
           if (err) {
@@ -385,11 +192,11 @@ loop.store.ConversationStore = (function() {
       });
 
       this._websocket.promiseConnect().then(
-        function(progressState) {
+        function() {
           this.dispatcher.dispatch(new sharedActions.ConnectionProgress({
             // This is the websocket call state, i.e. waiting for the
             // other end to connect to the server.
-            wsState: progressState
+            state: "connecting"
           }));
         }.bind(this),
         function(error) {
@@ -400,23 +207,7 @@ loop.store.ConversationStore = (function() {
         }.bind(this)
       );
 
-      this.listenTo(this._websocket, "progress", this._handleWebSocketProgress);
-    },
-
-    /**
-     * Ensures the session is ended and the websocket is disconnected.
-     */
-    _endSession: function(nextState) {
-      this.sdkDriver.disconnectSession();
-      if (this._websocket) {
-        this.stopListening(this._websocket);
-
-        // Now close the websocket.
-        this._websocket.close();
-        delete this._websocket;
-      }
-
-      navigator.mozLoop.calls.clearCallInProgress(this.get("windowId"));
+      this._websocket.on("progress", this._handleWebSocketProgress, this);
     },
 
     /**
@@ -427,23 +218,27 @@ loop.store.ConversationStore = (function() {
       var action;
 
       switch(progressData.state) {
-        case WS_STATES.TERMINATED: {
+        case "terminated":
           action = new sharedActions.ConnectionFailure({
             reason: progressData.reason
           });
           break;
-        }
-        default: {
+        case "alerting":
           action = new sharedActions.ConnectionProgress({
-            wsState: progressData.state
+            state: progressData.state
           });
           break;
-        }
+        default:
+          console.warn("Received unexpected state in _handleWebSocketProgress", progressData.state);
+          return;
       }
 
       this.dispatcher.dispatch(action);
     }
   });
 
-  return ConversationStore;
+  return {
+    CALL_STATES: CALL_STATES,
+    ConversationStore: ConversationStore
+  };
 })();

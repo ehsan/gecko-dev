@@ -67,6 +67,7 @@ MessageChannel::MessageChannel(nsPIDOMWindow* aWindow)
   : mWindow(aWindow)
 {
   MOZ_COUNT_CTOR(MessageChannel);
+  SetIsDOMBinding();
 
   mPort1 = new MessagePort(mWindow);
   mPort2 = new MessagePort(mWindow);

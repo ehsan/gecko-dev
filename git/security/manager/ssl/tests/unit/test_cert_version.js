@@ -59,23 +59,32 @@ function run_test() {
   check_ok_ca(cert_from_file('v3_ca.der'));
   check_ca_err(cert_from_file('v3_ca_missing_bc.der'), SEC_ERROR_CA_CERT_INVALID);
 
-  // A v1 certificate may be a CA if it has a basic constraints extension with
-  // CA: TRUE or if it is a trust anchor.
+  // Classic allows v1 and v2 certs to be CA certs in trust anchor positions and
+  // intermediates when they have a v3 basic constraints extenstion (which
+  // makes them invalid certs). Insanity only allows v1 certs to be CA in
+  // anchor position (even if they have invalid encodings), v2 certs are not
+  // considered CAs in any position.
+  // Note that currently there are no change of behavior based on the
+  // version of the end entity.
+
+  let ee_error = 0;
+  let ca_error = 0;
 
   //////////////
   // v1 CA supersection
   //////////////////
 
   // v1 intermediate with v1 trust anchor
-  let error = MOZILLA_PKIX_ERROR_V1_CERT_USED_AS_CA;
-  check_ca_err(cert_from_file('v1_int-v1_ca.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v1_int-v1_ca.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v1_int-v1_ca.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v1_int-v1_ca.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v1_int-v1_ca.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v1_int-v1_ca.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v1_int-v1_ca.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v1_int-v1_ca.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v1_int-v1_ca.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v1_int-v1_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v1_int-v1_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v1_int-v1_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v1_int-v1_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v1_int-v1_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v1_int-v1_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v1_int-v1_ca.der'), ee_error);
 
   // v1 intermediate with v3 extensions.
   check_ok_ca(cert_from_file('v1_int_bc-v1_ca.der'));
@@ -88,15 +97,16 @@ function run_test() {
   check_ok(cert_from_file('v4_bc_ee-v1_int_bc-v1_ca.der'));
 
   // A v2 intermediate with a v1 CA
-  error = SEC_ERROR_CA_CERT_INVALID;
-  check_ca_err(cert_from_file('v2_int-v1_ca.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v2_int-v1_ca.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v2_int-v1_ca.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v2_int-v1_ca.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v2_int-v1_ca.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v2_int-v1_ca.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v2_int-v1_ca.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v2_int-v1_ca.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v2_int-v1_ca.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v2_int-v1_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v2_int-v1_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v2_int-v1_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v2_int-v1_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v2_int-v1_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v2_int-v1_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v2_int-v1_ca.der'), ee_error);
 
   // A v2 intermediate with basic constraints
   check_ok_ca(cert_from_file('v2_int_bc-v1_ca.der'));
@@ -110,15 +120,16 @@ function run_test() {
 
   // Section is OK. A x509 v3 CA MUST have bc
   // http://tools.ietf.org/html/rfc5280#section-4.2.1.9
-  error = SEC_ERROR_CA_CERT_INVALID;
-  check_ca_err(cert_from_file('v3_int_missing_bc-v1_ca.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v3_int_missing_bc-v1_ca.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v3_int_missing_bc-v1_ca.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v3_int_missing_bc-v1_ca.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v3_int_missing_bc-v1_ca.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v3_int_missing_bc-v1_ca.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v3_int_missing_bc-v1_ca.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v3_int_missing_bc-v1_ca.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v3_int_missing_bc-v1_ca.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v3_int_missing_bc-v1_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v3_int_missing_bc-v1_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v3_int_missing_bc-v1_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v3_int_missing_bc-v1_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v3_int_missing_bc-v1_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v3_int_missing_bc-v1_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v3_int_missing_bc-v1_ca.der'), ee_error);
 
   // It is valid for a v1 ca to sign a v3 intemediate.
   check_ok_ca(cert_from_file('v3_int-v1_ca.der'));
@@ -135,15 +146,16 @@ function run_test() {
   // above
 
   // Using A v1 intermediate
-  error = MOZILLA_PKIX_ERROR_V1_CERT_USED_AS_CA;
-  check_ca_err(cert_from_file('v1_int-v1_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v1_int-v1_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v1_int-v1_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v1_int-v1_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v1_int-v1_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v1_int-v1_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v1_int-v1_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v1_int-v1_ca_bc.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v1_int-v1_ca_bc.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v1_int-v1_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v1_int-v1_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v1_int-v1_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v1_int-v1_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v1_int-v1_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v1_int-v1_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v1_int-v1_ca_bc.der'), ee_error);
 
   // Using a v1 intermediate with v3 extenstions
   check_ok_ca(cert_from_file('v1_int_bc-v1_ca_bc.der'));
@@ -156,15 +168,16 @@ function run_test() {
   check_ok(cert_from_file('v4_bc_ee-v1_int_bc-v1_ca_bc.der'));
 
   // Using v2 intermediate
-  error = SEC_ERROR_CA_CERT_INVALID;
-  check_ca_err(cert_from_file('v2_int-v1_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v2_int-v1_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v2_int-v1_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v2_int-v1_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v2_int-v1_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v2_int-v1_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v2_int-v1_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v2_int-v1_ca_bc.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v2_int-v1_ca_bc.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v2_int-v1_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v2_int-v1_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v2_int-v1_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v2_int-v1_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v2_int-v1_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v2_int-v1_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v2_int-v1_ca_bc.der'), ee_error);
 
   // Using a v2 intermediate with basic constraints 
   check_ok_ca(cert_from_file('v2_int_bc-v1_ca_bc.der'));
@@ -177,15 +190,16 @@ function run_test() {
   check_ok(cert_from_file('v4_bc_ee-v2_int_bc-v1_ca_bc.der'));
 
   // Using a v3 intermediate that is missing basic constraints (invalid)
-  error = SEC_ERROR_CA_CERT_INVALID;
-  check_ca_err(cert_from_file('v3_int_missing_bc-v1_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v3_int_missing_bc-v1_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v3_int_missing_bc-v1_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v3_int_missing_bc-v1_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v3_int_missing_bc-v1_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v3_int_missing_bc-v1_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v3_int_missing_bc-v1_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v3_int_missing_bc-v1_ca_bc.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v3_int_missing_bc-v1_ca_bc.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v3_int_missing_bc-v1_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v3_int_missing_bc-v1_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v3_int_missing_bc-v1_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v3_int_missing_bc-v1_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v3_int_missing_bc-v1_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v3_int_missing_bc-v1_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v3_int_missing_bc-v1_ca_bc.der'), ee_error);
 
   // these should pass assuming we are OK with v1 ca signing v3 intermediates
   check_ok_ca(cert_from_file('v3_int-v1_ca_bc.der'));
@@ -203,81 +217,88 @@ function run_test() {
   //////////////////
 
   // v2 ca, v1 intermediate
-  error = MOZILLA_PKIX_ERROR_V1_CERT_USED_AS_CA;
-  check_ca_err(cert_from_file('v1_int-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v1_int-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v1_int-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v1_int-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v1_int-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v1_int-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v1_int-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v1_int-v2_ca.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v1_int-v2_ca.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v1_int-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v1_int-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v1_int-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v1_int-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v1_int-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v1_int-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v1_int-v2_ca.der'), ee_error);
 
   // v2 ca, v1 intermediate with basic constraints (invalid)
-  error = SEC_ERROR_CA_CERT_INVALID;
-  check_ca_err(cert_from_file('v1_int_bc-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v1_int_bc-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v1_int_bc-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v1_int_bc-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v1_int_bc-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v1_int_bc-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v1_int_bc-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v1_int_bc-v2_ca.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v1_int_bc-v2_ca.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v1_int_bc-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v1_int_bc-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v1_int_bc-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v1_int_bc-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v1_int_bc-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v1_int_bc-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v1_int_bc-v2_ca.der'), ee_error);
 
   // v2 ca, v2 intermediate
-  error = SEC_ERROR_CA_CERT_INVALID;
-  check_ca_err(cert_from_file('v2_int-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v2_int-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v2_int-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v2_int-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v2_int-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v2_int-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v2_int-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v2_int-v2_ca.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v2_int-v2_ca.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v2_int-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v2_int-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v2_int-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v2_int-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v2_int-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v2_int-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v2_int-v2_ca.der'), ee_error);
 
   // v2 ca, v2 intermediate with basic constraints (invalid)
-  error = SEC_ERROR_CA_CERT_INVALID;
-  check_ca_err(cert_from_file('v1_int_bc-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v1_int_bc-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v1_int_bc-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v1_int_bc-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v1_int_bc-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v1_int_bc-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v1_int_bc-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v1_int_bc-v2_ca.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v1_int_bc-v2_ca.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v1_int_bc-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v1_int_bc-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v1_int_bc-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v1_int_bc-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v1_int_bc-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v1_int_bc-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v1_int_bc-v2_ca.der'), ee_error);
 
   // v2 ca, v3 intermediate missing basic constraints
-  error = SEC_ERROR_CA_CERT_INVALID;
-  check_ca_err(cert_from_file('v3_int_missing_bc-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v3_int_missing_bc-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v3_int_missing_bc-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v3_int_missing_bc-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v3_int_missing_bc-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v3_int_missing_bc-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v3_int_missing_bc-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v3_int_missing_bc-v2_ca.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v3_int_missing_bc-v2_ca.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v3_int_missing_bc-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v3_int_missing_bc-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v3_int_missing_bc-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v3_int_missing_bc-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v3_int_missing_bc-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v3_int_missing_bc-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v3_int_missing_bc-v2_ca.der'), ee_error);
 
   // v2 ca, v3 intermediate
-  error = SEC_ERROR_CA_CERT_INVALID;
-  check_ca_err(cert_from_file('v3_int-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v3_int-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v3_int-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v3_int-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v3_int-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v3_int-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v3_int-v2_ca.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v3_int-v2_ca.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v3_int-v2_ca.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v3_int-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v3_int-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v3_int-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v3_int-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v3_int-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v3_int-v2_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v3_int-v2_ca.der'), ee_error);
 
   // v2 ca, v1 intermediate
-  error = MOZILLA_PKIX_ERROR_V1_CERT_USED_AS_CA;
-  check_ca_err(cert_from_file('v1_int-v2_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v1_int-v2_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v1_int-v2_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v1_int-v2_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v1_int-v2_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v1_int-v2_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v1_int-v2_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v1_int-v2_ca_bc.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v1_int-v2_ca_bc.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v1_int-v2_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v1_int-v2_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v1_int-v2_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v1_int-v2_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v1_int-v2_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v1_int-v2_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v1_int-v2_ca_bc.der'), ee_error);
 
   // v2 ca, v1 intermediate with bc
   check_ok_ca(cert_from_file('v1_int_bc-v2_ca_bc.der'));
@@ -290,15 +311,16 @@ function run_test() {
   check_ok(cert_from_file('v4_bc_ee-v1_int_bc-v2_ca_bc.der'));
 
   // v2 ca, v2 intermediate
-  error = SEC_ERROR_CA_CERT_INVALID;
-  check_ca_err(cert_from_file('v2_int-v2_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v2_int-v2_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v2_int-v2_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v2_int-v2_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v2_int-v2_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v2_int-v2_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v2_int-v2_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v2_int-v2_ca_bc.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v2_int-v2_ca_bc.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v2_int-v2_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v2_int-v2_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v2_int-v2_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v2_int-v2_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v2_int-v2_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v2_int-v2_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v2_int-v2_ca_bc.der'), ee_error);
 
   // v2 ca, v2 intermediate with bc
   check_ok_ca(cert_from_file('v2_int_bc-v2_ca_bc.der'));
@@ -311,15 +333,16 @@ function run_test() {
   check_ok(cert_from_file('v4_bc_ee-v2_int_bc-v2_ca_bc.der'));
 
   // v2 ca, invalid v3 intermediate
-  error = SEC_ERROR_CA_CERT_INVALID;
-  check_ca_err(cert_from_file('v3_int_missing_bc-v2_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v3_int_missing_bc-v2_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v3_int_missing_bc-v2_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v3_int_missing_bc-v2_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v3_int_missing_bc-v2_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v3_int_missing_bc-v2_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v3_int_missing_bc-v2_ca_bc.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v3_int_missing_bc-v2_ca_bc.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v3_int_missing_bc-v2_ca_bc.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v3_int_missing_bc-v2_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v3_int_missing_bc-v2_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v3_int_missing_bc-v2_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v3_int_missing_bc-v2_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v3_int_missing_bc-v2_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v3_int_missing_bc-v2_ca_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v3_int_missing_bc-v2_ca_bc.der'), ee_error);
 
   // v2 ca, valid v3 intermediate
   check_ok_ca(cert_from_file('v3_int-v2_ca_bc.der'));
@@ -336,15 +359,16 @@ function run_test() {
   //////////////////
 
   // v3 ca, v1 intermediate
-  error = MOZILLA_PKIX_ERROR_V1_CERT_USED_AS_CA;
-  check_ca_err(cert_from_file('v1_int-v3_ca.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v1_int-v3_ca.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v1_int-v3_ca.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v1_int-v3_ca.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v1_int-v3_ca.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v1_int-v3_ca.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v1_int-v3_ca.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v1_int-v3_ca.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v1_int-v3_ca.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v1_int-v3_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v1_int-v3_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v1_int-v3_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v1_int-v3_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v1_int-v3_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v1_int-v3_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v1_int-v3_ca.der'), ee_error);
 
   // A v1 intermediate with v3 extensions
   check_ok_ca(cert_from_file('v1_int_bc-v3_ca.der'));
@@ -357,15 +381,16 @@ function run_test() {
   check_ok(cert_from_file('v4_bc_ee-v1_int_bc-v3_ca.der'));
 
   // reject a v2 cert as intermediate
-  error = SEC_ERROR_CA_CERT_INVALID;
-  check_ca_err(cert_from_file('v2_int-v3_ca.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v2_int-v3_ca.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v2_int-v3_ca.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v2_int-v3_ca.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v2_int-v3_ca.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v2_int-v3_ca.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v2_int-v3_ca.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v2_int-v3_ca.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v2_int-v3_ca.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v2_int-v3_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v2_int-v3_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v2_int-v3_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v2_int-v3_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v2_int-v3_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v2_int-v3_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v2_int-v3_ca.der'), ee_error);
 
   // v2 intermediate with bc (invalid)
   check_ok_ca(cert_from_file('v2_int_bc-v3_ca.der'));
@@ -378,15 +403,16 @@ function run_test() {
   check_ok(cert_from_file('v4_bc_ee-v2_int_bc-v3_ca.der'));
 
   // invalid v3 intermediate
-  error = SEC_ERROR_CA_CERT_INVALID;
-  check_ca_err(cert_from_file('v3_int_missing_bc-v3_ca.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v3_int_missing_bc-v3_ca.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v3_int_missing_bc-v3_ca.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v3_int_missing_bc-v3_ca.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v3_int_missing_bc-v3_ca.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v3_int_missing_bc-v3_ca.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v3_int_missing_bc-v3_ca.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v3_int_missing_bc-v3_ca.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v3_int_missing_bc-v3_ca.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v3_int_missing_bc-v3_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v3_int_missing_bc-v3_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v3_int_missing_bc-v3_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v3_int_missing_bc-v3_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v3_int_missing_bc-v3_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v3_int_missing_bc-v3_ca.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v3_int_missing_bc-v3_ca.der'), ee_error);
 
   // v1/v2 end entity, v3 intermediate
   check_ok_ca(cert_from_file('v3_int-v3_ca.der'));
@@ -399,70 +425,76 @@ function run_test() {
   check_ok(cert_from_file('v4_bc_ee-v3_int-v3_ca.der'));
 
   // v3 CA, invalid v3 intermediate
-  error = MOZILLA_PKIX_ERROR_V1_CERT_USED_AS_CA;
-  check_ca_err(cert_from_file('v1_int-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v1_int-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v1_int-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v1_int-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v1_int-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v1_int-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v1_int-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v1_int-v3_ca_missing_bc.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v1_int-v3_ca_missing_bc.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v1_int-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v1_int-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v1_int-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v1_int-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v1_int-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v1_int-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v1_int-v3_ca_missing_bc.der'), ee_error);
 
   // Int v1 with BC that is just invalid
-  error = SEC_ERROR_CA_CERT_INVALID;
-  check_ca_err(cert_from_file('v1_int_bc-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v1_int_bc-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v1_int_bc-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v1_int_bc-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v1_int_bc-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v1_int_bc-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v1_int_bc-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v1_int_bc-v3_ca_missing_bc.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v1_int_bc-v3_ca_missing_bc.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v1_int_bc-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v1_int_bc-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v1_int_bc-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v1_int_bc-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v1_int_bc-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v1_int_bc-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v1_int_bc-v3_ca_missing_bc.der'), ee_error);
 
   // Good section (all fail)
-  error = SEC_ERROR_CA_CERT_INVALID;
-  check_ca_err(cert_from_file('v2_int-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v2_int-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v2_int-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v2_int-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v2_int-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v2_int-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v2_int-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v2_int-v3_ca_missing_bc.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v2_int-v3_ca_missing_bc.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v2_int-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v2_int-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v2_int-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v2_int-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v2_int-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v2_int-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v2_int-v3_ca_missing_bc.der'), ee_error);
 
   // v3 intermediate missing basic constraints is invalid
-  error = SEC_ERROR_CA_CERT_INVALID;
-  check_ca_err(cert_from_file('v2_int_bc-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v2_int_bc-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v2_int_bc-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v2_int_bc-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v2_int_bc-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v2_int_bc-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v2_int_bc-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v2_int_bc-v3_ca_missing_bc.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v2_int_bc-v3_ca_missing_bc.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v2_int_bc-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v2_int_bc-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v2_int_bc-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v2_int_bc-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v2_int_bc-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v2_int_bc-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v2_int_bc-v3_ca_missing_bc.der'), ee_error);
 
   // v3 intermediate missing basic constraints is invalid
-  error = SEC_ERROR_CA_CERT_INVALID;
-  check_ca_err(cert_from_file('v3_int_missing_bc-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v3_int_missing_bc-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v3_int_missing_bc-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v3_int_missing_bc-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v3_int_missing_bc-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v3_int_missing_bc-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v3_int_missing_bc-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v3_int_missing_bc-v3_ca_missing_bc.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v3_int_missing_bc-v3_ca_missing_bc.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v3_int_missing_bc-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v3_int_missing_bc-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v3_int_missing_bc-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v3_int_missing_bc-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v3_int_missing_bc-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v3_int_missing_bc-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v3_int_missing_bc-v3_ca_missing_bc.der'), ee_error);
 
   // With a v3 root missing bc and valid v3 intermediate
-  error = SEC_ERROR_CA_CERT_INVALID;
-  check_ca_err(cert_from_file('v3_int-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v1_ee-v3_int-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v2_ee-v3_int-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v3_missing_bc_ee-v3_int-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v3_bc_ee-v3_int-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v1_bc_ee-v3_int-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v2_bc_ee-v3_int-v3_ca_missing_bc.der'), error);
-  check_cert_err(cert_from_file('v4_bc_ee-v3_int-v3_ca_missing_bc.der'), error);
+  ca_error = SEC_ERROR_CA_CERT_INVALID;
+  ee_error = SEC_ERROR_CA_CERT_INVALID;
+  check_ca_err(cert_from_file('v3_int-v3_ca_missing_bc.der'), ca_error);
+  check_cert_err(cert_from_file('v1_ee-v3_int-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_ee-v3_int-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_missing_bc_ee-v3_int-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v3_bc_ee-v3_int-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v1_bc_ee-v3_int-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v2_bc_ee-v3_int-v3_ca_missing_bc.der'), ee_error);
+  check_cert_err(cert_from_file('v4_bc_ee-v3_int-v3_ca_missing_bc.der'), ee_error);
 
   // self-signed
   check_cert_err(cert_from_file('v1_self_signed.der'), SEC_ERROR_UNKNOWN_ISSUER);

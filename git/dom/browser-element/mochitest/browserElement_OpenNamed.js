@@ -13,7 +13,7 @@ var iframe;
 var popupFrame;
 function runTest() {
   iframe = document.createElement('iframe');
-  iframe.setAttribute('mozbrowser', 'true');
+  SpecialPowers.wrap(iframe).mozbrowser = true;
 
   var gotPopup = false;
   iframe.addEventListener('mozbrowseropenwindow', function(e) {

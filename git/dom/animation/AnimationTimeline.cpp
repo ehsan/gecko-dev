@@ -26,16 +26,10 @@ AnimationTimeline::WrapObject(JSContext* aCx)
   return AnimationTimelineBinding::Wrap(aCx, this);
 }
 
-Nullable<TimeDuration>
+Nullable<double>
 AnimationTimeline::GetCurrentTime() const
 {
-  return ToTimelineTime(GetCurrentTimeStamp());
-}
-
-Nullable<double>
-AnimationTimeline::GetCurrentTimeAsDouble() const
-{
-  return AnimationUtils::TimeDurationToDouble(GetCurrentTime());
+  return AnimationUtils::TimeDurationToDouble(GetCurrentTimeDuration());
 }
 
 TimeStamp
@@ -72,6 +66,12 @@ AnimationTimeline::GetCurrentTimeStamp() const
   // is restored from test control.
   mLastCurrentTime = result;
   return result;
+}
+
+Nullable<TimeDuration>
+AnimationTimeline::GetCurrentTimeDuration() const
+{
+  return ToTimelineTime(GetCurrentTimeStamp());
 }
 
 Nullable<TimeDuration>

@@ -145,20 +145,15 @@ function URL(url, base) {
 
   Object.defineProperties(this, {
     toString: {
-      value() new String(uri.spec).toString(),
+      value: function URL_toString() new String(uri.spec).toString(),
       enumerable: false
     },
     valueOf: {
-      value() new String(uri.spec).valueOf(),
+      value: function() new String(uri.spec).valueOf(),
       enumerable: false
     },
     toSource: {
-      value() new String(uri.spec).toSource(),
-      enumerable: false
-    },
-    // makes more sense to flatten to string, easier to travel across JSON
-    toJSON: {
-      value() new String(uri.spec).toString(),
+      value: function() new String(uri.spec).toSource(),
       enumerable: false
     }
   });

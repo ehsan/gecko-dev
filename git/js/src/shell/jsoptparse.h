@@ -166,13 +166,13 @@ class MultiStringRange
   public:
     explicit MultiStringRange(const StringArg *cur, const StringArg *end)
       : cur(cur), end(end) {
-        MOZ_ASSERT(end - cur >= 0);
+        JS_ASSERT(end - cur >= 0);
     }
 
     bool empty() const { return cur == end; }
-    void popFront() { MOZ_ASSERT(!empty()); ++cur; }
-    char *front() const { MOZ_ASSERT(!empty()); return cur->value; }
-    size_t argno() const { MOZ_ASSERT(!empty()); return cur->argno; }
+    void popFront() { JS_ASSERT(!empty()); ++cur; }
+    char *front() const { JS_ASSERT(!empty()); return cur->value; }
+    size_t argno() const { JS_ASSERT(!empty()); return cur->argno; }
 };
 
 /*

@@ -16,11 +16,8 @@ import org.mozilla.gecko.tabs.TabsPanel.TabsLayout;
 import org.mozilla.gecko.Tabs;
 
 import android.content.Context;
-import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.util.AttributeSet;
-import android.util.TypedValue;
-import android.view.Gravity;
 import android.view.View;
 import android.widget.GridView;
 import android.view.ViewGroup;
@@ -36,19 +33,19 @@ class TabsGridLayout extends GridView
                                 Tabs.OnTabsChangedListener {
     private static final String LOGTAG = "Gecko" + TabsGridLayout.class.getSimpleName();
 
-    private final Context mContext;
+    private Context mContext;
     private TabsPanel mTabsPanel;
 
     final private boolean mIsPrivate;
 
-    private final TabsLayoutAdapter mTabsAdapter;
+    private TabsLayoutAdapter mTabsAdapter;
 
     public TabsGridLayout(Context context, AttributeSet attrs) {
         super(context, attrs, R.attr.tabGridLayoutViewStyle);
         mContext = context;
 
-        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.TabsLayout);
-        mIsPrivate = (a.getInt(R.styleable.TabsLayout_tabs, 0x0) == 1);
+        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.TabsTray);
+        mIsPrivate = (a.getInt(R.styleable.TabsTray_tabs, 0x0) == 1);
         a.recycle();
 
         mTabsAdapter = new TabsGridLayoutAdapter(mContext);
@@ -57,23 +54,11 @@ class TabsGridLayout extends GridView
         setRecyclerListener(new RecyclerListener() {
             @Override
             public void onMovedToScrapHeap(View view) {
-                TabsLayoutItemView item = (TabsLayoutItemView) view;
-                item.setThumbnail(null);
+                TabsLayoutItemView item = (TabsLayoutItemView) view.getTag();
+                item.thumbnail.setImageDrawable(null);
+                item.close.setVisibility(View.VISIBLE);
             }
         });
-
-        setScrollBarStyle(View.SCROLLBARS_OUTSIDE_OVERLAY);
-        setStretchMode(GridView.STRETCH_SPACING);
-        setGravity(Gravity.CENTER);
-        setNumColumns(GridView.AUTO_FIT);
-
-        final Resources resources = getResources();
-        final int columnWidth = resources.getDimensionPixelSize(R.dimen.new_tablet_tab_panel_column_width);
-        setColumnWidth(columnWidth);
-
-        final int padding = resources.getDimensionPixelSize(R.dimen.new_tablet_tab_panel_grid_padding);
-        final int paddingTop = resources.getDimensionPixelSize(R.dimen.new_tablet_tab_panel_grid_padding_top);
-        setPadding(padding, paddingTop, padding, padding);
     }
 
     private class TabsGridLayoutAdapter extends TabsLayoutAdapter {
@@ -82,13 +67,13 @@ class TabsGridLayout extends GridView
         final private View.OnClickListener mSelectClickListener;
 
         public TabsGridLayoutAdapter (Context context) {
-            super(context, R.layout.new_tablet_tabs_item_cell);
+            super(context);
 
             mCloseClickListener = new Button.OnClickListener() {
                 @Override
                 public void onClick(View v) {
                     TabsLayoutItemView itemView = (TabsLayoutItemView) v.getTag();
-                    Tab tab = Tabs.getInstance().getTab(itemView.getTabId());
+                    Tab tab = Tabs.getInstance().getTab(itemView.id);
                     Tabs.getInstance().closeTab(tab);
                 }
             };
@@ -96,28 +81,34 @@ class TabsGridLayout extends GridView
             mSelectClickListener = new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    TabsLayoutItemView tab = (TabsLayoutItemView) v;
-                    Tabs.getInstance().selectTab(tab.getTabId());
-                    autoHidePanel();
+                    TabsLayoutItemView tab = (TabsLayoutItemView) v.getTag();
+                    Tabs.getInstance().selectTab(tab.id);
+                    TabsGridLayout.this.autoHidePanel();
                 }
             };
         }
 
         @Override
-        TabsLayoutItemView newView(int position, ViewGroup parent) {
-            final TabsLayoutItemView item = super.newView(position, parent);
-            item.setOnClickListener(mSelectClickListener);
-            item.setCloseOnClickListener(mCloseClickListener);
-            return item;
+        public View newView(int position, ViewGroup parent) {
+            View view = super.newView(position, parent);
+
+            // This is nasty and once we change TabsLayoutItemView to an actual view
+            // we can get rid of it.
+            TabsLayoutItemView item = (TabsLayoutItemView) view.getTag();
+            item.close.setOnClickListener(mCloseClickListener);
+
+            return view;
         }
 
         @Override
-        public void bindView(TabsLayoutItemView view, Tab tab) {
+        public void bindView(View view, Tab tab) {
             super.bindView(view, tab);
+
+            view.setOnClickListener(mSelectClickListener);
 
             // If we're recycling this view, there's a chance it was transformed during
             // the close animation. Remove any of those properties.
-            resetTransforms(view);
+            TabsGridLayout.this.resetTransforms(view);
         }
     }
 
@@ -180,7 +171,8 @@ class TabsGridLayout extends GridView
                 if (view == null)
                     return;
 
-                ((TabsLayoutItemView) view).assignValues(tab);
+                TabsLayoutItemView item = (TabsLayoutItemView) view.getTag();
+                item.assignValues(tab);
                 break;
         }
     }

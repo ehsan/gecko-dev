@@ -21,7 +21,7 @@ var countAcc;
 
 function runTest() {
   iframe = document.createElement('iframe');
-  iframe.setAttribute('mozbrowser', 'true');
+  SpecialPowers.wrap(iframe).mozbrowser = true;
 
   iframe.addEventListener('mozbrowserloadend', mozbrowserLoaded);
 

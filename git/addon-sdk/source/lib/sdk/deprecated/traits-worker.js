@@ -83,7 +83,7 @@ const WorkerSandbox = EventEmitter.compose({
    */
   emitSync: function emitSync() {
     let args = Array.slice(arguments);
-    return this._emitToContent(Cu.cloneInto(args, this._addonWorker._window));
+    return this._emitToContent(args);
   },
 
   /**
@@ -184,18 +184,35 @@ const WorkerSandbox = EventEmitter.compose({
     // by trading two methods that allow to send events to the other side:
     //   - `onEvent` called by content script
     //   - `result.emitToContent` called by addon script
-    let chromeAPI = Cu.cloneInto({
+    // Bug 758203: We have to explicitely define `__exposedProps__` in order
+    // to allow access to these chrome object attributes from this sandbox with
+    // content priviledges
+    // https://developer.mozilla.org/en/XPConnect_wrappers#Other_security_wrappers
+    let chromeAPI = {
       timers: {
-        setTimeout: timer.setTimeout.bind(timer),
-        setInterval: timer.setInterval.bind(timer),
-        clearTimeout: timer.clearTimeout.bind(timer),
-        clearInterval: timer.clearInterval.bind(timer),
+        setTimeout: timer.setTimeout,
+        setInterval: timer.setInterval,
+        clearTimeout: timer.clearTimeout,
+        clearInterval: timer.clearInterval,
+        __exposedProps__: {
+          setTimeout: 'r',
+          setInterval: 'r',
+          clearTimeout: 'r',
+          clearInterval: 'r'
+        }
       },
       sandbox: {
         evaluate: evaluate,
+        __exposedProps__: {
+          evaluate: 'r',
+        }
       },
-    }, ContentWorker, {cloneFunctions: true});
-    let onEvent = Cu.exportFunction(this._onContentEvent.bind(this), ContentWorker);
+      __exposedProps__: {
+        timers: 'r',
+        sandbox: 'r',
+      }
+    };
+    let onEvent = this._onContentEvent.bind(this);
     let result = Cu.waiveXrays(ContentWorker).inject(content, chromeAPI, onEvent, options);
     this._emitToContent = result;
 

@@ -35,8 +35,8 @@ js_memcpy(void *dst_, const void *src_, size_t len)
 {
     char *dst = (char *) dst_;
     const char *src = (const char *) src_;
-    MOZ_ASSERT_IF(dst >= src, (size_t) (dst - src) >= len);
-    MOZ_ASSERT_IF(src >= dst, (size_t) (src - dst) >= len);
+    JS_ASSERT_IF(dst >= src, (size_t) (dst - src) >= len);
+    JS_ASSERT_IF(src >= dst, (size_t) (src - dst) >= len);
 
     return memcpy(dst, src, len);
 }
@@ -61,7 +61,7 @@ class AlignedPtrAndFlag
 
   public:
     AlignedPtrAndFlag(T *t, bool aFlag) {
-        MOZ_ASSERT((uintptr_t(t) & 1) == 0);
+        JS_ASSERT((uintptr_t(t) & 1) == 0);
         bits = uintptr_t(t) | uintptr_t(aFlag);
     }
 
@@ -74,7 +74,7 @@ class AlignedPtrAndFlag
     }
 
     void setPtr(T *t) {
-        MOZ_ASSERT((uintptr_t(t) & 1) == 0);
+        JS_ASSERT((uintptr_t(t) & 1) == 0);
         bits = uintptr_t(t) | uintptr_t(flag());
     }
 
@@ -87,7 +87,7 @@ class AlignedPtrAndFlag
     }
 
     void set(T *t, bool aFlag) {
-        MOZ_ASSERT((uintptr_t(t) & 1) == 0);
+        JS_ASSERT((uintptr_t(t) & 1) == 0);
         bits = uintptr_t(t) | aFlag;
     }
 };
@@ -193,7 +193,7 @@ template <typename T, typename U>
 static inline U
 ComputeByteAlignment(T bytes, U alignment)
 {
-    MOZ_ASSERT(IsPowerOfTwo(alignment));
+    JS_ASSERT(IsPowerOfTwo(alignment));
     return (alignment - (bytes % alignment)) % alignment;
 }
 
@@ -226,7 +226,7 @@ static inline unsigned
 BitArrayIndexToWordIndex(size_t length, size_t bitIndex)
 {
     unsigned wordIndex = bitIndex / BitArrayElementBits;
-    MOZ_ASSERT(wordIndex < length);
+    JS_ASSERT(wordIndex < length);
     return wordIndex;
 }
 
@@ -293,7 +293,7 @@ Poison(void *ptr, int value, size_t num)
 }
 
 /* Crash diagnostics */
-#if defined(DEBUG) && !defined(MOZ_ASAN)
+#ifdef DEBUG
 # define JS_CRASH_DIAGNOSTICS 1
 #endif
 #if defined(JS_CRASH_DIAGNOSTICS) || defined(JS_GC_ZEAL)

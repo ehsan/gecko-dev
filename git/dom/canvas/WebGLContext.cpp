@@ -227,8 +227,9 @@ WebGLContextOptions::WebGLContextOptions()
 
 WebGLContext::WebGLContext()
     : gl(nullptr)
-    , mNeedsFakeNoAlpha(false)
 {
+    SetIsDOMBinding();
+
     mGeneration = 0;
     mInvalidated = false;
     mShouldPresent = true;
@@ -345,7 +346,6 @@ WebGLContext::DestroyResourcesAndContext()
 
     mBound2DTextures.Clear();
     mBoundCubeMapTextures.Clear();
-    mBound3DTextures.Clear();
     mBoundArrayBuffer = nullptr;
     mBoundTransformFeedbackBuffer = nullptr;
     mCurrentProgram = nullptr;
@@ -662,18 +662,8 @@ CreateOffscreen(GLContext* gl,
     baseCaps.alpha = options.alpha;
     baseCaps.antialias = options.antialias;
     baseCaps.depth = options.depth;
-    baseCaps.premultAlpha = options.premultipliedAlpha;
     baseCaps.preserve = options.preserveDrawingBuffer;
     baseCaps.stencil = options.stencil;
-
-    if (!baseCaps.alpha)
-        baseCaps.premultAlpha = true;
-
-    if (gl->IsANGLE()) {
-        // We can't use no-alpha formats on ANGLE yet because of:
-        // https://code.google.com/p/angleproject/issues/detail?id=764
-        baseCaps.alpha = true;
-    }
 
     // we should really have this behind a
     // |gfxPlatform::GetPlatform()->GetScreenDepth() == 16| check, but
@@ -909,18 +899,6 @@ WebGLContext::SetDimensions(int32_t sWidth, int32_t sHeight)
     // increment the generation number
     ++mGeneration;
 
-    // Update our internal stuff:
-    if (gl->WorkAroundDriverBugs()) {
-        if (!mOptions.alpha && gl->Caps().alpha) {
-            mNeedsFakeNoAlpha = true;
-        }
-    }
-
-    // Update mOptions.
-    mOptions.depth = gl->Caps().depth;
-    mOptions.stencil = gl->Caps().stencil;
-    mOptions.antialias = gl->Caps().antialias;
-
     MakeContextCurrent();
 
     gl->fViewport(0, 0, mWidth, mHeight);
@@ -942,11 +920,10 @@ WebGLContext::SetDimensions(int32_t sWidth, int32_t sHeight)
     mShouldPresent = true;
 
     MOZ_ASSERT(gl->Caps().color);
-    MOZ_ASSERT_IF(!mNeedsFakeNoAlpha, gl->Caps().alpha == mOptions.alpha);
-    MOZ_ASSERT_IF(mNeedsFakeNoAlpha, !mOptions.alpha && gl->Caps().alpha);
-    MOZ_ASSERT(gl->Caps().depth == mOptions.depth);
-    MOZ_ASSERT(gl->Caps().stencil == mOptions.stencil);
-    MOZ_ASSERT(gl->Caps().antialias == mOptions.antialias);
+    MOZ_ASSERT(gl->Caps().alpha == mOptions.alpha);
+    MOZ_ASSERT(gl->Caps().depth == mOptions.depth || !gl->Caps().depth);
+    MOZ_ASSERT(gl->Caps().stencil == mOptions.stencil || !gl->Caps().stencil);
+    MOZ_ASSERT(gl->Caps().antialias == mOptions.antialias || !gl->Caps().antialias);
     MOZ_ASSERT(gl->Caps().preserve == mOptions.preserveDrawingBuffer);
 
     AssertCachedBindings();
@@ -1260,10 +1237,12 @@ WebGLContext::GetContextAttributes(Nullable<dom::WebGLContextAttributes> &retval
 
     dom::WebGLContextAttributes& result = retval.SetValue();
 
-    result.mAlpha.Construct(mOptions.alpha);
-    result.mDepth = mOptions.depth;
-    result.mStencil = mOptions.stencil;
-    result.mAntialias = mOptions.antialias;
+    const PixelBufferFormat& format = gl->GetPixelFormat();
+
+    result.mAlpha.Construct(format.alpha > 0);
+    result.mDepth = format.depth > 0;
+    result.mStencil = format.stencil > 0;
+    result.mAntialias = format.samples > 1;
     result.mPremultipliedAlpha = mOptions.premultipliedAlpha;
     result.mPreserveDrawingBuffer = mOptions.preserveDrawingBuffer;
 }
@@ -1361,12 +1340,7 @@ WebGLContext::ForceClearFramebufferWithDefaultValues(GLbitfield mask, const bool
         }
 
         gl->fColorMask(1, 1, 1, 1);
-
-        if (mNeedsFakeNoAlpha) {
-            gl->fClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        } else {
-            gl->fClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-        }
+        gl->fClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     }
 
     if (initializeDepthBuffer) {
@@ -1437,14 +1411,10 @@ WebGLContext::PresentScreenBuffer()
     if (!mShouldPresent) {
         return false;
     }
-    MOZ_ASSERT(!mBackbufferNeedsClear);
 
     gl->MakeCurrent();
-
-    GLScreenBuffer* screen = gl->Screen();
-    MOZ_ASSERT(screen);
-
-    if (!screen->PublishFrame(screen->Size())) {
+    MOZ_ASSERT(!mBackbufferNeedsClear);
+    if (!gl->PublishFrame()) {
         ForceLoseContext();
         return false;
     }
@@ -1780,16 +1750,6 @@ bool WebGLContext::TexImageFromVideoElement(const TexImageTarget texImageTarget,
                               GLenum internalformat, GLenum format, GLenum type,
                               mozilla::dom::Element& elt)
 {
-    if (type == LOCAL_GL_HALF_FLOAT_OES) {
-        type = LOCAL_GL_HALF_FLOAT;
-    }
-
-    if (!ValidateTexImageFormatAndType(format, type,
-                                       WebGLTexImageFunc::TexImage, WebGLTexDimensions::Tex2D))
-    {
-        return false;
-    }
-
     HTMLVideoElement* video = HTMLVideoElement::FromContentOrNull(&elt);
     if (!video) {
         return false;
@@ -1837,11 +1797,7 @@ bool WebGLContext::TexImageFromVideoElement(const TexImageTarget texImageTarget,
     }
     bool ok = gl->BlitHelper()->BlitImageToTexture(srcImage.get(), srcImage->GetSize(), tex->GLName(), texImageTarget.get(), mPixelStoreFlipY);
     if (ok) {
-        TexInternalFormat effectiveinternalformat =
-            EffectiveInternalFormatFromInternalFormatAndType(internalformat, type);
-        MOZ_ASSERT(effectiveinternalformat != LOCAL_GL_NONE);
-        tex->SetImageInfo(texImageTarget, level, srcImage->GetSize().width, srcImage->GetSize().height, 1,
-                          effectiveinternalformat, WebGLImageDataStatus::InitializedImageData);
+        tex->SetImageInfo(texImageTarget, level, srcImage->GetSize().width, srcImage->GetSize().height, format, type, WebGLImageDataStatus::InitializedImageData);
         tex->Bind(TexImageTargetToTexTarget(texImageTarget));
     }
     srcImage = nullptr;
@@ -1849,31 +1805,9 @@ bool WebGLContext::TexImageFromVideoElement(const TexImageTarget texImageTarget,
     return ok;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-WebGLContext::ScopedMaskWorkaround::ScopedMaskWorkaround(WebGLContext& webgl)
-    : mWebGL(webgl)
-    , mNeedsChange(NeedsChange(webgl))
-{
-    if (mNeedsChange) {
-        mWebGL.gl->fColorMask(mWebGL.mColorWriteMask[0],
-                              mWebGL.mColorWriteMask[1],
-                              mWebGL.mColorWriteMask[2],
-                              false);
-    }
-}
-
-WebGLContext::ScopedMaskWorkaround::~ScopedMaskWorkaround()
-{
-    if (mNeedsChange) {
-        mWebGL.gl->fColorMask(mWebGL.mColorWriteMask[0],
-                              mWebGL.mColorWriteMask[1],
-                              mWebGL.mColorWriteMask[2],
-                              mWebGL.mColorWriteMask[3]);
-    }
-}
-////////////////////////////////////////////////////////////////////////////////
+//
 // XPCOM goop
+//
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(WebGLContext)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(WebGLContext)
@@ -1883,7 +1817,6 @@ NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(WebGLContext,
   mExtensions,
   mBound2DTextures,
   mBoundCubeMapTextures,
-  mBound3DTextures,
   mBoundArrayBuffer,
   mBoundTransformFeedbackBuffer,
   mCurrentProgram,

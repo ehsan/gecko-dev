@@ -44,23 +44,14 @@ class MOZ_STACK_CLASS RegExpStackCursor
 {
   public:
     explicit RegExpStackCursor(JSContext *cx)
-      : cx(cx), cursor(nullptr)
+      : cx(cx), cursor(base())
     {}
-
-    bool init() {
-        if (!stack.init()) {
-            js_ReportOutOfMemory(cx);
-            return false;
-        }
-        cursor = base();
-        return true;
-    }
 
     bool push(int32_t value) {
         *cursor++ = value;
-        if (cursor >= stack.limit()) {
+        if (cursor >= stack().limit()) {
             int32_t pos = position();
-            if (!stack.grow()) {
+            if (!stack().grow()) {
                 js_ReportOverRecursed(cx);
                 return false;
             }
@@ -70,45 +61,44 @@ class MOZ_STACK_CLASS RegExpStackCursor
     }
 
     int32_t pop() {
-        MOZ_ASSERT(cursor > base());
+        JS_ASSERT(cursor > base());
         return *--cursor;
     }
 
     int32_t peek() {
-        MOZ_ASSERT(cursor > base());
+        JS_ASSERT(cursor > base());
         return *(cursor - 1);
     }
 
     int32_t position() {
-        MOZ_ASSERT(cursor >= base());
         return cursor - base();
     }
 
     void setPosition(int32_t position) {
         cursor = base() + position;
-        MOZ_ASSERT(cursor < stack.limit());
+        JS_ASSERT(cursor < stack().limit());
     }
 
   private:
     JSContext *cx;
-    RegExpStack stack;
 
     int32_t *cursor;
 
-    int32_t *base() { return (int32_t *) stack.base(); }
+    RegExpStack &stack() { return cx->runtime()->mainThread.regexpStack; }
+    int32_t *base() { return (int32_t *) stack().base(); }
 };
 
 static int32_t
 Load32Aligned(const uint8_t* pc)
 {
-    MOZ_ASSERT((reinterpret_cast<uintptr_t>(pc) & 3) == 0);
+    JS_ASSERT((reinterpret_cast<uintptr_t>(pc) & 3) == 0);
     return *reinterpret_cast<const int32_t *>(pc);
 }
 
 static int32_t
 Load16Aligned(const uint8_t* pc)
 {
-    MOZ_ASSERT((reinterpret_cast<uintptr_t>(pc) & 1) == 0);
+    JS_ASSERT((reinterpret_cast<uintptr_t>(pc) & 1) == 0);
     return *reinterpret_cast<const uint16_t *>(pc);
 }
 
@@ -124,9 +114,6 @@ irregexp::InterpretCode(JSContext *cx, const uint8_t *byteCode, const CharT *cha
     uint32_t current_char = current ? chars[current - 1] : '\n';
 
     RegExpStackCursor stack(cx);
-
-    if (!stack.init())
-        return RegExpRunStatus_Error;
 
     int32_t numRegisters = Load32Aligned(pc);
     pc += 4;

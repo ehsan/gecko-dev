@@ -114,7 +114,6 @@ textarea {
   text-indent: 0;
   -moz-user-select: text;
   text-shadow: none;
-  white-space: pre-wrap;
   word-wrap: break-word;
   overflow-clip-box: content-box;
 }
@@ -127,6 +126,7 @@ textarea > .anonymous-div,
 input > .anonymous-div,
 input::-moz-placeholder,
 textarea::-moz-placeholder {
+  white-space: pre;
   overflow: auto;
   border: 0px !important;
   padding: inherit !important;
@@ -141,11 +141,7 @@ textarea::-moz-placeholder {
   overflow-clip-box: inherit;
 }
 
-input > .anonymous-div,
-input::-moz-placeholder {
-  white-space: pre;
-}
-
+textarea > .anonymous-div.wrap,
 input > .anonymous-div.wrap {
   white-space: pre-wrap;
 }

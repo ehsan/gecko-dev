@@ -36,9 +36,6 @@ public:
     void SetHTTPS(bool val) { mHTTPS = val; }
     bool IsHTTPS() const { return mHTTPS; }
 
-    void SetOrigin(const nsACString &scheme, const nsACString &host, int32_t port);
-    const nsCString &Origin() const { return mOrigin; }
-
     const char *PeekHeader(nsHttpAtom h) const
     {
         return mHeaders.PeekHeader(h);
@@ -93,7 +90,6 @@ public:
     bool IsHead() const { return EqualsMethod(kMethod_Head); }
     bool IsPut() const { return EqualsMethod(kMethod_Put); }
     bool IsTrace() const { return EqualsMethod(kMethod_Trace); }
-    void ParseHeaderSet(char *buffer) { mHeaders.ParseHeaderSet(buffer); }
 
 private:
     // All members must be copy-constructable and assignable
@@ -101,7 +97,6 @@ private:
     nsCString         mMethod;
     nsHttpVersion     mVersion;
     nsCString         mRequestURI;
-    nsCString         mOrigin;
     ParsedMethodType  mParsedMethod;
     bool              mHTTPS;
 };

@@ -224,9 +224,8 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
   // Prepare the radical symbol and the overline bar
 
   nsRefPtr<nsFontMetrics> fm;
-  float fontSizeInflation = nsLayoutUtils::FontSizeInflationFor(this);
-  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm),
-                                        fontSizeInflation);
+  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
+  renderingContext.SetFont(fm);
 
   nscoord ruleThickness, leading, psi;
   GetRadicalParameters(fm, StyleFont()->mMathDisplay ==
@@ -235,8 +234,7 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
 
   // built-in: adjust clearance psi to emulate \mathstrut using '1' (TexBook, p.131)
   char16_t one = '1';
-  nsBoundingMetrics bmOne =
-    nsLayoutUtils::AppUnitBoundsOfString(&one, 1, *fm, renderingContext);
+  nsBoundingMetrics bmOne = renderingContext.GetBoundingMetrics(&one, 1);
   if (bmOne.ascent > bmBase.ascent)
     psi += bmOne.ascent - bmBase.ascent;
 
@@ -260,7 +258,6 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
   // height(radical) should be >= height(base) + psi + ruleThickness
   nsBoundingMetrics radicalSize;
   mSqrChar.Stretch(aPresContext, renderingContext,
-                   fontSizeInflation,
                    NS_STRETCH_DIRECTION_VERTICAL, 
                    contSize, radicalSize,
                    NS_STRETCH_LARGER,
@@ -368,20 +365,17 @@ nsMathMLmrootFrame::GetIntrinsicISizeMetrics(nsRenderingContext* aRenderingConte
     return;
   }
 
-  float fontSizeInflation = nsLayoutUtils::FontSizeInflationFor(this);
   nscoord baseWidth =
     nsLayoutUtils::IntrinsicForContainer(aRenderingContext, baseFrame,
                                          nsLayoutUtils::PREF_ISIZE);
   nscoord indexWidth =
     nsLayoutUtils::IntrinsicForContainer(aRenderingContext, indexFrame,
                                          nsLayoutUtils::PREF_ISIZE);
-  nscoord sqrWidth = mSqrChar.GetMaxWidth(PresContext(), *aRenderingContext,
-                                          fontSizeInflation);
+  nscoord sqrWidth = mSqrChar.GetMaxWidth(PresContext(), *aRenderingContext);
 
   nscoord dxSqr;
   nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm),
-                                        fontSizeInflation);
+  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
   GetRadicalXOffsets(indexWidth, sqrWidth, fm, nullptr, &dxSqr);
 
   nscoord width = dxSqr + sqrWidth + baseWidth;

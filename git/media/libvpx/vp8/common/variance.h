@@ -9,14 +9,10 @@
  */
 
 
-#ifndef VP8_COMMON_VARIANCE_H_
-#define VP8_COMMON_VARIANCE_H_
+#ifndef VARIANCE_H
+#define VARIANCE_H
 
 #include "vpx_config.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 typedef unsigned int(*vp8_sad_fn_t)(
     const unsigned char *src_ptr,
@@ -116,8 +112,4 @@ typedef struct variance_vtable
 #endif
 } vp8_variance_fn_ptr_t;
 
-#ifdef __cplusplus
-}  // extern "C"
 #endif
-
-#endif  // VP8_COMMON_VARIANCE_H_

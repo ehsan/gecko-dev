@@ -28,7 +28,7 @@ public abstract class ArrowPopup extends PopupWindow {
     ImageView mArrow;
 
     int mArrowWidth;
-    private final int mYOffset;
+    private int mYOffset;
 
     protected LinearLayout mContent;
     protected boolean mInflated;

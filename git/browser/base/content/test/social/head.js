@@ -33,16 +33,6 @@ function waitForCondition(condition, nextTest, errorMsg) {
   var moveOn = function() { clearInterval(interval); nextTest(); };
 }
 
-
-function promiseObserverNotified(aTopic) {
-  let deferred = Promise.defer();
-  Services.obs.addObserver(function onNotification(aSubject, aTopic, aData) {
-    Services.obs.removeObserver(onNotification, aTopic);
-      deferred.resolve({subject: aSubject, data: aData});
-    }, aTopic, false);
-  return deferred.promise;
-}
-
 // Check that a specified (string) URL hasn't been "remembered" (ie, is not
 // in history, will not appear in about:newtab or auto-complete, etc.)
 function promiseSocialUrlNotRemembered(url) {
@@ -170,7 +160,6 @@ function runSocialTests(tests, cbPreTest, cbPostTest, cbFinish) {
   let testIter = Iterator(tests);
   let providersAtStart = Social.providers.length;
   info("runSocialTests: start test run with " + providersAtStart + " providers");
-  window.focus();
 
   PopupNotifications.transitionsEnabled = false;
 

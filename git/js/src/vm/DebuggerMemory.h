@@ -15,7 +15,7 @@
 
 namespace js {
 
-class DebuggerMemory : public NativeObject {
+class DebuggerMemory : public JSObject {
     friend class Debugger;
 
     static DebuggerMemory *checkThis(JSContext *cx, CallArgs &args, const char *fnName);

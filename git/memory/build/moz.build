@@ -48,7 +48,7 @@ else:
         'mozjemalloc',
     ]
 
-if CONFIG['MOZ_GLUE_IN_PROGRAM']:
+if CONFIG['MOZ_GLUE_PROGRAM_LDFLAGS']:
     SDK_LIBRARY = True
 
 # Keep jemalloc separated when mozglue is statically linked

@@ -74,6 +74,7 @@ nsresult nsDataObj::CStream::Init(nsIURI *pSourceURI,
                      aRequestingNode,
                      nsILoadInfo::SEC_NORMAL,
                      nsIContentPolicy::TYPE_OTHER,
+                     nullptr,   // aChannelPolicy
                      nullptr,   // loadGroup
                      nullptr,   // aCallbacks
                      nsIRequest::LOAD_FROM_CACHE);
@@ -593,7 +594,7 @@ STDMETHODIMP nsDataObj::QueryGetData(LPFORMATETC pFE)
 STDMETHODIMP nsDataObj::GetCanonicalFormatEtc
 	 (LPFORMATETC pFEIn, LPFORMATETC pFEOut)
 {
-  return E_NOTIMPL;
+  return E_FAIL;
 }
 
 //-----------------------------------------------------
@@ -746,20 +747,20 @@ STDMETHODIMP nsDataObj::EnumFormatEtc(DWORD dwDir, LPENUMFORMATETC *ppEnum)
 STDMETHODIMP nsDataObj::DAdvise(LPFORMATETC pFE, DWORD dwFlags,
 										            LPADVISESINK pIAdviseSink, DWORD* pdwConn)
 {
-  return OLE_E_ADVISENOTSUPPORTED;
+  return E_FAIL;
 }
 
 
 //-----------------------------------------------------
 STDMETHODIMP nsDataObj::DUnadvise(DWORD dwConn)
 {
-  return OLE_E_ADVISENOTSUPPORTED;
+  return E_FAIL;
 }
 
 //-----------------------------------------------------
 STDMETHODIMP nsDataObj::EnumDAdvise(LPENUMSTATDATA *ppEnum)
 {
-  return OLE_E_ADVISENOTSUPPORTED;
+  return E_FAIL;
 }
 
 // IAsyncOperation methods

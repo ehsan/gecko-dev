@@ -59,7 +59,6 @@ var ecmaGlobals =
     {name: "SharedFloat32Array", nightly: true},
     {name: "SharedFloat64Array", nightly: true},
     {name: "SIMD", nightly: true},
-    {name: "Atomics", nightly: true},
     "StopIteration",
     "String",
     "SyntaxError",
@@ -127,8 +126,6 @@ var interfaceNamesInGlobalScope =
     "URL",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "URLSearchParams",
-// IMPORTANT: Do not change this list without review from a DOM peer!
-    "WebSocket",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "Worker",
 // IMPORTANT: Do not change this list without review from a DOM peer!

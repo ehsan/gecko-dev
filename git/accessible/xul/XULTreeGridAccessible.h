@@ -15,19 +15,25 @@
 namespace mozilla {
 namespace a11y {
 
-class XULTreeGridCellAccessible;
-
 /**
  * Represents accessible for XUL tree in the case when it has multiple columns.
  */
 class XULTreeGridAccessible : public XULTreeAccessible,
+                              public xpcAccessibleTable,
+                              public nsIAccessibleTable,
                               public TableAccessible
 {
 public:
   XULTreeGridAccessible(nsIContent* aContent, DocAccessible* aDoc,
                         nsTreeBodyFrame* aTreeFrame) :
-    XULTreeAccessible(aContent, aDoc, aTreeFrame)
+    XULTreeAccessible(aContent, aDoc, aTreeFrame), xpcAccessibleTable(this)
     { mGenericTypes |= eTable; }
+
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIAccessibleTable
+  NS_FORWARD_NSIACCESSIBLETABLE(xpcAccessibleTable::)
 
   // TableAccessible
   virtual uint32_t ColCount();
@@ -49,6 +55,7 @@ public:
   virtual Accessible* AsAccessible() { return this; }
 
   // Accessible
+  virtual void Shutdown();
   virtual TableAccessible* AsTable() { return this; }
   virtual a11y::role NativeRole() MOZ_OVERRIDE;
 
@@ -90,8 +97,7 @@ public:
   virtual uint32_t ChildCount() const MOZ_OVERRIDE;
 
   // XULTreeItemAccessibleBase
-  virtual XULTreeGridCellAccessible* GetCellAccessible(nsITreeColumn* aColumn)
-    const MOZ_OVERRIDE MOZ_FINAL;
+  virtual Accessible* GetCellAccessible(nsITreeColumn* aColumn) const MOZ_OVERRIDE;
   virtual void RowInvalidated(int32_t aStartColIdx, int32_t aEndColIdx);
 
 protected:
@@ -101,8 +107,7 @@ protected:
   virtual void CacheChildren();
 
   // XULTreeItemAccessibleBase
-  mutable nsRefPtrHashtable<nsPtrHashKey<const void>, XULTreeGridCellAccessible>
-    mAccessibleCache;
+  mutable AccessibleHashtable mAccessibleCache;
 };
 
 
@@ -111,8 +116,18 @@ protected:
  * multiple columns.
  */
 
+#define XULTREEGRIDCELLACCESSIBLE_IMPL_CID            \
+{  /* 84588ad4-549c-4196-a932-4c5ca5de5dff */         \
+  0x84588ad4,                                         \
+  0x549c,                                             \
+  0x4196,                                             \
+  { 0xa9, 0x32, 0x4c, 0x5c, 0xa5, 0xde, 0x5d, 0xff }  \
+}
+
 class XULTreeGridCellAccessible : public LeafAccessible,
-                                  public TableCellAccessible
+                                  public nsIAccessibleTableCell,
+                                  public TableCellAccessible,
+                                  public xpcAccessibleTableCell
 {
 public:
 
@@ -126,8 +141,12 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(XULTreeGridCellAccessible,
                                            LeafAccessible)
 
+  // nsIAccessibleTableCell
+  NS_FORWARD_NSIACCESSIBLETABLECELL(xpcAccessibleTableCell::)
+
   // Accessible
   virtual TableCellAccessible* AsTableCell() { return this; }
+  virtual void Shutdown();
   virtual nsIntRect Bounds() const MOZ_OVERRIDE;
   virtual ENameValueFlag Name(nsString& aName);
   virtual Accessible* FocusedChild();
@@ -150,6 +169,9 @@ public:
   virtual void ColHeaderCells(nsTArray<Accessible*>* aHeaderCells) MOZ_OVERRIDE;
   virtual void RowHeaderCells(nsTArray<Accessible*>* aCells) MOZ_OVERRIDE { }
   virtual bool Selected() MOZ_OVERRIDE;
+
+  // XULTreeGridCellAccessible
+  NS_DECLARE_STATIC_IID_ACCESSOR(XULTREEGRIDCELLACCESSIBLE_IMPL_CID)
 
   /**
    * Fire name or state change event if the accessible text or value has been
@@ -183,6 +205,9 @@ protected:
 
   nsString mCachedTextEquiv;
 };
+
+NS_DEFINE_STATIC_IID_ACCESSOR(XULTreeGridCellAccessible,
+                              XULTREEGRIDCELLACCESSIBLE_IMPL_CID)
 
 } // namespace a11y
 } // namespace mozilla

@@ -15,6 +15,7 @@
 #include "TestCommon.h"
 #include <algorithm>
 
+#define FORCE_PR_LOG
 #include <stdio.h>
 #ifdef WIN32 
 #include <windows.h>
@@ -48,6 +49,7 @@
 #include "nsIPropertyBag2.h"
 #include "nsIWritablePropertyBag2.h"
 #include "nsITimedChannel.h"
+#include "nsChannelProperties.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/unused.h"
 #include "nsIScriptSecurityManager.h"
@@ -642,6 +644,7 @@ nsresult StartLoadingURL(const char* aUrlString)
                            systemPrincipal,
                            nsILoadInfo::SEC_NORMAL,
                            nsIContentPolicy::TYPE_OTHER,
+                           nullptr,  // aChannelPolicy
                            nullptr,  // loadGroup
                            callbacks,
                            nsIRequest::LOAD_NORMAL,

@@ -310,7 +310,7 @@ public:
 
   virtual bool IsSameProcess() const MOZ_OVERRIDE;
 
-  virtual void SendPendingAsyncMessges();
+  void SendPendingAsyncMessge();
 
   void MarkShutDown();
 protected:

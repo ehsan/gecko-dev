@@ -11,12 +11,12 @@
 
 // Keep others in (case-insensitive) order:
 #include "gfx2DGlue.h"
-#include "gfxContext.h"
 #include "gfxPlatform.h"
 #include "gfxUtils.h"
 #include "mozilla/gfx/Helpers.h"
 #include "mozilla/gfx/PatternHelpers.h"
 #include "nsISVGChildFrame.h"
+#include "nsRenderingContext.h"
 #include "nsCSSFilterInstance.h"
 #include "nsSVGFilterInstance.h"
 #include "nsSVGFilterPaintCallback.h"
@@ -58,7 +58,7 @@ UserSpaceMetricsForFrame(nsIFrame* aFrame)
 
 nsresult
 nsFilterInstance::PaintFilteredFrame(nsIFrame *aFilteredFrame,
-                                     gfxContext& aContext,
+                                     nsRenderingContext *aContext,
                                      const gfxMatrix& aTransform,
                                      nsSVGFilterPaintCallback *aPaintCallback,
                                      const nsRegion *aDirtyArea)
@@ -71,7 +71,7 @@ nsFilterInstance::PaintFilteredFrame(nsIFrame *aFilteredFrame,
   if (!instance.IsInitialized()) {
     return NS_OK;
   }
-  return instance.Render(&aContext);
+  return instance.Render(aContext->ThebesContext());
 }
 
 nsRegion
@@ -448,7 +448,9 @@ nsFilterInstance::BuildSourceImage(DrawTarget* aTargetDT)
     ctx->CurrentMatrix().Translate(-neededRect.TopLeft()).
                          PreMultiply(deviceToFilterSpace));
 
-  mPaintCallback->Paint(*ctx, mTargetFrame, mPaintTransform, &dirty);
+  nsRefPtr<nsRenderingContext> tmpCtx(new nsRenderingContext());
+  tmpCtx->Init(mTargetFrame->PresContext()->DeviceContext(), ctx);
+  mPaintCallback->Paint(tmpCtx, mTargetFrame, mPaintTransform, &dirty);
 
   mSourceGraphic.mSourceSurface = offscreenDT->Snapshot();
   mSourceGraphic.mSurfaceRect = ToIntRect(neededRect);

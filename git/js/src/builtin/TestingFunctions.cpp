@@ -36,9 +36,8 @@
 #include "jscntxtinlines.h"
 #include "jsobjinlines.h"
 
-#include "vm/NativeObject-inl.h"
-
 using namespace js;
+using namespace JS;
 
 using mozilla::ArrayLength;
 using mozilla::Move;
@@ -250,12 +249,12 @@ GC(JSContext *cx, unsigned argc, jsval *vp)
     if (compartment)
         PrepareForDebugGC(cx->runtime());
     else
-        JS::PrepareForFullGC(cx->runtime());
+        PrepareForFullGC(cx->runtime());
 
     if (shrinking)
-        JS::ShrinkingGC(cx->runtime(), JS::gcreason::API);
+        ShrinkingGC(cx->runtime(), gcreason::API);
     else
-        JS::GCForReason(cx->runtime(), JS::gcreason::API);
+        GCForReason(cx->runtime(), gcreason::API);
 
     char buf[256] = { '\0' };
 #ifndef JS_MORE_DETERMINISTIC
@@ -277,7 +276,7 @@ MinorGC(JSContext *cx, unsigned argc, jsval *vp)
     if (args.get(0) == BooleanValue(true))
         cx->runtime()->gc.storeBuffer.setAboutToOverflow();
 
-    cx->minorGC(JS::gcreason::API);
+    cx->minorGC(gcreason::API);
 #endif
     args.rval().setUndefined();
     return true;
@@ -348,7 +347,7 @@ GCParameter(JSContext *cx, unsigned argc, Value *vp)
         return false;
     }
 
-    if (param == JSGC_MARK_STACK_LIMIT && JS::IsIncrementalGCInProgress(cx->runtime())) {
+    if (param == JSGC_MARK_STACK_LIMIT && IsIncrementalGCInProgress(cx->runtime())) {
         JS_ReportError(cx, "attempt to set markStackLimit while a GC is in progress");
         return false;
     }
@@ -628,15 +627,16 @@ GCSlice(JSContext *cx, unsigned argc, Value *vp)
         return false;
     }
 
-    SliceBudget budget;
+    bool limit = true;
+    uint32_t budget = 0;
     if (args.length() == 1) {
-        uint32_t work = 0;
-        if (!ToUint32(cx, args[0], &work))
+        if (!ToUint32(cx, args[0], &budget))
             return false;
-        budget = SliceBudget(WorkBudget(work));
+    } else {
+        limit = false;
     }
 
-    cx->runtime()->gc.gcDebugSlice(budget);
+    cx->runtime()->gc.gcDebugSlice(limit, budget);
     args.rval().setUndefined();
     return true;
 }
@@ -726,7 +726,7 @@ class CountHeapTracer
 static void
 CountHeapNotify(JSTracer *trc, void **thingp, JSGCTraceKind kind)
 {
-    MOZ_ASSERT(trc->callback == CountHeapNotify);
+    JS_ASSERT(trc->callback == CountHeapNotify);
 
     CountHeapTracer *countTracer = (CountHeapTracer *)trc;
     void *thing = *thingp;
@@ -1164,7 +1164,7 @@ js::testingFunc_inParallelSection(JSContext *cx, unsigned argc, jsval *vp)
 
     // If we were actually *in* a parallel section, then this function
     // would be inlined to TRUE in ion-generated code.
-    MOZ_ASSERT(!InParallelSection());
+    JS_ASSERT(!InParallelSection());
     args.rval().setBoolean(false);
     return true;
 }
@@ -1184,13 +1184,13 @@ ShellObjectMetadataCallback(JSContext *cx, JSObject **pmetadata)
     createdIndex++;
 
     if (!JS_DefineProperty(cx, obj, "index", createdIndex, 0,
-                           JS_STUBGETTER, JS_STUBSETTER))
+                           JS_PropertyStub, JS_StrictPropertyStub))
     {
         return false;
     }
 
     if (!JS_DefineProperty(cx, obj, "stack", stack, 0,
-                           JS_STUBGETTER, JS_STUBSETTER))
+                           JS_PropertyStub, JS_StrictPropertyStub))
     {
         return false;
     }
@@ -1203,7 +1203,7 @@ ShellObjectMetadataCallback(JSContext *cx, JSObject **pmetadata)
             id = INT_TO_JSID(stackIndex);
             RootedObject callee(cx, iter.callee());
             if (!JS_DefinePropertyById(cx, stack, id, callee, 0,
-                                       JS_STUBGETTER, JS_STUBSETTER))
+                                       JS_PropertyStub, JS_StrictPropertyStub))
             {
                 return false;
             }
@@ -1369,7 +1369,7 @@ SetIonCheckGraphCoherency(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-class CloneBufferObject : public NativeObject {
+class CloneBufferObject : public JSObject {
     static const JSPropertySpec props_[2];
     static const size_t DATA_SLOT   = 0;
     static const size_t LENGTH_SLOT = 1;
@@ -1382,8 +1382,8 @@ class CloneBufferObject : public NativeObject {
         RootedObject obj(cx, JS_NewObject(cx, Jsvalify(&class_), JS::NullPtr(), JS::NullPtr()));
         if (!obj)
             return nullptr;
-        obj->as<CloneBufferObject>().setReservedSlot(DATA_SLOT, PrivateValue(nullptr));
-        obj->as<CloneBufferObject>().setReservedSlot(LENGTH_SLOT, Int32Value(0));
+        obj->setReservedSlot(DATA_SLOT, PrivateValue(nullptr));
+        obj->setReservedSlot(LENGTH_SLOT, Int32Value(0));
 
         if (!JS_DefineProperties(cx, obj, props_))
             return nullptr;
@@ -1408,7 +1408,7 @@ class CloneBufferObject : public NativeObject {
     }
 
     void setData(uint64_t *aData) {
-        MOZ_ASSERT(!data());
+        JS_ASSERT(!data());
         setReservedSlot(DATA_SLOT, PrivateValue(aData));
     }
 
@@ -1417,7 +1417,7 @@ class CloneBufferObject : public NativeObject {
     }
 
     void setNBytes(size_t nbytes) {
-        MOZ_ASSERT(nbytes <= UINT32_MAX);
+        JS_ASSERT(nbytes <= UINT32_MAX);
         setReservedSlot(LENGTH_SLOT, Int32Value(nbytes));
     }
 
@@ -1472,7 +1472,7 @@ class CloneBufferObject : public NativeObject {
     static bool
     getCloneBuffer_impl(JSContext* cx, CallArgs args) {
         Rooted<CloneBufferObject*> obj(cx, &args.thisv().toObject().as<CloneBufferObject>());
-        MOZ_ASSERT(args.length() == 0);
+        JS_ASSERT(args.length() == 0);
 
         if (!obj->data()) {
             args.rval().setUndefined();
@@ -1976,7 +1976,7 @@ FindPath(JSContext *cx, unsigned argc, jsval *vp)
     //
     //   { node: undefined, edge: <string> }
     size_t length = nodes.length();
-    RootedArrayObject result(cx, NewDenseFullyAllocatedArray(cx, length));
+    RootedObject result(cx, NewDenseFullyAllocatedArray(cx, length));
     if (!result)
         return false;
     result->ensureDenseInitializedLength(cx, 0, length);
@@ -2016,8 +2016,7 @@ EvalReturningScope(JSContext *cx, unsigned argc, jsval *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     RootedString str(cx);
-    RootedObject global(cx);
-    if (!JS_ConvertArguments(cx, args, "S/o", str.address(), global.address()))
+    if (!JS_ConvertArguments(cx, args, "S", str.address()))
         return false;
 
     AutoStableStringChars strChars(cx);
@@ -2043,88 +2042,12 @@ EvalReturningScope(JSContext *cx, unsigned argc, jsval *vp)
     if (!JS::Compile(cx, JS::NullPtr(), options, srcBuf, &script))
         return false;
 
-    if (global) {
-        global = CheckedUnwrap(global);
-        if (!global) {
-            JS_ReportError(cx, "Permission denied to access global");
-            return false;
-        }
-        if (!global->is<GlobalObject>()) {
-            JS_ReportError(cx, "Argument must be a global object");
-            return false;
-        }
-    } else {
-        global = JS::CurrentGlobalOrNull(cx);
-    }
-
+    RootedObject global(cx, JS::CurrentGlobalOrNull(cx));
     RootedObject scope(cx);
-
-    {
-        // If we're switching globals here, ExecuteInGlobalAndReturnScope will
-        // take care of cloning the script into that compartment before
-        // executing it.
-        AutoCompartment ac(cx, global);
-
-        if (!js::ExecuteInGlobalAndReturnScope(cx, global, script, &scope))
-            return false;
-    }
-
-    if (!cx->compartment()->wrap(cx, &scope))
+    if (!js::ExecuteInGlobalAndReturnScope(cx, global, script, &scope))
         return false;
 
     args.rval().setObject(*scope);
-    return true;
-}
-
-static bool
-ShellCloneAndExecuteScript(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    RootedString str(cx);
-    RootedObject global(cx);
-    if (!JS_ConvertArguments(cx, args, "So", str.address(), global.address()))
-        return false;
-
-    AutoStableStringChars strChars(cx);
-    if (!strChars.initTwoByte(cx, str))
-        return false;
-
-    mozilla::Range<const char16_t> chars = strChars.twoByteRange();
-    size_t srclen = chars.length();
-    const char16_t *src = chars.start().get();
-
-    JS::AutoFilename filename;
-    unsigned lineno;
-
-    DescribeScriptedCaller(cx, &filename, &lineno);
-
-    JS::CompileOptions options(cx);
-    options.setFileAndLine(filename.get(), lineno);
-    options.setNoScriptRval(true);
-    options.setCompileAndGo(false);
-
-    JS::SourceBufferHolder srcBuf(src, srclen, JS::SourceBufferHolder::NoOwnership);
-    RootedScript script(cx);
-    if (!JS::Compile(cx, JS::NullPtr(), options, srcBuf, &script))
-        return false;
-
-    global = CheckedUnwrap(global);
-    if (!global) {
-        JS_ReportError(cx, "Permission denied to access global");
-        return false;
-    }
-    if (!global->is<GlobalObject>()) {
-        JS_ReportError(cx, "Argument must be a global object");
-        return false;
-    }
-
-    AutoCompartment ac(cx, global);
-
-    if (!JS::CloneAndExecuteScript(cx, global, script))
-        return false;
-
-    args.rval().setUndefined();
     return true;
 }
 
@@ -2146,30 +2069,11 @@ ByteSize(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     mozilla::MallocSizeOf mallocSizeOf = cx->runtime()->debuggerMallocSizeOf;
-    JS::ubi::Node node = args.get(0);
+    JS::ubi::Node node(args.get(0));
     if (node)
         args.rval().set(NumberValue(node.size(mallocSizeOf)));
     else
         args.rval().setUndefined();
-    return true;
-}
-
-static bool
-SetImmutablePrototype(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (!args.get(0).isObject()) {
-        JS_ReportError(cx, "setImmutablePrototype: object expected");
-        return false;
-    }
-
-    RootedObject obj(cx, &args[0].toObject());
-
-    bool succeeded;
-    if (!JSObject::setImmutablePrototype(cx, obj, &succeeded))
-        return false;
-
-    args.rval().setBoolean(succeeded);
     return true;
 }
 
@@ -2251,8 +2155,24 @@ static const JSFunctionSpecWithHelp TestingFunctions[] = {
 
 #ifdef JS_GC_ZEAL
     JS_FN_HELP("gczeal", GCZeal, 2, 0,
-"gczeal(level, [N])",
-gc::ZealModeHelpText),
+"gczeal(level, [period])",
+"  Specifies how zealous the garbage collector should be. Values for level:\n"
+"    0: Normal amount of collection\n"
+"    1: Collect when roots are added or removed\n"
+"    2: Collect when memory is allocated\n"
+"    3: Collect when the window paints (browser only)\n"
+"    4: Verify pre write barriers between instructions\n"
+"    5: Verify pre write barriers between paints\n"
+"    6: Verify stack rooting\n"
+"    7: Collect the nursery every N nursery allocations\n"
+"    8: Incremental GC in two slices: 1) mark roots 2) finish collection\n"
+"    9: Incremental GC in two slices: 1) mark all 2) new marking and finish\n"
+"   10: Incremental GC in multiple slices\n"
+"   11: Verify post write barriers between instructions\n"
+"   12: Verify post write barriers between paints\n"
+"   13: Check internal hashtables on minor GC\n"
+"   14: Always compact arenas after GC\n"
+"  Period specifies that collection happens every n allocations.\n"),
 
     JS_FN_HELP("schedulegc", ScheduleGC, 1, 0,
 "schedulegc(num | obj)",
@@ -2475,14 +2395,8 @@ gc::ZealModeHelpText),
 #endif
 
     JS_FN_HELP("evalReturningScope", EvalReturningScope, 1, 0,
-"evalReturningScope(scriptStr, [global])",
-"  Evaluate the script in a new scope and return the scope.\n"
-"  If |global| is present, clone the script to |global| before executing."),
-
-    JS_FN_HELP("cloneAndExecuteScript", ShellCloneAndExecuteScript, 2, 0,
-"cloneAndExecuteScript(source, global)",
-"  Compile |source| in the current compartment, clone it into |global|'s\n"
-"  compartment, and run it there."),
+"evalReturningScope(scriptStr)",
+"  Evaluate the script in a new scope and return the scope."),
 
     JS_FN_HELP("backtrace", DumpBacktrace, 1, 0,
 "backtrace()",
@@ -2500,14 +2414,6 @@ gc::ZealModeHelpText),
 "byteSize(value)",
 "  Return the size in bytes occupied by |value|, or |undefined| if value\n"
 "  is not allocated in memory.\n"),
-
-    JS_FN_HELP("setImmutablePrototype", SetImmutablePrototype, 1, 0,
-"setImmutablePrototype(obj)",
-"  Try to make obj's [[Prototype]] immutable, such that subsequent attempts to\n"
-"  change it will fail.  Return true if obj's [[Prototype]] was successfully made\n"
-"  immutable (or if it already was immutable), false otherwise.  Throws in case\n"
-"  of internal error, or if the operation doesn't even make sense (for example,\n"
-"  because the object is a revoked proxy)."),
 
     JS_FS_HELP_END
 };

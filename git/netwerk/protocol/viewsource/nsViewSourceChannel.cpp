@@ -8,7 +8,6 @@
 #include "nsIIOService.h"
 #include "nsMimeTypes.h"
 #include "nsNetUtil.h"
-#include "nsContentUtils.h"
 #include "nsIHttpHeaderVisitor.h"
 
 NS_IMPL_ADDREF(nsViewSourceChannel)
@@ -72,7 +71,8 @@ nsViewSourceChannel::Init(nsIURI* uri)
 }
 
 nsresult
-nsViewSourceChannel::InitSrcdoc(nsIURI* aURI, const nsAString &aSrcdoc)
+nsViewSourceChannel::InitSrcdoc(nsIURI* aURI, const nsAString &aSrcdoc,
+                                nsIURI* aBaseURI)
 {
 
     nsresult rv;
@@ -85,18 +85,16 @@ nsViewSourceChannel::InitSrcdoc(nsIURI* aURI, const nsAString &aSrcdoc)
                    NS_LITERAL_STRING("about:srcdoc"));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = NS_NewInputStreamChannel(getter_AddRefs(mChannel),
-                                  inStreamURI,
-                                  aSrcdoc,
-                                  NS_LITERAL_CSTRING("text/html"),
-                                  nsContentUtils::GetSystemPrincipal(),
-                                  nsILoadInfo::SEC_NORMAL,
-                                  nsIContentPolicy::TYPE_OTHER,
+    rv = NS_NewInputStreamChannel(getter_AddRefs(mChannel), inStreamURI,
+                                  aSrcdoc, NS_LITERAL_CSTRING("text/html"),
                                   true);
 
     NS_ENSURE_SUCCESS(rv, rv);
     mOriginalURI = aURI;
     mIsSrcdocChannel = true;
+    nsCOMPtr<nsIInputStreamChannel> isc = do_QueryInterface(mChannel);
+    MOZ_ASSERT(isc);
+    isc->SetBaseURI(aBaseURI);
 
     mChannel->SetOriginalURI(mOriginalURI);
     mHttpChannel = do_QueryInterface(mChannel);
@@ -518,6 +516,27 @@ nsViewSourceChannel::GetIsSrcdocChannel(bool* aIsSrcdocChannel)
 {
     *aIsSrcdocChannel = mIsSrcdocChannel;
     return NS_OK;
+}
+
+NS_IMETHODIMP
+nsViewSourceChannel::GetBaseURI(nsIURI** aBaseURI)
+{
+  if (mIsSrcdocChannel) {
+    nsCOMPtr<nsIInputStreamChannel> isc = do_QueryInterface(mChannel);
+    if (isc) {
+      return isc->GetBaseURI(aBaseURI);
+    }
+  }
+  *aBaseURI = mBaseURI;
+  NS_IF_ADDREF(*aBaseURI);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsViewSourceChannel::SetBaseURI(nsIURI* aBaseURI)
+{
+  mBaseURI = aBaseURI;
+  return NS_OK;
 }
 
 // nsIRequestObserver methods

@@ -113,7 +113,6 @@ class B2GMochitest(MochitestUtilsMixin):
         """ Prepare, configure, run tests and cleanup """
 
         manifest = self.build_profile(options)
-        self.logPreamble(self.getActiveTests(options))
 
         # configuring the message logger's buffering
         self.message_logger.buffering = options.quiet
@@ -203,7 +202,7 @@ class B2GMochitest(MochitestUtilsMixin):
             self.app_ctx.dm.getFile(self.leak_report_file, local_leak_file.name)
             self.app_ctx.dm.removeFile(self.leak_report_file)
 
-            processLeakLog(local_leak_file.name, options)
+            processLeakLog(local_leak_file.name, options.leakThresholds, options.ignoreMissingLeaks)
         except KeyboardInterrupt:
             self.log.info("runtests.py | Received keyboard interrupt.\n");
             status = -1

@@ -11,6 +11,9 @@
 #include "mozilla/ipc/ScopedXREEmbed.h"
 #include "ContentChild.h"
 
+#undef _MOZ_LOG
+#define _MOZ_LOG(s)  printf("[ContentProcess] %s", s)
+
 namespace mozilla {
 namespace dom {
 

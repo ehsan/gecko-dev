@@ -11,6 +11,7 @@
 #include "mozilla/dom/MozMobileConnectionBinding.h"
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/TelephonyBinding.h"
+#include "mozilla/dom/UnionTypes.h"
 
 #include "nsCharSeparatedTokenizer.h"
 #include "nsContentUtils.h"
@@ -25,7 +26,7 @@
 #include "TelephonyCall.h"
 #include "TelephonyCallGroup.h"
 #include "TelephonyCallId.h"
-#include "TelephonyDialCallback.h"
+#include "TelephonyCallback.h"
 
 // Service instantiation
 #include "ipc/TelephonyIPCService.h"
@@ -65,17 +66,18 @@ public:
 class Telephony::EnumerationAck : public nsRunnable
 {
   nsRefPtr<Telephony> mTelephony;
+  nsString mType;
 
 public:
-  explicit EnumerationAck(Telephony* aTelephony)
-  : mTelephony(aTelephony)
+  EnumerationAck(Telephony* aTelephony, const nsAString& aType)
+  : mTelephony(aTelephony), mType(aType)
   {
     MOZ_ASSERT(mTelephony);
   }
 
   NS_IMETHOD Run()
   {
-    mTelephony->NotifyEvent(NS_LITERAL_STRING("ready"));
+    mTelephony->NotifyEvent(mType);
     return NS_OK;
   }
 };
@@ -233,8 +235,8 @@ Telephony::DialInternal(uint32_t aServiceId, const nsAString& aNumber,
     return promise.forget();
   }
 
-  nsCOMPtr<nsITelephonyDialCallback> callback =
-    new TelephonyDialCallback(GetOwner(), this, promise, aServiceId);
+  nsCOMPtr<nsITelephonyCallback> callback =
+    new TelephonyCallback(GetOwner(), this, promise, aServiceId);
 
   nsresult rv = mService->Dial(aServiceId, aNumber, aEmergency, callback);
   if (NS_FAILED(rv)) {
@@ -467,8 +469,11 @@ Telephony::ConferenceGroup() const
 void
 Telephony::EventListenerAdded(nsIAtom* aType)
 {
-  if (aType == nsGkAtoms::onready) {
-    EnqueueEnumerationAck();
+  if (aType == nsGkAtoms::oncallschanged) {
+    // Fire oncallschanged on the next tick if the calls array is ready.
+    EnqueueEnumerationAck(NS_LITERAL_STRING("callschanged"));
+  } else if (aType == nsGkAtoms::onready) {
+    EnqueueEnumerationAck(NS_LITERAL_STRING("ready"));
   }
 }
 
@@ -489,15 +494,8 @@ Telephony::CallStateChanged(uint32_t aServiceId, uint32_t aCallIndex,
     modifiedCall->UpdateEmergency(aIsEmergency);
     modifiedCall->UpdateSwitchable(aIsSwitchable);
     modifiedCall->UpdateMergeable(aIsMergeable);
-    nsRefPtr<TelephonyCallId> id = modifiedCall->Id();
-    id->UpdateNumber(aNumber);
 
     if (modifiedCall->CallState() != aCallState) {
-      if (aCallState == nsITelephonyService::CALL_STATE_DISCONNECTED) {
-        modifiedCall->ChangeStateInternal(aCallState, true);
-        return NS_OK;
-      }
-
       // We don't fire the statechange event on a call in conference here.
       // Instead, the event will be fired later in
       // TelephonyCallGroup::ChangeState(). Thus the sequence of firing the
@@ -571,6 +569,10 @@ Telephony::EnumerateCallStateComplete()
     NS_WARNING("Failed to notify ready!");
   }
 
+  if (NS_FAILED(NotifyCallsChanged(nullptr))) {
+    NS_WARNING("Failed to notify calls changed!");
+  }
+
   if (NS_FAILED(mService->RegisterListener(mListener))) {
     NS_WARNING("Failed to register listener!");
   }
@@ -598,8 +600,8 @@ Telephony::EnumerateCallState(uint32_t aServiceId, uint32_t aCallIndex,
   // Didn't know anything about this call before now.
   nsRefPtr<TelephonyCallId> id = CreateCallId(aNumber, aNumberPresentation,
                                               aName, aNamePresentation);
-  call = CreateCall(id, aServiceId, aCallIndex, aCallState,
-                    aIsEmergency, aIsConference, aIsSwitchable, aIsMergeable);
+  CreateCall(id, aServiceId, aCallIndex, aCallState,
+             aIsEmergency, aIsConference, aIsSwitchable, aIsMergeable);
 
   return NS_OK;
 }
@@ -636,8 +638,12 @@ Telephony::NotifyError(uint32_t aServiceId,
                        int32_t aCallIndex,
                        const nsAString& aError)
 {
-  nsRefPtr<TelephonyCall> callToNotify =
-    GetCallFromEverywhere(aServiceId, aCallIndex);
+  if (mCalls.IsEmpty()) {
+    NS_ERROR("No existing call!");
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  nsRefPtr<TelephonyCall> callToNotify = GetCall(aServiceId, aCallIndex);
   if (!callToNotify) {
     NS_ERROR("Don't call me with a bad call index!");
     return NS_ERROR_UNEXPECTED;
@@ -694,13 +700,13 @@ Telephony::DispatchCallEvent(const nsAString& aType,
 }
 
 void
-Telephony::EnqueueEnumerationAck()
+Telephony::EnqueueEnumerationAck(const nsAString& aType)
 {
   if (!mEnumerated) {
     return;
   }
 
-  nsCOMPtr<nsIRunnable> task = new EnumerationAck(this);
+  nsCOMPtr<nsIRunnable> task = new EnumerationAck(this, aType);
   if (NS_FAILED(NS_DispatchToCurrentThread(task))) {
     NS_WARNING("Failed to dispatch to current thread!");
   }

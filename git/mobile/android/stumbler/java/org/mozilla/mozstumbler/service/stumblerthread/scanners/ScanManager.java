@@ -23,7 +23,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 public class ScanManager {
-    private static final String LOG_TAG = AppGlobals.makeLogTag(ScanManager.class.getSimpleName());
+    private static final String LOG_TAG = AppGlobals.LOG_PREFIX + ScanManager.class.getSimpleName();
     private Timer mPassiveModeFlushTimer;
     private Context mContext;
     private boolean mIsScanning;
@@ -98,11 +98,6 @@ public class ScanManager {
         }
 
         mContext = context.getApplicationContext();
-        if (mContext == null) {
-            Log.w(LOG_TAG, "No app context available.");
-            return;
-        }
-
         if (mGPSScanner == null) {
             mGPSScanner = new GPSScanner(context, this);
             mWifiScanner = new WifiScanner(context);
@@ -163,6 +158,10 @@ public class ScanManager {
         return (mCellScanner == null)? 0 :mCellScanner.getCellInfoCount();
     }
 
+    public int getCurrentCellInfoCount() {
+        return (mCellScanner == null)? 0 :mCellScanner.getCurrentCellInfoCount();
+    }
+
     public int getLocationCount() {
         return (mGPSScanner == null)? 0 : mGPSScanner.getLocationCount();
     }
@@ -186,6 +185,6 @@ public class ScanManager {
     }
 
     public boolean isGeofenced() {
-        return (mGPSScanner != null) && mGPSScanner.isGeofenced();
+        return (mGPSScanner == null)? false : mGPSScanner.isGeofenced();
     }
 }

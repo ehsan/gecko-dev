@@ -108,11 +108,6 @@ class OptimizationInfo
     // are inlined, as a fraction of compilerWarmUpThreshold.
     double inliningWarmUpThresholdFactor_;
 
-    // How many invocations or loop iterations are needed before a function
-    // is hot enough to recompile the outerScript to inline that function,
-    // as a multiplication of inliningWarmUpThreshold.
-    uint32_t inliningRecompileThresholdFactor_;
-
     OptimizationInfo()
     { }
 
@@ -199,10 +194,6 @@ class OptimizationInfo
             compilerWarmUpThreshold = js_JitOptions.forcedDefaultIonWarmUpThreshold;
         return compilerWarmUpThreshold * inliningWarmUpThresholdFactor_;
     }
-
-    uint32_t inliningRecompileThreshold() const {
-        return inliningWarmUpThreshold() * inliningRecompileThresholdFactor_;
-    }
 };
 
 class OptimizationInfos
@@ -214,8 +205,8 @@ class OptimizationInfos
     OptimizationInfos();
 
     const OptimizationInfo *get(OptimizationLevel level) const {
-        MOZ_ASSERT(level < Optimization_Count);
-        MOZ_ASSERT(level != Optimization_DontCompile);
+        JS_ASSERT(level < Optimization_Count);
+        JS_ASSERT(level != Optimization_DontCompile);
 
         return &infos_[level - 1];
     }

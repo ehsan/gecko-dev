@@ -430,6 +430,28 @@ MakeFilename(const char* aPrefix, const nsAString& aIdentifier,
                             aPid, aSuffix);
 }
 
+#ifdef MOZ_DMD
+struct DMDWriteState
+{
+  static const size_t kBufSize = 4096;
+  char mBuf[kBufSize];
+  nsRefPtr<nsGZFileWriter> mGZWriter;
+
+  DMDWriteState(nsGZFileWriter* aGZWriter)
+    : mGZWriter(aGZWriter)
+  {
+  }
+};
+
+static void
+DMDWrite(void* aState, const char* aFmt, va_list ap)
+{
+  DMDWriteState* state = (DMDWriteState*)aState;
+  vsnprintf(state->mBuf, state->kBufSize, aFmt, ap);
+  unused << state->mGZWriter->Write(state->mBuf);
+}
+#endif
+
 // This class wraps GZFileWriter so it can be used with JSONWriter, overcoming
 // the following two problems:
 // - It provides a JSONWriterFunc::Write() that calls nsGZFileWriter::Write().
@@ -769,10 +791,10 @@ nsMemoryInfoDumper::OpenDMDFile(const nsAString& aIdentifier, int aPid,
     return NS_OK;
   }
 
-  // Create a filename like dmd-<identifier>-<pid>.json.gz, which will be used
+  // Create a filename like dmd-<identifier>-<pid>.txt.gz, which will be used
   // if DMD is enabled.
   nsCString dmdFilename;
-  MakeFilename("dmd", aIdentifier, aPid, "json.gz", dmdFilename);
+  MakeFilename("dmd", aIdentifier, aPid, "txt.gz", dmdFilename);
 
   // Open a new DMD file named |dmdFilename| in NS_OS_TEMP_DIR for writing,
   // and dump DMD output to it.  This must occur after the memory reporters
@@ -804,16 +826,18 @@ nsMemoryInfoDumper::OpenDMDFile(const nsAString& aIdentifier, int aPid,
 nsresult
 nsMemoryInfoDumper::DumpDMDToFile(FILE* aFile)
 {
-  nsRefPtr<nsGZFileWriter> gzWriter = new nsGZFileWriter();
-  nsresult rv = gzWriter->InitANSIFileDesc(aFile);
+  nsRefPtr<nsGZFileWriter> dmdWriter = new nsGZFileWriter();
+  nsresult rv = dmdWriter->InitANSIFileDesc(aFile);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
 
   // Dump DMD's memory reports analysis to the file.
-  dmd::AnalyzeReports(MakeUnique<GZWriterWrapper>(gzWriter));
+  DMDWriteState state(dmdWriter);
+  dmd::Writer w(DMDWrite, &state);
+  dmd::AnalyzeReports(w);
 
-  rv = gzWriter->Finish();
+  rv = dmdWriter->Finish();
   NS_WARN_IF(NS_FAILED(rv));
   return rv;
 }

@@ -6,9 +6,13 @@
 #ifndef MOZILLA_A11Y_ARIAGridAccessible_h_
 #define MOZILLA_A11Y_ARIAGridAccessible_h_
 
+#include "nsIAccessibleTable.h"
+
 #include "HyperTextAccessibleWrap.h"
 #include "TableAccessible.h"
 #include "TableCellAccessible.h"
+#include "xpcAccessibleTable.h"
+#include "xpcAccessibleTableCell.h"
 
 namespace mozilla {
 namespace a11y {
@@ -17,15 +21,22 @@ namespace a11y {
  * Accessible for ARIA grid and treegrid.
  */
 class ARIAGridAccessible : public AccessibleWrap,
+                           public xpcAccessibleTable,
+                           public nsIAccessibleTable,
                            public TableAccessible
 {
 public:
   ARIAGridAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
+  // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIAccessibleTable
+  NS_FORWARD_NSIACCESSIBLETABLE(xpcAccessibleTable::)
 
   // Accessible
   virtual TableAccessible* AsTable() { return this; }
+  virtual void Shutdown();
 
   // TableAccessible
   virtual uint32_t ColCount();
@@ -49,6 +60,16 @@ public:
 
 protected:
   virtual ~ARIAGridAccessible() {}
+
+  /**
+   * Return true if the given row index is valid.
+   */
+  bool IsValidRow(int32_t aRow);
+
+  /**
+   * Retrn true if the given column index is valid.
+   */
+  bool IsValidColumn(int32_t aColumn);
 
   /**
    * Return row accessible at the given row index.
@@ -77,15 +98,22 @@ protected:
  * Accessible for ARIA gridcell and rowheader/columnheader.
  */
 class ARIAGridCellAccessible : public HyperTextAccessibleWrap,
-                               public TableCellAccessible
+                               public nsIAccessibleTableCell,
+                               public TableCellAccessible,
+                               public xpcAccessibleTableCell
 {
 public:
   ARIAGridCellAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
+  // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIAccessibleTableCell
+  NS_FORWARD_NSIACCESSIBLETABLECELL(xpcAccessibleTableCell::)
 
   // Accessible
   virtual TableCellAccessible* AsTableCell() { return this; }
+  virtual void Shutdown();
   virtual void ApplyARIAState(uint64_t* aState) const;
   virtual already_AddRefed<nsIPersistentProperties> NativeAttributes() MOZ_OVERRIDE;
 

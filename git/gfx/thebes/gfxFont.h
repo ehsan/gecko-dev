@@ -281,11 +281,8 @@ public:
 
     // Look up a font in the cache. Returns an addrefed pointer, or null
     // if there's nothing matching in the cache
-    already_AddRefed<gfxFont>
-    Lookup(const gfxFontEntry* aFontEntry,
-           const gfxFontStyle* aStyle,
-           const gfxCharacterMap* aUnicodeRangeMap = nullptr);
-
+    already_AddRefed<gfxFont> Lookup(const gfxFontEntry *aFontEntry,
+                                     const gfxFontStyle *aStyle);
     // We created a new font (presumably because Lookup returned null);
     // put it in the cache. The font's refcount should be nonzero. It is
     // allowable to add a new font even if there is one already in the
@@ -344,12 +341,8 @@ protected:
     struct Key {
         const gfxFontEntry* mFontEntry;
         const gfxFontStyle* mStyle;
-        const gfxCharacterMap* mUnicodeRangeMap;
-        Key(const gfxFontEntry* aFontEntry, const gfxFontStyle* aStyle,
-            const gfxCharacterMap* aUnicodeRangeMap)
-            : mFontEntry(aFontEntry), mStyle(aStyle),
-              mUnicodeRangeMap(aUnicodeRangeMap)
-        {}
+        Key(const gfxFontEntry* aFontEntry, const gfxFontStyle* aStyle)
+            : mFontEntry(aFontEntry), mStyle(aStyle) {}
     };
 
     class HashEntry : public PLDHashEntryHdr {
@@ -366,8 +359,7 @@ protected:
         bool KeyEquals(const KeyTypePointer aKey) const;
         static KeyTypePointer KeyToPointer(KeyType aKey) { return &aKey; }
         static PLDHashNumber HashKey(const KeyTypePointer aKey) {
-            return mozilla::HashGeneric(aKey->mStyle->Hash(), aKey->mFontEntry,
-                                        aKey->mUnicodeRangeMap);
+            return mozilla::HashGeneric(aKey->mStyle->Hash(), aKey->mFontEntry);
         }
         enum { ALLOW_MEMMOVE = true };
 
@@ -618,7 +610,6 @@ public:
                            uint32_t        aOffset,
                            uint32_t        aLength,
                            int32_t         aScript,
-                           bool            aVertical,
                            gfxShapedText  *aShapedText) = 0;
 
     gfxFont *GetFont() const { return mFont; }
@@ -945,12 +936,6 @@ public:
                 gfxTextRunFactory::TEXT_ORIENT_HORIZONTAL;
     }
 
-    bool UseCenterBaseline() const {
-        uint32_t orient = GetFlags() & gfxTextRunFactory::TEXT_ORIENT_MASK;
-        return orient == gfxTextRunFactory::TEXT_ORIENT_VERTICAL_MIXED ||
-               orient == gfxTextRunFactory::TEXT_ORIENT_VERTICAL_UPRIGHT;
-    }
-
     bool IsRightToLeft() const {
         return (GetFlags() & gfxTextRunFactory::TEXT_IS_RTL) != 0;
     }
@@ -1273,9 +1258,6 @@ class gfxFont {
     friend class gfxHarfBuzzShaper;
     friend class gfxGraphiteShaper;
 
-protected:
-    typedef mozilla::gfx::DrawTarget DrawTarget;
-
 public:
     nsrefcnt AddRef(void) {
         NS_PRECONDITION(int32_t(mRefCnt) >= 0, "illegal refcnt");
@@ -1430,8 +1412,7 @@ public:
 
     // Return Azure GlyphRenderingOptions for drawing this font.
     virtual mozilla::TemporaryRef<mozilla::gfx::GlyphRenderingOptions>
-      GetGlyphRenderingOptions(const TextRunDrawParams* aRunParams = nullptr)
-    { return nullptr; }
+      GetGlyphRenderingOptions() { return nullptr; }
 
     gfxFloat SynthesizeSpaceWidth(uint32_t aCh);
 
@@ -1546,8 +1527,7 @@ public:
      * -- all glyphs use this font
      */
     void Draw(gfxTextRun *aTextRun, uint32_t aStart, uint32_t aEnd,
-              gfxPoint *aPt, const TextRunDrawParams& aRunParams,
-              uint16_t aOrientation);
+              gfxPoint *aPt, const TextRunDrawParams& aRunParams);
 
     /**
      * Measure a run of characters. See gfxTextRun::Metrics.
@@ -1574,7 +1554,7 @@ public:
                                uint32_t aStart, uint32_t aEnd,
                                BoundingBoxType aBoundingBoxType,
                                gfxContext *aContextForTightBoundingBox,
-                               Spacing *aSpacing, uint16_t aOrientation);
+                               Spacing *aSpacing);
     /**
      * Line breaks have been changed at the beginning and/or end of a substring
      * of the text. Reshaping may be required; glyph updating is permitted.
@@ -1617,19 +1597,9 @@ public:
 
     gfxFontEntry *GetFontEntry() const { return mFontEntry.get(); }
     bool HasCharacter(uint32_t ch) {
-        if (!mIsValid ||
-            (mUnicodeRangeMap && !mUnicodeRangeMap->test(ch))) {
+        if (!mIsValid)
             return false;
-        }
         return mFontEntry->HasCharacter(ch); 
-    }
-
-    const gfxCharacterMap* GetUnicodeRangeMap() const {
-        return mUnicodeRangeMap.get();
-    }
-
-    void SetUnicodeRangeMap(gfxCharacterMap* aUnicodeRangeMap) {
-        mUnicodeRangeMap = aUnicodeRangeMap;
     }
 
     uint16_t GetUVSGlyph(uint32_t aCh, uint32_t aVS) {
@@ -1660,8 +1630,7 @@ public:
                              const T *aString,
                              uint32_t aRunStart,
                              uint32_t aRunLength,
-                             int32_t aRunScript,
-                             bool aVertical);
+                             int32_t aRunScript);
 
     // Get a ShapedWord representing the given text (either 8- or 16-bit)
     // for use in setting up a gfxTextRun.
@@ -1671,7 +1640,6 @@ public:
                                  uint32_t aLength,
                                  uint32_t aHash,
                                  int32_t aRunScript,
-                                 bool aVertical,
                                  int32_t aAppUnitsPerDevUnit,
                                  uint32_t aFlags,
                                  gfxTextPerfMetrics *aTextPerf);
@@ -1718,7 +1686,7 @@ public:
 
     virtual FontType GetType() const = 0;
 
-    virtual mozilla::TemporaryRef<mozilla::gfx::ScaledFont> GetScaledFont(DrawTarget* aTarget)
+    virtual mozilla::TemporaryRef<mozilla::gfx::ScaledFont> GetScaledFont(mozilla::gfx::DrawTarget *aTarget)
     { return gfxPlatform::GetPlatform()->GetScaledFontForFont(aTarget, this); }
 
     bool KerningDisabled() {
@@ -1829,7 +1797,7 @@ protected:
 
     // The return value is interpreted as a horizontal advance in 16.16 fixed
     // point format.
-    virtual int32_t GetGlyphWidth(DrawTarget& aDrawTarget, uint16_t aGID) {
+    virtual int32_t GetGlyphWidth(gfxContext *aCtx, uint16_t aGID) {
         return -1;
     }
 
@@ -1848,7 +1816,6 @@ protected:
                    uint32_t       aOffset, // dest offset in gfxShapedText
                    uint32_t       aLength,
                    int32_t        aScript,
-                   bool           aVertical,
                    gfxShapedText *aShapedText); // where to store the result
 
     // Call the appropriate shaper to generate glyphs for aText and store
@@ -1858,7 +1825,6 @@ protected:
                            uint32_t         aOffset,
                            uint32_t         aLength,
                            int32_t          aScript,
-                           bool             aVertical,
                            gfxShapedText   *aShapedText);
 
     // Helper to adjust for synthetic bold and set character-type flags
@@ -1883,7 +1849,6 @@ protected:
                                    uint32_t    aOffset,
                                    uint32_t    aLength,
                                    int32_t     aScript,
-                                   bool        aVertical,
                                    gfxTextRun *aTextRun);
 
     // Shape a fragment of text (a run that is known to contain only
@@ -1897,7 +1862,6 @@ protected:
                                        uint32_t    aOffset,
                                        uint32_t    aLength,
                                        int32_t     aScript,
-                                       bool        aVertical,
                                        gfxTextRun *aTextRun);
 
     void CheckForFeaturesInvolvingSpace();
@@ -2026,10 +1990,6 @@ protected:
     nsAutoPtr<gfxFontShaper>   mHarfBuzzShaper;
     nsAutoPtr<gfxFontShaper>   mGraphiteShaper;
 
-    // if a userfont with unicode-range specified, contains map of *possible*
-    // ranges supported by font
-    nsRefPtr<gfxCharacterMap> mUnicodeRangeMap;
-
     mozilla::RefPtr<mozilla::gfx::ScaledFont> mAzureScaledFont;
 
     // For vertical metrics, created on demand.
@@ -2090,11 +2050,9 @@ struct TextRunDrawParams {
     gfxFont::Spacing        *spacing;
     gfxTextRunDrawCallbacks *callbacks;
     gfxTextContextPaint     *runContextPaint;
-    mozilla::gfx::Color      fontSmoothingBGColor;
     gfxFloat                 direction;
     double                   devPerApp;
     DrawMode                 drawMode;
-    bool                     isVerticalRun;
     bool                     isRTL;
     bool                     paintSVGGlyphs;
 };
@@ -2108,7 +2066,6 @@ struct FontDrawParams {
     double                    synBoldOnePixelOffset;
     int32_t                   extraStrikes;
     mozilla::gfx::DrawOptions drawOptions;
-    bool                      isVerticalFont;
     bool                      haveSVGGlyphs;
     bool                      haveColorGlyphs;
 };

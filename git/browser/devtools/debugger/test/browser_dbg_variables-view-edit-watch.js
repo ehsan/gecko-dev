@@ -7,12 +7,13 @@
 
 const TAB_URL = EXAMPLE_URL + "doc_watch-expressions.html";
 
-let gTab, gPanel, gDebugger;
+let gTab, gDebuggee, gPanel, gDebugger;
 let gL10N, gEditor, gVars, gWatch;
 
 function test() {
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
     gL10N = gDebugger.L10N;
@@ -43,7 +44,7 @@ function test() {
       });
 
     addExpressions();
-    callInTab(gTab, "ermahgerd");
+    gDebuggee.ermahgerd();
   });
 }
 
@@ -493,6 +494,7 @@ function addCmdExpression(aString) {
 
 registerCleanupFunction(function() {
   gTab = null;
+  gDebuggee = null;
   gPanel = null;
   gDebugger = null;
   gL10N = null;

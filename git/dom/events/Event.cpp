@@ -62,8 +62,12 @@ Event::ConstructorInit(EventTarget* aOwner,
                        nsPresContext* aPresContext,
                        WidgetEvent* aEvent)
 {
+  SetIsDOMBinding();
   SetOwner(aOwner);
   mIsMainThreadEvent = mOwner || NS_IsMainThread();
+  if (mIsMainThreadEvent) {
+    nsJSContext::LikelyShortLivingObjectCreated();
+  }
 
   if (mIsMainThreadEvent && !sReturnHighResTimeStampIsSet) {
     Preferences::AddBoolVarCache(&sReturnHighResTimeStamp,
@@ -73,7 +77,6 @@ Event::ConstructorInit(EventTarget* aOwner,
   }
 
   mPrivateDataDuplicated = false;
-  mWantsPopupControlCheck = false;
 
   if (aEvent) {
     mEvent = aEvent;
@@ -231,22 +234,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Event)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mOwner)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-
-JSObject*
-Event::WrapObject(JSContext* aCx)
-{
-  if (mIsMainThreadEvent && !GetWrapperPreserveColor()) {
-    nsJSContext::LikelyShortLivingObjectCreated();
-  }
-  return WrapObjectInternal(aCx);
-}
-
-JSObject*
-Event::WrapObjectInternal(JSContext* aCx)
-{
-  return EventBinding::Wrap(aCx, this);
-}
 
 bool
 Event::IsChrome(JSContext* aCx) const
@@ -669,19 +656,11 @@ PopupAllowedForEvent(const char *eventName)
 
 // static
 PopupControlState
-Event::GetEventPopupControlState(WidgetEvent* aEvent, nsIDOMEvent* aDOMEvent)
+Event::GetEventPopupControlState(WidgetEvent* aEvent)
 {
   // generally if an event handler is running, new windows are disallowed.
   // check for exceptions:
   PopupControlState abuse = openAbused;
-
-  if (aDOMEvent && aDOMEvent->InternalDOMEvent()->GetWantsPopupControlCheck()) {
-    nsAutoString type;
-    aDOMEvent->GetType(type);
-    if (PopupAllowedForEvent(NS_ConvertUTF16toUTF8(type).get())) {
-      return openAllowed;
-    }
-  }
 
   switch(aEvent->mClass) {
   case eBasicEventClass:

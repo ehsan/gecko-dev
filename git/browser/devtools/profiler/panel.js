@@ -35,12 +35,12 @@ ProfilerPanel.prototype = {
    *         A promise that is resolved when the Profiler completes opening.
    */
   open: Task.async(function*() {
-    this._connection = getProfilerConnection(this._toolbox);
-    yield this._connection.open();
+    let connection = getProfilerConnection(this._toolbox);
+    yield connection.open();
 
     this.panelWin.gToolbox = this._toolbox;
     this.panelWin.gTarget = this.target;
-    this.panelWin.gFront = new ProfilerFront(this._connection);
+    this.panelWin.gFront = new ProfilerFront(connection);
     yield this.panelWin.startupProfiler();
 
     this.isReady = true;
@@ -59,10 +59,6 @@ ProfilerPanel.prototype = {
     }
 
     yield this.panelWin.shutdownProfiler();
-
-    // Destroy the connection to ensure packet handlers are removed from client.
-    this._connection.destroy();
-
     this.emit("destroyed");
     this._destroyed = true;
   })

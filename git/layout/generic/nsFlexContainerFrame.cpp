@@ -21,7 +21,6 @@
 #include "prlog.h"
 #include <algorithm>
 #include "mozilla/LinkedList.h"
-#include "mozilla/FloatingPoint.h"
 
 using namespace mozilla;
 using namespace mozilla::layout;
@@ -1328,10 +1327,10 @@ nsFlexContainerFrame::
   // Measure content, if needed (w/ intrinsic-width method or a reflow)
   if (minSizeNeedsToMeasureContent || flexBasisNeedsToMeasureContent) {
     if (IsAxisHorizontal(aAxisTracker.GetMainAxis())) {
-      nsRenderingContext rctx(
-        aPresContext->PresShell()->CreateReferenceRenderingContext());
+      nsRefPtr<nsRenderingContext> rctx =
+        aPresContext->PresShell()->CreateReferenceRenderingContext();
       if (minSizeNeedsToMeasureContent) {
-        resolvedMinSize = std::min(resolvedMinSize, aFlexItem.Frame()->GetMinISize(&rctx));
+        resolvedMinSize = std::min(resolvedMinSize, aFlexItem.Frame()->GetMinISize(rctx));
       }
       NS_ASSERTION(!flexBasisNeedsToMeasureContent,
                    "flex-basis:auto should have been resolved in the "
@@ -2129,7 +2128,7 @@ FlexLine::ResolveFlexibleLengths(nscoord aFlexContainerMainSize)
           weightSum += curWeight;
           flexFactorSum += curFlexFactor;
 
-          if (IsFinite(weightSum)) {
+          if (NS_finite(weightSum)) {
             if (curWeight == 0.0f) {
               item->SetShareOfWeightSoFar(0.0f);
             } else {
@@ -2200,7 +2199,7 @@ FlexLine::ResolveFlexibleLengths(nscoord aFlexContainerMainSize)
             // To avoid rounding issues, we compute the change in size for this
             // item, and then subtract it from the remaining available space.
             nscoord sizeDelta = 0;
-            if (IsFinite(weightSum)) {
+            if (NS_finite(weightSum)) {
               float myShareOfRemainingSpace =
                 item->GetShareOfWeightSoFar();
 

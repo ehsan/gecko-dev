@@ -4,7 +4,6 @@
 
 from __future__ import unicode_literals
 
-import imp
 import os
 import sys
 import argparse
@@ -37,17 +36,7 @@ commandline.add_logging_group(_parser)
 
 def run_marionette(tests, b2g_path=None, emulator=None, testtype=None,
     address=None, binary=None, topsrcdir=None, **kwargs):
-
-    # Import the harness directly and under a different name here to avoid
-    # "marionette" being importable from two locations when "testing/marionette/client"
-    # is on sys.path.
-    # See bug 1050511.
-    path = os.path.join(topsrcdir, 'testing/marionette/client/marionette/runtests.py')
-    with open(path, 'r') as fh:
-        imp.load_module('marionetteharness', fh, path,
-                        ('.py', 'r', imp.PY_SOURCE))
-
-    from marionetteharness import (
+    from marionette.runtests import (
         MarionetteTestRunner,
         BaseMarionetteOptions,
         startTestRunner
@@ -61,6 +50,7 @@ def run_marionette(tests, b2g_path=None, emulator=None, testtype=None,
         tests = [os.path.join(topsrcdir,
                     'testing/marionette/client/marionette/tests/unit-tests.ini')]
 
+    options.type = testtype
     if b2g_path:
         options.homedir = b2g_path
         if emulator:
@@ -69,8 +59,7 @@ def run_marionette(tests, b2g_path=None, emulator=None, testtype=None,
         options.binary = binary
         path, exe = os.path.split(options.binary)
 
-    for k, v in kwargs.iteritems():
-        setattr(options, k, v)
+    options.address = address
 
     parser.verify_usage(options, tests)
 
@@ -94,12 +83,12 @@ class B2GCommands(MachCommandBase):
     @Command('marionette-webapi', category='testing',
         description='Run a Marionette webapi test (test WebAPIs using marionette).',
         conditions=[conditions.is_b2g])
-    @CommandArgument('--type',
-        default='b2g',
-        help='Test type, usually one of: browser, b2g, b2g-qemu.')
+    @CommandArgument('--type', dest='testtype',
+        help='Test type, usually one of: browser, b2g, b2g-qemu.',
+        default='b2g')
     @CommandArgument('tests', nargs='*', metavar='TESTS',
         help='Path to test(s) to run.')
-    def run_marionette_webapi(self, tests, **kwargs):
+    def run_marionette_webapi(self, tests, testtype=None):
         emulator = None
         if self.device_name:
             if self.device_name.startswith('emulator'):
@@ -112,7 +101,7 @@ class B2GCommands(MachCommandBase):
             return 1
 
         return run_marionette(tests, b2g_path=self.b2g_home, emulator=emulator,
-            topsrcdir=self.topsrcdir, **kwargs)
+            testtype=testtype, topsrcdir=self.topsrcdir, address=None)
 
 @CommandProvider
 class MachCommands(MachCommandBase):
@@ -123,13 +112,13 @@ class MachCommands(MachCommandBase):
     )
     @CommandArgument('--address',
         help='host:port of running Gecko instance to connect to.')
-    @CommandArgument('--type',
-        default='browser',
-        help='Test type, usually one of: browser, b2g, b2g-qemu.')
-    @CommandArgument('--profile',
-        help='Path to gecko profile to use.')
+    @CommandArgument('--type', dest='testtype',
+        help='Test type, usually one of: browser, b2g, b2g-qemu.',
+        default='browser')
     @CommandArgument('tests', nargs='*', metavar='TESTS',
         help='Path to test(s) to run.')
-    def run_marionette_test(self, tests, **kwargs):
+    def run_marionette_test(self, tests, address=None, testtype=None,
+                            **kwargs):
         binary = self.get_binary_path('app')
-        return run_marionette(tests, binary=binary, topsrcdir=self.topsrcdir, **kwargs)
+        return run_marionette(tests, binary=binary, testtype=testtype,
+            topsrcdir=self.topsrcdir, address=address)

@@ -289,7 +289,7 @@ int32_t WebRtcAgc_AddFarendToDigital(DigitalAgc_t *stt, const int16_t *in_far,
                                      int16_t nrSamples)
 {
     // Check for valid pointer
-    if (stt == NULL)
+    if (&stt->vadFarend == NULL)
     {
         return -1;
     }

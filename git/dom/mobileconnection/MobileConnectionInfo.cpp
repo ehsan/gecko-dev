@@ -58,6 +58,7 @@ MobileConnectionInfo::MobileConnectionInfo(nsPIDOMWindow* aWindow)
   , mRoaming(false)
   , mWindow(aWindow)
 {
+  SetIsDOMBinding();
 }
 
 MobileConnectionInfo::MobileConnectionInfo(const nsAString& aState,
@@ -76,8 +77,9 @@ MobileConnectionInfo::MobileConnectionInfo(const nsAString& aState,
   , mRelSignalStrength(aRelSignalStrength)
 {
   // The instance created by this way is only used for IPC stuff. It won't be
-  // exposed to JS directly, we will clone this instance to the one that is
-  // maintained in MobileConnectionChild.
+  // expose to JS directly, we will clone this instance to the one that is
+  // maintained in MobileConnectionChild. So we don't need SetIsDOMBinding()
+  // here.
 
   // Update mState and mType
   CONVERT_STRING_TO_NULLABLE_ENUM(aState, MobileConnectionState, mState);
@@ -164,6 +166,7 @@ MobileConnectionInfo::Update(nsIMobileConnectionInfo* aInfo)
 JSObject*
 MobileConnectionInfo::WrapObject(JSContext* aCx)
 {
+  MOZ_ASSERT(IsDOMBinding());
   return MozMobileConnectionInfoBinding::Wrap(aCx, this);
 }
 

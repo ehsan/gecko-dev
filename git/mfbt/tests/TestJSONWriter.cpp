@@ -70,23 +70,23 @@ void TestBasicProperties()
  \"string2\": \"1234\",\n\
  \"string3\": \"hello\",\n\
  \"string4\": \"\\\" \\\\ \\u0007 \\b \\t \\n \\u000b \\f \\r\",\n\
- \"len 0 array, multi-line\": [\n\
+ \"ptr1\": \"0x0\",\n\
+ \"ptr2\": \"0xdeadbeef\",\n\
+ \"ptr3\": \"0xfacade\",\n\
+ \"len 0 array\": [\n\
  ],\n\
- \"len 0 array, single-line\": [],\n\
  \"len 1 array\": [\n\
   1\n\
  ],\n\
- \"len 5 array, multi-line\": [\n\
+ \"len 5 array\": [\n\
   1,\n\
   2,\n\
   3,\n\
   4,\n\
   5\n\
  ],\n\
- \"len 3 array, single-line\": [1, [{}, 2, []], 3],\n\
- \"len 0 object, multi-line\": {\n\
+ \"len 0 object\": {\n\
  },\n\
- \"len 0 object, single-line\": {},\n\
  \"len 1 object\": {\n\
   \"one\": 1\n\
  },\n\
@@ -96,8 +96,7 @@ void TestBasicProperties()
   \"three\": 3,\n\
   \"four\": 4,\n\
   \"five\": 5\n\
- },\n\
- \"len 3 object, single-line\": {\"a\": 1, \"b\": [{}, 2, []], \"c\": 3}\n\
+ }\n\
 }\n\
 ";
 
@@ -124,10 +123,11 @@ void TestBasicProperties()
     w.StringProperty("string3", "hello");
     w.StringProperty("string4", "\" \\ \a \b \t \n \v \f \r");
 
-    w.StartArrayProperty("len 0 array, multi-line", w.MultiLineStyle);
-    w.EndArray();
+    w.PointerProperty("ptr1", (void*)0x0);
+    w.PointerProperty("ptr2", (void*)0xdeadbeef);
+    w.PointerProperty("ptr3", (void*)0xFaCaDe);
 
-    w.StartArrayProperty("len 0 array, single-line", w.SingleLineStyle);
+    w.StartArrayProperty("len 0 array");
     w.EndArray();
 
     w.StartArrayProperty("len 1 array");
@@ -136,7 +136,7 @@ void TestBasicProperties()
     }
     w.EndArray();
 
-    w.StartArrayProperty("len 5 array, multi-line", w.MultiLineStyle);
+    w.StartArrayProperty("len 5 array");
     {
       w.IntElement(1);
       w.IntElement(2);
@@ -146,28 +146,7 @@ void TestBasicProperties()
     }
     w.EndArray();
 
-    w.StartArrayProperty("len 3 array, single-line", w.SingleLineStyle);
-    {
-      w.IntElement(1);
-      w.StartArrayElement();
-      {
-        w.StartObjectElement(w.SingleLineStyle);
-        w.EndObject();
-
-        w.IntElement(2);
-
-        w.StartArrayElement(w.MultiLineStyle);  // style overridden from above
-        w.EndArray();
-      }
-      w.EndArray();
-      w.IntElement(3);
-    }
-    w.EndArray();
-
-    w.StartObjectProperty("len 0 object, multi-line");
-    w.EndObject();
-
-    w.StartObjectProperty("len 0 object, single-line", w.SingleLineStyle);
+    w.StartObjectProperty("len 0 object");
     w.EndObject();
 
     w.StartObjectProperty("len 1 object");
@@ -183,24 +162,6 @@ void TestBasicProperties()
       w.IntProperty("three", 3);
       w.IntProperty("four", 4);
       w.IntProperty("five", 5);
-    }
-    w.EndObject();
-
-    w.StartObjectProperty("len 3 object, single-line", w.SingleLineStyle);
-    {
-      w.IntProperty("a", 1);
-      w.StartArrayProperty("b");
-      {
-        w.StartObjectElement();
-        w.EndObject();
-
-        w.IntElement(2);
-
-        w.StartArrayElement(w.SingleLineStyle);
-        w.EndArray();
-      }
-      w.EndArray();
-      w.IntProperty("c", 3);
     }
     w.EndObject();
   }
@@ -228,9 +189,11 @@ void TestBasicElements()
   \"1234\",\n\
   \"hello\",\n\
   \"\\\" \\\\ \\u0007 \\b \\t \\n \\u000b \\f \\r\",\n\
+  \"0x0\",\n\
+  \"0xdeadbeef\",\n\
+  \"0xfacade\",\n\
   [\n\
   ],\n\
-  [],\n\
   [\n\
    1\n\
   ],\n\
@@ -241,10 +204,8 @@ void TestBasicElements()
    4,\n\
    5\n\
   ],\n\
-  [1, [{}, 2, []], 3],\n\
   {\n\
   },\n\
-  {},\n\
   {\n\
    \"one\": 1\n\
   },\n\
@@ -254,8 +215,7 @@ void TestBasicElements()
    \"three\": 3,\n\
    \"four\": 4,\n\
    \"five\": 5\n\
-  },\n\
-  {\"a\": 1, \"b\": [{}, 2, []], \"c\": 3}\n\
+  }\n\
  ]\n\
 }\n\
 ";
@@ -284,10 +244,11 @@ void TestBasicElements()
     w.StringElement("hello");
     w.StringElement("\" \\ \a \b \t \n \v \f \r");
 
-    w.StartArrayElement();
-    w.EndArray();
+    w.PointerElement((void*)0x0);
+    w.PointerElement((void*)0xdeadbeef);
+    w.PointerElement((void*)0xFaCaDe);
 
-    w.StartArrayElement(w.SingleLineStyle);
+    w.StartArrayElement();
     w.EndArray();
 
     w.StartArrayElement();
@@ -306,28 +267,7 @@ void TestBasicElements()
     }
     w.EndArray();
 
-    w.StartArrayElement(w.SingleLineStyle);
-    {
-      w.IntElement(1);
-      w.StartArrayElement();
-      {
-        w.StartObjectElement(w.SingleLineStyle);
-        w.EndObject();
-
-        w.IntElement(2);
-
-        w.StartArrayElement(w.MultiLineStyle);  // style overridden from above
-        w.EndArray();
-      }
-      w.EndArray();
-      w.IntElement(3);
-    }
-    w.EndArray();
-
     w.StartObjectElement();
-    w.EndObject();
-
-    w.StartObjectElement(w.SingleLineStyle);
     w.EndObject();
 
     w.StartObjectElement();
@@ -345,67 +285,8 @@ void TestBasicElements()
       w.IntProperty("five", 5);
     }
     w.EndObject();
-
-    w.StartObjectElement(w.SingleLineStyle);
-    {
-      w.IntProperty("a", 1);
-      w.StartArrayProperty("b");
-      {
-        w.StartObjectElement();
-        w.EndObject();
-
-        w.IntElement(2);
-
-        w.StartArrayElement(w.SingleLineStyle);
-        w.EndArray();
-      }
-      w.EndArray();
-      w.IntProperty("c", 3);
-    }
-    w.EndObject();
   }
   w.EndArray();
-  w.End();
-
-  Check(w.WriteFunc(), expected);
-}
-
-void TestOneLineObject()
-{
-  const char* expected = "\
-{\"i\": 1, \"array\": [null, [{}], {\"o\": {}}, \"s\"], \"d\": 3.33}\n\
-";
-
-  JSONWriter w(MakeUnique<StringWriteFunc>());
-
-  w.Start(w.SingleLineStyle);
-
-  w.IntProperty("i", 1);
-
-  w.StartArrayProperty("array");
-  {
-    w.NullElement();
-
-    w.StartArrayElement(w.MultiLineStyle);  // style overridden from above
-    {
-      w.StartObjectElement();
-      w.EndObject();
-    }
-    w.EndArray();
-
-    w.StartObjectElement();
-    {
-      w.StartObjectProperty("o");
-      w.EndObject();
-    }
-    w.EndObject();
-
-    w.StringElement("s");
-  }
-  w.EndArray();
-
-  w.DoubleProperty("d", 3.33);
-
   w.End();
 
   Check(w.WriteFunc(), expected);
@@ -422,7 +303,7 @@ void TestStringEscaping()
  \"\xD5\xA2\xD5\xA1\xD6\x80\xD5\xA5\xD6\x82 \xD5\xB9\xD5\xAF\xD5\xA1\": -123,\n\
  \"\xE4\xBD\xA0\xE5\xA5\xBD\": 1.234,\n\
  \"\xCE\xB3\xCE\xB5\xCE\xB9\xCE\xB1 \xCE\xB5\xCE\xBA\xCE\xB5\xCE\xAF\": \"\xD8\xB3\xD9\x84\xD8\xA7\xD9\x85\",\n\
- \"hall\xC3\xB3 \xC3\xBE" "arna\": 4660,\n\
+ \"hall\xC3\xB3 \xC3\xBE" "arna\": \"0x1234\",\n\
  \"\xE3\x81\x93\xE3\x82\x93\xE3\x81\xAB\xE3\x81\xA1\xE3\x81\xAF\": {\n\
   \"\xD0\xBF\xD1\x80\xD0\xB8\xD0\xB2\xD0\xB5\xD1\x82\": [\n\
   ]\n\
@@ -448,7 +329,7 @@ void TestStringEscaping()
     w.IntProperty("\xD5\xA2\xD5\xA1\xD6\x80\xD5\xA5\xD6\x82 \xD5\xB9\xD5\xAF\xD5\xA1", -123);
     w.DoubleProperty("\xE4\xBD\xA0\xE5\xA5\xBD", 1.234);
     w.StringProperty("\xCE\xB3\xCE\xB5\xCE\xB9\xCE\xB1 \xCE\xB5\xCE\xBA\xCE\xB5\xCE\xAF", "\xD8\xB3\xD9\x84\xD8\xA7\xD9\x85");
-    w.IntProperty("hall\xC3\xB3 \xC3\xBE" "arna", 0x1234);
+    w.PointerProperty("hall\xC3\xB3 \xC3\xBE" "arna", (void*)0x1234);
     w.StartObjectProperty("\xE3\x81\x93\xE3\x82\x93\xE3\x81\xAB\xE3\x81\xA1\xE3\x81\xAF");
     {
       w.StartArrayProperty("\xD0\xBF\xD1\x80\xD0\xB8\xD0\xB2\xD0\xB5\xD1\x82");
@@ -531,7 +412,6 @@ int main(void)
 {
   TestBasicProperties();
   TestBasicElements();
-  TestOneLineObject();
   TestStringEscaping();
   TestDeepNesting();
 

@@ -296,9 +296,6 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
   // WARNING: This destroys the object!
   void SelfDestruct();
 
-  // Configure the ability to use localhost.
-  void SetAllowIceLoopback(bool val) { mAllowIceLoopback = val; }
-
   mozilla::RefPtr<mozilla::NrIceCtx> ice_ctx() const { return mIceCtx; }
 
   mozilla::RefPtr<mozilla::NrIceMediaStream> ice_media_stream(size_t i) const {
@@ -315,11 +312,11 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
   }
 
   // Add a stream (main thread only)
-  nsresult AddStream(DOMMediaStream* aMediaStream, uint32_t hints,
+  nsresult AddStream(nsIDOMMediaStream* aMediaStream, uint32_t hints,
                      uint32_t *stream_id);
 
   // Remove a stream (main thread only)
-  nsresult RemoveStream(DOMMediaStream* aMediaStream,
+  nsresult RemoveStream(nsIDOMMediaStream* aMediaStream,
                         uint32_t hints,
                         uint32_t *stream_id);
 
@@ -418,20 +415,13 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
   void SelfDestruct_m();
 
   // ICE events
-  void IceGatheringStateChange_s(mozilla::NrIceCtx* ctx,
+  void IceGatheringStateChange(mozilla::NrIceCtx* ctx,
                                mozilla::NrIceCtx::GatheringState state);
-  void IceConnectionStateChange_s(mozilla::NrIceCtx* ctx,
+  void IceConnectionStateChange(mozilla::NrIceCtx* ctx,
                                 mozilla::NrIceCtx::ConnectionState state);
   void IceStreamReady(mozilla::NrIceMediaStream *aStream);
-  void OnCandidateFound_s(mozilla::NrIceMediaStream *aStream,
+  void OnCandidateFound(mozilla::NrIceMediaStream *aStream,
                         const std::string &candidate);
-
-  void IceGatheringStateChange_m(mozilla::NrIceCtx* ctx,
-                                 mozilla::NrIceCtx::GatheringState state);
-  void IceConnectionStateChange_m(mozilla::NrIceCtx* ctx,
-                                  mozilla::NrIceCtx::ConnectionState state);
-  void OnCandidateFound_m(const std::string &candidate, uint16_t level);
-
 
   // The parent PC
   PeerConnectionImpl *mParent;
@@ -445,9 +435,6 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
   // A list of streams provided by the other side
   // This is only accessed on the main thread (with one special exception)
   nsTArray<nsRefPtr<RemoteSourceStreamInfo> > mRemoteSourceStreams;
-
-  // Allow loopback for ICE.
-  bool mAllowIceLoopback;
 
   // ICE objects
   mozilla::RefPtr<mozilla::NrIceCtx> mIceCtx;

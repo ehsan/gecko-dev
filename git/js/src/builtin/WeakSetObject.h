@@ -7,11 +7,11 @@
 #ifndef builtin_WeakSetObject_h
 #define builtin_WeakSetObject_h
 
-#include "vm/NativeObject.h"
+#include "jsobj.h"
 
 namespace js {
 
-class WeakSetObject : public NativeObject
+class WeakSetObject : public JSObject
 {
   public:
     static const unsigned RESERVED_SLOTS = 1;

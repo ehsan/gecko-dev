@@ -29,6 +29,8 @@ CallsList::CallsList(Telephony* aTelephony, TelephonyCallGroup* aGroup)
 : mTelephony(aTelephony), mGroup(aGroup)
 {
   MOZ_ASSERT(mTelephony);
+
+  SetIsDOMBinding();
 }
 
 CallsList::~CallsList()

@@ -96,9 +96,6 @@ void
 WriteConsoleLog();
 
 #ifdef XP_WIN
-void
-UseParentConsole();
-
 BOOL
 WinLaunchChild(const wchar_t *exePath, int argc,
                char **argv, HANDLE userToken = nullptr,

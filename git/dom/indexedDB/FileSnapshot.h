@@ -8,21 +8,9 @@
 #define mozilla_dom_indexeddb_filesnapshot_h__
 
 #include "mozilla/Attributes.h"
-#include "mozilla/dom/File.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
-#include "nsISupports.h"
-
-#define FILEIMPLSNAPSHOT_IID \
-  {0x0dfc11b1, 0x75d3, 0x473b, {0x8c, 0x67, 0xb7, 0x23, 0xf4, 0x67, 0xd6, 0x73}}
-
-class PIFileImplSnapshot : public nsISupports
-{
-public:
-  NS_DECLARE_STATIC_IID_ACCESSOR(FILEIMPLSNAPSHOT_IID)
-};
-
-NS_DEFINE_STATIC_IID_ACCESSOR(PIFileImplSnapshot, FILEIMPLSNAPSHOT_IID)
+#include "nsDOMFile.h"
 
 namespace mozilla {
 namespace dom {
@@ -34,8 +22,7 @@ namespace indexedDB {
 class IDBFileHandle;
 
 class FileImplSnapshot MOZ_FINAL
-  : public FileImplBase
-  , public PIFileImplSnapshot
+  : public DOMFileImplBase
 {
   typedef mozilla::dom::MetadataParameters MetadataParameters;
 
@@ -72,8 +59,8 @@ private:
   { }
 #endif
 
-  virtual void
-  GetMozFullPathInternal(nsAString& aFullPath, ErrorResult& aRv) MOZ_OVERRIDE;
+  virtual nsresult
+  GetMozFullPathInternal(nsAString& aFullPath) MOZ_OVERRIDE;
 
   virtual nsresult
   GetInternalStream(nsIInputStream** aStream) MOZ_OVERRIDE;
@@ -87,11 +74,10 @@ private:
   virtual bool
   IsCCed() const MOZ_OVERRIDE;
 
-  virtual already_AddRefed<FileImpl>
+  virtual already_AddRefed<DOMFileImpl>
   CreateSlice(uint64_t aStart,
               uint64_t aLength,
-              const nsAString& aContentType,
-              ErrorResult& aRv) MOZ_OVERRIDE;
+              const nsAString& aContentType) MOZ_OVERRIDE;
 
   virtual bool
   IsStoredFile() const MOZ_OVERRIDE;

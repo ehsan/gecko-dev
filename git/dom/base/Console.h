@@ -7,6 +7,7 @@
 #define mozilla_dom_Console_h
 
 #include "mozilla/dom/BindingDeclarations.h"
+#include "mozilla/dom/UnionConversions.h"
 #include "mozilla/ErrorResult.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsDataHashtable.h"
@@ -14,8 +15,6 @@
 #include "nsIObserver.h"
 #include "nsITimer.h"
 #include "nsWrapperCache.h"
-#include "nsDOMNavigationTiming.h"
-#include "nsPIDOMWindow.h"
 
 class nsIConsoleAPIStorage;
 
@@ -195,7 +194,7 @@ private:
   ClearConsoleData();
 
   bool
-  ShouldIncludeStackTrace(MethodName aMethodName);
+  ShouldIncludeStackrace(MethodName aMethodName);
 
   nsCOMPtr<nsPIDOMWindow> mWindow;
   nsCOMPtr<nsITimer> mTimer;

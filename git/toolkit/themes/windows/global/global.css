@@ -56,7 +56,6 @@ window.dialog {
   list-style-image: url("chrome://global/skin/icons/information-32.png");
 }
 
-.alert-dialog #info\.icon,
 .alert-icon {
   list-style-image: url("chrome://global/skin/icons/Warning.png");
 }

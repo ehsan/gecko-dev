@@ -6,11 +6,11 @@
 
 #include "mozilla/dom/ContentBridgeChild.h"
 #include "mozilla/dom/ContentChild.h"
-#include "mozilla/dom/File.h"
 #include "mozilla/dom/StructuredCloneUtils.h"
 #include "mozilla/dom/TabChild.h"
 #include "mozilla/dom/ipc/BlobChild.h"
 #include "mozilla/ipc/InputStreamUtils.h"
+#include "nsDOMFile.h"
 #include "JavaScriptChild.h"
 
 using namespace base;
@@ -81,18 +81,16 @@ ContentBridgeChild::SendPBlobConstructor(PBlobChild* actor,
 
 bool
 ContentBridgeChild::SendPBrowserConstructor(PBrowserChild* aActor,
-                                            const TabId& aTabId,
                                             const IPCTabContext& aContext,
                                             const uint32_t& aChromeFlags,
-                                            const ContentParentId& aCpID,
+                                            const uint64_t& aID,
                                             const bool& aIsForApp,
                                             const bool& aIsForBrowser)
 {
   return PContentBridgeChild::SendPBrowserConstructor(aActor,
-                                                      aTabId,
                                                       aContext,
                                                       aChromeFlags,
-                                                      aCpID,
+                                                      aID,
                                                       aIsForApp,
                                                       aIsForBrowser);
 }
@@ -100,7 +98,7 @@ ContentBridgeChild::SendPBrowserConstructor(PBrowserChild* aActor,
 // This implementation is identical to ContentChild::GetCPOWManager but we can't
 // move it to nsIContentChild because it calls ManagedPJavaScriptChild() which
 // only exists in PContentChild and PContentBridgeChild.
-jsipc::JavaScriptShared*
+jsipc::JavaScriptChild *
 ContentBridgeChild::GetCPOWManager()
 {
   if (ManagedPJavaScriptChild().Length()) {
@@ -123,17 +121,15 @@ ContentBridgeChild::DeallocPJavaScriptChild(PJavaScriptChild *child)
 }
 
 PBrowserChild*
-ContentBridgeChild::AllocPBrowserChild(const TabId& aTabId,
-                                       const IPCTabContext &aContext,
+ContentBridgeChild::AllocPBrowserChild(const IPCTabContext &aContext,
                                        const uint32_t& aChromeFlags,
-                                       const ContentParentId& aCpID,
+                                       const uint64_t& aID,
                                        const bool& aIsForApp,
                                        const bool& aIsForBrowser)
 {
-  return nsIContentChild::AllocPBrowserChild(aTabId,
-                                             aContext,
+  return nsIContentChild::AllocPBrowserChild(aContext,
                                              aChromeFlags,
-                                             aCpID,
+                                             aID,
                                              aIsForApp,
                                              aIsForBrowser);
 }
@@ -146,18 +142,16 @@ ContentBridgeChild::DeallocPBrowserChild(PBrowserChild* aChild)
 
 bool
 ContentBridgeChild::RecvPBrowserConstructor(PBrowserChild* aActor,
-                                            const TabId& aTabId,
                                             const IPCTabContext& aContext,
                                             const uint32_t& aChromeFlags,
-                                            const ContentParentId& aCpID,
+                                            const uint64_t& aID,
                                             const bool& aIsForApp,
                                             const bool& aIsForBrowser)
 {
   return ContentChild::GetSingleton()->RecvPBrowserConstructor(aActor,
-                                                               aTabId,
                                                                aContext,
                                                                aChromeFlags,
-                                                               aCpID,
+                                                               aID,
                                                                aIsForApp,
                                                                aIsForBrowser);
 }

@@ -32,10 +32,21 @@ const gXPInstallObserver = {
   {
     var brandBundle = document.getElementById("bundle_brand");
     var installInfo = aSubject.QueryInterface(Components.interfaces.amIWebInstallInfo);
-    var browser = installInfo.browser;
+    var winOrBrowser = installInfo.originator;
 
-    // Make sure the browser is still alive.
-    if (!browser || gBrowser.browsers.indexOf(browser) == -1)
+    var browser;
+    try {
+      var shell = winOrBrowser.QueryInterface(Components.interfaces.nsIDOMWindow)
+                              .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                              .getInterface(Components.interfaces.nsIWebNavigation)
+                              .QueryInterface(Components.interfaces.nsIDocShell);
+      browser = this._getBrowser(shell);
+    } catch (e) {
+      browser = winOrBrowser;
+    }
+    // Note that the above try/catch will pass through dead object proxies and
+    // other degenerate objects. Make sure the browser is bonafide.
+    if (!browser || !gBrowser.browsers.contains(browser))
       return;
 
     const anchorID = "addons-notification-icon";

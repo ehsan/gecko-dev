@@ -1073,34 +1073,34 @@ MetroWidget::ApzcGetAllowedTouchBehavior(WidgetInputEvent* aTransformedEvent,
 }
 
 void
-MetroWidget::ApzcSetAllowedTouchBehavior(uint64_t aInputBlockId,
+MetroWidget::ApzcSetAllowedTouchBehavior(const ScrollableLayerGuid& aGuid,
                                          nsTArray<TouchBehaviorFlags>& aBehaviors)
 {
   LogFunction();
   if (!APZController::sAPZC) {
     return;
   }
-  APZController::sAPZC->SetAllowedTouchBehavior(aInputBlockId, aBehaviors);
+  APZController::sAPZC->SetAllowedTouchBehavior(aGuid, aBehaviors);
 }
 
 void
-MetroWidget::ApzContentConsumingTouch(uint64_t aInputBlockId)
+MetroWidget::ApzContentConsumingTouch(const ScrollableLayerGuid& aGuid)
 {
   LogFunction();
   if (!mController) {
     return;
   }
-  mController->ContentReceivedTouch(aInputBlockId, true);
+  mController->ContentReceivedTouch(aGuid, true);
 }
 
 void
-MetroWidget::ApzContentIgnoringTouch(uint64_t aInputBlockId)
+MetroWidget::ApzContentIgnoringTouch(const ScrollableLayerGuid& aGuid)
 {
   LogFunction();
   if (!mController) {
     return;
   }
-  mController->ContentReceivedTouch(aInputBlockId, false);
+  mController->ContentReceivedTouch(aGuid, false);
 }
 
 bool
@@ -1124,15 +1124,14 @@ MetroWidget::ApzTransformGeckoCoordinate(const ScreenIntPoint& aPoint,
 
 nsEventStatus
 MetroWidget::ApzReceiveInputEvent(WidgetInputEvent* aEvent,
-                                  ScrollableLayerGuid* aOutTargetGuid,
-                                  uint64_t* aOutInputBlockId)
+                                  ScrollableLayerGuid* aOutTargetGuid)
 {
   MOZ_ASSERT(aEvent);
 
   if (!mController) {
     return nsEventStatus_eIgnore;
   }
-  return mController->ReceiveInputEvent(aEvent, aOutTargetGuid, aOutInputBlockId);
+  return mController->ReceiveInputEvent(aEvent, aOutTargetGuid);
 }
 
 void

@@ -7,7 +7,7 @@ y = x.mapPar(function() {});
 Object.defineProperty(y, 3, {
     get: (function() {
         try {
-            new Int8Array(y);
+            Int8Array(y);
             x.reducePar(function() {});
         } catch (e) { print(e); }
     })

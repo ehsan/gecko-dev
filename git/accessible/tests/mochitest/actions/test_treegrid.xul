@@ -155,7 +155,8 @@
 
     function test1()
     {
-      getNode("tabletree").view.setCellValue(0, boxObj.columns.firstColumn, "false");
+      var boxObj = getNode("tabletree").treeBoxObject;
+      boxObj.view.setCellValue(0, boxObj.columns.firstColumn, "false");
     }
 
     SimpleTest.waitForExplicitFinish();
@@ -195,3 +196,4 @@
   </hbox>
 
 </window>
+

@@ -24,9 +24,6 @@ class Latin1Chars;
 class Latin1CharsZ;
 class ConstTwoByteChars;
 class TwoByteChars;
-class TwoByteCharsZ;
-class UTF8Chars;
-class UTF8CharsZ;
 
 class AutoFunctionVector;
 class AutoIdVector;
@@ -73,9 +70,6 @@ using JS::Latin1Chars;
 using JS::Latin1CharsZ;
 using JS::ConstTwoByteChars;
 using JS::TwoByteChars;
-using JS::TwoByteCharsZ;
-using JS::UTF8Chars;
-using JS::UTF8CharsZ;
 
 using JS::AutoFunctionVector;
 using JS::AutoIdVector;
@@ -138,8 +132,6 @@ using JS::MutableHandleValue;
 
 using JS::NullHandleValue;
 using JS::UndefinedHandleValue;
-using JS::TrueHandleValue;
-using JS::FalseHandleValue;
 
 using JS::HandleValueArray;
 

@@ -227,6 +227,13 @@ WifiCertService::Start(nsIWifiEventListener* aListener)
 {
   MOZ_ASSERT(aListener);
 
+  nsresult rv = NS_NewThread(getter_AddRefs(mRequestThread));
+  if (NS_FAILED(rv)) {
+    NS_WARNING("Certn't create wifi control thread");
+    Shutdown();
+    return NS_ERROR_FAILURE;
+  }
+
   mListener = aListener;
 
   return NS_OK;
@@ -236,6 +243,10 @@ NS_IMETHODIMP
 WifiCertService::Shutdown()
 {
   MOZ_ASSERT(NS_IsMainThread());
+  if (mRequestThread) {
+    mRequestThread->Shutdown();
+    mRequestThread = nullptr;
+  }
 
   mListener = nullptr;
 

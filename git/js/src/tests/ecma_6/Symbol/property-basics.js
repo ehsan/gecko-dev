@@ -6,8 +6,7 @@ if (typeof Symbol === "function") {
         Symbol(),
         Symbol("one"),
         Symbol.for("two"),
-        Symbol.iterator,
-        Object(Symbol())
+        Symbol.iterator
     ];
 
     for (var sym of symbols) {

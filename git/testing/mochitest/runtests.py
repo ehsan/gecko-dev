@@ -12,7 +12,6 @@ import sys
 SCRIPT_DIR = os.path.abspath(os.path.realpath(os.path.dirname(__file__)))
 sys.path.insert(0, SCRIPT_DIR);
 
-from urlparse import urlparse
 import ctypes
 import glob
 import json
@@ -36,6 +35,9 @@ import bisection
 
 from automationutils import (
     environment,
+    isURL,
+    KeyValueParseError,
+    parseKeyValue,
     processLeakLog,
     dumpScreen,
     ShutdownLeaks,
@@ -182,12 +184,9 @@ class MessageLogger(object):
         # test_status messages buffering
         if is_error:
             if self.buffered_messages:
-                snipped = len(self.buffered_messages) - self.BUFFERING_THRESHOLD
-                if snipped > 0:
-                  self.logger.info("<snipped {0} output lines - "
-                                   "if you need more context, please use "
-                                   "SimpleTest.requestCompleteLog() in your test>"
-                                   .format(snipped))
+                number_messages = min(self.BUFFERING_THRESHOLD, len(self.buffered_messages))
+                self.logger.info("dumping last {0} message(s)".format(number_messages))
+                self.logger.info("if you need more context, please use SimpleTest.requestCompleteLog() in your test")
                 # Dumping previously buffered messages
                 self.dump_buffered(limit=True)
 
@@ -515,8 +514,6 @@ class MochitestUtilsMixin(object):
         self.urlOpts.append("timeout=%d" % options.timeout)
       if options.closeWhenDone:
         self.urlOpts.append("closeWhenDone=1")
-      if options.webapprtContent:
-        self.urlOpts.append("testRoot=webapprtContent")
       if options.logFile:
         self.urlOpts.append("logFile=" + encodeURIComponent(options.logFile))
         self.urlOpts.append("fileLevel=" + encodeURIComponent(options.fileLevel))
@@ -577,8 +574,6 @@ class MochitestUtilsMixin(object):
       return "a11y"
     elif options.webapprtChrome:
       return "webapprt-chrome"
-    elif options.webapprtContent:
-      return "webapprt-content"
     else:
       return "mochitest"
 
@@ -634,8 +629,6 @@ class MochitestUtilsMixin(object):
         self.testRoot = 'a11y'
       elif options.webapprtChrome:
         self.testRoot = 'webapprtChrome'
-      elif options.webapprtContent:
-        self.testRoot = 'webapprtContent'
       elif options.chrome:
         self.testRoot = 'chrome'
       else:
@@ -665,10 +658,15 @@ class MochitestUtilsMixin(object):
 
     tests = self.getActiveTests(options, disabled)
     paths = []
+
     for test in tests:
       if testsToFilter and (test['path'] not in testsToFilter):
         continue
       paths.append(test)
+
+    # suite_start message
+    flat_paths = [p['path'] for p in paths]
+    self.message_logger.logger.suite_start(flat_paths)
 
     # Bug 883865 - add this functionality into manifestparser
     with open(os.path.join(SCRIPT_DIR, 'tests.json'), 'w') as manifestFile:
@@ -1037,27 +1035,6 @@ def findTestMediaDevices(log):
   info['audio'] = 'Sine source at 440 Hz'
   return info
 
-class KeyValueParseError(Exception):
-  """error when parsing strings of serialized key-values"""
-  def __init__(self, msg, errors=()):
-    self.errors = errors
-    Exception.__init__(self, msg)
-
-def parseKeyValue(strings, separator='=', context='key, value: '):
-  """
-  parse string-serialized key-value pairs in the form of
-  `key = value`. Returns a list of 2-tuples.
-  Note that whitespace is not stripped.
-  """
-
-  # syntax check
-  missing = [string for string in strings if separator not in string]
-  if missing:
-    raise KeyValueParseError("Error: syntax error in %s" % (context,
-                                                            ','.join(missing)),
-                                                            errors=missing)
-  return [string.split(separator, 1) for string in strings]
-
 class Mochitest(MochitestUtilsMixin):
   certdbNew = False
   sslTunnel = None
@@ -1261,14 +1238,6 @@ class Mochitest(MochitestUtilsMixin):
     # These variables are necessary for correct application startup; change
     # via the commandline at your own risk.
     browserEnv["XPCOM_DEBUG_BREAK"] = "stack"
-
-    # When creating child processes on Windows pre-Vista (e.g. Windows XP) we
-    # don't normally inherit stdout/err handles, because you can only do it by
-    # inheriting all other inheritable handles as well.
-    # We need to inherit them for plain mochitests for test logging purposes, so
-    # we do so on the basis of a specific environment variable.
-    if self.getTestFlavor(options) == "mochitest":
-      browserEnv["MOZ_WIN_INHERIT_STD_HANDLES_PRE_VISTA"] = "1"
 
     # interpolate environment passed with options
     try:
@@ -1621,6 +1590,8 @@ class Mochitest(MochitestUtilsMixin):
     paths = []
 
     for test in tests:
+      if test.get('expected') == 'fail':
+        raise Exception('fail-if encountered for test: %s. There is no support for fail-if in Mochitests.' % test['name'])
       pathAbs = os.path.abspath(test['path'])
       assert pathAbs.startswith(self.testRootAbs)
       tp = pathAbs[len(self.testRootAbs):].replace('\\', '/').strip('/')
@@ -1634,10 +1605,8 @@ class Mochitest(MochitestUtilsMixin):
         continue
 
       testob = {'path': tp}
-      if 'disabled' in test:
+      if test.has_key('disabled'):
         testob['disabled'] = test['disabled']
-      if 'expected' in test:
-        testob['expected'] = test['expected']
       paths.append(testob)
 
     def path_sort(ob1, ob2):
@@ -1649,25 +1618,15 @@ class Mochitest(MochitestUtilsMixin):
 
     return paths
 
-  def logPreamble(self, tests):
-    """Logs a suite_start message and test_start/test_end at the beginning of a run.
-    """
-    self.log.suite_start([t['path'] for t in tests])
-    for test in tests:
-      if 'disabled' in test:
-        self.log.test_start(test['path'])
-        self.log.test_end(test['path'], 'SKIP', message=test['disabled'])
-
   def getTestsToRun(self, options):
     """
       This method makes a list of tests that are to be run. Required mainly for --bisect-chunk.
     """
     tests = self.getActiveTests(options)
-    self.logPreamble(tests)
-
     testsToRun = []
     for test in tests:
-      if 'disabled' in test:
+      if test.has_key('disabled'):
+        self.log.info('TEST-SKIPPED | %s | %s' % (test['path'], test['disabled']))
         continue
       testsToRun.append(test['path'])
 
@@ -1710,11 +1669,6 @@ class Mochitest(MochitestUtilsMixin):
     """ Prepare, configure, run tests and cleanup """
 
     self.setTestRoot(options)
-
-    # Until we have all green, this only runs on bc* jobs (not dt* jobs)
-    # skipping on e10s jobs as we have a few extra failures
-    if options.browserChrome and not options.subsuite and not options.e10s:
-      options.runByDir = True
 
     if not options.runByDir:
       return self.runMochitests(options, onLaunch)
@@ -1888,7 +1842,7 @@ class Mochitest(MochitestUtilsMixin):
         self.stopVMwareRecording();
       self.stopServers()
 
-    processLeakLog(self.leak_report_file, options)
+    processLeakLog(self.leak_report_file, options.leakThresholds, options.ignoreMissingLeaks)
 
     if self.nsprLogs:
       with zipfile.ZipFile("%s/nsprlog.zip" % browserEnv["MOZ_UPLOAD_DIR"], "w", zipfile.ZIP_DEFLATED) as logzip:
@@ -2155,7 +2109,7 @@ def main():
 
   options.utilityPath = mochitest.getFullPath(options.utilityPath)
   options.certPath = mochitest.getFullPath(options.certPath)
-  if options.symbolsPath and len(urlparse(options.symbolsPath).scheme) < 2:
+  if options.symbolsPath and not isURL(options.symbolsPath):
     options.symbolsPath = mochitest.getFullPath(options.symbolsPath)
 
   return_code = mochitest.runTests(options)

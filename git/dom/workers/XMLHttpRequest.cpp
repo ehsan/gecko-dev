@@ -15,13 +15,13 @@
 #include "jsfriendapi.h"
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/dom/Exceptions.h"
-#include "mozilla/dom/File.h"
 #include "mozilla/dom/ProgressEvent.h"
 #include "nsComponentManagerUtils.h"
 #include "nsContentUtils.h"
 #include "nsJSUtils.h"
 #include "nsThreadUtils.h"
 
+#include "File.h"
 #include "RuntimeService.h"
 #include "WorkerPrivate.h"
 #include "WorkerRunnable.h"
@@ -1071,18 +1071,6 @@ Proxy::HandleEvent(nsIDOMEvent* aEvent)
   {
     AutoSafeJSContext cx;
     JSAutoRequest ar(cx);
-
-    JS::Rooted<JSObject*> scope(cx, xpc::UnprivilegedJunkScope());
-    JSAutoCompartment ac(cx, scope);
-
-    JS::Rooted<JS::Value> value(cx);
-    if (!WrapNewBindingObject(cx, mXHR, &value)) {
-      return NS_ERROR_FAILURE;
-    }
-
-    scope = js::UncheckedUnwrap(&value.toObject());
-    JSAutoCompartment ac2(cx, scope);
-
     runnable->Dispatch(cx);
   }
 
@@ -1279,10 +1267,6 @@ EventRunnable::WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
       mProxy->mSeenUploadLoadStart = false;
     }
     else {
-      if (!mProxy->mSeenLoadStart) {
-        // We've already dispatched premature abort events.
-        return true;
-      }
       mProxy->mSeenLoadStart = false;
     }
   }
@@ -1591,6 +1575,8 @@ XMLHttpRequest::XMLHttpRequest(WorkerPrivate* aWorkerPrivate)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
+  SetIsDOMBinding();
+
   mozilla::HoldJSObjects(this);
 }
 
@@ -1769,6 +1755,10 @@ XMLHttpRequest::MaybeDispatchPrematureAbortEvents(ErrorResult& aRv)
     }
 
     mProxy->mSeenLoadStart = false;
+  }
+
+  if (mRooted) {
+    Unpin();
   }
 }
 
@@ -2129,7 +2119,8 @@ XMLHttpRequest::Send(JS::Handle<JSObject*> aBody, ErrorResult& aRv)
   }
 
   JS::Rooted<JS::Value> valToClone(cx);
-  if (JS_IsArrayBufferObject(aBody) || JS_IsArrayBufferViewObject(aBody)) {
+  if (JS_IsArrayBufferObject(aBody) || JS_IsArrayBufferViewObject(aBody) ||
+      file::GetDOMBlobFromJSObject(aBody)) {
     valToClone.setObject(*aBody);
   }
   else {
@@ -2151,44 +2142,6 @@ XMLHttpRequest::Send(JS::Handle<JSObject*> aBody, ErrorResult& aRv)
 
   JSAutoStructuredCloneBuffer buffer;
   if (!buffer.write(cx, valToClone, callbacks, &clonedObjects)) {
-    aRv.Throw(NS_ERROR_DOM_DATA_CLONE_ERR);
-    return;
-  }
-
-  SendInternal(EmptyString(), Move(buffer), clonedObjects, aRv);
-}
-
-void
-XMLHttpRequest::Send(File& aBody, ErrorResult& aRv)
-{
-  mWorkerPrivate->AssertIsOnWorkerThread();
-  JSContext* cx = mWorkerPrivate->GetJSContext();
-
-  if (mCanceled) {
-    aRv.Throw(UNCATCHABLE_EXCEPTION);
-    return;
-  }
-
-  if (!mProxy) {
-    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
-    return;
-  }
-
-  JS::Rooted<JS::Value> value(cx);
-  if (!WrapNewBindingObject(cx, &aBody, &value)) {
-    aRv.Throw(NS_ERROR_FAILURE);
-    return;
-  }
-
-  JSStructuredCloneCallbacks* callbacks =
-    mWorkerPrivate->IsChromeWorker() ?
-    ChromeWorkerStructuredCloneCallbacks(false) :
-    WorkerStructuredCloneCallbacks(false);
-
-  nsTArray<nsCOMPtr<nsISupports> > clonedObjects;
-
-  JSAutoStructuredCloneBuffer buffer;
-  if (!buffer.write(cx, value, callbacks, &clonedObjects)) {
     aRv.Throw(NS_ERROR_DOM_DATA_CLONE_ERR);
     return;
   }
@@ -2313,10 +2266,8 @@ XMLHttpRequest::OverrideMimeType(const nsAString& aMimeType, ErrorResult& aRv)
   // can detect OPENED really easily but we can't detect HEADERS_RECEIVED in a
   // non-racy way until the XHR state machine actually runs on this thread
   // (bug 671047). For now we're going to let this work only if the Send()
-  // method has not been called, unless the send has been aborted.
-  if (!mProxy || (SendInProgress() &&
-                  (mProxy->mSeenLoadStart ||
-                   mStateData.mReadyState > nsIXMLHttpRequest::OPENED))) {
+  // method has not been called.
+  if (!mProxy || SendInProgress()) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
@@ -2340,9 +2291,7 @@ XMLHttpRequest::SetResponseType(XMLHttpRequestResponseType aResponseType,
     return;
   }
 
-  if (!mProxy || (SendInProgress() &&
-                  (mProxy->mSeenLoadStart ||
-                   mStateData.mReadyState > nsIXMLHttpRequest::OPENED))) {
+  if (!mProxy || SendInProgress()) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
@@ -2408,9 +2357,7 @@ XMLHttpRequest::UpdateState(const StateData& aStateData,
                             bool aUseCachedArrayBufferResponse)
 {
   if (aUseCachedArrayBufferResponse) {
-    MOZ_ASSERT(mStateData.mResponse.isObject() &&
-               JS_IsArrayBufferObject(&mStateData.mResponse.toObject()));
-
+    MOZ_ASSERT(JS_IsArrayBufferObject(mStateData.mResponse.toObjectOrNull()));
     JS::Rooted<JS::Value> response(mWorkerPrivate->GetJSContext(),
                                    mStateData.mResponse);
     mStateData = aStateData;

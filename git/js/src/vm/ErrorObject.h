@@ -9,7 +9,8 @@
 
 #include "mozilla/ArrayUtils.h"
 
-#include "vm/NativeObject.h"
+#include "jsobj.h"
+
 #include "vm/Shape.h"
 
 struct JSExnPrivate;
@@ -22,7 +23,7 @@ js_InitExceptionClasses(JSContext *cx, JS::HandleObject obj);
 
 namespace js {
 
-class ErrorObject : public NativeObject
+class ErrorObject : public JSObject
 {
     static JSObject *
     createProto(JSContext *cx, JSProtoKey key);

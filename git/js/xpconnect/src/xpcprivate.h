@@ -974,7 +974,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JS::HandleObject obj);
         nullptr, /* setGenericAttributes  */                                  \
         nullptr, /* deleteGeneric */                                          \
         nullptr, nullptr, /* watch/unwatch */                                 \
-        nullptr, /* getElements */                                            \
+        nullptr, /* slice */                                                  \
         XPC_WN_JSOp_Enumerate,                                                \
         XPC_WN_JSOp_ThisObject,                                               \
     }
@@ -997,7 +997,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JS::HandleObject obj);
         nullptr, /* setGenericAttributes  */                                  \
         nullptr, /* deleteGeneric */                                          \
         nullptr, nullptr, /* watch/unwatch */                                 \
-        nullptr, /* getElements */                                            \
+        nullptr, /* slice */                                                  \
         XPC_WN_JSOp_Enumerate,                                                \
         XPC_WN_JSOp_ThisObject,                                               \
     }
@@ -1147,11 +1147,8 @@ public:
         return mDOMExpandoSet->put(expando);
     }
     void RemoveDOMExpandoObject(JSObject *expando) {
-        if (mDOMExpandoSet) {
-            DOMExpandoSet::Ptr p = mDOMExpandoSet->lookup(expando);
-            MOZ_ASSERT(p.found());
-            mDOMExpandoSet->remove(p);
-        }
+        if (mDOMExpandoSet)
+            mDOMExpandoSet->remove(expando);
     }
 
     typedef js::HashMap<JSAddonId *,
@@ -1617,7 +1614,7 @@ public:
     bool WantSetProperty()              GET_IT(WANT_SETPROPERTY)
     bool WantEnumerate()                GET_IT(WANT_ENUMERATE)
     bool WantNewEnumerate()             GET_IT(WANT_NEWENUMERATE)
-    bool WantResolve()                  GET_IT(WANT_RESOLVE)
+    bool WantNewResolve()               GET_IT(WANT_NEWRESOLVE)
     bool WantConvert()                  GET_IT(WANT_CONVERT)
     bool WantFinalize()                 GET_IT(WANT_FINALIZE)
     bool WantCall()                     GET_IT(WANT_CALL)
@@ -1651,24 +1648,27 @@ public:
 // We maintain the invariant that every JSClass for which ext.isWrappedNative
 // is true is a contained in an instance of this struct, and can thus be cast
 // to it.
-//
-// XXXbz Do we still need this struct at all?
 struct XPCWrappedNativeJSClass
 {
     js::Class base;
+    uint32_t interfacesBitmap;
 };
 
 class XPCNativeScriptableShared
 {
 public:
     const XPCNativeScriptableFlags& GetFlags() const {return mFlags;}
+    uint32_t                        GetInterfacesBitmap() const
+        {return mJSClass.interfacesBitmap;}
     const JSClass*                  GetJSClass()
         {return Jsvalify(&mJSClass.base);}
 
-    XPCNativeScriptableShared(uint32_t aFlags, char* aName)
+    XPCNativeScriptableShared(uint32_t aFlags, char* aName,
+                              uint32_t interfacesBitmap)
         : mFlags(aFlags)
         {memset(&mJSClass, 0, sizeof(mJSClass));
          mJSClass.base.name = aName;  // take ownership
+         mJSClass.interfacesBitmap = interfacesBitmap;
          MOZ_COUNT_CTOR(XPCNativeScriptableShared);}
 
     ~XPCNativeScriptableShared()
@@ -1705,6 +1705,9 @@ public:
 
     const XPCNativeScriptableFlags&
     GetFlags() const      {return mShared->GetFlags();}
+
+    uint32_t
+    GetInterfacesBitmap() const {return mShared->GetInterfacesBitmap();}
 
     const JSClass*
     GetJSClass()          {return mShared->GetJSClass();}
@@ -1756,14 +1759,17 @@ class MOZ_STACK_CLASS XPCNativeScriptableCreateInfo
 public:
 
     explicit XPCNativeScriptableCreateInfo(const XPCNativeScriptableInfo& si)
-        : mCallback(si.GetCallback()), mFlags(si.GetFlags()) {}
+        : mCallback(si.GetCallback()), mFlags(si.GetFlags()),
+          mInterfacesBitmap(si.GetInterfacesBitmap()) {}
 
     XPCNativeScriptableCreateInfo(already_AddRefed<nsIXPCScriptable>&& callback,
-                                  XPCNativeScriptableFlags flags)
-        : mCallback(callback), mFlags(flags) {}
+                                  XPCNativeScriptableFlags flags,
+                                  uint32_t interfacesBitmap)
+        : mCallback(callback), mFlags(flags),
+          mInterfacesBitmap(interfacesBitmap) {}
 
     XPCNativeScriptableCreateInfo()
-        : mFlags(0) {}
+        : mFlags(0), mInterfacesBitmap(0) {}
 
 
     nsIXPCScriptable*
@@ -1772,6 +1778,9 @@ public:
     const XPCNativeScriptableFlags&
     GetFlags() const      {return mFlags;}
 
+    uint32_t
+    GetInterfacesBitmap() const     {return mInterfacesBitmap;}
+
     void
     SetCallback(already_AddRefed<nsIXPCScriptable>&& callback)
         {mCallback = callback;}
@@ -1779,9 +1788,14 @@ public:
     void
     SetFlags(const XPCNativeScriptableFlags& flags)  {mFlags = flags;}
 
+    void
+    SetInterfacesBitmap(uint32_t interfacesBitmap)
+        {mInterfacesBitmap = interfacesBitmap;}
+
 private:
     nsCOMPtr<nsIXPCScriptable>  mCallback;
     XPCNativeScriptableFlags    mFlags;
+    uint32_t                    mInterfacesBitmap;
 };
 
 /***********************************************/
@@ -2954,7 +2968,8 @@ xpc_JSObjectIsID(JSContext *cx, JSObject* obj);
 // in XPCDebug.cpp
 
 extern bool
-xpc_DumpJSStack(bool showArgs, bool showLocals, bool showThisProps);
+xpc_DumpJSStack(JSContext* cx, bool showArgs, bool showLocals,
+                bool showThisProps);
 
 // Return a newly-allocated string containing a representation of the
 // current JS stack.  It is the *caller's* responsibility to free this
@@ -3374,8 +3389,6 @@ struct GlobalProperties {
     bool URLSearchParams : 1;
     bool atob : 1;
     bool btoa : 1;
-    bool Blob : 1;
-    bool File : 1;
 };
 
 // Infallible.
@@ -3608,13 +3621,6 @@ GetRTIdByIndex(JSContext *cx, unsigned index);
 
 namespace xpc {
 
-enum WrapperDenialType {
-    WrapperDenialForXray = 0,
-    WrapperDenialForCOW,
-    WrapperDenialTypeCount
-};
-bool ReportWrapperDenial(JSContext *cx, JS::HandleId id, WrapperDenialType type, const char *reason);
-
 class CompartmentPrivate
 {
 public:
@@ -3629,12 +3635,11 @@ public:
         , skipWriteToGlobalPrototype(false)
         , universalXPConnectEnabled(false)
         , forcePermissiveCOWs(false)
-        , skipCOWCallableChecks(false)
+        , warnedAboutXrays(false)
         , scriptability(c)
         , scope(nullptr)
     {
         MOZ_COUNT_CTOR(xpc::CompartmentPrivate);
-        mozilla::PodArrayZero(wrapperDenialWarnings);
     }
 
     ~CompartmentPrivate();
@@ -3682,13 +3687,9 @@ public:
     // Using it in production is inherently unsafe.
     bool forcePermissiveCOWs;
 
-    // Disables the XPConnect security checks that deny access to callables and
-    // accessor descriptors on COWs. Do not use this unless you are bholley.
-    bool skipCOWCallableChecks;
-
     // Whether we've emitted a warning about a property that was filtered out
-    // by a security wrapper. See XrayWrapper.cpp.
-    bool wrapperDenialWarnings[WrapperDenialTypeCount];
+    // by XrayWrappers. See XrayWrapper.cpp.
+    bool warnedAboutXrays;
 
     // The scriptability of this compartment.
     Scriptability scriptability;

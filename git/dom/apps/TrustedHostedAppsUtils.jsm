@@ -254,19 +254,19 @@ this.TrustedHostedAppsUtils = {
     return deferred.promise;
   },
 
-  verifyManifest: function(aApp, aAppId, aManifest) {
+  verifyManifest: function(aData) {
     return new Promise((resolve, reject) => {
       // sanity check on manifest host's CA (proper CA check with
       // pinning is done by regular networking code)
-      if (!this.isHostPinned(aApp.manifestURL)) {
+      if (!this.isHostPinned(aData.app.manifestURL)) {
         reject("TRUSTED_APPLICATION_HOST_CERTIFICATE_INVALID");
         return;
       }
-      if (!this.verifyCSPWhiteList(aManifest.csp)) {
+      if (!this.verifyCSPWhiteList(aData.app.manifest.csp)) {
         reject("TRUSTED_APPLICATION_WHITELIST_VALIDATION_FAILED");
         return;
       }
-      this.verifySignedManifest(aApp, aAppId).then(resolve, reject);
+      this.verifySignedManifest(aData.app, aData.appId).then(resolve, reject);
     });
   }
 };

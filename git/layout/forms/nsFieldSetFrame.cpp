@@ -5,9 +5,7 @@
 
 #include "nsFieldSetFrame.h"
 
-#include "mozilla/gfx/2D.h"
 #include "nsCSSAnonBoxes.h"
-#include "nsLayoutUtils.h"
 #include "nsLegendFrame.h"
 #include "nsCSSRendering.h"
 #include <algorithm>
@@ -23,7 +21,6 @@
 #include "mozilla/Maybe.h"
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 using namespace mozilla::layout;
 
 nsContainerFrame*
@@ -222,15 +219,12 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     clipRect.width = legendRect.x - rect.x;
     clipRect.height = topBorder;
 
-    DrawTarget* drawTarget = aRenderingContext.GetDrawTarget();
-    gfxContext* gfx = aRenderingContext.ThebesContext();
-    int32_t appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
-
-    gfx->Save();
-    gfx->Clip(NSRectToSnappedRect(clipRect, appUnitsPerDevPixel, *drawTarget));
+    aRenderingContext.ThebesContext()->Save();
+    aRenderingContext.IntersectClip(clipRect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
                                 aDirtyRect, rect, mStyleContext);
-    gfx->Restore();
+
+    aRenderingContext.ThebesContext()->Restore();
 
 
     // draw right side
@@ -239,11 +233,12 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     clipRect.width = rect.XMost() - legendRect.XMost();
     clipRect.height = topBorder;
 
-    gfx->Save();
-    gfx->Clip(NSRectToSnappedRect(clipRect, appUnitsPerDevPixel, *drawTarget));
+    aRenderingContext.ThebesContext()->Save();
+    aRenderingContext.IntersectClip(clipRect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
                                 aDirtyRect, rect, mStyleContext);
-    gfx->Restore();
+
+    aRenderingContext.ThebesContext()->Restore();
 
     
     // draw bottom
@@ -251,11 +246,12 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     clipRect.y += topBorder;
     clipRect.height = mRect.height - (yoff + topBorder);
     
-    gfx->Save();
-    gfx->Clip(NSRectToSnappedRect(clipRect, appUnitsPerDevPixel, *drawTarget));
+    aRenderingContext.ThebesContext()->Save();
+    aRenderingContext.IntersectClip(clipRect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
                                 aDirtyRect, rect, mStyleContext);
-    gfx->Restore();
+
+    aRenderingContext.ThebesContext()->Restore();
   } else {
 
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
@@ -318,7 +314,7 @@ nsFieldSetFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                              const LogicalSize& aMargin,
                              const LogicalSize& aBorder,
                              const LogicalSize& aPadding,
-                             ComputeSizeFlags aFlags)
+                             uint32_t aFlags)
 {
   LogicalSize result =
     nsContainerFrame::ComputeSize(aRenderingContext, aWM,

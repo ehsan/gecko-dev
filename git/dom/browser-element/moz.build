@@ -12,18 +12,13 @@ SOURCES += [
     'BrowserElementParent.cpp',
 ]
 
-XPIDL_SOURCES += [
-    'nsIBrowserElementAPI.idl',
-]
-
-XPIDL_MODULE = 'browser-element'
-
 EXTRA_COMPONENTS += [
     'BrowserElementParent.js',
     'BrowserElementParent.manifest',
 ]
 
 EXTRA_JS_MODULES += [
+    'BrowserElementParent.jsm',
     'BrowserElementPromptService.jsm',
 ]
 
@@ -31,7 +26,7 @@ FAIL_ON_WARNINGS = True
 
 LOCAL_INCLUDES += [
     '../bluetooth',
-    '/dom/html',
+    '/content/html/content/src',
 ]
 
 include('/ipc/chromium/chromium-config.mozbuild')
@@ -39,6 +34,7 @@ include('/ipc/chromium/chromium-config.mozbuild')
 FINAL_LIBRARY = 'xul'
 
 LOCAL_INCLUDES += [
+    '/content/base/src',
     '/dom/',
     '/dom/base',
     '/dom/ipc',

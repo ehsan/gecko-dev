@@ -12,12 +12,6 @@
 namespace mozilla {
 namespace a11y {
 
-class Accessible;
-
-/**
- * XPCOM nsIAccessibleValue interface implementation, used by
- * xpcAccessibleGeneric class.
- */
 class xpcAccessibleValue : public nsIAccessibleValue
 {
 public:
@@ -27,12 +21,9 @@ public:
   NS_IMETHOD SetCurrentValue(double aValue) MOZ_FINAL MOZ_OVERRIDE;
   NS_IMETHOD GetMinimumIncrement(double* aMinIncrement) MOZ_FINAL MOZ_OVERRIDE;
 
-protected:
-  xpcAccessibleValue() { }
-  virtual ~xpcAccessibleValue() {}
-
 private:
-  Accessible* Intl();
+  xpcAccessibleValue() { }
+  friend class Accessible;
 
   xpcAccessibleValue(const xpcAccessibleValue&) MOZ_DELETE;
   xpcAccessibleValue& operator =(const xpcAccessibleValue&) MOZ_DELETE;

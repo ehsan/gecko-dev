@@ -7,15 +7,16 @@
 
 const TAB_URL = EXAMPLE_URL + "doc_with-frame.html";
 
-let gTab, gPanel, gDebugger;
+let gTab, gDebuggee, gPanel, gDebugger;
 let gVariables, gSearchBox;
 
 function test() {
   // Debug test slaves are quite slow at this test.
   requestLongerTimeout(4);
 
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
     gVariables = gDebugger.DebuggerView.Variables;
@@ -36,7 +37,9 @@ function test() {
         ok(false, "Got an error: " + aError.message + "\n" + aError.stack);
       });
 
-    sendMouseClickToTab(gTab, content.document.querySelector("button"));
+    EventUtils.sendMouseEvent({ type: "click" },
+      gDebuggee.document.querySelector("button"),
+      gDebuggee);
   });
 }
 
@@ -75,8 +78,8 @@ function testVariablesAndPropertiesFiltering() {
       "There should be 0 variables displayed in the with scope.");
     is(functionScope.target.querySelectorAll(".variables-view-variable:not([unmatched])").length, 0,
       "There should be 0 variables displayed in the function scope.");
-    is(globalScope.target.querySelectorAll(".variables-view-variable:not([unmatched])").length, 0,
-      "There should be 0 variables displayed in the global scope.");
+    isnot(globalScope.target.querySelectorAll(".variables-view-variable:not([unmatched])").length, 0,
+      "There should be some variables displayed in the global scope.");
 
     is(withScope.target.querySelectorAll(".variables-view-property:not([unmatched])").length, 0,
       "There should be 0 properties displayed in the with scope.");
@@ -211,6 +214,7 @@ function prepareVariablesAndProperties() {
 
 registerCleanupFunction(function() {
   gTab = null;
+  gDebuggee = null;
   gPanel = null;
   gDebugger = null;
   gVariables = null;

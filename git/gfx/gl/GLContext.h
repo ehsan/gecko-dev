@@ -26,12 +26,6 @@
 #undef GetClassName
 #endif
 
-// Define MOZ_GL_DEBUG unconditionally to enable GL debugging in opt
-// builds.
-#ifdef DEBUG
-#define MOZ_GL_DEBUG 1
-#endif
-
 #include "mozilla/UniquePtr.h"
 
 #include "GLDefs.h"
@@ -49,7 +43,6 @@
 #include "base/platform_thread.h"       // for PlatformThreadId
 #include "mozilla/GenericRefCounted.h"
 #include "gfx2DGlue.h"
-#include "GeckoProfiler.h"
 
 class nsIntRegion;
 class nsIRunnable;
@@ -107,7 +100,6 @@ MOZ_BEGIN_ENUM_CLASS(GLFeature)
     gpu_shader4,
     instanced_arrays,
     instanced_non_arrays,
-    invalidate_framebuffer,
     map_buffer_range,
     occlusion_query,
     occlusion_query_boolean,
@@ -276,7 +268,7 @@ public:
      * Example :
      *   If this a OpenGL 2.1, that will return 210
      */
-    inline uint32_t Version() const {
+    inline unsigned int Version() const {
         return mVersion;
     }
 
@@ -318,7 +310,7 @@ protected:
      * mVersion store the OpenGL's version, multiplied by 100. For example, if
      * the context is an OpenGL 2.1 context, mVersion value will be 210.
      */
-    uint32_t mVersion;
+    unsigned int mVersion;
     nsCString mVersionString;
     ContextProfile mProfile;
 
@@ -375,7 +367,6 @@ public:
         ARB_framebuffer_sRGB,
         ARB_half_float_pixel,
         ARB_instanced_arrays,
-        ARB_invalidate_subdata,
         ARB_map_buffer_range,
         ARB_occlusion_query2,
         ARB_pixel_buffer_object,
@@ -417,7 +408,6 @@ public:
         EXT_texture_filter_anisotropic,
         EXT_texture_format_BGRA8888,
         EXT_texture_sRGB,
-        EXT_texture_storage,
         EXT_transform_feedback,
         EXT_unpack_subimage,
         IMG_read_format,
@@ -465,15 +455,15 @@ public:
         mAvailableExtensions[aKnownExtension] = 1;
     }
 
+
 public:
+
     template<size_t N>
-    static void InitializeExtensionsBitSet(std::bitset<N>& extensionsBitset,
-                                           const char* extStr,
-                                           const char** extList)
+    static void InitializeExtensionsBitSet(std::bitset<N>& extensionsBitset, const char* extStr, const char** extList, bool verbose = false)
     {
         char* exts = ::strdup(extStr);
 
-        if (ShouldSpew())
+        if (verbose)
             printf_stderr("Extensions: %s\n", exts);
 
         char* cur = exts;
@@ -488,7 +478,7 @@ public:
 
             for (int i = 0; extList[i]; ++i) {
                 if (PL_strcasecmp(cur, extList[i]) == 0) {
-                    if (ShouldSpew())
+                    if (verbose)
                         printf_stderr("Found extension %s\n", cur);
                     extensionsBitset[i] = true;
                 }
@@ -500,8 +490,10 @@ public:
         free(exts);
     }
 
+
 protected:
     std::bitset<Extensions_Max> mAvailableExtensions;
+
 
 // -----------------------------------------------------------------------------
 // Feature queries
@@ -578,95 +570,112 @@ public:
         }
     }
 
-private:
-    GLenum mTopError;
+    /** \returns the first GL error, and guarantees that all GL error flags are cleared,
+     * i.e. that a subsequent GetError call will return NO_ERROR
+     */
+    GLenum GetAndClearError() {
+        // the first error is what we want to return
+        GLenum error = fGetError();
 
-    GLenum RawGetError() {
+        if (error) {
+            // clear all pending errors
+            while(fGetError()) {}
+        }
+
+        return error;
+    }
+
+private:
+    GLenum raw_fGetError() {
         return mSymbols.fGetError();
     }
 
-    GLenum RawGetErrorAndClear() {
-        GLenum err = RawGetError();
-
-        if (err)
-            while (RawGetError()) {}
-
-        return err;
-    }
+    std::queue<GLenum> mGLErrorQueue;
 
 public:
-    GLenum FlushErrors() {
-        GLenum err = RawGetErrorAndClear();
-        if (!mTopError)
-            mTopError = err;
+    GLenum fGetError() {
+        if (!mGLErrorQueue.empty()) {
+            GLenum err = mGLErrorQueue.front();
+            mGLErrorQueue.pop();
+            return err;
+        }
+
+        return GetUnpushedError();
+    }
+
+private:
+    GLenum GetUnpushedError() {
+        return raw_fGetError();
+    }
+
+    void ClearUnpushedErrors() {
+        while (GetUnpushedError()) {
+            // Discard errors.
+        }
+    }
+
+    GLenum GetAndClearUnpushedErrors() {
+        GLenum err = GetUnpushedError();
+        if (err) {
+            ClearUnpushedErrors();
+        }
         return err;
     }
 
-    // We smash all errors together, so you never have to loop on this. We
-    // guarantee that immediately after this call, there are no errors left.
-    GLenum fGetError() {
-        FlushErrors();
+    void PushError(GLenum err) {
+        mGLErrorQueue.push(err);
+    }
 
-        GLenum err = mTopError;
-        mTopError = LOCAL_GL_NO_ERROR;
-        return err;
+    void GetAndPushAllErrors() {
+        while (true) {
+            GLenum err = GetUnpushedError();
+            if (!err)
+                break;
+
+            PushError(err);
+        }
     }
 
     ////////////////////////////////////
     // Use this safer option.
-    class LocalErrorScope;
-
 private:
-    LocalErrorScope* mLocalErrorScope;
+#ifdef DEBUG
+    bool mIsInLocalErrorCheck;
+#endif
 
 public:
-    class LocalErrorScope {
-        GLContext& mGL;
-        GLenum mOldTop;
+    class ScopedLocalErrorCheck {
+        GLContext* const mGL;
         bool mHasBeenChecked;
 
     public:
-        explicit LocalErrorScope(GLContext& gl)
+        explicit ScopedLocalErrorCheck(GLContext* gl)
             : mGL(gl)
             , mHasBeenChecked(false)
         {
-            MOZ_ASSERT(!mGL.mLocalErrorScope);
-            mGL.mLocalErrorScope = this;
-
-            mGL.FlushErrors();
-
-            mOldTop = mGL.mTopError;
-            mGL.mTopError = LOCAL_GL_NO_ERROR;
+#ifdef DEBUG
+            MOZ_ASSERT(!mGL->mIsInLocalErrorCheck);
+            mGL->mIsInLocalErrorCheck = true;
+#endif
+            mGL->GetAndPushAllErrors();
         }
 
-        GLenum GetError() {
+        GLenum GetLocalError() {
+#ifdef DEBUG
+            MOZ_ASSERT(mGL->mIsInLocalErrorCheck);
+            mGL->mIsInLocalErrorCheck = false;
+#endif
+
             MOZ_ASSERT(!mHasBeenChecked);
             mHasBeenChecked = true;
 
-            return mGL.fGetError();
+            return mGL->GetAndClearUnpushedErrors();
         }
 
-        ~LocalErrorScope() {
+        ~ScopedLocalErrorCheck() {
             MOZ_ASSERT(mHasBeenChecked);
-
-            MOZ_ASSERT(mGL.fGetError() == LOCAL_GL_NO_ERROR);
-
-            mGL.mTopError = mOldTop;
-
-            MOZ_ASSERT(mGL.mLocalErrorScope == this);
-            mGL.mLocalErrorScope = nullptr;
         }
     };
-
-    bool GetPotentialInteger(GLenum pname, GLint* param) {
-        LocalErrorScope localError(*this);
-
-        fGetIntegerv(pname, param);
-
-        GLenum err = localError.GetError();
-        MOZ_ASSERT_IF(err != LOCAL_GL_NO_ERROR, err == LOCAL_GL_INVALID_ENUM);
-        return err == LOCAL_GL_NO_ERROR;
-    }
 
 private:
     static void GLAPIENTRY StaticDebugCallback(GLenum source,
@@ -691,7 +700,7 @@ private:
 #undef BEFORE_GL_CALL
 #undef AFTER_GL_CALL
 
-#ifdef MOZ_GL_DEBUG
+#ifdef DEBUG
 
 #ifndef MOZ_FUNCTION_NAME
 # ifdef __GNUC__
@@ -703,47 +712,43 @@ private:
 # endif
 #endif
 
-    void BeforeGLCall(const char* funcName) {
+    void BeforeGLCall(const char* glFunction) {
         MOZ_ASSERT(IsCurrent());
-
         if (DebugMode()) {
-            FlushErrors();
+            GLContext *currentGLContext = nullptr;
+
+            currentGLContext = (GLContext*)PR_GetThreadPrivate(sCurrentGLContextTLS);
 
             if (DebugMode() & DebugTrace)
-                printf_stderr("[gl:%p] > %s\n", this, funcName);
-
-            GLContext* tlsContext = (GLContext*)PR_GetThreadPrivate(sCurrentGLContextTLS);
-            if (this != tlsContext) {
-                printf_stderr("Fatal: %s called on non-current context %p. The"
-                              " current context for this thread is %p.\n",
-                              funcName, this, tlsContext);
-                MOZ_CRASH("GLContext is not current.");
+                printf_stderr("[gl:%p] > %s\n", this, glFunction);
+            if (this != currentGLContext) {
+                printf_stderr("Fatal: %s called on non-current context %p. "
+                              "The current context for this thread is %p.\n",
+                              glFunction, this, currentGLContext);
+                NS_ABORT();
             }
         }
     }
 
-    void AfterGLCall(const char* funcName) {
+    void AfterGLCall(const char* glFunction) {
         if (DebugMode()) {
             // calling fFinish() immediately after every GL call makes sure that if this GL command crashes,
             // the stack trace will actually point to it. Otherwise, OpenGL being an asynchronous API, stack traces
             // tend to be meaningless
             mSymbols.fFinish();
-            GLenum err = FlushErrors();
+            GLenum err = GetUnpushedError();
+            PushError(err);
 
-            if (DebugMode() & DebugTrace) {
-                printf_stderr("[gl:%p] < %s [%s (0x%04x)]\n", this, funcName,
-                              GLErrorToString(err), err);
-            }
+            if (DebugMode() & DebugTrace)
+                printf_stderr("[gl:%p] < %s [0x%04x]\n", this, glFunction, err);
 
-            if (err != LOCAL_GL_NO_ERROR &&
-                !mLocalErrorScope)
-            {
-                printf_stderr("[gl:%p] %s: Generated unexpected %s error."
-                              " (0x%04x)\n", this, funcName,
-                              GLErrorToString(err), err);
-
+            if (err != LOCAL_GL_NO_ERROR) {
+                printf_stderr("GL ERROR: %s generated GL error %s(0x%04x)\n",
+                              glFunction,
+                              GLErrorToString(err),
+                              err);
                 if (DebugMode() & DebugAbortOnError)
-                    MOZ_CRASH("MOZ_GL_DEBUG_ABORT_ON_ERROR");
+                    NS_ABORT();
             }
         }
     }
@@ -758,18 +763,10 @@ private:
 
     static void AssertNotPassingStackBufferToTheGL(const void* ptr);
 
-#ifdef MOZ_WIDGET_ANDROID
-// Record the name of the GL call for better hang stacks on Android.
-#define BEFORE_GL_CALL                              \
-            PROFILER_LABEL_FUNC(                    \
-              js::ProfileEntry::Category::GRAPHICS);\
-            BeforeGLCall(MOZ_FUNCTION_NAME)
-#else
 #define BEFORE_GL_CALL                              \
             do {                                    \
                 BeforeGLCall(MOZ_FUNCTION_NAME);    \
             } while (0)
-#endif
 
 #define AFTER_GL_CALL                               \
             do {                                    \
@@ -783,19 +780,14 @@ private:
 
 #define ASSERT_NOT_PASSING_STACK_BUFFER_TO_GL(ptr) AssertNotPassingStackBufferToTheGL(ptr)
 
-#else // ifdef MOZ_GL_DEBUG
+#else // ifdef DEBUG
 
-#ifdef MOZ_WIDGET_ANDROID
-// Record the name of the GL call for better hang stacks on Android.
-#define BEFORE_GL_CALL PROFILER_LABEL_FUNC(js::ProfileEntry::Category::GRAPHICS)
-#else
 #define BEFORE_GL_CALL do { } while (0)
-#endif
 #define AFTER_GL_CALL do { } while (0)
 #define TRACKING_CONTEXT(a) do {} while (0)
 #define ASSERT_NOT_PASSING_STACK_BUFFER_TO_GL(ptr) do {} while (0)
 
-#endif // ifdef MOZ_GL_DEBUG
+#endif // ifdef DEBUG
 
 #define ASSERT_SYMBOL_PRESENT(func) \
             do {\
@@ -895,20 +887,6 @@ public:
         }
 
         raw_fBindFramebuffer(target, framebuffer);
-    }
-
-    void fInvalidateFramebuffer(GLenum target, GLsizei numAttachments, const GLenum* attachments) {
-        BEFORE_GL_CALL;
-        ASSERT_SYMBOL_PRESENT(fInvalidateFramebuffer);
-        mSymbols.fInvalidateFramebuffer(target, numAttachments, attachments);
-        AFTER_GL_CALL;
-    }
-
-    void fInvalidateSubFramebuffer(GLenum target, GLsizei numAttachments, const GLenum* attachments, GLint x, GLint y, GLsizei width, GLsizei height) {
-        BEFORE_GL_CALL;
-        ASSERT_SYMBOL_PRESENT(fInvalidateSubFramebuffer);
-        mSymbols.fInvalidateSubFramebuffer(target, numAttachments, attachments, x, y, width, height);
-        AFTER_GL_CALL;
     }
 
     void fBindTexture(GLenum target, GLuint texture) {
@@ -1597,6 +1575,7 @@ public:
         AFTER_GL_CALL;
     }
 
+private:
     void raw_fReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *pixels) {
         ASSERT_NOT_PASSING_STACK_BUFFER_TO_GL(pixels);
         BEFORE_GL_CALL;
@@ -1605,6 +1584,7 @@ public:
         mHeavyGLCallsSinceLastFlush = true;
     }
 
+public:
     void fReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *pixels) {
         BeforeGLReadCall();
 
@@ -3117,21 +3097,6 @@ public:
 
 // -----------------------------------------------------------------------------
 // 3D Textures
-    void fTexImage3D(GLenum target, GLint level,
-                     GLint internalFormat,
-                     GLsizei width, GLsizei height, GLsizei depth,
-                     GLint border, GLenum format, GLenum type,
-                     const GLvoid * data)
-    {
-        BEFORE_GL_CALL;
-        ASSERT_SYMBOL_PRESENT(fTexImage3D);
-        mSymbols.fTexImage3D(target, level, internalFormat,
-                             width, height, depth,
-                             border, format, type,
-                             data);
-        AFTER_GL_CALL;
-    }
-
     void fTexSubImage3D(GLenum target, GLint level, GLint xoffset, GLint yoffset,
                         GLint zoffset, GLsizei width, GLsizei height, GLsizei depth,
                         GLenum format, GLenum type, const GLvoid* pixels)
@@ -3206,7 +3171,7 @@ protected:
     virtual bool MakeCurrentImpl(bool aForce) = 0;
 
 public:
-#ifdef MOZ_GL_DEBUG
+#ifdef DEBUG
     static void StaticInit() {
         PR_NewThreadPrivateIndex(&sCurrentGLContextTLS, nullptr);
     }
@@ -3216,7 +3181,7 @@ public:
         if (IsDestroyed()) {
             return false;
         }
-#ifdef MOZ_GL_DEBUG
+#ifdef DEBUG
     PR_SetThreadPrivate(sCurrentGLContextTLS, this);
 
     // XXX this assertion is disabled because it's triggering on Mac;
@@ -3391,7 +3356,7 @@ public:
     static uint32_t sDebugMode;
 
     static uint32_t DebugMode() {
-#ifdef MOZ_GL_DEBUG
+#ifdef DEBUG
         return sDebugMode;
 #else
         return 0;
@@ -3406,7 +3371,7 @@ protected:
 
     GLContextSymbols mSymbols;
 
-#ifdef MOZ_GL_DEBUG
+#ifdef DEBUG
     // GLDebugMode will check that we don't send call
     // to a GLContext that isn't current on the current
     // thread.
@@ -3416,6 +3381,7 @@ protected:
 #endif
 
     UniquePtr<GLBlitHelper> mBlitHelper;
+    UniquePtr<GLBlitTextureImageHelper> mBlitTextureImageHelper;
     UniquePtr<GLReadTexImageHelper> mReadTexImageHelper;
 
 public:
@@ -3464,7 +3430,22 @@ protected:
         if (!IsOffscreenSizeAllowed(size))
             return false;
 
-       return CreateScreenBufferImpl(size, caps);
+        SurfaceCaps tryCaps = caps;
+        if (tryCaps.antialias) {
+            // AA path
+            if (CreateScreenBufferImpl(size, tryCaps))
+                return true;
+
+            NS_WARNING("CreateScreenBuffer failed to initialize an AA context! Falling back to no AA...");
+            tryCaps.antialias = false;
+        }
+        MOZ_ASSERT(!tryCaps.antialias);
+
+        if (CreateScreenBufferImpl(size, tryCaps))
+            return true;
+
+        NS_WARNING("CreateScreenBuffer failed to initialize non-AA context!");
+        return false;
     }
 
     bool CreateScreenBufferImpl(const gfx::IntSize& size,
@@ -3549,6 +3530,9 @@ public:
         return mScreen.get();
     }
 
+    bool PublishFrame();
+    SharedSurface* RequestFrame();
+
     /* Clear to transparent black, with 0 depth and stencil,
      * while preserving current ClearColor etc. values.
      * Useful for resizing offscreen buffers.
@@ -3556,10 +3540,6 @@ public:
     void ClearSafely();
 
     bool WorkAroundDriverBugs() const { return mWorkAroundDriverBugs; }
-
-    bool IsDrawingToDefaultFramebuffer() {
-        return Screen()->IsDrawFramebufferDefault();
-    }
 
 protected:
     nsRefPtr<TextureGarbageBin> mTexGarbageBin;
@@ -3611,9 +3591,6 @@ protected:
 
 
 public:
-    GLsizei MaxSamples() const {
-        return mMaxSamples;
-    }
 
     void fViewport(GLint x, GLint y, GLsizei width, GLsizei height) {
         if (mViewportRect[0] == x &&
@@ -3634,7 +3611,7 @@ public:
 
 #undef ASSERT_SYMBOL_PRESENT
 
-#ifdef MOZ_GL_DEBUG
+#ifdef DEBUG
     void CreatedProgram(GLContext *aOrigin, GLuint aName);
     void CreatedShader(GLContext *aOrigin, GLuint aName);
     void CreatedBuffers(GLContext *aOrigin, GLsizei aCount, GLuint *aNames);
@@ -3696,7 +3673,6 @@ protected:
 
 public:
     void FlushIfHeavyGLCallsSinceLastFlush();
-    static bool ShouldSpew();
 };
 
 bool DoesStringMatch(const char* aString, const char *aWantedString);

@@ -42,8 +42,8 @@ WebGLRenderbuffer::WrapObject(JSContext *cx) {
     return dom::WebGLRenderbufferBinding::Wrap(cx, this);
 }
 
-WebGLRenderbuffer::WebGLRenderbuffer(WebGLContext* context)
-    : WebGLBindable<RBTarget>()
+WebGLRenderbuffer::WebGLRenderbuffer(WebGLContext *context)
+    : WebGLBindableName<RBTarget>()
     , WebGLContextBoundObject(context)
     , mPrimaryRB(0)
     , mSecondaryRB(0)
@@ -51,6 +51,7 @@ WebGLRenderbuffer::WebGLRenderbuffer(WebGLContext* context)
     , mInternalFormatForGL(0)
     , mImageDataStatus(WebGLImageDataStatus::NoImageData)
 {
+    SetIsDOMBinding();
     mContext->MakeContextCurrent();
 
     mContext->gl->fGenRenderbuffers(1, &mPrimaryRB);

@@ -65,9 +65,9 @@ MathCache::MathCache() {
     memset(table, 0, sizeof(table));
 
     /* See comments in lookup(). */
-    MOZ_ASSERT(IsNegativeZero(-0.0));
-    MOZ_ASSERT(!IsNegativeZero(+0.0));
-    MOZ_ASSERT(hash(-0.0, MathCache::Sin) != hash(+0.0, MathCache::Sin));
+    JS_ASSERT(IsNegativeZero(-0.0));
+    JS_ASSERT(!IsNegativeZero(+0.0));
+    JS_ASSERT(hash(-0.0, MathCache::Sin) != hash(+0.0, MathCache::Sin));
 }
 
 size_t
@@ -878,18 +878,12 @@ js::math_round(JSContext *cx, unsigned argc, Value *vp)
 double
 js::math_sin_impl(MathCache *cache, double x)
 {
-    return cache->lookup(math_sin_uncached, x, MathCache::Sin);
+    return cache->lookup(sin, x, MathCache::Sin);
 }
 
 double
 js::math_sin_uncached(double x)
 {
-#ifdef _WIN64
-    // Workaround MSVC bug where sin(-0) is +0 instead of -0 on x64 on
-    // CPUs without FMA3 (pre-Haswell). See bug 1076670.
-    if (IsNegativeZero(x))
-        return -0.0;
-#endif
     return sin(x);
 }
 
@@ -1568,7 +1562,7 @@ js_InitMathClass(JSContext *cx, HandleObject obj)
         return nullptr;
 
     if (!JS_DefineProperty(cx, obj, js_Math_str, Math, 0,
-                           JS_STUBGETTER, JS_STUBSETTER))
+                           JS_PropertyStub, JS_StrictPropertyStub))
     {
         return nullptr;
     }

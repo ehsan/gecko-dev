@@ -77,11 +77,8 @@ typedef struct _nsCocoaWindowList {
 
   NSTrackingArea* mTrackingArea;
 
-  NSRect mDirtyRect;
-
   BOOL mBeingShown;
   BOOL mDrawTitle;
-  BOOL mBrightTitlebarForeground;
 }
 
 - (void)importState:(NSDictionary*)aState;
@@ -112,13 +109,8 @@ typedef struct _nsCocoaWindowList {
 - (void)setWantsTitleDrawn:(BOOL)aDrawTitle;
 - (BOOL)wantsTitleDrawn;
 
-- (void)setUseBrightTitlebarForeground:(BOOL)aBrightForeground;
-- (BOOL)useBrightTitlebarForeground;
-
 - (void)disableSetNeedsDisplay;
 - (void)enableSetNeedsDisplay;
-
-- (NSRect)getAndResetNativeDirtyRect;
 
 @end
 
@@ -310,11 +302,9 @@ public:
     virtual void SetShowsFullScreenButton(bool aShow);
     virtual void SetWindowAnimationType(WindowAnimationType aType);
     virtual void SetDrawsTitle(bool aDrawTitle);
-    virtual void SetUseBrightTitlebarForeground(bool aBrightForeground) MOZ_OVERRIDE;
     NS_IMETHOD SetNonClientMargins(nsIntMargin &margins);
     NS_IMETHOD SetWindowTitlebarColor(nscolor aColor, bool aActive);
     virtual void SetDrawsInTitlebar(bool aState);
-    virtual void UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries);
     virtual nsresult SynthesizeNativeMouseEvent(nsIntPoint aPoint,
                                                 uint32_t aNativeMessage,
                                                 uint32_t aModifierFlags);

@@ -145,25 +145,13 @@ addMessageListener("addFrame", function (aMessage) {
   sendAsyncMessage("frameAdded");
 });
 
-addMessageListener("tweak-app-object", function (aMessage) {
-  let appId = aMessage.appId;
-  Cu.import('resource://gre/modules/Webapps.jsm');
-  let reg = DOMApplicationRegistry;
-  if ("removable" in aMessage) {
-    reg.webapps[appId].removable = aMessage.removable;
-  }
-  if ("sideloaded" in aMessage) {
-    reg.webapps[appId].sideloaded = aMessage.sideloaded;
-  }
-});
-
 addMessageListener("cleanup", function () {
   webappActorRequest({type: "unwatchApps"}, function () {
     gClient.close();
   });
 });
 
-let FramesMock = {
+let AppFramesMock = {
   list: function () {
     return Frames;
   },
@@ -171,4 +159,4 @@ let FramesMock = {
   removeObserver: function () {}
 };
 
-require("devtools/server/actors/webapps").setFramesMock(FramesMock);
+require("devtools/server/actors/webapps").setAppFramesMock(AppFramesMock);

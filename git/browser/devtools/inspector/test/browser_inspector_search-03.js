@@ -155,7 +155,7 @@ let TEST_DATA = [
   }
 ];
 
-add_task(function* () {
+let test = asyncTest(function* () {
   let { inspector } = yield openInspectorForURL(TEST_URL);
   let searchBox = inspector.searchBox;
   let popup = inspector.searchSuggestions.searchPopup;

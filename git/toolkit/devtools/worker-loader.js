@@ -153,7 +153,7 @@ function WorkerDebuggerLoader(options) {
     try {
       loadInSandbox(url, sandbox);
     } catch (error) {
-      if (/^Error opening input stream/.test(String(error))) {
+      if (String(error) === "Error opening input stream (invalid filename?)") {
         throw new Error("can't load module " + module.id + " with url " + url +
                         "!");
       }
@@ -320,8 +320,7 @@ if (typeof Components === "object") {
       "promise": Promise,
       "Debugger": Debugger,
       "xpcInspector": xpcInspector,
-      "Timer": Object.create(Timer),
-      "PromiseDebugging": PromiseDebugging
+      "Timer": Object.create(Timer)
     },
     paths: {
       "": "resource://gre/modules/commonjs/",

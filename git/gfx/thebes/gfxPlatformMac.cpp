@@ -168,7 +168,9 @@ gfxPlatformMac::IsFontFormatSupported(nsIURI *aFontURI, uint32_t aFormatFlags)
                  "strange font format hint set");
 
     // accept supported formats
-    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMATS_COMMON |
+    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_WOFF     |
+                        gfxUserFontSet::FLAG_FORMAT_OPENTYPE | 
+                        gfxUserFontSet::FLAG_FORMAT_TRUETYPE | 
                         gfxUserFontSet::FLAG_FORMAT_TRUETYPE_AAT)) {
         return true;
     }
@@ -409,14 +411,6 @@ gfxPlatformMac::UseTiling()
   }
   // Tiling seems to be slow on 10.6 so disable it until we figure it out
   return nsCocoaFeatures::OnLionOrLater() && gfxPlatform::UseTiling();
-}
-
-bool
-gfxPlatformMac::UseProgressivePaint()
-{
-  // Progressive painting requires cross-process mutexes, which don't work so
-  // well on OS X 10.6 so we disable there.
-  return nsCocoaFeatures::OnLionOrLater() && gfxPlatform::UseProgressivePaint();
 }
 
 void

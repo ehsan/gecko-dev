@@ -21,8 +21,6 @@ import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.util.zip.GZIPOutputStream;
 
-import org.mozilla.gecko.AppConstants.Versions;
-
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
@@ -284,8 +282,8 @@ public class CrashReporter extends Activity
 
     private String generateBoundary() {
         // Generate some random numbers to fill out the boundary
-        int r0 = (int)(Integer.MAX_VALUE * Math.random());
-        int r1 = (int)(Integer.MAX_VALUE * Math.random());
+        int r0 = (int)((double)Integer.MAX_VALUE * Math.random());
+        int r1 = (int)((double)Integer.MAX_VALUE * Math.random());
         return String.format("---------------------------%08X%08X", r0, r1);
     }
 
@@ -397,7 +395,7 @@ public class CrashReporter extends Activity
                 Log.e(LOGTAG, "Exception while sending SDK version 8 keys", ex);
             }
             sendPart(os, boundary, "Android_Version",  Build.VERSION.SDK_INT + " (" + Build.VERSION.CODENAME + ")");
-            if (Versions.feature16Plus && includeURLCheckbox.isChecked()) {
+            if (Build.VERSION.SDK_INT >= 16 && includeURLCheckbox.isChecked()) {
                 sendPart(os, boundary, "Android_Logcat", readLogcat());
             }
 

@@ -287,8 +287,9 @@ let gSyncUI = {
   // Commands
   doSync: function SUI_doSync() {
     let needsSetup = this._needsSetup();
+    let loginFailed = this._loginFailed();
 
-    if (!needsSetup) {
+    if (!(loginFailed || needsSetup)) {
       setTimeout(function () Weave.Service.errorHandler.syncAndReportErrors(), 0);
     }
 

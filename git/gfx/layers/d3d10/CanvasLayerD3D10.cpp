@@ -8,6 +8,7 @@
 #include "../d3d9/Nv3DVUtils.h"
 #include "gfxWindowsSurface.h"
 #include "gfxWindowsPlatform.h"
+#include "SurfaceStream.h"
 #include "SharedSurfaceANGLE.h"
 #include "SharedSurfaceGL.h"
 #include "gfxContext.h"
@@ -46,6 +47,9 @@ CanvasLayerD3D10::Initialize(const Data& aData)
     mNeedsYFlip = true;
 
     GLScreenBuffer* screen = mGLContext->Screen();
+    SurfaceStreamType streamType =
+        SurfaceStream::ChooseGLStreamType(SurfaceStream::MainThread,
+                                          screen->PreserveBuffer());
 
     UniquePtr<SurfaceFactory> factory = nullptr;
     if (!gfxPrefs::WebGLForceLayersReadback()) {
@@ -56,7 +60,7 @@ CanvasLayerD3D10::Initialize(const Data& aData)
     }
 
     if (factory) {
-      screen->Morph(Move(factory));
+      screen->Morph(Move(factory), streamType);
     }
   } else if (aData.mDrawTarget) {
     mDrawTarget = aData.mDrawTarget;
@@ -116,60 +120,86 @@ CanvasLayerD3D10::UpdateSurface()
     return;
   }
 
-  SharedSurface* surf = nullptr;
   if (mGLContext) {
-    auto screen = mGLContext->Screen();
-    MOZ_ASSERT(screen);
-
-    surf = screen->Front()->Surf();
-    if (!surf)
-      return;
-    surf->WaitSync();
-
-    if (surf->mType == SharedSurfaceType::EGLSurfaceANGLE) {
-      SharedSurface_ANGLEShareHandle* shareSurf = SharedSurface_ANGLEShareHandle::Cast(surf);
-      HANDLE shareHandle = shareSurf->GetShareHandle();
-
-      HRESULT hr = device()->OpenSharedResource(shareHandle,
-                                                __uuidof(ID3D10Texture2D),
-                                                getter_AddRefs(mTexture));
-      if (FAILED(hr))
-        return;
-
-      hr = device()->CreateShaderResourceView(mTexture,
-                                              nullptr,
-                                              getter_AddRefs(mSRView));
-      if (FAILED(hr))
-        return;
-
+    SharedSurface* surf = mGLContext->RequestFrame();
+    if (!surf) {
       return;
     }
-  }
 
-  D3D10_MAPPED_TEXTURE2D map;
-  HRESULT hr = mTexture->Map(0, D3D10_MAP_WRITE_DISCARD, 0, &map);
+    switch (surf->mType) {
+      case SharedSurfaceType::EGLSurfaceANGLE: {
+        SharedSurface_ANGLEShareHandle* shareSurf = SharedSurface_ANGLEShareHandle::Cast(surf);
+        HANDLE shareHandle = shareSurf->GetShareHandle();
 
-  if (FAILED(hr)) {
-    NS_WARNING("Failed to lock CanvasLayer texture.");
-    return;
-  }
+        HRESULT hr = device()->OpenSharedResource(shareHandle,
+                                                  __uuidof(ID3D10Texture2D),
+                                                  getter_AddRefs(mTexture));
+        if (FAILED(hr))
+          return;
 
-  RefPtr<DrawTarget> destTarget =
-    Factory::CreateDrawTargetForD3D10Texture(mTexture,
-                                             SurfaceFormat::R8G8B8A8);
+        hr = device()->CreateShaderResourceView(mTexture,
+                                                nullptr,
+                                                getter_AddRefs(mSRView));
+        if (FAILED(hr))
+          return;
 
-  if (surf) {
-    if (!ReadbackSharedSurface(surf, destTarget)) {
-      NS_WARNING("Failed to readback into texture.");
+        return;
+      }
+      case SharedSurfaceType::Basic: {
+        SharedSurface_Basic* shareSurf = SharedSurface_Basic::Cast(surf);
+        // WebGL reads entire surface.
+        D3D10_MAPPED_TEXTURE2D map;
+
+        HRESULT hr = mTexture->Map(0, D3D10_MAP_WRITE_DISCARD, 0, &map);
+
+        if (FAILED(hr)) {
+          NS_WARNING("Failed to map CanvasLayer texture.");
+          return;
+        }
+
+        DataSourceSurface* frameData = shareSurf->GetData();
+        // Scope for DrawTarget, so it's destroyed before Unmap.
+        {
+          IntSize boundsSize(mBounds.width, mBounds.height);
+          RefPtr<DrawTarget> mapDt = Factory::CreateDrawTargetForData(BackendType::CAIRO,
+                                                                      (uint8_t*)map.pData,
+                                                                      boundsSize,
+                                                                      map.RowPitch,
+                                                                      SurfaceFormat::B8G8R8A8);
+
+          Rect drawRect(0, 0, frameData->GetSize().width, frameData->GetSize().height);
+          mapDt->DrawSurface(frameData, drawRect, drawRect,
+                             DrawSurfaceOptions(),  DrawOptions(1.0F, CompositionOp::OP_SOURCE));
+          mapDt->Flush();
+        }
+
+        mTexture->Unmap(0);
+        mSRView = mUploadSRView;
+        break;
+      }
+
+      default:
+        MOZ_CRASH("Unhandled SharedSurfaceType.");
     }
   } else if (mSurface) {
+    D3D10_MAPPED_TEXTURE2D map;
+    HRESULT hr = mTexture->Map(0, D3D10_MAP_WRITE_DISCARD, 0, &map);
+
+    if (FAILED(hr)) {
+      NS_WARNING("Failed to lock CanvasLayer texture.");
+      return;
+    }
+
+    RefPtr<DrawTarget> destTarget =
+      Factory::CreateDrawTargetForD3D10Texture(mTexture,
+                                               SurfaceFormat::R8G8B8A8);
     Rect r(Point(0, 0), ToRect(mBounds).Size());
     destTarget->DrawSurface(mSurface, r, r, DrawSurfaceOptions(),
                             DrawOptions(1.0F, CompositionOp::OP_SOURCE));
-  }
 
-  mTexture->Unmap(0);
-  mSRView = mUploadSRView;
+    mTexture->Unmap(0);
+    mSRView = mUploadSRView;
+  }
 }
 
 Layer*

@@ -237,22 +237,6 @@ EVENT(keyup,
       NS_KEY_UP,
       EventNameType_HTMLXUL,
       eKeyboardEventClass)
-NON_IDL_EVENT(mozbrowserbeforekeydown,
-              NS_KEY_BEFORE_DOWN,
-              EventNameType_None,
-              eBeforeAfterKeyboardEventClass)
-NON_IDL_EVENT(mozbrowserafterkeydown,
-              NS_KEY_AFTER_DOWN,
-              EventNameType_None,
-              eBeforeAfterKeyboardEventClass)
-NON_IDL_EVENT(mozbrowserbeforekeyup,
-              NS_KEY_BEFORE_UP,
-              EventNameType_None,
-              eBeforeAfterKeyboardEventClass)
-NON_IDL_EVENT(mozbrowserafterkeyup,
-              NS_KEY_AFTER_UP,
-              EventNameType_None,
-              eBeforeAfterKeyboardEventClass)
 EVENT(loadeddata,
       NS_LOADEDDATA,
       EventNameType_HTML,
@@ -667,14 +651,10 @@ NON_IDL_EVENT(speakerforcedchange,
               eBasicEventClass)
 
 // Events that only have on* attributes on XUL elements
-
- // "text" event is legacy event for modifying composition string in nsEditor.
- // This shouldn't be used by web/xul apps.  "compositionupdate" should be
- // used instead.
 NON_IDL_EVENT(text,
-              NS_COMPOSITION_CHANGE,
+              NS_TEXT_TEXT,
               EventNameType_XUL,
-              eCompositionEventClass)
+              eTextEventClass)
 NON_IDL_EVENT(compositionstart,
               NS_COMPOSITION_START,
               EventNameType_XUL,

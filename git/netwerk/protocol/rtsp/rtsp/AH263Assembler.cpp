@@ -19,8 +19,6 @@
 #include "ARTPSource.h"
 #include "RtspPrlog.h"
 
-#include "mozilla/Assertions.h"
-
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -86,24 +84,10 @@ ARTPAssembler::AssemblyStatus AH263Assembler::addPacket(
     }
 
     uint32_t rtpTime;
-    if (!buffer->meta()->findInt32("rtp-time", (int32_t *)&rtpTime)) {
-        queue->erase(queue->begin());
-        ++mNextExpectedSeqNo;
-
-        LOGW("Cannot find rtp-time. Malformed packet.");
-
-        return MALFORMED_PACKET;
-    }
+    CHECK(buffer->meta()->findInt32("rtp-time", (int32_t *)&rtpTime));
 
     if (mPackets.size() > 0 && rtpTime != mAccessUnitRTPTime) {
-        if (!submitAccessUnit()) {
-            queue->erase(queue->begin());
-            ++mNextExpectedSeqNo;
-
-            LOGW("Cannot find rtp-time. Malformed packet.");
-
-            return MALFORMED_PACKET;
-        }
+        submitAccessUnit();
     }
     mAccessUnitRTPTime = rtpTime;
 
@@ -190,8 +174,8 @@ ARTPAssembler::AssemblyStatus AH263Assembler::addPacket(
     return OK;
 }
 
-bool AH263Assembler::submitAccessUnit() {
-    MOZ_ASSERT(!mPackets.empty());
+void AH263Assembler::submitAccessUnit() {
+    CHECK(!mPackets.empty());
 
 #if VERBOSE
     LOG(VERBOSE) << "Access unit complete (" << mPackets.size() << " packets)";
@@ -220,9 +204,7 @@ bool AH263Assembler::submitAccessUnit() {
         ++it;
     }
 
-    if (!CopyTimes(accessUnit, *mPackets.begin())) {
-        return false;
-    }
+    CopyTimes(accessUnit, *mPackets.begin());
 
 #if 0
     printf(mAccessUnitDamaged ? "X" : ".");
@@ -239,8 +221,6 @@ bool AH263Assembler::submitAccessUnit() {
     sp<AMessage> msg = mNotifyMsg->dup();
     msg->setObject("access-unit", accessUnit);
     msg->post();
-
-    return true;
 }
 
 void AH263Assembler::packetLost() {

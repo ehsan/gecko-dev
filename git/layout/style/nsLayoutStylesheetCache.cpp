@@ -114,12 +114,6 @@ CSSStyleSheet*
 nsLayoutStylesheetCache::UASheet()
 {
   EnsureGlobal();
-
-  if (!gStyleCache->mUASheet) {
-    LoadSheetURL("resource://gre-resources/ua.css",
-                 gStyleCache->mUASheet, true);
-  }
-
   return gStyleCache->mUASheet;
 }
 
@@ -264,12 +258,13 @@ nsLayoutStylesheetCache::nsLayoutStylesheetCache()
                mQuirkSheet, true);
   LoadSheetURL("resource://gre/res/svg.css",
                mSVGSheet, true);
+  LoadSheetURL("resource://gre-resources/ua.css",
+               mUASheet, true);
   LoadSheetURL("chrome://global/content/xul.css",
                mXULSheet, true);
 
-  // The remaining sheets are created on-demand do to their use being rarer
-  // (which helps save memory for Firefox OS apps) or because they need to
-  // be re-loadable in DependentPrefChanged.
+  // The remaining sheets are created on-demand since their use is rarer. This
+  // helps save memory for Firefox OS apps.
 }
 
 nsLayoutStylesheetCache::~nsLayoutStylesheetCache()
@@ -297,13 +292,6 @@ nsLayoutStylesheetCache::EnsureGlobal()
 
   Preferences::AddBoolVarCache(&sNumberControlEnabled, NUMBER_CONTROL_PREF,
                                true);
-
-  // For each pref that controls a CSS feature that a UA style sheet depends
-  // on (such as a pref that enables a property that a UA style sheet uses),
-  // register DependentPrefChanged as a callback to ensure that the relevant
-  // style sheets will be re-parsed.
-  Preferences::RegisterCallback(&DependentPrefChanged,
-                                "layout.css.ruby.enabled");
 }
 
 void
@@ -400,31 +388,6 @@ nsLayoutStylesheetCache::LoadSheet(nsIURI* aURI,
     ErrorLoadingBuiltinSheet(aURI,
       nsPrintfCString("LoadSheetSync failed with error %x", rv).get());
   }
-}
-
-/* static */ void
-nsLayoutStylesheetCache::InvalidateSheet(nsRefPtr<CSSStyleSheet>& aSheet)
-{
-  MOZ_ASSERT(gCSSLoader, "pref changed before we loaded a sheet?");
-
-  if (aSheet) {
-    gCSSLoader->ObsoleteSheet(aSheet->GetSheetURI());
-    aSheet = nullptr;
-  }
-}
-
-/* static */ void
-nsLayoutStylesheetCache::DependentPrefChanged(const char* aPref, void* aData)
-{
-  MOZ_ASSERT(gStyleCache, "pref changed after shutdown?");
-
-  // Cause any UA style sheets whose parsing depends on the value of prefs
-  // to be re-parsed by dropping the sheet from gCSSLoader's cache then
-  // setting our cached sheet pointer to null.  This will only work for sheets
-  // that are loaded lazily.
-
-  // for layout.css.ruby.enabled
-  InvalidateSheet(gStyleCache->mUASheet);
 }
 
 mozilla::StaticRefPtr<nsLayoutStylesheetCache>

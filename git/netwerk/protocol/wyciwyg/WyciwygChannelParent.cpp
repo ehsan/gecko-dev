@@ -62,7 +62,6 @@ NS_IMPL_ISUPPORTS(WyciwygChannelParent,
 bool
 WyciwygChannelParent::RecvInit(const URIParams&          aURI,
                                const ipc::PrincipalInfo& aRequestingPrincipalInfo,
-                               const ipc::PrincipalInfo& aTriggeringPrincipalInfo,
                                const uint32_t&           aSecurityFlags,
                                const uint32_t&           aContentPolicyType)
 {
@@ -87,23 +86,17 @@ WyciwygChannelParent::RecvInit(const URIParams&          aURI,
     return SendCancelEarly(rv);
   }
 
-  nsCOMPtr<nsIPrincipal> triggeringPrincipal =
-    mozilla::ipc::PrincipalInfoToPrincipal(aTriggeringPrincipalInfo, &rv);
-  if (NS_FAILED(rv)) {
-    return SendCancelEarly(rv);
-  }
-
   nsCOMPtr<nsIChannel> chan;
-  rv = NS_NewChannelWithTriggeringPrincipal(getter_AddRefs(chan),
-                                           uri,
-                                           requestingPrincipal,
-                                           triggeringPrincipal,
-                                           aSecurityFlags,
-                                           aContentPolicyType,
-                                           nullptr,   // loadGroup
-                                           nullptr,   // aCallbacks
-                                           nsIRequest::LOAD_NORMAL,
-                                           ios);
+  rv = NS_NewChannel(getter_AddRefs(chan),
+                     uri,
+                     requestingPrincipal,
+                     aSecurityFlags,
+                     aContentPolicyType,
+                     nullptr,   // aChannelPolicy
+                     nullptr,   // loadGroup
+                     nullptr,   // aCallbacks
+                     nsIRequest::LOAD_NORMAL,
+                     ios);
 
   if (NS_FAILED(rv))
     return SendCancelEarly(rv);
@@ -117,7 +110,7 @@ WyciwygChannelParent::RecvInit(const URIParams&          aURI,
 
 bool
 WyciwygChannelParent::RecvAppData(const IPC::SerializedLoadContext& loadContext,
-                                  const PBrowserOrId &parent)
+                                  PBrowserParent* parent)
 {
   LOG(("WyciwygChannelParent RecvAppData [this=%p]\n", this));
 
@@ -130,7 +123,7 @@ WyciwygChannelParent::RecvAppData(const IPC::SerializedLoadContext& loadContext,
 
 bool
 WyciwygChannelParent::SetupAppData(const IPC::SerializedLoadContext& loadContext,
-                                   const PBrowserOrId &aParent)
+                                   PBrowserParent* aParent)
 {
   if (!mChannel)
     return true;
@@ -159,7 +152,7 @@ bool
 WyciwygChannelParent::RecvAsyncOpen(const URIParams& aOriginal,
                                     const uint32_t& aLoadFlags,
                                     const IPC::SerializedLoadContext& loadContext,
-                                    const PBrowserOrId &aParent)
+                                    PBrowserParent* aParent)
 {
   nsCOMPtr<nsIURI> original = DeserializeURI(aOriginal);
   if (!original)

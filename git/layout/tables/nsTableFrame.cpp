@@ -273,7 +273,7 @@ nsTableFrame::RegisterPositionedTablePart(nsIFrame* aFrame)
   // the potential to break sites that apply 'position: relative' to those
   // parts, expecting nothing to happen. We warn at the console to make tracking
   // down the issue easy.
-  if (!IS_TABLE_CELL(aFrame->GetType())) {
+  if (nsGkAtoms::tableCellFrame != aFrame->GetType()) {
     nsIContent* content = aFrame->GetContent();
     nsPresContext* presContext = aFrame->PresContext();
     if (content && !presContext->HasWarnedAboutPositionedTableParts()) {
@@ -1562,7 +1562,7 @@ nsTableFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                           const LogicalSize& aMargin,
                           const LogicalSize& aBorder,
                           const LogicalSize& aPadding,
-                          ComputeSizeFlags aFlags)
+                          uint32_t aFlags)
 {
   LogicalSize result =
     nsContainerFrame::ComputeSize(aRenderingContext, aWM,
@@ -6929,10 +6929,6 @@ BCVerticalSeg::Paint(BCPaintBorderIterator& aIter,
   uint8_t style = NS_STYLE_BORDER_STYLE_SOLID;
   nscolor color = 0xFFFFFFFF;
 
-  // All the tables frames have the same presContext, so we just use any one
-  // that exists here:
-  int32_t appUnitsPerDevPixel = col->PresContext()->AppUnitsPerDevPixel();
-
   switch (mOwner) {
     case eTableOwner:
       owner = aIter.mTable;
@@ -6993,7 +6989,6 @@ BCVerticalSeg::Paint(BCPaintBorderIterator& aIter,
                          NS_SIDE_RIGHT : NS_SIDE_LEFT;
   nsCSSRendering::DrawTableBorderSegment(aRenderingContext, style, color,
                                          aIter.mTableBgColor, segRect,
-                                         appUnitsPerDevPixel,
                                          nsPresContext::AppUnitsPerCSSPixel(),
                                          topBevelSide, mTopBevelOffset,
                                          bottomBevelSide, bottomBevelOffset);
@@ -7114,10 +7109,6 @@ BCHorizontalSeg::Paint(BCPaintBorderIterator& aIter,
   nsIFrame* col;
   nsIFrame* owner = nullptr;
 
-  // All the tables frames have the same presContext, so we just use any one
-  // that exists here:
-  int32_t appUnitsPerDevPixel = row->PresContext()->AppUnitsPerDevPixel();
-
   uint8_t style = NS_STYLE_BORDER_STYLE_SOLID;
   nscolor color = 0xFFFFFFFF;
 
@@ -7180,7 +7171,6 @@ BCHorizontalSeg::Paint(BCPaintBorderIterator& aIter,
   if (aIter.mTableIsLTR) {
     nsCSSRendering::DrawTableBorderSegment(aRenderingContext, style, color,
                                            aIter.mTableBgColor, segRect,
-                                           appUnitsPerDevPixel,
                                            nsPresContext::AppUnitsPerCSSPixel(),
                                            mLeftBevelSide,
                                            nsPresContext::CSSPixelsToAppUnits(mLeftBevelOffset),
@@ -7190,7 +7180,6 @@ BCHorizontalSeg::Paint(BCPaintBorderIterator& aIter,
     segRect.x -= segRect.width;
     nsCSSRendering::DrawTableBorderSegment(aRenderingContext, style, color,
                                            aIter.mTableBgColor, segRect,
-                                           appUnitsPerDevPixel,
                                            nsPresContext::AppUnitsPerCSSPixel(),
                                            mRightBevelSide, mRightBevelOffset,
                                            mLeftBevelSide,

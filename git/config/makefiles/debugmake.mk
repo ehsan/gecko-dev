@@ -25,6 +25,12 @@ endef
 echo-variable-%:
 	@echo $(call shell_quote,$($*))
 
+echo-tiers:
+	@echo $(TIERS)
+
+echo-tier-dirs:
+	@$(foreach tier,$(TIERS),echo '$(tier):'; echo '  dirs: $(tier_$(tier)_dirs)')
+
 echo-dirs:
 	@echo $(call shell_quote,$(DIRS))
 

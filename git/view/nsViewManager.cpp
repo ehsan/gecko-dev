@@ -553,7 +553,7 @@ nsViewManager::InvalidateWidgetArea(nsView *aWidgetView,
       NS_ASSERTION(view != aWidgetView, "will recur infinitely");
       nsWindowType type = childWidget->WindowType();
       if (view && childWidget->IsVisible() && type != eWindowType_popup) {
-        NS_ASSERTION(childWidget->IsPlugin(),
+        NS_ASSERTION(type == eWindowType_plugin,
                      "Only plugin or popup widgets can be children!");
 
         // We do not need to invalidate in plugin widgets, but we should
@@ -1066,14 +1066,13 @@ nsViewManager::ProcessPendingUpdates()
     return;
   }
 
+  mPresShell->GetPresContext()->RefreshDriver()->RevokeViewManagerFlush();
+
   // Flush things like reflows by calling WillPaint on observer presShells.
   if (mPresShell) {
-    mPresShell->GetPresContext()->RefreshDriver()->RevokeViewManagerFlush();
-
     CallWillPaintOnObservers();
-
-    ProcessPendingUpdatesForView(mRootView, true);
   }
+  ProcessPendingUpdatesForView(mRootView, true);
 }
 
 void

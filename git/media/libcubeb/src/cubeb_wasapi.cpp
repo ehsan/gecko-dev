@@ -21,11 +21,6 @@
 #include "cubeb_resampler.h"
 #include <stdio.h>
 
-/**Taken from winbase.h, Not in MinGW.*/
-#ifndef STACK_SIZE_PARAM_IS_A_RESERVATION
-#define STACK_SIZE_PARAM_IS_A_RESERVATION   0x00010000    // Threads only
-#endif
-
 #if 1
 #  define LOG(...) do {         \
   fprintf(stderr, __VA_ARGS__); \

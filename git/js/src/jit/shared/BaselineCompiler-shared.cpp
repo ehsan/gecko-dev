@@ -9,8 +9,6 @@
 #include "jit/BaselineIC.h"
 #include "jit/VMFunctions.h"
 
-#include "jsscriptinlines.h"
-
 using namespace js;
 using namespace js::jit;
 
@@ -20,7 +18,7 @@ BaselineCompilerShared::BaselineCompilerShared(JSContext *cx, TempAllocator &all
     pc(script->code()),
     ionCompileable_(jit::IsIonEnabled(cx) && CanIonCompileScript(cx, script, false)),
     ionOSRCompileable_(jit::IsIonEnabled(cx) && CanIonCompileScript(cx, script, true)),
-    compileDebugInstrumentation_(script->isDebuggee()),
+    debugMode_(cx->compartment()->debugMode()),
     alloc_(alloc),
     analysis_(alloc, script),
     frame(script, masm),
@@ -42,7 +40,7 @@ BaselineCompilerShared::callVM(const VMFunction &fun, CallVMPhase phase)
 
 #ifdef DEBUG
     // Assert prepareVMCall() has been called.
-    MOZ_ASSERT(inCall_);
+    JS_ASSERT(inCall_);
     inCall_ = false;
 #endif
 
@@ -51,7 +49,7 @@ BaselineCompilerShared::callVM(const VMFunction &fun, CallVMPhase phase)
     uint32_t argSize = fun.explicitStackSlots() * sizeof(void *) + sizeof(void *);
 
     // Assert all arguments were pushed.
-    MOZ_ASSERT(masm.framePushed() - pushedBeforeCall_ == argSize);
+    JS_ASSERT(masm.framePushed() - pushedBeforeCall_ == argSize);
 
     Address frameSizeAddress(BaselineFrameReg, BaselineFrame::reverseOffsetOfFrameSize());
     uint32_t frameVals = frame.nlocals() + frame.stackDepth();
@@ -68,7 +66,7 @@ BaselineCompilerShared::callVM(const VMFunction &fun, CallVMPhase phase)
         masm.push(Imm32(descriptor));
 
     } else {
-        MOZ_ASSERT(phase == CHECK_OVER_RECURSED);
+        JS_ASSERT(phase == CHECK_OVER_RECURSED);
         Label afterWrite;
         Label writePostInitialize;
 

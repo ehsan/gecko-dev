@@ -33,7 +33,7 @@ public:
               const AnimationEventInit& aParam,
               ErrorResult& aRv);
 
-  virtual JSObject* WrapObjectInternal(JSContext* aCx) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE
   {
     return AnimationEventBinding::Wrap(aCx, this);
   }

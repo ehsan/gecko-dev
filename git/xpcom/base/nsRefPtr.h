@@ -7,15 +7,13 @@
 #ifndef nsRefPtr_h
 #define nsRefPtr_h
 
-#include "AlreadyAddRefed.h"
-#include "nsDebug.h"
-#include "nsISupportsUtils.h"
+#include "nsCOMPtr.h"
+
+#include "nsCycleCollectionNoteChild.h"
 
 /*****************************************************************************/
 
 // template <class T> class nsRefPtrGetterAddRefs;
-
-class nsCOMPtr_helper;
 
 template <class T>
 class nsRefPtr
@@ -107,7 +105,14 @@ public:
   {
   }
 
-  MOZ_IMPLICIT nsRefPtr(const nsCOMPtr_helper& aHelper);
+  MOZ_IMPLICIT nsRefPtr(const nsCOMPtr_helper& aHelper)
+  {
+    void* newRawPtr;
+    if (NS_FAILED(aHelper(NS_GET_TEMPLATE_IID(T), &newRawPtr))) {
+      newRawPtr = 0;
+    }
+    mRawPtr = static_cast<T*>(newRawPtr);
+  }
 
   // Assignment operators
 
@@ -145,7 +150,16 @@ public:
     return *this;
   }
 
-  nsRefPtr<T>& operator=(const nsCOMPtr_helper& aHelper);
+  nsRefPtr<T>&
+  operator=(const nsCOMPtr_helper& aHelper)
+  {
+    void* newRawPtr;
+    if (NS_FAILED(aHelper(NS_GET_TEMPLATE_IID(T), &newRawPtr))) {
+      newRawPtr = 0;
+    }
+    assign_assuming_AddRef(static_cast<T*>(newRawPtr));
+    return *this;
+  }
 
   nsRefPtr<T>&
   operator=(nsRefPtr<T> && aRefPtr)
@@ -271,38 +285,14 @@ public:
   T**
   StartAssignment()
   {
+#ifndef NSCAP_FEATURE_INLINE_STARTASSIGNMENT
+    return reinterpret_cast<T**>(begin_assignment());
+#else
     assign_assuming_AddRef(0);
     return reinterpret_cast<T**>(&mRawPtr);
+#endif
   }
 };
-
-template <class T>
-nsRefPtr<T>::nsRefPtr(const nsCOMPtr_helper& aHelper)
-{
-  void* newRawPtr;
-  if (NS_FAILED(aHelper(NS_GET_TEMPLATE_IID(T), &newRawPtr))) {
-    newRawPtr = 0;
-  }
-  mRawPtr = static_cast<T*>(newRawPtr);
-}
-
-template <class T>
-nsRefPtr<T>&
-nsRefPtr<T>::operator=(const nsCOMPtr_helper& aHelper)
-{
-  void* newRawPtr;
-  if (NS_FAILED(aHelper(NS_GET_TEMPLATE_IID(T), &newRawPtr))) {
-    newRawPtr = 0;
-  }
-  assign_assuming_AddRef(static_cast<T*>(newRawPtr));
-  return *this;
-}
-
-class nsCycleCollectionTraversalCallback;
-template <typename T>
-void
-CycleCollectionNoteChild(nsCycleCollectionTraversalCallback& aCallback,
-                         T* aChild, const char* aName, uint32_t aFlags);
 
 template <typename T>
 inline void
@@ -471,15 +461,13 @@ operator!=(U* aLhs, const nsRefPtr<T>& aRhs)
   return const_cast<const U*>(aLhs) != static_cast<const T*>(aRhs.get());
 }
 
-namespace detail {
-class nsRefPtrZero;
-}
+
 
 // Comparing an |nsRefPtr| to |0|
 
 template <class T>
 inline bool
-operator==(const nsRefPtr<T>& aLhs, ::detail::nsRefPtrZero* aRhs)
+operator==(const nsRefPtr<T>& aLhs, NSCAP_Zero* aRhs)
 // specifically to allow |smartPtr == 0|
 {
   return static_cast<const void*>(aLhs.get()) == reinterpret_cast<const void*>(aRhs);
@@ -487,7 +475,7 @@ operator==(const nsRefPtr<T>& aLhs, ::detail::nsRefPtrZero* aRhs)
 
 template <class T>
 inline bool
-operator==(::detail::nsRefPtrZero* aLhs, const nsRefPtr<T>& aRhs)
+operator==(NSCAP_Zero* aLhs, const nsRefPtr<T>& aRhs)
 // specifically to allow |0 == smartPtr|
 {
   return reinterpret_cast<const void*>(aLhs) == static_cast<const void*>(aRhs.get());
@@ -495,7 +483,7 @@ operator==(::detail::nsRefPtrZero* aLhs, const nsRefPtr<T>& aRhs)
 
 template <class T>
 inline bool
-operator!=(const nsRefPtr<T>& aLhs, ::detail::nsRefPtrZero* aRhs)
+operator!=(const nsRefPtr<T>& aLhs, NSCAP_Zero* aRhs)
 // specifically to allow |smartPtr != 0|
 {
   return static_cast<const void*>(aLhs.get()) != reinterpret_cast<const void*>(aRhs);
@@ -503,12 +491,35 @@ operator!=(const nsRefPtr<T>& aLhs, ::detail::nsRefPtrZero* aRhs)
 
 template <class T>
 inline bool
-operator!=(::detail::nsRefPtrZero* aLhs, const nsRefPtr<T>& aRhs)
+operator!=(NSCAP_Zero* aLhs, const nsRefPtr<T>& aRhs)
 // specifically to allow |0 != smartPtr|
 {
   return reinterpret_cast<const void*>(aLhs) != static_cast<const void*>(aRhs.get());
 }
 
+
+#ifdef HAVE_CPP_TROUBLE_COMPARING_TO_ZERO
+
+// We need to explicitly define comparison operators for `int'
+// because the compiler is lame.
+
+template <class T>
+inline bool
+operator==(const nsRefPtr<T>& aLhs, int aRhs)
+// specifically to allow |smartPtr == 0|
+{
+  return static_cast<const void*>(aLhs.get()) == reinterpret_cast<const void*>(aRhs);
+}
+
+template <class T>
+inline bool
+operator==(int aLhs, const nsRefPtr<T>& aRhs)
+// specifically to allow |0 == smartPtr|
+{
+  return reinterpret_cast<const void*>(aLhs) == static_cast<const void*>(aRhs.get());
+}
+
+#endif // !defined(HAVE_CPP_TROUBLE_COMPARING_TO_ZERO)
 
 template <class SourceType, class DestinationType>
 inline nsresult

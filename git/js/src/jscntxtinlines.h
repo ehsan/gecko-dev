@@ -39,7 +39,7 @@ class CompartmentChecker
         JSContext *activeContext = nullptr;
         if (cx->isJSContext())
             activeContext = cx->asJSContext()->runtime()->activeContext;
-        MOZ_ASSERT_IF(activeContext, cx == activeContext);
+        JS_ASSERT_IF(activeContext, cx == activeContext);
 #endif
     }
 
@@ -59,8 +59,8 @@ class CompartmentChecker
 
     /* Note: should only be used when neither c1 nor c2 may be the atoms compartment. */
     static void check(JSCompartment *c1, JSCompartment *c2) {
-        MOZ_ASSERT(!c1->runtimeFromAnyThread()->isAtomsCompartment(c1));
-        MOZ_ASSERT(!c2->runtimeFromAnyThread()->isAtomsCompartment(c2));
+        JS_ASSERT(!c1->runtimeFromAnyThread()->isAtomsCompartment(c1));
+        JS_ASSERT(!c2->runtimeFromAnyThread()->isAtomsCompartment(c2));
         if (c1 != c2)
             fail(c1, c2);
     }
@@ -162,7 +162,7 @@ assertSameCompartment(ThreadSafeContext *cx, const T1 &t1)
 template <class T1> inline void
 assertSameCompartmentDebugOnly(ThreadSafeContext *cx, const T1 &t1)
 {
-#if defined(DEBUG) && defined(JS_CRASH_DIAGNOSTICS)
+#ifdef DEBUG
     START_ASSERT_SAME_COMPARTMENT();
     c.check(t1);
 #endif
@@ -231,7 +231,7 @@ CallJSNative(JSContext *cx, Native native, const CallArgs &args)
     bool ok = native(cx, args.length(), args.base());
     if (ok) {
         assertSameCompartment(cx, args.rval());
-        MOZ_ASSERT_IF(!alreadyThrowing, !cx->isExceptionPending());
+        JS_ASSERT_IF(!alreadyThrowing, !cx->isExceptionPending());
     }
     return ok;
 }
@@ -247,7 +247,7 @@ CallNativeImpl(JSContext *cx, NativeImpl impl, const CallArgs &args)
     bool ok = impl(cx, args);
     if (ok) {
         assertSameCompartment(cx, args.rval());
-        MOZ_ASSERT_IF(!alreadyThrowing, !cx->isExceptionPending());
+        JS_ASSERT_IF(!alreadyThrowing, !cx->isExceptionPending());
     }
     return ok;
 }
@@ -260,7 +260,7 @@ CallJSNativeConstructor(JSContext *cx, Native native, const CallArgs &args)
     RootedObject callee(cx, &args.callee());
 #endif
 
-    MOZ_ASSERT(args.thisv().isMagic());
+    JS_ASSERT(args.thisv().isMagic());
     if (!CallJSNative(cx, native, args))
         return false;
 
@@ -284,11 +284,11 @@ CallJSNativeConstructor(JSContext *cx, Native native, const CallArgs &args)
      *
      * - (new Object(Object)) returns the callee.
      */
-    MOZ_ASSERT_IF(native != js::proxy_Construct &&
-                  native != js::CallOrConstructBoundFunction &&
-                  native != js::IteratorConstructor &&
-                  (!callee->is<JSFunction>() || callee->as<JSFunction>().native() != obj_construct),
-                  args.rval().isObject() && callee != &args.rval().toObject());
+    JS_ASSERT_IF(native != js::proxy_Construct &&
+                 native != js::CallOrConstructBoundFunction &&
+                 native != js::IteratorConstructor &&
+                 (!callee->is<JSFunction>() || callee->as<JSFunction>().native() != obj_construct),
+                 args.rval().isObject() && callee != &args.rval().toObject());
 
     return true;
 }
@@ -366,12 +366,12 @@ ExclusiveContext::typeLifoAlloc()
 inline void
 JSContext::setPendingException(js::Value v)
 {
-    MOZ_ASSERT(!IsPoisonedValue(v));
+    JS_ASSERT(!IsPoisonedValue(v));
     this->throwing = true;
     this->unwrappedException_ = v;
     // We don't use assertSameCompartment here to allow
     // js::SetPendingExceptionCrossContext to work.
-    MOZ_ASSERT_IF(v.isObject(), v.toObject().compartment() == compartment());
+    JS_ASSERT_IF(v.isObject(), v.toObject().compartment() == compartment());
 }
 
 inline bool
@@ -398,7 +398,7 @@ js::ExclusiveContext::enterNullCompartment()
 inline void
 js::ExclusiveContext::leaveCompartment(JSCompartment *oldCompartment)
 {
-    MOZ_ASSERT(hasEnteredCompartment());
+    JS_ASSERT(hasEnteredCompartment());
     enterCompartmentDepth_--;
 
     // Only call leave() after we've setCompartment()-ed away from the current
@@ -413,25 +413,25 @@ inline void
 js::ExclusiveContext::setCompartment(JSCompartment *comp)
 {
     // ExclusiveContexts can only be in the atoms zone or in exclusive zones.
-    MOZ_ASSERT_IF(!isJSContext() && !runtime_->isAtomsCompartment(comp),
-                  comp->zone()->usedByExclusiveThread);
+    JS_ASSERT_IF(!isJSContext() && !runtime_->isAtomsCompartment(comp),
+                 comp->zone()->usedByExclusiveThread);
 
     // Normal JSContexts cannot enter exclusive zones.
-    MOZ_ASSERT_IF(isJSContext() && comp,
-                  !comp->zone()->usedByExclusiveThread);
+    JS_ASSERT_IF(isJSContext() && comp,
+                 !comp->zone()->usedByExclusiveThread);
 
     // Only one thread can be in the atoms compartment at a time.
-    MOZ_ASSERT_IF(runtime_->isAtomsCompartment(comp),
-                  runtime_->currentThreadHasExclusiveAccess());
+    JS_ASSERT_IF(runtime_->isAtomsCompartment(comp),
+                 runtime_->currentThreadHasExclusiveAccess());
 
     // Make sure that the atoms compartment has its own zone.
-    MOZ_ASSERT_IF(comp && !runtime_->isAtomsCompartment(comp),
-                  !runtime_->isAtomsZone(comp->zone()));
+    JS_ASSERT_IF(comp && !runtime_->isAtomsCompartment(comp),
+                 !runtime_->isAtomsZone(comp->zone()));
 
     // Both the current and the new compartment should be properly marked as
     // entered at this point.
-    MOZ_ASSERT_IF(compartment_, compartment_->hasBeenEntered());
-    MOZ_ASSERT_IF(comp, comp->hasBeenEntered());
+    JS_ASSERT_IF(compartment_, compartment_->hasBeenEntered());
+    JS_ASSERT_IF(comp, comp->hasBeenEntered());
 
     compartment_ = comp;
     zone_ = comp ? comp->zone() : nullptr;
@@ -452,7 +452,7 @@ JSContext::currentScript(jsbytecode **ppc,
     if (!act)
         return nullptr;
 
-    MOZ_ASSERT(act->cx() == this);
+    JS_ASSERT(act->cx() == this);
 
     if (act->isJit()) {
         JSScript *script = nullptr;
@@ -465,10 +465,10 @@ JSContext::currentScript(jsbytecode **ppc,
     if (act->isAsmJS())
         return nullptr;
 
-    MOZ_ASSERT(act->isInterpreter());
+    JS_ASSERT(act->isInterpreter());
 
     js::InterpreterFrame *fp = act->asInterpreter()->current();
-    MOZ_ASSERT(!fp->runningInJit());
+    JS_ASSERT(!fp->runningInJit());
 
     JSScript *script = fp->script();
     if (!allowCrossCompartment && script->compartment() != compartment())
@@ -476,7 +476,7 @@ JSContext::currentScript(jsbytecode **ppc,
 
     if (ppc) {
         *ppc = act->asInterpreter()->regs().pc;
-        MOZ_ASSERT(script->containsPC(*ppc));
+        JS_ASSERT(script->containsPC(*ppc));
     }
     return script;
 }

@@ -36,7 +36,6 @@
 #include "nsIContentViewer.h"
 #include "nsIXPConnect.h"
 #include "nsContentUtils.h"
-#include "nsNullPrincipal.h"
 #include "nsJSUtils.h"
 #include "nsThreadUtils.h"
 #include "nsIScriptChannel.h"
@@ -157,7 +156,7 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
         nsCOMPtr<nsILoadInfo> loadInfo;
         aChannel->GetLoadInfo(getter_AddRefs(loadInfo));
         if (loadInfo && loadInfo->GetForceInheritPrincipal()) {
-            principal = loadInfo->TriggeringPrincipal();
+            principal = loadInfo->LoadingPrincipal();
         } else {
             // No execution without a principal!
             NS_ASSERTION(!owner, "Non-principal owner?");
@@ -271,7 +270,7 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
     JS::CompileOptions options(cx);
     options.setFileAndLine(mURL.get(), 1)
            .setVersion(JSVERSION_DEFAULT);
-    nsJSUtils::EvaluateOptions evalOptions(cx);
+    nsJSUtils::EvaluateOptions evalOptions;
     evalOptions.setCoerceToString(true);
     rv = nsJSUtils::EvaluateString(cx, NS_ConvertUTF8toUTF16(script),
                                    globalJSObject, options, evalOptions, &v);
@@ -428,18 +427,9 @@ nsresult nsJSChannel::Init(nsIURI *aURI)
     // and the underlying Input Stream will not be created...
     nsCOMPtr<nsIChannel> channel;
 
-    nsCOMPtr<nsIPrincipal> nullPrincipal =
-      do_CreateInstance("@mozilla.org/nullprincipal;1", &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-
     // If the resultant script evaluation actually does return a value, we
     // treat it as html.
-    rv = NS_NewInputStreamChannel(getter_AddRefs(channel),
-                                  aURI,
-                                  mIOThunk,
-                                  nullPrincipal,
-                                  nsILoadInfo::SEC_NORMAL,
-                                  nsIContentPolicy::TYPE_OTHER,
+    rv = NS_NewInputStreamChannel(getter_AddRefs(channel), aURI, mIOThunk,
                                   NS_LITERAL_CSTRING("text/html"));
     if (NS_FAILED(rv)) return rv;
 
@@ -1207,9 +1197,7 @@ nsJSProtocolHandler::NewURI(const nsACString &aSpec,
 }
 
 NS_IMETHODIMP
-nsJSProtocolHandler::NewChannel2(nsIURI* uri,
-                                 nsILoadInfo* aLoadInfo,
-                                 nsIChannel** result)
+nsJSProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
 {
     nsresult rv;
     nsJSChannel * channel;
@@ -1229,12 +1217,6 @@ nsJSProtocolHandler::NewChannel2(nsIURI* uri,
     }
     NS_RELEASE(channel);
     return rv;
-}
-
-NS_IMETHODIMP
-nsJSProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
-{
-    return NewChannel2(uri, nullptr, result);
 }
 
 NS_IMETHODIMP 

@@ -18,6 +18,33 @@ let radioInterface = ril.getRadioInterface(0);
 ok(radioInterface, "radioInterface.constructor is " + radioInterface.constrctor);
 
 /**
+ * Wrap DOMRequest onsuccess/onerror events to Promise resolve/reject.
+ *
+ * Fulfill params: A DOMEvent.
+ * Reject params: A DOMEvent.
+ *
+ * @param aRequest
+ *        A DOMRequest instance.
+ *
+ * @return A deferred promise.
+ */
+function wrapDomRequestAsPromise(aRequest) {
+  let deferred = Promise.defer();
+
+  ok(aRequest instanceof DOMRequest,
+     "aRequest is instanceof " + aRequest.constructor);
+
+  aRequest.addEventListener("success", function(aEvent) {
+    deferred.resolve(aEvent);
+  });
+  aRequest.addEventListener("error", function(aEvent) {
+    deferred.reject(aEvent);
+  });
+
+  return deferred.promise;
+}
+
+/**
  * Get mozSettings value specified by @aKey.
  *
  * Resolve if that mozSettings value is retrieved successfully, reject
@@ -36,10 +63,11 @@ ok(radioInterface, "radioInterface.constructor is " + radioInterface.constrctor)
  */
 function getSettings(aKey, aAllowError) {
   let request = window.navigator.mozSettings.createLock().get(aKey);
-  return request.then(function resolve(aValue) {
+  return wrapDomRequestAsPromise(request)
+    .then(function resolve(aEvent) {
       log("getSettings(" + aKey + ") - success");
-      return aValue[aKey];
-    }, function reject(aError) {
+      return aEvent.target.result[aKey];
+    }, function reject(aEvent) {
       ok(aAllowError, "getSettings(" + aKey + ") - error");
     });
 }

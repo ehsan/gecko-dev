@@ -14,7 +14,7 @@ var downloadURL = 'http://test/tests/dom/browser-element/mochitest/file_download
 
 function runTest() {
   iframe = document.createElement('iframe');
-  iframe.setAttribute('mozbrowser', 'true');
+  SpecialPowers.wrap(iframe).mozbrowser = true;
 
   iframe.addEventListener('mozbrowserloadend', loadend);
   iframe.src = 'data:text/html,<html><body>hello</body></html>';

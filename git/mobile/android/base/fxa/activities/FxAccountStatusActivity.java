@@ -10,7 +10,6 @@ import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.fxa.FirefoxAccounts;
 import org.mozilla.gecko.fxa.authenticator.AndroidFxAccount;
 import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.LocaleAware.LocaleAwareActivity;
 import org.mozilla.gecko.LocaleAware.LocaleAwareFragmentActivity;
 
 import android.accounts.Account;
@@ -114,7 +113,7 @@ public class FxAccountStatusActivity extends LocaleAwareFragmentActivity {
    * Helper function to maybe remove the given Android account.
    */
   @SuppressLint("InlinedApi")
-  public static void maybeDeleteAndroidAccount(final Activity activity, final Account account, final Intent intent) {
+  public void maybeDeleteAndroidAccount(final Account account) {
     if (account == null) {
       Logger.warn(LOG_TAG, "Trying to delete null account; ignoring request.");
       return;
@@ -124,13 +123,11 @@ public class FxAccountStatusActivity extends LocaleAwareFragmentActivity {
       @Override
       public void run(AccountManagerFuture<Boolean> future) {
         Logger.info(LOG_TAG, "Account " + Utils.obfuscateEmail(account.name) + " removed.");
+        final Activity activity = FxAccountStatusActivity.this;
         final String text = activity.getResources().getString(R.string.fxaccount_remove_account_toast, account.name);
         Toast.makeText(activity, text, Toast.LENGTH_LONG).show();
-        if (intent != null) {
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            activity.startActivity(intent);
-        }
-        activity.finish();
+
+        finish();
       }
     };
 
@@ -141,20 +138,20 @@ public class FxAccountStatusActivity extends LocaleAwareFragmentActivity {
     final int icon;
     if (AppConstants.Versions.feature11Plus) {
       final TypedValue typedValue = new TypedValue();
-      activity.getTheme().resolveAttribute(android.R.attr.alertDialogIcon, typedValue, true);
+      getTheme().resolveAttribute(android.R.attr.alertDialogIcon, typedValue, true);
       icon = typedValue.resourceId;
     } else {
       icon = android.R.drawable.ic_dialog_alert;
     }
 
-    final AlertDialog dialog = new AlertDialog.Builder(activity)
+    final AlertDialog dialog = new AlertDialog.Builder(this)
       .setTitle(R.string.fxaccount_remove_account_dialog_title)
       .setIcon(icon)
       .setMessage(R.string.fxaccount_remove_account_dialog_message)
       .setPositiveButton(android.R.string.ok, new Dialog.OnClickListener() {
         @Override
         public void onClick(DialogInterface dialog, int which) {
-          AccountManager.get(activity).removeAccount(account, callback, null);
+          AccountManager.get(FxAccountStatusActivity.this).removeAccount(account, callback, null);
         }
       })
       .setNegativeButton(android.R.string.cancel, new Dialog.OnClickListener() {
@@ -174,10 +171,8 @@ public class FxAccountStatusActivity extends LocaleAwareFragmentActivity {
     if (itemId == android.R.id.home) {
       finish();
       return true;
-    }
-
-    if (itemId == R.id.remove_account) {
-      maybeDeleteAndroidAccount(this, FirefoxAccounts.getFirefoxAccount(this), null);
+    } else if (itemId == R.id.remove_account) {
+      maybeDeleteAndroidAccount(FirefoxAccounts.getFirefoxAccount(this));
       return true;
     }
 

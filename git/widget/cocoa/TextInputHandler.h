@@ -846,8 +846,7 @@ public:
   void OnSelectionChange() { mSelectedRange.location = NSNotFound; }
 
   /**
-   * DispatchCompositionChangeEvent() dispatches a compositionchange event on
-   * mWidget.
+   * DispatchTextEvent() dispatches a text event on mWidget.
    *
    * @param aText                 User text input.
    * @param aAttrString           An NSAttributedString instance which indicates
@@ -856,10 +855,10 @@ public:
    * @param aDoCommit             TRUE if the composition string should be
    *                              committed.  Otherwise, FALSE.
    */
-  bool DispatchCompositionChangeEvent(const nsString& aText,
-                                      NSAttributedString* aAttrString,
-                                      NSRange& aSelectedRange,
-                                      bool aDoCommit);
+  bool DispatchTextEvent(const nsString& aText,
+                           NSAttributedString* aAttrString,
+                           NSRange& aSelectedRange,
+                           bool aDoCommit);
 
   /**
    * SetMarkedText() is a handler of setMarkedText of NSTextInput.

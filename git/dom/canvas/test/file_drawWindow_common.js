@@ -45,14 +45,14 @@ function runDrawWindowTests(win, drawWindowFlags, transparentBackground) {
   refCx.fillRect(50, 10, 20, 20);
   refCx.fillStyle = "yellow";
   refCx.fillRect(90, 10, 20, 20);
-  assertSnapshots(testCanvas, refCanvas, true /* equal */, null /*no fuzz*/,
+  assertSnapshots(testCanvas, refCanvas, true /* equal */,
                   "full draw of source on white background", "reference");
 
   clearTest("white");
   testWrapCx.drawWindow(win, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT,
                         "rgb(255, 255, 0)", drawWindowFlags);
   assertSnapshots(testCanvas, refCanvas,
-                  !transparentBackground /* not equal */, null /*no fuzz*/,
+                  !transparentBackground /* not equal */,
                   "full draw of source on yellow background", "reference");
 
   clearRef("yellow");
@@ -64,7 +64,6 @@ function runDrawWindowTests(win, drawWindowFlags, transparentBackground) {
   refCx.fillRect(90, 10, 20, 20);
 
   assertSnapshots(testCanvas, refCanvas, transparentBackground /* equal */,
-                  null /*no fuzz*/,
                   "full draw of source on yellow background", "reference");
 
   // Test drawing a region within the document.
@@ -78,7 +77,7 @@ function runDrawWindowTests(win, drawWindowFlags, transparentBackground) {
   refCx.fillStyle = "aqua";
   refCx.fillRect(17 + 10, 31 + 10, 20, 20);
 
-  assertSnapshots(testCanvas, refCanvas, true /* equal */, null /*no fuzz*/,
+  assertSnapshots(testCanvas, refCanvas, true /* equal */,
                   "draw of subrect of source with matching background",
                   "reference");
 
@@ -97,7 +96,7 @@ function runDrawWindowTests(win, drawWindowFlags, transparentBackground) {
   refCx.fillStyle = "aqua";
   refCx.fillRect(17 + 10, 31 + 10, 20, 20);
 
-  assertSnapshots(testCanvas, refCanvas, true /* equal */, null /*no fuzz*/,
+  assertSnapshots(testCanvas, refCanvas, true /* equal */,
                   "draw of subrect of source with different background",
                   "reference");
 
@@ -115,7 +114,7 @@ function runDrawWindowTests(win, drawWindowFlags, transparentBackground) {
   refCx.fillStyle = "aqua";
   refCx.fillRect(17 + 10, 31 + 10, 20, 20);
 
-  assertSnapshots(testCanvas, refCanvas, true /* equal */, null /*no fuzz*/,
+  assertSnapshots(testCanvas, refCanvas, true /* equal */,
                   "draw of subrect of source with different background",
                   "reference");
 
@@ -152,7 +151,7 @@ function runDrawWindowTests(win, drawWindowFlags, transparentBackground) {
   refCx.fillStyle = "yellow";
   refCx.fillRect(9 + 15 + 5, 3 + 0 + 5, 20, 20);
 
-  assertSnapshots(testCanvas, refCanvas, true /* equal */, null /*no fuzz*/,
+  assertSnapshots(testCanvas, refCanvas, true /* equal */,
                   "multiple drawWindow calls on top of each other",
                   "reference");
 }

@@ -7,6 +7,7 @@
 #define MOZILLA_IMAGELIB_DECODER_H_
 
 #include "RasterImage.h"
+#include "imgDecoderObserver.h"
 #include "mozilla/RefPtr.h"
 #include "DecodeStrategy.h"
 #include "ImageMetadata.h"
@@ -68,17 +69,14 @@ public:
   void FinishSharedDecoder();
 
   /**
-   * Gets the invalidation region accumulated by the decoder so far, and clears
-   * the decoder's invalidation region. This means that each call to
-   * TakeInvalidRect() returns only the invalidation region accumulated since
-   * the last call to TakeInvalidRect().
+   * Tells the decoder to flush any pending invalidations. This informs the image
+   * frame of its decoded region, and sends the appropriate OnDataAvailable call
+   * to consumers.
+   *
+   * This can be called any time when we're midway through decoding a frame,
+   * and must be called after finishing a frame (before starting a new one).
    */
-  nsIntRect TakeInvalidRect()
-  {
-    nsIntRect invalidRect = mInvalidRect;
-    mInvalidRect.SetEmpty();
-    return invalidRect;
-  }
+  void FlushInvalidations();
 
   // We're not COM-y, so we don't get refcounts by default
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(Decoder)
@@ -97,9 +95,11 @@ public:
     mSizeDecode = aSizeDecode;
   }
 
-  size_t BytesDecoded() const { return mBytesDecoded; }
-
-  Progress GetProgress() const { return mProgress; }
+  void SetObserver(imgDecoderObserver* aObserver)
+  {
+    MOZ_ASSERT(aObserver);
+    mObserver = aObserver;
+  }
 
   // The number of frames we have, including anything in-progress. Thus, this
   // is only 0 if we haven't begun any frames.
@@ -174,8 +174,7 @@ protected:
    * only these methods.
    */
   virtual void InitInternal();
-  virtual void WriteInternal(const char* aBuffer, uint32_t aCount,
-    DecodeStrategy aStrategy);
+  virtual void WriteInternal(const char* aBuffer, uint32_t aCount, DecodeStrategy aStrategy);
   virtual void FinishInternal();
 
   /*
@@ -226,8 +225,8 @@ protected:
    */
   RasterImage &mImage;
   nsRefPtr<imgFrame> mCurrentFrame;
+  RefPtr<imgDecoderObserver> mObserver;
   ImageMetadata mImageMetadata;
-  Progress mProgress;
 
   uint8_t* mImageData;       // Pointer to image data in either Cairo or 8bit format
   uint32_t mImageDataLength;
@@ -235,7 +234,6 @@ protected:
   uint32_t mColormapSize;
 
   uint32_t mDecodeFlags;
-  size_t mBytesDecoded;
   bool mDecodeDone;
   bool mDataError;
 

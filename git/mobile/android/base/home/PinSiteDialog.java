@@ -206,7 +206,7 @@ class PinSiteDialog extends DialogFragment {
     }
 
     private static class SearchAdapter extends CursorAdapter {
-        private final LayoutInflater mInflater;
+        private LayoutInflater mInflater;
 
         public SearchAdapter(Context context) {
             super(context, null, 0);

@@ -26,13 +26,12 @@ if CONFIG['MOZ_GL_PROVIDER']:
     gl_provider = CONFIG['MOZ_GL_PROVIDER']
 
 EXPORTS += [
-    'AndroidNativeWindow.h',
-    'AndroidSurfaceTexture.h',
     'DecomposeIntoNoRepeatTriangles.h',
     'EGLUtils.h',
     'ForceDiscreteGPUHelperCGL.h',
     'GfxTexturesReporter.h',
     'GLBlitHelper.h',
+    'GLBlitTextureImageHelper.h',
     'GLConsts.h',
     'GLContext.h',
     'GLContextEGL.h',
@@ -53,6 +52,7 @@ EXPORTS += [
     'SharedSurface.h',
     'SharedSurfaceEGL.h',
     'SharedSurfaceGL.h',
+    'SurfaceStream.h',
     'SurfaceTypes.h',
     'TextureGarbageBin.h',
 ]
@@ -115,12 +115,11 @@ else:
     ]
 
 UNIFIED_SOURCES += [
-    'AndroidNativeWindow.cpp',
-    'AndroidSurfaceTexture.cpp',
     'DecomposeIntoNoRepeatTriangles.cpp',
     'EGLUtils.cpp',
     'GfxTexturesReporter.cpp',
     'GLBlitHelper.cpp',
+    'GLBlitTextureImageHelper.cpp',
     'GLContext.cpp',
     'GLContextFeatures.cpp',
     'GLContextTypes.cpp',
@@ -135,6 +134,7 @@ UNIFIED_SOURCES += [
     'SharedSurface.cpp',
     'SharedSurfaceEGL.cpp',
     'SharedSurfaceGL.cpp',
+    'SurfaceStream.cpp',
     'SurfaceTypes.cpp',
     'TextureGarbageBin.cpp',
     'TextureImageEGL.cpp',

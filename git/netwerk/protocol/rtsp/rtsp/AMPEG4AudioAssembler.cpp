@@ -21,8 +21,6 @@
 
 #include "ARTPSource.h"
 
-#include "mozilla/Assertions.h"
-
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/foundation/ABitReader.h>
 #include <media/stagefright/foundation/ABuffer.h>
@@ -138,9 +136,7 @@ static status_t parseGASpecificConfig(
         }
 
         unsigned extensionFlag3 = bits->getBits(1);
-        if (extensionFlag3 != 0u) {
-            return ERROR_UNSUPPORTED; // TBD in version 3
-        }
+        CHECK_EQ(extensionFlag3, 0u);  // TBD in version 3
     }
 
     return OK;
@@ -151,9 +147,7 @@ static status_t parseAudioSpecificConfig(ABitReader *bits, sp<ABuffer> *asc) {
     size_t totalNumBits = bits->numBitsLeft();
 
     unsigned audioObjectType;
-    if (parseAudioObjectType(bits, &audioObjectType) != (status_t)OK) {
-        return ERROR_UNSUPPORTED;
-    }
+    CHECK_EQ(parseAudioObjectType(bits, &audioObjectType), (status_t)OK);
 
     unsigned samplingFreqIndex = bits->getBits(4);
     if (samplingFreqIndex == 0x0f) {
@@ -172,22 +166,16 @@ static status_t parseAudioSpecificConfig(ABitReader *bits, sp<ABuffer> *asc) {
         if (extensionSamplingFreqIndex == 0x0f) {
             /* unsigned extensionSamplingFrequency = */bits->getBits(24);
         }
-        if (parseAudioObjectType(bits, &audioObjectType) != (status_t)OK) {
-            return ERROR_UNSUPPORTED;
-        }
+        CHECK_EQ(parseAudioObjectType(bits, &audioObjectType), (status_t)OK);
     }
 
-    if (!((audioObjectType >= 1 && audioObjectType <= 4) ||
-          (audioObjectType >= 6 && audioObjectType <= 7) ||
-          audioObjectType == 17 ||
-          (audioObjectType >= 19 && audioObjectType <= 23))) {
-        return ERROR_UNSUPPORTED;
-    }
+    CHECK((audioObjectType >= 1 && audioObjectType <= 4)
+        || (audioObjectType >= 6 && audioObjectType <= 7)
+        || audioObjectType == 17
+        || (audioObjectType >= 19 && audioObjectType <= 23));
 
-    if (parseGASpecificConfig(bits, audioObjectType, channelConfiguration)
-        != (status_t)OK) {
-        return ERROR_UNSUPPORTED;
-    }
+    CHECK_EQ(parseGASpecificConfig(
+                bits, audioObjectType, channelConfiguration), (status_t)OK);
 
     if (audioObjectType == 17
             || (audioObjectType >= 19 && audioObjectType <= 27)) {
@@ -198,9 +186,7 @@ static status_t parseAudioSpecificConfig(ABitReader *bits, sp<ABuffer> *asc) {
 
             if (epConfig == 3) {
                 unsigned directMapping = bits->getBits(1);
-                if (directMapping != 1u) {
-                    return ERROR_UNSUPPORTED;
-                }
+                CHECK_EQ(directMapping, 1u);
             }
         }
     }
@@ -212,10 +198,8 @@ static status_t parseAudioSpecificConfig(ABitReader *bits, sp<ABuffer> *asc) {
         if (syncExtensionType == 0x2b7) {
             LOGI("found syncExtension");
 
-            if (parseAudioObjectType(bits, &extensionAudioObjectType)
-                != (status_t)OK) {
-                return ERROR_UNSUPPORTED;
-            }
+            CHECK_EQ(parseAudioObjectType(bits, &extensionAudioObjectType),
+                     (status_t)OK);
 
             sbrPresent = bits->getBits(1);
 
@@ -282,37 +266,28 @@ static status_t parseStreamMuxConfig(
         audioMuxVersionA = bits->getBits(1);
     }
 
-    if (audioMuxVersionA != 0u) {
-        return ERROR_UNSUPPORTED;  // future spec
-    }
+    CHECK_EQ(audioMuxVersionA, 0u);  // otherwise future spec
 
-    if (audioMuxVersion != 0u) {
+    if (audioMuxVersion != 0) {
         return ERROR_UNSUPPORTED;  // XXX to be implemented;
     }
+    CHECK_EQ(audioMuxVersion, 0u);  // XXX to be implemented
 
     unsigned allStreamsSameTimeFraming = bits->getBits(1);
-    if (allStreamsSameTimeFraming != 1u) {
-        return ERROR_UNSUPPORTED;  // There's only one stream.
-    }
+    CHECK_EQ(allStreamsSameTimeFraming, 1u);  // There's only one stream.
 
     *numSubFrames = bits->getBits(6);
     unsigned numProgram = bits->getBits(4);
-    if (numProgram != 0u) {
-        return ERROR_UNSUPPORTED;  // disabled in RTP LATM
-    }
+    CHECK_EQ(numProgram, 0u);  // disabled in RTP LATM
 
     unsigned numLayer = bits->getBits(3);
-    if (numLayer != 0u) {
-        return ERROR_UNSUPPORTED;  // disabled in RTP LATM
-    }
+    CHECK_EQ(numLayer, 0u);  // disabled in RTP LATM
 
     if (audioMuxVersion == 0) {
         // AudioSpecificConfig
-        if (parseAudioSpecificConfig(bits, NULL /* asc */) != (status_t)OK) {
-            return ERROR_UNSUPPORTED;
-        }
+        CHECK_EQ(parseAudioSpecificConfig(bits, NULL /* asc */), (status_t)OK);
     } else {
-        return ERROR_UNSUPPORTED; // XXX to be implemented
+        TRESPASS();  // XXX to be implemented
     }
 
     *frameLengthType = bits->getBits(3);
@@ -364,7 +339,7 @@ static status_t parseStreamMuxConfig(
     *otherDataLenBits = 0;
     if (*otherDataPresent) {
         if (audioMuxVersion == 1) {
-            return ERROR_UNSUPPORTED;  // XXX to be implemented
+            TRESPASS();  // XXX to be implemented
         } else {
             *otherDataLenBits = 0;
 
@@ -387,9 +362,7 @@ static status_t parseStreamMuxConfig(
 }
 
 sp<ABuffer> AMPEG4AudioAssembler::removeLATMFraming(const sp<ABuffer> &buffer) {
-    if (mMuxConfigPresent) {
-        return NULL;  // XXX to be implemented
-    }
+    CHECK(!mMuxConfigPresent);  // XXX to be implemented
 
     sp<ABuffer> out = new ABuffer(buffer->size());
     out->setRange(0, 0);
@@ -431,9 +404,7 @@ sp<ABuffer> AMPEG4AudioAssembler::removeLATMFraming(const sp<ABuffer> &buffer) {
 
             default:
             {
-                if (mFixedFrameLength < 0) {
-                    return NULL;
-                }
+                CHECK_GE(mFixedFrameLength, 0);
 
                 payloadLength = mFixedFrameLength;
                 break;
@@ -454,14 +425,8 @@ sp<ABuffer> AMPEG4AudioAssembler::removeLATMFraming(const sp<ABuffer> &buffer) {
         if (mOtherDataPresent) {
             // We want to stay byte-aligned.
 
-            if (mOtherDataLenBits % 8 != 0) {
-                mAccessUnitDamaged = true;
-                return out;
-            }
-            if (offset + (mOtherDataLenBits / 8) > buffer->size()) {
-                mAccessUnitDamaged = true;
-                return out;
-            }
+            CHECK((mOtherDataLenBits % 8) == 0);
+            CHECK_LE(offset + (mOtherDataLenBits / 8), buffer->size());
             offset += mOtherDataLenBits / 8;
         }
     }
@@ -555,17 +520,10 @@ ARTPAssembler::AssemblyStatus AMPEG4AudioAssembler::addPacket(
     }
 
     uint32_t rtpTime;
-    if (!buffer->meta()->findInt32("rtp-time", (int32_t *)&rtpTime)) {
-        LOGW("Cannot find rtp-time. Malformed packet.");
-
-        return MALFORMED_PACKET;
-    }
+    CHECK(buffer->meta()->findInt32("rtp-time", (int32_t *)&rtpTime));
 
     if (mPackets.size() > 0 && rtpTime != mAccessUnitRTPTime) {
-        if (!submitAccessUnit()) {
-            LOGW("Cannot find rtp-time. Malformed packet.");
-            return MALFORMED_PACKET;
-        }
+        submitAccessUnit();
     }
     mAccessUnitRTPTime = rtpTime;
 
@@ -577,8 +535,8 @@ ARTPAssembler::AssemblyStatus AMPEG4AudioAssembler::addPacket(
     return OK;
 }
 
-bool AMPEG4AudioAssembler::submitAccessUnit() {
-    MOZ_ASSERT(!mPackets.empty());
+void AMPEG4AudioAssembler::submitAccessUnit() {
+    CHECK(!mPackets.empty());
 
 #if VERBOSE
     LOG(VERBOSE) << "Access unit complete (" << mPackets.size() << " packets)";
@@ -607,9 +565,7 @@ bool AMPEG4AudioAssembler::submitAccessUnit() {
     }
 
     accessUnit = removeLATMFraming(accessUnit);
-    if (!accessUnit.get() || !CopyTimes(accessUnit, *mPackets.begin())) {
-        return false;
-    }
+    CopyTimes(accessUnit, *mPackets.begin());
 
     if (mAccessUnitDamaged) {
         accessUnit->meta()->setInt32("damaged", true);
@@ -621,7 +577,6 @@ bool AMPEG4AudioAssembler::submitAccessUnit() {
     sp<AMessage> msg = mNotifyMsg->dup();
     msg->setObject("access-unit", accessUnit);
     msg->post();
-    return true;
 }
 
 void AMPEG4AudioAssembler::packetLost() {

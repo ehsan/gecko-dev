@@ -12,7 +12,6 @@
 #include "nsIconChannel.h"
 #include "nsIStringStream.h"
 #include "nsNetUtil.h"
-#include "nsNullPrincipal.h"
 
 NS_IMPL_ISUPPORTS(nsIconChannel,
                   nsIRequest,
@@ -22,12 +21,10 @@ using namespace mozilla;
 using mozilla::dom::ContentChild;
 
 static nsresult
-GetIconForExtension(const nsACString& aFileExt, uint32_t aIconSize,
-                    uint8_t* const aBuf)
+GetIconForExtension(const nsACString& aFileExt, uint32_t aIconSize, uint8_t * const aBuf)
 {
-    if (!AndroidBridge::Bridge()) {
+    if (!AndroidBridge::Bridge())
         return NS_ERROR_FAILURE;
-    }
 
     AndroidBridge::Bridge()->GetIconForExtension(aFileExt, aIconSize, aBuf);
 
@@ -35,8 +32,7 @@ GetIconForExtension(const nsACString& aFileExt, uint32_t aIconSize,
 }
 
 static nsresult
-CallRemoteGetIconForExtension(const nsACString& aFileExt, uint32_t aIconSize,
-                              uint8_t* const aBuf)
+CallRemoteGetIconForExtension(const nsACString& aFileExt, uint32_t aIconSize, uint8_t * const aBuf)
 {
   NS_ENSURE_TRUE(aBuf != nullptr, NS_ERROR_NULL_POINTER);
 
@@ -44,15 +40,12 @@ CallRemoteGetIconForExtension(const nsACString& aFileExt, uint32_t aIconSize,
   InfallibleTArray<uint8_t> bits;
   uint32_t bufSize = aIconSize * aIconSize * 4;
 
-  if (!ContentChild::GetSingleton()->SendGetIconForExtension(
-                     PromiseFlatCString(aFileExt), aIconSize, &bits)) {
+  if (!ContentChild::GetSingleton()->SendGetIconForExtension(PromiseFlatCString(aFileExt), aIconSize, &bits))
     return NS_ERROR_FAILURE;
-  }
 
   NS_ASSERTION(bits.Length() == bufSize, "Pixels array is incomplete");
-  if (bits.Length() != bufSize) {
+  if (bits.Length() != bufSize)
     return NS_ERROR_FAILURE;
-  }
 
   memcpy(aBuf, bits.Elements(), bufSize);
 
@@ -60,8 +53,7 @@ CallRemoteGetIconForExtension(const nsACString& aFileExt, uint32_t aIconSize,
 }
 
 static nsresult
-moz_icon_to_channel(nsIURI* aURI, const nsACString& aFileExt,
-                    uint32_t aIconSize, nsIChannel** aChannel)
+moz_icon_to_channel(nsIURI *aURI, const nsACString& aFileExt, uint32_t aIconSize, nsIChannel **aChannel)
 {
   NS_ENSURE_TRUE(aIconSize < 256 && aIconSize > 0, NS_ERROR_UNEXPECTED);
 
@@ -72,23 +64,22 @@ moz_icon_to_channel(nsIURI* aURI, const nsACString& aFileExt,
   // then the ARGB pixel values with pre-multiplied Alpha
   const int channels = 4;
   long int buf_size = 2 + channels * height * width;
-  uint8_t* const buf = (uint8_t*)NS_Alloc(buf_size);
+  uint8_t * const buf = (uint8_t*)NS_Alloc(buf_size);
   NS_ENSURE_TRUE(buf, NS_ERROR_OUT_OF_MEMORY);
-  uint8_t* out = buf;
+  uint8_t * out = buf;
 
   *(out++) = width;
   *(out++) = height;
 
   nsresult rv;
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_GetProcessType() == GeckoProcessType_Default)
     rv = GetIconForExtension(aFileExt, aIconSize, out);
-  } else {
+  else
     rv = CallRemoteGetIconForExtension(aFileExt, aIconSize, out);
-  }
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Encode the RGBA data
-  const uint8_t* in = out;
+  const uint8_t * in = out;
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
       uint8_t r = *(in++);
@@ -111,16 +102,7 @@ moz_icon_to_channel(nsIURI* aURI, const nsACString& aFileExt,
   rv = stream->AdoptData((char*)buf, buf_size);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIPrincipal> nullPrincipal =
-    do_CreateInstance("@mozilla.org/nullprincipal;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_NewInputStreamChannel(aChannel,
-                                  aURI,
-                                  stream,
-                                  nullPrincipal,
-                                  nsILoadInfo::SEC_NORMAL,
-                                  nsIContentPolicy::TYPE_OTHER,
+  return NS_NewInputStreamChannel(aChannel, aURI, stream,
                                   NS_LITERAL_CSTRING(IMAGE_ICON_MS));
 }
 
@@ -139,6 +121,5 @@ nsIconChannel::Init(nsIURI* aURI)
   nsAutoCString iconFileExt;
   iconURI->GetFileExtension(iconFileExt);
 
-  return moz_icon_to_channel(iconURI, iconFileExt, desiredImageSize,
-                             getter_AddRefs(mRealChannel));
+  return moz_icon_to_channel(iconURI, iconFileExt, desiredImageSize, getter_AddRefs(mRealChannel));
 }

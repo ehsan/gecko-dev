@@ -568,38 +568,6 @@ public:
   void
   SendDeleteMeInternal();
 
-  IDBRequest*
-  GetRequest() const
-  {
-    AssertIsOnOwningThread();
-
-    return mRequest;
-  }
-
-  IDBObjectStore*
-  GetObjectStore() const
-  {
-    AssertIsOnOwningThread();
-
-    return mObjectStore;
-  }
-
-  IDBIndex*
-  GetIndex() const
-  {
-    AssertIsOnOwningThread();
-
-    return mIndex;
-  }
-
-  Direction
-  GetDirection() const
-  {
-    AssertIsOnOwningThread();
-
-    return mDirection;
-  }
-
 private:
   // Only destroyed by BackgroundTransactionChild or
   // BackgroundVersionChangeTransactionChild.

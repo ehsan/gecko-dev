@@ -30,6 +30,7 @@ AudioChannelManager::AudioChannelManager()
 {
   RegisterSwitchObserver(SWITCH_HEADPHONES, this);
   mState = GetCurrentSwitchState(SWITCH_HEADPHONES);
+  SetIsDOMBinding();
 }
 
 AudioChannelManager::~AudioChannelManager()

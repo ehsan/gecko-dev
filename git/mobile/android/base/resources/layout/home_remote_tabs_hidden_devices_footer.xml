@@ -18,11 +18,9 @@
     <TextView
         android:id="@+id/hidden_devices"
         style="@style/Widget.Home.ActionItem"
-        android:background="@drawable/action_bar_button"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:gravity="center"
-        android:maxLength="1024"
-        android:textColor="@color/home_text_color_disabled" />
+        android:maxLength="1024" />
 
 </LinearLayout>

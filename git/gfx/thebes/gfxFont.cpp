@@ -3,18 +3,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "gfxFont.h"
-
 #include "mozilla/BinarySearch.h"
 #include "mozilla/DebugOnly.h"
-#include "mozilla/gfx/2D.h"
 #include "mozilla/MathAlgorithms.h"
 
+#ifdef MOZ_LOGGING
+#define FORCE_PR_LOG /* Allow logging in the release build */
+#endif
 #include "prlog.h"
 
 #include "nsExpirationTracker.h"
 #include "nsITimer.h"
 
+#include "gfxFont.h"
 #include "gfxGlyphExtents.h"
 #include "gfxPlatform.h"
 #include "gfxTextRun.h"
@@ -212,20 +213,15 @@ gfxFontCache::~gfxFontCache()
 bool
 gfxFontCache::HashEntry::KeyEquals(const KeyTypePointer aKey) const
 {
-    const gfxCharacterMap* fontUnicodeRangeMap = mFont->GetUnicodeRangeMap();
     return aKey->mFontEntry == mFont->GetFontEntry() &&
-           aKey->mStyle->Equals(*mFont->GetStyle()) &&
-           ((!aKey->mUnicodeRangeMap && !fontUnicodeRangeMap) ||
-            (aKey->mUnicodeRangeMap && fontUnicodeRangeMap &&
-             aKey->mUnicodeRangeMap->Equals(fontUnicodeRangeMap)));
+           aKey->mStyle->Equals(*mFont->GetStyle());
 }
 
 already_AddRefed<gfxFont>
-gfxFontCache::Lookup(const gfxFontEntry* aFontEntry,
-                     const gfxFontStyle* aStyle,
-                     const gfxCharacterMap* aUnicodeRangeMap)
+gfxFontCache::Lookup(const gfxFontEntry *aFontEntry,
+                     const gfxFontStyle *aStyle)
 {
-    Key key(aFontEntry, aStyle, aUnicodeRangeMap);
+    Key key(aFontEntry, aStyle);
     HashEntry *entry = mFonts.GetEntry(key);
 
     Telemetry::Accumulate(Telemetry::FONT_CACHE_HIT, entry != nullptr);
@@ -239,8 +235,7 @@ gfxFontCache::Lookup(const gfxFontEntry* aFontEntry,
 void
 gfxFontCache::AddNew(gfxFont *aFont)
 {
-    Key key(aFont->GetFontEntry(), aFont->GetStyle(),
-            aFont->GetUnicodeRangeMap());
+    Key key(aFont->GetFontEntry(), aFont->GetStyle());
     HashEntry *entry = mFonts.PutEntry(key);
     if (!entry)
         return;
@@ -285,8 +280,7 @@ gfxFontCache::NotifyExpired(gfxFont *aFont)
 void
 gfxFontCache::DestroyFont(gfxFont *aFont)
 {
-    Key key(aFont->GetFontEntry(), aFont->GetStyle(),
-            aFont->GetUnicodeRangeMap());
+    Key key(aFont->GetFontEntry(), aFont->GetStyle());
     HashEntry *entry = mFonts.GetEntry(key);
     if (entry && entry->mFont == aFont) {
         mFonts.RemoveEntry(key);
@@ -665,8 +659,8 @@ gfxShapedText::SetMissingGlyph(uint32_t aIndex, uint32_t aChar, gfxFont *aFont)
     } else {
         gfxFloat width =
             std::max(aFont->GetMetrics(gfxFont::eHorizontal).aveCharWidth,
-                     gfxFloat(gfxFontMissingGlyphs::GetDesiredMinWidth(aChar,
-                                mAppUnitsPerDevUnit)));
+                     gfxFontMissingGlyphs::GetDesiredMinWidth(aChar,
+                         mAppUnitsPerDevUnit));
         details->mAdvance = uint32_t(width * mAppUnitsPerDevUnit);
     }
     details->mXOffset = 0;
@@ -791,7 +785,7 @@ gfxFont::GetGlyphHAdvance(gfxContext *aCtx, uint16_t aGID)
         return 0;
     }
     if (ProvidesGlyphWidths()) {
-        return GetGlyphWidth(*aCtx->GetDrawTarget(), aGID) / 65536.0;
+        return GetGlyphWidth(aCtx, aGID) / 65536.0;
     }
     if (mFUnitsConvFactor == 0.0f) {
         GetMetrics(eHorizontal);
@@ -806,7 +800,7 @@ gfxFont::GetGlyphHAdvance(gfxContext *aCtx, uint16_t aGID)
     if (!shaper->Initialize()) {
         return 0;
     }
-    return shaper->GetGlyphHAdvance(aGID) / 65536.0;
+    return shaper->GetGlyphHAdvance(aCtx, aGID) / 65536.0;
 }
 
 /*static*/
@@ -925,7 +919,7 @@ HasLookupRuleWithGlyphByScript(hb_face_t *aFace, hb_tag_t aTableTag,
     while (hb_set_next(defaultFeatureLookups, &index)) {
         hb_ot_layout_lookup_collect_glyphs(aFace, aTableTag, index,
                                            glyphs, glyphs, glyphs,
-                                           nullptr);
+                                           glyphs);
         if (hb_set_has(glyphs, aGlyph)) {
             aHasDefaultFeatureWithGlyph = true;
             break;
@@ -941,7 +935,7 @@ HasLookupRuleWithGlyphByScript(hb_face_t *aFace, hb_tag_t aTableTag,
         while (hb_set_next(nonDefaultFeatureLookups, &index)) {
             hb_ot_layout_lookup_collect_glyphs(aFace, aTableTag, index,
                                                glyphs, glyphs, glyphs,
-                                               nullptr);
+                                               glyphs);
             if (hb_set_has(glyphs, aGlyph)) {
                 hasNonDefaultFeatureWithGlyph = true;
                 break;
@@ -995,7 +989,7 @@ HasLookupRuleWithGlyph(hb_face_t *aFace, hb_tag_t aTableTag, bool& aHasGlyph,
     while (hb_set_next(otherLookups, &index)) {
         hb_ot_layout_lookup_collect_glyphs(aFace, aTableTag, index,
                                            glyphs, glyphs, glyphs,
-                                           nullptr);
+                                           glyphs);
         if (hb_set_has(glyphs, aGlyph)) {
             aHasGlyph = true;
             break;
@@ -1008,7 +1002,7 @@ HasLookupRuleWithGlyph(hb_face_t *aFace, hb_tag_t aTableTag, bool& aHasGlyph,
     while (hb_set_next(specificFeatureLookups, &index)) {
         hb_ot_layout_lookup_collect_glyphs(aFace, aTableTag, index,
                                            glyphs, glyphs, glyphs,
-                                           nullptr);
+                                           glyphs);
         if (hb_set_has(glyphs, aGlyph)) {
             aHasGlyphSpecific = true;
             break;
@@ -1698,28 +1692,16 @@ gfxFont::DrawOneGlyph(uint32_t aGlyphID, double aAdvance, gfxPoint *aPt,
     const TextRunDrawParams& runParams(aBuffer.mRunParams);
     const FontDrawParams& fontParams(aBuffer.mFontParams);
 
-    double glyphX, glyphY;
-    if (fontParams.isVerticalFont) {
+    double glyphX;
+    if (runParams.isRTL) {
+        aPt->x -= aAdvance;
         glyphX = aPt->x;
-        if (runParams.isRTL) {
-            aPt->y -= aAdvance;
-            glyphY = aPt->y;
-        } else {
-            glyphY = aPt->y;
-            aPt->y += aAdvance;
-        }
     } else {
-        glyphY = aPt->y;
-        if (runParams.isRTL) {
-            aPt->x -= aAdvance;
-            glyphX = aPt->x;
-        } else {
-            glyphX = aPt->x;
-            aPt->x += aAdvance;
-        }
+        glyphX = aPt->x;
+        aPt->x += aAdvance;
     }
     gfxPoint devPt(ToDeviceUnits(glyphX, runParams.devPerApp),
-                   ToDeviceUnits(glyphY, runParams.devPerApp));
+                   ToDeviceUnits(aPt->y, runParams.devPerApp));
 
     if (fontParams.haveSVGGlyphs) {
         if (!runParams.paintSVGGlyphs) {
@@ -1745,11 +1727,7 @@ gfxFont::DrawOneGlyph(uint32_t aGlyphID, double aAdvance, gfxPoint *aPt,
 
     // Synthetic bolding (if required) by multi-striking.
     for (int32_t i = 0; i < fontParams.extraStrikes; ++i) {
-        if (fontParams.isVerticalFont) {
-            devPt.y += fontParams.synBoldOnePixelOffset;
-        } else {
-            devPt.x += fontParams.synBoldOnePixelOffset;
-        }
+        devPt.x += fontParams.synBoldOnePixelOffset;
         aBuffer.OutputGlyph(aGlyphID, devPt);
     }
 
@@ -1769,10 +1747,8 @@ gfxFont::DrawGlyphs(gfxShapedText            *aShapedText,
     bool emittedGlyphs = false;
     GlyphBufferAzure buffer(aRunParams, aFontParams);
 
-    gfxFloat& inlineCoord = aFontParams.isVerticalFont ? aPt->y : aPt->x;
-
     if (aRunParams.spacing) {
-        inlineCoord += aRunParams.direction * aRunParams.spacing[0].mBefore;
+        aPt->x += aRunParams.direction * aRunParams.spacing[0].mBefore;
     }
 
     const gfxShapedText::CompressedGlyph *glyphData =
@@ -1791,31 +1767,22 @@ gfxFont::DrawGlyphs(gfxShapedText            *aShapedText,
                 NS_ASSERTION(details, "detailedGlyph should not be missing!");
                 for (uint32_t j = 0; j < glyphCount; ++j, ++details) {
                     double advance = details->mAdvance;
-
                     if (glyphData->IsMissing()) {
                         // Default-ignorable chars will have zero advance width;
                         // we don't have to draw the hexbox for them.
                         if (aRunParams.drawMode != DrawMode::GLYPH_PATH &&
                             advance > 0) {
                             double glyphX = aPt->x;
-                            double glyphY = aPt->y;
                             if (aRunParams.isRTL) {
-                                if (aFontParams.isVerticalFont) {
-                                    glyphY -= advance;
-                                } else {
-                                    glyphX -= advance;
-                                }
+                                glyphX -= advance;
                             }
-                            Point pt(Float(ToDeviceUnits(glyphX, aRunParams.devPerApp)),
-                                     Float(ToDeviceUnits(glyphY, aRunParams.devPerApp)));
-                            Float advanceDevUnits =
-                                Float(ToDeviceUnits(advance, aRunParams.devPerApp));
-                            Float height = GetMetrics(eHorizontal).maxAscent;
-                            Rect glyphRect = aFontParams.isVerticalFont ?
-                                Rect(pt.x - height / 2, pt.y,
-                                     height, advanceDevUnits) :
-                                Rect(pt.x, pt.y - height,
-                                     advanceDevUnits, height);
+                            gfxPoint pt(ToDeviceUnits(glyphX, aRunParams.devPerApp),
+                                        ToDeviceUnits(aPt->y, aRunParams.devPerApp));
+                            gfxFloat advanceDevUnits =
+                                ToDeviceUnits(advance, aRunParams.devPerApp);
+                            gfxFloat height = GetMetrics(eHorizontal).maxAscent;
+                            gfxRect glyphRect(pt.x, pt.y - height,
+                                              advanceDevUnits, height);
 
                             // If there's a fake-italic skew in effect as part
                             // of the drawTarget's transform, we need to remove
@@ -1828,8 +1795,7 @@ gfxFont::DrawGlyphs(gfxShapedText            *aShapedText,
                             }
 
                             gfxFontMissingGlyphs::DrawMissingGlyph(
-                                details->mGlyphID, glyphRect, *aRunParams.dt,
-                                PatternFromState(aRunParams.context),
+                                aRunParams.context, glyphRect, details->mGlyphID,
                                 aShapedText->GetAppUnitsPerDevUnit());
 
                             // Restore the matrix, if we modified it before
@@ -1840,18 +1806,12 @@ gfxFont::DrawGlyphs(gfxShapedText            *aShapedText,
                         }
                     } else {
                         gfxPoint glyphXY(*aPt);
-                        if (aFontParams.isVerticalFont) {
-                            glyphXY.x += details->mYOffset;
-                            glyphXY.y += details->mXOffset;
-                        } else {
-                            glyphXY.x += details->mXOffset;
-                            glyphXY.y += details->mYOffset;
-                        }
+                        glyphXY.x += details->mXOffset;
+                        glyphXY.y += details->mYOffset;
                         DrawOneGlyph(details->mGlyphID, advance, &glyphXY,
                                      buffer, &emittedGlyphs);
                     }
-
-                    inlineCoord += aRunParams.direction * advance;
+                    aPt->x += aRunParams.direction * advance;
                 }
             }
         }
@@ -1861,7 +1821,7 @@ gfxFont::DrawGlyphs(gfxShapedText            *aShapedText,
             if (i + 1 < aCount) {
                 space += aRunParams.spacing[i + 1].mBefore;
             }
-            inlineCoord += aRunParams.direction * space;
+            aPt->x += aRunParams.direction * space;
         }
     }
 
@@ -1870,8 +1830,7 @@ gfxFont::DrawGlyphs(gfxShapedText            *aShapedText,
 
 void
 gfxFont::Draw(gfxTextRun *aTextRun, uint32_t aStart, uint32_t aEnd,
-              gfxPoint *aPt, const TextRunDrawParams& aRunParams,
-              uint16_t aOrientation)
+              gfxPoint *aPt, const TextRunDrawParams& aRunParams)
 {
     NS_ASSERTION(aRunParams.drawMode == DrawMode::GLYPH_PATH ||
                  !(int(aRunParams.drawMode) & int(DrawMode::GLYPH_PATH)),
@@ -1891,40 +1850,6 @@ gfxFont::Draw(gfxTextRun *aTextRun, uint32_t aStart, uint32_t aEnd,
     fontParams.haveSVGGlyphs = GetFontEntry()->TryGetSVGData(this);
     fontParams.haveColorGlyphs = GetFontEntry()->TryGetColorGlyphs();
     fontParams.contextPaint = aRunParams.runContextPaint;
-    fontParams.isVerticalFont =
-        aOrientation == gfxTextRunFactory::TEXT_ORIENT_VERTICAL_UPRIGHT;
-
-    bool sideways = false;
-    gfxPoint origPt = *aPt;
-    if (aRunParams.isVerticalRun && !fontParams.isVerticalFont) {
-        sideways = true;
-        aRunParams.context->Save();
-        gfxPoint p(aPt->x * aRunParams.devPerApp,
-                   aPt->y * aRunParams.devPerApp);
-        const Metrics& metrics = GetMetrics(eHorizontal);
-        // Get a matrix we can use to draw the (horizontally-shaped) textrun
-        // with 90-degree CW rotation.
-        gfxMatrix mat = aRunParams.context->CurrentMatrix().
-            Translate(p).       // translate origin for rotation
-            Rotate(M_PI / 2.0). // turn 90deg clockwise
-            Translate(-p);      // undo the translation
-
-        // If we're drawing rotated horizontal text for an element styled
-        // text-orientation:mixed, the dominant baseline will be vertical-
-        // centered. So in this case, we need to adjust the position so that
-        // the rotated horizontal text (which uses an alphabetic baseline) will
-        // look OK when juxtaposed with upright glyphs (rendered on a centered
-        // vertical baseline). The adjustment here is somewhat ad hoc; we
-        // should eventually look for baseline tables[1] in the fonts and use
-        // those if available.
-        // [1] See http://www.microsoft.com/typography/otspec/base.htm
-        if (aTextRun->UseCenterBaseline()) {
-            gfxPoint baseAdj(0, (metrics.emAscent - metrics.emDescent) / 2);
-            mat.Translate(baseAdj);
-        }
-
-        aRunParams.context->SetMatrix(mat);
-    }
 
     nsAutoPtr<gfxTextContextPaint> contextPaint;
     if (fontParams.haveSVGGlyphs && !fontParams.contextPaint) {
@@ -1965,7 +1890,7 @@ gfxFont::Draw(gfxTextRun *aTextRun, uint32_t aStart, uint32_t aEnd,
     // to transform the Brush inside flush.
     fontParams.passedInvMatrix = nullptr;
 
-    fontParams.renderingOptions = GetGlyphRenderingOptions(&aRunParams);
+    fontParams.renderingOptions = GetGlyphRenderingOptions();
     fontParams.drawOptions.mAntialiasMode = Get2DAAMode(mAntialiasOption);
 
     // The cairo DrawTarget backend uses the cairo_scaled_font directly
@@ -1995,18 +1920,16 @@ gfxFont::Draw(gfxTextRun *aTextRun, uint32_t aStart, uint32_t aEnd,
         }
     }
 
-    gfxFloat& baseline = fontParams.isVerticalFont ? aPt->x : aPt->y;
-    gfxFloat origBaseline = baseline;
+    double origY = aPt->y;
     if (mStyle.baselineOffset != 0.0) {
-        baseline +=
-            mStyle.baselineOffset * aTextRun->GetAppUnitsPerDevUnit();
+        aPt->y += mStyle.baselineOffset * aTextRun->GetAppUnitsPerDevUnit();
     }
 
     bool emittedGlyphs =
         DrawGlyphs(aTextRun, aStart, aEnd - aStart, aPt,
                    aRunParams, fontParams);
 
-    baseline = origBaseline;
+    aPt->y = origY;
 
     if (aRunParams.callbacks && emittedGlyphs) {
         aRunParams.callbacks->NotifyGlyphPathEmitted();
@@ -2014,11 +1937,6 @@ gfxFont::Draw(gfxTextRun *aTextRun, uint32_t aStart, uint32_t aEnd,
 
     aRunParams.dt->SetTransform(oldMat);
     aRunParams.dt->SetPermitSubpixelAA(oldSubpixelAA);
-
-    if (sideways) {
-        aRunParams.context->Restore();
-        *aPt = gfxPoint(origPt.x, origPt.y + (aPt->x - origPt.x));
-    }
 }
 
 bool
@@ -2119,8 +2037,7 @@ gfxFont::Measure(gfxTextRun *aTextRun,
                  uint32_t aStart, uint32_t aEnd,
                  BoundingBoxType aBoundingBoxType,
                  gfxContext *aRefContext,
-                 Spacing *aSpacing,
-                 uint16_t aOrientation)
+                 Spacing *aSpacing)
 {
     // If aBoundingBoxType is TIGHT_HINTED_OUTLINE_EXTENTS
     // and the underlying cairo font may be antialiased,
@@ -2136,41 +2053,22 @@ gfxFont::Measure(gfxTextRun *aTextRun,
         if (mNonAAFont) {
             return mNonAAFont->Measure(aTextRun, aStart, aEnd,
                                        TIGHT_HINTED_OUTLINE_EXTENTS,
-                                       aRefContext, aSpacing, aOrientation);
+                                       aRefContext, aSpacing);
         }
     }
 
     const int32_t appUnitsPerDevUnit = aTextRun->GetAppUnitsPerDevUnit();
     // Current position in appunits
     gfxFont::Orientation orientation =
-        aOrientation == gfxTextRunFactory::TEXT_ORIENT_VERTICAL_UPRIGHT
-        ? eVertical : eHorizontal;
+        aTextRun->IsVertical() ? gfxFont::eVertical : gfxFont::eHorizontal;
     const gfxFont::Metrics& fontMetrics = GetMetrics(orientation);
 
-    gfxFloat baselineOffset = 0;
-    if (aTextRun->UseCenterBaseline() && orientation == eHorizontal) {
-        // For a horizontal font being used in vertical writing mode with
-        // text-orientation:mixed, the overall metrics we're accumulating
-        // will be aimed at a center baseline. But this font's metrics were
-        // based on the alphabetic baseline. So we compute a baseline offset
-        // that will be applied to ascent/descent values and glyph rects
-        // to effectively shift them relative to the baseline.
-        // XXX Eventually we should probably use the BASE table, if present.
-        // But it usually isn't, so we need an ad hoc adjustment for now.
-        baselineOffset = appUnitsPerDevUnit *
-            (fontMetrics.emAscent - fontMetrics.emDescent) / 2;
-    }
-
     RunMetrics metrics;
-    metrics.mAscent = fontMetrics.maxAscent * appUnitsPerDevUnit;
-    metrics.mDescent = fontMetrics.maxDescent * appUnitsPerDevUnit;
-
+    metrics.mAscent = fontMetrics.maxAscent*appUnitsPerDevUnit;
+    metrics.mDescent = fontMetrics.maxDescent*appUnitsPerDevUnit;
     if (aStart == aEnd) {
         // exit now before we look at aSpacing[0], which is undefined
-        metrics.mAscent -= baselineOffset;
-        metrics.mDescent += baselineOffset;
-        metrics.mBoundingBox = gfxRect(0, -metrics.mAscent,
-                                       0, metrics.mAscent + metrics.mDescent);
+        metrics.mBoundingBox = gfxRect(0, -metrics.mAscent, 0, metrics.mAscent + metrics.mDescent);
         return metrics;
     }
 
@@ -2271,12 +2169,6 @@ gfxFont::Measure(gfxTextRun *aTextRun,
         metrics.mBoundingBox -= gfxPoint(x, 0);
     }
 
-    if (baselineOffset != 0) {
-        metrics.mAscent -= baselineOffset;
-        metrics.mDescent += baselineOffset;
-        metrics.mBoundingBox.y += baselineOffset;
-    }
-
     metrics.mAdvanceWidth = x*direction;
     return metrics;
 }
@@ -2322,7 +2214,6 @@ gfxFont::GetShapedWord(gfxContext *aContext,
                        uint32_t    aLength,
                        uint32_t    aHash,
                        int32_t     aRunScript,
-                       bool        aVertical,
                        int32_t     aAppUnitsPerDevUnit,
                        uint32_t    aFlags,
                        gfxTextPerfMetrics *aTextPerf GFX_MAYBE_UNUSED)
@@ -2382,7 +2273,7 @@ gfxFont::GetShapedWord(gfxContext *aContext,
     }
 
     DebugOnly<bool> ok =
-        ShapeText(aContext, aText, 0, aLength, aRunScript, aVertical, sw);
+        ShapeText(aContext, aText, 0, aLength, aRunScript, sw);
 
     NS_WARN_IF_FALSE(ok, "failed to shape word - expect garbled text");
 
@@ -2432,7 +2323,6 @@ gfxFont::ShapeText(gfxContext    *aContext,
                    uint32_t       aOffset,
                    uint32_t       aLength,
                    int32_t        aScript,
-                   bool           aVertical,
                    gfxShapedText *aShapedText)
 {
     nsDependentCSubstring ascii((const char*)aText, aLength);
@@ -2442,7 +2332,7 @@ gfxFont::ShapeText(gfxContext    *aContext,
         return false;
     }
     return ShapeText(aContext, utf16.BeginReading(), aOffset, aLength,
-                     aScript, aVertical, aShapedText);
+                     aScript, aShapedText);
 }
 
 bool
@@ -2451,20 +2341,17 @@ gfxFont::ShapeText(gfxContext      *aContext,
                    uint32_t         aOffset,
                    uint32_t         aLength,
                    int32_t          aScript,
-                   bool             aVertical,
                    gfxShapedText   *aShapedText)
 {
     bool ok = false;
 
-    // XXX Currently, we do all vertical shaping through harfbuzz.
-    // Vertical graphite support may be wanted as a future enhancement.
-    if (FontCanSupportGraphite() && !aVertical) {
+    if (FontCanSupportGraphite()) {
         if (gfxPlatform::GetPlatform()->UseGraphiteShaping()) {
             if (!mGraphiteShaper) {
                 mGraphiteShaper = new gfxGraphiteShaper(this);
             }
             ok = mGraphiteShaper->ShapeText(aContext, aText, aOffset, aLength,
-                                            aScript, aVertical, aShapedText);
+                                            aScript, aShapedText);
         }
     }
 
@@ -2473,7 +2360,7 @@ gfxFont::ShapeText(gfxContext      *aContext,
             mHarfBuzzShaper = new gfxHarfBuzzShaper(this);
         }
         ok = mHarfBuzzShaper->ShapeText(aContext, aText, aOffset, aLength,
-                                        aScript, aVertical, aShapedText);
+                                        aScript, aShapedText);
     }
 
     NS_WARN_IF_FALSE(ok, "shaper failed, expect scrambled or missing text");
@@ -2510,7 +2397,6 @@ gfxFont::ShapeFragmentWithoutWordCache(gfxContext *aContext,
                                        uint32_t    aOffset,
                                        uint32_t    aLength,
                                        int32_t     aScript,
-                                       bool        aVertical,
                                        gfxTextRun *aTextRun)
 {
     aTextRun->SetupClusterBoundaries(aOffset, aText, aLength);
@@ -2546,8 +2432,7 @@ gfxFont::ShapeFragmentWithoutWordCache(gfxContext *aContext,
             }
         }
 
-        ok = ShapeText(aContext, aText, aOffset, fragLen, aScript, aVertical,
-                       aTextRun);
+        ok = ShapeText(aContext, aText, aOffset, fragLen, aScript, aTextRun);
 
         aText += fragLen;
         aOffset += fragLen;
@@ -2575,7 +2460,6 @@ gfxFont::ShapeTextWithoutWordCache(gfxContext *aContext,
                                    uint32_t    aOffset,
                                    uint32_t    aLength,
                                    int32_t     aScript,
-                                   bool        aVertical,
                                    gfxTextRun *aTextRun)
 {
     uint32_t fragStart = 0;
@@ -2594,7 +2478,7 @@ gfxFont::ShapeTextWithoutWordCache(gfxContext *aContext,
         if (length > 0) {
             ok = ShapeFragmentWithoutWordCache(aContext, aText + fragStart,
                                                aOffset + fragStart, length,
-                                               aScript, aVertical, aTextRun);
+                                               aScript, aTextRun);
         }
 
         if (i == aLength) {
@@ -2650,8 +2534,7 @@ gfxFont::SplitAndInitTextRun(gfxContext *aContext,
                              const T *aString, // text for this font run
                              uint32_t aRunStart, // position in the textrun
                              uint32_t aRunLength,
-                             int32_t aRunScript,
-                             bool aVertical)
+                             int32_t aRunScript)
 {
     if (aRunLength == 0) {
         return true;
@@ -2686,8 +2569,7 @@ gfxFont::SplitAndInitTextRun(gfxContext *aContext,
             HasSpaces(aString, aRunLength)) {
             TEXT_PERF_INCR(tp, wordCacheSpaceRules);
             return ShapeTextWithoutWordCache(aContext, aString,
-                                             aRunStart, aRunLength,
-                                             aRunScript, aVertical,
+                                             aRunStart, aRunLength, aRunScript,
                                              aTextRun);
         }
     }
@@ -2740,7 +2622,6 @@ gfxFont::SplitAndInitTextRun(gfxContext *aContext,
                                                     aRunStart + wordStart,
                                                     length,
                                                     aRunScript,
-                                                    aVertical,
                                                     aTextRun);
             if (!ok) {
                 return false;
@@ -2757,7 +2638,7 @@ gfxFont::SplitAndInitTextRun(gfxContext *aContext,
             }
             gfxShapedWord *sw = GetShapedWord(aContext,
                                               aString + wordStart, length,
-                                              hash, aRunScript, aVertical,
+                                              hash, aRunScript,
                                               appUnitsPerDevUnit,
                                               wordFlags, tp);
             if (sw) {
@@ -2771,9 +2652,7 @@ gfxFont::SplitAndInitTextRun(gfxContext *aContext,
             // word was terminated by a space: add that to the textrun
             uint16_t orientation = flags & gfxTextRunFactory::TEXT_ORIENT_MASK;
             if (orientation == gfxTextRunFactory::TEXT_ORIENT_VERTICAL_MIXED) {
-                orientation = aVertical ?
-                    gfxTextRunFactory::TEXT_ORIENT_VERTICAL_UPRIGHT :
-                    gfxTextRunFactory::TEXT_ORIENT_VERTICAL_SIDEWAYS_RIGHT;
+                orientation = gfxTextRunFactory::TEXT_ORIENT_VERTICAL_UPRIGHT;
             }
             if (!aTextRun->SetSpaceGlyphIfSimple(this, aContext,
                                                  aRunStart + i, ch,
@@ -2783,7 +2662,7 @@ gfxFont::SplitAndInitTextRun(gfxContext *aContext,
                 gfxShapedWord *sw =
                     GetShapedWord(aContext,
                                   &space, 1,
-                                  gfxShapedWord::HashMix(0, ' '), aRunScript, aVertical,
+                                  gfxShapedWord::HashMix(0, ' '), aRunScript,
                                   appUnitsPerDevUnit,
                                   flags | gfxTextRunFactory::TEXT_IS_8BIT, tp);
                 if (sw) {
@@ -2832,17 +2711,15 @@ gfxFont::SplitAndInitTextRun(gfxContext *aContext,
                              const uint8_t *aString,
                              uint32_t aRunStart,
                              uint32_t aRunLength,
-                             int32_t aRunScript,
-                             bool aVertical);
+                             int32_t aRunScript);
 template bool
 gfxFont::SplitAndInitTextRun(gfxContext *aContext,
                              gfxTextRun *aTextRun,
                              const char16_t *aString,
                              uint32_t aRunStart,
                              uint32_t aRunLength,
-                             int32_t aRunScript,
-                             bool aVertical);
-
+                             int32_t aRunScript);
+ 
 template<>
 bool
 gfxFont::InitFakeSmallCapsRun(gfxContext     *aContext,
@@ -2868,8 +2745,6 @@ gfxFont::InitFakeSmallCapsRun(gfxContext     *aContext,
 
     RunCaseAction runAction = kNoChange;
     uint32_t runStart = 0;
-    bool vertical =
-        aOrientation == gfxTextRunFactory::TEXT_ORIENT_VERTICAL_UPRIGHT;
 
     for (uint32_t i = 0; i <= aLength; ++i) {
         uint32_t extraCodeUnits = 0; // Will be set to 1 if we need to consume
@@ -2928,7 +2803,7 @@ gfxFont::InitFakeSmallCapsRun(gfxContext     *aContext,
                 if (!f->SplitAndInitTextRun(aContext, aTextRun,
                                             aText + runStart,
                                             aOffset + runStart, runLength,
-                                            aScript, vertical)) {
+                                            aScript)) {
                     ok = false;
                 }
                 break;
@@ -2969,7 +2844,7 @@ gfxFont::InitFakeSmallCapsRun(gfxContext     *aContext,
                     if (!f->SplitAndInitTextRun(aContext, tempRun,
                                                 convertedString.BeginReading(),
                                                 0, convertedString.Length(),
-                                                aScript, vertical)) {
+                                                aScript)) {
                         ok = false;
                     } else {
                         nsAutoPtr<gfxTextRun> mergedRun;
@@ -2988,7 +2863,7 @@ gfxFont::InitFakeSmallCapsRun(gfxContext     *aContext,
                     if (!f->SplitAndInitTextRun(aContext, aTextRun,
                                                 convertedString.BeginReading(),
                                                 aOffset + runStart, runLength,
-                                                aScript, vertical)) {
+                                                aScript)) {
                         ok = false;
                     }
                 }
@@ -3035,7 +2910,7 @@ gfxFont::GetSmallCapsFont()
     style.variantCaps = NS_FONT_VARIANT_CAPS_NORMAL;
     gfxFontEntry* fe = GetFontEntry();
     bool needsBold = style.weight >= 600 && !fe->IsBold();
-    return fe->FindOrMakeFont(&style, needsBold, mUnicodeRangeMap);
+    return fe->FindOrMakeFont(&style, needsBold);
 }
 
 already_AddRefed<gfxFont>
@@ -3045,7 +2920,7 @@ gfxFont::GetSubSuperscriptFont(int32_t aAppUnitsPerDevPixel)
     style.AdjustForSubSuperscript(aAppUnitsPerDevPixel);
     gfxFontEntry* fe = GetFontEntry();
     bool needsBold = style.weight >= 600 && !fe->IsBold();
-    return fe->FindOrMakeFont(&style, needsBold, mUnicodeRangeMap);
+    return fe->FindOrMakeFont(&style, needsBold);
 }
 
 gfxGlyphExtents *
@@ -3149,10 +3024,9 @@ gfxFont::InitMetricsFromSfntTables(Metrics& aMetrics)
     if (!hheaTable) {
         return false; // no 'hhea' table -> not an sfnt
     }
-    const MetricsHeader* hhea =
-        reinterpret_cast<const MetricsHeader*>
-            (hb_blob_get_data(hheaTable, &len));
-    if (len < sizeof(MetricsHeader)) {
+    const HheaTable* hhea =
+        reinterpret_cast<const HheaTable*>(hb_blob_get_data(hheaTable, &len));
+    if (len < sizeof(HheaTable)) {
         return false;
     }
 
@@ -3398,10 +3272,10 @@ gfxFont::CreateVerticalMetrics()
     if (!metrics->aveCharWidth) {
         gfxFontEntry::AutoTable hheaTable(mFontEntry, kHheaTableTag);
         if (hheaTable) {
-            const MetricsHeader* hhea =
-                reinterpret_cast<const MetricsHeader*>
-                    (hb_blob_get_data(hheaTable, &len));
-            if (len >= sizeof(MetricsHeader)) {
+            const HheaTable* hhea =
+                reinterpret_cast<const HheaTable*>(hb_blob_get_data(hheaTable,
+                                                                    &len));
+            if (len >= sizeof(HheaTable)) {
                 SET_SIGNED(aveCharWidth, int16_t(hhea->ascender) -
                                          int16_t(hhea->descender));
                 metrics->maxAscent = metrics->aveCharWidth / 2;
@@ -3414,10 +3288,10 @@ gfxFont::CreateVerticalMetrics()
     // Read real vertical metrics if available.
     gfxFontEntry::AutoTable vheaTable(mFontEntry, kVheaTableTag);
     if (vheaTable) {
-        const MetricsHeader* vhea =
-            reinterpret_cast<const MetricsHeader*>
-                (hb_blob_get_data(vheaTable, &len));
-        if (len >= sizeof(MetricsHeader)) {
+        const HheaTable* vhea =
+            reinterpret_cast<const HheaTable*>(hb_blob_get_data(vheaTable,
+                                                                &len));
+        if (len >= sizeof(HheaTable)) {
             SET_UNSIGNED(maxAdvance, vhea->advanceWidthMax);
             SET_SIGNED(maxAscent, vhea->ascender);
             SET_SIGNED(maxDescent, -int16_t(vhea->descender));
@@ -3470,10 +3344,11 @@ gfxFont::CreateVerticalMetrics()
     // We synthesize our own positions, as font metrics don't provide these
     // for vertical layout.
     metrics->underlineSize = std::max(1.0, metrics->underlineSize);
-    metrics->underlineOffset = - metrics->maxDescent - metrics->underlineSize;
+    metrics->underlineOffset = 0; // XXX to be adjusted
 
     metrics->strikeoutSize = std::max(1.0, metrics->strikeoutSize);
-    metrics->strikeoutOffset = - 0.5 * metrics->strikeoutSize;
+    metrics->strikeoutOffset =
+        metrics->maxDescent - 0.5 * metrics->strikeoutSize;
 
     // Somewhat arbitrary values for now, subject to future refinement...
     metrics->spaceWidth = metrics->aveCharWidth;

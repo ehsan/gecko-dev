@@ -102,7 +102,6 @@ class JitCode : public gc::TenuredCell
     }
     void trace(JSTracer *trc);
     void finalize(FreeOp *fop);
-    void fixupAfterMovingGC() {}
     void setInvalidated() {
         invalidated_ = true;
     }
@@ -128,7 +127,7 @@ class JitCode : public gc::TenuredCell
 
     static JitCode *FromExecutable(uint8_t *buffer) {
         JitCode *code = *(JitCode **)(buffer - sizeof(JitCode *));
-        MOZ_ASSERT(code->raw() == buffer);
+        JS_ASSERT(code->raw() == buffer);
         return code;
     }
 
@@ -406,7 +405,7 @@ struct IonScript
         return method_;
     }
     void setMethod(JitCode *code) {
-        MOZ_ASSERT(!invalidated());
+        JS_ASSERT(!invalidated());
         method_ = code;
     }
     void setDeoptTable(JitCode *code) {
@@ -419,14 +418,14 @@ struct IonScript
         return osrPc_;
     }
     void setOsrEntryOffset(uint32_t offset) {
-        MOZ_ASSERT(!osrEntryOffset_);
+        JS_ASSERT(!osrEntryOffset_);
         osrEntryOffset_ = offset;
     }
     uint32_t osrEntryOffset() const {
         return osrEntryOffset_;
     }
     void setSkipArgCheckEntryOffset(uint32_t offset) {
-        MOZ_ASSERT(!skipArgCheckEntryOffset_);
+        JS_ASSERT(!skipArgCheckEntryOffset_);
         skipArgCheckEntryOffset_ = offset;
     }
     uint32_t getSkipArgCheckEntryOffset() const {
@@ -441,19 +440,19 @@ struct IonScript
         return method()->raw() <= addr && addr <= method()->raw() + method()->instructionsSize();
     }
     void setInvalidationEpilogueOffset(uint32_t offset) {
-        MOZ_ASSERT(!invalidateEpilogueOffset_);
+        JS_ASSERT(!invalidateEpilogueOffset_);
         invalidateEpilogueOffset_ = offset;
     }
     uint32_t invalidateEpilogueOffset() const {
-        MOZ_ASSERT(invalidateEpilogueOffset_);
+        JS_ASSERT(invalidateEpilogueOffset_);
         return invalidateEpilogueOffset_;
     }
     void setInvalidationEpilogueDataOffset(uint32_t offset) {
-        MOZ_ASSERT(!invalidateEpilogueDataOffset_);
+        JS_ASSERT(!invalidateEpilogueDataOffset_);
         invalidateEpilogueDataOffset_ = offset;
     }
     uint32_t invalidateEpilogueDataOffset() const {
-        MOZ_ASSERT(invalidateEpilogueDataOffset_);
+        JS_ASSERT(invalidateEpilogueDataOffset_);
         return invalidateEpilogueDataOffset_;
     }
     void incNumBailouts() {
@@ -520,7 +519,7 @@ struct IonScript
         return mallocSizeOf(this);
     }
     PreBarrieredValue &getConstant(size_t index) {
-        MOZ_ASSERT(index < numConstants());
+        JS_ASSERT(index < numConstants());
         return constants()[index];
     }
     size_t numConstants() const {
@@ -533,23 +532,23 @@ struct IonScript
         return frameSize_;
     }
     SnapshotOffset bailoutToSnapshot(uint32_t bailoutId) {
-        MOZ_ASSERT(bailoutId < bailoutEntries_);
+        JS_ASSERT(bailoutId < bailoutEntries_);
         return bailoutTable()[bailoutId];
     }
     const SafepointIndex *getSafepointIndex(uint32_t disp) const;
     const SafepointIndex *getSafepointIndex(uint8_t *retAddr) const {
-        MOZ_ASSERT(containsCodeAddress(retAddr));
+        JS_ASSERT(containsCodeAddress(retAddr));
         return getSafepointIndex(retAddr - method()->raw());
     }
     const OsiIndex *getOsiIndex(uint32_t disp) const;
     const OsiIndex *getOsiIndex(uint8_t *retAddr) const;
     inline IonCache &getCacheFromIndex(uint32_t index) {
-        MOZ_ASSERT(index < cacheEntries_);
+        JS_ASSERT(index < cacheEntries_);
         uint32_t offset = cacheIndex()[index];
         return getCache(offset);
     }
     inline IonCache &getCache(uint32_t offset) {
-        MOZ_ASSERT(offset < runtimeSize_);
+        JS_ASSERT(offset < runtimeSize_);
         return *(IonCache *) &runtimeData()[offset];
     }
     size_t numCaches() const {
@@ -559,7 +558,7 @@ struct IonScript
         return runtimeSize_;
     }
     CacheLocation *getCacheLocs(uint32_t locIndex) {
-        MOZ_ASSERT(locIndex < runtimeSize_);
+        JS_ASSERT(locIndex < runtimeSize_);
         return (CacheLocation *) &runtimeData()[locIndex];
     }
     void toggleBarriers(bool enabled);
@@ -594,7 +593,7 @@ struct IonScript
         refcount_++;
     }
     void decref(FreeOp *fop) {
-        MOZ_ASSERT(refcount_);
+        JS_ASSERT(refcount_);
         refcount_--;
         if (!refcount_)
             Destroy(fop, this);
@@ -711,12 +710,12 @@ struct IonBlockCounts
     }
 
     void setSuccessor(size_t i, uint32_t id) {
-        MOZ_ASSERT(i < numSuccessors_);
+        JS_ASSERT(i < numSuccessors_);
         successors_[i] = id;
     }
 
     uint32_t successor(size_t i) const {
-        MOZ_ASSERT(i < numSuccessors_);
+        JS_ASSERT(i < numSuccessors_);
         return successors_[i];
     }
 
@@ -777,7 +776,7 @@ struct IonScriptCounts
     }
 
     IonBlockCounts &block(size_t i) {
-        MOZ_ASSERT(i < numBlocks_);
+        JS_ASSERT(i < numBlocks_);
         return blocks_[i];
     }
 

@@ -69,18 +69,6 @@ OverscrollHandoffChain::ForEachApzc(APZCMethod aMethod) const
   }
 }
 
-bool
-OverscrollHandoffChain::AnyApzc(APZCPredicate aPredicate) const
-{
-  MOZ_ASSERT(Length() > 0);
-  for (uint32_t i = 0; i < Length(); ++i) {
-    if ((mChain[i]->*aPredicate)()) {
-      return true;
-    }
-  }
-  return false;
-}
-
 void
 OverscrollHandoffChain::FlushRepaints() const
 {
@@ -100,19 +88,18 @@ OverscrollHandoffChain::ClearOverscroll() const
 }
 
 void
-OverscrollHandoffChain::SnapBackOverscrolledApzc(const AsyncPanZoomController* aStart) const
+OverscrollHandoffChain::SnapBackOverscrolledApzc() const
 {
-  uint32_t i = IndexOf(aStart);
-  for (; i < Length(); ++i) {
+  uint32_t i = 0;
+  for (i = 0; i < Length(); ++i) {
     AsyncPanZoomController* apzc = mChain[i];
     if (!apzc->IsDestroyed() && apzc->SnapBackIfOverscrolled()) {
-      // At most one APZC from |aStart| onwards can be overscrolled.
+      // At most one APZC along the hand-off chain can be overscrolled.
       break;
     }
   }
 
-  // In debug builds, verify our assumption that only one APZC from |aStart|
-  // onwards is overscrolled.
+  // In debug builds, verify our assumption that only one APZC is overscrolled.
 #ifdef DEBUG
   ++i;
   for (; i < Length(); ++i) {
@@ -140,19 +127,6 @@ OverscrollHandoffChain::CanBePanned(const AsyncPanZoomController* aApzc) const
 
   return false;
 }
-
-bool
-OverscrollHandoffChain::HasOverscrolledApzc() const
-{
-  return AnyApzc(&AsyncPanZoomController::IsOverscrolled);
-}
-
-bool
-OverscrollHandoffChain::HasFastMovingApzc() const
-{
-  return AnyApzc(&AsyncPanZoomController::IsMovingFast);
-}
-
 
 } // namespace layers
 } // namespace mozilla

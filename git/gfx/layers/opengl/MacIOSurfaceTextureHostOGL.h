@@ -6,7 +6,6 @@
 #ifndef MOZILLA_GFX_MACIOSURFACETEXTUREHOSTOGL_H
 #define MOZILLA_GFX_MACIOSURFACETEXTUREHOSTOGL_H
 
-#include "mozilla/layers/CompositorOGL.h"
 #include "mozilla/layers/TextureHostOGL.h"
 
 class MacIOSurface;
@@ -20,7 +19,7 @@ namespace layers {
  * It does not own any GL texture, and attaches its shared handle to one of
  * the compositor's temporary textures when binding.
  */
-class MacIOSurfaceTextureSourceOGL : public TextureSource
+class MacIOSurfaceTextureSourceOGL : public NewTextureSource
                                    , public TextureSourceOGL
 {
 public:
@@ -50,7 +49,7 @@ public:
   gl::GLContext* gl() const;
 
 protected:
-  RefPtr<CompositorOGL> mCompositor;
+  CompositorOGL* mCompositor;
   RefPtr<MacIOSurface> mSurface;
 };
 
@@ -74,7 +73,7 @@ public:
 
   virtual gfx::SurfaceFormat GetFormat() const MOZ_OVERRIDE;
 
-  virtual TextureSource* GetTextureSources() MOZ_OVERRIDE
+  virtual NewTextureSource* GetTextureSources() MOZ_OVERRIDE
   {
     return mTextureSource;
   }
@@ -93,7 +92,7 @@ public:
 #endif
 
 protected:
-  RefPtr<CompositorOGL> mCompositor;
+  CompositorOGL* mCompositor;
   RefPtr<MacIOSurfaceTextureSourceOGL> mTextureSource;
   RefPtr<MacIOSurface> mSurface;
 };

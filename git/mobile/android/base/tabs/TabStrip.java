@@ -82,7 +82,9 @@ public class TabStrip extends ThemedLinearLayout {
             switch (msg) {
                 case RESTORED:
                 case ADDED:
-                    tabStripView.addTab(tab);
+                    // Refresh the list to make sure the new tab is
+                    // added in the right position.
+                    tabStripView.refreshTabs();
                     break;
 
                 case CLOSED:

@@ -58,20 +58,17 @@ WrapperAnswer::ok(ReturnStatus *rs)
 }
 
 bool
-WrapperAnswer::RecvPreventExtensions(const ObjectId &objId, ReturnStatus *rs,
-                                     bool *succeeded)
+WrapperAnswer::AnswerPreventExtensions(const ObjectId &objId, ReturnStatus *rs)
 {
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
-
-    *succeeded = false;
 
     RootedObject obj(cx, findObjectById(cx, objId));
     if (!obj)
         return fail(cx, rs);
 
     JSAutoCompartment comp(cx, obj);
-    if (!JS_PreventExtensions(cx, obj, succeeded))
+    if (!JS_PreventExtensions(cx, obj))
         return fail(cx, rs);
 
     LOG("%s.preventExtensions()", ReceiverObj(objId));
@@ -90,8 +87,8 @@ EmptyDesc(PPropertyDescriptor *desc)
 }
 
 bool
-WrapperAnswer::RecvGetPropertyDescriptor(const ObjectId &objId, const JSIDVariant &idVar,
-                                         ReturnStatus *rs, PPropertyDescriptor *out)
+WrapperAnswer::AnswerGetPropertyDescriptor(const ObjectId &objId, const nsString &id,
+					   ReturnStatus *rs, PPropertyDescriptor *out)
 {
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
@@ -104,15 +101,18 @@ WrapperAnswer::RecvGetPropertyDescriptor(const ObjectId &objId, const JSIDVarian
 
     JSAutoCompartment comp(cx, obj);
 
-    LOG("%s.getPropertyDescriptor(%s)", ReceiverObj(objId), Identifier(idVar));
+    LOG("%s.getPropertyDescriptor(%s)", ReceiverObj(objId), id);
 
-    RootedId id(cx);
-    if (!fromJSIDVariant(cx, idVar, &id))
+    RootedId internedId(cx);
+    if (!convertGeckoStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
     Rooted<JSPropertyDescriptor> desc(cx);
-    if (!JS_GetPropertyDescriptorById(cx, obj, id, &desc))
+    if (!JS_GetPropertyDescriptorById(cx, obj, internedId, &desc))
         return fail(cx, rs);
+
+    if (!desc.object())
+        return ok(rs);
 
     if (!fromDescriptor(cx, desc, out))
         return fail(cx, rs);
@@ -121,8 +121,8 @@ WrapperAnswer::RecvGetPropertyDescriptor(const ObjectId &objId, const JSIDVarian
 }
 
 bool
-WrapperAnswer::RecvGetOwnPropertyDescriptor(const ObjectId &objId, const JSIDVariant &idVar,
-                                            ReturnStatus *rs, PPropertyDescriptor *out)
+WrapperAnswer::AnswerGetOwnPropertyDescriptor(const ObjectId &objId, const nsString &id,
+					      ReturnStatus *rs, PPropertyDescriptor *out)
 {
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
@@ -135,15 +135,18 @@ WrapperAnswer::RecvGetOwnPropertyDescriptor(const ObjectId &objId, const JSIDVar
 
     JSAutoCompartment comp(cx, obj);
 
-    LOG("%s.getOwnPropertyDescriptor(%s)", ReceiverObj(objId), Identifier(idVar));
+    LOG("%s.getOwnPropertyDescriptor(%s)", ReceiverObj(objId), id);
 
-    RootedId id(cx);
-    if (!fromJSIDVariant(cx, idVar, &id))
+    RootedId internedId(cx);
+    if (!convertGeckoStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
     Rooted<JSPropertyDescriptor> desc(cx);
-    if (!JS_GetOwnPropertyDescriptorById(cx, obj, id, &desc))
+    if (!JS_GetPropertyDescriptorById(cx, obj, internedId, &desc))
         return fail(cx, rs);
+
+    if (desc.object() != obj)
+        return ok(rs);
 
     if (!fromDescriptor(cx, desc, out))
         return fail(cx, rs);
@@ -152,8 +155,8 @@ WrapperAnswer::RecvGetOwnPropertyDescriptor(const ObjectId &objId, const JSIDVar
 }
 
 bool
-WrapperAnswer::RecvDefineProperty(const ObjectId &objId, const JSIDVariant &idVar,
-                                  const PPropertyDescriptor &descriptor, ReturnStatus *rs)
+WrapperAnswer::AnswerDefineProperty(const ObjectId &objId, const nsString &id,
+				    const PPropertyDescriptor &descriptor, ReturnStatus *rs)
 {
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
@@ -164,29 +167,24 @@ WrapperAnswer::RecvDefineProperty(const ObjectId &objId, const JSIDVariant &idVa
 
     JSAutoCompartment comp(cx, obj);
 
-    LOG("define %s[%s]", ReceiverObj(objId), Identifier(idVar));
+    LOG("define %s[%s]", ReceiverObj(objId), id);
 
-    RootedId id(cx);
-    if (!fromJSIDVariant(cx, idVar, &id))
+    RootedId internedId(cx);
+    if (!convertGeckoStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
     Rooted<JSPropertyDescriptor> desc(cx);
     if (!toDescriptor(cx, descriptor, &desc))
         return fail(cx, rs);
 
-    if (!js::CheckDefineProperty(cx, obj, id, desc.value(), desc.attributes(),
+    if (!js::CheckDefineProperty(cx, obj, internedId, desc.value(), desc.attributes(),
                                  desc.getter(), desc.setter()))
     {
         return fail(cx, rs);
     }
 
-    if (!JS_DefinePropertyById(cx, obj, id, desc.value(),
-                               // Descrriptors never store JSNatives for
-                               // accessors: they have either JSFunctions or
-                               // JSPropertyOps.
-                               desc.attributes() | JSPROP_PROPOP_ACCESSORS,
-                               JS_PROPERTYOP_GETTER(desc.getter()),
-                               JS_PROPERTYOP_SETTER(desc.setter())))
+    if (!JS_DefinePropertyById(cx, obj, internedId, desc.value(), desc.attributes(),
+                               desc.getter(), desc.setter()))
     {
         return fail(cx, rs);
     }
@@ -195,8 +193,8 @@ WrapperAnswer::RecvDefineProperty(const ObjectId &objId, const JSIDVariant &idVa
 }
 
 bool
-WrapperAnswer::RecvDelete(const ObjectId &objId, const JSIDVariant &idVar, ReturnStatus *rs,
-                          bool *success)
+WrapperAnswer::AnswerDelete(const ObjectId &objId, const nsString &id, ReturnStatus *rs,
+			    bool *success)
 {
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
@@ -209,20 +207,20 @@ WrapperAnswer::RecvDelete(const ObjectId &objId, const JSIDVariant &idVar, Retur
 
     JSAutoCompartment comp(cx, obj);
 
-    LOG("delete %s[%s]", ReceiverObj(objId), Identifier(idVar));
+    LOG("delete %s[%s]", ReceiverObj(objId), id);
 
-    RootedId id(cx);
-    if (!fromJSIDVariant(cx, idVar, &id))
+    RootedId internedId(cx);
+    if (!convertGeckoStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
-    if (!JS_DeletePropertyById2(cx, obj, id, success))
+    if (!JS_DeletePropertyById2(cx, obj, internedId, success))
         return fail(cx, rs);
 
     return ok(rs);
 }
 
 bool
-WrapperAnswer::RecvHas(const ObjectId &objId, const JSIDVariant &idVar, ReturnStatus *rs, bool *bp)
+WrapperAnswer::AnswerHas(const ObjectId &objId, const nsString &id, ReturnStatus *rs, bool *bp)
 {
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
@@ -235,14 +233,14 @@ WrapperAnswer::RecvHas(const ObjectId &objId, const JSIDVariant &idVar, ReturnSt
 
     JSAutoCompartment comp(cx, obj);
 
-    LOG("%s.has(%s)", ReceiverObj(objId), Identifier(idVar));
+    LOG("%s.has(%s)", ReceiverObj(objId), id);
 
-    RootedId id(cx);
-    if (!fromJSIDVariant(cx, idVar, &id))
+    RootedId internedId(cx);
+    if (!convertGeckoStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
     bool found;
-    if (!JS_HasPropertyById(cx, obj, id, &found))
+    if (!JS_HasPropertyById(cx, obj, internedId, &found))
         return fail(cx, rs);
     *bp = !!found;
 
@@ -250,8 +248,7 @@ WrapperAnswer::RecvHas(const ObjectId &objId, const JSIDVariant &idVar, ReturnSt
 }
 
 bool
-WrapperAnswer::RecvHasOwn(const ObjectId &objId, const JSIDVariant &idVar, ReturnStatus *rs,
-                          bool *bp)
+WrapperAnswer::AnswerHasOwn(const ObjectId &objId, const nsString &id, ReturnStatus *rs, bool *bp)
 {
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
@@ -264,14 +261,14 @@ WrapperAnswer::RecvHasOwn(const ObjectId &objId, const JSIDVariant &idVar, Retur
 
     JSAutoCompartment comp(cx, obj);
 
-    LOG("%s.hasOwn(%s)", ReceiverObj(objId), Identifier(idVar));
+    LOG("%s.hasOwn(%s)", ReceiverObj(objId), id);
 
-    RootedId id(cx);
-    if (!fromJSIDVariant(cx, idVar, &id))
+    RootedId internedId(cx);
+    if (!convertGeckoStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
     Rooted<JSPropertyDescriptor> desc(cx);
-    if (!JS_GetPropertyDescriptorById(cx, obj, id, &desc))
+    if (!JS_GetPropertyDescriptorById(cx, obj, internedId, &desc))
         return fail(cx, rs);
     *bp = (desc.object() == obj);
 
@@ -279,8 +276,8 @@ WrapperAnswer::RecvHasOwn(const ObjectId &objId, const JSIDVariant &idVar, Retur
 }
 
 bool
-WrapperAnswer::RecvGet(const ObjectId &objId, const ObjectVariant &receiverVar,
-                       const JSIDVariant &idVar, ReturnStatus *rs, JSVariant *result)
+WrapperAnswer::AnswerGet(const ObjectId &objId, const ObjectVariant &receiverVar, const nsString &id,
+			 ReturnStatus *rs, JSVariant *result)
 {
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
@@ -299,26 +296,26 @@ WrapperAnswer::RecvGet(const ObjectId &objId, const ObjectVariant &receiverVar,
     if (!receiver)
         return fail(cx, rs);
 
-    RootedId id(cx);
-    if (!fromJSIDVariant(cx, idVar, &id))
+    RootedId internedId(cx);
+    if (!convertGeckoStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
     JS::RootedValue val(cx);
-    if (!JS_ForwardGetPropertyTo(cx, obj, id, receiver, &val))
+    if (!JS_ForwardGetPropertyTo(cx, obj, internedId, receiver, &val))
         return fail(cx, rs);
 
     if (!toVariant(cx, val, result))
         return fail(cx, rs);
 
-    LOG("get %s.%s = %s", ReceiverObj(objId), Identifier(idVar), OutVariant(*result));
+    LOG("get %s.%s = %s", ReceiverObj(objId), id, OutVariant(*result));
 
     return ok(rs);
 }
 
 bool
-WrapperAnswer::RecvSet(const ObjectId &objId, const ObjectVariant &receiverVar,
-                       const JSIDVariant &idVar, const bool &strict, const JSVariant &value,
-                       ReturnStatus *rs, JSVariant *result)
+WrapperAnswer::AnswerSet(const ObjectId &objId, const ObjectVariant &receiverVar, const nsString &id,
+			 const bool &strict, const JSVariant &value, ReturnStatus *rs,
+			 JSVariant *result)
 {
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
@@ -337,10 +334,10 @@ WrapperAnswer::RecvSet(const ObjectId &objId, const ObjectVariant &receiverVar,
     if (!receiver)
         return fail(cx, rs);
 
-    LOG("set %s[%s] = %s", ReceiverObj(objId), Identifier(idVar), InVariant(value));
+    LOG("set %s[%s] = %s", ReceiverObj(objId), id, InVariant(value));
 
-    RootedId id(cx);
-    if (!fromJSIDVariant(cx, idVar, &id))
+    RootedId internedId(cx);
+    if (!convertGeckoStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
     MOZ_ASSERT(obj == receiver);
@@ -349,7 +346,7 @@ WrapperAnswer::RecvSet(const ObjectId &objId, const ObjectVariant &receiverVar,
     if (!fromVariant(cx, value, &val))
         return fail(cx, rs);
 
-    if (!JS_SetPropertyById(cx, obj, id, val))
+    if (!JS_SetPropertyById(cx, obj, internedId, val))
         return fail(cx, rs);
 
     if (!toVariant(cx, val, result))
@@ -359,7 +356,7 @@ WrapperAnswer::RecvSet(const ObjectId &objId, const ObjectVariant &receiverVar,
 }
 
 bool
-WrapperAnswer::RecvIsExtensible(const ObjectId &objId, ReturnStatus *rs, bool *result)
+WrapperAnswer::AnswerIsExtensible(const ObjectId &objId, ReturnStatus *rs, bool *result)
 {
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
@@ -383,12 +380,12 @@ WrapperAnswer::RecvIsExtensible(const ObjectId &objId, ReturnStatus *rs, bool *r
 }
 
 bool
-WrapperAnswer::RecvCallOrConstruct(const ObjectId &objId,
-                                   const nsTArray<JSParam> &argv,
-                                   const bool &construct,
-                                   ReturnStatus *rs,
-                                   JSVariant *result,
-                                   nsTArray<JSParam> *outparams)
+WrapperAnswer::AnswerCallOrConstruct(const ObjectId &objId,
+                                     const nsTArray<JSParam> &argv,
+                                     const bool &construct,
+                                     ReturnStatus *rs,
+                                     JSVariant *result,
+                                     nsTArray<JSParam> *outparams)
 {
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
@@ -490,7 +487,7 @@ WrapperAnswer::RecvCallOrConstruct(const ObjectId &objId,
 }
 
 bool
-WrapperAnswer::RecvHasInstance(const ObjectId &objId, const JSVariant &vVar, ReturnStatus *rs, bool *bp)
+WrapperAnswer::AnswerHasInstance(const ObjectId &objId, const JSVariant &vVar, ReturnStatus *rs, bool *bp)
 {
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
@@ -514,8 +511,8 @@ WrapperAnswer::RecvHasInstance(const ObjectId &objId, const JSVariant &vVar, Ret
 }
 
 bool
-WrapperAnswer::RecvObjectClassIs(const ObjectId &objId, const uint32_t &classValue,
-                                 bool *result)
+WrapperAnswer::AnswerObjectClassIs(const ObjectId &objId, const uint32_t &classValue,
+				   bool *result)
 {
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
@@ -536,7 +533,7 @@ WrapperAnswer::RecvObjectClassIs(const ObjectId &objId, const uint32_t &classVal
 }
 
 bool
-WrapperAnswer::RecvClassName(const ObjectId &objId, nsString *name)
+WrapperAnswer::AnswerClassName(const ObjectId &objId, nsString *name)
 {
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
@@ -556,33 +553,8 @@ WrapperAnswer::RecvClassName(const ObjectId &objId, nsString *name)
 }
 
 bool
-WrapperAnswer::RecvRegExpToShared(const ObjectId &objId, ReturnStatus *rs,
-                                  nsString *source, uint32_t *flags)
-{
-    AutoSafeJSContext cx;
-    RootedObject obj(cx, findObjectById(cx, objId));
-    if (!obj)
-        return fail(cx, rs);
-
-    JSAutoCompartment ac(cx, obj);
-    MOZ_RELEASE_ASSERT(JS_ObjectIsRegExp(cx, obj));
-
-    RootedString sourceJSStr(cx, JS_GetRegExpSource(cx, obj));
-    if (!sourceJSStr)
-        return fail(cx, rs);
-    nsAutoJSString sourceStr;
-    if (!sourceStr.init(cx, sourceJSStr))
-        return fail(cx, rs);
-    source->Assign(sourceStr);
-
-    *flags = JS_GetRegExpFlags(cx, obj);
-
-    return ok(rs);
-}
-
-bool
-WrapperAnswer::RecvGetPropertyKeys(const ObjectId &objId, const uint32_t &flags,
-                                   ReturnStatus *rs, nsTArray<JSIDVariant> *ids)
+WrapperAnswer::AnswerGetPropertyNames(const ObjectId &objId, const uint32_t &flags,
+				      ReturnStatus *rs, nsTArray<nsString> *names)
 {
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
@@ -593,26 +565,26 @@ WrapperAnswer::RecvGetPropertyKeys(const ObjectId &objId, const uint32_t &flags,
 
     JSAutoCompartment comp(cx, obj);
 
-    LOG("%s.getPropertyKeys()", ReceiverObj(objId));
+    LOG("%s.getPropertyNames()", ReceiverObj(objId));
 
     AutoIdVector props(cx);
-    if (!js::GetPropertyKeys(cx, obj, flags, &props))
+    if (!js::GetPropertyNames(cx, obj, flags, &props))
         return fail(cx, rs);
 
     for (size_t i = 0; i < props.length(); i++) {
-        JSIDVariant id;
-        if (!toJSIDVariant(cx, props[i], &id))
+        nsString name;
+        if (!convertIdToGeckoString(cx, props[i], &name))
             return fail(cx, rs);
 
-        ids->AppendElement(id);
+        names->AppendElement(name);
     }
 
     return ok(rs);
 }
 
 bool
-WrapperAnswer::RecvInstanceOf(const ObjectId &objId, const JSIID &iid, ReturnStatus *rs,
-                              bool *instanceof)
+WrapperAnswer::AnswerInstanceOf(const ObjectId &objId, const JSIID &iid, ReturnStatus *rs,
+				bool *instanceof)
 {
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
@@ -638,8 +610,9 @@ WrapperAnswer::RecvInstanceOf(const ObjectId &objId, const JSIID &iid, ReturnSta
 }
 
 bool
-WrapperAnswer::RecvDOMInstanceOf(const ObjectId &objId, const int &prototypeID,
-                                 const int &depth, ReturnStatus *rs, bool *instanceof)
+WrapperAnswer::AnswerDOMInstanceOf(const ObjectId &objId, const int &prototypeID,
+				   const int &depth,
+				   ReturnStatus *rs, bool *instanceof)
 {
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
@@ -661,6 +634,47 @@ WrapperAnswer::RecvDOMInstanceOf(const ObjectId &objId, const int &prototypeID,
 
     return ok(rs);
 }
+
+bool
+WrapperAnswer::AnswerIsCallable(const ObjectId &objId, bool *result)
+{
+    AutoSafeJSContext cx;
+    JSAutoRequest request(cx);
+
+    RootedObject obj(cx, findObjectById(cx, objId));
+    if (!obj) {
+        // This is very unfortunate, but we have no choice.
+        *result = false;
+        return true;
+    }
+    JSAutoCompartment ac(cx, obj); // Not really necessary here, but be safe.
+
+    LOG("%s.isCallable()", ReceiverObj(objId));
+
+    *result = JS::IsCallable(obj);
+    return true;
+}
+
+bool
+WrapperAnswer::AnswerIsConstructor(const ObjectId &objId, bool *result)
+{
+    AutoSafeJSContext cx;
+    JSAutoRequest request(cx);
+
+    RootedObject obj(cx, findObjectById(cx, objId));
+    if (!obj) {
+        // This is very unfortunate, but we have no choice.
+        *result = false;
+        return true;
+    }
+    JSAutoCompartment ac(cx, obj); // Not really necessary here, but be safe.
+
+    LOG("%s.isConstructor()", ReceiverObj(objId));
+
+    *result = JS::IsConstructor(obj);
+    return true;
+}
+
 
 bool
 WrapperAnswer::RecvDropObject(const ObjectId &objId)

@@ -15,6 +15,7 @@
 #include "base/basictypes.h"
 
 #include "jsapi.h"
+#include "js/OldDebugAPI.h"
 
 #include "xpcpublic.h"
 
@@ -61,13 +62,11 @@ public:
     XPCShellDirProvider() { }
     ~XPCShellDirProvider() { }
 
-    bool SetGREDirs(const char *dir);
-    void ClearGREDirs() { mGREDir = nullptr;
-                          mGREBinDir = nullptr; }
+    bool SetGREDir(const char *dir);
+    void ClearGREDir() { mGREDir = nullptr; }
 
 private:
     nsCOMPtr<nsIFile> mGREDir;
-    nsCOMPtr<nsIFile> mGREBinDir;
 };
 
 inline XPCShellEnvironment*
@@ -412,15 +411,9 @@ XPCShellDirProvider::Release()
 NS_IMPL_QUERY_INTERFACE(XPCShellDirProvider, nsIDirectoryServiceProvider)
 
 bool
-XPCShellDirProvider::SetGREDirs(const char *dir)
+XPCShellDirProvider::SetGREDir(const char *dir)
 {
     nsresult rv = XRE_GetFileFromPath(dir, getter_AddRefs(mGREDir));
-    if (NS_SUCCEEDED(rv)) {
-        mGREDir->Clone(getter_AddRefs(mGREBinDir));
-#ifdef XP_MACOSX
-        mGREBinDir->SetNativeLeafName(NS_LITERAL_CSTRING("MacOS"));
-#endif
-    }
     return NS_SUCCEEDED(rv);
 }
 
@@ -432,10 +425,6 @@ XPCShellDirProvider::GetFile(const char *prop,
     if (mGREDir && !strcmp(prop, NS_GRE_DIR)) {
         *persistent = true;
         NS_ADDREF(*result = mGREDir);
-        return NS_OK;
-    } else if (mGREBinDir && !strcmp(prop, NS_GRE_BIN_DIR)) {
-        *persistent = true;
-        NS_ADDREF(*result = mGREBinDir);
         return NS_OK;
     }
 
@@ -558,9 +547,8 @@ XPCShellEnvironment::Init()
 
     JS::Rooted<Value> privateVal(cx, PrivateValue(this));
     if (!JS_DefineProperty(cx, globalObj, "__XPCShellEnvironment",
-                           privateVal,
-                           JSPROP_READONLY | JSPROP_PERMANENT,
-                           JS_STUBGETTER, JS_STUBSETTER) ||
+                           privateVal, JSPROP_READONLY | JSPROP_PERMANENT,
+                           JS_PropertyStub, JS_StrictPropertyStub) ||
         !JS_DefineFunctions(cx, globalObj, gGlobalFunctions) ||
         !JS_DefineProfilingFunctions(cx, globalObj))
     {

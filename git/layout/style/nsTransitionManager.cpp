@@ -71,37 +71,31 @@ ElementPropertyTransition::CurrentValuePortion() const
 }
 
 /*****************************************************************************
- * CSSTransitionPlayer                                                       *
+ * nsTransitionManager                                                       *
  *****************************************************************************/
 
-mozilla::dom::AnimationPlayState
-CSSTransitionPlayer::PlayStateFromJS() const
+void
+nsTransitionManager::ElementCollectionRemoved()
 {
-  FlushStyle();
-  return AnimationPlayer::PlayStateFromJS();
+  // If we have no transitions or animations left, remove ourselves from
+  // the refresh driver.
+  if (PR_CLIST_IS_EMPTY(&mElementCollections)) {
+    mPresContext->RefreshDriver()->RemoveRefreshObserver(this, Flush_Style);
+  }
 }
 
 void
-CSSTransitionPlayer::PlayFromJS()
+nsTransitionManager::AddElementCollection(
+  AnimationPlayerCollection* aCollection)
 {
-  FlushStyle();
-  AnimationPlayer::PlayFromJS();
-}
-
-CommonAnimationManager*
-CSSTransitionPlayer::GetAnimationManager() const
-{
-  nsPresContext* context = GetPresContext();
-  if (!context) {
-    return nullptr;
+  if (PR_CLIST_IS_EMPTY(&mElementCollections)) {
+    // We need to observe the refresh driver.
+    nsRefreshDriver *rd = mPresContext->RefreshDriver();
+    rd->AddRefreshObserver(this, Flush_Style);
   }
 
-  return context->TransitionManager();
+  PR_INSERT_BEFORE(aCollection, &mElementCollections);
 }
-
-/*****************************************************************************
- * nsTransitionManager                                                       *
- *****************************************************************************/
 
 already_AddRefed<nsIStyleRule>
 nsTransitionManager::StyleContextChanged(dom::Element *aElement,
@@ -172,7 +166,7 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
   }
 
   AnimationPlayerCollection* collection =
-    GetAnimationPlayers(aElement, pseudoType, false);
+    GetElementTransitions(aElement, pseudoType, false);
   if (!collection &&
       disp->mTransitionPropertyCount == 1 &&
       disp->mTransitions[0].GetDelay() == 0.0f &&
@@ -181,9 +175,7 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
   }
 
 
-  // FIXME (bug 960465): This test should go away.
-  if (aNewStyleContext->PresContext()->RestyleManager()->
-        IsProcessingAnimationStyleChange()) {
+  if (aNewStyleContext->PresContext()->IsProcessingAnimationStyleChange()) {
     return nullptr;
   }
 
@@ -523,8 +515,7 @@ nsTransitionManager::ConsiderStartingTransition(
   timing.mFillMode = NS_STYLE_ANIMATION_FILL_MODE_BACKWARDS;
 
   nsRefPtr<ElementPropertyTransition> pt =
-    new ElementPropertyTransition(aElement->OwnerDoc(), aElement,
-                                  aNewStyleContext->GetPseudoType(), timing);
+    new ElementPropertyTransition(aElement->OwnerDoc(), timing);
   pt->mStartForReversingTest = startForReversingTest;
   pt->mReversePortion = reversePortion;
 
@@ -538,13 +529,14 @@ nsTransitionManager::ConsiderStartingTransition(
   segment.mToKey = 1;
   segment.mTimingFunction.Init(tf);
 
-  nsRefPtr<CSSTransitionPlayer> player = new CSSTransitionPlayer(timeline);
-  player->mStartTime = timeline->GetCurrentTime();
+  nsRefPtr<dom::AnimationPlayer> player = new dom::AnimationPlayer(timeline);
+  player->mStartTime = timeline->GetCurrentTimeDuration();
   player->SetSource(pt);
 
   if (!aElementTransitions) {
     aElementTransitions =
-      GetAnimationPlayers(aElement, aNewStyleContext->GetPseudoType(), true);
+      GetElementTransitions(aElement, aNewStyleContext->GetPseudoType(),
+                            true);
     if (!aElementTransitions) {
       NS_WARNING("allocating CommonAnimationManager failed");
       return;
@@ -580,7 +572,7 @@ nsTransitionManager::ConsiderStartingTransition(
 }
 
 AnimationPlayerCollection*
-nsTransitionManager::GetAnimationPlayers(
+nsTransitionManager::GetElementTransitions(
   dom::Element *aElement,
   nsCSSPseudoElements::Type aPseudoType,
   bool aCreateIfNeeded)
@@ -607,7 +599,8 @@ nsTransitionManager::GetAnimationPlayers(
     static_cast<AnimationPlayerCollection*>(aElement->GetProperty(propName));
   if (!collection && aCreateIfNeeded) {
     // FIXME: Consider arena-allocating?
-    collection = new AnimationPlayerCollection(aElement, propName, this);
+    collection = new AnimationPlayerCollection(aElement, propName, this,
+      mPresContext->RefreshDriver()->MostRecentRefresh());
     nsresult rv =
       aElement->SetProperty(propName, collection,
                             &AnimationPlayerCollection::PropertyDtor, false);
@@ -631,12 +624,12 @@ nsTransitionManager::GetAnimationPlayers(
  */
 
 void
-nsTransitionManager::WalkTransitionRule(dom::Element* aElement,
-                                        nsCSSPseudoElements::Type aPseudoType,
-                                        nsRuleWalker* aRuleWalker)
+nsTransitionManager::WalkTransitionRule(
+  ElementDependentRuleProcessorData* aData,
+  nsCSSPseudoElements::Type aPseudoType)
 {
   AnimationPlayerCollection* collection =
-    GetAnimationPlayers(aElement, aPseudoType, false);
+    GetElementTransitions(aData->mElement, aPseudoType, false);
   if (!collection) {
     return;
   }
@@ -646,28 +639,26 @@ nsTransitionManager::WalkTransitionRule(dom::Element* aElement,
     return;
   }
 
-  RestyleManager* restyleManager = mPresContext->RestyleManager();
-  if (restyleManager->SkipAnimationRules()) {
+  if (aData->mPresContext->IsProcessingRestyles() &&
+      !aData->mPresContext->IsProcessingAnimationStyleChange()) {
     // If we're processing a normal style change rather than one from
     // animation, don't add the transition rule.  This allows us to
     // compute the new style value rather than having the transition
     // override it, so that we can start transitioning differently.
 
-    if (restyleManager->PostAnimationRestyles()) {
-      // We need to immediately restyle with animation
-      // after doing this.
-      collection->PostRestyleForAnimation(mPresContext);
-    }
+    // We need to immediately restyle with animation
+    // after doing this.
+    collection->PostRestyleForAnimation(mPresContext);
     return;
   }
 
   collection->mNeedsRefreshes = true;
   collection->EnsureStyleRuleFor(
-    mPresContext->RefreshDriver()->MostRecentRefresh(),
+    aData->mPresContext->RefreshDriver()->MostRecentRefresh(),
     EnsureStyleRule_IsNotThrottled);
 
   if (collection->mStyleRule) {
-    aRuleWalker->Forward(collection->mStyleRule);
+    aData->mRuleWalker->Forward(collection->mStyleRule);
   }
 }
 
@@ -676,9 +667,8 @@ nsTransitionManager::RulesMatching(ElementRuleProcessorData* aData)
 {
   NS_ABORT_IF_FALSE(aData->mPresContext == mPresContext,
                     "pres context mismatch");
-  WalkTransitionRule(aData->mElement,
-                     nsCSSPseudoElements::ePseudo_NotPseudoElement,
-                     aData->mRuleWalker);
+  WalkTransitionRule(aData,
+                     nsCSSPseudoElements::ePseudo_NotPseudoElement);
 }
 
 /* virtual */ void
@@ -690,8 +680,7 @@ nsTransitionManager::RulesMatching(PseudoElementRuleProcessorData* aData)
   // Note:  If we're the only thing keeping a pseudo-element frame alive
   // (per ProbePseudoStyleContext), we still want to keep it alive, so
   // this is ok.
-  WalkTransitionRule(aData->mElement, aData->mPseudoType,
-                     aData->mRuleWalker);
+  WalkTransitionRule(aData, aData->mPseudoType);
 }
 
 /* virtual */ void
@@ -841,7 +830,7 @@ nsTransitionManager::FlushTransitions(FlushFlags aFlags)
           } else if ((computedTiming.mPhase ==
                       ComputedTiming::AnimationPhase_Active) &&
                      canThrottleTick &&
-                     !player->IsRunningOnCompositor()) {
+                    !player->mIsRunningOnCompositor) {
             // Start a transition with a delay where we should start the
             // transition proper.
             collection->UpdateAnimationGeneration(mPresContext);

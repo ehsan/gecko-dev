@@ -122,7 +122,6 @@ private:
   static bool sPluginHasFocus;
 
   static bool IsTSFAvailable() { return (sIsInTSFMode && !sPluginHasFocus); }
-  static bool IsIMMActive();
 #endif // #ifdef NS_ENABLE_TSF
 };
 

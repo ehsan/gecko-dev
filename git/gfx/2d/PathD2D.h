@@ -42,8 +42,6 @@ public:
 
   virtual TemporaryRef<Path> Finish();
 
-  virtual BackendType GetBackendType() const { return BackendType::DIRECT2D; }
-
   ID2D1GeometrySink *GetSink() { return mSink; }
 
 private:

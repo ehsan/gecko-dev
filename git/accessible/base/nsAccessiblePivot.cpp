@@ -9,7 +9,6 @@
 #include "HyperTextAccessible.h"
 #include "nsAccUtils.h"
 #include "States.h"
-#include "xpcAccessibleDocument.h"
 
 using namespace mozilla::a11y;
 
@@ -71,7 +70,7 @@ nsAccessiblePivot::GetRoot(nsIAccessible** aRoot)
 {
   NS_ENSURE_ARG_POINTER(aRoot);
 
-  NS_IF_ADDREF(*aRoot = ToXPC(mRoot));
+  NS_IF_ADDREF(*aRoot = mRoot);
 
   return NS_OK;
 }
@@ -81,7 +80,7 @@ nsAccessiblePivot::GetPosition(nsIAccessible** aPosition)
 {
   NS_ENSURE_ARG_POINTER(aPosition);
 
-  NS_IF_ADDREF(*aPosition = ToXPC(mPosition));
+  NS_IF_ADDREF(*aPosition = mPosition);
 
   return NS_OK;
 }
@@ -89,19 +88,19 @@ nsAccessiblePivot::GetPosition(nsIAccessible** aPosition)
 NS_IMETHODIMP
 nsAccessiblePivot::SetPosition(nsIAccessible* aPosition)
 {
-  nsRefPtr<Accessible> position = nullptr;
+  nsRefPtr<Accessible> secondPosition;
 
   if (aPosition) {
-    position = aPosition->ToInternalAccessible();
-    if (!position || !IsDescendantOf(position, GetActiveRoot()))
+    secondPosition = do_QueryObject(aPosition);
+    if (!secondPosition || !IsDescendantOf(secondPosition, GetActiveRoot()))
       return NS_ERROR_INVALID_ARG;
   }
 
   // Swap old position with new position, saves us an AddRef/Release.
-  mPosition.swap(position);
+  mPosition.swap(secondPosition);
   int32_t oldStart = mStartOffset, oldEnd = mEndOffset;
   mStartOffset = mEndOffset = -1;
-  NotifyOfPivotChange(position, oldStart, oldEnd,
+  NotifyOfPivotChange(secondPosition, oldStart, oldEnd,
                       nsIAccessiblePivot::REASON_NONE, false);
 
   return NS_OK;
@@ -112,7 +111,7 @@ nsAccessiblePivot::GetModalRoot(nsIAccessible** aModalRoot)
 {
   NS_ENSURE_ARG_POINTER(aModalRoot);
 
-  NS_IF_ADDREF(*aModalRoot = ToXPC(mModalRoot));
+  NS_IF_ADDREF(*aModalRoot = mModalRoot);
 
   return NS_OK;
 }
@@ -120,15 +119,16 @@ nsAccessiblePivot::GetModalRoot(nsIAccessible** aModalRoot)
 NS_IMETHODIMP
 nsAccessiblePivot::SetModalRoot(nsIAccessible* aModalRoot)
 {
-  Accessible* modalRoot = nullptr;
+  nsRefPtr<Accessible> modalRoot;
 
   if (aModalRoot) {
-    modalRoot = aModalRoot->ToInternalAccessible();
+    modalRoot = do_QueryObject(aModalRoot);
     if (!modalRoot || !IsDescendantOf(modalRoot, mRoot))
       return NS_ERROR_INVALID_ARG;
   }
 
-  mModalRoot = modalRoot;
+  mModalRoot.swap(modalRoot);
+
   return NS_OK;
 }
 
@@ -165,26 +165,28 @@ nsAccessiblePivot::SetTextRange(nsIAccessibleText* aTextAccessible,
                  (aStartOffset >= 0 || (aStartOffset != -1 && aEndOffset != -1)),
                  NS_ERROR_INVALID_ARG);
 
-  nsCOMPtr<nsIAccessible> xpcAcc = do_QueryInterface(aTextAccessible);
-  NS_ENSURE_ARG(xpcAcc);
+  nsRefPtr<Accessible> acc(do_QueryObject(aTextAccessible));
+  if (!acc)
+    return NS_ERROR_INVALID_ARG;
 
-  nsRefPtr<Accessible> acc = xpcAcc->ToInternalAccessible();
-  NS_ENSURE_ARG(acc);
-
-  HyperTextAccessible* position = acc->AsHyperText();
-  if (!position || !IsDescendantOf(position, GetActiveRoot()))
+  HyperTextAccessible* newPosition = acc->AsHyperText();
+  if (!newPosition || !IsDescendantOf(newPosition, GetActiveRoot()))
     return NS_ERROR_INVALID_ARG;
 
   // Make sure the given offsets don't exceed the character count.
-  if (aEndOffset > static_cast<int32_t>(position->CharacterCount()))
+  int32_t charCount = newPosition->CharacterCount();
+
+  if (aEndOffset > charCount)
     return NS_ERROR_FAILURE;
 
   int32_t oldStart = mStartOffset, oldEnd = mEndOffset;
   mStartOffset = aStartOffset;
   mEndOffset = aEndOffset;
 
-  mPosition.swap(acc);
-  NotifyOfPivotChange(acc, oldStart, oldEnd,
+  nsRefPtr<Accessible> oldPosition = mPosition.forget();
+  mPosition = newPosition;
+
+  NotifyOfPivotChange(oldPosition, oldStart, oldEnd,
                       nsIAccessiblePivot::REASON_TEXT,
                       (aArgc > 0) ? aIsFromUserInput : true);
 
@@ -200,13 +202,13 @@ nsAccessiblePivot::MoveNext(nsIAccessibleTraversalRule* aRule,
 {
   NS_ENSURE_ARG(aResult);
   NS_ENSURE_ARG(aRule);
+
   *aResult = false;
 
-  Accessible* anchor = mPosition;
-  if (aArgc > 0 && aAnchor)
-    anchor = aAnchor->ToInternalAccessible();
-
-  if (anchor && (anchor->IsDefunct() || !IsDescendantOf(anchor, GetActiveRoot())))
+  Accessible* root = GetActiveRoot();
+  nsRefPtr<Accessible> anchor =
+    (aArgc > 0) ? do_QueryObject(aAnchor) : mPosition;
+  if (anchor && (anchor->IsDefunct() || !IsDescendantOf(anchor, root)))
     return NS_ERROR_NOT_IN_TREE;
 
   nsresult rv = NS_OK;
@@ -229,13 +231,13 @@ nsAccessiblePivot::MovePrevious(nsIAccessibleTraversalRule* aRule,
 {
   NS_ENSURE_ARG(aResult);
   NS_ENSURE_ARG(aRule);
+
   *aResult = false;
 
-  Accessible* anchor = mPosition;
-  if (aArgc > 0 && aAnchor)
-    anchor = aAnchor->ToInternalAccessible();
-
-  if (anchor && (anchor->IsDefunct() || !IsDescendantOf(anchor, GetActiveRoot())))
+  Accessible* root = GetActiveRoot();
+  nsRefPtr<Accessible> anchor =
+    (aArgc > 0) ? do_QueryObject(aAnchor) : mPosition;
+  if (anchor && (anchor->IsDefunct() || !IsDescendantOf(anchor, root)))
     return NS_ERROR_NOT_IN_TREE;
 
   nsresult rv = NS_OK;
@@ -853,11 +855,10 @@ nsAccessiblePivot::NotifyOfPivotChange(Accessible* aOldPosition,
       aOldStart == mStartOffset && aOldEnd == mEndOffset)
     return false;
 
-  nsCOMPtr<nsIAccessible> xpcOldPos = ToXPC(aOldPosition); // death grip
   nsTObserverArray<nsCOMPtr<nsIAccessiblePivotObserver> >::ForwardIterator iter(mObservers);
   while (iter.HasMore()) {
     nsIAccessiblePivotObserver* obs = iter.GetNext();
-    obs->OnPivotChanged(this, xpcOldPos, aOldStart, aOldEnd, aReason,
+    obs->OnPivotChanged(this, aOldPosition, aOldStart, aOldEnd, aReason,
                         aIsFromUserInput);
   }
 
@@ -924,5 +925,5 @@ RuleCache::ApplyFilter(Accessible* aAccessible, uint16_t* aResult)
       return NS_OK;
   }
 
-  return mRule->Match(ToXPC(aAccessible), aResult);
+  return mRule->Match(aAccessible, aResult);
 }

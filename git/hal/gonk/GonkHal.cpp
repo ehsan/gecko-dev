@@ -1484,54 +1484,6 @@ SetNiceForPid(int aPid, int aNice)
   closedir(tasksDir);
 }
 
-/*
- * Used to store the nice value adjustments and oom_adj values for the various
- * process priority levels.
- */
-struct ProcessPriorityPrefs {
-  bool initialized;
-  int lowPriorityNice;
-  struct {
-    int nice;
-    int oomScoreAdj;
-  } priorities[NUM_PROCESS_PRIORITY];
-};
-
-/*
- * Reads the preferences for the various process priority levels and sets up
- * watchers so that if they're dynamically changed the change is reflected on
- * the appropriate variables.
- */
-void
-EnsureProcessPriorityPrefs(ProcessPriorityPrefs* prefs)
-{
-  if (prefs->initialized) {
-    return;
-  }
-
-  // Read the preferences for process priority levels
-  for (int i = PROCESS_PRIORITY_BACKGROUND; i < NUM_PROCESS_PRIORITY; i++) {
-    ProcessPriority priority = static_cast<ProcessPriority>(i);
-
-    // Read the nice values
-    const char* processPriorityStr = ProcessPriorityToString(priority);
-    nsPrintfCString niceStr("hal.processPriorityManager.gonk.%s.Nice",
-                            processPriorityStr);
-    Preferences::AddIntVarCache(&prefs->priorities[i].nice, niceStr.get());
-
-    // Read the oom_adj scores
-    nsPrintfCString oomStr("hal.processPriorityManager.gonk.%s.OomScoreAdjust",
-                           processPriorityStr);
-    Preferences::AddIntVarCache(&prefs->priorities[i].oomScoreAdj,
-                                oomStr.get());
-  }
-
-  Preferences::AddIntVarCache(&prefs->lowPriorityNice,
-                              "hal.processPriorityManager.gonk.LowCPUNice");
-
-  prefs->initialized = true;
-}
-
 void
 SetProcessPriority(int aPid,
                    ProcessPriority aPriority,
@@ -1550,49 +1502,62 @@ SetProcessPriority(int aPid,
   // SetProcessPriority being called early in startup.
   EnsureKernelLowMemKillerParamsSet();
 
-  static ProcessPriorityPrefs prefs = { 0 };
-  EnsureProcessPriorityPrefs(&prefs);
-
-  int oomScoreAdj = prefs.priorities[aPriority].oomScoreAdj;
+  int32_t oomScoreAdj = 0;
+  nsresult rv = Preferences::GetInt(nsPrintfCString(
+    "hal.processPriorityManager.gonk.%s.OomScoreAdjust",
+    ProcessPriorityToString(aPriority)).get(), &oomScoreAdj);
 
   RoundOomScoreAdjUpWithBackroundLRU(oomScoreAdj, aBackgroundLRU);
 
-  int clampedOomScoreAdj = clamped<int>(oomScoreAdj, OOM_SCORE_ADJ_MIN,
-                                                     OOM_SCORE_ADJ_MAX);
-  if (clampedOomScoreAdj != oomScoreAdj) {
-    HAL_LOG("Clamping OOM adjustment for pid %d to %d", aPid,
-            clampedOomScoreAdj);
+  if (NS_SUCCEEDED(rv)) {
+    int clampedOomScoreAdj = clamped<int>(oomScoreAdj, OOM_SCORE_ADJ_MIN,
+                                                       OOM_SCORE_ADJ_MAX);
+    if(clampedOomScoreAdj != oomScoreAdj) {
+      HAL_LOG("Clamping OOM adjustment for pid %d to %d", aPid,
+              clampedOomScoreAdj);
+    } else {
+      HAL_LOG("Setting OOM adjustment for pid %d to %d", aPid,
+              clampedOomScoreAdj);
+    }
+
+    // We try the newer interface first, and fall back to the older interface
+    // on failure.
+
+    if (!WriteToFile(nsPrintfCString("/proc/%d/oom_score_adj", aPid).get(),
+                     nsPrintfCString("%d", clampedOomScoreAdj).get()))
+    {
+      int oomAdj = OomAdjOfOomScoreAdj(clampedOomScoreAdj);
+
+      WriteToFile(nsPrintfCString("/proc/%d/oom_adj", aPid).get(),
+                  nsPrintfCString("%d", oomAdj).get());
+    }
   } else {
-    HAL_LOG("Setting OOM adjustment for pid %d to %d", aPid,
-            clampedOomScoreAdj);
+    HAL_ERR("Unable to read oom_score_adj pref for priority %s; "
+            "are the prefs messed up?", ProcessPriorityToString(aPriority));
+    MOZ_ASSERT(false);
   }
 
-  // We try the newer interface first, and fall back to the older interface
-  // on failure.
-
-  if (!WriteToFile(nsPrintfCString("/proc/%d/oom_score_adj", aPid).get(),
-                   nsPrintfCString("%d", clampedOomScoreAdj).get()))
-  {
-    int oomAdj = OomAdjOfOomScoreAdj(clampedOomScoreAdj);
-
-    WriteToFile(nsPrintfCString("/proc/%d/oom_adj", aPid).get(),
-                nsPrintfCString("%d", oomAdj).get());
-  }
-
-  int nice = 0;
+  int32_t nice = 0;
 
   if (aCPUPriority == PROCESS_CPU_PRIORITY_NORMAL) {
-    nice = prefs.priorities[aPriority].nice;
+    rv = Preferences::GetInt(
+      nsPrintfCString("hal.processPriorityManager.gonk.%s.Nice",
+                      ProcessPriorityToString(aPriority)).get(),
+      &nice);
   } else if (aCPUPriority == PROCESS_CPU_PRIORITY_LOW) {
-    nice = prefs.lowPriorityNice;
+    rv = Preferences::GetInt("hal.processPriorityManager.gonk.LowCPUNice",
+                             &nice);
   } else {
-    HAL_ERR("Unknown aCPUPriority value %d", aCPUPriority);
+    HAL_ERR("Unable to read niceness pref for priority %s; "
+            "are the prefs messed up?", ProcessPriorityToString(aPriority));
     MOZ_ASSERT(false);
-    return;
+    rv = NS_ERROR_FAILURE;
   }
 
-  HAL_LOG("Setting nice for pid %d to %d", aPid, nice);
-  SetNiceForPid(aPid, nice);
+  if (NS_SUCCEEDED(rv)) {
+    HAL_LOG("Setting nice for pid %d to %d", aPid, nice);
+    SetNiceForPid(aPid, nice);
+  }
 }
 
 static bool
@@ -1643,47 +1608,6 @@ SetRealTimeThreadPriority(pid_t aTid,
   }
 }
 
-/*
- * Used to store the nice value adjustments and real time priorities for the
- * various thread priority levels.
- */
-struct ThreadPriorityPrefs {
-  bool initialized;
-  struct {
-    int nice;
-    int realTime;
-  } priorities[NUM_THREAD_PRIORITY];
-};
-
-/*
- * Reads the preferences for the various process priority levels and sets up
- * watchers so that if they're dynamically changed the change is reflected on
- * the appropriate variables.
- */
-void
-EnsureThreadPriorityPrefs(ThreadPriorityPrefs* prefs)
-{
-  if (prefs->initialized) {
-    return;
-  }
-
-  for (int i = THREAD_PRIORITY_COMPOSITOR; i < NUM_THREAD_PRIORITY; i++) {
-    ThreadPriority priority = static_cast<ThreadPriority>(i);
-
-    // Read the nice values
-    const char* threadPriorityStr = ThreadPriorityToString(priority);
-    nsPrintfCString niceStr("hal.gonk.%s.nice", threadPriorityStr);
-    Preferences::AddIntVarCache(&prefs->priorities[i].nice, niceStr.get());
-
-    // Read the real-time priorities
-    nsPrintfCString realTimeStr("hal.gonk.%s.rt_priority", threadPriorityStr);
-    Preferences::AddIntVarCache(&prefs->priorities[i].realTime,
-                                realTimeStr.get());
-  }
-
-  prefs->initialized = true;
-}
-
 static void
 SetThreadPriority(pid_t aTid, hal::ThreadPriority aThreadPriority)
 {
@@ -1692,11 +1616,10 @@ SetThreadPriority(pid_t aTid, hal::ThreadPriority aThreadPriority)
   MOZ_ASSERT(NS_IsMainThread(), "Can only set thread priorities on main thread");
   MOZ_ASSERT(aThreadPriority >= 0);
 
-  static ThreadPriorityPrefs prefs = { 0 };
-  EnsureThreadPriorityPrefs(&prefs);
-
+  const char* threadPriorityStr;
   switch (aThreadPriority) {
     case THREAD_PRIORITY_COMPOSITOR:
+      threadPriorityStr = ThreadPriorityToString(aThreadPriority);
       break;
     default:
       HAL_ERR("Unrecognized thread priority %d; Doing nothing",
@@ -1704,15 +1627,18 @@ SetThreadPriority(pid_t aTid, hal::ThreadPriority aThreadPriority)
       return;
   }
 
-  int realTimePriority = prefs.priorities[aThreadPriority].realTime;
+  int realTimePriority = Preferences::GetInt(
+    nsPrintfCString("hal.gonk.%s.rt_priority", threadPriorityStr).get());
 
   if (IsValidRealTimePriority(realTimePriority, SCHED_FIFO)) {
     SetRealTimeThreadPriority(aTid, aThreadPriority, realTimePriority);
     return;
   }
 
-  SetThreadNiceValue(aTid, aThreadPriority,
-                     prefs.priorities[aThreadPriority].nice);
+  int niceValue = Preferences::GetInt(
+    nsPrintfCString("hal.gonk.%s.nice", threadPriorityStr).get());
+
+  SetThreadNiceValue(aTid, aThreadPriority, niceValue);
 }
 
 namespace {

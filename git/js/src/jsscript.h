@@ -15,6 +15,7 @@
 
 #include "jsatom.h"
 #include "jslock.h"
+#include "jsobj.h"
 #include "jsopcode.h"
 #include "jstypes.h"
 
@@ -22,7 +23,6 @@
 #include "gc/Rooting.h"
 #include "jit/IonCode.h"
 #include "js/UbiNode.h"
-#include "vm/NativeObject.h"
 #include "vm/Shape.h"
 
 namespace JS {
@@ -113,8 +113,8 @@ struct ConstArray {
 };
 
 struct ObjectArray {
-    js::HeapPtrNativeObject *vector;  // Array of indexed objects.
-    uint32_t        length;           // Count of indexed objects.
+    js::HeapPtrObject *vector;  // Array of indexed objects.
+    uint32_t        length;     // Count of indexed objects.
 };
 
 struct TryNoteArray {
@@ -125,24 +125,6 @@ struct TryNoteArray {
 struct BlockScopeArray {
     BlockScopeNote *vector;     // Array of indexed BlockScopeNote records.
     uint32_t        length;     // Count of indexed try notes.
-};
-
-class YieldOffsetArray {
-    uint32_t        *vector_;   // Array of bytecode offsets.
-    uint32_t        length_;    // Count of bytecode offsets.
-
-  public:
-    void init(uint32_t *vector, uint32_t length) {
-        vector_ = vector;
-        length_ = length;
-    }
-    uint32_t &operator[](uint32_t index) {
-        MOZ_ASSERT(index < length_);
-        return vector_[index];
-    }
-    uint32_t length() const {
-        return length_;
-    }
 };
 
 class Binding
@@ -165,8 +147,8 @@ class Binding
 
     Binding(PropertyName *name, Kind kind, bool aliased) {
         JS_STATIC_ASSERT(CONSTANT <= KIND_MASK);
-        MOZ_ASSERT((uintptr_t(name) & ~NAME_MASK) == 0);
-        MOZ_ASSERT((uintptr_t(kind) & ~KIND_MASK) == 0);
+        JS_ASSERT((uintptr_t(name) & ~NAME_MASK) == 0);
+        JS_ASSERT((uintptr_t(kind) & ~KIND_MASK) == 0);
         bits_ = uintptr_t(name) | uintptr_t(kind) | (aliased ? ALIASED_BIT : 0);
     }
 
@@ -205,9 +187,7 @@ class Bindings
     uint16_t numBlockScoped_;
     uint16_t numBodyLevelLexicals_;
     uint16_t aliasedBodyLevelLexicalBegin_;
-    uint16_t numUnaliasedBodyLevelLexicals_;
     uint32_t numVars_;
-    uint32_t numUnaliasedVars_;
 
 #if JS_BITS_PER_WORD == 32
     // Bindings is allocated inline inside JSScript, which needs to be
@@ -247,7 +227,6 @@ class Bindings
     static bool initWithTemporaryStorage(ExclusiveContext *cx, InternalBindingsHandle self,
                                          uint32_t numArgs, uint32_t numVars,
                                          uint32_t numBodyLevelLexicals, uint32_t numBlockScoped,
-                                         uint32_t numUnaliasedVars, uint32_t numUnaliasedBodyLevelLexicals,
                                          Binding *bindingArray);
 
     // CompileScript parses and compiles one statement at a time, but the result
@@ -257,15 +236,11 @@ class Bindings
     // helper updates the number of block scoped variables in a script as it is
     // being parsed.
     void updateNumBlockScoped(unsigned numBlockScoped) {
-        MOZ_ASSERT(!callObjShape_);
-        MOZ_ASSERT(numVars_ == 0);
-        MOZ_ASSERT(numBlockScoped < LOCALNO_LIMIT);
-        MOZ_ASSERT(numBlockScoped >= numBlockScoped_);
+        JS_ASSERT(!callObjShape_);
+        JS_ASSERT(numVars_ == 0);
+        JS_ASSERT(numBlockScoped < LOCALNO_LIMIT);
+        JS_ASSERT(numBlockScoped >= numBlockScoped_);
         numBlockScoped_ = numBlockScoped;
-    }
-
-    void setAllLocalsAliased() {
-        numBlockScoped_ = 0;
     }
 
     uint8_t *switchToScriptStorage(Binding *newStorage);
@@ -282,15 +257,9 @@ class Bindings
     uint32_t numBodyLevelLexicals() const { return numBodyLevelLexicals_; }
     uint32_t numBlockScoped() const { return numBlockScoped_; }
     uint32_t numBodyLevelLocals() const { return numVars_ + numBodyLevelLexicals_; }
-    uint32_t numUnaliasedBodyLevelLocals() const { return numUnaliasedVars_ + numUnaliasedBodyLevelLexicals_; }
-    uint32_t numAliasedBodyLevelLocals() const { return numBodyLevelLocals() - numUnaliasedBodyLevelLocals(); }
     uint32_t numLocals() const { return numVars() + numBodyLevelLexicals() + numBlockScoped(); }
-    uint32_t numUnaliasedLocals() const { return numUnaliasedVars() + numUnaliasedBodyLevelLexicals() + numBlockScoped(); }
     uint32_t lexicalBegin() const { return numArgs() + numVars(); }
     uint32_t aliasedBodyLevelLexicalBegin() const { return aliasedBodyLevelLexicalBegin_; }
-
-    uint32_t numUnaliasedVars() const { return numUnaliasedVars_; }
-    uint32_t numUnaliasedBodyLevelLexicals() const { return numUnaliasedBodyLevelLexicals_; }
 
     // Return the size of the bindingArray.
     uint32_t count() const { return numArgs() + numVars() + numBodyLevelLexicals(); }
@@ -299,8 +268,7 @@ class Bindings
     Shape *callObjShape() const { return callObjShape_; }
 
     /* Convenience method to get the var index of 'arguments'. */
-    static uint32_t argumentsVarIndex(ExclusiveContext *cx, InternalBindingsHandle,
-                                      uint32_t *unaliasedSlot = nullptr);
+    static uint32_t argumentsVarIndex(ExclusiveContext *cx, InternalBindingsHandle);
 
     /* Return whether the binding at bindingIndex is aliased. */
     bool bindingIsAliased(uint32_t bindingIndex);
@@ -532,7 +500,7 @@ class ScriptSource
     ~ScriptSource();
     void incref() { refs++; }
     void decref() {
-        MOZ_ASSERT(refs != 0);
+        JS_ASSERT(refs != 0);
         if (--refs == 0)
             js_delete(this);
     }
@@ -546,11 +514,11 @@ class ScriptSource
     bool hasSourceData() const { return dataType != DataMissing; }
     bool hasCompressedSource() const { return dataType == DataCompressed; }
     size_t length() const {
-        MOZ_ASSERT(hasSourceData());
+        JS_ASSERT(hasSourceData());
         return length_;
     }
     bool argumentsNotIncluded() const {
-        MOZ_ASSERT(hasSourceData());
+        JS_ASSERT(hasSourceData());
         return argumentsNotIncluded_;
     }
     const char16_t *chars(JSContext *cx, UncompressedSourceCache::AutoHoldEntry &asp);
@@ -560,32 +528,32 @@ class ScriptSource
                                 JS::ScriptSourceInfo *info) const;
 
     const char16_t *uncompressedChars() const {
-        MOZ_ASSERT(dataType == DataUncompressed);
+        JS_ASSERT(dataType == DataUncompressed);
         return data.uncompressed.chars;
     }
 
     bool ownsUncompressedChars() const {
-        MOZ_ASSERT(dataType == DataUncompressed);
+        JS_ASSERT(dataType == DataUncompressed);
         return data.uncompressed.ownsChars;
     }
 
     void *compressedData() const {
-        MOZ_ASSERT(dataType == DataCompressed);
+        JS_ASSERT(dataType == DataCompressed);
         return data.compressed.raw;
     }
 
     size_t compressedBytes() const {
-        MOZ_ASSERT(dataType == DataCompressed);
+        JS_ASSERT(dataType == DataCompressed);
         return data.compressed.nbytes;
     }
 
     HashNumber compressedHash() const {
-        MOZ_ASSERT(dataType == DataCompressed);
+        JS_ASSERT(dataType == DataCompressed);
         return data.compressed.hash;
     }
 
     ScriptSource *parent() const {
-        MOZ_ASSERT(dataType == DataParent);
+        JS_ASSERT(dataType == DataParent);
         return data.parent;
     }
 
@@ -606,7 +574,7 @@ class ScriptSource
         return introductionType_;
     }
     const char *introductionType() const {
-        MOZ_ASSERT(hasIntroductionType());
+        JS_ASSERT(hasIntroductionType());
         return introductionType_;
     }
     const char *filename() const {
@@ -633,12 +601,12 @@ class ScriptSource
 
     bool hasIntroductionOffset() const { return hasIntroductionOffset_; }
     uint32_t introductionOffset() const {
-        MOZ_ASSERT(hasIntroductionOffset());
+        JS_ASSERT(hasIntroductionOffset());
         return introductionOffset_;
     }
     void setIntroductionOffset(uint32_t offset) {
-        MOZ_ASSERT(!hasIntroductionOffset());
-        MOZ_ASSERT(offset <= (uint32_t)INT32_MAX);
+        JS_ASSERT(!hasIntroductionOffset());
+        JS_ASSERT(offset <= (uint32_t)INT32_MAX);
         introductionOffset_ = offset;
         hasIntroductionOffset_ = true;
     }
@@ -683,7 +651,7 @@ struct CompressedSourceHasher
 
 typedef HashSet<ScriptSource *, CompressedSourceHasher, SystemAllocPolicy> CompressedSourceSet;
 
-class ScriptSourceObject : public NativeObject
+class ScriptSourceObject : public JSObject
 {
   public:
     static const Class class_;
@@ -732,7 +700,7 @@ GeneratorKindAsBits(GeneratorKind generatorKind) {
 
 static inline GeneratorKind
 GeneratorKindFromBits(unsigned val) {
-    MOZ_ASSERT(val <= StarGenerator);
+    JS_ASSERT(val <= StarGenerator);
     return static_cast<GeneratorKind>(val);
 }
 
@@ -816,10 +784,10 @@ class JSScript : public js::gc::TenuredCell
 
     JSCompartment   *compartment_;
 
-  private:
     /* Persistent type information retained across GCs. */
-    js::types::TypeScript *types_;
+    js::types::TypeScript *types;
 
+  private:
     // This script's ScriptSourceObject, or a CCW thereof.
     //
     // (When we clone a JSScript into a new compartment, we don't clone its
@@ -1002,13 +970,6 @@ class JSScript : public js::gc::TenuredCell
     bool needsArgsAnalysis_:1;
     bool needsArgsObj_:1;
 
-    // Generation for this script's TypeScript. If out of sync with the
-    // TypeZone's generation, the TypeScript needs to be swept.
-    //
-    // This should be a uint32 but is instead a bool so that MSVC packs it
-    // correctly.
-    bool typesGeneration_:1;
-
     //
     // End of fields.  Start methods.
     //
@@ -1028,7 +989,7 @@ class JSScript : public js::gc::TenuredCell
     // However, callers of fullyInitFromEmitter() do not need to do this.
     static bool partiallyInit(js::ExclusiveContext *cx, JS::Handle<JSScript*> script,
                               uint32_t nconsts, uint32_t nobjects, uint32_t nregexps,
-                              uint32_t ntrynotes, uint32_t nblockscopes, uint32_t nyieldoffsets,
+                              uint32_t ntrynotes, uint32_t nblockscopes,
                               uint32_t nTypeSets);
     static bool fullyInitFromEmitter(js::ExclusiveContext *cx, JS::Handle<JSScript*> script,
                                      js::frontend::BytecodeEmitter *bce);
@@ -1059,12 +1020,12 @@ class JSScript : public js::gc::TenuredCell
     }
 
     size_t pcToOffset(const jsbytecode *pc) const {
-        MOZ_ASSERT(containsPC(pc));
+        JS_ASSERT(containsPC(pc));
         return size_t(pc - code());
     }
 
     jsbytecode *offsetToPC(size_t offset) const {
-        MOZ_ASSERT(offset < length());
+        JS_ASSERT(offset < length());
         return code() + offset;
     }
 
@@ -1085,20 +1046,20 @@ class JSScript : public js::gc::TenuredCell
     // The fixed part of a stack frame is comprised of vars (in function code)
     // and block-scoped locals (in all kinds of code).
     size_t nfixed() const {
-        return function_ ? bindings.numUnaliasedLocals() : bindings.numBlockScoped();
+        return function_ ? bindings.numLocals() : bindings.numBlockScoped();
     }
 
     // Number of fixed slots reserved for vars.  Only nonzero for function
     // code.
     size_t nfixedvars() const {
-        return function_ ? bindings.numUnaliasedVars() : 0;
+        return function_ ? bindings.numVars() : 0;
     }
 
     // Number of fixed slots reserved for body-level lexicals and vars. This
     // value minus nfixedvars() is the number of body-level lexicals. Only
     // nonzero for function code.
     size_t nbodyfixed() const {
-        return function_ ? bindings.numUnaliasedBodyLevelLocals() : 0;
+        return function_ ? bindings.numBodyLevelLocals() : 0;
     }
 
     // Aliases for clarity when dealing with lexical slots.
@@ -1178,13 +1139,13 @@ class JSScript : public js::gc::TenuredCell
     bool directlyInsideEval() const { return directlyInsideEval_; }
 
     void cacheForEval() {
-        MOZ_ASSERT(isActiveEval() && !isCachedEval());
+        JS_ASSERT(isActiveEval() && !isCachedEval());
         isActiveEval_ = false;
         isCachedEval_ = true;
     }
 
     void uncacheForEval() {
-        MOZ_ASSERT(isCachedEval() && !isActiveEval());
+        JS_ASSERT(isCachedEval() && !isActiveEval());
         isCachedEval_ = false;
         isActiveEval_ = true;
     }
@@ -1238,6 +1199,7 @@ class JSScript : public js::gc::TenuredCell
 
     bool hasFreezeConstraints() const { return hasFreezeConstraints_; }
     void setHasFreezeConstraints() { hasFreezeConstraints_ = true; }
+    void clearHasFreezeConstraints() { hasFreezeConstraints_ = false; }
 
     bool warnedAboutUndefinedProp() const { return warnedAboutUndefinedProp_; }
     void setWarnedAboutUndefinedProp() { warnedAboutUndefinedProp_ = true; }
@@ -1246,7 +1208,7 @@ class JSScript : public js::gc::TenuredCell
     bool argumentsHasVarBinding() const {
         return argsHasVarBinding_;
     }
-    jsbytecode *argumentsBytecode() const { MOZ_ASSERT(code()[0] == JSOP_ARGUMENTS); return code(); }
+    jsbytecode *argumentsBytecode() const { JS_ASSERT(code()[0] == JSOP_ARGUMENTS); return code(); }
     void setArgumentsHasVarBinding();
     bool argumentsAliasesFormals() const {
         return argumentsHasVarBinding() && !strict();
@@ -1261,24 +1223,24 @@ class JSScript : public js::gc::TenuredCell
     void setGeneratorKind(js::GeneratorKind kind) {
         // A script only gets its generator kind set as part of initialization,
         // so it can only transition from not being a generator.
-        MOZ_ASSERT(!isGenerator());
+        JS_ASSERT(!isGenerator());
         generatorKindBits_ = GeneratorKindAsBits(kind);
     }
 
     /*
      * As an optimization, even when argsHasLocalBinding, the function prologue
      * may not need to create an arguments object. This is determined by
-     * needsArgsObj which is set by AnalyzeArgumentsUsage. When !needsArgsObj,
-     * the prologue may simply write MagicValue(JS_OPTIMIZED_ARGUMENTS) to
-     * 'arguments's slot and any uses of 'arguments' will be guaranteed to
-     * handle this magic value. To avoid spurious arguments object creation, we
-     * maintain the invariant that needsArgsObj is only called after the script
-     * has been analyzed.
+     * needsArgsObj which is set by AnalyzeArgumentsUsage before running
+     * the script the first time. When !needsArgsObj, the prologue may simply
+     * write MagicValue(JS_OPTIMIZED_ARGUMENTS) to 'arguments's slot and any
+     * uses of 'arguments' will be guaranteed to handle this magic value.
+     * So avoid spurious arguments object creation, we maintain the invariant
+     * that needsArgsObj is only called after the script has been analyzed.
      */
     bool analyzedArgsUsage() const { return !needsArgsAnalysis_; }
     inline bool ensureHasAnalyzedArgsUsage(JSContext *cx);
     bool needsArgsObj() const {
-        MOZ_ASSERT(analyzedArgsUsage());
+        JS_ASSERT(analyzedArgsUsage());
         return needsArgsObj_;
     }
     void setNeedsArgsObj(bool needsArgsObj);
@@ -1295,15 +1257,6 @@ class JSScript : public js::gc::TenuredCell
      */
     bool argsObjAliasesFormals() const {
         return needsArgsObj() && !strict();
-    }
-
-    uint32_t typesGeneration() const {
-        return (uint32_t) typesGeneration_;
-    }
-
-    void setTypesGeneration(uint32_t generation) {
-        MOZ_ASSERT(generation <= 1);
-        typesGeneration_ = (bool) generation;
     }
 
     bool hasAnyIonScript() const {
@@ -1324,7 +1277,7 @@ class JSScript : public js::gc::TenuredCell
     }
 
     js::jit::IonScript *ionScript() const {
-        MOZ_ASSERT(hasIonScript());
+        JS_ASSERT(hasIonScript());
         return ion;
     }
     js::jit::IonScript *maybeIonScript() const {
@@ -1350,7 +1303,7 @@ class JSScript : public js::gc::TenuredCell
         return baseline != BASELINE_DISABLED_SCRIPT;
     }
     js::jit::BaselineScript *baselineScript() const {
-        MOZ_ASSERT(hasBaselineScript());
+        JS_ASSERT(hasBaselineScript());
         return baseline;
     }
     inline void setBaselineScript(JSContext *maybecx, js::jit::BaselineScript *baselineScript);
@@ -1358,12 +1311,12 @@ class JSScript : public js::gc::TenuredCell
     void updateBaselineOrIonRaw(JSContext *maybecx);
 
     void setPendingIonBuilder(JSContext *maybecx, js::jit::IonBuilder *builder) {
-        MOZ_ASSERT(!builder || !ion->pendingBuilder());
+        JS_ASSERT(!builder || !ion->pendingBuilder());
         ion->setPendingBuilderPrivate(builder);
         updateBaselineOrIonRaw(maybecx);
     }
     js::jit::IonBuilder *pendingIonBuilder() {
-        MOZ_ASSERT(hasIonScript());
+        JS_ASSERT(hasIonScript());
         return ion->pendingBuilder();
     }
 
@@ -1380,7 +1333,7 @@ class JSScript : public js::gc::TenuredCell
     }
 
     js::jit::IonScript *parallelIonScript() const {
-        MOZ_ASSERT(hasParallelIonScript());
+        JS_ASSERT(hasParallelIonScript());
         return parallelIon;
     }
     js::jit::IonScript *maybeParallelIonScript() const {
@@ -1457,10 +1410,8 @@ class JSScript : public js::gc::TenuredCell
     }
     js::ScriptSourceObject &scriptSourceUnwrap() const;
     js::ScriptSource *scriptSource() const;
-    js::ScriptSource *maybeForwardedScriptSource() const;
     bool mutedErrors() const { return scriptSource()->mutedErrors(); }
     const char *filename() const { return scriptSource()->filename(); }
-    const char *maybeForwardedFilename() const { return maybeForwardedScriptSource()->filename(); }
 
   public:
 
@@ -1475,10 +1426,6 @@ class JSScript : public js::gc::TenuredCell
 
     /* Ensure the script has a TypeScript. */
     inline bool ensureHasTypes(JSContext *cx);
-
-    inline js::types::TypeScript *types();
-
-    void maybeSweepTypes(js::types::AutoClearTypeInferenceStateOnOOM *oom);
 
     inline js::GlobalObject &global() const;
     js::GlobalObject &uninlinedGlobal() const;
@@ -1539,47 +1486,40 @@ class JSScript : public js::gc::TenuredCell
     bool hasRegexps()       { return hasArray(REGEXPS);     }
     bool hasTrynotes()      { return hasArray(TRYNOTES);    }
     bool hasBlockScopes()   { return hasArray(BLOCK_SCOPES); }
-    bool hasYieldOffsets()  { return isGenerator(); }
 
     #define OFF(fooOff, hasFoo, t)   (fooOff() + (hasFoo() ? sizeof(t) : 0))
 
-    size_t constsOffset()       { return 0; }
-    size_t objectsOffset()      { return OFF(constsOffset,      hasConsts,      js::ConstArray);      }
-    size_t regexpsOffset()      { return OFF(objectsOffset,     hasObjects,     js::ObjectArray);     }
-    size_t trynotesOffset()     { return OFF(regexpsOffset,     hasRegexps,     js::ObjectArray);     }
-    size_t blockScopesOffset()  { return OFF(trynotesOffset,    hasTrynotes,    js::TryNoteArray);    }
-    size_t yieldOffsetsOffset() { return OFF(blockScopesOffset, hasBlockScopes, js::BlockScopeArray); }
+    size_t constsOffset()     { return 0; }
+    size_t objectsOffset()    { return OFF(constsOffset,     hasConsts,     js::ConstArray);      }
+    size_t regexpsOffset()    { return OFF(objectsOffset,    hasObjects,    js::ObjectArray);     }
+    size_t trynotesOffset()   { return OFF(regexpsOffset,    hasRegexps,    js::ObjectArray);     }
+    size_t blockScopesOffset(){ return OFF(trynotesOffset,   hasTrynotes,   js::TryNoteArray);    }
 
     size_t dataSize() const { return dataSize_; }
 
     js::ConstArray *consts() {
-        MOZ_ASSERT(hasConsts());
+        JS_ASSERT(hasConsts());
         return reinterpret_cast<js::ConstArray *>(data + constsOffset());
     }
 
     js::ObjectArray *objects() {
-        MOZ_ASSERT(hasObjects());
+        JS_ASSERT(hasObjects());
         return reinterpret_cast<js::ObjectArray *>(data + objectsOffset());
     }
 
     js::ObjectArray *regexps() {
-        MOZ_ASSERT(hasRegexps());
+        JS_ASSERT(hasRegexps());
         return reinterpret_cast<js::ObjectArray *>(data + regexpsOffset());
     }
 
     js::TryNoteArray *trynotes() {
-        MOZ_ASSERT(hasTrynotes());
+        JS_ASSERT(hasTrynotes());
         return reinterpret_cast<js::TryNoteArray *>(data + trynotesOffset());
     }
 
     js::BlockScopeArray *blockScopes() {
-        MOZ_ASSERT(hasBlockScopes());
+        JS_ASSERT(hasBlockScopes());
         return reinterpret_cast<js::BlockScopeArray *>(data + blockScopesOffset());
-    }
-
-    js::YieldOffsetArray &yieldOffsets() {
-        MOZ_ASSERT(hasYieldOffsets());
-        return *reinterpret_cast<js::YieldOffsetArray *>(data + yieldOffsetsOffset());
     }
 
     bool hasLoops();
@@ -1587,12 +1527,12 @@ class JSScript : public js::gc::TenuredCell
     size_t natoms() const { return natoms_; }
 
     js::HeapPtrAtom &getAtom(size_t index) const {
-        MOZ_ASSERT(index < natoms());
+        JS_ASSERT(index < natoms());
         return atoms[index];
     }
 
     js::HeapPtrAtom &getAtom(jsbytecode *pc) const {
-        MOZ_ASSERT(containsPC(pc) && containsPC(pc + sizeof(uint32_t)));
+        JS_ASSERT(containsPC(pc) && containsPC(pc + sizeof(uint32_t)));
         return getAtom(GET_UINT32_INDEX(pc));
     }
 
@@ -1601,13 +1541,13 @@ class JSScript : public js::gc::TenuredCell
     }
 
     js::PropertyName *getName(jsbytecode *pc) const {
-        MOZ_ASSERT(containsPC(pc) && containsPC(pc + sizeof(uint32_t)));
+        JS_ASSERT(containsPC(pc) && containsPC(pc + sizeof(uint32_t)));
         return getAtom(GET_UINT32_INDEX(pc))->asPropertyName();
     }
 
-    js::NativeObject *getObject(size_t index) {
+    JSObject *getObject(size_t index) {
         js::ObjectArray *arr = objects();
-        MOZ_ASSERT(index < arr->length);
+        JS_ASSERT(index < arr->length);
         return arr->vector[index];
     }
 
@@ -1616,8 +1556,8 @@ class JSScript : public js::gc::TenuredCell
         return savedCallerFun() ? 1 : 0;
     }
 
-    js::NativeObject *getObject(jsbytecode *pc) {
-        MOZ_ASSERT(containsPC(pc) && containsPC(pc + sizeof(uint32_t)));
+    JSObject *getObject(jsbytecode *pc) {
+        JS_ASSERT(containsPC(pc) && containsPC(pc + sizeof(uint32_t)));
         return getObject(GET_UINT32_INDEX(pc));
     }
 
@@ -1634,7 +1574,7 @@ class JSScript : public js::gc::TenuredCell
 
     const js::Value &getConst(size_t index) {
         js::ConstArray *arr = consts();
-        MOZ_ASSERT(index < arr->length);
+        JS_ASSERT(index < arr->length);
         return arr->vector[index];
     }
 
@@ -1673,10 +1613,6 @@ class JSScript : public js::gc::TenuredCell
     bool hasBreakpointsAt(jsbytecode *pc);
     bool hasAnyBreakpointsOrStepMode() { return hasDebugScript_; }
 
-    // See comment above 'debugMode' in jscompartment.h for explanation of
-    // invariants of debuggee compartments, scripts, and frames.
-    inline bool isDebuggee() const;
-
     js::BreakpointSite *getBreakpointSite(jsbytecode *pc)
     {
         return hasDebugScript_ ? debugScript()->breakpoints[pcToOffset(pc)] : nullptr;
@@ -1704,7 +1640,6 @@ class JSScript : public js::gc::TenuredCell
 #endif
 
     void finalize(js::FreeOp *fop);
-    void fixupAfterMovingGC() {}
 
     static inline js::ThingRootKind rootKind() { return js::THING_ROOT_SCRIPT; }
 
@@ -1727,60 +1662,25 @@ class BindingIter
 {
     const InternalBindingsHandle bindings_;
     uint32_t i_;
-    uint32_t unaliasedLocal_;
 
     friend class Bindings;
 
   public:
-    explicit BindingIter(const InternalBindingsHandle &bindings)
-      : bindings_(bindings), i_(0), unaliasedLocal_(0) {}
-    explicit BindingIter(const HandleScript &script)
-      : bindings_(script, &script->bindings), i_(0), unaliasedLocal_(0) {}
+    explicit BindingIter(const InternalBindingsHandle &bindings) : bindings_(bindings), i_(0) {}
+    explicit BindingIter(const HandleScript &script) : bindings_(script, &script->bindings), i_(0) {}
 
     bool done() const { return i_ == bindings_->count(); }
     operator bool() const { return !done(); }
+    void operator++(int) { JS_ASSERT(!done()); i_++; }
     BindingIter &operator++() { (*this)++; return *this; }
 
-    void operator++(int) {
-        MOZ_ASSERT(!done());
-        const Binding &binding = **this;
-        if (binding.kind() != Binding::ARGUMENT && !binding.aliased())
-            unaliasedLocal_++;
-        i_++;
-    }
-
-    // Stack slots are assigned to arguments and unaliased locals. frameIndex()
-    // returns the slot index. It's invalid to call this method when the
-    // iterator is stopped on an aliased local, as it has no stack slot.
     uint32_t frameIndex() const {
-        MOZ_ASSERT(!done());
-        if (i_ < bindings_->numArgs())
-            return i_;
-        MOZ_ASSERT(!(*this)->aliased());
-        return unaliasedLocal_;
-    }
-    uint32_t argIndex() const {
-        MOZ_ASSERT(!done());
-        MOZ_ASSERT(i_ < bindings_->numArgs());
-        return i_;
-    }
-    uint32_t argOrLocalIndex() const {
-        MOZ_ASSERT(!done());
+        JS_ASSERT(!done());
         return i_ < bindings_->numArgs() ? i_ : i_ - bindings_->numArgs();
     }
-    uint32_t localIndex() const {
-        MOZ_ASSERT(!done());
-        MOZ_ASSERT(i_ >= bindings_->numArgs());
-        return i_ - bindings_->numArgs();
-    }
-    bool isBodyLevelLexical() const {
-        MOZ_ASSERT(!done());
-        const Binding &binding = **this;
-        return binding.kind() != Binding::ARGUMENT;
-    }
 
-    const Binding &operator*() const { MOZ_ASSERT(!done()); return bindings_->bindingArray()[i_]; }
-    const Binding *operator->() const { MOZ_ASSERT(!done()); return &bindings_->bindingArray()[i_]; }
+    const Binding &operator*() const { JS_ASSERT(!done()); return bindings_->bindingArray()[i_]; }
+    const Binding *operator->() const { JS_ASSERT(!done()); return &bindings_->bindingArray()[i_]; }
 };
 
 /*
@@ -1813,12 +1713,12 @@ class AliasedFormalIter
 
     bool done() const { return p_ == end_; }
     operator bool() const { return !done(); }
-    void operator++(int) { MOZ_ASSERT(!done()); p_++; slot_++; settle(); }
+    void operator++(int) { JS_ASSERT(!done()); p_++; slot_++; settle(); }
 
-    const Binding &operator*() const { MOZ_ASSERT(!done()); return *p_; }
-    const Binding *operator->() const { MOZ_ASSERT(!done()); return p_; }
-    unsigned frameIndex() const { MOZ_ASSERT(!done()); return p_ - begin_; }
-    unsigned scopeSlot() const { MOZ_ASSERT(!done()); return slot_; }
+    const Binding &operator*() const { JS_ASSERT(!done()); return *p_; }
+    const Binding *operator->() const { JS_ASSERT(!done()); return p_; }
+    unsigned frameIndex() const { JS_ASSERT(!done()); return p_ - begin_; }
+    unsigned scopeSlot() const { JS_ASSERT(!done()); return slot_; }
 };
 
 // Information about a script which may be (or has been) lazily compiled to
@@ -1987,9 +1887,9 @@ class LazyScript : public gc::TenuredCell
     void setGeneratorKind(GeneratorKind kind) {
         // A script only gets its generator kind set as part of initialization,
         // so it can only transition from NotGenerator.
-        MOZ_ASSERT(!isGenerator());
+        JS_ASSERT(!isGenerator());
         // Legacy generators cannot currently be lazy.
-        MOZ_ASSERT(kind != LegacyGenerator);
+        JS_ASSERT(kind != LegacyGenerator);
         p_.generatorKindBits = GeneratorKindAsBits(kind);
     }
 
@@ -2063,7 +1963,6 @@ class LazyScript : public gc::TenuredCell
 
     void markChildren(JSTracer *trc);
     void finalize(js::FreeOp *fop);
-    void fixupAfterMovingGC() {}
 
     static inline js::ThingRootKind rootKind() { return js::THING_ROOT_LAZY_SCRIPT; }
 

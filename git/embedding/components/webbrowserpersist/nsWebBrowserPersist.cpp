@@ -1205,6 +1205,7 @@ nsresult nsWebBrowserPersist::SaveURIInternal(
                        nsContentUtils::GetSystemPrincipal(),
                        nsILoadInfo::SEC_NORMAL,
                        nsIContentPolicy::TYPE_OTHER,
+                       nullptr,  // aChannelPolicy
                        nullptr,  // aLoadGroup
                        static_cast<nsIInterfaceRequestor*>(this),
                        loadFlags);
@@ -1236,7 +1237,7 @@ nsresult nsWebBrowserPersist::SaveURIInternal(
         nsCOMPtr<nsIHttpChannelInternal> httpChannelInternal =
                 do_QueryInterface(inputChannel);
         if (httpChannelInternal)
-            httpChannelInternal->SetThirdPartyFlags(nsIHttpChannelInternal::THIRD_PARTY_FORCE_ALLOW);
+            httpChannelInternal->SetForceAllowThirdPartyCookie(true);
     }
 
     // Set the referrer, post data and headers if any

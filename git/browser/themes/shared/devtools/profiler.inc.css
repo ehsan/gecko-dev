@@ -50,9 +50,12 @@
 
 /* Recordings pane */
 
-#recordings-pane > tabs,
+#recordings-pane > tabs {
+  -moz-border-end: 1px solid;
+}
+
 #recordings-pane .devtools-toolbar {
-  -moz-border-end-width: 1px;
+  -moz-border-end: 1px solid;
 }
 
 .theme-dark #recordings-pane > tabs,
@@ -248,17 +251,13 @@
 }
 
 .call-tree-header[type="duration"],
-.call-tree-cell[type="duration"],
-.call-tree-header[type="self-duration"],
-.call-tree-cell[type="self-duration"] {
-  width: 9em;
+.call-tree-cell[type="duration"] {
+  width: 7em;
 }
 
 .call-tree-header[type="percentage"],
-.call-tree-cell[type="percentage"],
-.call-tree-header[type="self-percentage"],
-.call-tree-cell[type="self-percentage"] {
-  width: 6em;
+.call-tree-cell[type="percentage"] {
+  width: 5em;
 }
 
 .call-tree-header[type="samples"],

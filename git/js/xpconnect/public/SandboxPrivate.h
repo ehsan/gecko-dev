@@ -27,7 +27,6 @@ public:
     SandboxPrivate(nsIPrincipal *principal, JSObject *global)
         : mPrincipal(principal)
     {
-        SetIsNotDOMBinding();
         SetWrapper(global);
     }
 
@@ -48,16 +47,6 @@ public:
     void ForgetGlobalObject()
     {
         ClearWrapper();
-    }
-
-    virtual JSObject* WrapObject(JSContext* cx) MOZ_OVERRIDE
-    {
-        MOZ_CRASH("SandboxPrivate doesn't use DOM bindings!");
-    }
-
-    void ObjectMoved(JSObject *obj, const JSObject *old)
-    {
-        UpdateWrapper(obj, old);
     }
 
 private:

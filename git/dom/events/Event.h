@@ -30,7 +30,6 @@ namespace dom {
 class EventTarget;
 class ErrorEvent;
 class ProgressEvent;
-class WantsPopupControlCheck;
 
 // Dummy class so we can cast through it to get from nsISupports to
 // Event subclasses with only two non-ambiguous static casts.
@@ -91,9 +90,10 @@ public:
     return mOwner;
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE MOZ_FINAL;
-
-  virtual JSObject* WrapObjectInternal(JSContext* aCx);
+  virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE
+  {
+    return EventBinding::Wrap(aCx, this);
+  }
 
   virtual ErrorEvent* AsErrorEvent()
   {
@@ -113,8 +113,7 @@ public:
   // Returns true if the event should be trusted.
   bool Init(EventTarget* aGlobal);
 
-  static PopupControlState GetEventPopupControlState(WidgetEvent* aEvent,
-                                                     nsIDOMEvent* aDOMEvent = nullptr);
+  static PopupControlState GetEventPopupControlState(WidgetEvent* aEvent);
 
   static void PopupAllowedEventsChanged();
 
@@ -236,17 +235,6 @@ protected:
   void SetEventType(const nsAString& aEventTypeArg);
   already_AddRefed<nsIContent> GetTargetFromFrame();
 
-  friend class WantsPopupControlCheck;
-  void SetWantsPopupControlCheck(bool aCheck)
-  {
-    mWantsPopupControlCheck = aCheck;
-  }
-
-  bool GetWantsPopupControlCheck()
-  {
-    return IsTrusted() && mWantsPopupControlCheck;
-  }
-
   /**
    * IsChrome() returns true if aCx is chrome context or the event is created
    * in chrome's thread.  Otherwise, false.
@@ -260,29 +248,6 @@ protected:
   bool                        mEventIsInternal;
   bool                        mPrivateDataDuplicated;
   bool                        mIsMainThreadEvent;
-  // True when popup control check should rely on event.type, not
-  // WidgetEvent.message.
-  bool                        mWantsPopupControlCheck;
-};
-
-class MOZ_STACK_CLASS WantsPopupControlCheck
-{
-public:
-  explicit WantsPopupControlCheck(nsIDOMEvent* aEvent) :
-    mEvent(aEvent->InternalDOMEvent())
-  {
-    mOriginalWantsPopupControlCheck = mEvent->GetWantsPopupControlCheck();
-    mEvent->SetWantsPopupControlCheck(mEvent->IsTrusted());
-  }
-
-  ~WantsPopupControlCheck()
-  {
-    mEvent->SetWantsPopupControlCheck(mOriginalWantsPopupControlCheck);
-  }
-
-private:
-  Event* mEvent;
-  bool mOriginalWantsPopupControlCheck;
 };
 
 } // namespace dom

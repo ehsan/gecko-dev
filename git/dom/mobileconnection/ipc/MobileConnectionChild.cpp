@@ -106,9 +106,9 @@ MobileConnectionChild::GetIccId(nsAString& aIccId)
 }
 
 NS_IMETHODIMP
-MobileConnectionChild::GetRadioState(int32_t* aRadioState)
+MobileConnectionChild::GetRadioState(nsAString& aRadioState)
 {
-  *aRadioState = mRadioState;
+  aRadioState = mRadioState;
   return NS_OK;
 }
 
@@ -146,9 +146,9 @@ MobileConnectionChild::GetLastKnownHomeNetwork(nsAString& aNetwork)
 }
 
 NS_IMETHODIMP
-MobileConnectionChild::GetNetworkSelectionMode(int32_t* aMode)
+MobileConnectionChild::GetNetworkSelectionMode(nsAString& aMode)
 {
-  *aMode = mNetworkSelectionMode;
+  aMode = mNetworkSelectionMode;
   return NS_OK;
 }
 
@@ -178,10 +178,11 @@ MobileConnectionChild::SelectNetworkAutomatically(nsIMobileConnectionCallback* a
 
 
 NS_IMETHODIMP
-MobileConnectionChild::SetPreferredNetworkType(int32_t aType,
+MobileConnectionChild::SetPreferredNetworkType(const nsAString& aType,
                                                nsIMobileConnectionCallback* aCallback)
 {
-  return SendRequest(SetPreferredNetworkTypeRequest(aType), aCallback)
+  return SendRequest(SetPreferredNetworkTypeRequest(nsAutoString(aType)),
+                     aCallback)
     ? NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -193,10 +194,11 @@ MobileConnectionChild::GetPreferredNetworkType(nsIMobileConnectionCallback* aCal
 }
 
 NS_IMETHODIMP
-MobileConnectionChild::SetRoamingPreference(int32_t aMode,
+MobileConnectionChild::SetRoamingPreference(const nsAString& aMode,
                                             nsIMobileConnectionCallback* aCallback)
 {
-  return SendRequest(SetRoamingPreferenceRequest(aMode), aCallback)
+  return SendRequest(SetRoamingPreferenceRequest(nsAutoString(aMode)),
+                     aCallback)
     ? NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -237,15 +239,21 @@ MobileConnectionChild::CancelMMI(nsIMobileConnectionCallback* aCallback)
 }
 
 NS_IMETHODIMP
-MobileConnectionChild::SetCallForwarding(uint16_t aAction, uint16_t aReason,
-                                         const nsAString& aNumber,
-                                         uint16_t aTimeSeconds, uint16_t aServiceClass,
+MobileConnectionChild::SetCallForwarding(JS::Handle<JS::Value> aOptions,
                                          nsIMobileConnectionCallback* aCallback)
 {
-  return SendRequest(SetCallForwardingRequest(aAction, aReason,
-                                              nsString(aNumber),
-                                              aTimeSeconds, aServiceClass),
-                     aCallback)
+  AutoJSAPI jsapi;
+  if (!NS_WARN_IF(jsapi.Init(&aOptions.toObject()))) {
+    return NS_ERROR_FAILURE;
+  }
+
+  JSContext* cx = jsapi.cx();
+  IPC::MozCallForwardingOptions options;
+  if(!options.Init(cx, aOptions)) {
+    return NS_ERROR_TYPE_ERR;
+  }
+
+  return SendRequest(SetCallForwardingRequest(options), aCallback)
     ? NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -258,38 +266,59 @@ MobileConnectionChild::GetCallForwarding(uint16_t aReason,
 }
 
 NS_IMETHODIMP
-MobileConnectionChild::SetCallBarring(uint16_t aProgram, bool aEnabled,
-                                      const nsAString& aPassword,
-                                      uint16_t aServiceClass,
+MobileConnectionChild::SetCallBarring(JS::Handle<JS::Value> aOptions,
                                       nsIMobileConnectionCallback* aCallback)
 {
-  return SendRequest(SetCallBarringRequest(aProgram, aEnabled,
-                                           nsString(aPassword),
-                                           aServiceClass),
-                     aCallback)
+  AutoJSAPI jsapi;
+  if (!NS_WARN_IF(jsapi.Init(&aOptions.toObject()))) {
+    return NS_ERROR_FAILURE;
+  }
+
+  JSContext* cx = jsapi.cx();
+  IPC::MozCallBarringOptions options;
+  if(!options.Init(cx, aOptions)) {
+    return NS_ERROR_TYPE_ERR;
+  }
+
+  return SendRequest(SetCallBarringRequest(options), aCallback)
     ? NS_OK : NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
-MobileConnectionChild::GetCallBarring(uint16_t aProgram,
-                                      const nsAString& aPassword,
-                                      uint16_t aServiceClass,
+MobileConnectionChild::GetCallBarring(JS::Handle<JS::Value> aOptions,
                                       nsIMobileConnectionCallback* aCallback)
 {
-  return SendRequest(GetCallBarringRequest(aProgram, nsString(aPassword),
-                                           aServiceClass),
-                     aCallback)
+  AutoJSAPI jsapi;
+  if (!NS_WARN_IF(jsapi.Init(&aOptions.toObject()))) {
+    return NS_ERROR_FAILURE;
+  }
+
+  JSContext* cx = jsapi.cx();
+  IPC::MozCallBarringOptions options;
+  if(!options.Init(cx, aOptions)) {
+    return NS_ERROR_TYPE_ERR;
+  }
+
+  return SendRequest(GetCallBarringRequest(options), aCallback)
     ? NS_OK : NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
-MobileConnectionChild::ChangeCallBarringPassword(const nsAString& aPin,
-                                                 const nsAString& aNewPin,
+MobileConnectionChild::ChangeCallBarringPassword(JS::Handle<JS::Value> aOptions,
                                                  nsIMobileConnectionCallback* aCallback)
 {
-  return SendRequest(ChangeCallBarringPasswordRequest(nsString(aPin),
-                                                      nsString(aNewPin)),
-                     aCallback)
+  AutoJSAPI jsapi;
+  if (!NS_WARN_IF(jsapi.Init(&aOptions.toObject()))) {
+    return NS_ERROR_FAILURE;
+  }
+
+  JSContext* cx = jsapi.cx();
+  IPC::MozCallBarringOptions options;
+  if(!options.Init(cx, aOptions)) {
+    return NS_ERROR_TYPE_ERR;
+  }
+
+  return SendRequest(ChangeCallBarringPasswordRequest(options), aCallback)
     ? NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -336,20 +365,6 @@ MobileConnectionChild::SetRadioEnabled(bool aEnabled,
 {
   return SendRequest(SetRadioEnabledRequest(aEnabled), aCallback)
     ? NS_OK : NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP
-MobileConnectionChild::GetNeighboringCellIds(nsINeighboringCellIdsCallback* aCallback)
-{
-  // This function is supported in chrome context only.
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-MobileConnectionChild::GetCellInfoList(nsICellInfoListCallback* aCallback)
-{
-  // This function is supported in chrome context only.
-  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 bool
@@ -437,15 +452,16 @@ MobileConnectionChild::RecvNotifyDataError(const nsString& aMessage)
 }
 
 bool
-MobileConnectionChild::RecvNotifyCFStateChanged(const uint16_t& aAction,
+MobileConnectionChild::RecvNotifyCFStateChanged(const bool& aSuccess,
+                                                const uint16_t& aAction,
                                                 const uint16_t& aReason,
                                                 const nsString& aNumber,
                                                 const uint16_t& aTimeSeconds,
                                                 const uint16_t& aServiceClass)
 {
   for (int32_t i = 0; i < mListeners.Count(); i++) {
-    mListeners[i]->NotifyCFStateChanged(aAction, aReason, aNumber, aTimeSeconds,
-                                        aServiceClass);
+    mListeners[i]->NotifyCFStateChanged(aSuccess, aAction, aReason, aNumber,
+                                        aTimeSeconds, aServiceClass);
   }
 
   return true;
@@ -485,9 +501,9 @@ MobileConnectionChild::RecvNotifyIccChanged(const nsString& aIccId)
 }
 
 bool
-MobileConnectionChild::RecvNotifyRadioStateChanged(const int32_t& aRadioState)
+MobileConnectionChild::RecvNotifyRadioStateChanged(const nsString& aRadioState)
 {
-  mRadioState = aRadioState;
+  mRadioState.Assign(aRadioState);
 
   for (int32_t i = 0; i < mListeners.Count(); i++) {
     mListeners[i]->NotifyRadioStateChanged();
@@ -523,9 +539,9 @@ MobileConnectionChild::RecvNotifyLastHomeNetworkChanged(const nsString& aNetwork
 }
 
 bool
-MobileConnectionChild::RecvNotifyNetworkSelectionModeChanged(const int32_t& aMode)
+MobileConnectionChild::RecvNotifyNetworkSelectionModeChanged(const nsString& aMode)
 {
-  mNetworkSelectionMode = aMode;
+  mNetworkSelectionMode.Assign(aMode);
 
   return true;
 }
@@ -544,6 +560,12 @@ bool
 MobileConnectionRequestChild::DoReply(const MobileConnectionReplySuccess& aReply)
 {
   return NS_SUCCEEDED(mRequestCallback->NotifySuccess());
+}
+
+bool
+MobileConnectionRequestChild::DoReply(const MobileConnectionReplySuccessString& aReply)
+{
+  return NS_SUCCEEDED(mRequestCallback->NotifySuccessWithString(aReply.result()));
 }
 
 bool
@@ -575,45 +597,26 @@ MobileConnectionRequestChild::DoReply(const MobileConnectionReplySuccessMmi& aRe
   nsAutoString statusMessage(aReply.statusMessage());
   AdditionalInformation info(aReply.additionalInformation());
 
+  nsRefPtr<MobileConnectionCallback> callback = static_cast<MobileConnectionCallback*>(mRequestCallback.get());
+
+
   // Handle union types
   switch (info.type()) {
     case AdditionalInformation::Tvoid_t:
-      return NS_SUCCEEDED(mRequestCallback->NotifySendCancelMmiSuccess(serviceCode,
-                                                                       statusMessage));
-
+      return NS_SUCCEEDED(callback->NotifySendCancelMmiSuccess(serviceCode,
+                                                               statusMessage));
     case AdditionalInformation::Tuint16_t:
-      return NS_SUCCEEDED(mRequestCallback->NotifySendCancelMmiSuccessWithInteger(
-        serviceCode, statusMessage, info.get_uint16_t()));
-
-    case AdditionalInformation::TArrayOfnsString: {
-      uint32_t count = info.get_ArrayOfnsString().Length();
-      const nsTArray<nsString>& additionalInformation = info.get_ArrayOfnsString();
-
-      nsAutoArrayPtr<const char16_t*> additionalInfoPtrs(new const char16_t*[count]);
-      for (size_t i = 0; i < count; ++i) {
-        additionalInfoPtrs[i] = additionalInformation[i].get();
-      }
-
-      return NS_SUCCEEDED(mRequestCallback->NotifySendCancelMmiSuccessWithStrings(
-        serviceCode, statusMessage, count, additionalInfoPtrs));
-    }
-
-    case AdditionalInformation::TArrayOfnsMobileCallForwardingOptions: {
-      uint32_t count = info.get_ArrayOfnsMobileCallForwardingOptions().Length();
-
-      nsTArray<nsCOMPtr<nsIMobileCallForwardingOptions>> results;
-      for (uint32_t i = 0; i < count; i++) {
-        // Use dont_AddRef here because these instances are already AddRef-ed in
-        // MobileConnectionIPCSerializer.h
-        nsCOMPtr<nsIMobileCallForwardingOptions> item = dont_AddRef(
-          info.get_ArrayOfnsMobileCallForwardingOptions()[i]);
-        results.AppendElement(item);
-      }
-
-      return NS_SUCCEEDED(mRequestCallback->NotifySendCancelMmiSuccessWithCallForwardingOptions(
-        serviceCode, statusMessage, count,
-        const_cast<nsIMobileCallForwardingOptions**>(info.get_ArrayOfnsMobileCallForwardingOptions().Elements())));
-    }
+      return NS_SUCCEEDED(callback->NotifySendCancelMmiSuccess(serviceCode,
+                                                               statusMessage,
+                                                               info.get_uint16_t()));
+    case AdditionalInformation::TArrayOfnsString:
+      return NS_SUCCEEDED(callback->NotifySendCancelMmiSuccess(serviceCode,
+                                                               statusMessage,
+                                                               info.get_ArrayOfnsString()));
+    case AdditionalInformation::TArrayOfMozCallForwardingOptions:
+      return NS_SUCCEEDED(callback->NotifySendCancelMmiSuccess(serviceCode,
+                                                               statusMessage,
+                                                               info.get_ArrayOfMozCallForwardingOptions()));
 
     default:
       MOZ_CRASH("Received invalid type!");
@@ -625,17 +628,8 @@ MobileConnectionRequestChild::DoReply(const MobileConnectionReplySuccessMmi& aRe
 bool
 MobileConnectionRequestChild::DoReply(const MobileConnectionReplySuccessCallForwarding& aReply)
 {
-  uint32_t count = aReply.results().Length();
-  nsTArray<nsCOMPtr<nsIMobileCallForwardingOptions>> results;
-  for (uint32_t i = 0; i < count; i++) {
-    // Use dont_AddRef here because these instances are already AddRef-ed in
-    // MobileConnectionIPCSerializer.h
-    nsCOMPtr<nsIMobileCallForwardingOptions> item = dont_AddRef(aReply.results()[i]);
-    results.AppendElement(item);
-  }
-
-  return NS_SUCCEEDED(mRequestCallback->NotifyGetCallForwardingSuccess(
-    count, const_cast<nsIMobileCallForwardingOptions**>(aReply.results().Elements())));
+  nsRefPtr<MobileConnectionCallback> callback = static_cast<MobileConnectionCallback*>(mRequestCallback.get());
+  return NS_SUCCEEDED(callback->NotifyGetCallForwardingSuccess(aReply.results()));
 }
 
 bool
@@ -651,18 +645,6 @@ MobileConnectionRequestChild::DoReply(const MobileConnectionReplySuccessClirStat
 {
   return NS_SUCCEEDED(mRequestCallback->NotifyGetClirStatusSuccess(aReply.n(),
                                                                    aReply.m()));
-}
-
-bool
-MobileConnectionRequestChild::DoReply(const MobileConnectionReplySuccessPreferredNetworkType& aReply)
-{
-  return NS_SUCCEEDED(mRequestCallback->NotifyGetPreferredNetworkTypeSuccess(aReply.type()));
-}
-
-bool
-MobileConnectionRequestChild::DoReply(const MobileConnectionReplySuccessRoamingPreference& aReply)
-{
-  return NS_SUCCEEDED(mRequestCallback->NotifyGetRoamingPreferenceSuccess(aReply.mode()));
 }
 
 bool
@@ -705,6 +687,8 @@ MobileConnectionRequestChild::Recv__delete__(const MobileConnectionReply& aReply
   switch (aReply.type()) {
     case MobileConnectionReply::TMobileConnectionReplySuccess:
       return DoReply(aReply.get_MobileConnectionReplySuccess());
+    case MobileConnectionReply::TMobileConnectionReplySuccessString:
+      return DoReply(aReply.get_MobileConnectionReplySuccessString());
     case MobileConnectionReply::TMobileConnectionReplySuccessBoolean:
       return DoReply(aReply.get_MobileConnectionReplySuccessBoolean());
     case MobileConnectionReply::TMobileConnectionReplySuccessNetworks:
@@ -717,10 +701,6 @@ MobileConnectionRequestChild::Recv__delete__(const MobileConnectionReply& aReply
       return DoReply(aReply.get_MobileConnectionReplySuccessCallBarring());
     case MobileConnectionReply::TMobileConnectionReplySuccessClirStatus:
       return DoReply(aReply.get_MobileConnectionReplySuccessClirStatus());
-    case MobileConnectionReply::TMobileConnectionReplySuccessPreferredNetworkType:
-      return DoReply(aReply.get_MobileConnectionReplySuccessPreferredNetworkType());
-    case MobileConnectionReply::TMobileConnectionReplySuccessRoamingPreference:
-      return DoReply(aReply.get_MobileConnectionReplySuccessRoamingPreference());
     case MobileConnectionReply::TMobileConnectionReplyError:
       return DoReply(aReply.get_MobileConnectionReplyError());
     case MobileConnectionReply::TMobileConnectionReplyErrorMmi:

@@ -2,14 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-///////////////////
-//
-// Whitelisting this test.
-// As part of bug 1077403, the leaking uncaught rejection should be fixed.
-//
-thisTestLeaksUncaughtRejectionsAndShouldBeFixed("TypeError: Assert is null");
-
-
 let SocialService = Cu.import("resource://gre/modules/SocialService.jsm", {}).SocialService;
 
 let tabsToRemove = [];
@@ -86,6 +78,9 @@ function activateIFrameProvider(domain, callback) {
 }
 
 function waitForProviderLoad(cb) {
+  Services.obs.addObserver(function providerSet(subject, topic, data) {
+    Services.obs.removeObserver(providerSet, "social:provider-enabled");
+    info("social:provider-enabled observer was notified");
     waitForCondition(function() {
       let sbrowser = document.getElementById("social-sidebar-browser");
       let provider = SocialSidebar.provider;
@@ -101,6 +96,7 @@ function waitForProviderLoad(cb) {
       executeSoon(cb);
     },
     "waitForProviderLoad: provider profile was not set");
+  }, "social:provider-enabled", false);
 }
 
 
@@ -145,15 +141,14 @@ function activateOneProvider(manifest, finishActivation, aCallback) {
   let panel = document.getElementById("servicesInstall-notification");
   PopupNotifications.panel.addEventListener("popupshown", function onpopupshown() {
     PopupNotifications.panel.removeEventListener("popupshown", onpopupshown);
-    ok(!panel.hidden, "servicesInstall-notification panel opened");
+    info("servicesInstall-notification panel opened");
     if (finishActivation)
       panel.button.click();
     else
       panel.closebutton.click();
   });
-  PopupNotifications.panel.addEventListener("popuphidden", function _hidden() {
-    PopupNotifications.panel.removeEventListener("popuphidden", _hidden);
-    ok(panel.hidden, "servicesInstall-notification panel hidden");
+
+  activateProvider(manifest.origin, function() {
     if (!finishActivation) {
       ok(panel.hidden, "activation panel is not showing");
       executeSoon(aCallback);
@@ -165,11 +160,6 @@ function activateOneProvider(manifest, finishActivation, aCallback) {
         executeSoon(aCallback);
       });
     }
-  });
-
-  // the test will continue as the popup events fire...
-  activateProvider(manifest.origin, function() {
-    info("waiting on activation panel to open/close...");
   });
 }
 

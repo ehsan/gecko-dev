@@ -73,7 +73,6 @@
    Memcheck:Leak
    fun:malloc
    fun:moz_xmalloc
-   ...
    fun:_ZN20mozJSComponentLoader10LoadModuleERN7mozilla12FileLocationE
    ...
 }
@@ -82,7 +81,6 @@
    Memcheck:Leak
    fun:malloc
    fun:moz_xmalloc
-   ...
    fun:_ZN22nsComponentManagerImpl15RegisterFactoryERK4nsIDPKcS4_P10nsIFactory
    ...
 }
@@ -91,7 +89,6 @@
    Memcheck:Leak
    fun:malloc
    fun:moz_xmalloc
-   ...
    fun:_ZN22nsComponentManagerImpl22RegisterCIDEntryLockedEPKN7mozilla6Module8CIDEntryEPNS_11KnownModuleE
    ...
 }
@@ -100,7 +97,6 @@
    Memcheck:Leak
    fun:malloc
    fun:moz_xmalloc
-   ...
    fun:_ZN22nsComponentManagerImpl17ManifestComponentERNS_25ManifestProcessingContextEiPKPc
    ...
 }

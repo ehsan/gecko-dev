@@ -20,6 +20,7 @@
 
 #include "base/message_loop.h"
 #include "DeviceStorage.h"
+#include "mozilla/FileUtils.h"
 #include "mozilla/LazyIdleThread.h"
 #include "mozilla/Scoped.h"
 #include "mozilla/Services.h"
@@ -107,9 +108,8 @@ public:
     }
 
     NS_ConvertUTF16toUTF8 eventType(aData);
-    if (!eventType.EqualsLiteral("modified") && !eventType.EqualsLiteral("deleted")) {
-      // Bug 1074604: Needn't handle "created" event, once file operation
-      // finished, it would trigger "modified" event.
+    if (!eventType.EqualsLiteral("created") && !eventType.EqualsLiteral("deleted")) {
+      // MTP doesn't have a modified notification.
       return NS_OK;
     }
 
@@ -224,38 +224,33 @@ MozMtpServer::GetMozMtpDatabase()
   return db.forget();
 }
 
-bool
-MozMtpServer::Init()
+void
+MozMtpServer::Run()
 {
   MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
 
   const char *mtpUsbFilename = "/dev/mtp_usb";
-  mMtpUsbFd = open(mtpUsbFilename, O_RDWR);
-  if (mMtpUsbFd.get() < 0) {
+  ScopedClose mtpUsbFd(open(mtpUsbFilename, O_RDWR));
+  if (mtpUsbFd.get() < 0) {
     MTP_ERR("open of '%s' failed", mtpUsbFilename);
-    return false;
+    return;
   }
-  MTP_LOG("Opened '%s' fd %d", mtpUsbFilename, mMtpUsbFd.get());
+  MTP_LOG("Opened '%s' fd %d", mtpUsbFilename, mtpUsbFd.get());
 
   mMozMtpDatabase = new MozMtpDatabase();
-  mMtpServer = new RefCountedMtpServer(mMtpUsbFd.get(),        // fd
+  mMtpServer = new RefCountedMtpServer(mtpUsbFd.get(),        // fd
                                        mMozMtpDatabase.get(), // MtpDatabase
                                        false,                 // ptp?
                                        AID_MEDIA_RW,          // file group
                                        0664,                  // file permissions
                                        0775);                 // dir permissions
-  return true;
-}
 
-void
-MozMtpServer::Run()
-{
   nsresult rv = NS_NewNamedThread("MtpServer", getter_AddRefs(mServerThread));
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return;
   }
   MOZ_ASSERT(mServerThread);
-  mServerThread->Dispatch(new MtpServerRunnable(mMtpUsbFd.forget(), this), NS_DISPATCH_NORMAL);
+  mServerThread->Dispatch(new MtpServerRunnable(mtpUsbFd.forget(), this), NS_DISPATCH_NORMAL);
 }
 
 END_MTP_NAMESPACE

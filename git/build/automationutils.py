@@ -13,6 +13,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+from urlparse import urlparse
 import zipfile
 import mozinfo
 
@@ -20,7 +21,11 @@ __all__ = [
   "ZipFileReader",
   "addCommonOptions",
   "dumpLeakLog",
+  "isURL",
   "processLeakLog",
+  "replaceBackSlashes",
+  'KeyValueParseError',
+  'parseKeyValue',
   'systemMemory',
   'environment',
   'dumpScreen',
@@ -102,6 +107,11 @@ class ZipFileReader(object):
 
     for name in self._zipfile.namelist():
       self._extractname(name, path)
+
+def isURL(thing):
+  """Return True if |thing| looks like a URL."""
+  # We want to download URLs like http://... but not Windows paths like c:\...
+  return len(urlparse(thing).scheme) >= 2
 
 # Python does not provide strsignal() even in the very latest 3.x.
 # This is a reasonable fake.
@@ -299,7 +309,7 @@ def processSingleLeakFile(leakLogFileName, processType, leakThreshold, ignoreMis
     log.info("%s | leakcheck | %s %d bytes leaked (%s)"
              % (prefix, processString, totalBytesLeaked, leakedObjectSummary))
 
-def processLeakLog(leakLogFile, options):
+def processLeakLog(leakLogFile, leakThresholds, ignoreMissingLeaks):
   """Process the leak log, including separate leak logs created
   by child processes.
 
@@ -315,24 +325,14 @@ def processLeakLog(leakLogFile, options):
 
   All other file names are treated as being for default processes.
 
-  The options argument is checked for two optional attributes,
-  leakThresholds and ignoreMissingLeaks.
-
   leakThresholds should be a dict mapping process types to leak thresholds,
   in bytes. If a process type is not present in the dict the threshold
   will be 0.
-
-  ignoreMissingLeaks should be a list of process types. If a process
-  creates a leak log without a TOTAL, then we report an error if it isn't
-  in the list ignoreMissingLeaks.
   """
 
   if not os.path.exists(leakLogFile):
     log.info("WARNING | leakcheck | refcount logging is off, so leaks can't be detected!")
     return
-
-  leakThresholds = getattr(options, 'leakThresholds', {})
-  ignoreMissingLeaks = getattr(options, 'ignoreMissingLeaks', [])
 
   # This list is based on kGeckoProcessTypeString. ipdlunittest processes likely
   # are not going to produce leak logs we will ever see.
@@ -368,6 +368,30 @@ def processLeakLog(leakLogFile, options):
       leakThreshold = leakThresholds.get(processType, 0)
       processSingleLeakFile(thisFile, processType, leakThreshold,
                             processType in ignoreMissingLeaks)
+
+def replaceBackSlashes(input):
+  return input.replace('\\', '/')
+
+class KeyValueParseError(Exception):
+  """error when parsing strings of serialized key-values"""
+  def __init__(self, msg, errors=()):
+    self.errors = errors
+    Exception.__init__(self, msg)
+
+def parseKeyValue(strings, separator='=', context='key, value: '):
+  """
+  parse string-serialized key-value pairs in the form of
+  `key = value`. Returns a list of 2-tuples.
+  Note that whitespace is not stripped.
+  """
+
+  # syntax check
+  missing = [string for string in strings if separator not in string]
+  if missing:
+    raise KeyValueParseError("Error: syntax error in %s" % (context,
+                                                            ','.join(missing)),
+                                                            errors=missing)
+  return [string.split(separator, 1) for string in strings]
 
 def systemMemory():
   """

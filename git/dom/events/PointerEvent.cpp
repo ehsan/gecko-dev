@@ -48,25 +48,6 @@ ConvertStringToPointerType(const nsAString& aPointerTypeArg)
   return nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
 }
 
-void
-ConvertPointerTypeToString(uint16_t aPointerTypeSrc, nsAString& aPointerTypeDest)
-{
-  switch (aPointerTypeSrc) {
-    case nsIDOMMouseEvent::MOZ_SOURCE_MOUSE:
-      aPointerTypeDest.AssignLiteral("mouse");
-      break;
-    case nsIDOMMouseEvent::MOZ_SOURCE_PEN:
-      aPointerTypeDest.AssignLiteral("pen");
-      break;
-    case nsIDOMMouseEvent::MOZ_SOURCE_TOUCH:
-      aPointerTypeDest.AssignLiteral("touch");
-      break;
-    default:
-      aPointerTypeDest.Truncate();
-      break;
-  }
-}
-
 // static
 already_AddRefed<PointerEvent>
 PointerEvent::Constructor(EventTarget* aOwner,
@@ -112,7 +93,20 @@ PointerEvent::Constructor(const GlobalObject& aGlobal,
 void
 PointerEvent::GetPointerType(nsAString& aPointerType)
 {
-  ConvertPointerTypeToString(mEvent->AsPointerEvent()->inputSource, aPointerType);
+  switch (mEvent->AsPointerEvent()->inputSource) {
+    case nsIDOMMouseEvent::MOZ_SOURCE_MOUSE:
+      aPointerType.AssignLiteral("mouse");
+      break;
+    case nsIDOMMouseEvent::MOZ_SOURCE_PEN:
+      aPointerType.AssignLiteral("pen");
+      break;
+    case nsIDOMMouseEvent::MOZ_SOURCE_TOUCH:
+      aPointerType.AssignLiteral("touch");
+      break;
+    case nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN:
+      aPointerType.Truncate();
+      break;
+  }
 }
 
 int32_t

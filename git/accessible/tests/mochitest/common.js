@@ -34,6 +34,7 @@ const nsIAccessibleEditableText = Components.interfaces.nsIAccessibleEditableTex
 const nsIAccessibleHyperLink = Components.interfaces.nsIAccessibleHyperLink;
 const nsIAccessibleHyperText = Components.interfaces.nsIAccessibleHyperText;
 
+const nsIAccessibleCursorable = Components.interfaces.nsIAccessibleCursorable;
 const nsIAccessibleImage = Components.interfaces.nsIAccessibleImage;
 const nsIAccessiblePivot = Components.interfaces.nsIAccessiblePivot;
 const nsIAccessibleSelectable = Components.interfaces.nsIAccessibleSelectable;
@@ -172,7 +173,7 @@ function getNode(aAccOrNodeOrID, aDocument)
   if (aAccOrNodeOrID instanceof nsIAccessible)
     return aAccOrNodeOrID.DOMNode;
 
-  var node = (aDocument || document).getElementById(aAccOrNodeOrID);
+  node = (aDocument || document).getElementById(aAccOrNodeOrID);
   if (!node) {
     ok(false, "Can't get DOM element for " + aAccOrNodeOrID);
     return null;

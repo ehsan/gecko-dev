@@ -72,7 +72,7 @@ class ParallelSafetyVisitor : public MDefinitionVisitor
 
     bool insertWriteGuard(MInstruction *writeInstruction, MDefinition *valueBeingWritten);
 
-    bool replaceWithNewPar(MInstruction *newInstruction, NativeObject *templateObject);
+    bool replaceWithNewPar(MInstruction *newInstruction, JSObject *templateObject);
     bool replace(MInstruction *oldInstruction, MInstruction *replacementInstruction);
 
     bool visitSpecializedInstruction(MInstruction *ins, MIRType spec, uint32_t flags);
@@ -81,7 +81,7 @@ class ParallelSafetyVisitor : public MDefinitionVisitor
     // markUnsafe()".  Sets the unsafe flag and returns true (since
     // this does not indicate an unrecoverable compilation failure).
     bool markUnsafe() {
-        MOZ_ASSERT(!unsafe_);
+        JS_ASSERT(!unsafe_);
         unsafe_ = true;
         return true;
     }
@@ -119,9 +119,6 @@ class ParallelSafetyVisitor : public MDefinitionVisitor
     SAFE_OP(SimdExtractElement)
     SAFE_OP(SimdInsertElement)
     SAFE_OP(SimdSignMask)
-    SAFE_OP(SimdSwizzle)
-    SAFE_OP(SimdShuffle)
-    SAFE_OP(SimdUnaryArith)
     SAFE_OP(SimdBinaryComp)
     SAFE_OP(SimdBinaryArith)
     SAFE_OP(SimdBinaryBitwise)
@@ -134,7 +131,6 @@ class ParallelSafetyVisitor : public MDefinitionVisitor
     SAFE_OP(TableSwitch)
     SAFE_OP(Goto)
     SAFE_OP(Test)
-    SAFE_OP(GotoWithFake)
     SAFE_OP(Compare)
     SAFE_OP(Phi)
     SAFE_OP(Beta)
@@ -200,10 +196,8 @@ class ParallelSafetyVisitor : public MDefinitionVisitor
     SAFE_OP(TruncateToInt32)
     SAFE_OP(MaybeToDoubleElement)
     CUSTOM_OP(ToString)
-    UNSAFE_OP(ToObjectOrNull)
     CUSTOM_OP(NewArray)
     UNSAFE_OP(NewArrayCopyOnWrite)
-    UNSAFE_OP(NewTypedObject)
     CUSTOM_OP(NewObject)
     CUSTOM_OP(NewCallObject)
     CUSTOM_OP(NewRunOnceCallObject)
@@ -254,16 +248,13 @@ class ParallelSafetyVisitor : public MDefinitionVisitor
     SAFE_OP(InitializedLength)
     WRITE_GUARDED_OP(SetInitializedLength, elements)
     SAFE_OP(Not)
+    SAFE_OP(NeuterCheck)
     SAFE_OP(BoundsCheck)
     SAFE_OP(BoundsCheckLower)
     SAFE_OP(LoadElement)
     SAFE_OP(LoadElementHole)
-    SAFE_OP(LoadUnboxedObjectOrNull)
-    SAFE_OP(LoadUnboxedString)
     MAYBE_WRITE_GUARDED_OP(StoreElement, elements)
     WRITE_GUARDED_OP(StoreElementHole, elements)
-    UNSAFE_OP(StoreUnboxedObjectOrNull)
-    UNSAFE_OP(StoreUnboxedString)
     UNSAFE_OP(ArrayPopShift)
     UNSAFE_OP(ArrayPush)
     SAFE_OP(LoadTypedArrayElement)
@@ -353,14 +344,11 @@ class ParallelSafetyVisitor : public MDefinitionVisitor
     UNSAFE_OP(AsmJSParameter)
     UNSAFE_OP(AsmJSCall)
     DROP_OP(RecompileCheck)
-    UNSAFE_OP(CompareExchangeTypedArrayElement)
-    UNSAFE_OP(AtomicTypedArrayElementBinop)
-    UNSAFE_OP(MemoryBarrier)
     UNSAFE_OP(UnknownValue)
     UNSAFE_OP(LexicalCheck)
     UNSAFE_OP(ThrowUninitializedLexical)
 
-    // It looks like these could easily be made safe:
+    // It looks like this could easily be made safe:
     UNSAFE_OP(ConvertElementsToDoubles)
     UNSAFE_OP(MaybeCopyElementsForWrite)
 };
@@ -462,24 +450,20 @@ ParallelSafetyVisitor::convertToBailout(MInstructionIterator &iter)
     // We expect iter to be settled on the unsafe instruction.
     MInstruction *ins = *iter;
     MBasicBlock *block = ins->block();
-    MOZ_ASSERT(unsafe()); // `block` must have contained unsafe items
-    MOZ_ASSERT(block->isMarked()); // `block` must have been reachable to get here
+    JS_ASSERT(unsafe()); // `block` must have contained unsafe items
+    JS_ASSERT(block->isMarked()); // `block` must have been reachable to get here
 
     clearUnsafe();
 
-    // Allocate a new bailout instruction.
+    // Allocate a new bailout instruction and transplant the resume point.
     MBail *bail = MBail::New(graph_.alloc(), Bailout_ParallelUnsafe);
+    TransplantResumePoint(ins, bail);
 
     // Discard the rest of the block and sever its link to its successors in
     // the CFG.
     for (size_t i = 0; i < block->numSuccessors(); i++)
         block->getSuccessor(i)->removePredecessor(block);
     block->discardAllInstructionsStartingAt(iter);
-
-    // No more successors are reachable, so the current block can no longer be
-    // the parent of an inlined function.
-    if (block->outerResumePoint())
-        block->clearOuterResumePoint();
 
     // End the block in a bail.
     block->add(bail);
@@ -600,7 +584,7 @@ ParallelSafetyVisitor::visitToString(MToString *ins)
 
 bool
 ParallelSafetyVisitor::replaceWithNewPar(MInstruction *newInstruction,
-                                         NativeObject *templateObject)
+                                         JSObject *templateObject)
 {
     return replace(newInstruction, MNewPar::New(alloc(), ForkJoinContext(), templateObject));
 }
@@ -626,7 +610,7 @@ ParallelSafetyVisitor::replace(MInstruction *oldInstruction,
     {
         replacementInstruction->trySpecializeFloat32(alloc());
     }
-    MOZ_ASSERT(oldInstruction->type() == replacementInstruction->type());
+    JS_ASSERT(oldInstruction->type() == replacementInstruction->type());
 
     return true;
 }
@@ -795,8 +779,9 @@ bool
 ParallelSafetyVisitor::visitThrow(MThrow *thr)
 {
     MBasicBlock *block = thr->block();
-    MOZ_ASSERT(block->lastIns() == thr);
+    JS_ASSERT(block->lastIns() == thr);
     MBail *bail = MBail::New(alloc(), Bailout_ParallelUnsafe);
+    TransplantResumePoint(thr, bail);
     block->discardLastIns();
     block->add(bail);
     block->end(MUnreachable::New(alloc()));
@@ -828,7 +813,7 @@ jit::AddPossibleCallees(JSContext *cx, MIRGraph &graph, CallTargetVector &target
 
             RootedFunction target(cx, callIns->getSingleTarget());
             if (target) {
-                MOZ_ASSERT_IF(!target->isInterpreted(), target->hasParallelNative());
+                JS_ASSERT_IF(!target->isInterpreted(), target->hasParallelNative());
 
                 if (target->isInterpreted()) {
                     RootedScript script(cx, target->getOrCreateScript(cx));

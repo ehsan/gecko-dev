@@ -177,6 +177,7 @@
 #include "nsDumpUtils.h"
 #include "xpcpublic.h"
 #include "GeckoProfiler.h"
+#include "js/SliceBudget.h"
 #include <stdint.h>
 #include <stdio.h>
 
@@ -998,8 +999,7 @@ private:
     {
       nsPurpleBufferEntry* eEnd = ArrayEnd(mEntries);
       for (nsPurpleBufferEntry* e = mEntries; e != eEnd; ++e) {
-        MOZ_ASSERT(e->mObject, "There should be no null mObject when we iterate over the purple buffer");
-        if (!(uintptr_t(e->mObject) & uintptr_t(1)) && e->mObject) {
+        if (!(uintptr_t(e->mObject) & uintptr_t(1))) {
           aVisitor.Visit(aBuffer, e);
         }
       }
@@ -2465,34 +2465,16 @@ MayHaveChild(void* aObj, nsCycleCollectionParticipant* aCp)
   return cf.MayHaveChild();
 }
 
-template<class T, size_t N>
+template<class T>
 class SegmentedArrayElement
-  : public LinkedListElement<SegmentedArrayElement<T, N>>
-  , public AutoFallibleTArray<T, N>
+  : public LinkedListElement<SegmentedArrayElement<T>>
+  , public AutoFallibleTArray<T, 60>
 {
 };
 
-// For a given segment size (in bytes), compute the number of T elements
-// that can fit into it.
-template<typename T, size_t IdealSegmentSize>
-class SegmentedArrayCapacity
-{
-  static const size_t kSingleElemSegmentSize =
-    sizeof(SegmentedArrayElement<T, 1>);
-
-public:
-  static const size_t value =
-    (IdealSegmentSize - kSingleElemSegmentSize) / sizeof(T) + 1;
-
-  static const size_t kActualSegmentSize =
-    sizeof(SegmentedArrayElement<T, value>);
-};
-
-template<class T, size_t N>
+template<class T>
 class SegmentedArray
 {
-  typedef SegmentedArrayElement<T, N> Segment;
-
 public:
   ~SegmentedArray()
   {
@@ -2501,9 +2483,9 @@ public:
 
   void AppendElement(T& aElement)
   {
-    Segment* last = mSegments.getLast();
+    SegmentedArrayElement<T>* last = mSegments.getLast();
     if (!last || last->Length() == last->Capacity()) {
-      last = new Segment();
+      last = new SegmentedArrayElement<T>();
       mSegments.insertBack(last);
     }
     last->AppendElement(aElement);
@@ -2511,29 +2493,24 @@ public:
 
   void Clear()
   {
-    Segment* first;
+    SegmentedArrayElement<T>* first;
     while ((first = mSegments.popFirst())) {
       delete first;
     }
   }
 
-  Segment* GetFirstSegment()
+  SegmentedArrayElement<T>* GetFirstSegment()
   {
     return mSegments.getFirst();
   }
 
-  const Segment* GetFirstSegment() const
-  {
-    return mSegments.getFirst();
-  }
-
-  bool IsEmpty() const
+  bool IsEmpty()
   {
     return !GetFirstSegment();
   }
 
 private:
-  mozilla::LinkedList<Segment> mSegments;
+  mozilla::LinkedList<SegmentedArrayElement<T>> mSegments;
 };
 
 // JSPurpleBuffer keeps references to GCThings which might affect the
@@ -2576,8 +2553,8 @@ public:
   // pointers which may point into the nursery. The purple buffer never contains
   // pointers to the nursery because nursery gcthings can never be gray and only
   // gray things can be inserted into the purple buffer.
-  SegmentedArray<JS::Value, 60> mValues;
-  SegmentedArray<JSObject*, 60> mObjects;
+  SegmentedArray<JS::Value> mValues;
+  SegmentedArray<JSObject*> mObjects;
 };
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(JSPurpleBuffer)
@@ -2611,44 +2588,42 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_END
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(JSPurpleBuffer, AddRef)
 NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(JSPurpleBuffer, Release)
 
+struct SnowWhiteObject
+{
+  void* mPointer;
+  nsCycleCollectionParticipant* mParticipant;
+  nsCycleCollectingAutoRefCnt* mRefCnt;
+};
+
 class SnowWhiteKiller : public TraceCallbacks
 {
-  struct SnowWhiteObject
-  {
-    void* mPointer;
-    nsCycleCollectionParticipant* mParticipant;
-    nsCycleCollectingAutoRefCnt* mRefCnt;
-  };
-
-  // Segments are 4 KiB on 32-bit and 8 KiB on 64-bit.
-  static const size_t kSegmentCapacity =
-    SegmentedArrayCapacity<SnowWhiteObject, sizeof(void*) * 1024>::value;
-  typedef SegmentedArray<SnowWhiteObject, kSegmentCapacity> ObjectsArray;
-
 public:
   SnowWhiteKiller(nsCycleCollector* aCollector, uint32_t aMaxCount)
     : mCollector(aCollector)
-    , mObjects()
   {
     MOZ_ASSERT(mCollector, "Calling SnowWhiteKiller after nsCC went away");
+    while (true) {
+      if (mObjects.SetCapacity(aMaxCount)) {
+        break;
+      }
+      if (aMaxCount == 1) {
+        NS_RUNTIMEABORT("Not enough memory to even delete objects!");
+      }
+      aMaxCount /= 2;
+    }
   }
 
   ~SnowWhiteKiller()
   {
-    auto segment = mObjects.GetFirstSegment();
-    while (segment) {
-      for (uint32_t i = 0; i < segment->Length(); i++) {
-        SnowWhiteObject& o = segment->ElementAt(i);
-        if (!o.mRefCnt->get() && !o.mRefCnt->IsInPurpleBuffer()) {
-          mCollector->RemoveObjectFromGraph(o.mPointer);
-          o.mRefCnt->stabilizeForDeletion();
-          o.mParticipant->Trace(o.mPointer, *this, nullptr);
-          o.mParticipant->DeleteCycleCollectable(o.mPointer);
-        }
+    for (uint32_t i = 0; i < mObjects.Length(); ++i) {
+      SnowWhiteObject& o = mObjects[i];
+      if (!o.mRefCnt->get() && !o.mRefCnt->IsInPurpleBuffer()) {
+        mCollector->RemoveObjectFromGraph(o.mPointer);
+        o.mRefCnt->stabilizeForDeletion();
+        o.mParticipant->Trace(o.mPointer, *this, nullptr);
+        o.mParticipant->DeleteCycleCollectable(o.mPointer);
       }
-      segment = segment->getNext();
     }
-    mObjects.Clear();
   }
 
   void
@@ -2660,14 +2635,15 @@ public:
       nsCycleCollectionParticipant* cp = aEntry->mParticipant;
       CanonicalizeParticipant(&o, &cp);
       SnowWhiteObject swo = { o, cp, aEntry->mRefCnt };
-      mObjects.AppendElement(swo);
-      aBuffer.Remove(aEntry);
+      if (mObjects.AppendElement(swo)) {
+        aBuffer.Remove(aEntry);
+      }
     }
   }
 
   bool HasSnowWhiteObjects() const
   {
-    return !mObjects.IsEmpty();
+    return mObjects.Length() > 0;
   }
 
   virtual void Trace(JS::Heap<JS::Value>* aValue, const char* aName,
@@ -2725,7 +2701,7 @@ public:
 
 private:
   nsCycleCollector* mCollector;
-  ObjectsArray mObjects;
+  FallibleTArray<SnowWhiteObject> mObjects;
 };
 
 class RemoveSkippableVisitor : public SnowWhiteKiller
@@ -3259,42 +3235,31 @@ nsCycleCollector::CollectWhite()
   //   - Unlink(whites), which drops outgoing links on each white.
   //   - Unroot(whites), which returns the whites to normal GC.
 
-  // Segments are 4 KiB on 32-bit and 8 KiB on 64-bit.
-  static const size_t cap =
-    SegmentedArrayCapacity<PtrInfo*, sizeof(void*) * 1024>::value;
-  SegmentedArray<PtrInfo*, cap> whiteNodes;
   TimeLog timeLog;
+  nsAutoTArray<PtrInfo*, 4000> whiteNodes;
 
   MOZ_ASSERT(mIncrementalPhase == ScanAndCollectWhitePhase);
 
-  uint32_t numWhiteNodes = 0;
+  whiteNodes.SetCapacity(mWhiteNodeCount);
   uint32_t numWhiteGCed = 0;
-  uint32_t numWhiteJSZones = 0;
-
-  bool hasJSRuntime = !!mJSRuntime;
-  nsCycleCollectionParticipant* zoneParticipant =
-    hasJSRuntime ? mJSRuntime->ZoneParticipant() : nullptr;
 
   NodePool::Enumerator etor(mGraph.mNodes);
   while (!etor.IsDone()) {
     PtrInfo* pinfo = etor.GetNext();
     if (pinfo->mColor == white && pinfo->mParticipant) {
+      whiteNodes.AppendElement(pinfo);
+      pinfo->mParticipant->Root(pinfo->mPointer);
       if (pinfo->IsGrayJS()) {
         ++numWhiteGCed;
-        if (MOZ_UNLIKELY(pinfo->mParticipant == zoneParticipant)) {
-          ++numWhiteJSZones;
-        }
-      } else {
-        whiteNodes.AppendElement(pinfo);
-        pinfo->mParticipant->Root(pinfo->mPointer);
-        ++numWhiteNodes;
       }
     }
   }
 
-  mResults.mFreedRefCounted += numWhiteNodes;
+  uint32_t count = whiteNodes.Length();
+  MOZ_ASSERT(numWhiteGCed <= count,
+             "More freed GCed nodes than total freed nodes.");
+  mResults.mFreedRefCounted += count - numWhiteGCed;
   mResults.mFreedGCed += numWhiteGCed;
-  mResults.mFreedJSZones += numWhiteJSZones;
 
   timeLog.Checkpoint("CollectWhite::Root");
 
@@ -3303,35 +3268,24 @@ nsCycleCollector::CollectWhite()
     timeLog.Checkpoint("CollectWhite::BeforeUnlinkCB");
   }
 
-  // Unlink() can trigger a GC, so do not touch any JS or anything
-  // else not in whiteNodes after here.
-
-  auto segment = whiteNodes.GetFirstSegment();
-  while (segment) {
-    for (uint32_t i = 0; i < segment->Length(); i++) {
-      PtrInfo* pinfo = segment->ElementAt(i);
-      MOZ_ASSERT(pinfo->mParticipant,
-                 "Unlink shouldn't see objects removed from graph.");
-      pinfo->mParticipant->Unlink(pinfo->mPointer);
+  for (uint32_t i = 0; i < count; ++i) {
+    PtrInfo* pinfo = whiteNodes.ElementAt(i);
+    MOZ_ASSERT(pinfo->mParticipant,
+               "Unlink shouldn't see objects removed from graph.");
+    pinfo->mParticipant->Unlink(pinfo->mPointer);
 #ifdef DEBUG
-      if (mJSRuntime) {
-        mJSRuntime->AssertNoObjectsToTrace(pinfo->mPointer);
-      }
-#endif
+    if (mJSRuntime) {
+      mJSRuntime->AssertNoObjectsToTrace(pinfo->mPointer);
     }
-    segment = segment->getNext();
+#endif
   }
   timeLog.Checkpoint("CollectWhite::Unlink");
 
-  segment = whiteNodes.GetFirstSegment();
-  while (segment) {
-    for (uint32_t i = 0; i < segment->Length(); i++) {
-      PtrInfo* pinfo = segment->ElementAt(i);
-      MOZ_ASSERT(pinfo->mParticipant,
-                 "Unroot shouldn't see objects removed from graph.");
-      pinfo->mParticipant->Unroot(pinfo->mPointer);
-    }
-    segment = segment->getNext();
+  for (uint32_t i = 0; i < count; ++i) {
+    PtrInfo* pinfo = whiteNodes.ElementAt(i);
+    MOZ_ASSERT(pinfo->mParticipant,
+               "Unroot shouldn't see objects removed from graph.");
+    pinfo->mParticipant->Unroot(pinfo->mPointer);
   }
   timeLog.Checkpoint("CollectWhite::Unroot");
 
@@ -3340,9 +3294,7 @@ nsCycleCollector::CollectWhite()
 
   mIncrementalPhase = CleanupPhase;
 
-  whiteNodes.Clear();
-
-  return numWhiteNodes > 0 || numWhiteGCed > 0 || numWhiteJSZones > 0;
+  return count > 0;
 }
 
 
@@ -3659,9 +3611,7 @@ nsCycleCollector::Collect(ccType aCCType,
         break;
     }
     if (continueSlice) {
-      // Force SliceBudget::isOverBudget to check the time.
-      aBudget.step(SliceBudget::CounterReset);
-      continueSlice = !aBudget.isOverBudget();
+      continueSlice = !aBudget.checkOverBudget();
     }
   } while (continueSlice);
 
@@ -3714,10 +3664,7 @@ nsCycleCollector::FinishAnyCurrentCollection()
   PrintPhase("FinishAnyCurrentCollection");
   // Use SliceCC because we only want to finish the CC in progress.
   Collect(SliceCC, unlimitedBudget, nullptr);
-
-  MOZ_ASSERT(mIncrementalPhase == IdlePhase ||
-             (mIncrementalPhase == ScanAndCollectWhitePhase && mActivelyCollecting),
-             "FinishAnyCurrentCollection should finish the collection, unless we've reentered the CC during unlinking");
+  MOZ_ASSERT(mIncrementalPhase == IdlePhase);
 }
 
 // Don't merge too many times in a row, and do at least a minimum
@@ -4225,7 +4172,7 @@ nsCycleCollector_collect(nsICycleCollectorListener* aManualListener)
 }
 
 void
-nsCycleCollector_collectSlice(SliceBudget& budget)
+nsCycleCollector_collectSlice(int64_t aSliceTime)
 {
   CollectorData* data = sCollectorData.get();
 
@@ -4236,6 +4183,29 @@ nsCycleCollector_collectSlice(SliceBudget& budget)
   PROFILER_LABEL("nsCycleCollector", "collectSlice",
                  js::ProfileEntry::Category::CC);
 
+  SliceBudget budget;
+  if (aSliceTime >= 0) {
+    budget = SliceBudget(SliceBudget::TimeBudget(aSliceTime));
+  }
+  data->mCollector->Collect(SliceCC, budget, nullptr);
+}
+
+void
+nsCycleCollector_collectSliceWork(int64_t aSliceWork)
+{
+  CollectorData* data = sCollectorData.get();
+
+  // We should have started the cycle collector by now.
+  MOZ_ASSERT(data);
+  MOZ_ASSERT(data->mCollector);
+
+  PROFILER_LABEL("nsCycleCollector", "collectSliceWork",
+                 js::ProfileEntry::Category::CC);
+
+  SliceBudget budget;
+  if (aSliceWork >= 0) {
+    budget = SliceBudget(SliceBudget::WorkBudget(aSliceWork));
+  }
   data->mCollector->Collect(SliceCC, budget, nullptr);
 }
 

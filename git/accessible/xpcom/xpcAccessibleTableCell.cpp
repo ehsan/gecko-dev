@@ -7,10 +7,10 @@
 #include "xpcAccessibleTableCell.h"
 
 #include "Accessible.h"
-#include "nsIAccessibleTable.h"
 #include "TableAccessible.h"
 #include "TableCellAccessible.h"
-#include "xpcAccessibleDocument.h"
+
+#include "nsIAccessibleTable.h"
 
 #include "nsComponentManagerUtils.h"
 #include "nsIMutableArray.h"
@@ -18,144 +18,141 @@
 using namespace mozilla;
 using namespace mozilla::a11y;
 
-////////////////////////////////////////////////////////////////////////////////
-// nsISupports
-
-NS_IMPL_ISUPPORTS_INHERITED(xpcAccessibleTableCell,
-                            xpcAccessibleHyperText,
-                            nsIAccessibleTableCell)
-
-////////////////////////////////////////////////////////////////////////////////
-// nsIAccessibleTableCell
-
-NS_IMETHODIMP
+nsresult
 xpcAccessibleTableCell::GetTable(nsIAccessibleTable** aTable)
 {
   NS_ENSURE_ARG_POINTER(aTable);
   *aTable = nullptr;
 
-  if (!Intl())
+  if (!mTableCell)
     return NS_ERROR_FAILURE;
 
-  TableAccessible* table = Intl()->Table();
+  TableAccessible* table = mTableCell->Table();
   if (!table)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIAccessibleTable> xpcTable =
-    do_QueryInterface(static_cast<nsIAccessible*>(ToXPC(table->AsAccessible())));
+    do_QueryInterface(static_cast<nsIAccessible*>(table->AsAccessible()));
   xpcTable.forget(aTable);
+
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 xpcAccessibleTableCell::GetColumnIndex(int32_t* aColIdx)
 {
   NS_ENSURE_ARG_POINTER(aColIdx);
   *aColIdx = -1;
 
-  if (!Intl())
+  if (!mTableCell)
     return NS_ERROR_FAILURE;
 
-  *aColIdx = Intl()->ColIdx();
+  *aColIdx = mTableCell->ColIdx();
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 xpcAccessibleTableCell::GetRowIndex(int32_t* aRowIdx)
 {
   NS_ENSURE_ARG_POINTER(aRowIdx);
   *aRowIdx = -1;
 
-  if (!Intl())
+  if (!mTableCell)
     return NS_ERROR_FAILURE;
 
-  *aRowIdx = Intl()->RowIdx();
+  *aRowIdx = mTableCell->RowIdx();
+
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 xpcAccessibleTableCell::GetColumnExtent(int32_t* aExtent)
 {
   NS_ENSURE_ARG_POINTER(aExtent);
   *aExtent = -1;
 
-  if (!Intl())
+  if (!mTableCell)
     return NS_ERROR_FAILURE;
 
-  *aExtent = Intl()->ColExtent();
+  *aExtent = mTableCell->ColExtent();
+
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 xpcAccessibleTableCell::GetRowExtent(int32_t* aExtent)
 {
   NS_ENSURE_ARG_POINTER(aExtent);
   *aExtent = -1;
 
-  if (!Intl())
+  if (!mTableCell)
     return NS_ERROR_FAILURE;
 
-  *aExtent = Intl()->RowExtent();
+  *aExtent = mTableCell->RowExtent();
+
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 xpcAccessibleTableCell::GetColumnHeaderCells(nsIArray** aHeaderCells)
 {
   NS_ENSURE_ARG_POINTER(aHeaderCells);
   *aHeaderCells = nullptr;
 
-  if (!Intl())
+  if (!mTableCell)
     return NS_ERROR_FAILURE;
 
   nsAutoTArray<Accessible*, 10> headerCells;
-  Intl()->ColHeaderCells(&headerCells);
+  mTableCell->ColHeaderCells(&headerCells);
 
   nsCOMPtr<nsIMutableArray> cells = do_CreateInstance(NS_ARRAY_CONTRACTID);
   NS_ENSURE_TRUE(cells, NS_ERROR_FAILURE);
 
   for (uint32_t idx = 0; idx < headerCells.Length(); idx++) {
-    cells->AppendElement(static_cast<nsIAccessible*>(ToXPC(headerCells[idx])),
-                         false);
+    cells->
+      AppendElement(static_cast<nsIAccessible*>(headerCells.ElementAt(idx)),
+                    false);
   }
 
   NS_ADDREF(*aHeaderCells = cells);
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 xpcAccessibleTableCell::GetRowHeaderCells(nsIArray** aHeaderCells)
 {
   NS_ENSURE_ARG_POINTER(aHeaderCells);
   *aHeaderCells = nullptr;
 
-  if (!Intl())
+  if (!mTableCell)
     return NS_ERROR_FAILURE;
 
   nsAutoTArray<Accessible*, 10> headerCells;
-  Intl()->RowHeaderCells(&headerCells);
+  mTableCell->RowHeaderCells(&headerCells);
 
   nsCOMPtr<nsIMutableArray> cells = do_CreateInstance(NS_ARRAY_CONTRACTID);
   NS_ENSURE_TRUE(cells, NS_ERROR_FAILURE);
 
   for (uint32_t idx = 0; idx < headerCells.Length(); idx++) {
-    cells->AppendElement(static_cast<nsIAccessible*>(ToXPC(headerCells[idx])),
-                         false);
+    cells->
+      AppendElement(static_cast<nsIAccessible*>(headerCells.ElementAt(idx)),
+                    false);
   }
 
   NS_ADDREF(*aHeaderCells = cells);
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 xpcAccessibleTableCell::IsSelected(bool* aSelected)
 {
   NS_ENSURE_ARG_POINTER(aSelected);
   *aSelected = false;
 
-  if (!Intl())
+  if (!mTableCell)
     return NS_ERROR_FAILURE;
 
-  *aSelected = Intl()->Selected();
+  *aSelected = mTableCell->Selected();
+
   return NS_OK;
 }

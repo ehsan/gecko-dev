@@ -23,9 +23,7 @@ namespace js {
 inline
 Bindings::Bindings()
     : callObjShape_(nullptr), bindingArrayAndFlag_(TEMPORARY_STORAGE_BIT),
-      numArgs_(0), numBlockScoped_(0),
-      numBodyLevelLexicals_(0), numUnaliasedBodyLevelLexicals_(0),
-      numVars_(0), numUnaliasedVars_(0)
+      numArgs_(0), numBlockScoped_(0), numVars_(0)
 {}
 
 inline
@@ -75,7 +73,7 @@ JSScript::functionDelazifying() const
 inline void
 JSScript::setFunction(JSFunction *fun)
 {
-    MOZ_ASSERT(fun->isTenured());
+    JS_ASSERT(fun->isTenured());
     function_ = fun;
 }
 
@@ -91,14 +89,14 @@ inline JSFunction *
 JSScript::getFunction(size_t index)
 {
     JSFunction *fun = &getObject(index)->as<JSFunction>();
-    MOZ_ASSERT_IF(fun->isNative(), IsAsmJSModuleNative(fun->native()));
+    JS_ASSERT_IF(fun->isNative(), IsAsmJSModuleNative(fun->native()));
     return fun;
 }
 
 inline JSFunction *
 JSScript::getCallerFunction()
 {
-    MOZ_ASSERT(savedCallerFun());
+    JS_ASSERT(savedCallerFun());
     return getFunction(0);
 }
 
@@ -116,16 +114,16 @@ inline js::RegExpObject *
 JSScript::getRegExp(size_t index)
 {
     js::ObjectArray *arr = regexps();
-    MOZ_ASSERT(uint32_t(index) < arr->length);
+    JS_ASSERT(uint32_t(index) < arr->length);
     JSObject *obj = arr->vector[index];
-    MOZ_ASSERT(obj->is<js::RegExpObject>());
+    JS_ASSERT(obj->is<js::RegExpObject>());
     return (js::RegExpObject *) obj;
 }
 
 inline js::RegExpObject *
 JSScript::getRegExp(jsbytecode *pc)
 {
-    MOZ_ASSERT(containsPC(pc) && containsPC(pc + sizeof(uint32_t)));
+    JS_ASSERT(containsPC(pc) && containsPC(pc + sizeof(uint32_t)));
     return getRegExp(GET_UINT32_INDEX(pc));
 }
 
@@ -156,11 +154,11 @@ JSScript::donorFunction() const
 inline void
 JSScript::setIsCallsiteClone(JSObject *fun)
 {
-    MOZ_ASSERT(shouldCloneAtCallsite());
+    JS_ASSERT(shouldCloneAtCallsite());
     shouldCloneAtCallsite_ = false;
     isCallsiteClone_ = true;
-    MOZ_ASSERT(isCallsiteClone());
-    MOZ_ASSERT(fun->is<JSFunction>());
+    JS_ASSERT(isCallsiteClone());
+    JS_ASSERT(fun->is<JSFunction>());
     enclosingScopeOrOriginalFunction_ = fun;
 }
 
@@ -180,12 +178,6 @@ JSScript::ensureHasAnalyzedArgsUsage(JSContext *cx)
     if (analyzedArgsUsage())
         return true;
     return js::jit::AnalyzeArgumentsUsage(cx, this);
-}
-
-inline bool
-JSScript::isDebuggee() const
-{
-    return compartment_->debugObservesAllExecution() || hasDebugScript_;
 }
 
 #endif /* jsscriptinlines_h */

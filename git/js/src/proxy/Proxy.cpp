@@ -23,7 +23,7 @@
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
-#include "vm/NativeObject-inl.h"
+#include "vm/ObjectImpl-inl.h"
 
 using namespace js;
 using namespace js::gc;
@@ -67,7 +67,7 @@ void
 js::AutoEnterPolicy::recordLeave()
 {
     if (enteredProxy) {
-        MOZ_ASSERT(context->runtime()->enteredPolicy == this);
+        JS_ASSERT(context->runtime()->enteredPolicy == this);
         context->runtime()->enteredPolicy = prev;
     }
 }
@@ -164,14 +164,14 @@ Proxy::defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
 }
 
 bool
-Proxy::ownPropertyKeys(JSContext *cx, HandleObject proxy, AutoIdVector &props)
+Proxy::getOwnPropertyNames(JSContext *cx, HandleObject proxy, AutoIdVector &props)
 {
     JS_CHECK_RECURSION(cx, return false);
     const BaseProxyHandler *handler = proxy->as<ProxyObject>().handler();
     AutoEnterPolicy policy(cx, handler, proxy, JSID_VOIDHANDLE, BaseProxyHandler::ENUMERATE, true);
     if (!policy.allowed())
         return policy.returnValue();
-    return proxy->as<ProxyObject>().handler()->ownPropertyKeys(cx, proxy, props);
+    return proxy->as<ProxyObject>().handler()->getOwnPropertyNames(cx, proxy, props);
 }
 
 bool
@@ -206,43 +206,22 @@ js::AppendUnique(JSContext *cx, AutoIdVector &base, AutoIdVector &others)
     return base.appendAll(uniqueOthers);
 }
 
-/* static */ bool
-Proxy::getPrototypeOf(JSContext *cx, HandleObject proxy, MutableHandleObject proto)
-{
-    MOZ_ASSERT(proxy->hasLazyPrototype());
-    JS_CHECK_RECURSION(cx, return false);
-    return proxy->as<ProxyObject>().handler()->getPrototypeOf(cx, proxy, proto);
-}
-
-/* static */ bool
-Proxy::setPrototypeOf(JSContext *cx, HandleObject proxy, HandleObject proto, bool *bp)
-{
-    MOZ_ASSERT(proxy->hasLazyPrototype());
-    JS_CHECK_RECURSION(cx, return false);
-    return proxy->as<ProxyObject>().handler()->setPrototypeOf(cx, proxy, proto, bp);
-}
-
-/* static */ bool
-Proxy::setImmutablePrototype(JSContext *cx, HandleObject proxy, bool *succeeded)
+bool
+Proxy::enumerate(JSContext *cx, HandleObject proxy, AutoIdVector &props)
 {
     JS_CHECK_RECURSION(cx, return false);
     const BaseProxyHandler *handler = proxy->as<ProxyObject>().handler();
-    return handler->setImmutablePrototype(cx, proxy, succeeded);
-}
-
-/* static */ bool
-Proxy::preventExtensions(JSContext *cx, HandleObject proxy, bool *succeeded)
-{
-    JS_CHECK_RECURSION(cx, return false);
-    const BaseProxyHandler *handler = proxy->as<ProxyObject>().handler();
-    return handler->preventExtensions(cx, proxy, succeeded);
-}
-
-/* static */ bool
-Proxy::isExtensible(JSContext *cx, HandleObject proxy, bool *extensible)
-{
-    JS_CHECK_RECURSION(cx, return false);
-    return proxy->as<ProxyObject>().handler()->isExtensible(cx, proxy, extensible);
+    AutoEnterPolicy policy(cx, handler, proxy, JSID_VOIDHANDLE, BaseProxyHandler::ENUMERATE, true);
+    if (!policy.allowed())
+        return policy.returnValue();
+    if (!handler->hasPrototype())
+        return proxy->as<ProxyObject>().handler()->enumerate(cx, proxy, props);
+    if (!handler->keys(cx, proxy, props))
+        return false;
+    AutoIdVector protoProps(cx);
+    INVOKE_ON_PROTOTYPE(cx, handler, proxy,
+                        GetPropertyNames(cx, proto, 0, &protoProps) &&
+                        AppendUnique(cx, props, protoProps));
 }
 
 bool
@@ -347,41 +326,29 @@ Proxy::set(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id
     }
 
     // Ok. Either there was no pre-existing property, or it was a value prop
-    // that we're going to shadow. Either way, define a new own property.
-    unsigned attrs =
-        (desc.object() == proxy)
-        ? JSPROP_IGNORE_ENUMERATE | JSPROP_IGNORE_READONLY | JSPROP_IGNORE_PERMANENT
-        : JSPROP_ENUMERATE;
-    return JSObject::defineGeneric(cx, receiver, id, vp, nullptr, nullptr, attrs);
+    // that we're going to shadow. Make a property descriptor and define it.
+    //
+    // Note that for pre-existing own value properties, we inherit the existing
+    // attributes, since we're really just changing the value and not trying to
+    // reconfigure the property.
+    Rooted<PropertyDescriptor> newDesc(cx);
+    if (desc.object() == proxy)
+        newDesc.setAttributes(desc.attributes());
+    else
+        newDesc.setAttributes(JSPROP_ENUMERATE);
+    newDesc.value().set(vp);
+    return handler->defineProperty(cx, receiver, id, &newDesc);
 }
 
 bool
-Proxy::getOwnEnumerablePropertyKeys(JSContext *cx, HandleObject proxy, AutoIdVector &props)
+Proxy::keys(JSContext *cx, HandleObject proxy, AutoIdVector &props)
 {
     JS_CHECK_RECURSION(cx, return false);
     const BaseProxyHandler *handler = proxy->as<ProxyObject>().handler();
     AutoEnterPolicy policy(cx, handler, proxy, JSID_VOIDHANDLE, BaseProxyHandler::ENUMERATE, true);
     if (!policy.allowed())
         return policy.returnValue();
-    return handler->getOwnEnumerablePropertyKeys(cx, proxy, props);
-}
-
-bool
-Proxy::getEnumerablePropertyKeys(JSContext *cx, HandleObject proxy, AutoIdVector &props)
-{
-    JS_CHECK_RECURSION(cx, return false);
-    const BaseProxyHandler *handler = proxy->as<ProxyObject>().handler();
-    AutoEnterPolicy policy(cx, handler, proxy, JSID_VOIDHANDLE, BaseProxyHandler::ENUMERATE, true);
-    if (!policy.allowed())
-        return policy.returnValue();
-    if (!handler->hasPrototype())
-        return proxy->as<ProxyObject>().handler()->getEnumerablePropertyKeys(cx, proxy, props);
-    if (!handler->getOwnEnumerablePropertyKeys(cx, proxy, props))
-        return false;
-    AutoIdVector protoProps(cx);
-    INVOKE_ON_PROTOTYPE(cx, handler, proxy,
-                        GetPropertyKeys(cx, proto, 0, &protoProps) &&
-                        AppendUnique(cx, props, protoProps));
+    return handler->keys(cx, proxy, props);
 }
 
 bool
@@ -405,11 +372,26 @@ Proxy::iterate(JSContext *cx, HandleObject proxy, unsigned flags, MutableHandleV
     AutoIdVector props(cx);
     // The other Proxy::foo methods do the prototype-aware work for us here.
     if ((flags & JSITER_OWNONLY)
-        ? !Proxy::getOwnEnumerablePropertyKeys(cx, proxy, props)
-        : !Proxy::getEnumerablePropertyKeys(cx, proxy, props)) {
+        ? !Proxy::keys(cx, proxy, props)
+        : !Proxy::enumerate(cx, proxy, props)) {
         return false;
     }
     return EnumeratedIdVectorToIterator(cx, proxy, flags, props, vp);
+}
+
+bool
+Proxy::isExtensible(JSContext *cx, HandleObject proxy, bool *extensible)
+{
+    JS_CHECK_RECURSION(cx, return false);
+    return proxy->as<ProxyObject>().handler()->isExtensible(cx, proxy, extensible);
+}
+
+bool
+Proxy::preventExtensions(JSContext *cx, HandleObject proxy)
+{
+    JS_CHECK_RECURSION(cx, return false);
+    const BaseProxyHandler *handler = proxy->as<ProxyObject>().handler();
+    return handler->preventExtensions(cx, proxy);
 }
 
 bool
@@ -535,6 +517,22 @@ Proxy::defaultValue(JSContext *cx, HandleObject proxy, JSType hint, MutableHandl
 
 JSObject * const TaggedProto::LazyProto = reinterpret_cast<JSObject *>(0x1);
 
+bool
+Proxy::getPrototypeOf(JSContext *cx, HandleObject proxy, MutableHandleObject proto)
+{
+    JS_ASSERT(proxy->getTaggedProto().isLazy());
+    JS_CHECK_RECURSION(cx, return false);
+    return proxy->as<ProxyObject>().handler()->getPrototypeOf(cx, proxy, proto);
+}
+
+bool
+Proxy::setPrototypeOf(JSContext *cx, HandleObject proxy, HandleObject proto, bool *bp)
+{
+    JS_ASSERT(proxy->getTaggedProto().isLazy());
+    JS_CHECK_RECURSION(cx, return false);
+    return proxy->as<ProxyObject>().handler()->setPrototypeOf(cx, proxy, proto, bp);
+}
+
 /* static */ bool
 Proxy::watch(JSContext *cx, JS::HandleObject proxy, JS::HandleId id, JS::HandleObject callable)
 {
@@ -550,8 +548,8 @@ Proxy::unwatch(JSContext *cx, JS::HandleObject proxy, JS::HandleId id)
 }
 
 /* static */ bool
-Proxy::getElements(JSContext *cx, HandleObject proxy, uint32_t begin, uint32_t end,
-                   ElementAdder *adder)
+Proxy::slice(JSContext *cx, HandleObject proxy, uint32_t begin, uint32_t end,
+             HandleObject result)
 {
     JS_CHECK_RECURSION(cx, return false);
     const BaseProxyHandler *handler = proxy->as<ProxyObject>().handler();
@@ -559,12 +557,12 @@ Proxy::getElements(JSContext *cx, HandleObject proxy, uint32_t begin, uint32_t e
                            /* mayThrow = */ true);
     if (!policy.allowed()) {
         if (policy.returnValue()) {
-            MOZ_ASSERT(!cx->isExceptionPending());
-            return js::GetElementsWithAdder(cx, proxy, proxy, begin, end, adder);
+            JS_ASSERT(!cx->isExceptionPending());
+            return js::SliceSlowly(cx, proxy, proxy, begin, end, result);
         }
         return false;
     }
-    return handler->getElements(cx, proxy, begin, end, adder);
+    return handler->slice(cx, proxy, begin, end, result);
 }
 
 JSObject *
@@ -724,7 +722,7 @@ js::proxy_DeleteGeneric(JSContext *cx, HandleObject obj, HandleId id, bool *succ
 void
 js::proxy_Trace(JSTracer *trc, JSObject *obj)
 {
-    MOZ_ASSERT(obj->is<ProxyObject>());
+    JS_ASSERT(obj->is<ProxyObject>());
     ProxyObject::trace(trc, obj);
 }
 
@@ -743,8 +741,8 @@ ProxyObject::trace(JSTracer *trc, JSObject *obj)
              */
             Value key = ObjectValue(*referent);
             WrapperMap::Ptr p = proxy->compartment()->lookupWrapper(key);
-            MOZ_ASSERT(p);
-            MOZ_ASSERT(*p->value().unsafeGet() == ObjectValue(*proxy));
+            JS_ASSERT(p);
+            JS_ASSERT(*p->value().unsafeGet() == ObjectValue(*proxy));
         }
     }
 #endif
@@ -752,45 +750,49 @@ ProxyObject::trace(JSTracer *trc, JSObject *obj)
     // Note: If you add new slots here, make sure to change
     // nuke() to cope.
     MarkCrossCompartmentSlot(trc, obj, proxy->slotOfPrivate(), "private");
-    MarkValue(trc, proxy->slotOfExtra(0), "extra0");
+    MarkSlot(trc, proxy->slotOfExtra(0), "extra0");
 
     /*
      * The GC can use the second reserved slot to link the cross compartment
      * wrappers into a linked list, in which case we don't want to trace it.
      */
     if (!proxy->is<CrossCompartmentWrapperObject>())
-        MarkValue(trc, proxy->slotOfExtra(1), "extra1");
+        MarkSlot(trc, proxy->slotOfExtra(1), "extra1");
+
+    /*
+     * Allow for people to add extra slots to "proxy" classes, without allowing
+     * them to set their own trace hook. Trace the extras.
+     */
+    unsigned numSlots = JSCLASS_RESERVED_SLOTS(proxy->getClass());
+    for (unsigned i = PROXY_MINIMUM_SLOTS; i < numSlots; i++)
+        MarkSlot(trc, proxy->slotOfClassSpecific(i), "class-specific");
 }
 
 JSObject *
 js::proxy_WeakmapKeyDelegate(JSObject *obj)
 {
-    MOZ_ASSERT(obj->is<ProxyObject>());
+    JS_ASSERT(obj->is<ProxyObject>());
     return obj->as<ProxyObject>().handler()->weakmapKeyDelegate(obj);
 }
 
 bool
 js::proxy_Convert(JSContext *cx, HandleObject proxy, JSType hint, MutableHandleValue vp)
 {
-    MOZ_ASSERT(proxy->is<ProxyObject>());
+    JS_ASSERT(proxy->is<ProxyObject>());
     return Proxy::defaultValue(cx, proxy, hint, vp);
 }
 
 void
 js::proxy_Finalize(FreeOp *fop, JSObject *obj)
 {
-    // Suppress a bogus warning about finalize().
-    JS::AutoSuppressGCAnalysis nogc;
-
-    MOZ_ASSERT(obj->is<ProxyObject>());
+    JS_ASSERT(obj->is<ProxyObject>());
     obj->as<ProxyObject>().handler()->finalize(fop, obj);
-    js_free(GetProxyDataLayout(obj)->values);
 }
 
 void
 js::proxy_ObjectMoved(JSObject *obj, const JSObject *old)
 {
-    MOZ_ASSERT(obj->is<ProxyObject>());
+    JS_ASSERT(obj->is<ProxyObject>());
     obj->as<ProxyObject>().handler()->objectMoved(obj, old);
 }
 
@@ -809,7 +811,7 @@ js::proxy_Call(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     RootedObject proxy(cx, &args.callee());
-    MOZ_ASSERT(proxy->is<ProxyObject>());
+    JS_ASSERT(proxy->is<ProxyObject>());
     return Proxy::call(cx, proxy, args);
 }
 
@@ -818,7 +820,7 @@ js::proxy_Construct(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     RootedObject proxy(cx, &args.callee());
-    MOZ_ASSERT(proxy->is<ProxyObject>());
+    JS_ASSERT(proxy->is<ProxyObject>());
     return Proxy::construct(cx, proxy, args);
 }
 
@@ -835,14 +837,16 @@ js::proxy_Unwatch(JSContext *cx, HandleObject obj, HandleId id)
 }
 
 bool
-js::proxy_GetElements(JSContext *cx, HandleObject proxy, uint32_t begin, uint32_t end,
-                      ElementAdder *adder)
+js::proxy_Slice(JSContext *cx, HandleObject proxy, uint32_t begin, uint32_t end,
+                HandleObject result)
 {
-    return Proxy::getElements(cx, proxy, begin, end, adder);
+    return Proxy::slice(cx, proxy, begin, end, result);
 }
 
 const Class js::ProxyObject::class_ =
-    PROXY_CLASS_DEF("Proxy", JSCLASS_HAS_CACHED_PROTO(JSProto_Proxy));
+    PROXY_CLASS_DEF("Proxy",
+                    0,
+                    JSCLASS_HAS_CACHED_PROTO(JSProto_Proxy));
 
 const Class* const js::ProxyClassPtr = &js::ProxyObject::class_;
 
@@ -857,16 +861,16 @@ js::NewProxyObject(JSContext *cx, const BaseProxyHandler *handler, HandleValue p
 void
 ProxyObject::renew(JSContext *cx, const BaseProxyHandler *handler, Value priv)
 {
-    MOZ_ASSERT_IF(IsCrossCompartmentWrapper(this), IsDeadProxyObject(this));
-    MOZ_ASSERT(getParent() == cx->global());
-    MOZ_ASSERT(getClass() == &ProxyObject::class_);
-    MOZ_ASSERT(!getClass()->ext.innerObject);
-    MOZ_ASSERT(hasLazyPrototype());
+    JS_ASSERT_IF(IsCrossCompartmentWrapper(this), IsDeadProxyObject(this));
+    JS_ASSERT(getParent() == cx->global());
+    JS_ASSERT(getClass() == &ProxyObject::class_);
+    JS_ASSERT(!getClass()->ext.innerObject);
+    JS_ASSERT(getTaggedProto().isLazy());
 
     setHandler(handler);
-    setCrossCompartmentPrivate(priv);
-    setExtra(0, UndefinedValue());
-    setExtra(1, UndefinedValue());
+    setCrossCompartmentSlot(PRIVATE_SLOT, priv);
+    setSlot(EXTRA_SLOT + 0, UndefinedValue());
+    setSlot(EXTRA_SLOT + 1, UndefinedValue());
 }
 
 JS_FRIEND_API(JSObject *)
@@ -888,7 +892,7 @@ js_InitProxyClass(JSContext *cx, HandleObject obj)
     if (!JS_DefineFunctions(cx, ctor, static_methods))
         return nullptr;
     if (!JS_DefineProperty(cx, obj, "Proxy", ctor, 0,
-                           JS_STUBGETTER, JS_STUBSETTER)) {
+                           JS_PropertyStub, JS_StrictPropertyStub)) {
         return nullptr;
     }
 

@@ -1,7 +1,6 @@
 package org.mozilla.gecko.tests;
 
-import org.mozilla.gecko.home.HomeConfig;
-import org.mozilla.gecko.home.HomeConfig.PanelType;
+import org.mozilla.gecko.tests.components.AboutHomeComponent.PanelType;
 import org.mozilla.gecko.tests.helpers.DeviceHelper;
 import org.mozilla.gecko.tests.helpers.GeckoHelper;
 

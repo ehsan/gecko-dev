@@ -426,10 +426,6 @@ class IonBuilder
                                            int32_t fieldOffset,
                                            TypedObjectPrediction fieldTypeReprs,
                                            types::TemporaryTypeSet *resultTypes);
-    bool getPropTryReferencePropOfTypedObject(bool *emitted, MDefinition *typedObj,
-                                              int32_t fieldOffset,
-                                              TypedObjectPrediction fieldPrediction,
-                                              types::TemporaryTypeSet *resultTypes);
     bool getPropTryComplexPropOfTypedObject(bool *emitted, MDefinition *typedObj,
                                             int32_t fieldOffset,
                                             TypedObjectPrediction fieldTypeReprs,
@@ -455,11 +451,6 @@ class IonBuilder
                                 types::TemporaryTypeSet *objTypes);
     bool setPropTryTypedObject(bool *emitted, MDefinition *obj,
                                PropertyName *name, MDefinition *value);
-    bool setPropTryReferencePropOfTypedObject(bool *emitted,
-                                              MDefinition *obj,
-                                              int32_t fieldOffset,
-                                              MDefinition *value,
-                                              TypedObjectPrediction fieldPrediction);
     bool setPropTryScalarPropOfTypedObject(bool *emitted,
                                            MDefinition *obj,
                                            int32_t fieldOffset,
@@ -480,41 +471,41 @@ class IonBuilder
     MDefinition *loadTypedObjectType(MDefinition *value);
     void loadTypedObjectData(MDefinition *typedObj,
                              MDefinition *offset,
+                             bool canBeNeutered,
                              MDefinition **owner,
                              MDefinition **ownerOffset);
     void loadTypedObjectElements(MDefinition *typedObj,
                                  MDefinition *offset,
                                  int32_t unit,
+                                 bool canBeNeutered,
                                  MDefinition **ownerElements,
                                  MDefinition **ownerScaledOffset);
     MDefinition *typeObjectForElementFromArrayStructType(MDefinition *typedObj);
     MDefinition *typeObjectForFieldFromStructType(MDefinition *type,
                                                   size_t fieldIndex);
-    bool storeReferenceTypedObjectValue(MDefinition *typedObj,
-                                        MDefinition *byteOffset,
-                                        ReferenceTypeDescr::Type type,
-                                        MDefinition *value);
     bool storeScalarTypedObjectValue(MDefinition *typedObj,
                                      MDefinition *offset,
                                      ScalarTypeDescr::Type type,
+                                     bool canBeNeutered,
                                      bool racy,
                                      MDefinition *value);
     bool checkTypedObjectIndexInBounds(int32_t elemSize,
                                        MDefinition *obj,
                                        MDefinition *index,
                                        TypedObjectPrediction objTypeDescrs,
-                                       MDefinition **indexAsByteOffset);
+                                       MDefinition **indexAsByteOffset,
+                                       bool *canBeNeutered);
     bool pushDerivedTypedObject(bool *emitted,
                                 MDefinition *obj,
                                 MDefinition *offset,
                                 TypedObjectPrediction derivedTypeDescrs,
-                                MDefinition *derivedTypeObj);
-    bool pushScalarLoadFromTypedObject(MDefinition *obj,
+                                MDefinition *derivedTypeObj,
+                                bool canBeNeutered);
+    bool pushScalarLoadFromTypedObject(bool *emitted,
+                                       MDefinition *obj,
                                        MDefinition *offset,
-                                       ScalarTypeDescr::Type type);
-    bool pushReferenceLoadFromTypedObject(MDefinition *typedObj,
-                                          MDefinition *byteOffset,
-                                          ReferenceTypeDescr::Type type);
+                                       ScalarTypeDescr::Type type,
+                                       bool canBeNeutered);
     MDefinition *neuterCheck(MDefinition *obj);
 
     // jsop_setelem() helpers.
@@ -530,12 +521,6 @@ class IonBuilder
                              MDefinition *index, MDefinition *value);
     bool setElemTryCache(bool *emitted, MDefinition *object,
                          MDefinition *index, MDefinition *value);
-    bool setElemTryReferenceElemOfTypedObject(bool *emitted,
-                                              MDefinition *obj,
-                                              MDefinition *index,
-                                              TypedObjectPrediction objPrediction,
-                                              MDefinition *value,
-                                              TypedObjectPrediction elemPrediction);
     bool setElemTryScalarElemOfTypedObject(bool *emitted,
                                            MDefinition *obj,
                                            MDefinition *index,
@@ -559,11 +544,6 @@ class IonBuilder
                                            TypedObjectPrediction objTypeReprs,
                                            TypedObjectPrediction elemTypeReprs,
                                            int32_t elemSize);
-    bool getElemTryReferenceElemOfTypedObject(bool *emitted,
-                                              MDefinition *obj,
-                                              MDefinition *index,
-                                              TypedObjectPrediction objPrediction,
-                                              TypedObjectPrediction elemPrediction);
     bool getElemTryComplexElemOfTypedObject(bool *emitted,
                                             MDefinition *obj,
                                             MDefinition *index,
@@ -686,7 +666,6 @@ class IonBuilder
     {
         InliningStatus_Error,
         InliningStatus_NotInlined,
-        InliningStatus_WarmUpCountTooLow,
         InliningStatus_Inlined
     };
 
@@ -694,15 +673,14 @@ class IonBuilder
     {
         InliningDecision_Error,
         InliningDecision_Inline,
-        InliningDecision_DontInline,
-        InliningDecision_WarmUpCountTooLow
+        InliningDecision_DontInline
     };
 
     static InliningDecision DontInline(JSScript *targetScript, const char *reason);
 
     // Oracles.
     InliningDecision canInlineTarget(JSFunction *target, CallInfo &callInfo);
-    InliningDecision makeInliningDecision(JSObject *target, CallInfo &callInfo);
+    InliningDecision makeInliningDecision(JSFunction *target, CallInfo &callInfo);
     bool selectInliningTargets(ObjectVector &targets, CallInfo &callInfo,
                                BoolVector &choiceSet, uint32_t *numInlineable);
 
@@ -747,13 +725,6 @@ class IonBuilder
     InliningStatus inlineRegExpExec(CallInfo &callInfo);
     InliningStatus inlineRegExpTest(CallInfo &callInfo);
 
-    // Atomics natives.
-    InliningStatus inlineAtomicsCompareExchange(CallInfo &callInfo);
-    InliningStatus inlineAtomicsLoad(CallInfo &callInfo);
-    InliningStatus inlineAtomicsStore(CallInfo &callInfo);
-    InliningStatus inlineAtomicsFence(CallInfo &callInfo);
-    InliningStatus inlineAtomicsBinop(CallInfo &callInfo, JSFunction *target);
-
     // Array intrinsics.
     InliningStatus inlineUnsafePutElements(CallInfo &callInfo);
     bool inlineUnsafeSetDenseArrayElement(CallInfo &callInfo, uint32_t base);
@@ -772,12 +743,11 @@ class IonBuilder
     // ForkJoin intrinsics
     InliningStatus inlineForkJoinGetSlice(CallInfo &callInfo);
 
-    // TypedObject intrinsics and natives.
+    // TypedObject intrinsics.
     InliningStatus inlineObjectIsTypeDescr(CallInfo &callInfo);
     InliningStatus inlineSetTypedObjectOffset(CallInfo &callInfo);
     bool elementAccessIsTypedObjectArrayOfScalarType(MDefinition* obj, MDefinition* id,
                                                      ScalarTypeDescr::Type *arrayType);
-    InliningStatus inlineConstructTypedObject(CallInfo &callInfo, TypeDescr *target);
 
     // Utility intrinsics.
     InliningStatus inlineIsCallable(CallInfo &callInfo);
@@ -789,8 +759,7 @@ class IonBuilder
     InliningStatus inlineDump(CallInfo &callInfo);
     InliningStatus inlineHasClass(CallInfo &callInfo, const Class *clasp,
                                   const Class *clasp2 = nullptr,
-                                  const Class *clasp3 = nullptr,
-                                  const Class *clasp4 = nullptr);
+                                  const Class *clasp3 = nullptr);
     InliningStatus inlineIsConstructing(CallInfo &callInfo);
 
     // Testing functions.
@@ -804,9 +773,8 @@ class IonBuilder
     // Main inlining functions
     InliningStatus inlineNativeCall(CallInfo &callInfo, JSFunction *target);
     InliningStatus inlineNativeGetter(CallInfo &callInfo, JSFunction *target);
-    InliningStatus inlineNonFunctionCall(CallInfo &callInfo, JSObject *target);
     bool inlineScriptedCall(CallInfo &callInfo, JSFunction *target);
-    InliningStatus inlineSingleCall(CallInfo &callInfo, JSObject *target);
+    InliningStatus inlineSingleCall(CallInfo &callInfo, JSFunction *target);
 
     // Call functions
     InliningStatus inlineCallsite(ObjectVector &targets, ObjectVector &originals,
@@ -821,9 +789,6 @@ class IonBuilder
                                   MTypeObjectDispatch *dispatch, MGetPropertyCache *cache,
                                   MBasicBlock **fallbackTarget);
 
-    bool atomicsMeetsPreconditions(CallInfo &callInfo, Scalar::Type *arrayElementType);
-    void atomicsCheckBounds(CallInfo &callInfo, MInstruction **elements, MDefinition **index);
-
     bool testNeedsArgumentCheck(JSFunction *target, CallInfo &callInfo);
 
     MDefinition *makeCallsiteClone(JSFunction *target, MDefinition *fun);
@@ -835,12 +800,11 @@ class IonBuilder
                                      MBasicBlock *bottom);
 
     bool objectsHaveCommonPrototype(types::TemporaryTypeSet *types, PropertyName *name,
-                                    bool isGetter, JSObject *foundProto, bool *guardGlobal);
+                                    bool isGetter, JSObject *foundProto);
     void freezePropertiesForCommonPrototype(types::TemporaryTypeSet *types, PropertyName *name,
-                                            JSObject *foundProto, bool allowEmptyTypesForGlobal = false);
+                                            JSObject *foundProto);
     MDefinition *testCommonGetterSetter(types::TemporaryTypeSet *types, PropertyName *name,
-                                        bool isGetter, JSObject *foundProto, Shape *lastProperty,
-                                        Shape *globalShape = nullptr);
+                                        bool isGetter, JSObject *foundProto, Shape *lastProperty);
     bool testShouldDOMCall(types::TypeSet *inTypes,
                            JSFunction *func, JSJitInfo::OpType opType);
 
@@ -929,9 +893,9 @@ class IonBuilder
     MBasicBlock *current;
     uint32_t loopDepth_;
 
-    BytecodeSite *bytecodeSite(jsbytecode *pc) {
-        MOZ_ASSERT(info().inlineScriptTree()->script()->containsPC(pc));
-        return new(alloc()) BytecodeSite(info().inlineScriptTree(), pc);
+    BytecodeSite bytecodeSite(jsbytecode *pc) {
+        JS_ASSERT(info().inlineScriptTree()->script()->containsPC(pc));
+        return BytecodeSite(info().inlineScriptTree(), pc);
     }
 
     MDefinition *lexicalCheck_;
@@ -1053,7 +1017,7 @@ class CallInfo
     { }
 
     bool init(CallInfo &callInfo) {
-        MOZ_ASSERT(constructing_ == callInfo.constructing());
+        JS_ASSERT(constructing_ == callInfo.constructing());
 
         fun_ = callInfo.fun();
         thisArg_ = callInfo.thisArg();
@@ -1065,7 +1029,7 @@ class CallInfo
     }
 
     bool init(MBasicBlock *current, uint32_t argc) {
-        MOZ_ASSERT(args_.empty());
+        JS_ASSERT(args_.empty());
 
         // Get the arguments in the right order
         if (!args_.reserve(argc))
@@ -1101,7 +1065,7 @@ class CallInfo
     }
 
     void setArgs(MDefinitionVector *args) {
-        MOZ_ASSERT(args_.empty());
+        JS_ASSERT(args_.empty());
         args_.appendAll(*args);
     }
 
@@ -1114,17 +1078,17 @@ class CallInfo
     }
 
     MDefinition *getArg(uint32_t i) const {
-        MOZ_ASSERT(i < argc());
+        JS_ASSERT(i < argc());
         return args_[i];
     }
 
     void setArg(uint32_t i, MDefinition *def) {
-        MOZ_ASSERT(i < argc());
+        JS_ASSERT(i < argc());
         args_[i] = def;
     }
 
     MDefinition *thisArg() const {
-        MOZ_ASSERT(thisArg_);
+        JS_ASSERT(thisArg_);
         return thisArg_;
     }
 
@@ -1144,7 +1108,7 @@ class CallInfo
     }
 
     MDefinition *fun() const {
-        MOZ_ASSERT(fun_);
+        JS_ASSERT(fun_);
         return fun_;
     }
 

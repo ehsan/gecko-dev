@@ -20,7 +20,7 @@
 namespace mozilla {
 namespace plugins {
 
-class PluginModuleChromeParent;
+class PluginModuleParent;
 
 /**
  * This class is responsible for launching and communicating with the 
@@ -35,7 +35,7 @@ class PluginModuleChromeParent;
 class PluginHangUIParent : public MiniShmObserver
 {
 public:
-  PluginHangUIParent(PluginModuleChromeParent* aModule,
+  PluginHangUIParent(PluginModuleParent* aModule,
                      const int32_t aHangUITimeoutPref,
                      const int32_t aChildTimeoutPref);
   virtual ~PluginHangUIParent();
@@ -135,7 +135,7 @@ private:
 
 private:
   Mutex mMutex;
-  PluginModuleChromeParent* mModule;
+  PluginModuleParent* mModule;
   const uint32_t mTimeoutPrefMs;
   const uint32_t mIPCTimeoutMs;
   MessageLoop* mMainThreadMessageLoop;

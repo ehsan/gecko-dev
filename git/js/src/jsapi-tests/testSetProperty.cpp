@@ -13,11 +13,10 @@ BEGIN_TEST(testSetProperty_NativeGetterStubSetter)
     CHECK(obj);
 
     CHECK(JS_DefineProperty(cx, global, "globalProp", obj, JSPROP_ENUMERATE,
-                            JS_STUBGETTER, JS_STUBSETTER));
+                            JS_PropertyStub, JS_StrictPropertyStub));
 
-    CHECK(JS_DefineProperty(cx, obj, "prop", JS::UndefinedHandleValue,
-                            JSPROP_SHARED | JSPROP_PROPOP_ACCESSORS,
-                            JS_PROPERTYOP_GETTER(NativeGet), JS_STUBSETTER));
+    CHECK(JS_DefineProperty(cx, obj, "prop", JS::UndefinedHandleValue, JSPROP_SHARED,
+                            NativeGet, JS_StrictPropertyStub));
 
     EXEC("'use strict';                                     \n"
          "var error, passed = false;                        \n"
@@ -68,7 +67,7 @@ BEGIN_TEST(testSetProperty_InheritedGlobalSetter)
     // This is a JSAPI test because jsapi-test globals do not have a resolve
     // hook and therefore can use the property cache in some cases where the
     // shell can't.
-    MOZ_ASSERT(JS_GetClass(global)->resolve == &JS_ResolveStub);
+    JS_ASSERT(JS_GetClass(global)->resolve == &JS_ResolveStub);
 
     CHECK(JS_DefineProperty(cx, global, "HOTLOOP", 8, 0));
     EXEC("var n = 0;\n"

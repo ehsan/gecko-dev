@@ -2,40 +2,28 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/Icc.h"
+#include "Icc.h"
 
-#include "mozilla/dom/DOMRequest.h"
-#include "mozilla/dom/IccInfo.h"
+#include "mozilla/dom/MozIccBinding.h"
 #include "mozilla/dom/MozStkCommandEvent.h"
+#include "mozilla/dom/DOMRequest.h"
 #include "mozilla/dom/ScriptSettings.h"
-#include "nsIIccInfo.h"
-#include "nsIIccProvider.h"
+#include "nsIDOMIccInfo.h"
 #include "nsJSON.h"
 #include "nsRadioInterfaceLayer.h"
 #include "nsServiceManagerUtils.h"
 
 using namespace mozilla::dom;
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED(Icc, DOMEventTargetHelper, mIccInfo)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(Icc)
-NS_INTERFACE_MAP_END_INHERITING(DOMEventTargetHelper)
-
-NS_IMPL_ADDREF_INHERITED(Icc, DOMEventTargetHelper)
-NS_IMPL_RELEASE_INHERITED(Icc, DOMEventTargetHelper)
-
-Icc::Icc(nsPIDOMWindow* aWindow, long aClientId, nsIIccInfo* aIccInfo)
+Icc::Icc(nsPIDOMWindow* aWindow, long aClientId, const nsAString& aIccId)
   : mLive(true)
   , mClientId(aClientId)
+  , mIccId(aIccId)
 {
+  SetIsDOMBinding();
   BindToOwner(aWindow);
 
   mProvider = do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
-
-  if (aIccInfo) {
-    aIccInfo->GetIccid(mIccId);
-    UpdateIccInfo(aIccInfo);
-  }
 
   // Not being able to acquire the provider isn't fatal since we check
   // for it explicitly below.
@@ -47,7 +35,6 @@ Icc::Icc(nsPIDOMWindow* aWindow, long aClientId, nsIIccInfo* aIccInfo)
 void
 Icc::Shutdown()
 {
-  mIccInfo.SetNull();
   mProvider = nullptr;
   mLive = false;
 }
@@ -87,38 +74,6 @@ Icc::NotifyStkEvent(const nsAString& aName, const nsAString& aMessage)
   return DispatchTrustedEvent(event);
 }
 
-void
-Icc::UpdateIccInfo(nsIIccInfo* aIccInfo)
-{
-  if (!aIccInfo) {
-    mIccInfo.SetNull();
-    return;
-  }
-
-  nsCOMPtr<nsIGsmIccInfo> gsmIccInfo(do_QueryInterface(aIccInfo));
-  if (gsmIccInfo) {
-    if (mIccInfo.IsNull() || !mIccInfo.Value().IsMozGsmIccInfo()) {
-      mIccInfo.SetValue().SetAsMozGsmIccInfo() = new GsmIccInfo(GetOwner());
-    }
-    mIccInfo.Value().GetAsMozGsmIccInfo().get()->Update(gsmIccInfo);
-    return;
-  }
-
-  nsCOMPtr<nsICdmaIccInfo> cdmaIccInfo(do_QueryInterface(aIccInfo));
-  if (cdmaIccInfo) {
-    if (mIccInfo.IsNull() || !mIccInfo.Value().IsMozCdmaIccInfo()) {
-      mIccInfo.SetValue().SetAsMozCdmaIccInfo() = new CdmaIccInfo(GetOwner());
-    }
-    mIccInfo.Value().GetAsMozCdmaIccInfo().get()->Update(cdmaIccInfo);
-    return;
-  }
-
-  if (mIccInfo.IsNull() || !mIccInfo.Value().IsMozIccInfo()) {
-    mIccInfo.SetValue().SetAsMozIccInfo() = new IccInfo(GetOwner());
-  }
-  mIccInfo.Value().GetAsMozIccInfo().get()->Update(aIccInfo);
-}
-
 // WrapperCache
 
 JSObject*
@@ -129,26 +84,35 @@ Icc::WrapObject(JSContext* aCx)
 
 // MozIcc WebIDL
 
-void
-Icc::GetIccInfo(Nullable<OwningMozIccInfoOrMozGsmIccInfoOrMozCdmaIccInfo>& aIccInfo) const
+already_AddRefed<nsIDOMMozIccInfo>
+Icc::GetIccInfo() const
 {
-  aIccInfo = mIccInfo;
-}
-
-Nullable<IccCardState>
-Icc::GetCardState() const
-{
-  Nullable<IccCardState> result;
-
-  uint32_t cardState = nsIIccProvider::CARD_STATE_UNDETECTED;
-  if (mProvider &&
-      NS_SUCCEEDED(mProvider->GetCardState(mClientId, &cardState)) &&
-      cardState != nsIIccProvider::CARD_STATE_UNDETECTED) {
-    MOZ_ASSERT(cardState < static_cast<uint32_t>(IccCardState::EndGuard_));
-    result.SetValue(static_cast<IccCardState>(cardState));
+  if (!mProvider) {
+    return nullptr;
   }
 
-  return result;
+  nsCOMPtr<nsIDOMMozIccInfo> iccInfo;
+  nsresult rv = mProvider->GetIccInfo(mClientId, getter_AddRefs(iccInfo));
+  if (NS_FAILED(rv)) {
+    return nullptr;
+  }
+
+  return iccInfo.forget();
+}
+
+void
+Icc::GetCardState(nsString& aCardState) const
+{
+  aCardState.SetIsVoid(true);
+
+  if (!mProvider) {
+    return;
+  }
+
+  nsresult rv = mProvider->GetCardState(mClientId, aCardState);
+  if (NS_FAILED(rv)) {
+    aCardState.SetIsVoid(true);
+  }
 }
 
 void
@@ -329,6 +293,64 @@ Icc::UpdateContact(const JSContext* aCx, const nsAString& aContactType,
   nsresult rv = mProvider->UpdateContact(mClientId, GetOwner(), aContactType,
                                          aContact, aPin2,
                                          getter_AddRefs(request));
+  if (NS_FAILED(rv)) {
+    aRv.Throw(rv);
+    return nullptr;
+  }
+
+  return request.forget().downcast<DOMRequest>();
+}
+
+already_AddRefed<DOMRequest>
+Icc::IccOpenChannel(const nsAString& aAid, ErrorResult& aRv)
+{
+  if (!mProvider) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+
+  nsRefPtr<nsIDOMDOMRequest> request;
+  nsresult rv = mProvider->IccOpenChannel(mClientId, GetOwner(), aAid,
+                                          getter_AddRefs(request));
+  if (NS_FAILED(rv)) {
+    aRv.Throw(rv);
+    return nullptr;
+  }
+
+  return request.forget().downcast<DOMRequest>();
+}
+
+already_AddRefed<DOMRequest>
+Icc::IccExchangeAPDU(const JSContext* aCx, int32_t aChannel,
+                     JS::Handle<JS::Value> aApdu, ErrorResult& aRv)
+{
+  if (!mProvider) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+
+  nsRefPtr<nsIDOMDOMRequest> request;
+  nsresult rv = mProvider->IccExchangeAPDU(mClientId, GetOwner(), aChannel,
+                                           aApdu, getter_AddRefs(request));
+  if (NS_FAILED(rv)) {
+    aRv.Throw(rv);
+    return nullptr;
+  }
+
+  return request.forget().downcast<DOMRequest>();
+}
+
+already_AddRefed<DOMRequest>
+Icc::IccCloseChannel(int32_t aChannel, ErrorResult& aRv)
+{
+  if (!mProvider) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+
+  nsRefPtr<nsIDOMDOMRequest> request;
+  nsresult rv = mProvider->IccCloseChannel(mClientId, GetOwner(), aChannel,
+                                           getter_AddRefs(request));
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return nullptr;

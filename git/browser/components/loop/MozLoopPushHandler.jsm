@@ -9,7 +9,6 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Timer.jsm");
-Cu.import("resource://gre/modules/Promise.jsm");
 
 this.EXPORTED_SYMBOLS = ["MozLoopPushHandler"];
 
@@ -23,15 +22,14 @@ XPCOMUtils.defineLazyModuleGetter(this, "console",
 let MozLoopPushHandler = {
   // This is the uri of the push server.
   pushServerUri: undefined,
-  // Records containing the registration and notification callbacks indexed by channelID.
-  // Each channel will be registered with the PushServer.
-  channels: {},
+  // This is the channel id we're using for notifications
+  channelID: "8b1081ce-9b35-42b5-b8f5-3ff8cb813a50",
   // This is the UserAgent UUID assigned by the PushServer
   uaID: undefined,
-  // Each successfully registered channelID is used as a key to hold its pushEndpoint URL.
-  registeredChannels: {},
-
-  _channelsToRegister: {},
+  // Stores the push url if we're registered and we have one.
+  pushUrl: undefined,
+  // Set to true once the channelID has been registered with the PushServer.
+  registered: false,
 
   _minRetryDelay_ms: (() => {
     try {
@@ -52,83 +50,34 @@ let MozLoopPushHandler = {
   })(),
 
    /**
-    * Inializes the PushHandler and opens a socket with the PushServer.
-    * It will automatically say hello and register any channels
-    * that are found in the work queue at that point.
-    *
-    * @param {Object} options Set of configuration options. Currently,
-    *                 the only option is mocketWebSocket which will be
-    *                 used for testing.
-    */
-  initialize: function(options = {}) {
-    if (Services.io.offline) {
-      console.warn("MozLoopPushHandler - IO offline");
-      return false;
-    }
-
-    if (this._initDone) {
-      return true;
-    }
-
-    this._initDone = true;
-
-    if ("mockWebSocket" in options) {
-      this._mockWebSocket = options.mockWebSocket;
-    }
-
-    this._openSocket();
-    return true;
-  },
-
-   /**
-    * Start registration of a PushServer notification channel.
+    * Starts a connection to the push socket server. On
     * connection, it will automatically say hello and register the channel
     * id with the server.
     *
-    * onRegistered callback parameters:
+    * Register callback parameters:
     * - {String|null} err: Encountered error, if any
     * - {String} url: The push url obtained from the server
     *
-    * onNotification parameters:
+    * Callback parameters:
     * - {String} version The version string received from the push server for
     *                    the notification.
-    * - {String} channelID The channelID on which the notification was sent.
     *
-    * @param {String} channelID Channel ID to use in registration.
-    *
-    * @param {Function} onRegistered Callback to be called once we are
+    * @param {Function} registerCallback Callback to be called once we are
     *                     registered.
-    * @param {Function} onNotification Callback to be called when a
+    * @param {Function} notificationCallback Callback to be called when a
     *                     push notification is received (may be called multiple
     *                     times).
+    * @param {Object} mockPushHandler Optional, test-only object, to allow
+    *                                 the websocket to be mocked for tests.
     */
-  register: function(channelID, onRegistered, onNotification) {
-    if (!channelID || !onRegistered || !onNotification) {
-      throw new Error("missing required parameter(s):"
-                      + (channelID ? "" : " channelID")
-                      + (onRegistered ? "" : " onRegistered")
-                      + (onNotification ? "" : " onNotification"));
+  initialize: function(registerCallback, notificationCallback, mockPushHandler) {
+    if (mockPushHandler) {
+      this._mockPushHandler = mockPushHandler;
     }
 
-    // If the channel is already registered, callback with an error immediately
-    // so we don't leave code hanging waiting for an onRegistered callback.
-    if (channelID in this.channels) {
-      onRegistered("error: channel already registered: " + channelID);
-      return;
-    }
-
-    this.channels[channelID] = {
-      onRegistered: onRegistered,
-      onNotification: onNotification
-    };
-
-    // If registration is in progress, simply add to the work list.
-    // Else, re-start a registration cycle.
-    if (this._registrationID) {
-      this._channelsToRegister.push(channelID);
-    } else {
-      this._registerChannels();
-    }
+    this._registerCallback = registerCallback;
+    this._notificationCallback = notificationCallback;
+    this._openSocket();
   },
 
   /**
@@ -142,11 +91,9 @@ let MozLoopPushHandler = {
     // If a uaID has already been assigned, assume this is a re-connect
     // and send the uaID in order to re-synch with the
     // PushServer. If a registration has been completed, send the channelID.
-    let helloMsg = {
-          messageType: "hello",
-          uaid: this.uaID || "",
-          channelIDs: Object.keys(this.registeredChannels)};
-
+    let helloMsg = { messageType: "hello",
+		     uaid: this.uaID,
+		     channelIDs: this.registered ? [this.channelID] :[] };
     this._retryOperation(() => this.onStart(), this._maxRetryDelay_ms);
     try { // in case websocket has closed before this handler is run
       this._websocket.sendMsg(JSON.stringify(helloMsg));
@@ -191,12 +138,10 @@ let MozLoopPushHandler = {
     switch(msg.messageType) {
       case "hello":
         this._retryEnd();
-        this._isConnected = true;
-        if (this.uaID !== msg.uaid) {
-          this.uaID = msg.uaid;
-          this.registeredChannels = {};
-          this._registerChannels();
-        }
+	if (this.uaID !== msg.uaid) {
+	  this.uaID = msg.uaid;
+          this._registerChannel();
+	}
         break;
 
       case "register":
@@ -205,8 +150,8 @@ let MozLoopPushHandler = {
 
       case "notification":
         msg.updates.forEach((update) => {
-          if (update.channelID in this.registeredChannels) {
-            this.channels[update.channelID].onNotification(update.version, update.channelID);
+          if (update.channelID === this.channelID) {
+            this._notificationCallback(update.version);
           }
         });
         break;
@@ -216,41 +161,31 @@ let MozLoopPushHandler = {
   /**
    * Handles the PushServer registration response.
    *
-   * @param {Object} msg PushServer to UserAgent registration response (parsed from JSON).
+   * @param {} msg PushServer to UserAgent registration response (parsed from JSON).
    */
   _onRegister: function(msg) {
-    let registerNext = () => {
-      this._registrationID = this._channelsToRegister.shift();
-      this._sendRegistration(this._registrationID);
-    }
-
     switch (msg.status) {
       case 200:
-        if (msg.channelID == this._registrationID) {
-          this._retryEnd(); // reset retry mechanism
-          this.registeredChannels[msg.channelID] = msg.pushEndpoint;
-          this.channels[msg.channelID].onRegistered(null, msg.pushEndpoint, msg.channelID);
-          registerNext();
+        this._retryEnd(); // reset retry mechanism
+	this.registered = true;
+        if (this.pushUrl !== msg.pushEndpoint) {
+          this.pushUrl = msg.pushEndpoint;
+          this._registerCallback(null, this.pushUrl);
         }
         break;
 
       case 500:
         // retry the registration request after a suitable delay
-        this._retryOperation(() => this._sendRegistration(msg.channelID));
+        this._retryOperation(() => this._registerChannel());
         break;
 
       case 409:
-        this.channels[this._registrationID].onRegistered(
-          "error: PushServer ChannelID already in use: " + msg.channelID);
-        registerNext();
-        break;
+        this._registerCallback("error: PushServer ChannelID already in use");
+	break;
 
       default:
-        let id = this._channelsToRegister.shift();
-        this.channels[this._registrationID].onRegistered(
-          "error: PushServer registration failure, status = " + msg.status);
-        registerNext();
-        break;
+        this._registerCallback("error: PushServer registration failure, status = " + msg.status);
+	break;
     }
   },
 
@@ -263,14 +198,16 @@ let MozLoopPushHandler = {
    * is logically closed.
    */
   _openSocket: function() {
-    this._isConnected = false;
-
-    if (this._mockWebSocket) {
+    if (this._mockPushHandler) {
       // For tests, use the mock instance.
-      this._websocket = this._mockWebSocket;
-    } else {
+      this._websocket = this._mockPushHandler;
+    } else if (!Services.io.offline) {
       this._websocket = Cc["@mozilla.org/network/protocol;1?name=wss"]
                         .createInstance(Ci.nsIWebSocketChannel);
+    } else {
+      this._registerCallback("offline");
+      console.warn("MozLoopPushHandler - IO offline");
+      return;
     }
 
     this._websocket.protocol = "push-notification";
@@ -322,39 +259,15 @@ let MozLoopPushHandler = {
   },
 
   /**
-   * Begins registering the channelIDs with the PushServer
-   */
-  _registerChannels: function() {
-    // Hold off registration operation until handshake is complete.
-    if (!this._isConnected) {
-      return;
-    }
-
-    // If a registration is pending, do not generate a work list.
-    // Assume registration is in progress.
-    if (!this._registrationID) {
-      // Generate a list of channelIDs that have not yet been registered.
-      this._channelsToRegister = Object.keys(this.channels).filter((id) => {
-        return !(id in this.registeredChannels);
-      });
-      this._registrationID = this._channelsToRegister.shift();
-      this._sendRegistration(this._registrationID);
-    }
-  },
-
-  /**
    * Handles registering a service
-   *
-   * @param {string} channelID - identification token to use in registration for this channel.
    */
-  _sendRegistration: function(channelID) {
-    if (channelID) {
-      try { // in case websocket has closed
-        this._websocket.sendMsg(JSON.stringify({messageType: "register",
-                                                channelID: channelID}));
-      }
-      catch (e) {console.warn("MozLoopPushHandler::_registerChannel websocket.sendMsg() failure");}
+  _registerChannel: function() {
+    this.registered = false;
+    try { // in case websocket has closed
+      this._websocket.sendMsg(JSON.stringify({messageType: "register",
+                                              channelID: this.channelID}));
     }
+    catch (e) {console.warn("MozLoopPushHandler::_registerChannel websocket.sendMsg() failure");}
   },
 
   /**
@@ -388,3 +301,4 @@ let MozLoopPushHandler = {
     }
   }
 };
+

@@ -714,6 +714,21 @@ GetCellParent(nsINode *aDomNode)
     return nullptr;
 }
 
+CaretAssociationHint
+nsFrameSelection::GetHintForPosition(nsIContent* aContent, int32_t aOffset)
+{
+  CaretAssociateHint hint = CARET_ASSOCIATE_BEFORE;
+  if (!aContent || aOffset < 1) {
+    return hint;
+  }
+  const nsTextFragment* text = aContent->GetText();
+  if (text && text->CharAt(aOffset - 1) == '\n') {
+    // Attach the caret to the next line if needed
+    hint = CARET_ASSOCIATE_AFTER;
+  }
+  return hint;
+}
+
 void
 nsFrameSelection::Init(nsIPresShell *aShell, nsIContent *aLimiter)
 {
@@ -3095,6 +3110,7 @@ Selection::Selection()
   , mType(nsISelectionController::SELECTION_NORMAL)
   , mApplyUserSelectStyle(false)
 {
+  SetIsDOMBinding();
 }
 
 Selection::Selection(nsFrameSelection* aList)
@@ -3104,6 +3120,7 @@ Selection::Selection(nsFrameSelection* aList)
   , mType(nsISelectionController::SELECTION_NORMAL)
   , mApplyUserSelectStyle(false)
 {
+  SetIsDOMBinding();
 }
 
 Selection::~Selection()
@@ -4039,10 +4056,7 @@ Selection::selectFrames(nsPresContext* aPresContext, nsRange* aRange,
   // Loop through the content iterator for each content node; for each text
   // node, call SetSelected on it:
   nsCOMPtr<nsIContent> content = do_QueryInterface(aRange->GetStartParent());
-  if (!content) {
-    // Don't warn, bug 1055722
-    return NS_ERROR_UNEXPECTED;
-  }
+  NS_ENSURE_STATE(content);
 
   // We must call first one explicitly
   if (content->IsNodeOfType(nsINode::eTEXT)) {

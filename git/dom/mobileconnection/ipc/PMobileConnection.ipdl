@@ -22,16 +22,17 @@ child:
   NotifyDataInfoChanged(nsMobileConnectionInfo aInfo);
   NotifyUssdReceived(nsString aMessage, bool aSessionEnd);
   NotifyDataError(nsString aMessage);
-  NotifyCFStateChanged(uint16_t aAction, uint16_t aReason, nsString aNumber,
-                       uint16_t aTimeSeconds, uint16_t aServiceClass);
+  NotifyCFStateChanged(bool aSuccess, uint16_t aAction, uint16_t aReason,
+                       nsString aNumber, uint16_t aTimeSeconds,
+                       uint16_t aServiceClass);
   NotifyEmergencyCbModeChanged(bool aActive, uint32_t aTimeoutMs);
   NotifyOtaStatusChanged(nsString aStatus);
   NotifyIccChanged(nsString aIccId);
-  NotifyRadioStateChanged(int32_t aRadioState);
+  NotifyRadioStateChanged(nsString aRadioState);
   NotifyClirModeChanged(uint32_t aMode);
   NotifyLastNetworkChanged(nsString aNetwork);
   NotifyLastHomeNetworkChanged(nsString aNetwork);
-  NotifyNetworkSelectionModeChanged(int32_t aMode);
+  NotifyNetworkSelectionModeChanged(nsString aMode);
 
 parent:
   /**
@@ -50,8 +51,8 @@ parent:
   sync Init()
     returns (nsMobileConnectionInfo aVoice, nsMobileConnectionInfo aData,
              nsString aLastKnownNetwork, nsString aLastKnownHomeNetwork,
-             nsString aIccId, int32_t aNetworkSelectionMode,
-             int32_t aRadioState, nsString[] aSupportedNetworkTypes);
+             nsString aIccId, nsString aNetworkSelectionMode,
+             nsString aRadioState, nsString[] aSupportedNetworkTypes);
 };
 
 /**
@@ -72,7 +73,7 @@ struct SelectNetworkAutoRequest
 
 struct SetPreferredNetworkTypeRequest
 {
-  int32_t type;
+  nsString type;
 };
 
 struct GetPreferredNetworkTypeRequest
@@ -81,7 +82,7 @@ struct GetPreferredNetworkTypeRequest
 
 struct SetRoamingPreferenceRequest
 {
-  int32_t mode;
+  nsString mode;
 };
 
 struct GetRoamingPreferenceRequest
@@ -108,37 +109,27 @@ struct CancelMmiRequest
 
 struct SetCallForwardingRequest
 {
-  uint16_t action;
-  uint16_t reason;
-  nsString number;
-  uint16_t timeSeconds;
-  uint16_t serviceClass;
+  MozCallForwardingOptions options;
 };
 
 struct GetCallForwardingRequest
 {
-  uint16_t reason;
+  int16_t reason;
 };
 
 struct SetCallBarringRequest
 {
-  uint16_t program;
-  bool enabled;
-  nsString password;
-  uint16_t serviceClass;
+  MozCallBarringOptions options;
 };
 
 struct GetCallBarringRequest
 {
-  uint16_t program;
-  nsString password;
-  uint16_t serviceClass;
+  MozCallBarringOptions options;
 };
 
 struct ChangeCallBarringPasswordRequest
 {
-  nsString pin;
-  nsString newPin;
+  MozCallBarringOptions options;
 };
 
 struct SetCallWaitingRequest

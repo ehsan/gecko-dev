@@ -727,13 +727,7 @@ RotatedContentBuffer::BorrowDrawTargetForPainting(PaintState& aPaintState,
   }
 
   if (aPaintState.mMode == SurfaceMode::SURFACE_COMPONENT_ALPHA) {
-    if (!mDTBuffer || !mDTBufferOnWhite) {
-      // This can happen in release builds if allocating one of the two buffers
-      // failed. This is pretty bad and the reason for the failure is already
-      // reported through gfxCriticalError.
-      MOZ_ASSERT(false);
-      return nullptr;
-    }
+    MOZ_ASSERT(mDTBuffer && mDTBufferOnWhite);
     nsIntRegionRectIterator iter(*drawPtr);
     const nsIntRect *iterRect;
     while ((iterRect = iter.Next())) {

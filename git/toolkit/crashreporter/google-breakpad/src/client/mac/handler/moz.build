@@ -11,6 +11,8 @@ UNIFIED_SOURCES += [
     'minidump_generator.cc',
 ]
 
+XPI_NAME = 'crashreporter'
+
 FINAL_LIBRARY = 'xul'
 
 LOCAL_INCLUDES += [

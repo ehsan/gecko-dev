@@ -721,14 +721,7 @@ private:
 
   void AppendPolygonToString(nsCSSProperty aProperty, nsAString& aResult,
                              Serialization aValueSerialization) const;
-  void AppendPositionCoordinateToString(const nsCSSValue& aValue,
-                                        nsCSSProperty aProperty,
-                                        nsAString& aResult,
-                                        Serialization aSerialization) const;
-  void AppendCircleOrEllipseToString(
-           nsCSSKeyword aFunctionId,
-           nsCSSProperty aProperty, nsAString& aResult,
-           Serialization aValueSerialization) const;
+
 protected:
   nsCSSUnit mUnit;
   union {
@@ -871,8 +864,9 @@ struct nsCSSValueList {
   void AppendToString(nsCSSProperty aProperty, nsAString& aResult,
                       nsCSSValue::Serialization aValueSerialization) const;
 
-  static bool Equal(const nsCSSValueList* aList1,
-                    const nsCSSValueList* aList2);
+  bool operator==(nsCSSValueList const& aOther) const;
+  bool operator!=(const nsCSSValueList& aOther) const
+  { return !(*this == aOther); }
 
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
@@ -885,12 +879,6 @@ private:
   {
     MOZ_COUNT_CTOR(nsCSSValueList);
   }
-
-  // We don't want operator== or operator!= because they wouldn't be
-  // null-safe, which is generally what we need.  Use |Equal| method
-  // above instead.
-  bool operator==(nsCSSValueList const& aOther) const MOZ_DELETE;
-  bool operator!=(const nsCSSValueList& aOther) const MOZ_DELETE;
 };
 
 // nsCSSValueList_heap differs from nsCSSValueList only in being
@@ -1269,8 +1257,9 @@ struct nsCSSValuePairList {
   void AppendToString(nsCSSProperty aProperty, nsAString& aResult,
                       nsCSSValue::Serialization aValueSerialization) const;
 
-  static bool Equal(const nsCSSValuePairList* aList1,
-                    const nsCSSValuePairList* aList2);
+  bool operator==(const nsCSSValuePairList& aOther) const;
+  bool operator!=(const nsCSSValuePairList& aOther) const
+  { return !(*this == aOther); }
 
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
@@ -1284,12 +1273,6 @@ private:
   {
     MOZ_COUNT_CTOR(nsCSSValuePairList);
   }
-
-  // We don't want operator== or operator!= because they wouldn't be
-  // null-safe, which is generally what we need.  Use |Equal| method
-  // above instead.
-  bool operator==(const nsCSSValuePairList& aOther) const MOZ_DELETE;
-  bool operator!=(const nsCSSValuePairList& aOther) const MOZ_DELETE;
 };
 
 // nsCSSValuePairList_heap differs from nsCSSValuePairList only in being
@@ -1341,15 +1324,11 @@ public:
 
   nsCSSValue mLocation;
   nsCSSValue mColor;
-  // If mIsInterpolationHint is true, there is no color, just
-  // a location.
-  bool mIsInterpolationHint;
 
   bool operator==(const nsCSSValueGradientStop& aOther) const
   {
     return (mLocation == aOther.mLocation &&
-            mIsInterpolationHint == aOther.mIsInterpolationHint &&
-            (mIsInterpolationHint || mColor == aOther.mColor));
+            mColor == aOther.mColor);
   }
 
   bool operator!=(const nsCSSValueGradientStop& aOther) const

@@ -25,6 +25,7 @@
 /* from widget */
 #if defined(MOZ_WIDGET_ANDROID)
 #include "AndroidBridge.h"
+#include "nsSurfaceTexture.h"
 #endif
 
 #include <android/log.h>
@@ -805,7 +806,7 @@ GLContextEGL::CreateEGLPBufferOffscreenContext(const gfxIntSize& size)
 
     // We absolutely don't care, so just pick the first one.
     config = configs[0];
-    if (GLContext::ShouldSpew())
+    if (GLContext::DebugMode())
         sEGLLibrary.DumpEGLConfig(config);
 
     gfxIntSize pbSize(size);

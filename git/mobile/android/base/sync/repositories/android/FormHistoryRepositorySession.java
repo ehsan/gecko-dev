@@ -37,15 +37,15 @@ import android.os.RemoteException;
 
 public class FormHistoryRepositorySession extends
     StoreTrackingRepositorySession {
-  public static final String LOG_TAG = "FormHistoryRepoSess";
+  public static String LOG_TAG = "FormHistoryRepoSess";
 
   /**
    * Number of records to insert in one batch.
    */
   public static final int INSERT_ITEM_THRESHOLD = 200;
 
-  private static final Uri FORM_HISTORY_CONTENT_URI = BrowserContractHelpers.FORM_HISTORY_CONTENT_URI;
-  private static final Uri DELETED_FORM_HISTORY_CONTENT_URI = BrowserContractHelpers.DELETED_FORM_HISTORY_CONTENT_URI;
+  private static Uri FORM_HISTORY_CONTENT_URI = BrowserContractHelpers.FORM_HISTORY_CONTENT_URI;
+  private static Uri DELETED_FORM_HISTORY_CONTENT_URI = BrowserContractHelpers.DELETED_FORM_HISTORY_CONTENT_URI;
 
   public static class FormHistoryRepository extends Repository {
 
@@ -119,7 +119,7 @@ public class FormHistoryRepositorySession extends
     super.finish(delegate);
   }
 
-  protected static final String[] GUID_COLUMNS = new String[] { FormHistory.GUID };
+  protected static String[] GUID_COLUMNS = new String[] { FormHistory.GUID };
 
   @Override
   public void guidsSince(final long timestamp, final RepositorySessionGuidsSinceDelegate delegate) {
@@ -142,7 +142,10 @@ public class FormHistoryRepositorySession extends
             guids.add(cur.getString(0));
             cur.moveToNext();
           }
-        } catch (RemoteException | NullCursorException e) {
+        } catch (RemoteException e) {
+          delegate.onGuidsSinceFailed(e);
+          return;
+        } catch (NullCursorException e) {
           delegate.onGuidsSinceFailed(e);
           return;
         } finally {
@@ -158,7 +161,10 @@ public class FormHistoryRepositorySession extends
             guids.add(cur.getString(0));
             cur.moveToNext();
           }
-        } catch (RemoteException | NullCursorException e) {
+        } catch (RemoteException e) {
+          delegate.onGuidsSinceFailed(e);
+          return;
+        } catch (NullCursorException e) {
           delegate.onGuidsSinceFailed(e);
           return;
         } finally {
@@ -167,7 +173,7 @@ public class FormHistoryRepositorySession extends
           }
         }
 
-        String guidsArray[] = guids.toArray(new String[guids.size()]);
+        String guidsArray[] = guids.toArray(new String[0]);
         delegate.onGuidsSinceSucceeded(guidsArray);
       }
     };
@@ -437,7 +443,7 @@ public class FormHistoryRepositorySession extends
     return cv;
   }
 
-  protected final Object recordsBufferMonitor = new Object();
+  protected Object recordsBufferMonitor = new Object();
   protected ArrayList<ContentValues> recordsBuffer = new ArrayList<ContentValues>();
 
   protected void enqueueRegularRecord(Record record) {
@@ -460,7 +466,7 @@ public class FormHistoryRepositorySession extends
   protected void flushInsertQueue() throws RemoteException {
     synchronized (recordsBufferMonitor) {
       if (recordsBuffer.size() > 0) {
-        final ContentValues[] outgoing = recordsBuffer.toArray(new ContentValues[recordsBuffer.size()]);
+        final ContentValues[] outgoing = recordsBuffer.toArray(new ContentValues[0]);
         recordsBuffer = new ArrayList<ContentValues>();
 
         if (outgoing == null || outgoing.length == 0) {

@@ -26,7 +26,6 @@
 #include "mozilla/net/RtspChannelChild.h"
 #endif
 #include "SerializedLoadContext.h"
-#include "nsIOService.h"
 
 using mozilla::dom::TCPSocketChild;
 using mozilla::dom::TCPServerSocketChild;
@@ -303,7 +302,7 @@ NeckoChild::DeallocPChannelDiverterChild(PChannelDiverterChild* child)
 }
 
 bool
-NeckoChild::RecvAsyncAuthPromptForNestedFrame(const TabId& aNestedFrameId,
+NeckoChild::RecvAsyncAuthPromptForNestedFrame(const uint64_t& aNestedFrameId,
                                               const nsCString& aUri,
                                               const nsString& aRealm,
                                               const uint64_t& aCallbackId)
@@ -315,18 +314,6 @@ NeckoChild::RecvAsyncAuthPromptForNestedFrame(const TabId& aNestedFrameId,
   }
   dom::TabChild* tabChild = iter->second;
   tabChild->SendAsyncAuthPrompt(aUri, aRealm, aCallbackId);
-  return true;
-}
-
-bool
-NeckoChild::RecvAppOfflineStatus(const uint32_t& aId, const bool& aOffline)
-{
-  // Instantiate the service to make sure gIOService is initialized
-  nsCOMPtr<nsIIOService> ioService = do_GetIOService();
-  if (gIOService) {
-    gIOService->SetAppOfflineInternal(aId, aOffline ?
-      nsIAppOfflineInfo::OFFLINE : nsIAppOfflineInfo::ONLINE);
-  }
   return true;
 }
 

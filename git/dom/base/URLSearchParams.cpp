@@ -6,7 +6,6 @@
 #include "URLSearchParams.h"
 #include "mozilla/dom/URLSearchParamsBinding.h"
 #include "mozilla/dom/EncodingUtils.h"
-#include "nsDOMString.h"
 
 namespace mozilla {
 namespace dom {
@@ -22,6 +21,7 @@ NS_INTERFACE_MAP_END
 
 URLSearchParams::URLSearchParams()
 {
+  SetIsDOMBinding();
 }
 
 URLSearchParams::~URLSearchParams()
@@ -231,7 +231,7 @@ URLSearchParams::RemoveObservers()
 void
 URLSearchParams::Get(const nsAString& aName, nsString& aRetval)
 {
-  SetDOMStringToNull(aRetval);
+  aRetval.Truncate();
 
   for (uint32_t i = 0, len = mSearchParams.Length(); i < len; ++i) {
     if (mSearchParams[i].mKey.Equals(aName)) {
@@ -257,19 +257,11 @@ void
 URLSearchParams::Set(const nsAString& aName, const nsAString& aValue)
 {
   Param* param = nullptr;
-  for (uint32_t i = 0, len = mSearchParams.Length(); i < len;) {
-    if (!mSearchParams[i].mKey.Equals(aName)) {
-      ++i;
-      continue;
-    }
-    if (!param) {
+  for (uint32_t i = 0, len = mSearchParams.Length(); i < len; ++i) {
+    if (mSearchParams[i].mKey.Equals(aName)) {
       param = &mSearchParams[i];
-      ++i;
-      continue;
+      break;
     }
-    // Remove duplicates.
-    mSearchParams.RemoveElementAt(i);
-    --len;
   }
 
   if (!param) {

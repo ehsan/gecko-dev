@@ -15,6 +15,10 @@
 #endif
 #endif
 
+#ifndef NAN
+#define NAN std::numeric_limits<double>::quiet_NaN()
+#endif
+
 #include "prlog.h"
 
 #ifdef PR_LOGGING

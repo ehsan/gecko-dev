@@ -7,12 +7,13 @@
 #ifndef builtin_SymbolObject_h
 #define builtin_SymbolObject_h
 
-#include "vm/NativeObject.h"
+#include "jsobj.h"
+
 #include "vm/Symbol.h"
 
 namespace js {
 
-class SymbolObject : public NativeObject
+class SymbolObject : public JSObject
 {
     /* Stores this Symbol object's [[PrimitiveValue]]. */
     static const unsigned PRIMITIVE_VALUE_SLOT = 0;

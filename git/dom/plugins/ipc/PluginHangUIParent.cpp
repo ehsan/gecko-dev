@@ -69,7 +69,7 @@ private:
 namespace mozilla {
 namespace plugins {
 
-PluginHangUIParent::PluginHangUIParent(PluginModuleChromeParent* aModule,
+PluginHangUIParent::PluginHangUIParent(PluginModuleParent* aModule,
                                        const int32_t aHangUITimeoutPref,
                                        const int32_t aChildTimeoutPref)
   : mMutex("mozilla::plugins::PluginHangUIParent::mMutex"),
@@ -356,7 +356,6 @@ PluginHangUIParent::RecvUserResponse(const unsigned int& aResponse)
     mModule->TerminateChildProcess(mMainThreadMessageLoop);
     responseCode = 1;
   } else if(aResponse & HANGUI_USER_RESPONSE_CONTINUE) {
-    mModule->OnHangUIContinue();
     // User clicked Continue
     responseCode = 2;
   } else {

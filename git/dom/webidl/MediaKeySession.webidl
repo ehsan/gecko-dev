@@ -21,6 +21,7 @@ interface MediaKeySession : EventTarget {
 
   readonly attribute unrestricted double expiration;
 
+  // void, not any: https://www.w3.org/Bugs/Public/show_bug.cgi?id=26457
   readonly attribute Promise<void> closed;
 
   [NewObject, Throws]
@@ -30,12 +31,15 @@ interface MediaKeySession : EventTarget {
   Promise<boolean> load(DOMString sessionId);
 
   // session operations
+  // void, not any: https://www.w3.org/Bugs/Public/show_bug.cgi?id=26457
   [NewObject, Throws]
   Promise<void> update((ArrayBufferView or ArrayBuffer) response);
 
+  // void, not any: https://www.w3.org/Bugs/Public/show_bug.cgi?id=26457
   [NewObject, Throws]
   Promise<void> close();
 
+  // void, not any: https://www.w3.org/Bugs/Public/show_bug.cgi?id=26457
   [NewObject, Throws]
   Promise<void> remove();
 

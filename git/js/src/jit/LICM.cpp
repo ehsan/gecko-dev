@@ -123,7 +123,7 @@ static bool
 HasDependencyInLoop(MInstruction *ins, MBasicBlock *header)
 {
     // Don't hoist if this instruction depends on a store inside the loop.
-    if (MInstruction *dep = ins->dependency())
+    if (MDefinition *dep = ins->dependency())
         return !IsBeforeLoop(dep, header);
     return false;
 }
@@ -247,12 +247,7 @@ jit::LICM(MIRGenerator *mir, MIRGraph &graph)
             continue;
 
         bool canOsr;
-        size_t numBlocks = MarkLoopBlocks(graph, header, &canOsr);
-
-        if (numBlocks == 0) {
-            JitSpew(JitSpew_LICM, "  Loop with header block%u isn't actually a loop", header->id());
-            continue;
-        }
+        MarkLoopBlocks(graph, header, &canOsr);
 
         // Hoisting out of a loop that has an entry from the OSR block in
         // addition to its normal entry is tricky. In theory we could clone

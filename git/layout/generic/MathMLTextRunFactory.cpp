@@ -195,7 +195,7 @@ namespace {
 struct MathVarMappingWrapper
 {
   const MathVarMapping* const mTable;
-  explicit MathVarMappingWrapper(const MathVarMapping* aTable) : mTable(aTable) {}
+  MathVarMappingWrapper(const MathVarMapping* aTable) : mTable(aTable) {}
   uint32_t operator[](size_t index) const {
     return mTable[index].mKey;
   }
@@ -736,7 +736,6 @@ MathMLTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
 
   // Get the correct gfxFontGroup that corresponds to the earlier font changes.
   if (length) {
-    font.size = NSToCoordRound(font.size * mFontInflation);
     nsPresContext* pc = styles[0]->PresContext();
     nsRefPtr<nsFontMetrics> metrics;
     pc->DeviceContext()->GetMetricsFor(font,

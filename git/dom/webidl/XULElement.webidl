@@ -4,6 +4,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+interface MozBoxObject;
 interface MozControllers;
 interface MozFrameLoader;
 interface MozRDFCompositeDataSource;
@@ -94,7 +95,7 @@ interface XULElement : Element {
   [Throws]
   readonly attribute MozControllers             controllers;
   [Throws]
-  readonly attribute BoxObject?                 boxObject;
+  readonly attribute MozBoxObject?              boxObject;
 
   [Throws]
   void                      focus();

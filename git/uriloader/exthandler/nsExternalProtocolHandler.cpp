@@ -395,10 +395,7 @@ NS_IMETHODIMP nsExternalProtocolHandler::NewURI(const nsACString &aSpec,
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsExternalProtocolHandler::NewChannel2(nsIURI* aURI,
-                                       nsILoadInfo* aLoadInfo,
-                                       nsIChannel** _retval)
+NS_IMETHODIMP nsExternalProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
 {
   // Only try to return a channel if we have a protocol handler for the url.
   // nsOSHelperAppService::LoadUriInternal relies on this to check trustedness
@@ -422,11 +419,6 @@ nsExternalProtocolHandler::NewChannel2(nsIURI* aURI,
   }
 
   return NS_ERROR_UNKNOWN_PROTOCOL;
-}
-
-NS_IMETHODIMP nsExternalProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
-{
-  return NewChannel2(aURI, nullptr, _retval);
 }
 
 ///////////////////////////////////////////////////////////////////////

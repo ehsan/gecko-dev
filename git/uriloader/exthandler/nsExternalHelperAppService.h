@@ -6,6 +6,9 @@
 #ifndef nsExternalHelperAppService_h__
 #define nsExternalHelperAppService_h__
 
+#ifdef MOZ_LOGGING
+#define FORCE_PR_LOG
+#endif
 #include "prlog.h"
 #include "prtime.h"
 
@@ -241,11 +244,6 @@ public:
    * Clean up after the request was diverted to the parent process.
    */
   void DidDivertRequest(nsIRequest *request);
-
-  /**
-   * Apply content conversions if needed.
-   */
-  void MaybeApplyDecodingForExtension(nsIRequest *request);
 
 protected:
   ~nsExternalAppHandler();

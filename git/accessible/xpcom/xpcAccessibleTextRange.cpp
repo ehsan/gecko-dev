@@ -6,9 +6,8 @@
 
 #include "xpcAccessibleTextRange.h"
 
+#include "HyperTextAccessible.h"
 #include "TextRange.h"
-#include "xpcAccessibleDocument.h"
-
 #include "nsIMutableArray.h"
 #include "nsComponentManagerUtils.h"
 
@@ -37,7 +36,7 @@ NS_IMETHODIMP
 xpcAccessibleTextRange::GetStartContainer(nsIAccessibleText** aAnchor)
 {
   NS_ENSURE_ARG_POINTER(aAnchor);
-  NS_IF_ADDREF(*aAnchor = ToXPCText(mRange.StartContainer()));
+  NS_IF_ADDREF(*aAnchor = static_cast<nsIAccessibleText*>(mRange.StartContainer()));
   return NS_OK;
 }
 
@@ -53,7 +52,7 @@ NS_IMETHODIMP
 xpcAccessibleTextRange::GetEndContainer(nsIAccessibleText** aAnchor)
 {
   NS_ENSURE_ARG_POINTER(aAnchor);
-  NS_IF_ADDREF(*aAnchor = ToXPCText(mRange.EndContainer()));
+  NS_IF_ADDREF(*aAnchor = static_cast<nsIAccessibleText*>(mRange.EndContainer()));
   return NS_OK;
 }
 
@@ -69,7 +68,7 @@ NS_IMETHODIMP
 xpcAccessibleTextRange::GetContainer(nsIAccessible** aContainer)
 {
   NS_ENSURE_ARG_POINTER(aContainer);
-  NS_IF_ADDREF(*aContainer = ToXPC(mRange.Container()));
+  NS_IF_ADDREF(*aContainer = static_cast<nsIAccessible*>(mRange.Container()));
   return NS_OK;
 }
 
@@ -86,7 +85,7 @@ xpcAccessibleTextRange::GetEmbeddedChildren(nsIArray** aList)
 
   uint32_t len = objects.Length();
   for (uint32_t idx = 0; idx < len; idx++)
-    xpcList->AppendElement(static_cast<nsIAccessible*>(ToXPC(objects[idx])), false);
+    xpcList->AppendElement(static_cast<nsIAccessible*>(objects[idx]), false);
 
   xpcList.forget(aList);
 

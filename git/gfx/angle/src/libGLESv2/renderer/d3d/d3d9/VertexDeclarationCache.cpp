@@ -40,7 +40,7 @@ VertexDeclarationCache::~VertexDeclarationCache()
     }
 }
 
-gl::Error VertexDeclarationCache::applyDeclaration(IDirect3DDevice9 *device, TranslatedAttribute attributes[], gl::ProgramBinary *programBinary, GLsizei instances, GLsizei *repeatDraw)
+GLenum VertexDeclarationCache::applyDeclaration(IDirect3DDevice9 *device, TranslatedAttribute attributes[], gl::ProgramBinary *programBinary, GLsizei instances, GLsizei *repeatDraw)
 {
     *repeatDraw = 1;
 
@@ -81,9 +81,10 @@ gl::Error VertexDeclarationCache::applyDeclaration(IDirect3DDevice9 *device, Tra
             }
         }
 
-        // The validation layer checks that there is at least one active attribute with a zero divisor as per
-        // the GL_ANGLE_instanced_arrays spec.
-        ASSERT(indexedAttribute != gl::MAX_VERTEX_ATTRIBS);
+        if (indexedAttribute == gl::MAX_VERTEX_ATTRIBS)
+        {
+            return GL_INVALID_OPERATION;
+        }
     }
 
     D3DCAPS9 caps;
@@ -188,7 +189,7 @@ gl::Error VertexDeclarationCache::applyDeclaration(IDirect3DDevice9 *device, Tra
                 mLastSetVDecl = entry->vertexDeclaration;
             }
 
-            return gl::Error(GL_NO_ERROR);
+            return GL_NO_ERROR;
         }
     }
 
@@ -210,17 +211,12 @@ gl::Error VertexDeclarationCache::applyDeclaration(IDirect3DDevice9 *device, Tra
     }
 
     memcpy(lastCache->cachedElements, elements, (element - elements) * sizeof(D3DVERTEXELEMENT9));
-    HRESULT result = device->CreateVertexDeclaration(elements, &lastCache->vertexDeclaration);
-    if (FAILED(result))
-    {
-        return gl::Error(GL_OUT_OF_MEMORY, "Failed to create internal vertex declaration, result: 0x%X.", result);
-    }
-
+    device->CreateVertexDeclaration(elements, &lastCache->vertexDeclaration);
     device->SetVertexDeclaration(lastCache->vertexDeclaration);
     mLastSetVDecl = lastCache->vertexDeclaration;
     lastCache->lruCount = ++mMaxLru;
 
-    return gl::Error(GL_NO_ERROR);
+    return GL_NO_ERROR;
 }
 
 void VertexDeclarationCache::markStateDirty()

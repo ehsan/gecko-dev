@@ -27,9 +27,7 @@ describe("loop.shared.models", function() {
       apiKey:         "apiKey",
       callType:       "callType",
       websocketToken: 123,
-      callToken:      "callToken",
-      callUrl:        "http://invalid/callToken",
-      callerId:       "mrssmith"
+      callToken:    "callToken"
     };
     fakeSession = _.extend({
       connect: function () {},
@@ -78,19 +76,6 @@ describe("loop.shared.models", function() {
       });
 
       describe("#setupOutgoingCall", function() {
-        it("should set the a custom selected call type", function() {
-          conversation.setupOutgoingCall("audio");
-
-          expect(conversation.get("selectedCallType")).eql("audio");
-        });
-
-        it("should respect the default selected call type when none is passed",
-          function() {
-            conversation.setupOutgoingCall();
-
-            expect(conversation.get("selectedCallType")).eql("audio-video");
-          });
-
         it("should trigger a `call:outgoing:setup` event", function(done) {
           conversation.once("call:outgoing:setup", function() {
             done();
@@ -151,20 +136,11 @@ describe("loop.shared.models", function() {
           model = new sharedModels.ConversationModel(fakeSessionData, {
             sdk: fakeSDK
           });
-          model.set({
-            publishedStream: true,
-            subscribedStream: true
-          });
           model.startSession();
         });
 
         it("should start a session", function() {
           sinon.assert.calledOnce(fakeSDK.initSession);
-        });
-
-        it("should reset the stream flags", function() {
-          expect(model.get("publishedStream")).eql(false);
-          expect(model.get("subscribedStream")).eql(false);
         });
 
         it("should call connect", function() {
@@ -230,7 +206,7 @@ describe("loop.shared.models", function() {
 
               model.startSession();
 
-              sinon.assert.called(model.trigger);
+              sinon.assert.calledOnce(model.trigger);
               sinon.assert.calledWithExactly(model.trigger,
                           "session:connection-error", sinon.match.object);
             });
@@ -253,20 +229,6 @@ describe("loop.shared.models", function() {
               fakeSession.trigger("sessionDisconnected", {reason: "ko"});
             });
 
-          it("should trigger network-disconnected on networkDisconnect reason",
-             function(done) {
-               model.once("session:network-disconnected", function() {
-                 done();
-               });
-
-               var fakeEvent = {
-                 connectionId: 42,
-                 reason: "networkDisconnected"
-               };
-
-               fakeSession.trigger("sessionDisconnected", fakeEvent);
-            });
-
           it("should set the connected attribute to false on sessionDisconnected",
             function() {
               fakeSession.trigger("sessionDisconnected", {reason: "ko"});
@@ -287,7 +249,7 @@ describe("loop.shared.models", function() {
             it("should trigger a session:peer-hungup model event",
               function(done) {
                 model.once("session:peer-hungup", function(event) {
-                  expect(event.connection.connectionId).eql(42);
+                  expect(event.connectionId).eql(42);
                   done();
                 });
 
@@ -302,6 +264,25 @@ describe("loop.shared.models", function() {
               sinon.assert.calledOnce(model.endSession);
             });
           });
+
+          describe("networkDisconnected event received", function() {
+            it("should trigger a session:network-disconnected event",
+              function(done) {
+                model.once("session:network-disconnected", function() {
+                  done();
+                });
+
+                fakeSession.trigger("networkDisconnected");
+              });
+
+            it("should terminate the session", function() {
+              sandbox.stub(model, "endSession");
+
+              fakeSession.trigger("networkDisconnected", {reason: "ko"});
+
+              sinon.assert.calledOnce(model.endSession);
+            });
+          });
         });
       });
 
@@ -312,7 +293,6 @@ describe("loop.shared.models", function() {
           model = new sharedModels.ConversationModel(fakeSessionData, {
             sdk: fakeSDK
           });
-          model.set("ongoing", true);
           model.startSession();
         });
 
@@ -332,18 +312,6 @@ describe("loop.shared.models", function() {
           model.endSession();
 
           expect(model.get("ongoing")).eql(false);
-        });
-
-        it("should set the streams to unpublished", function() {
-          model.set({
-            publishedStream: true,
-            subscribedStream: true
-          });
-
-          model.endSession();
-
-          expect(model.get("publishedStream")).eql(false);
-          expect(model.get("subscribedStream")).eql(false);
         });
 
         it("should stop listening to session events once the session is " +
@@ -378,38 +346,6 @@ describe("loop.shared.models", function() {
 
           expect(model.hasVideoStream("outgoing")).to.eql(true);
         });
-      });
-
-      describe("#getCallIdentifier", function() {
-        var model;
-
-        beforeEach(function() {
-          model = new sharedModels.ConversationModel(fakeSessionData, {
-            sdk: fakeSDK
-          });
-          model.startSession();
-        });
-
-        it("should return the callerId", function() {
-          expect(model.getCallIdentifier()).eql("mrssmith");
-        });
-
-        it("should return the shorted callUrl if the callerId does not exist",
-          function() {
-            model.set({callerId: ""});
-
-            expect(model.getCallIdentifier()).eql("invalid/callToken");
-          });
-
-        it("should return an empty string if neither callerId nor callUrl exist",
-          function() {
-            model.set({
-              callerId: undefined,
-              callUrl: undefined
-            });
-
-            expect(model.getCallIdentifier()).eql("");
-          });
       });
     });
   });

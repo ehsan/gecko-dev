@@ -17,7 +17,6 @@
 #include "mozilla/Likely.h"
 #include "mozilla/LookAndFeel.h"
 
-#include "nsDeviceContext.h"
 #include "nsRuleNode.h"
 #include "nscore.h"
 #include "nsIWidget.h"
@@ -288,7 +287,7 @@ GetMetricsFor(nsPresContext* aPresContext,
   gfxTextPerfMetrics *tp = aPresContext->GetTextPerfMetrics();
   gfxFont::Orientation orientation = gfxFont::eHorizontal;
   if (aStyleContext) {
-    WritingMode wm(aStyleContext);
+    WritingMode wm(aStyleContext->StyleVisibility());
     if (wm.IsVertical()) {
       orientation = gfxFont::eVertical;
     }
@@ -325,9 +324,9 @@ static nsSize CalcViewportUnitsScale(nsPresContext* aPresContext)
     if (styles.mHorizontal == NS_STYLE_OVERFLOW_SCROLL ||
         styles.mVertical == NS_STYLE_OVERFLOW_SCROLL) {
       // Gather scrollbar size information.
-      nsRenderingContext context(
-        aPresContext->PresShell()->CreateReferenceRenderingContext());
-      nsMargin sizes(scrollFrame->GetDesiredScrollbarSizes(aPresContext, &context));
+      nsRefPtr<nsRenderingContext> context =
+        aPresContext->PresShell()->CreateReferenceRenderingContext();
+      nsMargin sizes(scrollFrame->GetDesiredScrollbarSizes(aPresContext, context));
 
       if (styles.mHorizontal == NS_STYLE_OVERFLOW_SCROLL) {
         // 'overflow-x: scroll' means we must consider the horizontal scrollbar,
@@ -1107,20 +1106,12 @@ static void SetGradient(const nsCSSValue& aValue, nsPresContext* aPresContext,
       NS_NOTREACHED("unexpected unit for gradient stop location");
     }
 
-    stop.mIsInterpolationHint = valueStop.mIsInterpolationHint;
-
     // inherit is not a valid color for stops, so we pass in a dummy
     // parent color
     NS_ASSERTION(valueStop.mColor.GetUnit() != eCSSUnit_Inherit,
                  "inherit is not a valid color for gradient stops");
-    if (!valueStop.mIsInterpolationHint) {
-      SetColor(valueStop.mColor, NS_RGB(0, 0, 0), aPresContext,
-              aContext, stop.mColor, aCanStoreInRuleTree);
-    } else {
-      // Always initialize to the same color so we don't need to worry
-      // about comparisons.
-      stop.mColor = NS_RGB(0, 0, 0);
-    }
+    SetColor(valueStop.mColor, NS_RGB(0, 0, 0), aPresContext,
+             aContext, stop.mColor, aCanStoreInRuleTree);
 
     aResult.mStops.AppendElement(stop);
   }
@@ -1563,16 +1554,6 @@ nsRuleNode::Transition(nsIStyleRule* aRule, uint8_t aLevel,
   }
 
   return next;
-}
-
-nsRuleNode*
-nsRuleNode::RuleTree()
-{
-  nsRuleNode* n = this;
-  while (n->mParent) {
-    n = n->mParent;
-  }
-  return n;
 }
 
 void nsRuleNode::SetUsedDirectly()
@@ -4374,6 +4355,14 @@ nsRuleNode::ComputeTextData(void* aStartStruct,
               NS_STYLE_TEXT_SIZE_ADJUST_NONE, // none value
               0, 0);
 
+  // -moz-text-discard: enum, inherit, initial
+  SetDiscrete(*aRuleData->ValueForControlCharacterVisibility(),
+              text->mControlCharacterVisibility,
+              canStoreInRuleTree,
+              SETDSC_ENUMERATED | SETDSC_UNSET_INHERIT,
+              parentText->mControlCharacterVisibility,
+              NS_STYLE_CONTROL_CHARACTER_VISIBILITY_HIDDEN, 0, 0, 0, 0);
+
   // text-orientation: enum, inherit, initial
   SetDiscrete(*aRuleData->ValueForTextOrientation(), text->mTextOrientation,
               canStoreInRuleTree,
@@ -4388,14 +4377,6 @@ nsRuleNode::ComputeTextData(void* aStartStruct,
               SETDSC_ENUMERATED | SETDSC_UNSET_INHERIT,
               parentText->mTextCombineUpright,
               NS_STYLE_TEXT_COMBINE_UPRIGHT_NONE, 0, 0, 0, 0);
-
-  // -moz-text-discard: enum, inherit, initial
-  SetDiscrete(*aRuleData->ValueForControlCharacterVisibility(),
-              text->mControlCharacterVisibility,
-              canStoreInRuleTree,
-              SETDSC_ENUMERATED | SETDSC_UNSET_INHERIT,
-              parentText->mControlCharacterVisibility,
-              NS_STYLE_CONTROL_CHARACTER_VISIBILITY_HIDDEN, 0, 0, 0, 0);
 
   COMPUTE_END_INHERITED(Text, text)
 }
@@ -5304,20 +5285,6 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
               canStoreInRuleTree,
               SETDSC_ENUMERATED | SETDSC_UNSET_INITIAL,
               parentDisplay->mMixBlendMode, NS_STYLE_BLEND_NORMAL,
-              0, 0, 0, 0);
-
-  // scroll-behavior: enum, inherit, initial
-  SetDiscrete(*aRuleData->ValueForScrollBehavior(), display->mScrollBehavior,
-              canStoreInRuleTree,
-              SETDSC_ENUMERATED | SETDSC_UNSET_INITIAL,
-              parentDisplay->mScrollBehavior, NS_STYLE_SCROLL_BEHAVIOR_AUTO,
-              0, 0, 0, 0);
-
-    // isolation: enum, inherit, initial
-  SetDiscrete(*aRuleData->ValueForIsolation(), display->mIsolation,
-              canStoreInRuleTree,
-              SETDSC_ENUMERATED | SETDSC_UNSET_INITIAL,
-              parentDisplay->mIsolation, NS_STYLE_ISOLATION_AUTO,
               0, 0, 0, 0);
 
   // Backup original display value for calculation of a hypothetical
@@ -8824,7 +8791,6 @@ nsRuleNode::SetStyleClipPathToCSSValue(nsStyleClipPath* aStyleClipPath,
       nsCSSKeyword functionName =
         (nsCSSKeyword)shapeFunction->Item(0).GetIntValue();
       if (functionName == eCSSKeyword_polygon) {
-        NS_ABORT_IF_FALSE(!basicShape, "did not expect value");
         basicShape = new nsStyleBasicShape(nsStyleBasicShape::ePolygon);
         NS_ABORT_IF_FALSE(shapeFunction->Count() > 1,
                           "polygon has wrong number of arguments");
@@ -8853,46 +8819,6 @@ nsRuleNode::SetStyleClipPathToCSSValue(nsStyleClipPath* aStyleClipPath,
           coordinates.AppendElement(yCoord);
           NS_ABORT_IF_FALSE(didSetCoordY, "unexpected y coordinate unit");
           curPair = curPair->mNext;
-        }
-      } else if (functionName == eCSSKeyword_circle ||
-                 functionName == eCSSKeyword_ellipse) {
-        nsStyleBasicShape::Type type = functionName == eCSSKeyword_circle ?
-                                       nsStyleBasicShape::eCircle :
-                                       nsStyleBasicShape::eEllipse;
-        NS_ABORT_IF_FALSE(!basicShape, "did not expect value");
-        basicShape = new nsStyleBasicShape(type);
-        int32_t mask = SETCOORD_PERCENT | SETCOORD_LENGTH |
-                       SETCOORD_STORE_CALC | SETCOORD_ENUMERATED;
-        size_t count = type == nsStyleBasicShape::eCircle ? 2 : 3;
-        NS_ABORT_IF_FALSE(shapeFunction->Count() == count + 1,
-                          "unexpected arguments count");
-        NS_ABORT_IF_FALSE(type == nsStyleBasicShape::eCircle ||
-                        (shapeFunction->Item(1).GetUnit() == eCSSUnit_Null) ==
-                        (shapeFunction->Item(2).GetUnit() == eCSSUnit_Null),
-                        "ellipse should have two radii or none");
-        for (size_t j = 1; j < count; ++j) {
-          const nsCSSValue& val = shapeFunction->Item(j);
-          nsStyleCoord radius;
-          if (val.GetUnit() != eCSSUnit_Null) {
-            DebugOnly<bool> didSetRadius = SetCoord(val, radius,
-                                                    nsStyleCoord(), mask,
-                                                    aStyleContext,
-                                                    aPresContext,
-                                                    aCanStoreInRuleTree);
-            NS_ABORT_IF_FALSE(didSetRadius, "unexpected radius unit");
-          } else {
-            radius.SetIntValue(NS_RADIUS_CLOSEST_SIDE, eStyleUnit_Enumerated);
-          }
-          basicShape->Coordinates().AppendElement(radius);
-        }
-        const nsCSSValue& positionVal = shapeFunction->Item(count);
-        if (positionVal.GetUnit() == eCSSUnit_Array) {
-          ComputePositionValue(aStyleContext, positionVal,
-                               basicShape->GetPosition(),
-                               aCanStoreInRuleTree);
-        } else {
-            NS_ABORT_IF_FALSE(positionVal.GetUnit() == eCSSUnit_Null,
-                              "expected no value");
         }
       } else {
         // XXX Handle more basic shape functions later.

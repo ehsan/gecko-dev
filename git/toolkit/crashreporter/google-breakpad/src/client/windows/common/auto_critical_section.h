@@ -30,7 +30,7 @@
 #ifndef CLIENT_WINDOWS_COMMON_AUTO_CRITICAL_SECTION_H__
 #define CLIENT_WINDOWS_COMMON_AUTO_CRITICAL_SECTION_H__
 
-#include <windows.h>
+#include <Windows.h>
 
 namespace google_breakpad {
 

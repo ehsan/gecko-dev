@@ -9,7 +9,6 @@
 #include "nsIStreamLoader.h"
 #include "nsCOMPtr.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/Vector.h"
 
 class nsIRequest;
 
@@ -40,9 +39,11 @@ protected:
   nsCOMPtr<nsISupports>             mContext;  // the observer's context
   nsCOMPtr<nsIRequest>              mRequest;
 
-  // Buffer to accumulate incoming data. We preallocate if contentSize is
-  // available.
-  mozilla::Vector<uint8_t, 0> mData;
+  uint8_t  *mData;      // buffer to accumulate incoming data
+  uint32_t  mAllocated; // allocated size of data buffer (we preallocate if
+                        //   contentSize is available)
+  uint32_t  mLength;    // actual length of data in buffer
+                        //   (must be <= mAllocated)
 };
 
 #endif // nsStreamLoader_h__

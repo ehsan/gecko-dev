@@ -256,7 +256,7 @@ let OutputGenerator = {
     'checkbutton': INCLUDE_DESC | NAME_FROM_SUBTREE_RULE,
     'radiobutton': INCLUDE_DESC | NAME_FROM_SUBTREE_RULE,
     'buttondropdown': NAME_FROM_SUBTREE_RULE,
-    'combobox': INCLUDE_DESC | INCLUDE_VALUE,
+    'combobox': INCLUDE_DESC,
     'droplist': INCLUDE_DESC,
     'progressbar': INCLUDE_DESC | INCLUDE_VALUE,
     'slider': INCLUDE_DESC | INCLUDE_VALUE,
@@ -285,6 +285,7 @@ let OutputGenerator = {
     'document frame': INCLUDE_DESC,
     'heading': INCLUDE_DESC,
     'calendar': INCLUDE_DESC | INCLUDE_NAME,
+    'combobox list': INCLUDE_DESC,
     'combobox option': INCLUDE_DESC | NAME_FROM_SUBTREE_RULE,
     'listbox option': INCLUDE_DESC | NAME_FROM_SUBTREE_RULE,
     'listbox rich option': NAME_FROM_SUBTREE_RULE,
@@ -384,14 +385,6 @@ let OutputGenerator = {
         this._addLandmark(output, aAccessible);
         return output;
       }
-    },
-
-    gridcell: function gridcell(aAccessible, aRoleStr, aState, aFlags) {
-      let output = [];
-      this._addState(output, aState);
-      this._addName(output, aAccessible, aFlags);
-      this._addLandmark(output, aAccessible);
-      return output;
     }
   }
 };

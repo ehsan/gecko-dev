@@ -18,7 +18,6 @@
 #include "nsXBLPrototypeBinding.h"
 #include "mozilla/AddonPathService.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/ElementBinding.h"
 #include "mozilla/dom/ScriptSettings.h"
 #include "nsGlobalWindow.h"
 #include "xpcpublic.h"
@@ -368,8 +367,8 @@ nsXBLProtoImplField::InstallAccessors(JSContext* aCx,
 
   if (!::JS_DefinePropertyById(aCx, aTargetClassObject, id, JS::UndefinedHandleValue,
                                AccessorAttributes(),
-                               JS_DATA_TO_FUNC_PTR(JSNative, get.get()),
-                               JS_DATA_TO_FUNC_PTR(JSNative, set.get()))) {
+                               JS_DATA_TO_FUNC_PTR(JSPropertyOp, get.get()),
+                               JS_DATA_TO_FUNC_PTR(JSStrictPropertyOp, set.get()))) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -392,6 +391,12 @@ nsXBLProtoImplField::InstallField(JS::Handle<JSObject*> aBoundNode,
     return NS_OK;
   }
 
+  nsAutoMicroTask mt;
+
+  // EvaluateString and JS_DefineUCProperty can both trigger GC, so
+  // protect |result| here.
+  nsresult rv;
+
   nsAutoCString uriSpec;
   aBindingDocURI->GetSpec(uriSpec);
 
@@ -410,33 +415,29 @@ nsXBLProtoImplField::InstallField(JS::Handle<JSObject*> aBoundNode,
 
   JSAddonId* addonId = MapURIToAddonID(aBindingDocURI);
 
-  Element* boundElement = nullptr;
-  nsresult rv = UNWRAP_OBJECT(Element, aBoundNode, boundElement);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-
-  // First, enter the xbl scope, build the element's scope chain, and use
-  // that as the scope chain for the evaluation.
+  // First, enter the xbl scope, wrap the node, and use that as the scope for
+  // the evaluation.
   JS::Rooted<JSObject*> scopeObject(cx, xpc::GetScopeForXBLExecution(cx, aBoundNode, addonId));
   NS_ENSURE_TRUE(scopeObject, NS_ERROR_OUT_OF_MEMORY);
   JSAutoCompartment ac(cx, scopeObject);
+
+  JS::Rooted<JSObject*> wrappedNode(cx, aBoundNode);
+  if (!JS_WrapObject(cx, &wrappedNode))
+      return NS_ERROR_OUT_OF_MEMORY;
 
   JS::Rooted<JS::Value> result(cx);
   JS::CompileOptions options(cx);
   options.setFileAndLine(uriSpec.get(), mLineNumber)
          .setVersion(JSVERSION_LATEST);
-  nsJSUtils::EvaluateOptions evalOptions(cx);
-  if (!nsJSUtils::GetScopeChainForElement(cx, boundElement,
-                                          evalOptions.scopeChain)) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
+  nsJSUtils::EvaluateOptions evalOptions;
   rv = nsJSUtils::EvaluateString(cx, nsDependentString(mFieldText,
                                                        mFieldTextLength),
-                                 scopeObject, options, evalOptions, &result);
+                                 wrappedNode, options, evalOptions,
+                                 &result);
   if (NS_FAILED(rv)) {
     return rv;
   }
+
 
   // Now, enter the node's compartment, wrap the eval result, and define it on
   // the bound node.

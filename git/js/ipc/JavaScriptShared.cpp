@@ -7,7 +7,6 @@
 
 #include "JavaScriptShared.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/CPOWManagerGetter.h"
 #include "mozilla/dom/TabChild.h"
 #include "jsfriendapi.h"
 #include "xpcprivate.h"
@@ -267,17 +266,6 @@ JavaScriptShared::toVariant(JSContext *cx, JS::HandleValue from, JSVariant *to)
         return true;
       }
 
-      case JSTYPE_SYMBOL:
-      {
-        RootedSymbol sym(cx, from.toSymbol());
-
-        SymbolVariant symVar;
-        if (!toSymbolVariant(cx, sym, &symVar))
-            return false;
-        *to = symVar;
-        return true;
-      }
-
       case JSTYPE_STRING:
       {
         nsAutoJSString autoStr;
@@ -325,15 +313,6 @@ JavaScriptShared::fromVariant(JSContext *cx, const JSVariant &from, MutableHandl
           return true;
         }
 
-        case JSVariant::TSymbolVariant:
-        {
-          Symbol *sym = fromSymbolVariant(cx, from.get_SymbolVariant());
-          if (!sym)
-              return false;
-          to.setSymbol(sym);
-          return true;
-        }
-
         case JSVariant::Tdouble:
           to.set(JS_NumberValue(from.get_double()));
           return true;
@@ -368,105 +347,7 @@ JavaScriptShared::fromVariant(JSContext *cx, const JSVariant &from, MutableHandl
         }
 
         default:
-          MOZ_CRASH("NYI");
           return false;
-    }
-}
-
-bool
-JavaScriptShared::toJSIDVariant(JSContext *cx, HandleId from, JSIDVariant *to)
-{
-    if (JSID_IS_STRING(from)) {
-        nsAutoJSString autoStr;
-        if (!autoStr.init(cx, JSID_TO_STRING(from)))
-            return false;
-        *to = autoStr;
-        return true;
-    }
-    if (JSID_IS_INT(from)) {
-        *to = JSID_TO_INT(from);
-        return true;
-    }
-    if (JSID_IS_SYMBOL(from)) {
-        SymbolVariant symVar;
-        if (!toSymbolVariant(cx, JSID_TO_SYMBOL(from), &symVar))
-            return false;
-        *to = symVar;
-        return true;
-    }
-    MOZ_ASSERT(false);
-    return false;
-}
-
-bool
-JavaScriptShared::fromJSIDVariant(JSContext *cx, const JSIDVariant &from, MutableHandleId to)
-{
-    switch (from.type()) {
-      case JSIDVariant::TSymbolVariant: {
-        Symbol *sym = fromSymbolVariant(cx, from.get_SymbolVariant());
-        if (!sym)
-            return false;
-        to.set(SYMBOL_TO_JSID(sym));
-        return true;
-      }
-
-      case JSIDVariant::TnsString:
-        return convertGeckoStringToId(cx, from.get_nsString(), to);
-
-      case JSIDVariant::Tint32_t:
-        to.set(INT_TO_JSID(from.get_int32_t()));
-        return true;
-
-      default:
-        return false;
-    }
-}
-
-bool
-JavaScriptShared::toSymbolVariant(JSContext *cx, JS::Symbol *symArg, SymbolVariant *symVarp)
-{
-    RootedSymbol sym(cx, symArg);
-    MOZ_ASSERT(sym);
-
-    SymbolCode code = GetSymbolCode(sym);
-    if (static_cast<uint32_t>(code) < WellKnownSymbolLimit) {
-        *symVarp = WellKnownSymbol(static_cast<uint32_t>(code));
-        return true;
-    }
-    if (code == SymbolCode::InSymbolRegistry) {
-        nsAutoJSString autoStr;
-        if (!autoStr.init(cx, GetSymbolDescription(sym)))
-            return false;
-        *symVarp = RegisteredSymbol(autoStr);
-        return true;
-    }
-
-    JS_ReportError(cx, "unique symbol can't be used with CPOW");
-    return false;
-}
-
-JS::Symbol *
-JavaScriptShared::fromSymbolVariant(JSContext *cx, SymbolVariant symVar)
-{
-    switch (symVar.type()) {
-      case SymbolVariant::TWellKnownSymbol: {
-        uint32_t which = symVar.get_WellKnownSymbol().which();
-        if (which < WellKnownSymbolLimit)
-            return GetWellKnownSymbol(cx, static_cast<SymbolCode>(which));
-        MOZ_ASSERT(false, "bad child data");
-        return nullptr;
-      }
-
-      case SymbolVariant::TRegisteredSymbol: {
-        nsString key = symVar.get_RegisteredSymbol().key();
-        RootedString str(cx, JS_NewUCStringCopyN(cx, key.get(), key.Length()));
-        if (!str)
-            return nullptr;
-        return GetSymbolFor(cx, str);
-      }
-
-      default:
-        return nullptr;
     }
 }
 
@@ -517,12 +398,6 @@ JavaScriptShared::findObjectById(JSContext *cx, const ObjectId &objId)
     // wrappers.
     JSAutoCompartment ac(cx, scopeForTargetObjects());
     if (objId.hasXrayWaiver()) {
-        {
-            JSAutoCompartment ac2(cx, obj);
-            obj = JS_ObjectToOuterObject(cx, obj);
-            if (!obj)
-                return nullptr;
-        }
         if (!xpc::WrapperFactory::WaiveXrayAndWrap(cx, &obj))
             return nullptr;
     } else {
@@ -543,7 +418,8 @@ JavaScriptShared::fromDescriptor(JSContext *cx, Handle<JSPropertyDescriptor> des
     if (!toVariant(cx, desc.value(), &out->value()))
         return false;
 
-    if (!toObjectOrNullVariant(cx, desc.object(), &out->obj()))
+    JS_ASSERT(desc.object());
+    if (!toObjectVariant(cx, desc.object(), &out->obj()))
         return false;
 
     if (!desc.getter()) {
@@ -600,7 +476,11 @@ JavaScriptShared::toDescriptor(JSContext *cx, const PPropertyDescriptor &in,
     out.setAttributes(in.attrs());
     if (!fromVariant(cx, in.value(), out.value()))
         return false;
-    out.object().set(fromObjectOrNullVariant(cx, in.obj()));
+    Rooted<JSObject*> obj(cx);
+    obj = fromObjectVariant(cx, in.obj());
+    if (!obj)
+        return false;
+    out.object().set(obj);
 
     if (in.getter().type() == GetterSetter::Tuint64_t && !in.getter().get_uint64_t()) {
         out.setGetter(nullptr);
@@ -636,45 +516,8 @@ JavaScriptShared::toDescriptor(JSContext *cx, const PPropertyDescriptor &in,
 }
 
 bool
-JavaScriptShared::toObjectOrNullVariant(JSContext *cx, JSObject *obj, ObjectOrNullVariant *objVarp)
-{
-    if (!obj) {
-        *objVarp = NullVariant();
-        return true;
-    }
-
-    ObjectVariant objVar;
-    if (!toObjectVariant(cx, obj, &objVar))
-        return false;
-
-    *objVarp = objVar;
-    return true;
-}
-
-JSObject *
-JavaScriptShared::fromObjectOrNullVariant(JSContext *cx, ObjectOrNullVariant objVar)
-{
-    if (objVar.type() == ObjectOrNullVariant::TNullVariant)
-        return nullptr;
-
-    return fromObjectVariant(cx, objVar.get_ObjectVariant());
-}
-
-CpowIdHolder::CpowIdHolder(dom::CPOWManagerGetter *managerGetter, const InfallibleTArray<CpowEntry> &cpows)
-  : js_(nullptr),
-    cpows_(cpows)
-{
-    // Only instantiate the CPOW manager if we might need it later.
-    if (cpows.Length())
-        js_ = managerGetter->GetCPOWManager();
-}
-
-bool
 CpowIdHolder::ToObject(JSContext *cx, JS::MutableHandleObject objp)
 {
-    if (!cpows_.Length())
-        return true;
-
     return js_->Unwrap(cx, cpows_, objp);
 }
 

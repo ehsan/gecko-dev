@@ -264,10 +264,7 @@ class TickSample {
         lr(NULL),
 #endif
         context(NULL),
-        isSamplingCurrentThread(false),
-        threadProfile(nullptr),
-        rssMemory(0),
-        ussMemory(0) {}
+        isSamplingCurrentThread(false) {}
 
   void PopulateContext(void* aContext);
 
@@ -405,24 +402,12 @@ class ThreadInfo {
 
   bool IsMainThread() const { return mIsMainThread; }
   PseudoStack* Stack() const { return mPseudoStack; }
-  PseudoStack* ForgetStack() {
-    PseudoStack* stack = mPseudoStack;
-    mPseudoStack = nullptr;
-    return stack;
-  }
-
+  
   void SetProfile(ThreadProfile* aProfile) { mProfile = aProfile; }
   ThreadProfile* Profile() const { return mProfile; }
 
   PlatformData* GetPlatformData() const { return mPlatformData; }
   void* StackTop() const { return mStackTop; }
-
-  void SetPendingDelete();
-  bool IsPendingDelete() const { return mPendingDelete; }
-
-#ifdef MOZ_NUWA_PROCESS
-  void SetThreadId(int aThreadId) { mThreadId = aThreadId; }
-#endif
 
   /**
    * May be null for the main thread if the profiler was started during startup
@@ -437,7 +422,6 @@ class ThreadInfo {
   ThreadProfile* mProfile;
   void* const mStackTop;
   nsCOMPtr<nsIThread> mThread;
-  bool mPendingDelete;
 };
 
 #endif /* ndef TOOLS_PLATFORM_H_ */

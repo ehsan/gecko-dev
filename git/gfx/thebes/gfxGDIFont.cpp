@@ -83,7 +83,6 @@ gfxGDIFont::ShapeText(gfxContext     *aContext,
                       uint32_t        aOffset,
                       uint32_t        aLength,
                       int32_t         aScript,
-                      bool            aVertical,
                       gfxShapedText  *aShapedText)
 {
     if (!mMetrics) {
@@ -103,7 +102,7 @@ gfxGDIFont::ShapeText(gfxContext     *aContext,
     }
 
     return gfxFont::ShapeText(aContext, aText, aOffset, aLength, aScript,
-                              aVertical, aShapedText);
+                              aShapedText);
 }
 
 const gfxFont::Metrics&
@@ -145,13 +144,11 @@ gfxGDIFont::Measure(gfxTextRun *aTextRun,
                     uint32_t aStart, uint32_t aEnd,
                     BoundingBoxType aBoundingBoxType,
                     gfxContext *aRefContext,
-                    Spacing *aSpacing,
-                    uint16_t aOrientation)
+                    Spacing *aSpacing)
 {
     gfxFont::RunMetrics metrics =
         gfxFont::Measure(aTextRun, aStart, aEnd,
-                         aBoundingBoxType, aRefContext, aSpacing,
-                         aOrientation);
+                         aBoundingBoxType, aRefContext, aSpacing);
 
     // if aBoundingBoxType is LOOSE_INK_EXTENTS
     // and the underlying cairo font may be antialiased,
@@ -460,7 +457,7 @@ gfxGDIFont::GetGlyph(uint32_t aUnicode, uint32_t aVarSelector)
 }
 
 int32_t
-gfxGDIFont::GetGlyphWidth(DrawTarget& aDrawTarget, uint16_t aGID)
+gfxGDIFont::GetGlyphWidth(gfxContext *aCtx, uint16_t aGID)
 {
     if (!mGlyphWidths) {
         mGlyphWidths = new nsDataHashtable<nsUint32HashKey,int32_t>(128);
@@ -471,7 +468,7 @@ gfxGDIFont::GetGlyphWidth(DrawTarget& aDrawTarget, uint16_t aGID)
         return width;
     }
 
-    DCFromDrawTarget dc(aDrawTarget);
+    DCFromContext dc(aCtx);
     AutoSelectFont fs(dc, GetHFONT());
 
     int devWidth;

@@ -1184,8 +1184,7 @@ CssRuleView.prototype = {
     this.menuitemSources = createMenuItem(this._contextmenu, {
       label: "ruleView.contextmenu.showOrigSources",
       accesskey: "ruleView.contextmenu.showOrigSources.accessKey",
-      command: this._onToggleOrigSources,
-      type: "checkbox"
+      command: this._onToggleOrigSources
     });
 
     let popupset = doc.documentElement.querySelector("popupset");
@@ -1227,8 +1226,16 @@ CssRuleView.prototype = {
     this.menuitemCopyColor.hidden = !this._isColorPopup();
     this.menuitemCopy.disabled = !copy;
 
-    var showOrig = Services.prefs.getBoolPref(PREF_ORIG_SOURCES);
-    this.menuitemSources.setAttribute("checked", showOrig);
+    let label = "ruleView.contextmenu.showOrigSources";
+    if (Services.prefs.getBoolPref(PREF_ORIG_SOURCES)) {
+      label = "ruleView.contextmenu.showCSSSources";
+    }
+    this.menuitemSources.setAttribute("label",
+                                      _strings.GetStringFromName(label));
+
+    let accessKey = label + ".accessKey";
+    this.menuitemSources.setAttribute("accesskey",
+                                      _strings.GetStringFromName(accessKey));
 
     this.menuitemAddRule.disabled = this.inspector.selection.isAnonymousNode();
   },
@@ -1954,9 +1961,7 @@ RuleEditor.prototype = {
     let sourceLabel = this.element.querySelector(".source-link-label");
     let sourceHref = (this.rule.sheet && this.rule.sheet.href) ?
       this.rule.sheet.href : this.rule.title;
-    let sourceLine = this.rule.ruleLine > 0 ? ":" + this.rule.ruleLine : "";
-
-    sourceLabel.setAttribute("tooltiptext", sourceHref + sourceLine);
+    sourceLabel.setAttribute("tooltiptext", sourceHref);
 
     if (this.rule.isSystem) {
       let uaLabel = _strings.GetStringFromName("rule.userAgentStyles");

@@ -85,9 +85,7 @@ nsWyciwygProtocolHandler::NewURI(const nsACString &aSpec,
 }
 
 NS_IMETHODIMP
-nsWyciwygProtocolHandler::NewChannel2(nsIURI* url,
-                                      nsILoadInfo* aLoadInfo,
-                                      nsIChannel** result)
+nsWyciwygProtocolHandler::NewChannel(nsIURI* url, nsIChannel* *result)
 {
   if (mozilla::net::IsNeckoChild())
     mozilla::net::NeckoChild::InitNeckoChild();
@@ -133,12 +131,6 @@ nsWyciwygProtocolHandler::NewChannel2(nsIURI* url,
 
   channel.forget(result);
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsWyciwygProtocolHandler::NewChannel(nsIURI* url, nsIChannel* *result)
-{
-  return NewChannel2(url, nullptr, result);
 }
 
 NS_IMETHODIMP

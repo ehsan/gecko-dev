@@ -665,6 +665,7 @@ AppActorFront.prototype = {
   },
 
   _clientListener: function (type, message) {
+
     let { manifestURL } = message;
 
     // Reset the app object to get a fresh copy when we (re)install the app.
@@ -676,11 +677,9 @@ AppActorFront.prototype = {
       switch(type) {
         case "appOpen":
           app.running = true;
-          this._notifyListeners("appOpen", app);
           break;
         case "appClose":
           app.running = false;
-          this._notifyListeners("appClose", app);
           break;
         case "appInstall":
           // The call to _getApp is going to create App object
@@ -695,10 +694,7 @@ AppActorFront.prototype = {
               .then(res => {
                 if (res.apps.indexOf(manifestURL) !== -1) {
                   app.running = true;
-                  this._notifyListeners("appInstall", app);
                   this._notifyListeners("appOpen", app);
-                } else {
-                  this._notifyListeners("appInstall", app);
                 }
               });
           break;
@@ -709,11 +705,12 @@ AppActorFront.prototype = {
             this._notifyListeners("appClose", app);
           }
           this._apps.delete(manifestURL);
-          this._notifyListeners("appUninstall", app);
           break;
         default:
           return;
       }
+      this._notifyListeners(type, app);
+
     });
   },
 

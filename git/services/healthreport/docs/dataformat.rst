@@ -293,11 +293,6 @@ Abnormal terminations will be missing a duration and will feature these keys:
 "stopped"
     was the session stopped gently?
 
-Version 3.2
------------
-
-As of Firefox 35, the search counts measurement is now bumped to v6, including the *activity* location for the search activity.
-
 Version 3.1
 -----------
 
@@ -1360,15 +1355,7 @@ Example
 org.mozilla.profile.age
 -----------------------
 
-This measurement contains information about the current profile's age (and
-in version 2, the profile's most recent reset date)
-
-Version 2
-^^^^^^^^^
-
-*profileCreation* and *profileReset* properties are present.  Both define
-the integer days since UNIX epoch that the current profile was created or
-reset accordingly.
+This measurement contains information about the current profile's age.
 
 Version 1
 ^^^^^^^^^
@@ -1380,9 +1367,7 @@ Notes
 ^^^^^
 
 It is somewhat difficult to obtain a reliable *profile born date* due to a
-number of factors, but since Version 2, improvements have been made - on a
-"profile reset" we copy the profileCreation date from the old profile and
-record the time of the reset in profileReset.
+number of factors.
 
 Example
 ^^^^^^^
@@ -1390,9 +1375,8 @@ Example
 ::
 
     "org.mozilla.profile.age": {
-      "_v": 2,
+      "_v": 1,
       "profileCreation": 15176
-      "profileReset": 15576
     }
 
 org.mozilla.searches.counts
@@ -1400,11 +1384,6 @@ org.mozilla.searches.counts
 
 This measurement contains information about searches performed in the
 application.
-
-Version 6 (mobile)
-^^^^^^^^^^^^^^^^^^
-
-This adds two new search locations: *widget* and *activity*, corresponding to the search widget and search activity respectively.
 
 Version 2
 ^^^^^^^^^

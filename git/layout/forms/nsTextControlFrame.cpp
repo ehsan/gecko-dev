@@ -6,7 +6,6 @@
 #include "mozilla/DebugOnly.h"
 
 #include "nsCOMPtr.h"
-#include "nsFontMetrics.h"
 #include "nsTextControlFrame.h"
 #include "nsIPlaintextEditor.h"
 #include "nsCaret.h"
@@ -143,9 +142,8 @@ nsTextControlFrame::GetType() const
 
 nsresult
 nsTextControlFrame::CalcIntrinsicSize(nsRenderingContext* aRenderingContext,
-                                      WritingMode aWM,
-                                      LogicalSize& aIntrinsicSize,
-                                      float aFontSizeInflation)
+                                      nsSize&             aIntrinsicSize,
+                                      float               aFontSizeInflation)
 {
   // Get leading and the Average/MaxAdvance char width 
   nscoord lineHeight  = 0;
@@ -157,6 +155,7 @@ nsTextControlFrame::CalcIntrinsicSize(nsRenderingContext* aRenderingContext,
     nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fontMet),
                                           aFontSizeInflation);
   NS_ENSURE_SUCCESS(rv, rv);
+  aRenderingContext->SetFont(fontMet);
 
   lineHeight =
     nsHTMLReflowState::CalcLineHeight(GetContent(), StyleContext(),
@@ -166,7 +165,7 @@ nsTextControlFrame::CalcIntrinsicSize(nsRenderingContext* aRenderingContext,
 
   // Set the width equal to the width in characters
   int32_t cols = GetCols();
-  aIntrinsicSize.ISize(aWM) = cols * charWidth;
+  aIntrinsicSize.width = cols * charWidth;
 
   // To better match IE, take the maximum character width(in twips) and remove
   // 4 pixels add this on as additional padding(internalPadding). But only do
@@ -183,12 +182,12 @@ nsTextControlFrame::CalcIntrinsicSize(nsRenderingContext* aRenderingContext,
       internalPadding += t - rest;
     }
     // Now add the extra padding on (so that small input sizes work well)
-    aIntrinsicSize.ISize(aWM) += internalPadding;
+    aIntrinsicSize.width += internalPadding;
   } else {
     // This is to account for the anonymous <br> having a 1 twip width
     // in Full Standards mode, see BRFrame::Reflow and bug 228752.
     if (PresContext()->CompatibilityMode() == eCompatibility_FullStandards) {
-      aIntrinsicSize.ISize(aWM) += 1;
+      aIntrinsicSize.width += 1;
     }
   }
 
@@ -198,14 +197,14 @@ nsTextControlFrame::CalcIntrinsicSize(nsRenderingContext* aRenderingContext,
     if (eStyleUnit_Coord == lsCoord.GetUnit()) {
       nscoord letterSpacing = lsCoord.GetCoordValue();
       if (letterSpacing != 0) {
-        aIntrinsicSize.ISize(aWM) += cols * letterSpacing;
+        aIntrinsicSize.width += cols * letterSpacing;
       }
     }
   }
 
   // Set the height equal to total number of rows (times the height of each
   // line, of course)
-  aIntrinsicSize.BSize(aWM) = lineHeight * GetRows();
+  aIntrinsicSize.height = lineHeight * GetRows();
 
   // Add in the size of the scrollbars for textarea
   if (IsTextArea()) {
@@ -218,8 +217,9 @@ nsTextControlFrame::CalcIntrinsicSize(nsRenderingContext* aRenderingContext,
       nsMargin scrollbarSizes =
       scrollableFrame->GetDesiredScrollbarSizes(PresContext(), aRenderingContext);
 
-      aIntrinsicSize.Width(aWM) += scrollbarSizes.LeftRight();
-      aIntrinsicSize.Height(aWM) += scrollbarSizes.TopBottom();
+      aIntrinsicSize.width  += scrollbarSizes.LeftRight();
+
+      aIntrinsicSize.height += scrollbarSizes.TopBottom();;
     }
   }
 
@@ -351,13 +351,6 @@ nsTextControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
                                  placeholderStyleContext))) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
-
-    if (!IsSingleLineTextControl()) {
-      // For textareas, UpdateValueDisplay doesn't initialize the visibility
-      // status of the placeholder because it returns early, so we have to
-      // do that manually here.
-      txtCtrl->UpdatePlaceholderVisibility(true);
-    }
   }
 
   rv = UpdateValueDisplay(false);
@@ -425,11 +418,10 @@ nsTextControlFrame::GetPrefISize(nsRenderingContext* aRenderingContext)
     DISPLAY_PREF_WIDTH(this, result);
 
     float inflation = nsLayoutUtils::FontSizeInflationFor(this);
-    WritingMode wm = GetWritingMode();
-    LogicalSize autoSize(wm);
-    CalcIntrinsicSize(aRenderingContext, wm, autoSize, inflation);
+    nsSize autoSize;
+    CalcIntrinsicSize(aRenderingContext, autoSize, inflation);
 
-    return autoSize.ISize(wm);
+    return autoSize.width; 
 }
 
 nscoord
@@ -455,32 +447,29 @@ nsTextControlFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
                                     bool aShrinkWrap)
 {
   float inflation = nsLayoutUtils::FontSizeInflationFor(this);
-  LogicalSize autoSize(aWM);
-  nsresult rv = CalcIntrinsicSize(aRenderingContext, aWM, autoSize, inflation);
+  // XXX CalcIntrinsicSize needs to be updated to use a LogicalSize
+  nsSize autoSize;
+  nsresult rv = CalcIntrinsicSize(aRenderingContext, autoSize, inflation);
   if (NS_FAILED(rv)) {
     // What now?
-    autoSize.SizeTo(aWM, 0, 0);
+    autoSize.SizeTo(0, 0);
   }
 #ifdef DEBUG
   // Note: Ancestor ComputeAutoSize only computes a width if we're auto-width
-  else {
-    const nsStyleCoord& inlineStyleCoord =
-      aWM.IsVertical() ? StylePosition()->mHeight : StylePosition()->mWidth;
-    if (inlineStyleCoord.GetUnit() == eStyleUnit_Auto) {
-      LogicalSize ancestorAutoSize =
-        nsContainerFrame::ComputeAutoSize(aRenderingContext, aWM,
-                                          aCBSize, aAvailableISize,
-                                          aMargin, aBorder,
-                                          aPadding, aShrinkWrap);
-      // Disabled when there's inflation; see comment in GetPrefSize.
-      MOZ_ASSERT(inflation != 1.0f ||
-                 ancestorAutoSize.ISize(aWM) == autoSize.ISize(aWM),
+  else if (StylePosition()->mWidth.GetUnit() == eStyleUnit_Auto) {
+    LogicalSize ancestorAutoSize =
+      nsContainerFrame::ComputeAutoSize(aRenderingContext, aWM,
+                                        aCBSize, aAvailableISize,
+                                        aMargin, aBorder,
+                                        aPadding, aShrinkWrap);
+    // Disabled when there's inflation; see comment in GetPrefSize.
+    NS_ASSERTION(inflation != 1.0f ||
+                 ancestorAutoSize.Width(aWM) == autoSize.width,
                  "Incorrect size computed by ComputeAutoSize?");
-    }
   }
 #endif
 
-  return autoSize;
+  return LogicalSize(aWM, autoSize);
 }
 
 void
@@ -519,8 +508,7 @@ nsTextControlFrame::Reflow(nsPresContext*   aPresContext,
                                         inflation);
   // now adjust for our borders and padding
   aDesiredSize.SetBlockStartAscent(
-    nsLayoutUtils::GetCenteredFontBaseline(fontMet, lineHeight,
-                                           wm.IsLineInverted()) +
+    nsLayoutUtils::GetCenteredFontBaseline(fontMet, lineHeight) +
     aReflowState.ComputedLogicalBorderPadding().BStart(wm));
 
   // overflow handling

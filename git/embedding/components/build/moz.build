@@ -15,13 +15,11 @@ LOCAL_INCLUDES += [
     '../appstartup',
     '../commandhandler',
     '../find',
-    '../printingui/ipc',
     '../webbrowserpersist',
     '../windowwatcher',
 ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
-    DEFINES['PROXY_PRINTING'] = 1
     LOCAL_INCLUDES += [
         '../printingui/win',
     ]
@@ -31,10 +29,7 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
     ]
 
 if CONFIG['MOZ_PDF_PRINTING']:
-    DEFINES['PROXY_PRINTING'] = 1
     LOCAL_INCLUDES += [
         '../printingui/unixshared',
     ]
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

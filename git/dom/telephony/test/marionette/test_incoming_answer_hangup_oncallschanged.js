@@ -13,8 +13,10 @@ function simulateIncoming() {
   telephony.oncallschanged = function oncallschanged(event) {
     log("Received 'callschanged' event.");
 
-    // Check whether the 'calls' array has changed
-    ok(event.call, "undesired callschanged event");
+    if (!event.call) {
+      log("Notifying calls array is loaded. No call information accompanies.");
+      return;
+    }
 
     telephony.oncallschanged = null;
 
@@ -85,8 +87,10 @@ function hangUp() {
   telephony.oncallschanged = function oncallschanged(event) {
     log("Received 'callschanged' event.");
 
-    // Check whether the 'calls' array has changed
-    ok(event.call, "undesired callschanged event");
+    if (!event.call) {
+      log("Notifying calls array is loaded. No call information accompanies.");
+      return;
+    }
 
     is(incoming, event.call);
     is(incoming.state, "disconnected");

@@ -4,17 +4,6 @@
 
 package org.mozilla.search.autocomplete;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.SuggestClient;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.search.AcceptsSearchQuery;
-import org.mozilla.search.AcceptsSearchQuery.SuggestionAnimation;
-import org.mozilla.search.providers.SearchEngine;
-
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.Rect;
@@ -32,6 +21,17 @@ import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ListView;
 
+import org.mozilla.gecko.SuggestClient;
+import org.mozilla.gecko.Telemetry;
+import org.mozilla.gecko.TelemetryContract;
+import org.mozilla.search.AcceptsSearchQuery;
+import org.mozilla.search.AcceptsSearchQuery.SuggestionAnimation;
+import org.mozilla.search.R;
+import org.mozilla.search.providers.SearchEngine;
+
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * A fragment to show search suggestions.
  */
@@ -47,6 +47,9 @@ public class SuggestionsFragment extends Fragment {
 
     // Number of search suggestions to show.
     private static final int SUGGESTION_MAX = 5;
+
+    // Color of search term match in search suggestion
+    private static final int SUGGESTION_HIGHLIGHT_COLOR = 0xFF999999;
 
     public static final String GECKO_SEARCH_TERMS_URL_PARAM = "__searchTerms__";
 
@@ -106,7 +109,7 @@ public class SuggestionsFragment extends Fragment {
                 view.getGlobalVisibleRect(startBounds);
 
                 // The user tapped on a suggestion from the search engine.
-                Telemetry.sendUIEvent(TelemetryContract.Event.SEARCH, TelemetryContract.Method.SUGGESTION, position);
+                Telemetry.sendUIEvent(TelemetryContract.Event.SEARCH, TelemetryContract.Method.SUGGESTION, "suggest");
 
                 searchListener.onSearch(suggestion.value, new SuggestionAnimation() {
                     @Override
@@ -153,21 +156,21 @@ public class SuggestionsFragment extends Fragment {
 
     public static class Suggestion {
 
+        private static final ForegroundColorSpan COLOR_SPAN =
+                new ForegroundColorSpan(SUGGESTION_HIGHLIGHT_COLOR);
+
         public final String value;
         public final SpannableString display;
-        public final ForegroundColorSpan colorSpan;
 
-        public Suggestion(String value, String searchTerm, int suggestionHighlightColor) {
+        public Suggestion(String value, String searchTerm) {
             this.value = value;
 
             display = new SpannableString(value);
 
-            colorSpan = new ForegroundColorSpan(suggestionHighlightColor);
-
             // Highlight mixed-case matches.
             final int start = value.toLowerCase().indexOf(searchTerm.toLowerCase());
             if (start >= 0) {
-                display.setSpan(colorSpan, start, start + searchTerm.length(), 0);
+                display.setSpan(COLOR_SPAN, start, start + searchTerm.length(), 0);
             }
         }
     }
@@ -203,16 +206,12 @@ public class SuggestionsFragment extends Fragment {
         private final SuggestClient suggestClient;
         private final String searchTerm;
         private List<Suggestion> suggestions;
-        private final int suggestionHighlightColor;
 
         public SuggestionAsyncLoader(Context context, SuggestClient suggestClient, String searchTerm) {
             super(context);
             this.suggestClient = suggestClient;
             this.searchTerm = searchTerm;
             this.suggestions = null;
-
-            // Color of search term match in search suggestion
-            suggestionHighlightColor = context.getResources().getColor(R.color.suggestion_highlight);
         }
 
         @Override
@@ -221,7 +220,7 @@ public class SuggestionsFragment extends Fragment {
 
             final List<Suggestion> result = new ArrayList<Suggestion>(values.size());
             for (String value : values) {
-                result.add(new Suggestion(value, searchTerm, suggestionHighlightColor));
+                result.add(new Suggestion(value, searchTerm));
             }
 
             return result;

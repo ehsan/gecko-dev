@@ -1205,7 +1205,7 @@ class Redirection
         SimulatorRuntime *srt = pt->simulatorRuntime();
         AutoLockSimulatorRuntime alsr(srt);
 
-        MOZ_ASSERT_IF(pt->simulator(), pt->simulator()->srt_ == srt);
+        JS_ASSERT_IF(pt->simulator(), pt->simulator()->srt_ == srt);
 
         Redirection *current = srt->redirection();
         for (; current != nullptr; current = current->next_) {
@@ -1493,13 +1493,8 @@ Simulator::readW(int32_t addr, SimInstruction *instr)
 {
     // The regexp engine emits unaligned loads, so we don't check for them here
     // like most of the other methods do.
-    if ((addr & 3) == 0 || !HasAlignmentFault()) {
-        intptr_t *ptr = reinterpret_cast<intptr_t*>(addr);
-        return *ptr;
-    } else {
-        printf("Unaligned write at 0x%08x, pc=%p\n", addr, instr);
-        MOZ_CRASH();
-    }
+    intptr_t *ptr = reinterpret_cast<intptr_t*>(addr);
+    return *ptr;
 }
 
 void
@@ -1519,13 +1514,8 @@ Simulator::readHU(int32_t addr, SimInstruction *instr)
 {
     // The regexp engine emits unaligned loads, so we don't check for them here
     // like most of the other methods do.
-    if ((addr & 1) == 0 || !HasAlignmentFault()) {
-       uint16_t *ptr = reinterpret_cast<uint16_t*>(addr);
-       return *ptr;
-    }
-    printf("Unaligned unsigned halfword read at 0x%08x, pc=%p\n", addr, instr);
-    MOZ_CRASH();
-    return 0;
+    uint16_t *ptr = reinterpret_cast<uint16_t*>(addr);
+    return *ptr;
 }
 
 int16_t
@@ -3241,40 +3231,8 @@ Simulator::decodeType7(SimInstruction *instr)
 {
     if (instr->bit(24) == 1)
         softwareInterrupt(instr);
-    else if (instr->bit(4) == 1 && instr->bits(11,9) != 5)
-        decodeType7CoprocessorIns(instr);
     else
         decodeTypeVFP(instr);
-}
-
-void
-Simulator::decodeType7CoprocessorIns(SimInstruction *instr)
-{
-    if (instr->bit(20) == 0) {
-        // MCR, MCR2
-        if (instr->coprocessorValue() == 15) {
-            int opc1 = instr->bits(23,21);
-            int opc2 = instr->bits(7,5);
-            int CRn = instr->bits(19,16);
-            int CRm = instr->bits(3,0);
-            if (opc1 == 0 && opc2 == 4 && CRn == 7 && CRm == 10) {
-                // ARMv6 DSB instruction - do nothing now, see comments above
-            } else if (opc1 == 0 && opc2 == 5 && CRn == 7 && CRm == 10) {
-                // ARMv6 DMB instruction - do nothing now, see comments above
-            }
-            else if (opc1 == 0 && opc2 == 4 && CRn == 7 && CRm == 5) {
-                // ARMv6 ISB instruction - do nothing now, see comments above
-            }
-            else {
-                MOZ_CRASH();
-            }
-        } else {
-            MOZ_CRASH();
-        }
-    } else {
-        // MRC, MRC2
-        MOZ_CRASH();
-    }
 }
 
 void
@@ -4105,15 +4063,6 @@ Simulator::decodeSpecialCondition(SimInstruction *instr)
       case 0xB:
         if (instr->bits(22, 20) == 5 && instr->bits(15, 12) == 0xf) {
             // pld: ignore instruction.
-        } else {
-            MOZ_CRASH();
-        }
-        break;
-      case 0x1C:
-      case 0x1D:
-        if (instr->bit(4) == 1 && instr->bits(11,9) != 5) {
-            // MCR, MCR2, MRC, MRC2 with cond == 15
-            decodeType7CoprocessorIns(instr);
         } else {
             MOZ_CRASH();
         }

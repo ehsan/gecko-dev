@@ -17,7 +17,6 @@ if ("gcstate" in this) {
      * Incremental GC in multiple slices: if marking takes more than one slice,
      * we yield before we start sweeping.
      */
-    gczeal(0);
     gcslice(1);
     assertEq(gcstate(), "mark");
     gcslice(1000000);

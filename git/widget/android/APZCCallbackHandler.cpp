@@ -36,7 +36,7 @@ APZCCallbackHandler::SetNativePanZoomController(jobject obj)
 }
 
 void
-APZCCallbackHandler::NotifyDefaultPrevented(uint64_t aInputBlockId,
+APZCCallbackHandler::NotifyDefaultPrevented(const ScrollableLayerGuid& aGuid,
                                             bool aDefaultPrevented)
 {
     if (!AndroidBridge::IsJavaUiThread()) {
@@ -45,14 +45,14 @@ APZCCallbackHandler::NotifyDefaultPrevented(uint64_t aInputBlockId,
         // have to throw it onto the other thread.
         AndroidBridge::Bridge()->PostTaskToUiThread(NewRunnableMethod(
             this, &APZCCallbackHandler::NotifyDefaultPrevented,
-            aInputBlockId, aDefaultPrevented), 0);
+            aGuid, aDefaultPrevented), 0);
         return;
     }
 
     MOZ_ASSERT(AndroidBridge::IsJavaUiThread());
     APZCTreeManager* controller = nsWindow::GetAPZCTreeManager();
     if (controller) {
-        controller->ContentReceivedTouch(aInputBlockId, aDefaultPrevented);
+        controller->ContentReceivedTouch(aGuid, aDefaultPrevented);
     }
 }
 
@@ -82,6 +82,12 @@ APZCCallbackHandler::GetDOMWindowUtils()
 void
 APZCCallbackHandler::RequestContentRepaint(const FrameMetrics& aFrameMetrics)
 {
+    if (!NS_IsMainThread()) {
+        NS_DispatchToMainThread(NS_NewRunnableMethodWithArg<FrameMetrics>(
+            this, &APZCCallbackHandler::RequestContentRepaint, aFrameMetrics));
+        return;
+    }
+
     MOZ_ASSERT(NS_IsMainThread());
     MOZ_ASSERT(aFrameMetrics.GetScrollId() != FrameMetrics::NULL_SCROLL_ID);
 
@@ -137,8 +143,7 @@ APZCCallbackHandler::HandleSingleTap(const CSSPoint& aPoint,
 void
 APZCCallbackHandler::HandleLongTap(const CSSPoint& aPoint,
                                    int32_t aModifiers,
-                                   const mozilla::layers::ScrollableLayerGuid& aGuid,
-                                   uint64_t aInputBlockId)
+                                   const mozilla::layers::ScrollableLayerGuid& aGuid)
 {
     // TODO send content response back to APZC
     CSSIntPoint point = RoundedToInt(aPoint);

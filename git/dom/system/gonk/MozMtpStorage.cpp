@@ -28,7 +28,7 @@ MozMtpStorage::MozMtpStorage(Volume* aVolume, MozMtpServer* aMozMtpServer)
   MTP_LOG("Storage constructed for Volume %s mStorageID 0x%08x",
           aVolume->NameStr(), mStorageID);
 
-  Volume::RegisterVolumeObserver(this, "MozMtpStorage");
+  Volume::RegisterObserver(this);
 
   // Get things in sync
   Notify(mVolume);
@@ -36,12 +36,10 @@ MozMtpStorage::MozMtpStorage(Volume* aVolume, MozMtpServer* aMozMtpServer)
 
 MozMtpStorage::~MozMtpStorage()
 {
-  MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
-
   MTP_LOG("Storage destructed for Volume %s mStorageID 0x%08x",
           mVolume->NameStr(), mStorageID);
 
-  Volume::UnregisterVolumeObserver(this, "MozMtpStorage");
+  Volume::UnregisterObserver(this);
   if (mMtpStorage) {
     StorageUnavailable();
   }
@@ -63,18 +61,14 @@ MozMtpStorage::Notify(Volume* const& aVolume)
           aVolume->NameStr(), mStorageID, aVolume->StateStr(),
           aVolume->IsSharingEnabled());
 
-  // vol->IsSharingEnabled really only applies to UMS volumes. We assume that
-  // that as long as MTP is enabled, then all volumes will be shared. The UI
-  // currently doesn't give us anything more granular than on/off.
-
   if (mMtpStorage) {
-    if (volState != nsIVolume::STATE_MOUNTED) {
+    if (volState != nsIVolume::STATE_MOUNTED || !aVolume->IsSharingEnabled()) {
       // The volume is no longer accessible. We need to remove this storage
       // from the MTP server
       StorageUnavailable();
     }
   } else {
-    if (volState == nsIVolume::STATE_MOUNTED) {
+    if (volState == nsIVolume::STATE_MOUNTED && aVolume->IsSharingEnabled()) {
       // The volume is accessible. Tell the MTP server.
       StorageAvailable();
     }

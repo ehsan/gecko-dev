@@ -4,10 +4,6 @@
 
 %include ../../shared/customizableui/panelUIOverlay.inc.css
 
-.panel-subviews {
-  background-color: -moz-field;
-}
-
 #PanelUI-contents #zoom-out-btn {
   padding-left: 12px;
   padding-right: 12px;
@@ -30,8 +26,8 @@
 #BMB_bookmarksPopup menupopup[placespopup=true] > hbox {
   /* emulating chrome://browser/content/places/menu.xml#places-popup-arrow but without the arrow */
   box-shadow: 0 0 4px rgba(0,0,0,0.2);
-  background: var(--panel-arrowcontent-background);
-  border: var(--panel-arrowcontent-border);
+  background: #FFF;
+  border: 1px solid rgba(0,0,0,0.25);
   border-radius: 3.5px;
   margin-top: -4px;
 }

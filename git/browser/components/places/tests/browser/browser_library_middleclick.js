@@ -272,8 +272,10 @@ function mouseEventOnCell(aTree, aRowIndex, aColumnIndex, aEventDetails) {
   var column = aTree.columns[aColumnIndex];
 
   // get cell coordinates
-  var rect = aTree.treeBoxObject.getCoordsForCellItem(aRowIndex, column, "text");
+  var x = {}, y = {}, width = {}, height = {};
+  aTree.treeBoxObject.getCoordsForCellItem(aRowIndex, column, "text",
+                                           x, y, width, height);
 
-  EventUtils.synthesizeMouse(aTree.body, rect.x, rect.y,
+  EventUtils.synthesizeMouse(aTree.body, x.value, y.value,
                              aEventDetails, gLibrary);
 }

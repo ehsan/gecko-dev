@@ -23,7 +23,7 @@ namespace mozilla {
 namespace dom {
 namespace telephony {
 
-class TelephonyDialCallback;
+class TelephonyCallback;
 
 } // namespace telephony
 
@@ -43,7 +43,7 @@ class Telephony MOZ_FINAL : public DOMEventTargetHelper,
   class EnumerationAck;
 
   friend class EnumerationAck;
-  friend class telephony::TelephonyDialCallback;
+  friend class telephony::TelephonyCallback;
 
   nsCOMPtr<nsITelephonyService> mService;
   nsRefPtr<Listener> mListener;
@@ -199,7 +199,7 @@ private:
   DispatchCallEvent(const nsAString& aType, TelephonyCall* aCall);
 
   void
-  EnqueueEnumerationAck();
+  EnqueueEnumerationAck(const nsAString& aType);
 
   already_AddRefed<TelephonyCall>
   GetCall(uint32_t aServiceId, uint32_t aCallIndex);

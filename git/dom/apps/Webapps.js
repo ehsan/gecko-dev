@@ -13,11 +13,6 @@ Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
 Cu.import("resource://gre/modules/AppsUtils.jsm");
 Cu.import("resource://gre/modules/BrowserElementPromptService.jsm");
 Cu.import("resource://gre/modules/AppsServiceChild.jsm");
-Cu.import("resource://gre/modules/Preferences.jsm");
-
-XPCOMUtils.defineLazyServiceGetter(this, "appsService",
-                                   "@mozilla.org/AppsService;1",
-                                   "nsIAppsService");
 
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "@mozilla.org/childprocessmessagemanager;1",
@@ -219,7 +214,7 @@ WebappsRegistry.prototype = {
     if (!this._mgmt) {
       let mgmt = Cc["@mozilla.org/webapps/manager;1"]
                    .createInstance(Ci.nsISupports);
-      mgmt.wrappedJSObject.init(this._window, this.hasFullMgmtPrivilege);
+      mgmt.wrappedJSObject.init(this._window);
       mgmt.wrappedJSObject._windowId = this._id;
       this._mgmt = mgmt.__DOM_IMPL__
         ? mgmt.__DOM_IMPL__
@@ -250,10 +245,6 @@ WebappsRegistry.prototype = {
 
   // nsIDOMGlobalPropertyInitializer implementation
   init: function(aWindow) {
-    const prefs = new Preferences();
-
-    this._window = aWindow;
-
     this.initDOMRequestHelper(aWindow, "Webapps:Install:Return:OK");
 
     let util = this._window.QueryInterface(Ci.nsIInterfaceRequestor)
@@ -263,24 +254,12 @@ WebappsRegistry.prototype = {
                           { messages: ["Webapps:Install:Return:OK"]});
 
     let principal = aWindow.document.nodePrincipal;
-    let appId = principal.appId;
-    let app = appId && appsService.getAppByLocalId(appId);
+    let perm = Services.perms
+               .testExactPermissionFromPrincipal(principal, "webapps-manage");
 
-    let isCurrentHomescreen = app &&
-      app.manifestURL == prefs.get("dom.mozApps.homescreenURL") &&
-      app.appStatus != Ci.nsIPrincipal.APP_STATUS_NOT_INSTALLED;
-
-    let hasWebappsPermission = Ci.nsIPermissionManager.ALLOW_ACTION ==
-      Services.perms.testExactPermissionFromPrincipal(
-        principal, "webapps-manage");
-
-    let hasHomescreenPermission = Ci.nsIPermissionManager.ALLOW_ACTION ==
-      Services.perms.testExactPermissionFromPrincipal(
-        principal, "homescreen-webapps-manage");
-
-    this.hasMgmtPrivilege = hasWebappsPermission ||
-         (isCurrentHomescreen && hasHomescreenPermission);
-    this.hasFullMgmtPrivilege = hasWebappsPermission;
+    // Only pages with the webapps-manage permission set can get access to
+    // the mgmt object.
+    this.hasMgmtPrivilege = perm == Ci.nsIPermissionManager.ALLOW_ACTION;
   },
 
   classID: Components.ID("{fff440b3-fae2-45c1-bf03-3b5a2e432270}"),
@@ -315,12 +294,12 @@ WebappsApplication.prototype = {
   __proto__: DOMRequestIpcHelper.prototype,
 
   init: function(aWindow, aApp) {
-    this._window = aWindow;
-
     let proxyHandler = DOMApplicationRegistry.addDOMApp(this,
                                                         aApp.manifestURL,
                                                         aApp.id);
     this._proxy = new Proxy(this, proxyHandler);
+
+    this._window = aWindow;
 
     this.initDOMRequestHelper(aWindow);
   },
@@ -443,10 +422,6 @@ WebappsApplication.prototype = {
       return null;
     }
     return new this._window.DOMError(this._proxy.downloadError);
-  },
-
-  get enabled() {
-    return this._proxy.enabled;
   },
 
   download: function() {
@@ -573,20 +548,6 @@ WebappsApplication.prototype = {
     return request;
   },
 
-  export: function() {
-    this.addMessageListeners(["Webapps:Export:Return"]);
-    return this.createPromise((aResolve, aReject) => {
-      cpmm.sendAsyncMessage("Webapps:Export",
-        { manifestURL: this.manifestURL,
-          oid: this._id,
-          requestID: this.getPromiseResolverId({
-            resolve: aResolve,
-            reject: aReject
-          })
-        });
-    });
-  },
-
   _prepareForContent: function() {
     if (this.__DOM_IMPL__) {
       return this.__DOM_IMPL__;
@@ -623,8 +584,7 @@ WebappsApplication.prototype = {
     let req;
     if (aMessage.name == "Webapps:Connect:Return:OK" ||
         aMessage.name == "Webapps:Connect:Return:KO" ||
-        aMessage.name == "Webapps:GetConnections:Return:OK" ||
-        aMessage.name == "Webapps:Export:Return") {
+        aMessage.name == "Webapps:GetConnections:Return:OK") {
       req = this.takePromiseResolver(msg.requestID);
     } else {
       req = this.takeRequest(msg.requestID);
@@ -638,7 +598,7 @@ WebappsApplication.prototype = {
       case "Webapps:Launch:Return:KO":
         this.removeMessageListeners(["Webapps:Launch:Return:OK",
                                      "Webapps:Launch:Return:KO"]);
-        Services.DOMRequest.fireError(req, msg.error);
+        Services.DOMRequest.fireError(req, "APP_INSTALL_PENDING");
         break;
       case "Webapps:Launch:Return:OK":
         this.removeMessageListeners(["Webapps:Launch:Return:OK",
@@ -652,7 +612,7 @@ WebappsApplication.prototype = {
       case "Webapps:Connect:Return:OK":
         this.removeMessageListeners(["Webapps:Connect:Return:OK",
                                      "Webapps:Connect:Return:KO"]);
-        let messagePorts = new this._window.Array();
+        let messagePorts = [];
         msg.messagePortIDs.forEach((aPortID) => {
           let port = new this._window.MozInterAppMessagePort(aPortID);
           messagePorts.push(port);
@@ -666,7 +626,7 @@ WebappsApplication.prototype = {
         break;
       case "Webapps:GetConnections:Return:OK":
         this.removeMessageListeners(aMessage.name);
-        let connections = new this._window.Array();
+        let connections = [];
         msg.connections.forEach((aConnection) => {
           let connection =
             new this._window.MozInterAppConnection(aConnection.keyword,
@@ -712,14 +672,6 @@ WebappsApplication.prototype = {
                                      "Webapps:ReplaceReceipt:Return:KO"]);
         Services.DOMRequest.fireError(req, msg.error);
         break;
-      case "Webapps:Export:Return":
-        this.removeMessageListeners(["Webapps:Export:Return"]);
-        if (msg.success) {
-          req.resolve(Cu.cloneInto(msg.blob, this._window));
-        } else {
-          req.reject(new this._window.DOMError(msg.error || ""));
-        }
-        break;
     }
   },
 
@@ -740,38 +692,26 @@ function WebappsApplicationMgmt() {
 WebappsApplicationMgmt.prototype = {
   __proto__: DOMRequestIpcHelper.prototype,
 
-  init: function(aWindow, aHasFullMgmtPrivilege) {
-    this._window = aWindow;
-
+  init: function(aWindow) {
     this.initDOMRequestHelper(aWindow, ["Webapps:Uninstall:Return:OK",
                                         "Webapps:Uninstall:Broadcast:Return:OK",
                                         "Webapps:Uninstall:Return:KO",
                                         "Webapps:Install:Return:OK",
-                                        "Webapps:GetNotInstalled:Return:OK",
-                                        "Webapps:Import:Return",
-                                        "Webapps:ExtractManifest:Return",
-                                        "Webapps:SetEnabled:Return"]);
+                                        "Webapps:GetNotInstalled:Return:OK"]);
     cpmm.sendAsyncMessage("Webapps:RegisterForMessages",
                           {
                             messages: ["Webapps:Install:Return:OK",
                                        "Webapps:Uninstall:Return:OK",
-                                       "Webapps:Uninstall:Broadcast:Return:OK",
-                                       "Webapps:SetEnabled:Return"]
+                                       "Webapps:Uninstall:Broadcast:Return:OK"]
                           }
                          );
-
-    if (!aHasFullMgmtPrivilege) {
-      this.getNotInstalled = null;
-      this.applyDownload = null;
-    }
   },
 
   uninit: function() {
     cpmm.sendAsyncMessage("Webapps:UnregisterForMessages",
                           ["Webapps:Install:Return:OK",
                            "Webapps:Uninstall:Return:OK",
-                           "Webapps:Uninstall:Broadcast:Return:OK",
-                           "Webapps:SetEnabled:Return"]);
+                           "Webapps:Uninstall:Broadcast:Return:OK"]);
   },
 
   applyDownload: function(aApp) {
@@ -779,16 +719,12 @@ WebappsApplicationMgmt.prototype = {
       return;
     }
 
-    let principal = this._window.document.nodePrincipal;
-
     cpmm.sendAsyncMessage("Webapps:ApplyDownload",
-                          { manifestURL: aApp.manifestURL },
-                          null, principal);
+                          { manifestURL: aApp.manifestURL });
   },
 
   uninstall: function(aApp) {
     let request = this.createRequest();
-    let principal = this._window.document.nodePrincipal;
 
     cpmm.sendAsyncMessage("Webapps:Uninstall", {
       origin: aApp.origin,
@@ -797,8 +733,7 @@ WebappsApplicationMgmt.prototype = {
       from: this._window.location.href,
       windowId: this._windowId,
       requestID: this.getRequestId(request)
-    }, null, principal);
-
+    });
     return request;
   },
 
@@ -815,48 +750,9 @@ WebappsApplicationMgmt.prototype = {
 
   getNotInstalled: function() {
     let request = this.createRequest();
-    let principal = this._window.document.nodePrincipal;
-
-    cpmm.sendAsyncMessage("Webapps:GetNotInstalled", {
-      oid: this._id,
-      requestID: this.getRequestId(request)
-    }, null, principal);
-
+    cpmm.sendAsyncMessage("Webapps:GetNotInstalled", { oid: this._id,
+                                                       requestID: this.getRequestId(request) });
     return request;
-  },
-
-  import: function(aBlob) {
-    let principal = this._window.document.nodePrincipal;
-    return this.createPromise((aResolve, aReject) => {
-      cpmm.sendAsyncMessage("Webapps:Import",
-        { blob: aBlob,
-          oid: this._id,
-          requestID: this.getPromiseResolverId({
-            resolve: aResolve,
-            reject: aReject
-          })}, null, principal);
-    });
-  },
-
-  extractManifest: function(aBlob) {
-    let principal = this._window.document.nodePrincipal;
-    return this.createPromise((aResolve, aReject) => {
-      cpmm.sendAsyncMessage("Webapps:ExtractManifest",
-        { blob: aBlob,
-          oid: this._id,
-          requestID: this.getPromiseResolverId({
-            resolve: aResolve,
-            reject: aReject
-          })}, null, principal);
-    });
-  },
-
-  setEnabled: function(aApp, aValue) {
-    let principal = this._window.document.nodePrincipal;
-
-    cpmm.sendAsyncMessage("Webapps:SetEnabled",
-                          { manifestURL: aApp.manifestURL,
-                            enabled: aValue }, null, principal);
   },
 
   get oninstall() {
@@ -867,10 +763,6 @@ WebappsApplicationMgmt.prototype = {
     return this.__DOM_IMPL__.getEventHandler("onuninstall");
   },
 
-  get onenabledstatechange() {
-    return this.__DOM_IMPL__.getEventHandler("onenabledstatechange");
-  },
-
   set oninstall(aCallback) {
     this.__DOM_IMPL__.setEventHandler("oninstall", aCallback);
   },
@@ -879,32 +771,16 @@ WebappsApplicationMgmt.prototype = {
     this.__DOM_IMPL__.setEventHandler("onuninstall", aCallback);
   },
 
-  set onenabledstatechange(aCallback) {
-    this.__DOM_IMPL__.setEventHandler("onenabledstatechange", aCallback);
-  },
-
   receiveMessage: function(aMessage) {
-    let msg = aMessage.data;
-    let req;
-
-    if (["Webapps:Import:Return",
-         "Webapps:ExtractManifest:Return"]
-         .indexOf(aMessage.name) != -1) {
-      req = this.takePromiseResolver(msg.requestID);
-    } else {
-      req = this.getRequest(msg.requestID);
-    }
-
-    // We want Webapps:Install:Return:OK, Webapps:Uninstall:Broadcast:Return:OK
-    // and Webapps:SetEnabled:Return
+    var msg = aMessage.json;
+    let req = this.getRequest(msg.requestID);
+    // We want Webapps:Install:Return:OK and Webapps:Uninstall:Broadcast:Return:OK
     // to be broadcasted to all instances of mozApps.mgmt.
     if (!((msg.oid == this._id && req) ||
           aMessage.name == "Webapps:Install:Return:OK" ||
-          aMessage.name == "Webapps:Uninstall:Broadcast:Return:OK" ||
-          aMessage.name == "Webapps:SetEnabled:Return")) {
+          aMessage.name == "Webapps:Uninstall:Broadcast:Return:OK")) {
       return;
     }
-
     switch (aMessage.name) {
       case "Webapps:GetNotInstalled:Return:OK":
         Services.DOMRequest.fireSuccess(req, convertAppsArray(msg.apps, this._window));
@@ -930,28 +806,6 @@ WebappsApplicationMgmt.prototype = {
         break;
       case "Webapps:Uninstall:Return:KO":
         Services.DOMRequest.fireError(req, "NOT_INSTALLED");
-        break;
-      case "Webapps:Import:Return":
-        if (msg.success) {
-          req.resolve(createContentApplicationObject(this._window, msg.app));
-        } else {
-          req.reject(new this._window.DOMError(msg.error || ""));
-        }
-        break;
-      case "Webapps:ExtractManifest:Return":
-        if (msg.success) {
-          req.resolve(Cu.cloneInto(msg.manifest, this._window));
-        } else {
-          req.reject(new this._window.DOMError(msg.error || ""));
-        }
-        break;
-      case "Webapps:SetEnabled:Return":
-        {
-          let app = createContentApplicationObject(this._window, msg);
-          let event =
-            new this._window.MozApplicationEvent("enabledstatechange", { application : app });
-          this.__DOM_IMPL__.dispatchEvent(event);
-        }
         break;
     }
     if (aMessage.name !== "Webapps:Uninstall:Broadcast:Return:OK") {

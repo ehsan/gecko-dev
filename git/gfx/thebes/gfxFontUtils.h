@@ -553,10 +553,7 @@ struct PostTable {
     AutoSwap_PRUint32    maxMemType1;
 };
 
-// This structure is used for both 'hhea' and 'vhea' tables.
-// The field names here are those of the horizontal version; the
-// vertical table just exchanges vertical and horizontal coordinates.
-struct MetricsHeader {
+struct HheaTable {
     AutoSwap_PRUint32    version;
     AutoSwap_PRInt16     ascender;
     AutoSwap_PRInt16     descender;
@@ -573,7 +570,7 @@ struct MetricsHeader {
     AutoSwap_PRInt16     reserved3;
     AutoSwap_PRInt16     reserved4;
     AutoSwap_PRInt16     metricDataFormat;
-    AutoSwap_PRUint16    numOfLongMetrics;
+    AutoSwap_PRUint16    numOfLongHorMetrics;
 };
 
 struct MaxpTableHeader {
@@ -655,10 +652,8 @@ enum gfxUserFontType {
     GFX_USERFONT_UNKNOWN = 0,
     GFX_USERFONT_OPENTYPE = 1,
     GFX_USERFONT_SVG = 2,
-    GFX_USERFONT_WOFF = 3,
-    GFX_USERFONT_WOFF2 = 4
+    GFX_USERFONT_WOFF = 3
 };
-#define GFX_PREF_WOFF2_ENABLED "gfx.downloadable_fonts.woff2.enabled"
 
 extern const uint8_t sCJKCompatSVSTable[];
 

@@ -42,8 +42,8 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
   public static final int DEFAULT_INSERTION_FLUSH_THRESHOLD = 50;
 
   // TODO: synchronization for these.
-  private final HashMap<String, Long> parentGuidToIDMap = new HashMap<String, Long>();
-  private final HashMap<Long, String> parentIDToGuidMap = new HashMap<Long, String>();
+  private HashMap<String, Long> parentGuidToIDMap = new HashMap<String, Long>();
+  private HashMap<Long, String> parentIDToGuidMap = new HashMap<Long, String>();
 
   /**
    * Some notes on reparenting/reordering.
@@ -100,11 +100,11 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
    */
 
   // TODO: can we guarantee serial access to these?
-  private final HashMap<String, ArrayList<String>> missingParentToChildren = new HashMap<String, ArrayList<String>>();
-  private final HashMap<String, JSONArray>         parentToChildArray      = new HashMap<String, JSONArray>();
+  private HashMap<String, ArrayList<String>> missingParentToChildren = new HashMap<String, ArrayList<String>>();
+  private HashMap<String, JSONArray>         parentToChildArray      = new HashMap<String, JSONArray>();
   private int needsReparenting = 0;
 
-  private final AndroidBrowserBookmarksDataAccessor dataAccessor;
+  private AndroidBrowserBookmarksDataAccessor dataAccessor;
 
   protected BookmarksDeletionManager deletionManager;
   protected BookmarksInsertionManager insertionManager;
@@ -112,7 +112,7 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
   /**
    * An array of known-special GUIDs.
    */
-  public static final String[] SPECIAL_GUIDS = new String[] {
+  public static String[] SPECIAL_GUIDS = new String[] {
     // Mobile and desktop places roots have to come first.
     "places",
     "mobile",
@@ -272,7 +272,7 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
       Logger.warn(LOG_TAG, "Couldn't find local ID for GUID " + guid);
       return -1;
     }
-    return id;
+    return id.longValue();
   }
 
   private String getGUID(Cursor cur) {
@@ -364,7 +364,7 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
       boolean changed = false;
       int i = 0;
       for (Entry<Long, ArrayList<String>> entry : guids.entrySet()) {
-        long pos = entry.getKey();
+        long pos = entry.getKey().longValue();
         int atPos = entry.getValue().size();
 
         // If every element has a different index, and the indices are
@@ -567,6 +567,9 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
       Logger.debug(LOG_TAG, "Got GUIDs for folders.");
     } catch (android.database.sqlite.SQLiteConstraintException e) {
       Logger.error(LOG_TAG, "Got sqlite constraint exception working with Fennec bookmark DB.", e);
+      delegate.onBeginFailed(e);
+      return;
+    } catch (NullCursorException e) {
       delegate.onBeginFailed(e);
       return;
     } catch (Exception e) {
@@ -1083,9 +1086,9 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
     if (typeString == null) {
       Logger.warn(LOG_TAG, "Unsupported type code " + rowType);
       return null;
+    } else {
+      Logger.trace(LOG_TAG, "Record " + guid + " has type " + typeString);
     }
-
-    Logger.trace(LOG_TAG, "Record " + guid + " has type " + typeString);
 
     rec.type = typeString;
     rec.title = RepoUtils.getStringFromCursor(cur, BrowserContract.Bookmarks.TITLE);

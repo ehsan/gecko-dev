@@ -16,15 +16,14 @@ const TEST_URI = "data:text/html;charset=utf-8," +
   "<p>browser_inspector_scrolling.js</p>" +
   "<iframe src=\"" + IFRAME_SRC + "\" />";
 
-add_task(function* () {
+let test = asyncTest(function* () {
   let { inspector, toolbox } = yield openInspectorForURL(TEST_URI);
 
   let iframe = getNode("iframe");
   let div = getNode("div", { document: iframe.contentDocument });
-  let divFront = yield getNodeFrontInFrame("div", "iframe", inspector);
 
   info("Waiting for highlighter box model to appear.");
-  yield toolbox.highlighter.showBoxModel(divFront);
+  yield toolbox.highlighter.showBoxModel(getNodeFront(div));
 
   let scrolled = once(gBrowser.selectedBrowser, "scroll");
 

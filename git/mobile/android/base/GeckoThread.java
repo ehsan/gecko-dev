@@ -37,7 +37,7 @@ public class GeckoThread extends Thread implements GeckoEventListener {
         GeckoExited
     }
 
-    private static final AtomicReference<LaunchState> sLaunchState =
+    private static AtomicReference<LaunchState> sLaunchState =
                                             new AtomicReference<LaunchState>(LaunchState.Launching);
 
     private static GeckoThread sGeckoThread;

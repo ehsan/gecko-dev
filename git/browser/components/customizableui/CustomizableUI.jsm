@@ -37,8 +37,6 @@ const kPrefCustomizationState        = "browser.uiCustomization.state";
 const kPrefCustomizationAutoAdd      = "browser.uiCustomization.autoAdd";
 const kPrefCustomizationDebug        = "browser.uiCustomization.debug";
 const kPrefDrawInTitlebar            = "browser.tabs.drawInTitlebar";
-const kPrefDeveditionTheme           = "browser.devedition.theme.enabled";
-const kPrefWebIDEInNavbar            = "devtools.webide.widget.inNavbarByDefault";
 
 /**
  * The keys are the handlers that are fired when the event type (the value)
@@ -51,17 +49,10 @@ const kSubviewEvents = [
 ];
 
 /**
- * The method name to use for ES6 iteration. If Symbols are enabled in
- * this build, use Symbol.iterator; otherwise "@@iterator".
- */
-const JS_HAS_SYMBOLS = typeof Symbol === "function";
-const kIteratorSymbol = JS_HAS_SYMBOLS ? Symbol.iterator : "@@iterator";
-
-/**
  * The current version. We can use this to auto-add new default widgets as necessary.
  * (would be const but isn't because of testing purposes)
  */
-let kVersion = 4;
+let kVersion = 1;
 
 /**
  * gPalette is a map of every widget that CustomizableUI.jsm knows about, keyed
@@ -148,7 +139,6 @@ let gListeners = new Set();
 let gUIStateBeforeReset = {
   uiCustomizationState: null,
   drawInTitlebar: null,
-  gUIStateBeforeReset: null,
 };
 
 let gModuleName = "[CustomizableUI]";
@@ -175,9 +165,7 @@ let CustomizableUIInternal = {
       "find-button",
       "preferences-button",
       "add-ons-button",
-#ifndef MOZ_DEV_EDITION
       "developer-button",
-#endif
     ];
 
     if (gPalette.has("switch-to-metro-button")) {
@@ -208,27 +196,19 @@ let CustomizableUIInternal = {
     }, true);
     PanelWideWidgetTracker.init();
 
-    let navbarPlacements = [
-      "urlbar-container",
-      "search-container",
-#ifdef MOZ_DEV_EDITION
-      "developer-button",
-#endif
-      "bookmarks-menu-button",
-      "downloads-button",
-      "home-button",
-      "loop-button",
-    ];
-
-    if (Services.prefs.getBoolPref(kPrefWebIDEInNavbar)) {
-      navbarPlacements.push("webide-button");
-    }
-
     this.registerArea(CustomizableUI.AREA_NAVBAR, {
       legacy: true,
       type: CustomizableUI.TYPE_TOOLBAR,
       overflowable: true,
-      defaultPlacements: navbarPlacements,
+      defaultPlacements: [
+        "urlbar-container",
+        "search-container",
+        "bookmarks-menu-button",
+        "downloads-button",
+        "home-button",
+        "loop-call-button",
+        "social-share-button",
+      ],
       defaultCollapsed: false,
     }, true);
 #ifndef XP_MACOSX
@@ -314,15 +294,6 @@ let CustomizableUIInternal = {
           gFuturePlacements.set(widget.defaultArea, new Set([id]));
         }
       }
-    }
-
-    if (currentVersion < 2) {
-      // Nuke the old 'loop-call-button' out of orbit.
-      CustomizableUI.removeWidgetFromArea("loop-call-button");
-    }
-
-    if (currentVersion < 4) {
-      CustomizableUI.removeWidgetFromArea("loop-button-throttled");
     }
   },
 
@@ -2329,7 +2300,6 @@ let CustomizableUIInternal = {
   _resetUIState: function() {
     try {
       gUIStateBeforeReset.drawInTitlebar = Services.prefs.getBoolPref(kPrefDrawInTitlebar);
-      gUIStateBeforeReset.deveditionTheme = Services.prefs.getBoolPref(kPrefDeveditionTheme);
       gUIStateBeforeReset.uiCustomizationState = Services.prefs.getCharPref(kPrefCustomizationState);
     } catch(e) { }
 
@@ -2337,7 +2307,6 @@ let CustomizableUIInternal = {
 
     Services.prefs.clearUserPref(kPrefCustomizationState);
     Services.prefs.clearUserPref(kPrefDrawInTitlebar);
-    Services.prefs.clearUserPref(kPrefDeveditionTheme);
     LOG("State reset");
 
     // Reset placements to make restoring default placements possible.
@@ -2399,15 +2368,13 @@ let CustomizableUIInternal = {
    */
   undoReset: function() {
     if (gUIStateBeforeReset.uiCustomizationState == null ||
-        gUIStateBeforeReset.drawInTitlebar == null ||
-        gUIStateBeforeReset.deveditionTheme == null) {
+        gUIStateBeforeReset.drawInTitlebar == null) {
       return;
     }
     gUndoResetting = true;
 
     let uiCustomizationState = gUIStateBeforeReset.uiCustomizationState;
     let drawInTitlebar = gUIStateBeforeReset.drawInTitlebar;
-    let deveditionTheme = gUIStateBeforeReset.deveditionTheme;
 
     // Need to clear the previous state before setting the prefs
     // because pref observers may check if there is a previous UI state.
@@ -2415,7 +2382,6 @@ let CustomizableUIInternal = {
 
     Services.prefs.setCharPref(kPrefCustomizationState, uiCustomizationState);
     Services.prefs.setBoolPref(kPrefDrawInTitlebar, drawInTitlebar);
-    Services.prefs.setBoolPref(kPrefDeveditionTheme, deveditionTheme);
     this.loadSavedState();
     // If the user just customizes toolbar/titlebar visibility, gSavedState will be null
     // and we don't need to do anything else here:
@@ -2593,10 +2559,6 @@ let CustomizableUIInternal = {
       LOG(kPrefDrawInTitlebar + " pref is non-default");
       return false;
     }
-    if (Services.prefs.prefHasUserValue(kPrefDeveditionTheme)) {
-      LOG(kPrefDeveditionTheme + " pref is non-default");
-      return false;
-    }
 
     return true;
   },
@@ -2700,7 +2662,7 @@ this.CustomizableUI = {
    *     for (let window of CustomizableUI.windows) { ... }
    */
   windows: {
-    *[kIteratorSymbol]() {
+    "@@iterator": function*() {
       for (let [window,] of gBuildWindows)
         yield window;
     }
@@ -3297,8 +3259,7 @@ this.CustomizableUI = {
    */
   get canUndoReset() {
     return gUIStateBeforeReset.uiCustomizationState != null ||
-           gUIStateBeforeReset.drawInTitlebar != null ||
-           gUIStateBeforeReset.deveditionTheme != null;
+           gUIStateBeforeReset.drawInTitlebar != null;
   },
 
   /**

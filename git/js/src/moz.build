@@ -75,9 +75,11 @@ EXPORTS.js += [
     '../public/Id.h',
     '../public/LegacyIntTypes.h',
     '../public/MemoryMetrics.h',
+    '../public/OldDebugAPI.h',
     '../public/Principals.h',
     '../public/ProfilingFrameIterator.h',
     '../public/ProfilingStack.h',
+    '../public/PropertyKey.h',
     '../public/RequiredDefines.h',
     '../public/RootingAPI.h',
     '../public/SliceBudget.h',
@@ -98,7 +100,6 @@ UNIFIED_SOURCES += [
     'asmjs/AsmJSModule.cpp',
     'asmjs/AsmJSSignalHandlers.cpp',
     'asmjs/AsmJSValidate.cpp',
-    'builtin/AtomicsObject.cpp',
     'builtin/Eval.cpp',
     'builtin/Intl.cpp',
     'builtin/MapObject.cpp',
@@ -214,6 +215,7 @@ UNIFIED_SOURCES += [
     'jsnum.cpp',
     'jsobj.cpp',
     'json.cpp',
+    'jsonparser.cpp',
     'jsopcode.cpp',
     'jsprf.cpp',
     'jspropertytree.cpp',
@@ -243,18 +245,17 @@ UNIFIED_SOURCES += [
     'vm/DebuggerMemory.cpp',
     'vm/ErrorObject.cpp',
     'vm/ForkJoin.cpp',
-    'vm/ForOfIterator.cpp',
-    'vm/GeneratorObject.cpp',
     'vm/GlobalObject.cpp',
     'vm/HelperThreads.cpp',
     'vm/Id.cpp',
     'vm/Interpreter.cpp',
-    'vm/JSONParser.cpp',
     'vm/MemoryMetrics.cpp',
     'vm/Monitor.cpp',
-    'vm/NativeObject.cpp',
+    'vm/ObjectImpl.cpp',
+    'vm/OldDebugAPI.cpp',
     'vm/PIC.cpp',
     'vm/Probes.cpp',
+    'vm/PropertyKey.cpp',
     'vm/ProxyObject.cpp',
     'vm/RegExpObject.cpp',
     'vm/RegExpStatics.cpp',
@@ -439,7 +440,7 @@ HostSimplePrograms([
 # JS shell would like to link to the static library.
 
 if CONFIG['JS_SHARED_LIBRARY']:
-    GeckoSharedLibrary('js', linkage=None)
+    SharedLibrary('js')
     SHARED_LIBRARY_NAME = CONFIG['JS_LIBRARY_NAME']
     SDK_LIBRARY = True
 else:

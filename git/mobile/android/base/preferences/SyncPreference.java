@@ -21,7 +21,7 @@ import android.util.AttributeSet;
 class SyncPreference extends Preference {
     private static final boolean DEFAULT_TO_FXA = true;
 
-    private final Context mContext;
+    private Context mContext;
 
     public SyncPreference(Context context, AttributeSet attrs) {
         super(context, attrs);

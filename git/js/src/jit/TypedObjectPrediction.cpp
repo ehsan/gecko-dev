@@ -45,7 +45,7 @@ TypedObjectPrediction::markAsCommonPrefix(const StructTypeDescr &descrA,
             break;
         if (&descrA.fieldDescr(i) != &descrB.fieldDescr(i))
             break;
-        MOZ_ASSERT(descrA.fieldOffset(i) == descrB.fieldOffset(i));
+        JS_ASSERT(descrA.fieldOffset(i) == descrB.fieldOffset(i));
     }
 
     if (i == 0) {
@@ -57,37 +57,43 @@ TypedObjectPrediction::markAsCommonPrefix(const StructTypeDescr &descrA,
 }
 
 void
-TypedObjectPrediction::addDescr(const TypeDescr &descr)
+TypedObjectPrediction::addProto(const TypedProto &proto)
 {
     switch (predictionKind()) {
       case Empty:
-        return setDescr(descr);
+        return setProto(proto);
 
       case Inconsistent:
         return; // keep same state
 
-      case Descr: {
-        if (&descr == data_.descr)
+      case Proto: {
+        if (&proto == data_.proto)
             return; // keep same state
 
-        if (descr.kind() != data_.descr->kind())
+        if (proto.kind() != data_.proto->kind())
             return markInconsistent();
 
-        if (descr.kind() != type::Struct)
+        if (proto.kind() != type::Struct)
             return markInconsistent();
 
-        const StructTypeDescr &structDescr = descr.as<StructTypeDescr>();
-        const StructTypeDescr &currentDescr = data_.descr->as<StructTypeDescr>();
+        const StructTypeDescr &structDescr = proto.typeDescr().as<StructTypeDescr>();
+        const StructTypeDescr &currentDescr = data_.proto->typeDescr().as<StructTypeDescr>();
         markAsCommonPrefix(structDescr, currentDescr, ALL_FIELDS);
         return;
       }
 
+      case Descr:
+        // First downgrade from descr to proto, which is less precise,
+        // and then recurse.
+        setProto(data_.descr->typedProto());
+        return addProto(proto);
+
       case Prefix:
-        if (descr.kind() != type::Struct)
+        if (proto.kind() != type::Struct)
             return markInconsistent();
 
         markAsCommonPrefix(*data_.prefix.descr,
-                           descr.as<StructTypeDescr>(),
+                           proto.typeDescr().as<StructTypeDescr>(),
                            data_.prefix.fields);
         return;
     }
@@ -102,6 +108,9 @@ TypedObjectPrediction::kind() const
       case TypedObjectPrediction::Empty:
       case TypedObjectPrediction::Inconsistent:
         break;
+
+      case TypedObjectPrediction::Proto:
+        return proto().kind();
 
       case TypedObjectPrediction::Descr:
         return descr().kind();
@@ -123,11 +132,22 @@ TypedObjectPrediction::ofArrayKind() const
       case type::Struct:
         return false;
 
-      case type::Array:
+      case type::SizedArray:
+      case type::UnsizedArray:
         return true;
     }
 
     MOZ_CRASH("Bad kind");
+}
+
+static bool
+DescrHasKnownSize(const TypeDescr &descr, int32_t *out)
+{
+    if (!descr.is<SizedTypeDescr>())
+        return false;
+
+    *out = descr.as<SizedTypeDescr>().size();
+    return true;
 }
 
 bool
@@ -138,9 +158,24 @@ TypedObjectPrediction::hasKnownSize(int32_t *out) const
       case TypedObjectPrediction::Inconsistent:
         break;
 
+      case TypedObjectPrediction::Proto:
+        switch (kind()) {
+          case type::Scalar:
+          case type::Reference:
+          case type::Simd:
+          case type::Struct:
+            *out = proto().typeDescr().as<SizedTypeDescr>().size();
+            return true;
+
+          case type::SizedArray:
+          case type::UnsizedArray:
+            // The prototype does not track the precise dimensions of arrays.
+            return false;
+        }
+        MOZ_CRASH("Unknown kind");
+
       case TypedObjectPrediction::Descr:
-        *out = descr().size();
-        return true;
+        return DescrHasKnownSize(descr(), out);
 
       case TypedObjectPrediction::Prefix:
         // We only know a prefix of the struct fields, hence we do not
@@ -158,6 +193,20 @@ TypedObjectPrediction::getKnownPrototype() const
       case TypedObjectPrediction::Empty:
       case TypedObjectPrediction::Inconsistent:
         return nullptr;
+
+      case TypedObjectPrediction::Proto:
+        switch (proto().kind()) {
+          case type::Scalar:
+          case type::Reference:
+            return nullptr;
+
+          case type::Simd:
+          case type::Struct:
+          case type::SizedArray:
+          case type::UnsizedArray:
+            return &proto();
+        }
+        MOZ_CRASH("Invalid proto().kind()");
 
       case TypedObjectPrediction::Descr:
         if (descr().is<ComplexTypeDescr>())
@@ -177,11 +226,14 @@ template<typename T>
 typename T::Type
 TypedObjectPrediction::extractType() const
 {
-    MOZ_ASSERT(kind() == T::Kind);
+    JS_ASSERT(kind() == T::Kind);
     switch (predictionKind()) {
       case TypedObjectPrediction::Empty:
       case TypedObjectPrediction::Inconsistent:
         break;
+
+      case TypedObjectPrediction::Proto:
+        return proto().typeDescr().as<T>().type();
 
       case TypedObjectPrediction::Descr:
         return descr().as<T>().type();
@@ -214,17 +266,21 @@ TypedObjectPrediction::simdType() const
 bool
 TypedObjectPrediction::hasKnownArrayLength(int32_t *length) const
 {
-    MOZ_ASSERT(ofArrayKind());
+    JS_ASSERT(ofArrayKind());
     switch (predictionKind()) {
       case TypedObjectPrediction::Empty:
       case TypedObjectPrediction::Inconsistent:
         break;
 
+      case TypedObjectPrediction::Proto:
+        // The prototype does not track the lengths of arrays.
+        return false;
+
       case TypedObjectPrediction::Descr:
         // In later patches, this condition will always be true
         // so long as this represents an array
-        if (descr().is<ArrayTypeDescr>()) {
-            *length = descr().as<ArrayTypeDescr>().length();
+        if (descr().is<SizedArrayTypeDescr>()) {
+            *length = descr().as<SizedArrayTypeDescr>().length();
             return true;
         }
         return false;
@@ -235,17 +291,27 @@ TypedObjectPrediction::hasKnownArrayLength(int32_t *length) const
     MOZ_CRASH("Bad prediction kind");
 }
 
+static TypeDescr &
+DescrArrayElementType(const TypeDescr &descr) {
+    return (descr.is<SizedArrayTypeDescr>()
+            ? descr.as<SizedArrayTypeDescr>().elementType()
+            : descr.as<UnsizedArrayTypeDescr>().elementType());
+}
+
 TypedObjectPrediction
 TypedObjectPrediction::arrayElementType() const
 {
-    MOZ_ASSERT(ofArrayKind());
+    JS_ASSERT(ofArrayKind());
     switch (predictionKind()) {
       case TypedObjectPrediction::Empty:
       case TypedObjectPrediction::Inconsistent:
         break;
 
+      case TypedObjectPrediction::Proto:
+        return TypedObjectPrediction(DescrArrayElementType(proto().typeDescr()));
+
       case TypedObjectPrediction::Descr:
-        return TypedObjectPrediction(descr().as<ArrayTypeDescr>().elementType());
+        return TypedObjectPrediction(DescrArrayElementType(descr()));
 
       case TypedObjectPrediction::Prefix:
         break; // Prefixes are always structs, never arrays
@@ -281,12 +347,17 @@ TypedObjectPrediction::hasFieldNamed(jsid id,
                                      TypedObjectPrediction *fieldType,
                                      size_t *fieldIndex) const
 {
-    MOZ_ASSERT(kind() == type::Struct);
+    JS_ASSERT(kind() == type::Struct);
 
     switch (predictionKind()) {
       case TypedObjectPrediction::Empty:
       case TypedObjectPrediction::Inconsistent:
         break;
+
+      case TypedObjectPrediction::Proto:
+        return hasFieldNamedPrefix(
+            proto().typeDescr().as<StructTypeDescr>(), ALL_FIELDS,
+            id, fieldOffset, fieldType, fieldIndex);
 
       case TypedObjectPrediction::Descr:
         return hasFieldNamedPrefix(

@@ -14,7 +14,6 @@
 #include "compiler/translator/StructureHLSL.h"
 #include "compiler/translator/util.h"
 #include "compiler/translator/UtilsHLSL.h"
-#include "compiler/translator/TranslatorHLSL.h"
 
 namespace sh
 {
@@ -61,13 +60,12 @@ static TString InterfaceBlockStructName(const TInterfaceBlock &interfaceBlock)
     return DecoratePrivate(interfaceBlock.name()) + "_type";
 }
 
-UniformHLSL::UniformHLSL(StructureHLSL *structureHLSL, TranslatorHLSL *translator)
+UniformHLSL::UniformHLSL(StructureHLSL *structureHLSL, ShShaderOutput outputType)
     : mUniformRegister(0),
       mInterfaceBlockRegister(0),
       mSamplerRegister(0),
       mStructureHLSL(structureHLSL),
-      mOutputType(translator->getOutputType()),
-      mUniforms(translator->getUniforms())
+      mOutputType(outputType)
 {}
 
 void UniformHLSL::reserveUniformRegisters(unsigned int registerCount)
@@ -80,32 +78,18 @@ void UniformHLSL::reserveInterfaceBlockRegisters(unsigned int registerCount)
     mInterfaceBlockRegister = registerCount;
 }
 
-const Uniform *UniformHLSL::findUniformByName(const TString &name) const
-{
-    for (size_t uniformIndex = 0; uniformIndex < mUniforms.size(); ++uniformIndex)
-    {
-        if (mUniforms[uniformIndex].name == name.c_str())
-        {
-            return &mUniforms[uniformIndex];
-        }
-    }
-
-    UNREACHABLE();
-    return NULL;
-}
-
 unsigned int UniformHLSL::declareUniformAndAssignRegister(const TType &type, const TString &name)
 {
     unsigned int registerIndex = (IsSampler(type.getBasicType()) ? mSamplerRegister : mUniformRegister);
 
-    const Uniform *uniform = findUniformByName(name);
-    ASSERT(uniform);
+    GetVariableTraverser traverser;
+    traverser.traverse(type, name, &mActiveUniforms);
 
-    mUniformRegisterMap[uniform->name] = registerIndex;
+    const sh::Uniform &activeUniform = mActiveUniforms.back();
+    mUniformRegisterMap[activeUniform.name] = registerIndex;
 
-    unsigned int registerCount = HLSLVariableRegisterCount(*uniform, mOutputType);
-
-    if (gl::IsSampler(uniform->type))
+    unsigned int registerCount = HLSLVariableRegisterCount(activeUniform, mOutputType);
+    if (IsSampler(type.getBasicType()))
     {
         mSamplerRegister += registerCount;
     }
@@ -170,10 +154,23 @@ TString UniformHLSL::interfaceBlocksHeader(const ReferencedSymbols &referencedIn
         unsigned int arraySize = static_cast<unsigned int>(interfaceBlock.arraySize());
         unsigned int activeRegister = mInterfaceBlockRegister;
 
-        mInterfaceBlockRegisterMap[interfaceBlock.name().c_str()] = activeRegister;
+        InterfaceBlock activeBlock;
+        activeBlock.name = interfaceBlock.name().c_str();
+        activeBlock.arraySize = arraySize;
+
+        GetInterfaceBlockFields(interfaceBlock, &activeBlock.fields);
+
+        mInterfaceBlockRegisterMap[activeBlock.name] = activeRegister;
         mInterfaceBlockRegister += std::max(1u, arraySize);
 
-        // FIXME: interface block field names
+        activeBlock.layout = GetBlockLayoutType(interfaceBlock.blockStorage());
+
+        if (interfaceBlock.matrixPacking() == EmpRowMajor)
+        {
+            activeBlock.isRowMajorLayout = true;
+        }
+
+        mActiveInterfaceBlocks.push_back(activeBlock);
 
         if (interfaceBlock.hasInstanceName())
         {

@@ -16,7 +16,7 @@
 #include "mozilla/StaticPtr.h"
 #include "nsContentUtils.h"
 #include "nsIAudioManager.h"
-#include "nsIIccInfo.h"
+#include "nsIDOMIccInfo.h"
 #include "nsIIccProvider.h"
 #include "nsIMobileConnectionInfo.h"
 #include "nsIMobileConnectionService.h"
@@ -60,12 +60,6 @@ IsValidDtmf(const char aChar) {
   return (aChar == '*' || aChar == '#') ||
          (aChar >= '0' && aChar <= '9') ||
          (aChar >= 'A' && aChar <= 'D');
-}
-
-static bool
-IsSupportedChld(const int aChld) {
-  // We currently only support CHLD=0~3.
-  return (aChld >= 0 && aChld <= 3);
 }
 
 class BluetoothHfpManager::GetVolumeTask MOZ_FINAL : public nsISettingsServiceCallback
@@ -326,53 +320,25 @@ private:
   nsRefPtr<CleanupInitResultHandler> mRes;
 };
 
-class OnErrorProfileResultHandlerRunnable MOZ_FINAL : public nsRunnable
-{
-public:
-  OnErrorProfileResultHandlerRunnable(BluetoothProfileResultHandler* aRes,
-                                      nsresult aRv)
-  : mRes(aRes)
-  , mRv(aRv)
-  {
-    MOZ_ASSERT(mRes);
-  }
-
-  NS_IMETHOD Run() MOZ_OVERRIDE
-  {
-    mRes->OnError(mRv);
-    return NS_OK;
-  }
-
-private:
-  nsRefPtr<BluetoothProfileResultHandler> mRes;
-  nsresult mRv;
-};
-
 // static
 void
 BluetoothHfpManager::InitHfpInterface(BluetoothProfileResultHandler* aRes)
 {
   BluetoothInterface* btInf = BluetoothInterface::GetInstance();
-  if (NS_WARN_IF(!btInf)) {
-    // If there's no backend interface, we dispatch a runnable
-    // that calls the profile result handler.
-    nsRefPtr<nsRunnable> r =
-      new OnErrorProfileResultHandlerRunnable(aRes, NS_ERROR_FAILURE);
-    if (NS_FAILED(NS_DispatchToMainThread(r))) {
-      BT_LOGR("Failed to dispatch HFP OnError runnable");
+  if (!btInf) {
+    BT_LOGR("Error: Bluetooth interface not available");
+    if (aRes) {
+      aRes->OnError(NS_ERROR_FAILURE);
     }
     return;
   }
 
   BluetoothHandsfreeInterface *interface =
     btInf->GetBluetoothHandsfreeInterface();
-  if (NS_WARN_IF(!interface)) {
-    // If there's no HFP interface, we dispatch a runnable
-    // that calls the profile result handler.
-    nsRefPtr<nsRunnable> r =
-      new OnErrorProfileResultHandlerRunnable(aRes, NS_ERROR_FAILURE);
-    if (NS_FAILED(NS_DispatchToMainThread(r))) {
-      BT_LOGR("Failed to dispatch HFP OnError runnable");
+  if (!interface) {
+    BT_LOGR("Error: Bluetooth Handsfree interface not available");
+    if (aRes) {
+      aRes->OnError(NS_ERROR_FAILURE);
     }
     return;
   }
@@ -712,11 +678,11 @@ BluetoothHfpManager::HandleIccInfoChanged(uint32_t aClientId)
     do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
   NS_ENSURE_TRUE_VOID(icc);
 
-  nsCOMPtr<nsIIccInfo> iccInfo;
+  nsCOMPtr<nsIDOMMozIccInfo> iccInfo;
   icc->GetIccInfo(aClientId, getter_AddRefs(iccInfo));
   NS_ENSURE_TRUE_VOID(iccInfo);
 
-  nsCOMPtr<nsIGsmIccInfo> gsmIccInfo = do_QueryInterface(iccInfo);
+  nsCOMPtr<nsIDOMMozGsmIccInfo> gsmIccInfo = do_QueryInterface(iccInfo);
   NS_ENSURE_TRUE_VOID(gsmIccInfo);
   gsmIccInfo->GetMsisdn(mMsisdn);
 }
@@ -1416,13 +1382,6 @@ void
 BluetoothHfpManager::CallHoldNotification(BluetoothHandsfreeCallHoldType aChld)
 {
   MOZ_ASSERT(NS_IsMainThread());
-
-  if (!IsSupportedChld((int)aChld)) {
-    // We currently don't support Enhanced Call Control.
-    // AT+CHLD=1x and AT+CHLD=2x will be ignored
-    SendResponse(HFP_AT_RESPONSE_ERROR);
-    return;
-  }
 
   SendResponse(HFP_AT_RESPONSE_OK);
 

@@ -32,12 +32,9 @@
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
 #include "prtime.h"
-#include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/ScriptSettings.h"
-#include "mozilla/dom/SettingChangeNotificationBinding.h"
 
 #ifdef MOZ_B2G_RIL
-#include "nsIIccInfo.h"
+#include "nsIDOMIccInfo.h"
 #include "nsIMobileConnectionInfo.h"
 #include "nsIMobileConnectionService.h"
 #include "nsIMobileCellInfo.h"
@@ -51,7 +48,6 @@
 #define FLUSH_AIDE_DATA 0
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 static const int kDefaultPeriod = 1000; // ms
 static bool gDebug_isLoggingEnabled = false;
@@ -404,21 +400,9 @@ GonkGPSGeolocationProvider::RequestSettingValue(const char* aKey)
     MOZ_ASSERT(ss);
     return;
   }
-
   nsCOMPtr<nsISettingsServiceLock> lock;
-  nsresult rv = ss->CreateLock(nullptr, getter_AddRefs(lock));
-  if (NS_FAILED(rv)) {
-    nsContentUtils::LogMessageToConsole(
-      "geo: error while createLock setting '%s': %d\n", aKey, rv);
-    return;
-  }
-
-  rv = lock->Get(aKey, this);
-  if (NS_FAILED(rv)) {
-    nsContentUtils::LogMessageToConsole(
-      "geo: error while get setting '%s': %d\n", aKey, rv);
-    return;
-  }
+  ss->CreateLock(nullptr, getter_AddRefs(lock));
+  lock->Get(aKey, this);
 }
 
 #ifdef MOZ_B2G_RIL
@@ -475,10 +459,10 @@ GonkGPSGeolocationProvider::RequestSetID(uint32_t flags)
     }
 
     if (flags & AGPS_RIL_REQUEST_SETID_MSISDN) {
-      nsCOMPtr<nsIIccInfo> iccInfo;
+      nsCOMPtr<nsIDOMMozIccInfo> iccInfo;
       rilCtx->GetIccInfo(getter_AddRefs(iccInfo));
       if (iccInfo) {
-        nsCOMPtr<nsIGsmIccInfo> gsmIccInfo = do_QueryInterface(iccInfo);
+        nsCOMPtr<nsIDOMMozGsmIccInfo> gsmIccInfo = do_QueryInterface(iccInfo);
         if (gsmIccInfo) {
           type = AGPS_SETID_TYPE_MSISDN;
           gsmIccInfo->GetMsisdn(id);
@@ -510,7 +494,7 @@ GonkGPSGeolocationProvider::SetReferenceLocation()
   location.type = AGPS_REF_LOCATION_TYPE_UMTS_CELLID;
 
   if (rilCtx) {
-    nsCOMPtr<nsIIccInfo> iccInfo;
+    nsCOMPtr<nsIDOMMozIccInfo> iccInfo;
     rilCtx->GetIccInfo(getter_AddRefs(iccInfo));
     if (iccInfo) {
       nsresult result;
@@ -830,10 +814,6 @@ GonkGPSGeolocationProvider::Startup()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (mStarted) {
-    return NS_OK;
-  }
-
   RequestSettingValue(kSettingDebugEnabled);
   RequestSettingValue(kSettingDebugGpsIgnored);
 
@@ -844,6 +824,10 @@ GonkGPSGeolocationProvider::Startup()
     if (NS_FAILED(rv)) {
       NS_WARNING("geo: Gonk GPS AddObserver failed");
     }
+  }
+
+  if (mStarted) {
+    return NS_OK;
   }
 
   if (!mInitThread) {
@@ -884,7 +868,6 @@ GonkGPSGeolocationProvider::Shutdown()
   if (!mStarted) {
     return NS_OK;
   }
-
   mStarted = false;
   if (mNetworkLocationProvider) {
     mNetworkLocationProvider->Shutdown();
@@ -893,17 +876,10 @@ GonkGPSGeolocationProvider::Shutdown()
 
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
   if (obs) {
-    nsresult rv;
 #ifdef MOZ_B2G_RIL
-    rv = obs->RemoveObserver(this, kNetworkConnStateChangedTopic);
-    if (NS_FAILED(rv)) {
-      NS_WARNING("geo: Gonk GPS network state RemoveObserver failed");
-    }
+    obs->RemoveObserver(this, kNetworkConnStateChangedTopic);
 #endif
-    rv = obs->RemoveObserver(this, kMozSettingsChangedTopic);
-    if (NS_FAILED(rv)) {
-      NS_WARNING("geo: Gonk GPS mozsettings RemoveObserver failed");
-    }
+    obs->RemoveObserver(this, kMozSettingsChangedTopic);
   }
 
   mInitThread->Dispatch(NS_NewRunnableMethod(this, &GonkGPSGeolocationProvider::ShutdownGPS),
@@ -1015,30 +991,8 @@ GonkGPSGeolocationProvider::Observe(nsISupports* aSubject,
 #endif
 
   if (!strcmp(aTopic, kMozSettingsChangedTopic)) {
-    // Read changed setting value
-    AutoJSAPI jsapi;
-    jsapi.Init();
-    JSContext* cx = jsapi.cx();
-    RootedDictionary<SettingChangeNotification> setting(cx);
-    if (!WrappedJSToDictionary(cx, aSubject, setting)) {
-      return NS_OK;
-    }
-
-    if (setting.mKey.EqualsASCII(kSettingDebugGpsIgnored)) {
-      nsContentUtils::LogMessageToConsole("geo: received mozsettings-changed: ignoring\n");
-      gDebug_isGPSLocationIgnored =
-        setting.mValue.isBoolean() ? setting.mValue.toBoolean() : false;
-      if (gDebug_isLoggingEnabled) {
-        nsContentUtils::LogMessageToConsole("geo: Debug: GPS ignored %d\n",
-                                            gDebug_isGPSLocationIgnored);
-      }
-      return NS_OK;
-    } else if (setting.mKey.EqualsASCII(kSettingDebugEnabled)) {
-      nsContentUtils::LogMessageToConsole("geo: received mozsettings-changed: logging\n");
-      gDebug_isLoggingEnabled =
-        setting.mValue.isBoolean() ? setting.mValue.toBoolean() : false;
-      return NS_OK;
-    }
+    RequestSettingValue(kSettingDebugEnabled);
+    RequestSettingValue(kSettingDebugGpsIgnored);
   }
 
   return NS_OK;
@@ -1066,8 +1020,18 @@ GonkGPSGeolocationProvider::Handle(const nsAString& aName,
         SetAGpsDataConn(apn);
       }
     }
-  }
+  } else
 #endif // MOZ_B2G_RIL
+  if (aName.EqualsASCII(kSettingDebugGpsIgnored)) {
+    gDebug_isGPSLocationIgnored = aResult.isBoolean() ? aResult.toBoolean() : false;
+    if (gDebug_isLoggingEnabled) {
+      nsContentUtils::LogMessageToConsole("geo: Debug: GPS ignored %d\n", gDebug_isGPSLocationIgnored);
+    }
+    return NS_OK;
+  } else if (aName.EqualsASCII(kSettingDebugEnabled)) {
+    gDebug_isLoggingEnabled = aResult.isBoolean() ? aResult.toBoolean() : false;
+    return NS_OK;
+  }
   return NS_OK;
 }
 

@@ -72,7 +72,9 @@ public final class EventDispatcher {
                     listeners.add(listener);
                 }
             }
-        } catch (final IllegalAccessException | InstantiationException e) {
+        } catch (final IllegalAccessException e) {
+            throw new IllegalArgumentException("Invalid new list type", e);
+        } catch (final InstantiationException e) {
             throw new IllegalArgumentException("Invalid new list type", e);
         }
     }
@@ -253,12 +255,10 @@ public final class EventDispatcher {
             this.type = type;
         }
 
-        @Override
         public void sendSuccess(final Object response) {
             sendResponse(STATUS_SUCCESS, response);
         }
 
-        @Override
         public void sendError(final Object response) {
             sendResponse(STATUS_ERROR, response);
         }

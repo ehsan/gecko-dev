@@ -6,8 +6,8 @@
 #include "URL.h"
 
 #include "nsGlobalWindow.h"
+#include "nsDOMFile.h"
 #include "DOMMediaStream.h"
-#include "mozilla/dom/File.h"
 #include "mozilla/dom/MediaSource.h"
 #include "mozilla/dom/URLBinding.h"
 #include "nsHostObjectProtocolHandler.h"
@@ -111,12 +111,15 @@ URL::Constructor(const GlobalObject& aGlobal, const nsAString& aUrl,
 
 void
 URL::CreateObjectURL(const GlobalObject& aGlobal,
-                     File& aBlob,
+                     nsIDOMBlob* aBlob,
                      const objectURLOptions& aOptions,
                      nsString& aResult,
                      ErrorResult& aError)
 {
-  CreateObjectURLInternal(aGlobal, aBlob.Impl(),
+  DOMFile* blob = static_cast<DOMFile*>(aBlob);
+  MOZ_ASSERT(blob);
+
+  CreateObjectURLInternal(aGlobal, blob->Impl(),
                           NS_LITERAL_CSTRING(BLOBURI_SCHEME), aOptions, aResult,
                           aError);
 }
@@ -382,7 +385,17 @@ void
 URL::GetHostname(nsString& aHostname, ErrorResult& aRv) const
 {
   aHostname.Truncate();
-  nsContentUtils::GetHostOrIPv6WithBrackets(mURI, aHostname);
+  nsAutoCString tmp;
+  nsresult rv = mURI->GetHost(tmp);
+  if (NS_SUCCEEDED(rv)) {
+    if (tmp.FindChar(':') != -1) { // Escape IPv6 address
+      MOZ_ASSERT(!tmp.Length() ||
+        (tmp[0] !='[' && tmp[tmp.Length() - 1] != ']'));
+      tmp.Insert('[', 0);
+      tmp.Append(']');
+    }
+    CopyUTF8toUTF16(tmp, aHostname);
+  }
 }
 
 void

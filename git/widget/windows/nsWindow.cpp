@@ -180,8 +180,6 @@
 
 #include "npapi.h"
 
-#include <d3d11.h>
-
 #if !defined(SM_CONVERTIBLESLATEMODE)
 #define SM_CONVERTIBLESLATEMODE 0x2003
 #endif
@@ -191,12 +189,6 @@ using namespace mozilla::dom;
 using namespace mozilla::gfx;
 using namespace mozilla::layers;
 using namespace mozilla::widget;
-
-namespace mozilla {
-namespace widget {
-  extern int32_t IsTouchDeviceSupportPresent();
-}
-}
 
 /**************************************************************
  **************************************************************
@@ -548,9 +540,7 @@ nsWindow::Create(nsIWidget *aParent,
   // Plugins are created in the disabled state so that they can't
   // steal focus away from our main window.  This is especially
   // important if the plugin has loaded in a background tab.
-  if (aInitData->mWindowType == eWindowType_plugin ||
-      aInitData->mWindowType == eWindowType_plugin_ipc_chrome ||
-      aInitData->mWindowType == eWindowType_plugin_ipc_content) {
+  if(aInitData->mWindowType == eWindowType_plugin) {
     style |= WS_DISABLED;
   }
   mWnd = ::CreateWindowExW(extendedStyle,
@@ -576,7 +566,7 @@ nsWindow::Create(nsIWidget *aParent,
     WinUtils::dwmSetWindowAttributePtr(mWnd, DWMWA_NONCLIENT_RTL_LAYOUT, &dwAttribute, sizeof dwAttribute);
   }
 
-  if (!IsPlugin() &&
+  if (mWindowType != eWindowType_plugin &&
       mWindowType != eWindowType_invisible &&
       MouseScrollHandler::Device::IsFakeScrollableWindowNeeded()) {
     // Ugly Thinkpad Driver Hack (Bugs 507222 and 594977)
@@ -796,8 +786,6 @@ DWORD nsWindow::WindowStyle()
 
   switch (mWindowType) {
     case eWindowType_plugin:
-    case eWindowType_plugin_ipc_chrome:
-    case eWindowType_plugin_ipc_content:
     case eWindowType_child:
       style = WS_OVERLAPPED;
       break;
@@ -877,8 +865,6 @@ DWORD nsWindow::WindowExStyle()
   switch (mWindowType)
   {
     case eWindowType_plugin:
-    case eWindowType_plugin_ipc_chrome:
-    case eWindowType_plugin_ipc_content:
     case eWindowType_child:
       return 0;
 
@@ -1423,7 +1409,7 @@ NS_METHOD nsWindow::Move(double aX, double aY)
     // Workaround SetWindowPos bug with D3D9. If our window has a clip
     // region, some drivers or OSes may incorrectly copy into the clipped-out
     // area.
-    if (IsPlugin() &&
+    if (mWindowType == eWindowType_plugin &&
         (!mLayerManager || mLayerManager->GetBackendType() == LayersBackend::LAYERS_D3D9) &&
         mClipRects &&
         (mClipRectCount != 1 || !mClipRects[0].IsEqualInterior(nsIntRect(0, 0, mBounds.width, mBounds.height)))) {
@@ -2300,15 +2286,9 @@ NS_IMETHODIMP
 nsWindow::SetNonClientMargins(nsIntMargin &margins)
 {
   if (!mIsTopWidgetWindow ||
-      mBorderStyle & eBorderStyle_none)
+      mBorderStyle & eBorderStyle_none ||
+      mHideChrome)
     return NS_ERROR_INVALID_ARG;
-
-  if (mHideChrome) {
-    mFutureMarginsOnceChromeShows = margins;
-    mFutureMarginsToUse = true;
-    return NS_OK;
-  }
-  mFutureMarginsToUse = false;
 
   // Request for a reset
   if (margins.top == -1 && margins.left == -1 &&
@@ -2647,6 +2627,16 @@ void nsWindow::SetTransparencyMode(nsTransparencyMode aMode)
   GetTopLevelWindow(true)->SetWindowTranslucencyInner(aMode);
 }
 
+static const nsIntRegion
+RegionFromArray(const nsTArray<nsIntRect>& aRects)
+{
+  nsIntRegion region;
+  for (uint32_t i = 0; i < aRects.Length(); ++i) {
+    region.Or(region, aRects[i]);
+  }
+  return region;
+}
+
 void nsWindow::UpdateOpaqueRegion(const nsIntRegion &aOpaqueRegion)
 {
   if (!HasGlass() || GetParent())
@@ -2659,7 +2649,7 @@ void nsWindow::UpdateOpaqueRegion(const nsIntRegion &aOpaqueRegion)
   if (!aOpaqueRegion.IsEmpty()) {
     nsIntRect pluginBounds;
     for (nsIWidget* child = GetFirstChild(); child; child = child->GetNextSibling()) {
-      if (child->IsPlugin()) {
+      if (child->WindowType() == eWindowType_plugin) {
         // Collect the bounds of all plugins for GetLargestRectangle.
         nsIntRect childBounds;
         child->GetBounds(childBounds);
@@ -2770,9 +2760,6 @@ NS_IMETHODIMP nsWindow::HideWindowChrome(bool aShouldHide)
 
     style = mOldStyle;
     exStyle = mOldExStyle;
-    if (mFutureMarginsToUse) {
-      SetNonClientMargins(mFutureMarginsOnceChromeShows);
-    }
   }
 
   VERIFY_WINDOW_STYLE(style);
@@ -3139,20 +3126,19 @@ NS_METHOD nsWindow::EnableDragDrop(bool aEnable)
 
 NS_METHOD nsWindow::CaptureMouse(bool aCapture)
 {
-  TRACKMOUSEEVENT mTrack;
-  mTrack.cbSize = sizeof(TRACKMOUSEEVENT);
-  mTrack.dwFlags = TME_LEAVE;
-  mTrack.dwHoverTime = 0;
+  if (!nsToolkit::gMouseTrailer) {
+    NS_ERROR("nsWindow::CaptureMouse called after nsToolkit destroyed");
+    return NS_OK;
+  }
+
   if (aCapture) {
-    mTrack.hwndTrack = mWnd;
+    nsToolkit::gMouseTrailer->SetCaptureWindow(mWnd);
     ::SetCapture(mWnd);
   } else {
-    mTrack.hwndTrack = nullptr;
+    nsToolkit::gMouseTrailer->SetCaptureWindow(nullptr);
     ::ReleaseCapture();
   }
   sIsInMouseCapture = aCapture;
-  // Requests WM_MOUSELEAVE events for this window.
-  TrackMouseEvent(&mTrack);
   return NS_OK;
 }
 
@@ -3624,7 +3610,7 @@ nsWindow::UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries)
 uint32_t
 nsWindow::GetMaxTouchPoints() const
 {
-  if (IsWin7OrLater() && IsTouchDeviceSupportPresent()) {
+  if (IsWin7OrLater()) {
     return GetSystemMetrics(SM_MAXIMUMTOUCHES);
   }
   return 0;
@@ -4018,7 +4004,12 @@ bool nsWindow::DispatchMouseEvent(uint32_t aEventType, WPARAM wParam,
 
   // call the event callback
   if (mWidgetListener) {
+    if (nsToolkit::gMouseTrailer)
+      nsToolkit::gMouseTrailer->Disable();
     if (aEventType == NS_MOUSE_MOVE) {
+      if (nsToolkit::gMouseTrailer && !sIsInMouseCapture) {
+        nsToolkit::gMouseTrailer->SetMouseTrailerWindow(mWnd);
+      }
       nsIntRect rect;
       GetBounds(rect);
       rect.x = 0;
@@ -4048,6 +4039,9 @@ bool nsWindow::DispatchMouseEvent(uint32_t aEventType, WPARAM wParam,
     }
 
     result = DispatchWindowEvent(&event);
+
+    if (nsToolkit::gMouseTrailer)
+      nsToolkit::gMouseTrailer->Enable();
 
     // Release the widget with NS_IF_RELEASE() just in case
     // the context menu key code in EventListenerManager::HandleEvent()
@@ -4346,7 +4340,7 @@ inline static mozilla::HangMonitor::ActivityType ActivityTypeForMessage(UINT msg
 // and http://msdn.microsoft.com/en-us/library/ms633573%28VS.85%29.aspx
 LRESULT CALLBACK nsWindow::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-  MOZ_RELEASE_ASSERT(!ipc::ParentProcessIsBlocked());
+  MOZ_RELEASE_ASSERT(!ipc::ProcessingUrgentMessages());
 
   HangMonitor::NotifyActivity(ActivityTypeForMessage(msg));
 
@@ -5324,7 +5318,7 @@ nsWindow::ProcessMessage(UINT msg, WPARAM& wParam, LPARAM& lParam,
   case WM_GESTURENOTIFY:
     {
       if (mWindowType != eWindowType_invisible &&
-          !IsPlugin()) {
+          mWindowType != eWindowType_plugin) {
         // A GestureNotify event is dispatched to decide which single-finger panning
         // direction should be active (including none) and if pan feedback should
         // be displayed. Java and plugin windows can make their own calls.
@@ -6417,13 +6411,6 @@ static void InvalidatePluginAsWorkaround(nsWindow *aWindow, const nsIntRect &aRe
 nsresult
 nsWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
 {
-  // If this is a remotely updated widget we receive clipping, position, and
-  // size information from a source other than our owner. Don't let our parent
-  // update this information.
-  if (mWindowType == eWindowType_plugin_ipc_chrome) {
-    return NS_OK;
-  }
-
   // XXXroc we could use BeginDeferWindowPos/DeferWindowPos/EndDeferWindowPos
   // here, if that helps in some situations. So far I haven't seen a
   // need.
@@ -6486,11 +6473,48 @@ CreateHRGNFromArray(const nsTArray<nsIntRect>& aRects)
   return ::ExtCreateRegion(nullptr, buf.Length(), data);
 }
 
+static void
+ArrayFromRegion(const nsIntRegion& aRegion, nsTArray<nsIntRect>& aRects)
+{
+  const nsIntRect* r;
+  for (nsIntRegionRectIterator iter(aRegion); (r = iter.Next());) {
+    aRects.AppendElement(*r);
+  }
+}
+
 nsresult
 nsWindow::SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
                               bool aIntersectWithExisting)
 {
-  nsBaseWidget::SetWindowClipRegion(aRects, aIntersectWithExisting);
+  if (!aIntersectWithExisting) {
+    if (!StoreWindowClipRegion(aRects))
+      return NS_OK;
+  } else {
+    // In this case still early return if nothing changed.
+    if (mClipRects && mClipRectCount == aRects.Length() &&
+        memcmp(mClipRects,
+               aRects.Elements(),
+               sizeof(nsIntRect)*mClipRectCount) == 0) {
+      return NS_OK;
+    }
+
+    // get current rects
+    nsTArray<nsIntRect> currentRects;
+    GetWindowClipRegion(&currentRects);
+    // create region from them
+    nsIntRegion currentRegion = RegionFromArray(currentRects);
+    // create region from new rects
+    nsIntRegion newRegion = RegionFromArray(aRects);
+    // intersect regions
+    nsIntRegion intersection;
+    intersection.And(currentRegion, newRegion);
+    // create int rect array from intersection
+    nsTArray<nsIntRect> rects;
+    ArrayFromRegion(intersection, rects);
+    // store
+    if (!StoreWindowClipRegion(rects))
+      return NS_OK;
+  }
 
   HRGN dest = CreateHRGNFromArray(aRects);
   if (!dest)
@@ -6510,8 +6534,8 @@ nsWindow::SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
   // it should not be able to steal keyboard focus.  This code checks whether
   // the region that the plugin is being clipped to is NULLREGION.  If it is,
   // the plugin window gets disabled.
-  if (IsPlugin()) {
-    if (NULLREGION == ::CombineRgn(dest, dest, dest, RGN_OR)) {
+  if(mWindowType == eWindowType_plugin) {
+    if(NULLREGION == ::CombineRgn(dest, dest, dest, RGN_OR)) {
       ::ShowWindow(mWnd, SW_HIDE);
       ::EnableWindow(mWnd, FALSE);
     } else {
@@ -6583,6 +6607,16 @@ void nsWindow::OnDestroy()
   }
 
   IMEHandler::OnDestroyWindow(this);
+
+  // Turn off mouse trails if enabled.
+  MouseTrailer* mtrailer = nsToolkit::gMouseTrailer;
+  if (mtrailer) {
+    if (mtrailer->GetMouseTrailerWindow() == mWnd)
+      mtrailer->DestroyTimer();
+
+    if (mtrailer->GetCaptureWindow() == mWnd)
+      mtrailer->SetCaptureWindow(nullptr);
+  }
 
   // Free GDI window class objects
   if (mBrush) {
@@ -6710,22 +6744,10 @@ nsWindow::GetPreferredCompositorBackends(nsTArray<LayersBackend>& aHints)
     if (prefs.mPreferOpenGL) {
       aHints.AppendElement(LayersBackend::LAYERS_OPENGL);
     }
-
-    ID3D11Device* device = gfxWindowsPlatform::GetPlatform()->GetD3D11Device();
-    if (device &&
-        device->GetFeatureLevel() >= D3D_FEATURE_LEVEL_10_0 &&
-        !DoesD3D11DeviceWork(device)) {
-      // bug 1083071 - bad things - fall back to basic layers
-      // This should not happen aside from driver bugs, and in particular
-      // should not happen on our test machines, so let's NS_ERROR to ensure
-      // that we would catch it as a test failure.
-      NS_ERROR("Can't use Direct3D 11 because of a driver bug");
-    } else {
-      if (!prefs.mPreferD3D9) {
-        aHints.AppendElement(LayersBackend::LAYERS_D3D11);
-      }
-      aHints.AppendElement(LayersBackend::LAYERS_D3D9);
+    if (!prefs.mPreferD3D9) {
+      aHints.AppendElement(LayersBackend::LAYERS_D3D11);
     }
+    aHints.AppendElement(LayersBackend::LAYERS_D3D9);
   }
   aHints.AppendElement(LayersBackend::LAYERS_BASIC);
 }
@@ -7112,7 +7134,7 @@ LRESULT CALLBACK nsWindow::MozSpecialMouseProc(int code, WPARAM wParam, LPARAM l
         if (mozWin) {
           // If this window is windowed plugin window, the mouse events are not
           // sent to us.
-          if (static_cast<nsWindow*>(mozWin)->IsPlugin())
+          if (static_cast<nsWindow*>(mozWin)->mWindowType == eWindowType_plugin)
             ScheduleHookTimer(ms->hwnd, (UINT)wParam);
         } else {
           ScheduleHookTimer(ms->hwnd, (UINT)wParam);

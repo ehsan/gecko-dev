@@ -12,11 +12,14 @@
 
 using namespace mozilla;
 
-WebGLBuffer::WebGLBuffer(WebGLContext* context, GLuint buf)
-    : WebGLBindableName<BufferBinding>(buf)
+WebGLBuffer::WebGLBuffer(WebGLContext *context)
+    : WebGLBindableName<BufferBinding>()
     , WebGLContextBoundObject(context)
     , mByteLength(0)
 {
+    SetIsDOMBinding();
+    mContext->MakeContextCurrent();
+    mContext->gl->fGenBuffers(1, &mGLName);
     mContext->mBuffers.insertBack(this);
 }
 

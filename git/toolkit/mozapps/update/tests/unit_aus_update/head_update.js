@@ -175,7 +175,6 @@ var gAppTimer;
 var gHandle;
 
 var gGREDirOrig;
-var gGREBinDirOrig;
 var gAppDirOrig;
 
 var gServiceLaunchedCallbackLog = null;
@@ -835,7 +834,6 @@ function setupTestCommon() {
   Services.prefs.setBoolPref(PREF_APP_UPDATE_SILENT, true);
 
   gGREDirOrig = getGREDir();
-  gGREBinDirOrig = getGREBinDir();
   gAppDirOrig = getAppBaseDir();
 
   let applyDir = getApplyDirFile(null, true).parent;
@@ -1130,13 +1128,13 @@ function pathHandler(aMetadata, aResponse) {
 function getAppVersion() {
   // Read the application.ini and use its application version.
   let iniFile = gGREDirOrig.clone();
-  iniFile.append(FILE_APPLICATION_INI);
+  iniFile.append("application.ini");
   if (!iniFile.exists()) {
-    iniFile = gGREBinDirOrig.clone();
-    iniFile.append(FILE_APPLICATION_INI);
-    if (!iniFile.exists()) {
-      do_throw("Unable to find application.ini!");
-    }
+    iniFile = gAppDirOrig.clone();
+    iniFile.append("application.ini");
+  }
+  if (!iniFile.exists()) {
+    do_throw("Unable to find application.ini!");
   }
   let iniParser = AUS_Cc["@mozilla.org/xpcom/ini-parser-factory;1"].
                   getService(AUS_Ci.nsIINIParserFactory).
@@ -1418,7 +1416,7 @@ function getMockUpdRootD() {
  * when running a test that launches the application.
  */
 function getMockUpdRootD() {
-  return getApplyDirFile(DIR_MACOS, true);
+  return getApplyDirFile(DIR_BIN_REL_PATH, true);
 }
 #endif
 
@@ -1475,7 +1473,7 @@ if (IS_WIN) {
  */
 function runUpdate(aExpectedExitValue, aExpectedStatus, aCallback) {
   // Copy the updater binary to the updates directory.
-  let binDir = gGREBinDirOrig.clone();
+  let binDir = gAppDirOrig.clone();
   let updater = binDir.clone();
   updater.append("updater.app");
   if (!updater.exists()) {
@@ -1575,12 +1573,11 @@ function runUpdate(aExpectedExitValue, aExpectedStatus, aCallback) {
     }
   }
 }
-
 /**
  * Helper function for updater tests to stage an update.
  */
 function stageUpdate() {
-  logTestInfo("start - attempting to stage update");
+  logTestInfo("start - staging update");
   Services.obs.addObserver(gUpdateStagedObserver, "update-staged", false);
 
   setEnvironment();
@@ -1590,7 +1587,7 @@ function stageUpdate() {
     processUpdate(gUpdateManager.activeUpdate);
   resetEnvironment();
 
-  logTestInfo("finish - attempting to stage update");
+  logTestInfo("finish - staging update");
 }
 
 /**
@@ -1608,7 +1605,7 @@ function stageUpdate() {
  * @return true if the test should run and false if it shouldn't.
  */
 function shouldRunServiceTest(aFirstTest, aSkipTest) {
-  let binDir = getGREBinDir();
+  let binDir = getGREDir();
   let updaterBin = binDir.clone();
   updaterBin.append(FILE_UPDATER_BIN);
   if (!updaterBin.exists()) {
@@ -1733,6 +1730,7 @@ function setupAppFiles() {
   logTestInfo("start - copying or creating symlinks to application files " +
               "for the test");
 
+  let srcDir = getCurrentProcessDir();
   let destDir = getApplyDirFile(null, true);
   if (!destDir.exists()) {
     try {
@@ -1746,24 +1744,24 @@ function setupAppFiles() {
 
   // Required files for the application or the test that aren't listed in the
   // dependentlibs.list file.
-  let appFiles = [ { relPath  : FILE_APP_BIN,
-                     inGreDir : false },
-                   { relPath  : FILE_UPDATER_BIN,
-                     inGreDir : false },
-                   { relPath  : FILE_APPLICATION_INI,
-                     inGreDir : true },
-                   { relPath  : "dependentlibs.list",
-                     inGreDir : true } ];
+  let fileRelPaths = [ { src: FILE_APP_BIN },
+                       { src: FILE_UPDATER_BIN} ];
+  if (IS_MACOSX) {
+    fileRelPaths.push( { src: "../Resources/application.ini", dst: "../Resources/application.ini" } );
+    fileRelPaths.push( { src: "../Resources/dependentlibs.list", dst: "../Resources/dependentlibs.list" } );
+  } else {
+    fileRelPaths.push( { src: "application.ini" } );
+    fileRelPaths.push( { src: "dependentlibs.list" } );
+  }
 
   // On Linux the updater.png must also be copied
   if (IS_UNIX && !IS_MACOSX) {
-    appFiles.push( { relPath  : "icons/updater.png",
-                     inGreDir : true } );
+    fileRelPaths.push( { src: "icons/updater.png" } );
   }
 
   // Read the dependent libs file leafnames from the dependentlibs.list file
   // into the array.
-  let deplibsFile = gGREDirOrig.clone();
+  let deplibsFile = srcDir.clone();
   deplibsFile.append("dependentlibs.list");
   let istream = AUS_Cc["@mozilla.org/network/file-input-stream;1"].
                 createInstance(AUS_Ci.nsIFileInputStream);
@@ -1774,14 +1772,14 @@ function setupAppFiles() {
   let line = {};
   do {
     hasMore = istream.readLine(line);
-    appFiles.push( { relPath  : line.value,
-                     inGreDir : false } );
+    fileRelPaths.push( { src: line.value } );
   } while(hasMore);
 
   istream.close();
 
-  appFiles.forEach(function CMAF_FLN_FE(aAppFile) {
-    copyFileToTestAppDir(aAppFile.relPath, aAppFile.inGreDir);
+  fileRelPaths.forEach(function CMAF_FLN_FE(aFileRelPath) {
+    copyFileToTestAppDir(aFileRelPath.src, aFileRelPath.dst ? aFileRelPath.dst
+                                                            : null);
   });
 
   logTestInfo("finish - copying or creating symlinks to application files " +
@@ -1793,26 +1791,17 @@ function setupAppFiles() {
  * application directory.
  *
  * @param  aFileRelPath
- *         The relative path to the source and the destination of the file to
- *         copy.
- * @param  aInGreDir
- *         Whether the file is located in the GRE directory which is
- *         <bundle>/Contents/Resources on Mac OS X and is the installation
- *         directory on all other platforms. If false the file must be in the
- *         GRE Binary directory which is <bundle>/Contents/MacOS on Mac OS X and
- *         is the installation directory on on all other platforms.
+ *         The relative path of the file to copy.
+ * @param  aDestFileRelPath (optional)
+ *         The relative path of the destination file.
  */
-function copyFileToTestAppDir(aFileRelPath, aInGreDir) {
-  // gGREDirOrig and gGREBinDirOrig must always be cloned when changing its
-  // properties
-  let srcFile = aInGreDir ? gGREDirOrig.clone() : gGREBinDirOrig.clone();
-  let destFile = aInGreDir ? getGREDir() : getGREBinDir();
+function copyFileToTestAppDir(aFileRelPath, aDestFileRelPath) {
   let fileRelPath = aFileRelPath;
+  let srcFile = gAppDirOrig.clone();
   let pathParts = fileRelPath.split("/");
   for (let i = 0; i < pathParts.length; i++) {
     if (pathParts[i]) {
       srcFile.append(pathParts[i]);
-      destFile.append(pathParts[i]);
     }
   }
 
@@ -1820,14 +1809,10 @@ function copyFileToTestAppDir(aFileRelPath, aInGreDir) {
     logTestInfo("unable to copy file since it doesn't exist! Checking if " +
                  fileRelPath + ".app exists. Path: " +
                  srcFile.path);
-    // gGREDirOrig and gGREBinDirOrig must always be cloned when changing its
-    // properties
-    srcFile = aInGreDir ? gGREDirOrig.clone() : gGREBinDirOrig.clone();
-    destFile = aInGreDir ? getGREDir() : getGREBinDir();
+    srcFile = gAppDirOrig.clone();
     for (let i = 0; i < pathParts.length; i++) {
       if (pathParts[i]) {
         srcFile.append(pathParts[i] + (pathParts.length - 1 == i ? ".app" : ""));
-        destFile.append(pathParts[i] + (pathParts.length - 1 == i ? ".app" : ""));
       }
     }
     fileRelPath = fileRelPath + ".app";
@@ -1839,10 +1824,13 @@ function copyFileToTestAppDir(aFileRelPath, aInGreDir) {
   }
 
   // Symlink libraries. Note that the XUL library on Mac OS X doesn't have a
-  // file extension and shouldSymlink will always be false on Windows.
+  // file extension and this will always be false on Windows.
   let shouldSymlink = (pathParts[pathParts.length - 1] == "XUL" ||
                        fileRelPath.substr(fileRelPath.length - 3) == ".so" ||
                        fileRelPath.substr(fileRelPath.length - 6) == ".dylib");
+  let destFile = getApplyDirFile(DIR_BIN_REL_PATH +
+                                 (aDestFileRelPath ? aDestFileRelPath
+                                                   : fileRelPath), true);
   if (!shouldSymlink) {
     if (!destFile.exists()) {
       try {
@@ -1921,7 +1909,7 @@ function attemptServiceInstall(aSkipTest) {
     do_throw("maintenance service install directory binary doesn't exist! " +
              "Path: " + oldMaintSvcBin.path);
   }
-  let buildMaintSvcBin = getGREBinDir();
+  let buildMaintSvcBin = getGREDir();
   buildMaintSvcBin.append(FILE_MAINTENANCE_SERVICE_BIN);
   if (readFileBytes(oldMaintSvcBin) == readFileBytes(buildMaintSvcBin)) {
     logTestInfo("installed maintenance service binary is the same as the " +
@@ -2106,14 +2094,14 @@ function runUpdateUsingService(aInitialStatus, aExpectedStatus, aCheckSvcLog) {
   // There is a security check done by the service to make sure the updater
   // we are executing is the same as the one in the apply-to dir.
   // To make sure they match from tests we copy updater.exe to the apply-to dir.
-  copyFileToTestAppDir(FILE_UPDATER_BIN, false);
+  copyFileToTestAppDir(FILE_UPDATER_BIN);
 
   // The service will execute maintenanceservice_installer.exe and
   // will copy maintenanceservice.exe out of the same directory from
   // the installation directory.  So we need to make sure both of those
   // bins always exist in the installation directory.
-  copyFileToTestAppDir(FILE_MAINTENANCE_SERVICE_BIN, false);
-  copyFileToTestAppDir(FILE_MAINTENANCE_SERVICE_INSTALLER_BIN, false);
+  copyFileToTestAppDir(FILE_MAINTENANCE_SERVICE_BIN);
+  copyFileToTestAppDir(FILE_MAINTENANCE_SERVICE_INSTALLER_BIN);
 
   let launchBin = getLaunchBin();
   let args = getProcessArgs(["-dump-args", appArgsLogPath]);
@@ -2416,7 +2404,8 @@ function createUpdaterINI(aIsExeAsync) {
                            "ExeRelPath=" + gPostUpdateBinFile + "\n" +
                            exeArg +
                            exeAsync;
-  let updaterIni = getApplyDirFile(DIR_RESOURCES + FILE_UPDATER_INI, true);
+  let updaterIni = getApplyDirFile((IS_MACOSX ? "Contents/Resources/" : "") +
+                                    FILE_UPDATER_INI, true);
   writeFile(updaterIni, updaterIniContents);
 }
 
@@ -3332,7 +3321,7 @@ function getProcessArgs(aExtraArgs) {
     aExtraArgs = [];
   }
 
-  let appBinPath = getApplyDirFile(DIR_MACOS + FILE_APP_BIN, false).path;
+  let appBinPath = getApplyDirFile(DIR_BIN_REL_PATH + FILE_APP_BIN, false).path;
   if (/ /.test(appBinPath)) {
     appBinPath = '"' + appBinPath + '"';
   }
@@ -3402,17 +3391,12 @@ function adjustGeneralPaths() {
       switch (aProp) {
         case NS_GRE_DIR:
           if (gUseTestAppDir) {
-            return getApplyDirFile(DIR_RESOURCES, true);
-          }
-          break;
-        case NS_GRE_BIN_DIR:
-          if (gUseTestAppDir) {
-            return getApplyDirFile(DIR_MACOS, true);
+            return getApplyDirFile(DIR_BIN_REL_PATH, true);
           }
           break;
         case XRE_EXECUTABLE_FILE:
           if (gUseTestAppDir) {
-            return getApplyDirFile(DIR_MACOS + FILE_APP_BIN, true);
+            return getApplyDirFile(DIR_BIN_REL_PATH + FILE_APP_BIN, true);
           }
           break;
         case XRE_UPDATE_ROOT_DIR:
@@ -3429,7 +3413,6 @@ function adjustGeneralPaths() {
   };
   let ds = Services.dirsvc.QueryInterface(AUS_Ci.nsIDirectoryService);
   ds.QueryInterface(AUS_Ci.nsIProperties).undefine(NS_GRE_DIR);
-  ds.QueryInterface(AUS_Ci.nsIProperties).undefine(NS_GRE_BIN_DIR);
   ds.QueryInterface(AUS_Ci.nsIProperties).undefine(XRE_EXECUTABLE_FILE);
   ds.registerProvider(dirProvider);
   do_register_cleanup(function AGP_cleanup() {
@@ -3491,7 +3474,7 @@ function adjustGeneralPaths() {
 function launchAppToApplyUpdate() {
   logTestInfo("start - launching application to apply update");
 
-  let appBin = getApplyDirFile(DIR_MACOS + FILE_APP_BIN, false);
+  let appBin = getApplyDirFile(DIR_BIN_REL_PATH + FILE_APP_BIN, false);
 
   if (typeof(customLaunchAppToApplyUpdate) == typeof(Function)) {
     customLaunchAppToApplyUpdate();
@@ -3585,15 +3568,15 @@ function setEnvironment() {
   }
 
   if (IS_UNIX) {
-    let appGreBinDir = gGREBinDirOrig.clone();
-    let envGreBinDir = AUS_Cc["@mozilla.org/file/local;1"].
-                       createInstance(AUS_Ci.nsILocalFile);
+    let appGreDir = gGREDirOrig.clone();
+    let envGreDir = AUS_Cc["@mozilla.org/file/local;1"].
+                    createInstance(AUS_Ci.nsILocalFile);
     let shouldSetEnv = true;
     if (IS_MACOSX) {
       if (env.exists("DYLD_LIBRARY_PATH")) {
         gEnvDyldLibraryPath = env.get("DYLD_LIBRARY_PATH");
-        envGreBinDir.initWithPath(gEnvDyldLibraryPath);
-        if (envGreBinDir.path == appGreBinDir.path) {
+        envGreDir.initWithPath(gEnvDyldLibraryPath);
+        if (envGreDir.path == appGreDir.path) {
           gEnvDyldLibraryPath = null;
           shouldSetEnv = false;
         }
@@ -3601,14 +3584,14 @@ function setEnvironment() {
 
       if (shouldSetEnv) {
         logTestInfo("setting DYLD_LIBRARY_PATH environment variable value to " +
-                    appGreBinDir.path);
-        env.set("DYLD_LIBRARY_PATH", appGreBinDir.path);
+                    appGreDir.path);
+        env.set("DYLD_LIBRARY_PATH", appGreDir.path);
       }
     } else {
       if (env.exists("LD_LIBRARY_PATH")) {
         gEnvLdLibraryPath = env.get("LD_LIBRARY_PATH");
-        envGreBinDir.initWithPath(gEnvLdLibraryPath);
-        if (envGreBinDir.path == appGreBinDir.path) {
+        envGreDir.initWithPath(gEnvLdLibraryPath);
+        if (envGreDir.path == appGreDir.path) {
           gEnvLdLibraryPath = null;
           shouldSetEnv = false;
         }
@@ -3616,8 +3599,8 @@ function setEnvironment() {
 
       if (shouldSetEnv) {
         logTestInfo("setting LD_LIBRARY_PATH environment variable value to " +
-                    appGreBinDir.path);
-        env.set("LD_LIBRARY_PATH", appGreBinDir.path);
+                    appGreDir.path);
+        env.set("LD_LIBRARY_PATH", appGreDir.path);
       }
     }
   }

@@ -75,18 +75,11 @@ private:
 class FakeTracedTask : public TracedTaskCommon
 {
 public:
-  NS_INLINE_DECL_REFCOUNTING(FakeTracedTask)
-
+  FakeTracedTask() : TracedTaskCommon() {}
   FakeTracedTask(int* aVptr);
+  FakeTracedTask(const FakeTracedTask& aTask);
   void BeginFakeTracedTask();
   void EndFakeTracedTask();
-private:
-  virtual ~FakeTracedTask() {}
-
-  // No copy allowed.
-  FakeTracedTask() MOZ_DELETE;
-  FakeTracedTask(const FakeTracedTask& aTask) MOZ_DELETE;
-  FakeTracedTask& operator=(const FakeTracedTask& aTask) MOZ_DELETE;
 };
 
 class AutoRunFakeTracedTask
@@ -95,7 +88,8 @@ public:
   AutoRunFakeTracedTask(FakeTracedTask* aFakeTracedTask);
   ~AutoRunFakeTracedTask();
 private:
-  nsRefPtr<FakeTracedTask> mFakeTracedTask;
+  FakeTracedTask mFakeTracedTask;
+  bool mInitialized;
 };
 
 } // namespace tasktracer

@@ -25,11 +25,14 @@
             return;
 
           if (this._contentScrollHeight == -1) {
-            this._contentScrollHeight = this.scrollBoxObject.scrolledHeight;
+            let scrollheight = {};
+            this.scrollBoxObject.getScrolledSize({}, scrollheight);
+            this._contentScrollHeight = scrollheight.value;
           }
 
-          let y = this.scrollBoxObject.positionY;
-          let scrollRatio = (y + this._childrenHeight) / this._contentScrollHeight;
+          let y = {};
+          this.scrollBoxObject.getPosition({}, y);
+          let scrollRatio = (y.value + this._childrenHeight) / this._contentScrollHeight;
 
           // If we're scrolled 80% to the bottom of the list, append the next
           // set of items

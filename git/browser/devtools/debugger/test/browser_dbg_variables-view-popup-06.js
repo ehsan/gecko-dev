@@ -11,7 +11,7 @@ const TAB_URL = EXAMPLE_URL + "doc_frame-parameters.html";
 function test() {
   requestLongerTimeout(2);
   Task.spawn(function() {
-    let [tab,, panel] = yield initDebugger(TAB_URL);
+    let [tab, debuggee, panel] = yield initDebugger(TAB_URL);
     let win = panel.panelWin;
     let bubble = win.DebuggerView.VariableBubble;
     let tooltip = bubble._tooltip.panel;
@@ -64,7 +64,8 @@ function test() {
         "The seventh property's value is correct.");
     }
 
-    callInTab(tab, "start");
+    // Allow this generator function to yield first.
+    executeSoon(() => debuggee.start());
     yield waitForSourceAndCaretAndScopes(panel, ".html", 24);
 
     // Inspect variable.

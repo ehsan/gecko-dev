@@ -25,7 +25,6 @@
 #include "nsThreadUtils.h"
 #include "mozilla/LookAndFeel.h"
 
-class nsFontMetrics;
 class nsOverflowChecker;
 class nsTreeImageListener;
 
@@ -81,12 +80,12 @@ public:
   }
   nsresult GetView(nsITreeView **aView);
   nsresult SetView(nsITreeView *aView);
-  bool GetFocused() const { return mFocused; }
+  nsresult GetFocused(bool *aFocused);
   nsresult SetFocused(bool aFocused);
   nsresult GetTreeBody(nsIDOMElement **aElement);
-  int32_t RowHeight() const;
-  int32_t RowWidth();
-  int32_t GetHorizontalPosition() const;
+  nsresult GetRowHeight(int32_t *aValue);
+  nsresult GetRowWidth(int32_t *aValue);
+  nsresult GetHorizontalPosition(int32_t *aValue);
   nsresult GetSelectionRegion(nsIScriptableRegion **aRegion);
   int32_t FirstVisibleRow() const { return mTopRowIndex; }
   int32_t LastVisibleRow() const { return mTopRowIndex + mPageLength; }
@@ -297,7 +296,6 @@ protected:
   void AdjustForCellText(nsAutoString& aText,
                          int32_t aRowIndex,  nsTreeColumn* aColumn,
                          nsRenderingContext& aRenderingContext,
-                         nsFontMetrics& aFontMetrics,
                          nsRect& aTextRect);
 
   // A helper used when hit testing.

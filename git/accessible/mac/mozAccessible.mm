@@ -11,6 +11,7 @@
 #include "Accessible-inl.h"
 #include "nsAccUtils.h"
 #include "nsIAccessibleRelation.h"
+#include "nsIAccessibleText.h"
 #include "nsIAccessibleEditableText.h"
 #include "nsIPersistentProperties2.h"
 #include "Relation.h"
@@ -302,10 +303,10 @@ GetClosestInterestingAccessible(id anObject)
   // (which might be the owning NSWindow in the application, for example).
   //
   // get the native root accessible, and tell it to return its first parent unignored accessible.
-  id nativeParent =
-    GetNativeFromGeckoAccessible(mGeckoAccessible->RootAccessible());
+  RootAccessible* root = mGeckoAccessible->RootAccessible();
+  id nativeParent = GetNativeFromGeckoAccessible(static_cast<nsIAccessible*>(root));
   NSAssert1 (nativeParent, @"!!! we can't find a parent for %@", self);
-
+  
   return GetClosestInterestingAccessible(nativeParent);
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
@@ -392,11 +393,12 @@ GetClosestInterestingAccessible(id anObject)
   if (!mGeckoAccessible)
     return nil;
 
-  nsIntRect rect = mGeckoAccessible->Bounds();
+  int32_t x = 0, y = 0, width = 0, height = 0;
+  mGeckoAccessible->GetBounds (&x, &y, &width, &height);
   CGFloat scaleFactor =
     nsCocoaUtils::GetBackingScaleFactor([[NSScreen screens] objectAtIndex:0]);
-  return [NSValue valueWithSize:NSMakeSize(static_cast<CGFloat>(rect.width) / scaleFactor,
-                                           static_cast<CGFloat>(rect.height) / scaleFactor)];
+  return [NSValue valueWithSize:NSMakeSize(static_cast<CGFloat>(width) / scaleFactor,
+                                           static_cast<CGFloat>(height) / scaleFactor)];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
@@ -408,7 +410,7 @@ GetClosestInterestingAccessible(id anObject)
 
 #ifdef DEBUG_A11Y
   NS_ASSERTION(nsAccUtils::IsTextInterfaceSupportCorrect(mGeckoAccessible),
-               "Does not support Text when it should");
+               "Does not support nsIAccessibleText when it should");
 #endif
 
 #define ROLE(geckoRole, stringRole, atkRole, macRole, msaaRole, ia2Role, nameRule) \
@@ -531,7 +533,7 @@ GetClosestInterestingAccessible(id anObject)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
   nsAutoString value;
-  mGeckoAccessible->Value(value);
+  mGeckoAccessible->GetValue (value);
   return value.IsEmpty() ? nil : [NSString stringWithCharacters:reinterpret_cast<const unichar*>(value.BeginReading())
                                                          length:value.Length()];
 
@@ -576,7 +578,7 @@ GetClosestInterestingAccessible(id anObject)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
   nsAutoString helpText;
-  mGeckoAccessible->Help(helpText);
+  mGeckoAccessible->GetHelp (helpText);
   return helpText.IsEmpty() ? nil : [NSString stringWithCharacters:reinterpret_cast<const unichar*>(helpText.BeginReading())
                                                             length:helpText.Length()];
 

@@ -4,7 +4,11 @@
 "use strict";
 
 module.metadata = {
-  "stability": "unstable"
+  "stability": "unstable",
+  "engines": {
+    "Firefox": "*",
+    "Fennec": "*"
+  }
 };
 
 const { modelFor } = require("./model/core");

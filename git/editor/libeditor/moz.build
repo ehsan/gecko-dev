@@ -23,7 +23,7 @@ UNIFIED_SOURCES += [
     'IMETextTxn.cpp',
     'InsertNodeTxn.cpp',
     'InsertTextTxn.cpp',
-    'JoinNodeTxn.cpp',
+    'JoinElementTxn.cpp',
     'nsEditor.cpp',
     'nsEditorCommands.cpp',
     'nsEditorController.cpp',
@@ -53,7 +53,7 @@ UNIFIED_SOURCES += [
     'nsWSRunObject.cpp',
     'PlaceholderTxn.cpp',
     'SetDocTitleTxn.cpp',
-    'SplitNodeTxn.cpp',
+    'SplitElementTxn.cpp',
     'TextEditorTest.cpp',
     'TypeInState.cpp',
 ]
@@ -61,7 +61,7 @@ UNIFIED_SOURCES += [
 FAIL_ON_WARNINGS = True
 
 LOCAL_INCLUDES += [
-    '/dom/base',
+    '/content/base/src',
     '/editor/txmgr',
     '/extensions/spellcheck/src',
     '/layout/generic',

@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ClientLayerManager.h"
+#include "CompositorChild.h"            // for CompositorChild
 #include "GeckoProfiler.h"              // for PROFILER_LABEL
 #include "gfxPrefs.h"                   // for gfxPrefs::LayersTile...
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
@@ -12,7 +13,6 @@
 #include "mozilla/dom/TabChild.h"       // for TabChild
 #include "mozilla/hal_sandbox/PHal.h"   // for ScreenConfiguration
 #include "mozilla/layers/CompositableClient.h"
-#include "mozilla/layers/CompositorChild.h" // for CompositorChild
 #include "mozilla/layers/ContentClient.h"
 #include "mozilla/layers/ISurfaceAllocator.h"
 #include "mozilla/layers/LayersMessages.h"  // for EditReply, etc
@@ -217,9 +217,6 @@ ClientLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
   // to it. This will happen at the end of the transaction.
   if (aTarget && XRE_GetProcessType() == GeckoProcessType_Default) {
     mShadowTarget = aTarget;
-  } else {
-    NS_ASSERTION(!aTarget,
-                 "Content-process ClientLayerManager::BeginTransactionWithTarget not supported");
   }
 
   // If this is a new paint, increment the paint sequence number.
@@ -529,8 +526,6 @@ ClientLayerManager::StopFrameTimeRecording(uint32_t         aStartIndex,
 void
 ClientLayerManager::ForwardTransaction(bool aScheduleComposite)
 {
-  gfxPlatform::GetPlatform()->FenceContentDrawing();
-
   mPhase = PHASE_FORWARD;
 
   mLatestTransactionId = mTransactionIdAllocator->GetTransactionId();
@@ -612,7 +607,7 @@ ClientLayerManager::ForwardTransaction(bool aScheduleComposite)
   }
 
   mForwarder->RemoveTexturesIfNecessary();
-  mForwarder->SendPendingAsyncMessges();
+  mForwarder->SendPendingAsyncMessge();
   mPhase = PHASE_NONE;
 
   // this may result in Layers being deleted, which results in
@@ -664,8 +659,8 @@ ClientLayerManager::GetTexturePool(SurfaceFormat aFormat)
   }
 
   mTexturePools.AppendElement(
-      new TextureClientPool(aFormat, IntSize(gfxPlatform::GetPlatform()->GetTileWidth(),
-                                             gfxPlatform::GetPlatform()->GetTileHeight()),
+      new TextureClientPool(aFormat, IntSize(gfxPrefs::LayersTileWidth(),
+                                             gfxPrefs::LayersTileHeight()),
                             gfxPrefs::LayersTileMaxPoolSize(),
                             gfxPrefs::LayersTileShrinkPoolTimeout(),
                             mForwarder));
@@ -749,8 +744,8 @@ ClientLayerManager::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent,
       aMetrics.mCriticalDisplayPort : aMetrics.mDisplayPort;
   LayerRect displayPort = (metricsDisplayPort + aMetrics.GetScrollOffset()) * paintScale;
 
-  ParentLayerPoint scrollOffset;
-  CSSToParentLayerScale zoom;
+  ScreenPoint scrollOffset;
+  CSSToScreenScale zoom;
   bool ret = AndroidBridge::Bridge()->ProgressiveUpdateCallback(
     aHasPendingNewThebesContent, displayPort, paintScale.scale, aDrawingCritical,
     scrollOffset, zoom);

@@ -11,7 +11,6 @@
 #include "nsILoadInfo.h"
 #include "nsIPrincipal.h"
 #include "nsIWeakReferenceUtils.h" // for nsWeakPtr
-#include "nsIURI.h"
 
 class nsINode;
 
@@ -26,23 +25,19 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSILOADINFO
 
-  // aLoadingPrincipal MUST NOT BE NULL.
-  LoadInfo(nsIPrincipal* aLoadingPrincipal,
-           nsIPrincipal* aTriggeringPrincipal,
+  // aPrincipal MUST NOT BE NULL.
+  LoadInfo(nsIPrincipal* aPrincipal,
            nsINode* aLoadingContext,
            nsSecurityFlags aSecurityFlags,
-           nsContentPolicyType aContentPolicyType,
-           nsIURI* aBaseURI = nullptr);
+           nsContentPolicyType aContentPolicyType);
 
 private:
   ~LoadInfo();
 
-  nsCOMPtr<nsIPrincipal> mLoadingPrincipal;
-  nsCOMPtr<nsIPrincipal> mTriggeringPrincipal;
+  nsCOMPtr<nsIPrincipal> mPrincipal;
   nsWeakPtr              mLoadingContext;
   nsSecurityFlags        mSecurityFlags;
   nsContentPolicyType    mContentPolicyType;
-  nsCOMPtr<nsIURI>       mBaseURI;
 };
 
 } // namespace mozilla

@@ -33,7 +33,7 @@ class PBackgroundParent;
 namespace dom {
 
 class ContentParent;
-class FileImpl;
+class DOMFileImpl;
 class nsIContentParent;
 class PBlobStreamParent;
 
@@ -48,15 +48,17 @@ class BlobParent MOZ_FINAL
   class OpenStreamRunnable;
   friend class OpenStreamRunnable;
 
-  class RemoteBlobImpl;
+  class RemoteBlobImplBase;
+  friend class RemoteBlobImplBase;
 
-  struct CreateBlobImplMetadata;
+  class RemoteBlobImpl;
+  class ForwardingRemoteBlobImpl;
 
   static StaticAutoPtr<IDTable> sIDTable;
   static StaticAutoPtr<Mutex> sIDTableMutex;
 
-  FileImpl* mBlobImpl;
-  RemoteBlobImpl* mRemoteBlobImpl;
+  DOMFileImpl* mBlobImpl;
+  RemoteBlobImplBase* mRemoteBlobImpl;
 
   // One of these will be null and the other non-null.
   PBackgroundParent* mBackgroundManager;
@@ -85,10 +87,10 @@ public:
 
   // These create functions are called on the sending side.
   static BlobParent*
-  GetOrCreate(nsIContentParent* aManager, FileImpl* aBlobImpl);
+  GetOrCreate(nsIContentParent* aManager, DOMFileImpl* aBlobImpl);
 
   static BlobParent*
-  GetOrCreate(PBackgroundParent* aManager, FileImpl* aBlobImpl);
+  GetOrCreate(PBackgroundParent* aManager, DOMFileImpl* aBlobImpl);
 
   // These create functions are called on the receiving side.
   static BlobParent*
@@ -104,9 +106,6 @@ public:
   {
     delete static_cast<BlobParent*>(aActor);
   }
-
-  static already_AddRefed<FileImpl>
-  GetBlobImplForID(const nsID& aID);
 
   bool
   HasManager() const
@@ -126,9 +125,14 @@ public:
     return mContentManager;
   }
 
-  // Get the FileImpl associated with this actor.
-  already_AddRefed<FileImpl>
+  // Get the DOMFileImpl associated with this actor.
+  already_AddRefed<DOMFileImpl>
   GetBlobImpl();
+
+  // XXX This method will be removed soon. It may never be called on a non-DOM
+  //     thread.
+  already_AddRefed<nsIDOMBlob>
+  GetBlob();
 
   void
   AssertIsOnOwningThread() const
@@ -146,11 +150,11 @@ private:
 
   // These constructors are called on the receiving side.
   BlobParent(nsIContentParent* aManager,
-             FileImpl* aBlobImpl,
+             const ParentBlobConstructorParams& aParams,
              IDTableEntry* aIDTableEntry);
 
   BlobParent(PBackgroundParent* aManager,
-             FileImpl* aBlobImpl,
+             const ParentBlobConstructorParams& aParams,
              IDTableEntry* aIDTableEntry);
 
   // Only destroyed by BackgroundParentImpl and ContentParent.
@@ -160,12 +164,13 @@ private:
   CommonInit(IDTableEntry* aIDTableEntry);
 
   void
-  CommonInit(FileImpl* aBlobImpl, IDTableEntry* aIDTableEntry);
+  CommonInit(const ParentBlobConstructorParams& aParams,
+             IDTableEntry* aIDTableEntry);
 
   template <class ParentManagerType>
   static BlobParent*
   GetOrCreateFromImpl(ParentManagerType* aManager,
-                      FileImpl* aBlobImpl);
+                      DOMFileImpl* aBlobImpl);
 
   template <class ParentManagerType>
   static BlobParent*
@@ -206,13 +211,10 @@ private:
   ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
   virtual PBlobStreamParent*
-  AllocPBlobStreamParent(const uint64_t& aStart,
-                         const uint64_t& aLength) MOZ_OVERRIDE;
+  AllocPBlobStreamParent() MOZ_OVERRIDE;
 
   virtual bool
-  RecvPBlobStreamConstructor(PBlobStreamParent* aActor,
-                             const uint64_t& aStart,
-                             const uint64_t& aLength) MOZ_OVERRIDE;
+  RecvPBlobStreamConstructor(PBlobStreamParent* aActor) MOZ_OVERRIDE;
 
   virtual bool
   DeallocPBlobStreamParent(PBlobStreamParent* aActor) MOZ_OVERRIDE;

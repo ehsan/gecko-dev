@@ -7,8 +7,6 @@
 #define ScrollbarStyles_h
 
 #include <stdint.h>
-#include "nsStyleConsts.h"
-#include "mozilla/dom/WindowBinding.h"
 
 namespace mozilla {
 
@@ -18,29 +16,13 @@ struct ScrollbarStyles
   // or NS_STYLE_OVERFLOW_AUTO.
   uint8_t mHorizontal;
   uint8_t mVertical;
-  // Always one of NS_STYLE_SCROLL_BEHAVIOR_AUTO or
-  // NS_STYLE_SCROLL_BEHAVIOR_SMOOTH
-  uint8_t mScrollBehavior;
-  ScrollbarStyles(uint8_t aH, uint8_t aV, uint8_t aB) : mHorizontal(aH),
-                                                        mVertical(aV),
-                                                        mScrollBehavior(aB) {}
+  ScrollbarStyles(uint8_t h, uint8_t v) : mHorizontal(h), mVertical(v) {}
   ScrollbarStyles() {}
   bool operator==(const ScrollbarStyles& aStyles) const {
-    return aStyles.mHorizontal == mHorizontal && aStyles.mVertical == mVertical &&
-           aStyles.mScrollBehavior == mScrollBehavior;
+    return aStyles.mHorizontal == mHorizontal && aStyles.mVertical == mVertical;
   }
   bool operator!=(const ScrollbarStyles& aStyles) const {
-    return aStyles.mHorizontal != mHorizontal || aStyles.mVertical != mVertical ||
-           aStyles.mScrollBehavior != mScrollBehavior;
-  }
-  bool IsHiddenInBothDirections() const {
-    return mHorizontal == NS_STYLE_OVERFLOW_HIDDEN &&
-           mVertical == NS_STYLE_OVERFLOW_HIDDEN;
-  }
-  bool IsSmoothScroll(dom::ScrollBehavior aBehavior) const {
-    return aBehavior == dom::ScrollBehavior::Smooth ||
-             (aBehavior == dom::ScrollBehavior::Auto &&
-               mScrollBehavior == NS_STYLE_SCROLL_BEHAVIOR_SMOOTH);
+    return aStyles.mHorizontal != mHorizontal || aStyles.mVertical != mVertical;
   }
 };
 

@@ -45,14 +45,14 @@ var gMoveBookmarksDialog = {
       return;
     }
 
-    PlacesTransactions.batch(function* () {
+    PlacesTransactions.transact(function* () {
       let newParentGuid = yield PlacesUtils.promiseItemGuid(selectedFolderId);
       for (let node of this._nodes) {
         // Nothing to do if the node is already under the selected folder.
         if (node.parent.itemId == selectedFolderId)
           continue;
         yield PlacesTransactions.Move({ guid: node.bookmarkGuid
-                                      , newParentGuid }).transact();
+                                      , newParentGuid: newParentGuid });
       }
     }.bind(this)).then(null, Components.utils.reportError);
   },

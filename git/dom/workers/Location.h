@@ -44,6 +44,7 @@ class WorkerLocation MOZ_FINAL : public nsWrapperCache
     , mOrigin(aOrigin)
   {
     MOZ_COUNT_CTOR(WorkerLocation);
+    SetIsDOMBinding();
   }
 
   ~WorkerLocation()

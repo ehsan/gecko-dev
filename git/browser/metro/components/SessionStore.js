@@ -626,7 +626,7 @@ SessionStore.prototype = {
     if (aBrowser.__SS_restore)
       return;
 
-    aHistory = aHistory || { entries: [{ url: aBrowser.currentURI.spec, title: aBrowser.contentTitle }], index: 1 };
+    let aHistory = aHistory || { entries: [{ url: aBrowser.currentURI.spec, title: aBrowser.contentTitle }], index: 1 };
 
     let tabData = {};
     tabData.entries = aHistory.entries;

@@ -9,8 +9,6 @@ import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.SiteIdentity;
 import org.mozilla.gecko.SiteIdentity.SecurityMode;
-import org.mozilla.gecko.SiteIdentity.MixedMode;
-import org.mozilla.gecko.SiteIdentity.TrackingMode;
 import org.mozilla.gecko.widget.ArrowPopup;
 import org.mozilla.gecko.widget.DoorHanger;
 import org.mozilla.gecko.widget.DoorHanger.OnButtonClickListener;
@@ -36,9 +34,6 @@ public class SiteIdentityPopup extends ArrowPopup {
     private static final String MIXED_CONTENT_SUPPORT_URL =
         "https://support.mozilla.org/kb/how-does-insecure-content-affect-safety-android";
 
-    private static final String TRACKING_CONTENT_SUPPORT_URL =
-        "https://support.mozilla.org/kb/how-does-insecure-content-affect-safety-android";
-
     private SiteIdentity mSiteIdentity;
 
     private LinearLayout mIdentity;
@@ -47,7 +42,6 @@ public class SiteIdentityPopup extends ArrowPopup {
     private TextView mVerifier;
 
     private DoorHanger mMixedContentNotification;
-    private DoorHanger mTrackingContentNotification;
 
     private final OnButtonClickListener mButtonClickListener;
 
@@ -74,14 +68,13 @@ public class SiteIdentityPopup extends ArrowPopup {
         mVerifier = (TextView) mIdentity.findViewById(R.id.verifier);
     }
 
-    private void updateIdentity() {
+    private void updateUi() {
         if (!mInflated) {
             init();
         }
 
-        final MixedMode mixedMode = mSiteIdentity.getMixedMode();
-        final TrackingMode trackingMode = mSiteIdentity.getTrackingMode();
-        if (mixedMode != MixedMode.UNKNOWN || trackingMode != TrackingMode.UNKNOWN) {
+        if (mSiteIdentity.getSecurityMode() == SecurityMode.MIXED_CONTENT_LOADED ||
+            mSiteIdentity.getSecurityMode() == SecurityMode.MIXED_CONTENT_BLOCKED) {
             // Hide the identity data if there isn't valid site identity data.
             // Set some top padding on the popup content to create a of light blue
             // between the popup arrow and the mixed content notification.
@@ -109,26 +102,31 @@ public class SiteIdentityPopup extends ArrowPopup {
     }
 
     private void addMixedContentNotification(boolean blocked) {
-        // Remove any existing mixed content notification.
+        // Remove any exixting mixed content notification.
         removeMixedContentNotification();
         mMixedContentNotification = new DoorHanger(mContext, DoorHanger.Theme.DARK);
 
-        int icon;
         String message;
         if (blocked) {
-            icon = R.drawable.shield_doorhanger;
             message = mContext.getString(R.string.blocked_mixed_content_message_top) + "\n\n" +
                       mContext.getString(R.string.blocked_mixed_content_message_bottom);
         } else {
-            icon = R.drawable.warning_doorhanger;
             message = mContext.getString(R.string.loaded_mixed_content_message);
         }
-
-        mMixedContentNotification.setIcon(icon);
         mMixedContentNotification.setMessage(message);
         mMixedContentNotification.addLink(mContext.getString(R.string.learn_more), MIXED_CONTENT_SUPPORT_URL, "\n\n");
 
-        addNotificationButtons(mMixedContentNotification, blocked);
+        if (blocked) {
+            mMixedContentNotification.setIcon(R.drawable.shield_doorhanger);
+            mMixedContentNotification.addButton(mContext.getString(R.string.disable_protection),
+                                                "disable", mButtonClickListener);
+            mMixedContentNotification.addButton(mContext.getString(R.string.keep_blocking),
+                                                "keepBlocking", mButtonClickListener);
+        } else {
+            mMixedContentNotification.setIcon(R.drawable.warning_doorhanger);
+            mMixedContentNotification.addButton(mContext.getString(R.string.enable_protection),
+                                                "enable", mButtonClickListener);
+        }
 
         mContent.addView(mMixedContentNotification);
     }
@@ -137,47 +135,6 @@ public class SiteIdentityPopup extends ArrowPopup {
         if (mMixedContentNotification != null) {
             mContent.removeView(mMixedContentNotification);
             mMixedContentNotification = null;
-        }
-    }
-
-    private void addTrackingContentNotification(boolean blocked) {
-        // Remove any existing tracking content notification.
-        removeTrackingContentNotification();
-        mTrackingContentNotification = new DoorHanger(mContext, DoorHanger.Theme.DARK);
-
-        int icon;
-        String message;
-        if (blocked) {
-            icon = R.drawable.shield_doorhanger;
-            message = mContext.getString(R.string.blocked_tracking_content_message_top) + "\n\n" +
-                      mContext.getString(R.string.blocked_tracking_content_message_bottom);
-        } else {
-            icon = R.drawable.warning_doorhanger;
-            message = mContext.getString(R.string.loaded_tracking_content_message);
-        }
-
-        mTrackingContentNotification.setIcon(icon);
-        mTrackingContentNotification.setMessage(message);
-        mTrackingContentNotification.addLink(mContext.getString(R.string.learn_more), TRACKING_CONTENT_SUPPORT_URL, "\n\n");
-
-        addNotificationButtons(mTrackingContentNotification, blocked);
-
-        mContent.addView(mTrackingContentNotification);
-    }
-
-    private void removeTrackingContentNotification() {
-        if (mTrackingContentNotification != null) {
-            mContent.removeView(mTrackingContentNotification);
-            mTrackingContentNotification = null;
-        }
-    }
-
-    private void addNotificationButtons(DoorHanger dh, boolean blocked) {
-        if (blocked) {
-            dh.addButton(mContext.getString(R.string.disable_protection), "disable", mButtonClickListener);
-            dh.addButton(mContext.getString(R.string.keep_blocking), "keepBlocking", mButtonClickListener);
-        } else {
-            dh.addButton(mContext.getString(R.string.enable_protection), "enable", mButtonClickListener);
         }
     }
 
@@ -195,58 +152,26 @@ public class SiteIdentityPopup extends ArrowPopup {
             return;
         }
 
-        final SecurityMode identityMode = mSiteIdentity.getSecurityMode();
-        final MixedMode mixedMode = mSiteIdentity.getMixedMode();
-        final TrackingMode trackingMode = mSiteIdentity.getTrackingMode();
-        if (identityMode == SecurityMode.UNKNOWN && mixedMode == MixedMode.UNKNOWN && trackingMode == TrackingMode.UNKNOWN) {
-            Log.e(LOGTAG, "Can't show site identity popup in a completely unknown state");
+        final SecurityMode mode = mSiteIdentity.getSecurityMode();
+        if (mode == SecurityMode.UNKNOWN) {
+            Log.e(LOGTAG, "Can't show site identity popup in non-identified state");
             return;
         }
 
-        updateIdentity();
+        updateUi();
 
-        if (mixedMode != MixedMode.UNKNOWN) {
-            addMixedContentNotification(mixedMode == MixedMode.MIXED_CONTENT_BLOCKED);
+        if (mode == SecurityMode.MIXED_CONTENT_LOADED ||
+            mode == SecurityMode.MIXED_CONTENT_BLOCKED) {
+            addMixedContentNotification(mode == SecurityMode.MIXED_CONTENT_BLOCKED);
         }
-
-        if (trackingMode != TrackingMode.UNKNOWN) {
-            addTrackingContentNotification(trackingMode == TrackingMode.TRACKING_CONTENT_BLOCKED);
-        }
-
-        showDividers();
 
         super.show();
-    }
-
-    // Show the right dividers
-    private void showDividers() {
-        final int count = mContent.getChildCount();
-        DoorHanger lastVisibleDoorHanger = null;
-
-        for (int i = 0; i < count; i++) {
-            final View child = mContent.getChildAt(i);
-
-            if (!(child instanceof DoorHanger)) {
-                continue;
-            }
-
-            DoorHanger dh = (DoorHanger) child;
-            dh.showDivider();
-            if (dh.getVisibility() == View.VISIBLE) {
-                lastVisibleDoorHanger = dh;
-            }
-        }
-
-        if (lastVisibleDoorHanger != null) {
-            lastVisibleDoorHanger.hideDivider();
-        }
     }
 
     @Override
     public void dismiss() {
         super.dismiss();
         removeMixedContentNotification();
-        removeTrackingContentNotification();
     }
 
     private class PopupButtonListener implements OnButtonClickListener {
@@ -254,13 +179,11 @@ public class SiteIdentityPopup extends ArrowPopup {
         public void onButtonClick(DoorHanger dh, String tag) {
             try {
                 JSONObject data = new JSONObject();
-                String allowType = (dh == mMixedContentNotification ? "allowMixedContent" : "allowTrackingContent");
-                data.put(allowType, tag.equals("disable"));
-
+                data.put("allowMixedContent", tag.equals("disable"));
                 GeckoEvent e = GeckoEvent.createBroadcastEvent("Session:Reload", data.toString());
                 GeckoAppShell.sendEventToGecko(e);
             } catch (JSONException e) {
-                Log.e(LOGTAG, "Exception creating message to enable/disable content blocking", e);
+                Log.e(LOGTAG, "Exception creating message to enable/disable mixed content blocking", e);
             }
 
             dismiss();

@@ -35,9 +35,6 @@ struct LocalObject
 struct RemoteObject
 {
     uint64_t serializedId;
-    bool isCallable;
-    bool isConstructor;
-    nsCString objectTag;
 };
 
 union ObjectVariant
@@ -46,48 +43,18 @@ union ObjectVariant
     RemoteObject;
 };
 
-struct WellKnownSymbol
-{
-    uint32_t which;
-};
-
-struct RegisteredSymbol
-{
-    nsString key;
-};
-
-union SymbolVariant
-{
-    WellKnownSymbol;
-    RegisteredSymbol;
-};
-
 struct UndefinedVariant {};
 struct NullVariant {};
-
-union ObjectOrNullVariant
-{
-    ObjectVariant;
-    NullVariant;
-};
 
 union JSVariant
 {
     UndefinedVariant;
     NullVariant;
     ObjectVariant;
-    SymbolVariant;
     nsString;   /* StringValue(x) */
     double;     /* NumberValue(x) */
     bool;       /* BooleanValue(x) */
     JSIID;      /* XPC nsIID */
-};
-
-union JSIDVariant
-{
-    SymbolVariant;
-    nsString;
-    int32_t;
 };
 
 struct ReturnSuccess
@@ -124,7 +91,7 @@ union GetterSetter
 
 struct PPropertyDescriptor
 {
-    ObjectOrNullVariant obj;
+    ObjectVariant obj;
     uint32_t attrs;
     JSVariant value;
 

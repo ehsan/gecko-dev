@@ -57,10 +57,8 @@ nsBlockReflowContext::ComputeCollapsedBStartMargin(const nsHTMLReflowState& aRS,
                                                    bool* aBlockIsEmpty)
 {
   WritingMode wm = aRS.GetWritingMode();
-  WritingMode parentWM = mMetrics.GetWritingMode();
-
-  // Include block-start element of frame's margin
-  aMargin->Include(aRS.ComputedLogicalMargin().ConvertTo(parentWM, wm).BStart(parentWM));
+  // Include frame's block-start margin
+  aMargin->Include(aRS.ComputedLogicalMargin().BStart(wm));
 
   // The inclusion of the block-end margin when empty is done by the caller
   // since it doesn't need to be done by the top-level (non-recursive)
@@ -176,8 +174,8 @@ nsBlockReflowContext::ComputeCollapsedBStartMargin(const nsHTMLReflowState& aRS,
             if (isEmpty) {
               WritingMode innerWM = innerReflowState.GetWritingMode();
               LogicalMargin innerMargin =
-                innerReflowState.ComputedLogicalMargin().ConvertTo(parentWM, innerWM);
-              aMargin->Include(innerMargin.BEnd(parentWM));
+                innerReflowState.ComputedLogicalMargin().ConvertTo(wm, innerWM);
+              aMargin->Include(innerMargin.BEnd(wm));
             }
           }
           if (outerReflowState != &aRS) {
@@ -216,7 +214,7 @@ nsBlockReflowContext::ComputeCollapsedBStartMargin(const nsHTMLReflowState& aRS,
 }
 
 void
-nsBlockReflowContext::ReflowBlock(const LogicalRect&  aSpace,
+nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
                                   bool                aApplyBStartMargin,
                                   nsCollapsingMargin& aPrevMargin,
                                   nscoord             aClearance,
@@ -229,7 +227,7 @@ nsBlockReflowContext::ReflowBlock(const LogicalRect&  aSpace,
   mFrame = aFrameRS.frame;
   mWritingMode = aState.mReflowState.GetWritingMode();
   mContainerWidth = aState.mContainerWidth;
-  mSpace = aSpace;
+  mSpace = LogicalRect(mWritingMode, aSpace, mContainerWidth);
 
   if (!aIsAdjacentWithBStart) {
     aFrameRS.mFlags.mIsTopOfPage = false;  // make sure this is cleared
@@ -252,7 +250,7 @@ nsBlockReflowContext::ReflowBlock(const LogicalRect&  aSpace,
     }
   }
 
-  LogicalPoint tPt(mWritingMode);
+  nscoord tI = 0, tB = 0;
   // The values of x and y do not matter for floats, so don't bother
   // calculating them. Floats are guaranteed to have their own float
   // manager, so tI and tB don't matter.  mICoord and mBCoord don't
@@ -264,12 +262,16 @@ nsBlockReflowContext::ReflowBlock(const LogicalRect&  aSpace,
     // reflow auto inline-start/end margins will have a zero value.
 
     WritingMode frameWM = aFrameRS.GetWritingMode();
-    mICoord = tPt.I(mWritingMode) =
+    mICoord = tI =
       mSpace.IStart(mWritingMode) +
       aFrameRS.ComputedLogicalMargin().ConvertTo(mWritingMode,
                                                  frameWM).IStart(mWritingMode);
-    mBCoord = tPt.B(mWritingMode) = mSpace.BStart(mWritingMode) +
-                                    mBStartMargin.get() + aClearance;
+    mBCoord = tB = mSpace.BStart(mWritingMode) +
+                   mBStartMargin.get() + aClearance;
+
+    //XXX temporary until nsFloatManager is logicalized
+    tI = aSpace.x + aFrameRS.ComputedPhysicalMargin().left;
+    tB = aSpace.y + mBStartMargin.get() + aClearance;
 
     if ((mFrame->GetStateBits() & NS_BLOCK_FLOAT_MGR) == 0)
       aFrameRS.mBlockDelta =
@@ -284,11 +286,9 @@ nsBlockReflowContext::ReflowBlock(const LogicalRect&  aSpace,
   mMetrics.BSize(mWritingMode) = nscoord(0xdeadbeef);
 #endif
 
-  WritingMode oldWM =
-    mOuterReflowState.mFloatManager->Translate(mWritingMode, tPt,
-                                               mContainerWidth);
+  mOuterReflowState.mFloatManager->Translate(tI, tB);
   mFrame->Reflow(mPresContext, mMetrics, aFrameRS, aFrameReflowStatus);
-  mOuterReflowState.mFloatManager->Untranslate(oldWM, tPt, mContainerWidth);
+  mOuterReflowState.mFloatManager->Translate(-tI, -tB);
 
 #ifdef DEBUG
   if (!NS_INLINE_IS_BREAK_BEFORE(aFrameReflowStatus)) {
@@ -351,7 +351,7 @@ nsBlockReflowContext::PlaceBlock(const nsHTMLReflowState&  aReflowState,
   WritingMode wm = aReflowState.GetWritingMode();
   WritingMode parentWM = mMetrics.GetWritingMode();
   if (NS_FRAME_IS_COMPLETE(aReflowStatus)) {
-    aBEndMarginResult = mMetrics.mCarriedOutBEndMargin;
+    aBEndMarginResult = mMetrics.mCarriedOutBottomMargin;
     aBEndMarginResult.Include(aReflowState.ComputedLogicalMargin().BEnd(wm));
   } else {
     // The used bottom-margin is set to zero above a break.

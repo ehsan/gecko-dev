@@ -460,8 +460,6 @@ TimerThread::AddTimerInternal(nsTimerImpl* aTimer)
   NS_ADDREF(aTimer);
 
 #ifdef MOZ_TASK_TRACER
-  // Create a FakeTracedTask, and dispatch it here. This is the start point of
-  // the latency.
   aTimer->DispatchTracedTask();
 #endif
 

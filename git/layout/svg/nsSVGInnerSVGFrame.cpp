@@ -11,7 +11,9 @@
 #include "gfxContext.h"
 #include "nsIFrame.h"
 #include "nsISVGChildFrame.h"
+#include "nsRenderingContext.h"
 #include "nsSVGContainerFrame.h"
+#include "nsSVGEffects.h"
 #include "nsSVGIntegrationUtils.h"
 #include "mozilla/dom/SVGSVGElement.h"
 
@@ -58,7 +60,7 @@ nsSVGInnerSVGFrame::GetType() const
 // nsISVGChildFrame methods
 
 nsresult
-nsSVGInnerSVGFrame::PaintSVG(gfxContext& aContext,
+nsSVGInnerSVGFrame::PaintSVG(nsRenderingContext *aContext,
                              const gfxMatrix& aTransform,
                              const nsIntRect *aDirtyRect)
 {
@@ -78,10 +80,11 @@ nsSVGInnerSVGFrame::PaintSVG(gfxContext& aContext,
       return NS_OK;
     }
 
-    autoSR.SetContext(&aContext);
+    gfxContext *gfx = aContext->ThebesContext();
+    autoSR.SetContext(gfx);
     gfxRect clipRect =
       nsSVGUtils::GetClipRectForFrame(this, x, y, width, height);
-    nsSVGUtils::SetClipRect(&aContext, aTransform, clipRect);
+    nsSVGUtils::SetClipRect(gfx, aTransform, clipRect);
   }
 
   return nsSVGInnerSVGFrameBase::PaintSVG(aContext, aTransform, aDirtyRect);
@@ -196,9 +199,7 @@ nsSVGInnerSVGFrame::AttributeChanged(int32_t  aNameSpaceID,
 
     if (aAttribute == nsGkAtoms::width ||
         aAttribute == nsGkAtoms::height) {
-      nsLayoutUtils::PostRestyleEvent(
-        mContent->AsElement(), nsRestyleHint(0),
-        nsChangeHint_InvalidateRenderingObservers);
+      nsSVGEffects::InvalidateRenderingObservers(this);
       nsSVGUtils::ScheduleReflowSVG(this);
 
       if (content->HasViewBoxOrSyntheticViewBox()) {
@@ -233,9 +234,7 @@ nsSVGInnerSVGFrame::AttributeChanged(int32_t  aNameSpaceID,
       // and cause DoApplyRenderingChangeToTree to make the SchedulePaint call.
 
       if (aAttribute == nsGkAtoms::x || aAttribute == nsGkAtoms::y) {
-        nsLayoutUtils::PostRestyleEvent(
-          mContent->AsElement(), nsRestyleHint(0),
-          nsChangeHint_InvalidateRenderingObservers);
+        nsSVGEffects::InvalidateRenderingObservers(this);
         nsSVGUtils::ScheduleReflowSVG(this);
       } else if (aAttribute == nsGkAtoms::viewBox ||
                  (aAttribute == nsGkAtoms::preserveAspectRatio &&

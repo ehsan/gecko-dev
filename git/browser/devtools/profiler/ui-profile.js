@@ -20,7 +20,6 @@ let ProfileView = {
     this._tabTemplate = $("#profile-content-tab-template");
     this._panelTemplate = $("#profile-content-tabpanel-template");
     this._newtabButton = $("#profile-newtab-button");
-    this._invertTree = $("#invert-tree");
 
     this._recordingInfoByPanel = new WeakMap();
     this._framerateGraphByPanel = new Map();
@@ -29,7 +28,6 @@ let ProfileView = {
 
     this._onTabSelect = this._onTabSelect.bind(this);
     this._onNewTabClick = this._onNewTabClick.bind(this);
-    this._onInvertTree = this._onInvertTree.bind(this);
     this._onGraphLegendSelection = this._onGraphLegendSelection.bind(this);
     this._onGraphMouseUp = this._onGraphMouseUp.bind(this);
     this._onGraphScroll = this._onGraphScroll.bind(this);
@@ -39,7 +37,6 @@ let ProfileView = {
 
     this._panels.addEventListener("select", this._onTabSelect, false);
     this._newtabButton.addEventListener("click", this._onNewTabClick, false);
-    this._invertTree.addEventListener("command", this._onInvertTree, false);
   },
 
   /**
@@ -50,7 +47,6 @@ let ProfileView = {
 
     this._panels.removeEventListener("select", this._onTabSelect, false);
     this._newtabButton.removeEventListener("click", this._onNewTabClick, false);
-    this._invertTree.removeEventListener("command", this._onInvertTree, false);
   },
 
   /**
@@ -305,7 +301,7 @@ let ProfileView = {
    *        Additional options supported by this operation.
    *        @see ProfileView._populatePanelWidgets
    */
-  _rebuildTreeFromSelection: function(options) {
+  _zoomTreeFromSelection: function(options) {
     let { recordingData, displayRange } = this._getRecordingInfo();
     let categoriesGraph = this._getCategoriesGraph();
     let selectedPanel = this._getPanel();
@@ -459,16 +455,10 @@ let ProfileView = {
    *        Additional options supported by this operation.
    *        @see ProfileView._populatePanelWidgets
    */
-  _populateCallTree: function(panel, profilerData, beginAt, endAt, options = {}) {
+  _populateCallTree: function(panel, profilerData, beginAt, endAt, options) {
     let threadSamples = profilerData.profile.threads[0].samples;
     let contentOnly = !Prefs.showPlatformData;
-    let invertChecked = this._invertTree.hasAttribute("checked");
-    let threadNode = new ThreadNode(threadSamples, contentOnly, beginAt, endAt,
-                                    invertChecked);
-    // If we have an empty profile (no samples), then don't invert the tree, as
-    // it would hide the root node and a completely blank call tree space can be
-    // mis-interpreted as an error.
-    options.inverted = invertChecked && threadNode.samples > 0;
+    let threadNode = new ThreadNode(threadSamples, contentOnly, beginAt, endAt);
     this._populateCallTreeFromFrameNode(panel, threadNode, options);
   },
 
@@ -490,12 +480,7 @@ let ProfileView = {
       oldRoot.remove();
     }
 
-    let callTreeRoot = new CallView({
-      autoExpandDepth: options.inverted ? 0 : undefined,
-      frame: frameNode,
-      hidden: options.inverted,
-      inverted: options.inverted
-    });
+    let callTreeRoot = new CallView({ frame: frameNode });
     callTreeRoot.on("focus", this._onCallViewFocus);
     callTreeRoot.on("link", this._onCallViewLink);
     callTreeRoot.on("zoom", this._onCallViewZoom);
@@ -559,22 +544,18 @@ let ProfileView = {
     this._spawnTabFromSelection();
   },
 
-  _onInvertTree: function() {
-    this._rebuildTreeFromSelection();
-  },
-
   /**
    * Listener handling the "legend-selection" event for the graphs in this container.
    */
   _onGraphLegendSelection: function() {
-    this._rebuildTreeFromSelection({ skipCallTreeFocus: true });
+    this._zoomTreeFromSelection({ skipCallTreeFocus: true });
   },
 
   /**
    * Listener handling the "mouseup" event for the graphs in this container.
    */
   _onGraphMouseUp: function() {
-    this._rebuildTreeFromSelection();
+    this._zoomTreeFromSelection();
   },
 
   /**
@@ -582,7 +563,7 @@ let ProfileView = {
    */
   _onGraphScroll: function() {
     setNamedTimeout("graph-scroll", GRAPH_SCROLL_EVENTS_DRAIN, () => {
-      this._rebuildTreeFromSelection();
+      this._zoomTreeFromSelection();
     });
   },
 

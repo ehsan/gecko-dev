@@ -35,19 +35,11 @@ function getTestPlugin(pluginName) {
 // it will automatically be reset to it's previous value after the test
 // ends
 function setTestPluginEnabledState(newEnabledState, pluginName) {
-  var oldEnabledState = SpecialPowers.setTestPluginEnabledState(newEnabledState, pluginName);
-  if (!oldEnabledState) {
-    ok(false, "Cannot find plugin '" + plugin + "'");
-    return;
-  }
   var plugin = getTestPlugin(pluginName);
-  while (plugin.enabledState != newEnabledState) {
-    // Run a nested event loop to wait for the preference change to
-    // propagate to the child. Yuck!
-    SpecialPowers.Services.tm.currentThread.processNextEvent(true);
-  }
+  var oldEnabledState = plugin.enabledState;
+  plugin.enabledState = newEnabledState;
   SimpleTest.registerCleanupFunction(function() {
-    SpecialPowers.setTestPluginEnabledState(oldEnabledState, pluginName);
+    getTestPlugin(pluginName).enabledState = oldEnabledState;
   });
 }
 

@@ -11,6 +11,7 @@
 #include "nsEditor.h"
 #include "nsError.h"
 #include "nsIEditor.h"
+#include "nsISelection.h"
 #include "nsISupportsImpl.h"
 #include "nsSelectionState.h"
 #include "nsAString.h"

@@ -31,8 +31,6 @@
 #include "nss.h"
 #include "pk11pub.h"
 #include "pkix/pkixnss.h"
-#include "pkixder.h"
-#include "prinit.h"
 #include "secerr.h"
 #include "secitem.h"
 
@@ -53,24 +51,13 @@ SECITEM_FreeItem_true(SECItem* item)
 
 typedef mozilla::pkix::ScopedPtr<SECItem, SECITEM_FreeItem_true> ScopedSECItem;
 
-TestKeyPair* GenerateKeyPairInner();
-
-void
+Result
 InitNSSIfNeeded()
 {
   if (NSS_NoDB_Init(nullptr) != SECSuccess) {
-    abort();
+    return MapPRErrorCodeToResult(PR_GetError());
   }
-}
-
-static ScopedTestKeyPair reusedKeyPair;
-
-PRStatus
-InitReusedKeyPair()
-{
-  InitNSSIfNeeded();
-  reusedKeyPair = GenerateKeyPairInner();
-  return reusedKeyPair ? PR_SUCCESS : PR_FAILURE;
+  return Success;
 }
 
 class NSSTestKeyPair : public TestKeyPair
@@ -86,32 +73,16 @@ public:
   }
 
   virtual Result SignData(const ByteString& tbs,
-                          const ByteString& signatureAlgorithm,
+                          SignatureAlgorithm signatureAlgorithm,
                           /*out*/ ByteString& signature) const
   {
-    // signatureAlgorithm is of the form SEQUENCE { OID { <OID bytes> } },
-    // whereas SECOID_GetAlgorithmTag wants just the OID bytes, so we have to
-    // unwrap it here. As long as signatureAlgorithm is short enough, we don't
-    // have to do full DER decoding here.
-    // Also, this is just for testing purposes - there shouldn't be any
-    // untrusted input given to this function. If we make a mistake, we only
-    // have ourselves to blame.
-    if (signatureAlgorithm.length() > 127 ||
-        signatureAlgorithm.length() < 4 ||
-        signatureAlgorithm.data()[0] != der::SEQUENCE ||
-        signatureAlgorithm.data()[2] != der::OIDTag) {
-      return Result::FATAL_ERROR_INVALID_ARGS;
-    }
-    SECAlgorithmID signatureAlgorithmID;
-    signatureAlgorithmID.algorithm.data =
-      const_cast<unsigned char*>(signatureAlgorithm.data() + 4);
-    signatureAlgorithmID.algorithm.len = signatureAlgorithm.length() - 4;
-    signatureAlgorithmID.parameters.data = nullptr;
-    signatureAlgorithmID.parameters.len = 0;
-    SECOidTag signatureAlgorithmOidTag =
-      SECOID_GetAlgorithmTag(&signatureAlgorithmID);
-    if (signatureAlgorithmOidTag == SEC_OID_UNKNOWN) {
-      return Result::FATAL_ERROR_INVALID_ARGS;
+    SECOidTag signatureAlgorithmOidTag;
+    switch (signatureAlgorithm) {
+      case SignatureAlgorithm::rsa_pkcs1_with_sha256:
+        signatureAlgorithmOidTag = SEC_OID_PKCS1_SHA256_WITH_RSA_ENCRYPTION;
+        break;
+      default:
+        return Result::FATAL_ERROR_INVALID_ARGS;
     }
 
     SECItem signatureItem;
@@ -154,14 +125,16 @@ TestKeyPair* CreateTestKeyPair(const ByteString& spki,
   return new (std::nothrow) NSSTestKeyPair(spki, spk, privateKey);
 }
 
-namespace {
-
 TestKeyPair*
-GenerateKeyPairInner()
+GenerateKeyPair()
 {
+  if (InitNSSIfNeeded() != Success) {
+    return nullptr;
+  }
+
   ScopedPtr<PK11SlotInfo, PK11_FreeSlot> slot(PK11_GetInternalSlot());
   if (!slot) {
-    abort();
+    return nullptr;
   }
 
   // Bug 1012786: PK11_GenerateKeyPair can fail if there is insufficient
@@ -181,12 +154,12 @@ GenerateKeyPairInner()
       ScopedSECItem
         spkiDER(SECKEY_EncodeDERSubjectPublicKeyInfo(publicKey.get()));
       if (!spkiDER) {
-        break;
+        return nullptr;
       }
       ScopedPtr<CERTSubjectPublicKeyInfo, SECKEY_DestroySubjectPublicKeyInfo>
         spki(SECKEY_CreateSubjectPublicKeyInfo(publicKey.get()));
       if (!spki) {
-        break;
+        return nullptr;
       }
       SECItem spkDER = spki->subjectPublicKey;
       DER_ConvertBitString(&spkDER); // bits to bytes
@@ -211,46 +184,21 @@ GenerateKeyPairInner()
     }
   }
 
-  abort();
-#if defined(_MSC_VER) && (_MSC_VER < 1700)
-  // Older versions of MSVC don't know that abort() never returns, so silence
-  // its warning by adding a redundant and never-reached return. But, only do
-  // it for that ancient compiler, because some other compilers will rightly
-  // warn that the return statement is unreachable.
   return nullptr;
-#endif
-}
-
-} // unnamed namespace
-
-TestKeyPair*
-GenerateKeyPair()
-{
-  InitNSSIfNeeded();
-  return GenerateKeyPairInner();
-}
-
-TestKeyPair*
-CloneReusedKeyPair()
-{
-  static PRCallOnceType initCallOnce;
-  if (PR_CallOnce(&initCallOnce, InitReusedKeyPair) != PR_SUCCESS) {
-    abort();
-  }
-  assert(reusedKeyPair);
-  return reusedKeyPair->Clone();
 }
 
 ByteString
 SHA1(const ByteString& toHash)
 {
-  InitNSSIfNeeded();
+  if (InitNSSIfNeeded() != Success) {
+    return ENCODING_FAILED;
+  }
 
   uint8_t digestBuf[SHA1_LENGTH];
   SECStatus srv = PK11_HashBuf(SEC_OID_SHA1, digestBuf, toHash.data(),
                                static_cast<int32_t>(toHash.length()));
   if (srv != SECSuccess) {
-    return ByteString();
+    return ENCODING_FAILED;
   }
   return ByteString(digestBuf, sizeof(digestBuf));
 }
@@ -258,23 +206,31 @@ SHA1(const ByteString& toHash)
 Result
 TestCheckPublicKey(Input subjectPublicKeyInfo)
 {
-  InitNSSIfNeeded();
-  return CheckPublicKey(subjectPublicKeyInfo, MINIMUM_TEST_KEY_BITS);
+  Result rv = InitNSSIfNeeded();
+  if (rv != Success) {
+    return rv;
+  }
+  return CheckPublicKey(subjectPublicKeyInfo);
 }
 
 Result
 TestVerifySignedData(const SignedDataWithSignature& signedData,
                      Input subjectPublicKeyInfo)
 {
-  InitNSSIfNeeded();
-  return VerifySignedData(signedData, subjectPublicKeyInfo,
-                          MINIMUM_TEST_KEY_BITS, nullptr);
+  Result rv = InitNSSIfNeeded();
+  if (rv != Success) {
+    return rv;
+  }
+  return VerifySignedData(signedData, subjectPublicKeyInfo, nullptr);
 }
 
 Result
 TestDigestBuf(Input item, /*out*/ uint8_t* digestBuf, size_t digestBufLen)
 {
-  InitNSSIfNeeded();
+  Result rv = InitNSSIfNeeded();
+  if (rv != Success) {
+    return rv;
+  }
   return DigestBuf(item, digestBuf, digestBufLen);
 }
 

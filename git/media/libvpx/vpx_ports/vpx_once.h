@@ -7,9 +7,8 @@
  *  in the file PATENTS.  All contributing project authors may
  *  be found in the AUTHORS file in the root of the source tree.
  */
-
-#ifndef VPX_PORTS_VPX_ONCE_H_
-#define VPX_PORTS_VPX_ONCE_H_
+#ifndef VPX_ONCE_H
+#define VPX_ONCE_H
 
 #include "vpx_config.h"
 
@@ -73,33 +72,6 @@ static void once(void (*func)(void))
 }
 
 
-#elif CONFIG_MULTITHREAD && defined(__OS2__)
-#define INCL_DOS
-#include <os2.h>
-static void once(void (*func)(void))
-{
-    static int done;
-
-    /* If the initialization is complete, return early. */
-    if(done)
-        return;
-
-    /* Causes all other threads in the process to block themselves
-     * and give up their time slice.
-     */
-    DosEnterCritSec();
-
-    if (!done)
-    {
-        func();
-        done = 1;
-    }
-
-    /* Restores normal thread dispatching for the current process. */
-    DosExitCritSec();
-}
-
-
 #elif CONFIG_MULTITHREAD && HAVE_PTHREAD_H
 #include <pthread.h>
 static void once(void (*func)(void))
@@ -127,4 +99,4 @@ static void once(void (*func)(void))
 }
 #endif
 
-#endif  // VPX_PORTS_VPX_ONCE_H_
+#endif

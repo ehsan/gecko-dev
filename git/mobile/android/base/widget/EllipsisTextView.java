@@ -18,7 +18,7 @@ import android.widget.TextView;
 public class EllipsisTextView extends TextView {
     private final String ellipsis;
 
-    private final int maxLines;
+    private int maxLines;
     private CharSequence originalText;
 
     public EllipsisTextView(Context context) {

@@ -120,12 +120,6 @@ TestTabActor.prototype = {
     return { type: "detached" };
   },
 
-  onReload: function(aRequest) {
-    this.threadActor.clearDebuggees();
-    this.threadActor.dbg.addDebuggees();
-    return {};
-  },
-
   /* Support for DebuggerServer.addTabActor. */
   _createExtraActors: createExtraActors,
   _appendExtraActors: appendExtraActors
@@ -133,8 +127,7 @@ TestTabActor.prototype = {
 
 TestTabActor.prototype.requestTypes = {
   "attach": TestTabActor.prototype.onAttach,
-  "detach": TestTabActor.prototype.onDetach,
-  "reload": TestTabActor.prototype.onReload
+  "detach": TestTabActor.prototype.onDetach
 };
 
 exports.register = function(handle) {

@@ -319,7 +319,7 @@ public:
 
   void Composite();
 
-  virtual void SendPendingAsyncMessges();
+  void SendPendingAsyncMessge();
 
   /**
    * True if this is forwarding to a LayerManagerComposite.
@@ -403,7 +403,6 @@ protected:
 private:
 
   Transaction* mTxn;
-  std::vector<AsyncChildMessageData> mPendingAsyncMessages;
   DiagnosticTypes mDiagnosticTypes;
   bool mIsFirstPaint;
   bool mWindowOverlayChanged;

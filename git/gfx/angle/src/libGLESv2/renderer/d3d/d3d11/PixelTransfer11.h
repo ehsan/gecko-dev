@@ -11,8 +11,6 @@
 #ifndef LIBGLESV2_PIXELTRANSFER11_H_
 #define LIBGLESV2_PIXELTRANSFER11_H_
 
-#include "libGLESv2/Error.h"
-
 #include "common/platform.h"
 
 #include <GLES2/gl2.h>
@@ -40,13 +38,15 @@ class PixelTransfer11
     explicit PixelTransfer11(Renderer11 *renderer);
     ~PixelTransfer11();
 
+    static bool supportsBufferToTextureCopy(GLenum internalFormat);
+
     // unpack: the source buffer is stored in the unpack state, and buffer strides
     // offset: the start of the data within the unpack buffer
     // destRenderTarget: individual slice/layer of a target texture
     // destinationFormat/sourcePixelsType: determines shaders + shader parameters
     // destArea: the sub-section of destRenderTarget to copy to
-    gl::Error copyBufferToTexture(const gl::PixelUnpackState &unpack, unsigned int offset, RenderTarget *destRenderTarget,
-                                  GLenum destinationFormat, GLenum sourcePixelsType, const gl::Box &destArea);
+    bool copyBufferToTexture(const gl::PixelUnpackState &unpack, unsigned int offset, RenderTarget *destRenderTarget,
+                             GLenum destinationFormat, GLenum sourcePixelsType, const gl::Box &destArea);
 
   private:
 
@@ -65,13 +65,11 @@ class PixelTransfer11
     static void setBufferToTextureCopyParams(const gl::Box &destArea, const gl::Extents &destSize, GLenum internalFormat,
                                              const gl::PixelUnpackState &unpack, unsigned int offset, CopyShaderParams *parametersOut);
 
-    gl::Error loadResources();
-    gl::Error buildShaderMap();
+    void buildShaderMap();
     ID3D11PixelShader *findBufferToTexturePS(GLenum internalFormat) const;
 
     Renderer11 *mRenderer;
 
-    bool mResourcesLoaded;
     std::map<GLenum, ID3D11PixelShader *> mBufferToTexturePSMap;
     ID3D11VertexShader *mBufferToTextureVS;
     ID3D11GeometryShader *mBufferToTextureGS;

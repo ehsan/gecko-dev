@@ -5,6 +5,7 @@
 
 #include "ImageBridgeChild.h"
 #include <vector>                       // for vector
+#include "CompositorParent.h"           // for CompositorParent
 #include "ImageBridgeParent.h"          // for ImageBridgeParent
 #include "ImageContainer.h"             // for ImageContainer
 #include "Layers.h"                     // for Layer, etc
@@ -23,7 +24,6 @@
 #include "mozilla/ipc/Transport.h"      // for Transport
 #include "mozilla/gfx/Point.h"          // for IntSize
 #include "mozilla/layers/CompositableClient.h"  // for CompositableChild, etc
-#include "mozilla/layers/CompositorParent.h" // for CompositorParent
 #include "mozilla/layers/ISurfaceAllocator.h"  // for ISurfaceAllocator
 #include "mozilla/layers/ImageClient.h"  // for ImageClient
 #include "mozilla/layers/LayersMessages.h"  // for CompositableOperation
@@ -114,13 +114,6 @@ ImageBridgeChild::UseTexture(CompositableClient* aCompositable,
   MOZ_ASSERT(aTexture);
   MOZ_ASSERT(aCompositable->GetIPDLActor());
   MOZ_ASSERT(aTexture->GetIPDLActor());
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
-  FenceHandle handle = aTexture->GetAcquireFenceHandle();
-  if (handle.IsValid()) {
-    RefPtr<FenceDeliveryTracker> tracker = new FenceDeliveryTracker(handle);
-    SendFenceHandle(tracker, aTexture->GetIPDLActor(), handle);
-  }
-#endif
   mTxn->AddNoSwapEdit(OpUseTexture(nullptr, aCompositable->GetIPDLActor(),
                                    nullptr, aTexture->GetIPDLActor()));
 }
@@ -562,7 +555,7 @@ ImageBridgeChild::EndTransaction()
       NS_RUNTIMEABORT("not reached");
     }
   }
-  SendPendingAsyncMessges();
+  SendPendingAsyncMessge();
 }
 
 
@@ -971,7 +964,7 @@ bool ImageBridgeChild::IsSameProcess() const
   return OtherProcess() == ipc::kInvalidProcessHandle;
 }
 
-void ImageBridgeChild::SendPendingAsyncMessges()
+void ImageBridgeChild::SendPendingAsyncMessge()
 {
   if (!IsCreated() ||
       mTransactionsToRespond.empty()) {

@@ -7,14 +7,15 @@ module.metadata = {
   "stability": "unstable"
 };
 
-const { Ci } = require("chrome");
+const { Ci, Cu } = require("chrome");
 const events = require("../system/events");
 const core = require("./core");
-const { loadSheet, removeSheet } = require("../stylesheet/utils");
 
 const assetsURI = require('../self').data.url();
+const { Services } = Cu.import("resource://gre/modules/Services.jsm");
 
-const hideSheetUri = "data:text/css,:root {visibility: hidden !important;}";
+const hideContentStyle = "data:text/css,:root {visibility: hidden !important;}";
+const hideSheetUri = Services.io.newURI(hideContentStyle, null, null);
 
 // Taken from Gaia:
 // https://github.com/andreasgal/gaia/blob/04fde2640a7f40314643016a5a6c98bf3755f5fd/webapi.js#L1470
@@ -45,8 +46,11 @@ function onDocumentReady2Translate(event) {
 
   try {
     // Finally display document when we finished replacing all text content
-    if (document.defaultView)
-      removeSheet(document.defaultView, hideSheetUri, 'user');
+    if (document.defaultView) {
+      let winUtils = document.defaultView.QueryInterface(Ci.nsIInterfaceRequestor)
+                                         .getInterface(Ci.nsIDOMWindowUtils);
+      winUtils.removeSheet(hideSheetUri, winUtils.USER_SHEET);
+    }
   }
   catch(e) {
     console.exception(e);
@@ -72,7 +76,9 @@ function onContentWindow(event) {
   try {
     // First hide content of the document in order to have content blinking
     // between untranslated and translated states
-    loadSheet(document.defaultView, hideSheetUri, 'user');
+    let winUtils = document.defaultView.QueryInterface(Ci.nsIInterfaceRequestor)
+                                       .getInterface(Ci.nsIDOMWindowUtils);
+    winUtils.loadSheet(hideSheetUri, winUtils.USER_SHEET);
   }
   catch(e) {
     console.exception(e);

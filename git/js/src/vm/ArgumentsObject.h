@@ -9,8 +9,9 @@
 
 #include "mozilla/MemoryReporting.h"
 
+#include "jsobj.h"
+
 #include "gc/Barrier.h"
-#include "vm/NativeObject.h"
 
 namespace js {
 
@@ -107,7 +108,7 @@ static const unsigned ARGS_LENGTH_MAX = 500 * 1000;
  *   DATA_SLOT
  *     Stores an ArgumentsData*, described above.
  */
-class ArgumentsObject : public NativeObject
+class ArgumentsObject : public JSObject
 {
   protected:
     static const uint32_t INITIAL_LENGTH_SLOT = 0;
@@ -151,7 +152,7 @@ class ArgumentsObject : public NativeObject
      */
     uint32_t initialLength() const {
         uint32_t argc = uint32_t(getFixedSlot(INITIAL_LENGTH_SLOT).toInt32()) >> PACKED_BITS_COUNT;
-        MOZ_ASSERT(argc <= ARGS_LENGTH_MAX);
+        JS_ASSERT(argc <= ARGS_LENGTH_MAX);
         return argc;
     }
 
@@ -186,7 +187,7 @@ class ArgumentsObject : public NativeObject
      * ArgumentsData::slots.
      */
     bool isElementDeleted(uint32_t i) const {
-        MOZ_ASSERT(i < data()->numArgs);
+        JS_ASSERT(i < data()->numArgs);
         if (i >= initialLength())
             return false;
         return IsBitArrayElementSet(data()->deletedBits, initialLength(), i);
@@ -220,16 +221,16 @@ class ArgumentsObject : public NativeObject
     inline void setElement(JSContext *cx, uint32_t i, const Value &v);
 
     const Value &arg(unsigned i) const {
-        MOZ_ASSERT(i < data()->numArgs);
+        JS_ASSERT(i < data()->numArgs);
         const Value &v = data()->args[i];
-        MOZ_ASSERT(!v.isMagic());
+        JS_ASSERT(!v.isMagic());
         return v;
     }
 
     void setArg(unsigned i, const Value &v) {
-        MOZ_ASSERT(i < data()->numArgs);
+        JS_ASSERT(i < data()->numArgs);
         HeapValue &lhs = data()->args[i];
-        MOZ_ASSERT(!lhs.isMagic());
+        JS_ASSERT(!lhs.isMagic());
         lhs = v;
     }
 
@@ -270,29 +271,9 @@ class ArgumentsObject : public NativeObject
         return getFixedSlotOffset(INITIAL_LENGTH_SLOT);
     }
 
-    static Value MagicScopeSlotValue(uint32_t slot) {
-        // When forwarding slots to a backing CallObject, the slot numbers are
-        // stored as uint32 magic values. This raises an ambiguity if we have
-        // also copied JS_OPTIMIZED_OUT magic from a JIT frame or
-        // JS_UNINITIALIZED_LEXICAL magic on the CallObject. To distinguish
-        // normal magic values (those with a JSWhyMagic) and uint32 magic
-        // values, we add the maximum JSWhyMagic value to the slot
-        // number. This is safe as ARGS_LENGTH_MAX is well below UINT32_MAX.
-        JS_STATIC_ASSERT(UINT32_MAX - JS_WHY_MAGIC_COUNT > ARGS_LENGTH_MAX);
-        return JS::MagicValueUint32(slot + JS_WHY_MAGIC_COUNT);
-    }
-    static uint32_t SlotFromMagicScopeSlotValue(const Value &v) {
-        JS_STATIC_ASSERT(UINT32_MAX - JS_WHY_MAGIC_COUNT > ARGS_LENGTH_MAX);
-        return v.magicUint32() - JS_WHY_MAGIC_COUNT;
-    }
-    static bool IsMagicScopeSlotValue(const Value &v) {
-        return v.isMagic() && v.magicUint32() > JS_WHY_MAGIC_COUNT;
-    }
-
-    static void MaybeForwardToCallObject(AbstractFramePtr frame, ArgumentsObject *obj,
-                                         ArgumentsData *data);
+    static void MaybeForwardToCallObject(AbstractFramePtr frame, JSObject *obj, ArgumentsData *data);
     static void MaybeForwardToCallObject(jit::IonJSFrameLayout *frame, HandleObject callObj,
-                                         ArgumentsObject *obj, ArgumentsData *data);
+                                         JSObject *obj, ArgumentsData *data);
 };
 
 class NormalArgumentsObject : public ArgumentsObject

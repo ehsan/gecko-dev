@@ -6,16 +6,10 @@
 // YY need to pass isMultiple before create called
 
 #include "nsBoxFrame.h"
-
-#include "mozilla/gfx/2D.h"
 #include "nsCSSRendering.h"
-#include "nsLayoutUtils.h"
 #include "nsRenderingContext.h"
 #include "nsStyleContext.h"
 #include "nsDisplayList.h"
-
-using namespace mozilla;
-using namespace mozilla::gfx;
 
 class nsGroupBoxFrame : public nsBoxFrame {
 public:
@@ -129,10 +123,6 @@ nsGroupBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 void
 nsGroupBoxFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     nsPoint aPt, const nsRect& aDirtyRect) {
-
-  DrawTarget* drawTarget = aRenderingContext.GetDrawTarget();
-  gfxContext* gfx = aRenderingContext.ThebesContext();
-
   Sides skipSides;
   const nsStyleBorder* borderStyleData = StyleBorder();
   const nsMargin& border = borderStyleData->GetComputedBorder();
@@ -162,7 +152,6 @@ nsGroupBoxFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
                                   nsCSSRendering::PAINTBG_SYNC_DECODE_IMAGES);
 
   if (groupBox) {
-    int32_t appUnitsPerDevPixel = PresContext()->AppUnitsPerDevPixel();
 
     // we should probably use PaintBorderEdges to do this but for now just use clipping
     // to achieve the same effect.
@@ -172,11 +161,13 @@ nsGroupBoxFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     clipRect.width = groupRect.x - rect.x;
     clipRect.height = border.top;
 
-    gfx->Save();
-    gfx->Clip(NSRectToSnappedRect(clipRect, appUnitsPerDevPixel, *drawTarget));
+    aRenderingContext.ThebesContext()->Save();
+    aRenderingContext.IntersectClip(clipRect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
                                 aDirtyRect, rect, mStyleContext, skipSides);
-    gfx->Restore();
+
+    aRenderingContext.ThebesContext()->Restore();
+
 
     // draw right side
     clipRect = rect;
@@ -184,11 +175,14 @@ nsGroupBoxFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     clipRect.width = rect.XMost() - groupRect.XMost();
     clipRect.height = border.top;
 
-    gfx->Save();
-    gfx->Clip(NSRectToSnappedRect(clipRect, appUnitsPerDevPixel, *drawTarget));
+    aRenderingContext.ThebesContext()->Save();
+    aRenderingContext.IntersectClip(clipRect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
                                 aDirtyRect, rect, mStyleContext, skipSides);
-    gfx->Restore();
+
+    aRenderingContext.ThebesContext()->Restore();
+
+    
   
     // draw bottom
 
@@ -196,11 +190,12 @@ nsGroupBoxFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
     clipRect.y += border.top;
     clipRect.height = mRect.height - (yoff + border.top);
   
-    gfx->Save();
-    gfx->Clip(NSRectToSnappedRect(clipRect, appUnitsPerDevPixel, *drawTarget));
+    aRenderingContext.ThebesContext()->Save();
+    aRenderingContext.IntersectClip(clipRect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
                                 aDirtyRect, rect, mStyleContext, skipSides);
-    gfx->Restore();
+
+    aRenderingContext.ThebesContext()->Restore();
     
   } else {
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,

@@ -34,7 +34,6 @@
 #include "mozilla/gfx/BasePoint.h"      // for BasePoint
 #include "mozilla/gfx/BaseRect.h"       // for BaseRect
 #include "mozilla/gfx/Matrix.h"         // for Matrix
-#include "mozilla/gfx/PathHelpers.h"
 #include "mozilla/gfx/Rect.h"           // for IntRect, Rect
 #include "mozilla/layers/LayersTypes.h"  // for BufferMode::BUFFER_NONE, etc
 #include "mozilla/mozalloc.h"           // for operator new
@@ -485,25 +484,21 @@ BasicLayerManager::EndTransactionInternal(DrawPaintedLayerCallback aCallback,
   mTransactionIncomplete = false;
 
   if (mRoot) {
-    if (aFlags & END_NO_COMPOSITE) {
-      // Apply pending tree updates before recomputing effective
-      // properties.
-      mRoot->ApplyPendingUpdatesToSubtree();
-    }
-
     // Need to do this before we call ApplyDoubleBuffering,
     // which depends on correct effective transforms
-    if (mTarget) {
-      mSnapEffectiveTransforms =
-        !mTarget->GetDrawTarget()->GetUserData(&sDisablePixelSnapping);
-    } else {
-      mSnapEffectiveTransforms = true;
-    }
+    mSnapEffectiveTransforms =
+      mTarget ? !(mTarget->GetFlags() & gfxContext::FLAG_DISABLE_SNAPPING) : true;
     mRoot->ComputeEffectiveTransforms(mTarget ? Matrix4x4::From2D(ToMatrix(mTarget->CurrentMatrix())) : Matrix4x4());
 
     ToData(mRoot)->Validate(aCallback, aCallbackData, nullptr);
     if (mRoot->GetMaskLayer()) {
       ToData(mRoot->GetMaskLayer())->Validate(aCallback, aCallbackData, nullptr);
+    }
+
+    if (aFlags & END_NO_COMPOSITE) {
+      // Apply pending tree updates before recomputing effective
+      // properties.
+      mRoot->ApplyPendingUpdatesToSubtree();
     }
   }
 
@@ -800,16 +795,18 @@ BasicLayerManager::PaintLayer(gfxContext* aTarget,
   RenderTraceScope trace("BasicLayerManager::PaintLayer", "707070");
 
   const nsIntRect* clipRect = aLayer->GetEffectiveClipRect();
-  BasicContainerLayer* container =
-    static_cast<BasicContainerLayer*>(aLayer->AsContainerLayer());
-  bool needsGroup = container && container->UseIntermediateSurface();
+  // aLayer might not be a container layer, but if so we take care not to use
+  // the container variable
+  BasicContainerLayer* container = static_cast<BasicContainerLayer*>(aLayer);
+  bool needsGroup = aLayer->GetFirstChild() &&
+                    container->UseIntermediateSurface();
   BasicImplData* data = ToData(aLayer);
   bool needsClipToVisibleRegion =
     data->GetClipToVisibleRegion() && !aLayer->AsPaintedLayer();
-  NS_ASSERTION(needsGroup || !container ||
+  NS_ASSERTION(needsGroup || !aLayer->GetFirstChild() ||
                container->GetOperator() == CompositionOp::OP_OVER,
                "non-OVER operator should have forced UseIntermediateSurface");
-  NS_ASSERTION(!container || !aLayer->GetMaskLayer() ||
+  NS_ASSERTION(!aLayer->GetFirstChild() || !aLayer->GetMaskLayer() ||
                container->UseIntermediateSurface(),
                "ContainerLayer with mask layer should force UseIntermediateSurface");
 
@@ -817,7 +814,7 @@ BasicLayerManager::PaintLayer(gfxContext* aTarget,
   gfxMatrix transform;
   // Will return an identity matrix for 3d transforms, and is handled separately below.
   bool is2D = paintLayerContext.Setup2DTransform();
-  NS_ABORT_IF_FALSE(is2D || needsGroup || !container, "Must PushGroup for 3d transforms!");
+  NS_ABORT_IF_FALSE(is2D || needsGroup || !aLayer->GetFirstChild(), "Must PushGroup for 3d transforms!");
 
   bool needsSaveRestore =
     needsGroup || clipRect || needsClipToVisibleRegion || !is2D;

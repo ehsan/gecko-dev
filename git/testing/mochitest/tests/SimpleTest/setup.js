@@ -76,8 +76,6 @@ if (params.testRoot == "browser") {
   params.testPrefix = "chrome://mochitests/content/chrome/";
 } else if (params.testRoot == "a11y") {
   params.testPrefix = "chrome://mochitests/content/a11y/";
-} else if (params.testRoot == "webapprtContent") {
-  params.testPrefix = "/webapprtContent/";
 } else {
   params.testPrefix = "/tests/";
 }
@@ -243,7 +241,7 @@ function hookupTests(testList) {
   } else {
     gTestList = [];
     for (var obj in testList) {
-        gTestList.push(testList[obj]);
+        gTestList.push(obj);
     }
   }
 

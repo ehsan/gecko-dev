@@ -36,16 +36,13 @@ const NFC_ENABLED = libcutils.property_get("ro.moz.nfc.enabled", "false") === "t
 let DEBUG = NFC.DEBUG_CONTENT_HELPER;
 
 let debug;
-function updateDebug() {
-  if (DEBUG) {
-    debug = function (s) {
-      dump("-*- NfcContentHelper: " + s + "\n");
-    };
-  } else {
-    debug = function (s) {};
-  }
-};
-updateDebug();
+if (DEBUG) {
+  debug = function (s) {
+    dump("-*- NfcContentHelper: " + s + "\n");
+  };
+} else {
+  debug = function (s) {};
+}
 
 const NFCCONTENTHELPER_CID =
   Components.ID("{4d72c120-da5f-11e1-9b23-0800200c9a66}");
@@ -53,13 +50,13 @@ const NFCCONTENTHELPER_CID =
 const NFC_IPC_MSG_NAMES = [
   "NFC:ReadNDEFResponse",
   "NFC:WriteNDEFResponse",
-  "NFC:MakeReadOnlyResponse",
+  "NFC:MakeReadOnlyNDEFResponse",
   "NFC:ConnectResponse",
   "NFC:CloseResponse",
   "NFC:CheckP2PRegistrationResponse",
   "NFC:DOMEvent",
   "NFC:NotifySendFileStatusResponse",
-  "NFC:ChangeRFStateResponse"
+  "NFC:ConfigResponse"
 ];
 
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
@@ -67,7 +64,7 @@ XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "nsISyncMessageSender");
 
 function NfcContentHelper() {
-  Services.obs.addObserver(this, NFC.TOPIC_MOZSETTINGS_CHANGED, false);
+  this.initDOMRequestHelper(/* aWindow */ null, NFC_IPC_MSG_NAMES);
   Services.obs.addObserver(this, "xpcom-shutdown", false);
 
   this._requestMap = [];
@@ -86,27 +83,8 @@ NfcContentHelper.prototype = {
     interfaces:       [Ci.nsINfcContentHelper]
   }),
 
-  _window: null,
   _requestMap: null,
-  eventListener: null,
-
-  init: function init(aWindow) {
-    if (aWindow == null) {
-      throw Components.Exception("Can't get window object",
-                                  Cr.NS_ERROR_UNEXPECTED);
-    }
-    this._window = aWindow;
-    this.initDOMRequestHelper(this._window, NFC_IPC_MSG_NAMES);
-
-    if (this._window.navigator.mozSettings) {
-      let lock = this._window.navigator.mozSettings.createLock();
-      var nfcDebug = lock.get(NFC.SETTING_NFC_DEBUG);
-      nfcDebug.onsuccess = function _nfcDebug() {
-        DEBUG = nfcDebug.result[NFC.SETTING_NFC_DEBUG];
-        updateDebug();
-      };
-    }
-  },
+  eventTarget: null,
 
   encodeNDEFRecords: function encodeNDEFRecords(records) {
     let encodedRecords = [];
@@ -123,7 +101,7 @@ NfcContentHelper.prototype = {
   },
 
   // NFC interface:
-  checkSessionToken: function checkSessionToken(sessionToken, isP2P) {
+  checkSessionToken: function checkSessionToken(sessionToken) {
     if (sessionToken == null) {
       throw Components.Exception("No session token!",
                                   Cr.NS_ERROR_UNEXPECTED);
@@ -131,17 +109,20 @@ NfcContentHelper.prototype = {
     }
     // Report session to Nfc.js only.
     let val = cpmm.sendSyncMessage("NFC:CheckSessionToken", {
-      sessionToken: sessionToken,
-      isP2P: isP2P
+      sessionToken: sessionToken
     });
-    return (val[0] === NFC.NFC_GECKO_SUCCESS);
+    return (val[0] === NFC.NFC_SUCCESS);
   },
 
   // NFCTag interface
-  readNDEF: function readNDEF(sessionToken) {
-    let request = Services.DOMRequest.createRequest(this._window);
+  readNDEF: function readNDEF(window, sessionToken) {
+    if (window == null) {
+      throw Components.Exception("Can't get window object",
+                                  Cr.NS_ERROR_UNEXPECTED);
+    }
+    let request = Services.DOMRequest.createRequest(window);
     let requestId = btoa(this.getRequestId(request));
-    this._requestMap[requestId] = this._window;
+    this._requestMap[requestId] = window;
 
     cpmm.sendAsyncMessage("NFC:ReadNDEF", {
       requestId: requestId,
@@ -150,10 +131,14 @@ NfcContentHelper.prototype = {
     return request;
   },
 
-  writeNDEF: function writeNDEF(records, sessionToken) {
-    let request = Services.DOMRequest.createRequest(this._window);
+  writeNDEF: function writeNDEF(window, records, sessionToken) {
+    if (window == null) {
+      throw Components.Exception("Can't get window object",
+                                  Cr.NS_ERROR_UNEXPECTED);
+    }
+    let request = Services.DOMRequest.createRequest(window);
     let requestId = btoa(this.getRequestId(request));
-    this._requestMap[requestId] = this._window;
+    this._requestMap[requestId] = window;
 
     let encodedRecords = this.encodeNDEFRecords(records);
     cpmm.sendAsyncMessage("NFC:WriteNDEF", {
@@ -164,22 +149,31 @@ NfcContentHelper.prototype = {
     return request;
   },
 
-  makeReadOnlyNDEF: function makeReadOnlyNDEF(sessionToken) {
-    let request = Services.DOMRequest.createRequest(this._window);
-    let requestId = btoa(this.getRequestId(request));
-    this._requestMap[requestId] = this._window;
+  makeReadOnlyNDEF: function makeReadOnlyNDEF(window, sessionToken) {
+    if (window == null) {
+      throw Components.Exception("Can't get window object",
+                                  Cr.NS_ERROR_UNEXPECTED);
+    }
 
-    cpmm.sendAsyncMessage("NFC:MakeReadOnly", {
+    let request = Services.DOMRequest.createRequest(window);
+    let requestId = btoa(this.getRequestId(request));
+    this._requestMap[requestId] = window;
+
+    cpmm.sendAsyncMessage("NFC:MakeReadOnlyNDEF", {
       requestId: requestId,
       sessionToken: sessionToken
     });
     return request;
   },
 
-  connect: function connect(techType, sessionToken) {
-    let request = Services.DOMRequest.createRequest(this._window);
+  connect: function connect(window, techType, sessionToken) {
+    if (window == null) {
+      throw Components.Exception("Can't get window object",
+                                  Cr.NS_ERROR_UNEXPECTED);
+    }
+    let request = Services.DOMRequest.createRequest(window);
     let requestId = btoa(this.getRequestId(request));
-    this._requestMap[requestId] = this._window;
+    this._requestMap[requestId] = window;
 
     cpmm.sendAsyncMessage("NFC:Connect", {
       requestId: requestId,
@@ -189,10 +183,14 @@ NfcContentHelper.prototype = {
     return request;
   },
 
-  close: function close(sessionToken) {
-    let request = Services.DOMRequest.createRequest(this._window);
+  close: function close(window, sessionToken) {
+    if (window == null) {
+      throw Components.Exception("Can't get window object",
+                                  Cr.NS_ERROR_UNEXPECTED);
+    }
+    let request = Services.DOMRequest.createRequest(window);
     let requestId = btoa(this.getRequestId(request));
-    this._requestMap[requestId] = this._window;
+    this._requestMap[requestId] = window;
 
     cpmm.sendAsyncMessage("NFC:Close", {
       requestId: requestId,
@@ -201,10 +199,14 @@ NfcContentHelper.prototype = {
     return request;
   },
 
-  sendFile: function sendFile(data, sessionToken) {
-    let request = Services.DOMRequest.createRequest(this._window);
+  sendFile: function sendFile(window, data, sessionToken) {
+    if (window == null) {
+      throw Components.Exception("Can't get window object",
+                                  Cr.NS_ERROR_UNEXPECTED);
+    }
+    let request = Services.DOMRequest.createRequest(window);
     let requestId = btoa(this.getRequestId(request));
-    this._requestMap[requestId] = this._window;
+    this._requestMap[requestId] = window;
 
     cpmm.sendAsyncMessage("NFC:SendFile", {
       requestId: requestId,
@@ -214,30 +216,50 @@ NfcContentHelper.prototype = {
     return request;
   },
 
-  notifySendFileStatus: function notifySendFileStatus(status, requestId) {
+  notifySendFileStatus: function notifySendFileStatus(window, status,
+                                                      requestId) {
+    if (window == null) {
+      throw Components.Exception("Can't get window object",
+                                  Cr.NS_ERROR_UNEXPECTED);
+    }
+
     cpmm.sendAsyncMessage("NFC:NotifySendFileStatus", {
       status: status,
       requestId: requestId
     });
   },
 
-  addEventListener: function addEventListener(listener) {
-    this.eventListener = listener;
-    cpmm.sendAsyncMessage("NFC:AddEventListener");
+  registerEventTarget: function registerEventTarget(target) {
+    this.eventTarget = target;
+    cpmm.sendAsyncMessage("NFC:AddEventTarget");
   },
 
-  registerTargetForPeerReady: function registerTargetForPeerReady(appId) {
+  registerTargetForPeerReady: function registerTargetForPeerReady(window, appId) {
+    if (window == null) {
+      throw Components.Exception("Can't get window object",
+                                  Cr.NS_ERROR_UNEXPECTED);
+    }
+
     cpmm.sendAsyncMessage("NFC:RegisterPeerReadyTarget", { appId: appId });
   },
 
-  unregisterTargetForPeerReady: function unregisterTargetForPeerReady(appId) {
+  unregisterTargetForPeerReady: function unregisterTargetForPeerReady(window, appId) {
+    if (window == null) {
+      throw Components.Exception("Can't get window object",
+                                  Cr.NS_ERROR_UNEXPECTED);
+    }
+
     cpmm.sendAsyncMessage("NFC:UnregisterPeerReadyTarget", { appId: appId });
   },
 
-  checkP2PRegistration: function checkP2PRegistration(appId) {
-    let request = Services.DOMRequest.createRequest(this._window);
+  checkP2PRegistration: function checkP2PRegistration(window, appId) {
+    if (window == null) {
+      throw Components.Exception("Can't get window object",
+                                  Cr.NS_ERROR_UNEXPECTED);
+    }
+    let request = Services.DOMRequest.createRequest(window);
     let requestId = btoa(this.getRequestId(request));
-    this._requestMap[requestId] = this._window;
+    this._requestMap[requestId] = window;
 
     cpmm.sendAsyncMessage("NFC:CheckP2PRegistration", {
       appId: appId,
@@ -246,38 +268,68 @@ NfcContentHelper.prototype = {
     return request;
   },
 
-  notifyUserAcceptedP2P: function notifyUserAcceptedP2P(appId) {
+  notifyUserAcceptedP2P: function notifyUserAcceptedP2P(window, appId) {
+    if (window == null) {
+      throw Components.Exception("Can't get window object",
+                                  Cr.NS_ERROR_UNEXPECTED);
+    }
+
     cpmm.sendAsyncMessage("NFC:NotifyUserAcceptedP2P", {
       appId: appId
     });
   },
 
-  changeRFState: function changeRFState(rfState) {
-    let request = Services.DOMRequest.createRequest(this._window);
+  startPoll: function startPoll(window) {
+    if (window == null) {
+      throw Components.Exception("Can't get window object",
+                                  Cr.NS_ERROR_UNEXPECTED);
+    }
+
+    let request = Services.DOMRequest.createRequest(window);
     let requestId = btoa(this.getRequestId(request));
-    this._requestMap[requestId] = this._window;
+    this._requestMap[requestId] = window;
 
-    cpmm.sendAsyncMessage("NFC:ChangeRFState",
-                          {requestId: requestId,
-                           rfState: rfState});
+    cpmm.sendAsyncMessage("NFC:StartPoll",
+                          {requestId: requestId});
     return request;
+  },
 
+  stopPoll: function stopPoll(window) {
+    if (window == null) {
+      throw Components.Exception("Can't get window object",
+                                  Cr.NS_ERROR_UNEXPECTED);
+    }
+
+    let request = Services.DOMRequest.createRequest(window);
+    let requestId = btoa(this.getRequestId(request));
+    this._requestMap[requestId] = window;
+
+    cpmm.sendAsyncMessage("NFC:StopPoll",
+                          {requestId: requestId});
+    return request;
+  },
+
+  powerOff: function powerOff(window) {
+    if (window == null) {
+      throw Components.Exception("Can't get window object",
+                                  Cr.NS_ERROR_UNEXPECTED);
+    }
+
+    let request = Services.DOMRequest.createRequest(window);
+    let requestId = btoa(this.getRequestId(request));
+    this._requestMap[requestId] = window;
+
+    cpmm.sendAsyncMessage("NFC:PowerOff",
+                          {requestId: requestId});
+    return request;
   },
 
   // nsIObserver
   observe: function observe(subject, topic, data) {
     if (topic == "xpcom-shutdown") {
       this.destroyDOMRequestHelper();
-      Services.obs.removeObserver(this, NFC.TOPIC_MOZSETTINGS_CHANGED);
       Services.obs.removeObserver(this, "xpcom-shutdown");
       cpmm = null;
-    } else if (topic == NFC.TOPIC_MOZSETTINGS_CHANGED) {
-      if ("wrappedJSObject" in subject) {
-        subject = subject.wrappedJSObject;
-      }
-      if (subject) {
-        this.handle(subject.key, subject.value);
-      }
     }
   },
 
@@ -321,9 +373,9 @@ NfcContentHelper.prototype = {
       case "NFC:ConnectResponse": // Fall through.
       case "NFC:CloseResponse":
       case "NFC:WriteNDEFResponse":
-      case "NFC:MakeReadOnlyResponse":
+      case "NFC:MakeReadOnlyNDEFResponse":
       case "NFC:NotifySendFileStatusResponse":
-      case "NFC:ChangeRFStateResponse":
+      case "NFC:ConfigResponse":
         if (result.errorMsg) {
           this.fireRequestError(atob(result.requestId), result.errorMsg);
         } else {
@@ -332,37 +384,13 @@ NfcContentHelper.prototype = {
         break;
       case "NFC:DOMEvent":
         switch (result.event) {
-          case NFC.PEER_EVENT_READY:
-            this.eventListener.notifyPeerFound(result.sessionToken, /* isPeerReady */ true);
+          case NFC.NFC_PEER_EVENT_READY:
+            this.eventTarget.notifyPeerReady(result.sessionToken);
             break;
-          case NFC.PEER_EVENT_FOUND:
-            this.eventListener.notifyPeerFound(result.sessionToken);
-            break;
-          case NFC.PEER_EVENT_LOST:
-            this.eventListener.notifyPeerLost(result.sessionToken);
-            break;
-          case NFC.TAG_EVENT_FOUND:
-            let event = new NfcTagEvent(result.techList,
-                                        result.tagType,
-                                        result.maxNDEFSize,
-                                        result.isReadOnly,
-                                        result.isFormatable);
-
-            this.eventListener.notifyTagFound(result.sessionToken, event, result.records);
-            break;
-          case NFC.TAG_EVENT_LOST:
-            this.eventListener.notifyTagLost(result.sessionToken);
+          case NFC.NFC_PEER_EVENT_LOST:
+            this.eventTarget.notifyPeerLost(result.sessionToken);
             break;
         }
-        break;
-    }
-  },
-
-  handle: function handle(name, result) {
-    switch (name) {
-      case NFC.SETTING_NFC_DEBUG:
-        DEBUG = result;
-        updateDebug();
         break;
     }
   },
@@ -399,23 +427,6 @@ NfcContentHelper.prototype = {
     let requestId = atob(result.requestId);
     this.fireRequestSuccess(requestId, !result.errorMsg);
   },
-};
-
-function NfcTagEvent(techList, tagType, maxNDEFSize, isReadOnly, isFormatable) {
-  this.techList = techList;
-  this.tagType = tagType;
-  this.maxNDEFSize = maxNDEFSize;
-  this.isReadOnly = isReadOnly;
-  this.isFormatable = isFormatable;
-}
-NfcTagEvent.prototype = {
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsINfcTagEvent]),
-
-  techList: null,
-  tagType: null,
-  maxNDEFSize: 0,
-  isReadOnly: false,
-  isFormatable: false
 };
 
 if (NFC_ENABLED) {

@@ -16,16 +16,12 @@ XPIDL_MODULE = 'layout_xul_tree'
 
 EXPORTS += [
     'nsTreeColFrame.h',
-    'nsTreeColumns.h',
     'nsTreeUtils.h',
-]
-
-EXPORTS.mozilla.dom += [
-    'TreeBoxObject.h'
 ]
 
 UNIFIED_SOURCES += [
     'nsTreeBodyFrame.cpp',
+    'nsTreeBoxObject.cpp',
     'nsTreeColFrame.cpp',
     'nsTreeColumns.cpp',
     'nsTreeContentView.cpp',
@@ -33,7 +29,6 @@ UNIFIED_SOURCES += [
     'nsTreeSelection.cpp',
     'nsTreeStyleCache.cpp',
     'nsTreeUtils.cpp',
-    'TreeBoxObject.cpp',
 ]
 
 FAIL_ON_WARNINGS = True
@@ -45,5 +40,6 @@ LOCAL_INCLUDES += [
     '../../forms',
     '../../generic',
     '../../style',
-    '/dom/base',
+    '/content/base/src',
 ]
+

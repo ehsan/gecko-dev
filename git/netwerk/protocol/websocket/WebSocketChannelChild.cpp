@@ -49,13 +49,13 @@ NS_INTERFACE_MAP_BEGIN(WebSocketChannelChild)
   NS_INTERFACE_MAP_ENTRY(nsIThreadRetargetableRequest)
 NS_INTERFACE_MAP_END
 
-WebSocketChannelChild::WebSocketChannelChild(bool aEncrypted)
+WebSocketChannelChild::WebSocketChannelChild(bool aSecure)
  : mIPCOpen(false)
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
 
   LOG(("WebSocketChannelChild::WebSocketChannelChild() %p\n", this));
-  mEncrypted = aEncrypted;
+  BaseWebSocketChannel::mEncrypted = aSecure;
   mEventQ = new ChannelEventQueue(static_cast<nsIWebSocketChannel*>(this));
 }
 
@@ -78,18 +78,6 @@ WebSocketChannelChild::ReleaseIPDLReference()
   NS_ABORT_IF_FALSE(mIPCOpen, "Attempt to release nonexistent IPDL reference");
   mIPCOpen = false;
   Release();
-}
-
-void
-WebSocketChannelChild::GetEffectiveURL(nsAString& aEffectiveURL) const
-{
-  aEffectiveURL = mEffectiveURL;
-}
-
-bool
-WebSocketChannelChild::IsEncrypted() const
-{
-  return mEncrypted;
 }
 
 class WrappedChannelEvent : public nsRunnable
@@ -120,89 +108,48 @@ WebSocketChannelChild::DispatchToTargetThread(ChannelEvent *aChannelEvent)
                           NS_DISPATCH_NORMAL);
 }
 
-class EventTargetDispatcher : public ChannelEvent
-{
-public:
-  EventTargetDispatcher(ChannelEvent* aChannelEvent,
-                        nsIEventTarget* aEventTarget)
-    : mChannelEvent(aChannelEvent)
-    , mEventTarget(aEventTarget)
-  {}
-
-  void Run()
-  {
-    if (mEventTarget) {
-      mEventTarget->Dispatch(new WrappedChannelEvent(mChannelEvent.forget()),
-                             NS_DISPATCH_NORMAL);
-      return;
-    }
-
-    mChannelEvent->Run();
-  }
-
-private:
-  nsAutoPtr<ChannelEvent> mChannelEvent;
-  nsCOMPtr<nsIEventTarget> mEventTarget;
-};
-
 class StartEvent : public ChannelEvent
 {
  public:
   StartEvent(WebSocketChannelChild* aChild,
              const nsCString& aProtocol,
-             const nsCString& aExtensions,
-             const nsString& aEffectiveURL,
-             bool aEncrypted)
+             const nsCString& aExtensions)
   : mChild(aChild)
   , mProtocol(aProtocol)
   , mExtensions(aExtensions)
-  , mEffectiveURL(aEffectiveURL)
-  , mEncrypted(aEncrypted)
   {}
 
   void Run()
   {
-    mChild->OnStart(mProtocol, mExtensions, mEffectiveURL, mEncrypted);
+    mChild->OnStart(mProtocol, mExtensions);
   }
  private:
   WebSocketChannelChild* mChild;
   nsCString mProtocol;
   nsCString mExtensions;
-  nsString mEffectiveURL;
-  bool mEncrypted;
 };
 
 bool
 WebSocketChannelChild::RecvOnStart(const nsCString& aProtocol,
-                                   const nsCString& aExtensions,
-                                   const nsString& aEffectiveURL,
-                                   const bool& aEncrypted)
+                                   const nsCString& aExtensions)
 {
   if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new EventTargetDispatcher(
-                       new StartEvent(this, aProtocol, aExtensions,
-                                      aEffectiveURL, aEncrypted),
-                       mTargetThread));
+    mEventQ->Enqueue(new StartEvent(this, aProtocol, aExtensions));
   } else if (mTargetThread) {
-    DispatchToTargetThread(new StartEvent(this, aProtocol, aExtensions,
-                                          aEffectiveURL, aEncrypted));
+    DispatchToTargetThread(new StartEvent(this, aProtocol, aExtensions));
   } else {
-    OnStart(aProtocol, aExtensions, aEffectiveURL, aEncrypted);
+    OnStart(aProtocol, aExtensions);
   }
   return true;
 }
 
 void
 WebSocketChannelChild::OnStart(const nsCString& aProtocol,
-                               const nsCString& aExtensions,
-                               const nsString& aEffectiveURL,
-                               const bool& aEncrypted)
+                               const nsCString& aExtensions)
 {
   LOG(("WebSocketChannelChild::RecvOnStart() %p\n", this));
   SetProtocol(aProtocol);
   mNegotiatedExtensions = aExtensions;
-  mEffectiveURL = aEffectiveURL;
-  mEncrypted = aEncrypted;
 
   if (mListener) {
     AutoEventEnqueuer ensureSerialDispatch(mEventQ);;
@@ -232,8 +179,7 @@ bool
 WebSocketChannelChild::RecvOnStop(const nsresult& aStatusCode)
 {
   if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new EventTargetDispatcher(
-                       new StopEvent(this, aStatusCode), mTargetThread));
+    mEventQ->Enqueue(new StopEvent(this, aStatusCode));
   } else if (mTargetThread) {
     DispatchToTargetThread(new StopEvent(this, aStatusCode));
   } else {
@@ -281,8 +227,7 @@ bool
 WebSocketChannelChild::RecvOnMessageAvailable(const nsCString& aMsg)
 {
   if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new EventTargetDispatcher(
-                       new MessageEvent(this, aMsg, false), mTargetThread));
+    mEventQ->Enqueue(new MessageEvent(this, aMsg, false));
   } else if (mTargetThread) {
     DispatchToTargetThread(new MessageEvent(this, aMsg, false));
    } else {
@@ -305,8 +250,7 @@ bool
 WebSocketChannelChild::RecvOnBinaryMessageAvailable(const nsCString& aMsg)
 {
   if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new EventTargetDispatcher(
-                       new MessageEvent(this, aMsg, true), mTargetThread));
+    mEventQ->Enqueue(new MessageEvent(this, aMsg, true));
   } else if (mTargetThread) {
     DispatchToTargetThread(new MessageEvent(this, aMsg, true));
   } else {
@@ -347,8 +291,7 @@ bool
 WebSocketChannelChild::RecvOnAcknowledge(const uint32_t& aSize)
 {
   if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new EventTargetDispatcher(
-                       new AcknowledgeEvent(this, aSize), mTargetThread));
+    mEventQ->Enqueue(new AcknowledgeEvent(this, aSize));
   } else if (mTargetThread) {
     DispatchToTargetThread(new AcknowledgeEvent(this, aSize));
   } else {
@@ -393,9 +336,7 @@ WebSocketChannelChild::RecvOnServerClose(const uint16_t& aCode,
                                          const nsCString& aReason)
 {
   if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new EventTargetDispatcher(
-                       new ServerCloseEvent(this, aCode, aReason),
-                       mTargetThread));
+    mEventQ->Enqueue(new ServerCloseEvent(this, aCode, aReason));
   } else if (mTargetThread) {
     DispatchToTargetThread(new ServerCloseEvent(this, aCode, aReason));
   } else {

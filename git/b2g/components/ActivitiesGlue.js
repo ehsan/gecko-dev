@@ -41,10 +41,6 @@ ActivitiesDialog.prototype = {
       choices: choices
     };
 
-    if (activity.type) {
-      detail.activityType = activity.type;
-    }
-
     // Listen the resulting choice from the front-end. If there is no choice,
     // let's return -1, which means the user has cancelled the dialog.
     SystemAppProxy.addEventListener("mozContentEvent", function act_getChoice(evt) {
@@ -68,17 +64,11 @@ ActivitiesDialog.prototype = {
       return;
     }
 
-    let activity = {
+    this.activities.push({
       name: aOptions.name,
       list: aActivities,
       callback: aCallback
-    };
-
-    if (aOptions.data && aOptions.data.type) {
-      activity.type = aOptions.data.type;
-    }
-
-    this.activities.push(activity);
+    });
     Services.tm.currentThread.dispatch(this, Ci.nsIEventTarget.DISPATCH_NORMAL);
   },
 

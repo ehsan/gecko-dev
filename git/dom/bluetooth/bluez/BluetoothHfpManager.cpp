@@ -27,7 +27,7 @@
 #include "mozilla/dom/SettingChangeNotificationBinding.h"
 
 #ifdef MOZ_B2G_RIL
-#include "nsIIccInfo.h"
+#include "nsIDOMIccInfo.h"
 #include "nsIIccProvider.h"
 #include "nsIMobileConnectionInfo.h"
 #include "nsIMobileConnectionService.h"
@@ -636,13 +636,17 @@ BluetoothHfpManager::HandleVoiceConnectionChanged(uint32_t aClientId)
 
   /**
    * Possible return values for mode are:
-   * - -1 (unknown): set mNetworkSelectionMode to 0 (auto)
-   * - 0 (automatic): set mNetworkSelectionMode to 0 (auto)
-   * - 1 (manual): set mNetworkSelectionMode to 1 (manual)
+   * - null (unknown): set mNetworkSelectionMode to 0 (auto)
+   * - automatic: set mNetworkSelectionMode to 0 (auto)
+   * - manual: set mNetworkSelectionMode to 1 (manual)
    */
-  int32_t mode;
-  connection->GetNetworkSelectionMode(&mode);
-  mNetworkSelectionMode = (mode == 1) ? 1 : 0;
+  nsString mode;
+  connection->GetNetworkSelectionMode(mode);
+  if (mode.EqualsLiteral("manual")) {
+    mNetworkSelectionMode = 1;
+  } else {
+    mNetworkSelectionMode = 0;
+  }
 
   nsCOMPtr<nsIMobileNetworkInfo> network;
   voiceInfo->GetNetwork(getter_AddRefs(network));
@@ -670,11 +674,11 @@ BluetoothHfpManager::HandleIccInfoChanged(uint32_t aClientId)
     do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
   NS_ENSURE_TRUE_VOID(icc);
 
-  nsCOMPtr<nsIIccInfo> iccInfo;
+  nsCOMPtr<nsIDOMMozIccInfo> iccInfo;
   icc->GetIccInfo(aClientId, getter_AddRefs(iccInfo));
   NS_ENSURE_TRUE_VOID(iccInfo);
 
-  nsCOMPtr<nsIGsmIccInfo> gsmIccInfo = do_QueryInterface(iccInfo);
+  nsCOMPtr<nsIDOMMozGsmIccInfo> gsmIccInfo = do_QueryInterface(iccInfo);
   NS_ENSURE_TRUE_VOID(gsmIccInfo);
   gsmIccInfo->GetMsisdn(mMsisdn);
 }

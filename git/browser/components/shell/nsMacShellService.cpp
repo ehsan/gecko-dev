@@ -90,12 +90,7 @@ nsMacShellService::SetDefaultBrowser(bool aClaimAllTypes, bool aForAllUsers)
       return NS_ERROR_FAILURE;
     }
   }
-
-  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
-  if (prefs) {
-    (void) prefs->SetBoolPref(PREF_CHECKDEFAULTBROWSER, true);
-  }
-
+  
   return NS_OK;
 }
 
@@ -109,25 +104,27 @@ nsMacShellService::GetShouldCheckDefaultBrowser(bool* aResult)
     return NS_OK;
   }
 
-  nsresult rv;
-  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  nsCOMPtr<nsIPrefBranch> prefs;
+  nsCOMPtr<nsIPrefService> pserve(do_GetService(NS_PREFSERVICE_CONTRACTID));
+  if (pserve)
+    pserve->GetBranch("", getter_AddRefs(prefs));
 
-  return prefs->GetBoolPref(PREF_CHECKDEFAULTBROWSER, aResult);
+  prefs->GetBoolPref(PREF_CHECKDEFAULTBROWSER, aResult);
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsMacShellService::SetShouldCheckDefaultBrowser(bool aShouldCheck)
 {
-  nsresult rv;
-  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  nsCOMPtr<nsIPrefBranch> prefs;
+  nsCOMPtr<nsIPrefService> pserve(do_GetService(NS_PREFSERVICE_CONTRACTID));
+  if (pserve)
+    pserve->GetBranch("", getter_AddRefs(prefs));
 
-  return prefs->SetBoolPref(PREF_CHECKDEFAULTBROWSER, aShouldCheck);
+  prefs->SetBoolPref(PREF_CHECKDEFAULTBROWSER, aShouldCheck);
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -12,7 +12,6 @@ const kObservedTopics = [
 ];
 
 const PREF_PERMISSION_FAKE = "media.navigator.permission.fake";
-const PREF_LOOP_CSP = "loop.CSP";
 
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -39,7 +38,7 @@ function promiseObserverCalled(aTopic, aAction) {
     info("Message: " + aData);
     Services.obs.removeObserver(observer, aTopic);
 
-    if (kObservedTopics.indexOf(aTopic) != -1) {
+    if (kObservedTopics.contains(aTopic)) {
       if (!(aTopic in gObservedTopics))
         gObservedTopics[aTopic] = -1;
       else
@@ -110,7 +109,7 @@ function getMediaCaptureState() {
   return "none";
 }
 
-function* closeStream(aAlreadyClosed) {
+function closeStream(aAlreadyClosed) {
   expectNoObserverCalled();
 
   info("closing the stream");
@@ -123,7 +122,7 @@ function* closeStream(aAlreadyClosed) {
   if (!aAlreadyClosed)
     expectObserverCalled("recording-window-ended");
 
-  yield* assertWebRTCIndicatorStatus(null);
+  assertWebRTCIndicatorStatus(null);
 }
 
 function loadPage(aUrl) {
@@ -163,14 +162,12 @@ fakeLoopAboutModule.prototype = {
 let factory = XPCOMUtils._getFactory(fakeLoopAboutModule);
 let registrar = Components.manager.QueryInterface(Ci.nsIComponentRegistrar);
 
-let originalLoopCsp = Services.prefs.getCharPref(PREF_LOOP_CSP);
 registerCleanupFunction(function() {
   gBrowser.removeCurrentTab();
   kObservedTopics.forEach(topic => {
     Services.obs.removeObserver(observer, topic);
   });
   Services.prefs.clearUserPref(PREF_PERMISSION_FAKE);
-  Services.prefs.setCharPref(PREF_LOOP_CSP, originalLoopCsp);
 });
 
 
@@ -179,8 +176,6 @@ let gTests = [
 {
   desc: "getUserMedia about:loopconversation shouldn't prompt",
   run: function checkAudioVideoLoop() {
-    Services.prefs.setCharPref(PREF_LOOP_CSP, "default-src 'unsafe-inline'");
-
     let classID = Cc["@mozilla.org/uuid-generator;1"]
                     .getService(Ci.nsIUUIDGenerator).generateUUID();
     registrar.registerFactory(classID, "",
@@ -203,7 +198,6 @@ let gTests = [
     yield closeStream();
 
     registrar.unregisterFactory(classID, factory);
-    Services.prefs.setCharPref(PREF_LOOP_CSP, originalLoopCsp);
   }
 },
 

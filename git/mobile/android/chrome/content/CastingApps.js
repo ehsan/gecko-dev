@@ -21,16 +21,16 @@ var rokuDevice = {
   extensions: ["mp4"]
 };
 
-var matchstickDevice = {
-  id: "matchstick:dial",
+var fireflyDevice = {
+  id: "firefly:dial",
   target: "urn:dial-multiscreen-org:service:dial:1",
   filters: {
     server: null,
     modelName: "Eureka Dongle"
   },
   factory: function(aService) {
-    Cu.import("resource://gre/modules/MatchstickApp.jsm");
-    return new MatchstickApp(aService);
+    Cu.import("resource://gre/modules/FireflyApp.jsm");
+    return new FireflyApp(aService);
   },
   types: ["video/mp4", "video/webm"],
   extensions: ["mp4", "webm"]
@@ -59,7 +59,7 @@ var CastingApps = {
 
     // Register targets
     SimpleServiceDiscovery.registerDevice(rokuDevice);
-    SimpleServiceDiscovery.registerDevice(matchstickDevice);
+    SimpleServiceDiscovery.registerDevice(fireflyDevice);
     SimpleServiceDiscovery.registerDevice(mediaPlayerDevice);
 
     // Search for devices continuously every 120 seconds
@@ -82,6 +82,22 @@ var CastingApps = {
     BrowserApp.deck.addEventListener("pageshow", this, true);
     BrowserApp.deck.addEventListener("playing", this, true);
     BrowserApp.deck.addEventListener("ended", this, true);
+  },
+
+  uninit: function ca_uninit() {
+    BrowserApp.deck.removeEventListener("TabSelect", this, true);
+    BrowserApp.deck.removeEventListener("pageshow", this, true);
+    BrowserApp.deck.removeEventListener("playing", this, true);
+    BrowserApp.deck.removeEventListener("ended", this, true);
+
+    Services.obs.removeObserver(this, "Casting:Play");
+    Services.obs.removeObserver(this, "Casting:Pause");
+    Services.obs.removeObserver(this, "Casting:Stop");
+    Services.obs.removeObserver(this, "Casting:Mirror");
+    Services.obs.removeObserver(this, "ssdp-service-found");
+    Services.obs.removeObserver(this, "ssdp-service-lost");
+
+    NativeWindow.contextmenus.remove(this._castMenuId);
   },
 
   _mirrorStarted: function(stopMirrorCallback) {
@@ -120,6 +136,7 @@ var CastingApps = {
           NativeWindow.menu.update(this.mirrorStartMenuId, { visible: true });
           NativeWindow.menu.update(this.mirrorStopMenuId, { visible: false });
         }.bind(this),
+        parent: NativeWindow.menu.toolsMenuID
       });
     }
     if (this.mirrorStartMenuId != -1) {
@@ -230,12 +247,12 @@ var CastingApps = {
       return;
     }
 
-    this.getVideo(video, 0, 0, (aBundle) => {
-      // Let the binding know casting is allowed
-      if (aBundle) {
-        this._sendEventToVideo(aBundle.element, { allow: true });
-      }
-    });
+    if (!this.getVideo(video, 0, 0)) {
+      return;
+    }
+
+    // Let the binding know casting is allowed
+    this._sendEventToVideo(video, { allow: true });
   },
 
   handleVideoBindingCast: function handleVideoBindingCast(aTab, aEvent) {
@@ -258,77 +275,43 @@ var CastingApps = {
     return Services.io.newURI(aURL, aOriginCharset, aBaseURI);
   },
 
-  allowableExtension: function(aURI, aExtensions) {
-    return (aURI instanceof Ci.nsIURL) && aExtensions.indexOf(aURI.fileExtension) != -1;
-  },
-
-  allowableMimeType: function(aType, aTypes) {
-    return aTypes.indexOf(aType) != -1;
-  },
-
-  // This method will look at the aElement (or try to find a video at aX, aY) that has
-  // a castable source. If found, aCallback will be called with a JSON meta bundle. If
-  // no castable source was found, aCallback is called with null.
-  getVideo: function(aElement, aX, aY, aCallback) {
+  getVideo: function(aElement, aX, aY) {
     let extensions = SimpleServiceDiscovery.getSupportedExtensions();
     let types = SimpleServiceDiscovery.getSupportedMimeTypes();
 
-    // Fast path: Is the given element a video element?
-    if (aElement instanceof HTMLVideoElement) {
-      // If we found a video element, no need to look further, even if no
-      // castable video source is found.
-      this._getVideo(aElement, types, extensions, aCallback);
-      return;
+    // Fast path: Is the given element a video element
+    let video = this._getVideo(aElement, types, extensions);
+    if (video) {
+      return video;
     }
-
-    // Maybe this is an overlay, with the video element under it.
-    // Use the (x, y) location to guess at a <video> element.
 
     // The context menu system will keep walking up the DOM giving us a chance
     // to find an element we match. When it hits <html> things can go BOOM.
     try {
+      // Maybe this is an overlay, with the video element under it
+      // Use the (x, y) location to guess at a <video> element
       let elements = aElement.ownerDocument.querySelectorAll("video");
       for (let element of elements) {
         // Look for a video element contained in the overlay bounds
         let rect = element.getBoundingClientRect();
         if (aY >= rect.top && aX >= rect.left && aY <= rect.bottom && aX <= rect.right) {
-          // Once we find a <video> under the overlay, we check it and exit.
-          this._getVideo(element, types, extensions, aCallback);
-          return;
+          video = this._getVideo(element, types, extensions);
+          if (video) {
+            break;
+          }
         }
       }
     } catch(e) {}
+
+    // Could be null
+    return video;
   },
 
-  _getContentTypeForURI: function(aURI, aCallback) {
-    let channel = Services.io.newChannelFromURI(aURI);
-    let listener = {
-      onStartRequest: function(request, context) {
-        switch (channel.responseStatus) {
-          case 301:
-          case 302:
-          case 303:
-            request.cancel(0);
-            let location = channel.getResponseHeader("Location");
-            CastingApps._getContentTypeForURI(CastingApps.makeURI(location), aCallback);
-            break;
-          default:
-            aCallback(channel.contentType);
-            request.cancel(0);
-            break;
-        }
-      },
-      onStopRequest: function(request, context, statusCode)  {},
-      onDataAvailable: function(request, context, stream, offset, count) {}
-    };
-    channel.asyncOpen(listener, null)
-  },
+  _getVideo: function(aElement, aTypes, aExtensions) {
+    if (!(aElement instanceof HTMLVideoElement)) {
+      return null;
+    }
 
-  // Because this method uses a callback, make sure we return ASAP if we know
-  // we have a castable video source.
-  _getVideo: function(aElement, aTypes, aExtensions, aCallback) {
-    // Keep a list of URIs we need for an async mimetype check
-    let asyncURIs = [];
 
     // Grab the poster attribute from the <video>
     let posterURL = aElement.poster;
@@ -345,20 +328,8 @@ var CastingApps = {
       // Use the file extension to guess the mime type
       let sourceURI = this.makeURI(sourceURL, null, this.makeURI(aElement.baseURI));
       if (this.allowableExtension(sourceURI, aExtensions)) {
-        aCallback({ element: aElement, source: sourceURI.spec, poster: posterURL, sourceURI: sourceURI});
-        return;
+        return { element: aElement, source: sourceURI.spec, poster: posterURL, sourceURI: sourceURI};
       }
-
-      if (aElement.type) {
-        // Fast sync check
-        if (this.allowableMimeType(aElement.type, aTypes)) {
-          aCallback({ element: aElement, source: sourceURI.spec, poster: posterURL, sourceURI: sourceURI, type: aElement.type });
-          return;
-        }
-      }
-
-      // Delay the async check until we sync scan all possible URIs
-      asyncURIs.push(sourceURI);
     }
 
     // Next, look to see if there is a <source> child element that meets
@@ -369,77 +340,23 @@ var CastingApps = {
 
       // Using the type attribute is our ideal way to guess the mime type. Otherwise,
       // fallback to using the file extension to guess the mime type
-      if (this.allowableExtension(sourceURI, aExtensions)) {
-        aCallback({ element: aElement, source: sourceURI.spec, poster: posterURL, sourceURI: sourceURI, type: sourceNode.type });
-        return;
+      if (this.allowableMimeType(sourceNode.type, aTypes) || this.allowableExtension(sourceURI, aExtensions)) {
+        return { element: aElement, source: sourceURI.spec, poster: posterURL, sourceURI: sourceURI, type: sourceNode.type };
       }
-
-      if (sourceNode.type) {
-        // Fast sync check
-        if (this.allowableMimeType(sourceNode.type, aTypes)) {
-          aCallback({ element: aElement, source: sourceURI.spec, poster: posterURL, sourceURI: sourceURI, type: sourceNode.type });
-          return;
-        }
-      }
-
-      // Delay the async check until we sync scan all possible URIs
-      asyncURIs.push(sourceURI);
     }
 
-    // If we didn't find a good URI directly, let's look using async methods
-    // As soon as we find a good sourceURL, avoid firing the callback any further
-    aCallback.fired = false;
-    for (let sourceURI of asyncURIs) {
-      // Do an async fetch to figure out the mimetype of the source video
-      this._getContentTypeForURI(sourceURI, (aType) => {
-        if (!aCallback.fired && this.allowableMimeType(aType, aTypes)) {
-          aCallback.fired = true;
-          aCallback({ element: aElement, source: sourceURI.spec, poster: posterURL, sourceURI: sourceURI, type: aType });
-        }
-      });
-    }
-
-    // If we didn't find any castable source, let's send back a signal
-    if (!aCallback.fired) {
-      aCallback(null);
-    }
-  },
-
-  // This code depends on handleVideoBindingAttached setting mozAllowCasting
-  // so we can quickly figure out if the video is castable
-  isVideoCastable: function(aElement, aX, aY) {
-    // Use the flag set when the <video> binding was created as the check
-    if (aElement instanceof HTMLVideoElement) {
-      return aElement.mozAllowCasting;
-    }
-
-    // This is called by the context menu system and the system will keep
-    // walking up the DOM giving us a chance to find an element we match.
-    // When it hits <html> things can go BOOM.
-    try {
-      // Maybe this is an overlay, with the video element under it
-      // Use the (x, y) location to guess at a <video> element
-      let elements = aElement.ownerDocument.querySelectorAll("video");
-      for (let element of elements) {
-        // Look for a video element contained in the overlay bounds
-        let rect = element.getBoundingClientRect();
-        if (aY >= rect.top && aX >= rect.left && aY <= rect.bottom && aX <= rect.right) {
-          // Use the flag set when the <video> binding was created as the check
-          return element.mozAllowCasting;
-        }
-      }
-    } catch(e) {}
-
-    return false;
+    return null;
   },
 
   filterCast: {
     matches: function(aElement, aX, aY) {
-      // This behavior matches the pageaction: As long as a video is castable,
-      // we can cast it, even if it's already being cast to a device.
       if (SimpleServiceDiscovery.services.length == 0)
         return false;
-      return CastingApps.isVideoCastable(aElement, aX, aY);
+      let video = CastingApps.getVideo(aElement, aX, aY);
+      if (CastingApps.session) {
+        return (video && CastingApps.session.data.source != video.source);
+      }
+      return (video != null);
     }
   },
 
@@ -579,16 +496,13 @@ var CastingApps = {
 
   openExternal: function(aElement, aX, aY) {
     // Start a second screen media service
-    this.getVideo(aElement, aX, aY, this._openExternal.bind(this));
-  },
-
-  _openExternal: function(aVideo) {
-    if (!aVideo) {
+    let video = this.getVideo(aElement, aX, aY);
+    if (!video) {
       return;
     }
 
-    function filterFunc(aService) {
-      return this.allowableExtension(aVideo.sourceURI, aService.extensions) || this.allowableMimeType(aVideo.type, aService.types);
+    function filterFunc(service) {
+      return this.allowableExtension(video.sourceURI, service.extensions) || this.allowableMimeType(video.type, service.types);
     }
 
     this.prompt(function(aService) {
@@ -600,12 +514,11 @@ var CastingApps = {
       if (!app)
         return;
 
-      if (aVideo.element) {
-        aVideo.title = aVideo.element.ownerDocument.defaultView.top.document.title;
-
+      video.title = aElement.ownerDocument.defaultView.top.document.title;
+      if (video.element) {
         // If the video is currently playing on the device, pause it
-        if (!aVideo.element.paused) {
-          aVideo.element.pause();
+        if (!video.element.paused) {
+          video.element.pause();
         }
       }
 
@@ -627,11 +540,11 @@ var CastingApps = {
               app: app,
               remoteMedia: aRemoteMedia,
               data: {
-                title: aVideo.title,
-                source: aVideo.source,
-                poster: aVideo.poster
+                title: video.title,
+                source: video.source,
+                poster: video.poster
               },
-              videoRef: Cu.getWeakReference(aVideo.element)
+              videoRef: Cu.getWeakReference(video.element)
             };
           }.bind(this), this);
         }.bind(this));
@@ -689,5 +602,21 @@ var CastingApps = {
     if (status == "completed") {
       this.closeExternal();
     }
+  },
+
+  allowableExtension: function(aURI, aExtensions) {
+    if (aURI && aURI instanceof Ci.nsIURL) {
+      for (let x in aExtensions) {
+        if (aURI.fileExtension == aExtensions[x]) return true;
+      }
+    }
+    return false;
+  },
+
+  allowableMimeType: function(aType, aTypes) {
+    for (let x in aTypes) {
+      if (aType == aTypes[x]) return true;
+    }
+    return false;
   }
 };

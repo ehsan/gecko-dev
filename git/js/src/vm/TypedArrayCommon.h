@@ -67,13 +67,27 @@ template<> inline Scalar::Type TypeIDOfType<double>() { return Scalar::Float64; 
 template<> inline Scalar::Type TypeIDOfType<uint8_clamped>() { return Scalar::Uint8Clamped; }
 
 inline bool
-IsAnyTypedArray(JSObject *obj)
+IsAnyTypedArray(HandleObject obj)
+{
+    return obj->is<TypedArrayObject>() || obj->is<SharedTypedArrayObject>();
+}
+
+inline bool
+IsAnyTypedArray(const JSObject *obj)
 {
     return obj->is<TypedArrayObject>() || obj->is<SharedTypedArrayObject>();
 }
 
 inline uint32_t
-AnyTypedArrayLength(JSObject *obj)
+AnyTypedArrayLength(HandleObject obj)
+{
+    if (obj->is<TypedArrayObject>())
+        return obj->as<TypedArrayObject>().length();
+    return obj->as<SharedTypedArrayObject>().length();
+}
+
+inline uint32_t
+AnyTypedArrayLength(const JSObject *obj)
 {
     if (obj->is<TypedArrayObject>())
         return obj->as<TypedArrayObject>().length();
@@ -81,7 +95,15 @@ AnyTypedArrayLength(JSObject *obj)
 }
 
 inline Scalar::Type
-AnyTypedArrayType(JSObject *obj)
+AnyTypedArrayType(HandleObject obj)
+{
+    if (obj->is<TypedArrayObject>())
+        return obj->as<TypedArrayObject>().type();
+    return obj->as<SharedTypedArrayObject>().type();
+}
+
+inline Scalar::Type
+AnyTypedArrayType(const JSObject *obj)
 {
     if (obj->is<TypedArrayObject>())
         return obj->as<TypedArrayObject>().type();
@@ -89,7 +111,15 @@ AnyTypedArrayType(JSObject *obj)
 }
 
 inline Shape*
-AnyTypedArrayShape(JSObject *obj)
+AnyTypedArrayShape(HandleObject obj)
+{
+    if (obj->is<TypedArrayObject>())
+        return obj->as<TypedArrayObject>().lastProperty();
+    return obj->as<SharedTypedArrayObject>().lastProperty();
+}
+
+inline Shape*
+AnyTypedArrayShape(const JSObject *obj)
 {
     if (obj->is<TypedArrayObject>())
         return obj->as<TypedArrayObject>().lastProperty();
@@ -163,12 +193,7 @@ class ElementSpecific
         void *data = source->viewData();
         switch (source->type()) {
           case Scalar::Int8: {
-#ifdef __arm__
-            // NB: Using volatile to fix unaligned access on ARM
-            volatile
-#endif
             int8_t *src = static_cast<int8_t*>(data);
-
             for (uint32_t i = 0; i < count; ++i)
                 *dest++ = T(*src++);
             break;
@@ -241,14 +266,14 @@ class ElementSpecific
         if (source->isNative()) {
             // Attempt fast-path infallible conversion of dense elements up to
             // the first potentially side-effectful lookup or conversion.
-            uint32_t bound = Min(source->as<NativeObject>().getDenseInitializedLength(), len);
+            uint32_t bound = Min(source->getDenseInitializedLength(), len);
 
             T *dest = static_cast<T*>(target->viewData()) + offset;
 
             MOZ_ASSERT(!canConvertInfallibly(MagicValue(JS_ELEMENTS_HOLE)),
                        "the following loop must abort on holes");
 
-            const Value *srcValues = source->as<NativeObject>().getDenseElements();
+            const Value *srcValues = source->getDenseElements();
             for (; i < bound; i++) {
                 if (!canConvertInfallibly(srcValues[i]))
                     break;

@@ -10,7 +10,7 @@ const TEST_URI = "data:text/html;charset=utf-8," +
   "<p>bug 699308 - test iframe navigation</p>" +
   "<iframe src='data:text/html;charset=utf-8,hello world'></iframe>";
 
-add_task(function* () {
+let test = asyncTest(function* () {
   let { inspector, toolbox } = yield openInspectorForURL(TEST_URI);
   let iframe = getNode("iframe");
 
@@ -19,14 +19,11 @@ add_task(function* () {
 
   info("Waiting for highlighter to activate.");
   let highlighterShowing = toolbox.once("highlighter-ready");
-  executeInContent("Test:SynthesizeMouse",
-                   {type: "mousemove", x: 1, y: 1},
-                   {node: content.document.body},
-                   false);
+  EventUtils.synthesizeMouse(content.document.body, 1, 1,
+    {type: "mousemove"}, content);
   yield highlighterShowing;
 
-  let isVisible = yield isHighlighting(toolbox);
-  ok(isVisible, "Inspector is highlighting.");
+  ok(isHighlighting(), "Inspector is highlighting.");
 
   yield reloadFrame();
   info("Frame reloaded. Reloading again.");
@@ -34,8 +31,7 @@ add_task(function* () {
   yield reloadFrame();
   info("Frame reloaded twice.");
 
-  isVisible = yield isHighlighting(toolbox);
-  ok(isVisible, "Inspector is highlighting after iframe nav.");
+  ok(isHighlighting(), "Inspector is highlighting after iframe nav.");
 
   info("Stopping element picker.");
   yield toolbox.highlighterUtils.stopPicker();

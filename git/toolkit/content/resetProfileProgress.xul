@@ -16,10 +16,9 @@
 
 <window id="resetProfileProgressDialog"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
-        title="&refreshProfile.dialog.title;"
-        style="min-width: 300px;">
+        title="&resetProfile.dialog.title;">
   <vbox>
-    <description>&refreshProfile.cleaning.description;</description>
+    <description>&resetProfile.cleaning.description;</description>
     <progressmeter mode="undetermined"/>
   </vbox>
 </window>

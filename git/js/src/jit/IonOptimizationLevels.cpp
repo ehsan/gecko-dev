@@ -42,7 +42,6 @@ OptimizationInfo::initNormalOptimizationInfo()
     smallFunctionMaxInlineDepth_ = 10;
     compilerWarmUpThreshold_ = 1000;
     inliningWarmUpThresholdFactor_ = 0.125;
-    inliningRecompileThresholdFactor_ = 4;
 }
 
 void
@@ -65,7 +64,7 @@ OptimizationInfo::initAsmjsOptimizationInfo()
 uint32_t
 OptimizationInfo::compilerWarmUpThreshold(JSScript *script, jsbytecode *pc) const
 {
-    MOZ_ASSERT(pc == nullptr || pc == script->code() || JSOp(*pc) == JSOP_LOOPENTRY);
+    JS_ASSERT(pc == nullptr || pc == script->code() || JSOp(*pc) == JSOP_LOOPENTRY);
 
     if (pc == script->code())
         pc = nullptr;
@@ -93,7 +92,7 @@ OptimizationInfo::compilerWarmUpThreshold(JSScript *script, jsbytecode *pc) cons
     // To accomplish this, we use a slightly higher threshold for inner loops.
     // Note that the loop depth is always > 0 so we will prefer non-OSR over OSR.
     uint32_t loopDepth = LoopEntryDepthHint(pc);
-    MOZ_ASSERT(loopDepth > 0);
+    JS_ASSERT(loopDepth > 0);
     return warmUpThreshold + loopDepth * 100;
 }
 
@@ -106,7 +105,7 @@ OptimizationInfos::OptimizationInfos()
     OptimizationLevel level = firstLevel();
     while (!isLastLevel(level)) {
         OptimizationLevel next = nextLevel(level);
-        MOZ_ASSERT(level < next);
+        JS_ASSERT(level < next);
         level = next;
     }
 #endif
@@ -115,7 +114,7 @@ OptimizationInfos::OptimizationInfos()
 OptimizationLevel
 OptimizationInfos::nextLevel(OptimizationLevel level) const
 {
-    MOZ_ASSERT(!isLastLevel(level));
+    JS_ASSERT(!isLastLevel(level));
     switch (level) {
       case Optimization_DontCompile:
         return Optimization_Normal;

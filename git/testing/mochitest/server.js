@@ -110,9 +110,6 @@ if (this["nsHttpServer"]) {
 var serverBasePath;
 var displayResults = true;
 
-var gServerAddress;
-var SERVER_PORT;
-
 //
 // SERVER SETUP
 //
@@ -177,7 +174,7 @@ function runServer()
     serverAlive.append("server_alive.txt");
     foStream.init(serverAlive,
                   0x02 | 0x08 | 0x20, 436, 0); // write, create, truncate
-    var data = "It's alive!";
+    data = "It's alive!";
     foStream.write(data, data.length);
     foStream.close();
   }
@@ -421,7 +418,7 @@ function list(requestPath, directory, recurse)
       count += childCount;
     } else {
       if (file.leafName.charAt(0) != '.') {
-        links[key] = {'test': {'url': key, 'expected': 'pass'}};
+        links[key] = true;
       }
     }
   }
@@ -444,7 +441,7 @@ function isTest(filename, pattern)
   var testPrefix = typeof(_TEST_PREFIX) == "string" ? _TEST_PREFIX : "test_";
   var testPattern = new RegExp("^" + testPrefix);
 
-  var pathPieces = filename.split('/');
+  pathPieces = filename.split('/');
     
   return testPattern.test(pathPieces[pathPieces.length - 1]) &&
          filename.indexOf(".js") == -1 &&
@@ -493,13 +490,13 @@ function linksToTableRows(links, recursionLevel)
 {
   var response = "";
   for (var [link, value] in links) {
-    var classVal = (!isTest(link) && ((value instanceof Object) && ('test' in value)))
+    var classVal = (!isTest(link) && !(value instanceof Object))
       ? "non-test invisible"
       : "";
 
-    var spacer = "padding-left: " + (10 * recursionLevel) + "px";
+    spacer = "padding-left: " + (10 * recursionLevel) + "px";
 
-    if ((value instanceof Object) && !('test' in value)) {
+    if (value instanceof Object) {
       response += TR({class: "dir", id: "tr-" + link },
                      TD({colspan: "3"}, "&#160;"),
                      TD({style: spacer},
@@ -535,10 +532,10 @@ function linksToTableRows(links, recursionLevel)
 
 function arrayOfTestFiles(linkArray, fileArray, testPattern) {
   for (var [link, value] in Iterator(linkArray)) {
-    if ((value instanceof Object) && !('test' in value)) {
+    if (value instanceof Object) {
       arrayOfTestFiles(value, fileArray, testPattern);
-    } else if (isTest(link, testPattern) && (value instanceof Object)) {
-      fileArray.push(value['test'])
+    } else if (isTest(link, testPattern)) {
+      fileArray.push(link)
     }
   }
 }
@@ -549,7 +546,7 @@ function jsonArrayOfTestFiles(links)
 {
   var testFiles = [];
   arrayOfTestFiles(links, testFiles);
-  testFiles = ['"' + file['url'] + '"' for each(file in testFiles)];
+  testFiles = ['"' + file + '"' for each(file in testFiles)];
   return "[" + testFiles.join(",\n") + "]";
 }
 

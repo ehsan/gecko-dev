@@ -217,7 +217,7 @@ class nsHtml5StreamParser : public nsICharsetDetectionObserver {
     }
 #endif
 
-    void MarkAsBroken(nsresult aRv);
+    void MarkAsBroken();
 
     /**
      * Marks the stream parser as interrupted. If you ever add calls to this

@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sts=2 sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -10,7 +9,6 @@
 #include "mozilla/Preferences.h"        // for Preferences
 #include "mozilla/Services.h"           // for GetXULChromeRegistryService
 #include "mozilla/dom/Element.h"        // for Element
-#include "mozilla/dom/Selection.h"
 #include "mozilla/mozalloc.h"           // for operator delete, etc
 #include "nsAString.h"                  // for nsAString_internal::IsEmpty, etc
 #include "nsComponentManagerUtils.h"    // for do_CreateInstance
@@ -24,6 +22,7 @@
 #include "nsIContentPrefService2.h"     // for nsIContentPrefService2, etc
 #include "nsIDOMDocument.h"             // for nsIDOMDocument
 #include "nsIDOMElement.h"              // for nsIDOMElement
+#include "nsIDOMRange.h"                // for nsIDOMRange
 #include "nsIDocument.h"                // for nsIDocument
 #include "nsIEditor.h"                  // for nsIEditor
 #include "nsIHTMLEditor.h"              // for nsIHTMLEditor
@@ -38,7 +37,6 @@
 #include "nsIVariant.h"                 // for nsIWritableVariant, etc
 #include "nsLiteralString.h"            // for NS_LITERAL_STRING, etc
 #include "nsMemory.h"                   // for nsMemory
-#include "nsRange.h"
 #include "nsReadableUtils.h"            // for ToNewUnicode, EmptyString, etc
 #include "nsServiceManagerUtils.h"      // for do_GetService
 #include "nsString.h"                   // for nsAutoString, nsString, etc
@@ -47,18 +45,17 @@
 #include "nsXULAppAPI.h"                // for XRE_GetProcessType
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
-class UpdateDictionaryHolder {
+class UpdateDictionnaryHolder {
   private:
     nsEditorSpellCheck* mSpellCheck;
   public:
-    explicit UpdateDictionaryHolder(nsEditorSpellCheck* esc): mSpellCheck(esc) {
+    explicit UpdateDictionnaryHolder(nsEditorSpellCheck* esc): mSpellCheck(esc) {
       if (mSpellCheck) {
         mSpellCheck->BeginUpdateDictionary();
       }
     }
-    ~UpdateDictionaryHolder() {
+    ~UpdateDictionnaryHolder() {
       if (mSpellCheck) {
         mSpellCheck->EndUpdateDictionary();
       }
@@ -345,9 +342,10 @@ nsEditorSpellCheck::InitSpellChecker(nsIEditor* aEditor, bool aEnableSelectionCh
     // Find out if the section is collapsed or not.
     // If it isn't, we want to spellcheck just the selection.
 
-    nsCOMPtr<nsISelection> domSelection;
-    aEditor->GetSelection(getter_AddRefs(domSelection));
-    nsRefPtr<Selection> selection = static_cast<Selection*>(domSelection.get());
+    nsCOMPtr<nsISelection> selection;
+
+    rv = aEditor->GetSelection(getter_AddRefs(selection));
+    NS_ENSURE_SUCCESS(rv, rv);
     NS_ENSURE_TRUE(selection, NS_ERROR_FAILURE);
 
     int32_t count = 0;
@@ -356,8 +354,10 @@ nsEditorSpellCheck::InitSpellChecker(nsIEditor* aEditor, bool aEnableSelectionCh
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (count > 0) {
-      nsRefPtr<nsRange> range = selection->GetRangeAt(0);
-      NS_ENSURE_STATE(range);
+      nsCOMPtr<nsIDOMRange> range;
+
+      rv = selection->GetRangeAt(0, getter_AddRefs(range));
+      NS_ENSURE_SUCCESS(rv, rv);
 
       bool collapsed = false;
       rv = range->GetCollapsed(&collapsed);
@@ -367,7 +367,10 @@ nsEditorSpellCheck::InitSpellChecker(nsIEditor* aEditor, bool aEnableSelectionCh
         // We don't want to touch the range in the selection,
         // so create a new copy of it.
 
-        nsRefPtr<nsRange> rangeBounds = range->CloneRange();
+        nsCOMPtr<nsIDOMRange> rangeBounds;
+        rv =  range->CloneRange(getter_AddRefs(rangeBounds));
+        NS_ENSURE_SUCCESS(rv, rv);
+        NS_ENSURE_TRUE(rangeBounds, NS_ERROR_FAILURE);
 
         // Make sure the new range spans complete words.
 
@@ -696,15 +699,23 @@ nsEditorSpellCheck::UpdateCurrentDictionary(nsIEditorSpellCheckCallback* aCallba
   }
   NS_ENSURE_TRUE(rootContent, NS_ERROR_FAILURE);
 
-  nsRefPtr<DictionaryFetcher> fetcher =
-    new DictionaryFetcher(this, aCallback, mDictionaryFetcherGroup);
+  DictionaryFetcher* fetcher = new DictionaryFetcher(this, aCallback,
+                                                     mDictionaryFetcherGroup);
   rootContent->GetLang(fetcher->mRootContentLang);
   nsCOMPtr<nsIDocument> doc = rootContent->GetCurrentDoc();
   NS_ENSURE_STATE(doc);
   doc->GetContentLanguage(fetcher->mRootDocContentLang);
 
-  rv = fetcher->Fetch(mEditor);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    // Content prefs don't work in E10S (Bug 1027898) pretend that we
+    // didn't have any & trigger the asynchrous completion.
+    nsCOMPtr<nsIRunnable> runnable =
+      NS_NewRunnableMethodWithArg<uint16_t>(fetcher, &DictionaryFetcher::HandleCompletion, 0);
+    NS_DispatchToMainThread(runnable);
+  } else {
+    rv = fetcher->Fetch(mEditor);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
 
   return NS_OK;
 }
@@ -712,13 +723,14 @@ nsEditorSpellCheck::UpdateCurrentDictionary(nsIEditorSpellCheckCallback* aCallba
 nsresult
 nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
 {
-  MOZ_ASSERT(aFetcher);
   nsRefPtr<nsEditorSpellCheck> kungFuDeathGrip = this;
+
+  nsresult rv = NS_OK;
 
   // Important: declare the holder after the callback caller so that the former
   // is destructed first so that it's not active when the callback is called.
   CallbackCaller callbackCaller(aFetcher->mCallback);
-  UpdateDictionaryHolder holder(this);
+  UpdateDictionnaryHolder holder(this);
 
   if (aFetcher->mGroup < mDictionaryFetcherGroup) {
     // SetCurrentDictionary was called after the fetch started.  Don't overwrite
@@ -730,9 +742,10 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
 
   // If we successfully fetched a dictionary from content prefs, do not go
   // further. Use this exact dictionary.
-  nsAutoString dictName(aFetcher->mDictionary);
+  nsAutoString dictName;
+  dictName.Assign(aFetcher->mDictionary);
   if (!dictName.IsEmpty()) {
-    if (NS_FAILED(SetCurrentDictionary(dictName))) {
+    if (NS_FAILED(SetCurrentDictionary(dictName))) { 
       // may be dictionary was uninstalled ?
       ClearCurrentDictionary(mEditor);
     }
@@ -760,8 +773,8 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
     dictName.Assign(preferedDict);
   }
 
-  nsresult rv = NS_OK;
-  if (dictName.IsEmpty()) {
+  if (dictName.IsEmpty())
+  {
     // Prefs didn't give us a dictionary name, so just get the current
     // locale and use that as the default dictionary name!
 

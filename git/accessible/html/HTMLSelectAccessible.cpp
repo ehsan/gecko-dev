@@ -10,6 +10,7 @@
 #include "nsAccUtils.h"
 #include "DocAccessible.h"
 #include "nsEventShell.h"
+#include "nsIAccessibleEvent.h"
 #include "nsTextEquivUtils.h"
 #include "Role.h"
 #include "States.h"
@@ -392,7 +393,8 @@ HTMLComboboxAccessible::CacheChildren()
     return;
 
   if (!mListAccessible) {
-    mListAccessible = new HTMLComboboxListAccessible(mParent, mContent, mDoc);
+    mListAccessible = 
+      new HTMLComboboxListAccessible(mParent, mContent, mDoc);
 
     // Initialize and put into cache.
     Document()->BindToDocument(mListAccessible, nullptr);
@@ -557,7 +559,7 @@ HTMLComboboxAccessible::SelectedOption() const
 ////////////////////////////////////////////////////////////////////////////////
 
 HTMLComboboxListAccessible::
-  HTMLComboboxListAccessible(Accessible* aParent, nsIContent* aContent,
+  HTMLComboboxListAccessible(nsIAccessible* aParent, nsIContent* aContent,
                              DocAccessible* aDoc) :
   HTMLSelectListAccessible(aContent, aDoc)
 {

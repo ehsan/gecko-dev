@@ -132,7 +132,7 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
         // will tell us the position of the caret, so we set the handle
         // position then. This allows us to lock the handle to wherever the
         // caret appears.
-        if (mHandleType != HandleType.MIDDLE) {
+        if (!mHandleType.equals(HandleType.MIDDLE)) {
             setLayoutPosition();
         }
     }
@@ -166,13 +166,12 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
     }
 
     private float adjustLeftForHandle() {
-        if (mHandleType == HandleType.START) {
+        if (mHandleType.equals(HandleType.START))
             return mIsRTL ? mShadow : mWidth - mShadow;
-        } else if (mHandleType == HandleType.MIDDLE) {
+        else if (mHandleType.equals(HandleType.MIDDLE))
             return mWidth / 2;
-        } else {
+        else
             return mIsRTL ? mWidth - mShadow : mShadow;
-        }
     }
 
     private void setLayoutPosition() {

@@ -10,7 +10,6 @@
 
 #include "gfx2DGlue.h"
 #include "gfxMatrix.h"
-#include "mozilla/gfx/2D.h"
 #include "mozilla/BasicEvents.h"
 #ifdef XP_WIN
 // This is needed for DoublePassRenderingEvent.
@@ -1253,8 +1252,6 @@ nsPluginFrame::PrintPlugin(nsRenderingContext& aRenderingContext,
 // platform specific printing code
 #if defined(XP_MACOSX) && !defined(__LP64__)
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-  DrawTarget& aDrawTarget = *aRenderingContext.GetDrawTarget();
-
   // Don't use this code if any of the QuickDraw APIs it currently requires
   // are missing (as they probably will be on OS X 10.8 and up).
   if (!&::SetRect || !&::NewGWorldFromPtr || !&::DisposeGWorld) {
@@ -1275,12 +1272,12 @@ nsPluginFrame::PrintPlugin(nsRenderingContext& aRenderingContext,
 
   ctx->NewPath();
 
-  gfx::Rect rect(window.x, window.y, window.width, window.height);
+  gfxRect rect(window.x, window.y, window.width, window.height);
 
-  ctx->Rectangle(ThebesRect(rect));
+  ctx->Rectangle(rect);
   ctx->Clip();
 
-  gfxQuartzNativeDrawing nativeDraw(aDrawTarget, rect);
+  gfxQuartzNativeDrawing nativeDraw(ctx, rect);
   CGContextRef cgContext = nativeDraw.BeginNativeDrawing();
   if (!cgContext) {
     nativeDraw.EndNativeDrawing();
@@ -1601,10 +1598,6 @@ nsPluginFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
                            nsRenderingContext& aRenderingContext,
                            const nsRect& aDirtyRect, const nsRect& aPluginRect)
 {
-#if defined(XP_MACOSX)
-  DrawTarget& aDrawTarget = *aRenderingContext.GetDrawTarget();
-#endif
-
 #if defined(MOZ_WIDGET_ANDROID)
   if (mInstanceOwner) {
     gfxRect frameGfxRect =
@@ -1651,8 +1644,7 @@ nsPluginFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
       ctx->SetMatrix(
         ctx->CurrentMatrix().Translate(offset));
 
-      gfxQuartzNativeDrawing nativeDrawing(aDrawTarget,
-                                           ToRect(nativeClipRect - offset));
+      gfxQuartzNativeDrawing nativeDrawing(ctx, nativeClipRect - offset);
 
       CGContextRef cgContext = nativeDrawing.BeginNativeDrawing();
       if (!cgContext) {
@@ -1951,9 +1943,11 @@ nsPluginFrame::GetCursor(const nsPoint& aPoint, nsIFrame::Cursor& aCursor)
 void
 nsPluginFrame::SetIsDocumentActive(bool aIsActive)
 {
+#ifndef XP_MACOSX
   if (mInstanceOwner) {
     mInstanceOwner->UpdateDocumentActiveState(aIsActive);
   }
+#endif
 }
 
 // static

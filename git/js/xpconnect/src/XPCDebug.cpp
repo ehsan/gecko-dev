@@ -6,8 +6,7 @@
 
 #include "xpcprivate.h"
 #include "jsprf.h"
-#include "nsThreadUtils.h"
-#include "nsContentUtils.h"
+#include "js/OldDebugAPI.h"
 
 #ifdef XP_WIN
 #include <windows.h>
@@ -34,12 +33,9 @@ static void DebugDump(const char* fmt, ...)
 }
 
 bool
-xpc_DumpJSStack(bool showArgs, bool showLocals, bool showThisProps)
+xpc_DumpJSStack(JSContext* cx, bool showArgs, bool showLocals, bool showThisProps)
 {
-    JSContext* cx = nsContentUtils::GetCurrentJSContextForThread();
-    if (!cx) {
-        printf("there is no JSContext on the stack!\n");
-    } else if (char* buf = xpc_PrintJSStack(cx, showArgs, showLocals, showThisProps)) {
+    if (char* buf = xpc_PrintJSStack(cx, showArgs, showLocals, showThisProps)) {
         DebugDump("%s\n", buf);
         JS_smprintf_free(buf);
     }

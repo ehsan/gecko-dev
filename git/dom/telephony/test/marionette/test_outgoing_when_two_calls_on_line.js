@@ -27,6 +27,8 @@ function testReject3rdCall() {
 
 startTest(function() {
   testReject3rdCall()
-    .catch(error => ok(false, "Promise reject: " + error))
+    .then(null, () => {
+      ok(false, 'promise rejects during test.');
+    })
     .then(finish);
 });

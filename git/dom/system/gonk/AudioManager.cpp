@@ -78,7 +78,6 @@ static int sMaxStreamVolumeTbl[AUDIO_STREAM_CNT] = {
 };
 // A bitwise variable for recording what kind of headset is attached.
 static int sHeadsetState;
-static bool sBluetoothA2dpEnabled;
 static const int kBtSampleRate = 8000;
 static bool sSwitchDone = true;
 static bool sA2dpSwitchDone = true;
@@ -200,12 +199,12 @@ static void ProcessDelayedAudioRoute(SwitchState aState)
   sSwitchDone = true;
 }
 
-static void ProcessDelayedA2dpRoute(audio_policy_dev_state_t aState, const nsCString aAddress)
+static void ProcessDelayedA2dpRoute(audio_policy_dev_state_t aState, const char *aAddress)
 {
   if (sA2dpSwitchDone)
     return;
   AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_BLUETOOTH_A2DP,
-                                        aState, aAddress.get());
+                                        aState, aAddress);
   String8 cmd("bluetooth_enabled=false");
   AudioSystem::setParameters(0, cmd);
   cmd.setTo("A2dpSuspended=true");
@@ -227,14 +226,8 @@ InternalSetAudioRoutesICS(SwitchState aState)
                                           AUDIO_POLICY_DEVICE_STATE_AVAILABLE, "");
     sHeadsetState |= AUDIO_DEVICE_OUT_WIRED_HEADPHONE;
   } else if (aState == SWITCH_STATE_OFF) {
-    if (sHeadsetState & AUDIO_DEVICE_OUT_WIRED_HEADSET) {
-      AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_WIRED_HEADSET,
-                                            AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE, "");
-    }
-    if (sHeadsetState & AUDIO_DEVICE_OUT_WIRED_HEADPHONE) {
-      AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_WIRED_HEADPHONE,
-                                            AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE, "");
-    }
+    AudioSystem::setDeviceConnectionState(static_cast<audio_devices_t>(sHeadsetState),
+                                          AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE, "");
     sHeadsetState = 0;
   }
 }
@@ -287,7 +280,7 @@ AudioManager::HandleBluetoothStatusChanged(nsISupports* aSubject,
   } else if (!strcmp(aTopic, BLUETOOTH_A2DP_STATUS_CHANGED_ID)) {
     if (audioState == AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE && sA2dpSwitchDone) {
       MessageLoop::current()->PostDelayedTask(
-        FROM_HERE, NewRunnableFunction(&ProcessDelayedA2dpRoute, audioState, aAddress), 1000);
+        FROM_HERE, NewRunnableFunction(&ProcessDelayedA2dpRoute, audioState, aAddress.get()), 1000);
       sA2dpSwitchDone = false;
     } else {
       AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_BLUETOOTH_A2DP,
@@ -297,13 +290,7 @@ AudioManager::HandleBluetoothStatusChanged(nsISupports* aSubject,
       cmd.setTo("A2dpSuspended=false");
       AudioSystem::setParameters(0, cmd);
       sA2dpSwitchDone = true;
-#if ANDROID_VERSION >= 17
-      if (AudioSystem::getForceUse(AUDIO_POLICY_FORCE_FOR_MEDIA) == AUDIO_POLICY_FORCE_NO_BT_A2DP) {
-        SetForceForUse(AUDIO_POLICY_FORCE_FOR_MEDIA, AUDIO_POLICY_FORCE_NONE);
-      }
-#endif
     }
-    sBluetoothA2dpEnabled = audioState == AUDIO_POLICY_DEVICE_STATE_AVAILABLE;
   } else if (!strcmp(aTopic, BLUETOOTH_HFP_STATUS_CHANGED_ID)) {
     AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET,
                                           audioState, aAddress.get());
@@ -409,8 +396,6 @@ NotifyHeadphonesStatus(SwitchState aState)
 class HeadphoneSwitchObserver : public SwitchObserver
 {
 public:
-  HeadphoneSwitchObserver(AudioManager* aAudioManager)
-  : mAudioManager(aAudioManager) { }
   void Notify(const SwitchEvent& aEvent) {
     NotifyHeadphonesStatus(aEvent.status());
     // When user pulled out the headset, a delay of routing here can avoid the leakage of audio from speaker.
@@ -422,24 +407,12 @@ public:
       InternalSetAudioRoutes(aEvent.status());
       sSwitchDone = true;
     }
-    // Handle the coexistence of a2dp / headset device, latest one wins.
-#if ANDROID_VERSION >= 17
-    int32_t forceUse = 0;
-    mAudioManager->GetForceForUse(AUDIO_POLICY_FORCE_FOR_MEDIA, &forceUse);
-    if (aEvent.status() != SWITCH_STATE_OFF && sBluetoothA2dpEnabled) {
-      mAudioManager->SetForceForUse(AUDIO_POLICY_FORCE_FOR_MEDIA, AUDIO_POLICY_FORCE_NO_BT_A2DP);
-    } else if (forceUse == AUDIO_POLICY_FORCE_NO_BT_A2DP) {
-      mAudioManager->SetForceForUse(AUDIO_POLICY_FORCE_FOR_MEDIA, AUDIO_POLICY_FORCE_NONE);
-    }
-#endif
   }
-private:
-  AudioManager* mAudioManager;
 };
 
 AudioManager::AudioManager()
   : mPhoneState(PHONE_STATE_CURRENT)
-  , mObserver(new HeadphoneSwitchObserver(this))
+  , mObserver(new HeadphoneSwitchObserver())
 #ifdef MOZ_B2G_RIL
   , mMuteCallToRIL(false)
 #endif
@@ -841,11 +814,6 @@ AudioManager::SetStreamVolumeIndex(int32_t aStream, int32_t aIndex) {
               static_cast<audio_stream_type_t>(aStream),
               aIndex,
               AUDIO_DEVICE_OUT_EARPIECE);
-  status += AudioSystem::setStreamVolumeIndex(
-              static_cast<audio_stream_type_t>(aStream),
-              aIndex,
-              AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET);
-
   return status ? NS_ERROR_FAILURE : NS_OK;
 #endif
 }

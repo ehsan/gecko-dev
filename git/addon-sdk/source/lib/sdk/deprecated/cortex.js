@@ -8,10 +8,6 @@ module.metadata = {
   "stability": "deprecated"
 };
 
-const getOwnIdentifiers = x => [...Object.getOwnPropertyNames(x),
-                                ...Object.getOwnPropertySymbols(x)];
-
-
 // `var` is being used in the module in order to make it reusable in
 // environments in which `let` and `const` is not yet supported.
 
@@ -50,7 +46,7 @@ function createAliasProperty(object, name) {
     descriptor.get = property.get.bind(object);
   if ("set" in property && property.set)
     descriptor.set = property.set.bind(object);
-
+  
   // If original property was a value property.
   if ("value" in property) {
     // If original property is a method using it's `object` bounded copy.
@@ -108,8 +104,8 @@ exports.Cortex = function Cortex(object, names, prototype) {
   // properties of the original `object` that are contained in `names` array.
   // If `names` array is not provided then all the properties that don't
   // start with `"_"` are aliased.
-  getOwnIdentifiers(object).forEach(function (name) {
-    if ((!names && "_" !== name.toString().charAt(0)) || (names && ~names.indexOf(name)))
+  Object.getOwnPropertyNames(object).forEach(function (name) {
+    if ((!names && "_" !== name.charAt(0)) || (names && ~names.indexOf(name)))
       defineAlias(object, cortex, name);
   });
   return cortex;

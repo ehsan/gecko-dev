@@ -45,7 +45,6 @@ enum FrameType
     // An unwound JS frame is a JS frame signalling that its callee frame has been
     // turned into an exit frame (see EnsureExitFrame). Used by Ion bailouts and
     // Baseline exception unwinding.
-    JitFrame_Unwound_BaselineJS,
     JitFrame_Unwound_IonJS,
 
     // Like Unwound_IonJS, but the caller is a baseline stub frame.
@@ -58,13 +57,7 @@ enum FrameType
     // An exit frame is necessary for transitioning from a JS frame into C++.
     // From within C++, an exit frame is always the last frame in any
     // JitActivation.
-    JitFrame_Exit,
-
-    // A bailout frame is a special IonJS jit frame after a bailout, and before
-    // the reconstruction of the BaselineJS frame. From within C++, a bailout
-    // frame is always the last frame in a JitActivation iff the bailout frame
-    // information is recorded on the JitActivation.
-    JitFrame_Bailout
+    JitFrame_Exit
 };
 
 enum ReadFrameArgsBehavior {
@@ -81,6 +74,7 @@ enum ReadFrameArgsBehavior {
 class IonCommonFrameLayout;
 class IonJSFrameLayout;
 class IonExitFrameLayout;
+class IonBailoutIterator;
 
 class BaselineFrame;
 
@@ -94,6 +88,10 @@ class JitFrameIterator
     uint8_t *returnAddressToFp_;
     size_t frameSize_;
     ExecutionMode mode_;
+    enum Kind {
+        Kind_FrameIterator,
+        Kind_BailoutIterator
+    } kind_;
 
   private:
     mutable const SafepointIndex *cachedSafepointIndex_;
@@ -102,9 +100,26 @@ class JitFrameIterator
     void dumpBaseline() const;
 
   public:
-    explicit JitFrameIterator();
+    explicit JitFrameIterator(uint8_t *top, ExecutionMode mode)
+      : current_(top),
+        type_(JitFrame_Exit),
+        returnAddressToFp_(nullptr),
+        frameSize_(0),
+        mode_(mode),
+        kind_(Kind_FrameIterator),
+        cachedSafepointIndex_(nullptr),
+        activation_(nullptr)
+    { }
+
     explicit JitFrameIterator(ThreadSafeContext *cx);
     explicit JitFrameIterator(const ActivationIterator &activations);
+    explicit JitFrameIterator(IonJSFrameLayout *fp, ExecutionMode mode);
+
+    bool isBailoutIterator() const {
+        return kind_ == Kind_BailoutIterator;
+    }
+    IonBailoutIterator *asBailoutIterator();
+    const IonBailoutIterator *asBailoutIterator() const;
 
     // Current frame information.
     FrameType type() const {
@@ -123,9 +138,10 @@ class JitFrameIterator
 
     inline uint8_t *returnAddress() const;
 
-    // Return the pointer of the JitFrame, the iterator is assumed to be settled
-    // on a scripted frame.
-    IonJSFrameLayout *jsFrame() const;
+    IonJSFrameLayout *jsFrame() const {
+        JS_ASSERT(isScripted());
+        return (IonJSFrameLayout *) fp();
+    }
 
     // Returns true iff this exit frame was created using EnsureExitFrame.
     inline bool isFakeExitFrame() const;
@@ -138,19 +154,13 @@ class JitFrameIterator
     bool checkInvalidation() const;
 
     bool isScripted() const {
-        return type_ == JitFrame_BaselineJS || type_ == JitFrame_IonJS || type_ == JitFrame_Bailout;
+        return type_ == JitFrame_BaselineJS || type_ == JitFrame_IonJS;
     }
     bool isBaselineJS() const {
         return type_ == JitFrame_BaselineJS;
     }
-    bool isIonScripted() const {
-        return type_ == JitFrame_IonJS || type_ == JitFrame_Bailout;
-    }
     bool isIonJS() const {
         return type_ == JitFrame_IonJS;
-    }
-    bool isBailoutJS() const {
-        return type_ == JitFrame_Bailout;
     }
     bool isBaselineStub() const {
         return type_ == JitFrame_BaselineStub;
@@ -191,7 +201,7 @@ class JitFrameIterator
     // Returns the stack space used by the current frame, in bytes. This does
     // not include the size of its fixed header.
     size_t frameSize() const {
-        MOZ_ASSERT(type_ != JitFrame_Exit);
+        JS_ASSERT(type_ != JitFrame_Exit);
         return frameSize_;
     }
 
@@ -217,16 +227,12 @@ class JitFrameIterator
     // overhead.
     const OsiIndex *osiIndex() const;
 
-    // Returns the Snapshot offset associated with this JS frame. Incurs a
-    // lookup overhead.
-    SnapshotOffset snapshotOffset() const;
-
     uintptr_t *spillBase() const;
     MachineState machineState() const;
 
     template <class Op>
     void unaliasedForEachActual(Op op, ReadFrameArgsBehavior behavior) const {
-        MOZ_ASSERT(isBaselineJS());
+        JS_ASSERT(isBaselineJS());
 
         unsigned nactual = numActualArgs();
         unsigned start, end;
@@ -270,20 +276,15 @@ class RInstructionResults
     // bailed out.
     IonJSFrameLayout *fp_;
 
-    // Record if we tried and succeed at allocating and filling the vector of
-    // recover instruction results, if needed.  This flag is needed in order to
-    // avoid evaluating the recover instruction twice.
-    bool initialized_;
-
   public:
-    explicit RInstructionResults(IonJSFrameLayout *fp);
+    RInstructionResults();
     RInstructionResults(RInstructionResults&& src);
 
     RInstructionResults& operator=(RInstructionResults&& rhs);
 
     ~RInstructionResults();
 
-    bool init(JSContext *cx, uint32_t numResults);
+    bool init(JSContext *cx, uint32_t numResults, IonJSFrameLayout *fp);
     bool isInitialized() const;
 
     IonJSFrameLayout *frame() const;
@@ -300,33 +301,24 @@ struct MaybeReadFallback
         NoGC_MagicOptimizedOut
     };
 
-    enum FallbackConsequence {
-        Fallback_Invalidate,
-        Fallback_DoNothing
-    };
-
     JSContext *maybeCx;
     JitActivation *activation;
     JitFrameIterator *frame;
     const NoGCValue unreadablePlaceholder_;
-    const FallbackConsequence consequence;
 
-    explicit MaybeReadFallback(const Value &placeholder = UndefinedValue())
+    MaybeReadFallback(const Value &placeholder = UndefinedValue())
       : maybeCx(nullptr),
         activation(nullptr),
         frame(nullptr),
-        unreadablePlaceholder_(noGCPlaceholder(placeholder)),
-        consequence(Fallback_Invalidate)
+        unreadablePlaceholder_(noGCPlaceholder(placeholder))
     {
     }
 
-    MaybeReadFallback(JSContext *cx, JitActivation *activation, JitFrameIterator *frame,
-                      FallbackConsequence consequence = Fallback_Invalidate)
+    MaybeReadFallback(JSContext *cx, JitActivation *activation, JitFrameIterator *frame)
       : maybeCx(cx),
         activation(activation),
         frame(frame),
-        unreadablePlaceholder_(NoGC_UndefinedValue),
-        consequence(consequence)
+        unreadablePlaceholder_(NoGC_UndefinedValue)
     {
     }
 
@@ -389,7 +381,6 @@ class SnapshotIterator
 
     Value allocationValue(const RValueAllocation &a);
     bool allocationReadable(const RValueAllocation &a);
-    void writeAllocationValuePayload(const RValueAllocation &a, Value v);
     void warnUnreadableAllocation();
 
   public:
@@ -480,6 +471,7 @@ class SnapshotIterator
     SnapshotIterator(IonScript *ionScript, SnapshotOffset snapshotOffset,
                      IonJSFrameLayout *fp, const MachineState &machine);
     explicit SnapshotIterator(const JitFrameIterator &iter);
+    explicit SnapshotIterator(const IonBailoutIterator &iter);
     SnapshotIterator();
 
     Value read() {
@@ -503,8 +495,6 @@ class SnapshotIterator
 
         return fallback.unreadablePlaceholder();
     }
-
-    void traceAllocation(JSTracer *trc);
 
     void readCommonFrameSlots(Value *scopeChain, Value *rval) {
         if (scopeChain)
@@ -596,13 +586,14 @@ class InlineFrameIterator
   public:
     InlineFrameIterator(ThreadSafeContext *cx, const JitFrameIterator *iter);
     InlineFrameIterator(JSRuntime *rt, const JitFrameIterator *iter);
+    InlineFrameIterator(ThreadSafeContext *cx, const IonBailoutIterator *iter);
     InlineFrameIterator(ThreadSafeContext *cx, const InlineFrameIterator *iter);
 
     bool more() const {
         return frame_ && framesRead_ < frameCount_;
     }
     JSFunction *callee() const {
-        MOZ_ASSERT(callee_);
+        JS_ASSERT(callee_);
         return callee_;
     }
     JSFunction *maybeCallee() const {
@@ -666,7 +657,7 @@ class InlineFrameIterator
                     // Skip over all slots until we get to the last slots
                     // (= arguments slots of callee) the +3 is for [this], [returnvalue],
                     // [scopechain], and maybe +1 for [argsObj]
-                    MOZ_ASSERT(parent_s.numAllocations() >= nactual + 3 + argsObjAdj);
+                    JS_ASSERT(parent_s.numAllocations() >= nactual + 3 + argsObjAdj);
                     unsigned skip = parent_s.numAllocations() - nactual - 3 - argsObjAdj;
                     for (unsigned j = 0; j < skip; j++)
                         parent_s.skip();
@@ -728,7 +719,7 @@ class InlineFrameIterator
     }
 
     Value thisValue(MaybeReadFallback &fallback) const {
-        // MOZ_ASSERT(isConstructing(...));
+        // JS_ASSERT(isConstructing(...));
         SnapshotIterator s(si_);
 
         // scopeChain

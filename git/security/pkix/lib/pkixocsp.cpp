@@ -130,8 +130,8 @@ CheckOCSPResponseSignerCert(TrustDomain& trustDomain,
   }
 
   // TODO(bug 926260): check name constraints
-  rv = WrappedVerifySignedData(trustDomain, potentialSigner.GetSignedData(),
-                               issuerSubjectPublicKeyInfo);
+  rv = trustDomain.VerifySignedData(potentialSigner.GetSignedData(),
+                                    issuerSubjectPublicKeyInfo);
 
   // TODO: check for revocation of the OCSP responder certificate unless no-check
   // or the caller forcing no-check. To properly support the no-check policy, we'd
@@ -207,7 +207,7 @@ VerifyOCSPSignedData(TrustDomain& trustDomain,
                      const SignedDataWithSignature& signedResponseData,
                      Input spki)
 {
-  Result rv = WrappedVerifySignedData(trustDomain, signedResponseData, spki);
+  Result rv = trustDomain.VerifySignedData(signedResponseData, spki);
   if (rv == Result::ERROR_BAD_SIGNATURE) {
     rv = Result::ERROR_OCSP_BAD_SIGNATURE;
   }
@@ -409,15 +409,23 @@ BasicResponse(Reader& input, Context& context)
 
     // [0] wrapper
     Reader wrapped;
-    rv = der::ExpectTagAndGetValueAtEnd(
+    rv = der::ExpectTagAndGetValue(
           input, der::CONTEXT_SPECIFIC | der::CONSTRUCTED | 0, wrapped);
+    if (rv != Success) {
+      return rv;
+    }
+    rv = der::End(input);
     if (rv != Success) {
       return rv;
     }
 
     // SEQUENCE wrapper
     Reader certsSequence;
-    rv = der::ExpectTagAndGetValueAtEnd(wrapped, der::SEQUENCE, certsSequence);
+    rv = der::ExpectTagAndGetValue(wrapped, der::SEQUENCE, certsSequence);
+    if (rv != Success) {
+      return rv;
+    }
+    rv = der::End(wrapped);
     if (rv != Success) {
       return rv;
     }
@@ -779,10 +787,20 @@ KeyHash(TrustDomain& trustDomain, const Input subjectPublicKeyInfo,
   //    subjectPublicKey     BIT STRING  }
 
   Reader spki;
-  Result rv = der::ExpectTagAndGetValueAtEnd(subjectPublicKeyInfo,
-                                             der::SEQUENCE, spki);
-  if (rv != Success) {
-    return rv;
+  Result rv;
+
+  {
+    // The scope of input is limited to reduce the possibility of confusing it
+    // with spki in places we need to be using spki below.
+    Reader input(subjectPublicKeyInfo);
+    rv = der::ExpectTagAndGetValue(input, der::SEQUENCE, spki);
+    if (rv != Success) {
+      return rv;
+    }
+    rv = der::End(input);
+    if (rv != Success) {
+      return rv;
+    }
   }
 
   // Skip AlgorithmIdentifier

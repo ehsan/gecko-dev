@@ -35,7 +35,6 @@ enum eHtml5TreeOperation {
   eTreeOpAppendCommentToDocument,
   eTreeOpAppendDoctypeToDocument,
   eTreeOpGetDocumentFragmentForTemplate,
-  eTreeOpGetFosterParent,
   // Gecko-specific on-pop ops
   eTreeOpMarkAsBroken,
   eTreeOpRunScript,
@@ -56,7 +55,6 @@ enum eHtml5TreeOperation {
   eTreeOpMaybeComplainAboutCharset,
   eTreeOpAddClass,
   eTreeOpAddViewSourceHref,
-  eTreeOpAddViewSourceBase,
   eTreeOpAddError,
   eTreeOpAddLineNumberId,
   eTreeOpAddErrorAtom,
@@ -150,7 +148,6 @@ class nsHtml5TreeOperation {
                                      nsIAtom* aName,
                                      nsHtml5HtmlAttributes* aAttributes,
                                      mozilla::dom::FromParser aFromParser,
-                                     nsNodeInfoManager* aNodeInfoManager,
                                      nsHtml5DocumentBuilder* aBuilder);
 
     static void SetFormElement(nsIContent* aNode, nsIContent* aParent);
@@ -179,8 +176,6 @@ class nsHtml5TreeOperation {
                                             nsHtml5DocumentBuilder* aBuilder);
 
     static nsIContent* GetDocumentFragmentForTemplate(nsIContent* aNode);
-
-    static nsIContent* GetFosterParent(nsIContent* aTable, nsIContent* aStackParent);
 
     static void PreventScriptExecution(nsIContent* aNode);
 
@@ -292,7 +287,6 @@ class nsHtml5TreeOperation {
                      nsIAtom* aName, 
                      nsHtml5HtmlAttributes* aAttributes,
                      nsIContentHandle* aTarget,
-                     nsIContentHandle* aIntendedParent,
                      bool aFromNetwork)
     {
       NS_PRECONDITION(mOpCode == eTreeOpUninitialized,
@@ -303,7 +297,6 @@ class nsHtml5TreeOperation {
                 eTreeOpCreateElementNetwork :
                 eTreeOpCreateElementNotNetwork;
       mFour.integer = aNamespace;
-      mFive.node = static_cast<nsIContent**>(aIntendedParent);
       mOne.node = static_cast<nsIContent**>(aTarget);
       mTwo.atom = aName;
       if (aAttributes == nsHtml5HtmlAttributes::EMPTY_ATTRIBUTES) {
@@ -438,15 +431,6 @@ class nsHtml5TreeOperation {
       mFour.integer = aInt;
     }
 
-    inline void Init(nsresult aRv)
-    {
-      NS_PRECONDITION(mOpCode == eTreeOpUninitialized,
-        "Op code must be uninitialized when initializing.");
-      NS_PRECONDITION(NS_FAILED(aRv), "Initialized tree op with non-failure.");
-      mOpCode = eTreeOpMarkAsBroken;
-      mOne.result = aRv;
-    }
-
     inline void InitAddClass(nsIContentHandle* aNode, const char16_t* aClass)
     {
       NS_PRECONDITION(mOpCode == eTreeOpUninitialized,
@@ -499,13 +483,12 @@ class nsHtml5TreeOperation {
       nsIAtom*                        atom;
       nsHtml5HtmlAttributes*          attributes;
       nsHtml5DocumentMode             mode;
-      char16_t*                       unicharPtr;
+      char16_t*                      unicharPtr;
       char*                           charPtr;
       nsHtml5TreeOperationStringPair* stringPair;
       nsAHtml5TreeBuilderState*       state;
       int32_t                         integer;
-      nsresult                        result;
-    } mOne, mTwo, mThree, mFour, mFive;
+    }                   mOne, mTwo, mThree, mFour;
 };
 
 #endif // nsHtml5TreeOperation_h

@@ -27,21 +27,8 @@ namespace js {
  * this wiki page:
  *
  *  https://developer.mozilla.org/en-US/docs/SpiderMonkey/Internals/Bytecode
- *
- * === GREETINGS, FELLOW SUBTRAHEND INCREMENTER! ===
- * For the time being, please increment the subtrahend by 2 each time it
- * changes, because we have two flavors of bytecode: with JSOP_SYMBOL (in
- * Nightly) and without (all others).  FIXME: Bug 1066322 - Enable ES6 symbols
- * in all builds.
  */
-static const uint32_t XDR_BYTECODE_VERSION_SUBTRAHEND = 204;
-static_assert(XDR_BYTECODE_VERSION_SUBTRAHEND % 2 == 0, "see the comment above");
-static const uint32_t XDR_BYTECODE_VERSION =
-    uint32_t(0xb973c0de - (XDR_BYTECODE_VERSION_SUBTRAHEND
-#ifdef JS_HAS_SYMBOLS
-                                                           + 1
-#endif
-                                                              ));
+static const uint32_t XDR_BYTECODE_VERSION = uint32_t(0xb973c0de - 185);
 
 class XDRBuffer {
   public:
@@ -53,7 +40,7 @@ class XDRBuffer {
     }
 
     void *getData(uint32_t *lengthp) const {
-        MOZ_ASSERT(size_t(cursor - base) <= size_t(UINT32_MAX));
+        JS_ASSERT(size_t(cursor - base) <= size_t(UINT32_MAX));
         *lengthp = uint32_t(cursor - base);
         return base;
     }
@@ -65,7 +52,7 @@ class XDRBuffer {
     }
 
     const uint8_t *read(size_t n) {
-        MOZ_ASSERT(n <= size_t(limit - cursor));
+        JS_ASSERT(n <= size_t(limit - cursor));
         uint8_t *ptr = cursor;
         cursor += n;
         return ptr;
@@ -74,8 +61,8 @@ class XDRBuffer {
     const char *readCString() {
         char *ptr = reinterpret_cast<char *>(cursor);
         cursor = reinterpret_cast<uint8_t *>(strchr(ptr, '\0')) + 1;
-        MOZ_ASSERT(base < cursor);
-        MOZ_ASSERT(cursor <= limit);
+        JS_ASSERT(base < cursor);
+        JS_ASSERT(cursor <= limit);
         return ptr;
     }
 
@@ -238,7 +225,7 @@ class XDRState {
     bool codeChars(const JS::Latin1Char *chars, size_t nchars);
     bool codeChars(char16_t *chars, size_t nchars);
 
-    bool codeFunction(JS::MutableHandleFunction objp);
+    bool codeFunction(JS::MutableHandleObject objp);
     bool codeScript(MutableHandleScript scriptp);
     bool codeConstValue(MutableHandleValue vp);
 };

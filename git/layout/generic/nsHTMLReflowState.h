@@ -117,19 +117,12 @@ public:
   nsMargin& ComputedPhysicalBorderPadding() { return mComputedBorderPadding; }
   nsMargin& ComputedPhysicalPadding() { return mComputedPadding; }
 
-  const LogicalMargin ComputedLogicalMargin() const
+  LogicalMargin ComputedLogicalMargin() const
     { return LogicalMargin(mWritingMode, mComputedMargin); }
-  const LogicalMargin ComputedLogicalBorderPadding() const
+  LogicalMargin ComputedLogicalBorderPadding() const
     { return LogicalMargin(mWritingMode, mComputedBorderPadding); }
-  const LogicalMargin ComputedLogicalPadding() const
+  LogicalMargin ComputedLogicalPadding() const
     { return LogicalMargin(mWritingMode, mComputedPadding); }
-
-  void SetComputedLogicalMargin(const LogicalMargin& aMargin)
-    { mComputedMargin = aMargin.GetPhysicalMargin(mWritingMode); }
-  void SetComputedLogicalBorderPadding(const LogicalMargin& aMargin)
-    { mComputedBorderPadding = aMargin.GetPhysicalMargin(mWritingMode); }
-  void SetComputedLogicalPadding(const LogicalMargin& aMargin)
-    { mComputedPadding = aMargin.GetPhysicalMargin(mWritingMode); }
 
   WritingMode GetWritingMode() const { return mWritingMode; }
 
@@ -637,7 +630,7 @@ public:
    */
   static nscoord CalcLineHeight(nsIContent* aContent,
                                 nsStyleContext* aStyleContext,
-                                nscoord aBlockBSize,
+                                nscoord aBlockHeight,
                                 float aFontSizeInflation);
 
 
@@ -810,8 +803,8 @@ protected:
                                          nscoord* aInsideBoxSizing,
                                          nscoord* aOutsideBoxSizing);
 
-  void CalculateBlockSideMargins(nscoord aAvailISize,
-                                 nscoord aComputedISize,
+  void CalculateBlockSideMargins(nscoord aAvailWidth,
+                                 nscoord aComputedWidth,
                                  nsIAtom* aFrameType);
 };
 

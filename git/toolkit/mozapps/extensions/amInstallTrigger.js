@@ -80,7 +80,11 @@ RemoteMediator.prototype = {
     installs.referer = referer;
     installs.callbackID = callbackID;
 
-    return messageManager.sendSyncMessage(MSG_INSTALL_ADDONS, installs)[0];
+    let objects = { window: null };
+    if (Services.appinfo.processType === Ci.nsIXULRuntime.PROCESS_TYPE_DEFAULT)
+      objects.window = window;
+
+    return messageManager.sendSyncMessage(MSG_INSTALL_ADDONS, installs, objects)[0];
   },
 
   _addCallback: function(callback, urls) {

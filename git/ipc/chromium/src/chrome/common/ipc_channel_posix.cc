@@ -383,20 +383,14 @@ bool Channel::ChannelImpl::EnqueueHelloMessage() {
   return true;
 }
 
-void Channel::ChannelImpl::ClearAndShrinkInputOverflowBuf()
+static void
+ClearAndShrink(std::string& s, size_t capacity)
 {
-  // If input_overflow_buf_ has grown, shrink it back to its normal size.
-  static size_t previousCapacityAfterClearing = 0;
-  if (input_overflow_buf_.capacity() > previousCapacityAfterClearing) {
-    // This swap trick is the closest thing C++ has to a guaranteed way
-    // to shrink the capacity of a string.
-    std::string tmp;
-    tmp.reserve(Channel::kReadBufferSize);
-    input_overflow_buf_.swap(tmp);
-    previousCapacityAfterClearing = input_overflow_buf_.capacity();
-  } else {
-    input_overflow_buf_.clear();
-  }
+  // This swap trick is the closest thing C++ has to a guaranteed way to
+  // shrink the capacity of a string.
+  std::string tmp;
+  tmp.reserve(capacity);
+  s.swap(tmp);
 }
 
 bool Channel::ChannelImpl::Connect() {
@@ -525,7 +519,7 @@ bool Channel::ChannelImpl::ProcessIncomingMessages() {
     } else {
       if (input_overflow_buf_.size() >
          static_cast<size_t>(kMaximumMessageSize - bytes_read)) {
-        ClearAndShrinkInputOverflowBuf();
+        ClearAndShrink(input_overflow_buf_, Channel::kReadBufferSize);
         CHROMIUM_LOG(ERROR) << "IPC message is too big";
         return false;
       }
@@ -634,7 +628,7 @@ bool Channel::ChannelImpl::ProcessIncomingMessages() {
       }
     }
     if (end == p) {
-      ClearAndShrinkInputOverflowBuf();
+      ClearAndShrink(input_overflow_buf_, Channel::kReadBufferSize);
     } else if (!overflowp) {
       // p is from input_buf_
       input_overflow_buf_.assign(p, end - p);

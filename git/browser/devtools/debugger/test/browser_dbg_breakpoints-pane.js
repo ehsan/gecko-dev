@@ -9,11 +9,12 @@
 const TAB_URL = EXAMPLE_URL + "doc_script-switching-01.html";
 
 function test() {
-  let gTab, gPanel, gDebugger;
+  let gTab, gDebuggee, gPanel, gDebugger;
   let gEditor, gSources, gBreakpoints, gBreakpointsAdded, gBreakpointsRemoving;
 
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
     gEditor = gDebugger.DebuggerView.editor;
@@ -23,7 +24,7 @@ function test() {
     gBreakpointsRemoving = gBreakpoints._removing;
 
     waitForSourceAndCaretAndScopes(gPanel, "-02.js", 1).then(performTest);
-    callInTab(gTab, "firstCall");
+    gDebuggee.firstCall();
   });
 
   let breakpointsAdded = 0;

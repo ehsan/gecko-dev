@@ -28,8 +28,6 @@ dictionary WifiWPSInfo {
 
 dictionary NetworkProperties {
   DOMString ssid;
-  long mode;
-  long frequency;
   sequence<DOMString>? security;
   sequence<DOMString>? capabilities;
   boolean known;
@@ -65,8 +63,6 @@ dictionary NetworkProperties {
  Func="Navigator::HasWifiManagerSupport"]
 interface MozWifiNetwork {
   readonly attribute DOMString ssid;
-  readonly attribute long mode;
-  readonly attribute long frequency;
   [Constant, Cached] readonly attribute sequence<DOMString>? security;
   [Constant, Cached] readonly attribute sequence<DOMString>? capabilities;
   readonly attribute boolean known;

@@ -193,15 +193,13 @@ let CommandUtils = {
    * reflects the current debug target
    */
   createEnvironment: function(container, targetProperty='target') {
-    if (!container[targetProperty].toString ||
-        !/TabTarget/.test(container[targetProperty].toString())) {
+    if (container[targetProperty].supports == null) {
       throw new Error('Missing target');
     }
 
     return {
       get target() {
-        if (!container[targetProperty].toString ||
-            !/TabTarget/.test(container[targetProperty].toString())) {
+        if (container[targetProperty].supports == null) {
           throw new Error('Removed target');
         }
 

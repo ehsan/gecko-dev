@@ -51,7 +51,7 @@ class BaselineInspector
     explicit BaselineInspector(JSScript *script)
       : script(script), prevLookedUpEntry(nullptr)
     {
-        MOZ_ASSERT(script);
+        JS_ASSERT(script);
     }
 
     bool hasBaselineScript() const {
@@ -70,10 +70,10 @@ class BaselineInspector
 #endif
 
     ICEntry &icEntryFromPC(jsbytecode *pc) {
-        MOZ_ASSERT(hasBaselineScript());
-        MOZ_ASSERT(isValidPC(pc));
+        JS_ASSERT(hasBaselineScript());
+        JS_ASSERT(isValidPC(pc));
         ICEntry &ent = baselineScript()->icEntryFromPCOffset(script->pcToOffset(pc), prevLookedUpEntry);
-        MOZ_ASSERT(ent.isForOp());
+        JS_ASSERT(ent.isForOp());
         prevLookedUpEntry = &ent;
         return ent;
     }
@@ -83,7 +83,7 @@ class BaselineInspector
         ICEntry *ent = nullptr;
         if (hasBaselineScript()) {
             ent = &icEntryFromPC(pc);
-            MOZ_ASSERT(ent->fallbackStub()->kind() == expectedFallbackKind);
+            JS_ASSERT(ent->fallbackStub()->kind() == expectedFallbackKind);
         }
         return ICInspectorType(this, pc, ent);
     }
@@ -109,15 +109,13 @@ class BaselineInspector
     bool hasSeenDoubleResult(jsbytecode *pc);
     bool hasSeenNonStringIterMore(jsbytecode *pc);
 
-    NativeObject *getTemplateObject(jsbytecode *pc);
-    NativeObject *getTemplateObjectForNative(jsbytecode *pc, Native native);
-    JSObject *getTemplateObjectForClassHook(jsbytecode *pc, const Class *clasp);
+    JSObject *getTemplateObject(jsbytecode *pc);
+    JSObject *getTemplateObjectForNative(jsbytecode *pc, Native native);
 
     DeclEnvObject *templateDeclEnvObject();
     CallObject *templateCallObject();
 
-    JSObject *commonGetPropFunction(jsbytecode *pc, Shape **lastProperty, JSFunction **commonGetter,
-                                    Shape **globalShape);
+    JSObject *commonGetPropFunction(jsbytecode *pc, Shape **lastProperty, JSFunction **commonGetter);
     JSObject *commonSetPropFunction(jsbytecode *pc, Shape **lastProperty, JSFunction **commonSetter);
 };
 

@@ -22,7 +22,7 @@ class WebGLVertexArrayFake;
 
 class WebGLVertexArray
     : public nsWrapperCache
-    , public WebGLBindable<VAOBinding>
+    , public WebGLBindableName<VAOBinding>
     , public WebGLRefCountedObject<WebGLVertexArray>
     , public LinkedListElement<WebGLVertexArray>
     , public WebGLContextBoundObject
@@ -61,9 +61,7 @@ public:
     // -------------------------------------------------------------------------
     // MEMBER FUNCTIONS
 
-    GLuint GLName() const { return mGLName; }
-
-    void EnsureAttrib(GLuint index);
+    bool EnsureAttrib(GLuint index, const char *info);
     bool HasAttrib(GLuint index) {
         return index < mAttribs.Length();
     }
@@ -84,7 +82,6 @@ protected:
     // -------------------------------------------------------------------------
     // MEMBERS
 
-    GLuint mGLName;
     nsTArray<WebGLVertexAttribData> mAttribs;
     WebGLRefPtr<WebGLBuffer> mElementArrayBuffer;
 

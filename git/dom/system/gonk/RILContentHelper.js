@@ -41,12 +41,19 @@ function debug(s) {
 
 const RILCONTENTHELPER_CID =
   Components.ID("{472816e1-1fd6-4405-996c-806f9ea68174}");
+const ICCINFO_CID =
+  Components.ID("{39d64d90-26a6-11e4-8c21-0800200c9a66}");
+const GSMICCINFO_CID =
+  Components.ID("{e0fa785b-ad3f-46ed-bc56-fcb0d6fe4fa8}");
+const CDMAICCINFO_CID =
+  Components.ID("{3d1f844f-9ec5-48fb-8907-aed2e5421709}");
+const ICCCARDLOCKERROR_CID =
+  Components.ID("{08a71987-408c-44ff-93fd-177c0a85c3dd}");
 
 const RIL_IPC_MSG_NAMES = [
   "RIL:CardStateChanged",
   "RIL:IccInfoChanged",
-  "RIL:GetCardLockResult",
-  "RIL:SetUnlockCardLockResult",
+  "RIL:CardLockResult",
   "RIL:CardLockRetryCount",
   "RIL:StkCommand",
   "RIL:StkSessionEnd",
@@ -75,11 +82,42 @@ XPCOMUtils.defineLazyGetter(this, "gNumRadioInterfaces", function() {
   return Services.prefs.getIntPref(kPrefRilNumRadioInterfaces);
 });
 
+function MobileIccCardLockResult(options) {
+  this.lockType = options.lockType;
+  this.enabled = options.enabled;
+  this.retryCount = options.retryCount;
+  this.success = options.success;
+}
+MobileIccCardLockResult.prototype = {
+  __exposedProps__ : {lockType: 'r',
+                      enabled: 'r',
+                      retryCount: 'r',
+                      success: 'r'}
+};
+
+function MobileIccCardLockRetryCount(options) {
+  this.lockType = options.lockType;
+  this.retryCount = options.retryCount;
+  this.success = options.success;
+}
+MobileIccCardLockRetryCount.prototype = {
+  __exposedProps__ : {lockType: 'r',
+                      retryCount: 'r',
+                      success: 'r'}
+};
+
 function IccInfo() {}
 IccInfo.prototype = {
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIIccInfo]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozIccInfo]),
+  classID: ICCINFO_CID,
+  classInfo: XPCOMUtils.generateCI({
+    classID:          ICCINFO_CID,
+    classDescription: "MozIccInfo",
+    flags:            Ci.nsIClassInfo.DOM_OBJECT,
+    interfaces:       [Ci.nsIDOMMozIccInfo]
+  }),
 
-  // nsIIccInfo
+  // nsIDOMMozIccInfo
 
   iccType: null,
   iccid: null,
@@ -93,10 +131,16 @@ IccInfo.prototype = {
 function GsmIccInfo() {}
 GsmIccInfo.prototype = {
   __proto__: IccInfo.prototype,
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIGsmIccInfo,
-                                         Ci.nsIIccInfo]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozGsmIccInfo]),
+  classID: GSMICCINFO_CID,
+  classInfo: XPCOMUtils.generateCI({
+    classID:          GSMICCINFO_CID,
+    classDescription: "MozGsmIccInfo",
+    flags:            Ci.nsIClassInfo.DOM_OBJECT,
+    interfaces:       [Ci.nsIDOMMozGsmIccInfo]
+  }),
 
-  // nsIGsmIccInfo
+  // nsIDOMMozGsmIccInfo
 
   msisdn: null
 };
@@ -104,13 +148,33 @@ GsmIccInfo.prototype = {
 function CdmaIccInfo() {}
 CdmaIccInfo.prototype = {
   __proto__: IccInfo.prototype,
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsICdmaIccInfo,
-                                         Ci.nsIIccInfo]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozCdmaIccInfo]),
+  classID: CDMAICCINFO_CID,
+  classInfo: XPCOMUtils.generateCI({
+    classID:          CDMAICCINFO_CID,
+    classDescription: "MozCdmaIccInfo",
+    flags:            Ci.nsIClassInfo.DOM_OBJECT,
+    interfaces:       [Ci.nsIDOMMozCdmaIccInfo]
+  }),
 
-  // nsICdmaIccInfo
+  // nsIDOMMozCdmaIccInfo
 
   mdn: null,
   prlVersion: 0
+};
+
+function IccCardLockError() {
+}
+IccCardLockError.prototype = {
+  classDescription: "IccCardLockError",
+  classID:          ICCCARDLOCKERROR_CID,
+  contractID:       "@mozilla.org/dom/icccardlock-error;1",
+  QueryInterface:   XPCOMUtils.generateQI([Ci.nsISupports]),
+  __init: function(lockType, errorMsg, retryCount) {
+    this.__DOM_IMPL__.init(errorMsg);
+    this.lockType = lockType;
+    this.retryCount = retryCount;
+  },
 };
 
 function RILContentHelper() {
@@ -122,8 +186,8 @@ function RILContentHelper() {
   this.rilContexts = [];
   for (let clientId = 0; clientId < this.numClients; clientId++) {
     this.rilContexts[clientId] = {
-      cardState: Ci.nsIIccProvider.CARD_STATE_UNKNOWN,
-      iccInfo: null
+      cardState:            RIL.GECKO_CARDSTATE_UNKNOWN,
+      iccInfo:              null
     };
   }
 
@@ -187,6 +251,8 @@ RILContentHelper.prototype = {
         rilContext.iccInfo = new IccInfo();
       }
     }
+    let changed = (rilContext.iccInfo.iccid != newInfo.iccid) ?
+      true : false;
 
     this.updateInfo(newInfo, rilContext.iccInfo);
   },
@@ -309,8 +375,6 @@ RILContentHelper.prototype = {
     }
     let request = Services.DOMRequest.createRequest(window);
     let requestId = this.getRequestId(request);
-    this._windowsMap[requestId] = window;
-
     cpmm.sendAsyncMessage("RIL:GetCardLockRetryCount", {
       clientId: clientId,
       data: {
@@ -651,51 +715,35 @@ RILContentHelper.prototype = {
                            "notifyIccInfoChanged",
                            null);
         break;
-      case "RIL:GetCardLockResult": {
+      case "RIL:CardLockResult": {
         let requestId = data.requestId;
         let requestWindow = this._windowsMap[requestId];
         delete this._windowsMap[requestId];
 
-        if (data.errorMsg) {
-          this.fireRequestError(requestId, data.errorMsg);
-          break;
+        if (data.success) {
+          let result = new MobileIccCardLockResult(data);
+          this.fireRequestSuccess(requestId, result);
+        } else {
+          if (data.rilMessageType == "iccSetCardLock" ||
+              data.rilMessageType == "iccUnlockCardLock") {
+            let cardLockError = new requestWindow.IccCardLockError(data.lockType,
+                                                                   data.errorMsg,
+                                                                   data.retryCount);
+            this.fireRequestDetailedError(requestId, cardLockError);
+          } else {
+            this.fireRequestError(requestId, data.errorMsg);
+          }
         }
-
-        this.fireRequestSuccess(requestId,
-                                Cu.cloneInto({ enabled: data.enabled },
-                                             requestWindow));
         break;
       }
-      case "RIL:SetUnlockCardLockResult": {
-        let requestId = data.requestId;
-        let requestWindow = this._windowsMap[requestId];
-        delete this._windowsMap[requestId];
-
-        if (data.errorMsg) {
-          let cardLockError = new requestWindow.IccCardLockError(data.errorMsg,
-                                                                 data.retryCount);
-          this.fireRequestDetailedError(requestId, cardLockError);
-          break;
-        }
-
-        this.fireRequestSuccess(requestId, null);
-        break;
-      }
-      case "RIL:CardLockRetryCount": {
-        let requestId = data.requestId;
-        let requestWindow = this._windowsMap[requestId];
-        delete this._windowsMap[requestId];
-
-        if (data.errorMsg) {
+      case "RIL:CardLockRetryCount":
+        if (data.success) {
+          let result = new MobileIccCardLockRetryCount(data);
+          this.fireRequestSuccess(data.requestId, result);
+        } else {
           this.fireRequestError(data.requestId, data.errorMsg);
-          break;
         }
-
-        this.fireRequestSuccess(data.requestId,
-                                Cu.cloneInto({ retryCount: data.retryCount },
-                                             requestWindow));
         break;
-      }
       case "RIL:StkCommand":
         this._deliverEvent(clientId, "_iccListeners", "notifyStkCommand",
                            [JSON.stringify(data)]);
@@ -826,4 +874,5 @@ RILContentHelper.prototype = {
   }
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([RILContentHelper]);
+this.NSGetFactory = XPCOMUtils.generateNSGetFactory([RILContentHelper,
+                                                     IccCardLockError]);

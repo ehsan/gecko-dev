@@ -17,7 +17,6 @@
 #include "mozilla/CondVar.h"
 #include "mozilla/ContentEvents.h"
 #include "mozilla/dom/ContentChild.h"
-#include "mozilla/dom/DOMError.h"
 #include "mozilla/dom/ErrorEventBinding.h"
 #include "mozilla/dom/PBlobChild.h"
 #include "mozilla/dom/quota/OriginOrPatternString.h"
@@ -212,7 +211,6 @@ IndexedDatabaseManager::~IndexedDatabaseManager()
 }
 
 bool IndexedDatabaseManager::sIsMainProcess = false;
-bool IndexedDatabaseManager::sFullSynchronousMode = false;
 mozilla::Atomic<bool> IndexedDatabaseManager::sLowDiskSpaceMode(false);
 
 // static
@@ -299,14 +297,6 @@ IndexedDatabaseManager::Init()
 
   Preferences::RegisterCallbackAndCall(TestingPrefChangedCallback,
                                        kTestingPref);
-
-  // By default IndexedDB uses SQLite with PRAGMA synchronous = NORMAL. This
-  // guarantees (unlike synchronous = OFF) atomicity and consistency, but not
-  // necessarily durability in situations such as power loss. This preference
-  // allows enabling PRAGMA synchronous = FULL on SQLite, which does guarantee
-  // durability, but with an extra fsync() and the corresponding performance
-  // hit.
-  sFullSynchronousMode = Preferences::GetBool("dom.indexedDB.fullSynchronous");
 
   return NS_OK;
 }
@@ -509,16 +499,6 @@ IndexedDatabaseManager::InTestingMode()
              "InTestingMode() called before indexedDB has been initialized!");
 
   return gTestingMode;
-}
-
-// static
-bool
-IndexedDatabaseManager::FullSynchronous()
-{
-  MOZ_ASSERT(gDBManager,
-             "FullSynchronous() called before indexedDB has been initialized!");
-
-  return sFullSynchronousMode;
 }
 
 already_AddRefed<FileManager>
@@ -867,7 +847,7 @@ AsyncDeleteFileRunnable::Run()
   nsresult rv;
   int64_t fileSize;
 
-  if (mFileManager->EnforcingQuota()) {
+  if (mFileManager->Privilege() != Chrome) {
     rv = file->GetFileSize(&fileSize);
     NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
   }
@@ -875,7 +855,7 @@ AsyncDeleteFileRunnable::Run()
   rv = file->Remove(false);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
-  if (mFileManager->EnforcingQuota()) {
+  if (mFileManager->Privilege() != Chrome) {
     QuotaManager* quotaManager = QuotaManager::Get();
     NS_ASSERTION(quotaManager, "Shouldn't be null!");
 

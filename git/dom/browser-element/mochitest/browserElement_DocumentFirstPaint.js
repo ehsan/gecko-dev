@@ -62,7 +62,7 @@ function testFirstLoad() {
 
 function runTest() {
   iframe = document.createElement('iframe');
-  iframe.setAttribute('mozbrowser', 'true');
+  SpecialPowers.wrap(iframe).mozbrowser = true;
 
   runTestQueue([testFirstLoad, testReload, testChangeLocation]);
 }

@@ -94,15 +94,10 @@ this.ContentControl.prototype = {
   handleMoveCursor: function cc_handleMoveCursor(aMessage) {
     let origin = aMessage.json.origin;
     let action = aMessage.json.action;
-    let adjustRange = aMessage.json.adjustRange;
     let vc = this.vc;
 
     if (origin != 'child' && this.sendToChild(vc, aMessage)) {
       // Forwarded succesfully to child cursor.
-      return;
-    }
-
-    if (adjustRange && this.adjustRange(vc.position, action === 'moveNext')) {
       return;
     }
 
@@ -127,14 +122,10 @@ this.ContentControl.prototype = {
         // new position.
         this.sendToChild(vc, aMessage, { action: childAction }, true);
       }
-    } else if (!this._childMessageSenders.has(aMessage.target) &&
-               origin !== 'top') {
-      // We failed to move, and the message is not from a parent, so forward
-      // to it.
+    } else if (!this._childMessageSenders.has(aMessage.target)) {
+      // We failed to move, and the message is not from a child, so forward
+      // to parent.
       this.sendToParent(aMessage);
-    } else {
-      this._contentScope.get().sendAsyncMessage('AccessFu:Present',
-        Presentation.noMove(action));
     }
   },
 
@@ -178,7 +169,7 @@ this.ContentControl.prototype = {
       });
       try {
         if (aMessage.json.activateIfKey &&
-          !Utils.isActivatableOnFingerUp(aAccessible)) {
+          aAccessible.role != Roles.KEY) {
           // Only activate keys, don't do anything on other objects.
           return;
         }
@@ -219,7 +210,7 @@ this.ContentControl.prototype = {
         }
       }
 
-      if (!Utils.isActivatableOnFingerUp(aAccessible)) {
+      if (aAccessible.role !== Roles.KEY) {
         // Keys will typically have a sound of their own.
         this._contentScope.get().sendAsyncMessage('AccessFu:Present',
           Presentation.actionInvoked(aAccessible, 'click'));
@@ -264,37 +255,6 @@ this.ContentControl.prototype = {
       let position = vc.position;
       activateAccessible(getActivatableDescendant(position) || position);
     }
-  },
-
-  adjustRange: function cc_adjustRange(aAccessible, aStepUp) {
-    let acc = Utils.getEmbeddedControl(aAccessible) || aAccessible;
-    try {
-      acc.QueryInterface(Ci.nsIAccessibleValue);
-    } catch (x) {
-      // This is not an adjustable, return false.
-      return false;
-    }
-
-    let elem = acc.DOMNode;
-    if (!elem) {
-      return false;
-    }
-
-    if (elem.tagName === 'INPUT' && elem.type === 'range') {
-      elem[aStepUp ? 'stepDown' : 'stepUp']();
-      let evt = this.document.createEvent('UIEvent');
-      evt.initEvent('change', true, true);
-      elem.dispatchEvent(evt);
-    } else {
-      let evt = this.document.createEvent('KeyboardEvent');
-      let keycode = aStepUp ? content.KeyEvent.DOM_VK_DOWN :
-        content.KeyEvent.DOM_VK_UP;
-      evt.initKeyEvent(
-        "keypress", false, true, null, false, false, false, false, keycode, 0);
-      elem.dispatchEvent(evt);
-    }
-
-    return true;
   },
 
   handleMoveByGranularity: function cc_handleMoveByGranularity(aMessage) {

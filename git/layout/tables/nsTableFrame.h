@@ -311,7 +311,7 @@ public:
               const mozilla::LogicalSize& aMargin,
               const mozilla::LogicalSize& aBorder,
               const mozilla::LogicalSize& aPadding,
-              ComputeSizeFlags aFlags) MOZ_OVERRIDE;
+              uint32_t aFlags) MOZ_OVERRIDE;
 
   virtual mozilla::LogicalSize
   ComputeAutoSize(nsRenderingContext *aRenderingContext,

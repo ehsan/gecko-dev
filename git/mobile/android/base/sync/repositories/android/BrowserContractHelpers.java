@@ -143,7 +143,7 @@ public class BrowserContractHelpers extends BrowserContract {
     if (found == null) {
       return -1;
     }
-    return found;
+    return found.intValue();
   }
 
   public static boolean isSupportedType(String type) {

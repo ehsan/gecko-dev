@@ -31,7 +31,6 @@ EXPORTS += [
     'nsPluginInstanceOwner.h',
     'nsPluginLogging.h',
     'nsPluginNativeWindow.h',
-    'nsPluginNativeWindowGtk.h',
     'nsPluginPlayPreviewInfo.h',
     'nsPluginsCID.h',
     'nsPluginsDir.h',
@@ -44,19 +43,20 @@ EXPORTS.mozilla += [
 
 UNIFIED_SOURCES += [
     'nsJSNPRuntime.cpp',
-    'nsNPAPIPluginInstance.cpp',
-    'nsNPAPIPluginStreamListener.cpp',
     'nsPluginInstanceOwner.cpp',
     'nsPluginModule.cpp',
     'nsPluginPlayPreviewInfo.cpp',
-    'nsPluginStreamListenerPeer.cpp',
-    'nsPluginTags.cpp',
     'PluginPRLibrary.cpp',
 ]
 
+# These files cannot be built in unified mode because they force NSPR logging.
 SOURCES += [
-    'nsNPAPIPlugin.cpp', # Conflict with X11 headers
-    'nsPluginHost.cpp',  # Conflict with NS_NPAPIPLUGIN_CALLBACK
+    'nsNPAPIPlugin.cpp',
+    'nsNPAPIPluginInstance.cpp',
+    'nsNPAPIPluginStreamListener.cpp',
+    'nsPluginHost.cpp',
+    'nsPluginStreamListenerPeer.cpp',
+    'nsPluginTags.cpp',
 ]
 
 if CONFIG['OS_ARCH'] == 'WINNT':
@@ -97,11 +97,12 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'android':
 MSVC_ENABLE_PGO = True
 
 LOCAL_INCLUDES += [
+    '/content/base/src',
     '/dom/base',
     '/layout/generic',
     '/layout/xul',
-    '/widget',
     '/widget/android',
+    '/widget/xpwidgets',
     '/xpcom/base',
 ]
 

@@ -36,11 +36,8 @@ BEGIN_TEST(testTypedArrays)
     RootedObject dummy(cx, JS_GetParent(proto));
     CHECK(!JS_IsArrayBufferObject(dummy));
 
-    {
-        JS::AutoCheckCannotGC nogc;
-        CHECK_EQUAL(JS_GetArrayBufferByteLength(buffer), nbytes);
-        memset(JS_GetArrayBufferData(buffer, nogc), 1, nbytes);
-    }
+    CHECK_EQUAL(JS_GetArrayBufferByteLength(buffer), nbytes);
+    memset(JS_GetStableArrayBufferData(cx, buffer), 1, nbytes);
 
     ok = ok &&
         TestArrayFromBuffer<JS_NewInt8ArrayWithBuffer, JS_NewInt8ArrayFromArray, int8_t, JS_GetInt8ArrayData>(cx) &&
@@ -58,7 +55,7 @@ BEGIN_TEST(testTypedArrays)
 
 template<JSObject *Create(JSContext *, uint32_t),
          typename Element,
-         Element *GetData(JSObject *, const JS::AutoCheckCannotGC&)>
+         Element *GetData(JSObject *)>
 bool
 TestPlainTypedArray(JSContext *cx)
 {
@@ -79,12 +76,9 @@ TestPlainTypedArray(JSContext *cx)
     CHECK_EQUAL(JS_GetTypedArrayByteOffset(array), 0u);
     CHECK_EQUAL(JS_GetTypedArrayByteLength(array), sizeof(Element) * 7);
 
-    {
-        JS::AutoCheckCannotGC nogc;
-        Element *data;
-        CHECK(data = GetData(array, nogc));
-        *data = 13;
-    }
+    Element *data;
+    CHECK(data = GetData(array));
+    *data = 13;
     RootedValue v(cx);
     CHECK(JS_GetElement(cx, array, 0, &v));
     CHECK_SAME(v, INT_TO_JSVAL(13));
@@ -95,17 +89,16 @@ TestPlainTypedArray(JSContext *cx)
 template<JSObject *CreateWithBuffer(JSContext *, JS::HandleObject, uint32_t, int32_t),
          JSObject *CreateFromArray(JSContext *, JS::HandleObject),
          typename Element,
-         Element *GetData(JSObject *, const JS::AutoCheckCannotGC&)>
+         Element *GetData(JSObject *)>
 bool
 TestArrayFromBuffer(JSContext *cx)
 {
     size_t elts = 8;
     size_t nbytes = elts * sizeof(Element);
     RootedObject buffer(cx, JS_NewArrayBuffer(cx, nbytes));
-    {
-        JS::AutoCheckCannotGC nogc;
-        memset(JS_GetArrayBufferData(buffer, nogc), 1, nbytes);
-    }
+    uint8_t *bufdata;
+    CHECK(bufdata = JS_GetStableArrayBufferData(cx, buffer));
+    memset(bufdata, 1, nbytes);
 
     {
         RootedObject notArray(cx, CreateWithBuffer(cx, buffer, UINT32_MAX, -1));
@@ -118,15 +111,13 @@ TestArrayFromBuffer(JSContext *cx)
     CHECK_EQUAL(JS_GetTypedArrayByteLength(array), nbytes);
     CHECK_EQUAL(JS_GetArrayBufferViewBuffer(cx, array), (JSObject*) buffer);
 
-    {
-        JS::AutoCheckCannotGC nogc;
-        Element *data;
-        CHECK(data = GetData(array, nogc));
-        CHECK_EQUAL((void*) data, (void*) JS_GetArrayBufferData(buffer, nogc));
+    Element *data;
+    CHECK(data = GetData(array));
+    CHECK(bufdata = JS_GetStableArrayBufferData(cx, buffer));
+    CHECK_EQUAL((void*) data, (void*) bufdata);
 
-        CHECK_EQUAL(*reinterpret_cast<uint8_t*>(JS_GetArrayBufferData(buffer, nogc)), 1u);
-        CHECK_EQUAL(*reinterpret_cast<uint8_t*>(data), 1u);
-    }
+    CHECK_EQUAL(*bufdata, 1u);
+    CHECK_EQUAL(*reinterpret_cast<uint8_t*>(data), 1u);
 
     RootedObject shortArray(cx, CreateWithBuffer(cx, buffer, 0, elts / 2));
     CHECK_EQUAL(JS_GetTypedArrayLength(shortArray), elts / 2);
@@ -146,12 +137,7 @@ TestArrayFromBuffer(JSContext *cx)
     CHECK_SAME(v, v2);
     CHECK(JS_GetElement(cx, shortArray, 0, &v2));
     CHECK_SAME(v, v2);
-    {
-        JS::AutoCheckCannotGC nogc;
-        Element *data;
-        CHECK(data = GetData(array, nogc));
-        CHECK_EQUAL(long(v.toInt32()), long(reinterpret_cast<Element*>(data)[0]));
-    }
+    CHECK_EQUAL(long(v.toInt32()), long(reinterpret_cast<Element*>(data)[0]));
 
     v = INT_TO_JSVAL(40);
     JS_SetElement(cx, array, elts / 2, v);
@@ -159,12 +145,7 @@ TestArrayFromBuffer(JSContext *cx)
     CHECK_SAME(v, v2);
     CHECK(JS_GetElement(cx, ofsArray, 0, &v2));
     CHECK_SAME(v, v2);
-    {
-        JS::AutoCheckCannotGC nogc;
-        Element *data;
-        CHECK(data = GetData(array, nogc));
-        CHECK_EQUAL(long(v.toInt32()), long(reinterpret_cast<Element*>(data)[elts / 2]));
-    }
+    CHECK_EQUAL(long(v.toInt32()), long(reinterpret_cast<Element*>(data)[elts / 2]));
 
     v = INT_TO_JSVAL(41);
     JS_SetElement(cx, array, elts - 1, v);
@@ -172,12 +153,7 @@ TestArrayFromBuffer(JSContext *cx)
     CHECK_SAME(v, v2);
     CHECK(JS_GetElement(cx, ofsArray, elts / 2 - 1, &v2));
     CHECK_SAME(v, v2);
-    {
-        JS::AutoCheckCannotGC nogc;
-        Element *data;
-        CHECK(data = GetData(array, nogc));
-        CHECK_EQUAL(long(v.toInt32()), long(reinterpret_cast<Element*>(data)[elts - 1]));
-    }
+    CHECK_EQUAL(long(v.toInt32()), long(reinterpret_cast<Element*>(data)[elts - 1]));
 
     JS::RootedObject copy(cx, CreateFromArray(cx, array));
     CHECK(JS_GetElement(cx, array, 0, &v));

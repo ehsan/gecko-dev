@@ -50,8 +50,6 @@ class nsIContentFilter;
 class nsIURL;
 class nsILinkHandler;
 class nsTableOuterFrame;
-class nsIDOMRange;
-class nsRange;
 struct PropItem;
 
 namespace mozilla {
@@ -207,7 +205,7 @@ public:
                                              nsIDOMElement** aTableElement);
   NS_IMETHOD GetSelectedCellsType(nsIDOMElement *aElement, uint32_t *aSelectionType);
 
-  nsresult GetCellFromRange(nsRange* aRange, nsIDOMElement** aCell);
+  nsresult GetCellFromRange(nsIDOMRange *aRange, nsIDOMElement **aCell);
 
   // Finds the first selected cell in first range of selection
   // This is in the *order of selection*, not order in the table
@@ -286,15 +284,14 @@ public:
   NS_IMETHOD EndOperation();
 
   /** returns true if aParentTag can contain a child of type aChildTag */
-  virtual bool TagCanContainTag(nsIAtom& aParentTag, nsIAtom& aChildTag)
-    MOZ_OVERRIDE;
+  virtual bool TagCanContainTag(nsIAtom* aParentTag, nsIAtom* aChildTag);
   
   /** returns true if aNode is a container */
   virtual bool IsContainer(nsINode* aNode) MOZ_OVERRIDE;
   virtual bool IsContainer(nsIDOMNode* aNode) MOZ_OVERRIDE;
 
   /** make the given selection span the entire document */
-  virtual nsresult SelectEntireDocument(mozilla::dom::Selection* aSelection);
+  NS_IMETHOD SelectEntireDocument(nsISelection *aSelection);
 
   NS_IMETHOD SetAttributeOrEquivalent(nsIDOMElement * aElement,
                                       const nsAString & aAttribute,
@@ -305,7 +302,7 @@ public:
                                          bool aSuppressTransaction);
 
   /** join together any adjacent editable text nodes in the range */
-  nsresult CollapseAdjacentTextNodes(nsRange* aRange);
+  NS_IMETHOD CollapseAdjacentTextNodes(nsIDOMRange *aInRange);
 
   virtual bool AreNodesSameType(nsIContent* aNode1, nsIContent* aNode2)
     MOZ_OVERRIDE;
@@ -316,10 +313,10 @@ public:
   NS_IMETHODIMP DeleteNode(nsIDOMNode * aNode);
   nsresult DeleteText(nsGenericDOMDataNode& aTextNode, uint32_t aOffset,
                       uint32_t aLength);
-  virtual nsresult InsertTextImpl(const nsAString& aStringToInsert,
-                                  nsCOMPtr<nsINode>* aInOutNode,
-                                  int32_t* aInOutOffset,
-                                  nsIDocument* aDoc) MOZ_OVERRIDE;
+  NS_IMETHOD InsertTextImpl(const nsAString& aStringToInsert, 
+                            nsCOMPtr<nsIDOMNode> *aInOutNode, 
+                            int32_t *aInOutOffset,
+                            nsIDOMDocument *aDoc);
   NS_IMETHOD_(bool) IsModifiableNode(nsIDOMNode *aNode);
   virtual bool IsModifiableNode(nsINode *aNode);
 
@@ -446,8 +443,7 @@ protected:
   // Move all contents from aCellToMerge into aTargetCell (append at end)
   NS_IMETHOD MergeCells(nsCOMPtr<nsIDOMElement> aTargetCell, nsCOMPtr<nsIDOMElement> aCellToMerge, bool aDeleteCellToMerge);
 
-  nsresult DeleteTable2(nsIDOMElement* aTable,
-                        mozilla::dom::Selection* aSelection);
+  NS_IMETHOD DeleteTable2(nsIDOMElement *aTable, nsISelection *aSelection);
   NS_IMETHOD SetColSpan(nsIDOMElement *aCell, int32_t aColSpan);
   NS_IMETHOD SetRowSpan(nsIDOMElement *aCell, int32_t aRowSpan);
 
@@ -467,10 +463,11 @@ protected:
   // Input: *aCell is a known cell,
   //        if null, cell is obtained from the anchor node of the selection
   // Returns NS_EDITOR_ELEMENT_NOT_FOUND if cell is not found even if aCell is null
-  nsresult GetCellContext(mozilla::dom::Selection** aSelection,
-                          nsIDOMElement** aTable, nsIDOMElement** aCell,
-                          nsIDOMNode** aCellParent, int32_t* aCellOffset,
-                          int32_t* aRowIndex, int32_t* aColIndex);
+  NS_IMETHOD GetCellContext(nsISelection **aSelection,
+                            nsIDOMElement   **aTable,
+                            nsIDOMElement   **aCell,
+                            nsIDOMNode      **aCellParent, int32_t *aCellOffset,
+                            int32_t *aRowIndex, int32_t *aColIndex);
 
   NS_IMETHOD GetCellSpansAt(nsIDOMElement* aTable, int32_t aRowIndex, int32_t aColIndex, 
                             int32_t& aActualRowSpan, int32_t& aActualColSpan);
@@ -489,7 +486,7 @@ protected:
 
   // Fallback method: Call this after using ClearSelection() and you
   //  failed to set selection to some other content in the document
-  nsresult SetSelectionAtDocumentStart(mozilla::dom::Selection* aSelection);
+  NS_IMETHOD SetSelectionAtDocumentStart(nsISelection *aSelection);
 
 // End of Table Editing utilities
   
@@ -661,9 +658,9 @@ protected:
                                    const nsAString* aAttribute,
                                    const nsAString* aValue);
 
-  nsresult PromoteInlineRange(nsRange* aRange);
-  nsresult PromoteRangeIfStartsOrEndsInNamedAnchor(nsRange* aRange);
-  nsresult SplitStyleAboveRange(nsRange* aRange,
+  nsresult PromoteInlineRange(nsIDOMRange *inRange);
+  nsresult PromoteRangeIfStartsOrEndsInNamedAnchor(nsIDOMRange *inRange);
+  nsresult SplitStyleAboveRange(nsIDOMRange *aRange, 
                                 nsIAtom *aProperty, 
                                 const nsAString *aAttribute);
   nsresult SplitStyleAbovePoint(nsCOMPtr<nsIDOMNode> *aNode,
@@ -712,11 +709,11 @@ protected:
 
   nsresult IsFirstEditableChild( nsIDOMNode *aNode, bool *aOutIsFirst);
   nsresult IsLastEditableChild( nsIDOMNode *aNode, bool *aOutIsLast);
-  nsIContent* GetFirstEditableChild(nsINode& aNode);
-  nsIContent* GetLastEditableChild(nsINode& aNode);
+  nsresult GetFirstEditableChild( nsIDOMNode *aNode, nsCOMPtr<nsIDOMNode> *aOutFirstChild);
+  nsresult GetLastEditableChild( nsIDOMNode *aNode, nsCOMPtr<nsIDOMNode> *aOutLastChild);
 
-  nsIContent* GetFirstEditableLeaf(nsINode& aNode);
-  nsIContent* GetLastEditableLeaf(nsINode& aNode);
+  nsresult GetFirstEditableLeaf( nsIDOMNode *aNode, nsCOMPtr<nsIDOMNode> *aOutFirstLeaf);
+  nsresult GetLastEditableLeaf( nsIDOMNode *aNode, nsCOMPtr<nsIDOMNode> *aOutLastLeaf);
 
   nsresult GetInlinePropertyBase(nsIAtom *aProperty, 
                              const nsAString *aAttribute,

@@ -19,11 +19,7 @@
 #include "TabChild.h"
 
 #include "mozilla/Attributes.h"
-#ifdef ACCESSIBILITY
-#include "mozilla/a11y/DocAccessibleChild.h"
-#endif
 #include "mozilla/Preferences.h"
-#include "mozilla/docshell/OfflineCacheUpdateChild.h"
 #include "mozilla/dom/ContentBridgeChild.h"
 #include "mozilla/dom/ContentBridgeParent.h"
 #include "mozilla/dom/DOMStorageIPC.h"
@@ -44,21 +40,19 @@
 #include "mozilla/layers/PCompositorChild.h"
 #include "mozilla/layers/SharedBufferManagerChild.h"
 #include "mozilla/net/NeckoChild.h"
-#include "mozilla/plugins/PluginModuleParent.h"
 
 #if defined(MOZ_CONTENT_SANDBOX)
 #if defined(XP_WIN)
 #define TARGET_SANDBOX_EXPORTS
 #include "mozilla/sandboxTarget.h"
 #include "nsDirectoryServiceDefs.h"
-#elif defined(XP_LINUX) || defined(XP_MACOSX)
+#elif defined(XP_LINUX)
 #include "mozilla/Sandbox.h"
 #endif
 #endif
 
 #include "mozilla/unused.h"
 
-#include "mozInlineSpellChecker.h"
 #include "nsIConsoleListener.h"
 #include "nsICycleCollectorListener.h"
 #include "nsIIPCBackgroundChildCreateCallback.h"
@@ -83,8 +77,6 @@
 #include "nsIJSRuntimeService.h"
 #include "nsThreadManager.h"
 #include "nsAnonymousTemporaryFile.h"
-#include "nsISpellChecker.h"
-#include "nsClipboardProxy.h"
 
 #include "IHistory.h"
 #include "nsNetUtil.h"
@@ -136,7 +128,6 @@
 #include "ipc/Nuwa.h"
 #endif
 
-#include "mozilla/dom/File.h"
 #include "mozilla/dom/cellbroadcast/CellBroadcastIPCService.h"
 #include "mozilla/dom/mobileconnection/MobileConnectionChild.h"
 #include "mozilla/dom/mobilemessage/SmsChild.h"
@@ -151,6 +142,7 @@
 #include "mozilla/dom/PSpeechSynthesisChild.h"
 #endif
 
+#include "nsDOMFile.h"
 #include "ProcessUtils.h"
 #include "StructuredCloneUtils.h"
 #include "URIUtils.h"
@@ -177,7 +169,6 @@ using namespace mozilla::dom::mobileconnection;
 using namespace mozilla::dom::mobilemessage;
 using namespace mozilla::dom::telephony;
 using namespace mozilla::dom::voicemail;
-using namespace mozilla::embedding;
 using namespace mozilla::hal_sandbox;
 using namespace mozilla::ipc;
 using namespace mozilla::layers;
@@ -522,22 +513,12 @@ InitOnContentProcessCreated()
     mozilla::dom::time::InitializeDateCacheCleaner();
 }
 
-#if defined(MOZ_TASK_TRACER) && defined(MOZ_NUWA_PROCESS)
-static void
-ReinitTaskTracer(void* /*aUnused*/)
-{
-    mozilla::tasktracer::InitTaskTracer(
-        mozilla::tasktracer::FORKED_AFTER_NUWA);
-}
-#endif
-
 ContentChild::ContentChild()
  : mID(uint64_t(-1))
 #ifdef ANDROID
    ,mScreenSize(0, 0)
 #endif
    , mCanOverrideProcessName(true)
-   , mIsAlive(true)
 {
     // This process is a content process, so it's clearly running in
     // multiprocess mode!
@@ -587,9 +568,7 @@ ContentChild::Init(MessageLoop* aIOLoop,
         return false;
     }
 
-    if (!Open(aChannel, aParentHandle, aIOLoop)) {
-      return false;
-    }
+    Open(aChannel, aParentHandle, aIOLoop);
     sSingleton = this;
 
     // Make sure there's an nsAutoScriptBlocker on the stack when dispatching
@@ -612,12 +591,6 @@ ContentChild::Init(MessageLoop* aIOLoop,
 
     SendGetProcessAttributes(&mID, &mIsForApp, &mIsForBrowser);
     InitProcessAttributes();
-
-#if defined(MOZ_TASK_TRACER) && defined (MOZ_NUWA_PROCESS)
-    if (IsNuwaProcess()) {
-        NuwaAddConstructor(ReinitTaskTracer, nullptr);
-    }
-#endif
 
     return true;
 }
@@ -678,12 +651,6 @@ ContentChild::GetProcessName(nsAString& aName)
     aName.Assign(mProcessName);
 }
 
-bool
-ContentChild::IsAlive()
-{
-    return mIsAlive;
-}
-
 void
 ContentChild::GetProcessName(nsACString& aName)
 {
@@ -726,14 +693,8 @@ ContentChild::InitXPCOM()
         NS_WARNING("Couldn't register console listener for child process");
 
     bool isOffline;
-    ClipboardCapabilities clipboardCaps;
-    SendGetXPCOMProcessAttributes(&isOffline, &mAvailableDictionaries, &clipboardCaps);
+    SendGetXPCOMProcessAttributes(&isOffline);
     RecvSetOffline(isOffline);
-
-    nsCOMPtr<nsIClipboard> clipboard(do_GetService("@mozilla.org/widget/clipboard;1"));
-    if (nsCOMPtr<nsIClipboardProxy> clipboardProxy = do_QueryInterface(clipboard)) {
-        clipboardProxy->SetCapabilities(clipboardCaps);
-    }
 
     DebugOnly<FileUpdateDispatcher*> observer = FileUpdateDispatcher::GetSingleton();
     NS_ASSERTION(observer, "FileUpdateDispatcher is null");
@@ -744,22 +705,6 @@ ContentChild::InitXPCOM()
     sysMsgObserver->Init();
 
     InitOnContentProcessCreated();
-}
-
-a11y::PDocAccessibleChild*
-ContentChild::AllocPDocAccessibleChild(PDocAccessibleChild*, const uint64_t&)
-{
-  MOZ_ASSERT(false, "should never call this!");
-  return nullptr;
-}
-
-bool
-ContentChild::DeallocPDocAccessibleChild(a11y::PDocAccessibleChild* aChild)
-{
-#ifdef ACCESSIBILITY
-  delete static_cast<mozilla::a11y::DocAccessibleChild*>(aChild);
-#endif
-  return true;
 }
 
 PMemoryReportRequestChild*
@@ -936,13 +881,6 @@ ContentChild::DeallocPCycleCollectWithLogsChild(PCycleCollectWithLogsChild* /* a
     return true;
 }
 
-mozilla::plugins::PPluginModuleParent*
-ContentChild::AllocPPluginModuleParent(mozilla::ipc::Transport* aTransport,
-                                       base::ProcessId aOtherProcess)
-{
-    return plugins::PluginModuleContentParent::Create(aTransport, aOtherProcess);
-}
-
 PContentBridgeChild*
 ContentChild::AllocPContentBridgeChild(mozilla::ipc::Transport* aTransport,
                                        base::ProcessId aOtherProcess)
@@ -1051,76 +989,6 @@ ContentChild::CleanUpSandboxEnvironment()
 }
 #endif
 
-#if defined(XP_MACOSX) && defined(MOZ_CONTENT_SANDBOX)
-static bool
-GetAppPaths(nsCString &aAppPath, nsCString &aAppBinaryPath)
-{
-  nsAutoCString appPath;
-  nsAutoCString appBinaryPath(
-    (CommandLine::ForCurrentProcess()->argv()[0]).c_str());
-
-  nsAutoCString::const_iterator start, end;
-  appBinaryPath.BeginReading(start);
-  appBinaryPath.EndReading(end);
-  if (RFindInReadable(NS_LITERAL_CSTRING(".app/Contents/MacOS/"), start, end)) {
-    end = start;
-    ++end; ++end; ++end; ++end;
-    appBinaryPath.BeginReading(start);
-    appPath.Assign(Substring(start, end));
-  } else {
-    return false;
-  }
-
-  nsCOMPtr<nsIFile> app, appBinary;
-  nsresult rv = NS_NewLocalFile(NS_ConvertUTF8toUTF16(appPath),
-                                true, getter_AddRefs(app));
-  if (NS_FAILED(rv)) {
-    return false;
-  }
-  rv = NS_NewLocalFile(NS_ConvertUTF8toUTF16(appBinaryPath),
-                       true, getter_AddRefs(appBinary));
-  if (NS_FAILED(rv)) {
-    return false;
-  }
-
-  bool isLink;
-  app->IsSymlink(&isLink);
-  if (isLink) {
-    app->GetNativeTarget(aAppPath);
-  } else {
-    app->GetNativePath(aAppPath);
-  }
-  appBinary->IsSymlink(&isLink);
-  if (isLink) {
-    appBinary->GetNativeTarget(aAppBinaryPath);
-  } else {
-    appBinary->GetNativePath(aAppBinaryPath);
-  }
-
-  return true;
-}
-
-static void
-StartMacOSContentSandbox()
-{
-  nsAutoCString appPath, appBinaryPath;
-  if (!GetAppPaths(appPath, appBinaryPath)) {
-    MOZ_CRASH("Error resolving child process path");
-  }
-
-  MacSandboxInfo info;
-  info.type = MacSandboxType_Content;
-  info.appPath.Assign(appPath);
-  info.appBinaryPath.Assign(appBinaryPath);
-
-  nsAutoCString err;
-  if (!mozilla::StartMacSandbox(info, err)) {
-    NS_WARNING(err.get());
-    MOZ_CRASH("sandbox_init() failed");
-  }
-}
-#endif
-
 bool
 ContentChild::RecvSetProcessSandbox()
 {
@@ -1131,10 +999,10 @@ ContentChild::RecvSetProcessSandbox()
 #if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 19
     // For B2G >= KitKat, sandboxing is mandatory; this has already
     // been enforced by ContentParent::StartUp().
-    MOZ_ASSERT(ContentProcessSandboxStatus() != kSandboxingWouldFail);
+    MOZ_ASSERT(CanSandboxContentProcess());
 #else
     // Otherwise, sandboxing is best-effort.
-    if (ContentProcessSandboxStatus() == kSandboxingWouldFail) {
+    if (!CanSandboxContentProcess()) {
         return true;
     }
 #endif
@@ -1147,8 +1015,6 @@ ContentChild::RecvSetProcessSandbox()
         mozilla::SandboxTarget::Instance()->StartSandbox();
         SetUpSandboxEnvironment();
     }
-#elif defined(XP_MACOSX)
-    StartMacOSContentSandbox();
 #endif
 #endif
     return true;
@@ -1193,45 +1059,40 @@ ContentChild::DeallocPJavaScriptChild(PJavaScriptChild *aChild)
 }
 
 PBrowserChild*
-ContentChild::AllocPBrowserChild(const TabId& aTabId,
-                                 const IPCTabContext& aContext,
+ContentChild::AllocPBrowserChild(const IPCTabContext& aContext,
                                  const uint32_t& aChromeFlags,
-                                 const ContentParentId& aCpID,
+                                 const uint64_t& aID,
                                  const bool& aIsForApp,
                                  const bool& aIsForBrowser)
 {
-    return nsIContentChild::AllocPBrowserChild(aTabId,
-                                               aContext,
+    return nsIContentChild::AllocPBrowserChild(aContext,
                                                aChromeFlags,
-                                               aCpID,
+                                               aID,
                                                aIsForApp,
                                                aIsForBrowser);
 }
 
 bool
 ContentChild::SendPBrowserConstructor(PBrowserChild* aActor,
-                                      const TabId& aTabId,
                                       const IPCTabContext& aContext,
                                       const uint32_t& aChromeFlags,
-                                      const ContentParentId& aCpID,
+                                      const uint64_t& aID,
                                       const bool& aIsForApp,
                                       const bool& aIsForBrowser)
 {
     return PContentChild::SendPBrowserConstructor(aActor,
-                                                  aTabId,
                                                   aContext,
                                                   aChromeFlags,
-                                                  aCpID,
+                                                  aID,
                                                   aIsForApp,
                                                   aIsForBrowser);
 }
 
 bool
 ContentChild::RecvPBrowserConstructor(PBrowserChild* aActor,
-                                      const TabId& aTabId,
                                       const IPCTabContext& aContext,
                                       const uint32_t& aChromeFlags,
-                                      const ContentParentId& aCpID,
+                                      const uint64_t& aID,
                                       const bool& aIsForApp,
                                       const bool& aIsForBrowser)
 {
@@ -1255,19 +1116,13 @@ ContentChild::RecvPBrowserConstructor(PBrowserChild* aActor,
 
         // Redo InitProcessAttributes() when the app or browser is really
         // launching so the attributes will be correct.
-        mID = aCpID;
+        mID = aID;
         mIsForApp = aIsForApp;
         mIsForBrowser = aIsForBrowser;
         InitProcessAttributes();
     }
 
     return true;
-}
-
-void
-ContentChild::GetAvailableDictionaries(InfallibleTArray<nsString>& aDictionaries)
-{
-    aDictionaries = mAvailableDictionaries;
 }
 
 PFileDescriptorSetChild*
@@ -1298,7 +1153,7 @@ ContentChild::AllocPBlobChild(const BlobConstructorParams& aParams)
 mozilla::PRemoteSpellcheckEngineChild *
 ContentChild::AllocPRemoteSpellcheckEngineChild()
 {
-    NS_NOTREACHED("Default Constructor for PRemoteSpellcheckEngineChild should never be called");
+    NS_NOTREACHED("Default Constructor for PRemoteSpellcheckEngineChilf should never be called");
     return nullptr;
 }
 
@@ -1383,7 +1238,7 @@ ContentChild::DeallocPTestShellChild(PTestShellChild* shell)
     return true;
 }
 
-jsipc::JavaScriptShared*
+jsipc::JavaScriptChild *
 ContentChild::GetCPOWManager()
 {
     if (ManagedPJavaScriptChild().Length()) {
@@ -1477,24 +1332,6 @@ bool
 ContentChild::DeallocPNeckoChild(PNeckoChild* necko)
 {
     delete necko;
-    return true;
-}
-
-PPrintingChild*
-ContentChild::AllocPPrintingChild()
-{
-    // The ContentParent should never attempt to allocate the
-    // nsPrintingPromptServiceProxy, which implements PPrintingChild. Instead,
-    // the nsPrintingPromptServiceProxy service is requested and instantiated
-    // via XPCOM, and the constructor of nsPrintingPromptServiceProxy sets up
-    // the IPC connection.
-    NS_NOTREACHED("Should never get here!");
-    return nullptr;
-}
-
-bool
-ContentChild::DeallocPPrintingChild(PPrintingChild* printing)
-{
     return true;
 }
 
@@ -1729,10 +1566,6 @@ ContentChild::RecvRegisterChromeItem(const ChromeRegistryItem& item)
             chromeRegistry->RegisterOverride(item.get_OverrideMapping());
             break;
 
-        case ChromeRegistryItem::TResourceMapping:
-            chromeRegistry->RegisterResource(item.get_ResourceMapping());
-            break;
-
         default:
             MOZ_ASSERT(false, "bad chrome item");
             return false;
@@ -1780,7 +1613,6 @@ ContentChild::ActorDestroy(ActorDestroyReason why)
         svc->UnregisterListener(mConsoleListener);
         mConsoleListener->mChild = nullptr;
     }
-    mIsAlive = false;
 
     XRE_ShutdownChildProcess();
 }
@@ -1891,7 +1723,7 @@ ContentChild::RecvAsyncMessage(const nsString& aMsg,
     nsRefPtr<nsFrameMessageManager> cpm = nsFrameMessageManager::sChildProcessManager;
     if (cpm) {
         StructuredCloneData cloneData = ipc::UnpackClonedMessageDataForChild(aData);
-        CpowIdHolder cpows(this, aCpows);
+        CpowIdHolder cpows(GetCPOWManager(), aCpows);
         cpm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(cpm.get()),
                             aMsg, false, &cloneData, &cpows, aPrincipal, nullptr);
     }
@@ -1907,25 +1739,6 @@ ContentChild::RecvGeolocationUpdate(const GeoPosition& somewhere)
     }
     nsCOMPtr<nsIDOMGeoPosition> position = somewhere;
     gs->Update(position);
-    return true;
-}
-
-bool
-ContentChild::RecvGeolocationError(const uint16_t& errorCode)
-{
-    nsCOMPtr<nsIGeolocationUpdate> gs = do_GetService("@mozilla.org/geolocation/service;1");
-    if (!gs) {
-        return true;
-    }
-    gs->NotifyError(errorCode);
-    return true;
-}
-
-bool
-ContentChild::RecvUpdateDictionaryList(const InfallibleTArray<nsString>& aDictionaries)
-{
-    mAvailableDictionaries = aDictionaries;
-    mozInlineSpellChecker::UpdateCanEnableInlineSpellChecking();
     return true;
 }
 
@@ -2259,25 +2072,6 @@ ContentChild::RecvUnregisterSheet(const URIParams& aURI, const uint32_t& aType)
     return true;
 }
 
-POfflineCacheUpdateChild*
-ContentChild::AllocPOfflineCacheUpdateChild(const URIParams& manifestURI,
-                                            const URIParams& documentURI,
-                                            const bool& stickDocument,
-                                            const TabId& aTabId)
-{
-    NS_RUNTIMEABORT("unused");
-    return nullptr;
-}
-
-bool
-ContentChild::DeallocPOfflineCacheUpdateChild(POfflineCacheUpdateChild* actor)
-{
-    OfflineCacheUpdateChild* offlineCacheUpdate =
-        static_cast<OfflineCacheUpdateChild*>(actor);
-    NS_RELEASE(offlineCacheUpdate);
-    return true;
-}
-
 #ifdef MOZ_NUWA_PROCESS
 class CallNuwaSpawn : public nsRunnable
 {
@@ -2383,18 +2177,6 @@ ContentChild::RecvOnAppThemeChanged()
         os->NotifyObservers(nullptr, "app-theme-changed", nullptr);
     }
     return true;
-}
-
-PBrowserOrId
-ContentChild::GetBrowserOrId(TabChild* aTabChild)
-{
-    if (!aTabChild ||
-        this == aTabChild->Manager()) {
-        return PBrowserOrId(aTabChild);
-    }
-    else {
-        return PBrowserOrId(aTabChild->GetTabId());
-    }
 }
 
 } // namespace dom

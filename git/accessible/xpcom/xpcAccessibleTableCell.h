@@ -7,43 +7,40 @@
 #ifndef mozilla_a11y_xpcom_xpcAccessibletableCell_h_
 #define mozilla_a11y_xpcom_xpcAccessibletableCell_h_
 
-#include "nsIAccessibleTable.h"
+#include "nscore.h"
 
-#include "xpcAccessibleHyperText.h"
+class nsIAccessibleTable;
+class nsIArray;
 
 namespace mozilla {
 namespace a11y {
 
+class TableAccessible;
+class TableCellAccessible;
+
 /**
- * XPCOM wrapper around TableAccessibleCell class.
+ * This class provides an implementation of the nsIAccessibleTableCell
+ * interface's methods.
  */
-class xpcAccessibleTableCell : public xpcAccessibleHyperText,
-                               public nsIAccessibleTableCell
+class xpcAccessibleTableCell
 {
 public:
-  explicit xpcAccessibleTableCell(Accessible* aIntl) :
-    xpcAccessibleHyperText(aIntl) { }
+  explicit xpcAccessibleTableCell(TableCellAccessible* aTableCell) :
+    mTableCell(aTableCell)
+  {
+  }
 
-  NS_DECL_ISUPPORTS_INHERITED
-
-  // nsIAccessibleTableCell
-  NS_IMETHOD GetTable(nsIAccessibleTable** aTable) MOZ_FINAL;
-  NS_IMETHOD GetColumnIndex(int32_t* aColIdx) MOZ_FINAL;
-  NS_IMETHOD GetRowIndex(int32_t* aRowIdx) MOZ_FINAL;
-  NS_IMETHOD GetColumnExtent(int32_t* aExtent) MOZ_FINAL;
-  NS_IMETHOD GetRowExtent(int32_t* aExtent) MOZ_FINAL;
-  NS_IMETHOD GetColumnHeaderCells(nsIArray** aHeaderCells) MOZ_FINAL;
-  NS_IMETHOD GetRowHeaderCells(nsIArray** aHeaderCells) MOZ_FINAL;
-  NS_IMETHOD IsSelected(bool* aSelected) MOZ_FINAL;
+  nsresult GetTable(nsIAccessibleTable** aTable);
+  nsresult GetColumnIndex(int32_t* aColIdx);
+  nsresult GetRowIndex(int32_t* aRowIdx);
+  nsresult GetColumnExtent(int32_t* aExtent);
+  nsresult GetRowExtent(int32_t* aExtent);
+  nsresult GetColumnHeaderCells(nsIArray** aHeaderCells);
+  nsresult GetRowHeaderCells(nsIArray** aHeaderCells);
+  nsresult IsSelected(bool* aSelected);
 
 protected:
-  virtual ~xpcAccessibleTableCell() {}
-
-private:
-  TableCellAccessible* Intl() { return mIntl->AsTableCell(); }
-
-  xpcAccessibleTableCell(const xpcAccessibleTableCell&) MOZ_DELETE;
-  xpcAccessibleTableCell& operator =(const xpcAccessibleTableCell&) MOZ_DELETE;
+  mozilla::a11y::TableCellAccessible* mTableCell;
 };
 
 } // namespace a11y

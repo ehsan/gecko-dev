@@ -50,7 +50,7 @@ public class TelemetryRecorder {
 
   private File tmpFile;
   private File destFile;
-  private final File cacheDir;
+  private File cacheDir;
 
   private OutputStream  outputStream;
   private MessageDigest checksum;

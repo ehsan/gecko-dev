@@ -3,6 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#if defined(MOZ_LOGGING)
+#define FORCE_PR_LOG
+#endif
+
 #include "nsOfflineCacheUpdate.h"
 
 #include "nsCPrefetchService.h"
@@ -181,6 +185,7 @@ nsManifestCheck::Begin()
                        nsContentUtils::GetSystemPrincipal(),
                        nsILoadInfo::SEC_NORMAL,
                        nsIContentPolicy::TYPE_OTHER,
+                       nullptr,   // aChannelPolicy
                        nullptr,   // loadGroup
                        nullptr,   // aCallbacks
                        nsIRequest::LOAD_BYPASS_CACHE);
@@ -378,6 +383,7 @@ nsOfflineCacheUpdateItem::OpenChannel(nsOfflineCacheUpdate *aUpdate)
                        nsContentUtils::GetSystemPrincipal(),
                        nsILoadInfo::SEC_NORMAL,
                        nsIContentPolicy::TYPE_OTHER,
+                       nullptr,  // aChannelPolicy
                        nullptr,  // aLoadGroup
                        this,     // aCallbacks
                        flags);

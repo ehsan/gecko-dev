@@ -16,9 +16,7 @@ Cu.import("resource://gre/modules/Webapps.jsm");
 Cu.import("resource://gre/modules/AppsUtils.jsm");
 Cu.import("resource://gre/modules/NativeApp.jsm");
 Cu.import("resource://gre/modules/WebappOSUtils.jsm");
-Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://webapprt/modules/WebappRT.jsm");
-
 
 this.WebappManager = {
   observe: function(aSubject, aTopic, aData) {

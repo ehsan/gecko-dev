@@ -19,3 +19,7 @@ SharedLibrary('jsctypes-test')
 LOCAL_INCLUDES += [
     '/js/src/ctypes',
 ]
+
+USE_LIBS += [
+    'mozalloc',
+]

@@ -44,13 +44,15 @@ class GeckoTouchDispatcher
 
 public:
   GeckoTouchDispatcher();
-  void NotifyTouch(MultiTouchInput& aTouch, TimeStamp aEventTime);
+  void NotifyTouch(MultiTouchInput& aData, uint64_t aEventTime);
   void DispatchTouchEvent(MultiTouchInput& aMultiTouch);
-  void DispatchTouchMoveEvents(TimeStamp aVsyncTime);
-  static bool NotifyVsync(TimeStamp aVsyncTimestamp);
+  void DispatchTouchMoveEvents(uint64_t aVsyncTime);
+  static bool NotifyVsync(uint64_t aVsyncTimestamp);
 
 private:
-  void ResampleTouchMoves(MultiTouchInput& aOutTouch, TimeStamp vsyncTime);
+  int32_t InterpolateTouch(MultiTouchInput& aOutTouch, uint64_t aSampleTime);
+  int32_t ExtrapolateTouch(MultiTouchInput& aOutTouch, uint64_t aSampleTime);
+  void ResampleTouchMoves(MultiTouchInput& aOutTouch, uint64_t vsyncTime);
   void SendTouchEvent(MultiTouchInput& aData);
   void DispatchMouseEvent(MultiTouchInput& aMultiTouch,
                           bool aForwardToChildren);
@@ -66,18 +68,18 @@ private:
   bool mEnabledUniformityInfo;
 
   // All times below are in nanoseconds
-  TimeDuration mVsyncAdjust;     // Time from vsync we create sample times from
-  TimeDuration mMaxPredict;      // How far into the future we're allowed to extrapolate
+  int32_t mVsyncAdjust;     // Time from vsync we create sample times from
+  int32_t mMaxPredict;      // How far into the future we're allowed to extrapolate
 
   // Amount of time between vsync and the last event that is required before we
   // resample
-  TimeDuration mMinResampleTime;
+  int32_t mMinResampleTime;
 
-  // Threshold if a vsync event runs too far behind touch events
-  TimeDuration mDelayedVsyncThreshold;
+  // The time difference between the last two touch move events
+  int64_t mTouchTimeDiff;
 
-  // How far ahead can vsync events get ahead of touch events.
-  TimeDuration mOldTouchThreshold;
+  // The system time at which the last touch event occured
+  uint64_t mLastTouchTime;
 };
 
 } // namespace mozilla

@@ -193,13 +193,7 @@ var tests = {
       let installFrom = doc.nodePrincipal.origin;
       Services.prefs.setCharPref("social.whitelist", "");
       is(SocialService.getOriginActivationType(installFrom), "foreign", "testing foriegn install");
-      let data = {
-        origin: doc.nodePrincipal.origin,
-        url: doc.location.href,
-        manifest: manifest2,
-        window: window
-      }
-      Social.installProvider(data, function(addonManifest) {
+      Social.installProvider(doc, manifest2, function(addonManifest) {
         Services.prefs.clearUserPref("social.whitelist");
         SocialService.enableProvider(addonManifest.origin, function(provider) {
           Social.uninstallProvider(addonManifest.origin);
@@ -223,13 +217,7 @@ var tests = {
       let installFrom = doc.nodePrincipal.origin;
       Services.prefs.setCharPref("social.directories", installFrom);
       is(SocialService.getOriginActivationType(installFrom), "directory", "testing directory install");
-      let data = {
-        origin: installFrom,
-        url: doc.location.href,
-        manifest: manifest2,
-        window: window
-      }
-      Social.installProvider(data, function(addonManifest) {
+      Social.installProvider(doc, manifest2, function(addonManifest) {
         Services.prefs.clearUserPref("social.directories");
         SocialService.enableProvider(addonManifest.origin, function(provider) {
           Social.uninstallProvider(addonManifest.origin);
@@ -253,13 +241,7 @@ var tests = {
       let doc = tab.linkedBrowser.contentDocument;
       let installFrom = doc.nodePrincipal.origin;
       Services.prefs.setCharPref("social.whitelist", installFrom);
-      let data = {
-        origin: installFrom,
-        url: doc.location.href,
-        manifest: manifest2,
-        window: window
-      }
-      Social.installProvider(data, function(addonManifest) {
+      Social.installProvider(doc, manifest2, function(addonManifest) {
         SocialService.enableProvider(addonManifest.origin, function(provider) {
           is(provider.manifest.version, 1, "manifest version is 1");
 

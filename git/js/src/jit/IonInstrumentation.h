@@ -26,7 +26,7 @@ class IonInstrumentation : public BaseInstrumentation
       : BaseInstrumentation(profiler),
         trackedPc_(pc)
     {
-        MOZ_ASSERT(pc != nullptr);
+        JS_ASSERT(pc != nullptr);
     }
 
     void leave(MacroAssembler &masm, Register reg, bool inlinedFunction = false) {

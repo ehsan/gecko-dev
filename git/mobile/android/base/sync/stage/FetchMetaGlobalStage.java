@@ -18,7 +18,7 @@ public class FetchMetaGlobalStage extends AbstractNonRepositorySyncStage {
 
   public class StageMetaGlobalDelegate implements MetaGlobalDelegate {
 
-    private final GlobalSession session;
+    private GlobalSession session;
     public StageMetaGlobalDelegate(GlobalSession session) {
       this.session = session;
     }

@@ -139,7 +139,6 @@ public class testImportFromAndroid extends AboutHomeTest {
 
         // Wait until the import pop-up is dismissed. This depending on the number of items in the android history can take up to a few seconds
         boolean importComplete = waitForTest(new BooleanTest() {
-            @Override
             public boolean test() {
                 return !mSolo.searchText("Please wait...");
             }
@@ -200,7 +199,6 @@ public class testImportFromAndroid extends AboutHomeTest {
         }
     }
 
-    @Override
     public void tearDown() throws Exception {
         deleteImportedData();
         super.tearDown();

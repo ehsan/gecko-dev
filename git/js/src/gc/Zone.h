@@ -12,11 +12,10 @@
 #include "mozilla/MemoryReporting.h"
 
 #include "jscntxt.h"
+#include "jsgc.h"
 #include "jsinfer.h"
 
 #include "gc/FindSCCs.h"
-#include "gc/GCRuntime.h"
-#include "js/TracingAPI.h"
 
 namespace js {
 
@@ -36,9 +35,9 @@ class Allocator
 
   private:
     // Since allocators can be accessed from worker threads, the parent zone_
-    // should not be accessed in general. GCRuntime is allowed to actually do
+    // should not be accessed in general. ArenaLists is allowed to actually do
     // the allocation, however.
-    friend class js::gc::GCRuntime;
+    friend class gc::ArenaLists;
 
     JS::Zone *zone_;
 };
@@ -158,11 +157,11 @@ struct Zone : public JS::shadow::Zone,
     }
     void reportAllocationOverflow() { js_ReportAllocationOverflow(nullptr); }
 
-    void beginSweepTypes(js::FreeOp *fop, bool releaseTypes);
+    void sweepAnalysis(js::FreeOp *fop, bool releaseTypes);
 
     bool hasMarkedCompartments();
 
-    void scheduleGC() { MOZ_ASSERT(!runtimeFromMainThread()->isHeapBusy()); gcScheduled_ = true; }
+    void scheduleGC() { JS_ASSERT(!runtimeFromMainThread()->isHeapBusy()); gcScheduled_ = true; }
     void unscheduleGC() { gcScheduled_ = false; }
     bool isGCScheduled() { return gcScheduled_ && canCollect(); }
 
@@ -180,8 +179,8 @@ struct Zone : public JS::shadow::Zone,
         Compact
     };
     void setGCState(GCState state) {
-        MOZ_ASSERT(runtimeFromMainThread()->isHeapBusy());
-        MOZ_ASSERT_IF(state != NoGC, canCollect());
+        JS_ASSERT(runtimeFromMainThread()->isHeapBusy());
+        JS_ASSERT_IF(state != NoGC, canCollect());
         gcState_ = state;
     }
 
@@ -260,6 +259,7 @@ struct Zone : public JS::shadow::Zone,
     //
     // This is used during GC while calculating zone groups to record edges that
     // can't be determined by examining this zone by itself.
+    typedef js::HashSet<Zone *, js::DefaultHasher<Zone *>, js::SystemAllocPolicy> ZoneSet;
     ZoneSet gcZoneGroupEdges;
 
     // Malloc counter to measure memory pressure for GC scheduling. It runs from
@@ -282,10 +282,6 @@ struct Zone : public JS::shadow::Zone,
 
     // Thresholds used to trigger GC.
     js::gc::ZoneHeapThreshold threshold;
-
-    // Amount of data to allocate before triggering a new incremental slice for
-    // the current GC.
-    size_t gcDelayBytes;
 
     // Per-zone data for use by an embedder.
     void *data;
@@ -344,14 +340,14 @@ class ZonesIter
     bool done() const { return it == end; }
 
     void next() {
-        MOZ_ASSERT(!done());
+        JS_ASSERT(!done());
         do {
             it++;
         } while (!done() && (*it)->usedByExclusiveThread);
     }
 
     JS::Zone *get() const {
-        MOZ_ASSERT(!done());
+        JS_ASSERT(!done());
         return *it;
     }
 
@@ -367,16 +363,16 @@ struct CompartmentsInZoneIter
     }
 
     bool done() const {
-        MOZ_ASSERT(it);
+        JS_ASSERT(it);
         return it == end;
     }
     void next() {
-        MOZ_ASSERT(!done());
+        JS_ASSERT(!done());
         it++;
     }
 
     JSCompartment *get() const {
-        MOZ_ASSERT(it);
+        JS_ASSERT(it);
         return *it;
     }
 
@@ -424,8 +420,8 @@ class CompartmentsIterT
     bool done() const { return zone.done(); }
 
     void next() {
-        MOZ_ASSERT(!done());
-        MOZ_ASSERT(!comp.ref().done());
+        JS_ASSERT(!done());
+        JS_ASSERT(!comp.ref().done());
         comp->next();
         if (comp->done()) {
             comp.reset();
@@ -436,7 +432,7 @@ class CompartmentsIterT
     }
 
     JSCompartment *get() const {
-        MOZ_ASSERT(!done());
+        JS_ASSERT(!done());
         return *comp;
     }
 

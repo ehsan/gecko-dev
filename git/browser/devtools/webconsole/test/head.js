@@ -946,8 +946,6 @@ function openDebugger(aOptions = {})
  */
 function waitForMessages(aOptions)
 {
-  info("Waiting for messages...");
-
   gPendingOutputTest++;
   let webconsole = aOptions.webconsole;
   let rules = WebConsoleUtils.cloneObject(aOptions.messages, true);
@@ -1475,7 +1473,6 @@ function checkOutputForInputs(hud, inputTests)
 
   function* checkConsoleLog(entry)
   {
-    info("Logging: " + entry.input);
     hud.jsterm.clearOutput();
     hud.jsterm.execute("console.log(" + entry.input + ")");
 
@@ -1497,7 +1494,6 @@ function checkOutputForInputs(hud, inputTests)
 
   function checkPrintOutput(entry)
   {
-    info("Printing: " + entry.input);
     hud.jsterm.clearOutput();
     hud.jsterm.execute("print(" + entry.input + ")");
 
@@ -1515,7 +1511,6 @@ function checkOutputForInputs(hud, inputTests)
 
   function* checkJSEval(entry)
   {
-    info("Evaluating: " + entry.input);
     hud.jsterm.clearOutput();
     hud.jsterm.execute(entry.input);
 
@@ -1539,7 +1534,6 @@ function checkOutputForInputs(hud, inputTests)
 
   function* checkObjectClick(entry, msg)
   {
-    info("Clicking: " + entry.input);
     let body = msg.querySelector(".message-body a") ||
                msg.querySelector(".message-body");
     ok(body, "the message body");
@@ -1575,7 +1569,6 @@ function checkOutputForInputs(hud, inputTests)
 
   function checkLinkToInspector(entry, msg)
   {
-    info("Checking Inspector Link: " + entry.input);
     let elementNodeWidget = [...msg._messageObject.widgets][0];
     if (!elementNodeWidget) {
       ok(!entry.inspectorIcon, "The message has no ElementNode widget");
@@ -1599,7 +1592,6 @@ function checkOutputForInputs(hud, inputTests)
 
   function onVariablesViewOpen(entry, {resolve, reject}, event, view, options)
   {
-    info("Variables view opened: " + entry.input);
     let label = entry.variablesViewLabel || entry.output;
     if (typeof label == "string" && options.label != label) {
       return;

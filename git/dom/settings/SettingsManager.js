@@ -55,12 +55,7 @@ function SettingsLock(aSettingsManager) {
                                                             "Settings:Clear:OK", "Settings:Clear:KO",
                                                             "Settings:Set:OK", "Settings:Set:KO",
                                                             "Settings:Finalize:OK", "Settings:Finalize:KO"]);
-  let createLockPayload = {
-    lockID: this._id,
-    isServiceLock: false,
-    windowID: this._settingsManager.innerWindowID
-  };
-  this.sendMessage("Settings:CreateLock", createLockPayload);
+  this.sendMessage("Settings:CreateLock", {lockID: this._id, isServiceLock: false});
   Services.tm.currentThread.dispatch(this._closeHelper.bind(this), Ci.nsIThread.DISPATCH_NORMAL);
 
   // We only want to file closeHelper once per set of receiveMessage calls.
@@ -91,6 +86,14 @@ SettingsLock.prototype = {
 
   _closeHelper: function() {
     if (DEBUG) debug("closing lock " + this._id);
+    // sendMessage can get queued to run later in a thread via
+    // _closeHelper, but the SettingsManager may have died in between
+    // the time it was scheduled and the time it runs. Make sure our
+    // window is valid before sending, otherwise just ignore.
+    if (!this._settingsManager._window) {
+      if (DEBUG) debug("SettingsManager died, cannot send " + aMessageName + " message window principal.");
+      return;
+    }
     this._open = false;
     this._closeCalled = false;
     if (!this._requests || Object.keys(this._requests).length == 0) {
@@ -109,18 +112,6 @@ SettingsLock.prototype = {
   },
 
   sendMessage: function(aMessageName, aData) {
-    // sendMessage can be called after our window has died, or get
-    // queued to run later in a thread via _closeHelper, but the
-    // SettingsManager may have died in between the time it was
-    // scheduled and the time it runs. Make sure our window is valid
-    // before sending, otherwise just ignore.
-    if (!this._settingsManager._window) {
-      Cu.reportError(
-        "SettingsManager window died, cannot run settings transaction." +
-        " SettingsMessage: " + aMessageName +
-        " SettingsData: " + JSON.stringify(aData));
-      return;
-    }
     cpmm.sendAsyncMessage(aMessageName,
                           aData,
                           undefined,
@@ -260,6 +251,7 @@ function SettingsManager() {
   this._callbacks = null;
   this._isRegistered = false;
   this._locks = [];
+  this._principal = null;
 }
 
 SettingsManager.prototype = {
@@ -380,18 +372,17 @@ SettingsManager.prototype = {
     if (DEBUG) debug("SettingsManager init");
     mrm.registerStrongReporter(this);
     cpmm.addMessageListener("Settings:Change:Return:OK", this);
-    Services.obs.addObserver(this, "inner-window-destroyed", false);
+    this._window = aWindow;
+    this._principal = this._window.document.nodePrincipal;
+    Services.obs.addObserver(this, "dom-window-destroyed", false);
     let util = aWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
     this.innerWindowID = util.currentInnerWindowID;
-    this._window = aWindow;
   },
 
   observe: function(aSubject, aTopic, aData) {
-    if (DEBUG) debug("Topic: " + aTopic);
-    if (aTopic === "inner-window-destroyed") {
-      let wId = aSubject.QueryInterface(Ci.nsISupportsPRUint64).data;
-      if (wId === this.innerWindowID) {
-        if (DEBUG) debug("Received: inner-window-destroyed for valid innerWindowID=" + wId + ", cleanup.");
+    if (aTopic == "dom-window-destroyed") {
+      let window = aSubject.QueryInterface(Ci.nsIDOMWindow);
+      if (window == this._window) {
         this.cleanup();
       }
     }
@@ -422,11 +413,21 @@ SettingsManager.prototype = {
   },
 
   cleanup: function() {
-    Services.obs.removeObserver(this, "inner-window-destroyed");
+    Services.obs.removeObserver(this, "dom-window-destroyed");
     cpmm.removeMessageListener("Settings:Change:Return:OK", this);
     mrm.unregisterStrongReporter(this);
-    this.innerWindowID = null;
+    // At this point, the window is dying, so there's nothing left
+    // that we could do with our lock. Go ahead and run finalize on
+    // it to make sure changes are commited.
+    for (let i = 0; i < this._locks.length; ++i) {
+      if (DEBUG) debug("Lock alive at destroy, finalizing: " + this._locks[i]);
+      cpmm.sendAsyncMessage("Settings:Finalize",
+                            {lockID: this._locks[i]},
+                            undefined,
+                            this._principal);
+    }
     this._window = null;
+    this._innerWindowID = null;
   },
 
   classID: Components.ID("{c40b1c70-00fb-11e2-a21f-0800200c9a66}"),

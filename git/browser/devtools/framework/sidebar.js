@@ -49,8 +49,6 @@ function ToolSidebar(tabbox, panel, uid, showTabstripe=true)
   if (!showTabstripe) {
     this._tabbox.setAttribute("hidetabs", "true");
   }
-
-  this._toolPanel.emit("sidebar-created", this);
 }
 
 exports.ToolSidebar = ToolSidebar;
@@ -212,8 +210,6 @@ ToolSidebar.prototype = {
       this._tabbox.width = this._width;
     }
     this._tabbox.removeAttribute("hidden");
-
-    this.emit("show");
   },
 
   /**
@@ -222,8 +218,6 @@ ToolSidebar.prototype = {
   hide: function ToolSidebar_hide() {
     Services.prefs.setIntPref("devtools.toolsidebar-width." + this._uid, this._tabbox.width);
     this._tabbox.setAttribute("hidden", "true");
-
-    this.emit("hide");
   },
 
   /**
@@ -262,8 +256,6 @@ ToolSidebar.prototype = {
     if (this._currentTool) {
       this._telemetry.toolClosed(this._currentTool);
     }
-
-    this._toolPanel.emit("sidebar-destroyed", this);
 
     this._tabs = null;
     this._tabbox = null;

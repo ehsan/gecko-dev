@@ -139,12 +139,12 @@ convertJSValToVariant(
     return new NullVariant();
 
   if (aValue.isObject()) {
-    JS::Rooted<JSObject*> obj(aCtx, &aValue.toObject());
+    JSObject* obj = &aValue.toObject();
     // We only support Date instances, all others fail.
-    if (!js::DateIsValid(aCtx, obj))
+    if (!::js_DateIsValid(obj))
       return nullptr;
 
-    double msecd = js::DateGetMsecSinceEpoch(aCtx, obj);
+    double msecd = ::js_DateGetMsecSinceEpoch(obj);
     msecd *= 1000.0;
     int64_t msec = msecd;
 

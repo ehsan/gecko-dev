@@ -6,7 +6,6 @@
 /* rendering object for HTML <br> elements */
 
 #include "nsCOMPtr.h"
-#include "nsFontMetrics.h"
 #include "nsFrame.h"
 #include "nsPresContext.h"
 #include "nsLineLayout.h"
@@ -119,11 +118,11 @@ BRFrame::Reflow(nsPresContext* aPresContext,
       nsRefPtr<nsFontMetrics> fm;
       nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm),
         nsLayoutUtils::FontSizeInflationFor(this));
+      aReflowState.rendContext->SetFont(fm); // FIXME: maybe not needed?
       if (fm) {
         nscoord logicalHeight = aReflowState.CalcLineHeight();
         finalSize.BSize(wm) = logicalHeight;
-        aMetrics.SetBlockStartAscent(nsLayoutUtils::GetCenteredFontBaseline(
-                                       fm, logicalHeight, wm.IsLineInverted()));
+        aMetrics.SetBlockStartAscent(nsLayoutUtils::GetCenteredFontBaseline(fm, logicalHeight));
       }
       else {
         aMetrics.SetBlockStartAscent(aMetrics.BSize(wm) = 0);

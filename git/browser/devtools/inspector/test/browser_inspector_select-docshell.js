@@ -7,12 +7,10 @@
 // Test frame selection switching at toolbox level
 // when using the inspector
 
-const FrameURL = "data:text/html;charset=UTF-8," +
-                 encodeURI("<div id=\"frame\">frame</div>");
-const URL = "data:text/html;charset=UTF-8," +
-            encodeURI("<iframe src=\"" + FrameURL + "\"></iframe><div id=\"top\">top</div>");
+let test = asyncTest(function*() {
+  const FrameURL = "data:text/html;charset=UTF-8," + encodeURI("<div id=\"frame\">frame</div>");
+  const URL = "data:text/html;charset=UTF-8," + encodeURI("<iframe src=\"" + FrameURL + "\"></iframe><div id=\"top\">top</div>");
 
-add_task(function*() {
   Services.prefs.setBoolPref("devtools.command-button-frames.enabled", true);
 
   let {toolbox, inspector} = yield openInspectorForURL(URL);
@@ -21,7 +19,7 @@ add_task(function*() {
   let testNode = content.document.querySelector("#top");
   ok(testNode, "We have the test node on the top level document");
 
-  assertMarkupViewIsLoaded(inspector);
+  assertMarkupViewIsLoaded();
 
   // Verify that the frame list button is visible and populated
   let btn = toolbox.doc.getElementById("command-button-frames");
@@ -35,12 +33,11 @@ add_task(function*() {
   is(frameBtns[1].getAttribute("label"), URL, "Got iframe document in the list");
 
   // Listen to will-navigate to check if the view is empty
-  let willNavigate = toolbox.target.once("will-navigate").then(() => {
+  let willNavigate = toolbox.target.on("will-navigate", () => {
     info("Navigation to the iframe has started, the inspector should be empty");
-    assertMarkupViewIsEmpty(inspector);
+    assertMarkupViewIsEmpty();
   });
-
-  let newRoot = inspector.once("new-root").then(() => {
+  let newRoot = inspector.once("new-root", () => {
     info("Navigation to the iframe is done, the inspector should be back up");
 
     // Verify we are on page one
@@ -49,30 +46,36 @@ add_task(function*() {
     ok(testNode, "We have the test node on the iframe");
 
     // On page 2 load, verify we have the right content
-    assertMarkupViewIsLoaded(inspector);
+    assertMarkupViewIsLoaded();
 
-    return selectNode("#frame", inspector);
+    inspector.once("inspector-updated", () => {
+      deferred.resolve();
+    });
+    selectNode(testNode, inspector);
   });
 
-  // Only select the iframe after we are able to select an element from the top
-  // level document.
-  yield selectNode("#top", inspector);
-  info("Select the iframe");
-  frameBtns[0].click();
+  // select the iframe once we were able to select an element from the
+  // top level document
+  selectNode("#top", inspector);
+  inspector.once("inspector-updated", () => {
+    // Select the iframe
+    frameBtns[0].click();
+  });
 
   yield willNavigate;
   yield newRoot;
 
+//  gBrowser.removeCurrentTab();
   Services.prefs.clearUserPref("devtools.command-button-frames.enabled");
-  gBrowser.removeCurrentTab();
+
+  function assertMarkupViewIsLoaded() {
+    let markupViewBox = inspector.panelDoc.getElementById("markup-box");
+    is(markupViewBox.childNodes.length, 1, "The markup-view is loaded");
+  }
+
+  function assertMarkupViewIsEmpty() {
+    let markupViewBox = inspector.panelDoc.getElementById("markup-box");
+    is(markupViewBox.childNodes.length, 0, "The markup-view is unloaded");
+  }
 });
 
-function assertMarkupViewIsLoaded(inspector) {
-  let markupViewBox = inspector.panelDoc.getElementById("markup-box");
-  is(markupViewBox.childNodes.length, 1, "The markup-view is loaded");
-}
-
-function assertMarkupViewIsEmpty(inspector) {
-  let markupViewBox = inspector.panelDoc.getElementById("markup-box");
-  is(markupViewBox.childNodes.length, 0, "The markup-view is unloaded");
-}

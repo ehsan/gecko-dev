@@ -19,7 +19,6 @@
 #include "prmjtime.h"
 
 #include "gc/Memory.h"
-#include "vm/HelperThreads.h"
 #include "vm/Runtime.h"
 
 using namespace js;
@@ -243,16 +242,6 @@ class gcstats::StatisticsSerializer
 JS_STATIC_ASSERT(JS::gcreason::NUM_TELEMETRY_REASONS >= JS::gcreason::NUM_REASONS);
 
 const char *
-js::gcstats::ExplainInvocationKind(JSGCInvocationKind gckind)
-{
-    MOZ_ASSERT(gckind == GC_NORMAL || gckind == GC_SHRINK);
-    if (gckind == GC_NORMAL)
-         return "Normal";
-    else
-         return "Shrinking";
-}
-
-const char *
 js::gcstats::ExplainReason(JS::gcreason::Reason reason)
 {
     switch (reason) {
@@ -311,9 +300,10 @@ static const PhaseInfo phases[] = {
             { PHASE_SWEEP_BREAKPOINT, "Sweep Breakpoints", PHASE_SWEEP_COMPARTMENTS },
             { PHASE_SWEEP_REGEXP, "Sweep Regexps", PHASE_SWEEP_COMPARTMENTS },
             { PHASE_SWEEP_MISC, "Sweep Miscellaneous", PHASE_SWEEP_COMPARTMENTS },
-            { PHASE_SWEEP_TYPES, "Sweep type information", PHASE_SWEEP_COMPARTMENTS },
-                { PHASE_SWEEP_TYPES_BEGIN, "Sweep type tables and compilations", PHASE_SWEEP_TYPES },
-                { PHASE_SWEEP_TYPES_END, "Free type arena", PHASE_SWEEP_TYPES },
+            { PHASE_DISCARD_ANALYSIS, "Discard Analysis", PHASE_SWEEP_COMPARTMENTS },
+                { PHASE_DISCARD_TI, "Discard TI", PHASE_DISCARD_ANALYSIS },
+                { PHASE_FREE_TI_ARENA, "Free TI Arena", PHASE_DISCARD_ANALYSIS },
+                { PHASE_SWEEP_TYPES, "Sweep Types", PHASE_DISCARD_ANALYSIS },
         { PHASE_SWEEP_OBJECT, "Sweep Object", PHASE_SWEEP },
         { PHASE_SWEEP_STRING, "Sweep String", PHASE_SWEEP },
         { PHASE_SWEEP_SCRIPT, "Sweep Script", PHASE_SWEEP },
@@ -470,7 +460,6 @@ Statistics::formatDescription()
 
     const char *format =
 "=================================================================\n\
-  Invocation Kind: %s\n\
   Reason: %s\n\
   Incremental: %s%s\n\
   Zones Collected: %d of %d\n\
@@ -484,7 +473,6 @@ Statistics::formatDescription()
     char buffer[1024];
     memset(buffer, 0, sizeof(buffer));
     JS_snprintf(buffer, sizeof(buffer), format,
-                ExplainInvocationKind(gckind),
                 ExplainReason(slices[0].reason),
                 nonincrementalReason ? "no - " : "yes",
                                                   nonincrementalReason ? nonincrementalReason : "",
@@ -657,7 +645,7 @@ Statistics::Statistics(JSRuntime *rt)
         fullFormat = true;
 
         fp = fopen(env, "a");
-        MOZ_ASSERT(fp);
+        JS_ASSERT(fp);
     }
 }
 
@@ -721,14 +709,13 @@ Statistics::printStats()
 }
 
 void
-Statistics::beginGC(JSGCInvocationKind kind)
+Statistics::beginGC()
 {
     PodArrayZero(phaseStartTimes);
     PodArrayZero(phaseTimes);
 
     slices.clearAndFree();
     sccTimes.clearAndFree();
-    gckind = kind;
     nonincrementalReason = nullptr;
 
     preBytes = runtime->gc.usage.gcBytes();
@@ -770,18 +757,16 @@ Statistics::endGC()
 }
 
 void
-Statistics::beginSlice(const ZoneGCStats &zoneStats, JSGCInvocationKind gckind,
-                       JS::gcreason::Reason reason)
+Statistics::beginSlice(const ZoneGCStats &zoneStats, JS::gcreason::Reason reason)
 {
     this->zoneStats = zoneStats;
 
     bool first = runtime->gc.state() == gc::NO_INCREMENTAL;
     if (first)
-        beginGC(gckind);
+        beginGC();
 
     SliceData data(reason, PRMJ_Now(), GetPageFaultCount());
-    if (!slices.append(data))
-        CrashAtUnhandlableOOM("Failed to allocate statistics slice.");
+    (void) slices.append(data); /* Ignore any OOMs here. */
 
     if (JSAccumulateTelemetryDataCallback cb = runtime->telemetryCallback)
         (*cb)(JS_TELEMETRY_GC_REASON, reason);
@@ -827,13 +812,13 @@ void
 Statistics::beginPhase(Phase phase)
 {
     /* Guard against re-entry */
-    MOZ_ASSERT(!phaseStartTimes[phase]);
+    JS_ASSERT(!phaseStartTimes[phase]);
 
 #ifdef DEBUG
-    MOZ_ASSERT(phases[phase].index == phase);
+    JS_ASSERT(phases[phase].index == phase);
     Phase parent = phaseNestingDepth ? phaseNesting[phaseNestingDepth - 1] : PHASE_NO_PARENT;
-    MOZ_ASSERT(phaseNestingDepth < MAX_NESTING);
-    MOZ_ASSERT_IF(gcDepth == 1, phases[phase].parent == parent);
+    JS_ASSERT(phaseNestingDepth < MAX_NESTING);
+    JS_ASSERT_IF(gcDepth == 1, phases[phase].parent == parent);
     phaseNesting[phaseNestingDepth] = phase;
     phaseNestingDepth++;
 #endif
@@ -849,16 +834,6 @@ Statistics::endPhase(Phase phase)
     int64_t t = PRMJ_Now() - phaseStartTimes[phase];
     slices.back().phaseTimes[phase] += t;
     phaseTimes[phase] += t;
-    phaseStartTimes[phase] = 0;
-}
-
-void
-Statistics::endParallelPhase(Phase phase, const GCParallelTask *task)
-{
-    phaseNestingDepth--;
-
-    slices.back().phaseTimes[phase] += task->duration();
-    phaseTimes[phase] += task->duration();
     phaseStartTimes[phase] = 0;
 }
 
@@ -889,7 +864,7 @@ Statistics::endSCC(unsigned scc, int64_t start)
 double
 Statistics::computeMMU(int64_t window)
 {
-    MOZ_ASSERT(!slices.empty());
+    JS_ASSERT(!slices.empty());
 
     int64_t gc = slices[0].end - slices[0].start;
     int64_t gcMax = gc;

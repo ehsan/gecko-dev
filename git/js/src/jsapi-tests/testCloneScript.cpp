@@ -8,6 +8,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "jsfriendapi.h"
+#include "js/OldDebugAPI.h"
 #include "jsapi-tests/tests.h"
 
 BEGIN_TEST(test_cloneScript)
@@ -35,16 +36,15 @@ BEGIN_TEST(test_cloneScript)
         JS::RootedFunction fun(cx);
         JS::CompileOptions options(cx);
         options.setFileAndLine(__FILE__, 1);
-        JS::AutoObjectVector emptyScopeChain(cx);
-        CHECK(JS::CompileFunction(cx, emptyScopeChain, options, "f", 0, nullptr,
-                                  source, strlen(source), &fun));
+        CHECK(JS_CompileFunction(cx, A, "f", 0, nullptr, source,
+                                 strlen(source), options, &fun));
         CHECK(obj = JS_GetFunctionObject(fun));
     }
 
     // clone into B
     {
         JSAutoCompartment b(cx, B);
-        CHECK(JS::CloneFunctionObject(cx, obj));
+        CHECK(JS_CloneFunctionObject(cx, obj, B));
     }
 
     return true;
@@ -110,10 +110,9 @@ BEGIN_TEST(test_cloneScriptWithPrincipals)
         JS::CompileOptions options(cx);
         options.setFileAndLine(__FILE__, 1);
         JS::RootedFunction fun(cx);
-        JS::AutoObjectVector emptyScopeChain(cx);
-        JS::CompileFunction(cx, emptyScopeChain, options, "f",
+        JS_CompileFunction(cx, A, "f",
                            mozilla::ArrayLength(argnames), argnames, source,
-                           strlen(source), &fun);
+                           strlen(source), options, &fun);
         CHECK(fun);
 
         JSScript *script;
@@ -127,7 +126,7 @@ BEGIN_TEST(test_cloneScriptWithPrincipals)
     {
         JSAutoCompartment b(cx, B);
         JS::RootedObject cloned(cx);
-        CHECK(cloned = JS::CloneFunctionObject(cx, obj));
+        CHECK(cloned = JS_CloneFunctionObject(cx, obj, B));
 
         JS::RootedFunction fun(cx);
         JS::RootedValue clonedValue(cx, JS::ObjectValue(*cloned));

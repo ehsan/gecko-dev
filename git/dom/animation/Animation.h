@@ -8,25 +8,19 @@
 
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsCSSPseudoElements.h"
 #include "nsIDocument.h"
 #include "nsWrapperCache.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/StickyTimeDuration.h"
 #include "mozilla/StyleAnimationValue.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/dom/Element.h"
 #include "mozilla/dom/Nullable.h"
 #include "nsSMILKeySpline.h"
 #include "nsStyleStruct.h" // for nsTimingFunction
 
 struct JSContext;
-class nsCSSPropertySet;
 
 namespace mozilla {
-namespace css {
-class AnimValuesStyleRule;
-} // namespace css
 
 /**
  * Input timing parameters.
@@ -134,18 +128,15 @@ class Animation : public nsWrapperCache
 {
 public:
   Animation(nsIDocument* aDocument,
-            Element* aTarget,
-            nsCSSPseudoElements::Type aPseudoType,
             const AnimationTiming &aTiming,
             const nsSubstring& aName)
     : mDocument(aDocument)
-    , mTarget(aTarget)
     , mTiming(aTiming)
     , mName(aName)
     , mIsFinishedTransition(false)
-    , mPseudoType(aPseudoType)
+    , mLastNotification(LAST_NOTIFICATION_NONE)
   {
-    MOZ_ASSERT(aTarget, "null animation target is not yet supported");
+    SetIsDOMBinding();
   }
 
   NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(Animation)
@@ -166,23 +157,6 @@ public:
   // This currently returns a new object each time when used from C++ but is
   // cached when used from JS.
   already_AddRefed<AnimationEffect> GetEffect();
-  Element* GetTarget() const {
-    // Currently we only implement Element.getAnimationPlayers() which only
-    // returns animations targetting Elements so this should never
-    // be called for an animation that targets a pseudo-element.
-    MOZ_ASSERT(mPseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement,
-               "Requesting the target of an Animation that targets a"
-               " pseudo-element is not yet supported.");
-    return mTarget;
-  }
-
-  // Temporary workaround to return both the target element and pseudo-type
-  // until we implement PseudoElement.
-  void GetTarget(Element*& aTarget,
-                 nsCSSPseudoElements::Type& aPseudoType) const {
-    aTarget = mTarget;
-    aPseudoType = mPseudoType;
-  }
 
   void SetParentTime(Nullable<TimeDuration> aParentTime);
 
@@ -250,8 +224,24 @@ public:
     mIsFinishedTransition = true;
   }
 
-  bool IsCurrent() const;
-  bool IsInEffect() const;
+  bool IsCurrent() const {
+    if (IsFinishedTransition()) {
+      return false;
+    }
+
+    ComputedTiming computedTiming = GetComputedTiming();
+    return computedTiming.mPhase == ComputedTiming::AnimationPhase_Before ||
+           computedTiming.mPhase == ComputedTiming::AnimationPhase_Active;
+  }
+
+  enum {
+    LAST_NOTIFICATION_NONE = uint64_t(-1),
+    LAST_NOTIFICATION_END = uint64_t(-2)
+  };
+  uint64_t LastNotification() const { return mLastNotification; }
+  void SetLastNotification(uint64_t aLastNotification) {
+    mLastNotification = aLastNotification;
+  }
 
   bool HasAnimationOfProperty(nsCSSProperty aProperty) const;
   const InfallibleTArray<AnimationProperty>& Properties() const {
@@ -261,20 +251,12 @@ public:
     return mProperties;
   }
 
-  // Updates |aStyleRule| with the animation values produced by this
-  // Animation for the current time except any properties already contained
-  // in |aSetProperties|.
-  // Any updated properties are added to |aSetProperties|.
-  void ComposeStyle(nsRefPtr<css::AnimValuesStyleRule>& aStyleRule,
-                    nsCSSPropertySet& aSetProperties);
-
 protected:
   virtual ~Animation() { }
 
   // We use a document for a parent object since the other likely candidate,
   // the target element, can be empty.
-  nsCOMPtr<nsIDocument> mDocument;
-  nsCOMPtr<Element> mTarget;
+  nsRefPtr<nsIDocument> mDocument;
   Nullable<TimeDuration> mParentTime;
 
   AnimationTiming mTiming;
@@ -282,7 +264,9 @@ protected:
   // A flag to mark transitions that have finished and are due to
   // be removed on the next throttle-able cycle.
   bool mIsFinishedTransition;
-  nsCSSPseudoElements::Type mPseudoType;
+  // One of the LAST_NOTIFICATION_* constants, or an integer for the iteration
+  // whose start we last notified on.
+  uint64_t mLastNotification;
 
   InfallibleTArray<AnimationProperty> mProperties;
 };

@@ -121,6 +121,7 @@ void
 nsClassHashtable<KeyClass, T>::RemoveAndForget(KeyType aKey, nsAutoPtr<T>& aOut)
 {
   aOut = nullptr;
+  nsAutoPtr<T> ptr;
 
   typename base_type::EntryType* ent = this->GetEntry(aKey);
   if (!ent) {

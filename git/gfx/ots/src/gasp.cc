@@ -11,10 +11,10 @@
 
 #define DROP_THIS_TABLE(...) \
   do { \
-    OTS_FAILURE_MSG_(file, TABLE_NAME ": " __VA_ARGS__); \
-    OTS_FAILURE_MSG("Table discarded"); \
     delete file->gasp; \
     file->gasp = 0; \
+    OTS_FAILURE_MSG_(file, TABLE_NAME ": " __VA_ARGS__); \
+    OTS_FAILURE_MSG("Table discarded"); \
   } while (0)
 
 namespace ots {
@@ -87,14 +87,12 @@ bool ots_gasp_should_serialise(OpenTypeFile *file) {
 bool ots_gasp_serialise(OTSStream *out, OpenTypeFile *file) {
   const OpenTypeGASP *gasp = file->gasp;
 
-  const uint16_t num_ranges = static_cast<uint16_t>(gasp->gasp_ranges.size());
-  if (num_ranges != gasp->gasp_ranges.size() ||
-      !out->WriteU16(gasp->version) ||
-      !out->WriteU16(num_ranges)) {
+  if (!out->WriteU16(gasp->version) ||
+      !out->WriteU16(gasp->gasp_ranges.size())) {
     return OTS_FAILURE_MSG("failed to write gasp header");
   }
 
-  for (uint16_t i = 0; i < num_ranges; ++i) {
+  for (unsigned i = 0; i < gasp->gasp_ranges.size(); ++i) {
     if (!out->WriteU16(gasp->gasp_ranges[i].first) ||
         !out->WriteU16(gasp->gasp_ranges[i].second)) {
       return OTS_FAILURE_MSG("Failed to write gasp subtable %d", i);

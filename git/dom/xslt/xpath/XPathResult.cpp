@@ -29,6 +29,7 @@ XPathResult::XPathResult(nsINode* aParent)
       mBooleanResult(false),
       mNumberResult(0)
 {
+    SetIsDOMBinding();
 }
 
 XPathResult::XPathResult(const XPathResult &aResult)
@@ -41,6 +42,7 @@ XPathResult::XPathResult(const XPathResult &aResult)
       mResultType(aResult.mResultType),
       mInvalidIteratorState(aResult.mInvalidIteratorState)
 {
+    SetIsDOMBinding();
     if (mDocument) {
         mDocument->AddMutationObserver(this);
     }

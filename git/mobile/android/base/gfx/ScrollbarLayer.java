@@ -28,7 +28,7 @@ public class ScrollbarLayer extends TileLayer {
     private final float[] mCoords;
     private final RectF mCapRectF;
 
-    private final LayerRenderer mRenderer;
+    private LayerRenderer mRenderer;
     private int mProgram;
     private int mPositionHandle;
     private int mTextureHandle;

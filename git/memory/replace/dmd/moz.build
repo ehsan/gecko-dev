@@ -32,6 +32,3 @@ if CONFIG['OS_ARCH'] == 'WINNT':
     OS_LIBS += [
         'dbghelp',
     ]
-
-TEST_DIRS += ['test']
-

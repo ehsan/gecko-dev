@@ -587,9 +587,10 @@ XPCNativeScriptableSharedMap::Entry::Match(PLDHashTable *table,
     XPCNativeScriptableShared* obj2 =
         (XPCNativeScriptableShared*) key;
 
-    // match the flags and the classname string
+    // match the flags, the classname string and the interfaces bitmap
 
-    if (obj1->GetFlags() != obj2->GetFlags())
+    if (obj1->GetFlags() != obj2->GetFlags() ||
+        obj1->GetInterfacesBitmap() != obj2->GetInterfacesBitmap())
         return false;
 
     const char* name1 = obj1->GetJSClass()->name;
@@ -638,12 +639,13 @@ XPCNativeScriptableSharedMap::~XPCNativeScriptableSharedMap()
 bool
 XPCNativeScriptableSharedMap::GetNewOrUsed(uint32_t flags,
                                            char* name,
+                                           uint32_t interfacesBitmap,
                                            XPCNativeScriptableInfo* si)
 {
     NS_PRECONDITION(name,"bad param");
     NS_PRECONDITION(si,"bad param");
 
-    XPCNativeScriptableShared key(flags, name);
+    XPCNativeScriptableShared key(flags, name, interfacesBitmap);
     Entry* entry = (Entry*)
         PL_DHashTableOperate(mTable, &key, PL_DHASH_ADD);
     if (!entry)
@@ -653,7 +655,8 @@ XPCNativeScriptableSharedMap::GetNewOrUsed(uint32_t flags,
 
     if (!shared) {
         entry->key = shared =
-            new XPCNativeScriptableShared(flags, key.TransferNameOwnership());
+            new XPCNativeScriptableShared(flags, key.TransferNameOwnership(),
+                                          interfacesBitmap);
         if (!shared)
             return false;
         shared->PopulateJSClass();

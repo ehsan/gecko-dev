@@ -22,12 +22,13 @@ module.metadata = {
 // - `_` used for argument(s) or variable(s) who's values are ignored.
 
 const { complement, flip, identity } = require("../lang/functional");
+const { iteratorSymbol } = require("../util/iteration");
 const { isArray, isArguments, isMap, isSet,
         isString, isBoolean, isNumber } = require("../lang/type");
 
 const Sequence = function Sequence(iterator) {
   if (iterator.isGenerator && iterator.isGenerator())
-    this[Symbol.iterator] = iterator;
+    this[iteratorSymbol] = iterator;
   else
     throw TypeError("Expected generator argument");
 };
@@ -215,7 +216,7 @@ const map = (f, ...sequences) => seq(function* () {
 
     let index = 0;
     while (index < count) {
-      inputs[index] = sequences[index][Symbol.iterator]();
+      inputs[index] = sequences[index][iteratorSymbol]();
       index = index + 1;
     }
 

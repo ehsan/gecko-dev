@@ -31,7 +31,6 @@ public:
 
   void                GetSocketAddr(nsAString& aAddrStr) const;
   SocketConsumerBase* GetConsumer();
-  SocketBase*         GetSocketBase();
 
   // Shutdown state
   //
@@ -156,12 +155,6 @@ SocketConsumerBase*
 UnixSocketConsumerIO::GetConsumer()
 {
   return mConsumer.get();
-}
-
-SocketBase*
-UnixSocketConsumerIO::GetSocketBase()
-{
-  return GetConsumer();
 }
 
 bool
@@ -555,8 +548,7 @@ UnixSocketConsumer::SendSocketData(UnixSocketRawData* aData)
 
   MOZ_ASSERT(!mIO->IsShutdownOnMainThread());
   XRE_GetIOMessageLoop()->PostTask(
-    FROM_HERE,
-    new SocketIOSendTask<UnixSocketConsumerIO, UnixSocketRawData>(mIO, aData));
+    FROM_HERE, new SocketIOSendTask<UnixSocketConsumerIO>(mIO, aData));
 
   return true;
 }

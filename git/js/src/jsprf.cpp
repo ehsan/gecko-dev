@@ -40,7 +40,7 @@ using namespace js;
 
 struct SprintfState
 {
-    bool (*stuff)(SprintfState *ss, const char *sp, size_t len);
+    int (*stuff)(SprintfState *ss, const char *sp, size_t len);
 
     char *base;
     char *cur;
@@ -82,18 +82,19 @@ typedef mozilla::Vector<NumArgState, 20, js::SystemAllocPolicy> NumArgStateVecto
 #define FLAG_ZEROS      0x8
 #define FLAG_NEG        0x10
 
-inline bool
+inline int
 generic_write(SprintfState *ss, const char *src, size_t srclen)
 {
     return (*ss->stuff)(ss, src, srclen);
 }
 
-inline bool
+inline int
 generic_write(SprintfState *ss, const char16_t *src, size_t srclen)
 {
     const size_t CHUNK_SIZE = 64;
     char chunk[CHUNK_SIZE];
 
+    int rv = 0;
     size_t j = 0;
     size_t i = 0;
     while (i < srclen) {
@@ -101,48 +102,53 @@ generic_write(SprintfState *ss, const char16_t *src, size_t srclen)
         chunk[j++] = char(src[i++]);
 
         if (j == CHUNK_SIZE || i == srclen) {
-            if (!(*ss->stuff)(ss, chunk, j))
-                return false;
+            rv = (*ss->stuff)(ss, chunk, j);
+            if (rv != 0)
+                return rv;
             j = 0;
         }
     }
-    return true;
+    return 0;
 }
 
 // Fill into the buffer using the data in src
 template <typename Char>
-static bool
+static int
 fill2(SprintfState *ss, const Char *src, int srclen, int width, int flags)
 {
     char space = ' ';
+    int rv;
 
     width -= srclen;
     if (width > 0 && (flags & FLAG_LEFT) == 0) {    // Right adjusting
         if (flags & FLAG_ZEROS)
             space = '0';
         while (--width >= 0) {
-            if (!(*ss->stuff)(ss, &space, 1))
-                return false;
+            rv = (*ss->stuff)(ss, &space, 1);
+            if (rv < 0)
+                return rv;
         }
     }
 
     // Copy out the source data
-    if (!generic_write(ss, src, srclen))
-        return false;
+    rv = generic_write(ss, src, srclen);
+    if (rv < 0)
+        return rv;
 
     if (width > 0 && (flags & FLAG_LEFT) != 0) {    // Left adjusting
         while (--width >= 0) {
-            if (!(*ss->stuff)(ss, &space, 1))
-                return false;
+            rv = (*ss->stuff)(ss, &space, 1);
+            if (rv < 0)
+                return rv;
         }
     }
-    return true;
+    return 0;
 }
 
 /*
  * Fill a number. The order is: optional-sign zero-filling conversion-digits
  */
-static bool
+static int
 fill_n(SprintfState *ss, const char *src, int srclen, int width, int prec, int type, int flags)
 {
     int zerowidth = 0;
@@ -151,6 +157,7 @@ fill_n(SprintfState *ss, const char *src, int srclen, int width, int prec, int t
     int leftspaces = 0;
     int rightspaces = 0;
     int cvtwidth;
+    int rv;
     char sign;
 
     if ((type & 1) == 0) {
@@ -193,41 +200,54 @@ fill_n(SprintfState *ss, const char *src, int srclen, int width, int prec, int t
         }
     }
     while (--leftspaces >= 0) {
-        if (!(*ss->stuff)(ss, " ", 1))
-            return false;
+        rv = (*ss->stuff)(ss, " ", 1);
+        if (rv < 0) {
+            return rv;
+        }
     }
     if (signwidth) {
-        if (!(*ss->stuff)(ss, &sign, 1))
-            return false;
+        rv = (*ss->stuff)(ss, &sign, 1);
+        if (rv < 0) {
+            return rv;
+        }
     }
     while (--precwidth >= 0) {
-        if (!(*ss->stuff)(ss, "0", 1))
-            return false;
+        rv = (*ss->stuff)(ss, "0", 1);
+        if (rv < 0) {
+            return rv;
+        }
     }
     while (--zerowidth >= 0) {
-        if (!(*ss->stuff)(ss, "0", 1))
-            return false;
+        rv = (*ss->stuff)(ss, "0", 1);
+        if (rv < 0) {
+            return rv;
+        }
     }
-    if (!(*ss->stuff)(ss, src, uint32_t(srclen)))
-        return false;
+    rv = (*ss->stuff)(ss, src, uint32_t(srclen));
+    if (rv < 0) {
+        return rv;
+    }
     while (--rightspaces >= 0) {
-        if (!(*ss->stuff)(ss, " ", 1))
-            return false;
+        rv = (*ss->stuff)(ss, " ", 1);
+        if (rv < 0) {
+            return rv;
+        }
     }
-    return true;
+    return 0;
 }
 
 /* Convert a long into its printable form. */
-static bool cvt_l(SprintfState *ss, long num, int width, int prec, int radix,
-                  int type, int flags, const char *hexp)
+static int cvt_l(SprintfState *ss, long num, int width, int prec, int radix,
+                 int type, int flags, const char *hexp)
 {
     char cvtbuf[100];
     char *cvt;
     int digits;
 
     // according to the man page this needs to happen
-    if ((prec == 0) && (num == 0))
-        return true;
+    if ((prec == 0) && (num == 0)) {
+        return 0;
+    }
 
     // Converting decimal is a little tricky. In the unsigned case we
     // need to stop when we hit 10 digits. In the signed case, we can
@@ -251,12 +271,12 @@ static bool cvt_l(SprintfState *ss, long num, int width, int prec, int radix,
 }
 
 /* Convert a 64-bit integer into its printable form. */
-static bool cvt_ll(SprintfState *ss, int64_t num, int width, int prec, int radix,
-                   int type, int flags, const char *hexp)
+static int cvt_ll(SprintfState *ss, int64_t num, int width, int prec, int radix,
+                  int type, int flags, const char *hexp)
 {
     // According to the man page, this needs to happen.
     if (prec == 0 && num == 0)
-        return true;
+        return 0;
 
     // Converting decimal is a little tricky. In the unsigned case we
     // need to stop when we hit 10 digits. In the signed case, we can
@@ -289,16 +309,16 @@ static bool cvt_ll(SprintfState *ss, int64_t num, int width, int prec, int radix
  *
  * XXX stop using sprintf to convert floating point
  */
-static bool cvt_f(SprintfState *ss, double d, const char *fmt0, const char *fmt1)
+static int cvt_f(SprintfState *ss, double d, const char *fmt0, const char *fmt1)
 {
     char fin[20];
     char fout[300];
     int amount = fmt1 - fmt0;
 
-    MOZ_ASSERT((amount > 0) && (amount < (int)sizeof(fin)));
+    JS_ASSERT((amount > 0) && (amount < (int)sizeof(fin)));
     if (amount >= (int)sizeof(fin)) {
         // Totally bogus % command to sprintf. Just ignore it
-        return true;
+        return 0;
     }
     js_memcpy(fin, fmt0, (size_t)amount);
     fin[amount] = 0;
@@ -308,7 +328,7 @@ static bool cvt_f(SprintfState *ss, double d, const char *fmt0, const char *fmt1
     {
         const char *p = fin;
         while (*p) {
-            MOZ_ASSERT(*p != 'L');
+            JS_ASSERT(*p != 'L');
             p++;
         }
     }
@@ -318,7 +338,7 @@ static bool cvt_f(SprintfState *ss, double d, const char *fmt0, const char *fmt1
     // This assert will catch overflow's of fout, when building with
     // debugging on. At least this way we can track down the evil piece
     // of calling code and fix it!
-    MOZ_ASSERT(strlen(fout) < sizeof(fout));
+    JS_ASSERT(strlen(fout) < sizeof(fout));
 
     return (*ss->stuff)(ss, fout, strlen(fout));
 }
@@ -335,11 +355,11 @@ static inline size_t generic_strlen(const char16_t *s) { return js_strlen(s); }
  * where -1 means until NUL.
  */
 template <typename Char>
-static bool
+static int
 cvt_s(SprintfState *ss, const Char *s, int width, int prec, int flags)
 {
     if (prec == 0)
-        return true;
+        return 0;
     if (!s)
         s = generic_null_str(s);
 
@@ -508,7 +528,7 @@ BuildArgArray(const char *fmt, va_list ap, NumArgStateVector& nas)
         case 'E':
         case 'G':
             // XXX not supported I suppose
-            MOZ_ASSERT(0);
+            JS_ASSERT(0);
             nas[cn].type = TYPE_UNKNOWN;
             break;
 
@@ -521,7 +541,7 @@ BuildArgArray(const char *fmt, va_list ap, NumArgStateVector& nas)
             break;
 
         default:
-            MOZ_ASSERT(0);
+            JS_ASSERT(0);
             nas[cn].type = TYPE_UNKNOWN;
             break;
         }
@@ -570,7 +590,7 @@ BuildArgArray(const char *fmt, va_list ap, NumArgStateVector& nas)
 /*
  * The workhorse sprintf code.
  */
-static bool
+static int
 dosprintf(SprintfState *ss, const char *fmt, va_list ap)
 {
     char c;
@@ -590,7 +610,7 @@ dosprintf(SprintfState *ss, const char *fmt, va_list ap)
     static const char hex[] = "0123456789abcdef";
     static const char HEX[] = "0123456789ABCDEF";
     const char *hexp;
-    int i;
+    int rv, i;
     char pattern[20];
     const char *dolPt = nullptr;  // in "%4$.2f", dolPt will point to '.'
 
@@ -600,15 +620,16 @@ dosprintf(SprintfState *ss, const char *fmt, va_list ap)
     NumArgStateVector nas;
     if (!BuildArgArray(fmt, ap, nas)) {
         // the fmt contains error Numbered Argument format, jliu@netscape.com
-        MOZ_ASSERT(0);
-        return false;
+        JS_ASSERT(0);
+        return rv;
     }
 
     while ((c = *fmt++) != 0) {
         if (c != '%') {
-            if (!(*ss->stuff)(ss, fmt - 1, 1))
-                return false;
-
+            rv = (*ss->stuff)(ss, fmt - 1, 1);
+            if (rv < 0) {
+                return rv;
+            }
             continue;
         }
         fmt0 = fmt - 1;
@@ -619,9 +640,10 @@ dosprintf(SprintfState *ss, const char *fmt, va_list ap)
         c = *fmt++;
         if (c == '%') {
             // quoting a % with %%
-            if (!(*ss->stuff)(ss, fmt - 1, 1))
-                return false;
-
+            rv = (*ss->stuff)(ss, fmt - 1, 1);
+            if (rv < 0) {
+                return rv;
+            }
             continue;
         }
 
@@ -634,7 +656,7 @@ dosprintf(SprintfState *ss, const char *fmt, va_list ap)
             }
 
             if (nas[i - 1].type == TYPE_UNKNOWN)
-                return false;
+                return -1;
 
             ap = nas[i - 1].ap;
             dolPt = fmt;
@@ -763,9 +785,10 @@ dosprintf(SprintfState *ss, const char *fmt, va_list ap)
               case TYPE_UINT32:
                 u.l = (long)va_arg(ap, uint32_t);
               do_long:
-                if (!cvt_l(ss, u.l, width, prec, radix, type, flags, hexp))
-                    return false;
-
+                rv = cvt_l(ss, u.l, width, prec, radix, type, flags, hexp);
+                if (rv < 0) {
+                    return rv;
+                }
                 break;
 
               case TYPE_INT64:
@@ -778,9 +801,10 @@ dosprintf(SprintfState *ss, const char *fmt, va_list ap)
               case TYPE_UINT64:
                 u.ll = va_arg(ap, uint64_t);
               do_longlong:
-                if (!cvt_ll(ss, u.ll, width, prec, radix, type, flags, hexp))
-                    return false;
-
+                rv = cvt_ll(ss, u.ll, width, prec, radix, type, flags, hexp);
+                if (rv < 0) {
+                    return rv;
+                }
                 break;
             }
             break;
@@ -795,35 +819,41 @@ dosprintf(SprintfState *ss, const char *fmt, va_list ap)
                 if (i < int(sizeof(pattern))) {
                     pattern[0] = '%';
                     js_memcpy(&pattern[1], dolPt, size_t(i));
-                    if (!cvt_f(ss, u.d, pattern, &pattern[i + 1]))
-                        return false;
+                    rv = cvt_f(ss, u.d, pattern, &pattern[i + 1]);
                 }
-            } else {
-                if (!cvt_f(ss, u.d, fmt0, fmt))
-                    return false;
-            }
+            } else
+                rv = cvt_f(ss, u.d, fmt0, fmt);
 
+            if (rv < 0) {
+                return rv;
+            }
             break;
 
           case 'c':
             if ((flags & FLAG_LEFT) == 0) {
                 while (width-- > 1) {
-                    if (!(*ss->stuff)(ss, " ", 1))
-                        return false;
+                    rv = (*ss->stuff)(ss, " ", 1);
+                    if (rv < 0) {
+                        return rv;
+                    }
                 }
             }
             switch (type) {
               case TYPE_INT16:
               case TYPE_INTN:
                 u.ch = va_arg(ap, int);
-                if (!(*ss->stuff)(ss, &u.ch, 1))
-                    return false;
+                rv = (*ss->stuff)(ss, &u.ch, 1);
                 break;
+            }
+            if (rv < 0) {
+                return rv;
             }
             if (flags & FLAG_LEFT) {
                 while (width-- > 1) {
-                    if (!(*ss->stuff)(ss, " ", 1))
-                        return false;
+                    rv = (*ss->stuff)(ss, " ", 1);
+                    if (rv < 0) {
+                        return rv;
+                    }
                 }
             }
             break;
@@ -836,7 +866,7 @@ dosprintf(SprintfState *ss, const char *fmt, va_list ap)
             } else if (sizeof(void *) == sizeof(int)) {
                 type = TYPE_UINTN;
             } else {
-                MOZ_ASSERT(0);
+                JS_ASSERT(0);
                 break;
             }
             radix = 16;
@@ -848,19 +878,20 @@ dosprintf(SprintfState *ss, const char *fmt, va_list ap)
           case 'E':
           case 'G':
             // XXX not supported I suppose
-            MOZ_ASSERT(0);
+            JS_ASSERT(0);
             break;
 #endif
 
           case 's':
             if(type == TYPE_INT16) {
                 u.ws = va_arg(ap, const char16_t*);
-                if (!cvt_s(ss, u.ws, width, prec, flags))
-                    return false;
+                rv = cvt_s(ss, u.ws, width, prec, flags);
             } else {
                 u.s = va_arg(ap, const char*);
-                if (!cvt_s(ss, u.s, width, prec, flags))
-                    return false;
+                rv = cvt_s(ss, u.s, width, prec, flags);
+            }
+            if (rv < 0) {
+                return rv;
             }
             break;
 
@@ -874,20 +905,23 @@ dosprintf(SprintfState *ss, const char *fmt, va_list ap)
           default:
             // Not a % token after all... skip it
 #if 0
-            MOZ_ASSERT(0);
+            JS_ASSERT(0);
 #endif
-            if (!(*ss->stuff)(ss, "%", 1))
-                return false;
-            if (!(*ss->stuff)(ss, fmt - 1, 1))
-                return false;
+            rv = (*ss->stuff)(ss, "%", 1);
+            if (rv < 0) {
+                return rv;
+            }
+            rv = (*ss->stuff)(ss, fmt - 1, 1);
+            if (rv < 0) {
+                return rv;
+            }
         }
     }
 
     // Stuff trailing NUL
-    if (!(*ss->stuff)(ss, "\0", 1))
-        return false;
+    rv = (*ss->stuff)(ss, "\0", 1);
 
-    return true;
+    return rv;
 }
 
 /************************************************************************/
@@ -896,7 +930,7 @@ dosprintf(SprintfState *ss, const char *fmt, va_list ap)
  * Stuff routine that automatically grows the js_malloc'd output buffer
  * before it overflows.
  */
-static bool
+static int
 GrowStuff(SprintfState *ss, const char *sp, size_t len)
 {
     ptrdiff_t off;
@@ -910,7 +944,7 @@ GrowStuff(SprintfState *ss, const char *sp, size_t len)
         newbase = static_cast<char *>(js_realloc(ss->base, newlen));
         if (!newbase) {
             /* Ran out of memory */
-            return false;
+            return -1;
         }
         ss->base = newbase;
         ss->maxlen = newlen;
@@ -923,7 +957,7 @@ GrowStuff(SprintfState *ss, const char *sp, size_t len)
         *ss->cur++ = *sp++;
     }
     MOZ_ASSERT(size_t(ss->cur - ss->base) <= ss->maxlen);
-    return true;
+    return 0;
 }
 
 /*
@@ -954,12 +988,14 @@ JS_PUBLIC_API(char *)
 JS_vsmprintf(const char *fmt, va_list ap)
 {
     SprintfState ss;
+    int rv;
 
     ss.stuff = GrowStuff;
     ss.base = 0;
     ss.cur = 0;
     ss.maxlen = 0;
-    if (!dosprintf(&ss, fmt, ap)) {
+    rv = dosprintf(&ss, fmt, ap);
+    if (rv < 0) {
         js_free(ss.base);
         return 0;
     }
@@ -969,7 +1005,7 @@ JS_vsmprintf(const char *fmt, va_list ap)
 /*
  * Stuff routine that discards overflow data
  */
-static bool
+static int
 LimitStuff(SprintfState *ss, const char *sp, size_t len)
 {
     size_t limit = ss->maxlen - (ss->cur - ss->base);
@@ -980,7 +1016,7 @@ LimitStuff(SprintfState *ss, const char *sp, size_t len)
         --len;
         *ss->cur++ = *sp++;
     }
-    return true;
+    return 0;
 }
 
 /*
@@ -993,7 +1029,7 @@ JS_snprintf(char *out, uint32_t outlen, const char *fmt, ...)
     va_list ap;
     int rv;
 
-    MOZ_ASSERT(int32_t(outlen) > 0);
+    JS_ASSERT(int32_t(outlen) > 0);
     if (int32_t(outlen) <= 0)
         return 0;
 
@@ -1009,9 +1045,10 @@ JS_vsnprintf(char *out, uint32_t outlen, const char *fmt, va_list ap)
     SprintfState ss;
     uint32_t n;
 
-    MOZ_ASSERT(int32_t(outlen) > 0);
-    if (int32_t(outlen) <= 0)
+    JS_ASSERT(int32_t(outlen) > 0);
+    if (int32_t(outlen) <= 0) {
         return 0;
+    }
 
     ss.stuff = LimitStuff;
     ss.base = out;
@@ -1043,6 +1080,7 @@ JS_PUBLIC_API(char *)
 JS_vsprintf_append(char *last, const char *fmt, va_list ap)
 {
     SprintfState ss;
+    int rv;
 
     ss.stuff = GrowStuff;
     if (last) {
@@ -1055,7 +1093,8 @@ JS_vsprintf_append(char *last, const char *fmt, va_list ap)
         ss.cur = 0;
         ss.maxlen = 0;
     }
-    if (!dosprintf(&ss, fmt, ap)) {
+    rv = dosprintf(&ss, fmt, ap);
+    if (rv < 0) {
         js_free(ss.base);
         return 0;
     }

@@ -5,8 +5,10 @@
 
 package org.mozilla.gecko.tabs;
 
-import org.mozilla.gecko.R;
+import java.util.ArrayList;
+
 import org.mozilla.gecko.Tab;
+import org.mozilla.gecko.R;
 
 import android.content.Context;
 import android.view.LayoutInflater;
@@ -14,21 +16,15 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 
-import java.util.ArrayList;
-
 // Adapter to bind tabs into a list
 public class TabsLayoutAdapter extends BaseAdapter {
-    public static final String LOGTAG = "Gecko" + TabsLayoutAdapter.class.getSimpleName();
-
-    private final Context mContext;
-    private final int mTabLayoutId;
+    private Context mContext;
     private ArrayList<Tab> mTabs;
-    private final LayoutInflater mInflater;
+    private LayoutInflater mInflater;
 
-    public TabsLayoutAdapter (Context context, int tabLayoutId) {
+    public TabsLayoutAdapter (Context context) {
         mContext = context;
         mInflater = LayoutInflater.from(mContext);
-        mTabLayoutId = tabLayoutId;
     }
 
     final void setTabs (ArrayList<Tab> tabs) {
@@ -72,23 +68,27 @@ public class TabsLayoutAdapter extends BaseAdapter {
     }
 
     @Override
-    final public TabsLayoutItemView getView(int position, View convertView, ViewGroup parent) {
-        final TabsLayoutItemView view;
+    final public View getView(int position, View convertView, ViewGroup parent) {
+        final View view;
         if (convertView == null) {
             view = newView(position, parent);
         } else {
-            view = (TabsLayoutItemView) convertView;
+            view = convertView;
         }
         final Tab tab = mTabs.get(position);
         bindView(view, tab);
         return view;
     }
 
-    TabsLayoutItemView newView(int position, ViewGroup parent) {
-        return (TabsLayoutItemView) mInflater.inflate(mTabLayoutId, parent, false);
+    View newView(int position, ViewGroup parent) {
+        final View view = mInflater.inflate(R.layout.tabs_layout_item_view, parent, false);
+        final TabsLayoutItemView item = new TabsLayoutItemView(view);
+        view.setTag(item);
+        return view;
     }
 
-    void bindView(TabsLayoutItemView view, Tab tab) {
-        view.assignValues(tab);
+    void bindView(View view, Tab tab) {
+        TabsLayoutItemView item = (TabsLayoutItemView) view.getTag();
+        item.assignValues(tab);
     }
 }

@@ -81,19 +81,20 @@ function testChangePin(aPin, aNewPin, aNewPinAgain, aExpectedError) {
   let MMI_CODE = "**04*" + aPin + "*" + aNewPin + "*" + aNewPinAgain + "#";
   log("Test " + MMI_CODE);
 
-  return gSendMMI(MMI_CODE).then(aResult => {
-    is(aResult.success, !aExpectedError, "check success");
-    is(aResult.serviceCode, "scPin", "Check service code");
-
-    if (aResult.success) {
+  return sendMMI(MMI_CODE)
+    .then(function resolve(aResult) {
+      ok(!aExpectedError, MMI_CODE + " success");
+      is(aResult.serviceCode, "scPin", "Check service code");
       is(aResult.statusMessage, "smPinChanged", "Check status message");
       is(aResult.additionalInformation, undefined, "Check additional information");
-    } else {
-      is(aResult.statusMessage, aExpectedError.name, "Check name");
-      is(aResult.additionalInformation, aExpectedError.additionalInformation,
+    }, function reject(aError) {
+      ok(aExpectedError, MMI_CODE + " fail");
+      is(aError.name, aExpectedError.name, "Check name");
+      is(aError.message, "", "Check message");
+      is(aError.serviceCode, "scPin", "Check service code");
+      is(aError.additionalInformation, aExpectedError.additionalInformation,
          "Check additional information");
-    }
-  });
+    });
 }
 
 // Start test
@@ -106,8 +107,5 @@ startTest(function() {
                                                data.newPinAgain,
                                                data.expectedError));
   }
-
-  return promise
-    .catch(error => ok(false, "Promise reject: " + error))
-    .then(finish);
+  return promise.then(finish);
 });

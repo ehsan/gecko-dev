@@ -72,6 +72,7 @@ function onLoad() {
     document.getElementById("autoSafeMode").hidden = false;
     document.getElementById("safeMode").hidden = true;
     if (ResetProfile.resetSupported()) {
+      populateResetPane("resetProfileItems");
       document.getElementById("resetProfile").hidden = false;
     } else {
       // Hide the reset button is it's not supported.

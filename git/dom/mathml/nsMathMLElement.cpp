@@ -119,8 +119,7 @@ nsMathMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
       // (See nsRuleNode::CheckSpecifiedProperties.)
       nsCOMPtr<nsIPresShell> shell = doc->GetShell();
       if (shell) {
-        shell->GetPresContext()->
-          PostRebuildAllStyleDataEvent(nsChangeHint(0), eRestyle_Subtree);
+        shell->GetPresContext()->PostRebuildAllStyleDataEvent(nsChangeHint(0));
       }
     }
   }

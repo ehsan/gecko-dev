@@ -34,9 +34,7 @@ void
 TracedTaskCommon::SetTraceInfo()
 {
   TraceInfo* info = GetOrCreateTraceInfo();
-  if (!info) {
-    return;
-  }
+  NS_ENSURE_TRUE_VOID(info);
 
   info->mCurTraceSourceId = mSourceEventId;
   info->mCurTraceSourceType = mSourceEventType;
@@ -47,9 +45,7 @@ void
 TracedTaskCommon::ClearTraceInfo()
 {
   TraceInfo* info = GetOrCreateTraceInfo();
-  if (!info) {
-    return;
-  }
+  NS_ENSURE_TRUE_VOID(info);
 
   info->mCurTraceSourceId = 0;
   info->mCurTraceSourceType = SourceEventType::UNKNOWN;
@@ -107,6 +103,13 @@ FakeTracedTask::FakeTracedTask(int* aVptr)
   LogVirtualTablePtr(mTaskId, mSourceEventId, aVptr);
 }
 
+FakeTracedTask::FakeTracedTask(const FakeTracedTask& aTask)
+{
+  mTaskId = aTask.mTaskId;
+  mSourceEventId = aTask.mSourceEventId;
+  mSourceEventType = aTask.mSourceEventType;
+}
+
 void
 FakeTracedTask::BeginFakeTracedTask()
 {
@@ -122,17 +125,19 @@ FakeTracedTask::EndFakeTracedTask()
 }
 
 AutoRunFakeTracedTask::AutoRunFakeTracedTask(FakeTracedTask* aFakeTracedTask)
-  : mFakeTracedTask(aFakeTracedTask)
+  : mInitialized(false)
 {
-  if (mFakeTracedTask) {
-    mFakeTracedTask->BeginFakeTracedTask();
+  if (aFakeTracedTask) {
+    mInitialized = true;
+    mFakeTracedTask = *aFakeTracedTask;
+    mFakeTracedTask.BeginFakeTracedTask();
   }
 }
 
 AutoRunFakeTracedTask::~AutoRunFakeTracedTask()
 {
-  if (mFakeTracedTask) {
-    mFakeTracedTask->EndFakeTracedTask();
+  if (mInitialized) {
+    mFakeTracedTask.EndFakeTracedTask();
   }
 }
 
@@ -162,10 +167,10 @@ CreateTracedTask(Task* aTask)
  * CreateFakeTracedTask() returns a FakeTracedTask tracking the event which is
  * not dispatched from its parent task directly, such as timer events.
  */
-already_AddRefed<FakeTracedTask>
+FakeTracedTask*
 CreateFakeTracedTask(int* aVptr)
 {
-  nsRefPtr<FakeTracedTask> task(new FakeTracedTask(aVptr));
+  nsAutoPtr<FakeTracedTask> task(new FakeTracedTask(aVptr));
   return task.forget();
 }
 

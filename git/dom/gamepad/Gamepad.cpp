@@ -33,6 +33,7 @@ Gamepad::Gamepad(nsISupports* aParent,
     mButtons(aNumButtons),
     mAxes(aNumAxes)
 {
+  SetIsDOMBinding();
   for (unsigned i = 0; i < aNumButtons; i++) {
     mButtons.InsertElementAt(i, new GamepadButton(mParent));
   }

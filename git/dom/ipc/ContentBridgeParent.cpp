@@ -87,18 +87,16 @@ ContentBridgeParent::SendPBlobConstructor(PBlobParent* actor,
 
 PBrowserParent*
 ContentBridgeParent::SendPBrowserConstructor(PBrowserParent* aActor,
-                                             const TabId& aTabId,
                                              const IPCTabContext& aContext,
                                              const uint32_t& aChromeFlags,
-                                             const ContentParentId& aCpID,
+                                             const uint64_t& aID,
                                              const bool& aIsForApp,
                                              const bool& aIsForBrowser)
 {
   return PContentBridgeParent::SendPBrowserConstructor(aActor,
-                                                       aTabId,
                                                        aContext,
                                                        aChromeFlags,
-                                                       aCpID,
+                                                       aID,
                                                        aIsForApp,
                                                        aIsForBrowser);
 }
@@ -128,17 +126,15 @@ ContentBridgeParent::DeallocPJavaScriptParent(PJavaScriptParent *parent)
 }
 
 PBrowserParent*
-ContentBridgeParent::AllocPBrowserParent(const TabId& aTabId,
-                                         const IPCTabContext &aContext,
+ContentBridgeParent::AllocPBrowserParent(const IPCTabContext &aContext,
                                          const uint32_t& aChromeFlags,
-                                         const ContentParentId& aCpID,
+                                         const uint64_t& aID,
                                          const bool& aIsForApp,
                                          const bool& aIsForBrowser)
 {
-  return nsIContentParent::AllocPBrowserParent(aTabId,
-                                               aContext,
+  return nsIContentParent::AllocPBrowserParent(aContext,
                                                aChromeFlags,
-                                               aCpID,
+                                               aID,
                                                aIsForApp,
                                                aIsForBrowser);
 }
@@ -152,7 +148,7 @@ ContentBridgeParent::DeallocPBrowserParent(PBrowserParent* aParent)
 // This implementation is identical to ContentParent::GetCPOWManager but we can't
 // move it to nsIContentParent because it calls ManagedPJavaScriptParent() which
 // only exists in PContentParent and PContentBridgeParent.
-jsipc::JavaScriptShared*
+jsipc::JavaScriptParent*
 ContentBridgeParent::GetCPOWManager()
 {
   if (ManagedPJavaScriptParent().Length()) {

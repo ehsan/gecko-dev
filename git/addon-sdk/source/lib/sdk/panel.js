@@ -3,13 +3,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-// The panel module currently supports only Firefox and SeaMonkey.
+// The panel module currently supports only Firefox.
 // See: https://bugzilla.mozilla.org/show_bug.cgi?id=jetpack-panel-apps
 module.metadata = {
   "stability": "stable",
   "engines": {
-    "Firefox": "*",
-    "SeaMonkey": "*"
+    "Firefox": "*"
   }
 };
 
@@ -138,7 +137,6 @@ const Panel = Class({
       position: Object.freeze({}),
       contextMenu: false
     }, panelContract(options));
-    model.ready = false;
     models.set(this, model);
 
     if (model.contentStyle || model.contentStyleFile) {
@@ -302,30 +300,15 @@ let ready = filter(panelEvents, ({type, target}) =>
 let start = filter(panelEvents, ({type}) => type === "document-element-inserted");
 
 // Forward panel show / hide events to panel's own event listeners.
-on(shows, "data", ({target}) => {
-  let panel = panelFor(target);
-  if (modelFor(panel).ready)
-    emit(panel, "show");
-});
+on(shows, "data", ({target}) => emit(panelFor(target), "show"));
 
-on(hides, "data", ({target}) => {
-  let panel = panelFor(target);
-  if (modelFor(panel).ready)
-    emit(panel, "hide");
-});
+on(hides, "data", ({target}) => emit(panelFor(target), "hide"));
 
 on(ready, "data", ({target}) => {
   let panel = panelFor(target);
   let window = domPanel.getContentDocument(target).defaultView;
 
   workerFor(panel).attach(window);
-
-  if (!modelFor(panel).ready) {
-    modelFor(panel).ready = true;
-
-    if (viewFor(panel).state == "open")
-      emit(panel, "show");
-  }
 });
 
 on(start, "data", ({target}) => {

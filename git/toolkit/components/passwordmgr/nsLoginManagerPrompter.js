@@ -11,7 +11,6 @@ const Cr = Components.results;
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
-Components.utils.import("resource://gre/modules/SharedPromptUtils.jsm");
 
 /*
  * LoginManagerPromptFactory
@@ -578,14 +577,10 @@ LoginManagerPrompter.prototype = {
                 "Epic fail in promptAuth: " + e + "\n");
         }
 
-        var ok = canAutologin;
-        if (!ok) {
-          if (this._window)
-            PromptUtils.fireDialogEvent(this._window, "DOMWillOpenModalDialog", this._browser);
-          ok = this._promptService.promptAuth(this._window,
-                                              aChannel, aLevel, aAuthInfo,
-                                              checkboxLabel, checkbox);
-        }
+        var ok = canAutologin ||
+                 this._promptService.promptAuth(this._window,
+                                                aChannel, aLevel, aAuthInfo,
+                                                checkboxLabel, checkbox);
 
         // If there's a notification box, use it to allow the user to
         // determine if the login should be saved. If there isn't a
@@ -718,11 +713,11 @@ LoginManagerPrompter.prototype = {
         this.log("===== initialized =====");
     },
 
-    setE10sData : function (aBrowser, aOpener) {
+    setE10sData : function (aData) {
         if (!(this._window instanceof Ci.nsIDOMChromeWindow))
             throw new Error("Unexpected call");
-        this._browser = aBrowser;
-        this._opener = aOpener;
+        this._browser = aData.browser;
+        this._opener = aData.opener;
     },
 
 
@@ -1229,7 +1224,7 @@ LoginManagerPrompter.prototype = {
             }
 
             let browser;
-            if (useOpener && this._opener && isE10s) {
+            if (useOpener && isE10s) {
                 // In e10s, we have to reconstruct the opener browser from
                 // the CPOW passed in the message (and then passed to us in
                 // setE10sData).

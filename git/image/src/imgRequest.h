@@ -21,6 +21,7 @@
 #include "nsIAsyncVerifyRedirectCallback.h"
 
 class imgCacheValidator;
+class imgStatusTracker;
 class imgLoader;
 class imgRequestProxy;
 class imgCacheEntry;
@@ -36,7 +37,6 @@ namespace mozilla {
 namespace image {
 class Image;
 class ImageURL;
-class ProgressTracker;
 } // namespace image
 } // namespace mozilla
 
@@ -49,10 +49,7 @@ class imgRequest MOZ_FINAL : public nsIStreamListener,
   virtual ~imgRequest();
 
 public:
-  typedef mozilla::image::Image Image;
   typedef mozilla::image::ImageURL ImageURL;
-  typedef mozilla::image::ProgressTracker ProgressTracker;
-
   explicit imgRequest(imgLoader* aLoader);
 
   NS_DECL_THREADSAFE_ISUPPORTS
@@ -124,10 +121,10 @@ public:
     return principal.forget();
   }
 
-  // Return the ProgressTracker associated with this imgRequest. It may live
-  // in |mProgressTracker| or in |mImage.mProgressTracker|, depending on whether
+  // Return the imgStatusTracker associated with this imgRequest. It may live
+  // in |mStatusTracker| or in |mImage.mStatusTracker|, depending on whether
   // mImage has been instantiated yet.
-  already_AddRefed<ProgressTracker> GetProgressTracker();
+  already_AddRefed<imgStatusTracker> GetStatusTracker();
 
   // Get the current principal of the image. No AddRefing.
   inline nsIPrincipal* GetPrincipal() const { return mPrincipal.get(); }
@@ -140,7 +137,6 @@ public:
 
   // OK to use on any thread.
   nsresult GetURI(ImageURL **aURI);
-  nsresult GetCurrentURI(nsIURI **aURI);
 
   nsresult GetImageErrorCode(void);
 
@@ -149,9 +145,9 @@ private:
   friend class imgRequestProxy;
   friend class imgLoader;
   friend class imgCacheValidator;
+  friend class imgStatusTracker;
   friend class imgCacheExpirationTracker;
   friend class imgRequestNotifyRunnable;
-  friend class mozilla::image::ProgressTracker;
 
   inline void SetLoadId(void *aLoadId) {
     mLoadId = aLoadId;
@@ -225,9 +221,9 @@ private:
   nsCOMPtr<nsIPrincipal> mLoadingPrincipal;
   // The principal of this image.
   nsCOMPtr<nsIPrincipal> mPrincipal;
-  // Progress tracker -- transferred to mImage, when it gets instantiated.
-  nsRefPtr<ProgressTracker> mProgressTracker;
-  nsRefPtr<Image> mImage;
+  // Status-tracker -- transferred to mImage, when it gets instantiated
+  nsRefPtr<imgStatusTracker> mStatusTracker;
+  nsRefPtr<mozilla::image::Image> mImage;
   nsCOMPtr<nsIProperties> mProperties;
   nsCOMPtr<nsISupports> mSecurityInfo;
   nsCOMPtr<nsIChannel> mChannel;

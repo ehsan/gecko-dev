@@ -201,6 +201,12 @@ public class ActivityChooserModel extends DataSetObservable {
     private static final String ATTRIBUTE_WEIGHT = "weight";
 
     /**
+     * The default name of the choice history file.
+     */
+    public static final String DEFAULT_HISTORY_FILE_NAME =
+        "activity_choser_model_history.xml";
+
+    /**
      * The default maximal length of the choice history.
      */
     public static final int DEFAULT_HISTORY_MAX_LENGTH = 50;
@@ -321,13 +327,19 @@ public class ActivityChooserModel extends DataSetObservable {
     /**
      * Policy for controlling how the model handles chosen activities.
      */
-    private OnChooseActivityListener mActivityChooserModelPolicy;
+    private OnChooseActivityListener mActivityChoserModelPolicy;
 
     /**
      * Gets the data model backed by the contents of the provided file with historical data.
      * Note that only one data model is backed by a given file, thus multiple calls with
      * the same file name will return the same model instance. If no such instance is present
      * it is created.
+     * <p>
+     * <strong>Note:</strong> To use the default historical data file clients should explicitly
+     * pass as file name {@link #DEFAULT_HISTORY_FILE_NAME}. If no persistence of the choice
+     * history is desired clients should pass <code>null</code> for the file name. In such
+     * case a new model is returned for each invocation.
+     * </p>
      *
      * <p>
      * <strong>Always use difference historical data files for semantically different actions.
@@ -490,10 +502,10 @@ public class ActivityChooserModel extends DataSetObservable {
             Intent choiceIntent = new Intent(mIntent);
             choiceIntent.setComponent(chosenName);
 
-            if (mActivityChooserModelPolicy != null) {
+            if (mActivityChoserModelPolicy != null) {
                 // Do not allow the policy to change the intent.
                 Intent choiceIntentCopy = new Intent(choiceIntent);
-                final boolean handled = mActivityChooserModelPolicy.onChooseActivity(this,
+                final boolean handled = mActivityChoserModelPolicy.onChooseActivity(this,
                         choiceIntentCopy);
                 if (handled) {
                     return null;
@@ -515,7 +527,7 @@ public class ActivityChooserModel extends DataSetObservable {
      */
     public void setOnChooseActivityListener(OnChooseActivityListener listener) {
         synchronized (mInstanceLock) {
-            mActivityChooserModelPolicy = listener;
+            mActivityChoserModelPolicy = listener;
         }
     }
 
@@ -967,7 +979,6 @@ public class ActivityChooserModel extends DataSetObservable {
             return true;
         }
 
-        @Override
         public int compareTo(ActivityResolveInfo another) {
              return  Float.floatToIntBits(another.weight) - Float.floatToIntBits(weight);
         }
@@ -992,7 +1003,6 @@ public class ActivityChooserModel extends DataSetObservable {
         private final Map<String, ActivityResolveInfo> mPackageNameToActivityMap =
             new HashMap<String, ActivityResolveInfo>();
 
-        @Override
         public void sort(Intent intent, List<ActivityResolveInfo> activities,
                 List<HistoricalRecord> historicalRecords) {
             Map<String, ActivityResolveInfo> packageNameToActivityMap =
@@ -1125,8 +1135,10 @@ public class ActivityChooserModel extends DataSetObservable {
             if (DEBUG) {
                 Log.i(LOG_TAG, "Read " + historicalRecords.size() + " historical records.");
             }
-        } catch (XmlPullParserException | IOException xppe) {
+        } catch (XmlPullParserException xppe) {
             Log.e(LOG_TAG, "Error reading historical record file: " + mHistoryFileName, xppe);
+        } catch (IOException ioe) {
+            Log.e(LOG_TAG, "Error reading historical record file: " + mHistoryFileName, ioe);
         } finally {
             if (fis != null) {
                 try {
@@ -1188,8 +1200,12 @@ public class ActivityChooserModel extends DataSetObservable {
                 if (DEBUG) {
                     Log.i(LOG_TAG, "Wrote " + recordCount + " historical records.");
                 }
-            } catch (IllegalArgumentException | IOException | IllegalStateException e) {
-                Log.e(LOG_TAG, "Error writing historical record file: " + mHistoryFileName, e);
+            } catch (IllegalArgumentException iae) {
+                Log.e(LOG_TAG, "Error writing historical record file: " + mHistoryFileName, iae);
+            } catch (IllegalStateException ise) {
+                Log.e(LOG_TAG, "Error writing historical record file: " + mHistoryFileName, ise);
+            } catch (IOException ioe) {
+                Log.e(LOG_TAG, "Error writing historical record file: " + mHistoryFileName, ioe);
             } finally {
                 mCanReadHistoricalData = true;
                 if (fos != null) {

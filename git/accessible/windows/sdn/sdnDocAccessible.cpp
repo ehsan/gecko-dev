@@ -77,7 +77,10 @@ sdnDocAccessible::get_mimeType(BSTR __RPC_FAR* aMimeType)
     return CO_E_OBJNOTCONNECTED;
 
   nsAutoString mimeType;
-  mAccessible->MimeType(mimeType);
+  nsresult rv = mAccessible->GetMimeType(mimeType);
+  if (NS_FAILED(rv))
+    return E_FAIL;
+
   if (mimeType.IsEmpty())
     return S_FALSE;
 
@@ -100,7 +103,10 @@ sdnDocAccessible::get_docType(BSTR __RPC_FAR* aDocType)
     return CO_E_OBJNOTCONNECTED;
 
   nsAutoString docType;
-  mAccessible->DocType(docType);
+  nsresult rv = mAccessible->GetDocType(docType);
+  if (NS_FAILED(rv))
+    return E_FAIL;
+
   if (docType.IsEmpty())
     return S_FALSE;
 

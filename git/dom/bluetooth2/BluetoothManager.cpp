@@ -91,6 +91,7 @@ BluetoothManager::BluetoothManager(nsPIDOMWindow *aWindow)
   , mDefaultAdapterIndex(-1)
 {
   MOZ_ASSERT(aWindow);
+  MOZ_ASSERT(IsDOMBinding());
 
   ListenToBluetoothSignal(true);
   BT_API2_LOGR("aWindow %p", aWindow);

@@ -10,69 +10,53 @@ const DIV_COLOR = "#0000FF";
  *  - Opening eyedropper and pressing ESC closes the eyedropper
  *  - Opening eyedropper and clicking copies the center color
  */
-let test = asyncTest(function*() {
-  yield addTab(TESTCASE_URI);
-
-  info("added tab");
-
-  yield testEscape();
-
-  info("testing selecting a color");
-
-  yield testSelect();
-});
-
-function* testEscape() {
-  let dropper = new Eyedropper(window);
-
-  yield inspectPage(dropper, false);
-
-  let destroyed = dropper.once("destroy");
-  pressESC();
-  yield destroyed;
-
-  ok(true, "escape closed the eyedropper");
+function test() {
+  addTab(TESTCASE_URI).then(testEscape);
 }
 
-function* testSelect() {
+function testEscape() {
   let dropper = new Eyedropper(window);
 
-  let selected = dropper.once("select");
-  let copied = waitForClipboard(() => {}, DIV_COLOR);
+  dropper.once("destroy", (event) => {
+    ok(true, "escape closed the eyedropper");
 
-  yield inspectPage(dropper);
+    // now test selecting a color
+    testSelect();
+  });
 
-  let color = yield selected;
-  is(color, DIV_COLOR, "correct color selected");
+  inspectPage(dropper, false).then(pressESC);
+}
 
-  // wait for DIV_COLOR to be copied to the clipboard
-  yield copied;
+function testSelect() {
+  let dropper = new Eyedropper(window);
+
+  dropper.once("select", (event, color) => {
+    is(color, DIV_COLOR, "correct color selected");
+  });
+
+  // wait for DIV_COLOR to be copied to the clipboard then finish the test.
+  waitForClipboard(DIV_COLOR, () => {
+    inspectPage(dropper); // setup: inspect the page
+  }, finish, finish);
 }
 
 /* Helpers */
 
-function* inspectPage(dropper, click=true) {
-  yield dropper.open();
+function inspectPage(dropper, click=true) {
+  dropper.open();
 
-  info("dropper opened");
+  let target = content.document.getElementById("test");
+  let win = content.window;
 
-  let target = document.documentElement;
-  let win = window;
+  EventUtils.synthesizeMouse(target, 20, 20, { type: "mousemove" }, win);
 
-  // get location of the <div> in the content, offset from browser window
-  let box = gBrowser.selectedTab.linkedBrowser.getBoundingClientRect();
-  let x = box.left + 100;
-  let y = box.top + 100;
+  return dropperLoaded(dropper).then(() => {
+    EventUtils.synthesizeMouse(target, 30, 30, { type: "mousemove" }, win);
 
-  EventUtils.synthesizeMouse(target, x, y, { type: "mousemove" }, win);
-
-  yield dropperLoaded(dropper);
-
-  EventUtils.synthesizeMouse(target, x + 10, y + 10, { type: "mousemove" }, win);
-
-  if (click) {
-    EventUtils.synthesizeMouse(target, x + 10, y + 10, {}, win);
-  }
+    if (click) {
+      EventUtils.synthesizeMouse(target, 30, 30, {}, win);
+    }
+  });
 }
 
 function pressESC() {

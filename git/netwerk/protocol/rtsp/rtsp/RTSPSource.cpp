@@ -49,7 +49,6 @@ RTSPSource::RTSPSource(
       mFinalResult(OK),
       mDisconnectReplyID(0),
       mLatestPausedUnit(0),
-      mPlayPending(false),
       mSeekGeneration(0)
 
 {
@@ -214,28 +213,19 @@ void RTSPSource::performPlay(int64_t playTimeUs) {
         start();
         return;
     }
-    // If state is PAUSING, which means a previous PAUSE request is still being
-    // processed, put off the PLAY request until PausedDone.
+    if (mState != CONNECTED && mState != PAUSING) {
+        return;
+    }
     if (mState == PAUSING) {
-        mPlayPending = true;
-        return;
-    }
-    // Reject invalid state transition.
-    if (mState != CONNECTED && mState != PAUSED) {
-        return;
-    }
-    // Use the latest received frame time if we were paused.
-    if (mState == PAUSED) {
-        playTimeUs = mLatestPausedUnit;
+      playTimeUs = mLatestPausedUnit;
     }
 
     int64_t duration = 0;
     getDuration(&duration);
-    MOZ_ASSERT(duration == 0 || playTimeUs < duration,
+    MOZ_ASSERT(playTimeUs < duration,
                "Should never receive an out of bounds play time!");
-    if (duration > 0 && playTimeUs >= duration) {
-        // if not a live stream and play time out of bounds
-        return;
+    if (playTimeUs >= duration) {
+      return;
     }
 
     LOGI("performPlay : duration=%lld playTimeUs=%lld", duration, playTimeUs);
@@ -244,14 +234,13 @@ void RTSPSource::performPlay(int64_t playTimeUs) {
 }
 
 void RTSPSource::performPause() {
-    // Reject invalid state transition.
     if (mState != PLAYING) {
         return;
     }
     LOGI("performPause :");
     for (size_t i = 0; i < mTracks.size(); ++i) {
-        TrackInfo *info = &mTracks.editItemAt(i);
-        info->mLatestPausedUnit = 0;
+      TrackInfo *info = &mTracks.editItemAt(i);
+      info->mLatestPausedUnit = 0;
     }
     mLatestPausedUnit = 0;
 
@@ -268,17 +257,16 @@ void RTSPSource::performSuspend() {
 }
 
 void RTSPSource::performPlaybackEnded() {
-    // Reject invalid state transition.
+    // Transition from PLAYING to CONNECTED state so that we are ready to
+    // perform an another play operation.
     if (mState != PLAYING) {
         return;
     }
-    // Transition from PLAYING to CONNECTED state so that we are ready to
-    // perform an another play operation.
     mState = CONNECTED;
 }
 
 void RTSPSource::performSeek(int64_t seekTimeUs) {
-    if (mState != CONNECTED && mState != PLAYING && mState != PAUSED) {
+    if (mState != CONNECTED && mState != PLAYING && mState != PAUSING) {
         return;
     }
 
@@ -287,12 +275,12 @@ void RTSPSource::performSeek(int64_t seekTimeUs) {
     MOZ_ASSERT(seekTimeUs < duration,
                "Should never receive an out of bounds seek time!");
     if (seekTimeUs >= duration) {
-        return;
+      return;
     }
 
     for (size_t i = 0; i < mTracks.size(); ++i) {
-        TrackInfo *info = &mTracks.editItemAt(i);
-        info->mLatestPausedUnit = 0;
+      TrackInfo *info = &mTracks.editItemAt(i);
+      info->mLatestPausedUnit = 0;
     }
     mLatestPausedUnit = 0;
 
@@ -378,12 +366,6 @@ void RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
 
         case RtspConnectionHandler::kWhatPausedDone:
         {
-            // Reject invalid state transition.
-            if (mState != PAUSING) {
-                return;
-            }
-            mState = PAUSED;
-
             for (size_t i = 0; i < mTracks.size(); ++i) {
                 TrackInfo *info = &mTracks.editItemAt(i);
                 info->mLatestPausedUnit = info->mLatestReceivedUnit;
@@ -398,11 +380,6 @@ void RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
                 if (mLatestPausedUnit > info->mLatestReceivedUnit) {
                     mLatestPausedUnit = info->mLatestReceivedUnit;
                 }
-            }
-
-            if (mPlayPending) {
-                mPlayPending = false;
-                performPlay(mLatestPausedUnit);
             }
             break;
         }
@@ -454,7 +431,7 @@ void RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
                 info->mLatestReceivedUnit = nptUs;
                 // Drop the frames that are older than the frames in the queue.
                 if (info->mLatestPausedUnit && (int64_t)info->mLatestPausedUnit > nptUs) {
-                    break;
+                  break;
                 }
                 source->queueAccessUnit(accessUnit);
             }
@@ -595,27 +572,21 @@ void RTSPSource::onConnected(bool isSeekable)
         meta->SetTotalTracks(numTracks);
         meta->SetMimeType(mimeType);
 
-        bool success;
-        success = format->findInt64(kKeyDuration, &int64Value);
-        MOZ_ASSERT(success);
+        CHECK(format->findInt64(kKeyDuration, &int64Value));
         meta->SetDuration(int64Value);
 
         if (isAudio) {
-            success = format->findInt32(kKeyChannelCount, &int32Value);
-            MOZ_ASSERT(success);
-            meta->SetChannelCount(int32Value);
+          CHECK(format->findInt32(kKeyChannelCount, &int32Value));
+          meta->SetChannelCount(int32Value);
 
-            success = format->findInt32(kKeySampleRate, &int32Value);
-            MOZ_ASSERT(success);
-            meta->SetSampleRate(int32Value);
+          CHECK(format->findInt32(kKeySampleRate, &int32Value));
+          meta->SetSampleRate(int32Value);
         } else {
-            success = format->findInt32(kKeyWidth, &int32Value);
-            MOZ_ASSERT(success);
-            meta->SetWidth(int32Value);
+          CHECK(format->findInt32(kKeyWidth, &int32Value));
+          meta->SetWidth(int32Value);
 
-            success = format->findInt32(kKeyHeight, &int32Value);
-            MOZ_ASSERT(success);
-            meta->SetHeight(int32Value);
+          CHECK(format->findInt32(kKeyHeight, &int32Value));
+          meta->SetHeight(int32Value);
         }
 
         // Optional meta data.
@@ -624,15 +595,15 @@ void RTSPSource::onConnected(bool isSeekable)
         size_t length = 0;
 
         if (format->findData(kKeyESDS, &type, &data, &length)) {
-            nsCString esds;
-            esds.Assign((const char *)data, length);
-            meta->SetEsdsData(esds);
+          nsCString esds;
+          esds.Assign((const char *)data, length);
+          meta->SetEsdsData(esds);
         }
 
         if (format->findData(kKeyAVCC, &type, &data, &length)) {
-            nsCString avcc;
-            avcc.Assign((const char *)data, length);
-            meta->SetAvccData(avcc);
+          nsCString avcc;
+          avcc.Assign((const char *)data, length);
+          meta->SetAvccData(avcc);
         }
 
         mListener->OnConnected(i, meta.get());
@@ -691,7 +662,7 @@ void RTSPSource::onTrackDataAvailable(size_t trackIndex)
 
     status_t err = dequeueAccessUnit(info->mIsAudio, &accessUnit);
 
-    if (err == -EWOULDBLOCK || err == ERROR_END_OF_STREAM) {
+    if (err == -EWOULDBLOCK) {
         return;
     } else if (err == INFO_DISCONTINUITY) {
         nsRefPtr<nsIStreamingProtocolMetaData> meta;
@@ -712,9 +683,8 @@ void RTSPSource::onTrackDataAvailable(size_t trackIndex)
 
     meta = new mozilla::net::RtspMetaData();
 
-    MOZ_ASSERT(accessUnit != NULL);
-    bool success = accessUnit->meta()->findInt64("timeUs", &int64Value);
-    MOZ_ASSERT(success);
+    CHECK(accessUnit != NULL);
+    CHECK(accessUnit->meta()->findInt64("timeUs", &int64Value));
     meta->SetTimeStamp(int64Value);
 
     meta->SetFrameType(MEDIASTREAM_FRAMETYPE_NORMAL);

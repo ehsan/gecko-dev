@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsBidiPresUtils.h"
-#include "nsFontMetrics.h"
 #include "nsGkAtoms.h"
 #include "nsPresContext.h"
 #include "nsRenderingContext.h"
@@ -358,7 +357,7 @@ struct BidiLineData {
          frame && aNumFramesOnLine--;
          frame = frame->GetNextSibling()) {
       AppendFrame(frame);
-      nsBidiLevel level = nsBidiPresUtils::GetFrameEmbeddingLevel(frame);
+      uint8_t level = nsBidiPresUtils::GetFrameEmbeddingLevel(frame);
       mLevels.AppendElement(level);
       mIndexMap.AppendElement(0);
       if (level & 1) {
@@ -658,7 +657,7 @@ nsBidiPresUtils::ResolveParagraph(nsBlockFrame* aBlockFrame,
   nsresult rv = aBpd->SetPara();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsBidiLevel embeddingLevel = aBpd->GetParaLevel();
+  uint8_t embeddingLevel = aBpd->GetParaLevel();
 
   rv = aBpd->CountRuns(&runCount);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1225,7 +1224,7 @@ void
 nsBidiPresUtils::ReorderFrames(nsIFrame*   aFirstFrameOnLine,
                                int32_t     aNumFramesOnLine,
                                WritingMode aLineWM,
-                               nscoord     aLineWidth,
+                               nscoord&    aLineWidth,
                                nscoord     aStart)
 {
   // If this line consists of a line frame, reorder the line frame's children.
@@ -1400,7 +1399,7 @@ nsBidiPresUtils::RepositionFrame(nsIFrame*             aFrame,
                                  nscoord&              aStart,
                                  nsContinuationStates* aContinuationStates,
                                  WritingMode           aContainerWM,
-                                 nscoord               aContainerWidth)
+                                 nscoord&              aContainerWidth)
 {
   if (!aFrame)
     return;
@@ -1510,8 +1509,8 @@ void
 nsBidiPresUtils::RepositionInlineFrames(BidiLineData *aBld,
                                         nsIFrame* aFirstChild,
                                         WritingMode aLineWM,
-                                        nscoord aLineWidth,
-                                        nscoord aStart)
+                                        nscoord& aLineWidth,
+                                        nscoord& aStart)
 {
   nscoord start = aStart;
   nsIFrame* frame;
@@ -2055,51 +2054,42 @@ nsresult nsBidiPresUtils::ProcessText(const char16_t*       aText,
   return NS_OK;
 }
 
-class MOZ_STACK_CLASS nsIRenderingContextBidiProcessor MOZ_FINAL
-  : public nsBidiPresUtils::BidiProcessor
-{
+class MOZ_STACK_CLASS nsIRenderingContextBidiProcessor : public nsBidiPresUtils::BidiProcessor {
 public:
   nsIRenderingContextBidiProcessor(nsRenderingContext* aCtx,
                                    nsRenderingContext* aTextRunConstructionContext,
-                                   nsFontMetrics* aFontMetrics,
                                    const nsPoint&       aPt)
-    : mCtx(aCtx)
-    , mTextRunConstructionContext(aTextRunConstructionContext)
-    , mFontMetrics(aFontMetrics)
-    , mPt(aPt)
-  {}
+    : mCtx(aCtx), mTextRunConstructionContext(aTextRunConstructionContext), mPt(aPt) { }
 
   ~nsIRenderingContextBidiProcessor()
   {
-    mFontMetrics->SetTextRunRTL(false);
+    mCtx->SetTextRunRTL(false);
   }
 
   virtual void SetText(const char16_t* aText,
                        int32_t          aLength,
                        nsBidiDirection  aDirection) MOZ_OVERRIDE
   {
-    mFontMetrics->SetTextRunRTL(aDirection==NSBIDI_RTL);
+    mTextRunConstructionContext->SetTextRunRTL(aDirection==NSBIDI_RTL);
     mText = aText;
     mLength = aLength;
   }
 
   virtual nscoord GetWidth() MOZ_OVERRIDE
   {
-    return nsLayoutUtils::AppUnitWidthOfString(mText, mLength, *mFontMetrics,
-                                               *mTextRunConstructionContext);
+    return mTextRunConstructionContext->GetWidth(mText, mLength);
   }
 
   virtual void DrawText(nscoord aXOffset,
                         nscoord) MOZ_OVERRIDE
   {
-    mFontMetrics->DrawString(mText, mLength, mPt.x + aXOffset, mPt.y,
-                             mCtx, mTextRunConstructionContext);
+    mCtx->FontMetrics()->DrawString(mText, mLength, mPt.x + aXOffset, mPt.y,
+                                    mCtx, mTextRunConstructionContext);
   }
 
 private:
   nsRenderingContext* mCtx;
   nsRenderingContext* mTextRunConstructionContext;
-  nsFontMetrics* mFontMetrics;
   nsPoint mPt;
   const char16_t* mText;
   int32_t mLength;
@@ -2111,7 +2101,6 @@ nsresult nsBidiPresUtils::ProcessTextForRenderingContext(const char16_t*       a
                                                          nsPresContext*         aPresContext,
                                                          nsRenderingContext&   aRenderingContext,
                                                          nsRenderingContext&   aTextRunConstructionContext,
-                                                         nsFontMetrics&         aFontMetrics,
                                                          Mode                   aMode,
                                                          nscoord                aX,
                                                          nscoord                aY,
@@ -2119,10 +2108,7 @@ nsresult nsBidiPresUtils::ProcessTextForRenderingContext(const char16_t*       a
                                                          int32_t                aPosResolveCount,
                                                          nscoord*               aWidth)
 {
-  nsIRenderingContextBidiProcessor processor(&aRenderingContext,
-                                             &aTextRunConstructionContext,
-                                             &aFontMetrics,
-                                             nsPoint(aX, aY));
+  nsIRenderingContextBidiProcessor processor(&aRenderingContext, &aTextRunConstructionContext, nsPoint(aX, aY));
   nsBidi bidiEngine;
   return ProcessText(aText, aLength, aBaseLevel, aPresContext, processor,
                      aMode, aPosResolve, aPosResolveCount, aWidth, &bidiEngine);

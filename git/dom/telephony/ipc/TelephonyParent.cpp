@@ -43,10 +43,6 @@ TelephonyParent::RecvPTelephonyRequestConstructor(PTelephonyRequestParent* aActo
       return actor->DoRequest(aRequest.get_EnumerateCallsRequest());
     case IPCTelephonyRequest::TDialRequest:
       return actor->DoRequest(aRequest.get_DialRequest());
-    case IPCTelephonyRequest::TUSSDRequest:
-      return actor->DoRequest(aRequest.get_USSDRequest());
-    case IPCTelephonyRequest::THangUpConferenceRequest:
-      return actor->DoRequest(aRequest.get_HangUpConferenceRequest());
     default:
       MOZ_CRASH("Unknown type!");
   }
@@ -389,8 +385,7 @@ TelephonyParent::SupplementaryServiceNotification(uint32_t aClientId,
 
 NS_IMPL_ISUPPORTS(TelephonyRequestParent,
                   nsITelephonyListener,
-                  nsITelephonyCallback,
-                  nsITelephonyDialCallback)
+                  nsITelephonyCallback)
 
 TelephonyRequestParent::TelephonyRequestParent()
   : mActorDestroyed(false)
@@ -431,37 +426,9 @@ TelephonyRequestParent::DoRequest(const DialRequest& aRequest)
     do_GetService(TELEPHONY_SERVICE_CONTRACTID);
   if (service) {
     service->Dial(aRequest.clientId(), aRequest.number(),
-                  aRequest.isEmergency(), this);
+                   aRequest.isEmergency(), this);
   } else {
-    return NS_SUCCEEDED(NotifyError(NS_LITERAL_STRING("InvalidStateError")));
-  }
-
-  return true;
-}
-
-bool
-TelephonyRequestParent::DoRequest(const USSDRequest& aRequest)
-{
-  nsCOMPtr<nsITelephonyService> service =
-    do_GetService(TELEPHONY_SERVICE_CONTRACTID);
-  if (service) {
-    service->SendUSSD(aRequest.clientId(), aRequest.ussd(), this);
-  } else {
-    return NS_SUCCEEDED(NotifyError(NS_LITERAL_STRING("InvalidStateError")));
-  }
-
-  return true;
-}
-
-bool
-TelephonyRequestParent::DoRequest(const HangUpConferenceRequest& aRequest)
-{
-  nsCOMPtr<nsITelephonyService> service =
-    do_GetService(TELEPHONY_SERVICE_CONTRACTID);
-  if (service) {
-    service->HangUpConference(aRequest.clientId(), this);
-  } else {
-    return NS_SUCCEEDED(NotifyError(NS_LITERAL_STRING("InvalidStateError")));
+    return NS_SUCCEEDED(NotifyDialError(NS_LITERAL_STRING("InvalidStateError")));
   }
 
   return true;
@@ -565,7 +532,7 @@ TelephonyRequestParent::SupplementaryServiceNotification(uint32_t aClientId,
   MOZ_CRASH("Not a TelephonyParent!");
 }
 
-// nsITelephonyDialCallback
+// nsITelephonyCallback
 
 NS_IMETHODIMP
 TelephonyRequestParent::NotifyDialMMI(const nsAString& aServiceCode)
@@ -576,15 +543,9 @@ TelephonyRequestParent::NotifyDialMMI(const nsAString& aServiceCode)
 }
 
 NS_IMETHODIMP
-TelephonyRequestParent::NotifySuccess()
+TelephonyRequestParent::NotifyDialError(const nsAString& aError)
 {
-  return SendResponse(SuccessResponse());
-}
-
-NS_IMETHODIMP
-TelephonyRequestParent::NotifyError(const nsAString& aError)
-{
-  return SendResponse(ErrorResponse(nsAutoString(aError)));
+  return SendResponse(DialResponseError(nsAutoString(aError)));
 }
 
 NS_IMETHODIMP
@@ -595,46 +556,71 @@ TelephonyRequestParent::NotifyDialCallSuccess(uint32_t aCallIndex,
 }
 
 NS_IMETHODIMP
-TelephonyRequestParent::NotifyDialMMISuccess(const nsAString& aStatusMessage)
+TelephonyRequestParent::NotifyDialMMISuccess(JS::Handle<JS::Value> aResult)
 {
-  return SendResponse(DialResponseMMISuccess(nsAutoString(aStatusMessage),
-                                             AdditionalInformation(mozilla::void_t())));
-}
+  AutoSafeJSContext cx;
+  RootedDictionary<MozMMIResult> result(cx);
 
-NS_IMETHODIMP
-TelephonyRequestParent::NotifyDialMMISuccessWithInteger(const nsAString& aStatusMessage,
-                                                        uint16_t aAdditionalInformation)
-{
-  return SendResponse(DialResponseMMISuccess(nsAutoString(aStatusMessage),
-                                             AdditionalInformation(aAdditionalInformation)));
-}
-
-NS_IMETHODIMP
-TelephonyRequestParent::NotifyDialMMISuccessWithStrings(const nsAString& aStatusMessage,
-                                                        uint32_t aCount,
-                                                        const char16_t** aAdditionalInformation)
-{
-  nsTArray<nsString> additionalInformation;
-  for (uint32_t i = 0; i < aCount; i++) {
-    additionalInformation.AppendElement(nsDependentString(aAdditionalInformation[i]));
+  if (!result.Init(cx, aResult)) {
+    return NS_ERROR_TYPE_ERR;
   }
 
-  return SendResponse(DialResponseMMISuccess(nsAutoString(aStatusMessage),
-                                             AdditionalInformation(additionalInformation)));
-}
-
-NS_IMETHODIMP
-TelephonyRequestParent::NotifyDialMMISuccessWithCallForwardingOptions(const nsAString& aStatusMessage,
-                                                                      uint32_t aCount,
-                                                                      nsIMobileCallForwardingOptions** aAdditionalInformation)
-{
-  nsTArray<nsIMobileCallForwardingOptions*> additionalInformation;
-  for (uint32_t i = 0; i < aCount; i++) {
-    additionalInformation.AppendElement(aAdditionalInformation[i]);
+  // No additionInformation passed
+  if (!result.mAdditionalInformation.WasPassed()) {
+    return SendResponse(DialResponseMMISuccess(result.mStatusMessage,
+                                               AdditionalInformation(mozilla::void_t())));
   }
 
-  return SendResponse(DialResponseMMISuccess(nsAutoString(aStatusMessage),
-                                             AdditionalInformation(additionalInformation)));
+  OwningUnsignedShortOrObject& info = result.mAdditionalInformation.Value();
+
+  // Currently, we could only accept the following values for |info|:
+  //   1. array of string
+  //   2. array of MozCallForwardingOptions
+  if (!info.IsObject()) {
+    return NS_ERROR_TYPE_ERR;
+  }
+
+  JS::Rooted<JSObject*> object(cx, info.GetAsObject());
+  JS::Rooted<JS::Value> value(cx);
+  uint32_t length;
+
+  if (!JS_IsArrayObject(cx, object) ||
+      !JS_GetArrayLength(cx, object, &length) || length <= 0 ||
+      // Check first element to decide the format of array.
+      !JS_GetElement(cx, object, 0, &value)) {
+    return NS_ERROR_TYPE_ERR;
+  }
+
+  if (value.isString()) {
+    // String[]
+    nsTArray<nsString> infos;
+
+    for (uint32_t i = 0; i < length; i++) {
+      nsAutoJSString str;
+      if (!JS_GetElement(cx, object, i, &value) || !value.isString() ||
+          !str.init(cx, value.toString())) {
+        return NS_ERROR_TYPE_ERR;
+      }
+      infos.AppendElement(str);
+    }
+
+    return SendResponse(DialResponseMMISuccess(result.mStatusMessage,
+                                               AdditionalInformation(infos)));
+  } else {
+    // IPC::MozCallForwardingOptions[]
+    nsTArray<IPC::MozCallForwardingOptions> infos;
+
+    for (uint32_t i = 0; i < length; i++) {
+      IPC::MozCallForwardingOptions info;
+      if (!JS_GetElement(cx, object, i, &value) || !info.Init(cx, value)) {
+        return NS_ERROR_TYPE_ERR;
+      }
+      infos.AppendElement(info);
+    }
+
+    return SendResponse(DialResponseMMISuccess(result.mStatusMessage,
+                                               AdditionalInformation(infos)));
+  }
 }
 
 NS_IMETHODIMP

@@ -4,16 +4,9 @@
 
 package org.mozilla.search;
 
-import java.net.URISyntaxException;
-
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.search.providers.SearchEngine;
-
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.support.v4.app.Fragment;
@@ -29,6 +22,13 @@ import android.webkit.WebViewClient;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+
+import org.mozilla.gecko.AppConstants;
+import org.mozilla.gecko.Telemetry;
+import org.mozilla.gecko.TelemetryContract;
+import org.mozilla.search.providers.SearchEngine;
+
+import java.net.URISyntaxException;
 
 public class PostSearchFragment extends Fragment {
 
@@ -95,18 +95,8 @@ public class PostSearchFragment extends Fragment {
 
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, String url) {
-            // Ignore about:blank URL loads.
-            if (TextUtils.equals(url, Constants.ABOUT_BLANK)) {
-                return false;
-            }
-
-            // If the URL is a results page, don't override the URL load, but
-            // do update the query in the search bar if possible.
-            if (engine.isSearchResultsPage(url)) {
-                final String query = engine.queryForResultsUrl(url);
-                if (!TextUtils.isEmpty(query)) {
-                    ((AcceptsSearchQuery) getActivity()).onQueryChange(query);
-                }
+            // We keep URLs in the webview that are either about:blank or a search engine result page.
+            if (TextUtils.equals(url, Constants.ABOUT_BLANK) || engine.isSearchResultsPage(url)) {
                 return false;
             }
 

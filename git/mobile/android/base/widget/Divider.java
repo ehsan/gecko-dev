@@ -16,7 +16,7 @@ public class Divider extends View {
     private Orientation mOrientation;
 
     // Density of the device.
-    private final int mDensity;
+    private int mDensity;
 
     public Divider(Context context, AttributeSet attrs) {
         super(context, attrs);

@@ -18,6 +18,7 @@ Performance::Performance(WorkerPrivate* aWorkerPrivate)
   : mWorkerPrivate(aWorkerPrivate)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
+  SetIsDOMBinding();
 }
 
 Performance::~Performance()

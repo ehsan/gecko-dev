@@ -100,8 +100,10 @@ nsSubDocumentFrame::Init(nsIContent*       aContent,
                          nsIFrame*         aPrevInFlow)
 {
   // determine if we are a <frame> or <iframe>
-  nsCOMPtr<nsIDOMHTMLFrameElement> frameElem = do_QueryInterface(aContent);
-  mIsInline = frameElem ? false : true;
+  if (aContent) {
+    nsCOMPtr<nsIDOMHTMLFrameElement> frameElem = do_QueryInterface(aContent);
+    mIsInline = frameElem ? false : true;
+  }
 
   nsLeafFrame::Init(aContent, aParent, aPrevInFlow);
 
@@ -273,18 +275,6 @@ nsSubDocumentFrame::GetSubdocumentSize()
     } else {
       docSizeAppUnits = GetContentRect().Size();
     }
-    // Adjust subdocument size, according to 'object-fit' and the
-    // subdocument's intrinsic size and ratio.
-    nsIFrame* subDocRoot = ObtainIntrinsicSizeFrame();
-    if (subDocRoot) {
-      nsRect destRect =
-        nsLayoutUtils::ComputeObjectDestRect(nsRect(nsPoint(), docSizeAppUnits),
-                                             subDocRoot->GetIntrinsicSize(),
-                                             subDocRoot->GetIntrinsicRatio(),
-                                             StylePosition());
-      docSizeAppUnits = destRect.Size();
-    }
-
     return nsIntSize(presContext->AppUnitsToDevPixels(docSizeAppUnits.width),
                      presContext->AppUnitsToDevPixels(docSizeAppUnits.height));
   }
@@ -418,7 +408,7 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
           nsRect(nsPoint(0,0), nsLayoutUtils::CalculateCompositionSizeForFrame(rootScrollFrame)) :
           dirty.Intersect(nsRect(nsPoint(0,0), subdocRootFrame->GetSize()));
       nsRect displayPort;
-      if (aBuilder->IsPaintingToWindow() &&
+      if (!aBuilder->IsForEventDelivery() &&
           nsLayoutUtils::GetOrMaybeCreateDisplayPort(
             *aBuilder, rootScrollFrame, displayportBase, &displayPort)) {
         haveDisplayPort = true;
@@ -455,7 +445,7 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   bool constructZoomItem = subdocRootFrame && parentAPD != subdocAPD;
   bool needsOwnLayer = constructResolutionItem || constructZoomItem ||
     haveDisplayPort ||
-    presContext->IsRootContentDocument() || (sf && sf->IsScrollingActive(aBuilder));
+    presContext->IsRootContentDocument() || (sf && sf->IsScrollingActive());
 
   nsDisplayList childItems;
 
@@ -724,7 +714,7 @@ nsSubDocumentFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                                 const LogicalSize& aMargin,
                                 const LogicalSize& aBorder,
                                 const LogicalSize& aPadding,
-                                ComputeSizeFlags aFlags)
+                                uint32_t aFlags)
 {
   nsIFrame* subDocRoot = ObtainIntrinsicSizeFrame();
   if (subDocRoot) {
@@ -768,27 +758,14 @@ nsSubDocumentFrame::Reflow(nsPresContext*           aPresContext,
   nsPoint offset = nsPoint(aReflowState.ComputedPhysicalBorderPadding().left,
                            aReflowState.ComputedPhysicalBorderPadding().top);
 
+  nsSize innerSize(aDesiredSize.Width(), aDesiredSize.Height());
+  innerSize.width  -= aReflowState.ComputedPhysicalBorderPadding().LeftRight();
+  innerSize.height -= aReflowState.ComputedPhysicalBorderPadding().TopBottom();
+
   if (mInnerView) {
-    const nsMargin& bp = aReflowState.ComputedPhysicalBorderPadding();
-    nsSize innerSize(aDesiredSize.Width() - bp.LeftRight(),
-                     aDesiredSize.Height() - bp.TopBottom());
-
-    // Size & position the view according to 'object-fit' & 'object-position'.
-    nsIFrame* subDocRoot = ObtainIntrinsicSizeFrame();
-    IntrinsicSize intrinsSize;
-    nsSize intrinsRatio;
-    if (subDocRoot) {
-      intrinsSize = subDocRoot->GetIntrinsicSize();
-      intrinsRatio = subDocRoot->GetIntrinsicRatio();
-    }
-    nsRect destRect =
-      nsLayoutUtils::ComputeObjectDestRect(nsRect(offset, innerSize),
-                                           intrinsSize, intrinsRatio,
-                                           StylePosition());
-
     nsViewManager* vm = mInnerView->GetViewManager();
-    vm->MoveViewTo(mInnerView, destRect.x, destRect.y);
-    vm->ResizeView(mInnerView, nsRect(nsPoint(0, 0), destRect.Size()), true);
+    vm->MoveViewTo(mInnerView, offset.x, offset.y);
+    vm->ResizeView(mInnerView, nsRect(nsPoint(0, 0), innerSize), true);
   }
 
   aDesiredSize.SetOverflowAreasToDesiredBounds();

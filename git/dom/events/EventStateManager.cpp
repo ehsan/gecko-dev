@@ -529,11 +529,6 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
   WheelTransaction::OnEvent(aEvent);
 
   switch (aEvent->message) {
-  case NS_CONTEXTMENU:
-    if (sIsPointerLocked) {
-      return NS_ERROR_DOM_INVALID_STATE_ERR;
-    }
-    break;
   case NS_MOUSE_BUTTON_DOWN: {
     switch (mouseEvent->button) {
     case WidgetMouseEvent::eLeftButton:
@@ -656,12 +651,8 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
       }
     }
     // then fall through...
-  case NS_KEY_BEFORE_DOWN:
   case NS_KEY_DOWN:
-  case NS_KEY_AFTER_DOWN:
-  case NS_KEY_BEFORE_UP:
   case NS_KEY_UP:
-  case NS_KEY_AFTER_UP:
     {
       nsIContent* content = GetFocusedContent();
       if (content)
@@ -805,6 +796,18 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
       DoContentCommandScrollEvent(aEvent->AsContentCommandEvent());
     }
     break;
+  case NS_TEXT_TEXT:
+    {
+      WidgetTextEvent *textEvent = aEvent->AsTextEvent();
+      if (IsTargetCrossProcess(textEvent)) {
+        // Will not be handled locally, remote the event
+        if (GetCrossProcessTarget()->SendTextEvent(*textEvent)) {
+          // Cancel local dispatching
+          aEvent->mFlags.mPropagationStopped = true;
+        }
+      }
+    }
+    break;
   case NS_COMPOSITION_START:
     if (aEvent->mFlags.mIsTrusted) {
       // If the event is trusted event, set the selected text to data of
@@ -814,11 +817,11 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
                                            compositionEvent->widget);
       DoQuerySelectedText(&selectedText);
       NS_ASSERTION(selectedText.mSucceeded, "Failed to get selected text");
-      compositionEvent->mData = selectedText.mReply.mString;
+      compositionEvent->data = selectedText.mReply.mString;
     }
     // through to compositionend handling
+  case NS_COMPOSITION_UPDATE:
   case NS_COMPOSITION_END:
-  case NS_COMPOSITION_CHANGE:
     {
       WidgetCompositionEvent* compositionEvent = aEvent->AsCompositionEvent();
       if (IsTargetCrossProcess(compositionEvent)) {
@@ -949,20 +952,15 @@ EventStateManager::ExecuteAccessKey(nsTArray<uint32_t>& aAccessCharCodes,
   return false;
 }
 
-// static
-void
-EventStateManager::GetAccessKeyLabelPrefix(Element* aElement, nsAString& aPrefix)
+bool
+EventStateManager::GetAccessKeyLabelPrefix(nsAString& aPrefix)
 {
   aPrefix.Truncate();
   nsAutoString separator, modifierText;
   nsContentUtils::GetModifierSeparatorText(separator);
 
-  nsCOMPtr<nsISupports> container = aElement->OwnerDoc()->GetDocShell();
+  nsCOMPtr<nsISupports> container = mPresContext->GetContainerWeak();
   int32_t modifierMask = GetAccessModifierMaskFor(container);
-
-  if (modifierMask == -1) {
-    return;
-  }
 
   if (modifierMask & NS_MODIFIER_CONTROL) {
     nsContentUtils::GetControlText(modifierText);
@@ -984,6 +982,7 @@ EventStateManager::GetAccessKeyLabelPrefix(Element* aElement, nsAString& aPrefix
     nsContentUtils::GetShiftText(modifierText);
     aPrefix.Append(modifierText + separator);
   }
+  return !aPrefix.IsEmpty();
 }
 
 void
@@ -1282,11 +1281,8 @@ EventStateManager::CreateClickHoldTimer(nsPresContext* inPresContext,
                                         nsIFrame* inDownFrame,
                                         WidgetGUIEvent* inMouseDownEvent)
 {
-  if (!inMouseDownEvent->mFlags.mIsTrusted ||
-      IsRemoteTarget(mGestureDownContent) ||
-      sIsPointerLocked) {
+  if (!inMouseDownEvent->mFlags.mIsTrusted || IsRemoteTarget(mGestureDownContent))
     return;
-  }
 
   // just to be anal (er, safe)
   if (mClickHoldTimer) {
@@ -1368,7 +1364,7 @@ EventStateManager::sClickHoldCallback(nsITimer* aTimer, void* aESM)
 void
 EventStateManager::FireContextClick()
 {
-  if (!mGestureDownContent || !mPresContext || sIsPointerLocked) {
+  if (!mGestureDownContent || !mPresContext) {
     return;
   }
 
@@ -3175,9 +3171,7 @@ EventStateManager::PostHandleEvent(nsPresContext* aPresContext,
     GenerateDragDropEnterExit(presContext, aEvent->AsDragEvent());
     break;
 
-  case NS_KEY_BEFORE_UP:
   case NS_KEY_UP:
-  case NS_KEY_AFTER_UP:
     break;
 
   case NS_KEY_PRESS:

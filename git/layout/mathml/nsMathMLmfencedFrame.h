@@ -9,8 +9,6 @@
 #include "mozilla/Attributes.h"
 #include "nsMathMLContainerFrame.h"
 
-class nsFontMetrics;
-
 //
 // <mfenced> -- surround content with a pair of fences
 //
@@ -65,8 +63,6 @@ public:
   static nsresult
   ReflowChar(nsPresContext*      aPresContext,
              nsRenderingContext& aRenderingContext,
-             nsFontMetrics&       aFontMetrics,
-             float                aFontSizeInflation,
              nsMathMLChar*        aMathMLChar,
              nsOperatorFlags      aForm,
              int32_t              aScriptLevel,

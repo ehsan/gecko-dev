@@ -21,7 +21,6 @@ public abstract class CredentialException extends SyncException {
     super(e);
   }
 
-  @Override
   public void updateStats(GlobalSession globalSession, SyncResult syncResult) {
     syncResult.stats.numAuthExceptions += 1;
   }

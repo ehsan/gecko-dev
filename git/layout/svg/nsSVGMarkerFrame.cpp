@@ -8,6 +8,7 @@
 
 // Keep others in (case-insensitive) order:
 #include "gfxContext.h"
+#include "nsRenderingContext.h"
 #include "nsSVGEffects.h"
 #include "mozilla/dom/SVGMarkerElement.h"
 #include "nsSVGPathGeometryElement.h"
@@ -102,7 +103,7 @@ GetAnonymousChildFrame(nsIFrame* aFrame)
 }
 
 nsresult
-nsSVGMarkerFrame::PaintMark(gfxContext& aContext,
+nsSVGMarkerFrame::PaintMark(nsRenderingContext *aContext,
                             const gfxMatrix& aToMarkedFrameUserSpace,
                             nsSVGPathGeometryFrame *aMarkedFrame,
                             nsSVGMark *aMark, float aStrokeWidth)
@@ -141,12 +142,14 @@ nsSVGMarkerFrame::PaintMark(gfxContext& aContext,
   gfxMatrix markTM = ThebesMatrix(viewBoxTM) * ThebesMatrix(markerTM) *
                      aToMarkedFrameUserSpace;
 
+  gfxContext *gfx = aContext->ThebesContext();
+
   if (StyleDisplay()->IsScrollableOverflow()) {
-    aContext.Save();
+    gfx->Save();
     gfxRect clipRect =
       nsSVGUtils::GetClipRectForFrame(this, viewBox.x, viewBox.y,
                                       viewBox.width, viewBox.height);
-    nsSVGUtils::SetClipRect(&aContext, markTM, clipRect);
+    nsSVGUtils::SetClipRect(gfx, markTM, clipRect);
   }
 
 
@@ -157,7 +160,7 @@ nsSVGMarkerFrame::PaintMark(gfxContext& aContext,
   nsSVGUtils::PaintFrameWithEffects(kid, aContext, markTM);
 
   if (StyleDisplay()->IsScrollableOverflow())
-    aContext.Restore();
+    gfx->Restore();
 
   return NS_OK;
 }

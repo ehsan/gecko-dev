@@ -205,9 +205,7 @@ Convert(bt_property_type_t aIn, BluetoothPropertyType& aOut)
     return NS_OK;
   }
   if (!aIn || aIn >= MOZ_ARRAY_LENGTH(sPropertyType)) {
-    /* Bug 1065999: working around unknown properties */
-    aOut = PROPERTY_UNKNOWN;
-    return NS_OK;
+    return NS_ERROR_ILLEGAL_VALUE;
   }
   aOut = sPropertyType[aIn];
   return NS_OK;

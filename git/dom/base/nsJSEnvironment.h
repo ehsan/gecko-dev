@@ -36,8 +36,6 @@ struct CycleCollectorResults;
 // a page) and doing the actual GC.
 #define NS_GC_DELAY                 4000 // ms
 
-#define NS_MAJOR_FORGET_SKIPPABLE_CALLS 5
-
 class nsJSContext : public nsIScriptContext
 {
 public:

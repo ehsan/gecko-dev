@@ -7,8 +7,6 @@
 
 #include "ShimInterfaceInfo.h"
 
-#include "nsIBrowserBoxObject.h"
-#include "nsIContainerBoxObject.h"
 #include "nsIDOMAnimationEvent.h"
 #include "nsIDOMAttr.h"
 #include "nsIDOMBeforeUnloadEvent.h"
@@ -104,6 +102,7 @@
 #include "nsIDOMKeyEvent.h"
 #include "nsIDOMMediaError.h"
 #include "nsIDOMMediaList.h"
+#include "nsIDOMMediaStream.h"
 #include "nsIDOMMessageEvent.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIDOMMouseScrollEvent.h"
@@ -141,11 +140,7 @@
 #include "nsIDOMXULCommandEvent.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIDOMXULElement.h"
-#include "nsIListBoxObject.h"
-#include "nsIMenuBoxObject.h"
-#include "nsIScrollBoxObject.h"
 #include "nsISelection.h"
-#include "nsITreeBoxObject.h"
 #include "nsIXMLHttpRequest.h"
 
 #include "mozilla/dom/AnimationEventBinding.h"
@@ -160,7 +155,6 @@
 #include "mozilla/dom/CommandEventBinding.h"
 #include "mozilla/dom/CommentBinding.h"
 #include "mozilla/dom/CompositionEventBinding.h"
-#include "mozilla/dom/ContainerBoxObjectBinding.h"
 #include "mozilla/dom/CSSPrimitiveValueBinding.h"
 #include "mozilla/dom/CSSStyleDeclarationBinding.h"
 #include "mozilla/dom/CSSStyleSheetBinding.h"
@@ -242,11 +236,11 @@
 #include "mozilla/dom/HTMLTitleElementBinding.h"
 #include "mozilla/dom/HTMLUListElementBinding.h"
 #include "mozilla/dom/KeyEventBinding.h"
-#include "mozilla/dom/ListBoxObjectBinding.h"
+#include "mozilla/dom/LocalMediaStreamBinding.h"
 #include "mozilla/dom/MediaErrorBinding.h"
 #include "mozilla/dom/MediaListBinding.h"
+#include "mozilla/dom/MediaStreamBinding.h"
 #include "mozilla/dom/MessageEventBinding.h"
-#include "mozilla/dom/MenuBoxObjectBinding.h"
 #include "mozilla/dom/MouseEventBinding.h"
 #include "mozilla/dom/MouseScrollEventBinding.h"
 #include "mozilla/dom/MutationEventBinding.h"
@@ -262,7 +256,6 @@
 #include "mozilla/dom/RangeBinding.h"
 #include "mozilla/dom/RectBinding.h"
 #include "mozilla/dom/ScreenBinding.h"
-#include "mozilla/dom/ScrollBoxObjectBinding.h"
 #include "mozilla/dom/SelectionBinding.h"
 #include "mozilla/dom/ScrollAreaEventBinding.h"
 #include "mozilla/dom/SimpleGestureEventBinding.h"
@@ -275,7 +268,6 @@
 #include "mozilla/dom/TimeEventBinding.h"
 #include "mozilla/dom/TimeRangesBinding.h"
 #include "mozilla/dom/TransitionEventBinding.h"
-#include "mozilla/dom/TreeBoxObjectBinding.h"
 #include "mozilla/dom/TreeWalkerBinding.h"
 #include "mozilla/dom/UIEventBinding.h"
 #include "mozilla/dom/ValidityStateBinding.h"
@@ -343,7 +335,6 @@ const ComponentsInterfaceShimEntry kComponentsInterfaceShimMap[] =
   DEFINE_SHIM(AnimationEvent),
   DEFINE_SHIM(Attr),
   DEFINE_SHIM(BeforeUnloadEvent),
-  DEFINE_SHIM_WITH_CUSTOM_INTERFACE(nsIBrowserBoxObject, ContainerBoxObject),  
   DEFINE_SHIM(CanvasRenderingContext2D),
   DEFINE_SHIM(CDATASection),
   DEFINE_SHIM(CharacterData),
@@ -353,7 +344,6 @@ const ComponentsInterfaceShimEntry kComponentsInterfaceShimMap[] =
   DEFINE_SHIM(CommandEvent),
   DEFINE_SHIM(Comment),
   DEFINE_SHIM(CompositionEvent),
-  DEFINE_SHIM_WITH_CUSTOM_INTERFACE(nsIContainerBoxObject, ContainerBoxObject),
   DEFINE_SHIM(CSSPrimitiveValue),
   DEFINE_SHIM(CSSStyleDeclaration),
   DEFINE_SHIM(CSSStyleSheet),
@@ -435,10 +425,10 @@ const ComponentsInterfaceShimEntry kComponentsInterfaceShimMap[] =
   DEFINE_SHIM(HTMLTitleElement),
   DEFINE_SHIM(HTMLUListElement),
   DEFINE_SHIM(KeyEvent),
-  DEFINE_SHIM_WITH_CUSTOM_INTERFACE(nsIListBoxObject, ListBoxObject),
+  DEFINE_SHIM(LocalMediaStream),
   DEFINE_SHIM(MediaError),
   DEFINE_SHIM(MediaList),
-  DEFINE_SHIM_WITH_CUSTOM_INTERFACE(nsIMenuBoxObject, MenuBoxObject),
+  DEFINE_SHIM(MediaStream),
   DEFINE_SHIM(MessageEvent),
   DEFINE_SHIM(MouseEvent),
   DEFINE_SHIM(MouseScrollEvent),
@@ -456,7 +446,6 @@ const ComponentsInterfaceShimEntry kComponentsInterfaceShimMap[] =
   DEFINE_SHIM(Rect),
   DEFINE_SHIM(Screen),
   DEFINE_SHIM(ScrollAreaEvent),
-  DEFINE_SHIM_WITH_CUSTOM_INTERFACE(nsIScrollBoxObject, ScrollBoxObject),  
   DEFINE_SHIM_WITH_CUSTOM_INTERFACE(nsIDOMSerializer, XMLSerializer),
   DEFINE_SHIM(SimpleGestureEvent),
   DEFINE_SHIM(StyleSheet),
@@ -467,7 +456,6 @@ const ComponentsInterfaceShimEntry kComponentsInterfaceShimMap[] =
   DEFINE_SHIM(TimeEvent),
   DEFINE_SHIM(TimeRanges),
   DEFINE_SHIM(TransitionEvent),
-  DEFINE_SHIM_WITH_CUSTOM_INTERFACE(nsITreeBoxObject, TreeBoxObject),  
   DEFINE_SHIM(TreeWalker),
   DEFINE_SHIM(UIEvent),
   DEFINE_SHIM(ValidityState),

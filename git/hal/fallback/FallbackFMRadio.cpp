@@ -57,11 +57,9 @@ void
 CancelFMRadioSeek()
 {}
 
-bool
+void
 EnableRDS(uint32_t aMask)
-{
-  return false;
-}
+{}
 
 void
 DisableRDS()

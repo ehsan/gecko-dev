@@ -49,10 +49,7 @@ public:
   NS_IMETHOD GetCurrentDictionary(nsAString &aDictionary);
   NS_IMETHOD SetCurrentDictionary(const nsAString &aDictionary);
   NS_IMETHOD CheckCurrentDictionary();
-
-  void DeleteRemoteEngine() {
-    mEngine = nullptr;
-  }
+  void DeleteRemoteEngine();
 
 protected:
   virtual ~mozSpellChecker();
@@ -63,8 +60,6 @@ protected:
 
   nsCOMPtr<mozISpellCheckingEngine>  mSpellCheckingEngine;
   bool mFromStart;
-
-  nsString mCurrentDictionary;
 
   nsresult SetupDoc(int32_t *outBlockOffset);
 

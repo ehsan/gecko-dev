@@ -11,6 +11,7 @@
 #include "gfxContext.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/RefPtr.h"
+#include "nsRenderingContext.h"
 #include "nsSVGEffects.h"
 #include "mozilla/dom/SVGMaskElement.h"
 
@@ -225,8 +226,9 @@ nsSVGMaskFrame::GetMaskForMaskedFrame(gfxContext* aContext,
   gfxMatrix maskSurfaceMatrix =
     aContext->CurrentMatrix() * gfxMatrix::Translation(-maskSurfaceRect.TopLeft());
 
-  nsRefPtr<gfxContext> tmpCtx = new gfxContext(maskDT);
-  tmpCtx->SetMatrix(maskSurfaceMatrix);
+  nsRefPtr<nsRenderingContext> tmpCtx = new nsRenderingContext();
+  tmpCtx->Init(this->PresContext()->DeviceContext(), maskDT);
+  tmpCtx->ThebesContext()->SetMatrix(maskSurfaceMatrix);
 
   mMatrixForChildren = GetMaskTransform(aMaskedFrame) * aMatrix;
 
@@ -242,7 +244,7 @@ nsSVGMaskFrame::GetMaskForMaskedFrame(gfxContext* aContext,
       m = static_cast<nsSVGElement*>(kid->GetContent())->
             PrependLocalTransformsTo(m);
     }
-    nsSVGUtils::PaintFrameWithEffects(kid, *tmpCtx, mMatrixForChildren);
+    nsSVGUtils::PaintFrameWithEffects(kid, tmpCtx, mMatrixForChildren);
   }
 
   RefPtr<SourceSurface> maskSnapshot = maskDT->Snapshot();

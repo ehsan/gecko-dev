@@ -16,7 +16,7 @@ var iframe;
 
 function runTest() {
   iframe = document.createElement('iframe');
-  iframe.setAttribute('mozbrowser', 'true');
+  SpecialPowers.wrap(iframe).mozbrowser = true;
   document.body.appendChild(iframe);
 
   // Wait for the initial load to finish, then navigate the page, then start test

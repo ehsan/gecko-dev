@@ -214,7 +214,6 @@ public class TabsProvider extends PerProfileDatabaseProvider<TabsProvider.TabsDa
         return null;
     }
 
-    @Override
     @SuppressWarnings("fallthrough")
     public int deleteInTransaction(Uri uri, String selection, String[] selectionArgs) {
         trace("Calling delete in transaction on URI: " + uri);
@@ -256,7 +255,6 @@ public class TabsProvider extends PerProfileDatabaseProvider<TabsProvider.TabsDa
         return deleted;
     }
 
-    @Override
     public Uri insertInTransaction(Uri uri, ContentValues values) {
         trace("Calling insert in transaction on URI: " + uri);
 
@@ -289,7 +287,6 @@ public class TabsProvider extends PerProfileDatabaseProvider<TabsProvider.TabsDa
         return null;
     }
 
-    @Override
     public int updateInTransaction(Uri uri, ContentValues values, String selection, String[] selectionArgs) {
         trace("Calling update in transaction on URI: " + uri);
 

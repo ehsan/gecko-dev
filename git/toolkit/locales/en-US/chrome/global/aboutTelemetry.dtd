@@ -12,10 +12,6 @@
   Telemetry is <span>disabled</span>.
 ">
 
-<!ENTITY aboutTelemetry.generalDataSection "
-  General Data
-">
-
 <!ENTITY aboutTelemetry.slowSqlSection "
   Slow SQL Statements
 ">
@@ -30,10 +26,6 @@
 
 <!ENTITY aboutTelemetry.histogramsSection "
   Histograms
-">
-
-<!ENTITY aboutTelemetry.keyedHistogramsSection "
-  Keyed Histograms
 ">
 
 <!ENTITY aboutTelemetry.simpleMeasurementsSection "

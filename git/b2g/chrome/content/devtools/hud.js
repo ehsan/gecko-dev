@@ -29,7 +29,7 @@ XPCOMUtils.defineLazyGetter(this, 'MemoryFront', function() {
   return devtools.require('devtools/server/actors/memory').MemoryFront;
 });
 
-Cu.import('resource://gre/modules/Frames.jsm');
+Cu.import('resource://gre/modules/AppFrames.jsm');
 
 /**
  * The Developer HUD is an on-device developer tool that displays widgets,
@@ -56,9 +56,8 @@ let developerHUD = {
   },
 
   init: function dwp_init() {
-    if (this._client) {
+    if (this._client)
       return;
-    }
 
     if (!DebuggerServer.initialized) {
       RemoteDebugger.initServer();
@@ -80,10 +79,9 @@ let developerHUD = {
       }
     }
 
-    Frames.addObserver(this);
+    AppFrames.addObserver(this);
 
-    let appFrames = Frames.list().filter(frame => frame.getAttribute('mozapp'));
-    for (let frame of appFrames) {
+    for (let frame of AppFrames.list()) {
       this.trackFrame(frame);
     }
 
@@ -93,15 +91,14 @@ let developerHUD = {
   },
 
   uninit: function dwp_uninit() {
-    if (!this._client) {
+    if (!this._client)
       return;
-    }
 
     for (let frame of this._targets.keys()) {
       this.untrackFrame(frame);
     }
 
-    Frames.removeObserver(this);
+    AppFrames.removeObserver(this);
 
     this._client.close();
     delete this._client;
@@ -112,9 +109,8 @@ let developerHUD = {
    * on an app frame.
    */
   trackFrame: function dwp_trackFrame(frame) {
-    if (this._targets.has(frame)) {
+    if (this._targets.has(frame))
       return;
-    }
 
     DebuggerServer.connectToChild(this._conn, frame).then(actor => {
       let target = new Target(frame, actor);
@@ -138,19 +134,11 @@ let developerHUD = {
     }
   },
 
-  onFrameCreated: function (frame, isFirstAppFrame) {
-    let mozapp = frame.getAttribute('mozapp');
-    if (!mozapp) {
-      return;
-    }
+  onAppFrameCreated: function (frame, isFirstAppFrame) {
     this.trackFrame(frame);
   },
 
-  onFrameDestroyed: function (frame, isLastAppFrame) {
-    let mozapp = frame.getAttribute('mozapp');
-    if (!mozapp) {
-      return;
-    }
+  onAppFrameDestroyed: function (frame, isLastAppFrame) {
     this.untrackFrame(frame);
   },
 
@@ -351,10 +339,10 @@ let consoleWatcher = {
 
         if (pageError.warning || pageError.strict) {
           metric.name = 'warnings';
-          output += 'Warning (';
+          output += 'warning (';
         } else {
           metric.name = 'errors';
-          output += 'Error (';
+          output += 'error (';
         }
 
         if (this._security.indexOf(pageError.category) > -1) {
@@ -371,12 +359,12 @@ let consoleWatcher = {
 
           case 'error':
             metric.name = 'errors';
-            output += 'Error (console)';
+            output += 'error (console)';
             break;
 
           case 'warn':
             metric.name = 'warnings';
-            output += 'Warning (console)';
+            output += 'warning (console)';
             break;
 
           default:
@@ -390,7 +378,7 @@ let consoleWatcher = {
         let {start, end, sourceURL, interruptible} = packet;
         metric.interruptible = interruptible;
         let duration = Math.round((end - start) * 100) / 100;
-        output += 'Reflow: ' + duration + 'ms';
+        output += 'reflow: ' + duration + 'ms';
         if (sourceURL) {
           output += ' ' + this.formatSourceURL(packet);
         }
@@ -437,7 +425,6 @@ let eventLoopLagWatcher = {
     if (this._active == value) {
       return;
     }
-
     this._active = value;
 
     // Toggle the state of existing fronts.
@@ -459,7 +446,7 @@ let eventLoopLagWatcher = {
     this._fronts.set(target, front);
 
     front.on('event-loop-lag', time => {
-      target.update({name: 'jank', value: time}, 'Jank: ' + time + 'ms');
+      target.update({name: 'jank', value: time}, 'jank: ' + time + 'ms');
     });
 
     if (this._active) {
@@ -513,7 +500,7 @@ let memoryWatcher = {
 
   update: function mw_update() {
     let watching = this._watching;
-    let active = watching.appmemory || watching.uss;
+    let active = watching.memory || watching.uss;
 
     if (this._active) {
       for (let target of this._fronts.keys()) {
@@ -532,11 +519,10 @@ let memoryWatcher = {
   measure: function mw_measure(target) {
     let watch = this._watching;
     let front = this._fronts.get(target);
-    let format = this.formatMemory;
 
     if (watch.uss) {
       front.residentUnique().then(value => {
-        target.update({name: 'uss', value: value}, 'USS: ' + format(value));
+        target.update({name: 'uss', value: value});
       }, err => {
         console.error(err);
       });
@@ -545,44 +531,34 @@ let memoryWatcher = {
     if (watch.appmemory) {
       front.measure().then(data => {
         let total = 0;
-        let details = [];
-
-        function item(name, condition, value) {
-          if (!condition) {
-            return;
-          }
-
-          let v = parseInt(value);
-          total += v;
-          details.push(name + ': ' + format(v));
+        if (watch.jsobjects) {
+          total += parseInt(data.jsObjectsSize);
         }
-
-        item('JS objects', watch.jsobjects, data.jsObjectsSize);
-        item('JS strings', watch.jsstrings, data.jsStringsSize);
-        item('JS other', watch.jsother, data.jsOtherSize);
-        item('DOM', watch.dom, data.domSize);
-        item('Style', watch.style, data.styleSize);
-        item('Other', watch.other, data.otherSize);
+        if (watch.jsstrings) {
+          total += parseInt(data.jsStringsSize);
+        }
+        if (watch.jsother) {
+          total += parseInt(data.jsOtherSize);
+        }
+        if (watch.dom) {
+          total += parseInt(data.domSize);
+        }
+        if (watch.style) {
+          total += parseInt(data.styleSize);
+        }
+        if (watch.other) {
+          total += parseInt(data.otherSize);
+        }
         // TODO Also count images size (bug #976007).
 
-        target.update({name: 'memory', value: total},
-          'App Memory: ' + format(total) + ' (' + details.join(', ') + ')');
+        target.update({name: 'memory', value: total});
       }, err => {
         console.error(err);
       });
     }
 
-    let timer = setTimeout(() => this.measure(target), 800);
+    let timer = setTimeout(() => this.measure(target), 500);
     this._timers.set(target, timer);
-  },
-
-  formatMemory: function mw_formatMemory(bytes) {
-    var prefix = ['','K','M','G','T','P','E','Z','Y'];
-    var i = 0;
-    for (; bytes > 1024 && i < prefix.length; ++i) {
-      bytes /= 1024;
-    }
-    return (Math.round(bytes * 100) / 100) + ' ' + prefix[i] + 'B';
   },
 
   trackTarget: function mw_trackTarget(target) {

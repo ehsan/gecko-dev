@@ -22,6 +22,7 @@ NS_INTERFACE_MAP_END
 MobileNetworkInfo::MobileNetworkInfo(nsPIDOMWindow* aWindow)
   : mWindow(aWindow)
 {
+  SetIsDOMBinding();
 }
 
 MobileNetworkInfo::MobileNetworkInfo(const nsAString& aShortName,
@@ -37,6 +38,7 @@ MobileNetworkInfo::MobileNetworkInfo(const nsAString& aShortName,
 {
   // The parent object is nullptr when MobileNetworkInfo is created by this way.
   // And it won't be exposed to web content.
+  SetIsDOMBinding();
 }
 
 void

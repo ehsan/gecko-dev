@@ -10,7 +10,6 @@
 
 #include "jsobjinlines.h"
 
-#include "vm/NativeObject-inl.h"
 #include "vm/Symbol-inl.h"
 
 using JS::Symbol;
@@ -192,7 +191,7 @@ SymbolObject::toString_impl(JSContext *cx, CallArgs args)
 {
     // steps 1-3
     HandleValue thisv = args.thisv();
-    MOZ_ASSERT(IsSymbol(thisv));
+    JS_ASSERT(IsSymbol(thisv));
     Rooted<Symbol*> sym(cx, thisv.isSymbol()
                             ? thisv.toSymbol()
                             : thisv.toObject().as<SymbolObject>().unbox());

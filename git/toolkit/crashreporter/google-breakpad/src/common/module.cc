@@ -105,21 +105,10 @@ void Module::AddStackFrameEntry(StackFrameEntry* stack_frame_entry) {
 }
 
 void Module::AddExtern(Extern *ext) {
-  Function func;
-  func.name = ext->name;
-  func.address = ext->address;
-
-  // Since parsing debug section and public info are not necessarily
-  // mutually exclusive, check if the symbol has already been read
-  // as a function to avoid duplicates.
-  if (functions_.find(&func) == functions_.end()) {
-    std::pair<ExternSet::iterator,bool> ret = externs_.insert(ext);
-    if (!ret.second) {
-      // Free the duplicate that was not inserted because this Module
-      // now owns it.
-      delete ext;
-    }
-  } else {
+  std::pair<ExternSet::iterator,bool> ret = externs_.insert(ext);
+  if (!ret.second) {
+    // Free the duplicate that was not inserted because this Module
+    // now owns it.
     delete ext;
   }
 }

@@ -22,25 +22,30 @@ if (window.location === "chrome://browser/content/browser.xul") {
 }
 
 Services.prefs.setBoolPref("devtools.webide.enabled", true);
+Services.prefs.setBoolPref("devtools.webide.enableLocalRuntime", true);
 
 Services.prefs.setCharPref("devtools.webide.addonsURL", TEST_BASE + "addons/simulators.json");
 Services.prefs.setCharPref("devtools.webide.simulatorAddonsURL", TEST_BASE + "addons/fxos_#SLASHED_VERSION#_simulator-#OS#.xpi");
 Services.prefs.setCharPref("devtools.webide.adbAddonURL", TEST_BASE + "addons/adbhelper-#OS#.xpi");
-Services.prefs.setCharPref("devtools.webide.adaptersAddonURL", TEST_BASE + "addons/fxdt-adapters-#OS#.xpi");
 Services.prefs.setCharPref("devtools.webide.templatesURL", TEST_BASE + "templates.json");
 
 
 SimpleTest.registerCleanupFunction(() => {
+  Services.prefs.clearUserPref("devtools.webide.templatesURL");
   Services.prefs.clearUserPref("devtools.webide.enabled");
-  Services.prefs.clearUserPref("devtools.webide.autoinstallADBHelper");
-  Services.prefs.clearUserPref("devtools.webide.autoinstallFxdtAdapters");
+  Services.prefs.clearUserPref("devtools.webide.enableLocalRuntime");
+  Services.prefs.clearUserPref("devtools.webide.addonsURL");
+  Services.prefs.clearUserPref("devtools.webide.simulatorAddonsURL");
+  Services.prefs.clearUserPref("devtools.webide.adbAddonURL");
+  Services.prefs.clearUserPref("devtools.webide.autoInstallADBHelper", false);
 });
 
-function openWebIDE(autoInstallAddons) {
+function openWebIDE(autoInstallADBHelper) {
   info("opening WebIDE");
 
-  Services.prefs.setBoolPref("devtools.webide.autoinstallADBHelper", !!autoInstallAddons);
-  Services.prefs.setBoolPref("devtools.webide.autoinstallFxdtAdapters", !!autoInstallAddons);
+  if (!autoInstallADBHelper) {
+    Services.prefs.setBoolPref("devtools.webide.autoinstallADBHelper", false);
+  }
 
   let deferred = promise.defer();
 
@@ -63,8 +68,6 @@ function closeWebIDE(win) {
   info("Closing WebIDE");
 
   let deferred = promise.defer();
-
-  Services.prefs.clearUserPref("devtools.webide.widget.enabled");
 
   win.addEventListener("unload", function onUnload() {
     win.removeEventListener("unload", onUnload);
@@ -109,14 +112,6 @@ function waitForUpdate(win, update) {
     win.AppManager.off("app-manager-update", onUpdate);
     deferred.resolve(win.UI._updatePromise);
   });
-  return deferred.promise;
-}
-
-function waitForTime(time) {
-  let deferred = promise.defer();
-  setTimeout(() => {
-    deferred.resolve();
-  }, time);
   return deferred.promise;
 }
 
@@ -170,25 +165,6 @@ function removeTab(aTab, aWindow) {
   }, false);
 
   targetBrowser.removeTab(aTab);
-  return deferred.promise;
-}
-
-function connectToLocalRuntime(aWindow) {
-  info("Loading local runtime.");
-
-  let panelNode = aWindow.document.querySelector("#runtime-panel");
-  let items = panelNode.querySelectorAll(".runtime-panel-item-other");
-  is(items.length, 2, "Found 2 custom runtime buttons");
-
-  let deferred = promise.defer();
-  aWindow.AppManager.on("app-manager-update", function onUpdate(e,w) {
-    if (w == "list-tabs-response") {
-      aWindow.AppManager.off("app-manager-update", onUpdate);
-      deferred.resolve();
-    }
-  });
-
-  items[1].click();
   return deferred.promise;
 }
 

@@ -405,14 +405,13 @@ add_task(function* test_addSubmissionAttemptAndResult() {
   Assert.equal(submission.result, m.SUBMISSION_RESULT_OK);
 });
 
-add_task(function* test_setCrashClassifications() {
+add_task(function* test_setCrashClassification() {
   let m = yield getManager();
 
   yield m.addCrash(m.PROCESS_TYPE_MAIN, m.CRASH_TYPE_CRASH,
                    "main-crash", DUMMY_DATE);
-  yield m.setCrashClassifications("main-crash", ["a"]);
-  let classifications = (yield m.getCrashes())[0].classifications;
-  Assert.ok(classifications.indexOf("a") != -1);
+  yield m.setCrashClassification("main-crash", "class");
+  Assert.equal((yield m.getCrashes())[0].classification, "class");
 });
 
 add_task(function* test_setRemoteCrashID() {

@@ -33,8 +33,9 @@ let AboutReader = function(doc, win) {
   this._winRef = Cu.getWeakReference(win);
 
   Services.obs.addObserver(this, "Reader:FaviconReturn", false);
-  Services.obs.addObserver(this, "Reader:Added", false);
-  Services.obs.addObserver(this, "Reader:Removed", false);
+  Services.obs.addObserver(this, "Reader:Add", false);
+  Services.obs.addObserver(this, "Reader:Remove", false);
+  Services.obs.addObserver(this, "Reader:ListStatusReturn", false);
   Services.obs.addObserver(this, "Gesture:DoubleTap", false);
 
   this._article = null;
@@ -129,7 +130,13 @@ let AboutReader = function(doc, win) {
 
   let url = queryArgs.url;
   let tabId = queryArgs.tabId;
-  this._loadArticle(url, tabId);
+  if (tabId) {
+    dump("Loading from tab with ID: " + tabId + ", URL: " + url);
+    this._loadFromTab(tabId, url);
+  } else {
+    dump("Fetching page with URL: " + url);
+    this._loadFromURL(url);
+  }
 }
 
 AboutReader.prototype = {
@@ -183,9 +190,9 @@ AboutReader.prototype = {
         break;
       }
 
-      case "Reader:Added": {
-        // Page can be added by long-press pageAction, or by tap on banner icon.
-        if (aData == this._article.url) {
+      case "Reader:Add": {
+        let args = JSON.parse(aData);
+        if (args.url == this._article.url) {
           if (this._isReadingListItem != 1) {
             this._isReadingListItem = 1;
             this._updateToggleButton();
@@ -193,12 +200,29 @@ AboutReader.prototype = {
         }
         break;
       }
-
-      case "Reader:Removed": {
-        if (aData == this._article.url) {
+      case "Reader:Remove": {
+        let args = JSON.parse(aData);
+        if (args.url == this._article.url) {
           if (this._isReadingListItem != 0) {
             this._isReadingListItem = 0;
             this._updateToggleButton();
+          }
+        }
+        break;
+      }
+
+      case "Reader:ListStatusReturn": {
+        let args = JSON.parse(aData);
+        if (args.url == this._article.url) {
+          if (this._isReadingListItem != args.inReadingList) {
+            let isInitialStateChange = (this._isReadingListItem == -1);
+            this._isReadingListItem = args.inReadingList;
+            this._updateToggleButton();
+
+            // Display the toolbar when all its initial component states are known
+            if (isInitialStateChange) {
+              this._setToolbarVisibility(true);
+            }
           }
         }
         break;
@@ -255,8 +279,9 @@ AboutReader.prototype = {
         break;
 
       case "unload":
-        Services.obs.removeObserver(this, "Reader:Added");
-        Services.obs.removeObserver(this, "Reader:Removed");
+        Services.obs.removeObserver(this, "Reader:Add");
+        Services.obs.removeObserver(this, "Reader:Remove");
+        Services.obs.removeObserver(this, "Reader:ListStatusReturn");
         Services.obs.removeObserver(this, "Gesture:DoubleTap");
         break;
     }
@@ -270,7 +295,7 @@ AboutReader.prototype = {
     this._setToolbarVisibility(false);
     this._setBrowserToolbarVisiblity(false);
     this._scrolled  = true;
-    ZoomHelper.zoomToRect(newRect, -1);
+    ZoomHelper.zoomToRect(newRect, -1, false, false);
   },
 
   _updateToggleButton: function Reader_updateToggleButton() {
@@ -284,23 +309,9 @@ AboutReader.prototype = {
   },
 
   _requestReadingListStatus: function Reader_requestReadingListStatus() {
-    Messaging.sendRequestForResult({
+    Messaging.sendRequest({
       type: "Reader:ListStatusRequest",
       url: this._article.url
-    }).then((data) => {
-      let args = JSON.parse(data);
-      if (args.url == this._article.url) {
-        if (this._isReadingListItem != args.inReadingList) {
-          let isInitialStateChange = (this._isReadingListItem == -1);
-          this._isReadingListItem = args.inReadingList;
-          this._updateToggleButton();
-
-          // Display the toolbar when all its initial component states are known
-          if (isInitialStateChange) {
-            this._setToolbarVisibility(true);
-          }
-        }
-      }
     });
   },
 
@@ -308,15 +319,38 @@ AboutReader.prototype = {
     if (!this._article)
       return;
 
-    if (this._isReadingListItem == 0) {
-      gChromeWin.Reader.addArticleToReadingList(this._article);
+    this._isReadingListItem = (this._isReadingListItem == 1) ? 0 : 1;
+    this._updateToggleButton();
 
-      UITelemetry.addEvent("save.1", "button", null, "reader");
+    if (this._isReadingListItem == 1) {
+      let uptime = UITelemetry.uptimeMillis();
+      gChromeWin.Reader.storeArticleInCache(this._article, function(success) {
+        dump("Reader:Add (in reader) success=" + success);
+
+        let result = gChromeWin.Reader.READER_ADD_FAILED;
+        if (success) {
+          result = gChromeWin.Reader.READER_ADD_SUCCESS;
+          UITelemetry.addEvent("save.1", "button", uptime, "reader");
+        }
+
+        let json = JSON.stringify({ fromAboutReader: true, url: this._article.url });
+        Services.obs.notifyObservers(null, "Reader:Add", json);
+
+        Messaging.sendRequest({
+          type: "Reader:Added",
+          result: result,
+          title: this._article.title,
+          url: this._article.url,
+          length: this._article.length,
+          excerpt: this._article.excerpt
+        });
+      }.bind(this));
     } else {
-      Messaging.sendRequest({
-        type: "Reader:RemoveFromList",
-        url: this._article.url
-      });
+      // In addition to removing the article from the cache (handled in
+      // browser.js), sending this message will cause the toggle button to be
+      // updated (handled in this file).
+      let json = JSON.stringify({ url: this._article.url, notify: true });
+      Services.obs.notifyObservers(null, "Reader:Remove", json);
 
       UITelemetry.addEvent("unsave.1", "button", null, "reader");
     }
@@ -504,19 +538,27 @@ AboutReader.prototype = {
     });
   },
 
-  _loadArticle: Task.async(function* (url, tabId) {
+  _loadFromURL: function Reader_loadFromURL(url) {
     this._showProgressDelayed();
 
-    let article = yield gChromeWin.Reader.getArticle(url, tabId).catch(e => {
-      Cu.reportError("Error loading article: " + e);
-      return null;
-    });
-    if (article) {
-      this._showContent(article);
-    } else {
-      this._win.location.href = url;
-    }
-  }),
+    gChromeWin.Reader.parseDocumentFromURL(url, function(article) {
+      if (article)
+        this._showContent(article);
+      else
+        this._win.location.href = url;
+    }.bind(this));
+  },
+
+  _loadFromTab: function Reader_loadFromTab(tabId, url) {
+    this._showProgressDelayed();
+
+    gChromeWin.Reader.getArticleForTab(tabId, url, function(article) {
+      if (article)
+        this._showContent(article);
+      else
+        this._showError(gStrings.GetStringFromName("aboutReader.loadError"));
+    }.bind(this));
+  },
 
   _requestFavicon: function Reader_requestFavicon() {
     Messaging.sendRequest({

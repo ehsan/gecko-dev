@@ -66,22 +66,21 @@ unsigned int IndexBufferInterface::getSerial() const
     return mIndexBuffer->getSerial();
 }
 
-gl::Error IndexBufferInterface::mapBuffer(unsigned int size, void** outMappedMemory, unsigned int *streamOffset)
+bool IndexBufferInterface::mapBuffer(unsigned int size, void** outMappedMemory, unsigned int *streamOffset)
 {
     // Protect against integer overflow
     if (mWritePosition + size < mWritePosition)
     {
-        return gl::Error(GL_OUT_OF_MEMORY, "Mapping of internal index buffer would cause an integer overflow.");
+        return false;
     }
 
-    gl::Error error = mIndexBuffer->mapBuffer(mWritePosition, size, outMappedMemory);
-    if (error.isError())
+    if (!mIndexBuffer->mapBuffer(mWritePosition, size, outMappedMemory))
     {
         if (outMappedMemory)
         {
             *outMappedMemory = NULL;
         }
-        return error;
+        return false;
     }
 
     if (streamOffset)
@@ -90,10 +89,10 @@ gl::Error IndexBufferInterface::mapBuffer(unsigned int size, void** outMappedMem
     }
 
     mWritePosition += size;
-    return gl::Error(GL_NO_ERROR);
+    return true;
 }
 
-gl::Error IndexBufferInterface::unmapBuffer()
+bool IndexBufferInterface::unmapBuffer()
 {
     return mIndexBuffer->unmapBuffer();
 }
@@ -113,12 +112,12 @@ void IndexBufferInterface::setWritePosition(unsigned int writePosition)
     mWritePosition = writePosition;
 }
 
-gl::Error IndexBufferInterface::discard()
+bool IndexBufferInterface::discard()
 {
     return mIndexBuffer->discard();
 }
 
-gl::Error IndexBufferInterface::setBufferSize(unsigned int bufferSize, GLenum indexType)
+bool IndexBufferInterface::setBufferSize(unsigned int bufferSize, GLenum indexType)
 {
     if (mIndexBuffer->getBufferSize() == 0)
     {
@@ -138,30 +137,26 @@ StreamingIndexBufferInterface::~StreamingIndexBufferInterface()
 {
 }
 
-gl::Error StreamingIndexBufferInterface::reserveBufferSpace(unsigned int size, GLenum indexType)
+bool StreamingIndexBufferInterface::reserveBufferSpace(unsigned int size, GLenum indexType)
 {
+    bool result = true;
     unsigned int curBufferSize = getBufferSize();
     unsigned int writePos = getWritePosition();
     if (size > curBufferSize)
     {
-        gl::Error error = setBufferSize(std::max(size, 2 * curBufferSize), indexType);
-        if (error.isError())
-        {
-            return error;
-        }
+        result = setBufferSize(std::max(size, 2 * curBufferSize), indexType);
         setWritePosition(0);
     }
     else if (writePos + size > curBufferSize || writePos + size < writePos)
     {
-        gl::Error error = discard();
-        if (error.isError())
+        if (!discard())
         {
-            return error;
+            return false;
         }
         setWritePosition(0);
     }
 
-    return gl::Error(GL_NO_ERROR);
+    return result;
 }
 
 
@@ -173,7 +168,7 @@ StaticIndexBufferInterface::~StaticIndexBufferInterface()
 {
 }
 
-gl::Error StaticIndexBufferInterface::reserveBufferSpace(unsigned int size, GLenum indexType)
+bool StaticIndexBufferInterface::reserveBufferSpace(unsigned int size, GLenum indexType)
 {
     unsigned int curSize = getBufferSize();
     if (curSize == 0)
@@ -182,12 +177,13 @@ gl::Error StaticIndexBufferInterface::reserveBufferSpace(unsigned int size, GLen
     }
     else if (curSize >= size && indexType == getIndexType())
     {
-        return gl::Error(GL_NO_ERROR);
+        return true;
     }
     else
     {
+        ERR("Static index buffers can't be resized");
         UNREACHABLE();
-        return gl::Error(GL_INVALID_OPERATION, "Internal static index buffers can't be resized");
+        return false;
     }
 }
 

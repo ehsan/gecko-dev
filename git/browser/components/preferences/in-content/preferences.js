@@ -95,8 +95,6 @@ function gotoPref(aCategory) {
   categories.selectedItem = item;
   window.history.replaceState(category, document.title);
   search(category, "data-category");
-  let mainContent = document.querySelector(".main-content");
-  mainContent.scrollTop = 0;
 }
 
 function search(aQuery, aAttribute) {

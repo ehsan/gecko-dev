@@ -8,7 +8,7 @@
 
   <binding id="toolbarbutton-marks" display="xul:button"
            extends="chrome://global/content/bindings/toolbarbutton.xml#toolbarbutton">
-    <content>
+    <content disabled="true">
       <xul:panel anonid="panel" hidden="true" type="arrow" class="social-panel"/>
       <xul:image class="toolbarbutton-icon" xbl:inherits="validate,src=image,label"/>
       <xul:label class="toolbarbutton-text" crop="right" flex="1"
@@ -113,11 +113,16 @@
         if (this._frame.docShell)
           this._frame.docShell.createAboutBlankContentViewer(null);
 
-        // disabled attr is set by Social:PageShareOrMark command
-        if (this.hasAttribute("disabled")) {
+        // do we have a savable page loaded?
+        let aURI = gBrowser.currentURI;
+        let disabled = !aURI || !(aURI.schemeIs('http') || aURI.schemeIs('https'));
+        // when overflowed in toolbar, we must have the attribute set
+        if (disabled) {
+          this.setAttribute("disabled", "true");
           this.isMarked = false;
         } else {
-          Social.isURIMarked(provider.origin, gBrowser.currentURI, (isMarked) => {
+          this.removeAttribute("disabled");
+          Social.isURIMarked(provider.origin, aURI, (isMarked) => {
             this.isMarked = isMarked;
           });
         }
@@ -148,24 +153,10 @@
           panel.appendChild(this.content);
 
         let URLTemplate = provider.markURL;
-        let _dataFn;
-        if (!pageData) {
-          messageManager.addMessageListener("Social:PageDataResult", _dataFn = (msg) => {
-            messageManager.removeMessageListener("Social:PageDataResult", _dataFn);
-            this.loadPanel(msg.json, target);
-          });
-          gBrowser.selectedBrowser.messageManager.sendAsyncMessage("Social:GetPageData");
-          return;
-        }
+        pageData = pageData || OpenGraphBuilder.getData(gBrowser);
         // if this is a share of a selected item, get any microdata
         if (!pageData.microdata && target) {
-          messageManager.addMessageListener("Social:PageDataResult", _dataFn = (msg) => {
-            messageManager.removeMessageListener("Social:PageDataResult", _dataFn);
-            pageData.microdata = msg.data;
-            this.loadPanel(pageData, target);
-          });
-          gBrowser.selectedBrowser.messageManager.sendAsyncMessage("Social:GetMicrodata", null, target);
-          return;
+          pageData.microdata = OpenGraphBuilder.getMicrodata(gBrowser, target);
         }
         this.pageData = pageData;
 

@@ -23,6 +23,20 @@ template class mozilla::a11y::ProgressMeterAccessible<1>;
 template class mozilla::a11y::ProgressMeterAccessible<100>;
 
 ////////////////////////////////////////////////////////////////////////////////
+// nsISupports
+
+template<int Max>
+NS_IMPL_ADDREF_INHERITED(ProgressMeterAccessible<Max>, LeafAccessible)
+
+template<int Max>
+NS_IMPL_RELEASE_INHERITED(ProgressMeterAccessible<Max>, LeafAccessible)
+
+template<int Max>
+NS_IMPL_QUERY_INTERFACE_INHERITED(ProgressMeterAccessible<Max>,
+                                  LeafAccessible,
+                                  nsIAccessibleValue)
+
+////////////////////////////////////////////////////////////////////////////////
 // Accessible
 
 template<int Max>
@@ -59,7 +73,7 @@ ProgressMeterAccessible<Max>::IsWidget() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// ProgressMeterAccessible<Max>: Value
+// nsIAccessibleValue
 
 template<int Max>
 void

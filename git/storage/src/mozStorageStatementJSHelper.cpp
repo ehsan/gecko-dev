@@ -170,7 +170,7 @@ NS_INTERFACE_MAP_END
 #define XPC_MAP_CLASSNAME StatementJSHelper
 #define XPC_MAP_QUOTED_CLASSNAME "StatementJSHelper"
 #define XPC_MAP_WANT_GETPROPERTY
-#define XPC_MAP_WANT_RESOLVE
+#define XPC_MAP_WANT_NEWRESOLVE
 #define XPC_MAP_FLAGS nsIXPCScriptable::ALLOW_PROP_MODS_DURING_RESOLVE
 #include "xpc_map_end.h"
 
@@ -212,10 +212,12 @@ StatementJSHelper::GetProperty(nsIXPConnectWrappedNative *aWrapper,
 
 
 NS_IMETHODIMP
-StatementJSHelper::Resolve(nsIXPConnectWrappedNative *aWrapper,
-                           JSContext *aCtx, JSObject *aScopeObj,
-                           jsid aId, bool *aResolvedp,
-                           bool *_retval)
+StatementJSHelper::NewResolve(nsIXPConnectWrappedNative *aWrapper,
+                              JSContext *aCtx,
+                              JSObject *aScopeObj,
+                              jsid aId,
+                              JSObject **_objp,
+                              bool *_retval)
 {
   if (!JSID_IS_STRING(aId))
     return NS_OK;
@@ -224,7 +226,7 @@ StatementJSHelper::Resolve(nsIXPConnectWrappedNative *aWrapper,
   if (::JS_FlatStringEqualsAscii(JSID_TO_FLAT_STRING(aId), "step")) {
     *_retval = ::JS_DefineFunction(aCtx, scope, "step", stepFunc,
                                    0, 0) != nullptr;
-    *aResolvedp = true;
+    *_objp = scope.get();
     return NS_OK;
   }
   return NS_OK;

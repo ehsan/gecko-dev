@@ -39,7 +39,7 @@ template <typename CharT>
 static inline const CharT *
 SkipSpace(const CharT *s, const CharT *end)
 {
-    MOZ_ASSERT(s <= end);
+    JS_ASSERT(s <= end);
 
     while (s < end && unicode::IsSpace(*s))
         s++;
@@ -369,7 +369,7 @@ PutEscapedString(char *buffer, size_t size, JSLinearString *str, uint32_t quote)
     size_t n = PutEscapedStringImpl(buffer, size, nullptr, str, quote);
 
     /* PutEscapedStringImpl can only fail with a file. */
-    MOZ_ASSERT(n != size_t(-1));
+    JS_ASSERT(n != size_t(-1));
     return n;
 }
 
@@ -380,7 +380,7 @@ PutEscapedString(char *buffer, size_t bufferSize, const CharT *chars, size_t len
     size_t n = PutEscapedStringImpl(buffer, bufferSize, nullptr, chars, length, quote);
 
     /* PutEscapedStringImpl can only fail with a file. */
-    MOZ_ASSERT(n != size_t(-1));
+    JS_ASSERT(n != size_t(-1));
     return n;
 }
 
@@ -408,7 +408,7 @@ JSObject *
 str_split_string(JSContext *cx, HandleTypeObject type, HandleString str, HandleString sep);
 
 bool
-str_resolve(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp);
+str_resolve(JSContext *cx, HandleObject obj, HandleId id, MutableHandleObject objp);
 
 bool
 str_replace_regexp_raw(JSContext *cx, HandleString string, HandleObject regexp,

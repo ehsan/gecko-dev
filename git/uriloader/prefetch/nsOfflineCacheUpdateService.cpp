@@ -3,6 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#if defined(MOZ_LOGGING)
+#define FORCE_PR_LOG
+#endif
+
 #include "OfflineCacheUpdateChild.h"
 #include "OfflineCacheUpdateParent.h"
 #include "nsXULAppAPI.h"
@@ -45,7 +49,7 @@
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShellTreeOwner.h"
-#include "mozilla/dom/ContentChild.h"
+#include "mozilla/dom/TabChild.h"
 #include "mozilla/dom/PermissionMessageUtils.h"
 #include "nsContentUtils.h"
 #include "mozilla/unused.h"
@@ -747,7 +751,8 @@ nsOfflineCacheUpdateService::AllowOfflineApp(nsIDOMWindow *aWindow,
     nsresult rv;
 
     if (GeckoProcessType_Default != XRE_GetProcessType()) {
-        ContentChild* child = ContentChild::GetSingleton();
+        TabChild* child = TabChild::GetFrom(aWindow);
+        NS_ENSURE_TRUE(child, NS_ERROR_FAILURE);
 
         if (!child->SendSetOfflinePermission(IPC::Principal(aPrincipal))) {
             return NS_ERROR_FAILURE;

@@ -128,7 +128,7 @@ DIBTextureHost::DIBTextureHost(TextureFlags aFlags,
     gfxPlatform::GetPlatform()->OptimalFormatForContent(mSurface->GetContentType()));
 }
 
-TextureSource*
+NewTextureSource*
 DIBTextureHost::GetTextureSources()
 {
   if (!mTextureSource) {

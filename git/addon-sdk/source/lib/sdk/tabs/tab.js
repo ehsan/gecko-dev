@@ -4,7 +4,11 @@
 'use strict';
 
 module.metadata = {
-  'stability': 'unstable'
+  'stability': 'unstable',
+  'engines': {
+    'Firefox': '*',
+    'Fennec': '*'
+  }
 };
 
 const { getTargetWindow } = require("../content/mod");

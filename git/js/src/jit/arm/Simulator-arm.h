@@ -264,9 +264,6 @@ class Simulator
     void decodeVCVTBetweenFloatingPointAndInteger(SimInstruction *instr);
     void decodeVCVTBetweenFloatingPointAndIntegerFrac(SimInstruction *instr);
 
-    // Support for some system functions.
-    void decodeType7CoprocessorIns(SimInstruction *instr);
-
     // Executes one instruction.
     void instructionDecode(SimInstruction *instr);
 

@@ -256,8 +256,7 @@ nsMathMLmpaddedFrame::UpdateValue(int32_t                  aSign,
                                   int32_t                  aPseudoUnit,
                                   const nsCSSValue&        aCSSValue,
                                   const nsHTMLReflowMetrics& aDesiredSize,
-                                  nscoord&                 aValueToUpdate,
-                                  float                aFontSizeInflation) const
+                                  nscoord&                 aValueToUpdate) const
 {
   nsCSSUnit unit = aCSSValue.GetUnit();
   if (NS_MATHML_SIGN_INVALID != aSign && eCSSUnit_Null != unit) {
@@ -290,8 +289,7 @@ nsMathMLmpaddedFrame::UpdateValue(int32_t                  aSign,
     else if (eCSSUnit_Percent == unit)
       amount = NSToCoordRound(float(scaler) * aCSSValue.GetPercentValue());
     else
-      amount = CalcLength(PresContext(), mStyleContext, aCSSValue,
-                          aFontSizeInflation);
+      amount = CalcLength(PresContext(), mStyleContext, aCSSValue);
 
     if (NS_MATHML_SIGN_PLUS == aSign)
       aValueToUpdate += amount;
@@ -361,41 +359,40 @@ nsMathMLmpaddedFrame::Place(nsRenderingContext& aRenderingContext,
 
   int32_t pseudoUnit;
   nscoord initialWidth = width;
-  float fontSizeInflation = nsLayoutUtils::FontSizeInflationFor(this);
 
   // update width
   pseudoUnit = (mWidthPseudoUnit == NS_MATHML_PSEUDO_UNIT_ITSELF)
              ? NS_MATHML_PSEUDO_UNIT_WIDTH : mWidthPseudoUnit;
   UpdateValue(mWidthSign, pseudoUnit, mWidth,
-              aDesiredSize, width, fontSizeInflation);
+              aDesiredSize, width);
   width = std::max(0, width);
 
   // update "height" (this is the ascent in the terminology of the REC)
   pseudoUnit = (mHeightPseudoUnit == NS_MATHML_PSEUDO_UNIT_ITSELF)
              ? NS_MATHML_PSEUDO_UNIT_HEIGHT : mHeightPseudoUnit;
   UpdateValue(mHeightSign, pseudoUnit, mHeight,
-              aDesiredSize, height, fontSizeInflation);
+              aDesiredSize, height);
   height = std::max(0, height);
 
   // update "depth" (this is the descent in the terminology of the REC)
   pseudoUnit = (mDepthPseudoUnit == NS_MATHML_PSEUDO_UNIT_ITSELF)
              ? NS_MATHML_PSEUDO_UNIT_DEPTH : mDepthPseudoUnit;
   UpdateValue(mDepthSign, pseudoUnit, mDepth,
-              aDesiredSize, depth, fontSizeInflation);
+              aDesiredSize, depth);
   depth = std::max(0, depth);
 
   // update lspace
   if (mLeadingSpacePseudoUnit != NS_MATHML_PSEUDO_UNIT_ITSELF) {
     pseudoUnit = mLeadingSpacePseudoUnit;
     UpdateValue(mLeadingSpaceSign, pseudoUnit, mLeadingSpace,
-                aDesiredSize, lspace, fontSizeInflation);
+                aDesiredSize, lspace);
   }
 
   // update voffset
   if (mVerticalOffsetPseudoUnit != NS_MATHML_PSEUDO_UNIT_ITSELF) {
     pseudoUnit = mVerticalOffsetPseudoUnit;
     UpdateValue(mVerticalOffsetSign, pseudoUnit, mVerticalOffset,
-                aDesiredSize, voffset, fontSizeInflation);
+                aDesiredSize, voffset);
   }
   // do the padding now that we have everything
   // The idea here is to maintain the invariant that <mpadded>...</mpadded> (i.e.,

@@ -262,7 +262,7 @@ function openMenu(menu)
   }
   else {
     var bo = menu.boxObject;
-    if (bo instanceof MenuBoxObject)
+    if (bo instanceof SpecialPowers.Ci.nsIMenuBoxObject)
       bo.openMenu(true);
     else
       synthesizeMouse(menu, 4, 4, { });
@@ -276,7 +276,7 @@ function closeMenu(menu, popup)
   }
   else {
     var bo = menu.boxObject;
-    if (bo instanceof MenuBoxObject)
+    if (bo instanceof SpecialPowers.Ci.nsIMenuBoxObject)
       bo.openMenu(false);
     else
       popup.hidePopup();
@@ -303,7 +303,7 @@ function checkOpen(menuid, testname)
   var menu = document.getElementById(menuid);
   if ("open" in menu)
     ok(menu.open, testname + " " + menuid + " menu is open");
-  else if (menu.boxObject instanceof MenuBoxObject)
+  else if (menu.boxObject instanceof SpecialPowers.Ci.nsIMenuBoxObject)
     ok(menu.getAttribute("open") == "true", testname + " " + menuid + " menu is open");
 }
 
@@ -312,7 +312,7 @@ function checkClosed(menuid, testname)
   var menu = document.getElementById(menuid);
   if ("open" in menu)
     ok(!menu.open, testname + " " + menuid + " menu is open");
-  else if (menu.boxObject instanceof MenuBoxObject)
+  else if (menu.boxObject instanceof SpecialPowers.Ci.nsIMenuBoxObject)
     ok(!menu.hasAttribute("open"), testname + " " + menuid + " menu is closed");
 }
 

@@ -8,13 +8,14 @@
 
 const TAB_URL = EXAMPLE_URL + "doc_pretty-print-on-paused.html";
 
-let gTab, gPanel, gDebugger, gThreadClient, gSources;
+let gTab, gDebuggee, gPanel, gDebugger, gThreadClient, gSources;
 
 const SECOND_SOURCE_VALUE = EXAMPLE_URL + "code_ugly-2.js";
 
 function test(){
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
     gThreadClient = gDebugger.gThreadClient;
@@ -32,7 +33,9 @@ function test(){
         yield doResume(gPanel);
 
         const bpHit = waitForCaretAndScopes(gPanel, 6);
-        callInTab(gTab, "secondCall");
+        // Get the debuggee call off this tick so that we aren't accidentally
+        // blocking the yielding of bpHit which causes a deadlock.
+        executeSoon(() => gDebuggee.secondCall());
         yield bpHit;
 
         info("Switch to the second source.");
@@ -56,6 +59,7 @@ function test(){
 
 registerCleanupFunction(function() {
   gTab = null;
+  gDebuggee = null;
   gPanel = null;
   gDebugger = null;
   gThreadClient = null;

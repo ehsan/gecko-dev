@@ -17,7 +17,7 @@ function runTest() {
                                                  isInBrowserElement: true });
 
   var iframe = document.createElement('iframe');
-  iframe.setAttribute('mozbrowser', 'true');
+  SpecialPowers.wrap(iframe).mozbrowser = true;
 
   // We need remote = false here until bug 761935 is fixed; see
   // SetVisibleFrames.js for an explanation.

@@ -27,7 +27,7 @@ AllocationIntegrityState::record()
     for (size_t i = 0; i < graph.numBlocks(); i++) {
         blocks.infallibleAppend(BlockInfo());
         LBlock *block = graph.getBlock(i);
-        MOZ_ASSERT(block->mir()->id() == i);
+        JS_ASSERT(block->mir()->id() == i);
 
         BlockInfo &blockInfo = blocks[i];
         if (!blockInfo.phis.reserve(block->numPhis()))
@@ -37,7 +37,7 @@ AllocationIntegrityState::record()
             blockInfo.phis.infallibleAppend(InstructionInfo());
             InstructionInfo &info = blockInfo.phis[j];
             LPhi *phi = block->getPhi(j);
-            MOZ_ASSERT(phi->numDefs() == 1);
+            JS_ASSERT(phi->numDefs() == 1);
             uint32_t vreg = phi->getDef(0)->virtualRegister();
             virtualRegisters[vreg] = phi->getDef(0);
             if (!info.outputs.append(*phi->getDef(0)))
@@ -81,7 +81,7 @@ AllocationIntegrityState::record()
 bool
 AllocationIntegrityState::check(bool populateSafepoints)
 {
-    MOZ_ASSERT(!instructions.empty());
+    JS_ASSERT(!instructions.empty());
 
 #ifdef DEBUG
     if (JitSpewEnabled(JitSpew_RegAlloc))
@@ -95,24 +95,24 @@ AllocationIntegrityState::check(bool populateSafepoints)
             LInstruction *ins = *iter;
 
             for (LInstruction::InputIterator alloc(*ins); alloc.more(); alloc.next())
-                MOZ_ASSERT(!alloc->isUse());
+                JS_ASSERT(!alloc->isUse());
 
             for (size_t i = 0; i < ins->numDefs(); i++) {
                 LDefinition *def = ins->getDef(i);
-                MOZ_ASSERT(!def->output()->isUse());
+                JS_ASSERT(!def->output()->isUse());
 
                 LDefinition oldDef = instructions[ins->id()].outputs[i];
-                MOZ_ASSERT_IF(oldDef.policy() == LDefinition::MUST_REUSE_INPUT,
-                              *def->output() == *ins->getOperand(oldDef.getReusedInput()));
+                JS_ASSERT_IF(oldDef.policy() == LDefinition::MUST_REUSE_INPUT,
+                             *def->output() == *ins->getOperand(oldDef.getReusedInput()));
             }
 
             for (size_t i = 0; i < ins->numTemps(); i++) {
                 LDefinition *temp = ins->getTemp(i);
-                MOZ_ASSERT_IF(!temp->isBogusTemp(), temp->output()->isRegister());
+                JS_ASSERT_IF(!temp->isBogusTemp(), temp->output()->isRegister());
 
                 LDefinition oldTemp = instructions[ins->id()].temps[i];
-                MOZ_ASSERT_IF(oldTemp.policy() == LDefinition::MUST_REUSE_INPUT,
-                              *temp->output() == *ins->getOperand(oldTemp.getReusedInput()));
+                JS_ASSERT_IF(oldTemp.policy() == LDefinition::MUST_REUSE_INPUT,
+                             *temp->output() == *ins->getOperand(oldTemp.getReusedInput()));
             }
         }
     }
@@ -143,9 +143,9 @@ AllocationIntegrityState::check(bool populateSafepoints)
                     if (!checkSafepointAllocation(ins, vreg, *alloc, populateSafepoints))
                         return false;
                 }
-                MOZ_ASSERT_IF(ins->isCall() && !populateSafepoints,
-                              safepoint->liveRegs().empty(true) &&
-                              safepoint->liveRegs().empty(false));
+                JS_ASSERT_IF(ins->isCall() && !populateSafepoints,
+                             safepoint->liveRegs().empty(true) &&
+                             safepoint->liveRegs().empty(false));
             }
 
             size_t inputIndex = 0;
@@ -209,19 +209,19 @@ AllocationIntegrityState::checkIntegrity(LBlock *block, LInstruction *ins,
             if (def->isBogusTemp())
                 continue;
             if (info.outputs[i].virtualRegister() == vreg) {
-                MOZ_ASSERT(*def->output() == alloc);
+                JS_ASSERT(*def->output() == alloc);
 
                 // Found the original definition, done scanning.
                 return true;
             } else {
-                MOZ_ASSERT(*def->output() != alloc);
+                JS_ASSERT(*def->output() != alloc);
             }
         }
 
         for (size_t i = 0; i < ins->numTemps(); i++) {
             LDefinition *temp = ins->getTemp(i);
             if (!temp->isBogusTemp())
-                MOZ_ASSERT(*temp->output() != alloc);
+                JS_ASSERT(*temp->output() != alloc);
         }
 
         if (ins->safepoint()) {
@@ -265,7 +265,7 @@ AllocationIntegrityState::checkSafepointAllocation(LInstruction *ins,
                                                    bool populateSafepoints)
 {
     LSafepoint *safepoint = ins->safepoint();
-    MOZ_ASSERT(safepoint);
+    JS_ASSERT(safepoint);
 
     if (ins->isCall() && alloc.isRegister())
         return true;
@@ -275,7 +275,7 @@ AllocationIntegrityState::checkSafepointAllocation(LInstruction *ins,
         if (populateSafepoints)
             safepoint->addLiveRegister(reg);
 
-        MOZ_ASSERT(safepoint->liveRegs().has(reg));
+        JS_ASSERT(safepoint->liveRegs().has(reg));
     }
 
     LDefinition::Type type = virtualRegisters[vreg]
@@ -290,7 +290,7 @@ AllocationIntegrityState::checkSafepointAllocation(LInstruction *ins,
             if (!safepoint->addGcPointer(alloc))
                 return false;
         }
-        MOZ_ASSERT(safepoint->hasGcPointer(alloc));
+        JS_ASSERT(safepoint->hasGcPointer(alloc));
         break;
       case LDefinition::SLOTS:
         if (populateSafepoints) {
@@ -299,7 +299,7 @@ AllocationIntegrityState::checkSafepointAllocation(LInstruction *ins,
             if (!safepoint->addSlotsOrElementsPointer(alloc))
                 return false;
         }
-        MOZ_ASSERT(safepoint->hasSlotsOrElementsPointer(alloc));
+        JS_ASSERT(safepoint->hasSlotsOrElementsPointer(alloc));
         break;
 #ifdef JS_NUNBOX32
       // Do not assert that safepoint information for nunbox types is complete,
@@ -321,7 +321,7 @@ AllocationIntegrityState::checkSafepointAllocation(LInstruction *ins,
             if (!safepoint->addNunboxPayload(vreg, alloc))
                 return false;
         }
-        MOZ_ASSERT(safepoint->hasNunboxPayload(alloc));
+        JS_ASSERT(safepoint->hasNunboxPayload(alloc));
         break;
 #else
       case LDefinition::BOX:
@@ -331,7 +331,7 @@ AllocationIntegrityState::checkSafepointAllocation(LInstruction *ins,
             if (!safepoint->addBoxedValue(alloc))
                 return false;
         }
-        MOZ_ASSERT(safepoint->hasBoxedValue(alloc));
+        JS_ASSERT(safepoint->hasBoxedValue(alloc));
         break;
 #endif
       default:
@@ -474,10 +474,10 @@ RegisterAllocator::init()
     for (size_t i = 0; i < graph.numBlocks(); i++) {
         LBlock *block = graph.getBlock(i);
         for (LInstructionIterator ins = block->begin(); ins != block->end(); ins++)
-            insData[ins->id()] = *ins;
+            insData[*ins].init(*ins, block);
         for (size_t j = 0; j < block->numPhis(); j++) {
             LPhi *phi = block->getPhi(j);
-            insData[phi->id()] = phi;
+            insData[phi].init(phi, block);
         }
     }
 
@@ -485,33 +485,38 @@ RegisterAllocator::init()
 }
 
 LMoveGroup *
-RegisterAllocator::getInputMoveGroup(LInstruction *ins)
+RegisterAllocator::getInputMoveGroup(uint32_t ins)
 {
-    MOZ_ASSERT(!ins->isLabel());
+    InstructionData *data = &insData[ins];
+    JS_ASSERT(!data->ins()->isPhi());
+    JS_ASSERT(!data->ins()->isLabel());
 
-    if (ins->inputMoves())
-        return ins->inputMoves();
+    if (data->inputMoves())
+        return data->inputMoves();
 
     LMoveGroup *moves = LMoveGroup::New(alloc());
-    ins->setInputMoves(moves);
-    ins->block()->insertBefore(ins, moves);
+    data->setInputMoves(moves);
+    data->block()->insertBefore(data->ins(), moves);
 
     return moves;
 }
 
 LMoveGroup *
-RegisterAllocator::getMoveGroupAfter(LInstruction *ins)
+RegisterAllocator::getMoveGroupAfter(uint32_t ins)
 {
-    if (ins->movesAfter())
-        return ins->movesAfter();
+    InstructionData *data = &insData[ins];
+    JS_ASSERT(!data->ins()->isPhi());
+
+    if (data->movesAfter())
+        return data->movesAfter();
 
     LMoveGroup *moves = LMoveGroup::New(alloc());
-    ins->setMovesAfter(moves);
+    data->setMovesAfter(moves);
 
-    if (ins->isLabel())
-        ins->block()->insertAfter(ins->block()->getEntryMoveGroup(alloc()), moves);
+    if (data->ins()->isLabel())
+        data->block()->insertAfter(data->block()->getEntryMoveGroup(alloc()), moves);
     else
-        ins->block()->insertAfter(ins, moves);
+        data->block()->insertAfter(data->ins(), moves);
     return moves;
 }
 

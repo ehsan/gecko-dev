@@ -48,7 +48,6 @@ GARBAGE += \
   classes.dex  \
   gecko.ap_  \
   res/values/strings.xml \
-  res/raw/browsersearch.json \
   res/raw/suggestedsites.json \
   .aapt.deps \
   fennec_ids.txt \
@@ -92,7 +91,9 @@ ALL_JARS += webrtc.jar
 endif
 
 ifdef MOZ_ANDROID_SEARCH_ACTIVITY
+extra_packages += org.mozilla.search
 ALL_JARS += search-activity.jar
+generated/org/mozilla/search/R.java: .aapt.deps ;
 endif
 
 ifdef MOZ_ANDROID_MLS_STUMBLER
@@ -134,24 +135,11 @@ else
   endif
 endif
 
-# This stanza ensures that the set of GeckoView classes does not depend on too
-# much of Fennec, where "too much" is defined as the set of potentially
-# non-GeckoView classes that GeckoView already depended on at a certain point in
-# time.  The idea is to set a high-water mark that is not to be crossed.
-classycle_jar := $(topsrcdir)/mobile/android/build/classycle/classycle-1.4.1.jar
-.geckoview.deps: geckoview.ddf $(classycle_jar) $(ALL_JARS)
-	java -cp $(classycle_jar) \
-		classycle.dependency.DependencyChecker \
-		-mergeInnerClasses \
-		-dependencies=@$< \
-		$(ALL_JARS)
-	@$(TOUCH) $@
-
 # We touch the target file before invoking Proguard so that Proguard's
 # outputs are fresher than the target, preventing a subsequent
 # invocation from thinking Proguard's outputs are stale.  This is safe
 # because Make removes the target file if any recipe command fails.
-.proguard.deps: .geckoview.deps $(ALL_JARS)
+.proguard.deps: $(ALL_JARS)
 	$(REPORT_BUILD)
 	@$(TOUCH) $@
 	java \
@@ -214,7 +202,6 @@ preprocessed := $(addsuffix .in,$(subst generated/org/mozilla/gecko/,,$(filter g
 
 preprocessed_PATH := generated/org/mozilla/gecko
 preprocessed_KEEP_PATH := 1
-preprocessed_FLAGS := --marker='//\\\#'
 
 PP_TARGETS += preprocessed
 
@@ -228,7 +215,6 @@ preprocessed_package := $(addsuffix .in,$(subst $(android_package_dir)/,,$(filte
 
 preprocessed_package_PATH := $(android_package_dir)
 preprocessed_package_KEEP_PATH := 1
-preprocessed_package_FLAGS := --marker='//\\\#'
 
 PP_TARGETS += preprocessed_package
 
@@ -273,12 +259,11 @@ $(ANDROID_GENERATED_RESFILES): $(call mkdir_deps,$(sort $(dir $(ANDROID_GENERATE
 
 
 # This .deps pattern saves an invocation of the sub-Make: the single
-# invocation generates strings.xml, browsersearch.json, and
-# suggestedsites.json. The trailing semi-colon defines an empty
-# recipe: defining no recipe at all causes Make to treat the target
-# differently, in a way that defeats our dependencies.
+# invocation generates both strings.xml and suggestedsites.json. The
+# trailing semi-colon defines an empty recipe: defining no recipe at
+# all causes Make to treat the target differently, in a way that
+# defeats our dependencies.
 res/values/strings.xml: .locales.deps ;
-res/raw/browsersearch.json: .locales.deps ;
 res/raw/suggestedsites.json: .locales.deps ;
 
 all_resources = \
@@ -369,8 +354,6 @@ extra_packages := $(subst $(NULL) ,:,$(strip $(extra_packages)))
 # thinking aapt's outputs are stale.  This is safe because Make
 # removes the target file if any recipe command fails.
 
-CONSTRAINED_AAPT_CONFIGURATIONS := mdpi,hdpi
-
 define aapt_command
 $(1): $$(call mkdir_deps,$(filter-out ./,$(dir $(3) $(4) $(5)))) $(2)
 	@$$(TOUCH) $$@
@@ -387,7 +370,7 @@ $(1): $$(call mkdir_deps,$(filter-out ./,$(dir $(3) $(4) $(5)))) $(2)
 		-F $(3) \
 		-J $(4) \
 		--output-text-symbols $(5) \
-		$(if $(MOZ_ANDROID_RESOURCE_CONSTRAINED),-c $(CONSTRAINED_AAPT_CONFIGURATIONS),) \
+		$(if $(MOZ_ANDROID_RESOURCE_CONSTRAINED),-c hdpi,) \
 		--ignore-assets "$$(ANDROID_AAPT_IGNORE)"
 endef
 
@@ -410,20 +393,10 @@ fennec_ids.txt: generated/org/mozilla/gecko/R.java fennec-ids-generator.py
 # Override the Java settings with some specific android settings
 include $(topsrcdir)/config/android-common.mk
 
-update-generated-wrappers:
-	@mv $(topsrcdir)/widget/android/GeneratedJNIWrappers.cpp $(topsrcdir)/widget/android/GeneratedJNIWrappers.cpp.old
-	@mv $(topsrcdir)/widget/android/GeneratedJNIWrappers.h $(topsrcdir)/widget/android/GeneratedJNIWrappers.h.old
-	@echo old GeneratedJNIWrappers.cpp/h moved to GeneratedJNIWrappers.cpp/h.old
-	@cp $(CURDIR)/jni-stubs.inc $(topsrcdir)/mozglue/android
-	@cp $(CURDIR)/GeneratedJNIWrappers.* $(topsrcdir)/widget/android
-	@echo Updated GeneratedJNIWrappers
-
-.PHONY: update-generated-wrappers
-
-# This target is only used by IDE integrations. It rebuilds resources
-# that end up in omni.ja, does most of the packaging step, and then
-# updates omni.ja in place. If you're not using an IDE, you should be
-# using |mach build mobile/android && mach package|.
+# This target is only used by the Eclipse integration. It rebuilds
+# resources that end up in omni.ja, does most of the packaging step,
+# and then updates omni.ja in place. If you're not using Eclipse, you
+# should be using |mach build mobile/android && mach package|.
 $(abspath $(DIST)/fennec/$(OMNIJAR_NAME)): FORCE
 	$(REPORT_BUILD)
 	$(MAKE) -C ../locales
@@ -436,12 +409,6 @@ $(abspath $(DIST)/fennec/$(OMNIJAR_NAME)): FORCE
 	rsync --update $(DIST)/fennec/$(notdir $(OMNIJAR_NAME)) $@
 	$(RM) $(DIST)/fennec/$(notdir $(OMNIJAR_NAME))
 
-# Targets built very early during a Gradle build.
-gradle-targets: $(abspath $(DIST)/fennec/$(OMNIJAR_NAME))
-gradle-targets: .aapt.deps
-
-.PHONY: gradle-targets
-
 libs:: geckoview_resources.zip classes.dex jni-stubs.inc GeneratedJNIWrappers.cpp fennec_ids.txt
 	$(INSTALL) geckoview_resources.zip $(FINAL_TARGET)
 	$(INSTALL) classes.dex $(FINAL_TARGET)
@@ -450,7 +417,7 @@ libs:: geckoview_resources.zip classes.dex jni-stubs.inc GeneratedJNIWrappers.cp
 	  echo '***   Error: The generated JNI code has changed   ***' && \
 	  echo '* To update generated code in the tree, please run  *' && \
 	  echo && \
-	  echo '  make -C $(CURDIR) update-generated-wrappers' && \
+	  echo '  cp $(CURDIR)/jni-stubs.inc $(topsrcdir)/mozglue/android && cp $(CURDIR)/GeneratedJNIWrappers.* $(topsrcdir)/widget/android' && \
 	  echo && \
 	  echo '* Repeat the build, and check in any changes.       *' && \
 	  echo '*****************************************************' && \

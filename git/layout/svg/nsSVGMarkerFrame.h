@@ -15,7 +15,7 @@
 #include "nsSVGContainerFrame.h"
 #include "nsSVGUtils.h"
 
-class gfxContext;
+class nsRenderingContext;
 class nsSVGPathGeometryFrame;
 
 namespace mozilla {
@@ -84,7 +84,7 @@ public:
   }
 
   // nsSVGMarkerFrame methods:
-  nsresult PaintMark(gfxContext& aContext,
+  nsresult PaintMark(nsRenderingContext *aContext,
                      const gfxMatrix& aToMarkedFrameUserSpace,
                      nsSVGPathGeometryFrame *aMarkedFrame,
                      nsSVGMark *aMark,

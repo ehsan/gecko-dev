@@ -158,6 +158,7 @@ Position::Position(nsISupports* aParent, nsIDOMGeoPosition* aGeoPosition)
   : mParent(aParent)
   , mGeoPosition(aGeoPosition)
 {
+  SetIsDOMBinding();
 }
 
 Position::~Position()
@@ -211,6 +212,7 @@ Coordinates::Coordinates(Position* aPosition, nsIDOMGeoPositionCoords* aCoords)
   : mPosition(aPosition)
   , mCoords(aCoords)
 {
+  SetIsDOMBinding();
 }
 
 Coordinates::~Coordinates()

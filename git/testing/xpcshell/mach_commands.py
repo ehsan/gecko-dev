@@ -6,13 +6,14 @@
 
 from __future__ import unicode_literals, print_function
 
-import argparse
+import mozpack.path
+import logging
 import os
 import shutil
 import sys
 import urllib2
 
-from mozlog import structured
+from StringIO import StringIO
 
 from mozbuild.base import (
     MachCommandBase,
@@ -25,9 +26,6 @@ from mach.decorators import (
     CommandProvider,
     Command,
 )
-
-_parser = argparse.ArgumentParser()
-structured.commandline.add_logging_group(_parser)
 
 ADB_NOT_FOUND = '''
 The %s command requires the adb binary to be on your path.
@@ -46,6 +44,11 @@ if sys.version_info[0] < 3:
     unicode_type = unicode
 else:
     unicode_type = str
+
+# Simple filter to omit the message emitted as a test file begins.
+class TestStartFilter(logging.Filter):
+    def filter(self, record):
+        return not record.params['msg'].endswith("running test ...")
 
 # This should probably be consolidated with similar classes in other test
 # runners.
@@ -66,7 +69,6 @@ class XPCShellRunner(MozbuildObject):
                  keep_going=False, sequential=False, shuffle=False,
                  debugger=None, debuggerArgs=None, debuggerInteractive=None,
                  rerun_failures=False, test_objects=None, verbose=False,
-                 log=None,
                  # ignore parameters from other platforms' options
                  **kwargs):
         """Runs an individual xpcshell test."""
@@ -84,7 +86,7 @@ class XPCShellRunner(MozbuildObject):
                            debugger=debugger, debuggerArgs=debuggerArgs,
                            debuggerInteractive=debuggerInteractive,
                            rerun_failures=rerun_failures,
-                           verbose=verbose, log=log)
+                           verbose=verbose)
             return
         elif test_paths:
             test_paths = [self._wrap_path_argument(p).relpath() for p in test_paths]
@@ -116,7 +118,6 @@ class XPCShellRunner(MozbuildObject):
             'rerun_failures': rerun_failures,
             'manifest': manifest,
             'verbose': verbose,
-            'log': log,
         }
 
         return self._run_xpcshell_harness(**args)
@@ -125,21 +126,25 @@ class XPCShellRunner(MozbuildObject):
                               test_path=None, shuffle=False, interactive=False,
                               keep_going=False, sequential=False,
                               debugger=None, debuggerArgs=None, debuggerInteractive=None,
-                              rerun_failures=False, verbose=False, log=None):
+                              rerun_failures=False, verbose=False):
 
         # Obtain a reference to the xpcshell test runner.
         import runxpcshelltests
 
-        xpcshell = runxpcshelltests.XPCShellTests(log=log)
+        dummy_log = StringIO()
+        xpcshell = runxpcshelltests.XPCShellTests(log=dummy_log)
         self.log_manager.enable_unstructured()
+
+        xpcshell_filter = TestStartFilter()
+        self.log_manager.terminal_handler.addFilter(xpcshell_filter)
 
         tests_dir = os.path.join(self.topobjdir, '_tests', 'xpcshell')
         modules_dir = os.path.join(self.topobjdir, '_tests', 'modules')
         # We want output from the test to be written immediately if we are only
         # running a single test.
-        single_test = (test_path is not None or
-                       (manifest and len(manifest.test_paths())==1))
-        sequential = sequential or single_test
+        verbose_output = (test_path is not None or
+                          (manifest and len(manifest.test_paths())==1) or
+                          verbose)
 
         args = {
             'manifest': manifest,
@@ -154,13 +159,15 @@ class XPCShellRunner(MozbuildObject):
             'testsRootDir': tests_dir,
             'testingModulesDir': modules_dir,
             'profileName': 'firefox',
-            'verbose': verbose or single_test,
+            'verbose': test_path is not None,
             'xunitFilename': os.path.join(self.statedir, 'xpchsell.xunit.xml'),
             'xunitName': 'xpcshell',
             'pluginsPath': os.path.join(self.distdir, 'plugins'),
             'debugger': debugger,
             'debuggerArgs': debuggerArgs,
             'debuggerInteractive': debuggerInteractive,
+            'on_message': (lambda obj, msg: xpcshell.log.info(msg.decode('utf-8', 'replace'))) \
+                            if verbose_output else None,
         }
 
         if test_path is not None:
@@ -196,6 +203,7 @@ class XPCShellRunner(MozbuildObject):
 
         result = xpcshell.runTests(**filtered_args)
 
+        self.log_manager.terminal_handler.removeFilter(xpcshell_filter)
         self.log_manager.disable_unstructured()
 
         if not result and not xpcshell.sequential:
@@ -224,7 +232,7 @@ class AndroidXPCShellRunner(MozbuildObject):
     def run_test(self,
                  test_paths, keep_going,
                  devicemanager, ip, port, remote_test_root, no_setup, local_apk,
-                 test_objects=None, log=None,
+                 test_objects=None,
                  # ignore parameters from other platforms' options
                  **kwargs):
         # TODO Bug 794506 remove once mach integrates with virtualenv.
@@ -249,7 +257,7 @@ class AndroidXPCShellRunner(MozbuildObject):
         options.localBin = os.path.join(self.topobjdir, 'dist/bin')
         options.testingModulesDir = os.path.join(self.topobjdir, '_tests/modules')
         options.mozInfo = os.path.join(self.topobjdir, 'mozinfo.json')
-        options.manifest = os.path.join(self.topobjdir, '_tests/xpcshell/xpcshell.ini')
+        options.manifest = os.path.join(self.topobjdir, '_tests/xpcshell/xpcshell_android.ini')
         options.symbolsPath = os.path.join(self.distdir, 'crashreporter-symbols')
         if local_apk:
             options.localAPK = local_apk
@@ -279,8 +287,12 @@ class AndroidXPCShellRunner(MozbuildObject):
             testdirs = test_paths[0]
             options.testPath = test_paths[0]
             options.verbose = True
+        dummy_log = StringIO()
+        xpcshell = remotexpcshelltests.XPCShellRemote(dm, options, args=testdirs, log=dummy_log)
+        self.log_manager.enable_unstructured()
 
-        xpcshell = remotexpcshelltests.XPCShellRemote(dm, options, testdirs, log)
+        xpcshell_filter = TestStartFilter()
+        self.log_manager.terminal_handler.addFilter(xpcshell_filter)
 
         result = xpcshell.runTests(xpcshell='xpcshell',
                       testClass=remotexpcshelltests.RemoteXPCShellTestThread,
@@ -288,6 +300,8 @@ class AndroidXPCShellRunner(MozbuildObject):
                       mobileArgs=xpcshell.mobileArgs,
                       **options.__dict__)
 
+        self.log_manager.terminal_handler.removeFilter(xpcshell_filter)
+        self.log_manager.disable_unstructured()
 
         return int(not result)
 
@@ -333,7 +347,7 @@ class B2GXPCShellRunner(MozbuildObject):
         return busybox_path
 
     def run_test(self, test_paths, b2g_home=None, busybox=None, device_name=None,
-                 test_objects=None, log=None,
+                 test_objects=None,
                  # ignore parameters from other platforms' options
                  **kwargs):
         try:
@@ -365,7 +379,7 @@ class B2GXPCShellRunner(MozbuildObject):
         options.localLib = self.bin_dir
         options.localBin = self.bin_dir
         options.logdir = self.xpcshell_dir
-        options.manifest = os.path.join(self.xpcshell_dir, 'xpcshell.ini')
+        options.manifest = os.path.join(self.xpcshell_dir, 'xpcshell_b2g.ini')
         options.mozInfo = os.path.join(self.topobjdir, 'mozinfo.json')
         options.objdir = self.topobjdir
         options.symbolsPath = os.path.join(self.distdir, 'crashreporter-symbols'),
@@ -382,7 +396,7 @@ class B2GXPCShellRunner(MozbuildObject):
         if not options.busybox:
             options.busybox = self._download_busybox(b2g_home, options.emulator)
 
-        return runtestsb2g.run_remote_xpcshell(parser, options, args, log)
+        return runtestsb2g.run_remote_xpcshell(parser, options, args)
 
 def is_platform_supported(cls):
     """Must have a Firefox, Android or B2G build."""
@@ -400,8 +414,7 @@ class MachCommands(MachCommandBase):
 
     @Command('xpcshell-test', category='testing',
         conditions=[is_platform_supported],
-        description='Run XPCOM Shell tests (API direct unit testing)',
-        parser=_parser)
+        description='Run XPCOM Shell tests (API direct unit testing)')
     @CommandArgument('test_paths', default='all', nargs='*', metavar='TEST',
         help='Test to run. Can be specified as a single JS file, a directory, '
              'or omitted. If omitted, the entire test suite is executed.')
@@ -451,11 +464,6 @@ class MachCommands(MachCommandBase):
 
         driver = self._spawn(BuildDriver)
         driver.install_tests(remove=False)
-
-        structured.commandline.formatter_option_defaults['verbose'] = True
-        params['log'] = structured.commandline.setup_logging("XPCShellTests",
-                                                             params,
-                                                             {"mach": sys.stdout})
 
         if conditions.is_android(self):
             xpcshell = self._spawn(AndroidXPCShellRunner)

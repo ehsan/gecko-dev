@@ -12,5 +12,7 @@ SimplePrograms([
 FAIL_ON_WARNINGS = True
 
 USE_LIBS += [
+    'mozalloc',
     'xpt',
+    'xul',
 ]

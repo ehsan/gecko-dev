@@ -9,7 +9,6 @@
 #include "Workers.h"
 
 #include "nsIContentSecurityPolicy.h"
-#include "nsIWorkerDebugger.h"
 #include "nsPIDOMWindow.h"
 
 #include "mozilla/CondVar.h"
@@ -23,7 +22,7 @@
 #include "nsString.h"
 #include "nsTArray.h"
 #include "nsThreadUtils.h"
-#include "mozilla/dom/StructuredCloneTags.h"
+#include "StructuredCloneTags.h"
 
 #include "Queue.h"
 #include "WorkerFeature.h"
@@ -62,10 +61,7 @@ class WorkerControlRunnable;
 class WorkerGlobalScope;
 class WorkerPrivate;
 class WorkerRunnable;
-class WorkerDebugger;
 
-// If you change this, the corresponding list in nsIWorkerDebugger.idl needs to
-// be updated too.
 enum WorkerType
 {
   WorkerTypeDedicated,
@@ -297,12 +293,6 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(WorkerPrivateParent,
                                                          DOMEventTargetHelper)
-
-  void
-  EnableDebugger();
-
-  void
-  DisableDebugger();
 
   void
   ClearSelfRef()
@@ -665,12 +655,6 @@ public:
     return mIsChromeWorker;
   }
 
-  WorkerType
-  Type() const
-  {
-    return mWorkerType;
-  }
-
   bool
   IsDedicatedWorker() const
   {
@@ -737,37 +721,6 @@ public:
 #endif
 };
 
-class WorkerDebugger : public nsIWorkerDebugger {
-  mozilla::Mutex mMutex;
-  mozilla::CondVar mCondVar;
-
-  // Protected by mMutex
-  WorkerPrivate* mWorkerPrivate;
-  bool mIsEnabled;
-
-  // Only touched on the main thread.
-  nsTArray<nsCOMPtr<nsIWorkerDebuggerListener>> mListeners;
-
-public:
-  explicit WorkerDebugger(WorkerPrivate* aWorkerPrivate);
-
-  NS_DECL_THREADSAFE_ISUPPORTS
-  NS_DECL_NSIWORKERDEBUGGER
-
-  void AssertIsOnParentThread();
-
-  void WaitIsEnabled(bool aIsEnabled);
-
-  void Enable();
-
-  void Disable();
-
-private:
-  virtual ~WorkerDebugger();
-
-  void NotifyIsEnabled(bool aIsEnabled);
-};
-
 class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
 {
   friend class WorkerPrivateParent<WorkerPrivate>;
@@ -785,8 +738,6 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
     IdleTimer,
     NoTimer
   };
-
-  nsRefPtr<WorkerDebugger> mDebugger;
 
   Queue<WorkerControlRunnable*, 4> mControlQueue;
 
@@ -878,14 +829,6 @@ public:
   GetLoadInfo(JSContext* aCx, nsPIDOMWindow* aWindow, WorkerPrivate* aParent,
               const nsAString& aScriptURL, bool aIsChromeWorker,
               LoadInfo* aLoadInfo);
-
-  WorkerDebugger*
-  Debugger() const
-  {
-    AssertIsOnMainThread();
-    MOZ_ASSERT(mDebugger);
-    return mDebugger;
-  }
 
   void
   DoRunLoop(JSContext* aCx);
@@ -1282,7 +1225,8 @@ GetCurrentThreadJSContext();
 
 enum WorkerStructuredDataType
 {
-  DOMWORKER_SCTAG_BLOB = SCTAG_DOM_MAX,
+  DOMWORKER_SCTAG_FILE = SCTAG_DOM_MAX,
+  DOMWORKER_SCTAG_BLOB,
 
   DOMWORKER_SCTAG_END
 };

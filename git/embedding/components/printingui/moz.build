@@ -6,8 +6,6 @@
 
 toolkit = CONFIG['MOZ_WIDGET_TOOLKIT']
 
-DIRS += ['ipc']
-
 if toolkit == 'windows':
     DIRS += ['win']
 elif toolkit == 'cocoa':

@@ -74,6 +74,12 @@ public:
   {
     aRetval = mMessage;
   }
+
+  void Init(const nsAString& aName, const nsAString& aMessage)
+  {
+    mName = aName;
+    mMessage = aMessage;
+  }
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(DOMError, DOMERROR_IID)

@@ -4,8 +4,15 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-GeckoProgram('rdfpoll', linkage='dependent')
+Program('rdfpoll')
 
 SOURCES += [
     'rdfpoll.cpp',
+]
+
+USE_LIBS += [
+    'mozalloc',
+    'nspr',
+    'xpcomglue_s',
+    'xul',
 ]

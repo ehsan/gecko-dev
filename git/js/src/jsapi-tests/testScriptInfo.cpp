@@ -5,8 +5,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsapi.h"
-
+#include "js/OldDebugAPI.h"
 #include "jsapi-tests/tests.h"
 
 const char code[] =
@@ -35,6 +34,9 @@ BEGIN_TEST(testScriptInfo)
 
     CHECK_EQUAL(JS_GetScriptBaseLineNumber(cx, script), startLine);
     CHECK(strcmp(JS_GetScriptFilename(script), __FILE__) == 0);
+    const char16_t *sourceMap = JS_GetScriptSourceMap(cx, script);
+    CHECK(sourceMap);
+    CHECK(CharsMatch(sourceMap, "http://example.com/path/to/source-map.json"));
 
     return true;
 }

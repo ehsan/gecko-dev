@@ -21,6 +21,7 @@
 
 #include "jsapi.h"
 #include "jsfriendapi.h"
+#include "js/OldDebugAPI.h"
 #include "nsJSPrincipals.h"
 #include "xpcprivate.h" // For xpc::OptionsBase
 #include "jswrapper.h"
@@ -29,7 +30,6 @@
 #include "mozilla/scache/StartupCacheUtils.h"
 #include "mozilla/unused.h"
 #include "nsContentUtils.h"
-#include "nsStringGlue.h"
 
 using namespace mozilla::scache;
 using namespace JS;
@@ -91,39 +91,6 @@ ReportError(JSContext *cx, const char *msg)
     return NS_OK;
 }
 
-static nsresult
-ReportError(JSContext *cx, const char *origMsg, nsIURI* uri)
-{
-    if (!uri)
-        return ReportError(cx, origMsg);
-
-    nsAutoCString spec;
-    nsresult rv = uri->GetSpec(spec);
-    if (NS_FAILED(rv))
-        spec.Assign("(unknown)");
-
-    nsAutoCString msg(origMsg);
-    msg.Append(": ");
-    msg.Append(spec);
-    return ReportError(cx, msg.get());
-}
-
-// There probably aren't actually any consumers that rely on having the full
-// scope chain up the parent chain of "obj" (instead of just having obj and then
-// the global), but we do this for now to preserve backwards compat.
-static bool
-BuildScopeChainForObject(JSContext *cx, HandleObject obj,
-                         AutoObjectVector &scopeChain)
-{
-    RootedObject cur(cx, obj);
-    for ( ; cur && !JS_IsGlobalObject(cur); cur = JS_GetParent(cur)) {
-        if (!scopeChain.append(cur)) {
-            return false;
-        }
-    }
-    return true;
-}
-
 nsresult
 mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *targetObjArg,
                                  const nsAString &charset, const char *uriStr,
@@ -146,6 +113,7 @@ mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *targetObj
                        nsContentUtils::GetSystemPrincipal(),
                        nsILoadInfo::SEC_NORMAL,
                        nsIContentPolicy::TYPE_OTHER,
+                       nullptr,  // aChannelPolicy
                        nullptr,  // aLoadGroup
                        nullptr,  // aCallbacks
                        nsIRequest::LOAD_NORMAL,
@@ -157,18 +125,18 @@ mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *targetObj
     }
 
     if (NS_FAILED(rv)) {
-        return ReportError(cx, LOAD_ERROR_NOSTREAM, uri);
+        return ReportError(cx, LOAD_ERROR_NOSTREAM);
     }
 
     int64_t len = -1;
 
     rv = chan->GetContentLength(&len);
     if (NS_FAILED(rv) || len == -1) {
-        return ReportError(cx, LOAD_ERROR_NOCONTENT, uri);
+        return ReportError(cx, LOAD_ERROR_NOCONTENT);
     }
 
     if (len > INT32_MAX) {
-        return ReportError(cx, LOAD_ERROR_CONTENTTOOBIG, uri);
+        return ReportError(cx, LOAD_ERROR_CONTENTTOOBIG);
     }
 
     nsCString buf;
@@ -189,19 +157,16 @@ mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *targetObj
                                       JS::SourceBufferHolder::GiveOwnership);
 
         if (NS_FAILED(rv)) {
-            return ReportError(cx, LOAD_ERROR_BADCHARSET, uri);
+            return ReportError(cx, LOAD_ERROR_BADCHARSET);
         }
 
         if (!reuseGlobal) {
             JS::Compile(cx, target_obj, options, srcBuf, script);
         } else {
-            AutoObjectVector scopeChain(cx);
-            if (!BuildScopeChainForObject(cx, target_obj, scopeChain)) {
-                return NS_ERROR_OUT_OF_MEMORY;
-            }
-            // XXXbz do we really not care if the compile fails???
-            JS::CompileFunction(cx, scopeChain, options, nullptr, 0, nullptr,
-                                srcBuf, function);
+            JS::CompileFunction(cx, target_obj, options,
+                                nullptr, 0, nullptr,
+                                srcBuf,
+                                function);
         }
     } else {
         // We only use lazy source when no special encoding is specified because
@@ -210,13 +175,9 @@ mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *targetObj
             options.setSourceIsLazy(true);
             JS::Compile(cx, target_obj, options, buf.get(), len, script);
         } else {
-            AutoObjectVector scopeChain(cx);
-            if (!BuildScopeChainForObject(cx, target_obj, scopeChain)) {
-                return NS_ERROR_OUT_OF_MEMORY;
-            }
-            // XXXbz do we really not care if the compile fails???
-            JS::CompileFunction(cx, scopeChain, options, nullptr, 0, nullptr,
-                                buf.get(), len, function);
+            JS::CompileFunction(cx, target_obj, options,
+                                nullptr, 0, nullptr, buf.get(),
+                                len, function);
         }
     }
 
@@ -343,7 +304,7 @@ mozJSSubScriptLoader::DoLoadSubScriptWithOptions(const nsAString &url,
 
     rv = uri->GetScheme(scheme);
     if (NS_FAILED(rv)) {
-        return ReportError(cx, LOAD_ERROR_NOSCHEME, uri);
+        return ReportError(cx, LOAD_ERROR_NOSCHEME);
     }
 
     if (!scheme.EqualsLiteral("chrome")) {
@@ -351,7 +312,7 @@ mozJSSubScriptLoader::DoLoadSubScriptWithOptions(const nsAString &url,
         nsCOMPtr<nsIURI> innerURI = NS_GetInnermostURI(uri);
         nsCOMPtr<nsIFileURL> fileURL = do_QueryInterface(innerURI);
         if (!fileURL) {
-            return ReportError(cx, LOAD_ERROR_URI_NOT_LOCAL, uri);
+            return ReportError(cx, LOAD_ERROR_URI_NOT_LOCAL);
         }
 
         // For file URIs prepend the filename with the filename of the
@@ -392,7 +353,7 @@ mozJSSubScriptLoader::DoLoadSubScriptWithOptions(const nsAString &url,
         ok = JS_CallFunction(cx, targetObj, function, JS::HandleValueArray::empty(),
                              retval);
     } else {
-        ok = JS_ExecuteScript(cx, targetObj, script, retval);
+        ok = JS_ExecuteScriptVersion(cx, targetObj, script, retval, version);
     }
 
     if (ok) {

@@ -12,6 +12,7 @@
 #include "nsIConsoleService.h"
 #include "nsIDOMDOMException.h"
 #include "nsIDOMEvent.h"
+#include "nsIDOMFile.h"
 #include "nsIDOMMessageEvent.h"
 #include "nsIDocument.h"
 #include "nsIDocShell.h"
@@ -27,11 +28,11 @@
 #include "nsITimer.h"
 #include "nsIURI.h"
 #include "nsIURL.h"
-#include "nsIWorkerDebugger.h"
 #include "nsIXPConnect.h"
 
 #include <algorithm>
 #include "jsfriendapi.h"
+#include "js/OldDebugAPI.h"
 #include "js/MemoryMetrics.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
@@ -39,7 +40,6 @@
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/Likely.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/BlobBinding.h"
 #include "mozilla/dom/ErrorEvent.h"
 #include "mozilla/dom/ErrorEventBinding.h"
 #include "mozilla/dom/Exceptions.h"
@@ -49,7 +49,6 @@
 #include "mozilla/dom/MessageEvent.h"
 #include "mozilla/dom/MessageEventBinding.h"
 #include "mozilla/dom/MessagePortList.h"
-#include "mozilla/dom/Promise.h"
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/dom/StructuredClone.h"
 #include "mozilla/dom/WorkerBinding.h"
@@ -75,6 +74,7 @@
 #include "nsThreadManager.h"
 #endif
 
+#include "File.h"
 #include "MessagePort.h"
 #include "Navigator.h"
 #include "Principal.h"
@@ -82,7 +82,6 @@
 #include "ScriptLoader.h"
 #include "ServiceWorkerManager.h"
 #include "SharedWorker.h"
-#include "WorkerDebuggerManager.h"
 #include "WorkerFeature.h"
 #include "WorkerRunnable.h"
 #include "WorkerScope.h"
@@ -300,11 +299,37 @@ struct WorkerStructuredCloneCallbacks
   {
     JS::Rooted<JSObject*> result(aCx);
 
-    // See if object is a nsIDOMBlob pointer.
-    if (aTag == DOMWORKER_SCTAG_BLOB) {
+    // See if object is a nsIDOMFile pointer.
+    if (aTag == DOMWORKER_SCTAG_FILE) {
       MOZ_ASSERT(!aData);
 
-      FileImpl* blobImpl;
+      DOMFileImpl* fileImpl;
+      if (JS_ReadBytes(aReader, &fileImpl, sizeof(fileImpl))) {
+        MOZ_ASSERT(fileImpl);
+
+#ifdef DEBUG
+        {
+          // File should not be mutable.
+          bool isMutable;
+          NS_ASSERTION(NS_SUCCEEDED(fileImpl->GetMutable(&isMutable)) &&
+                       !isMutable,
+                       "Only immutable file should be passed to worker");
+        }
+#endif
+
+        {
+          // New scope to protect |result| from a moving GC during ~nsRefPtr.
+          nsRefPtr<DOMFile> file = new DOMFile(fileImpl);
+          result = file::CreateFile(aCx, file);
+        }
+        return result;
+      }
+    }
+    // See if object is a nsIDOMBlob pointer.
+    else if (aTag == DOMWORKER_SCTAG_BLOB) {
+      MOZ_ASSERT(!aData);
+
+      DOMFileImpl* blobImpl;
       if (JS_ReadBytes(aReader, &blobImpl, sizeof(blobImpl))) {
         MOZ_ASSERT(blobImpl);
 
@@ -320,13 +345,9 @@ struct WorkerStructuredCloneCallbacks
 
         {
           // New scope to protect |result| from a moving GC during ~nsRefPtr.
-          nsRefPtr<File> blob = new File(nullptr, blobImpl);
-          JS::Rooted<JS::Value> val(aCx);
-          if (WrapNewBindingObject(aCx, blob, &val)) {
-            result = val.toObjectOrNull();
-          }
+          nsRefPtr<DOMFile> blob = new DOMFile(blobImpl);
+          result = file::CreateBlob(aCx, blob);
         }
-
         return result;
       }
     }
@@ -350,11 +371,24 @@ struct WorkerStructuredCloneCallbacks
     nsTArray<nsCOMPtr<nsISupports> >* clonedObjects =
       static_cast<nsTArray<nsCOMPtr<nsISupports> >*>(aClosure);
 
-    // See if this is a Blob/File object.
+    // See if this is a File object.
     {
-      File* blob = nullptr;
-      if (NS_SUCCEEDED(UNWRAP_OBJECT(Blob, aObj, blob))) {
-        FileImpl* blobImpl = blob->Impl();
+      nsIDOMFile* file = file::GetDOMFileFromJSObject(aObj);
+      if (file) {
+        DOMFileImpl* fileImpl = static_cast<DOMFile*>(file)->Impl();
+        if (JS_WriteUint32Pair(aWriter, DOMWORKER_SCTAG_FILE, 0) &&
+            JS_WriteBytes(aWriter, &fileImpl, sizeof(fileImpl))) {
+          clonedObjects->AppendElement(fileImpl);
+          return true;
+        }
+      }
+    }
+
+    // See if this is a Blob object.
+    {
+      nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aObj);
+      if (blob) {
+        DOMFileImpl* blobImpl = static_cast<DOMFile*>(blob)->Impl();
         if (blobImpl && NS_SUCCEEDED(blobImpl->SetMutable(false)) &&
             JS_WriteUint32Pair(aWriter, DOMWORKER_SCTAG_BLOB, 0) &&
             JS_WriteBytes(aWriter, &blobImpl, sizeof(blobImpl))) {
@@ -400,11 +434,45 @@ struct MainThreadWorkerStructuredCloneCallbacks
   {
     AssertIsOnMainThread();
 
-    // See if object is a Blob/File pointer.
-    if (aTag == DOMWORKER_SCTAG_BLOB) {
+    // See if object is a nsIDOMFile pointer.
+    if (aTag == DOMWORKER_SCTAG_FILE) {
       MOZ_ASSERT(!aData);
 
-      FileImpl* blobImpl;
+      DOMFileImpl* fileImpl;
+      if (JS_ReadBytes(aReader, &fileImpl, sizeof(fileImpl))) {
+        MOZ_ASSERT(fileImpl);
+
+#ifdef DEBUG
+        {
+          // File should not be mutable.
+          bool isMutable;
+          NS_ASSERTION(NS_SUCCEEDED(fileImpl->GetMutable(&isMutable)) &&
+                       !isMutable,
+                       "Only immutable file should be passed to worker");
+        }
+#endif
+
+        nsCOMPtr<nsIDOMFile> file = new DOMFile(fileImpl);
+
+        // nsIDOMFiles should be threadsafe, thus we will use the same instance
+        // on the main thread.
+        JS::Rooted<JS::Value> wrappedFile(aCx);
+        nsresult rv = nsContentUtils::WrapNative(aCx, file,
+                                                 &NS_GET_IID(nsIDOMFile),
+                                                 &wrappedFile);
+        if (NS_FAILED(rv)) {
+          Error(aCx, nsIDOMDOMException::DATA_CLONE_ERR);
+          return nullptr;
+        }
+
+        return &wrappedFile.toObject();
+      }
+    }
+    // See if object is a nsIDOMBlob pointer.
+    else if (aTag == DOMWORKER_SCTAG_BLOB) {
+      MOZ_ASSERT(!aData);
+
+      DOMFileImpl* blobImpl;
       if (JS_ReadBytes(aReader, &blobImpl, sizeof(blobImpl))) {
         MOZ_ASSERT(blobImpl);
 
@@ -418,20 +486,20 @@ struct MainThreadWorkerStructuredCloneCallbacks
         }
 #endif
 
-        // nsRefPtr<File> needs to go out of scope before toObjectOrNull() is
-        // called because the static analysis thinks dereferencing XPCOM objects
-        // can GC (because in some cases it can!), and a return statement with a
-        // JSObject* type means that JSObject* is on the stack as a raw pointer
-        // while destructors are running.
-        JS::Rooted<JS::Value> val(aCx);
-        {
-          nsRefPtr<File> blob = new File(nullptr, blobImpl);
-          if (!WrapNewBindingObject(aCx, blob, &val)) {
-            return nullptr;
-          }
+        nsCOMPtr<nsIDOMBlob> blob = new DOMFile(blobImpl);
+
+        // nsIDOMBlobs should be threadsafe, thus we will use the same instance
+        // on the main thread.
+        JS::Rooted<JS::Value> wrappedBlob(aCx);
+        nsresult rv = nsContentUtils::WrapNative(aCx, blob,
+                                                 &NS_GET_IID(nsIDOMBlob),
+                                                 &wrappedBlob);
+        if (NS_FAILED(rv)) {
+          Error(aCx, nsIDOMDOMException::DATA_CLONE_ERR);
+          return nullptr;
         }
 
-        return &val.toObject();
+        return &wrappedBlob.toObject();
       }
     }
 
@@ -451,18 +519,53 @@ struct MainThreadWorkerStructuredCloneCallbacks
     nsTArray<nsCOMPtr<nsISupports> >* clonedObjects =
       static_cast<nsTArray<nsCOMPtr<nsISupports> >*>(aClosure);
 
-    // See if this is a Blob/File object.
-    {
-      File* blob = nullptr;
-      if (NS_SUCCEEDED(UNWRAP_OBJECT(Blob, aObj, blob))) {
-        FileImpl* blobImpl = blob->Impl();
+    // See if this is a wrapped native.
+    nsCOMPtr<nsIXPConnectWrappedNative> wrappedNative;
+    nsContentUtils::XPConnect()->
+      GetWrappedNativeOfJSObject(aCx, aObj, getter_AddRefs(wrappedNative));
+
+    if (wrappedNative) {
+      // Get the raw nsISupports out of it.
+      nsISupports* wrappedObject = wrappedNative->Native();
+      NS_ASSERTION(wrappedObject, "Null pointer?!");
+
+      // See if the wrapped native is a nsIDOMFile.
+      nsCOMPtr<nsIDOMFile> file = do_QueryInterface(wrappedObject);
+      if (file) {
+        nsRefPtr<DOMFileImpl> fileImpl =
+          static_cast<DOMFile*>(file.get())->Impl();
+
+        if (fileImpl->IsCCed()) {
+          NS_WARNING("Cycle collected file objects are not supported!");
+        } else {
+          if (NS_SUCCEEDED(fileImpl->SetMutable(false))) {
+            DOMFileImpl* fileImplPtr = fileImpl;
+            if (JS_WriteUint32Pair(aWriter, DOMWORKER_SCTAG_FILE, 0) &&
+                JS_WriteBytes(aWriter, &fileImplPtr, sizeof(fileImplPtr))) {
+              clonedObjects->AppendElement(fileImpl);
+              return true;
+            }
+          }
+        }
+      }
+
+      // See if the wrapped native is a nsIDOMBlob.
+      nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(wrappedObject);
+      if (blob) {
+        nsRefPtr<DOMFileImpl> blobImpl =
+          static_cast<DOMFile*>(blob.get())->Impl();
+
         if (blobImpl->IsCCed()) {
           NS_WARNING("Cycle collected blob objects are not supported!");
-        } else if (NS_SUCCEEDED(blobImpl->SetMutable(false)) &&
-                   JS_WriteUint32Pair(aWriter, DOMWORKER_SCTAG_BLOB, 0) &&
-                   JS_WriteBytes(aWriter, &blobImpl, sizeof(blobImpl))) {
-          clonedObjects->AppendElement(blobImpl);
-          return true;
+        } else {
+          if (NS_SUCCEEDED(blobImpl->SetMutable(false))) {
+            DOMFileImpl* blobImplPtr = blobImpl;
+            if (JS_WriteUint32Pair(aWriter, DOMWORKER_SCTAG_BLOB, 0) &&
+                JS_WriteBytes(aWriter, &blobImplPtr, sizeof(blobImplPtr))) {
+              clonedObjects->AppendElement(blobImpl);
+              return true;
+            }
+          }
         }
       }
     }
@@ -659,8 +762,6 @@ private:
     RuntimeService* runtime = RuntimeService::GetService();
     NS_ASSERTION(runtime, "This should never be null!");
 
-    mFinishedWorker->DisableDebugger();
-
     runtime->UnregisterWorker(aCx, mFinishedWorker);
 
     mFinishedWorker->ClearSelfRef();
@@ -694,8 +795,6 @@ private:
 
     AutoSafeJSContext cx;
     JSAutoRequest ar(cx);
-
-    mFinishedWorker->DisableDebugger();
 
     runtime->UnregisterWorker(cx, mFinishedWorker);
 
@@ -2036,6 +2135,8 @@ WorkerPrivateParent<Derived>::WorkerPrivateParent(
   mWorkerType(aWorkerType),
   mCreationTimeStamp(TimeStamp::Now())
 {
+  SetIsDOMBinding();
+
   MOZ_ASSERT_IF(!IsDedicatedWorker(),
                 !aSharedWorkerName.IsVoid() && NS_IsMainThread());
   MOZ_ASSERT_IF(IsDedicatedWorker(), aSharedWorkerName.IsEmpty());
@@ -2147,40 +2248,6 @@ WorkerPrivateParent<Derived>::DispatchPrivate(WorkerRunnable* aRunnable,
   }
 
   return NS_OK;
-}
-
-template <class Derived>
-void
-WorkerPrivateParent<Derived>::EnableDebugger()
-{
-  AssertIsOnParentThread();
-
-  WorkerPrivate* self = ParentAsWorkerPrivate();
-
-  MOZ_ASSERT(!self->mDebugger);
-  self->mDebugger = new WorkerDebugger(self);
-
-  if (NS_FAILED(RegisterWorkerDebugger(self->mDebugger))) {
-    NS_WARNING("Failed to register worker debugger!");
-    self->mDebugger = nullptr;
-  }
-}
-
-template <class Derived>
-void
-WorkerPrivateParent<Derived>::DisableDebugger()
-{
-  AssertIsOnParentThread();
-
-  WorkerPrivate* self = ParentAsWorkerPrivate();
-
-  if (!self->mDebugger) {
-    return;
-  }
-
-  if (NS_FAILED(UnregisterWorkerDebugger(self->mDebugger))) {
-    NS_WARNING("Failed to unregister worker debugger!");
-  }
 }
 
 template <class Derived>
@@ -2418,6 +2485,8 @@ WorkerPrivateParent<Derived>::Suspend(JSContext* aCx, nsPIDOMWindow* aWindow)
     }
   }
 
+//  MOZ_ASSERT(!mParentSuspended, "Suspended more than once!");
+
   mParentSuspended = true;
 
   {
@@ -2549,13 +2618,7 @@ WorkerPrivateParent<Derived>::SynchronizeAndResume(
 {
   AssertIsOnMainThread();
   MOZ_ASSERT(!GetParent());
-
-  if (IsDedicatedWorker() && !mParentSuspended) {
-    // If we are in here, it means that this worker has been created when the
-    // parent was actually suspended (maybe during a sync XHR), and in this case
-    // don't need to dispatch a SynchronizeAndResumeRunnable.
-    return true;
-  }
+  MOZ_ASSERT_IF(IsDedicatedWorker(), mParentSuspended);
 
   // NB: There may be pending unqueued messages.  If we resume here we will
   // execute those messages out of order.  Instead we post an event to the
@@ -2966,11 +3029,6 @@ void
 WorkerPrivate::OfflineStatusChangeEventInternal(JSContext* aCx, bool aIsOffline)
 {
   AssertIsOnWorkerThread();
-
-  // The worker is already in this state. No need to dispatch an event.
-  if (mOnLine == !aIsOffline) {
-    return;
-  }
 
   for (uint32_t index = 0; index < mChildWorkers.Length(); ++index) {
     mChildWorkers[index]->OfflineStatusChangeEvent(aCx, aIsOffline);
@@ -3493,220 +3551,6 @@ WorkerPrivateParent<Derived>::AssertInnerWindowIsCorrect() const
 }
 
 #endif
-
-WorkerDebugger::WorkerDebugger(WorkerPrivate* aWorkerPrivate)
-: mMutex("WorkerDebugger::mMutex"),
-  mCondVar(mMutex, "WorkerDebugger::mCondVar"),
-  mWorkerPrivate(aWorkerPrivate),
-  mIsEnabled(false)
-{
-  mWorkerPrivate->AssertIsOnParentThread();
-}
-
-WorkerDebugger::~WorkerDebugger()
-{
-  MOZ_ASSERT(!mWorkerPrivate);
-  MOZ_ASSERT(!mIsEnabled);
-
-  if (!NS_IsMainThread()) {
-    nsCOMPtr<nsIThread> mainThread;
-    if (NS_FAILED(NS_GetMainThread(getter_AddRefs(mainThread)))) {
-      NS_WARNING("Failed to proxy release of listeners, leaking instead!");
-    }
-
-    for (size_t index = 0; index < mListeners.Length(); ++index) {
-      nsIWorkerDebuggerListener* listener = nullptr;
-      mListeners[index].forget(&listener);
-      if (NS_FAILED(NS_ProxyRelease(mainThread, listener))) {
-        NS_WARNING("Failed to proxy release of listener, leaking instead!");
-      }
-    }
-  }
-}
-
-NS_IMPL_ISUPPORTS(WorkerDebugger, nsIWorkerDebugger)
-
-NS_IMETHODIMP
-WorkerDebugger::GetIsClosed(bool* aResult)
-{
-  AssertIsOnMainThread();
-
-  MutexAutoLock lock(mMutex);
-
-  *aResult = !mWorkerPrivate;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-WorkerDebugger::GetIsChrome(bool* aResult)
-{
-  AssertIsOnMainThread();
-
-  MutexAutoLock lock(mMutex);
-
-  if (!mWorkerPrivate) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
-  *aResult = mWorkerPrivate->IsChromeWorker();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-WorkerDebugger::GetParent(nsIWorkerDebugger** aResult)
-{
-  AssertIsOnMainThread();
-
-  MutexAutoLock lock(mMutex);
-
-  if (!mWorkerPrivate) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
-  WorkerPrivate* parent = mWorkerPrivate->GetParent();
-  if (!parent) {
-    *aResult = nullptr;
-    return NS_OK;
-  }
-
-  MOZ_ASSERT(mWorkerPrivate->IsDedicatedWorker());
-
-  nsCOMPtr<nsIWorkerDebugger> debugger = parent->Debugger();
-  debugger.forget(aResult);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-WorkerDebugger::GetType(uint32_t* aResult)
-{
-  AssertIsOnMainThread();
-
-  MutexAutoLock lock(mMutex);
-
-  if (!mWorkerPrivate) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
-  *aResult = mWorkerPrivate->Type();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-WorkerDebugger::GetUrl(nsAString& aResult)
-{
-  AssertIsOnMainThread();
-
-  MutexAutoLock lock(mMutex);
-
-  if (!mWorkerPrivate) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
-  aResult = mWorkerPrivate->ScriptURL();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-WorkerDebugger::GetWindow(nsIDOMWindow** aResult)
-{
-  AssertIsOnMainThread();
-
-  MutexAutoLock lock(mMutex);
-
-  if (!mWorkerPrivate) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
-  if (mWorkerPrivate->GetParent() || !mWorkerPrivate->IsDedicatedWorker()) {
-    *aResult = nullptr;
-    return NS_OK;
-  }
-
-  nsCOMPtr<nsPIDOMWindow> window = mWorkerPrivate->GetWindow();
-  window.forget(aResult);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-WorkerDebugger::AddListener(nsIWorkerDebuggerListener* aListener)
-{
-  AssertIsOnMainThread();
-
-  if (mListeners.Contains(aListener)) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  mListeners.AppendElement(aListener);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-WorkerDebugger::RemoveListener(nsIWorkerDebuggerListener* aListener)
-{
-  AssertIsOnMainThread();
-
-  if (!mListeners.Contains(aListener)) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  mListeners.RemoveElement(aListener);
-  return NS_OK;
-}
-
-void
-WorkerDebugger::WaitIsEnabled(bool aIsEnabled)
-{
-  MutexAutoLock lock(mMutex);
-
-  while (mIsEnabled != aIsEnabled) {
-    mCondVar.Wait();
-  }
-}
-
-void
-WorkerDebugger::NotifyIsEnabled(bool aIsEnabled)
-{
-  mMutex.AssertCurrentThreadOwns();
-
-  MOZ_ASSERT(mIsEnabled != aIsEnabled);
-  mIsEnabled = aIsEnabled;
-  mCondVar.Notify();
-}
-
-void
-WorkerDebugger::Enable()
-{
-  AssertIsOnMainThread();
-
-  MutexAutoLock lock(mMutex);
-
-  MOZ_ASSERT(mWorkerPrivate);
-
-  NotifyIsEnabled(true);
-}
-
-void
-WorkerDebugger::Disable()
-{
-  AssertIsOnMainThread();
-
-  MutexAutoLock lock(mMutex);
-
-  MOZ_ASSERT(mWorkerPrivate);
-  mWorkerPrivate = nullptr;
-
-  {
-    MutexAutoUnlock unlock(mMutex);
-
-    nsTArray<nsCOMPtr<nsIWorkerDebuggerListener>> listeners(mListeners);
-    for (size_t index = 0; index < listeners.Length(); ++index) {
-      listeners[index]->OnClose();
-    }
-  }
-
-  NotifyIsEnabled(false);
-}
-
 WorkerPrivate::WorkerPrivate(JSContext* aCx,
                              WorkerPrivate* aParent,
                              const nsAString& aScriptURL,
@@ -3738,7 +3582,7 @@ WorkerPrivate::WorkerPrivate(JSContext* aCx,
   else {
     AssertIsOnMainThread();
     RuntimeService::GetDefaultPreferences(mPreferences);
-    mOnLine = !NS_IsOffline() && !NS_IsAppOffline(aLoadInfo.mPrincipal);
+    mOnLine = !NS_IsOffline();
   }
 }
 
@@ -3879,8 +3723,6 @@ WorkerPrivate::Constructor(JSContext* aCx,
     aRv.Throw(NS_ERROR_UNEXPECTED);
     return nullptr;
   }
-
-  worker->EnableDebugger();
 
   nsRefPtr<CompileScriptRunnable> compiler = new CompileScriptRunnable(worker);
   if (!compiler->Dispatch(aCx)) {
@@ -4240,10 +4082,6 @@ WorkerPrivate::DoRunLoop(JSContext* aCx)
 
     // Process a single runnable from the main queue.
     MOZ_ALWAYS_TRUE(NS_ProcessNextEvent(mThread, false));
-
-    // Only perform the Promise microtask checkpoint on the outermost event
-    // loop.  Don't run it, for example, during sync XHR or importScripts.
-    (void)Promise::PerformMicroTaskCheckpoint();
 
     if (NS_HasPendingEvents(mThread)) {
       // Now *might* be a good time to GC. Let the JS engine make the decision.

@@ -10,7 +10,7 @@
 #include "sandbox/win/src/sandbox_nt_util.h"
 #include "sandbox/win/src/sharedmem_ipc_client.h"
 #include "sandbox/win/src/target_services.h"
-#ifdef MOZ_CONTENT_SANDBOX
+#ifdef MOZ_CONTENT_SANDBOX // For upstream merging, use patch in bug 1018966 to reapply warn only sandbox code
 #include "mozilla/warnonlysandbox/warnOnlySandbox.h"
 #endif
 
@@ -29,11 +29,9 @@ NTSTATUS WINAPI TargetNtCreateKey(NtCreateKeyFunction orig_CreateKey,
     return status;
 
 #ifdef MOZ_CONTENT_SANDBOX
-  if (STATUS_OBJECT_NAME_NOT_FOUND != status) {
-    mozilla::warnonlysandbox::LogBlocked("NtCreateKey",
-                                         object_attributes->ObjectName->Buffer,
-                                         object_attributes->ObjectName->Length);
-  }
+  mozilla::warnonlysandbox::LogBlocked("NtCreateKey",
+                                       object_attributes->ObjectName->Buffer,
+                                       object_attributes->ObjectName->Length);
 #endif
 
   // We don't trust that the IPC can work this early.
@@ -175,11 +173,9 @@ NTSTATUS WINAPI TargetNtOpenKey(NtOpenKeyFunction orig_OpenKey, PHANDLE key,
     return status;
 
 #ifdef MOZ_CONTENT_SANDBOX
-  if (STATUS_OBJECT_NAME_NOT_FOUND != status) {
-    mozilla::warnonlysandbox::LogBlocked("NtOpenKey",
-                                         object_attributes->ObjectName->Buffer,
-                                         object_attributes->ObjectName->Length);
-  }
+  mozilla::warnonlysandbox::LogBlocked("NtOpenKey",
+                                       object_attributes->ObjectName->Buffer,
+                                       object_attributes->ObjectName->Length);
 #endif
 
   return CommonNtOpenKey(status, key, desired_access, object_attributes);
@@ -200,11 +196,9 @@ NTSTATUS WINAPI TargetNtOpenKeyEx(NtOpenKeyExFunction orig_OpenKeyEx,
     return status;
 
 #ifdef MOZ_CONTENT_SANDBOX
-  if (STATUS_OBJECT_NAME_NOT_FOUND != status) {
-    mozilla::warnonlysandbox::LogBlocked("NtOpenKeyEx",
-                                         object_attributes->ObjectName->Buffer,
-                                         object_attributes->ObjectName->Length);
-  }
+  mozilla::warnonlysandbox::LogBlocked("NtOpenKeyEx",
+                                       object_attributes->ObjectName->Buffer,
+                                       object_attributes->ObjectName->Length);
 #endif
 
   return CommonNtOpenKey(status, key, desired_access, object_attributes);

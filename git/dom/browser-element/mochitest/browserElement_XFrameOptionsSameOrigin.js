@@ -13,7 +13,7 @@ browserElementTestHelpers.addPermission();
 
 function runTest() {
   var iframe = document.createElement('iframe');
-  iframe.setAttribute('mozbrowser', 'true');
+  SpecialPowers.wrap(iframe).mozbrowser = true;
 
   // The innermost page we load will fire an alert when it successfully loads.
   iframe.addEventListener('mozbrowsershowmodalprompt', function(e) {

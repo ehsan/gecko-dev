@@ -16,8 +16,6 @@ class nsTreeBodyFrame;
 namespace mozilla {
 namespace a11y {
 
-class XULTreeGridCellAccessible;
-
 /*
  * A class the represents the XUL Tree widget.
  */
@@ -31,6 +29,8 @@ const uint32_t kDefaultTreeCacheLength = 128;
 class XULTreeAccessible : public AccessibleWrap
 {
 public:
+  using Accessible::GetChildAt;
+
   XULTreeAccessible(nsIContent* aContent, DocAccessible* aDoc,
                     nsTreeBodyFrame* aTreeframe);
 
@@ -51,7 +51,7 @@ public:
   virtual Relation RelationByType(RelationType aType) MOZ_OVERRIDE;
 
   // SelectAccessible
-  virtual void SelectedItems(nsTArray<Accessible*>* aItems) MOZ_OVERRIDE;
+  virtual already_AddRefed<nsIArray> SelectedItems();
   virtual uint32_t SelectedItemCount();
   virtual Accessible* GetSelectedItem(uint32_t aIndex);
   virtual bool IsItemSelected(uint32_t aIndex);
@@ -135,6 +135,8 @@ protected:
 class XULTreeItemAccessibleBase : public AccessibleWrap
 {
 public:
+  using Accessible::GetParent;
+
   XULTreeItemAccessibleBase(nsIContent* aContent, DocAccessible* aDoc,
                             Accessible* aParent, nsITreeBoxObject* aTree,
                             nsITreeView* aTreeView, int32_t aRow);
@@ -176,7 +178,7 @@ public:
    * Return cell accessible for the given column. If XUL tree accessible is not
    * accessible table then return null.
    */
-  virtual XULTreeGridCellAccessible* GetCellAccessible(nsITreeColumn* aColumn) const
+  virtual Accessible* GetCellAccessible(nsITreeColumn* aColumn) const
     { return nullptr; }
 
   /**

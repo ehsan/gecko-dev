@@ -85,12 +85,10 @@ class BookmarksListAdapter extends MultiTypeCursorAdapter {
         }
 
         public static final Creator<FolderInfo> CREATOR = new Creator<FolderInfo>() {
-            @Override
             public FolderInfo createFromParcel(Parcel in) {
                 return new FolderInfo(in);
             }
 
-            @Override
             public FolderInfo[] newArray(int size) {
                 return new FolderInfo[size];
             }
@@ -106,7 +104,7 @@ class BookmarksListAdapter extends MultiTypeCursorAdapter {
 
     // mParentStack holds folder info instances (id + title) that allow
     // us to navigate back up the folder hierarchy.
-    private final LinkedList<FolderInfo> mParentStack;
+    private LinkedList<FolderInfo> mParentStack;
 
     // Refresh folder listener.
     private OnRefreshFolderListener mListener;

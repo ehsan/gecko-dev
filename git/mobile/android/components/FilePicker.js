@@ -10,8 +10,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 
-Cu.importGlobalProperties(['File']);
-
 function FilePicker() {
 }
 
@@ -145,25 +143,12 @@ FilePicker.prototype = {
     if (!f) {
         return null;
     }
-
-    let win = this._domWin;
-    if (win) {
-      let utils = win.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-      return utils.wrapDOMFile(f);
-    }
-
-    return new File(f);
+    return File(f);
   },
 
   get domfiles() {
-    let win = this._domWin;
     return this.getEnumerator([this.file], function(file) {
-      if (win) {
-        let utils = win.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-        return utils.wrapDOMFile(file);
-      }
-
-      return new File(file);
+      return File(file);
     });
   },
 
@@ -214,6 +199,7 @@ FilePicker.prototype = {
   _sendMessage: function() {
     let msg = {
       type: "FilePicker:Show",
+      guid: this.guid,
       guid: this.guid,
       title: this._title,
     };

@@ -140,7 +140,7 @@ ifdef REAL_LIBRARY
 ifdef FORCE_SHARED_LIB
 # ... except when we really want one
 ifdef NO_EXPAND_LIBS
-LIBRARY			:= $(REAL_LIBRARY)
+LIBRARY			:= $(REAL_LIBRARY) $(REAL_LIBRARY).$(LIBS_DESC_SUFFIX)
 else
 LIBRARY			:= $(REAL_LIBRARY).$(LIBS_DESC_SUFFIX)
 endif
@@ -149,11 +149,7 @@ else
 ifeq (,$(SDK_LIBRARY)$(DIST_INSTALL)$(NO_EXPAND_LIBS))
 LIBRARY			:= $(REAL_LIBRARY).$(LIBS_DESC_SUFFIX)
 else
-ifdef NO_EXPAND_LIBS
-LIBRARY			:= $(REAL_LIBRARY)
-else
 LIBRARY			:= $(REAL_LIBRARY) $(REAL_LIBRARY).$(LIBS_DESC_SUFFIX)
-endif
 endif
 endif
 endif # REAL_LIBRARY
@@ -479,6 +475,12 @@ ifeq ($(OS_ARCH),GNU)
 OS_CPPFLAGS += -DPATH_MAX=1024 -DMAXPATHLEN=1024
 endif
 
+ifeq ($(OS_ARCH),WINNT)
+ifdef USE_DELAYIMP
+OS_LIBS += $(call EXPAND_LIBNAME,delayimp)
+endif
+endif
+
 #
 # MINGW32
 #
@@ -542,7 +544,12 @@ endif
 # of something else. Makefiles which use this var *must* provide a sensible
 # default rule before including rules.mk
 default all::
-	$(foreach tier,$(TIERS),$(call SUBMAKE,$(tier)))
+	$(MAKE) export
+ifdef COMPILE_ENVIRONMENT
+	$(MAKE) compile
+endif
+	$(MAKE) libs
+	$(MAKE) tools
 
 ifeq ($(findstring s,$(filter-out --%, $(MAKEFLAGS))),)
 ECHO := echo
@@ -561,7 +568,7 @@ STATIC_LIB_DEP = $(if $(wildcard $(1).$(LIBS_DESC_SUFFIX)),$(1).$(LIBS_DESC_SUFF
 STATIC_LIBS_DEPS := $(foreach l,$(STATIC_LIBS),$(call STATIC_LIB_DEP,$(l)))
 
 # Dependencies which, if modified, should cause everything to rebuild
-GLOBAL_DEPS += Makefile $(addprefix $(DEPTH)/config/,$(INCLUDED_AUTOCONF_MK)) $(topsrcdir)/config/config.mk
+GLOBAL_DEPS += Makefile $(DEPTH)/config/autoconf.mk $(topsrcdir)/config/config.mk
 
 ##############################################
 ifdef COMPILE_ENVIRONMENT
@@ -630,6 +637,8 @@ endif
 
 endif # NO_PROFILE_GUIDED_OPTIMIZE
 
+MOZ_PROGRAM_LDFLAGS += $(MOZ_GLUE_PROGRAM_LDFLAGS)
+
 ##############################################
 
 checkout:
@@ -639,8 +648,15 @@ clean clobber realclean clobber_all::
 	-$(RM) $(ALL_TRASH)
 	-$(RM) -r $(ALL_TRASH_DIRS)
 
+ifdef TIERS
+clean clobber realclean clobber_all distclean::
+	$(foreach dir, \
+		$(foreach tier, $(TIERS), $(tier_$(tier)_dirs)), \
+		-$(call SUBMAKE,$@,$(dir)))
+else
 clean clobber realclean clobber_all distclean::
 	$(foreach dir,$(DIRS),-$(call SUBMAKE,$@,$(dir)))
+endif
 
 distclean::
 	-$(RM) -r $(ALL_TRASH_DIRS)
@@ -683,7 +699,7 @@ ifdef MOZ_PROFILE_GENERATE
 	touch -t `date +%Y%m%d%H%M.%S -d 'now+5seconds'` pgo.relink
 endif
 else # !WINNT || GNU_CC
-	$(EXPAND_CCC) -o $@ $(CXXFLAGS) $(PROGOBJS) $(RESFILE) $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(WRAP_LDFLAGS) $(STATIC_LIBS) $(MOZ_PROGRAM_LDFLAGS) $(SHARED_LIBS) $(EXTRA_LIBS) $(OS_LIBS) $(BIN_FLAGS) $(EXE_DEF_FILE)
+	$(EXPAND_CCC) -o $@ $(CXXFLAGS) $(PROGOBJS) $(RESFILE) $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(WRAP_LDFLAGS) $(STATIC_LIBS) $(MOZ_PROGRAM_LDFLAGS) $(SHARED_LIBS) $(EXTRA_LIBS) $(OS_LIBS) $(BIN_FLAGS) $(EXE_DEF_FILE) $(STLPORT_LIBS)
 	$(call CHECK_BINARY,$@)
 endif # WINNT && !GNU_CC
 
@@ -739,7 +755,7 @@ ifdef MSMANIFEST_TOOL
 	fi
 endif	# MSVC with manifest tool
 else
-	$(EXPAND_CCC) $(CXXFLAGS) -o $@ $< $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(WRAP_LDFLAGS) $(STATIC_LIBS) $(MOZ_PROGRAM_LDFLAGS) $(SHARED_LIBS) $(EXTRA_LIBS) $(OS_LIBS) $(BIN_FLAGS)
+	$(EXPAND_CCC) $(CXXFLAGS) -o $@ $< $(WIN32_EXE_LDFLAGS) $(LDFLAGS) $(WRAP_LDFLAGS) $(STATIC_LIBS) $(MOZ_PROGRAM_LDFLAGS) $(SHARED_LIBS) $(EXTRA_LIBS) $(OS_LIBS) $(BIN_FLAGS) $(STLPORT_LIBS)
 	$(call CHECK_BINARY,$@)
 endif # WINNT && !GNU_CC
 
@@ -769,8 +785,7 @@ endif
 
 $(filter %.$(LIB_SUFFIX),$(LIBRARY)): $(OBJS) $(STATIC_LIBS_DEPS) $(filter %.$(LIB_SUFFIX),$(EXTRA_LIBS)) $(EXTRA_DEPS) $(GLOBAL_DEPS)
 	$(REPORT_BUILD)
-# Always remove both library and library descriptor
-	$(RM) $(REAL_LIBRARY) $(REAL_LIBRARY).$(LIBS_DESC_SUFFIX)
+	$(RM) $(LIBRARY)
 	$(EXPAND_AR) $(AR_FLAGS) $(OBJS) $(STATIC_LIBS) $(filter %.$(LIB_SUFFIX),$(EXTRA_LIBS))
 
 $(filter-out %.$(LIB_SUFFIX),$(LIBRARY)): $(filter %.$(LIB_SUFFIX),$(LIBRARY)) $(OBJS) $(STATIC_LIBS_DEPS) $(filter %.$(LIB_SUFFIX),$(EXTRA_LIBS)) $(EXTRA_DEPS) $(GLOBAL_DEPS)
@@ -801,7 +816,7 @@ ifdef DTRACE_PROBE_OBJ
 ifndef DTRACE_LIB_DEPENDENT
 NON_DTRACE_OBJS := $(filter-out $(DTRACE_PROBE_OBJ),$(OBJS))
 $(DTRACE_PROBE_OBJ): $(NON_DTRACE_OBJS)
-	dtrace -x nolibs -G -C -s $(MOZILLA_DTRACE_SRC) -o $(DTRACE_PROBE_OBJ) $(NON_DTRACE_OBJS)
+	dtrace -G -C -s $(MOZILLA_DTRACE_SRC) -o $(DTRACE_PROBE_OBJ) $(NON_DTRACE_OBJS)
 endif
 endif
 endif
@@ -819,12 +834,12 @@ ifndef INCREMENTAL_LINKER
 endif
 ifdef DTRACE_LIB_DEPENDENT
 ifndef XP_MACOSX
-	dtrace -x nolibs -G -C -s $(MOZILLA_DTRACE_SRC) -o  $(DTRACE_PROBE_OBJ) $(shell $(EXPAND_LIBS) $(MOZILLA_PROBE_LIBS))
+	dtrace -G -C -s $(MOZILLA_DTRACE_SRC) -o  $(DTRACE_PROBE_OBJ) $(shell $(EXPAND_LIBS) $(MOZILLA_PROBE_LIBS))
 endif
-	$(EXPAND_MKSHLIB) $(SHLIB_LDSTARTFILE) $(OBJS) $(SUB_SHLOBJS) $(DTRACE_PROBE_OBJ) $(MOZILLA_PROBE_LIBS) $(RESFILE) $(LDFLAGS) $(WRAP_LDFLAGS) $(STATIC_LIBS) $(SHARED_LIBS) $(EXTRA_DSO_LDOPTS) $(MOZ_GLUE_LDFLAGS) $(EXTRA_LIBS) $(OS_LIBS) $(SHLIB_LDENDFILE)
+	$(EXPAND_MKSHLIB) $(SHLIB_LDSTARTFILE) $(OBJS) $(SUB_SHLOBJS) $(DTRACE_PROBE_OBJ) $(MOZILLA_PROBE_LIBS) $(RESFILE) $(LDFLAGS) $(WRAP_LDFLAGS) $(STATIC_LIBS) $(SHARED_LIBS) $(EXTRA_DSO_LDOPTS) $(MOZ_GLUE_LDFLAGS) $(EXTRA_LIBS) $(OS_LIBS) $(SHLIB_LDENDFILE) $(if $(LIB_IS_C_ONLY),,$(STLPORT_LIBS))
 	@$(RM) $(DTRACE_PROBE_OBJ)
 else # ! DTRACE_LIB_DEPENDENT
-	$(EXPAND_MKSHLIB) $(SHLIB_LDSTARTFILE) $(OBJS) $(SUB_SHLOBJS) $(RESFILE) $(LDFLAGS) $(WRAP_LDFLAGS) $(STATIC_LIBS) $(SHARED_LIBS) $(EXTRA_DSO_LDOPTS) $(MOZ_GLUE_LDFLAGS) $(EXTRA_LIBS) $(OS_LIBS) $(SHLIB_LDENDFILE)
+	$(EXPAND_MKSHLIB) $(SHLIB_LDSTARTFILE) $(OBJS) $(SUB_SHLOBJS) $(RESFILE) $(LDFLAGS) $(WRAP_LDFLAGS) $(STATIC_LIBS) $(SHARED_LIBS) $(EXTRA_DSO_LDOPTS) $(MOZ_GLUE_LDFLAGS) $(EXTRA_LIBS) $(OS_LIBS) $(SHLIB_LDENDFILE) $(if $(LIB_IS_C_ONLY),,$(STLPORT_LIBS))
 endif # DTRACE_LIB_DEPENDENT
 	$(call CHECK_BINARY,$@)
 
@@ -841,6 +856,7 @@ ifdef MOZ_PROFILE_GENERATE
 	touch -t `date +%Y%m%d%H%M.%S -d 'now+5seconds'` pgo.relink
 endif
 endif	# WINNT && !GCC
+	@$(RM) foodummyfilefoo $(DELETE_AFTER_LINK)
 	chmod +x $@
 ifdef ENABLE_STRIP
 	$(STRIP) $(STRIP_FLAGS) $@
@@ -1183,11 +1199,10 @@ endif
 endif
 
 ifdef EXTRA_COMPONENTS
-misc:: $(EXTRA_COMPONENTS)
+libs:: $(EXTRA_COMPONENTS)
 ifndef NO_DIST_INSTALL
 EXTRA_COMPONENTS_FILES := $(EXTRA_COMPONENTS)
 EXTRA_COMPONENTS_DEST := $(FINAL_TARGET)/components
-EXTRA_COMPONENTS_TARGET := misc
 INSTALL_TARGETS += EXTRA_COMPONENTS
 endif
 
@@ -1196,15 +1211,34 @@ endif
 ifdef EXTRA_PP_COMPONENTS
 ifndef NO_DIST_INSTALL
 EXTRA_PP_COMPONENTS_PATH := $(FINAL_TARGET)/components
-EXTRA_PP_COMPONENTS_TARGET := misc
 PP_TARGETS += EXTRA_PP_COMPONENTS
 endif
 endif
 
 EXTRA_MANIFESTS = $(filter %.manifest,$(EXTRA_COMPONENTS) $(EXTRA_PP_COMPONENTS))
 ifneq (,$(EXTRA_MANIFESTS))
-misc:: $(call mkdir_deps,$(FINAL_TARGET))
+libs:: $(call mkdir_deps,$(FINAL_TARGET))
 	$(call py_action,buildlist,$(FINAL_TARGET)/chrome.manifest $(patsubst %,'manifest components/%',$(notdir $(EXTRA_MANIFESTS))))
+endif
+
+################################################################################
+# Copy each element of EXTRA_JS_MODULES to
+# $(FINAL_TARGET)/modules.
+FINAL_JS_MODULES_PATH := $(FINAL_TARGET)/modules
+
+ifdef EXTRA_JS_MODULES
+ifndef NO_DIST_INSTALL
+EXTRA_JS_MODULES_FILES := $(EXTRA_JS_MODULES)
+EXTRA_JS_MODULES_DEST := $(FINAL_JS_MODULES_PATH)
+INSTALL_TARGETS += EXTRA_JS_MODULES
+endif
+endif
+
+ifdef EXTRA_PP_JS_MODULES
+ifndef NO_DIST_INSTALL
+EXTRA_PP_JS_MODULES_PATH := $(FINAL_JS_MODULES_PATH)
+PP_TARGETS += EXTRA_PP_JS_MODULES
+endif
 endif
 
 ################################################################################
@@ -1602,6 +1636,7 @@ FREEZE_VARIABLES = \
   DIRS \
   LIBRARY \
   MODULE \
+  TIERS \
   EXTRA_COMPONENTS \
   EXTRA_PP_COMPONENTS \
   $(NULL)

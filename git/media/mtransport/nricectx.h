@@ -190,13 +190,7 @@ class NrIceCtx {
 
   static RefPtr<NrIceCtx> Create(const std::string& name,
                                  bool offerer,
-                                 bool set_interface_priorities = true,
-                                 bool allow_loopback = false);
-
-  // Deinitialize all ICE global state. Used only for testing.
-  static void internal_DeinitializeGlobal();
-
-
+                                 bool set_interface_priorities = true);
   nr_ice_ctx *ctx() { return ctx_; }
   nr_ice_peer_ctx *peer() { return peer_; }
 

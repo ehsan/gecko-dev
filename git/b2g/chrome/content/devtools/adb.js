@@ -8,14 +8,8 @@
 
 // This file is only loaded on Gonk to manage ADB state
 
-Components.utils.import("resource://gre/modules/FileUtils.jsm");
-
-const DEBUG = false;
-var debug = function(str) {
-  dump("AdbController: " + str + "\n");
-}
-
 let AdbController = {
+  DEBUG: false,
   locked: undefined,
   remoteDebuggerEnabled: undefined,
   lockEnabled: undefined,
@@ -23,21 +17,31 @@ let AdbController = {
   disableAdbTimeoutHours: 12,
   umsActive: false,
 
+  debug: function(str) {
+    dump("AdbController: " + str + "\n");
+  },
+
   setLockscreenEnabled: function(value) {
     this.lockEnabled = value;
-    DEBUG && debug("setLockscreenEnabled = " + this.lockEnabled);
+    if (this.DEBUG) {
+      this.debug("setLockscreenEnabled = " + this.lockEnabled);
+    }
     this.updateState();
   },
 
   setLockscreenState: function(value) {
     this.locked = value;
-    DEBUG && debug("setLockscreenState = " + this.locked);
+    if (this.DEBUG) {
+      this.debug("setLockscreenState = " + this.locked);
+    }
     this.updateState();
   },
 
   setRemoteDebuggerState: function(value) {
     this.remoteDebuggerEnabled = value;
-    DEBUG && debug("setRemoteDebuggerState = " + this.remoteDebuggerEnabled);
+    if (this.DEBUG) {
+      this.debug("setRemoteDebuggerState = " + this.remoteDebuggerEnabled);
+    }
     this.updateState();
   },
 
@@ -55,19 +59,25 @@ let AdbController = {
       }
     }
     if (this.disableAdbTimeoutHours <= 0) {
-      DEBUG && debug("Timer to disable ADB not started due to zero timeout");
+      if (this.DEBUG) {
+        this.debug("Timer to disable ADB not started due to zero timeout");
+      }
       return;
     }
 
-    DEBUG && debug("Starting timer to disable ADB in " +
-                   this.disableAdbTimeoutHours + " hours");
+    if (this.DEBUG) {
+      this.debug("Starting timer to disable ADB in " +
+                 this.disableAdbTimeoutHours + " hours");
+    }
     let timeoutMilliseconds = this.disableAdbTimeoutHours * 60 * 60 * 1000;
     this.disableAdbTimer.initWithCallback(this, timeoutMilliseconds,
                                           Ci.nsITimer.TYPE_ONE_SHOT);
   },
 
   stopDisableAdbTimer: function() {
-    DEBUG && debug("Stopping timer to disable ADB");
+    if (this.DEBUG) {
+      this.debug("Stopping timer to disable ADB");
+    }
     if (this.disableAdbTimer) {
       this.disableAdbTimer.cancel();
       this.disableAdbTimer = null;
@@ -80,7 +90,7 @@ let AdbController = {
       // The following dump will be the last thing that shows up in logcat,
       // and will at least give the user a clue about why logcat was
       // disconnected, if the user happens to be using logcat.
-      debug("ADB timer expired - disabling ADB\n");
+      dump("AdbController: ADB timer expired - disabling ADB\n");
       navigator.mozSettings.createLock().set(
         {'debugger.remote-mode': 'disabled'});
     }
@@ -100,11 +110,17 @@ let AdbController = {
       return;
     }
     let storage = this.storages[storageIndex];
-    DEBUG && debug("Checking availability of storage: '" + storage.storageName + "'");
+    if (this.DEBUG) {
+      this.debug("Checking availability of storage: '" +
+                 storage.storageName);
+    }
 
     let req = storage.available();
     req.onsuccess = function(e) {
-      DEBUG && debug("Storage: '" + storage.storageName + "' is '" + e.target.result + "'");
+      if (this.DEBUG) {
+        this.debug("Storage: '" + storage.storageName + "' is '" +
+                   e.target.result);
+      }
       if (e.target.result == 'shared') {
         // We've found a storage area that's being shared with the PC.
         // We can stop looking now.
@@ -115,15 +131,16 @@ let AdbController = {
       this.updateStorageState(storageIndex + 1);
     }.bind(this);
     req.onerror = function(e) {
-
-      Cu.reportError("AdbController: error querying storage availability for '" +
-                     this.storages[storageIndex].storageName + "' (ignoring)\n");
+      dump("AdbController: error querying storage availability for '" +
+           this.storages[storageIndex].storageName + "' (ignoring)\n");
       this.updateStorageState(storageIndex + 1);
     }.bind(this);
   },
 
   updateStateInternal: function() {
-    DEBUG && debug("updateStateInternal: called");
+    if (this.DEBUG) {
+      this.debug("updateStateInternal: called");
+    }
 
     if (this.remoteDebuggerEnabled === undefined ||
         this.lockEnabled === undefined ||
@@ -145,22 +162,25 @@ let AdbController = {
       //
       // By waiting until both values are properly initialized, we avoid
       // turning adb on or off accidentally.
-      DEBUG && debug("updateState: Waiting for all vars to be initialized");
+      if (this.DEBUG) {
+        this.debug("updateState: Waiting for all vars to be initialized");
+      }
       return;
     }
 
     // Check if we have a remote debugging session going on. If so, we won't
     // disable adb even if the screen is locked.
     let isDebugging = USBRemoteDebugger.isDebugging;
-    DEBUG && debug("isDebugging=" + isDebugging);
+    if (this.DEBUG) {
+      this.debug("isDebugging=" + isDebugging);
+    }
 
     // If USB Mass Storage, USB tethering, or a debug session is active,
     // then we don't want to disable adb in an automatic fashion (i.e.
     // when the screen locks or due to timeout).
-    let sysUsbConfig = libcutils.property_get("sys.usb.config").split(",");
-    let usbFuncActive = this.umsActive || isDebugging;
-    usbFuncActive |= (sysUsbConfig.indexOf("rndis") >= 0);
-    usbFuncActive |= (sysUsbConfig.indexOf("mtp") >= 0);
+    let sysUsbConfig = libcutils.property_get("sys.usb.config");
+    let rndisActive = (sysUsbConfig.split(",").indexOf("rndis") >= 0);
+    let usbFuncActive = rndisActive || this.umsActive || isDebugging;
 
     let enableAdb = this.remoteDebuggerEnabled &&
       (!(this.lockEnabled && this.locked) || usbFuncActive);
@@ -179,48 +199,17 @@ let AdbController = {
       // This means that the pref doesn't exist. Which is fine. We just leave
       // enableAdb alone.
     }
-
-    // Check wakelock to prevent adb from disconnecting when phone is locked
-    let lockFile = Cc['@mozilla.org/file/local;1'].createInstance(Ci.nsIFile);
-    lockFile.initWithPath('/sys/power/wake_lock');
-    if(lockFile.exists()) {
-      let foStream = Cc["@mozilla.org/network/file-input-stream;1"]
-            .createInstance(Ci.nsIFileInputStream);
-      let coStream = Cc["@mozilla.org/intl/converter-input-stream;1"]
-            .createInstance(Ci.nsIConverterInputStream);
-      let str = {};
-      foStream.init(lockFile, FileUtils.MODE_RDONLY, 0, 0);
-      coStream.init(foStream, "UTF-8", 0, 0);
-      coStream.readString(-1, str);
-      coStream.close();
-      foStream.close();
-      let wakeLockContents = str.value.replace(/\n/, "");
-      let wakeLockList = wakeLockContents.split(" ");
-      if (wakeLockList.indexOf("adb") >= 0) {
-        enableAdb = true;
-        useDisableAdbTimer = false;
-        DEBUG && debug("Keeping ADB enabled as ADB wakelock is present.");
-      } else {
-        DEBUG && debug("ADB wakelock not found.");
-      }
-    } else {
-      DEBUG && debug("Wake_lock file not found.");
+    if (this.DEBUG) {
+      this.debug("updateState: enableAdb = " + enableAdb +
+                 " remoteDebuggerEnabled = " + this.remoteDebuggerEnabled +
+                 " lockEnabled = " + this.lockEnabled +
+                 " locked = " + this.locked +
+                 " usbFuncActive = " + usbFuncActive);
     }
-
-    DEBUG && debug("updateState: enableAdb = " + enableAdb +
-                   " remoteDebuggerEnabled = " + this.remoteDebuggerEnabled +
-                   " lockEnabled = " + this.lockEnabled +
-                   " locked = " + this.locked +
-                   " usbFuncActive = " + usbFuncActive);
 
     // Configure adb.
     let currentConfig = libcutils.property_get("persist.sys.usb.config");
     let configFuncs = currentConfig.split(",");
-    if (currentConfig == "" || currentConfig == "none") {
-      // We want to treat none like the empty string.
-      // "".split(",") yields [""] and not []
-      configFuncs = [];
-    }
     let adbIndex = configFuncs.indexOf("adb");
 
     if (enableAdb) {
@@ -235,18 +224,15 @@ let AdbController = {
       }
     }
     let newConfig = configFuncs.join(",");
-    if (newConfig == "") {
-      // Convert the empty string back into none, since that's what init.rc
-      // needs.
-      newConfig = "none";
-    }
     if (newConfig != currentConfig) {
-      DEBUG && debug("updateState: currentConfig = " + currentConfig);
-      DEBUG && debug("updateState:     newConfig = " + newConfig);
+      if (this.DEBUG) {
+        this.debug("updateState: currentConfig = " + currentConfig);
+        this.debug("updateState:     newConfig = " + newConfig);
+      }
       try {
         libcutils.property_set("persist.sys.usb.config", newConfig);
       } catch(e) {
-        Cu.reportError("Error configuring adb: " + e);
+        dump("Error configuring adb: " + e);
       }
     }
     if (useDisableAdbTimer) {

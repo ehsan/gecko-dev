@@ -187,11 +187,11 @@ function updateCertStatus() {
   if(gCert) {
     if(gBroken) { 
       var mms = "addExceptionDomainMismatchShort";
-      var mml = "addExceptionDomainMismatchLong2";
+      var mml = "addExceptionDomainMismatchLong";
       var exs = "addExceptionExpiredShort";
-      var exl = "addExceptionExpiredLong2";
+      var exl = "addExceptionExpiredLong";
       var uts = "addExceptionUnverifiedOrBadSignatureShort";
-      var utl = "addExceptionUnverifiedOrBadSignatureLong2";
+      var utl = "addExceptionUnverifiedOrBadSignatureLong";
       var use1 = false;
       if (gSSLStatus.isDomainMismatch) {
         bucketId += gNsISecTel.WARNING_BAD_CERT_TOP_ADD_EXCEPTION_FLAG_DOMAIN;
@@ -263,7 +263,7 @@ function updateCertStatus() {
   }
   else if (gChecking) {
     shortDesc = "addExceptionCheckingShort";
-    longDesc  = "addExceptionCheckingLong2";
+    longDesc  = "addExceptionCheckingLong";
     // We're checking the certificate, so we disable the Get Certificate
     // button to make sure that the user can't interrupt the process and
     // trigger another certificate fetch.
@@ -274,7 +274,7 @@ function updateCertStatus() {
   }
   else {
     shortDesc = "addExceptionNoCertShort";
-    longDesc  = "addExceptionNoCertLong2";
+    longDesc  = "addExceptionNoCertLong";
     // We're done checking the certificate, so allow the user to check it again.
     document.getElementById("checkCertButton").disabled = false;
     document.getElementById("viewCertButton").disabled = true;

@@ -41,7 +41,7 @@ public class PrunePolicy {
     try {
       try {
         boolean pruned = attemptPruneBySize(time);
-        pruned = attemptExpiration(time) || pruned;
+        pruned = attemptExpiration(time) ? true : pruned;
         // We only need to cleanup after a large pruning.
         if (pruned) {
           attemptStorageCleanup(time);

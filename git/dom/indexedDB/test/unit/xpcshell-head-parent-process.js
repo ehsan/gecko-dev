@@ -46,7 +46,7 @@ if (!this.runTest) {
       enableExperimental();
     }
 
-    Cu.importGlobalProperties(["indexedDB", "Blob", "File"]);
+    Cu.importGlobalProperties(["indexedDB"]);
 
     do_test_pending();
     testGenerator.next();
@@ -230,7 +230,7 @@ function setTimeout(fun, timeout) {
   return timer;
 }
 
-function resetOrClearAllDatabases(callback, clear) {
+function clearAllDatabases(callback) {
   if (!SpecialPowers.isMainProcess()) {
     throw new Error("clearAllDatabases not implemented for child processes!");
   }
@@ -248,11 +248,7 @@ function resetOrClearAllDatabases(callback, clear) {
   SpecialPowers.setBoolPref(quotaPref, true);
 
   try {
-    if (clear) {
-      quotaManager.clear();
-    } else {
-      quotaManager.reset();
-    }
+    quotaManager.clear();
   } catch(e) {
     if (oldPrefValue !== undefined) {
       SpecialPowers.setBoolPref(quotaPref, oldPrefValue);
@@ -268,14 +264,6 @@ function resetOrClearAllDatabases(callback, clear) {
   quotaManager.getUsageForURI(uri, function(usage, fileUsage) {
     callback();
   });
-}
-
-function resetAllDatabases(callback) {
-  resetOrClearAllDatabases(callback, false);
-}
-
-function clearAllDatabases(callback) {
-  resetOrClearAllDatabases(callback, true);
 }
 
 var SpecialPowers = {
@@ -332,21 +320,5 @@ var SpecialPowers = {
     var prefService =
       Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefService);
     return prefService.getBranch(null);
-  },
-
-  get Cc() {
-    return Cc;
-  },
-
-  get Ci() {
-    return Ci;
-  },
-
-  get Cu() {
-    return Cu;
-  },
-
-  createDOMFile: function(file, options) {
-    return new File(file, options);
-  },
+  }
 };

@@ -163,7 +163,7 @@ Escape(JSContext *cx, const CharT *chars, uint32_t length, uint32_t *newLengthOu
             newChars[ni++] = digits[ch & 0xF];
         }
     }
-    MOZ_ASSERT(ni == newLength);
+    JS_ASSERT(ni == newLength);
     newChars[newLength] = 0;
 
     *newLengthOut = newLength;
@@ -399,7 +399,7 @@ str_enumerate(JSContext *cx, HandleObject obj)
 }
 
 bool
-js::str_resolve(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp)
+js::str_resolve(JSContext *cx, HandleObject obj, HandleId id, MutableHandleObject objp)
 {
     if (!JSID_IS_INT(id))
         return true;
@@ -417,7 +417,7 @@ js::str_resolve(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp)
         {
             return false;
         }
-        *resolvedp = true;
+        objp.set(obj);
     }
     return true;
 }
@@ -425,13 +425,13 @@ js::str_resolve(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp)
 const Class StringObject::class_ = {
     js_String_str,
     JSCLASS_HAS_RESERVED_SLOTS(StringObject::RESERVED_SLOTS) |
-    JSCLASS_HAS_CACHED_PROTO(JSProto_String),
+    JSCLASS_NEW_RESOLVE | JSCLASS_HAS_CACHED_PROTO(JSProto_String),
     JS_PropertyStub,         /* addProperty */
     JS_DeletePropertyStub,   /* delProperty */
     JS_PropertyStub,         /* getProperty */
     JS_StrictPropertyStub,   /* setProperty */
     str_enumerate,
-    str_resolve,
+    (JSResolveOp)str_resolve,
     JS_ConvertStub
 };
 
@@ -452,10 +452,9 @@ ThisToStringForStringProto(JSContext *cx, CallReceiver call)
     if (call.thisv().isObject()) {
         RootedObject obj(cx, &call.thisv().toObject());
         if (obj->is<StringObject>()) {
-            StringObject *nobj = &obj->as<StringObject>();
             Rooted<jsid> id(cx, NameToId(cx->names().toString));
-            if (ClassMethodIsNative(cx, nobj, &StringObject::class_, id, js_str_toString)) {
-                JSString *str = nobj->unbox();
+            if (ClassMethodIsNative(cx, obj, &StringObject::class_, id, js_str_toString)) {
+                JSString *str = obj->as<StringObject>().unbox();
                 call.setThis(StringValue(str));
                 return str;
             }
@@ -503,7 +502,7 @@ str_quote(JSContext *cx, unsigned argc, Value *vp)
 MOZ_ALWAYS_INLINE bool
 str_toSource_impl(JSContext *cx, CallArgs args)
 {
-    MOZ_ASSERT(IsString(args.thisv()));
+    JS_ASSERT(IsString(args.thisv()));
 
     Rooted<JSString*> str(cx, ToString<CanGC>(cx, args.thisv()));
     if (!str)
@@ -536,7 +535,7 @@ str_toSource(JSContext *cx, unsigned argc, Value *vp)
 MOZ_ALWAYS_INLINE bool
 str_toString_impl(JSContext *cx, CallArgs args)
 {
-    MOZ_ASSERT(IsString(args.thisv()));
+    JS_ASSERT(IsString(args.thisv()));
 
     args.rval().setString(args.thisv().isString()
                               ? args.thisv().toString()
@@ -607,7 +606,7 @@ DoSubstr(JSContext *cx, JSString *str, size_t begin, size_t len)
          * Requested substring is partly in the left and partly in right child.
          * Create a rope of substrings for both childs.
          */
-        MOZ_ASSERT(begin < rope->leftChild()->length() &&
+        JS_ASSERT (begin < rope->leftChild()->length() &&
                    begin + len > rope->leftChild()->length());
 
         size_t lhsLength = rope->leftChild()->length() - begin;
@@ -1150,7 +1149,7 @@ template <typename TextChar, typename PatChar>
 static int
 BoyerMooreHorspool(const TextChar *text, uint32_t textLen, const PatChar *pat, uint32_t patLen)
 {
-    MOZ_ASSERT(0 < patLen && patLen <= sBMHPatLenMax);
+    JS_ASSERT(0 < patLen && patLen <= sBMHPatLenMax);
 
     uint8_t skip[sBMHCharSetSize];
     for (uint32_t i = 0; i < sBMHCharSetSize; i++)
@@ -1265,7 +1264,7 @@ FirstCharMatcher16bit(const char16_t *text, uint32_t n, const char16_t pat)
     const char *text8 = (const char *) text;
     const char *pat8 = reinterpret_cast<const char *>(&pat);
 
-    MOZ_ASSERT(n < UINT32_MAX/2);
+    JS_ASSERT(n < UINT32_MAX/2);
     n *= 2;
 
     uint32_t i = 0;
@@ -1452,7 +1451,7 @@ class StringSegmentRange
     {}
 
     MOZ_WARN_UNUSED_RESULT bool init(JSString *str) {
-        MOZ_ASSERT(stack.empty());
+        JS_ASSERT(stack.empty());
         return settle(str);
     }
 
@@ -1461,12 +1460,12 @@ class StringSegmentRange
     }
 
     JSLinearString *front() const {
-        MOZ_ASSERT(!cur->isRope());
+        JS_ASSERT(!cur->isRope());
         return cur;
     }
 
     MOZ_WARN_UNUSED_RESULT bool popFront() {
-        MOZ_ASSERT(!empty());
+        JS_ASSERT(!empty());
         if (stack.empty()) {
             cur = nullptr;
             return true;
@@ -2170,7 +2169,7 @@ class MOZ_STACK_CLASS StringRegExpGuard
     bool init(JSContext *cx, JSObject *regexp) {
         obj_ = regexp;
 
-        MOZ_ASSERT(ObjectClassIs(obj_, ESClass_RegExp, cx));
+        JS_ASSERT(ObjectClassIs(obj_, ESClass_RegExp, cx));
 
         if (!RegExpToShared(cx, obj_, &re_))
             return false;
@@ -2247,7 +2246,7 @@ class MOZ_STACK_CLASS StringRegExpGuard
         } else {
             pat = fm.pat_;
         }
-        MOZ_ASSERT(pat);
+        JS_ASSERT(pat);
 
         return cx->compartment()->regExps.get(cx, pat, opt, &re_);
     }
@@ -2258,12 +2257,9 @@ class MOZ_STACK_CLASS StringRegExpGuard
 
         // Use a fast path for same-global RegExp objects with writable
         // lastIndex.
-        if (obj_->is<RegExpObject>()) {
-            RegExpObject *nobj = &obj_->as<RegExpObject>();
-            if (nobj->lookup(cx, cx->names().lastIndex)->writable()) {
-                nobj->zeroLastIndex();
-                return true;
-            }
+        if (obj_->is<RegExpObject>() && obj_->nativeLookup(cx, cx->names().lastIndex)->writable()) {
+            obj_->as<RegExpObject>().zeroLastIndex();
+            return true;
         }
 
         // Handle everything else generically (including throwing if .lastIndex is non-writable).
@@ -2275,7 +2271,7 @@ class MOZ_STACK_CLASS StringRegExpGuard
 
     bool regExpIsObject() { return obj_ != nullptr; }
     HandleObject regExpObject() {
-        MOZ_ASSERT(regExpIsObject());
+        JS_ASSERT(regExpIsObject());
         return obj_;
     }
 
@@ -2573,7 +2569,7 @@ struct ReplaceData
     {}
 
     inline void setReplacementString(JSLinearString *string) {
-        MOZ_ASSERT(string);
+        JS_ASSERT(string);
         lambda = nullptr;
         elembase = nullptr;
         repstr = string;
@@ -2585,7 +2581,7 @@ struct ReplaceData
     }
 
     inline void setReplacementFunction(JSObject *func) {
-        MOZ_ASSERT(func);
+        JS_ASSERT(func);
         lambda = func;
         elembase = nullptr;
         repstr = nullptr;
@@ -2595,7 +2591,7 @@ struct ReplaceData
     RootedString       str;            /* 'this' parameter object as a string */
     StringRegExpGuard  g;              /* regexp parameter object and private data */
     RootedObject       lambda;         /* replacement function object or null */
-    RootedNativeObject elembase;       /* object for function(a){return b[a]} replace */
+    RootedObject       elembase;       /* object for function(a){return b[a]} replace */
     RootedLinearString repstr;         /* replacement string */
     uint32_t           dollarIndex;    /* index of first $ in repstr, or UINT32_MAX */
     int                leftIndex;      /* left context index in str->chars */
@@ -2662,7 +2658,7 @@ static bool
 InterpretDollar(RegExpStatics *res, const CharT *bp, const CharT *dp, const CharT *ep,
                 ReplaceData &rdata, JSSubString *out, size_t *skip)
 {
-    MOZ_ASSERT(*dp == '$');
+    JS_ASSERT(*dp == '$');
 
     /* If there is only a dollar, bail now */
     if (dp + 1 >= ep)
@@ -2689,7 +2685,7 @@ InterpretDollar(RegExpStatics *res, const CharT *bp, const CharT *dp, const Char
 
         *skip = cp - dp;
 
-        MOZ_ASSERT(num <= res->getMatches().parenCount());
+        JS_ASSERT(num <= res->getMatches().parenCount());
 
         /*
          * Note: we index to get the paren with the (1-indexed) pair
@@ -2769,9 +2765,9 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
          * in the course of the replace unless we end up making a scripted call due
          * to accessing a scripted getter or a value with a scripted toString.
          */
-        MOZ_ASSERT(rdata.lambda);
-        MOZ_ASSERT(!rdata.elembase->getOps()->lookupProperty);
-        MOZ_ASSERT(!rdata.elembase->getOps()->getProperty);
+        JS_ASSERT(rdata.lambda);
+        JS_ASSERT(!rdata.elembase->getOps()->lookupProperty);
+        JS_ASSERT(!rdata.elembase->getOps()->getProperty);
 
         RootedValue match(cx);
         if (!res->createLastMatch(cx, &match))
@@ -2898,8 +2894,8 @@ ReplaceRegExp(JSContext *cx, RegExpStatics *res, ReplaceData &rdata)
 {
 
     const MatchPair &match = res->getMatches()[0];
-    MOZ_ASSERT(!match.isUndefined());
-    MOZ_ASSERT(match.limit >= match.start && match.limit >= 0);
+    JS_ASSERT(!match.isUndefined());
+    JS_ASSERT(match.limit >= match.start && match.limit >= 0);
 
     rdata.calledBack = true;
     size_t leftoff = rdata.leftIndex;
@@ -3025,7 +3021,7 @@ AppendDollarReplacement(StringBuffer &newReplaceChars, size_t firstDollarIndex,
                         const FlatMatch &fm, JSLinearString *text,
                         const CharT *repChars, size_t repLength)
 {
-    MOZ_ASSERT(firstDollarIndex < repLength);
+    JS_ASSERT(firstDollarIndex < repLength);
 
     size_t matchStart = fm.match();
     size_t matchLimit = matchStart + fm.patternLength();
@@ -3122,7 +3118,7 @@ BuildDollarReplacement(JSContext *cx, JSString *textstrArg, JSLinearString *reps
     if (!newReplace)
         return false;
 
-    MOZ_ASSERT(textstr->length() >= matchLimit);
+    JS_ASSERT(textstr->length() >= matchLimit);
     RootedString rightSide(cx, NewDependentString(cx, textstr, matchLimit,
                                                   textstr->length() - matchLimit));
     if (!rightSide)
@@ -3182,7 +3178,7 @@ static JSString *
 AppendSubstrings(JSContext *cx, Handle<JSFlatString*> flatStr,
                  const StringRange *ranges, size_t rangesLen)
 {
-    MOZ_ASSERT(rangesLen);
+    JS_ASSERT(rangesLen);
 
     /* For single substrings, construct a dependent string. */
     if (rangesLen == 1)
@@ -3337,7 +3333,7 @@ StrReplaceRegExp(JSContext *cx, ReplaceData &rdata, MutableHandleValue rval)
 
     /* Optimize removal. */
     if (rdata.repstr && rdata.repstr->length() == 0) {
-        MOZ_ASSERT(!rdata.lambda && !rdata.elembase && rdata.dollarIndex == UINT32_MAX);
+        JS_ASSERT(!rdata.lambda && !rdata.elembase && rdata.dollarIndex == UINT32_MAX);
         return StrReplaceRegexpRemove(cx, rdata.str, re, rval);
     }
 
@@ -3505,7 +3501,7 @@ str_replace_flat_lambda(JSContext *cx, CallArgs outerArgs, ReplaceData &rdata, c
  * code patterns generated by such packers here.
  */
 static bool
-LambdaIsGetElem(JSContext *cx, JSObject &lambda, MutableHandleNativeObject pobj)
+LambdaIsGetElem(JSContext *cx, JSObject &lambda, MutableHandleObject pobj)
 {
     if (!lambda.is<JSFunction>())
         return true;
@@ -3557,7 +3553,7 @@ LambdaIsGetElem(JSContext *cx, JSObject &lambda, MutableHandleNativeObject pobj)
     if (!clasp->isNative() || clasp->ops.lookupProperty || clasp->ops.getProperty)
         return true;
 
-    pobj.set(&bobj.as<NativeObject>());
+    pobj.set(&bobj);
     return true;
 }
 
@@ -3633,11 +3629,11 @@ class SplitMatchResult {
         return endIndex_ == SIZE_MAX;
     }
     size_t endIndex() const {
-        MOZ_ASSERT(!isFailure());
+        JS_ASSERT(!isFailure());
         return endIndex_;
     }
     size_t length() const {
-        MOZ_ASSERT(!isFailure());
+        JS_ASSERT(!isFailure());
         return length_;
     }
     void setResult(size_t length, size_t endIndex) {
@@ -3721,9 +3717,9 @@ SplitHelper(JSContext *cx, HandleLinearString str, uint32_t limit, const Matcher
         }
 
         /* Step 13(c)(iii). */
-        MOZ_ASSERT(lastEndIndex < endIndex);
-        MOZ_ASSERT(sepLength <= strLength);
-        MOZ_ASSERT(lastEndIndex + sepLength <= endIndex);
+        JS_ASSERT(lastEndIndex < endIndex);
+        JS_ASSERT(sepLength <= strLength);
+        JS_ASSERT(lastEndIndex + sepLength <= endIndex);
 
         /* Steps 13(c)(iii)(1-3). */
         size_t subLength = size_t(endIndex - sepLength - lastEndIndex);
@@ -3860,7 +3856,7 @@ class SplitStringMatcher
 
     bool operator()(JSContext *cx, JSLinearString *str, size_t index, SplitMatchResult *res) const
     {
-        MOZ_ASSERT(index == 0 || index < str->length());
+        JS_ASSERT(index == 0 || index < str->length());
         int match = StringMatch(str, sep, index);
         if (match == -1)
             res->setFailure();
@@ -4204,7 +4200,7 @@ static const JSFunctionSpec string_methods[] = {
     JS_SELF_HOSTED_FN("fontcolor","String_fontcolor",  1,0),
     JS_SELF_HOSTED_FN("fontsize", "String_fontsize",   1,0),
 
-    JS_SELF_HOSTED_SYM_FN(iterator, "String_iterator", 0,0),
+    JS_SELF_HOSTED_FN("@@iterator", "String_iterator", 0,0),
     JS_FS_END
 };
 
@@ -4243,7 +4239,7 @@ js::str_fromCharCode(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    MOZ_ASSERT(args.length() <= ARGS_LENGTH_MAX);
+    JS_ASSERT(args.length() <= ARGS_LENGTH_MAX);
     if (args.length() == 1)
         return str_fromCharCode_one_arg(cx, args[0], args.rval());
 
@@ -4307,7 +4303,7 @@ static const JSFunctionSpec string_static_methods[] = {
 /* static */ Shape *
 StringObject::assignInitialShape(ExclusiveContext *cx, Handle<StringObject*> obj)
 {
-    MOZ_ASSERT(obj->empty());
+    JS_ASSERT(obj->nativeEmpty());
 
     return obj->addDataProperty(cx, cx->names().length, LENGTH_SLOT,
                                 JSPROP_PERMANENT | JSPROP_READONLY);
@@ -4316,7 +4312,7 @@ StringObject::assignInitialShape(ExclusiveContext *cx, Handle<StringObject*> obj
 JSObject *
 js_InitStringClass(JSContext *cx, HandleObject obj)
 {
-    MOZ_ASSERT(obj->isNative());
+    JS_ASSERT(obj->isNative());
 
     Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
 
@@ -4375,7 +4371,7 @@ JSString *
 js::ToStringSlow(ExclusiveContext *cx, typename MaybeRooted<Value, allowGC>::HandleType arg)
 {
     /* As with ToObjectSlow, callers must verify that |arg| isn't a string. */
-    MOZ_ASSERT(!arg.isString());
+    JS_ASSERT(!arg.isString());
 
     Value v = arg;
     if (!v.isPrimitive()) {
@@ -4581,8 +4577,8 @@ js::CompareChars(const char16_t *s1, size_t len1, JSLinearString *s2)
 bool
 js::CompareStrings(JSContext *cx, JSString *str1, JSString *str2, int32_t *result)
 {
-    MOZ_ASSERT(str1);
-    MOZ_ASSERT(str2);
+    JS_ASSERT(str1);
+    JS_ASSERT(str2);
 
     if (str1 == str2) {
         *result = 0;
@@ -4613,7 +4609,7 @@ js::StringEqualsAscii(JSLinearString *str, const char *asciiBytes)
     size_t length = strlen(asciiBytes);
 #ifdef DEBUG
     for (size_t i = 0; i != length; ++i)
-        MOZ_ASSERT(unsigned(asciiBytes[i]) <= 127);
+        JS_ASSERT(unsigned(asciiBytes[i]) <= 127);
 #endif
     if (length != str->length())
         return false;
@@ -5143,7 +5139,7 @@ js_OneUcs4ToUtf8Char(uint8_t *utf8Buffer, uint32_t ucs4Char)
 {
     int utf8Length = 1;
 
-    MOZ_ASSERT(ucs4Char <= 0x10FFFF);
+    JS_ASSERT(ucs4Char <= 0x10FFFF);
     if (ucs4Char < 0x80) {
         *utf8Buffer = (uint8_t)ucs4Char;
     } else {
@@ -5184,9 +5180,9 @@ js::PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp, const CharT 
         STOP, FIRST_QUOTE, LAST_QUOTE, CHARS, ESCAPE_START, ESCAPE_MORE
     } state;
 
-    MOZ_ASSERT(quote == 0 || quote == '\'' || quote == '"');
-    MOZ_ASSERT_IF(!buffer, bufferSize == 0);
-    MOZ_ASSERT_IF(fp, !buffer);
+    JS_ASSERT(quote == 0 || quote == '\'' || quote == '"');
+    JS_ASSERT_IF(!buffer, bufferSize == 0);
+    JS_ASSERT_IF(fp, !buffer);
 
     if (bufferSize == 0)
         buffer = nullptr;
@@ -5253,7 +5249,7 @@ js::PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp, const CharT 
             state = ESCAPE_START;
             break;
           case ESCAPE_START:
-            MOZ_ASSERT(' ' <= u && u < 127);
+            JS_ASSERT(' ' <= u && u < 127);
             c = (char)u;
             state = ESCAPE_MORE;
             break;
@@ -5268,7 +5264,7 @@ js::PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp, const CharT 
             break;
         }
         if (buffer) {
-            MOZ_ASSERT(n <= bufferSize);
+            JS_ASSERT(n <= bufferSize);
             if (n != bufferSize) {
                 buffer[n] = c;
             } else {

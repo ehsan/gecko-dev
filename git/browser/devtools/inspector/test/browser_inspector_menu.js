@@ -3,13 +3,6 @@
 http://creativecommons.org/publicdomain/zero/1.0/ */
 "use strict";
 
-///////////////////
-//
-// Whitelisting this test.
-// As part of bug 1077403, the leaking uncaught rejection should be fixed.
-//
-thisTestLeaksUncaughtRejectionsAndShouldBeFixed("TypeError: jsterm.focusInput is not a function");
-
 // Test context menu functionality:
 // 1) menu items are disabled/enabled depending on the clicked node
 // 2) actions triggered by the items work correctly
@@ -81,12 +74,12 @@ const COPY_ITEMS_TEST_DATA = [
   },
 ];
 
-let clipboard = require("sdk/clipboard");
+let clipboard = devtools.require("sdk/clipboard");
 registerCleanupFunction(() => {
   clipboard = null;
 });
 
-add_task(function* () {
+let test = asyncTest(function* () {
   let { inspector, toolbox } = yield openInspectorForURL(TEST_URL);
 
   yield testMenuItemSensitivity();
@@ -117,17 +110,10 @@ add_task(function* () {
     for (let {desc, selector, disabled} of MENU_SENSITIVITY_TEST_DATA) {
       info("Testing context menu entries for " + desc);
 
-      let front;
-      if (selector) {
-        front = yield getNodeFront(selector, inspector);
-      } else {
-        // Select the docType if no selector is provided
-        let {nodes} = yield inspector.walker.children(inspector.walker.rootNode);
-        front = nodes[0];
-      }
-      yield selectNode(front, inspector);
+      let node = getNode(selector) || content.document.doctype;
+      yield selectNode(node, inspector);
 
-      contextMenuClick(getContainerForNodeFront(front, inspector).tagLine);
+      contextMenuClick(getContainerForRawNode(inspector.markup, node).tagLine);
 
       for (let name of MENU_ITEMS) {
         checkMenuItem(name, disabled);
@@ -139,15 +125,15 @@ add_task(function* () {
     info("Checking 'Paste Outer HTML' menu item sensitivity for different types" +
          "of data");
 
-    let nodeFront = yield getNodeFront("p", inspector);
-    let markupTagLine = getContainerForNodeFront(nodeFront, inspector).tagLine;
+    let node = getNode("p");
+    let markupTagLine = getContainerForRawNode(inspector.markup, node).tagLine;
 
     for (let data of PASTE_OUTER_HTML_TEST_DATA) {
       let { desc, clipboardData, clipboardDataType, disabled } = data;
       info("Checking 'Paste Outer HTML' for " + desc);
       clipboard.set(clipboardData, clipboardDataType);
 
-      yield selectNode(nodeFront, inspector);
+      yield selectNode(node, inspector);
 
       contextMenuClick(markupTagLine);
       checkMenuItem("node-menu-pasteouterhtml", disabled);
@@ -194,17 +180,16 @@ add_task(function* () {
     info("Testing that 'Paste Outer HTML' menu item works.");
     clipboard.set("this was pasted");
 
-    let nodeFront = yield getNodeFront("h1", inspector);
-    yield selectNode(nodeFront, inspector);
+    let node = getNode("h1");
+    yield selectNode(node, inspector);
 
-    contextMenuClick(getContainerForNodeFront(nodeFront, inspector).tagLine);
+    contextMenuClick(getContainerForRawNode(inspector.markup, node).tagLine);
 
-    let onNodeReselected = inspector.markup.once("reselectedonremoved");
     let menu = inspector.panelDoc.getElementById("node-menu-pasteouterhtml");
     dispatchCommandEvent(menu);
 
     info("Waiting for inspector selection to update");
-    yield onNodeReselected;
+    yield inspector.selection.once("new-node");
 
     ok(content.document.body.outerHTML.contains(clipboard.get()),
        "Clipboard content was pasted into the node's outer HTML.");
@@ -213,8 +198,6 @@ add_task(function* () {
 
   function* testDeleteNode() {
     info("Testing 'Delete Node' menu item for normal elements.");
-
-    yield selectNode("p", inspector);
     let deleteNode = inspector.panelDoc.getElementById("node-menu-delete");
     ok(deleteNode, "the popup menu has a delete menu item");
 
@@ -229,7 +212,7 @@ add_task(function* () {
 
   function* testDeleteRootNode() {
     info("Testing 'Delete Node' menu item does not delete root node.");
-    yield selectNode(inspector.walker.rootNode, inspector);
+    yield selectNode(content.document.documentElement, inspector);
 
     let deleteNode = inspector.panelDoc.getElementById("node-menu-delete");
     dispatchCommandEvent(deleteNode);

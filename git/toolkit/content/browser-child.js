@@ -11,9 +11,6 @@ Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 Cu.import("resource://gre/modules/RemoteAddonsChild.jsm");
 Cu.import("resource://gre/modules/Timer.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "PageThumbUtils",
-  "resource://gre/modules/PageThumbUtils.jsm");
-
 #ifdef MOZ_CRASHREPORTER
 XPCOMUtils.defineLazyServiceGetter(this, "CrashReporter",
                                    "@mozilla.org/xre/app-info;1",
@@ -166,7 +163,7 @@ let WebNavigation =  {
         this.gotoIndex(message.data.index);
         break;
       case "WebNavigation:LoadURI":
-        this.loadURI(message.data.uri, message.data.flags, message.data.referrer);
+        this.loadURI(message.data.uri, message.data.flags);
         break;
       case "WebNavigation:Reload":
         this.reload(message.data.flags);
@@ -192,14 +189,12 @@ let WebNavigation =  {
     this._webNavigation.gotoIndex(index);
   },
 
-  loadURI: function(uri, flags, referrer) {
+  loadURI: function(uri, flags) {
 #ifdef MOZ_CRASHREPORTER
     if (CrashReporter.enabled)
       CrashReporter.annotateCrashReport("URL", uri);
 #endif
-    if (referrer)
-      referrer = Services.io.newURI(referrer, null, null);
-    this._webNavigation.loadURI(uri, flags, referrer, null, null);
+    this._webNavigation.loadURI(uri, flags, null, null, null);
   },
 
   reload: function(flags) {
@@ -371,37 +366,6 @@ addEventListener("ZoomChangeUsingMouseWheel", function () {
 addMessageListener("UpdateCharacterSet", function (aMessage) {
   docShell.charset = aMessage.data.value;
   docShell.gatherCharsetMenuTelemetry();
-});
-
-/**
- * Remote thumbnail request handler for PageThumbs thumbnails.
- */
-addMessageListener("Browser:Thumbnail:Request", function (aMessage) {
-  let thumbnail = content.document.createElementNS(PageThumbUtils.HTML_NAMESPACE,
-                                                   "canvas");
-  thumbnail.mozOpaque = true;
-  thumbnail.mozImageSmoothingEnabled = true;
-
-  thumbnail.width = aMessage.data.canvasWidth;
-  thumbnail.height = aMessage.data.canvasHeight;
-
-  let [width, height, scale] =
-    PageThumbUtils.determineCropSize(content, thumbnail);
-
-  let ctx = thumbnail.getContext("2d");
-  ctx.save();
-  ctx.scale(scale, scale);
-  ctx.drawWindow(content, 0, 0, width, height,
-                 aMessage.data.background,
-                 ctx.DRAWWINDOW_DO_NOT_FLUSH);
-  ctx.restore();
-
-  thumbnail.toBlob(function (aBlob) {
-    sendAsyncMessage("Browser:Thumbnail:Response", {
-      thumbnail: aBlob,
-      id: aMessage.data.id
-    });
-  });
 });
 
 // The AddonsChild needs to be rooted so that it stays alive as long as

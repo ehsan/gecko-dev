@@ -9,8 +9,7 @@ const base64 = require("sdk/base64");
 const text = "Awesome!";
 const b64text = "QXdlc29tZSE=";
 
-const utf8text = "\u2713 à la mode";
-const badutf8text = "\u0013 à la mode";
+const utf8text = "✓ à la mode";
 const b64utf8text = "4pyTIMOgIGxhIG1vZGU=";
 
 exports["test base64.encode"] = function (assert) {
@@ -67,8 +66,8 @@ exports["test base64.decode with wrong charset"] = function (assert) {
 
 exports["test encode/decode Unicode without utf-8 as charset"] = function (assert) {
 
-  assert.equal(base64.decode(base64.encode(utf8text)), badutf8text,
-    "Unicode strings needs 'utf-8' charset or will be mangled"
+  assert.notEqual(base64.decode(base64.encode(utf8text)), utf8text,
+    "Unicode strings needs 'utf-8' charset"
   );
 
 }

@@ -16,11 +16,7 @@
 
 class nsIAtom;
 class nsIDOMNode;
-namespace mozilla {
-namespace dom {
-class Selection;
-}
-}
+class nsISelection;
 
 struct PropItem
 {
@@ -43,7 +39,7 @@ public:
   TypeInState();
   void Reset();
 
-  nsresult UpdateSelState(mozilla::dom::Selection* aSelection);
+  nsresult UpdateSelState(nsISelection *aSelection);
 
   // nsISelectionListener
   NS_DECL_NSISELECTIONLISTENER

@@ -9,6 +9,7 @@
 #include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsBoxFrame.h"
+#include "nsIListBoxObject.h"
 #include "nsIScrollbarMediator.h"
 #include "nsIReflowCallback.h"
 #include "nsBoxLayoutState.h"
@@ -33,9 +34,10 @@ public:
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
-  // non-virtual ListBoxObject
-  int32_t GetNumberOfVisibleRows();
-  int32_t GetIndexOfFirstVisibleRow();
+  // non-virtual nsIListBoxObject
+  nsresult GetRowCount(int32_t *aResult);
+  nsresult GetNumberOfVisibleRows(int32_t *aResult);
+  nsresult GetIndexOfFirstVisibleRow(int32_t *aResult);
   nsresult EnsureIndexIsVisible(int32_t aRowIndex);
   nsresult ScrollToIndex(int32_t aRowIndex);
   nsresult ScrollByLines(int32_t aNumLines);
@@ -96,8 +98,7 @@ public:
   nsresult DoInternalPositionChanged(bool aUp, int32_t aDelta);
   nsListScrollSmoother* GetSmoother();
   void VerticalScroll(int32_t aDelta);
-  // Update the scroll index given a position, in CSS pixels
-  void UpdateIndex(int32_t aNewPos);
+  void UpdateIndex(int32_t aDirection);
 
   // frames
   nsIFrame* GetFirstFrame();
@@ -165,7 +166,6 @@ protected:
   };
 
   void ComputeTotalRowCount();
-  int32_t ToRowIndex(nscoord aPos) const;
   void RemoveChildFrame(nsBoxLayoutState &aState, nsIFrame *aChild);
 
   nsTArray< nsRefPtr<nsPositionChangedEvent> > mPendingPositionChangeEvents;

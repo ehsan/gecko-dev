@@ -215,15 +215,6 @@ public:
     return mLowPrecisionTiledBuffer.GetValidRegion();
   }
 
-  virtual void SetCompositor(Compositor* aCompositor)
-  {
-    CompositableHost::SetCompositor(aCompositor);
-    mTiledBuffer.SetCompositor(aCompositor);
-    mLowPrecisionTiledBuffer.SetCompositor(aCompositor);
-    mOldTiledBuffer.SetCompositor(aCompositor);
-    mOldLowPrecisionTiledBuffer.SetCompositor(aCompositor);
-  }
-
   virtual bool UseTiledLayerBuffer(ISurfaceAllocator* aAllocator,
                                    const SurfaceDescriptorTiles& aTiledDescriptor) MOZ_OVERRIDE;
 

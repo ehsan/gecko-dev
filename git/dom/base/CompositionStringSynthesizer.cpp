@@ -135,18 +135,18 @@ CompositionStringSynthesizer::DispatchEvent(bool* aDefaultPrevented)
     mClauses->AppendElement(mCaret);
   }
 
-  WidgetCompositionEvent compChangeEvent(true, NS_COMPOSITION_CHANGE, widget);
-  compChangeEvent.time = PR_IntervalNow();
-  compChangeEvent.mData = mString;
+  WidgetTextEvent textEvent(true, NS_TEXT_TEXT, widget);
+  textEvent.time = PR_IntervalNow();
+  textEvent.theText = mString;
   if (!mClauses->IsEmpty()) {
-    compChangeEvent.mRanges = mClauses;
+    textEvent.mRanges = mClauses;
   }
 
   // XXX How should we set false for this on b2g?
-  compChangeEvent.mFlags.mIsSynthesizedForTests = true;
+  textEvent.mFlags.mIsSynthesizedForTests = true;
 
   nsEventStatus status = nsEventStatus_eIgnore;
-  nsresult rv = widget->DispatchEvent(&compChangeEvent, status);
+  nsresult rv = widget->DispatchEvent(&textEvent, status);
   *aDefaultPrevented = (status == nsEventStatus_eConsumeNoDefault);
 
   ClearInternal();

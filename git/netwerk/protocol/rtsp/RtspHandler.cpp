@@ -40,8 +40,8 @@ RtspHandler::GetDefaultPort(int32_t *aDefaultPort)
 NS_IMETHODIMP
 RtspHandler::GetProtocolFlags(uint32_t *aProtocolFlags)
 {
-  *aProtocolFlags = URI_NORELATIVE | URI_NOAUTH | URI_LOADABLE_BY_ANYONE |
-    URI_NON_PERSISTABLE | URI_SYNC_LOAD_IS_OK;
+  *aProtocolFlags = URI_NORELATIVE | URI_NOAUTH | URI_INHERITS_SECURITY_CONTEXT |
+    URI_LOADABLE_BY_ANYONE | URI_NON_PERSISTABLE | URI_SYNC_LOAD_IS_OK;
 
   return NS_OK;
 }
@@ -66,9 +66,7 @@ RtspHandler::NewURI(const nsACString & aSpec,
 }
 
 NS_IMETHODIMP
-RtspHandler::NewChannel2(nsIURI* aURI,
-                         nsILoadInfo* aLoadInfo,
-                         nsIChannel** aResult)
+RtspHandler::NewChannel(nsIURI *aURI, nsIChannel **aResult)
 {
   bool isRtsp = false;
   nsRefPtr<nsBaseChannel> rtspChannel;
@@ -88,12 +86,6 @@ RtspHandler::NewChannel2(nsIURI* aURI,
 
   rtspChannel.forget(aResult);
   return NS_OK;
-}
-
-NS_IMETHODIMP
-RtspHandler::NewChannel(nsIURI *aURI, nsIChannel **aResult)
-{
-  return NewChannel2(aURI, nullptr, aResult);
 }
 
 NS_IMETHODIMP

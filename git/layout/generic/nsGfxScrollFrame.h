@@ -76,7 +76,6 @@ public:
   void AppendScrollPartsTo(nsDisplayListBuilder*   aBuilder,
                            const nsRect&           aDirtyRect,
                            const nsDisplayListSet& aLists,
-                           bool                    aUsingDisplayPort,
                            bool                    aCreateLayer,
                            bool                    aPositioned);
 
@@ -97,8 +96,6 @@ public:
   void FireScrollEvent();
   void PostScrolledAreaEvent();
   void FireScrolledAreaEvent();
-
-  bool IsSmoothScrollingEnabled();
 
   class ScrollEvent : public nsRunnable {
   public:
@@ -284,8 +281,7 @@ public:
   nscoord GetNondisappearingScrollbarWidth(nsBoxLayoutState* aState);
   bool IsLTR() const;
   bool IsScrollbarOnRight() const;
-  bool IsScrollingActive(nsDisplayListBuilder* aBuilder) const;
-  bool IsMaybeScrollingActive() const;
+  bool IsScrollingActive() const { return mScrollingActive || mShouldBuildScrollableLayer; }
   bool IsProcessingAsyncScroll() const {
     return mAsyncScroll != nullptr || mAsyncSmoothMSDScroll != nullptr;
   }
@@ -314,13 +310,11 @@ public:
 
   bool IsIgnoringViewportClipping() const;
 
-  void MarkScrollbarsDirtyForReflow() const;
-
   bool ShouldClampScrollPosition() const;
 
   bool IsAlwaysActive() const;
-  void MarkRecentlyScrolled();
-  void MarkNotRecentlyScrolled();
+  void MarkActive();
+  void MarkInactive();
   nsExpirationState* GetExpirationState() { return &mActivityExpirationState; }
 
   void ScheduleSyntheticMouseMove();
@@ -443,15 +437,13 @@ public:
   bool mUpdateScrollbarAttributes:1;
   // If true, we should be prepared to scroll using this scrollframe
   // by placing descendant content into its own layer(s)
-  bool mHasBeenScrolledRecently:1;
+  bool mScrollingActive:1;
   // If true, the resizer is collapsed and not displayed
   bool mCollapsedResizer:1;
 
   // If true, the layer should always be active because we always build a
   // scrollable layer. Used for asynchronous scrolling.
   bool mShouldBuildScrollableLayer:1;
-  // If true, add clipping in ScrollFrameHelper::ComputeFrameMetrics.
-  bool mAddClipRectToLayer:1;
 
   // True if this frame has been scrolled at least once
   bool mHasBeenScrolled:1;
@@ -695,8 +687,8 @@ public:
     mHelper.PostScrolledAreaEvent();
     return NS_OK;
   }
-  virtual bool IsScrollingActive(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE {
-    return mHelper.IsScrollingActive(aBuilder);
+  virtual bool IsScrollingActive() MOZ_OVERRIDE {
+    return mHelper.IsScrollingActive();
   }
   virtual bool IsProcessingAsyncScroll() MOZ_OVERRIDE {
     return mHelper.IsProcessingAsyncScroll();
@@ -746,9 +738,6 @@ public:
   }
   virtual bool IsIgnoringViewportClipping() const MOZ_OVERRIDE {
     return mHelper.IsIgnoringViewportClipping();
-  }
-  virtual void MarkScrollbarsDirtyForReflow() const MOZ_OVERRIDE {
-    mHelper.MarkScrollbarsDirtyForReflow();
   }
 
   // nsIStatefulFrame
@@ -1053,8 +1042,8 @@ public:
     mHelper.PostScrolledAreaEvent();
     return NS_OK;
   }
-  virtual bool IsScrollingActive(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE {
-    return mHelper.IsScrollingActive(aBuilder);
+  virtual bool IsScrollingActive() MOZ_OVERRIDE {
+    return mHelper.IsScrollingActive();
   }
   virtual bool IsProcessingAsyncScroll() MOZ_OVERRIDE {
     return mHelper.IsProcessingAsyncScroll();
@@ -1104,9 +1093,6 @@ public:
   }
   virtual bool IsIgnoringViewportClipping() const MOZ_OVERRIDE {
     return mHelper.IsIgnoringViewportClipping();
-  }
-  virtual void MarkScrollbarsDirtyForReflow() const MOZ_OVERRIDE {
-    mHelper.MarkScrollbarsDirtyForReflow();
   }
 
   // nsIStatefulFrame

@@ -11,7 +11,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/Animation.h"
-#include "mozilla/dom/AnimationPlayer.h"
 #include "AnimationCommon.h"
 #include "nsCSSPseudoElements.h"
 
@@ -33,11 +32,8 @@ namespace mozilla {
 struct ElementPropertyTransition : public dom::Animation
 {
   ElementPropertyTransition(nsIDocument* aDocument,
-                            dom::Element* aTarget,
-                            nsCSSPseudoElements::Type aPseudoType,
                             const AnimationTiming &aTiming)
-    : dom::Animation(aDocument, aTarget, aPseudoType, aTiming, EmptyString())
-  { }
+    : dom::Animation(aDocument, aTiming, EmptyString()) { }
 
   virtual ElementPropertyTransition* AsTransition() { return this; }
   virtual const ElementPropertyTransition* AsTransition() const { return this; }
@@ -63,26 +59,6 @@ struct ElementPropertyTransition : public dom::Animation
   // at the current time.  (The input to the transition timing function
   // has time units, the output has value units.)
   double CurrentValuePortion() const;
-};
-
-class CSSTransitionPlayer MOZ_FINAL : public dom::AnimationPlayer
-{
-public:
- explicit CSSTransitionPlayer(dom::AnimationTimeline* aTimeline)
-    : dom::AnimationPlayer(aTimeline)
-  {
-  }
-
-  virtual CSSTransitionPlayer*
-  AsCSSTransitionPlayer() MOZ_OVERRIDE { return this; }
-
-  virtual dom::AnimationPlayState PlayStateFromJS() const MOZ_OVERRIDE;
-  virtual void PlayFromJS() MOZ_OVERRIDE;
-
-protected:
-  virtual ~CSSTransitionPlayer() { }
-
-  virtual css::CommonAnimationManager* GetAnimationManager() const MOZ_OVERRIDE;
 };
 
 } // namespace mozilla
@@ -165,13 +141,15 @@ public:
 
   void FlushTransitions(FlushFlags aFlags);
 
-  virtual AnimationPlayerCollection*
-  GetAnimationPlayers(mozilla::dom::Element *aElement,
-                      nsCSSPseudoElements::Type aPseudoType,
-                      bool aCreateIfNeeded) MOZ_OVERRIDE;
-  void WalkTransitionRule(mozilla::dom::Element* aElement,
-                          nsCSSPseudoElements::Type aPseudoType,
-                          nsRuleWalker* aRuleWalker);
+  AnimationPlayerCollection* GetElementTransitions(
+    mozilla::dom::Element *aElement,
+    nsCSSPseudoElements::Type aPseudoType,
+    bool aCreateIfNeeded);
+
+protected:
+  virtual void ElementCollectionRemoved() MOZ_OVERRIDE;
+  virtual void
+  AddElementCollection(AnimationPlayerCollection* aCollection) MOZ_OVERRIDE;
 
 private:
   void
@@ -183,6 +161,8 @@ private:
                              nsStyleContext* aNewStyleContext,
                              bool* aStartedAny,
                              nsCSSPropertySet* aWhichStarted);
+  void WalkTransitionRule(ElementDependentRuleProcessorData* aData,
+                          nsCSSPseudoElements::Type aPseudoType);
 
   bool mInAnimationOnlyStyleUpdate;
 };

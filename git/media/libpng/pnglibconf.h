@@ -27,6 +27,9 @@
 #define PNG_Z_DEFAULT_STRATEGY 1
 #define PNG_sRGB_PROFILE_CHECKS -1
 
+/* This can be deleted when libpng-1.6.14 lands. */
+#define PNG_SET_OPTION_SUPPORTED
+
 #ifdef _MSC_VER
 /* The PNG_PEDANTIC_WARNINGS (attributes) fail to build with some MSC
  * compilers; we'll play it safe and disable them for all MSC compilers.
@@ -115,14 +118,15 @@
 #define PNG_sRGB_SUPPORTED
 #define PNG_tRNS_SUPPORTED
 #define PNG_16BIT_SUPPORTED
+#define PNG_CHECK_cHRM_SUPPORTED
 #define PNG_FLOATING_ARITHMETIC_SUPPORTED
 #define PNG_FLOATING_POINT_SUPPORTED
 #define PNG_POINTER_INDEXING_SUPPORTED
 #define PNG_SETJMP_SUPPORTED
 #define PNG_STDIO_SUPPORTED
+#define PNG_TEXT_SUPPORTED
 
 #ifdef PR_LOGGING
-#define PNG_CHECK_cHRM_SUPPORTED
 #define PNG_ERROR_TEXT_SUPPORTED
 #define PNG_WARNINGS_SUPPORTED
 #endif
@@ -396,6 +400,10 @@
 #define png_set_keep_unknown_chunks     MOZ_PNG_set_keep_unknown_chunks
 #define png_set_mem_fn                  MOZ_PNG_set_mem_fn
 #define png_set_oFFs                    MOZ_PNG_set_oFFs
+
+/* This can be deleted when libpng-1.6.14 lands. */
+#define png_set_option                  MOZ_PNG_set_option
+
 #define png_set_packing                 MOZ_PNG_set_packing
 #define png_set_packswap                MOZ_PNG_set_packswap
 #define png_set_palette_to_rgb          MOZ_PNG_set_palette_to_rgb

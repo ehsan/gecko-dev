@@ -26,8 +26,7 @@ const { AddonManager } = Cu.import("resource://gre/modules/AddonManager.jsm", {}
 var ios = Cc['@mozilla.org/network/io-service;1']
           .getService(Ci.nsIIOService);
 
-const CFX_TEST_REGEX = /(([^\/]+\/)(?:lib\/)?)?(tests?\/test-[^\.\/]+)\.js$/;
-const JPM_TEST_REGEX = /^()(tests?\/test-[^\.\/]+)\.js$/;
+const TEST_REGEX = /(([^\/]+\/)(?:lib\/)?)?(tests?\/test-[^\.\/]+)\.js$/;
 
 const { mapcat, map, filter, fromEnumerator } = require("sdk/util/sequence");
 
@@ -52,8 +51,6 @@ const removeDups = (array) => array.reduce((result, value) => {
 }, []);
 
 const getSuites = function getSuites({ id, filter }) {
-  const TEST_REGEX = isNative ? JPM_TEST_REGEX : CFX_TEST_REGEX;
-
   return getAddon(id).then(addon => {
     let fileURI = addon.getResourceURI("tests/");
     let isPacked = fileURI.scheme == "jar";
@@ -80,13 +77,9 @@ const getSuites = function getSuites({ id, filter }) {
         suites = removeDups(suites.sort());
         return suites;
       })
-    }
-    else {
-      let tests = [...getTestEntries(file)];
-      let rootURI = addon.getResourceURI("/");
-      tests.forEach((entry) => {
-        addEntry(entry.replace(rootURI.spec, ""));
-      });
+    } else {
+      let tests = getTestEntries(file);
+      [...tests].forEach(addEntry);
     }
 
     // sort and remove dups
@@ -109,8 +102,7 @@ const makeFilters = function makeFilters(options) {
     if (colonPos === -1) {
       filterFileRegex = new RegExp(options.filter);
       filterNameRegex = { test: () => true }
-    }
-    else {
+    } else {
       filterFileRegex = new RegExp(options.filter.substr(0, colonPos));
       filterNameRegex = new RegExp(options.filter.substr(colonPos + 1));
     }

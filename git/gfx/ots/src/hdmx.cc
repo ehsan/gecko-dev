@@ -13,10 +13,10 @@
 
 #define DROP_THIS_TABLE(...) \
   do { \
-    OTS_FAILURE_MSG_(file, TABLE_NAME ": " __VA_ARGS__); \
-    OTS_FAILURE_MSG("Table discarded"); \
     delete file->hdmx; \
     file->hdmx = 0; \
+    OTS_FAILURE_MSG_(file, TABLE_NAME ": " __VA_ARGS__); \
+    OTS_FAILURE_MSG("Table discarded"); \
   } while (0)
 
 namespace ots {
@@ -107,16 +107,13 @@ bool ots_hdmx_should_serialise(OpenTypeFile *file) {
 bool ots_hdmx_serialise(OTSStream *out, OpenTypeFile *file) {
   OpenTypeHDMX * const hdmx = file->hdmx;
 
-  const int16_t num_recs = static_cast<int16_t>(hdmx->records.size());
-  if (hdmx->records.size() >
-          static_cast<size_t>(std::numeric_limits<int16_t>::max()) ||
-      !out->WriteU16(hdmx->version) ||
-      !out->WriteS16(num_recs) ||
+  if (!out->WriteU16(hdmx->version) ||
+      !out->WriteS16(hdmx->records.size()) ||
       !out->WriteS32(hdmx->size_device_record)) {
     return OTS_FAILURE_MSG("Failed to write hdmx header");
   }
 
-  for (int16_t i = 0; i < num_recs; ++i) {
+  for (unsigned i = 0; i < hdmx->records.size(); ++i) {
     const OpenTypeHDMXDeviceRecord& rec = hdmx->records[i];
     if (!out->Write(&rec.pixel_size, 1) ||
         !out->Write(&rec.max_width, 1) ||

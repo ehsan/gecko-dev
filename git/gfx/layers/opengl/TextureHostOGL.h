@@ -20,7 +20,6 @@
 #include "mozilla/gfx/Matrix.h"         // for Matrix4x4
 #include "mozilla/gfx/Point.h"          // for IntSize, IntPoint
 #include "mozilla/gfx/Types.h"          // for SurfaceFormat, etc
-#include "mozilla/layers/CompositorOGL.h"  // for CompositorOGL
 #include "mozilla/layers/CompositorTypes.h"  // for TextureFlags
 #include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor
 #include "mozilla/layers/TextureHost.h"  // for TextureHost, etc
@@ -39,6 +38,7 @@
 
 class gfxReusableSurfaceWrapper;
 class nsIntRegion;
+class nsSurfaceTexture;
 struct nsIntPoint;
 struct nsIntRect;
 struct nsIntSize;
@@ -49,7 +49,7 @@ class DataSourceSurface;
 }
 
 namespace gl {
-class AndroidSurfaceTexture;
+class SurfaceStream;
 }
 
 namespace layers {
@@ -58,7 +58,99 @@ class Compositor;
 class CompositorOGL;
 class TextureImageTextureSourceOGL;
 class TextureSharedDataGonkOGL;
-class GLTextureSource;
+
+/**
+ * CompositableBackendSpecificData implementation for the Gonk OpenGL backend.
+ * Share a same texture between TextureHosts in the same CompositableHost.
+ * By shareing the texture among the TextureHosts, number of texture allocations
+ * can be reduced than texture allocation in every TextureHosts.
+ * From Bug 912134, use only one texture among all TextureHosts degrade
+ * the rendering performance.
+ * CompositableDataGonkOGL chooses in a middile of them.
+ */
+class CompositableDataGonkOGL : public CompositableBackendSpecificData
+{
+protected:
+  virtual ~CompositableDataGonkOGL();
+
+public:
+  CompositableDataGonkOGL();
+  virtual void ClearData() MOZ_OVERRIDE;
+  virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;
+
+  TextureSharedDataGonkOGL* GetTextureBackendSpecificData();
+protected:
+  nsRefPtr<TextureSharedDataGonkOGL> mTextureBackendSpecificData;
+  RefPtr<CompositorOGL> mCompositor;
+};
+
+/**
+ * Manage actual shared resources of CompositableDataGonkOGL.
+ * The resources are split from CompositableDataGonkOGL to handle two use cases.
+ * Normally TextureHost is used from one CompositableHost at the same time.
+ * In this case, performance is good if the resources are owned by CompositableDataGonkOGL.
+ * But TextureHost could be shared among multiple ImageHosts.
+ * If it happens, performance is good if the resource is owned by TextureHost.
+ * The resources ownership is carryed over from CompositableDataGonkOGL to TextureHost.
+ * See Bug 1017351.
+ */
+class TextureSharedDataGonkOGL
+{
+protected:
+  virtual ~TextureSharedDataGonkOGL();
+
+public:
+  NS_INLINE_DECL_REFCOUNTING(TextureSharedDataGonkOGL)
+
+  TextureSharedDataGonkOGL();
+  TextureSharedDataGonkOGL(GLuint aTexture, EGLImage aImage, CompositorOGL* aCompositor);
+
+  void SetCompositor(Compositor* aCompositor);
+  void ClearData();
+
+  // Mark TextureSharedDataGonkOGL as owned by TextureHost.
+  void SetOwnedByTextureHost()
+  {
+    mOwnedByCompositableHost = false;
+  }
+
+  // Check if this is owned by CompositableHost or TextureHost.
+  bool IsOwnedByCompositableHost()
+  {
+    return mOwnedByCompositableHost;
+  }
+
+  bool IsAllowingSharingTextureHost()
+  {
+    return mAllowSharingTextureHost;
+  }
+
+  void SetAllowSharingTextureHost(bool aAllow)
+  {
+    mAllowSharingTextureHost = aAllow;
+  }
+
+  // Create new TextureSharedDataGonkOGL.
+  // If aImage is already bound to OpenGL texture, the OpenGL textre is carried over
+  // to a new object. It could reduce calling fEGLImageTargetTexture2D()
+  // during resources ownership carry over from CompositableHost to TextureHost.
+  TemporaryRef<TextureSharedDataGonkOGL> GetNewTextureBackendSpecificData(EGLImage aImage);
+
+  GLuint GetTexture();
+  void DeleteTextureIfPresent();
+  gl::GLContext* gl() const;
+  void BindEGLImage(GLuint aTarget, EGLImage aImage);
+  void ClearBoundEGLImage(EGLImage aImage);
+  bool IsEGLImageBound(EGLImage aImage);
+protected:
+  GLuint GetAndResetGLTextureOwnership();
+
+  bool mOwnedByCompositableHost;
+  bool mAllowSharingTextureHost;
+  RefPtr<CompositorOGL> mCompositor;
+  GLuint mTexture;
+  EGLImage mBoundEGLImage;
+};
 
 inline void ApplyFilterToBoundTexture(gl::GLContext* aGL,
                                       gfx::Filter aFilter,
@@ -112,8 +204,6 @@ public:
   virtual gfx::Matrix4x4 GetTextureTransform() { return gfx::Matrix4x4(); }
 
   virtual TextureImageTextureSourceOGL* AsTextureImageTextureSource() { return nullptr; }
-
-  virtual GLTextureSource* AsGLTextureSource() { return nullptr; }
 
   void SetFilter(gl::GLContext* aGL, gfx::Filter aFilter)
   {
@@ -189,9 +279,9 @@ class TextureImageTextureSourceOGL MOZ_FINAL : public DataTextureSource
                                              , public BigImageIterator
 {
 public:
-  explicit TextureImageTextureSourceOGL(CompositorOGL *aCompositor,
+  explicit TextureImageTextureSourceOGL(gl::GLContext* aGL,
                                         TextureFlags aFlags = TextureFlags::DEFAULT)
-    : mCompositor(aCompositor)
+    : mGL(aGL)
     , mFlags(aFlags)
     , mIterating(false)
   {}
@@ -265,7 +355,7 @@ public:
 
 protected:
   nsRefPtr<gl::TextureImage> mTexImage;
-  RefPtr<CompositorOGL> mCompositor;
+  gl::GLContext* mGL;
   TextureFlags mFlags;
   bool mIterating;
 };
@@ -278,20 +368,15 @@ protected:
  *
  * The shared texture handle is owned by the TextureHost.
  */
-class GLTextureSource : public TextureSource
+class GLTextureSource : public NewTextureSource
                       , public TextureSourceOGL
 {
 public:
   GLTextureSource(CompositorOGL* aCompositor,
-                  GLuint aTextureHandle,
-                  GLenum aTarget,
-                  gfx::IntSize aSize,
+                  GLuint aTex,
                   gfx::SurfaceFormat aFormat,
-                  bool aExternallyOwned = false);
-
-  ~GLTextureSource();
-
-  virtual GLTextureSource* AsGLTextureSource() MOZ_OVERRIDE { return this; }
+                  GLenum aTarget,
+                  gfx::IntSize aSize);
 
   virtual TextureSourceOGL* AsSourceOGL() MOZ_OVERRIDE { return this; }
 
@@ -307,29 +392,18 @@ public:
 
   virtual GLenum GetWrapMode() const MOZ_OVERRIDE { return LOCAL_GL_CLAMP_TO_EDGE; }
 
-  virtual void DeallocateDeviceData() MOZ_OVERRIDE;
+  virtual void DeallocateDeviceData() MOZ_OVERRIDE {}
 
   virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;
-
-  void SetSize(gfx::IntSize aSize) { mSize = aSize; }
-
-  void SetFormat(gfx::SurfaceFormat aFormat) { mFormat = aFormat; }
-
-  GLuint GetTextureHandle() const { return mTextureHandle; }
 
   gl::GLContext* gl() const;
 
 protected:
-  void DeleteTextureHandle();
-
-  RefPtr<CompositorOGL> mCompositor;
-  GLuint mTextureHandle;
-  GLenum mTextureTarget;
-  gfx::IntSize mSize;
-  gfx::SurfaceFormat mFormat;
-  // If the texture is externally owned, the gl handle will not be deleted
-  // in the destructor.
-  bool mExternallyOwned;
+  const gfx::IntSize mSize;
+  CompositorOGL* mCompositor;
+  const GLuint mTex;
+  const gfx::SurfaceFormat mFormat;
+  const GLenum mTextureTarget;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -337,12 +411,12 @@ protected:
 
 #ifdef MOZ_WIDGET_ANDROID
 
-class SurfaceTextureSource : public TextureSource
+class SurfaceTextureSource : public NewTextureSource
                            , public TextureSourceOGL
 {
 public:
   SurfaceTextureSource(CompositorOGL* aCompositor,
-                       mozilla::gl::AndroidSurfaceTexture* aSurfTex,
+                       nsSurfaceTexture* aSurfTex,
                        gfx::SurfaceFormat aFormat,
                        GLenum aTarget,
                        GLenum aWrapMode,
@@ -372,8 +446,8 @@ public:
   gl::GLContext* gl() const;
 
 protected:
-  RefPtr<CompositorOGL> mCompositor;
-  mozilla::gl::AndroidSurfaceTexture* const mSurfTex;
+  CompositorOGL* mCompositor;
+  nsSurfaceTexture* const mSurfTex;
   const gfx::SurfaceFormat mFormat;
   const GLenum mTextureTarget;
   const GLenum mWrapMode;
@@ -384,7 +458,7 @@ class SurfaceTextureHost : public TextureHost
 {
 public:
   SurfaceTextureHost(TextureFlags aFlags,
-                     mozilla::gl::AndroidSurfaceTexture* aSurfTex,
+                     nsSurfaceTexture* aSurfTex,
                      gfx::IntSize aSize);
 
   virtual ~SurfaceTextureHost();
@@ -400,7 +474,7 @@ public:
 
   virtual gfx::SurfaceFormat GetFormat() const MOZ_OVERRIDE;
 
-  virtual TextureSource* GetTextureSources() MOZ_OVERRIDE
+  virtual NewTextureSource* GetTextureSources() MOZ_OVERRIDE
   {
     return mTextureSource;
   }
@@ -417,9 +491,9 @@ public:
   virtual const char* Name() { return "SurfaceTextureHost"; }
 
 protected:
-  mozilla::gl::AndroidSurfaceTexture* const mSurfTex;
+  nsSurfaceTexture* const mSurfTex;
   const gfx::IntSize mSize;
-  RefPtr<CompositorOGL> mCompositor;
+  CompositorOGL* mCompositor;
   RefPtr<SurfaceTextureSource> mTextureSource;
 };
 
@@ -428,7 +502,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////
 // EGLImage
 
-class EGLImageTextureSource : public TextureSource
+class EGLImageTextureSource : public NewTextureSource
                             , public TextureSourceOGL
 {
 public:
@@ -463,7 +537,7 @@ public:
   gl::GLContext* gl() const;
 
 protected:
-  RefPtr<CompositorOGL> mCompositor;
+  CompositorOGL* mCompositor;
   const EGLImage mImage;
   const gfx::SurfaceFormat mFormat;
   const GLenum mTextureTarget;
@@ -491,7 +565,7 @@ public:
 
   virtual gfx::SurfaceFormat GetFormat() const MOZ_OVERRIDE;
 
-  virtual TextureSource* GetTextureSources() MOZ_OVERRIDE
+  virtual NewTextureSource* GetTextureSources() MOZ_OVERRIDE
   {
     return mTextureSource;
   }
@@ -510,7 +584,7 @@ public:
 protected:
   const EGLImage mImage;
   const gfx::IntSize mSize;
-  RefPtr<CompositorOGL> mCompositor;
+  CompositorOGL* mCompositor;
   RefPtr<EGLImageTextureSource> mTextureSource;
 };
 

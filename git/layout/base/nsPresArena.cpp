@@ -93,7 +93,7 @@ nsPresArena::Allocate(uint32_t aCode, size_t aSize)
   list->mEntriesEverAllocated++;
   PL_ARENA_ALLOCATE(result, &mPool, aSize);
   if (!result) {
-    NS_ABORT_OOM(aSize);
+    NS_RUNTIMEABORT("out of memory");
   }
   return result;
 }

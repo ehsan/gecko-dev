@@ -2367,9 +2367,7 @@ DrawTargetD2D::CreateBrushForPattern(const Pattern &aPattern, Float aAlpha)
 
     RefPtr<SourceSurface> source = pat->mSurface;
 
-    if (!pat->mSamplingRect.IsEmpty() &&
-        (source->GetType() == SurfaceType::D2D1_BITMAP ||
-         source->GetType() == SurfaceType::D2D1_DRAWTARGET)) {
+    if (!pat->mSamplingRect.IsEmpty()) {
       IntRect samplingRect = pat->mSamplingRect;
 
       RefPtr<DrawTargetD2D> dt = new DrawTargetD2D();
@@ -2413,12 +2411,7 @@ DrawTargetD2D::CreateBrushForPattern(const Pattern &aPattern, Float aAlpha)
           return nullptr;
         }
 
-        IntRect sourceRect = pat->mSamplingRect;
-        if (sourceRect.IsEmpty()) {
-          sourceRect = IntRect(0, 0, source->GetSize().width, source->GetSize().height);
-        }
-
-        bitmap = CreatePartialBitmapForSurface(dataSurf, mTransform, mSize, pat->mExtendMode, mat, mRT, &sourceRect);
+        bitmap = CreatePartialBitmapForSurface(dataSurf, mTransform, mSize, pat->mExtendMode, mat, mRT); 
         if (!bitmap) {
           return nullptr;
         }

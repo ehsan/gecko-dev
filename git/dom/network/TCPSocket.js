@@ -69,21 +69,11 @@ function TCPSocketEvent(type, sock, data) {
   this._data = data;
 }
 
-// When this API moves to WebIDL and these __exposedProps__ go away, remove
-// this call here and remove the API from XPConnect.
-Cu.skipCOWCallableChecks();
-
 TCPSocketEvent.prototype = {
   __exposedProps__: {
     type: 'r',
     target: 'r',
-    data: 'r',
-    // Promise::ResolveInternal tries to check if the thing being resolved is
-    // itself a promise through the presence of "then".  Accordingly, we list
-    // it as an exposed property, although we return undefined for it.
-    // Bug 882123 covers making TCPSocket be a proper event target with proper
-    // events.
-    then: 'r'
+    data: 'r'
   },
   get type() {
     return this._type;
@@ -93,9 +83,6 @@ TCPSocketEvent.prototype = {
   },
   get data() {
     return this._data;
-  },
-  get then() {
-    return undefined;
   }
 }
 
@@ -319,7 +306,7 @@ TCPSocket.prototype = {
       }
     }, null);
   },
-
+  
   _initStream: function ts_initStream(binaryType) {
     this._binaryType = binaryType;
     this._socketInputStream = this._transport.openInputStream(0, 0, 0);
@@ -440,7 +427,7 @@ TCPSocket.prototype = {
     }
   },
 
-  createAcceptedParent: function ts_createAcceptedParent(transport, binaryType, windowObject) {
+  createAcceptedParent: function ts_createAcceptedParent(transport, binaryType) {
     let that = new TCPSocket();
     that._transport = transport;
     that._initStream(binaryType);
@@ -453,7 +440,6 @@ TCPSocket.prototype = {
     // Grab host/port from SocketTransport.
     that._host = transport.host;
     that._port = transport.port;
-    that.useWin = windowObject;
 
     return that;
   },
@@ -468,7 +454,6 @@ TCPSocket.prototype = {
     that._socketBridge = socketChild;
     that._host = socketChild.host;
     that._port = socketChild.port;
-    that.useWin = windowObject;
 
     return that;
   },
@@ -648,7 +633,8 @@ TCPSocket.prototype = {
     if (this._hasPrivileges !== true && this._hasPrivileges !== null) {
       throw new Error("TCPSocket does not have permission in this context.\n");
     }
-    let that = new TCPServerSocket(this.useWin);
+
+    let that = new TCPServerSocket(this.useWin || this);
 
     options = options || { binaryType : this.binaryType };
     backlog = backlog || -1;

@@ -22,7 +22,7 @@ class MBasicBlock;
 class MIRGraph;
 class MResumePoint;
 class LinearScanAllocator;
-class LNode;
+class LInstruction;
 
 class JSONSpewer
 {
@@ -63,7 +63,7 @@ class JSONSpewer
     void spewMDef(MDefinition *def);
     void spewMResumePoint(MResumePoint *rp);
     void spewMIR(MIRGraph *mir);
-    void spewLIns(LNode *ins);
+    void spewLIns(LInstruction *ins);
     void spewLIR(MIRGraph *mir);
     void spewIntervals(LinearScanAllocator *regalloc);
     void endPass();

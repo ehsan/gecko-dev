@@ -92,7 +92,6 @@ function parseDeclarations(inputString) {
         case "FUNCTION":
           current += token.value + "(";
           break;
-        case "(":
         case ")":
           current += token.tokenType;
           break;

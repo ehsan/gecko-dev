@@ -8,7 +8,8 @@
 
 function ifTestingSupported() {
   let { target, front } = yield initCanvasDebuggerBackend(WEBGL_BINDINGS_URL);
-  loadFrameScripts();
+  // XXX - use of |debuggee| here is incompatible with e10s - bug 1058879.
+  let debuggee = target.window.wrappedJSObject
 
   let navigated = once(target, "navigate");
 
@@ -36,26 +37,20 @@ function ifTestingSupported() {
   is(firstScreenshot.pixels.length, 0,
     "The first screenshot should be empty.");
 
-  is((yield evalInDebuggee("gl.getParameter(gl.FRAMEBUFFER_BINDING) === customFramebuffer")),
-    true,
+  let gl = debuggee.gl;
+  is(gl.getParameter(gl.FRAMEBUFFER_BINDING), debuggee.customFramebuffer,
     "The debuggee's gl context framebuffer wasn't changed.");
-  is((yield evalInDebuggee("gl.getParameter(gl.RENDERBUFFER_BINDING) === customRenderbuffer")),
-    true,
+  is(gl.getParameter(gl.RENDERBUFFER_BINDING), debuggee.customRenderbuffer,
     "The debuggee's gl context renderbuffer wasn't changed.");
-  is((yield evalInDebuggee("gl.getParameter(gl.TEXTURE_BINDING_2D) === customTexture")),
-    true,
+  is(gl.getParameter(gl.TEXTURE_BINDING_2D), debuggee.customTexture,
     "The debuggee's gl context texture binding wasn't changed.");
-  is((yield evalInDebuggee("gl.getParameter(gl.VIEWPORT)[0]")),
-    128,
+  is(gl.getParameter(gl.VIEWPORT)[0], 128,
     "The debuggee's gl context viewport's left coord. wasn't changed.");
-  is((yield evalInDebuggee("gl.getParameter(gl.VIEWPORT)[1]")),
-    256,
+  is(gl.getParameter(gl.VIEWPORT)[1], 256,
     "The debuggee's gl context viewport's left coord. wasn't changed.");
-  is((yield evalInDebuggee("gl.getParameter(gl.VIEWPORT)[2]")),
-    384,
+  is(gl.getParameter(gl.VIEWPORT)[2], 384,
     "The debuggee's gl context viewport's left coord. wasn't changed.");
-  is((yield evalInDebuggee("gl.getParameter(gl.VIEWPORT)[3]")),
-    512,
+  is(gl.getParameter(gl.VIEWPORT)[3], 512,
     "The debuggee's gl context viewport's left coord. wasn't changed.");
 
   let secondScreenshot = yield snapshotActor.generateScreenshotFor(functionCalls[1]);
@@ -80,26 +75,20 @@ function ifTestingSupported() {
   is(new Uint8Array(secondScreenshot.pixels.buffer)[3], 255,
     "The second screenshot has the correct alpha component.");
 
-  is((yield evalInDebuggee("gl.getParameter(gl.FRAMEBUFFER_BINDING) === customFramebuffer")),
-    true,
+  gl = debuggee.gl;
+  is(gl.getParameter(gl.FRAMEBUFFER_BINDING), debuggee.customFramebuffer,
     "The debuggee's gl context framebuffer still wasn't changed.");
-  is((yield evalInDebuggee("gl.getParameter(gl.RENDERBUFFER_BINDING) === customRenderbuffer")),
-    true,
+  is(gl.getParameter(gl.RENDERBUFFER_BINDING), debuggee.customRenderbuffer,
     "The debuggee's gl context renderbuffer still wasn't changed.");
-  is((yield evalInDebuggee("gl.getParameter(gl.TEXTURE_BINDING_2D) === customTexture")),
-    true,
+  is(gl.getParameter(gl.TEXTURE_BINDING_2D), debuggee.customTexture,
     "The debuggee's gl context texture binding still wasn't changed.");
-  is((yield evalInDebuggee("gl.getParameter(gl.VIEWPORT)[0]")),
-    128,
+  is(gl.getParameter(gl.VIEWPORT)[0], 128,
     "The debuggee's gl context viewport's left coord. still wasn't changed.");
-  is((yield evalInDebuggee("gl.getParameter(gl.VIEWPORT)[1]")),
-    256,
+  is(gl.getParameter(gl.VIEWPORT)[1], 256,
     "The debuggee's gl context viewport's left coord. still wasn't changed.");
-  is((yield evalInDebuggee("gl.getParameter(gl.VIEWPORT)[2]")),
-    384,
+  is(gl.getParameter(gl.VIEWPORT)[2], 384,
     "The debuggee's gl context viewport's left coord. still wasn't changed.");
-  is((yield evalInDebuggee("gl.getParameter(gl.VIEWPORT)[3]")),
-    512,
+  is(gl.getParameter(gl.VIEWPORT)[3], 512,
     "The debuggee's gl context viewport's left coord. still wasn't changed.");
 
   yield removeTab(target.tab);

@@ -29,6 +29,7 @@ public:
   explicit TouchList(nsISupports* aParent)
     : mParent(aParent)
   {
+    SetIsDOMBinding();
     nsJSContext::LikelyShortLivingObjectCreated();
   }
   TouchList(nsISupports* aParent,
@@ -36,6 +37,7 @@ public:
     : mParent(aParent)
     , mPoints(aTouches)
   {
+    SetIsDOMBinding();
     nsJSContext::LikelyShortLivingObjectCreated();
   }
 
@@ -89,7 +91,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(TouchEvent, UIEvent)
 
-  virtual JSObject* WrapObjectInternal(JSContext* aCx) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE
   {
     return TouchEventBinding::Wrap(aCx, this);
   }

@@ -78,18 +78,7 @@ class StoreBuffer
     friend class mozilla::ReentrancyGuard;
 
     /* The size at which a block is about to overflow. */
-    static const size_t LowAvailableThreshold = (size_t)(LifoAllocBlockSize * 1.0 / 16.0);
-
-    /*
-     * If the space available in the store buffer hits the
-     * LowAvailableThreshold and gets compacted, but still doesn't have at
-     * least HighAvailableThreshold space available, then we will trigger a
-     * minor GC. HighAvailableThreshold should be set to provide enough space
-     * for the mutator to run for a while in between compactions. (If
-     * HighAvailableThreshold is too low, we will thrash and spend most of the
-     * time compacting. If it is too high, we will tenure things too early.)
-     */
-    static const size_t HighAvailableThreshold = (size_t)(LifoAllocBlockSize * 1.0 / 4.0);
+    static const size_t MinAvailableSize = (size_t)(LifoAllocBlockSize * 1.0 / 8.0);
 
     /*
      * This buffer holds only a single type of edge. Using this buffer is more
@@ -121,11 +110,7 @@ class StoreBuffer
         }
 
         bool isAboutToOverflow() const {
-            return !storage_->isEmpty() && storage_->availableInCurrentChunk() < LowAvailableThreshold;
-        }
-
-        bool isLowOnSpace() const {
-            return !storage_->isEmpty() && storage_->availableInCurrentChunk() < HighAvailableThreshold;
+            return !storage_->isEmpty() && storage_->availableInCurrentChunk() < MinAvailableSize;
         }
 
         void handleOverflow(StoreBuffer *owner);
@@ -144,7 +129,7 @@ class StoreBuffer
 
         /* Add one item to the buffer. */
         void put(StoreBuffer *owner, const T &t) {
-            MOZ_ASSERT(storage_);
+            JS_ASSERT(storage_);
 
             T *tp = storage_->new_<T>(t);
             if (!tp)
@@ -204,7 +189,7 @@ class StoreBuffer
         }
 
         bool isAboutToOverflow() const {
-            return !storage_->isEmpty() && storage_->availableInCurrentChunk() < LowAvailableThreshold;
+            return !storage_->isEmpty() && storage_->availableInCurrentChunk() < MinAvailableSize;
         }
 
         /* Mark all generic edges. */
@@ -212,7 +197,7 @@ class StoreBuffer
 
         template <typename T>
         void put(StoreBuffer *owner, const T &t) {
-            MOZ_ASSERT(storage_);
+            JS_ASSERT(storage_);
 
             /* Ensure T is derived from BufferableRef. */
             (void)static_cast<const BufferableRef*>(&t);
@@ -256,7 +241,7 @@ class StoreBuffer
         bool operator!=(const CellPtrEdge &other) const { return edge != other.edge; }
 
         bool maybeInRememberedSet(const Nursery &nursery) const {
-            MOZ_ASSERT(IsInsideNursery(*edge));
+            JS_ASSERT(IsInsideNursery(*edge));
             return !nursery.isInside(edge);
         }
 
@@ -280,7 +265,7 @@ class StoreBuffer
         Cell *deref() const { return edge->isGCThing() ? static_cast<Cell *>(edge->toGCThing()) : nullptr; }
 
         bool maybeInRememberedSet(const Nursery &nursery) const {
-            MOZ_ASSERT(IsInsideNursery(deref()));
+            JS_ASSERT(IsInsideNursery(deref()));
             return !nursery.isInside(edge);
         }
 
@@ -299,20 +284,20 @@ class StoreBuffer
         const static int SlotKind = 0;
         const static int ElementKind = 1;
 
-        uintptr_t objectAndKind_; // NativeObject* | Kind
+        uintptr_t objectAndKind_; // JSObject* | Kind
         int32_t start_;
         int32_t count_;
 
-        SlotsEdge(NativeObject *object, int kind, int32_t start, int32_t count)
+        SlotsEdge(JSObject *object, int kind, int32_t start, int32_t count)
           : objectAndKind_(uintptr_t(object) | kind), start_(start), count_(count)
         {
-            MOZ_ASSERT((uintptr_t(object) & 1) == 0);
-            MOZ_ASSERT(kind <= 1);
-            MOZ_ASSERT(start >= 0);
-            MOZ_ASSERT(count > 0);
+            JS_ASSERT((uintptr_t(object) & 1) == 0);
+            JS_ASSERT(kind <= 1);
+            JS_ASSERT(start >= 0);
+            JS_ASSERT(count > 0);
         }
 
-        NativeObject *object() const { return reinterpret_cast<NativeObject *>(objectAndKind_ & ~1); }
+        JSObject *object() const { return reinterpret_cast<JSObject *>(objectAndKind_ & ~1); }
         int kind() const { return (int)(objectAndKind_ & 1); }
 
         bool operator==(const SlotsEdge &other) const {
@@ -326,7 +311,7 @@ class StoreBuffer
         }
 
         bool maybeInRememberedSet(const Nursery &) const {
-            return !IsInsideNursery(JS::AsCell(reinterpret_cast<JSObject *>(object())));
+            return !IsInsideNursery(JS::AsCell(object()));
         }
 
         void mark(JSTracer *trc);
@@ -343,7 +328,7 @@ class StoreBuffer
         Cell *edge;
 
         explicit WholeCellEdges(Cell *cell) : edge(cell) {
-            MOZ_ASSERT(edge->isTenured());
+            JS_ASSERT(edge->isTenured());
         }
 
         bool operator==(const WholeCellEdges &other) const { return edge == other.edge; }
@@ -415,7 +400,7 @@ class StoreBuffer
     void putFromMainThread(Buffer &buffer, const Edge &edge) {
         if (!isEnabled())
             return;
-        MOZ_ASSERT(CurrentThreadCanAccessRuntime(runtime_));
+        JS_ASSERT(CurrentThreadCanAccessRuntime(runtime_));
         mozilla::ReentrancyGuard g(*this);
         if (edge.maybeInRememberedSet(nursery_))
             buffer.put(this, edge);
@@ -457,11 +442,11 @@ class StoreBuffer
     /* Insert a single edge into the buffer/remembered set. */
     void putValueFromAnyThread(JS::Value *valuep) { putFromAnyThread(bufferVal, ValueEdge(valuep)); }
     void putCellFromAnyThread(Cell **cellp) { putFromAnyThread(bufferCell, CellPtrEdge(cellp)); }
-    void putSlotFromAnyThread(NativeObject *obj, int kind, int32_t start, int32_t count) {
+    void putSlotFromAnyThread(JSObject *obj, int kind, int32_t start, int32_t count) {
         putFromAnyThread(bufferSlot, SlotsEdge(obj, kind, start, count));
     }
     void putWholeCellFromMainThread(Cell *cell) {
-        MOZ_ASSERT(cell->isTenured());
+        JS_ASSERT(cell->isTenured());
         putFromMainThread(bufferWholeCell, WholeCellEdges(cell));
     }
 

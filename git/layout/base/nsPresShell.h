@@ -50,7 +50,6 @@ class nsAutoCauseReflowNotifier;
 
 namespace mozilla {
 class CSSStyleSheet;
-class EventDispatchingCallback;
 } // namespace mozilla
 
 // 250ms.  This is actually pref-controlled, but we use this value if we fail
@@ -75,9 +74,6 @@ public:
 
   // Selection caret preference
   static bool SelectionCaretPrefEnabled();
-
-  // BeforeAfterKeyboardEvent preference
-  static bool BeforeAfterKeyboardEventEnabled();
 
   void Init(nsIDocument* aDocument, nsPresContext* aPresContext,
             nsViewManager* aViewManager, nsStyleSet* aStyleSet,
@@ -113,9 +109,6 @@ public:
   virtual bool IsSafeToFlush() const MOZ_OVERRIDE;
   virtual void FlushPendingNotifications(mozFlushType aType) MOZ_OVERRIDE;
   virtual void FlushPendingNotifications(mozilla::ChangesToFlush aType) MOZ_OVERRIDE;
-  virtual void DestroyFramesFor(nsIContent*  aContent,
-                                nsIContent** aDestroyedFramesFor) MOZ_OVERRIDE;
-  virtual void CreateFramesFor(nsIContent* aContent) MOZ_OVERRIDE;
 
   /**
    * Recreates the frames for a node
@@ -129,9 +122,8 @@ public:
   virtual void CancelReflowCallback(nsIReflowCallback* aCallback) MOZ_OVERRIDE;
 
   virtual void ClearFrameRefs(nsIFrame* aFrame) MOZ_OVERRIDE;
-  virtual already_AddRefed<gfxContext> CreateReferenceRenderingContext();
-  virtual nsresult GoToAnchor(const nsAString& aAnchorName, bool aScroll,
-                              uint32_t aAdditionalScrollFlags = 0) MOZ_OVERRIDE;
+  virtual already_AddRefed<nsRenderingContext> CreateReferenceRenderingContext();
+  virtual nsresult GoToAnchor(const nsAString& aAnchorName, bool aScroll) MOZ_OVERRIDE;
   virtual nsresult ScrollToAnchor() MOZ_OVERRIDE;
 
   virtual nsresult ScrollContentIntoView(nsIContent* aContent,
@@ -376,10 +368,6 @@ public:
   virtual bool AssumeAllImagesVisible() MOZ_OVERRIDE;
 
   virtual void RecordShadowStyleChange(mozilla::dom::ShadowRoot* aShadowRoot);
-
-  virtual void DispatchAfterKeyboardEvent(nsINode* aTarget,
-                                          const mozilla::WidgetKeyboardEvent& aEvent,
-                                          bool aEmbeddedCancelled) MOZ_OVERRIDE;
 
   void SetNextPaintCompressed() { mNextPaintCompressed = true; }
 
@@ -731,24 +719,6 @@ protected:
 
   void EvictTouches();
 
-  // Methods for dispatching KeyboardEvent and BeforeAfterKeyboardEvent.
-  void HandleKeyboardEvent(nsINode* aTarget,
-                           mozilla::WidgetKeyboardEvent& aEvent,
-                           bool aEmbeddedCancelled,
-                           nsEventStatus* aStatus,
-                           mozilla::EventDispatchingCallback* aEventCB);
-  void DispatchBeforeKeyboardEventInternal(
-         const nsTArray<nsCOMPtr<mozilla::dom::Element> >& aChain,
-         const mozilla::WidgetKeyboardEvent& aEvent,
-         size_t& aChainIndex,
-         bool& aDefaultPrevented);
-  void DispatchAfterKeyboardEventInternal(
-         const nsTArray<nsCOMPtr<mozilla::dom::Element> >& aChain,
-         const mozilla::WidgetKeyboardEvent& aEvent,
-         bool aEmbeddedCancelled,
-         size_t aChainIndex = 0);
-  bool CanDispatchEvent(const mozilla::WidgetGUIEvent* aEvent = nullptr) const;
-
   // A list of images that are visible or almost visible.
   nsTHashtable< nsRefPtrHashKey<nsIImageLoadingContent> > mVisibleImages;
 
@@ -807,6 +777,12 @@ protected:
   // or all frames are constructed, we won't paint anything but
   // our <body> background and scrollbars.
   nsCOMPtr<nsITimer>        mPaintSuppressionTimer;
+
+  // At least on Win32 and Mac after interupting a reflow we need to post
+  // the resume reflow event off a timer to avoid event starvation because
+  // posted messages are processed before other messages when the modal
+  // moving/sizing loop is running, see bug 491700 for details.
+  nsCOMPtr<nsITimer>        mReflowContinueTimer;
 
   nsCOMPtr<nsITimer>        mDelayedPaintTimer;
 

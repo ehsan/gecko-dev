@@ -33,14 +33,13 @@
 #include "pkix/pkix.h"
 #include "pkix/ScopedPtr.h"
 #include "secerr.h"
-#include "sslerr.h"
 
 namespace mozilla { namespace pkix {
 
 typedef ScopedPtr<SECKEYPublicKey, SECKEY_DestroyPublicKey> ScopedSECKeyPublicKey;
 
 Result
-CheckPublicKeySize(Input subjectPublicKeyInfo, unsigned int minimumNonECCBits,
+CheckPublicKeySize(Input subjectPublicKeyInfo,
                    /*out*/ ScopedSECKeyPublicKey& publicKey)
 {
   SECItem subjectPublicKeyInfoSECItem =
@@ -55,13 +54,16 @@ CheckPublicKeySize(Input subjectPublicKeyInfo, unsigned int minimumNonECCBits,
     return MapPRErrorCodeToResult(PR_GetError());
   }
 
+  static const unsigned int MINIMUM_NON_ECC_BITS = 1024;
+
   switch (publicKey.get()->keyType) {
     case ecKey:
-      // TODO(bug 1077790): We should check which curve.
+      // TODO(bug 622859): We should check which curve.
       return Success;
     case dsaKey: // fall through
     case rsaKey:
-      if (SECKEY_PublicKeyStrengthInBits(publicKey.get()) < minimumNonECCBits) {
+      // TODO(bug 622859): Enforce a minimum of 2048 bits for EV certs.
+      if (SECKEY_PublicKeyStrengthInBits(publicKey.get()) < MINIMUM_NON_ECC_BITS) {
         return Result::ERROR_INADEQUATE_KEY_SIZE;
       }
       break;
@@ -79,16 +81,15 @@ CheckPublicKeySize(Input subjectPublicKeyInfo, unsigned int minimumNonECCBits,
 }
 
 Result
-CheckPublicKey(Input subjectPublicKeyInfo, unsigned int minimumNonECCBits)
+CheckPublicKey(Input subjectPublicKeyInfo)
 {
   ScopedSECKeyPublicKey unused;
-  return CheckPublicKeySize(subjectPublicKeyInfo, minimumNonECCBits, unused);
+  return CheckPublicKeySize(subjectPublicKeyInfo, unused);
 }
 
 Result
 VerifySignedData(const SignedDataWithSignature& sd,
-                 Input subjectPublicKeyInfo, unsigned int minimumNonECCBits,
-                 void* pkcs11PinArg)
+                 Input subjectPublicKeyInfo, void* pkcs11PinArg)
 {
   SECOidTag pubKeyAlg;
   SECOidTag digestAlg;
@@ -133,7 +134,6 @@ VerifySignedData(const SignedDataWithSignature& sd,
       pubKeyAlg = SEC_OID_ANSIX9_DSA_SIGNATURE;
       digestAlg = SEC_OID_SHA1;
       break;
-    case SignatureAlgorithm::unsupported_algorithm:
     default:
       PR_NOT_REACHED("unknown signature algorithm");
       return Result::ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED;
@@ -141,7 +141,7 @@ VerifySignedData(const SignedDataWithSignature& sd,
 
   Result rv;
   ScopedSECKeyPublicKey pubKey;
-  rv = CheckPublicKeySize(subjectPublicKeyInfo, minimumNonECCBits, pubKey);
+  rv = CheckPublicKeySize(subjectPublicKeyInfo, pubKey);
   if (rv != Success) {
     return rv;
   }
@@ -241,11 +241,7 @@ RegisterErrorTable()
       "certificate, this should not be the case." },
     { "MOZILLA_PKIX_ERROR_INADEQUATE_KEY_SIZE",
       "The server presented a certificate with a key size that is too small "
-      "to establish a secure connection." },
-    { "MOZILLA_PKIX_ERROR_V1_CERT_USED_AS_CA",
-      "An X.509 version 1 certificate that is not a trust anchor was used to "
-      "issue the server's certificate. X.509 version 1 certificates are "
-      "deprecated and should not be used to sign other certificates." },
+      "to establish a secure connection." }
   };
   // Note that these error strings are not localizable.
   // When these strings change, update the localization information too.

@@ -108,16 +108,16 @@ function promiseWaitForCondition(aConditionFn) {
   return deferred.promise;
 }
 
-function promiseWaitForEvent(object, eventName, capturing = false, chrome = false) {
+function promiseWaitForEvent(object, eventName, capturing = false) {
   return new Promise((resolve) => {
     function listener(event) {
       info("Saw " + eventName);
-      object.removeEventListener(eventName, listener, capturing, chrome);
+      object.removeEventListener(eventName, listener, capturing);
       resolve(event);
     }
 
     info("Waiting for " + eventName);
-    object.addEventListener(eventName, listener, capturing, chrome);
+    object.addEventListener(eventName, listener, capturing);
   });
 }
 
@@ -667,22 +667,7 @@ function assertWebRTCIndicatorStatus(expected) {
     let hasWindow = indicator.hasMoreElements();
     is(hasWindow, !!expected, "popup " + msg);
     if (hasWindow) {
-      let document = indicator.getNext().document;
-      let docElt = document.documentElement;
-
-      if (document.readyState != "complete") {
-        info("Waiting for the sharing indicator's document to load");
-        let deferred = Promise.defer();
-        document.addEventListener("readystatechange",
-                                  function onReadyStateChange() {
-          if (document.readyState != "complete")
-            return;
-          document.removeEventListener("readystatechange", onReadyStateChange);
-          deferred.resolve();
-        });
-        yield deferred.promise;
-      }
-
+      let docElt = indicator.getNext().document.documentElement;
       for (let item of ["video", "audio", "screen"]) {
         let expectedValue = (expected && expected[item]) ? "true" : "";
         is(docElt.getAttribute("sharing" + item), expectedValue,
@@ -706,7 +691,7 @@ function is_hidden(element) {
   if (style.visibility != "visible")
     return true;
   if (style.display == "-moz-popup")
-    return ["hiding","closed"].indexOf(element.state) != -1;
+    return ["hiding","closed"].contains(element.state);
 
   // Hiding a parent element will hide all its children
   if (element.parentNode != element.ownerDocument)
@@ -744,7 +729,7 @@ function is_element_hidden(element, msg) {
 function promisePopupEvent(popup, eventSuffix) {
   let endState = {shown: "open", hidden: "closed"}[eventSuffix];
 
-  if (popup.state == endState)
+  if (popup.state = endState)
     return Promise.resolve();
 
   let eventType = "popup" + eventSuffix;

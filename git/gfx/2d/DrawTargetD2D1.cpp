@@ -128,27 +128,14 @@ DrawTargetD2D1::DrawSurface(SourceSurface *aSurface,
     return;
   }
 
-  RefPtr<ID2D1Bitmap> bitmap;
-  if (aSurface->GetType() == SurfaceType::D2D1_1_IMAGE) {
-    // If this is called with a DataSourceSurface it might do a partial upload
-    // that our DrawBitmap call doesn't support.
-    image->QueryInterface((ID2D1Bitmap**)byRef(bitmap));
-  }
-
-  if (bitmap && aSurfOptions.mSamplingBounds == SamplingBounds::UNBOUNDED) {
-    mDC->DrawBitmap(bitmap, D2DRect(aDest), aOptions.mAlpha, D2DFilter(aSurfOptions.mFilter), D2DRect(aSource));
-  } else {
-    // This has issues ignoring the alpha channel on windows 7 with images marked opaque.
-    MOZ_ASSERT(aSurface->GetFormat() != SurfaceFormat::B8G8R8X8);
-    mDC->CreateImageBrush(image,
-                          D2D1::ImageBrushProperties(samplingBounds,
-                                                     D2D1_EXTEND_MODE_CLAMP,
-                                                     D2D1_EXTEND_MODE_CLAMP,
-                                                     D2DInterpolationMode(aSurfOptions.mFilter)),
-                          D2D1::BrushProperties(aOptions.mAlpha, D2DMatrix(transform)),
-                          byRef(brush));
-    mDC->FillRectangle(D2DRect(aDest), brush);
-  }
+  mDC->CreateImageBrush(image,
+                        D2D1::ImageBrushProperties(samplingBounds,
+                                                   D2D1_EXTEND_MODE_CLAMP,
+                                                   D2D1_EXTEND_MODE_CLAMP,
+                                                   D2DInterpolationMode(aSurfOptions.mFilter)),
+                        D2D1::BrushProperties(aOptions.mAlpha, D2DMatrix(transform)),
+                        byRef(brush));
+  mDC->FillRectangle(D2DRect(aDest), brush);
 
   FinalizeDrawing(aOptions.mCompositionOp, ColorPattern(Color()));
 }
@@ -947,15 +934,10 @@ DrawTargetD2D1::FinalizeDrawing(CompositionOp aOp, const Pattern &aPattern)
     return;
   }
 
-  const RadialGradientPattern *pat = static_cast<const RadialGradientPattern*>(&aPattern);
-  if (pat->mCenter1 == pat->mCenter2 && pat->mRadius1 == pat->mRadius2) {
-    // Draw nothing!
-    return;
-  }
-
   RefPtr<ID2D1Effect> radialGradientEffect;
 
   mDC->CreateEffect(CLSID_RadialGradientEffect, byRef(radialGradientEffect));
+  const RadialGradientPattern *pat = static_cast<const RadialGradientPattern*>(&aPattern);
 
   radialGradientEffect->SetValue(RADIAL_PROP_STOP_COLLECTION,
                                  static_cast<const GradientStopsD2D*>(pat->mStops.get())->mStopCollection);
@@ -1228,24 +1210,18 @@ DrawTargetD2D1::CreateBrushForPattern(const Pattern &aPattern, Float aAlpha)
     }
 
     D2D1_RECT_F samplingBounds;
-    Matrix mat = pat->mMatrix;
-
-    bool useSamplingRect = false;
-    if (!pat->mSamplingRect.IsEmpty() &&
-        (pat->mSurface->GetType() == SurfaceType::D2D1_1_IMAGE)) {
+    if (!pat->mSamplingRect.IsEmpty()) {
       samplingBounds = D2DRect(pat->mSamplingRect);
-      mat.PreTranslate(pat->mSamplingRect.x, pat->mSamplingRect.y);
-    } else if (!pat->mSamplingRect.IsEmpty()) {
-      // We will do a partial upload of the sampling restricted area from GetImageForSurface.
-      samplingBounds = D2D1::RectF(0, 0, pat->mSamplingRect.width, pat->mSamplingRect.height);
     } else {
       samplingBounds = D2D1::RectF(0, 0,
                                    Float(pat->mSurface->GetSize().width),
                                    Float(pat->mSurface->GetSize().height));
     }
 
+    Matrix mat = pat->mMatrix;
+    
     RefPtr<ID2D1ImageBrush> imageBrush;
-    RefPtr<ID2D1Image> image = GetImageForSurface(pat->mSurface, mat, pat->mExtendMode, !pat->mSamplingRect.IsEmpty() ? &pat->mSamplingRect : nullptr);
+    RefPtr<ID2D1Image> image = GetImageForSurface(pat->mSurface, mat, pat->mExtendMode);
     mDC->CreateImageBrush(image,
                           D2D1::ImageBrushProperties(samplingBounds,
                                                      D2DExtend(pat->mExtendMode),
@@ -1262,7 +1238,7 @@ DrawTargetD2D1::CreateBrushForPattern(const Pattern &aPattern, Float aAlpha)
 
 TemporaryRef<ID2D1Image>
 DrawTargetD2D1::GetImageForSurface(SourceSurface *aSurface, Matrix &aSourceTransform,
-                                   ExtendMode aExtendMode, const IntRect* aSourceRect)
+                                   ExtendMode aExtendMode)
 {
   RefPtr<ID2D1Image> image;
 
@@ -1282,7 +1258,7 @@ DrawTargetD2D1::GetImageForSurface(SourceSurface *aSurface, Matrix &aSourceTrans
         return nullptr;
       }
       return CreatePartialBitmapForSurface(dataSurf, mTransform, mSize, aExtendMode,
-                                           aSourceTransform, mDC, aSourceRect);
+                                           aSourceTransform, mDC);
     }
     break;
   }

@@ -54,6 +54,7 @@ class Fake_MediaStreamTrack;
 #endif
 
 class nsGlobalWindow;
+class nsIDOMMediaStream;
 class nsDOMDataChannel;
 
 namespace mozilla {
@@ -203,12 +204,6 @@ class RTCStatsQuery {
       nsresult res = CheckApiState(assert_ice_ready);             \
       if (NS_FAILED(res)) return res; \
     } while(0)
-#define PC_AUTO_ENTER_API_CALL_VOID_RETURN(assert_ice_ready) \
-    do { \
-      /* do/while prevents res from conflicting with locals */    \
-      nsresult res = CheckApiState(assert_ice_ready);             \
-      if (NS_FAILED(res)) return; \
-    } while(0)
 #define PC_AUTO_ENTER_API_CALL_NO_CHECK() CheckThread()
 
 class PeerConnectionImpl MOZ_FINAL : public nsISupports,
@@ -259,9 +254,6 @@ public:
     return mMedia;
   }
 
-  // Configure the ability to use localhost.
-  void SetAllowIceLoopback(bool val) { mAllowIceLoopback = val; }
-
   // Handle system to allow weak references to be passed through C code
   virtual const std::string& GetHandle();
 
@@ -297,7 +289,7 @@ public:
   std::string GetFingerprintHexValue() const;
 
   // Create a fake media stream
-  nsresult CreateFakeMediaStream(uint32_t hint, mozilla::DOMMediaStream** retval);
+  nsresult CreateFakeMediaStream(uint32_t hint, nsIDOMMediaStream** retval);
 
   nsPIDOMWindow* GetWindow() const {
     PC_AUTO_ENTER_API_CALL_NO_CHECK();
@@ -637,7 +629,14 @@ private:
   // Shut down media - called on main thread only
   void ShutdownMedia();
 
-  void CandidateReady(const std::string& candidate, uint16_t level);
+  // ICE callbacks run on the right thread.
+  nsresult IceConnectionStateChange_m(
+      mozilla::dom::PCImplIceConnectionState aState);
+  nsresult IceGatheringStateChange_m(
+      mozilla::dom::PCImplIceGatheringState aState);
+
+  void CandidateReady_s(const std::string& candidate, uint16_t level);
+  nsresult CandidateReady_m(const std::string& candidate, uint16_t level);
   void SendLocalIceCandidateToContent(uint16_t level,
                                       const std::string& mid,
                                       const std::string& candidate);
@@ -732,7 +731,6 @@ private:
   nsRefPtr<mozilla::DataChannelConnection> mDataConnection;
 #endif
 
-  bool mAllowIceLoopback;
   nsRefPtr<PeerConnectionMedia> mMedia;
 
 #ifdef MOZILLA_INTERNAL_API

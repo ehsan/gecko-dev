@@ -15,18 +15,6 @@
 namespace rx
 {
 
-CompileConfig::CompileConfig()
-    : flags(0),
-      name()
-{
-}
-
-CompileConfig::CompileConfig(UINT flags, const std::string &name)
-    : flags(flags),
-      name(name)
-{
-}
-
 HLSLCompiler::HLSLCompiler()
     : mD3DCompilerModule(NULL),
       mD3DCompileFunc(NULL)
@@ -66,7 +54,7 @@ bool HLSLCompiler::initialize()
         return false;
     }
 
-    mD3DCompileFunc = reinterpret_cast<pD3DCompile>(GetProcAddress(mD3DCompilerModule, "D3DCompile"));
+    mD3DCompileFunc = reinterpret_cast<CompileFuncPtr>(GetProcAddress(mD3DCompilerModule, "D3DCompile"));
     ASSERT(mD3DCompileFunc);
 
     return mD3DCompileFunc != NULL;
@@ -82,25 +70,23 @@ void HLSLCompiler::release()
     }
 }
 
-gl::Error HLSLCompiler::compileToBinary(gl::InfoLog &infoLog, const std::string &hlsl, const std::string &profile,
-                                        const std::vector<CompileConfig> &configs, ID3DBlob **outCompiledBlob) const
+ShaderBlob *HLSLCompiler::compileToBinary(gl::InfoLog &infoLog, const char *hlsl, const char *profile,
+                                          const UINT optimizationFlags[], const char *flagNames[], int attempts) const
 {
     ASSERT(mD3DCompilerModule && mD3DCompileFunc);
 
-    if (gl::perfActive())
+    if (!hlsl)
     {
-        std::string sourcePath = getTempPath();
-        std::string sourceText = FormatString("#line 2 \"%s\"\n\n%s", sourcePath.c_str(), hlsl.c_str());
-        writeFile(sourcePath.c_str(), sourceText.c_str(), sourceText.size());
+        return NULL;
     }
 
-    for (size_t i = 0; i < configs.size(); ++i)
+    pD3DCompile compileFunc = reinterpret_cast<pD3DCompile>(mD3DCompileFunc);
+    for (int i = 0; i < attempts; ++i)
     {
         ID3DBlob *errorMessage = NULL;
         ID3DBlob *binary = NULL;
 
-        HRESULT result = mD3DCompileFunc(hlsl.c_str(), hlsl.length(), gl::g_fakepath, NULL, NULL, "main", profile.c_str(),
-                                         configs[i].flags, 0, &binary, &errorMessage);
+        HRESULT result = compileFunc(hlsl, strlen(hlsl), gl::g_fakepath, NULL, NULL, "main", profile, optimizationFlags[i], 0, &binary, &errorMessage);
 
         if (errorMessage)
         {
@@ -115,29 +101,25 @@ gl::Error HLSLCompiler::compileToBinary(gl::InfoLog &infoLog, const std::string 
 
         if (SUCCEEDED(result))
         {
-            *outCompiledBlob = binary;
-            return gl::Error(GL_NO_ERROR);
+            return (ShaderBlob*)binary;
         }
         else
         {
             if (result == E_OUTOFMEMORY)
             {
-                *outCompiledBlob = NULL;
-                return gl::Error(GL_OUT_OF_MEMORY, "HLSL compiler had an unexpected failure, result: 0x%X.", result);
+                return gl::error(GL_OUT_OF_MEMORY, (ShaderBlob*)NULL);
             }
 
-            infoLog.append("Warning: D3D shader compilation failed with %s flags.", configs[i].name.c_str());
+            infoLog.append("Warning: D3D shader compilation failed with %s flags.", flagNames[i]);
 
-            if (i + 1 < configs.size())
+            if (i + 1 < attempts)
             {
-                infoLog.append(" Retrying with %s.\n", configs[i + 1].name.c_str());
+                infoLog.append(" Retrying with %s.\n", flagNames[i + 1]);
             }
         }
     }
 
-    // None of the configurations succeeded in compiling this shader but the compiler is still intact
-    *outCompiledBlob = NULL;
-    return gl::Error(GL_NO_ERROR);
+    return NULL;
 }
 
 }

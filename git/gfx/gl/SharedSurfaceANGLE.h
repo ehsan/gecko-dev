@@ -7,10 +7,8 @@
 #define SHARED_SURFACE_ANGLE_H_
 
 #include <windows.h>
-#include "SharedSurface.h"
 
-struct IDXGIKeyedMutex;
-struct ID3D11Texture2D;
+#include "SharedSurface.h"
 
 namespace mozilla {
 namespace gl {
@@ -39,10 +37,6 @@ protected:
     const EGLContext mContext;
     const EGLSurface mPBuffer;
     const HANDLE mShareHandle;
-    RefPtr<IDXGIKeyedMutex> mKeyedMutex;
-    RefPtr<IDXGIKeyedMutex> mConsumerKeyedMutex;
-    RefPtr<ID3D11Texture2D> mConsumerTexture;
-
     const GLuint mFence;
 
     SharedSurface_ANGLEShareHandle(GLContext* gl,
@@ -52,7 +46,6 @@ protected:
                                    EGLContext context,
                                    EGLSurface pbuffer,
                                    HANDLE shareHandle,
-                                   const RefPtr<IDXGIKeyedMutex>& keyedMutex,
                                    GLuint fence);
 
     EGLDisplay Display();
@@ -64,10 +57,6 @@ public:
     virtual void UnlockProdImpl() MOZ_OVERRIDE;
 
     virtual void Fence() MOZ_OVERRIDE;
-    virtual void ProducerAcquireImpl() MOZ_OVERRIDE;
-    virtual void ProducerReleaseImpl() MOZ_OVERRIDE;
-    virtual void ConsumerAcquireImpl() MOZ_OVERRIDE;
-    virtual void ConsumerReleaseImpl() MOZ_OVERRIDE;
     virtual bool WaitSync() MOZ_OVERRIDE;
     virtual bool PollSync() MOZ_OVERRIDE;
 
@@ -78,10 +67,6 @@ public:
     // Implementation-specific functions below:
     HANDLE GetShareHandle() {
         return mShareHandle;
-    }
-
-    const RefPtr<ID3D11Texture2D>& GetConsumerTexture() const {
-        return mConsumerTexture;
     }
 };
 

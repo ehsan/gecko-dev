@@ -8,8 +8,7 @@
 #define mozilla_dom_archivereader_domarchivefile_h__
 
 #include "mozilla/Attributes.h"
-#include "mozilla/ErrorResult.h"
-#include "mozilla/dom/File.h"
+#include "nsDOMFile.h"
 
 #include "ArchiveReader.h"
 
@@ -19,9 +18,9 @@
 BEGIN_ARCHIVEREADER_NAMESPACE
 
 /**
- * ArchiveZipFileImpl to FileImpl
+ * ArchiveZipFileImpl to DOMFileImpl
  */
-class ArchiveZipFileImpl : public FileImplBase
+class ArchiveZipFileImpl : public DOMFileImplBase
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -31,7 +30,7 @@ public:
                      uint64_t aLength,
                      ZipCentral& aCentral,
                      ArchiveReader* aReader)
-  : FileImplBase(aName, aContentType, aLength),
+  : DOMFileImplBase(aName, aContentType, aLength),
     mCentral(aCentral),
     mArchiveReader(aReader),
     mFilename(aName)
@@ -46,7 +45,7 @@ public:
                      uint64_t aLength,
                      ZipCentral& aCentral,
                      ArchiveReader* aReader)
-  : FileImplBase(aContentType, aStart, aLength),
+  : DOMFileImplBase(aContentType, aStart, aLength),
     mCentral(aCentral),
     mArchiveReader(aReader),
     mFilename(aName)
@@ -72,9 +71,9 @@ protected:
     MOZ_COUNT_DTOR(ArchiveZipFileImpl);
   }
 
-  virtual already_AddRefed<FileImpl>
-  CreateSlice(uint64_t aStart, uint64_t aLength, const nsAString& aContentType,
-              mozilla::ErrorResult& aRv) MOZ_OVERRIDE;
+  virtual already_AddRefed<DOMFileImpl> CreateSlice(uint64_t aStart,
+                                                    uint64_t aLength,
+                                                    const nsAString& aContentType) MOZ_OVERRIDE;
 
 private: // Data
   ZipCentral mCentral;

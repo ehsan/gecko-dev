@@ -25,6 +25,7 @@ SpeakerManager::SpeakerManager()
   : mForcespeaker(false)
   , mVisible(false)
 {
+  SetIsDOMBinding();
   SpeakerManagerService *service =
     SpeakerManagerService::GetOrCreateSpeakerManagerService();
   MOZ_ASSERT(service);
