@@ -1,0 +1,4 @@
+changeset af599a9ea22930e7869367614d7c49302f769f8b
+manifest ff919c11ec0c67800118cfdcd2eada5e2efe6b2a
+extra branch:SEA_2_26_1_RELBRANCH
+files dom/base/nsGlobalWindow.cpp

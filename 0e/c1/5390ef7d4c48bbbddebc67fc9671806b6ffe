@@ -1,0 +1,4 @@
+changeset 983a710b51c46801b394e14b48579979b1554dc9
+manifest ab2113264d1ec8537dff806e2eaa6490f42555d9
+extra branch:GECKO330_2014101104_RELBRANCH
+files gfx/thebes/gfxWindowsPlatform.cpp

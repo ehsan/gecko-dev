@@ -1,0 +1,4 @@
+changeset afbfb6fa38395fcffa1ccd8a0dbb909f433c8d79
+manifest 92e49a036b47167ec0a055c5795594eea7eb09f0
+extra branch:GECKO1701_2013010313_RELBRANCH
+files content/xbl/src/nsXBLService.h

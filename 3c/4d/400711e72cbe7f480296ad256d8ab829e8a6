@@ -1,0 +1,3 @@
+changeset 1bf2d5b7a2d2c605b401790eaa5a700b7b11ba6d
+manifest 325022d237b8acc0c5fd0502ef1160bd52f45834
+files dom/indexedDB/test/test_autoIncrement_indexes.html

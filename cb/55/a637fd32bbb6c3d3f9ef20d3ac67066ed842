@@ -1,0 +1,4 @@
+changeset f4ac2886a80c5d62eccd7029024183fcf55915ac
+manifest 2346de05fe31d9714c12407e5b753208ed8ffa4d
+extra branch:SEA_2_26_1_RELBRANCH
+files dom/smil/nsSMILAnimationController.cpp

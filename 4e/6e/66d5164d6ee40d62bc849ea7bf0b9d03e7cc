@@ -1,0 +1,4 @@
+changeset 2d155c79245556382b72ad40c73a789d39efc3e4
+manifest f51bf5ccf6ff513ef9ca74d863a36039bac61cbc
+extra branch:GECKO330_2014101104_RELBRANCH
+files widget/windows/GfxInfo.cpp

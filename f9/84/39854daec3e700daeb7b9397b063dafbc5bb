@@ -1,0 +1,4 @@
+changeset 2955670f911bc1d62c594cf83729528a0c2b28be
+manifest bdf6a127f6a91666796675394d332e4fc49e0c02
+extra branch:GECKO1701_2013010313_RELBRANCH
+files dom/base/Navigator.cpp

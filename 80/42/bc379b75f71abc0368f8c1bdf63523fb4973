@@ -1,0 +1,5 @@
+changeset fcb1debde63911e619b953cd1059a19c36b8cf36
+manifest 77e85060db0b6a92fd4ca1696eb62c4913103691
+author ffxbld
+extra branch:MOBILE3501_2015020504_RELBRANCH
+files mobile/android/confvars.sh

@@ -1,0 +1,4 @@
+changeset 8ed96ecec370dd6c95ff0bea59bba5b9729b6531
+manifest bd85baf5eb7c551f195bb2e884828f516223b3c9
+extra branch:GECKO1701_2013010313_RELBRANCH
+files js/src/jsiter.cpp

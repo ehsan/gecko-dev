@@ -1,0 +1,5 @@
+changeset df50c7f50a16484c44d4d9a322f78e404547c6df
+manifest f3de93be9585a903964112bc187eaa008cd49e84
+author ffxbld
+extra rebase_source:20e8a4174d8859edf54b9976b1aa46579112368f
+files mobile/android/confvars.sh

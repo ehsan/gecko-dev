@@ -1,0 +1,4 @@
+changeset b76de79ddfb3037fca1ee7a7ea6e60d689739c40
+manifest 8bdec1239bcbca449234d576a368cd1fc75a17c5
+extra branch:GECKO1701_2013010313_RELBRANCH
+files js/xpconnect/wrappers/AccessCheck.cpp

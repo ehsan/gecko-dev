@@ -1,0 +1,4 @@
+changeset 535035b8cb252602dd822cbd14c0d7b1b3a2e857
+manifest 6572fdda1d5ee655c5711bd591db4fe273cdc5d1
+extra rebase_source:d4ade1ed9a46ad0e7723f6bae06aa262d87a39f5
+files image/decoders/nsICODecoder.cpp

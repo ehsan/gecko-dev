@@ -1,0 +1,4 @@
+changeset 2e6302939cef7350da991d03fc795bd5a42a9c68
+manifest 257c917f7071f28d628a37c6bf78ea37ea6f9307
+extra branch:GECKO1701_2013010313_RELBRANCH
+files layout/tables/nsTableColFrame.h

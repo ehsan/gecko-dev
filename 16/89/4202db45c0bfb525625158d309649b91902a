@@ -1,0 +1,4 @@
+changeset d5d2616868fc19bc5f2b14ac10dc3e803644054a
+manifest 79446c4081a9b1080ae3cfbb930d95c53d094e6b
+extra branch:GECKO1701_2013010313_RELBRANCH
+files js/xpconnect/src/XPCWrappedNative.cpp

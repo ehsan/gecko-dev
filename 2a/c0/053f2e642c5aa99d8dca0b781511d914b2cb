@@ -1,0 +1,4 @@
+changeset 6867ad072bc3321e38ca1e97bcf2352e5520134c
+manifest 8dda7d3269d078bfba141cdee4bb8cda3c792989
+extra branch:GECKO1701_2013010313_RELBRANCH
+files layout/svg/base/src/nsSVGTextPathFrame.cpp

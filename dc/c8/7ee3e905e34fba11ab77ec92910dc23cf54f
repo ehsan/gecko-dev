@@ -1,0 +1,4 @@
+changeset d934ccd845001c37d5fcacbdf37f81275e29288c
+manifest 88f63683f55fcdbcbd397509f5ea7c21b1591432
+extra branch:GECKO1701_2013010313_RELBRANCH
+files dom/base/nsGlobalWindow.cpp

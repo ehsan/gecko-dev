@@ -1,0 +1,4 @@
+changeset 96bb0d1074b6b4f104857ab2507758a4f3d0d716
+manifest efce95444f93a29361a5d5df95f64a470d664710
+extra branch:GECKO330_2014101104_RELBRANCH
+files toolkit/mozapps/extensions/AddonManager.jsm

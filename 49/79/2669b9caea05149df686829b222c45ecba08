@@ -1,0 +1,4 @@
+changeset 8b03425a3e3ed30cfa5f43254026420daa2279a3
+manifest 3087025e00f3d77c545aff471c8b04bd82b91dd1
+extra branch:SEAMONKEY_2_3_3_RELBRANCH
+files editor/libeditor/html/nsHTMLEditor.cpp

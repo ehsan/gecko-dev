@@ -1,0 +1,4 @@
+changeset ba169af5294bdd2590d4255be77079c01f11a29d
+manifest f9d0b10e4b683f590871c36980d23a1f99159d1f
+extra branch:GECKO1701_2013010313_RELBRANCH
+files js/xpconnect/public/nsAutoJSValHolder.h

@@ -1,0 +1,4 @@
+changeset 7806abd04bf81eb687518f1ea268c307f68af690
+manifest 6321efe545e43bd3d1a2bda9cd2c5786fdac4b40
+extra branch:GECKO1701_2013010313_RELBRANCH
+files content/xbl/src/nsXBLBinding.cpp

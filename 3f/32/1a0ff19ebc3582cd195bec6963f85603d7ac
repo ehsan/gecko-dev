@@ -1,0 +1,4 @@
+changeset 8e5cb1155a4c8d867ea6a9e01c24db2e1ffcc632
+manifest eb7828cb6bac029effca8cbf12f8d7a9ac38eb36
+extra branch:GECKO1701_2013010313_RELBRANCH
+files layout/svg/base/src/nsSVGContainerFrame.cpp

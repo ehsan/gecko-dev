@@ -1,0 +1,4 @@
+changeset b9af0765d235bbd0a968c3775ada81463f4ac18a
+manifest 62489e66f09ef1be59dedc0769e8c1fcc78632b0
+extra rebase_source:641caf22d5712f11086a2bff8576991291d3a8d0
+files toolkit/xre/nsX11ErrorHandler.cpp

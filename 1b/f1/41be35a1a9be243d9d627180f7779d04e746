@@ -1,0 +1,4 @@
+changeset 11c15501fe7c58fd34f3d0861fa878f4f1a5e7ee
+manifest ccf57cc9fc6b1600ef7ba234151d4e0c3b8d5030
+extra branch:GECKO1701_2013010313_RELBRANCH
+files xpfe/appshell/src/nsAppShellWindowEnumerator.cpp

@@ -1,0 +1,4 @@
+changeset 4bea77219e9092fbf60237156ff42e98aa4dfde3
+manifest 691bc37d1139c8c1f0db3c99d954526b1bab4f83
+extra branch:GECKO1701_2013010313_RELBRANCH
+files widget/gtk2/nsWindow.cpp

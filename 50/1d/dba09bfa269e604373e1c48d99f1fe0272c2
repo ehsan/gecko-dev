@@ -1,0 +1,4 @@
+changeset 498e36b0685aa10971ea9126232e776b4dd735c4
+manifest a4bd3633c3e99e022737f2158c58c3edf918532e
+extra branch:GECKO330_2014101104_RELBRANCH
+files media/webrtc/signaling/src/media-conduit/WebrtcGmpVideoCodec.cpp

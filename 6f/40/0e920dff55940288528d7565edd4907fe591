@@ -1,0 +1,3 @@
+changeset fdfd2af3498e56a2cc5e011ce9229c924c107d4b
+manifest 9cd5fa5b14f406f7174e502d8732416cadbb9745
+files modules/plugin/test/mochitest/test_pluginstream_seek_close.html

@@ -1,0 +1,5 @@
+changeset ab7d8803bfffbd38a208ac8a1f76f3e1a02c4247
+manifest 3a7ad33096cc92b8796383a9a48ec821a45ef5fc
+author ffxbld
+extra rebase_source:d03fe9f05f1b107a5d431ad2483c6e1f163af7e7
+files mobile/confvars.sh

@@ -1,0 +1,4 @@
+changeset 1a4c4d3fddf5e093769b03ac5a9bf801a3fdf992
+manifest a538e7c73b14e6820e42340e9879d8dc846c7118
+extra branch:GECKO331_2014103013_RELBRANCH
+files gfx/layers/d3d11/CompositorD3D11.cpp

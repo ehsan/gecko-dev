@@ -1,0 +1,4 @@
+changeset d7665c29dd8e5ce86ab549b4473cd422643d616e
+manifest 6680404712de46bb67e27a2b17e8dad43441130d
+extra branch:GECKO1701_2013010313_RELBRANCH
+files widget/xpwidgets/PuppetWidget.cpp

@@ -1,0 +1,4 @@
+changeset 4895b070e19d4cbc2e3bf3250d40df45bb25e660
+manifest c0b321b3d22c4ad9c6ee2bb77d7d05d157cfe032
+extra branch:GECKO1701_2013010313_RELBRANCH
+files gfx/angle/include/GLSLANG/ShaderLang.h

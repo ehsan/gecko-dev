@@ -1,0 +1,4 @@
+changeset 769d705970fcd6d6bd5f11ec1fcc4ce5bcf6e0c4
+manifest 1cc49c42d946ff2d0b56dfafe27e3096fea6c74d
+extra branch:SEA_2_26_1_RELBRANCH
+files dom/events/nsEventListenerManager.cpp
