@@ -429,10 +429,15 @@ SVGSVGElement::PauseAnimations()
 void
 SVGSVGElement::PauseAnimations(ErrorResult& rv)
 {
-  if (mTimedDocumentRoot) {
-    mTimedDocumentRoot->Pause(nsSMILTimeContainer::PAUSE_SCRIPT);
+  if (NS_SMILEnabled()) {
+    if (mTimedDocumentRoot) {
+      mTimedDocumentRoot->Pause(nsSMILTimeContainer::PAUSE_SCRIPT);
+    }
+    // else we're not the outermost <svg> or not bound to a tree, so silently fail
+    return;
   }
-  // else we're not the outermost <svg> or not bound to a tree, so silently fail
+  NS_NOTYETIMPLEMENTED("SVGSVGElement::PauseAnimations");
+  rv.Throw(NS_ERROR_NOT_IMPLEMENTED);
 }
 
 /* void unpauseAnimations (); */
@@ -447,10 +452,15 @@ SVGSVGElement::UnpauseAnimations()
 void
 SVGSVGElement::UnpauseAnimations(ErrorResult& rv)
 {
-  if (mTimedDocumentRoot) {
-    mTimedDocumentRoot->Resume(nsSMILTimeContainer::PAUSE_SCRIPT);
+  if (NS_SMILEnabled()) {
+    if (mTimedDocumentRoot) {
+      mTimedDocumentRoot->Resume(nsSMILTimeContainer::PAUSE_SCRIPT);
+    }
+    // else we're not the outermost <svg> or not bound to a tree, so silently fail
+    return;
   }
-  // else we're not the outermost <svg> or not bound to a tree, so silently fail
+  NS_NOTYETIMPLEMENTED("SVGSVGElement::UnpauseAnimations");
+  rv.Throw(NS_ERROR_NOT_IMPLEMENTED);
 }
 
 /* boolean animationsPaused (); */
@@ -465,8 +475,13 @@ SVGSVGElement::AnimationsPaused(bool *_retval)
 bool
 SVGSVGElement::AnimationsPaused(ErrorResult& rv)
 {
-  nsSMILTimeContainer* root = GetTimedDocumentRoot();
-  return root && root->IsPausedByType(nsSMILTimeContainer::PAUSE_SCRIPT);
+  if (NS_SMILEnabled()) {
+    nsSMILTimeContainer* root = GetTimedDocumentRoot();
+    return root && root->IsPausedByType(nsSMILTimeContainer::PAUSE_SCRIPT);
+  }
+  NS_NOTYETIMPLEMENTED("SVGSVGElement::AnimationsPaused");
+  rv.Throw(NS_ERROR_NOT_IMPLEMENTED);
+  return false;
 }
 
 /* float getCurrentTime (); */
@@ -481,13 +496,18 @@ SVGSVGElement::GetCurrentTime(float *_retval)
 float
 SVGSVGElement::GetCurrentTime(ErrorResult& rv)
 {
-  nsSMILTimeContainer* root = GetTimedDocumentRoot();
-  if (root) {
-    double fCurrentTimeMs = double(root->GetCurrentTime());
-    return (float)(fCurrentTimeMs / PR_MSEC_PER_SEC);
-  } else {
-    return 0.f;
+  if (NS_SMILEnabled()) {
+    nsSMILTimeContainer* root = GetTimedDocumentRoot();
+    if (root) {
+      double fCurrentTimeMs = double(root->GetCurrentTime());
+      return (float)(fCurrentTimeMs / PR_MSEC_PER_SEC);
+    } else {
+      return 0.f;
+    }
   }
+  NS_NOTYETIMPLEMENTED("SVGSVGElement::GetCurrentTime");
+  rv.Throw(NS_ERROR_NOT_IMPLEMENTED);
+  return 0.f;
 }
 
 /* void setCurrentTime (in float seconds); */
@@ -503,23 +523,28 @@ SVGSVGElement::SetCurrentTime(float seconds)
 void
 SVGSVGElement::SetCurrentTime(float seconds, ErrorResult &rv)
 {
-  if (mTimedDocumentRoot) {
-    // Make sure the timegraph is up-to-date
-    FlushAnimations();
-    double fMilliseconds = double(seconds) * PR_MSEC_PER_SEC;
-    // Round to nearest whole number before converting, to avoid precision
-    // errors
-    nsSMILTime lMilliseconds = int64_t(NS_round(fMilliseconds));
-    mTimedDocumentRoot->SetCurrentTime(lMilliseconds);
-    AnimationNeedsResample();
-    // Trigger synchronous sample now, to:
-    //  - Make sure we get an up-to-date paint after this method
-    //  - re-enable event firing (it got disabled during seeking, and it
-    //  doesn't get re-enabled until the first sample after the seek -- so
-    //  let's make that happen now.)
-    FlushAnimations();
+  if (NS_SMILEnabled()) {
+    if (mTimedDocumentRoot) {
+      // Make sure the timegraph is up-to-date
+      FlushAnimations();
+      double fMilliseconds = double(seconds) * PR_MSEC_PER_SEC;
+      // Round to nearest whole number before converting, to avoid precision
+      // errors
+      nsSMILTime lMilliseconds = int64_t(NS_round(fMilliseconds));
+      mTimedDocumentRoot->SetCurrentTime(lMilliseconds);
+      AnimationNeedsResample();
+      // Trigger synchronous sample now, to:
+      //  - Make sure we get an up-to-date paint after this method
+      //  - re-enable event firing (it got disabled during seeking, and it
+      //  doesn't get re-enabled until the first sample after the seek -- so
+      //  let's make that happen now.)
+      FlushAnimations();
+    } // else we're not the outermost <svg> or not bound to a tree, so silently
+      // fail
+    return;
   }
-  // else we're not the outermost <svg> or not bound to a tree, so silently fail
+  NS_NOTYETIMPLEMENTED("SVGSVGElement::SetCurrentTime");
+  rv.Throw(NS_ERROR_NOT_IMPLEMENTED);
 }
 
 /* nsIDOMSVGNumber createSVGNumber (); */

@@ -420,9 +420,9 @@ IonCode::readBarrier(IonCode *code)
     if (!code)
         return;
 
-    Zone *zone = code->zone();
-    if (zone->needsBarrier())
-        MarkIonCodeUnbarriered(zone->barrierTracer(), &code, "ioncode read barrier");
+    JSCompartment *comp = code->compartment();
+    if (comp->needsBarrier())
+        MarkIonCodeUnbarriered(comp->barrierTracer(), &code, "ioncode read barrier");
 #endif
 }
 
@@ -433,9 +433,9 @@ IonCode::writeBarrierPre(IonCode *code)
     if (!code)
         return;
 
-    Zone *zone = code->zone();
-    if (zone->needsBarrier())
-        MarkIonCodeUnbarriered(zone->barrierTracer(), &code, "ioncode write barrier");
+    JSCompartment *comp = code->compartment();
+    if (comp->needsBarrier())
+        MarkIonCodeUnbarriered(comp->barrierTracer(), &code, "ioncode write barrier");
 #endif
 }
 
@@ -1818,13 +1818,13 @@ InvalidateActivation(FreeOp *fop, uint8_t *ionTop, bool invalidateAll)
         const SafepointIndex *si = ionScript->getSafepointIndex(it.returnAddressToFp());
         IonCode *ionCode = ionScript->method();
 
-        JS::Zone *zone = script->zone();
-        if (zone->needsBarrier()) {
+        JSCompartment *compartment = script->compartment();
+        if (compartment->needsBarrier()) {
             // We're about to remove edges from the JSScript to gcthings
             // embedded in the IonCode. Perform one final trace of the
             // IonCode for the incremental GC, as it must know about
             // those edges.
-            ionCode->trace(zone->barrierTracer());
+            ionCode->trace(compartment->barrierTracer());
         }
         ionCode->setInvalidated();
 
@@ -1927,13 +1927,13 @@ ion::Invalidate(types::TypeCompartment &types, FreeOp *fop,
         UnrootedScript script = co.script;
         IonScript *ionScript = GetIonScript(script, executionMode);
 
-        Zone *zone = script->zone();
-        if (zone->needsBarrier()) {
+        JSCompartment *compartment = script->compartment();
+        if (compartment->needsBarrier()) {
             // We're about to remove edges from the JSScript to gcthings
             // embedded in the IonScript. Perform one final trace of the
             // IonScript for the incremental GC, as it must know about
             // those edges.
-            IonScript::Trace(zone->barrierTracer(), ionScript);
+            IonScript::Trace(compartment->barrierTracer(), ionScript);
         }
 
         ionScript->decref(fop);

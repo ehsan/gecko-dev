@@ -13,7 +13,6 @@
 
 // For js::gc::AutoSuppressGC
 #include "jsgc.h"
-#include "jsobjinlines.h"
 #include "jsgcinlines.h"
 
 #include "js/Vector.h"

@@ -105,9 +105,6 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
 
     MDefinition *scopeChain();
 
-    // Increase the number of slots available
-    bool increaseSlots(size_t num);
-
     // Initializes a slot value; must not be called for normal stack
     // operations, as it will not create new SSA names for copies.
     void initSlot(uint32_t index, MDefinition *ins);
@@ -141,7 +138,6 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
 
     // Returns the top of the stack, then decrements the virtual stack pointer.
     MDefinition *pop();
-    void popn(uint32_t n);
 
     // Adds an instruction to this block's instruction list. |ins| may be NULL
     // to simplify OOM checking.
@@ -222,9 +218,6 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     }
     jsbytecode *pc() const {
         return pc_;
-    }
-    uint32_t nslots() const {
-        return slots_.length();
     }
     uint32_t id() const {
         return id_;

@@ -223,11 +223,7 @@ CodeGeneratorShared::encode(LSnapshot *snapshot)
         DebugOnly<jsbytecode *> bailPC = pc;
         if (mir->mode() == MResumePoint::ResumeAfter)
           bailPC = GetNextPc(pc);
-
-        // For fun.apply({}, arguments) the reconstructStackDepth will have stackdepth 4,
-        // but it could be that we inlined the funapply. In that case exprStackSlots,
-        // will have the real arguments in the slots and not be 4.
-        JS_ASSERT_IF(GetIonContext()->cx && JSOp(*bailPC) != JSOP_FUNAPPLY,
+        JS_ASSERT_IF(GetIonContext()->cx,
                      exprStack == js_ReconstructStackDepth(GetIonContext()->cx, script, bailPC));
 
 #ifdef TRACK_SNAPSHOTS

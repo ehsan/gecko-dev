@@ -698,7 +698,7 @@ Debugger::wrapDebuggeeValue(JSContext *cx, MutableHandleValue vp)
                 js_ReportOutOfMemory(cx);
                 return false;
             }
-            HashTableWriteBarrierPost(cx->zone(), &objects, obj);
+            HashTableWriteBarrierPost(cx->compartment, &objects, obj);
 
             if (obj->compartment() != object->compartment()) {
                 CrossCompartmentKey key(CrossCompartmentKey::DebuggerObject, object, obj);
@@ -1418,7 +1418,7 @@ Debugger::markCrossCompartmentDebuggerObjectReferents(JSTracer *tracer)
      * compartments.
      */
     for (Debugger *dbg = rt->debuggerList.getFirst(); dbg; dbg = dbg->getNext()) {
-        if (!dbg->object->zone()->isCollecting())
+        if (!dbg->object->compartment()->isCollecting())
             dbg->markKeysInCompartment(tracer);
     }
 }
@@ -1468,7 +1468,7 @@ Debugger::markAllIteratively(GCMarker *trc)
                  *   - it actually has hooks that might be called
                  */
                 HeapPtrObject &dbgobj = dbg->toJSObjectRef();
-                if (!dbgobj->zone()->isGCMarking())
+                if (!dbgobj->compartment()->isGCMarking())
                     continue;
 
                 bool dbgMarked = IsObjectMarked(&dbgobj);
@@ -1581,7 +1581,7 @@ Debugger::detachAllDebuggersFromGlobal(FreeOp *fop, GlobalObject *global,
 }
 
 /* static */ void
-Debugger::findCompartmentEdges(Zone *zone, js::gc::ComponentFinder<Zone> &finder)
+Debugger::findCompartmentEdges(JSCompartment *comp, js::gc::ComponentFinder<JSCompartment> &finder)
 {
     /*
      * For debugger cross compartment wrappers, add edges in the opposite
@@ -1589,13 +1589,13 @@ Debugger::findCompartmentEdges(Zone *zone, js::gc::ComponentFinder<Zone> &finder
      * This ensure that debuggers and their debuggees are finalized in the same
      * group.
      */
-    for (Debugger *dbg = zone->rt->debuggerList.getFirst(); dbg; dbg = dbg->getNext()) {
-        Zone *w = dbg->object->zone();
-        if (w == zone || !w->isGCMarking())
+    for (Debugger *dbg = comp->rt->debuggerList.getFirst(); dbg; dbg = dbg->getNext()) {
+        JSCompartment *w = dbg->object->compartment();
+        if (w == comp || !w->isGCMarking())
             continue;
-        if (dbg->scripts.hasKeyInZone(zone) ||
-            dbg->objects.hasKeyInZone(zone) ||
-            dbg->environments.hasKeyInZone(zone))
+        if (dbg->scripts.hasKeyInCompartment(comp) ||
+            dbg->objects.hasKeyInCompartment(comp) ||
+            dbg->environments.hasKeyInCompartment(comp))
         {
             finder.addEdgeTo(w);
         }

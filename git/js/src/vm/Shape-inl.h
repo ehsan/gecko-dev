@@ -31,18 +31,18 @@
 namespace js {
 
 static inline void
-GetterSetterWriteBarrierPost(JS::Zone *zone, JSObject **objp)
+GetterSetterWriteBarrierPost(JSCompartment *comp, JSObject **objp)
 {
 #ifdef JSGC_GENERATIONAL
-    zone->gcStoreBuffer.putRelocatableCell(reinterpret_cast<gc::Cell **>(objp));
+    comp->gcStoreBuffer.putRelocatableCell(reinterpret_cast<gc::Cell **>(objp));
 #endif
 }
 
 static inline void
-GetterSetterWriteBarrierPostRemove(JS::Zone *zone, JSObject **objp)
+GetterSetterWriteBarrierPostRemove(JSCompartment *comp, JSObject **objp)
 {
 #ifdef JSGC_GENERATIONAL
-    zone->gcStoreBuffer.removeRelocatableCell(reinterpret_cast<gc::Cell **>(objp));
+    comp->gcStoreBuffer.removeRelocatableCell(reinterpret_cast<gc::Cell **>(objp));
 #endif
 }
 
@@ -69,11 +69,11 @@ BaseShape::BaseShape(Class *clasp, JSObject *parent, uint32_t objectFlags,
     this->rawSetter = rawSetter;
     if ((attrs & JSPROP_GETTER) && rawGetter) {
         this->flags |= HAS_GETTER_OBJECT;
-        GetterSetterWriteBarrierPost(zone(), &this->getterObj);
+        GetterSetterWriteBarrierPost(compartment(), &this->getterObj);
     }
     if ((attrs & JSPROP_SETTER) && rawSetter) {
         this->flags |= HAS_SETTER_OBJECT;
-        GetterSetterWriteBarrierPost(zone(), &this->setterObj);
+        GetterSetterWriteBarrierPost(compartment(), &this->setterObj);
     }
 }
 
@@ -86,10 +86,12 @@ BaseShape::BaseShape(const StackBaseShape &base)
     this->flags = base.flags;
     this->rawGetter = base.rawGetter;
     this->rawSetter = base.rawSetter;
-    if ((base.flags & HAS_GETTER_OBJECT) && base.rawGetter)
-        GetterSetterWriteBarrierPost(zone(), &this->getterObj);
-    if ((base.flags & HAS_SETTER_OBJECT) && base.rawSetter)
-        GetterSetterWriteBarrierPost(zone(), &this->setterObj);
+    if ((base.flags & HAS_GETTER_OBJECT) && base.rawGetter) {
+        GetterSetterWriteBarrierPost(compartment(), &this->getterObj);
+    }
+    if ((base.flags & HAS_SETTER_OBJECT) && base.rawSetter) {
+        GetterSetterWriteBarrierPost(compartment(), &this->setterObj);
+    }
 }
 
 inline BaseShape &
@@ -101,17 +103,17 @@ BaseShape::operator=(const BaseShape &other)
     slotSpan_ = other.slotSpan_;
     if (flags & HAS_GETTER_OBJECT) {
         getterObj = other.getterObj;
-        GetterSetterWriteBarrierPost(zone(), &getterObj);
+        GetterSetterWriteBarrierPost(compartment(), &getterObj);
     } else {
         rawGetter = other.rawGetter;
-        GetterSetterWriteBarrierPostRemove(zone(), &getterObj);
+        GetterSetterWriteBarrierPostRemove(compartment(), &getterObj);
     }
     if (flags & HAS_SETTER_OBJECT) {
         setterObj = other.setterObj;
-        GetterSetterWriteBarrierPost(zone(), &setterObj);
+        GetterSetterWriteBarrierPost(compartment(), &setterObj);
     } else {
         rawSetter = other.rawSetter;
-        GetterSetterWriteBarrierPostRemove(zone(), &setterObj);
+        GetterSetterWriteBarrierPostRemove(compartment(), &setterObj);
     }
     return *this;
 }
@@ -405,10 +407,10 @@ Shape::writeBarrierPre(UnrootedShape shape)
     if (!shape)
         return;
 
-    JS::Zone *zone = shape->zone();
-    if (zone->needsBarrier()) {
+    JSCompartment *comp = shape->compartment();
+    if (comp->needsBarrier()) {
         UnrootedShape tmp = shape;
-        MarkShapeUnbarriered(zone->barrierTracer(), &tmp, "write barrier");
+        MarkShapeUnbarriered(comp->barrierTracer(), &tmp, "write barrier");
         JS_ASSERT(tmp == shape);
     }
 #endif
@@ -423,10 +425,10 @@ inline void
 Shape::readBarrier(UnrootedShape shape)
 {
 #ifdef JSGC_INCREMENTAL
-    JS::Zone *zone = shape->zone();
-    if (zone->needsBarrier()) {
+    JSCompartment *comp = shape->compartment();
+    if (comp->needsBarrier()) {
         UnrootedShape tmp = shape;
-        MarkShapeUnbarriered(zone->barrierTracer(), &tmp, "read barrier");
+        MarkShapeUnbarriered(comp->barrierTracer(), &tmp, "read barrier");
         JS_ASSERT(tmp == shape);
     }
 #endif
@@ -448,10 +450,10 @@ BaseShape::writeBarrierPre(RawBaseShape base)
     if (!base)
         return;
 
-    JS::Zone *zone = base->zone();
-    if (zone->needsBarrier()) {
+    JSCompartment *comp = base->compartment();
+    if (comp->needsBarrier()) {
         RawBaseShape tmp = base;
-        MarkBaseShapeUnbarriered(zone->barrierTracer(), &tmp, "write barrier");
+        MarkBaseShapeUnbarriered(comp->barrierTracer(), &tmp, "write barrier");
         JS_ASSERT(tmp == base);
     }
 #endif
@@ -466,10 +468,10 @@ inline void
 BaseShape::readBarrier(RawBaseShape base)
 {
 #ifdef JSGC_INCREMENTAL
-    JS::Zone *zone = base->zone();
-    if (zone->needsBarrier()) {
+    JSCompartment *comp = base->compartment();
+    if (comp->needsBarrier()) {
         RawBaseShape tmp = base;
-        MarkBaseShapeUnbarriered(zone->barrierTracer(), &tmp, "read barrier");
+        MarkBaseShapeUnbarriered(comp->barrierTracer(), &tmp, "read barrier");
         JS_ASSERT(tmp == base);
     }
 #endif

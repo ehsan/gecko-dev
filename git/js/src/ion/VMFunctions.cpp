@@ -52,11 +52,13 @@ InvokeFunction(JSContext *cx, HandleFunction fun0, uint32_t argc, Value *argv, V
     AssertCanGC();
 
     RootedFunction fun(cx, fun0);
+
+    // In order to prevent massive bouncing between Ion and JM, see if we keep
+    // hitting functions that are uncompilable.
     if (fun->isInterpreted()) {
         if (fun->isInterpretedLazy() && !fun->getOrCreateScript(cx))
             return false;
 
-        // Clone function at call site if needed.
         if (fun->isCloneAtCallsite()) {
             RootedScript script(cx);
             jsbytecode *pc;
@@ -66,9 +68,7 @@ InvokeFunction(JSContext *cx, HandleFunction fun0, uint32_t argc, Value *argv, V
                 return false;
         }
 
-        // In order to prevent massive bouncing between Ion and JM, see if we keep
-        // hitting functions that are uncompilable.
-        if (cx->methodJitEnabled && !fun->nonLazyScript()->canIonCompile()) {
+        if (!fun->nonLazyScript()->canIonCompile()) {
             UnrootedScript script = GetTopIonJSScript(cx);
             if (script->hasIonScript() &&
                 ++script->ion->slowCallCount >= js_IonOptions.slowCallLimit)

@@ -1,2 +1,0 @@
-conformance/misc/type-conversion-test.html
-

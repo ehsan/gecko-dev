@@ -382,9 +382,9 @@ class MacroAssembler : public MacroAssemblerSpecific
 
     void branchTestNeedsBarrier(Condition cond, const Register &scratch, Label *label) {
         JS_ASSERT(cond == Zero || cond == NonZero);
-        JS::Zone *zone = GetIonContext()->compartment->zone();
-        movePtr(ImmWord(zone), scratch);
-        Address needsBarrierAddr(scratch, JS::Zone::OffsetOfNeedsBarrier());
+        JSCompartment *comp = GetIonContext()->compartment;
+        movePtr(ImmWord(comp), scratch);
+        Address needsBarrierAddr(scratch, JSCompartment::OffsetOfNeedsBarrier());
         branchTest32(cond, needsBarrierAddr, Imm32(0x1), label);
     }
 

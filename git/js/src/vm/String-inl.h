@@ -95,18 +95,18 @@ NewShortString(JSContext *cx, TwoByteChars chars)
 }
 
 static inline void
-StringWriteBarrierPost(JS::Zone *zone, JSString **strp)
+StringWriteBarrierPost(JSCompartment *comp, JSString **strp)
 {
 #ifdef JSGC_GENERATIONAL
-    zone->gcStoreBuffer.putRelocatableCell(reinterpret_cast<gc::Cell **>(strp));
+    comp->gcStoreBuffer.putRelocatableCell(reinterpret_cast<gc::Cell **>(strp));
 #endif
 }
 
 static inline void
-StringWriteBarrierPostRemove(JS::Zone *zone, JSString **strp)
+StringWriteBarrierPostRemove(JSCompartment *comp, JSString **strp)
 {
 #ifdef JSGC_GENERATIONAL
-    zone->gcStoreBuffer.removeRelocatableCell(reinterpret_cast<gc::Cell **>(strp));
+    comp->gcStoreBuffer.removeRelocatableCell(reinterpret_cast<gc::Cell **>(strp));
 #endif
 }
 
@@ -119,10 +119,10 @@ JSString::writeBarrierPre(JSString *str)
     if (!str)
         return;
 
-    JS::Zone *zone = str->zone();
-    if (zone->needsBarrier()) {
+    JSCompartment *comp = str->compartment();
+    if (comp->needsBarrier()) {
         JSString *tmp = str;
-        MarkStringUnbarriered(zone->barrierTracer(), &tmp, "write barrier");
+        MarkStringUnbarriered(comp->barrierTracer(), &tmp, "write barrier");
         JS_ASSERT(tmp == str);
     }
 #endif
@@ -134,15 +134,15 @@ JSString::writeBarrierPost(JSString *str, void *addr)
 #ifdef JSGC_GENERATIONAL
     if (!str)
         return;
-    str->zone()->gcStoreBuffer.putCell((Cell **)addr);
+    str->compartment()->gcStoreBuffer.putCell((Cell **)addr);
 #endif
 }
 
 inline bool
-JSString::needWriteBarrierPre(JS::Zone *zone)
+JSString::needWriteBarrierPre(JSCompartment *comp)
 {
 #ifdef JSGC_INCREMENTAL
-    return zone->needsBarrier();
+    return comp->needsBarrier();
 #else
     return false;
 #endif
@@ -152,10 +152,10 @@ inline void
 JSString::readBarrier(JSString *str)
 {
 #ifdef JSGC_INCREMENTAL
-    JS::Zone *zone = str->zone();
-    if (zone->needsBarrier()) {
+    JSCompartment *comp = str->compartment();
+    if (comp->needsBarrier()) {
         JSString *tmp = str;
-        MarkStringUnbarriered(zone->barrierTracer(), &tmp, "read barrier");
+        MarkStringUnbarriered(comp->barrierTracer(), &tmp, "read barrier");
         JS_ASSERT(tmp == str);
     }
 #endif
@@ -178,8 +178,8 @@ JSRope::init(JSString *left, JSString *right, size_t length)
     d.lengthAndFlags = buildLengthAndFlags(length, ROPE_FLAGS);
     d.u1.left = left;
     d.s.u2.right = right;
-    js::StringWriteBarrierPost(zone(), &d.u1.left);
-    js::StringWriteBarrierPost(zone(), &d.s.u2.right);
+    js::StringWriteBarrierPost(compartment(), &d.u1.left);
+    js::StringWriteBarrierPost(compartment(), &d.s.u2.right);
 }
 
 template <js::AllowGC allowGC>
@@ -212,7 +212,7 @@ JSDependentString::init(JSLinearString *base, const jschar *chars, size_t length
     d.lengthAndFlags = buildLengthAndFlags(length, DEPENDENT_FLAGS);
     d.u1.chars = chars;
     d.s.u2.base = base;
-    js::StringWriteBarrierPost(zone(), reinterpret_cast<JSString **>(&d.s.u2.base));
+    js::StringWriteBarrierPost(compartment(), reinterpret_cast<JSString **>(&d.s.u2.base));
 }
 
 JS_ALWAYS_INLINE JSLinearString *

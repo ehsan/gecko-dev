@@ -7,6 +7,8 @@
 #ifndef js_heap_api_h___
 #define js_heap_api_h___
 
+#include "jsfriendapi.h"
+
 /* These values are private to the JS engine. */
 namespace js {
 namespace gc {
@@ -56,22 +58,18 @@ static const uint32_t GRAY = 1;
 } /* namespace js */
 
 namespace JS {
-typedef JSCompartment Zone;
-} /* namespace JS */
-
-namespace JS {
 namespace shadow {
 
 struct ArenaHeader
 {
-    js::Zone *zone;
+    JSCompartment *compartment;
 };
 
-struct Zone
+struct Compartment
 {
     bool needsBarrier_;
 
-    Zone() : needsBarrier_(false) {}
+    Compartment() : needsBarrier_(false) {}
 };
 
 } /* namespace shadow */
@@ -118,26 +116,13 @@ static JS_ALWAYS_INLINE JSCompartment *
 GetGCThingCompartment(void *thing)
 {
     JS_ASSERT(thing);
-    return js::gc::GetGCThingArena(thing)->zone;
-}
-
-static JS_ALWAYS_INLINE Zone *
-GetGCThingZone(void *thing)
-{
-    JS_ASSERT(thing);
-    return js::gc::GetGCThingArena(thing)->zone;
+    return js::gc::GetGCThingArena(thing)->compartment;
 }
 
 static JS_ALWAYS_INLINE JSCompartment *
 GetObjectCompartment(JSObject *obj)
 {
     return GetGCThingCompartment(obj);
-}
-
-static JS_ALWAYS_INLINE Zone *
-GetObjectZone(JSObject *obj)
-{
-    return GetGCThingZone(obj);
 }
 
 static JS_ALWAYS_INLINE bool
@@ -151,8 +136,32 @@ GCThingIsMarkedGray(void *thing)
 static JS_ALWAYS_INLINE bool
 IsIncrementalBarrierNeededOnGCThing(void *thing, JSGCTraceKind kind)
 {
-    js::Zone *zone = GetGCThingZone(thing);
-    return reinterpret_cast<shadow::Zone *>(zone)->needsBarrier_;
+    JSCompartment *comp = GetGCThingCompartment(thing);
+    return reinterpret_cast<shadow::Compartment *>(comp)->needsBarrier_;
+}
+
+/*
+ * This should be called when an object that is marked gray is exposed to the JS
+ * engine (by handing it to running JS code or writing it into live JS
+ * data). During incremental GC, since the gray bits haven't been computed yet,
+ * we conservatively mark the object black.
+ */
+static JS_ALWAYS_INLINE void
+ExposeGCThingToActiveJS(void *thing, JSGCTraceKind kind)
+{
+    JS_ASSERT(kind != JSTRACE_SHAPE);
+
+    if (GCThingIsMarkedGray(thing))
+        js::UnmarkGrayGCThingRecursively(thing, kind);
+    else if (IsIncrementalBarrierNeededOnGCThing(thing, kind))
+        js::IncrementalReferenceBarrier(thing);
+}
+
+static JS_ALWAYS_INLINE void
+ExposeValueToActiveJS(const Value &v)
+{
+    if (v.isMarkable())
+        ExposeGCThingToActiveJS(v.toGCThing(), v.gcKind());
 }
 
 } /* namespace JS */

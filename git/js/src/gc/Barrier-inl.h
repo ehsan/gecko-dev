@@ -29,16 +29,16 @@ RelocatablePtr<T>::post()
 {
 #ifdef JSGC_GENERATIONAL
     JS_ASSERT(this->value);
-    this->value->zone()->gcStoreBuffer.putRelocatableCell((gc::Cell **)&this->value);
+    this->value->compartment()->gcStoreBuffer.putRelocatableCell((gc::Cell **)&this->value);
 #endif
 }
 
 template <typename T>
 inline void
-RelocatablePtr<T>::relocate(Zone *zone)
+RelocatablePtr<T>::relocate(JSCompartment *comp)
 {
 #ifdef JSGC_GENERATIONAL
-    zone->gcStoreBuffer.removeRelocatableCell((gc::Cell **)&this->value);
+    comp->gcStoreBuffer.removeRelocatableCell((gc::Cell **)&this->value);
 #endif
 }
 
@@ -48,18 +48,18 @@ EncapsulatedValue::writeBarrierPre(const Value &value)
 #ifdef JSGC_INCREMENTAL
     if (value.isMarkable()) {
         js::gc::Cell *cell = (js::gc::Cell *)value.toGCThing();
-        writeBarrierPre(cell->zone(), value);
+        writeBarrierPre(cell->compartment(), value);
     }
 #endif
 }
 
 inline void
-EncapsulatedValue::writeBarrierPre(Zone *zone, const Value &value)
+EncapsulatedValue::writeBarrierPre(JSCompartment *comp, const Value &value)
 {
 #ifdef JSGC_INCREMENTAL
-    if (zone->needsBarrier()) {
+    if (comp->needsBarrier()) {
         Value tmp(value);
-        js::gc::MarkValueUnbarriered(zone->barrierTracer(), &tmp, "write barrier");
+        js::gc::MarkValueUnbarriered(comp->barrierTracer(), &tmp, "write barrier");
         JS_ASSERT(tmp == value);
     }
 #endif
@@ -72,9 +72,9 @@ EncapsulatedValue::pre()
 }
 
 inline void
-EncapsulatedValue::pre(Zone *zone)
+EncapsulatedValue::pre(JSCompartment *comp)
 {
-    writeBarrierPre(zone, value);
+    writeBarrierPre(comp, value);
 }
 
 inline
@@ -115,11 +115,11 @@ HeapValue::init(const Value &v)
 }
 
 inline void
-HeapValue::init(Zone *zone, const Value &v)
+HeapValue::init(JSCompartment *comp, const Value &v)
 {
     JS_ASSERT(!IsPoisonedValue(v));
     value = v;
-    post(zone);
+    post(comp);
 }
 
 inline HeapValue &
@@ -143,20 +143,20 @@ HeapValue::operator=(const HeapValue &v)
 }
 
 inline void
-HeapValue::set(Zone *zone, const Value &v)
+HeapValue::set(JSCompartment *comp, const Value &v)
 {
 #ifdef DEBUG
     if (value.isMarkable()) {
         js::gc::Cell *cell = (js::gc::Cell *)value.toGCThing();
-        JS_ASSERT(cell->zone() == zone ||
-                  cell->zone() == zone->rt->atomsCompartment->zone());
+        JS_ASSERT(cell->compartment() == comp ||
+                  cell->compartment() == comp->rt->atomsCompartment);
     }
 #endif
 
-    pre(zone);
+    pre(comp);
     JS_ASSERT(!IsPoisonedValue(v));
     value = v;
-    post(zone);
+    post(comp);
 }
 
 inline void
@@ -165,17 +165,17 @@ HeapValue::writeBarrierPost(const Value &value, Value *addr)
 #ifdef JSGC_GENERATIONAL
     if (value.isMarkable()) {
         js::gc::Cell *cell = (js::gc::Cell *)value.toGCThing();
-        cell->zone()->gcStoreBuffer.putValue(addr);
+        cell->compartment()->gcStoreBuffer.putValue(addr);
     }
 #endif
 }
 
 inline void
-HeapValue::writeBarrierPost(Zone *zone, const Value &value, Value *addr)
+HeapValue::writeBarrierPost(JSCompartment *comp, const Value &value, Value *addr)
 {
 #ifdef JSGC_GENERATIONAL
     if (value.isMarkable())
-        zone->gcStoreBuffer.putValue(addr);
+        comp->gcStoreBuffer.putValue(addr);
 #endif
 }
 
@@ -186,9 +186,9 @@ HeapValue::post()
 }
 
 inline void
-HeapValue::post(Zone *zone)
+HeapValue::post(JSCompartment *comp)
 {
-    writeBarrierPost(zone, value, &value);
+    writeBarrierPost(comp, value, &value);
 }
 
 inline
@@ -246,17 +246,17 @@ RelocatableValue::post()
 #ifdef JSGC_GENERATIONAL
     if (value.isMarkable()) {
         js::gc::Cell *cell = (js::gc::Cell *)value.toGCThing();
-        cell->zone()->gcStoreBuffer.putRelocatableValue(&value);
+        cell->compartment()->gcStoreBuffer.putRelocatableValue(&value);
     }
 #endif
 }
 
 inline void
-RelocatableValue::post(Zone *zone)
+RelocatableValue::post(JSCompartment *comp)
 {
 #ifdef JSGC_GENERATIONAL
     if (value.isMarkable())
-        zone->gcStoreBuffer.putRelocatableValue(&value);
+        comp->gcStoreBuffer.putRelocatableValue(&value);
 #endif
 }
 
@@ -266,7 +266,7 @@ RelocatableValue::relocate()
 #ifdef JSGC_GENERATIONAL
     if (value.isMarkable()) {
         js::gc::Cell *cell = (js::gc::Cell *)value.toGCThing();
-        cell->zone()->gcStoreBuffer.removeRelocatableValue(&value);
+        cell->compartment()->gcStoreBuffer.removeRelocatableValue(&value);
     }
 #endif
 }
@@ -301,10 +301,10 @@ HeapSlot::init(JSObject *obj, Kind kind, uint32_t slot, const Value &v)
 }
 
 inline void
-HeapSlot::init(Zone *zone, JSObject *obj, Kind kind, uint32_t slot, const Value &v)
+HeapSlot::init(JSCompartment *comp, JSObject *obj, Kind kind, uint32_t slot, const Value &v)
 {
     value = v;
-    post(zone, obj, kind, slot);
+    post(comp, obj, kind, slot);
 }
 
 inline void
@@ -320,20 +320,20 @@ HeapSlot::set(JSObject *obj, Kind kind, uint32_t slot, const Value &v)
 }
 
 inline void
-HeapSlot::set(Zone *zone, JSObject *obj, Kind kind, uint32_t slot, const Value &v)
+HeapSlot::set(JSCompartment *comp, JSObject *obj, Kind kind, uint32_t slot, const Value &v)
 {
     JS_ASSERT_IF(kind == Slot, &obj->getSlotRef(slot) == this);
     JS_ASSERT_IF(kind == Element, &obj->getDenseElement(slot) == (const Value *)this);
-    JS_ASSERT(obj->zone() == zone);
+    JS_ASSERT(obj->compartment() == comp);
 
-    pre(zone);
+    pre(comp);
     JS_ASSERT(!IsPoisonedValue(v));
     value = v;
-    post(zone, obj, kind, slot);
+    post(comp, obj, kind, slot);
 }
 
 inline void
-HeapSlot::setCrossCompartment(JSObject *obj, Kind kind, uint32_t slot, const Value &v, Zone *vzone)
+HeapSlot::setCrossCompartment(JSObject *obj, Kind kind, uint32_t slot, const Value &v, JSCompartment *vcomp)
 {
     JS_ASSERT_IF(kind == Slot, &obj->getSlotRef(slot) == this);
     JS_ASSERT_IF(kind == Element, &obj->getDenseElement(slot) == (const Value *)this);
@@ -341,22 +341,22 @@ HeapSlot::setCrossCompartment(JSObject *obj, Kind kind, uint32_t slot, const Val
     pre();
     JS_ASSERT(!IsPoisonedValue(v));
     value = v;
-    post(vzone, obj, kind, slot);
+    post(vcomp, obj, kind, slot);
 }
 
 inline void
 HeapSlot::writeBarrierPost(JSObject *obj, Kind kind, uint32_t slot)
 {
 #ifdef JSGC_GENERATIONAL
-    obj->zone()->gcStoreBuffer.putSlot(obj, kind, slot);
+    obj->compartment()->gcStoreBuffer.putSlot(obj, kind, slot);
 #endif
 }
 
 inline void
-HeapSlot::writeBarrierPost(Zone *zone, JSObject *obj, Kind kind, uint32_t slot)
+HeapSlot::writeBarrierPost(JSCompartment *comp, JSObject *obj, Kind kind, uint32_t slot)
 {
 #ifdef JSGC_GENERATIONAL
-    zone->gcStoreBuffer.putSlot(obj, kind, slot);
+    comp->gcStoreBuffer.putSlot(obj, kind, slot);
 #endif
 }
 
@@ -367,9 +367,9 @@ HeapSlot::post(JSObject *owner, Kind kind, uint32_t slot)
 }
 
 inline void
-HeapSlot::post(Zone *zone, JSObject *owner, Kind kind, uint32_t slot)
+HeapSlot::post(JSCompartment *comp, JSObject *owner, Kind kind, uint32_t slot)
 {
-    HeapSlot::writeBarrierPost(zone, owner, kind, slot);
+    HeapSlot::writeBarrierPost(comp, owner, kind, slot);
 }
 
 #ifdef JSGC_GENERATIONAL
@@ -404,11 +404,11 @@ class DenseRangeRef : public gc::BufferableRef
 #endif
 
 inline void
-DenseRangeWriteBarrierPost(Zone *zone, JSObject *obj, uint32_t start, uint32_t count)
+DenseRangeWriteBarrierPost(JSCompartment *comp, JSObject *obj, uint32_t start, uint32_t count)
 {
 #ifdef JSGC_GENERATIONAL
     if (count > 0)
-        zone->gcStoreBuffer.putGeneric(DenseRangeRef(obj, start, start + count));
+        comp->gcStoreBuffer.putGeneric(DenseRangeRef(obj, start, start + count));
 #endif
 }
 
@@ -434,16 +434,16 @@ EncapsulatedId::pre()
 #ifdef JSGC_INCREMENTAL
     if (JSID_IS_OBJECT(value)) {
         JSObject *obj = JSID_TO_OBJECT(value);
-        Zone *zone = obj->zone();
-        if (zone->needsBarrier()) {
-            js::gc::MarkObjectUnbarriered(zone->barrierTracer(), &obj, "write barrier");
+        JSCompartment *comp = obj->compartment();
+        if (comp->needsBarrier()) {
+            js::gc::MarkObjectUnbarriered(comp->barrierTracer(), &obj, "write barrier");
             JS_ASSERT(obj == JSID_TO_OBJECT(value));
         }
     } else if (JSID_IS_STRING(value)) {
         JSString *str = JSID_TO_STRING(value);
-        Zone *zone = str->zone();
-        if (zone->needsBarrier()) {
-            js::gc::MarkStringUnbarriered(zone->barrierTracer(), &str, "write barrier");
+        JSCompartment *comp = str->compartment();
+        if (comp->needsBarrier()) {
+            js::gc::MarkStringUnbarriered(comp->barrierTracer(), &str, "write barrier");
             JS_ASSERT(str == JSID_TO_STRING(value));
         }
     }

@@ -133,9 +133,16 @@ static const uint8_t gsRGBToLinearRGBMap[256] = {
 239, 242, 244, 246, 248, 250, 253, 255
 };
 
+static bool sSMILEnabled;
 static bool sSVGDisplayListHitTestingEnabled;
 static bool sSVGDisplayListPaintingEnabled;
 static bool sSVGTextCSSFramesEnabled;
+
+bool
+NS_SMILEnabled()
+{
+  return sSMILEnabled;
+}
 
 bool
 NS_SVGDisplayListHitTestingEnabled()
@@ -208,6 +215,10 @@ SVGAutoRenderState::IsPaintingToWindow(nsRenderingContext *aContext)
 void
 nsSVGUtils::Init()
 {
+  Preferences::AddBoolVarCache(&sSMILEnabled,
+                               "svg.smil.enabled",
+                               true);
+
   Preferences::AddBoolVarCache(&sSVGDisplayListHitTestingEnabled,
                                "svg.display-lists.hit-testing.enabled");
 

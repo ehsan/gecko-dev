@@ -72,7 +72,7 @@ class ComponentFinder
     void addNode(Node *v);
     Node *getResultsList();
 
-    static void mergeGroups(Node *first);
+    static void mergeCompartmentGroups(Node *first);
 
   public:
     /* Call from implementation of GraphNodeBase::findOutgoingEdges(). */

@@ -228,7 +228,6 @@ EXPORTS_js = \
 		CharacterEncoding.h \
 		HashTable.h \
 		HeapAPI.h \
-		GCAPI.h \
 		LegacyIntTypes.h \
 		MemoryMetrics.h \
 		TemplateLib.h \

@@ -94,6 +94,10 @@ class Element;
 #define SVG_HIT_TEST_STROKE      0x02
 #define SVG_HIT_TEST_CHECK_MRECT 0x04
 
+/*
+ * Checks the smil enabled preference.
+ */
+bool NS_SMILEnabled();
 
 bool NS_SVGDisplayListHitTestingEnabled();
 bool NS_SVGDisplayListPaintingEnabled();

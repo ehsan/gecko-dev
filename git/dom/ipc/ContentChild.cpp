@@ -102,14 +102,12 @@
 #include "nsIPrincipal.h"
 #include "nsDeviceStorage.h"
 #include "AudioChannelService.h"
-#include "ProcessPriorityManager.h"
 
 using namespace base;
 using namespace mozilla;
 using namespace mozilla::docshell;
 using namespace mozilla::dom::bluetooth;
 using namespace mozilla::dom::devicestorage;
-using namespace mozilla::dom::ipc;
 using namespace mozilla::dom::sms;
 using namespace mozilla::dom::indexedDB;
 using namespace mozilla::hal_sandbox;
@@ -291,8 +289,13 @@ ContentChild::Init(MessageLoop* aIOLoop,
 #endif
 #endif
 
-    SendGetProcessAttributes(&mID, &mIsForApp, &mIsForBrowser);
-
+    bool startBackground = true;
+    SendGetProcessAttributes(&mID, &startBackground,
+                             &mIsForApp, &mIsForBrowser);
+    hal::SetProcessPriority(
+        GetCurrentProcId(),
+        startBackground ? hal::PROCESS_PRIORITY_BACKGROUND:
+                          hal::PROCESS_PRIORITY_FOREGROUND);
     if (mIsForApp && !mIsForBrowser) {
         SetProcessName(NS_LITERAL_STRING("(Preallocated app)"));
     } else {
@@ -526,19 +529,12 @@ PBrowserChild*
 ContentChild::AllocPBrowser(const IPCTabContext& aContext,
                             const uint32_t& aChromeFlags)
 {
-    static bool hasRunOnce = false;
-    if (!hasRunOnce) {
-        hasRunOnce = true;
-
+    static bool firstIdleTaskPosted = false;
+    if (!firstIdleTaskPosted) {
         MOZ_ASSERT(!sFirstIdleTask);
         sFirstIdleTask = NewRunnableFunction(FirstIdle);
         MessageLoop::current()->PostIdleTask(FROM_HERE, sFirstIdleTask);
-
-        // If we are the preallocated process transforming into an app process,
-        // we'll have background priority at this point.  Give ourselves a
-        // priority boost for a few seconds, so we don't get killed while we're
-        // loading our first TabChild.
-        TemporarilySetProcessPriorityToForeground();
+        firstIdleTaskPosted = true;
     }
 
     // We'll happily accept any kind of IPCTabContext here; we don't need to

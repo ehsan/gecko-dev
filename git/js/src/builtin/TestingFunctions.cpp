@@ -180,7 +180,7 @@ GC(JSContext *cx, unsigned argc, jsval *vp)
             if (!JS_StringEqualsAscii(cx, arg.toString(), "compartment", &compartment))
                 return false;
         } else if (arg.isObject()) {
-            PrepareZoneForGC(UnwrapObject(&arg.toObject())->zone());
+            PrepareCompartmentForGC(UnwrapObject(&arg.toObject())->compartment());
             compartment = true;
         }
     }
@@ -382,12 +382,12 @@ ScheduleGC(JSContext *cx, unsigned argc, jsval *vp)
         /* Schedule a GC to happen after |arg| allocations. */
         JS_ScheduleGC(cx, args[0].toInt32());
     } else if (args[0].isObject()) {
-        /* Ensure that |zone| is collected during the next GC. */
-        Zone *zone = UnwrapObject(&args[0].toObject())->zone();
-        PrepareZoneForGC(zone);
+        /* Ensure that |comp| is collected during the next GC. */
+        JSCompartment *comp = UnwrapObject(&args[0].toObject())->compartment();
+        PrepareCompartmentForGC(comp);
     } else if (args[0].isString()) {
         /* This allows us to schedule atomsCompartment for GC. */
-        PrepareZoneForGC(args[0].toString()->zone());
+        PrepareCompartmentForGC(args[0].toString()->compartment());
     }
 
     *vp = JSVAL_VOID;

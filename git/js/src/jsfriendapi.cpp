@@ -127,35 +127,35 @@ JS_NewObjectWithUniqueType(JSContext *cx, JSClass *clasp, JSObject *protoArg, JS
 }
 
 JS_FRIEND_API(void)
-JS::PrepareZoneForGC(Zone *zone)
+js::PrepareCompartmentForGC(JSCompartment *comp)
 {
-    zone->scheduleGC();
+    comp->scheduleGC();
 }
 
 JS_FRIEND_API(void)
-JS::PrepareForFullGC(JSRuntime *rt)
+js::PrepareForFullGC(JSRuntime *rt)
 {
-    for (ZonesIter zone(rt); !zone.done(); zone.next())
-        zone->scheduleGC();
+    for (CompartmentsIter c(rt); !c.done(); c.next())
+        c->scheduleGC();
 }
 
 JS_FRIEND_API(void)
-JS::PrepareForIncrementalGC(JSRuntime *rt)
+js::PrepareForIncrementalGC(JSRuntime *rt)
 {
     if (!IsIncrementalGCInProgress(rt))
         return;
 
-    for (ZonesIter zone(rt); !zone.done(); zone.next()) {
-        if (zone->wasGCStarted())
-            PrepareZoneForGC(zone);
+    for (CompartmentsIter c(rt); !c.done(); c.next()) {
+        if (c->wasGCStarted())
+            PrepareCompartmentForGC(c);
     }
 }
 
 JS_FRIEND_API(bool)
-JS::IsGCScheduled(JSRuntime *rt)
+js::IsGCScheduled(JSRuntime *rt)
 {
-    for (ZonesIter zone(rt); !zone.done(); zone.next()) {
-        if (zone->isGCScheduled())
+    for (CompartmentsIter c(rt); !c.done(); c.next()) {
+        if (c->isGCScheduled())
             return true;
     }
 
@@ -163,33 +163,39 @@ JS::IsGCScheduled(JSRuntime *rt)
 }
 
 JS_FRIEND_API(void)
-JS::SkipZoneForGC(Zone *zone)
+js::SkipCompartmentForGC(JSCompartment *comp)
 {
-    zone->unscheduleGC();
+    comp->unscheduleGC();
 }
 
 JS_FRIEND_API(void)
-JS::GCForReason(JSRuntime *rt, gcreason::Reason reason)
+js::GCForReason(JSRuntime *rt, gcreason::Reason reason)
 {
     GC(rt, GC_NORMAL, reason);
 }
 
 JS_FRIEND_API(void)
-JS::ShrinkingGC(JSRuntime *rt, gcreason::Reason reason)
+js::ShrinkingGC(JSRuntime *rt, gcreason::Reason reason)
 {
     GC(rt, GC_SHRINK, reason);
 }
 
 JS_FRIEND_API(void)
-JS::IncrementalGC(JSRuntime *rt, gcreason::Reason reason, int64_t millis)
+js::IncrementalGC(JSRuntime *rt, gcreason::Reason reason, int64_t millis)
 {
     GCSlice(rt, GC_NORMAL, reason, millis);
 }
 
 JS_FRIEND_API(void)
-JS::FinishIncrementalGC(JSRuntime *rt, gcreason::Reason reason)
+js::FinishIncrementalGC(JSRuntime *rt, gcreason::Reason reason)
 {
     GCFinalSlice(rt, GC_NORMAL, reason);
+}
+
+JS_FRIEND_API(void)
+JS_ShrinkGCBuffers(JSRuntime *rt)
+{
+    ShrinkGCBuffers(rt);
 }
 
 JS_FRIEND_API(JSPrincipals *)
@@ -218,7 +224,7 @@ JS_SetCompartmentPrincipals(JSCompartment *compartment, JSPrincipals *principals
         // with the old one, but JSPrincipals doesn't give us a way to do that.
         // But we can at least assert that we're not switching between system
         // and non-system.
-        JS_ASSERT(compartment->zone()->isSystem == isSystem);
+        JS_ASSERT(compartment->isSystemCompartment == isSystem);
     }
 
     // Set up the new principals.
@@ -228,7 +234,7 @@ JS_SetCompartmentPrincipals(JSCompartment *compartment, JSPrincipals *principals
     }
 
     // Update the system flag.
-    compartment->zone()->isSystem = isSystem;
+    compartment->isSystemCompartment = isSystem;
 }
 
 JS_FRIEND_API(JSBool)
@@ -318,7 +324,7 @@ AutoSwitchCompartment::~AutoSwitchCompartment()
 JS_FRIEND_API(bool)
 js::IsSystemCompartment(const JSCompartment *c)
 {
-    return c->zone()->isSystem;
+    return c->isSystemCompartment;
 }
 
 JS_FRIEND_API(bool)
@@ -780,7 +786,7 @@ js::GetRuntimeCompartments(JSRuntime *rt)
 }
 
 JS_FRIEND_API(GCSliceCallback)
-JS::SetGCSliceCallback(JSRuntime *rt, GCSliceCallback callback)
+js::SetGCSliceCallback(JSRuntime *rt, GCSliceCallback callback)
 {
     GCSliceCallback old = rt->gcSliceCallback;
     rt->gcSliceCallback = callback;
@@ -788,7 +794,7 @@ JS::SetGCSliceCallback(JSRuntime *rt, GCSliceCallback callback)
 }
 
 JS_FRIEND_API(bool)
-JS::WasIncrementalGC(JSRuntime *rt)
+js::WasIncrementalGC(JSRuntime *rt)
 {
     return rt->gcIsIncremental;
 }
@@ -814,7 +820,7 @@ js::SetAnalysisPurgeCallback(JSRuntime *rt, AnalysisPurgeCallback callback)
 }
 
 JS_FRIEND_API(void)
-JS::NotifyDidPaint(JSRuntime *rt)
+js::NotifyDidPaint(JSRuntime *rt)
 {
     if (rt->gcZeal() == gc::ZealFrameVerifierPreValue) {
         gc::VerifyBarriers(rt, gc::PreBarrierVerifier);
@@ -841,37 +847,37 @@ JS::NotifyDidPaint(JSRuntime *rt)
 }
 
 JS_FRIEND_API(bool)
-JS::IsIncrementalGCEnabled(JSRuntime *rt)
+js::IsIncrementalGCEnabled(JSRuntime *rt)
 {
     return rt->gcIncrementalEnabled && rt->gcMode == JSGC_MODE_INCREMENTAL;
 }
 
 JS_FRIEND_API(bool)
-JS::IsIncrementalGCInProgress(JSRuntime *rt)
+js::IsIncrementalGCInProgress(JSRuntime *rt)
 {
     return (rt->gcIncrementalState != gc::NO_INCREMENTAL && !rt->gcVerifyPreData);
 }
 
 JS_FRIEND_API(void)
-JS::DisableIncrementalGC(JSRuntime *rt)
+js::DisableIncrementalGC(JSRuntime *rt)
 {
     rt->gcIncrementalEnabled = false;
 }
 
 JS_FRIEND_API(bool)
-JS::IsIncrementalBarrierNeeded(JSRuntime *rt)
+js::IsIncrementalBarrierNeeded(JSRuntime *rt)
 {
     return (rt->gcIncrementalState == gc::MARK && !rt->isHeapBusy());
 }
 
 JS_FRIEND_API(bool)
-JS::IsIncrementalBarrierNeeded(JSContext *cx)
+js::IsIncrementalBarrierNeeded(JSContext *cx)
 {
     return IsIncrementalBarrierNeeded(cx->runtime);
 }
 
 JS_FRIEND_API(void)
-JS::IncrementalReferenceBarrier(void *ptr)
+js::IncrementalReferenceBarrier(void *ptr)
 {
     if (!ptr)
         return;
@@ -899,13 +905,13 @@ JS::IncrementalReferenceBarrier(void *ptr)
 }
 
 JS_FRIEND_API(void)
-JS::IncrementalValueBarrier(const Value &v)
+js::IncrementalValueBarrier(const Value &v)
 {
     HeapValue::writeBarrierPre(v);
 }
 
 JS_FRIEND_API(void)
-JS::PokeGC(JSRuntime *rt)
+js::PokeGC(JSRuntime *rt)
 {
     rt->gcPoke = true;
 }

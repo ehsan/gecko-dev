@@ -760,19 +760,19 @@ struct JSRuntime : js::RuntimeFriendFields
     /* Whether any black->gray edges were found during marking. */
     bool                gcFoundBlackGrayEdges;
 
-    /* List head of zones to be swept in the background. */
-    JS::Zone            *gcSweepingZones;
+    /* List head of compartments to be swept in the background. */
+    JSCompartment       *gcSweepingCompartments;
 
-    /* Index of current zone group (for stats). */
-    unsigned            gcZoneGroupIndex;
+    /* Index of current compartment group (for stats). */
+    unsigned            gcCompartmentGroupIndex;
 
     /*
      * Incremental sweep state.
      */
-    JS::Zone            *gcZoneGroups;
-    JS::Zone            *gcCurrentZoneGroup;
+    JSCompartment       *gcCompartmentGroups;
+    JSCompartment       *gcCurrentCompartmentGroup;
     int                 gcSweepPhase;
-    JS::Zone            *gcSweepZone;
+    JSCompartment       *gcSweepCompartment;
     int                 gcSweepKindIndex;
     bool                gcAbortSweepAfterCurrentGroup;
 
@@ -1382,8 +1382,7 @@ struct JSContext : js::ContextFriendFields,
     JSContext *thisDuringConstruction() { return this; }
     ~JSContext();
 
-    inline JS::Zone *zone();
-    js::PerThreadData &mainThread() { return runtime->mainThread; }
+    js::PerThreadData& mainThread() { return runtime->mainThread; }
 
   private:
     /* See JSContext::findVersion. */

@@ -1687,7 +1687,7 @@ DebugScopes::addDebugScope(JSContext *cx, ScopeObject &scope, DebugScopeObject &
         return false;
     }
 
-    HashTableWriteBarrierPost(cx->zone(), &scopes->proxiedScopes, &scope);
+    HashTableWriteBarrierPost(cx->compartment, &scopes->proxiedScopes, &scope);
     return true;
 }
 

@@ -439,9 +439,9 @@ Probes::ETWStopExecution(UnrootedScript script)
 }
 
 bool
-Probes::ETWResizeHeap(JS::Zone *zone, size_t oldSize, size_t newSize)
+Probes::ETWResizeHeap(JSCompartment *compartment, size_t oldSize, size_t newSize)
 {
-    return EventWriteEvtHeapResize(reinterpret_cast<uint64_t>(zone),
+    return EventWriteEvtHeapResize(reinterpret_cast<uint64_t>(compartment),
                                    oldSize, newSize) == ERROR_SUCCESS;
 }
 

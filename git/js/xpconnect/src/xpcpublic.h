@@ -15,7 +15,6 @@
 #include "jspubtd.h"
 #include "jsproxy.h"
 #include "js/HeapAPI.h"
-#include "js/GCAPI.h"
 
 #include "nsISupports.h"
 #include "nsIPrincipal.h"

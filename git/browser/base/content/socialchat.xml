@@ -15,7 +15,6 @@
                            oncommand="document.getBindingParent(this).close();"/>
       </xul:hbox>
       <xul:iframe anonid="iframe" class="chat-frame" flex="1"
-                  context="contentAreaContextMenu"
                   xbl:inherits="src,origin,collapsed=minimized" type="content"/>
     </content>
 
@@ -82,7 +81,7 @@
     </implementation>
 
     <handlers>
-      <handler event="focus">
+      <handler event="focus" phase="capturing">
         this.parentNode.selectedChat = this;
       </handler>
       <handler event="DOMTitleChanged"><![CDATA[
@@ -356,7 +355,6 @@
           if (this.selectedChat == aChatbox) {
             this._selectAnotherChat();
           }
-          aChatbox.iframe.socialErrorListener.remove();
           this.removeChild(aChatbox);
           // child might have been collapsed.
           let menuitem = this.menuitemMap.get(aChatbox);
@@ -394,11 +392,6 @@
           // to null in DOMContentLoaded, so null means DOMContentLoaded has
           // already fired and new callbacks can be made immediately.
           aChatBox._callbacks = [aCallback];
-          var tmp = {};
-          Components.utils.import("resource://gre/modules/Social.jsm", tmp);
-          tmp.Social.setErrorListener(aChatBox.iframe, function(iframe) {
-            iframe.webNavigation.loadURI("about:socialerror?mode=compactInfo", null, null, null, null);
-          });
           let iframeWindow = aChatBox.iframe.contentWindow;
           aChatBox.addEventListener("DOMContentLoaded", function DOMContentLoaded() {
             aChatBox.removeEventListener("DOMContentLoaded", DOMContentLoaded);

@@ -159,16 +159,16 @@ PropertyTree::getChild(JSContext *cx, Shape *parent_, uint32_t nfixed, const Sta
 
 #ifdef JSGC_INCREMENTAL
         if (shape) {
-            JS::Zone *zone = shape->zone();
-            if (zone->needsBarrier()) {
+            JSCompartment *comp = shape->compartment();
+            if (comp->needsBarrier()) {
                 /*
                  * We need a read barrier for the shape tree, since these are weak
                  * pointers.
                  */
                 Shape *tmp = shape;
-                MarkShapeUnbarriered(zone->barrierTracer(), &tmp, "read barrier");
+                MarkShapeUnbarriered(comp->barrierTracer(), &tmp, "read barrier");
                 JS_ASSERT(tmp == shape);
-            } else if (zone->isGCSweeping() && !shape->isMarked() &&
+            } else if (comp->isGCSweeping() && !shape->isMarked() &&
                        !shape->arenaHeader()->allocatedDuringIncremental)
             {
                 /*

@@ -13,7 +13,6 @@
 #include "nsIProgrammingLanguage.h"
 #include "jsfriendapi.h"
 #include "jspubtd.h"
-#include "js/GCAPI.h"
 
 class nsIScriptGlobalObject;
 class nsIScriptSecurityManager;
@@ -202,7 +201,7 @@ public:
    *
    * @return NS_OK if the method is successful
    */
-  virtual void GC(JS::gcreason::Reason aReason) = 0;
+  virtual void GC(js::gcreason::Reason aReason) = 0;
 
   /**
    * Inform the context that a script was evaluated.

@@ -81,6 +81,20 @@ SVGAnimateTransformElement::AnimationFunction()
   return mAnimationFunction;
 }
 
+bool
+SVGAnimateTransformElement::GetTargetAttributeName(int32_t *aNamespaceID,
+                                                   nsIAtom **aLocalName) const
+{
+  if (SVGAnimationElement::GetTargetAttributeName(aNamespaceID,
+                                                  aLocalName)) {
+    return *aNamespaceID == kNameSpaceID_None &&
+           (*aLocalName == nsGkAtoms::transform ||
+            *aLocalName == nsGkAtoms::patternTransform ||
+            *aLocalName == nsGkAtoms::gradientTransform);
+  }
+  return false;
+}
+
 } // namespace dom
 } // namespace mozilla
 

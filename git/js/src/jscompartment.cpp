@@ -64,7 +64,7 @@ JSCompartment::JSCompartment(JSRuntime *rt)
     gcTriggerBytes(0),
     gcHeapGrowthFactor(3.0),
     hold(false),
-    isSystem(false),
+    isSystemCompartment(false),
     lastCodeRelease(0),
     analysisLifoAlloc(LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
     typeLifoAlloc(LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
@@ -92,8 +92,8 @@ JSCompartment::JSCompartment(JSRuntime *rt)
 #endif
 {
     /* Ensure that there are no vtables to mess us up here. */
-    JS_ASSERT(reinterpret_cast<JS::shadow::Zone *>(this) ==
-              static_cast<JS::shadow::Zone *>(this));
+    JS_ASSERT(reinterpret_cast<JS::shadow::Compartment *>(this) ==
+              static_cast<JS::shadow::Compartment *>(this));
 
     setGCMaxMallocBytes(rt->gcMaxMallocBytes * 0.9);
 }
@@ -374,7 +374,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp, JSObject *existingArg)
         if (!putWrapper(orig, *vp))
             return false;
 
-        if (str->zone()->isGCMarking()) {
+        if (str->compartment()->isGCMarking()) {
             /*
              * All string wrappers are dropped when collection starts, but we
              * just created a new one.  Mark the wrapped string to stop it being
@@ -522,7 +522,7 @@ JSCompartment::wrap(JSContext *cx, AutoIdVector &props)
 void
 JSCompartment::markCrossCompartmentWrappers(JSTracer *trc)
 {
-    JS_ASSERT(!zone()->isCollecting());
+    JS_ASSERT(!isCollecting());
 
     for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
         Value v = e.front().value;
@@ -815,8 +815,9 @@ JSCompartment::setGCMaxMallocBytes(size_t value)
 void
 JSCompartment::onTooMuchMalloc()
 {
-    TriggerZoneGC(zone(), gcreason::TOO_MUCH_MALLOC);
+    TriggerCompartmentGC(this, gcreason::TOO_MUCH_MALLOC);
 }
+
 
 bool
 JSCompartment::hasScriptsOnStack()
@@ -907,7 +908,7 @@ JSCompartment::updateForDebugMode(FreeOp *fop, AutoDebugModeGC &dmgc)
     // to run any scripts in this compartment until the dmgc is destroyed.
     // That is the caller's responsibility.
     if (!rt->isHeapBusy())
-        dmgc.scheduleGC(zone());
+        dmgc.scheduleGC(this);
 #endif
 }
 

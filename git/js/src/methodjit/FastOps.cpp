@@ -974,7 +974,7 @@ mjit::Compiler::jsop_setelem_dense()
      * undefined.
      */
     types::StackTypeSet *types = frame.extra(obj).types;
-    if (cx->zone()->compileBarriers() && (!types || types->propertyNeedsBarrier(cx, JSID_VOID))) {
+    if (cx->compartment->compileBarriers() && (!types || types->propertyNeedsBarrier(cx, JSID_VOID))) {
         Label barrierStart = stubcc.masm.label();
         stubcc.linkExitDirect(masm.jump(), barrierStart);
 
@@ -1371,7 +1371,7 @@ mjit::Compiler::jsop_setelem(bool popGuaranteed)
 
 #ifdef JSGC_INCREMENTAL_MJ
     // Write barrier.
-    if (cx->zone()->compileBarriers()) {
+    if (cx->compartment->compileBarriers()) {
         jsop_setelem_slow();
         return true;
     }
@@ -2482,7 +2482,7 @@ mjit::Compiler::jsop_initprop()
 
     RootedObject baseobj(cx, frame.extra(obj).initObject);
 
-    if (!baseobj || monitored(PC) || cx->zone()->compileBarriers()) {
+    if (!baseobj || monitored(PC) || cx->compartment->compileBarriers()) {
         if (monitored(PC) && script_ == outerScript)
             monitoredBytecodes.append(PC - script_->code);
 

@@ -217,8 +217,8 @@ class ArenaIter
         init();
     }
 
-    ArenaIter(JS::Zone *zone, AllocKind kind) {
-        init(zone, kind);
+    ArenaIter(JSCompartment *comp, AllocKind kind) {
+        init(comp, kind);
     }
 
     void init() {
@@ -231,9 +231,9 @@ class ArenaIter
         remainingHeader = NULL;
     }
 
-    void init(JS::Zone *zone, AllocKind kind) {
-        aheader = zone->allocator.arenas.getFirstArena(kind);
-        remainingHeader = zone->allocator.arenas.getFirstArenaToSweep(kind);
+    void init(JSCompartment *comp, AllocKind kind) {
+        aheader = comp->allocator.arenas.getFirstArena(kind);
+        remainingHeader = comp->allocator.arenas.getFirstArenaToSweep(kind);
         if (!aheader) {
             aheader = remainingHeader;
             remainingHeader = NULL;
@@ -271,8 +271,8 @@ class CellIterImpl
     CellIterImpl() {
     }
 
-    void initSpan(JS::Zone *zone, AllocKind kind) {
-        JS_ASSERT(zone->allocator.arenas.isSynchronizedFreeList(kind));
+    void initSpan(JSCompartment *comp, AllocKind kind) {
+        JS_ASSERT(comp->allocator.arenas.isSynchronizedFreeList(kind));
         firstThingOffset = Arena::firstThingOffset(kind);
         thingSize = Arena::thingSize(kind);
         firstSpan.initAsEmpty();
@@ -281,15 +281,15 @@ class CellIterImpl
     }
 
     void init(ArenaHeader *singleAheader) {
-        initSpan(singleAheader->zone, singleAheader->getAllocKind());
+        initSpan(singleAheader->compartment, singleAheader->getAllocKind());
         aiter.init(singleAheader);
         next();
         aiter.init();
     }
 
     void init(JSCompartment *comp, AllocKind kind) {
-        initSpan(comp->zone(), kind);
-        aiter.init(comp->zone(), kind);
+        initSpan(comp, kind);
+        aiter.init(comp, kind);
         next();
     }
 
@@ -341,7 +341,7 @@ class CellIterUnderGC : public CellIterImpl
     }
 
     CellIterUnderGC(ArenaHeader *aheader) {
-        JS_ASSERT(aheader->zone->rt->isHeapBusy());
+        JS_ASSERT(aheader->compartment->rt->isHeapBusy());
         init(aheader);
     }
 };
@@ -355,7 +355,7 @@ class CellIter : public CellIterImpl
 #endif
   public:
     CellIter(JSCompartment *comp, AllocKind kind)
-      : lists(&comp->zone()->allocator.arenas),
+      : lists(&comp->allocator.arenas),
         kind(kind)
     {
         /*
@@ -441,8 +441,6 @@ class GCCompartmentsIter {
     JSCompartment *operator->() const { return get(); }
 };
 
-typedef GCCompartmentsIter GCZonesIter;
-
 /* Iterates over all compartments in the current compartment group. */
 class GCCompartmentGroupIter {
   private:
@@ -451,7 +449,7 @@ class GCCompartmentGroupIter {
   public:
     GCCompartmentGroupIter(JSRuntime *rt) {
         JS_ASSERT(rt->isHeapBusy());
-        current = rt->gcCurrentZoneGroup;
+        current = rt->gcCurrentCompartmentGroup;
     }
 
     bool done() const { return !current; }
@@ -469,8 +467,6 @@ class GCCompartmentGroupIter {
     operator JSCompartment *() const { return get(); }
     JSCompartment *operator->() const { return get(); }
 };
-
-typedef GCCompartmentGroupIter GCZoneGroupIter;
 
 /*
  * Allocates a new GC thing. After a successful allocation the caller must
@@ -505,20 +501,17 @@ NewGCThing(JSContext *cx, js::gc::AllocKind kind, size_t thingSize)
     if (allowGC)
         MaybeCheckStackRoots(cx, /* relax = */ false);
 
-    JS::Zone *zone = cx->zone();
-    T *t = static_cast<T *>(zone->allocator.arenas.allocateFromFreeList(kind, thingSize));
+    JSCompartment *comp = cx->compartment;
+    T *t = static_cast<T *>(comp->allocator.arenas.allocateFromFreeList(kind, thingSize));
     if (!t)
         t = static_cast<T *>(js::gc::ArenaLists::refillFreeList<allowGC>(cx, kind));
 
-    JS_ASSERT_IF(t && zone->wasGCStarted() && (zone->isGCMarking() || zone->isGCSweeping()),
+    JS_ASSERT_IF(t && comp->wasGCStarted() && (comp->isGCMarking() || comp->isGCSweeping()),
                  t->arenaHeader()->allocatedDuringIncremental);
 
 #if defined(JSGC_GENERATIONAL) && defined(JS_GC_ZEAL)
-    if (cx->runtime->gcVerifyPostData && IsNurseryAllocable(kind)
-        && !IsAtomsCompartment(cx->compartment))
-    {
-        zone->gcNursery.insertPointer(t);
-    }
+    if (cx->runtime->gcVerifyPostData && IsNurseryAllocable(kind) && !IsAtomsCompartment(comp))
+        comp->gcNursery.insertPointer(t);
 #endif
 
     return t;

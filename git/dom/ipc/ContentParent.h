@@ -203,6 +203,7 @@ private:
                       base::ProcessId aOtherProcess) MOZ_OVERRIDE;
 
     virtual bool RecvGetProcessAttributes(uint64_t* aId,
+                                          bool* aStartBackground,
                                           bool* aIsForApp,
                                           bool* aIsForBrowser) MOZ_OVERRIDE;
     virtual bool RecvGetXPCOMProcessAttributes(bool* aIsOffline) MOZ_OVERRIDE;
