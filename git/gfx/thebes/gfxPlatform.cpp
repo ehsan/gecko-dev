@@ -89,14 +89,6 @@
 #include "nsIGfxInfo.h"
 #include "nsIXULRuntime.h"
 
-#ifdef MOZ_WIDGET_GONK
-namespace mozilla {
-namespace layers {
-void InitGralloc();
-}
-}
-#endif
-
 using namespace mozilla;
 using namespace mozilla::layers;
 
@@ -273,7 +265,7 @@ gfxPlatform::gfxPlatform()
 #ifdef XP_WIN
     // XXX - When 957560 is fixed, the pref can go away entirely
     mLayersUseDeprecated =
-        Preferences::GetBool("layers.use-deprecated-textures", false)
+        Preferences::GetBool("layers.use-deprecated-textures", true)
         && !gfxPrefs::LayersPreferOpenGL();
 #else
     mLayersUseDeprecated = false;
@@ -424,10 +416,6 @@ gfxPlatform::Init()
 #ifdef MOZ_WIDGET_ANDROID
     // Texture pool init
     mozilla::gl::TexturePoolOGL::Init();
-#endif
-
-#ifdef MOZ_WIDGET_GONK
-    mozilla::layers::InitGralloc();
 #endif
 
     // Force registration of the gfx component, thus arranging for

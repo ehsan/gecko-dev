@@ -63,9 +63,7 @@ nsScriptableUnicodeConverter::ConvertFromUnicode(const nsAString& aSrc,
   nsresult rv = ConvertFromUnicodeWithLength(aSrc, &len, &str);
   if (NS_SUCCEEDED(rv)) {
     // No Adopt on nsACString :(
-    if (!_retval.Assign(str, len, mozilla::fallible_t())) {
-      rv = NS_ERROR_OUT_OF_MEMORY;
-    }
+    _retval.Assign(str, len);
     moz_free(str);
   }
   return rv;
@@ -102,9 +100,7 @@ nsScriptableUnicodeConverter::Finish(nsACString& _retval)
   nsresult rv = FinishWithLength(&str, &len);
   if (NS_SUCCEEDED(rv)) {
     // No Adopt on nsACString :(
-    if (!_retval.Assign(str, len, mozilla::fallible_t())) {
-      rv = NS_ERROR_OUT_OF_MEMORY;
-    }
+    _retval.Assign(str, len);
     moz_free(str);
   }
   return rv;
@@ -148,9 +144,7 @@ nsScriptableUnicodeConverter::ConvertFromByteArray(const uint8_t* aData,
     if (NS_SUCCEEDED(rv))
     {
       buf[outLength] = 0;
-      if (!_retval.Assign(buf, outLength, mozilla::fallible_t())) {
-        rv = NS_ERROR_OUT_OF_MEMORY;
-      }
+      _retval.Assign(buf, outLength);
     }
     moz_free(buf);
     return rv;

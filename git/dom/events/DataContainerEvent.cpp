@@ -5,7 +5,6 @@
 
 #include "mozilla/dom/DataContainerEvent.h"
 #include "nsContentUtils.h"
-#include "nsIDocument.h"
 #include "nsIXPConnect.h"
 
 namespace mozilla {
@@ -16,11 +15,6 @@ DataContainerEvent::DataContainerEvent(EventTarget* aOwner,
                                        WidgetEvent* aEvent)
   : Event(aOwner, aPresContext, aEvent)
 {
-  if (mOwner) {
-    if (nsIDocument* doc = mOwner->GetExtantDoc()) {
-      doc->WarnOnceAbout(nsIDocument::eDataContainerEvent);
-    }
-  }
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(DataContainerEvent)
