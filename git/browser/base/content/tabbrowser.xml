@@ -266,9 +266,7 @@
           this.tabContainer._positionPinnedTabs();
           this.tabContainer.adjustTabstrip();
 
-          // Bug 961867 - [e10s] Implement the logic for app tabs
-          if (!gMultiProcessBrowser)
-            this.getBrowserForTab(aTab).docShell.isAppTab = true;
+          this.getBrowserForTab(aTab).docShell.isAppTab = true;
 
           if (aTab.selected)
             this._setCloseKeyState(false);
@@ -293,9 +291,7 @@
           this.tabContainer._positionPinnedTabs();
           this.tabContainer.adjustTabstrip();
 
-          // Bug 961867 - [e10s] Implement the logic for app tabs
-          if (!gMultiProcessBrowser)
-            this.getBrowserForTab(aTab).docShell.isAppTab = false;
+          this.getBrowserForTab(aTab).docShell.isAppTab = false;
 
           if (aTab.selected)
             this._setCloseKeyState(true);
@@ -1342,15 +1338,13 @@
       </method>
 
 #ifdef MAKE_E10S_WORK
-      <method name="updateBrowserRemoteness">
+      <method name="_updateBrowserRemoteness">
         <parameter name="aBrowser"/>
-        <parameter name="aURL"/>
+        <parameter name="aRemote"/>
         <body>
           <![CDATA[
-            let shouldBeRemote = this._shouldBrowserBeRemote(aURL);
-
             let isRemote = aBrowser.getAttribute("remote") == "true";
-            if (isRemote == shouldBeRemote)
+            if (isRemote == aRemote)
               return false;
 
             let wasActive = document.activeElement == aBrowser;
@@ -1364,13 +1358,13 @@
             // Change the "remote" attribute.
             let parent = aBrowser.parentNode;
             parent.removeChild(aBrowser);
-            aBrowser.setAttribute("remote", shouldBeRemote ? "true" : "false");
+            aBrowser.setAttribute("remote", aRemote ? "true" : "false");
             parent.appendChild(aBrowser);
 
             // Restore the progress listener.
             aBrowser.webProgress.addProgressListener(filter, Ci.nsIWebProgress.NOTIFY_ALL);
 
-            if (shouldBeRemote)
+            if (aRemote)
               tab.setAttribute("remote", "true");
             else
               tab.removeAttribute("remote");
@@ -2682,14 +2676,14 @@
         <body>
           <![CDATA[
 #ifdef MAKE_E10S_WORK
-            this.updateBrowserRemoteness(this.mCurrentBrowser, aURI);
+            this._updateBrowserRemoteness(this.mCurrentBrowser, this._shouldBrowserBeRemote(aURI));
             try {
 #endif
             return this.mCurrentBrowser.loadURI(aURI, aReferrerURI, aCharset);
 #ifdef MAKE_E10S_WORK
             } catch (e) {
               let url = this.mCurrentBrowser.currentURI.spec;
-              this.updateBrowserRemoteness(this.mCurrentBrowser, url);
+              this._updateBrowserRemoteness(this.mCurrentBrowser, this._shouldBrowserBeRemote(url));
               throw e;
             }
 #endif
@@ -2707,14 +2701,14 @@
         <body>
           <![CDATA[
 #ifdef MAKE_E10S_WORK
-            this.updateBrowserRemoteness(this.mCurrentBrowser, aURI);
+            this._updateBrowserRemoteness(this.mCurrentBrowser, this._shouldBrowserBeRemote(aURI));
             try {
 #endif
             return this.mCurrentBrowser.loadURIWithFlags(aURI, aFlags, aReferrerURI, aCharset, aPostData);
 #ifdef MAKE_E10S_WORK
             } catch (e) {
               let url = this.mCurrentBrowser.currentURI.spec;
-              this.updateBrowserRemoteness(this.mCurrentBrowser, url);
+              this._updateBrowserRemoteness(this.mCurrentBrowser, this._shouldBrowserBeRemote(url));
               throw e;
             }
 #endif
@@ -3226,7 +3220,7 @@
           let uri = browser.currentURI;
           let icon = browser.mIconURL;
 
-          this.updateBrowserRemoteness(browser, "about:tabcrashed");
+          this._updateBrowserRemoteness(browser, false);
 
           browser.setAttribute("crashedPageTitle", title);
           browser.docShell.displayLoadError(Cr.NS_ERROR_CONTENT_CRASHED, uri, null);

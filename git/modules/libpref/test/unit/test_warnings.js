@@ -10,7 +10,14 @@ let ps = Cc["@mozilla.org/preferences-service;1"].
   getService(Ci.nsIPrefService);
 
 function makeBuffer(length) {
-  return new Array(length + 1).join('x');
+  let string = "x";
+  while (string.length < length) {
+    string = string + string;
+  }
+  if (string.length > length) {
+    string = string.substring(length - string.length);
+  }
+  return string;
 }
 
 /**
@@ -55,6 +62,19 @@ function run_test() {
 }
 
 add_task(function() {
+  // Very large change, should fail
+  try {
+    ps.setCharPref("string.fail", makeBuffer(16 * 1024 * 1024));
+    do_print("Writing to string.fail should have failed");
+    do_check_true(false); // We should have failed
+  } catch (ex if ex.result == Cr.NS_ERROR_OUT_OF_MEMORY) {
+    do_print("Writing to string.fail failed for the right reasons");
+    do_check_true(true); // Failed for the right reason
+  } catch (ex) {
+    do_print("Writing to string.fail failed for bad reasons");
+    do_check_true(false); // Failed for the wrong reason
+  }
+
   // Simple change, shouldn't cause a warning
   do_print("Checking that a simple change doesn't cause a warning");
   let buf = makeBuffer(100);
