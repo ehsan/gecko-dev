@@ -14,15 +14,12 @@
 #include "nsCOMPtr.h"
 
 class nsBaseContentList;
-class nsDisplayRangeFocusRing;
 
 class nsRangeFrame : public nsContainerFrame,
                      public nsIAnonymousContentCreator
 {
   friend nsIFrame*
   NS_NewRangeFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
-
-  friend class nsDisplayRangeFocusRing;
 
   nsRangeFrame(nsStyleContext* aContext);
   virtual ~nsRangeFrame();
@@ -86,10 +83,6 @@ public:
     return nsContainerFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
   }
-
-  nsStyleContext* GetAdditionalStyleContext(int32_t aIndex) const MOZ_OVERRIDE;
-  void SetAdditionalStyleContext(int32_t aIndex,
-                                 nsStyleContext* aStyleContext) MOZ_OVERRIDE;
 
   /**
    * Returns true if the slider's thumb moves horizontally, or else false if it
@@ -169,11 +162,6 @@ private:
    * @see nsRangeFrame::CreateAnonymousContent
    */
   nsCOMPtr<Element> mThumbDiv;
-
-  /**
-   * Cached style context for -moz-focus-outer CSS pseudo-element style.
-   */
-  nsRefPtr<nsStyleContext> mOuterFocusStyle;
 };
 
 #endif

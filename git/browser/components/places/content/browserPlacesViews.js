@@ -721,16 +721,8 @@ PlacesViewBase.prototype = {
 
     if (this._controller) {
       this._controller.terminate();
-      // Removing the controller will fail if it is already no longer there.
-      // This can happen if the view element was removed/reinserted without
-      // our knowledge. There is no way to check for that having happened
-      // without the possibility of an exception. :-(
-      try {
-        this._viewElt.controllers.removeController(this._controller);
-      } catch (ex) {
-      } finally {
-        this._controller = null;
-      }
+      this._viewElt.controllers.removeController(this._controller);
+      this._controller = null;
     }
 
     delete this._viewElt._placesView;

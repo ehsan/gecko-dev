@@ -727,7 +727,7 @@ let CustomizableUIInternal = {
 
       let widgetNode = window.document.getElementById(aWidgetId);
       if (!widgetNode) {
-        INFO("Widget not found, unable to remove");
+        ERROR("Widget not found, unable to remove");
         continue;
       }
       let container = areaNode.customizationTarget;

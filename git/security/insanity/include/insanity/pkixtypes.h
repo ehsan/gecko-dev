@@ -79,14 +79,6 @@ public:
   virtual SECStatus VerifySignedData(const CERTSignedData* signedData,
                                      const CERTCertificate* cert) = 0;
 
-  // issuerCertToDup is only non-const so CERT_DupCertificate can be called on
-  // it.
-  virtual SECStatus CheckRevocation(EndEntityOrCA endEntityOrCA,
-                                    const CERTCertificate* cert,
-                          /*const*/ CERTCertificate* issuerCertToDup,
-                                    PRTime time,
-                       /*optional*/ const SECItem* stapledOCSPresponse) = 0;
-
 protected:
   TrustDomain() { }
 

@@ -159,7 +159,3 @@ user_pref("browser.webapps.testing", true);
 
 // Disable android snippets
 user_pref("browser.snippets.enabled", false);
-
-
-// Do not turn HTTP cache v2 for our infra tests (some tests are failing)
-user_pref("browser.cache.use_new_backend_temp", false);
