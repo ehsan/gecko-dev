@@ -1827,7 +1827,7 @@ FrameState::ensureDouble(FrameEntry *fe)
     if (fe->isConstant()) {
         JS_ASSERT(fe->getValue().isInt32());
         Value newValue = DoubleValue(double(fe->getValue().toInt32()));
-        fe->setConstant(Jsvalify(newValue));
+        fe->setConstant(newValue);
         return;
     }
 
@@ -1878,7 +1878,7 @@ FrameState::ensureInteger(FrameEntry *fe)
 
     if (fe->isConstant()) {
         Value newValue = Int32Value(int32(fe->getValue().toDouble()));
-        fe->setConstant(Jsvalify(newValue));
+        fe->setConstant(newValue);
         return;
     }
 
@@ -1933,7 +1933,7 @@ FrameState::pushCopyOf(FrameEntry *backing)
     FrameEntry *fe = rawPush();
     fe->resetUnsynced();
     if (backing->isConstant()) {
-        fe->setConstant(Jsvalify(backing->getValue()));
+        fe->setConstant(backing->getValue());
     } else {
         if (backing->isCopy())
             backing = backing->copyOf();
@@ -2221,7 +2221,7 @@ FrameState::storeTop(FrameEntry *target)
     /* Constants are easy to propagate. */
     if (top->isConstant()) {
         target->clear();
-        target->setConstant(Jsvalify(top->getValue()));
+        target->setConstant(top->getValue());
         if (trySyncType && target->isType(oldType))
             target->type.sync();
         return;
@@ -2872,7 +2872,7 @@ FrameState::clearTemporaries()
 }
 
 Vector<TemporaryCopy> *
-FrameState::getTemporaryCopies()
+FrameState::getTemporaryCopies(Uses uses)
 {
     /* :XXX: handle OOM */
     Vector<TemporaryCopy> *res = NULL;
@@ -2883,7 +2883,7 @@ FrameState::getTemporaryCopies()
         if (fe->isCopied()) {
             for (uint32 i = fe->trackerIndex() + 1; i < tracker.nentries; i++) {
                 FrameEntry *nfe = tracker[i];
-                if (!deadEntry(nfe) && nfe->isCopy() && nfe->copyOf() == fe) {
+                if (!deadEntry(nfe, uses.nuses) && nfe->isCopy() && nfe->copyOf() == fe) {
                     if (!res)
                         res = cx->new_< Vector<TemporaryCopy> >(cx);
                     res->append(TemporaryCopy(addressOf(nfe), addressOf(fe)));

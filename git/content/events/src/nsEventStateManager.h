@@ -66,6 +66,7 @@ class nsIDocShellTreeNode;
 class nsIDocShellTreeItem;
 class imgIContainer;
 class nsDOMDataTransfer;
+class MouseEnterLeaveDispatcher;
 
 namespace mozilla {
 namespace dom {
@@ -228,6 +229,8 @@ public:
   static void SetFullScreenState(mozilla::dom::Element* aElement, PRBool aIsFullScreen);
 
 protected:
+  friend class MouseEnterLeaveDispatcher;
+
   void UpdateCursor(nsPresContext* aPresContext, nsEvent* aEvent, nsIFrame* aTargetFrame, nsEventStatus* aStatus);
   /**
    * Turn a GUI mouse event into a mouse event targeted at the specified
@@ -455,6 +458,7 @@ protected:
 
   void DoQueryScrollTargetInfo(nsQueryContentEvent* aEvent,
                                nsIFrame* aTargetFrame);
+  void DoQuerySelectedText(nsQueryContentEvent* aEvent);
 
   PRBool RemoteQueryContentEvent(nsEvent *aEvent);
   mozilla::dom::TabParent *GetCrossProcessTarget();

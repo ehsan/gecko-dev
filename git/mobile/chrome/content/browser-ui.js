@@ -431,6 +431,9 @@ var BrowserUI = {
     // listening AppCommand to handle special keys
     window.addEventListener("AppCommand", this, true);
 
+    // Initialize the number of tabs in toolbar
+    TabsPopup.init();
+
     // We can delay some initialization until after startup.  We wait until
     // the first page is shown, then dispatch a UIReadyDelayed event.
     messageManager.addMessageListener("pageshow", function() {
@@ -472,12 +475,6 @@ var BrowserUI = {
       DownloadsView.init();
       ConsoleView.init();
 
-      if (Services.prefs.getBoolPref("browser.tabs.remote")) {
-          // Pre-start the content process
-          Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime)
-                                           .ensureContentProcess();
-      }
-
 #ifdef MOZ_SERVICES_SYNC
       // Init the sync system
       WeaveGlue.init();
@@ -491,10 +488,8 @@ var BrowserUI = {
       BadgeHandlers.register(BrowserUI._edit.popup);
       FormHelperUI.init();
       FindHelperUI.init();
-      PageActions.init();
       FullScreenVideo.init();
       NewTabPopup.init();
-      CharsetMenu.init();
 
       // If some add-ons were disabled during during an application update, alert user
       let addonIDs = AddonManager.getStartupChanges("disabled");

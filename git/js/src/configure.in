@@ -1083,8 +1083,10 @@ esac
 AC_SUBST(GCC_VERSION)
 
 dnl The universal machinery sets UNIVERSAL_BINARY to inform packager.mk
-dnl that a universal binary is being produced.
+dnl that a universal binary is being produced and MOZ_CAN_RUN_PROGRAMS
+dnl when we can run target binaries.
 AC_SUBST(UNIVERSAL_BINARY)
+AC_SUBST(MOZ_CAN_RUN_PROGRAMS)
 
 dnl ========================================================
 dnl Check for MacOS deployment target version
@@ -5450,10 +5452,6 @@ if test "$JS_HAS_CTYPES" -a -z "$MOZ_NATIVE_FFI"; then
   if test "$CROSS_COMPILE"; then
     case "$target" in
     *-android*|*-linuxandroid*)
-      CFLAGS="$ANDROID_CFLAGS"
-      CPPFLAGS="$ANDROID_CPPFLAGS"
-      LDFLAGS="$ANDROID_LDFLAGS"
-
       export AS CC CXX CPP LD AR RANLIB STRIP CPPFLAGS CFLAGS LDFLAGS
 
       ac_configure_args="$ac_configure_args --build=$build --host=$target HOST_CC=\"$HOST_CC\""

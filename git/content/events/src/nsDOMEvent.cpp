@@ -61,13 +61,14 @@
 using namespace mozilla;
 
 static const char* const sEventNames[] = {
-  "mousedown", "mouseup", "click", "dblclick", "mouseover",
+  "mousedown", "mouseup", "click", "dblclick", "mouseenter", "mouseleave", "mouseover",
   "mouseout", "MozMouseHittest", "mousemove", "contextmenu", "keydown", "keyup", "keypress",
   "focus", "blur", "load", "popstate", "beforescriptexecute",
   "afterscriptexecute", "beforeunload", "unload",
   "hashchange", "readystatechange", "abort", "error",
   "submit", "reset", "change", "select", "input", "invalid", "text",
-  "compositionstart", "compositionend", "popupshowing", "popupshown",
+  "compositionstart", "compositionend", "compositionupdate",
+  "popupshowing", "popupshown",
   "popuphiding", "popuphidden", "close", "command", "broadcast", "commandupdate",
   "dragenter", "dragover", "dragexit", "dragdrop", "draggesture",
   "drag", "dragend", "dragstart", "dragleave", "drop", "resize",
@@ -674,8 +675,12 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
     }
     case NS_COMPOSITION_EVENT:
     {
-      newEvent = new nsCompositionEvent(PR_FALSE, msg, nsnull);
-      isInputEvent = PR_TRUE;
+      nsCompositionEvent* compositionEvent =
+        new nsCompositionEvent(PR_FALSE, msg, nsnull);
+      nsCompositionEvent* oldCompositionEvent =
+        static_cast<nsCompositionEvent*>(mEvent);
+      compositionEvent->data = oldCompositionEvent->data;
+      newEvent = compositionEvent;
       break;
     }
     case NS_MOUSE_SCROLL_EVENT:
@@ -1109,6 +1114,10 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_click];
   case NS_MOUSE_DOUBLECLICK:
     return sEventNames[eDOMEvents_dblclick];
+  case NS_MOUSEENTER:
+    return sEventNames[eDOMEvents_mouseenter];
+  case NS_MOUSELEAVE:
+    return sEventNames[eDOMEvents_mouseleave];
   case NS_MOUSE_ENTER_SYNTH:
     return sEventNames[eDOMEvents_mouseover];
   case NS_MOUSE_EXIT_SYNTH:
@@ -1125,6 +1134,8 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_keypress];
   case NS_COMPOSITION_START:
     return sEventNames[eDOMEvents_compositionstart];
+  case NS_COMPOSITION_UPDATE:
+    return sEventNames[eDOMEvents_compositionupdate];
   case NS_COMPOSITION_END:
     return sEventNames[eDOMEvents_compositionend];
   case NS_FOCUS_CONTENT:

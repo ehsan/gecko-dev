@@ -342,6 +342,10 @@ toolbarbutton.urlbar-button {
   list-style-image: url("chrome://browser/skin/images/settings-default-hdpi.png");
 }
 
+#tool-menu {
+  list-style-image: url("chrome://browser/skin/images/menu-hdpi.png");
+}
+
 %ifndef ANDROID
 /* MAEMO (and desktop) only */
 .panel-close {
@@ -875,10 +879,6 @@ autocompleteresult.noresults > .autocomplete-item-container {
   background: @color_background_default@;
 }
 
-#tabs:-moz-locale-dir(rtl) {
-  -moz-box-align: start;
-}
-
 #tabs > .tabs-scrollbox {
   max-width: 350px;
 }
@@ -1246,6 +1246,10 @@ setting {
   min-height: @touch_row@; /* row size */
   -moz-box-align: center;
   -moz-box-orient: horizontal;
+}
+
+setting:hover:active {
+  background-color: @color_background_highlight@;
 }
 
 .setting-label {
