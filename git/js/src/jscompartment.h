@@ -183,9 +183,6 @@ struct JSCompartment
      */
     inline js::GlobalObject *maybeGlobal() const;
 
-    /* An unbarriered getter for use while tracing. */
-    inline js::GlobalObject *unsafeUnbarrieredMaybeGlobal() const;
-
     inline void initGlobal(js::GlobalObject &global);
 
   public:

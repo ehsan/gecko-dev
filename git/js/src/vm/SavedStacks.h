@@ -115,7 +115,7 @@ class SavedStacks {
 
   private:
     SavedFrame::Set frames;
-    ReadBarrieredObject savedFrameProto;
+    JSObject        *savedFrameProto;
 
     bool       insertFrames(JSContext *cx, FrameIter &iter, MutableHandleSavedFrame frame,
                             unsigned maxFrameCount = 0);

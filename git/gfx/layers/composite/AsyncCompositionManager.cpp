@@ -249,8 +249,9 @@ AsyncCompositionManager::AlignFixedAndStickyLayers(Layer* aLayer,
   bool isRootFixed = aLayer->GetIsFixedPosition() &&
     !aLayer->GetParent()->GetIsFixedPosition();
   bool isStickyForSubtree = aLayer->GetIsStickyPosition() &&
+    aTransformedSubtreeRoot->AsContainerLayer() &&
     aLayer->GetStickyScrollContainerId() ==
-      aTransformedSubtreeRoot->GetFrameMetrics().GetScrollId();
+      aTransformedSubtreeRoot->AsContainerLayer()->GetFrameMetrics().GetScrollId();
   if (aLayer != aTransformedSubtreeRoot && (isRootFixed || isStickyForSubtree)) {
     // Insert a translation so that the position of the anchor point is the same
     // before and after the change to the transform of aTransformedSubtreeRoot.
@@ -342,7 +343,8 @@ AsyncCompositionManager::AlignFixedAndStickyLayers(Layer* aLayer,
   // encounter a scrollable layer, bail. ApplyAsyncContentTransformToTree will
   // have already recursed on this layer and called AlignFixedAndStickyLayers
   // on it with its own transforms.
-  if (aLayer->GetFrameMetrics().IsScrollable() &&
+  if (aLayer->AsContainerLayer() &&
+      aLayer->AsContainerLayer()->GetFrameMetrics().IsScrollable() &&
       aLayer != aTransformedSubtreeRoot) {
     return;
   }
@@ -539,7 +541,12 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(TimeStamp aCurrentFram
       ApplyAsyncContentTransformToTree(aCurrentFrame, child, aWantNextFrame);
   }
 
-  if (AsyncPanZoomController* controller = aLayer->GetAsyncPanZoomController()) {
+  ContainerLayer* container = aLayer->AsContainerLayer();
+  if (!container) {
+    return appliedTransform;
+  }
+
+  if (AsyncPanZoomController* controller = container->GetAsyncPanZoomController()) {
     LayerComposite* layerComposite = aLayer->AsLayerComposite();
     Matrix4x4 oldTransform = aLayer->GetTransform();
 
@@ -551,7 +558,7 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(TimeStamp aCurrentFram
                                                  scrollOffset,
                                                  &overscrollTransform);
 
-    const FrameMetrics& metrics = aLayer->GetFrameMetrics();
+    const FrameMetrics& metrics = container->GetFrameMetrics();
     CSSToLayerScale paintScale = metrics.LayersPixelsPerCSSPixel();
     CSSRect displayPort(metrics.mCriticalDisplayPort.IsEmpty() ?
                         metrics.mDisplayPort : metrics.mCriticalDisplayPort);
@@ -573,11 +580,9 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(TimeStamp aCurrentFram
     // GetTransform already takes the pre- and post-scale into account.  Since we
     // will apply the pre- and post-scale again when computing the effective
     // transform, we must apply the inverses here.
-    if (ContainerLayer* container = aLayer->AsContainerLayer()) {
-      transform.Scale(1.0f/container->GetPreXScale(),
-                      1.0f/container->GetPreYScale(),
-                      1);
-    }
+    transform.Scale(1.0f/container->GetPreXScale(),
+                    1.0f/container->GetPreYScale(),
+                    1);
     transform = transform * Matrix4x4().Scale(1.0f/aLayer->GetPostXScale(),
                                               1.0f/aLayer->GetPostYScale(),
                                               1);
@@ -602,8 +607,8 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(TimeStamp aCurrentFram
     appliedTransform = true;
   }
 
-  if (aLayer->AsContainerLayer() && aLayer->GetScrollbarDirection() != Layer::NONE) {
-    ApplyAsyncTransformToScrollbar(aCurrentFrame, aLayer->AsContainerLayer());
+  if (container->GetScrollbarDirection() != Layer::NONE) {
+    ApplyAsyncTransformToScrollbar(aCurrentFrame, container);
   }
   return appliedTransform;
 }
@@ -623,13 +628,16 @@ LayerHasNonContainerDescendants(ContainerLayer* aContainer)
 }
 
 static bool
-LayerIsScrollbarTarget(Layer* aTarget, ContainerLayer* aScrollbar)
+LayerIsContainerForScrollbarTarget(Layer* aTarget, ContainerLayer* aScrollbar)
 {
-  AsyncPanZoomController* apzc = aTarget->GetAsyncPanZoomController();
+  if (!aTarget->AsContainerLayer()) {
+    return false;
+  }
+  AsyncPanZoomController* apzc = aTarget->AsContainerLayer()->GetAsyncPanZoomController();
   if (!apzc) {
     return false;
   }
-  const FrameMetrics& metrics = aTarget->GetFrameMetrics();
+  const FrameMetrics& metrics = aTarget->AsContainerLayer()->GetFrameMetrics();
   if (metrics.GetScrollId() != aScrollbar->GetScrollbarTargetContainerId()) {
     return false;
   }
@@ -640,18 +648,19 @@ static void
 ApplyAsyncTransformToScrollbarForContent(TimeStamp aCurrentFrame, ContainerLayer* aScrollbar,
                                          Layer* aContent, bool aScrollbarIsChild)
 {
+  ContainerLayer* content = aContent->AsContainerLayer();
+
   // We only apply the transform if the scroll-target layer has non-container
   // children (i.e. when it has some possibly-visible content). This is to
   // avoid moving scroll-bars in the situation that only a scroll information
   // layer has been built for a scroll frame, as this would result in a
   // disparity between scrollbars and visible content.
-  if (aContent->AsContainerLayer() &&
-      !LayerHasNonContainerDescendants(aContent->AsContainerLayer())) {
+  if (!LayerHasNonContainerDescendants(content)) {
     return;
   }
 
-  const FrameMetrics& metrics = aContent->GetFrameMetrics();
-  AsyncPanZoomController* apzc = aContent->GetAsyncPanZoomController();
+  const FrameMetrics& metrics = content->GetFrameMetrics();
+  AsyncPanZoomController* apzc = content->GetAsyncPanZoomController();
 
   if (aScrollbarIsChild) {
     // Because we try to apply the scrollbar transform before we apply the async transform on
@@ -723,17 +732,13 @@ ApplyAsyncTransformToScrollbarForContent(TimeStamp aCurrentFrame, ContainerLayer
 static Layer*
 FindScrolledLayerForScrollbar(ContainerLayer* aLayer, bool* aOutIsAncestor)
 {
-  // XXX: once bug 967844 is implemented there might be multiple scrolled layers
-  // that correspond to the scrollbar's scrollId. Verify that we deal with those
-  // cases correctly.
-
   // Search all siblings of aLayer and of its ancestors.
   for (Layer* ancestor = aLayer; ancestor; ancestor = ancestor->GetParent()) {
     for (Layer* scrollTarget = ancestor;
          scrollTarget;
          scrollTarget = scrollTarget->GetPrevSibling()) {
       if (scrollTarget != aLayer &&
-          LayerIsScrollbarTarget(scrollTarget, aLayer)) {
+          LayerIsContainerForScrollbarTarget(scrollTarget, aLayer)) {
         *aOutIsAncestor = (scrollTarget == ancestor);
         return scrollTarget;
       }
@@ -741,7 +746,7 @@ FindScrolledLayerForScrollbar(ContainerLayer* aLayer, bool* aOutIsAncestor)
     for (Layer* scrollTarget = ancestor->GetNextSibling();
          scrollTarget;
          scrollTarget = scrollTarget->GetNextSibling()) {
-      if (LayerIsScrollbarTarget(scrollTarget, aLayer)) {
+      if (LayerIsContainerForScrollbarTarget(scrollTarget, aLayer)) {
         *aOutIsAncestor = false;
         return scrollTarget;
       }
@@ -772,8 +777,9 @@ void
 AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer)
 {
   LayerComposite* layerComposite = aLayer->AsLayerComposite();
+  ContainerLayer* container = aLayer->AsContainerLayer();
 
-  const FrameMetrics& metrics = aLayer->GetFrameMetrics();
+  const FrameMetrics& metrics = container->GetFrameMetrics();
   // We must apply the resolution scale before a pan/zoom transform, so we call
   // GetTransform here.
   Matrix4x4 oldTransform = aLayer->GetTransform();
@@ -844,13 +850,11 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer)
   // will apply the resolution scale again when computing the effective
   // transform, we must apply the inverse resolution scale here.
   Matrix4x4 computedTransform = treeTransform * oldTransform;
-  if (ContainerLayer* container = aLayer->AsContainerLayer()) {
-    computedTransform.Scale(1.0f/container->GetPreXScale(),
-                            1.0f/container->GetPreYScale(),
-                            1);
-  }
-  computedTransform.ScalePost(1.0f/aLayer->GetPostXScale(),
-                              1.0f/aLayer->GetPostYScale(),
+  computedTransform.Scale(1.0f/container->GetPreXScale(),
+                          1.0f/container->GetPreYScale(),
+                          1);
+  computedTransform.ScalePost(1.0f/container->GetPostXScale(),
+                              1.0f/container->GetPostYScale(),
                               1);
   layerComposite->SetShadowTransform(computedTransform);
   NS_ASSERTION(!layerComposite->GetShadowTransformSetByAnimation(),

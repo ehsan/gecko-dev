@@ -254,17 +254,18 @@ static void DrawVelGraph(const nsIntRect& aClipRect,
 
 static void PrintUniformityInfo(Layer* aLayer)
 {
+
+  if(Layer::TYPE_CONTAINER != aLayer->GetType()) {
+    return;
+  }
+
   // Don't want to print a log for smaller layers
   if (aLayer->GetEffectiveVisibleRegion().GetBounds().width < 300 ||
       aLayer->GetEffectiveVisibleRegion().GetBounds().height < 300) {
     return;
   }
 
-  FrameMetrics frameMetrics = aLayer->GetFrameMetrics();
-  if (!frameMetrics.IsScrollable()) {
-    return;
-  }
-
+  FrameMetrics frameMetrics = aLayer->AsContainerLayer()->GetFrameMetrics();
   LayerIntPoint scrollOffset = RoundedToInt(frameMetrics.GetScrollOffsetInLayerPixels());
   const gfx::Point layerTransform = GetScrollData(aLayer);
   gfx::Point layerScroll;

@@ -108,6 +108,9 @@ public:
   // Evict data in the source buffer in the given time range.
   void Evict(double aStart, double aEnd);
 
+  // Returns true if the data in the source buffer contains the given time.
+  bool ContainsTime(double aTime);
+
   double GetBufferedStart();
   double GetBufferedEnd();
 

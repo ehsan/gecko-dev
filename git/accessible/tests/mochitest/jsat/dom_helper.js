@@ -110,13 +110,13 @@ var originalSwipeMaxDuration = GestureSettings.swipeMaxDuration;
  * Note: the listener is removed once the stack reaches 0.
  */
 function testMozAccessFuGesture(aExpectedGestures) {
-  var types = aExpectedGestures;
+  var types = typeof aExpectedGestures === "string" ?
+    [aExpectedGestures] : aExpectedGestures;
   function handleGesture(aEvent) {
-    if (aEvent.detail.type !== types[0].type) {
+    if (aEvent.detail.type !== types[0]) {
       // The is not the event of interest.
       return;
     }
-    is(!!aEvent.detail.edge, !!types[0].edge);
     ok(true, 'Received correct mozAccessFuGesture: ' + types.shift() + '.');
     if (types.length === 0) {
       win.removeEventListener('mozAccessFuGesture', handleGesture);
