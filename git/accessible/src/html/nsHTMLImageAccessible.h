@@ -60,6 +60,7 @@ public:
   // nsIAccessible
   NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
   NS_IMETHOD GetRole(PRUint32 *_retval);
+  NS_IMETHOD GetName(nsAString& aName);
   NS_IMETHOD GetNumActions(PRUint8 *aNumActions);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 index);
@@ -76,7 +77,6 @@ public:
   NS_DECL_NSIACCESSIBLEIMAGE
 
   // nsAccessible
-  virtual nsresult GetNameInternal(nsAString& aName);
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
 
 protected:

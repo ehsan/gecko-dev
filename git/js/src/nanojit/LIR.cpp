@@ -462,7 +462,7 @@ namespace nanojit
 #endif
 				case LIR_call:
 				case LIR_fcall:
-					i -= i->callInsWords();
+					i -= argwords(i->argc())+1;
 					break;
 
 				case LIR_skip:
@@ -575,7 +575,7 @@ namespace nanojit
 
     bool LIns::isCse(const CallInfo *functions) const
     { 
-		return nanojit::isCse(u.code) || isCall() && callInfo()->_cse;
+		return nanojit::isCse(u.code) || isCall() && functions[fid()]._cse;
     }
 
 	void LIns::setimm16(int32_t x)
@@ -934,15 +934,18 @@ namespace nanojit
 					ins2(LIR_and, iffalse, ins1(LIR_not, ncond)));
 	}
 
-    LIns* LirBufWriter::insCall(const CallInfo *ci, LInsp args[])
+    LIns* LirBufWriter::insCall(uint32_t fid, LInsp args[])
 	{
 		static const LOpcode k_callmap[] = { LIR_call, LIR_fcall, LIR_call, LIR_callh };
 
-		uint32_t argt = ci->_argtypes;
+        NanoAssert(fid < CI_Max);
+
+		const CallInfo& ci = _functions[fid];
+		uint32_t argt = ci._argtypes;
 		LOpcode op = k_callmap[argt & 3];
 
         ArgSize sizes[10];
-        uint32_t argc = ci->get_sizes(sizes);
+        uint32_t argc = ci.get_sizes(sizes);
 
 #ifdef NJ_SOFTFLOAT
 		if (op == LIR_fcall)
@@ -966,13 +969,11 @@ namespace nanojit
 
 		NanoAssert(argc < 8);
 		uint32_t words = argwords(argc);
-		ensureRoom(words+LIns::callInfoWords+1+argc);  // ins size + possible tramps
+		ensureRoom(words+argc+1);  // ins size + possible tramps
 		for (uint32_t i=0; i < argc; i++)
 			args[i] = ensureReferenceable(args[i], argc-i);
 		uint8_t* offs = (uint8_t*)_buf->next();
 		LIns *l = _buf->next() + words;
-		*(const CallInfo **)l = ci;
-		l += LIns::callInfoWords;
 		for (uint32_t i=0; i < argc; i++)
 			offs[i] = (uint8_t) l->reference(args[i]);
 #if defined NANOJIT_64BIT
@@ -980,9 +981,9 @@ namespace nanojit
 #else
 		l->initOpcode(op==LIR_callh ? LIR_call : op);
 #endif
-        l->c.imm8a = 0;
+        l->c.imm8a = fid;
         l->c.imm8b = argc;
-		_buf->commit(words+LIns::callInfoWords+1);
+		_buf->commit(words+1);	
 		_buf->_stats.lir++;
 		return l;
 	}
@@ -1116,7 +1117,7 @@ namespace nanojit
 				NanoAssert(argc < 10);
 				for (int32_t j=0; j < argc; j++)
 					args[j] = i->arg(j);
-				return hashcall(i->callInfo(), argc, args);
+				return hashcall(i->fid(), argc, args);
 			} 
 			default:
 				if (operandCount[op] == 2)
@@ -1152,7 +1153,7 @@ namespace nanojit
 			case LIR_callh:
 #endif
 			{
-				if (a->callInfo() != b->callInfo()) return false;
+				if (a->fid() != b->fid()) return false;
 				uint32_t argc=a->argc();
                 NanoAssert(argc == b->argc());
 				for (uint32_t i=0; i < argc; i++)
@@ -1250,8 +1251,8 @@ namespace nanojit
 		return _hashfinish(_hashptr(hash, b));
 	}
 
-	uint32_t LInsHashSet::hashcall(const CallInfo *ci, uint32_t argc, LInsp args[]) {
-		uint32_t hash = _hashptr(0, ci);
+	uint32_t LInsHashSet::hashcall(uint32_t fid, uint32_t argc, LInsp args[]) {
+		uint32_t hash = _hash32(0,fid);
 		for (int32_t j=argc-1; j >= 0; j--)
 			hash = _hashptr(hash,args[j]);
 		return _hashfinish(hash);
@@ -1333,16 +1334,16 @@ namespace nanojit
 		return true;
 	}
 
-	LInsp LInsHashSet::findcall(const CallInfo *ci, uint32_t argc, LInsp args[], uint32_t &i)
+	LInsp LInsHashSet::findcall(uint32_t fid, uint32_t argc, LInsp args[], uint32_t &i)
 	{
 		uint32_t cap = m_list.size();
 		const InsList& list = m_list;
 		const uint32_t bitmask = (cap - 1) & ~0x1;
-		uint32_t hash = hashcall(ci, argc, args) & bitmask;  
+		uint32_t hash = hashcall(fid, argc, args) & bitmask;  
 		uint32_t n = 7 << 1;
 		LInsp k;
 		while ((k = list.get(hash)) != NULL &&
-			(!k->isCall() || k->callInfo() != ci || !argsmatch(k, argc, args)))
+			(!k->isCall() || k->fid() != fid || !argsmatch(k, argc, args)))
 		{
 			hash = (hash + (n += 2)) & bitmask;		// quadratic probe
 		}
@@ -1423,7 +1424,8 @@ namespace nanojit
             total++;
 
             // first handle side-effect instructions
-			if (i->isStore() || i->isGuard() || i->isCall() && !i->callInfo()->_cse)
+			if (i->isStore() || i->isGuard() ||
+				i->isCall() && !assm->callInfoFor(i->fid())->_cse)
 			{
 				live.add(i,0);
                 if (i->isGuard())
@@ -1557,7 +1559,7 @@ namespace nanojit
 					ref = ref->oprnd1();
 				} else {
 #endif
-					copyName(ref, ref->callInfo()->_name, funccounts.add(ref->callInfo()));
+					copyName(ref, _functions[ref->fid()]._name, funccounts.add(ref->fid()));
 #if !defined NANOJIT_64BIT
 				}
 #endif
@@ -1607,7 +1609,7 @@ namespace nanojit
 #endif
 			case LIR_fcall:
 			case LIR_call: {
-				sprintf(s, "%s ( ", i->callInfo()->_name);
+				sprintf(s, "%s ( ", _functions[i->fid()]._name);
 				for (int32_t j=i->argc()-1; j >= 0; j--) {
 					s += strlen(s);
 					sprintf(s, "%s ",formatRef(i->arg(j)));
@@ -1791,17 +1793,18 @@ namespace nanojit
 		return out->insGuard(v, c, x);
 	}
 
-	LInsp CseFilter::insCall(const CallInfo *ci, LInsp args[])
+	LInsp CseFilter::insCall(uint32_t fid, LInsp args[])
 	{
-		if (ci->_cse) {
+		const CallInfo *c = &_functions[fid];
+		if (c->_cse) {
 			uint32_t k;
-            uint32_t argc = ci->count_args();
-			LInsp found = exprs.findcall(ci, argc, args, k);
+            uint32_t argc = c->count_args();
+			LInsp found = exprs.findcall(fid, argc, args, k);
 			if (found)
 				return found;
-			return exprs.add(out->insCall(ci, args), k);
+			return exprs.add(out->insCall(fid, args), k);
 		}
-		return out->insCall(ci, args);
+		return out->insCall(fid, args);
 	}
 
 	CseReader::CseReader(LirFilter *in, LInsHashSet *exprs, const CallInfo *functions)

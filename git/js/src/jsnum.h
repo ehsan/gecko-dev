@@ -39,7 +39,6 @@
 
 #ifndef jsnum_h___
 #define jsnum_h___
-
 /*
  * JS number (IEEE double) interface.
  *

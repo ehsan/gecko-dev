@@ -545,29 +545,23 @@ var gEditItemOverlay = {
     if (tags.length > 0 || currentTags.length > 0) {
       var tagsToRemove = [];
       var tagsToAdd = [];
-      var txns = []; 
-      for (var i = 0; i < currentTags.length; i++) {
+      var i;
+      for (i = 0; i < currentTags.length; i++) {
         if (tags.indexOf(currentTags[i]) == -1)
           tagsToRemove.push(currentTags[i]);
       }
-      for (var i = 0; i < tags.length; i++) {
+      for (i = 0; i < tags.length; i++) {
         if (currentTags.indexOf(tags[i]) == -1)
           tagsToAdd.push(tags[i]);
       }
 
-      if (tagsToAdd.length > 0)
-        txns.push(PlacesUIUtils.ptm.tagURI(this._uri, tagsToAdd));
-      if (tagsToRemove.length > 0)
-        txns.push(PlacesUIUtils.ptm.untagURI(this._uri, tagsToRemove));
-
-      if (txns.length > 0) {
-        var aggregate = PlacesUIUtils.ptm.aggregateTransactions("Update tags",
-                                                                txns);
-        PlacesUIUtils.ptm.doTransaction(aggregate);
-
-        // Ensure the tagsField is in sync, clean it up from empty tags
-        var tags = PlacesUtils.tagging.getTagsForURI(this._uri, {}).join(", ");
-        this._initTextField("tagsField", tags, false);
+      if (tagsToAdd.length > 0) {
+        var tagTxn = PlacesUIUtils.ptm.tagURI(this._uri, tagsToAdd);
+        PlacesUIUtils.ptm.doTransaction(tagTxn);
+      }
+      if (tagsToRemove.length > 0) {
+        var untagTxn = PlacesUIUtils.ptm.untagURI(this._uri, tagsToRemove);
+        PlacesUIUtils.ptm.doTransaction(untagTxn);
       }
     }
   },
@@ -577,12 +571,12 @@ var gEditItemOverlay = {
     if (tags.length > 0 || this._allTags.length > 0) {
       var tagsToRemove = [];
       var tagsToAdd = [];
-      var txns = []; 
-      for (var i = 0; i < this._allTags.length; i++) {
+      var i;
+      for (i = 0; i < this._allTags.length; i++) {
         if (tags.indexOf(this._allTags[i]) == -1)
           tagsToRemove.push(this._allTags[i]);
       }
-      for (var i = 0; i < this._tags.length; i++) {
+      for (i = 0; i < this._tags.length; i++) {
         tagsToAdd[i] = [];
         for (var j = 0; j < tags.length; j++) {
           if (this._tags[i].indexOf(tags[j]) == -1)
@@ -590,30 +584,28 @@ var gEditItemOverlay = {
         }
       }
 
+      PlacesUIUtils.ptm.beginBatch();
       if (tagsToAdd.length > 0) {
+        var tagTxn;
         for (i = 0; i < this._uris.length; i++) {
-          if (tagsToAdd[i].length > 0)
-            txns.push(PlacesUIUtils.ptm.tagURI(this._uris[i], tagsToAdd[i]));
+          if (tagsToAdd[i].length > 0) {
+            tagTxn = PlacesUIUtils.ptm.tagURI(this._uris[i], tagsToAdd[i]);
+            PlacesUIUtils.ptm.doTransaction(tagTxn);
+          }
         }
       }
       if (tagsToRemove.length > 0) {
-        for (var i = 0; i < this._uris.length; i++)
-          txns.push(PlacesUIUtils.ptm.untagURI(this._uris[i], tagsToRemove));
+        var untagTxn;
+        for (var i = 0; i < this._uris.length; i++) {
+          untagTxn = PlacesUIUtils.ptm.untagURI(this._uris[i], tagsToRemove);
+          PlacesUIUtils.ptm.doTransaction(untagTxn);
+        }
       }
-
-      if (txns.length > 0) {
-        var aggregate = PlacesUIUtils.ptm.aggregateTransactions("Update tags",
-                                                                txns);
-        PlacesUIUtils.ptm.doTransaction(aggregate);
-
-        this._allTags = tags;
-        this._tags = [];
-        for (i = 0; i < this._uris.length; i++)
-          this._tags[i] = PlacesUtils.tagging.getTagsForURI(this._uris[i], {});
-
-        // Ensure the tagsField is in sync, clean it up from empty tags
-        this._initTextField("tagsField", tags, false);
-      }
+      PlacesUIUtils.ptm.endBatch();
+      this._allTags = tags;
+      this._tags = [];
+      for (i = 0; i < this._uris.length; i++)
+        this._tags[i] = PlacesUtils.tagging.getTagsForURI(this._uris[i], {});
     }
   },
 

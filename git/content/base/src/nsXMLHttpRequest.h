@@ -399,7 +399,7 @@ protected:
   nsCOMPtr<nsIChannel> mChannel;
   // mReadRequest is different from mChannel for multipart requests
   nsCOMPtr<nsIRequest> mReadRequest;
-  nsCOMPtr<nsIDOMDocument> mResponseXML;
+  nsCOMPtr<nsIDOMDocument> mDocument;
   nsCOMPtr<nsIChannel> mACGetChannel;
   nsTArray<nsCString> mACUnsafeHeaders;
 

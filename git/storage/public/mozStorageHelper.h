@@ -40,7 +40,6 @@
 #define _MOZSTORAGEHELPER_H_
 
 #include "mozIStorageConnection.h"
-#include "mozIStorageStatement.h"
 
 
 /**

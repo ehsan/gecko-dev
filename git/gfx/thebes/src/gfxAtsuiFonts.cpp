@@ -205,12 +205,6 @@ DisableCommonLigatures(ATSUStyle aStyle)
     ATSUSetFontFeatures(aStyle, NS_ARRAY_LENGTH(types), types, selectors);
 }
 
-static double
-RoundToNearestMultiple(double aValue, double aFraction)
-{
-  return floor(aValue/aFraction + 0.5)*aFraction;
-}
-
 void
 gfxAtsuiFont::InitMetrics(ATSUFontID aFontID, ATSFontRef aFontRef)
 {
@@ -280,10 +274,8 @@ gfxAtsuiFont::InitMetrics(ATSUFontID aFontID, ATSFontRef aFontRef)
 
     mMetrics.emHeight = size;
 
-    mMetrics.maxAscent =
-      NS_ceil(RoundToNearestMultiple(atsMetrics.ascent*size, 1/1024.0));
-    mMetrics.maxDescent =
-      NS_ceil(-RoundToNearestMultiple(atsMetrics.descent*size, 1/1024.0));
+    mMetrics.maxAscent = NS_ceil(atsMetrics.ascent * size);
+    mMetrics.maxDescent = NS_ceil(- (atsMetrics.descent * size));
 
     mMetrics.maxHeight = mMetrics.maxAscent + mMetrics.maxDescent;
 

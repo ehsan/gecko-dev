@@ -127,10 +127,6 @@ private:
    */
   nsresult CutContents(nsIDOMDocumentFragment** frag);
 
-  static nsresult CloneParentsBetween(nsIDOMNode *aAncestor,
-                                      nsIDOMNode *aNode,
-                                      nsIDOMNode **aClosestAncestor,
-                                      nsIDOMNode **aFarthestAncestor);
 
 public:
 /******************************************************************************

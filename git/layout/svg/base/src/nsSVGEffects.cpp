@@ -41,7 +41,6 @@
 #include "nsSVGFilterFrame.h"
 #include "nsSVGClipPathFrame.h"
 #include "nsSVGMaskFrame.h"
-#include "nsSVGTextPathFrame.h"
 
 NS_IMPL_ISUPPORTS1(nsSVGRenderingObserver, nsIMutationObserver)
 
@@ -250,21 +249,6 @@ nsSVGMarkerProperty::DoUpdate()
 }
 
 void
-nsSVGTextPathProperty::DoUpdate()
-{
-  nsSVGRenderingObserver::DoUpdate();
-  if (!mFrame)
-    return;
-
-  NS_ASSERTION(mFrame->IsFrameOfType(nsIFrame::eSVG), "SVG frame expected");
-
-  if (mFrame->GetType() == nsGkAtoms::svgTextPathFrame) {
-    nsSVGTextPathFrame* textPathFrame = static_cast<nsSVGTextPathFrame*>(mFrame);
-    textPathFrame->NotifyGlyphMetricsChange();
-  }
-}
-
-void
 nsSVGPaintingProperty::DoUpdate()
 {
   nsSVGRenderingObserver::DoUpdate();
@@ -288,10 +272,6 @@ CreateFilterProperty(nsIURI *aURI, nsIFrame *aFrame)
 static nsSVGRenderingObserver *
 CreateMarkerProperty(nsIURI *aURI, nsIFrame *aFrame)
 { return new nsSVGMarkerProperty(aURI, aFrame); }
-
-static nsSVGRenderingObserver *
-CreateTextPathProperty(nsIURI *aURI, nsIFrame *aFrame)
-{ return new nsSVGTextPathProperty(aURI, aFrame); }
 
 static nsSVGRenderingObserver *
 CreatePaintingProperty(nsIURI *aURI, nsIFrame *aFrame)
@@ -322,13 +302,6 @@ nsSVGEffects::GetMarkerProperty(nsIURI *aURI, nsIFrame *aFrame, nsIAtom *aProp)
 {
   return static_cast<nsSVGMarkerProperty*>(
           GetEffectProperty(aURI, aFrame, aProp, CreateMarkerProperty));
-}
-
-nsSVGTextPathProperty *
-nsSVGEffects::GetTextPathProperty(nsIURI *aURI, nsIFrame *aFrame, nsIAtom *aProp)
-{
-  return static_cast<nsSVGTextPathProperty*>(
-          GetEffectProperty(aURI, aFrame, aProp, CreateTextPathProperty));
 }
 
 nsSVGPaintingProperty *

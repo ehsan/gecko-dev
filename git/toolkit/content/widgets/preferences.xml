@@ -1094,7 +1094,7 @@
       <handler event="command">
         if (event.originalTarget.hasAttribute("pane")) {
           var pane = document.getElementById(event.originalTarget.getAttribute("pane"));
-          this.showPane(pane);
+          event.originalTarget.parentNode.parentNode.showPane(pane);
         }
       </handler>
 

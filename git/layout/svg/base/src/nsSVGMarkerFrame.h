@@ -124,4 +124,7 @@ private:
   PRPackedBool mInUse2;
 };
 
+nsIContent *
+NS_GetSVGMarkerElement(nsIURI *aURI, nsIContent *aContent);
+
 #endif

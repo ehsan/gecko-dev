@@ -1397,25 +1397,6 @@ XPCConvert::ConstructException(nsresult rv, const char* message,
 
 /********************************/
 
-class AutoExceptionRestorer : public JSAutoTempValueRooter
-{
-public:
-    AutoExceptionRestorer(JSContext *cx, jsval v)
-        : JSAutoTempValueRooter(cx, v),
-          mVal(v)
-    {
-        JS_ClearPendingException(mContext);
-    }
-
-    ~AutoExceptionRestorer()
-    {
-        JS_SetPendingException(mContext, mVal);
-    }
-
-private:
-    jsval mVal;
-};
-
 // static
 nsresult
 XPCConvert::JSValToXPCException(XPCCallContext& ccx,
@@ -1425,7 +1406,6 @@ XPCConvert::JSValToXPCException(XPCCallContext& ccx,
                                 nsIException** exceptn)
 {
     JSContext* cx = ccx.GetJSContext();
-    AutoExceptionRestorer aer(cx, s);
 
     if(!JSVAL_IS_PRIMITIVE(s))
     {
@@ -1489,16 +1469,20 @@ XPCConvert::JSValToXPCException(XPCCallContext& ccx,
                found)
             {
                 // lets try to build a wrapper around the JSObject
-                nsXPCWrappedJS* jswrapper;
-                nsresult rv =
-                    nsXPCWrappedJS::GetNewOrUsed(ccx, obj,
-                                                 NS_GET_IID(nsIException),
-                                                 nsnull, &jswrapper);
-                if(NS_FAILED(rv))
-                    return rv;
-                *exceptn = reinterpret_cast<nsIException*>
-                           (jswrapper);
-                return NS_OK;
+                XPCContext* xpcc;
+                if(nsnull != (xpcc = nsXPConnect::GetContext(cx)))
+                {
+                    nsXPCWrappedJS* jswrapper;
+                    nsresult rv =
+                        nsXPCWrappedJS::GetNewOrUsed(ccx, obj,
+                                                NS_GET_IID(nsIException),
+                                                nsnull, &jswrapper);
+                    if(NS_FAILED(rv))
+                        return rv;
+                    *exceptn = reinterpret_cast<nsIException*>
+                                               (jswrapper);
+                    return NS_OK;
+                }
             }
 
 

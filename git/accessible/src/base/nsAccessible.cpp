@@ -1863,17 +1863,13 @@ nsresult nsAccessible::GetTextFromRelationID(nsIAtom *aIDProperty, nsString &aNa
 nsresult nsAccessible::GetHTMLName(nsAString& aLabel, PRBool aCanAggregateSubtree)
 {
   nsCOMPtr<nsIContent> content = GetRoleContent(mDOMNode);
-  if (!content) {
-    aLabel.SetIsVoid(PR_TRUE);
+  if (!content)
     return NS_OK;
-  }
 
   nsIContent *labelContent = GetHTMLLabelContent(content);
   if (labelContent) {
     nsAutoString label;
-    nsresult rv = AppendFlatStringFromSubtree(labelContent, &label);
-    NS_ENSURE_SUCCESS(rv, rv);
-
+    AppendFlatStringFromSubtree(labelContent, &label);
     label.CompressWhitespace();
     if (!label.IsEmpty()) {
       aLabel = label;
@@ -1881,16 +1877,12 @@ nsresult nsAccessible::GetHTMLName(nsAString& aLabel, PRBool aCanAggregateSubtre
     }
   }
 
-  PRBool canAggregateName = mRoleMapEntry ?
-                            mRoleMapEntry->nameRule == eNameOkFromChildren :
-                            aCanAggregateSubtree;
-  if (canAggregateName) {
+  if (aCanAggregateSubtree) {
     // Don't use AppendFlatStringFromSubtree for container widgets like menulist
     nsresult rv = AppendFlatStringFromSubtree(content, &aLabel);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (!aLabel.IsEmpty())
+    if (NS_SUCCEEDED(rv) && !aLabel.IsEmpty()) {
       return NS_OK;
+    }
   }
 
   // Still try the title as as fallback method in that case.
@@ -1898,7 +1890,6 @@ nsresult nsAccessible::GetHTMLName(nsAString& aLabel, PRBool aCanAggregateSubtre
                         aLabel)) {
     aLabel.SetIsVoid(PR_TRUE);
   }
-
   return NS_OK;
 }
 
@@ -1990,12 +1981,8 @@ nsresult nsAccessible::GetXULName(nsAString& aLabel, PRBool aCanAggregateSubtree
     parent = parent->GetParent();
   }
 
-  PRBool canAggregateName = mRoleMapEntry ?
-                            mRoleMapEntry->nameRule == eNameOkFromChildren :
-                            aCanAggregateSubtree;
-
-  return canAggregateName ?
-         AppendFlatStringFromSubtree(content, &aLabel) : NS_OK;
+  // Don't use AppendFlatStringFromSubtree for container widgets like menulist
+  return aCanAggregateSubtree? AppendFlatStringFromSubtree(content, &aLabel) : NS_OK;
 }
 
 PRBool nsAccessible::IsNodeRelevant(nsIDOMNode *aNode)
@@ -3594,15 +3581,18 @@ nsAccessible::GetARIAName(nsAString& aName)
 nsresult
 nsAccessible::GetNameInternal(nsAString& aName)
 {
+  PRBool canAggregateName = mRoleMapEntry &&
+    mRoleMapEntry->nameRule == eNameOkFromChildren;
+
   nsCOMPtr<nsIContent> content = GetRoleContent(mDOMNode);
   if (!content)
     return NS_OK;
 
   if (content->IsNodeOfType(nsINode::eHTML))
-    return GetHTMLName(aName, PR_FALSE);
+    return GetHTMLName(aName, canAggregateName);
 
   if (content->IsNodeOfType(nsINode::eXUL))
-    return GetXULName(aName, PR_FALSE);
+    return GetXULName(aName, canAggregateName);
 
   return NS_OK;
 }

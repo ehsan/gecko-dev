@@ -4218,11 +4218,9 @@ nsTreeBodyFrame::ClearStyleAndImageCaches()
   return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsTreeBodyFrame::DidSetStyleContext()
 {
-  nsLeafBoxFrame::DidSetStyleContext();
-
   // Clear the style cache; the pointers are no longer even valid
   mStyleCache.Clear();
   // XXX The following is hacky, but it's not incorrect,
@@ -4231,6 +4229,7 @@ nsTreeBodyFrame::DidSetStyleContext()
   mIndentation = GetIndentation();
   mRowHeight = GetRowHeight();
   mStringWidth = -1;
+  return NS_OK;
 }
 
 PRBool 

@@ -633,7 +633,7 @@ public:
   }
 
   // Style post processing hook
-  virtual void DidSetStyleContext() = 0;
+  NS_IMETHOD DidSetStyleContext() = 0;
 
   /**
    * Get the style data associated with this frame.  This returns a
