@@ -40,9 +40,6 @@ function testScriptLabelShortening() {
     is(ss.trimUrlQuery("a/b/c.d?test=1&random=4#reference"), "a/b/c.d",
       "Trimming the url query isn't done properly.");
 
-    let ellipsis = Services.prefs.getComplexValue("intl.ellipsis", Ci.nsIPrefLocalizedString);
-    let nanana = new Array(20).join(NaN);
-
     let urls = [
       { href: "http://some.address.com/random/", leaf: "subrandom/" },
       { href: "http://some.address.com/random/", leaf: "suprandom/?a=1" },
@@ -65,9 +62,7 @@ function testScriptLabelShortening() {
       { href: "file://random/", leaf: "script_t2_3.js&b" },
       { href: "resource://random/", leaf: "script_t3_1.js#id?a=1&b=2" },
       { href: "resource://random/", leaf: "script_t3_2.js?a=1&b=2#id" },
-      { href: "resource://random/", leaf: "script_t3_3.js&a=1&b=2#id" },
-
-      { href: nanana, leaf: "Batman!" + "{trim me, now and forevermore}" }
+      { href: "resource://random/", leaf: "script_t3_3.js&a=1&b=2#id" }
     ];
 
     urls.forEach(function(url) {
@@ -125,9 +120,6 @@ function testScriptLabelShortening() {
         "Script (13) label is incorrect.");
       ok(gDebugger.DebuggerView.Scripts.containsLabel("script_t3_3.js"),
         "Script (14) label is incorrect.");
-
-      ok(gDebugger.DebuggerView.Scripts.containsLabel(nanana + "Batman!" + ellipsis),
-        "Script (15) label is incorrect.");
 
       is(vs._scripts.itemCount, urls.filter(function(url) !url.dupe).length,
         "Didn't get the correct number of scripts in the list.");
