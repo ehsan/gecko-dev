@@ -279,7 +279,7 @@ nanojit::Allocator::allocChunk(size_t nbytes)
 {
     VMAllocator *vma = (VMAllocator*)this;
     JS_ASSERT(!vma->outOfMemory());
-    void *p = calloc(1, nbytes);
+    void *p = malloc(nbytes);
     if (!p) {
         JS_ASSERT(nbytes < sizeof(vma->mReserve));
         vma->mOutOfMemory = true;
@@ -2181,8 +2181,6 @@ TraceRecorder::TraceRecorder(JSContext* cx, VMSideExit* _anchor, Fragment* _frag
     this->newobj_ins = NULL;
     this->loopLabel = NULL;
 
-    guardedShapeTable.ops = NULL;
-
 #ifdef JS_JIT_SPEW
     debug_only_print0(LC_TMMinimal, "\n");
     debug_only_printf(LC_TMMinimal, "Recording starting from %s:%u@%u (FragID=%06u)\n",
@@ -2195,24 +2193,24 @@ TraceRecorder::TraceRecorder(JSContext* cx, VMSideExit* _anchor, Fragment* _frag
                       (void*)anchor);
 #endif
 
-    lir = lir_buf_writer = new (tempAlloc) LirBufWriter(lirbuf);
+    lir = lir_buf_writer = new LirBufWriter(lirbuf);
 #ifdef DEBUG
-    lir = sanity_filter_1 = new (tempAlloc) SanityFilter(lir);
+    lir = sanity_filter_1 = new SanityFilter(lir);
 #endif
     debug_only_stmt(
         if (js_LogController.lcbits & LC_TMRecorder) {
            lir = verbose_filter
-               = new (tempAlloc) VerboseWriter (tempAlloc, lir, lirbuf->names,
-                                                &js_LogController);
+               = new VerboseWriter (tempAlloc, lir, lirbuf->names,
+                                    &js_LogController);
         }
     )
     if (nanojit::AvmCore::config.soft_float)
-        lir = float_filter = new (tempAlloc) SoftFloatFilter(lir);
-    lir = cse_filter = new (tempAlloc) CseFilter(lir, tempAlloc);
-    lir = expr_filter = new (tempAlloc) ExprFilter(lir);
-    lir = func_filter = new (tempAlloc) FuncFilter(lir);
+        lir = float_filter = new SoftFloatFilter(lir);
+    lir = cse_filter = new CseFilter(lir, tempAlloc);
+    lir = expr_filter = new ExprFilter(lir);
+    lir = func_filter = new FuncFilter(lir);
 #ifdef DEBUG
-    lir = sanity_filter_2 = new (tempAlloc) SanityFilter(lir);
+    lir = sanity_filter_2 = new SanityFilter(lir);
 #endif
     lir->ins0(LIR_start);
 
@@ -2244,7 +2242,7 @@ TraceRecorder::TraceRecorder(JSContext* cx, VMSideExit* _anchor, Fragment* _frag
         fragment->loopLabel = entryLabel;
     })
 
-    lirbuf->sp = addName(lir->insLoad(LIR_ldp, lirbuf->state, offsetof(InterpState, sp)), "sp");
+    lirbuf->sp = addName(lir->insLoad(LIR_ldp, lirbuf->state, (int)offsetof(InterpState, sp)), "sp");
     lirbuf->rp = addName(lir->insLoad(LIR_ldp, lirbuf->state, offsetof(InterpState, rp)), "rp");
     cx_ins = addName(lir->insLoad(LIR_ldp, lirbuf->state, offsetof(InterpState, cx)), "cx");
     eos_ins = addName(lir->insLoad(LIR_ldp, lirbuf->state, offsetof(InterpState, eos)), "eos");
@@ -2290,8 +2288,17 @@ TraceRecorder::~TraceRecorder()
 
     /* Purge the tempAlloc used during recording. */
     tempAlloc.reset();
-    traceMonitor->lirbuf->clear();
-    forgetGuardedShapes();
+
+#ifdef DEBUG
+    debug_only_stmt( delete verbose_filter; )
+    delete sanity_filter_1;
+    delete sanity_filter_2;
+#endif
+    delete cse_filter;
+    delete expr_filter;
+    delete func_filter;
+    delete float_filter;
+    delete lir_buf_writer;
 }
 
 bool
@@ -2587,8 +2594,8 @@ JSTraceMonitor::flush()
     }
 
     assembler = new (alloc) Assembler(*codeAlloc, alloc, core, &js_LogController);
-    lirbuf = new (alloc) LirBuffer(*tempAlloc);
-    reLirBuf = new (alloc) LirBuffer(*reTempAlloc);
+    lirbuf = new (alloc) LirBuffer(alloc);
+    reLirBuf = new (alloc) LirBuffer(alloc);
     verbose_only( branches = NULL; )
 
 #ifdef DEBUG
@@ -3906,6 +3913,7 @@ TraceRecorder::snapshot(ExitType exitType)
                                        (stackSlots + ngslots) * sizeof(JSTraceType));
 
     /* Setup side exit structure. */
+    memset(exit, 0, sizeof(VMSideExit));
     exit->from = fragment;
     exit->calldepth = callDepth;
     exit->numGlobalSlots = ngslots;
@@ -3938,10 +3946,11 @@ TraceRecorder::createGuardRecord(VMSideExit* exit)
 {
     GuardRecord* gr = new (*traceMonitor->dataAlloc) GuardRecord();
 
+    memset(gr, 0, sizeof(GuardRecord));
     gr->exit = exit;
     exit->addGuard(gr);
 
-    // gr->profCount is calloc'd to zero
+    // gr->profCount is memset'd to zero
     verbose_only(
         gr->profGuardID = fragment->guardNumberer++;
         gr->nextInFrag = fragment->guardsForFrag;
@@ -6267,21 +6276,10 @@ LeaveTree(InterpState& state, VMSideExit* lr)
             regs->sp -= (cs.format & JOF_INVOKE) ? GET_ARGC(regs->pc) + 2 : cs.nuses;
             regs->sp += cs.ndefs;
             regs->pc += cs.length;
-            /*
-             * JSOP_SETELEM can be coalesced with a JSOP_POP in the interpeter.
-             * Since this doesn't re-enter the recorder, the post-state snapshot
-             * is invalid. Fix it up here.
-             */
-            if (op == JSOP_SETELEM && (JSOp)*regs->pc == JSOP_POP) {
-                regs->pc += JSOP_POP_LENGTH;
-                JS_ASSERT(js_CodeSpec[JSOP_POP].ndefs == 0 && js_CodeSpec[JSOP_POP].nuses == 1);
-                regs->sp -= 1;
-            }
             JS_ASSERT_IF(!cx->fp->imacpc,
                          cx->fp->slots + cx->fp->script->nfixed +
                          js_ReconstructStackDepth(cx, cx->fp->script, regs->pc) ==
                          regs->sp);
-            JS_ASSERT(regs->pc == innermost->pc);
 
             /*
              * If there's a tree call around the point that we deep exited at,
@@ -6929,9 +6927,6 @@ js_arm_check_arch() {
 
 static bool
 js_arm_check_vfp() {
-#ifdef WINCE_WINDOWS_MOBILE
-    return false;
-#else
     bool ret = false;
     __try {
         js_arm_try_vfp_op();
@@ -6940,7 +6935,6 @@ js_arm_check_vfp() {
         ret = false;
     }
     return ret;
-#endif
 }
 
 #define HAVE_ENABLE_DISABLE_DEBUGGER_EXCEPTIONS 1
@@ -8589,136 +8583,20 @@ TraceRecorder::binary(LOpcode op)
     return JSRS_STOP;
 }
 
-struct GuardedShapeEntry : public JSDHashEntryStub
-{
-    JSObject* obj;
-};
-
-#ifdef DEBUG
-#include <stdio.h>
-
-static FILE* shapefp = NULL;
-
-static void
-DumpShape(JSObject* obj, const char* prefix)
-{
-    JSScope* scope = OBJ_SCOPE(obj);
-
-    if (!shapefp) {
-        shapefp = fopen("/tmp/shapes.dump", "w");
-        if (!shapefp)
-            return;
-    }
-
-    fprintf(shapefp, "\n%s: shape %u flags %x\n", prefix, scope->shape, scope->flags);
-    for (JSScopeProperty* sprop = scope->lastProp; sprop; sprop = sprop->parent) {
-        if (JSID_IS_ATOM(sprop->id)) {
-            fprintf(shapefp, " %s", JS_GetStringBytes(JSVAL_TO_STRING(ID_TO_VALUE(sprop->id))));
-        } else {
-            JS_ASSERT(!JSID_IS_OBJECT(sprop->id));
-            fprintf(shapefp, " %d", JSID_TO_INT(sprop->id));
-        }
-        fprintf(shapefp, " %u %p %p %x %x %d\n",
-                sprop->slot, sprop->getter, sprop->setter, sprop->attrs, sprop->flags,
-                sprop->shortid);
-    }
-    fflush(shapefp);
-}
-
-static JSDHashOperator
-DumpShapeEnumerator(JSDHashTable* table, JSDHashEntryHdr* hdr, uint32 number, void* arg)
-{
-    GuardedShapeEntry* entry = (GuardedShapeEntry*) hdr;
-    const char* prefix = (const char*) arg;
-
-    DumpShape(entry->obj, prefix);
-    return JS_DHASH_NEXT;
-}
-
 void
-TraceRecorder::dumpGuardedShapes(const char* prefix)
-{
-    if (guardedShapeTable.ops)
-        JS_DHashTableEnumerate(&guardedShapeTable, DumpShapeEnumerator, (void*) prefix);
-}
-#endif /* DEBUG */
-
-JS_REQUIRES_STACK JSRecordingStatus
 TraceRecorder::guardShape(LIns* obj_ins, JSObject* obj, uint32 shape, const char* guardName,
                           LIns* map_ins, VMSideExit* exit)
 {
-    if (!guardedShapeTable.ops) {
-        JS_DHashTableInit(&guardedShapeTable, JS_DHashGetStubOps(), NULL,
-                          sizeof(GuardedShapeEntry), JS_DHASH_MIN_SIZE);
-    }
-
-    // Test (with add if missing) for a remembered guard for (obj_ins, obj).
-    GuardedShapeEntry* entry = (GuardedShapeEntry*)
-        JS_DHashTableOperate(&guardedShapeTable, obj_ins, JS_DHASH_ADD);
-    if (!entry) {
-        JS_ReportOutOfMemory(cx);
-        return JSRS_ERROR;
-    }
-
-    // If already guarded, emit an assertion that the shape matches.
-    if (entry->key) {
-        JS_ASSERT(entry->key == obj_ins);
-        JS_ASSERT(entry->obj == obj);
-        debug_only_stmt(
-            lir->insAssert(lir->ins2i(LIR_eq,
-                                      lir->insLoad(LIR_ld, map_ins, offsetof(JSScope, shape)),
-                                      shape));
-        )
-        return JSRS_CONTINUE;
-    }
-
-    // Not yet guarded. Remember obj_ins along with obj (for invalidation).
-    entry->key = obj_ins;
-    entry->obj = obj;
-
-    debug_only_stmt(DumpShape(obj, "guard");)
-    debug_only_stmt(fprintf(shapefp, "for obj_ins %p\n", obj_ins);)
-
-    // Finally, emit the shape guard.
     LIns* shape_ins = addName(lir->insLoad(LIR_ld, map_ins, offsetof(JSScope, shape)), "shape");
     guard(true,
           addName(lir->ins2i(LIR_eq, shape_ins, shape), guardName),
           exit);
-    return JSRS_CONTINUE;
-}
-
-static JSDHashOperator
-ForgetGuardedShapesForObject(JSDHashTable* table, JSDHashEntryHdr* hdr, uint32 number, void* arg)
-{
-    GuardedShapeEntry* entry = (GuardedShapeEntry*) hdr;
-    if (entry->obj == arg) {
-        debug_only_stmt(DumpShape(entry->obj, "forget");)
-        return JS_DHASH_REMOVE;
-    }
-    return JS_DHASH_NEXT;
-}
-
-void
-TraceRecorder::forgetGuardedShapesForObject(JSObject* obj)
-{
-    if (guardedShapeTable.ops)
-        JS_DHashTableEnumerate(&guardedShapeTable, ForgetGuardedShapesForObject, obj);
-}
-
-void
-TraceRecorder::forgetGuardedShapes()
-{
-    if (guardedShapeTable.ops) {
-        debug_only_stmt(dumpGuardedShapes("forget-all");)
-        JS_DHashTableFinish(&guardedShapeTable);
-        guardedShapeTable.ops = NULL;
-    }
 }
 
 JS_STATIC_ASSERT(offsetof(JSObjectOps, objectMap) == 0);
 
 inline LIns*
-TraceRecorder::map(LIns* obj_ins)
+TraceRecorder::map(LIns *obj_ins)
 {
     return addName(lir->insLoad(LIR_ldp, obj_ins, (int) offsetof(JSObject, map)), "map");
 }
@@ -8898,7 +8776,7 @@ TraceRecorder::guardPropertyCacheHit(LIns* obj_ins,
     // Otherwise guard on key object exact match.
     if (PCVCAP_TAG(entry->vcap) <= 1) {
         if (aobj != globalObj)
-            CHECK_STATUS(guardShape(obj_ins, aobj, entry->kshape, "guard_kshape", map_ins, exit));
+            guardShape(obj_ins, aobj, entry->kshape, "guard_kshape", map_ins, exit);
 
         if (entry->adding()) {
             if (aobj == globalObj)
@@ -8947,7 +8825,7 @@ TraceRecorder::guardPropertyCacheHit(LIns* obj_ins,
         } else {
             obj2_ins = INS_CONSTOBJ(obj2);
         }
-        CHECK_STATUS(guardShape(obj2_ins, obj2, vshape, "guard_vshape", map(obj2_ins), exit));
+        guardShape(obj2_ins, obj2, vshape, "guard_vshape", map(obj2_ins), exit);
     }
 
     pcval = entry->vword;
@@ -9236,7 +9114,7 @@ TraceRecorder::guardPrototypeHasNoIndexedProperties(JSObject* obj, LIns* obj_ins
         return JSRS_STOP;
 
     while (guardHasPrototype(obj, obj_ins, &obj, &obj_ins, exit))
-        CHECK_STATUS(guardShape(obj_ins, obj, OBJ_SHAPE(obj), "guard(shape)", map(obj_ins), exit));
+        guardShape(obj_ins, obj, OBJ_SHAPE(obj), "guard(shape)", map(obj_ins), exit);
     return JSRS_CONTINUE;
 }
 
@@ -10711,11 +10589,9 @@ TraceRecorder::setProp(jsval &l, JSPropCacheEntry* entry, JSScopeProperty* sprop
         if (obj == globalObj)
             ABORT_TRACE("can't trace function-valued property set in branded global scope");
 
-        enterDeepBailCall();
         LIns* args[] = { v_ins, INS_CONSTSPROP(sprop), obj_ins, cx_ins };
         LIns* ok_ins = lir->insCall(&MethodWriteBarrier_ci, args);
         guard(false, lir->ins_eq0(ok_ins), OOM_EXIT);
-        leaveDeepBailCall();
     }
 
     // Find obj2. If entry->adding(), the TAG bits are all 0.
@@ -10824,9 +10700,6 @@ TraceRecorder::enterDeepBailCall()
     // Tell nanojit not to discard or defer stack writes before this call.
     GuardRecord* guardRec = createGuardRecord(exit);
     lir->insGuard(LIR_xbarrier, NULL, guardRec);
-
-    // Forget about guarded shapes, since deep bailers can reshape the world.
-    forgetGuardedShapes();
     return exit;
 }
 
@@ -11243,7 +11116,7 @@ TraceRecorder::initOrSetPropertyByName(LIns* obj_ins, jsval* idvalp, jsval* rval
         LIns* args[] = {vp_ins, idvalp_ins, obj_ins, cx_ins};
         ok_ins = lir->insCall(&SetPropertyByName_ci, args);
     }
-    pendingGuardCondition = ok_ins;
+    guard(true, ok_ins, STATUS_EXIT);
 
     leaveDeepBailCall();
     return JSRS_CONTINUE;
@@ -11298,7 +11171,7 @@ TraceRecorder::initOrSetPropertyByIndex(LIns* obj_ins, LIns* index_ins, jsval* r
         LIns* args[] = {vp_ins, index_ins, obj_ins, cx_ins};
         ok_ins = lir->insCall(&SetPropertyByIndex_ci, args);
     }
-    pendingGuardCondition = ok_ins;
+    guard(true, ok_ins, STATUS_EXIT);
 
     leaveDeepBailCall();
     return JSRS_CONTINUE;
@@ -11980,8 +11853,7 @@ TraceRecorder::prop(JSObject* obj, LIns* obj_ins, uint32 *slotp, LIns** v_insp, 
             LIns* map_ins = map(obj_ins);
             LIns* ops_ins;
             if (map_is_native(obj->map, map_ins, ops_ins)) {
-                CHECK_STATUS(guardShape(obj_ins, obj, OBJ_SHAPE(obj), "guard(shape)", map_ins,
-                                        exit));
+                guardShape(obj_ins, obj, OBJ_SHAPE(obj), "guard(shape)", map_ins, exit);
             } else if (!guardDenseArray(obj, obj_ins, exit)) {
                 ABORT_TRACE("non-native object involved in undefined property access");
             }
@@ -12060,10 +11932,8 @@ TraceRecorder::prop(JSObject* obj, LIns* obj_ins, uint32 *slotp, LIns** v_insp, 
      * leaked to the calling script.
      */
     if (isMethod && !cx->fp->imacpc) {
-        enterDeepBailCall();
         LIns* args[] = { v_ins, INS_CONSTSPROP(sprop), obj_ins, cx_ins };
         v_ins = lir->insCall(&MethodReadBarrier_ci, args);
-        leaveDeepBailCall();
     }
 
     if (slotp) {
@@ -12808,7 +12678,7 @@ TraceRecorder::record_JSOP_INSTANCEOF()
     stack(-2, lir->insCall(&HasInstance_ci, args));
     LIns* status_ins = lir->insLoad(LIR_ld,
                                     lirbuf->state,
-                                    offsetof(InterpState, builtinStatus));
+                                    (int) offsetof(InterpState, builtinStatus));
     pendingGuardCondition = lir->ins_eq0(status_ins);
     leaveDeepBailCall();
 

@@ -3087,11 +3087,12 @@ class RegExpNativeCompiler {
                       sizeof(VMSideExit) +
                       (re_length-1) * sizeof(jschar));
         GuardRecord* guard = (GuardRecord *) alloc.alloc(len);
+        memset(guard, 0, len);
         VMSideExit* exit = (VMSideExit*)(guard+1);
         guard->exit = exit;
         guard->exit->target = fragment;
         fragment->lastIns = lir->insGuard(LIR_x, NULL, guard);
-        // guard->profCount is calloc'd to zero
+        // guard->profCount is memset'd to zero
         verbose_only(
             guard->profGuardID = fragment->guardNumberer++;
             guard->nextInFrag = fragment->guardsForFrag;
@@ -3108,7 +3109,6 @@ class RegExpNativeCompiler {
     ~RegExpNativeCompiler() {
         /* Purge the tempAlloc used during recording. */
         tempAlloc.reset();
-        JS_TRACE_MONITOR(cx).reLirBuf->clear();
     }
 
     JSBool compile()
@@ -3226,9 +3226,6 @@ class RegExpNativeCompiler {
             re->flags |= JSREG_NOCOMPILE;
             delete lirBufWriter;
         }
-#ifdef DEBUG
-        delete sanity_filter;
-#endif
 #ifdef NJ_VERBOSE
         debug_only_stmt( if (js_LogController.lcbits & LC_TMRegexp)
                              delete lir; )

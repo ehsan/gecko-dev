@@ -1253,18 +1253,13 @@ obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     JSScript **bucket = NULL;   /* avoid GCC warning with early decl&init */
 #if JS_HAS_EVAL_THIS_SCOPE
     JSObject *callerScopeChain = NULL, *callerVarObj = NULL;
-    JSBool setCallerScopeChain = JS_FALSE, setCallerVarObj = JS_FALSE;
+    JSObject *setCallerScopeChain = NULL;
+    JSBool setCallerVarObj = JS_FALSE;
 #endif
 
     fp = js_GetTopStackFrame(cx);
     caller = js_GetScriptedCaller(cx, fp);
-    if (!caller) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                             JSMSG_BAD_INDIRECT_CALL, js_eval_str);
-        return JS_FALSE;
-    }
-
-    indirectCall = (caller->regs && *caller->regs->pc != JSOP_EVAL);
+    indirectCall = (caller && caller->regs && *caller->regs->pc != JSOP_EVAL);
 
     /*
      * This call to js_GetWrappedObject is safe because of the security checks
@@ -1306,7 +1301,7 @@ obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
      * object, then we need to provide one for the compiler to stick any
      * declared (var) variables into.
      */
-    if (!caller->varobj && !js_GetCallObject(cx, caller))
+    if (caller && !caller->varobj && !js_GetCallObject(cx, caller))
         return JS_FALSE;
 
     /* Accept an optional trailing argument that overrides the scope object. */
@@ -1319,45 +1314,39 @@ obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 
     /* From here on, control must exit through label out with ok set. */
     MUST_FLOW_THROUGH("out");
-    uintN staticLevel = caller->script->staticLevel + 1;
     if (!scopeobj) {
 #if JS_HAS_EVAL_THIS_SCOPE
-        /*
-         * If we see an indirect call, then run eval in the global scope. We do
-         * this so the compiler can make assumptions about what bindings may or
-         * may not exist in the current frame if it doesn't see 'eval'.
-         */
+        /* If obj.eval(str), emulate 'with (obj) eval(str)' in the caller. */
         if (indirectCall) {
-            /* Pretend that we're top level. */
-            staticLevel = 0;
-
             callerScopeChain = js_GetScopeChain(cx, caller);
             if (!callerScopeChain) {
                 ok = JS_FALSE;
                 goto out;
             }
-
             OBJ_TO_INNER_OBJECT(cx, obj);
             if (!obj) {
                 ok = JS_FALSE;
                 goto out;
             }
+            if (obj != callerScopeChain) {
+                ok = js_CheckPrincipalsAccess(cx, obj,
+                                              JS_StackFramePrincipals(cx, caller),
+                                              cx->runtime->atomState.evalAtom);
+                if (!ok)
+                    goto out;
 
-            ok = js_CheckPrincipalsAccess(cx, obj,
-                                          JS_StackFramePrincipals(cx, caller),
-                                          cx->runtime->atomState.evalAtom);
-            if (!ok)
-                goto out;
+                scopeobj = js_NewWithObject(cx, obj, callerScopeChain, -1);
+                if (!scopeobj) {
+                    ok = JS_FALSE;
+                    goto out;
+                }
 
-            /* NB: We know obj is a global object here. */
-            JS_ASSERT(!OBJ_GET_PARENT(cx, obj));
-            scopeobj = obj;
+                /* Set fp->scopeChain too, for the compiler. */
+                caller->scopeChain = fp->scopeChain = scopeobj;
 
-            /* Set fp->scopeChain too, for the compiler. */
-            caller->scopeChain = fp->scopeChain = scopeobj;
-
-            /* Remember scopeobj so we can null its private when done. */
-            setCallerScopeChain = JS_TRUE;
+                /* Remember scopeobj so we can null its private when done. */
+                setCallerScopeChain = scopeobj;
+            }
 
             callerVarObj = caller->varobj;
             if (obj != callerVarObj) {
@@ -1374,10 +1363,12 @@ obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
          * NB: This means that native callers (who reach this point through
          * the C API) must use the two parameter form.
          */
-        scopeobj = js_GetScopeChain(cx, caller);
-        if (!scopeobj) {
-            ok = JS_FALSE;
-            goto out;
+        if (caller) {
+            scopeobj = js_GetScopeChain(cx, caller);
+            if (!scopeobj) {
+                ok = JS_FALSE;
+                goto out;
+            }
         }
     } else {
         scopeobj = js_GetWrappedObject(cx, scopeobj);
@@ -1386,15 +1377,19 @@ obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
             ok = JS_FALSE;
             goto out;
         }
-
         ok = js_CheckPrincipalsAccess(cx, scopeobj,
                                       JS_StackFramePrincipals(cx, caller),
                                       cx->runtime->atomState.evalAtom);
         if (!ok)
             goto out;
 
-        /* We're pretending that we're in global code. */
-        staticLevel = 0;
+        scopeobj = js_NewWithObject(cx, scopeobj,
+                                    JS_GetGlobalForObject(cx, scopeobj), -1);
+        if (!scopeobj) {
+            ok = JS_FALSE;
+            goto out;
+        }
+        argv[1] = OBJECT_TO_JSVAL(scopeobj);
     }
 
     /* Ensure we compile this eval with the right object in the scope chain. */
@@ -1404,16 +1399,23 @@ obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         goto out;
     }
 
-    tcflags = TCF_COMPILE_N_GO | TCF_PUT_STATIC_LEVEL(staticLevel);
-    principals = JS_EvalFramePrincipals(cx, fp, caller);
-    file = js_ComputeFilename(cx, caller, principals, &line);
+    tcflags = TCF_COMPILE_N_GO;
+    if (caller) {
+        tcflags |= TCF_PUT_STATIC_LEVEL(caller->script->staticLevel + 1);
+        principals = JS_EvalFramePrincipals(cx, fp, caller);
+        file = js_ComputeFilename(cx, caller, principals, &line);
+    } else {
+        principals = NULL;
+        file = NULL;
+        line = 0;
+    }
 
     str = JSVAL_TO_STRING(argv[0]);
     script = NULL;
 
     /* Cache local eval scripts indexed by source qualified by scope. */
     bucket = EvalCacheHash(cx, str);
-    if (!indirectCall && caller->fun) {
+    if (caller->fun) {
         uintN count = 0;
         JSScript **scriptp = bucket;
 
@@ -1478,9 +1480,7 @@ obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     }
 
     if (!script) {
-        JSStackFrame *callerFrame = (staticLevel != 0) ? caller : NULL;
-        script = JSCompiler::compileScript(cx, scopeobj, callerFrame,
-                                           principals, tcflags,
+        script = JSCompiler::compileScript(cx, scopeobj, caller, principals, tcflags,
                                            str->chars(), str->length(),
                                            NULL, file, line, str);
         if (!script) {
@@ -1491,7 +1491,8 @@ obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 
     if (argc < 2) {
         /* Execute using caller's new scope object (might be a Call object). */
-        scopeobj = caller->scopeChain;
+        if (caller)
+            scopeobj = caller->scopeChain;
     }
 
     /*
@@ -1512,8 +1513,11 @@ obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 out:
 #if JS_HAS_EVAL_THIS_SCOPE
     /* Restore OBJ_GET_PARENT(scopeobj) not callerScopeChain in case of Call. */
-    if (setCallerScopeChain)
+    if (setCallerScopeChain) {
         caller->scopeChain = callerScopeChain;
+        JS_ASSERT(OBJ_GET_CLASS(cx, setCallerScopeChain) == &js_WithClass);
+        setCallerScopeChain->setPrivate(NULL);
+    }
     if (setCallerVarObj)
         caller->varobj = callerVarObj;
 #endif

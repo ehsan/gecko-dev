@@ -40,6 +40,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <sstream>
 
@@ -366,12 +367,9 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
     return NPERR_OUT_OF_MEMORY_ERROR;
   instanceData->npp = instance;
   instanceData->streamMode = NP_ASFILEONLY;
-  instanceData->testFunction = FUNCTION_NONE;
   instanceData->streamChunkSize = 1024;
   instanceData->streamBuf = NULL;
   instanceData->streamBufSize = 0;
-  instanceData->fileBuf = NULL;
-  instanceData->fileBufSize = 0;
   instanceData->testrange = NULL;
   instanceData->hasWidget = false;
   memset(&instanceData->window, 0, sizeof(instanceData->window));
@@ -541,9 +539,6 @@ NPP_Destroy(NPP instance, NPSavedData** save)
   if (instanceData->streamBuf) {
     free(instanceData->streamBuf);
   }
-  if (instanceData->fileBuf) {
-    free(instanceData->fileBuf);
-  }
 
   TestRange* currentrange = instanceData->testrange;
   TestRange* nextrange;
@@ -607,8 +602,8 @@ NPP_DestroyStream(NPP instance, NPStream* stream, NPReason reason)
     }
   }
   if (instanceData->frame.length() > 0 && 
-      instanceData->testFunction != FUNCTION_NPP_GETURLNOTIFY &&
-      instanceData->testFunction != FUNCTION_NPP_POSTURL) {
+    instanceData->testFunction != FUNCTION_NPP_GETURLNOTIFY &&
+    instanceData->testFunction != FUNCTION_NPP_POSTURL) {
     sendBufferToFrame(instance);
   }
   if (instanceData->testFunction == FUNCTION_NPP_POSTURL) {
@@ -703,27 +698,24 @@ void
 NPP_StreamAsFile(NPP instance, NPStream* stream, const char* fname)
 {
   printf("NPP_StreamAsFile, file=%s\n", fname);
-  size_t size;
+  ifstream::pos_type size;
 
   InstanceData* instanceData = (InstanceData*)(instance->pdata);
 
   if (!fname)
     return;
 
-  FILE *file = fopen(fname, "rb");
-  if (file) {
-    fseek(file, 0, SEEK_END);
-    size = ftell(file);
+  ifstream file (fname, ios::in|ios::binary|ios::ate);
+  if (file.is_open())
+  {
+    size = file.tellg();
     instanceData->fileBuf = malloc((int32_t)size + 1);
     char* buf = reinterpret_cast<char *>(instanceData->fileBuf);
-    fseek(file, 0, SEEK_SET);
-    fread(instanceData->fileBuf, 1, size, file);
-    fclose(file);
+    file.seekg (0, ios::beg);
+    file.read (buf, size);
+    file.close();
     buf[size] = '\0';
     instanceData->fileBufSize = (int32_t)size;
-  }
-  else {
-    printf("Unable to open file\n");
   }
 }
 

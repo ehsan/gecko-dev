@@ -20,7 +20,7 @@ var storage, testnum = 0;
 function countBase64Logins(conn) {
     let stmt = conn.createStatement("SELECT COUNT(1) as numBase64 FROM moz_logins " +
                                     "WHERE encType = " + ENCTYPE_BASE64);
-    do_check_true(stmt.executeStep());
+    do_check_true(stmt.step());
     let numBase64 = stmt.row.numBase64;
     stmt.finalize();
     return numBase64;
