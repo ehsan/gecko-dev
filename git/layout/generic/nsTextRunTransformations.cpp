@@ -571,9 +571,8 @@ nsCaseTransformTextRunFactory::TransformString(
       aCharsToMergeArray.AppendElement(false);
       if (aTextRun) {
         aStyleArray->AppendElement(charStyle);
-        aCanBreakBeforeArray->AppendElement(
-          inhibitBreakBefore ? gfxShapedText::CompressedGlyph::FLAG_BREAK_TYPE_NONE
-                             : aTextRun->CanBreakBefore(i));
+        aCanBreakBeforeArray->AppendElement(inhibitBreakBefore ? false :
+                                            aTextRun->CanBreakLineBefore(i));
       }
 
       if (IS_IN_BMP(ch)) {
@@ -592,8 +591,7 @@ nsCaseTransformTextRunFactory::TransformString(
         aCharsToMergeArray.AppendElement(true);
         if (aTextRun) {
           aStyleArray->AppendElement(charStyle);
-          aCanBreakBeforeArray->AppendElement(
-            gfxShapedText::CompressedGlyph::FLAG_BREAK_TYPE_NONE);
+          aCanBreakBeforeArray->AppendElement(false);
         }
       }
     }

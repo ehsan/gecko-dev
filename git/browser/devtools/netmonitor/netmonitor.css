@@ -28,7 +28,7 @@
   overflow: auto;
 }
 
-.cropped-textbox .textbox-input {
+#headers-summary-url-value .textbox-input {
   /* workaround for textbox not supporting the @crop attribute */
   text-overflow: ellipsis;
 }

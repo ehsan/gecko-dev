@@ -103,41 +103,38 @@ public:
 
     // Public textrun API for general use
 
-    bool IsClusterStart(uint32_t aPos) const {
+    bool IsClusterStart(uint32_t aPos) {
         NS_ASSERTION(aPos < GetLength(), "aPos out of range");
         return mCharacterGlyphs[aPos].IsClusterStart();
     }
-    bool IsLigatureGroupStart(uint32_t aPos) const {
+    bool IsLigatureGroupStart(uint32_t aPos) {
         NS_ASSERTION(aPos < GetLength(), "aPos out of range");
         return mCharacterGlyphs[aPos].IsLigatureGroupStart();
     }
-    bool CanBreakLineBefore(uint32_t aPos) const {
-        return CanBreakBefore(aPos) == CompressedGlyph::FLAG_BREAK_TYPE_NORMAL;
-    }
-    bool CanHyphenateBefore(uint32_t aPos) const {
-        return CanBreakBefore(aPos) == CompressedGlyph::FLAG_BREAK_TYPE_HYPHEN;
-    }
-
-    // Returns a gfxShapedText::CompressedGlyph::FLAG_BREAK_TYPE_* value
-    // as defined in gfxFont.h (may be NONE, NORMAL or HYPHEN).
-    uint8_t CanBreakBefore(uint32_t aPos) const {
+    bool CanBreakLineBefore(uint32_t aPos) {
         NS_ASSERTION(aPos < GetLength(), "aPos out of range");
-        return mCharacterGlyphs[aPos].CanBreakBefore();
+        return mCharacterGlyphs[aPos].CanBreakBefore() ==
+            CompressedGlyph::FLAG_BREAK_TYPE_NORMAL;
+    }
+    bool CanHyphenateBefore(uint32_t aPos) {
+        NS_ASSERTION(aPos < GetLength(), "aPos out of range");
+        return mCharacterGlyphs[aPos].CanBreakBefore() ==
+            CompressedGlyph::FLAG_BREAK_TYPE_HYPHEN;
     }
 
-    bool CharIsSpace(uint32_t aPos) const {
+    bool CharIsSpace(uint32_t aPos) {
         NS_ASSERTION(aPos < GetLength(), "aPos out of range");
         return mCharacterGlyphs[aPos].CharIsSpace();
     }
-    bool CharIsTab(uint32_t aPos) const {
+    bool CharIsTab(uint32_t aPos) {
         NS_ASSERTION(aPos < GetLength(), "aPos out of range");
         return mCharacterGlyphs[aPos].CharIsTab();
     }
-    bool CharIsNewline(uint32_t aPos) const {
+    bool CharIsNewline(uint32_t aPos) {
         NS_ASSERTION(aPos < GetLength(), "aPos out of range");
         return mCharacterGlyphs[aPos].CharIsNewline();
     }
-    bool CharIsLowSurrogate(uint32_t aPos) const {
+    bool CharIsLowSurrogate(uint32_t aPos) {
         NS_ASSERTION(aPos < GetLength(), "aPos out of range");
         return mCharacterGlyphs[aPos].CharIsLowSurrogate();
     }
