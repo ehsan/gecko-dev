@@ -1077,17 +1077,13 @@ public:
 
     void cmpq_rm(RegisterID src, int offset, RegisterID base)
     {
-        js::JaegerSpew(js::JSpew_Insns,
-                       IPFX "cmpq       %s, %d(%s)\n", MAYBE_PAD,
-                       nameIReg(8, src), offset, nameIReg(8, base));
+        FIXME_INSN_PRINTING;
         m_formatter.oneByteOp64(OP_CMP_EvGv, src, base, offset);
     }
 
     void cmpq_mr(int offset, RegisterID base, RegisterID src)
     {
-        js::JaegerSpew(js::JSpew_Insns,
-                       IPFX "cmpq       %d(%s), %s\n", MAYBE_PAD,
-                       offset, nameIReg(8, base), nameIReg(8, src));
+        FIXME_INSN_PRINTING;
         m_formatter.oneByteOp64(OP_CMP_GvEv, src, base, offset);
     }
 

@@ -10,8 +10,6 @@ var checkStats;
 if (HAVE_TM) {
     checkStats = function(stats)
     {
-        // Temporarily disabled while we work on heuristics.
-        return;
         function jit(on)
         {
           if (on && !options().match(/tracejit/))

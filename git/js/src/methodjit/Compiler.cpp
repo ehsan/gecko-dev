@@ -167,12 +167,8 @@ mjit::TryCompile(JSContext *cx, JSScript *script, JSFunction *fun, JSObject *sco
     JS_ASSERT(!script->isEmpty());
 
     CompileStatus status = cc.Compile();
-    if (status == Compile_Okay) {
-        if (!cx->compartment->addScript(cx, script))
-            status = Compile_Abort;
-    } else {
+    if (status != Compile_Okay)
         script->ncode = JS_UNJITTABLE_METHOD;
-    }
 
     return status;
 }
@@ -418,10 +414,6 @@ mjit::Compiler::finishThisUp()
     }
     script->callSites = callSiteList;
 
-#ifdef JS_METHODJIT
-    script->debugMode = cx->compartment->debugMode;
-#endif
-
     return Compile_Okay;
 }
 
@@ -486,16 +478,6 @@ mjit::Compiler::generateMethod()
             masm.move(ImmPtr(PC), Registers::ArgReg1);
             stubCall(stubs::Trap);
         }
-#if defined(JS_NO_FASTCALL) && defined(JS_CPU_X86)
-        // In case of no fast call, when we change the return address,
-        // we need to make sure add esp by 8. For normal call, we need
-        // to make sure the esp is not changed.
-        else {
-            masm.subPtr(Imm32(8), Registers::StackPointer);
-            masm.callLabel = masm.label();
-            masm.addPtr(Imm32(8), Registers::StackPointer);
-        }
-#endif
         ADD_CALLSITE(false);
 
     /**********************
@@ -721,11 +703,21 @@ mjit::Compiler::generateMethod()
           {
             FrameEntry *top = frame.peek(-1);
             if (top->isConstant() && top->getValue().isPrimitive()) {
-                double d;
-                ValueToNumber(cx, top->getValue(), &d);
-                d = -d;
-                frame.pop();
-                frame.push(NumberValue(d));
+                if (top->isType(JSVAL_TYPE_INT32) && 
+                    top->getValue().toInt32() != 0 &&
+                    top->getValue().toInt32() != (1 << 31))
+                {
+                    int32 value = top->getValue().toInt32();
+                    value = -value;
+                    frame.pop();
+                    frame.push(Int32Value(value));
+                } else {
+                    double d;
+                    ValueToNumber(cx, top->getValue(), &d);
+                    d = -d;
+                    frame.pop();
+                    frame.push(DoubleValue(d));
+                }
             } else {
                 jsop_neg();
             }
@@ -1836,9 +1828,6 @@ mjit::Compiler::inlineCallHelper(uint32 argc, bool callingNew)
     masm.addPtr(Imm32(sizeof(void*)), Registers::StackPointer);
 #endif
     masm.call(Registers::ReturnReg);
-#if defined(JS_NO_FASTCALL) && defined(JS_CPU_X86)
-    masm.callLabel = masm.label();
-#endif
     ADD_CALLSITE(false);
 
     /*
@@ -1890,11 +1879,7 @@ mjit::Compiler::addCallSite(uint32 id, bool stub)
 {
     InternalCallSite site;
     site.stub = stub;
-#if defined(JS_NO_FASTCALL) && defined(JS_CPU_X86)
-    site.location = stub ? stubcc.masm.callLabel : masm.callLabel;
-#else
     site.location = stub ? stubcc.masm.label() : masm.label();
-#endif
     site.pc = PC;
     site.id = id;
     callSites.append(site);
