@@ -213,8 +213,7 @@ NS_IMETHODIMP nsHTMLMediaElement::GetBufferedBytes(nsIDOMHTMLByteRanges * *aBuff
 /* readonly attribute unsigned long totalBytes; */
 NS_IMETHODIMP nsHTMLMediaElement::GetTotalBytes(PRUint32 *aTotalBytes)
 {
-  *aTotalBytes = mDecoder ? PRUint32(mDecoder->GetTotalBytes()) : 0;
-  return NS_OK;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 /* void load (); */
@@ -240,6 +239,7 @@ NS_IMETHODIMP nsHTMLMediaElement::Load()
     mNetworkState = nsIDOMHTMLMediaElement::EMPTY;
     ChangeReadyState(nsIDOMHTMLMediaElement::DATA_UNAVAILABLE);
     mPaused = PR_TRUE;
+    mSeeking = PR_FALSE;
     // TODO: The current playback position must be set to 0.
     // TODO: The currentLoop DOM attribute must be set to 0.
     DispatchSimpleEvent(NS_LITERAL_STRING("emptied"));
@@ -274,7 +274,7 @@ NS_IMETHODIMP nsHTMLMediaElement::GetReadyState(PRUint16 *aReadyState)
 /* readonly attribute boolean seeking; */
 NS_IMETHODIMP nsHTMLMediaElement::GetSeeking(PRBool *aSeeking)
 {
-  *aSeeking = mDecoder && mDecoder->IsSeeking();
+  *aSeeking = mSeeking;
 
   return NS_OK;
 }
@@ -288,20 +288,7 @@ NS_IMETHODIMP nsHTMLMediaElement::GetCurrentTime(float *aCurrentTime)
 
 NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(float aCurrentTime)
 {
-  if (!mDecoder)
-    return NS_ERROR_DOM_INVALID_STATE_ERR;
-
-  // Detect for a NaN and invalid values.
-  if (!(aCurrentTime >= 0.0))
-    return NS_ERROR_FAILURE;
-
-  if (mNetworkState < nsIDOMHTMLMediaElement::LOADED_METADATA) 
-    return NS_ERROR_DOM_INVALID_STATE_ERR;
-
-  mPlayingBeforeSeek = IsActivelyPlaying();
-  nsresult rv = mDecoder->Seek(aCurrentTime);
-  DispatchAsyncSimpleEvent(NS_LITERAL_STRING("timeupdate"));
-  return rv;
+  return mDecoder ? mDecoder->Seek(aCurrentTime) : NS_ERROR_DOM_INVALID_STATE_ERR;
 }
 
 /* readonly attribute float duration; */
@@ -451,7 +438,6 @@ nsHTMLMediaElement::nsHTMLMediaElement(nsINodeInfo *aNodeInfo, PRBool aFromParse
     mNetworkState(nsIDOMHTMLMediaElement::EMPTY),
     mReadyState(nsIDOMHTMLMediaElement::DATA_UNAVAILABLE),
     mMutedVolume(0.0),
-    mMediaSize(-1,-1),
     mDefaultPlaybackRate(1.0),
     mPlaybackRate(1.0),
     mBegun(PR_FALSE),
@@ -459,18 +445,16 @@ nsHTMLMediaElement::nsHTMLMediaElement(nsINodeInfo *aNodeInfo, PRBool aFromParse
     mLoadedFirstFrame(PR_FALSE),
     mAutoplaying(PR_TRUE),
     mPaused(PR_TRUE),
+    mSeeking(PR_FALSE),
     mMuted(PR_FALSE),
-    mIsDoneAddingChildren(!aFromParser),
-    mPlayingBeforeSeek(PR_FALSE)
+    mIsDoneAddingChildren(!aFromParser)
 {
 }
 
 nsHTMLMediaElement::~nsHTMLMediaElement()
 {
-  if (mDecoder) {
-    mDecoder->Shutdown();
-    mDecoder = nsnull;
-  }
+  if (mDecoder) 
+    mDecoder->Stop();
 }
 
 NS_IMETHODIMP
@@ -531,7 +515,7 @@ nsHTMLMediaElement::ParseAttribute(PRInt32 aNamespaceID,
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
                                               aResult);
 }
-
+#include "nsString.h"
 nsresult
 nsHTMLMediaElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                             nsIAtom* aPrefix, const nsAString& aValue,
@@ -590,7 +574,7 @@ nsresult nsHTMLMediaElement::PickMediaElement(nsAString& aChosenMediaResource)
       // TODO: Instantiate decoder based on type
       if (mDecoder) {
         mDecoder->ElementUnavailable();
-        mDecoder->Shutdown();
+        mDecoder->Stop();
         mDecoder = nsnull;
       }
 
@@ -703,11 +687,11 @@ void nsHTMLMediaElement::NetworkError()
   DispatchSimpleEvent(NS_LITERAL_STRING("empty"));
 }
 
-void nsHTMLMediaElement::PlaybackEnded()
+void nsHTMLMediaElement::PlaybackCompleted()
 {
   mBegun = PR_FALSE;
   mEnded = PR_TRUE;
-  mPaused = PR_TRUE;
+  Pause();
   SetCurrentTime(0);
   DispatchSimpleEvent(NS_LITERAL_STRING("ended"));
 }
@@ -717,23 +701,8 @@ void nsHTMLMediaElement::CanPlayThrough()
   ChangeReadyState(nsIDOMHTMLMediaElement::CAN_PLAY_THROUGH);
 }
 
-void nsHTMLMediaElement::SeekStarted()
-{
-  DispatchAsyncSimpleEvent(NS_LITERAL_STRING("seeking"));
-}
-
-void nsHTMLMediaElement::SeekCompleted()
-{
-  mPlayingBeforeSeek = PR_FALSE;
-  DispatchAsyncSimpleEvent(NS_LITERAL_STRING("seeked"));
-}
-
 void nsHTMLMediaElement::ChangeReadyState(nsMediaReadyState aState)
 {
-  // Handle raising of "waiting" event during seek (see 4.7.10.8)
-  if (mPlayingBeforeSeek && aState <= nsIDOMHTMLMediaElement::CAN_PLAY)
-    DispatchAsyncSimpleEvent(NS_LITERAL_STRING("waiting"));
-    
   mReadyState = aState;
   if (mNetworkState != nsIDOMHTMLMediaElement::EMPTY) {
     switch(mReadyState) {
@@ -789,14 +758,16 @@ nsresult nsHTMLMediaElement::DispatchSimpleEvent(const nsAString& aName)
 nsresult nsHTMLMediaElement::DispatchAsyncSimpleEvent(const nsAString& aName)
 {
   nsCOMPtr<nsIRunnable> event = new nsAsyncEventRunner(aName, this, PR_FALSE);
-  NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL); 
+  if (event)
+    NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL); 
   return NS_OK;                           
 }
 
 nsresult nsHTMLMediaElement::DispatchAsyncProgressEvent(const nsAString& aName)
 {
   nsCOMPtr<nsIRunnable> event = new nsAsyncEventRunner(aName, this, PR_TRUE);
-  NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL); 
+  if (event)
+    NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL); 
   return NS_OK;                           
 }
 
@@ -841,26 +812,6 @@ PRBool nsHTMLMediaElement::IsDoneAddingChildren()
   return mIsDoneAddingChildren;
 }
 
-PRBool nsHTMLMediaElement::IsActivelyPlaying() const
-{
-  // TODO: 
-  //   playback has not stopped due to errors, 
-  //   and the element has not paused for user interaction
-  return 
-    !mPaused && 
-    (mReadyState == nsIDOMHTMLMediaElement::CAN_PLAY || 
-     mReadyState == nsIDOMHTMLMediaElement::CAN_PLAY_THROUGH) &&
-    !IsPlaybackEnded();
-}
-PRBool nsHTMLMediaElement::IsPlaybackEnded() const
-{
-  // TODO:
-  //   the current playback position is equal to the effective end of the media resource, 
-  //   and the currentLoop attribute is equal to playCount-1. 
-  //   See bug 449157.
-  return mNetworkState >= nsIDOMHTMLMediaElement::LOADED_METADATA && mEnded;
-}
-
 nsIPrincipal*
 nsHTMLMediaElement::GetCurrentPrincipal()
 {
@@ -870,15 +821,10 @@ nsHTMLMediaElement::GetCurrentPrincipal()
   return mDecoder->GetCurrentPrincipal();
 }
 
-void nsHTMLMediaElement::UpdateMediaSize(nsIntSize size)
-{
-  mMediaSize = size;
-}
-
 void nsHTMLMediaElement::DestroyContent()
 {
   if (mDecoder) {
-    mDecoder->Shutdown();
+    mDecoder->Stop();
     mDecoder = nsnull;
   }
   nsGenericHTMLElement::DestroyContent();

@@ -22,7 +22,6 @@
  * Contributor(s):
  *   Brett Wilson <brettw@gmail.com> (original author)
  *   Asaf Romano <mano@mozilla.com>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -470,9 +469,6 @@ nsAnnotationService::SetPageAnnotationString(nsIURI* aURI,
                                              PRInt32 aFlags,
                                              PRUint16 aExpiration)
 {
-  if (InPrivateBrowsingMode())
-    return NS_OK;
-
   PRInt64 placeId;
   nsresult rv = GetPlaceIdForURI(aURI, &placeId);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -550,9 +546,6 @@ nsAnnotationService::SetPageAnnotationInt32(nsIURI* aURI,
                                             PRInt32 aFlags,
                                             PRUint16 aExpiration)
 {
-  if (InPrivateBrowsingMode())
-    return NS_OK;
-
   PRInt64 placeId;
   nsresult rv = GetPlaceIdForURI(aURI, &placeId);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -629,9 +622,6 @@ nsAnnotationService::SetPageAnnotationInt64(nsIURI* aURI,
                                             PRInt32 aFlags,
                                             PRUint16 aExpiration)
 {
-  if (InPrivateBrowsingMode())
-    return NS_OK;
-
   PRInt64 placeId;
   nsresult rv = GetPlaceIdForURI(aURI, &placeId);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -708,9 +698,6 @@ nsAnnotationService::SetPageAnnotationDouble(nsIURI* aURI,
                                              PRInt32 aFlags,
                                              PRUint16 aExpiration)
 {
-  if (InPrivateBrowsingMode())
-    return NS_OK;
-
   PRInt64 placeId;
   nsresult rv = GetPlaceIdForURI(aURI, &placeId);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -794,9 +781,6 @@ nsAnnotationService::SetPageAnnotationBinary(nsIURI* aURI,
                                              PRInt32 aFlags,
                                              PRUint16 aExpiration)
 {
-  if (InPrivateBrowsingMode())
-    return NS_OK;
-
   PRInt64 placeId;
   nsresult rv = GetPlaceIdForURI(aURI, &placeId);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1591,9 +1575,6 @@ nsAnnotationService::CopyPageAnnotations(nsIURI* aSourceURI,
                                          nsIURI* aDestURI,
                                          PRBool aOverwriteDest)
 {
-  if (InPrivateBrowsingMode())
-    return NS_OK;
-
   mozStorageTransaction transaction(mDBConn, PR_FALSE);
 
   // source
@@ -1835,14 +1816,6 @@ nsAnnotationService::StartGetAnnotationFromItemId(PRInt64 aItemId,
   // and it is the caller's job to do the reseting.
   statementResetter.Abandon();
   return NS_OK;
-}
-
-
-PRBool
-nsAnnotationService::InPrivateBrowsingMode() const
-{
-  nsNavHistory* history = nsNavHistory::GetHistoryService();
-  return history && history->InPrivateBrowsingMode();
 }
 
 

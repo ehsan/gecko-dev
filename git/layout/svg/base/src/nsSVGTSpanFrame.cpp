@@ -100,6 +100,24 @@ nsSVGTSpanFrame::AttributeChanged(PRInt32         aNameSpaceID,
 }
 
 //----------------------------------------------------------------------
+// nsISVGChildFrame methods
+
+NS_IMETHODIMP
+nsSVGTSpanFrame::SetOverrideCTM(nsIDOMSVGMatrix *aCTM)
+{
+  mOverrideCTM = aCTM;
+  return NS_OK;
+}
+
+already_AddRefed<nsIDOMSVGMatrix>
+nsSVGTSpanFrame::GetOverrideCTM()
+{
+  nsIDOMSVGMatrix *matrix = mOverrideCTM.get();
+  NS_IF_ADDREF(matrix);
+  return matrix;
+}
+
+//----------------------------------------------------------------------
 // nsSVGContainerFrame methods:
 
 already_AddRefed<nsIDOMSVGMatrix>
@@ -107,7 +125,12 @@ nsSVGTSpanFrame::GetCanvasTM()
 {
   if (!GetMatrixPropagation()) {
     nsIDOMSVGMatrix *retval;
-    NS_NewSVGMatrix(&retval);
+    if (mOverrideCTM) {
+      retval = mOverrideCTM;
+      NS_ADDREF(retval);
+    } else {
+      NS_NewSVGMatrix(&retval);
+    }
     return retval;
   }
 

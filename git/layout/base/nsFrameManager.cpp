@@ -1092,7 +1092,11 @@ nsFrameManager::ReResolveStyleContext(nsPresContext    *aPresContext,
   nsStyleContext* oldContext = aFrame->GetStyleContext();
   nsStyleSet* styleSet = aPresContext->StyleSet();
 #ifdef ACCESSIBILITY
-  PRBool isVisible = aFrame->GetStyleVisibility()->IsVisible();
+  PRBool isAccessibilityActive = mPresShell->IsAccessibilityActive();
+  PRBool isVisible;
+  if (isAccessibilityActive) {
+    isVisible = aFrame->GetStyleVisibility()->IsVisible();
+  }
 #endif
 
   // XXXbz the nsIFrame constructor takes an nsStyleContext, so how
@@ -1404,7 +1408,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext    *aPresContext,
   }
 
 #ifdef ACCESSIBILITY
-  if (mPresShell->IsAccessibilityActive() &&
+  if (isAccessibilityActive &&
       aFrame->GetStyleVisibility()->IsVisible() != isVisible &&
       !aFrame->GetPrevContinuation()) { // Primary frames only
     // XXX Visibility does not affect descendents with visibility set
@@ -1414,10 +1418,9 @@ nsFrameManager::ReResolveStyleContext(nsPresContext    *aPresContext,
     nsCOMPtr<nsIAccessibilityService> accService = 
       do_GetService("@mozilla.org/accessibilityService;1");
     if (accService) {
-      PRUint32 event = isVisible ?
-        PRUint32(nsIAccessibleEvent::EVENT_ASYNCH_HIDE) :
-        PRUint32(nsIAccessibleEvent::EVENT_ASYNCH_SHOW);
-      accService->InvalidateSubtreeFor(mPresShell, aFrame->GetContent(), event);
+      accService->InvalidateSubtreeFor(mPresShell, aFrame->GetContent(),
+                                       isVisible ? nsIAccessibleEvent::EVENT_ASYNCH_HIDE :
+                                                   nsIAccessibleEvent::EVENT_ASYNCH_SHOW);
     }
   }
 #endif

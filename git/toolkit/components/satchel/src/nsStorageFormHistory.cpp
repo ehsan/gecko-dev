@@ -22,8 +22,6 @@
  * Contributor(s):
  *   Joe Hewitt <hewitt@netscape.com> (Original Author)
  *   Brett Wilson <brettw@gmail.com>
- *   Michael Ventnor <m.ventnor@gmail.com>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -63,8 +61,6 @@
 #include "mozStorageCID.h"
 #include "nsIAutoCompleteSimpleResult.h"
 #include "nsTArray.h"
-#include "nsIPrivateBrowsingService.h"
-#include "nsNetCID.h"
 
 // The size of the database cache. This is the number of database PAGES that
 // can be cached in memory. Normally, pages are 1K unless the size has been
@@ -228,15 +224,6 @@ nsFormHistory::GetHasEntries(PRBool *aHasEntries)
 NS_IMETHODIMP
 nsFormHistory::AddEntry(const nsAString &aName, const nsAString &aValue)
 {
-  // If the user is in private browsing mode, don't add any entry.
-  PRBool inPrivateBrowsing = PR_FALSE;
-  nsCOMPtr<nsIPrivateBrowsingService> pbs =
-    do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
-  if (pbs)
-    pbs->GetPrivateBrowsingEnabled(&inPrivateBrowsing);
-  if (inPrivateBrowsing)
-    return NS_OK;
-
   if (!FormHistoryEnabled())
     return NS_OK;
 
