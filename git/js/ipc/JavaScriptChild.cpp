@@ -501,8 +501,7 @@ JavaScriptChild::AnswerCall(const ObjectId &objId, const nsTArray<JSParam> &argv
         AutoSaveContextOptions asco(cx);
         ContextOptionsRef(cx).setDontReportUncaught(true);
 
-        HandleValueArray args = HandleValueArray::subarray(vals, 2, vals.length() - 2);
-        bool success = JS::Call(cx, vals[1], vals[0], args, &rval);
+        bool success = JS::Call(cx, vals[1], vals[0], vals.length() - 2, vals.begin() + 2, &rval);
         if (!success)
             return fail(cx, rs);
     }

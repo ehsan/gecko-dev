@@ -13,7 +13,3 @@ LIBRARY_NAME = 'rdfdsds'
 
 IS_COMPONENT = True
 
-RESOURCE_FILES.samples.rdf += [
-    'DataSourceViewer.xul',
-    'DataSourceViewer.css',
-]

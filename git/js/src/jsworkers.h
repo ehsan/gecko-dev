@@ -69,7 +69,7 @@ class GlobalWorkerThreadState
   public:
     // For now, only allow a single parallel asm.js compilation to happen at a
     // time. This avoids race conditions on asmJSWorklist/asmJSFinishedList/etc.
-    mozilla::Atomic<bool> asmJSCompilationInProgress;
+    mozilla::Atomic<uint32_t> asmJSCompilationInProgress;
 
   private:
     // Script parsing/emitting worklist and finished jobs.
@@ -464,11 +464,15 @@ struct SourceCompressionTask
 
     // Atomic flag to indicate to a worker thread that it should abort
     // compression on the source.
-    mozilla::Atomic<bool, mozilla::Relaxed> abort_;
+#ifdef JS_THREADSAFE
+    mozilla::Atomic<int32_t, mozilla::Relaxed> abort_;
+#else
+    int32_t abort_;
+#endif
 
   public:
     explicit SourceCompressionTask(ExclusiveContext *cx)
-      : cx(cx), ss(nullptr), chars(nullptr), oom(false), abort_(false)
+      : cx(cx), ss(nullptr), chars(nullptr), oom(false), abort_(0)
     {
 #ifdef JS_THREADSAFE
         workerThread = nullptr;
@@ -482,7 +486,7 @@ struct SourceCompressionTask
 
     bool work();
     bool complete();
-    void abort() { abort_ = true; }
+    void abort() { abort_ = 1; }
     bool active() const { return !!ss; }
     ScriptSource *source() { return ss; }
     const jschar *uncompressedChars() { return chars; }

@@ -533,14 +533,6 @@ public:
 
   virtual void DisconnectFromOwner() MOZ_OVERRIDE;
 
-  static void SetDontWarnAboutSyncXHR(bool aVal)
-  {
-    sDontWarnAboutSyncXHR = aVal;
-  }
-  static bool DontWarnAboutSyncXHR()
-  {
-    return sDontWarnAboutSyncXHR;
-  }
 protected:
   nsresult DetectCharset();
   nsresult AppendToResponseText(const char * aBuffer, uint32_t aBufferLen);
@@ -744,25 +736,6 @@ protected:
 
   // Helper object to manage our XPCOM scriptability bits
   nsXMLHttpRequestXPCOMifier* mXPCOMifier;
-
-  static bool sDontWarnAboutSyncXHR;
-};
-
-class MOZ_STACK_CLASS AutoDontWarnAboutSyncXHR
-{
-public:
-  AutoDontWarnAboutSyncXHR() : mOldVal(nsXMLHttpRequest::DontWarnAboutSyncXHR())
-  {
-    nsXMLHttpRequest::SetDontWarnAboutSyncXHR(true);
-  }
-
-  ~AutoDontWarnAboutSyncXHR()
-  {
-    nsXMLHttpRequest::SetDontWarnAboutSyncXHR(mOldVal);
-  }
-
-private:
-  bool mOldVal;
 };
 
 // A shim class designed to expose the non-DOM interfaces of

@@ -329,14 +329,9 @@ function testtag_tree_TreeSelection_UI(tree, testid, multiple)
   selection.currentIndex = 0;
   tree.focus();
 
-  var keydownFired = 0;
-  var keypressFired = 0;
-  function keydownListener(event)
-  {
-    keydownFired++;
-  }
-  function keypressListener(event) {
-    keypressFired++;
+  var keyPressDefaultPrevented = 0;
+  function keyPressListener(event) {
+    keyPressDefaultPrevented++;
   }
 
   // check that cursor up and down keys navigate up and down
@@ -344,8 +339,7 @@ function testtag_tree_TreeSelection_UI(tree, testid, multiple)
   // is so that cursor navigation allows quicking skimming over a set of items without
   // actually firing events in-between, improving performance. The select event will only
   // be fired on the row where the cursor stops.
-  window.addEventListener("keydown", keydownListener, false);
-  window.addEventListener("keypress", keypressListener, false);
+  window.addEventListener("keypress", keyPressListener, false);
 
   synthesizeKeyExpectEvent("VK_DOWN", {}, tree, "!select", "key down");
   testtag_tree_TreeSelection_State(tree, testid + "key down", 1, [1], 0);
@@ -608,10 +602,8 @@ function testtag_tree_TreeSelection_UI(tree, testid, multiple)
   // restore the scroll position to the start of the page
   sendKey("HOME");
 
-  window.removeEventListener("keydown", keydownListener, false);
-  window.removeEventListener("keypress", keypressListener, false);
-  is(keydownFired, multiple ? 63 : 40, "keydown event wasn't fired properly");
-  is(keypressFired, multiple ? 2 : 1, "keypress event wasn't fired properly");
+  window.removeEventListener("keypress", keyPressListener, false);
+  is(keyPressDefaultPrevented, multiple ? 63 : 40, "key press default prevented");
 }
 
 function testtag_tree_UI_editing(tree, testid, rowInfo)
@@ -643,7 +635,7 @@ function testtag_tree_UI_editing(tree, testid, rowInfo)
     tree.currentIndex = rowIndex;
 
     const isMac = (navigator.platform.indexOf("Mac") >= 0);
-    const StartEditingKey = isMac ? "RETURN" : "F2";
+    const StartEditingKey = isMac ? "ENTER" : "F2";
     sendKey(StartEditingKey);
     is(tree.editingColumn, ecolumn, "Should be editing tree cell now");
     sendKey("ESCAPE");

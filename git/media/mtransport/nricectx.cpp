@@ -189,14 +189,14 @@ static nr_ice_crypto_vtbl nr_ice_crypto_nss_vtbl = {
 
 
 nsresult NrIceStunServer::ToNicerStunStruct(nr_ice_stun_server *server,
-                                            const std::string &transport) const {
+                                            const char *transport) const {
   int r;
   int transport_int;
 
   memset(server, 0, sizeof(nr_ice_stun_server));
-  if (transport == kNrIceTransportUdp) {
+  if (strcmp(transport, kNrIceTransportUdp) == 0) {
     transport_int = IPPROTO_UDP;
-  } else if (transport == kNrIceTransportTcp) {
+  } else if (strcmp(transport, kNrIceTransportTcp) == 0) {
     transport_int = IPPROTO_TCP;
   } else {
     MOZ_ASSERT(false);

@@ -92,19 +92,8 @@ LossyAppendUTF16toASCII( const nsAString& aSource, nsACString& aDest )
 void
 AppendASCIItoUTF16( const nsACString& aSource, nsAString& aDest )
   {
-    if (!AppendASCIItoUTF16(aSource, aDest, mozilla::fallible_t())) {
-      NS_ABORT_OOM(aDest.Length() + aSource.Length());
-    }
-  }
-
-bool
-AppendASCIItoUTF16( const nsACString& aSource, nsAString& aDest,
-                    const mozilla::fallible_t& )
-  {
     uint32_t old_dest_length = aDest.Length();
-    if (!aDest.SetLength(old_dest_length + aSource.Length(), mozilla::fallible_t())) {
-      return false;
-    }
+    aDest.SetLength(old_dest_length + aSource.Length());
 
     nsACString::const_iterator fromBegin, fromEnd;
 
@@ -117,7 +106,6 @@ AppendASCIItoUTF16( const nsACString& aSource, nsAString& aDest,
     LossyConvertEncoding8to16 converter(dest.get());
 
     copy_string(aSource.BeginReading(fromBegin), aSource.EndReading(fromEnd), converter);
-    return true;
   }
 
 void

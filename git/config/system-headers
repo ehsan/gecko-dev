@@ -221,6 +221,7 @@ cairo-atsui.h
 cairo-beos.h
 cairo-ft.h
 cairo-glitz.h
+cairo-os2.h
 cairo-pdf.h
 cairo-ps.h
 cairo-tee.h
@@ -689,6 +690,7 @@ oleidl.h
 OpenGL/OpenGL.h
 OpenTptInternet.h
 OpenTransport.h
+os2.h
 OS.h
 osreldate.h
 ostream

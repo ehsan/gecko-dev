@@ -685,13 +685,14 @@ ProxyAutoConfig::GetProxyForURI(const nsCString &aTestURI,
   JS::RootedString hostString(cx, JS_NewStringCopyZ(cx, aTestHost.get()));
 
   if (uriString && hostString) {
-    JS::AutoValueArray<2> args(cx);
-    args[0].setString(uriString);
-    args[1].setString(hostString);
+    JS::AutoValueVector argv(cx);
+    MOZ_ALWAYS_TRUE(argv.resize(2));
+    argv[0].setString(uriString);
+    argv[1].setString(hostString);
 
     JS::Rooted<JS::Value> rval(cx);
     bool ok = JS_CallFunctionName(cx, mJSRuntime->Global(),
-                                  "FindProxyForURL", args, rval.address());
+                                  "FindProxyForURL", 2, argv.begin(), rval.address());
 
     if (ok && rval.isString()) {
       nsDependentJSString pacString;

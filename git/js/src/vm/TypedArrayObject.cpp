@@ -1919,7 +1919,8 @@ class TypedArrayObjectTemplate : public TypedArrayObject
         if (!getter)
             return false;
 
-        return DefineNativeProperty(cx, proto, id, UndefinedHandleValue,
+        RootedValue value(cx, UndefinedValue());
+        return DefineNativeProperty(cx, proto, id, value,
                                     JS_DATA_TO_FUNC_PTR(PropertyOp, getter), nullptr,
                                     flags, 0, 0);
     }
@@ -3784,7 +3785,8 @@ InitArrayBufferClass(JSContext *cx)
     if (!getter)
         return nullptr;
 
-    if (!DefineNativeProperty(cx, arrayBufferProto, byteLengthId, UndefinedHandleValue,
+    RootedValue value(cx, UndefinedValue());
+    if (!DefineNativeProperty(cx, arrayBufferProto, byteLengthId, value,
                               JS_DATA_TO_FUNC_PTR(PropertyOp, getter), nullptr, flags, 0, 0))
         return nullptr;
 
@@ -3884,7 +3886,8 @@ DataViewObject::defineGetter(JSContext *cx, PropertyName *name, HandleObject pro
     if (!getter)
         return false;
 
-    return DefineNativeProperty(cx, proto, id, UndefinedHandleValue,
+    RootedValue value(cx, UndefinedValue());
+    return DefineNativeProperty(cx, proto, id, value,
                                 JS_DATA_TO_FUNC_PTR(PropertyOp, getter), nullptr,
                                 flags, 0, 0);
 }

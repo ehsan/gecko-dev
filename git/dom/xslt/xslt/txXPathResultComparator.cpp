@@ -12,6 +12,7 @@
 #include "nsILocale.h"
 #include "nsILocaleService.h"
 #include "nsIServiceManager.h"
+#include "nsLocaleCID.h"
 #include "prmem.h"
 
 #define kAscending (1<<0)

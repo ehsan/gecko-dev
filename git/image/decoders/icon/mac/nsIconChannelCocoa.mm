@@ -275,7 +275,8 @@ nsresult nsIconChannel::MakeInputStream(nsIInputStream** _retval, bool nonBlocki
   // create our buffer
   int32_t bufferCapacity = 2 + [bitmapRep bytesPerPlane];
   nsAutoTArray<uint8_t, 3 + 16 * 16 * 5> iconBuffer; // initial size is for 16x16
-  iconBuffer.SetLength(bufferCapacity);
+  if (!iconBuffer.SetLength(bufferCapacity))
+    return NS_ERROR_OUT_OF_MEMORY;
 
   uint8_t* iconBufferPtr = iconBuffer.Elements();
 

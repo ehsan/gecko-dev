@@ -201,18 +201,10 @@ private:
 class MOZ_STACK_CLASS AutoResolveRefLayers {
 public:
   AutoResolveRefLayers(AsyncCompositionManager* aManager) : mManager(aManager)
-  {
-    if (mManager) {
-      mManager->ResolveRefLayers();
-    }
-  }
+  { mManager->ResolveRefLayers(); }
 
   ~AutoResolveRefLayers()
-  {
-    if (mManager) {
-      mManager->DetachRefLayers();
-    }
-  }
+  { mManager->DetachRefLayers(); }
 
 private:
   AsyncCompositionManager* mManager;

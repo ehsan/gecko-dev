@@ -113,7 +113,7 @@ NS_COM_GLUE void NS_MakeRandomString(char *buf, int32_t bufLen);
 #if defined(XP_MACOSX)
   #define FILE_PATH_SEPARATOR        "/"
   #define OS_FILE_ILLEGAL_CHARACTERS ":"
-#elif defined(XP_WIN)
+#elif defined(XP_WIN) || defined(XP_OS2)
   #define FILE_PATH_SEPARATOR        "\\"
   #define OS_FILE_ILLEGAL_CHARACTERS "/:*?\"<>|"
 #elif defined(XP_UNIX)

@@ -172,12 +172,6 @@ GrallocTextureSourceOGL::GetFormat() const {
 void
 GrallocTextureSourceOGL::SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData)
 {
-  if (!aBackendData) {
-    mCompositableBackendData = nullptr;
-    DeallocateDeviceData();
-    return;
-  }
-
   if (mCompositableBackendData != aBackendData) {
     mNeedsReset = true;
   }

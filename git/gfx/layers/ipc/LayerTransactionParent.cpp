@@ -40,7 +40,6 @@
 #include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 #include "GeckoProfiler.h"
 #include "mozilla/layers/TextureHost.h"
-#include "mozilla/layers/AsyncCompositionManager.h"
 
 typedef std::vector<mozilla::layers::EditReply> EditReplyVector;
 
@@ -206,10 +205,7 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
 
   EditReplyVector replyv;
 
-  {
-    AutoResolveRefLayers resolve(mShadowLayersManager->GetCompositionManager());
-    layer_manager()->BeginTransaction();
-  }
+  layer_manager()->BeginTransactionWithDrawTarget(nullptr);
 
   for (EditArray::index_type i = 0; i < cset.Length(); ++i) {
     const Edit& edit = cset[i];
@@ -443,10 +439,7 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
     }
   }
 
-  {
-    AutoResolveRefLayers resolve(mShadowLayersManager->GetCompositionManager());
-    layer_manager()->EndTransaction(nullptr, nullptr, LayerManager::END_NO_IMMEDIATE_REDRAW);
-  }
+  layer_manager()->EndTransaction(nullptr, nullptr, LayerManager::END_NO_IMMEDIATE_REDRAW);
 
   if (reply) {
     reply->SetCapacity(replyv.size());

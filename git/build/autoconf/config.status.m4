@@ -55,7 +55,7 @@ ifelse($#, 2, _MOZ_AC_DEFINE_UNQUOTED($1, $2), $#, 3, _MOZ_AC_DEFINE_UNQUOTED($1
 ])
 
 dnl Replace AC_OUTPUT to create and call a python config.status
-define([MOZ_CREATE_CONFIG_STATUS],
+define([_MOZ_AC_OUTPUT],
 [dnl Top source directory in Windows format (as opposed to msys format).
 WIN_TOP_SRC=
 encoding=utf-8
@@ -99,8 +99,7 @@ dnl form suitable for make.
 topsrcdir = '''${WIN_TOP_SRC:-$srcdir}'''
 if not os.path.isabs(topsrcdir):
     rel = os.path.join(os.path.dirname(<<<__file__>>>), topsrcdir)
-    topsrcdir = os.path.abspath(rel)
-topsrcdir = os.path.normpath(topsrcdir)
+    topsrcdir = os.path.normpath(os.path.abspath(rel))
 
 topobjdir = os.path.abspath(os.path.dirname(<<<__file__>>>))
 
@@ -150,26 +149,14 @@ cat >> $CONFIG_STATUS <<EOF
 ]
 
 __all__ = ['topobjdir', 'topsrcdir', 'defines', 'non_global_defines', 'substs']
-EOF
 
-# We don't want js/src/config.status to do anything in gecko builds.
-if test -z "$BUILDING_JS" -o -n "$JS_STANDALONE"; then
-
-    cat >> $CONFIG_STATUS <<EOF
 dnl Do the actual work
 if __name__ == '__main__':
     args = dict([(name, globals()[name]) for name in __all__])
     from mozbuild.config_status import config_status
     config_status(**args)
 EOF
-
-fi
-
 changequote([, ])
-])
-
-define([MOZ_RUN_CONFIG_STATUS],
-[
 chmod +x $CONFIG_STATUS
 rm -fr confdefs* $ac_clean_files
 dnl Execute config.status, unless --no-create was passed to configure.
@@ -185,8 +172,7 @@ errprint([$1
 m4exit(1)
 ])
 
-define([AC_OUTPUT], [ifelse($#_$1, 1_, [MOZ_CREATE_CONFIG_STATUS()
-MOZ_RUN_CONFIG_STATUS()],
+define([AC_OUTPUT], [ifelse($#_$1, 1_, [_MOZ_AC_OUTPUT()],
 [m4_fatal([Use CONFIGURE_SUBST_FILES in moz.build files to create substituted files.])]
 )])
 

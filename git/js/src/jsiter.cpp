@@ -80,11 +80,10 @@ typedef HashSet<jsid, IdHashPolicy> IdSet;
 static inline bool
 NewKeyValuePair(JSContext *cx, jsid id, const Value &val, MutableHandleValue rval)
 {
-    JS::AutoValueArray<2> vec(cx);
-    vec[0].set(IdToValue(id));
-    vec[1].set(val);
+    Value vec[2] = { IdToValue(id), val };
+    AutoArrayRooter tvr(cx, ArrayLength(vec), vec);
 
-    JSObject *aobj = NewDenseCopiedArray(cx, 2, vec.begin());
+    JSObject *aobj = NewDenseCopiedArray(cx, 2, vec);
     if (!aobj)
         return false;
     rval.setObject(*aobj);

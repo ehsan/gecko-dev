@@ -98,9 +98,6 @@ WalkTheTree(Layer* aLayer,
 void
 AsyncCompositionManager::ResolveRefLayers()
 {
-  if (!mLayerManager->GetRoot()) {
-    return;
-  }
   WalkTheTree<Resolve>(mLayerManager->GetRoot(),
                        mReadyForCompose,
                        mTargetConfig);
@@ -109,9 +106,6 @@ AsyncCompositionManager::ResolveRefLayers()
 void
 AsyncCompositionManager::DetachRefLayers()
 {
-  if (!mLayerManager->GetRoot()) {
-    return;
-  }
   WalkTheTree<Detach>(mLayerManager->GetRoot(),
                       mReadyForCompose,
                       mTargetConfig);

@@ -318,7 +318,7 @@ CompositorParent::RecvMakeSnapshot(const SurfaceDescriptor& aInSnapshot,
   // do better if AutoOpenSurface uses Moz2D directly.
   RefPtr<DrawTarget> target =
     gfxPlatform::GetPlatform()->CreateDrawTargetForSurface(opener.Get(), size);
-  ForceComposeToTarget(target);
+  ComposeToTarget(target);
   *aOutSnapshot = aInSnapshot;
   return true;
 }
@@ -330,7 +330,7 @@ CompositorParent::RecvFlushRendering()
   // and do it immediately instead.
   if (mCurrentCompositeTask) {
     mCurrentCompositeTask->Cancel();
-    ForceComposeToTarget(nullptr);
+    ComposeToTarget(nullptr);
   }
   return true;
 }
@@ -515,7 +515,7 @@ CompositorParent::NotifyShadowTreeTransaction(uint64_t aId, bool aIsFirstPaint, 
     AutoResolveRefLayers resolve(mCompositionManager);
     mApzcTreeManager->UpdatePanZoomControllerTree(this, mLayerManager->GetRoot(), aIsFirstPaint, aId);
 
-    mLayerManager->NotifyShadowTreeTransaction();
+    mCompositor->NotifyLayersTransaction();
   }
   if (aScheduleComposite) {
     ScheduleComposition();
@@ -581,11 +581,14 @@ CompositorParent::ScheduleComposition()
 void
 CompositorParent::Composite()
 {
-  CompositeToTarget(nullptr);
+  if (CanComposite()) {
+    mLayerManager->BeginTransaction();
+  }
+  CompositeInTransaction();
 }
 
 void
-CompositorParent::CompositeToTarget(DrawTarget* aTarget)
+CompositorParent::CompositeInTransaction()
 {
   profiler_tracing("Paint", "Composite", TRACING_INTERVAL_START);
   PROFILER_LABEL("CompositorParent", "Composite");
@@ -600,13 +603,6 @@ CompositorParent::CompositeToTarget(DrawTarget* aTarget)
   }
 
   AutoResolveRefLayers resolve(mCompositionManager);
-
-  if (aTarget) {
-    mLayerManager->BeginTransactionWithDrawTarget(aTarget);
-  } else {
-    mLayerManager->BeginTransaction();
-  }
-
   if (mForceCompositionTask && !mOverrideComposeReadiness) {
     if (mCompositionManager->ReadyForCompose()) {
       mForceCompositionTask->Cancel();
@@ -657,13 +653,19 @@ CompositorParent::CompositeToTarget(DrawTarget* aTarget)
 }
 
 void
-CompositorParent::ForceComposeToTarget(DrawTarget* aTarget)
+CompositorParent::ComposeToTarget(DrawTarget* aTarget)
 {
-  PROFILER_LABEL("CompositorParent", "ForceComposeToTarget");
+  PROFILER_LABEL("CompositorParent", "ComposeToTarget");
   AutoRestore<bool> override(mOverrideComposeReadiness);
   mOverrideComposeReadiness = true;
 
-  CompositeToTarget(aTarget);
+  if (!CanComposite()) {
+    return;
+  }
+  mLayerManager->BeginTransactionWithDrawTarget(aTarget);
+  // Since CanComposite() is true, Composite() must end the layers txn
+  // we opened above.
+  CompositeInTransaction();
 }
 
 bool
@@ -731,7 +733,7 @@ CompositorParent::ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
   if (aScheduleComposite) {
     ScheduleComposition();
   }
-  mLayerManager->NotifyShadowTreeTransaction();
+  mCompositor->NotifyLayersTransaction();
 }
 
 void

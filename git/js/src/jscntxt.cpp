@@ -1001,14 +1001,14 @@ js_InvokeOperationCallback(JSContext *cx)
     JS_ASSERT_REQUEST_DEPTH(cx);
 
     JSRuntime *rt = cx->runtime();
-    JS_ASSERT(rt->interrupt);
+    JS_ASSERT(rt->interrupt != 0);
 
     /*
      * Reset the callback counter first, then run GC and yield. If another
      * thread is racing us here we will accumulate another callback request
      * which will be serviced at the next opportunity.
      */
-    rt->interrupt = false;
+    rt->interrupt = 0;
 
     /*
      * IonMonkey sets its stack limit to UINTPTR_MAX to trigger operation

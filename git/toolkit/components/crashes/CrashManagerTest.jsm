@@ -87,12 +87,10 @@ this.TestingCrashManager.prototype = {
     });
   },
 
-  createEventsFile: function (filename, type, date, content, index=0) {
+  createEventsFile: function (filename, name, content, index=0, date=new Date()) {
     let path = OS.Path.join(this._eventsDirs[index], filename);
 
-    let data = type + "\n" +
-               Math.floor(date.getTime() / 1000) + "\n" +
-               content;
+    let data = name + "\n" + content;
     let encoder = new TextEncoder();
     let array = encoder.encode(data);
 
@@ -107,22 +105,21 @@ this.TestingCrashManager.prototype = {
    *
    * We can probably delete this once we have actual events defined.
    */
-  _handleEventFilePayload: function (store, entry, type, date, payload) {
+  _handleEventFilePayload: function (entry, type, payload) {
     if (type == "test.1") {
       if (payload == "malformed") {
         return this.EVENT_FILE_ERROR_MALFORMED;
       } else if (payload == "success") {
         return this.EVENT_FILE_SUCCESS;
       } else {
-        return this.EVENT_FILE_ERROR_UNKNOWN_EVENT;
+        // Payload is crash ID. Create a duommy record.
+        this._store._data.crashes.set(payload, {id: payload, crashDate: entry.date});
+
+        return this.EVENT_FILE_SUCCESS;
       }
     }
 
-    return CrashManager.prototype._handleEventFilePayload.call(this,
-                                                               store,
-                                                               entry,
-                                                               type,
-                                                               date,
+    return CrashManager.prototype._handleEventFilePayload.call(this, type,
                                                                payload);
   },
 };

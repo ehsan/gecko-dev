@@ -1257,10 +1257,10 @@ GetOuterObject(JSContext *cx, js::HandleObject obj)
 
 class JSValueArray {
   public:
-    const jsval *array;
+    jsval *array;
     size_t length;
 
-    JSValueArray(const jsval *v, size_t c) : array(v), length(c) {}
+    JSValueArray(jsval *v, size_t c) : array(v), length(c) {}
 };
 
 class ValueArray {

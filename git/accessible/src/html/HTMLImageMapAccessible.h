@@ -38,11 +38,6 @@ public:
    */
   void UpdateChildAreas(bool aDoFireEvents = true);
 
-  /**
-   * Return accessible of child node.
-   */
-  Accessible* GetChildAccessibleFor(const nsINode* aNode) const;
-
 protected:
 
   // Accessible

@@ -184,9 +184,6 @@ ClientLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
 
   GetRoot()->ComputeEffectiveTransforms(Matrix4x4());
 
-  if (!GetRoot()->GetInvalidRegion().IsEmpty()) {
-    GetRoot()->Mutated();
-  }
   root->RenderLayer();
   
   mThebesLayerCallback = nullptr;

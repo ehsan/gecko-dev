@@ -369,15 +369,14 @@ ArrayPopDense(JSContext *cx, HandleObject obj, MutableHandleValue rval)
 
     AutoDetectInvalidation adi(cx, rval.address());
 
-    JS::AutoValueArray<2> argv(cx);
-    argv[0].setUndefined();
-    argv[1].setObject(*obj);
-    if (!js::array_pop(cx, 0, argv.begin()))
+    Value argv[] = { UndefinedValue(), ObjectValue(*obj) };
+    AutoValueArray ava(cx, argv, 2);
+    if (!js::array_pop(cx, 0, ava.start()))
         return false;
 
     // If the result is |undefined|, the array was probably empty and we
     // have to monitor the return value.
-    rval.set(argv[0]);
+    rval.set(ava[0]);
     if (rval.isUndefined())
         types::TypeScript::Monitor(cx, rval);
     return true;
@@ -388,14 +387,12 @@ ArrayPushDense(JSContext *cx, HandleObject obj, HandleValue v, uint32_t *length)
 {
     JS_ASSERT(obj->is<ArrayObject>());
 
-    JS::AutoValueArray<3> argv(cx);
-    argv[0].setUndefined();
-    argv[1].setObject(*obj);
-    argv[2].set(v);
-    if (!js::array_push(cx, 1, argv.begin()))
+    Value argv[] = { UndefinedValue(), ObjectValue(*obj), v };
+    AutoValueArray ava(cx, argv, 3);
+    if (!js::array_push(cx, 1, ava.start()))
         return false;
 
-    *length = argv[0].toInt32();
+    *length = ava[0].toInt32();
     return true;
 }
 
@@ -406,15 +403,14 @@ ArrayShiftDense(JSContext *cx, HandleObject obj, MutableHandleValue rval)
 
     AutoDetectInvalidation adi(cx, rval.address());
 
-    JS::AutoValueArray<2> argv(cx);
-    argv[0].setUndefined();
-    argv[1].setObject(*obj);
-    if (!js::array_shift(cx, 0, argv.begin()))
+    Value argv[] = { UndefinedValue(), ObjectValue(*obj) };
+    AutoValueArray ava(cx, argv, 2);
+    if (!js::array_shift(cx, 0, ava.start()))
         return false;
 
     // If the result is |undefined|, the array was probably empty and we
     // have to monitor the return value.
-    rval.set(argv[0]);
+    rval.set(ava[0]);
     if (rval.isUndefined())
         types::TypeScript::Monitor(cx, rval);
     return true;
@@ -434,13 +430,11 @@ ArrayConcatDense(JSContext *cx, HandleObject obj1, HandleObject obj2, HandleObje
         return arrRes;
     }
 
-    JS::AutoValueArray<3> argv(cx);
-    argv[0].setUndefined();
-    argv[1].setObject(*arr1);
-    argv[2].setObject(*arr2);
-    if (!js::array_concat(cx, 1, argv.begin()))
+    Value argv[] = { UndefinedValue(), ObjectValue(*arr1), ObjectValue(*arr2) };
+    AutoValueArray ava(cx, argv, 3);
+    if (!js::array_concat(cx, 1, ava.start()))
         return nullptr;
-    return &argv[0].toObject();
+    return &ava[0].toObject();
 }
 
 bool

@@ -130,7 +130,6 @@ static const char *sExtensionNames[] = {
     "GL_ARB_framebuffer_sRGB",
     "GL_EXT_framebuffer_sRGB",
     "GL_KHR_debug",
-    "GL_ARB_half_float_pixel",
     nullptr
 };
 

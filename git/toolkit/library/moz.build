@@ -14,11 +14,6 @@ if CONFIG['OS_ARCH'] == 'WINNT':
     SOURCES += [
         'nsDllMain.cpp',
     ]
-    if not CONFIG['GNU_CC']:
-        LOCAL_INCLUDES += [
-	    '/widget/windows',
-	    '/xpcom/base',
-	]
 
 # component libraries
 additional_defines = (
@@ -39,13 +34,13 @@ for var in additional_defines:
 if CONFIG['MOZ_DEBUG'] and CONFIG['ENABLE_TESTS']:
     DEFINES['ENABLE_LAYOUTDEBUG'] = True
 
-if CONFIG['MOZ_WIDGET_TOOLKIT'] not in ('android', 'gonk', 'qt',
+if CONFIG['MOZ_WIDGET_TOOLKIT'] not in ('android', 'gonk', 'qt', 'os2',
                                         'cocoa', 'windows') and \
    CONFIG['MOZ_XUL']:
     DEFINES['MOZ_FILEVIEW'] = True
 
 # Platform-specific icon channel stuff - supported mostly-everywhere
-if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('windows', 'mac', 'cocoa',
+if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('windows', 'os2', 'mac', 'cocoa',
                                     'gtk2', 'gtk3', 'qt', 'android'):
     DEFINES['ICON_DECODER'] = True
 

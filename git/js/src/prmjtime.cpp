@@ -21,6 +21,9 @@
 
 #define PRMJ_DO_MILLISECONDS 1
 
+#ifdef XP_OS2
+#include <sys/timeb.h>
+#endif
 #ifdef XP_WIN
 #include <windef.h>
 #include <winbase.h>
@@ -178,7 +181,16 @@ static PRCallOnceType calibrationOnce = { 0 };
 #endif /* XP_WIN */
 
 
-#if defined(XP_UNIX)
+#if defined(XP_OS2)
+int64_t
+PRMJ_Now(void)
+{
+    struct timeb b;
+    ftime(&b);
+    return (int64_t(b.time) * PRMJ_USEC_PER_SEC) + (int64_t(b.millitm) * PRMJ_USEC_PER_MSEC);
+}
+
+#elif defined(XP_UNIX)
 int64_t
 PRMJ_Now(void)
 {
@@ -403,7 +415,7 @@ size_t
 PRMJ_FormatTime(char *buf, int buflen, const char *fmt, PRMJTime *prtm)
 {
     size_t result = 0;
-#if defined(XP_UNIX) || defined(XP_WIN)
+#if defined(XP_UNIX) || defined(XP_WIN) || defined(XP_OS2)
     struct tm a;
     int fake_tm_year = 0;
 #ifdef NS_HAVE_INVALID_PARAMETER_HANDLER
