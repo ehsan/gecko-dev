@@ -575,16 +575,6 @@ protected:
   static void StyleColorToString(const nscolor& aColor, nsAString& aStr);
 
   /**
-    * Creates the unpremultiply lookup table, if it doesn't exist.
-    */
-  void EnsureUnpremultiplyTable();
-
-  /**
-    * Creates the premultiply lookup table, if it doesn't exist.
-    */
-  void EnsurePremultiplyTable();
-
-  /**
    * Creates the error target, if it doesn't exist
    */
   static void EnsureErrorTarget();
@@ -754,9 +744,7 @@ protected:
       return mCanvasElement->OwnerDoc()->GetShell();
     }
     if (mDocShell) {
-      nsCOMPtr<nsIPresShell> shell;
-      mDocShell->GetPresShell(getter_AddRefs(shell));
-      return shell.get();
+      return mDocShell->GetPresShell();
     }
     return nullptr;
   }

@@ -550,7 +550,7 @@ public:
     template<class ElementType>
     void TexImage2D(WebGLenum target, WebGLint level,
                     WebGLenum internalformat, WebGLenum format, WebGLenum type,
-                    ElementType* elt, ErrorResult& rv) {
+                    const ElementType& elt, ErrorResult& rv) {
         if (!IsContextStable())
             return;
         nsRefPtr<gfxImageSurface> isurf;
@@ -587,7 +587,7 @@ public:
     template<class ElementType>
     void TexSubImage2D(WebGLenum target, WebGLint level,
                        WebGLint xoffset, WebGLint yoffset, WebGLenum format,
-                       WebGLenum type, ElementType* elt, ErrorResult& rv) {
+                       WebGLenum type, const ElementType& elt, ErrorResult& rv) {
         if (!IsContextStable())
             return;
         nsRefPtr<gfxImageSurface> isurf;
@@ -843,6 +843,7 @@ protected:
     bool mHasRobustness;
     bool mIsMesa;
     bool mLoseContextOnHeapMinimize;
+    bool mCanLoseContextInForeground;
 
     template<typename WebGLObjectType>
     void DeleteWebGLObjectsArray(nsTArray<WebGLObjectType>& array);
@@ -978,7 +979,6 @@ protected:
     nsLayoutUtils::SurfaceFromElementResult SurfaceFromElement(ElementType* aElement) {
         MOZ_ASSERT(aElement);
         uint32_t flags =
-            nsLayoutUtils::SFE_WANT_NEW_SURFACE |
             nsLayoutUtils::SFE_WANT_IMAGE_SURFACE;
 
         if (mPixelStoreColorspaceConversion == LOCAL_GL_NONE)
@@ -986,6 +986,10 @@ protected:
         if (!mPixelStorePremultiplyAlpha)
             flags |= nsLayoutUtils::SFE_NO_PREMULTIPLY_ALPHA;
         return nsLayoutUtils::SurfaceFromElement(aElement, flags);
+    }
+    template<class ElementType>
+    nsLayoutUtils::SurfaceFromElementResult SurfaceFromElement(const dom::NonNull<ElementType>& aElement) {
+      return SurfaceFromElement(aElement.get());
     }
 
     nsresult SurfaceFromElementResultToImageSurface(nsLayoutUtils::SurfaceFromElementResult& res,

@@ -10,7 +10,6 @@
  * liability, trademark and document use rules apply.
  */
 
-interface Document;
 interface Blob;
 interface InputStream;
 interface MozChannel;
@@ -90,6 +89,8 @@ interface XMLHttpRequest : XMLHttpRequestEventTarget {
   void send();
   [Throws]
   void send(ArrayBuffer data);
+  [Throws]
+  void send(ArrayBufferView data);
   [Throws]
   void send(Blob data);
   [Throws]

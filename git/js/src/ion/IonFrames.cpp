@@ -887,6 +887,21 @@ InlineFrameIterator::InlineFrameIterator(const IonFrameIterator *iter)
     }
 }
 
+InlineFrameIterator::InlineFrameIterator(const InlineFrameIterator *iter)
+  : frame_(iter->frame_),
+    framesRead_(0),
+    callee_(NULL),
+    script_(NULL)
+{
+    if (frame_) {
+        start_ = SnapshotIterator(*frame_);
+        // findNextFrame will iterate to the next frame and init. everything.
+        // Therefore to settle on the same frame, we report one frame less readed.
+        framesRead_ = iter->framesRead_ - 1;
+        findNextFrame();
+    }
+}
+
 void
 InlineFrameIterator::findNextFrame()
 {
@@ -933,12 +948,11 @@ InlineFrameIterator::findNextFrame()
     framesRead_++;
 }
 
-InlineFrameIterator
+InlineFrameIterator &
 InlineFrameIterator::operator++()
 {
-    InlineFrameIterator iter(*this);
     findNextFrame();
-    return iter;
+    return *this;
 }
 
 bool

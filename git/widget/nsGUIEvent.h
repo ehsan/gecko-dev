@@ -468,7 +468,12 @@ enum nsWindowZ {
 
 namespace mozilla {
 namespace widget {
-struct EventFlags
+
+// BaseEventFlags must be a POD struct for safe to use memcpy (including
+// in ParamTraits<BaseEventFlags>).  So don't make virtual methods, constructor,
+// destructor and operators.
+// This is necessary for VC which is NOT C++0x compiler.
+struct BaseEventFlags
 {
 public:
   // If mIsTrusted is true, the event is a trusted event.  Otherwise, it's
@@ -538,43 +543,49 @@ public:
   bool    mOnlyChromeDispatch : 1;
 
   // If the event is being handled in target phase, returns true.
-  bool InTargetPhase() const
+  inline bool InTargetPhase() const
   {
     return (mInBubblingPhase && mInCapturePhase);
   }
 
-  EventFlags()
-  {
-    Clear();
-  }
   inline void Clear()
   {
     SetRawFlags(0);
   }
-  inline EventFlags operator|(const EventFlags& aOther) const
+  // Get if either the instance's bit or the aOther's bit is true, the
+  // instance's bit becomes true.  In other words, this works like:
+  // eventFlags |= aOther;
+  inline void Union(const BaseEventFlags& aOther)
   {
-    EventFlags flags;
-    flags.SetRawFlags(GetRawFlags() | aOther.GetRawFlags());
-    return flags;
-  }
-  inline EventFlags& operator|=(const EventFlags& aOther)
-  {
-    SetRawFlags(GetRawFlags() | aOther.GetRawFlags());
-    return *this;
+    RawFlags rawFlags = GetRawFlags() | aOther.GetRawFlags();
+    SetRawFlags(rawFlags);
   }
 
 private:
-  inline void SetRawFlags(uint32_t aRawFlags)
+  typedef uint32_t RawFlags;
+
+  inline void SetRawFlags(RawFlags aRawFlags)
   {
-    memcpy(this, &aRawFlags, sizeof(EventFlags));
+    MOZ_STATIC_ASSERT(sizeof(BaseEventFlags) <= sizeof(RawFlags),
+      "mozilla::widget::EventFlags must not be bigger than the RawFlags");
+    memcpy(this, &aRawFlags, sizeof(BaseEventFlags));
   }
-  inline uint32_t GetRawFlags() const
+  inline RawFlags GetRawFlags() const
   {
-    uint32_t result = 0;
-    memcpy(&result, this, sizeof(EventFlags));
+    RawFlags result = 0;
+    memcpy(&result, this, sizeof(BaseEventFlags));
     return result;
   }
 };
+
+struct EventFlags : public BaseEventFlags
+{
+  EventFlags()
+  {
+    Clear();
+  }
+};
+
 } // namespace widget
 } // namespace mozilla
 
@@ -594,6 +605,7 @@ protected:
       userType(0)
   {
     MOZ_COUNT_CTOR(nsEvent);
+    mFlags.Clear();
     mFlags.mIsTrusted = isTrusted;
     mFlags.mCancelable = true;
     mFlags.mBubbles = true;
@@ -614,6 +626,7 @@ public:
       userType(0)
   {
     MOZ_COUNT_CTOR(nsEvent);
+    mFlags.Clear();
     mFlags.mIsTrusted = isTrusted;
     mFlags.mCancelable = true;
     mFlags.mBubbles = true;
@@ -642,8 +655,8 @@ public:
   // Elapsed time, in milliseconds, from a platform-specific zero time
   // to the time the message was created
   uint64_t    time;
-  // See EventFlags definition for the detail.
-  mozilla::widget::EventFlags mFlags;
+  // See BaseEventFlags definition for the detail.
+  mozilla::widget::BaseEventFlags mFlags;
 
   // Additional type info for user defined events
   nsCOMPtr<nsIAtom>     userType;

@@ -169,6 +169,7 @@
 #include "DecoderTraits.h"
 
 #include "nsWrapperCacheInlines.h"
+#include "nsViewportInfo.h"
 
 extern "C" int MOZ_XMLTranslateEntity(const char* ptr, const char* end,
                                       const char** next, PRUnichar* result);
@@ -241,22 +242,30 @@ bool nsContentUtils::sFragmentParsingActive = false;
 
 namespace {
 
-/**
- * Default values for the ViewportInfo structure.
- */
-static const double   kViewportMinScale = 0.0;
-static const double   kViewportMaxScale = 10.0;
-static const uint32_t kViewportMinWidth = 200;
-static const uint32_t kViewportMaxWidth = 10000;
-static const uint32_t kViewportMinHeight = 223;
-static const uint32_t kViewportMaxHeight = 10000;
-static const int32_t  kViewportDefaultScreenWidth = 980;
-
 static const char kJSStackContractID[] = "@mozilla.org/js/xpc/ContextStack;1";
 static NS_DEFINE_CID(kParserServiceCID, NS_PARSERSERVICE_CID);
 static NS_DEFINE_CID(kCParserCID, NS_PARSER_CID);
 
 static PLDHashTable sEventListenerManagersHash;
+static nsCOMPtr<nsIMemoryReporter> sEventListenerManagersHashReporter;
+
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(EventListenerManagersHashMallocSizeOf)
+
+static int64_t GetEventListenerManagersHash()
+{
+  // We don't measure the |nsEventListenerManager| objects pointed to by the
+  // entries because those references are non-owning.
+  return PL_DHashTableSizeOfExcludingThis(&sEventListenerManagersHash,
+                                          nullptr,
+                                          EventListenerManagersHashMallocSizeOf);
+}
+
+NS_MEMORY_REPORTER_IMPLEMENT(EventListenerManagersHash,
+  "explicit/dom/event-listener-managers-hash",
+  KIND_HEAP,
+  UNITS_BYTES,
+  GetEventListenerManagersHash,
+  "Memory used by the event listener manager's hash table.")
 
 class EventListenerManagerMapEntry : public PLDHashEntryHdr
 {
@@ -393,6 +402,10 @@ nsContentUtils::Init()
 
       return NS_ERROR_OUT_OF_MEMORY;
     }
+
+    sEventListenerManagersHashReporter =
+      new NS_MEMORY_REPORTER_NAME(EventListenerManagersHash);
+    (void)::NS_RegisterMemoryReporter(sEventListenerManagersHashReporter);
   }
 
   sBlockedScriptRunners = new nsTArray< nsCOMPtr<nsIRunnable> >;
@@ -790,20 +803,14 @@ nsContentUtils::IsJavaScriptLanguage(const nsString& aName, uint32_t *aFlags)
 
   if (aName.LowerCaseEqualsLiteral("javascript") ||
       aName.LowerCaseEqualsLiteral("livescript") ||
-      aName.LowerCaseEqualsLiteral("mocha")) {
+      aName.LowerCaseEqualsLiteral("mocha") ||
+      aName.LowerCaseEqualsLiteral("javascript1.0") ||
+      aName.LowerCaseEqualsLiteral("javascript1.1") ||
+      aName.LowerCaseEqualsLiteral("javascript1.2") ||
+      aName.LowerCaseEqualsLiteral("javascript1.3") ||
+      aName.LowerCaseEqualsLiteral("javascript1.4") ||
+      aName.LowerCaseEqualsLiteral("javascript1.5")) {
     version = JSVERSION_DEFAULT;
-  } else if (aName.LowerCaseEqualsLiteral("javascript1.0")) {
-    version = JSVERSION_1_0;
-  } else if (aName.LowerCaseEqualsLiteral("javascript1.1")) {
-    version = JSVERSION_1_1;
-  } else if (aName.LowerCaseEqualsLiteral("javascript1.2")) {
-    version = JSVERSION_1_2;
-  } else if (aName.LowerCaseEqualsLiteral("javascript1.3")) {
-    version = JSVERSION_1_3;
-  } else if (aName.LowerCaseEqualsLiteral("javascript1.4")) {
-    version = JSVERSION_1_4;
-  } else if (aName.LowerCaseEqualsLiteral("javascript1.5")) {
-    version = JSVERSION_1_5;
   } else if (aName.LowerCaseEqualsLiteral("javascript1.6")) {
     version = JSVERSION_1_6;
   } else if (aName.LowerCaseEqualsLiteral("javascript1.7")) {
@@ -828,12 +835,12 @@ nsContentUtils::ParseJavascriptVersion(const nsAString& aVersionStr)
   }
 
   switch (aVersionStr[2]) {
-  case '0': return JSVERSION_1_0;
-  case '1': return JSVERSION_1_1;
-  case '2': return JSVERSION_1_2;
-  case '3': return JSVERSION_1_3;
-  case '4': return JSVERSION_1_4;
-  case '5': return JSVERSION_1_5;
+  case '0': /* fall through */
+  case '1': /* fall through */
+  case '2': /* fall through */
+  case '3': /* fall through */
+  case '4': /* fall through */
+  case '5': return JSVERSION_DEFAULT;
   case '6': return JSVERSION_1_6;
   case '7': return JSVERSION_1_7;
   case '8': return JSVERSION_1_8;
@@ -1480,6 +1487,9 @@ nsContentUtils::Shutdown()
     if (sEventListenerManagersHash.entryCount == 0) {
       PL_DHashTableFinish(&sEventListenerManagersHash);
       sEventListenerManagersHash.ops = nullptr;
+
+      (void)::NS_UnregisterMemoryReporter(sEventListenerManagersHashReporter);
+      sEventListenerManagersHashReporter = nullptr;
     }
   }
 
@@ -1516,7 +1526,7 @@ nsContentUtils::Shutdown()
  */
 // static
 nsresult
-nsContentUtils::CheckSameOrigin(nsINode *aTrustedNode,
+nsContentUtils::CheckSameOrigin(const nsINode *aTrustedNode,
                                 nsIDOMNode *aUnTrustedNode)
 {
   MOZ_ASSERT(aTrustedNode);
@@ -1528,8 +1538,8 @@ nsContentUtils::CheckSameOrigin(nsINode *aTrustedNode,
 }
 
 nsresult
-nsContentUtils::CheckSameOrigin(nsINode* aTrustedNode,
-                                nsINode* unTrustedNode)
+nsContentUtils::CheckSameOrigin(const nsINode* aTrustedNode,
+                                const nsINode* unTrustedNode)
 {
   MOZ_ASSERT(aTrustedNode);
   MOZ_ASSERT(unTrustedNode);
@@ -3119,7 +3129,8 @@ static const char gPropertiesFiles[nsContentUtils::PropertiesFile_COUNT][56] = {
   "chrome://global/locale/layout/htmlparser.properties",
   "chrome://global/locale/svg/svg.properties",
   "chrome://branding/locale/brand.properties",
-  "chrome://global/locale/commonDialogs.properties"
+  "chrome://global/locale/commonDialogs.properties",
+  "chrome://global/locale/mathml/mathml.properties"
 };
 
 /* static */ nsresult
@@ -3450,8 +3461,7 @@ nsresult GetEventAndTarget(nsIDocument* aDoc, nsISupports* aTarget,
   rv = event->InitEvent(aEventName, aCanBubble, aCancelable);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = event->SetTrusted(aTrusted);
-  NS_ENSURE_SUCCESS(rv, rv);
+  event->SetTrusted(aTrusted);
 
   rv = event->SetTarget(target);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -5038,32 +5048,11 @@ static void ProcessViewportToken(nsIDocument *aDocument,
                          (c == '\t') || (c == '\n') || (c == '\r'))
 
 /* static */
-void
-nsContentUtils::ConstrainViewportValues(ViewportInfo& aViewInfo)
-{
-  // Constrain the min/max zoom as specified at:
-  // dev.w3.org/csswg/css-device-adapt section 6.2
-  aViewInfo.maxZoom = NS_MAX(aViewInfo.minZoom, aViewInfo.maxZoom);
-
-  aViewInfo.defaultZoom = NS_MIN(aViewInfo.defaultZoom, aViewInfo.maxZoom);
-  aViewInfo.defaultZoom = NS_MAX(aViewInfo.defaultZoom, aViewInfo.minZoom);
-}
-
-/* static */
-ViewportInfo
+nsViewportInfo
 nsContentUtils::GetViewportInfo(nsIDocument *aDocument,
                                 uint32_t aDisplayWidth,
                                 uint32_t aDisplayHeight)
 {
-  ViewportInfo ret;
-  ret.defaultZoom = 1.0;
-  ret.autoSize = true;
-  ret.allowZoom = true;
-  ret.width = aDisplayWidth;
-  ret.height = aDisplayHeight;
-  ret.minZoom = kViewportMinScale;
-  ret.maxZoom = kViewportMaxScale;
-
   nsAutoString viewport;
   aDocument->GetHeaderData(nsGkAtoms::viewport, viewport);
   if (viewport.IsEmpty()) {
@@ -5080,7 +5069,7 @@ nsContentUtils::GetViewportInfo(nsIDocument *aDocument,
             (docId.Find("Mobile") != -1) ||
             (docId.Find("WML") != -1))
         {
-          nsContentUtils::ConstrainViewportValues(ret);
+          nsViewportInfo ret(aDisplayWidth, aDisplayHeight);
           return ret;
         }
       }
@@ -5089,7 +5078,7 @@ nsContentUtils::GetViewportInfo(nsIDocument *aDocument,
     nsAutoString handheldFriendly;
     aDocument->GetHeaderData(nsGkAtoms::handheldFriendly, handheldFriendly);
     if (handheldFriendly.EqualsLiteral("true")) {
-      nsContentUtils::ConstrainViewportValues(ret);
+      nsViewportInfo ret(aDisplayWidth, aDisplayHeight);
       return ret;
     }
   }
@@ -5219,15 +5208,8 @@ nsContentUtils::GetViewportInfo(nsIDocument *aDocument,
     allowZoom = false;
   }
 
-  ret.allowZoom = allowZoom;
-  ret.width = width;
-  ret.height = height;
-  ret.defaultZoom = scaleFloat;
-  ret.minZoom = scaleMinFloat;
-  ret.maxZoom = scaleMaxFloat;
-  ret.autoSize = autoSize;
-
-  nsContentUtils::ConstrainViewportValues(ret);
+  nsViewportInfo ret(scaleFloat, scaleMinFloat, scaleMaxFloat, width, height,
+                     autoSize, allowZoom);
   return ret;
 }
 
@@ -6436,8 +6418,7 @@ nsContentUtils::FindPresShellForDocument(nsIDocument* aDoc)
     // Walk the docshell tree to find the nearest container that has a presshell,
     // and return that.
     nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(docShellTreeItem);
-    nsCOMPtr<nsIPresShell> presShell;
-    docShell->GetPresShell(getter_AddRefs(presShell));
+    nsIPresShell* presShell = docShell->GetPresShell();
     if (presShell) {
       return presShell;
     }
@@ -6456,9 +6437,9 @@ nsContentUtils::WidgetForDocument(nsIDocument* aDoc)
   if (shell) {
     nsIViewManager* VM = shell->GetViewManager();
     if (VM) {
-      nsIView* rootView = VM->GetRootView();
+      nsView* rootView = VM->GetRootView();
       if (rootView) {
-        nsIView* displayRoot = nsIViewManager::GetDisplayRootFor(rootView);
+        nsView* displayRoot = nsIViewManager::GetDisplayRootFor(rootView);
         if (displayRoot) {
           return displayRoot->GetNearestWidget(nullptr);
         }
@@ -6583,6 +6564,17 @@ nsContentUtils::FindInternalContentViewer(const char* aType,
     return docFactory.forget();
   }
 #endif // MOZ_MEDIA_PLUGINS
+
+#ifdef MOZ_WMF
+  if (DecoderTraits::IsWMFSupportedType(nsDependentCString(aType))) {
+    docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
+    if (docFactory && aLoaderType) {
+      *aLoaderType = TYPE_CONTENT;
+    }
+    return docFactory.forget();
+  }
+#endif
+
 #endif // MOZ_MEDIA
 
   return NULL;

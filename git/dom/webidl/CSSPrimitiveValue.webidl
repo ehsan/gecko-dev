@@ -5,8 +5,6 @@
  */
 
 interface Counter;
-interface Rect;
-interface RGBColor;
 
 interface CSSPrimitiveValue : CSSValue {
 

@@ -306,14 +306,15 @@ public:
   bool
   Dispatch(JSContext* aCx)
   {
-    mSyncQueueKey = mWorkerPrivate->CreateNewSyncLoop();
+    AutoSyncLoopHolder syncLoop(mWorkerPrivate);
+    mSyncQueueKey = syncLoop.SyncQueueKey();
 
     if (NS_FAILED(NS_DispatchToMainThread(this, NS_DISPATCH_NORMAL))) {
       JS_ReportError(aCx, "Failed to dispatch to main thread!");
       return false;
     }
 
-    return mWorkerPrivate->RunSyncLoop(aCx, mSyncQueueKey);
+    return syncLoop.RunAndForget(aCx);
   }
 
   NS_IMETHOD
@@ -507,12 +508,6 @@ ResolveWorkerClasses(JSContext* aCx, JSHandleObject aObj, JSHandleId aId, unsign
                      JSMutableHandleObject aObjp)
 {
   AssertIsOnMainThread();
-
-  // Don't care about assignments, bail now.
-  if (aFlags & JSRESOLVE_ASSIGNING) {
-    aObjp.set(nullptr);
-    return true;
-  }
 
   // Make sure our strings are interned.
   if (JSID_IS_VOID(gStringIDs[0])) {

@@ -325,6 +325,12 @@ OfflineCacheUpdateChild::AddDynamicURI(nsIURI *aURI)
 }
 
 NS_IMETHODIMP
+OfflineCacheUpdateChild::Cancel()
+{
+    return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
 OfflineCacheUpdateChild::AddObserver(nsIOfflineCacheUpdateObserver *aObserver,
                                   bool aHoldWeak)
 {
@@ -435,7 +441,6 @@ OfflineCacheUpdateChild::Schedule()
     // a reference to us. Will be released in RecvFinish() that identifies 
     // the work has been done.
     child->SendPOfflineCacheUpdateConstructor(this, manifestURI, documentURI,
-                                              mInBrowser, mAppID,
                                               stickDocument);
 
     mIPCActivated = true;

@@ -68,6 +68,7 @@ MAKEFILES_dom="
   dom/plugins/base/Makefile
   dom/plugins/ipc/Makefile
   dom/power/Makefile
+  dom/quota/Makefile
   dom/settings/Makefile
   dom/sms/Makefile
   dom/sms/interfaces/Makefile
@@ -762,7 +763,6 @@ if [ "$ENABLE_TESTS" ]; then
     dom/imptests/failures/webapps/DOMCore/tests/submissions/Opera/Makefile
     dom/imptests/failures/webapps/WebStorage/tests/submissions/Infraware/Makefile
     dom/imptests/failures/webapps/WebStorage/tests/submissions/Ms2ger/Makefile
-    dom/imptests/failures/webapps/XMLHttpRequest/tests/submissions/Ms2ger/Makefile
     dom/imptests/html/tests/submission/Mozilla/Makefile
     dom/imptests/html/tests/submission/Opera/microdata/Makefile
     dom/imptests/webapps/DOMCore/tests/approved/Makefile
@@ -1574,12 +1574,6 @@ fi
 if [ ! "$MOZ_NATIVE_PNG" ]; then
   add_makefiles "
     media/libpng/Makefile
-  "
-fi
-
-if [ "$MOZ_DMDV" ]; then
-  add_makefiles "
-    tools/dmdv/Makefile
   "
 fi
 

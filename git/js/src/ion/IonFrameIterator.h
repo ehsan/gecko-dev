@@ -12,8 +12,8 @@
 #include "IonCode.h"
 #include "SnapshotReader.h"
 
-struct JSFunction;
-struct JSScript;
+class JSFunction;
+class JSScript;
 
 namespace js {
 namespace ion {
@@ -275,6 +275,7 @@ class InlineFrameIterator
   public:
     InlineFrameIterator(const IonFrameIterator *iter);
     InlineFrameIterator(const IonBailoutIterator *iter);
+    InlineFrameIterator(const InlineFrameIterator *iter);
 
     bool more() const {
         return frame_ && framesRead_ < start_.frameCount();
@@ -304,7 +305,7 @@ class InlineFrameIterator
     bool isConstructing() const;
     JSObject *scopeChain() const;
     JSObject *thisObject() const;
-    InlineFrameIterator operator++();
+    InlineFrameIterator &operator++();
 
     void dump() const;
 };

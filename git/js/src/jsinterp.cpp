@@ -51,6 +51,7 @@
 #include "ion/Ion.h"
 
 #include "jsatominlines.h"
+#include "jsboolinlines.h"
 #include "jsinferinlines.h"
 #include "jsinterpinlines.h"
 #include "jsobjinlines.h"
@@ -551,12 +552,14 @@ js::Execute(JSContext *cx, HandleScript script, JSObject &scopeChainArg, Value *
     if (!scopeChain)
         return false;
 
-    /* If we were handed a non-native object, complain bitterly. */
-    if (!scopeChain->isNative()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_NON_NATIVE_SCOPE);
-        return false;
-    }
-    JS_ASSERT(!scopeChain->getOps()->defineProperty);
+    /* Ensure the scope chain is all same-compartment and terminates in a global. */
+#ifdef DEBUG
+    RawObject s = scopeChain;
+    do {
+        assertSameCompartment(cx, s);
+        JS_ASSERT_IF(!s->enclosingScope(), s->isGlobal());
+    } while ((s = s->enclosingScope()));
+#endif
 
     /* The VAROBJFIX option makes varObj == globalObj in global code. */
     if (!cx->hasRunOption(JSOPTION_VAROBJFIX)) {
@@ -638,12 +641,13 @@ js::LooselyEqual(JSContext *cx, const Value &lval, const Value &rval, bool *resu
     }
 
     if (lval.isNullOrUndefined()) {
-        *result = rval.isNullOrUndefined();
+        *result = rval.isNullOrUndefined() ||
+                  (rval.isObject() && EmulatesUndefined(&rval.toObject()));
         return true;
     }
 
     if (rval.isNullOrUndefined()) {
-        *result = false;
+        *result = (lval.isObject() && EmulatesUndefined(&lval.toObject()));
         return true;
     }
 
@@ -1342,6 +1346,7 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
 
 /* No-ops for ease of decompilation. */
 ADD_EMPTY_CASE(JSOP_NOP)
+ADD_EMPTY_CASE(JSOP_UNUSED0)
 ADD_EMPTY_CASE(JSOP_UNUSED1)
 ADD_EMPTY_CASE(JSOP_UNUSED2)
 ADD_EMPTY_CASE(JSOP_UNUSED3)
@@ -2606,73 +2611,6 @@ BEGIN_CASE(JSOP_TABLESWITCH)
 END_VARLEN_CASE
 }
 
-{
-BEGIN_CASE(JSOP_LOOKUPSWITCH)
-{
-    int32_t off;
-    off = JUMP_OFFSET_LEN;
-
-    /*
-     * JSOP_LOOKUPSWITCH are never used if any atom index in it would exceed
-     * 64K limit.
-     */
-    jsbytecode *pc2 = regs.pc;
-
-    Value lval = regs.sp[-1];
-    regs.sp--;
-
-    int npairs;
-    if (!lval.isPrimitive())
-        goto end_lookup_switch;
-
-    pc2 += off;
-    npairs = GET_UINT16(pc2);
-    pc2 += UINT16_LEN;
-    JS_ASSERT(npairs);  /* empty switch uses JSOP_TABLESWITCH */
-
-    bool match;
-#define SEARCH_PAIRS(MATCH_CODE)                                              \
-    for (;;) {                                                                \
-        Value rval = script->getConst(GET_UINT32_INDEX(pc2));                 \
-        MATCH_CODE                                                            \
-        pc2 += UINT32_INDEX_LEN;                                              \
-        if (match)                                                            \
-            break;                                                            \
-        pc2 += off;                                                           \
-        if (--npairs == 0) {                                                  \
-            pc2 = regs.pc;                                                    \
-            break;                                                            \
-        }                                                                     \
-    }
-
-    if (lval.isString()) {
-        JSLinearString *str = lval.toString()->ensureLinear(cx);
-        if (!str)
-            goto error;
-        JSLinearString *str2;
-        SEARCH_PAIRS(
-            match = (rval.isString() &&
-                     ((str2 = &rval.toString()->asLinear()) == str ||
-                      EqualStrings(str2, str)));
-        )
-    } else if (lval.isNumber()) {
-        double ldbl = lval.toNumber();
-        SEARCH_PAIRS(
-            match = rval.isNumber() && ldbl == rval.toNumber();
-        )
-    } else {
-        SEARCH_PAIRS(
-            match = (lval == rval);
-        )
-    }
-#undef SEARCH_PAIRS
-
-  end_lookup_switch:
-    len = GET_JUMP_OFFSET(pc2);
-}
-END_VARLEN_CASE
-}
-
 BEGIN_CASE(JSOP_ARGUMENTS)
     JS_ASSERT(!regs.fp()->fun()->hasRest());
     if (script->needsArgsObj()) {
@@ -2791,96 +2729,8 @@ BEGIN_CASE(JSOP_DEFFUN)
     RootedFunction &fun = rootFunction0;
     fun = script->getFunction(GET_UINT32_INDEX(regs.pc));
 
-    /*
-     * If static link is not current scope, clone fun's object to link to the
-     * current scope via parent. We do this to enable sharing of compiled
-     * functions among multiple equivalent scopes, amortizing the cost of
-     * compilation over a number of executions.  Examples include XUL scripts
-     * and event handlers shared among Firefox or other Mozilla app chrome
-     * windows, and user-defined JS functions precompiled and then shared among
-     * requests in server-side JS.
-     */
-    HandleObject scopeChain = regs.fp()->scopeChain();
-    if (fun->environment() != scopeChain) {
-        fun = CloneFunctionObjectIfNotSingleton(cx, fun, scopeChain);
-        if (!fun)
-            goto error;
-    } else {
-        JS_ASSERT(script->compileAndGo);
-        JS_ASSERT(regs.fp()->isGlobalFrame() || regs.fp()->isEvalInFunction());
-    }
-
-    /*
-     * ECMA requires functions defined when entering Eval code to be
-     * impermanent.
-     */
-    unsigned attrs = regs.fp()->isEvalFrame()
-                  ? JSPROP_ENUMERATE
-                  : JSPROP_ENUMERATE | JSPROP_PERMANENT;
-
-    /*
-     * We define the function as a property of the variable object and not the
-     * current scope chain even for the case of function expression statements
-     * and functions defined by eval inside let or with blocks.
-     */
-    RootedObject &parent = rootObject0;
-    parent = &regs.fp()->varObj();
-
-    /* ES5 10.5 (NB: with subsequent errata). */
-    RootedPropertyName &name = rootName0;
-    name = fun->atom()->asPropertyName();
-    RootedShape &shape = rootShape0;
-    RootedObject &pobj = rootObject1;
-    if (!JSObject::lookupProperty(cx, parent, name, &pobj, &shape))
+    if (!DefFunOperation(cx, script, regs.fp()->scopeChain(), fun))
         goto error;
-
-    RootedValue &rval = rootValue0;
-    rval = ObjectValue(*fun);
-
-    do {
-        /* Steps 5d, 5f. */
-        if (!shape || pobj != parent) {
-            if (!JSObject::defineProperty(cx, parent, name, rval,
-                                          JS_PropertyStub, JS_StrictPropertyStub, attrs))
-            {
-                goto error;
-            }
-            break;
-        }
-
-        /* Step 5e. */
-        JS_ASSERT(parent->isNative());
-        if (parent->isGlobal()) {
-            if (shape->configurable()) {
-                if (!JSObject::defineProperty(cx, parent, name, rval,
-                                              JS_PropertyStub, JS_StrictPropertyStub, attrs))
-                {
-                    goto error;
-                }
-                break;
-            }
-
-            if (shape->isAccessorDescriptor() || !shape->writable() || !shape->enumerable()) {
-                JSAutoByteString bytes;
-                if (js_AtomToPrintableString(cx, name, &bytes)) {
-                    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                                         JSMSG_CANT_REDEFINE_PROP, bytes.ptr());
-                }
-                goto error;
-            }
-        }
-
-        /*
-         * Non-global properties, and global properties which we aren't simply
-         * redefining, must be set.  First, this preserves their attributes.
-         * Second, this will produce warnings and/or errors as necessary if the
-         * specified Call object property is not writable (const).
-         */
-
-        /* Step 5f. */
-        if (!JSObject::setProperty(cx, parent, parent, name, &rval, script->strict))
-            goto error;
-    } while (false);
 }
 END_CASE(JSOP_DEFFUN)
 
@@ -3193,9 +3043,12 @@ END_VARLEN_CASE
 }
 
 BEGIN_CASE(JSOP_EXCEPTION)
-    PUSH_COPY(cx->getPendingException());
-    cx->clearPendingException();
-    CHECK_BRANCH();
+{
+    PUSH_NULL();
+    MutableHandleValue res = MutableHandleValue::fromMarkedLocation(&regs.sp[-1]);
+    if (!GetAndClearException(cx, res))
+        goto error;
+}
 END_CASE(JSOP_EXCEPTION)
 
 BEGIN_CASE(JSOP_FINALLY)
@@ -3905,6 +3758,106 @@ js::Lambda(JSContext *cx, HandleFunction fun, HandleObject parent)
 
     JS_ASSERT(clone->global() == clone->global());
     return clone;
+}
+
+bool
+js::DefFunOperation(JSContext *cx, HandleScript script, HandleObject scopeChain,
+                    HandleFunction funArg)
+{
+    /*
+     * If static link is not current scope, clone fun's object to link to the
+     * current scope via parent. We do this to enable sharing of compiled
+     * functions among multiple equivalent scopes, amortizing the cost of
+     * compilation over a number of executions.  Examples include XUL scripts
+     * and event handlers shared among Firefox or other Mozilla app chrome
+     * windows, and user-defined JS functions precompiled and then shared among
+     * requests in server-side JS.
+     */
+    RootedFunction fun(cx, funArg);
+    if (fun->environment() != scopeChain) {
+        fun = CloneFunctionObjectIfNotSingleton(cx, fun, scopeChain);
+        if (!fun)
+            return false;
+    } else {
+        JS_ASSERT(script->compileAndGo);
+        JS_ASSERT_IF(!cx->fp()->beginsIonActivation(),
+                     cx->fp()->isGlobalFrame() || cx->fp()->isEvalInFunction());
+    }
+
+    /*
+     * We define the function as a property of the variable object and not the
+     * current scope chain even for the case of function expression statements
+     * and functions defined by eval inside let or with blocks.
+     */
+    RootedObject parent(cx, scopeChain);
+    while (!parent->isVarObj())
+        parent = parent->enclosingScope();
+
+    /* ES5 10.5 (NB: with subsequent errata). */
+    RootedPropertyName name(cx, fun->atom()->asPropertyName());
+
+    RootedShape shape(cx);
+    RootedObject pobj(cx);
+    if (!JSObject::lookupProperty(cx, parent, name, &pobj, &shape))
+        return false;
+
+    RootedValue rval(cx, ObjectValue(*fun));
+
+    /*
+     * ECMA requires functions defined when entering Eval code to be
+     * impermanent.
+     */
+    unsigned attrs = script->isActiveEval
+                     ? JSPROP_ENUMERATE
+                     : JSPROP_ENUMERATE | JSPROP_PERMANENT;
+
+    /* Steps 5d, 5f. */
+    if (!shape || pobj != parent) {
+        return JSObject::defineProperty(cx, parent, name, rval, JS_PropertyStub,
+                                        JS_StrictPropertyStub, attrs);
+    }
+
+    /* Step 5e. */
+    JS_ASSERT(parent->isNative());
+    if (parent->isGlobal()) {
+        if (shape->configurable()) {
+            return JSObject::defineProperty(cx, parent, name, rval, JS_PropertyStub,
+                                            JS_StrictPropertyStub, attrs);
+        }
+
+        if (shape->isAccessorDescriptor() || !shape->writable() || !shape->enumerable()) {
+            JSAutoByteString bytes;
+            if (js_AtomToPrintableString(cx, name, &bytes)) {
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CANT_REDEFINE_PROP,
+                                     bytes.ptr());
+            }
+
+            return false;
+        }
+    }
+
+    /*
+     * Non-global properties, and global properties which we aren't simply
+     * redefining, must be set.  First, this preserves their attributes.
+     * Second, this will produce warnings and/or errors as necessary if the
+     * specified Call object property is not writable (const).
+     */
+
+    /* Step 5f. */
+    return JSObject::setProperty(cx, parent, parent, name, &rval, script->strict);
+}
+
+bool
+js::GetAndClearException(JSContext *cx, MutableHandleValue res)
+{
+    // Check the interrupt flag to allow interrupting deeply nested exception
+    // handling.
+    if (cx->runtime->interrupt && !js_HandleExecutionInterrupt(cx))
+        return false;
+
+    res.set(cx->getPendingException());
+    cx->clearPendingException();
+    return true;
 }
 
 template <bool strict>

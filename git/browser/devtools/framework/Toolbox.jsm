@@ -16,6 +16,17 @@ XPCOMUtils.defineLazyModuleGetter(this, "Hosts",
                                   "resource:///modules/devtools/ToolboxHosts.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "CommandUtils",
                                   "resource:///modules/devtools/DeveloperToolbar.jsm");
+XPCOMUtils.defineLazyGetter(this, "toolboxStrings", function() {
+  let bundle = Services.strings.createBundle("chrome://browser/locale/devtools/toolbox.properties");
+  let l10n = function(name) {
+    try {
+      return bundle.GetStringFromName(name);
+    } catch (ex) {
+      Services.console.logStringMessage("Error reading '" + name + "'");
+    }
+  };
+  return l10n;
+});
 
 // DO NOT put Require.jsm or gcli.jsm into lazy getters as this breaks the
 // requisition import a few lines down.
@@ -127,7 +138,7 @@ this.Toolbox = function Toolbox(target, selectedTool, hostType) {
 
   this._host = this._createHost(hostType);
 
-  new EventEmitter(this);
+  EventEmitter.decorate(this);
 
   gDevTools.on("tool-registered", this._toolRegistered);
   gDevTools.on("tool-unregistered", this._toolUnregistered);
@@ -270,6 +281,10 @@ Toolbox.prototype = {
       dockBox.removeChild(dockBox.firstChild);
     }
 
+    if (!this._target.isLocalTab) {
+      return;
+    }
+
     let sideEnabled = Services.prefs.getBoolPref(this._prefs.SIDE_ENABLED);
 
     for each (let position in this.HostType) {
@@ -281,6 +296,8 @@ Toolbox.prototype = {
       let button = this.doc.createElement("toolbarbutton");
       button.id = "toolbox-dock-" + position;
       button.className = "toolbox-dock-button";
+      button.setAttribute("tooltiptext", toolboxStrings("toolboxDockButtons." +
+                                                        position + ".tooltip"));
       button.addEventListener("command", function(position) {
         this.switchHost(position);
       }.bind(this, position));
@@ -344,6 +361,10 @@ Toolbox.prototype = {
     radio.className = "toolbox-tab devtools-tab";
     radio.id = "toolbox-tab-" + id;
     radio.setAttribute("toolid", id);
+    radio.setAttribute("tooltiptext", toolDefinition.tooltip);
+    if (toolDefinition.icon) {
+      radio.setAttribute("src", toolDefinition.icon);
+    }
 
     let ordinal = (typeof toolDefinition.ordinal == "number") ?
                   toolDefinition.ordinal : MAX_ORDINAL;
@@ -473,6 +494,10 @@ Toolbox.prototype = {
    */
   switchHost: function TBOX_switchHost(hostType) {
     if (hostType == this._host.type) {
+      return;
+    }
+
+    if (!this._target.isLocalTab) {
       return;
     }
 

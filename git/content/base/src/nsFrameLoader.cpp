@@ -59,7 +59,7 @@
 #include "nsIMozBrowserFrame.h"
 
 #include "nsLayoutUtils.h"
-#include "nsIView.h"
+#include "nsView.h"
 #include "nsAsyncDOMEvent.h"
 
 #include "nsIURI.h"
@@ -642,14 +642,16 @@ SetTreeOwnerAndChromeEventHandlerOnDocshellTree(nsIDocShellTreeItem* aItem,
   NS_PRECONDITION(aItem, "Must have item");
 
   aItem->SetTreeOwner(aOwner);
-  nsCOMPtr<nsIDocShell> shell(do_QueryInterface(aItem));
-  shell->SetChromeEventHandler(aHandler);
 
   int32_t childCount = 0;
   aItem->GetChildCount(&childCount);
   for (int32_t i = 0; i < childCount; ++i) {
     nsCOMPtr<nsIDocShellTreeItem> item;
     aItem->GetChildAt(i, getter_AddRefs(item));
+    if (aHandler) {
+      nsCOMPtr<nsIDocShell> shell(do_QueryInterface(item));
+      shell->SetChromeEventHandler(aHandler);
+    }
     SetTreeOwnerAndChromeEventHandlerOnDocshellTree(item, aOwner, aHandler);
   }
 }
@@ -799,8 +801,7 @@ nsFrameLoader::Show(int32_t marginWidth, int32_t marginHeight,
                                          scrollbarPrefY);
     }
 
-    nsCOMPtr<nsIPresShell> presShell;
-    mDocShell->GetPresShell(getter_AddRefs(presShell));
+    nsCOMPtr<nsIPresShell> presShell = mDocShell->GetPresShell();
     if (presShell) {
       // Ensure root scroll frame is reflowed in case scroll preferences or
       // margins have changed
@@ -813,7 +814,7 @@ nsFrameLoader::Show(int32_t marginWidth, int32_t marginHeight,
     }
   }
 
-  nsIView* view = frame->EnsureInnerView();
+  nsView* view = frame->EnsureInnerView();
   if (!view)
     return false;
 
@@ -845,8 +846,7 @@ nsFrameLoader::Show(int32_t marginWidth, int32_t marginHeight,
   // sub-document. This shouldn't be necessary, but given the way our
   // editor works, it is. See
   // https://bugzilla.mozilla.org/show_bug.cgi?id=284245
-  nsCOMPtr<nsIPresShell> presShell;
-  mDocShell->GetPresShell(getter_AddRefs(presShell));
+  nsCOMPtr<nsIPresShell> presShell = mDocShell->GetPresShell();
   if (presShell) {
     nsCOMPtr<nsIDOMHTMLDocument> doc =
       do_QueryInterface(presShell->GetDocument());
@@ -1056,7 +1056,8 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   }
 
   // Also make sure that the two docshells are the same type. Otherwise
-  // swapping is certainly not safe.
+  // swapping is certainly not safe. If this needs to be changed then
+  // the code below needs to be audited as it assumes identical types.
   int32_t ourType = nsIDocShellTreeItem::typeChrome;
   int32_t otherType = nsIDocShellTreeItem::typeChrome;
   ourTreeItem->GetItemType(&ourType);
@@ -1205,11 +1206,15 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   ourParentItem->AddChild(otherTreeItem);
   otherParentItem->AddChild(ourTreeItem);
 
+  // Restore the correct chrome event handlers.
+  ourDocshell->SetChromeEventHandler(otherChromeEventHandler);
+  otherDocshell->SetChromeEventHandler(ourChromeEventHandler);
   // Restore the correct treeowners
+  // (and also chrome event handlers for content frames only).
   SetTreeOwnerAndChromeEventHandlerOnDocshellTree(ourTreeItem, otherOwner,
-                                                  otherChromeEventHandler);
+    ourType == nsIDocShellTreeItem::typeContent ? otherChromeEventHandler : nullptr);
   SetTreeOwnerAndChromeEventHandlerOnDocshellTree(otherTreeItem, ourOwner,
-                                                  ourChromeEventHandler);
+    ourType == nsIDocShellTreeItem::typeContent ? ourChromeEventHandler : nullptr);
 
   // Switch the owner content before we start calling AddTreeItemToTreeOwner.
   // Note that we rely on this to deal with setting mObservingOwnerContent to
@@ -2064,6 +2069,14 @@ nsFrameLoader::TryRemoteBrowser()
     nsCOMPtr<nsIDOMElement> element = do_QueryInterface(mOwnerContent);
     mRemoteBrowser->SetOwnerElement(element);
 
+    // If we're an app, send the frame element's mozapptype down to the child
+    // process.  This ends up in TabChild::GetAppType().
+    if (ownApp) {
+      nsAutoString appType;
+      mOwnerContent->GetAttr(kNameSpaceID_None, nsGkAtoms::mozapptype, appType);
+      mRemoteBrowser->SendSetAppType(appType);
+    }
+
     nsCOMPtr<nsIDocShellTreeItem> rootItem;
     parentAsItem->GetRootTreeItem(getter_AddRefs(rootItem));
     nsCOMPtr<nsIDOMWindow> rootWin = do_GetInterface(rootItem);
@@ -2439,14 +2452,14 @@ nsFrameLoader::SetRemoteBrowser(nsITabParent* aTabParent)
 }
 
 void
-nsFrameLoader::SetDetachedSubdocView(nsIView* aDetachedViews,
+nsFrameLoader::SetDetachedSubdocView(nsView* aDetachedViews,
                                      nsIDocument* aContainerDoc)
 {
   mDetachedSubdocViews = aDetachedViews;
   mContainerDocWhileDetached = aContainerDoc;
 }
 
-nsIView*
+nsView*
 nsFrameLoader::GetDetachedSubdocView(nsIDocument** aContainerDoc) const
 {
   NS_IF_ADDREF(*aContainerDoc = mContainerDocWhileDetached);

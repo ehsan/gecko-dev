@@ -27,17 +27,18 @@
 #include "methodjit/StubCalls.h"
 #include "methodjit/Retcon.h"
 
+#include "jsatominlines.h"
+#include "jsboolinlines.h"
+#include "jscntxtinlines.h"
+#include "jsfuninlines.h"
 #include "jsinterpinlines.h"
-#include "jsscopeinlines.h"
-#include "jsscriptinlines.h"
 #include "jsnuminlines.h"
 #include "jsobjinlines.h"
-#include "jscntxtinlines.h"
-#include "jsatominlines.h"
-#include "StubCalls-inl.h"
-#include "jsfuninlines.h"
+#include "jsscopeinlines.h"
+#include "jsscriptinlines.h"
 #include "jstypedarray.h"
 
+#include "StubCalls-inl.h"
 #include "vm/RegExpObject-inl.h"
 #include "vm/String-inl.h"
 
@@ -529,9 +530,11 @@ StubEqualityOp(VMFrame &f)
         }
     } else {
         if (lval.isNullOrUndefined()) {
-            cond = rval.isNullOrUndefined() == EQ;
+            cond = (rval.isNullOrUndefined() ||
+                    (rval.isObject() && EmulatesUndefined(&rval.toObject()))) ==
+                    EQ;
         } else if (rval.isNullOrUndefined()) {
-            cond = !EQ;
+            cond = (lval.isObject() && EmulatesUndefined(&lval.toObject())) == EQ;
         } else {
             if (!ToPrimitive(cx, &lval))
                 return false;
@@ -1311,63 +1314,6 @@ FindNativeCode(VMFrame &f, jsbytecode *target)
 
     JS_NOT_REACHED("Missing edge");
     return NULL;
-}
-
-void * JS_FASTCALL
-stubs::LookupSwitch(VMFrame &f, jsbytecode *pc)
-{
-    AutoAssertNoGC nogc;
-    jsbytecode *jpc = pc;
-    UnrootedScript script = f.fp()->script();
-
-    /* This is correct because the compiler adjusts the stack beforehand. */
-    Value lval = f.regs.sp[-1];
-
-    if (!lval.isPrimitive())
-        return FindNativeCode(f, pc + GET_JUMP_OFFSET(pc));
-
-    JS_ASSERT(pc[0] == JSOP_LOOKUPSWITCH);
-
-    pc += JUMP_OFFSET_LEN;
-    uint32_t npairs = GET_UINT16(pc);
-    pc += UINT16_LEN;
-
-    JS_ASSERT(npairs);
-
-    if (lval.isString()) {
-        JSLinearString *str = lval.toString()->ensureLinear(f.cx);
-        if (!str)
-            THROWV(NULL);
-        for (uint32_t i = 1; i <= npairs; i++) {
-            Value rval = script->getConst(GET_UINT32_INDEX(pc));
-            pc += UINT32_INDEX_LEN;
-            if (rval.isString()) {
-                JSLinearString *rhs = &rval.toString()->asLinear();
-                if (rhs == str || EqualStrings(str, rhs))
-                    return FindNativeCode(f, jpc + GET_JUMP_OFFSET(pc));
-            }
-            pc += JUMP_OFFSET_LEN;
-        }
-    } else if (lval.isNumber()) {
-        double d = lval.toNumber();
-        for (uint32_t i = 1; i <= npairs; i++) {
-            Value rval = script->getConst(GET_UINT32_INDEX(pc));
-            pc += UINT32_INDEX_LEN;
-            if (rval.isNumber() && d == rval.toNumber())
-                return FindNativeCode(f, jpc + GET_JUMP_OFFSET(pc));
-            pc += JUMP_OFFSET_LEN;
-        }
-    } else {
-        for (uint32_t i = 1; i <= npairs; i++) {
-            Value rval = script->getConst(GET_UINT32_INDEX(pc));
-            pc += UINT32_INDEX_LEN;
-            if (lval == rval)
-                return FindNativeCode(f, jpc + GET_JUMP_OFFSET(pc));
-            pc += JUMP_OFFSET_LEN;
-        }
-    }
-
-    return FindNativeCode(f, jpc + GET_JUMP_OFFSET(jpc));
 }
 
 void * JS_FASTCALL

@@ -364,6 +364,20 @@ GeckoChildProcessHost::InitializeChannel()
   lock.Notify();
 }
 
+void
+GeckoChildProcessHost::Join()
+{
+  AssertIOThread();
+
+  if (!mChildProcessHandle) {
+    return;
+  }
+
+  // If this fails, there's nothing we can do.
+  base::KillProcess(mChildProcessHandle, 0, /*wait*/true);
+  mChildProcessHandle = 0;
+}
+
 int32_t GeckoChildProcessHost::mChildCounter = 0;
 
 //
@@ -408,6 +422,40 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts, b
   PR_SetEnv(restoreOrigLogName);
 
   return retval;
+}
+
+void
+#if defined(XP_WIN)
+AddAppDirToCommandLine(CommandLine& aCmdLine)
+#else
+AddAppDirToCommandLine(std::vector<std::string>& aCmdLine)
+#endif
+{
+  // Content processes need access to application resources, so pass
+  // the full application directory path to the child process.
+  if (ShouldHaveDirectoryService()) {
+    nsCOMPtr<nsIProperties> directoryService(do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID));
+    NS_ASSERTION(directoryService, "Expected XPCOM to be available");
+    if (directoryService) {
+      nsCOMPtr<nsIFile> appDir;
+      // NS_XPCOM_CURRENT_PROCESS_DIR really means the app dir, not the
+      // current process dir.
+      nsresult rv = directoryService->Get(NS_XPCOM_CURRENT_PROCESS_DIR,
+                                          NS_GET_IID(nsIFile),
+                                          getter_AddRefs(appDir));
+      if (NS_SUCCEEDED(rv)) {
+        nsAutoCString path;
+        appDir->GetNativePath(path);
+#if defined(XP_WIN)
+        aCmdLine.AppendLooseValue(UTF8ToWide("-appdir"));
+        aCmdLine.AppendLooseValue(UTF8ToWide(path.get()));
+#else
+        aCmdLine.push_back("-appdir");
+        aCmdLine.push_back(path.get());
+#endif
+      }
+    }
+  }
 }
 
 bool
@@ -575,6 +623,9 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
     }
   }
 
+  // Add the application directory path (-appdir path)
+  AddAppDirToCommandLine(childArgv);
+
   childArgv.push_back(pidstring);
 
 #if defined(MOZ_CRASHREPORTER)
@@ -674,8 +725,6 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
       cmdLine.AppendLooseValue(UTF8ToWide(*it));
   }
 
-  cmdLine.AppendLooseValue(std::wstring(mGroupId.get()));
-
   if (Omnijar::IsInitialized()) {
     // Make sure the child process can find the omnijar
     // See XRE_InitCommandLine in nsAppRunner.cpp
@@ -692,6 +741,17 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
     }
   }
 
+  // Add the application directory path (-appdir path)
+  AddAppDirToCommandLine(cmdLine);
+
+  // XXX Command line params past this point are expected to be at
+  // the end of the command line string, and in a specific order.
+  // See XRE_InitChildProcess in nsEmbedFunction.
+
+  // Win app model id
+  cmdLine.AppendLooseValue(std::wstring(mGroupId.get()));
+
+  // Process id
   cmdLine.AppendLooseValue(UTF8ToWide(pidstring));
 
 #if defined(MOZ_CRASHREPORTER)
@@ -699,6 +759,7 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
     UTF8ToWide(CrashReporter::GetChildNotificationPipe()));
 #endif
 
+  // Process type
   cmdLine.AppendLooseValue(UTF8ToWide(childProcessType));
 
   base::LaunchApp(cmdLine, false, false, &process);

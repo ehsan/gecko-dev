@@ -47,7 +47,6 @@ void
 AudioChannelServiceChild::Shutdown()
 {
   if (gAudioChannelServiceChild) {
-    delete gAudioChannelServiceChild;
     gAudioChannelServiceChild = nullptr;
   }
 }
@@ -75,7 +74,7 @@ AudioChannelServiceChild::GetMuted(AudioChannelType aType, bool aMozHidden)
 
 void
 AudioChannelServiceChild::RegisterAudioChannelAgent(AudioChannelAgent* aAgent,
-                                               AudioChannelType aType)
+                                                    AudioChannelType aType)
 {
   AudioChannelService::RegisterAudioChannelAgent(aAgent, aType);
 

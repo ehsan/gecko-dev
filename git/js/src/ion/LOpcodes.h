@@ -32,6 +32,7 @@
     _(CheckOverRecursed)            \
     _(RecompileCheck)               \
     _(DefVar)                       \
+    _(DefFun)                       \
     _(CallKnown)                    \
     _(CallGeneric)                  \
     _(CallNative)                   \
@@ -54,17 +55,22 @@
     _(TestIAndBranch)               \
     _(TestDAndBranch)               \
     _(TestVAndBranch)               \
+    _(TestOAndBranch)               \
     _(PolyInlineDispatch)           \
     _(Compare)                      \
-    _(CompareD)                     \
-    _(CompareS)                     \
-    _(CompareV)                     \
     _(CompareAndBranch)             \
+    _(CompareD)                     \
     _(CompareDAndBranch)            \
+    _(CompareS)                     \
     _(CompareB)                     \
     _(CompareBAndBranch)            \
-    _(IsNullOrUndefined)            \
-    _(IsNullOrUndefinedAndBranch)   \
+    _(CompareV)                     \
+    _(CompareVAndBranch)            \
+    _(CompareVM)                    \
+    _(IsNullOrLikeUndefined)        \
+    _(IsNullOrLikeUndefinedAndBranch)\
+    _(EmulatesUndefined)            \
+    _(EmulatesUndefinedAndBranch)   \
     _(MinMaxI)                      \
     _(MinMaxD)                      \
     _(NegD)                         \
@@ -77,6 +83,7 @@
     _(MathFunctionD)                \
     _(NotI)                         \
     _(NotD)                         \
+    _(NotO)                         \
     _(NotV)                         \
     _(AddI)                         \
     _(SubI)                         \

@@ -56,7 +56,25 @@ function reflectString(aParameters)
 
   element[idlAttr] = null;
   // TODO: remove this ugly hack when null stringification will work as expected.
-  if (element.localName == "textarea" && idlAttr == "wrap") {
+  var todoAttrs = {
+    col: [ "align", "vAlign", "ch" ],
+    colgroup: [ "align", "vAlign", "ch" ],
+    form: [ "acceptCharset", "name", "target" ],
+    img: [ "align" ],
+    input: [ "accept", "alt", "formTarget", "max", "min", "name", "pattern", "placeholder", "step", "defaultValue" ],
+    link: [ "crossOrigin" ],
+    script: [ "crossOrigin" ],
+    source: [ "media" ],
+    table: [ "border", "width" ],
+    tbody: [ "align", "vAlign", "ch" ],
+    td: [ "align", "vAlign", "ch" ],
+    textarea: [ "name", "placeholder" ],
+    tfoot: [ "align", "vAlign", "ch" ],
+    th: [ "align", "vAlign", "ch" ],
+    thead: [ "align", "vAlign", "ch" ],
+    tr: [ "align", "vAlign", "ch" ],
+  };
+  if (!(element.localName in todoAttrs) || todoAttrs[element.localName].indexOf(idlAttr) == -1) {
     is(element.getAttribute(contentAttr), "null",
        "null should have been stringified to 'null'");
     is(element[idlAttr], "null", "null should have been stringified to 'null'");
@@ -156,7 +174,7 @@ function reflectUnsignedInt(aParameters)
 
   var values = [ 1, 3, 42, 2147483647 ];
 
-  for each (var value in values) {
+  for (var value of values) {
     element[attr] = value;
     is(element[attr], value, "." + attr + " should be equals " + value);
     is(element.getAttribute(attr), value,
@@ -188,7 +206,7 @@ function reflectUnsignedInt(aParameters)
     [ 3147483647,  3147483647 ],
   ];
 
-  for each (var values in nonValidValues) {
+  for (var values of nonValidValues) {
     element[attr] = values[0];
     is(element.getAttribute(attr), values[1],
        "@" + attr + " should be equals to " + values[1]);
@@ -196,7 +214,7 @@ function reflectUnsignedInt(aParameters)
        "." + attr + " should be equals to " + defaultValue);
   }
 
-  for each (var values in nonValidValues) {
+  for (var values of nonValidValues) {
     element.setAttribute(attr, values[0]);
     is(element.getAttribute(attr), values[0],
        "@" + attr + " should be equals to " + values[0]);

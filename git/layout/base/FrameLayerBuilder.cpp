@@ -115,7 +115,7 @@ FrameLayerBuilder::DisplayItemData::UpdateContents(Layer* aLayer, LayerState aSt
     return;
   }
 
-  nsAutoTArray<nsIFrame*, 4> copy = mFrameList;
+  nsAutoTArray<nsIFrame*, 4> copy(mFrameList);
   if (!copy.RemoveElement(aItem->GetUnderlyingFrame())) {
     AddFrame(aItem->GetUnderlyingFrame());
   }
@@ -2722,9 +2722,7 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
         int32_t(NSAppUnitsToDoublePixels(appUnitOffset.x, appUnitsPerDevPixel)*aIncomingScale.mXScale),
         int32_t(NSAppUnitsToDoublePixels(appUnitOffset.y, appUnitsPerDevPixel)*aIncomingScale.mYScale));
   }
-  transform = gfx3DMatrix::Translation(aIncomingScale.mOffset.x, aIncomingScale.mOffset.y, 0) * 
-              transform * 
-              gfx3DMatrix::Translation(offset.x, offset.y, 0);
+  transform = transform * gfx3DMatrix::Translation(offset.x + aIncomingScale.mOffset.x, offset.y + aIncomingScale.mOffset.y, 0);
 
 
   bool canDraw2D = transform.CanDraw2D(&transform2d);
@@ -2734,34 +2732,42 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
   // it only matters for retained layers
   // XXX Should we do something for 3D transforms?
   if (canDraw2D && isRetained) {
-    //Scale factors are normalized to a power of 2 to reduce the number of resolution changes
-    scale = transform2d.ScaleFactors(true);
-    // For frames with a changing transform that's not just a translation,
-    // round scale factors up to nearest power-of-2 boundary so that we don't
-    // keep having to redraw the content as it scales up and down. Rounding up to nearest
-    // power-of-2 boundary ensures we never scale up, only down --- avoiding
-    // jaggies. It also ensures we never scale down by more than a factor of 2,
-    // avoiding bad downscaling quality.
-    gfxMatrix frameTransform;
-    if (aContainerFrame->AreLayersMarkedActive(nsChangeHint_UpdateTransformLayer) &&
-        aTransform &&
-        (!aTransform->Is2D(&frameTransform) || frameTransform.HasNonTranslationOrFlip())) {
-      // Don't clamp the scale factor when the new desired scale factor matches the old one
-      // or it was previously unscaled.
-      bool clamp = true;
-      gfxMatrix oldFrameTransform2d;
-      if (aLayer->GetBaseTransform().Is2D(&oldFrameTransform2d)) {
-        gfxSize oldScale = oldFrameTransform2d.ScaleFactors(true);
-        if (oldScale == scale || oldScale == gfxSize(1.0, 1.0)) {
-          clamp = false;
-        }
-      }
-      if (clamp) {
-        scale.width = gfxUtils::ClampToScaleFactor(scale.width);
-        scale.height = gfxUtils::ClampToScaleFactor(scale.height);
-      }
+    // If the container's transform is animated off main thread, then use the
+    // maximum scale.
+    if (aContainerFrame->GetContent() &&
+        nsLayoutUtils::HasAnimationsForCompositor(
+          aContainerFrame->GetContent(), eCSSProperty_transform)) {
+      scale = nsLayoutUtils::GetMaximumAnimatedScale(aContainerFrame->GetContent());
     } else {
-      // XXX Do we need to move nearly-integer values to integers here?
+      //Scale factors are normalized to a power of 2 to reduce the number of resolution changes
+      scale = transform2d.ScaleFactors(true);
+      // For frames with a changing transform that's not just a translation,
+      // round scale factors up to nearest power-of-2 boundary so that we don't
+      // keep having to redraw the content as it scales up and down. Rounding up to nearest
+      // power-of-2 boundary ensures we never scale up, only down --- avoiding
+      // jaggies. It also ensures we never scale down by more than a factor of 2,
+      // avoiding bad downscaling quality.
+      gfxMatrix frameTransform;
+      if (aContainerFrame->AreLayersMarkedActive(nsChangeHint_UpdateTransformLayer) &&
+          aTransform &&
+          (!aTransform->Is2D(&frameTransform) || frameTransform.HasNonTranslationOrFlip())) {
+        // Don't clamp the scale factor when the new desired scale factor matches the old one
+        // or it was previously unscaled.
+        bool clamp = true;
+        gfxMatrix oldFrameTransform2d;
+        if (aLayer->GetBaseTransform().Is2D(&oldFrameTransform2d)) {
+          gfxSize oldScale = oldFrameTransform2d.ScaleFactors(true);
+          if (oldScale == scale || oldScale == gfxSize(1.0, 1.0)) {
+            clamp = false;
+          }
+        }
+        if (clamp) {
+          scale.width = gfxUtils::ClampToScaleFactor(scale.width);
+          scale.height = gfxUtils::ClampToScaleFactor(scale.height);
+        }
+      } else {
+        // XXX Do we need to move nearly-integer values to integers here?
+      }
     }
     // If the scale factors are too small, just use 1.0. The content is being
     // scaled out of sight anyway.

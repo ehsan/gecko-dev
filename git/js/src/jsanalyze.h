@@ -19,7 +19,7 @@
 #include "js/TemplateLib.h"
 #include "vm/ScopeObject.h"
 
-struct JSScript;
+class JSScript;
 
 /* Forward declaration of downstream register allocations computed for join points. */
 namespace js { namespace mjit { struct RegisterAllocation; } }
@@ -73,9 +73,6 @@ class Bytecode
 
     /* Whether this instruction is the fall through point of a conditional jump. */
     bool jumpFallthrough : 1;
-
-    /* Whether this instruction can be branched to from a switch statement. Implies jumpTarget. */
-    bool switchTarget : 1;
 
     /*
      * Whether this instruction must always execute, unless the script throws
@@ -250,7 +247,6 @@ BytecodeNoFallThrough(JSOp op)
       case JSOP_RETRVAL:
       case JSOP_THROW:
       case JSOP_TABLESWITCH:
-      case JSOP_LOOKUPSWITCH:
       case JSOP_FILTER:
         return true;
       case JSOP_GOSUB:
@@ -849,7 +845,8 @@ class ScriptAnalysis
     bool hasFunctionCalls_:1;
     bool modifiesArguments_:1;
     bool localsAliasStack_:1;
-    bool isInlineable:1;
+    bool isJaegerInlineable:1;
+    bool isIonInlineable:1;
     bool isJaegerCompileable:1;
     bool canTrackVars:1;
     bool hasLoops_:1;
@@ -885,8 +882,10 @@ class ScriptAnalysis
 
     bool OOM() const { return outOfMemory; }
     bool failed() const { return hadFailure; }
-    bool inlineable() const { return isInlineable; }
-    bool inlineable(uint32_t argc) const { return isInlineable && argc == script_->function()->nargs; }
+    bool ionInlineable() const { return isIonInlineable; }
+    bool ionInlineable(uint32_t argc) const { return isIonInlineable && argc == script_->function()->nargs; }
+    bool jaegerInlineable() const { return isJaegerInlineable; }
+    bool jaegerInlineable(uint32_t argc) const { return isJaegerInlineable && argc == script_->function()->nargs; }
     bool jaegerCompileable() { return isJaegerCompileable; }
 
     /* Number of property read opcodes in the script. */

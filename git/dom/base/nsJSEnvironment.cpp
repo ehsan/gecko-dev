@@ -177,8 +177,7 @@ static nsJSContext *sContextList = nullptr;
 static nsScriptNameSpaceManager *gNameSpaceManager;
 static nsIMemoryReporter *gReporter;
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(ScriptNameSpaceManagerMallocSizeOf,
-                                     "script-namespace-manager")
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(ScriptNameSpaceManagerMallocSizeOf)
 
 static int64_t
 GetScriptNameSpaceManagerSize()
@@ -1862,107 +1861,6 @@ nsJSContext::CompileFunction(JSObject* aTarget,
 }
 
 nsresult
-nsJSContext::CallEventHandler(nsISupports* aTarget, JSObject* aScope,
-                              JSObject* aHandler, nsIArray* aargv,
-                              nsIVariant** arv)
-{
-  NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_NOT_INITIALIZED);
-
-  if (!mScriptsEnabled) {
-    return NS_OK;
-  }
-
-  SAMPLE_LABEL("JS", "CallEventHandler");
-
-  nsAutoMicroTask mt;
-  xpc_UnmarkGrayObject(aScope);
-  xpc_UnmarkGrayObject(aHandler);
-
-  XPCAutoRequest ar(mContext);
-  JSObject* target = nullptr;
-  nsresult rv = JSObjectFromInterface(aTarget, aScope, &target);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  JS::AutoObjectRooter targetVal(mContext, target);
-  jsval rval = JSVAL_VOID;
-
-  // This one's a lot easier than EvaluateString because we don't have to
-  // hassle with principals: they're already compiled into the JS function.
-  // xxxmarkh - this comment is no longer true - principals are not used at
-  // all now, and never were in some cases.
-
-  nsCxPusher pusher;
-  if (!pusher.Push(mContext, true))
-    return NS_ERROR_FAILURE;
-
-  // check if the event handler can be run on the object in question
-  rv = sSecurityManager->CheckFunctionAccess(mContext, aHandler, target);
-
-  nsJSContext::TerminationFuncHolder holder(this);
-
-  if (NS_SUCCEEDED(rv)) {
-    // Convert args to jsvals.
-    uint32_t argc = 0;
-    jsval *argv = nullptr;
-
-    JSObject *funobj = aHandler;
-    jsval funval = OBJECT_TO_JSVAL(funobj);
-    JSAutoCompartment ac(mContext, funobj);
-    if (!JS_WrapObject(mContext, &target)) {
-      ReportPendingException();
-      return NS_ERROR_FAILURE;
-    }
-
-    Maybe<nsRootedJSValueArray> tempStorage;
-
-    // Use |target| as the scope for wrapping the arguments, since aScope is
-    // the safe scope in many cases, which isn't very useful.  Wrapping aTarget
-    // was OK because those typically have PreCreate methods that give them the
-    // right scope anyway, and we want to make sure that the arguments end up
-    // in the same scope as aTarget.
-    rv = ConvertSupportsTojsvals(aargv, target, &argc, &argv, tempStorage);
-    NS_ENSURE_SUCCESS(rv, rv);
-    for (uint32_t i = 0; i < argc; i++) {
-      if (!JSVAL_IS_PRIMITIVE(argv[i])) {
-        xpc_UnmarkGrayObject(JSVAL_TO_OBJECT(argv[i]));
-      }
-    }
-
-    ++mExecuteDepth;
-    bool ok = ::JS_CallFunctionValue(mContext, target,
-                                       funval, argc, argv, &rval);
-    --mExecuteDepth;
-
-    if (!ok) {
-      // Don't pass back results from failed calls.
-      rval = JSVAL_VOID;
-
-      // Tell the caller that the handler threw an error.
-      rv = NS_ERROR_FAILURE;
-    } else if (rval == JSVAL_NULL) {
-      *arv = nullptr;
-    } else if (!JS_WrapValue(mContext, &rval)) {
-      rv = NS_ERROR_FAILURE;
-    } else {
-      rv = nsContentUtils::XPConnect()->JSToVariant(mContext, rval, arv);
-    }
-
-    // Tell XPConnect about any pending exceptions. This is needed
-    // to avoid dropping JS exceptions in case we got here through
-    // nested calls through XPConnect.
-    if (NS_FAILED(rv))
-      ReportPendingException();
-  }
-
-  pusher.Pop();
-
-  // ScriptEvaluated needs to come after we pop the stack
-  ScriptEvaluated(true);
-
-  return rv;
-}
-
-nsresult
 nsJSContext::BindCompiledEventHandler(nsISupports* aTarget, JSObject* aScope,
                                       JSObject* aHandler,
                                       nsScriptObjectHolder<JSObject>& aBoundHandler)
@@ -2792,32 +2690,6 @@ static JSFunctionSpec JProfFunctions[] = {
 
 #endif /* defined(MOZ_JPROF) */
 
-#ifdef MOZ_DMDV
-
-// See https://wiki.mozilla.org/Performance/MemShrink/DMD for instructions on
-// how to use DMDV.
-
-namespace mozilla {
-namespace dmdv {
-
-static JSBool
-ReportAndDump(JSContext *cx, unsigned argc, jsval *vp)
-{
-  mozilla::dmd::RunReporters();
-  mozilla::dmdv::Dump();
-  return JS_TRUE;
-}
-
-} // namespace dmdv
-} // namespace mozilla
-
-static JSFunctionSpec DMDVFunctions[] = {
-    JS_FS("DMDVReportAndDump", dmdv::ReportAndDump, 0, 0),
-    JS_FS_END
-};
-
-#endif /* defined(MOZ_DMDV) */
-
 nsresult
 nsJSContext::InitClasses(JSObject* aGlobalObj)
 {
@@ -2844,11 +2716,6 @@ nsJSContext::InitClasses(JSObject* aGlobalObj)
 #ifdef MOZ_JPROF
   // Attempt to initialize JProf functions
   ::JS_DefineFunctions(mContext, aGlobalObj, JProfFunctions);
-#endif
-
-#ifdef MOZ_DMDV
-  // Attempt to initialize DMDV functions
-  ::JS_DefineFunctions(mContext, aGlobalObj, DMDVFunctions);
 #endif
 
   return rv;
@@ -3096,9 +2963,20 @@ DoMergingCC(bool aForced)
 }
 
 static void
+FinishAnyIncrementalGC()
+{
+  if (sCCLockedOut) {
+    // We're in the middle of an incremental GC, so finish it.
+    js::PrepareForIncrementalGC(nsJSRuntime::sRuntime);
+    js::FinishIncrementalGC(nsJSRuntime::sRuntime, js::gcreason::CC_FORCED);
+  }
+}
+
+static void
 FireForgetSkippable(uint32_t aSuspected, bool aRemoveChildless)
 {
   PRTime startTime = PR_Now();
+  FinishAnyIncrementalGC();
   nsCycleCollector_forgetSkippable(aRemoveChildless);
   sPreviousSuspectedCount = nsCycleCollector_suspectedCount();
   ++sCleanupsSinceLastGC;
@@ -3114,6 +2992,14 @@ FireForgetSkippable(uint32_t aSuspected, bool aRemoveChildless)
   ++sForgetSkippableBeforeCC;
 }
 
+MOZ_ALWAYS_INLINE
+static uint32_t
+TimeBetween(PRTime start, PRTime end)
+{
+  MOZ_ASSERT(end >= start);
+  return (uint32_t)(end - start) / PR_USEC_PER_MSEC;
+}
+
 //static
 void
 nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
@@ -3124,33 +3010,40 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
     return;
   }
 
-  if (sCCLockedOut) {
-    // We're in the middle of an incremental GC; finish it first
-    js::PrepareForIncrementalGC(nsJSRuntime::sRuntime);
-    js::FinishIncrementalGC(nsJSRuntime::sRuntime, js::gcreason::CC_FORCED);
-  }
-
-  SAMPLE_LABEL("GC", "CycleCollectNow");
-
-  KillCCTimer();
+  SAMPLE_LABEL("CC", "CycleCollectNow");
 
   PRTime start = PR_Now();
 
-  uint32_t suspected = nsCycleCollector_suspectedCount();
+  // Before we begin the cycle collection, make sure there is no active GC.
+  bool finishedIGC = sCCLockedOut;
+  FinishAnyIncrementalGC();
+  PRTime endGCTime = PR_Now();
+  uint32_t gcDuration = TimeBetween(start, endGCTime);
 
-  // nsCycleCollector_forgetSkippable may mark some gray js to black.
+  KillCCTimer();
+
+  uint32_t suspected = nsCycleCollector_suspectedCount();
+  bool ranSyncForgetSkippable = false;
+
+  // Run forgetSkippable synchronously to reduce the size of the CC graph. This
+  // is particularly useful if we recently finished a GC.
   if (sCleanupsSinceLastGC < 2 && aExtraForgetSkippableCalls >= 0) {
     while (sCleanupsSinceLastGC < 2) {
       FireForgetSkippable(nsCycleCollector_suspectedCount(), false);
+      ranSyncForgetSkippable = true;
     }
   }
 
   for (int32_t i = 0; i < aExtraForgetSkippableCalls; ++i) {
     FireForgetSkippable(nsCycleCollector_suspectedCount(), false);
+    ranSyncForgetSkippable = true;
   }
 
-  bool mergingCC = DoMergingCC(aForced);
+  PRTime endSkippableTime = PR_Now();
+  uint32_t skippableDuration = TimeBetween(endGCTime, endSkippableTime);
 
+  // Prepare to actually run the CC.
+  bool mergingCC = DoMergingCC(aForced);
   nsCycleCollectorResults ccResults;
   nsCycleCollector_collect(mergingCC, &ccResults, aListener);
   sCCollectedWaitingForGC += ccResults.mFreedRefCounted + ccResults.mFreedGCed;
@@ -3161,13 +3054,19 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
     PokeGC(js::gcreason::CC_WAITING);
   }
 
-  PRTime now = PR_Now();
+  PRTime endCCTime = PR_Now();
+
+  // Log information about the CC via telemetry, JSON and the console.
+  uint32_t ccNowDuration = TimeBetween(start, endCCTime);
+  Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_FINISH_IGC, finishedIGC);
+  Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_SYNC_SKIPPABLE, ranSyncForgetSkippable);
+  Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_FULL, ccNowDuration);
 
   if (sLastCCEndTime) {
     uint32_t timeBetween = (uint32_t)(start - sLastCCEndTime) / PR_USEC_PER_SEC;
     Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_TIME_BETWEEN, timeBetween);
   }
-  sLastCCEndTime = now;
+  sLastCCEndTime = endCCTime;
 
   Telemetry::Accumulate(Telemetry::FORGET_SKIPPABLE_MAX,
                         sMaxForgetSkippableTime / PR_USEC_PER_MSEC);
@@ -3190,11 +3089,11 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
     }
 
     NS_NAMED_MULTILINE_LITERAL_STRING(kFmt,
-      NS_LL("CC(T+%.1f) duration: %llums, suspected: %lu, visited: %lu RCed and %lu%s GCed, collected: %lu RCed and %lu GCed (%lu waiting for GC)%s\n")
-      NS_LL("ForgetSkippable %lu times before CC, min: %lu ms, max: %lu ms, avg: %lu ms, total: %lu ms, removed: %lu"));
+      NS_LL("CC(T+%.1f) duration: %lums, suspected: %lu, visited: %lu RCed and %lu%s GCed, collected: %lu RCed and %lu GCed (%lu waiting for GC)%s\n")
+      NS_LL("ForgetSkippable %lu times before CC, min: %lu ms, max: %lu ms, avg: %lu ms, total: %lu ms, sync: %lu ms, removed: %lu"));
     nsString msg;
     msg.Adopt(nsTextFormatter::smprintf(kFmt.get(), double(delta) / PR_USEC_PER_SEC,
-                                        (now - start) / PR_USEC_PER_MSEC, suspected,
+                                        ccNowDuration, suspected,
                                         ccResults.mVisitedRefCounted, ccResults.mVisitedGCed, mergeMsg.get(),
                                         ccResults.mFreedRefCounted, ccResults.mFreedGCed,
                                         sCCollectedWaitingForGC, gcMsg.get(),
@@ -3204,7 +3103,7 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
                                         (sTotalForgetSkippableTime / cleanups) /
                                           PR_USEC_PER_MSEC,
                                         sTotalForgetSkippableTime / PR_USEC_PER_MSEC,
-                                        sRemovedPurples));
+                                        skippableDuration, sRemovedPurples));
     nsCOMPtr<nsIConsoleService> cs =
       do_GetService(NS_CONSOLESERVICE_CONTRACTID);
     if (cs) {
@@ -3216,6 +3115,8 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
     NS_NAMED_MULTILINE_LITERAL_STRING(kJSONFmt,
        NS_LL("{ \"timestamp\": %llu, ")
          NS_LL("\"duration\": %llu, ")
+         NS_LL("\"finish_gc_duration\": %llu, ")
+         NS_LL("\"sync_skippable_duration\": %llu, ")
          NS_LL("\"suspected\": %lu, ")
          NS_LL("\"visited\": { ")
              NS_LL("\"RCed\": %lu, ")
@@ -3234,8 +3135,9 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
              NS_LL("\"removed\": %lu } ")
        NS_LL("}"));
     nsString json;
-    json.Adopt(nsTextFormatter::smprintf(kJSONFmt.get(),
-                                         now, (now - start) / PR_USEC_PER_MSEC, suspected,
+    json.Adopt(nsTextFormatter::smprintf(kJSONFmt.get(), endCCTime,
+                                         ccNowDuration, gcDuration, skippableDuration,
+                                         suspected,
                                          ccResults.mVisitedRefCounted, ccResults.mVisitedGCed,
                                          ccResults.mFreedRefCounted, ccResults.mFreedGCed,
                                          sCCollectedWaitingForGC,
@@ -3252,6 +3154,8 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
       observerService->NotifyObservers(nullptr, "cycle-collection-statistics", json.get());
     }
   }
+
+  // Update global state to indicate we have just run a cycle collection.
   sMinForgetSkippableTime = UINT32_MAX;
   sMaxForgetSkippableTime = 0;
   sTotalForgetSkippableTime = 0;
@@ -3320,10 +3224,6 @@ CCTimerFired(nsITimer *aTimer, void *aClosure)
     if (now - sCCLockedOutTime < NS_MAX_CC_LOCKEDOUT_TIME) {
       return;
     }
-
-    // Finish the current incremental GC
-    js::PrepareForIncrementalGC(nsJSRuntime::sRuntime);
-    js::FinishIncrementalGC(nsJSRuntime::sRuntime, js::gcreason::CC_FORCED);
   }
 
   ++sCCTimerFireCount;
@@ -3344,12 +3244,13 @@ CCTimerFired(nsITimer *aTimer, void *aClosure)
       }
     } else {
       // We are in the final timer fire and still meet the conditions for
-      // triggering a CC.
+      // triggering a CC. Let CycleCollectNow finish the current IGC, if any,
+      // because that will allow us to include the GC time in the CC pause.
       nsJSContext::CycleCollectNow(nullptr, 0, false);
     }
   } else if ((sPreviousSuspectedCount + 100) <= suspected) {
-    // Only do a forget skippable if there are more than a few new objects.
-    FireForgetSkippable(suspected, false);
+      // Only do a forget skippable if there are more than a few new objects.
+      FireForgetSkippable(suspected, false);
   }
 
   if (isLateTimerFire) {

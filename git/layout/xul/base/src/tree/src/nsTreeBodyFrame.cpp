@@ -38,7 +38,7 @@
 #include "nsIXULTemplateBuilder.h"
 #include "nsXPIDLString.h"
 #include "nsContainerFrame.h"
-#include "nsIView.h"
+#include "nsView.h"
 #include "nsIViewManager.h"
 #include "nsWidgetsCID.h"
 #include "nsBoxFrame.h"
@@ -52,7 +52,6 @@
 #include "nsITheme.h"
 #include "imgIRequest.h"
 #include "imgIContainer.h"
-#include "imgIContainerObserver.h"
 #include "imgILoader.h"
 #include "nsINodeInfo.h"
 #include "nsContentUtils.h"
@@ -874,10 +873,14 @@ nsTreeBodyFrame::UpdateScrollbars(const ScrollParts& aParts)
   nscoord rowHeightAsPixels = nsPresContext::AppUnitsToIntCSSPixels(mRowHeight);
 
   if (aParts.mVScrollbar) {
+    nsWeakFrame self(this);
     nsAutoString curPos;
     curPos.AppendInt(mTopRowIndex*rowHeightAsPixels);
     aParts.mVScrollbarContent->
       SetAttr(kNameSpaceID_None, nsGkAtoms::curpos, curPos, true);
+    if (!self.IsAlive()) {
+      return;
+    }
   }
 
   if (aParts.mHScrollbar) {
@@ -885,6 +888,7 @@ nsTreeBodyFrame::UpdateScrollbars(const ScrollParts& aParts)
     curPos.AppendInt(mHorzPosition);
     aParts.mHScrollbarContent->
       SetAttr(kNameSpaceID_None, nsGkAtoms::curpos, curPos, true);
+    // 'this' might be deleted here
   }
 }
 

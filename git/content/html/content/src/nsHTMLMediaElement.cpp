@@ -102,6 +102,9 @@
 #ifdef MOZ_DASH
 #include "DASHDecoder.h"
 #endif
+#ifdef MOZ_WMF
+#include "WMFDecoder.h"
+#endif
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gMediaElementLog;
@@ -1489,6 +1492,11 @@ nsHTMLMediaElement::BuildObjectFromTags(nsCStringHashKey::KeyType aKey,
 
   nsString wideValue = NS_ConvertUTF8toUTF16(aValue);
   JSString* string = JS_NewUCStringCopyZ(args->cx, wideValue.Data());
+  if (!string) {
+    NS_WARNING("Failed to perform string copy");
+    args->error = true;
+    return PL_DHASH_STOP;
+  }
   JS::Value value = STRING_TO_JSVAL(string);
   if (!JS_DefineProperty(args->cx, args->tags, aKey.Data(), value,
                          NULL, NULL, JSPROP_ENUMERATE)) {
@@ -2163,7 +2171,6 @@ nsHTMLMediaElement::CreateDecoder(const nsACString& aType)
     }
   }
 #endif
-
 #ifdef MOZ_RAW
   if (DecoderTraits::IsRawType(aType)) {
     nsRefPtr<RawDecoder> decoder = new RawDecoder();
@@ -2212,10 +2219,17 @@ nsHTMLMediaElement::CreateDecoder(const nsACString& aType)
     }
   }
 #endif
-
 #ifdef MOZ_DASH
   if (DecoderTraits::IsDASHMPDType(aType)) {
     nsRefPtr<DASHDecoder> decoder = new DASHDecoder();
+    if (decoder->Init(this)) {
+      return decoder.forget();
+    }
+  }
+#endif
+#ifdef MOZ_WMF
+  if (DecoderTraits::IsWMFSupportedType(aType)) {
+    nsRefPtr<WMFDecoder> decoder = new WMFDecoder();
     if (decoder->Init(this)) {
       return decoder.forget();
     }
@@ -3555,8 +3569,9 @@ void nsHTMLMediaElement::UpdateAudioChannelPlayingState()
   // The nsHTMLMediaElement is registered to the AudioChannelService only on B2G.
 #ifdef MOZ_B2G
   bool playingThroughTheAudioChannel =
-     (mReadyState >= nsIDOMHTMLMediaElement::HAVE_FUTURE_DATA &&
-      IsPotentiallyPlaying());
+     (mReadyState >= nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA &&
+      !mPaused &&
+      !IsPlaybackEnded());
   if (playingThroughTheAudioChannel != mPlayingThroughTheAudioChannel) {
     mPlayingThroughTheAudioChannel = playingThroughTheAudioChannel;
 

@@ -16,7 +16,7 @@
 #include "nsCopySupport.h"
 #include "nsFrameSelection.h"
 #include "nsIFrame.h"
-#include "nsIView.h"
+#include "nsView.h"
 #include "nsIContentIterator.h"
 #include "nsTextFragment.h"
 #include "nsTextFrame.h"
@@ -26,6 +26,9 @@
 #include "nsLayoutUtils.h"
 #include "nsIMEStateManager.h"
 #include "nsIObjectFrame.h"
+#include "mozilla/dom/Element.h"
+
+using namespace mozilla::dom;
 
 /******************************************************************/
 /* nsContentEventHandler                                          */
@@ -791,7 +794,7 @@ nsContentEventHandler::OnQueryCharacterAtPoint(nsQueryContentEvent* aEvent)
   // a popup but the rootFrame is the document root.
   if (rootWidget != aEvent->widget) {
     NS_PRECONDITION(aEvent->widget, "The event must have the widget");
-    nsIView* view = nsIView::GetViewFor(aEvent->widget);
+    nsView* view = nsView::GetViewFor(aEvent->widget);
     NS_ENSURE_TRUE(view, NS_ERROR_FAILURE);
     rootFrame = view->GetFrame();
     NS_ENSURE_TRUE(rootFrame, NS_ERROR_FAILURE);
@@ -870,10 +873,8 @@ nsContentEventHandler::OnQueryDOMWidgetHittest(nsQueryContentEvent* aEvent)
   eventLoc.x -= docFrameRect.x;
   eventLoc.y -= docFrameRect.y;
 
-  nsCOMPtr<nsIDOMElement> elementUnderMouse;
-  doc->ElementFromPointHelper(eventLoc.x, eventLoc.y, false, false,
-                              getter_AddRefs(elementUnderMouse));
-  nsCOMPtr<nsIContent> contentUnderMouse = do_QueryInterface(elementUnderMouse);
+  Element* contentUnderMouse =
+    doc->ElementFromPointHelper(eventLoc.x, eventLoc.y, false, false);
   if (contentUnderMouse) {
     nsIWidget* targetWidget = nullptr;
     nsIFrame* targetFrame = contentUnderMouse->GetPrimaryFrame();
@@ -981,7 +982,7 @@ nsContentEventHandler::ConvertToRootViewRelativeOffset(nsIFrame* aFrame,
 {
   NS_ASSERTION(aFrame, "aFrame must not be null");
 
-  nsIView* view = nullptr;
+  nsView* view = nullptr;
   nsPoint posInView;
   aFrame->GetOffsetFromView(posInView, &view);
   if (!view)

@@ -956,11 +956,11 @@ CompileBackEnd(MIRGenerator *mir)
             return NULL;
     }
 
-    // Note: bounds check elimination has to run after all other passes that
-    // move instructions. Since bounds check uses are replaced with the actual
-    // index, code motion after this pass could incorrectly move a load or
-    // store before its bounds check.
-    if (!EliminateRedundantBoundsChecks(graph))
+    // Note: check elimination has to run after all other passes that move
+    // instructions. Since check uses are replaced with the actual index, code
+    // motion after this pass could incorrectly move a load or store before its
+    // bounds check.
+    if (!EliminateRedundantChecks(graph))
         return NULL;
     IonSpewPass("Bounds Check Elimination");
     AssertGraphCoherency(graph);
@@ -1178,7 +1178,8 @@ IonCompile(JSContext *cx, HandleScript script, HandleFunction fun, jsbytecode *o
     AutoFlushCache afc("IonCompile");
 
     types::AutoEnterCompilation enterCompiler(cx, CompilerOutputKind(executionMode));
-    enterCompiler.init(script, false, 0);
+    if (!enterCompiler.init(script, false, 0))
+        return false;
 
     AutoTempAllocatorRooter root(cx, temp);
 
@@ -1209,10 +1210,13 @@ SequentialCompileContext::compile(IonBuilder *builder, MIRGraph *graph,
 
     // Try to compile the script off thread, if possible. Compilation cannot be
     // performed off thread during an incremental GC, as doing so may trip
-    // incremental read barriers.
+    // incremental read barriers. Also skip off thread compilation if script
+    // execution is being profiled, as CodeGenerator::maybeCreateScriptCounts
+    // will not attach script profiles when running off thread.
     if (js_IonOptions.parallelCompilation &&
         OffThreadCompilationAvailable(cx) &&
-        cx->runtime->gcIncrementalState == gc::NO_INCREMENTAL)
+        cx->runtime->gcIncrementalState == gc::NO_INCREMENTAL &&
+        !cx->runtime->profilingScripts)
     {
         builder->script()->ion = ION_COMPILING_SCRIPT;
 

@@ -925,6 +925,12 @@ var WifiManager = (function() {
       }
       return true;
     }
+    if (eventData.indexOf("CTRL-EVENT-EAP-FAILURE") === 0) {
+      if (event.indexOf("EAP authentication failed") !== -1) {
+        notify("passwordmaybeincorrect");
+      }
+      return true;
+    }
     if (eventData.indexOf("CTRL-EVENT-CONNECTED") === 0) {
       // Format: CTRL-EVENT-CONNECTED - Connection to 00:1e:58:ec:d5:6d completed (reauth) [id=1 id_str=]
       var bssid = event.split(" ")[4];
@@ -1613,6 +1619,7 @@ function WifiWorker() {
 
   this.wantScanResults = [];
 
+  this._allowWpaEap = false;
   this._needToEnableNetworks = false;
   this._highestPriority = -1;
 
@@ -1626,6 +1633,7 @@ function WifiWorker() {
   // all cases, the supplicant will take the last quotation that we pass it as
   // the end of the string.
   this.configuredNetworks = Object.create(null);
+  this._addingNetworks = Object.create(null);
 
   this.currentNetwork = null;
   this.ipAddress = "";
@@ -1777,6 +1785,12 @@ function WifiWorker() {
       self._enableAllNetworks();
       WifiManager.saveConfig(function() {})
     });
+
+    try {
+      self._allowWpaEap = Services.prefs.getBoolPref("b2g.wifi.allow_unsafe_wpa_eap");
+    } catch (e) {
+      self._allowWpaEap = false;
+    }
 
     // Check if we need to dequeue requests first.
     self._notifyAfterStateChange(true, true);
@@ -2031,13 +2045,17 @@ function WifiWorker() {
               signalLevel = match[3],
               flags = match[4];
 
+          // Skip ad-hoc networks which aren't supported (bug 811635).
+          if (flags.indexOf("[IBSS]") >= 0)
+            continue;
+
           // If this is the first time that we've seen this SSID in the scan
           // results, add it to the list along with any other information.
           // Also, we use the highest signal strength that we see.
           let network = new ScanResult(ssid, bssid, flags, signalLevel);
-          self.networksArray.push(network);
 
           let networkKey = getNetworkKey(network);
+          let eapIndex = -1;
           if (networkKey in self.configuredNetworks) {
             let known = self.configuredNetworks[networkKey];
             network.known = true;
@@ -2052,8 +2070,21 @@ function WifiWorker() {
                 ("wep_key0" in known && known.wep_key0)) {
               network.password = "*";
             }
+          } else if (!self._allowWpaEap &&
+                     (eapIndex = network.capabilities.indexOf("WPA-EAP")) >= 0) {
+            // Don't offer to connect to WPA-EAP networks unless one has been
+            // configured through other means (e.g. it was added directly to
+            // wpa_supplicant.conf). Here, we have an unknown WPA-EAP network,
+            // so we ignore it entirely if it only supports WPA-EAP, otherwise
+            // we take EAP out of the list and offer the rest of the
+            // capabilities.
+            if (network.capabilities.length === 1)
+              continue;
+
+            network.capabilities.splice(eapIndex, 1);
           }
 
+          self.networksArray.push(network);
           if (network.bssid === WifiManager.connectionInfo.bssid)
             network.connected = true;
 
@@ -2165,14 +2196,14 @@ WifiWorker.prototype = {
 
     var self = this;
     function getConnectionInformation() {
-      WifiManager.getConnectionInfo(function(info) {
+      WifiManager.getConnectionInfo(function(connInfo) {
         // See comments in calculateSignal for information about this.
-        if (!info) {
+        if (!connInfo) {
           self._lastConnectionInfo = null;
           return;
         }
 
-        let { rssi, linkspeed } = info;
+        let { rssi, linkspeed } = connInfo;
         if (rssi > 0)
           rssi -= 256;
         if (rssi <= MIN_RSSI)
@@ -2636,6 +2667,11 @@ WifiWorker.prototype = {
     let networkKey = getNetworkKey(privnet);
     let configured;
 
+    if (networkKey in this._addingNetworks) {
+      this._sendMessage(message, false, "Racing associates");
+      return;
+    }
+
     if (networkKey in this.configuredNetworks)
       configured = this.configuredNetworks[networkKey];
 
@@ -2658,7 +2694,10 @@ WifiWorker.prototype = {
       // set it to being "enabled" before we add it and save the
       // configuration.
       privnet.disabled = 0;
+      this._addingNetworks[networkKey] = privnet;
       WifiManager.addNetwork(privnet, (function(ok) {
+        delete this._addingNetworks[networkKey];
+
         if (!ok) {
           this._sendMessage(message, false, "Network is misconfigured", msg);
           return;

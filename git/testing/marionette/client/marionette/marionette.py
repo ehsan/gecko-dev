@@ -210,10 +210,6 @@ class Marionette(object):
             self.session = None
             self.window = None
             self.client.close()
-            if self.emulator:
-                port = self.emulator.restart(self.local_port)
-                if port is not None:
-                    self.port = self.client.port = port
             raise TimeoutException(message='socket.timeout', status=ErrorCodes.TIMEOUT, stacktrace=None)
 
         # Process any emulator commands that are sent from a script
@@ -296,7 +292,7 @@ class Marionette(object):
             # should be here.
             pass
         if returncode is not None:
-            print ('TEST-UNEXPECTED-FAIL - PROCESS CRASH - %s has terminated with exit code %d' %
+            print ('PROCESS-CRASH | %s | abnormal termination with exit code %d' %
                 (name, returncode))
         return returncode is not None
 
@@ -376,11 +372,11 @@ class Marionette(object):
         self.window = window_id
         return response
 
-    def switch_to_frame(self, frame=None):
+    def switch_to_frame(self, frame=None, focus=True):
         if isinstance(frame, HTMLElement):
-            response = self._send_message('switchToFrame', 'ok', element=frame.id)
+            response = self._send_message('switchToFrame', 'ok', element=frame.id, focus=focus)
         else:
-            response = self._send_message('switchToFrame', 'ok', value=frame)
+            response = self._send_message('switchToFrame', 'ok', value=frame, focus=focus)
         return response
 
     def get_url(self):

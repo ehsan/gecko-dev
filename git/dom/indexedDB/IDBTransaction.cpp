@@ -12,6 +12,7 @@
 #include "nsIScriptContext.h"
 
 #include "DOMError.h"
+#include "mozilla/dom/quota/QuotaManager.h"
 #include "mozilla/storage.h"
 #include "nsContentUtils.h"
 #include "nsDOMClassInfoID.h"
@@ -36,6 +37,7 @@
 #define SAVEPOINT_NAME "savepoint"
 
 USING_INDEXEDDB_NAMESPACE
+using mozilla::dom::quota::QuotaManager;
 
 namespace {
 
@@ -352,7 +354,8 @@ IDBTransaction::GetOrCreateConnection(mozIStorageConnection** aResult)
 
   if (!mConnection) {
     nsCOMPtr<mozIStorageConnection> connection =
-      IDBFactory::GetConnection(mDatabase->FilePath());
+      IDBFactory::GetConnection(mDatabase->FilePath(),
+                                mDatabase->Origin());
     NS_ENSURE_TRUE(connection, NS_ERROR_FAILURE);
 
     nsresult rv;
@@ -892,7 +895,7 @@ CommitHelper::Run()
   }
 
   if (mConnection) {
-    IndexedDatabaseManager::SetCurrentWindow(database->GetOwner());
+    QuotaManager::SetCurrentWindow(database->GetOwner());
 
     if (NS_SUCCEEDED(mAbortCode) && mUpdateFileRefcountFunction &&
         NS_FAILED(mUpdateFileRefcountFunction->WillCommit(mConnection))) {
@@ -948,7 +951,7 @@ CommitHelper::Run()
     mConnection->Close();
     mConnection = nullptr;
 
-    IndexedDatabaseManager::SetCurrentWindow(nullptr);
+    QuotaManager::SetCurrentWindow(nullptr);
   }
 
   return NS_OK;

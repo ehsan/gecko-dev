@@ -353,7 +353,7 @@ mjit::Compiler::scanInlineCalls(uint32_t index, uint32_t depth)
             if (status != Compile_Okay)
                 return status;
 
-            if (!script->analysis()->inlineable(argc)) {
+            if (!script->analysis()->jaegerInlineable(argc)) {
                 okay = false;
                 break;
             }
@@ -780,31 +780,6 @@ MakeJITScript(JSContext *cx, HandleScript script)
                             return NULL;
                     }
                     pc2 += JUMP_OFFSET_LEN;
-                }
-            }
-
-            if (op == JSOP_LOOKUPSWITCH) {
-                unsigned defaultOffset = offset + GET_JUMP_OFFSET(pc);
-                jsbytecode *pc2 = pc + JUMP_OFFSET_LEN;
-                unsigned npairs = GET_UINT16(pc2);
-                pc2 += UINT16_LEN;
-
-                CrossChunkEdge edge;
-                edge.source = offset;
-                edge.target = defaultOffset;
-                if (!currentEdges.append(edge))
-                    return NULL;
-
-                while (npairs) {
-                    pc2 += UINT32_INDEX_LEN;
-                    unsigned targetOffset = offset + GET_JUMP_OFFSET(pc2);
-                    CrossChunkEdge edge;
-                    edge.source = offset;
-                    edge.target = targetOffset;
-                    if (!currentEdges.append(edge))
-                        return NULL;
-                    pc2 += JUMP_OFFSET_LEN;
-                    npairs--;
                 }
             }
 
@@ -2872,21 +2847,6 @@ mjit::Compiler::generateMethod()
             break;
           END_CASE(JSOP_TABLESWITCH)
 
-          BEGIN_CASE(JSOP_LOOKUPSWITCH)
-            if (script_->hasScriptCounts)
-                updatePCCounts(PC, &countsUpdated);
-            frame.syncAndForgetEverything();
-            masm.move(ImmPtr(PC), Registers::ArgReg1);
-
-            /* prepareStubCall() is not needed due to syncAndForgetEverything() */
-            INLINE_STUBCALL(stubs::LookupSwitch, REJOIN_NONE);
-            frame.pop();
-
-            masm.jump(Registers::ReturnReg);
-            PC += js_GetVariableBytecodeLength(PC);
-            break;
-          END_CASE(JSOP_LOOKUPSWITCH)
-
           BEGIN_CASE(JSOP_CASE)
             // X Y
 
@@ -4025,6 +3985,12 @@ mjit::Compiler::ionCompileHelper()
 
     void *ionScriptAddress = &script_->ion;
 
+#ifdef JS_CPU_X64
+    // Allocate a temp register. Note that we have to do this before calling
+    // syncExitAndJump below.
+    RegisterID reg = frame.allocReg();
+#endif
+
     InternalCompileTrigger trigger;
     trigger.pc = PC;
     trigger.stubLabel = stubcc.syncExitAndJump(Uses(0));
@@ -4052,7 +4018,6 @@ mjit::Compiler::ionCompileHelper()
                                            Imm32(0));
 #elif defined(JS_CPU_X64)
     /* Handle processors that can't load from absolute addresses. */
-    RegisterID reg = frame.allocReg();
     masm.move(ImmPtr(useCountAddress), reg);
     trigger.inlineJump = masm.branch32(Assembler::GreaterThanOrEqual,
                                        Address(reg),

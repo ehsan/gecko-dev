@@ -80,7 +80,6 @@ WebrtcVideoConduit::~WebrtcVideoConduit()
   {
     mPtrRTP->Release();
   }
-
   if(mVideoEngine)
   {
     webrtc::VideoEngine::Delete(mVideoEngine);
@@ -101,11 +100,20 @@ MediaConduitErrorCode WebrtcVideoConduit::Init()
      return kMediaConduitSessionNotInited;
   }
 
-#if 0
-  // TRACING
-  mVideoEngine->SetTraceFilter(webrtc::kTraceAll);
-  mVideoEngine->SetTraceFile( "Vievideotrace.out" );
-#endif
+  PRLogModuleInfo *logs = GetWebRTCLogInfo();
+  if (!gWebrtcTraceLoggingOn && logs && logs->level > 0) {
+    // no need to a critical section or lock here
+    gWebrtcTraceLoggingOn = 1;
+
+    const char *file = PR_GetEnv("WEBRTC_TRACE_FILE");
+    if (!file) {
+      file = "WebRTC.log";
+    }
+    CSFLogDebug(logTag,  "%s Logging webrtc to %s level %d", __FUNCTION__,
+                file, logs->level);
+    mVideoEngine->SetTraceFilter(logs->level);
+    mVideoEngine->SetTraceFile(file);
+  }
 
   if( !(mPtrViEBase = ViEBase::GetInterface(mVideoEngine)))
   {
@@ -651,6 +659,9 @@ WebrtcVideoConduit::CodecConfigToWebRTCCodec(const VideoCodecConfig* codecInfo,
   cinst.plType  = codecInfo->mType;
   cinst.width   = codecInfo->mWidth;
   cinst.height  = codecInfo->mHeight;
+  cinst.minBitrate = 50;
+  cinst.startBitrate = 300;
+  cinst.maxBitrate = 2000;
 }
 
 bool

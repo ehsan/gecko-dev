@@ -70,7 +70,6 @@ class IonBuilder : public MIRGenerator
             FOR_LOOP_BODY,      // for (; ;) { x }
             FOR_LOOP_UPDATE,    // for (; ; x) { }
             TABLE_SWITCH,       // switch() { x }
-            LOOKUP_SWITCH,      // switch() { x }
             COND_SWITCH_CASE,   // switch() { case X: ... }
             COND_SWITCH_BODY,   // switch() { case ...: X }
             AND_OR              // && x, || x
@@ -124,19 +123,6 @@ class IonBuilder : public MIRGenerator
 
             } tableswitch;
             struct {
-                // pc immediately after the switch.
-                jsbytecode *exitpc;
-
-                // Deferred break and continue targets.
-                DeferredEdge *breaks;
-
-                // Vector of body blocks to process
-                FixedList<MBasicBlock *> *bodies;
-
-                // The number of current successor that get mapped into a block. 
-                uint32_t currentBlock;
-            } lookupswitch;
-            struct {
                 // Vector of body blocks to process after the cases.
                 FixedList<MBasicBlock *> *bodies;
 
@@ -174,7 +160,6 @@ class IonBuilder : public MIRGenerator
         static CFGState IfElse(jsbytecode *trueEnd, jsbytecode *falseEnd, MBasicBlock *ifFalse);
         static CFGState AndOr(jsbytecode *join, MBasicBlock *joinStart);
         static CFGState TableSwitch(jsbytecode *exitpc, MTableSwitch *ins);
-        static CFGState LookupSwitch(jsbytecode *exitpc);
         static CFGState CondSwitch(jsbytecode *exitpc, jsbytecode *defaultTarget);
     };
 
@@ -223,7 +208,6 @@ class IonBuilder : public MIRGenerator
     ControlStatus processForBodyEnd(CFGState &state);
     ControlStatus processForUpdateEnd(CFGState &state);
     ControlStatus processNextTableSwitchCase(CFGState &state);
-    ControlStatus processNextLookupSwitchCase(CFGState &state);
     ControlStatus processCondSwitchCase(CFGState &state);
     ControlStatus processCondSwitchBody(CFGState &state);
     ControlStatus processSwitchBreak(JSOp op, jssrcnote *sn);
@@ -271,7 +255,6 @@ class IonBuilder : public MIRGenerator
     ControlStatus whileOrForInLoop(JSOp op, jssrcnote *sn);
     ControlStatus doWhileLoop(JSOp op, jssrcnote *sn);
     ControlStatus tableSwitch(JSOp op, jssrcnote *sn);
-    ControlStatus lookupSwitch(JSOp op, jssrcnote *sn);
     ControlStatus condSwitch(JSOp op, jssrcnote *sn);
 
     // Please see the Big Honkin' Comment about how resume points work in
@@ -288,7 +271,7 @@ class IonBuilder : public MIRGenerator
     bool initScopeChain();
     bool pushConstant(const Value &v);
     bool pushTypeBarrier(MInstruction *ins, types::StackTypeSet *actual, types::StackTypeSet *observed);
-    void monitorResult(MInstruction *ins, types::TypeSet *barrier, types::TypeSet *types);
+    void monitorResult(MInstruction *ins, types::TypeSet *barrier, types::StackTypeSet *types);
 
     JSObject *getSingletonPrototype(JSFunction *target);
 
@@ -298,8 +281,6 @@ class IonBuilder : public MIRGenerator
     MDefinition *createThis(HandleFunction target, MDefinition *callee);
     MInstruction *createDeclEnvObject(MDefinition *callee, MDefinition *scopeObj);
     MInstruction *createCallObject(MDefinition *callee, MDefinition *scopeObj);
-
-    bool makeCall(HandleFunction target, uint32_t argc, bool constructing);
 
     MDefinition *walkScopeChain(unsigned hops);
 
@@ -336,9 +317,11 @@ class IonBuilder : public MIRGenerator
     bool jsop_pos();
     bool jsop_neg();
     bool jsop_defvar(uint32_t index);
+    bool jsop_deffun(uint32_t index);
     bool jsop_notearg();
     bool jsop_funcall(uint32_t argc);
     bool jsop_funapply(uint32_t argc);
+    bool jsop_funapplyarguments(uint32_t argc);
     bool jsop_call(uint32_t argc, bool constructing);
     bool jsop_ifeq(JSOp op);
     bool jsop_condswitch();
@@ -375,7 +358,6 @@ class IonBuilder : public MIRGenerator
     bool jsop_regexp(RegExpObject *reobj);
     bool jsop_object(JSObject *obj);
     bool jsop_lambda(JSFunction *fun);
-    bool jsop_deflocalfun(uint32_t local, JSFunction *fun);
     bool jsop_this();
     bool jsop_typeof();
     bool jsop_toid();
@@ -420,6 +402,7 @@ class IonBuilder : public MIRGenerator
     InliningStatus inlineMathMinMax(bool max, uint32_t argc, bool constructing);
     InliningStatus inlineMathPow(uint32_t argc, bool constructing);
     InliningStatus inlineMathRandom(uint32_t argc, bool constructing);
+    InliningStatus inlineMathImul(uint32_t argc, bool constructing);
     InliningStatus inlineMathFunction(MMathFunction::Function function, uint32_t argc,
                                       bool constructing);
 
@@ -441,9 +424,19 @@ class IonBuilder : public MIRGenerator
                             types::StackTypeSet *types, types::StackTypeSet *barrier);
     bool makeInliningDecision(AutoObjectVector &targets, uint32_t argc);
 
+    void popFormals(uint32_t argc, MDefinition **fun, MPassArg **thisArg,
+                    Vector<MPassArg *> *args);
+    MCall *makeCallHelper(HandleFunction target, bool constructing,
+                          MDefinition *fun, MPassArg *thisArg, Vector<MPassArg *> &args);
     MCall *makeCallHelper(HandleFunction target, uint32_t argc, bool constructing);
     bool makeCallBarrier(HandleFunction target, uint32_t argc, bool constructing,
                          types::StackTypeSet *types, types::StackTypeSet *barrier);
+    bool makeCallBarrier(HandleFunction target, bool constructing,
+                         MDefinition *fun, MPassArg *thisArg, Vector<MPassArg *> &args,
+                         types::StackTypeSet *types, types::StackTypeSet *barrier);
+    bool makeCall(HandleFunction target, uint32_t argc, bool constructing);
+    bool makeCall(HandleFunction target, bool constructing,
+                  MDefinition *fun, MPassArg *thisArg, Vector<MPassArg *> &args);
 
     inline bool TestCommonPropFunc(JSContext *cx, types::StackTypeSet *types,
                                    HandleId id, JSFunction **funcp,
@@ -462,7 +455,7 @@ class IonBuilder : public MIRGenerator
                            MBasicBlock *bottom,
                            Vector<MDefinition *, 8, IonAllocPolicy> &retvalDefns);
 
-    const types::TypeSet *cloneTypeSet(const types::TypeSet *types);
+    const types::StackTypeSet *cloneTypeSet(const types::StackTypeSet *types);
 
     // A builder is inextricably tied to a particular script.
     HeapPtrScript script_;
@@ -502,7 +495,9 @@ class IonBuilder : public MIRGenerator
     Vector<ControlFlowInfo, 0, IonAllocPolicy> switches_;
     Vector<MInstruction *, 2, IonAllocPolicy> iterators_;
     TypeOracle *oracle;
+
     size_t inliningDepth;
+    Vector<MDefinition *, 0, IonAllocPolicy> inlinedArguments_;
 
     // True if script->failedBoundsCheck is set for the current script or
     // an outer script.
@@ -512,7 +507,7 @@ class IonBuilder : public MIRGenerator
     // an outer script.
     bool failedShapeGuard_;
 
-    // If this script can use a lazy arguments object, it wil be pre-created
+    // If this script can use a lazy arguments object, it will be pre-created
     // here.
     MInstruction *lazyArguments_;
 };
@@ -521,4 +516,3 @@ class IonBuilder : public MIRGenerator
 } // namespace js
 
 #endif // jsion_bytecode_analyzer_h__
-

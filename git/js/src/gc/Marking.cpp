@@ -99,6 +99,20 @@ static void MarkChildren(JSTracer *trc, JSXML *xml);
 
 /*** Object Marking ***/
 
+#ifdef DEBUG
+template<typename T>
+static inline bool
+IsThingPoisoned(T *thing)
+{
+    const uint8_t pb = JS_FREE_PATTERN;
+    const uint32_t pw = pb | (pb << 8) | (pb << 16) | (pb << 24);
+    JS_STATIC_ASSERT(sizeof(T) >= sizeof(FreeSpan) + sizeof(uint32_t));
+    uint32_t *p =
+        reinterpret_cast<uint32_t *>(reinterpret_cast<FreeSpan *>(thing) + 1);
+    return *p == pw;
+}
+#endif
+
 template<typename T>
 static inline void
 CheckMarkedThing(JSTracer *trc, T *thing)
@@ -107,10 +121,12 @@ CheckMarkedThing(JSTracer *trc, T *thing)
     JS_ASSERT(thing);
     JS_ASSERT(thing->compartment());
     JS_ASSERT(thing->compartment()->rt == trc->runtime);
-    JS_ASSERT_IF(IS_GC_MARKING_TRACER(trc), !thing->compartment()->scheduledForDestruction);
     JS_ASSERT(trc->debugPrinter || trc->debugPrintArg);
 
     DebugOnly<JSRuntime *> rt = trc->runtime;
+
+    JS_ASSERT_IF(IS_GC_MARKING_TRACER(trc) && rt->gcManipulatingDeadCompartments,
+                 !thing->compartment()->scheduledForDestruction);
 
 #ifdef DEBUG
     rt->assertValidThread();
@@ -127,6 +143,8 @@ CheckMarkedThing(JSTracer *trc, T *thing)
     JS_ASSERT_IF(IS_GC_MARKING_TRACER(trc) && ((GCMarker *)trc)->getMarkColor() == GRAY,
                  thing->compartment()->isGCMarkingGray() ||
                  thing->compartment() == rt->atomsCompartment);
+
+    JS_ASSERT(!IsThingPoisoned(thing));
 }
 
 static GCMarker *
@@ -1500,13 +1518,27 @@ UnmarkGrayGCThing(void *thing)
     static_cast<js::gc::Cell *>(thing)->unmark(js::gc::GRAY);
 }
 
+static void
+UnmarkGrayChildren(JSTracer *trc, void **thingp, JSGCTraceKind kind);
+
 struct UnmarkGrayTracer : public JSTracer
 {
-    UnmarkGrayTracer() : tracingShape(false), previousShape(NULL) {}
-    UnmarkGrayTracer(JSTracer *trc, bool tracingShape)
-        : tracingShape(tracingShape), previousShape(NULL)
+    /*
+     * We set eagerlyTraceWeakMaps to false because the cycle collector will fix
+     * up any color mismatches involving weakmaps when it runs.
+     */
+    UnmarkGrayTracer(JSRuntime *rt)
+      : tracingShape(false), previousShape(NULL)
     {
-        JS_TracerInit(this, trc->runtime, trc->callback);
+        JS_TracerInit(this, rt, UnmarkGrayChildren);
+        eagerlyTraceWeakMaps = false;
+    }
+
+    UnmarkGrayTracer(JSTracer *trc, bool tracingShape)
+      : tracingShape(tracingShape), previousShape(NULL)
+    {
+        JS_TracerInit(this, trc->runtime, UnmarkGrayChildren);
+        eagerlyTraceWeakMaps = false;
     }
 
     /* True iff we are tracing the immediate children of a shape. */
@@ -1591,7 +1623,6 @@ js::UnmarkGrayGCThingRecursively(void *thing, JSGCTraceKind kind)
     UnmarkGrayGCThing(thing);
 
     JSRuntime *rt = static_cast<Cell *>(thing)->compartment()->rt;
-    UnmarkGrayTracer trc;
-    JS_TracerInit(&trc, rt, UnmarkGrayChildren);
+    UnmarkGrayTracer trc(rt);
     JS_TraceChildren(&trc, thing, kind);
 }

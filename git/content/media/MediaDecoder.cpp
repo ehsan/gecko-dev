@@ -23,6 +23,10 @@
 #include <cstdlib> // for std::abs(int/long)
 #include <cmath> // for std::abs(float/double)
 
+#ifdef MOZ_WMF
+#include "WMFDecoder.h"
+#endif
+
 using namespace mozilla::layers;
 using namespace mozilla::dom;
 
@@ -970,7 +974,7 @@ void MediaDecoder::NotifyPrincipalChanged()
 
 void MediaDecoder::NotifyBytesConsumed(int64_t aBytes)
 {
-  NS_ENSURE_TRUE(mDecoderStateMachine, );
+  NS_ENSURE_TRUE_VOID(mDecoderStateMachine);
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
   MOZ_ASSERT(OnStateMachineThread() || mDecoderStateMachine->OnDecodeThread());
   if (!mIgnoreProgressData) {
@@ -1202,7 +1206,7 @@ void MediaDecoder::SetDuration(double aDuration)
 
 void MediaDecoder::SetMediaDuration(int64_t aDuration)
 {
-  NS_ENSURE_TRUE(GetStateMachine(), );
+  NS_ENSURE_TRUE_VOID(GetStateMachine());
   GetStateMachine()->SetDuration(aDuration);
 }
 
@@ -1270,7 +1274,7 @@ void MediaDecoder::SetFragmentEndTime(double aTime)
 
 void MediaDecoder::SetMediaEndTime(int64_t aTime)
 {
-  NS_ENSURE_TRUE(GetStateMachine(), );
+  NS_ENSURE_TRUE_VOID(GetStateMachine());
   GetStateMachine()->SetMediaEndTime(aTime);
 }
 
@@ -1638,6 +1642,14 @@ bool
 MediaDecoder::IsDASHEnabled()
 {
   return Preferences::GetBool("media.dash.enabled");
+}
+#endif
+
+#ifdef MOZ_WMF
+bool
+MediaDecoder::IsWMFEnabled()
+{
+  return WMFDecoder::IsEnabled();
 }
 #endif
 
