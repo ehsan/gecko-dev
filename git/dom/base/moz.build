@@ -293,7 +293,6 @@ UNIFIED_SOURCES += [
     'nsNoDataProtocolContentPolicy.cpp',
     'nsNodeInfoManager.cpp',
     'nsNodeUtils.cpp',
-    'nsOpenURIInFrameParams.cpp',
     'nsPerformance.cpp',
     'nsPlainTextSerializer.cpp',
     'nsPropertyTable.cpp',

@@ -24,19 +24,20 @@ const DOCUMENT_SRC = "<style>" +
     "}" +
   "</style>" +
   "<body>" +
-   "<iframe src='data:text/html;charset=utf-8," + IFRAME_SRC + "'></iframe>" +
+   "<iframe src='data:text/html," + IFRAME_SRC + "'></iframe>" +
   "</body>";
 
 const TEST_URI = "data:text/html;charset=utf-8," + DOCUMENT_SRC;
 
-add_task(function* () {
+let test = asyncTest(function* () {
   let { inspector, toolbox } = yield openInspectorForURL(TEST_URI);
+  let outerDocument = content.document;
 
   let iframeNode = getNode("iframe");
+  let iframeBodyNode = getNode("body", { document: iframeNode.contentDocument });
 
   info("Waiting for box mode to show.");
-  let body = yield getNodeFront("body", inspector);
-  yield toolbox.highlighter.showBoxModel(body);
+  yield toolbox.highlighter.showBoxModel(getNodeFront(outerDocument.body));
 
   info("Waiting for element picker to become active.");
   yield toolbox.highlighterUtils.startPicker();
@@ -45,28 +46,25 @@ add_task(function* () {
   yield moveMouseOver(iframeNode, 1, 1);
 
   info("Performing checks");
-  yield isNodeCorrectlyHighlighted(iframeNode, toolbox);
+  isNodeCorrectlyHighlighted(iframeNode);
 
   info("Scrolling the document");
-  iframeNode.style.marginBottom = content.innerHeight + "px";
-  content.scrollBy(0, 40);
-
-  let iframeBodyNode = iframeNode.contentDocument.body;
+  iframeNode.style.marginBottom = outerDocument.defaultView.innerHeight + "px";
+  outerDocument.defaultView.scrollBy(0, 40);
 
   info("Moving mouse over iframe body");
   yield moveMouseOver(iframeNode, 40, 40);
 
-  let highlightedNode = yield getHighlitNode(toolbox);
-  is(highlightedNode, iframeBodyNode, "highlighter shows the right node");
-  yield isNodeCorrectlyHighlighted(iframeBodyNode, toolbox);
+  is(getHighlitNode(), iframeBodyNode, "highlighter shows the right node");
+  isNodeCorrectlyHighlighted(iframeBodyNode);
 
   info("Waiting for the element picker to deactivate.");
   yield inspector.toolbox.highlighterUtils.stopPicker();
 
-  function moveMouseOver(node, x, y) {
-    info("Waiting for element " + node + " to be highlighted");
-    executeInContent("Test:SynthesizeMouse", {x, y, type: "mousemove"},
-                     {node}, false);
+  function moveMouseOver(aElement, x, y) {
+    info("Waiting for element " + aElement + " to be highlighted");
+    EventUtils.synthesizeMouse(aElement, x, y, {type: "mousemove"},
+                               aElement.ownerDocument.defaultView);
     return inspector.toolbox.once("picker-node-hovered");
   }
 });

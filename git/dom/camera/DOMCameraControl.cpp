@@ -311,11 +311,7 @@ nsDOMCameraControl::nsDOMCameraControl(uint32_t aCameraId,
     }
 #ifdef MOZ_WIDGET_GONK
   } else {
-    if (haveInitialConfig) {
-      rv = mCameraControl->SetConfiguration(config);
-    } else {
-      rv = NS_OK;
-    }
+    rv = mCameraControl->SetConfiguration(config);
   }
 #endif
   if (NS_FAILED(rv)) {

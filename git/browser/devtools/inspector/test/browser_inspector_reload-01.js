@@ -12,7 +12,7 @@
 // is selected (bug 1002280).
 const TEST_URI = "data:text/html,<p id='1'>p</p>";
 
-add_task(function* () {
+let test = asyncTest(function* () {
   let { inspector, toolbox } = yield openInspectorForURL(TEST_URI);
   yield selectNode("p", inspector);
 
@@ -24,8 +24,7 @@ add_task(function* () {
   info("Waiting for markupview to load after reload.");
   yield markupLoaded;
 
-  let nodeFront = yield getNodeFront("p", inspector);
-  is(inspector.selection.nodeFront, nodeFront, "<p> selected after reload.");
+  is(inspector.selection.node, getNode("p"), "<p> selected after reload.");
 
   info("Selecting a node to see that inspector still works.");
   yield selectNode("body", inspector);

@@ -14,7 +14,6 @@ loop.conversationViews = (function(mozL10n) {
   var sharedActions = loop.shared.actions;
   var sharedUtils = loop.shared.utils;
   var sharedViews = loop.shared.views;
-  var sharedMixins = loop.shared.mixins;
 
   // This duplicates a similar function in contacts.jsx that isn't used in the
   // conversation window. If we get too many of these, we might want to consider
@@ -134,8 +133,6 @@ loop.conversationViews = (function(mozL10n) {
    * pending/ringing strings.
    */
   var PendingConversationView = React.createClass({
-    mixins: [sharedMixins.AudioMixin],
-
     propTypes: {
       dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
       callState: React.PropTypes.string,
@@ -147,10 +144,6 @@ loop.conversationViews = (function(mozL10n) {
       return {
         enableCancelButton: false
       };
-    },
-
-    componentDidMount: function() {
-      this.play("ringtone", {loop: true});
     },
 
     cancelCall: function() {
@@ -193,7 +186,7 @@ loop.conversationViews = (function(mozL10n) {
    * Call failed view. Displayed when a call fails.
    */
   var CallFailedView = React.createClass({
-    mixins: [Backbone.Events, sharedMixins.AudioMixin],
+    mixins: [Backbone.Events],
 
     propTypes: {
       dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
@@ -212,7 +205,6 @@ loop.conversationViews = (function(mozL10n) {
     },
 
     componentDidMount: function() {
-      this.play("failure");
       this.listenTo(this.props.store, "change:emailLink",
                     this._onEmailLinkReceived);
       this.listenTo(this.props.store, "error:emailLink",

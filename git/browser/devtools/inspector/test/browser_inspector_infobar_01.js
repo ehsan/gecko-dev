@@ -4,44 +4,49 @@
 
 "use strict";
 
-// Check the position and text content of the highlighter nodeinfo bar.
-
 const TEST_URI = "http://example.com/browser/browser/devtools/inspector/" +
-                 "test/doc_inspector_infobar_01.html";
+                 "test/browser_inspector_infobar_01.html";
 
-add_task(function*() {
+// Test that hovering over nodes in the markup-view shows the highlighter over
+// those nodes
+let test = asyncTest(function*() {
+  info("Loading the test document and opening the inspector");
+
   yield addTab(TEST_URI);
+
   let {inspector} = yield openInspector();
 
+  let doc = content.document;
   let testData = [
     {
-      selector: "#top",
+      node: doc.querySelector("#top"),
       position: "bottom",
       tag: "DIV",
-      id: "top",
+      id: "#top",
       classes: ".class1.class2",
       dims: "500 x 100"
     },
     {
-      selector: "#vertical",
+      node: doc.querySelector("#vertical"),
       position: "overlap",
       tag: "DIV",
-      id: "vertical",
+      id: "#vertical",
       classes: ""
       // No dims as they will vary between computers
     },
     {
-      selector: "#bottom",
+      node: doc.querySelector("#bottom"),
       position: "top",
       tag: "DIV",
-      id: "bottom",
+      id: "#bottom",
       classes: "",
       dims: "500 x 100"
     },
     {
-      selector: "body",
+      node: doc.querySelector("body"),
       position: "bottom",
       tag: "BODY",
+      id: "",
       classes: ""
       // No dims as they will vary between computers
     },
@@ -54,45 +59,33 @@ add_task(function*() {
   gBrowser.removeCurrentTab();
 });
 
-function* testPosition(test, inspector) {
-  info("Testing " + test.selector);
+function* testPosition(currTest, inspector) {
+  let browser = gBrowser.selectedBrowser;
+  let stack = browser.parentNode;
 
-  let actorID = getHighlighterActorID(inspector.toolbox);
+  info("Testing " + currTest.id);
 
-  yield selectAndHighlightNode(test.selector, inspector);
+  yield selectAndHighlightNode(currTest.node, inspector);
 
-  let {data: position} = yield executeInContent("Test:GetHighlighterAttribute", {
-    nodeID: "box-model-nodeinfobar-container",
-    name: "position",
-    actorID: actorID
-  });
-  is(position, test.position, "Node " + test.selector + ": position matches");
+  let container = stack.querySelector(".highlighter-nodeinfobar-positioner");
+  is(container.getAttribute("position"),
+    currTest.position, "node " + currTest.id + ": position matches.");
 
-  let {data: tag} = yield executeInContent("Test:GetHighlighterTextContent", {
-    nodeID: "box-model-nodeinfobar-tagname",
-    actorID: actorID
-  });
-  is(tag, test.tag, "node " + test.selector + ": tagName matches.");
+  let tagNameLabel = stack.querySelector(".highlighter-nodeinfobar-tagname");
+  is(tagNameLabel.textContent, currTest.tag,
+    "node " + currTest.id + ": tagName matches.");
 
-  if (test.id) {
-    let {data: id} = yield executeInContent("Test:GetHighlighterTextContent", {
-      nodeID: "box-model-nodeinfobar-id",
-      actorID: actorID
-    });
-    is(id, "#" + test.id, "node " + test.selector  + ": id matches.");
+  if (currTest.id) {
+    let idLabel = stack.querySelector(".highlighter-nodeinfobar-id");
+    is(idLabel.textContent, currTest.id, "node " + currTest.id  + ": id matches.");
   }
 
-  let {data: classes} = yield executeInContent("Test:GetHighlighterTextContent", {
-    nodeID: "box-model-nodeinfobar-classes",
-    actorID: actorID
-  });
-  is(classes, test.classes, "node " + test.selector  + ": classes match.");
+  let classesBox = stack.querySelector(".highlighter-nodeinfobar-classes");
+  is(classesBox.textContent, currTest.classes,
+    "node " + currTest.id  + ": classes match.");
 
-  if (test.dims) {
-    let {data: dims} = yield executeInContent("Test:GetHighlighterTextContent", {
-      nodeID: "box-model-nodeinfobar-dimensions",
-      actorID: actorID
-    });
-    is(dims, test.dims, "node " + test.selector  + ": dims match.");
+  if (currTest.dims) {
+    let dimBox = stack.querySelector(".highlighter-nodeinfobar-dimensions");
+    is(dimBox.textContent, currTest.dims, "node " + currTest.id  + ": dims match.");
   }
 }
