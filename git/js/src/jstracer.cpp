@@ -44,7 +44,6 @@
 #include "jsarray.h"
 #include "jsbool.h"
 #include "jscntxt.h"
-#include "jsobj.h"
 #include "jsfun.h"
 #include "jsinterp.h"
 #include "jsprf.h"
@@ -322,34 +321,23 @@ public:
    frames that make up the native frame, including global variables and
    frames consisting of rval, args, vars, and stack (except for the top-
    level frame which does not have args or vars. */
-#define FORALL_SLOTS_IN_PENDING_FRAMES(cx, entryFrame, currentFrame, code)    \
+#define FORALL_SLOTS_IN_PENDING_FRAMES(entryFrame, currentFrame, code)        \
     JS_BEGIN_MACRO                                                            \
         DEF_VPNAME;                                                           \
         /* find the global frame */                                           \
         JSStackFrame* global = entryFrame;                                    \
         while (global->down)                                                  \
             global = global->down;                                            \
+        jsval* gvars = global->vars;                                          \
         JSObject* gvarobj = global->varobj;                                   \
         unsigned n;                                                           \
         jsval* vp;                                                            \
-        JSAtom** atoms = entryFrame->script->atomMap.vector;                  \
-        unsigned natoms = entryFrame->script->atomMap.length;                 \
-        SET_VPNAME("global");                                                 \
-        for (n = 0; n < natoms; ++n) {                                        \
-            JSAtom* atom = atoms[n];                                          \
-            if (!ATOM_IS_STRING(atom))                                        \
-                continue;                                                     \
-            jsid id = ATOM_TO_JSID(atom);                                     \
-            JSObject* obj2;                                                   \
-            JSScopeProperty* sprop;                                           \
-            if (!js_LookupProperty(cx, gvarobj, id, &obj2, (JSProperty**)&sprop)); \
-                continue;                                                     \
-            JS_ASSERT(obj2 == gvarobj);                                       \
-            if (!sprop ||                                                     \
-                !SPROP_HAS_STUB_GETTER(sprop) ||                              \
-                !SPROP_HAS_STUB_SETTER(sprop))                                \
-                continue;                                                     \
-            vp = &STOBJ_GET_SLOT(gvarobj, sprop->slot);                       \
+        SET_VPNAME("gvar");                                                   \
+        for (n = 0; n < global->script->ngvars; ++n) {                        \
+            jsval slotval = gvars[n];                                         \
+            vp = JSVAL_IS_INT(slotval)                                        \
+                 ? &STOBJ_GET_SLOT(gvarobj, (uint32)JSVAL_TO_INT(slotval))    \
+                 : NULL;                                                      \
             { code; }                                                         \
             INC_VPNUM();                                                      \
         }                                                                     \
@@ -407,14 +395,14 @@ public:
     /* Write out a type map for the current scopes and all outer scopes,
        up until the entry scope. */
     void
-    buildExitMap(JSContext* cx, JSStackFrame* entryFrame, JSStackFrame* currentFrame, uint8* m)
+    buildExitMap(JSStackFrame* entryFrame, JSStackFrame* currentFrame, uint8* m)
     {
-        FORALL_SLOTS_IN_PENDING_FRAMES(cx, entryFrame, currentFrame,
-            *m++ = getStoreType(*vp));
+        FORALL_SLOTS_IN_PENDING_FRAMES(entryFrame, currentFrame,
+            *m++ = vp ? getStoreType(*vp) : TYPEMAP_TYPE_ANY);
     }
 
     virtual LInsp insGuard(LOpcode v, LIns *c, SideExit *x) {
-        buildExitMap(recorder.getContext(), recorder.getFp(), recorder.getFp(), x->typeMap);
+        buildExitMap(recorder.getFp(), recorder.getFp(), x->typeMap);
         return out->insGuard(v, c, x);
     }
 
@@ -478,8 +466,8 @@ TraceRecorder::TraceRecorder(JSContext* cx, Fragmento* fragmento, Fragment* _fra
         /* build the entry type map */
         uint8* m = fragmentInfo->typeMap;
         /* remember the coerced type of each active slot in the type map */
-        FORALL_SLOTS_IN_PENDING_FRAMES(cx, entryFrame, entryFrame,
-            *m++ = getCoercedType(*vp));
+        FORALL_SLOTS_IN_PENDING_FRAMES(entryFrame, entryFrame,
+            *m++ = vp ? getCoercedType(*vp) : TYPEMAP_TYPE_ANY);
     } else {
         fragmentInfo = (VMFragmentInfo*)fragment->vmprivate;
     }
@@ -495,8 +483,8 @@ TraceRecorder::TraceRecorder(JSContext* cx, Fragmento* fragmento, Fragment* _fra
 #endif
 
     uint8* m = fragmentInfo->typeMap;
-    FORALL_SLOTS_IN_PENDING_FRAMES(cx, entryFrame, entryFrame,
-        import(vp, *m, vpname, vpnum);
+    FORALL_SLOTS_IN_PENDING_FRAMES(entryFrame, entryFrame,
+        if (vp) import(vp, *m, vpname, vpnum);
         m++
     );
 
@@ -575,26 +563,7 @@ TraceRecorder::isGlobal(jsval* p) const
 unsigned
 TraceRecorder::nativeFrameSlots(JSStackFrame* fp, JSFrameRegs& regs) const
 {
-    unsigned slots = 0;
-    JSObject* gvarobj = global->varobj;
-    unsigned n;
-    JSAtom** atoms = entryFrame->script->atomMap.vector;
-    unsigned natoms = entryFrame->script->atomMap.length;
-    for (n = 0; n < natoms; ++n) {
-        JSAtom* atom = atoms[n];
-        if (!ATOM_IS_STRING(atom))
-            continue;
-        jsid id = ATOM_TO_JSID(atom);
-        JSObject* obj2;
-        JSScopeProperty* sprop;
-        if (!js_LookupProperty(cx, gvarobj, id, &obj2, (JSProperty**)&sprop))
-            continue;
-        if (!sprop ||
-            !SPROP_HAS_STUB_GETTER(sprop) ||
-            !SPROP_HAS_STUB_SETTER(sprop))
-            continue;
-        ++slots;
-    }
+    unsigned slots = global->script->ngvars;
     for (;;) {
         slots += 1/*rval*/ + (regs.sp - fp->spbase);
         if (fp->callee)
@@ -613,7 +582,7 @@ TraceRecorder::nativeFrameOffset(jsval* p) const
 {
     JSStackFrame* currentFrame = cx->fp;
     size_t offset = 0;
-    FORALL_SLOTS_IN_PENDING_FRAMES(cx, entryFrame, currentFrame,
+    FORALL_SLOTS_IN_PENDING_FRAMES(entryFrame, currentFrame,
         if (vp == p) return offset;
         offset += sizeof(double)
     );
@@ -747,13 +716,13 @@ box_jsval(JSContext* cx, jsval& v, uint8 t, double* slot)
 /* Attempt to unbox the given JS frame into a native frame, checking along the way that the
    supplied typemap holds. */
 static bool
-unbox(JSContext* cx, JSStackFrame* entryFrame, JSStackFrame* currentFrame, uint8* map, double* native)
+unbox(JSStackFrame* entryFrame, JSStackFrame* currentFrame, uint8* map, double* native)
 {
     verbose_only(printf("unbox native@%p ", native);)
     double* np = native;
     uint8* mp = map;
-    FORALL_SLOTS_IN_PENDING_FRAMES(cx, entryFrame, currentFrame,
-        if (!unbox_jsval(*vp, *mp, np))
+    FORALL_SLOTS_IN_PENDING_FRAMES(entryFrame, currentFrame,
+        if (vp && !unbox_jsval(*vp, *mp, np))
             return false;
         ++mp; ++np;
     );
@@ -770,8 +739,8 @@ box(JSContext* cx, JSStackFrame* entryFrame, JSStackFrame* currentFrame, uint8* 
     double* np = native;
     uint8* mp = map;
     /* Root all string and object references first (we don't need to call the GC for this). */
-    FORALL_SLOTS_IN_PENDING_FRAMES(cx, entryFrame, currentFrame,
-        if ((*mp == JSVAL_STRING || *mp == JSVAL_OBJECT) && !box_jsval(cx, *vp, *mp, np))
+    FORALL_SLOTS_IN_PENDING_FRAMES(entryFrame, currentFrame,
+        if (vp && (*mp == JSVAL_STRING || *mp == JSVAL_OBJECT) && !box_jsval(cx, *vp, *mp, np))
             return false;
         ++mp; ++np
     );
@@ -780,8 +749,8 @@ box(JSContext* cx, JSStackFrame* entryFrame, JSStackFrame* currentFrame, uint8* 
        but everything is rooted now (all strings/objects and all doubles we already boxed). */
     np = native;
     mp = map;
-    FORALL_SLOTS_IN_PENDING_FRAMES(cx, entryFrame, currentFrame,
-        if (!box_jsval(cx, *vp, *mp, np))
+    FORALL_SLOTS_IN_PENDING_FRAMES(entryFrame, currentFrame,
+        if (vp && !box_jsval(cx, *vp, *mp, np))
             return false;
         ++mp; ++np
     );
@@ -839,12 +808,6 @@ LIns*
 TraceRecorder::get(jsval* p)
 {
     return tracker.get(p);
-}
-
-JSContext*
-TraceRecorder::getContext() const
-{
-    return cx;
 }
 
 JSStackFrame*
@@ -979,8 +942,8 @@ TraceRecorder::checkType(jsval& v, uint8& t)
 bool
 TraceRecorder::verifyTypeStability(JSStackFrame* entryFrame, JSStackFrame* currentFrame, uint8* m)
 {
-    FORALL_SLOTS_IN_PENDING_FRAMES(cx, entryFrame, currentFrame,
-        if (!checkType(*vp, *m))
+    FORALL_SLOTS_IN_PENDING_FRAMES(entryFrame, currentFrame,
+        if (vp && !checkType(*vp, *m))
             return false;
         ++m
     );
@@ -1138,7 +1101,7 @@ js_LoopEdge(JSContext* cx)
 #ifdef DEBUG
     *(uint64*)&native[fi->maxNativeFrameSlots] = 0xdeadbeefdeadbeefLL;
 #endif
-    if (!unbox(cx, cx->fp, cx->fp, fi->typeMap, native)) {
+    if (!unbox(cx->fp, cx->fp, fi->typeMap, native)) {
 #ifdef DEBUG
         printf("typemap mismatch, skipping trace.\n");
 #endif
@@ -1201,6 +1164,13 @@ js_InitJIT(JSContext* cx)
 }
 
 jsval&
+TraceRecorder::gvarval(unsigned n) const
+{
+    JS_ASSERT(n < STOBJ_NSLOTS(global->varobj));
+    return STOBJ_GET_SLOT(global->varobj, n);
+}
+
+jsval&
 TraceRecorder::argval(unsigned n) const
 {
     JS_ASSERT(n < cx->fp->argc);
@@ -1220,6 +1190,18 @@ TraceRecorder::stackval(int n) const
     jsval* sp = cx->fp->regs->sp;
     JS_ASSERT(size_t((sp + n) - cx->fp->spbase) < cx->fp->script->depth);
     return sp[n];
+}
+
+LIns*
+TraceRecorder::gvar(unsigned n)
+{
+    return get(&gvarval(n));
+}
+
+void
+TraceRecorder::gvar(unsigned n, LIns* i)
+{
+    set(&gvarval(n), i);
 }
 
 LIns*
@@ -1450,6 +1432,27 @@ TraceRecorder::test_property_cache_direct_slot(JSObject* obj, LIns* obj_ins, uin
             ABORT_TRACE("PCE is not a slot");
         slot = PCVAL_TO_SLOT(entry->vword);
     }
+
+#ifdef DEBUG
+    if (cx->fp == global) {
+        /*
+         * The slot must have been memoized already in global->vars using our
+         * immediate atom index, so that import knew about this undeclared gvar
+         * when the recorder was created.
+         */
+        jsatomid index = GET_INDEX(cx->fp->regs->pc);
+        JS_ASSERT(index < global->nvars);
+        jsval* gvarp = &global->vars[index];
+
+        JS_ASSERT(JSVAL_IS_INT(*gvarp));
+        JS_ASSERT(uint32(JSVAL_TO_INT(*gvarp)) == slot);
+
+        jsval* slotp = (slot < JS_INITIAL_NSLOTS)
+                       ? &obj->fslots[slot]
+                       : &obj->dslots[slot - JS_INITIAL_NSLOTS];
+        tracker.get(slotp);
+    }
+#endif
     return true;
 }
 
@@ -1932,35 +1935,53 @@ bool TraceRecorder::record_JSOP_CALL()
     if (FUN_INTERPRETED(fun))
         ABORT_TRACE("scripted function");
 
-    JSFastNative native = (JSFastNative)fun->u.n.native;
-    LIns* result;
-    if (native == js_math_sin || native == js_math_cos) {
-        if (argc != 1)
-            ABORT_TRACE("Math.sin/cos: need exactly one arg");
+    if (FUN_SLOW_NATIVE(fun))
+        ABORT_TRACE("slow native");
+
+    struct JSTraceableNative {
+        JSFastNative native;
+        int          builtin;
+        intN         argc;
+        const char  *argtypes;
+    } knownNatives[] = {
+        { js_math_sin, F_Math_sin, 1, "d" },
+        { js_math_cos, F_Math_cos, 1, "d" },
+        { js_math_pow, F_Math_pow, 2, "dd" },
+    };
+
+    for (uintN i = 0; i < JS_ARRAY_LENGTH(knownNatives); i++) {
+        JSTraceableNative* known = &knownNatives[i];
+        if ((JSFastNative)fun->u.n.native != known->native)
+            continue;
         
-        jsval& arg = stackval(-1);
-        if (!isNumber(arg))
-            ABORT_TRACE("Math.sin/cos: only numeric arg permitted");
+        LIns* args[5];
+        LIns** argp = &args[argc-1];
+        switch (known->argc) {
+          case 2:
+            JS_ASSERT(known->argtypes[1] == 'd');
+            if (!isNumber(stackval(-2)))
+                ABORT_TRACE("2nd arg must be numeric");
+            *argp = get(&stackval(-2));
+            argp--;
+            /* FALL THROUGH */
+          case 1:
+            JS_ASSERT(known->argtypes[0] == 'd');
+            if (!isNumber(stackval(-1)))
+                ABORT_TRACE("1st arg must be numeric");
+            *argp = get(&stackval(-1));
+            /* FALL THROUGH */
+          case 0:
+            break;
+          default:
+            JS_ASSERT(0 && "illegal number of args to traceable native");
+        }
         
-        LIns* arg_ins = get(&arg);
-        result = lir->insCall(native == js_math_sin ? F_Math_dot_sin : F_Math_dot_cos, &arg_ins);
-    } else if (native == js_math_pow) {
-        if (argc != 2)
-            ABORT_TRACE("Math.pow: need exactly two args");
-        
-        jsval& arg1 = stackval(-2);
-        jsval& arg2 = stackval(-1);
-        
-        if (!isNumber(arg1) || !isNumber(arg2))
-            ABORT_TRACE("Math.pow: both args must be numeric");
-        
-        LIns* args[] = { get(&arg2), get(&arg1) };
-        result = lir->insCall(F_Math_dot_pow, args);
-    } else {
-        ABORT_TRACE("only Math.{sin,cos,pow}");
+        set(&fval, lir->insCall(known->builtin, args));
+        return true;
     }
-    set(&fval, result);
-    return true;
+
+    /* Didn't find it. */
+    ABORT_TRACE("unknown native");
 }
 
 bool TraceRecorder::record_JSOP_NAME()
@@ -1975,7 +1996,7 @@ bool TraceRecorder::record_JSOP_NAME()
     if (!test_property_cache_direct_slot(obj, obj_ins, slot))
         return false;
 
-    stack(0, get(&STOBJ_GET_SLOT(obj, slot)));
+    stack(0, gvar(slot));
     return true;
 }
 
@@ -2225,7 +2246,7 @@ bool TraceRecorder::record_JSOP_SETNAME()
         return false;
 
     LIns* r_ins = get(&r);
-    set(&STOBJ_GET_SLOT(obj, slot), r_ins);
+    gvar(slot, r_ins);
 
     if (cx->fp->regs->pc[JSOP_SETNAME_LENGTH] != JSOP_POP)
         stack(-2, r_ins);
@@ -2416,7 +2437,7 @@ bool TraceRecorder::record_JSOP_GETGVAR()
         return true; // We will see JSOP_NAME from the interpreter's jump, so no-op here.
 
     uint32 slot = JSVAL_TO_INT(slotval);
-    stack(0, get(&STOBJ_GET_SLOT(cx->fp->scopeChain, slot)));
+    stack(0, gvar(slot));
     return true;
 }
 
@@ -2427,7 +2448,7 @@ bool TraceRecorder::record_JSOP_SETGVAR()
         return true; // We will see JSOP_NAME from the interpreter's jump, so no-op here.
 
     uint32 slot = JSVAL_TO_INT(slotval);
-    set(&STOBJ_GET_SLOT(cx->fp->scopeChain, slot), stack(-1));
+    gvar(slot, stack(-1));
     return true;
 }
 
@@ -2438,7 +2459,7 @@ bool TraceRecorder::record_JSOP_INCGVAR()
         return true; // We will see JSOP_INCNAME from the interpreter's jump, so no-op here.
 
     uint32 slot = JSVAL_TO_INT(slotval);
-    return inc(STOBJ_GET_SLOT(cx->fp->scopeChain, slot), 1);
+    return inc(gvarval(slot), 1);
 }
 
 bool TraceRecorder::record_JSOP_DECGVAR()
@@ -2448,7 +2469,7 @@ bool TraceRecorder::record_JSOP_DECGVAR()
         return true; // We will see JSOP_INCNAME from the interpreter's jump, so no-op here.
 
     uint32 slot = JSVAL_TO_INT(slotval);
-    return inc(STOBJ_GET_SLOT(cx->fp->scopeChain, slot), -1);
+    return inc(gvarval(slot), -1);
 }
 
 bool TraceRecorder::record_JSOP_GVARINC()
@@ -2458,7 +2479,7 @@ bool TraceRecorder::record_JSOP_GVARINC()
         return true; // We will see JSOP_INCNAME from the interpreter's jump, so no-op here.
 
     uint32 slot = JSVAL_TO_INT(slotval);
-    return inc(STOBJ_GET_SLOT(cx->fp->scopeChain, slot), 1, false);
+    return inc(gvarval(slot), 1, false);
 }
 
 bool TraceRecorder::record_JSOP_GVARDEC()
@@ -2468,7 +2489,7 @@ bool TraceRecorder::record_JSOP_GVARDEC()
         return true; // We will see JSOP_INCNAME from the interpreter's jump, so no-op here.
 
     uint32 slot = JSVAL_TO_INT(slotval);
-    return inc(STOBJ_GET_SLOT(cx->fp->scopeChain, slot), -1, false);
+    return inc(gvarval(slot), -1, false);
 }
 
 bool TraceRecorder::record_JSOP_REGEXP()
