@@ -155,16 +155,6 @@ public:
   {
   }
 
-  Result Init(Input input)
-  {
-    if (this->input) {
-      return Result::FATAL_ERROR_INVALID_ARGS;
-    }
-    this->input = input.UnsafeGetData();
-    this->end = input.UnsafeGetData() + input.GetLength();
-    return Success;
-  }
-
   bool Peek(uint8_t expectedByte) const
   {
     return input < end && *input == expectedByte;

@@ -382,8 +382,7 @@ nsCSSFilterInstance::GetLastResultIndex(const nsTArray<FilterPrimitiveDescriptio
 
 void
 nsCSSFilterInstance::SetBounds(FilterPrimitiveDescription& aDescr,
-                               const nsTArray<FilterPrimitiveDescription>& aPrimitiveDescrs)
-{
+                               const nsTArray<FilterPrimitiveDescription>& aPrimitiveDescrs) {
   int32_t inputIndex = GetLastResultIndex(aPrimitiveDescrs);
   nsIntRect inputBounds = (inputIndex < 0) ?
     mTargetBBoxInFilterSpace : ThebesIntRect(aPrimitiveDescrs[inputIndex].PrimitiveSubregion());

@@ -220,7 +220,6 @@ MemoryPressureObserver::Observe(nsISupports *aSubject,
 {
     NS_ASSERTION(strcmp(aTopic, "memory-pressure") == 0, "unexpected event topic");
     Factory::PurgeAllCaches();
-    gfxGradientCache::PurgeAllCaches();
 
     gfxPlatform::GetPlatform()->PurgeSkiaCache();
     return NS_OK;

@@ -1,3 +1,5 @@
+/* -*- js-indent-level: 2; indent-tabs-mode: nil -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 /*
  * Copyright 2013 Mozilla Foundation
  *
@@ -427,6 +429,13 @@ ChromeActions.prototype = {
                       .getService(Ci.nsIClipboardHelper);
     clipboard.copyString(data);
   },
+  unsafeSetClipboard: function (data) {
+    if (typeof data !== 'string') {
+      return;
+    }
+    let clipboard = Cc["@mozilla.org/widget/clipboardhelper;1"].getService(Ci.nsIClipboardHelper);
+    clipboard.copyString(data);
+  },
   endActivation: function () {
     if (ActivationQueue.currentNonActive === this) {
       ActivationQueue.activateNext();
@@ -543,7 +552,8 @@ RequestListener.prototype.receive = function(event) {
   }
   if (sync) {
     var response = actions[action].call(this.actions, data);
-    event.detail.response = response;
+    var detail = event.detail;
+    detail.response = response;
   } else {
     var response;
     if (event.detail.callback) {
@@ -670,29 +680,35 @@ var ActivationQueue = {
 
 function activateShumwayScripts(window, preview) {
   function loadScripts(scripts, callback) {
-    function loadScript(i) {
-      if (i >= scripts.length) {
+    function scriptLoaded() {
+      leftToLoad--;
+      if (leftToLoad === 0) {
         callback();
-        return;
       }
+    }
+    var leftToLoad = scripts.length;
+    var document = window.document.wrappedJSObject;
+    var head = document.getElementsByTagName('head')[0];
+    for (var i = 0; i < scripts.length; i++) {
       var script = document.createElement('script');
       script.type = "text/javascript";
       script.src = scripts[i];
-      script.onload = function () {
-        loadScript(i + 1);
-      };
+      script.onload = scriptLoaded;
       head.appendChild(script);
     }
-    var document = window.document.wrappedJSObject;
-    var head = document.getElementsByTagName('head')[0];
-    loadScript(0);
   }
 
   function initScripts() {
-    loadScripts(['resource://shumway/shumway.gfx.js',
-                 'resource://shumway/web/viewer.js'], function () {
-      window.wrappedJSObject.runViewer();
-    });
+    if (preview) {
+      loadScripts(['resource://shumway/web/preview.js'], function () {
+        window.wrappedJSObject.runSniffer();
+      });
+    } else {
+      loadScripts(['resource://shumway/shumway.js',
+                   'resource://shumway/web/avm-sandbox.js'], function () {
+        window.wrappedJSObject.runViewer();
+      });
+    }
   }
 
   window.wrappedJSObject.SHUMWAY_ROOT = "resource://shumway/";

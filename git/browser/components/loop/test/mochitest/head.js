@@ -1,9 +1,6 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-const MozLoopServiceInternal = Cu.import("resource:///modules/loop/MozLoopService.jsm", {}).
-                               MozLoopServiceInternal;
-
 var gMozLoopAPI;
 
 function promiseGetMozLoopAPI() {
@@ -92,13 +89,6 @@ function promiseOAuthParamsSetup(baseURL, params) {
   xhr.send();
 
   return deferred.promise;
-}
-
-function resetFxA() {
-  let global = Cu.import("resource:///modules/loop/MozLoopService.jsm", {});
-  global.gFxAOAuthClientPromise = null;
-  global.gFxAOAuthClient = null;
-  global.gFxAOAuthTokenData = null;
 }
 
 function promiseDeletedOAuthParams(baseURL) {

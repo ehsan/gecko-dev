@@ -2,7 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-Cu.import("resource://gre/modules/CrashSubmit.jsm", this);
 Cu.import("resource://gre/modules/Services.jsm");
 
 const CRASH_URL = "http://example.com/browser/browser/base/content/test/plugins/plugin_crashCommentAndURL.html";
@@ -86,7 +85,7 @@ function doNextRun() {
   }
 }
 
-function onCrash(event) {
+function onCrash() {
   try {
     let plugin = gBrowser.contentDocument.getElementById("plugin");
     let elt = gPluginHandler.getPluginUI.bind(gPluginHandler, plugin);
@@ -96,13 +95,7 @@ function onCrash(event) {
        currentRun.shouldSubmissionUIBeVisible ? "block" : "none",
        "Submission UI visibility should be correct");
     if (!currentRun.shouldSubmissionUIBeVisible) {
-      // Done with this run. We don't submit the crash, so we will have to
-      // remove the dump manually.
-      let propBag = event.detail.QueryInterface(Ci.nsIPropertyBag2);
-      let crashID = propBag.getPropertyAsAString("pluginDumpID");
-      ok(!!crashID, "pluginDumpID should be set");
-      CrashSubmit.delete(crashID);
-
+      // Done with this run.
       doNextRun();
       return;
     }
@@ -123,21 +116,8 @@ function onSubmitStatus(subj, topic, data) {
     if (data != "success" && data != "failed")
       return;
 
-    let propBag = subj.QueryInterface(Ci.nsIPropertyBag);
-    if (data == "success") {
-      let remoteID = getPropertyBagValue(propBag, "serverCrashID");
-      ok(!!remoteID, "serverCrashID should be set");
-
-      // Remove the submitted report file.
-      let file = Cc["@mozilla.org/file/local;1"]
-                   .createInstance(Ci.nsILocalFile);
-      file.initWithPath(Services.crashmanager._submittedDumpsDir);
-      file.append(remoteID + ".txt");
-      ok(file.exists(), "Submitted report file should exist");
-      file.remove(false);
-    }
-
-    let extra = getPropertyBagValue(propBag, "extra");
+    let extra = getPropertyBagValue(subj.QueryInterface(Ci.nsIPropertyBag),
+                                    "extra");
     ok(extra instanceof Ci.nsIPropertyBag, "Extra data should be property bag");
 
     let val = getPropertyBagValue(extra, "PluginUserComment");

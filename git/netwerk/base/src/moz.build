@@ -9,7 +9,6 @@ EXPORTS += [
     'nsMIMEInputStream.h',
     'nsTemporaryFileInputStream.h',
     'nsURLHelper.h',
-    'nsURLParsers.h',
 ]
 
 EXPORTS.mozilla.net += [

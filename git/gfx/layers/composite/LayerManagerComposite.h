@@ -257,10 +257,6 @@ public:
     }
   }
 
-  void UnusedApzTransformWarning() {
-    mUnusedApzTransformWarning = true;
-  }
-
 private:
   /** Region we're clipping our current drawing to. */
   nsIntRegion mClippingRegion;
@@ -301,7 +297,6 @@ private:
 
   float mWarningLevel;
   mozilla::TimeStamp mWarnTime;
-  bool mUnusedApzTransformWarning;
   RefPtr<Compositor> mCompositor;
   UniquePtr<LayerProperties> mClonedLayerTreeProperties;
 
