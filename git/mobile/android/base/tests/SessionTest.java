@@ -378,10 +378,6 @@ public abstract class SessionTest extends BaseTest {
     }
 
     private String readFile(File target) throws IOException {
-        if (!target.exists()) {
-            return null;
-        }
-
         FileReader fr = new FileReader(target);
         try {
             StringBuffer sb = new StringBuffer();

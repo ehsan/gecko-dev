@@ -16,6 +16,7 @@ enum OverSampleType {
   "4x"
 };
 
+[PrefControlled]
 interface WaveShaperNode : AudioNode {
 
       attribute Float32Array? curve;

@@ -2091,8 +2091,8 @@ function takeScreenshot(msg) {
   if (node == curFrame) {
     // node is a window
     win = node;
-    width = document.body.scrollWidth;
-    height = document.body.scrollHeight;
+    width = win.innerWidth;
+    height = win.innerHeight;
     top = 0;
     left = 0;
   }

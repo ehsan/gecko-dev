@@ -414,6 +414,5 @@ Spinner.prototype = {
 // mechanisms, we register a few runstates here.
 
 this.AsyncShutdown.profileBeforeChange = getPhase("profile-before-change");
-this.AsyncShutdown.sendTelemetry = getPhase("profile-before-change2");
 this.AsyncShutdown.webWorkersShutdown = getPhase("web-workers-shutdown");
 Object.freeze(this.AsyncShutdown);

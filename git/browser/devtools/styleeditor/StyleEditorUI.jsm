@@ -55,7 +55,6 @@ function StyleEditorUI(debuggee, target, panelDoc) {
 
   this.editors = [];
   this.selectedEditor = null;
-  this.savedLocations = {};
 
   this._updateSourcesLabel = this._updateSourcesLabel.bind(this);
   this._onStyleSheetCreated = this._onStyleSheetCreated.bind(this);
@@ -105,14 +104,13 @@ StyleEditorUI.prototype = {
     let toolbox = gDevTools.getToolbox(this._target);
     return toolbox.initInspector().then(() => {
       this._walker = toolbox.walker;
-    }).then(() => {
-      this.createUI();
-      this._debuggee.getStyleSheets().then((styleSheets) => {
-        this._resetStyleSheetList(styleSheets);
+    }).then(() => this.createUI())
+      .then(() => this._debuggee.getStyleSheets())
+      .then((styleSheets) => {
+      this._resetStyleSheetList(styleSheets);
 
-        this._target.on("will-navigate", this._clear);
-        this._target.on("navigate", this._onNewDocument);
-      });
+      this._target.on("will-navigate", this._clear);
+      this._target.on("navigate", this._onNewDocument);
     });
   },
 
@@ -169,24 +167,6 @@ StyleEditorUI.prototype = {
   },
 
   /**
-   * Add editors for all the given stylesheets to the UI.
-   *
-   * @param  {array} styleSheets
-   *         Array of StyleSheetFront
-   */
-  _resetStyleSheetList: function(styleSheets) {
-    this._clear();
-
-    for (let sheet of styleSheets) {
-      this._addStyleSheet(sheet);
-    }
-
-    this._root.classList.remove("loading");
-
-    this.emit("stylesheets-reset");
-  },
-
-  /**
    * Remove all editors and add loading indicator.
    */
   _clear: function() {
@@ -202,19 +182,30 @@ StyleEditorUI.prototype = {
       };
     }
 
-    // remember saved file locations
-    for (let editor of this.editors) {
-      if (editor.savedFile) {
-        this.savedLocations[editor.styleSheet.href] = editor.savedFile;
-      }
-    }
-
     this._clearStyleSheetEditors();
     this._view.removeAll();
 
     this.selectedEditor = null;
 
     this._root.classList.add("loading");
+  },
+
+  /**
+   * Add editors for all the given stylesheets to the UI.
+   *
+   * @param  {array} styleSheets
+   *         Array of StyleSheetFront
+   */
+  _resetStyleSheetList: function(styleSheets) {
+    this._clear();
+
+    for (let sheet of styleSheets) {
+      this._addStyleSheet(sheet);
+    }
+
+    this._root.classList.remove("loading");
+
+    this.emit("stylesheets-reset");
   },
 
   /**
@@ -256,12 +247,6 @@ StyleEditorUI.prototype = {
    *         Optional if stylesheet is a new sheet created by user
    */
   _addStyleSheetEditor: function(styleSheet, file, isNew) {
-    // recall location of saved file for this sheet after page reload
-    let savedFile = this.savedLocations[styleSheet.href];
-    if (savedFile && !file) {
-      file = savedFile;
-    }
-
     let editor =
       new StyleSheetEditor(styleSheet, this._window, file, isNew, this._walker);
 

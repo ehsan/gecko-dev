@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WindowNamedPropertiesHandler.h"
-#include "mozilla/dom/WindowBinding.h"
 #include "nsDOMClassInfo.h"
 #include "nsGlobalWindow.h"
 #include "nsHTMLDocument.h"
@@ -69,19 +68,6 @@ ShouldExposeChildWindow(nsString& aNameBeingResolved, nsIDOMWindow *aChild)
                              aNameBeingResolved, eCaseMatters);
 }
 
-static nsGlobalWindow*
-GetWindowFromGlobal(JSObject* aGlobal)
-{
-  nsGlobalWindow* win;
-  if (NS_SUCCEEDED(UNWRAP_OBJECT(Window, aGlobal, win))) {
-    return win;
-  }
-  XPCWrappedNative* wrapper = XPCWrappedNative::Get(aGlobal);
-  nsCOMPtr<nsPIDOMWindow> piWin = do_QueryWrappedNative(wrapper);
-  MOZ_ASSERT(piWin);
-  return static_cast<nsGlobalWindow*>(piWin.get());
-}
-
 bool
 WindowNamedPropertiesHandler::getOwnPropertyDescriptor(JSContext* aCx,
                                                        JS::Handle<JSObject*> aProxy,
@@ -102,7 +88,10 @@ WindowNamedPropertiesHandler::getOwnPropertyDescriptor(JSContext* aCx,
   nsDependentJSString str(aId);
 
   // Grab the DOM window.
-  nsGlobalWindow* win = GetWindowFromGlobal(global);
+  XPCWrappedNative* wrapper = XPCWrappedNative::Get(global);
+  nsCOMPtr<nsPIDOMWindow> piWin = do_QueryWrappedNative(wrapper);
+  MOZ_ASSERT(piWin);
+  nsGlobalWindow* win = static_cast<nsGlobalWindow*>(piWin.get());
   if (win->Length() > 0) {
     nsCOMPtr<nsIDOMWindow> childWin = win->GetChildWindow(str);
     if (childWin && ShouldExposeChildWindow(str, childWin)) {
@@ -173,7 +162,11 @@ WindowNamedPropertiesHandler::getOwnPropertyNames(JSContext* aCx,
                                                   JS::AutoIdVector& aProps)
 {
   // Grab the DOM window.
-  nsGlobalWindow* win = GetWindowFromGlobal(JS_GetGlobalForObject(aCx, aProxy));
+  JSObject* global = JS_GetGlobalForObject(aCx, aProxy);
+  XPCWrappedNative* wrapper = XPCWrappedNative::Get(global);
+  nsCOMPtr<nsPIDOMWindow> piWin = do_QueryWrappedNative(wrapper);
+  MOZ_ASSERT(piWin);
+  nsGlobalWindow* win = static_cast<nsGlobalWindow*>(piWin.get());
   nsTArray<nsString> names;
   win->GetSupportedNames(names);
   if (!AppendNamedPropertyIds(aCx, aProxy, names, false, aProps)) {

@@ -506,14 +506,6 @@ TabParent::UpdateFrame(const FrameMetrics& aFrameMetrics)
   }
 }
 
-void
-TabParent::AcknowledgeScrollUpdate(const ViewID& aScrollId, const uint32_t& aScrollGeneration)
-{
-  if (!mIsDestroyed) {
-    unused << SendAcknowledgeScrollUpdate(aScrollId, aScrollGeneration);
-  }
-}
-
 void TabParent::HandleDoubleTap(const CSSIntPoint& aPoint, int32_t aModifiers)
 {
   if (!mIsDestroyed) {

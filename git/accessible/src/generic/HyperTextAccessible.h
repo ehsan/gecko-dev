@@ -458,7 +458,7 @@ protected:
   /**
    * Return frame/DOM selection object for the accessible.
    */
-  already_AddRefed<nsFrameSelection> FrameSelection() const;
+  virtual already_AddRefed<nsFrameSelection> FrameSelection() const;
   Selection* DOMSelection() const;
 
   /**

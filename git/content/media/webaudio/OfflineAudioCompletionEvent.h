@@ -15,7 +15,8 @@ namespace dom {
 
 class AudioContext;
 
-class OfflineAudioCompletionEvent : public nsDOMEvent
+class OfflineAudioCompletionEvent : public nsDOMEvent,
+                                    public EnableWebAudioCheck
 {
 public:
   OfflineAudioCompletionEvent(AudioContext* aOwner,

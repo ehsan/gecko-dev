@@ -51,7 +51,6 @@ private:
   static CacheObserver* sSelf;
 
   void AttachToPreferences();
-  void SchduleAutoDelete();
 
   static uint32_t sUseNewCache;
   static bool sUseDiskCache;

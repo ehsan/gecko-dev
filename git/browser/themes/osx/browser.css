@@ -2646,12 +2646,10 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 }
 
 .tabbrowser-tab[selected=true]:not(:-moz-lwtheme) {
-  /* overriding tabbox.css */
   color: inherit;
 }
 
-.tabbrowser-tab[selected=true] {
-  /* overriding tabbox.css */
+.tabbrowser-tab[selected=true]:-moz-lwtheme {
   text-shadow: inherit;
 }
 

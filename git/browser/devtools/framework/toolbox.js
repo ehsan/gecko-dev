@@ -20,7 +20,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource:///modules/devtools/gDevTools.jsm");
 Cu.import("resource:///modules/devtools/scratchpad-manager.jsm");
 Cu.import("resource:///modules/devtools/DOMHelpers.jsm");
-Cu.import("resource://gre/modules/Task.jsm");
 
 loader.lazyGetter(this, "Hosts", () => require("devtools/framework/toolbox-hosts").Hosts);
 
@@ -1058,33 +1057,40 @@ Toolbox.prototype = {
    * Returns a promise that resolves when the fronts are destroyed
    */
   destroyInspector: function() {
-    if (!this._inspector) {
-      return promise.resolve();
-    }
+    let deferred = promise.defer();
 
-    let outstanding = () => {
-      return Task.spawn(function*() {
-        yield this.highlighterUtils.stopPicker();
-        yield this._inspector.destroy();
-        if (this._highlighter) {
-          yield this._highlighter.destroy();
-        }
-        if (this._selection) {
-          this._selection.destroy();
-        }
+    if (this._inspector) {
+      // Selection is not always available.
+      if (this._selection) {
+        this._selection.destroy();
+        this._selection = null;
+      }
 
+      let walker = this._walker ? this._walker.release() : promise.resolve(null);
+      walker.then(
+        () => {
+          this._inspector.destroy();
+          if (this._highlighter) {
+            this._highlighter.destroy();
+          }
+        },
+        (e) => {
+          console.error("Walker.release() failed: " + e);
+          this._inspector.destroy();
+
+          return this._highlighter ? this._highlighter.destroy() : promise.resolve(null);
+        }
+      ).then(() => {
         this._inspector = null;
         this._highlighter = null;
-        this._selection = null;
         this._walker = null;
-      }.bind(this));
-    };
+        deferred.resolve();
+      });
+    } else {
+      deferred.resolve();
+    }
 
-    // Releasing the walker (if it has been created)
-    // This can fail, but in any case, we want to continue destroying the
-    // inspector/highlighter/selection
-    let walker = this._walker ? this._walker.release() : promise.resolve();
-    return walker.then(outstanding, outstanding);
+    return deferred.promise;
   },
 
   /**
@@ -1136,16 +1142,15 @@ Toolbox.prototype = {
 
     // Destroying the walker and inspector fronts
     outstanding.push(this.destroyInspector());
+
     // Removing buttons
-    outstanding.push(() => {
-      this._pickerButton.removeEventListener("command", this._togglePicker, false);
-      this._pickerButton = null;
-      let container = this.doc.getElementById("toolbox-buttons");
-      while (container.firstChild) {
-        container.removeChild(container.firstChild);
-      }
-    });
-    // Remove the host UI
+    this._pickerButton.removeEventListener("command", this._togglePicker, false);
+    this._pickerButton = null;
+    let container = this.doc.getElementById("toolbox-buttons");
+    while (container.firstChild) {
+      container.removeChild(container.firstChild);
+    }
+
     outstanding.push(this.destroyHost());
 
     this._telemetry.destroy();
@@ -1218,14 +1223,9 @@ ToolboxHighlighterUtils.prototype = {
    * events on the target to highlight the hovered/picked element.
    * Depending on the server-side capabilities, this may fire events when nodes
    * are hovered.
-   * @return A promise that resolves when the picker has started or immediately
-   * if it is already started
+   * @return A promise that resolves when the picker has started
    */
   startPicker: function() {
-    if (this._isPicking) {
-      return promise.resolve();
-    }
-
     let deferred = promise.defer();
 
     let done = () => {
@@ -1260,14 +1260,9 @@ ToolboxHighlighterUtils.prototype = {
 
   /**
    * Stop the element picker
-   * @return A promise that resolves when the picker has stopped or immediately
-   * if it is already stopped
+   * @return A promise that resolves when the picker has stopped
    */
   stopPicker: function() {
-    if (!this._isPicking) {
-      return promise.resolve();
-    }
-
     let deferred = promise.defer();
 
     let done = () => {
