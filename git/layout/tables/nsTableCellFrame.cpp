@@ -1081,15 +1081,6 @@ nsBCTableCellFrame::GetUsedBorder() const
   return result;
 }
 
-/* virtual */ PRBool
-nsBCTableCellFrame::GetBorderRadii(nscoord aRadii[8]) const
-{
-  NS_FOR_CSS_HALF_CORNERS(corner) {
-    aRadii[corner] = 0;
-  }
-  return PR_FALSE;
-}
-
 #ifdef DEBUG
 NS_IMETHODIMP
 nsBCTableCellFrame::GetFrameName(nsAString& aResult) const
@@ -1171,11 +1162,6 @@ nsBCTableCellFrame::PaintBackground(nsIRenderingContext& aRenderingContext,
   GetBorderWidth(borderWidth);
 
   nsStyleBorder myBorder(*GetStyleBorder());
-  // We're making an ephemeral stack copy here, so just copy this debug-only
-  // member to prevent assertions.
-#ifdef DEBUG
-  myBorder.mImageTracked = GetStyleBorder()->mImageTracked;
-#endif
 
   NS_FOR_CSS_SIDES(side) {
     myBorder.SetBorderWidth(side, borderWidth.side(side));
@@ -1188,8 +1174,4 @@ nsBCTableCellFrame::PaintBackground(nsIRenderingContext& aRenderingContext,
                                         aDirtyRect, rect,
                                         GetStyleContext(), myBorder,
                                         aFlags, nsnull);
-
-#ifdef DEBUG
-  myBorder.mImageTracked = false;
-#endif
 }

@@ -220,14 +220,11 @@ HttpChannelParentListener::AsyncOnChannelRedirect(
   newChannel->GetURI(getter_AddRefs(newURI));
 
   nsHttpChannel *oldHttpChannel = static_cast<nsHttpChannel *>(oldChannel);
-  nsHttpResponseHead *responseHead = oldHttpChannel->GetResponseHead();
-
   // TODO: check mActiveChannel->mIPCClosed and return val from Send function
   mActiveChannel->SendRedirect1Begin(mRedirectChannel,
                                      IPC::URI(newURI),
                                      redirectFlags,
-                                     responseHead ? *responseHead 
-                                                  : nsHttpResponseHead());
+                                     *oldHttpChannel->GetResponseHead());
 
   // mActiveChannel gets the response in RecvRedirect2Result and forwards it
   // to this wrapper through OnContentRedirectResultReceived

@@ -56,7 +56,6 @@ SDK_XPIDLSRCS =                                 \
 	$(NULL)
 
 XPIDLSRCS =					\
-	nsIAnimationFrameListener.idl           \
 	nsIBrowserDOMWindow.idl			\
 	nsIContentPrefService.idl		\
 	nsIContentURIGrouper.idl    \

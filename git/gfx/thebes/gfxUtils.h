@@ -94,11 +94,6 @@ public:
      * Clip aContext to the region aRegion, snapping the rectangles.
      */
     static void ClipToRegionSnapped(gfxContext* aContext, const nsIntRegion& aRegion);
-
-    /*
-     * Convert image format to depth value
-     */
-    static int ImageFormatToDepth(gfxASurface::gfxImageFormat aFormat);
 };
 
 #endif

@@ -67,8 +67,8 @@ imgRequestProxy::imgRequestProxy() :
   mPrincipal(nsnull),
   mListener(nsnull),
   mLoadFlags(nsIRequest::LOAD_NORMAL),
-  mLockCount(0),
-  mAnimationConsumers(0),
+  mLocksHeld(0),
+  mDeferredLocks(0),
   mCanceled(PR_FALSE),
   mIsInLoadGroup(PR_FALSE),
   mListenerIsStrongRef(PR_FALSE),
@@ -86,11 +86,9 @@ imgRequestProxy::~imgRequestProxy()
   NS_PRECONDITION(!mListener, "Someone forgot to properly cancel this request!");
 
   // Unlock the image the proper number of times if we're holding locks on it.
-  // Note that UnlockImage() decrements mLockCount each time it's called.
-  while (mLockCount)
+  // Note that UnlockImage() decrements mLocksHeld each time it's called.
+  while (mLocksHeld || mDeferredLocks)
     UnlockImage();
-
-  ClearAnimationConsumers();
 
   // Explicitly set mListener to null to ensure that the RemoveProxy
   // call below can't send |this| to an arbitrary listener while |this|
@@ -122,8 +120,6 @@ nsresult imgRequestProxy::Init(imgRequest* request, nsILoadGroup* aLoadGroup, Im
 
   LOG_SCOPE_WITH_PARAM(gImgLog, "imgRequestProxy::Init", "request", request);
 
-  NS_ABORT_IF_FALSE(mAnimationConsumers == 0, "Cannot have animation before Init");
-
   mOwner = request;
   mListener = aObserver;
   // Make sure to addref mListener before the AddProxy call below, since
@@ -149,14 +145,10 @@ nsresult imgRequestProxy::ChangeOwner(imgRequest *aNewOwner)
   NS_PRECONDITION(mOwner, "Cannot ChangeOwner on a proxy without an owner!");
 
   // If we're holding locks, unlock the old image.
-  // Note that UnlockImage decrements mLockCount each time it's called.
-  PRUint32 oldLockCount = mLockCount;
-  while (mLockCount)
+  // Note that UnlockImage decrements mLocksHeld each time it's called.
+  PRUint32 oldLockCount = mImage ? mLocksHeld : mDeferredLocks;
+  while (mLocksHeld || mDeferredLocks)
     UnlockImage();
-
-  // If we're holding animation requests, undo them.
-  PRUint32 oldAnimationConsumers = mAnimationConsumers;
-  ClearAnimationConsumers();
 
   // Even if we are cancelled, we MUST change our image, because the image
   // holds our status, and the status must always be correct.
@@ -165,10 +157,6 @@ nsresult imgRequestProxy::ChangeOwner(imgRequest *aNewOwner)
   // If we were locked, apply the locks here
   for (PRUint32 i = 0; i < oldLockCount; i++)
     LockImage();
-
-  // If we had animation requests, apply them here
-  for (PRUint32 i = 0; i < oldAnimationConsumers; i++)
-    IncrementAnimationConsumers();
 
   if (mCanceled)
     return NS_OK;
@@ -329,70 +317,41 @@ imgRequestProxy::RequestDecode()
 NS_IMETHODIMP
 imgRequestProxy::LockImage()
 {
-  mLockCount++;
-  if (mImage)
-    return mImage->LockImage();
-  return NS_OK;
+  NS_ABORT_IF_FALSE(mImage || mLocksHeld == 0,
+                    "have locks without an image to have locked");
+  NS_ABORT_IF_FALSE(!mImage || mDeferredLocks == 0,
+                    "have deferred locks that should have been converted "
+                    "into actual locks, since we have an image");
+  if (!mImage) {
+    // mOwner hasn't instantiated its image yet.
+    mDeferredLocks++;
+    return NS_OK;
+  }
+
+  mLocksHeld++;
+  return mImage->LockImage();
 }
 
 /* void unlockImage (); */
 NS_IMETHODIMP
 imgRequestProxy::UnlockImage()
 {
-  NS_ABORT_IF_FALSE(mLockCount > 0, "calling unlock but no locks!");
+  NS_ABORT_IF_FALSE((mDeferredLocks > 0 && !mImage) ||
+                    (mLocksHeld > 0 && mImage),
+                    "calling unlock but no locks!");
+  NS_ABORT_IF_FALSE(mImage || mLocksHeld == 0,
+                    "have locks without an image to have locked");
+  NS_ABORT_IF_FALSE(!mImage || mDeferredLocks == 0,
+                    "have deferred locks that should have been converted "
+                    "into actual locks, since we have an image");
 
-  mLockCount--;
-  if (mImage)
-    return mImage->UnlockImage();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-imgRequestProxy::IncrementAnimationConsumers()
-{
-  // Without an observer, we should not animate
-  if (!HasObserver())
-    return NS_OK;
-
-  mAnimationConsumers++;
-  if (mImage)
-    mImage->IncrementAnimationConsumers();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-imgRequestProxy::DecrementAnimationConsumers()
-{
-  if (!HasObserver()) {
-    NS_ABORT_IF_FALSE(mAnimationConsumers == 0,
-                      "How can we have animation consumers without an observer?");
-
-    // Without an observer, we have no consumers anyhow
+  if (!mImage) {
+    mDeferredLocks--;
     return NS_OK;
   }
 
-  // We may get here if some responsible code called Increment,
-  // then called us, but we have meanwhile called ClearAnimationConsumers
-  // because we needed to get rid of them earlier (see
-  // imgRequest::RemoveProxy), and hence have nothing left to
-  // decrement. (In such a case we got rid of the animation consumers
-  // early, but not the observer.)
-  if (mAnimationConsumers > 0) {
-    mAnimationConsumers--;
-    if (mImage)
-      mImage->DecrementAnimationConsumers();
-  }
-  return NS_OK;
-}
-
-void
-imgRequestProxy::ClearAnimationConsumers()
-{
-  NS_ABORT_IF_FALSE(HasObserver() || mAnimationConsumers == 0,
-                    "How can we have animation consumers without an observer?");
-
-  while (mAnimationConsumers > 0)
-    DecrementAnimationConsumers();
+  mLocksHeld--;
+  return mImage->UnlockImage();
 }
 
 /* void suspend (); */
@@ -752,10 +711,6 @@ void imgRequestProxy::OnStopRequest(PRBool lastPart)
 
 void imgRequestProxy::NullOutListener()
 {
-  // If we have animation consumers, then they don't matter anymore
-  if (mListener)
-    ClearAnimationConsumers();
-
   if (mListenerIsStrongRef) {
     // Releasing could do weird reentery stuff, so just play it super-safe
     nsCOMPtr<imgIDecoderObserver> obs;
@@ -845,13 +800,13 @@ imgRequestProxy::SetImage(Image* aImage)
 
   mImage = aImage;
 
-  // Apply any locks we have
-  for (PRUint32 i = 0; i < mLockCount; ++i)
+  // Convert deferred locks into real locks.
+  NS_ABORT_IF_FALSE(!mLocksHeld, "Can't be holding locks without any image");
+  for (PRUint32 i = 0; i < mDeferredLocks; i++) {
     mImage->LockImage();
-
-  // Apply any animation consumers we have
-  for (PRUint32 i = 0; i < mAnimationConsumers; i++)
-    mImage->IncrementAnimationConsumers();
+  }
+  mLocksHeld = mDeferredLocks;
+  mDeferredLocks = 0;
 }
 
 imgStatusTracker&

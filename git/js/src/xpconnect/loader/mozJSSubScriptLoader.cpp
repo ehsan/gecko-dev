@@ -281,8 +281,7 @@ mozJSSubScriptLoader::LoadSubScript (const PRUnichar * aURL
     if (!scheme.EqualsLiteral("chrome"))
     {
         // This might be a URI to a local file, though!
-        nsCOMPtr<nsIURI> innerURI = NS_GetInnermostURI(uri);
-        nsCOMPtr<nsIFileURL> fileURL = do_QueryInterface(innerURI);
+        nsCOMPtr<nsIFileURL> fileURL = do_QueryInterface(uri);
         if (!fileURL)
         {
             errmsg = JS_NewStringCopyZ (cx, LOAD_ERROR_URI_NOT_LOCAL);

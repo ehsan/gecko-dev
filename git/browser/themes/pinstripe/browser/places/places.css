@@ -67,7 +67,7 @@
 #viewButton {
   -moz-appearance: none;
   border: 1px solid #7F7F7F;
-  border-radius: 10px;
+  -moz-border-radius: 10px;
   background: @toolbarbuttonBackground@;
   min-width: 0px;
   min-height: 0px;

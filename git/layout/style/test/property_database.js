@@ -129,18 +129,8 @@ var gCSSProperties = {
 		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
 		get_computed: logical_box_prop_get_computed,
 		prerequisites: { "-moz-border-end-style": "solid" },
-		initial_values: [ "medium", "3px", "-moz-calc(4px - 1px)" ],
-		other_values: [ "thin", "thick", "1px", "2em",
-			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
-			"-moz-calc(0em)",
-			"-moz-calc(0)",
-			"-moz-calc(5em)",
-			"-moz-calc(3*25px)",
-			"-moz-calc(25px*3)",
-			"-moz-calc(3*25px + 5em)",
-			"-moz-min(3em, 30em,200px, min(500px ,40em))",
-		],
+		initial_values: [ "medium", "3px" ],
+		other_values: [ "thin", "thick", "1px", "2em" ],
 		invalid_values: [ "5%" ]
 	},
 	"-moz-border-image": {
@@ -168,106 +158,54 @@ var gCSSProperties = {
 		other_values: [ "red green", "red #fc3", "#ff00cc", "currentColor", "blue currentColor orange currentColor" ],
 		invalid_values: [ "red none", "red inherit", "red, green", "none red", "inherit red" ]
 	},
-	"border-radius": {
-		domProp: "borderRadius",
+	"-moz-border-radius": {
+		domProp: "MozBorderRadius",
 		inherited: false,
 		type: CSS_TYPE_TRUE_SHORTHAND,
-		prerequisites: { "width": "200px", "height": "100px", "display": "inline-block"},
-		subproperties: [ "border-bottom-left-radius", "border-bottom-right-radius", "border-top-left-radius", "border-top-right-radius" ],
-		initial_values: [ "0", "0px", "0%", "0px 0 0 0px", "-moz-calc(-2px)", "-moz-calc(-1%)", "-moz-calc(0px) -moz-calc(0pt) -moz-calc(0%) -moz-calc(0em)" ],
+		subproperties: [ "-moz-border-radius-bottomleft", "-moz-border-radius-bottomright", "-moz-border-radius-topleft", "-moz-border-radius-topright" ],
+		initial_values: [ "0", "0px", "0px 0 0 0px" ], /* 0% ? */
 		other_values: [ "3%", "1px", "2em", "3em 2px", "2pt 3% 4em", "2px 2px 2px 2px", // circular
-						"3% / 2%", "1px / 4px", "2em / 1em", "3em 2px / 2px 3em", "2pt 3% 4em / 4pt 1% 5em", "2px 2px 2px 2px / 4px 4px 4px 4px", "1pt / 2pt 3pt", "4pt 5pt / 3pt", // elliptical
-			"-moz-calc(2px)",
-			"-moz-calc(50%)",
-			"-moz-calc(3*25px)",
-			"-moz-calc(3*25px) 5px",
-			"5px -moz-calc(3*25px)",
-			"-moz-calc(20%) -moz-calc(3*25px)",
-			"-moz-calc(25px*3)",
-			"-moz-calc(3*25px + 50%)",
-			"-moz-min(30%, 30em,200px, min(500px ,40em))",
-			"2px 2px -moz-calc(2px + 1%) 2px",
-			"1px 2px 2px 2px / 2px 2px -moz-calc(2px + 1%) 2px",
+						"3% / 2%", "1px / 4px", "2em / 1em", "3em 2px / 2px 3em", "2pt 3% 4em / 4pt 1% 5em", "2px 2px 2px 2px / 4px 4px 4px 4px", "1pt / 2pt 3pt", "4pt 5pt / 3pt" // elliptical
 					  ],
 		invalid_values: [ "2px -2px", "inherit 2px", "inherit / 2px", "2px inherit", "2px / inherit", "2px 2px 2px 2px 2px", "1px / 2px 2px 2px 2px 2px" ]
 	},
-	"border-bottom-left-radius": {
-		domProp: "borderBottomLeftRadius",
+	"-moz-border-radius-bottomleft": {
+		domProp: "MozBorderRadiusBottomleft",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
-		prerequisites: { "width": "200px", "height": "100px", "display": "inline-block"},
-		initial_values: [ "0", "0px", "0%", "-moz-calc(-2px)", "-moz-calc(-1%)" ],
+		initial_values: [ "0", "0px" ], /* 0% ? */
 		other_values: [ "3%", "1px", "2em", // circular
-						"3% 2%", "1px 4px", "2em 2pt", // elliptical
-			"-moz-calc(2px)",
-			"-moz-calc(50%)",
-			"-moz-calc(3*25px)",
-			"-moz-calc(3*25px) 5px",
-			"5px -moz-calc(3*25px)",
-			"-moz-calc(20%) -moz-calc(3*25px)",
-			"-moz-calc(25px*3)",
-			"-moz-calc(3*25px + 50%)",
-			"-moz-min(30%, 30em,200px, min(500px ,40em))",
+						"3% 2%", "1px 4px", "2em 2pt" // elliptical
 					  ],
 		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit" ]
 	},
-	"border-bottom-right-radius": {
-		domProp: "borderBottomRightRadius",
+	"-moz-border-radius-bottomright": {
+		domProp: "MozBorderRadiusBottomright",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
-		prerequisites: { "width": "200px", "height": "100px", "display": "inline-block"},
-		initial_values: [ "0", "0px", "0%", "-moz-calc(-2px)", "-moz-calc(-1%)" ],
+		initial_values: [ "0", "0px" ], /* 0% ? */
 		other_values: [ "3%", "1px", "2em", // circular
-						"3% 2%", "1px 4px", "2em 2pt", // elliptical
-			"-moz-calc(2px)",
-			"-moz-calc(50%)",
-			"-moz-calc(3*25px)",
-			"-moz-calc(3*25px) 5px",
-			"5px -moz-calc(3*25px)",
-			"-moz-calc(20%) -moz-calc(3*25px)",
-			"-moz-calc(25px*3)",
-			"-moz-calc(3*25px + 50%)",
-			"-moz-min(30%, 30em,200px, min(500px ,40em))",
+						"3% 2%", "1px 4px", "2em 2pt" // elliptical
 					  ],
 		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit" ]
 	},
-	"border-top-left-radius": {
-		domProp: "borderTopLeftRadius",
+	"-moz-border-radius-topleft": {
+		domProp: "MozBorderRadiusTopleft",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
-		prerequisites: { "width": "200px", "height": "100px", "display": "inline-block"},
-		initial_values: [ "0", "0px", "0%", "-moz-calc(-2px)", "-moz-calc(-1%)" ],
+		initial_values: [ "0", "0px" ], /* 0% ? */
 		other_values: [ "3%", "1px", "2em", // circular
-						"3% 2%", "1px 4px", "2em 2pt", // elliptical
-			"-moz-calc(2px)",
-			"-moz-calc(50%)",
-			"-moz-calc(3*25px)",
-			"-moz-calc(3*25px) 5px",
-			"5px -moz-calc(3*25px)",
-			"-moz-calc(20%) -moz-calc(3*25px)",
-			"-moz-calc(25px*3)",
-			"-moz-calc(3*25px + 50%)",
-			"-moz-min(30%, 30em,200px, min(500px ,40em))",
+						"3% 2%", "1px 4px", "2em 2pt" // elliptical
 					  ],
 		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit" ]
 	},
-	"border-top-right-radius": {
-		domProp: "borderTopRightRadius",
+	"-moz-border-radius-topright": {
+		domProp: "MozBorderRadiusTopright",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
-		prerequisites: { "width": "200px", "height": "100px", "display": "inline-block"},
-		initial_values: [ "0", "0px", "0%", "-moz-calc(-2px)", "-moz-calc(-1%)" ],
+		initial_values: [ "0", "0px" ], /* 0% ? */
 		other_values: [ "3%", "1px", "2em", // circular
-						"3% 2%", "1px 4px", "2em 2pt", // elliptical
-			"-moz-calc(2px)",
-			"-moz-calc(50%)",
-			"-moz-calc(3*25px)",
-			"-moz-calc(3*25px) 5px",
-			"5px -moz-calc(3*25px)",
-			"-moz-calc(20%) -moz-calc(3*25px)",
-			"-moz-calc(25px*3)",
-			"-moz-calc(3*25px + 50%)",
-			"-moz-min(30%, 30em,200px, min(500px ,40em))",
+						"3% 2%", "1px 4px", "2em 2pt" // elliptical
 					  ],
 		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit" ]
 	},
@@ -313,18 +251,8 @@ var gCSSProperties = {
 		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
 		get_computed: logical_box_prop_get_computed,
 		prerequisites: { "-moz-border-start-style": "solid" },
-		initial_values: [ "medium", "3px", "-moz-calc(4px - 1px)" ],
-		other_values: [ "thin", "thick", "1px", "2em",
-			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
-			"-moz-calc(0em)",
-			"-moz-calc(0)",
-			"-moz-calc(5em)",
-			"-moz-calc(3*25px)",
-			"-moz-calc(25px*3)",
-			"-moz-calc(3*25px + 5em)",
-			"-moz-min(3em, 30em,200px, min(500px ,40em))",
-		],
+		initial_values: [ "medium", "3px" ],
+		other_values: [ "thin", "thick", "1px", "2em" ],
 		invalid_values: [ "5%" ]
 	},
 	"-moz-border-top-colors": {
@@ -397,8 +325,6 @@ var gCSSProperties = {
 			"2px -moz-min(2px,0.2em)",
 			"blue 2px -moz-min(2px,0.2em)",
 			"2px -moz-min(2px,0.2em) blue",
-			"-moz-calc(-2px) -moz-calc(-2px)",
-			"-2px -2px",
 			"-moz-calc(2px) -moz-calc(2px)",
 			"-moz-calc(2px) -moz-calc(2px) -moz-calc(2px)",
 			"-moz-calc(2px) -moz-calc(2px) -moz-calc(2px) -moz-calc(2px)"
@@ -426,18 +352,8 @@ var gCSSProperties = {
 		domProp: "MozColumnGap",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "normal", "1em", "-moz-calc(-2em + 3em)" ],
-		other_values: [ "2px", "4em",
-			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
-			"-moz-calc(0)",
-			"-moz-calc(0pt)",
-			"-moz-calc(5em)",
-			"-moz-calc(3*25px)",
-			"-moz-calc(25px*3)",
-			"-moz-calc(3*25px + 5em)",
-			"-moz-min(3em, 30em,200px, min(500px ,40em))",
-		],
+		initial_values: [ "normal", "1em" ],
+		other_values: [ "2px", "4em" ],
 		invalid_values: [ "3%", "-1px" ]
 	},
 	"-moz-column-rule": {
@@ -655,10 +571,9 @@ var gCSSProperties = {
 		get_computed: logical_box_prop_get_computed,
 		/* no subproperties */
 		/* auto may or may not be initial */
-		initial_values: [ "0", "0px", "0%", "0em", "0ex", "-moz-calc(0pt)", "-moz-calc(0% + 0px)" ],
+		initial_values: [ "0", "0px", "0%", "0em", "0ex" ],
 		other_values: [ "1px", "3em",
 			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
 			"-moz-calc(50%)",
 			"-moz-calc(3*25px)",
 			"-moz-calc(25px*3)",
@@ -674,10 +589,9 @@ var gCSSProperties = {
 		get_computed: logical_box_prop_get_computed,
 		/* no subproperties */
 		/* auto may or may not be initial */
-		initial_values: [ "0", "0px", "0%", "0em", "0ex", "-moz-calc(0pt)", "-moz-calc(0% + 0px)" ],
+		initial_values: [ "0", "0px", "0%", "0em", "0ex" ],
 		other_values: [ "1px", "3em",
 			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
 			"-moz-calc(50%)",
 			"-moz-calc(3*25px)",
 			"-moz-calc(25px*3)",
@@ -690,22 +604,10 @@ var gCSSProperties = {
 		domProp: "MozOutlineRadius",
 		inherited: false,
 		type: CSS_TYPE_TRUE_SHORTHAND,
-		prerequisites: { "width": "200px", "height": "100px", "display": "inline-block"},
 		subproperties: [ "-moz-outline-radius-bottomleft", "-moz-outline-radius-bottomright", "-moz-outline-radius-topleft", "-moz-outline-radius-topright" ],
-		initial_values: [ "0", "0px", "0%", "-moz-calc(-2px)", "-moz-calc(-1%)", "-moz-calc(0px) -moz-calc(0pt) -moz-calc(0%) -moz-calc(0em)" ],
+		initial_values: [ "0", "0px", "0%" ],
 		other_values: [ "3%", "1px", "2em", "3em 2px", "2pt 3% 4em", "2px 2px 2px 2px", // circular
-						"3% / 2%", "1px / 4px", "2em / 1em", "3em 2px / 2px 3em", "2pt 3% 4em / 4pt 1% 5em", "2px 2px 2px 2px / 4px 4px 4px 4px", "1pt / 2pt 3pt", "4pt 5pt / 3pt", // elliptical
-			"-moz-calc(2px)",
-			"-moz-calc(50%)",
-			"-moz-calc(3*25px)",
-			"-moz-calc(3*25px) 5px",
-			"5px -moz-calc(3*25px)",
-			"-moz-calc(20%) -moz-calc(3*25px)",
-			"-moz-calc(25px*3)",
-			"-moz-calc(3*25px + 50%)",
-			"-moz-min(30%, 30em,200px, min(500px ,40em))",
-			"2px 2px -moz-calc(2px + 1%) 2px",
-			"1px 2px 2px 2px / 2px 2px -moz-calc(2px + 1%) 2px",
+						"3% / 2%", "1px / 4px", "2em / 1em", "3em 2px / 2px 3em", "2pt 3% 4em / 4pt 1% 5em", "2px 2px 2px 2px / 4px 4px 4px 4px", "1pt / 2pt 3pt", "4pt 5pt / 3pt" // elliptical
 					  ],
 		invalid_values: [ "2px -2px", "inherit 2px", "inherit / 2px", "2px inherit", "2px / inherit", "2px 2px 2px 2px 2px", "1px / 2px 2px 2px 2px 2px" ]
 	},
@@ -713,19 +615,9 @@ var gCSSProperties = {
 		domProp: "MozOutlineRadiusBottomleft",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
-		prerequisites: { "width": "200px", "height": "100px", "display": "inline-block"},
-		initial_values: [ "0", "0px", "0%", "-moz-calc(-2px)", "-moz-calc(-1%)", "-moz-calc(0px)" ],
+		initial_values: [ "0", "0px", "0%" ],
 		other_values: [ "3%", "1px", "2em", // circular
-						"3% 2%", "1px 4px", "2em 2pt", // elliptical
-			"-moz-calc(2px)",
-			"-moz-calc(50%)",
-			"-moz-calc(3*25px)",
-			"-moz-calc(3*25px) 5px",
-			"5px -moz-calc(3*25px)",
-			"-moz-calc(20%) -moz-calc(3*25px)",
-			"-moz-calc(25px*3)",
-			"-moz-calc(3*25px + 50%)",
-			"-moz-min(30%, 30em,200px, min(500px ,40em))",
+						"3% 2%", "1px 4px", "2em 2pt" // elliptical
 					  ],
 		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit" ]
 	},
@@ -733,19 +625,9 @@ var gCSSProperties = {
 		domProp: "MozOutlineRadiusBottomright",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
-		prerequisites: { "width": "200px", "height": "100px", "display": "inline-block"},
-		initial_values: [ "0", "0px", "0%", "-moz-calc(-2px)", "-moz-calc(-1%)", "-moz-calc(0px)" ],
+		initial_values: [ "0", "0px", "0%" ],
 		other_values: [ "3%", "1px", "2em", // circular
-						"3% 2%", "1px 4px", "2em 2pt", // elliptical
-			"-moz-calc(2px)",
-			"-moz-calc(50%)",
-			"-moz-calc(3*25px)",
-			"-moz-calc(3*25px) 5px",
-			"5px -moz-calc(3*25px)",
-			"-moz-calc(20%) -moz-calc(3*25px)",
-			"-moz-calc(25px*3)",
-			"-moz-calc(3*25px + 50%)",
-			"-moz-min(30%, 30em,200px, min(500px ,40em))",
+						"3% 2%", "1px 4px", "2em 2pt" // elliptical
 					  ],
 		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit" ]
 	},
@@ -753,19 +635,9 @@ var gCSSProperties = {
 		domProp: "MozOutlineRadiusTopleft",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
-		prerequisites: { "width": "200px", "height": "100px", "display": "inline-block"},
-		initial_values: [ "0", "0px", "0%", "-moz-calc(-2px)", "-moz-calc(-1%)", "-moz-calc(0px)" ],
+		initial_values: [ "0", "0px", "0%" ],
 		other_values: [ "3%", "1px", "2em", // circular
-						"3% 2%", "1px 4px", "2em 2pt", // elliptical
-			"-moz-calc(2px)",
-			"-moz-calc(50%)",
-			"-moz-calc(3*25px)",
-			"-moz-calc(3*25px) 5px",
-			"5px -moz-calc(3*25px)",
-			"-moz-calc(20%) -moz-calc(3*25px)",
-			"-moz-calc(25px*3)",
-			"-moz-calc(3*25px + 50%)",
-			"-moz-min(30%, 30em,200px, min(500px ,40em))",
+						"3% 2%", "1px 4px", "2em 2pt" // elliptical
 					  ],
 		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit" ]
 	},
@@ -773,19 +645,9 @@ var gCSSProperties = {
 		domProp: "MozOutlineRadiusTopright",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
-		prerequisites: { "width": "200px", "height": "100px", "display": "inline-block"},
-		initial_values: [ "0", "0px", "0%", "-moz-calc(-2px)", "-moz-calc(-1%)", "-moz-calc(0px)" ],
+		initial_values: [ "0", "0px", "0%" ],
 		other_values: [ "3%", "1px", "2em", // circular
-						"3% 2%", "1px 4px", "2em 2pt", // elliptical
-			"-moz-calc(2px)",
-			"-moz-calc(50%)",
-			"-moz-calc(3*25px)",
-			"-moz-calc(3*25px) 5px",
-			"5px -moz-calc(3*25px)",
-			"-moz-calc(20%) -moz-calc(3*25px)",
-			"-moz-calc(25px*3)",
-			"-moz-calc(3*25px + 50%)",
-			"-moz-min(30%, 30em,200px, min(500px ,40em))",
+						"3% 2%", "1px 4px", "2em 2pt" // elliptical
 					  ],
 		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit" ]
 	},
@@ -795,7 +657,7 @@ var gCSSProperties = {
 		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
 		get_computed: logical_box_prop_get_computed,
 		/* no subproperties */
-		initial_values: [ "0", "0px", "0%", "0em", "0ex", "-moz-calc(0pt)", "-moz-calc(0% + 0px)", "-moz-calc(-3px)", "-moz-calc(-1%)" ],
+		initial_values: [ "0", "0px", "0%", "0em", "0ex" ],
 		other_values: [ "1px", "3em",
 			"-moz-calc(2px)",
 			"-moz-calc(50%)",
@@ -812,7 +674,7 @@ var gCSSProperties = {
 		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
 		get_computed: logical_box_prop_get_computed,
 		/* no subproperties */
-		initial_values: [ "0", "0px", "0%", "0em", "0ex", "-moz-calc(0pt)", "-moz-calc(0% + 0px)", "-moz-calc(-3px)", "-moz-calc(-1%)" ],
+		initial_values: [ "0", "0px", "0%", "0em", "0ex" ],
 		other_values: [ "1px", "3em",
 			"-moz-calc(2px)",
 			"-moz-calc(50%)",
@@ -1306,8 +1168,8 @@ var gCSSProperties = {
 		inherited: false,
 		type: CSS_TYPE_TRUE_SHORTHAND,
 		subproperties: [ "border-bottom-color", "border-bottom-style", "border-bottom-width", "border-left-color", "border-left-style", "border-left-width", "border-right-color", "border-right-style", "border-right-width", "border-top-color", "border-top-style", "border-top-width", "-moz-border-top-colors", "-moz-border-right-colors", "-moz-border-bottom-colors", "-moz-border-left-colors", "-moz-border-image" ],
-		initial_values: [ "none", "medium", "currentColor", "thin", "none medium currentcolor", "-moz-calc(4px - 1px) none" ],
-		other_values: [ "solid", "medium solid", "green solid", "10px solid", "thick solid", "-moz-calc(2px) solid blue" ],
+		initial_values: [ "none", "medium", "currentColor", "thin", "none medium currentcolor" ],
+		other_values: [ "solid", "medium solid", "green solid", "10px solid", "thick solid" ],
 		invalid_values: [ "5%" ]
 	},
 	"border-bottom": {
@@ -1342,18 +1204,8 @@ var gCSSProperties = {
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		prerequisites: { "border-bottom-style": "solid" },
-		initial_values: [ "medium", "3px", "-moz-calc(4px - 1px)" ],
-		other_values: [ "thin", "thick", "1px", "2em",
-			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
-			"-moz-calc(0em)",
-			"-moz-calc(0)",
-			"-moz-calc(5em)",
-			"-moz-calc(3*25px)",
-			"-moz-calc(25px*3)",
-			"-moz-calc(3*25px + 5em)",
-			"-moz-min(3em, 30em,200px, min(500px ,40em))",
-		],
+		initial_values: [ "medium", "3px" ],
+		other_values: [ "thin", "thick", "1px", "2em" ],
 		invalid_values: [ "5%" ]
 	},
 	"border-collapse": {
@@ -1405,18 +1257,8 @@ var gCSSProperties = {
 		inherited: false,
 		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
 		prerequisites: { "border-left-style": "solid" },
-		initial_values: [ "medium", "3px", "-moz-calc(4px - 1px)" ],
-		other_values: [ "thin", "thick", "1px", "2em",
-			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
-			"-moz-calc(0em)",
-			"-moz-calc(0)",
-			"-moz-calc(5em)",
-			"-moz-calc(3*25px)",
-			"-moz-calc(25px*3)",
-			"-moz-calc(3*25px + 5em)",
-			"-moz-min(3em, 30em,200px, min(500px ,40em))",
-		],
+		initial_values: [ "medium", "3px" ],
+		other_values: [ "thin", "thick", "1px", "2em" ],
 		invalid_values: [ "5%" ]
 	},
 	"border-right": {
@@ -1451,18 +1293,8 @@ var gCSSProperties = {
 		inherited: false,
 		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
 		prerequisites: { "border-right-style": "solid" },
-		initial_values: [ "medium", "3px", "-moz-calc(4px - 1px)" ],
-		other_values: [ "thin", "thick", "1px", "2em",
-			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
-			"-moz-calc(0em)",
-			"-moz-calc(0)",
-			"-moz-calc(5em)",
-			"-moz-calc(3*25px)",
-			"-moz-calc(25px*3)",
-			"-moz-calc(3*25px + 5em)",
-			"-moz-min(3em, 30em,200px, min(500px ,40em))",
-		],
+		initial_values: [ "medium", "3px" ],
+		other_values: [ "thin", "thick", "1px", "2em" ],
 		invalid_values: [ "5%" ]
 	},
 	"border-spacing": {
@@ -1515,18 +1347,8 @@ var gCSSProperties = {
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		prerequisites: { "border-top-style": "solid" },
-		initial_values: [ "medium", "3px", "-moz-calc(4px - 1px)" ],
-		other_values: [ "thin", "thick", "1px", "2em",
-			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
-			"-moz-calc(0em)",
-			"-moz-calc(0)",
-			"-moz-calc(5em)",
-			"-moz-calc(3*25px)",
-			"-moz-calc(25px*3)",
-			"-moz-calc(3*25px + 5em)",
-			"-moz-min(3em, 30em,200px, min(500px ,40em))",
-		],
+		initial_values: [ "medium", "3px" ],
+		other_values: [ "thin", "thick", "1px", "2em" ],
 		invalid_values: [ "5%" ]
 	},
 	"border-width": {
@@ -1535,8 +1357,8 @@ var gCSSProperties = {
 		type: CSS_TYPE_TRUE_SHORTHAND,
 		subproperties: [ "border-top-width", "border-right-width", "border-bottom-width", "border-left-width" ],
 		prerequisites: { "border-style": "solid" },
-		initial_values: [ "medium", "3px", "medium medium", "3px medium medium", "medium 3px medium medium", "-moz-calc(3px) 3px -moz-calc(5px - 2px) -moz-calc(2px - -1px)" ],
-		other_values: [ "thin", "thick", "1px", "2em", "2px 0 0px 1em", "-moz-calc(2em)" ],
+		initial_values: [ "medium", "3px", "medium medium", "3px medium medium", "medium 3px medium medium" ],
+		other_values: [ "thin", "thick", "1px", "2em", "2px 0 0px 1em" ],
 		invalid_values: [ "5%" ]
 	},
 	"bottom": {
@@ -1549,7 +1371,6 @@ var gCSSProperties = {
 		initial_values: [ "auto" ],
 		other_values: [ "32px", "-3em", "12%",
 			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
 			"-moz-calc(50%)",
 			"-moz-calc(3*25px)",
 			"-moz-calc(25px*3)",
@@ -1795,7 +1616,6 @@ var gCSSProperties = {
 		domProp: "height",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
-		/* FIXME: test zero, and test calc clamping */
 		initial_values: [ " auto" ],
 		/* computed value tests for height test more with display:block */
 		prerequisites: { "display": "block" },
@@ -1827,7 +1647,6 @@ var gCSSProperties = {
 		initial_values: [ "auto" ],
 		other_values: [ "32px", "-3em", "12%",
 			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
 			"-moz-calc(50%)",
 			"-moz-calc(3*25px)",
 			"-moz-calc(25px*3)",
@@ -1932,10 +1751,9 @@ var gCSSProperties = {
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		/* XXX testing auto has prerequisites */
-		initial_values: [ "0", "0px", "0%", "-moz-calc(0pt)", "-moz-calc(0% + 0px)" ],
+		initial_values: [ "0", "0px", "0%" ],
 		other_values: [ "1px", "2em", "5%",
 			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
 			"-moz-calc(50%)",
 			"-moz-calc(3*25px)",
 			"-moz-calc(25px*3)",
@@ -1950,10 +1768,9 @@ var gCSSProperties = {
 		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
 		/* no subproperties */
 		/* XXX testing auto has prerequisites */
-		initial_values: [ "0", "0px", "0%", "-moz-calc(0pt)", "-moz-calc(0% + 0px)" ],
+		initial_values: [ "0", "0px", "0%" ],
 		other_values: [ "1px", "2em", "5%", ".5px", "+32px", "+.789px", "-.328px", "+0.56px", "-0.974px", "237px", "-289px", "-056px", "1987.45px", "-84.32px",
 			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
 			"-moz-calc(50%)",
 			"-moz-calc(3*25px)",
 			"-moz-calc(25px*3)",
@@ -1968,10 +1785,9 @@ var gCSSProperties = {
 		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
 		/* no subproperties */
 		/* XXX testing auto has prerequisites */
-		initial_values: [ "0", "0px", "0%", "-moz-calc(0pt)", "-moz-calc(0% + 0px)" ],
+		initial_values: [ "0", "0px", "0%" ],
 		other_values: [ "1px", "2em", "5%",
 			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
 			"-moz-calc(50%)",
 			"-moz-calc(3*25px)",
 			"-moz-calc(25px*3)",
@@ -1985,10 +1801,9 @@ var gCSSProperties = {
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		/* XXX testing auto has prerequisites */
-		initial_values: [ "0", "0px", "0%", "-moz-calc(0pt)", "-moz-calc(0% + 0px)" ],
+		initial_values: [ "0", "0px", "0%" ],
 		other_values: [ "1px", "2em", "5%",
 			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
 			"-moz-calc(50%)",
 			"-moz-calc(3*25px)",
 			"-moz-calc(25px*3)",
@@ -2023,8 +1838,6 @@ var gCSSProperties = {
 		initial_values: [ "none" ],
 		other_values: [ "30px", "50%", "0",
 			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
-			"-moz-calc(0)",
 			"-moz-calc(50%)",
 			"-moz-calc(3*25px)",
 			"-moz-calc(25px*3)",
@@ -2041,8 +1854,6 @@ var gCSSProperties = {
 		initial_values: [ "none" ],
 		other_values: [ "30px", "50%", "0", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available",
 			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
-			"-moz-calc(0)",
 			"-moz-calc(50%)",
 			"-moz-calc(3*25px)",
 			"-moz-calc(25px*3)",
@@ -2056,7 +1867,7 @@ var gCSSProperties = {
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		prerequisites: { "display": "block" },
-		initial_values: [ "0", "-moz-calc(0em)", "-moz-calc(-2px)", "-moz-calc(-1%)" ],
+		initial_values: [ "0" ],
 		other_values: [ "30px", "50%",
 			"-moz-calc(2px)",
 			"-moz-calc(50%)",
@@ -2072,7 +1883,7 @@ var gCSSProperties = {
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		prerequisites: { "display": "block" },
-		initial_values: [ "0", "-moz-calc(0em)", "-moz-calc(-2px)", "-moz-calc(-1%)" ],
+		initial_values: [ "0" ],
 		other_values: [ "30px", "50%", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available",
 			"-moz-calc(2px)",
 			"-moz-calc(50%)",
@@ -2146,18 +1957,8 @@ var gCSSProperties = {
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		prerequisites: { "outline-style": "solid" },
-		initial_values: [ "medium", "3px", "-moz-calc(4px - 1px)" ],
-		other_values: [ "thin", "thick", "1px", "2em",
-			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
-			"-moz-calc(0)",
-			"-moz-calc(0px)",
-			"-moz-calc(5em)",
-			"-moz-calc(3*25px)",
-			"-moz-calc(25px*3)",
-			"-moz-calc(3*25px + 5em)",
-			"-moz-min(3em, 30em,200px, min(500px ,40em))",
-		],
+		initial_values: [ "medium", "3px" ],
+		other_values: [ "thin", "thick", "1px", "2em" ],
 		invalid_values: [ "5%" ]
 	},
 	"overflow": {
@@ -2193,7 +1994,7 @@ var gCSSProperties = {
 		inherited: false,
 		type: CSS_TYPE_TRUE_SHORTHAND,
 		subproperties: [ "padding-top", "padding-right", "padding-bottom", "padding-left" ],
-		initial_values: [ "0", "0px 0 0em", "0% 0px 0em 0pt", "-moz-calc(0) -moz-calc(0em) -moz-calc(-2px) -moz-calc(-1%)" ],
+		initial_values: [ "0", "0px 0 0em", "0% 0px 0em 0pt" ],
 		other_values: [ "3px 0", "2em 4px 2pt", "1em 2em 3px 4px" ],
 		invalid_values: []
 	},
@@ -2201,7 +2002,7 @@ var gCSSProperties = {
 		domProp: "paddingBottom",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "0", "0px", "0%", "-moz-calc(0pt)", "-moz-calc(0% + 0px)", "-moz-calc(-3px)", "-moz-calc(-1%)" ],
+		initial_values: [ "0", "0px", "0%" ],
 		other_values: [ "1px", "2em", "5%",
 			"-moz-calc(2px)",
 			"-moz-calc(50%)",
@@ -2217,7 +2018,7 @@ var gCSSProperties = {
 		inherited: false,
 		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
 		/* no subproperties */
-		initial_values: [ "0", "0px", "0%", "-moz-calc(0pt)", "-moz-calc(0% + 0px)", "-moz-calc(-3px)", "-moz-calc(-1%)" ],
+		initial_values: [ "0", "0px", "0%" ],
 		other_values: [ "1px", "2em", "5%",
 			"-moz-calc(2px)",
 			"-moz-calc(50%)",
@@ -2233,7 +2034,7 @@ var gCSSProperties = {
 		inherited: false,
 		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
 		/* no subproperties */
-		initial_values: [ "0", "0px", "0%", "-moz-calc(0pt)", "-moz-calc(0% + 0px)", "-moz-calc(-3px)", "-moz-calc(-1%)" ],
+		initial_values: [ "0", "0px", "0%" ],
 		other_values: [ "1px", "2em", "5%",
 			"-moz-calc(2px)",
 			"-moz-calc(50%)",
@@ -2248,7 +2049,7 @@ var gCSSProperties = {
 		domProp: "paddingTop",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "0", "0px", "0%", "-moz-calc(0pt)", "-moz-calc(0% + 0px)", "-moz-calc(-3px)", "-moz-calc(-1%)" ],
+		initial_values: [ "0", "0px", "0%" ],
 		other_values: [ "1px", "2em", "5%",
 			"-moz-calc(2px)",
 			"-moz-calc(50%)",
@@ -2384,7 +2185,6 @@ var gCSSProperties = {
 		initial_values: [ "auto" ],
 		other_values: [ "32px", "-3em", "12%",
 			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
 			"-moz-calc(50%)",
 			"-moz-calc(3*25px)",
 			"-moz-calc(25px*3)",
@@ -2491,10 +2291,9 @@ var gCSSProperties = {
 		domProp: "textIndent",
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "0", "-moz-calc(3em - 5em + 2px + 2em - 2px)" ],
+		initial_values: [ "0" ],
 		other_values: [ "2em", "5%", "-10px",
 			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
 			"-moz-calc(50%)",
 			"-moz-calc(3*25px)",
 			"-moz-calc(25px*3)",
@@ -2517,12 +2316,10 @@ var gCSSProperties = {
 			"2px -moz-min(2px,0.2em)",
 			"blue 2px -moz-min(2px,0.2em)",
 			"2px -moz-min(2px,0.2em) blue",
-			"-moz-calc(-2px) -moz-calc(-2px)",
-			"-2px -2px",
 			"-moz-calc(2px) -moz-calc(2px)",
 			"-moz-calc(2px) -moz-calc(2px) -moz-calc(2px)",
 		],
-		invalid_values: [ "3% 3%", "2px 2px -5px", "2px 2px 2px 2px", "2px 2px, none", "none, 2px 2px", "inherit, 2px 2px", "2px 2px, inherit",
+		invalid_values: [ "3% 3%", "2px 2px 2px 2px", "2px 2px, none", "none, 2px 2px", "inherit, 2px 2px", "2px 2px, inherit",
 			"-moz-calc(2px) -moz-calc(2px) -moz-calc(2px) -moz-calc(2px)"
 		]
 	},
@@ -2544,7 +2341,6 @@ var gCSSProperties = {
 		initial_values: [ "auto" ],
 		other_values: [ "32px", "-3em", "12%",
 			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
 			"-moz-calc(50%)",
 			"-moz-calc(3*25px)",
 			"-moz-calc(25px*3)",
@@ -2609,7 +2405,6 @@ var gCSSProperties = {
 		initial_values: [ "baseline" ],
 		other_values: [ "sub", "super", "top", "text-top", "middle", "bottom", "text-bottom", "15%", "3px", "0.2em", "-5px", "-3%",
 			"-moz-calc(2px)",
-			"-moz-calc(-2px)",
 			"-moz-calc(50%)",
 			"-moz-calc(3*25px)",
 			"-moz-calc(25px*3)",
@@ -2947,7 +2742,7 @@ var gCSSProperties = {
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "none" ],
 		other_values: [ "5px,3px,2px", "5px 3px 2px", "  5px ,3px	, 2px ", "1px", "5%", "3em" ],
-		invalid_values: [ "-5px,3px,2px", "5px,3px,-2px" ]
+		invalid_values: []
 	},
 	"stroke-dashoffset": {
 		domProp: "strokeDashoffset",

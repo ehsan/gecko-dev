@@ -39,8 +39,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "ImageLayers.h"
-#include "Layers.h"
-#include "gfxPlatform.h"
+ #include "Layers.h"
  
 #ifdef MOZ_LAYERS_HAVE_LOG
 FILE*
@@ -139,15 +138,6 @@ AppendToString(nsACString& s, const nsIntRegion& r,
 
 namespace mozilla {
 namespace layers {
-
-//--------------------------------------------------
-// LayerManager
-already_AddRefed<gfxASurface>
-LayerManager::CreateOptimalSurface(const gfxIntSize &aSize,
-                                   gfxASurface::gfxImageFormat aFormat)
-{
-  return gfxPlatform::GetPlatform()->CreateOffscreenSurface(aSize, aFormat);
-}
 
 //--------------------------------------------------
 // Layer

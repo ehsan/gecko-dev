@@ -111,7 +111,7 @@
 
   #main-menubar:not(:-moz-lwtheme):not(:-moz-window-inactive) {
     background-color: rgba(255,255,255,.5);
-    border-radius: 4px;
+    -moz-border-radius: 4px;
   }
 
   #urlbar,
@@ -151,7 +151,7 @@
   #ctrlTab-panel {
     background: transparent;
     -moz-appearance: -moz-win-glass;
-    border-radius: 0;
+    -moz-border-radius: 0;
     border: none;
     font: normal 1.2em "Segoe UI";
     color: black;

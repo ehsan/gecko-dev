@@ -77,7 +77,7 @@ Point.prototype = {
   // ----------
   // Function: distance
   // Returns the distance from this point to the given <Point>.
-  distance: function Point_distance(point) {
+  distance: function(point) {
     var ax = this.x - point.x;
     var ay = this.y - point.y;
     return Math.sqrt((ax * ax) + (ay * ay));
@@ -133,7 +133,7 @@ Rect.prototype = {
   // ----------
   // Function: intersects
   // Returns true if this rectangle intersects the given <Rect>.
-  intersects: function Rect_intersects(rect) {
+  intersects: function(rect) {
     return (rect.right > this.left &&
             rect.left < this.right &&
             rect.bottom > this.top &&
@@ -144,7 +144,7 @@ Rect.prototype = {
   // Function: intersection
   // Returns a new <Rect> with the intersection of this rectangle and the give <Rect>,
   // or null if they don't intersect.
-  intersection: function Rect_intersection(rect) {
+  intersection: function(rect) {
     var box = new Rect(Math.max(rect.left, this.left), Math.max(rect.top, this.top), 0, 0);
     box.right = Math.min(rect.right, this.right);
     box.bottom = Math.min(rect.bottom, this.bottom);
@@ -161,7 +161,7 @@ Rect.prototype = {
   //
   // Paramaters
   //  - A <Rect>
-  contains: function Rect_contains(rect) {
+  contains: function(rect) {
     return (rect.left > this.left &&
             rect.right < this.right &&
             rect.top > this.top &&
@@ -171,28 +171,28 @@ Rect.prototype = {
   // ----------
   // Function: center
   // Returns a new <Point> with the center location of this rectangle.
-  center: function Rect_center() {
+  center: function() {
     return new Point(this.left + (this.width / 2), this.top + (this.height / 2));
   },
 
   // ----------
   // Function: size
   // Returns a new <Point> with the dimensions of this rectangle.
-  size: function Rect_size() {
+  size: function() {
     return new Point(this.width, this.height);
   },
 
   // ----------
   // Function: position
   // Returns a new <Point> with the top left of this rectangle.
-  position: function Rect_position() {
+  position: function() {
     return new Point(this.left, this.top);
   },
 
   // ----------
   // Function: area
   // Returns the area of this rectangle.
-  area: function Rect_area() {
+  area: function() {
     return this.width * this.height;
   },
 
@@ -203,7 +203,7 @@ Rect.prototype = {
   //
   // Paramaters
   //  - A <Point> or two arguments: x and y
-  inset: function Rect_inset(a, b) {
+  inset: function(a, b) {
     if (Utils.isPoint(a)) {
       b = a.y;
       a = a.x;
@@ -221,7 +221,7 @@ Rect.prototype = {
   //
   // Paramaters
   //  - A <Point> or two arguments: x and y
-  offset: function Rect_offset(a, b) {
+  offset: function(a, b) {
     if (Utils.isPoint(a)) {
       this.left += a.x;
       this.top += a.y;
@@ -234,7 +234,7 @@ Rect.prototype = {
   // ----------
   // Function: equals
   // Returns true if this rectangle is identical to the given <Rect>.
-  equals: function Rect_equals(rect) {
+  equals: function(rect) {
     return (rect.left == this.left &&
             rect.top == this.top &&
             rect.width == this.width &&
@@ -244,7 +244,7 @@ Rect.prototype = {
   // ----------
   // Function: union
   // Returns a new <Rect> with the union of this rectangle and the given <Rect>.
-  union: function Rect_union(a) {
+  union: function(a) {
     var newLeft = Math.min(a.left, this.left);
     var newTop = Math.min(a.top, this.top);
     var newWidth = Math.max(a.right, this.right) - newLeft;
@@ -257,7 +257,7 @@ Rect.prototype = {
   // ----------
   // Function: copy
   // Copies the values of the given <Rect> into this rectangle.
-  copy: function Rect_copy(a) {
+  copy: function(a) {
     this.left = a.left;
     this.top = a.top;
     this.width = a.width;
@@ -271,7 +271,7 @@ Rect.prototype = {
   // straight in, but this is cleaner, as it removes all the extraneous
   // properties. If you give a <Rect> to <iQClass.css> without this, it will
   // ignore the extraneous properties, but result in CSS warnings.
-  css: function Rect_css() {
+  css: function() {
     return {
       left: this.left,
       top: this.top,
@@ -314,7 +314,7 @@ Range.prototype = {
   //
   // Paramaters
   //  - a number or <Range>
-  contains: function Range_contains(value) {
+  contains: function(value) {
     if (Utils.isNumber(value))
       return value >= this.min && value <= this.max;
     if (Utils.isRange(value))
@@ -330,7 +330,7 @@ Range.prototype = {
   // Paramaters
   //  - a number
   //  - (bool) smooth? If true, a smooth tanh-based function will be used instead of the linear.
-  proportion: function Range_proportion(value, smooth) {
+  proportion: function(value, smooth) {
     if (value <= this.min)
       return 0;
     if (this.max <= value)
@@ -359,7 +359,7 @@ Range.prototype = {
   //
   // Paramaters
   //  - a number in [0,1]
-  scale: function Range_scale(value) {
+  scale: function(value) {
     if (value > 1)
       value = 1;
     if (value < 0)
@@ -380,7 +380,7 @@ Subscribable.prototype = {
   // Function: addSubscriber
   // The given callback will be called when the Subscribable fires the given event.
   // The refObject is used to facilitate removal if necessary.
-  addSubscriber: function Subscribable_addSubscriber(refObject, eventName, callback) {
+  addSubscriber: function(refObject, eventName, callback) {
     try {
       Utils.assertThrow(refObject, "refObject");
       Utils.assertThrow(typeof callback == "function", "callback must be a function");
@@ -416,7 +416,7 @@ Subscribable.prototype = {
   // ----------
   // Function: removeSubscriber
   // Removes the callback associated with refObject for the given event.
-  removeSubscriber: function Subscribable_removeSubscriber(refObject, eventName) {
+  removeSubscriber: function(refObject, eventName) {
     try {
       Utils.assertThrow(refObject, "refObject");
       Utils.assertThrow(eventName && typeof eventName == "string",
@@ -437,7 +437,7 @@ Subscribable.prototype = {
   // ----------
   // Function: _sendToSubscribers
   // Internal routine. Used by the Subscribable to fire events.
-  _sendToSubscribers: function Subscribable__sendToSubscribers(eventName, eventInfo) {
+  _sendToSubscribers: function(eventName, eventInfo) {
     try {
       Utils.assertThrow(eventName && typeof eventName == "string",
           "eventName must be a non-empty string");
@@ -473,7 +473,7 @@ let Utils = {
   // Function: log
   // Prints the given arguments to the JavaScript error console as a message.
   // Pass as many arguments as you want, it'll print them all.
-  log: function Utils_log() {
+  log: function() {
     var text = this.expandArgumentsForLog(arguments);
     var prefix = this.showTime ? Date.now() + ': ' : '';
     if (this.useConsole)    
@@ -486,7 +486,7 @@ let Utils = {
   // Function: error
   // Prints the given arguments to the JavaScript error console as an error.
   // Pass as many arguments as you want, it'll print them all.
-  error: function Utils_error() {
+  error: function() {
     var text = this.expandArgumentsForLog(arguments);
     var prefix = this.showTime ? Date.now() + ': ' : '';
     if (this.useConsole)    
@@ -500,7 +500,7 @@ let Utils = {
   // Prints the given arguments to the JavaScript error console as a message,
   // along with a full stack trace.
   // Pass as many arguments as you want, it'll print them all.
-  trace: function Utils_trace() {
+  trace: function() {
     var text = this.expandArgumentsForLog(arguments);
     // cut off the first two lines of the stack trace, because they're just this function.
     let stack = Error().stack.replace(/^.*?\n.*?\n/, "");
@@ -528,7 +528,7 @@ let Utils = {
   // ----------
   // Function: assertThrow
   // Throws label as an exception if condition is false.
-  assertThrow: function Utils_assertThrow(condition, label) {
+  assertThrow: function(condition, label) {
     if (!condition) {
       let text;
       if (typeof label != 'string')
@@ -546,7 +546,7 @@ let Utils = {
   // ----------
   // Function: expandObject
   // Prints the given object to a string, including all of its properties.
-  expandObject: function Utils_expandObject(obj) {
+  expandObject: function(obj) {
     var s = obj + ' = {';
     for (let prop in obj) {
       let value;
@@ -572,7 +572,7 @@ let Utils = {
   // ----------
   // Function: expandArgumentsForLog
   // Expands all of the given args (an array) into a single string.
-  expandArgumentsForLog: function Utils_expandArgumentsForLog(args) {
+  expandArgumentsForLog: function(args) {
     var that = this;
     return Array.map(args, function(arg) {
       return typeof arg == 'object' ? that.expandObject(arg) : arg;
@@ -584,28 +584,28 @@ let Utils = {
   // ----------
   // Function: isRightClick
   // Given a DOM mouse event, returns true if it was for the right mouse button.
-  isRightClick: function Utils_isRightClick(event) {
+  isRightClick: function(event) {
     return event.button == 2;
   },
 
   // ----------
   // Function: isDOMElement
   // Returns true if the given object is a DOM element.
-  isDOMElement: function Utils_isDOMElement(object) {
+  isDOMElement: function(object) {
     return object instanceof Ci.nsIDOMElement;
   },
 
   // ----------
   // Function: isNumber
   // Returns true if the argument is a valid number.
-  isNumber: function Utils_isNumber(n) {
+  isNumber: function(n) {
     return typeof n == 'number' && !isNaN(n);
   },
 
   // ----------
   // Function: isRect
   // Returns true if the given object (r) looks like a <Rect>.
-  isRect: function Utils_isRect(r) {
+  isRect: function(r) {
     return (r &&
             this.isNumber(r.left) &&
             this.isNumber(r.top) &&
@@ -616,7 +616,7 @@ let Utils = {
   // ----------
   // Function: isRange
   // Returns true if the given object (r) looks like a <Range>.
-  isRange: function Utils_isRange(r) {
+  isRange: function(r) {
     return (r &&
             this.isNumber(r.min) &&
             this.isNumber(r.max));
@@ -625,14 +625,14 @@ let Utils = {
   // ----------
   // Function: isPoint
   // Returns true if the given object (p) looks like a <Point>.
-  isPoint: function Utils_isPoint(p) {
+  isPoint: function(p) {
     return (p && this.isNumber(p.x) && this.isNumber(p.y));
   },
 
   // ----------
   // Function: isPlainObject
   // Check to see if an object is a plain object (created using "{}" or "new Object").
-  isPlainObject: function Utils_isPlainObject(obj) {
+  isPlainObject: function(obj) {
     // Must be an Object.
     // Make sure that DOM nodes and window objects don't pass through, as well
     if (!obj || Object.prototype.toString.call(obj) !== "[object Object]" ||
@@ -661,7 +661,7 @@ let Utils = {
   // ----------
   // Function: isEmptyObject
   // Returns true if the given object has no members.
-  isEmptyObject: function Utils_isEmptyObject(obj) {
+  isEmptyObject: function(obj) {
     for (let name in obj)
       return false;
     return true;
@@ -671,7 +671,7 @@ let Utils = {
   // Function: copy
   // Returns a copy of the argument. Note that this is a shallow copy; if the argument
   // has properties that are themselves objects, those properties will be copied by reference.
-  copy: function Utils_copy(value) {
+  copy: function(value) {
     if (value && typeof value == 'object') {
       if (Array.isArray(value))
         return this.extend([], value);
@@ -683,7 +683,7 @@ let Utils = {
   // ----------
   // Function: merge
   // Merge two array-like objects into the first and return it.
-  merge: function Utils_merge(first, second) {
+  merge: function(first, second) {
     Array.forEach(second, function(el) Array.push(first, el));
     return first;
   },
@@ -691,7 +691,7 @@ let Utils = {
   // ----------
   // Function: extend
   // Pass several objects in and it will combine them all into the first object and return it.
-  extend: function Utils_extend() {
+  extend: function() {
 
     // copy reference to target object
     let target = arguments[0] || {};

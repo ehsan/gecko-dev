@@ -133,18 +133,11 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDocAccessible, nsAccessible)
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEventQueue");
   cb.NoteXPCOMChild(tmp->mEventQueue.get());
 
-  PRUint32 i, length = tmp->mChildDocuments.Length();
-  for (i = 0; i < length; ++i) {
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mChildDocuments[i]");
-    cb.NoteXPCOMChild(static_cast<nsIAccessible*>(tmp->mChildDocuments[i].get()));
-  }
-
   CycleCollectorTraverseCache(tmp->mAccessibleCache, &cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDocAccessible, nsAccessible)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mEventQueue)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mChildDocuments)
   ClearCache(tmp->mAccessibleCache);
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
@@ -505,44 +498,6 @@ nsDocAccessible::GetDOMDocument(nsIDOMDocument **aDOMDocument)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDocAccessible::GetParentDocument(nsIAccessibleDocument** aDocument)
-{
-  NS_ENSURE_ARG_POINTER(aDocument);
-  *aDocument = nsnull;
-
-  if (!IsDefunct())
-    NS_IF_ADDREF(*aDocument = ParentDocument());
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocAccessible::GetChildDocumentCount(PRUint32* aCount)
-{
-  NS_ENSURE_ARG_POINTER(aCount);
-  *aCount = 0;
-
-  if (!IsDefunct())
-    *aCount = ChildDocumentCount();
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocAccessible::GetChildDocumentAt(PRUint32 aIndex,
-                                    nsIAccessibleDocument** aDocument)
-{
-  NS_ENSURE_ARG_POINTER(aDocument);
-  *aDocument = nsnull;
-
-  if (IsDefunct())
-    return NS_OK;
-
-  NS_IF_ADDREF(*aDocument = GetChildDocumentAt(aIndex));
-  return *aDocument ? NS_OK : NS_ERROR_INVALID_ARG;
-}
-
 // nsIAccessibleHyperText method
 NS_IMETHODIMP nsDocAccessible::GetAssociatedEditor(nsIEditor **aEditor)
 {
@@ -576,7 +531,6 @@ NS_IMETHODIMP nsDocAccessible::GetAssociatedEditor(nsIEditor **aEditor)
   return NS_OK;
 }
 
-// nsDocAccessible public method
 nsAccessible *
 nsDocAccessible::GetCachedAccessible(void *aUniqueID)
 {
@@ -649,10 +603,6 @@ nsDocAccessible::Init()
 
   AddEventListeners();
 
-  nsDocAccessible* parentDocument = mParent->GetDocAccessible();
-  if (parentDocument)
-    parentDocument->AppendChildDocument(this);
-
   // Fire reorder event to notify new accessible document has been created and
   // attached to the tree.
   nsRefPtr<AccEvent> reorderEvent =
@@ -679,15 +629,8 @@ nsDocAccessible::Shutdown()
 
   RemoveEventListeners();
 
-  if (mParent) {
-    nsDocAccessible* parentDocument = mParent->GetDocAccessible();
-    if (parentDocument)
-      parentDocument->RemoveChildDocument(this);
-
+  if (mParent)
     mParent->RemoveChild(this);
-  }
-
-  mChildDocuments.Clear();
 
   mWeakShell = nsnull;  // Avoid reentrancy
 
@@ -1335,23 +1278,6 @@ nsDocAccessible::HandleAccEvent(AccEvent* aAccEvent)
 ////////////////////////////////////////////////////////////////////////////////
 // Public members
 
-nsAccessible*
-nsDocAccessible::GetCachedAccessibleInSubtree(void* aUniqueID)
-{
-  nsAccessible* child = GetCachedAccessible(aUniqueID);
-  if (child)
-    return child;
-
-  PRUint32 childDocCount = mChildDocuments.Length();
-  for (PRUint32 childDocIdx= 0; childDocIdx < childDocCount; childDocIdx++) {
-    nsDocAccessible* childDocument = mChildDocuments.ElementAt(childDocIdx);
-    child = childDocument->GetCachedAccessibleInSubtree(aUniqueID);
-    if (child)
-      return child;
-  }
-
-  return nsnull;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Protected members

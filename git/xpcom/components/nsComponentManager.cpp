@@ -106,9 +106,10 @@
 #include <Path.h>
 #endif
 
+#ifdef MOZ_OMNIJAR
 #include "mozilla/Omnijar.h"
-#include "nsJAR.h"
 static NS_DEFINE_CID(kZipReaderCID, NS_ZIPREADER_CID);
+#endif
 
 #include "prlog.h"
 
@@ -352,7 +353,9 @@ nsresult nsComponentManagerImpl::Init()
     mContractIDs.Init(CONTRACTID_HASHTABLE_INITIAL_SIZE);
     mLoaderMap.Init();
     mKnownFileModules.Init();
+#ifdef MOZ_OMNIJAR
     mKnownJARModules.Init();
+#endif
 
     mMon = nsAutoMonitor::NewMonitor("nsComponentManagerImpl");
     if (mMon == nsnull)
@@ -369,7 +372,6 @@ nsresult nsComponentManagerImpl::Init()
     ComponentLocation* cl = sModuleLocations->InsertElementAt(0);
     cl->type = NS_COMPONENT_LOCATION;
     cl->location = CloneAndAppend(appDir, NS_LITERAL_CSTRING("chrome.manifest"));
-    cl->jar = false;
 
     PRBool equals = PR_FALSE;
     appDir->Equals(greDir, &equals);
@@ -377,7 +379,6 @@ nsresult nsComponentManagerImpl::Init()
         cl = sModuleLocations->InsertElementAt(0);
         cl->type = NS_COMPONENT_LOCATION;
         cl->location = CloneAndAppend(greDir, NS_LITERAL_CSTRING("chrome.manifest"));
-        cl->jar = false;
     }
 
     PR_LOG(nsComponentManagerLog, PR_LOG_DEBUG,
@@ -396,35 +397,15 @@ nsresult nsComponentManagerImpl::Init()
         RegisterModule((*sStaticModules)[i], NULL);
 
 #ifdef MOZ_OMNIJAR
-    if (mozilla::OmnijarPath()) {
-        nsCOMPtr<nsIZipReader> omnijarReader = new nsJAR();
-        rv = omnijarReader->Open(mozilla::OmnijarPath());
-        if (NS_SUCCEEDED(rv))
-            RegisterJarManifest(omnijarReader, "chrome.manifest", false);
-    }
+    mManifestLoader = new nsManifestZIPLoader();
+
+    RegisterOmnijar("chrome.manifest", false);
 #endif
 
     for (PRUint32 i = 0; i < sModuleLocations->Length(); ++i) {
         ComponentLocation& l = sModuleLocations->ElementAt(i);
-        if (!l.jar) {
-            RegisterManifestFile(l.type, l.location, false);
-            continue;
-        }
-
-        nsCOMPtr<nsIZipReader> reader = do_CreateInstance(kZipReaderCID, &rv);
-        rv = reader->Open(l.location);
-        if (NS_SUCCEEDED(rv))
-            RegisterJarManifest(reader, "chrome.manifest", false);
+        RegisterManifestFile(l.type, l.location, false);
     }
-
-#ifdef MOZ_OMNIJAR
-    if (mozilla::OmnijarPath()) {
-        cl = sModuleLocations->InsertElementAt(0);
-        cl->type = NS_COMPONENT_LOCATION;
-        cl->location = mozilla::OmnijarPath();
-        cl->jar = true;
-    }
-#endif
 
     nsCategoryManager::GetSingleton()->SuppressNotifications(false);
 
@@ -541,27 +522,16 @@ GetExtension(nsILocalFile* file)
     return extension;
 }
 
-static already_AddRefed<nsIInputStream>
-LoadEntry(nsIZipReader* aReader, const char* aName)
-{
-    if (!aReader)
-        return NULL;
-
-    nsCOMPtr<nsIInputStream> is;
-    nsresult rv = aReader->GetInputStream(aName, getter_AddRefs(is));
-    if (NS_FAILED(rv))
-        return NULL;
-
-    return is.forget();
-}
-
+#ifdef MOZ_OMNIJAR
 void
-nsComponentManagerImpl::RegisterJarManifest(nsIZipReader* aReader,
-                                            const char* aPath, bool aChromeOnly)
+nsComponentManagerImpl::RegisterOmnijar(const char* aPath, bool aChromeOnly)
 {
-    nsCOMPtr<nsIInputStream> is = LoadEntry(aReader, aPath);
+    if (!mozilla::OmnijarPath())
+        return;
+
+    nsCOMPtr<nsIInputStream> is = mManifestLoader->LoadEntry(aPath);
     if (!is) {
-        LogMessage("Could not find jar manifest entry '%s'.", aPath);
+        LogMessage("Could not find omnijar manifest entry '%s'.", aPath);
         return;
     }
 
@@ -590,9 +560,9 @@ nsComponentManagerImpl::RegisterJarManifest(nsIZipReader* aReader,
 
     whole[flen] = '\0';
 
-    ParseManifest(NS_COMPONENT_LOCATION, aReader, aPath,
-                  whole, aChromeOnly);
+    ParseManifest(NS_COMPONENT_LOCATION, aPath, whole, aChromeOnly);
 }
+#endif // MOZ_OMNIJAR
 
 namespace {
 struct AutoCloseFD
@@ -666,6 +636,7 @@ TranslateSlashes(char* path)
 }
 #endif
 
+#ifdef MOZ_OMNIJAR
 static void
 AppendFileToManifestPath(nsCString& path,
                          const char* file)
@@ -678,19 +649,23 @@ AppendFileToManifestPath(nsCString& path,
 
     path.Append(file);
 }
+#endif
 
 void
 nsComponentManagerImpl::ManifestManifest(ManifestProcessingContext& cx, int lineno, char *const * argv)
 {
     char* file = argv[0];
 
+#ifdef MOZ_OMNIJAR
     if (cx.mPath) {
         nsCAutoString manifest(cx.mPath);
         AppendFileToManifestPath(manifest, file);
 
-        RegisterJarManifest(cx.mReader, manifest.get(), cx.mChromeOnly);
+        RegisterOmnijar(manifest.get(), cx.mChromeOnly);
     }
-    else {
+    else
+#endif
+    {
 #ifdef TRANSLATE_SLASHES
         TranslateSlashes(file);
 #endif
@@ -711,12 +686,14 @@ nsComponentManagerImpl::ManifestManifest(ManifestProcessingContext& cx, int line
 void
 nsComponentManagerImpl::ManifestBinaryComponent(ManifestProcessingContext& cx, int lineno, char *const * argv)
 {
+#ifdef MOZ_OMNIJAR
     if (cx.mPath) {
-        NS_WARNING("Cannot load binary components from a jar.");
+        NS_WARNING("Cannot load binary components from the omnijar.");
         LogMessageWithContext(cx.mFile, cx.mPath, lineno,
-                              "Cannot load binary components from a jar.");
+                              "Cannot load binary components from the omnijar.");
         return;
     }
+#endif
 
     char* file = argv[0];
 
@@ -746,21 +723,24 @@ nsComponentManagerImpl::ManifestXPT(ManifestProcessingContext& cx, int lineno, c
 {
     char* file = argv[0];
 
+#ifdef MOZ_OMNIJAR
     if (cx.mPath) {
         nsCAutoString manifest(cx.mPath);
         AppendFileToManifestPath(manifest, file);
 
         nsCOMPtr<nsIInputStream> stream =
-            LoadEntry(cx.mReader, manifest.get());
+            mManifestLoader->LoadEntry(manifest.get());
         if (!stream) {
-            NS_WARNING("Failed to load XPT file in a jar.");
+            NS_WARNING("Failed to load omnijar XPT file.");
             return;
         }
 
         xptiInterfaceInfoManager::GetSingleton()
             ->RegisterInputStream(stream);
     }
-    else {
+    else
+#endif
+    {
 #ifdef TRANSLATE_SLASHES
         TranslateSlashes(file);
 #endif
@@ -813,22 +793,20 @@ nsComponentManagerImpl::ManifestComponent(ManifestProcessingContext& cx, int lin
 
     KnownModule* km;
 
+#ifdef MOZ_OMNIJAR
     if (cx.mPath) {
         nsCAutoString manifest(cx.mPath);
         AppendFileToManifestPath(manifest, file);
 
-        nsCAutoString hash;
-        cx.mFile->GetNativePath(hash);
-        hash.AppendLiteral("|");
-        hash.Append(manifest);
-
-        km = mKnownJARModules.Get(hash);
+        km = mKnownJARModules.Get(manifest);
         if (!km) {
-            km = new KnownModule(cx.mFile, manifest);
-            mKnownJARModules.Put(hash, km);
+            km = new KnownModule(manifest);
+            mKnownJARModules.Put(manifest, km);
         }
     }
-    else {
+    else
+#endif
+    {
 #ifdef TRANSLATE_SLASHES
         TranslateSlashes(file);
 #endif
@@ -903,19 +881,13 @@ nsComponentManagerImpl::ManifestCategory(ManifestProcessingContext& cx, int line
 void
 nsComponentManagerImpl::RereadChromeManifests()
 {
+#ifdef MOZ_OMNIJAR
+    RegisterOmnijar("chrome.manifest", true);
+#endif
+
     for (PRUint32 i = 0; i < sModuleLocations->Length(); ++i) {
         ComponentLocation& l = sModuleLocations->ElementAt(i);
-        if (!l.jar) {
-            RegisterManifestFile(l.type, l.location, true);
-            continue;
-        }
-
-        nsresult rv;
-        nsCOMPtr<nsIZipReader> reader = do_CreateInstance(kZipReaderCID, &rv);
-        if (NS_SUCCEEDED(rv))
-            rv = reader->Open(l.location);
-        if (NS_SUCCEEDED(rv))
-            RegisterJarManifest(reader, "chrome.manifest", true);
+        RegisterManifestFile(l.type, l.location, true);
     }
 }
 
@@ -924,11 +896,14 @@ nsComponentManagerImpl::KnownModule::EnsureLoader()
 {
     if (!mLoader) {
         nsCString extension;
+#if MOZ_OMNIJAR
         if (!mPath.IsEmpty()) {
             extension = mPath;
             CutExtension(extension);
         }
-        else {
+        else
+#endif
+        {
             extension = GetExtension(mFile);
         }
 
@@ -946,9 +921,11 @@ nsComponentManagerImpl::KnownModule::Load()
         if (!EnsureLoader())
             return false;
 
+#ifdef MOZ_OMNIJAR
         if (!mPath.IsEmpty())
-            mModule = mLoader->LoadModuleFromJAR(mFile, mPath);
+            mModule = mLoader->LoadModuleFromJAR(mozilla::OmnijarPath(), mPath);
         else
+#endif
             mModule = mLoader->LoadModule(mFile);
 
         if (!mModule) {
@@ -973,13 +950,14 @@ nsCString
 nsComponentManagerImpl::KnownModule::Description() const
 {
     nsCString s;
+#ifdef MOZ_OMNIJAR
     if (!mPath.IsEmpty()) {
-        mFile->GetNativePath(s);
-        s.Insert(NS_LITERAL_CSTRING("jar:"), 0);
-        s.AppendLiteral("!/");
+        s.AssignLiteral("omnijar:");
         s.Append(mPath);
     }
-    else if (mFile)
+    else
+#endif
+    if (mFile)
         mFile->GetNativePath(s);
     else
         s = "<static module>";
@@ -1001,7 +979,9 @@ nsresult nsComponentManagerImpl::Shutdown(void)
     mContractIDs.Clear();
     mFactories.Clear(); // XXX release the objects, don't just clear
     mLoaderMap.Clear();
+#ifdef MOZ_OMNIJAR
     mKnownJARModules.Clear();
+#endif
     mKnownFileModules.Clear();
     mKnownStaticModules.Clear();
 
@@ -1219,7 +1199,8 @@ nsComponentManagerImpl::CreateInstance(const nsCID &aClass,
             rv = NS_ERROR_SERVICE_NOT_FOUND;
         }
     }
-    else {
+    else
+    {
         // Translate error values
         rv = NS_ERROR_FACTORY_NOT_REGISTERED;
     }
@@ -1306,7 +1287,8 @@ nsComponentManagerImpl::CreateInstanceByContractID(const char *aContractID,
             rv = NS_ERROR_SERVICE_NOT_FOUND;
         }
     }
-    else {
+    else
+    {
         // Translate error values
         rv = NS_ERROR_FACTORY_NOT_REGISTERED;
     }
@@ -2010,7 +1992,6 @@ XRE_AddManifestLocation(NSLocationType aType, nsILocalFile* aLocation)
         nsComponentManagerImpl::sModuleLocations->AppendElement();
     c->type = aType;
     c->location = aLocation;
-    c->jar = false;
 
     if (nsComponentManagerImpl::gComponentManager &&
         nsComponentManagerImpl::NORMAL == nsComponentManagerImpl::gComponentManager->mStatus)
@@ -2018,29 +1999,3 @@ XRE_AddManifestLocation(NSLocationType aType, nsILocalFile* aLocation)
 
     return NS_OK;
 }
-
-EXPORT_XPCOM_API(nsresult)
-XRE_AddJarManifestLocation(NSLocationType aType, nsILocalFile* aLocation)
-{
-    nsComponentManagerImpl::InitializeModuleLocations();
-    nsComponentManagerImpl::ComponentLocation* c = 
-        nsComponentManagerImpl::sModuleLocations->AppendElement();
-    c->type = aType;
-    c->location = aLocation;
-    c->jar = true;
-
-    if (!nsComponentManagerImpl::gComponentManager ||
-        nsComponentManagerImpl::NORMAL != nsComponentManagerImpl::gComponentManager->mStatus)
-        return NS_OK;
-
-    nsresult rv;
-    nsCOMPtr<nsIZipReader> reader = do_CreateInstance(kZipReaderCID, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = reader->Open(c->location);
-    if (NS_SUCCEEDED(rv))
-        nsComponentManagerImpl::gComponentManager->RegisterJarManifest(reader, "chrome.manifest", false);
-
-    return NS_OK;
-}
-
