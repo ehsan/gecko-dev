@@ -46,14 +46,6 @@
 
 /* rendering objects for replaced elements implemented by a plugin */
 
-#ifdef MOZ_WIDGET_QT
-#include <QWidget>
-#include <QKeyEvent>
-#ifdef MOZ_X11
-#include <QX11Info>
-#endif
-#endif
-
 #ifdef MOZ_IPC
 #include "mozilla/plugins/PluginMessageUtils.h"
 #endif
@@ -65,6 +57,14 @@
 enum { XKeyPress = KeyPress };
 #ifdef KeyPress
 #undef KeyPress
+#endif
+#endif
+
+#ifdef MOZ_WIDGET_QT
+#include <QWidget>
+#include <QKeyEvent>
+#ifdef MOZ_X11
+#include <QX11Info>
 #endif
 #endif
 

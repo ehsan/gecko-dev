@@ -324,8 +324,8 @@ nsSMILAnimationFunction::CompareTo(const nsSMILAnimationFunction* aOther) const
 
   // Animations that appear later in the document sort after those earlier in
   // the document
-  nsIContent& thisContent = mAnimationElement->AsElement();
-  nsIContent& otherContent = aOther->mAnimationElement->AsElement();
+  nsIContent& thisContent = mAnimationElement->Content();
+  nsIContent& otherContent = aOther->mAnimationElement->Content();
 
   NS_ABORT_IF_FALSE(&thisContent != &otherContent,
       "Two animations cannot have the same animation content element!");
@@ -464,9 +464,8 @@ nsSMILAnimationFunction::InterpolateResult(const nsSMILValueArray& aValues,
   // spec says to force discrete mode.
   if (GetCalcMode() == CALC_DISCRETE || NS_FAILED(rv)) {
     if (IsToAnimation()) {
-      // SMIL 3, 12.6.4: Since a to animation has only 1 value, a discrete to
-      // animation will simply set the to value for the simple duration.
-      aResult = aValues[0];
+      // Two discrete values: our base value, and the val in our array
+      aResult = (simpleProgress < 0.5f) ? aBaseValue : aValues[0];
     } else {
       PRUint32 index = (PRUint32) floor(simpleProgress * (aValues.Length()));
       aResult = aValues[index];

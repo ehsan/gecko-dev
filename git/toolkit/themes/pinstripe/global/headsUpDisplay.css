@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-%include shared.inc
-
 .hud-box {
     border-bottom: 1px solid #aaa;
 }
@@ -168,10 +166,8 @@
     font-size: 1.2em;
 }
 
+/* these need to be revised ... */
 .hud-console-filter-toolbar {
-    background: @scopeBarBackground@ !important;
-    border-bottom: @scopeBarSeparatorBorder@;
-    padding: 0px 1px;
-    -moz-appearance: none !important;
+    padding: 1px 0px;
     -moz-box-align: center;
 }

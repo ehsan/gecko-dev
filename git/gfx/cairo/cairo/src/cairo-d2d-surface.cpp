@@ -243,7 +243,6 @@ cairo_d2d_create_device_from_d3d10device(ID3D10Device1 *d3d10device)
 	goto FAILED;
     }
     device->base.refcount = 1;
-    device->mVRAMUsage = 0;
 
     return &device->base;
 FAILED:
@@ -697,14 +696,6 @@ _cairo_d2d_round_out_to_int_rect(cairo_rectangle_int_t *rect, double x1, double 
     rect->height = (int)ceil(y2) - rect->y;    
 }
 
-static int
-_cairo_d2d_compute_surface_mem_size(cairo_d2d_surface_t *surface)
-{
-    int size = surface->rt->GetPixelSize().width * surface->rt->GetPixelSize().height;
-    size *= surface->rt->GetPixelFormat().format == DXGI_FORMAT_A8_UNORM ? 1 : 4;
-    return size;
-}
-
 /**
  * Gets the surface buffer texture for window surfaces whose backbuffer
  * is not directly usable as a bitmap.
@@ -725,7 +716,6 @@ _cairo_d2d_get_buffer_texture(cairo_d2d_surface_t *surface)
 	softDesc.Usage = D3D10_USAGE_DEFAULT;
 	softDesc.BindFlags = D3D10_BIND_RENDER_TARGET | D3D10_BIND_SHADER_RESOURCE;
 	surface->device->mD3D10Device->CreateTexture2D(&softDesc, NULL, &surface->bufferTexture);
-	surface->device->mVRAMUsage += _cairo_d2d_compute_surface_mem_size(surface);
     }
     return surface->bufferTexture;
 }
@@ -2364,7 +2354,6 @@ _cairo_d2d_create_similar(void			*surface,
 
     newSurf->device = d2dsurf->device;
     cairo_addref_device(&newSurf->device->base);
-    newSurf->device->mVRAMUsage += _cairo_d2d_compute_surface_mem_size(newSurf);
 
     return reinterpret_cast<cairo_surface_t*>(newSurf);
 
@@ -2379,11 +2368,6 @@ static cairo_status_t
 _cairo_d2d_finish(void	    *surface)
 {
     cairo_d2d_surface_t *d2dsurf = static_cast<cairo_d2d_surface_t*>(surface);
-
-    d2dsurf->device->mVRAMUsage -= _cairo_d2d_compute_surface_mem_size(d2dsurf);
-    if (d2dsurf->bufferTexture) {
-	d2dsurf->device->mVRAMUsage -= _cairo_d2d_compute_surface_mem_size(d2dsurf);
-    }
 
     reset_clip(d2dsurf);
 
@@ -3414,7 +3398,6 @@ cairo_d2d_surface_create_for_hwnd(cairo_device_t *cairo_device,
 
     newSurf->device = d2d_device;
     cairo_addref_device(cairo_device);
-    d2d_device->mVRAMUsage += _cairo_d2d_compute_surface_mem_size(newSurf);
 
     return reinterpret_cast<cairo_surface_t*>(newSurf);
 
@@ -3524,7 +3507,6 @@ cairo_d2d_surface_create(cairo_device_t *device,
 
     newSurf->device = d2d_device;
     cairo_addref_device(device);
-    d2d_device->mVRAMUsage += _cairo_d2d_compute_surface_mem_size(newSurf);
 
     return reinterpret_cast<cairo_surface_t*>(newSurf);
 
@@ -3769,11 +3751,4 @@ int
 cairo_d2d_get_image_surface_cache_usage()
 {
   return _cairo_atomic_int_get(&cache_usage);
-}
-
-int
-cairo_d2d_get_surface_vram_usage(cairo_device_t *device)
-{
-    cairo_d2d_device_t *d2d_device = reinterpret_cast<cairo_d2d_device_t*>(device);
-    return d2d_device->mVRAMUsage;
 }
