@@ -48,7 +48,8 @@ function test() {
       aWin.close();
     });
     uri = Services.io.newURI("http://localhost", null, null);
-    gSSService.removeState(Ci.nsISiteSecurityService.HEADER_HSTS, uri, 0);
+    gSSService.removeState(Ci.nsISiteSecurityService.HEADER_HSTS, uri,
+                           privacyFlags(true));
   });
 
   // test first when on private mode

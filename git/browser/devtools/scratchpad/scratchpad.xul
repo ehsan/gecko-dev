@@ -46,7 +46,6 @@
   <command id="sp-cmd-run" oncommand="Scratchpad.run();"/>
   <command id="sp-cmd-inspect" oncommand="Scratchpad.inspect();"/>
   <command id="sp-cmd-display" oncommand="Scratchpad.display();"/>
-  <command id="sp-cmd-pprint" oncommand="Scratchpad.prettyPrint();"/>
   <command id="sp-cmd-contentContext" oncommand="Scratchpad.setContentContext();"/>
   <command id="sp-cmd-browserContext" oncommand="Scratchpad.setBrowserContext();" disabled="true"/>
   <command id="sp-cmd-reloadAndRun" oncommand="Scratchpad.reloadAndRun();"/>
@@ -94,10 +93,6 @@
   <key id="sp-key-display"
        key="&display.key;"
        command="sp-cmd-display"
-       modifiers="accel"/>
-  <key id="sp-key-pprint"
-       key="&pprint.key;"
-       command="sp-cmd-pprint"
        modifiers="accel"/>
   <key id="sp-key-reloadAndRun"
        key="&reloadAndRun.key;"
@@ -277,11 +272,6 @@
                  class="devtools-toolbarbutton"
                  label="&display.label;"
                  command="sp-cmd-display"/>
-  <toolbarspacer/>
-  <toolbarbutton id="sp-toolbar-pprint"
-                 class="devtools-toolbarbutton"
-                 label="&pprint.label;"
-                 command="sp-cmd-pprint"/>
 </toolbar>
 
 

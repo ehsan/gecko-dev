@@ -13,7 +13,6 @@
 #include "WebGLRenderbuffer.h"
 #include "WebGLTexture.h"
 #include "WebGLVertexArray.h"
-#include "GLContext.h"
 
 #include "mozilla/CheckedInt.h"
 #include "mozilla/Preferences.h"
@@ -109,7 +108,7 @@ WebGLProgram::UpdateInfo()
     return true;
 }
 
-bool WebGLContext::ValidateBlendEquationEnum(GLenum mode, const char *info)
+bool WebGLContext::ValidateBlendEquationEnum(WebGLenum mode, const char *info)
 {
     switch (mode) {
         case LOCAL_GL_FUNC_ADD:
@@ -131,7 +130,7 @@ bool WebGLContext::ValidateBlendEquationEnum(GLenum mode, const char *info)
     return false;
 }
 
-bool WebGLContext::ValidateBlendFuncDstEnum(GLenum factor, const char *info)
+bool WebGLContext::ValidateBlendFuncDstEnum(WebGLenum factor, const char *info)
 {
     switch (factor) {
         case LOCAL_GL_ZERO:
@@ -155,7 +154,7 @@ bool WebGLContext::ValidateBlendFuncDstEnum(GLenum factor, const char *info)
     }
 }
 
-bool WebGLContext::ValidateBlendFuncSrcEnum(GLenum factor, const char *info)
+bool WebGLContext::ValidateBlendFuncSrcEnum(WebGLenum factor, const char *info)
 {
     if (factor == LOCAL_GL_SRC_ALPHA_SATURATE)
         return true;
@@ -163,7 +162,7 @@ bool WebGLContext::ValidateBlendFuncSrcEnum(GLenum factor, const char *info)
         return ValidateBlendFuncDstEnum(factor, info);
 }
 
-bool WebGLContext::ValidateBlendFuncEnumsCompatibility(GLenum sfactor, GLenum dfactor, const char *info)
+bool WebGLContext::ValidateBlendFuncEnumsCompatibility(WebGLenum sfactor, WebGLenum dfactor, const char *info)
 {
     bool sfactorIsConstantColor = sfactor == LOCAL_GL_CONSTANT_COLOR ||
                                     sfactor == LOCAL_GL_ONE_MINUS_CONSTANT_COLOR;
@@ -182,7 +181,7 @@ bool WebGLContext::ValidateBlendFuncEnumsCompatibility(GLenum sfactor, GLenum df
     }
 }
 
-bool WebGLContext::ValidateTextureTargetEnum(GLenum target, const char *info)
+bool WebGLContext::ValidateTextureTargetEnum(WebGLenum target, const char *info)
 {
     switch (target) {
         case LOCAL_GL_TEXTURE_2D:
@@ -194,7 +193,7 @@ bool WebGLContext::ValidateTextureTargetEnum(GLenum target, const char *info)
     }
 }
 
-bool WebGLContext::ValidateComparisonEnum(GLenum target, const char *info)
+bool WebGLContext::ValidateComparisonEnum(WebGLenum target, const char *info)
 {
     switch (target) {
         case LOCAL_GL_NEVER:
@@ -212,7 +211,7 @@ bool WebGLContext::ValidateComparisonEnum(GLenum target, const char *info)
     }
 }
 
-bool WebGLContext::ValidateStencilOpEnum(GLenum action, const char *info)
+bool WebGLContext::ValidateStencilOpEnum(WebGLenum action, const char *info)
 {
     switch (action) {
         case LOCAL_GL_KEEP:
@@ -230,7 +229,7 @@ bool WebGLContext::ValidateStencilOpEnum(GLenum action, const char *info)
     }
 }
 
-bool WebGLContext::ValidateFaceEnum(GLenum face, const char *info)
+bool WebGLContext::ValidateFaceEnum(WebGLenum face, const char *info)
 {
     switch (face) {
         case LOCAL_GL_FRONT:
@@ -243,7 +242,7 @@ bool WebGLContext::ValidateFaceEnum(GLenum face, const char *info)
     }
 }
 
-bool WebGLContext::ValidateDrawModeEnum(GLenum mode, const char *info)
+bool WebGLContext::ValidateDrawModeEnum(WebGLenum mode, const char *info)
 {
     switch (mode) {
         case LOCAL_GL_TRIANGLES:
@@ -301,7 +300,7 @@ bool WebGLContext::ValidateGLSLString(const nsAString& string, const char *info)
     return true;
 }
 
-bool WebGLContext::ValidateTexImage2DTarget(GLenum target, GLsizei width, GLsizei height,
+bool WebGLContext::ValidateTexImage2DTarget(WebGLenum target, WebGLsizei width, WebGLsizei height,
                                             const char* info)
 {
     switch (target) {
@@ -326,9 +325,9 @@ bool WebGLContext::ValidateTexImage2DTarget(GLenum target, GLsizei width, GLsize
     return true;
 }
 
-bool WebGLContext::ValidateCompressedTextureSize(GLenum target, GLint level,
-                                                 GLenum format,
-                                                 GLsizei width, GLsizei height, uint32_t byteLength, const char* info)
+bool WebGLContext::ValidateCompressedTextureSize(WebGLenum target, WebGLint level,
+                                                 WebGLenum format,
+                                                 WebGLsizei width, WebGLsizei height, uint32_t byteLength, const char* info)
 {
     if (!ValidateLevelWidthHeightForTarget(target, level, width, height, info)) {
         return false;
@@ -409,17 +408,17 @@ bool WebGLContext::ValidateCompressedTextureSize(GLenum target, GLint level,
     return true;
 }
 
-bool WebGLContext::ValidateLevelWidthHeightForTarget(GLenum target, GLint level, GLsizei width,
-                                                     GLsizei height, const char* info)
+bool WebGLContext::ValidateLevelWidthHeightForTarget(WebGLenum target, WebGLint level, WebGLsizei width,
+                                                     WebGLsizei height, const char* info)
 {
-    GLsizei maxTextureSize = MaxTextureSizeForTarget(target);
+    WebGLsizei maxTextureSize = MaxTextureSizeForTarget(target);
 
     if (level < 0) {
         ErrorInvalidValue("%s: level must be >= 0", info);
         return false;
     }
 
-    GLsizei maxAllowedSize = maxTextureSize >> level;
+    WebGLsizei maxAllowedSize = maxTextureSize >> level;
 
     if (!maxAllowedSize) {
         ErrorInvalidValue("%s: 2^level exceeds maximum texture size", info);
@@ -439,7 +438,7 @@ bool WebGLContext::ValidateLevelWidthHeightForTarget(GLenum target, GLint level,
     return true;
 }
 
-uint32_t WebGLContext::GetBitsPerTexel(GLenum format, GLenum type)
+uint32_t WebGLContext::GetBitsPerTexel(WebGLenum format, WebGLenum type)
 {
     // If there is no defined format or type, we're not taking up any memory
     if (!format || !type) {
@@ -496,7 +495,7 @@ uint32_t WebGLContext::GetBitsPerTexel(GLenum format, GLenum type)
     return 0;
 }
 
-bool WebGLContext::ValidateTexFormatAndType(GLenum format, GLenum type, int jsArrayType,
+bool WebGLContext::ValidateTexFormatAndType(WebGLenum format, WebGLenum type, int jsArrayType,
                                               uint32_t *texelSize, const char *info)
 {
     if (IsExtensionEnabled(WEBGL_depth_texture)) {
@@ -636,7 +635,7 @@ WebGLContext::ValidateUniformLocation(const char* info, WebGLUniformLocation *lo
 }
 
 bool
-WebGLContext::ValidateSamplerUniformSetter(const char* info, WebGLUniformLocation *location, GLint value)
+WebGLContext::ValidateSamplerUniformSetter(const char* info, WebGLUniformLocation *location, WebGLint value)
 {
     if (location->Info().type != SH_SAMPLER_2D &&
         location->Info().type != SH_SAMPLER_CUBE)
@@ -655,7 +654,7 @@ WebGLContext::ValidateSamplerUniformSetter(const char* info, WebGLUniformLocatio
 bool
 WebGLContext::ValidateAttribArraySetter(const char* name, uint32_t cnt, uint32_t arrayLength)
 {
-    if (IsContextLost()) {
+    if (!IsContextStable()) {
         return false;
     }
     if (arrayLength < cnt) {
@@ -669,7 +668,7 @@ bool
 WebGLContext::ValidateUniformArraySetter(const char* name, uint32_t expectedElemSize, WebGLUniformLocation *location_object,
                                          GLint& location, uint32_t& numElementsToUpload, uint32_t arrayLength)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return false;
     if (!ValidateUniformLocation(name, location_object))
         return false;
@@ -712,7 +711,7 @@ WebGLContext::ValidateUniformMatrixArraySetter(const char* name, int dim, WebGLU
                                               WebGLboolean aTranspose)
 {
     uint32_t expectedElemSize = (dim)*(dim);
-    if (IsContextLost())
+    if (!IsContextStable())
         return false;
     if (!ValidateUniformLocation(name, location_object))
         return false;
@@ -757,7 +756,7 @@ WebGLContext::ValidateUniformMatrixArraySetter(const char* name, int dim, WebGLU
 bool
 WebGLContext::ValidateUniformSetter(const char* name, WebGLUniformLocation *location_object, GLint& location)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return false;
     if (!ValidateUniformLocation(name, location_object))
         return false;
@@ -765,7 +764,7 @@ WebGLContext::ValidateUniformSetter(const char* name, WebGLUniformLocation *loca
     return true;
 }
 
-bool WebGLContext::ValidateAttribIndex(GLuint index, const char *info)
+bool WebGLContext::ValidateAttribIndex(WebGLuint index, const char *info)
 {
     return mBoundVertexArray->EnsureAttribIndex(index, info);
 }

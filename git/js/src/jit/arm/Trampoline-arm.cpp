@@ -14,7 +14,6 @@
 #include "jit/IonFrames.h"
 #include "jit/IonLinker.h"
 #include "jit/IonSpewer.h"
-#include "jit/PerfSpewer.h"
 #include "jit/VMFunctions.h"
 
 using namespace js;
@@ -318,13 +317,7 @@ IonRuntime::generateEnterJIT(JSContext *cx, EnterJitType type)
     GenerateReturn(masm, true);
 
     Linker linker(masm);
-    IonCode *code = linker.newCode(cx, JSC::OTHER_CODE);
-
-#ifdef JS_ION_PERF
-    writePerfSpewerIonCodeProfile(code, "EnterJIT");
-#endif
-
-    return code;
+    return linker.newCode(cx, JSC::OTHER_CODE);
 }
 
 IonCode *
@@ -381,11 +374,6 @@ IonRuntime::generateInvalidator(JSContext *cx)
     Linker linker(masm);
     IonCode *code = linker.newCode(cx, JSC::OTHER_CODE);
     IonSpew(IonSpew_Invalidate, "   invalidation thunk created at %p", (void *) code->raw());
-
-#ifdef JS_ION_PERF
-    writePerfSpewerIonCodeProfile(code, "Invalidator");
-#endif
-
     return code;
 }
 
@@ -488,11 +476,6 @@ IonRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode, void *
     returnLabel.fixup(&masm);
     if (returnAddrOut)
         *returnAddrOut = (void *) (code->raw() + returnLabel.offset());
-
-#ifdef JS_ION_PERF
-    writePerfSpewerIonCodeProfile(code, "ArgumentsRectifier");
-#endif
-
     return code;
 }
 
@@ -606,13 +589,7 @@ IonRuntime::generateBailoutTable(JSContext *cx, uint32_t frameClass)
     GenerateBailoutThunk(cx, masm, frameClass);
 
     Linker linker(masm);
-    IonCode *code = linker.newCode(cx, JSC::OTHER_CODE);
-
-#ifdef JS_ION_PERF
-    writePerfSpewerIonCodeProfile(code, "BailoutTable");
-#endif
-
-    return code;
+    return linker.newCode(cx, JSC::OTHER_CODE);
 }
 
 IonCode *
@@ -622,13 +599,7 @@ IonRuntime::generateBailoutHandler(JSContext *cx)
     GenerateBailoutThunk(cx, masm, NO_FRAME_SIZE_CLASS_ID);
 
     Linker linker(masm);
-    IonCode *code = linker.newCode(cx, JSC::OTHER_CODE);
-
-#ifdef JS_ION_PERF
-    writePerfSpewerIonCodeProfile(code, "BailoutHandler");
-#endif
-
-    return code;
+    return linker.newCode(cx, JSC::OTHER_CODE);
 }
 
 IonCode *
@@ -651,7 +622,6 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
 
     // The context is the first argument; r0 is the first argument register.
     Register cxreg = r0;
-    regs.take(cxreg);
 
     // Stack is:
     //    ... frame ...
@@ -807,10 +777,6 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
     if (!functionWrappers_->relookupOrAdd(p, &f, wrapper))
         return NULL;
 
-#ifdef JS_ION_PERF
-    writePerfSpewerIonCodeProfile(wrapper, "VMWrapper");
-#endif
-
     return wrapper;
 }
 
@@ -846,13 +812,7 @@ IonRuntime::generatePreBarrier(JSContext *cx, MIRType type)
     masm.ret();
 
     Linker linker(masm);
-    IonCode *code = linker.newCode(cx, JSC::OTHER_CODE);
-
-#ifdef JS_ION_PERF
-    writePerfSpewerIonCodeProfile(code, "PreBarrier");
-#endif
-
-    return code;
+    return linker.newCode(cx, JSC::OTHER_CODE);
 }
 
 typedef bool (*HandleDebugTrapFn)(JSContext *, BaselineFrame *, uint8_t *, bool *);
@@ -901,13 +861,7 @@ IonRuntime::generateDebugTrapHandler(JSContext *cx)
     masm.ret();
 
     Linker linker(masm);
-    IonCode *codeDbg = linker.newCode(cx, JSC::OTHER_CODE);
-
-#ifdef JS_ION_PERF
-    writePerfSpewerIonCodeProfile(codeDbg, "DebugTrapHandler");
-#endif
-
-    return codeDbg;
+    return linker.newCode(cx, JSC::OTHER_CODE);
 }
 
 IonCode *
@@ -918,13 +872,7 @@ IonRuntime::generateExceptionTailStub(JSContext *cx)
     masm.handleFailureWithHandlerTail();
 
     Linker linker(masm);
-    IonCode *code = linker.newCode(cx, JSC::OTHER_CODE);
-
-#ifdef JS_ION_PERF
-    writePerfSpewerIonCodeProfile(code, "ExceptionTailStub");
-#endif
-
-    return code;
+    return linker.newCode(cx, JSC::OTHER_CODE);
 }
 
 IonCode *
@@ -935,11 +883,5 @@ IonRuntime::generateBailoutTailStub(JSContext *cx)
     masm.generateBailoutTail(r1, r2);
 
     Linker linker(masm);
-    IonCode *code = linker.newCode(cx, JSC::OTHER_CODE);
-
-#ifdef JS_ION_PERF
-    writePerfSpewerIonCodeProfile(code, "BailoutTailStub");
-#endif
-
-    return code;
+    return linker.newCode(cx, JSC::OTHER_CODE);
 }

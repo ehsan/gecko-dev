@@ -50,9 +50,9 @@ typedef GLXLibrary::LibraryType LibType;
 static LibType gCurrLib = GLXLibrary::OPENGL_LIB;
 
 LibType
-GLXLibrary::SelectLibrary(const ContextFlags& aFlags)
+GLXLibrary::SelectLibrary(const GLContext::ContextFlags& aFlags)
 {
-  return (aFlags & ContextFlagsMesaLLVMPipe)
+  return (aFlags & GLContext::ContextFlagsMesaLLVMPipe)
           ? GLXLibrary::MESA_LLVMPIPE_LIB
           : GLXLibrary::OPENGL_LIB;
 }
@@ -1160,7 +1160,7 @@ GLContextGLX::CreateTextureImage(const nsIntSize& aSize,
 }
 
 static GLContextGLX *
-GetGlobalContextGLX(const ContextFlags aFlags = ContextFlagsNone)
+GetGlobalContextGLX(const GLContext::ContextFlags aFlags = GLContext::ContextFlagsNone)
 {
     return static_cast<GLContextGLX*>(GLContextProviderGLX::GetGlobalContext(aFlags));
 }
@@ -1384,9 +1384,9 @@ DONE_CREATING_PIXMAP:
     if (!error && // earlier recorded error
         !serverError)
     {
-        ContextFlags flag = libToUse == GLXLibrary::MESA_LLVMPIPE_LIB
-                                         ? ContextFlagsMesaLLVMPipe
-                                         : ContextFlagsNone;
+        GLContext::ContextFlags flag = libToUse == GLXLibrary::MESA_LLVMPIPE_LIB
+                                         ? GLContext::ContextFlagsMesaLLVMPipe
+                                         : GLContext::ContextFlagsNone;
         // We might have an alpha channel, but it doesn't matter.
         SurfaceCaps dummyCaps = SurfaceCaps::Any();
         GLContextGLX* shareContext = GetGlobalContextGLX(flag);
@@ -1427,15 +1427,15 @@ GLContextProviderGLX::CreateOffscreen(const gfxIntSize& size,
 }
 
 SharedTextureHandle
-GLContextProviderGLX::CreateSharedHandle(SharedTextureShareType shareType,
+GLContextProviderGLX::CreateSharedHandle(GLContext::SharedTextureShareType shareType,
                                          void* buffer,
-                                         SharedTextureBufferType bufferType)
+                                         GLContext::SharedTextureBufferType bufferType)
 {
   return 0;
 }
 
 already_AddRefed<gfxASurface>
-GLContextProviderGLX::GetSharedHandleAsSurface(SharedTextureShareType shareType,
+GLContextProviderGLX::GetSharedHandleAsSurface(GLContext::SharedTextureShareType shareType,
                                                SharedTextureHandle sharedHandle)
 {
   return nullptr;

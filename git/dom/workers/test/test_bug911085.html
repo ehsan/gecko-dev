@@ -12,18 +12,13 @@
 <body>
 <script class="testbody" type="text/javascript">
 
-  var worker = new Worker("rvals_worker.js");
+  var worker = new Worker("bug911085_worker.js");
 
   worker.onmessage = function(event) {
     if (event.data == 'ignore') return;
 
-    if (event.data == 'finished') {
-      is(worker.terminate(), undefined, "Terminate() returns 'undefined'");
-      SimpleTest.finish();
-      return;
-    }
-
-    ok(event.data, "something good returns 'undefined' in workers");
+    ok(event.data, "postMessage() returns 'undefined' in workers");
+    SimpleTest.finish();
   };
 
   is(worker.postMessage(42), undefined, "PostMessage() returns 'undefined' on main thread");

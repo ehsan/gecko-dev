@@ -44,7 +44,6 @@
 #include "ImageLayers.h"
 #include "ImageContainer.h"
 #include "nsCanvasFrame.h"
-#include "mozilla/LookAndFeel.h"
 
 #include <stdint.h>
 #include <algorithm>
@@ -672,37 +671,28 @@ static void RecordFrameMetrics(nsIFrame* aForFrame,
   metrics.mDevPixelsPerCSSPixel = CSSToLayoutDeviceScale(
     (float)nsPresContext::AppUnitsPerCSSPixel() / auPerDevPixel);
 
-  // Initially, AsyncPanZoomController should render the content to the screen
-  // at the painted resolution.
-  const LayerToScreenScale layerToScreenScale(1.0f);
+  // Provide an initial zoom to the AsyncPanZoomController so that it
+  // renders the content to the screen at the painted resolution.
   metrics.mZoom = metrics.mResolution * metrics.mDevPixelsPerCSSPixel
-                * layerToScreenScale;
+                * LayerToScreenScale(1.0f);
 
   metrics.mMayHaveTouchListeners = aMayHaveTouchListeners;
 
-  if (aScrollFrame) {
-    metrics.mCompositionBounds = RoundedToInt(LayoutDeviceRect::FromAppUnits(
-        aScrollFrame->GetScreenRectInAppUnits(), auPerDevPixel)
-                               * metrics.mResolution
-                               * layerToScreenScale);
+  if (nsIWidget* widget = aForFrame->GetNearestWidget()) {
+    nsIntRect bounds;
+    widget->GetBounds(bounds);
+    metrics.mCompositionBounds = ScreenIntRect::FromUnknownRect(
+      mozilla::gfx::IntRect(bounds.x, bounds.y, bounds.width, bounds.height));
+  }
 
-    // Adjust for the size of scroll bars.
-    if (scrollableFrame && !LookAndFeel::GetInt(LookAndFeel::eIntID_UseOverlayScrollbars)) {
-      nsMargin sizes = scrollableFrame->GetActualScrollbarSizes();
-      // Scrollbars are not subject to scaling, so CSS pixels = screen pixels for them.
-      ScreenIntMargin boundMargins(nsPresContext::AppUnitsToIntCSSPixels(sizes.top),
-                                   nsPresContext::AppUnitsToIntCSSPixels(sizes.right),
-                                   nsPresContext::AppUnitsToIntCSSPixels(sizes.bottom),
-                                   nsPresContext::AppUnitsToIntCSSPixels(sizes.left));
-      metrics.mCompositionBounds.Deflate(boundMargins);
-    }
-  } else {
-    // We are in a document without a root scroll frame, so it's a xul document.
-    // In this case, use the size of the viewport frame.
-    metrics.mCompositionBounds = RoundedToInt(LayoutDeviceRect::FromAppUnits(
-        aForFrame->GetScreenRectInAppUnits(), auPerDevPixel)
-                               * metrics.mResolution
-                               * layerToScreenScale);
+  // Adjust for the size of scroll bars.
+  if (scrollableFrame) {
+    nsMargin sizes = scrollableFrame->GetActualScrollbarSizes();
+    ScreenIntMargin boundMargins(nsPresContext::AppUnitsToIntCSSPixels(sizes.top),
+                                 nsPresContext::AppUnitsToIntCSSPixels(sizes.right),
+                                 nsPresContext::AppUnitsToIntCSSPixels(sizes.bottom),
+                                 nsPresContext::AppUnitsToIntCSSPixels(sizes.left));
+    metrics.mCompositionBounds.Deflate(boundMargins);
   }
 
   metrics.mPresShellId = presShell->GetPresShellId();
@@ -1151,16 +1141,7 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
     BuildContainerLayerFor(aBuilder, layerManager, aForFrame, nullptr, *this,
                            containerParameters, nullptr);
 
-  nsIDocument* document = nullptr;
-  if (presShell) {
-    document = presShell->GetDocument();
-  }
-
-  if (widgetTransaction ||
-      // SVG-as-an-image docs don't paint as part of the retained layer tree,
-      // but they still need the invalidation state bits cleared in order for
-      // invalidation for CSS/SMIL animation to work properly.
-      (document && document->IsBeingUsedAsImage())) {
+  if (widgetTransaction) {
     aForFrame->ClearInvalidationStateBits();
   }
 
@@ -1196,10 +1177,13 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
   }
 
   bool mayHaveTouchListeners = false;
-  if (document) {
-    nsCOMPtr<nsPIDOMWindow> innerWin(document->GetInnerWindow());
-    if (innerWin) {
-      mayHaveTouchListeners = innerWin->HasTouchEventListeners();
+  if (presShell) {
+    nsIDocument* document = presShell->GetDocument();
+    if (document) {
+      nsCOMPtr<nsPIDOMWindow> innerWin(document->GetInnerWindow());
+      if (innerWin) {
+        mayHaveTouchListeners = innerWin->HasTouchEventListeners();
+      }
     }
   }
 

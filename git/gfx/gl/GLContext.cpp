@@ -1034,7 +1034,7 @@ GLContext::InitExtensions()
     const bool firstRun = false;
 #endif
 
-    InitializeExtensionsBitSet(mAvailableExtensions, extensions, sExtensionNames, firstRun && DebugMode());
+    mAvailableExtensions.Load(extensions, sExtensionNames, firstRun && DebugMode());
 
     if (WorkAroundDriverBugs() &&
         Vendor() == VendorQualcomm) {

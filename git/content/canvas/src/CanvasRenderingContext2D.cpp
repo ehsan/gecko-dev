@@ -746,7 +746,7 @@ CanvasRenderingContext2D::RedrawUser(const gfxRect& r)
 void CanvasRenderingContext2D::Demote()
 {
 #ifdef  USE_SKIA_GPU
-  if (!IsTargetValid() || mForceSoftware || !mTarget->GetGLContext())
+  if (!IsTargetValid() || mForceSoftware)
     return;
 
   RemoveDemotableContext(this);
@@ -874,7 +874,7 @@ CanvasRenderingContext2D::EnsureTarget()
         if (!mForceSoftware && CheckSizeForSkiaGL(size))
         {
           glContext = GLContextProvider::CreateOffscreen(gfxIntSize(size.width, size.height),
-                                                         caps, gl::ContextFlagsNone);
+                                                         caps, GLContext::ContextFlagsNone);
         }
 
         if (glContext) {

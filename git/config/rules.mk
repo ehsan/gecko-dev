@@ -10,11 +10,9 @@ ifndef topsrcdir
 $(error topsrcdir was not set))
 endif
 
-# Define an include-at-most-once flag
-ifdef INCLUDED_RULES_MK
-$(error Do not include rules.mk twice!)
+ifndef INCLUDED_MOZCONFIG_MK
+include $(topsrcdir)/config/makefiles/mozconfig.mk
 endif
-INCLUDED_RULES_MK = 1
 
 # Integrate with mozbuild-generated make files. We first verify that no
 # variables provided by the automatically generated .mk files are
@@ -692,6 +690,14 @@ default all::
 	$(MAKE) export
 	$(MAKE) libs
 	$(MAKE) tools
+
+# Do depend as well
+alldep::
+	$(MAKE) export
+	$(MAKE) depend
+	$(MAKE) libs
+	$(MAKE) tools
+
 endif # TIERS
 endif # SUPPRESS_DEFAULT_RULES
 
@@ -706,7 +712,10 @@ endif
 # Do everything from scratch
 everything::
 	$(MAKE) clean
-	$(MAKE) all
+	$(MAKE) alldep
+
+# Add dummy depend target for tinderboxes
+depend::
 
 # Target to only regenerate makefiles
 makefiles: $(SUBMAKEFILES)
@@ -735,12 +744,12 @@ endef
 
 $(foreach subtier,export libs tools,$(eval $(call CREATE_SUBTIER_TRAVERSAL_RULE,$(subtier))))
 
-export:: $(SUBMAKEFILES)
+export:: $(SUBMAKEFILES) $(MAKE_DIRS)
 	$(LOOP_OVER_DIRS)
 	$(LOOP_OVER_TOOL_DIRS)
 
 
-tools:: $(SUBMAKEFILES)
+tools:: $(SUBMAKEFILES) $(MAKE_DIRS)
 	$(LOOP_OVER_DIRS)
 	$(foreach dir,$(TOOL_DIRS),$(call SUBMAKE,libs,$(dir)))
 
@@ -1745,7 +1754,7 @@ documentation:
 	$(DOXYGEN) $(DEPTH)/config/doxygen.cfg
 
 ifdef ENABLE_TESTS
-check:: $(SUBMAKEFILES)
+check:: $(SUBMAKEFILES) $(MAKE_DIRS)
 	$(LOOP_OVER_PARALLEL_DIRS)
 	$(LOOP_OVER_DIRS)
 	$(LOOP_OVER_TOOL_DIRS)

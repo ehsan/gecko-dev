@@ -177,7 +177,7 @@ function runSocialTests(tests, cbPreTest, cbPostTest, cbFinish) {
         cbPostTest(runNextTest);
       }
       cbPreTest(function() {
-        info("pre-test: starting with " + Social.providers.length + " providers");
+        is(providersAtStart, Social.providers.length, "pre-test: no new providers left enabled");
         info("sub-test " + name + " starting");
         try {
           func.call(tests, cleanupAndRunNextTest);

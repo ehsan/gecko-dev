@@ -29,10 +29,8 @@
  *   Karl Tomlinson <karlt+@karlt.net>
  */
 /*
- * gdk-screenshot.cpp: Save a screenshot of the root window in .png format.
- *  If a filename is specified as the first argument on the commandline,
- *  then the image will be saved to that filename. Otherwise, the image will
- *  be written to stdout.
+ * gdk-screenshot.cpp: Write a screenshot of the root window to stdout in .png
+ * format.
  */
 #include <gdk/gdk.h>
 #include <gdk/gdkx.h>
@@ -141,12 +139,8 @@ int main(int argc, char** argv)
   }
 
   GError* error = NULL;
-  if (argc > 1) {
-    gdk_pixbuf_save(screenshot, argv[1], "png", &error, NULL);
-  } else {
-    gdk_pixbuf_save_to_callback(screenshot, save_to_stdout, NULL,
-                                "png", &error, NULL);
-  }
+  gdk_pixbuf_save_to_callback(screenshot, save_to_stdout, NULL,
+                              "png", NULL, NULL);
   if (error) {
     fprintf(stderr, "%s: failed to write screenshot as png: %s\n",
             argv[0], error->message);

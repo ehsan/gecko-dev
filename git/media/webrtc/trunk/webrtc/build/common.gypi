@@ -325,6 +325,7 @@
       ['OS=="win"', {
         'defines': [
           'WEBRTC_WIN',
+	  'WEBRTC_EXPORT',
         ],
         # TODO(andrew): enable all warnings when possible.
         # TODO(phoglund): get rid of 4373 supression when

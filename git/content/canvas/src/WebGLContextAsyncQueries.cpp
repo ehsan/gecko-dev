@@ -5,7 +5,6 @@
 
 #include "WebGLContext.h"
 #include "WebGLQuery.h"
-#include "GLContext.h"
 
 using namespace mozilla;
 
@@ -20,7 +19,7 @@ using namespace mozilla;
  */
 
 static const char*
-GetQueryTargetEnumString(GLenum target)
+GetQueryTargetEnumString(WebGLenum target)
 {
     switch (target)
     {
@@ -57,7 +56,7 @@ SimulateOcclusionQueryTarget(const gl::GLContext* gl, GLenum target)
 already_AddRefed<WebGLQuery>
 WebGLContext::CreateQuery()
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return nullptr;
 
     if (mActiveOcclusionQuery && !gl->IsGLES2()) {
@@ -82,7 +81,7 @@ WebGLContext::CreateQuery()
 void
 WebGLContext::DeleteQuery(WebGLQuery *query)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     if (!query)
@@ -109,9 +108,9 @@ WebGLContext::DeleteQuery(WebGLQuery *query)
 }
 
 void
-WebGLContext::BeginQuery(GLenum target, WebGLQuery *query)
+WebGLContext::BeginQuery(WebGLenum target, WebGLQuery *query)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     WebGLRefPtr<WebGLQuery>* targetSlot = GetQueryTargetSlot(target, "beginQuery");
@@ -179,9 +178,9 @@ WebGLContext::BeginQuery(GLenum target, WebGLQuery *query)
 }
 
 void
-WebGLContext::EndQuery(GLenum target)
+WebGLContext::EndQuery(WebGLenum target)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     WebGLRefPtr<WebGLQuery>* targetSlot = GetQueryTargetSlot(target, "endQuery");
@@ -223,7 +222,7 @@ WebGLContext::EndQuery(GLenum target)
 bool
 WebGLContext::IsQuery(WebGLQuery *query)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return false;
 
     if (!query)
@@ -235,9 +234,9 @@ WebGLContext::IsQuery(WebGLQuery *query)
 }
 
 already_AddRefed<WebGLQuery>
-WebGLContext::GetQuery(GLenum target, GLenum pname)
+WebGLContext::GetQuery(WebGLenum target, WebGLenum pname)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return nullptr;
 
     WebGLRefPtr<WebGLQuery>* targetSlot = GetQueryTargetSlot(target, "getQuery");
@@ -258,9 +257,9 @@ WebGLContext::GetQuery(GLenum target, GLenum pname)
 }
 
 JS::Value
-WebGLContext::GetQueryObject(JSContext* cx, WebGLQuery *query, GLenum pname)
+WebGLContext::GetQueryObject(JSContext* cx, WebGLQuery *query, WebGLenum pname)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return JS::NullValue();
 
     if (!query) {
@@ -334,7 +333,7 @@ WebGLContext::GetQueryObject(JSContext* cx, WebGLQuery *query, GLenum pname)
 }
 
 WebGLRefPtr<WebGLQuery>*
-WebGLContext::GetQueryTargetSlot(GLenum target, const char* infos)
+WebGLContext::GetQueryTargetSlot(WebGLenum target, const char* infos)
 {
     switch (target) {
         case LOCAL_GL_ANY_SAMPLES_PASSED:

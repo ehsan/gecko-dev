@@ -3,7 +3,6 @@
 <head>
   <title>Test for Login Manager</title>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>  
-  <script type="text/javascript" src="utils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
 <body>
@@ -16,8 +15,10 @@ Test for NPN_GetAuthenticationInfo
 
 <script class="testbody" type="text/javascript">
 
-const Ci = SpecialPowers.Ci;
-const Cc = SpecialPowers.Cc;
+netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
+const Ci = Components.interfaces;
+const Cc = Components.classes;
 
 function iframeLoad() {
   var plugin = iframe.contentDocument.getElementById("embedtest");
@@ -59,8 +60,6 @@ function iframeLoad() {
 }
 
 SimpleTest.waitForExplicitFinish();
-setTestPluginEnabledState(SpecialPowers.Ci.nsIPluginTag.STATE_ENABLED);
-
 var iframe = document.getElementById("iframe");
 var am = Cc["@mozilla.org/network/http-auth-manager;1"].
          getService(Ci.nsIHttpAuthManager);

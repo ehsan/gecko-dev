@@ -17,7 +17,6 @@
 #include "nsAutoPtr.h"
 #include "nsDataHashtable.h"
 #include "nsHashKeys.h"
-#include "nsIObserver.h"
 
 #ifdef MOZ_CRASHREPORTER
 #include "nsExceptionHandler.h"

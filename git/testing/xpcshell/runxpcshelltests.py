@@ -1331,11 +1331,10 @@ class XPCShellTests(object):
             for test in running_tests:
                 if test.done:
                     done_tests.add(test)
-                    test.join(1) # join with timeout so we don't hang on blocked threads
+                    test.join()
                     # if the test had trouble, we will try running it again
                     # at the end of the run
-                    if test.retry or test.is_alive():
-                        # if the join call timed out, test.is_alive => True
+                    if test.retry:
                         self.try_again_list.append(test.test_object)
                         continue
                     # did the test encounter any exception?

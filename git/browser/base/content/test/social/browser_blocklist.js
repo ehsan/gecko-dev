@@ -155,15 +155,14 @@ var tests = {
     setManifestPref("social.manifest.blocked", manifest_bad);
     try {
       SocialService.addProvider(manifest_bad, function(provider) {
-        // the act of blocking should cause a 'provider-disabled' notification
+        // the act of blocking should cause a 'provider-removed' notification
         // from SocialService.
-        SocialService.registerProviderListener(function providerListener(topic, origin, providers) {
-          if (topic != "provider-disabled")
+        SocialService.registerProviderListener(function providerListener(topic) {
+          if (topic != "provider-removed")
             return;
           SocialService.unregisterProviderListener(providerListener);
-          is(origin, provider.origin, "provider disabled");
           SocialService.getProvider(provider.origin, function(p) {
-            ok(p == null, "blocklisted provider disabled");
+            ok(p==null, "blocklisted provider removed");
             Services.prefs.clearUserPref("social.manifest.blocked");
             resetBlocklist(finish);
           });

@@ -713,8 +713,8 @@ ImageDocument::UpdateTitleAndCharset()
   {
     "ImageTitleWithNeitherDimensionsNorFile",
     "ImageTitleWithoutDimensions",
-    "ImageTitleWithDimensions2",
-    "ImageTitleWithDimensions2AndFile",
+    "ImageTitleWithDimensions",
+    "ImageTitleWithDimensionsAndFile",
   };
 
   MediaDocument::UpdateTitleAndCharset(typeStr, formatNames,

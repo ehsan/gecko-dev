@@ -203,13 +203,7 @@ exports["test Parent Resize Hack"] = function(assert, done) {
       timer.setTimeout(function () {
         assert.equal(previousWidth,browserWindow.outerWidth,"Size doesn't change by calling resizeTo/By/...");
         assert.equal(previousHeight,browserWindow.outerHeight,"Size doesn't change by calling resizeTo/By/...");
-        try {
-          panel.destroy();
-        }
-        catch (e) {
-          console.exception(e);
-          throw e;
-        }
+        panel.destroy();
         done();
       },0);
     }

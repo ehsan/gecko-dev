@@ -90,7 +90,7 @@ protected:
       // Ignore further invalidations until we draw.
       mHonoringInvalidations = false;
 
-      mVectorImage->InvalidateObserversOnNextRefreshDriverTick();
+      mVectorImage->InvalidateObserver();
     }
 
     // Our caller might've removed us from rendering-observer list.
@@ -314,8 +314,7 @@ VectorImage::VectorImage(imgStatusTracker* aStatusTracker,
   mIsInitialized(false),
   mIsFullyLoaded(false),
   mIsDrawing(false),
-  mHaveAnimations(false),
-  mHasPendingInvalidation(false)
+  mHaveAnimations(false)
 {
 }
 
@@ -486,18 +485,6 @@ VectorImage::RequestRefresh(const mozilla::TimeStamp& aTime)
 {
   // TODO: Implement for b666446.
   EvaluateAnimation();
-
-  if (mHasPendingInvalidation && mStatusTracker) {
-    // This method is called under the Tick() of an observing document's
-    // refresh driver. We send out the following notifications here rather than
-    // under WillRefresh() (which would be called by our own refresh driver) so
-    // that we only send these notifications if we actually have a document
-    // that is observing us.
-    mStatusTracker->FrameChanged(&nsIntRect::GetMaxSizedIntRect());
-    mStatusTracker->OnStopFrame();
-  }
-
-  mHasPendingInvalidation = false;
 }
 
 //******************************************************************************
@@ -1019,9 +1006,12 @@ VectorImage::OnDataAvailable(nsIRequest* aRequest, nsISupports* aCtxt,
 // Invalidation helper method
 
 void
-VectorImage::InvalidateObserversOnNextRefreshDriverTick()
+VectorImage::InvalidateObserver()
 {
-  mHasPendingInvalidation = true;
+  if (mStatusTracker) {
+    mStatusTracker->FrameChanged(&nsIntRect::GetMaxSizedIntRect());
+    mStatusTracker->OnStopFrame();
+  }
 }
 
 } // namespace image

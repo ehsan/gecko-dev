@@ -12,8 +12,7 @@
 
 // Needed interfaces
 #include "nsISHTransaction.h"
-
-class nsISHEntry;
+#include "nsISHEntry.h"
 
 class nsSHTransaction: public nsISHTransaction
 {

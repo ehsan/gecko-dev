@@ -17,6 +17,7 @@
 #include "jit/IonFrames.h"
 #include "jit/MIR.h"
 #include "jit/MIRGraph.h"
+#include "jit/PerfSpewer.h"
 #include "vm/Shape.h"
 
 #include "jsscriptinlines.h"

@@ -2,6 +2,13 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH            = @DEPTH@
+topsrcdir        = @top_srcdir@
+srcdir           = @srcdir@
+VPATH            = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
 EXPORT_LIBRARY   = 1
 
 # Need this to find all our DOM source files.
@@ -103,7 +110,6 @@ INSTALL_TARGETS += EXPORTS_GENERATED
 # be in the same target/subtier as GlobalGen.py, otherwise the files will not
 # get installed into the appropriate location as they are generated.
 globalgen_headers_FILES := \
-  GeneratedAtomList.h \
   PrototypeList.h \
   RegisterBindings.h \
   UnionConversions.h \

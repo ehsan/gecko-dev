@@ -641,10 +641,6 @@ pref("plugins.update.notifyUser", false);
 
 pref("plugins.click_to_play", true);
 
-// let all plugins except Flash default to click-to-play
-pref("plugin.default.state", 1);
-pref("plugin.state.flash", 2);
-
 // display door hanger if flash not installed
 pref("plugins.notifyMissingFlash", true);
 
@@ -1079,7 +1075,6 @@ pref("devtools.inspector.enabled", true);
 pref("devtools.inspector.activeSidebar", "ruleview");
 pref("devtools.inspector.markupPreview", false);
 pref("devtools.inspector.remote", false);
-pref("devtools.inspector.show_pseudo_elements", true);
 
 // Enable the Layout View
 pref("devtools.layoutview.enabled", true);

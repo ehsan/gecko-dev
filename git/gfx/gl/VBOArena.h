@@ -6,13 +6,11 @@
 #ifndef VBOARENA_H_
 #define VBOARENA_H_
 
-#include "GLTypes.h"
+#include "GLContext.h"
 #include <vector>
 
 namespace mozilla {
 namespace gl {
-
-class GLContext;
 
 class VBOArena {
 public:

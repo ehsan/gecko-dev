@@ -727,10 +727,10 @@ PluginInstanceParent::GetImageContainer(ImageContainer** aContainer)
         NS_ASSERTION(image->GetFormat() == SHARED_TEXTURE, "Wrong format?");
 
         SharedTextureImage::Data data;
-        data.mShareType = gl::SameProcess;
+        data.mShareType = GLContext::SameProcess;
         data.mHandle = GLContextProviderCGL::CreateSharedHandle(data.mShareType,
                                                                 ioSurface,
-                                                                gl::IOSurface);
+                                                                GLContext::IOSurface);
         data.mInverted = false;
         // Use the device pixel size of the IOSurface, since layers handles resolution scaling
         // already.
