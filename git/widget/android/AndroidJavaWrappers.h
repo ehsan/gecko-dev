@@ -569,7 +569,6 @@ public:
         VISITED = 21,
         NETWORK_CHANGED = 22,
         PROXIMITY_EVENT = 23,
-        ACTIVITY_RESUMING = 24,
         dummy_java_enum_list_end
     };
 

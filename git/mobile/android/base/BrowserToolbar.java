@@ -77,6 +77,7 @@ public class BrowserToolbar extends LinearLayout {
 
     final private Context mContext;
     private Handler mHandler;
+    private boolean mInflated;
     private int mColor;
     private int mCounterColor;
     private int[] mPadding;
@@ -93,6 +94,7 @@ public class BrowserToolbar extends LinearLayout {
     public BrowserToolbar(Context context, AttributeSet attrs) {
         super(context, attrs);
         mContext = context;
+        mInflated = false;
         mTitleCanExpand = true;
 
         // Get the device's highlight color
@@ -109,7 +111,18 @@ public class BrowserToolbar extends LinearLayout {
         typedArray.recycle();
     }
 
-    public void init() {
+    @Override
+    protected void onFinishInflate () {
+        super.onFinishInflate();
+
+        // HACK: Without this, the onFinishInflate is called twice
+        // This issue is due to a bug when Android inflates a layout with a
+        // parent. Fixed in Honeycomb
+        if (mInflated)
+            return;
+
+        mInflated = true;
+
         mAwesomeBar = (Button) findViewById(R.id.awesome_bar);
         mAwesomeBar.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View v) {

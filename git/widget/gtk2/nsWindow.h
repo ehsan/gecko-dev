@@ -192,10 +192,11 @@ public:
     NS_IMETHOD         HideWindowChrome(bool aShouldHide);
 
     /**
-     * GetLastUserInputTime returns a timestamp for the most recent user input
-     * event.  This is intended for pointer grab requests (including drags).
+     * GetCurrentEventTime guesses a timestamp for the most recent user input
+     * event (when the event is not available).  This is intended for pointer
+     * grab or focus requests, for example.
      */
-    static guint32     GetLastUserInputTime();
+    static guint32     GetCurrentEventTime();
 
     // utility method, -1 if no change should be made, otherwise returns a
     // value that can be passed to gdk_window_set_decorations

@@ -51,6 +51,7 @@
 #include "nsIObserverService.h"
 #include "nsIPermissionManager.h"
 #include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
 #include "nsIPrefService.h"
 #include "nsIProperties.h"
 #include "nsToolkitCompsCID.h"
@@ -1147,7 +1148,7 @@ nsUrlClassifierDBService::Init()
   nsresult rv;
 
   // Should we check document loads for malware URIs?
-  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
 
   PRInt32 gethashNoise = 0;
   if (prefs) {
@@ -1509,7 +1510,7 @@ nsUrlClassifierDBService::Shutdown()
 
   mCompleters.Clear();
 
-  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
   if (prefs) {
     prefs->RemoveObserver(CHECK_MALWARE_PREF, this);
     prefs->RemoveObserver(CHECK_PHISHING_PREF, this);

@@ -102,9 +102,7 @@ ScaledFontMac::GetPathForGlyphs(const GlyphBuffer &aBuffer, const DrawTarget *aT
           CGPathAddPath(path, &matrix, glyphPath);
           CGPathRelease(glyphPath);
       }
-      TemporaryRef<Path> ret = new PathCG(path, FILL_WINDING);
-      CGPathRelease(path);
-      return ret;
+      return new PathCG(path, FILL_WINDING);
   } else {
       return ScaledFontBase::GetPathForGlyphs(aBuffer, aTarget);
   }

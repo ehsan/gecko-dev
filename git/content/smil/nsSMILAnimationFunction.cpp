@@ -755,7 +755,7 @@ nsSMILAnimationFunction::ParseAttr(nsIAtom* aAttName,
 {
   nsAutoString attValue;
   if (GetAttr(aAttName, attValue)) {
-    bool preventCachingOfSandwich = false;
+    bool preventCachingOfSandwich;
     nsresult rv = aSMILAttr.ValueFromString(attValue, mAnimationElement,
                                             aResult, preventCachingOfSandwich);
     if (NS_FAILED(rv))
@@ -796,7 +796,7 @@ nsSMILAnimationFunction::GetValues(const nsISMILAttr& aSMILAttr,
   if (HasAttr(nsGkAtoms::values)) {
     nsAutoString attValue;
     GetAttr(nsGkAtoms::values, attValue);
-    bool preventCachingOfSandwich = false;
+    bool preventCachingOfSandwich;
     nsresult rv = nsSMILParserUtils::ParseValues(attValue, mAnimationElement,
                                                  aSMILAttr, result,
                                                  preventCachingOfSandwich);

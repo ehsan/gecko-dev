@@ -3872,7 +3872,7 @@ MJitCodeStats(JSContext *cx, uintN argc, jsval *vp)
 JSBool
 MJitChunkLimit(JSContext *cx, uintN argc, jsval *vp)
 {
-    if (argc > 1 || argc == 0) {
+    if (argc > 1) {
         JS_ReportError(cx, "Wrong number of arguments");
         return JS_FALSE;
     }

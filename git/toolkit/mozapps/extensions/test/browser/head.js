@@ -673,10 +673,6 @@ MockProvider.prototype = {
           addon._applyBackgroundUpdates = aAddonProp[prop];
           continue;
         }
-        if (prop == "appDisabled") {
-          addon._appDisabled = aAddonProp[prop];
-          continue;
-        }
         addon[prop] = aAddonProp[prop];
       }
       if (!addon.optionsType && !!addon.optionsURL)
@@ -953,7 +949,7 @@ function MockAddon(aId, aName, aType, aOperationsRequiringRestart) {
   this.isCompatible = true;
   this.providesUpdatesSecurely = true;
   this.blocklistState = 0;
-  this._appDisabled = false;
+  this.appDisabled = false;
   this._userDisabled = false;
   this._applyBackgroundUpdates = AddonManager.AUTOUPDATE_ENABLE;
   this.scope = AddonManager.SCOPE_PROFILE;
@@ -974,24 +970,6 @@ function MockAddon(aId, aName, aType, aOperationsRequiringRestart) {
 MockAddon.prototype = {
   get shouldBeActive() {
     return !this.appDisabled && !this._userDisabled;
-  },
-
-  get appDisabled() {
-    return this._appDisabled;
-  },
-
-  set appDisabled(val) {
-    if (val == this._appDisabled)
-      return val;
-
-    AddonManagerPrivate.callAddonListeners("onPropertyChanged", this, ["appDisabled"]);
-
-    var currentActive = this.shouldBeActive;
-    this._appDisabled = val;
-    var newActive = this.shouldBeActive;
-    this._updateActiveState(currentActive, newActive);
-
-    return val;
   },
 
   get userDisabled() {

@@ -225,7 +225,7 @@ destroying the nsBuiltinDecoder object.
 #include "prlog.h"
 #include "gfxContext.h"
 #include "gfxRect.h"
-#include "MediaResource.h"
+#include "nsMediaStream.h"
 #include "nsMediaDecoder.h"
 #include "nsHTMLMediaElement.h"
 #include "mozilla/ReentrantMonitor.h"
@@ -352,11 +352,14 @@ public:
 
 class nsBuiltinDecoder : public nsMediaDecoder
 {
-public:
-  typedef mozilla::MediaChannelStatistics MediaChannelStatistics;
-
+  // ISupports
   NS_DECL_ISUPPORTS
+
+  // nsIObserver
   NS_DECL_NSIOBSERVER
+
+ public:
+  typedef mozilla::ReentrantMonitor ReentrantMonitor;
 
   // Enumeration for the valid play states (see mPlayState)
   enum PlayState {
@@ -380,7 +383,7 @@ public:
   
   virtual double GetCurrentTime();
 
-  virtual nsresult Load(MediaResource* aResource,
+  virtual nsresult Load(nsMediaStream* aStream,
                         nsIStreamListener** aListener,
                         nsMediaDecoder* aCloneDonor);
 
@@ -402,7 +405,7 @@ public:
   virtual void SetInfinite(bool aInfinite);
   virtual bool IsInfinite();
 
-  virtual MediaResource* GetResource() { return mResource; }
+  virtual nsMediaStream* GetStream();
   virtual already_AddRefed<nsIPrincipal> GetCurrentPrincipal();
 
   virtual void NotifySuspendedStatusChanged();
@@ -457,7 +460,7 @@ public:
   // main thread only.
   virtual void Resume(bool aForceBuffering);
 
-  // Tells our MediaResource to put all loads in the background.
+  // Tells our nsMediaStream to put all loads in the background.
   virtual void MoveLoadsToBackground();
 
   void AudioAvailable(float* aFrameBuffer, PRUint32 aFrameBufferLength, float aTime);
@@ -511,6 +514,7 @@ public:
   // The new size must be between 512 and 16384.
   virtual nsresult RequestFrameBufferLength(PRUint32 aLength);
 
+ public:
   // Return the current state. Can be called on any thread. If called from
   // a non-main thread, the decoder monitor must be held.
   PlayState GetState() {
@@ -614,6 +618,7 @@ public:
    // element. Called on the main thread.
    virtual void NotifyAudioAvailableListener();
 
+public:
   // Notifies the element that decoding has failed.
   void DecodeError();
 
@@ -638,7 +643,7 @@ public:
   // Data needed to estimate playback data rate. The timeline used for
   // this estimate is "decode time" (where the "current time" is the
   // time of the last decoded video frame).
-  MediaChannelStatistics mPlaybackStatistics;
+  nsChannelStatistics mPlaybackStatistics;
 
   // The current playback position of the media resource in units of
   // seconds. This is updated approximately at the framerate of the
@@ -677,8 +682,8 @@ public:
   // is safe to access it during this period.
   nsCOMPtr<nsDecoderStateMachine> mDecoderStateMachine;
 
-  // Media data resource.
-  nsAutoPtr<MediaResource> mResource;
+  // Stream of media data.
+  nsAutoPtr<nsMediaStream> mStream;
 
   // ReentrantMonitor for detecting when the video play state changes. A call
   // to Wait on this monitor will block the thread until the next

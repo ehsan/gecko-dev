@@ -68,7 +68,7 @@
 #include "nsMediaError.h"
 #include "nsICategoryManager.h"
 #include "nsCharSeparatedTokenizer.h"
-#include "MediaResource.h"
+#include "nsMediaStream.h"
 
 #include "nsIDOMHTMLVideoElement.h"
 #include "nsIContentPolicy.h"
@@ -243,10 +243,10 @@ public:
  * to an nsIChannel, which holds a reference to this listener.
  * We break the reference cycle in OnStartRequest by clearing mElement.
  */
-class nsHTMLMediaElement::MediaLoadListener MOZ_FINAL : public nsIStreamListener,
-                                                        public nsIChannelEventSink,
-                                                        public nsIInterfaceRequestor,
-                                                        public nsIObserver
+class nsHTMLMediaElement::MediaLoadListener : public nsIStreamListener,
+                                              public nsIChannelEventSink,
+                                              public nsIInterfaceRequestor,
+                                              public nsIObserver
 {
   NS_DECL_ISUPPORTS
   NS_DECL_NSIREQUESTOBSERVER
@@ -928,7 +928,7 @@ nsresult nsHTMLMediaElement::LoadResource()
   NS_ASSERTION(mDelayingLoadEvent,
                "Should delay load event (if in document) during load");
 
-  // If a previous call to mozSetup() was made, kill that media resource
+  // If a previous call to mozSetup() was made, kill that media stream
   // in order to use this new src instead.
   if (mAudioStream) {
     mAudioStream->Shutdown();
@@ -1354,7 +1354,7 @@ MediaElementTableCount(nsHTMLMediaElement* aElement, nsIURI* aURI)
 void
 nsHTMLMediaElement::AddMediaElementToURITable()
 {
-  NS_ASSERTION(mDecoder && mDecoder->GetResource(), "Call this only with decoder Load called");
+  NS_ASSERTION(mDecoder && mDecoder->GetStream(), "Call this only with decoder Load called");
   NS_ASSERTION(MediaElementTableCount(this, mLoadingSrc) == 0,
     "Should not have entry for element in element table before addition");
   if (!gElementTable) {
@@ -1406,7 +1406,7 @@ nsHTMLMediaElement::LookupMediaElementURITable(nsIURI* aURI)
     // Ditto for anything else that could cause us to send different headers.
     if (NS_SUCCEEDED(elem->NodePrincipal()->Equals(NodePrincipal(), &equal)) && equal &&
         elem->mCORSMode == mCORSMode) {
-      NS_ASSERTION(elem->mDecoder && elem->mDecoder->GetResource(), "Decoder gone");
+      NS_ASSERTION(elem->mDecoder && elem->mDecoder->GetStream(), "Decoder gone");
       return elem;
     }
   }
@@ -1468,9 +1468,6 @@ nsHTMLMediaElement::~nsHTMLMediaElement()
   NS_ASSERTION(!mHasSelfReference,
                "How can we be destroyed if we're still holding a self reference?");
 
-  if (mVideoFrameContainer) {
-    mVideoFrameContainer->ForgetElement();
-  }
   UnregisterFreezableElement();
   if (mDecoder) {
     RemoveMediaElementFromURITable();
@@ -2010,8 +2007,8 @@ nsresult nsHTMLMediaElement::InitializeDecoderAsClone(nsMediaDecoder* aOriginal)
   NS_ASSERTION(mLoadingSrc, "mLoadingSrc must already be set");
   NS_ASSERTION(mDecoder == nsnull, "Shouldn't have a decoder");
 
-  MediaResource* originalResource = aOriginal->GetResource();
-  if (!originalResource)
+  nsMediaStream* originalStream = aOriginal->GetStream();
+  if (!originalStream)
     return NS_ERROR_FAILURE;
   nsRefPtr<nsMediaDecoder> decoder = aOriginal->Clone();
   if (!decoder)
@@ -2030,15 +2027,15 @@ nsresult nsHTMLMediaElement::InitializeDecoderAsClone(nsMediaDecoder* aOriginal)
     decoder->SetSeekable(aOriginal->IsSeekable());
   }
 
-  MediaResource* resource = originalResource->CloneData(decoder);
-  if (!resource) {
+  nsMediaStream* stream = originalStream->CloneData(decoder);
+  if (!stream) {
     LOG(PR_LOG_DEBUG, ("%p Failed to cloned stream for decoder %p", this, decoder.get()));
     return NS_ERROR_FAILURE;
   }
 
   mNetworkState = nsIDOMHTMLMediaElement::NETWORK_LOADING;
 
-  nsresult rv = decoder->Load(resource, nsnull, aOriginal);
+  nsresult rv = decoder->Load(stream, nsnull, aOriginal);
   if (NS_FAILED(rv)) {
     LOG(PR_LOG_DEBUG, ("%p Failed to load decoder/stream for decoder %p", this, decoder.get()));
     return rv;
@@ -2070,16 +2067,16 @@ nsresult nsHTMLMediaElement::InitializeDecoderForChannel(nsIChannel *aChannel,
 
   mNetworkState = nsIDOMHTMLMediaElement::NETWORK_LOADING;
 
-  MediaResource* resource = MediaResource::Create(decoder, aChannel);
-  if (!resource)
+  nsMediaStream* stream = nsMediaStream::Create(decoder, aChannel);
+  if (!stream)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  nsresult rv = decoder->Load(resource, aListener, nsnull);
+  nsresult rv = decoder->Load(stream, aListener, nsnull);
   if (NS_FAILED(rv)) {
     return rv;
   }
 
-  // Decoder successfully created, the decoder now owns the MediaResource
+  // Decoder successfully created, the decoder now owns the nsMediaStream
   // which owns the channel.
   mChannel = nsnull;
 
@@ -2096,7 +2093,7 @@ nsresult nsHTMLMediaElement::FinishDecoderSetup(nsMediaDecoder* aDecoder)
   // Force a same-origin check before allowing events for this media resource.
   mMediaSecurityVerified = false;
 
-  // The new resource has not been suspended by us.
+  // The new stream has not been suspended by us.
   mPausedForInactiveDocument = false;
   // But we may want to suspend it now.
   // This will also do an AddRemoveSelfReference.
@@ -2292,7 +2289,7 @@ void nsHTMLMediaElement::PlaybackEnded()
   AddRemoveSelfReference();
 
   if (mDecoder && mDecoder->IsInfinite()) {
-    LOG(PR_LOG_DEBUG, ("%p, got duration by reaching the end of the resource", this));
+    LOG(PR_LOG_DEBUG, ("%p, got duration by reaching the end of the stream", this));
     DispatchAsyncEvent(NS_LITERAL_STRING("durationchange"));
   }
 
@@ -2474,10 +2471,10 @@ void nsHTMLMediaElement::NotifyAutoplayDataReady()
   }
 }
 
-VideoFrameContainer* nsHTMLMediaElement::GetVideoFrameContainer()
+ImageContainer* nsHTMLMediaElement::GetImageContainer()
 {
-  if (mVideoFrameContainer)
-    return mVideoFrameContainer;
+  if (mImageContainer)
+    return mImageContainer;
 
   // If we have a print surface, this is just a static image so
   // no image container is required
@@ -2489,9 +2486,8 @@ VideoFrameContainer* nsHTMLMediaElement::GetVideoFrameContainer()
   if (!video)
     return nsnull;
 
-  mVideoFrameContainer =
-    new VideoFrameContainer(this, LayerManager::CreateImageContainer());
-  return mVideoFrameContainer;
+  mImageContainer = LayerManager::CreateImageContainer();
+  return mImageContainer;
 }
 
 nsresult nsHTMLMediaElement::DispatchAudioAvailableEvent(float* aFrameBuffer,

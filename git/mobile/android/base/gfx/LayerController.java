@@ -393,9 +393,8 @@ public class LayerController {
             });
         }
 
-        // After the initial touch, ignore touch moves until they exceed a minimum distance.
         if (initialTouchLocation != null && (action & MotionEvent.ACTION_MASK) == MotionEvent.ACTION_MOVE) {
-            if (PointUtils.subtract(point, initialTouchLocation).length() > PanZoomController.PAN_THRESHOLD) {
+            if (PointUtils.subtract(point, initialTouchLocation).length() > PanZoomController.PAN_THRESHOLD * 240) {
                 initialTouchLocation = null;
             } else {
                 return !allowDefaultActions;

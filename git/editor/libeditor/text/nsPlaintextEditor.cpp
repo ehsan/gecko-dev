@@ -958,7 +958,10 @@ nsresult
 nsPlaintextEditor::UpdateIMEComposition(const nsAString& aCompositionString,
                                         nsIPrivateTextRangeList* aTextRangeList)
 {
-  NS_ABORT_IF_FALSE(aTextRangeList, "aTextRangeList must not be NULL");
+  if (!aTextRangeList && !aCompositionString.IsEmpty()) {
+    NS_ERROR("aTextRangeList is null but the composition string is not null");
+    return NS_ERROR_NULL_POINTER;
+  }
 
   nsCOMPtr<nsIPresShell> ps = GetPresShell();
   NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
@@ -969,15 +972,28 @@ nsPlaintextEditor::UpdateIMEComposition(const nsAString& aCompositionString,
 
   nsRefPtr<nsCaret> caretP = ps->GetCaret();
 
-  // Update information of clauses in the new composition string.
-  // This will be refered by followed methods.
-  mIMETextRangeList = aTextRangeList;
+  // We should return caret position if it is possible. Because this event
+  // dispatcher always expects to be returned the correct caret position.
+  // But in following cases, we don't need to process the composition string,
+  // so, we only need to return the caret position.
 
-  // We set mIsIMEComposing properly.
-  SetIsIMEComposing();
+  // aCompositionString.IsEmpty() && !mIMETextNode:
+  //   Workaround for Windows IME bug 23558: We get every IME event twice.
+  //   For escape keypress, this causes an empty string to be passed
+  //   twice, which freaks out the editor.
 
-  {
+  // aCompositionString.IsEmpty() && !aTextRangeList:
+  //   Some Chinese IMEs for Linux are always composition string and text range
+  //   list are empty when listing the Chinese characters. In this case,
+  //   we don't need to process composition string too. See bug 271815.
+
+  bool notifyEditorObservers = false;
+  if (!aCompositionString.IsEmpty() || (mIMETextNode && aTextRangeList)) {
+    mIMETextRangeList = aTextRangeList;
+
     nsAutoPlaceHolderBatch batch(this, nsGkAtoms::IMETxnName);
+
+    SetIsIMEComposing(); // We set mIsIMEComposing properly.
 
     rv = InsertText(aCompositionString);
 
@@ -986,13 +1002,20 @@ nsPlaintextEditor::UpdateIMEComposition(const nsAString& aCompositionString,
     if (caretP) {
       caretP->SetCaretDOMSelection(selection);
     }
+
+    // second part of 23558 fix:
+    if (aCompositionString.IsEmpty()) {
+      mIMETextNode = nsnull;
+    }
+
+    // If still composing, we should fire input event via observer.
+    // Note that if committed, we don't need to notify it since it will be
+    // notified at followed compositionend event.
+    // NOTE: We must notify after the auto batch will be gone.
+    notifyEditorObservers = mIsIMEComposing;
   }
 
-  // If still composing, we should fire input event via observer.
-  // Note that if committed, we don't need to notify it since it will be
-  // notified at followed compositionend event.
-  // NOTE: We must notify after the auto batch will be gone.
-  if (mIsIMEComposing) {
+  if (notifyEditorObservers) {
     NotifyEditorObservers();
   }
 

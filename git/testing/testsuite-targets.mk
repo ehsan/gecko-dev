@@ -97,24 +97,20 @@ endif
 
 mochitest-remote: DM_TRANS?=adb
 mochitest-remote:
-	@if [ ! -f ${MOZ_HOST_BIN}/xpcshell ]; then \
-        echo "please prepare your host with the environment variable MOZ_HOST_BIN"; \
-    elif [ "${TEST_DEVICE}" = "" -a "$(DM_TRANS)" != "adb" ]; then \
-        echo "please prepare your host with the environment variable TEST_DEVICE"; \
-    else \
-        $(RUN_MOCHITEST_REMOTE); \
-    fi
+	@if test -f ${MOZ_HOST_BIN}/xpcshell && [ "${TEST_DEVICE}" != "usb" -o "$(DM_TRANS)" = "adb" ]; \
+          then $(RUN_MOCHITEST_REMOTE); \
+        else \
+          echo "please prepare your host with environment variables for TEST_DEVICE and MOZ_HOST_BIN"; \
+        fi
 
 mochitest-robotium: robotium-id-map
 mochitest-robotium: DM_TRANS?=adb
 mochitest-robotium:
-	@if [ ! -f ${MOZ_HOST_BIN}/xpcshell ]; then \
-        echo "please prepare your host with the environment variable MOZ_HOST_BIN"; \
-    elif [ "${TEST_DEVICE}" = "" -a "$(DM_TRANS)" != "adb" ]; then \
-        echo "please prepare your host with the environment variable TEST_DEVICE"; \
-    else \
-        $(RUN_MOCHITEST_ROBOTIUM); \
-    fi
+	@if test -f ${MOZ_HOST_BIN}/xpcshell && [ "${TEST_DEVICE}" != "usb" -o "$(DM_TRANS)" = "adb" ]; \
+          then $(RUN_MOCHITEST_ROBOTIUM); \
+        else \
+          echo "please prepare your host with environment variables for TEST_DEVICE and MOZ_HOST_BIN"; \
+        fi
 
 mochitest-plain:
 	$(RUN_MOCHITEST)
@@ -176,15 +172,11 @@ reftest:
 reftest-remote: TEST_PATH?=layout/reftests/reftest.list
 reftest-remote: DM_TRANS?=adb
 reftest-remote:
-	@if [ ! -f ${MOZ_HOST_BIN}/xpcshell ]; then \
-        echo "please prepare your host with the environment variable MOZ_HOST_BIN"; \
-    elif [ "${TEST_DEVICE}" = "" -a "$(DM_TRANS)" != "adb" ]; then \
-        echo "please prepare your host with the environment variable TEST_DEVICE"; \
-    else \
-        ln -s $(abspath $(topsrcdir)) _tests/reftest/tests; \
-        $(call REMOTE_REFTEST,tests/$(TEST_PATH)); \
-        $(CHECK_TEST_ERROR); \
-    fi
+	@if test -f ${MOZ_HOST_BIN}/xpcshell && [ "${TEST_DEVICE}" != "" -o "$(DM_TRANS)" = "adb" ]; \
+	  then ln -s $(abspath $(topsrcdir)) _tests/reftest/tests;$(call REMOTE_REFTEST,tests/$(TEST_PATH)); $(CHECK_TEST_ERROR); \
+        else \
+          echo "please prepare your host with environment variables for TEST_DEVICE and MOZ_HOST_BIN"; \
+        fi
 
 reftest-ipc: TEST_PATH?=layout/reftests/reftest.list
 reftest-ipc:

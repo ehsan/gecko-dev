@@ -1273,8 +1273,7 @@ NS_METHOD nsWindow::IsVisible(bool & bState)
 // transparency. These routines are called on size and move operations.
 void nsWindow::ClearThemeRegion()
 {
-  if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION &&
-      !HasGlass() &&
+  if (nsUXThemeData::sIsVistaOrLater && !HasGlass() &&
       (mWindowType == eWindowType_popup && !IsPopupWithTitleBar() &&
        (mPopupType == ePopupTypeTooltip || mPopupType == ePopupTypePanel))) {
     SetWindowRgn(mWnd, NULL, false);
@@ -1288,8 +1287,7 @@ void nsWindow::SetThemeRegion()
   // so default constants are used for part and state. At some point we might need part and
   // state values from nsNativeThemeWin's GetThemePartAndState, but currently windows that
   // change shape based on state haven't come up.
-  if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION &&
-      !HasGlass() &&
+  if (nsUXThemeData::sIsVistaOrLater && !HasGlass() &&
       (mWindowType == eWindowType_popup && !IsPopupWithTitleBar() &&
        (mPopupType == ePopupTypeTooltip || mPopupType == ePopupTypePanel))) {
     HRGN hRgn = nsnull;
@@ -6359,7 +6357,7 @@ nsWindow::InitMouseWheelScrollData()
 
   if (!::SystemParametersInfo(SPI_GETWHEELSCROLLCHARS, 0,
                               &sMouseWheelScrollChars, 0)) {
-    NS_ASSERTION(WinUtils::GetWindowsVersion() < WinUtils::VISTA_VERSION,
+    NS_ASSERTION(!nsUXThemeData::sIsVistaOrLater,
                  "Failed to get SPI_GETWHEELSCROLLCHARS");
     sMouseWheelScrollChars = 1;
   } else if (sMouseWheelScrollChars > WHEEL_DELTA) {

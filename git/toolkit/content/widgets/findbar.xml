@@ -353,7 +353,7 @@
             return;
 
           var prefsvc =
-            aSubject.QueryInterface(Components.interfaces.nsIPrefBranch);
+            aSubject.QueryInterface(Components.interfaces.nsIPrefBranch2);
 
           switch (aPrefName) {
             case "accessibility.typeaheadfind":
@@ -382,7 +382,7 @@
 
         var prefsvc =
           Components.classes["@mozilla.org/preferences-service;1"]
-                    .getService(Components.interfaces.nsIPrefBranch);
+                    .getService(Components.interfaces.nsIPrefBranch2);
 
         this._quickFindTimeoutLength =
           prefsvc.getIntPref("accessibility.typeaheadfind.timeout");
@@ -442,7 +442,7 @@
 
           var prefsvc =
             Components.classes["@mozilla.org/preferences-service;1"]
-                      .getService(Components.interfaces.nsIPrefBranch);
+                      .getService(Components.interfaces.nsIPrefBranch2);
           prefsvc.removeObserver("accessibility.typeaheadfind",
                                  this._observer);
           prefsvc.removeObserver("accessibility.typeaheadfind.linksonly",
@@ -1100,7 +1100,7 @@
         <body><![CDATA[
           var prefsvc =
             Components.classes["@mozilla.org/preferences-service;1"]
-                      .getService(Components.interfaces.nsIPrefBranch);
+                      .getService(Components.interfaces.nsIPrefBranch2);
 
           // Just set the pref; our observer will change the find bar behavior
           prefsvc.setIntPref("accessibility.typeaheadfind.casesensitive",
@@ -1703,7 +1703,7 @@
         <body><![CDATA[
           var prefsvc =
             Components.classes["@mozilla.org/preferences-service;1"]
-                      .getService(Components.interfaces.nsIPrefBranch);
+                      .getService(Components.interfaces.nsIPrefBranch2);
           var userWantsPrefill = true;
           this.open(aMode);
 

@@ -69,6 +69,10 @@ nsUXThemeData::sDwmDLL = NULL;
 
 BOOL
 nsUXThemeData::sFlatMenus = FALSE;
+bool
+nsUXThemeData::sIsXPOrLater = false;
+bool
+nsUXThemeData::sIsVistaOrLater = false;
 
 bool nsUXThemeData::sTitlebarInfoPopulatedAero = false;
 bool nsUXThemeData::sTitlebarInfoPopulatedThemed = false;
@@ -117,6 +121,10 @@ nsUXThemeData::Initialize()
   ::ZeroMemory(sThemes, sizeof(sThemes));
   NS_ASSERTION(!sThemeDLL, "nsUXThemeData being initialized twice!");
 
+  WinUtils::WinVersion version = WinUtils::GetWindowsVersion();
+  sIsXPOrLater = version >= WinUtils::WINXP_VERSION;
+  sIsVistaOrLater = version >= WinUtils::VISTA_VERSION;
+
   if (GetThemeDLL()) {
     openTheme = (OpenThemeDataPtr)GetProcAddress(sThemeDLL, "OpenThemeData");
     closeTheme = (CloseThemeDataPtr)GetProcAddress(sThemeDLL, "CloseThemeData");
@@ -158,9 +166,17 @@ nsUXThemeData::Invalidate() {
       sThemes[i] = NULL;
     }
   }
-  BOOL useFlat = false;
-  sFlatMenus = ::SystemParametersInfo(SPI_GETFLATMENU, 0, &useFlat, 0) ?
-                   useFlat : false;
+  if (sIsXPOrLater) {
+    BOOL useFlat = false;
+    sFlatMenus = ::SystemParametersInfo(SPI_GETFLATMENU, 0, &useFlat, 0) ?
+                     useFlat : false;
+  } else {
+    // Contrary to Microsoft's documentation, SPI_GETFLATMENU will not fail
+    // on Windows 2000, and it is also possible (though unlikely) for WIN2K
+    // to be misconfigured in such a way that it would return true, so we
+    // shall give WIN2K special treatment
+    sFlatMenus = false;
+  }
 }
 
 HANDLE
@@ -177,7 +193,7 @@ nsUXThemeData::GetTheme(nsUXThemeClass cls) {
 
 HMODULE
 nsUXThemeData::GetThemeDLL() {
-  if (!sThemeDLL)
+  if (!sThemeDLL && sIsXPOrLater)
     sThemeDLL = ::LoadLibraryW(kThemeLibraryName);
   return sThemeDLL;
 }
@@ -185,7 +201,7 @@ nsUXThemeData::GetThemeDLL() {
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
 HMODULE
 nsUXThemeData::GetDwmDLL() {
-  if (!sDwmDLL && WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION)
+  if (!sDwmDLL && sIsVistaOrLater)
     sDwmDLL = ::LoadLibraryW(kDwmLibraryName);
   return sDwmDLL;
 }

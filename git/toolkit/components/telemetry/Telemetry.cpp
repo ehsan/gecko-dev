@@ -60,60 +60,6 @@ namespace {
 using namespace base;
 using namespace mozilla;
 
-template<class EntryType>
-class AutoHashtable : public nsTHashtable<EntryType>
-{
-public:
-  AutoHashtable(PRUint32 initSize = PL_DHASH_MIN_SIZE);
-  ~AutoHashtable();
-  typedef bool (*ReflectEntryFunc)(EntryType *entry, JSContext *cx, JSObject *obj);
-  bool ReflectHashtable(ReflectEntryFunc entryFunc, JSContext *cx, JSObject *obj);
-private:
-  struct EnumeratorArgs {
-    JSContext *cx;
-    JSObject *obj;
-    ReflectEntryFunc entryFunc;
-  };
-  static PLDHashOperator ReflectEntryStub(EntryType *entry, void *arg);
-};
-
-template<class EntryType>
-AutoHashtable<EntryType>::AutoHashtable(PRUint32 initSize)
-{
-  this->Init(initSize);
-}
-
-template<class EntryType>
-AutoHashtable<EntryType>::~AutoHashtable()
-{
-  this->Clear();
-}
-
-template<typename EntryType>
-PLDHashOperator
-AutoHashtable<EntryType>::ReflectEntryStub(EntryType *entry, void *arg)
-{
-  EnumeratorArgs *args = static_cast<EnumeratorArgs *>(arg);
-  if (!args->entryFunc(entry, args->cx, args->obj)) {
-    return PL_DHASH_STOP;
-  }
-  return PL_DHASH_NEXT;
-}
-
-/**
- * Reflect the individual entries of table into JS, usually by defining
- * some property and value of obj.  entryFunc is called for each entry.
- */
-template<typename EntryType>
-bool
-AutoHashtable<EntryType>::ReflectHashtable(ReflectEntryFunc entryFunc,
-                                           JSContext *cx, JSObject *obj)
-{
-  EnumeratorArgs args = { cx, obj, entryFunc };
-  PRUint32 num = this->EnumerateEntries(ReflectEntryStub, static_cast<void*>(&args));
-  return num == this->Count();
-}
-
 class TelemetryImpl : public nsITelemetry
 {
   NS_DECL_ISUPPORTS
@@ -137,8 +83,6 @@ public:
   typedef nsBaseHashtableET<nsCStringHashKey, StmtStats> SlowSQLEntryType;
 
 private:
-  static bool StatementReflector(SlowSQLEntryType *entry, JSContext *cx,
-                                 JSObject *obj);
   bool AddSQLInfo(JSContext *cx, JSObject *rootObj, bool mainThread);
 
   // Like GetHistogramById, but returns the underlying C++ object, not the JS one.
@@ -148,14 +92,12 @@ private:
   typedef StatisticsRecorder::Histograms::iterator HistogramIterator;
   // This is used for speedy string->Telemetry::ID conversions
   typedef nsBaseHashtableET<nsCharPtrHashKey, Telemetry::ID> CharPtrEntryType;
-  typedef AutoHashtable<CharPtrEntryType> HistogramMapType;
+  typedef nsTHashtable<CharPtrEntryType> HistogramMapType;
   HistogramMapType mHistogramMap;
   bool mCanRecord;
   static TelemetryImpl *sTelemetry;
-  AutoHashtable<SlowSQLEntryType> mSlowSQLOnMainThread;
-  AutoHashtable<SlowSQLEntryType> mSlowSQLOnOtherThread;
-  // This gets marked immutable in debug builds, so we can't use
-  // AutoHashtable here.
+  nsTHashtable<SlowSQLEntryType> mSlowSQLOnMainThread;
+  nsTHashtable<SlowSQLEntryType> mSlowSQLOnOtherThread;
   nsTHashtable<nsCStringHashKey> mTrackedDBs;
   Mutex mHashMutex;
 };
@@ -402,7 +344,6 @@ WrapAndReturnHistogram(Histogram *h, JSContext *cx, jsval *ret)
 }
 
 TelemetryImpl::TelemetryImpl():
-mHistogramMap(Telemetry::HistogramCount),
 mCanRecord(XRE_GetProcessType() == GeckoProcessType_Default),
 mHashMutex("Telemetry::mHashMutex")
 {
@@ -423,9 +364,16 @@ mHashMutex("Telemetry::mHashMutex")
   // Mark immutable to prevent asserts on simultaneous access from multiple threads
   mTrackedDBs.MarkImmutable();
 #endif
+
+  mSlowSQLOnMainThread.Init();
+  mSlowSQLOnOtherThread.Init();
+  mHistogramMap.Init(Telemetry::HistogramCount);
 }
 
 TelemetryImpl::~TelemetryImpl() {
+  mSlowSQLOnMainThread.Clear();
+  mSlowSQLOnOtherThread.Clear();
+  mHistogramMap.Clear();
 }
 
 NS_IMETHODIMP
@@ -439,22 +387,33 @@ TelemetryImpl::NewHistogram(const nsACString &name, PRUint32 min, PRUint32 max, 
   return WrapAndReturnHistogram(h, cx, ret);
 }
 
-bool
-TelemetryImpl::StatementReflector(SlowSQLEntryType *entry, JSContext *cx,
-                                  JSObject *obj)
+struct EnumeratorArgs {
+  JSContext *cx;
+  JSObject *statsObj;
+};
+
+PLDHashOperator
+StatementEnumerator(TelemetryImpl::SlowSQLEntryType *entry, void *arg)
 {
+  EnumeratorArgs *args = static_cast<EnumeratorArgs *>(arg);
   const nsACString &sql = entry->GetKey();
   jsval hitCount = UINT_TO_JSVAL(entry->mData.hitCount);
   jsval totalTime = UINT_TO_JSVAL(entry->mData.totalTime);
 
-  JSObject *arrayObj = JS_NewArrayObject(cx, 2, nsnull);
-  return (arrayObj
-          && JS_SetElement(cx, arrayObj, 0, &hitCount)
-          && JS_SetElement(cx, arrayObj, 1, &totalTime)
-          && JS_DefineProperty(cx, obj,
-                               sql.BeginReading(),
-                               OBJECT_TO_JSVAL(arrayObj),
-                               NULL, NULL, JSPROP_ENUMERATE));
+  JSObject *arrayObj = JS_NewArrayObject(args->cx, 2, nsnull);
+  if (!arrayObj ||
+      !JS_SetElement(args->cx, arrayObj, 0, &hitCount) ||
+      !JS_SetElement(args->cx, arrayObj, 1, &totalTime))
+    return PL_DHASH_STOP;
+
+  JSBool success = JS_DefineProperty(args->cx, args->statsObj,
+                                     sql.BeginReading(),
+                                     OBJECT_TO_JSVAL(arrayObj),
+                                     NULL, NULL, JSPROP_ENUMERATE);
+  if (!success)
+    return PL_DHASH_STOP;
+
+  return PL_DHASH_NEXT;
 }
 
 bool
@@ -471,10 +430,15 @@ TelemetryImpl::AddSQLInfo(JSContext *cx, JSObject *rootObj, bool mainThread)
   if (!ok)
     return false;
 
-  AutoHashtable<SlowSQLEntryType> &sqlMap = (mainThread
-                                             ? mSlowSQLOnMainThread
-                                             : mSlowSQLOnOtherThread);
-  return sqlMap.ReflectHashtable(StatementReflector, cx, statsObj);
+  EnumeratorArgs args = { cx, statsObj };
+  nsTHashtable<SlowSQLEntryType> *sqlMap;
+  sqlMap = (mainThread ? &mSlowSQLOnMainThread : &mSlowSQLOnOtherThread);
+  PRUint32 num = sqlMap->EnumerateEntries(StatementEnumerator,
+                                          static_cast<void*>(&args));
+  if (num != sqlMap->Count())
+    return false;
+
+  return true;
 }
 
 nsresult
@@ -767,7 +731,7 @@ TelemetryImpl::RecordSlowStatement(const nsACString &statement,
   if (!sTelemetry->mCanRecord || !sTelemetry->mTrackedDBs.GetEntry(dbName))
     return;
 
-  AutoHashtable<SlowSQLEntryType> *slowSQLMap = NULL;
+  nsTHashtable<SlowSQLEntryType> *slowSQLMap = NULL;
   if (NS_IsMainThread())
     slowSQLMap = &(sTelemetry->mSlowSQLOnMainThread);
   else

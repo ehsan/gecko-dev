@@ -53,7 +53,6 @@
 #       - EastAsianWidth.txt
 #       - BidiMirroring.txt
 #       - HangulSyllableType.txt
-#       - ReadMe.txt (to record version/date of the UCD)
 #     though this may change if we find a need for additional properties.
 #
 #     The Unicode data files should be together in a single directory.
@@ -61,42 +60,31 @@
 # (2) Run this tool using a command line of the form
 #
 #         perl genUnicodeScriptData.pl     \
-#                 /path/to/hb-common.h     \
-#                 /path/to/UCD-directory
+#                 /path/to/hb-unicode.h    \
+#                 /path/to/UCD-directory   \
+#             > gfxUnicodePropertyData.cpp
 #
-#     (where hb-common.h is found in the gfx/harfbuzz/src directory).
-#
-#     This will generate (or overwrite!) the files
-#
-#         gfxUnicodePropertyData.cpp
-#         gfxUnicodeScriptCodes.h
-#
-#     in the current directory.
+#     (where hb-unicode.h is found in the gfx/harfbuzz/src directory).
+
 
 use strict;
 
 # load HB_Script and HB_Category constants
-
-# NOTE that HB_SCRIPT_* constants are now "tag" values, NOT sequentially-allocated
-# script codes as used by Glib/Pango/etc.
-# We therefore define a set of MOZ_SCRIPT_* constants that are script _codes_
-# compatible with those libraries, and map these to HB_SCRIPT_* _tags_ as needed.
-
 my $sc = -1;
 my $cc = -1;
 my %scriptCode;
 my %catCode;
-my @scriptCodeToTag;
-my @scriptCodeToName;
 
 open FH, "< $ARGV[0]" or die "can't open $ARGV[0] (header file hb-unicode.h)\n";
 while (<FH>) {
-    if (m/HB_SCRIPT_([A-Z_]+)\s*=\s*HB_TAG\s*\(('.','.','.','.')\)\s*,/) {
-        $scriptCodeToTag[++$sc] = $2;
-        $scriptCodeToName[$sc] = $1;
+    if (m/HB_SCRIPT_([A-Z_]+)\s*=\s*(\d+)\s*,/) {
+        $sc = $2;
+        $scriptCode{$1} = $sc;
+    } elsif (m/HB_SCRIPT_([A-Z_]+)/) {
+        $sc++;
         $scriptCode{$1} = $sc;
     }
-    if (m/HB_UNICODE_GENERAL_CATEGORY_([A-Z_]+)/) {
+    if (m/HB_CATEGORY_([A-Z_]+)/) {
         $cc++;
         $catCode{$1} = $cc;
     }
@@ -127,7 +115,7 @@ my %ucd2hb = (
 'Lo' => 'OTHER_LETTER',
 'Lt' => 'TITLECASE_LETTER',
 'Lu' => 'UPPERCASE_LETTER',
-'Mc' => 'SPACING_MARK',
+'Mc' => 'COMBINING_MARK',
 'Me' => 'ENCLOSING_MARK',
 'Mn' => 'NON_SPACING_MARK',
 'Nd' => 'DECIMAL_NUMBER',
@@ -148,15 +136,6 @@ my %ucd2hb = (
 'Zp' => 'PARAGRAPH_SEPARATOR',
 'Zs' => 'SPACE_SEPARATOR'
 );
-
-# read ReadMe.txt
-my @versionInfo;
-open FH, "< $ARGV[1]/ReadMe.txt" or die "can't open Unicode ReadMe.txt file\n";
-while (<FH>) {
-    chomp;
-    push @versionInfo, $_;
-}
-close FH;
 
 # read UnicodeData.txt
 open FH, "< $ARGV[1]/UnicodeData.txt" or die "can't open UCD file UnicodeData.txt\n";
@@ -186,12 +165,6 @@ close FH;
 
 # read Scripts.txt
 open FH, "< $ARGV[1]/Scripts.txt" or die "can't open UCD file Scripts.txt\n";
-push @versionInfo, "";
-while (<FH>) {
-    chomp;
-    push @versionInfo, $_;
-    last if /Date:/;
-}
 while (<FH>) {
     if (m/([0-9A-F]{4,6})(?:\.\.([0-9A-F]{4,6}))*\s+;\s+([^ ]+)/) {
         my $script = uc($3);
@@ -216,12 +189,6 @@ my %eawCode = (
   'W' => 5  #         ; Wide 
 );
 open FH, "< $ARGV[1]/EastAsianWidth.txt" or die "can't open UCD file EastAsianWidth.txt\n";
-push @versionInfo, "";
-while (<FH>) {
-    chomp;
-    push @versionInfo, $_;
-    last if /Date:/;
-}
 while (<FH>) {
     s/#.*//;
     if (m/([0-9A-F]{4,6})(?:\.\.([0-9A-F]{4,6}))*\s*;\s*([^ ]+)/) {
@@ -241,12 +208,6 @@ close FH;
 my @distantMirrors = ();
 my $smallMirrorOffset = 64;
 open FH, "< $ARGV[1]/BidiMirroring.txt" or die "can't open UCD file BidiMirroring.txt\n";
-push @versionInfo, "";
-while (<FH>) {
-    chomp;
-    push @versionInfo, $_;
-    last if /Date:/;
-}
 while (<FH>) {
     s/#.*//;
     if (m/([0-9A-F]{4,6});\s*([0-9A-F]{4,6})/) {
@@ -271,12 +232,6 @@ my %hangulType = (
   'LVT' => 0x07
 );
 open FH, "< $ARGV[1]/HangulSyllableType.txt" or die "can't open UCD file HangulSyllableType.txt\n";
-push @versionInfo, "";
-while (<FH>) {
-    chomp;
-    push @versionInfo, $_;
-    last if /Date:/;
-}
 while (<FH>) {
     s/#.*//;
     if (m/([0-9A-F]{4,6})(?:\.\.([0-9A-F]{4,6}))*\s*;\s*([^ ]+)/) {
@@ -293,10 +248,7 @@ while (<FH>) {
 close FH;
 
 my $timestamp = gmtime();
-
-open DATA_TABLES, "> gfxUnicodePropertyData.cpp" or die "unable to open gfxUnicodePropertyData.cpp for output";
-
-my $licenseBlock = q[
+print <<__END;
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -318,7 +270,7 @@ my $licenseBlock = q[
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Jonathan Kew <jfkthame@gmail.com>
+ *   Jonathan Kew <jfkthame\@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -337,33 +289,14 @@ my $licenseBlock = q[
  * For Unicode terms of use, see http://www.unicode.org/terms_of_use.html
  *
  * ***** END LICENSE BLOCK ***** */
-];
 
-my $versionInfo = join("\n", @versionInfo);
-
-print DATA_TABLES <<__END;
-$licenseBlock
 /*
- * Created on $timestamp from UCD data files with version info:
- *
-
-$versionInfo
-
+ * Created on $timestamp.
  *
  * * * * * This file contains MACHINE-GENERATED DATA, do not edit! * * * * *
  */
 
-#include "mozilla/StdInt.h"
-#include "harfbuzz/hb-common.h"
-
 __END
-
-print DATA_TABLES "static const PRUint32 sScriptCodeToTag[] = {\n";
-for (my $i = 0; $i < scalar @scriptCodeToTag; ++$i) {
-  printf DATA_TABLES "  HB_TAG(%s)", $scriptCodeToTag[$i];
-  print DATA_TABLES $i < $#scriptCodeToTag ? ",\n" : "\n";
-}
-print DATA_TABLES "};\n\n";
 
 sub sprintScript
 {
@@ -379,13 +312,13 @@ sub sprintCC
 }
 &genTables("CClass", "PRUint8", 10, 6, \&sprintCC, 1);
 
-print DATA_TABLES "static const PRInt32 kSmallMirrorOffset = $smallMirrorOffset;\n";
-print DATA_TABLES "static const PRUint16 sDistantMirrors[] = {\n";
+print "static const PRInt32 kSmallMirrorOffset = $smallMirrorOffset;\n";
+print "static const PRUint16 sDistantMirrors[] = {\n";
 for (my $i = 0; $i < scalar @distantMirrors; ++$i) {
-    printf DATA_TABLES "  0x%04X", $distantMirrors[$i];
-    print DATA_TABLES $i < $#distantMirrors ? ",\n" : "\n";
+    printf "  0x%04X", $distantMirrors[$i];
+    print $i < $#distantMirrors ? ",\n" : "\n";
 }
-print DATA_TABLES "};\n\n";
+print "};\n\n";
 
 sub sprintMirror
 {
@@ -413,8 +346,8 @@ sub genTables
 {
   my ($prefix, $type, $indexBits, $charBits, $func, $smp) = @_;
 
-  print DATA_TABLES "#define k${prefix}IndexBits $indexBits\n";
-  print DATA_TABLES "#define k${prefix}CharBits  $charBits\n";
+  print "#define k${prefix}IndexBits $indexBits\n";
+  print "#define k${prefix}CharBits  $charBits\n";
 
   my $indexLen = 1 << $indexBits;
   my $dataLen = 1 << $charBits;
@@ -451,72 +384,36 @@ sub genTables
   }
 
   if ($smp) {
-    print DATA_TABLES "static const PRUint8 s${prefix}Planes[16] = {";
-    print DATA_TABLES join(',', map { sprintf("%d", $_) } unpack('C*', $planeMap));
-    print DATA_TABLES "};\n\n";
+    print "static const PRUint8 s${prefix}Planes[16] = {";
+    print join(',', map { sprintf("%d", $_) } unpack('C*', $planeMap));
+    print "};\n\n";
   }
 
   my $chCount = scalar @char;
   my $pmBits = $chCount > 255 ? 16 : 8;
   my $pmCount = scalar @pageMap;
-  print DATA_TABLES "static const PRUint${pmBits} s${prefix}Pages[$pmCount][$indexLen] = {\n";
+  print "static const PRUint${pmBits} s${prefix}Pages[$pmCount][$indexLen] = {\n";
   for (my $i = 0; $i < scalar @pageMap; ++$i) {
-    print DATA_TABLES "  {";
-    print DATA_TABLES join(',', map { sprintf("%d", $_) } unpack('S*', $pageMap[$i]));
-    print DATA_TABLES $i < $#pageMap ? "},\n" : "}\n";
+    print "  {";
+    print join(',', map { sprintf("%d", $_) } unpack('S*', $pageMap[$i]));
+    print $i < $#pageMap ? "},\n" : "}\n";
   }
-  print DATA_TABLES "};\n\n";
+  print "};\n\n";
 
-  print DATA_TABLES "static const $type s${prefix}Values[$chCount][$dataLen] = {\n";
+  print "static const $type s${prefix}Values[$chCount][$dataLen] = {\n";
   for (my $i = 0; $i < scalar @char; ++$i) {
-    print DATA_TABLES "  {";
-    print DATA_TABLES $char[$i];
-    print DATA_TABLES $i < $#char ? "},\n" : "}\n";
+    print "  {";
+    print $char[$i];
+    print $i < $#char ? "},\n" : "}\n";
   }
-  print DATA_TABLES "};\n\n";
+  print "};\n\n";
 
   print STDERR "Data for $prefix = ", $pmCount*$indexLen*$pmBits/8 + $chCount*$dataLen + 16, "\n";
 }
 
-print DATA_TABLES <<__END;
+print <<__END;
 /*
  * * * * * This file contains MACHINE-GENERATED DATA, do not edit! * * * * *
  */
 __END
-
-close DATA_TABLES;
-
-open HEADER, "> gfxUnicodeScriptCodes.h" or die "unable to open gfxUnicodeScriptCodes.h for output";
-
-print HEADER <<__END;
-$licenseBlock
-/*
- * Created on $timestamp from UCD data files with version info:
- *
-
-$versionInfo
-
- *
- * * * * * This file contains MACHINE-GENERATED DATA, do not edit! * * * * *
- */
-
-#ifndef GFX_UNICODE_SCRIPT_CODES
-#define GFX_UNICODE_SCRIPT_CODES
-__END
-
-print HEADER "enum {\n";
-for (my $i = 0; $i < scalar @scriptCodeToName; ++$i) {
-  print HEADER "  MOZ_SCRIPT_", $scriptCodeToName[$i], " = ", $i, ",\n";
-}
-print HEADER "  MOZ_SCRIPT_INVALID = -1\n";
-print HEADER "};\n\n";
-
-print HEADER <<__END;
-#endif
-/*
- * * * * * This file contains MACHINE-GENERATED DATA, do not edit! * * * * *
- */
-__END
-
-close HEADER;
 

@@ -46,9 +46,6 @@
 #include "nsStyleConsts.h"
 #include "nsUXThemeData.h"
 #include "nsUXThemeConstants.h"
-#include "WinUtils.h"
-
-using namespace mozilla::widget;
 
 typedef UINT (CALLBACK *SHAppBarMessagePtr)(DWORD, PAPPBARDATA);
 SHAppBarMessagePtr gSHAppBarMessage = NULL;
@@ -202,8 +199,7 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
       idx = COLOR_HIGHLIGHT;
       break;
     case eColorID__moz_menubarhovertext:
-      if (WinUtils::GetWindowsVersion() < WinUtils::VISTA_VERSION ||
-          !nsUXThemeData::isAppThemed())
+      if (!nsUXThemeData::sIsVistaOrLater || !nsUXThemeData::isAppThemed())
       {
         idx = nsUXThemeData::sFlatMenus ?
                 COLOR_HIGHLIGHTTEXT :
@@ -212,8 +208,7 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
       }
       // Fall through
     case eColorID__moz_menuhovertext:
-      if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION &&
-          nsUXThemeData::IsAppThemed())
+      if (nsUXThemeData::IsAppThemed() && nsUXThemeData::sIsVistaOrLater)
       {
         res = ::GetColorFromTheme(eUXMenu,
                                   MENU_POPUPITEM, MPI_HOT, TMT_TEXTCOLOR, aColor);
@@ -289,8 +284,7 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
       idx = COLOR_3DFACE;
       break;
     case eColorID__moz_win_mediatext:
-      if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION &&
-          nsUXThemeData::IsAppThemed()) {
+      if (nsUXThemeData::IsAppThemed() && nsUXThemeData::sIsVistaOrLater) {
         res = ::GetColorFromTheme(eUXMediaToolbar,
                                   TP_BUTTON, TS_NORMAL, TMT_TEXTCOLOR, aColor);
         if (NS_SUCCEEDED(res))
@@ -300,8 +294,7 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
       idx = COLOR_WINDOWTEXT;
       break;
     case eColorID__moz_win_communicationstext:
-      if (WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION &&
-          nsUXThemeData::IsAppThemed())
+      if (nsUXThemeData::IsAppThemed() && nsUXThemeData::sIsVistaOrLater)
       {
         res = ::GetColorFromTheme(eUXCommunicationsToolbar,
                                   TP_BUTTON, TS_NORMAL, TMT_TEXTCOLOR, aColor);
@@ -526,5 +519,11 @@ PRUnichar
 nsLookAndFeel::GetPasswordCharacterImpl()
 {
 #define UNICODE_BLACK_CIRCLE_CHAR 0x25cf
-  return UNICODE_BLACK_CIRCLE_CHAR;
+  static PRUnichar passwordCharacter = 0;
+  if (!passwordCharacter) {
+    passwordCharacter = '*';
+    if (nsUXThemeData::sIsXPOrLater)
+      passwordCharacter = UNICODE_BLACK_CIRCLE_CHAR;
+  }
+  return passwordCharacter;
 }

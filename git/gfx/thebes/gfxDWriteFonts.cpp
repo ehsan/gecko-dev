@@ -686,7 +686,7 @@ gfxDWriteFont::GetFontTable(PRUint32 aTag)
         FontTableRec *ftr = new FontTableRec(mFontFace, context);
         return hb_blob_create(static_cast<const char*>(data), size,
                               HB_MEMORY_MODE_READONLY,
-                              ftr, DestroyBlobFunc);
+                              DestroyBlobFunc, ftr);
     }
 
     if (mFontEntry->IsUserFont() && !mFontEntry->IsLocalUserFont()) {

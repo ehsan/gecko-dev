@@ -245,7 +245,6 @@ public:
     // containers.
     gfxMatrix residual;
     gfx3DMatrix idealTransform = GetLocalTransform()*aTransformToSurface;
-    idealTransform.ProjectTo2D();
 
     if (!idealTransform.CanDraw2D()) {
       mEffectiveTransform = idealTransform;
@@ -2941,7 +2940,6 @@ public:
     // containers.
     gfxMatrix residual;
     gfx3DMatrix idealTransform = GetLocalTransform()*aTransformToSurface;
-    idealTransform.ProjectTo2D();
 
     if (!idealTransform.CanDraw2D()) {
       mEffectiveTransform = idealTransform;

@@ -215,10 +215,6 @@ Tester.prototype = {
   },
 
   observe: function Tester_observe(aConsoleMessage) {
-    // Ignore empty messages.
-    if (!aConsoleMessage.message)
-      return;
-
     try {
       var msg = "Console message: " + aConsoleMessage.message;
       if (this.currentTest)

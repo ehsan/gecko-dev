@@ -467,9 +467,10 @@ public class GeckoSoftwareLayerClient extends LayerClient implements GeckoEventL
         }
 
         Log.i(LOGTAG, "Screen-size changed to " + mScreenSize);
-        GeckoEvent event = GeckoEvent.createSizeChangedEvent(
-            bufferSize.width, bufferSize.height, metrics.widthPixels, 
-            metrics.heightPixels, tileSize.width, tileSize.height);
+        GeckoEvent event = new GeckoEvent(GeckoEvent.SIZE_CHANGED,
+                                          bufferSize.width, bufferSize.height,
+                                          metrics.widthPixels, metrics.heightPixels,
+                                          tileSize.width, tileSize.height);
         GeckoAppShell.sendEventToGecko(event);
     }
 
@@ -514,7 +515,7 @@ public class GeckoSoftwareLayerClient extends LayerClient implements GeckoEventL
         viewportMetrics.setViewportOffset(viewportOffset);
         viewportMetrics.setViewport(viewportMetrics.getClampedViewport());
 
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createViewportEvent(viewportMetrics));
+        GeckoAppShell.sendEventToGecko(new GeckoEvent(viewportMetrics));
         if (mViewportSizeChanged) {
             mViewportSizeChanged = false;
             GeckoAppShell.viewSizeChanged();
@@ -529,7 +530,7 @@ public class GeckoSoftwareLayerClient extends LayerClient implements GeckoEventL
 
             // Redraw everything.
             Rect rect = new Rect(0, 0, mBufferSize.width, mBufferSize.height);
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createDrawEvent(rect));
+            GeckoAppShell.sendEventToGecko(new GeckoEvent(GeckoEvent.DRAW, rect));
         } else if ("Viewport:UpdateLater".equals(event)) {
             mUpdateViewportOnEndDraw = true;
         } else if ("Checkerboard:Toggle".equals(event)) {

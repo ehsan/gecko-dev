@@ -60,6 +60,7 @@ public:
 
   virtual TemporaryRef<Path> GetPathForGlyphs(const GlyphBuffer &aBuffer, const DrawTarget *aTarget);
 #ifdef USE_SKIA
+  ScaledFontBase(gfxFont* aFont, Float aSize);
   virtual SkTypeface* GetSkTypeface() { return mTypeface; }
 #endif
 
