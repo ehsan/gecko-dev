@@ -168,7 +168,7 @@ public:
   NS_DECL_NSIDOMNSHTMLDOCUMENT
 
   virtual nsresult ResolveName(const nsAString& aName,
-                               nsIContent *aForm,
+                               nsIDOMHTMLFormElement *aForm,
                                nsISupports **aResult,
                                nsWrapperCache **aCache);
 

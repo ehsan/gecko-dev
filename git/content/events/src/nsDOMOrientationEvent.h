@@ -37,20 +37,19 @@
 #ifndef nsDOMOrientationEvent_h__
 #define nsDOMOrientationEvent_h__
 
-#include "nsIDOMDeviceOrientationEvent.h"
+#include "nsIDOMOrientationEvent.h"
 #include "nsDOMEvent.h"
 
 class nsDOMOrientationEvent : public nsDOMEvent,
-                              public nsIDOMDeviceOrientationEvent
+                              public nsIDOMOrientationEvent
 {
 public:
 
   nsDOMOrientationEvent(nsPresContext* aPresContext, nsEvent* aEvent)
   : nsDOMEvent(aPresContext, aEvent),
-    mAlpha(0),
-    mBeta(0),
-    mGamma(0),
-    mAbsolute(PR_TRUE) {}
+    mX(0),
+    mY(0),
+    mZ(0) {}
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -58,11 +57,10 @@ public:
   NS_FORWARD_TO_NSDOMEVENT
 
   // nsIDOMOrientationEvent Interface
-  NS_DECL_NSIDOMDEVICEORIENTATIONEVENT
+  NS_DECL_NSIDOMORIENTATIONEVENT
 
 protected:
-  double mAlpha, mBeta, mGamma;
-  PRBool mAbsolute;
+  double mX, mY, mZ;
 };
 
 #endif

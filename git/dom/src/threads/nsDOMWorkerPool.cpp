@@ -67,7 +67,7 @@ nsDOMWorkerPool::nsDOMWorkerPool(nsIScriptGlobalObject* aGlobalObject,
                                  nsIDocument* aDocument)
 : mParentGlobal(aGlobalObject),
   mParentDocument(aDocument),
-  mReentrantMonitor("nsDOMWorkerPool.mReentrantMonitor"),
+  mMonitor("nsDOMWorkerPool.mMonitor"),
   mCanceled(PR_FALSE),
   mSuspended(PR_FALSE),
   mWindowID(aDocument ? aDocument->OuterWindowID() : 0)
@@ -110,7 +110,7 @@ nsDOMWorkerPool::NoteWorker(nsDOMWorker* aWorker)
   PRBool suspendWorker;
 
   {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
 
     if (mCanceled) {
       return NS_ERROR_ABORT;
@@ -137,7 +137,7 @@ nsDOMWorkerPool::NoteDyingWorker(nsDOMWorker* aWorker)
   PRBool removeFromThreadService = PR_FALSE;
 
   {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
 
     NS_ASSERTION(mWorkers.Contains(aWorker), "Worker from a different pool?!");
     mWorkers.RemoveElement(aWorker);
@@ -156,7 +156,7 @@ nsDOMWorkerPool::NoteDyingWorker(nsDOMWorker* aWorker)
 void
 nsDOMWorkerPool::GetWorkers(nsTArray<nsDOMWorker*>& aArray)
 {
-  mReentrantMonitor.AssertCurrentThreadIn();
+  mMonitor.AssertCurrentThreadIn();
   NS_ASSERTION(!aArray.Length(), "Should be empty!");
 
 #ifdef DEBUG
@@ -174,7 +174,7 @@ nsDOMWorkerPool::Cancel()
 
   nsAutoTArray<nsDOMWorker*, 10> workers;
   {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
 
     mCanceled = PR_TRUE;
 
@@ -186,7 +186,7 @@ nsDOMWorkerPool::Cancel()
     for (PRUint32 index = 0; index < count; index++) {
       workers[index]->Cancel();
     }
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     mon.NotifyAll();
   }
 }
@@ -198,7 +198,7 @@ nsDOMWorkerPool::Suspend()
 
   nsAutoTArray<nsDOMWorker*, 10> workers;
   {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
 
     NS_ASSERTION(!mSuspended, "Suspended more than once!");
     mSuspended = PR_TRUE;
@@ -219,7 +219,7 @@ nsDOMWorkerPool::Resume()
 
   nsAutoTArray<nsDOMWorker*, 10> workers;
   {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
 
     NS_ASSERTION(mSuspended, "Not suspended!");
     mSuspended = PR_FALSE;
@@ -232,7 +232,7 @@ nsDOMWorkerPool::Resume()
     for (PRUint32 index = 0; index < count; index++) {
       workers[index]->Resume();
     }
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     mon.NotifyAll();
   }
 }

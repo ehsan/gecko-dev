@@ -75,6 +75,8 @@
 #include "nsDOMAttribute.h"
 #include "nsIDOMDOMStringList.h"
 #include "nsIDOMDOMImplementation.h"
+#include "nsIDOMDocumentView.h"
+#include "nsIDOMAbstractView.h"
 #include "nsIDOMDocumentXBL.h"
 #include "mozilla/FunctionTimer.h"
 #include "nsGenericElement.h"
@@ -213,7 +215,7 @@ static PRLogModuleInfo* gDocumentLeakPRLog;
 static PRLogModuleInfo* gCspPRLog;
 #endif
 
-#define NAME_NOT_VALID ((nsSimpleContentList*)1)
+#define NAME_NOT_VALID ((nsBaseContentList*)1)
 
 nsIdentifierMapEntry::~nsIdentifierMapEntry()
 {
@@ -421,10 +423,10 @@ nsIdentifierMapEntry::SetImageElement(Element* aElement)
 }
 
 void
-nsIdentifierMapEntry::AddNameElement(nsIDocument* aDocument, Element* aElement)
+nsIdentifierMapEntry::AddNameElement(Element* aElement)
 {
   if (!mNameContentList) {
-    mNameContentList = new nsSimpleContentList(aDocument);
+    mNameContentList = new nsBaseContentList();
   }
 
   mNameContentList->AppendElement(aElement);
@@ -1594,12 +1596,6 @@ nsDocument::~nsDocument()
     mStyleSheetSetList->Disconnect();
   }
 
-#ifdef MOZ_SMIL
-  if (mAnimationController) {
-    mAnimationController->Disconnect();
-  }
-#endif // MOZ_SMIL
-
   mParentDocument = nsnull;
 
   // Kill the subdocument map, doing this will release its strong
@@ -2563,7 +2559,7 @@ nsDocument::AddToNameTable(Element *aElement, nsIAtom* aName)
 
   // Null for out-of-memory
   if (entry) {
-    entry->AddNameElement(this, aElement);
+    entry->AddNameElement(aElement);
   }
 }
 
@@ -2850,7 +2846,7 @@ nsDocument::NodesFromRectHelper(float aX, float aY,
 {
   NS_ENSURE_ARG_POINTER(aReturn);
   
-  nsSimpleContentList* elements = new nsSimpleContentList(this);
+  nsBaseContentList* elements = new nsBaseContentList();
   NS_ADDREF(elements);
   *aReturn = elements;
 
@@ -5075,14 +5071,16 @@ nsDocument::CreateTreeWalker(nsIDOMNode *aRoot,
 
 
 NS_IMETHODIMP
-nsDocument::GetDefaultView(nsIDOMWindow** aDefaultView)
+nsDocument::GetDefaultView(nsIDOMAbstractView** aDefaultView)
 {
-  *aDefaultView = nsnull;
   nsPIDOMWindow* win = GetWindow();
-  if (!win) {
-    return NS_OK;
+  if (win) {
+    return CallQueryInterface(win, aDefaultView);
   }
-  return CallQueryInterface(win, aDefaultView);
+
+  *aDefaultView = nsnull;
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -5529,7 +5527,7 @@ nsDocument::GetAnimationController()
   if (!NS_SMILEnabled() || mLoadedAsData || mLoadedAsInteractiveData)
     return nsnull;
 
-  mAnimationController = new nsSMILAnimationController(this);
+  mAnimationController = NS_NewSMILAnimationController(this);
   
   // If there's a presContext then check the animation mode and pause if
   // necessary.
@@ -8327,7 +8325,7 @@ nsDocument::SetImagesNeedAnimating(PRBool aAnimating)
 }
 
 NS_IMETHODIMP
-nsDocument::CreateTouch(nsIDOMWindow* aView,
+nsDocument::CreateTouch(nsIDOMAbstractView* aView,
                         nsIDOMEventTarget* aTarget,
                         PRInt32 aIdentifier,
                         PRInt32 aPageX,
@@ -8340,21 +8338,21 @@ nsDocument::CreateTouch(nsIDOMWindow* aView,
                         PRInt32 aRadiusY,
                         float aRotationAngle,
                         float aForce,
-                        nsIDOMTouch** aRetVal)
+                        nsIDOMTouchPoint** aRetVal)
 {
-  NS_ADDREF(*aRetVal = new nsDOMTouch(aTarget,
-                                      aIdentifier,
-                                      aPageX,
-                                      aPageY,
-                                      aScreenX,
-                                      aScreenY,
-                                      aClientX,
-                                      aClientY,
-                                      aRadiusX,
-                                      aRadiusY,
-                                      aRotationAngle,
-                                      aForce));
-  return NS_OK;
+  NS_ADDREF(*aRetVal = new nsDOMTouchPoint(aTarget,
+                                           aIdentifier,
+                                           aPageX,
+                                           aPageY,
+                                           aScreenX,
+                                           aScreenY,
+                                           aClientX,
+                                           aClientY,
+                                           aRadiusX,
+                                           aRadiusY,
+                                           aRotationAngle,
+                                           aForce));
+  return NS_OK;;
 }
 
 NS_IMETHODIMP
@@ -8369,7 +8367,7 @@ nsDocument::CreateTouchList(nsIVariant* aPoints,
         type == nsIDataType::VTYPE_INTERFACE_IS) {
       nsCOMPtr<nsISupports> data;
       aPoints->GetAsISupports(getter_AddRefs(data));
-      nsCOMPtr<nsIDOMTouch> point = do_QueryInterface(data);
+      nsCOMPtr<nsIDOMTouchPoint> point = do_QueryInterface(data);
       if (point) {
         retval->Append(point);
       }
@@ -8384,7 +8382,7 @@ nsDocument::CreateTouchList(nsIVariant* aPoints,
         nsISupports** values = static_cast<nsISupports**>(rawArray);
         for (PRUint32 i = 0; i < valueCount; ++i) {
           nsCOMPtr<nsISupports> supports = dont_AddRef(values[i]);
-          nsCOMPtr<nsIDOMTouch> point = do_QueryInterface(supports);
+          nsCOMPtr<nsIDOMTouchPoint> point = do_QueryInterface(supports);
           if (point) {
             retval->Append(point);
           }

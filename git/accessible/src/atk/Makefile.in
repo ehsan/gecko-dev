@@ -48,7 +48,6 @@ LIBXUL_LIBRARY = 1
 
 
 CPPSRCS = \
-  AtkSocketAccessible.cpp \
   nsAccessNodeWrap.cpp \
   nsAccessibleWrap.cpp \
   nsDocAccessibleWrap.cpp \
@@ -69,7 +68,6 @@ CPPSRCS = \
   $(NULL)
 
 EXPORTS = \
-  AtkSocketAccessible.h \
   nsAccessNodeWrap.h \
   nsARIAGridAccessibleWrap.h \
   nsAccessibleWrap.h \

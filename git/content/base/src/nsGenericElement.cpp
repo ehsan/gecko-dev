@@ -92,6 +92,7 @@
 
 #include "nsBindingManager.h"
 #include "nsXBLBinding.h"
+#include "nsIDOMViewCSS.h"
 #include "nsIXBLService.h"
 #include "nsPIDOMWindow.h"
 #include "nsIBoxObject.h"
@@ -2282,15 +2283,18 @@ nsGenericElement::InternalIsSupported(nsISupports* aObject,
         PL_strcmp(v, "3.0") == 0) {
       *aReturn = PR_TRUE;
     }
-  } else if (PL_strcasecmp(f, "SVGEvents") == 0 ||
-             PL_strcasecmp(f, "SVGZoomEvents") == 0 ||
-             nsSVGFeatures::HaveFeature(aObject, aFeature)) {
+  }
+#ifdef MOZ_SVG
+  else if (PL_strcasecmp(f, "SVGEvents") == 0 ||
+           PL_strcasecmp(f, "SVGZoomEvents") == 0 ||
+           nsSVGFeatures::HaveFeature(aFeature)) {
     if (aVersion.IsEmpty() ||
         PL_strcmp(v, "1.0") == 0 ||
         PL_strcmp(v, "1.1") == 0) {
       *aReturn = PR_TRUE;
     }
   }
+#endif /* MOZ_SVG */
 #ifdef MOZ_SMIL
   else if (NS_SMILEnabled() && PL_strcasecmp(f, "TimeControl") == 0) {
     if (aVersion.IsEmpty() || PL_strcmp(v, "1.0") == 0) {
@@ -3075,7 +3079,7 @@ nsGenericElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 already_AddRefed<nsINodeList>
 nsGenericElement::GetChildren(PRUint32 aFilter)
 {
-  nsRefPtr<nsSimpleContentList> list = new nsSimpleContentList(this);
+  nsRefPtr<nsBaseContentList> list = new nsBaseContentList();
   if (!list) {
     return nsnull;
   }
@@ -5524,7 +5528,7 @@ nsGenericElement::doQuerySelectorAll(nsINode* aRoot,
 {
   NS_PRECONDITION(aReturn, "Null out param?");
 
-  nsSimpleContentList* contentList = new nsSimpleContentList(aRoot);
+  nsBaseContentList* contentList = new nsBaseContentList();
   NS_ENSURE_TRUE(contentList, NS_ERROR_OUT_OF_MEMORY);
   NS_ADDREF(*aReturn = contentList);
   

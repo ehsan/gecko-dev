@@ -142,16 +142,20 @@ already_AddRefed<gfxFlattenedPath>
 nsSVGTextPathFrame::GetFlattenedPath()
 {
   nsIFrame *path = GetPathFrame();
-
-  if (path) {
-    nsSVGPathGeometryElement *element =
-      static_cast<nsSVGPathGeometryElement*>(path->GetContent());
-
-    return element->GetFlattenedPath(element->PrependLocalTransformTo(gfxMatrix()));
-  }
-  return nsnull;
+  return path ? GetFlattenedPath(path) : nsnull;
 }
  
+already_AddRefed<gfxFlattenedPath>
+nsSVGTextPathFrame::GetFlattenedPath(nsIFrame *path)
+{
+  NS_PRECONDITION(path, "Unexpected null path");
+
+  nsSVGPathGeometryElement *element =
+    static_cast<nsSVGPathGeometryElement*>(path->GetContent());
+
+  return element->GetFlattenedPath(element->PrependLocalTransformTo(gfxMatrix()));
+}
+
 gfxFloat
 nsSVGTextPathFrame::GetStartOffset()
 {
@@ -165,8 +169,9 @@ nsSVGTextPathFrame::GetStartOffset()
   if (length->IsPercentage()) {
     nsRefPtr<gfxFlattenedPath> data = GetFlattenedPath();
     return data ? (val * data->GetLength() / 100.0) : 0.0;
+  } else {
+    return val * GetPathScale();
   }
-  return val * GetPathScale();
 }
 
 gfxFloat
@@ -176,7 +181,14 @@ nsSVGTextPathFrame::GetPathScale()
   if (!pathFrame)
     return 1.0;
 
-  return static_cast<nsSVGPathElement*>(pathFrame->GetContent())->GetScale();
+  nsSVGPathElement *path = static_cast<nsSVGPathElement*>(pathFrame->GetContent());
+  float pl = path->mPathLength.GetAnimValue();
+
+  if (pl == 0.0f)
+    return 1.0;
+
+  nsRefPtr<gfxFlattenedPath> data = GetFlattenedPath(pathFrame);
+  return data ? data->GetLength() / pl : 1.0; 
 }
 
 //----------------------------------------------------------------------

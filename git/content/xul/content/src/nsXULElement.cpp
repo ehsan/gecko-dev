@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -118,6 +119,7 @@
 #include "nsXULDocument.h"
 #include "nsXULPopupListener.h"
 #include "nsRuleWalker.h"
+#include "nsIDOMViewCSS.h"
 #include "nsIDOMCSSStyleDeclaration.h"
 #include "nsCSSParser.h"
 #include "nsIListBoxObject.h"
@@ -2590,8 +2592,7 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_NATIVE_BEGIN(nsXULPrototypeNode)
             for (i = 0; i < elem->mNumAttributes; ++i) {
                 void *handler = elem->mAttributes[i].mEventHandler;
                 NS_IMPL_CYCLE_COLLECTION_TRACE_CALLBACK(elem->mScriptTypeID,
-                                                        handler,
-                                                        "mAttributes[i].mEventHandler")
+                                                        handler)
             }
         }
     }
@@ -2599,8 +2600,7 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_NATIVE_BEGIN(nsXULPrototypeNode)
         nsXULPrototypeScript *script =
             static_cast<nsXULPrototypeScript*>(tmp);
         NS_IMPL_CYCLE_COLLECTION_TRACE_CALLBACK(script->mScriptObject.mLangID,
-                                                script->mScriptObject.mObject,
-                                                "mScriptObject.mObject")
+                                                script->mScriptObject.mObject)
     }
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(nsXULPrototypeNode, AddRef)

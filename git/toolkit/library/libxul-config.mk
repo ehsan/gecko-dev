@@ -41,7 +41,7 @@ CPPSRCS += \
 	nsStaticXULComponents.cpp \
 	$(NULL)
 
-ifeq ($(OS_ARCH),WINNT)
+ifeq (,$(filter-out WINCE WINNT,$(OS_ARCH)))
 REQUIRES += widget gfx
 CPPSRCS += \
 	nsDllMain.cpp \
@@ -115,8 +115,13 @@ STATIC_LIBS += \
 	xpcom_core \
 	ucvutil_s \
 	chromium_s \
+	$(NULL)
+
+ifndef WINCE
+STATIC_LIBS += \
 	mozreg_s \
 	$(NULL)
+endif
 
 # component libraries
 COMPONENT_LIBS += \

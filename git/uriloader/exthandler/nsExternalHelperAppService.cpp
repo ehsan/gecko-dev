@@ -2800,7 +2800,6 @@ NS_IMETHODIMP nsExternalHelperAppService::GetPrimaryExtension(const nsACString& 
 
 NS_IMETHODIMP nsExternalHelperAppService::GetTypeFromURI(nsIURI *aURI, nsACString& aContentType) 
 {
-  NS_ENSURE_ARG_POINTER(aURI);
   nsresult rv = NS_ERROR_NOT_AVAILABLE;
   aContentType.Truncate();
 
@@ -2858,7 +2857,6 @@ NS_IMETHODIMP nsExternalHelperAppService::GetTypeFromURI(nsIURI *aURI, nsACStrin
 
 NS_IMETHODIMP nsExternalHelperAppService::GetTypeFromFile(nsIFile* aFile, nsACString& aContentType)
 {
-  NS_ENSURE_ARG_POINTER(aFile);
   nsresult rv;
   nsCOMPtr<nsIMIMEInfo> info;
 

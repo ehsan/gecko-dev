@@ -1,4 +1,4 @@
-/* vim: set shiftwidth=2 tabstop=8 autoindent cindent expandtab: */
+                     /* vim: set shiftwidth=2 tabstop=8 autoindent cindent expandtab: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -42,98 +42,98 @@
 #include "nsIXPCScriptable.h"
 #include "nsContentUtils.h"
 
-DOMCI_DATA(Touch, nsDOMTouch)
+DOMCI_DATA(TouchPoint, nsDOMTouchPoint)
 
-NS_IMPL_CYCLE_COLLECTION_1(nsDOMTouch, mTarget)
+NS_IMPL_CYCLE_COLLECTION_1(nsDOMTouchPoint, mTarget)
 
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMTouch)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMTouch)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMTouch)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Touch)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMTouchPoint)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMTouchPoint)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMTouchPoint)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TouchPoint)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMTouch)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMTouch)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMTouchPoint)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMTouchPoint)
 
 NS_IMETHODIMP
-nsDOMTouch::GetIdentifier(PRInt32* aIdentifier)
+nsDOMTouchPoint::GetIdentifier(PRInt32* aIdentifier)
 {
   *aIdentifier = mIdentifier;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMTouch::GetTarget(nsIDOMEventTarget** aTarget)
+nsDOMTouchPoint::GetTarget(nsIDOMEventTarget** aTarget)
 {
   NS_IF_ADDREF(*aTarget = mTarget);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMTouch::GetScreenX(PRInt32* aScreenX)
+nsDOMTouchPoint::GetScreenX(PRInt32* aScreenX)
 {
   *aScreenX = mScreenX;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMTouch::GetScreenY(PRInt32* aScreenY)
+nsDOMTouchPoint::GetScreenY(PRInt32* aScreenY)
 {
   *aScreenY = mScreenY;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMTouch::GetClientX(PRInt32* aClientX)
+nsDOMTouchPoint::GetClientX(PRInt32* aClientX)
 {
   *aClientX = mClientX;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMTouch::GetClientY(PRInt32* aClientY)
+nsDOMTouchPoint::GetClientY(PRInt32* aClientY)
 {
   *aClientY = mClientY;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMTouch::GetPageX(PRInt32* aPageX)
+nsDOMTouchPoint::GetPageX(PRInt32* aPageX)
 {
   *aPageX = mPageX;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMTouch::GetPageY(PRInt32* aPageY)
+nsDOMTouchPoint::GetPageY(PRInt32* aPageY)
 {
   *aPageY = mPageY;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMTouch::GetRadiusX(PRInt32* aRadiusX)
+nsDOMTouchPoint::GetRadiusX(PRInt32* aRadiusX)
 {
   *aRadiusX = mRadiusX;
   return NS_OK;
 }
                                              
 NS_IMETHODIMP
-nsDOMTouch::GetRadiusY(PRInt32* aRadiusY)
+nsDOMTouchPoint::GetRadiusY(PRInt32* aRadiusY)
 {
   *aRadiusY = mRadiusY;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMTouch::GetRotationAngle(float* aRotationAngle)
+nsDOMTouchPoint::GetRotationAngle(float* aRotationAngle)
 {
   *aRotationAngle = mRotationAngle;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMTouch::GetForce(float* aForce)
+nsDOMTouchPoint::GetForce(float* aForce)
 {
   *aForce = mForce;
   return NS_OK;
@@ -170,18 +170,17 @@ nsDOMTouchList::GetLength(PRUint32* aLength)
 }
 
 NS_IMETHODIMP
-nsDOMTouchList::Item(PRUint32 aIndex, nsIDOMTouch** aRetVal)
+nsDOMTouchList::Item(PRUint32 aIndex, nsIDOMTouchPoint** aRetVal)
 {
   NS_IF_ADDREF(*aRetVal = mPoints.SafeObjectAt(aIndex));
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMTouchList::IdentifiedTouch(PRInt32 aIdentifier, nsIDOMTouch** aRetVal)
+nsDOMTouchList::IdentifiedPoint(PRInt32 aIdentifier, nsIDOMTouchPoint** aRetVal)
 {
-  *aRetVal = nsnull;
   for (PRInt32 i = 0; i < mPoints.Count(); ++i) {
-    nsCOMPtr<nsIDOMTouch> point = mPoints[i];
+    nsCOMPtr<nsIDOMTouchPoint> point = mPoints[i];
     PRInt32 identifier;
     if (point && NS_SUCCEEDED(point->GetIdentifier(&identifier)) &&
         aIdentifier == identifier) {
@@ -244,7 +243,7 @@ NS_IMETHODIMP
 nsDOMTouchEvent::InitTouchEvent(const nsAString& aType,
                                 PRBool aCanBubble,
                                 PRBool aCancelable,
-                                nsIDOMWindow* aView,
+                                nsIDOMAbstractView* aView,
                                 PRInt32 aDetail,
                                 PRBool aCtrlKey,
                                 PRBool aAltKey,

@@ -497,6 +497,9 @@ let UI = {
 
         self.setActiveTab(item);
 
+        if (activeGroupItem && item.parent)
+          activeGroupItem.setTopChild(item);
+
         self._resize(true);
         dispatchEvent(event);
 

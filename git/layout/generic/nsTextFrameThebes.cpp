@@ -106,8 +106,6 @@
 #endif
 #include "nsAutoPtr.h"
 
-#include "nsBidiFrames.h"
-#include "nsBidiPresUtils.h"
 #include "nsBidiUtils.h"
 
 #include "gfxFont.h"
@@ -3036,7 +3034,7 @@ void nsBlinkTimer::Start()
   nsresult rv;
   mTimer = do_CreateInstance("@mozilla.org/timer;1", &rv);
   if (NS_OK == rv) {
-    mTimer->InitWithCallback(this, 250, nsITimer::TYPE_REPEATING_PRECISE_CAN_SKIP);
+    mTimer->InitWithCallback(this, 250, nsITimer::TYPE_REPEATING_PRECISE);
   }
 }
 

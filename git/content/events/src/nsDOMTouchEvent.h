@@ -42,21 +42,21 @@
 #include "nsString.h"
 #include "nsCOMArray.h"
 
-class nsDOMTouch : public nsIDOMTouch
+class nsDOMTouchPoint : public nsIDOMTouchPoint
 {
 public:
-  nsDOMTouch(nsIDOMEventTarget* aTarget,
-             PRInt32 aIdentifier,
-             PRInt32 aPageX,
-             PRInt32 aPageY,
-             PRInt32 aScreenX,
-             PRInt32 aScreenY,
-             PRInt32 aClientX,
-             PRInt32 aClientY,
-             PRInt32 aRadiusX,
-             PRInt32 aRadiusY,
-             float aRotationAngle,
-             float aForce)
+  nsDOMTouchPoint(nsIDOMEventTarget* aTarget,
+                  PRInt32 aIdentifier,
+                  PRInt32 aPageX,
+                  PRInt32 aPageY,
+                  PRInt32 aScreenX,
+                  PRInt32 aScreenY,
+                  PRInt32 aClientX,
+                  PRInt32 aClientY,
+                  PRInt32 aRadiusX,
+                  PRInt32 aRadiusY,
+                  float aRotationAngle,
+                  float aForce)
   : mTarget(aTarget),
     mIdentifier(aIdentifier),
     mPageX(aPageX),
@@ -71,8 +71,8 @@ public:
     mForce(aForce)
     {}
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS(nsDOMTouch)
-  NS_DECL_NSIDOMTOUCH
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsDOMTouchPoint)
+  NS_DECL_NSIDOMTOUCHPOINT
 protected:
   nsCOMPtr<nsIDOMEventTarget> mTarget;
   PRInt32 mIdentifier;
@@ -95,17 +95,17 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS(nsDOMTouchList)
   NS_DECL_NSIDOMTOUCHLIST
   
-  void Append(nsIDOMTouch* aPoint)
+  void Append(nsIDOMTouchPoint* aPoint)
   {
     mPoints.AppendObject(aPoint);
   }
 
-  nsIDOMTouch* GetItemAt(PRUint32 aIndex)
+  nsIDOMTouchPoint* GetItemAt(PRUint32 aIndex)
   {
     return mPoints.SafeObjectAt(aIndex);
   }
 protected:
-  nsCOMArray<nsIDOMTouch> mPoints;
+  nsCOMArray<nsIDOMTouchPoint> mPoints;
 };
 
 class nsDOMTouchEvent : public nsDOMUIEvent,

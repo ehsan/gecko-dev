@@ -75,6 +75,10 @@
 
 #include <math.h>
 
+#ifdef WINCE_WINDOWS_MOBILE
+#include "WinMobileLocationProvider.h"
+#endif
+
 #ifdef MOZ_MAEMO_LIBLOCATION
 #include "MaemoLocationProvider.h"
 #endif
@@ -572,6 +576,12 @@ nsresult nsGeolocationService::Init()
   }
 
   // we should move these providers outside of this file! dft
+
+#ifdef WINCE_WINDOWS_MOBILE
+  provider = new WinMobileLocationProvider();
+  if (provider)
+    mProviders.AppendObject(provider);
+#endif
 
 #ifdef MOZ_MAEMO_LIBLOCATION
   provider = new MaemoLocationProvider();

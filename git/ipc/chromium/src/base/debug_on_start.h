@@ -11,8 +11,8 @@
 
 #include "base/basictypes.h"
 
-// This only works on MSVC.
-#if defined(COMPILER_MSVC)
+// This only works on Windows.
+#if defined(OS_WIN)
 
 #ifndef DECLSPEC_SELECTANY
 #define DECLSPEC_SELECTANY  __declspec(selectany)

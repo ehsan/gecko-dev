@@ -76,7 +76,7 @@ DOMCI_CLASS(MouseScrollEvent)
 DOMCI_CLASS(DragEvent)
 DOMCI_CLASS(KeyboardEvent)
 DOMCI_CLASS(PopupBlockedEvent)
-DOMCI_CLASS(DeviceOrientationEvent)
+DOMCI_CLASS(OrientationEvent)
 
 // HTML classes
 DOMCI_CLASS(HTMLDocument)
@@ -513,7 +513,7 @@ DOMCI_CLASS(IDBDatabaseException)
 
 DOMCI_CLASS(EventException)
 
-DOMCI_CLASS(Touch)
+DOMCI_CLASS(TouchPoint)
 DOMCI_CLASS(TouchList)
 DOMCI_CLASS(TouchEvent)
 

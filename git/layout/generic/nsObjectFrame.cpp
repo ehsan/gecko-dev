@@ -76,7 +76,7 @@ enum { XKeyPress = KeyPress };
 #include "nsIViewManager.h"
 #include "nsIDOMKeyListener.h"
 #include "nsIDOMDragEvent.h"
-#include "nsPluginHost.h"
+#include "nsIPluginHost.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "prmem.h"
@@ -1091,7 +1091,7 @@ nsObjectFrame::ReflowCallbackCanceled()
 }
 
 nsresult
-nsObjectFrame::InstantiatePlugin(nsPluginHost* aPluginHost, 
+nsObjectFrame::InstantiatePlugin(nsIPluginHost* aPluginHost, 
                                  const char* aMimeType,
                                  nsIURI* aURI)
 {
@@ -1122,7 +1122,8 @@ nsObjectFrame::InstantiatePlugin(nsPluginHost* aPluginHost,
     if (NS_SUCCEEDED(rv))
       pDoc->SetStreamListener(stream);
   } else {   /* embedded mode */
-    rv = aPluginHost->InstantiateEmbeddedPlugin(aMimeType, aURI, mInstanceOwner, PR_TRUE);
+    rv = aPluginHost->InstantiateEmbeddedPlugin(aMimeType, aURI,
+                                                mInstanceOwner);
   }
 
   // Note that |this| may very well be destroyed already!
@@ -2715,7 +2716,7 @@ nsObjectFrame::Instantiate(const char* aMimeType, nsIURI* aURI)
   NS_ASSERTION(!mPreventInstantiation, "Say what?");
   mPreventInstantiation = PR_TRUE;
 
-  rv = InstantiatePlugin(static_cast<nsPluginHost*>(pluginHost.get()), aMimeType, aURI);
+  rv = InstantiatePlugin(pluginHost, aMimeType, aURI);
 
   if (!weakFrame.IsAlive()) {
     return NS_ERROR_NOT_AVAILABLE;
@@ -3906,6 +3907,7 @@ static const moz2javaCharset charsets[] =
     {"x-johab",         "Johab"},
     {"KOI8-R",          "KOI8_R"},
     {"TIS-620",         "MS874"},
+    {"windows-936",     "MS936"},
     {"x-windows-949",   "MS949"},
     {"x-mac-arabic",    "MacArabic"},
     {"x-mac-croatian",  "MacCroatia"},

@@ -1698,7 +1698,7 @@ GK_ATOM(onMozTouchMove, "onMozTouchMove")
 GK_ATOM(onMozTouchUp, "onMozTouchUp")
 
 // orientation support
-GK_ATOM(ondeviceorientation, "ondeviceorientation")
+GK_ATOM(onMozOrientation, "onMozOrientation")
 
 //---------------------------------------------------------------------------
 // Special atoms
@@ -1723,7 +1723,6 @@ GK_ATOM(columnSetFrame, "ColumnSetFrame")
 GK_ATOM(comboboxControlFrame, "ComboboxControlFrame")
 GK_ATOM(comboboxDisplayFrame, "ComboboxDisplayFrame")
 GK_ATOM(deckFrame, "DeckFrame")
-GK_ATOM(directionalFrame, "DirectionalFrame")
 GK_ATOM(fieldSetFrame, "FieldSetFrame")
 GK_ATOM(frameSetFrame, "FrameSetFrame")
 GK_ATOM(gfxButtonControlFrame, "gfxButtonControlFrame")

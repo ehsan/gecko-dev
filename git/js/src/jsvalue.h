@@ -89,19 +89,24 @@
 
 /* To avoid a circular dependency, pull in the necessary pieces of jsnum.h. */
 
-#define JSDOUBLE_SIGNBIT (((uint64) 1) << 63)
-#define JSDOUBLE_EXPMASK (((uint64) 0x7ff) << 52)
-#define JSDOUBLE_MANTMASK ((((uint64) 1) << 52) - 1)
+#include <math.h>
+#if defined(XP_WIN) || defined(XP_OS2)
+#include <float.h>
+#endif
+#ifdef SOLARIS
+#include <ieeefp.h>
+#endif
 
-static JS_ALWAYS_INLINE JSBool
+static inline int
 JSDOUBLE_IS_NEGZERO(jsdouble d)
 {
-    union {
-        jsdouble d;
-        uint64 bits;
-    } x;
-    x.d = d;
-    return x.bits == JSDOUBLE_SIGNBIT;
+#ifdef WIN32
+    return (d == 0 && (_fpclass(d) & _FPCLASS_NZ));
+#elif defined(SOLARIS)
+    return (d == 0 && copysign(1, d) < 0);
+#else
+    return (d == 0 && signbit(d));
+#endif
 }
 
 static inline bool
@@ -1234,88 +1239,6 @@ Debug_SetValueRangeToCrashOnTouch(Value *vec, size_t len)
 #ifdef DEBUG
     Debug_SetValueRangeToCrashOnTouch(vec, vec + len);
 #endif
-}
-
-/*
- * Abstracts the layout of the (callee,this) receiver pair that is passed to
- * natives and scripted functions.
- */
-class CallReceiver
-{
-#ifdef DEBUG
-    mutable bool usedRval_;
-#endif
-  protected:
-    Value *argv_;
-    CallReceiver() {}
-    CallReceiver(Value *argv) : argv_(argv) {
-#ifdef DEBUG
-        usedRval_ = false;
-#endif
-    }
-
-  public:
-    friend CallReceiver CallReceiverFromVp(Value *);
-    friend CallReceiver CallReceiverFromArgv(Value *);
-    Value *base() const { return argv_ - 2; }
-    JSObject &callee() const { JS_ASSERT(!usedRval_); return argv_[-2].toObject(); }
-    Value &calleev() const { JS_ASSERT(!usedRval_); return argv_[-2]; }
-    Value &thisv() const { return argv_[-1]; }
-
-    Value &rval() const {
-#ifdef DEBUG
-        usedRval_ = true;
-#endif
-        return argv_[-2];
-    }
-
-    void calleeHasBeenReset() const {
-#ifdef DEBUG
-        usedRval_ = false;
-#endif
-    }
-};
-
-JS_ALWAYS_INLINE CallReceiver
-CallReceiverFromVp(Value *vp)
-{
-    return CallReceiver(vp + 2);
-}
-
-JS_ALWAYS_INLINE CallReceiver
-CallReceiverFromArgv(Value *argv)
-{
-    return CallReceiver(argv);
-}
-
-/*
- * Abstracts the layout of the stack passed to natives from the engine and from
- * natives to js::Invoke.
- */
-class CallArgs : public CallReceiver
-{
-    uintN argc_;
-  protected:
-    CallArgs() {}
-    CallArgs(uintN argc, Value *argv) : CallReceiver(argv), argc_(argc) {}
-  public:
-    friend CallArgs CallArgsFromVp(uintN, Value *);
-    friend CallArgs CallArgsFromArgv(uintN, Value *);
-    Value &operator[](unsigned i) const { JS_ASSERT(i < argc_); return argv_[i]; }
-    Value *argv() const { return argv_; }
-    uintN argc() const { return argc_; }
-};
-
-JS_ALWAYS_INLINE CallArgs
-CallArgsFromVp(uintN argc, Value *vp)
-{
-    return CallArgs(argc, vp + 2);
-}
-
-JS_ALWAYS_INLINE CallArgs
-CallArgsFromArgv(uintN argc, Value *argv)
-{
-    return CallArgs(argc, argv);
 }
 
 }      /* namespace js */

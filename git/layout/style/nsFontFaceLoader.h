@@ -72,7 +72,7 @@ public:
 
   // starts loading process, creating and initializing a nsFontFaceLoader obj
   // returns whether load process successfully started or not
-  nsresult StartLoad(gfxProxyFontEntry *aFontToLoad, 
+  nsresult StartLoad(gfxFontEntry *aFontToLoad, 
                      const gfxFontFaceSrc *aFontFaceSrc);
 
   // Called by nsFontFaceLoader when the loader has completed normally.
@@ -114,7 +114,7 @@ class nsFontFaceLoader : public nsIStreamLoaderObserver
 {
 public:
 
-  nsFontFaceLoader(gfxProxyFontEntry *aFontToLoad, nsIURI *aFontURI, 
+  nsFontFaceLoader(gfxFontEntry *aFontToLoad, nsIURI *aFontURI, 
                    nsUserFontSet *aFontSet, nsIChannel *aChannel);
   virtual ~nsFontFaceLoader();
 
@@ -137,7 +137,7 @@ public:
                                    nsISupports* aContext);
 
 private:
-  nsRefPtr<gfxProxyFontEntry>  mFontEntry;
+  nsRefPtr<gfxFontEntry>  mFontEntry;
   nsCOMPtr<nsIURI>        mFontURI;
   nsRefPtr<nsUserFontSet> mFontSet;
   nsCOMPtr<nsIChannel>    mChannel;
