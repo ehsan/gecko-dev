@@ -21,7 +21,7 @@ public final class GeckoHelper {
 
     private GeckoHelper() { /* To disallow instantiation. */ }
 
-    protected static void init(final UITestContext context) {
+    public static void init(final UITestContext context) {
         sActivity = context.getActivity();
         sActions = context.getActions();
     }

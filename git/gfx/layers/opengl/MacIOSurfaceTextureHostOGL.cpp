@@ -6,7 +6,7 @@
 #include "MacIOSurfaceTextureHostOGL.h"
 #include "mozilla/gfx/MacIOSurface.h"
 #include "mozilla/layers/CompositorOGL.h"
-#include "GLContextCGL.h"
+#include "GLContext.h"
 
 namespace mozilla {
 namespace layers {
@@ -77,7 +77,7 @@ MacIOSurfaceTextureSourceOGL::BindTexture(GLenum aTextureUnit)
 
   gl()->fActiveTexture(aTextureUnit);
   gl()->fBindTexture(LOCAL_GL_TEXTURE_RECTANGLE_ARB, tex);
-  mSurface->CGLTexImageIOSurface2D(gl::GLContextCGL::Cast(gl())->GetCGLContext());
+  mSurface->CGLTexImageIOSurface2D(static_cast<CGLContextObj>(gl()->GetNativeData(gl::GLContext::NativeCGLContext)));
   gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
 }
 

@@ -28,6 +28,8 @@ namespace net {
         SPDY_VERSION_3 = 3,
         SPDY_VERSION_31 = 4
     };
+} // namespace mozilla::net
+} // namespace mozilla
 
 typedef uint8_t nsHttpVersion;
 
@@ -103,7 +105,7 @@ struct nsHttp
     // The mutex is valid any time the Atom Table is valid
     // This mutex is used in the unusual case that the network thread and
     // main thread might access the same data
-    static Mutex *GetLock();
+    static mozilla::Mutex *GetLock();
 
     // will dynamically add atoms to the table if they don't already exist
     static nsHttpAtom ResolveAtom(const char *);
@@ -186,8 +188,5 @@ PRTimeToSeconds(PRTime t_usec)
 
 #define HTTP_LWS " \t"
 #define HTTP_HEADER_VALUE_SEPS HTTP_LWS ","
-
-} // namespace mozilla::net
-} // namespace mozilla
 
 #endif // nsHttp_h__

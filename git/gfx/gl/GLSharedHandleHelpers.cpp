@@ -2,7 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "GLContextEGL.h"
+#include "GLContext.h"
+#include "GLLibraryEGL.h"
 #include "GLSharedHandleHelpers.h"
 #ifdef MOZ_WIDGET_ANDROID
 #include "nsSurfaceTexture.h"
@@ -74,7 +75,7 @@ public:
         static const EGLint eglAttributes[] = {
             LOCAL_EGL_NONE
         };
-        EGLContext eglContext = GLContextEGL::Cast(ctx)->GetEGLContext();
+        EGLContext eglContext = (EGLContext)ctx->GetNativeData(GLContext::NativeGLContext);
         mEGLImage = sEGLLibrary.fCreateImage(EGL_DISPLAY(), eglContext, LOCAL_EGL_GL_TEXTURE_2D,
                                              (EGLClientBuffer)texture, eglAttributes);
         if (!mEGLImage) {

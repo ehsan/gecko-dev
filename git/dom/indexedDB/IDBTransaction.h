@@ -270,7 +270,7 @@ private:
                  bool aDispatchDelayed,
                  bool aIsVersionChangeTransactionChild);
 
-  IDBTransaction(IDBDatabase* aDatabase);
+  IDBTransaction();
   ~IDBTransaction();
 
   nsresult CommitOrRollback();

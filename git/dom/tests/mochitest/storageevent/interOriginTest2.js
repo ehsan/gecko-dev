@@ -28,11 +28,11 @@ function onMessageReceived(event)
     // Indication of successfully finished step of a test
     case "perf":
       if (callMasterFrame)
-        masterFrame.postMessage("step", "*");
+        masterFrame.postMessage("step", masterFrameOrigin);
       else if (slaveFrame)
-        slaveFrame.postMessage("step", "*");
+        slaveFrame.postMessage("step", slaveFrameOrigin);
       else if (SpecialPowers.wrap(masterFrame).slaveFrame)
-        SpecialPowers.wrap(masterFrame).slaveFrame.postMessage("step", "*");
+        SpecialPowers.wrap(masterFrame).slaveFrame.postMessage("step", slaveFrameOrigin);
       callMasterFrame = !callMasterFrame;
       break;
 

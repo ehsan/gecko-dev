@@ -225,6 +225,7 @@ CompositableDataGonkOGL::DeleteTextureIfPresent()
 
 bool
 TextureImageTextureSourceOGL::Update(gfx::DataSourceSurface* aSurface,
+                                     TextureFlags aFlags,
                                      nsIntRegion* aDestRegion,
                                      gfx::IntPoint* aSrcOffset)
 {
@@ -239,13 +240,7 @@ TextureImageTextureSourceOGL::Update(gfx::DataSourceSurface* aSurface,
   if (!mTexImage ||
       mTexImage->GetSize() != size ||
       mTexImage->GetContentType() != gfx::ContentForFormat(aSurface->GetFormat())) {
-    if (mFlags & TEXTURE_DISALLOW_BIGIMAGE) {
-      mTexImage = CreateBasicTextureImage(mGL, size,
-                                          gfx::ContentForFormat(aSurface->GetFormat()),
-                                          WrapMode(mGL, mFlags & TEXTURE_ALLOW_REPEAT),
-                                          FlagsToGLFlags(mFlags),
-                                          SurfaceFormatToImageFormat(aSurface->GetFormat()));
-    } else {
+    if (mAllowBigImage) {
       // XXX - clarify which size we want to use. IncrementalContentHost will
       // require the size of the destination surface to be different from
       // the size of aSurface.
@@ -253,9 +248,16 @@ TextureImageTextureSourceOGL::Update(gfx::DataSourceSurface* aSurface,
       mTexImage = CreateTextureImage(mGL,
                                      size,
                                      gfx::ContentForFormat(aSurface->GetFormat()),
-                                     WrapMode(mGL, mFlags & TEXTURE_ALLOW_REPEAT),
-                                     FlagsToGLFlags(mFlags),
+                                     WrapMode(mGL, aFlags & TEXTURE_ALLOW_REPEAT),
+                                     FlagsToGLFlags(aFlags),
                                      SurfaceFormatToImageFormat(aSurface->GetFormat()));
+    } else {
+      mTexImage = CreateBasicTextureImage(mGL,
+                                          size,
+                                          gfx::ContentForFormat(aSurface->GetFormat()),
+                                          WrapMode(mGL, aFlags & TEXTURE_ALLOW_REPEAT),
+                                          FlagsToGLFlags(aFlags),
+                                          SurfaceFormatToImageFormat(aSurface->GetFormat()));
     }
   }
 
@@ -265,17 +267,6 @@ TextureImageTextureSourceOGL::Update(gfx::DataSourceSurface* aSurface,
     mTexImage->EndUpdate();
   }
   return true;
-}
-
-void
-TextureImageTextureSourceOGL::SetCompositor(Compositor* aCompositor)
-{
-  CompositorOGL* glCompositor = static_cast<CompositorOGL*>(aCompositor);
-
-  if (!glCompositor || (mGL != glCompositor->gl())) {
-    DeallocateDeviceData();
-    mGL = glCompositor ? glCompositor->gl() : nullptr;
-  }
 }
 
 gfx::IntSize

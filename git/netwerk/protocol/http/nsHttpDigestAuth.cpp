@@ -19,9 +19,6 @@
 #include "nsCRT.h"
 #include "nsICryptoHash.h"
 
-namespace mozilla {
-namespace net {
-
 //-----------------------------------------------------------------------------
 // nsHttpDigestAuth <public>
 //-----------------------------------------------------------------------------
@@ -694,8 +691,5 @@ nsHttpDigestAuth::AppendQuotedString(const nsACString & value,
   aHeaderLine.Append(quoted);
   return NS_OK;
 }
-
-} // namespace mozilla::net
-} // namespace mozilla
 
 // vim: ts=2 sw=2

@@ -72,7 +72,8 @@ public:
   void FireError(nsresult aError);
   void FireDetailedError(nsISupports* aError);
 
-  DOMRequest(nsPIDOMWindow* aWindow);
+  DOMRequest(nsIDOMWindow* aWindow);
+  DOMRequest();
 
   virtual ~DOMRequest()
   {
@@ -84,6 +85,8 @@ protected:
   void FireEvent(const nsAString& aType, bool aBubble, bool aCancelable);
 
   void RootResultVal();
+
+  void Init(nsIDOMWindow* aWindow);
 };
 
 class DOMRequestService MOZ_FINAL : public nsIDOMRequestService

@@ -295,9 +295,11 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
 
   JS::Rooted<JSObject*> globalObject(cx, global->GetGlobalJSObject());
 
+  nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
   JS::Rooted<JS::Value> v(cx);
-  nsresult rv = nsContentUtils::WrapNative(cx, globalObject, aBoundElement, &v);
-
+  nsresult rv =
+    nsContentUtils::WrapNative(cx, globalObject, aBoundElement, &v,
+                               getter_AddRefs(wrapper));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Use nsCxPusher to make sure we call ScriptEvaluated when we're done.

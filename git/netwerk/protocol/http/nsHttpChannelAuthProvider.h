@@ -17,11 +17,8 @@
 
 class nsIHttpAuthenticableChannel;
 class nsIHttpAuthenticator;
-class nsIURI;
-
-namespace mozilla { namespace net {
-
 class nsHttpHandler;
+class nsIURI;
 
 class nsHttpChannelAuthProvider : public nsIHttpChannelAuthProvider
                                 , public nsIAuthPromptCallback
@@ -149,7 +146,5 @@ private:
 
     nsRefPtr<nsHttpHandler>           mHttpHandler;  // keep gHttpHandler alive
 };
-
-}} // namespace mozilla::net
 
 #endif // nsHttpChannelAuthProvider_h__

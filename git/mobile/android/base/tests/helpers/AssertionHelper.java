@@ -18,7 +18,7 @@ public final class AssertionHelper {
 
     private AssertionHelper() { /* To disallow instantation. */ }
 
-    protected static void init(final UITestContext context) {
+    public static void init(final UITestContext context) {
         sAsserter = context.getAsserter();
     }
 

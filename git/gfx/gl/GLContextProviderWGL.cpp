@@ -4,10 +4,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "GLContextProvider.h"
-#include "GLContextWGL.h"
+#include "GLContext.h"
 #include "GLLibraryLoader.h"
 #include "nsDebug.h"
 #include "nsIWidget.h"
+#include "WGLLibrary.h"
 #include "gfxASurface.h"
 #include "gfxImageSurface.h"
 #include "gfxPlatform.h"
@@ -23,6 +24,8 @@ using namespace mozilla::gfx;
 
 namespace mozilla {
 namespace gl {
+
+typedef WGLLibrary::LibraryType LibType;
 
 WGLLibrary sWGLLib[WGLLibrary::LIBS_MAX];
 
@@ -250,135 +253,162 @@ WGLLibrary::EnsureInitialized(bool aUseMesaLlvmPipe)
     return true;
 }
 
-GLContextWGL::GLContextWGL(
-                  const SurfaceCaps& caps,
-                  GLContext* sharedContext,
-                  bool isOffscreen,
-                  HDC aDC,
-                  HGLRC aContext,
-                  LibType aLibUsed,
-                  HWND aWindow)
-    : GLContext(caps, sharedContext, isOffscreen),
-      mDC(aDC),
-      mContext(aContext),
-      mWnd(aWindow),
-      mPBuffer(nullptr),
-      mPixelFormat(0),
-      mLibType(aLibUsed),
-      mIsDoubleBuffered(false)
+class GLContextWGL : public GLContext
 {
-    // See 899855
-    SetProfileVersion(ContextProfile::OpenGLCompatibility, 200);
-}
-
-GLContextWGL::GLContextWGL(
-                  const SurfaceCaps& caps,
-                  GLContext* sharedContext,
-                  bool isOffscreen,
-                  HANDLE aPbuffer,
-                  HDC aDC,
-                  HGLRC aContext,
-                  int aPixelFormat,
-                  LibType aLibUsed)
-    : GLContext(caps, sharedContext, isOffscreen),
-      mDC(aDC),
-      mContext(aContext),
-      mWnd(nullptr),
-      mPBuffer(aPbuffer),
-      mPixelFormat(aPixelFormat),
-      mLibType(aLibUsed),
-      mIsDoubleBuffered(false)
-{
-    // See 899855
-    SetProfileVersion(ContextProfile::OpenGLCompatibility, 200);
-}
-
-GLContextWGL::~GLContextWGL()
-{
-    MarkDestroyed();
-
-    sWGLLib[mLibType].fDeleteContext(mContext);
-
-    if (mPBuffer)
-        sWGLLib[mLibType].fDestroyPbuffer(mPBuffer);
-    if (mWnd)
-        DestroyWindow(mWnd);
-}
-
-bool
-GLContextWGL::Init()
-{
-    if (!mDC || !mContext)
-        return false;
-
-    // see bug 929506 comment 29. wglGetProcAddress requires a current context.
-    if (!sWGLLib[mLibType].fMakeCurrent(mDC, mContext))
-        return false;
-
-    SetupLookupFunction();
-    if (!InitWithPrefix("gl", true))
-        return false;
-
-    return true;
-}
-
-bool
-GLContextWGL::MakeCurrentImpl(bool aForce)
-{
-    BOOL succeeded = true;
-
-    // wglGetCurrentContext seems to just pull the HGLRC out
-    // of its TLS slot, so no need to do our own tls slot.
-    // You would think that wglMakeCurrent would avoid doing
-    // work if mContext was already current, but not so much..
-    if (aForce || sWGLLib[mLibType].fGetCurrentContext() != mContext) {
-        succeeded = sWGLLib[mLibType].fMakeCurrent(mDC, mContext);
-        NS_ASSERTION(succeeded, "Failed to make GL context current!");
+public:
+    // From Window: (possibly for offscreen!)
+    GLContextWGL(const SurfaceCaps& caps,
+                 GLContext* sharedContext,
+                 bool isOffscreen,
+                 HDC aDC,
+                 HGLRC aContext,
+                 LibType aLibUsed,
+                 HWND aWindow = nullptr)
+        : GLContext(caps, sharedContext, isOffscreen),
+          mDC(aDC),
+          mContext(aContext),
+          mWnd(aWindow),
+          mPBuffer(nullptr),
+          mPixelFormat(0),
+          mLibType(aLibUsed),
+          mIsDoubleBuffered(false)
+    {
+        // See 899855
+        SetProfileVersion(ContextProfile::OpenGLCompatibility, 200);
     }
 
-    return succeeded;
-}
+    // From PBuffer
+    GLContextWGL(const SurfaceCaps& caps,
+                 GLContext* sharedContext,
+                 bool isOffscreen,
+                 HANDLE aPbuffer,
+                 HDC aDC,
+                 HGLRC aContext,
+                 int aPixelFormat,
+                 LibType aLibUsed)
+        : GLContext(caps, sharedContext, isOffscreen),
+          mDC(aDC),
+          mContext(aContext),
+          mWnd(nullptr),
+          mPBuffer(aPbuffer),
+          mPixelFormat(aPixelFormat),
+          mLibType(aLibUsed),
+          mIsDoubleBuffered(false)
+    {
+        // See 899855
+        SetProfileVersion(ContextProfile::OpenGLCompatibility, 200);
+    }
 
-bool
-GLContextWGL::IsCurrent() {
-    return sWGLLib[mLibType].fGetCurrentContext() == mContext;
-}
+    ~GLContextWGL()
+    {
+        MarkDestroyed();
 
-void
-GLContextWGL::SetIsDoubleBuffered(bool aIsDB) {
-    mIsDoubleBuffered = aIsDB;
-}
+        sWGLLib[mLibType].fDeleteContext(mContext);
 
-bool
-GLContextWGL::IsDoubleBuffered() {
-    return mIsDoubleBuffered;
-}
+        if (mPBuffer)
+            sWGLLib[mLibType].fDestroyPbuffer(mPBuffer);
+        if (mWnd)
+            DestroyWindow(mWnd);
+    }
 
-bool
-GLContextWGL::SupportsRobustness()
-{
-    return sWGLLib[mLibType].HasRobustness();
-}
+    GLContextType GetContextType() {
+        return ContextTypeWGL;
+    }
 
-bool
-GLContextWGL::SwapBuffers() {
-    if (!mIsDoubleBuffered)
-        return false;
-    return ::SwapBuffers(mDC);
-}
+    bool Init()
+    {
+        if (!mDC || !mContext)
+            return false;
 
-bool
-GLContextWGL::SetupLookupFunction()
-{
-    // Make sure that we have a ref to the OGL library;
-    // when run under CodeXL, wglGetProcAddress won't return
-    // the right thing for some core functions.
-    MOZ_ASSERT(mLibrary == nullptr);
+        // see bug 929506 comment 29. wglGetProcAddress requires a current context.
+        if (!sWGLLib[mLibType].fMakeCurrent(mDC, mContext))
+            return false;
 
-    mLibrary = sWGLLib[mLibType].GetOGLLibrary();
-    mLookupFunc = (PlatformLookupFunction)sWGLLib[mLibType].fGetProcAddress;
-    return true;
-}
+        SetupLookupFunction();
+        if (!InitWithPrefix("gl", true))
+            return false;
+
+        return true;
+    }
+
+    bool MakeCurrentImpl(bool aForce = false)
+    {
+        BOOL succeeded = true;
+
+        // wglGetCurrentContext seems to just pull the HGLRC out
+        // of its TLS slot, so no need to do our own tls slot.
+        // You would think that wglMakeCurrent would avoid doing
+        // work if mContext was already current, but not so much..
+        if (aForce || sWGLLib[mLibType].fGetCurrentContext() != mContext) {
+            succeeded = sWGLLib[mLibType].fMakeCurrent(mDC, mContext);
+            NS_ASSERTION(succeeded, "Failed to make GL context current!");
+        }
+
+        return succeeded;
+    }
+
+    virtual bool IsCurrent() {
+        return sWGLLib[mLibType].fGetCurrentContext() == mContext;
+    }
+
+    void SetIsDoubleBuffered(bool aIsDB) {
+        mIsDoubleBuffered = aIsDB;
+    }
+
+    virtual bool IsDoubleBuffered() {
+        return mIsDoubleBuffered;
+    }
+
+    bool SupportsRobustness()
+    {
+        return sWGLLib[mLibType].HasRobustness();
+    }
+
+    virtual bool SwapBuffers() {
+        if (!mIsDoubleBuffered)
+            return false;
+        return ::SwapBuffers(mDC);
+    }
+
+    bool SetupLookupFunction()
+    {
+        // Make sure that we have a ref to the OGL library;
+        // when run under CodeXL, wglGetProcAddress won't return
+        // the right thing for some core functions.
+        MOZ_ASSERT(mLibrary == nullptr);
+
+        mLibrary = sWGLLib[mLibType].GetOGLLibrary();
+        mLookupFunc = (PlatformLookupFunction)sWGLLib[mLibType].fGetProcAddress;
+        return true;
+    }
+
+    void *GetNativeData(NativeDataType aType)
+    {
+        switch (aType) {
+        case NativeGLContext:
+            return mContext;
+
+        default:
+            return nullptr;
+        }
+    }
+
+    bool ResizeOffscreen(const gfx::IntSize& aNewSize);
+
+    HGLRC Context() { return mContext; }
+
+protected:
+    friend class GLContextProviderWGL;
+
+    HDC mDC;
+    HGLRC mContext;
+    HWND mWnd;
+    HANDLE mPBuffer;
+    int mPixelFormat;
+    LibType mLibType;
+    bool mIsDoubleBuffered;
+};
+
 
 static bool
 GetMaxSize(HDC hDC, int format, gfxIntSize& size, LibType aLibToUse)

@@ -19,6 +19,7 @@
 
 class nsICacheEntry;
 class nsIAssociatedContentSecurity;
+class nsHttpHandler;
 
 namespace mozilla {
 
@@ -93,7 +94,7 @@ protected:
   virtual void ActorDestroy(ActorDestroyReason why);
 
 protected:
-  friend class HttpChannelParentListener;
+  friend class mozilla::net::HttpChannelParentListener;
   nsRefPtr<mozilla::dom::TabParent> mTabParent;
 
 private:

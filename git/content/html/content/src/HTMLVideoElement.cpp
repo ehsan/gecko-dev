@@ -27,11 +27,11 @@
 
 #include "nsEventDispatcher.h"
 #include "nsIDOMProgressEvent.h"
+#include "nsIPowerManagerService.h"
 #include "MediaError.h"
 #include "MediaDecoder.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/WakeLock.h"
-#include "mozilla/dom/power/PowerManagerService.h"
+#include "nsIDOMWakeLock.h"
 #include "nsPerformance.h"
 #include "mozilla/dom/VideoPlaybackQuality.h"
 
@@ -302,22 +302,19 @@ HTMLVideoElement::WakeLockUpdate()
   bool hidden = OwnerDoc()->Hidden();
 
   if (mScreenWakeLock && (mPaused || hidden)) {
-    ErrorResult rv;
-    mScreenWakeLock->Unlock(rv);
-    NS_WARN_IF_FALSE(!rv.Failed(), "Failed to unlock the wakelock.");
+    mScreenWakeLock->Unlock();
     mScreenWakeLock = nullptr;
     return;
   }
 
   if (!mScreenWakeLock && !mPaused && !hidden) {
-    nsRefPtr<power::PowerManagerService> pmService =
-      power::PowerManagerService::GetInstance();
+    nsCOMPtr<nsIPowerManagerService> pmService =
+      do_GetService(POWERMANAGERSERVICE_CONTRACTID);
     NS_ENSURE_TRUE_VOID(pmService);
 
-    ErrorResult rv;
-    mScreenWakeLock = pmService->NewWakeLock(NS_LITERAL_STRING("screen"),
-                                             OwnerDoc()->GetInnerWindow(),
-                                             rv);
+    pmService->NewWakeLock(NS_LITERAL_STRING("screen"),
+                           OwnerDoc()->GetWindow(),
+                           getter_AddRefs(mScreenWakeLock));
   }
 }
 

@@ -12,6 +12,7 @@
 #include "nsXBLProtoImplField.h"
 #include "nsXBLBinding.h"
 
+class nsIXPConnectJSObjectHolder;
 class nsXBLPrototypeBinding;
 class nsXBLProtoImplAnonymousMethod;
 
@@ -36,16 +37,12 @@ public:
     delete mFields;
   }
 
-
   nsresult InstallImplementation(nsXBLPrototypeBinding* aPrototypeBinding, nsXBLBinding* aBinding);
-
-private:
   nsresult InitTargetObjects(nsXBLPrototypeBinding* aBinding,
                              nsIContent* aBoundElement,
+                             nsIXPConnectJSObjectHolder** aScriptObjectHolder,
                              JS::MutableHandle<JSObject*> aTargetClassObject,
                              bool* aTargetIsNew);
-
-public:
   nsresult CompilePrototypeMembers(nsXBLPrototypeBinding* aBinding);
 
   bool LookupMember(JSContext* aCx, nsString& aName, JS::Handle<jsid> aNameAsId,

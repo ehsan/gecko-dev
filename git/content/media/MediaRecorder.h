@@ -39,7 +39,7 @@ class MediaRecorder : public nsDOMEventTargetHelper
   class Session;
 
 public:
-  MediaRecorder(DOMMediaStream&, nsPIDOMWindow* aOwnerWindow);
+  MediaRecorder(DOMMediaStream&);
   virtual ~MediaRecorder();
 
   // nsWrapperCache
@@ -83,6 +83,8 @@ public:
   IMPL_EVENT_HANDLER(warning)
 
 protected:
+  void Init(nsPIDOMWindow* aOwnerWindow);
+
   MediaRecorder& operator = (const MediaRecorder& x) MOZ_DELETE;
   // Create dataavailable event with Blob data and it runs in main thread
   nsresult CreateAndDispatchBlobEvent(Session *session);

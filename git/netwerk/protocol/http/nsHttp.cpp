@@ -13,12 +13,11 @@
 #include "mozilla/HashFunctions.h"
 #include "nsCRT.h"
 
+using namespace mozilla;
+
 #if defined(PR_LOGGING)
 PRLogModuleInfo *gHttpLog = nullptr;
 #endif
-
-namespace mozilla {
-namespace net {
 
 // define storage for all atoms
 #define HTTP_ATOM(_name, _value) nsHttpAtom nsHttp::_name = { _value };
@@ -32,6 +31,8 @@ enum {
     NUM_HTTP_ATOMS
 };
 #undef HTTP_ATOM
+
+using namespace mozilla;
 
 // we keep a linked list of atoms allocated on the heap for easy clean up when
 // the atom table is destroyed.  The structure and value string are allocated
@@ -323,5 +324,3 @@ nsHttp::IsSafeMethod(nsHttpAtom method)
          method == nsHttp::Trace;
 }
 
-} // namespace mozilla::net
-} // namespace mozilla

@@ -8,19 +8,16 @@
 #include "nsISupports.h"
 #include "nsTArray.h"
 
-class nsIInterfaceRequestor;
-class nsIEventTarget;
-class nsITransport;
-class nsILoadGroupConnectionInfo;
-
-namespace mozilla { namespace net {
-
 class nsAHttpConnection;
 class nsAHttpSegmentReader;
 class nsAHttpSegmentWriter;
-class nsHttpTransaction;
-class nsHttpPipeline;
+class nsIInterfaceRequestor;
+class nsIEventTarget;
+class nsITransport;
 class nsHttpRequestHead;
+class nsHttpPipeline;
+class nsHttpTransaction;
+class nsILoadGroupConnectionInfo;
 
 //----------------------------------------------------------------------------
 // Abstract base class for a HTTP transaction:
@@ -222,7 +219,5 @@ public:
 
 #define NS_DECL_NSAHTTPSEGMENTWRITER \
     nsresult OnWriteSegment(char *, uint32_t, uint32_t *);
-
-}} // namespace mozilla::net
 
 #endif // nsAHttpTransaction_h__

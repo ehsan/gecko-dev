@@ -68,7 +68,7 @@ class Generator:
                 if returnType == 'void':
                     returnValue = ''
                 elif returnType in ('jobject', 'jstring'):
-                    returnValue = 'nullptr'
+                    returnValue = 'NULL'
                 elif returnType in ('jint', 'jfloat', 'jdouble', 'jlong'):
                     returnValue = '0'
                 elif returnType == 'jboolean':

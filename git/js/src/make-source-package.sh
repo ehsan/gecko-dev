@@ -1,10 +1,4 @@
 #!/bin/sh
-
-# Find out ASAP if some command breaks here, because we're copying a lot of
-# files we don't actually maintain ourselves, and requirements could easily be
-# broken.
-set -e
-
 # need these environment vars:
 echo "Environment:"
 echo "    MAKE = $MAKE"
@@ -55,9 +49,9 @@ case $cmd in
 	fi
 
 	# put in the virtualenv and supporting files if it doesnt already exist
-	if [ ! -e ${SRCDIR}/build/virtualenv_packages.txt ]; then
+	if [ ! -e ${SRCDIR}/build/virtualenv ]; then
 		cp -t ${tgtpath}/js/src/build -dRp \
-			${SRCDIR}/../../build/virtualenv_packages.txt \
+			${SRCDIR}/../../build/virtualenv \
 			${SRCDIR}/../../build/buildconfig.py
 	fi
 	if [ ! -e ${SRCDIR}/python ]; then

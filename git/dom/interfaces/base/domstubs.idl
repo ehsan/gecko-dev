@@ -83,3 +83,6 @@ interface nsIDOMPkcs11;
 // Used font face (for inspector)
 interface nsIDOMFontFace;
 interface nsIDOMFontFaceList;
+
+// Power
+interface nsIDOMMozWakeLock;

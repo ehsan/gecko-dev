@@ -29,8 +29,7 @@ public:
   CreateFileObject(LockedFile* aLockedFile, uint32_t aFileSize) MOZ_OVERRIDE;
 
 protected:
-  DOMFileHandle(nsPIDOMWindow* aWindow)
-    : FileHandle(aWindow)
+  DOMFileHandle()
   { }
 
   ~DOMFileHandle()

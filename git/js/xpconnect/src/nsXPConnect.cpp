@@ -579,17 +579,21 @@ nsXPConnect::WrapNativeToJSVal(JSContext * aJSContext,
                                nsWrapperCache *aCache,
                                const nsIID * aIID,
                                bool aAllowWrapping,
-                               jsval *aVal)
+                               jsval *aVal,
+                               nsIXPConnectJSObjectHolder **aHolder)
 {
     MOZ_ASSERT(aJSContext, "bad param");
     MOZ_ASSERT(aScopeArg, "bad param");
     MOZ_ASSERT(aCOMObj, "bad param");
 
+    if (aHolder)
+        *aHolder = nullptr;
+
     RootedObject aScope(aJSContext, aScopeArg);
 
     RootedValue rval(aJSContext);
     nsresult rv = NativeInterface2JSObject(aScope, aCOMObj, aCache, aIID,
-                                           aAllowWrapping, &rval, nullptr);
+                                           aAllowWrapping, &rval, aHolder);
     *aVal = rval;
     return rv;
 }

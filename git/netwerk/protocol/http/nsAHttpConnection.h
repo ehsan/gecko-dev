@@ -8,14 +8,13 @@
 #include "nsISupports.h"
 #include "nsAHttpTransaction.h"
 
+class nsHttpRequestHead;
+class nsHttpResponseHead;
+class nsHttpConnectionInfo;
+class nsHttpConnection;
 class nsISocketTransport;
 class nsIAsyncInputStream;
 class nsIAsyncOutputStream;
-
-namespace mozilla { namespace net {
-
-class nsHttpConnectionInfo;
-class nsHttpConnection;
 
 //-----------------------------------------------------------------------------
 // Abstract base class for a HTTP connection
@@ -216,7 +215,5 @@ public:
         if (fwdObject)                                      \
             (fwdObject)->SetSecurityCallbacks(aCallbacks);  \
     }
-
-}} // namespace mozilla::net
 
 #endif // nsAHttpConnection_h__

@@ -49,10 +49,7 @@ if CONFIG['MOZ_OMX_DECODER']:
 
 PARALLEL_DIRS += ['webspeech']
 
-TEST_DIRS += [
-    'test',
-    'gtest',
-]
+TEST_DIRS += ['test']
 
 EXPORTS += [
     'AbstractMediaDecoder.h',

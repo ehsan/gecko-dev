@@ -29,7 +29,7 @@ public:
     mFilterCallback(nullptr),
     mMaxTrackID(0) {}
 
-  virtual void RemoveInput(MediaInputPort* aPort) MOZ_OVERRIDE
+  virtual void RemoveInput(MediaInputPort* aPort)
   {
     for (int32_t i = mTrackMap.Length() - 1; i >= 0; --i) {
       if (mTrackMap[i].mInputPort == aPort) {
@@ -39,11 +39,8 @@ public:
     }
     ProcessedMediaStream::RemoveInput(aPort);
   }
-  virtual void ProduceOutput(GraphTime aFrom, GraphTime aTo, uint32_t aFlags) MOZ_OVERRIDE
+  virtual void ProduceOutput(GraphTime aFrom, GraphTime aTo)
   {
-    if (IsFinishedOnGraphThread()) {
-      return;
-    }
     nsAutoTArray<bool,8> mappedTracksFinished;
     nsAutoTArray<bool,8> mappedTracksWithMatchingInputTracks;
     for (uint32_t i = 0; i < mTrackMap.Length(); ++i) {
@@ -55,9 +52,6 @@ public:
     for (uint32_t i = 0; i < mInputs.Length(); ++i) {
       MediaStream* stream = mInputs[i]->GetSource();
       if (!stream->IsFinishedOnGraphThread()) {
-        // XXX we really should check whether 'stream' has finished within time aTo,
-        // not just that it's finishing when all its queued data eventually runs
-        // out.
         allFinished = false;
       }
       if (!stream->HasCurrentData()) {
@@ -101,7 +95,7 @@ public:
         mTrackMap.RemoveElementAt(i);
       }
     }
-    if (allFinished && mAutofinish && (aFlags & ALLOW_FINISH)) {
+    if (allFinished && mAutofinish) {
       // All streams have finished and won't add any more tracks, and
       // all our tracks have actually finished and been removed from our map,
       // so we're finished now.
@@ -123,7 +117,7 @@ public:
 
   // Forward SetTrackEnabled(output_track_id, enabled) to the Source MediaStream,
   // translating the output track ID into the correct ID in the source.
-  virtual void ForwardTrackEnabled(TrackID aOutputID, bool aEnabled) MOZ_OVERRIDE {
+  virtual void ForwardTrackEnabled(TrackID aOutputID, bool aEnabled) {
     for (int32_t i = mTrackMap.Length() - 1; i >= 0; --i) {
       if (mTrackMap[i].mOutputTrackID == aOutputID) {
         mTrackMap[i].mInputPort->GetSource()->
@@ -232,15 +226,6 @@ protected:
     for (GraphTime t = aFrom; t < aTo; t = next) {
       MediaInputPort::InputInterval interval = map->mInputPort->GetNextInputInterval(t);
       interval.mEnd = std::min(interval.mEnd, aTo);
-      StreamTime inputEnd = source->GraphTimeToStreamTime(interval.mEnd);
-      TrackTicks inputTrackEndPoint = TRACK_TICKS_MAX;
-
-      if (aInputTrack->IsEnded() &&
-          aInputTrack->GetEndTimeRoundDown() <= inputEnd) {
-        inputTrackEndPoint = aInputTrack->GetEnd();
-        *aOutputTrackFinished = true;
-      }
-
       if (interval.mStart >= interval.mEnd)
         break;
       next = interval.mEnd;
@@ -254,6 +239,16 @@ protected:
       TrackTicks endTicks = TimeToTicksRoundUp(rate, outputEnd);
       TrackTicks ticks = endTicks - startTicks;
       StreamTime inputStart = source->GraphTimeToStreamTime(interval.mStart);
+      StreamTime inputEnd = source->GraphTimeToStreamTime(interval.mEnd);
+      TrackTicks inputTrackEndPoint = TRACK_TICKS_MAX;
+
+      if (aInputTrack->IsEnded()) {
+        TrackTicks inputEndTicks = aInputTrack->TimeToTicksRoundDown(inputEnd);
+        if (aInputTrack->GetEnd() <= inputEndTicks) {
+          inputTrackEndPoint = aInputTrack->GetEnd();
+          *aOutputTrackFinished = true;
+        }
+      }
 
       if (interval.mInputIsBlocked) {
         // Maybe the input track ended?

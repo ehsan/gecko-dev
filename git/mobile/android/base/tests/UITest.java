@@ -13,7 +13,7 @@ import org.mozilla.gecko.FennecNativeActions;
 import org.mozilla.gecko.FennecNativeDriver;
 import org.mozilla.gecko.FennecTalosAssert;
 import org.mozilla.gecko.tests.components.*;
-import org.mozilla.gecko.tests.helpers.HelperInitializer;
+import org.mozilla.gecko.tests.helpers.*;
 
 import com.jayway.android.robotium.solo.Solo;
 
@@ -121,7 +121,13 @@ abstract class UITest extends ActivityInstrumentationTestCase2<Activity>
     }
 
     private void initHelpers() {
-        HelperInitializer.init(this);
+        // Other helpers make assertions so init AssertionHelper first.
+        AssertionHelper.init(this);
+
+        DeviceHelper.init(this);
+        GeckoHelper.init(this);
+        NavigationHelper.init(this);
+        WaitHelper.init(this);
     }
 
     @Override

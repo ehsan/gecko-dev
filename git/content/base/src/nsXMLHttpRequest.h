@@ -100,16 +100,6 @@ protected:
 class nsXHREventTarget : public nsDOMEventTargetHelper,
                          public nsIXMLHttpRequestEventTarget
 {
-protected:
-  nsXHREventTarget(nsDOMEventTargetHelper* aOwner)
-    : nsDOMEventTargetHelper(aOwner)
-  {
-  }
-
-  nsXHREventTarget()
-  {
-  }
-
 public:
   typedef mozilla::dom::XMLHttpRequestResponseType
           XMLHttpRequestResponseType;
@@ -139,10 +129,10 @@ class nsXMLHttpRequestUpload MOZ_FINAL : public nsXHREventTarget,
 {
 public:
   nsXMLHttpRequestUpload(nsDOMEventTargetHelper* aOwner)
-    : nsXHREventTarget(aOwner)
   {
+    BindToOwner(aOwner);
+    SetIsDOMBinding();
   }
-
   NS_DECL_ISUPPORTS_INHERITED
   NS_FORWARD_NSIXMLHTTPREQUESTEVENTTARGET(nsXHREventTarget::)
   NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsXHREventTarget)

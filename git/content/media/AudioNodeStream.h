@@ -84,7 +84,7 @@ public:
     mAudioParamStream = true;
   }
 
-  virtual AudioNodeStream* AsAudioNodeStream() MOZ_OVERRIDE { return this; }
+  virtual AudioNodeStream* AsAudioNodeStream() { return this; }
 
   // Graph thread only
   void SetStreamTimeParameterImpl(uint32_t aIndex, MediaStream* aRelativeToStream,
@@ -92,7 +92,7 @@ public:
   void SetChannelMixingParametersImpl(uint32_t aNumberOfChannels,
                                       dom::ChannelCountMode aChannelCountMoe,
                                       dom::ChannelInterpretation aChannelInterpretation);
-  virtual void ProduceOutput(GraphTime aFrom, GraphTime aTo, uint32_t aFlags) MOZ_OVERRIDE;
+  virtual void ProduceOutput(GraphTime aFrom, GraphTime aTo);
   TrackTicks GetCurrentPosition();
   bool IsAudioParamStream() const
   {
