@@ -46,7 +46,6 @@ struct ctl_arena_stats_s {
 
 	malloc_bin_stats_t	bstats[NBINS];
 	malloc_large_stats_t	*lstats;	/* nlclasses elements. */
-	malloc_huge_stats_t	*hstats;	/* nhclasses elements. */
 };
 
 struct ctl_stats_s {
@@ -58,6 +57,11 @@ struct ctl_stats_s {
 		uint64_t	total;		/* stats_chunks.nchunks */
 		size_t		high;		/* stats_chunks.highchunks */
 	} chunks;
+	struct {
+		size_t		allocated;	/* huge_allocated */
+		uint64_t	nmalloc;	/* huge_nmalloc */
+		uint64_t	ndalloc;	/* huge_ndalloc */
+	} huge;
 	unsigned		narenas;
 	ctl_arena_stats_t	*arenas;	/* (narenas + 1) elements. */
 };

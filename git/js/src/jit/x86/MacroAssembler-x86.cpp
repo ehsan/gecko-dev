@@ -291,7 +291,7 @@ MacroAssemblerX86::callWithABIPre(uint32_t *stackAdjust)
     {
         // Check call alignment.
         Label good;
-        test32(esp, Imm32(ABIStackAlignment - 1));
+        testl(esp, Imm32(ABIStackAlignment - 1));
         j(Equal, &good);
         breakpoint();
         bind(&good);
@@ -358,17 +358,24 @@ MacroAssemblerX86::callWithABI(Register fun, MoveOp::Type result)
 }
 
 void
-MacroAssemblerX86::handleFailureWithHandlerTail(void *handler)
+MacroAssemblerX86::handleFailureWithHandler(void *handler)
 {
     // Reserve space for exception information.
     subl(Imm32(sizeof(ResumeFromException)), esp);
     movl(esp, eax);
 
-    // Call the handler.
+    // Ask for an exception handler.
     setupUnalignedABICall(1, ecx);
     passABIArg(eax);
     callWithABI(handler);
 
+    JitCode *excTail = GetJitContext()->runtime->jitRuntime()->getExceptionTail();
+    jmp(excTail);
+}
+
+void
+MacroAssemblerX86::handleFailureWithHandlerTail()
+{
     Label entryFrame;
     Label catch_;
     Label finally;
@@ -436,15 +443,15 @@ MacroAssemblerX86::branchTestValue(Condition cond, const ValueOperand &value, co
 {
     jsval_layout jv = JSVAL_TO_IMPL(v);
     if (v.isMarkable())
-        cmpPtr(value.payloadReg(), ImmGCPtr(reinterpret_cast<gc::Cell *>(v.toGCThing())));
+        cmpl(value.payloadReg(), ImmGCPtr(reinterpret_cast<gc::Cell *>(v.toGCThing())));
     else
-        cmpPtr(value.payloadReg(), ImmWord(jv.s.payload.i32));
+        cmpl(value.payloadReg(), Imm32(jv.s.payload.i32));
 
     if (cond == Equal) {
         Label done;
         j(NotEqual, &done);
         {
-            cmp32(value.typeReg(), Imm32(jv.s.tag));
+            cmpl(value.typeReg(), Imm32(jv.s.tag));
             j(Equal, label);
         }
         bind(&done);
@@ -452,7 +459,7 @@ MacroAssemblerX86::branchTestValue(Condition cond, const ValueOperand &value, co
         MOZ_ASSERT(cond == NotEqual);
         j(NotEqual, label);
 
-        cmp32(value.typeReg(), Imm32(jv.s.tag));
+        cmpl(value.typeReg(), Imm32(jv.s.tag));
         j(NotEqual, label);
     }
 }

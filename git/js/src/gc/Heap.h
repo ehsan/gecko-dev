@@ -50,9 +50,6 @@ extern bool
 CurrentThreadIsIonCompiling();
 #endif
 
-extern bool
-UnmarkGrayCellRecursively(gc::Cell *cell, JSGCTraceKind kind);
-
 namespace gc {
 
 struct Arena;
@@ -505,18 +502,16 @@ class FreeList
 };
 
 /* Every arena has a header. */
-struct ArenaHeader
+struct ArenaHeader : public JS::shadow::ArenaHeader
 {
     friend struct FreeLists;
-
-    JS::Zone *zone;
 
     /*
      * ArenaHeader::next has two purposes: when unallocated, it points to the
      * next available Arena's header. When allocated, it points to the next
      * arena of the same size class and compartment.
      */
-    ArenaHeader *next;
+    ArenaHeader     *next;
 
   private:
     /*
@@ -647,8 +642,6 @@ struct ArenaHeader
     size_t countFreeCells();
 #endif
 };
-static_assert(ArenaZoneOffset == offsetof(ArenaHeader, zone),
-              "The hardcoded API zone offset must match the actual offset.");
 
 struct Arena
 {
@@ -846,7 +839,7 @@ struct ChunkBitmap
     MOZ_ALWAYS_INLINE void getMarkWordAndMask(const Cell *cell, uint32_t color,
                                               uintptr_t **wordp, uintptr_t *maskp)
     {
-        detail::GetGCThingMarkWordAndMask(uintptr_t(cell), color, wordp, maskp);
+        GetGCThingMarkWordAndMask(cell, color, wordp, maskp);
     }
 
     MOZ_ALWAYS_INLINE MOZ_TSAN_BLACKLIST bool isMarked(const Cell *cell, uint32_t color) {
@@ -1360,8 +1353,9 @@ TenuredCell::readBarrier(TenuredCell *thing)
                          MapAllocToTraceKind(thing->getAllocKind()));
         MOZ_ASSERT(tmp == thing);
     }
-    if (thing->isMarked(js::gc::GRAY))
-        UnmarkGrayCellRecursively(thing, thing->getTraceKind());
+    JS::GCCellPtr cellptr(thing, thing->getTraceKind());
+    if (JS::GCThingIsMarkedGray(thing))
+        JS::UnmarkGrayGCThingRecursively(cellptr);
 }
 
 /* static */ MOZ_ALWAYS_INLINE void

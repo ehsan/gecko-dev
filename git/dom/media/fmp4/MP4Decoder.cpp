@@ -193,6 +193,7 @@ IsAndroidAvailable()
   nsString vendor;
   if (NS_FAILED(gfxInfo->GetAdapterVendorID(vendor)) ||
       vendor.Find("Imagination") == 0) {
+    printf_stderr("SNORP: not doing video for PowerVR\n");
     return nullptr;
   }
 

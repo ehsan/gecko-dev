@@ -117,7 +117,7 @@ JitRuntime::generateEnterJIT(JSContext *cx, EnterJitType type)
         Label header, footer;
         masm.bind(&header);
 
-        masm.cmpPtr(r13, reg_argv);
+        masm.cmpq(r13, reg_argv);
         masm.j(AssemblerX86Shared::BelowOrEqual, &footer);
 
         masm.subq(Imm32(8), r13);
@@ -823,11 +823,11 @@ JitRuntime::generateDebugTrapHandler(JSContext *cx)
 }
 
 JitCode *
-JitRuntime::generateExceptionTailStub(JSContext *cx, void *handler)
+JitRuntime::generateExceptionTailStub(JSContext *cx)
 {
     MacroAssembler masm;
 
-    masm.handleFailureWithHandlerTail(handler);
+    masm.handleFailureWithHandlerTail();
 
     Linker linker(masm);
     JitCode *code = linker.newCode<NoGC>(cx, OTHER_CODE);

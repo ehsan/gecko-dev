@@ -95,11 +95,8 @@ PathBuilderCG::Arc(const Point &aOrigin, Float aRadius, Float aStartAngle,
 Point
 PathBuilderCG::CurrentPoint() const
 {
-  Point ret;
-  if (!CGPathIsEmpty(mCGPath)) {
-    CGPoint pt = CGPathGetCurrentPoint(mCGPath);
-    ret.MoveTo(pt.x, pt.y);
-  }
+  CGPoint pt = CGPathGetCurrentPoint(mCGPath);
+  Point ret(pt.x, pt.y);
   return ret;
 }
 

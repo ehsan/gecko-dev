@@ -11,7 +11,6 @@
 #include "nsDocShellTreeOwner.h"
 
 // Core Includes
-#include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 
 // Interfaces needed
@@ -68,7 +67,7 @@ public:
     nsIID mID;
 };
 
-//  {cda5863a-aa9c-411e-be49-ea0d525ab4b5} -
+//  {cda5863a-aa9c-411e-be49-ea0d525ab4b5} - 
 #define NS_WEBBROWSER_CID \
 {0xcda5863a, 0xaa9c, 0x411e, { 0xbe, 0x49, 0xea, 0x0d, 0x52, 0x5a, 0xb4, 0xb5 }}
 
@@ -78,8 +77,8 @@ class nsWebBrowser MOZ_FINAL : public nsIWebBrowser,
                                public nsIWebBrowserSetup,
                                public nsIDocShellTreeItem,
                                public nsIBaseWindow,
-                               public nsIScrollable,
-                               public nsITextScroll,
+                               public nsIScrollable, 
+                               public nsITextScroll, 
                                public nsIInterfaceRequestor,
                                public nsIWebBrowserPersist,
                                public nsIWebBrowserFocus,
@@ -97,7 +96,7 @@ public:
     NS_DECL_NSIBASEWINDOW
     NS_DECL_NSIDOCSHELLTREEITEM
     NS_DECL_NSIINTERFACEREQUESTOR
-    NS_DECL_NSISCROLLABLE
+    NS_DECL_NSISCROLLABLE   
     NS_DECL_NSITEXTSCROLL
     NS_DECL_NSIWEBBROWSER
     NS_DECL_NSIWEBNAVIGATION
@@ -126,7 +125,7 @@ protected:
     virtual bool PaintWindow(nsIWidget* aWidget, nsIntRegion aRegion) MOZ_OVERRIDE;
 
 protected:
-   nsRefPtr<nsDocShellTreeOwner> mDocShellTreeOwner;
+   nsDocShellTreeOwner*       mDocShellTreeOwner;
    nsCOMPtr<nsIDocShell>      mDocShell;
    nsCOMPtr<nsIInterfaceRequestor> mDocShellAsReq;
    nsCOMPtr<nsIBaseWindow>    mDocShellAsWin;
@@ -135,7 +134,7 @@ protected:
    nsCOMPtr<nsITextScroll>    mDocShellAsTextScroll;
    nsCOMPtr<nsIWidget>        mInternalWidget;
    nsCOMPtr<nsIWindowWatcher> mWWatch;
-   nsAutoPtr<nsWebBrowserInitInfo> mInitInfo;
+   nsWebBrowserInitInfo*      mInitInfo;
    uint32_t                   mContentType;
    bool                       mActivating;
    bool                       mShouldEnableHistory;
@@ -156,11 +155,14 @@ protected:
    uint32_t                       mPersistFlags;
 
    // stream
-   nsRefPtr<nsEmbedStream>        mStream;
+   nsEmbedStream                 *mStream;
+   nsCOMPtr<nsISupports>          mStreamGuard;
 
    //Weak Reference interfaces...
    nsIWidget*                            mParentWidget;
-   nsAutoPtr<nsTArray<nsWebBrowserListenerState>> mListenerArray;
+   nsTArray<nsWebBrowserListenerState*>* mListenerArray;
 };
 
 #endif /* nsWebBrowser_h__ */
+
+

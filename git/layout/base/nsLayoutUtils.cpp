@@ -3755,29 +3755,19 @@ nsLayoutUtils::GetFontMetricsForStyleContext(nsStyleContext* aStyleContext,
   gfxUserFontSet* fs = pc->GetUserFontSet();
   gfxTextPerfMetrics* tp = pc->GetTextPerfMetrics();
 
-  WritingMode wm(aStyleContext);
-  gfxFont::Orientation orientation =
-    wm.IsVertical() && !wm.IsSideways() ? gfxFont::eVertical
-                                        : gfxFont::eHorizontal;
-
-  const nsStyleFont* styleFont = aStyleContext->StyleFont();
-
-  // When aInflation is 1.0, avoid making a local copy of the nsFont.
-  // This also avoids running font.size through floats when it is large,
-  // which would be lossy.  Fortunately, in such cases, aInflation is
+  nsFont font = aStyleContext->StyleFont()->mFont;
+  // We need to not run font.size through floats when it's large since
+  // doing so would be lossy.  Fortunately, in such cases, aInflation is
   // guaranteed to be 1.0f.
-  if (aInflation == 1.0f) {
-    return pc->DeviceContext()->GetMetricsFor(styleFont->mFont,
-                                              styleFont->mLanguage,
-                                              orientation, fs, tp,
-                                              *aFontMetrics);
+  if (aInflation != 1.0f) {
+    font.size = NSToCoordRound(font.size * aInflation);
   }
-
-  nsFont font = styleFont->mFont;
-  font.size = NSToCoordRound(font.size * aInflation);
-  return pc->DeviceContext()->GetMetricsFor(font, styleFont->mLanguage,
-                                            orientation, fs, tp,
-                                            *aFontMetrics);
+  WritingMode wm(aStyleContext);
+  return pc->DeviceContext()->GetMetricsFor(
+                  font, aStyleContext->StyleFont()->mLanguage,
+                  wm.IsVertical() && !wm.IsSideways()
+                    ? gfxFont::eVertical : gfxFont::eHorizontal,
+                  fs, tp, *aFontMetrics);
 }
 
 nsIFrame*
@@ -5548,11 +5538,6 @@ struct SnappedImageDrawingParameters {
   // The region in tiled image space which will be drawn, with an associated
   // region to which sampling should be restricted.
   ImageRegion region;
-  // The default viewport size for SVG images, which we use unless a different
-  // one has been explicitly specified. This is the same as |size| except that
-  // it does not take into account any transformation on the gfxContext we're
-  // drawing to - for example, CSS transforms are not taken into account.
-  nsIntSize svgViewportSize;
   // Whether there's anything to draw at all.
   bool shouldDraw;
 
@@ -5563,12 +5548,10 @@ struct SnappedImageDrawingParameters {
 
   SnappedImageDrawingParameters(const gfxMatrix&   aImageSpaceToDeviceSpace,
                                 const nsIntSize&   aSize,
-                                const ImageRegion& aRegion,
-                                const nsIntSize&   aSVGViewportSize)
+                                const ImageRegion& aRegion)
    : imageSpaceToDeviceSpace(aImageSpaceToDeviceSpace)
    , size(aSize)
    , region(aRegion)
-   , svgViewportSize(aSVGViewportSize)
    , shouldDraw(true)
   {}
 };
@@ -5683,11 +5666,6 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
                                     aGraphicsFilter, aImageFlags);
   gfxSize imageSize(intImageSize.width, intImageSize.height);
 
-  nsIntSize svgViewportSize = currentMatrix.IsIdentity()
-      ? intImageSize
-      : nsIntSize(NSAppUnitsToIntPixels(dest.width, aAppUnitsPerDevPixel),
-                  NSAppUnitsToIntPixels(dest.height, aAppUnitsPerDevPixel));
-
   // Compute the set of pixels that would be sampled by an ideal rendering
   gfxPoint subimageTopLeft =
     MapToFloatImagePixels(imageSize, devPixelDest, devPixelFill.TopLeft());
@@ -5765,9 +5743,7 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
 
   ImageRegion region =
     ImageRegion::CreateWithSamplingRestriction(imageSpaceFill, subimage);
-
-  return SnappedImageDrawingParameters(transform, intImageSize,
-                                       region, svgViewportSize);
+  return SnappedImageDrawingParameters(transform, intImageSize, region);
 }
 
 
@@ -5805,14 +5781,8 @@ DrawImageInternal(gfxContext&            aContext,
   gfxContextMatrixAutoSaveRestore contextMatrixRestorer(&aContext);
   aContext.SetMatrix(params.imageSpaceToDeviceSpace);
 
-  Maybe<SVGImageContext> svgContext = ToMaybe(aSVGContext);
-  if (!svgContext) {
-    // Use the default viewport.
-    svgContext = Some(SVGImageContext(params.svgViewportSize, Nothing()));
-  }
-
   aImage->Draw(&aContext, params.size, params.region, imgIContainer::FRAME_CURRENT,
-               aGraphicsFilter, svgContext, aImageFlags);
+               aGraphicsFilter, ToMaybe(aSVGContext), aImageFlags);
 
   return NS_OK;
 }

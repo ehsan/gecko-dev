@@ -3766,8 +3766,6 @@ MLoadTypedArrayElementStatic::congruentTo(const MDefinition *ins) const
         return false;
     if (viewType() != other->viewType())
         return false;
-    if (base() != other->base())
-        return false;
     return congruentIfOperandsEqual(other);
 }
 

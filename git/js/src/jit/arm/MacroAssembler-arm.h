@@ -1098,11 +1098,6 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
         ma_cmp(secondScratchReg_, rhs);
         ma_b(label, cond);
     }
-    void branch32(Condition cond, AsmJSAbsoluteAddress addr, Imm32 imm, Label *label) {
-        loadPtr(addr, ScratchRegister);
-        ma_cmp(ScratchRegister, imm);
-        ma_b(label, cond);
-    }
 
     void loadUnboxedValue(Address address, MIRType type, AnyRegister dest) {
         if (dest.isFloat())
@@ -1222,7 +1217,8 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
         ma_orr(Imm32(type), frameSizeReg);
     }
 
-    void handleFailureWithHandlerTail(void *handler);
+    void handleFailureWithHandler(void *handler);
+    void handleFailureWithHandlerTail();
 
     /////////////////////////////////////////////////////////////////
     // Common interface.

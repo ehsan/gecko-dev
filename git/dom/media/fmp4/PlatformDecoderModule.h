@@ -231,7 +231,6 @@ public:
   virtual bool IsDormantNeeded() {
     return false;
   };
-  virtual void AllocateMediaResources() {}
   virtual void ReleaseMediaResources() {}
   virtual void ReleaseDecoder() {}
 };

@@ -271,78 +271,78 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
 
     Condition testUndefined(Condition cond, Register tag) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tag, ImmTag(JSVAL_TAG_UNDEFINED));
+        cmpl(tag, ImmTag(JSVAL_TAG_UNDEFINED));
         return cond;
     }
     Condition testBoolean(Condition cond, Register tag) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tag, ImmTag(JSVAL_TAG_BOOLEAN));
+        cmpl(tag, ImmTag(JSVAL_TAG_BOOLEAN));
         return cond;
     }
     Condition testInt32(Condition cond, Register tag) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tag, ImmTag(JSVAL_TAG_INT32));
+        cmpl(tag, ImmTag(JSVAL_TAG_INT32));
         return cond;
     }
     Condition testDouble(Condition cond, Register tag) {
         MOZ_ASSERT(cond == Assembler::Equal || cond == Assembler::NotEqual);
         Condition actual = (cond == Equal) ? Below : AboveOrEqual;
-        cmp32(tag, ImmTag(JSVAL_TAG_CLEAR));
+        cmpl(tag, ImmTag(JSVAL_TAG_CLEAR));
         return actual;
     }
     Condition testNull(Condition cond, Register tag) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tag, ImmTag(JSVAL_TAG_NULL));
+        cmpl(tag, ImmTag(JSVAL_TAG_NULL));
         return cond;
     }
     Condition testString(Condition cond, Register tag) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tag, ImmTag(JSVAL_TAG_STRING));
+        cmpl(tag, ImmTag(JSVAL_TAG_STRING));
         return cond;
     }
     Condition testSymbol(Condition cond, Register tag) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tag, ImmTag(JSVAL_TAG_SYMBOL));
+        cmpl(tag, ImmTag(JSVAL_TAG_SYMBOL));
         return cond;
     }
     Condition testObject(Condition cond, Register tag) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tag, ImmTag(JSVAL_TAG_OBJECT));
+        cmpl(tag, ImmTag(JSVAL_TAG_OBJECT));
         return cond;
     }
     Condition testNumber(Condition cond, Register tag) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tag, ImmTag(JSVAL_UPPER_INCL_TAG_OF_NUMBER_SET));
+        cmpl(tag, ImmTag(JSVAL_UPPER_INCL_TAG_OF_NUMBER_SET));
         return cond == Equal ? BelowOrEqual : Above;
     }
     Condition testGCThing(Condition cond, Register tag) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tag, ImmTag(JSVAL_LOWER_INCL_TAG_OF_GCTHING_SET));
+        cmpl(tag, ImmTag(JSVAL_LOWER_INCL_TAG_OF_GCTHING_SET));
         return cond == Equal ? AboveOrEqual : Below;
     }
     Condition testGCThing(Condition cond, const Address &address) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tagOf(address), ImmTag(JSVAL_LOWER_INCL_TAG_OF_GCTHING_SET));
+        cmpl(tagOf(address), ImmTag(JSVAL_LOWER_INCL_TAG_OF_GCTHING_SET));
         return cond == Equal ? AboveOrEqual : Below;
     }
     Condition testMagic(Condition cond, const Address &address) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tagOf(address), ImmTag(JSVAL_TAG_MAGIC));
+        cmpl(tagOf(address), ImmTag(JSVAL_TAG_MAGIC));
         return cond;
     }
     Condition testMagic(Condition cond, Register tag) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tag, ImmTag(JSVAL_TAG_MAGIC));
+        cmpl(tag, ImmTag(JSVAL_TAG_MAGIC));
         return cond;
     }
     Condition testMagic(Condition cond, const Operand &operand) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(ToType(operand), ImmTag(JSVAL_TAG_MAGIC));
+        cmpl(ToType(operand), ImmTag(JSVAL_TAG_MAGIC));
         return cond;
     }
     Condition testPrimitive(Condition cond, Register tag) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tag, ImmTag(JSVAL_UPPER_EXCL_TAG_OF_PRIMITIVE_SET));
+        cmpl(tag, ImmTag(JSVAL_UPPER_EXCL_TAG_OF_PRIMITIVE_SET));
         return cond == Equal ? Below : AboveOrEqual;
     }
     Condition testError(Condition cond, Register tag) {
@@ -350,7 +350,7 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     }
     Condition testInt32(Condition cond, const Operand &operand) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(ToType(operand), ImmTag(JSVAL_TAG_INT32));
+        cmpl(ToType(operand), ImmTag(JSVAL_TAG_INT32));
         return cond;
     }
     Condition testInt32(Condition cond, const Address &address) {
@@ -360,7 +360,7 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     Condition testDouble(Condition cond, const Operand &operand) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
         Condition actual = (cond == Equal) ? Below : AboveOrEqual;
-        cmp32(ToType(operand), ImmTag(JSVAL_TAG_CLEAR));
+        cmpl(ToType(operand), ImmTag(JSVAL_TAG_CLEAR));
         return actual;
     }
     Condition testDouble(Condition cond, const Address &address) {
@@ -371,7 +371,7 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
 
     Condition testUndefined(Condition cond, const Operand &operand) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(ToType(operand), ImmTag(JSVAL_TAG_UNDEFINED));
+        cmpl(ToType(operand), ImmTag(JSVAL_TAG_UNDEFINED));
         return cond;
     }
     Condition testUndefined(Condition cond, const Address &addr) {
@@ -379,7 +379,7 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     }
     Condition testNull(Condition cond, const Operand &operand) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(ToType(operand), ImmTag(JSVAL_TAG_NULL));
+        cmpl(ToType(operand), ImmTag(JSVAL_TAG_NULL));
         return cond;
     }
     Condition testNull(Condition cond, const Address &addr) {
@@ -429,53 +429,53 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
 
     Condition testUndefined(Condition cond, const BaseIndex &address) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tagOf(address), ImmTag(JSVAL_TAG_UNDEFINED));
+        cmpl(tagOf(address), ImmTag(JSVAL_TAG_UNDEFINED));
         return cond;
     }
     Condition testNull(Condition cond, const BaseIndex &address) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tagOf(address), ImmTag(JSVAL_TAG_NULL));
+        cmpl(tagOf(address), ImmTag(JSVAL_TAG_NULL));
         return cond;
     }
     Condition testBoolean(Condition cond, const BaseIndex &address) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tagOf(address), ImmTag(JSVAL_TAG_BOOLEAN));
+        cmpl(tagOf(address), ImmTag(JSVAL_TAG_BOOLEAN));
         return cond;
     }
     Condition testString(Condition cond, const BaseIndex &address) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tagOf(address), ImmTag(JSVAL_TAG_STRING));
+        cmpl(tagOf(address), ImmTag(JSVAL_TAG_STRING));
         return cond;
     }
     Condition testSymbol(Condition cond, const BaseIndex &address) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tagOf(address), ImmTag(JSVAL_TAG_SYMBOL));
+        cmpl(tagOf(address), ImmTag(JSVAL_TAG_SYMBOL));
         return cond;
     }
     Condition testInt32(Condition cond, const BaseIndex &address) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tagOf(address), ImmTag(JSVAL_TAG_INT32));
+        cmpl(tagOf(address), ImmTag(JSVAL_TAG_INT32));
         return cond;
     }
     Condition testObject(Condition cond, const BaseIndex &address) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tagOf(address), ImmTag(JSVAL_TAG_OBJECT));
+        cmpl(tagOf(address), ImmTag(JSVAL_TAG_OBJECT));
         return cond;
     }
     Condition testDouble(Condition cond, const BaseIndex &address) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
         Condition actual = (cond == Equal) ? Below : AboveOrEqual;
-        cmp32(tagOf(address), ImmTag(JSVAL_TAG_CLEAR));
+        cmpl(tagOf(address), ImmTag(JSVAL_TAG_CLEAR));
         return actual;
     }
     Condition testMagic(Condition cond, const BaseIndex &address) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tagOf(address), ImmTag(JSVAL_TAG_MAGIC));
+        cmpl(tagOf(address), ImmTag(JSVAL_TAG_MAGIC));
         return cond;
     }
     Condition testGCThing(Condition cond, const BaseIndex &address) {
         MOZ_ASSERT(cond == Equal || cond == NotEqual);
-        cmp32(tagOf(address), ImmTag(JSVAL_LOWER_INCL_TAG_OF_GCTHING_SET));
+        cmpl(tagOf(address), ImmTag(JSVAL_LOWER_INCL_TAG_OF_GCTHING_SET));
         return cond == Equal ? AboveOrEqual : Below;
     }
 
@@ -515,58 +515,43 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     }
 
     void cmpPtr(Register lhs, const ImmWord rhs) {
-        cmpl(Imm32(rhs.value), lhs);
+        cmpl(lhs, Imm32(rhs.value));
     }
     void cmpPtr(Register lhs, const ImmPtr imm) {
         cmpPtr(lhs, ImmWord(uintptr_t(imm.value)));
     }
     void cmpPtr(Register lhs, const ImmGCPtr rhs) {
-        cmpl(rhs, lhs);
+        cmpl(lhs, rhs);
     }
-    void cmpPtr(const Operand &lhs, Imm32 rhs) {
-        cmp32(lhs, rhs);
+    void cmpPtr(Register lhs, const Imm32 rhs) {
+        cmpl(lhs, rhs);
     }
     void cmpPtr(const Operand &lhs, const ImmWord rhs) {
-        cmp32(lhs, Imm32(rhs.value));
+        cmpl(lhs, rhs);
     }
     void cmpPtr(const Operand &lhs, const ImmPtr imm) {
         cmpPtr(lhs, ImmWord(uintptr_t(imm.value)));
     }
     void cmpPtr(const Operand &lhs, const ImmGCPtr rhs) {
-        cmpl(rhs, lhs);
+        cmpl(lhs, rhs);
+    }
+    void cmpPtr(const Operand &lhs, const Imm32 rhs) {
+        cmpl(lhs, rhs);
     }
     void cmpPtr(const Address &lhs, Register rhs) {
-        cmpPtr(Operand(lhs), rhs);
-    }
-    void cmpPtr(const Operand &lhs, Register rhs) {
-        cmp32(lhs, rhs);
+        cmpl(Operand(lhs), rhs);
     }
     void cmpPtr(const Address &lhs, const ImmWord rhs) {
-        cmpPtr(Operand(lhs), rhs);
+        cmpl(Operand(lhs), rhs);
     }
     void cmpPtr(const Address &lhs, const ImmPtr rhs) {
         cmpPtr(lhs, ImmWord(uintptr_t(rhs.value)));
     }
     void cmpPtr(Register lhs, Register rhs) {
-        cmp32(lhs, rhs);
-    }
-    void cmpPtr(const Operand &lhs, ImmMaybeNurseryPtr rhs) {
-        cmpl(rhs, lhs);
+        cmpl(lhs, rhs);
     }
     void testPtr(Register lhs, Register rhs) {
-        test32(lhs, rhs);
-    }
-    void testPtr(Register lhs, Imm32 rhs) {
-        test32(lhs, rhs);
-    }
-    void testPtr(Register lhs, ImmWord rhs) {
-        test32(lhs, Imm32(rhs.value));
-    }
-    void testPtr(const Operand &lhs, Imm32 rhs) {
-        test32(lhs, rhs);
-    }
-    void testPtr(const Operand &lhs, ImmWord rhs) {
-        test32(lhs, Imm32(rhs.value));
+        testl(lhs, rhs);
     }
 
     template <typename T1, typename T2>
@@ -607,68 +592,64 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     }
 
     void addPtr(Register src, Register dest) {
-        add32(src, dest);
+        addl(src, dest);
     }
     void addPtr(Imm32 imm, Register dest) {
-        add32(imm, dest);
+        addl(imm, dest);
     }
     void addPtr(ImmWord imm, Register dest) {
-        add32(Imm32(imm.value), dest);
+        addl(Imm32(imm.value), dest);
     }
     void addPtr(ImmPtr imm, Register dest) {
         addPtr(ImmWord(uintptr_t(imm.value)), dest);
     }
     void addPtr(Imm32 imm, const Address &dest) {
-        add32(imm, Operand(dest));
+        addl(imm, Operand(dest));
     }
     void addPtr(Imm32 imm, const Operand &dest) {
-        add32(imm, dest);
+        addl(imm, dest);
     }
     void addPtr(const Address &src, Register dest) {
         addl(Operand(src), dest);
     }
     void subPtr(Imm32 imm, Register dest) {
-        sub32(imm, dest);
+        subl(imm, dest);
     }
     void subPtr(Register src, Register dest) {
-        sub32(src, dest);
+        subl(src, dest);
     }
     void subPtr(const Address &addr, Register dest) {
-        sub32(Operand(addr), dest);
+        subl(Operand(addr), dest);
     }
     void subPtr(Register src, const Address &dest) {
-        sub32(src, Operand(dest));
+        subl(src, Operand(dest));
     }
     void mulBy3(const Register &src, const Register &dest) {
         lea(Operand(src, src, TimesTwo), dest);
     }
 
     void branch32(Condition cond, AbsoluteAddress lhs, Imm32 rhs, Label *label) {
-        cmp32(Operand(lhs), rhs);
-        j(cond, label);
-    }
-    void branch32(Condition cond, AsmJSAbsoluteAddress lhs, Imm32 rhs, Label *label) {
-        cmpl(rhs, lhs);
+        cmpl(Operand(lhs), rhs);
         j(cond, label);
     }
     void branch32(Condition cond, AbsoluteAddress lhs, Register rhs, Label *label) {
-        cmp32(Operand(lhs), rhs);
+        cmpl(Operand(lhs), rhs);
         j(cond, label);
     }
     void branchTest32(Condition cond, AbsoluteAddress address, Imm32 imm, Label *label) {
-        test32(Operand(address), imm);
+        testl(Operand(address), imm);
         j(cond, label);
     }
 
     // Specialization for AsmJSAbsoluteAddress.
     void branchPtr(Condition cond, AsmJSAbsoluteAddress lhs, Register ptr, Label *label) {
-        cmpl(ptr, lhs);
+        cmpl(lhs, ptr);
         j(cond, label);
     }
 
     template <typename T, typename S>
     void branchPtr(Condition cond, T lhs, S ptr, Label *label) {
-        cmpPtr(Operand(lhs), ptr);
+        cmpl(Operand(lhs), ptr);
         j(cond, label);
     }
 
@@ -682,7 +663,7 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
 
     template <typename T, typename S>
     void branchPtr(Condition cond, T lhs, S ptr, RepatchLabel *label) {
-        cmpPtr(Operand(lhs), ptr);
+        cmpl(Operand(lhs), ptr);
         j(cond, label);
     }
 
@@ -706,23 +687,23 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
         return CodeOffsetJump(size());
     }
     void branchPtr(Condition cond, Register lhs, Register rhs, RepatchLabel *label) {
-        cmpPtr(lhs, rhs);
+        cmpl(lhs, rhs);
         j(cond, label);
     }
     void branchPtr(Condition cond, Register lhs, Register rhs, Label *label) {
-        cmpPtr(lhs, rhs);
+        cmpl(lhs, rhs);
         j(cond, label);
     }
     void branchTestPtr(Condition cond, Register lhs, Register rhs, Label *label) {
-        testPtr(lhs, rhs);
+        testl(lhs, rhs);
         j(cond, label);
     }
     void branchTestPtr(Condition cond, Register lhs, Imm32 imm, Label *label) {
-        testPtr(lhs, imm);
+        testl(lhs, imm);
         j(cond, label);
     }
     void branchTestPtr(Condition cond, const Address &lhs, Imm32 imm, Label *label) {
-        testPtr(Operand(lhs), imm);
+        testl(Operand(lhs), imm);
         j(cond, label);
     }
     void decBranchPtr(Condition cond, Register lhs, Imm32 imm, Label *label) {
@@ -867,12 +848,12 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     // Note: this function clobbers the source register.
     void boxDouble(FloatRegister src, const ValueOperand &dest) {
         if (Assembler::HasSSE41()) {
-            vmovd(src, dest.payloadReg());
+            movd(src, dest.payloadReg());
             pextrd(1, src, dest.typeReg());
         } else {
-            vmovd(src, dest.payloadReg());
+            movd(src, dest.payloadReg());
             psrldq(Imm32(4), src);
-            vmovd(src, dest.typeReg());
+            movd(src, dest.typeReg());
         }
     }
     void boxNonDouble(JSValueType type, Register src, const ValueOperand &dest) {
@@ -904,12 +885,12 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     void unboxDouble(const ValueOperand &src, FloatRegister dest) {
         MOZ_ASSERT(dest != ScratchDoubleReg);
         if (Assembler::HasSSE41()) {
-            vmovd(src.payloadReg(), dest);
+            movd(src.payloadReg(), dest);
             pinsrd(1, src.typeReg(), dest);
         } else {
-            vmovd(src.payloadReg(), dest);
-            vmovd(src.typeReg(), ScratchDoubleReg);
-            vunpcklps(ScratchDoubleReg, dest, dest);
+            movd(src.payloadReg(), dest);
+            movd(src.typeReg(), ScratchDoubleReg);
+            unpcklps(ScratchDoubleReg, dest);
         }
     }
     void unboxDouble(const Operand &payload, const Operand &type,
@@ -917,15 +898,15 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
         MOZ_ASSERT(dest != ScratchDoubleReg);
         if (Assembler::HasSSE41()) {
             movl(payload, scratch);
-            vmovd(scratch, dest);
+            movd(scratch, dest);
             movl(type, scratch);
             pinsrd(1, scratch, dest);
         } else {
             movl(payload, scratch);
-            vmovd(scratch, dest);
+            movd(scratch, dest);
             movl(type, scratch);
-            vmovd(scratch, ScratchDoubleReg);
-            vunpcklps(ScratchDoubleReg, dest, dest);
+            movd(scratch, ScratchDoubleReg);
+            unpcklps(ScratchDoubleReg, dest);
         }
     }
     void unboxValue(const ValueOperand &src, AnyRegister dest) {
@@ -996,26 +977,26 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     void loadConstantFloat32x4(const SimdConstant &v, FloatRegister dest);
 
     void branchTruncateDouble(FloatRegister src, Register dest, Label *fail) {
-        vcvttsd2si(src, dest);
+        cvttsd2si(src, dest);
 
-        // vcvttsd2si returns 0x80000000 on failure. Test for it by
+        // cvttsd2si returns 0x80000000 on failure. Test for it by
         // subtracting 1 and testing overflow (this permits the use of a
         // smaller immediate field).
-        cmp32(dest, Imm32(1));
+        cmpl(dest, Imm32(1));
         j(Assembler::Overflow, fail);
     }
     void branchTruncateFloat32(FloatRegister src, Register dest, Label *fail) {
-        vcvttss2si(src, dest);
+        cvttss2si(src, dest);
 
-        // vcvttss2si returns 0x80000000 on failure. Test for it by
+        // cvttss2si returns 0x80000000 on failure. Test for it by
         // subtracting 1 and testing overflow (this permits the use of a
         // smaller immediate field).
-        cmp32(dest, Imm32(1));
+        cmpl(dest, Imm32(1));
         j(Assembler::Overflow, fail);
     }
 
     Condition testInt32Truthy(bool truthy, const ValueOperand &operand) {
-        test32(operand.payloadReg(), operand.payloadReg());
+        testl(operand.payloadReg(), operand.payloadReg());
         return truthy ? NonZero : Zero;
     }
     void branchTestInt32Truthy(bool truthy, const ValueOperand &operand, Label *label) {
@@ -1023,12 +1004,12 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
         j(cond, label);
     }
     void branchTestBooleanTruthy(bool truthy, const ValueOperand &operand, Label *label) {
-        test32(operand.payloadReg(), operand.payloadReg());
+        testl(operand.payloadReg(), operand.payloadReg());
         j(truthy ? NonZero : Zero, label);
     }
     Condition testStringTruthy(bool truthy, const ValueOperand &value) {
         Register string = value.payloadReg();
-        cmp32(Operand(string, JSString::offsetOfLength()), Imm32(0));
+        cmpl(Operand(string, JSString::offsetOfLength()), Imm32(0));
         return truthy ? Assembler::NotEqual : Assembler::Equal;
     }
     void branchTestStringTruthy(bool truthy, const ValueOperand &value, Label *label) {
@@ -1172,7 +1153,8 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     void callWithABI(Register fun, MoveOp::Type result = MoveOp::GENERAL);
 
     // Used from within an Exit frame to handle a pending exception.
-    void handleFailureWithHandlerTail(void *handler);
+    void handleFailureWithHandler(void *handler);
+    void handleFailureWithHandlerTail();
 
     void makeFrameDescriptor(Register frameSizeReg, FrameType type) {
         shll(Imm32(FRAMESIZE_SHIFT), frameSizeReg);
@@ -1180,7 +1162,7 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     }
 
     void callWithExitFrame(JitCode *target, Register dynStack) {
-        addPtr(ImmWord(framePushed()), dynStack);
+        addPtr(Imm32(framePushed()), dynStack);
         makeFrameDescriptor(dynStack, JitFrame_IonJS);
         Push(dynStack);
         call(target);

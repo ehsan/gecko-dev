@@ -23,13 +23,6 @@ class TextureClientRecycleAllocatorImp : public ISurfaceAllocator
 public:
   explicit TextureClientRecycleAllocatorImp(ISurfaceAllocator* aAllocator);
 
-  void SetMaxPoolSize(uint32_t aMax)
-  {
-    if (aMax > 0) {
-      mMaxPooledSize = aMax;
-    }
-  }
-
   // Creates and allocates a TextureClient.
   TemporaryRef<TextureClient>
   CreateOrRecycleForDrawing(gfx::SurfaceFormat aFormat,
@@ -132,6 +125,7 @@ TextureClientRecycleAllocatorImp::~TextureClientRecycleAllocatorImp()
   MOZ_ASSERT(mInUseClients.empty());
 }
 
+
 TemporaryRef<TextureClient>
 TextureClientRecycleAllocatorImp::CreateOrRecycleForDrawing(
                                              gfx::SurfaceFormat aFormat,
@@ -142,8 +136,7 @@ TextureClientRecycleAllocatorImp::CreateOrRecycleForDrawing(
 {
   // TextureAllocationFlags is actually used only by ContentClient.
   // This class does not handle ConteClient's TextureClient allocation.
-  MOZ_ASSERT(aAllocFlags == TextureAllocationFlags::ALLOC_DEFAULT ||
-             aAllocFlags == TextureAllocationFlags::ALLOC_DISALLOW_BUFFERTEXTURECLIENT);
+  MOZ_ASSERT(aAllocFlags == TextureAllocationFlags::ALLOC_DEFAULT);
   MOZ_ASSERT(!(aTextureFlags & TextureFlags::RECYCLE));
   aTextureFlags = aTextureFlags | TextureFlags::RECYCLE; // Set recycle flag
 
@@ -244,11 +237,6 @@ TextureClientRecycleAllocator::~TextureClientRecycleAllocator()
   mAllocator = nullptr;
 }
 
-void
-TextureClientRecycleAllocator::SetMaxPoolSize(uint32_t aMax)
-{
-  mAllocator->SetMaxPoolSize(aMax);
-}
 
 TemporaryRef<TextureClient>
 TextureClientRecycleAllocator::CreateOrRecycleForDrawing(

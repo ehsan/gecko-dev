@@ -409,10 +409,10 @@ pref("media.getusermedia.screensharing.enabled", true);
 #endif
 
 #ifdef RELEASE_BUILD
-pref("media.getusermedia.screensharing.allowed_domains", "webex.com,*.webex.com,collaborate.com,*.collaborate.com,projectsquared.com,*.projectsquared.com,*.room.co,room.co,beta.talky.io,talky.io,*.clearslide.com,example.com");
+pref("media.getusermedia.screensharing.allowed_domains", "webex.com,*.webex.com,collaborate.com,*.collaborate.com,projectsquared.com,*.projectsquared.com,*.room.co,room.co,beta.talky.io,talky.io,example.com");
 #else
  // temporary value, not intended for release - bug 1049087
-pref("media.getusermedia.screensharing.allowed_domains", "mozilla.github.io,webex.com,*.webex.com,collaborate.com,*.collaborate.com,projectsquared.com,*.projectsquared.com,*.room.co,room.co,beta.talky.io,talky.io,*.clearslide.com,example.com");
+pref("media.getusermedia.screensharing.allowed_domains", "mozilla.github.io,webex.com,*.webex.com,collaborate.com,*.collaborate.com,projectsquared.com,*.projectsquared.com,*.room.co,room.co,beta.talky.io,talky.io,example.com");
 #endif
 // OS/X 10.6 and XP have screen/window sharing off by default due to various issues - Caveat emptor
 pref("media.getusermedia.screensharing.allow_on_old_platforms", false);
@@ -4118,6 +4118,11 @@ pref("layout.css.touch_action.enabled", false);
 
 // enable JS dump() function.
 pref("browser.dom.window.dump.enabled", false);
+
+// SPS Profiler
+pref("profiler.enabled", false);
+pref("profiler.interval", 10);
+pref("profiler.entries", 100000);
 
 #if defined(MOZ_WIDGET_GONK) || defined(MOZ_WIDGET_ANDROID)
 // Network Information API

@@ -15,7 +15,6 @@
 #include "mozilla/Hal.h"
 #include "mozilla/ReentrantMonitor.h"
 #include "mozilla/dom/File.h"
-#include "mozilla/layers/TextureClientRecycleAllocator.h"
 
 namespace mozilla {
 
@@ -113,8 +112,6 @@ protected:
   int mCameraAngle; // See dom/base/ScreenOrientation.h
   bool mBackCamera;
   bool mOrientationChanged; // True when screen rotates.
-
-  RefPtr<layers::TextureClientRecycleAllocator> mTextureClientAllocator;
 };
 
 } // namespace mozilla

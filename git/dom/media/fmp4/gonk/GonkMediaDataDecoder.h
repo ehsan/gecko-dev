@@ -35,8 +35,6 @@ public:
                           nsRefPtr<MediaData>& aOutput) = 0;
   virtual nsresult Flush() = 0;
 
-  virtual void AllocateMediaResources() {};
-
   virtual void ReleaseMediaResources() {};
 };
 
@@ -66,8 +64,6 @@ public:
   virtual bool IsWaitingMediaResources() MOZ_OVERRIDE;
 
   virtual bool IsDormantNeeded() MOZ_OVERRIDE;
-
-  virtual void AllocateMediaResources() MOZ_OVERRIDE;
 
   virtual void ReleaseMediaResources() MOZ_OVERRIDE;
 

@@ -165,12 +165,6 @@ GonkMediaDataDecoder::IsDormantNeeded() {
 }
 
 void
-GonkMediaDataDecoder::AllocateMediaResources()
-{
-  mManager->AllocateMediaResources();
-}
-
-void
 GonkMediaDataDecoder::ReleaseMediaResources() {
   mManager->ReleaseMediaResources();
 }

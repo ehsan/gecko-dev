@@ -9,11 +9,6 @@ const SETTINGS_KEY_DATA_APN_SETTINGS = "ril.data.apnSettings";
 
 const PREF_KEY_RIL_DEBUGGING_ENABLED = "ril.debugging.enabled";
 
-// The pin code hard coded in emulator is "0000".
-const DEFAULT_PIN = "0000";
-// The puk code hard coded in emulator is "12345678".
-const DEFAULT_PUK = "12345678";
-
 // Emulate Promise.jsm semantics.
 Promise.defer = function() { return new Deferred(); };
 function Deferred() {
@@ -306,65 +301,6 @@ function getMozMobileConnectionByServiceId(aServiceId) {
 }
 
 /**
- * Get MozIccManager
- *
- * @return a MozIccManager
- */
-function getMozIccManager() {
-  return workingFrame.contentWindow.navigator.mozIccManager;
-}
-
-/**
- * Get MozIcc by IccId
- *
- * @param aIccId [optional]
- *        Default: The first item of |mozIccManager.iccIds|.
- *
- * @return A MozIcc.
- */
-function getMozIccByIccId(aIccId) {
-  let iccManager = getMozIccManager();
-
-  aIccId = aIccId || iccManager.iccIds[0];
-  if (!aIccId) {
-    ok(true, "iccManager.iccIds[0] is " + aIccId);
-    return null;
-  }
-
-  return iccManager.getIccById(aIccId);
-}
-
-/**
- * Wait for one named event.
- *
- * Resolve if that named event occurs.  Never reject.
- *
- * Fulfill params: the DOMEvent passed.
- *
- * @param aEventTarget
- *        An EventTarget object.
- * @param aEventName
- *        A string event name.
- * @param aMatchFun [optional]
- *        A matching function returns true or false to filter the event.
- *
- * @return A deferred promise.
- */
-function waitForTargetEvent(aEventTarget, aEventName, aMatchFun) {
-  let deferred = Promise.defer();
-
-  aEventTarget.addEventListener(aEventName, function onevent(aEvent) {
-    if (!aMatchFun || aMatchFun(aEvent)) {
-      aEventTarget.removeEventListener(aEventName, onevent);
-      ok(true, "Event '" + aEventName + "' got.");
-      deferred.resolve(aEvent);
-    }
-  });
-
-  return deferred.promise;
-}
-
-/**
  * Wait for one named MobileConnection event.
  *
  * Resolve if that named event occurs.  Never reject.
@@ -376,14 +312,22 @@ function waitForTargetEvent(aEventTarget, aEventName, aMatchFun) {
  * @param aServiceId [optional]
  *        A numeric DSDS service id. Default: the one indicated in
  *        start*TestCommon() or 0 if not indicated.
- * @param aMatchFun [optional]
- *        A matching function returns true or false to filter the event.
  *
  * @return A deferred promise.
  */
-function waitForManagerEvent(aEventName, aServiceId, aMatchFun) {
+function waitForManagerEvent(aEventName, aServiceId) {
+  let deferred = Promise.defer();
+
   let mobileConn = getMozMobileConnectionByServiceId(aServiceId);
-  return waitForTargetEvent(mobileConn, aEventName, aMatchFun);
+
+  mobileConn.addEventListener(aEventName, function onevent(aEvent) {
+    mobileConn.removeEventListener(aEventName, onevent);
+
+    ok(true, "MobileConnection event '" + aEventName + "' got.");
+    deferred.resolve(aEvent);
+  });
+
+  return deferred.promise;
 }
 
 /**
@@ -734,15 +678,26 @@ function setRadioEnabled(aEnabled, aServiceId) {
  * @return A deferred promise.
  */
 function setRadioEnabledAndWait(aEnabled, aServiceId) {
+  let deferred = Promise.defer();
+
   let promises = [];
-
-  promises.push(waitForManagerEvent("radiostatechange", aServiceId, function() {
-    let mobileConn = getMozMobileConnectionByServiceId(aServiceId);
-    return mobileConn.radioState === aEnabled ? "enabled" : "disabled";
-  }));
+  promises.push(waitForManagerEvent("radiostatechange", aServiceId));
   promises.push(setRadioEnabled(aEnabled, aServiceId));
+  Promise.all(promises).then(function keepWaiting() {
+    let mobileConn = getMozMobileConnectionByServiceId(aServiceId);
+    // To ignore some transient states, we only resolve that deferred promise
+    // when |radioState| equals to the expected one and never rejects.
+    let state = mobileConn.radioState;
+    aEnabled = aEnabled ? "enabled" : "disabled";
+    if (state == aEnabled) {
+      deferred.resolve();
+      return;
+    }
 
-  return Promise.all(promises);
+    return waitForManagerEvent("radiostatechange", aServiceId).then(keepWaiting);
+  });
+
+  return deferred.promise;
 }
 
 /**
@@ -1168,16 +1123,16 @@ function startTestBase(aTestCaseMain) {
   let debugPref = SpecialPowers.getBoolPref(PREF_KEY_RIL_DEBUGGING_ENABLED);
   SpecialPowers.setBoolPref(PREF_KEY_RIL_DEBUGGING_ENABLED, true);
 
-  return Promise.resolve()
+  Promise.resolve()
     .then(aTestCaseMain)
-    .catch((aError) => {
-      ok(false, "promise rejects during test: " + aError);
-    })
     .then(() => {
       // Restore debugging pref.
       SpecialPowers.setBoolPref(PREF_KEY_RIL_DEBUGGING_ENABLED, debugPref);
-      cleanUp();
     })
+    .then(cleanUp, function() {
+      ok(false, 'promise rejects during test.');
+      cleanUp();
+    });
 }
 
 /**

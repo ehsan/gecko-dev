@@ -348,7 +348,25 @@ Proxy::getOwnEnumerablePropertyKeys(JSContext *cx, HandleObject proxy, AutoIdVec
 }
 
 bool
-Proxy::enumerate(JSContext *cx, HandleObject proxy, MutableHandleObject objp)
+Proxy::getEnumerablePropertyKeys(JSContext *cx, HandleObject proxy, AutoIdVector &props)
+{
+    JS_CHECK_RECURSION(cx, return false);
+    const BaseProxyHandler *handler = proxy->as<ProxyObject>().handler();
+    AutoEnterPolicy policy(cx, handler, proxy, JSID_VOIDHANDLE, BaseProxyHandler::ENUMERATE, true);
+    if (!policy.allowed())
+        return policy.returnValue();
+    if (!handler->hasPrototype())
+        return proxy->as<ProxyObject>().handler()->getEnumerablePropertyKeys(cx, proxy, props);
+    if (!handler->getOwnEnumerablePropertyKeys(cx, proxy, props))
+        return false;
+    AutoIdVector protoProps(cx);
+    INVOKE_ON_PROTOTYPE(cx, handler, proxy,
+                        GetPropertyKeys(cx, proto, 0, &protoProps) &&
+                        AppendUnique(cx, props, protoProps));
+}
+
+bool
+Proxy::iterate(JSContext *cx, HandleObject proxy, unsigned flags, MutableHandleObject objp)
 {
     JS_CHECK_RECURSION(cx, return false);
     const BaseProxyHandler *handler = proxy->as<ProxyObject>().handler();
@@ -360,26 +378,18 @@ Proxy::enumerate(JSContext *cx, HandleObject proxy, MutableHandleObject objp)
         // to hand a valid (empty) iterator object to the caller.
         if (!policy.allowed()) {
             return policy.returnValue() &&
-                   NewEmptyPropertyIterator(cx, 0, objp);
+                   NewEmptyPropertyIterator(cx, flags, objp);
         }
-        return handler->enumerate(cx, proxy, objp);
+        return handler->iterate(cx, proxy, flags, objp);
     }
-
     AutoIdVector props(cx);
-    if (!Proxy::getOwnEnumerablePropertyKeys(cx, proxy, props))
+    // The other Proxy::foo methods do the prototype-aware work for us here.
+    if ((flags & JSITER_OWNONLY)
+        ? !Proxy::getOwnEnumerablePropertyKeys(cx, proxy, props)
+        : !Proxy::getEnumerablePropertyKeys(cx, proxy, props)) {
         return false;
-
-    RootedObject proto(cx);
-    if (!JSObject::getProto(cx, proxy, &proto))
-        return false;
-    if (!proto)
-        return EnumeratedIdVectorToIterator(cx, proxy, 0, props, objp);
-    assertSameCompartment(cx, proxy, proto);
-
-    AutoIdVector protoProps(cx);
-    return GetPropertyKeys(cx, proto, 0, &protoProps) &&
-           AppendUnique(cx, props, protoProps) &&
-           EnumeratedIdVectorToIterator(cx, proxy, 0, props, objp);
+    }
+    return EnumeratedIdVectorToIterator(cx, proxy, flags, props, objp);
 }
 
 bool

@@ -263,6 +263,12 @@ MediaDecoderReader::RequestAudioData()
   return p;
 }
 
+void
+MediaDecoderReader::SetCallback(RequestSampleCallback* aCallback)
+{
+  mSampleDecodedCallback = aCallback;
+}
+
 MediaTaskQueue*
 MediaDecoderReader::EnsureTaskQueue()
 {
@@ -280,6 +286,10 @@ MediaDecoderReader::EnsureTaskQueue()
 void
 MediaDecoderReader::BreakCycles()
 {
+  if (mSampleDecodedCallback) {
+    mSampleDecodedCallback->BreakCycles();
+    mSampleDecodedCallback = nullptr;
+  }
   mTaskQueue = nullptr;
 }
 

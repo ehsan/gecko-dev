@@ -42,8 +42,6 @@ public:
   // Cancel Resource
   void cancelResource();
 
-  bool IsWaitingResource();
-
 protected:
   // MediaResourceManagerClient::EventListener::statusChanged()
   virtual void statusChanged(int event);
@@ -59,11 +57,10 @@ private:
 
   // Resource Management
   Mutex mLock;
+  MediaResourceManagerClient::State mState;
   sp<IMediaResourceManagerClient> mClient;
   sp<IMediaResourceManagerService> mService;
   IMediaResourceManagerService::ResourceType mType;
-
-  bool mWaitingResource;
 };
 
 } // namespace android

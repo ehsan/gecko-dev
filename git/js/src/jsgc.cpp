@@ -830,8 +830,8 @@ Chunk::init(JSRuntime *rt)
     JS_POISON(this, JS_FRESH_TENURED_PATTERN, ChunkSize);
 
     /*
-     * We clear the bitmap to guard against JS::GCThingIsMarkedGray being called
-     * on uninitialized data, which would happen before the first GC cycle.
+     * We clear the bitmap to guard against xpc_IsGrayGCThing being called on
+     * uninitialized data, which would happen before the first GC cycle.
      */
     bitmap.clear();
 
@@ -3103,7 +3103,7 @@ GCRuntime::refillFreeListFromAnyThread(ThreadSafeContext *cx, AllocKind thingKin
     if (cx->isJSContext())
         return refillFreeListFromMainThread<allowGC>(cx->asJSContext(), thingKind);
 
-    if (cx->isExclusiveContext())
+    if (cx->allocator()->zone_->runtimeFromAnyThread()->exclusiveThreadsPresent())
         return refillFreeListOffMainThread(cx->asExclusiveContext(), thingKind);
 
     return refillFreeListPJS(cx->asForkJoinContext(), thingKind);
@@ -3491,6 +3491,9 @@ GCHelperState::init()
 {
     if (!(done = PR_NewCondVar(rt->gc.lock)))
         return false;
+
+    if (CanUseExtraThreads())
+        HelperThreadState().ensureInitialized();
 
     return true;
 }
@@ -5498,8 +5501,7 @@ GCRuntime::endSweepPhase(bool lastGC)
         ZoneList zones;
         for (GCZonesIter zone(rt); !zone.done(); zone.next())
             zones.append(zone);
-        if (!zones.isEmpty())
-            sweepBackgroundThings(zones, MainThread);
+        sweepBackgroundThings(zones, MainThread);
 
         /*
          * Destroy arenas after we finished the sweeping so finalizers can

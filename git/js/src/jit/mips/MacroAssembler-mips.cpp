@@ -3526,18 +3526,25 @@ MacroAssemblerMIPSCompat::callWithABI(Register fun, MoveOp::Type result)
 }
 
 void
-MacroAssemblerMIPSCompat::handleFailureWithHandlerTail(void *handler)
+MacroAssemblerMIPSCompat::handleFailureWithHandler(void *handler)
 {
     // Reserve space for exception information.
     int size = (sizeof(ResumeFromException) + ABIStackAlignment) & ~(ABIStackAlignment - 1);
     ma_subu(StackPointer, StackPointer, Imm32(size));
     ma_move(a0, StackPointer); // Use a0 since it is a first function argument
 
-    // Call the handler.
+    // Ask for an exception handler.
     setupUnalignedABICall(1, a1);
     passABIArg(a0);
     callWithABI(handler);
 
+    JitCode *excTail = GetJitContext()->runtime->jitRuntime()->getExceptionTail();
+    branch(excTail);
+}
+
+void
+MacroAssemblerMIPSCompat::handleFailureWithHandlerTail()
+{
     Label entryFrame;
     Label catch_;
     Label finally;

@@ -14,11 +14,7 @@ void
 thd_join(thd_t thd, void **ret)
 {
 
-	if (WaitForSingleObject(thd, INFINITE) == WAIT_OBJECT_0 && ret) {
-		DWORD exit_code;
-		GetExitCodeThread(thd, (LPDWORD) &exit_code);
-		*ret = (void *)(uintptr_t)exit_code;
-	}
+	WaitForSingleObject(thd, INFINITE);
 }
 
 #else
