@@ -48,15 +48,18 @@ public  final class Prefs {
         }
     }
 
-    public static Prefs getInstance(Context c) {
-        if (sInstance == null) {
-            sInstance = new Prefs(c);
+    /* Prefs must be created on application startup or service startup.
+     * TODO: turn into regular singleton if Context dependency can be removed. */
+    public static void createGlobalInstance(Context c) {
+        if (sInstance != null) {
+            return;
         }
-        return sInstance;
+        sInstance = new Prefs(c);
     }
 
-    // Allows code without a context handle to grab the prefs. The caller must null check the return value.
-    public static Prefs getInstanceWithoutContext() {
+    /* Only access after CreatePrefsInstance(Context) has been called at startup. */
+    public static Prefs getInstance() {
+        assert(sInstance != null);
         return sInstance;
     }
 

@@ -90,12 +90,9 @@ let tests = [
     gContentAPI.observe((event, params) => {
       is(event, "Loop:ChatWindowOpened", "Check Loop:ChatWindowOpened notification");
       gContentAPI.observe((event, params) => {
-        is(event, "Loop:ChatWindowShown", "Check Loop:ChatWindowShown notification");
+        is(event, "Loop:ChatWindowClosed", "Check Loop:ChatWindowClosed notification");
         gContentAPI.observe((event, params) => {
-          is(event, "Loop:ChatWindowClosed", "Check Loop:ChatWindowClosed notification");
-          gContentAPI.observe((event, params) => {
-            ok(false, "No more notifications should have arrived");
-          });
+          ok(false, "No more notifications should have arrived");
         });
         done();
       });

@@ -28,12 +28,8 @@ public final class LocationBlockList {
     }
 
     public void updateBlocks()    {
-        Prefs prefs = Prefs.getInstanceWithoutContext();
-        if (prefs == null) {
-            return;
-        }
-        mBlockedLocation = prefs.getGeofenceLocation();
-        mGeofencingEnabled = prefs.getGeofenceEnabled();
+        mBlockedLocation = Prefs.getInstance().getGeofenceLocation();
+        mGeofencingEnabled = Prefs.getInstance().getGeofenceEnabled();
     }
 
     public boolean contains(Location location) {

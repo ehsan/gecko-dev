@@ -74,13 +74,12 @@ public class WifiScanner extends BroadcastReceiver {
 
 
     public synchronized void start(final ActiveOrPassiveStumbling stumblingMode) {
-        Prefs prefs = Prefs.getInstanceWithoutContext();
-        if (mStarted || prefs == null) {
+        if (mStarted) {
             return;
         }
         mStarted = true;
 
-        boolean scanAlways = prefs.getWifiScanAlways();
+        boolean scanAlways = Prefs.getInstance().getWifiScanAlways();
 
         if (scanAlways || isWifiEnabled()) {
             activatePeriodicScan(stumblingMode);
