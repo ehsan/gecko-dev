@@ -75,6 +75,7 @@ import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -93,8 +94,10 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.StringTokenizer;
+import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.SynchronousQueue;
 import java.net.ProxySelector;
@@ -133,7 +136,6 @@ public class GeckoAppShell
 
     static private File sCacheFile = null;
     static private int sFreeSpace = -1;
-    static File sHomeDir = null;
     static private int sDensityDpi = 0;
     private static Boolean sSQLiteLibsLoaded = false;
     private static Boolean sNSSLibsLoaded = false;
@@ -1695,6 +1697,70 @@ public class GeckoAppShell
                 Thread.sleep(100);
             } catch (InterruptedException ie) {}
         }
+    }
+    public static String getAppNameByPID(int pid) {
+        BufferedReader cmdlineReader = null;
+        String path = "/proc/" + pid + "/cmdline";
+        try {
+            File cmdlineFile = new File(path);
+            if (!cmdlineFile.exists())
+                return "";
+            cmdlineReader = new BufferedReader(new FileReader(cmdlineFile));
+            return cmdlineReader.readLine().trim();
+        } catch (Exception ex) {
+            return "";
+        } finally {
+            if (null != cmdlineReader) {
+                try {
+                    cmdlineReader.close();
+                } catch (Exception e) {}
+            }
+        }
+    }
+
+    public static void listOfOpenFiles() {
+        int pidColumn = -1;
+        int nameColumn = -1;
+
+        try {
+            String filter = GeckoProfile.get(GeckoApp.mAppContext).getDir().toString();
+            Log.i(LOGTAG, "[OPENFILE] Filter: " + filter);
+
+            // run lsof and parse its output
+            java.lang.Process lsof = Runtime.getRuntime().exec("lsof");
+            BufferedReader in = new BufferedReader(new InputStreamReader(lsof.getInputStream()), 2048);
+
+            String headerOutput = in.readLine();
+            StringTokenizer st = new StringTokenizer(headerOutput);
+            int token = 0;
+            while (st.hasMoreTokens()) {
+                String next = st.nextToken();
+                if (next.equalsIgnoreCase("PID"))
+                    pidColumn = token;
+                else if (next.equalsIgnoreCase("NAME"))
+                    nameColumn = token;
+                token++;
+            }
+
+            // alright, the rest are open file entries.
+            Map<Integer, String> pidNameMap = new TreeMap<Integer, String>();
+            String output = null;
+            while ((output = in.readLine()) != null) {
+                String[] split = output.split("\\s+");
+                if (split.length <= pidColumn || split.length <= nameColumn)
+                    continue;
+                Integer pid = new Integer(split[pidColumn]);
+                String name = pidNameMap.get(pid);
+                if (name == null) {
+                    name = getAppNameByPID(pid.intValue());
+                    pidNameMap.put(pid, name);
+                }
+                String file = split[nameColumn];
+                if (!TextUtils.isEmpty(name) && !TextUtils.isEmpty(file) && file.startsWith(filter))
+                    Log.i(LOGTAG, "[OPENFILE] " + name + "(" + split[pidColumn] + ") : " + file);
+            }
+            in.close();
+        } catch (Exception e) { }
     }
 
     public static void scanMedia(String aFile, String aMimeType) {
