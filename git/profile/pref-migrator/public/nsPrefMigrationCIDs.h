@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim:set ts=2 sw=2 sts=2 et cindent: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -13,18 +12,18 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is the Metrics extension.
+ * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Google Inc.
- * Portions created by the Initial Developer are Copyright (C) 2006
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *  Brian Ryner <bryner@brianryner.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -36,42 +35,22 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// This class defines a templatized hash key type for holding raw pointers.
-// Use it like this:
-//   nsDataHashtable< nsPtrHashKey<SomeClass>, SomeValueType > mTable;
-//
-// This is identical to nsVoidPtrHashKey with void* replaced by T*.
 
-#ifndef nsPtrHashKey_h_
-#define nsPtrHashKey_h_
+#ifndef nsPrefMigrationCIDs_h___
+#define nsPrefMigrationCIDs_h___
 
-#include "pldhash.h"
-#include "nscore.h"
+#define NS_PREFCONVERTER_CID {0xdb97abfa, 0x1dd1, 0x11b2, \
+    {0xaf, 0x32, 0xad, 0x4c, 0x3b, 0x35, 0x4d, 0xfb}}
 
-template<class T>
-class nsPtrHashKey : public PLDHashEntryHdr
-{
- public:
-  typedef const T *KeyType;
-  typedef const T *KeyTypePointer;
+#define NS_PREFMIGRATION_CID {0xa2a7f03c, 0x6a6c, 0x11d3, \
+    {0x9e, 0x9f, 0x00, 0x40, 0x05, 0x26, 0x30, 0x78}}
 
-  nsPtrHashKey(const T *key) : mKey(key) {}
-  nsPtrHashKey(const nsPtrHashKey<T> &toCopy) : mKey(toCopy.mKey) {}
-  ~nsPtrHashKey() {}
+#define NS_PrefMigrationFactory_CID {0xad1b40a0, 0x6a6c, 0x11d3, \
+    {0x8d, 0x83, 0x00, 0x40, 0x05, 0x26, 0x30, 0x78}}
 
-  KeyType GetKey() const { return mKey; }
+#define NS_PMProgressDialog_CID {0x9e180fc9, 0x6d11, 0x11d3, \
+    {0xb9, 0xf5, 0x0, 0x10, 0x83, 0x2, 0x2c, 0xf8}}
 
-  PRBool KeyEquals(KeyTypePointer key) const { return key == mKey; }
-
-  static KeyTypePointer KeyToPointer(KeyType key) { return key; }
-  static PLDHashNumber HashKey(KeyTypePointer key)
-  {
-    return NS_PTR_TO_INT32(key) >> 2;
-  }
-  enum { ALLOW_MEMMOVE = PR_TRUE };
-
- private:
-  const T *mKey;
-};
-
-#endif  // nsPtrHashKey_h_
+#endif /* nsPrefMigrationCIDs_h___ */
+// {9E180FC9-6D11-11d3-B9F5-001083022CF8}
+// {9E180FC9-6D11-11d3-B9F5-001083022CF8}

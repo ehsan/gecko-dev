@@ -61,9 +61,7 @@ public:
        * character.  This is used for the context detection necessary for
        * bidi.numeral implementation.
        */
-      TEXT_INCOMING_ARABICCHAR = 0x40000000,
-
-      TEXT_UNUSED_FLAGS = 0x80000000
+      TEXT_INCOMING_ARABICCHAR = 0x40000000
     };
 
     /**
