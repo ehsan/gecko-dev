@@ -17,7 +17,6 @@
 #include "nsServiceManagerUtils.h"
 #include "nsError.h"
 #include "mozilla/dom/MozPowerManagerBinding.h"
-#include "mozilla/Services.h"
 
 namespace mozilla {
 namespace dom {
@@ -28,7 +27,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(PowerManager)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMozWakeLockListener)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(PowerManager, mListeners, mWindow)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_2(PowerManager, mListeners, mWindow)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(PowerManager)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(PowerManager)
@@ -186,7 +185,7 @@ bool
 PowerManager::CheckPermission(nsPIDOMWindow* aWindow)
 {
   nsCOMPtr<nsIPermissionManager> permMgr =
-    services::GetPermissionManager();
+    do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
   NS_ENSURE_TRUE(permMgr, false);
 
   uint32_t permission = nsIPermissionManager::DENY_ACTION;

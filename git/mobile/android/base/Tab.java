@@ -700,18 +700,12 @@ public class Tab {
     }
 
     protected void saveThumbnailToDB() {
-        final BitmapDrawable thumbnail = mThumbnail;
-        if (thumbnail == null) {
-            return;
-        }
-
         try {
             String url = getURL();
-            if (url == null) {
+            if (url == null)
                 return;
-            }
 
-            BrowserDB.updateThumbnailForUrl(getContentResolver(), url, thumbnail);
+            BrowserDB.updateThumbnailForUrl(getContentResolver(), url, mThumbnail);
         } catch (Exception e) {
             // ignore
         }

@@ -408,8 +408,7 @@ BaselineCompiler::emitEpilogue()
 #ifdef JSGC_GENERATIONAL
 // On input:
 //  R2.scratchReg() contains object being written to.
-//  Called with the baseline stack synced, except for R0 which is preserved.
-//  All other registers are usable as scratch.
+//  Otherwise, baseline stack will be synced, so all other registers are usable as scratch.
 // This calls:
 //    void PostWriteBarrier(JSRuntime *rt, JSObject *obj);
 bool
@@ -419,7 +418,6 @@ BaselineCompiler::emitOutOfLinePostBarrierSlot()
 
     Register objReg = R2.scratchReg();
     GeneralRegisterSet regs(GeneralRegisterSet::All());
-    regs.take(R0);
     regs.take(objReg);
     regs.take(BaselineFrameReg);
     Register scratch = regs.takeAny();
@@ -430,7 +428,6 @@ BaselineCompiler::emitOutOfLinePostBarrierSlot()
 #elif defined(JS_CODEGEN_MIPS)
     masm.push(ra);
 #endif
-    masm.pushValue(R0);
 
     masm.setupUnalignedABICall(2, scratch);
     masm.movePtr(ImmPtr(cx->runtime()), scratch);
@@ -438,7 +435,6 @@ BaselineCompiler::emitOutOfLinePostBarrierSlot()
     masm.passABIArg(objReg);
     masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, PostWriteBarrier));
 
-    masm.popValue(R0);
     masm.ret();
     return true;
 }
@@ -2100,15 +2096,16 @@ BaselineCompiler::emit_JSOP_SETALIASEDVAR()
     frame.push(R0);
 
 #ifdef JSGC_GENERATIONAL
-    // Only R0 is live at this point.
+    // Fully sync the stack if post-barrier is needed.
     // Scope coordinate object is already in R2.scratchReg().
+    frame.syncStack(0);
     Register temp = R1.scratchReg();
 
     Label skipBarrier;
-    masm.branchPtrInNurseryRange(Assembler::Equal, objReg, temp, &skipBarrier);
-    masm.branchValueIsNurseryObject(Assembler::NotEqual, R0, temp, &skipBarrier);
+    masm.branchTestObject(Assembler::NotEqual, R0, &skipBarrier);
+    masm.branchPtrInNurseryRange(objReg, temp, &skipBarrier);
 
-    masm.call(&postBarrierSlot_); // Won't clobber R0
+    masm.call(&postBarrierSlot_);
 
     masm.bind(&skipBarrier);
 #endif
@@ -2464,12 +2461,11 @@ BaselineCompiler::emitFormalArgAccess(uint32_t arg, bool get)
         frame.push(R0);
     } else {
         masm.patchableCallPreBarrier(argAddr, MIRType_Value);
-        masm.loadValue(frame.addressOfStackValue(frame.peek(-1)), R0);
-        masm.storeValue(R0, argAddr);
+        storeValue(frame.peek(-1), argAddr, R0);
 
 #ifdef JSGC_GENERATIONAL
-        MOZ_ASSERT(frame.numUnsyncedSlots() == 0);
-
+        // Fully sync the stack if post-barrier is needed.
+        frame.syncStack(0);
         Register temp = R1.scratchReg();
 
         // Reload the arguments object
@@ -2477,9 +2473,7 @@ BaselineCompiler::emitFormalArgAccess(uint32_t arg, bool get)
         masm.loadPtr(Address(BaselineFrameReg, BaselineFrame::reverseOffsetOfArgsObj()), reg);
 
         Label skipBarrier;
-
-        masm.branchPtrInNurseryRange(Assembler::Equal, reg, temp, &skipBarrier);
-        masm.branchValueIsNurseryObject(Assembler::NotEqual, R0, temp, &skipBarrier);
+        masm.branchPtrInNurseryRange(reg, temp, &skipBarrier);
 
         masm.call(&postBarrierSlot_);
 

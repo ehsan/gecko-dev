@@ -116,7 +116,7 @@ function emitTouchEventForIFrame(message) {
   let message = message.json;
   let frames = curFrame.document.getElementsByTagName("iframe");
   let iframe = frames[message.index];
-  let identifier = nextTouchId;
+  let identifier = touchId = nextTouchId++;
   let tabParent = iframe.QueryInterface(Components.interfaces.nsIFrameLoaderOwner).frameLoader.tabParent;
   tabParent.injectTouchEvent(message.type, [identifier],
                              [message.clientX], [message.clientY],
@@ -1871,18 +1871,9 @@ function switchToFrame(msg) {
   }
   if (foundFrame == null) {
     if (typeof(msg.json.id) === 'number') {
-      try {
-        foundFrame = frames[msg.json.id].frameElement;
-        curFrame = foundFrame;
-        foundFrame = elementManager.addToKnownElements(curFrame);
-      } catch (e) {
-        // Since window.frames does not return OOP frames it will throw
-        // and we land up here. Let's not give up and check if there are
-        // iframes and switch to the indexed frame there
-        let iframes = curFrame.document.getElementsByTagName("iframe");
-        curFrame = iframes[msg.json.id];
-        foundFrame = msg.json.id
-      }
+      foundFrame = frames[msg.json.id].frameElement;
+      curFrame = foundFrame;
+      foundFrame = elementManager.addToKnownElements(curFrame);
     }
   }
   if (foundFrame == null) {

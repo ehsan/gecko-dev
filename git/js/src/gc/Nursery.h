@@ -203,7 +203,6 @@ class Nursery
 
     MOZ_ALWAYS_INLINE void initChunk(int chunkno) {
         NurseryChunkLayout &c = chunk(chunkno);
-        c.trailer.storeBuffer = JS::shadow::Runtime::asShadowRuntime(runtime())->gcStoreBufferPtr();
         c.trailer.location = gc::ChunkLocationNursery;
         c.trailer.runtime = runtime();
     }
@@ -217,7 +216,19 @@ class Nursery
         initChunk(chunkno);
     }
 
-    void updateDecommittedRegion();
+    void updateDecommittedRegion() {
+#ifndef JS_GC_ZEAL
+        if (numActiveChunks_ < NumNurseryChunks) {
+            // Bug 994054: madvise on MacOS is too slow to make this
+            //             optimization worthwhile.
+# ifndef XP_MACOSX
+            uintptr_t decommitStart = chunk(numActiveChunks_).start();
+            JS_ASSERT(decommitStart == AlignBytes(decommitStart, 1 << 20));
+            gc::MarkPagesUnused(runtime(), (void *)decommitStart, heapEnd() - decommitStart);
+# endif
+        }
+#endif
+    }
 
     MOZ_ALWAYS_INLINE uintptr_t allocationEnd() const {
         JS_ASSERT(numActiveChunks_ > 0);

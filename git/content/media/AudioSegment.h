@@ -187,7 +187,6 @@ public:
       if (c.IsNull()) {
         c.mDuration *= aOutRate / aInRate;
         mDuration += c.mDuration;
-        continue;
       }
       uint32_t channels = c.mChannelData.Length();
       output.SetLength(channels);
@@ -266,14 +265,7 @@ public:
   int ChannelCount() {
     NS_WARN_IF_FALSE(!mChunks.IsEmpty(),
         "Cannot query channel count on a AudioSegment with no chunks.");
-    // Find the first chunk that has non-zero channels. A chunk that hs zero
-    // channels is just silence and we can simply discard it.
-    for (ChunkIterator ci(*this); !ci.IsEnded(); ci.Next()) {
-      if (ci->ChannelCount()) {
-        return ci->ChannelCount();
-      }
-    }
-    return 0;
+    return mChunks.IsEmpty() ? 0 : mChunks[0].mChannelData.Length();
   }
 
   static Type StaticType() { return AUDIO; }

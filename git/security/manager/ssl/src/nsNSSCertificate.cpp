@@ -829,12 +829,10 @@ nsNSSCertificate::GetChain(nsIArray** _rvChain)
 
   // We want to test all usages, but we start with server because most of the
   // time Firefox users care about server certs.
-  certVerifier->VerifyCert(mCert.get(),
+  certVerifier->VerifyCert(mCert.get(), nullptr,
                            certificateUsageSSLServer, PR_Now(),
                            nullptr, /*XXX fixme*/
-                           nullptr, /* hostname */
                            CertVerifier::FLAG_LOCAL_ONLY,
-                           nullptr, /* stapledOCSPResponse */
                            &nssChain);
   // This is the whitelist of all non-SSLServer usages that are supported by
   // verifycert.
@@ -853,12 +851,10 @@ nsNSSCertificate::GetChain(nsIArray** _rvChain)
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
            ("pipnss: PKIX attempting chain(%d) for '%s'\n",
             usage, mCert->nickname));
-    certVerifier->VerifyCert(mCert.get(),
+    certVerifier->VerifyCert(mCert.get(), nullptr,
                              usage, PR_Now(),
                              nullptr, /*XXX fixme*/
-                             nullptr, /*hostname*/
                              CertVerifier::FLAG_LOCAL_ONLY,
-                             nullptr, /* stapledOCSPResponse */
                              &nssChain);
   }
 
@@ -1471,11 +1467,10 @@ nsNSSCertificate::hasValidEVOidTag(SECOidTag& resultOidTag, bool& validEV)
 
   uint32_t flags = mozilla::psm::CertVerifier::FLAG_LOCAL_ONLY |
     mozilla::psm::CertVerifier::FLAG_MUST_BE_EV;
-  SECStatus rv = certVerifier->VerifyCert(mCert.get(),
+  SECStatus rv = certVerifier->VerifyCert(mCert.get(), nullptr,
     certificateUsageSSLServer, PR_Now(),
     nullptr /* XXX pinarg */,
-    nullptr /* hostname */,
-    flags, nullptr /* stapledOCSPResponse */ , nullptr, &resultOidTag);
+    flags, nullptr, &resultOidTag);
 
   if (rv != SECSuccess) {
     resultOidTag = SEC_OID_UNKNOWN;

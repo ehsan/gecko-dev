@@ -556,8 +556,6 @@ class AutoDetectInvalidation
     Value *rval_;
     bool disabled_;
 
-    void setReturnOverride();
-
   public:
     AutoDetectInvalidation(JSContext *cx, Value *rval, IonScript *ionScript = nullptr);
 
@@ -568,7 +566,7 @@ class AutoDetectInvalidation
 
     ~AutoDetectInvalidation() {
         if (!disabled_ && ionScript_->invalidated())
-            setReturnOverride();
+            cx_->runtime()->setIonReturnOverride(*rval_);
     }
 };
 

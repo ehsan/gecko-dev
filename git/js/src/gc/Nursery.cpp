@@ -53,7 +53,7 @@ js::Nursery::init()
     if (!hugeSlots.init())
         return false;
 
-    void *heap = runtime()->gc.pageAllocator.mapAlignedPages(NurserySize, Alignment);
+    void *heap = MapAlignedPages(runtime(), NurserySize, Alignment);
     if (!heap)
         return false;
 
@@ -79,23 +79,7 @@ js::Nursery::init()
 js::Nursery::~Nursery()
 {
     if (start())
-        runtime()->gc.pageAllocator.unmapPages((void *)start(), NurserySize);
-}
-
-void
-js::Nursery::updateDecommittedRegion()
-{
-#ifndef JS_GC_ZEAL
-    if (numActiveChunks_ < NumNurseryChunks) {
-        // Bug 994054: madvise on MacOS is too slow to make this
-        //             optimization worthwhile.
-# ifndef XP_MACOSX
-        uintptr_t decommitStart = chunk(numActiveChunks_).start();
-        JS_ASSERT(decommitStart == AlignBytes(decommitStart, 1 << 20));
-        runtime()->gc.pageAllocator.markPagesUnused((void *)decommitStart, heapEnd() - decommitStart);
-# endif
-    }
-#endif
+        UnmapPages(runtime(), (void *)start(), NurserySize);
 }
 
 void
@@ -108,7 +92,7 @@ js::Nursery::enable()
     setCurrentChunk(0);
     currentStart_ = position();
 #ifdef JS_GC_ZEAL
-    if (runtime()->gc.zealMode == ZealGenerationalGCValue)
+    if (runtime()->gcZeal_ == ZealGenerationalGCValue)
         enterZealMode();
 #endif
 }
@@ -130,7 +114,7 @@ js::Nursery::isEmpty() const
     JS_ASSERT(runtime_);
     if (!isEnabled())
         return true;
-    JS_ASSERT_IF(runtime_->gc.zealMode != ZealGenerationalGCValue, currentStart_ == start());
+    JS_ASSERT_IF(runtime_->gcZeal_ != ZealGenerationalGCValue, currentStart_ == start());
     return position() == currentStart_;
 }
 
@@ -324,7 +308,7 @@ class MinorCollectionTracer : public JSTracer
         savedRuntimeNeedBarrier(rt->needsBarrier()),
         disableStrictProxyChecking(rt)
     {
-        rt->gc.number++;
+        rt->gcNumber++;
 
         /*
          * We disable the runtime needsBarrier() check so that pre-barriers do
@@ -341,7 +325,7 @@ class MinorCollectionTracer : public JSTracer
          * sweep their dead views. Incremental collection also use these lists,
          * so we may need to save and restore their contents here.
          */
-        if (rt->gc.incrementalState != NO_INCREMENTAL) {
+        if (rt->gcIncrementalState != NO_INCREMENTAL) {
             for (GCCompartmentsIter c(rt); !c.done(); c.next()) {
                 if (!ArrayBufferObject::saveArrayBufferList(c, liveArrayBuffers))
                     CrashAtUnhandlableOOM("OOM while saving live array buffers");
@@ -352,7 +336,7 @@ class MinorCollectionTracer : public JSTracer
 
     ~MinorCollectionTracer() {
         runtime()->setNeedsBarrier(savedRuntimeNeedBarrier);
-        if (runtime()->gc.incrementalState != NO_INCREMENTAL)
+        if (runtime()->gcIncrementalState != NO_INCREMENTAL)
             ArrayBufferObject::restoreArrayBufferLists(liveArrayBuffers);
     }
 };
@@ -740,7 +724,7 @@ js::Nursery::collect(JSRuntime *rt, JS::gcreason::Reason reason, TypeObjectList 
     if (isEmpty())
         return;
 
-    rt->gc.stats.count(gcstats::STAT_MINOR_GC);
+    rt->gcStats.count(gcstats::STAT_MINOR_GC);
 
     TIME_START(total);
 
@@ -750,7 +734,7 @@ js::Nursery::collect(JSRuntime *rt, JS::gcreason::Reason reason, TypeObjectList 
     MinorCollectionTracer trc(rt, this);
 
     // Mark the store buffer. This must happen first.
-    StoreBuffer &sb = rt->gc.storeBuffer;
+    StoreBuffer &sb = rt->gcStoreBuffer;
     TIME_START(markValues);
     sb.markValues(&trc);
     TIME_END(markValues);
@@ -852,13 +836,13 @@ js::Nursery::collect(JSRuntime *rt, JS::gcreason::Reason reason, TypeObjectList 
     TIME_END(sweep);
 
     TIME_START(clearStoreBuffer);
-    rt->gc.storeBuffer.clear();
+    rt->gcStoreBuffer.clear();
     TIME_END(clearStoreBuffer);
 
     // We ignore gcMaxBytes when allocating for minor collection. However, if we
     // overflowed, we disable the nursery. The next time we allocate, we'll fail
     // because gcBytes >= gcMaxBytes.
-    if (rt->gc.bytes >= rt->gc.maxBytes)
+    if (rt->gcBytes >= rt->gcMaxBytes)
         disable();
 
     TIME_END(total);
@@ -922,7 +906,7 @@ js::Nursery::sweep(JSRuntime *rt)
     for (int i = 0; i < NumNurseryChunks; ++i)
         initChunk(i);
 
-    if (rt->gc.zealMode == ZealGenerationalGCValue) {
+    if (rt->gcZeal_ == ZealGenerationalGCValue) {
         MOZ_ASSERT(numActiveChunks_ == NumNurseryChunks);
 
         /* Only reset the alloc point when we are close to the end. */
@@ -947,8 +931,7 @@ void
 js::Nursery::growAllocableSpace()
 {
 #ifdef JS_GC_ZEAL
-    MOZ_ASSERT_IF(runtime()->gc.zealMode == ZealGenerationalGCValue,
-                  numActiveChunks_ == NumNurseryChunks);
+    MOZ_ASSERT_IF(runtime()->gcZeal_ == ZealGenerationalGCValue, numActiveChunks_ == NumNurseryChunks);
 #endif
     numActiveChunks_ = Min(numActiveChunks_ * 2, NumNurseryChunks);
 }
@@ -957,7 +940,7 @@ void
 js::Nursery::shrinkAllocableSpace()
 {
 #ifdef JS_GC_ZEAL
-    if (runtime()->gc.zealMode == ZealGenerationalGCValue)
+    if (runtime()->gcZeal_ == ZealGenerationalGCValue)
         return;
 #endif
     numActiveChunks_ = Max(numActiveChunks_ - 1, 1);

@@ -193,7 +193,6 @@ public class HomeBanner extends LinearLayout
                             mIconView.setVisibility(View.GONE);
                         } else {
                             mIconView.setImageDrawable(d);
-                            mIconView.setVisibility(View.VISIBLE);
                         }
                     }
                 });

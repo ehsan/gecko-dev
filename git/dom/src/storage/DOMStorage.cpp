@@ -254,7 +254,7 @@ DOMStorage::CanUseStorage(DOMStorage* aStorage)
   // IsCallerChrome().
 
   nsCOMPtr<nsIPermissionManager> permissionManager =
-    services::GetPermissionManager();
+    do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
   if (!permissionManager) {
     return false;
   }

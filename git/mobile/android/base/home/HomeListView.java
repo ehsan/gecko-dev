@@ -36,7 +36,7 @@ public class HomeListView extends ListView
     private boolean mShowTopDivider;
 
     // ContextMenuInfo maker
-    private HomeContextMenuInfo.Factory mContextMenuInfoFactory;
+    private ContextMenuInfoFactory mContextMenuInfoFactory;
 
     public HomeListView(Context context) {
         this(context, null);
@@ -121,7 +121,7 @@ public class HomeListView extends ListView
         });
     }
 
-    public void setContextMenuInfoFactory(final HomeContextMenuInfo.Factory factory) {
+    public void setContextMenuInfoFactory(final ContextMenuInfoFactory factory) {
         mContextMenuInfoFactory = factory;
     }
 
@@ -131,5 +131,12 @@ public class HomeListView extends ListView
 
     public void setOnUrlOpenListener(OnUrlOpenListener listener) {
         mUrlOpenListener = listener;
+    }
+
+    /*
+     * Interface for creating ContextMenuInfo from cursors
+     */
+    public interface ContextMenuInfoFactory {
+    	public HomeContextMenuInfo makeInfoForCursor(View view, int position, long id, Cursor cursor);
     }
 }

@@ -3140,7 +3140,7 @@ nsDOMDeviceStorage::Init(nsPIDOMWindow* aWindow, const nsAString &aType,
   // if the caller has the "webapps-manage" permission.
   if (aType.EqualsLiteral(DEVICESTORAGE_APPS)) {
     nsCOMPtr<nsIPermissionManager> permissionManager
-      = services::GetPermissionManager();
+      = do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
     NS_ENSURE_TRUE(permissionManager, NS_ERROR_FAILURE);
 
     uint32_t permission;
