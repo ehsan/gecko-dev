@@ -509,7 +509,6 @@ function ThreadActor(aHooks, aGlobal)
 
   this._gripDepth = 0;
   this._threadLifetimePool = null;
-  this._tabClosed = false;
 }
 
 /**
@@ -888,10 +887,7 @@ ThreadActor.prototype = {
       reportError(e, "Got an exception during TA__pauseAndRespond: ");
     }
 
-    // If the browser tab has been closed, terminate the debuggee script
-    // instead of continuing. Executing JS after the content window is gone is
-    // a bad idea.
-    return this._tabClosed ? null : undefined;
+    return undefined;
   },
 
   /**
@@ -955,15 +951,7 @@ ThreadActor.prototype = {
   },
 
   _makeOnStep: function ({ thread, pauseAndRespond, startFrame,
-                           startLocation, steppingType }) {
-    // Breaking in place: we should always pause.
-    if (steppingType === "break") {
-      return function () {
-        return pauseAndRespond(this);
-      };
-    }
-
-    // Otherwise take what a "step" means into consideration.
+                           startLocation }) {
     return function () {
       // onStep is called with 'this' set to the current frame.
 
@@ -1008,20 +996,19 @@ ThreadActor.prototype = {
   /**
    * Define the JS hook functions for stepping.
    */
-  _makeSteppingHooks: function (aStartLocation, steppingType) {
+  _makeSteppingHooks: function (aStartLocation) {
     // Bind these methods and state because some of the hooks are called
     // with 'this' set to the current frame. Rather than repeating the
     // binding in each _makeOnX method, just do it once here and pass it
     // in to each function.
     const steppingHookState = {
       pauseAndRespond: (aFrame, onPacket=(k)=>k) => {
-        return this._pauseAndRespond(aFrame, { type: "resumeLimit" }, onPacket);
+        this._pauseAndRespond(aFrame, { type: "resumeLimit" }, onPacket);
       },
       createValueGrip: this.createValueGrip.bind(this),
       thread: this,
       startFrame: this.youngestFrame,
-      startLocation: aStartLocation,
-      steppingType: steppingType
+      startLocation: aStartLocation
     };
 
     return {
@@ -1042,7 +1029,7 @@ ThreadActor.prototype = {
    */
   _handleResumeLimit: function (aRequest) {
     let steppingType = aRequest.resumeLimit.type;
-    if (["break", "step", "next", "finish"].indexOf(steppingType) == -1) {
+    if (["step", "next", "finish"].indexOf(steppingType) == -1) {
       return reject({ error: "badParameterType",
                       message: "Unknown resumeLimit type" });
     }
@@ -1050,8 +1037,7 @@ ThreadActor.prototype = {
     const generatedLocation = getFrameLocation(this.youngestFrame);
     return this.sources.getOriginalLocation(generatedLocation)
       .then(originalLocation => {
-        const { onEnterFrame, onPop, onStep } = this._makeSteppingHooks(originalLocation,
-                                                                        steppingType);
+        const { onEnterFrame, onPop, onStep } = this._makeSteppingHooks(originalLocation);
 
         // Make sure there is still a frame on the stack if we are to continue
         // stepping.
@@ -1061,7 +1047,6 @@ ThreadActor.prototype = {
             case "step":
               this.dbg.onEnterFrame = onEnterFrame;
               // Fall through.
-            case "break":
             case "next":
               if (stepFrame.script) {
                   stepFrame.onStep = onStep;

@@ -872,16 +872,11 @@ SpdyConnectTransaction::ReadSegments(nsAHttpSegmentReader *reader,
       nsresult rv = mSegmentReader->
         OnReadSegment(mConnectString.BeginReading() + mConnectStringOffset,
                       toWrite, countRead);
+      mConnectStringOffset += toWrite;
       if (NS_FAILED(rv) && (rv != NS_BASE_STREAM_WOULD_BLOCK)) {
         LOG(("SpdyConnectTransaction::ReadSegments %p OnReadSegmentError %x\n",
              this, rv));
         CreateShimError(rv);
-      } else {
-        mConnectStringOffset += toWrite;
-        if (mConnectString.Length() == mConnectStringOffset) {
-          mConnectString.Truncate();
-          mConnectStringOffset = 0;
-        }
       }
       return rv;
     }
@@ -937,7 +932,7 @@ SpdyConnectTransaction::WriteSegments(nsAHttpSegmentWriter *writer,
 {
   MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
   LOG(("SpdyConnectTransaction::WriteSegments %p max=%d cb=%p\n",
-       this, count, mTunneledConn ? mTunnelStreamIn->mCallback : nullptr));
+       this, count, mTunnelStreamIn->mCallback));
 
   // first call into the tunnel stream to get the demux'd data out of the
   // spdy session.
@@ -955,7 +950,7 @@ SpdyConnectTransaction::WriteSegments(nsAHttpSegmentWriter *writer,
   LOG(("SpdyConnectTransaction %p %d new bytes [%d total] of ciphered data buffered\n",
        this, *countWritten, mInputDataUsed - mInputDataOffset));
 
-  if (!mTunneledConn || !mTunnelStreamIn->mCallback) {
+  if (!mTunnelStreamIn->mCallback) {
     return NS_BASE_STREAM_WOULD_BLOCK;
   }
 

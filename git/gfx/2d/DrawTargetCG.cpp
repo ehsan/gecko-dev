@@ -1253,7 +1253,6 @@ DrawTargetCG::CopySurface(SourceSurface *aSurface,
     CGContextDrawImage(mCg, flippedRect, image);
 
     CGContextRestoreGState(mCg);
-    CGImageRelease(image);
   }
 }
 
