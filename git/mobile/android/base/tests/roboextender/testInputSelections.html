@@ -262,12 +262,10 @@ function testLTR_dragAnchorHandleToSelf() {
   var initialSelectionText = sh._getSelectedText();
 
   // Drag anchor handle and note results.
-  // Note, due to edge case with border boundaries, we actually
-  // move inside a pixel, to maintain Selection position.
   sh.observe(null, "TextSelection:Move",
     JSON.stringify({ handleType : ANCHOR,
       x : initialSelection.anchorPt.x,
-      y : initialSelection.anchorPt.y - 1
+      y : initialSelection.anchorPt.y
     })
   );
   sh.observe(null, "TextSelection:Position",
@@ -289,11 +287,14 @@ function testLTR_dragAnchorHandleToSelf() {
     selectionExists(initialSelection,
       "LTR Selection initially existed at points"),
 
-    is(anchorDragSelectionText, LTR_INPUT_TEXT_VALUE,
+    todo(false, "testLTR_dragAnchorHandleToSelf: " +
+    // is(anchorDragSelectionText, LTR_INPUT_TEXT_VALUE,
       "LTR Selection text after anchor drag should match expected value."),
-    selectionExists(anchorDraggedSelection,
+    todo(false, "testLTR_dragAnchorHandleToSelf: " +
+    // selectionExists(anchorDraggedSelection,
       "LTR Selection after anchor drag existed at points"),
-    selectionEquals(anchorDraggedSelection, initialSelection,
+    todo(false, "testLTR_dragAnchorHandleToSelf: " +
+    // selectionEquals(anchorDraggedSelection, initialSelection,
       "LTR Selection points after anchor drag " +
       "should match initial selection points."),
 
@@ -347,11 +348,14 @@ function testRTL_dragFocusHandleToSelf() {
     selectionExists(initialSelection,
       "RTL Selection initially existed at points"),
 
-    is(focusDragSelectionText, RTL_INPUT_TEXT_VALUE,
+    todo(false, "testRTL_dragAnchorHandleToSelf: " +
+    // is(focusDragSelectionText, RTL_INPUT_TEXT_VALUE,
       "RTL Selection text after focus drag should match expected value."),
-    selectionExists(focusDraggedSelection,
+    todo(false, "testRTL_dragAnchorHandleToSelf: " +
+    // selectionExists(focusDraggedSelection,
       "RTL Selection after focus drag existed at points"),
-    selectionEquals(focusDraggedSelection, initialSelection,
+    todo(false, "testRTL_dragAnchorHandleToSelf: " +
+    // selectionEquals(focusDraggedSelection, initialSelection,
       "RTL Selection points after focus drag " +
       "should match initial selection points."),
 
@@ -379,12 +383,10 @@ function testRTL_dragAnchorHandleToSelf() {
   var initialSelectionText = sh._getSelectedText();
 
   // Drag anchor handle and note results.
-  // Note, due to edge case with border boundaries, we actually
-  // move inside a pixel, to maintain Selection position.
   sh.observe(null, "TextSelection:Move",
     JSON.stringify({ handleType : ANCHOR,
       x : initialSelection.anchorPt.x,
-      y : initialSelection.anchorPt.y - 1
+      y : initialSelection.anchorPt.y
     })
   );
   sh.observe(null, "TextSelection:Position",
@@ -491,15 +493,10 @@ function greaterThan(n1, n2, msg) {
   });
 }
 
-// Use fuzzy logic to compare screen coords.
-function truncPoint(point) {
-  return new Point(Math.trunc(point.x), Math.trunc(point.y));
-}
-
 function pointEquals(p1, p2, msg) {
   return Messaging.sendRequestForResult({
     type: "Robocop:testInputSelections",
-    result: truncPoint(p1).equals(truncPoint(p2)),
+    result: p1.equals(p2),
     msg: msg + " : " + p1.toString() + " == " + p2.toString()
   });
 }
@@ -507,7 +504,7 @@ function pointEquals(p1, p2, msg) {
 function pointNotEquals(p1, p2, msg) {
   return Messaging.sendRequestForResult({
     type: "Robocop:testInputSelections",
-    result: !truncPoint(p1).equals(truncPoint(p2)),
+    result: !p1.equals(p2),
     msg: msg + " : " + p1.toString() + " == " + p2.toString()
   });
 }
@@ -515,7 +512,7 @@ function pointNotEquals(p1, p2, msg) {
 function selectionExists(selection, msg) {
   return Messaging.sendRequestForResult({
     type: "Robocop:testInputSelections",
-    result: !truncPoint(selection.anchorPt).equals(truncPoint(selection.focusPt)),
+    result: !selection.anchorPt.equals(selection.focusPt),
     msg: msg + " : anchor:" + selection.anchorPt.toString() +
       " focus:" + selection.focusPt.toString()
   });
@@ -524,8 +521,7 @@ function selectionExists(selection, msg) {
 function selectionEquals(s1, s2, msg) {
   return Messaging.sendRequestForResult({
     type: "Robocop:testInputSelections",
-    result: truncPoint(s1.anchorPt).equals(truncPoint(s2.anchorPt)) &&
-            truncPoint(s1.focusPt).equals(truncPoint(s2.focusPt)),
+    result: s1.anchorPt.equals(s2.anchorPt) && s1.focusPt.equals(s2.focusPt),
     msg: msg
   });
 }

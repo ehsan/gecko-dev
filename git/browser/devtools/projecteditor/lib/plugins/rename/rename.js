@@ -33,7 +33,7 @@ var RenamePlugin = Class({
         if (name === oldName) {
           return resource;
         }
-        if (parent.hasChild(name)) {
+        if (resource.hasChild(parent, name)) {
           let matches = name.match(/([^\d.]*)(\d*)([^.]*)(.*)/);
           let template = matches[1] + "{1}" + matches[3] + matches[4];
           name = this.suggestName(resource, template, parseInt(matches[2]) || 2);
@@ -56,7 +56,7 @@ var RenamePlugin = Class({
     do {
       name = template.replace("\{1\}", i === 1 ? "" : i);
       i++;
-    } while (parent.hasChild(name));
+    } while (resource.hasChild(parent, name));
 
     return name;
   }

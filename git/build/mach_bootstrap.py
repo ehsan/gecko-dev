@@ -34,8 +34,6 @@ SEARCH_PATHS = [
     'python/jsmin',
     'python/psutil',
     'python/which',
-    'python/pystache',
-    'python/pyyaml/lib',
     'build/pymake',
     'config',
     'dom/bindings',
@@ -44,7 +42,6 @@ SEARCH_PATHS = [
     'other-licenses/ply',
     'xpcom/idl-parser',
     'testing',
-    'testing/taskcluster',
     'testing/xpcshell',
     'testing/web-platform',
     'testing/web-platform/harness',
@@ -82,7 +79,6 @@ MACH_MODULES = [
     'python/mozbuild/mozbuild/frontend/mach_commands.py',
     'services/common/tests/mach_commands.py',
     'testing/mach_commands.py',
-    'testing/taskcluster/mach_commands.py',
     'testing/marionette/mach_commands.py',
     'testing/mochitest/mach_commands.py',
     'testing/xpcshell/mach_commands.py',
@@ -111,11 +107,6 @@ CATEGORIES = {
         'short': 'Testing',
         'long': 'Run tests.',
         'priority': 60,
-    },
-    'ci': {
-        'short': 'CI',
-        'long': 'Taskcluster commands',
-        'priority': 59
     },
     'devenv': {
         'short': 'Development Environment',
