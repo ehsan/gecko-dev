@@ -531,8 +531,17 @@ bool
 TabParent::RecvSetIMEEnabled(const PRUint32& aValue)
 {
   nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (widget)
+  if (widget && AllowContentIME()) {
     widget->SetIMEEnabled(aValue);
+
+    nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
+    if (observerService) {
+      nsAutoString state;
+      state.AppendInt(aValue);
+      observerService->NotifyObservers(nsnull, "ime-enabled-state-changed", state.get());
+    }
+  }
+
   return true;
 }
 
@@ -549,7 +558,7 @@ bool
 TabParent::RecvSetIMEOpenState(const PRBool& aValue)
 {
   nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (widget)
+  if (widget && AllowContentIME())
     widget->SetIMEOpenState(aValue);
   return true;
 }
@@ -732,6 +741,19 @@ TabParent::ShouldDelayDialogs()
   PRBool delay = PR_FALSE;
   frameLoader->GetDelayRemoteDialogs(&delay);
   return delay;
+}
+
+PRBool
+TabParent::AllowContentIME()
+{
+  nsFocusManager* fm = nsFocusManager::GetFocusManager();
+  NS_ENSURE_TRUE(fm, PR_FALSE);
+
+  nsCOMPtr<nsIContent> focusedContent = fm->GetFocusedContent();
+  if (focusedContent && focusedContent->IsEditable())
+    return PR_FALSE;
+
+  return PR_TRUE;
 }
 
 already_AddRefed<nsFrameLoader>
