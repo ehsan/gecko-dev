@@ -492,16 +492,16 @@ DebuggerClient.prototype = {
   /**
    * Reconfigure a thread actor.
    *
-   * @param object aOptions
-   *        A dictionary object of the new options to use in the thread actor.
+   * @param boolean aUseSourceMaps
+   *        A flag denoting whether to use source maps or not.
    * @param function aOnResponse
    *        Called with the response packet.
    */
-  reconfigureThread: function(aOptions, aOnResponse) {
+  reconfigureThread: function DC_reconfigureThread(aUseSourceMaps, aOnResponse) {
     let packet = {
       to: this.activeThread._actor,
       type: "reconfigure",
-      options: aOptions
+      options: { useSourceMaps: aUseSourceMaps }
     };
     this.request(packet, aOnResponse);
   },
@@ -923,28 +923,6 @@ TabClient.prototype = {
     },
     telemetry: "TABDETACH"
   }),
-
-  /**
-   * Reload the page in this tab.
-   */
-  reload: DebuggerClient.requester({
-    type: "reload"
-  }, {
-    telemetry: "RELOAD"
-  }),
-
-  /**
-   * Navigate to another URL.
-   *
-   * @param string url
-   *        The URL to navigate to.
-   */
-  navigateTo: DebuggerClient.requester({
-    type: "navigateTo",
-    url: args(0)
-  }, {
-    telemetry: "NAVIGATETO"
-  }),
 };
 
 eventSource(TabClient.prototype);
@@ -1130,21 +1108,19 @@ ThreadClient.prototype = {
    */
   pauseOnExceptions: function TC_pauseOnExceptions(aFlag, aOnResponse) {
     this._pauseOnExceptions = aFlag;
-    // If the debuggee is paused, we have to send the flag via a reconfigure
-    // request.
-    if (this.paused) {
-      this._client.reconfigureThread({ pauseOnExceptions: aFlag }, aOnResponse);
-      return;
+    // If the debuggee is paused, the value of the flag will be communicated in
+    // the next resumption. Otherwise we have to force a pause in order to send
+    // the flag.
+    if (!this.paused) {
+      this.interrupt(function(aResponse) {
+        if (aResponse.error) {
+          // Can't continue if pausing failed.
+          aOnResponse(aResponse);
+          return;
+        }
+        this.resume(aOnResponse);
+      }.bind(this));
     }
-    // Otherwise send the flag using a standard resume request.
-    this.interrupt(aResponse => {
-      if (aResponse.error) {
-        // Can't continue if pausing failed.
-        aOnResponse(aResponse);
-        return;
-      }
-      this.resume(aOnResponse);
-    });
   },
 
   /**

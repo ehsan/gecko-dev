@@ -626,8 +626,7 @@ WebConsoleActor.prototype =
   {
     // TODO: Bug 842682 - use the debugger API for autocomplete in the Web
     // Console, and provide suggestions from the selected debugger stack frame.
-    let result = JSPropertyProvider(this.window, aRequest.text,
-                                    aRequest.cursor) || {};
+    let result = JSPropertyProvider(this.window, aRequest.text) || {};
     return {
       from: this.actorID,
       matches: result.matches || [],

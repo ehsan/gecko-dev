@@ -507,12 +507,8 @@ var WifiManager = (function() {
     });
   }
 
-  function setPowerModeCommandICS(mode, callback) {
+  function setPowerModeCommand(mode, callback) {
     doBooleanCommand("DRIVER POWERMODE " + (mode === "AUTO" ? 0 : 1), "OK", callback);
-  }
-
-  function setPowerModeCommandJB(mode, callback) {
-    doBooleanCommand("SET ps " + (mode === "AUTO" ? 1 : 0), "OK", callback);
   }
 
   function getPowerModeCommand(callback) {
@@ -1512,9 +1508,7 @@ var WifiManager = (function() {
   manager.wpsPbc = wpsPbcCommand;
   manager.wpsPin = wpsPinCommand;
   manager.wpsCancel = wpsCancelCommand;
-  manager.setPowerMode = (sdkVersion >= 16)
-                         ? setPowerModeCommandJB
-                         : setPowerModeCommandICS;
+  manager.setPowerMode = setPowerModeCommand;
   manager.setSuspendOptimizations = setSuspendOptimizationsCommand;
   manager.setStaticIpMode = setStaticIpMode;
   manager.getRssiApprox = getRssiApproxCommand;

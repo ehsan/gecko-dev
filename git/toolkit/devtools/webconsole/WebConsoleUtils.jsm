@@ -727,12 +727,10 @@ function findCompletionBeginning(aStr)
  *
  * @param object aScope
  *        Scope to use for the completion.
+ *
  * @param string aInputValue
  *        Value that should be completed.
- * @param number [aCursor=aInputValue.length]
- *        Optional offset in the input where the cursor is located. If this is
- *        omitted then the cursor is assumed to be at the end of the input
- *        value.
+ *
  * @returns null or object
  *          If no completion valued could be computed, null is returned,
  *          otherwise a object with the following form is returned:
@@ -742,18 +740,13 @@ function findCompletionBeginning(aStr)
  *                         the matches-strings.
  *            }
  */
-function JSPropertyProvider(aScope, aInputValue, aCursor)
+function JSPropertyProvider(aScope, aInputValue)
 {
-  if (aCursor === undefined) {
-    aCursor = aInputValue.length;
-  }
-
-  let inputValue = aInputValue.substring(0, aCursor);
   let obj = WCU.unwrap(aScope);
 
-  // Analyse the inputValue and find the beginning of the last part that
+  // Analyse the aInputValue and find the beginning of the last part that
   // should be completed.
-  let beginning = findCompletionBeginning(inputValue);
+  let beginning = findCompletionBeginning(aInputValue);
 
   // There was an error analysing the string.
   if (beginning.err) {
@@ -766,7 +759,7 @@ function JSPropertyProvider(aScope, aInputValue, aCursor)
     return null;
   }
 
-  let completionPart = inputValue.substring(beginning.startPos);
+  let completionPart = aInputValue.substring(beginning.startPos);
 
   // Don't complete on just an empty string.
   if (completionPart.trim() == "") {

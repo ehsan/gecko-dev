@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-const TEST_URI = "data:text/html;charset=utf-8,<p>browser_telemetry_toolboxtabs_jsdebugger.js</p>";
+const TEST_URI = "data:text/html;charset=utf-8,<p>browser_telemetry_toolboxtabs.js</p>";
 
 // Because we need to gather stats for the period of time that a tool has been
 // opened we make use of setTimeout() to create tool active times.
@@ -12,6 +12,9 @@ let {Services} = Cu.import("resource://gre/modules/Services.jsm", {});
 
 let require = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
 let Telemetry = require("devtools/shared/telemetry");
+
+let tabsToTest = ["inspector", "options", "webconsole", "jsdebugger",
+                   "styleeditor", "jsprofiler", "netmonitor"];
 
 function init() {
   Telemetry.prototype.telemetryInfo = {};
@@ -26,7 +29,15 @@ function init() {
     }
   }
 
-  openToolboxTabTwice("jsdebugger", false);
+  testNextTool();
+}
+
+function testNextTool() {
+  let nextTool = tabsToTest.pop();
+
+  if (nextTool) {
+    openToolboxTabTwice(nextTool);
+  }
 }
 
 function openToolboxTabTwice(id, secondPass) {
@@ -37,7 +48,11 @@ function openToolboxTabTwice(id, secondPass) {
 
     toolbox.once("destroyed", function() {
       if (secondPass) {
-        checkResults();
+        if (tabsToTest.length > 0) {
+          testNextTool();
+        } else {
+          checkResults();
+        }
       } else {
         openToolboxTabTwice(id, true);
       }
@@ -93,7 +108,7 @@ function finishUp() {
   delete Telemetry.prototype._oldlog;
   delete Telemetry.prototype.telemetryInfo;
 
-  TargetFactory = Services = Promise = require = null;
+  TargetFactory = tabsToTest = Services = Promise = require = null;
 
   finish();
 }

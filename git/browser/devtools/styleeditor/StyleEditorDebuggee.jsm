@@ -222,11 +222,13 @@ let StyleSheet = function(form, debuggee) {
 
   this._onSourceLoad = this._onSourceLoad.bind(this);
   this._onPropertyChange = this._onPropertyChange.bind(this);
+  this._onError = this._onError.bind(this);
   this._onStyleApplied = this._onStyleApplied.bind(this);
 
-  this._client.addListener("sourceLoad", this._onSourceLoad);
-  this._client.addListener("propertyChange", this._onPropertyChange);
-  this._client.addListener("styleApplied", this._onStyleApplied);
+  this._client.addListener("sourceLoad-" + this._actor, this._onSourceLoad);
+  this._client.addListener("propertyChange-" + this._actor, this._onPropertyChange);
+  this._client.addListener("error-" + this._actor, this._onError);
+  this._client.addListener("styleApplied-" + this._actor, this._onStyleApplied);
 
   // set initial property values
   for (let attr in form) {
@@ -272,12 +274,7 @@ StyleSheet.prototype = {
    *        Event details
    */
   _onSourceLoad: function(type, request) {
-    if (request.from == this._actor) {
-      if (request.error) {
-        return this.emit("error", request.error);
-      }
-      this.emit("source-load", request.source);
-    }
+    this.emit("source-load", request.source);
   },
 
   /**
@@ -289,19 +286,27 @@ StyleSheet.prototype = {
    *        Event details
    */
   _onPropertyChange: function(type, request) {
-    if (request.from == this._actor) {
-      this[request.property] = request.value;
-      this.emit("property-change", request.property);
-    }
+    this[request.property] = request.value;
+    this.emit("property-change", request.property);
+  },
+
+  /**
+   * Propogate errors from the server that relate to this stylesheet.
+   *
+   * @param {string} type
+   *        Event type
+   * @param {object} request
+   *        Event details
+   */
+  _onError: function(type, request) {
+    this.emit("error", request.errorMessage);
   },
 
   /**
    * Handle event when update has been successfully applied and propogate it.
    */
-  _onStyleApplied: function(type, request) {
-    if (request.from == this._actor) {
-      this.emit("style-applied");
-    }
+  _onStyleApplied: function() {
+    this.emit("style-applied");
   },
 
   /**
@@ -321,8 +326,9 @@ StyleSheet.prototype = {
    * Clean up and remove event listeners
    */
   destroy: function() {
-    this._client.removeListener("sourceLoad", this._onSourceLoad);
-    this._client.removeListener("propertyChange", this._onPropertyChange);
-    this._client.removeListener("styleApplied", this._onStyleApplied);
+    this._client.removeListener("sourceLoad-" + this._actor, this._onSourceLoad);
+    this._client.removeListener("propertyChange-" + this._actor, this._onPropertyChange);
+    this._client.removeListener("error-" + this._actor, this._onError);
+    this._client.removeListener("styleApplied-" + this._actor, this._onStyleApplied);
   }
 }

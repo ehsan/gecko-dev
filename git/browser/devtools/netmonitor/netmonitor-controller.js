@@ -37,14 +37,19 @@ let NetMonitorController = {
    *         A promise that is resolved when the monitor finishes startup.
    */
   startupNetMonitor: function() {
-    if (this._startup) {
-      return this._startup;
+    if (this._isInitialized) {
+      return this._startup.promise;
     }
+    this._isInitialized = true;
 
-    NetMonitorView.initialize();
+    let deferred = this._startup = Promise.defer();
 
-    // Startup is synchronous, for now.
-    return this._startup = Promise.resolve();
+    NetMonitorView.initialize(() => {
+      NetMonitorView._isInitialized = true;
+      deferred.resolve();
+    });
+
+    return deferred.promise;
   },
 
   /**
@@ -54,17 +59,24 @@ let NetMonitorController = {
    *         A promise that is resolved when the monitor finishes shutdown.
    */
   shutdownNetMonitor: function() {
-    if (this._shutdown) {
-      return this._shutdown;
+    if (this._isDestroyed) {
+      return this._shutdown.promise;
     }
+    this._isDestroyed = true;
+    this._startup = null;
 
-    NetMonitorView.destroy();
-    this.TargetEventsHandler.disconnect();
-    this.NetworkEventsHandler.disconnect();
-    this.disconnect();
+    let deferred = this._shutdown = Promise.defer();
 
-    // Shutdown is synchronous, for now.
-    return this._shutdown = Promise.resolve();
+    NetMonitorView.destroy(() => {
+      NetMonitorView._isDestroyed = true;
+      this.TargetEventsHandler.disconnect();
+      this.NetworkEventsHandler.disconnect();
+
+      this.disconnect();
+      deferred.resolve();
+    });
+
+    return deferred.promise;
   },
 
   /**
@@ -76,11 +88,10 @@ let NetMonitorController = {
    */
   connect: function() {
     if (this._connection) {
-      return this._connection;
+      return this._connection.promise;
     }
 
-    let deferred = Promise.defer();
-    this._connection = deferred.promise;
+    let deferred = this._connection = Promise.defer();
 
     let target = this._target;
     let { client, form } = target;
@@ -181,6 +192,8 @@ let NetMonitorController = {
     });
   },
 
+  _isInitialized: false,
+  _isDestroyed: false,
   _startup: null,
   _shutdown: null,
   _connection: null,
@@ -492,7 +505,7 @@ NetworkEventsHandler.prototype = {
     let { actor, initial, length } = aStringGrip;
     let longStringClient = this.webConsoleClient.longString(aStringGrip);
 
-    longStringClient.substring(initial.length, length, aResponse => {
+    longStringClient.substring(initial.length, length, (aResponse) => {
       if (aResponse.error) {
         Cu.reportError(aResponse.error + ": " + aResponse.message);
         deferred.reject(aResponse);

@@ -19,7 +19,6 @@
 #include "mozilla/dom/EventTarget.h"
 #include "mozilla/dom/EventBinding.h"
 #include "nsIScriptGlobalObject.h"
-#include "Units.h"
 
 class nsIContent;
 class nsPresContext;
@@ -100,12 +99,14 @@ public:
   static void Shutdown();
 
   static const char* GetEventName(uint32_t aEventType);
-  static mozilla::CSSIntPoint
-  GetClientCoords(nsPresContext* aPresContext, nsEvent* aEvent,
-                  nsIntPoint aPoint, mozilla::CSSIntPoint aDefaultPoint);
-  static mozilla::CSSIntPoint
-  GetPageCoords(nsPresContext* aPresContext, nsEvent* aEvent, nsIntPoint aPoint,
-                mozilla::CSSIntPoint aDefaultPoint);
+  static nsIntPoint GetClientCoords(nsPresContext* aPresContext,
+                                    nsEvent* aEvent,
+                                    nsIntPoint aPoint,
+                                    nsIntPoint aDefaultPoint);
+  static nsIntPoint GetPageCoords(nsPresContext* aPresContext,
+                                  nsEvent* aEvent,
+                                  nsIntPoint aPoint,
+                                  nsIntPoint aDefaultPoint);
   static nsIntPoint GetScreenCoords(nsPresContext* aPresContext,
                                     nsEvent* aEvent,
                                     nsIntPoint aPoint);

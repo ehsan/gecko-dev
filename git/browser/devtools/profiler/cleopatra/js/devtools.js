@@ -3,22 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 var gInstanceUID;
-var gParsedQS;
-
-function getParam(key) {
-  if (gParsedQS)
-    return gParsedQS[key];
-
-  var query = window.location.search.substring(1);
-  gParsedQS = {};
-
-  query.split("&").forEach(function (pair) {
-    pair = pair.split("=");
-    gParsedQS[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
-  });
-
-  return gParsedQS[key];
-}
 
 /**
  * Sends a message to the parent window with a status
@@ -33,7 +17,7 @@ function getParam(key) {
  */
 function notifyParent(status, data={}) {
   if (!gInstanceUID) {
-    gInstanceUID = getParam("uid");
+    gInstanceUID = window.location.search.substr(1);
   }
 
   window.parent.postMessage({
@@ -224,8 +208,7 @@ function enterFinishedProfileUI() {
     }
   }
 
-  if (getParam("showPlatformData") !== "true")
-    toggleJavascriptOnly();
+  toggleJavascriptOnly();
 }
 
 function enterProgressUI() {

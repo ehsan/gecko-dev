@@ -31,8 +31,6 @@ class nsIFrame;
  */
 class nsIScrollableFrame : public nsIScrollbarOwner {
 public:
-  typedef mozilla::CSSIntPoint CSSIntPoint;
-
   NS_DECL_QUERYFRAME_TARGET(nsIScrollableFrame)
 
   /**
@@ -158,7 +156,7 @@ public:
    * rounding to CSS pixels) will be exactly aScrollPosition.
    * The scroll mode is INSTANT.
    */
-  virtual void ScrollToCSSPixels(const CSSIntPoint& aScrollPosition) = 0;
+  virtual void ScrollToCSSPixels(const mozilla::CSSIntPoint& aScrollPosition) = 0;
   /**
    * Scrolls to a particular position in float CSS pixels.
    * This does not guarantee that GetScrollPositionCSSPixels equals
@@ -173,7 +171,7 @@ public:
    * Returns the scroll position in integer CSS pixels, rounded to the nearest
    * pixel.
    */
-  virtual CSSIntPoint GetScrollPositionCSSPixels() = 0;
+  virtual nsIntPoint GetScrollPositionCSSPixels() = 0;
   /**
    * When scrolling by a relative amount, we can choose various units.
    */

@@ -204,7 +204,7 @@ function test()
 
   function reloadPage()
   {
-    gDebugger.DebuggerController.client.activeTab.reload();
+    gDebuggee.location.reload();
   }
 
   registerCleanupFunction(function() {

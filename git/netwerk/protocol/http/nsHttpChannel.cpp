@@ -37,6 +37,7 @@
 #include "nsAlgorithm.h"
 #include "GeckoProfiler.h"
 #include "nsIConsoleService.h"
+#include "base/compiler_specific.h"
 #include "NullHttpTransaction.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/VisualEventTracer.h"
@@ -297,7 +298,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(HttpCacheQuery, nsRunnable, nsICacheListener)
 //-----------------------------------------------------------------------------
 
 nsHttpChannel::nsHttpChannel()
-    : HttpAsyncAborter<nsHttpChannel>(MOZ_THIS_IN_INITIALIZER_LIST())
+    : ALLOW_THIS_IN_INITIALIZER_LIST(HttpAsyncAborter<nsHttpChannel>(this))
     , mLogicalOffset(0)
     , mCacheAccess(0)
     , mCacheEntryDeviceTelemetryID(UNKNOWN_DEVICE)

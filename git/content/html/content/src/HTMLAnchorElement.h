@@ -8,10 +8,11 @@
 #define mozilla_dom_HTMLAnchorElement_h
 
 #include "mozilla/Attributes.h"
-#include "mozilla/dom/Link.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMHTMLAnchorElement.h"
 #include "nsILink.h"
+#include "Link.h"
+#include "base/compiler_specific.h"
 
 namespace mozilla {
 namespace dom {
@@ -27,7 +28,7 @@ public:
 
   HTMLAnchorElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
-    , Link(MOZ_THIS_IN_INITIALIZER_LIST())
+    , ALLOW_THIS_IN_INITIALIZER_LIST(Link(this))
   {
     SetIsDOMBinding();
   }

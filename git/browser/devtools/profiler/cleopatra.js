@@ -23,10 +23,9 @@ const { PROFILE_IDLE, PROFILE_COMPLETED, PROFILE_RUNNING } = require("devtools/p
  * @param ProfilerPanel panel
  *   A reference to the container panel.
  */
-function Cleopatra(panel, opts) {
+function Cleopatra(uid, name, panel) {
   let doc = panel.document;
   let win = panel.window;
-  let { uid, name, showPlatformData } = opts;
 
   EventEmitter.decorate(this);
 
@@ -41,7 +40,7 @@ function Cleopatra(panel, opts) {
   this.iframe = doc.createElement("iframe");
   this.iframe.setAttribute("flex", "1");
   this.iframe.setAttribute("id", "profiler-cleo-" + uid);
-  this.iframe.setAttribute("src", "cleopatra.html?uid=" + uid + "&showPlatformData=" + showPlatformData);
+  this.iframe.setAttribute("src", "cleopatra.html?" + uid);
   this.iframe.setAttribute("hidden", "true");
 
   // Append our iframe and subscribe to postMessage events.

@@ -92,7 +92,7 @@ nsDOMNotifyPaintEvent::ClientRects()
 }
 
 NS_IMETHODIMP
-nsDOMNotifyPaintEvent::GetPaintRequests(nsISupports** aResult)
+nsDOMNotifyPaintEvent::GetPaintRequests(nsIDOMPaintRequestList** aResult)
 {
   nsRefPtr<nsPaintRequestList> requests = PaintRequests();
   requests.forget(aResult);
