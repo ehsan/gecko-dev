@@ -183,6 +183,9 @@ XPCOMUtils.defineLazyGetter(this, "gMmsConnection", function () {
 
       try {
         this.mmsc = Services.prefs.getCharPref("ril.mms.mmsc");
+        if (this.mmsc.endsWith("/")) {
+          this.mmsc = this.mmsc.substr(0, this.mmsc.length - 1);
+        }
         this.proxy = Services.prefs.getCharPref("ril.mms.mmsproxy");
         this.port = Services.prefs.getIntPref("ril.mms.mmsport");
         this.updateProxyInfo();
@@ -342,6 +345,9 @@ XPCOMUtils.defineLazyGetter(this, "gMmsConnection", function () {
             switch (data) {
               case "ril.mms.mmsc":
                 this.mmsc = Services.prefs.getCharPref("ril.mms.mmsc");
+                if (this.mmsc.endsWith("/")) {
+                  this.mmsc = this.mmsc.substr(0, this.mmsc.length - 1);
+                }
                 break;
               case "ril.mms.mmsproxy":
                 this.proxy = Services.prefs.getCharPref("ril.mms.mmsproxy");
@@ -374,7 +380,7 @@ XPCOMUtils.defineLazyGetter(this, "gMmsConnection", function () {
 });
 
 function MmsProxyFilter(url) {
-  this.uri = Services.io.newURI(url, null, null);
+  this.url = url;
 }
 MmsProxyFilter.prototype = {
 
@@ -383,14 +389,19 @@ MmsProxyFilter.prototype = {
   // nsIProtocolProxyFilter
 
   applyFilter: function applyFilter(proxyService, uri, proxyInfo) {
-    if (!this.uri.equals(uri)) {
-      if (DEBUG) debug("applyFilter: content uri = " + JSON.stringify(this.uri) +
-                       " is not matched with uri = " + JSON.stringify(uri) + " .");
+    let url = uri.prePath + uri.path;
+    if (url.endsWith("/")) {
+      url = url.substr(0, url.length - 1);
+    }
+
+    if (this.url != url) {
+      if (DEBUG) debug("applyFilter: content uri = " + this.url +
+                       " is not matched url = " + url + " .");
       return proxyInfo;
     }
     // Fall-through, reutrn the MMS proxy info.
-    if (DEBUG) debug("applyFilter: MMSC/Content Location is matched with: " +
-                     JSON.stringify({ uri: JSON.stringify(this.uri),
+    if (DEBUG) debug("applyFilter: MMSC is matched: " +
+                     JSON.stringify({ url: this.url,
                                       proxyInfo: gMmsConnection.proxyInfo }));
     return gMmsConnection.proxyInfo ? gMmsConnection.proxyInfo : proxyInfo;
   }
