@@ -41,6 +41,7 @@ class ClonedMessageData;
 
 class ContentChild : public PContentChild
 {
+    typedef layers::PCompositorChild PCompositorChild;
     typedef mozilla::dom::ClonedMessageData ClonedMessageData;
     typedef mozilla::ipc::OptionalURIParams OptionalURIParams;
     typedef mozilla::ipc::URIParams URIParams;
@@ -69,12 +70,8 @@ public:
         return mAppInfo;
     }
 
-    PCompositorChild*
-    AllocPCompositor(mozilla::ipc::Transport* aTransport,
-                     base::ProcessId aOtherProcess) MOZ_OVERRIDE;
-    PImageBridgeChild*
-    AllocPImageBridge(mozilla::ipc::Transport* aTransport,
-                      base::ProcessId aOtherProcess) MOZ_OVERRIDE;
+    PCompositorChild* AllocPCompositor(mozilla::ipc::Transport* aTransport,
+                                       base::ProcessId aOtherProcess) MOZ_OVERRIDE;
 
     virtual PBrowserChild* AllocPBrowser(const uint32_t& aChromeFlags,
                                          const bool& aIsBrowserElement,

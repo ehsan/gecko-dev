@@ -208,6 +208,11 @@ IDBFactory::Create(ContentParent* aContentParent,
   }
 #endif
 
+  nsCString origin;
+  nsresult rv =
+    IndexedDatabaseManager::GetASCIIOriginFromWindow(nullptr, origin);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   nsCOMPtr<nsIPrincipal> principal =
     do_CreateInstance("@mozilla.org/nullprincipal;1");
   NS_ENSURE_TRUE(principal, NS_ERROR_FAILURE);
@@ -227,7 +232,7 @@ IDBFactory::Create(ContentParent* aContentParent,
   NS_ASSERTION(xpc, "This should never be null!");
 
   nsCOMPtr<nsIXPConnectJSObjectHolder> globalHolder;
-  nsresult rv = xpc->CreateSandbox(cx, principal, getter_AddRefs(globalHolder));
+  rv = xpc->CreateSandbox(cx, principal, getter_AddRefs(globalHolder));
   NS_ENSURE_SUCCESS(rv, rv);
 
   JSObject* global;
@@ -522,7 +527,7 @@ IDBFactory::OpenCommon(const nsAString& aName,
   }
 
   nsRefPtr<IDBOpenDBRequest> request =
-    IDBOpenDBRequest::Create(this, window, scriptOwner, aCallingCx);
+    IDBOpenDBRequest::Create(window, scriptOwner, aCallingCx);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsresult rv;

@@ -2533,11 +2533,11 @@ nsGfxScrollFrameInner::ScrollBy(nsIntPoint aDelta,
   ScrollToWithOrigin(newPos, aMode, aOrigin, &range);
 
   if (aOverflow) {
-    nsPoint clampAmount = newPos - mDestination;
+    nsPoint clampAmount = mDestination - newPos;
     float appUnitsPerDevPixel = mOuter->PresContext()->AppUnitsPerDevPixel();
     *aOverflow = nsIntPoint(
-        NSAppUnitsToIntPixels(clampAmount.x, appUnitsPerDevPixel),
-        NSAppUnitsToIntPixels(clampAmount.y, appUnitsPerDevPixel));
+        NSAppUnitsToIntPixels(NS_ABS(clampAmount.x), appUnitsPerDevPixel),
+        NSAppUnitsToIntPixels(NS_ABS(clampAmount.y), appUnitsPerDevPixel));
   }
 }
 

@@ -5,7 +5,7 @@
 #ifndef mozilla_dom_ScreenOrientation_h
 #define mozilla_dom_ScreenOrientation_h
 
-#include "ipc/IPCMessageUtils.h"
+#include "IPC/IPCMessageUtils.h"
 
 namespace mozilla {
 namespace dom {

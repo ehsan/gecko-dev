@@ -400,21 +400,10 @@
     "description": "System font fallback, first call (ms)"
   },
   "SYSTEM_FONT_FALLBACK_SCRIPT": {
-    "kind": "enumerated",
-    "n_values": 110,
-    "description": "System font fallback script"
-  },
-  "GRADIENT_DURATION": {
-    "kind": "exponential",
-    "high":"50000000",
-    "n_buckets":20,
-    "description": "Gradient generation time (us)"
-  },
-  "GRADIENT_RETENTION_TIME": {
     "kind": "linear",
-    "high": "10000",
-    "n_buckets":20,
-    "description": "Maximum retention time for the gradient cache. (ms)"
+    "high": "110",
+    "n_buckets": 111,
+    "description": "System font fallback script"
   },
   "STARTUP_CACHE_AGE_HOURS": {
     "kind": "exponential",
@@ -534,8 +523,9 @@
     "description": "HTTP: Requests per page (count)"
   },
   "HTTP_REQUEST_PER_PAGE_FROM_CACHE": {
-    "kind": "enumerated",
-    "n_values": 101,
+    "kind": "linear",
+    "high": "101",
+    "n_buckets": 102,
     "description": "HTTP: Requests serviced from cache (%)"
   },
   "HTTP_REQUEST_PER_CONN": {
@@ -1823,8 +1813,9 @@
     "description": "PLACES: Time to calculate frecency of a page (ms)"
   },
   "UPDATER_STATUS_CODES": {
-    "kind": "enumerated",
-    "n_values": 50,
+    "kind": "linear",
+    "high": "50",
+    "n_buckets": 51,
     "description": "Updater: the status of the latest update performed"
   },
   "UPDATER_UPDATES_ENABLED": {
@@ -1840,8 +1831,9 @@
     "description": "Updater: Whether or not the MozillaMaintenance service is enabled"
   },
   "UPDATER_SERVICE_ERRORS": {
-    "kind": "enumerated",
-    "n_values": 30,
+    "kind": "linear",
+    "high": "30",
+    "n_buckets": 31,
     "description": "Updater: The number of MozillaMaintenance service errors that have occurred"
   },
   "UPDATER_SERVICE_INSTALLED": {
@@ -2136,8 +2128,9 @@
     "description": "New tab page is enabled."
   },
   "NEWTAB_PAGE_PINNED_SITES_COUNT": {
-    "kind": "enumerated",
-    "n_values": 9,
+    "kind": "exponential",
+    "high": "9",
+    "n_buckets": 10,
     "description": "Number of pinned sites on the new tab page."
   },
   "NEWTAB_PAGE_BLOCKED_SITES_COUNT": {

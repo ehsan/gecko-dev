@@ -27,7 +27,6 @@
 #include "mozilla/ipc/XPCShellEnvironment.h"
 #include "mozilla/jsipc/PContextWrapperChild.h"
 #include "mozilla/layers/CompositorChild.h"
-#include "mozilla/layers/ImageBridgeChild.h"
 #include "mozilla/layers/PCompositorChild.h"
 #include "mozilla/net/NeckoChild.h"
 #include "mozilla/Preferences.h"
@@ -96,9 +95,6 @@
 #include "nsIRemoteBlob.h"
 #include "StructuredCloneUtils.h"
 #include "URIUtils.h"
-#include "nsIScriptSecurityManager.h"
-#include "nsContentUtils.h"
-#include "nsIPrincipal.h"
 
 using namespace mozilla::docshell;
 using namespace mozilla::dom::devicestorage;
@@ -417,21 +413,14 @@ ContentChild::AllocPCompositor(mozilla::ipc::Transport* aTransport,
     return CompositorChild::Create(aTransport, aOtherProcess);
 }
 
-PImageBridgeChild*
-ContentChild::AllocPImageBridge(mozilla::ipc::Transport* aTransport,
-                                base::ProcessId aOtherProcess)
-{
-    return ImageBridgeChild::StartUpInChildProcess(aTransport, aOtherProcess);
-}
-
 PBrowserChild*
 ContentChild::AllocPBrowser(const uint32_t& aChromeFlags,
                             const bool& aIsBrowserElement, const AppId& aApp)
 {
-    nsRefPtr<TabChild> child =
-        TabChild::Create(aChromeFlags, aIsBrowserElement, aApp.get_uint32_t());
-    // The ref here is released below.
-    return child.forget().get();
+    uint32_t appId = aApp.get_uint32_t();
+    nsRefPtr<TabChild> iframe = new TabChild(aChromeFlags, aIsBrowserElement,
+                                             appId);
+    return NS_SUCCEEDED(iframe->Init()) ? iframe.forget().get() : NULL;
 }
 
 bool
@@ -858,20 +847,7 @@ ContentChild::RecvAddPermission(const IPC::Permission& permission)
   NS_ABORT_IF_FALSE(permissionManager, 
                    "We have no permissionManager in the Content process !");
 
-  nsCOMPtr<nsIURI> uri;
-  NS_NewURI(getter_AddRefs(uri), NS_LITERAL_CSTRING("http://") + nsCString(permission.host));
-  NS_ENSURE_TRUE(uri, true);
-
-  nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
-  MOZ_ASSERT(secMan);
-
-  nsCOMPtr<nsIPrincipal> principal;
-  nsresult rv = secMan->GetAppCodebasePrincipal(uri, permission.appId,
-                                                permission.isInBrowserElement,
-                                                getter_AddRefs(principal));
-  NS_ENSURE_SUCCESS(rv, true);
-
-  permissionManager->AddInternal(principal,
+  permissionManager->AddInternal(nsCString(permission.host),
                                  nsCString(permission.type),
                                  permission.capability,
                                  0,
@@ -937,8 +913,6 @@ PreloadSlowThings()
 {
     // This fetches and creates all the built-in stylesheets.
     nsLayoutStylesheetCache::UserContentSheet();
-
-    TabChild::PreloadSlowThings();
 }
 
 bool

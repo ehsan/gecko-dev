@@ -546,16 +546,6 @@ struct MaskLayerUserData : public LayerUserData
   float mScaleX, mScaleY;
 };
 
-/*
- * User data to track the owning frame of a layer during construction.
- */
-struct LayerOwnerUserData : public LayerUserData
-{
-  LayerOwnerUserData(nsIFrame* aOwnerFrame) : mOwnerFrame(aOwnerFrame) {}
-
-  nsIFrame* mOwnerFrame;
-};
-
 /**
  * The address of gThebesDisplayItemLayerUserData is used as the user
  * data key for ThebesLayers created by FrameLayerBuilder.
@@ -590,12 +580,6 @@ uint8_t gLayerManagerUserData;
  * The user data is a MaskLayerUserData.
  */
 uint8_t gMaskLayerUserData;
-/**
- * The address of gLayerOwnerUserData is used as the user
- * data key for a Layer's owner frame during layer-building.
- * The user data is a LayerOwnerUserData.
- */
-uint8_t gLayerOwnerUserData;
 
 /**
   * Helper functions for getting user data and casting it to the correct type.
@@ -707,41 +691,32 @@ FrameLayerBuilder::DidBeginRetainedLayerTransaction(LayerManager* aManager)
 }
 
 /**
- * A helper function to remove the mThebesLayerItems entries and
- * layer ownership user-data for every layer in aLayer's subtree.
+ * A helper function to remove the mThebesLayerItems entries for every
+ * layer in aLayer's subtree.
  */
 void
-FrameLayerBuilder::RemoveThebesItemsAndOwnerDataForLayerSubtree(Layer* aLayer,
-                                                                bool aRemoveThebesItems,
-                                                                bool aRemoveOwnerData)
+FrameLayerBuilder::RemoveThebesItemsForLayerSubtree(Layer* aLayer)
 {
-  if (aRemoveOwnerData) {
-    // Remove the layer owner flag so that this layer can be recovered by other
-    // frames in future layer tree constructions.
-    aLayer->RemoveUserData(&gLayerOwnerUserData);
-  }
-
   ThebesLayer* thebes = aLayer->AsThebesLayer();
   if (thebes) {
-    if (aRemoveThebesItems) {
-      mThebesLayerItems.RemoveEntry(thebes);
-    }
+    mThebesLayerItems.RemoveEntry(thebes);
     return;
   }
 
   for (Layer* child = aLayer->GetFirstChild(); child;
        child = child->GetNextSibling()) {
-    RemoveThebesItemsAndOwnerDataForLayerSubtree(child, aRemoveThebesItems,
-                                                 aRemoveOwnerData);
+    RemoveThebesItemsForLayerSubtree(child);
   }
 }
 
 void
 FrameLayerBuilder::DidEndTransaction(LayerManager* aManager)
 {
-  Layer* root = aManager->GetRoot();
-  if (root) {
-    RemoveThebesItemsAndOwnerDataForLayerSubtree(root, aManager != mRetainingManager, true);
+  if (aManager != mRetainingManager) {
+    Layer* root = aManager->GetRoot();
+    if (root) {
+      RemoveThebesItemsForLayerSubtree(root);
+    }
   }
 
   GetMaskLayerImageCache()->Sweep();
@@ -921,13 +896,8 @@ FrameLayerBuilder::GetOldLayerForFrame(nsIFrame* aFrame, uint32_t aDisplayItemKe
   for (uint32_t i = 0; i < array->Length(); ++i) {
     if (array->ElementAt(i).mDisplayItemKey == aDisplayItemKey) {
       Layer* layer = array->ElementAt(i).mLayer;
-      if (layer->Manager() == mRetainingManager) {
-        LayerOwnerUserData* layerOwner = static_cast<LayerOwnerUserData*>
-          (layer->GetUserData(&gLayerOwnerUserData));
-        if (!layerOwner || layerOwner->mOwnerFrame == aFrame) {
-          return layer;
-        }
-      }
+      if (layer->Manager() == mRetainingManager)
+        return layer;
     }
   }
   return nullptr;
@@ -1994,7 +1964,7 @@ FrameLayerBuilder::AddThebesDisplayItem(ThebesLayer* aLayer,
 void
 FrameLayerBuilder::AddLayerDisplayItemForFrame(Layer* aLayer,
                                                nsIFrame* aFrame,
-                                               uint32_t aDisplayItemKey,
+                                               PRUint32 aDisplayItemKey,
                                                LayerState aLayerState)
 {
   DisplayItemDataEntry* entry = mNewDisplayItemData.PutEntry(aFrame);
@@ -2013,12 +1983,12 @@ FrameLayerBuilder::AddLayerDisplayItem(Layer* aLayer,
     return;
 
   nsIFrame* f = aItem->GetUnderlyingFrame();
-  uint32_t key = aItem->GetPerFrameKey();
+  PRUint32 key = aItem->GetPerFrameKey();
   AddLayerDisplayItemForFrame(aLayer, f, key, aLayerState);
 
   nsAutoTArray<nsIFrame*,4> mergedFrames;
   aItem->GetMergedFrames(&mergedFrames);
-  for (uint32_t i = 0; i < mergedFrames.Length(); ++i) {
+  for (PRUint32 i = 0; i < mergedFrames.Length(); ++i) {
     AddLayerDisplayItemForFrame(aLayer, mergedFrames[i], key, aLayerState);
   }
 }
@@ -2097,39 +2067,42 @@ ContainerState::Finish(uint32_t* aTextContentFlags)
 
   uint32_t textContentFlags = 0;
 
-  // Make sure that current/existing layers are added to the parent and are
-  // in the correct order.
-  Layer* layer = nullptr;
-  for (uint32_t i = 0; i < mNewChildLayers.Length(); ++i) {
-    Layer* prevChild = i == 0 ? nullptr : mNewChildLayers[i - 1].get();
-    layer = mNewChildLayers[i];
-
-    if (!layer->GetVisibleRegion().IsEmpty()) {
-      textContentFlags |= layer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA;
+  for (uint32_t i = 0; i <= mNewChildLayers.Length(); ++i) {
+    // An invariant of this loop is that the layers in mNewChildLayers
+    // with index < i are the first i child layers of mContainerLayer.
+    Layer* layer;
+    if (i < mNewChildLayers.Length()) {
+      layer = mNewChildLayers[i];
+      if (!layer->GetVisibleRegion().IsEmpty()) {
+        textContentFlags |= layer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA;
+      }
+      if (!layer->GetParent()) {
+        // This is not currently a child of the container, so just add it
+        // now.
+        Layer* prevChild = i == 0 ? nullptr : mNewChildLayers[i - 1].get();
+        mContainerLayer->InsertAfter(layer, prevChild);
+        continue;
+      }
+      NS_ASSERTION(layer->GetParent() == mContainerLayer,
+                   "Layer shouldn't be the child of some other container");
+    } else {
+      layer = nullptr;
     }
 
-    if (!layer->GetParent()) {
-      // This is not currently a child of the container, so just add it
-      // now.
-      mContainerLayer->InsertAfter(layer, prevChild);
-      continue;
+    // If layer is non-null, then it's already a child of the container,
+    // so scan forward until we find it, removing the other layers we
+    // don't want here.
+    // If it's null, scan forward until we've removed all the leftover
+    // children.
+    Layer* nextOldChild = i == 0 ? mContainerLayer->GetFirstChild() :
+      mNewChildLayers[i - 1]->GetNextSibling();
+    while (nextOldChild != layer) {
+      Layer* tmp = nextOldChild;
+      nextOldChild = nextOldChild->GetNextSibling();
+      mContainerLayer->RemoveChild(tmp);
     }
-
-    NS_ASSERTION(layer->GetParent() == mContainerLayer,
-                 "Layer shouldn't be the child of some other container");
-    mContainerLayer->RepositionChild(layer, prevChild);
-  }
-
-  // Remove old layers that have become unused.
-  if (!layer) {
-    layer = mContainerLayer->GetFirstChild();
-  } else {
-    layer = layer->GetNextSibling();
-  }
-  while (layer) {
-    Layer *layerToRemove = layer;
-    layer = layer->GetNextSibling();
-    mContainerLayer->RemoveChild(layerToRemove);
+    // If non-null, 'layer' is now in the right place in the list, so we
+    // can just move on to the next one.
   }
 
   *aTextContentFlags = textContentFlags;
@@ -2381,12 +2354,6 @@ FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
     if (!containerLayer)
       return nullptr;
   }
-
-  // This layer is owned by this frame for this building phase, don't let
-  // it be found by another frame due to its old underlying frame or merged
-  // frames. This flag will be cleared in FrameLayerBuilder::DidEndTransaction
-  containerLayer->SetUserData(&gLayerOwnerUserData,
-                              new LayerOwnerUserData(aContainerFrame));
 
   if (aContainerItem &&
       aContainerItem->GetLayerState(aBuilder, aManager, aParameters) == LAYER_ACTIVE_EMPTY) {

@@ -11,8 +11,6 @@
 #include "nsStyleLinkElement.h"
 #include "nsContentUtils.h"
 
-using namespace mozilla;
-
 typedef nsSVGElement nsSVGStyleElementBase;
 
 class nsSVGStyleElement : public nsSVGStyleElementBase,
@@ -50,10 +48,6 @@ public:
                            bool aNotify);
   virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
                              bool aNotify);
-  virtual bool ParseAttribute(int32_t aNamespaceID,
-                              nsIAtom* aAttribute,
-                              const nsAString& aValue,
-                              nsAttrValue& aResult);
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
@@ -82,8 +76,6 @@ protected:
                          nsAString& aType,
                          nsAString& aMedia,
                          bool* aIsAlternate);
-  virtual CORSMode GetCORSMode() const;
-
   /**
    * Common method to call from the various mutation observer methods.
    * aContent is a content node that's either the one that changed or its
@@ -190,22 +182,6 @@ nsSVGStyleElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
   }
 
   return rv;
-}
-
-bool
-nsSVGStyleElement::ParseAttribute(int32_t aNamespaceID,
-                                  nsIAtom* aAttribute,
-                                  const nsAString& aValue,
-                                  nsAttrValue& aResult)
-{
-  if (aNamespaceID == kNameSpaceID_None &&
-      aAttribute == nsGkAtoms::crossorigin) {
-    ParseCORSValue(aValue, aResult);
-    return true;
-  }
-
-  return nsSVGStyleElementBase::ParseAttribute(aNamespaceID, aAttribute, aValue,
-                                               aResult);
 }
 
 //----------------------------------------------------------------------
@@ -340,10 +316,4 @@ nsSVGStyleElement::GetStyleSheetInfo(nsAString& aTitle,
   }
 
   return;
-}
-
-CORSMode
-nsSVGStyleElement::GetCORSMode() const
-{
-  return AttrValueToCORSMode(GetParsedAttr(nsGkAtoms::crossorigin));
 }

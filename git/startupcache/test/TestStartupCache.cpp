@@ -392,9 +392,11 @@ int main(int argc, char** argv)
     glob = JS_NewGlobalObject(cx, &global_class, NULL);
   if (!glob)
     use_js = false;
-  mozilla::Maybe<JSAutoCompartment> ac;
+  JSCrossCompartmentCall *compartment = nullptr;
   if (use_js)
-    ac.construct(cx, glob);
+    compartment = JS_EnterCrossCompartmentCall(cx, glob);
+  if (!compartment)
+    use_js = false;
   if (use_js && !JS_InitStandardClasses(cx, glob))
     use_js = false;
 
@@ -441,6 +443,9 @@ int main(int argc, char** argv)
       passed("histogram records samples");
     }
   }
+
+  if (use_js)
+    JS_LeaveCrossCompartmentCall(compartment);
 
   return rv;
 }

@@ -12,7 +12,6 @@
 #include "Blob.h"
 #include "ContentChild.h"
 #include "IndexedDBChild.h"
-#include "mozilla/ClearOnShutdown.h"
 #include "mozilla/IntentionalCrash.h"
 #include "mozilla/docshell/OfflineCacheUpdateChild.h"
 #include "mozilla/dom/PContentChild.h"
@@ -21,7 +20,6 @@
 #include "mozilla/layers/CompositorChild.h"
 #include "mozilla/layers/PLayersChild.h"
 #include "mozilla/layout/RenderFrameChild.h"
-#include "mozilla/StaticPtr.h"
 #include "mozilla/unused.h"
 #include "nsComponentManagerUtils.h"
 #include "nsComponentManagerUtils.h"
@@ -64,12 +62,8 @@
 #include "nsThreadUtils.h"
 #include "nsWeakReference.h"
 #include "PCOMContentPermissionRequestChild.h"
-#include "PuppetWidget.h"
 #include "StructuredCloneUtils.h"
 #include "xpcpublic.h"
-
-#define BROWSER_ELEMENT_CHILD_SCRIPT \
-    NS_LITERAL_STRING("chrome://global/content/BrowserElementChild.js")
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -99,48 +93,6 @@ public:
                               const InfallibleTArray<nsString>& aStringParams);
 };
 
-StaticRefPtr<TabChild> sPreallocatedTab;
-
-/*static*/ void
-TabChild::PreloadSlowThings()
-{
-    MOZ_ASSERT(!sPreallocatedTab);
-
-    nsRefPtr<TabChild> tab(new TabChild(0, false,
-                                        nsIScriptSecurityManager::NO_APP_ID));
-    if (!NS_SUCCEEDED(tab->Init()) ||
-        !tab->InitTabChildGlobal(DONT_LOAD_SCRIPTS)) {
-        return;
-    }
-    tab->TryCacheLoadAndCompileScript(BROWSER_ELEMENT_CHILD_SCRIPT);
-
-    sPreallocatedTab = tab;
-    ClearOnShutdown(&sPreallocatedTab);
-}
-
-/*static*/ already_AddRefed<TabChild>
-TabChild::Create(uint32_t aChromeFlags,
-                 bool aIsBrowserElement, uint32_t aAppId)
-{
-    if (sPreallocatedTab &&
-        sPreallocatedTab->mChromeFlags == aChromeFlags &&
-        (aIsBrowserElement || 
-         aAppId != nsIScriptSecurityManager::NO_APP_ID)) {
-        nsRefPtr<TabChild> child = sPreallocatedTab.get();
-        sPreallocatedTab = nullptr;
-
-        MOZ_ASSERT(!child->mTriedBrowserInit);
-
-        child->SetAppBrowserConfig(aIsBrowserElement, aAppId);
-
-        return child.forget();
-    }
-
-    nsRefPtr<TabChild> iframe = new TabChild(aChromeFlags, aIsBrowserElement,
-                                             aAppId);
-    return NS_SUCCEEDED(iframe->Init()) ? iframe.forget() : nullptr;
-}
-
 
 TabChild::TabChild(uint32_t aChromeFlags, bool aIsBrowserElement,
                    uint32_t aAppId)
@@ -149,11 +101,10 @@ TabChild::TabChild(uint32_t aChromeFlags, bool aIsBrowserElement,
   , mChromeFlags(aChromeFlags)
   , mOuterRect(0, 0, 0, 0)
   , mLastBackgroundColor(NS_RGB(255, 255, 255))
-  , mAppId(aAppId)
   , mDidFakeShow(false)
   , mIsBrowserElement(aIsBrowserElement)
   , mNotified(false)
-  , mTriedBrowserInit(false)
+  , mAppId(aAppId)
 {
     printf("creating %d!\n", NS_IsMainThread());
 }
@@ -199,60 +150,20 @@ TabChild::Init()
 
   nsCOMPtr<nsIDocShellTreeItem> docShellItem(do_QueryInterface(mWebNav));
   docShellItem->SetItemType(nsIDocShellTreeItem::typeContentWrapper);
-  
-  nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(mWebNav);
-  if (!baseWindow) {
-    NS_ERROR("mWebNav doesn't QI to nsIBaseWindow");
-    return false;
-  }
 
-  mWidget = nsIWidget::CreatePuppetWidget(this);
-  if (!mWidget) {
-    NS_ERROR("couldn't create fake widget");
-    return false;
-  }
-  mWidget->Create(
-    nullptr, 0,              // no parents
-    nsIntRect(nsIntPoint(0, 0), nsIntSize(0, 0)),
-    nullptr,                 // HandleWidgetEvent
-    nullptr                  // nsDeviceContext
-  );
+  nsCOMPtr<nsIObserverService> observerService =
+    do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
 
-  baseWindow->InitWindow(0, mWidget, 0, 0, 0, 0);
-  baseWindow->Create();
-
-  SetAppBrowserConfig(mIsBrowserElement, mAppId);
-
-  // IPC uses a WebBrowser object for which DNS prefetching is turned off
-  // by default. But here we really want it, so enable it explicitly
-  nsCOMPtr<nsIWebBrowserSetup> webBrowserSetup =
-    do_QueryInterface(baseWindow);
-  if (webBrowserSetup) {
-    webBrowserSetup->SetProperty(nsIWebBrowserSetup::SETUP_ALLOW_DNS_PREFETCH,
-                                 true);
-  } else {
-    NS_WARNING("baseWindow doesn't QI to nsIWebBrowserSetup, skipping "
-               "DNS prefetching enable step.");
+  if (observerService) {
+    observerService->AddObserver(this,
+                                 "cancel-default-pan-zoom",
+                                 false);
+    observerService->AddObserver(this,
+                                 "browser-zoom-to-rect",
+                                 false);
   }
 
   return NS_OK;
-}
-
-void
-TabChild::SetAppBrowserConfig(bool aIsBrowserElement, uint32_t aAppId)
-{
-    mIsBrowserElement = aIsBrowserElement;
-    mAppId = aAppId;
-
-    nsCOMPtr<nsIDocShell> docShell = do_GetInterface(mWebNav);
-    MOZ_ASSERT(docShell);
-
-    if (docShell) {
-        docShell->SetAppId(mAppId);
-        if (mIsBrowserElement) {
-            docShell->SetIsBrowserElement();
-        }
-    }
 }
 
 NS_INTERFACE_MAP_BEGIN(TabChild)
@@ -658,8 +569,6 @@ TabChild::ActorDestroy(ActorDestroyReason why)
 
 TabChild::~TabChild()
 {
-    DestroyWindow();
-
     nsCOMPtr<nsIWebBrowser> webBrowser = do_QueryInterface(mWebNav);
     if (webBrowser) {
       webBrowser->SetContainerWindow(nullptr);
@@ -702,7 +611,6 @@ TabChild::DoFakeShow()
 bool
 TabChild::RecvShow(const nsIntSize& size)
 {
-
     if (mDidFakeShow) {
         return true;
     }
@@ -715,7 +623,7 @@ TabChild::RecvShow(const nsIntSize& size)
         return false;
     }
 
-    if (!InitRenderingState()) {
+    if (!InitWidget(size)) {
         // We can fail to initialize our widget if the <browser
         // remote> has already been destroyed, and we couldn't hook
         // into the parent-process's layer system.  That's not a fatal
@@ -723,7 +631,32 @@ TabChild::RecvShow(const nsIntSize& size)
         return true;
     }
 
+    baseWindow->InitWindow(0, mWidget,
+                           0, 0, size.width, size.height);
+    baseWindow->Create();
+
+    nsCOMPtr<nsIDocShell> docShell = do_GetInterface(mWebNav);
+    MOZ_ASSERT(docShell);
+
+    if (docShell) {
+      docShell->SetAppId(mAppId);
+      if (mIsBrowserElement) {
+        docShell->SetIsBrowserElement();
+      }
+    }
+
     baseWindow->SetVisibility(true);
+
+    // IPC uses a WebBrowser object for which DNS prefetching is turned off
+    // by default. But here we really want it, so enable it explicitly
+    nsCOMPtr<nsIWebBrowserSetup> webBrowserSetup = do_QueryInterface(baseWindow);
+    if (webBrowserSetup) {
+      webBrowserSetup->SetProperty(nsIWebBrowserSetup::SETUP_ALLOW_DNS_PREFETCH,
+                                   true);
+    } else {
+        NS_WARNING("baseWindow doesn't QI to nsIWebBrowserSetup, skipping "
+                   "DNS prefetching enable step.");
+    }
 
     return InitTabChildGlobal();
 }
@@ -1227,47 +1160,58 @@ TabChild::DeallocPRenderFrame(PRenderFrameChild* aFrame)
 }
 
 bool
-TabChild::InitTabChildGlobal(FrameScriptLoading aScriptLoading)
+TabChild::InitTabChildGlobal()
 {
-  if (!mCx && !mTabChildGlobal) {
-    nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(mWebNav);
-    NS_ENSURE_TRUE(window, false);
-    nsCOMPtr<nsIDOMEventTarget> chromeHandler =
-      do_QueryInterface(window->GetChromeEventHandler());
-    NS_ENSURE_TRUE(chromeHandler, false);
+  if (mCx && mTabChildGlobal)
+    return true;
 
-    nsRefPtr<TabChildGlobal> scope = new TabChildGlobal(this);
-    NS_ENSURE_TRUE(scope, false);
+  nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(mWebNav);
+  NS_ENSURE_TRUE(window, false);
+  nsCOMPtr<nsIDOMEventTarget> chromeHandler =
+    do_QueryInterface(window->GetChromeEventHandler());
+  NS_ENSURE_TRUE(chromeHandler, false);
 
-    mTabChildGlobal = scope;
+  nsRefPtr<TabChildGlobal> scope = new TabChildGlobal(this);
+  NS_ENSURE_TRUE(scope, false);
 
-    nsISupports* scopeSupports = NS_ISUPPORTS_CAST(nsIDOMEventTarget*, scope);
+  mTabChildGlobal = scope;
+
+  nsISupports* scopeSupports =
+    NS_ISUPPORTS_CAST(nsIDOMEventTarget*, scope);
   
-    NS_ENSURE_TRUE(InitTabChildGlobalInternal(scopeSupports), false); 
+  NS_ENSURE_TRUE(InitTabChildGlobalInternal(scopeSupports), false); 
 
-    scope->Init();
+  scope->Init();
 
-    nsCOMPtr<nsPIWindowRoot> root = do_QueryInterface(chromeHandler);
-    NS_ENSURE_TRUE(root, false);
-    root->SetParentTarget(scope);
-  }
+  nsCOMPtr<nsPIWindowRoot> root = do_QueryInterface(chromeHandler);
+  NS_ENSURE_TRUE(root, false);
+  root->SetParentTarget(scope);
 
-  if (aScriptLoading != DONT_LOAD_SCRIPTS && !mTriedBrowserInit) {
-    mTriedBrowserInit = true;
-    // Initialize the child side of the browser element machinery,
-    // if appropriate.
-    if (mIsBrowserElement || mAppId != nsIScriptSecurityManager::NO_APP_ID) {
-      RecvLoadRemoteScript(BROWSER_ELEMENT_CHILD_SCRIPT);
-    }
+  // Initialize the child side of the browser element machinery, if appropriate.
+  if (mIsBrowserElement || mAppId != nsIScriptSecurityManager::NO_APP_ID) {
+    RecvLoadRemoteScript(
+      NS_LITERAL_STRING("chrome://global/content/BrowserElementChild.js"));
   }
 
   return true;
 }
 
 bool
-TabChild::InitRenderingState()
+TabChild::InitWidget(const nsIntSize& size)
 {
-    static_cast<PuppetWidget*>(mWidget.get())->InitIMEState();
+    NS_ABORT_IF_FALSE(!mWidget && !mRemoteFrame, "CreateWidget twice?");
+
+    mWidget = nsIWidget::CreatePuppetWidget(this);
+    if (!mWidget) {
+        NS_ERROR("couldn't create fake widget");
+        return false;
+    }
+    mWidget->Create(
+        nullptr, 0,              // no parents
+        nsIntRect(nsIntPoint(0, 0), size),
+        nullptr,                 // HandleWidgetEvent
+        nullptr                  // nsDeviceContext
+        );
 
     LayersBackend be;
     uint64_t id;
@@ -1308,19 +1252,6 @@ TabChild::InitRenderingState()
     lf->SetMaxTextureSize(maxTextureSize);
 
     mRemoteFrame = remoteFrame;
-
-    nsCOMPtr<nsIObserverService> observerService =
-        do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
-
-    if (observerService) {
-        observerService->AddObserver(this,
-                                     "cancel-default-pan-zoom",
-                                     false);
-        observerService->AddObserver(this,
-                                     "browser-zoom-to-rect",
-                                     false);
-    }
-
     return true;
 }
 
@@ -1331,17 +1262,6 @@ TabChild::SetBackgroundColor(const nscolor& aColor)
     mLastBackgroundColor = aColor;
     SendSetBackgroundColor(mLastBackgroundColor);
   }
-}
-
-void
-TabChild::GetDPI(float* aDPI)
-{
-    *aDPI = -1.0;
-    if (!mRemoteFrame) {
-        return;
-    }
-
-    SendGetDPI(aDPI);
 }
 
 void
@@ -1452,7 +1372,7 @@ void
 TabChildGlobal::Init()
 {
   NS_ASSERTION(!mMessageManager, "Re-initializing?!?");
-  mMessageManager = new nsFrameMessageManager(false, /* aChrome */
+  mMessageManager = new nsFrameMessageManager(false,
                                               SendSyncMessageToParent,
                                               SendAsyncMessageToParent,
                                               nullptr,
@@ -1474,8 +1394,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(TabChildGlobal,
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(TabChildGlobal)
-  NS_INTERFACE_MAP_ENTRY(nsIMessageListenerManager)
-  NS_INTERFACE_MAP_ENTRY(nsIMessageSender)
+  NS_INTERFACE_MAP_ENTRY(nsIFrameMessageManager)
   NS_INTERFACE_MAP_ENTRY(nsISyncMessageSender)
   NS_INTERFACE_MAP_ENTRY(nsIContentFrameMessageManager)
   NS_INTERFACE_MAP_ENTRY(nsIScriptContextPrincipal)

@@ -17,7 +17,6 @@
 using namespace mozilla;
 using namespace js;
 
-#ifdef DEBUG
 bool
 JSString::isShort() const
 {
@@ -25,7 +24,18 @@ JSString::isShort() const
     JS_ASSERT_IF(is_short, isFixed());
     return is_short;
 }
-#endif
+
+bool
+JSString::isFixed() const
+{
+    return isFlat() && !isExtensible();
+}
+
+bool
+JSString::isInline() const
+{
+    return isFixed() && (d.u1.chars == d.inlineStorage || isShort());
+}
 
 bool
 JSString::isExternal() const

@@ -360,7 +360,7 @@ const gSessionHistoryObserver = {
     fwdCommand.setAttribute("disabled", "true");
 
     // Hide session restore button on about:home
-    window.messageManager.broadcastAsyncMessage("Browser:HideSessionRestoreButton");
+    window.messageManager.sendAsyncMessage("Browser:HideSessionRestoreButton");
 
     if (gURLBar) {
       // Clear undo history of the URL bar

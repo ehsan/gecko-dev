@@ -57,7 +57,7 @@ _newJSDContext(JSRuntime*         jsrt,
                JSObject*          scopeobj)
 {
     JSDContext* jsdc = NULL;
-    JSCompartment *oldCompartment = NULL;
+    JSCrossCompartmentCall *call = NULL;
     JSBool ok;
 
     if( ! jsrt )
@@ -113,14 +113,16 @@ _newJSDContext(JSRuntime*         jsrt,
     if( ! jsdc->glob )
         goto label_newJSDContext_failure;
 
-    oldCompartment = JS_EnterCompartment(jsdc->dumbContext, jsdc->glob);
+    call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, jsdc->glob);
+    if( ! call )
+        goto label_newJSDContext_failure;
 
     if ( ! JS_AddNamedObjectRoot(jsdc->dumbContext, &jsdc->glob, "JSD context global") )
         goto label_newJSDContext_failure;
 
     ok = JS_InitStandardClasses(jsdc->dumbContext, jsdc->glob);
 
-    JS_LeaveCompartment(jsdc->dumbContext, oldCompartment);
+    JS_LeaveCrossCompartmentCall(call);
     if( ! ok )
         goto label_newJSDContext_failure;
 

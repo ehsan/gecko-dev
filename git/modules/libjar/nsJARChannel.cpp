@@ -189,8 +189,7 @@ nsJARInputThunk::IsNonBlocking(bool *nonBlocking)
 
 
 nsJARChannel::nsJARChannel()
-    : mOpened(false)
-    , mAppURI(nullptr)
+    : mAppURI(nullptr)
     , mContentLength(-1)
     , mLoadFlags(LOAD_NORMAL)
     , mStatus(NS_OK)
@@ -582,15 +581,7 @@ nsJARChannel::GetSecurityInfo(nsISupports **aSecurityInfo)
 NS_IMETHODIMP
 nsJARChannel::GetContentType(nsACString &result)
 {
-    // If the Jar file has not been open yet,
-    // We return application/x-unknown-content-type
-    if (!mOpened) {
-      result.Assign(UNKNOWN_CONTENT_TYPE);
-      return NS_OK;
-    }
-
     if (mContentType.IsEmpty()) {
-
         //
         // generate content type and set it
         //
@@ -719,8 +710,6 @@ nsJARChannel::Open(nsIInputStream **stream)
     if (NS_FAILED(rv)) return rv;
 
     NS_ADDREF(*stream = mJarInput);
-
-    mOpened = true;
     return NS_OK;
 }
 
@@ -765,7 +754,6 @@ nsJARChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctx)
     if (mLoadGroup)
         mLoadGroup->AddRequest(this, nullptr);
 
-    mOpened = true;
     return NS_OK;
 }
 

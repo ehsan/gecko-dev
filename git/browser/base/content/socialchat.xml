@@ -135,7 +135,6 @@
       <field name="selectedChat"/>
 
       <field name="menuitemMap">new WeakMap()</field>
-      <field name="chatboxForURL">new Map();</field>
 
       <property name="firstCollapsedChild">
         <getter><![CDATA[
@@ -241,7 +240,6 @@
           }
           this.removeChild(aChatbox);
           this.resize();
-          this.chatboxForURL.delete(aChatbox.getAttribute('src'));
         ]]></body>
       </method>
 
@@ -250,36 +248,18 @@
           while (this.firstChild) {
             this.removeChild(this.firstChild);
           }
-          this.chatboxForURL = new Map();
         ]]></body>
       </method>
 
-      <method name="openChat">
+      <method name="newChat">
         <parameter name="aProvider"/>
         <parameter name="aURL"/>
         <parameter name="aCallback"/>
-        <parameter name="aMode"/>
         <body><![CDATA[
-          let cb = this.chatboxForURL.get(aURL);
-          if (cb) {
-            cb = cb.get();
-            if (cb.parentNode) {
-              // ensure this chatbox is visible
-              if (this.selectedChat != cb)
-                this.selectedChat = cb;
-              if (cb.collapsed)
-                this.showChat(cb);
-              return;
-            }
-            this.chatboxForURL.delete(aURL);
-          }
-          cb = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", "chatbox");
-          if (aMode == "minimized")
-            cb.minimized = true;
+          let cb = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", "chatbox");
           this.selectedChat = cb;
-          this.insertBefore(cb, this.firstChild);
+          this.appendChild(cb);
           cb.init(aProvider, aURL, aCallback);
-          this.chatboxForURL.set(aURL, Cu.getWeakReference(cb));
         ]]></body>
       </method>
 

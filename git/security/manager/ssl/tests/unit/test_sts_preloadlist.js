@@ -3,23 +3,8 @@ var Ci = Components.interfaces;
 
 Components.utils.import("resource://gre/modules/Services.jsm");
 
-var _pbsvc;
-
-// lazy getter, added for bug 785860 to avoid testing private browsing when the
-// private browsing service doesn't exist
-function getPBSvc() {
-  if (_pbsvc)
-    return _pbsvc;
-
-  try {
-    _pbsvc = Cc["@mozilla.org/privatebrowsing;1"]
-               .getService(Ci.nsIPrivateBrowsingService);
-    return _pbsvc;
-  } catch (e) {}
-
-  return null;
-}
-
+var gPBService = Cc["@mozilla.org/privatebrowsing;1"]
+                 .getService(Ci.nsIPrivateBrowsingService);
 var gSTSService = Cc["@mozilla.org/stsservice;1"]
                   .getService(Ci.nsIStrictTransportSecurityService);
 
@@ -41,9 +26,7 @@ var hosts = ["http://keyerror.com", "http://subdomain.kyps.net",
 
 function cleanup() {
   Services.obs.removeObserver(gObserver, "private-browsing-transition-complete");
-  if (getPBSvc())
-    getPBSvc().privateBrowsingEnabled = false;
-
+  gPBService.privateBrowsingEnabled = false;
   for (var host of hosts) {
     var uri = Services.io.newURI(host, null, null);
     gSTSService.removeStsState(uri);
@@ -56,10 +39,8 @@ function run_test() {
   Services.prefs.setBoolPref("browser.privatebrowsing.keep_current_session", true);
 
   add_test(test_part1);
-  if (getPBSvc()) {
-    add_test(test_private_browsing1);
-    add_test(test_private_browsing2);
-  }
+  add_test(test_private_browsing1);
+  add_test(test_private_browsing2);
 
   run_next_test();
 }
@@ -143,8 +124,7 @@ function test_part1() {
   do_check_false(gSTSService.isStsHost("another.subdomain.cert.se"));
 
   // test private browsing correctly interacts with removing preloaded sites
-  if (getPBSvc())
-    getPBSvc().privateBrowsingEnabled = true;
+  gPBService.privateBrowsingEnabled = true;
 }
 
 function test_private_browsing1() {
@@ -184,12 +164,10 @@ function test_private_browsing1() {
   gSTSService.processStsHeader(uri, "max-age=-1000");
   do_check_false(gSTSService.isStsHost("www.logentries.com"));
 
-  // if this test gets this far, it means there's a private browsing service
-  getPBSvc().privateBrowsingEnabled = false;
+  gPBService.privateBrowsingEnabled = false;
 }
 
 function test_private_browsing2() {
-  // if this test gets this far, it means there's a private browsing service
   do_check_true(gSTSService.isStsHost("crypto.cat"));
   // the crypto.cat entry has includeSubdomains set
   do_check_true(gSTSService.isStsHost("subdomain.crypto.cat"));

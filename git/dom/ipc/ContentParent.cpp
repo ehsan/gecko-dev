@@ -31,7 +31,6 @@
 #include "mozilla/hal_sandbox/PHalParent.h"
 #include "mozilla/ipc/TestShellParent.h"
 #include "mozilla/layers/CompositorParent.h"
-#include "mozilla/layers/ImageBridgeParent.h"
 #include "mozilla/net/NeckoParent.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
@@ -189,8 +188,7 @@ ContentParent::PreallocateAppProcess()
 
     sPreallocatedAppProcess =
         new ContentParent(MAGIC_PREALLOCATED_APP_MANIFEST_URL,
-                          /*isBrowserElement=*/false,
-                          base::PRIVILEGES_DEFAULT);
+                          /*isBrowserElement=*/false);
     sPreallocatedAppProcess->Init();
 }
 
@@ -276,19 +274,6 @@ ContentParent::GetNewOrUsed(bool aForBrowserElement)
     return p;
 }
 
-static bool
-AppNeedsInheritedOSPrivileges(mozIApplication* aApp)
-{
-    bool needsInherit = false;
-    // FIXME/bug 785592: implement a CameraBridge so we don't have to
-    // hack around with OS permissions
-    if (NS_FAILED(aApp->HasPermission("camera", &needsInherit))) {
-        NS_WARNING("Unable to check permissions.  Breakage may follow.");
-        return false;
-    }
-    return needsInherit;
-}
-
 /*static*/ TabParent*
 ContentParent::CreateBrowser(mozIApplication* aApp, bool aIsBrowserElement)
 {
@@ -340,20 +325,13 @@ ContentParent::CreateBrowser(mozIApplication* aApp, bool aIsBrowserElement)
 
     nsRefPtr<ContentParent> p = gAppContentParents->Get(manifestURL);
     if (!p) {
-        if (AppNeedsInheritedOSPrivileges(aApp)) {
-            p = new ContentParent(manifestURL, aIsBrowserElement,
-                                  base::PRIVILEGES_INHERIT);
-            p->Init();
+        p = MaybeTakePreallocatedAppProcess();
+        if (p) {
+            p->SetManifestFromPreallocated(manifestURL);
         } else {
-            p = MaybeTakePreallocatedAppProcess();
-            if (p) {
-                p->SetManifestFromPreallocated(manifestURL);
-            } else {
-                NS_WARNING("Unable to use pre-allocated app process");
-                p = new ContentParent(manifestURL, aIsBrowserElement,
-                                      base::PRIVILEGES_DEFAULT);
-                p->Init();
-            }
+            NS_WARNING("Unable to use pre-allocated app process");
+            p = new ContentParent(manifestURL, aIsBrowserElement);
+            p->Init();
         }
         gAppContentParents->Put(manifestURL, p);
     }
@@ -679,11 +657,8 @@ ContentParent::GetTestShellSingleton()
 }
 
 ContentParent::ContentParent(const nsAString& aAppManifestURL,
-                             bool aIsForBrowser,
-                             ChildOSPrivileges aOSPrivileges)
-    : mSubprocess(nullptr)
-    , mOSPrivileges(aOSPrivileges)
-    , mGeolocationWatchID(-1)
+                             bool aIsForBrowser)
+    : mGeolocationWatchID(-1)
     , mRunToCompletionDepth(0)
     , mShouldCallUnblockChild(false)
     , mIsAlive(true)
@@ -695,8 +670,7 @@ ContentParent::ContentParent(const nsAString& aAppManifestURL,
     nsDebugImpl::SetMultiprocessMode("Parent");
 
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-    mSubprocess = new GeckoChildProcessHost(GeckoProcessType_Content,
-                                            aOSPrivileges);
+    mSubprocess = new GeckoChildProcessHost(GeckoProcessType_Content);
 
     bool useOffMainThreadCompositing = !!CompositorParent::CompositorLoop();
     if (useOffMainThreadCompositing) {
@@ -721,11 +695,6 @@ ContentParent::ContentParent(const nsAString& aAppManifestURL,
     if (useOffMainThreadCompositing) {
         DebugOnly<bool> opened = PCompositor::Open(this);
         MOZ_ASSERT(opened);
-
-        if (Preferences::GetBool("layers.async-video.enabled",false)) {
-            opened = PImageBridge::Open(this);
-            MOZ_ASSERT(opened);
-        }
     }
 
     nsCOMPtr<nsIChromeRegistry> registrySvc = nsChromeRegistry::GetService();
@@ -815,10 +784,6 @@ ContentParent::RecvReadPermissions(InfallibleTArray<IPC::Permission>* aPermissio
 
         nsCString host;
         perm->GetHost(host);
-        uint32_t appId;
-        perm->GetAppId(&appId);
-        bool isInBrowserElement;
-        perm->GetIsInBrowserElement(&isInBrowserElement);
         nsCString type;
         perm->GetType(type);
         uint32_t capability;
@@ -828,10 +793,8 @@ ContentParent::RecvReadPermissions(InfallibleTArray<IPC::Permission>* aPermissio
         int64_t expireTime;
         perm->GetExpireTime(&expireTime);
 
-        aPermissions->AppendElement(IPC::Permission(host, appId,
-                                                    isInBrowserElement, type,
-                                                    capability, expireType,
-                                                    expireTime));
+        aPermissions->AppendElement(IPC::Permission(host, type, capability,
+                                                    expireType, expireTime));
     }
 
     // Ask for future changes
@@ -1080,13 +1043,6 @@ ContentParent::AllocPCompositor(mozilla::ipc::Transport* aTransport,
                                 base::ProcessId aOtherProcess)
 {
     return CompositorParent::Create(aTransport, aOtherProcess);
-}
-
-PImageBridgeParent*
-ContentParent::AllocPImageBridge(mozilla::ipc::Transport* aTransport,
-                                 base::ProcessId aOtherProcess)
-{
-    return ImageBridgeParent::Create(aTransport, aOtherProcess);
 }
 
 PBrowserParent*

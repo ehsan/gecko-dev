@@ -16,10 +16,15 @@
 #include "States.h"
 
 #include "nsCOMPtr.h"
-#include "nsHTMLOptionElement.h"
-#include "nsIComboboxControlFrame.h"
 #include "nsIFrame.h"
+#include "nsIComboboxControlFrame.h"
+#include "nsIDocument.h"
+#include "nsIDOMHTMLInputElement.h"
+#include "nsIDOMHTMLOptGroupElement.h"
+#include "nsIDOMHTMLSelectElement.h"
 #include "nsIListControlFrame.h"
+#include "nsIServiceManager.h"
+#include "nsIMutableArray.h"
 
 using namespace mozilla::a11y;
 
@@ -233,24 +238,30 @@ HTMLSelectOptionAccessible::NativeState()
     return state;
 
   // Are we selected?
-  nsHTMLOptionElement* option = nsHTMLOptionElement::FromContent(mContent);
-  bool selected = option && option->Selected();
-  if (selected)
-    state |= states::SELECTED;
+  bool isSelected = false;
+  nsCOMPtr<nsIDOMHTMLOptionElement> option(do_QueryInterface(mContent));
+  if (option) {
+    option->GetSelected(&isSelected);
+    if (isSelected)
+      state |= states::SELECTED;
+  }
 
   if (selectState & states::OFFSCREEN) {
     state |= states::OFFSCREEN;
-  } else if (selectState & states::COLLAPSED) {
+  }
+  else if (selectState & states::COLLAPSED) {
     // <select> is COLLAPSED: add OFFSCREEN, if not the currently
     // visible option
-    if (!selected) {
+    if (!isSelected) {
       state |= states::OFFSCREEN;
-    } else {
+    }
+    else {
       // Clear offscreen and invisible for currently showing option
       state &= ~(states::OFFSCREEN | states::INVISIBLE);
       state |= selectState & states::OPAQUE1;
     }
-  } else {
+  }
+  else {
     // XXX list frames are weird, don't rely on Accessible's general
     // visibility implementation unless they get reimplemented in layout
     state &= ~states::OFFSCREEN;
@@ -337,8 +348,8 @@ HTMLSelectOptionAccessible::SetSelected(bool aSelect)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsHTMLOptionElement* option = nsHTMLOptionElement::FromContent(mContent);
-  return option ? option->SetSelected(aSelect) : NS_ERROR_FAILURE;
+  nsCOMPtr<nsIDOMHTMLOptionElement> optionElm(do_QueryInterface(mContent));
+  return optionElm->SetSelected(aSelect);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -179,10 +179,7 @@ void
 DOMRequest::RootResultVal()
 {
   NS_ASSERTION(!mRooted, "Don't call me if already rooted!");
-  nsXPCOMCycleCollectionParticipant *participant;
-  CallQueryInterface(this, &participant);
-  nsContentUtils::HoldJSObjects(NS_CYCLE_COLLECTION_UPCAST(this, DOMRequest),
-                                participant);
+  NS_HOLD_JS_OBJECTS(this, DOMRequest);
   mRooted = true;
 }
 

@@ -4554,8 +4554,6 @@ nsHTMLEditor::SetAttributeOrEquivalent(nsIDOMElement * aElement,
                                        const nsAString & aValue,
                                        bool aSuppressTransaction)
 {
-  nsAutoScriptBlocker scriptBlocker;
-
   nsresult res = NS_OK;
   if (IsCSSEnabled() && mHTMLCSSUtils) {
     int32_t count;

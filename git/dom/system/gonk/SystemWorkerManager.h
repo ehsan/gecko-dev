@@ -55,15 +55,9 @@ private:
   ~SystemWorkerManager();
 
   nsresult InitRIL(JSContext *cx);
-#ifdef MOZ_WIDGET_GONK
-  nsresult InitNetd(JSContext *cx);
-#endif
   nsresult InitWifi(JSContext *cx);
 
   nsCOMPtr<nsIWorkerHolder> mRILWorker;
-#ifdef MOZ_WIDGET_GONK
-  nsCOMPtr<nsIWorkerHolder> mNetdWorker;
-#endif
   nsCOMPtr<nsIWorkerHolder> mWifiWorker;
 
   bool mShutdown;

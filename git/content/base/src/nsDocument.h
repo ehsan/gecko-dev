@@ -877,8 +877,7 @@ public:
   virtual void MaybePreLoadImage(nsIURI* uri,
                                  const nsAString &aCrossOriginAttr);
 
-  virtual void PreloadStyle(nsIURI* uri, const nsAString& charset,
-                            const nsAString& aCrossOriginAttr);
+  virtual void PreloadStyle(nsIURI* uri, const nsAString& charset);
 
   virtual nsresult LoadChromeSheetSync(nsIURI* uri, bool isAgentSheet,
                                        nsCSSStyleSheet** sheet);

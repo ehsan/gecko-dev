@@ -1027,7 +1027,9 @@ jsdScript::CreatePPLineMap()
         JSString *jsstr;
 
         {
-            JSAutoCompartment ac(cx, script);
+            JS::AutoEnterScriptCompartment ac;
+            if (!ac.enter(cx, script))
+                return nullptr;
 
             jsstr = JS_DecompileScript (cx, script, "ppscript", 4);
             if (!jsstr)
@@ -1128,7 +1130,9 @@ jsdScript::GetVersion (int32_t *_rval)
     ASSERT_VALID_EPHEMERAL;
     JSContext *cx = JSD_GetDefaultJSContext (mCx);
     JSScript *script = JSD_GetJSScript(mCx, mScript);
-    JSAutoCompartment ac(cx, script);
+    JS::AutoEnterScriptCompartment ac;
+    if (!ac.enter(cx, script))
+        return NS_ERROR_FAILURE;
     *_rval = static_cast<int32_t>(JS_GetScriptVersion(cx, script));
     return NS_OK;
 }
@@ -1320,12 +1324,14 @@ jsdScript::GetFunctionSource(nsAString & aFunctionSource)
 
     JSString *jsstr;
     mozilla::Maybe<JSAutoCompartment> ac;
+    JS::AutoEnterScriptCompartment asc;
     if (fun) {
         ac.construct(cx, JS_GetFunctionObject(fun));
         jsstr = JS_DecompileFunction (cx, fun, 4);
     } else {
         JSScript *script = JSD_GetJSScript (mCx, mScript);
-        ac.construct(cx, script);
+        if (!asc.enter(cx, script))
+            return NS_ERROR_FAILURE;
         jsstr = JS_DecompileScript (cx, script, "ppscript", 4);
     }
     if (!jsstr)

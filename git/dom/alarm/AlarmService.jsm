@@ -20,9 +20,9 @@ Cu.import("resource://gre/modules/AlarmDB.jsm");
 
 let EXPORTED_SYMBOLS = ["AlarmService"];
 
-XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
-                                   "@mozilla.org/parentprocessmessagemanager;1",
-                                   "nsIMessageListenerManager");
+XPCOMUtils.defineLazyGetter(this, "ppmm", function() {
+  return Cc["@mozilla.org/parentprocessmessagemanager;1"].getService(Ci.nsIFrameMessageManager);
+});
 
 XPCOMUtils.defineLazyGetter(this, "messenger", function() {
   return Cc["@mozilla.org/system-message-internal;1"].getService(Ci.nsISystemMessagesInternal);
@@ -75,7 +75,7 @@ let AlarmService = {
   receiveMessage: function receiveMessage(aMessage) {
     debug("receiveMessage(): " + aMessage.name);
 
-    let mm = aMessage.target.QueryInterface(Ci.nsIMessageSender);
+    let mm = aMessage.target.QueryInterface(Ci.nsIFrameMessageManager);
     let json = aMessage.json;
     switch (aMessage.name) {
       case "AlarmsManager:GetAll":

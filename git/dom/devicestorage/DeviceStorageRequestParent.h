@@ -37,8 +37,9 @@ private:
   public:
     CancelableRunnable(DeviceStorageRequestParent* aParent)
       : mParent(aParent)
+      , mCanceled(false)
     {
-      mCanceled = !(mParent->AddRunnable(this));
+      mParent->AddRunnable(this);
     }
 
     virtual ~CancelableRunnable() {
@@ -182,22 +183,12 @@ private:
    };
 
 protected:
-  bool AddRunnable(CancelableRunnable* aRunnable) {
-    MutexAutoLock lock(mMutex);
-    if (mActorDestoryed)
-      return false;
-
+  void AddRunnable(CancelableRunnable* aRunnable) {
     mRunnables.AppendElement(aRunnable);
-    return true;
   }
-
   void RemoveRunnable(CancelableRunnable* aRunnable) {
-    MutexAutoLock lock(mMutex);
     mRunnables.RemoveElement(aRunnable);
   }
-
-  Mutex mMutex;
-  bool mActorDestoryed;
   nsTArray<nsRefPtr<CancelableRunnable> > mRunnables;
 };
 

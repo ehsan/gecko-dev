@@ -440,6 +440,14 @@ var gMainPane = {
   },
 
   /**
+   * Displays the Add-ons Manager.
+   */
+  showAddonsMgr: function ()
+  {
+    openUILinkIn("about:addons", "tab");
+  },
+
+  /**
    * Hide/show the "Show my windows and tabs from last time" option based
    * on the value of the browser.privatebrowsing.autostart pref.
    */

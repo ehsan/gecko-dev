@@ -198,7 +198,7 @@ nsAppShell::nsAppShell()
 nsAppShell::~nsAppShell()
 {
     gAppShell = nullptr;
-    sAfterPaintListener = nullptr;
+    delete sAfterPaintListener;
 
     if (sPowerManagerService) {
         sPowerManagerService->RemoveWakeLockListener(sWakeLockListener);

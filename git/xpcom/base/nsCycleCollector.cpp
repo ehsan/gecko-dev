@@ -467,6 +467,7 @@ private:
 
 public:
 #ifdef DEBUG_CC
+    size_t mBytes;
     char *mName;
 #endif
 
@@ -478,7 +479,8 @@ public:
           mRefCount(0),
           mFirstChild()
 #ifdef DEBUG_CC
-        , mName(nullptr)
+        , mBytes(0),
+          mName(nullptr)
 #endif
     {
         MOZ_ASSERT(aParticipant);
@@ -744,6 +746,8 @@ public:
     Block mFirstBlock;
     nsPurpleBufferEntry *mFreeList;
 
+    // For objects compiled against Gecko 1.9 and 1.9.1.
+    PointerSet mCompatObjects;
 #ifdef DEBUG_CC
     PointerSet mNormalObjects; // duplicates our blocks
     nsCycleCollectorStats &mStats;
@@ -757,12 +761,14 @@ public:
     {
         InitBlocks();
         mNormalObjects.Init();
+        mCompatObjects.Init();
     }
 #else
     nsPurpleBuffer(nsCycleCollectorParams &params) 
         : mParams(params)
     {
         InitBlocks();
+        mCompatObjects.Init();
     }
 #endif
 
@@ -846,7 +852,7 @@ public:
 #ifdef DEBUG_CC
     bool Exists(void *p) const
     {
-        return mNormalObjects.GetEntry(p);
+        return mNormalObjects.GetEntry(p) || mCompatObjects.GetEntry(p);
     }
 #endif
 
@@ -906,6 +912,18 @@ public:
         --mCount;
     }
 
+    bool PutCompatObject(nsISupports *p)
+    {
+        ++mCount;
+        return !!mCompatObjects.PutEntry(p);
+    }
+
+    void RemoveCompatObject(nsISupports *p)
+    {
+        --mCount;
+        mCompatObjects.RemoveEntry(p);
+    }
+
     uint32_t Count() const
     {
         return mCount;
@@ -920,6 +938,30 @@ public:
 
 static bool
 AddPurpleRoot(GCGraphBuilder &builder, void *root, nsCycleCollectionParticipant *cp);
+
+struct CallbackClosure
+{
+    CallbackClosure(nsPurpleBuffer *aPurpleBuffer, GCGraphBuilder &aBuilder)
+        : mPurpleBuffer(aPurpleBuffer),
+          mBuilder(aBuilder)
+    {
+    }
+    nsPurpleBuffer *mPurpleBuffer;
+    GCGraphBuilder &mBuilder;
+};
+
+static PLDHashOperator
+selectionCallback(nsPtrHashKey<const void>* key, void* userArg)
+{
+    CallbackClosure *closure = static_cast<CallbackClosure*>(userArg);
+    if (AddPurpleRoot(closure->mBuilder,
+                      static_cast<nsISupports *>(
+                        const_cast<void*>(key->GetKey())),
+                      nullptr))
+        return PL_DHASH_REMOVE;
+
+    return PL_DHASH_NEXT;
+}
 
 void
 nsPurpleBuffer::SelectPointers(GCGraphBuilder &aBuilder)
@@ -939,9 +981,17 @@ nsPurpleBuffer::SelectPointers(GCGraphBuilder &aBuilder)
         }
     }
 
-    NS_ABORT_IF_FALSE(mNormalObjects.Count() == realCount,
+    NS_ABORT_IF_FALSE(mCompatObjects.Count() + mNormalObjects.Count() ==
+                          realCount,
                       "count out of sync");
 #endif
+
+    if (mCompatObjects.Count()) {
+        mCount -= mCompatObjects.Count();
+        CallbackClosure closure(this, aBuilder);
+        mCompatObjects.EnumerateEntries(selectionCallback, &closure);
+        mCount += mCompatObjects.Count(); // in case of allocation failure
+    }
 
     // Walk through all the blocks.
     for (Block *b = &mFirstBlock; b; b = b->mNext) {
@@ -1014,6 +1064,10 @@ struct nsCycleCollector
     nsCycleCollector();
     ~nsCycleCollector();
 
+    // The first pair of Suspect and Forget functions are only used by
+    // old XPCOM binary components.
+    bool Suspect(nsISupports *n);
+    bool Forget(nsISupports *n);
     nsPurpleBufferEntry* Suspect2(void *n, nsCycleCollectionParticipant *cp);
     bool Forget2(nsPurpleBufferEntry *e);
 
@@ -1567,10 +1621,13 @@ public:
     void SetLastChild();
 
 private:
-    void DescribeNode(uint32_t refCount, const char *objName)
+    void DescribeNode(uint32_t refCount,
+                      size_t objSz,
+                      const char *objName)
     {
         mCurrPi->mRefCount = refCount;
 #ifdef DEBUG_CC
+        mCurrPi->mBytes = objSz;
         mCurrPi->mName = PL_strdup(objName);
         sCollector->mStats.mVisitedNode++;
 #endif
@@ -1578,9 +1635,10 @@ private:
 
 public:
     // nsCycleCollectionTraversalCallback methods.
-    NS_IMETHOD_(void) DescribeRefCountedNode(nsrefcnt refCount,
+    NS_IMETHOD_(void) DescribeRefCountedNode(nsrefcnt refCount, size_t objSz,
                                              const char *objName);
-    NS_IMETHOD_(void) DescribeGCedNode(bool isMarked, const char *objName);
+    NS_IMETHOD_(void) DescribeGCedNode(bool isMarked, size_t objSz,
+                                       const char *objName);
 
     NS_IMETHOD_(void) NoteXPCOMRoot(nsISupports *root);
     NS_IMETHOD_(void) NoteJSRoot(void *root);
@@ -1767,7 +1825,8 @@ GCGraphBuilder::NoteNativeRoot(void *root, nsCycleCollectionParticipant *partici
 }
 
 NS_IMETHODIMP_(void)
-GCGraphBuilder::DescribeRefCountedNode(nsrefcnt refCount, const char *objName)
+GCGraphBuilder::DescribeRefCountedNode(nsrefcnt refCount, size_t objSz,
+                                       const char *objName)
 {
     if (refCount == 0)
         Fault("zero refcount", mCurrPi);
@@ -1780,11 +1839,12 @@ GCGraphBuilder::DescribeRefCountedNode(nsrefcnt refCount, const char *objName)
                                         objName);
     }
 
-    DescribeNode(refCount, objName);
+    DescribeNode(refCount, objSz, objName);
 }
 
 NS_IMETHODIMP_(void)
-GCGraphBuilder::DescribeGCedNode(bool isMarked, const char *objName)
+GCGraphBuilder::DescribeGCedNode(bool isMarked, size_t objSz,
+                                 const char *objName)
 {
     uint32_t refCount = isMarked ? PR_UINT32_MAX : 0;
     sCollector->mVisitedGCed++;
@@ -1794,7 +1854,7 @@ GCGraphBuilder::DescribeGCedNode(bool isMarked, const char *objName)
                                   objName);
     }
 
-    DescribeNode(refCount, objName);
+    DescribeNode(refCount, objSz, objName);
 }
 
 NS_IMETHODIMP_(void)
@@ -1927,8 +1987,10 @@ public:
     NS_IMETHOD_(void) NoteJSChild(void *child);
 
     NS_IMETHOD_(void) DescribeRefCountedNode(nsrefcnt refcount,
+                                             size_t objsz,
                                              const char *objname) {}
     NS_IMETHOD_(void) DescribeGCedNode(bool ismarked,
+                                       size_t objsz,
                                        const char *objname) {}
     NS_IMETHOD_(void) NoteXPCOMRoot(nsISupports *root) {}
     NS_IMETHOD_(void) NoteJSRoot(void *root) {}
@@ -2365,13 +2427,14 @@ public:
         return mSuppressThisNode;
     }
 
-    NS_IMETHOD_(void) DescribeRefCountedNode(nsrefcnt refCount,
+    NS_IMETHOD_(void) DescribeRefCountedNode(nsrefcnt refCount, size_t objSz,
                                              const char *objName)
     {
         mSuppressThisNode = (PL_strstr(sSuppressionList, objName) != nullptr);
     }
 
-    NS_IMETHOD_(void) DescribeGCedNode(bool isMarked, const char *objName)
+    NS_IMETHOD_(void) DescribeGCedNode(bool isMarked, size_t objSz,
+                                       const char *objName)
     {
         mSuppressThisNode = (PL_strstr(sSuppressionList, objName) != nullptr);
     }
@@ -2415,6 +2478,70 @@ nsCycleCollector_isScanSafe(void *s, nsCycleCollectionParticipant *cp)
     return xcp != nullptr;
 }
 #endif
+
+bool
+nsCycleCollector::Suspect(nsISupports *n)
+{
+    AbortIfOffMainThreadIfCheckFast();
+
+    // Re-entering ::Suspect during collection used to be a fault, but
+    // we are canonicalizing nsISupports pointers using QI, so we will
+    // see some spurious refcount traffic here. 
+
+    if (mScanInProgress)
+        return false;
+
+    NS_ASSERTION(nsCycleCollector_isScanSafe(n, nullptr),
+                 "suspected a non-scansafe pointer");
+
+    if (mParams.mDoNothing)
+        return false;
+
+#ifdef DEBUG_CC
+    mStats.mSuspectNode++;
+
+    if (nsCycleCollector_shouldSuppress(n))
+        return false;
+
+    if (mParams.mLogPointers) {
+        if (!mPtrLog)
+            mPtrLog = fopen("pointer_log", "w");
+        fprintf(mPtrLog, "S %p\n", static_cast<void*>(n));
+    }
+#endif
+
+    return mPurpleBuf.PutCompatObject(n);
+}
+
+
+bool
+nsCycleCollector::Forget(nsISupports *n)
+{
+    AbortIfOffMainThreadIfCheckFast();
+
+    // Re-entering ::Forget during collection used to be a fault, but
+    // we are canonicalizing nsISupports pointers using QI, so we will
+    // see some spurious refcount traffic here. 
+
+    if (mScanInProgress)
+        return false;
+
+    if (mParams.mDoNothing)
+        return true; // it's as good as forgotten
+
+#ifdef DEBUG_CC
+    mStats.mForgetNode++;
+
+    if (mParams.mLogPointers) {
+        if (!mPtrLog)
+            mPtrLog = fopen("pointer_log", "w");
+        fprintf(mPtrLog, "F %p\n", static_cast<void*>(n));
+    }
+#endif
+
+    mPurpleBuf.RemoveCompatObject(n);
+    return true;
+}
 
 nsPurpleBufferEntry*
 nsCycleCollector::Suspect2(void *n, nsCycleCollectionParticipant *cp)
@@ -2871,6 +2998,21 @@ nsCycleCollector_forgetJSRuntime()
 {
     if (sCollector)
         sCollector->ForgetJSRuntime();
+}
+
+
+bool
+NS_CycleCollectorSuspect(nsISupports *n)
+{
+    if (sCollector)
+        return sCollector->Suspect(n);
+    return false;
+}
+
+bool
+NS_CycleCollectorForget(nsISupports *n)
+{
+    return sCollector ? sCollector->Forget(n) : true;
 }
 
 nsPurpleBufferEntry*

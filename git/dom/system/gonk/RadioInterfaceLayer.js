@@ -62,9 +62,7 @@ const RIL_IPC_MSG_NAMES = [
   "RIL:UnlockCardLock",
   "RIL:SetCardLock",
   "RIL:SendUSSD",
-  "RIL:CancelUSSD",
-  "RIL:SendStkResponse",
-  "RIL:SendStkMenuSelection"
+  "RIL:CancelUSSD"
 ];
 
 XPCOMUtils.defineLazyServiceGetter(this, "gSmsService",
@@ -81,7 +79,7 @@ XPCOMUtils.defineLazyServiceGetter(this, "gSmsDatabaseService",
 
 XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
                                    "@mozilla.org/parentprocessmessagemanager;1",
-                                   "nsIMessageBroadcaster");
+                                   "nsIFrameMessageManager");
 
 XPCOMUtils.defineLazyServiceGetter(this, "gSettingsService",
                                    "@mozilla.org/settingsService;1",
@@ -305,12 +303,6 @@ RadioInterfaceLayer.prototype = {
         this.saveRequestTarget(msg);
         this.cancelUSSD(msg.json);
         break;
-      case "RIL:SendStkResponse":
-        this.sendStkResponse(msg.json);
-        break;
-      case "RIL:SendStkMenuSelection":
-        this.sendStkMenuSelection(msg.json);
-        break;
     }
   },
 
@@ -384,7 +376,7 @@ RadioInterfaceLayer.prototype = {
         break;
       case "cardstatechange":
         this.rilContext.cardState = message.cardState;
-        ppmm.broadcastAsyncMessage("RIL:CardStateChanged", message);
+        ppmm.sendAsyncMessage("RIL:CardStateChanged", message);
         break;
       case "sms-received":
         this.handleSmsReceived(message);
@@ -436,7 +428,7 @@ RadioInterfaceLayer.prototype = {
         }
         break;
       case "iccmbdn":
-        ppmm.broadcastAsyncMessage("RIL:VoicemailNumberChanged", message);
+        ppmm.sendAsyncMessage("RIL:VoicemailNumberChanged", message);
         break;
       case "ussdreceived":
         debug("ussdreceived " + JSON.stringify(message));
@@ -447,12 +439,6 @@ RadioInterfaceLayer.prototype = {
         break;
       case "cancelussd":
         this.handleCancelUSSD(message);
-        break;
-      case "stkcommand":
-        this.handleStkProactiveCommand(message);
-        break;
-      case "stksessionend":
-        ppmm.broadcastAsyncMessage("RIL:StkSessionEnd", null);
         break;
       default:
         throw new Error("Don't know about this message type: " +
@@ -468,7 +454,8 @@ RadioInterfaceLayer.prototype = {
       return;
     }
 
-    this._messageManagerByRequest[requestId] = msg.target;
+    let mm = msg.target.QueryInterface(Ci.nsIFrameMessageManager);
+    this._messageManagerByRequest[requestId] = mm;
   },
 
   _sendRequestResults: function _sendRequestResults(requestType, options) {
@@ -512,10 +499,10 @@ RadioInterfaceLayer.prototype = {
     }
 
     if (voiceMessage || operatorMessage) {
-      ppmm.broadcastAsyncMessage("RIL:VoiceInfoChanged", voice);
+      ppmm.sendAsyncMessage("RIL:VoiceInfoChanged", voice);
     }
     if (dataMessage || operatorMessage) {
-      ppmm.broadcastAsyncMessage("RIL:DataInfoChanged", data);
+      ppmm.sendAsyncMessage("RIL:DataInfoChanged", data);
     }
 
     if (selectionMessage) {
@@ -557,7 +544,7 @@ RadioInterfaceLayer.prototype = {
     }
 
     if (!newInfo.batch) {
-      ppmm.broadcastAsyncMessage("RIL:VoiceInfoChanged", voiceInfo);
+      ppmm.sendAsyncMessage("RIL:VoiceInfoChanged", voiceInfo);
     }
   },
 
@@ -587,7 +574,7 @@ RadioInterfaceLayer.prototype = {
     }
 
     if (!newInfo.batch) {
-      ppmm.broadcastAsyncMessage("RIL:DataInfoChanged", dataInfo);
+      ppmm.sendAsyncMessage("RIL:DataInfoChanged", dataInfo);
     }
 
     if (!this.dataCallSettings["enabled"]) {
@@ -613,7 +600,7 @@ RadioInterfaceLayer.prototype = {
         voiceInfo.relSignalStrength != message.gsmRelative) {
       voiceInfo.signalStrength = message.gsmDBM;
       voiceInfo.relSignalStrength = message.gsmRelative;
-      ppmm.broadcastAsyncMessage("RIL:VoiceInfoChanged", voiceInfo);
+      ppmm.sendAsyncMessage("RIL:VoiceInfoChanged", voiceInfo);
     }
 
     let dataInfo = this.rilContext.data;
@@ -621,7 +608,7 @@ RadioInterfaceLayer.prototype = {
         dataInfo.relSignalStrength != message.gsmRelative) {
       dataInfo.signalStrength = message.gsmDBM;
       dataInfo.relSignalStrength = message.gsmRelative;
-      ppmm.broadcastAsyncMessage("RIL:DataInfoChanged", dataInfo);
+      ppmm.sendAsyncMessage("RIL:DataInfoChanged", dataInfo);
     }
   },
 
@@ -639,12 +626,12 @@ RadioInterfaceLayer.prototype = {
 
     if (this.networkChanged(message, voice.network)) {
       voice.network = message;
-      ppmm.broadcastAsyncMessage("RIL:VoiceInfoChanged", voice);
+      ppmm.sendAsyncMessage("RIL:VoiceInfoChanged", voice);
     }
 
     if (this.networkChanged(message, data.network)) {
       data.network = message;
-      ppmm.broadcastAsyncMessage("RIL:DataInfoChanged", data);
+      ppmm.sendAsyncMessage("RIL:DataInfoChanged", data);
     }
   },
 
@@ -761,7 +748,7 @@ RadioInterfaceLayer.prototype = {
       this._activeCall = null;
     }
     this.updateCallAudioState();
-    ppmm.broadcastAsyncMessage("RIL:CallStateChanged", call);
+    ppmm.sendAsyncMessage("RIL:CallStateChanged", call);
   },
 
   /**
@@ -774,7 +761,7 @@ RadioInterfaceLayer.prototype = {
     }
     this.updateCallAudioState();
     call.state = nsIRadioInterfaceLayer.CALL_STATE_DISCONNECTED;
-    ppmm.broadcastAsyncMessage("RIL:CallStateChanged", call);
+    ppmm.sendAsyncMessage("RIL:CallStateChanged", call);
   },
 
   /**
@@ -802,7 +789,7 @@ RadioInterfaceLayer.prototype = {
    */
   updateNetworkSelectionMode: function updateNetworkSelectionMode(message) {
     debug("updateNetworkSelectionMode: " + JSON.stringify(message));
-    ppmm.broadcastAsyncMessage("RIL:NetworkSelectionModeChanged", message);
+    ppmm.sendAsyncMessage("RIL:NetworkSelectionModeChanged", message);
   },
 
   /**
@@ -825,7 +812,7 @@ RadioInterfaceLayer.prototype = {
    * Handle call error.
    */
   handleCallError: function handleCallError(message) {
-    ppmm.broadcastAsyncMessage("RIL:CallError", message);   
+    ppmm.sendAsyncMessage("RIL:CallError", message);   
   },
 
   /**
@@ -886,7 +873,7 @@ RadioInterfaceLayer.prototype = {
     if (mwi) {
       mwi.returnNumber = message.sender || null;
       mwi.returnMessage = message.fullBody || null;
-      ppmm.broadcastAsyncMessage("RIL:VoicemailNotification", mwi);
+      ppmm.sendAsyncMessage("RIL:VoicemailNotification", mwi);
       return;
     }
 
@@ -988,7 +975,7 @@ RadioInterfaceLayer.prototype = {
 
     if (datacall.ifname) {
       data.connected = (datacall.state == RIL.GECKO_NETWORK_STATE_CONNECTED);
-      ppmm.broadcastAsyncMessage("RIL:DataInfoChanged", data);    
+      ppmm.sendAsyncMessage("RIL:DataInfoChanged", data);    
     }
 
     this._deliverDataCallCallback("dataCallStateChanged",
@@ -1009,7 +996,7 @@ RadioInterfaceLayer.prototype = {
 
   handleUSSDReceived: function handleUSSDReceived(ussd) {
     debug("handleUSSDReceived " + JSON.stringify(ussd));
-    ppmm.broadcastAsyncMessage("RIL:UssdReceived", ussd);
+    ppmm.sendAsyncMessage("RIL:UssdReceived", ussd);
   },
 
   handleSendUSSD: function handleSendUSSD(message) {
@@ -1024,11 +1011,6 @@ RadioInterfaceLayer.prototype = {
     let messageType = message.success ? "RIL:CancelUssd:Return:OK" :
                                         "RIL:CancelUssd:Return:KO";
     this._sendRequestResults(messageType, message);
-  },
-
-  handleStkProactiveCommand: function handleStkProactiveCommand(message) {
-    debug("handleStkProactiveCommand " + JSON.stringify(message));
-    ppmm.broadcastAsyncMessage("RIL:StkCommand", message);
   },
 
   // nsIObserver
@@ -1201,15 +1183,6 @@ RadioInterfaceLayer.prototype = {
     this.worker.postMessage(message);
   },
 
-  sendStkResponse: function sendStkResponse(message) {
-    message.rilMessageType = "sendStkTerminalResponse";
-    this.worker.postMessage(message);
-  },
-
-  sendStkMenuSelection: function sendStkMenuSelection(message) {
-    message.rilMessageType = "sendStkMenuSelection";
-    this.worker.postMessage(message);
-  },
 
   get microphoneMuted() {
     return gAudioManager.microphoneMuted;
@@ -1752,6 +1725,7 @@ let RILNetworkInterface = {
   NETWORK_STATE_UNKNOWN:       Ci.nsINetworkInterface.NETWORK_STATE_UNKNOWN,
   NETWORK_STATE_CONNECTING:    Ci.nsINetworkInterface.CONNECTING,
   NETWORK_STATE_CONNECTED:     Ci.nsINetworkInterface.CONNECTED,
+  NETWORK_STATE_SUSPENDED:     Ci.nsINetworkInterface.SUSPENDED,
   NETWORK_STATE_DISCONNECTING: Ci.nsINetworkInterface.DISCONNECTING,
   NETWORK_STATE_DISCONNECTED:  Ci.nsINetworkInterface.DISCONNECTED,
 
@@ -1856,7 +1830,9 @@ let RILNetworkInterface = {
   },
 
   connect: function connect(options) {
-    if (this.connecting || this.connected) {
+    if (this.connecting ||
+        this.state == RIL.GECKO_NETWORK_STATE_CONNECTED ||
+        this.state == RIL.GECKO_NETWORK_STATE_SUSPENDED) {
       return;
     }
 

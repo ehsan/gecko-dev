@@ -22,7 +22,6 @@
 
 #include "AsyncConnectionHelper.h"
 #include "IDBEvents.h"
-#include "IDBFactory.h"
 #include "IDBTransaction.h"
 #include "DOMError.h"
 
@@ -345,15 +344,12 @@ IDBOpenDBRequest::~IDBOpenDBRequest()
 
 // static
 already_AddRefed<IDBOpenDBRequest>
-IDBOpenDBRequest::Create(IDBFactory* aFactory,
-                         nsPIDOMWindow* aOwner,
+IDBOpenDBRequest::Create(nsPIDOMWindow* aOwner,
                          JSObject* aScriptOwner,
                          JSContext* aCallingCx)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(aFactory, "Null pointer!");
-
-  nsRefPtr<IDBOpenDBRequest> request = new IDBOpenDBRequest();
+  nsRefPtr<IDBOpenDBRequest> request(new IDBOpenDBRequest());
 
   request->BindToOwner(aOwner);
   if (!request->SetScriptOwner(aScriptOwner)) {
@@ -361,7 +357,6 @@ IDBOpenDBRequest::Create(IDBFactory* aFactory,
   }
 
   request->CaptureCaller(aCallingCx);
-  request->mFactory = aFactory;
 
   return request.forget();
 }
@@ -383,12 +378,10 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBOpenDBRequest,
                                                   IDBRequest)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(upgradeneeded)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(blocked)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFactory)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBOpenDBRequest,
                                                 IDBRequest)
-  // Don't unlink mFactory!
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(upgradeneeded)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(blocked)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END

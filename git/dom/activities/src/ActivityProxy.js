@@ -12,9 +12,11 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/ObjectWrapper.jsm");
 
-XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
-                                   "@mozilla.org/childprocessmessagemanager;1",
-                                   "nsISyncMessageSender");
+XPCOMUtils.defineLazyGetter(this, "cpmm", function() {
+  return Cc["@mozilla.org/childprocessmessagemanager;1"]
+           .getService(Ci.nsIFrameMessageManager)
+           .QueryInterface(Ci.nsISyncMessageSender);
+});
 
 function debug(aMsg) {
   //dump("-- ActivityProxy " + Date.now() + " : " + aMsg + "\n");

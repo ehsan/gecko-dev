@@ -15,8 +15,6 @@ template<class Container>
 static void ContainerInsertAfter(Container* aContainer, Layer* aChild, Layer* aAfter);
 template<class Container>
 static void ContainerRemoveChild(Container* aContainer, Layer* aChild);
-template<class Container>
-static void ContainerRepositionChild(Container* aContainer, Layer* aChild, Layer* aAfter);
 
 class ContainerLayerD3D10 : public ContainerLayer,
                             public LayerD3D10
@@ -25,8 +23,6 @@ class ContainerLayerD3D10 : public ContainerLayer,
   friend void ContainerInsertAfter(Container* aContainer, Layer* aChild, Layer* aAfter);
   template<class Container>
   friend void ContainerRemoveChild(Container* aContainer, Layer* aChild);
-  template<class Container>
-  friend void ContainerRepositionChild(Container* aContainer, Layer* aChild, Layer* aAfter);
 public:
   ContainerLayerD3D10(LayerManagerD3D10 *aManager);
   ~ContainerLayerD3D10();
@@ -37,8 +33,6 @@ public:
   virtual void InsertAfter(Layer* aChild, Layer* aAfter);
 
   virtual void RemoveChild(Layer* aChild);
-
-  virtual void RepositionChild(Layer* aChild, Layer* aAfter);
 
   /* LayerD3D10 implementation */
   virtual Layer* GetLayer();
@@ -66,8 +60,6 @@ class ShadowContainerLayerD3D10 : public ShadowContainerLayer,
   friend void ContainerInsertAfter(Container* aContainer, Layer* aChild, Layer* aAfter);
   template<class Container>
   friend void ContainerRemoveChild(Container* aContainer, Layer* aChild);
-  template<class Container>
-  friend void ContainerRepositionChild(Container* aContainer, Layer* aChild, Layer* aAfter);
 public:
   ShadowContainerLayerD3D10(LayerManagerD3D10 *aManager);
   ~ShadowContainerLayerD3D10();
@@ -75,8 +67,6 @@ public:
   void InsertAfter(Layer* aChild, Layer* aAfter);
 
   void RemoveChild(Layer* aChild);
-
-  void RepositionChild(Layer* aChild, Layer* aAfter);
 
   virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface);
 

@@ -2092,7 +2092,7 @@ class Debugger::ScriptQuery {
         for (CompartmentSet::Range r = compartments.all(); !r.empty(); r.popFront()) {
             for (gc::CellIter i(r.front(), gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
                 JSScript *script = i.get<JSScript>();
-                if (script->compileAndGo && !script->isForEval()) {
+                if (script->hasGlobal() && !script->isForEval()) {
                     if (!consider(script, &script->global(), vector))
                         return false;
                 }
@@ -3379,7 +3379,6 @@ DebuggerFrame_setOnPop(JSContext *cx, unsigned argc, Value *vp)
 {
     REQUIRE_ARGC("Debugger.Frame.set onPop", 1);
     THIS_FRAME(cx, argc, vp, "set onPop", args, thisobj, fp);
-    (void) fp;  // Silence GCC warning
     if (!IsValidHook(args[0])) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_NOT_CALLABLE_OR_UNDEFINED);
         return false;

@@ -2244,7 +2244,7 @@ bool SendAsyncMessageToChild(void* aCallbackData,
 }
 
 NS_IMETHODIMP
-nsFrameLoader::GetMessageManager(nsIMessageSender** aManager)
+nsFrameLoader::GetMessageManager(nsIChromeFrameMessageManager** aManager)
 {
   EnsureMessageManager();
   if (mMessageManager) {
@@ -2336,13 +2336,13 @@ nsFrameLoader::EnsureMessageManager()
 
   nsCOMPtr<nsIDOMChromeWindow> chromeWindow =
     do_QueryInterface(GetOwnerDoc()->GetWindow());
-  nsCOMPtr<nsIMessageBroadcaster> parentManager;
+  nsCOMPtr<nsIChromeFrameMessageManager> parentManager;
   if (chromeWindow) {
     chromeWindow->GetMessageManager(getter_AddRefs(parentManager));
   }
 
   if (ShouldUseRemoteProcess()) {
-    mMessageManager = new nsFrameMessageManager(true, /* aChrome */
+    mMessageManager = new nsFrameMessageManager(true,
                                                 nullptr,
                                                 SendAsyncMessageToChild,
                                                 LoadScript,
@@ -2350,7 +2350,7 @@ nsFrameLoader::EnsureMessageManager()
                                                 static_cast<nsFrameMessageManager*>(parentManager.get()),
                                                 cx);
   } else {
-    mMessageManager = new nsFrameMessageManager(true, /* aChrome */
+    mMessageManager = new nsFrameMessageManager(true,
                                                 nullptr,
                                                 SendAsyncMessageToChild,
                                                 LoadScript,

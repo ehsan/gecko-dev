@@ -14,6 +14,9 @@ var EXPORTED_SYMBOLS = ['VirtualCursorController'];
 Cu.import('resource://gre/modules/accessibility/Utils.jsm');
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 
+var gAccRetrieval = Cc['@mozilla.org/accessibleRetrieval;1'].
+  getService(Ci.nsIAccessibleRetrieval);
+
 function BaseTraversalRule(aRoles, aMatchFunc) {
   this._matchRoles = aRoles;
   this._matchFunc = aMatchFunc;
@@ -346,7 +349,7 @@ var VirtualCursorController = {
       } catch (x) {
         this.moveCursorToObject(
           virtualCursor,
-          Utils.AccRetrieval.getAccessibleFor(aDocument.activeElement), aRule);
+          gAccRetrieval.getAccessibleFor(aDocument.activeElement), aRule);
       }
     }
   },
@@ -361,7 +364,7 @@ var VirtualCursorController = {
       } catch (x) {
         this.moveCursorToObject(
           virtualCursor,
-          Utils.AccRetrieval.getAccessibleFor(aDocument.activeElement), aRule);
+          gAccRetrieval.getAccessibleFor(aDocument.activeElement), aRule);
       }
     }
   },
@@ -377,7 +380,7 @@ var VirtualCursorController = {
       // (via ARIA roles, etc.), so we need to generate a click.
       // Could possibly be made simpler in the future. Maybe core
       // engine could expose nsCoreUtiles::DispatchMouseEvent()?
-      let docAcc = Utils.AccRetrieval.getAccessibleFor(this.chromeWin.document);
+      let docAcc = gAccRetrieval.getAccessibleFor(this.chromeWin.document);
       let docX = {}, docY = {}, docW = {}, docH = {};
       docAcc.getBounds(docX, docY, docW, docH);
 

@@ -8,7 +8,7 @@
  * automatic creation of the content-length header.
  */
 
-#include "ipc/IPCMessageUtils.h"
+#include "IPC/IPCMessageUtils.h"
 
 #include "nsCOMPtr.h"
 #include "nsComponentManagerUtils.h"

@@ -1622,6 +1622,7 @@ nsDocument::~nsDocument()
   }
   if (mAttrStyleSheet) {
     mAttrStyleSheet->SetOwningDocument(nullptr);
+    NS_RELEASE(mAttrStyleSheet);
   }
   if (mStyleAttrStyleSheet)
     mStyleAttrStyleSheet->SetOwningDocument(nullptr);
@@ -1642,6 +1643,7 @@ nsDocument::~nsDocument()
 
   if (mStyleImageLoader) {
     mStyleImageLoader->DropDocumentReference();
+    NS_RELEASE(mStyleImageLoader);
   }
 
   delete mHeaderData;
@@ -1819,7 +1821,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
       PR_snprintf(name, sizeof(name), "nsDocument %s %s",
                   loadedAsData.get(), uri.get());
     }
-    cb.DescribeRefCountedNode(tmp->mRefCnt.get(), name);
+    cb.DescribeRefCountedNode(tmp->mRefCnt.get(), sizeof(nsDocument), name);
   }
   else {
     NS_IMPL_CYCLE_COLLECTION_DESCRIBE(nsDocument, tmp->mRefCnt.get())
@@ -1999,6 +2001,7 @@ nsDocument::Init()
   mCSSLoader->SetCompatibilityMode(eCompatibility_FullStandards);
 
   mStyleImageLoader = new mozilla::css::ImageLoader(this);
+  NS_ADDREF(mStyleImageLoader);
 
   mNodeInfoManager = new nsNodeInfoManager();
   nsresult rv = mNodeInfoManager->Init(this);
@@ -2275,6 +2278,7 @@ nsDocument::ResetStylesheetsToURI(nsIURI* aURI)
     mAttrStyleSheet->Reset(aURI);
   } else {
     mAttrStyleSheet = new nsHTMLStyleSheet(aURI, this);
+    NS_ADDREF(mAttrStyleSheet);
   }
 
   // Don't use AddStyleSheet, since it'll put the sheet into style
@@ -7762,8 +7766,7 @@ NS_IMPL_ISUPPORTS1(StubCSSLoaderObserver, nsICSSLoaderObserver)
 }
 
 void
-nsDocument::PreloadStyle(nsIURI* uri, const nsAString& charset,
-                         const nsAString& aCrossOriginAttr)
+nsDocument::PreloadStyle(nsIURI* uri, const nsAString& charset)
 {
   // The CSSLoader will retain this object after we return.
   nsCOMPtr<nsICSSLoaderObserver> obs = new StubCSSLoaderObserver();
@@ -7771,8 +7774,7 @@ nsDocument::PreloadStyle(nsIURI* uri, const nsAString& charset,
   // Charset names are always ASCII.
   CSSLoader()->LoadSheet(uri, NodePrincipal(),
                          NS_LossyConvertUTF16toASCII(charset),
-                         obs,
-                         nsGenericElement::StringToCORSMode(aCrossOriginAttr));
+                         obs);
 }
 
 nsresult

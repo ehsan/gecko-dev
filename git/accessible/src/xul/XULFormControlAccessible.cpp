@@ -17,6 +17,7 @@
 #include "States.h"
 #include "XULMenuAccessible.h"
 
+#include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMNSEditableElement.h"
 #include "nsIDOMXULButtonElement.h"
 #include "nsIDOMXULCheckboxElement.h"

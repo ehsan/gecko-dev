@@ -267,19 +267,11 @@ JSRuntime::cloneSelfHostedValueById(JSContext *cx, jsid id, HandleObject holder,
             return false;
     }
 
-    /*
-     * We don't clone if we're operating in the self-hosting global, as that
-     * means we're currently executing the self-hosting script while
-     * initializing the runtime (see JSRuntime::initSelfHosting).
-     */
-    if (cx->global() == selfHostedGlobal_) {
-        *vp = ObjectValue(funVal.toObject());
-    } else {
-        RootedObject clone(cx, JS_CloneFunctionObject(cx, &funVal.toObject(), cx->global()));
-        if (!clone)
-            return false;
-        *vp = ObjectValue(*clone);
-    }
+    RootedObject clone(cx, JS_CloneFunctionObject(cx, &funVal.toObject(), cx->global()));
+    if (!clone)
+        return false;
+
+    vp->setObjectOrNull(clone);
     DebugOnly<bool> ok = JS_DefinePropertyById(cx, holder, id, *vp, NULL, NULL, 0);
     JS_ASSERT(ok);
     return true;
@@ -1197,10 +1189,7 @@ JSContext::saveFrameChain()
         return false;
     }
 
-    if (defaultCompartmentObject_)
-        compartment = defaultCompartmentObject_->compartment();
-    else
-        compartment = NULL;
+    compartment = defaultCompartmentObject_->compartment();
     enterCompartmentDepth_ = 0;
 
     if (isExceptionPending())

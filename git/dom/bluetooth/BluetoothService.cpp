@@ -30,7 +30,8 @@ NS_IMPL_ISUPPORTS1(BluetoothService, nsIObserver)
 class ToggleBtAck : public nsRunnable
 {
 public:
-  ToggleBtAck(bool aEnabled) : mEnabled(aEnabled)
+  ToggleBtAck(bool aEnabled) :
+    mEnabled(aEnabled)
   {
   }
   
@@ -60,7 +61,7 @@ class ToggleBtTask : public nsRunnable
 {
 public:
   ToggleBtTask(bool aEnabled,
-               nsIRunnable* aRunnable)
+               BluetoothReplyRunnable* aRunnable)
     : mEnabled(aEnabled),
       mRunnable(aRunnable)
   {
@@ -94,7 +95,17 @@ public:
     if (!mRunnable) {
       return NS_OK;
     }
-
+    
+    // Reply will be deleted by the runnable after running on main thread
+    BluetoothReply* reply;
+    if (!replyError.IsEmpty()) {
+      reply = new BluetoothReply(BluetoothReplyError(replyError));
+    }
+    else {
+      reply = new BluetoothReply(BluetoothReplySuccess());
+    }
+    mRunnable->SetReply(reply);
+      
     if (NS_FAILED(NS_DispatchToMainThread(mRunnable))) {
       NS_WARNING("Failed to dispatch to main thread!");
     }
@@ -104,7 +115,7 @@ public:
 
 private:
   bool mEnabled;
-  nsCOMPtr<nsIRunnable> mRunnable;
+  nsRefPtr<BluetoothReplyRunnable> mRunnable;
 };
 
 nsresult
@@ -152,7 +163,8 @@ BluetoothService::DistributeSignal(const BluetoothSignal& signal)
 }
 
 nsresult
-BluetoothService::StartStopBluetooth(nsIRunnable* aResultRunnable, bool aStart)
+BluetoothService::StartStopBluetooth(BluetoothReplyRunnable* aResultRunnable,
+                                     bool aStart)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -175,13 +187,13 @@ BluetoothService::StartStopBluetooth(nsIRunnable* aResultRunnable, bool aStart)
 }
 
 nsresult
-BluetoothService::Start(nsIRunnable* aResultRunnable)
+BluetoothService::Start(BluetoothReplyRunnable* aResultRunnable)
 {
   return StartStopBluetooth(aResultRunnable, true);
 }
 
 nsresult
-BluetoothService::Stop(nsIRunnable* aResultRunnable)
+BluetoothService::Stop(BluetoothReplyRunnable* aResultRunnable)
 {
   return StartStopBluetooth(aResultRunnable, false);
 }

@@ -918,8 +918,7 @@ class FileMediaResource : public MediaResource
 public:
   FileMediaResource(nsMediaDecoder* aDecoder, nsIChannel* aChannel, nsIURI* aURI) :
     MediaResource(aDecoder, aChannel, aURI), mSize(-1),
-    mLock("FileMediaResource.mLock"),
-    mSizeInitialized(false)
+    mLock("FileMediaResource.mLock")
   {
   }
   ~FileMediaResource()
@@ -956,11 +955,7 @@ public:
     *aIsReliable = true;
     return 100*1024*1024; // arbitray, use 100MB/s
   }
-  virtual int64_t GetLength() {
-    MutexAutoLock lock(mLock);
-    EnsureLengthInitialized();
-    return mSize;
-  }
+  virtual int64_t GetLength() { return mSize; }
   virtual int64_t GetNextCachedData(int64_t aOffset)
   {
     return (aOffset < mSize) ? aOffset : -1;
@@ -979,9 +974,6 @@ public:
   nsresult GetCachedRanges(nsTArray<MediaByteRange>& aRanges);
 
 private:
-  // Ensures mSize is initialized, if it can be.
-  void EnsureLengthInitialized();
-
   // The file size, or -1 if not known. Immutable after Open().
   int64_t mSize;
 
@@ -999,11 +991,6 @@ private:
   // Input stream for the media data. This can be used from any
   // thread.
   nsCOMPtr<nsIInputStream>  mInput;
-
-  // Whether we've attempted to initialize mSize. Note that mSize can be -1
-  // when mSizeInitialized is true if we tried and failed to get the size
-  // of the file.
-  bool mSizeInitialized;
 };
 
 class LoadedEvent : public nsRunnable
@@ -1028,27 +1015,8 @@ private:
   nsRefPtr<nsMediaDecoder> mDecoder;
 };
 
-void FileMediaResource::EnsureLengthInitialized()
-{
-  mLock.AssertCurrentThreadOwns();
-  if (mSizeInitialized) {
-    return;
-  }
-  mSizeInitialized = true;
-  // Get the file size and inform the decoder.
-  uint64_t size;
-  nsresult res = mInput->Available(&size);
-  if (NS_SUCCEEDED(res) && size <= PR_INT64_MAX) {
-    mSize = (int64_t)size;
-    nsCOMPtr<nsIRunnable> event = new LoadedEvent(mDecoder);
-    NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
-  }
-}
-
 nsresult FileMediaResource::GetCachedRanges(nsTArray<MediaByteRange>& aRanges)
 {
-  MutexAutoLock lock(mLock);
-  EnsureLengthInitialized();
   if (mSize == -1) {
     return NS_ERROR_FAILURE;
   }
@@ -1103,6 +1071,16 @@ nsresult FileMediaResource::Open(nsIStreamListener** aStreamListener)
     return NS_ERROR_FAILURE;
   }
 
+  // Get the file size and inform the decoder.
+  uint64_t size;
+  rv = mInput->Available(&size);
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(size <= PR_INT64_MAX, NS_ERROR_FILE_TOO_BIG);
+ 
+  mSize = (int64_t)size;
+
+  nsCOMPtr<nsIRunnable> event = new LoadedEvent(mDecoder);
+  NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
   return NS_OK;
 }
 
@@ -1162,7 +1140,6 @@ MediaResource* FileMediaResource::CloneData(nsMediaDecoder* aDecoder)
 nsresult FileMediaResource::ReadFromCache(char* aBuffer, int64_t aOffset, uint32_t aCount)
 {
   MutexAutoLock lock(mLock);
-  EnsureLengthInitialized();
   if (!mInput || !mSeekable)
     return NS_ERROR_FAILURE;
   int64_t offset = 0;
@@ -1192,7 +1169,6 @@ nsresult FileMediaResource::ReadFromCache(char* aBuffer, int64_t aOffset, uint32
 nsresult FileMediaResource::Read(char* aBuffer, uint32_t aCount, uint32_t* aBytes)
 {
   MutexAutoLock lock(mLock);
-  EnsureLengthInitialized();
   if (!mInput)
     return NS_ERROR_FAILURE;
   return mInput->Read(aBuffer, aCount, aBytes);
@@ -1205,7 +1181,6 @@ nsresult FileMediaResource::Seek(int32_t aWhence, int64_t aOffset)
   MutexAutoLock lock(mLock);
   if (!mSeekable)
     return NS_ERROR_FAILURE;
-  EnsureLengthInitialized();
   return mSeekable->Seek(aWhence, aOffset);
 }
 
@@ -1216,7 +1191,6 @@ int64_t FileMediaResource::Tell()
   MutexAutoLock lock(mLock);
   if (!mSeekable)
     return 0;
-  EnsureLengthInitialized();
 
   int64_t offset = 0;
   mSeekable->Tell(&offset);

@@ -3915,12 +3915,13 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
 
         jsval v;
         JSString *str = nullptr;
-        JS::CompileOptions options(sandcx->GetJSContext());
-        options.setPrincipals(nsJSPrincipals::get(prin))
-               .setFileAndLine(filename, lineNo);
-        JS::RootedObject rootedSandbox(sandcx->GetJSContext(), sandbox);
-        bool ok = JS::Evaluate(sandcx->GetJSContext(), rootedSandbox, options,
-                               PromiseFlatString(source).get(), source.Length(), &v);
+        JSBool ok =
+            JS_EvaluateUCScriptForPrincipals(sandcx->GetJSContext(), sandbox,
+                                             nsJSPrincipals::get(prin),
+                                             reinterpret_cast<const jschar *>
+                                                             (PromiseFlatString(source).get()),
+                                             source.Length(), filename, lineNo,
+                                             &v);
         if (ok && returnStringOnly && !(JSVAL_IS_VOID(v))) {
             ok = !!(str = JS_ValueToString(sandcx->GetJSContext(), v));
         }

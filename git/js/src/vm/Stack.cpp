@@ -1139,7 +1139,7 @@ ContextStack::saveFrameChain()
 {
     bool pushedSeg;
     if (!ensureOnTop(cx_, REPORT_ERROR, 0, CANT_EXTEND, &pushedSeg))
-        return false;
+        return NULL;
 
     JS_ASSERT(pushedSeg);
     JS_ASSERT(!hasfp());

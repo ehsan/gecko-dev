@@ -803,7 +803,7 @@ DrawTargetCairo::CreateSimilarDrawTarget(const IntSize &aSize, SurfaceFormat aFo
 
   if (!cairo_surface_status(similar)) {
     RefPtr<DrawTargetCairo> target = new DrawTargetCairo();
-    target->InitAlreadyReferenced(similar, aSize);
+    target->Init(similar, aSize);
     return target;
   }
 

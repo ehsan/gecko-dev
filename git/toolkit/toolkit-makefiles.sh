@@ -1213,12 +1213,6 @@ if [ "$MOZ_B2G_RIL" ]; then
   "
 fi
 
-if [ "$MOZ_PAY" ]; then
-  add_makefiles "
-    dom/payment/Makefile
-  "
-fi
-
 if [ "$MOZ_CRASHREPORTER" ]; then
   add_makefiles "
     toolkit/crashreporter/Makefile
@@ -1421,7 +1415,7 @@ if [ "$MOZ_UPDATER" ]; then
       modules/libbz2/src/Makefile
     "
   fi
-  if [ "$MOZ_WIDGET_TOOLKIT" != "android" ]; then
+  if [ "$OS_TARGET" != "Android" ]; then
     add_makefiles "
       toolkit/mozapps/update/updater/Makefile
     "

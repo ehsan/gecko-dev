@@ -316,8 +316,8 @@ void nsUnknownDecoder::DetermineContentType(nsIRequest* aRequest)
       NS_ASSERTION(sSnifferEntries[i].mMimeType ||
                    sSnifferEntries[i].mContentTypeSniffer,
                    "Must have either a type string or a function to set the type");
-      NS_ASSERTION(!sSnifferEntries[i].mMimeType ||
-                   !sSnifferEntries[i].mContentTypeSniffer,
+      NS_ASSERTION(sSnifferEntries[i].mMimeType == nullptr ||
+                   sSnifferEntries[i].mContentTypeSniffer == nullptr,
                    "Both a type string and a type sniffing function set;"
                    " using type string");
       if (sSnifferEntries[i].mMimeType) {
@@ -549,9 +549,7 @@ bool nsUnknownDecoder::LastDitchSniff(nsIRequest* aRequest)
   // just call it text/plain...
   //
   uint32_t i;
-  for (i = 0; i < mBufferLen && IS_TEXT_CHAR(mBuffer[i]); i++) {
-    continue;
-  }
+  for (i=0; i<mBufferLen && IS_TEXT_CHAR(mBuffer[i]); i++);
 
   if (i == mBufferLen) {
     mContentType = TEXT_PLAIN;

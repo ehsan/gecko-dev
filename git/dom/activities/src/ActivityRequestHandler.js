@@ -10,9 +10,11 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
-                                   "@mozilla.org/childprocessmessagemanager;1",
-                                   "nsISyncMessageSender");
+XPCOMUtils.defineLazyGetter(this, "cpmm", function() {
+  return Cc["@mozilla.org/childprocessmessagemanager;1"]
+           .getService(Ci.nsIFrameMessageManager)
+           .QueryInterface(Ci.nsISyncMessageSender);
+});
 
 function debug(aMsg) {
   //dump("-- ActivityRequestHandler.js " + Date.now() + " : " + aMsg + "\n");

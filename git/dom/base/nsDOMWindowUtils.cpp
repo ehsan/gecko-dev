@@ -641,7 +641,10 @@ nsDOMWindowUtils::SendWheelEvent(float aX,
   nsEventStatus status;
   nsresult rv = widget->DispatchEvent(&wheelEvent, status);
   NS_ENSURE_SUCCESS(rv, rv);
-  return NS_OK;
+  // ESM must not return negative values for overflow.
+  NS_ENSURE_TRUE(wheelEvent.overflowDeltaX >= 0.0, NS_ERROR_FAILURE);
+  NS_ENSURE_TRUE(wheelEvent.overflowDeltaY >= 0.0, NS_ERROR_FAILURE);
+  return rv;
 }
 
 NS_IMETHODIMP

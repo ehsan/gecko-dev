@@ -3760,7 +3760,7 @@ WorkerPrivate::RunExpiredTimeouts(JSContext* aCx)
   bool retval = true;
 
   AutoPtrComparator<TimeoutInfo> comparator = GetAutoPtrComparator(mTimeouts);
-  JS::RootedObject global(aCx, JS_GetGlobalObject(aCx));
+  JSObject* global = JS_GetGlobalObject(aCx);
   JSPrincipals* principal = GetWorkerPrincipal();
 
   // We want to make sure to run *something*, even if the timer fired a little
@@ -3794,14 +3794,15 @@ WorkerPrivate::RunExpiredTimeouts(JSContext* aCx)
     if (info->mTimeoutVal.isString()) {
       JSString* expression = info->mTimeoutVal.toString();
 
-      JS::CompileOptions options(aCx);
-      options.setPrincipals(principal)
-        .setFileAndLine(info->mFilename.get(), info->mLineNumber);
-
       size_t stringLength;
       const jschar* string = JS_GetStringCharsAndLength(aCx, expression,
                                                         &stringLength);
-      if ((!string || !JS::Evaluate(aCx, global, options, string, stringLength, nullptr)) &&
+
+      if ((!string ||
+           !JS_EvaluateUCScriptForPrincipals(aCx, global, principal, string,
+                                             stringLength,
+                                             info->mFilename.get(),
+                                             info->mLineNumber, nullptr)) &&
           !JS_ReportPendingException(aCx)) {
         retval = false;
         break;

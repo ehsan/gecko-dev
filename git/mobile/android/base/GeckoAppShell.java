@@ -13,7 +13,6 @@ import org.mozilla.gecko.gfx.IntSize;
 import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.gfx.RectUtils;
 import org.mozilla.gecko.gfx.ScreenshotLayer;
-import org.mozilla.gecko.gfx.TouchEventHandler;
 import org.mozilla.gecko.mozglue.DirectBufferAllocator;
 import org.mozilla.gecko.util.EventDispatcher;
 import org.mozilla.gecko.util.FloatUtils;
@@ -586,12 +585,12 @@ public class GeckoAppShell
             mInputConnection.notifyIME(type, state);
     }
 
-    public static void notifyIMEEnabled(int state, String typeHint, String modeHint,
+    public static void notifyIMEEnabled(int state, String typeHint,
                                         String actionHint, boolean landscapeFS) {
         // notifyIMEEnabled() still needs the landscapeFS parameter because it is called from JNI
         // code that assumes it has the same signature as XUL Fennec's (which does use landscapeFS).
         if (mInputConnection != null)
-            mInputConnection.notifyIMEEnabled(state, typeHint, modeHint, actionHint);
+            mInputConnection.notifyIMEEnabled(state, typeHint, actionHint);
     }
 
     public static void notifyIMEChange(String text, int start, int end, int newEnd) {
@@ -1503,10 +1502,7 @@ public class GeckoAppShell
         getMainHandler().post(new Runnable() {
             public void run() {
                 LayerView view = GeckoApp.mAppContext.getLayerView();
-                TouchEventHandler handler = (view == null ? null : view.getTouchEventHandler());
-                if (handler != null) {
-                    handler.handleEventListenerAction(!defaultPrevented);
-                }
+                view.getTouchEventHandler().handleEventListenerAction(!defaultPrevented);
             }
         });
     }

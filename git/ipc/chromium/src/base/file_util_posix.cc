@@ -33,7 +33,7 @@
 #include "base/time.h"
 
 // FreeBSD/OpenBSD lacks stat64, but its stat handles files >2GB just fine
-#ifndef HAVE_STAT64
+#if defined(OS_FREEBSD) || defined(OS_OPENBSD)
 #define stat64 stat
 #endif
 

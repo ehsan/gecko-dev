@@ -210,8 +210,7 @@ ValueCompartment(const js::Value &value)
     return static_cast<js::gc::Cell *>(value.toGCThing())->compartment();
 }
 
-#ifdef DEBUG
-inline bool
+static bool
 IsValueInCompartment(js::Value v, JSCompartment *comp)
 {
     if (!v.isMarkable())
@@ -219,7 +218,6 @@ IsValueInCompartment(js::Value v, JSCompartment *comp)
     JSCompartment *vcomp = ValueCompartment(v);
     return vcomp == comp->rt->atomsCompartment || vcomp == comp;
 }
-#endif
 
 inline void
 js::ObjectImpl::setSlot(uint32_t slot, const js::Value &value)

@@ -277,6 +277,9 @@ TraceWeakMaps(WeakMapTracer *trc);
 extern JS_FRIEND_API(bool)
 GCThingIsMarkedGray(void *thing);
 
+extern JS_FRIEND_API(JSCompartment*)
+GetGCThingCompartment(void *thing);
+
 typedef void
 (GCThingCallback)(void *closure, void *gcthing);
 
@@ -670,6 +673,9 @@ class SystemAllocPolicy;
 typedef Vector<JSCompartment*, 0, SystemAllocPolicy> CompartmentVector;
 extern JS_FRIEND_API(const CompartmentVector&)
 GetRuntimeCompartments(JSRuntime *rt);
+
+extern JS_FRIEND_API(size_t)
+SizeOfJSContext();
 
 #define GCREASONS(D)                            \
     /* Reasons internal to the JS engine */     \

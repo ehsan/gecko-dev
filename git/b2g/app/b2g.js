@@ -142,6 +142,10 @@ pref("browser.xul.error_pages.enabled", true);
 // disable color management
 pref("gfx.color_management.mode", 0);
 
+//prefer Azure/Cairo canvas
+pref("gfx.canvas.azure.enabled", true);
+pref("gfx.canvas.azure.backends", "cairo");
+
 // don't allow JS to move and resize existing windows
 pref("dom.disable_window_move_resize", true);
 
@@ -440,7 +444,6 @@ pref("app.update.auto", true);
 pref("app.update.silent", true);
 pref("app.update.mode", 0);
 pref("app.update.incompatible.mode", 0);
-pref("app.update.stage.enabled", true);
 pref("app.update.service.enabled", true);
 
 // The URL hosting the update manifest.
@@ -522,6 +525,3 @@ pref("dom.ipc.processPrelauch.delayMs", 1000);
 
 // Ignore the "dialog=1" feature in window.open.
 pref("dom.disable_window_open_dialog_feature", true);
-
-// Screen reader support
-pref("accessibility.accessfu.activate", 2);

@@ -15,9 +15,6 @@
 #include "nsINavigatorBattery.h"
 #include "nsIDOMNavigatorSms.h"
 #include "nsIDOMNavigatorNetwork.h"
-#ifdef MOZ_B2G_RIL
-#include "nsINavigatorMobileConnection.h"
-#endif
 #include "nsAutoPtr.h"
 #include "nsWeakReference.h"
 #include "DeviceStorage.h"
@@ -65,9 +62,7 @@ class SmsManager;
 
 namespace network {
 class Connection;
-#ifdef MOZ_B2G_RIL
 class MobileConnection;
-#endif
 } // namespace Connection;
 
 namespace power {
@@ -88,9 +83,6 @@ class Navigator : public nsIDOMNavigator
                 , public nsIDOMNavigatorTelephony
 #endif
                 , public nsIDOMMozNavigatorNetwork
-#ifdef MOZ_B2G_RIL
-                , public nsIMozNavigatorMobileConnection
-#endif
 #ifdef MOZ_B2G_BT
                 , public nsIDOMNavigatorBluetooth
 #endif
@@ -116,9 +108,6 @@ public:
   NS_DECL_NSIDOMNAVIGATORTELEPHONY
 #endif
   NS_DECL_NSIDOMMOZNAVIGATORNETWORK
-#ifdef MOZ_B2G_RIL
-  NS_DECL_NSIMOZNAVIGATORMOBILECONNECTION
-#endif
 
 #ifdef MOZ_B2G_BT
   NS_DECL_NSIDOMNAVIGATORBLUETOOTH
@@ -167,9 +156,7 @@ private:
   nsCOMPtr<nsIDOMMozVoicemail> mVoicemail;
 #endif
   nsRefPtr<network::Connection> mConnection;
-#ifdef MOZ_B2G_RIL
   nsRefPtr<network::MobileConnection> mMobileConnection;
-#endif
 #ifdef MOZ_B2G_BT
   nsCOMPtr<nsIDOMBluetoothManager> mBluetooth;
 #endif

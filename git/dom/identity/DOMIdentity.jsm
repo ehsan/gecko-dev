@@ -116,7 +116,7 @@ RPWatchContext.prototype = {
 };
 
 let DOMIdentity = {
-  // nsIMessageListener
+  // nsIFrameMessageListener
   receiveMessage: function DOMIdentity_receiveMessage(aMessage) {
     let msg = aMessage.json;
 
@@ -200,7 +200,7 @@ let DOMIdentity = {
                                                 : "removeMessageListener"];
 
     for (let message of this.messages) {
-      func.call(aWindow.messageManager, message, this);
+      func(message, this);
     }
   },
 

@@ -1,5 +1,3 @@
-load(libdir + "eqArrayHelper.js");
-
 function testShape() {
   // Test higher dimension shape up to 8D
   var shape = [];
@@ -9,7 +7,7 @@ function testShape() {
     // Test shape identity and shape
     assertEq(p.shape, p.shape);
     assertEq(p.shape !== shape, true);
-    assertEqArray(p.shape, shape);
+    assertEq(p.shape.toString(), shape.toString());
   }
 }
 

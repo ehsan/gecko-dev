@@ -149,8 +149,6 @@ public:
   }
 
   bool IsOpaque();
-  bool HasCalc();
-  uint32_t Hash(PLDHashNumber aHash);
 
   NS_INLINE_DECL_REFCOUNTING(nsStyleGradient)
 

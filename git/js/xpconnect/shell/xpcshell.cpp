@@ -1920,7 +1920,7 @@ main(int argc, char **argv, char **envp)
                         (void**) getter_AddRefs(bogus));
 #endif
             JS_DropPrincipals(rt, gJSPrincipals);
-            JS_SetAllNonReservedSlotsToUndefined(cx, glob);
+            JS_ClearScope(cx, glob);
             JS_GC(rt);
             JSContext *oldcx;
             cxstack->Pop(&oldcx);

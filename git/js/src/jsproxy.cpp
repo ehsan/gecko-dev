@@ -1786,6 +1786,7 @@ JS_FRIEND_DATA(Class) js::ObjectProxyClass = {
         NULL,                /* enumerate       */
         proxy_TypeOf,
         NULL,                /* thisObject      */
+        NULL,                /* clear           */
     }
 };
 
@@ -1843,6 +1844,7 @@ JS_FRIEND_DATA(Class) js::OuterWindowProxyClass = {
         NULL,                /* enumerate       */
         NULL,                /* typeof          */
         NULL,                /* thisObject      */
+        NULL,                /* clear           */
     }
 };
 
@@ -1912,6 +1914,7 @@ JS_FRIEND_DATA(Class) js::FunctionProxyClass = {
         NULL,                /* enumerate       */
         proxy_TypeOf,
         NULL,                /* thisObject      */
+        NULL,                /* clear           */
     }
 };
 

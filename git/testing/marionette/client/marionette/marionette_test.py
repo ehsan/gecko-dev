@@ -90,25 +90,11 @@ permissions.forEach(function (perm) {
 
 class MarionetteTestCase(CommonTestCase):
 
-    def __init__(self, marionette_weakref, methodName='runTest',
-                 filepath='', **kwargs):
+    def __init__(self, marionette_weakref, methodName='runTest', **kwargs):
         self._marionette_weakref = marionette_weakref
         self.marionette = None
         self.extra_emulator_index = -1
-        self.methodName = methodName
-        self.filepath = filepath
         CommonTestCase.__init__(self, methodName, **kwargs)
-
-    def setUp(self):
-        CommonTestCase.setUp(self)
-        self.marionette.execute_script("log('TEST-START: %s:%s')" % 
-                                       (self.filepath, self.methodName))
-
-    def tearDown(self):
-        self.marionette.set_context("content")
-        self.marionette.execute_script("log('TEST-END: %s:%s')" % 
-                                       (self.filepath, self.methodName))
-        CommonTestCase.tearDown(self)
 
     def get_new_emulator(self):
         self.extra_emulator_index += 1
@@ -131,17 +117,15 @@ class MarionetteJSTestCase(CommonTestCase):
     timeout_re = re.compile(r"MARIONETTE_TIMEOUT(\s*)=(\s*)(\d+);")
     launch_re = re.compile(r"MARIONETTE_LAUNCH_APP(\s*)=(\s*)['|\"](.*?)['|\"];")
 
-    def __init__(self, marionette_weakref, methodName='runTest', jsFile=None):
+    def __init__(self, marionette, methodName='runTest', jsFile=None):
         assert(jsFile)
         self.jsFile = jsFile
-        self._marionette_weakref = marionette_weakref
-        self.marionette = None
+        self.marionette = marionette
         CommonTestCase.__init__(self, methodName)
 
     def runTest(self):
         if self.marionette.session is None:
             self.marionette.start_session()
-        self.marionette.execute_script("log('TEST-START: %s');" % self.jsFile)
         f = open(self.jsFile, 'r')
         js = f.read()
         args = []
@@ -212,7 +196,6 @@ class MarionetteJSTestCase(CommonTestCase):
                 self.loglines = self.marionette.get_logs()
                 raise
 
-        self.marionette.execute_script("log('TEST-END: %s');" % self.jsFile)
 
 
 

@@ -6255,11 +6255,9 @@ bool nsWindow::OnGesture(WPARAM wParam, LPARAM lParam)
     }
 
     if (mDisplayPanFeedback) {
-      mGesture.UpdatePanFeedbackX(mWnd,
-                                  NS_ABS(RoundDown(wheelEvent.overflowDeltaX)),
+      mGesture.UpdatePanFeedbackX(mWnd, RoundDown(wheelEvent.overflowDeltaX),
                                   endFeedback);
-      mGesture.UpdatePanFeedbackY(mWnd,
-                                  NS_ABS(RoundDown(wheelEvent.overflowDeltaY)),
+      mGesture.UpdatePanFeedbackY(mWnd, RoundDown(wheelEvent.overflowDeltaY),
                                   endFeedback);
       mGesture.PanFeedbackFinalize(mWnd, endFeedback);
     }
