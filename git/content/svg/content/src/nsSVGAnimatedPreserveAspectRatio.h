@@ -36,14 +36,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef __NS_SVGPRESERVEASPECTRATIO_H__
-#define __NS_SVGPRESERVEASPECTRATIO_H__
+#ifndef __NS_SVGANIMATEDPRESERVEASPECTRATIO_H__
+#define __NS_SVGANIMATEDPRESERVEASPECTRATIO_H__
 
+#include "nsIDOMSVGAnimPresAspRatio.h"
 #include "nsIDOMSVGPresAspectRatio.h"
 
 nsresult
-NS_NewSVGPreserveAspectRatio(nsIDOMSVGPreserveAspectRatio** result,
- PRUint16 aAlign=nsIDOMSVGPreserveAspectRatio::SVG_PRESERVEASPECTRATIO_XMIDYMID,
- PRUint16 aMeetOrSlice=nsIDOMSVGPreserveAspectRatio::SVG_MEETORSLICE_MEET);
+NS_NewSVGAnimatedPreserveAspectRatio(
+                                 nsIDOMSVGAnimatedPreserveAspectRatio** result,
+                                 nsIDOMSVGPreserveAspectRatio* baseVal);
 
-#endif //__NS_SVGPRESERVEASPECTRATIO_H__
+#endif //__NS_SVGANIMATEDPRESERVEASPECTRATIO_H__

@@ -36,12 +36,13 @@
 
 #include "nsSVGPathGeometryFrame.h"
 #include "nsIDOMSVGMatrix.h"
+#include "nsIDOMSVGAnimPresAspRatio.h"
 #include "imgIContainer.h"
 #include "gfxIImageFrame.h"
 #include "nsStubImageDecoderObserver.h"
 #include "nsImageLoadingContent.h"
 #include "nsIDOMSVGImageElement.h"
-#include "nsSVGImageElement.h"
+#include "nsSVGElement.h"
 #include "nsSVGUtils.h"
 #include "nsSVGMatrix.h"
 #include "gfxContext.h"
@@ -196,18 +197,22 @@ nsSVGImageFrame::GetImageTransform()
   GetCanvasTM(getter_AddRefs(ctm));
 
   float x, y, width, height;
-  nsSVGImageElement *element = static_cast<nsSVGImageElement*>(mContent);
+  nsSVGElement *element = static_cast<nsSVGElement*>(mContent);
   element->GetAnimatedLengthValues(&x, &y, &width, &height, nsnull);
 
   PRInt32 nativeWidth, nativeHeight;
   mImageContainer->GetWidth(&nativeWidth);
   mImageContainer->GetHeight(&nativeHeight);
 
+  nsCOMPtr<nsIDOMSVGImageElement> image = do_QueryInterface(mContent);
+  nsCOMPtr<nsIDOMSVGAnimatedPreserveAspectRatio> ratio;
+  image->GetPreserveAspectRatio(getter_AddRefs(ratio));
+
   nsCOMPtr<nsIDOMSVGMatrix> trans, ctmXY, fini;
   trans = nsSVGUtils::GetViewBoxTransform(width, height,
                                           0, 0,
                                           nativeWidth, nativeHeight,
-                                          element->mPreserveAspectRatio);
+                                          ratio);
   ctm->Translate(x, y, getter_AddRefs(ctmXY));
   ctmXY->Multiply(trans, getter_AddRefs(fini));
 

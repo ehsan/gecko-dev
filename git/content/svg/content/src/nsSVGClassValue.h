@@ -12,15 +12,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla SVG Project code.
+ * The Original Code is the Mozilla SVG project.
  *
  * The Initial Developer of the Original Code is
- * Jonathan Watt.
- * Portions created by the Initial Developer are Copyright (C) 2004
+ * Crocodile Clips Ltd..
+ * Portions created by the Initial Developer are Copyright (C) 2003
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Jonathan Watt <jonathan.watt@strath.ac.uk> (original author)
+ *   Alex Fritze <alex.fritze@crocodile-clips.com> (original author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -36,14 +36,34 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef __NS_SVGPRESERVEASPECTRATIO_H__
-#define __NS_SVGPRESERVEASPECTRATIO_H__
+#ifndef __NS_SVGCLASSVALUE_H__
+#define __NS_SVGCLASSVALUE_H__
 
-#include "nsIDOMSVGPresAspectRatio.h"
+#include "nsIDOMSVGAnimatedString.h"
+#include "nsSVGValue.h"
+#include "nsAttrValue.h"
 
-nsresult
-NS_NewSVGPreserveAspectRatio(nsIDOMSVGPreserveAspectRatio** result,
- PRUint16 aAlign=nsIDOMSVGPreserveAspectRatio::SVG_PRESERVEASPECTRATIO_XMIDYMID,
- PRUint16 aMeetOrSlice=nsIDOMSVGPreserveAspectRatio::SVG_MEETORSLICE_MEET);
+class nsSVGClassValue : public nsIDOMSVGAnimatedString,
+                        public nsSVGValue
+{
+public:
+  // nsISupports interface:
+  NS_DECL_ISUPPORTS
 
-#endif //__NS_SVGPRESERVEASPECTRATIO_H__
+  // nsIDOMSVGAnimatedString interface:
+  NS_DECL_NSIDOMSVGANIMATEDSTRING
+
+  // remainder of nsISVGValue interface:
+  NS_IMETHOD SetValueString(const nsAString& aValue);
+  NS_IMETHOD GetValueString(nsAString& aValue);
+
+  const nsAttrValue* GetAttrValue()
+  {
+    return &mBaseVal;
+  }
+
+protected:
+  nsAttrValue mBaseVal;
+};
+
+#endif //__NS_SVGCLASSVALUE_H__
