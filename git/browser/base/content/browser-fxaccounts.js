@@ -295,7 +295,7 @@ let gFxAccounts = {
         // the first device (so the user is prompted to create an account).
         // If there is an email address it is the "join the party" flow, so the
         // user is prompted to sign in with the address they previously used.
-        let msg, upgradeLabel, upgradeAccessKey, learnMoreLink;
+        let msg, upgradeLabel, upgradeAccessKey;
         if (this._migrationInfo.email) {
           msg = this.strings.formatStringFromName("signInAfterUpgradeOnOtherDevice.description",
                                                   [this._migrationInfo.email],
@@ -306,7 +306,6 @@ let gFxAccounts = {
           msg = this.strings.GetStringFromName("needUserLong");
           upgradeLabel = this.strings.GetStringFromName("upgradeToFxA.label");
           upgradeAccessKey = this.strings.GetStringFromName("upgradeToFxA.accessKey");
-          learnMoreLink = this.fxaMigrator.learnMoreLink;
         }
         note = new Weave.Notification(
           undefined, msg, undefined, Weave.Notifications.PRIORITY_WARNING, [
@@ -314,7 +313,7 @@ let gFxAccounts = {
               this._expectingNotifyClose = true;
               this.fxaMigrator.createFxAccount(window);
             }),
-          ], learnMoreLink
+          ]
         );
         break;
       }

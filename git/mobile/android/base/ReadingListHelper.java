@@ -10,6 +10,7 @@ import org.mozilla.gecko.db.BrowserContract.ReadingListItems;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.favicons.Favicons;
 import org.mozilla.gecko.util.EventCallback;
+import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.util.NativeEventListener;
 import org.mozilla.gecko.util.NativeJSObject;
 import org.mozilla.gecko.util.ThreadUtils;
@@ -21,7 +22,7 @@ import android.content.Context;
 import android.util.Log;
 import android.widget.Toast;
 
-public final class ReadingListHelper implements NativeEventListener {
+public final class ReadingListHelper implements GeckoEventListener, NativeEventListener {
     private static final String LOGTAG = "ReadingListHelper";
 
     protected final Context context;
@@ -29,31 +30,43 @@ public final class ReadingListHelper implements NativeEventListener {
     public ReadingListHelper(Context context) {
         this.context = context;
 
+        EventDispatcher.getInstance().registerGeckoThreadListener((GeckoEventListener) this,
+            "Reader:AddToList", "Reader:FaviconRequest");
         EventDispatcher.getInstance().registerGeckoThreadListener((NativeEventListener) this,
-            "Reader:AddToList", "Reader:FaviconRequest", "Reader:ListStatusRequest", "Reader:RemoveFromList");
+            "Reader:ListStatusRequest", "Reader:RemoveFromList");
     }
 
     public void uninit() {
+        EventDispatcher.getInstance().unregisterGeckoThreadListener((GeckoEventListener) this,
+            "Reader:AddToList", "Reader:FaviconRequest");
         EventDispatcher.getInstance().unregisterGeckoThreadListener((NativeEventListener) this,
-            "Reader:AddToList", "Reader:FaviconRequest", "Reader:ListStatusRequest", "Reader:RemoveFromList");
+            "Reader:ListStatusRequest", "Reader:RemoveFromList");
+    }
+
+    @Override
+    public void handleMessage(String event, JSONObject message) {
+        switch(event) {
+            case "Reader:AddToList": {
+                handleAddToList(message);
+                break;
+            }
+
+            case "Reader:FaviconRequest": {
+                handleReaderModeFaviconRequest(message.optString("url"));
+                break;
+            }
+        }
     }
 
     @Override
     public void handleMessage(final String event, final NativeJSObject message,
                               final EventCallback callback) {
         switch(event) {
-            case "Reader:AddToList": {
-                handleAddToList(callback, message);
-                break;
-            }
-            case "Reader:FaviconRequest": {
-                handleReaderModeFaviconRequest(callback, message.getString("url"));
-                break;
-            }
             case "Reader:RemoveFromList": {
                 handleRemoveFromList(message.getString("url"));
                 break;
             }
+
             case "Reader:ListStatusRequest": {
                 handleReadingListStatusRequest(callback, message.getString("url"));
                 break;
@@ -64,21 +77,10 @@ public final class ReadingListHelper implements NativeEventListener {
     /**
      * A page can be added to the ReadingList by long-tap of the page-action
      * icon, or by tapping the readinglist-add icon in the ReaderMode banner.
-     *
-     * This method will only add new items, not update existing items.
      */
-    private void handleAddToList(final EventCallback callback, final NativeJSObject message) {
+    private void handleAddToList(final JSONObject message) {
         final ContentResolver cr = context.getContentResolver();
-        final String url = message.getString("url");
-
-        // We can't access a NativeJSObject from the background thread, so we need to get the
-        // values here, even if we may not use them to insert an item into the DB.
-        final ContentValues values = new ContentValues();
-        values.put(ReadingListItems.URL, url);
-        values.put(ReadingListItems.TITLE, message.getString("title"));
-        values.put(ReadingListItems.LENGTH, message.getInt("length"));
-        values.put(ReadingListItems.EXCERPT, message.getString("excerpt"));
-        values.put(ReadingListItems.CONTENT_STATUS, message.getInt("status"));
+        final String url = message.optString("url");
 
         final BrowserDB db = GeckoProfile.get(context).getDB();
         ThreadUtils.postToBackgroundThread(new Runnable() {
@@ -86,21 +88,29 @@ public final class ReadingListHelper implements NativeEventListener {
             public void run() {
                 if (db.isReadingListItem(cr, url)) {
                     showToast(R.string.reading_list_duplicate, Toast.LENGTH_SHORT);
-                    callback.sendError("URL already in reading list: " + url);
+
                 } else {
+                    final ContentValues values = new ContentValues();
+                    values.put(ReadingListItems.URL, url);
+                    values.put(ReadingListItems.TITLE, message.optString("title"));
+                    values.put(ReadingListItems.LENGTH, message.optInt("length"));
+                    values.put(ReadingListItems.EXCERPT, message.optString("excerpt"));
+                    values.put(ReadingListItems.CONTENT_STATUS, message.optInt("status"));
                     db.addReadingListItem(cr, values);
+
                     showToast(R.string.reading_list_added, Toast.LENGTH_SHORT);
-                    callback.sendSuccess(url);
                 }
             }
         });
+
+        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Reader:Added", url));
     }
 
     /**
      * Gecko (ReaderMode) requests the page favicon to append to the
      * document head for display.
      */
-    private void handleReaderModeFaviconRequest(final EventCallback callback, final String url) {
+    private void handleReaderModeFaviconRequest(final String url) {
         final BrowserDB db = GeckoProfile.get(context).getDB();
         (new UIAsyncTask.WithoutParams<String>(ThreadUtils.getBackgroundHandler()) {
             @Override
@@ -111,6 +121,7 @@ public final class ReadingListHelper implements NativeEventListener {
             @Override
             public void onPostExecute(String faviconUrl) {
                 JSONObject args = new JSONObject();
+
                 if (faviconUrl != null) {
                     try {
                         args.put("url", url);
@@ -119,7 +130,9 @@ public final class ReadingListHelper implements NativeEventListener {
                         Log.w(LOGTAG, "Error building JSON favicon arguments.", e);
                     }
                 }
-                callback.sendSuccess(args.toString());
+
+                GeckoAppShell.sendEventToGecko(
+                    GeckoEvent.createBroadcastEvent("Reader:FaviconReturn", args.toString()));
             }
         }).execute();
     }

@@ -341,7 +341,7 @@ public class SearchActivity extends Locales.LocaleAwareFragmentActivity
             @Override
             public void onAnimationEnd(Animator animation) {
                 // Don't do anything if the activity is destroyed before the animation ends.
-                if (searchEngineManager == null) {
+                if (SearchActivity.this.isDestroyed()) {
                     return;
                 }
 

@@ -17,6 +17,11 @@ let Reader = {
 
   observe: function Reader_observe(aMessage, aTopic, aData) {
     switch (aTopic) {
+      case "Reader:Added": {
+        let mm = window.getGroupMessageManager("browsers");
+        mm.broadcastAsyncMessage("Reader:Added", { url: aData });
+        break;
+      }
       case "Reader:Removed": {
         let uri = Services.io.newURI(aData, null, null);
         ReaderMode.removeArticleFromCache(uri).catch(e => Cu.reportError("Error removing article from cache: " + e));
@@ -51,13 +56,10 @@ let Reader = {
 
   receiveMessage: function(message) {
     switch (message.name) {
-      case "Reader:AddToList": {
-        // If the article is coming from reader mode, we must have fetched it already.
-        let article = message.data.article;
-        article.status = this.STATUS_FETCHED_ARTICLE;
-        this._addArticleToReadingList(article);
+      case "Reader:AddToList":
+        this.addArticleToReadingList(message.data.article);
         break;
-      }
+
       case "Reader:ArticleGet":
         this._getArticle(message.data.url, message.target).then((article) => {
           message.target.messageManager.sendAsyncMessage("Reader:ArticleData", { article: article });
@@ -65,11 +67,14 @@ let Reader = {
         break;
 
       case "Reader:FaviconRequest": {
-        Messaging.sendRequestForResult({
+        let observer = (s, t, d) => {
+          Services.obs.removeObserver(observer, "Reader:FaviconReturn", false);
+          message.target.messageManager.sendAsyncMessage("Reader:FaviconReturn", JSON.parse(d));
+        };
+        Services.obs.addObserver(observer, "Reader:FaviconReturn", false);
+        Messaging.sendRequest({
           type: "Reader:FaviconRequest",
           url: message.data.url
-        }).then(data => {
-          message.target.messageManager.sendAsyncMessage("Reader:FaviconReturn", JSON.parse(data));
         });
         break;
       }
@@ -195,30 +200,31 @@ let Reader = {
       article = {
         url: urlWithoutRef,
         title: tab.browser.contentDocument.title,
-        length: 0,
-        excerpt: "",
         status: this.STATUS_FETCH_FAILED_UNSUPPORTED_FORMAT,
       };
     } else {
       article.status = this.STATUS_FETCHED_ARTICLE;
     }
 
-    this._addArticleToReadingList(article);
+    this.addArticleToReadingList(article);
   }),
 
-  _addArticleToReadingList: function(article) {
-    Messaging.sendRequestForResult({
+  addArticleToReadingList: function(article) {
+    if (!article || !article.url) {
+      Cu.reportError("addArticleToReadingList requires article with valid URL");
+      return;
+    }
+
+    Messaging.sendRequest({
       type: "Reader:AddToList",
       url: truncate(article.url, MAX_URI_LENGTH),
-      title: truncate(article.title, MAX_TITLE_LENGTH),
-      length: article.length,
-      excerpt: article.excerpt,
+      title: truncate(article.title || "", MAX_TITLE_LENGTH),
+      length: article.length || 0,
+      excerpt: article.excerpt || "",
       status: article.status,
-    }).then((url) => {
-      let mm = window.getGroupMessageManager("browsers");
-      mm.broadcastAsyncMessage("Reader:Added", { url: url });
-      ReaderMode.storeArticleInCache(article).catch(e => Cu.reportError("Error storing article in cache: " + e));
-    }).catch(Cu.reportError);
+    });
+
+    ReaderMode.storeArticleInCache(article).catch(e => Cu.reportError("Error storing article in cache: " + e));
   },
 
   /**
