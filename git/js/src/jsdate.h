@@ -46,7 +46,9 @@
 
 #include "jsobj.h"
 
-extern js::Class js_DateClass;
+JS_BEGIN_EXTERN_C
+
+extern JSClass js_DateClass;
 
 inline bool
 JSObject::isDate() const
@@ -132,6 +134,8 @@ js_IntervalNow();
 
 /* Date constructor native. Exposed only so the JIT can know its address. */
 JSBool
-js_Date(JSContext *cx, JSObject *obj, uintN argc, js::Value *argv, js::Value *rval);
+js_Date(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval);
+
+JS_END_EXTERN_C
 
 #endif /* jsdate_h___ */

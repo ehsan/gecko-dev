@@ -37,6 +37,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestsuite = 'js1_8';
 
 // explicitly turn on js18
 if (typeof version != 'undefined')

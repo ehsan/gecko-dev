@@ -47,7 +47,7 @@ class nsHTMLFieldSetElement : public nsGenericHTMLFormElement,
                               public nsIDOMHTMLFieldSetElement
 {
 public:
-  nsHTMLFieldSetElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLFieldSetElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLFieldSetElement();
 
   // nsISupports
@@ -71,7 +71,6 @@ public:
   NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
                                nsIContent* aSubmitElement);
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 // construction, destruction
@@ -80,7 +79,7 @@ public:
 NS_IMPL_NS_NEW_HTML_ELEMENT(FieldSet)
 
 
-nsHTMLFieldSetElement::nsHTMLFieldSetElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLFieldSetElement::nsHTMLFieldSetElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLFormElement(aNodeInfo)
 {
 }
@@ -94,7 +93,8 @@ nsHTMLFieldSetElement::~nsHTMLFieldSetElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLFieldSetElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLFieldSetElement, nsGenericElement)
 
-DOMCI_NODE_DATA(HTMLFieldSetElement, nsHTMLFieldSetElement)
+
+DOMCI_DATA(HTMLFieldSetElement, nsHTMLFieldSetElement)
 
 // QueryInterface implementation for nsHTMLFieldSetElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLFieldSetElement)

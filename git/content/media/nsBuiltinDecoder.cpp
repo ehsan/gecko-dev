@@ -178,7 +178,6 @@ void nsBuiltinDecoder::Shutdown()
 nsBuiltinDecoder::~nsBuiltinDecoder()
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-  UnpinForSeek();
   MOZ_COUNT_DTOR(nsBuiltinDecoder);
 }
 
@@ -263,7 +262,6 @@ nsresult nsBuiltinDecoder::Seek(float aTime)
     else {
       mNextState = mPlayState;
     }
-    PinForSeek();
     ChangeState(PLAY_STATE_SEEKING);
   }
 
@@ -448,8 +446,7 @@ NS_IMETHODIMP nsBuiltinDecoder::Observe(nsISupports *aSubjet,
 nsMediaDecoder::Statistics
 nsBuiltinDecoder::GetStatistics()
 {
-  NS_ASSERTION(NS_IsMainThread() || OnStateMachineThread(),
-               "Should be on main or state machine thread.");
+  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   Statistics result;
 
   MonitorAutoEnter mon(mMonitor);
@@ -610,12 +607,10 @@ void nsBuiltinDecoder::SeekingStopped()
 
     // An additional seek was requested while the current seek was
     // in operation.
-    if (mRequestedSeekTime >= 0.0) {
+    if (mRequestedSeekTime >= 0.0)
       ChangeState(PLAY_STATE_SEEKING);
-    } else {
-      UnpinForSeek();
+    else
       ChangeState(mNextState);
-    }
   }
 
   if (mElement) {
@@ -641,8 +636,8 @@ void nsBuiltinDecoder::SeekingStoppedAtEnd()
     // in operation.
     if (mRequestedSeekTime >= 0.0) {
       ChangeState(PLAY_STATE_SEEKING);
-    } else {
-      UnpinForSeek();
+    }
+    else {
       fireEnded = mNextState != PLAY_STATE_PLAYING;
       ChangeState(fireEnded ? PLAY_STATE_ENDED : mNextState);
     }
@@ -793,15 +788,11 @@ void nsBuiltinDecoder::Suspend()
   }
 }
 
-void nsBuiltinDecoder::Resume(PRBool aForceBuffering)
+void nsBuiltinDecoder::Resume()
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   if (mStream) {
     mStream->Resume();
-  }
-  if (aForceBuffering) {
-    MonitorAutoEnter mon(mMonitor);
-    mDecoderStateMachine->StartBuffering();
   }
 }
 

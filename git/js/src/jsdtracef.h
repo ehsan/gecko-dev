@@ -49,9 +49,8 @@ class DTrace {
     static void handleFunctionInfo(JSContext *cx, JSStackFrame *fp, JSStackFrame *dfp,
                                    JSFunction *fun);
     static void handleFunctionArgs(JSContext *cx, JSStackFrame *fp, const JSFunction *fun,
-                                   jsuint argc, js::Value *argv);
-    static void handleFunctionRval(JSContext *cx, JSStackFrame *fp, JSFunction *fun,
-                                   const js::Value &rval);
+                                   jsuint argc, jsval *argv);
+    static void handleFunctionRval(JSContext *cx, JSStackFrame *fp, JSFunction *fun, jsval rval);
     static void handleFunctionReturn(JSContext *cx, JSStackFrame *fp, JSFunction *fun);
     static void finalizeObjectImpl(JSObject *obj);
   public:
@@ -60,11 +59,9 @@ class DTrace {
      * it is a function as a predicate to the dtrace event emission.
      */
     static void enterJSFun(JSContext *cx, JSStackFrame *fp, JSFunction *fun,
-                           JSStackFrame *dfp, jsuint argc, js::Value *argv,
-                           js::Value *lval = NULL);
-    static void exitJSFun(JSContext *cx, JSStackFrame *fp, JSFunction *fun,
-                          const js::Value &rval,
-                          js::Value *lval = NULL);
+                           JSStackFrame *dfp, jsuint argc, jsval *argv, jsval *lval = NULL);
+    static void exitJSFun(JSContext *cx, JSStackFrame *fp, JSFunction *fun, jsval rval,
+                          jsval *lval = NULL);
 
     static void finalizeObject(JSObject *obj);
 
@@ -80,12 +77,12 @@ class DTrace {
     class ObjectCreationScope {
         JSContext       * const cx;
         JSStackFrame    * const fp;
-        js::Class       * const clasp;
+        JSClass         * const clasp;
         void handleCreationStart();
         void handleCreationImpl(JSObject *obj);
         void handleCreationEnd();
       public:
-        ObjectCreationScope(JSContext *cx, JSStackFrame *fp, js::Class *clasp);
+        ObjectCreationScope(JSContext *cx, JSStackFrame *fp, JSClass *clasp);
         void handleCreation(JSObject *obj);
         ~ObjectCreationScope();
     };
@@ -94,10 +91,10 @@ class DTrace {
 
 inline void
 DTrace::enterJSFun(JSContext *cx, JSStackFrame *fp, JSFunction *fun, JSStackFrame *dfp,
-                   jsuint argc, js::Value *argv, js::Value *lval)
+                   jsuint argc, jsval *argv, jsval *lval)
 {
 #ifdef INCLUDE_MOZILLA_DTRACE
-    if (!lval || IsFunctionObject(*lval)) {
+    if (!lval || VALUE_IS_FUNCTION(cx, *lval)) {
         if (JAVASCRIPT_FUNCTION_ENTRY_ENABLED())
             enterJSFunImpl(cx, fp, fun);
         if (JAVASCRIPT_FUNCTION_INFO_ENABLED())
@@ -109,11 +106,10 @@ DTrace::enterJSFun(JSContext *cx, JSStackFrame *fp, JSFunction *fun, JSStackFram
 }
 
 inline void
-DTrace::exitJSFun(JSContext *cx, JSStackFrame *fp, JSFunction *fun,
-                  const js::Value &rval, js::Value *lval)
+DTrace::exitJSFun(JSContext *cx, JSStackFrame *fp, JSFunction *fun, jsval rval, jsval *lval)
 {
 #ifdef INCLUDE_MOZILLA_DTRACE
-    if (!lval || IsFunctionObject(*lval)) {
+    if (!lval || VALUE_IS_FUNCTION(cx, *lval)) {
         if (JAVASCRIPT_FUNCTION_RVAL_ENABLED())
             handleFunctionRval(cx, fp, fun, rval);
         if (JAVASCRIPT_FUNCTION_RETURN_ENABLED())
@@ -155,7 +151,7 @@ DTrace::ExecutionScope::~ExecutionScope()
 /* Object creation scope. */
 
 inline
-DTrace::ObjectCreationScope::ObjectCreationScope(JSContext *cx, JSStackFrame *fp, js::Class *clasp)
+DTrace::ObjectCreationScope::ObjectCreationScope(JSContext *cx, JSStackFrame *fp, JSClass *clasp)
   : cx(cx), fp(fp), clasp(clasp)
 {
 #ifdef INCLUDE_MOZILLA_DTRACE

@@ -42,6 +42,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsImageLoadingContent.h"
 #include "nsIDOMHTMLInputElement.h"
+#include "nsIDOMNSHTMLInputElement.h"
 #include "nsITextControlElement.h"
 #include "nsIPhonetic.h"
 #include "nsIDOMNSEditableElement.h"
@@ -77,14 +78,14 @@ class nsDOMFileList;
 class nsHTMLInputElement : public nsGenericHTMLFormElement,
                            public nsImageLoadingContent,
                            public nsIDOMHTMLInputElement,
+                           public nsIDOMNSHTMLInputElement,
                            public nsITextControlElement,
                            public nsIPhonetic,
                            public nsIDOMNSEditableElement,
                            public nsIFileControlElement
 {
 public:
-  nsHTMLInputElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                     PRUint32 aFromParser);
+  nsHTMLInputElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser);
   virtual ~nsHTMLInputElement();
 
   // nsISupports
@@ -101,6 +102,9 @@ public:
 
   // nsIDOMHTMLInputElement
   NS_DECL_NSIDOMHTMLINPUTELEMENT
+
+  // nsIDOMNSHTMLInputElement
+  NS_DECL_NSIDOMNSHTMLINPUTELEMENT
 
   // nsIPhonetic
   NS_DECL_NSIPHONETIC
@@ -197,9 +201,6 @@ public:
                                                      nsGenericHTMLFormElement)
 
   void MaybeLoadImage();
-
-  virtual nsXPCClassInfo* GetClassInfo();
-
 protected:
   // Pull IsSingleLineTextControl into our scope, otherwise it'd be hidden
   // by the nsITextControlElement version.
@@ -207,8 +208,7 @@ protected:
 
   // Helper method
   nsresult SetValueInternal(const nsAString& aValue,
-                            PRBool aUserInput,
-                            PRBool aSetValueChanged);
+                            PRBool aUserInput);
 
   void ClearFileNames() {
     nsTArray<nsString> fileNames;
@@ -279,7 +279,7 @@ protected:
    * Do all the work that |SetChecked| does (radio button handling, etc.), but
    * take an |aNotify| parameter.
    */
-  nsresult DoSetChecked(PRBool aValue, PRBool aNotify, PRBool aSetValueChanged);
+  nsresult DoSetChecked(PRBool aValue, PRBool aNotify = PR_TRUE);
 
   /**
    * Do all the work that |SetCheckedChanged| does (radio button handling,
@@ -335,11 +335,6 @@ protected:
    * See: http://www.whatwg.org/specs/web-apps/current-work/#value-sanitization-algorithm
    */
   void SanitizeValue(nsAString& aValue);
-
-  /**
-   * Set the current default value to the value of the input element.
-   */
-  nsresult SetDefaultValueAsValue();
 
   nsCOMPtr<nsIControllers> mControllers;
 

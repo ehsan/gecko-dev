@@ -286,9 +286,8 @@ nsInProcessTabChildGlobal::InitTabChildGlobal()
 
   nsresult rv =
     xpc->InitClassesWithNewWrappedGlobal(cx, scopeSupports,
-                                         NS_GET_IID(nsISupports),
-                                         GetPrincipal(), EmptyCString(),
-                                         flags, getter_AddRefs(mGlobal));
+                                         NS_GET_IID(nsISupports), flags,
+                                         getter_AddRefs(mGlobal));
   NS_ENSURE_SUCCESS(rv, false);
 
   JSObject* global = nsnull;
@@ -344,29 +343,27 @@ nsInProcessTabChildGlobal::LoadFrameScript(const nsAString& aURL)
   }
 
   if (!dataString.IsEmpty()) {
+    JSAutoRequest ar(mCx);
+    jsval retval;
+    JSObject* global = nsnull;
+    mGlobal->GetJSObject(&global);
+    if (!global) {
+      return;
+    }
+
+    JSPrincipals* jsprin = nsnull;
+    mPrincipal->GetJSPrincipals(mCx, &jsprin);
+    nsContentUtils::XPConnect()->FlagSystemFilenamePrefix(url.get(), PR_TRUE);
     nsContentUtils::ThreadJSContextStack()->Push(mCx);
-    {
-      // Need to scope JSAutoRequest to happen after Push but before Pop,
-      // at least for now. See bug 584673.
-      JSAutoRequest ar(mCx);
-      jsval retval;
-      JSObject* global = nsnull;
-      mGlobal->GetJSObject(&global);
-      if (global) {
-        JSPrincipals* jsprin = nsnull;
-        mPrincipal->GetJSPrincipals(mCx, &jsprin);
-        nsContentUtils::XPConnect()->FlagSystemFilenamePrefix(url.get(), PR_TRUE);
-        PRBool tmp = mLoadingScript;
-        mLoadingScript = PR_TRUE;
-        JS_EvaluateUCScriptForPrincipals(mCx, global, jsprin,
-                                         (jschar*)dataString.get(),
-                                         dataString.Length(),
-                                         url.get(), 1, &retval);
-        //XXX Argh, JSPrincipals are manually refcounted!
-        JSPRINCIPALS_DROP(mCx, jsprin);
-        mLoadingScript = tmp;
-      }
-    } 
+    PRBool tmp = mLoadingScript;
+    mLoadingScript = PR_TRUE;
+    JS_EvaluateUCScriptForPrincipals(mCx, global, jsprin,
+                                     (jschar*)dataString.get(),
+                                     dataString.Length(),
+                                     url.get(), 1, &retval);
+    //XXX Argh, JSPrincipals are manually refcounted!
+    JSPRINCIPALS_DROP(mCx, jsprin);
+    mLoadingScript = tmp;
     JSContext* unused;
     nsContentUtils::ThreadJSContextStack()->Pop(&unused);
   }

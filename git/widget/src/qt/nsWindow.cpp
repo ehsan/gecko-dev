@@ -1311,11 +1311,10 @@ nsEventStatus
 nsWindow::OnFocusInEvent(QEvent *aEvent)
 {
     LOGFOCUS(("OnFocusInEvent [%p]\n", (void *)this));
-
     if (!mWidget)
         return nsEventStatus_eIgnore;
 
-    DispatchActivateEventOnTopLevelWindow();
+    DispatchActivateEvent();
 
     LOGFOCUS(("Events sent from focus in event [%p]\n", (void *)this));
     return nsEventStatus_eIgnore;
@@ -1326,10 +1325,8 @@ nsWindow::OnFocusOutEvent(QEvent *aEvent)
 {
     LOGFOCUS(("OnFocusOutEvent [%p]\n", (void *)this));
 
-    if (!mWidget)
-        return nsEventStatus_eIgnore;
-
-    DispatchDeactivateEventOnTopLevelWindow();
+    if (mWidget)
+        DispatchDeactivateEvent();
 
     LOGFOCUS(("Done with container focus out [%p]\n", (void *)this));
     return nsEventStatus_eIgnore;
@@ -1813,9 +1810,6 @@ nsWindow::NativeResize(PRInt32 aX, PRInt32 aY,
     mNeedsMove = PR_FALSE;
 
     if (mIsTopLevel) {
-#ifdef MOZ_ENABLE_MEEGOTOUCH
-      if (XRE_GetProcessType() != GeckoProcessType_Default)
-#endif
       GetViewWidget()->setGeometry(aX, aY, aWidth, aHeight);
     }
     mWidget->setGeometry(aX, aY, aWidth, aHeight);
@@ -1855,6 +1849,24 @@ nsWindow::GetHasTransparentBackground(PRBool& aTransparent)
 {
     aTransparent = mIsTransparent;
     return NS_OK;
+}
+
+void
+nsWindow::GetToplevelWidget(MozQWidget **aWidget)
+{
+    MozQGraphicsView *view = static_cast<MozQGraphicsView*>(GetViewWidget());
+    if (view)
+        *aWidget = view->GetTopLevelWidget();
+}
+
+nsWindow *
+nsWindow::GetTopLevelNsWindow()
+{
+    MozQWidget *widget = nsnull;
+    GetToplevelWidget(&widget);
+    if (widget)
+        return widget->getReceiver();
+    return nsnull;
 }
 
 void *
@@ -1933,7 +1945,10 @@ NS_IMETHODIMP
 nsWindow::HideWindowChrome(PRBool aShouldHide)
 {
     if (!mWidget) {
-        // Nothing to hide
+        // Pass the request to the toplevel window
+        MozQWidget *topWidget = nsnull;
+        GetToplevelWidget(&topWidget);
+//        return topWindow->HideWindowChrome(aShouldHide);
         return NS_ERROR_FAILURE;
     }
 
@@ -2081,11 +2096,7 @@ nsWindow::createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData)
 
     if (mIsTopLevel) {
         QGraphicsView* newView = nsnull;
-#ifdef MOZ_ENABLE_MEEGOTOUCH
-        newView = new MozMGraphicsView(widget);
-#else
         newView = new MozQGraphicsView(widget);
-#endif
         if (!newView) {
             delete widget;
             return nsnull;
@@ -2156,7 +2167,7 @@ nsWindow::SetAcceleratedRendering(PRBool aEnabled)
 mozilla::layers::LayerManager*
 nsWindow::GetLayerManager()
 {
-    nsWindow *topWindow = static_cast<nsWindow*>(GetTopLevelWidget());
+    nsWindow *topWindow = GetTopLevelNsWindow();
     if (!topWindow)
         return nsBaseWidget::GetLayerManager();
 
@@ -2255,22 +2266,6 @@ nsWindow::DispatchDeactivateEvent(void)
     nsGUIEvent event(PR_TRUE, NS_DEACTIVATE, this);
     nsEventStatus status;
     DispatchEvent(&event, status);
-}
-
-void
-nsWindow::DispatchActivateEventOnTopLevelWindow(void)
-{
-    nsWindow * topLevelWindow = static_cast<nsWindow*>(GetTopLevelWidget());
-    if (topLevelWindow != nsnull)
-         topLevelWindow->DispatchActivateEvent();
-}
-
-void
-nsWindow::DispatchDeactivateEventOnTopLevelWindow(void)
-{
-    nsWindow * topLevelWindow = static_cast<nsWindow*>(GetTopLevelWidget());
-    if (topLevelWindow != nsnull)
-         topLevelWindow->DispatchDeactivateEvent();
 }
 
 void
@@ -2507,14 +2502,7 @@ nsWindow::SetIMEEnabled(PRUint32 aState)
     switch (aState) {
         case nsIWidget::IME_STATUS_ENABLED:
         case nsIWidget::IME_STATUS_PASSWORD:
-            {
-                PRInt32 openDelay = 200;
-                nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-                if (prefs)
-                  prefs->GetIntPref("ui.vkb.open.delay", &openDelay);
-
-                mWidget->requestVKB(openDelay);
-            }
+            mWidget->showVKB();
             break;
         default:
             mWidget->hideVKB();

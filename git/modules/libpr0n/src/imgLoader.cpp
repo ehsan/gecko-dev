@@ -41,6 +41,11 @@
 #include "imgLoader.h"
 #include "imgContainer.h"
 
+/* We end up pulling in windows.h because we eventually hit
+ * gfxWindowsSurface; it defines some crazy things, like LoadImage.
+ * We undefine it here so as to avoid problems later on.
+ */
+#undef LoadImage
 
 #include "nsCOMPtr.h"
 
@@ -52,7 +57,6 @@
 #include "nsIPrefService.h"
 #include "nsIProgressEventSink.h"
 #include "nsIChannelEventSink.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIProxyObjectManager.h"
 #include "nsIServiceManager.h"
 #include "nsIFileURL.h"
@@ -320,10 +324,9 @@ nsProgressNotificationProxy::OnStatus(nsIRequest* request,
 }
 
 NS_IMETHODIMP
-nsProgressNotificationProxy::AsyncOnChannelRedirect(nsIChannel *oldChannel,
-                                                    nsIChannel *newChannel,
-                                                    PRUint32 flags,
-                                                    nsIAsyncVerifyRedirectCallback *cb) {
+nsProgressNotificationProxy::OnChannelRedirect(nsIChannel *oldChannel,
+                                               nsIChannel *newChannel,
+                                               PRUint32 flags) {
   // The 'old' channel should match the current one
   NS_ABORT_IF_FALSE(oldChannel == mChannel,
                     "old channel doesn't match current!");
@@ -339,13 +342,9 @@ nsProgressNotificationProxy::AsyncOnChannelRedirect(nsIChannel *oldChannel,
                                 loadGroup,
                                 NS_GET_IID(nsIChannelEventSink),
                                 getter_AddRefs(target));
-  if (!target) {
-      cb->OnRedirectVerifyCallback(NS_OK);
-      return NS_OK;
-  }
-
-  // Delegate to |target| if set, reusing |cb|
-  return target->AsyncOnChannelRedirect(oldChannel, newChannel, flags, cb);
+  if (!target)
+    return NS_OK;
+  return target->OnChannelRedirect(oldChannel, newChannel, flags);
 }
 
 NS_IMETHODIMP
@@ -673,11 +672,8 @@ nsresult imgLoader::CreateNewProxyForRequest(imgRequest *aRequest, nsILoadGroup 
    */
   proxyRequest->SetLoadFlags(aLoadFlags);
 
-  nsCOMPtr<nsIURI> uri;
-  aRequest->GetURI(getter_AddRefs(uri));
-
   // init adds itself to imgRequest's list of observers
-  nsresult rv = proxyRequest->Init(aRequest, aLoadGroup, aRequest->mImage, uri, aObserver);
+  nsresult rv = proxyRequest->Init(aRequest, aLoadGroup, aObserver);
   if (NS_FAILED(rv)) {
     NS_RELEASE(proxyRequest);
     return rv;
@@ -1171,18 +1167,8 @@ PRBool imgLoader::ValidateRequestWithNewChannel(imgRequest *request,
                                   aLoadFlags, aExistingRequest, 
                                   reinterpret_cast<imgIRequest **>(aProxyRequest));
 
-    if (*aProxyRequest) {
-      imgRequestProxy* proxy = static_cast<imgRequestProxy*>(*aProxyRequest);
-
-      // We will send notifications from imgCacheValidator::OnStartRequest().
-      // In the mean time, we must defer notifications because we are added to
-      // the imgRequest's proxy list, and we can get extra notifications
-      // resulting from methods such as RequestDecode(). See bug 579122.
-      proxy->SetNotificationsDeferred(PR_TRUE);
-
-      // Attach the proxy without notifying
-      request->mValidator->AddProxy(proxy);
-    }
+    if (*aProxyRequest)
+      request->mValidator->AddProxy(static_cast<imgRequestProxy*>(*aProxyRequest));
 
     return NS_SUCCEEDED(rv);
 
@@ -1232,17 +1218,8 @@ PRBool imgLoader::ValidateRequestWithNewChannel(imgRequest *request,
     NS_ADDREF(hvc);
     request->mValidator = hvc;
 
-    imgRequestProxy* proxy = static_cast<imgRequestProxy*>
-                               (static_cast<imgIRequest*>(req.get()));
-
-    // We will send notifications from imgCacheValidator::OnStartRequest().
-    // In the mean time, we must defer notifications because we are added to
-    // the imgRequest's proxy list, and we can get extra notifications
-    // resulting from methods such as RequestDecode(). See bug 579122.
-    proxy->SetNotificationsDeferred(PR_TRUE);
-
-    // Add the proxy without notifying
-    hvc->AddProxy(proxy);
+    hvc->AddProxy(static_cast<imgRequestProxy*>
+                             (static_cast<imgIRequest*>(req.get())));
 
     rv = newChannel->AsyncOpen(static_cast<nsIStreamListener *>(hvc), nsnull);
     if (NS_SUCCEEDED(rv))
@@ -1698,17 +1675,11 @@ NS_IMETHODIMP imgLoader::LoadImage(nsIURI *aURI,
     }
 
     // Note that it's OK to add here even if the request is done.  If it is,
-    // it'll send a OnStopRequest() to the proxy in imgRequestProxy::Notify and
-    // the proxy will be removed from the loadgroup.
+    // it'll send a OnStopRequest() to the proxy in NotifyProxyListener and the
+    // proxy will be removed from the loadgroup.
     proxy->AddToLoadGroup();
 
-    // If we're loading off the network, explicitly don't notify our proxy,
-    // because necko (or things called from necko, such as imgCacheValidator)
-    // are going to call our notifications asynchronously, and we can't make it
-    // further asynchronous because observers might rely on imagelib completing
-    // its work between the channel's OnStartRequest and OnStopRequest.
-    if (!newChannel)
-      proxy->NotifyListener();
+    request->NotifyProxyListener(proxy);
 
     return rv;
   }
@@ -1790,19 +1761,12 @@ NS_IMETHODIMP imgLoader::LoadImageWithChannel(nsIChannel *channel, imgIDecoderOb
   nsCOMPtr<nsILoadGroup> loadGroup;
   channel->GetLoadGroup(getter_AddRefs(loadGroup));
 
-  // XXX: It looks like the wrong load flags are being passed in...
-  requestFlags &= 0xFFFF;
-
   if (request) {
     // we have this in our cache already.. cancel the current (document) load
 
     channel->Cancel(NS_ERROR_PARSED_DATA_CACHED); // this should fire an OnStopRequest
 
     *listener = nsnull; // give them back a null nsIStreamListener
-
-    rv = CreateNewProxyForRequest(request, loadGroup, aObserver,
-                                  requestFlags, nsnull, _retval);
-    static_cast<imgRequestProxy*>(*_retval)->NotifyListener();
   } else {
     if (!NewRequestAndEntry(uri, getter_AddRefs(request), getter_AddRefs(entry)))
       return NS_ERROR_OUT_OF_MEMORY;
@@ -1827,17 +1791,14 @@ NS_IMETHODIMP imgLoader::LoadImageWithChannel(nsIChannel *channel, imgIDecoderOb
 
     // Try to add the new request into the cache.
     PutIntoCache(uri, entry);
-
-    rv = CreateNewProxyForRequest(request, loadGroup, aObserver,
-                                  requestFlags, nsnull, _retval);
-
-    // Explicitly don't notify our proxy, because we're loading off the
-    // network, and necko (or things called from necko, such as
-    // imgCacheValidator) are going to call our notifications asynchronously,
-    // and we can't make it further asynchronous because observers might rely
-    // on imagelib completing its work between the channel's OnStartRequest and
-    // OnStopRequest.
   }
+
+  // XXX: It looks like the wrong load flags are being passed in...
+  requestFlags &= 0xFFFF;
+
+  rv = CreateNewProxyForRequest(request, loadGroup, aObserver,
+                                requestFlags, nsnull, _retval);
+  request->NotifyProxyListener(static_cast<imgRequestProxy*>(*_retval));
 
   return rv;
 }
@@ -2029,6 +1990,7 @@ imgCacheValidator::imgCacheValidator(imgRequest *request, void *aContext) :
 
 imgCacheValidator::~imgCacheValidator()
 {
+  /* destructor code */
   if (mRequest) {
     mRequest->mValidator = nsnull;
   }
@@ -2048,9 +2010,6 @@ void imgCacheValidator::AddProxy(imgRequestProxy *aProxy)
 /* void onStartRequest (in nsIRequest request, in nsISupports ctxt); */
 NS_IMETHODIMP imgCacheValidator::OnStartRequest(nsIRequest *aRequest, nsISupports *ctxt)
 {
-  // If this request is coming from cache, the request all our proxies are
-  // pointing at is valid, and all we have to do is tell them to notify their
-  // listeners.
   nsCOMPtr<nsICachingChannel> cacheChan(do_QueryInterface(aRequest));
   if (cacheChan) {
     PRBool isFromCache;
@@ -2059,17 +2018,7 @@ NS_IMETHODIMP imgCacheValidator::OnStartRequest(nsIRequest *aRequest, nsISupport
       PRUint32 count = mProxies.Count();
       for (PRInt32 i = count-1; i>=0; i--) {
         imgRequestProxy *proxy = static_cast<imgRequestProxy *>(mProxies[i]);
-
-        // Proxies waiting on cache validation should be deferring notifications.
-        // Undefer them.
-        NS_ABORT_IF_FALSE(proxy->NotificationsDeferred(),
-                          "Proxies waiting on cache validation should be "
-                          "deferring notifications!");
-        proxy->SetNotificationsDeferred(PR_FALSE);
-
-        // Notify synchronously, because we're already in OnStartRequest, an
-        // asynchronously-called function.
-        proxy->SyncNotifyListener();
+        mRequest->NotifyProxyListener(proxy);
       }
 
       mRequest->SetLoadId(mContext);
@@ -2129,17 +2078,7 @@ NS_IMETHODIMP imgCacheValidator::OnStartRequest(nsIRequest *aRequest, nsISupport
   for (PRInt32 i = count-1; i>=0; i--) {
     imgRequestProxy *proxy = static_cast<imgRequestProxy *>(mProxies[i]);
     proxy->ChangeOwner(request);
-
-    // Proxies waiting on cache validation should be deferring notifications.
-    // Undefer them.
-    NS_ABORT_IF_FALSE(proxy->NotificationsDeferred(),
-                      "Proxies waiting on cache validation should be "
-                      "deferring notifications!");
-    proxy->SetNotificationsDeferred(PR_FALSE);
-
-    // Notify synchronously, because we're already in OnStartRequest, an
-    // asynchronously-called function.
-    proxy->SyncNotifyListener();
+    request->NotifyProxyListener(proxy);
   }
 
   NS_RELEASE(request);

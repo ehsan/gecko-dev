@@ -41,6 +41,7 @@
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
 #include "nsIDOMHTMLAnchorElement.h"
+#include "nsIDOMNSHTMLAnchorElement2.h"
 #include "nsGenericHTMLElement.h"
 #include "nsILink.h"
 #include "nsGkAtoms.h"
@@ -49,21 +50,25 @@
 #include "nsPresContext.h"
 #include "nsIEventStateManager.h"
 
+// For GetText().
+#include "nsIContentIterator.h"
+#include "nsIDOMText.h"
+
 #include "nsHTMLDNSPrefetch.h"
 
 #include "Link.h"
 using namespace mozilla::dom;
 
+nsresult NS_NewPreContentIterator(nsIContentIterator** aInstancePtrResult);
+
 class nsHTMLAnchorElement : public nsGenericHTMLElement,
                             public nsIDOMHTMLAnchorElement,
+                            public nsIDOMNSHTMLAnchorElement2,
                             public nsILink,
                             public Link
 {
 public:
-  using nsGenericElement::GetText;
-  using nsGenericElement::SetText;
-
-  nsHTMLAnchorElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLAnchorElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLAnchorElement();
 
   // nsISupports
@@ -80,6 +85,12 @@ public:
 
   // nsIDOMHTMLAnchorElement
   NS_DECL_NSIDOMHTMLANCHORELEMENT  
+
+  // nsIDOMNSHTMLAnchorElement
+  NS_DECL_NSIDOMNSHTMLANCHORELEMENT
+
+  // nsIDOMNSHTMLAnchorElement2
+  NS_DECL_NSIDOMNSHTMLANCHORELEMENT2
 
   // nsILink
   NS_IMETHOD LinkAdded() { return NS_OK; }
@@ -120,14 +131,12 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   virtual PRInt32 IntrinsicState() const;
-
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Anchor)
 
-nsHTMLAnchorElement::nsHTMLAnchorElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLAnchorElement::nsHTMLAnchorElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -141,12 +150,14 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLAnchorElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLAnchorElement, nsGenericElement) 
 
 
-DOMCI_NODE_DATA(HTMLAnchorElement, nsHTMLAnchorElement)
+DOMCI_DATA(HTMLAnchorElement, nsHTMLAnchorElement)
 
 // QueryInterface implementation for nsHTMLAnchorElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLAnchorElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE3(nsHTMLAnchorElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLAnchorElement,
                                    nsIDOMHTMLAnchorElement,
+                                   nsIDOMNSHTMLAnchorElement,
+                                   nsIDOMNSHTMLAnchorElement2,
                                    nsILink,
                                    Link)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLAnchorElement,
@@ -356,14 +367,36 @@ IMPL_URI_PART(Hash)
 NS_IMETHODIMP    
 nsHTMLAnchorElement::GetText(nsAString& aText)
 {
-  nsContentUtils::GetNodeTextContent(this, PR_TRUE, aText);
-  return NS_OK;
-}
+  aText.Truncate();
 
-NS_IMETHODIMP    
-nsHTMLAnchorElement::SetText(const nsAString& aText)
-{
-  return nsContentUtils::SetNodeTextContent(this, aText, PR_FALSE);
+  // Since this is a Netscape 4 proprietary attribute, we have to implement
+  // the same behavior. Basically it is returning the last text node of
+  // of the anchor. Returns an empty string if there is no text node.
+  // The nsIContentIterator does exactly what we want, if we start the 
+  // iteration from the end.
+  nsCOMPtr<nsIContentIterator> iter;
+  nsresult rv = NS_NewPreContentIterator(getter_AddRefs(iter));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Initialize the content iterator with the children of the anchor
+  iter->Init(this);
+
+  // Last() positions the iterator to the last child of the anchor,
+  // starting at the deepest level of children, just like NS4 does.
+  iter->Last();
+
+  while (!iter->IsDone()) {
+    nsCOMPtr<nsIDOMText> textNode(do_QueryInterface(iter->GetCurrentNode()));
+    if(textNode) {
+      // The current node is a text node. Get its value and break the loop.
+      textNode->GetData(aText);
+      break;
+    }
+
+    iter->Prev();
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP

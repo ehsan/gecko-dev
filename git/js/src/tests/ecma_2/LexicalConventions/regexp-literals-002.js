@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regexp-literals-002.js';
 
 /**
  *  File Name:          LexicalConventions/regexp-literals-002.js

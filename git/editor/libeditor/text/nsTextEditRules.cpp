@@ -221,12 +221,6 @@ nsTextEditRules::BeforeEdit(PRInt32 action, nsIEditor::EDirection aDirection)
   
   nsAutoLockRulesSniffing lockIt(this);
   mDidExplicitlySetInterline = PR_FALSE;
-  if (!mActionNesting)
-  {
-    // let rules remember the top level action
-    mTheAction = action;
-  }
-  mActionNesting++;
   
   // get the selection and cache the position before editing
   nsCOMPtr<nsISelection> selection;
@@ -236,6 +230,12 @@ nsTextEditRules::BeforeEdit(PRInt32 action, nsIEditor::EDirection aDirection)
   selection->GetAnchorNode(getter_AddRefs(mCachedSelectionNode));
   selection->GetAnchorOffset(&mCachedSelectionOffset);
 
+  if (!mActionNesting)
+  {
+    // let rules remember the top level action
+    mTheAction = action;
+  }
+  mActionNesting++;
   return NS_OK;
 }
 
@@ -1006,8 +1006,7 @@ nsTextEditRules::WillDeleteSelection(nsISelection *aSelection,
     res = aSelection->GetIsCollapsed(&bCollapsed);
     NS_ENSURE_SUCCESS(res, res);
   
-    if (!bCollapsed)
-      return NS_OK;
+    NS_ENSURE_TRUE(bCollapsed, NS_OK);
 
     // Test for distance between caret and text that will be deleted
     res = CheckBidiLevelForDeletion(aSelection, startNode, startOffset, aCollapsedAction, aCancel);

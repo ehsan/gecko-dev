@@ -74,7 +74,6 @@
 #include "nsQuickSort.h"
 #include "nsNetUtil.h"
 #include "nsIOService.h"
-#include "nsAsyncRedirectVerifyHelper.h"
 
 #include "nsIXULAppInfo.h"
 
@@ -121,9 +120,6 @@ static NS_DEFINE_CID(kSocketProviderServiceCID, NS_SOCKETPROVIDERSERVICE_CID);
 #define UA_PREF_PREFIX          "general.useragent."
 #define UA_APPNAME              "Mozilla"
 #define UA_APPVERSION           "5.0"
-#ifdef XP_WIN
-#define UA_SPARE_PLATFORM
-#endif
 
 #define HTTP_PREF_PREFIX        "network.http."
 #define INTL_ACCEPT_LANGUAGES   "intl.accept_languages"
@@ -534,14 +530,22 @@ nsHttpHandler::NotifyObservers(nsIHttpChannel *chan, const char *event)
 }
 
 nsresult
-nsHttpHandler::AsyncOnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
+nsHttpHandler::OnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
                                  PRUint32 flags)
 {
-    // TODO E10S This helper has to be initialized on the other process
-    nsRefPtr<nsAsyncRedirectVerifyHelper> redirectCallbackHelper =
-        new nsAsyncRedirectVerifyHelper();
+    // First, the global observer
+    NS_ASSERTION(gIOService, "Must have an IO service at this point");
+    nsresult rv = gIOService->OnChannelRedirect(oldChan, newChan, flags);
+    if (NS_FAILED(rv))
+        return rv;
 
-    return redirectCallbackHelper->Init(oldChan, newChan, flags);
+    // Now, the per-channel observers
+    nsCOMPtr<nsIChannelEventSink> sink;
+    NS_QueryNotificationCallbacks(oldChan, sink);
+    if (sink)
+        rv = sink->OnChannelRedirect(oldChan, newChan, flags);
+
+    return rv;
 }
 
 /* static */ nsresult
@@ -605,9 +609,7 @@ nsHttpHandler::BuildUserAgent()
     // than if we didn't preallocate at all.
     mUserAgent.SetCapacity(mAppName.Length() + 
                            mAppVersion.Length() + 
-#ifndef UA_SPARE_PLATFORM
                            mPlatform.Length() + 
-#endif
                            mOscpu.Length() +
                            mMisc.Length() +
                            mProduct.Length() +
@@ -627,10 +629,8 @@ nsHttpHandler::BuildUserAgent()
 
     // Application comment
     mUserAgent += '(';
-#ifndef UA_SPARE_PLATFORM
     mUserAgent += mPlatform;
     mUserAgent.AppendLiteral("; ");
-#endif
     mUserAgent += mOscpu;
     if (!mMisc.IsEmpty()) {
         mUserAgent.AppendLiteral("; ");

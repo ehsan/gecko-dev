@@ -156,9 +156,6 @@ pref("media.enforce_same_site_origin", false);
 // Media cache size in kilobytes
 pref("media.cache_size", 512000);
 
-#ifdef MOZ_RAW
-pref("media.raw.enabled", true);
-#endif
 #ifdef MOZ_OGG
 pref("media.ogg.enabled", true);
 #endif
@@ -3128,7 +3125,7 @@ pref("image.mem.min_discard_timeout_ms", 10000);
 
 // WebGL prefs
 pref("webgl.enabled_for_all_sites", false);
-pref("webgl.shader_validator", true);
+pref("webgl.shader_validator", false);
 pref("webgl.software_render", false);
 pref("webgl.osmesalib", "");
 

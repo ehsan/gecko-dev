@@ -59,6 +59,7 @@
 #include "nsIMenuFrame.h"
 #include "prlink.h"
 #include "nsIDOMHTMLInputElement.h"
+#include "nsIDOMNSHTMLInputElement.h"
 #include "nsWidgetAtoms.h"
 #include "mozilla/Services.h"
 
@@ -246,13 +247,8 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
           }
         }
       } else if (aWidgetType == NS_THEME_TOOLBAR_BUTTON_DROPDOWN ||
-                 aWidgetType == NS_THEME_TREEVIEW_HEADER_SORTARROW ||
-                 aWidgetType == NS_THEME_BUTTON_ARROW_PREVIOUS ||
-                 aWidgetType == NS_THEME_BUTTON_ARROW_NEXT ||
-                 aWidgetType == NS_THEME_BUTTON_ARROW_UP ||
-                 aWidgetType == NS_THEME_BUTTON_ARROW_DOWN) {
-        // The state of an arrow comes from its parent.
-        stateFrame = aFrame = aFrame->GetParent();
+                 aWidgetType == NS_THEME_TREEVIEW_HEADER_SORTARROW) {
+        stateFrame = aFrame->GetParent();
       }
 
       PRInt32 eventState = GetContentState(stateFrame, aWidgetType);
@@ -366,6 +362,9 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
             aWidgetType == NS_THEME_TOOLBAR_BUTTON_DROPDOWN ||
             aWidgetType == NS_THEME_DROPDOWN ||
             aWidgetType == NS_THEME_DROPDOWN_BUTTON) {
+          if (aWidgetType == NS_THEME_TOOLBAR_BUTTON_DROPDOWN)
+            aFrame = aFrame->GetParent();
+
           PRBool menuOpen = IsOpenButton(aFrame);
           aState->depressed = IsCheckedButton(aFrame) || menuOpen;
           // we must not highlight buttons with open drop down menus on hover.
@@ -522,21 +521,7 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
     aGtkWidgetType = MOZ_GTK_DROPDOWN_ARROW;
     break;
   case NS_THEME_TOOLBAR_BUTTON_DROPDOWN:
-  case NS_THEME_BUTTON_ARROW_DOWN:
-  case NS_THEME_BUTTON_ARROW_UP:
-  case NS_THEME_BUTTON_ARROW_NEXT:
-  case NS_THEME_BUTTON_ARROW_PREVIOUS:
     aGtkWidgetType = MOZ_GTK_TOOLBARBUTTON_ARROW;
-    if (aWidgetFlags) {
-      *aWidgetFlags = GTK_ARROW_DOWN;
-
-      if (aWidgetType == NS_THEME_BUTTON_ARROW_UP)
-        *aWidgetFlags = GTK_ARROW_UP;
-      else if (aWidgetType == NS_THEME_BUTTON_ARROW_NEXT)
-        *aWidgetFlags = GTK_ARROW_RIGHT;
-      else if (aWidgetType == NS_THEME_BUTTON_ARROW_PREVIOUS)
-        *aWidgetFlags = GTK_ARROW_LEFT;
-    }
     break;
   case NS_THEME_CHECKBOX_CONTAINER:
     aGtkWidgetType = MOZ_GTK_CHECKBUTTON_CONTAINER;
@@ -670,12 +655,6 @@ ThemeRenderer::DrawWithGDK(GdkDrawable * drawable, gint offsetX,
   GdkRectangle gdk_clip = mGDKClip;
   gdk_clip.x += offsetX;
   gdk_clip.y += offsetY;
-
-  GdkRectangle surfaceRect;
-  surfaceRect.x = 0;
-  surfaceRect.y = 0;
-  gdk_drawable_get_size(drawable, &surfaceRect.width, &surfaceRect.height);
-  gdk_rectangle_intersect(&gdk_clip, &surfaceRect, &gdk_clip);
   
   NS_ASSERTION(numClipRects == 0, "We don't support clipping!!!");
   moz_gtk_widget_paint(mGTKWidgetType, drawable, &gdk_rect, &gdk_clip,
@@ -939,11 +918,6 @@ nsNativeThemeGTK::GetWidgetPadding(nsIDeviceContext* aContext,
     case NS_THEME_TAB_SCROLLARROW_BACK:
     case NS_THEME_TAB_SCROLLARROW_FORWARD:
     case NS_THEME_DROPDOWN_BUTTON:
-    case NS_THEME_TOOLBAR_BUTTON_DROPDOWN:
-    case NS_THEME_BUTTON_ARROW_UP:
-    case NS_THEME_BUTTON_ARROW_DOWN:
-    case NS_THEME_BUTTON_ARROW_NEXT:
-    case NS_THEME_BUTTON_ARROW_PREVIOUS:
     // Radios and checkboxes return a fixed size in GetMinimumWidgetSize
     // and have a meaningful baseline, so they can't have
     // author-specified padding.
@@ -1115,12 +1089,8 @@ nsNativeThemeGTK::GetMinimumWidgetSize(nsIRenderingContext* aContext,
     }
     break;
   case NS_THEME_TOOLBAR_BUTTON_DROPDOWN:
-  case NS_THEME_BUTTON_ARROW_UP:
-  case NS_THEME_BUTTON_ARROW_DOWN:
-  case NS_THEME_BUTTON_ARROW_NEXT:
-  case NS_THEME_BUTTON_ARROW_PREVIOUS:
     {
-        moz_gtk_get_arrow_size(&aResult->width, &aResult->height);
+        moz_gtk_get_downarrow_size(&aResult->width, &aResult->height);
         *aIsOverridable = PR_FALSE;
     }
     break;
@@ -1275,10 +1245,6 @@ nsNativeThemeGTK::ThemeSupportsWidget(nsPresContext* aPresContext,
   case NS_THEME_TOOLBAR_BUTTON:
   case NS_THEME_TOOLBAR_DUAL_BUTTON: // so we can override the border with 0
   case NS_THEME_TOOLBAR_BUTTON_DROPDOWN:
-  case NS_THEME_BUTTON_ARROW_UP:
-  case NS_THEME_BUTTON_ARROW_DOWN:
-  case NS_THEME_BUTTON_ARROW_NEXT:
-  case NS_THEME_BUTTON_ARROW_PREVIOUS:
   case NS_THEME_TOOLBAR_SEPARATOR:
   case NS_THEME_TOOLBAR_GRIPPER:
   case NS_THEME_STATUSBAR:
@@ -1367,11 +1333,7 @@ nsNativeThemeGTK::WidgetIsContainer(PRUint8 aWidgetType)
       aWidgetType == NS_THEME_RADIO ||
       aWidgetType == NS_THEME_CHECKBOX ||
       aWidgetType == NS_THEME_TAB_SCROLLARROW_BACK ||
-      aWidgetType == NS_THEME_TAB_SCROLLARROW_FORWARD ||
-      aWidgetType == NS_THEME_BUTTON_ARROW_UP ||
-      aWidgetType == NS_THEME_BUTTON_ARROW_DOWN ||
-      aWidgetType == NS_THEME_BUTTON_ARROW_NEXT ||
-      aWidgetType == NS_THEME_BUTTON_ARROW_PREVIOUS)
+      aWidgetType == NS_THEME_TAB_SCROLLARROW_FORWARD)
     return PR_FALSE;
   return PR_TRUE;
 }
@@ -1407,8 +1369,6 @@ nsNativeThemeGTK::GetWidgetTransparency(nsIFrame* aFrame, PRUint8 aWidgetType)
   case NS_THEME_MENUPOPUP:
   case NS_THEME_WINDOW:
   case NS_THEME_DIALOG:
-  // Tooltips use gtk_paint_flat_box().
-  case NS_THEME_TOOLTIP:
     return eOpaque;
   }
 

@@ -82,12 +82,10 @@ BEGIN_TEST(testContexts_bug563735)
     JSContext *cx2 = JS_NewContext(rt, 8192);
     CHECK(cx2);
 
-    JSBool ok;
-    {
-        JSAutoRequest req(cx2);
-        jsval v = JSVAL_NULL;
-        ok = JS_SetProperty(cx2, global, "x", &v);
-    }
+    JS_TransferRequest(cx, cx2);
+    jsval v = JSVAL_NULL;
+    JSBool ok = JS_SetProperty(cx2, global, "x", &v);
+    JS_TransferRequest(cx2, cx);
     CHECK(ok);
 
     EXEC("(function () { for (var i = 0; i < 9; i++) ; })();");

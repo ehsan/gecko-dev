@@ -104,7 +104,7 @@ JetpackParent::SendMessage(const nsAString& aMessageName)
 
 NS_IMETHODIMP
 JetpackParent::RegisterReceiver(const nsAString& aMessageName,
-                                const jsval &aReceiver)
+                                jsval aReceiver)
 {
   return JetpackActorCommon::RegisterReceiver(mContext,
                                               nsString(aMessageName),
@@ -113,7 +113,7 @@ JetpackParent::RegisterReceiver(const nsAString& aMessageName,
 
 NS_IMETHODIMP
 JetpackParent::UnregisterReceiver(const nsAString& aMessageName,
-                                  const jsval &aReceiver)
+                                  jsval aReceiver)
 {
   JetpackActorCommon::UnregisterReceiver(nsString(aMessageName),
                                          aReceiver);
@@ -166,9 +166,9 @@ JetpackParent::RecvSendMessage(const nsString& messageName,
 }
 
 bool
-JetpackParent::AnswerCallMessage(const nsString& messageName,
-                                 const nsTArray<Variant>& data,
-                                 nsTArray<Variant>* results)
+JetpackParent::RecvCallMessage(const nsString& messageName,
+                               const nsTArray<Variant>& data,
+                               nsTArray<Variant>* results)
 {
   AutoCXPusher cxp(mContext);
   JSAutoRequest request(mContext);

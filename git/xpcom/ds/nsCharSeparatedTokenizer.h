@@ -58,9 +58,9 @@
  * "foo,bar,baz," ->       "foo" "bar" "baz"
  *
  * The function used for whitespace detection is a template argument.
- * By default, it is NS_IsAsciiWhitespace.
+ * By default, it is nsCRT::IsAsciiSpace.
  */
-template<PRBool IsWhitespace(PRUnichar) = NS_IsAsciiWhitespace>
+template<PRBool IsWhitespace(PRUnichar) = nsCRT::IsAsciiSpace>
 class nsCharSeparatedTokenizerTemplate
 {
 public:

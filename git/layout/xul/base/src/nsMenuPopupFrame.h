@@ -183,12 +183,11 @@ public:
 
   // returns true if the popup is a panel with the noautohide attribute set to
   // true. These panels do not roll up automatically.
-  PRBool IsNoAutoHide() const;
+  PRBool IsNoAutoHide();
 
-  nsPopupLevel PopupLevel() const
-  {
-    return PopupLevel(IsNoAutoHide()); 
-  }
+  // returns true if the popup is a top-most window. Otherwise, the
+  // panel appears in front of the parent window.
+  PRBool IsTopMost();
 
   void EnsureWidget();
 
@@ -293,12 +292,12 @@ public:
 
   nsIScrollableFrame* GetScrollFrame(nsIFrame* aStart);
 
-  // For a popup that should appear anchored at the given rect, determine
+  // For a popup that should appear at the given anchor point, determine
   // the screen area that it is constrained by. This will be the available
   // area of the screen the popup should be displayed on. Content popups,
   // however, will also be constrained by the content area, given by
   // aRootScreenRect. All coordinates are in app units.
-  nsRect GetConstraintRect(const nsRect& aAnchorRect, const nsRect& aRootScreenRect);
+  nsRect GetConstraintRect(nsPoint aAnchorPoint, nsRect& aRootScreenRect);
 
   // Determines whether the given edges of the popup may be moved, where
   // aHorizontalSide and aVerticalSide are one of the NS_SIDE_* constants, or
@@ -312,16 +311,7 @@ public:
   // can be taken into account.
   void CanAdjustEdges(PRInt8 aHorizontalSide, PRInt8 aVerticalSide, nsIntPoint& aChange);
 
-  // Return true if the popup is positioned relative to an anchor.
-  PRBool IsAnchored() const { return mScreenXPos == -1 && mScreenYPos == -1; }
-
-  // Return the screen coordinates of the popup, or (-1, -1) if anchored.
-  nsIntPoint ScreenPosition() const { return nsIntPoint(mScreenXPos, mScreenYPos); }
-
 protected:
-
-  // returns the popup's level.
-  nsPopupLevel PopupLevel(PRBool aIsNoAutoHide) const;
 
   // redefine to tell the box system not to move the views.
   virtual void GetLayoutFlags(PRUint32& aFlags);
@@ -404,7 +394,7 @@ protected:
   PRPackedBool mHFlip;
   PRPackedBool mVFlip;
 
-  static PRInt8 sDefaultLevelIsTop;
+  static PRInt8 sDefaultLevelParent;
 }; // class nsMenuPopupFrame
 
 #endif

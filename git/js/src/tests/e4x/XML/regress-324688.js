@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-324688.js';
 
 var summary = 'No Syntax Error when trailing space and XML.ignoreWhitespace ' +
     'true';

@@ -116,7 +116,7 @@ public:
 
 #ifdef BUILD_CTYPES
   static JSBool
-  CTypesLazyGetter(JSContext* aCx, JSObject* aObj, jsid aId, jsval* aVp);
+  CTypesLazyGetter(JSContext* aCx, JSObject* aObj, jsval aId, jsval* aVp);
 #endif
 
 private:
@@ -434,14 +434,14 @@ nsDOMWorkerFunctions::MakeNewWorker(JSContext* aCx,
 JSBool
 nsDOMWorkerFunctions::CTypesLazyGetter(JSContext* aCx,
                                        JSObject* aObj,
-                                       jsid aId,
+                                       jsval aId,
                                        jsval* aVp)
 {
 #ifdef DEBUG
   {
     NS_ASSERTION(JS_GetGlobalForObject(aCx, aObj) == aObj, "Bad object!");
-    NS_ASSERTION(JSID_IS_STRING(aId), "Not a string!");
-    JSString* str = JSID_TO_STRING(aId);
+    NS_ASSERTION(JSVAL_IS_STRING(aId), "Not a string!");
+    JSString* str = JSVAL_TO_STRING(aId);
     NS_ASSERTION(nsDependentJSString(str).EqualsLiteral("ctypes"), "Bad id!");
   }
 #endif
@@ -453,9 +453,11 @@ nsDOMWorkerFunctions::CTypesLazyGetter(JSContext* aCx,
     return JS_FALSE;
   }
 
-  return JS_DeletePropertyById(aCx, aObj, aId) &&
+  js::AutoIdRooter rooter(aCx);
+  return JS_ValueToId(aCx, aId, rooter.addr()) &&
+         JS_DeletePropertyById(aCx, aObj, rooter.id()) &&
          JS_InitCTypesClass(aCx, aObj) &&
-         JS_GetPropertyById(aCx, aObj, aId, aVp);
+         JS_GetPropertyById(aCx, aObj, rooter.id(), aVp);
 }
 #endif
 
@@ -584,7 +586,7 @@ NS_IMETHODIMP
 nsDOMWorkerScope::AddProperty(nsIXPConnectWrappedNative* aWrapper,
                               JSContext* aCx,
                               JSObject* aObj,
-                              jsid aId,
+                              jsval aId,
                               jsval* aVp,
                               PRBool* _retval)
 {
@@ -596,14 +598,14 @@ nsDOMWorkerScope::AddProperty(nsIXPConnectWrappedNative* aWrapper,
   // someone making an 'onmessage' or 'onerror' function so aId must be a
   // string and aVp must be a function.
   JSObject* funObj;
-  if (!(JSID_IS_STRING(aId) &&
+  if (!(JSVAL_IS_STRING(aId) &&
         JSVAL_IS_OBJECT(*aVp) &&
         (funObj = JSVAL_TO_OBJECT(*aVp)) &&
         JS_ObjectIsFunction(aCx, funObj))) {
     return NS_OK;
   }
 
-  const char* name = JS_GetStringBytes(JSID_TO_STRING(aId));
+  const char* name = JS_GetStringBytes(JSVAL_TO_STRING(aId));
 
   // Figure out which listener we're setting.
   SetListenerFunc func;
@@ -1611,14 +1613,10 @@ nsDOMWorker::CompileGlobalObject(JSContext* aCx)
   const PRUint32 flags = nsIXPConnect::INIT_JS_STANDARD_CLASSES |
                          nsIXPConnect::OMIT_COMPONENTS_OBJECT;
 
-  nsCAutoString origin("DOM worker: ");
-  origin.AppendInt((PRUint64)this);
-
   nsCOMPtr<nsIXPConnectJSObjectHolder> globalWrapper;
   nsresult rv =
     xpc->InitClassesWithNewWrappedGlobal(aCx, scopeSupports,
-                                         NS_GET_IID(nsISupports), nsnull,
-                                         origin, flags,
+                                         NS_GET_IID(nsISupports), flags,
                                          getter_AddRefs(globalWrapper));
   NS_ENSURE_SUCCESS(rv, PR_FALSE);
 

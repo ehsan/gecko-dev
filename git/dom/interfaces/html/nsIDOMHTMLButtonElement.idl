@@ -47,22 +47,17 @@
  * http://www.w3.org/TR/DOM-Level-2-HTML/
  */
 
-[scriptable, uuid(dfed25e8-07e8-41a9-8f9e-9fbf59c539ea)]
+[scriptable, uuid(a6cf9095-15b3-11d2-932e-00805f8add32)]
 interface nsIDOMHTMLButtonElement : nsIDOMHTMLElement
 {
-           attribute boolean               autofocus;
-           attribute boolean               disabled;
   readonly attribute nsIDOMHTMLFormElement form;
-
-           attribute DOMString             name;
-           attribute DOMString             type;
-           attribute DOMString             value;
-
-           
            attribute DOMString             accessKey;
+           attribute boolean               disabled;
+           attribute DOMString             name;
            attribute long                  tabIndex;
-  void                      blur();
-  void                      focus();
-  void                      click();
+  // The scriptable version of type is writable and lives on
+  // nsIDOMNSHTMLButtonElement (have to do it this way because this
+  // interface is frozen and we don't want to break binary compat).
+  [noscript] readonly attribute DOMString  type;
+           attribute DOMString             value;
 };
-

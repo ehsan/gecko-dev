@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-452565.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 452565;
 var summary = 'Do not assert with JIT: !(sprop->attrs & JSPROP_READONLY)';

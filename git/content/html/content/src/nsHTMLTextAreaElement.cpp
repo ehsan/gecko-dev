@@ -92,8 +92,7 @@ class nsHTMLTextAreaElement : public nsGenericHTMLFormElement,
                               public nsStubMutationObserver
 {
 public:
-  nsHTMLTextAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                        PRUint32 aFromParser = 0);
+  nsHTMLTextAreaElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser = 0);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -195,7 +194,6 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHTMLTextAreaElement,
                                            nsGenericHTMLFormElement)
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   using nsGenericHTMLFormElement::IsSingleLineTextControl; // get rid of the compiler warning
 
@@ -248,7 +246,7 @@ protected:
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(TextArea)
 
 
-nsHTMLTextAreaElement::nsHTMLTextAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+nsHTMLTextAreaElement::nsHTMLTextAreaElement(nsINodeInfo *aNodeInfo,
                                              PRUint32 aFromParser)
   : nsGenericHTMLFormElement(aNodeInfo),
     mValueChanged(PR_FALSE),
@@ -277,7 +275,7 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLTextAreaElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLTextAreaElement, nsGenericElement) 
 
 
-DOMCI_NODE_DATA(HTMLTextAreaElement, nsHTMLTextAreaElement)
+DOMCI_DATA(HTMLTextAreaElement, nsHTMLTextAreaElement)
 
 // QueryInterface implementation for nsHTMLTextAreaElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLTextAreaElement)
@@ -451,9 +449,7 @@ nsHTMLTextAreaElement::BindToFrame(nsTextControlFrame* aFrame)
 NS_IMETHODIMP_(void)
 nsHTMLTextAreaElement::UnbindFromFrame(nsTextControlFrame* aFrame)
 {
-  if (aFrame) {
-    mState->UnbindFromFrame(aFrame);
-  }
+  mState->UnbindFromFrame(aFrame);
 }
 
 NS_IMETHODIMP

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-404734.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 404734;
 var summary = 'Object destructuring shorthand';

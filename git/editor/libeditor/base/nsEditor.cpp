@@ -43,8 +43,6 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMNSHTMLElement.h"
-#include "nsIDOMEventTarget.h"
-#include "nsIDOMNSEvent.h"
 #include "nsPIDOMEventTarget.h"
 #include "nsIMEStateManager.h"
 #include "nsFocusManager.h"
@@ -861,12 +859,11 @@ nsEditor::BeginPlaceHolderTransaction(nsIAtom *aName)
     mPlaceHolderName = aName;
     nsCOMPtr<nsISelection> selection;
     nsresult res = GetSelection(getter_AddRefs(selection));
-    if (NS_SUCCEEDED(res)) {
-      mSelState = new nsSelectionState();
-      if (mSelState) {
-        mSelState->SaveSelection(selection);
-      }
-    }
+    NS_ENSURE_SUCCESS(res, res);
+    mSelState = new nsSelectionState();
+    NS_ENSURE_TRUE(mSelState, NS_ERROR_OUT_OF_MEMORY);
+
+    mSelState->SaveSelection(selection);
   }
   mPlaceHolderBatch++;
 
@@ -4882,7 +4879,10 @@ nsEditor::CreateHTMLContent(const nsAString& aTag, nsIContent** aContent)
     return NS_ERROR_FAILURE;
   }
 
-  return doc->CreateElem(aTag, nsnull, kNameSpaceID_XHTML, PR_FALSE, aContent);
+  nsCOMPtr<nsIAtom> tag = do_GetAtom(aTag);
+  NS_ENSURE_TRUE(tag, NS_ERROR_OUT_OF_MEMORY);
+
+  return doc->CreateElem(tag, nsnull, kNameSpaceID_XHTML, PR_FALSE, aContent);
 }
 
 nsresult
@@ -5165,42 +5165,4 @@ nsEditor::HasFocus()
 
   nsCOMPtr<nsIContent> content = fm->GetFocusedContent();
   return SameCOMIdentity(content, piTarget);
-}
-
-PRBool
-nsEditor::IsActiveInDOMWindow()
-{
-  nsCOMPtr<nsPIDOMEventTarget> piTarget = GetPIDOMEventTarget();
-  if (!piTarget) {
-    return PR_FALSE;
-  }
-
-  nsFocusManager* fm = nsFocusManager::GetFocusManager();
-  NS_ENSURE_TRUE(fm, PR_FALSE);
-
-  nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
-  nsPIDOMWindow* ourWindow = doc->GetWindow();
-  nsCOMPtr<nsPIDOMWindow> win;
-  nsIContent* content =
-    nsFocusManager::GetFocusedDescendant(ourWindow, PR_FALSE,
-                                         getter_AddRefs(win));
-  return SameCOMIdentity(content, piTarget);
-}
-
-PRBool
-nsEditor::IsAcceptableInputEvent(nsIDOMEvent* aEvent)
-{
-  // If the event is trusted, the event should always cause input.
-  nsCOMPtr<nsIDOMNSEvent> NSEvent = do_QueryInterface(aEvent);
-  NS_ENSURE_TRUE(NSEvent, PR_FALSE);
-
-  PRBool isTrusted;
-  nsresult rv = NSEvent->GetIsTrusted(&isTrusted);
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
-  if (isTrusted) {
-    return PR_TRUE;
-  }
-  // Otherwise, we shouldn't handle any input events when we're not an active
-  // element of the DOM window.
-  return IsActiveInDOMWindow();
 }

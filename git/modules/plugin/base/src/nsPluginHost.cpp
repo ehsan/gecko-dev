@@ -857,6 +857,17 @@ NS_IMETHODIMP nsPluginHost::Destroy()
   return NS_OK;
 }
 
+void nsPluginHost::UnloadUnusedLibraries()
+{
+  // unload any remaining plugin libraries from memory
+  for (PRUint32 i = 0; i < mUnusedLibraries.Length(); i++) {
+    PRLibrary * library = mUnusedLibraries[i];
+    if (library)
+      PostPluginUnloadEvent(library);
+  }
+  mUnusedLibraries.Clear();
+}
+
 void nsPluginHost::OnPluginInstanceDestroyed(nsPluginTag* aPluginTag)
 {
   PRBool hasInstance = PR_FALSE;
@@ -1001,11 +1012,13 @@ NS_IMETHODIMP nsPluginHost::InstantiateEmbeddedPlugin(const char *aMimeType,
       return NS_ERROR_CONTENT_BLOCKED_SHOW_ALT;
   }
 
-  PRBool isJava = PR_FALSE;
-  nsPluginTag* pluginTag = FindPluginForType(aMimeType, PR_TRUE);
+  nsPluginTag* pluginTag = FindPluginForType(aMimeType, PR_FALSE);
   if (pluginTag) {
-    isJava = pluginTag->mIsJavaPlugin;
+    if (!pluginTag->IsEnabled())
+      return NS_ERROR_NOT_AVAILABLE;
   }
+
+  PRBool isJava = pluginTag && pluginTag->mIsJavaPlugin;
 
   // Determine if the scheme of this URL is one we can handle internaly because we should
   // only open the initial stream if it's one that we can handle internally. Otherwise
@@ -1022,6 +1035,7 @@ NS_IMETHODIMP nsPluginHost::InstantiateEmbeddedPlugin(const char *aMimeType,
   }
 
   if (FindStoppedPluginForURL(aURL, aOwner) == NS_OK) {
+
     PLUGIN_LOG(PLUGIN_LOG_NOISY,
     ("nsPluginHost::InstantiateEmbeddedPlugin FoundStopped mime=%s\n", aMimeType));
 
@@ -1030,6 +1044,12 @@ NS_IMETHODIMP nsPluginHost::InstantiateEmbeddedPlugin(const char *aMimeType,
     nsNPAPIPluginInstance *instance = static_cast<nsNPAPIPluginInstance*>(instanceCOMPtr.get());
     if (!isJava && bCanHandleInternally)
       rv = NewEmbeddedPluginStream(aURL, aOwner, instance);
+
+    // notify Java DOM component
+    nsresult res;
+    nsCOMPtr<nsIPluginInstanceOwner> javaDOM = do_GetService("@mozilla.org/blackwood/java-dom;1", &res);
+    if (NS_SUCCEEDED(res) && javaDOM)
+      javaDOM->SetInstance(instance);
 
     return NS_OK;
   }
@@ -1081,6 +1101,13 @@ NS_IMETHODIMP nsPluginHost::InstantiateEmbeddedPlugin(const char *aMimeType,
 
     if (havedata && !isJava && bCanHandleInternally)
       rv = NewEmbeddedPluginStream(aURL, aOwner, instance);
+
+    // notify Java DOM component
+    nsresult res;
+    nsCOMPtr<nsIPluginInstanceOwner> javaDOM =
+             do_GetService("@mozilla.org/blackwood/java-dom;1", &res);
+    if (NS_SUCCEEDED(res) && javaDOM)
+      javaDOM->SetInstance(instance);
   }
 
 #ifdef PLUGIN_LOGGING
@@ -1622,10 +1649,10 @@ nsPluginHost::FindPluginForType(const char* aMimeType,
 
   // if we have a mimetype passed in, search the mPlugins
   // linked list for a match
-  if (aMimeType) {
+  if (nsnull != aMimeType) {
     plugins = mPlugins;
 
-    while (plugins) {
+    while (nsnull != plugins) {
       variants = plugins->mVariants;
       for (cnt = 0; cnt < variants; cnt++) {
         if ((!aCheckEnabled || plugins->IsEnabled()) &&
@@ -1634,6 +1661,7 @@ nsPluginHost::FindPluginForType(const char* aMimeType,
           return plugins;
         }
       }
+
       plugins = plugins->mNext;
     }
   }
@@ -1776,6 +1804,10 @@ NS_IMETHODIMP nsPluginHost::GetPlugin(const char *aMimeType, nsIPlugin** aPlugin
 
       if (pluginFile.LoadPlugin(pluginLibrary) != NS_OK || pluginLibrary == NULL)
         return NS_ERROR_FAILURE;
+
+      // remove from unused lib list, if it is there
+      if (mUnusedLibraries.Contains(pluginLibrary))
+        mUnusedLibraries.RemoveElement(pluginLibrary);
 
       pluginTag->mLibrary = pluginLibrary;
     }
@@ -3150,6 +3182,7 @@ NS_IMETHODIMP nsPluginHost::Observe(nsISupports *aSubject,
   if (!nsCRT::strcmp(NS_XPCOM_SHUTDOWN_OBSERVER_ID, aTopic)) {
     OnShutdown();
     Destroy();
+    UnloadUnusedLibraries();
     sInst->Release();
   }
   if (!nsCRT::strcmp(NS_PRIVATE_BROWSING_SWITCH_TOPIC, aTopic)) {
@@ -3573,6 +3606,14 @@ nsPluginHost::GetPluginTagForInstance(nsIPluginInstance *aPluginInstance,
   *aPluginTag = TagForPlugin(plugin);
 
   NS_ADDREF(*aPluginTag);
+  return NS_OK;
+}
+
+nsresult nsPluginHost::AddUnusedLibrary(PRLibrary * aLibrary)
+{
+  if (!mUnusedLibraries.Contains(aLibrary)) // don't add duplicates
+    mUnusedLibraries.AppendElement(aLibrary);
+
   return NS_OK;
 }
 

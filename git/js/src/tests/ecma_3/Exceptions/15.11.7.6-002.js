@@ -44,6 +44,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = '15.11.7.6-002.js';
 var UBound = 0;
 var BUGNUMBER = 201989;
 var summary = 'Prototype of predefined error objects should be DontDelete';

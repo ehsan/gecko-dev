@@ -834,15 +834,10 @@ public:
   
   virtual nsresult AddXMLEventsContent(nsIContent * aXMLEventsElement);
 
-  virtual nsresult CreateElem(const nsAString& aName, nsIAtom *aPrefix,
+  virtual nsresult CreateElem(nsIAtom *aName, nsIAtom *aPrefix,
                               PRInt32 aNamespaceID,
                               PRBool aDocumentDefaultType,
                               nsIContent **aResult);
-
-  nsresult CreateElement(const nsAString& aTagName,
-                         nsIContent** aReturn);
-
-  nsresult CreateTextNode(const nsAString& aData, nsIContent** aReturn);
 
   virtual NS_HIDDEN_(nsresult) Sanitize();
 

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-374160.js';
 
 var BUGNUMBER = 374160;
 var summary = 'Do not assert with <a><b c="1"></b><b c="2"></b></a>..@c[0]=3';

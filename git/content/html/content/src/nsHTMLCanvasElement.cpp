@@ -57,13 +57,12 @@ using namespace mozilla;
 using namespace mozilla::layers;
 
 nsGenericHTMLElement*
-NS_NewHTMLCanvasElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                        PRUint32 aFromParser)
+NS_NewHTMLCanvasElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)
 {
   return new nsHTMLCanvasElement(aNodeInfo);
 }
 
-nsHTMLCanvasElement::nsHTMLCanvasElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLCanvasElement::nsHTMLCanvasElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo), mWriteOnly(PR_FALSE)
 {
 }
@@ -81,7 +80,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsHTMLCanvasElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLCanvasElement, nsGenericElement)
 
-DOMCI_NODE_DATA(HTMLCanvasElement, nsHTMLCanvasElement)
+DOMCI_DATA(HTMLCanvasElement, nsHTMLCanvasElement)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLCanvasElement)
   NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLCanvasElement,

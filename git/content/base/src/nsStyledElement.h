@@ -58,7 +58,7 @@ class nsStyledElement : public nsStyledElementBase
 
 protected:
 
-  inline nsStyledElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+  inline nsStyledElement(nsINodeInfo *aNodeInfo)
     : nsStyledElementBase(aNodeInfo)
   {}
 
@@ -81,8 +81,6 @@ public:
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              PRBool aNotify);
 
-  nsIDOMCSSStyleDeclaration* GetStyle(nsresult* retval);
-
 protected:
 
   /**
@@ -98,6 +96,8 @@ protected:
 
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
                                 const nsAString& aValue, nsAttrValue& aResult);
+
+  nsresult GetStyle(nsIDOMCSSStyleDeclaration** aStyle);
 
   /**
    * Create the style struct from the style attr.  Used when an element is

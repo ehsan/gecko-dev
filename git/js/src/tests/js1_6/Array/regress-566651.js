@@ -5,6 +5,7 @@
  * Contributor: Blake Kaplan
  */
 
+var gTestfile = 'regress-566651.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 566651;
 var summary = 'setting array.length to null should not throw an uncatchable exception';

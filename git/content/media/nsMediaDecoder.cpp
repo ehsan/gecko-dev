@@ -37,7 +37,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsMediaDecoder.h"
-#include "nsMediaStream.h"
 
 #include "prlog.h"
 #include "prmem.h"
@@ -73,7 +72,6 @@ nsMediaDecoder::nsMediaDecoder() :
   mDataTime(),
   mVideoUpdateLock(nsnull),
   mPixelAspectRatio(1.0),
-  mPinnedForSeek(PR_FALSE),
   mSizeChanged(PR_FALSE),
   mShuttingDown(PR_FALSE)
 {
@@ -232,43 +230,4 @@ void nsMediaDecoder::SetVideoData(const gfxIntSize& aSize,
   if (mImageContainer && aImage) {
     mImageContainer->SetCurrentImage(aImage);
   }
-}
-
-void nsMediaDecoder::PinForSeek()
-{
-  nsMediaStream* stream = GetCurrentStream();
-  if (!stream || mPinnedForSeek) {
-    return;
-  }
-  mPinnedForSeek = PR_TRUE;
-  stream->Pin();
-}
-
-void nsMediaDecoder::UnpinForSeek()
-{
-  nsMediaStream* stream = GetCurrentStream();
-  if (!stream || !mPinnedForSeek) {
-    return;
-  }
-  mPinnedForSeek = PR_FALSE;
-  stream->Unpin();
-}
-
-// Number of bytes to add to the download size when we're computing
-// when the download will finish --- a safety margin in case bandwidth
-// or other conditions are worse than expected
-static const PRInt32 gDownloadSizeSafetyMargin = 1000000;
-
-PRBool nsMediaDecoder::CanPlayThrough()
-{
-  Statistics stats = GetStatistics();
-  if (!stats.mDownloadRateReliable || !stats.mPlaybackRateReliable) {
-    return PR_FALSE;
-  }
-  PRInt64 bytesToDownload = stats.mTotalBytes - stats.mDownloadPosition;
-  PRInt64 bytesToPlayback = stats.mTotalBytes - stats.mPlaybackPosition;
-  double timeToDownload =
-    (bytesToDownload + gDownloadSizeSafetyMargin)/stats.mDownloadRate;
-  double timeToPlay = bytesToPlayback/stats.mPlaybackRate;
-  return timeToDownload <= timeToPlay;
 }

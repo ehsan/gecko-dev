@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-463334-02.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 463334;
 var summary = 'TM: Do not crash in isPromoteInt';

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'eval-002.js';
 
 /**
  *  File Name:   eval-002.js

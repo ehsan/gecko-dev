@@ -507,10 +507,9 @@ nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
   *aAppendContent = PR_TRUE;
   nsresult rv = NS_OK;
 
-  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
   nsCOMPtr<nsIContent> content;
   rv = NS_NewElement(getter_AddRefs(content), aNodeInfo->NamespaceID(),
-                     ni.forget(), aFromParser);
+                     aNodeInfo, aFromParser);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aNodeInfo->Equals(nsGkAtoms::script, kNameSpaceID_XHTML)

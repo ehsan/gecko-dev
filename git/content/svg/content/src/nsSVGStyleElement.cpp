@@ -52,8 +52,8 @@ class nsSVGStyleElement : public nsSVGStyleElementBase,
 {
 protected:
   friend nsresult NS_NewSVGStyleElement(nsIContent **aResult,
-                                        already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGStyleElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                        nsINodeInfo *aNodeInfo);
+  nsSVGStyleElement(nsINodeInfo *aNodeInfo);
   
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -89,7 +89,6 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   // Dummy init method to make the NS_IMPL_NS_NEW_SVG_ELEMENT and
   // NS_IMPL_ELEMENT_CLONE_WITH_INIT usable with this class. This should be
@@ -124,7 +123,7 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Style)
 NS_IMPL_ADDREF_INHERITED(nsSVGStyleElement,nsSVGStyleElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGStyleElement,nsSVGStyleElementBase)
 
-DOMCI_NODE_DATA(SVGStyleElement, nsSVGStyleElement)
+DOMCI_DATA(SVGStyleElement, nsSVGStyleElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGStyleElement)
   NS_NODE_INTERFACE_TABLE7(nsSVGStyleElement, nsIDOMNode, nsIDOMElement,
@@ -137,7 +136,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGStyleElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGStyleElement::nsSVGStyleElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGStyleElement::nsSVGStyleElement(nsINodeInfo *aNodeInfo)
   : nsSVGStyleElementBase(aNodeInfo)
 {
   AddMutationObserver(this);

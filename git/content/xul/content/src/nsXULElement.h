@@ -483,8 +483,6 @@ protected:
     static nsIXBLService*       gXBLService;
 
 public:
-    nsXULElement(already_AddRefed<nsINodeInfo> aNodeInfo);
-
     static nsresult
     Create(nsXULPrototypeElement* aPrototype, nsIDocument* aDocument,
            PRBool aIsScriptable, mozilla::dom::Element** aResult);
@@ -566,7 +564,7 @@ public:
     virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
     virtual PRInt32 IntrinsicState() const;
 
-    nsresult EnsureLocalStyle();
+    nsresult GetStyle(nsIDOMCSSStyleDeclaration** aStyle);
 
     nsresult GetFrameLoader(nsIFrameLoader** aFrameLoader);
     already_AddRefed<nsFrameLoader> GetFrameLoader();
@@ -589,7 +587,6 @@ public:
      */
     virtual nsAttrInfo GetAttrInfo(PRInt32 aNamespaceID, nsIAtom* aName) const;
 
-    virtual nsXPCClassInfo* GetClassInfo();
 protected:
     // XXX This can be removed when nsNodeUtils::CloneAndAdopt doesn't need
     //     access to mPrototype anymore.
@@ -597,6 +594,8 @@ protected:
 
     // This can be removed if EnsureContentsGenerated dies.
     friend class nsNSElementTearoff;
+
+    nsXULElement(nsINodeInfo* aNodeInfo);
 
     // Implementation methods
     nsresult EnsureContentsGenerated(void) const;

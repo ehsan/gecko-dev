@@ -153,7 +153,7 @@ XPCConvert::IsMethodReflectable(const XPTMethodDescriptor& info)
 JSBool
 XPCConvert::GetISupportsFromJSObject(JSObject* obj, nsISupports** iface)
 {
-    JSClass* jsclass = obj->getJSClass();
+    JSClass* jsclass = obj->getClass();
     NS_ASSERTION(jsclass, "obj has no class");
     if(jsclass &&
        (jsclass->flags & JSCLASS_HAS_PRIVATE) &&
@@ -202,9 +202,13 @@ XPCConvert::RemoveXPCOMUCStringFinalizer()
 }
 
 
-#define FIT_U32(i)     ((i) <= JSVAL_INT_MAX      \
-                        ? INT_TO_JSVAL(i)         \
-                        : DOUBLE_TO_JSVAL(i))
+#define FIT_32(cx,i,d)      (INT_FITS_IN_JSVAL(i) \
+                             ? *d = INT_TO_JSVAL(i), JS_TRUE    \
+                             : JS_NewDoubleValue(cx, i, d))
+
+#define FIT_U32(cx,i,d)     ((i) <= JSVAL_INT_MAX \
+                             ? *d = INT_TO_JSVAL(i), JS_TRUE    \
+                             : JS_NewDoubleValue(cx, i, d))
 
 /*
  * Support for 64 bit conversions where 'long long' not supported.
@@ -248,17 +252,19 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
 
     switch(type.TagPart())
     {
-    case nsXPTType::T_I8    : *d = INT_TO_JSVAL((int32)*((int8*)s));                 break;
-    case nsXPTType::T_I16   : *d = INT_TO_JSVAL((int32)*((int16*)s));                break;
-    case nsXPTType::T_I32   : *d = INT_TO_JSVAL(*((int32*)s));                       break;
-    case nsXPTType::T_I64   : *d = DOUBLE_TO_JSVAL(INT64_TO_DOUBLE(*((int64*)s)));   break;
-    case nsXPTType::T_U8    : *d = INT_TO_JSVAL((int32)*((uint8*)s));                break;
-    case nsXPTType::T_U16   : *d = INT_TO_JSVAL((int32)*((uint16*)s));               break;
-    case nsXPTType::T_U32   : *d = FIT_U32(*((uint32*)s));                           break;
-    case nsXPTType::T_U64   : *d = DOUBLE_TO_JSVAL(UINT64_TO_DOUBLE(*((uint64*)s))); break;
-    case nsXPTType::T_FLOAT : *d = DOUBLE_TO_JSVAL(*((float*)s));                    break;
-    case nsXPTType::T_DOUBLE: *d = DOUBLE_TO_JSVAL(*((double*)s));                   break;
-    case nsXPTType::T_BOOL  : *d = BOOLEAN_TO_JSVAL(*((PRBool*)s));                  break;
+    case nsXPTType::T_I8    : *d = INT_TO_JSVAL((int32)*((int8*)s));     break;
+    case nsXPTType::T_I16   : *d = INT_TO_JSVAL((int32)*((int16*)s));    break;
+    case nsXPTType::T_I32   : return FIT_32(cx,*((int32*)s),d);
+    case nsXPTType::T_I64   :
+        return JS_NewNumberValue(cx, INT64_TO_DOUBLE(*((int64*)s)), d);
+    case nsXPTType::T_U8    : *d = INT_TO_JSVAL((int32)*((uint8*)s));    break;
+    case nsXPTType::T_U16   : *d = INT_TO_JSVAL((int32)*((uint16*)s));   break;
+    case nsXPTType::T_U32   : return FIT_U32(cx,*((uint32*)s),d);
+    case nsXPTType::T_U64   :
+        return JS_NewNumberValue(cx, UINT64_TO_DOUBLE(*((uint64*)s)), d);
+    case nsXPTType::T_FLOAT : return JS_NewNumberValue(cx, *((float*)s), d);
+    case nsXPTType::T_DOUBLE: return JS_NewNumberValue(cx, *((double*)s), d);
+    case nsXPTType::T_BOOL  : *d = *((PRBool*)s)?JSVAL_TRUE:JSVAL_FALSE; break;
     case nsXPTType::T_CHAR  :
         {
             char* p = (char*)s;
@@ -288,8 +294,7 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
         }
 
     case nsXPTType::T_JSVAL :
-        JS_STATIC_ASSERT(sizeof(jsval) <= sizeof(uint64));
-        *d = **((jsval**)s);
+        *d = *((jsval*)s);
         break;
 
     default:
@@ -330,12 +335,9 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
                     break;
 
                 if(!p->IsVoid()) {
-                    nsStringBuffer* buf;
-                    jsval str = XPCStringConvert::ReadableToJSVal(cx, *p, &buf);
-                    if(JSVAL_IS_NULL(str))
+                    jsval str = XPCStringConvert::ReadableToJSVal(cx, *p);
+                    if(!str)
                         return JS_FALSE;
-                    if(buf)
-                        buf->AddRef();
 
                     *d = str;
                 }
@@ -600,8 +602,8 @@ XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
                 return JS_FALSE;
             }
 #ifdef DEBUG
-            const jschar* chars=nsnull;
-            if(nsnull!=(chars = JS_GetStringCharsZ(cx, str)))
+            jschar* chars=nsnull;
+            if(nsnull!=(chars = JS_GetStringChars(str)))
             {
                 NS_ASSERTION((! ILLEGAL_RANGE(chars[0])),"U+0080/U+0100 - U+FFFF data lost");
             }
@@ -611,32 +613,19 @@ XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
         }
     case nsXPTType::T_WCHAR  :
         {
-            const jschar* chars=nsnull;
+            jschar* chars=nsnull;
             JSString* str;
-            if(!(str = JS_ValueToString(cx, s)))
+            if(!(str = JS_ValueToString(cx, s))||
+               !(chars = JS_GetStringChars(str)))
             {
                 return JS_FALSE;
             }
-            if(JS_GetStringLength(str) == 0)
-            {
-                *((uint16*)d) = 0;
-                break;
-            }
-            chars = JS_GetStringChars(str);
-            *((uint16*)d) = (uint16) chars[0];
+            *((uint16*)d)  = (uint16) chars[0];
             break;
         }
     case nsXPTType::T_JSVAL :
-        {
-            NS_ASSERTION(useAllocator, "trying to convert a jsval to const jsval & without allocator : this would leak");
-
-            // The C++ type is (const jsval &), which here means (jsval *).
-            jsval *buf = new jsval(s);
-            if(!buf)
-                return JS_FALSE;
-            *((jsval**)d) = buf;
-            break;
-        }
+        *((jsval*)d) = s;
+        break;
     default:
         if(!type.IsPointer())
         {
@@ -831,7 +820,7 @@ XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
 
         case nsXPTType::T_WCHAR_STR:
         {
-            const jschar* chars=nsnull;
+            jschar* chars=nsnull;
             JSString* str;
 
             if(JSVAL_IS_VOID(s) || JSVAL_IS_NULL(s))
@@ -847,35 +836,23 @@ XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
                 return JS_TRUE;
             }
 
-            if(!(str = JS_ValueToString(cx, s)))
+            if(!(str = JS_ValueToString(cx, s))||
+               !(chars = JS_GetStringChars(str)))
             {
                 return JS_FALSE;
             }
             if(useAllocator)
             {
-                if(!(chars = JS_GetStringChars(str)))
-                {
-                    return JS_FALSE;
-                }
-                int len = JS_GetStringLength(str);
-                int byte_len = (len+1)*sizeof(jschar);
+                int byte_len = (JS_GetStringLength(str)+1)*sizeof(jschar);
                 if(!(*((void**)d) = nsMemory::Alloc(byte_len)))
                 {
                     // XXX should report error
                     return JS_FALSE;
                 }
-                jschar* destchars = *((jschar**)d);
-                memcpy(destchars, chars, byte_len);
-                destchars[len] = 0;
+                memcpy(*((void**)d), chars, byte_len);
             }
             else
-            {
-                if(!(chars = JS_GetStringCharsZ(cx, str)))
-                {
-                    return JS_FALSE;
-                }
-                *((const jschar**)d) = chars;
-            }
+                *((jschar**)d) = chars;
 
             return JS_TRUE;
         }
@@ -930,9 +907,8 @@ XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
             {
                 rs = *((nsCString**)d);
             }
-            const PRUnichar* start = (const PRUnichar*)chars;
-            const PRUnichar* end = start + length;
-            CopyUTF16toUTF8(nsDependentSubstring(start, end), *rs);
+            CopyUTF16toUTF8(nsDependentString((const PRUnichar*)chars, length),
+                            *rs);
             return JS_TRUE;
         }
 
@@ -1017,8 +993,7 @@ XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
                     return JS_FALSE;
                 }
                 PRUint32 length = JS_GetStringLength(str);
-                nsIAtom* atom = NS_NewAtom(nsDependentSubstring(chars,
-                                             chars + length));
+                nsIAtom* atom = NS_NewAtom(nsDependentString(chars, length));
                 if (!atom && pErr)
                     *pErr = NS_ERROR_OUT_OF_MEMORY;
                 *((nsISupports**)d) = atom;
@@ -1089,8 +1064,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
                                      JSObject* scope,
                                      PRBool allowNativeWrapper,
                                      PRBool isGlobal,
-                                     nsresult* pErr,
-                                     qsObjectHelper* aHelper)
+                                     nsresult* pErr)
 {
     NS_ASSERTION(scope, "bad param");
     NS_ASSERTION(!Interface || iid,
@@ -1184,7 +1158,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
                 return JS_FALSE;
 
             jsval slim;
-            if(ConstructSlimWrapper(ccx, src, aHelper, cache, xpcscope, &slim))
+            if(ConstructSlimWrapper(ccx, src, cache, xpcscope, &slim))
             {
                 *d = slim;
                 return JS_TRUE;
@@ -1628,7 +1602,7 @@ public:
 
     ~AutoExceptionRestorer()
     {
-        JS_SetPendingException(mContext, tvr.jsval_value());
+        JS_SetPendingException(mContext, tvr.value());
     }
 
 private:
@@ -1764,7 +1738,7 @@ XPCConvert::JSValToXPCException(XPCCallContext& ccx,
         }
         else
         {
-            number = JSVAL_TO_DOUBLE(s);
+            number = *(JSVAL_TO_DOUBLE(s));
             if(number > 0.0 &&
                number < (double)0xffffffff &&
                0.0 == fmod(number,1))
@@ -2287,7 +2261,7 @@ XPCConvert::JSStringWithSize2Native(XPCCallContext& ccx, void* d, jsval s,
                                     JSBool useAllocator,
                                     uintN* pErr)
 {
-    NS_PRECONDITION(!JSVAL_IS_NULL(s), "bad param");
+    NS_PRECONDITION(s, "bad param");
     NS_PRECONDITION(d, "bad param");
 
     JSContext* cx = ccx.GetJSContext();
@@ -2379,7 +2353,7 @@ XPCConvert::JSStringWithSize2Native(XPCCallContext& ccx, void* d, jsval s,
 
         case nsXPTType::T_PWSTRING_SIZE_IS:
         {
-            const jschar* chars=nsnull;
+            jschar* chars=nsnull;
             JSString* str;
 
             if(JSVAL_IS_VOID(s) || JSVAL_IS_NULL(s))
@@ -2406,11 +2380,12 @@ XPCConvert::JSStringWithSize2Native(XPCCallContext& ccx, void* d, jsval s,
                 }
 
                 // else ...
-                *((const jschar**)d) = nsnull;
+                *((jschar**)d) = nsnull;
                 return JS_TRUE;
             }
 
-            if(!(str = JS_ValueToString(cx, s)))
+            if(!(str = JS_ValueToString(cx, s))||
+               !(chars = JS_GetStringChars(str)))
             {
                 return JS_FALSE;
             }
@@ -2427,10 +2402,6 @@ XPCConvert::JSStringWithSize2Native(XPCCallContext& ccx, void* d, jsval s,
 
             if(useAllocator)
             {
-                if(!(chars = JS_GetStringChars(str)))
-                {
-                    return JS_FALSE;
-                }
                 JSUint32 alloc_len = (len + 1) * sizeof(jschar);
                 if(!(*((void**)d) = nsMemory::Alloc(alloc_len)))
                 {
@@ -2441,13 +2412,7 @@ XPCConvert::JSStringWithSize2Native(XPCCallContext& ccx, void* d, jsval s,
                 (*((jschar**)d))[count] = 0;
             }
             else
-            {
-                if(!(chars = JS_GetStringCharsZ(cx, str)))
-                {
-                    return JS_FALSE;
-                }
-                *((const jschar**)d) = chars;
-            }
+                *((jschar**)d) = chars;
 
             return JS_TRUE;
         }

@@ -57,15 +57,15 @@ class URI {
  public:
   URI() : mURI(nsnull) {}
   URI(nsIURI* aURI) : mURI(aURI) {}
-  operator nsIURI*() const { return mURI.get(); }
+  // The contained URI is already addrefed on creation. We don't want another
+  // addref when passing it off to its actual owner.
+  operator nsCOMPtr<nsIURI>() const { return already_AddRefed<nsIURI>(mURI); }
 
   friend struct ParamTraits<URI>;
   
  private:
-  // Unimplemented
   URI& operator=(URI&);
-
-  nsCOMPtr<nsIURI> mURI;
+  nsIURI* mURI;
 };
   
 template<>
@@ -84,10 +84,9 @@ struct ParamTraits<URI>
     if (!serializable) {
       nsCString scheme;
       aParam.mURI->GetScheme(scheme);
-      if (!scheme.EqualsASCII("about:") &&
-          !scheme.EqualsASCII("javascript:") &&
-          !scheme.EqualsASCII("javascript"))
-        NS_WARNING("All IPDL URIs must be serializable or an allowed scheme");
+      NS_ABORT_IF_FALSE(scheme.EqualsASCII("about:") ||
+                        scheme.EqualsASCII("javascript:"),
+                        "All IPDL URIs must be serializable or an allowed scheme");
     }
     
     bool isSerialized = !!serializable;
@@ -136,7 +135,7 @@ struct ParamTraits<URI>
       if (NS_FAILED(rv))
         return false;
       
-      uri.swap(aResult->mURI);
+      uri.forget(&aResult->mURI);
       return true;
     }
     
@@ -153,7 +152,7 @@ struct ParamTraits<URI>
     if (!serializable || !serializable->Read(aMsg, aIter))
       return false;
 
-    uri.swap(aResult->mURI);
+    uri.forget(&aResult->mURI);
     return true;
   }
 

@@ -521,8 +521,7 @@ case "$target" in
         CFLAGS="$CFLAGS -TC -nologo"
         CXXFLAGS="$CXXFLAGS -TP -nologo"
         # MSVC warning C4345 warns of newly conformant behavior as of VS2003.
-        # MSVC warning C4800 is ubiquitous, useless, and annoying.
-        CXXFLAGS="$CXXFLAGS -wd4345 -wd4800"
+        CXXFLAGS="$CXXFLAGS -wd4345"
         AC_LANG_SAVE
         AC_LANG_C
         AC_TRY_COMPILE([#include <stdio.h>],
@@ -2402,7 +2401,7 @@ alpha*-*-osf*)
        NS_USE_NATIVE=1
        AC_DEFINE(NSCAP_DISABLE_DEBUG_PTR_TYPES)
        CFLAGS="$CFLAGS -xlibmieee -xstrconst -xbuiltin=%all -D__FUNCTION__=__func__"
-       CXXFLAGS="$CXXFLAGS -xlibmieee -xbuiltin=%all -features=tmplife,tmplrefstatic,extensions -norunpath -D__FUNCTION__=__func__ -template=no%extdef"
+       CXXFLAGS="$CXXFLAGS -xlibmieee -xbuiltin=%all -features=tmplife,tmplrefstatic,extensions -norunpath -D__FUNCTION__=__func__"
        _MOZ_EXCEPTIONS_FLAGS_ON='-features=except'
        _MOZ_EXCEPTIONS_FLAGS_OFF='-features=no%except'
        LDFLAGS="-xildoff $LDFLAGS"
@@ -3021,10 +3020,6 @@ case $target in
 	AC_CHECK_HEADERS(sys/cdefs.h)
 	;;
 esac
-
-dnl Performance measurement headers.
-AC_CHECK_HEADER(linux/perf_event.h, HAVE_LINUX_PERF_EVENT_H=1)
-AC_SUBST(HAVE_LINUX_PERF_EVENT_H)
 
 dnl Checks for libraries.
 dnl ========================================================
@@ -4220,6 +4215,17 @@ if test -n "$MOZ_DEBUG" -o -n "$MOZ_DEBUG_SYMBOLS"; then
 fi
 
 dnl ========================================================
+dnl Enable Narcissus
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(narcissus,
+[  --enable-narcissus      Build with Narcissus code enabled],
+    NARCISSUS=1,
+    NARCISSUS= )
+if test -n "$NARCISSUS"; then
+    AC_DEFINE(NARCISSUS)
+fi
+
+dnl ========================================================
 dnl = Enable trace malloc
 dnl ========================================================
 NS_TRACE_MALLOC=${MOZ_TRACE_MALLOC}
@@ -4449,29 +4455,13 @@ dnl ======================================================
 dnl = Enable compiling with ccache
 dnl ======================================================
 MOZ_ARG_WITH_STRING(ccache,
-[  --with-ccache[=path/to/ccache]
+[  --with-ccache=path/to/ccache
                           Enable compiling with ccache],
-    CCACHE=$withval, CCACHE="no")
+    CCACHE_PATH=$withval,)
 
-if test "$CCACHE" != "no"; then
-    if test -n "$CCACHE"; then
-        if test "$CCACHE" = "yes"; then
-            CCACHE=
-        else
-            if test ! -e "$CCACHE"; then
-                AC_MSG_ERROR([$CCACHE not found])
-            fi
-        fi
-    fi
-    MOZ_PATH_PROGS(CCACHE, $CCACHE ccache)
-    if test -z "$CCACHE" -o "$CCACHE" = ":"; then
-        AC_MSG_ERROR([ccache not found])
-    elif test -x "$CCACHE"; then
-        CC="$CCACHE $CC"
-        CXX="$CCACHE $CXX"
-    else
-        AC_MSG_ERROR([$CCACHE is not executable])
-    fi
+if test -n "$CCACHE_PATH"; then
+  CC="$CCACHE_PATH $CC"
+  CXX="$CCACHE_PATH $CXX"
 fi
 
 dnl ========================================================
@@ -4883,12 +4873,6 @@ else
     _USE_CPP_INCLUDE_FLAG=
     _DEFINES_CFLAGS='$(ACDEFINES) -D_JS_CONFDEFS_H_ -DMOZILLA_CLIENT'
     _DEFINES_CXXFLAGS='$(ACDEFINES) -D_JS_CONFDEFS_H_ -DMOZILLA_CLIENT'
-  else
-    _topsrcdirwin=`cd \`dirname $0\`; pwd -W`
-    dnl cl.py provides dependency generation for MSVC
-    CC_WRAPPER="$PYTHON -O $_topsrcdirwin/build/cl.py"
-    CXX_WRAPPER="$PYTHON -O $_topsrcdirwin/build/cl.py"
-    COMPILER_DEPEND=1
   fi
 fi
 fi # MOZ_AUTO_DEPS
@@ -4896,8 +4880,6 @@ MDDEPDIR='.deps'
 AC_SUBST(MOZ_AUTO_DEPS)
 AC_SUBST(COMPILER_DEPEND)
 AC_SUBST(MDDEPDIR)
-AC_SUBST(CC_WRAPPER)
-AC_SUBST(CXX_WRAPPER)
 
 
 dnl ========================================================

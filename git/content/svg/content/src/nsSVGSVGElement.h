@@ -132,9 +132,9 @@ class nsSVGSVGElement : public nsSVGSVGElementBase,
 
 protected:
   friend nsresult NS_NewSVGSVGElement(nsIContent **aResult,
-                                      already_AddRefed<nsINodeInfo> aNodeInfo,
+                                      nsINodeInfo *aNodeInfo,
                                       PRUint32 aFromParser);
-  nsSVGSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo, PRUint32 aFromParser);
+  nsSVGSVGElement(nsINodeInfo* aNodeInfo, PRUint32 aFromParser);
   
 public:
 
@@ -218,7 +218,6 @@ public:
     mViewportHeight = aSize.height;
   }
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   // nsSVGElement overrides
   PRBool IsEventName(nsIAtom* aName);

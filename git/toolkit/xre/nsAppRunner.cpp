@@ -41,11 +41,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_IPC
-#include "mozilla/dom/ContentParent.h"
-using mozilla::dom::ContentParent;
-#endif
-
 #if defined(XP_OS2) && defined(MOZ_OS2_HIGH_MEMORY)
 // os2safe.h has to be included before os2.h, needed for high mem
 #include <os2safe.h>
@@ -54,16 +49,9 @@ using mozilla::dom::ContentParent;
 #define XPCOM_TRANSLATE_NSGM_ENTRY_POINT 1
 
 #if defined(MOZ_WIDGET_QT)
-#include <QtGui/QApplication>
-#include <QtCore/QScopedPointer>
-#include <QtGui/QApplication>
-#include <QtGui/QInputContextFactory>
-#include <QtGui/QInputContext>
-#ifdef MOZ_ENABLE_MEEGOTOUCH
-#include <MApplication>
-#include "MozMeegoAppService.h"
-#endif // MOZ_ENABLE_MEEGOTOUCH
-#endif // MOZ_WIDGET_QT
+#include <qwidget.h>
+#include <qapplication.h>
+#endif
 
 #include "nsAppRunner.h"
 #include "nsUpdateDriver.h"
@@ -773,22 +761,6 @@ nsXULAppInfo::GetProcessType(PRUint32* aResult)
   NS_ENSURE_ARG_POINTER(aResult);
   *aResult = XRE_GetProcessType();
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsXULAppInfo::EnsureContentProcess()
-{
-#ifdef MOZ_IPC
-  if (XRE_GetProcessType() != GeckoProcessType_Default)
-    return NS_ERROR_NOT_AVAILABLE;
-
-  ContentParent* c = ContentParent::GetSingleton();
-  if (!c)
-    return NS_ERROR_NOT_AVAILABLE;
-  return NS_OK;
-#else
-  return NS_ERROR_NOT_AVAILABLE;
-#endif
 }
 
 NS_IMETHODIMP
@@ -3135,29 +3107,9 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     ar = CheckArg("graphicssystem", PR_TRUE, &qgraphicssystemARG, PR_FALSE);
     if (ar == ARG_FOUND)
       PR_SetEnv(PR_smprintf("MOZ_QT_GRAPHICSSYSTEM=%s", qgraphicssystemARG));
+    QApplication app(gArgc, gArgv);
 
-#ifdef MOZ_ENABLE_MEEGOTOUCH
-    QScopedPointer<QApplication> app;
-    if (XRE_GetProcessType() == GeckoProcessType_Default) {
-      MozMeegoAppService *appService = new MozMeegoAppService;
-      app.reset(new MApplication(gArgc, gArgv, appService));
-    } else {
-      app.reset(new QApplication(gArgc, gArgv));
-    }
-#else
-    QScopedPointer<QApplication> app(new QApplication(gArgc, gArgv));
-#endif
-
-    // try to get the MInputContext if possible to support the MeeGo VKB
-    QInputContext *inputContext = app->inputContext();
-    if (inputContext && inputContext->identifierName() != "MInputContext") {
-        QInputContext* context = QInputContextFactory::create("MInputContext",
-                                                              app.data());
-        if (context)
-            app->setInputContext(context);
-    }
-
-    QStringList nonQtArguments = app->arguments();
+    QStringList nonQtArguments = app.arguments();
     gQtOnlyArgc = 1;
     gQtOnlyArgv = (char**) malloc(sizeof(char*) 
                   * (gRestartArgc - nonQtArguments.size() + 2));

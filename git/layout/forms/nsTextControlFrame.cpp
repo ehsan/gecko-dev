@@ -41,6 +41,7 @@
 #include "nsTextControlFrame.h"
 #include "nsIDocument.h"
 #include "nsIDOMNSHTMLTextAreaElement.h"
+#include "nsIDOMNSHTMLInputElement.h"
 #include "nsIFormControl.h"
 #include "nsIServiceManager.h"
 #include "nsFrameSelection.h"
@@ -118,7 +119,6 @@
 #include "nsFocusManager.h"
 #include "nsTextEditRules.h"
 #include "nsIFontMetrics.h"
-#include "nsIDOMNSHTMLElement.h"
 
 #include "mozilla/FunctionTimer.h"
 
@@ -443,17 +443,8 @@ nsTextControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   rv = UpdateValueDisplay(PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // textareas are eagerly initialized
-  PRBool initEagerly = !IsSingleLineTextControl();
-  if (!initEagerly) {
-    nsCOMPtr<nsIDOMNSHTMLElement> element = do_QueryInterface(txtCtrl);
-    if (element) {
-      // so are input text controls with spellcheck=true
-      element->GetSpellcheck(&initEagerly);
-    }
-  }
-
-  if (initEagerly) {
+  if (!IsSingleLineTextControl()) {
+    // textareas are eagerly initialized
     NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
                  "Someone forgot a script blocker?");
 
@@ -1415,9 +1406,7 @@ nsTextControlFrame::SetInitialChildList(nsIAtom*        aListName,
   // Mark the scroll frame as being a reflow root. This will allow
   // incremental reflows to be initiated at the scroll frame, rather
   // than descending from the root frame of the frame hierarchy.
-  if (first) {
-    first->AddStateBits(NS_FRAME_REFLOW_ROOT);
-  }
+  first->AddStateBits(NS_FRAME_REFLOW_ROOT);
 
   nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
   NS_ASSERTION(txtCtrl, "Content not a text control element");

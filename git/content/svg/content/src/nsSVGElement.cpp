@@ -97,8 +97,6 @@
 #include "nsIDOMSVGTransformable.h"
 #endif // MOZ_SMIL
 
-using namespace mozilla;
-
 // This is needed to ensure correct handling of calls to the
 // vararg-list methods in this file:
 //   nsSVGElement::GetAnimated{Length,Number,Integer}Values
@@ -112,7 +110,7 @@ nsSVGEnumMapping nsSVGElement::sSVGUnitTypesMap[] = {
   {nsnull, 0}
 };
 
-nsSVGElement::nsSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGElement::nsSVGElement(nsINodeInfo *aNodeInfo)
   : nsSVGElementBase(aNodeInfo), mSuppressNotification(PR_FALSE)
 {
 }
@@ -1182,7 +1180,11 @@ MappedAttrParser::CreateStyleRule()
     return nsnull; // No mapped attributes were parsed
   }
 
-  nsCOMPtr<nsICSSStyleRule> rule = NS_NewCSSStyleRule(nsnull, mDecl);
+  nsCOMPtr<nsICSSStyleRule> rule;
+  if (NS_FAILED(NS_NewCSSStyleRule(getter_AddRefs(rule), nsnull, mDecl))) {
+    NS_WARNING("could not create style rule from mapped attributes");
+    mDecl->RuleAbort(); // deletes declaration
+  }
   mDecl = nsnull; // We no longer own the declaration -- drop our pointer to it
   return rule.forget();
 }
@@ -1360,14 +1362,6 @@ nsIAtom* nsSVGElement::GetEventNameForAttr(nsIAtom* aAttr)
     return nsGkAtoms::onSVGScroll;
   if (aAttr == nsGkAtoms::onzoom)
     return nsGkAtoms::onSVGZoom;
-#ifdef MOZ_SMIL
-  if (aAttr == nsGkAtoms::onbegin)
-    return nsGkAtoms::onbeginEvent;
-  if (aAttr == nsGkAtoms::onrepeat)
-    return nsGkAtoms::onrepeatEvent;
-  if (aAttr == nsGkAtoms::onend)
-    return nsGkAtoms::onendEvent;
-#endif // MOZ_SMIL
 
   return aAttr;
 }
@@ -2094,7 +2088,7 @@ nsSVGElement::GetAnimatedAttr(nsIAtom* aName)
 
   // Motion (fake 'attribute' for animateMotion)
   if (aName == nsGkAtoms::mozAnimateMotionDummyAttr) {
-    return new SVGMotionSMILAttr(this);
+    return new mozilla::SVGMotionSMILAttr(this);
   }
 
   // Lengths:

@@ -24,7 +24,6 @@
  *   David Dahl <ddahl@mozilla.com> (original author)
  *   Rob Campbell <rcampbell@mozilla.com>
  *   Johnathan Nightingale <jnightingale@mozilla.com>
- *   Patrick Walton <pcwalton@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -1408,18 +1407,10 @@ HUD_SERVICE.prototype =
   {
     var xulWindow = aContentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
       .getInterface(Ci.nsIWebNavigation)
-                      .QueryInterface(Ci.nsIDocShell)
-                      .chromeEventHandler.ownerDocument.defaultView;
-
-    let xulWindow = XPCNativeWrapper.unwrap(xulWindow);
-
-    let docElem = xulWindow.document.documentElement;
-    if (!docElem || docElem.getAttribute("windowtype") != "navigator:browser" ||
-        !xulWindow.gBrowser) {
-      // Do not do anything unless we have a browser window.
-      // This may be a view-source window or other type of non-browser window.
-      return;
-    }
+      .QueryInterface(Ci.nsIDocShellTreeItem)
+      .rootTreeItem
+      .QueryInterface(Ci.nsIInterfaceRequestor)
+      .getInterface(Ci.nsIDOMWindow);
 
     if (aContentWindow.document.location.href == "about:blank" &&
         HUDWindowObserver.initialConsoleCreated == false) {
@@ -1428,6 +1419,7 @@ HUD_SERVICE.prototype =
       return;
     }
 
+    let xulWindow = XPCNativeWrapper.unwrap(xulWindow);
     let gBrowser = xulWindow.gBrowser;
 
 
@@ -1530,7 +1522,6 @@ function HeadsUpDisplay(aConfig)
     this.contentWindow = aConfig.contentWindow;
     this.uriSpec = aConfig.contentWindow.location.href;
     this.reattachConsole();
-    this.HUDBox.querySelectorAll(".jsterm-input-node")[0].focus();
     return;
   }
 
@@ -1620,10 +1611,14 @@ function HeadsUpDisplay(aConfig)
   let hudBox = this.createHUD();
 
   let splitter = this.chromeDocument.createElement("splitter");
+  splitter.setAttribute("collapse", "before");
+  splitter.setAttribute("resizeafter", "flex");
   splitter.setAttribute("class", "hud-splitter");
 
+  let grippy = this.chromeDocument.createElement("grippy");
   this.notificationBox.insertBefore(splitter,
                                     this.notificationBox.childNodes[1]);
+  splitter.appendChild(grippy);
 
   let console = this.createConsole();
 
@@ -1632,7 +1627,6 @@ function HeadsUpDisplay(aConfig)
   // create the JSTerm input element
   try {
     this.createConsoleInput(this.contentWindow, this.consoleWrap, this.outputNode);
-    this.HUDBox.querySelectorAll(".jsterm-input-node")[0].focus();
   }
   catch (ex) {
     Cu.reportError(ex);
@@ -1736,19 +1730,15 @@ HeadsUpDisplay.prototype = {
   makeHTMLNode:
   function HUD_makeHTMLNode(aTag)
   {
-    var element;
-
-    if (this.HTMLFactory) {
-      element = this.HTMLFactory(aTag);
+    try {
+      return this.HTMLFactory(aTag);
     }
-    else {
+    catch (ex) {
       var ns = ELEMENT_NS;
       var nsUri = ELEMENT_NS_URI;
       var tag = ns + aTag;
-      element = this.chromeDocument.createElementNS(nsUri, tag);
+      return this.chromeDocument.createElementNS(nsUri, tag);
     }
-
-    return element;
   },
 
   /**
@@ -1807,14 +1797,14 @@ HeadsUpDisplay.prototype = {
     this.outputNode.setAttribute("class", "hud-output-node");
     this.outputNode.setAttribute("flex", "1");
 
-    this.filterSpacer = this.makeXULNode("spacer");
-    this.filterSpacer.setAttribute("flex", "1");
-
     this.filterBox = this.makeXULNode("textbox");
-    this.filterBox.setAttribute("class", "compact hud-filter-box");
+    this.filterBox.setAttribute("class", "hud-filter-box");
     this.filterBox.setAttribute("hudId", this.hudId);
-    this.filterBox.setAttribute("placeholder", this.getStr("stringFilter"));
-    this.filterBox.setAttribute("type", "search");
+
+    this.filterClearButton = this.makeXULNode("button");
+    this.filterClearButton.setAttribute("class", "hud-filter-clear");
+    this.filterClearButton.setAttribute("label", this.getStr("stringFilterClear"));
+    this.filterClearButton.setAttribute("hudId", this.hudId);
 
     this.setFilterTextBoxEvents();
 
@@ -1855,6 +1845,11 @@ HeadsUpDisplay.prototype = {
       HUDService.updateFilterText(aEvent.target);
     }
     this.filterBox.addEventListener("keydown", keyPress, false);
+
+    function filterClick(aEvent) {
+      self.filterBox.value = "";
+    }
+    this.filterClearButton.addEventListener("click", filterClick, false);
   },
 
   /**
@@ -1882,8 +1877,8 @@ HeadsUpDisplay.prototype = {
       }
       toolbar.appendChild(btn);
     }
-    toolbar.appendChild(this.filterSpacer);
     toolbar.appendChild(this.filterBox);
+    toolbar.appendChild(this.filterClearButton);
     return toolbar;
   },
 
@@ -1891,15 +1886,11 @@ HeadsUpDisplay.prototype = {
   {
     var self = this;
     let prefKey = aName.toLowerCase();
+    let btn = this.makeXULNode("toolbarbutton");
 
-    let btn;
     if (aType == "checkbox") {
-      btn = this.makeXULNode("checkbox");
       btn.setAttribute("type", aType);
-    } else {
-      btn = this.makeXULNode("toolbarbutton");
     }
-
     btn.setAttribute("hudId", this.hudId);
     btn.setAttribute("buttonType", prefKey);
     btn.setAttribute("class", "hud-filter-btn");
@@ -2423,7 +2414,7 @@ JSTerm.prototype = {
       return;
     }
 
-    this.writeOutput(str, true);
+    this.writeOutput(str);
 
     try {
       var execStr = "with(window) {" + str + "}";
@@ -2431,13 +2422,13 @@ JSTerm.prototype = {
         Cu.evalInSandbox(execStr,  this.sandbox, "default", "HUD Console", 1);
 
       if (result || result === false || result === " ") {
-        this.writeOutput(result, false);
+        this.writeOutput(result);
       }
       else if (result === undefined) {
-        this.writeOutput("undefined", false);
+        this.writeOutput("undefined");
       }
       else if (result === null) {
-        this.writeOutput("null", false);
+        this.writeOutput("null");
       }
     }
     catch (ex) {
@@ -2452,35 +2443,15 @@ JSTerm.prototype = {
     this.inputNode.value = "";
   },
 
-  /**
-   * Writes a message to the HUD that originates from the interactive
-   * JavaScript console.
-   *
-   * @param string aOutputMessage
-   *        The message to display.
-   * @param boolean aIsInput
-   *        True if the message is the user's input, false if the message is
-   *        the result of the expression the user typed.
-   * @returns void
-   */
-  writeOutput: function JST_writeOutput(aOutputMessage, aIsInput)
+  writeOutput: function JST_writeOutput(aOutputMessage)
   {
     var node = this.elementFactory("div");
-    if (aIsInput) {
-      node.setAttribute("class", "jsterm-input-line");
-      aOutputMessage = "> " + aOutputMessage;
+    if (this.cssClassOverride) {
+      node.setAttribute("class", this.cssClassOverride);
     }
     else {
       node.setAttribute("class", "jsterm-output-line");
     }
-
-    if (this.cssClassOverride) {
-      let classes = this.cssClassOverride.split(" ");
-      for (let i = 0; i < classes.length; i++) {
-        node.classList.add(classes[i]);
-      }
-    }
-
     var textNode = this.textFactory(aOutputMessage);
     node.appendChild(textNode);
     this.outputNode.appendChild(node);

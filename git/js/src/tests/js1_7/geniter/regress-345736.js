@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-345736.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 345736;
 var summary = 'for each in array comprehensions';

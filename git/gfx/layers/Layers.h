@@ -77,7 +77,6 @@ class ImageLayer;
 class ColorLayer;
 class ImageContainer;
 class CanvasLayer;
-class SpecificLayerAttributes;
 
 #define MOZ_LAYER_DECL_NAME(n, e)                           \
   virtual const char* Name() const { return n; }            \
@@ -142,20 +141,11 @@ public:
     LAYERS_D3D9
   };
 
-  LayerManager() : mUserData(nsnull), mDestroyed(PR_FALSE)
+  LayerManager() : mUserData(nsnull)
   {
     InitLog();
   }
   virtual ~LayerManager() {}
-
-  /**
-   * Release layers and resources held by this layer manager, and mark
-   * it as destroyed.  Should do any cleanup necessary in preparation
-   * for its widget going away.  After this call, only user data calls
-   * are valid on the layer manager.
-   */
-  virtual void Destroy() { mDestroyed = PR_TRUE; }
-  PRBool IsDestroyed() { return mDestroyed; }
 
   /**
    * Start a new transaction. Nested transactions are not allowed so
@@ -222,12 +212,6 @@ public:
    * Can be called anytime
    */
   Layer* GetRoot() { return mRoot; }
-
-  /**
-   * CONSTRUCTION PHASE ONLY
-   * Called when a managee has mutated.
-   */
-  virtual void Mutated(Layer* aLayer) { }
 
   /**
    * CONSTRUCTION PHASE ONLY
@@ -306,7 +290,6 @@ public:
 protected:
   nsRefPtr<Layer> mRoot;
   void* mUserData;
-  PRPackedBool mDestroyed;
 
   // Print interesting information about this into aTo.  Internally
   // used to implement Dump*() and Log*().
@@ -331,16 +314,13 @@ public:
     TYPE_CONTAINER,
     TYPE_IMAGE,
     TYPE_COLOR,
-    TYPE_CANVAS,
-    TYPE_SHADOW
+    TYPE_CANVAS
   };
 
   virtual ~Layer() {}
 
   /**
-   * Returns the LayerManager this Layer belongs to. Note that the layer
-   * manager might be in a destroyed state, at which point it's only
-   * valid to set/get user data from it.
+   * Returns the LayoutManager this Layer belongs to. Cannot be null.
    */
   LayerManager* Manager() { return mManager; }
 
@@ -352,11 +332,7 @@ public:
    * content. This enables some internal quality and performance
    * optimizations.
    */
-  void SetIsOpaqueContent(PRBool aOpaque)
-  {
-    mIsOpaqueContent = aOpaque;
-    Mutated();
-  }
+  void SetIsOpaqueContent(PRBool aOpaque) { mIsOpaqueContent = aOpaque; }
   /**
    * CONSTRUCTION PHASE ONLY
    * Tell this layer which region will be visible. It is the responsibility
@@ -364,22 +340,14 @@ public:
    * contribute to the final visible window. This can be an
    * overapproximation to the true visible region.
    */
-  virtual void SetVisibleRegion(const nsIntRegion& aRegion)
-  {
-    mVisibleRegion = aRegion;
-    Mutated();
-  }
+  virtual void SetVisibleRegion(const nsIntRegion& aRegion) { mVisibleRegion = aRegion; }
 
   /**
    * CONSTRUCTION PHASE ONLY
    * Set the opacity which will be applied to this layer as it
    * is composited to the destination.
    */
-  void SetOpacity(float aOpacity)
-  {
-    mOpacity = aOpacity;
-    Mutated();
-  }
+  void SetOpacity(float aOpacity) { mOpacity = aOpacity; }
 
   /**
    * CONSTRUCTION PHASE ONLY
@@ -397,9 +365,7 @@ public:
     if (aRect) {
       mClipRect = *aRect;
     }
-    Mutated();
   }
-
   /**
    * CONSTRUCTION PHASE ONLY
    * Set a clip rect which will be applied to this layer as it is
@@ -418,7 +384,6 @@ public:
       mUseClipRect = PR_TRUE;
       mClipRect = aRect;
     }
-    Mutated();
   }
 
   /**
@@ -428,11 +393,7 @@ public:
    * XXX Currently only transformations corresponding to 2D affine transforms
    * are supported.
    */
-  void SetTransform(const gfx3DMatrix& aMatrix)
-  {
-    mTransform = aMatrix;
-    Mutated();
-  }
+  void SetTransform(const gfx3DMatrix& aMatrix) { mTransform = aMatrix; }
 
   // These getters can be used anytime.
   float GetOpacity() { return mOpacity; }
@@ -444,14 +405,6 @@ public:
   Layer* GetPrevSibling() { return mPrevSibling; }
   virtual Layer* GetFirstChild() { return nsnull; }
   const gfx3DMatrix& GetTransform() { return mTransform; }
-
-  /**
-   * DRAWING PHASE ONLY
-   *
-   * Write layer-subtype-specific attributes into aAttrs.  Used to
-   * synchronize layer attributes to their shadows'.
-   */
-  virtual void FillSpecificAttributes(SpecificLayerAttributes& aAttrs) { }
 
   // Returns true if it's OK to save the contents of aLayer in an
   // opaque surface (a surface without an alpha channel).
@@ -524,8 +477,6 @@ protected:
     mUseClipRect(PR_FALSE),
     mIsOpaqueContent(PR_FALSE)
     {}
-
-  void Mutated() { mManager->Mutated(this); }
 
   // Print interesting information about this into aTo.  Internally
   // used to implement Dump*() and Log*().  If subclasses have

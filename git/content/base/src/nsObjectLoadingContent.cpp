@@ -69,7 +69,6 @@
 #include "nsIWebNavigationInfo.h"
 #include "nsIScriptChannel.h"
 #include "nsIBlocklistService.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
 
 #include "nsPluginError.h"
 
@@ -545,11 +544,7 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
     // end up trying to dispatch to a nsFrameLoader, which will complain that
     // it couldn't find a way to handle application/octet-stream
 
-    nsCAutoString typeHint, dummy;
-    NS_ParseContentType(mContentType, typeHint, dummy);
-    if (!typeHint.IsEmpty()) {
-      chan->SetContentType(typeHint);
-    }
+    chan->SetContentType(mContentType);
   } else {
     mContentType = channelType;
   }
@@ -1026,10 +1021,9 @@ nsObjectLoadingContent::GetInterface(const nsIID & aIID, void **aResult)
 
 // nsIChannelEventSink
 NS_IMETHODIMP
-nsObjectLoadingContent::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
-                                               nsIChannel *aNewChannel,
-                                               PRUint32 aFlags,
-                                               nsIAsyncVerifyRedirectCallback *cb)
+nsObjectLoadingContent::OnChannelRedirect(nsIChannel *aOldChannel,
+                                          nsIChannel *aNewChannel,
+                                          PRUint32    aFlags)
 {
   // If we're already busy with a new load, cancel the redirect
   if (aOldChannel != mChannel) {
@@ -1037,7 +1031,6 @@ nsObjectLoadingContent::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
   }
 
   mChannel = aNewChannel;
-  cb->OnRedirectVerifyCallback(NS_OK);
   return NS_OK;
 }
 
@@ -1444,11 +1437,7 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
 
   // MIME Type hint
   if (!aTypeHint.IsEmpty()) {
-    nsCAutoString typeHint, dummy;
-    NS_ParseContentType(aTypeHint, typeHint, dummy);
-    if (!typeHint.IsEmpty()) {
-      chan->SetContentType(typeHint);
-    }
+    chan->SetContentType(aTypeHint);
   }
 
   // Set up the channel's principal and such, like nsDocShell::DoURILoad does

@@ -56,8 +56,6 @@
 
 #include "GLContextProvider.h"
 
-#include "prenv.h"
-
 using namespace mozilla;
 using namespace mozilla::gl;
 
@@ -254,7 +252,6 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
         // everything's good, we're done here
         mWidth = width;
         mHeight = height;
-        mResetLayer = PR_TRUE;
         return NS_OK;
     }
 
@@ -277,77 +274,29 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
     format.depth = 16;
     format.minDepth = 1;
 
-    
-#ifdef XP_WIN
-    // On Windows, we may have a choice of backends, including straight
-    // OpenGL, D3D through ANGLE via EGL, or straight EGL/GLES2.
-    // We don't differentiate the latter two yet, but we allow for
-    // a env var to try EGL first, instead of last.
-    bool preferEGL = PR_GetEnv("MOZ_WEBGL_PREFER_EGL") != nsnull;
-
-    // if we want EGL, try it first
-    if (!gl && preferEGL) {
-        gl = gl::GLContextProviderEGL::CreateOffscreen(gfxIntSize(width, height), format);
-        if (gl && !InitAndValidateGL()) {
-            gl = nsnull;
-        }
-    }
-
-    // if it failed, then try the default provider, whatever that is
-    if (!gl) {
-        gl = gl::GLContextProvider::CreateOffscreen(gfxIntSize(width, height), format);
-        if (gl && !InitAndValidateGL()) {
-            gl = nsnull;
-        }
-    }
-
-    // if that failed, and we weren't already preferring EGL, try it now.
-    if (!gl && !preferEGL) {
-        gl = gl::GLContextProviderEGL::CreateOffscreen(gfxIntSize(width, height), format);
-        if (gl && !InitAndValidateGL()) {
-            gl = nsnull;
-        }
-    }
-#else
-    // other platforms just use whatever the default is
-    if (!gl) {
-        gl = gl::GLContextProvider::CreateOffscreen(gfxIntSize(width, height), format);
-        if (gl && !InitAndValidateGL()) {
-            gl = nsnull;
-        }
-    }
-#endif
-
-    // last chance, try OSMesa
-    if (!gl) {
-        gl = gl::GLContextProviderOSMesa::CreateOffscreen(gfxIntSize(width, height), format);
-        if (gl) {
-            if (!InitAndValidateGL()) {
-                gl = nsnull;
-            } else {
-                // make sure we notify always in this case, because it's likely going to be
-                // painfully slow
-                LogMessage("WebGL: Using software rendering via OSMesa");
-            }
-        }
-    }
-
-    if (!gl) {
-        LogMessage("WebGL: Can't get a usable OpenGL context.");
-        return NS_ERROR_FAILURE;
-    }
+    gl = gl::GLContextProvider::CreateOffscreen(gfxIntSize(width, height), format);
 
     printf_stderr ("--- WebGL context created: %p\n", gl.get());
 
-    if (gl->IsGLES2()) {
-        // On native GLES2, no need to validate, the compiler will do it
-        mShaderValidation = PR_FALSE;
-    } else {
-        // Otherwise, check the shader validator pref
-        nsCOMPtr<nsIPrefBranch> prefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
-        NS_ENSURE_TRUE(prefService != nsnull, NS_ERROR_FAILURE);
+#ifdef USE_GLES2
+    // On native GLES2, no need to validate, the compiler will do it
+    mShaderValidation = PR_FALSE;
+#else
+    // Check the shader validator pref
+    nsCOMPtr<nsIPrefBranch> prefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    NS_ENSURE_TRUE(prefService != nsnull, NS_ERROR_FAILURE);
 
-        prefService->GetBoolPref("webgl.shader_validator", &mShaderValidation);
+    prefService->GetBoolPref("webgl.shader_validator", &mShaderValidation);
+#endif
+
+    if (!InitAndValidateGL()) {
+        gl = gl::GLContextProviderOSMesa::CreateOffscreen(gfxIntSize(width, height), format);
+        if (!InitAndValidateGL()) {
+            LogMessage("WebGL: Can't get a usable OpenGL context.");
+            return NS_ERROR_FAILURE;
+        }
+
+        LogMessage("WebGL: Using software rendering via OSMesa");
     }
 
     mWidth = width;
@@ -370,7 +319,11 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
     gl->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, gl->GetOffscreenFBO());
     gl->fViewport(0, 0, mWidth, mHeight);
     gl->fClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+#ifdef USE_GLES2
+    gl->fClearDepthf(1.0f);
+#else
     gl->fClearDepth(1.0f);
+#endif
     gl->fClearStencil(0);
     gl->fClear(LOCAL_GL_COLOR_BUFFER_BIT | LOCAL_GL_DEPTH_BUFFER_BIT | LOCAL_GL_STENCIL_BUFFER_BIT);
 

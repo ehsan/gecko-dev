@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-434837-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 434837;
 var summary = '|this| in accessors in prototype chain of array';

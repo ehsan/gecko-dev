@@ -44,8 +44,13 @@
 extern int    gArgc;
 extern char **gArgv;
 
-QApplication *nsQAppInstance::sQAppInstance = NULL;
+nsQAppInstance *nsQAppInstance::sQAppInstance = NULL;
 int nsQAppInstance::sQAppRefCount = 0;
+
+nsQAppInstance::nsQAppInstance(int gArgc, char** gArgv)
+  : QApplication(gArgc, gArgv)
+{
+}
 
 void nsQAppInstance::AddRef(void) {
   if (qApp) return;
@@ -53,7 +58,7 @@ void nsQAppInstance::AddRef(void) {
     const char *graphicsSystem = PR_GetEnv("MOZ_QT_GRAPHICSSYSTEM");
     if (graphicsSystem)
       QApplication::setGraphicsSystem(QString(graphicsSystem));
-    sQAppInstance = new QApplication(gArgc, gArgv);
+    sQAppInstance = new nsQAppInstance(gArgc, gArgv);
   }
   sQAppRefCount++;
 }

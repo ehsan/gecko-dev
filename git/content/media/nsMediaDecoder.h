@@ -51,7 +51,6 @@
 class nsHTMLMediaElement;
 class nsMediaStream;
 class nsIStreamListener;
-class nsHTMLTimeRanges;
 
 // All methods of nsMediaDecoder must be called from the main thread only
 // with the exception of GetImageContainer, SetVideoData and GetStatistics,
@@ -210,10 +209,8 @@ public:
   // media element when it is restored from the bfcache, or when we need
   // to stop throttling the download. Call on the main thread only.
   // The download will only actually resume once as many Resume calls
-  // have been made as Suspend calls. When aForceBuffering is PR_TRUE,
-  // we force the decoder to go into buffering state before resuming
-  // playback.
-  virtual void Resume(PRBool aForceBuffering) = 0;
+  // have been made as Suspend calls.
+  virtual void Resume() = 0;
 
   // Returns a weak reference to the media element we're decoding for,
   // if it's available.
@@ -237,14 +234,6 @@ public:
                     float aPixelAspectRatio,
                     Image* aImage);
 
-  // Constructs the time ranges representing what segments of the media
-  // are buffered and playable.
-  virtual nsresult GetBuffered(nsHTMLTimeRanges* aBuffered) = 0;
-
-  // Returns PR_TRUE if we can play the entire media through without stopping
-  // to buffer, given the current download and playback rates.
-  PRBool CanPlayThrough();
-
 protected:
 
   // Start timer to update download progress information.
@@ -252,12 +241,6 @@ protected:
 
   // Stop progress information timer.
   nsresult StopProgress();
-
-  // Ensures our media stream has been pinned.
-  void PinForSeek();
-
-  // Ensures our media stream has been unpinned.
-  void UnpinForSeek();
 
 protected:
   // Timer used for updating progress events
@@ -297,10 +280,6 @@ protected:
 
   // Pixel aspect ratio (ratio of the pixel width to pixel height)
   float mPixelAspectRatio;
-
-  // PR_TRUE when our media stream has been pinned. We pin the stream
-  // while seeking.
-  PRPackedBool mPinnedForSeek;
 
   // Has our size changed since the last repaint?
   PRPackedBool mSizeChanged;

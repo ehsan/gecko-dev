@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '11.1.1.js';
 
 START("11.1.1 - Attribute Identifiers");
 

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-352605.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 352605;
 var summary = 'Do not assert with |yield|, nested xml-filtering predicate';

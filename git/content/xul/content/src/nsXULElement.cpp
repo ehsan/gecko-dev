@@ -102,6 +102,7 @@
 #include "nsIServiceManager.h"
 #include "nsICSSStyleRule.h"
 #include "nsIStyleSheet.h"
+#include "nsDOMCSSAttrDeclaration.h"
 #include "nsIURL.h"
 #include "nsIViewManager.h"
 #include "nsIWidget.h"
@@ -212,14 +213,7 @@ public:
   {
   }
 
-  NS_IMETHOD GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
-  {
-    nsresult rv;
-    *aStyle = static_cast<nsXULElement*>(mElement.get())->GetStyle(&rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-    NS_ADDREF(*aStyle);
-    return NS_OK;
-  }
+  NS_FORWARD_NSIDOMELEMENTCSSINLINESTYLE(static_cast<nsXULElement*>(mElement.get())->)
   NS_FORWARD_NSIFRAMELOADEROWNER(static_cast<nsXULElement*>(mElement.get())->);
 private:
   nsCOMPtr<nsIDOMXULElement> mElement;
@@ -239,7 +233,7 @@ NS_INTERFACE_MAP_END_AGGREGATED(mElement)
 // nsXULElement
 //
 
-nsXULElement::nsXULElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsXULElement::nsXULElement(nsINodeInfo* aNodeInfo)
     : nsStyledElement(aNodeInfo),
       mBindingParent(nsnull)
 {
@@ -270,8 +264,7 @@ already_AddRefed<nsXULElement>
 nsXULElement::Create(nsXULPrototypeElement* aPrototype, nsINodeInfo *aNodeInfo,
                      PRBool aIsScriptable)
 {
-    nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-    nsXULElement *element = new nsXULElement(ni.forget());
+    nsXULElement *element = new nsXULElement(aNodeInfo);
     if (element) {
         NS_ADDREF(element);
 
@@ -343,9 +336,9 @@ nsXULElement::Create(nsXULPrototypeElement* aPrototype,
 }
 
 nsresult
-NS_NewXULElement(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo)
+NS_NewXULElement(nsIContent** aResult, nsINodeInfo *aNodeInfo)
 {
-    NS_PRECONDITION(aNodeInfo.get(), "need nodeinfo for non-proto Create");
+    NS_PRECONDITION(aNodeInfo, "need nodeinfo for non-proto Create");
 
     *aResult = nsnull;
 
@@ -371,7 +364,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsXULElement, nsStyledElement)
 NS_IMPL_RELEASE_INHERITED(nsXULElement, nsStyledElement)
 
-DOMCI_NODE_DATA(XULElement, nsXULElement)
+DOMCI_DATA(XULElement, nsXULElement)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsXULElement)
     NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsXULElement)
@@ -405,8 +398,7 @@ nsXULElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
                      "Didn't get the default language from proto?");
     }
     else {
-        nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-        element = new nsXULElement(ni.forget());
+        element = new nsXULElement(aNodeInfo);
         if (element) {
         	// If created from a prototype, we will already have the script
         	// language specified by the proto - otherwise copy it directly
@@ -1930,8 +1922,10 @@ NS_IMPL_XUL_STRING_ATTR(TooltipText, tooltiptext)
 NS_IMPL_XUL_STRING_ATTR(StatusText, statustext)
 
 nsresult
-nsXULElement::EnsureLocalStyle()
+nsXULElement::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
 {
+    nsresult rv;
+
     // Clone the prototype rule, if we don't have a local one.
     if (mPrototype &&
         !mAttrsAndChildren.GetAttr(nsGkAtoms::style, kNameSpaceID_None)) {
@@ -1940,8 +1934,7 @@ nsXULElement::EnsureLocalStyle()
                   FindPrototypeAttribute(kNameSpaceID_None, nsGkAtoms::style);
         if (protoattr && protoattr->mValue.Type() == nsAttrValue::eCSSStyleRule) {
             nsCOMPtr<nsICSSRule> ruleClone;
-            nsresult rv = protoattr->mValue.GetCSSStyleRuleValue()->
-                Clone(*getter_AddRefs(ruleClone));
+            rv = protoattr->mValue.GetCSSStyleRuleValue()->Clone(*getter_AddRefs(ruleClone));
             NS_ENSURE_SUCCESS(rv, rv);
 
             nsAttrValue value;
@@ -1952,6 +1945,22 @@ nsXULElement::EnsureLocalStyle()
             NS_ENSURE_SUCCESS(rv, rv);
         }
     }
+
+    // XXXbz could this call nsStyledElement::GetStyle now?
+    nsDOMSlots* slots = GetDOMSlots();
+    NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
+
+    if (!slots->mStyle) {
+        slots->mStyle = new nsDOMCSSAttributeDeclaration(this
+#ifdef MOZ_SMIL
+                                                         , PR_FALSE
+#endif // MOZ_SMIL
+                                                         );
+        NS_ENSURE_TRUE(slots->mStyle, NS_ERROR_OUT_OF_MEMORY);
+        SetFlags(NODE_MAY_HAVE_STYLE);
+    }
+
+    NS_IF_ADDREF(*aStyle = slots->mStyle);
 
     return NS_OK;
 }

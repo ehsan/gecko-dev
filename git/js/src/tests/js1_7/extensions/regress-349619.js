@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-349619.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 349619;
 var summary = 'Do not assert with let block, object literal getter/setter';

@@ -236,8 +236,8 @@ PropertyTree::insertChild(JSContext *cx, JSScopeProperty *parent,
 {
     JS_ASSERT(parent);
     JS_ASSERT(!child->parent);
-    JS_ASSERT(!JSID_IS_VOID(parent->id));
-    JS_ASSERT(!JSID_IS_VOID(child->id));
+    JS_ASSERT(!JSVAL_IS_NULL(parent->id));
+    JS_ASSERT(!JSVAL_IS_NULL(child->id));
 
     JSScopeProperty **childp = &parent->kids;
     if (JSScopeProperty *kids = *childp) {
@@ -333,7 +333,7 @@ PropertyTree::removeChild(JSContext *cx, JSScopeProperty *child)
 
     JSScopeProperty *parent = child->parent;
     JS_ASSERT(parent);
-    JS_ASSERT(!JSID_IS_VOID(parent->id));
+    JS_ASSERT(!JSVAL_IS_NULL(parent->id));
 
     JSScopeProperty *kids = parent->kids;
     if (!KIDS_IS_CHUNKY(kids)) {
@@ -470,7 +470,7 @@ PropertyTree::getChild(JSContext *cx, JSScopeProperty *parent, uint32 shape,
         if (sprop)
             goto out;
     } else {
-        JS_ASSERT(!JSID_IS_VOID(parent->id));
+        JS_ASSERT(!JSVAL_IS_NULL(parent->id));
 
         /*
          * Because chunks are appended at the end and never deleted except by
@@ -618,17 +618,18 @@ js_MeterPropertyTree(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32 number,
 void
 JSScopeProperty::dump(JSContext *cx, FILE *fp)
 {
-    JS_ASSERT(!JSID_IS_VOID(id));
+    JS_ASSERT(!JSVAL_IS_NULL(id));
 
-    if (JSID_IS_INT(id)) {
-        fprintf(fp, "[%ld]", (long) JSID_TO_INT(id));
+    jsval idval = ID_TO_VALUE(id);
+    if (JSVAL_IS_INT(idval)) {
+        fprintf(fp, "[%ld]", (long) JSVAL_TO_INT(idval));
     } else {
         JSString *str;
-        if (JSID_IS_ATOM(id)) {
-            str = JSID_TO_STRING(id);
+        if (JSVAL_IS_STRING(idval)) {
+            str = JSVAL_TO_STRING(idval);
         } else {
-            JS_ASSERT(JSID_IS_OBJECT(id));
-            str = js_ValueToString(cx, IdToValue(id));
+            JS_ASSERT(JSVAL_IS_OBJECT(idval));
+            str = js_ValueToString(cx, idval);
             fputs("object ", fp);
         }
         if (!str)
@@ -726,7 +727,7 @@ OrphanNodeKids(JSContext *cx, JSScopeProperty *sprop)
                 if (!kid)
                     break;
 
-                if (!JSID_IS_VOID(kid->id)) {
+                if (!JSVAL_IS_NULL(kid->id)) {
                     JS_ASSERT(kid->parent == sprop);
                     kid->parent = NULL;
                 }
@@ -735,7 +736,7 @@ OrphanNodeKids(JSContext *cx, JSScopeProperty *sprop)
     } else {
         JSScopeProperty *kid = kids;
 
-        if (!JSID_IS_VOID(kid->id)) {
+        if (!JSVAL_IS_NULL(kid->id)) {
             JS_ASSERT(kid->parent == sprop);
             kid->parent = NULL;
         }
@@ -858,7 +859,7 @@ js::SweepScopeProperties(JSContext *cx)
 
         for (JSScopeProperty *sprop = (JSScopeProperty *) a->base; sprop < limit; sprop++) {
             /* If the id is null, sprop is already on the freelist. */
-            if (JSID_IS_VOID(sprop->id))
+            if (JSVAL_IS_NULL(sprop->id))
                 continue;
 
             /*

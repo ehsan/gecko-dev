@@ -67,22 +67,33 @@ public:
 
     void SetRetVal (PRInt32 val) {
         NS_ASSERTION(NS_SUCCEEDED(error), "class failed to initialize and caller used class without checking!");
-        SetRetValAsJSVal(INT_TO_JSVAL(val));
+        if (INT_FITS_IN_JSVAL(val))
+            SetRetValAsJSVal(INT_TO_JSVAL(val));
+        else
+            SetRetVal((double) val);
     }
 
     void SetRetVal (PRUint32 val) {
         NS_ASSERTION(NS_SUCCEEDED(error), "class failed to initialize and caller used class without checking!");
-        SetRetValAsJSVal(UINT_TO_JSVAL(val));
+        if (INT_FITS_IN_JSVAL(val))
+            SetRetValAsJSVal(INT_TO_JSVAL((int) val));
+        else
+            SetRetVal((double) val);
     }
 
     void SetRetVal (double val) {
         NS_ASSERTION(NS_SUCCEEDED(error), "class failed to initialize and caller used class without checking!");
-        SetRetValAsJSVal(DOUBLE_TO_JSVAL(val));
+        jsval *vp;
+        ncc->GetRetValPtr(&vp);
+        JS_NewDoubleValue(ctx, val, vp);
     }
 
     void SetBoolRetVal (PRBool val) {
         NS_ASSERTION(NS_SUCCEEDED(error), "class failed to initialize and caller used class without checking!");
-        SetRetValAsJSVal(BOOLEAN_TO_JSVAL(val));
+        if (val)
+            SetRetValAsJSVal(JSVAL_TRUE);
+        else
+            SetRetValAsJSVal(JSVAL_FALSE);
     }
 
     void SetRetVal (PRInt32 *vp, PRUint32 len) {
@@ -92,8 +103,13 @@ public:
         if (!JS_EnterLocalRootScope(ctx))
             return; // XXX ???
 
-        for (PRUint32 i = 0; i < len; i++)
-            jsvector[i] = INT_TO_JSVAL(vp[i]);
+        for (PRUint32 i = 0; i < len; i++) {
+            if (INT_FITS_IN_JSVAL(vp[i])) {
+                jsvector[i] = INT_TO_JSVAL(vp[i]);
+            } else {
+                JS_NewDoubleValue(ctx, vp[i], &jsvector[i]);
+            }
+        }
 
         JSObject *jsarr = JS_NewArrayObject(ctx, len, jsvector.get());
         SetRetVal(jsarr);
@@ -108,8 +124,9 @@ public:
         if (!JS_EnterLocalRootScope(ctx))
             return; // XXX ???
 
-        for (PRUint32 i = 0; i < len; i++)
-            jsvector[i] = UINT_TO_JSVAL(vp[i]);
+        for (PRUint32 i = 0; i < len; i++) {
+            JS_NewNumberValue(ctx, vp[i], &jsvector[i]);
+        }
 
         JSObject *jsarr = JS_NewArrayObject(ctx, len, jsvector.get());
         SetRetVal(jsarr);
@@ -125,8 +142,8 @@ public:
             return; // XXX ???
 
         for (PRUint32 i = 0; i < len; i++)
-            jsvector[i] = DOUBLE_TO_JSVAL(dp[i]);
-
+            JS_NewDoubleValue(ctx, (jsdouble) dp[i], &jsvector[i]);
+            
         JSObject *jsarr = JS_NewArrayObject(ctx, len, jsvector.get());
         SetRetVal(jsarr);
 
@@ -141,8 +158,7 @@ public:
             return; // XXX ???
 
         for (PRUint32 i = 0; i < len; i++)
-            jsvector[i] = DOUBLE_TO_JSVAL(fp[i]);
-
+            JS_NewDoubleValue(ctx, (jsdouble) fp[i], &jsvector[i]);
         JSObject *jsarr = JS_NewArrayObject(ctx, len, jsvector.get());
         SetRetVal(jsarr);
 
@@ -326,7 +342,11 @@ public:
     }
 
     PRBool DefineProperty(const char *name, double val) {
-        jsval dv = DOUBLE_TO_JSVAL(val);
+        jsval dv;
+
+        if (!JS_NewDoubleValue(mCtx->ctx, val, &dv))
+            return PR_FALSE;
+
         if (!JS_DefineProperty(mCtx->ctx, mObject, name, dv, NULL, NULL, JSPROP_ENUMERATE))
             return PR_FALSE;
         return PR_TRUE;
@@ -340,7 +360,7 @@ public:
 
     // Blah.  We can't name this DefineProperty also because PRBool is the same as PRInt32
     PRBool DefineBoolProperty(const char *name, PRBool val) {
-        if (!JS_DefineProperty(mCtx->ctx, mObject, name, val ? JSVAL_TRUE : JSVAL_FALSE, NULL, NULL, JSPROP_ENUMERATE))
+        if (!JS_DefineProperty(mCtx->ctx, mObject, name, val ? JS_TRUE : JS_FALSE, NULL, NULL, JSPROP_ENUMERATE))
             return PR_FALSE;
         return PR_TRUE;
     }

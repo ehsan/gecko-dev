@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-344601.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 344601;
 var summary = 'Function.prototype.toString should preserve let statements';

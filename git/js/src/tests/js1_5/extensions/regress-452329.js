@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-452329.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 452329;
 var summary = 'Do not assert: *data->pc == JSOP_CALL || *data->pc == JSOP_NEW';

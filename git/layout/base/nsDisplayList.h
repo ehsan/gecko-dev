@@ -1293,7 +1293,10 @@ private:
  */
 class nsDisplayBackground : public nsDisplayItem {
 public:
-  nsDisplayBackground(nsIFrame* aFrame);
+  nsDisplayBackground(nsIFrame* aFrame) : nsDisplayItem(aFrame) {
+    mIsThemed = mFrame->IsThemed(&mThemeTransparency);
+    MOZ_COUNT_CTOR(nsDisplayBackground);
+  }
 #ifdef NS_BUILD_REFCNT_LOGGING
   virtual ~nsDisplayBackground() {
     MOZ_COUNT_DTOR(nsDisplayBackground);
@@ -1607,9 +1610,9 @@ private:
 
 /**
  * nsDisplayZoom is used for subdocuments that have a different full zoom than
- * their parent documents. This item creates a container layer.
+ * their parent documents.
  */
-class nsDisplayZoom : public nsDisplayOwnLayer {
+class nsDisplayZoom : public nsDisplayWrapList {
 public:
   /**
    * @param aFrame is the root frame of the subdocument.
@@ -1632,11 +1635,6 @@ public:
                                    nsRegion* aVisibleRegion,
                                    nsRegion* aVisibleRegionBeforeMove);
   NS_DISPLAY_DECL_NAME("Zoom", TYPE_ZOOM)
-
-  // Get the app units per dev pixel ratio of the child document.
-  PRInt32 GetChildAppUnitsPerDevPixel() { return mAPD; }
-  // Get the app units per dev pixel ratio of the parent document.
-  PRInt32 GetParentAppUnitsPerDevPixel() { return mParentAPD; }
 
 private:
   PRInt32 mAPD, mParentAPD;
@@ -1712,10 +1710,8 @@ public:
   virtual nsRect GetBounds(nsDisplayListBuilder *aBuilder);
   virtual PRBool IsOpaque(nsDisplayListBuilder *aBuilder);
   virtual PRBool IsUniform(nsDisplayListBuilder *aBuilder, nscolor* aColor);
-  virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
-                                   LayerManager* aManager);
-  virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                             LayerManager* aManager);
+  virtual void   Paint(nsDisplayListBuilder *aBuilder,
+                       nsIRenderingContext *aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder *aBuilder,
                                    nsRegion *aVisibleRegion,
                                    nsRegion *aVisibleRegionBeforeMove);

@@ -47,14 +47,13 @@
 namespace mozilla {
 namespace layers {
 
-class ThebesLayerBufferOGL;
-
 class ThebesLayerOGL : public ThebesLayer, 
-                       public LayerOGL
+                         public LayerOGL
 {
-  typedef ThebesLayerBufferOGL Buffer;
+  typedef gl::TextureImage TextureImage;
 
 public:
+  typedef mozilla::gl::GLContext GLContext;
   ThebesLayerOGL(LayerManagerOGL *aManager);
   virtual ~ThebesLayerOGL();
 
@@ -65,16 +64,15 @@ public:
   void InvalidateRegion(const nsIntRegion& aRegion);
 
   /** LayerOGL implementation */
-  void Destroy();
   Layer* GetLayer();
   virtual PRBool IsEmpty();
   virtual void RenderLayer(int aPreviousFrameBuffer,
                            const nsIntPoint& aOffset);
 
 private:
-  PRBool CreateSurface();
+  PRBool EnsureSurface();
 
-  nsRefPtr<Buffer> mBuffer;
+  nsRefPtr<TextureImage> mTexImage;
 };
 
 } /* layers */

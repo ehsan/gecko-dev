@@ -17,18 +17,19 @@ typedef TVector<TString> TBuiltInStrings;
 
 class TBuiltIns {
 public:
-    POOL_ALLOCATOR_NEW_DELETE(GlobalPoolAllocator)
-
-    void initialize(EShLanguage language, EShSpec spec, const TBuiltInResource& resources);
-    const TBuiltInStrings& getBuiltInStrings() { return builtInStrings; }
-
+	POOL_ALLOCATOR_NEW_DELETE(GlobalPoolAllocator)
+	void initialize();
+	void initialize(const TBuiltInResource& resources);
+	TBuiltInStrings* getBuiltInStrings() { return builtInStrings; }
 protected:
-    TBuiltInStrings builtInStrings;
+	TBuiltInStrings builtInStrings[EShLangCount];
 };
 
-void IdentifyBuiltIns(EShLanguage language, EShSpec spec, const TBuiltInResource& resources,
-                      TSymbolTable& symbolTable);
-
+void IdentifyBuiltIns(EShLanguage, TSymbolTable&);
+void IdentifyBuiltIns(EShLanguage, TSymbolTable&, const TBuiltInResource &resources);
+bool GenerateBuiltInSymbolTable(const TBuiltInResource* resources, TInfoSink&, TSymbolTable*, EShLanguage language = EShLangCount);
+bool InitializeSymbolTable(TBuiltInStrings* BuiltInStrings, EShLanguage language, TInfoSink& infoSink, const TBuiltInResource *resources, TSymbolTable*);
+const char* GetPreprocessorBuiltinString();
 extern "C" int InitPreprocessor(void);
 extern "C" int FinalizePreprocessor(void);
 

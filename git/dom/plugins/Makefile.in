@@ -130,12 +130,6 @@ ifeq (WINNT,$(OS_ARCH))
 CPPSRCS += COMMessageFilter.cpp
 endif
 
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-CMMSRCS   += \
-    PluginUtilsOSX.mm \
-    $(NULL)
-endif
-
 LOCAL_INCLUDES = \
   -I$(topsrcdir)/modules/plugin/base/public/ \
   -I$(topsrcdir)/modules/plugin/base/src/ \

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-375344.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 375344;
 var summary = 'accessing prototype of DOM objects should throw catchable error';

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-471635.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 471635;
 var summary = 'TM: trace js shell print()';

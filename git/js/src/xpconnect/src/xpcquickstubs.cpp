@@ -140,11 +140,8 @@ PropertyOpForwarder(JSContext *cx, uintN argc, jsval *vp)
         return JS_FALSE;
 
     jsval argval = (argc > 0) ? JS_ARGV(cx, vp)[0] : JSVAL_VOID;
-    jsid id;
-    if (!JS_ValueToId(cx, argval, &id))
-        return JS_FALSE;
     JS_SET_RVAL(cx, vp, argval);
-    return (*popp)(cx, obj, id, vp);
+    return (*popp)(cx, obj, v, vp);
 }
 
 static void
@@ -299,7 +296,7 @@ LookupGetterOrSetter(JSContext *cx, JSBool wantGetter, uintN argc, jsval *vp)
        !IS_PROTO_CLASS(desc.obj->getClass()) ||
        (desc.attrs & (JSPROP_GETTER | JSPROP_SETTER)) ||
        !(desc.getter || desc.setter) ||
-       desc.setter == desc.obj->getJSClass()->setProperty)
+       desc.setter == desc.obj->getClass()->setProperty)
     {
         JS_SET_RVAL(cx, vp, JSVAL_VOID);
         return JS_TRUE;
@@ -342,8 +339,7 @@ DefineGetterOrSetter(JSContext *cx, uintN argc, JSBool wantGetter, jsval *vp)
     JSObject *obj = JS_THIS_OBJECT(cx, vp);
     if (!obj)
         return JS_FALSE;
-    JSFastNative forward = wantGetter ? Jsvalify(js_obj_defineGetter)
-                                      : Jsvalify(js_obj_defineSetter);
+    JSFastNative forward = wantGetter ? js_obj_defineGetter : js_obj_defineSetter;
     jsval id = (argc >= 1) ? JS_ARGV(cx, vp)[0] : JSVAL_VOID;
     if(!JSVAL_IS_STRING(id))
         return forward(cx, argc, vp);
@@ -493,7 +489,7 @@ xpc_qsThrow(JSContext *cx, nsresult rv)
  */
 static void
 GetMemberInfo(JSObject *obj,
-              jsid memberId,
+              jsval memberId,
               const char **ifaceName,
               const char **memberName)
 {
@@ -530,8 +526,8 @@ GetMemberInfo(JSObject *obj,
         }
     }
 
-    *memberName = (JSID_IS_STRING(memberId)
-                   ? JS_GetStringBytes(JSID_TO_STRING(memberId))
+    *memberName = (JSVAL_IS_STRING(memberId)
+                   ? JS_GetStringBytes(JSVAL_TO_STRING(memberId))
                    : "unknown");
 }
 
@@ -545,7 +541,7 @@ GetMethodInfo(JSContext *cx,
     NS_ASSERTION(JS_ObjectIsFunction(cx, funobj),
                  "JSFastNative callee should be Function object");
     JSString *str = JS_GetFunctionId((JSFunction *) JS_GetPrivate(cx, funobj));
-    jsid methodId = str ? INTERNED_STRING_TO_JSID(str) : JSID_VOID;
+    jsval methodId = str ? STRING_TO_JSVAL(str) : JSVAL_NULL;
 
     GetMemberInfo(JSVAL_TO_OBJECT(vp[1]), methodId, ifaceName, memberName);
 }
@@ -599,7 +595,7 @@ ThrowCallFailed(JSContext *cx, nsresult rv,
 
 JSBool
 xpc_qsThrowGetterSetterFailed(JSContext *cx, nsresult rv, JSObject *obj,
-                              jsid memberId)
+                              jsval memberId)
 {
     const char *ifaceName, *memberName;
     GetMemberInfo(obj, memberId, &ifaceName, &memberName);
@@ -672,7 +668,7 @@ xpc_qsThrowBadArgWithDetails(JSContext *cx, nsresult rv, uintN paramnum,
 
 void
 xpc_qsThrowBadSetterValue(JSContext *cx, nsresult rv,
-                          JSObject *obj, jsid propId)
+                          JSObject *obj, jsval propId)
 {
     const char *ifaceName, *memberName;
     GetMemberInfo(obj, propId, &ifaceName, &memberName);
@@ -680,7 +676,7 @@ xpc_qsThrowBadSetterValue(JSContext *cx, nsresult rv,
 }
 
 JSBool
-xpc_qsGetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
+xpc_qsGetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
     return JS_ReportErrorFlagsAndNumber(cx,
                                         JSREPORT_WARNING | JSREPORT_STRICT |
@@ -1071,12 +1067,13 @@ xpc_qsStringToJsval(JSContext *cx, nsString &str, jsval *rval)
         return JS_TRUE;
     }
 
-    nsStringBuffer* sharedBuffer;
-    jsval jsstr = XPCStringConvert::ReadableToJSVal(cx, str, &sharedBuffer);
-    if (JSVAL_IS_NULL(jsstr))
+    PRBool isShared = PR_FALSE;
+    jsval jsstr =
+        XPCStringConvert::ReadableToJSVal(cx, str, PR_TRUE, &isShared);
+    if(!jsstr)
         return JS_FALSE;
     *rval = jsstr;
-    if (sharedBuffer)
+    if (isShared)
     {
         // The string was shared but ReadableToJSVal didn't addref it.
         // Move the ownership from str to jsstr.
@@ -1086,34 +1083,9 @@ xpc_qsStringToJsval(JSContext *cx, nsString &str, jsval *rval)
 }
 
 JSBool
-xpc_qsStringToJsstring(JSContext *cx, nsString &str, JSString **rval)
-{
-    // From the T_DOMSTRING case in XPCConvert::NativeData2JS.
-    if(str.IsVoid())
-    {
-        *rval = nsnull;
-        return JS_TRUE;
-    }
-
-    nsStringBuffer* sharedBuffer;
-    jsval jsstr = XPCStringConvert::ReadableToJSVal(cx, str, &sharedBuffer);
-    if(JSVAL_IS_NULL(jsstr))
-        return JS_FALSE;
-    *rval = JSVAL_TO_STRING(jsstr);
-    if (sharedBuffer)
-    {
-        // The string was shared but ReadableToJSVal didn't addref it.
-        // Move the ownership from str to jsstr.
-        str.ForgetSharedBuffer();
-    }
-    return JS_TRUE;
-}
-
-JSBool
-xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx, qsObjectHelper* aHelper,
-                         nsWrapperCache *cache,
-                         const nsIID *iid, XPCNativeInterface **iface,
-                         jsval *rval)
+xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx, nsISupports *p,
+                         nsWrapperCache *cache, const nsIID *iid,
+                         XPCNativeInterface **iface, jsval *rval)
 {
     // From the T_INTERFACE case in XPCConvert::NativeData2JS.
     // This is one of the slowest things quick stubs do.
@@ -1129,13 +1101,10 @@ xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx, qsObjectHelper* aHelper,
     // creating a new XPCNativeScriptableShared.
 
     nsresult rv;
-    if(!XPCConvert::NativeInterface2JSObject(lccx, rval, nsnull,
-                                             aHelper->Object(),
-                                             iid, iface,
-                                             cache,
+    if(!XPCConvert::NativeInterface2JSObject(lccx, rval, nsnull, p,
+                                             iid, iface, cache,
                                              lccx.GetCurrentJSObject(), PR_TRUE,
-                                             OBJ_IS_NOT_GLOBAL, &rv,
-                                             aHelper))
+                                             OBJ_IS_NOT_GLOBAL, &rv))
     {
         // I can't tell if NativeInterface2JSObject throws JS exceptions
         // or not.  This is a sloppy stab at the right semantics; the

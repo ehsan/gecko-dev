@@ -107,11 +107,11 @@ HttpChannelParent::RecvAsyncOpen(const IPC::URI&            aURI,
                                  const PRBool&              allowPipelining,
                                  const PRBool&              forceAllowThirdPartyCookie)
 {
-  nsCOMPtr<nsIURI> uri(aURI);
-  nsCOMPtr<nsIURI> originalUri(aOriginalURI);
-  nsCOMPtr<nsIURI> docUri(aDocURI);
-  nsCOMPtr<nsIURI> referrerUri(aReferrerURI);
-
+  nsCOMPtr<nsIURI> uri = aURI;
+  nsCOMPtr<nsIURI> originalUri = aOriginalURI;
+  nsCOMPtr<nsIURI> docUri = aDocURI;
+  nsCOMPtr<nsIURI> referrerUri = aReferrerURI;
+  
   nsCString uriSpec;
   uri->GetSpec(uriSpec);
   LOG(("HttpChannelParent RecvAsyncOpen [this=%x uri=%s]\n", 
@@ -188,6 +188,13 @@ HttpChannelParent::RecvSetCacheTokenCachedCharset(const nsCString& charset)
   if (mCacheDescriptor)
     mCacheDescriptor->SetMetaDataElement("charset",
                                          PromiseFlatCString(charset).get());
+  return true;
+}
+
+bool
+HttpChannelParent::RecvOnStopRequestCompleted()
+{
+  mCacheDescriptor = nsnull;
   return true;
 }
 

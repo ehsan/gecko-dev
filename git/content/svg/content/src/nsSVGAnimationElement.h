@@ -56,7 +56,7 @@ class nsSVGAnimationElement : public nsSVGAnimationElementBase,
                               public nsIDOMElementTimeControl
 {
 protected:
-  nsSVGAnimationElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsSVGAnimationElement(nsINodeInfo *aNodeInfo);
   nsresult Init();
 
 public:
@@ -98,9 +98,6 @@ public:
   virtual nsSMILTimeContainer* GetTimeContainer();
 
 protected:
-  // nsSVGElement overrides
-  PRBool IsEventName(nsIAtom* aName);
-
   void UpdateHrefTarget(nsIContent* aNodeForContext,
                         const nsAString& aHrefStr);
 

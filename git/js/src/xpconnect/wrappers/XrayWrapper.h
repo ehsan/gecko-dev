@@ -54,9 +54,9 @@ class XrayWrapper : public Base {
     virtual ~XrayWrapper();
 
     virtual bool getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
-                                       js::PropertyDescriptor *desc);
+                                       JSPropertyDescriptor *desc);
     virtual bool getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
-                                          js::PropertyDescriptor *desc);
+                                          JSPropertyDescriptor *desc);
     virtual bool has(JSContext *cx, JSObject *wrapper, jsid id, bool *bp);
     virtual bool hasOwn(JSContext *cx, JSObject *wrapper, jsid id, bool *bp);
 

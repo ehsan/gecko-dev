@@ -44,6 +44,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-165353.js';
 var i = 0;
 var BUGNUMBER = 165353;
 var summary = 'RegExp conformance test';

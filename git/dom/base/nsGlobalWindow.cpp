@@ -643,7 +643,7 @@ nsPIDOMWindow::nsPIDOMWindow(nsPIDOMWindow *aOuterWindow)
 : mFrameElement(nsnull), mDocShell(nsnull), mModalStateDepth(0),
   mRunningTimeout(nsnull), mMutationBits(0), mIsDocumentLoaded(PR_FALSE),
   mIsHandlingResizeEvent(PR_FALSE), mIsInnerWindow(aOuterWindow != nsnull),
-  mMayHavePaintEventListener(PR_FALSE), mMayHaveTouchEventListener(PR_FALSE),
+  mMayHavePaintEventListener(PR_FALSE),
   mIsModalContentWindow(PR_FALSE), mIsActive(PR_FALSE),
   mInnerWindow(nsnull), mOuterWindow(aOuterWindow) {}
 
@@ -1288,15 +1288,22 @@ nsGlobalWindow::SetScriptContext(PRUint32 lang_id, nsIScriptContext *aScriptCont
                "We don't support this language ID");
   NS_ASSERTION(IsOuterWindow(), "Uh, SetScriptContext() called on inner window!");
 
-  NS_ASSERTION(!aScriptContext || !mContext, "Bad call to SetContext()!");
-
-  if (aScriptContext) {
+  if (!aScriptContext) {
+    NS_WARNING("Possibly early removal of script object, see bug #41608");
+  } else {
     // should probably assert the context is clean???
     aScriptContext->WillInitializeContext();
 
-    nsresult rv = aScriptContext->InitContext();
+    // Bind the script context and the global object
+    nsresult rv = aScriptContext->InitContext(this);
     NS_ENSURE_SUCCESS(rv, rv);
+  }
 
+  NS_ASSERTION(!aScriptContext || !mContext, "Bad call to SetContext()!");
+
+  void *script_glob = nsnull;
+
+  if (aScriptContext) {
     if (IsFrame()) {
       // This window is a [i]frame, don't bother GC'ing when the
       // frame's context is destroyed since a GC will happen when the
@@ -1304,9 +1311,14 @@ nsGlobalWindow::SetScriptContext(PRUint32 lang_id, nsIScriptContext *aScriptCont
 
       aScriptContext->SetGCOnDestruction(PR_FALSE);
     }
+
+    aScriptContext->DidInitializeContext();
+    script_glob = aScriptContext->GetNativeGlobal();
+    NS_ASSERTION(script_glob, "GetNativeGlobal returned NULL!");
   }
 
   mContext = aScriptContext;
+  mJSObject = (JSObject *)script_glob;
   return NS_OK;
 }
 
@@ -1320,8 +1332,7 @@ nsGlobalWindow::EnsureScriptEnvironment(PRUint32 aLangID)
   if (mJSObject)
       return NS_OK;
 
-  NS_ASSERTION(!GetCurrentInnerWindowInternal(),
-               "mJSObject is null, but we have an inner window?");
+  NS_ASSERTION(!GetCurrentInnerWindowInternal(), "Huh?");
 
   nsCOMPtr<nsIScriptRuntime> scriptRuntime;
   nsresult rv = NS_GetScriptRuntimeByID(aLangID, getter_AddRefs(scriptRuntime));
@@ -1613,14 +1624,8 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
   if (IsFrozen()) {
     // This outer is now getting its first inner, thaw the outer now
     // that it's ready and is getting an inner window.
-    mContext->CreateOuterObject(this, aDocument->NodePrincipal());
-    mContext->DidInitializeContext();
-    mJSObject = (JSObject *)mContext->GetNativeGlobal();
-
     Thaw();
   }
-
-  // XXX Brain transplant outer window JSObject and create new one!
 
   NS_ASSERTION(!GetCurrentInnerWindow() ||
                GetCurrentInnerWindow()->GetExtantDocument() == mDocument,
@@ -1742,7 +1747,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     newInnerWindow = currentInner;
 
     if (aDocument != oldDoc) {
-      nsCommonWindowSH::InvalidateGlobalScopePolluter(cx, currentInner->mJSObject);
+      nsWindowSH::InvalidateGlobalScopePolluter(cx, currentInner->mJSObject);
     }
   } else {
     if (aState) {
@@ -1820,7 +1825,6 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       void *&newGlobal = (void *&)newInnerWindow->mJSObject;
       nsCOMPtr<nsIXPConnectJSObjectHolder> &holder = mInnerWindowHolder;
       rv = mContext->CreateNativeGlobalForInner(sgo, isChrome,
-                                                aDocument->NodePrincipal(),
                                                 &newGlobal,
                                                 getter_AddRefs(holder));
       NS_ASSERTION(NS_SUCCEEDED(rv) && newGlobal && holder,
@@ -1893,11 +1897,13 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     // ensure that the outer window gets a new prototype so we don't
     // leak prototype properties from the old inner window to the
     // new one.
-    mContext->InitOuterWindow();
+    JS_BeginRequest((JSContext *)mContext->GetNativeContext());
+    mContext->InitContext(this);
 
     // Now that both the the inner and outer windows are initialized
     // let the script context do its magic to hook them together.
     mContext->ConnectToInner(newInnerWindow, mJSObject);
+    JS_EndRequest((JSContext *)mContext->GetNativeContext());
 
     nsCOMPtr<nsIContent> frame = do_QueryInterface(GetFrameElementInternal());
     if (frame && frame->GetOwnerDoc()) {
@@ -1927,8 +1933,8 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
   if ((!reUseInnerWindow || aDocument != oldDoc) && !aState) {
     nsCOMPtr<nsIHTMLDocument> html_doc(do_QueryInterface(mDocument));
-    nsCommonWindowSH::InstallGlobalScopePolluter(cx, newInnerWindow->mJSObject,
-                                                 html_doc);
+    nsWindowSH::InstallGlobalScopePolluter(cx, newInnerWindow->mJSObject,
+                                           html_doc);
   }
 
   // This code should not be called during shutdown any more (now that
@@ -1982,6 +1988,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
         // make sure the cached document property gets updated.
 
         // XXXmarkh - tell other languages about this?
+        JSAutoRequest ar(cx);
         ::JS_DeleteProperty(cx, currentInner->mJSObject, "document");
       }
     } else {
@@ -1994,6 +2001,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
       if (navigatorHolder) {
         // Restore window.navigator onto the new inner window.
+        JSAutoRequest ar(cx);
 
         ::JS_DefineProperty(cx, newInnerWindow->mJSObject, "navigator",
                             nav, nsnull, nsnull,
@@ -2159,9 +2167,7 @@ nsGlobalWindow::SetDocShell(nsIDocShell* aDocShell)
       mDoc = nsnull;
     }
 
-    if (mContext) {
-      mContext->ClearScope(mJSObject, PR_TRUE);
-    }
+    mContext->ClearScope(mJSObject, PR_TRUE);
 
     ClearControllers();
 
@@ -2175,11 +2181,9 @@ nsGlobalWindow::SetDocShell(nsIDocShell* aDocShell)
       mArgumentsOrigin = nsnull;
     }
 
-    if (mContext) {
-      mContext->GC();
-      mContext->FinalizeContext();
-      mContext = nsnull;
-    }
+    mContext->GC();
+    mContext->FinalizeContext();
+    mContext = nsnull;
 
 #ifdef DEBUG
     nsCycleCollector_DEBUG_shouldBeFreed(mContext);
@@ -2468,7 +2472,7 @@ nsGlobalWindow::DefineArgumentsProperty(nsIArray *aArguments)
   if (mIsModalContentWindow) {
     // Modal content windows don't have an "arguments" property, they
     // have a "dialogArguments" property which is handled
-    // separately. See nsCommonWindowSH::NewResolve().
+    // separately. See nsWindowSH::NewResolve().
 
     return NS_OK;
   }
@@ -6879,35 +6883,6 @@ nsGlobalWindow::SetActive(PRBool aActive)
   NotifyDocumentTree(mDoc, nsnull);
 }
 
-void nsGlobalWindow::MaybeUpdateTouchState()
-{
-  FORWARD_TO_INNER_VOID(MaybeUpdateTouchState, ());
-
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-
-  nsCOMPtr<nsIDOMWindow> focusedWindow;
-  fm->GetFocusedWindow(getter_AddRefs(focusedWindow));
-
-  if(this == focusedWindow) {
-    UpdateTouchState();
-  }
-}
-
-void nsGlobalWindow::UpdateTouchState()
-{
-  FORWARD_TO_INNER_VOID(UpdateTouchState, ());
-
-  nsCOMPtr<nsIWidget> mainWidget = GetMainWidget();
-  if (!mainWidget)
-    return;
-
-  if (mMayHaveTouchEventListener) {
-    mainWidget->RegisterTouchWindow();
-  } else {
-    mainWidget->UnregisterTouchWindow();
-  }
-}
-
 void
 nsGlobalWindow::SetChromeEventHandler(nsPIDOMEventTarget* aChromeEventHandler)
 {
@@ -9163,7 +9138,7 @@ nsGlobalWindow::SuspendTimeouts(PRUint32 aIncrease,
     for (nsTimeout *t = FirstTimeout(); IsTimeout(t); t = t->Next()) {
       // Set mTimeRemaining to be the time remaining for this timer.
       if (t->mWhen > now)
-        t->mTimeRemaining = t->mWhen - now;
+        t->mTimeRemaining = now - t->mWhen;
       else
         t->mTimeRemaining = TimeDuration(0);
   

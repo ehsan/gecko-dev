@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-349482-02.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 349482;
 var summary = 'Decompiling try/catch in with() should not crash';

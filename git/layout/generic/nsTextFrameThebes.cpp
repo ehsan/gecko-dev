@@ -84,6 +84,7 @@
 #include "nsTextFrameTextRunCache.h"
 #include "nsExpirationTracker.h"
 #include "nsTextFrame.h"
+#include "nsICaseConversion.h"
 #include "nsIUGenCategory.h"
 #include "nsUnicharUtilCIID.h"
 
@@ -6764,14 +6765,14 @@ static PRUnichar TransformChar(const nsStyleText* aStyle, gfxTextRun* aTextRun,
   }
   switch (aStyle->mTextTransform) {
   case NS_STYLE_TEXT_TRANSFORM_LOWERCASE:
-    aChar = ToLowerCase(aChar);
+    nsContentUtils::GetCaseConv()->ToLower(aChar, &aChar);
     break;
   case NS_STYLE_TEXT_TRANSFORM_UPPERCASE:
-    aChar = ToUpperCase(aChar);
+    nsContentUtils::GetCaseConv()->ToUpper(aChar, &aChar);
     break;
   case NS_STYLE_TEXT_TRANSFORM_CAPITALIZE:
     if (aTextRun->CanBreakLineBefore(aSkippedOffset)) {
-      aChar = ToTitleCase(aChar);
+      nsContentUtils::GetCaseConv()->ToTitle(aChar, &aChar);
     }
     break;
   }

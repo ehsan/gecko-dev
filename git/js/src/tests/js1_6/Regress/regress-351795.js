@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-351795.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 351795;
 var summary = 'Do not assert: top < ss->printer->script->depth';

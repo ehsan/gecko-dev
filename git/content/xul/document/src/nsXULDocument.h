@@ -204,7 +204,6 @@ public:
 
     NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsXULDocument, nsXMLDocument)
 
-    virtual nsXPCClassInfo* GetClassInfo();
 protected:
     // Implementation methods
     friend nsresult
@@ -492,7 +491,7 @@ protected:
     {
     protected:
         nsXULDocument* mDocument;              // [WEAK]
-        nsRefPtr<mozilla::dom::Element> mObservesElement; // [OWNER]
+        nsCOMPtr<mozilla::dom::Element> mObservesElement; // [OWNER]
         PRBool mResolved;
 
     public:

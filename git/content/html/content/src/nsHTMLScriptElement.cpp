@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 #include "nsIDOMHTMLScriptElement.h"
+#include "nsIDOMNSHTMLScriptElement.h"
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
@@ -304,11 +305,11 @@ nsHTMLScriptEventHandler::Invoke(nsISupports *aTargetObject,
 
 class nsHTMLScriptElement : public nsGenericHTMLElement,
                             public nsIDOMHTMLScriptElement,
+                            public nsIDOMNSHTMLScriptElement,
                             public nsScriptElement
 {
 public:
-  nsHTMLScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                      PRUint32 aFromParser);
+  nsHTMLScriptElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser);
   virtual ~nsHTMLScriptElement();
 
   // nsISupports
@@ -324,6 +325,7 @@ public:
   NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
   NS_DECL_NSIDOMHTMLSCRIPTELEMENT
+  NS_DECL_NSIDOMNSHTMLSCRIPTELEMENT
 
   // nsIScriptElement
   virtual void GetScriptType(nsAString& type);
@@ -343,7 +345,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   PRBool IsOnloadEventForWindow();
 
@@ -360,7 +361,7 @@ protected:
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Script)
 
 
-nsHTMLScriptElement::nsHTMLScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+nsHTMLScriptElement::nsHTMLScriptElement(nsINodeInfo *aNodeInfo,
                                          PRUint32 aFromParser)
   : nsGenericHTMLElement(aNodeInfo)
 {
@@ -376,14 +377,15 @@ nsHTMLScriptElement::~nsHTMLScriptElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLScriptElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLScriptElement, nsGenericElement)
 
-DOMCI_NODE_DATA(HTMLScriptElement, nsHTMLScriptElement)
+DOMCI_DATA(HTMLScriptElement, nsHTMLScriptElement)
 
 // QueryInterface implementation for nsHTMLScriptElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLScriptElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE4(nsHTMLScriptElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLScriptElement,
                                    nsIDOMHTMLScriptElement,
                                    nsIScriptLoaderObserver,
                                    nsIScriptElement,
+                                   nsIDOMNSHTMLScriptElement,
                                    nsIMutationObserver)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLScriptElement,
                                                nsGenericHTMLElement)
@@ -417,8 +419,7 @@ nsHTMLScriptElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 {
   *aResult = nsnull;
 
-  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsHTMLScriptElement* it = new nsHTMLScriptElement(ni.forget(), PR_FALSE);
+  nsHTMLScriptElement* it = new nsHTMLScriptElement(aNodeInfo, PR_FALSE);
   if (!it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }

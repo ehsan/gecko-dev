@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '13.4.4.22.js';
 
 START("13.4.4.22 - XML name()");
 

@@ -60,12 +60,20 @@
   -moz-padding-start: 2px;
 }
 
-.expander-up > .button-box {
-  -moz-appearance: button-arrow-up;
+.expander-up {
+	list-style-image: url("chrome://global/skin/arrow/arrow-up.gif");
 }
 
-.expander-down > .button-box {
-  -moz-appearance: button-arrow-down;
+.expander-down {
+  list-style-image: url("chrome://global/skin/arrow/arrow-dn.gif");
+}
+
+.expander-down:hover:active {
+	list-style-image: url("chrome://global/skin/arrow/arrow-dn-hov.gif");
+}
+
+.expander-up:hover:active {
+	list-style-image: url("chrome://global/skin/arrow/arrow-up-hov.gif");
 }
 
 #editBookmarkPanelContent {

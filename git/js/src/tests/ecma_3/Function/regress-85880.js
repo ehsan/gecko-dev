@@ -48,6 +48,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-85880.js';
 var UBound = 0;
 var BUGNUMBER = 85880;
 var summary = 'Arguments object of g(){f()} should not be null';

@@ -44,6 +44,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-181914.js';
 var UBound = 0;
 var BUGNUMBER = '181914';
 var summary = 'Calling a user-defined superconstructor';

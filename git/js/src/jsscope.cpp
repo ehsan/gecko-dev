@@ -99,7 +99,7 @@ js_GetMutableScope(JSContext *cx, JSObject *obj)
     if (!scope->isSharedEmpty())
         return scope;
 
-    JSScope *newscope = JSScope::create(cx, obj->getClass(), obj, scope->shape);
+    JSScope *newscope = JSScope::create(cx, scope->ops, obj->getClass(), obj, scope->shape);
     if (!newscope)
         return NULL;
 
@@ -132,7 +132,7 @@ js_GetMutableScope(JSContext *cx, JSObject *obj)
         newscope->freeslot = nslots;
 #ifdef DEBUG
     if (newscope->freeslot < nslots)
-        obj->setSlot(newscope->freeslot, UndefinedValue());
+        obj->setSlot(newscope->freeslot, JSVAL_VOID);
 #endif
 
     JS_DROP_ALL_EMPTY_SCOPE_LOCKS(cx, scope);
@@ -211,11 +211,13 @@ JSScope::createTable(JSContext *cx, bool report)
 }
 
 JSScope *
-JSScope::create(JSContext *cx, Class *clasp, JSObject *obj, uint32 shape)
+JSScope::create(JSContext *cx, const JSObjectOps *ops, JSClass *clasp,
+                JSObject *obj, uint32 shape)
 {
+    JS_ASSERT(ops->isNative());
     JS_ASSERT(obj);
 
-    JSScope *scope = cx->create<JSScope>(obj);
+    JSScope *scope = cx->create<JSScope>(ops, obj);
     if (!scope)
         return NULL;
 
@@ -231,8 +233,9 @@ JSScope::create(JSContext *cx, Class *clasp, JSObject *obj, uint32 shape)
     return scope;
 }
 
-JSEmptyScope::JSEmptyScope(JSContext *cx, Class *clasp)
-    : JSScope(NULL), clasp(clasp)
+JSEmptyScope::JSEmptyScope(JSContext *cx, const JSObjectOps *ops,
+                           JSClass *clasp)
+    : JSScope(ops, NULL), clasp(clasp)
 {
     /*
      * This scope holds a reference to the new empty scope. Our only caller,
@@ -287,14 +290,14 @@ JSScope::initRuntimeState(JSContext *cx)
 #define SCOPE(Name) rt->empty##Name##Scope
 #define CLASP(Name) &js_##Name##Class
 
-#define INIT_EMPTY_SCOPE(Name,NAME)                                           \
-    INIT_EMPTY_SCOPE_WITH_CLASS(Name, NAME, CLASP(Name))
+#define INIT_EMPTY_SCOPE(Name,NAME,ops)                                       \
+    INIT_EMPTY_SCOPE_WITH_CLASS(Name, NAME, ops, CLASP(Name))
 
-#define INIT_EMPTY_SCOPE_WITH_CLASS(Name,NAME,clasp)                          \
-    INIT_EMPTY_SCOPE_WITH_FREESLOT(Name, NAME, clasp, JSSLOT_FREE(clasp))
+#define INIT_EMPTY_SCOPE_WITH_CLASS(Name,NAME,ops,clasp)                      \
+    INIT_EMPTY_SCOPE_WITH_FREESLOT(Name, NAME, ops, clasp, JSSLOT_FREE(clasp))
 
-#define INIT_EMPTY_SCOPE_WITH_FREESLOT(Name,NAME,clasp,slot)                  \
-    SCOPE(Name) = cx->create<JSEmptyScope>(cx, clasp);                        \
+#define INIT_EMPTY_SCOPE_WITH_FREESLOT(Name,NAME,ops,clasp,slot)              \
+    SCOPE(Name) = cx->create<JSEmptyScope>(cx, ops, clasp);                   \
     if (!SCOPE(Name))                                                         \
         return false;                                                         \
     JS_ASSERT(SCOPE(Name)->shape == JSScope::EMPTY_##NAME##_SHAPE);           \
@@ -315,15 +318,15 @@ JSScope::initRuntimeState(JSContext *cx)
      * is less than freeslot to succeed. As the shared emptyArgumentsScope is
      * never mutated, it's safe to pretend to have all the slots possible.
      *
-     * Note how the fast paths in jsinterp.cpp for JSOP_LENGTH and JSOP_GETELEM
+     * Note how the fast paths in jsops.cpp for JSOP_LENGTH and JSOP_GETELEM
      * bypass resolution of scope properties for length and element indices on
      * arguments objects. This helps ensure that any arguments object needing
      * its own mutable scope (with unique shape) is a rare event.
      */
-    INIT_EMPTY_SCOPE_WITH_FREESLOT(Arguments, ARGUMENTS, CLASP(Arguments),
+    INIT_EMPTY_SCOPE_WITH_FREESLOT(Arguments, ARGUMENTS, &js_ObjectOps, CLASP(Arguments),
                                    JS_INITIAL_NSLOTS + JS_ARGS_LENGTH_MAX);
 
-    INIT_EMPTY_SCOPE(Block, BLOCK);
+    INIT_EMPTY_SCOPE(Block, BLOCK, &js_ObjectOps);
 
     /*
      * Initialize the shared scope for all empty Call objects so gets for args
@@ -332,17 +335,17 @@ JSScope::initRuntimeState(JSContext *cx)
      *
      * See comment above for rt->emptyArgumentsScope->freeslot initialization.
      */
-    INIT_EMPTY_SCOPE_WITH_FREESLOT(Call, CALL, CLASP(Call),
+    INIT_EMPTY_SCOPE_WITH_FREESLOT(Call, CALL, &js_ObjectOps, CLASP(Call),
                                    JS_INITIAL_NSLOTS + JSFunction::MAX_ARGS_AND_VARS);
 
     /* A DeclEnv object holds the name binding for a named function expression. */
-    INIT_EMPTY_SCOPE(DeclEnv, DECL_ENV);
+    INIT_EMPTY_SCOPE(DeclEnv, DECL_ENV, &js_ObjectOps);
 
     /* Non-escaping native enumerator objects share this empty scope. */
-    INIT_EMPTY_SCOPE_WITH_CLASS(Enumerator, ENUMERATOR, &js_IteratorClass);
+    INIT_EMPTY_SCOPE_WITH_CLASS(Enumerator, ENUMERATOR, &js_ObjectOps, &js_IteratorClass.base);
 
     /* Same drill for With objects. */
-    INIT_EMPTY_SCOPE_WITH_CLASS(With, WITH, &js_WithClass);
+    INIT_EMPTY_SCOPE(With, WITH, &js_WithObjectOps);
 
 #undef SCOPE
 #undef CLASP
@@ -380,9 +383,9 @@ JS_STATIC_ASSERT(sizeof(JSHashNumber) == 4);
 JS_STATIC_ASSERT(sizeof(jsid) == JS_BYTES_PER_WORD);
 
 #if JS_BYTES_PER_WORD == 4
-# define HASH_ID(id) ((JSHashNumber)(JSID_BITS(id)))
+# define HASH_ID(id) ((JSHashNumber)(id))
 #elif JS_BYTES_PER_WORD == 8
-# define HASH_ID(id) ((JSHashNumber)(JSID_BITS(id)) ^ (JSHashNumber)((JSID_BITS(id)) >> 32))
+# define HASH_ID(id) ((JSHashNumber)(id) ^ (JSHashNumber)((id) >> 32))
 #else
 # error "Unsupported configuration"
 #endif
@@ -406,7 +409,7 @@ JSScope::searchTable(jsid id, bool adding)
     uint32 sizeMask;
 
     JS_ASSERT(table);
-    JS_ASSERT(!JSID_IS_VOID(id));
+    JS_ASSERT(!JSVAL_IS_NULL(id));
 
     /* Compute the primary hash address. */
     METER(hashes);
@@ -540,7 +543,7 @@ JSScopeProperty *
 JSScope::getChildProperty(JSContext *cx, JSScopeProperty *parent,
                           JSScopeProperty &child)
 {
-    JS_ASSERT(!JSID_IS_VOID(child.id));
+    JS_ASSERT(!JSVAL_IS_NULL(child.id));
     JS_ASSERT(!child.inDictionary());
 
     /*
@@ -637,7 +640,7 @@ JSScope::reportReadOnlyScope(JSContext *cx)
     JSString *str;
     const char *bytes;
 
-    str = js_ValueToString(cx, ObjectOrNullValue(object));
+    str = js_ValueToString(cx, OBJECT_TO_JSVAL(object));
     if (!str)
         return;
     bytes = js_GetStringBytes(cx, str);
@@ -771,14 +774,14 @@ JSScope::toDictionaryMode(JSContext *cx, JSScopeProperty *&aprop)
 
 JSScopeProperty *
 JSScope::addProperty(JSContext *cx, jsid id,
-                     PropertyOp getter, PropertyOp setter,
+                     JSPropertyOp getter, JSPropertyOp setter,
                      uint32 slot, uintN attrs,
                      uintN flags, intN shortid)
 {
     JS_ASSERT(JS_IS_SCOPE_LOCKED(cx, this));
     CHECK_ANCESTOR_LINE(this, true);
 
-    JS_ASSERT(!JSID_IS_VOID(id));
+    JS_ASSERT(!JSVAL_IS_NULL(id));
     JS_ASSERT_IF(!cx->runtime->gcRegenShapes,
                  hasRegenFlag(cx->runtime->gcRegenShapesScopeFlag));
 
@@ -806,10 +809,10 @@ JSScope::addProperty(JSContext *cx, jsid id,
 static inline bool
 NormalizeGetterAndSetter(JSContext *cx, JSScope *scope,
                          jsid id, uintN attrs, uintN flags,
-                         PropertyOp &getter,
-                         PropertyOp &setter)
+                         JSPropertyOp &getter,
+                         JSPropertyOp &setter)
 {
-    if (setter == PropertyStub) {
+    if (setter == JS_PropertyStub) {
         JS_ASSERT(!(attrs & JSPROP_SETTER));
         setter = NULL;
     }
@@ -819,7 +822,7 @@ NormalizeGetterAndSetter(JSContext *cx, JSScope *scope,
         JS_ASSERT(!setter || setter == js_watch_set);
         JS_ASSERT(!(attrs & (JSPROP_GETTER | JSPROP_SETTER)));
     } else {
-        if (getter == PropertyStub) {
+        if (getter == JS_PropertyStub) {
             JS_ASSERT(!(attrs & JSPROP_GETTER));
             getter = NULL;
         }
@@ -843,7 +846,7 @@ NormalizeGetterAndSetter(JSContext *cx, JSScope *scope,
 
 JSScopeProperty *
 JSScope::addPropertyHelper(JSContext *cx, jsid id,
-                           PropertyOp getter, PropertyOp setter,
+                           JSPropertyOp getter, JSPropertyOp setter,
                            uint32 slot, uintN attrs,
                            uintN flags, intN shortid,
                            JSScopeProperty **spp)
@@ -902,7 +905,7 @@ JSScope::addPropertyHelper(JSContext *cx, jsid id,
 
 JSScopeProperty *
 JSScope::putProperty(JSContext *cx, jsid id,
-                     PropertyOp getter, PropertyOp setter,
+                     JSPropertyOp getter, JSPropertyOp setter,
                      uint32 slot, uintN attrs,
                      uintN flags, intN shortid)
 {
@@ -911,7 +914,7 @@ JSScope::putProperty(JSContext *cx, jsid id,
     JS_ASSERT(JS_IS_SCOPE_LOCKED(cx, this));
     CHECK_ANCESTOR_LINE(this, true);
 
-    JS_ASSERT(!JSID_IS_VOID(id));
+    JS_ASSERT(!JSVAL_IS_NULL(id));
 
     JS_ASSERT_IF(!cx->runtime->gcRegenShapes,
                  hasRegenFlag(cx->runtime->gcRegenShapesScopeFlag));
@@ -1012,14 +1015,14 @@ JSScope::putProperty(JSContext *cx, jsid id,
 JSScopeProperty *
 JSScope::changeProperty(JSContext *cx, JSScopeProperty *sprop,
                         uintN attrs, uintN mask,
-                        PropertyOp getter, PropertyOp setter)
+                        JSPropertyOp getter, JSPropertyOp setter)
 {
     JSScopeProperty *newsprop;
 
     JS_ASSERT(JS_IS_SCOPE_LOCKED(cx, this));
     CHECK_ANCESTOR_LINE(this, true);
 
-    JS_ASSERT(!JSID_IS_VOID(sprop->id));
+    JS_ASSERT(!JSVAL_IS_NULL(sprop->id));
     JS_ASSERT(hasProperty(sprop));
 
     attrs |= sprop->attrs & mask;
@@ -1031,9 +1034,9 @@ JSScope::changeProperty(JSContext *cx, JSScopeProperty *sprop,
     /* Don't allow method properties to be changed to have a getter. */
     JS_ASSERT_IF(getter != sprop->rawGetter, !sprop->isMethod());
 
-    if (getter == PropertyStub)
+    if (getter == JS_PropertyStub)
         getter = NULL;
-    if (setter == PropertyStub)
+    if (setter == JS_PropertyStub)
         setter = NULL;
     if (sprop->attrs == attrs && sprop->getter() == getter && sprop->setter() == setter)
         return sprop;
@@ -1178,7 +1181,7 @@ JSScope::clear(JSContext *cx)
     clearOwnShape();
     LeaveTraceIfGlobalObject(cx, object);
 
-    Class *clasp = object->getClass();
+    JSClass *clasp = object->getClass();
     JSObject *proto = object->getProto();
     JSEmptyScope *emptyScope;
     uint32 newShape;
@@ -1198,20 +1201,20 @@ JSScope::clear(JSContext *cx)
 void
 JSScope::deletingShapeChange(JSContext *cx, JSScopeProperty *sprop)
 {
-    JS_ASSERT(!JSID_IS_VOID(sprop->id));
+    JS_ASSERT(!JSVAL_IS_NULL(sprop->id));
     generateOwnShape(cx);
 }
 
 bool
 JSScope::methodShapeChange(JSContext *cx, JSScopeProperty *sprop)
 {
-    JS_ASSERT(!JSID_IS_VOID(sprop->id));
+    JS_ASSERT(!JSVAL_IS_NULL(sprop->id));
     if (sprop->isMethod()) {
 #ifdef DEBUG
-        const Value &prev = object->lockedGetSlot(sprop->slot);
-        JS_ASSERT(&sprop->methodObject() == &prev.toObject());
+        jsval prev = object->lockedGetSlot(sprop->slot);
+        JS_ASSERT(sprop->methodValue() == prev);
         JS_ASSERT(hasMethodBarrier());
-        JS_ASSERT(object->canHaveMethodBarrier());
+        JS_ASSERT(object->getClass() == &js_ObjectClass);
         JS_ASSERT(!sprop->rawSetter || sprop->rawSetter == js_watch_set);
 #endif
 
@@ -1240,7 +1243,7 @@ JSScope::methodShapeChange(JSContext *cx, uint32 slot)
         generateOwnShape(cx);
     } else {
         for (JSScopeProperty *sprop = lastProp; sprop; sprop = sprop->parent) {
-            JS_ASSERT(!JSID_IS_VOID(sprop->id));
+            JS_ASSERT(!JSVAL_IS_NULL(sprop->id));
             if (sprop->slot == slot)
                 return methodShapeChange(cx, sprop);
         }
@@ -1257,7 +1260,7 @@ JSScope::protoShapeChange(JSContext *cx)
 void
 JSScope::shadowingShapeChange(JSContext *cx, JSScopeProperty *sprop)
 {
-    JS_ASSERT(!JSID_IS_VOID(sprop->id));
+    JS_ASSERT(!JSVAL_IS_NULL(sprop->id));
     generateOwnShape(cx);
 }
 
@@ -1266,6 +1269,15 @@ JSScope::globalObjectOwnShapeChange(JSContext *cx)
 {
     generateOwnShape(cx);
     return !js_IsPropertyCacheDisabled(cx);
+}
+
+void
+js_TraceId(JSTracer *trc, jsid id)
+{
+    jsval v;
+
+    v = ID_TO_VALUE(id);
+    JS_CALL_VALUE_TRACER(trc, v, "id");
 }
 
 #ifdef DEBUG
@@ -1280,12 +1292,12 @@ PrintPropertyGetterOrSetter(JSTracer *trc, char *buf, size_t bufsize)
     JS_ASSERT(trc->debugPrinter == PrintPropertyGetterOrSetter);
     sprop = (JSScopeProperty *)trc->debugPrintArg;
     id = sprop->id;
-    JS_ASSERT(!JSID_IS_VOID(id));
+    JS_ASSERT(!JSVAL_IS_NULL(id));
     name = trc->debugPrintIndex ? js_setter_str : js_getter_str;
 
     if (JSID_IS_ATOM(id)) {
         n = js_PutEscapedString(buf, bufsize - 1,
-                                JSID_TO_STRING(id), 0);
+                                ATOM_TO_STRING(JSID_TO_ATOM(id)), 0);
         if (n < bufsize - 1)
             JS_snprintf(buf + n, bufsize - n, " %s", name);
     } else if (JSID_IS_INT(sprop->id)) {
@@ -1305,10 +1317,10 @@ PrintPropertyMethod(JSTracer *trc, char *buf, size_t bufsize)
     JS_ASSERT(trc->debugPrinter == PrintPropertyMethod);
     sprop = (JSScopeProperty *)trc->debugPrintArg;
     id = sprop->id;
-    JS_ASSERT(!JSID_IS_VOID(id));
+    JS_ASSERT(!JSVAL_IS_NULL(id));
 
     JS_ASSERT(JSID_IS_ATOM(id));
-    n = js_PutEscapedString(buf, bufsize - 1, JSID_TO_STRING(id), 0);
+    n = js_PutEscapedString(buf, bufsize - 1, ATOM_TO_STRING(JSID_TO_ATOM(id)), 0);
     if (n < bufsize - 1)
         JS_snprintf(buf + n, bufsize - n, " method");
 }
@@ -1319,21 +1331,21 @@ JSScopeProperty::trace(JSTracer *trc)
 {
     if (IS_GC_MARKING_TRACER(trc))
         mark();
-    MarkId(trc, id, "id");
+    js_TraceId(trc, id);
 
     if (attrs & (JSPROP_GETTER | JSPROP_SETTER)) {
         if ((attrs & JSPROP_GETTER) && rawGetter) {
             JS_SET_TRACING_DETAILS(trc, PrintPropertyGetterOrSetter, this, 0);
-            Mark(trc, getterObject(), JSTRACE_OBJECT);
+            js_CallGCMarker(trc, getterObject(), JSTRACE_OBJECT);
         }
         if ((attrs & JSPROP_SETTER) && rawSetter) {
             JS_SET_TRACING_DETAILS(trc, PrintPropertyGetterOrSetter, this, 1);
-            Mark(trc, setterObject(), JSTRACE_OBJECT);
+            js_CallGCMarker(trc, setterObject(), JSTRACE_OBJECT);
         }
     }
 
     if (isMethod()) {
         JS_SET_TRACING_DETAILS(trc, PrintPropertyMethod, this, 0);
-        Mark(trc, &methodObject(), JSTRACE_OBJECT);
+        js_CallGCMarker(trc, methodObject(), JSTRACE_OBJECT);
     }
 }

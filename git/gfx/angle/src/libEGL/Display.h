@@ -43,7 +43,7 @@ class Display
     bool getConfigAttrib(EGLConfig config, EGLint attribute, EGLint *value);
 
     egl::Surface *createWindowSurface(HWND window, EGLConfig config);
-    EGLContext createContext(EGLConfig configHandle, const gl::Context *shareContext);
+    EGLContext createContext(EGLConfig configHandle);
 
     void destroySurface(egl::Surface *surface);
     void destroyContext(gl::Context *context);
@@ -70,7 +70,6 @@ class Display
     IDirect3D9 *mD3d9;
     IDirect3DDevice9 *mDevice;
     D3DCAPS9 mDeviceCaps;
-    HWND mDeviceWindow;
 
     bool mSceneStarted;
     GLint mSwapInterval;
@@ -85,8 +84,6 @@ class Display
 
     typedef std::set<gl::Context*> ContextSet;
     ContextSet mContextSet;
-
-    bool createDevice();
 };
 }
 

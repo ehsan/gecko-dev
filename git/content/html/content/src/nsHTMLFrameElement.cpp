@@ -46,7 +46,7 @@ class nsHTMLFrameElement : public nsGenericHTMLFrameElement,
                            public nsIDOMHTMLFrameElement
 {
 public:
-  nsHTMLFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLFrameElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLFrameElement();
 
   // nsISupports
@@ -72,14 +72,13 @@ public:
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Frame)
 
 
-nsHTMLFrameElement::nsHTMLFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLFrameElement::nsHTMLFrameElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLFrameElement(aNodeInfo)
 {
 }
@@ -93,7 +92,7 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLFrameElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLFrameElement, nsGenericElement)
 
 
-DOMCI_NODE_DATA(HTMLFrameElement, nsHTMLFrameElement)
+DOMCI_DATA(HTMLFrameElement, nsHTMLFrameElement)
 
 // QueryInterface implementation for nsHTMLFrameElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLFrameElement)

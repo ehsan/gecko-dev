@@ -5,6 +5,7 @@
  * Contributor: Blake Kaplan
  */
 
+var gTestfile = 'regress-326453.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 326453;
 var summary = 'Do not assert: while decompiling';

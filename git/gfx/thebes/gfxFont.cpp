@@ -368,73 +368,68 @@ gfxFontFamily::FindFontForStyle(const gfxFontStyle& aFontStyle,
         return nsnull;
     }
 
-    // First find a match for the best weight
-    PRInt8 matchBaseWeight = 0;
-    PRInt8 i = baseWeight;
+    // 500 isn't quite bold so we want to treat it as 400 if we don't
+    // have a 500 weight
+    if (baseWeight == 5 && weightDistance == 0) {
+        // If we have a 500 weight then use it
+        if (weightList[5]) {
+            PR_LOG(gFontSelection, PR_LOG_DEBUG,
+                   ("(FindFontForStyle) name: %s, sty: %02x, wt: %d, sz: %.1f -> %s using wt 500\n", 
+                    NS_ConvertUTF16toUTF8(mName).get(),
+                    aFontStyle.style, aFontStyle.weight, aFontStyle.size,
+                    NS_ConvertUTF16toUTF8(weightList[5]->Name()).get()));
+            return weightList[5];
+        }
 
-    // Need to special case when normal face doesn't exist but medium does.
-    // In that case, use medium otherwise weights < 400
-    if (baseWeight == 4 && !weightList[4]) {
-        i = 5; // medium
+        // Otherwise treat as 400
+        baseWeight = 4;
     }
 
-    // Loop through weights, since one exists loop will terminate
+    PRInt8 matchBaseWeight = 0;
     PRInt8 direction = (baseWeight > 5) ? 1 : -1;
-    for (; ; i += direction) {
+    for (PRInt8 i = baseWeight; ; i += direction) {
         if (weightList[i]) {
             matchBaseWeight = i;
             break;
         }
 
-        // If we've reached one side without finding a font,
-        // start over and go the other direction until we find a match
+        // if we've reached one side without finding a font,
+        // go the other direction until we find a match
         if (i == 1 || i == 9) {
-            i = baseWeight;
             direction = -direction;
         }
     }
 
-    NS_ASSERTION(matchBaseWeight != 0, 
-                 "weight mapping should always find at least one font in a family");
-
-    gfxFontEntry *matchFE = weightList[matchBaseWeight];
+    gfxFontEntry *matchFE = nsnull;
     const PRInt8 absDistance = abs(weightDistance);
-    PRInt8 wghtSteps;
+    direction = (weightDistance >= 0) ? 1 : -1;
+    PRInt8 i, wghtSteps = 0;
 
-    if (weightDistance != 0) {
-        direction = (weightDistance > 0) ? 1 : -1;
-        PRInt8 j;
+    // synthetic bolding occurs when font itself is not a bold-face and
+    // either the absolute weight is at least 600 or the relative weight
+    // (e.g. 402) implies a darker face than the ones available.
+    // note: this means that (1) lighter styles *never* synthetic bold and
+    // (2) synthetic bolding always occurs at the first bolder step beyond
+    // available faces, no matter how light the boldest face
 
-        // Synthetic bolding occurs when font itself is not a bold-face and
-        // either the absolute weight is at least 600 or the relative weight
-        // (e.g. 402) implies a darker face than the ones available.
-        // note: this means that (1) lighter styles *never* synthetic bold and
-        // (2) synthetic bolding always occurs at the first bolder step beyond
-        // available faces, no matter how light the boldest face
-
-        // Account for synthetic bold in lighter case
-        // if lighter is applied with an inherited bold weight,
-        // and no actual bold faces exist, synthetic bold is used
-        // so the matched weight above is actually one step down already
-
-        wghtSteps = 1; // account for initial mapped weight
-
-        if (weightDistance < 0 && baseWeight > 5 && matchBaseWeight < 6) {
-            wghtSteps++; // if no faces [600, 900] then synthetic bold at 700
-        }
-
-        for (j = matchBaseWeight + direction;
-             j < 10 && j > 0 && wghtSteps <= absDistance;
-             j += direction) {
-            if (weightList[j]) {
-                matchFE = weightList[j];
-                wghtSteps++;
-            }
-        }
+    // account for synthetic bold in lighter case
+    // if lighter is applied with an inherited bold weight,
+    // and no actual bold faces exist, synthetic bold is used
+    // so the matched weight above is actually one step down already
+    if (weightDistance < 0 && baseWeight > 5 && matchBaseWeight < 6) {
+        wghtSteps = 1; // if no faces [600, 900] then synthetic bold at 700
     }
 
-    NS_ASSERTION(matchFE,
-                 "weight mapping should always find at least one font in a family");
+    for (i = matchBaseWeight; i < 10 && i > 0; i += direction) {
+        if (weightList[i]) {
+            matchFE = weightList[i];
+            wghtSteps++;
+        }
+        if (wghtSteps > absDistance)
+            break;
+    }
+
+    NS_ASSERTION(matchFE, "we should always be able to return something here");
 
     if (!matchFE->IsBold() &&
         ((weightDistance == 0 && baseWeight >= 6) ||

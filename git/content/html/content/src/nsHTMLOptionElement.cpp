@@ -38,6 +38,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "nsIDOMNSHTMLOptionElement.h"
 #include "nsHTMLOptionElement.h"
 #include "nsIDOMHTMLOptGroupElement.h"
 #include "nsIDOMHTMLFormElement.h"
@@ -71,8 +72,7 @@
  */
 
 nsGenericHTMLElement*
-NS_NewHTMLOptionElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                        PRUint32 aFromParser)
+NS_NewHTMLOptionElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)
 {
   /*
    * nsHTMLOptionElement's will be created without a nsINodeInfo passed in
@@ -90,10 +90,10 @@ NS_NewHTMLOptionElement(already_AddRefed<nsINodeInfo> aNodeInfo,
     NS_ENSURE_TRUE(nodeInfo, nsnull);
   }
 
-  return new nsHTMLOptionElement(nodeInfo.forget());
+  return new nsHTMLOptionElement(nodeInfo);
 }
 
-nsHTMLOptionElement::nsHTMLOptionElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLOptionElement::nsHTMLOptionElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
     mSelectedChanged(PR_FALSE),
     mIsSelected(PR_FALSE),
@@ -112,12 +112,13 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLOptionElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLOptionElement, nsGenericElement)
 
 
-DOMCI_NODE_DATA(HTMLOptionElement, nsHTMLOptionElement)
+DOMCI_DATA(HTMLOptionElement, nsHTMLOptionElement)
 
 // QueryInterface implementation for nsHTMLOptionElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLOptionElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLOptionElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE3(nsHTMLOptionElement,
                                    nsIDOMHTMLOptionElement,
+                                   nsIDOMNSHTMLOptionElement,
                                    nsIJSNativeInitializer)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLOptionElement,
                                                nsGenericHTMLElement)

@@ -17,7 +17,6 @@
 #include "libGLESv2/mathutil.h"
 #include "libGLESv2/utilities.h"
 #include "libGLESv2/Blit.h"
-#include "libGLESv2/ResourceManager.h"
 #include "libGLESv2/Buffer.h"
 #include "libGLESv2/FrameBuffer.h"
 #include "libGLESv2/Program.h"
@@ -34,7 +33,7 @@
 
 namespace gl
 {
-Context::Context(const egl::Config *config, const gl::Context *shareContext)
+Context::Context(const egl::Config *config)
     : mConfig(config)
 {
     setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -104,35 +103,34 @@ Context::Context(const egl::Config *config, const gl::Context *shareContext)
     mState.colorMaskAlpha = true;
     mState.depthMask = true;
 
-    if (shareContext != NULL)
-    {
-        mResourceManager = shareContext->mResourceManager;
-        mResourceManager->addRef();
-    }
-    else
-    {
-        mResourceManager = new ResourceManager();
-    }
-
     // [OpenGL ES 2.0.24] section 3.7 page 83:
     // In the initial state, TEXTURE_2D and TEXTURE_CUBE_MAP have twodimensional
     // and cube map texture state vectors respectively associated with them.
     // In order that access to these initial textures not be lost, they are treated as texture
     // objects all of whose names are 0.
 
-    mTexture2DZero = new Texture2D(0);
-    mTextureCubeMapZero = new TextureCubeMap(0);
+    mTexture2DZero = new Texture2D(this);
+    mTextureCubeMapZero = new TextureCubeMap(this);
 
     mColorbufferZero = NULL;
-    mDepthStencilbufferZero = NULL;
+    mDepthbufferZero = NULL;
+    mStencilbufferZero = NULL;
 
     mState.activeSampler = 0;
-    bindArrayBuffer(0);
-    bindElementArrayBuffer(0);
+    mState.arrayBuffer = 0;
+    mState.elementArrayBuffer = 0;
     bindTextureCubeMap(0);
     bindTexture2D(0);
     bindFramebuffer(0);
     bindRenderbuffer(0);
+
+    for (int type = 0; type < SAMPLER_TYPE_COUNT; type++)
+    {
+        for (int sampler = 0; sampler < MAX_TEXTURE_IMAGE_UNITS; sampler++)
+        {
+            mState.samplerTexture[type][sampler] = 0;
+        }
+    }
 
     for (int type = 0; type < SAMPLER_TYPE_COUNT; type++)
     {
@@ -163,14 +161,38 @@ Context::Context(const egl::Config *config, const gl::Context *shareContext)
 
 Context::~Context()
 {
-    if (mState.currentProgram != 0)
+    mState.currentProgram = 0;
+
+    for (int type = 0; type < SAMPLER_TYPE_COUNT; type++)
     {
-        Program *programObject = mResourceManager->getProgram(mState.currentProgram);
-        if (programObject)
-        {
-            programObject->release();
-        }
-        mState.currentProgram = 0;
+        delete mIncompleteTextures[type];
+    }
+
+    delete mTexture2DZero;
+    delete mTextureCubeMapZero;
+
+    delete mColorbufferZero;
+    delete mDepthbufferZero;
+    delete mStencilbufferZero;
+
+    delete mBufferBackEnd;
+    delete mVertexDataManager;
+    delete mIndexDataManager;
+    delete mBlit;
+
+    while (!mBufferMap.empty())
+    {
+        deleteBuffer(mBufferMap.begin()->first);
+    }
+
+    while (!mProgramMap.empty())
+    {
+        deleteProgram(mProgramMap.begin()->first);
+    }
+
+    while (!mShaderMap.empty())
+    {
+        deleteShader(mShaderMap.begin()->first);
     }
 
     while (!mFramebufferMap.empty())
@@ -178,44 +200,20 @@ Context::~Context()
         deleteFramebuffer(mFramebufferMap.begin()->first);
     }
 
-    for (int type = 0; type < SAMPLER_TYPE_COUNT; type++)
+    while (!mRenderbufferMap.empty())
     {
-        for (int sampler = 0; sampler < MAX_TEXTURE_IMAGE_UNITS; sampler++)
-        {
-            mState.samplerTexture[type][sampler].set(NULL);
-        }
+        deleteRenderbuffer(mRenderbufferMap.begin()->first);
     }
 
-    for (int type = 0; type < SAMPLER_TYPE_COUNT; type++)
+    while (!mTextureMap.empty())
     {
-        delete mIncompleteTextures[type];
+        deleteTexture(mTextureMap.begin()->first);
     }
-
-    for (int i = 0; i < MAX_VERTEX_ATTRIBS; i++)
-    {
-        mState.vertexAttribute[i].mBoundBuffer.set(NULL);
-    }
-
-    mState.arrayBuffer.set(NULL);
-    mState.elementArrayBuffer.set(NULL);
-    mState.texture2D.set(NULL);
-    mState.textureCubeMap.set(NULL);
-    mState.renderbuffer.set(NULL);
-
-    delete mTexture2DZero;
-    delete mTextureCubeMapZero;
-
-    delete mBufferBackEnd;
-    delete mVertexDataManager;
-    delete mIndexDataManager;
-    delete mBlit;
 
     if (mMaskedClearSavedState)
     {
         mMaskedClearSavedState->Release();
     }
-
-    mResourceManager->release();
 }
 
 void Context::makeCurrent(egl::Display *display, egl::Surface *surface)
@@ -250,11 +248,19 @@ void Context::makeCurrent(egl::Display *display, egl::Surface *surface)
     IDirect3DSurface9 *defaultRenderTarget = surface->getRenderTarget();
     IDirect3DSurface9 *depthStencil = surface->getDepthStencil();
 
+    Framebuffer *framebufferZero = new Framebuffer();
     Colorbuffer *colorbufferZero = new Colorbuffer(defaultRenderTarget);
-    DepthStencilbuffer *depthStencilbufferZero = new DepthStencilbuffer(depthStencil);
-    Framebuffer *framebufferZero = new DefaultFramebuffer(colorbufferZero, depthStencilbufferZero);
+    Depthbuffer *depthbufferZero = new Depthbuffer(depthStencil);
+    Stencilbuffer *stencilbufferZero = new Stencilbuffer(depthStencil);
 
     setFramebufferZero(framebufferZero);
+    setColorbufferZero(colorbufferZero);
+    setDepthbufferZero(depthbufferZero);
+    setStencilbufferZero(stencilbufferZero);
+
+    framebufferZero->setColorbuffer(GL_RENDERBUFFER, 0);
+    framebufferZero->setDepthbuffer(GL_RENDERBUFFER, 0);
+    framebufferZero->setStencilbuffer(GL_RENDERBUFFER, 0);
 
     defaultRenderTarget->Release();
 
@@ -263,7 +269,16 @@ void Context::makeCurrent(egl::Display *display, egl::Surface *surface)
         depthStencil->Release();
     }
     
-    mSupportsShaderModel3 = mDeviceCaps.PixelShaderVersion == D3DPS_VERSION(3, 0);
+    if (mDeviceCaps.PixelShaderVersion == D3DPS_VERSION(3, 0))
+    {
+        mPsProfile = "ps_3_0";
+        mVsProfile = "vs_3_0";
+    }
+    else  // egl::Display guarantees support for at least 2.0
+    {
+        mPsProfile = "ps_2_0";
+        mVsProfile = "vs_2_0";
+    }
 
     markAllStateDirty();
 }
@@ -285,12 +300,6 @@ void Context::markAllStateDirty()
     mScissorStateDirty = true;
     mSampleStateDirty = true;
     mDitherStateDirty = true;
-    mFrontFaceDirty = true;
-
-    if (mBufferBackEnd != NULL)
-    {
-        mBufferBackEnd->invalidate();
-    }
 }
 
 void Context::setClearColor(float red, float green, float blue, float alpha)
@@ -669,12 +678,12 @@ GLuint Context::getFramebufferHandle() const
 
 GLuint Context::getRenderbufferHandle() const
 {
-    return mState.renderbuffer.id();
+    return mState.renderbuffer;
 }
 
 GLuint Context::getArrayBufferHandle() const
 {
-    return mState.arrayBuffer.id();
+    return mState.arrayBuffer;
 }
 
 void Context::setVertexAttribEnabled(unsigned int attribNum, bool enabled)
@@ -687,10 +696,10 @@ const AttributeState &Context::getVertexAttribState(unsigned int attribNum)
     return mState.vertexAttribute[attribNum];
 }
 
-void Context::setVertexAttribState(unsigned int attribNum, Buffer *boundBuffer, GLint size, GLenum type, bool normalized,
+void Context::setVertexAttribState(unsigned int attribNum, GLuint boundBuffer, GLint size, GLenum type, bool normalized,
                                    GLsizei stride, const void *pointer)
 {
-    mState.vertexAttribute[attribNum].mBoundBuffer.set(boundBuffer);
+    mState.vertexAttribute[attribNum].mBoundBuffer = boundBuffer;
     mState.vertexAttribute[attribNum].mSize = size;
     mState.vertexAttribute[attribNum].mType = type;
     mState.vertexAttribute[attribNum].mNormalized = normalized;
@@ -729,29 +738,72 @@ GLint Context::getUnpackAlignment() const
     return mState.unpackAlignment;
 }
 
+// Returns an unused buffer name
 GLuint Context::createBuffer()
 {
-    return mResourceManager->createBuffer();
+    unsigned int handle = 1;
+
+    while (mBufferMap.find(handle) != mBufferMap.end())
+    {
+        handle++;
+    }
+
+    mBufferMap[handle] = NULL;
+
+    return handle;
 }
 
-GLuint Context::createProgram()
-{
-    return mResourceManager->createProgram();
-}
-
+// Returns an unused shader/program name
 GLuint Context::createShader(GLenum type)
 {
-    return mResourceManager->createShader(type);
+    unsigned int handle = 1;
+
+    while (mShaderMap.find(handle) != mShaderMap.end() || mProgramMap.find(handle) != mProgramMap.end())   // Shared name space
+    {
+        handle++;
+    }
+
+    if (type == GL_VERTEX_SHADER)
+    {
+        mShaderMap[handle] = new VertexShader(this, handle);
+    }
+    else if (type == GL_FRAGMENT_SHADER)
+    {
+        mShaderMap[handle] = new FragmentShader(this, handle);
+    }
+    else UNREACHABLE();
+
+    return handle;
 }
 
+// Returns an unused program/shader name
+GLuint Context::createProgram()
+{
+    unsigned int handle = 1;
+
+    while (mProgramMap.find(handle) != mProgramMap.end() || mShaderMap.find(handle) != mShaderMap.end())   // Shared name space
+    {
+        handle++;
+    }
+
+    mProgramMap[handle] = new Program();
+
+    return handle;
+}
+
+// Returns an unused texture name
 GLuint Context::createTexture()
 {
-    return mResourceManager->createTexture();
-}
+    unsigned int handle = 1;
 
-GLuint Context::createRenderbuffer()
-{
-    return mResourceManager->createRenderbuffer();
+    while (mTextureMap.find(handle) != mTextureMap.end())
+    {
+        handle++;
+    }
+
+    mTextureMap[handle] = NULL;
+
+    return handle;
 }
 
 // Returns an unused framebuffer name
@@ -769,44 +821,85 @@ GLuint Context::createFramebuffer()
     return handle;
 }
 
+// Returns an unused renderbuffer name
+GLuint Context::createRenderbuffer()
+{
+    unsigned int handle = 1;
+
+    while (mRenderbufferMap.find(handle) != mRenderbufferMap.end())
+    {
+        handle++;
+    }
+
+    mRenderbufferMap[handle] = NULL;
+
+    return handle;
+}
+
 void Context::deleteBuffer(GLuint buffer)
 {
-    if (mResourceManager->getBuffer(buffer))
+    BufferMap::iterator bufferObject = mBufferMap.find(buffer);
+
+    if (bufferObject != mBufferMap.end())
     {
         detachBuffer(buffer);
+
+        delete bufferObject->second;
+        mBufferMap.erase(bufferObject);
     }
-    
-    mResourceManager->deleteBuffer(buffer);
 }
 
 void Context::deleteShader(GLuint shader)
 {
-    mResourceManager->deleteShader(shader);
+    ShaderMap::iterator shaderObject = mShaderMap.find(shader);
+
+    if (shaderObject != mShaderMap.end())
+    {
+        if (!shaderObject->second->isAttached())
+        {
+            delete shaderObject->second;
+            mShaderMap.erase(shaderObject);
+        }
+        else
+        {
+            shaderObject->second->flagForDeletion();
+        }
+    }
 }
 
 void Context::deleteProgram(GLuint program)
 {
-    mResourceManager->deleteProgram(program);
+    ProgramMap::iterator programObject = mProgramMap.find(program);
+
+    if (programObject != mProgramMap.end())
+    {
+        if (program != mState.currentProgram)
+        {
+            delete programObject->second;
+            mProgramMap.erase(programObject);
+        }
+        else
+        {
+            programObject->second->flagForDeletion();
+        }
+    }
 }
 
 void Context::deleteTexture(GLuint texture)
 {
-    if (mResourceManager->getTexture(texture))
+    TextureMap::iterator textureObject = mTextureMap.find(texture);
+
+    if (textureObject != mTextureMap.end())
     {
         detachTexture(texture);
-    }
 
-    mResourceManager->deleteTexture(texture);
-}
+        if (texture != 0)
+        {
+            delete textureObject->second;
+        }
 
-void Context::deleteRenderbuffer(GLuint renderbuffer)
-{
-    if (mResourceManager->getRenderbuffer(renderbuffer))
-    {
-        detachRenderbuffer(renderbuffer);
+        mTextureMap.erase(textureObject);
     }
-    
-    mResourceManager->deleteRenderbuffer(renderbuffer);
 }
 
 void Context::deleteFramebuffer(GLuint framebuffer)
@@ -822,66 +915,61 @@ void Context::deleteFramebuffer(GLuint framebuffer)
     }
 }
 
-Buffer *Context::getBuffer(GLuint handle)
+void Context::deleteRenderbuffer(GLuint renderbuffer)
 {
-    return mResourceManager->getBuffer(handle);
-}
+    RenderbufferMap::iterator renderbufferObject = mRenderbufferMap.find(renderbuffer);
 
-Shader *Context::getShader(GLuint handle)
-{
-    return mResourceManager->getShader(handle);
-}
+    if (renderbufferObject != mRenderbufferMap.end())
+    {
+        detachRenderbuffer(renderbuffer);
 
-Program *Context::getProgram(GLuint handle)
-{
-    return mResourceManager->getProgram(handle);
-}
-
-Texture *Context::getTexture(GLuint handle)
-{
-    return mResourceManager->getTexture(handle);
-}
-
-Renderbuffer *Context::getRenderbuffer(GLuint handle)
-{
-    return mResourceManager->getRenderbuffer(handle);
-}
-
-Framebuffer *Context::getFramebuffer()
-{
-    return getFramebuffer(mState.framebuffer);
+        delete renderbufferObject->second;
+        mRenderbufferMap.erase(renderbufferObject);
+    }
 }
 
 void Context::bindArrayBuffer(unsigned int buffer)
 {
-    mResourceManager->checkBufferAllocation(buffer);
+    if (buffer != 0 && !getBuffer(buffer))
+    {
+        mBufferMap[buffer] = new Buffer();
+    }
 
-    mState.arrayBuffer.set(getBuffer(buffer));
+    mState.arrayBuffer = buffer;
 }
 
 void Context::bindElementArrayBuffer(unsigned int buffer)
 {
-    mResourceManager->checkBufferAllocation(buffer);
+    if (buffer != 0 && !getBuffer(buffer))
+    {
+        mBufferMap[buffer] = new Buffer();
+    }
 
-    mState.elementArrayBuffer.set(getBuffer(buffer));
+    mState.elementArrayBuffer = buffer;
 }
 
 void Context::bindTexture2D(GLuint texture)
 {
-    mResourceManager->checkTextureAllocation(texture, SAMPLER_2D);
+    if (!getTexture(texture) && texture != 0)
+    {
+        mTextureMap[texture] = new Texture2D(this);
+    }
 
-    mState.texture2D.set(getTexture(texture));
+    mState.texture2D = texture;
 
-    mState.samplerTexture[SAMPLER_2D][mState.activeSampler].set(mState.texture2D.get());
+    mState.samplerTexture[SAMPLER_2D][mState.activeSampler] = texture;
 }
 
 void Context::bindTextureCubeMap(GLuint texture)
 {
-    mResourceManager->checkTextureAllocation(texture, SAMPLER_CUBE);
+    if (!getTexture(texture) && texture != 0)
+    {
+        mTextureMap[texture] = new TextureCubeMap(this);
+    }
 
-    mState.textureCubeMap.set(getTexture(texture));
+    mState.textureCubeMap = texture;
 
-    mState.samplerTexture[SAMPLER_CUBE][mState.activeSampler].set(mState.textureCubeMap.get());
+    mState.samplerTexture[SAMPLER_CUBE][mState.activeSampler] = texture;
 }
 
 void Context::bindFramebuffer(GLuint framebuffer)
@@ -896,30 +984,24 @@ void Context::bindFramebuffer(GLuint framebuffer)
 
 void Context::bindRenderbuffer(GLuint renderbuffer)
 {
-    mResourceManager->checkRenderbufferAllocation(renderbuffer);
+    if (renderbuffer != 0 && !getRenderbuffer(renderbuffer))
+    {
+        mRenderbufferMap[renderbuffer] = new Renderbuffer();
+    }
 
-    mState.renderbuffer.set(getRenderbuffer(renderbuffer));
+    mState.renderbuffer = renderbuffer;
 }
 
 void Context::useProgram(GLuint program)
 {
+    Program *programObject = getCurrentProgram();
+
     GLuint priorProgram = mState.currentProgram;
     mState.currentProgram = program;               // Must switch before trying to delete, otherwise it only gets flagged.
 
-    if (priorProgram != program)
+    if (programObject && programObject->isFlaggedForDeletion())
     {
-        Program *newProgram = mResourceManager->getProgram(program);
-        Program *oldProgram = mResourceManager->getProgram(priorProgram);
-
-        if (newProgram)
-        {
-            newProgram->addRef();
-        }
-        
-        if (oldProgram)
-        {
-            oldProgram->release();
-        }
+        deleteProgram(priorProgram);
     }
 }
 
@@ -929,10 +1011,86 @@ void Context::setFramebufferZero(Framebuffer *buffer)
     mFramebufferMap[0] = buffer;
 }
 
-void Context::setRenderbufferStorage(RenderbufferStorage *renderbuffer)
+void Context::setColorbufferZero(Colorbuffer *buffer)
 {
-    Renderbuffer *renderbufferObject = mState.renderbuffer.get();
-    renderbufferObject->setStorage(renderbuffer);
+    delete mColorbufferZero;
+    mColorbufferZero = buffer;
+}
+
+void Context::setDepthbufferZero(Depthbuffer *buffer)
+{
+    delete mDepthbufferZero;
+    mDepthbufferZero = buffer;
+}
+
+void Context::setStencilbufferZero(Stencilbuffer *buffer)
+{
+    delete mStencilbufferZero;
+    mStencilbufferZero = buffer;
+}
+
+void Context::setRenderbuffer(Renderbuffer *buffer)
+{
+    delete mRenderbufferMap[mState.renderbuffer];
+    mRenderbufferMap[mState.renderbuffer] = buffer;
+}
+
+Buffer *Context::getBuffer(unsigned int handle)
+{
+    BufferMap::iterator buffer = mBufferMap.find(handle);
+
+    if (buffer == mBufferMap.end())
+    {
+        return NULL;
+    }
+    else
+    {
+        return buffer->second;
+    }
+}
+
+Shader *Context::getShader(unsigned int handle)
+{
+    ShaderMap::iterator shader = mShaderMap.find(handle);
+
+    if (shader == mShaderMap.end())
+    {
+        return NULL;
+    }
+    else
+    {
+        return shader->second;
+    }
+}
+
+Program *Context::getProgram(unsigned int handle)
+{
+    ProgramMap::iterator program = mProgramMap.find(handle);
+
+    if (program == mProgramMap.end())
+    {
+        return NULL;
+    }
+    else
+    {
+        return program->second;
+    }
+}
+
+Texture *Context::getTexture(unsigned int handle)
+{
+    if (handle == 0) return NULL;
+
+    TextureMap::iterator texture = mTextureMap.find(handle);
+
+    if (texture == mTextureMap.end())
+    {
+        return NULL;
+    }
+    else
+    {
+        return texture->second;
+    }
 }
 
 Framebuffer *Context::getFramebuffer(unsigned int handle)
@@ -949,44 +1107,115 @@ Framebuffer *Context::getFramebuffer(unsigned int handle)
     }
 }
 
+Renderbuffer *Context::getRenderbuffer(unsigned int handle)
+{
+    RenderbufferMap::iterator renderbuffer = mRenderbufferMap.find(handle);
+
+    if (renderbuffer == mRenderbufferMap.end())
+    {
+        return NULL;
+    }
+    else
+    {
+        return renderbuffer->second;
+    }
+}
+
+Colorbuffer *Context::getColorbuffer(GLuint handle)
+{
+    if (handle != 0)
+    {
+        Renderbuffer *renderbuffer = getRenderbuffer(handle);
+
+        if (renderbuffer && renderbuffer->isColorbuffer())
+        {
+            return static_cast<Colorbuffer*>(renderbuffer);
+        }
+    }
+    else   // Special case: 0 refers to different initial render targets based on the attachment type
+    {
+        return mColorbufferZero;
+    }
+
+    return NULL;
+}
+
+Depthbuffer *Context::getDepthbuffer(GLuint handle)
+{
+    if (handle != 0)
+    {
+        Renderbuffer *renderbuffer = getRenderbuffer(handle);
+
+        if (renderbuffer && renderbuffer->isDepthbuffer())
+        {
+            return static_cast<Depthbuffer*>(renderbuffer);
+        }
+    }
+    else   // Special case: 0 refers to different initial render targets based on the attachment type
+    {
+        return mDepthbufferZero;
+    }
+
+    return NULL;
+}
+
+Stencilbuffer *Context::getStencilbuffer(GLuint handle)
+{
+    if (handle != 0)
+    {
+        Renderbuffer *renderbuffer = getRenderbuffer(handle);
+
+        if (renderbuffer && renderbuffer->isStencilbuffer())
+        {
+            return static_cast<Stencilbuffer*>(renderbuffer);
+        }
+    }
+    else
+    {
+        return mStencilbufferZero;
+    }
+
+    return NULL;
+}
+
 Buffer *Context::getArrayBuffer()
 {
-    return mState.arrayBuffer.get();
+    return getBuffer(mState.arrayBuffer);
 }
 
 Buffer *Context::getElementArrayBuffer()
 {
-    return mState.elementArrayBuffer.get();
+    return getBuffer(mState.elementArrayBuffer);
 }
 
 Program *Context::getCurrentProgram()
 {
-    return mResourceManager->getProgram(mState.currentProgram);
+    return getProgram(mState.currentProgram);
 }
 
 Texture2D *Context::getTexture2D()
 {
-    if (mState.texture2D.id() == 0)   // Special case: 0 refers to different initial textures based on the target
+    if (mState.texture2D == 0)   // Special case: 0 refers to different initial textures based on the target
     {
         return mTexture2DZero;
     }
 
-    return static_cast<Texture2D*>(mState.texture2D.get());
+    return (Texture2D*)getTexture(mState.texture2D);
 }
 
 TextureCubeMap *Context::getTextureCubeMap()
 {
-    if (mState.textureCubeMap.id() == 0)   // Special case: 0 refers to different initial textures based on the target
+    if (mState.textureCubeMap == 0)   // Special case: 0 refers to different initial textures based on the target
     {
         return mTextureCubeMapZero;
     }
 
-    return static_cast<TextureCubeMap*>(mState.textureCubeMap.get());
+    return (TextureCubeMap*)getTexture(mState.textureCubeMap);
 }
 
 Texture *Context::getSamplerTexture(unsigned int sampler, SamplerType type)
 {
-    GLuint texid = mState.samplerTexture[type][sampler].id();
+    GLuint texid = mState.samplerTexture[type][sampler];
 
     if (texid == 0)
     {
@@ -998,7 +1227,12 @@ Texture *Context::getSamplerTexture(unsigned int sampler, SamplerType type)
         }
     }
 
-    return mState.samplerTexture[type][sampler].get();
+    return getTexture(texid);
+}
+
+Framebuffer *Context::getFramebuffer()
+{
+    return getFramebuffer(mState.framebuffer);
 }
 
 bool Context::getBooleanv(GLenum pname, GLboolean *params)
@@ -1049,7 +1283,7 @@ bool Context::getFloatv(GLenum pname, GLfloat *params)
         break;
       case GL_ALIASED_POINT_SIZE_RANGE:
         params[0] = gl::ALIASED_POINT_SIZE_RANGE_MIN;
-        params[1] = supportsShaderModel3() ? gl::ALIASED_POINT_SIZE_RANGE_MAX_SM3 : gl::ALIASED_POINT_SIZE_RANGE_MAX_SM2;
+        params[1] = gl::ALIASED_POINT_SIZE_RANGE_MAX;
         break;
       case GL_DEPTH_RANGE:
         params[0] = mState.zNear;
@@ -1095,10 +1329,10 @@ bool Context::getIntegerv(GLenum pname, GLint *params)
       case GL_NUM_COMPRESSED_TEXTURE_FORMATS:   *params = 0;                                    break;
       case GL_COMPRESSED_TEXTURE_FORMATS: /* no compressed texture formats are supported */     break;
       case GL_SHADER_BINARY_FORMATS:      /* no shader binary formats are supported */          break;
-      case GL_ARRAY_BUFFER_BINDING:             *params = mState.arrayBuffer.id();              break;
-      case GL_ELEMENT_ARRAY_BUFFER_BINDING:     *params = mState.elementArrayBuffer.id();       break;
+      case GL_ARRAY_BUFFER_BINDING:             *params = mState.arrayBuffer;                   break;
+      case GL_ELEMENT_ARRAY_BUFFER_BINDING:     *params = mState.elementArrayBuffer;            break;
       case GL_FRAMEBUFFER_BINDING:              *params = mState.framebuffer;                   break;
-      case GL_RENDERBUFFER_BINDING:             *params = mState.renderbuffer.id();             break;
+      case GL_RENDERBUFFER_BINDING:             *params = mState.renderbuffer;                  break;
       case GL_CURRENT_PROGRAM:                  *params = mState.currentProgram;                break;
       case GL_PACK_ALIGNMENT:                   *params = mState.packAlignment;                 break;
       case GL_UNPACK_ALIGNMENT:                 *params = mState.unpackAlignment;               break;
@@ -1181,7 +1415,7 @@ bool Context::getIntegerv(GLenum pname, GLint *params)
       case GL_DEPTH_BITS:
         {
             gl::Framebuffer *framebuffer = getFramebuffer();
-            gl::DepthStencilbuffer *depthbuffer = framebuffer->getDepthbuffer();
+            gl::Depthbuffer *depthbuffer = framebuffer->getDepthbuffer();
 
             if (depthbuffer)
             {
@@ -1196,7 +1430,7 @@ bool Context::getIntegerv(GLenum pname, GLint *params)
       case GL_STENCIL_BITS:
         {
             gl::Framebuffer *framebuffer = getFramebuffer();
-            gl::DepthStencilbuffer *stencilbuffer = framebuffer->getStencilbuffer();
+            gl::Stencilbuffer *stencilbuffer = framebuffer->getStencilbuffer();
 
             if (stencilbuffer)
             {
@@ -1216,7 +1450,7 @@ bool Context::getIntegerv(GLenum pname, GLint *params)
                 return false;
             }
 
-            *params = mState.samplerTexture[SAMPLER_2D][mState.activeSampler].id();
+            *params = mState.samplerTexture[SAMPLER_2D][mState.activeSampler];
         }
         break;
       case GL_TEXTURE_BINDING_CUBE_MAP:
@@ -1227,7 +1461,7 @@ bool Context::getIntegerv(GLenum pname, GLint *params)
                 return false;
             }
 
-            *params = mState.samplerTexture[SAMPLER_CUBE][mState.activeSampler].id();
+            *params = mState.samplerTexture[SAMPLER_CUBE][mState.activeSampler];
         }
         break;
       default:
@@ -1402,7 +1636,7 @@ bool Context::applyRenderTarget(bool ignoreViewport)
     }
 
     IDirect3DSurface9 *renderTarget = framebufferObject->getRenderTarget();
-    IDirect3DSurface9 *depthStencil = NULL;
+    IDirect3DSurface9 *depthStencil = framebufferObject->getDepthStencil();
 
     unsigned int renderTargetSerial = framebufferObject->getRenderTargetSerial();
     if (renderTargetSerial != mAppliedRenderTargetSerial)
@@ -1411,25 +1645,11 @@ bool Context::applyRenderTarget(bool ignoreViewport)
         mAppliedRenderTargetSerial = renderTargetSerial;
     }
 
-    unsigned int depthbufferSerial = 0;
-    unsigned int stencilbufferSerial = 0;
-    if (framebufferObject->getDepthbufferType() != GL_NONE)
-    {
-        depthStencil = framebufferObject->getDepthbuffer()->getDepthStencil();
-        depthbufferSerial = framebufferObject->getDepthbuffer()->getSerial();
-    }
-    else if (framebufferObject->getStencilbufferType() != GL_NONE)
-    {
-        depthStencil = framebufferObject->getStencilbuffer()->getDepthStencil();
-        stencilbufferSerial = framebufferObject->getStencilbuffer()->getSerial();
-    }
-
-    if (depthbufferSerial != mAppliedDepthbufferSerial ||
-        stencilbufferSerial != mAppliedStencilbufferSerial)
+    unsigned int depthbufferSerial = framebufferObject->getDepthbufferSerial();
+    if (depthbufferSerial != mAppliedDepthbufferSerial)
     {
         device->SetDepthStencilSurface(depthStencil);
         mAppliedDepthbufferSerial = depthbufferSerial;
-        mAppliedStencilbufferSerial = stencilbufferSerial;
     }
 
     D3DVIEWPORT9 viewport;
@@ -1490,7 +1710,7 @@ bool Context::applyRenderTarget(bool ignoreViewport)
         GLfloat xy[2] = {1.0f / viewport.Width, 1.0f / viewport.Height};
         programObject->setUniform2fv(halfPixelSize, 1, (GLfloat*)&xy);
 
-        GLint window = programObject->getDxViewportLocation();
+        GLint window = programObject->getDxWindowLocation();
         GLfloat whxy[4] = {mState.viewportWidth / 2.0f, mState.viewportHeight / 2.0f, 
                           (float)mState.viewportX + mState.viewportWidth / 2.0f, 
                           (float)mState.viewportY + mState.viewportHeight / 2.0f};
@@ -1528,8 +1748,6 @@ void Context::applyState(GLenum drawMode)
     GLint alwaysFront = !isTriangleMode(drawMode);
     programObject->setUniform1iv(pointsOrLines, 1, &alwaysFront);
 
-    Framebuffer *framebufferObject = getFramebuffer();
-
     if (mCullStateDirty || mFrontFaceDirty)
     {
         if (mState.cullFace)
@@ -1546,7 +1764,7 @@ void Context::applyState(GLenum drawMode)
 
     if (mDepthStateDirty)
     {
-        if (mState.depthTest && framebufferObject->getDepthbufferType() != GL_NONE)
+        if (mState.depthTest)
         {
             device->SetRenderState(D3DRS_ZENABLE, D3DZB_TRUE);
             device->SetRenderState(D3DRS_ZFUNC, es2dx::ConvertComparison(mState.depthFunc));
@@ -1627,7 +1845,7 @@ void Context::applyState(GLenum drawMode)
 
             // get the maximum size of the stencil ref
             gl::Framebuffer *framebuffer = getFramebuffer();
-            gl::DepthStencilbuffer *stencilbuffer = framebuffer->getStencilbuffer();
+            gl::Stencilbuffer *stencilbuffer = framebuffer->getStencilbuffer();
             GLuint maxStencil = (1 << stencilbuffer->getStencilSize()) - 1;
 
             device->SetRenderState(mState.frontFace == GL_CCW ? D3DRS_STENCILWRITEMASK : D3DRS_CCW_STENCILWRITEMASK, mState.stencilWritemask);
@@ -1679,7 +1897,7 @@ void Context::applyState(GLenum drawMode)
     {
         if (mState.polygonOffsetFill)
         {
-            gl::DepthStencilbuffer *depthbuffer = getFramebuffer()->getDepthbuffer();
+            gl::Depthbuffer *depthbuffer = getFramebuffer()->getDepthbuffer();
             if (depthbuffer)
             {
                 device->SetRenderState(D3DRS_SLOPESCALEDEPTHBIAS, *((DWORD*)&mState.polygonOffsetFactor));
@@ -1787,7 +2005,7 @@ GLenum Context::applyVertexBuffer(const TranslatedIndexData &indexInfo)
 // Applies the indices and element array bindings to the Direct3D 9 device
 GLenum Context::applyIndexBuffer(const void *indices, GLsizei count, GLenum mode, GLenum type, TranslatedIndexData *indexInfo)
 {
-    GLenum err = mIndexDataManager->preRenderValidate(mode, type, count, mState.elementArrayBuffer.get(), indices, indexInfo);
+    GLenum err = mIndexDataManager->preRenderValidate(mode, type, count, getBuffer(mState.elementArrayBuffer), indices, indexInfo);
 
     if (err == GL_NO_ERROR)
     {
@@ -1875,12 +2093,6 @@ void Context::applyTextures()
 void Context::readPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void* pixels)
 {
     Framebuffer *framebuffer = getFramebuffer();
-
-    if (framebuffer->completeness() != GL_FRAMEBUFFER_COMPLETE)
-    {
-        return error(GL_INVALID_FRAMEBUFFER_OPERATION);
-    }
-
     IDirect3DSurface9 *renderTarget = framebuffer->getRenderTarget();
     IDirect3DDevice9 *device = getDevice();
 
@@ -1904,19 +2116,19 @@ void Context::readPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum
 
     result = device->GetRenderTargetData(renderTarget, systemSurface);
 
-    if (FAILED(result))
+    if (result == D3DERR_DRIVERINTERNALERROR)
     {
         systemSurface->Release();
 
-        switch (result)
-        {
-            case D3DERR_DRIVERINTERNALERROR:
-            case D3DERR_DEVICELOST:
-                return error(GL_OUT_OF_MEMORY);
-            default:
-                UNREACHABLE();
-                return;   // No sensible error to generate
-        }
+        return error(GL_OUT_OF_MEMORY);
+    }
+
+    if (FAILED(result))
+    {
+        UNREACHABLE();
+        systemSurface->Release();
+
+        return;   // No sensible error to generate
     }
 
     D3DLOCKED_RECT lock;
@@ -2087,24 +2299,22 @@ void Context::clear(GLbitfield mask)
         }
     }
 
+    IDirect3DSurface9 *depthStencil = framebufferObject->getDepthStencil();
+
     GLuint stencilUnmasked = 0x0;
 
-    if (mask & GL_STENCIL_BUFFER_BIT)
+    if ((mask & GL_STENCIL_BUFFER_BIT) && depthStencil)
     {
+        D3DSURFACE_DESC desc;
+        depthStencil->GetDesc(&desc);
+
         mask &= ~GL_STENCIL_BUFFER_BIT;
-        if (framebufferObject->getStencilbufferType() != GL_NONE)
+        unsigned int stencilSize = es2dx::GetStencilSize(desc.Format);
+        stencilUnmasked = (0x1 << stencilSize) - 1;
+
+        if (stencilUnmasked != 0x0)
         {
-            IDirect3DSurface9 *depthStencil = framebufferObject->getStencilbuffer()->getDepthStencil();
-            D3DSURFACE_DESC desc;
-            depthStencil->GetDesc(&desc);
-
-            unsigned int stencilSize = es2dx::GetStencilSize(desc.Format);
-            stencilUnmasked = (0x1 << stencilSize) - 1;
-
-            if (stencilUnmasked != 0x0)
-            {
-                flags |= D3DCLEAR_STENCIL;
-            }
+            flags |= D3DCLEAR_STENCIL;
         }
     }
 
@@ -2532,9 +2742,14 @@ GLenum Context::getError()
     return GL_NO_ERROR;
 }
 
-bool Context::supportsShaderModel3() const
+const char *Context::getPixelShaderProfile()
 {
-    return mSupportsShaderModel3;
+    return mPsProfile;
+}
+
+const char *Context::getVertexShaderProfile()
+{
+    return mVsProfile;
 }
 
 void Context::detachBuffer(GLuint buffer)
@@ -2543,21 +2758,21 @@ void Context::detachBuffer(GLuint buffer)
     // If a buffer object is deleted while it is bound, all bindings to that object in the current context
     // (i.e. in the thread that called Delete-Buffers) are reset to zero.
 
-    if (mState.arrayBuffer.id() == buffer)
+    if (mState.arrayBuffer == buffer)
     {
-        mState.arrayBuffer.set(NULL);
+        mState.arrayBuffer = 0;
     }
 
-    if (mState.elementArrayBuffer.id() == buffer)
+    if (mState.elementArrayBuffer == buffer)
     {
-        mState.elementArrayBuffer.set(NULL);
+        mState.elementArrayBuffer = 0;
     }
 
     for (int attribute = 0; attribute < MAX_VERTEX_ATTRIBS; attribute++)
     {
-        if (mState.vertexAttribute[attribute].mBoundBuffer.id() == buffer)
+        if (mState.vertexAttribute[attribute].mBoundBuffer == buffer)
         {
-            mState.vertexAttribute[attribute].mBoundBuffer.set(NULL);
+            mState.vertexAttribute[attribute].mBoundBuffer = 0;
         }
     }
 }
@@ -2572,9 +2787,9 @@ void Context::detachTexture(GLuint texture)
     {
         for (int sampler = 0; sampler < MAX_TEXTURE_IMAGE_UNITS; sampler++)
         {
-            if (mState.samplerTexture[type][sampler].id() == texture)
+            if (mState.samplerTexture[type][sampler] == texture)
             {
-                mState.samplerTexture[type][sampler].set(NULL);
+                mState.samplerTexture[type][sampler] = 0;
             }
         }
     }
@@ -2610,7 +2825,7 @@ void Context::detachRenderbuffer(GLuint renderbuffer)
     // If a renderbuffer that is currently bound to RENDERBUFFER is deleted, it is as though BindRenderbuffer
     // had been executed with the target RENDERBUFFER and name of zero.
 
-    if (mState.renderbuffer.id() == renderbuffer)
+    if (mState.renderbuffer == renderbuffer)
     {
         bindRenderbuffer(0);
     }
@@ -2644,7 +2859,7 @@ Texture *Context::getIncompleteTexture(SamplerType type)
 
           case SAMPLER_2D:
             {
-                Texture2D *incomplete2d = new Texture2D(Texture::INCOMPLETE_TEXTURE_ID);
+                Texture2D *incomplete2d = new Texture2D(this);
                 incomplete2d->setImage(0, GL_RGBA, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, 1, color);
                 t = incomplete2d;
             }
@@ -2652,7 +2867,7 @@ Texture *Context::getIncompleteTexture(SamplerType type)
 
           case SAMPLER_CUBE:
             {
-              TextureCubeMap *incompleteCube = new TextureCubeMap(Texture::INCOMPLETE_TEXTURE_ID);
+              TextureCubeMap *incompleteCube = new TextureCubeMap(this);
 
               incompleteCube->setImagePosX(0, GL_RGBA, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, 1, color);
               incompleteCube->setImageNegX(0, GL_RGBA, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, 1, color);
@@ -2700,9 +2915,9 @@ bool Context::hasStencil()
 {
     Framebuffer *framebufferObject = getFramebuffer();
 
-    if (framebufferObject && framebufferObject->getStencilbufferType() != GL_NONE)
+    if (framebufferObject)
     {
-        DepthStencilbuffer *stencilbufferObject = framebufferObject->getStencilbuffer();
+        Stencilbuffer *stencilbufferObject = framebufferObject->getStencilbuffer();
 
         if (stencilbufferObject)
         {
@@ -2727,8 +2942,6 @@ void Context::setVertexAttrib(GLuint index, const GLfloat *values)
 
 void Context::initExtensionString()
 {
-    mExtensionString += "GL_OES_packed_depth_stencil ";
-
     if (mBufferBackEnd->supportIntIndices())
     {
         mExtensionString += "GL_OES_element_index_uint ";
@@ -2750,9 +2963,9 @@ const char *Context::getExtensionString() const
 
 extern "C"
 {
-gl::Context *glCreateContext(const egl::Config *config, const gl::Context *shareContext)
+gl::Context *glCreateContext(const egl::Config *config)
 {
-    return new gl::Context(config, shareContext);
+    return new gl::Context(config);
 }
 
 void glDestroyContext(gl::Context *context)

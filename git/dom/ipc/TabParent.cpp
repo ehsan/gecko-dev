@@ -95,9 +95,12 @@ TabParent::~TabParent()
 void
 TabParent::ActorDestroy(ActorDestroyReason why)
 {
-  nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
-  if (frameLoader) {
-    frameLoader->DestroyChild();
+  nsCOMPtr<nsIFrameLoaderOwner> frameLoaderOwner = do_QueryInterface(mFrameElement);
+  if (frameLoaderOwner) {
+    nsRefPtr<nsFrameLoader> frameLoader = frameLoaderOwner->GetFrameLoader();
+    if (frameLoader) {
+      frameLoader->DestroyChild();
+    }
   }
 }
 
@@ -513,25 +516,35 @@ TabParent::ReceiveMessage(const nsString& aMessage,
                           const nsString& aJSON,
                           nsTArray<nsString>* aJSONRetVal)
 {
-  nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
-  if (frameLoader && frameLoader->GetFrameMessageManager()) {
-    nsFrameMessageManager* manager = frameLoader->GetFrameMessageManager();
-    JSContext* ctx = manager->GetJSContext();
-    JSAutoRequest ar(ctx);
-    PRUint32 len = 0; //TODO: obtain a real value in bug 572685
-    // Because we want JS messages to have always the same properties,
-    // create array even if len == 0.
-    JSObject* objectsArray = JS_NewArrayObject(ctx, len, NULL);
-    if (!objectsArray) {
-      return false;
-    }
+  nsCOMPtr<nsIFrameLoaderOwner> frameLoaderOwner =
+    do_QueryInterface(mFrameElement);
+  if (frameLoaderOwner) {
+    nsRefPtr<nsFrameLoader> frameLoader = frameLoaderOwner->GetFrameLoader();
+    if (frameLoader && frameLoader->GetFrameMessageManager()) {
+      nsFrameMessageManager* manager = frameLoader->GetFrameMessageManager();
+      JSContext* ctx = manager->GetJSContext();
+      JSAutoRequest ar(ctx);
+      jsval* dest;
+      PRUint32 len = 0; //TODO: obtain a real value in bug 572685
+      // Because we want JS messages to have always the same properties,
+      // create array even if len == 0.
+      JSObject* objectsArray =
+        js_NewArrayObjectWithCapacity(ctx, len, &dest);
+      if (!objectsArray) {
+        return false;
+      }
 
-    manager->ReceiveMessage(mFrameElement,
-                            aMessage,
-                            aSync,
-                            aJSON,
-                            objectsArray,
-                            aJSONRetVal);
+      nsresult rv = NS_OK;
+      nsAutoGCRoot arrayGCRoot(&objectsArray, &rv);
+      NS_ENSURE_SUCCESS(rv, false);
+      
+      manager->ReceiveMessage(mFrameElement,
+                              aMessage,
+                              aSync,
+                              aJSON,
+                              objectsArray,
+                              aJSONRetVal);
+    }
   }
   return true;
 }
@@ -702,18 +715,13 @@ TabParent::HandleDelayedDialogs()
 PRBool
 TabParent::ShouldDelayDialogs()
 {
-  nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
+  nsCOMPtr<nsIFrameLoaderOwner> frameLoaderOwner = do_QueryInterface(mFrameElement);
+  NS_ENSURE_TRUE(frameLoaderOwner, PR_TRUE);
+  nsRefPtr<nsFrameLoader> frameLoader = frameLoaderOwner->GetFrameLoader();
   NS_ENSURE_TRUE(frameLoader, PR_TRUE);
   PRBool delay = PR_FALSE;
   frameLoader->GetDelayRemoteDialogs(&delay);
   return delay;
-}
-
-already_AddRefed<nsFrameLoader>
-TabParent::GetFrameLoader() const
-{
-  nsCOMPtr<nsIFrameLoaderOwner> frameLoaderOwner = do_QueryInterface(mFrameElement);
-  return frameLoaderOwner ? frameLoaderOwner->GetFrameLoader() : nsnull;
 }
 
 } // namespace tabs
