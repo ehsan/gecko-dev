@@ -85,7 +85,6 @@ let Wrap = {
 
       try {
         this._os.notifyObservers(null, this._osPrefix + savedName + ":start", "");
-        this._os.notifyObservers(null, this._osPrefix + "global:start", "");
 
         args = savedArgs.concat(args);
         args.unshift(this, savedMethod, self.cb);
@@ -93,11 +92,9 @@ let Wrap = {
         ret = yield;
 
         this._os.notifyObservers(null, this._osPrefix + savedName + ":success", "");
-        this._os.notifyObservers(null, this._osPrefix + "global:success", "");
 
       } catch (e) {
         this._os.notifyObservers(null, this._osPrefix + savedName + ":error", "");
-        this._os.notifyObservers(null, this._osPrefix + "global:error", "");
         throw e;
       }
 
@@ -116,17 +113,10 @@ let Wrap = {
       let ret;
       let args = Array.prototype.slice.call(arguments);
 
-      if (!this._loggedIn)
-        throw "Could not acquire lock (not logged in)";
-      if (DAV.locked)
-        throw "Could not acquire lock (lock already held)";
-
       DAV.lock.async(DAV, self.cb);
       let locked = yield;
       if (!locked)
         throw "Could not acquire lock";
-
-      this._os.notifyObservers(null, this._osPrefix + "lock:acquired", "");
 
       try {
         args = savedArgs.concat(args);
@@ -138,8 +128,8 @@ let Wrap = {
         throw e;
 
       } finally {
-        yield DAV.unlock.async(DAV, self.cb);
-        this._os.notifyObservers(null, this._osPrefix + "lock:released", "");
+        DAV.unlock.async(DAV, self.cb);
+        yield;
       }
 
       self.done(ret);
@@ -161,23 +151,14 @@ let Wrap = {
         throw "Could not acquire lock";
       DAV.allowLock = false;
 
-      this._os.notifyObservers(null,
-                               this._osPrefix + "local-lock:acquired", "");
-
       try {
         args = savedArgs.concat(args);
         args.unshift(this, savedMethod, self.cb);
         Async.run.apply(Async, args);
         ret = yield;
-
-      } catch (e) {
-        throw e;
-
-      } finally {
-        DAV.allowLock = true;
-        this._os.notifyObservers(null,
-                                 this._osPrefix + "local-lock:released", "");
       }
+      catch (e) { throw e; }
+      finally { DAV.allowLock = true; }
 
       self.done(ret);
     };
