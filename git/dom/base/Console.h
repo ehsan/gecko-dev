@@ -128,10 +128,10 @@ private:
          const Sequence<JS::Value>& aData);
 
   void
-  AppendCallData(ConsoleCallData* aData);
+  AppendCallData(const ConsoleCallData& aData);
 
   void
-  ProcessCallData(ConsoleCallData* aData);
+  ProcessCallData(ConsoleCallData& aData);
 
   // If the first JS::Value of the array is a string, this method uses it to
   // format a string. The supported sequences are:
@@ -181,14 +181,11 @@ private:
   IncreaseCounter(JSContext* aCx, const ConsoleStackEntry& aFrame,
                    const nsTArray<JS::Heap<JS::Value>>& aArguments);
 
-  void
-  ClearConsoleData();
-
   nsCOMPtr<nsPIDOMWindow> mWindow;
   nsCOMPtr<nsITimer> mTimer;
   nsCOMPtr<nsIConsoleAPIStorage> mStorage;
 
-  LinkedList<ConsoleCallData> mQueuedCalls;
+  nsTArray<ConsoleCallData> mQueuedCalls;
   nsDataHashtable<nsStringHashKey, DOMHighResTimeStamp> mTimerRegistry;
   nsDataHashtable<nsStringHashKey, uint32_t> mCounterRegistry;
 

@@ -58,6 +58,7 @@ protected:
 
   bool mIsGLAlphaPremult;
   bool mNeedsYFlip;
+  bool mForceReadback;
 
   RefPtr<gfx::DataSourceSurface> mCachedTempSurface;
   nsRefPtr<gfxImageSurface> mDeprecatedCachedTempSurface;

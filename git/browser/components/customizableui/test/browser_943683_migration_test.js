@@ -42,7 +42,7 @@ add_task(function() {
       }
     }
   } finally {
-    yield promiseWindowClosed(otherWindow);
+    otherWindow.close();
   }
   btn.remove();
   btn2.remove();

@@ -340,11 +340,10 @@ public:
   // keep the same document active but create a new window.
   bool HasActiveDocument()
   {
-    MOZ_ASSERT(IsInnerWindow());
     return IsCurrentInnerWindow() ||
-      (mOuterWindow &&
-       mOuterWindow->GetCurrentInnerWindow() &&
-       mOuterWindow->GetCurrentInnerWindow()->GetDoc() == mDoc);
+      (GetOuterWindow() &&
+       GetOuterWindow()->GetCurrentInnerWindow() &&
+       GetOuterWindow()->GetCurrentInnerWindow()->GetDoc() == mDoc);
   }
 
   bool IsOuterWindow() const

@@ -38,7 +38,7 @@ add_task(function() {
   gNavToolbox.removeEventListener("customizationchange", handler);
   otherToolbox.removeEventListener("customizationchange", handler);
 
-  yield promiseWindowClosed(newWindow);
+  newWindow.close();
 });
 
 add_task(function asyncCleanup() {

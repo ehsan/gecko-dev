@@ -179,8 +179,8 @@
 #include "mozilla/dom/HTMLElementBinding.h"
 #include "mozilla/dom/SVGElementBinding.h"
 #include "nsXULAppAPI.h"
+#include "nsDOMTouchEvent.h"
 #include "mozilla/dom/Touch.h"
-#include "mozilla/dom/TouchEvent.h"
 #include "DictionaryHelpers.h"
 #include "GeneratedEvents.h"
 
@@ -963,7 +963,7 @@ TransferZoomLevels(nsIDocument* aFromDoc,
     return;
 
   toCtxt->SetFullZoom(fromCtxt->GetFullZoom());
-  toCtxt->SetBaseMinFontSize(fromCtxt->BaseMinFontSize());
+  toCtxt->SetMinFontSize(fromCtxt->MinFontSize(nullptr));
   toCtxt->SetTextZoom(fromCtxt->TextZoom());
 }
 
@@ -10013,18 +10013,18 @@ nsIDocument::CreateTouch(nsIDOMWindow* aView,
   return touch.forget();
 }
 
-already_AddRefed<TouchList>
+already_AddRefed<nsDOMTouchList>
 nsIDocument::CreateTouchList()
 {
-  nsRefPtr<TouchList> retval = new TouchList(ToSupports(this));
+  nsRefPtr<nsDOMTouchList> retval = new nsDOMTouchList(ToSupports(this));
   return retval.forget();
 }
 
-already_AddRefed<TouchList>
+already_AddRefed<nsDOMTouchList>
 nsIDocument::CreateTouchList(Touch& aTouch,
                              const Sequence<OwningNonNull<Touch> >& aTouches)
 {
-  nsRefPtr<TouchList> retval = new TouchList(ToSupports(this));
+  nsRefPtr<nsDOMTouchList> retval = new nsDOMTouchList(ToSupports(this));
   retval->Append(&aTouch);
   for (uint32_t i = 0; i < aTouches.Length(); ++i) {
     retval->Append(aTouches[i].get());
@@ -10032,10 +10032,10 @@ nsIDocument::CreateTouchList(Touch& aTouch,
   return retval.forget();
 }
 
-already_AddRefed<TouchList>
+already_AddRefed<nsDOMTouchList>
 nsIDocument::CreateTouchList(const Sequence<OwningNonNull<Touch> >& aTouches)
 {
-  nsRefPtr<TouchList> retval = new TouchList(ToSupports(this));
+  nsRefPtr<nsDOMTouchList> retval = new nsDOMTouchList(ToSupports(this));
   for (uint32_t i = 0; i < aTouches.Length(); ++i) {
     retval->Append(aTouches[i].get());
   }

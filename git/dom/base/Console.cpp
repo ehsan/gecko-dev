@@ -132,7 +132,7 @@ JSStructuredCloneCallbacks gConsoleCallbacks = {
   ConsoleStructuredCloneCallbacksError
 };
 
-class ConsoleCallData MOZ_FINAL : public LinkedListElement<ConsoleCallData>
+class ConsoleCallData
 {
 public:
   ConsoleCallData()
@@ -141,12 +141,6 @@ public:
     , mTimeStamp(JS_Now())
     , mMonotonicTimer(0)
   {
-    MOZ_COUNT_CTOR(ConsoleCallData);
-  }
-
-  ~ConsoleCallData()
-  {
-    MOZ_COUNT_DTOR(ConsoleCallData);
   }
 
   void
@@ -265,7 +259,7 @@ private:
 class ConsoleCallDataRunnable MOZ_FINAL : public ConsoleRunnable
 {
 public:
-  ConsoleCallDataRunnable(ConsoleCallData* aCallData)
+  ConsoleCallDataRunnable(const ConsoleCallData& aCallData)
     : mCallData(aCallData)
   {
   }
@@ -275,16 +269,16 @@ private:
   PreDispatch(JSContext* aCx) MOZ_OVERRIDE
   {
     ClearException ce(aCx);
-    JSAutoCompartment ac(aCx, mCallData->mGlobal);
+    JSAutoCompartment ac(aCx, mCallData.mGlobal);
 
     JS::Rooted<JSObject*> arguments(aCx,
-      JS_NewArrayObject(aCx, mCallData->mArguments.Length()));
+      JS_NewArrayObject(aCx, mCallData.mArguments.Length()));
     if (!arguments) {
       return false;
     }
 
-    for (uint32_t i = 0; i < mCallData->mArguments.Length(); ++i) {
-      if (!JS_DefineElement(aCx, arguments, i, mCallData->mArguments[i],
+    for (uint32_t i = 0; i < mCallData.mArguments.Length(); ++i) {
+      if (!JS_DefineElement(aCx, arguments, i, mCallData.mArguments[i],
                             nullptr, nullptr, JSPROP_ENUMERATE)) {
         return false;
       }
@@ -296,8 +290,8 @@ private:
       return false;
     }
 
-    mCallData->mArguments.Clear();
-    mCallData->mGlobal = nullptr;
+    mCallData.mArguments.Clear();
+    mCallData.mGlobal = nullptr;
     return true;
   }
 
@@ -347,17 +341,17 @@ private:
         return;
       }
 
-      mCallData->mArguments.AppendElement(value);
+      mCallData.mArguments.AppendElement(value);
     }
 
-    MOZ_ASSERT(mCallData->mArguments.Length() == length);
+    MOZ_ASSERT(mCallData.mArguments.Length() == length);
 
-    mCallData->mGlobal = JS::CurrentGlobalOrNull(cx);
-    console->AppendCallData(mCallData.forget());
+    mCallData.mGlobal = JS::CurrentGlobalOrNull(cx);
+    console->AppendCallData(mCallData);
   }
 
 private:
-  nsAutoPtr<ConsoleCallData> mCallData;
+  ConsoleCallData mCallData;
 
   JSAutoStructuredCloneBuffer mArguments;
   nsTArray<nsString> mStrings;
@@ -486,7 +480,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Console)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mStorage)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 
-  tmp->ClearConsoleData();
+  tmp->mQueuedCalls.Clear();
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
@@ -500,16 +494,11 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(Console)
   NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
 
-  for (ConsoleCallData* data = tmp->mQueuedCalls.getFirst(); data != nullptr;
-       data = data->getNext()) {
-    if (data->mGlobal) {
-      aCallbacks.Trace(&data->mGlobal, "data->mGlobal", aClosure);
-    }
+  for (uint32_t i = 0; i < tmp->mQueuedCalls.Length(); ++i) {
+    NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mQueuedCalls[i].mGlobal);
 
-    for (uint32_t i = 0; i < data->mArguments.Length(); ++i) {
-      if (JSVAL_IS_TRACEABLE(data->mArguments[i])) {
-        aCallbacks.Trace(&data->mArguments[i], "data->mArguments[i]", aClosure);
-      }
+    for (uint32_t j = 0; j < tmp->mQueuedCalls[i].mArguments.Length(); ++j) {
+      NS_IMPL_CYCLE_COLLECTION_TRACE_JSVAL_MEMBER_CALLBACK(mQueuedCalls[i].mArguments[j]);
     }
   }
 
@@ -579,7 +568,7 @@ Console::Observe(nsISupports* aSubject, const char* aTopic,
       obs->RemoveObserver(this, "inner-window-destroyed");
     }
 
-    ClearConsoleData();
+    mQueuedCalls.Clear();
     mTimerRegistry.Clear();
 
     if (mTimer) {
@@ -746,8 +735,8 @@ Console::Method(JSContext* aCx, MethodName aMethodName,
   // goes wrong.
   class RAII {
   public:
-    RAII(LinkedList<ConsoleCallData>& aList)
-      : mList(aList)
+    RAII(nsTArray<ConsoleCallData>& aArray)
+      : mArray(aArray)
       , mUnfinished(true)
     {
     }
@@ -755,9 +744,7 @@ Console::Method(JSContext* aCx, MethodName aMethodName,
     ~RAII()
     {
       if (mUnfinished) {
-        ConsoleCallData* data = mList.popLast();
-        MOZ_ASSERT(data);
-        delete data;
+        mArray.RemoveElementAt(mArray.Length() - 1);
       }
     }
 
@@ -768,14 +755,12 @@ Console::Method(JSContext* aCx, MethodName aMethodName,
     }
 
   private:
-    LinkedList<ConsoleCallData>& mList;
+    nsTArray<ConsoleCallData>& mArray;
     bool mUnfinished;
   };
 
-  ConsoleCallData* callData = new ConsoleCallData();
-  mQueuedCalls.insertBack(callData);
-
-  callData->Initialize(aCx, aMethodName, aMethodString, aData);
+  ConsoleCallData& callData = *mQueuedCalls.AppendElement();
+  callData.Initialize(aCx, aMethodName, aMethodString, aData);
   RAII raii(mQueuedCalls);
 
   if (mWindow) {
@@ -788,7 +773,7 @@ Console::Method(JSContext* aCx, MethodName aMethodName,
     nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(webNav);
     MOZ_ASSERT(loadContext);
 
-    loadContext->GetUsePrivateBrowsing(&callData->mPrivate);
+    loadContext->GetUsePrivateBrowsing(&callData.mPrivate);
   }
 
   uint32_t maxDepth = aMethodName == MethodTrace ?
@@ -812,7 +797,7 @@ Console::Method(JSContext* aCx, MethodName aMethodName,
 
     if (language == nsIProgrammingLanguage::JAVASCRIPT ||
         language == nsIProgrammingLanguage::JAVASCRIPT2) {
-      ConsoleStackEntry& data = *callData->mStack.AppendElement();
+      ConsoleStackEntry& data = *callData.mStack.AppendElement();
 
       nsCString string;
       rv = stack->GetFilename(string);
@@ -865,23 +850,19 @@ Console::Method(JSContext* aCx, MethodName aMethodName,
       return;
     }
 
-    callData->mMonotonicTimer = performance->Now();
+    callData.mMonotonicTimer = performance->Now();
   }
 
-  // The operation is completed. RAII class has to be disabled.
-  raii.Finished();
-
   if (!NS_IsMainThread()) {
-    // Here we are in a worker thread. The ConsoleCallData has to been removed
-    // from the list and it will be deleted by the ConsoleCallDataRunnable or
-    // by the Main-Thread Console object.
-    mQueuedCalls.popLast();
-
+    // Here we are in a worker thread.
     nsRefPtr<ConsoleCallDataRunnable> runnable =
       new ConsoleCallDataRunnable(callData);
     runnable->Dispatch();
     return;
   }
+
+  // The operation is completed. RAII class has to be disabled.
+  raii.Finished();
 
   if (!mTimer) {
     mTimer = do_CreateInstance("@mozilla.org/timer;1");
@@ -891,9 +872,9 @@ Console::Method(JSContext* aCx, MethodName aMethodName,
 }
 
 void
-Console::AppendCallData(ConsoleCallData* aCallData)
+Console::AppendCallData(const ConsoleCallData& aCallData)
 {
-  mQueuedCalls.insertBack(aCallData);
+  mQueuedCalls.AppendElement(aCallData);
 
   if (!mTimer) {
     mTimer = do_CreateInstance("@mozilla.org/timer;1");
@@ -906,19 +887,17 @@ Console::AppendCallData(ConsoleCallData* aCallData)
 NS_IMETHODIMP
 Console::Notify(nsITimer *timer)
 {
-  MOZ_ASSERT(!mQueuedCalls.isEmpty());
+  MOZ_ASSERT(!mQueuedCalls.IsEmpty());
 
-  for (uint32_t i = 0; i < MESSAGES_IN_INTERVAL; ++i) {
-    ConsoleCallData* data = mQueuedCalls.popFirst();
-    if (!data) {
-      break;
-    }
-
-    ProcessCallData(data);
-    delete data;
+  uint32_t i = 0;
+  for (; i < MESSAGES_IN_INTERVAL && i < mQueuedCalls.Length();
+       ++i) {
+    ProcessCallData(mQueuedCalls[i]);
   }
 
-  if (mQueuedCalls.isEmpty()) {
+  mQueuedCalls.RemoveElementsAt(0, i);
+
+  if (mQueuedCalls.IsEmpty()) {
     mTimer->Cancel();
     mTimer = nullptr;
   }
@@ -927,20 +906,18 @@ Console::Notify(nsITimer *timer)
 }
 
 void
-Console::ProcessCallData(ConsoleCallData* aData)
+Console::ProcessCallData(ConsoleCallData& aData)
 {
-  MOZ_ASSERT(aData);
-
   ConsoleStackEntry frame;
-  if (!aData->mStack.IsEmpty()) {
-    frame = aData->mStack[0];
+  if (!aData.mStack.IsEmpty()) {
+    frame = aData.mStack[0];
   }
 
   AutoSafeJSContext cx;
   ClearException ce(cx);
   RootedDictionary<ConsoleEvent> event(cx);
 
-  JSAutoCompartment ac(cx, aData->mGlobal);
+  JSAutoCompartment ac(cx, aData.mGlobal);
 
   event.mID.Construct();
   event.mInnerID.Construct();
@@ -953,14 +930,14 @@ Console::ProcessCallData(ConsoleCallData* aData)
     event.mInnerID.Value().SetAsString() = frame.mFilename;
   }
 
-  event.mLevel = aData->mMethodString;
+  event.mLevel = aData.mMethodString;
   event.mFilename = frame.mFilename;
   event.mLineNumber = frame.mLineNumber;
   event.mFunctionName = frame.mFunctionName;
-  event.mTimeStamp = aData->mTimeStamp;
-  event.mPrivate = aData->mPrivate;
+  event.mTimeStamp = aData.mTimeStamp;
+  event.mPrivate = aData.mPrivate;
 
-  switch (aData->mMethodName) {
+  switch (aData.mMethodName) {
     case MethodLog:
     case MethodInfo:
     case MethodWarn:
@@ -969,35 +946,35 @@ Console::ProcessCallData(ConsoleCallData* aData)
     case MethodDebug:
     case MethodAssert:
       event.mArguments.Construct();
-      ProcessArguments(cx, aData->mArguments, event.mArguments.Value());
+      ProcessArguments(cx, aData.mArguments, event.mArguments.Value());
       break;
 
     default:
       event.mArguments.Construct();
-      ArgumentsToValueList(aData->mArguments, event.mArguments.Value());
+      ArgumentsToValueList(aData.mArguments, event.mArguments.Value());
   }
 
-  if (aData->mMethodName == MethodTrace) {
+  if (aData.mMethodName == MethodTrace) {
     event.mStacktrace.Construct();
-    event.mStacktrace.Value().SwapElements(aData->mStack);
+    event.mStacktrace.Value().SwapElements(aData.mStack);
   }
 
-  else if (aData->mMethodName == MethodGroup ||
-           aData->mMethodName == MethodGroupCollapsed ||
-           aData->mMethodName == MethodGroupEnd) {
-    ComposeGroupName(cx, aData->mArguments, event.mGroupName);
+  else if (aData.mMethodName == MethodGroup ||
+           aData.mMethodName == MethodGroupCollapsed ||
+           aData.mMethodName == MethodGroupEnd) {
+    ComposeGroupName(cx, aData.mArguments, event.mGroupName);
   }
 
-  else if (aData->mMethodName == MethodTime && !aData->mArguments.IsEmpty()) {
-    event.mTimer = StartTimer(cx, aData->mArguments[0], aData->mMonotonicTimer);
+  else if (aData.mMethodName == MethodTime && !aData.mArguments.IsEmpty()) {
+    event.mTimer = StartTimer(cx, aData.mArguments[0], aData.mMonotonicTimer);
   }
 
-  else if (aData->mMethodName == MethodTimeEnd && !aData->mArguments.IsEmpty()) {
-    event.mTimer = StopTimer(cx, aData->mArguments[0], aData->mMonotonicTimer);
+  else if (aData.mMethodName == MethodTimeEnd && !aData.mArguments.IsEmpty()) {
+    event.mTimer = StopTimer(cx, aData.mArguments[0], aData.mMonotonicTimer);
   }
 
-  else if (aData->mMethodName == MethodCount) {
-    event.mCounter = IncreaseCounter(cx, frame, aData->mArguments);
+  else if (aData.mMethodName == MethodCount) {
+    event.mCounter = IncreaseCounter(cx, frame, aData.mArguments);
   }
 
   JS::Rooted<JS::Value> eventValue(cx);
@@ -1416,14 +1393,6 @@ Console::IncreaseCounter(JSContext* aCx, const ConsoleStackEntry& aFrame,
   }
 
   return value;
-}
-
-void
-Console::ClearConsoleData()
-{
-  while (ConsoleCallData* data = mQueuedCalls.popFirst()) {
-    delete data;
-  }
 }
 
 } // namespace dom

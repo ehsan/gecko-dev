@@ -14,8 +14,8 @@ namespace dom {
 CompositionEvent::CompositionEvent(EventTarget* aOwner,
                                    nsPresContext* aPresContext,
                                    WidgetCompositionEvent* aEvent)
-  : UIEvent(aOwner, aPresContext,
-            aEvent ? aEvent : new WidgetCompositionEvent(false, 0, nullptr))
+  : nsDOMUIEvent(aOwner, aPresContext, aEvent ? aEvent :
+                 new WidgetCompositionEvent(false, 0, nullptr))
 {
   NS_ASSERTION(mEvent->eventStructType == NS_COMPOSITION_EVENT,
                "event type mismatch");
@@ -36,12 +36,12 @@ CompositionEvent::CompositionEvent(EventTarget* aOwner,
   // TODO: Native event should have locale information.
 }
 
-NS_IMPL_ADDREF_INHERITED(CompositionEvent, UIEvent)
-NS_IMPL_RELEASE_INHERITED(CompositionEvent, UIEvent)
+NS_IMPL_ADDREF_INHERITED(CompositionEvent, nsDOMUIEvent)
+NS_IMPL_RELEASE_INHERITED(CompositionEvent, nsDOMUIEvent)
 
 NS_INTERFACE_MAP_BEGIN(CompositionEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCompositionEvent)
-NS_INTERFACE_MAP_END_INHERITING(UIEvent)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMUIEvent)
 
 NS_IMETHODIMP
 CompositionEvent::GetData(nsAString& aData)
@@ -65,7 +65,8 @@ CompositionEvent::InitCompositionEvent(const nsAString& aType,
                                        const nsAString& aData,
                                        const nsAString& aLocale)
 {
-  nsresult rv = UIEvent::InitUIEvent(aType, aCanBubble, aCancelable, aView, 0);
+  nsresult rv =
+    nsDOMUIEvent::InitUIEvent(aType, aCanBubble, aCancelable, aView, 0);
   NS_ENSURE_SUCCESS(rv, rv);
 
   mData = aData;

@@ -121,18 +121,17 @@ class MercurialConfig(object):
         d['showfunc'] = 1
         d['unified'] = 8
 
-    def have_mqext_autocommit_mq(self):
-        if 'mqext' not in self._c:
-            return False
-        v = self._c['mqext'].get('mqcommit')
-        return v == 'auto' or v == 'yes'
-
-    def ensure_mqext_autocommit_mq(self):
-        if self.have_mqext_autocommit_mq():
-            return
+    def autocommit_mq(self, value=True):
         if 'mqext' not in self._c:
             self._c['mqext'] = {}
-        self._c['mqext']['mqcommit'] = 'auto'
+
+        if value:
+            self._c['mqext']['mqcommit'] = 'auto'
+        else:
+            try:
+                del self._c['mqext']['mqcommit']
+            except KeyError:
+                pass
 
     def have_qnew_currentuser_default(self):
         if 'defaults' not in self._c:

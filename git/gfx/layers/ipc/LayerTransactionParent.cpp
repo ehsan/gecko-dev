@@ -648,14 +648,6 @@ LayerTransactionParent::RecvClearCachedResources()
   return true;
 }
 
-bool
-LayerTransactionParent::RecvForceComposite()
-{
-  mShadowLayersManager->ForceComposite(this);
-  return true;
-}
-
-
 PGrallocBufferParent*
 LayerTransactionParent::AllocPGrallocBufferParent(const IntSize& aSize,
                                                   const uint32_t& aFormat,
