@@ -14,16 +14,10 @@ namespace layers {
 /* static */ LayersBackend
 Compositor::GetBackend()
 {
-  AssertOnCompositorThread();
-  return sBackend;
-}
-
-/* static */ void
-Compositor::AssertOnCompositorThread()
-{
   MOZ_ASSERT(CompositorParent::CompositorLoop() ==
              MessageLoop::current(),
              "Can only call this from the compositor thread!");
+  return sBackend;
 }
 
 void

@@ -90,18 +90,15 @@ this.PduHelper = {
  */
 const SL_TAG_FIELDS = (function () {
   let names = {};
-  function add(name, codepage, number) {
+  function add(name, number) {
     let entry = {
       name: name,
       number: number,
     };
-    if (!names[codepage]) {
-      names[codepage] = {};
-    }
-    names[codepage][number] = entry;
+    names[number] = entry;
   }
 
-  add("sl",       0,  0x05);
+  add("sl",           0x05);
 
   return names;
 })();
@@ -113,47 +110,41 @@ const SL_TAG_FIELDS = (function () {
  */
 const SL_ATTRIBUTE_FIELDS = (function () {
   let names = {};
-  function add(name, value, codepage, number) {
+  function add(name, value, number) {
     let entry = {
       name: name,
       value: value,
       number: number,
     };
-    if (!names[codepage]) {
-      names[codepage] = {};
-    }
-    names[codepage][number] = entry;
+    names[number] = entry;
   }
 
-  add("action",       "execute-low",    0,  0x05);
-  add("action",       "execute-high",   0,  0x06);
-  add("action",       "cache",          0,  0x07);
-  add("href",         "",               0,  0x08);
-  add("href",         "http://",        0,  0x09);
-  add("href",         "http://www.",    0,  0x0A);
-  add("href",         "https://",       0,  0x0B);
-  add("href",         "https://www.",   0,  0x0C);
+  add("action",       "execute-low",    0x05);
+  add("action",       "execute-high",   0x06);
+  add("action",       "cache",          0x07);
+  add("href",         "",               0x08);
+  add("href",         "http://",        0x09);
+  add("href",         "http://www.",    0x0A);
+  add("href",         "https://",       0x0B);
+  add("href",         "https://www.",   0x0C);
 
   return names;
 })();
 
 const SL_VALUE_FIELDS = (function () {
   let names = {};
-  function add(value, codepage, number) {
+  function add(value, number) {
     let entry = {
       value: value,
       number: number,
     };
-    if (!names[codepage]) {
-      names[codepage] = {};
-    }
-    names[codepage][number] = entry;
+    names[number] = entry;
   }
 
-  add(".com/",      0,  0x85);
-  add(".edu/",      0,  0x86);
-  add(".net/",      0,  0x87);
-  add(".org/",      0,  0x88);
+  add(".com/",          0x85);
+  add(".edu/",          0x86);
+  add(".net/",          0x87);
+  add(".org/",          0x88);
 
   return names;
 })();

@@ -17,7 +17,6 @@
 
 #include "mozilla/layers/PCompositorParent.h"
 #include "mozilla/layers/PLayerTransactionParent.h"
-#include "mozilla/layers/APZCTreeManager.h"
 #include "base/thread.h"
 #include "mozilla/Monitor.h"
 #include "mozilla/TimeStamp.h"
@@ -32,22 +31,11 @@ class Thread;
 namespace mozilla {
 namespace layers {
 
-class APZCTreeManager;
+class AsyncPanZoomController;
 class Layer;
 class LayerManagerComposite;
 class AsyncCompositionManager;
 struct TextureFactoryIdentifier;
-
-struct ScopedLayerTreeRegistration
-{
-  ScopedLayerTreeRegistration(uint64_t aLayersId,
-                              Layer* aRoot,
-                              GeckoContentController* aController);
-  ~ScopedLayerTreeRegistration();
-
-private:
-  uint64_t mLayersId;
-};
 
 class CompositorParent : public PCompositorParent,
                          public ShadowLayersManager
@@ -101,13 +89,7 @@ public:
   bool ScheduleResumeOnCompositorThread(int width, int height);
 
   virtual void ScheduleComposition();
-  void NotifyShadowTreeTransaction(uint64_t aId, bool aIsFirstPaint);
-
-  /**
-   * Returns the unique layer tree identifier that corresponds to the root
-   * tree of this compositor.
-   */
-  uint64_t RootLayerTreeId();
+  void NotifyShadowTreeTransaction();
 
   /**
    * Returns a pointer to the compositor corresponding to the given ID.
@@ -146,19 +128,13 @@ public:
   static void DeallocateLayerTreeId(uint64_t aId);
 
   /**
-   * Set aController as the pan/zoom callback for the subtree referred
+   * Set aController as the pan/zoom controller for the tree referred
    * to by aLayersId.
    *
    * Must run on content main thread.
    */
-  static void SetControllerForLayerTree(uint64_t aLayersId,
-                                        GeckoContentController* aController);
-
-  /**
-   * This returns a reference to the APZCTreeManager to which
-   * pan/zoom-related events can be sent.
-   */
-  static APZCTreeManager* GetAPZCTreeManager(uint64_t aLayersId);
+  static void SetPanZoomControllerForLayerTree(uint64_t aLayersId,
+                                               AsyncPanZoomController* aController);
 
   /**
    * A new child process has been configured to push transactions
@@ -178,7 +154,7 @@ public:
 
   struct LayerTreeState {
     nsRefPtr<Layer> mRoot;
-    nsRefPtr<GeckoContentController> mController;
+    nsRefPtr<AsyncPanZoomController> mController;
     CompositorParent *mParent;
     TargetConfig mTargetConfig;
   };
@@ -288,12 +264,9 @@ private:
   mozilla::Monitor mResumeCompositionMonitor;
 
   uint64_t mCompositorID;
-  uint64_t mRootLayerTreeID;
 
   bool mOverrideComposeReadiness;
   CancelableTask* mForceCompositionTask;
-
-  nsRefPtr<APZCTreeManager> mApzcTreeManager;
 
   DISALLOW_EVIL_CONSTRUCTORS(CompositorParent);
 };

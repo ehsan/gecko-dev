@@ -52,7 +52,6 @@
 #include "libui/EventHub.h"
 #include "libui/InputReader.h"
 #include "libui/InputDispatcher.h"
-#include "cutils/properties.h"
 
 #include "GeckoProfiler.h"
 
@@ -79,9 +78,6 @@ bool gDrawRequest = false;
 static nsAppShell *gAppShell = NULL;
 static int epollfd = 0;
 static int signalfds[2] = {0};
-static bool sDevInputAudioJack;
-static int32_t sHeadphoneState;
-static int32_t sMicrophoneState;
 
 NS_IMPL_ISUPPORTS_INHERITED1(nsAppShell, nsBaseAppShell, nsIObserver)
 
@@ -247,41 +243,6 @@ maybeSendKeyEvent(int keyCode, bool pressed, uint64_t timeMs)
         VERBOSE_LOG("Got unknown key event code. type 0x%04x code 0x%04x value %d",
                     keyCode, pressed);
     }
-}
-
-class SwitchEventRunnable : public nsRunnable {
-public:
-    SwitchEventRunnable(hal::SwitchEvent& aEvent) : mEvent(aEvent)
-    {}
-
-    NS_IMETHOD Run()
-    {
-        hal::NotifySwitchChange(mEvent);
-        return NS_OK;
-    }
-private:
-    hal::SwitchEvent mEvent;
-};
-
-static void
-updateHeadphoneSwitch()
-{
-    hal::SwitchEvent event;
-
-    switch (sHeadphoneState) {
-    case AKEY_STATE_UP:
-        event.status() = hal::SWITCH_STATE_OFF;
-        break;
-    case AKEY_STATE_DOWN:
-        event.status() = sMicrophoneState == AKEY_STATE_DOWN ?
-            hal::SWITCH_STATE_HEADPHONE : hal::SWITCH_STATE_HEADSET;
-        break;
-    default:
-        return;
-    }
-
-    event.device() = hal::SWITCH_HEADPHONES;
-    NS_DispatchToMainThread(new SwitchEventRunnable(event));
 }
 
 class GeckoPointerController : public PointerControllerInterface {
@@ -592,19 +553,6 @@ GeckoInputDispatcher::notifyMotion(const NotifyMotionArgs* args)
 
 void GeckoInputDispatcher::notifySwitch(const NotifySwitchArgs* args)
 {
-    if (!sDevInputAudioJack)
-        return;
-
-    switch (args->switchCode) {
-    case SW_HEADPHONE_INSERT:
-        sHeadphoneState = args->switchValue;
-        updateHeadphoneSwitch();
-        break;
-    case SW_MICROPHONE_INSERT:
-        sMicrophoneState = args->switchValue;
-        updateHeadphoneSwitch();
-        break;
-    }
 }
 
 void GeckoInputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs* args)
@@ -713,12 +661,6 @@ nsAppShell::Observe(nsISupports* aSubject,
         return nsBaseAppShell::Observe(aSubject, aTopic, aData);
     }
 
-    if (sDevInputAudioJack) {
-        sHeadphoneState  = mReader->getSwitchState(-1, AINPUT_SOURCE_SWITCH, SW_HEADPHONE_INSERT);
-        sMicrophoneState = mReader->getSwitchState(-1, AINPUT_SOURCE_SWITCH, SW_MICROPHONE_INSERT);
-        updateHeadphoneSwitch();
-    }
-
     mEnableDraw = true;
     NotifyEvent();
     return NS_OK;
@@ -738,12 +680,6 @@ nsAppShell::Exit()
 void
 nsAppShell::InitInputDevices()
 {
-    char value[PROPERTY_VALUE_MAX];
-    property_get("ro.moz.devinputjack", value, "0");
-    sDevInputAudioJack = !strcmp(value, "1");
-    sHeadphoneState = AKEY_STATE_UNKNOWN;
-    sMicrophoneState = AKEY_STATE_UNKNOWN;
-
     mEventHub = new EventHub();
     mReaderPolicy = new GeckoInputReaderPolicy();
     mReaderPolicy->setDisplayInfo();
