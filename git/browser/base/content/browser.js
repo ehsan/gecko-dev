@@ -148,14 +148,6 @@ __defineSetter__("PluralForm", function (val) {
   return this.PluralForm = val;
 });
 
-#ifdef MOZ_SERVICES_SYNC
-XPCOMUtils.defineLazyGetter(this, "Weave", function() {
-  let tmp = {};
-  Cu.import("resource://services-sync/service.js", tmp);
-  return tmp.Weave;
-});
-#endif
-
 XPCOMUtils.defineLazyGetter(this, "PopupNotifications", function () {
   let tmp = {};
   Cu.import("resource://gre/modules/PopupNotifications.jsm", tmp);
@@ -174,10 +166,6 @@ let gInitialPages = [
 #include inspector.js
 #include browser-places.js
 #include browser-tabPreviews.js
-
-#ifdef MOZ_SERVICES_SYNC
-#include browser-syncui.js
-#endif
 
 XPCOMUtils.defineLazyGetter(this, "Win7Features", function () {
 #ifdef XP_WIN
@@ -1515,11 +1503,6 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   if (Win7Features)
     Win7Features.onOpenWindow();
 
-#ifdef MOZ_SERVICES_SYNC
-  // initialize the sync UI
-  gSyncUI.init();
-#endif
-
   Services.obs.notifyObservers(window, "browser-delayed-startup-finished", "");
 }
 
@@ -1660,11 +1643,6 @@ function nonBrowserWindowDelayedStartup()
 
   // initialize the private browsing UI
   gPrivateBrowsingUI.init();
-
-#ifdef MOZ_SERVICES_SYNC
-  // initialize the sync UI
-  gSyncUI.init();
-#endif
 }
 
 function nonBrowserWindowShutdown()
@@ -6736,12 +6714,6 @@ function isTabEmpty(aTab) {
          !browser.contentDocument.body.hasChildNodes() &&
          !aTab.hasAttribute("busy");
 }
-
-#ifdef MOZ_SERVICES_SYNC
-function BrowserOpenSyncTabs() {
-  switchToTabHavingURI("about:sync-tabs", true);
-}
-#endif
 
 /**
  * Format a URL
