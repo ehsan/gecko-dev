@@ -41,11 +41,6 @@ const Ci = Components.interfaces;
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
 let modules = {
-  // about:blank has some bad loading behavior we can avoid, if we use an alias
-  empty: {
-    uri: "about:blank",
-    privileged: false
-  },
   fennec: {
     uri: "chrome://browser/content/about.xhtml",
     privileged: true
@@ -71,6 +66,10 @@ let modules = {
   },
   home: {
     uri: "chrome://browser/content/aboutHome.xhtml",
+    privileged: true
+  },
+  "sync-tabs": {
+    uri: "chrome://browser/content/aboutTabs.xhtml",
     privileged: true
   }
 }
@@ -110,12 +109,6 @@ AboutGeneric.prototype = {
   }
 };
 
-function AboutEmpty() {}
-AboutEmpty.prototype = {
-  __proto__: AboutGeneric.prototype,
-  classID: Components.ID("{433d2d75-5923-49b0-854d-f37267b03dc7}")
-}
-
 function AboutFirstrun() {}
 AboutFirstrun.prototype = {
   __proto__: AboutGeneric.prototype,
@@ -152,6 +145,12 @@ AboutHome.prototype = {
   classID: Components.ID("{b071364f-ab68-4669-a9db-33fca168271a}")
 }
 
-const components = [AboutEmpty, AboutFirstrun, AboutFennec, AboutRights,
-                    AboutCertError, AboutFirefox, AboutHome];
+function AboutSyncTabs() {}
+AboutSyncTabs.prototype = {
+  __proto__: AboutGeneric.prototype,
+  classID: Components.ID("{d503134a-f6f3-4824-bc3c-09c123177944}")
+}
+
+const components = [AboutFirstrun, AboutFennec, AboutRights,
+                    AboutCertError, AboutFirefox, AboutHome, AboutSyncTabs];
 const NSGetFactory = XPCOMUtils.generateNSGetFactory(components);

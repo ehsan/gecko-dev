@@ -18,13 +18,6 @@ let HTMLHtmlElement = Ci.nsIDOMHTMLHtmlElement;
 let HTMLIFrameElement = Ci.nsIDOMHTMLIFrameElement;
 let HTMLFrameElement = Ci.nsIDOMHTMLFrameElement;
 
-// Blindly copied from Safari documentation for now.
-const kViewportMinScale  = 0;
-const kViewportMaxScale  = 10;
-const kViewportMinWidth  = 200;
-const kViewportMaxWidth  = 10000;
-const kViewportMinHeight = 223;
-const kViewportMaxHeight = 10000;
 
 /** Watches for mouse click in content and redirect them to the best found target **/
 const ElementTouchHelper = {
@@ -459,13 +452,13 @@ Content.prototype = {
     switch (aMessage.name) {
       case "Browser:Blur":
         docShell.isOffScreenBrowser = false;
-        docShell.isActive = false;
+        docShell.isActive = true;
         this._selected = false;
         break;
 
       case "Browser:Focus":
         docShell.isOffScreenBrowser = true;
-        docShell.isActive = true;
+        docShell.isActive = false;
         this._selected = true;
         break;
 
@@ -486,7 +479,7 @@ Content.prototype = {
 
       case "Browser:MouseDown":
         this._overlayTimeout.clear();
-        this._contextTimeout.clear();
+        this._overlayTimeout.clear();
 
         let element = elementFromPoint(x, y);
         if (!element)
@@ -501,7 +494,7 @@ Content.prototype = {
 
         // We add a few milliseconds because of how the InputHandler wait before
         // dispatching a single click (default: 500)
-        this._contextTimeout.once(500 + kTapOverlayTimeout, function() {
+        this._contextTimeout.once(500 + 200, function() {
           let event = content.document.createEvent("PopupEvents");
           event.initEvent("contextmenu", true, true);
           element.dispatchEvent(event);
@@ -516,7 +509,6 @@ Content.prototype = {
             sendAsyncMessage("Browser:OpenURI", { uri: uri });
         } else if (!this._formAssistant.open(element)) {
           sendAsyncMessage("FindAssist:Hide", { });
-          this._sendMouseEvent("mousemove", element, x, y);
           this._sendMouseEvent("mousedown", element, x, y);
           this._sendMouseEvent("mouseup", element, x, y);
         }
@@ -608,7 +600,7 @@ Content.prototype = {
 
     let scrollOffset = Util.getScrollOffset(content);
     let windowUtils = Util.getWindowUtils(content);
-    windowUtils.sendMouseEventToWindow(aName, aX - scrollOffset.x, aY - scrollOffset.y, 0, 1, 0, true);
+    windowUtils.sendMouseEvent(aName, aX - scrollOffset.x, aY - scrollOffset.y, 0, 1, 0, true);
   },
 
   startLoading: function startLoading() {
@@ -794,10 +786,8 @@ var ContextHandler = {
       // See if the user clicked on an image.
       if (popupNode instanceof Ci.nsIImageLoadingContent && popupNode.currentURI) {
         state.types.push("image");
-        state.label = state.mediaURL = popupNode.currentURI.spec;
-      } else if (popupNode instanceof Ci.nsIDOMHTMLVideoElement) {
-        state.types.push("video");
-        state.label = state.mediaURL = popupNode.src;
+        state.mediaURL = popupNode.currentURI.spec;
+        state.label = state.mediaURL;
       }
     }
 
@@ -856,20 +846,6 @@ ContextHandler.registerType("callto", function(aState, aElement) {
 ContextHandler.registerType("link-saveable", function(aState, aElement) {
   let protocol = aState.linkProtocol;
   return (protocol && protocol != "mailto" && protocol != "javascript" && protocol != "news" && protocol != "snews");
-});
-
-ContextHandler.registerType("link-shareable", function(aState, aElement) {
-  return Util.isShareableScheme(aState.linkProtocol);
-});
-
-["image", "video"].forEach(function(aType) {
-  ContextHandler.registerType(aType+"-shareable", function(aState, aElement) {
-    if (aState.types.indexOf(aType) == -1)
-      return false;
-
-    let protocol = ContextHandler._getProtocol(ContextHandler._getURI(aState.mediaURL));
-    return Util.isShareableScheme(protocol);
-  });
 });
 
 ContextHandler.registerType("image-loaded", function(aState, aElement) {

@@ -9,9 +9,9 @@
   <binding id="documenttab">
     <content>
       <xul:stack anonid="page" class="documenttab-container" flex="1">
-        <html:canvas anonid="canvas" class="documenttab-canvas" left="0" width="106" height="64" moz-opaque="true"
-          onclick="document.getBindingParent(this)._onClick()" xbl:inherits="selected"/>
-        <xul:hbox class="documenttab-close-container" left="0" top="10" height="64" width="55" align="center" onclick="document.getBindingParent(this)._close()">
+        <html:canvas anonid="canvas" class="documenttab-canvas" left="8" width="106" height="64" moz-opaque="true"
+          onclick="document.getBindingParent(this)._onClick()"/>
+        <xul:hbox left="0" top="10" height="64" width="55" align="center" onclick="document.getBindingParent(this)._close()">
           <xul:image anonid="close" class="documenttab-close" mousethrough="always"/>
         </xul:hbox>
       </xul:stack>
@@ -44,18 +44,12 @@
         <parameter name="height"/>
         <body>
           <![CDATA[
+            return;
             const tabWidth = 106;
             const tabHeight = 64;
 
             let canvas = document.getAnonymousElementByAttribute(this, "anonid", "canvas");
-            let renderer = rendererFactory(browser, canvas)
-            renderer.drawContent(function(ctx, callback) {
-              ctx.clearRect(0, 0, tabWidth, tabHeight);
-              ctx.save();
-              ctx.scale(tabWidth / width, tabHeight / height);
-              callback(browser, 0, 0, width, height, "white");
-              ctx.restore();
-            });
+            dump("Not implemented updateThumbnail\n");
           ]]>
         </body>
       </method>
@@ -126,12 +120,10 @@
       <method name="_updateWidth">
         <body>
           <![CDATA[
-            let firstBox = this.firstChild.getBoundingClientRect();
-            let lastBox = this.lastChild.getBoundingClientRect();
-            let columnsCount = Math.ceil(this.childNodes.length / Math.floor(this.style.height / firstBox.height));
+            let boundingBox = this.firstChild.getBoundingClientRect();
+            let columnsCount = Math.ceil(this.childNodes.length / Math.floor(this.style.height / boundingBox.height));
             if (this._columnsCount != columnsCount) {
-              let width = Math.max(lastBox.right - firstBox.left, firstBox.right - lastBox.left);
-              this.style.width = width + "px";
+              this.style.width = (this.lastChild.boxObject.x + boundingBox.width) + "px";
               this._columnsCount = columnsCount;
             }
           ]]>

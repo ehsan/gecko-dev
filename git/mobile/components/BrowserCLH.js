@@ -42,14 +42,8 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-function openWindow(aParent, aURL, aTarget, aFeatures, aArgs) {
-  let argString = null;
-  if (aArgs) {
-    argString = Cc["@mozilla.org/supports-string;1"].createInstance(Ci.nsISupportsString);
-    argString.data = aArgs;
-  }
-  
-  return Services.ww.openWindow(aParent, aURL, aTarget, aFeatures, argString);
+function openWindow(aParent, aURL, aTarget, aFeatures) {
+  return Services.ww.openWindow(aParent, aURL, aTarget, aFeatures, null);
 }
 
 function resolveURIInternal(aCmdLine, aArgument) {
@@ -77,43 +71,6 @@ function resolveURIInternal(aCmdLine, aArgument) {
   return uri;
 }
 
-/**
- * Determines whether a home page override is needed.
- * Returns:
- *  "new profile" if this is the first run with a new profile.
- *  "new version" if this is the first run with a build with a different
- *                      Gecko milestone (i.e. right after an upgrade).
- *  "none" otherwise.
- */
-function needHomepageOverride() {
-  let savedmstone = null;
-  try {
-    savedmstone = Services.prefs.getCharPref("browser.startup.homepage_override.mstone");
-  } catch (e) {}
-
-  if (savedmstone == "ignore")
-    return "none";
-
-#expand    let ourmstone = "__MOZ_APP_VERSION__";
-
-  if (ourmstone != savedmstone) {
-    Services.prefs.setCharPref("browser.startup.homepage_override.mstone", ourmstone);
-
-    return (savedmstone ? "new version" : "new profile");
-  }
-
-  return "none";
-}
-
-function getHomePage() {
-  let url = "about:home";
-  try {
-    url = Services.prefs.getComplexValue("browser.startup.homepage", Ci.nsIPrefLocalizedString).data;
-  } catch (e) { }
-
-  return url;
-}
-
 
 function BrowserCLH() { }
 
@@ -138,14 +95,12 @@ BrowserCLH.prototype = {
     let chromeParam = aCmdLine.handleFlagWithParam("chrome", false);
     if (chromeParam) {
       try {
-        // Only load URIs which do not inherit chrome privs
+        // only load URIs which do not inherit chrome privs
         let features = "chrome,dialog=no,all";
         let uri = resolveURIInternal(aCmdLine, chromeParam);
         let netutil = Cc["@mozilla.org/network/util;1"].getService(Ci.nsINetUtil);
         if (!netutil.URIChainHasFlags(uri, Ci.nsIHttpProtocolHandler.URI_INHERITS_SECURITY_CONTEXT)) {
-          openWindow(null, uri.spec, "_blank", features, null);
-
-          // Stop the normal commandline processing from continuing
+          openWindow(null, uri.spec, "_blank", features);
           aCmdLine.preventDefault = true;
         }
       }
@@ -154,17 +109,18 @@ BrowserCLH.prototype = {
       }
     }
 
-    // Keep an array of possible URL arguments
-    let uris = [];
+    let win;
+    try {
+      win = Services.wm.getMostRecentWindow("navigator:browser");
+      if (!win)
+        return;
 
-    // Check for the "url" flag
-    let uriFlag = aCmdLine.handleFlagWithParam("url", false);
-    if (uriFlag) {
-      let uri = resolveURIInternal(aCmdLine, uriFlag);
-      if (uri)
-        uris.push(uri);
-    }
+      win.focus();
+      aCmdLine.preventDefault = true;
+    } catch (e) { }
 
+    // Assumption:  All CLH arguments we've received have been sent remotely,
+    // or we wouldn't already have a window.  Therefore: open 'em all!
     for (let i = 0; i < aCmdLine.length; i++) {
       let arg = aCmdLine.getArgument(i);
       if (!arg || arg[0] == '-')
@@ -172,46 +128,8 @@ BrowserCLH.prototype = {
 
       let uri = resolveURIInternal(aCmdLine, arg);
       if (uri)
-        uris.push(uri);
+        win.browserDOMWindow.openURI(uri, null, Ci.nsIBrowserDOMWindow.OPEN_NEWTAB, null);
     }
-
-    // Open the main browser window, if we don't already have one
-    let win;
-    try {
-      win = Services.wm.getMostRecentWindow("navigator:browser");
-      if (!win) {
-        // Default to the saved homepage
-        let defaultURL = getHomePage();
-  
-        // Override the default if we have a new profile
-        if (needHomepageOverride() == "new profile")
-            defaultURL = "about:firstrun";
-  
-        // Override the default if we have a URL passed on command line
-        if (uris.length > 0) {
-          defaultURL = uris[0].spec;
-          uris = uris.slice(1);
-        }
-
-        win = openWindow(null, "chrome://browser/content/browser.xul", "_blank", "chrome,dialog=no,all", defaultURL);
-      }
-
-      win.focus();
-
-      // Stop the normal commandline processing from continuing. We just opened the main browser window
-      aCmdLine.preventDefault = true;
-    } catch (e) { }
-
-    // Assumption: All remaining command line arguments have been sent remotely (browser is already running)
-    // Action: Open any URLs we find into an existing browser window
-
-    // First, get a browserDOMWindow object
-    while (!win.browserDOMWindow)
-      Services.tm.currentThread.processNextEvent(true);
-
-    // Open any URIs into new tabs
-    for (let i = 0; i < uris.length; i++)
-      win.browserDOMWindow.openURI(uris[i], null, Ci.nsIBrowserDOMWindow.OPEN_NEWTAB, null);
   },
 
   // QI

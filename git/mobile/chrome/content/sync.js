@@ -47,6 +47,10 @@ let WeaveGlue = {
     Weave.Service.keyGenEnabled = false;
   },
 
+  openRemoteTabs: function openRemoteTabs() {
+    BrowserUI.newOrSelectTab("about:sync-tabs", null);
+  },
+
   connect: function connect() {
     if (this._settings.user.value != Weave.Service.username)
       Weave.Service.startOver();
@@ -99,7 +103,7 @@ let WeaveGlue = {
 
   _updateOptions: function _updateOptions() {
     let loggedIn = Weave.Service.isLoggedIn;
-    document.getElementById("cmd_remoteTabs").setAttribute("disabled", !loggedIn);
+    document.getElementById("remotetabs-button").disabled = !loggedIn;
 
     // Make sure we're online when connecting/syncing
     Util.forceOnline();
@@ -128,7 +132,7 @@ let WeaveGlue = {
     sync.collapsed = !loggedIn;
 
     // Check the lock on a timeout because it's set just after notifying
-    setTimeout(function() {
+    setTimeout(Weave.Utils.bind2(this, function() {
       // Prevent certain actions when the service is locked
       if (Weave.Service.locked) {
         connect.firstChild.disabled = true;
@@ -140,7 +144,7 @@ let WeaveGlue = {
         sync.firstChild.disabled = false;
         connect.setAttribute("title", syncStr.get("disconnected.label"));
       }
-    }, 0);
+    }), 0);
 
     // Move the disconnect and sync settings out to make connect the last item
     let parent = connect.parentNode;

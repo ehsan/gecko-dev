@@ -37,11 +37,12 @@
 #filter substitution
 
 pref("toolkit.defaultChromeURI", "chrome://browser/content/browser.xul");
-pref("general.useragent.compatMode.firefox", true);
+pref("general.useragent.extra.mobile", "@APP_UA_NAME_EXTRA@/@APP_VERSION_EXTRA@ Fennec/@APP_VERSION@");
 pref("browser.chromeURL", "chrome://browser/content/");
 
 pref("browser.tabs.warnOnClose", true);
 #ifdef MOZ_IPC
+//pref("browser.tabs.remote", false);
 pref("browser.tabs.remote", true);
 #else
 pref("browser.tabs.remote", false);
@@ -69,7 +70,16 @@ pref("browser.cache.memory.enable", true);
 pref("browser.cache.memory.capacity", 1024); // kilobytes
 
 /* tile cache prefs */
-pref("tile.cache.size", 10); // tiles
+/* -1 = default to very small value for the number of tiles unless we know about
+        the device in which case we set this to an optimal value
+*/
+#ifdef WINCE
+pref("tile.cache.size", 15); // tiles
+#elifdef MOZ_PLATFORM_MAEMO
+pref("tile.cache.size", -1); // tiles
+#else
+pref("tile.cache.size", 30); // tiles
+#endif
 
 /* image cache prefs */
 pref("image.cache.size", 1048576); // bytes
@@ -81,10 +91,6 @@ pref("browser.cache.offline.capacity", 5120); // kilobytes
 pref("offline-apps.quota.max", 2048); // kilobytes
 pref("offline-apps.quota.warn", 1024); // kilobytes
 
-/* protocol warning prefs */
-pref("network.protocol-handler.warn-external.tel", false);
-pref("network.protocol-handler.warn-external.mailto", false);
-
 /* http prefs */
 pref("network.http.pipelining", true);
 pref("network.http.pipelining.ssl", true);
@@ -95,12 +101,9 @@ pref("network.http.max-connections", 6);
 pref("network.http.max-connections-per-server", 4);
 pref("network.http.max-persistent-connections-per-server", 4);
 pref("network.http.max-persistent-connections-per-proxy", 4);
-#ifdef MOZ_PLATFORM_MAEMO
+#ifdef MOZ_ENABLE_LIBCONIC
 pref("network.autodial-helper.enabled", true);
 #endif
-
-/* history max results display */
-pref("browser.display.history.maxresults", 100);
 
 /* session history */
 pref("browser.sessionhistory.max_total_viewers", 1);
@@ -139,10 +142,6 @@ pref("signon.SignonFileName", "signons.txt");
 pref("formhelper.enabled", true);
 pref("formhelper.autozoom", true);
 pref("formhelper.restore", false);
-pref("formhelper.caretLines.portrait", 4);
-pref("formhelper.caretLines.landscape", 1);
-pref("formhelper.harmonizeValue", 10);
-pref("formhelper.margin", 15);
 
 /* find helper */
 pref("findhelper.autozoom", true);
@@ -175,18 +174,18 @@ pref("extensions.hideUpdateButton", false);
 pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/VersionCheck.php?reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%");
 
 /* preferences for the Get Add-ons pane */
-pref("extensions.getAddons.cache.enabled", true);
-pref("extensions.getAddons.maxResults", 15);
-pref("extensions.getAddons.recommended.browseURL", "https://addons.mozilla.org/%LOCALE%/mobile/recommended/");
-pref("extensions.getAddons.recommended.url", "https://services.addons.mozilla.org/%LOCALE%/mobile/api/%API_VERSION%/list/featured/all/%MAX_RESULTS%/%OS%/%VERSION%");
-pref("extensions.getAddons.search.browseURL", "https://addons.mozilla.org/%LOCALE%/mobile/search?q=%TERMS%");
-pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/mobile/api/%API_VERSION%/search/%TERMS%/all/%MAX_RESULTS%/%OS%/%VERSION%");
+pref("extensions.getAddons.showPane", true);
 pref("extensions.getAddons.browseAddons", "https://addons.mozilla.org/%LOCALE%/mobile/");
+pref("extensions.getAddons.maxResults", 5);
+pref("extensions.getAddons.recommended.browseURL", "https://addons.mozilla.org/%LOCALE%/mobile/recommended/");
+pref("extensions.getAddons.recommended.url", "https://services.addons.mozilla.org/%LOCALE%/mobile/api/%API_VERSION%/list/featured/all/10/%OS%/%VERSION%");
+pref("extensions.getAddons.search.browseURL", "https://addons.mozilla.org/%LOCALE%/mobile/search?q=%TERMS%");
+pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/mobile/api/%API_VERSION%/search/%TERMS%/all/10/%OS%/%VERSION%");
 
 /* blocklist preferences */
 pref("extensions.blocklist.enabled", true);
 pref("extensions.blocklist.interval", 86400);
-pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/3/%APP_ID%/%APP_VERSION%/%PRODUCT%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/");
+pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/2/%APP_ID%/%APP_VERSION%/%PRODUCT%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/");
 pref("extensions.blocklist.detailsURL", "https://www.mozilla.com/%LOCALE%/blocklist/");
 
 /* block popups by default, and notify the user about blocked popups */
@@ -350,7 +349,8 @@ pref("content.sink.perf_parse_time", 5000);
 pref("content.sink.interactive_time", 0);
 pref("content.sink.initial_perf_time", 0);
 
-pref("javascript.options.methodjit.chrome",  true);
+pref("javascript.options.jit.content", true);
+pref("javascript.options.jit.chrome", true);
 pref("javascript.options.mem.gc_frequency", 300);
 
 pref("dom.max_chrome_script_run_time", 30);
@@ -366,7 +366,7 @@ pref("browser.ui.kinetic.speedSensitivity", 80);
 pref("browser.ui.kinetic.swipeLength", 160);
 
 // zooming
-pref("browser.ui.zoom.pageFitGranularity", 9); // don't zoom to fit by less than 1/9
+pref("browser.ui.zoom.pageFitGranularity", 10); // don't zoom to fit by less than 1/10.
 pref("browser.ui.zoom.animationFps", 60);
 pref("browser.ui.zoom.animationDuration", 350); // ms duration of double-tap zoom animation
 
@@ -383,13 +383,9 @@ pref("browser.ui.touch.bottom", 4);
 pref("browser.ui.touch.weight.visited", 120); // percentage
 
 // plugins
-#if ANDROID
 pref("plugin.disable", true);
+pref("plugin.default_plugin_disabled", true);
 pref("dom.ipc.plugins.enabled", false);
-#else
-pref("plugin.disable", false);
-pref("dom.ipc.plugins.enabled", true);
-#endif
 
 // product URLs
 // The breakpad report server to link to in about:crashes
@@ -444,9 +440,7 @@ pref("browser.search.param.yahoo-fr-ja", "mozff");
 pref("app.update.timer", 60000); // milliseconds (1 min)
 
 #ifdef MOZ_UPDATER
-pref("app.update.enabled", true);
-pref("app.update.timerFirstInterval", 20000); // milliseconds
-pref("app.update.auto", false);
+pref("app.update.auto", true);
 pref("app.update.channel", "@MOZ_UPDATE_CHANNEL@");
 pref("app.update.mode", 1);
 pref("app.update.silent", false);
@@ -456,10 +450,10 @@ pref("app.update.promptWaitTime", 43200);
 pref("app.update.idletime", 60);
 pref("app.update.showInstalledUI", false);
 pref("app.update.incompatible.mode", 0);
-pref("app.update.download.backgroundInterval", 0);
 
 #ifdef MOZ_OFFICIAL_BRANDING
 pref("app.update.interval", 86400);
+pref("app.update.download.backgroundInterval", 600);
 pref("app.update.url.manual", "http://www.mozilla.com/%LOCALE%/m/");
 pref("app.update.url.details", "http://www.mozilla.com/%LOCALE%/mobile/releases/");
 #else
@@ -488,7 +482,3 @@ pref("network.buffer.cache.size",  16384);
 pref("services.sync.client.type", "mobile");
 pref("services.sync.registerEngines", "Tab,Bookmarks,Form,History,Password");
 pref("services.sync.autoconnectDelay", 5);
-
-// Drag thresholds
-pref("ui.dragThresholdX", 25);
-pref("ui.dragThresholdY", 25);

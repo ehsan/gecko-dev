@@ -48,14 +48,11 @@ XPIDL_MODULE = MobileComponents
 
 XPIDLSRCS = \
         SessionStore.idl \
-        LoginManagerPrompter.idl \
         $(NULL)
 
 EXTRA_PP_COMPONENTS = \
         AboutRedirector.js \
-        BrowserCLH.js \
         DirectoryProvider.js\
-        HelperAppDialog.js \
         Sidebar.js \
         SessionStore.js \
         $(NULL)
@@ -63,26 +60,21 @@ EXTRA_PP_COMPONENTS = \
 EXTRA_COMPONENTS = \
         MobileComponents.manifest \
         BrowserStartup.js \
-        ContentPermissionPrompt.js \
+        GeolocationPrompt.js \
+        AlertsService.js \
         XPIDialogService.js \
         DownloadManagerUI.js \
+        HelperAppDialog.js \
         PromptService.js \
+        BrowserCLH.js \
         ContentDispatchChooser.js \
         AutoCompleteCache.js \
         AddonUpdateService.js \
         FormAutoComplete.js \
         LoginManager.js \
-        LoginManagerPrompter.js \
-        BlocklistPrompt.js \
 	$(NULL)
 
-ifndef ANDROID
-EXTRA_COMPONENTS += AlertsService.js
-endif
-
-ifneq (Android,$(OS_TARGET))
 DIRS =  phone \
         $(NULL)
-endif
 
 include $(topsrcdir)/config/rules.mk

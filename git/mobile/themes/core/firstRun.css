@@ -82,10 +82,6 @@ img {
  -moz-border-radius-bottomleft: 4px;
 }
 
-#head p {
-  font-size: xx-large;
-}
-
 #footer {
   border-top: 2px solid #e7e7e7;
   padding: 10px;
@@ -192,24 +188,24 @@ img {
   padding: 0 10px;
 }
 
-#firstrun ul#recommended li#sync b {
+#firstrun ul#recommended li#weave b {
   background-position: 50% 0;
 }
 
-#firstrun ul#recommended li#addons b {
+#firstrun ul#recommended li#starter b {
   background-position: 50% -150px;
 }
 
-#firstrun ul#recommended li#home b {
+#firstrun ul#recommended li#tour b {
   background-position: 50% -300px;
 }
 
-#firstrun #relNotes {
+#firstrun #features {
   clear: both;
   text-align: center;
 }
 
-#firstrun #relNotes a {
+#firstrun #features a {
   display: inline-block;
   padding: 5px 35px 5px 0;
   background: url("chrome://browser/content/firstrun/nav-arrow.png") right center no-repeat;

@@ -37,14 +37,8 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
-const Cr = Components.results;
 
 const PREF_BD_USEDOWNLOADDIR = "browser.download.useDownloadDir";
-#ifdef ANDROID
-const URI_GENERIC_ICON_DOWNLOAD = "drawable://alertdownloads";
-#else
-const URI_GENERIC_ICON_DOWNLOAD = "chrome://browser/skin/images/alert-downloads-30.png";
-#endif
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -60,33 +54,74 @@ HelperAppLauncherDialog.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIHelperAppLauncherDialog]),
 
   show: function hald_show(aLauncher, aContext, aReason) {
+    const NS_BINDING_ABORTED = 0x804b0002;
+ 
+    let window = aContext.QueryInterface(Ci.nsIInterfaceRequestor)
+                         .getInterface(Ci.nsIDOMWindowInternal);
+
+    let bundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
+
+    let flags = (Ci.nsIPrompt.BUTTON_TITLE_IS_STRING * Ci.nsIPrompt.BUTTON_POS_0) +
+                (Ci.nsIPrompt.BUTTON_TITLE_IS_STRING * Ci.nsIPrompt.BUTTON_POS_1);
+
+    let title = bundle.GetStringFromName("helperApp.title");
+    let message = bundle.GetStringFromName("helperApp.prompt");
+    message += "\n  " + aLauncher.suggestedFileName;
+    
+    let type = aLauncher.MIMEInfo.description;
+    if (type == "") {
+      try {
+        type = aLauncher.MIMEInfo.primaryExtension.toUpperCase();
+      } catch (e) {
+        type = aLauncher.MIMEInfo.MIMEType;
+      }
+    }
+    message += "\n  " + type;
+
+    let open = bundle.GetStringFromName("helperApp.open");
+    let save = bundle.GetStringFromName("helperApp.save");
+    let nothing = bundle.GetStringFromName("helperApp.nothing");
+
     // Check to see if we can open this file or not
     if (aLauncher.MIMEInfo.hasDefaultHandler) {
-      aLauncher.MIMEInfo.preferredAction = Ci.nsIMIMEInfo.useSystemDefault;
-      aLauncher.launchWithApplication(null, false);
+      flags += (Ci.nsIPrompt.BUTTON_TITLE_IS_STRING * Ci.nsIPrompt.BUTTON_POS_2);
+
+      let choice = Services.prompt.confirmEx(window,
+                                             title, message,
+                                             flags, save, open, nothing,
+                                             null, {});
+
+      if (choice == 0) {
+        aLauncher.saveToDisk(null, false);
+      }
+      else if (choice == 1) {
+        aLauncher.launchWithApplication(null, false);
+      }
+      else {
+        try {
+          aLauncher.cancel(NS_BINDING_ABORTED);
+        } catch(e) {} 
+      }
     } else {
-      let wasClicked = false;
-      let listener = {
-        observe: function(aSubject, aTopic, aData) {
-          if (aTopic == "alertclickcallback") {
-            wasClicked = true;
-            let win = Cc["@mozilla.org/appshell/window-mediator;1"].getService(Ci.nsIWindowMediator).getMostRecentWindow("navigator:browser");
-            if (win)
-              win.BrowserUI.showPanel("downloads-container");
-  
-            aLauncher.saveToDisk(null, false);
-          } else {
-            if (!wasClicked)
-              aLauncher.cancel(Cr.NS_BINDING_ABORTED);
-          }
-        }
-      };
-      this._notify(aLauncher, listener);
+      let choice = Services.prompt.confirmEx(window,
+                                             title, message,
+                                             flags, save, nothing, null,
+                                             null, {});
+
+      if (choice == 0) {
+        aLauncher.saveToDisk(null, false);
+      }
+      else {
+        try {
+          aLauncher.cancel(NS_BINDING_ABORTED);
+        } catch(e) {} 
+      }
     }
   },
 
   promptForSaveToFile: function hald_promptForSaveToFile(aLauncher, aContext, aDefaultFile, aSuggestedFileExt, aForcePrompt) {
     let file = null;
+
     let prefs = Services.prefs;
 
     if (!aForcePrompt) {
@@ -115,7 +150,7 @@ HelperAppLauncherDialog.prototype = {
     }
 
     // Use file picker to show dialog.
-    let picker = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
+    let picker = Components.classes["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
     let windowTitle = "";
     let parent = aContext.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowInternal);
     picker.init(parent, windowTitle, Ci.nsIFilePicker.modeSave);
@@ -218,34 +253,24 @@ HelperAppLauncherDialog.prototype = {
           aLocalFile.leafName = aLocalFile.leafName.replace(/^(.*\()\d+\)/, "$1" + (collisionCount+1) + ")");
         }
       }
-      aLocalFile.create(Ci.nsIFile.NORMAL_FILE_TYPE, 0600);
+      aLocalFile.create(Components.interfaces.nsIFile.NORMAL_FILE_TYPE, 0600);
     }
     catch (e) {
       dump("*** exception in validateLeafName: " + e + "\n");
 
-      if (e.result == Cr.NS_ERROR_FILE_ACCESS_DENIED)
+      if (e.result == Components.results.NS_ERROR_FILE_ACCESS_DENIED)
         throw e;
 
       if (aLocalFile.leafName == "" || aLocalFile.isDirectory()) {
         aLocalFile.append("unnamed");
         if (aLocalFile.exists())
-          aLocalFile.createUnique(Ci.nsIFile.NORMAL_FILE_TYPE, 0600);
+          aLocalFile.createUnique(Components.interfaces.nsIFile.NORMAL_FILE_TYPE, 0600);
       }
     }
   },
 
   isUsableDirectory: function hald_isUsableDirectory(aDirectory) {
     return aDirectory.exists() && aDirectory.isDirectory() && aDirectory.isWritable();
-  },
-
-  _notify: function hald_notify(aLauncher, aCallback) {
-    let bundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
-
-    let notifier = Cc["@mozilla.org/alerts-service;1"].getService(Ci.nsIAlertsService);
-    notifier.showAlertNotification(URI_GENERIC_ICON_DOWNLOAD,
-                                   bundle.GetStringFromName("alertDownloads"),
-                                   bundle.GetStringFromName("alertCantOpenDownload"),
-                                   true, "", aCallback, "downloadopen-fail");
   }
 };
 

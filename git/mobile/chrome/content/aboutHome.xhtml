@@ -58,7 +58,7 @@
   <link rel="stylesheet" href="chrome://browser/skin/aboutHome.css" type="text/css"/>
 </head>
 
-<body dir="&locale.dir;" onload="init();" onunload="uninit();">
+<body dir="&locale.dir;" onload="init();">
   <div id="wrapper">
     <div id="header"><div id="logo"><img src="chrome://branding/content/logo.png"/></div>&aboutHome.header;</div>
 
@@ -69,7 +69,7 @@
       </div>
     </div>
 
-    <div id="remoteTabs" class="section-row" onclick="openRemoteTabs();" role="button" disabled="true">
+    <div id="remoteTabs" class="section-row" onclick="openRemoteTabs();" role="button">
       <div>
         <img class="favicon" src="chrome://browser/skin/images/remotetabs-32.png"/>
         <div>&aboutHome.remoteTabs;</div>
@@ -84,7 +84,7 @@
     </div>
 
     <div id="about">
-      <img src="chrome://browser/skin/images/mozilla-32.png"/> <a href="http://www.mozilla.com/about/" onclick="openTabs([this.href]); return false;">&aboutHome.aboutMozilla;</a>
+      <img src="chrome://browser/skin/images/mozilla-32.png"/> <a href="http://www.mozilla.com/about/">&aboutHome.aboutMozilla;</a>
     </div>
   </div>
 
@@ -117,10 +117,6 @@
       initTabs();
       initWeave();
       initAddons();
-    }
-
-    function uninit() {
-      uninitWeave();
     }
 
     function _readFile(aFile) {
@@ -207,21 +203,20 @@
         outer.appendChild(inner);
         list.appendChild(outer);
       }
-
+      
       if (allPageURLs.length > 0) {
-        let loading = document.getElementById("loadingTabs");
-        loading.parentNode.removeChild(loading);
+        document.getElementById("loadingTabs").style.display = "none";
 
         if (allPageURLs.length > 1) {
           let outer = document.createElement("div");
           outer.className = "openall";
           outer.textContent = document.getElementById("text-openalltabs").textContent;
           outer.setAttribute("role", "button");
-
+  
           outer.addEventListener("click", function() {
             openTabs(allPageURLs);
           }, false);
-
+  
           list.appendChild(outer);
         }
       } else {
@@ -231,37 +226,12 @@
     }
 
     function initWeave() {
-      let chromeWin = getChromeWin();
-      if ("WeaveGlue" in chromeWin) {
-        chromeWin.Services.obs.addObserver(updateWeaveButton, "weave:service:login:finish", false);
-        chromeWin.Services.obs.addObserver(updateWeaveButton, "weave:service:logout:finish", false);
-
-        updateWeaveButton();
-      }
-      else {
-        let loading = document.getElementById("remoteTabs");
-        loading.parentNode.removeChild(loading);
-      }
-    }
-
-    function uninitWeave() {
-      let chromeWin = getChromeWin();
-      if ("WeaveGlue" in chromeWin) {
-        chromeWin.Services.obs.removeObserver(updateWeaveButton, "weave:service:login:finish");
-        chromeWin.Services.obs.removeObserver(updateWeaveButton, "weave:service:logout:finish");
-      }
-    }
-
-    function updateWeaveButton() {
-      let chromeWin = getChromeWin();
-      if (chromeWin.Weave) {
-        let isDisabled = !chromeWin.Weave.Service.isLoggedIn;
-        document.getElementById("remoteTabs").setAttribute("disabled", isDisabled);
-      }
+      if (!("WeaveGlue" in getChromeWin()))
+        document.getElementById("remoteTabs").style.display = "none";
     }
 
     function openRemoteTabs() {
-      getChromeWin().CommandUpdater.doCommand("cmd_remoteTabs");
+      getChromeWin().WeaveGlue.openRemoteTabs();
     }
 
     function goToAddons(aSearchString) {
@@ -287,8 +257,7 @@
           return;
         }
 
-        let loading = document.getElementById("loadingAddons");
-        loading.parentNode.removeChild(loading);
+        document.getElementById("loadingAddons").style.display = "none";
 
         for (let i=0; i<aAddons.length; i++) {  
           let outer = document.createElement("div");
@@ -324,8 +293,7 @@
       },
     
       searchFailed: function searchFailed() {
-        let loading = document.getElementById("newAddons");
-        loading.parentNode.removeChild(loading);
+        document.getElementById("newAddons").style.display = "none";
       }
     }
 

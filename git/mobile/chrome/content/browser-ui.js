@@ -49,49 +49,45 @@ XPCOMUtils.defineLazyGetter(this, "PlacesUtils", function() {
   return PlacesUtils;
 });
 
-XPCOMUtils.defineLazyServiceGetter(window, "gHistSvc", "@mozilla.org/browser/nav-history-service;1", "nsINavHistoryService", "nsIBrowserHistory");
-XPCOMUtils.defineLazyServiceGetter(window, "gURIFixup", "@mozilla.org/docshell/urifixup;1", "nsIURIFixup");
-XPCOMUtils.defineLazyServiceGetter(window, "gFaviconService", "@mozilla.org/browser/favicon-service;1", "nsIFaviconService");
-XPCOMUtils.defineLazyServiceGetter(window, "gFocusManager", "@mozilla.org/focus-manager;1", "nsIFocusManager");
-
-[
-  ["AllPagesList", "popup_autocomplete", "cmd_openLocation"],
-  ["HistoryList", "history-items", "cmd_history"],
-  ["BookmarkList", "bookmarks-items", "cmd_bookmarks"],
-#ifdef MOZ_SERVICES_SYNC
-  ["RemoteTabsList", "remotetabs-items", "cmd_remoteTabs"]
-#endif
-].forEach(function(aPanel) {
-  let [name, id, command] = aPanel;
-  XPCOMUtils.defineLazyGetter(window, name, function() {
-    return new AwesomePanel(id, command);
-  });
-});
-
-/**
- * Cache of commonly used elements.
- */
-let Elements = {};
-
-[
-  ["browserBundle",      "bundle_browser"],
-  ["contentShowing",     "bcast_contentShowing"],
-  ["urlbarState",        "bcast_urlbarState"],
-  ["stack",              "stack"],
-  ["tabs",               "tabs-container"],
-  ["controls",           "browser-controls"],
-  ["panelUI",            "panel-container"],
-  ["viewBuffer",         "view-buffer"],
-  ["toolbarContainer",   "toolbar-container"],
-].forEach(function (aElementGlobal) {
-  let [name, id] = aElementGlobal;
-  XPCOMUtils.defineLazyGetter(Elements, name, function() {
-    return document.getElementById(id);
-  });
+XPCOMUtils.defineLazyGetter(this, "Contacts", function() {
+  Cu.import("resource:///modules/contacts.jsm");
+  return Contacts;
 });
 
 const TOOLBARSTATE_LOADING  = 1;
 const TOOLBARSTATE_LOADED   = 2;
+
+[
+  [
+    "gHistSvc",
+    "@mozilla.org/browser/nav-history-service;1",
+    [Ci.nsINavHistoryService, Ci.nsIBrowserHistory]
+  ],
+  [
+    "gFaviconService",
+     "@mozilla.org/browser/favicon-service;1",
+     [Ci.nsIFaviconService]
+  ],
+  [
+    "gURIFixup",
+    "@mozilla.org/docshell/urifixup;1",
+    [Ci.nsIURIFixup]
+  ],
+  [
+    "gFocusManager",
+    "@mozilla.org/focus-manager;1",
+    [Ci.nsIFocusManager]
+  ]
+].forEach(function (service) {
+  let [name, contract, ifaces] = service;
+  window.__defineGetter__(name, function () {
+    delete window[name];
+    window[name] = Cc[contract].getService(ifaces.splice(0, 1)[0]);
+    if (ifaces.length)
+      ifaces.forEach(function (i) { return window[name].QueryInterface(i); });
+    return window[name];
+  });
+});
 
 var BrowserUI = {
   _edit : null,
@@ -149,12 +145,13 @@ var BrowserUI = {
   },
 
   _updateToolbar: function _updateToolbar() {
-    let mode = Elements.urlbarState.getAttribute("mode");
+    let icons = document.getElementById("urlbar-icons");
+    let mode = icons.getAttribute("mode");
     if (Browser.selectedTab.isLoading() && mode != "loading") {
-      Elements.urlbarState.setAttribute("mode", "loading");
+      icons.setAttribute("mode", "loading");
     }
     else if (mode != "view") {
-      Elements.urlbarState.setAttribute("mode", "view");
+      icons.setAttribute("mode", "view");
     }
   },
 
@@ -204,76 +201,37 @@ var BrowserUI = {
   },
 
   _editURI: function _editURI(aEdit) {
-    if (aEdit) {
-      // If the urlbar is not opened yet, inform the broadcaster and then
-      // save the current value as a default value to display once the awesome
-      // panel will be dismissed
-      let isOpened = this._edit.hasAttribute("open");
-      if (!isOpened) {
-        Elements.urlbarState.setAttribute("mode", "edit");
-        this._edit.defaultValue = this._edit.value;
+    var icons = document.getElementById("urlbar-icons");
+    if (aEdit && icons.getAttribute("mode") != "edit") {
+      icons.setAttribute("mode", "edit");
+      this._edit.defaultValue = this._edit.value;
 
-        // Now, replace the web page title by the url of the page
-        let urlString = this.getDisplayURI(Browser.selectedBrowser);
-        if (Util.isURLEmpty(urlString))
-          urlString = "";
-        this._edit.value = urlString;
-      }
+      let urlString = this.getDisplayURI(Browser.selectedBrowser);
+      if (Util.isURLEmpty(urlString))
+        urlString = "";
+      this._edit.value = urlString;
 
-      // If the urlbar readOnly state is set to false or if the window is in
-      // portrait then we refresh the IME state to display the VKB if any
-      if (!this._edit.readOnly || Util.isPortrait()) {
-        // This is a workaround needed to cycle focus for the IME state
-        // to be set properly (bug 488420)
-        this._edit.blur();
-        gFocusManager.setFocus(this._edit, Ci.nsIFocusManager.FLAG_NOSCROLL);
-      }
-
-      this._edit.readOnly = false;
+      // This is a workaround for bug 488420, needed to cycle focus for the
+      // IME state to be set properly. Testing shows we only really need to
+      // do this the first time.
+      this._edit.blur();
+      gFocusManager.setFocus(this._edit, Ci.nsIFocusManager.FLAG_NOSCROLL);
     }
     else if (!aEdit) {
       this._updateToolbar();
     }
   },
 
-  updateAwesomeHeader: function updateAwesomeHeader(aVisible) {
-    document.getElementById("awesome-header").hidden = aVisible;
-  },
-
   _closeOrQuit: function _closeOrQuit() {
     // Close active dialog, if we have one. If not then close the application.
-    if (this.activePanel) {
-      this.activePanel = null;
-    } else if (this.activeDialog) {
-      this.activeDialog.close();
+    let dialog = this.activeDialog;
+    if (dialog) {
+      dialog.close();
     } else {
       // Check to see if we should really close the window
       if (Browser.closing())
         window.close();
     }
-  },
-
-  _activePanel: null,
-  get activePanel() {
-    return this._activePanel;
-  },
-
-  set activePanel(aPanel) {
-    if (this._activePanel == aPanel)
-      return;
-
-    let container = document.getElementById("awesome-panels");
-    if (aPanel) {
-      container.hidden = false;
-      aPanel.open();
-    } else {
-      container.hidden = true;
-      BrowserUI.showToolbar(false);
-    }
-
-    if (this._activePanel)
-      this._activePanel.close();
-    this._activePanel = aPanel;
   },
 
   get activeDialog() {
@@ -364,8 +322,11 @@ var BrowserUI = {
   },
 
   get sidebarW() {
-    delete this._sidebarW;
-    return this._sidebarW = Elements.controls.getBoundingClientRect().width;
+    if (!this._sidebarW) {
+      let sidebar = document.getElementById("browser-controls");
+      this._sidebarW = sidebar.boxObject.width;
+    }
+    return this._sidebarW;
   },
 
   get starButton() {
@@ -377,8 +338,8 @@ var BrowserUI = {
     // tabs
     document.getElementById("tabs").resize();
 
-    // awesomebar and related panels
-    let popup = document.getElementById("awesome-panels");
+    // awesomebar
+    let popup = document.getElementById("popup_autocomplete");
     popup.top = this.toolbarH;
     popup.height = windowH - this.toolbarH;
     popup.width = windowW;
@@ -396,12 +357,6 @@ var BrowserUI = {
 
     this._edit.addEventListener("click", this, false);
     this._edit.addEventListener("mousedown", this, false);
-
-    BadgeHandlers.register(this._edit.popup);
-
-    let awesomePopup = document.getElementById("popup_autocomplete");
-    awesomePopup.addEventListener("popupshown", this, false);
-    awesomePopup.addEventListener("popuphidden", this, false);
 
     document.getElementById("toolbar-main").ignoreDrag = true;
 
@@ -450,29 +405,29 @@ var BrowserUI = {
           .ensureContentProcess();
 #endif
 
-#ifdef MOZ_SERVICES_SYNC
       // Init the sync system
       WeaveGlue.init();
-#endif
     });
 
     FormHelperUI.init();
     FindHelperUI.init();
     PageActions.init();
+
+    Contacts.init();
   },
 
   uninit: function() {
     ExtensionsView.uninit();
     ConsoleView.uninit();
-    FormHelperUI.uninit();
   },
 
   update: function(aState) {
+    let icons = document.getElementById("urlbar-icons");
     let browser = Browser.selectedBrowser;
 
     switch (aState) {
       case TOOLBARSTATE_LOADED:
-        if (Elements.urlbarState.getAttribute("mode") != "edit")
+        if (icons.getAttribute("mode") != "edit")
           this._updateToolbar();
 
         this._updateIcon(browser.mIconURL);
@@ -480,7 +435,7 @@ var BrowserUI = {
         break;
 
       case TOOLBARSTATE_LOADING:
-        if (Elements.urlbarState.getAttribute("mode") != "edit")
+        if (icons.getAttribute("mode") != "edit")
           this._updateToolbar();
 
         browser.mIconURL = "";
@@ -561,8 +516,10 @@ var BrowserUI = {
     if (this.isAutoCompleteOpen())
       return;
 
+    BrowserSearch.updateSearchButtons();
+
     this._hidePopup();
-    this.activePanel = AllPagesList;
+    this._edit.showHistoryPopup();
   },
 
   closeAutoComplete: function closeAutoComplete(aResetInput) {
@@ -573,20 +530,18 @@ var BrowserUI = {
       this._edit.popup.close();
     else
       this._edit.popup.closePopup();
-
-    // Because the controller is not detached during a blur event for Meego
-    // compatibility with the VKB, we need to detach it manually
-    this._edit.detachController();
-    this.activePanel = null;
   },
 
   isAutoCompleteOpen: function isAutoCompleteOpen() {
     return this._edit.popup.popupOpen;
   },
 
-  doOpenSearch: function doOpenSearch(aName) {
-    // save the current value of the urlbar
-    let searchValue = this._edit.value;
+  doButtonSearch: function(button) {
+    if (!("engine" in button) || !button.engine)
+      return;
+
+    // We don't want the button to look pressed for now
+    button.parentNode.selectedItem = null;
 
     // Give the new page lots of room
     Browser.hideSidebars();
@@ -595,8 +550,7 @@ var BrowserUI = {
     // Make sure we're online before attempting to load
     Util.forceOnline();
 
-    let engine = Services.search.getEngineByName(aName);
-    let submission = engine.getSubmission(searchValue, null);
+    let submission = button.engine.getSubmission(this._edit.value, null);
     Browser.loadURI(submission.uri.spec, { postData: submission.postData });
   },
 
@@ -643,7 +597,6 @@ var BrowserUI = {
   },
 
   selectTab: function selectTab(aTab) {
-    this.activePanel = null;
     Browser.selectedTab = aTab;
   },
 
@@ -666,9 +619,6 @@ var BrowserUI = {
     Elements.panelUI.left = 0;
     Elements.panelUI.hidden = false;
     Elements.contentShowing.setAttribute("disabled", "true");
-
-    if (this.activePanel)
-      this.activePanel = null;
 
     if (aPage != undefined)
       this.switchPane(aPage);
@@ -702,22 +652,16 @@ var BrowserUI = {
   handleEscape: function (aEvent) {
     aEvent.stopPropagation();
 
-    // Check open popups
-    if (this._popup) {
-      this._hidePopup();
-      return;
-    }
-
-    // Check active panel
-    if (this.activePanel) {
-      this.activePanel = null;
-      return;
-    }
-
     // Check open dialogs
     let dialog = this.activeDialog;
     if (dialog) {
       dialog.close();
+      return;
+    }
+
+    // Check open popups
+    if (this._popup) {
+      this._hidePopup();
       return;
     }
 
@@ -801,14 +745,6 @@ var BrowserUI = {
       case "error":
         this._favicon.src = "";
         break;
-      // Awesome popup event
-      case "popupshown":
-        this._edit.setAttribute("open", "true");
-        break;
-      case "popuphidden":
-        this._edit.removeAttribute("open");
-        this._edit.readOnly = true;
-        break;
     }
   },
 
@@ -881,10 +817,7 @@ var BrowserUI = {
       case "cmd_go":
       case "cmd_openLocation":
       case "cmd_star":
-      case "cmd_opensearch":
       case "cmd_bookmarks":
-      case "cmd_history":
-      case "cmd_remoteTabs":
       case "cmd_quit":
       case "cmd_close":
       case "cmd_menu":
@@ -913,7 +846,7 @@ var BrowserUI = {
   },
 
   doCommand : function(cmd) {
-    let browser = getBrowser();
+    var browser = getBrowser();
     switch (cmd) {
       case "cmd_back":
         browser.goBack();
@@ -945,15 +878,16 @@ var BrowserUI = {
         break;
       case "cmd_star":
       {
-        let bookmarkURI = browser.currentURI;
+        var bookmarkURI = browser.currentURI;
+        var bookmarkTitle = browser.contentTitle || bookmarkURI.spec;
+
         let autoClose = false;
 
         if (PlacesUtils.getMostRecentBookmarkForURI(bookmarkURI) == -1) {
-          let bookmarkTitle = browser.contentTitle || bookmarkURI.spec;
-          let bookmarkService = PlacesUtils.bookmarks;
-          let bookmarkId = bookmarkService.insertBookmark(BookmarkList.panel.mobileRoot, bookmarkURI,
-                                                          bookmarkService.DEFAULT_INDEX,
-                                                          bookmarkTitle);
+          let bmsvc = PlacesUtils.bookmarks;
+          let bookmarkId = bmsvc.insertBookmark(BookmarkList.mobileRoot, bookmarkURI,
+                                                bmsvc.DEFAULT_INDEX,
+                                                bookmarkTitle);
           this.updateStar();
 
           // autoclose the bookmark popup
@@ -964,26 +898,8 @@ var BrowserUI = {
         BookmarkPopup.toggle(autoClose);
         break;
       }
-      case "cmd_opensearch":
-        this._edit.blur();
-
-        MenuListHelperUI.show({
-          title: Elements.browserBundle.getString("opensearch.searchWith"),
-          menupopup: { children: BrowserSearch.engines },
-          set selectedIndex(aIndex) {
-            let name = this.menupopup.children[aIndex].label;
-            BrowserUI.doOpenSearch(name);
-          }
-        });
-        break;
       case "cmd_bookmarks":
-        this.activePanel = BookmarkList;
-        break;
-      case "cmd_history":
-        this.activePanel = HistoryList;
-        break;
-      case "cmd_remoteTabs":
-        this.activePanel = RemoteTabsList;
+        BookmarkList.show();
         break;
       case "cmd_quit":
         goQuitApplication();
@@ -1096,10 +1012,7 @@ var PageActions = {
   init: function init() {
     this.register("pageaction-reset", this.updatePagePermissions, this);
     this.register("pageaction-password", this.updateForgetPassword, this);
-#ifdef NS_PRINTING
     this.register("pageaction-saveas", this.updatePageSaveAs, this);
-#endif
-    this.register("pageaction-share", this.updateShare, this);
     this.register("pageaction-search", BrowserSearch.updatePageSearchEngines, BrowserSearch);
   },
 
@@ -1194,35 +1107,25 @@ var PageActions = {
   },
 
   savePageAsPDF: function saveAsPDF() {
-    let browser = Browser.selectedBrowser;
-    let fileName = getDefaultFileName(browser.contentTitle, browser.documentURI, null, null);
-    fileName = fileName.trim() + ".pdf";
-#ifdef MOZ_PLATFORM_MAEMO
-    fileName = fileName.replace(/[\*\:\?]+/g, " ");
-#endif
-
-    let dm = Cc["@mozilla.org/download-manager;1"].getService(Ci.nsIDownloadManager);
-    let downloadsDir = dm.defaultDownloadsDirectory;
-
-#ifdef ANDROID
-    let file = downloadsDir.clone();
-    file.append(fileName);
-#else
     let strings = Elements.browserBundle;
     let picker = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
     picker.init(window, strings.getString("pageactions.saveas.pdf"), Ci.nsIFilePicker.modeSave);
     picker.appendFilter("PDF", "*.pdf");
     picker.defaultExtension = "pdf";
 
-    picker.defaultString = fileName;
+    let browser = Browser.selectedBrowser;
+    let fileName = getDefaultFileName(browser.contentTitle, browser.documentURI, null, null);
+    fileName = fileName.trim();
+#ifdef MOZ_PLATFORM_MAEMO
+    fileName = fileName.replace(/[\*\:\?]+/g, " ");
+#endif
+    picker.defaultString = fileName + ".pdf";
 
-    picker.displayDirectory = downloadsDir;
+    let dm = Cc["@mozilla.org/download-manager;1"].getService(Ci.nsIDownloadManager);
+    picker.displayDirectory = dm.defaultDownloadsDirectory;
     let rv = picker.show();
     if (rv == Ci.nsIFilePicker.returnCancel)
       return;
-
-    let file = picker.file;
-#endif
 
     // We must manually add this to the download system
     let db = dm.DBConnection;
@@ -1232,10 +1135,10 @@ var PageActions = {
       "VALUES (:name, :source, :target, :startTime, :endTime, :state, :referrer)"
     );
 
-    let current = browser.currentURI.spec;
-    stmt.params.name = file.leafName;
+    let current = Browser.selectedBrowser.currentURI.spec;
+    stmt.params.name = picker.file.leafName;
     stmt.params.source = current;
-    stmt.params.target = Services.io.newFileURI(file).spec;
+    stmt.params.target = Services.io.newFileURI(picker.file).spec;
     stmt.params.startTime = Date.now() * 1000;
     stmt.params.endTime = Date.now() * 1000;
     stmt.params.state = Ci.nsIDownloadManager.DOWNLOAD_NOTSTARTED;
@@ -1255,7 +1158,7 @@ var PageActions = {
       type: Ci.nsIPrintSettings.kOutputFormatPDF,
       id: newItemId,
       referrer: current,
-      filePath: file.path
+      filePath: picker.file.path
     };
 
     Browser.selectedBrowser.messageManager.sendAsyncMessage("Browser:SaveAs", data);
@@ -1265,10 +1168,6 @@ var PageActions = {
     // Check for local XUL content
     let contentDocument = Browser.selectedBrowser.contentDocument;
     return !(contentDocument && contentDocument instanceof XULDocument);
-  },
-
-  updateShare: function updateShare(aNode) {
-    return Util.isShareableScheme(Browser.selectedBrowser.currentURI.scheme);
   },
 
   hideItem: function hideItem(aNode) {
@@ -1308,17 +1207,7 @@ var NewTabPopup = {
 
   get box() {
     delete this.box;
-    let box = document.getElementById("newtab-popup");
-
-    // Move the popup on the other side if we are in RTL
-    let [leftSidebar, rightSidebar] = [Elements.tabs.getBoundingClientRect(), Elements.controls.getBoundingClientRect()];
-    if (leftSidebar.left > rightSidebar.left) {
-      let margin = box.getAttribute("left");
-      box.removeAttribute("left");
-      box.setAttribute("right", margin);
-    }
-
-    return this.box = box;
+    return this.box = document.getElementById("newtab-popup");
   },
 
   _updateLabel: function() {
@@ -1362,67 +1251,10 @@ var NewTabPopup = {
   }
 };
 
-var AwesomePanel = function(aElementId, aCommandId) {
-  let command = document.getElementById(aCommandId);
-
-  this.panel = document.getElementById(aElementId),
-
-  this.open = function aw_open() {
-    BrowserUI.pushDialog(this);
-    command.setAttribute("checked", "true");
-    this.panel.hidden = false;
-
-    if (this.panel.hasAttribute("onshow")) {
-      let func = new Function("panel", this.panel.getAttribute("onshow"));
-      func.call(this.panel);
-    }
-
-    if (this.panel.open)
-      this.panel.open();
-  },
-
-  this.close = function aw_close() {
-    if (this.panel.hasAttribute("onhide")) {
-      let func = new Function("panel", this.panel.getAttribute("onhide"));
-      func.call(this.panel);
-    }
-
-    if (this.panel.close)
-      this.panel.close();
-
-    this.panel.blur();
-    this.panel.hidden = true;
-    command.removeAttribute("checked", "true");
-    BrowserUI.popDialog();
-  },
-
-  this.openLink = function aw_openLink(aEvent) {
-    let item = aEvent.originalTarget;
-    let uri = item.getAttribute("url") || item.getAttribute("uri");
-    if (uri != "") {
-      BrowserUI.goToURI(uri);
-      BrowserUI.activePanel = null;
-    }
-  }
-};
-
 var BookmarkPopup = {
   get box() {
     delete this.box;
-    this.box = document.getElementById("bookmark-popup");
-
-    const margin = 10;
-    let [tabsSidebar, controlsSidebar] = [Elements.tabs.getBoundingClientRect(), Elements.controls.getBoundingClientRect()];
-    this.box.setAttribute(tabsSidebar.left < controlsSidebar.left ? "right" : "left", controlsSidebar.width + margin);
-    this.box.top  = BrowserUI.starButton.getBoundingClientRect().top + margin;
-
-    // Hide the popup if there is any new page loading
-    let self = this;
-    messageManager.addMessageListener("pagehide", function(aMessage) {
-      self.hide();
-    });
-
-    return this.box;
+    return this.box = document.getElementById("bookmark-popup");
   },
 
   _bookmarkPopupTimeout: -1,
@@ -1437,7 +1269,13 @@ var BookmarkPopup = {
   },
 
   show : function show(aAutoClose) {
+    const margin = 10;
+
     this.box.hidden = false;
+
+    let [,,,controlsW] = Browser.computeSidebarVisibility();
+    this.box.left = window.innerWidth - (this.box.getBoundingClientRect().width + controlsW + margin);
+    this.box.top  = BrowserUI.starButton.getBoundingClientRect().top + margin;
 
     if (aAutoClose) {
       this._bookmarkPopupTimeout = setTimeout(function (self) {
@@ -1514,17 +1352,49 @@ var BookmarkHelper = {
     this._panel.hidden = true;
     BrowserUI.popPopup();
   },
+};
 
-  removeBookmarksForURI: function BH_removeBookmarksForURI(aURI) {
-    //XXX blargle xpconnect! might not matter, but a method on
-    // nsINavBookmarksService that takes an array of items to
-    // delete would be faster. better yet, a method that takes a URI!
-    let itemIds = PlacesUtils.getBookmarksForURI(aURI);
-    itemIds.forEach(PlacesUtils.bookmarks.removeItem);
+var BookmarkList = {
+  _panel: null,
+  _bookmarks: null,
 
+  get mobileRoot() {
+    let items = PlacesUtils.annotations.getItemsWithAnnotation("mobile/bookmarksRoot", {});
+    if (!items.length)
+      throw "Couldn't find mobile bookmarks root!";
+
+    delete this.mobileRoot;
+    return this.mobileRoot = items[0];
+  },
+
+  show: function() {
+    this._panel = document.getElementById("bookmarklist-container");
+    this._panel.width = window.innerWidth;
+    this._panel.height = window.innerHeight;
+    this._panel.hidden = false;
+    BrowserUI.pushDialog(this);
+
+    this._bookmarks = document.getElementById("bookmark-items");
+    this._bookmarks.openFolder();
+  },
+
+  close: function() {
     BrowserUI.updateStar();
+
+    this._bookmarks.blur();
+    this._panel.hidden = true;
+    BrowserUI.popDialog();
+  },
+
+  openBookmark: function() {
+    let item = this._bookmarks.activeItem;
+    if (item.spec) {
+      this.close();
+      BrowserUI.goToURI(item.spec);
+    }
   }
 };
+
 
 var FindHelperUI = {
   type: "find",
@@ -1634,10 +1504,6 @@ var FormHelperUI = {
     close: "cmd_formClose"
   },
 
-  //for resize/rotate case
-  _currentCaretRect: null,
-  _currentElementRect: null,
-
   init: function formHelperInit() {
     this._container = document.getElementById("content-navigator");
     this._autofillContainer = document.getElementById("form-helper-autofill");
@@ -1648,22 +1514,11 @@ var FormHelperUI = {
     messageManager.addMessageListener("FormAssist:Show", this);
     messageManager.addMessageListener("FormAssist:Hide", this);
     messageManager.addMessageListener("FormAssist:Update", this);
-    messageManager.addMessageListener("FormAssist:Resize", this);
     messageManager.addMessageListener("FormAssist:AutoComplete", this);
 
     // Listen for events where form assistant should be closed
     document.getElementById("tabs").addEventListener("TabSelect", this, true);
     document.getElementById("browsers").addEventListener("URLChanged", this, true);
-
-    // Listen for modal dialog to show/hide the UI
-    messageManager.addMessageListener("DOMWillOpenModalDialog", this);
-    messageManager.addMessageListener("DOMModalDialogClosed", this);
-
-    Services.obs.addObserver(this, "softkb-change", false);
-  },
-
-  uninit: function formHelperUninit() {
-    Services.obs.removeObserver(this, "softkb-change");
   },
 
   show: function formHelperShow(aElement, aHasPrevious, aHasNext) {
@@ -1685,21 +1540,12 @@ var FormHelperUI = {
     }
     this._updateContainer(lastElement, this._currentElement);
 
-    //hide all sidebars, this will adjust the visible rect.
-    Browser.hideSidebars();
-
-    //save the element Rect and reuse it to avoid jumps in cases the element moves slighty on the website.
-    this._currentElementRect = Rect.fromRect(aElement.rect);
-    this._zoom(this._currentElementRect, Rect.fromRect(aElement.caretRect));
+    this._zoom(Rect.fromRect(aElement.rect), Rect.fromRect(aElement.caretRect));
   },
 
   hide: function formHelperHide() {
     if (!this._open)
       return;
-
-    // reset current Element and Caret Rect
-    this._currentElementRect = null;
-    this._currentCaretRect = null;
 
     this._updateContainerForSelect(this._currentElement, null);
     this._open = false;
@@ -1718,8 +1564,12 @@ var FormHelperUI = {
         // want to show a UI for <select /> element but not managed by
         // FormHelperUI
         let enabled = Services.prefs.getBoolPref("formhelper.enabled");
-        enabled ? this.show(json.current, json.hasPrevious, json.hasNext)
-                : SelectHelperUI.show(json.current.choices);
+        if (enabled) {
+          this.show(json.current, json.hasPrevious, json.hasNext);
+        }
+        else {
+          SelectHelperUI.show(json.current.list);
+        }
         break;
 
       case "FormAssist:Hide":
@@ -1731,45 +1581,10 @@ var FormHelperUI = {
         this._container.contentHasChanged();
         break;
 
-      case "FormAssist:Resize":
-        // First hide all tool/sidebars they take to much space, this will adjust the visible rect.
-        Browser.hideSidebars();
-        this._zoom(this._currentElementRect, this._currentCaretRect);
-        this._container.contentHasChanged();
-        break;
-
-       case "FormAssist:Update":
-        // Using currentElementRect here is maybe not 100% perfect since
-        // elements might change there position while typing
-        // out of screen movement is covered by simply following the caret
-        // as long as we see what we type, let the element move
-        this._zoom(this._currentElementRect, Rect.fromRect(json.caretRect));
-        break;
-
-      case "DOMWillOpenModalDialog":
-        if (this._open && aMessage.target == Browser.selectedBrowser) {
-          this._container.style.display = "none";
-          this._container._spacer.hidden = true;
-        }
-        break;
-
-      case "DOMModalDialogClosed":
-        if (this._open && aMessage.target == Browser.selectedBrowser) {
-          this._container.style.display = "-moz-box";
-          this._container._spacer.hidden = false;
-        }
+      case "FormAssist:Update":
+        this._zoom(null, Rect.fromRect(json.caretRect));
         break;
     }
-  },
-  
-  observe: function formHelperObserve(aSubject, aTopic, aData) {
-    let rect = Rect.fromRect(JSON.parse(aData));
-    rect.height = rect.bottom - rect.top;
-    rect.width  = rect.right - rect.left;
-
-    Browser._browserView._visibleScreenArea = rect;
-    BrowserUI.sizeControls(rect.width, rect.height);
-    this._zoom(this._currentElementRect, this._currentCaretRect);
   },
 
   goToPrevious: function formHelperGoToPrevious() {
@@ -1797,7 +1612,6 @@ var FormHelperUI = {
     let bv = Browser._browserView;
     bv.ignorePageScroll(aVal);
     this._container.hidden = !aVal;
-    this._container.contentHasChanged();
 
     if (aVal) {
       this._zoomStart();
@@ -1882,106 +1696,30 @@ var FormHelperUI = {
   /** Zoom and move viewport so that element is legible and touchable. */
   _zoom: function _formHelperZoom(aElementRect, aCaretRect) {
     let bv = Browser._browserView;
+    let zoomRect = bv.getVisibleRect();
 
-    if (aElementRect && aCaretRect && this._open) {
-      this._currentCaretRect = aCaretRect;
+    // Zoom to a specified Rect
+    if (aElementRect && bv.allowZoom && Services.prefs.getBoolPref("formhelper.autozoom")) {
+      // Zoom to an element by keeping the caret into view
+      let zoomLevel = Browser._getZoomLevelForRect(aElementRect);
+      zoomLevel = Math.min(Math.max(kBrowserFormZoomLevelMin, zoomLevel), kBrowserFormZoomLevelMax);
 
-      // might not always be set, if not - use the windowsize
-      let visibleScreenArea = !bv._visibleScreenArea.isEmpty() ? bv._visibleScreenArea : new Rect(0, 0, window.innerWidth, window.innerHeight);
+      zoomRect = Browser._getZoomRectForPoint(aElementRect.center().x, aElementRect.y, zoomLevel);
+      Browser.animatedZoomTo(zoomRect);
+    }
 
-      // respect the helper container in setting the correct viewAreaHeight
-      let viewAreaHeight = visibleScreenArea.height - this._container.getBoundingClientRect().height;
-      let viewAreaWidth = visibleScreenArea.width;
-      let caretLines = Services.prefs.getIntPref("formhelper.caretLines.portrait");
-      let harmonizeValue = Services.prefs.getIntPref("formhelper.harmonizeValue");
+    // Move the view to show the caret if needed
+    if (aCaretRect) {
+      let caretRect = bv.browserToViewportRect(aCaretRect);
+      if (zoomRect.contains(caretRect))
+        return;
 
-      if (!Util.isPortrait())
-        caretLines = Services.prefs.getIntPref("formhelper.caretLines.landscape");
-
-      // hide titlebar if the remaining space would be smaller than the height of the titlebar itself
-      // if there is enough space left than adjust the height. Since this adjust the the visible rects
-      // there is no need to adjust the y later
-      let toolbar = document.getElementById("toolbar-main");
-      if (viewAreaHeight - toolbar.boxObject.height <= toolbar.boxObject.height * 2)
-        Browser.hideTitlebar();
-      else
-        viewAreaHeight -= toolbar.boxObject.height;
-
-      // To ensure the correct calculation when the sidebars are visible - get the sidebar size and
-      // use them as margin
-      let [leftvis, rightvis, leftW, rightW] = Browser.computeSidebarVisibility(0, 0);
-      let marginLeft = leftvis ? leftW : 0;
-      let marginRight = rightvis ? rightW : 0;
-
-      // The height and Y of the caret might change during writing - even in cases the
-      // fontsize keeps the same. To avoid unneeded zooming and scrolling
-      let harmonizedCaretHeight = 0;
-      let harmonizedCaretY = 0;
-
-      // Start calculation here, the order is important
-      // All calculations are done in non_zoomed_coordinates => 1:1 to "screen-pixels"
-
-      // for buttons and non input field elements a caretRect with the height of 0 gets reported
-      // cover this case.
-      if (!aCaretRect.isEmpty()) {
-        // the height and y position may vary from letter to letter
-        // adjust position and zooming only if a bigger step was done.
-        harmonizedCaretHeight = aCaretRect.height - aCaretRect.height % harmonizeValue;
-        harmonizedCaretY = aCaretRect.y - aCaretRect.y % harmonizeValue;
-      } else {
-        harmonizedCaretHeight = 30; // fallback height
-
-        // use the element as position
-        harmonizedCaretY = aElementRect.y;
-        aCaretRect.x = aElementRect.x;
+      let [deltaX, deltaY] = this._getOffsetForCaret(caretRect, zoomRect);
+      if (deltaX != 0 || deltaY != 0) {
+        Browser.contentScrollboxScroller.scrollBy(deltaX, deltaY);
       }
 
-      let zoomLevel = bv.getZoomLevel();
-      let enableZoom = bv.allowZoom && Services.prefs.getBoolPref("formhelper.autozoom");
-      if (enableZoom) {
-        zoomLevel = (viewAreaHeight / caretLines) / harmonizedCaretHeight;
-        zoomLevel = Math.min(Math.max(kBrowserFormZoomLevelMin, zoomLevel), kBrowserFormZoomLevelMax);
-      }
-      viewAreaWidth /= zoomLevel;
-
-      const margin = Services.prefs.getIntPref("formhelper.margin");
-
-      // if the viewAreaWidth is smaller than the neutralized position + margins.
-      // [YES] use the x position of the element minus margins as x position for our visible rect.
-      // [NO] use the x position of the caret minus margins as the x position for our visible rect.
-      let x = (marginLeft + marginRight + margin + aCaretRect.x - aElementRect.x) < viewAreaWidth
-               ? aElementRect.x - margin - marginLeft
-               : aCaretRect.x - viewAreaWidth + margin + marginRight;
-      // use the adjustet Caret Y minus a margin four our visible rect
-      let y = harmonizedCaretY - margin;
-
-      // from here on play with zoomed values
-      // if we want to have it animated, build up zoom rect and animate.
-      if (enableZoom && bv.getZoomLevel() != zoomLevel) {
-        let vis = bv.getVisibleRect();
-        x = bv.browserToViewport(x);
-        y = bv.browserToViewport(y);
-
-        //dont use browser functions they are bogus for this case
-        let zoomRatio = zoomLevel / bv.getZoomLevel();
-        let newVisW = vis.width / zoomRatio, newVisH = vis.height / zoomRatio;
-        let zoomRect = new Rect(x, y, newVisW, newVisH);
-
-        Browser.animatedZoomTo(zoomRect);
-      }
-      else { // no zooming at all
-        let vis = bv.getVisibleRect();
-        // get our x and y in viewport "zoomed" coordinates
-        x = bv.browserToViewport(x);
-        y = bv.browserToViewport(y);
-
-        Browser.contentScrollboxScroller.scrollBy(x-vis.x, y-vis.y);
-
-        // workaround for tilemanager bug, after scrolling one screen height, text gets not painted on typing
-        bv.invalidateEntireView();
-
-        bv.onAfterVisibleMove();
-      }
+      Browser.animatedZoomTo(zoomRect);
     }
   },
 
@@ -2026,6 +1764,7 @@ var FormHelperUI = {
     return [deltaX, deltaY];
   }
 };
+
 
 /**
  * SelectHelperUI: Provides an interface for making a choice in a list.
@@ -2226,7 +1965,8 @@ var SelectHelperUI = {
     if (isIdentical)
       return;
 
-    Browser.selectedBrowser.messageManager.sendAsyncMessage("FormAssist:ChoiceChange", { });
+    this._list.changeCallback ? this._list.changeCallback()
+                              : Browser.selectedBrowser.messageManager.sendAsyncMessage("FormAssist:ChoiceChange", { });
   },
 
   handleEvent: function(aEvent) {
@@ -2244,6 +1984,7 @@ var SelectHelperUI = {
             // Select the new one and update the control
             item.selected = true;
           }
+
           this.onSelect(item.optionIndex, item.selected, !this._list.multiple);
         }
         break;
@@ -2251,6 +1992,11 @@ var SelectHelperUI = {
   },
 
   onSelect: function(aIndex, aSelected, aClearAll) {
+    if (this._list.selectCallback) {
+      this._list.selectCallback(aIndex);
+      return;
+    }
+
     let json = {
       index: aIndex,
       selected: aSelected,
@@ -2259,86 +2005,6 @@ var SelectHelperUI = {
     Browser.selectedBrowser.messageManager.sendAsyncMessage("FormAssist:ChoiceSelect", json);
   }
 };
-
-var MenuListHelperUI = {
-  get _container() {
-    delete this._container;
-    return this._container = document.getElementById("menulist-container");
-  },
-
-  get _popup() {
-    delete this._popup;
-    return this._popup = document.getElementById("menulist-popup");
-  },
-
-  get _title() {
-    delete this._title;
-    return this._title = document.getElementById("menulist-title");
-  },
-
-  _currentList: null,
-  show: function mn_show(aMenulist) {
-    this._currentList = aMenulist;
-    this._title.value = aMenulist.title || "";
-
-    let container = this._container;
-    let listbox = this._popup.lastChild;
-    while (listbox.firstChild)
-      listbox.removeChild(listbox.firstChild);
-
-    let children = this._currentList.menupopup.children;
-    for (let i = 0; i < children.length; i++) {
-      let child = children[i];
-      let item = document.createElement("richlistitem");
-      // Add selected as a class name instead of an attribute to not being overidden
-      // by the richlistbox behavior (it sets the "current" and "selected" attribute
-      item.setAttribute("class", "menulist-command" + (child.selected ? " selected" : ""));
-
-      let image = document.createElement("image");
-      image.setAttribute("src", child.image || "");
-      item.appendChild(image);
-
-      let label = document.createElement("label");
-      label.setAttribute("value", child.label);
-      item.appendChild(label);
-
-      listbox.appendChild(item);
-    }
-
-    window.addEventListener("resize", this, true);
-    container.hidden = false;
-    this.sizeToContent();
-    BrowserUI.pushPopup(this, [this._popup]);
-  },
-
-  hide: function mn_hide() {
-    this._currentList = null;
-    this._container.hidden = true;
-    window.removeEventListener("resize", this, true);
-    BrowserUI.popPopup();
-  },
-
-  selectByIndex: function mn_selectByIndex(aIndex) {
-    this._currentList.selectedIndex = aIndex;
-
-    // Dispatch a xul command event to the attached menulist
-    if (this._currentList.dispatchEvent) {
-      let evt = document.createEvent("XULCommandEvent");
-      evt.initCommandEvent("command", true, true, window, 0, false, false, false, false, null);
-      this._currentList.dispatchEvent(evt);
-    }
-
-    this.hide();
-  },
-
-  sizeToContent: function sizeToContent() {
-    this._popup.maxWidth = window.innerWidth * 0.75;
-  },
-
-  handleEvent: function handleEvent(aEvent) {
-    this.sizeToContent();
-  }
-}
 
 var ContextHelper = {
   popupState: null,
@@ -2408,7 +2074,23 @@ var ContextHelper = {
   },
 
   sizeToContent: function sizeToContent() {
-    this._popup.maxWidth = window.innerWidth * 0.75;
+    // Make sure the container is at least sized to the content
+    let popup = this._popup;
+    let preferredHeight = 0;
+    for (let i=0; i<popup.childElementCount; i++) {
+      preferredHeight += popup.children[i].getBoundingClientRect().height;
+    }
+
+    // Ensure to reset the assigned width/height to have the default's one set
+    // by the content
+    popup.width = popup.height = "";
+
+    let rect = popup.getBoundingClientRect();
+    let height = Math.min(preferredHeight, 0.75 * window.innerWidth);
+    let width = Math.min(rect.width, 0.75 * window.innerWidth);
+
+    popup.height = height;
+    popup.width = width;
   },
 
   handleEvent: function handleEvent(aEvent) {
@@ -2419,11 +2101,6 @@ var ContextHelper = {
 var ContextCommands = {
   openInNewTab: function cc_openInNewTab() {
     Browser.addTab(ContextHelper.popupState.linkURL, false, Browser.selectedTab);
-  },
-
-  saveLink: function cc_saveLink() {
-    let browser = ContextHelper.popupState.target;
-    saveURL(ContextHelper.popupState.linkURL, null, "SaveLinkTitle", false, false, browser.documentURI);
   },
 
   saveImage: function cc_saveImage() {
@@ -2451,6 +2128,7 @@ var ContextCommands = {
   }
 }
 
+
 var SharingUI = {
   _dialog: null,
 
@@ -2466,8 +2144,8 @@ var SharingUI = {
       button.className = "prompt-button";
       button.setAttribute("label", handler.name);
       button.addEventListener("command", function() {
+        handler.callback(aURL, aTitle);
         SharingUI.hide();
-        handler.callback(aURL || "", aTitle || "");
       }, false);
       bbox.appendChild(button);
     });
@@ -2484,7 +2162,7 @@ var SharingUI = {
     {
       name: "Email",
       callback: function callback(aURL, aTitle) {
-        let url = "mailto:?subject=" + encodeURIComponent(aTitle) +
+        let url = "mailto:?subject=" + encodeURIComponent(aTitle || "") +
                   "&body=" + encodeURIComponent(aURL);
         let uri = Services.io.newURI(url, null, null);
         let extProtocolSvc = Cc["@mozilla.org/uriloader/external-protocol-service;1"]
@@ -2518,73 +2196,12 @@ var SharingUI = {
 };
 
 
-var BadgeHandlers = {
-  _handlers: [
-    {
-      _lastUpdate: 0,
-      _lastCount: 0,
-      url: "http://mail.google.com",
-      updateBadge: function(aBadge) {
-        // Use the cache if possible
-        let now = Date.now();
-        if (this._lastCount && this._lastUpdate > now - 1000) {
-          aBadge.set(this._lastCount);
-          return;
-        }
+function removeBookmarksForURI(aURI) {
+  //XXX blargle xpconnect! might not matter, but a method on
+  // nsINavBookmarksService that takes an array of items to
+  // delete would be faster. better yet, a method that takes a URI!
+  let itemIds = PlacesUtils.getBookmarksForURI(aURI);
+  itemIds.forEach(PlacesUtils.bookmarks.removeItem);
 
-        this._lastUpdate = now;
-
-        // Use any saved username and password. If we don't have any login and we are not
-        // currently logged into Gmail, we won't get any count.
-        let login = BadgeHandlers.getLogin("https://www.google.com");
-
-        // Get the feed and read the count, passing any saved username and password
-        // but do not show any security dialogs if we fail
-        let req = new XMLHttpRequest();
-        req.mozBackgroundRequest = true;
-        req.open("GET", "https://mail.google.com/mail/feed/atom", true, login.username, login.password);
-        req.onreadystatechange = function(aEvent) {
-          if (req.readyState == 4) {
-            if (req.status == 200) {
-              this._lastCount = req.responseXML.getElementsByTagName("fullcount")[0].childNodes[0].nodeValue;
-            } else {
-              this._lastCount = 0;
-            }
-            this._lastCount = BadgeHandlers.setNumberBadge(aBadge, this._lastCount);
-          }
-        };
-        req.send(null);
-      }
-    }
-  ],
-
-  register: function(aPopup) {
-    let handlers = this._handlers;
-    for (let i = 0; i < handlers.length; i++)
-      aPopup.registerBadgeHandler(handlers[i].url, handlers[i]);
-  },
-
-  getLogin: function(aURL) {
-    let lm = Cc["@mozilla.org/login-manager;1"].getService(Ci.nsILoginManager);
-    let logins = lm.findLogins({}, aURL, aURL, null);
-    let username = logins.length > 0 ? logins[0].username : "";
-    let password = logins.length > 0 ? logins[0].password : "";
-    return { username: username, password: password };
-  },
-
-  clampBadge: function(aValue) {
-    if (aValue > 100)
-      aValue = "99+";
-    return aValue;
-  },
-
-  setNumberBadge: function(aBadge, aValue) {
-    if (parseInt(aValue) != 0) {
-      aValue = this.clampBadge(aValue);
-      aBadge.set(aValue);
-    } else {
-      aBadge.set("");
-    }
-    return aValue;
-  }
-};
+  BrowserUI.updateStar();
+}

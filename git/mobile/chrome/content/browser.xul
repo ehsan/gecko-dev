@@ -43,8 +43,6 @@
 <?xml-stylesheet href="chrome://browser/content/browser.css" type="text/css"?>
 
 <!DOCTYPE window [
-<!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
-%globalDTD;
 <!ENTITY % browserDTD SYSTEM "chrome://browser/locale/browser.dtd">
 %browserDTD;
 <!ENTITY % brandDTD SYSTEM "chrome://branding/locale/brand.dtd">
@@ -58,7 +56,6 @@
         onunload="Browser.shutdown();"
         onclose="return Browser.closing();"
         windowtype="navigator:browser"
-        chromedir="&locale.dir;"
         title="&brandShortName;"
 #ifdef MOZ_PLATFORM_MAEMO
         sizemode="fullscreen"
@@ -87,9 +84,7 @@
   <script type="application/javascript" src="chrome://browser/content/TileManager.js"/>
   <script type="application/javascript" src="chrome://browser/content/BrowserView.js"/>
   <script type="application/javascript" src="chrome://browser/content/AnimatedZoom.js"/>
-#ifdef MOZ_SERVICES_SYNC
   <script type="application/javascript" src="chrome://browser/content/sync.js"/>
-#endif
 
   <stringbundleset id="stringbundleset">
     <stringbundle id="bundle_browser" src="chrome://browser/locale/browser.properties"/>
@@ -98,7 +93,6 @@
 
   <broadcasterset id="broadcasterset">
     <broadcaster id="bcast_contentShowing"/>
-    <broadcaster id="bcast_urlbarState" mode="view"/>
   </broadcasterset>
 
   <observerset id="observerset">
@@ -113,14 +107,12 @@
     <command id="cmd_forceReload" oncommand="CommandUpdater.doCommand(this.id);"/>
     <command id="cmd_stop" label="&stop.label;" oncommand="CommandUpdater.doCommand(this.id);"/>
     <command id="cmd_go" label="&go.label;" oncommand="CommandUpdater.doCommand(this.id);"/>
-    <command id="cmd_openLocation" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_openLocation" label="&openLocation.label;" oncommand="CommandUpdater.doCommand(this.id);"/>
 
     <!-- tabs -->
     <command id="cmd_newTab" label="&newtab.label;" oncommand="CommandUpdater.doCommand(this.id);"/>
     <command id="cmd_closeTab" label="&closetab.label;" oncommand="CommandUpdater.doCommand(this.id);"/>
-#ifdef MOZ_SERVICES_SYNC
-    <command id="cmd_remoteTabs" oncommand="CommandUpdater.doCommand(this.id);" disabled="true"/>
-#endif
+    <command id="cmd_remoteTabs" oncommand="WeaveGlue.openRemoteTabs();"/>
     <command id="cmd_undoCloseTab" oncommand="CommandUpdater.doCommand(this.id);"/>
 
     <!-- bookmarking -->
@@ -131,10 +123,7 @@
     <command id="cmd_quit" oncommand="CommandUpdater.doCommand(this.id);"/>
     <command id="cmd_menu" oncommand="CommandUpdater.doCommand(this.id);"/>
     <command id="cmd_actions" oncommand="CommandUpdater.doCommand(this.id);"/>
-    <command id="cmd_opensearch" oncommand="CommandUpdater.doCommand(this.id);"/>
     <command id="cmd_panel" oncommand="CommandUpdater.doCommand(this.id);"/>
-    <command id="cmd_bookmarks" oncommand="CommandUpdater.doCommand(this.id);"/>
-    <command id="cmd_history" oncommand="CommandUpdater.doCommand(this.id);"/>
     <command id="cmd_sanitize" oncommand="CommandUpdater.doCommand(this.id);"/>
 
     <!-- screen/display -->
@@ -216,6 +205,7 @@
           <vbox id="tabs" onselect="BrowserUI.selectTab(this);" onclosetab="BrowserUI.closeTab(this)" flex="1"/>
           <hbox id="tabs-controls">
             <toolbarbutton id="newtab-button" class="button-image" command="cmd_newTab"/>
+            <toolbarbutton id="remotetabs-button" class="button-image" disabled="true" command="cmd_remoteTabs"/>
           </hbox>
         </vbox>
       </vbox>
@@ -231,7 +221,7 @@
 #ifdef MOZ_PLATFORM_MAEMO
                   <toolbarbutton id="tool-app-switch" class="button-image" oncommand="BrowserUI.switchTask();"/>
 #endif
-                  <hbox id="urlbar-container" flex="1" observes="bcast_urlbarState">
+                  <hbox id="urlbar-container" flex="1">
                     <box id="identity-box"
                          onclick="getIdentityHandler().handleIdentityButtonEvent(event);"
                          onkeypress="getIdentityHandler().handleIdentityButtonEvent(event);">
@@ -249,22 +239,18 @@
                              completeselectedindex="true"
                              minresultsforpopup="0"
                              oncontextmenu="event.preventDefault();"
-                             onsearchbegin="BrowserUI.updateAwesomeHeader(this.controller.searchString != '');"
                              emptytext="&urlbar.emptytext;"
                              flex="1"
                              ontextentered="BrowserUI.goToURI();"
-                             readonly="true"
                              clickSelectsAll="true"/>
-                    <hbox id="urlbar-icons" observes="bcast_urlbarState">
+                    <hbox id="urlbar-icons" mode="view">
                       <toolbarbutton id="tool-reload" class="urlbar-cap-button"
                                      oncommand="CommandUpdater.doCommand(event.shiftKey ? 'cmd_forceReload' : 'cmd_reload');"/>
                       <toolbarbutton id="tool-stop" class="urlbar-cap-button" command="cmd_stop"/>
-                      <toolbarbutton id="tool-search" class="urlbar-cap-button" command="cmd_opensearch"/>
+                      <toolbarbutton id="tool-go" class="urlbar-cap-button" command="cmd_go"/>
                     </hbox>
                   </hbox>
-#ifdef MOZ_PLATFORM_MAEMO
                   <toolbarbutton id="tool-app-close" class="urlbar-button button-image" command="cmd_close"/>
-#endif
                 </toolbar>
               </box>
             </box>
@@ -274,13 +260,10 @@
             <!-- Content viewport -->
             <vbox class="window-width window-height">
               <stack id="tile-stack" class="window-width" flex="1">
-                <scrollbox id="content-scrollbox" style="overflow: hidden;" class="window-width" flex="1">
-                  <!-- Content viewport -->
-                  <html:div id="tile-container" style="overflow: hidden;" tabindex="-1">
-                    <html:canvas id="content-overlay" style="display: none; position: absolute; z-index: 1000; left: 0; top: 0;">
-                    </html:canvas>
-                  </html:div>
-                </scrollbox>
+              <!-- Content viewport -->
+                <html:div id="browsers" style="overflow: hidden;"/>
+                <html:canvas id="content-overlay" style="display: none; position: absolute; z-index: 1000; left: 0; top: 0;">
+                </html:canvas>
                 <html:canvas id="view-buffer" style="display: none;" moz-opaque="true">
                 </html:canvas>
               </stack>
@@ -342,10 +325,8 @@
       <hbox id="pageactions-container" class="window-width" hidden="true">
         <pageaction id="pageaction-findinpage" title="&pageactions.findInPage;"
           onclick="FindHelperUI.show();"/>
-#ifdef NS_PRINTING
         <pageaction id="pageaction-saveas" title="&pageactions.saveas.pdf;"
           onclick="PageActions.savePageAsPDF();"/>
-#endif
         <pageaction id="pageaction-share" title="&pageactions.share.page;"
           onclick="SharingUI.show(getBrowser().currentURI.spec, getBrowser().contentTitle);"/>
         <pageaction id="pageaction-password" title="&pageactions.password.forget;"
@@ -356,13 +337,17 @@
       </hbox>
     </vbox>
 
-    <vbox id="bookmark-popup" hidden="true" class="dialog-dark" align="center">
+    <vbox id="newtab-popup" hidden="true" class="dialog-dark" onclick="NewTabPopup.selectTab()" align="center" left="21">
+      <label/>
+    </vbox>
+
+    <vbox id="bookmark-popup" hidden="true" class="dialog-dark" align="center" left="0">
       <label value="&bookmarkPopup.label;"/>
       <separator class="thin"/>
       <vbox>
         <button id="bookmark-popup-edit" label="&bookmarkEdit.label;" class="button-dark" oncommand="BookmarkHelper.edit();"/>
         <spacer/>
-        <button id="bookmark-popup-remove" label="&bookmarkRemove.label;" class="button-dark" oncommand="BookmarkPopup.hide(); BookmarkHelper.removeBookmarksForURI(getBrowser().currentURI);"/>
+        <button id="bookmark-popup-remove" label="&bookmarkRemove.label;" class="button-dark" oncommand="BookmarkPopup.hide(); removeBookmarksForURI(getBrowser().currentURI);"/>
       </vbox>
     </vbox>
 
@@ -423,9 +408,9 @@
 #ifdef MOZ_OFFICIAL_BRANDING
 # these two point to the same page, this just matters for what shows up in the
 # URL bar
-                        oncommand="BrowserUI.newTab('about:firefox');"/>
+                        oncommand="BrowserUI.newTab('about:firefox', true);"/>
 #else
-                        oncommand="BrowserUI.newTab('about:fennec');"/>
+                        oncommand="BrowserUI.newTab('about:fennec', true);"/>
 #endif
               </setting>
               <setting id="prefs-uilanguage" title="&language.title;" type="control">
@@ -455,7 +440,6 @@
                   <button id="prefs-clear-data" label="&clearPrivateData.button;" command="cmd_sanitize"/>
                 </setting>
               </settings>
-#ifdef MOZ_SERVICES_SYNC
               <settings id="prefs-sync" label="&sync.title;">
                 <setting id="sync-user" type="string" title="&sync.username;" />
                 <setting id="sync-pass" type="string" inputtype="password" title="&sync.password;" />
@@ -471,7 +455,6 @@
                   <button id="sync-syncButton" label="&sync.syncNow;" oncommand="WeaveGlue.sync();" />
                 </setting>
               </settings>
-#endif
             </richlistbox>
           </notificationbox>
         </vbox>
@@ -500,26 +483,27 @@
       </deck>
     </box>
 
-    <vbox id="awesome-panels" hidden="true">
-      <!-- Awesome header row -->
-      <hbox id="awesome-header">
-        <toolbarbutton type="radio" group="awesome-header" label="&allPagesHeader.label;" command="cmd_openLocation" class="choice-all show-text" checked="true"/>
-        <toolbarbutton type="radio" group="awesome-header" label="&bookmarksHeader.label;" command="cmd_bookmarks" class="choice-bookmarks show-text"/>
-        <toolbarbutton type="radio" group="awesome-header" label="&historyHeader.label;" command="cmd_history" class="choice-history show-text"/>
-#ifdef MOZ_SERVICES_SYNC
-        <toolbarbutton type="radio" group="awesome-header" label="&desktopHeader.label;" command="cmd_remoteTabs" class="choice-remotetabs show-text"/>
-#endif
-      </hbox>
-
-      <!-- titlebar autocomplete results -->
-      <vbox id="popup_autocomplete" class="panel-dark" flex="1" onshow="BrowserUI._edit.showHistoryPopup();" hidden="true"/>
-      <placelist id="bookmarks-items" type="bookmarks" onopen="BookmarkList.openLink(event);" onhide="BrowserUI.updateStar();" flex="1" hidden="true"/>
-      <historylist id="history-items" onopen="HistoryList.openLink(event);" flex="1" hidden="true"/>
-      <remotetabslist id="remotetabs-items" onopen="RemoteTabsList.openLink(event)" flex="1" hidden="true"/>
+    <!-- titlebar autocomplete results -->
+    <vbox id="popup_autocomplete" class="panel-dark" hidden="true">
+      <arrowscrollbox id="autocomplete_navbuttons"
+                      style="-moz-user-focus: ignore;"
+                      align="center"
+                      flex="1"
+                      orient="horizontal">
+        <image class="tool-search"/>
+        <radiogroup id="search-buttons" class="toggle-dark" style="-moz-user-focus: ignore;"
+                    onclick="BrowserUI.doButtonSearch(event.target);">
+        </radiogroup>
+      </arrowscrollbox>
     </vbox>
 
-    <vbox id="newtab-popup" hidden="true" class="dialog-dark" onclick="NewTabPopup.selectTab()" align="center" left="21">
-      <label/>
+    <!-- bookmark window -->
+    <vbox id="bookmarklist-container" class="panel-dark" hidden="true">
+      <hbox id="bookmarklist-header">
+        <description flex="1">&bookmarksHeader.label;</description>
+        <toolbarbutton id="tool-bookmarks-close" class="urlbar-button button-image" command="cmd_close"/>
+      </hbox>
+      <placelist id="bookmark-items" type="bookmarks" flex="1" onopen="BookmarkList.openBookmark();" autoedit="true"/>
     </vbox>
 
     <!-- options dialog for select form field -->
@@ -534,39 +518,23 @@
       <spacer flex="1000"/>
     </vbox>
 
-    <hbox id="menulist-container" class="window-width window-height context-block" top="0" left="0" hidden="true" flex="1">
-      <vbox id="menulist-popup" class="dialog-dark">
-        <label id="menulist-title" crop="center" flex="1"/>
-        <richlistbox id="menulist-commands" onclick="if (event.target != this) MenuListHelperUI.selectByIndex(this.selectedIndex);" flex="1"/>
-      </vbox>
-    </hbox>
-
     <hbox id="context-container" class="window-width window-height context-block" top="0" left="0" hidden="true">
       <vbox id="context-popup" class="dialog-dark">
         <hbox id="context-header">
           <label id="context-hint" crop="center" flex="1"/>
         </hbox>
-        <richlistbox id="context-commands" onclick="ContextHelper.hide();" flex="1">
+        <richlistbox id="context-commands" onclick="ContextHelper.hide();">
           <richlistitem class="context-command" id="context-openinnewtab" type="link-saveable" onclick="ContextCommands.openInNewTab();">
             <label value="&contextOpenInNewTab.label;"/>
-          </richlistitem>
-          <richlistitem class="context-command" id="context-savelink" type="link-saveable" onclick="ContextCommands.saveLink();">
-            <label value="&contextSaveLink.label;"/>
           </richlistitem>
           <richlistitem class="context-command" id="context-saveimage" type="image-loaded" onclick="ContextCommands.saveImage();">
             <label value="&contextSaveImage.label;"/>
           </richlistitem>
-          <richlistitem class="context-command" id="context-share-link" type="link-shareable" onclick="ContextCommands.shareLink();">
+          <richlistitem class="context-command" id="context-share-link" type="link" onclick="ContextCommands.shareLink();">
             <label value="&contextShareLink.label;"/>
           </richlistitem>
-          <richlistitem class="context-command" id="context-share-image" type="image-shareable" onclick="ContextCommands.shareMedia();">
+          <richlistitem class="context-command" id="context-share-image" type="image" onclick="ContextCommands.shareMedia();">
             <label value="&contextShareImage.label;"/>
-          </richlistitem>
-          <richlistitem class="context-command" id="context-save-video" type="video" onclick="ContextCommands.saveImage();">
-            <label value="&contextSaveVideo.label;"/>
-          </richlistitem>
-          <richlistitem class="context-command" id="context-share-video" type="video-shareable" onclick="ContextCommands.shareMedia();">
-            <label value="&contextShareVideo.label;"/>
           </richlistitem>
           <richlistitem class="context-command" id="context-editbookmark" type="edit-bookmark" onclick="ContextCommands.editBookmark();">
             <label value="&contextEditBookmark.label;"/>
@@ -579,7 +547,7 @@
     </hbox>
 
     <!-- alerts for content -->
-    <hbox id="alerts-container" hidden="true" align="start" class="dialog-dark" bottom="0" right="0"
+    <hbox id="alerts-container" hidden="true" align="start" class="dialog-dark" top="0" left="0"
           onclick="AlertsHelper.click(event);">
       <image id="alerts-image"/>
       <vbox flex="1">
@@ -591,7 +559,6 @@
 
   <box>
     <html:div style="position: relative; overflow: -moz-hidden-unscrollable; max-width: 0px; max-height: 0px; visibility: hidden;">
-      <html:div id="browsers" style="position: absolute;"/>
     </html:div>
   </box>
 

@@ -15,7 +15,7 @@
  *
  * The Initial Developer of the Original Code is
  * Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2010
+ * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
@@ -85,6 +85,8 @@ var ViewConfig = {
   open: function open(aType) {
     let buttons = document.getElementById("editor-buttons-add");
     buttons.setAttribute("hidden", "true");
+    let nameField = document.getElementById("editor-name");
+    nameField.value = "";
 
     let shouldFocus = false;
     let setting = document.getElementById("editor-setting");
@@ -106,9 +108,6 @@ var ViewConfig = {
       setting.input.value = "";
 
     document.getElementById("editor-container").appendChild(this._editor);
-    let nameField = document.getElementById("editor-name");
-    nameField.value = "";
-
     this._editor.setAttribute("hidden", "false");
     this._currentItem = null;
     nameField.focus();
@@ -120,14 +119,13 @@ var ViewConfig = {
     buttons.setAttribute("hidden", "false");
 
     if (aValid) {
-      let name = document.getElementById("editor-name").inputField.value;
+      let name = document.getElementById("editor-name").value;
       if (name != "") {
         let setting = document.getElementById("editor-setting");
         setting.setAttribute("pref", name);
         setting.valueToPreference();
       }
     }
-
     document.getElementById("editor-container").appendChild(this._editor);
   },
 
@@ -399,7 +397,7 @@ var Utils = {
   },
 
   _generateRegexp: function _generateRegexp(aValue) {
-    if (aValue.charAt(0) == "/") {
+    if (aValue.charAt(0) == '/') {
       try {
         let rv = aValue.match(/^\/(.*)\/(i?)$/);
         return RegExp(rv[1], rv[2]);

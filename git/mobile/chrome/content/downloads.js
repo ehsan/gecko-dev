@@ -37,11 +37,7 @@
 
 Components.utils.import("resource://gre/modules/DownloadUtils.jsm");
 
-#ifdef ANDROID
-const URI_GENERIC_ICON_DOWNLOAD = "drawable://alertdownloads";
-#else
 const URI_GENERIC_ICON_DOWNLOAD = "chrome://browser/skin/images/alert-downloads-30.png";
-#endif
 
 var DownloadsView = {
   _initialized: false,
@@ -73,26 +69,23 @@ var DownloadsView = {
   },
 
   _createItem: function dv__createItem(aAttrs) {
-    // Make sure this doesn't already exist
-    let item = this.getElementForDownload(aAttrs.id);
-    if (!item) {
-      item = document.createElement("richlistitem");
+    let item = document.createElement("richlistitem");
 
-      // Copy the attributes from the argument into the item
-      for (let attr in aAttrs)
-        item.setAttribute(attr, aAttrs[attr]);
-  
-      // Initialize other attributes
-      item.setAttribute("typeName", "download");
-      item.setAttribute("id", "dl-" + aAttrs.id);
-      item.setAttribute("downloadID", aAttrs.id);
-      item.setAttribute("iconURL", "moz-icon://" + aAttrs.file + "?size=32");
-      item.setAttribute("lastSeconds", Infinity);
-  
-      // Initialize more complex attributes
-      this._updateTime(item);
-      this._updateStatus(item);
-    }
+    // Copy the attributes from the argument into the item
+    for (let attr in aAttrs)
+      item.setAttribute(attr, aAttrs[attr]);
+
+    // Initialize other attributes
+    item.setAttribute("typeName", "download");
+    item.setAttribute("id", "dl-" + aAttrs.id);
+    item.setAttribute("downloadID", aAttrs.id);
+    item.setAttribute("iconURL", "moz-icon://" + aAttrs.file + "?size=32");
+    item.setAttribute("lastSeconds", Infinity);
+
+    // Initialize more complex attributes
+    this._updateTime(item);
+    this._updateStatus(item);
+
     return item;
   },
 
@@ -373,14 +366,11 @@ var DownloadsView = {
 
   removeDownload: function dv_removeDownload(aItem) {
     this._dlmgr.removeDownload(aItem.getAttribute("downloadID"));
-    let f = this._getLocalFile(aItem.getAttribute("file"));
-    if (f.exists())
-      f.remove(false);
   },
 
   cancelDownload: function dv_cancelDownload(aItem) {
     this._dlmgr.cancelDownload(aItem.getAttribute("downloadID"));
-    let f = this._getLocalFile(aItem.getAttribute("file"));
+    var f = this._getLocalFile(aItem.getAttribute("file"));
     if (f.exists())
       f.remove(false);
   },
@@ -430,18 +420,21 @@ var DownloadsView = {
       let strings = Elements.browserBundle;
       var notifier = Cc["@mozilla.org/alerts-service;1"].getService(Ci.nsIAlertsService);
 
-      // Callback for tapping on the alert popup
-      let observer = {
-        observe: function (aSubject, aTopic, aData) {
-          if (aTopic == "alertclickcallback")
-            BrowserUI.showPanel("downloads-container");
-        }
-      };
+      if (aTopic == "dl-start") {
+        notifier.showAlertNotification(URI_GENERIC_ICON_DOWNLOAD, strings.getString("alertDownloads"),
+                                       strings.getFormattedString("alertDownloadsStart", [download.displayName]), false, "", null);
+      }
+      else {
+        let observer = {
+          observe: function (aSubject, aTopic, aData) {
+            if (aTopic == "alertclickcallback")
+              BrowserUI.showPanel("downloads-container");
+          }
+        };
 
-      let msgKey = aTopic == "dl-start" ? "alertDownloadsStart" : "alertDownloadsDone";
-      notifier.showAlertNotification(URI_GENERIC_ICON_DOWNLOAD, strings.getString("alertDownloads"),
-                                     strings.getFormattedString(msgKey, [download.displayName]), true, "", observer,
-                                     download.target.spec.replace("file:", "download:"));
+        notifier.showAlertNotification(URI_GENERIC_ICON_DOWNLOAD, strings.getString("alertDownloads"),
+                                       strings.getFormattedString("alertDownloadsDone", [download.displayName]), true, "", observer);
+      }
     }
   },
 

@@ -139,10 +139,8 @@ FormAutoComplete.prototype = {
   },
 
   autoCompleteSearch: function autoCompleteSearch(aName, aQuery, aField, aPrev) {
-    if (!Services.prefs.getBoolPref("browser.formfill.enable"))
-      return;
-
     LOG("autocomplete search", Array.slice(arguments));
+
     let result = Cc["@mozilla.org/autocomplete/simple-result;1"].createInstance(Ci.nsIAutoCompleteSimpleResult);
     result.setSearchString(aQuery);
 

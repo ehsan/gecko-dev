@@ -80,11 +80,6 @@ AddonUpdateService.prototype = {
 
     Services.io.offline = false;
 
-    // Assume we are doing a periodic update check
-    let reason = AddonManager.UPDATE_WHEN_PERIODIC_UPDATE;
-    if (!aTimer)
-      reason = AddonManager.UPDATE_WHEN_USER_REQUESTED;
-
     AddonManager.getAddonsByTypes(null, function(aAddonList) {
       aAddonList.forEach(function(aAddon) {
         if (aAddon.permissions & AddonManager.PERM_CAN_UPGRADE) {
@@ -93,7 +88,7 @@ AddonUpdateService.prototype = {
           Services.obs.notifyObservers(data, "addon-update-started", null);
 
           let listener = new UpdateCheckListener();
-          aAddon.findUpdates(listener, reason);
+          aAddon.findUpdates(listener, AddonManager.UPDATE_WHEN_USER_REQUESTED);
         }
       });
     });

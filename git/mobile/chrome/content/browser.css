@@ -62,7 +62,7 @@ notification[type="geo"] {
   -moz-binding: url("chrome://browser/content/bindings.xml#popup_autocomplete");
 }
 
-autocompleteresult {
+.autocomplete-items > autocompleteresult {
   -moz-binding: url("chrome://browser/content/bindings.xml#popup_autocomplete_result");
 }
 
@@ -87,14 +87,6 @@ placeitem[type="folder"] {
 
 placelist {
   -moz-binding: url("chrome://browser/content/bindings.xml#place-list");
-}
-
-historylist {
-  -moz-binding: url("chrome://browser/content/bindings.xml#history-list");
-}
-
-remotetabslist {
-  -moz-binding: url("chrome://browser/content/bindings.xml#remotetabs-list");
 }
 
 placelabel {

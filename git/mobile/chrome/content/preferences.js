@@ -206,7 +206,7 @@ var PreferencesView = {
     } catch (e) { }
 
     switch (url) {
-      case "about:empty":
+      case "about:blank":
         value = "none";
         display = null;
         break;
@@ -242,7 +242,7 @@ var PreferencesView = {
 
     switch (value) {
       case "none":
-        url = "about:empty";
+        url = "about:blank";
         break;
       case "default":
         url = "about:home";

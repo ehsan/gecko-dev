@@ -65,13 +65,9 @@ function FormAssistant() {
   addMessageListener("FormAssist:AutoComplete", this);
 
   addEventListener("keyup", this, false);
-  addEventListener("resize", this, false);
-  addEventListener("focus", this, true);
 };
 
 FormAssistant.prototype = {
-  _selectWrapper: null,
-
   get currentElement() {
     return this._elements[this._currentIndex];
   },
@@ -137,10 +133,10 @@ FormAssistant.prototype = {
   },
 
   receiveMessage: function receiveMessage(aMessage) {
-    let currentElement = this.currentElement;
-    if ((!this._enabled && !getWrapperForElement(currentElement)) || !currentElement)
+    if (!this._enabled || !this.currentElement)
       return;
 
+    let currentElement = this.currentElement;
     let json = aMessage.json;
     switch (aMessage.name) {
       case "FormAssist:Previous":
@@ -152,15 +148,14 @@ FormAssistant.prototype = {
         break;
 
       case "FormAssist:ChoiceSelect": {
-        this._selectWrapper = getWrapperForElement(currentElement);
-        this._selectWrapper.select(json.index, json.selected, json.clearAll);
+        let wrapper = getWrapperForElement(currentElement);
+        wrapper.select(json.index, json.selected, json.clearAll);
         break;
       }
 
       case "FormAssist:ChoiceChange": {
-        // ChoiceChange happened once we have move to an other element so we 
-        // should remenber the used wrapper
-        this._selectWrapper.fireOnChange();
+        let wrapper = getWrapperForElement(currentElement);
+        wrapper.fireOnChange();
         break;
       }
 
@@ -188,60 +183,51 @@ FormAssistant.prototype = {
     if (!this._enabled || !this.currentElement)
       return;
 
-    switch (aEvent.type) {
-      case "resize":
-        sendAsyncMessage("FormAssist:Resize");
-        break;
-      case "focus":
-        let focusedIndex = this._getIndexForElement(gFocusManager.focusedElement);
-        if (focusedIndex != -1 && this.currentIndex != focusedIndex)
-          this.currentIndex = focusedIndex;
-        break;
-      case "keyup":
-        let currentElement = this.currentElement;
-        switch (aEvent.keyCode) {
-          case aEvent.DOM_VK_DOWN:
-            if (currentElement instanceof HTMLInputElement && !this._isAutocomplete(currentElement)) {
-              if (this._hasKeyListener(currentElement))
-                return;
-            }
-            else if (currentElement instanceof HTMLTextAreaElement) {
-              let existSelection = currentElement.selectionEnd - currentElement.selectionStart;
-              let isEnd = (currentElement.textLength == currentElement.selectionEnd);
-              if (!isEnd || existSelection)
-                return;
-            }
-
-            this.currentIndex++;
-            break;
-
-          case aEvent.DOM_VK_UP:
-            if (currentElement instanceof HTMLInputElement && !this._isAutocomplete(currentElement)) {
-              if (this._hasKeyListener(currentElement))
-                return;
-            }
-            else if (currentElement instanceof HTMLTextAreaElement) {
-              let existSelection = currentElement.selectionEnd - currentElement.selectionStart;
-              let isStart = (currentElement.selectionEnd == 0);
-              if (!isStart || existSelection)
-                return;
-            }
-
-            this.currentIndex--;
-            break;
-
-          case aEvent.DOM_VK_RETURN:
-            break;
-
-          default:
-            if (this._isAutocomplete(aEvent.target))
-              sendAsyncMessage("FormAssist:AutoComplete", this._getJSON());
-            break;
+    let currentElement = this.currentElement;
+    switch (aEvent.keyCode) {
+      case aEvent.DOM_VK_DOWN:
+        if (currentElement instanceof HTMLInputElement && !this._isAutocomplete(currentElement)) {
+          if (this._hasKeyListener(currentElement))
+            return;
+        }
+        else if (currentElement instanceof HTMLTextAreaElement) {
+          let existSelection = currentElement.selectionEnd - currentElement.selectionStart;
+          let isEnd = (currentElement.textLength == currentElement.selectionEnd);
+          if (!isEnd || existSelection)
+            return;
         }
 
-        let caretRect = this._getCaretRect();
-        if (!caretRect.isEmpty())
-          sendAsyncMessage("FormAssist:Update", { caretRect: caretRect });
+        this.currentIndex++;
+        break;
+
+      case aEvent.DOM_VK_UP:
+        if (currentElement instanceof HTMLInputElement && !this._isAutocomplete(currentElement)) {
+          if (this._hasKeyListener(currentElement))
+            return;
+        }
+        else if (currentElement instanceof HTMLTextAreaElement) {
+          let existSelection = currentElement.selectionEnd - currentElement.selectionStart;
+          let isStart = (currentElement.selectionEnd == 0);
+          if (!isStart || existSelection)
+            return;
+        }
+
+        this.currentIndex--;
+        break;
+
+      case aEvent.DOM_VK_RETURN:
+        break;
+
+      default:
+        if (this._isAutocomplete(aEvent.target)) {
+          sendAsyncMessage("FormAssist:AutoComplete", this._getJSON());
+        }
+        break;
+    }
+
+    let caretRect = this._getCaretRect();
+    if (!caretRect.isEmpty()) {
+      sendAsyncMessage("FormAssist:Update", { caretRect: caretRect });
     }
   },
 
@@ -386,18 +372,14 @@ FormAssistant.prototype = {
     elements = elements.sort(orderByTabIndex);
 
     // retrieve the correct index
-    let currentIndex = this._getIndexForElement(aElement);
-    return currentIndex;
-  },
-
-  _getIndexForElement: function(aElement) {
     let currentIndex = -1;
-    let elements = this._elements;
     for (let i = 0; i < elements.length; i++) {
-      if (elements[i] == aElement)
-        return i;
+      if (elements[i] == aElement) {
+        currentIndex = i;
+        break;
+      }
     }
-    return -1;
+    return currentIndex;
   },
 
   _getJSON: function() {

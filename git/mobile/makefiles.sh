@@ -41,7 +41,6 @@ dom/locales/Makefile
 toolkit/locales/Makefile
 security/manager/locales/Makefile
 mobile/app/Makefile
-mobile/app/profile/extensions/Makefile
 $MOZ_BRANDING_DIRECTORY/Makefile
 $MOZ_BRANDING_DIRECTORY/locales/Makefile
 mobile/chrome/Makefile

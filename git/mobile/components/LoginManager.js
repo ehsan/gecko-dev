@@ -161,10 +161,10 @@ LoginManager.prototype = {
      */
     receiveMessage: function (message) {
         // local helper function
-        function getPrompter(aBrowser) {
+        function getPrompter(aWindow) {
             var prompterSvc = Cc["@mozilla.org/login-manager/prompter;1"].
                               createInstance(Ci.nsILoginManagerPrompter);
-            prompterSvc.init(aBrowser);
+            prompterSvc.init(aWindow);
             return prompterSvc;
         }
 
@@ -172,10 +172,9 @@ LoginManager.prototype = {
             case "PasswordMgr:GetPasswords":
                 // If there are no logins for this site, bail out now.
                 if (!this.countLogins(message.json.formOrigin, "", null))
-                    return { foundLogins: {} };
-
+                    return {};
                 var foundLogins = {};
-
+                
                 if (!this.uiBusy) {
                     for (var i = 0; i < message.json.actionOrigins.length; i++) {
                         var actionOrigin = message.json.actionOrigins[i];
@@ -202,7 +201,9 @@ LoginManager.prototype = {
                     return {};
                 }
 
-                var browser = message.target;
+                // Since prompt services ask for window, we try to get the document
+                // window.  Prompt service needs to take browser elements.
+                var win = message.target.contentWindow || null;
 
                 var formLogin = new this._nsLoginInfo();
 
@@ -226,7 +227,7 @@ LoginManager.prototype = {
                         return {};
                     }
 
-                    var prompter = getPrompter(browser);
+                    var prompter = getPrompter(win);
 
                     if (logins.length == 1) {
                         var oldLogin = logins[0];
@@ -277,7 +278,7 @@ LoginManager.prototype = {
                         // Change password if needed.
                         if (existingLogin.password != formLogin.password) {
                             this.log("...passwords differ, prompting to change.");
-                            prompter = getPrompter(browser);
+                            prompter = getPrompter(win);
                             prompter.promptToChangePassword(existingLogin, formLogin);
                         } else {
                             // Update the lastUsed timestamp.
@@ -293,7 +294,7 @@ LoginManager.prototype = {
 
 
                     // Prompt user to save login (via dialog or notification bar)
-                    prompter = getPrompter(browser);
+                    prompter = getPrompter(win);
                     prompter.promptToSavePassword(formLogin);
                 }
                 return {};
@@ -680,10 +681,6 @@ UserAutoCompleteResult.prototype = {
             throw "Index out of range.";
 
         return this.logins[index].username;
-    },
-
-    getLabelAt : function (index) {
-      return this.getValueAt(index);
     },
 
     getCommentAt : function (index) {

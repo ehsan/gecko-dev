@@ -36,7 +36,6 @@
 # ***** END LICENSE BLOCK *****
 
 MOZ_APP_NAME=fennec
-MOZ_APP_UA_NAME=Fennec
 MOZ_BRANDING_DIRECTORY=mobile/branding/nightly
 MOZ_OFFICIAL_BRANDING_DIRECTORY=mobile/branding/official
 
