@@ -309,12 +309,6 @@ static bool AddSubmittedReport(const string& serverResponse)
     delete reportFile;
   }
 
-  if (responseItems.find("Discarded") != responseItems.end()) {
-    // server discarded this report... save it so the user can resubmit it
-    // manually
-    return false;
-  }
-
   if (responseItems.find("CrashID") == responseItems.end())
     return false;
 
@@ -363,12 +357,13 @@ void DeleteDump()
   }
 }
 
-void SendCompleted(bool success, const string& serverResponse)
+bool SendCompleted(bool success, const string& serverResponse)
 {
   if (success) {
-    if (AddSubmittedReport(serverResponse))
-      DeleteDump();
+    DeleteDump();
+    return AddSubmittedReport(serverResponse);
   }
+  return true;
 }
 
 bool ShouldEnableSending()

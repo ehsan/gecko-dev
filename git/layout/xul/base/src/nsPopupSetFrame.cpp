@@ -77,6 +77,7 @@ nsPopupSetFrame::Init(nsIContent*      aContent,
   // Normally the root box is our grandparent, but in case of wrapping
   // it can be our great-grandparent.
   nsIRootBox *rootBox = nsIRootBox::GetRootBox(PresContext()->GetPresShell());
+  NS_ASSERTION(rootBox, "must have root box");
   if (rootBox) {
     rootBox->SetPopupSetFrame(this);
   }
@@ -147,6 +148,7 @@ nsPopupSetFrame::Destroy()
   // Normally the root box is our grandparent, but in case of wrapping
   // it can be our great-grandparent.
   nsIRootBox *rootBox = nsIRootBox::GetRootBox(PresContext()->GetPresShell());
+  NS_ASSERTION(rootBox, "must have root box");
   if (rootBox) {
     rootBox->SetPopupSetFrame(nsnull);
   }
