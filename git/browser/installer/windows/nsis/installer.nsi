@@ -386,14 +386,6 @@ Section "-Application" APP_IDX
                                     $AppUserModelID \
                                     "FirefoxURL" \
                                     "FirefoxHTML"
-!else
-  ; The metro browser is not enabled by mozconfig.
-  ${If} ${AtLeastWin8}
-    ${RemoveDEHRegistration} ${DELEGATE_EXECUTE_HANDLER_ID} \
-                             $AppUserModelID \
-                             "FirefoxURL" \
-                             "FirefoxHTML"
-  ${EndIf}
 !endif
   ${EndIf}
 
@@ -1057,6 +1049,10 @@ Function .onInit
   ${SetBrandNameVars} "$EXEDIR\core\distribution\setup.ini"
 
   ${InstallOnInitCommon} "$(WARN_MIN_SUPPORTED_OS_MSG)"
+
+  ${If} ${AtLeastWinVista}
+    System::Call 'user32::SetProcessDPIAware()'
+  ${EndIf}
 
   !insertmacro InitInstallOptionsFile "options.ini"
   !insertmacro InitInstallOptionsFile "shortcuts.ini"

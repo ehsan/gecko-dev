@@ -39,6 +39,7 @@ class VideoFrameContainer;
 namespace dom {
 class TextTrack;
 class TimeRanges;
+class WakeLock;
 }
 }
 
@@ -206,10 +207,6 @@ public:
   // ImageContainer containing the video data.
   virtual VideoFrameContainer* GetVideoFrameContainer() MOZ_FINAL MOZ_OVERRIDE;
   layers::ImageContainer* GetImageContainer();
-
-  // Called by the video frame to get the print surface, if this is
-  // a static document and we're not actually playing video
-  gfxASurface* GetPrintSurface() { return mPrintSurface; }
 
   // Dispatch events
   using nsGenericHTMLElement::DispatchEvent;
@@ -539,6 +536,12 @@ public:
     }
   }
 
+  void AddCue(TextTrackCue& aCue) {
+    if (mTextTrackManager) {
+      mTextTrackManager->AddCue(aCue);
+    }
+  }
+
   /**
    * A public wrapper for FinishDecoderSetup()
    */
@@ -586,7 +589,7 @@ protected:
    */
   virtual void WakeLockCreate();
   virtual void WakeLockRelease();
-  nsCOMPtr<nsIDOMMozWakeLock> mWakeLock;
+  nsRefPtr<WakeLock> mWakeLock;
 
   /**
    * Logs a warning message to the web console to report various failures.
@@ -595,7 +598,7 @@ protected:
    * of parameters in aParams.
    */
   void ReportLoadError(const char* aMsg,
-                       const PRUnichar** aParams = nullptr,
+                       const char16_t** aParams = nullptr,
                        uint32_t aParamCount = 0);
 
   /**
@@ -1012,8 +1015,6 @@ protected:
   // True if pitch correction is applied when playbackRate is set to a
   // non-intrinsic value.
   bool mPreservesPitch;
-
-  nsRefPtr<gfxASurface> mPrintSurface;
 
   // Reference to the source element last returned by GetNextSource().
   // This is the child source element which we're trying to load from.

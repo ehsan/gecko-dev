@@ -210,6 +210,32 @@ static sp<IOMX> GetOMX() {
 }
 #endif
 
+static uint32_t
+GetDefaultStagefrightFlags(PluginHost *aPluginHost)
+{
+  uint32_t flags = DEFAULT_STAGEFRIGHT_FLAGS;
+
+#if !defined(MOZ_ANDROID_FROYO)
+
+  char hardware[256] = "";
+  aPluginHost->GetSystemInfoString("hardware", hardware, sizeof(hardware));
+
+  if (!strcmp("qcom", hardware)) {
+    // Qualcomm's OMXCodec implementation interprets this flag to mean that we
+    // only want a thumbnail and therefore only need one frame. After the first
+    // frame it returns EOS.
+    // All other OMXCodec implementations seen so far interpret this flag
+    // sanely; some do not return full framebuffers unless this flag is passed.
+    flags &= ~OMXCodec::kClientNeedsFramebuffer;
+  }
+
+  LOG("Hardware %s; using default flags %#x\n", hardware, flags);
+
+#endif
+
+  return flags;
+}
+
 static uint32_t GetVideoCreationFlags(PluginHost* aPluginHost)
 {
 #ifdef MOZ_WIDGET_GONK
@@ -236,7 +262,7 @@ static uint32_t GetVideoCreationFlags(PluginHost* aPluginHost)
 #endif
   }
 
-  flags |= DEFAULT_STAGEFRIGHT_FLAGS;
+  flags |= GetDefaultStagefrightFlags(aPluginHost);
 
   return static_cast<uint32_t>(flags);
 #endif
@@ -294,8 +320,9 @@ IsColorFormatSupported(OMX_COLOR_FORMATTYPE aColorFormat)
  */
 static bool
 FindPreferredDecoderAndColorFormat(const sp<IOMX>& aOmx,
-                                   char *decoderName,
-                                   OMX_COLOR_FORMATTYPE *colorFormat)
+                                   char *aDecoderName,
+                                   size_t aDecoderLen,
+                                   OMX_COLOR_FORMATTYPE *aColorFormat)
 {
   Vector<CodecCapabilities> codecs;
 
@@ -318,8 +345,8 @@ FindPreferredDecoderAndColorFormat(const sp<IOMX>& aOmx,
       ColorFormatSupport supported = IsColorFormatSupported(color);
 
       if (supported) {
-        strncpy(decoderName, caps.mComponentName.string(), MAX_DECODER_NAME_LEN);
-        *colorFormat = (OMX_COLOR_FORMATTYPE)color;
+        strncpy(aDecoderName, caps.mComponentName.string(), aDecoderLen);
+        *aColorFormat = (OMX_COLOR_FORMATTYPE)color;
         found = true;
       }
 
@@ -350,7 +377,9 @@ static sp<MediaSource> CreateVideoSource(PluginHost* aPluginHost,
 
 #if defined(MOZ_ANDROID_KK)
   OMX_COLOR_FORMATTYPE colorFormat = (OMX_COLOR_FORMATTYPE)0;
-  if (FindPreferredDecoderAndColorFormat(aOmx, decoderName, &colorFormat)) {
+  if (FindPreferredDecoderAndColorFormat(aOmx,
+                                         decoderName, sizeof(decoderName),
+                                         &colorFormat)) {
     // We found a colour format that we can handle. Tell OMXCodec to use it in
     // case it isn't the default.
     videoFormat->setInt32(kKeyColorFormat, colorFormat);
@@ -818,6 +847,7 @@ bool OmxDecoder::ToVideoFrame_I420ColorConverter(VideoFrame *aFrame, int64_t aTi
                                                        crop,
                                                        buffer);
 
+  // result is 0 on success, -1 otherwise.
   if (result == OK) {
     aFrame->mTimeUs = aTimeUs;
     aFrame->mSize = mVideoWidth * mVideoHeight * 3 / 2;
