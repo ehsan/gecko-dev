@@ -10,7 +10,6 @@ const { Cu, Cc, Ci, components } = require("chrome");
 const TAB_SIZE    = "devtools.editor.tabsize";
 const EXPAND_TAB  = "devtools.editor.expandtab";
 const KEYMAP      = "devtools.editor.keymap";
-const AUTO_CLOSE  = "devtools.editor.autoclosebrackets";
 const L10N_BUNDLE = "chrome://browser/locale/devtools/sourceeditor.properties";
 const XUL_NS      = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
@@ -133,7 +132,6 @@ function Editor(config) {
   const tabSize = Services.prefs.getIntPref(TAB_SIZE);
   const useTabs = !Services.prefs.getBoolPref(EXPAND_TAB);
   const keyMap = Services.prefs.getCharPref(KEYMAP);
-  const useAutoClose = Services.prefs.getBoolPref(AUTO_CLOSE);
 
   this.version = null;
   this.config = {
@@ -146,8 +144,7 @@ function Editor(config) {
     extraKeys:         {},
     indentWithTabs:    useTabs,
     styleActiveLine:   true,
-    autoCloseBrackets: "()[]{}''\"\"",
-    autoCloseEnabled:  useAutoClose,
+    autoCloseBrackets: true,
     theme:             "mozilla"
   };
 
@@ -189,10 +186,6 @@ function Editor(config) {
       this.config.gutters.push("CodeMirror-foldgutter");
     }
   }
-
-  // Configure automatic bracket closing.
-  if (!this.config.autoCloseEnabled)
-    this.config.autoCloseBrackets = false;
 
   // Overwrite default tab behavior. If something is selected,
   // indent those lines. If nothing is selected and we're

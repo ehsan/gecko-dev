@@ -20,19 +20,6 @@
   border-color: transparent;
 }
 
-.profiler-sidebar .devtools-toolbar {
-  -moz-border-end: 1px solid;
-}
-
-.theme-dark .profiler-sidebar .devtools-toolbar {
-  -moz-border-end-color: black; /* Match the splitter. */
-}
-
-.theme-light .profiler-sidebar .devtools-toolbar {
-  -moz-border-end-color: #aaa; /* Match the splitter color. */
-}
-
-
 .profiler-sidebar-item {
   padding: 3px 5px;
 }
@@ -49,6 +36,7 @@
 
 .profiler-sidebar-item > hbox {
   margin-top: 2px;
+  color: rgb(140, 152, 165);
 }
 
 .profiler-sidebar-item > hbox > a {
@@ -61,12 +49,8 @@
   display: block;
 }
 
-.theme-dark .selected .profiler-sidebar-item > hbox {
-  color: #b6babf;
-}
-
-.theme-light .selected .profiler-sidebar-item > hbox {
-  color: #ebeced;
+.selected .profiler-sidebar-item > hbox {
+  color: rgb(128, 195, 228);
 }
 
 #profiler-controls > toolbarbutton {

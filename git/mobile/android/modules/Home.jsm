@@ -159,8 +159,7 @@ let HomePanels = {
 
   // Valid types of views for a dataset.
   View: {
-    LIST: "list",
-    GRID: "grid"
+    LIST: "list"
   },
 
   // Holds the currrent set of registered panels.

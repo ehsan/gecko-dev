@@ -78,14 +78,6 @@ function hitEventLoop(aFunc, aTimes)
   }
 }
 
-function onZoomReset(aCallback) {
-  var topic = "browser-fullZoom:reset";
-  SpecialPowers.addObserver(function observe() {
-    SpecialPowers.removeObserver(observe, topic);
-    SimpleTest.executeSoon(aCallback);
-  }, topic, false);
-}
-
 function setDeltaMultiplierSettings(aSettings)
 {
   SpecialPowers.setIntPref("mousewheel.default.delta_multiplier_x", aSettings.deltaMultiplierX * 100);
@@ -1137,9 +1129,7 @@ function doTestZoom(aSettings, aCallback)
       }
 
       synthesizeKey("0", { accelKey: true });
-      onZoomReset(function () {
-        hitEventLoop(doNextTest, 20);
-      });
+      hitEventLoop(doNextTest, 20);
     }, 20);
   }
   doNextTest();
@@ -1147,15 +1137,10 @@ function doTestZoom(aSettings, aCallback)
 
 function doTestZoomedScroll(aCallback)
 {
-  function prepareTestZoomedPixelScroll()
+  function testZoomedPixelScroll()
   {
     // Reset zoom and store the scroll amount into the data.
     synthesizeKey("0", { accelKey: true });
-    onZoomReset(testZoomedPixelScroll);
-  }
-
-  function testZoomedPixelScroll()
-  {
     gScrollableElement.scrollTop = 1000;
     gScrollableElement.scrollLeft = 1000;
     // Ensure not to be in reflow.
@@ -1205,21 +1190,17 @@ function doTestZoomedScroll(aCallback)
             window.removeEventListener("MozMousePixelScroll", handler, true);
 
             synthesizeKey("0", { accelKey: true });
-            onZoomReset(prepareTestZoomedLineScroll);
+            testZoomedLineScroll();
           }, 20);
         }, 20);
       }, 20);
     }, 20);
   }
 
-  function prepareTestZoomedLineScroll()
+  function testZoomedLineScroll()
   {
     // Reset zoom and store the scroll amount into the data.
     synthesizeKey("0", { accelKey: true });
-    onZoomReset(testZoomedLineScroll);
-  }
-  function testZoomedLineScroll()
-  {
     gScrollableElement.scrollTop = 1000;
     gScrollableElement.scrollLeft = 1000;
     // Ensure not to be in reflow.
@@ -1281,7 +1262,8 @@ function doTestZoomedScroll(aCallback)
             window.removeEventListener("MozMousePixelScroll", handler, true);
 
             synthesizeKey("0", { accelKey: true });
-            onZoomReset(aCallback);
+
+            SimpleTest.executeSoon(aCallback);
           }, 20);
         }, 20);
       }, 20);
@@ -1291,7 +1273,7 @@ function doTestZoomedScroll(aCallback)
   // XXX It's too difficult to test page scroll because the page scroll amount
   //     is computed by complex logic.
 
-  prepareTestZoomedPixelScroll();
+  testZoomedPixelScroll();
 }
 
 function doTestWholeScroll(aCallback)

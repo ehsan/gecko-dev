@@ -20,11 +20,9 @@
 //package android.widget;
 package org.mozilla.gecko.widget;
 
-import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.pm.ResolveInfo;
 import android.database.DataSetObservable;
 import android.os.AsyncTask;
@@ -49,7 +47,6 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -256,9 +253,9 @@ public class ActivityChooserModel extends DataSetObservable {
      * Monitor for added and removed packages.
      */
     /**
-     * Mozilla: Converted from a PackageMonitor to a DataModelPackageMonitor to avoid importing a new class.
+     * Mozilla: Not needed for the application.
      */
-    private final DataModelPackageMonitor mPackageMonitor = new DataModelPackageMonitor();
+    //private final PackageMonitor mPackageMonitor = new DataModelPackageMonitor();
 
     /**
      * Context for accessing resources.
@@ -375,9 +372,9 @@ public class ActivityChooserModel extends DataSetObservable {
         }
 
         /**
-         * Mozilla: Uses modified receiver
+         * Mozilla: Not needed for the application.
          */
-        mPackageMonitor.register(mContext);
+        //mPackageMonitor.register(mContext, null, true);
     }
 
     /**
@@ -509,7 +506,7 @@ public class ActivityChooserModel extends DataSetObservable {
 
             HistoricalRecord historicalRecord = new HistoricalRecord(chosenName,
                     System.currentTimeMillis(), DEFAULT_HISTORICAL_RECORD_WEIGHT);
-            addHistoricalRecord(historicalRecord);
+            addHisoricalRecord(historicalRecord);
 
             return choiceIntent;
         }
@@ -576,7 +573,7 @@ public class ActivityChooserModel extends DataSetObservable {
                     newDefaultActivity.resolveInfo.activityInfo.name);
             HistoricalRecord historicalRecord = new HistoricalRecord(defaultName,
                     System.currentTimeMillis(), weight);
-            addHistoricalRecord(historicalRecord);
+            addHisoricalRecord(historicalRecord);
         }
     }
 
@@ -692,7 +689,7 @@ public class ActivityChooserModel extends DataSetObservable {
         /**
          * Mozilla: Not needed for the application.
          */
-        mPackageMonitor.unregister();
+        //mPackageMonitor.unregister();
     }
 
     /**
@@ -774,7 +771,7 @@ public class ActivityChooserModel extends DataSetObservable {
      * @param historicalRecord The record to add.
      * @return True if the record was added.
      */
-    private boolean addHistoricalRecord(HistoricalRecord historicalRecord) {
+    private boolean addHisoricalRecord(HistoricalRecord historicalRecord) {
         final boolean added = mHistoricalRecords.add(historicalRecord);
         if (added) {
             mHistoricalRecordsChanged = true;
@@ -784,33 +781,6 @@ public class ActivityChooserModel extends DataSetObservable {
             notifyChanged();
         }
         return added;
-    }
-
-    /**
-     * Removes all historical records for this pkg.
-     *
-     * @param historicalRecord The pkg to delete records for.
-     * @return True if the record was added.
-     */
-    private boolean removeHistoricalRecordsForPackage(final String pkg) {
-        boolean removed = false;
-
-        for (Iterator<HistoricalRecord> i = mHistoricalRecords.iterator(); i.hasNext();) {
-            final HistoricalRecord record = i.next();
-            if (record.activity.getPackageName().equals(pkg)) {
-                removed = mHistoricalRecords.remove(record);
-            }
-        }
-
-        if (removed) {
-            mHistoricalRecordsChanged = true;
-            pruneExcessiveHistoricalRecordsIfNeeded();
-            persistHistoricalDataIfNeeded();
-            sortActivitiesIfNeeded();
-            notifyChanged();
-        }
-
-        return removed;
     }
 
     /**
@@ -1181,45 +1151,16 @@ public class ActivityChooserModel extends DataSetObservable {
      * Keeps in sync the historical records and activities with the installed applications.
      */
     /**
-     * Mozilla: Adapted significantly
+     * Mozilla: Not needed for the application.
      */
-    private static final String LOGTAG = "GeckoActivityChooserModel";
-    private final class DataModelPackageMonitor extends BroadcastReceiver {
-        private Context mContext;
-
-        public DataModelPackageMonitor() { }
-
-        public void register(Context context) {
-            mContext = context;
-
-            String[] intents = new String[] {
-                Intent.ACTION_PACKAGE_REMOVED,
-                Intent.ACTION_PACKAGE_ADDED,
-                Intent.ACTION_PACKAGE_CHANGED
-            };
-
-            for (String intent : intents) {
-                IntentFilter removeFilter = new IntentFilter(intent);
-                removeFilter.addDataScheme("package");
-                context.registerReceiver(this, removeFilter);
-            }
-        }
-
-        public void unregister() {
-            mContext.unregisterReceiver(this);
-            mContext = null;
-        }
+    /*
+    private final class DataModelPackageMonitor extends PackageMonitor {
 
         @Override
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-            if (Intent.ACTION_PACKAGE_REMOVED.equals(action)) {
-                String packageName = intent.getData().getSchemeSpecificPart();
-                removeHistoricalRecordsForPackage(packageName);
-            }
-
+        public void onSomePackagesChanged() {
             mReloadActivities = true;
         }
     }
+    */
 }
 
