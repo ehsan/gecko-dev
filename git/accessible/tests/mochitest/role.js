@@ -15,14 +15,17 @@ const ROLE_COMBOBOX = nsIAccessibleRole.ROLE_COMBOBOX;
 const ROLE_COMBOBOX_LIST = nsIAccessibleRole.ROLE_COMBOBOX_LIST;
 const ROLE_COMBOBOX_OPTION = nsIAccessibleRole.ROLE_COMBOBOX_OPTION;
 const ROLE_COLUMNHEADER = nsIAccessibleRole.ROLE_COLUMNHEADER;
+const ROLE_DIALOG = nsIAccessibleRole.ROLE_DIALOG;
 const ROLE_DOCUMENT = nsIAccessibleRole.ROLE_DOCUMENT;
 const ROLE_EMBEDDED_OBJECT = nsIAccessibleRole.ROLE_EMBEDDED_OBJECT;
 const ROLE_ENTRY = nsIAccessibleRole.ROLE_ENTRY;
+const ROLE_FOOTER = nsIAccessibleRole.ROLE_FOOTER;
 const ROLE_FLAT_EQUATION = nsIAccessibleRole.ROLE_FLAT_EQUATION;
 const ROLE_FORM = nsIAccessibleRole.ROLE_FORM;
 const ROLE_GRAPHIC = nsIAccessibleRole.ROLE_GRAPHIC;
 const ROLE_GRID_CELL = nsIAccessibleRole.ROLE_GRID_CELL;
 const ROLE_GROUPING = nsIAccessibleRole.ROLE_GROUPING;
+const ROLE_HEADER = nsIAccessibleRole.ROLE_HEADER;
 const ROLE_HEADING = nsIAccessibleRole.ROLE_HEADING;
 const ROLE_IMAGE_MAP = nsIAccessibleRole.ROLE_IMAGE_MAP;
 const ROLE_INTERNAL_FRAME = nsIAccessibleRole.ROLE_INTERNAL_FRAME;
@@ -34,6 +37,7 @@ const ROLE_LISTITEM = nsIAccessibleRole.ROLE_LISTITEM;
 const ROLE_MENUITEM = nsIAccessibleRole.ROLE_MENUITEM;
 const ROLE_MENUPOPUP = nsIAccessibleRole.ROLE_MENUPOPUP;
 const ROLE_NOTHING = nsIAccessibleRole.ROLE_NOTHING;
+const ROLE_NOTE = nsIAccessibleRole.ROLE_NOTE;
 const ROLE_OPTION = nsIAccessibleRole.ROLE_OPTION;
 const ROLE_OUTLINE = nsIAccessibleRole.ROLE_OUTLINE;
 const ROLE_OUTLINEITEM = nsIAccessibleRole.ROLE_OUTLINEITEM;
@@ -58,6 +62,7 @@ const ROLE_TABLE = nsIAccessibleRole.ROLE_TABLE;
 const ROLE_TEXT_CONTAINER = nsIAccessibleRole.ROLE_TEXT_CONTAINER;
 const ROLE_TEXT_LEAF = nsIAccessibleRole.ROLE_TEXT_LEAF;
 const ROLE_TOGGLE_BUTTON = nsIAccessibleRole.ROLE_TOGGLE_BUTTON;
+const ROLE_TOOLBAR = nsIAccessibleRole.ROLE_TOOLBAR;
 const ROLE_TOOLTIP = nsIAccessibleRole.ROLE_TOOLTIP;
 const ROLE_TREE_TABLE = nsIAccessibleRole.ROLE_TREE_TABLE;
 const ROLE_WHITESPACE = nsIAccessibleRole.ROLE_WHITESPACE;
@@ -98,4 +103,24 @@ function getRole(aAccOrElmOrID)
   }
 
   return role;
+}
+
+/**
+ * Analogy of SimpleTest.is function used to check the role.
+ */
+function isRole(aIdentifier, aRole, aMsg)
+{
+  var role = getRole(aIdentifier);
+  if (role == - 1)
+    return;
+
+  if (role == aRole) {
+    ok(true, aMsg);
+    return;
+  }
+
+  var got = roleToString(role);
+  var expected = roleToString(aRole);
+
+  ok(false, aMsg + "got '" + got + "', expected '" + expected + "'");
 }

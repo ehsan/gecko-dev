@@ -41,33 +41,31 @@
 
 #include "nsAccessNodeWrap.h"
 
-#include "nsARIAMap.h"
-#include "nsEventShell.h"
-#include "nsRelUtils.h"
-#include "nsTextEquivUtils.h"
-
 #include "nsIAccessible.h"
 #include "nsIAccessibleHyperLink.h"
 #include "nsIAccessibleSelectable.h"
 #include "nsIAccessibleValue.h"
 #include "nsIAccessibleRole.h"
 #include "nsIAccessibleStates.h"
-#include "nsIAccessibleEvent.h"
 
-#include "nsIDOMNodeList.h"
-#include "nsINameSpaceManager.h"
-#include "nsWeakReference.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsTArray.h"
-#include "nsIDOMDOMStringList.h"
+#include "nsRefPtrHashtable.h"
+
+class AccGroupInfo;
+class EmbeddedObjCollector;
+class nsAccessible;
+class AccEvent;
+struct nsRoleMapEntry;
 
 struct nsRect;
 class nsIContent;
 class nsIFrame;
-class nsIPresShell;
-class nsIDOMNode;
 class nsIAtom;
 class nsIView;
+
+typedef nsRefPtrHashtable<nsVoidPtrHashKey, nsAccessible>
+  nsAccessibleHashtable;
 
 // see nsAccessible::GetAttrValue
 #define NS_OK_NO_ARIA_VALUE \
@@ -81,29 +79,8 @@ NS_ERROR_GENERATE_SUCCESS(NS_ERROR_MODULE_GENERAL, 0x23)
 #define NS_OK_NAME_FROM_TOOLTIP \
 NS_ERROR_GENERATE_SUCCESS(NS_ERROR_MODULE_GENERAL, 0x25)
 
-// Saves a data member -- if child count equals this value we haven't
-// cached children or child count yet
-enum { eChildCountUninitialized = -1 };
 
-class nsAccessibleDOMStringList : public nsIDOMDOMStringList
-{
-public:
-  nsAccessibleDOMStringList();
-  virtual ~nsAccessibleDOMStringList();
-
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIDOMDOMSTRINGLIST
-
-  PRBool Add(const nsAString& aName) {
-    return mNames.AppendElement(aName) != nsnull;
-  }
-
-private:
-  nsTArray<nsString> mNames;
-};
-
-
-#define NS_ACCESSIBLE_IMPL_CID                          \
+#define NS_ACCESSIBLE_IMPL_IID                          \
 {  /* 133c8bf4-4913-4355-bd50-426bd1d6e1ad */           \
   0x133c8bf4,                                           \
   0x4913,                                               \
@@ -118,7 +95,7 @@ class nsAccessible : public nsAccessNodeWrap,
                      public nsIAccessibleValue
 {
 public:
-  nsAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
+  nsAccessible(nsIContent *aContent, nsIWeakReference *aShell);
   virtual ~nsAccessible();
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -128,12 +105,12 @@ public:
   NS_DECL_NSIACCESSIBLEHYPERLINK
   NS_DECL_NSIACCESSIBLESELECTABLE
   NS_DECL_NSIACCESSIBLEVALUE
-  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ACCESSIBLE_IMPL_CID)
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ACCESSIBLE_IMPL_IID)
 
   //////////////////////////////////////////////////////////////////////////////
   // nsAccessNode
 
-  virtual nsresult Shutdown();
+  virtual void Shutdown();
 
   //////////////////////////////////////////////////////////////////////////////
   // Public methods
@@ -166,12 +143,15 @@ public:
   virtual nsresult GetNameInternal(nsAString& aName);
 
   /**
+   * Return enumerated accessible role (see constants in nsIAccessibleRole).
+   */
+  virtual PRUint32 Role();
+
+  /**
    * Returns enumerated accessible role from native markup (see constants in
    * nsIAccessibleRole). Doesn't take into account ARIA roles.
-   *
-   * @param aRole  [out] accessible role.
    */
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual PRUint32 NativeRole();
 
   /**
    * Return the state of accessible that doesn't take into account ARIA states.
@@ -225,18 +205,27 @@ public:
    *                      nsnull if none.
    */
   virtual void SetRoleMapEntry(nsRoleMapEntry *aRoleMapEntry);
+  const nsRoleMapEntry* GetRoleMapEntry() const { return mRoleMapEntry; }
 
   /**
-   * Set accessible parent.
+   * Cache children if necessary. Return true if the accessible is defunct.
    */
-  void SetParent(nsAccessible *aParent);
+  PRBool EnsureChildren();
 
   /**
    * Set the child count to -1 (unknown) and null out cached child pointers.
    * Should be called when accessible tree is changed because document has
-   * transformed.
+   * transformed. Note, if accessible cares about its parent relation chain
+   * itself should override this method to do nothing.
    */
   virtual void InvalidateChildren();
+
+  /**
+   * Append/insert/remove a child. Return true if operation was successful.
+   */
+  virtual PRBool AppendChild(nsAccessible* aChild);
+  virtual PRBool InsertChildAt(PRUint32 aIndex, nsAccessible* aChild);
+  virtual PRBool RemoveChild(nsAccessible* aChild);
 
   //////////////////////////////////////////////////////////////////////////////
   // Accessible tree traverse methods
@@ -244,7 +233,7 @@ public:
   /**
    * Return parent accessible.
    */
-  virtual nsAccessible* GetParent();
+  nsAccessible* GetParent();
 
   /**
    * Return child accessible at the given index.
@@ -259,22 +248,51 @@ public:
   /**
    * Return index of the given child accessible.
    */
-  virtual PRInt32 GetIndexOf(nsIAccessible *aChild);
+  virtual PRInt32 GetIndexOf(nsAccessible* aChild);
 
   /**
    * Return index in parent accessible.
    */
-  PRInt32 GetIndexInParent();
+  virtual PRInt32 GetIndexInParent();
 
   /**
-   * Return parent accessible only if cached.
+   * Return true if accessible has children;
    */
-  nsAccessible* GetCachedParent();
+  PRBool HasChildren() { return !!GetChildAt(0); }
 
   /**
-   * Return first child accessible only if cached.
+   * Return embedded accessible children count.
    */
-  nsAccessible* GetCachedFirstChild();
+  PRInt32 GetEmbeddedChildCount();
+
+  /**
+   * Return embedded accessible child at the given index.
+   */
+  nsAccessible* GetEmbeddedChildAt(PRUint32 aIndex);
+
+  /**
+   * Return index of the given embedded accessible child.
+   */
+  PRInt32 GetIndexOfEmbeddedChild(nsAccessible* aChild);
+
+  /**
+   * Return cached accessible of parent-child relatives.
+   */
+  nsAccessible* GetCachedParent() const { return mParent; }
+  nsAccessible* GetCachedNextSibling() const
+  {
+    return mParent ?
+      mParent->mChildren.SafeElementAt(mIndexInParent + 1, nsnull).get() : nsnull;
+  }
+  nsAccessible* GetCachedPrevSibling() const
+  {
+    return mParent ?
+      mParent->mChildren.SafeElementAt(mIndexInParent - 1, nsnull).get() : nsnull;
+  }
+  PRUint32 GetCachedChildCount() const { return mChildren.Length(); }
+  nsAccessible* GetCachedChildAt(PRUint32 aIndex) const { return mChildren.ElementAt(aIndex); }
+  PRBool AreChildrenCached() const { return mChildrenFlags != eChildrenUninitialized; }
+  bool IsBoundToParent() const { return mParent; }
 
   //////////////////////////////////////////////////////////////////////////////
   // Miscellaneous methods
@@ -283,7 +301,7 @@ public:
    * Handle accessible event, i.e. process it, notifies observers and fires
    * platform specific event.
    */
-  virtual nsresult HandleAccEvent(nsAccEvent *aAccEvent);
+  virtual nsresult HandleAccEvent(AccEvent* aAccEvent);
 
   /**
    * Return true if there are accessible children in anonymous content
@@ -302,9 +320,102 @@ public:
                                 PRUint32 aLength);
 
   /**
-   * Assert if child not in parent's cache.
+   * Assert if child not in parent's cache if the cache was initialized at this
+   * point.
    */
   void TestChildCache(nsAccessible *aCachedChild);
+
+  //////////////////////////////////////////////////////////////////////////////
+  // HyperLinkAccessible
+
+  /**
+   * Return true if the accessible is hyper link accessible.
+   */
+  virtual bool IsHyperLink();
+
+  /**
+   * Return the start offset of the link within the parent accessible.
+   */
+  virtual PRUint32 StartOffset();
+
+  /**
+   * Return the end offset of the link within the parent accessible.
+   */
+  virtual PRUint32 EndOffset();
+
+  /**
+   * Return true if the link is valid (e. g. points to a valid URL).
+   */
+  virtual bool IsValid();
+
+  /**
+   * Return true if the link currently has the focus.
+   */
+  virtual bool IsSelected();
+
+  /**
+   * Return the number of anchors within the link.
+   */
+  virtual PRUint32 AnchorCount();
+
+  /**
+   * Returns an anchor accessible at the given index.
+   */
+  virtual nsAccessible* GetAnchor(PRUint32 aAnchorIndex);
+
+  /**
+   * Returns an anchor URI at the given index.
+   */
+  virtual already_AddRefed<nsIURI> GetAnchorURI(PRUint32 aAnchorIndex);
+
+  //////////////////////////////////////////////////////////////////////////////
+  // SelectAccessible
+
+  /**
+   * Return true if the accessible is a select control containing selectable
+   * items.
+   */
+  virtual bool IsSelect();
+
+  /**
+   * Return an array of selected items.
+   */
+  virtual already_AddRefed<nsIArray> SelectedItems();
+
+  /**
+   * Return the number of selected items.
+   */
+  virtual PRUint32 SelectedItemCount();
+
+  /**
+   * Return selected item at the given index.
+   */
+  virtual nsAccessible* GetSelectedItem(PRUint32 aIndex);
+
+  /**
+   * Determine if item at the given index is selected.
+   */
+  virtual bool IsItemSelected(PRUint32 aIndex);
+
+  /**
+   * Add item at the given index the selection. Return true if success.
+   */
+  virtual bool AddItemToSelection(PRUint32 aIndex);
+
+  /**
+   * Remove item at the given index from the selection. Return if success.
+   */
+  virtual bool RemoveItemFromSelection(PRUint32 aIndex);
+
+  /**
+   * Select all items. Return true if success.
+   */
+  virtual bool SelectAll();
+
+  /**
+   * Unselect all items. Return true if success.
+   */
+  virtual bool UnselectAll();
 
 protected:
 
@@ -317,15 +428,16 @@ protected:
   virtual void CacheChildren();
 
   /**
-   * Cache children if necessary. Return true if the accessible is defunct.
+   * Set accessible parent and index in parent.
    */
-  PRBool EnsureChildren();
+  virtual void BindToParent(nsAccessible* aParent, PRUint32 aIndexInParent);
+  void UnbindFromParent();
 
   /**
    * Return sibling accessible at the given offset.
    */
-  virtual nsIAccessible* GetSiblingAtOffset(PRInt32 aOffset,
-                                            nsresult* aError = nsnull);
+  virtual nsAccessible* GetSiblingAtOffset(PRInt32 aOffset,
+                                           nsresult *aError = nsnull);
 
   //////////////////////////////////////////////////////////////////////////////
   // Miscellaneous helpers
@@ -351,12 +463,6 @@ protected:
   static nsresult GetFullKeyName(const nsAString& aModifierName, const nsAString& aKeyName, nsAString& aStringOut);
   static nsresult GetTranslatedString(const nsAString& aKey, nsAString& aStringOut);
 
-  // nsCOMPtr<>& is useful here, because getter_AddRefs() nulls the comptr's value, and NextChild
-  // depends on the passed-in comptr being null or already set to a child (finding the next sibling).
-  nsIAccessible *NextChild(nsCOMPtr<nsIAccessible>& aAccessible);
-    
-  already_AddRefed<nsIAccessible> GetNextWithState(nsIAccessible *aStart, PRUint32 matchState);
-
   /**
    * Return an accessible for the given DOM node, or if that node isn't
    * accessible, return the accessible for the next DOM node which has one
@@ -364,12 +470,8 @@ protected:
    *
    * @param  aStartNode  [in] the DOM node to start from
    * @return              the resulting accessible
-   */   
-  already_AddRefed<nsIAccessible>
-    GetFirstAvailableAccessible(nsIDOMNode *aStartNode);
-
-  // Hyperlink helpers
-  virtual nsresult GetLinkOffset(PRInt32* aStartOffset, PRInt32* aEndOffset);
+   */
+  nsAccessible *GetFirstAvailableAccessible(nsINode *aStartNode) const;
 
   //////////////////////////////////////////////////////////////////////////////
   // Action helpers
@@ -427,6 +529,11 @@ protected:
   PRUint32 GetActionRule(PRUint32 aStates);
 
   /**
+   * Return group info.
+   */
+  AccGroupInfo* GetGroupInfo();
+
+  /**
    * Fires platform accessible event. It's notification method only. It does
    * change nothing on Gecko side. Don't use it until you're sure what you do
    * (see example in XUL tree accessible), use nsEventShell::FireEvent()
@@ -434,18 +541,31 @@ protected:
    *
    * @param aEvent  the accessible event to fire.
    */
-  virtual nsresult FirePlatformEvent(nsAccEvent *aEvent) = 0;
+  virtual nsresult FirePlatformEvent(AccEvent* aEvent) = 0;
 
   // Data Members
   nsRefPtr<nsAccessible> mParent;
   nsTArray<nsRefPtr<nsAccessible> > mChildren;
-  PRBool mAreChildrenInitialized;
+  PRInt32 mIndexInParent;
+
+  enum ChildrenFlags {
+    eChildrenUninitialized = 0x00,
+    eMixedChildren = 0x01,
+    eEmbeddedChildren = 0x02
+  };
+  ChildrenFlags mChildrenFlags;
+
+  nsAutoPtr<EmbeddedObjCollector> mEmbeddedObjCollector;
+  PRInt32 mIndexOfEmbeddedChild;
+  friend class EmbeddedObjCollector;
+
+  nsAutoPtr<AccGroupInfo> mGroupInfo;
+  friend class AccGroupInfo;
 
   nsRoleMapEntry *mRoleMapEntry; // Non-null indicates author-supplied role; possibly state & value as well
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsAccessible,
-                              NS_ACCESSIBLE_IMPL_CID)
+                              NS_ACCESSIBLE_IMPL_IID)
 
-#endif  
-
+#endif

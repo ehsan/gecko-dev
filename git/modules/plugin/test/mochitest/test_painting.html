@@ -1,7 +1,7 @@
 <!DOCTYPE HTML>
 <html>
 <head>
-  <title>Test for plugin child widgets not being invalidated by scrolling</title>
+  <title>Test for windowless plugin invalidation and expose events in clips</title>
   <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -79,16 +79,34 @@ function show() {
   waitForPaint(invalidate);
 }
 
-function invalidate() {
-  is(clipped.getPaintCount(), 1, "partially clipped plugin painted once");
+function doubleForDoublePass() {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  if (SimpleTest.testPluginIsOOP())
+    return 1;
 
+  try {
+    if (Components.classes["@mozilla.org/gfx/info;1"].getService(Components.interfaces.nsIGfxInfo).D2DEnabled)
+      return 2;
+  }
+  catch (e) { }
+
+  return 1;
+}
+
+function invalidate() {
+  var paintCount = 1 * doubleForDoublePass();
+
+  is(clipped.getPaintCount(), paintCount, "partially clipped plugin painted once");  
+  
   clipped.setColor("FF00FF00"); // plugin invalidates
 
   waitForPaint(done);
 }
 
 function done() {
-  is(clipped.getPaintCount(), 2, "painted after invalidate");
+  var paintCount = 2 * doubleForDoublePass();
+  is(clipped.getPaintCount(), paintCount, "painted after invalidate");
+
   SimpleTest.finish();  
 }
 

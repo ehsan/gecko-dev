@@ -71,19 +71,14 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
 
 const STATE_RUNNING_STR = "running";
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 megabytes
 
-XPCOMUtils.defineLazyServiceGetter(this, "ConsoleSvc",
-  "@mozilla.org/consoleservice;1", "nsIConsoleService");
-
-XPCOMUtils.defineLazyServiceGetter(this, "ObserverSvc",
-  "@mozilla.org/observer-service;1", "nsIObserverService");
-
 function debug(aMsg) {
   aMsg = ("SessionStartup: " + aMsg).replace(/\S{80}/g, "$&\n");
-  ConsoleSvc.logStringMessage(aMsg);
+  Services.console.logStringMessage(aMsg);
 }
 
 /* :::::::: The Service ::::::::::::::: */
@@ -106,7 +101,7 @@ SessionStartup.prototype = {
     // do not need to initialize anything in auto-started private browsing sessions
     let pbs = Cc["@mozilla.org/privatebrowsing;1"].
               getService(Ci.nsIPrivateBrowsingService);
-    if (pbs.autoStarted)
+    if (pbs.autoStarted || pbs.lastChangedByCommandLine)
       return;
 
     let prefBranch = Cc["@mozilla.org/preferences-service;1"].
@@ -130,14 +125,24 @@ SessionStartup.prototype = {
     this._iniString = this._readStateFile(sessionFile);
     if (!this._iniString)
       return;
-    
+
+    // parse the session state into a JS object
+    let initialState;
     try {
-      // parse the session state into JS objects
-      var s = new Cu.Sandbox("about:blank");
-      var initialState = Cu.evalInSandbox("(" + this._iniString + ")", s);
+      // remove unneeded braces (added for compatibility with Firefox 2.0 and 3.0)
+      if (this._iniString.charAt(0) == '(')
+        this._iniString = this._iniString.slice(1, -1);
+      try {
+        initialState = JSON.parse(this._iniString);
+      }
+      catch (exJSON) {
+        var s = new Cu.Sandbox("about:blank");
+        initialState = Cu.evalInSandbox("(" + this._iniString + ")", s);
+        this._iniString = JSON.stringify(initialState);
+      }
     }
-    catch (ex) { debug("The session file is invalid: " + ex); } 
-    
+    catch (ex) { debug("The session file is invalid: " + ex); }
+
     let lastSessionCrashed =
       initialState && initialState.session && initialState.session.state &&
       initialState.session.state == STATE_RUNNING_STR;
@@ -147,13 +152,22 @@ SessionStartup.prototype = {
       this._sessionType = Ci.nsISessionStartup.RECOVER_SESSION;
     else if (!lastSessionCrashed && doResumeSession)
       this._sessionType = Ci.nsISessionStartup.RESUME_SESSION;
+    else if (initialState)
+      this._sessionType = Ci.nsISessionStartup.DEFER_SESSION;
     else
       this._iniString = null; // reset the state string
 
-    if (this._sessionType != Ci.nsISessionStartup.NO_SESSION) {
+    if (this.doRestore()) {
       // wait for the first browser window to open
-      ObserverSvc.addObserver(this, "domwindowopened", true);
-      ObserverSvc.addObserver(this, "browser:purge-session-history", true);
+
+      // Don't reset the initial window's default args (i.e. the home page(s))
+      // if all stored tabs are pinned.
+      if (!initialState.windows ||
+          !initialState.windows.every(function (win)
+             win.tabs.every(function (tab) tab.pinned)))
+        Services.obs.addObserver(this, "domwindowopened", true);
+
+      Services.obs.addObserver(this, "browser:purge-session-history", true);
     }
   },
 
@@ -163,18 +177,18 @@ SessionStartup.prototype = {
   observe: function sss_observe(aSubject, aTopic, aData) {
     switch (aTopic) {
     case "app-startup": 
-      ObserverSvc.addObserver(this, "final-ui-startup", true);
-      ObserverSvc.addObserver(this, "quit-application", true);
+      Services.obs.addObserver(this, "final-ui-startup", true);
+      Services.obs.addObserver(this, "quit-application", true);
       break;
     case "final-ui-startup": 
-      ObserverSvc.removeObserver(this, "final-ui-startup");
-      ObserverSvc.removeObserver(this, "quit-application");
+      Services.obs.removeObserver(this, "final-ui-startup");
+      Services.obs.removeObserver(this, "quit-application");
       this.init();
       break;
     case "quit-application":
       // no reason for initializing at this point (cf. bug 409115)
-      ObserverSvc.removeObserver(this, "final-ui-startup");
-      ObserverSvc.removeObserver(this, "quit-application");
+      Services.obs.removeObserver(this, "final-ui-startup");
+      Services.obs.removeObserver(this, "quit-application");
       break;
     case "domwindowopened":
       var window = aSubject;
@@ -189,7 +203,7 @@ SessionStartup.prototype = {
       this._iniString = null;
       this._sessionType = Ci.nsISessionStartup.NO_SESSION;
       // no need in repeating this, since startup state won't change
-      ObserverSvc.removeObserver(this, "browser:purge-session-history");
+      Services.obs.removeObserver(this, "browser:purge-session-history");
       break;
     }
   },
@@ -223,7 +237,12 @@ SessionStartup.prototype = {
         aWindow.arguments[0] == defaultArgs)
       aWindow.arguments[0] = null;
 
-    ObserverSvc.removeObserver(this, "domwindowopened");
+    try {
+      Services.obs.removeObserver(this, "domwindowopened");
+    } catch (e) {
+      // This might throw if we're removing the observer multiple times,
+      // but this is safe to ignore.
+    }
   },
 
 /* ........ Public API ................*/
@@ -240,7 +259,8 @@ SessionStartup.prototype = {
    * @returns bool
    */
   doRestore: function sss_doRestore() {
-    return this._sessionType != Ci.nsISessionStartup.NO_SESSION;
+    return this._sessionType == Ci.nsISessionStartup.RECOVER_SESSION ||
+           this._sessionType == Ci.nsISessionStartup.RESUME_SESSION;
   },
 
   /**
@@ -264,7 +284,7 @@ SessionStartup.prototype = {
                         createInstance(Ci.nsISupportsString);
     stateString.data = this._readFile(aFile) || "";
 
-    ObserverSvc.notifyObservers(stateString, "sessionstore-state-read", "");
+    Services.obs.notifyObservers(stateString, "sessionstore-state-read", "");
 
     return stateString.data;
   },
@@ -304,17 +324,7 @@ SessionStartup.prototype = {
   QueryInterface : XPCOMUtils.generateQI([Ci.nsIObserver,
                                           Ci.nsISupportsWeakReference,
                                           Ci.nsISessionStartup]),
-  classDescription: "Browser Session Startup Service",
   classID:          Components.ID("{ec7a6c20-e081-11da-8ad9-0800200c9a66}"),
-  contractID:       "@mozilla.org/browser/sessionstartup;1",
-
-  // get this contractID registered for certain categories via XPCOMUtils
-  _xpcom_categories: [
-    // make ourselves a startup observer
-    { category: "app-startup", service: true }
-  ]
-
 };
 
-function NSGetModule(aCompMgr, aFileSpec)
-  XPCOMUtils.generateModule([SessionStartup]);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([SessionStartup]);

@@ -140,6 +140,8 @@ PRInt32 nsPrincipal::sCapabilitiesOrdinal = 0;
 const char nsPrincipal::sInvalid[] = "Invalid";
 
 
+NS_IMPL_CLASSINFO(nsPrincipal, NULL, nsIClassInfo::MAIN_THREAD_ONLY,
+                  NS_PRINCIPAL_CID)
 NS_IMPL_QUERY_INTERFACE2_CI(nsPrincipal,
                             nsIPrincipal,
                             nsISerializable)
@@ -164,7 +166,7 @@ nsPrincipal::Release()
   nsrefcnt count = PR_AtomicDecrement((PRInt32 *)&mJSPrincipals.refcount);
   NS_LOG_RELEASE(this, count, "nsPrincipal");
   if (count == 0) {
-    NS_DELETEXPCOM(this);
+    delete this;
   }
 
   return count;
@@ -381,7 +383,7 @@ static PRBool
 URIIsLocalFile(nsIURI *aURI)
 {
   PRBool isFile;
-  nsCOMPtr<nsINetUtil> util = do_GetIOService();
+  nsCOMPtr<nsINetUtil> util = do_GetNetUtil();
 
   return util && NS_SUCCEEDED(util->ProtocolHasFlags(aURI,
                                 nsIProtocolHandler::URI_IS_LOCAL_FILE,
@@ -1061,7 +1063,11 @@ ReadAnnotationEntry(nsIObjectInputStream* aStream, nsHashKey** aKey,
 {
   nsresult rv;
   nsCStringKey* key = new nsCStringKey(aStream, &rv);
+  if (!key)
+    return NS_ERROR_OUT_OF_MEMORY;
+
   if (NS_FAILED(rv)) {
+    delete key;
     return rv;
   }
 

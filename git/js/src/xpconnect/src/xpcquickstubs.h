@@ -40,6 +40,8 @@
 #ifndef xpcquickstubs_h___
 #define xpcquickstubs_h___
 
+#include "nsINode.h"
+
 /* xpcquickstubs.h - Support functions used only by quick stubs. */
 
 class XPCCallContext;
@@ -54,7 +56,7 @@ struct xpc_qsPropertySpec {
 
 struct xpc_qsFunctionSpec {
     const char *name;
-    JSFastNative native;
+    JSNative native;
     uintN arity;
 };
 
@@ -74,6 +76,89 @@ struct xpc_qsHashEntry {
     // XPC_QS_NULL_ENTRY indicates there are no more entries in the chain.
     size_t parentInterface;
     size_t chain;
+};
+
+inline nsISupports*
+ToSupports(nsISupports *p)
+{
+    return p;
+}
+
+inline nsISupports*
+ToCanonicalSupports(nsISupports* p)
+{
+  return nsnull;
+}
+
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 2) || \
+    _MSC_FULL_VER >= 140050215
+
+/* Use a compiler intrinsic if one is available. */
+
+#define QS_CASTABLE_TO(_interface, _class) __is_base_of(_interface, _class)
+
+#else
+
+/* The generic version of this predicate relies on the overload resolution
+ * rules.  If |_class| inherits from |_interface|, the |_interface*|
+ * overload of DOMCI_CastableTo<_interface>::p() will be chosen, otherwise
+ * the |void*| overload will be chosen.  There is no definition of these
+ * functions; we determine which overload was selected by inspecting the
+ * size of the return type.
+ */
+
+template <typename Interface> struct QS_CastableTo {
+  struct false_type { int x[1]; };
+  struct true_type { int x[2]; };
+  static false_type p(void*);
+  static true_type p(Interface*);
+};
+
+#define QS_CASTABLE_TO(_interface, _class)                                 \
+  (sizeof(QS_CastableTo<_interface>::p(static_cast<_class*>(0))) ==        \
+   sizeof(QS_CastableTo<_interface>::true_type))
+
+#endif
+
+#define QS_IS_NODE(_class)                                                 \
+  QS_CASTABLE_TO(nsINode, _class) ||                                       \
+  QS_CASTABLE_TO(nsIDOMNode, _class)
+
+class qsObjectHelper : public xpcObjectHelper
+{
+public:
+  template <class T>
+  inline
+  qsObjectHelper(T *aObject, nsWrapperCache *aCache)
+  : xpcObjectHelper(ToSupports(aObject), ToCanonicalSupports(aObject),
+                    aCache, QS_IS_NODE(T))
+  {}
+  template <class T>
+  inline
+  qsObjectHelper(nsCOMPtr<T>& aObject, nsWrapperCache *aCache)
+  : xpcObjectHelper(ToSupports(aObject.get()),
+                    ToCanonicalSupports(aObject.get()), aCache, QS_IS_NODE(T))
+  {
+    if (mCanonical)
+    {
+        // Transfer the strong reference.
+        mCanonicalStrong = dont_AddRef(mCanonical);
+        aObject.forget();
+    }
+  }
+  template <class T>
+  inline
+  qsObjectHelper(nsRefPtr<T>& aObject, nsWrapperCache *aCache)
+  : xpcObjectHelper(ToSupports(aObject.get()),
+                    ToCanonicalSupports(aObject.get()), aCache, QS_IS_NODE(T))
+  {
+    if (mCanonical)
+    {
+        // Transfer the strong reference.
+        mCanonicalStrong = dont_AddRef(mCanonical);
+        aObject.forget();
+    }
+  }
 };
 
 JSBool
@@ -100,7 +185,7 @@ xpc_qsThrow(JSContext *cx, nsresult rv);
  */
 JSBool
 xpc_qsThrowGetterSetterFailed(JSContext *cx, nsresult rv,
-                              JSObject *obj, jsval memberId);
+                              JSObject *obj, jsid memberId);
 
 /**
  * Fail after an XPCOM method returned rv.
@@ -140,31 +225,29 @@ xpc_qsThrowBadArgWithDetails(JSContext *cx, nsresult rv, uintN paramnum,
  */
 void
 xpc_qsThrowBadSetterValue(JSContext *cx, nsresult rv, JSObject *obj,
-                          jsval propId);
+                          jsid propId);
 
+
+JSBool
+xpc_qsGetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
 
 /* Functions for converting values between COM and JS. */
 
 inline JSBool
 xpc_qsInt32ToJsval(JSContext *cx, PRInt32 i, jsval *rv)
 {
-    if(INT_FITS_IN_JSVAL(i))
-    {
-        *rv = INT_TO_JSVAL(i);
-        return JS_TRUE;
-    }
-    return JS_NewDoubleValue(cx, i, rv);
+    *rv = INT_TO_JSVAL(i);
+    return JS_TRUE;
 }
 
 inline JSBool
 xpc_qsUint32ToJsval(JSContext *cx, PRUint32 u, jsval *rv)
 {
     if(u <= JSVAL_INT_MAX)
-    {
         *rv = INT_TO_JSVAL(u);
-        return JS_TRUE;
-    }
-    return JS_NewDoubleValue(cx, u, rv);
+    else
+        *rv = DOUBLE_TO_JSVAL(u);
+    return JS_TRUE;
 }
 
 #ifdef HAVE_LONG_LONG
@@ -321,7 +404,7 @@ struct xpc_qsArgValArray
         memset(array, 0, N * sizeof(jsval));
     }
 
-    JSAutoTempValueRooter tvr;
+    js::AutoArrayRooter tvr;
     jsval array[N];
 };
 
@@ -329,34 +412,49 @@ struct xpc_qsArgValArray
  * Convert a jsval to char*, returning JS_TRUE on success.
  *
  * @param cx
- *      A context.
- * @param pval
- *     In/out. *pval is the jsval to convert; the function may write to *pval,
- *     using it as a GC root (like xpc_qsDOMString's constructor).
- * @param pstr
- *     Out. On success *pstr receives the converted string or NULL if *pval is
- *     null or undefined. Unicode data is garbled as with JS_GetStringBytes.
+ *     A context.
+ * @param v
+ *     A value to convert.
+ * @param bytes
+ *     Out. On success it receives the converted string unless v is null or
+ *     undefinedin which case bytes->ptr() remains null.
  */
 JSBool
-xpc_qsJsvalToCharStr(JSContext *cx, jsval v, jsval *pval, char **pstr);
+xpc_qsJsvalToCharStr(JSContext *cx, jsval v, JSAutoByteString *bytes);
 
 JSBool
 xpc_qsJsvalToWcharStr(JSContext *cx, jsval v, jsval *pval, PRUnichar **pstr);
 
 
-/** Convert an nsAString to jsval, returning JS_TRUE on success. */
+/** Convert an nsString to jsval, returning JS_TRUE on success.
+ *  Note, the ownership of the string buffer may be moved from str to rval.
+ *  If that happens, str will point to an empty string after this call.
+ */
 JSBool
-xpc_qsStringToJsval(JSContext *cx, const nsAString &str, jsval *rval);
+xpc_qsStringToJsval(JSContext *cx, nsString &str, jsval *rval);
 
+/** Convert an nsString to JSString, returning JS_TRUE on success. This will sometimes modify |str| to be empty. */
 JSBool
-xpc_qsUnwrapThisImpl(JSContext *cx,
-                     JSObject *obj,
-                     JSObject *callee,
-                     const nsIID &iid,
-                     void **ppThis,
-                     nsISupports **ppThisRef,
-                     jsval *vp,
-                     XPCLazyCallContext *lccx);
+xpc_qsStringToJsstring(JSContext *cx, nsString &str, JSString **rval);
+
+nsresult
+getWrapper(JSContext *cx,
+           JSObject *obj,
+           JSObject *callee,
+           XPCWrappedNative **wrapper,
+           JSObject **cur,
+           XPCWrappedNativeTearOff **tearoff);
+
+nsresult
+castNative(JSContext *cx,
+           XPCWrappedNative *wrapper,
+           JSObject *cur,
+           XPCWrappedNativeTearOff *tearoff,
+           const nsIID &iid,
+           void **ppThis,
+           nsISupports **ppThisRef,
+           jsval *vp,
+           XPCLazyCallContext *lccx);
 
 /**
  * Search @a obj and its prototype chain for an XPCOM object that implements
@@ -384,14 +482,85 @@ xpc_qsUnwrapThis(JSContext *cx,
                  jsval *pThisVal,
                  XPCLazyCallContext *lccx)
 {
-    return xpc_qsUnwrapThisImpl(cx,
-                                obj,
-                                callee,
-                                NS_GET_TEMPLATE_IID(T),
-                                reinterpret_cast<void **>(ppThis),
-                                pThisRef,
-                                pThisVal,
-                                lccx);
+    XPCWrappedNative *wrapper;
+    XPCWrappedNativeTearOff *tearoff;
+    nsresult rv = getWrapper(cx, obj, callee, &wrapper, &obj, &tearoff);
+    if(NS_SUCCEEDED(rv))
+        rv = castNative(cx, wrapper, obj, tearoff, NS_GET_TEMPLATE_IID(T),
+                        reinterpret_cast<void **>(ppThis), pThisRef, pThisVal,
+                        lccx);
+
+    return NS_SUCCEEDED(rv) || xpc_qsThrow(cx, rv);
+}
+
+inline nsISupports*
+castNativeFromWrapper(JSContext *cx,
+                      JSObject *obj,
+                      JSObject *callee,
+                      PRUint32 interfaceBit,
+                      nsISupports **pRef,
+                      jsval *pVal,
+                      XPCLazyCallContext *lccx,
+                      nsresult *rv NS_OUTPARAM)
+{
+    XPCWrappedNative *wrapper;
+    XPCWrappedNativeTearOff *tearoff;
+    JSObject *cur;
+
+    if(!callee && IS_WRAPPER_CLASS(obj->getClass()))
+    {
+        cur = obj;
+        wrapper = IS_WN_WRAPPER_OBJECT(cur) ?
+                  (XPCWrappedNative*)xpc_GetJSPrivate(obj) :
+                  nsnull;
+        tearoff = nsnull;
+    }
+    else
+    {
+        *rv = getWrapper(cx, obj, callee, &wrapper, &cur, &tearoff);
+        if (NS_FAILED(*rv))
+            return nsnull;
+    }
+
+    nsISupports *native;
+    if(wrapper)
+    {
+        native = wrapper->GetIdentityObject();
+        cur = wrapper->GetFlatJSObjectAndMark();
+    }
+    else
+    {
+        native = cur ?
+                 static_cast<nsISupports*>(xpc_GetJSPrivate(cur)) :
+                 nsnull;
+    }
+
+    *rv = NS_ERROR_XPC_BAD_CONVERT_JS;
+
+    if(!native)
+        return nsnull;
+
+    NS_ASSERTION(IS_WRAPPER_CLASS(cur->getClass()), "Not a wrapper?");
+
+    XPCNativeScriptableSharedJSClass *clasp =
+      (XPCNativeScriptableSharedJSClass*)cur->getClass();
+    if(!(clasp->interfacesBitmap & (1 << interfaceBit)))
+        return nsnull;
+
+    *pRef = nsnull;
+    *pVal = OBJECT_TO_JSVAL(cur);
+
+    if(lccx)
+    {
+        if(wrapper)
+            lccx->SetWrapper(wrapper, tearoff);
+        else
+            lccx->SetWrapper(cur);
+    }
+
+    *rv = NS_OK;
+
+    return native;
 }
 
 JSBool
@@ -419,6 +588,9 @@ xpc_qsUnwrapThisFromCcx(XPCCallContext &ccx,
                                        pThisVal);
 }
 
+JSObject*
+xpc_qsUnwrapObj(jsval v, nsISupports **ppArgRef, nsresult *rv);
+
 nsresult
 xpc_qsUnwrapArgImpl(JSContext *cx, jsval v, const nsIID &iid, void **ppArg,
                     nsISupports **ppArgRef, jsval *vp);
@@ -433,11 +605,32 @@ xpc_qsUnwrapArg(JSContext *cx, jsval v, T **ppArg, nsISupports **ppArgRef,
                                reinterpret_cast<void **>(ppArg), ppArgRef, vp);
 }
 
+inline nsISupports*
+castNativeArgFromWrapper(JSContext *cx,
+                         jsval v,
+                         PRUint32 bit,
+                         nsISupports **pArgRef,
+                         jsval *vp,
+                         nsresult *rv NS_OUTPARAM)
+{
+    JSObject *src = xpc_qsUnwrapObj(v, pArgRef, rv);
+    if(!src)
+        return nsnull;
+
+    return castNativeFromWrapper(cx, src, nsnull, bit, pArgRef, vp, nsnull, rv);
+}
+
 inline nsWrapperCache*
 xpc_qsGetWrapperCache(nsWrapperCache *cache)
 {
     return cache;
 }
+
+// nsGlobalWindow implements nsWrapperCache, but doesn't always use it. Don't
+// try to use it without fixing that first.
+class nsGlobalWindow;
+inline nsWrapperCache*
+xpc_qsGetWrapperCache(nsGlobalWindow *not_allowed);
 
 inline nsWrapperCache*
 xpc_qsGetWrapperCache(void *p)
@@ -445,11 +638,13 @@ xpc_qsGetWrapperCache(void *p)
     return nsnull;
 }
 
-/** Convert an XPCOM pointer to jsval. Return JS_TRUE on success. */
+/** Convert an XPCOM pointer to jsval. Return JS_TRUE on success. 
+ * aIdentity is a performance optimization. Set it to PR_TRUE,
+ * only if p is the identity pointer.
+ */
 JSBool
 xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx,
-                         nsISupports *p,
-                         nsWrapperCache *cache,
+                         qsObjectHelper &aHelper,
                          const nsIID *iid,
                          XPCNativeInterface **iface,
                          jsval *rval);
@@ -462,6 +657,66 @@ xpc_qsVariantToJsval(XPCLazyCallContext &ccx,
                      nsIVariant *p,
                      jsval *rval);
 
+/**
+ * Convert a jsval to PRInt64. Return JS_TRUE on success.
+ */
+inline JSBool
+xpc_qsValueToInt64(JSContext *cx,
+                   jsval v,
+                   PRInt64 *result)
+{
+    if (JSVAL_IS_INT(v)) {
+        int32 intval;
+        if (!JS_ValueToECMAInt32(cx, v, &intval))
+            return JS_FALSE;
+        *result = static_cast<PRInt64>(intval);
+    }
+    else {
+        jsdouble doubleval;
+        if (!JS_ValueToNumber(cx, v, &doubleval))
+            return JS_FALSE;
+        *result = static_cast<PRInt64>(doubleval);
+    }
+    return JS_TRUE;
+}
+
+/**
+ * Convert a jsdouble to PRUint64. Needed for traceable quickstubs too.
+ */
+inline PRUint64
+xpc_qsDoubleToUint64(jsdouble doubleval)
+{
+#ifdef XP_WIN
+    // Note: Win32 can't handle double to uint64 directly
+    return static_cast<PRUint64>(static_cast<PRInt64>(doubleval));
+#else
+    return static_cast<PRUint64>(doubleval);
+#endif
+}
+
+/**
+ * Convert a jsval to PRUint64. Return JS_TRUE on success.
+ */
+inline JSBool
+xpc_qsValueToUint64(JSContext *cx,
+                    jsval v,
+                    PRUint64 *result)
+{
+    if (JSVAL_IS_INT(v)) {
+        uint32 intval;
+        if (!JS_ValueToECMAUint32(cx, v, &intval))
+            return JS_FALSE;
+        *result = static_cast<PRUint64>(intval);
+    }
+    else {
+        jsdouble doubleval;
+        if (!JS_ValueToNumber(cx, v, &doubleval))
+            return JS_FALSE;
+        *result = xpc_qsDoubleToUint64(doubleval);
+    }
+    return JS_TRUE;
+}
+
 #ifdef DEBUG
 void
 xpc_qsAssertContextOK(JSContext *cx);
@@ -470,6 +725,18 @@ inline PRBool
 xpc_qsSameResult(nsISupports *result1, nsISupports *result2)
 {
     return SameCOMIdentity(result1, result2);
+}
+
+inline PRBool
+xpc_qsSameResult(const nsString &result1, const nsString &result2)
+{
+    return result1.Equals(result2);
+}
+
+inline PRBool
+xpc_qsSameResult(PRInt32 result1, PRInt32 result2)
+{
+    return result1 == result2;
 }
 
 #define XPC_QS_ASSERT_CONTEXT_OK(cx) xpc_qsAssertContextOK(cx)

@@ -51,7 +51,6 @@
 #include "nsGkAtoms.h"
 #include "nsMenuPopupFrame.h"
 
-
 class nsPopupBoxObject : public nsBoxObject,
                          public nsIPopupBoxObject
 {
@@ -124,24 +123,27 @@ nsPopupBoxObject::OpenPopup(nsIDOMElement* aAnchorElement,
                             const nsAString& aPosition,
                             PRInt32 aXPos, PRInt32 aYPos,
                             PRBool aIsContextMenu,
-                            PRBool aAttributesOverride)
+                            PRBool aAttributesOverride,
+                            nsIDOMEvent* aTriggerEvent)
 {
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm && mContent) {
     nsCOMPtr<nsIContent> anchorContent(do_QueryInterface(aAnchorElement));
     pm->ShowPopup(mContent, anchorContent, aPosition, aXPos, aYPos,
-                  aIsContextMenu, aAttributesOverride, PR_FALSE, nsnull);
+                  aIsContextMenu, aAttributesOverride, PR_FALSE, aTriggerEvent);
   }
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsPopupBoxObject::OpenPopupAtScreen(PRInt32 aXPos, PRInt32 aYPos, PRBool aIsContextMenu)
+nsPopupBoxObject::OpenPopupAtScreen(PRInt32 aXPos, PRInt32 aYPos,
+                                    PRBool aIsContextMenu,
+                                    nsIDOMEvent* aTriggerEvent)
 {
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm && mContent)
-    pm->ShowPopupAtScreen(mContent, aXPos, aYPos, aIsContextMenu, nsnull);
+    pm->ShowPopupAtScreen(mContent, aXPos, aYPos, aIsContextMenu, aTriggerEvent);
   return NS_OK;
 }
 
@@ -260,6 +262,33 @@ nsPopupBoxObject::GetPopupState(nsAString& aState)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsPopupBoxObject::GetTriggerNode(nsIDOMNode** aTriggerNode)
+{
+  *aTriggerNode = nsnull;
+
+  nsIContent* triggerContent = nsMenuPopupFrame::GetTriggerContent(GetMenuPopupFrame());
+  if (triggerContent)
+    CallQueryInterface(triggerContent, aTriggerNode);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPopupBoxObject::GetAnchorNode(nsIDOMElement** aAnchor)
+{
+  *aAnchor = nsnull;
+
+  nsMenuPopupFrame *menuPopupFrame = GetMenuPopupFrame();
+  if (!menuPopupFrame)
+    return NS_OK;
+
+  nsIContent* anchor = menuPopupFrame->GetAnchor();
+  if (anchor)
+    CallQueryInterface(anchor, aAnchor);
+
+  return NS_OK;
+}
 
 // Creation Routine ///////////////////////////////////////////////////////////////////////
 

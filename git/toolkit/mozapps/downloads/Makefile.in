@@ -44,12 +44,20 @@ include $(topsrcdir)/config/config.mk
 
 MODULE = helperAppDlg
 
+EXTRA_COMPONENTS = nsHelperAppDlg.manifest
 EXTRA_PP_COMPONENTS = nsHelperAppDlg.js
 
 EXTRA_JS_MODULES = \
   DownloadLastDir.jsm \
+  DownloadPaths.jsm \
   DownloadUtils.jsm \
   $(NULL)
+
+ifeq ($(OS_ARCH),WINNT)
+EXTRA_JS_MODULES += \
+  DownloadTaskbarProgress.jsm \
+  $(NULL)
+endif
 
 ifdef ENABLE_TESTS
 DIRS += tests

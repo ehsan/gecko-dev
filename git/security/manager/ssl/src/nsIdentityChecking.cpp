@@ -406,14 +406,36 @@ static struct nsMyTrustedEVInfo myTrustedEVInfos[] = {
     nsnull
   },
   {
+    // CN=GlobalSign,O=GlobalSign,OU=GlobalSign Root CA - R3
+    "1.3.6.1.4.1.4146.1.1",
+    "GlobalSign EV OID",
+    SEC_OID_UNKNOWN,
+    "D6:9B:56:11:48:F0:1C:77:C5:45:78:C1:09:26:DF:5B:85:69:76:AD",
+    "MEwxIDAeBgNVBAsTF0dsb2JhbFNpZ24gUm9vdCBDQSAtIFIzMRMwEQYDVQQKEwpH"
+    "bG9iYWxTaWduMRMwEQYDVQQDEwpHbG9iYWxTaWdu",
+    "BAAAAAABIVhTCKI=",
+    nsnull
+  },
+  {
     // CN=Buypass Class 3 CA 1,O=Buypass AS-983163327,C=NO
     "2.16.578.1.26.1.3.3",
-    "Buypass Class 3 CA 1", // for real entries use a string like "Sample INVALID EV OID"
+    "Buypass Class 3 CA 1",
     SEC_OID_UNKNOWN,
     "61:57:3A:11:DF:0E:D8:7E:D5:92:65:22:EA:D0:56:D7:44:B3:23:71",
     "MEsxCzAJBgNVBAYTAk5PMR0wGwYDVQQKDBRCdXlwYXNzIEFTLTk4MzE2MzMyNzEd"
     "MBsGA1UEAwwUQnV5cGFzcyBDbGFzcyAzIENBIDE=",
     "Ag==",
+    nsnull
+  },
+  {
+    // CN=Class 2 Primary CA,O=Certplus,C=FR
+    "1.3.6.1.4.1.22234.2.5.2.3.1",
+    "Certplus EV OID",
+    SEC_OID_UNKNOWN,
+    "74:20:74:41:72:9C:DD:92:EC:79:31:D8:23:10:8D:C2:81:92:E2:BB",
+    "MD0xCzAJBgNVBAYTAkZSMREwDwYDVQQKEwhDZXJ0cGx1czEbMBkGA1UEAxMSQ2xh"
+    "c3MgMiBQcmltYXJ5IENB",
+    "AIW9S/PY2uNp9pTXX8OlRCM=",
     nsnull
   },
   {
@@ -830,6 +852,7 @@ nsNSSComponent::IdentityInfoInit()
     NS_ASSERTION(rv==SECSuccess, "error converting ascii to binary.");
     rv = ATOB_ConvertAsciiToItem(&ias.serialNumber, const_cast<char*>(entry.serial_base64));
     NS_ASSERTION(rv==SECSuccess, "error converting ascii to binary.");
+    ias.serialNumber.type = siUnsignedInteger;
 
     entry.cert = CERT_FindCertByIssuerAndSN(nsnull, &ias);
     NS_ASSERTION(entry.cert, "Could not find EV root in NSS storage");

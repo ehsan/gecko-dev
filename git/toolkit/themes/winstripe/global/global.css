@@ -164,12 +164,6 @@ statusbarpanel:not(.statusbar-resizerpanel):-moz-lwtheme {
   padding: 0 1px;
 }
 
-%ifdef XP_WIN
-window:not([active="true"]) menubar > menu {
-  color: ThreeDShadow;
-}
-%endif
-
 /* XXXBlake yeah, shoot me -- these don't belong here.  I'll move them later. */
 
 sidebarheader {
@@ -201,11 +195,11 @@ toolbar[mode="text"] .toolbarbutton-text {
 }
 
 :root:-moz-lwtheme-darktext {
-  text-shadow: 1px 1px 2px white;
+  text-shadow: 1px 1px 1.5px white;
 }
 
 :root:-moz-lwtheme-brighttext {
-  text-shadow: 1px 1px 2px black;
+  text-shadow: 1px 1px 1.5px black;
 }
 
 statusbar:-moz-lwtheme,
@@ -326,7 +320,7 @@ label[disabled="true"]:-moz-system-metric(windows-classic) {
   cursor: pointer;
 }
 
-.text-link:focus {
+.text-link:-moz-focusring {
   border: 1px dotted -moz-DialogText;
 }
 

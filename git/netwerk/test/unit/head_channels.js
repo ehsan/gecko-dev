@@ -23,6 +23,10 @@ function read_stream(stream, count) {
 
 const CL_EXPECT_FAILURE = 0x1;
 const CL_EXPECT_GZIP = 0x2;
+const CL_EXPECT_3S_DELAY = 0x4;
+const CL_SUSPEND = 0x8;
+
+const SUSPEND_DELAY = 3000;
 
 /**
  * A stream listener that calls a callback function with a specified
@@ -50,6 +54,7 @@ ChannelListener.prototype = {
   _got_onstartrequest: false,
   _got_onstoprequest: false,
   _contentLen: -1,
+  _lastEvent: 0,
 
   QueryInterface: function(iid) {
     if (iid.equals(Components.interfaces.nsIStreamListener) ||
@@ -64,11 +69,24 @@ ChannelListener.prototype = {
       if (this._got_onstartrequest)
         do_throw("Got second onStartRequest event!");
       this._got_onstartrequest = true;
+      this._lastEvent = Date.now();
 
       request.QueryInterface(Components.interfaces.nsIChannel);
-      this._contentLen = request.contentLength;
-      if (this._contentLen == -1)
+      try {
+        this._contentLen = request.contentLength;
+      }
+      catch (ex) {
+        if (!(this._flags & CL_EXPECT_FAILURE))
+          do_throw("Could not get contentLength");
+      }
+      if (this._contentLen == -1 && !(this._flags & CL_EXPECT_FAILURE))
         do_throw("Content length is unknown in onStartRequest!");
+
+      if (this._flags & CL_SUSPEND) {
+        request.suspend();
+        do_timeout(SUSPEND_DELAY, function() { request.resume(); });
+      }
+
     } catch (ex) {
       do_throw("Error in onStartRequest: " + ex);
     }
@@ -76,6 +94,8 @@ ChannelListener.prototype = {
 
   onDataAvailable: function(request, context, stream, offset, count) {
     try {
+      let current = Date.now();
+
       if (!this._got_onstartrequest)
         do_throw("onDataAvailable without onStartRequest event!");
       if (this._got_onstoprequest)
@@ -85,7 +105,18 @@ ChannelListener.prototype = {
       if (this._flags & CL_EXPECT_FAILURE)
         do_throw("Got data despite expecting a failure");
 
+      if (current - this._lastEvent >= SUSPEND_DELAY &&
+          !(this._flags & CL_EXPECT_3S_DELAY))
+       do_throw("Data received after significant unexpected delay");
+      else if (current - this._lastEvent < SUSPEND_DELAY &&
+               this._flags & CL_EXPECT_3S_DELAY)
+        do_throw("Data received sooner than expected");
+      else if (current - this._lastEvent >= SUSPEND_DELAY &&
+               this._flags & CL_EXPECT_3S_DELAY)
+        this._flags &= ~CL_EXPECT_3S_DELAY; // No more delays expected
+
       this._buffer = this._buffer.concat(read_stream(stream, count));
+      this._lastEvent = current;
     } catch (ex) {
       do_throw("Error in onDataAvailable: " + ex);
     }
@@ -119,5 +150,34 @@ ChannelListener.prototype = {
     } catch (ex) {
       do_throw("Error in closure function: " + ex);
     }
+  }
+};
+
+var ES_ABORT_REDIRECT = 0x01;
+
+function ChannelEventSink(flags)
+{
+  this._flags = flags;
+}
+
+ChannelEventSink.prototype = {
+  QueryInterface: function(iid) {
+    if (iid.equals(Ci.nsIInterfaceRequestor) ||
+        iid.equals(Ci.nsISupports))
+      return this;
+    throw Cr.NS_ERROR_NO_INTERFACE;
+  },
+
+  getInterface: function(iid) {
+    if (iid.equals(Ci.nsIChannelEventSink))
+      return this;
+    throw Cr.NS_ERROR_NO_INTERFACE;
+  },
+
+  asyncOnChannelRedirect: function(oldChannel, newChannel, flags, callback) {
+    if (this._flags & ES_ABORT_REDIRECT)
+      throw Cr.NS_BINDING_ABORTED;
+
+    callback.onRedirectVerifyCallback(Cr.NS_OK);
   }
 };

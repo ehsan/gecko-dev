@@ -59,6 +59,9 @@
 #include "nsNodeInfoManager.h"
 #include "nsINodeInfo.h"
 #include "nsIPrincipal.h"
+#include "mozilla/dom/Element.h"
+
+using namespace mozilla::dom;
 
 nsresult
 NS_NewXBLContentSink(nsIXMLContentSink** aResult,
@@ -68,8 +71,7 @@ NS_NewXBLContentSink(nsIXMLContentSink** aResult,
 {
   NS_ENSURE_ARG_POINTER(aResult);
 
-  nsXBLContentSink* it;
-  NS_NEWXPCOM(it, nsXBLContentSink);
+  nsXBLContentSink* it = new nsXBLContentSink();
   NS_ENSURE_TRUE(it, NS_ERROR_OUT_OF_MEMORY);
 
   nsCOMPtr<nsIXMLContentSink> kungFuDeathGrip = it;
@@ -313,7 +315,7 @@ nsXBLContentSink::HandleEndElement(const PRUnichar *aName)
     if (nameSpaceID == kNameSpaceID_XBL) {
       if (mState == eXBL_Error) {
         // Check whether we've opened this tag before; we may not have if
-        // it was a real XBL tag before the error occured.
+        // it was a real XBL tag before the error occurred.
         if (!GetCurrentContent()->NodeInfo()->Equals(localName,
                                                      nameSpaceID)) {
           // OK, this tag was never opened as far as the XML sink is
@@ -419,7 +421,7 @@ nsXBLContentSink::OnOpenContainer(const PRUnichar **aAtts,
   if (aTagName == nsGkAtoms::bindings) {
     ENSURE_XBL_STATE(mState == eXBL_InDocument);
       
-    NS_NewXBLDocumentInfo(mDocument, &mDocInfo);
+    mDocInfo = NS_NewXBLDocumentInfo(mDocument);
     if (!mDocInfo) {
       mState = eXBL_Error;
       return PR_TRUE;
@@ -436,7 +438,7 @@ nsXBLContentSink::OnOpenContainer(const PRUnichar **aAtts,
     uri->SchemeIs("resource", &isRes);
     mIsChromeOrResource = isChrome || isRes;
       
-    nsIXBLDocumentInfo* info = mDocInfo;
+    nsXBLDocumentInfo* info = mDocInfo;
     NS_RELEASE(info); // We keep a weak ref. We've created a cycle between doc/binding manager/doc info.
     mState = eXBL_InBindings;
   }
@@ -868,7 +870,7 @@ nsresult
 nsXBLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                 nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                                 nsIContent** aResult, PRBool* aAppendContent,
-                                PRBool aFromParser)
+                                FromParser aFromParser)
 {
 #ifdef MOZ_XUL
   if (!aNodeInfo->NamespaceEquals(kNameSpaceID_XUL)) {
@@ -891,7 +893,10 @@ nsXBLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
 
   AddAttributesToXULPrototype(aAtts, aAttsCount, prototype);
 
-  return nsXULElement::Create(prototype, mDocument, PR_FALSE, aResult);
+  Element* result;
+  nsresult rv = nsXULElement::Create(prototype, mDocument, PR_FALSE, &result);
+  *aResult = result;
+  return rv;
 #endif
 }
 

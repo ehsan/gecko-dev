@@ -46,7 +46,7 @@ class nsXMLElement : public nsGenericElement,
                      public nsIDOMElement
 {
 public:
-  nsXMLElement(nsINodeInfo *aNodeInfo)
+  nsXMLElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericElement(aNodeInfo)
   {
   }
@@ -62,6 +62,27 @@ public:
 
   // nsINode interface methods
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+
+  virtual nsXPCClassInfo* GetClassInfo();
+
+  // nsIContent interface methods
+  virtual nsIAtom *GetIDAttributeName() const;
+  virtual nsIAtom* DoGetID() const;
+  virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
+                              nsIContent* aBindingParent,
+                              PRBool aCompileEventHandlers);
+  virtual void UnbindFromTree(PRBool aDeep, PRBool aNullParent);
+  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
+                             PRBool aNotify);
+  virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
+                                nsIAtom* aAttribute,
+                                const nsAString& aValue,
+                                nsAttrValue& aResult);
+
+  // nsGenericElement overrides
+  virtual void NodeInfoChanged(nsINodeInfo* aOldNodeInfo);
+
+
 };
 
 #endif // nsXMLElement_h___

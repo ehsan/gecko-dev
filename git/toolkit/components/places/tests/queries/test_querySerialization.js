@@ -286,10 +286,10 @@ const querySwitches = [
         aQuery.setFolders([], 0);
       },
       function (aQuery, aQueryOptions) {
-        aQuery.setFolders([bmsvc.placesRoot], 1);
+        aQuery.setFolders([PlacesUtils.placesRootId], 1);
       },
       function (aQuery, aQueryOptions) {
-        aQuery.setFolders([bmsvc.placesRoot, bmsvc.tagsFolder], 2);
+        aQuery.setFolders([PlacesUtils.placesRootId, PlacesUtils.tagsFolderId], 2);
       }
     ]
   },
@@ -346,6 +346,38 @@ const querySwitches = [
           "あいうえお",
         ];
         aQuery.tagsAreNot =  true;
+      }
+    ]
+  },
+  // transitions
+  {
+    desc: "tests nsINavHistoryQuery.getTransitions",
+    matches: function (aQuery1, aQuery2) {
+      var q1Trans = aQuery1.getTransitions();
+      var q2Trans = aQuery2.getTransitions();
+      if (q1Trans.length !== q2Trans.length)
+        return false;
+      for (let i = 0; i < q1Trans.length; i++) {
+        if (q2Trans.indexOf(q1Trans[i]) < 0)
+          return false;
+      }
+      for (let i = 0; i < q2Trans.length; i++) {
+        if (q1Trans.indexOf(q2Trans[i]) < 0)
+          return false;
+      }
+      return true;
+    },
+    runs: [
+      function (aQuery, aQueryOptions) {
+        aQuery.setTransitions([], 0);
+      },
+      function (aQuery, aQueryOptions) {
+        aQuery.setTransitions([Ci.nsINavHistoryService.TRANSITION_DOWNLOAD],
+                              1);
+      },
+      function (aQuery, aQueryOptions) {
+        aQuery.setTransitions([Ci.nsINavHistoryService.TRANSITION_TYPED,
+                               Ci.nsINavHistoryService.TRANSITION_BOOKMARK], 2);
       }
     ]
   },
@@ -754,8 +786,8 @@ function runQuerySequences(aHowManyLo, aHowManyHi)
       // ]
       cartProd(runs, function (runSet) {
         // Create a new query, apply the switches in runSet, and test it.
-        var query = histsvc.getNewQuery();
-        var opts = histsvc.getNewQueryOptions();
+        var query = PlacesUtils.history.getNewQuery();
+        var opts = PlacesUtils.history.getNewQueryOptions();
         for (let i = 0; i < runSet.length; i++) {
           runSet[i](query, opts);
         }
@@ -793,13 +825,13 @@ function runQuerySequences(aHowManyLo, aHowManyHi)
  */
 function serializeDeserialize(aQueryArr, aQueryOptions)
 {
-  var queryStr = histsvc.queriesToQueryString(aQueryArr,
-                                              aQueryArr.length,
-                                              aQueryOptions);
+  var queryStr = PlacesUtils.history.queriesToQueryString(aQueryArr,
+                                                        aQueryArr.length,
+                                                        aQueryOptions);
   print("  " + queryStr);
   var queryArr2 = {};
   var opts2 = {};
-  histsvc.queryStringToQueries(queryStr, queryArr2, {}, opts2);
+  PlacesUtils.history.queryStringToQueries(queryStr, queryArr2, {}, opts2);
   queryArr2 = queryArr2.value;
   opts2 = opts2.value;
 

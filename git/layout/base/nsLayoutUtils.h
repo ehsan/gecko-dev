@@ -64,8 +64,10 @@ class nsClientRectList;
 #include "gfxPattern.h"
 #include "imgIContainer.h"
 #include "nsCSSPseudoElements.h"
+#include "nsHTMLReflowState.h"
 
 class nsBlockFrame;
+class gfxDrawable;
 
 /**
  * nsLayoutUtils is a namespace class used for various helper
@@ -74,18 +76,20 @@ class nsBlockFrame;
  */
 class nsLayoutUtils
 {
+  typedef gfxPattern::GraphicsFilter GraphicsFilter;
+
 public:
 
   /**
-   * Uses heuristics to figure out the appropriate child list name
-   * for aChildFrame.
+   * Use heuristics to figure out the name of the child list that
+   * aChildFrame is currently in.
    */
   static nsIAtom* GetChildListNameFor(nsIFrame* aChildFrame);
 
   /**
    * GetBeforeFrame returns the outermost :before frame of the given frame, if
    * one exists.  This is typically O(1).  The frame passed in must be
-   * the first-in-flow.   
+   * the first-in-flow.
    *
    * @param aFrame the frame whose :before is wanted
    * @return the :before frame or nsnull if there isn't one
@@ -103,7 +107,7 @@ public:
    */
   static nsIFrame* GetAfterFrame(nsIFrame* aFrame);
 
-  /** 
+  /**
    * Given a frame, search up the frame tree until we find an
    * ancestor that (or the frame itself) is of type aFrameType, if any.
    *
@@ -114,7 +118,7 @@ public:
    */
   static nsIFrame* GetClosestFrameOfType(nsIFrame* aFrame, nsIAtom* aFrameType);
 
-  /** 
+  /**
    * Given a frame, search up the frame tree until we find an
    * ancestor that (or the frame itself) is a "Page" frame, if any.
    *
@@ -152,10 +156,15 @@ public:
   static PRBool IsGeneratedContentFor(nsIContent* aContent, nsIFrame* aFrame,
                                       nsIAtom* aPseudoElement);
 
+#ifdef DEBUG
+  // TODO: remove, see bug 598468.
+  static bool gPreventAssertInCompareTreePosition;
+#endif // DEBUG
+
   /**
    * CompareTreePosition determines whether aContent1 comes before or
    * after aContent2 in a preorder traversal of the content tree.
-   * 
+   *
    * @param aCommonAncestor either null, or a common ancestor of
    *                        aContent1 and aContent2.  Actually this is
    *                        only a hint; if it's not an ancestor of
@@ -193,7 +202,7 @@ public:
    * basically the same ordering as DoCompareTreePosition(nsIContent*) except
    * that it handles anonymous content properly and there are subtleties with
    * continuations.
-   * 
+   *
    * @param aCommonAncestor either null, or a common ancestor of
    *                        aContent1 and aContent2.  Actually this is
    *                        only a hint; if it's not an ancestor of
@@ -250,11 +259,14 @@ public:
    * and the document has a parent document in the same view hierarchy, then
    * we try to return the subdocumentframe in the parent document.
    * @param aExtraOffset [in/out] if non-null, then as we cross documents
-   * an extra offset may be required and it will be added to aCrossDocOffset
+   * an extra offset may be required and it will be added to aCrossDocOffset.
+   * Be careful dealing with this extra offset as it is in app units of the
+   * parent document, which may have a different app units per dev pixel ratio
+   * than the child document.
    */
   static nsIFrame* GetCrossDocParentFrame(const nsIFrame* aFrame,
                                           nsPoint* aCrossDocOffset = nsnull);
-  
+
   /**
    * IsProperAncestorFrame checks whether aAncestorFrame is an ancestor
    * of aFrame and not equal to aFrame.
@@ -288,13 +300,23 @@ public:
                                         nsIFrame* aCommonAncestor = nsnull);
 
   /**
+   * Finds the nearest ancestor frame that is the root of an "actively
+   * scrolled" frame subtree, or aStopAtAncestor if there is no
+   * such ancestor before we reach aStopAtAncestor in the ancestor chain.
+   * We expect frames with the same "active scrolled root" to be
+   * scrolled together, so we'll place them in the same ThebesLayer.
+   */
+  static nsIFrame* GetActiveScrolledRootFor(nsIFrame* aFrame,
+                                            nsIFrame* aStopAtAncestor);
+
+  /**
     * GetFrameFor returns the root frame for a view
     * @param aView is the view to return the root frame for
     * @return the root frame for the view
     */
   static nsIFrame* GetFrameFor(nsIView *aView)
   { return static_cast<nsIFrame*>(aView->GetClientData()); }
-  
+
   /**
     * GetScrollableFrameFor returns the scrollable frame for a scrolled frame
     */
@@ -341,17 +363,7 @@ public:
   static PRBool HasPseudoStyle(nsIContent* aContent,
                                nsStyleContext* aStyleContext,
                                nsCSSPseudoElements::Type aPseudoElement,
-                               nsPresContext* aPresContext)
-  {
-    NS_PRECONDITION(aPresContext, "Must have a prescontext");
-
-    nsRefPtr<nsStyleContext> pseudoContext;
-    if (aContent) {
-      pseudoContext = aPresContext->StyleSet()->
-        ProbePseudoElementStyle(aContent, aPseudoElement, aStyleContext);
-    }
-    return pseudoContext != nsnull;
-  }
+                               nsPresContext* aPresContext);
 
   /**
    * If this frame is a placeholder for a float, then return the float,
@@ -388,6 +400,16 @@ public:
                                                nsIFrame* aFrame);
 
   /**
+   * Get the popup frame of a given native mouse event.
+   * @param aPresContext only check popups within aPresContext or a descendant
+   * @param aEvent  the event.
+   * @return        Null, if there is no popup frame at the point, otherwise,
+   *                returns top-most popup frame at the point.
+   */
+  static nsIFrame* GetPopupFrameForEventCoordinates(nsPresContext* aPresContext,
+                                                    const nsEvent* aEvent);
+
+/**
    * Translate from widget coordinates to the view's coordinates
    * @param aPresContext the PresContext for the view
    * @param aWidget the widget
@@ -395,7 +417,7 @@ public:
    * @param aView  view to which returned coordinates are relative
    * @return the point in the view's coordinates
    */
-  static nsPoint TranslateWidgetToView(nsPresContext* aPresContext, 
+  static nsPoint TranslateWidgetToView(nsPresContext* aPresContext,
                                        nsIWidget* aWidget, nsIntPoint aPt,
                                        nsIView* aView);
 
@@ -426,6 +448,22 @@ public:
   static nsIFrame* GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
                                     PRBool aShouldIgnoreSuppression = PR_FALSE,
                                     PRBool aIgnoreRootScrollFrame = PR_FALSE);
+
+  /**
+   * Given aFrame, the root frame of a stacking context, find all descendant
+   * frames under the area of a rectangle that receives a mouse event,
+   * or nsnull if there is no such frame.
+   * @param aRect the rect, relative to the frame origin
+   * @param aOutFrames an array to add all the frames found
+   * @param aShouldIgnoreSuppression a boolean to control if the display
+   * list builder should ignore paint suppression or not
+   * @param aIgnoreRootScrollFrame whether or not the display list builder
+   * should ignore the root scroll frame.
+   */
+  static nsresult GetFramesForArea(nsIFrame* aFrame, const nsRect& aRect,
+                                   nsTArray<nsIFrame*> &aOutFrames,
+                                   PRBool aShouldIgnoreSuppression = PR_FALSE,
+                                   PRBool aIgnoreRootScrollFrame = PR_FALSE);
 
   /**
    * Given a point in the global coordinate space, returns that point expressed
@@ -474,82 +512,66 @@ public:
    */
   static nsRect RoundGfxRectToAppRect(const gfxRect &aRect, float aFactor);
 
+  /**
+   * If aIn can be represented exactly using an nsIntRect (i.e.
+   * integer-aligned edges and coordinates in the PRInt32 range) then we
+   * set aOut to that rectangle, otherwise return failure.
+   */
+  static nsresult GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut);
 
   enum {
     PAINT_IN_TRANSFORM = 0x01,
-    PAINT_SYNC_DECODE_IMAGES = 0x02
+    PAINT_SYNC_DECODE_IMAGES = 0x02,
+    PAINT_WIDGET_LAYERS = 0x04,
+    PAINT_IGNORE_SUPPRESSION = 0x08,
+    PAINT_DOCUMENT_RELATIVE = 0x10,
+    PAINT_HIDE_CARET = 0x20,
+    PAINT_ALL_CONTINUATIONS = 0x40,
+    PAINT_TO_WINDOW = 0x80
   };
 
   /**
    * Given aFrame, the root frame of a stacking context, paint it and its
-   * descendants to aRenderingContext. 
+   * descendants to aRenderingContext.
    * @param aRenderingContext a rendering context translated so that (0,0)
    * is the origin of aFrame; for best results, (0,0) should transform
-   * to pixel-aligned coordinates
+   * to pixel-aligned coordinates. This can be null, in which case
+   * aFrame must be a "display root" (root frame for a root document,
+   * or the root of a popup) with an associated widget and we draw using
+   * the layer manager for the frame's widget.
    * @param aDirtyRegion the region that must be painted, in the coordinates
    * of aFrame
    * @param aBackstop paint the dirty area with this color before drawing
    * the actual content; pass NS_RGBA(0,0,0,0) to draw no background
    * @param aFlags if PAINT_IN_TRANSFORM is set, then we assume
    * this is inside a transform or SVG foreignObject. If
-   * PAINT_SYNC_DECODE_IMAGES is set, we force synchronous decode on all images.
+   * PAINT_SYNC_DECODE_IMAGES is set, we force synchronous decode on all
+   * images. If PAINT_WIDGET_LAYERS is set, aFrame must be a display root,
+   * and we will use the frame's widget's layer manager to paint
+   * even if aRenderingContext is non-null. This is useful if you want
+   * to force rendering to use the widget's layer manager for testing
+   * or speed. PAINT_WIDGET_LAYERS must be set if aRenderingContext is null.
+   * If PAINT_DOCUMENT_RELATIVE is used, the visible region is interpreted
+   * as being relative to the document.  (Normally it's relative to the CSS
+   * viewport.) PAINT_TO_WINDOW sets painting to window to true on the display
+   * list builder even if we can't tell that we are painting to the window.
+   *
+   * So there are three possible behaviours:
+   * 1) PAINT_WIDGET_LAYERS is set and aRenderingContext is null; we paint
+   * by calling BeginTransaction on the widget's layer manager
+   * 2) PAINT_WIDGET_LAYERS is set and aRenderingContext is non-null; we
+   * paint by calling BeginTransactionWithTarget on the widget's layer
+   * maanger
+   * 3) PAINT_WIDGET_LAYERS is not set and aRenderingContext is non-null;
+   * we paint by construct a BasicLayerManager and calling
+   * BeginTransactionWithTarget on it. This is desirable if we're doing
+   * something like drawWindow in a mode where what gets rendered doesn't
+   * necessarily correspond to what's visible in the window; we don't
+   * want to mess up the widget's layer tree.
    */
   static nsresult PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFrame,
                              const nsRegion& aDirtyRegion, nscolor aBackstop,
                              PRUint32 aFlags = 0);
-
-  /**
-   * @param aRootFrame the root frame of the tree to be displayed
-   * @param aMovingFrame a frame that has moved
-   * @param aPt the amount by which aMovingFrame has moved
-   * @param aUpdateRect a rectangle that bounds the area to be updated,
-   * relative to aRootFrame
-   * @param aRepaintRegion output: a subregion of aUpdateRect that must be
-   * repainted after doing the blit
-   * @param aBlitRegion output: a subregion of aUpdateRect that should
-   * be repainted by blitting
-   * 
-   * If the caller does a bitblt copy of aBlitRegion-aPt to aBlitRegion,
-   * and then repaints aRepaintRegion, then the area aUpdateRect will be
-   * correctly up to date. aBlitRegion and aRepaintRegion do not intersect
-   * and are both contained within aUpdateRect.
-   * 
-   * Frame geometry must have already been adjusted for the scroll/copy
-   * operation before this function is called.
-   * 
-   * Conceptually it works by computing a display list in the before-state
-   * and a display list in the after-state and analyzing them to find the
-   * differences. In practice it is only feasible to build a display list
-   * in the after-state (plus building two display lists would be less
-   * efficient), so we use some unfortunately tricky techniques to get by
-   * with just the after-list.
-   * 
-   * We compute the "visible moving area", a region that contains all
-   * moving content that is visible, either before or after scrolling,
-   * intersected with aUpdateRect.
-   *
-   * The aRepaintRegion region consists of the visible moving area
-   * intersected with the union of the following areas:
-   * a) any visible background-attachment:fixed areas in the after-move display
-   * list
-   * b) any visible areas of the before-move display list corresponding to
-   * frames that will not move (translated by aDelta)
-   * c) any visible areas of the after-move display list corresponding to
-   * frames that did not move
-   * 
-   * aBlitRegion is the visible moving area minus aRepaintRegion.
-   * 
-   * We may return a larger region for aRepaintRegion and/or aBlitRegion
-   * if computing the above regions precisely is too expensive.  (However,
-   * they will never intersect, since the regions that may be computed
-   * imprecisely are really the "visible moving area" and aRepaintRegion.)
-   */
-  static nsresult ComputeRepaintRegionForCopy(nsIFrame* aRootFrame,
-                                              nsIFrame* aMovingFrame,
-                                              nsPoint aDelta,
-                                              const nsRect& aUpdateRect,
-                                              nsRegion* aBlitRegion,
-                                              nsRegion* aRepaintRegion);
 
   /**
    * Compute the used z-index of aFrame; returns zero for elements to which
@@ -562,7 +584,7 @@ public:
    * It also keeps track of the part of the string that has already been measured
    * so it doesn't have to keep measuring the same text over and over
    *
-   * @param "aBaseWidth" contains the width in twips of the portion 
+   * @param "aBaseWidth" contains the width in twips of the portion
    * of the text that has already been measured, and aBaseInx contains
    * the index of the text that has already been measured.
    *
@@ -570,13 +592,13 @@ public:
    * before the cursor aIndex contains the index of the text where the cursor falls
    */
   static PRBool
-  BinarySearchForPosition(nsIRenderingContext* acx, 
+  BinarySearchForPosition(nsIRenderingContext* acx,
                           const PRUnichar* aText,
                           PRInt32    aBaseWidth,
                           PRInt32    aBaseInx,
-                          PRInt32    aStartInx, 
-                          PRInt32    aEndInx, 
-                          PRInt32    aCursorPos, 
+                          PRInt32    aStartInx,
+                          PRInt32    aEndInx,
+                          PRInt32    aCursorPos,
                           PRInt32&   aIndex,
                           PRInt32&   aTextWidth);
 
@@ -650,7 +672,7 @@ public:
    * @param aFontMetrics the font metrics result
    * @return success or failure code
    */
-  static nsresult GetFontMetricsForFrame(nsIFrame* aFrame,
+  static nsresult GetFontMetricsForFrame(const nsIFrame* aFrame,
                                          nsIFontMetrics** aFontMetrics);
 
   /**
@@ -668,7 +690,7 @@ public:
    * of aParent.
    */
   static nsIFrame* FindChildContainingDescendant(nsIFrame* aParent, nsIFrame* aDescendantFrame);
-  
+
   /**
    * Find the nearest ancestor that's a block
    */
@@ -685,27 +707,13 @@ public:
    * an nsBlockFrame.
    */
   static nsBlockFrame* GetAsBlock(nsIFrame* aFrame);
-  
+
   /**
    * If aFrame is an out of flow frame, return its placeholder, otherwise
    * return its parent.
    */
   static nsIFrame* GetParentOrPlaceholderFor(nsFrameManager* aFrameManager,
                                              nsIFrame* aFrame);
-
-  /**
-   * Find the closest common ancestor of aFrame1 and aFrame2, following
-   * out of flow frames to their placeholders instead of their parents. Returns
-   * nsnull if the frames are in different frame trees.
-   * 
-   * @param aKnownCommonAncestorHint a frame that is believed to be on the
-   * ancestor chain of both aFrame1 and aFrame2. If null, or a frame that is
-   * not in fact on both ancestor chains, then this function will still return
-   * the correct result, but it will be slower.
-   */
-  static nsIFrame*
-  GetClosestCommonAncestorViaPlaceholders(nsIFrame* aFrame1, nsIFrame* aFrame2,
-                                          nsIFrame* aKnownCommonAncestorHint);
 
   /**
    * Get a frame's next-in-flow, or, if it doesn't have one, its special sibling.
@@ -719,7 +727,7 @@ public:
    */
   static nsIFrame*
   GetFirstContinuationOrSpecialSibling(nsIFrame *aFrame);
-  
+
   /**
    * Check whether aFrame is a part of the scrollbar or scrollcorner of
    * the root content.
@@ -780,6 +788,50 @@ public:
   static nscoord ComputeHeightDependentValue(
                    nscoord              aContainingBlockHeight,
                    const nsStyleCoord&  aCoord);
+
+  /*
+   * Likewise, but for 'height', 'min-height', or 'max-height'.
+   */
+  static nscoord ComputeHeightValue(nscoord aContainingBlockHeight,
+                                    const nsStyleCoord& aCoord)
+  {
+    nscoord result =
+      ComputeHeightDependentValue(aContainingBlockHeight, aCoord);
+    if (result < 0)
+      result = 0; // clamp calc()
+    return result;
+  }
+
+  static PRBool IsAutoHeight(const nsStyleCoord &aCoord, nscoord aCBHeight)
+  {
+    nsStyleUnit unit = aCoord.GetUnit();
+    return unit == eStyleUnit_Auto ||  // only for 'height'
+           unit == eStyleUnit_None ||  // only for 'max-height'
+           (aCBHeight == NS_AUTOHEIGHT && aCoord.HasPercent());
+  }
+
+  static PRBool IsPaddingZero(const nsStyleCoord &aCoord)
+  {
+    return (aCoord.GetUnit() == eStyleUnit_Coord &&
+            aCoord.GetCoordValue() == 0) ||
+           (aCoord.GetUnit() == eStyleUnit_Percent &&
+            aCoord.GetPercentValue() == 0.0) ||
+           (aCoord.IsCalcUnit() &&
+            // clamp negative calc() to 0
+            nsRuleNode::ComputeCoordPercentCalc(aCoord, nscoord_MAX) <= 0 &&
+            nsRuleNode::ComputeCoordPercentCalc(aCoord, 0) <= 0);
+  }
+
+  static PRBool IsMarginZero(const nsStyleCoord &aCoord)
+  {
+    return (aCoord.GetUnit() == eStyleUnit_Coord &&
+            aCoord.GetCoordValue() == 0) ||
+           (aCoord.GetUnit() == eStyleUnit_Percent &&
+            aCoord.GetPercentValue() == 0.0) ||
+           (aCoord.IsCalcUnit() &&
+            nsRuleNode::ComputeCoordPercentCalc(aCoord, nscoord_MAX) == 0 &&
+            nsRuleNode::ComputeCoordPercentCalc(aCoord, 0) == 0);
+  }
 
   /*
    * Calculate the used values for 'width' and 'height' for a replaced element.
@@ -877,16 +929,14 @@ public:
    * Gets the closest frame (the frame passed in or one of its parents) that
    * qualifies as a "layer"; used in DOM0 methods that depends upon that
    * definition. This is the nearest frame that is either positioned or scrolled
-   * (the child of a scroll frame). In Gecko terms, it's approximately
-   * equivalent to having a view, at least for simple HTML. However, views are
-   * going away, so this is a cleaner definition.
+   * (the child of a scroll frame).
    */
   static nsIFrame* GetClosestLayer(nsIFrame* aFrame);
 
   /**
    * Gets the graphics filter for the frame
    */
-  static gfxPattern::GraphicsFilter GetGraphicsFilterForFrame(nsIFrame* aFrame);
+  static GraphicsFilter GetGraphicsFilterForFrame(nsIFrame* aFrame);
 
   /* N.B. The only difference between variants of the Draw*Image
    * functions below is the type of the aImage argument.
@@ -909,12 +959,41 @@ public:
    */
   static nsresult DrawImage(nsIRenderingContext* aRenderingContext,
                             imgIContainer*       aImage,
-                            gfxPattern::GraphicsFilter aGraphicsFilter,
+                            GraphicsFilter       aGraphicsFilter,
                             const nsRect&        aDest,
                             const nsRect&        aFill,
                             const nsPoint&       aAnchor,
                             const nsRect&        aDirty,
                             PRUint32             aImageFlags);
+
+  /**
+   * Convert an nsRect to a gfxRect.
+   */
+  static gfxRect RectToGfxRect(const nsRect& aRect,
+                               PRInt32 aAppUnitsPerDevPixel);
+
+  /**
+   * Draw a drawable using the pixel snapping algorithm.
+   * See https://wiki.mozilla.org/Gecko:Image_Snapping_and_Rendering
+   *   @param aRenderingContext Where to draw the image, set up with an
+   *                            appropriate scale and transform for drawing in
+   *                            app units.
+   *   @param aDrawable         The drawable we want to draw.
+   *   @param aFilter           The graphics filter we should draw with.
+   *   @param aDest             Where one copy of the image should mapped to.
+   *   @param aFill             The area to be filled with copies of the
+   *                            image.
+   *   @param aAnchor           A point in aFill which we will ensure is
+   *                            pixel-aligned in the output.
+   *   @param aDirty            Pixels outside this area may be skipped.
+   */
+  static void DrawPixelSnapped(nsIRenderingContext* aRenderingContext,
+                               gfxDrawable*         aDrawable,
+                               GraphicsFilter       aFilter,
+                               const nsRect&        aDest,
+                               const nsRect&        aFill,
+                               const nsPoint&       aAnchor,
+                               const nsRect&        aDirty);
 
   /**
    * Draw a whole image without scaling or tiling.
@@ -924,7 +1003,8 @@ public:
    *                            app units.
    *   @param aImage            The image.
    *   @param aDest             The top-left where the image should be drawn
-   *   @param aDirty            Pixels outside this area may be skipped.
+   *   @param aDirty            If non-null, then pixels outside this area may
+   *                            be skipped.
    *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
    *   @param aSourceArea       If non-null, this area is extracted from
    *                            the image and drawn at aDest. It's
@@ -933,8 +1013,9 @@ public:
    */
   static nsresult DrawSingleUnscaledImage(nsIRenderingContext* aRenderingContext,
                                           imgIContainer*       aImage,
+                                          GraphicsFilter       aGraphicsFilter,
                                           const nsPoint&       aDest,
-                                          const nsRect&        aDirty,
+                                          const nsRect*        aDirty,
                                           PRUint32             aImageFlags,
                                           const nsRect*        aSourceArea = nsnull);
 
@@ -955,11 +1036,30 @@ public:
    */
   static nsresult DrawSingleImage(nsIRenderingContext* aRenderingContext,
                                   imgIContainer*       aImage,
-                                  gfxPattern::GraphicsFilter aGraphicsFilter,
+                                  GraphicsFilter       aGraphicsFilter,
                                   const nsRect&        aDest,
                                   const nsRect&        aDirty,
                                   PRUint32             aImageFlags,
                                   const nsRect*        aSourceArea = nsnull);
+
+  /**
+   * Given an imgIContainer, this method attempts to obtain an intrinsic
+   * px-valued height & width for it.  If the imgIContainer has a non-pixel
+   * value for either height or width, this method tries to generate a pixel
+   * value for that dimension using the intrinsic ratio (if available).
+   *
+   * This method will always set aGotWidth and aGotHeight to indicate whether
+   * we were able to successfully obtain (or compute) a value for each
+   * dimension.
+   *
+   * NOTE: This method is similar to ComputeSizeWithIntrinsicDimensions.  The
+   * difference is that this one is simpler and is suited to places where we
+   * have less information about the frame tree.
+   */
+  static void ComputeSizeForDrawing(imgIContainer* aImage,
+                                    nsIntSize&     aImageSize,
+                                    PRBool&        aGotWidth,
+                                    PRBool&        aGotHeight);
 
   /**
    * Given a source area of an image (in appunits) and a destination area
@@ -995,7 +1095,7 @@ public:
    * given side.
    */
   static PRBool HasNonZeroCornerOnSide(const nsStyleCorners& aCorners,
-                                       PRUint8 aSide);
+                                       mozilla::css::Side aSide);
 
   /**
    * Determine if a widget is likely to require transparency or translucency.
@@ -1059,19 +1159,13 @@ public:
   static PRBool IsReallyFixedPos(nsIFrame* aFrame);
 
   /**
-   * Indicates if the nsIFrame::GetUsedXXX assertions in nsFrame.cpp should
-   * disabled.
-   */
-  static PRBool sDisableGetUsedXAssertions;
-
-  /**
    * Return true if aFrame is in an {ib} split and is NOT one of the
    * continuations of the first inline in it.
    */
   static PRBool FrameIsNonFirstInIBSplit(const nsIFrame* aFrame) {
     return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
       aFrame->GetFirstContinuation()->
-        GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling);
+        Properties().Get(nsIFrame::IBSplitSpecialPrevSibling());
   }
 
   /**
@@ -1081,7 +1175,7 @@ public:
   static PRBool FrameIsNonLastInIBSplit(const nsIFrame* aFrame) {
     return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
       aFrame->GetFirstContinuation()->
-        GetProperty(nsGkAtoms::IBSplitSpecialSibling);
+        Properties().Get(nsIFrame::IBSplitSpecialSibling());
   }
 
   /**
@@ -1113,6 +1207,8 @@ public:
   };
 
   struct SurfaceFromElementResult {
+    SurfaceFromElementResult() : mIsStillLoading(PR_FALSE) {}
+
     /* mSurface will contain the resulting surface, or will be NULL on error */
     nsRefPtr<gfxASurface> mSurface;
     /* The size of the surface */
@@ -1121,27 +1217,46 @@ public:
     nsCOMPtr<nsIPrincipal> mPrincipal;
     /* Whether the element was "write only", that is, the bits should not be exposed to content */
     PRBool mIsWriteOnly;
+    /* Whether the element was still loading.  Some consumers need to handle
+       this case specially. */
+    PRBool mIsStillLoading;
   };
 
   static SurfaceFromElementResult SurfaceFromElement(nsIDOMElement *aElement,
                                                      PRUint32 aSurfaceFlags = 0);
-};
 
-class nsAutoDisableGetUsedXAssertions
-{
-public:
-  nsAutoDisableGetUsedXAssertions()
-    : mOldValue(nsLayoutUtils::sDisableGetUsedXAssertions)
-  {
-    nsLayoutUtils::sDisableGetUsedXAssertions = PR_TRUE;
-  }
-  ~nsAutoDisableGetUsedXAssertions()
-  {
-    nsLayoutUtils::sDisableGetUsedXAssertions = mOldValue;
-  }
+  /**
+   * When the document is editable by contenteditable attribute of its root
+   * content or body content.
+   *
+   * Be aware, this returns NULL if it's in designMode.
+   *
+   * For example:
+   *
+   *  <html contenteditable="true"><body></body></html>
+   *    returns the <html>.
+   *
+   *  <html><body contenteditable="true"></body></html>
+   *  <body contenteditable="true"></body>
+   *    With these cases, this returns the <body>.
+   *    NOTE: The latter case isn't created normally, however, it can be
+   *          created by script with XHTML.
+   *
+   *  <body><p contenteditable="true"></p></body>
+   *    returns NULL because <body> isn't editable.
+   */
+  static nsIContent*
+    GetEditableRootContentByContentEditable(nsIDocument* aDocument);
 
-private:
-  PRBool mOldValue;
+  /**
+   * Returns true if the passed in prescontext needs the dark grey background
+   * that goes behind the page of a print preview presentation.
+   */
+  static PRBool NeedsPrintPreviewBackground(nsPresContext* aPresContext) {
+    return aPresContext->IsRootPaginatedDocument() &&
+      (aPresContext->Type() == nsPresContext::eContext_PrintPreview ||
+       aPresContext->Type() == nsPresContext::eContext_PageLayout);
+  }
 };
 
 class nsSetAttrRunnable : public nsRunnable
@@ -1149,6 +1264,8 @@ class nsSetAttrRunnable : public nsRunnable
 public:
   nsSetAttrRunnable(nsIContent* aContent, nsIAtom* aAttrName,
                     const nsAString& aValue);
+  nsSetAttrRunnable(nsIContent* aContent, nsIAtom* aAttrName,
+                    PRInt32 aValue);
 
   NS_DECL_NSIRUNNABLE
 

@@ -57,6 +57,7 @@
 
   // Alphabetical list of generic atoms
 ACCESSIBILITY_ATOM(button, "button")
+ACCESSIBILITY_ATOM(checkbox, "checkbox")
 ACCESSIBILITY_ATOM(col, "col")
 ACCESSIBILITY_ATOM(_empty, "")
 ACCESSIBILITY_ATOM(_false, "false")
@@ -64,7 +65,10 @@ ACCESSIBILITY_ATOM(image, "image")
 ACCESSIBILITY_ATOM(menu, "menu")
 ACCESSIBILITY_ATOM(menuButton, "menu-button")
 ACCESSIBILITY_ATOM(menugenerated, "menugenerated")
+ACCESSIBILITY_ATOM(multiple, "multiple")
+ACCESSIBILITY_ATOM(open, "open")
 ACCESSIBILITY_ATOM(password, "password")
+ACCESSIBILITY_ATOM(radio, "radio")
 ACCESSIBILITY_ATOM(reset, "reset")
 ACCESSIBILITY_ATOM(row, "row")
 ACCESSIBILITY_ATOM(submit, "submit")
@@ -96,6 +100,8 @@ ACCESSIBILITY_ATOM(a, "a")
 ACCESSIBILITY_ATOM(abbr, "abbr")
 ACCESSIBILITY_ATOM(acronym, "acronym")
 ACCESSIBILITY_ATOM(area, "area")
+ACCESSIBILITY_ATOM(article, "article") // HTML landmark
+ACCESSIBILITY_ATOM(aside, "aside") // HTML landmark
 ACCESSIBILITY_ATOM(autocomplete, "autocomplete")
 ACCESSIBILITY_ATOM(blockquote, "blockquote")
 ACCESSIBILITY_ATOM(br, "br")
@@ -107,7 +113,9 @@ ACCESSIBILITY_ATOM(dd, "dd")
 ACCESSIBILITY_ATOM(div, "div")
 ACCESSIBILITY_ATOM(dl, "dl")
 ACCESSIBILITY_ATOM(dt, "dt")
+ACCESSIBILITY_ATOM(footer, "footer") // HTML landmark
 ACCESSIBILITY_ATOM(form, "form")
+ACCESSIBILITY_ATOM(header, "header") // HTML landmark
 ACCESSIBILITY_ATOM(h1, "h1")
 ACCESSIBILITY_ATOM(h2, "h2")
 ACCESSIBILITY_ATOM(h3, "h3")
@@ -122,6 +130,7 @@ ACCESSIBILITY_ATOM(label, "label")
 ACCESSIBILITY_ATOM(legend, "legend")
 ACCESSIBILITY_ATOM(li, "li")
 ACCESSIBILITY_ATOM(link, "link")
+ACCESSIBILITY_ATOM(listcell, "listcell") // XUL
 ACCESSIBILITY_ATOM(listcols, "listcols") // XUL
 ACCESSIBILITY_ATOM(listcol, "listcol") // XUL
 ACCESSIBILITY_ATOM(listhead, "listhead") // XUL
@@ -130,9 +139,11 @@ ACCESSIBILITY_ATOM(map, "map")
 ACCESSIBILITY_ATOM(math, "math")
 ACCESSIBILITY_ATOM(menupopup, "menupopup")     // XUL
 ACCESSIBILITY_ATOM(object, "object")
+ACCESSIBILITY_ATOM(nav, "nav") // HTML landmark
 ACCESSIBILITY_ATOM(ol, "ol")
 ACCESSIBILITY_ATOM(optgroup, "optgroup")
 ACCESSIBILITY_ATOM(option, "option")
+ACCESSIBILITY_ATOM(output, "output")
 ACCESSIBILITY_ATOM(panel, "panel") // XUL
 ACCESSIBILITY_ATOM(q, "q")
 ACCESSIBILITY_ATOM(select, "select")
@@ -161,6 +172,7 @@ ACCESSIBILITY_ATOM(acceltext, "acceltext")
 ACCESSIBILITY_ATOM(accesskey, "accesskey")
 ACCESSIBILITY_ATOM(alt, "alt")
 ACCESSIBILITY_ATOM(anonid, "anonid") // Used for ID's in XBL
+ACCESSIBILITY_ATOM(checked, "checked")
 ACCESSIBILITY_ATOM(contenteditable, "contenteditable")
 ACCESSIBILITY_ATOM(control, "control")
 ACCESSIBILITY_ATOM(disabled, "disabled")
@@ -175,6 +187,7 @@ ACCESSIBILITY_ATOM(editable, "editable")
 ACCESSIBILITY_ATOM(_for, "for")
 ACCESSIBILITY_ATOM(headers, "headers")   // HTML table
 ACCESSIBILITY_ATOM(hidden, "hidden")   // XUL tree columns
+ACCESSIBILITY_ATOM(hover, "hover") // XUL color picker
 ACCESSIBILITY_ATOM(href, "href") // XUL, XLink
 ACCESSIBILITY_ATOM(increment, "increment") // XUL
 ACCESSIBILITY_ATOM(lang, "lang")
@@ -183,20 +196,25 @@ ACCESSIBILITY_ATOM(longDesc, "longdesc")
 ACCESSIBILITY_ATOM(max, "max") // XUL
 ACCESSIBILITY_ATOM(maxpos, "maxpos") // XUL
 ACCESSIBILITY_ATOM(minpos, "minpos") // XUL
+ACCESSIBILITY_ATOM(_moz_menuactive, "_moz-menuactive") // XUL
 ACCESSIBILITY_ATOM(multiline, "multiline") // XUL
 ACCESSIBILITY_ATOM(name, "name")
 ACCESSIBILITY_ATOM(onclick, "onclick")
 ACCESSIBILITY_ATOM(popup, "popup")
+ACCESSIBILITY_ATOM(placeholder, "placeholder")
 ACCESSIBILITY_ATOM(readonly, "readonly")
 ACCESSIBILITY_ATOM(scope, "scope") // HTML table
+ACCESSIBILITY_ATOM(seltype, "seltype") // XUL listbox
 ACCESSIBILITY_ATOM(simple, "simple") // XLink
 ACCESSIBILITY_ATOM(src, "src")
 ACCESSIBILITY_ATOM(selected, "selected")
 ACCESSIBILITY_ATOM(summary, "summary")
 ACCESSIBILITY_ATOM(tabindex, "tabindex")
 ACCESSIBILITY_ATOM(title, "title")
+ACCESSIBILITY_ATOM(toolbarname, "toolbarname")
 ACCESSIBILITY_ATOM(tooltiptext, "tooltiptext")
 ACCESSIBILITY_ATOM(type, "type")
+ACCESSIBILITY_ATOM(usemap, "usemap")
 ACCESSIBILITY_ATOM(value, "value")
 
   // Alphabetical list of object attributes
@@ -277,3 +295,4 @@ ACCESSIBILITY_ATOM(live, "live")
 ACCESSIBILITY_ATOM(lineNumber, "line-number")
 ACCESSIBILITY_ATOM(posinset, "posinset") 
 ACCESSIBILITY_ATOM(setsize, "setsize")
+ACCESSIBILITY_ATOM(xmlroles, "xml-roles")

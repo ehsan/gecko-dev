@@ -43,9 +43,14 @@
 #include "nsApplicationAccessible.h"
 
 #include "nsAccessibilityService.h"
+#include "nsAccUtils.h"
 
 #include "nsIComponentManager.h"
+#include "nsIDOMDocument.h"
+#include "nsIDOMWindow.h"
+#include "nsIWindowMediator.h"
 #include "nsServiceManagerUtils.h"
+#include "mozilla/Services.h"
 
 nsApplicationAccessible::nsApplicationAccessible() :
   nsAccessibleWrap(nsnull, nsnull)
@@ -55,10 +60,35 @@ nsApplicationAccessible::nsApplicationAccessible() :
 ////////////////////////////////////////////////////////////////////////////////
 // nsISupports
 
-NS_IMPL_ISUPPORTS_INHERITED0(nsApplicationAccessible, nsAccessible)
+NS_IMPL_ISUPPORTS_INHERITED1(nsApplicationAccessible, nsAccessible,
+                             nsIAccessibleApplication)
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessible
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetParent(nsIAccessible **aAccessible)
+{
+  NS_ENSURE_ARG_POINTER(aAccessible);
+  *aAccessible = nsnull;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetNextSibling(nsIAccessible **aNextSibling)
+{
+  NS_ENSURE_ARG_POINTER(aNextSibling);
+  *aNextSibling = nsnull;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetPreviousSibling(nsIAccessible **aPreviousSibling)
+{
+  NS_ENSURE_ARG_POINTER(aPreviousSibling);
+  *aPreviousSibling = nsnull;
+  return NS_OK;
+}
 
 NS_IMETHODIMP
 nsApplicationAccessible::GetName(nsAString& aName)
@@ -66,7 +96,7 @@ nsApplicationAccessible::GetName(nsAString& aName)
   aName.Truncate();
 
   nsCOMPtr<nsIStringBundleService> bundleService =
-    do_GetService(NS_STRINGBUNDLE_CONTRACTID);
+    mozilla::services::GetStringBundleService();
 
   NS_ASSERTION(bundleService, "String bundle service must be present!");
   NS_ENSURE_STATE(bundleService);
@@ -89,39 +119,226 @@ nsApplicationAccessible::GetName(nsAString& aName)
 }
 
 NS_IMETHODIMP
-nsApplicationAccessible::GetDescription(nsAString& aValue)
+nsApplicationAccessible::GetValue(nsAString &aValue)
 {
   aValue.Truncate();
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsApplicationAccessible::GetRole(PRUint32 *aRole)
+nsApplicationAccessible::GetDescription(nsAString &aDescription)
 {
-  NS_ENSURE_ARG_POINTER(aRole);
+  aDescription.Truncate();
+  return NS_OK;
+}
 
-  return GetRoleInternal(aRole);
+NS_IMETHODIMP
+nsApplicationAccessible::GetKeyboardShortcut(nsAString &aKeyboardShortcut)
+{
+  aKeyboardShortcut.Truncate();
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsApplicationAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   NS_ENSURE_ARG_POINTER(aState);
-  *aState = 0;
-
-  if (aExtraState)
-    *aExtraState = 0;
-
+  GetStateInternal(aState, aExtraState);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsApplicationAccessible::GetParent(nsIAccessible **aAccessible)
+nsApplicationAccessible::GetAttributes(nsIPersistentProperties **aAttributes)
 {
-  NS_ENSURE_ARG_POINTER(aAccessible);
-  *aAccessible = nsnull;
+  NS_ENSURE_ARG_POINTER(aAttributes);
+  *aAttributes = nsnull;
+  return NS_OK;
+}
 
-  return IsDefunct() ? NS_ERROR_FAILURE : NS_OK;
+NS_IMETHODIMP
+nsApplicationAccessible::GroupPosition(PRInt32 *aGroupLevel,
+                                       PRInt32 *aSimilarItemsInGroup,
+                                       PRInt32 *aPositionInGroup)
+{
+  NS_ENSURE_ARG_POINTER(aGroupLevel);
+  *aGroupLevel = 0;
+  NS_ENSURE_ARG_POINTER(aSimilarItemsInGroup);
+  *aSimilarItemsInGroup = 0;
+  NS_ENSURE_ARG_POINTER(aPositionInGroup);
+  *aPositionInGroup = 0;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                         nsIAccessible **aChild)
+{
+  NS_ENSURE_ARG_POINTER(aChild);
+  *aChild = nsnull;
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetDeepestChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                                nsIAccessible **aChild)
+{
+  NS_ENSURE_ARG_POINTER(aChild);
+  *aChild = nsnull;
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetRelationByType(PRUint32 aRelationType,
+                                           nsIAccessibleRelation **aRelation)
+{
+  NS_ENSURE_ARG_POINTER(aRelation);
+  *aRelation = nsnull;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetRelationsCount(PRUint32 *aCount)
+{
+  NS_ENSURE_ARG_POINTER(aCount);
+  *aCount = 0;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetRelation(PRUint32 aIndex,
+                                     nsIAccessibleRelation **aRelation)
+{
+  NS_ENSURE_ARG_POINTER(aRelation);
+  *aRelation = nsnull;
+  return NS_ERROR_INVALID_ARG;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetRelations(nsIArray **aRelations)
+{
+  NS_ENSURE_ARG_POINTER(aRelations);
+  *aRelations = nsnull;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetBounds(PRInt32 *aX, PRInt32 *aY,
+                                   PRInt32 *aWidth, PRInt32 *aHeight)
+{
+  NS_ENSURE_ARG_POINTER(aX);
+  *aX = 0;
+  NS_ENSURE_ARG_POINTER(aY);
+  *aY = 0;
+  NS_ENSURE_ARG_POINTER(aWidth);
+  *aWidth = 0;
+  NS_ENSURE_ARG_POINTER(aHeight);
+  *aHeight = 0;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::SetSelected(PRBool aIsSelected)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::TakeSelection()
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::TakeFocus()
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetNumActions(PRUint8 *aNumActions)
+{
+  NS_ENSURE_ARG_POINTER(aNumActions);
+  *aNumActions = 0;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetActionName(PRUint8 aIndex, nsAString &aName)
+{
+  aName.Truncate();
+  return NS_ERROR_INVALID_ARG;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetActionDescription(PRUint8 aIndex,
+                                              nsAString &aDescription)
+{
+  aDescription.Truncate();
+  return NS_ERROR_INVALID_ARG;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::DoAction(PRUint8 aIndex)
+{
+  return NS_OK;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// nsIAccessibleApplication
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetAppName(nsAString& aName)
+{
+  aName.Truncate();
+
+  if (!mAppInfo)
+    return NS_ERROR_FAILURE;
+
+  nsCAutoString cname;
+  nsresult rv = mAppInfo->GetName(cname);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  AppendUTF8toUTF16(cname, aName);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetAppVersion(nsAString& aVersion)
+{
+  aVersion.Truncate();
+
+  if (!mAppInfo)
+    return NS_ERROR_FAILURE;
+
+  nsCAutoString cversion;
+  nsresult rv = mAppInfo->GetVersion(cversion);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  AppendUTF8toUTF16(cversion, aVersion);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetPlatformName(nsAString& aName)
+{
+  aName.AssignLiteral("Gecko");
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetPlatformVersion(nsAString& aVersion)
+{
+  aVersion.Truncate();
+
+  if (!mAppInfo)
+    return NS_ERROR_FAILURE;
+
+  nsCAutoString cversion;
+  nsresult rv = mAppInfo->GetPlatformVersion(cversion);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  AppendUTF8toUTF16(cversion, aVersion);
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -130,23 +347,47 @@ nsApplicationAccessible::GetParent(nsIAccessible **aAccessible)
 PRBool
 nsApplicationAccessible::IsDefunct()
 {
-  return nsAccessibilityService::gIsShutdown;
+  return nsAccessibilityService::IsShutdown();
 }
 
-nsresult
+PRBool
 nsApplicationAccessible::Init()
 {
-  return NS_OK;
+  mAppInfo = do_GetService("@mozilla.org/xre/app-info;1");
+  return PR_TRUE;
+}
+
+void
+nsApplicationAccessible::Shutdown()
+{
+  mAppInfo = nsnull;
+}
+
+bool
+nsApplicationAccessible::IsPrimaryForNode() const
+{
+  return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessible public methods
 
 nsresult
-nsApplicationAccessible::GetRoleInternal(PRUint32 *aRole)
+nsApplicationAccessible::GetARIAState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  *aRole = nsIAccessibleRole::ROLE_APP_ROOT;
   return NS_OK;
+}
+
+PRUint32
+nsApplicationAccessible::Role()
+{
+  return NativeRole();
+}
+
+PRUint32
+nsApplicationAccessible::NativeRole()
+{
+  return nsIAccessibleRole::ROLE_APP_ROOT;
 }
 
 nsresult
@@ -154,23 +395,25 @@ nsApplicationAccessible::GetStateInternal(PRUint32 *aState,
                                           PRUint32 *aExtraState)
 {
   *aState = 0;
+
+  if (IsDefunct()) {
+    if (aExtraState)
+      *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
+
+    return NS_OK_DEFUNCT_OBJECT;
+  }
+
   if (aExtraState)
     *aExtraState = 0;
 
   return NS_OK;
 }
 
-nsAccessible*
-nsApplicationAccessible::GetParent()
-{
-  return nsnull;
-}
-
 void
 nsApplicationAccessible::InvalidateChildren()
 {
-  // Do nothing because application children are kept updated by
-  // AddRootAccessible() and RemoveRootAccessible() method calls.
+  // Do nothing because application children are kept updated by AppendChild()
+  // and RemoveChild() method calls.
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -179,11 +422,44 @@ nsApplicationAccessible::InvalidateChildren()
 void
 nsApplicationAccessible::CacheChildren()
 {
-  // Nothing to do. Children are keeped up to dated by Add/RemoveRootAccessible
-  // method calls.
+  // CacheChildren is called only once for application accessible when its
+  // children are requested because empty InvalidateChldren() prevents its
+  // repeated calls.
+
+  // Basically children are kept updated by Append/RemoveChild method calls.
+  // However if there are open windows before accessibility was started
+  // then we need to make sure root accessibles for open windows are created so
+  // that all root accessibles are stored in application accessible children
+  // array.
+
+  nsCOMPtr<nsIWindowMediator> windowMediator =
+    do_GetService(NS_WINDOWMEDIATOR_CONTRACTID);
+
+  nsCOMPtr<nsISimpleEnumerator> windowEnumerator;
+  nsresult rv = windowMediator->GetEnumerator(nsnull,
+                                              getter_AddRefs(windowEnumerator));
+  if (NS_FAILED(rv))
+    return;
+
+  PRBool hasMore = PR_FALSE;
+  windowEnumerator->HasMoreElements(&hasMore);
+  while (hasMore) {
+    nsCOMPtr<nsISupports> window;
+    windowEnumerator->GetNext(getter_AddRefs(window));
+    nsCOMPtr<nsIDOMWindow> DOMWindow = do_QueryInterface(window);
+    if (DOMWindow) {
+      nsCOMPtr<nsIDOMDocument> DOMDocument;
+      DOMWindow->GetDocument(getter_AddRefs(DOMDocument));
+      if (DOMDocument) {
+        nsCOMPtr<nsIDocument> docNode(do_QueryInterface(DOMDocument));
+        GetAccService()->GetDocAccessible(docNode); // ensure creation
+      }
+    }
+    windowEnumerator->HasMoreElements(&hasMore);
+  }
 }
 
-nsIAccessible*
+nsAccessible*
 nsApplicationAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError)
 {
   if (IsDefunct()) {
@@ -200,31 +476,82 @@ nsApplicationAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Public methods
+// nsIAccessNode and nsAccessNode
 
-nsresult
-nsApplicationAccessible::AddRootAccessible(nsIAccessible *aRootAccessible)
+NS_IMETHODIMP
+nsApplicationAccessible::GetDOMNode(nsIDOMNode **aDOMNode)
 {
-  NS_ENSURE_ARG_POINTER(aRootAccessible);
-
-  nsRefPtr<nsAccessible> rootAcc =
-    nsAccUtils::QueryObject<nsAccessible>(aRootAccessible);
-
-  if (!mChildren.AppendElement(rootAcc))
-    return NS_ERROR_FAILURE;
-
-  rootAcc->SetParent(this);
-
+  NS_ENSURE_ARG_POINTER(aDOMNode);
+  *aDOMNode = nsnull;
   return NS_OK;
 }
 
-nsresult
-nsApplicationAccessible::RemoveRootAccessible(nsIAccessible *aRootAccessible)
+NS_IMETHODIMP
+nsApplicationAccessible::GetDocument(nsIAccessibleDocument **aDocument)
 {
-  NS_ENSURE_ARG_POINTER(aRootAccessible);
-
-  // It's not needed to void root accessible parent because this method is
-  // called on root accessible shutdown and its parent will be cleared
-  // properly.
-  return mChildren.RemoveElement(aRootAccessible) ? NS_OK : NS_ERROR_FAILURE;
+  NS_ENSURE_ARG_POINTER(aDocument);
+  *aDocument = nsnull;
+  return NS_OK;
 }
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetRootDocument(nsIAccessibleDocument **aRootDocument)
+{
+  NS_ENSURE_ARG_POINTER(aRootDocument);
+  *aRootDocument = nsnull;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetInnerHTML(nsAString &aInnerHTML)
+{
+  aInnerHTML.Truncate();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::ScrollTo(PRUint32 aScrollType)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::ScrollToPoint(PRUint32 aCoordinateType,
+                                       PRInt32 aX, PRInt32 aY)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetOwnerWindow(void **aOwnerWindow)
+{
+  NS_ENSURE_ARG_POINTER(aOwnerWindow);
+  *aOwnerWindow = nsnull;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetComputedStyleValue(const nsAString &aPseudoElt,
+                                               const nsAString &aPropertyName,
+                                               nsAString &aValue)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetComputedStyleCSSValue(const nsAString &aPseudoElt,
+                                                  const nsAString &aPropertyName,
+                                                  nsIDOMCSSPrimitiveValue **aCSSPrimitiveValue)
+{
+  NS_ENSURE_ARG_POINTER(aCSSPrimitiveValue);
+  *aCSSPrimitiveValue = nsnull;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetLanguage(nsAString &aLanguage)
+{
+  aLanguage.Truncate();
+  return NS_OK;
+}
+

@@ -59,7 +59,7 @@ class nsNativeThemeQt : private nsNativeTheme,
                         public nsITheme
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_ISUPPORTS_INHERITED
 
   // The nsITheme interface.
   NS_IMETHOD DrawWidgetBackground(nsIRenderingContext* aContext,
@@ -98,8 +98,6 @@ public:
                                                nsIFrame* aFrame, PRUint8 aWidgetType);
 
   PRBool ThemeNeedsComboboxDropmarker();
-
-  virtual nsTransparencyMode GetWidgetTransparency(PRUint8 aWidgetType);
 
   nsNativeThemeQt();
   virtual ~nsNativeThemeQt();

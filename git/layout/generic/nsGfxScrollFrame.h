@@ -43,6 +43,7 @@
 #include "nsHTMLContainerFrame.h"
 #include "nsIAnonymousContentCreator.h"
 #include "nsBoxFrame.h"
+#include "nsDisplayList.h"
 #include "nsIScrollableFrame.h"
 #include "nsIScrollPositionListener.h"
 #include "nsIStatefulFrame.h"
@@ -54,6 +55,7 @@
 #ifdef MOZ_SVG
 #include "nsSVGIntegrationUtils.h"
 #endif
+#include "nsExpirationTracker.h"
 
 class nsPresContext;
 class nsIPresShell;
@@ -81,7 +83,7 @@ public:
   void ReloadChildFrames();
 
   nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  void AppendAnonymousContentTo(nsBaseContentList& aElements);
+  void AppendAnonymousContentTo(nsBaseContentList& aElements, PRUint32 aFilter);
   nsresult FireScrollPortEvent();
   void PostOverflowEvent();
   void Destroy();
@@ -89,6 +91,14 @@ public:
   nsresult BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                             const nsRect&           aDirtyRect,
                             const nsDisplayListSet& aLists);
+
+  nsresult AppendScrollPartsTo(nsDisplayListBuilder*          aBuilder,
+                               const nsRect&                  aDirtyRect,
+                               const nsDisplayListSet&        aLists,
+                               const nsDisplayListCollection& aDest,
+                               PRBool&                        aCreateLayer);
+
+  PRBool GetBorderRadii(nscoord aRadii[8]) const;
 
   // nsIReflowCallback
   virtual PRBool ReflowFinished();
@@ -151,7 +161,7 @@ public:
   static void AsyncScrollCallback(nsITimer *aTimer, void* anInstance);
   void ScrollTo(nsPoint aScrollPosition, nsIScrollableFrame::ScrollMode aMode);
   void ScrollToImpl(nsPoint aScrollPosition);
-  void ScrollVisual(nsIntPoint aPixDelta);
+  void ScrollVisual();
   void ScrollBy(nsIntPoint aDelta, nsIScrollableFrame::ScrollUnit aUnit,
                 nsIScrollableFrame::ScrollMode aMode, nsIntPoint* aOverflow);
   void ScrollToRestoredPosition();
@@ -160,8 +170,6 @@ public:
 
   nsPresState* SaveState(nsIStatefulFrame::SpecialStateID aStateID);
   void RestoreState(nsPresState* aState);
-  void SaveVScrollbarStateToGlobalHistory();
-  nsresult GetVScrollbarHintFromGlobalHistory(PRBool* aVScrollbarNeeded);
 
   nsIFrame* GetScrolledFrame() const { return mScrolledFrame; }
   nsIBox* GetScrollbarBox(PRBool aVertical) const {
@@ -215,9 +223,23 @@ public:
   nsMargin GetDesiredScrollbarSizes(nsBoxLayoutState* aState);
   PRBool IsLTR() const;
   PRBool IsScrollbarOnRight() const;
+  PRBool IsScrollingActive() const;
+  // adjust the scrollbar rectangle aRect to account for any visible resizer.
+  // aHasResizer specifies if there is a content resizer, however this method
+  // will also check if a widget resizer is present as well.
+  void AdjustScrollbarRectForResizer(nsIFrame* aFrame, nsPresContext* aPresContext,
+                                     nsRect& aRect, PRBool aHasResizer, PRBool aVertical);
+  // returns true if a resizer should be visible
+  PRBool HasResizer() {
+      return mScrollCornerContent && mScrollCornerContent->Tag() == nsGkAtoms::resizer;
+  }
   void LayoutScrollbars(nsBoxLayoutState& aState,
                         const nsRect& aContentArea,
                         const nsRect& aOldScrollArea);
+
+  PRBool IsAlwaysActive() const;
+  void MarkActive();
+  nsExpirationState* GetExpirationState() { return &mActivityExpirationState; }
 
   // owning references to the nsIAnonymousContentCreator-built content
   nsCOMPtr<nsIContent> mHScrollbarContent;
@@ -240,9 +262,12 @@ public:
   // just the current scroll position. ScrollBy will choose its
   // destination based on this value.
   nsPoint mDestination;
+  nsPoint mScrollPosAtLastPaint;
 
   nsPoint mRestorePos;
   nsPoint mLastPos;
+
+  nsExpirationState mActivityExpirationState;
 
   PRPackedBool mNeverHasVerticalScrollbar:1;
   PRPackedBool mNeverHasHorizontalScrollbar:1;
@@ -263,11 +288,7 @@ public:
   // it might not strictly be needed next time mSupppressScrollbarUpdate is
   // false.
   PRPackedBool mSkippedScrollbarLayout:1;
-  // Did we load a hint from global history
-  // about whether a vertical scrollbar is required?
-  PRPackedBool mDidLoadHistoryVScrollbarHint:1;
-  // The value of the hint loaded
-  PRPackedBool mHistoryVScrollbarHint:1;
+
   PRPackedBool mHadNonInitialReflow:1;
   // State used only by PostScrollEvents so we know
   // which overflow states have changed.
@@ -278,6 +299,12 @@ public:
   // If true, need to actually update our scrollbar attributes in the
   // reflow callback.
   PRPackedBool mUpdateScrollbarAttributes:1;
+  // If true, we should be prepared to scroll using this scrollframe
+  // by placing descendant content into its own layer(s)
+  PRPackedBool mScrollingActive:1;
+  // If true, scrollbars are stacked on the top of the display list and can
+  // float above the content as a result
+  PRPackedBool mScrollbarsCanOverlapContent:1;
 };
 
 /**
@@ -326,6 +353,10 @@ public:
                        const nsPoint& aScrollPosition);
   nscoord GetIntrinsicVScrollbarWidth(nsIRenderingContext *aRenderingContext);
 
+  virtual PRBool GetBorderRadii(nscoord aRadii[8]) const {
+    return mInner.GetBorderRadii(aRadii);
+  }
+
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
   NS_IMETHOD GetPadding(nsMargin& aPadding);
@@ -373,7 +404,8 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
+  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
+                                        PRUint32 aFilter);
 
   // nsIScrollableFrame
   virtual nsIFrame* GetScrolledFrame() const {
@@ -437,6 +469,9 @@ public:
     mInner.PostScrolledAreaEvent();
     return NS_OK;
   }
+  virtual PRBool IsScrollingActive() {
+    return mInner.IsScrollingActive();
+  }
 
   // nsIStatefulFrame
   NS_IMETHOD SaveState(SpecialStateID aStateID, nsPresState** aState) {
@@ -464,7 +499,7 @@ public:
   PRBool DidHistoryRestore() { return mInner.mDidHistoryRestore; }
 
 #ifdef ACCESSIBILITY
-  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
+  virtual already_AddRefed<nsAccessible> CreateAccessible();
 #endif
 
 protected:
@@ -568,7 +603,8 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
+  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
+                                        PRUint32 aFilter);
 
   virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
   virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);
@@ -577,6 +613,10 @@ public:
 
   NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState);
   NS_IMETHOD GetPadding(nsMargin& aPadding);
+
+  virtual PRBool GetBorderRadii(nscoord aRadii[8]) const {
+    return mInner.GetBorderRadii(aRadii);
+  }
 
   nsresult Layout(nsBoxLayoutState& aState);
   void LayoutScrollArea(nsBoxLayoutState& aState, const nsPoint& aScrollPosition);
@@ -662,6 +702,9 @@ public:
   NS_IMETHOD PostScrolledAreaEventForCurrentArea() {
     mInner.PostScrolledAreaEvent();
     return NS_OK;
+  }
+  virtual PRBool IsScrollingActive() {
+    return mInner.IsScrollingActive();
   }
 
   // nsIStatefulFrame

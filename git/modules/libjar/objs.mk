@@ -40,7 +40,6 @@ MODULES_LIBJAR_LCPPSRCS = \
 		nsJARInputStream.cpp \
 		nsJAR.cpp \
 		nsJARFactory.cpp \
-		nsXPTZipLoader.cpp \
 		nsJARProtocolHandler.cpp \
 		nsJARChannel.cpp  \
 		nsJARURI.cpp  \
@@ -48,11 +47,11 @@ MODULES_LIBJAR_LCPPSRCS = \
 
 MODULES_LIBJAR_LEXPORTS = \
 		zipstruct.h \
+		nsZipArchive.h \
 		$(NULL)
 
 MODULES_LIBJAR_LXPIDLSRCS = \
 		nsIZipReader.idl \
-		nsIJAR.idl \
 		nsIJARChannel.idl \
 		nsIJARURI.idl \
 		nsIJARProtocolHandler.idl \

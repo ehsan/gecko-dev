@@ -84,17 +84,19 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGOrientType::DOMAnimatedEnum)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGOrientType::DOMAnimatedEnum)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedEnumeration)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAnimatedEnumeration)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedEnumeration)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF_INHERITED(nsSVGMarkerElement,nsSVGMarkerElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGMarkerElement,nsSVGMarkerElementBase)
 
+DOMCI_NODE_DATA(SVGMarkerElement, nsSVGMarkerElement)
+
 NS_INTERFACE_TABLE_HEAD(nsSVGMarkerElement)
   NS_NODE_INTERFACE_TABLE5(nsSVGMarkerElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGFitToViewBox,
                            nsIDOMSVGMarkerElement)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGMarkerElement)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGMarkerElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGMarkerElementBase)
 
 //----------------------------------------------------------------------
@@ -129,7 +131,7 @@ nsSVGOrientType::ToDOMAnimatedEnum(nsIDOMSVGAnimatedEnumeration **aResult,
   return NS_OK;
 }
 
-nsSVGMarkerElement::nsSVGMarkerElement(nsINodeInfo *aNodeInfo)
+nsSVGMarkerElement::nsSVGMarkerElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsSVGMarkerElementBase(aNodeInfo), mCoordCtx(nsnull)
 {
 }
@@ -383,7 +385,7 @@ nsSVGMarkerElement::GetMarkerTransform(float aStrokeWidth,
                                        float aX, float aY, float aAutoAngle)
 {
   float scale = 1.0;
-  if (mEnumAttributes[MARKERUNITS].GetAnimValue(this) ==
+  if (mEnumAttributes[MARKERUNITS].GetAnimValue() ==
       SVG_MARKERUNITS_STROKEWIDTH)
     scale = aStrokeWidth;
 
@@ -405,7 +407,7 @@ nsSVGMarkerElement::GetViewBoxTransform()
     float viewportHeight = 
       mLengthAttributes[MARKERHEIGHT].GetAnimValue(mCoordCtx);
    
-    const nsSVGViewBoxRect& viewbox = mViewBox.GetAnimValue(this); 
+    const nsSVGViewBoxRect& viewbox = mViewBox.GetAnimValue(); 
 
     if (viewbox.width <= 0.0f || viewbox.height <= 0.0f) {
       return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // invalid - don't paint element
@@ -419,8 +421,7 @@ nsSVGMarkerElement::GetViewBoxTransform()
                                       viewportWidth, viewportHeight,
                                       viewbox.x, viewbox.y,
                                       viewbox.width, viewbox.height,
-                                      mPreserveAspectRatio,
-                                      PR_TRUE);
+                                      mPreserveAspectRatio);
 
     gfxPoint ref = viewBoxTM.Transform(gfxPoint(refX, refY));
 

@@ -57,25 +57,37 @@ EXPORTS_mozilla/ipc = \
   AsyncChannel.h \
   BrowserProcessSubThread.h \
   GeckoChildProcessHost.h \
-  MozillaChildThread.h \
+  IOThreadChild.h \
+  ProcessChild.h \
   ProtocolUtils.h \
   RPCChannel.h \
   SharedMemory.h \
+  SharedMemoryBasic.h \
+  SharedMemoryBasic_chromium.h \
+  SharedMemorySysV.h \
   Shmem.h \
   SyncChannel.h \
   ScopedXREEmbed.h \
   $(NULL)
 
-ENABLE_CXX_EXCEPTIONS = 1
+ifeq ($(OS_TARGET),Android)
+# Android has its own,
+# almost-but-not-quite-compatible-with-POSIX-or-/dev/shm shared memory
+# impl.
+EXPORTS_mozilla/ipc += SharedMemoryBasic_android.h
+else
+EXPORTS_mozilla/ipc += SharedMemoryBasic_chromium.h
+endif #}
 
 CPPSRCS += \
   AsyncChannel.cpp \
   BrowserProcessSubThread.cpp \
   GeckoChildProcessHost.cpp \
-  MozillaChildThread.cpp \
   MessagePump.cpp \
+  ProcessChild.cpp \
   RPCChannel.cpp \
   ScopedXREEmbed.cpp \
+  SharedMemory.cpp \
   Shmem.cpp \
   StringUtil.cpp \
   SyncChannel.cpp \
@@ -87,12 +99,23 @@ CPPSRCS += \
   WindowsMessageLoop.cpp \
   $(NULL)
 else
+# This generic code works on android.
 CPPSRCS += SharedMemory_posix.cpp
 endif
 
+ifeq ($(OS_TARGET),Android)
+CPPSRCS += SharedMemoryBasic_android.cpp
+endif #}
+
 include $(topsrcdir)/ipc/app/defs.mk
-DEFINES += -DMOZ_CHILD_PROCESS_NAME="\"$(MOZ_CHILD_PROCESS_NAME)\""
+DEFINES += -DMOZ_CHILD_PROCESS_NAME=\"$(MOZ_CHILD_PROCESS_NAME)\"
+DEFINES += -DMOZ_CHILD_PROCESS_BUNDLE=\"$(MOZ_CHILD_PROCESS_BUNDLE)\"
 
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
+
 include $(topsrcdir)/config/rules.mk
+
+# Since we get the value of MOZ_CHILD_PROCESS_NAME from another file make sure
+# to rebuild if that file changes.
+$(CPPSRCS:%.cpp=%.$(OBJ_SUFFIX)): $(topsrcdir)/ipc/app/defs.mk

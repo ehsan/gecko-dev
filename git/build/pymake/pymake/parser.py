@@ -233,7 +233,7 @@ def itercommandchars(d, offset, tokenlist, it):
 
     yield s[offset:d.lend].replace('\n\t', '\n'), None, None, None
 
-_redefines = re.compile('define|endef')
+_redefines = re.compile('\s*define|\s*endef')
 def iterdefinelines(it, startloc):
     """
     Process the insides of a define. Most characters are included literally. Escaped newlines are treated
@@ -246,7 +246,7 @@ def iterdefinelines(it, startloc):
     for d in it:
         m = _redefines.match(d.s, d.lstart, d.lend)
         if m is not None:
-            directive = m.group(0)
+            directive = m.group(0).strip()
             if directive == 'endef':
                 definecount -= 1
                 if definecount == 0:
@@ -284,7 +284,7 @@ def ifeq(d, offset):
     if token == '(':
         arg1, t, offset = parsemakesyntax(d, offset, (',',), itermakefilechars)
         if t is None:
-            raise SyntaxError("Expected two arguments in conditional", d.getloc(offset))
+            raise SyntaxError("Expected two arguments in conditional", d.getloc(d.lend))
 
         arg1.rstrip()
 
@@ -604,6 +604,9 @@ class ParseStackFrame(object):
         self.function = function
         self.loc = loc
 
+    def __str__(self):
+        return "<state=%i expansion=%s tokenlist=%s openbrace=%s closebrace=%s>" % (self.parsestate, self.expansion, self.tokenlist, self.openbrace, self.closebrace)
+
 _matchingbrace = {
     '(': ')',
     '{': '}',
@@ -689,7 +692,7 @@ def parsemakesyntax(d, offset, stopon, iterfunc):
             stacktop.expansion.appendstr(token)
             stacktop = ParseStackFrame(_PARSESTATE_PARENMATCH, stacktop,
                                        stacktop.expansion,
-                                       (token, stacktop.closebrace),
+                                       (token, stacktop.closebrace, '$'),
                                        openbrace=token, closebrace=stacktop.closebrace, loc=d.getloc(tokenoffset))
         elif parsestate == _PARSESTATE_PARENMATCH:
             assert token == stacktop.closebrace

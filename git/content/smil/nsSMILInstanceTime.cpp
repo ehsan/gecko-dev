@@ -36,13 +36,50 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsSMILInstanceTime.h"
+#include "nsSMILInterval.h"
+#include "nsSMILTimeValueSpec.h"
+
+//----------------------------------------------------------------------
+// Helper classes
+
+namespace
+{
+  // Utility class to set a PRPackedBool value to PR_TRUE whilst it is in scope.
+  // Saves us having to remember to clear the flag at every possible return.
+  class AutoBoolSetter
+  {
+  public:
+    AutoBoolSetter(PRPackedBool& aValue)
+    : mValue(aValue)
+    {
+      mValue = PR_TRUE;
+    }
+ 
+    ~AutoBoolSetter()
+    {
+      mValue = PR_FALSE;
+    }
+
+  private:
+    PRPackedBool&   mValue;
+  };
+}
+
+//----------------------------------------------------------------------
+// Implementation
 
 nsSMILInstanceTime::nsSMILInstanceTime(const nsSMILTimeValue& aTime,
-    const nsSMILInstanceTime* aDependentTime,
-    nsSMILInstanceTimeSource aSource)
-: mTime(aTime),
-  mFlags(0),
-  mSerial(0)
+                                       nsSMILInstanceTimeSource aSource,
+                                       nsSMILTimeValueSpec* aCreator,
+                                       nsSMILInterval* aBaseInterval)
+  : mTime(aTime),
+    mFlags(0),
+    mVisited(PR_FALSE),
+    mFixedEndpointRefCnt(0),
+    mSerial(0),
+    mCreator(aCreator),
+    mBaseInterval(nsnull) // This will get set to aBaseInterval in a call to
+                          // SetBaseInterval() at end of constructor
 {
   switch (aSource) {
     case SOURCE_NONE:
@@ -50,7 +87,7 @@ nsSMILInstanceTime::nsSMILInstanceTime(const nsSMILTimeValue& aTime,
       break;
 
     case SOURCE_DOM:
-      mFlags = kClearOnReset | kFromDOM;
+      mFlags = kDynamic | kFromDOM;
       break;
 
     case SOURCE_SYNCBASE:
@@ -58,61 +95,165 @@ nsSMILInstanceTime::nsSMILInstanceTime(const nsSMILTimeValue& aTime,
       break;
 
     case SOURCE_EVENT:
-      mFlags = kClearOnReset;
+      mFlags = kDynamic;
       break;
   }
 
-  SetDependentTime(aDependentTime);
+  SetBaseInterval(aBaseInterval);
+}
+
+nsSMILInstanceTime::~nsSMILInstanceTime()
+{
+  NS_ABORT_IF_FALSE(!mBaseInterval,
+      "Destroying instance time without first calling Unlink()");
+  NS_ABORT_IF_FALSE(mFixedEndpointRefCnt == 0,
+      "Destroying instance time that is still used as the fixed endpoint of an "
+      "interval");
 }
 
 void
-nsSMILInstanceTime::SetDependentTime(const nsSMILInstanceTime* aDependentTime)
+nsSMILInstanceTime::Unlink()
 {
-  // We must make the dependent time mutable because our ref-counting isn't
-  // const-correct and BreakPotentialCycle may update dependencies (which should
-  // be considered 'mutable')
-  nsSMILInstanceTime* mutableDependentTime =
-    const_cast<nsSMILInstanceTime*>(aDependentTime);
-
-  // Make sure we don't end up creating a cycle between the dependent time
-  // pointers. (Note that this is not the same as detecting syncbase dependency
-  // cycles. That is done by nsSMILTimeValueSpec. mDependentTime is used ONLY
-  // for ensuring correct ordering within the animation sandwich.)
-  if (aDependentTime) {
-    mutableDependentTime->BreakPotentialCycle(this);
+  nsRefPtr<nsSMILInstanceTime> deathGrip(this);
+  if (mBaseInterval) {
+    mBaseInterval->RemoveDependentTime(*this);
+    mBaseInterval = nsnull;
   }
-
-  mDependentTime = mutableDependentTime;
+  mCreator = nsnull;
 }
 
 void
-nsSMILInstanceTime::BreakPotentialCycle(const nsSMILInstanceTime* aNewTail)
+nsSMILInstanceTime::HandleChangedInterval(
+    const nsSMILTimeContainer* aSrcContainer,
+    PRBool aBeginObjectChanged,
+    PRBool aEndObjectChanged)
 {
-  if (!mDependentTime)
-    return;
+  NS_ABORT_IF_FALSE(mBaseInterval,
+      "Got call to HandleChangedInterval on an independent instance time.");
+  NS_ABORT_IF_FALSE(mCreator, "Base interval is set but creator is not.");
 
-  if (mDependentTime == aNewTail) {
-    // Making aNewTail the new tail of the chain would create a cycle so we
-    // prevent this by unlinking the pointer to aNewTail.
-    mDependentTime = nsnull;
+  if (mVisited) {
+    // Break the cycle here
+    Unlink();
     return;
   }
 
-  mDependentTime->BreakPotentialCycle(aNewTail);
+  PRBool objectChanged = mCreator->DependsOnBegin() ? aBeginObjectChanged :
+                                                      aEndObjectChanged;
+
+  AutoBoolSetter setVisited(mVisited);
+
+  nsRefPtr<nsSMILInstanceTime> deathGrip(this);
+  mCreator->HandleChangedInstanceTime(*GetBaseTime(), aSrcContainer, *this,
+                                      objectChanged);
+}
+
+void
+nsSMILInstanceTime::HandleDeletedInterval()
+{
+  NS_ABORT_IF_FALSE(mBaseInterval,
+      "Got call to HandleDeletedInterval on an independent instance time");
+  NS_ABORT_IF_FALSE(mCreator, "Base interval is set but creator is not");
+
+  mBaseInterval = nsnull;
+  mFlags &= ~kMayUpdate; // Can't update without a base interval
+
+  nsRefPtr<nsSMILInstanceTime> deathGrip(this);
+  mCreator->HandleDeletedInstanceTime(*this);
+  mCreator = nsnull;
+}
+
+void
+nsSMILInstanceTime::HandleFilteredInterval()
+{
+  NS_ABORT_IF_FALSE(mBaseInterval,
+      "Got call to HandleFilteredInterval on an independent instance time");
+
+  mBaseInterval = nsnull;
+  mFlags &= ~kMayUpdate; // Can't update without a base interval
+  mCreator = nsnull;
 }
 
 PRBool
-nsSMILInstanceTime::IsDependent(const nsSMILInstanceTime& aOther,
-                                PRUint32 aRecursionDepth) const
+nsSMILInstanceTime::ShouldPreserve() const
 {
-  NS_ABORT_IF_FALSE(aRecursionDepth < 1000,
-      "We seem to have created a cycle between instance times");
+  return mFixedEndpointRefCnt > 0 || (mFlags & kWasDynamicEndpoint);
+}
 
-  if (!mDependentTime)
+void
+nsSMILInstanceTime::UnmarkShouldPreserve()
+{
+  mFlags &= ~kWasDynamicEndpoint;
+}
+
+void
+nsSMILInstanceTime::AddRefFixedEndpoint()
+{
+  NS_ABORT_IF_FALSE(mFixedEndpointRefCnt < PR_UINT16_MAX,
+      "Fixed endpoint reference count upper limit reached");
+  ++mFixedEndpointRefCnt;
+  mFlags &= ~kMayUpdate; // Once fixed, always fixed
+}
+
+void
+nsSMILInstanceTime::ReleaseFixedEndpoint()
+{
+  NS_ABORT_IF_FALSE(mFixedEndpointRefCnt > 0, "Duplicate release");
+  --mFixedEndpointRefCnt;
+  if (mFixedEndpointRefCnt == 0 && IsDynamic()) {
+    mFlags |= kWasDynamicEndpoint;
+  }
+}
+
+PRBool
+nsSMILInstanceTime::IsDependentOn(const nsSMILInstanceTime& aOther) const
+{
+  if (mVisited)
     return PR_FALSE;
 
-  if (mDependentTime == &aOther)
+  const nsSMILInstanceTime* myBaseTime = GetBaseTime();
+  if (!myBaseTime)
+    return PR_FALSE;
+
+  if (myBaseTime == &aOther)
     return PR_TRUE;
 
-  return mDependentTime->IsDependent(aOther, ++aRecursionDepth);
+  // mVisited is mutable
+  AutoBoolSetter setVisited(const_cast<nsSMILInstanceTime*>(this)->mVisited);
+  return myBaseTime->IsDependentOn(aOther);
+}
+
+void
+nsSMILInstanceTime::SetBaseInterval(nsSMILInterval* aBaseInterval)
+{
+  NS_ABORT_IF_FALSE(!mBaseInterval,
+      "Attempting to reassociate an instance time with a different interval.");
+
+  if (aBaseInterval) {
+    NS_ABORT_IF_FALSE(mCreator,
+        "Attempting to create a dependent instance time without reference "
+        "to the creating nsSMILTimeValueSpec object.");
+    if (!mCreator)
+      return;
+
+    aBaseInterval->AddDependentTime(*this);
+  }
+
+  mBaseInterval = aBaseInterval;
+}
+
+const nsSMILInstanceTime*
+nsSMILInstanceTime::GetBaseTime() const
+{
+  if (!mBaseInterval) {
+    return nsnull;
+  }
+
+  NS_ABORT_IF_FALSE(mCreator, "Base interval is set but there is no creator.");
+  if (!mCreator) {
+    return nsnull;
+  }
+
+  return mCreator->DependsOnBegin() ? mBaseInterval->Begin() :
+                                      mBaseInterval->End();
 }

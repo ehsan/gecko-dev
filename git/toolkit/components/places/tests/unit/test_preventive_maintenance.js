@@ -95,15 +95,16 @@ function addPlace(aUrl, aFavicon) {
   return mDBConn.lastInsertRowID;
 }
 
-function addBookmark(aPlaceId, aType, aParent, aKeywordId, aFolderType) {
+function addBookmark(aPlaceId, aType, aParent, aKeywordId, aFolderType, aTitle) {
   let stmt = mDBConn.createStatement(
-    "INSERT INTO moz_bookmarks (fk, type, parent, keyword_id, folder_type) " +
-    "VALUES (:place_id, :type, :parent, :keyword_id, :folder_type)");
+    "INSERT INTO moz_bookmarks (fk, type, parent, keyword_id, folder_type, title) " +
+    "VALUES (:place_id, :type, :parent, :keyword_id, :folder_type, :title)");
   stmt.params["place_id"] = aPlaceId || null;
   stmt.params["type"] = aType || bs.TYPE_BOOKMARK;
   stmt.params["parent"] = aParent || bs.unfiledBookmarksFolder;
   stmt.params["keyword_id"] = aKeywordId || null;
   stmt.params["folder_type"] = aFolderType || null;
+  stmt.params["title"] = typeof(aTitle) == "string" ? aTitle : null;
   stmt.execute();
   stmt.finalize();
   return mDBConn.lastInsertRowID;
@@ -194,7 +195,7 @@ tests.push({
     stmt.params['anno'] = this._usedPageAttribute;
     stmt.execute();
     stmt.finalize();
-    // Add an annotation with a not existant attribute
+    // Add an annotation with a nonexistent attribute
     stmt = mDBConn.createStatement("INSERT INTO moz_annos (place_id, anno_attribute_id) VALUES(:place_id, 1337)");
     stmt.params['place_id'] = this._placeId;
     stmt.execute();
@@ -241,7 +242,7 @@ tests.push({
     stmt.params['anno'] = this._usedPageAttribute;
     stmt.execute();
     stmt.reset();
-    // Add an annotation to a not existant page
+    // Add an annotation to a nonexistent page
     stmt.params['place_id'] = 1337;
     stmt.params['anno'] = this._usedPageAttribute;
     stmt.execute();
@@ -259,7 +260,7 @@ tests.push({
     stmt.params['anno'] = this._usedPageAttribute;
     do_check_true(stmt.executeStep());
     stmt.finalize();
-    // Check that annotation to a not existant page has been removed
+    // Check that an annotation to a nonexistent page has been removed
     stmt = mDBConn.createStatement("SELECT id FROM moz_annos WHERE place_id = 1337");
     do_check_false(stmt.executeStep());
     stmt.finalize();
@@ -526,7 +527,7 @@ tests.push({
     this._placeId = addPlace();
     // Add a bookmark using the keyword
     this._validKeywordItemId = addBookmark(this._placeId, bs.TYPE_BOOKMARK, bs.unfiledBookmarksFolder, this._validKeywordId);
-    // Add a bookmark using a not existant keyword
+    // Add a bookmark using a nonexistent keyword
     this._invalidKeywordItemId = addBookmark(this._placeId, bs.TYPE_BOOKMARK, bs.unfiledBookmarksFolder, this._invalidKeywordId);
   },
 
@@ -763,6 +764,53 @@ tests.push({
 //------------------------------------------------------------------------------
 
 tests.push({
+  name: "D.12",
+  desc: "Fix empty-named tags",
+
+  setup: function() {
+    // Add a place to ensure place_id = 1 is valid
+    let placeId = addPlace();
+    // Create a empty-named tag.
+    this._untitledTagId = addBookmark(null, bs.TYPE_FOLDER, bs.tagsFolder, null, null, "");
+    // Insert a bookmark in the tag, otherwise it will be removed.
+    addBookmark(placeId, bs.TYPE_BOOKMARK, this._untitledTagId);
+    // Create a empty-named folder.
+    this._untitledFolderId = addBookmark(null, bs.TYPE_FOLDER, bs.toolbarFolder, null, null, "");
+    // Create a titled tag.
+    this._titledTagId = addBookmark(null, bs.TYPE_FOLDER, bs.tagsFolder, null, null, "titledTag");
+    // Insert a bookmark in the tag, otherwise it will be removed.
+    addBookmark(placeId, bs.TYPE_BOOKMARK, this._titledTagId);
+    // Create a titled folder.
+    this._titledFolderId = addBookmark(null, bs.TYPE_FOLDER, bs.toolbarFolder, null, null, "titledFolder");
+  },
+
+  check: function() {
+    // Check that valid bookmark is still there
+    let stmt = mDBConn.createStatement(
+      "SELECT title FROM moz_bookmarks WHERE id = :id"
+    );
+    stmt.params["id"] = this._untitledTagId;
+    do_check_true(stmt.executeStep());
+    do_check_eq(stmt.row.title, "(notitle)");
+    stmt.reset();
+    stmt.params["id"] = this._untitledFolderId;
+    do_check_true(stmt.executeStep());
+    do_check_eq(stmt.row.title, "");
+    stmt.reset();
+    stmt.params["id"] = this._titledTagId;
+    do_check_true(stmt.executeStep());
+    do_check_eq(stmt.row.title, "titledTag");
+    stmt.reset();
+    stmt.params["id"] = this._titledFolderId;
+    do_check_true(stmt.executeStep());
+    do_check_eq(stmt.row.title, "titledFolder");
+    stmt.finalize();
+  }
+});
+
+//------------------------------------------------------------------------------
+
+tests.push({
   name: "E.1",
   desc: "Remove orphan icons",
 
@@ -893,7 +941,7 @@ tests.push({
     stmt.params['anno'] = this._usedItemAttribute;
     stmt.execute();
     stmt.finalize();
-    // Add an annotation with a not existant attribute
+    // Add an annotation with a nonexistent attribute
     stmt = mDBConn.createStatement("INSERT INTO moz_items_annos (item_id, anno_attribute_id) VALUES(:item_id, 1337)");
     stmt.params['item_id'] = this._bookmarkId;
     stmt.execute();
@@ -944,7 +992,7 @@ tests.push({
     stmt.params["anno"] = this._usedItemAttribute;
     stmt.execute();
     stmt.reset();
-    // Add an annotation to a not existant item
+    // Add an annotation to a nonexistent item
     stmt.params["item_id"] = this._invalidBookmarkId;
     stmt.params["anno"] = this._usedItemAttribute;
     stmt.execute();
@@ -962,7 +1010,7 @@ tests.push({
     stmt.params['anno'] = this._usedItemAttribute;
     do_check_true(stmt.executeStep());
     stmt.finalize();
-    // Check that annotation to a not existant page has been removed
+    // Check that an annotation to a nonexistent page has been removed
     stmt = mDBConn.createStatement("SELECT id FROM moz_items_annos WHERE item_id = 8888");
     do_check_false(stmt.executeStep());
     stmt.finalize();
@@ -1028,7 +1076,7 @@ tests.push({
     // Insert a place using the existing favicon entry
     this._validIconPlaceId = addPlace("http://www1.mozilla.org", 1);
 
-    // Insert a place using a not existant favicon entry
+    // Insert a place using a nonexistent favicon entry
     this._invalidIconPlaceId = addPlace("http://www2.mozilla.org", 1337);
   },
 

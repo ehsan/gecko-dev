@@ -55,28 +55,35 @@ nsresult
 nsSVGTransformSMILAttr::ValueFromString(const nsAString& aStr,
                                      const nsISMILAnimationElement* aSrcElement,
                                      nsSMILValue& aValue,
-                                     PRBool& aCanCache) const
+                                     PRBool& aPreventCachingOfSandwich) const
 {
   NS_ENSURE_TRUE(aSrcElement, NS_ERROR_FAILURE);
   NS_ASSERTION(aValue.IsNull(),
     "aValue should have been cleared before calling ValueFromString");
 
   const nsAttrValue* typeAttr = aSrcElement->GetAnimAttr(nsGkAtoms::type);
-  const nsIAtom* transformType = typeAttr
-                               ? typeAttr->GetAtomValue()
-                               : nsGkAtoms::translate;
+  const nsIAtom* transformType = nsGkAtoms::translate;
+  if (typeAttr) {
+    if (typeAttr->Type() != nsAttrValue::eAtom) {
+      // Recognized values of |type| are parsed as an atom -- so if we have
+      // something other than an atom, then it means our |type| was invalid.
+      return NS_ERROR_FAILURE;
+    }
+    transformType = typeAttr->GetAtomValue();
+  }
 
   ParseValue(aStr, transformType, aValue);
-  aCanCache = PR_TRUE;
+  aPreventCachingOfSandwich = PR_FALSE;
   return aValue.IsNull() ? NS_ERROR_FAILURE : NS_OK;
 }
 
 nsSMILValue
 nsSVGTransformSMILAttr::GetBaseValue() const
 {
+  // To benefit from Return Value Optimization and avoid copy constructor calls
+  // due to our use of return-by-value, we must return the exact same object
+  // from ALL return points. This function must only return THIS variable:
   nsSMILValue val(&nsSVGTransformSMILType::sSingleton);
-  if (val.IsNull())
-    return val; // Initialization failed
 
   nsIDOMSVGTransformList *list = mVal->mBaseVal.get();
 
@@ -87,7 +94,10 @@ nsSVGTransformSMILAttr::GetBaseValue() const
     nsresult rv = list->GetItem(i, getter_AddRefs(transform));
     if (NS_SUCCEEDED(rv) && transform) {
       rv = AppendSVGTransformToSMILValue(transform.get(), val);
-      NS_ENSURE_SUCCESS(rv, nsSMILValue());
+      if (NS_FAILED(rv)) {   // Appending to |val| failed (OOM?)
+        val = nsSMILValue();
+        break;
+      }
     }
   }
 
@@ -97,9 +107,11 @@ nsSVGTransformSMILAttr::GetBaseValue() const
 void
 nsSVGTransformSMILAttr::ClearAnimValue()
 {
-  mVal->WillModify(nsISVGValue::mod_other);
+  PRBool animValSet = !!mVal->mAnimVal;
   mVal->mAnimVal = nsnull;
-  mVal->DidModify(nsISVGValue::mod_other);
+  if (animValSet) {
+    mSVGElement->DidAnimateTransform();
+  }
 }
 
 nsresult
@@ -113,7 +125,6 @@ nsSVGTransformSMILAttr::SetAnimValue(const nsSMILValue& aValue)
   nsresult rv = NS_OK;
 
   // Create the anim value if necessary
-  mVal->WillModify(nsISVGValue::mod_other);
   if (!mVal->mAnimVal) {
     rv = nsSVGTransformList::Create(getter_AddRefs(mVal->mAnimVal));
     NS_ENSURE_SUCCESS(rv,rv);
@@ -128,7 +139,7 @@ nsSVGTransformSMILAttr::SetAnimValue(const nsSMILValue& aValue)
   }
   NS_ENSURE_SUCCESS(rv,rv);
 
-  mVal->DidModify(nsISVGValue::mod_other);
+  mSVGElement->DidAnimateTransform();
   return NS_OK;
 }
 
@@ -187,8 +198,8 @@ nsSVGTransformSMILAttr::ParseValue(const nsAString& aSpec,
     return;
   }
 
-  // Success! Initialize our outparam with parsed value.
-  aResult = val;
+  // Success! Populate our outparam with parsed value.
+  aResult.Swap(val);
 }
 
 inline PRBool

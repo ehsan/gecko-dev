@@ -38,6 +38,12 @@ struct LogData;
 
 class Message : public Pickle {
  public:
+#if defined(CHROMIUM_MOZILLA_BUILD)
+  typedef uint32 msgid_t;
+#else
+  typedef uint16 msgid_t;
+#endif
+
   // Implemented by objects that can send IPC messages across a channel.
   class Sender {
    public:
@@ -62,7 +68,12 @@ class Message : public Pickle {
 
   // Initialize a message with a user-defined type, priority value, and
   // destination WebView ID.
-  Message(int32 routing_id, uint16 type, PriorityValue priority);
+#if !defined(CHROMIUM_MOZILLA_BUILD)
+  Message(int32 routing_id, msgid_t type, PriorityValue priority);
+#else
+  Message(int32 routing_id, msgid_t type, PriorityValue priority,
+          const char* const name="???");
+#endif
 
   // Initializes a message from a const block of data.  The data is not copied;
   // instead the data is merely referenced by this message.  Only const methods
@@ -128,7 +139,7 @@ class Message : public Pickle {
     return (header()->flags & PUMPING_MSGS_BIT) != 0;
   }
 
-  uint16 type() const {
+  msgid_t type() const {
     return header()->type;
   }
 
@@ -141,20 +152,20 @@ class Message : public Pickle {
   }
 
 #if defined(CHROMIUM_MOZILLA_BUILD)
-  size_t rpc_remote_stack_depth_guess() const {
+  uint32 rpc_remote_stack_depth_guess() const {
     return header()->rpc_remote_stack_depth_guess;
   }
 
-  void set_rpc_remote_stack_depth_guess(size_t depth) {
+  void set_rpc_remote_stack_depth_guess(uint32 depth) {
     DCHECK(is_rpc());
     header()->rpc_remote_stack_depth_guess = depth;
   }
 
-  size_t rpc_local_stack_depth() const {
+  uint32 rpc_local_stack_depth() const {
     return header()->rpc_local_stack_depth;
   }
 
-  void set_rpc_local_stack_depth(size_t depth) {
+  void set_rpc_local_stack_depth(uint32 depth) {
     DCHECK(is_rpc());
     header()->rpc_local_stack_depth = depth;
   }
@@ -165,6 +176,14 @@ class Message : public Pickle {
 
   void set_seqno(int32 seqno) {
     header()->seqno = seqno;
+  }
+
+  const char* const name() const {
+    return name_;
+  }
+
+  void set_name(const char* const name) {
+    name_ = name;
   }
 #endif
 
@@ -273,16 +292,20 @@ class Message : public Pickle {
 #pragma pack(push, 2)
   struct Header : Pickle::Header {
     int32 routing;  // ID of the view that this message is destined for
-    uint16 type;    // specifies the user-defined message type
+    msgid_t type;   // specifies the user-defined message type
+#if defined(CHROMIUM_MOZILLA_BUILD)
+    uint32 flags;   // specifies control flags for the message
+#else
     uint16 flags;   // specifies control flags for the message
+#endif
 #if defined(OS_POSIX)
     uint32 num_fds; // the number of descriptors included with this message
 #endif
 #if defined(CHROMIUM_MOZILLA_BUILD)
     // For RPC messages, a guess at what the *other* side's stack depth is.
-    size_t rpc_remote_stack_depth_guess;
+    uint32 rpc_remote_stack_depth_guess;
     // The actual local stack depth.
-    size_t rpc_local_stack_depth;
+    uint32 rpc_local_stack_depth;
     // Sequence number
     int32 seqno;
 #endif
@@ -296,7 +319,11 @@ class Message : public Pickle {
     return headerT<Header>();
   }
 
+#if !defined(CHROMIUM_MOZILLA_BUILD)
   void InitLoggingVariables();
+#else
+  void InitLoggingVariables(const char* const name="???");
+#endif
 
 #if defined(OS_POSIX)
   // The set of file descriptors associated with this message.
@@ -312,6 +339,10 @@ class Message : public Pickle {
   const FileDescriptorSet* file_descriptor_set() const {
     return file_descriptor_set_.get();
   }
+#endif
+
+#if defined(CHROMIUM_MOZILLA_BUILD)
+  const char* name_;
 #endif
 
 #ifdef IPC_MESSAGE_LOG_ENABLED

@@ -155,6 +155,12 @@ nsFrameList::RemoveFrameIfPresent(nsIFrame* aFrame)
 nsFrameList
 nsFrameList::RemoveFramesAfter(nsIFrame* aAfterFrame)
 {
+  if (!aAfterFrame) {
+    nsFrameList result;
+    result.InsertFrames(nsnull, nsnull, *this);
+    return result;
+  }
+
   NS_PRECONDITION(NotEmpty(), "illegal operation on empty list");
 #ifdef DEBUG_FRAME_LIST
   NS_PRECONDITION(ContainsFrame(aAfterFrame), "wrong list");
@@ -360,24 +366,6 @@ nsFrameList::ContainsFrame(const nsIFrame* aFrame) const
   return PR_FALSE;
 }
 
-PRBool
-nsFrameList::ContainsFrameBefore(const nsIFrame* aFrame, const nsIFrame* aEnd) const
-{
-  NS_PRECONDITION(aFrame, "null ptr");
-
-  nsIFrame* frame = mFirstChild;
-  while (frame) {
-    if (frame == aEnd) {
-      return PR_FALSE;
-    }
-    if (frame == aFrame) {
-      return PR_TRUE;
-    }
-    frame = frame->GetNextSibling();
-  }
-  return PR_FALSE;
-}
-
 PRInt32
 nsFrameList::GetLength() const
 {
@@ -428,28 +416,6 @@ class CompareByContentOrderComparator
     return CompareByContentOrder(aA, aB) < 0;
   }
 };
-
-void
-nsFrameList::SortByContentOrder()
-{
-  if (IsEmpty())
-    return;
-
-  nsAutoTArray<nsIFrame*, 8> array;
-  nsIFrame* f;
-  for (f = mFirstChild; f; f = f->GetNextSibling()) {
-    array.AppendElement(f);
-  }
-  array.Sort(CompareByContentOrderComparator());
-  f = mFirstChild = array.ElementAt(0);
-  for (PRUint32 i = 1; i < array.Length(); ++i) {
-    nsIFrame* ff = array.ElementAt(i);
-    f->SetNextSibling(ff);
-    f = ff;
-  }
-  f->SetNextSibling(nsnull);
-  mLastChild = f;
-}
 
 void
 nsFrameList::ApplySetParent(nsIFrame* aParent) const
@@ -640,13 +606,16 @@ nsFrameList::VerifyList() const
 
   // Simple algorithm to find a loop in a linked list -- advance pointers
   // through it at speeds of 1 and 2, and if they ever get to be equal bail
+  NS_ASSERTION(!mFirstChild->GetPrevSibling(), "bad prev sibling pointer");
   nsIFrame *first = mFirstChild, *second = mFirstChild;
-  do {
+  for (;;) {
     first = first->GetNextSibling();
     second = second->GetNextSibling();
     if (!second) {
       break;
     }
+    NS_ASSERTION(second->GetPrevSibling()->GetNextSibling() == second,
+                 "bad prev sibling pointer");
     second = second->GetNextSibling();
     if (first == second) {
       // Loop detected!  Since second advances faster, they can't both be null;
@@ -654,7 +623,12 @@ nsFrameList::VerifyList() const
       NS_ERROR("loop in frame list.  This will probably hang soon.");
       return;
     }                           
-  } while (first && second);
+    if (!second) {
+      break;
+    }
+    NS_ASSERTION(second->GetPrevSibling()->GetNextSibling() == second,
+                 "bad prev sibling pointer");
+  }
 
   NS_ASSERTION(mLastChild == nsLayoutUtils::GetLastSibling(mFirstChild),
                "bogus mLastChild");

@@ -70,6 +70,8 @@ nsPluginArray::~nsPluginArray()
   }
 }
 
+DOMCI_DATA(PluginArray, nsPluginArray)
+
 // QueryInterface implementation for nsPluginArray
 NS_INTERFACE_MAP_BEGIN(nsPluginArray)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMPluginArray)
@@ -187,9 +189,16 @@ nsPluginArray::GetPluginHost(nsIPluginHost** aPluginHost)
 }
 
 void
-nsPluginArray::SetDocShell(nsIDocShell* aDocShell)
+nsPluginArray::SetDocShell(nsIDocShell *aDocShell)
 {
   mDocShell = aDocShell;
+}
+
+void
+nsPluginArray::Invalidate()
+{
+  mDocShell = nsnull;
+  mNavigator = nsnull;
 }
 
 NS_IMETHODIMP
@@ -296,6 +305,8 @@ nsPluginElement::~nsPluginElement()
   }
 }
 
+
+DOMCI_DATA(Plugin, nsPluginElement)
 
 // QueryInterface implementation for nsPluginElement
 NS_INTERFACE_MAP_BEGIN(nsPluginElement)

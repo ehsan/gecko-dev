@@ -50,10 +50,10 @@
 #include "nsCoord.h"
 #include "nsColor.h"
 
-class nsCSSDeclaration;
 class nsIContent;
 class nsPresContext;
 class nsStyleContext;
+class nsCSSValue;
 struct nsCSSValueList;
 struct nsCSSValuePair;
 struct nsCSSValuePairList;
@@ -129,7 +129,6 @@ public:
                             const Value& aEndValue,
                             double aPortion,
                             Value& aResultValue) {
-    NS_ABORT_IF_FALSE(0.0 <= aPortion && aPortion <= 1.0, "out of range");
     return AddWeighted(aProperty, 1.0 - aPortion, aStartValue,
                        aPortion, aEndValue, aResultValue);
   }
@@ -161,36 +160,29 @@ public:
    * specified value depends on inherited style or on the values of other
    * properties.
    * 
-   * NOTE: This method uses GetPrimaryShell() to access the style system,
-   * so it should only be used for style that applies to all presentations,
-   * rather than for style that only applies to a particular presentation.
-   * XXX Once we get rid of multiple presentations, we can remove the above
-   * note.
-   *
    * @param aProperty       The property whose value we're computing.
    * @param aTargetElement  The content node to which our computed value is
    *                        applicable.
    * @param aSpecifiedValue The specified value, from which we'll build our
    *                        computed value.
+   * @param aUseSVGMode     A flag to indicate whether we should parse
+   *                        |aSpecifiedValue| in SVG mode.
    * @param [out] aComputedValue The resulting computed value.
    * @return PR_TRUE on success, PR_FALSE on failure.
    */
   static PRBool ComputeValue(nsCSSProperty aProperty,
                              nsIContent* aElement,
                              const nsAString& aSpecifiedValue,
+                             PRBool aUseSVGMode,
                              Value& aComputedValue);
 
   /**
    * Creates a specified value for the given computed value.
    *
-   * The first form fills in one of the nsCSSType types into the void*;
-   * for some types this means that the void* is pointing to memory
-   * owned by the nsStyleAnimation::Value.  (For all complex types, the
-   * nsStyleAnimation::Value owns the necessary objects so that the
-   * caller does not need to do anything to free them.  However, this
-   * means that callers using the void* variant must keep
-   * |aComputedValue| alive longer than the structure into which they've
-   * filled the value.)
+   * The first overload fills in an nsCSSValue object; the second
+   * produces a string.  The nsCSSValue result may depend on objects
+   * owned by the |aComputedValue| object, so users of that variant
+   * must keep |aComputedValue| alive longer than |aSpecifiedValue|.
    *
    * @param aProperty      The property whose value we're uncomputing.
    * @param aPresContext   The presentation context for the document in
@@ -202,7 +194,7 @@ public:
   static PRBool UncomputeValue(nsCSSProperty aProperty,
                                nsPresContext* aPresContext,
                                const Value& aComputedValue,
-                               void* aSpecifiedValue);
+                               nsCSSValue& aSpecifiedValue);
   static PRBool UncomputeValue(nsCSSProperty aProperty,
                                nsPresContext* aPresContext,
                                const Value& aComputedValue,
@@ -237,10 +229,13 @@ public:
     eUnit_Percent,
     eUnit_Float,
     eUnit_Color,
+    eUnit_Calc, // nsCSSValue* (never null), always with a single
+                // calc() expression that's either length or length+percent
     eUnit_CSSValuePair, // nsCSSValuePair* (never null)
     eUnit_CSSRect, // nsCSSRect* (never null)
     eUnit_Dasharray, // nsCSSValueList* (never null)
     eUnit_Shadow, // nsCSSValueList* (may be null)
+    eUnit_Transform, // nsCSSValueList* (never null)
     eUnit_CSSValuePairList, // nsCSSValuePairList* (never null)
     eUnit_UnparsedString // nsStringBuffer* (never null)
   };
@@ -253,6 +248,7 @@ public:
       nscoord mCoord;
       float mFloat;
       nscolor mColor;
+      nsCSSValue* mCSSValue;
       nsCSSValuePair* mCSSValuePair;
       nsCSSRect* mCSSRect;
       nsCSSValueList* mCSSValueList;
@@ -290,6 +286,10 @@ public:
     nscolor GetColorValue() const {
       NS_ASSERTION(mUnit == eUnit_Color, "unit mismatch");
       return mValue.mColor;
+    }
+    nsCSSValue* GetCSSValueValue() const {
+      NS_ASSERTION(IsCSSValueUnit(mUnit), "unit mismatch");
+      return mValue.mCSSValue;
     }
     nsCSSValuePair* GetCSSValuePairValue() const {
       NS_ASSERTION(IsCSSValuePairUnit(mUnit), "unit mismatch");
@@ -350,6 +350,7 @@ public:
 
     // These setters take ownership of |aValue|, and are therefore named
     // "SetAndAdopt*".
+    void SetAndAdoptCSSValueValue(nsCSSValue *aValue, Unit aUnit);
     void SetAndAdoptCSSValuePairValue(nsCSSValuePair *aValue, Unit aUnit);
     void SetAndAdoptCSSRectValue(nsCSSRect *aValue, Unit aUnit);
     void SetAndAdoptCSSValueListValue(nsCSSValueList *aValue, Unit aUnit);
@@ -372,6 +373,9 @@ public:
       return aUnit == eUnit_Enumerated || aUnit == eUnit_Visibility ||
              aUnit == eUnit_Integer;
     }
+    static PRBool IsCSSValueUnit(Unit aUnit) {
+      return aUnit == eUnit_Calc;
+    }
     static PRBool IsCSSValuePairUnit(Unit aUnit) {
       return aUnit == eUnit_CSSValuePair;
     }
@@ -379,7 +383,8 @@ public:
       return aUnit == eUnit_CSSRect;
     }
     static PRBool IsCSSValueListUnit(Unit aUnit) {
-      return aUnit == eUnit_Dasharray || aUnit == eUnit_Shadow;
+      return aUnit == eUnit_Dasharray || aUnit == eUnit_Shadow ||
+             aUnit == eUnit_Transform;
     }
     static PRBool IsCSSValuePairListUnit(Unit aUnit) {
       return aUnit == eUnit_CSSValuePairList;

@@ -247,7 +247,7 @@ GetDefaultOIDFormat(SECItem *oid,
 
     if (!invalid) {
       if (first) {
-        unsigned long one = PR_MIN(val/40, 2); // never > 2
+        unsigned long one = NS_MIN(val/40, 2UL); // never > 2
         unsigned long two = val - (one * 40);
 
         written = PR_snprintf(&buf[len], sizeof(buf)-len, "%lu%c%lu", 
@@ -937,16 +937,20 @@ ProcessRDN(CERTRDN* rdn, nsAString &finalString, nsINSSComponent *nssComponent)
     PRIntn escapedValueCapacity = decodeItem->len * 3 + 3;
     nsAutoArrayPtr<char> escapedValue;
     escapedValue = new char[escapedValueCapacity];
-    if (!escapedValue)
+    if (!escapedValue) {
+      SECITEM_FreeItem(decodeItem, PR_TRUE);
       return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     SECStatus status = CERT_RFC1485_EscapeAndQuote(
           escapedValue.get(),
           escapedValueCapacity, 
           (char*)decodeItem->data, 
           decodeItem->len);
-    if (SECSuccess != status)
+    if (SECSuccess != status) {
+      SECITEM_FreeItem(decodeItem, PR_TRUE);
       return NS_ERROR_FAILURE;
+    }
 
     avavalue = NS_ConvertUTF8toUTF16(escapedValue);
     

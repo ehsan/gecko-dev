@@ -62,8 +62,9 @@
 #include "nsHtml5StreamParser.h"
 #include "nsHtml5AtomTable.h"
 #include "nsWeakReference.h"
+#include "nsAHtml5FragmentParser.h"
 
-class nsHtml5Parser : public nsIParser,
+class nsHtml5Parser : public nsAHtml5FragmentParser, // inherits nsIParser
                       public nsSupportsWeakReference
 {
   public:
@@ -82,9 +83,9 @@ class nsHtml5Parser : public nsIParser,
     NS_IMETHOD_(void) SetContentSink(nsIContentSink* aSink);
 
     /**
-     * Returns |this| for backwards compat.
+     * Returns the tree op executor for backwards compat.
      */
-    NS_IMETHOD_(nsIContentSink*) GetContentSink(void);
+    NS_IMETHOD_(nsIContentSink*) GetContentSink();
 
     /**
      * Always returns "view" for backwards compat.
@@ -141,10 +142,9 @@ class nsHtml5Parser : public nsIParser,
     NS_IMETHOD GetStreamListener(nsIStreamListener** aListener);
 
     /**
-     * If scripts are not executing, maybe flushes tree builder and parses
-     * until suspension.
+     * Don't call. For interface compat only.
      */
-    NS_IMETHOD        ContinueInterruptedParsing();
+    NS_IMETHOD ContinueInterruptedParsing();
 
     /**
      * Blocks the parser.
@@ -157,7 +157,7 @@ class nsHtml5Parser : public nsIParser,
     NS_IMETHOD_(void) UnblockParser();
 
     /**
-     * Query whether the parser is enabled or not.
+     * Query whether the parser is enabled (i.e. not blocked) or not.
      */
     NS_IMETHOD_(PRBool) IsParserEnabled();
 
@@ -202,7 +202,7 @@ class nsHtml5Parser : public nsIParser,
     /**
      * Stops the parser prematurely
      */
-    NS_IMETHOD        Terminate(void);
+    NS_IMETHOD Terminate();
 
     /**
      * Don't call. For interface backwards compat only.
@@ -215,16 +215,10 @@ class nsHtml5Parser : public nsIParser,
                              nsDTDMode aMode = eDTDMode_autodetect);
 
     /**
-     * Invoke the fragment parsing algorithm (innerHTML).
-     *
-     * @param aSourceBuffer the string being set as innerHTML
-     * @param aTargetNode the target container (must QI to nsIContent)
-     * @param aContextLocalName local name of context node
-     * @param aContextNamespace namespace of context node
-     * @param aQuirks true to make <table> not close <p>
+     * Don't call. For interface backwards compat only.
      */
     NS_IMETHOD ParseFragment(const nsAString& aSourceBuffer,
-                             nsISupports* aTargetNode,
+                             nsIContent* aTargetNode,
                              nsIAtom* aContextLocalName,
                              PRInt32 aContextNamespace,
                              PRBool aQuirks);
@@ -232,7 +226,7 @@ class nsHtml5Parser : public nsIParser,
     /**
      * Don't call. For interface compat only.
      */
-    NS_IMETHOD BuildModel(void);
+    NS_IMETHOD BuildModel();
 
     /**
      * Don't call. For interface compat only.
@@ -277,6 +271,30 @@ class nsHtml5Parser : public nsIParser,
 
     /* End nsIParser  */
 
+    /* Start nsAHtml5FragmentParser */
+
+    /**
+     * Invoke the fragment parsing algorithm (innerHTML).
+     *
+     * @param aSourceBuffer the string being set as innerHTML
+     * @param aTargetNode the target container
+     * @param aContextLocalName local name of context node
+     * @param aContextNamespace namespace of context node
+     * @param aQuirks true to make <table> not close <p>
+     * @param aPreventScriptExecution true to prevent scripts from executing;
+     * don't set to false when parsing into a target node that has been bound
+     * to tree.
+     */
+    NS_IMETHOD ParseHtml5Fragment(const nsAString& aSourceBuffer,
+                                  nsIContent* aTargetNode,
+                                  nsIAtom* aContextLocalName,
+                                  PRInt32 aContextNamespace,
+                                  PRBool aQuirks,
+                                  PRBool aPreventScriptExecution);
+
+
+    /* End nsAHtml5FragmentParser */
+
     // Not from an external interface
     // Non-inherited methods
 
@@ -297,25 +315,26 @@ class nsHtml5Parser : public nsIParser,
     void InitializeDocWriteParserState(nsAHtml5TreeBuilderState* aState, PRInt32 aLine);
 
     void DropStreamParser() {
-      mStreamParser = nsnull;
+      if (mStreamParser) {
+        mStreamParser->DropTimer();
+        mStreamParser = nsnull;
+      }
     }
     
     void StartTokenizer(PRBool aScriptingEnabled);
     
     void ContinueAfterFailedCharsetSwitch();
 
-#ifdef DEBUG
-    PRBool HasStreamParser() {
-      return !!mStreamParser;
+    nsHtml5StreamParser* GetStreamParser() {
+      return mStreamParser;
     }
-#endif
-
-  private:
 
     /**
      * Parse until pending data is exhausted or a script blocks the parser
      */
     void ParseUntilBlocked();
+
+  private:
 
     // State variables
 
@@ -323,6 +342,12 @@ class nsHtml5Parser : public nsIParser,
      * Whether the last character tokenized was a carriage return (for CRLF)
      */
     PRBool                        mLastWasCR;
+
+    /**
+     * Whether the last character tokenized was a carriage return (for CRLF)
+     * when preparsing document.write.
+     */
+    PRBool                        mDocWriteSpeculativeLastWasCR;
 
     /**
      * The parser is in the fragment mode
@@ -333,6 +358,11 @@ class nsHtml5Parser : public nsIParser,
      * The parser is blocking on a script
      */
     PRBool                        mBlocked;
+
+    /**
+     * Whether the document.write() speculator is already active.
+     */
+    PRBool                        mDocWriteSpeculatorActive;
     
     /**
      * The number of parser-inserted script currently being evaluated.
@@ -373,6 +403,16 @@ class nsHtml5Parser : public nsIParser,
      * The HTML5 tokenizer
      */
     const nsAutoPtr<nsHtml5Tokenizer>   mTokenizer;
+
+    /**
+     * Another HTML5 tree builder for preloading document.written content.
+     */
+    nsAutoPtr<nsHtml5TreeBuilder> mDocWriteSpeculativeTreeBuilder;
+
+    /**
+     * Another HTML5 tokenizer for preloading document.written content.
+     */
+    nsAutoPtr<nsHtml5Tokenizer>   mDocWriteSpeculativeTokenizer;
 
     /**
      * The stream parser.

@@ -1,6 +1,6 @@
 /* -*- Mode: C++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 8 -*- */
 
-include protocol "PPluginInstance.ipdl";
+include protocol PPluginInstance;
 
 include "npapi.h";
 
@@ -20,7 +20,7 @@ child:
   /**
    * Represents NPP_URLNotify
    */
-  rpc __delete__(NPReason reason);
+  async __delete__(NPReason reason);
 };
 
 } // namespace plugins

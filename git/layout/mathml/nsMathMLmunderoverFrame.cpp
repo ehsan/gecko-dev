@@ -290,7 +290,8 @@ nsMathMLmunderoverFrame::Place(nsIRenderingContext& aRenderingContext,
                                                    aRenderingContext,
                                                    aPlaceOrigin,
                                                    aDesiredSize,
-                                                   this, 0, 0, PresContext()->PointsToAppUnits(0.5f));
+                                                   this, 0, 0,
+                                                   nsPresContext::CSSPointsToAppUnits(0.5f));
   }
 
   ////////////////////////////////////
@@ -320,7 +321,7 @@ nsMathMLmunderoverFrame::Place(nsIRenderingContext& aRenderingContext,
   ////////////////////
   // Place Children
 
-  aRenderingContext.SetFont(GetStyleFont()->mFont, nsnull,
+  aRenderingContext.SetFont(GetStyleFont()->mFont,
                             PresContext()->GetUserFontSet());
   nsCOMPtr<nsIFontMetrics> fm;
   aRenderingContext.GetFontMetrics(*getter_AddRefs(fm));

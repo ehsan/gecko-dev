@@ -38,8 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Constants
 
@@ -48,7 +46,8 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
 
-const kXPComShutdown = "xpcom-shutdown";
+// A database flush should be the last operation during the shutdown process.
+const kTopicShutdown = "places-connection-closing";
 const kSyncFinished = "places-sync-finished";
 const kDebugStopSync = "places-debug-stop-sync";
 const kDebugStartSync = "places-debug-start-sync";
@@ -61,18 +60,22 @@ const kQuerySyncPlacesId = 0;
 const kQuerySyncHistoryVisitsId = 1;
 
 ////////////////////////////////////////////////////////////////////////////////
+//// Modules
+
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/PlacesUtils.jsm");
+
+////////////////////////////////////////////////////////////////////////////////
 //// nsPlacesDBFlush class
 
 function nsPlacesDBFlush()
 {
-  this._prefs = Cc["@mozilla.org/preferences-service;1"].
-                getService(Ci.nsIPrefBranch);
-
   // Get our sync interval
   try {
     // We want to silently fail since getIntPref throws if it does not exist,
     // and use a default to fallback to.
-    this._syncInterval = this._prefs.getIntPref(kSyncPrefName);
+    this._syncInterval = Services.prefs.getIntPref(kSyncPrefName);
     if (this._syncInterval <= 0)
       this._syncInterval = kDefaultSyncInterval;
   }
@@ -82,13 +85,11 @@ function nsPlacesDBFlush()
   }
 
   // Register observers
-  this._os = Cc["@mozilla.org/observer-service;1"].
-             getService(Ci.nsIObserverService);
-  this._os.addObserver(this, kXPComShutdown, false);
-  this._os.addObserver(this, kDebugStopSync, false);
-  this._os.addObserver(this, kDebugStartSync, false);
+  Services.obs.addObserver(this, kTopicShutdown, false);
+  Services.obs.addObserver(this, kDebugStopSync, false);
+  Services.obs.addObserver(this, kDebugStartSync, false);
 
-  let (pb2 = this._prefs.QueryInterface(Ci.nsIPrefBranch2))
+  let (pb2 = Services.prefs.QueryInterface(Ci.nsIPrefBranch2))
     pb2.addObserver(kSyncPrefName, this, false);
 
   // Create our timer to update everything
@@ -98,18 +99,9 @@ function nsPlacesDBFlush()
   //// Smart Getters
 
   XPCOMUtils.defineLazyGetter(this, "_db", function() {
-    return Cc["@mozilla.org/browser/nav-history-service;1"].
-           getService(Ci.nsPIPlacesDatabase).
-           DBConnection;
+    return PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase)
+                              .DBConnection;
   });
-
-  XPCOMUtils.defineLazyServiceGetter(this, "_ios",
-                                     "@mozilla.org/network/io-service;1",
-                                     "nsIIOService");
-
-  XPCOMUtils.defineLazyServiceGetter(this, "_bs",
-                                     "@mozilla.org/browser/nav-bookmarks-service;1",
-                                     "nsINavBookmarksService");
 }
 
 nsPlacesDBFlush.prototype = {
@@ -118,12 +110,12 @@ nsPlacesDBFlush.prototype = {
 
   observe: function DBFlush_observe(aSubject, aTopic, aData)
   {
-    if (aTopic == kXPComShutdown) {
-      this._os.removeObserver(this, kXPComShutdown);
-      this._os.removeObserver(this, kDebugStopSync);
-      this._os.removeObserver(this, kDebugStartSync);
+    if (aTopic == kTopicShutdown) {
+      Services.obs.removeObserver(this, kTopicShutdown);
+      Services.obs.removeObserver(this, kDebugStopSync);
+      Services.obs.removeObserver(this, kDebugStartSync);
 
-      let (pb2 = this._prefs.QueryInterface(Ci.nsIPrefBranch2))
+      let (pb2 = Services.prefs.QueryInterface(Ci.nsIPrefBranch2))
         pb2.removeObserver(kSyncPrefName, this);
 
       if (this._timer) {
@@ -131,28 +123,13 @@ nsPlacesDBFlush.prototype = {
         this._timer = null;
       }
 
-      // Other components could still make changes to history at this point,
-      // for example to clear private data on shutdown, so here we dispatch
-      // an event to the main thread so that we will sync after
-      // xpcom-shutdown ensuring all data have been saved.
-      let tm = Cc["@mozilla.org/thread-manager;1"].
-          getService(Ci.nsIThreadManager);
-      tm.mainThread.dispatch({
-        _self: this,
-        run: function() {
-          // Flush any remaining change to disk tables.
-          this._self._flushWithQueries([kQuerySyncPlacesId, kQuerySyncHistoryVisitsId]);
-
-          // Close the database connection, this was the last sync and we can't
-          // ensure database coherence from now on.
-          this._self._finalizeInternalStatements();
-          this._self._db.close();
-        }
-      }, Ci.nsIThread.DISPATCH_NORMAL);
+      // Flush any remaining change to disk tables.
+      this._flushWithQueries([kQuerySyncPlacesId, kQuerySyncHistoryVisitsId]);
+      this._finalizeInternalStatements();
     }
     else if (aTopic == "nsPref:changed" && aData == kSyncPrefName) {
       // Get the new pref value, and then update our timer
-      this._syncInterval = this._prefs.getIntPref(kSyncPrefName);
+      this._syncInterval = Services.prefs.getIntPref(kSyncPrefName);
       if (this._syncInterval <= 0)
         this._syncInterval = kDefaultSyncInterval;
 
@@ -178,6 +155,11 @@ nsPlacesDBFlush.prototype = {
 
   onBeginUpdateBatch: function DBFlush_onBeginUpdateBatch()
   {
+    // Since we observe both history and bookmarks, we can be notified twice
+    // about a batch.
+    if (this._inBatchMode)
+      return;
+
     this._inBatchMode = true;
 
     // We do not want to sync while we are doing batch work.
@@ -187,6 +169,11 @@ nsPlacesDBFlush.prototype = {
 
   onEndUpdateBatch: function DBFlush_onEndUpdateBatch()
   {
+    // Since we observe both history and bookmarks, we can be notified twice
+    // about a batch.
+    if (!this._inBatchMode)
+      return;
+
     this._inBatchMode = false;
 
     // Restore our timer
@@ -196,11 +183,11 @@ nsPlacesDBFlush.prototype = {
     this._flushWithQueries([kQuerySyncPlacesId, kQuerySyncHistoryVisitsId]);
   },
 
-  onItemAdded: function(aItemId, aParentId, aIndex, aItemType)
+  onItemAdded: function(aItemId, aParentId, aIndex, aItemType, aURI)
   {
     // Sync only if we added a TYPE_BOOKMARK item.  Note, we want to run the
     // least amount of queries as possible here for performance reasons.
-    if (!this._inBatchMode && aItemType == this._bs.TYPE_BOOKMARK)
+    if (!this._inBatchMode && aItemType == PlacesUtils.bookmarks.TYPE_BOOKMARK)
       this._flushWithQueries([kQuerySyncPlacesId]);
   },
 
@@ -266,7 +253,7 @@ nsPlacesDBFlush.prototype = {
   {
     if (aReason == Ci.mozIStorageStatementCallback.REASON_FINISHED) {
       // Dispatch a notification that sync has finished.
-      this._os.notifyObservers(null, kSyncFinished, null);
+      Services.obs.notifyObservers(null, kSyncFinished, null);
     }
   },
 
@@ -301,7 +288,7 @@ nsPlacesDBFlush.prototype = {
   _finalizeInternalStatements: function DBFlush_finalizeInternalStatements()
   {
     this._cachedStatements.forEach(function(stmt) {
-      if (stmt instanceof Ci.mozIStorageStatement)
+      if (stmt instanceof Ci.mozIStorageAsyncStatement)
         stmt.finalize();
     });
   },
@@ -339,7 +326,9 @@ nsPlacesDBFlush.prototype = {
       case kQuerySyncHistoryVisitsId:
         // For history table we want to leave embed visits in memory, since
         // those are expired with current session, so we are filtering them out.
-        this._cachedStatements[aQueryType] = this._db.createStatement(
+        // Notice that instead we _want_ to sync framed_link visits, since those
+        // come from user's actions.
+        this._cachedStatements[aQueryType] = this._db.createAsyncStatement(
           "DELETE FROM moz_historyvisits_temp " +
           "WHERE visit_type <> :transition_type"
         );
@@ -349,7 +338,7 @@ nsPlacesDBFlush.prototype = {
         // For places table we want to leave places associated with embed visits
         // in memory, they usually have hidden = 1 and at least an embed visit
         // in historyvisits_temp table.
-        this._cachedStatements[aQueryType] = this._db.createStatement(
+        this._cachedStatements[aQueryType] = this._db.createAsyncStatement(
           "DELETE FROM moz_places_temp " +
           "WHERE id IN ( " +
             "SELECT id FROM moz_places_temp h " +
@@ -387,16 +376,7 @@ nsPlacesDBFlush.prototype = {
   //////////////////////////////////////////////////////////////////////////////
   //// nsISupports
 
-  classDescription: "Used to synchronize the temporary and permanent tables of Places",
   classID: Components.ID("c1751cfc-e8f1-4ade-b0bb-f74edfb8ef6a"),
-  contractID: "@mozilla.org/places/sync;1",
-
-  // Registering in these categories makes us get initialized when either of
-  // those listeners would be notified.
-  _xpcom_categories: [
-    { category: "bookmark-observers" },
-    { category: "history-observers" },
-  ],
 
   QueryInterface: XPCOMUtils.generateQI([
     Ci.nsIObserver,
@@ -411,7 +391,4 @@ nsPlacesDBFlush.prototype = {
 //// Module Registration
 
 let components = [nsPlacesDBFlush];
-function NSGetModule(compMgr, fileSpec)
-{
-  return XPCOMUtils.generateModule(components);
-}
+var NSGetFactory = XPCOMUtils.generateNSGetFactory(components);

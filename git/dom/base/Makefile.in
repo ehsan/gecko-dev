@@ -47,6 +47,11 @@ LIBRARY_NAME	= jsdombase_s
 LIBXUL_LIBRARY	= 1
 FORCE_STATIC_LIB = 1
 
+EXTRA_PP_COMPONENTS = \
+		ConsoleAPI.js \
+		ConsoleAPI.manifest \
+		$(NULL)
+
 XPIDLSRCS = \
   nsIEntropyCollector.idl \
   nsIScriptChannel.idl \
@@ -54,6 +59,7 @@ XPIDLSRCS = \
 
 EXPORTS = \
   nsDOMCID.h \
+  nsDOMClassInfoClasses.h \
   nsDOMClassInfoID.h \
   nsDOMError.h \
   nsDOMJSUtils.h \
@@ -99,7 +105,17 @@ CPPSRCS =			\
 	nsDOMClassInfo.cpp	\
 	nsScriptNameSpaceManager.cpp \
 	nsDOMScriptObjectFactory.cpp \
+	nsQueryContentEventResult.cpp \
 	$(NULL)
+
+ifdef MOZ_IPC
+EXPORTS += \
+  nsContentPermissionHelper.h \
+  $(NULL)
+CPPSRCS += \
+  nsContentPermissionHelper.cpp \
+  $(NULL)
+endif
 
 include $(topsrcdir)/dom/dom-config.mk
 
@@ -107,7 +123,17 @@ ifdef MOZ_JSDEBUGGER
 DEFINES += -DMOZ_JSDEBUGGER
 endif
 
+ifdef MOZ_IPC
+include $(topsrcdir)/config/config.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
+endif
+
 include $(topsrcdir)/config/rules.mk
+
+LOCAL_INCLUDES += \
+		-I$(srcdir)/../../js/src/xpconnect/src \
+		-I$(srcdir)/../../js/src/xpconnect/wrappers \
+		$(NULL)
 
 ifdef MOZ_X11
 CXXFLAGS += $(TK_CFLAGS)

@@ -43,8 +43,6 @@
 #include "nsHyperTextAccessibleWrap.h"
 #include "nsIContent.h"
 
-class nsIDOMNode;
-
 /**
   * This file contains a number of classes that are used as base
   *  classes for the different accessibility implementations of
@@ -57,7 +55,9 @@ class nsIDOMNode;
 class nsLeafAccessible : public nsAccessibleWrap
 {
 public:
-  nsLeafAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
+  using nsAccessible::GetChildAtPoint;
+
+  nsLeafAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -84,7 +84,7 @@ class nsLinkableAccessible : public nsAccessibleWrap
 public:
   enum { eAction_Jump = 0 };
 
-  nsLinkableAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
+  nsLinkableAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -96,26 +96,25 @@ public:
   NS_IMETHOD TakeFocus();
   NS_IMETHOD GetKeyboardShortcut(nsAString& _retval);
 
-  // nsIAccessibleHyperLink
-  NS_IMETHOD GetURI(PRInt32 i, nsIURI **aURI);
-
   // nsAccessNode
-  virtual nsresult Init();
-  virtual nsresult Shutdown();
+  virtual void Shutdown();
 
   // nsAccessible
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
+  // HyperLinkAccessible
+  virtual already_AddRefed<nsIURI> GetAnchorURI(PRUint32 aAnchorIndex);
+
 protected:
+  // nsAccessible
+  virtual void BindToParent(nsAccessible* aParent, PRUint32 aIndexInParent);
+
+  // nsLinkableAccessible
+
   /**
    * Return an accessible for cached action node.
    */
-  already_AddRefed<nsIAccessible> GetActionAccessible();
-
-  /**
-   * Cache action node.
-   */
-  virtual void CacheActionContent();
+  nsAccessible *GetActionAccessible() const;
 
   nsCOMPtr<nsIContent> mActionContent;
   PRPackedBool mIsLink;
@@ -128,13 +127,14 @@ protected:
 class nsEnumRoleAccessible : public nsAccessibleWrap
 {
 public:
-  nsEnumRoleAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell, PRUint32 aRole);
+  nsEnumRoleAccessible(nsIContent *aContent, nsIWeakReference *aShell,
+                       PRUint32 aRole);
   virtual ~nsEnumRoleAccessible() { }
 
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual PRUint32 NativeRole();
 
 protected:
   PRUint32 mRole;

@@ -110,21 +110,18 @@ NS_QUERYFRAME_HEAD(nsHTMLButtonControlFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
 
 #ifdef ACCESSIBILITY
-NS_IMETHODIMP nsHTMLButtonControlFrame::GetAccessible(nsIAccessible** aAccessible)
+already_AddRefed<nsAccessible>
+nsHTMLButtonControlFrame::CreateAccessible()
 {
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    nsIContent* content = GetContent();
-    nsCOMPtr<nsIDOMHTMLButtonElement> buttonElement(do_QueryInterface(content));
-    if (buttonElement) //If turned XBL-base form control off, the frame contains HTML 4 button
-      return accService->CreateHTML4ButtonAccessible(static_cast<nsIFrame*>(this), aAccessible);
-    nsCOMPtr<nsIDOMHTMLInputElement> inputElement(do_QueryInterface(content));
-    if (inputElement) //If turned XBL-base form control on, the frame contains normal HTML button
-      return accService->CreateHTMLButtonAccessible(static_cast<nsIFrame*>(this), aAccessible);
+    return IsInput() ?
+      accService->CreateHTMLButtonAccessible(mContent, PresContext()->PresShell()) :
+      accService->CreateHTML4ButtonAccessible(mContent, PresContext()->PresShell());
   }
 
-  return NS_ERROR_FAILURE;
+  return nsnull;
 }
 #endif
 
@@ -185,8 +182,10 @@ nsHTMLButtonControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     nsMargin border = GetStyleBorder()->GetActualBorder();
     nsRect rect(aBuilder->ToReferenceFrame(this), GetSize());
     rect.Deflate(border);
-  
-    nsresult rv = OverflowClip(aBuilder, set, aLists, rect);
+    nscoord radii[8];
+    GetPaddingBoxBorderRadii(radii);
+
+    nsresult rv = OverflowClip(aBuilder, set, aLists, rect, radii);
     NS_ENSURE_SUCCESS(rv, rv);
   } else {
     set.MoveTo(aLists);
@@ -196,7 +195,7 @@ nsHTMLButtonControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // to draw border when selected in editor
-  return DisplaySelectionOverlay(aBuilder, aLists);
+  return DisplaySelectionOverlay(aBuilder, aLists.Content());
 }
 
 nscoord
@@ -282,9 +281,8 @@ nsHTMLButtonControlFrame::Reflow(nsPresContext* aPresContext,
   aDesiredSize.ascent +=
     aReflowState.mComputedBorderPadding.top + focusPadding.top;
 
-  aDesiredSize.mOverflowArea =
-    nsRect(0, 0, aDesiredSize.width, aDesiredSize.height);
-  ConsiderChildOverflow(aDesiredSize.mOverflowArea, firstKid);
+  aDesiredSize.SetOverflowAreasToDesiredBounds();
+  ConsiderChildOverflow(aDesiredSize.mOverflowAreas, firstKid);
   FinishAndStoreOverflow(&aDesiredSize);
 
   aStatus = NS_FRAME_COMPLETE;

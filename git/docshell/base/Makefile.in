@@ -48,6 +48,9 @@ LIBRARY_NAME	= basedocshell_s
 GRE_MODULE	= 1
 LIBXUL_LIBRARY	= 1
 
+ifdef MOZ_TOOLKIT_SEARCH
+DEFINES += -DMOZ_TOOLKIT_SEARCH
+endif
 
 SDK_XPIDLSRCS = \
 		nsIGlobalHistory.idl \
@@ -74,8 +77,6 @@ XPIDLSRCS	= \
 		nsIURIFixup.idl			\
 		nsIEditorDocShell.idl		\
 		nsIWebPageDescriptor.idl	\
-		nsIURIClassifier.idl		\
-		nsIChannelClassifier.idl	\
 		nsIDownloadHistory.idl          \
 		nsILoadContext.idl              \
 		$(NULL)
@@ -96,8 +97,6 @@ CPPSRCS		= \
 		nsDocShellEnumerator.cpp  \
 		nsDSURIContentListener.cpp		\
 		nsDefaultURIFixup.cpp		\
-		nsGlobalHistoryAdapter.cpp \
-		nsGlobalHistory2Adapter.cpp \
 		nsWebNavigationInfo.cpp \
 		nsAboutRedirector.cpp \
 		nsDownloadHistory.cpp \

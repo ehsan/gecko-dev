@@ -61,13 +61,8 @@ public:
     { return mBaseVal; }
 
   void SetAnimValue(PRBool aValue, nsSVGElement *aSVGElement);
-  PRBool GetAnimValue(nsSVGElement *aSVGElement) const
-  {
-  #ifdef MOZ_SMIL
-    aSVGElement->FlushAnimations();
-  #endif
-    return mAnimVal;
-  }
+  PRBool GetAnimValue() const
+    { return mAnimVal; }
 
   nsresult ToDOMAnimatedBoolean(nsIDOMSVGAnimatedBoolean **aResult,
                                 nsSVGElement* aSVGElement);
@@ -83,6 +78,7 @@ private:
   PRPackedBool mIsAnimated;
   PRUint8 mAttrEnum; // element specified tracking for attribute
 
+public:
   struct DOMAnimatedBoolean : public nsIDOMSVGAnimatedBoolean
   {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -98,9 +94,17 @@ private:
       { *aResult = mVal->GetBaseValue(); return NS_OK; }
     NS_IMETHOD SetBaseVal(PRBool aValue)
       { mVal->SetBaseValue(aValue, mSVGElement); return NS_OK; }
-    NS_IMETHOD GetAnimVal(PRBool* aResult)
-      { *aResult = mVal->GetAnimValue(mSVGElement); return NS_OK; }
 
+    // Script may have modified animation parameters or timeline -- DOM getters
+    // need to flush any resample requests to reflect these modifications.
+    NS_IMETHOD GetAnimVal(PRBool* aResult)
+    {
+#ifdef MOZ_SMIL
+      mSVGElement->FlushAnimations();
+#endif
+      *aResult = mVal->GetAnimValue();
+      return NS_OK;
+    }
   };
 
 #ifdef MOZ_SMIL
@@ -120,7 +124,7 @@ private:
     virtual nsresult ValueFromString(const nsAString& aStr,
                                      const nsISMILAnimationElement* aSrcElement,
                                      nsSMILValue& aValue,
-                                     PRBool& aCanCache) const;
+                                     PRBool& aPreventCachingOfSandwich) const;
     virtual nsSMILValue GetBaseValue() const;
     virtual void ClearAnimValue();
     virtual nsresult SetAnimValue(const nsSMILValue& aValue);

@@ -54,6 +54,7 @@ EXPORTS		= nsSMILKeySpline.h
 
 ifdef MOZ_SMIL
 CPPSRCS		+= \
+	nsDOMTimeEvent.cpp \
 	nsSMILAnimationController.cpp \
 	nsSMILAnimationFunction.cpp \
 	nsSMILCompositor.cpp \
@@ -61,6 +62,8 @@ CPPSRCS		+= \
 	nsSMILCSSValueType.cpp \
 	nsSMILFloatType.cpp \
 	nsSMILInstanceTime.cpp \
+	nsSMILInterval.cpp \
+	nsSMILMappedAttribute.cpp \
 	nsSMILNullType.cpp \
 	nsSMILParserUtils.cpp \
 	nsSMILRepeatCount.cpp \
@@ -73,6 +76,7 @@ CPPSRCS		+= \
 	SMILBoolType.cpp \
 	SMILEnumType.cpp \
 	SMILIntegerType.cpp \
+	SMILStringType.cpp \
 		$(NULL)
 endif
 
@@ -89,9 +93,12 @@ endif # ENABLE_TESTS
 EXPORTS		+= \
 	  nsISMILAnimationElement.h \
 	  nsISMILAttr.h \
+	  nsISMILType.h \
 	  nsSMILAnimationController.h \
 	  nsSMILCompositorTable.h \
+	  nsSMILCSSProperty.h \
 	  nsSMILKeySpline.h \
+	  nsSMILMappedAttribute.h \
 	  nsSMILMilestone.h \
 	  nsSMILTimeContainer.h \
 	  nsSMILTypes.h \
@@ -100,6 +107,7 @@ EXPORTS		+= \
 INCLUDES += 	\
 		-I$(srcdir)/../base/src \
 		-I$(srcdir)/../../layout/style \
+		-I$(srcdir)/../events/src \
 		$(NULL)
 endif # MOZ_SMIL
 

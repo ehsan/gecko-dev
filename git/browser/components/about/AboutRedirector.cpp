@@ -96,7 +96,12 @@ static RedirEntry kRedirMap[] = {
     nsIAboutModule::ALLOW_SCRIPT },
   { "sessionrestore", "chrome://browser/content/aboutSessionRestore.xhtml",
     nsIAboutModule::ALLOW_SCRIPT },
-  { "support", "chrome://browser/content/aboutSupport.xhtml",
+#ifdef MOZ_SERVICES_SYNC
+  { "sync-tabs", "chrome://browser/content/aboutSyncTabs.xul",
+    nsIAboutModule::ALLOW_SCRIPT },
+#endif
+  { "home", "chrome://browser/content/aboutHome.xhtml",
+    nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
     nsIAboutModule::ALLOW_SCRIPT },
 };
 static const int kRedirTotal = NS_ARRAY_LENGTH(kRedirMap);
@@ -179,7 +184,7 @@ AboutRedirector::GetURIFlags(nsIURI *aURI, PRUint32 *result)
   return NS_ERROR_ILLEGAL_VALUE;
 }
 
-NS_METHOD
+nsresult
 AboutRedirector::Create(nsISupports *aOuter, REFNSIID aIID, void **result)
 {
   AboutRedirector* about = new AboutRedirector();

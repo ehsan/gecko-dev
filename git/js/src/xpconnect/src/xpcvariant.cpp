@@ -41,9 +41,11 @@
 /* nsIVariant implementation for xpconnect. */
 
 #include "xpcprivate.h"
+#include "XPCWrapper.h"
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(XPCVariant)
 
+NS_IMPL_CLASSINFO(XPCVariant, NULL, 0, XPCVARIANT_CID)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(XPCVariant)
   NS_INTERFACE_MAP_ENTRY(XPCVariant)
   NS_INTERFACE_MAP_ENTRY(nsIVariant)
@@ -86,8 +88,8 @@ XPCTraceableVariant::~XPCTraceableVariant()
     if(!JSVAL_IS_STRING(mJSVal))
         nsVariant::Cleanup(&mData);
 
-    if(!JSVAL_IS_NULL(mJSVal))
-        RemoveFromRootSet(nsXPConnect::GetRuntimeInstance()->GetJSRuntime());
+    if (!JSVAL_IS_NULL(mJSVal))
+        RemoveFromRootSet(nsXPConnect::GetRuntimeInstance()->GetMapLock());
 }
 
 void XPCTraceableVariant::TraceJS(JSTracer* trc)
@@ -124,7 +126,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(XPCVariant)
     if(JSVAL_IS_TRACEABLE(tmp->mJSVal))
     {
         XPCTraceableVariant *v = static_cast<XPCTraceableVariant*>(tmp);
-        v->RemoveFromRootSet(nsXPConnect::GetRuntimeInstance()->GetJSRuntime());
+        v->RemoveFromRootSet(nsXPConnect::GetRuntimeInstance()->GetMapLock());
     }
     tmp->mJSVal = JSVAL_NULL;
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -296,12 +298,14 @@ XPCArrayHomogenizer::GetTypeForArray(XPCCallContext& ccx, JSObject* array,
 
 JSBool XPCVariant::InitializeData(XPCCallContext& ccx)
 {
+    JS_CHECK_RECURSION(ccx.GetJSContext(), return JS_FALSE);
+
     if(JSVAL_IS_INT(mJSVal))
         return NS_SUCCEEDED(nsVariant::SetFromInt32(&mData, 
                                                     JSVAL_TO_INT(mJSVal)));
     if(JSVAL_IS_DOUBLE(mJSVal))
         return NS_SUCCEEDED(nsVariant::SetFromDouble(&mData, 
-                                                     *JSVAL_TO_DOUBLE(mJSVal)));
+                                                     JSVAL_TO_DOUBLE(mJSVal)));
     if(JSVAL_IS_BOOLEAN(mJSVal))
         return NS_SUCCEEDED(nsVariant::SetFromBool(&mData, 
                                                    JSVAL_TO_BOOLEAN(mJSVal)));
@@ -421,6 +425,10 @@ XPCVariant::VariantDataToJS(XPCLazyCallContext& lccx,
     {
         // It's not a JSObject (or it's a JSArray or a JSObject representing an
         // nsID).  Just pass through the underlying data.
+        JSAutoEnterCompartment ac;
+        JSContext *cx = lccx.GetJSContext();
+        if(!ac.enter(cx, scope) || !JS_WrapValue(cx, &realVal))
+            return JS_FALSE;
         *pJSVal = realVal;
         return JS_TRUE;
     }
@@ -431,14 +439,19 @@ XPCVariant::VariantDataToJS(XPCLazyCallContext& lccx,
         NS_ASSERTION(type == nsIDataType::VTYPE_INTERFACE ||
                      type == nsIDataType::VTYPE_INTERFACE_IS,
                      "Weird variant");
+
+        JSAutoEnterCompartment ac;
+        JSContext *cx = lccx.GetJSContext();
+        if(!ac.enter(cx, scope) || !JS_WrapValue(cx, &realVal))
+            return JS_FALSE;
         *pJSVal = realVal;
         return JS_TRUE;
-
-        // else, it's an object and we really need to double wrap it if we've 
-        // already decided that its 'natural' type is as some sort of interface.
-
-        // We just fall through to the code below and let it do what it does.
     }
+
+    // else, it's an object and we really need to double wrap it if we've 
+    // already decided that its 'natural' type is as some sort of interface.
+
+    // We just fall through to the code below and let it do what it does.
 
     // The nsIVariant is not a XPCVariant (or we act like it isn't).
     // So we extract the data and do the Right Thing.

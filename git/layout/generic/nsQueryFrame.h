@@ -110,7 +110,6 @@ public:
     nsHTMLFramesetFrame_id,
     nsHTMLScrollFrame_id,
     nsIAnonymousContentCreator_id,
-    nsICSSPseudoComparator_id,
     nsIComboboxControlFrame_id,
     nsIFormControlFrame_id,
     nsIFrame_id,
@@ -176,6 +175,7 @@ public:
     nsMathMLmtrFrame_id,
     nsMathMLmunderFrame_id,
     nsMathMLmunderoverFrame_id,
+    nsMathMLsemanticsFrame_id,
     nsMathMLTokenFrame_id,
     nsMenuBarFrame_id,
     nsMenuFrame_id,
@@ -245,7 +245,6 @@ public:
     nsVideoFrame_id,
     nsXULLabelFrame_id,
     nsXULScrollFrame_id,
-    SpacerFrame_id,
     ViewportFrame_id,
 
     // The PresArena implementation uses this bit to distinguish

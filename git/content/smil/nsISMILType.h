@@ -52,9 +52,12 @@ class nsSMILValue;
 // the data upon which it should operate.
 //
 // We keep the data and type separate rather than just providing different
-// subclasses of nsSMILValue as this allows nsSMILValues to be allocated on the
-// stack and directly assigned to one another provided performance benefits for
-// the animation code.
+// subclasses of nsSMILValue. This is so that sizeof(nsSMILValue) is the same
+// for all value types, allowing us to have a type-agnostic nsTArray of
+// nsSMILValue objects (actual objects, not pointers). It also allows most
+// nsSMILValues (except those that need to allocate extra memory for their
+// data) to be allocated on the stack and directly assigned to one another
+// provided performance benefits for the animation code.
 //
 // Note that different types have different capabilities. Roughly speaking there
 // are probably three main types:
@@ -85,11 +88,10 @@ protected:
    * Initialises aValue and sets it to some identity value such that adding
    * aValue to another value of the same type has no effect.
    *
-   * @pre (aValue.mType == this && aValue.mU is valid)
-   *      || aValue.mType == null-type
-   * @post aValue.mType == this || NS_FAILED(rv)
+   * @pre  aValue.IsNull()
+   * @post aValue.mType == this
    */
-  virtual nsresult Init(nsSMILValue& aValue) const = 0;
+  virtual void Init(nsSMILValue& aValue) const = 0;
 
   /**
    * Destroys any data associated with a value of this type.

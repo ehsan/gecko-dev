@@ -91,6 +91,12 @@ namespace dom {
 
 Link::Link()
 : mLinkState(mozilla::dom::Link::defaultState)
+, mRegistered(false)
+, mContent(NULL)
+{
+}
+
+Link::~Link()
 {
 }
 
@@ -108,9 +114,16 @@ Link::SetLinkState(nsLinkState aState)
 }
 
 void
-Link::ResetLinkState()
+Link::ResetLinkState(bool aNotify)
 {
   NS_NOTREACHED("Unexpected call to Link::ResetLinkState");
+}
+
+already_AddRefed<nsIURI>
+Link::GetURI() const 
+{
+  NS_NOTREACHED("Unexpected call to Link::GetURI");
+  return nsnull; // suppress compiler warning
 }
 
 } // namespace dom

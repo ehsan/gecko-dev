@@ -30,16 +30,17 @@ function invalidationLoop() {
 invalidationLoop();
 
 function doIteration() {
-  lastPaintCount = plugin.getPaintCount();
+  lastPaintCount = window.mozPaintCount;
+  ok(true, "Beginning iteration " + iterations + ", last paint count: " + lastPaintCount);
 
-  var v = 255 - iterations;
   expectedWidth = 201 + iterations;
   plugin.style.width = expectedWidth + "px";
   checkDone();
 }
 
 function checkDone() {
-  if (plugin.getPaintCount() == lastPaintCount) {
+  ok(true, "Check to see if we're done: " + window.mozPaintCount);
+  if (window.mozPaintCount == lastPaintCount) {
     setTimeout(checkDone, 30);
     return;
   }

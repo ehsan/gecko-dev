@@ -22,6 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *   Mats Palmgren <matspal@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -91,11 +92,12 @@
 #include "nsAutoPtr.h"
 #include "imgIRequest.h"
 #include "nsTransitionManager.h"
+#include "RestyleTracker.h"
 
 #include "nsFrameManager.h"
+
 #ifdef ACCESSIBILITY
 #include "nsIAccessibilityService.h"
-#include "nsIAccessibleEvent.h"
 #endif
 
   #ifdef DEBUG
@@ -116,7 +118,8 @@
     #define NOISY_TRACE_FRAME(_msg,_frame);
   #endif
 
-// IID's
+using namespace mozilla;
+using namespace mozilla::dom;
 
 //----------------------------------------------------------------------
 
@@ -261,31 +264,6 @@ nsFrameManager::Destroy()
   mPresShell = nsnull;
 }
 
-nsIFrame*
-nsFrameManager::GetCanvasFrame()
-{
-  if (mRootFrame) {
-    // walk the children of the root frame looking for a frame with type==canvas
-    // start at the root
-    nsIFrame* childFrame = mRootFrame;
-    while (childFrame) {
-      // get each sibling of the child and check them, startig at the child
-      nsIFrame *siblingFrame = childFrame;
-      while (siblingFrame) {
-        if (siblingFrame->GetType() == nsGkAtoms::canvasFrame) {
-          // this is it
-          return siblingFrame;
-        } else {
-          siblingFrame = siblingFrame->GetNextSibling();
-        }
-      }
-      // move on to the child's child
-      childFrame = childFrame->GetFirstChild(nsnull);
-    }
-  }
-  return nsnull;
-}
-
 //----------------------------------------------------------------------
 
 // Placeholder frame functions
@@ -403,8 +381,9 @@ nsFrameManager::SetUndisplayedContent(nsIContent* aContent,
   if (mUndisplayedMap) {
     nsIContent* parent = aContent->GetParent();
     NS_ASSERTION(parent || (mPresShell && mPresShell->GetDocument() &&
-                 mPresShell->GetDocument()->GetRootContent() == aContent),
-                 "undisplayed content must have a parent, unless it's the root content");
+                 mPresShell->GetDocument()->GetRootElement() == aContent),
+                 "undisplayed content must have a parent, unless it's the root "
+                 "element");
     mUndisplayedMap->AddNodeFor(parent, aContent, aStyleContext);
   }
 }
@@ -492,19 +471,6 @@ nsFrameManager::ClearAllUndisplayedContentIn(nsIContent* aParentContent)
   }
 }
 
-void
-nsFrameManager::ClearUndisplayedContentMap()
-{
-#ifdef DEBUG_UNDISPLAYED_MAP
-  static int i = 0;
-  printf("ClearUndisplayedContentMap(%d)\n", i++);
-#endif
-
-  if (mUndisplayedMap) {
-    mUndisplayedMap->Clear();
-  }
-}
-
 //----------------------------------------------------------------------
 
 nsresult
@@ -534,7 +500,7 @@ nsFrameManager::RemoveFrame(nsIAtom*        aListName,
   // that doesn't change the size of the parent.)
   // This has to sure to invalidate the entire overflow rect; this
   // is important in the presence of absolute positioning
-  aOldFrame->Invalidate(aOldFrame->GetOverflowRect());
+  aOldFrame->InvalidateFrameSubtree();
 
   NS_ASSERTION(!aOldFrame->GetPrevContinuation() ||
                // exception for nsCSSFrameConstructor::RemoveFloatingFirstLetterFrames
@@ -651,6 +617,7 @@ VerifyContextParent(nsPresContext* aPresContext, nsIFrame* aFrame,
         fputs("\n", stdout);
       }
     }
+
   }
   else {
     if (actualParentContext) {
@@ -660,6 +627,20 @@ VerifyContextParent(nsPresContext* aPresContext, nsIFrame* aFrame,
       DumpContext(nsnull, actualParentContext);
       fputs("Should be null\n\n", stdout);
     }
+  }
+
+  nsStyleContext* childStyleIfVisited = aContext->GetStyleIfVisited();
+  // Either childStyleIfVisited has aContext->GetParent()->GetStyleIfVisited()
+  // as the parent or it has a different rulenode from aContext _and_ has
+  // aContext->GetParent() as the parent.
+  if (childStyleIfVisited &&
+      !((childStyleIfVisited->GetRuleNode() != aContext->GetRuleNode() &&
+         childStyleIfVisited->GetParent() == aContext->GetParent()) ||
+        childStyleIfVisited->GetParent() ==
+          aContext->GetParent()->GetStyleIfVisited())) {
+    NS_ERROR("Visited style has wrong parent");
+    DumpContext(aFrame, aContext);
+    fputs("\n", stdout);
   }
 }
 
@@ -735,6 +716,10 @@ TryStartingTransition(nsPresContext *aPresContext, nsIContent *aContent,
                       nsStyleContext *aOldStyleContext,
                       nsRefPtr<nsStyleContext> *aNewStyleContext /* inout */)
 {
+  if (!aContent || !aContent->IsElement()) {
+    return;
+  }
+
   // Notify the transition manager, and if it starts a transition,
   // it will give us back a transition-covering style rule which
   // we'll use to get *another* style context.  We want to ignore
@@ -743,29 +728,57 @@ TryStartingTransition(nsPresContext *aPresContext, nsIContent *aContent,
   // them again for descendants that inherit that value.
   nsCOMPtr<nsIStyleRule> coverRule = 
     aPresContext->TransitionManager()->StyleContextChanged(
-      aContent, aOldStyleContext, *aNewStyleContext);
+      aContent->AsElement(), aOldStyleContext, *aNewStyleContext);
   if (coverRule) {
     nsCOMArray<nsIStyleRule> rules;
     rules.AppendObject(coverRule);
-    *aNewStyleContext = aPresContext->StyleSet()->ResolveStyleForRules(
-                     (*aNewStyleContext)->GetParent(),
-                     (*aNewStyleContext)->GetPseudo(),
-                     (*aNewStyleContext)->GetPseudoType(),
-                     (*aNewStyleContext)->GetRuleNode(),
-                     rules);
+    *aNewStyleContext = aPresContext->StyleSet()->
+                          ResolveStyleByAddingRules(*aNewStyleContext, rules);
   }
 }
 
+static inline Element*
+ElementForStyleContext(nsIContent* aParentContent,
+                       nsIFrame* aFrame,
+                       nsCSSPseudoElements::Type aPseudoType)
+{
+  // We don't expect XUL tree stuff here.
+  NS_PRECONDITION(aPseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement ||
+                  aPseudoType == nsCSSPseudoElements::ePseudo_AnonBox ||
+                  aPseudoType < nsCSSPseudoElements::ePseudo_PseudoElementCount,
+                  "Unexpected pseudo");
+  // XXX see the comments about the various element confusion in
+  // ReResolveStyleContext.
+  if (aPseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement) {
+    return aFrame->GetContent()->AsElement();
+  }
+
+  if (aPseudoType == nsCSSPseudoElements::ePseudo_AnonBox) {
+    return nsnull;
+  }
+
+  if (aPseudoType == nsCSSPseudoElements::ePseudo_firstLetter) {
+    NS_ASSERTION(aFrame->GetType() == nsGkAtoms::letterFrame,
+                 "firstLetter pseudoTag without a nsFirstLetterFrame");
+    nsBlockFrame* block = nsBlockFrame::GetNearestAncestorBlock(aFrame);
+    return block->GetContent()->AsElement();
+  }
+
+  nsIContent* content = aParentContent ? aParentContent : aFrame->GetContent();
+  return content->AsElement();
+}
+
 nsresult
-nsFrameManager::ReParentStyleContext(nsIFrame* aFrame)
+nsFrameManager::ReparentStyleContext(nsIFrame* aFrame)
 {
   if (nsGkAtoms::placeholderFrame == aFrame->GetType()) {
-    // Also reparent the out-of-flow
+    // Also reparent the out-of-flow and all its continuations.
     nsIFrame* outOfFlow =
       nsPlaceholderFrame::GetRealFrameForPlaceholder(aFrame);
     NS_ASSERTION(outOfFlow, "no out-of-flow frame");
-
-    ReParentStyleContext(outOfFlow);
+    do {
+      ReparentStyleContext(outOfFlow);
+    } while (outOfFlow = outOfFlow->GetNextContinuation());
   }
 
   // DO NOT verify the style tree before reparenting.  The frame
@@ -773,16 +786,15 @@ nsFrameManager::ReParentStyleContext(nsIFrame* aFrame)
   nsStyleContext* oldContext = aFrame->GetStyleContext();
   // XXXbz can oldContext really ever be null?
   if (oldContext) {
-    nsPresContext *presContext = GetPresContext();
     nsRefPtr<nsStyleContext> newContext;
     nsIFrame* providerFrame = nsnull;
     PRBool providerIsChild = PR_FALSE;
     nsIFrame* providerChild = nsnull;
-    aFrame->GetParentStyleContextFrame(presContext, &providerFrame,
+    aFrame->GetParentStyleContextFrame(GetPresContext(), &providerFrame,
                                        &providerIsChild);
     nsStyleContext* newParentContext = nsnull;
     if (providerIsChild) {
-      ReParentStyleContext(providerFrame);
+      ReparentStyleContext(providerFrame);
       newParentContext = providerFrame->GetStyleContext();
       providerChild = providerFrame;
     } else if (providerFrame) {
@@ -835,20 +847,26 @@ nsFrameManager::ReParentStyleContext(nsIFrame* aFrame)
       // continuation).
       newContext = prevContinuationContext;
     } else {
-      newContext = mStyleSet->ReParentStyleContext(presContext, oldContext,
-                                                   newParentContext);
+      nsIFrame* parentFrame = aFrame->GetParent();
+      Element* element =
+        ElementForStyleContext(parentFrame ? parentFrame->GetContent() : nsnull,
+                               aFrame,
+                               oldContext->GetPseudoType());
+      newContext = mStyleSet->ReparentStyleContext(oldContext,
+                                                   newParentContext,
+                                                   element);
     }
 
     if (newContext) {
       if (newContext != oldContext) {
         // We probably don't want to initiate transitions from
-        // ReParentStyleContext, since we call it during frame
+        // ReparentStyleContext, since we call it during frame
         // construction rather than in response to dynamic changes.
         // Also see the comment at the start of
         // nsTransitionManager::ConsiderStartingTransition.
 #if 0
         if (!copyFromContinuation) {
-          TryStartingTransition(presContext, aFrame->GetContent(),
+          TryStartingTransition(GetPresContext(), aFrame->GetContent(),
                                 oldContext, &newContext);
         }
 #endif
@@ -887,7 +905,7 @@ nsFrameManager::ReParentStyleContext(nsIFrame* aFrame)
               }
 #endif
 
-              ReParentStyleContext(child);
+              ReparentStyleContext(child);
             }
 
             child = child->GetNextSibling();
@@ -904,9 +922,10 @@ nsFrameManager::ReParentStyleContext(nsIFrame* aFrame)
         // oldContext)" check will prevent us from redoing work.
         if ((aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
             !aFrame->GetPrevContinuation()) {
-          nsIFrame* sib = static_cast<nsIFrame*>(aFrame->GetProperty(nsGkAtoms::IBSplitSpecialSibling));
+          nsIFrame* sib = static_cast<nsIFrame*>
+            (aFrame->Properties().Get(nsIFrame::IBSplitSpecialSibling()));
           if (sib) {
-            ReParentStyleContext(sib);
+            ReparentStyleContext(sib);
           }
         }
 
@@ -917,9 +936,9 @@ nsFrameManager::ReParentStyleContext(nsIFrame* aFrame)
             aFrame->GetAdditionalStyleContext(++contextIndex);
           if (oldExtraContext) {
             nsRefPtr<nsStyleContext> newExtraContext;
-            newExtraContext = mStyleSet->ReParentStyleContext(presContext,
-                                                              oldExtraContext,
-                                                              newContext);
+            newExtraContext = mStyleSet->ReparentStyleContext(oldExtraContext,
+                                                              newContext,
+                                                              nsnull);
             if (newExtraContext) {
               if (newExtraContext != oldExtraContext) {
                 // Make sure to call CalcStyleDifference so that the new
@@ -984,7 +1003,10 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
                                       nsIContent        *aParentContent,
                                       nsStyleChangeList *aChangeList, 
                                       nsChangeHint       aMinChange,
-                                      PRBool             aFireAccessibilityEvents)
+                                      nsRestyleHint      aRestyleHint,
+                                      RestyleTracker&    aRestyleTracker,
+                                      DesiredA11yNotifications aDesiredA11yNotifications,
+                                      nsTArray<nsIContent*>& aVisibleKidsOfHiddenElement)
 {
   if (!NS_IsHintSubset(nsChangeHint_NeedDirtyReflow, aMinChange)) {
     // If aMinChange doesn't include nsChangeHint_NeedDirtyReflow, clear out
@@ -1003,7 +1025,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
     aMinChange =
       NS_SubtractHint(aMinChange, nsChangeHint_ClearAncestorIntrinsics);
   }
-  
+
   // It would be nice if we could make stronger assertions here; they
   // would let us simplify the ?: expressions below setting |content|
   // and |pseudoContent| in sensible ways as well as making what
@@ -1026,14 +1048,17 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
   // XXXbz oldContext should just be an nsRefPtr
   nsStyleContext* oldContext = aFrame->GetStyleContext();
   nsStyleSet* styleSet = aPresContext->StyleSet();
-#ifdef ACCESSIBILITY
-  PRBool isVisible = aFrame->GetStyleVisibility()->IsVisible();
-#endif
 
   // XXXbz the nsIFrame constructor takes an nsStyleContext, so how
   // could oldContext be null?
   if (oldContext) {
     oldContext->AddRef();
+
+#ifdef ACCESSIBILITY
+    PRBool wasFrameVisible = mPresShell->IsAccessibilityActive() ?
+      oldContext->GetStyleVisibility()->IsVisible() : PR_FALSE;
+#endif
+
     nsIAtom* const pseudoTag = oldContext->GetPseudo();
     const nsCSSPseudoElements::Type pseudoType = oldContext->GetPseudoType();
     nsIContent* localContent = aFrame->GetContent();
@@ -1043,6 +1068,22 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
     // XXXldb Why does it make sense to use aParentContent?  (See
     // comment above assertion at start of function.)
     nsIContent* content = localContent ? localContent : aParentContent;
+
+    if (content && content->IsElement()) {
+      RestyleTracker::RestyleData restyleData;
+      if (aRestyleTracker.GetRestyleData(content->AsElement(), &restyleData)) {
+        if (NS_UpdateHint(aMinChange, restyleData.mChangeHint)) {
+          aChangeList->AppendChange(aFrame, content, restyleData.mChangeHint);
+        }
+        aRestyleHint = nsRestyleHint(aRestyleHint | restyleData.mRestyleHint);
+      }
+    }
+
+    nsRestyleHint childRestyleHint = aRestyleHint;
+
+    if (childRestyleHint == eRestyle_Self) {
+      childRestyleHint = nsRestyleHint(0);
+    }
 
     nsStyleContext* parentContext;
     nsIFrame* resolvedChild = nsnull;
@@ -1068,11 +1109,12 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
       // style context provider will be automatically propagated to
       // the frame(s) with child style contexts.
 
-      // Accessibility: we don't need to fire a11y events for child provider
-      // frame because it is visible or hidden withitn this frame.
       assumeDifferenceHint = ReResolveStyleContext(aPresContext, providerFrame,
                                                    aParentContent, aChangeList,
-                                                   aMinChange, PR_FALSE);
+                                                   aMinChange, aRestyleHint,
+                                                   aRestyleTracker,
+                                                   aDesiredA11yNotifications,
+                                                   aVisibleKidsOfHiddenElement);
 
       // The provider's new context becomes the parent context of
       // aFrame's context.
@@ -1127,52 +1169,53 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
                    "non pseudo-element frame without content node");
       newContext = styleSet->ResolveStyleForNonElement(parentContext);
     }
-    else if (pseudoTag) {
-      // XXXldb This choice of pseudoContent seems incorrect for anon
-      // boxes and perhaps other cases.
-      // See also the comment above the assertion at the start of this
-      // function.
-      nsIContent* pseudoContent =
-          aParentContent ? aParentContent : localContent;
-      if (pseudoTag == nsCSSPseudoElements::before ||
-          pseudoTag == nsCSSPseudoElements::after) {
-        // XXX what other pseudos do we need to treat like this?
-        newContext = styleSet->ProbePseudoElementStyle(pseudoContent,
-                                                       pseudoType,
-                                                       parentContext);
-        if (!newContext) {
-          // This pseudo should no longer exist; gotta reframe
-          NS_UpdateHint(aMinChange, nsChangeHint_ReconstructFrame);
-          aChangeList->AppendChange(aFrame, pseudoContent,
-                                    nsChangeHint_ReconstructFrame);
-          // We're reframing anyway; just keep the same context
-          newContext = oldContext;
-        }
-      } else if (pseudoType == nsCSSPseudoElements::ePseudo_AnonBox) {
-        newContext = styleSet->ResolveAnonymousBoxStyle(pseudoTag,
-                                                        parentContext);
-      } else {
-        // Don't expect XUL tree stuff here, since it needs a comparator and
-        // all.
-        NS_ASSERTION(pseudoType <
-                       nsCSSPseudoElements::ePseudo_PseudoElementCount,
-                     "Unexpected pseudo type");
-        if (pseudoTag == nsCSSPseudoElements::firstLetter) {
-          NS_ASSERTION(aFrame->GetType() == nsGkAtoms::letterFrame, 
-                       "firstLetter pseudoTag without a nsFirstLetterFrame");
-          nsBlockFrame* block = nsBlockFrame::GetNearestAncestorBlock(aFrame);
-          pseudoContent = block->GetContent();
-        }
-        newContext = styleSet->ResolvePseudoElementStyle(pseudoContent,
-                                                         pseudoType,
-                                                         parentContext);
-      }
+    else if (!aRestyleHint) {
+      newContext =
+        styleSet->ReparentStyleContext(oldContext, parentContext,
+                                       ElementForStyleContext(aParentContent,
+                                                              aFrame,
+                                                              pseudoType));
+    } else if (pseudoType == nsCSSPseudoElements::ePseudo_AnonBox) {
+      newContext = styleSet->ResolveAnonymousBoxStyle(pseudoTag,
+                                                      parentContext);
     }
     else {
-      NS_ASSERTION(localContent,
-                   "non pseudo-element frame without content node");
-      newContext = styleSet->ResolveStyleFor(content, parentContext);
+      Element* element = ElementForStyleContext(aParentContent,
+                                                aFrame,
+                                                pseudoType);
+      if (pseudoTag) {
+        if (pseudoTag == nsCSSPseudoElements::before ||
+            pseudoTag == nsCSSPseudoElements::after) {
+          // XXX what other pseudos do we need to treat like this?
+          newContext = styleSet->ProbePseudoElementStyle(element,
+                                                         pseudoType,
+                                                         parentContext);
+          if (!newContext) {
+            // This pseudo should no longer exist; gotta reframe
+            NS_UpdateHint(aMinChange, nsChangeHint_ReconstructFrame);
+            aChangeList->AppendChange(aFrame, element,
+                                      nsChangeHint_ReconstructFrame);
+            // We're reframing anyway; just keep the same context
+            newContext = oldContext;
+          }
+        } else {
+          // Don't expect XUL tree stuff here, since it needs a comparator and
+          // all.
+          NS_ASSERTION(pseudoType <
+                         nsCSSPseudoElements::ePseudo_PseudoElementCount,
+                       "Unexpected pseudo type");
+          newContext = styleSet->ResolvePseudoElementStyle(element,
+                                                           pseudoType,
+                                                           parentContext);
+        }
+      }
+      else {
+        NS_ASSERTION(localContent,
+                     "non pseudo-element frame without content node");
+        newContext = styleSet->ResolveStyleFor(element, parentContext);
+      }
     }
+
     NS_ASSERTION(newContext, "failed to get new style context");
     if (newContext) {
       if (!parentContext) {
@@ -1207,7 +1250,9 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
       newContext = oldContext;  // new context failed, recover...
     }
 
-    // do additional contexts 
+    // do additional contexts
+    // XXXbz might be able to avoid selector matching here in some
+    // cases; won't worry about it for now.
     PRInt32 contextIndex = -1;
     while (1 == 1) {
       nsStyleContext* oldExtraContext = nsnull;
@@ -1230,7 +1275,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
           NS_ASSERTION(extraPseudoType <
                          nsCSSPseudoElements::ePseudo_PseudoElementCount,
                        "Unexpected type");
-          newExtraContext = styleSet->ResolvePseudoElementStyle(content,
+          newExtraContext = styleSet->ResolvePseudoElementStyle(content->AsElement(),
                                                                 extraPseudoType,
                                                                 newContext);
         }
@@ -1271,21 +1316,34 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
            undisplayed; undisplayed = undisplayed->mNext) {
         NS_ASSERTION(undisplayedParent ||
                      undisplayed->mContent ==
-                       mPresShell->GetDocument()->GetRootContent(),
+                       mPresShell->GetDocument()->GetRootElement(),
                      "undisplayed node child of null must be root");
         NS_ASSERTION(!undisplayed->mStyle->GetPseudo(),
                      "Shouldn't have random pseudo style contexts in the "
                      "undisplayed map");
-        nsRefPtr<nsStyleContext> undisplayedContext =
-          styleSet->ResolveStyleFor(undisplayed->mContent, newContext);
+        nsRestyleHint thisChildHint = childRestyleHint;
+        RestyleTracker::RestyleData undisplayedRestyleData;
+        if (aRestyleTracker.GetRestyleData(undisplayed->mContent->AsElement(),
+                                           &undisplayedRestyleData)) {
+          thisChildHint =
+            nsRestyleHint(thisChildHint | undisplayedRestyleData.mRestyleHint);
+        }
+        nsRefPtr<nsStyleContext> undisplayedContext;
+        if (thisChildHint) {
+          undisplayedContext =
+            styleSet->ResolveStyleFor(undisplayed->mContent->AsElement(),
+                                      newContext);
+        } else {
+          undisplayedContext =
+            styleSet->ReparentStyleContext(undisplayed->mStyle, newContext,
+                                           undisplayed->mContent->AsElement());
+        }
         if (undisplayedContext) {
           const nsStyleDisplay* display = undisplayedContext->GetStyleDisplay();
           if (display->mDisplay != NS_STYLE_DISPLAY_NONE) {
-            aChangeList->AppendChange(nsnull,
-                                      undisplayed->mContent
-                                      ? static_cast<nsIContent*>
-                                                   (undisplayed->mContent)
-                                      : localContent, 
+            NS_ASSERTION(undisplayed->mContent,
+                         "Must have undisplayed content");
+            aChangeList->AppendChange(nsnull, undisplayed->mContent, 
                                       NS_STYLE_HINT_FRAMECHANGE);
             // The node should be removed from the undisplayed map when
             // we reframe it.
@@ -1297,11 +1355,14 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
       }
     }
 
-    if (!(aMinChange & nsChangeHint_ReconstructFrame)) {
+    // Check whether we might need to create a new ::before frame.
+    // There's no need to do this if we're planning to reframe already
+    // or if we're not forcing restyles on kids.
+    if (!(aMinChange & nsChangeHint_ReconstructFrame) &&
+        childRestyleHint) {
       // Make sure not to do this for pseudo-frames -- those can't have :before
       // or :after content.  Neither can non-elements or leaf frames.
-      if (!pseudoTag && localContent &&
-          localContent->IsNodeOfType(nsINode::eELEMENT) &&
+      if (!pseudoTag && localContent && localContent->IsElement() &&
           !aFrame->IsLeaf()) {
         // Check for a new :before pseudo and an existing :before
         // frame, but only if the frame is the first continuation.
@@ -1322,12 +1383,14 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
       }
     }
 
-    
-    if (!(aMinChange & nsChangeHint_ReconstructFrame)) {
+    // Check whether we might need to create a new ::after frame.
+    // There's no need to do this if we're planning to reframe already
+    // or if we're not forcing restyles on kids.
+    if (!(aMinChange & nsChangeHint_ReconstructFrame) &&
+        childRestyleHint) {
       // Make sure not to do this for pseudo-frames -- those can't have :before
       // or :after content.  Neither can non-elements or leaf frames.
-      if (!pseudoTag && localContent &&
-          localContent->IsNodeOfType(nsINode::eELEMENT) &&
+      if (!pseudoTag && localContent && localContent->IsElement() &&
           !aFrame->IsLeaf()) {
         // Check for new :after content, but only if the frame is the
         // last continuation.
@@ -1349,34 +1412,45 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
       }
     }
 
-    PRBool fireAccessibilityEvents = aFireAccessibilityEvents;
+    if (!(aMinChange & nsChangeHint_ReconstructFrame)) {
+      A11yNotificationType ourA11yNotification = eDontNotify;
+      DesiredA11yNotifications kidsDesiredA11yNotification =
+        aDesiredA11yNotifications;
 #ifdef ACCESSIBILITY
-    if (fireAccessibilityEvents && mPresShell->IsAccessibilityActive() &&
-        aFrame->GetStyleVisibility()->IsVisible() != isVisible &&
-        !aFrame->GetPrevContinuation()) {
-      // A significant enough change occured that this part
-      // of the accessible tree is no longer valid. Fire event for primary
-      // frames only and if it wasn't fired for parent frame already.
-
-      // XXX: bug 355521. Visibility does not affect descendents with
-      // visibility set. Work on a separate, accurate mechanism for dealing with
-      // visibility changes.
-      nsCOMPtr<nsIAccessibilityService> accService = 
-        do_GetService("@mozilla.org/accessibilityService;1");
-      if (accService) {
-        PRUint32 changeType = isVisible ?
-          nsIAccessibilityService::FRAME_HIDE :
-          nsIAccessibilityService::FRAME_SHOW;
-
-        accService->InvalidateSubtreeFor(mPresShell, aFrame->GetContent(),
-                                         changeType);
-        fireAccessibilityEvents = PR_FALSE;
+      // Notify a11y for primary frame only if it's a root frame of visibility
+      // changes or its parent frame was hidden while it stays visible and
+      // it is not inside a {ib} split or is the first frame of {ib} split.
+      if (mPresShell->IsAccessibilityActive() && !aFrame->GetPrevContinuation() &&
+          !nsLayoutUtils::FrameIsNonFirstInIBSplit(aFrame)) {
+        if (aDesiredA11yNotifications == eSendAllNotifications) {
+          PRBool isFrameVisible = newContext->GetStyleVisibility()->IsVisible();
+          if (isFrameVisible != wasFrameVisible) {
+            if (isFrameVisible) {
+              // Notify a11y the element (perhaps with its children) was shown.
+              // We don't fall into this case if this element gets or stays shown
+              // while its parent becomes hidden.
+              kidsDesiredA11yNotification = eSkipNotifications;
+              ourA11yNotification = eNotifyShown;
+            } else {
+              // The element is being hidden; its children may stay visible, or
+              // become visible after being hidden previously. If we'll find
+              // visible children then we should notify a11y about that as if
+              // they were inserted into tree. Notify a11y this element was
+              // hidden.
+              kidsDesiredA11yNotification = eNotifyIfShown;
+              ourA11yNotification = eNotifyHidden;
+            }
+          }
+        } else if (aDesiredA11yNotifications == eNotifyIfShown &&
+                   newContext->GetStyleVisibility()->IsVisible()) {
+          // Notify a11y that element stayed visible while its parent was
+          // hidden.
+          aVisibleKidsOfHiddenElement.AppendElement(aFrame->GetContent());
+          kidsDesiredA11yNotification = eSkipNotifications;
+        }
       }
-    }
 #endif
 
-    if (!(aMinChange & nsChangeHint_ReconstructFrame)) {
-      
       // There is no need to waste time crawling into a frame's children on a frame change.
       // The act of reconstructing frames will force new style contexts to be resolved on all
       // of this frame's descendants anyway, so we want to avoid wasting time processing
@@ -1413,23 +1487,34 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
 
               // |nsFrame::GetParentStyleContextFrame| checks being out
               // of flow so that this works correctly.
-              ReResolveStyleContext(aPresContext, outOfFlowFrame,
-                                    content, aChangeList,
-                                    NS_SubtractHint(aMinChange,
-                                                    nsChangeHint_ReflowFrame),
-                                    fireAccessibilityEvents);
+              do {
+                ReResolveStyleContext(aPresContext, outOfFlowFrame,
+                                      content, aChangeList,
+                                      NS_SubtractHint(aMinChange,
+                                                      nsChangeHint_ReflowFrame),
+                                      childRestyleHint,
+                                      aRestyleTracker,
+                                      kidsDesiredA11yNotification,
+                                      aVisibleKidsOfHiddenElement);
+              } while (outOfFlowFrame = outOfFlowFrame->GetNextContinuation());
 
               // reresolve placeholder's context under the same parent
               // as the out-of-flow frame
               ReResolveStyleContext(aPresContext, child, content,
                                     aChangeList, aMinChange,
-                                    fireAccessibilityEvents);
+                                    childRestyleHint,
+                                    aRestyleTracker,
+                                    kidsDesiredA11yNotification,
+                                    aVisibleKidsOfHiddenElement);
             }
             else {  // regular child frame
               if (child != resolvedChild) {
                 ReResolveStyleContext(aPresContext, child, content,
                                       aChangeList, aMinChange,
-                                      fireAccessibilityEvents);
+                                      childRestyleHint,
+                                      aRestyleTracker,
+                                      kidsDesiredA11yNotification,
+                                      aVisibleKidsOfHiddenElement);
               } else {
                 NOISY_TRACE_FRAME("child frame already resolved as descendant, skipping",aFrame);
               }
@@ -1441,8 +1526,40 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
         childList = aFrame->GetAdditionalChildListName(listIndex++);
       } while (childList);
       // XXX need to do overflow frames???
-    }
 
+#ifdef ACCESSIBILITY
+      // Send notifications about visibility changes.
+      if (ourA11yNotification == eNotifyShown) {
+        nsCOMPtr<nsIAccessibilityService> accService =
+          do_GetService("@mozilla.org/accessibilityService;1");
+        if (accService) {
+          nsIPresShell* presShell = aFrame->PresContext()->GetPresShell();
+          nsIContent* content = aFrame->GetContent();
+
+          accService->ContentRangeInserted(presShell, content->GetParent(),
+                                           content,
+                                           content->GetNextSibling());
+        }
+      } else if (ourA11yNotification == eNotifyHidden) {
+        nsCOMPtr<nsIAccessibilityService> accService =
+          do_GetService("@mozilla.org/accessibilityService;1");
+        if (accService) {
+          nsIPresShell* presShell = aFrame->PresContext()->GetPresShell();
+          nsIContent* content = aFrame->GetContent();
+          accService->ContentRemoved(presShell, content->GetParent(), content);
+
+          // Process children staying shown.
+          PRUint32 visibleContentCount = aVisibleKidsOfHiddenElement.Length();
+          for (PRUint32 idx = 0; idx < visibleContentCount; idx++) {
+            nsIContent* content = aVisibleKidsOfHiddenElement[idx];
+            accService->ContentRangeInserted(presShell, content->GetParent(),
+                                             content, content->GetNextSibling());
+          }
+          aVisibleKidsOfHiddenElement.Clear();
+        }
+      }
+#endif
+    }
   }
 
   return aMinChange;
@@ -1451,7 +1568,9 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
 void
 nsFrameManager::ComputeStyleChangeFor(nsIFrame          *aFrame, 
                                       nsStyleChangeList *aChangeList,
-                                      nsChangeHint       aMinChange)
+                                      nsChangeHint       aMinChange,
+                                      RestyleTracker&    aRestyleTracker,
+                                      PRBool             aRestyleDescendants)
 {
   if (aMinChange) {
     aChangeList->AppendChange(aFrame, aFrame->GetContent(), aMinChange);
@@ -1468,15 +1587,21 @@ nsFrameManager::ComputeStyleChangeFor(nsIFrame          *aFrame,
   // as well as all its special siblings and their next-in-flows,
   // reresolving style on all the frames we encounter in this walk.
 
-  nsPropertyTable *propTable = GetPresContext()->PropertyTable();
+  FramePropertyTable *propTable = GetPresContext()->PropertyTable();
 
+  nsTArray<nsIContent*> visibleKidsOfHiddenElement;
   do {
     // Outer loop over special siblings
     do {
       // Inner loop over next-in-flows of the current frame
       nsChangeHint frameChange =
         ReResolveStyleContext(GetPresContext(), frame, nsnull,
-                              aChangeList, topLevelChange, PR_TRUE);
+                              aChangeList, topLevelChange,
+                              aRestyleDescendants ?
+                                eRestyle_Subtree : eRestyle_Self,
+                              aRestyleTracker,
+                              eSendAllNotifications,
+                              visibleKidsOfHiddenElement);
       NS_UpdateHint(topLevelChange, frameChange);
 
       if (topLevelChange & nsChangeHint_ReconstructFrame) {
@@ -1498,32 +1623,9 @@ nsFrameManager::ComputeStyleChangeFor(nsIFrame          *aFrame,
     }
     
     frame2 = static_cast<nsIFrame*>
-                        (propTable->GetProperty(frame2, nsGkAtoms::IBSplitSpecialSibling));
+      (propTable->Get(frame2, nsIFrame::IBSplitSpecialSibling()));
     frame = frame2;
   } while (frame2);
-}
-
-
-nsReStyleHint
-nsFrameManager::HasAttributeDependentStyle(nsIContent *aContent,
-                                           nsIAtom *aAttribute,
-                                           PRInt32 aModType,
-                                           PRBool aAttrHasChanged)
-{
-  nsReStyleHint hint = mStyleSet->HasAttributeDependentStyle(GetPresContext(),
-                                                             aContent,
-                                                             aAttribute,
-                                                             aModType,
-                                                             aAttrHasChanged);
-
-  if (aAttrHasChanged && aAttribute == nsGkAtoms::style) {
-    // Perhaps should check that it's XUL, SVG, (or HTML) namespace, but
-    // it doesn't really matter.  Or we could even let
-    // HTMLCSSStyleSheetImpl::HasAttributeDependentStyle handle it.
-    hint = nsReStyleHint(hint | eReStyle_Self);
-  }
-
-  return hint;
 }
 
 // Capture state for a given frame.

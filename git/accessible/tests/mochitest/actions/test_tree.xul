@@ -12,16 +12,16 @@
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
 
   <script type="application/javascript"
-          src="chrome://mochikit/content/a11y/accessible/treeview.js" />
+          src="../treeview.js" />
 
   <script type="application/javascript"
-          src="chrome://mochikit/content/a11y/accessible/common.js" />
+          src="../common.js" />
   <script type="application/javascript"
-          src="chrome://mochikit/content/a11y/accessible/states.js" />
+          src="../states.js" />
   <script type="application/javascript"
-          src="chrome://mochikit/content/a11y/accessible/events.js" />
+          src="../events.js" />
   <script type="application/javascript"
-          src="chrome://mochikit/content/a11y/accessible/actions.js" />
+          src="../actions.js" />
 
   <script type="application/javascript">
   <![CDATA[
@@ -51,7 +51,6 @@
     function doTestActions()
     {
       var treeNode = getNode("tree");
-      treeNode.removeEventListener("TreeViewChanged", doTestActions, false);
 
       var treeBodyNode = treeNode.boxObject.treeBody;
 
@@ -100,7 +99,7 @@
     function doTest()
     {
       var treeNode = getNode("tree");
-      treeNode.addEventListener("TreeViewChanged", doTestActions, false);
+      waitForEvent(EVENT_REORDER, treeNode, doTestActions);
       treeNode.view = new nsTreeTreeView();
     }
 

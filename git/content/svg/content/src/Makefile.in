@@ -49,11 +49,16 @@ LIBRARY_NAME	= gkcontentsvg_s
 LIBXUL_LIBRARY	= 1
 
 CPPSRCS		= \
+		DOMSVGAnimatedLengthList.cpp \
+		DOMSVGLength.cpp \
+		DOMSVGLengthList.cpp \
+		DOMSVGPathSeg.cpp \
+		DOMSVGPathSegList.cpp \
 		nsDOMSVGZoomEvent.cpp \
 		nsDOMSVGEvent.cpp \
 		nsSVGAElement.cpp \
+		nsSVGAltGlyphElement.cpp \
 		nsSVGAngle.cpp \
-		nsSVGAnimatedLengthList.cpp \
 		nsSVGAnimatedNumberList.cpp \
 		nsSVGAnimatedTransformList.cpp \
 		nsSVGBoolean.cpp \
@@ -75,9 +80,7 @@ CPPSRCS		= \
 		nsSVGGraphicElement.cpp \
 		nsSVGImageElement.cpp \
 		nsSVGInteger.cpp \
-		nsSVGLength.cpp \
 		nsSVGLength2.cpp \
-		nsSVGLengthList.cpp \
 		nsSVGLineElement.cpp \
 		nsSVGMarkerElement.cpp \
 		nsSVGMaskElement.cpp \
@@ -89,8 +92,6 @@ CPPSRCS		= \
 		nsSVGPathDataParser.cpp \
 		nsSVGPathElement.cpp \
 		nsSVGPathGeometryElement.cpp \
-		nsSVGPathSeg.cpp \
-		nsSVGPathSegList.cpp \
 		nsSVGPatternElement.cpp \
 		nsSVGPoint.cpp \
 		nsSVGPointList.cpp \
@@ -113,6 +114,7 @@ CPPSRCS		= \
 		nsSVGTextContentElement.cpp \
 		nsSVGTextElement.cpp \
 		nsSVGTextPathElement.cpp \
+		nsSVGTextPositioningElement.cpp \
 		nsSVGTitleElement.cpp \
 		nsSVGTransform.cpp \
 		nsSVGTransformList.cpp \
@@ -120,16 +122,30 @@ CPPSRCS		= \
 		nsSVGUseElement.cpp \
 		nsSVGValue.cpp \
 		nsSVGViewBox.cpp \
+		SVGAnimatedLengthList.cpp \
+		SVGAnimatedPathSegList.cpp \
+		SVGLength.cpp \
+		SVGLengthList.cpp \
+		SVGPathData.cpp \
+		SVGPathSegUtils.cpp \
 		$(NULL)
 
 ifdef MOZ_SMIL
 CPPSRCS += nsSVGAnimateElement.cpp \
            nsSVGAnimateTransformElement.cpp \
+           nsSVGAnimateMotionElement.cpp \
            nsSVGAnimationElement.cpp \
+           nsSVGMpathElement.cpp \
            nsSVGSetElement.cpp \
            nsSVGTransformSMILType.cpp \
            nsSVGTransformSMILAttr.cpp \
+           SVGLengthListSMILType.cpp \
+           SVGMotionSMILType.cpp \
+           SVGMotionSMILAttr.cpp \
+           SVGMotionSMILAnimationFunction.cpp \
+           SVGMotionSMILPathUtils.cpp \
            SVGOrientSMILType.cpp \
+           SVGPathSegListSMILType.cpp \
            SVGViewBoxSMILType.cpp \
            $(NULL)
 endif

@@ -50,15 +50,16 @@ LOCAL_INCLUDES 	= -I$(srcdir)/../..
 CPPSRCS	= \
   file_id.cc \
   guid_creator.cc \
-  http_upload.cc \
   $(NULL)
+
+ifneq (Android,$(OS_TARGET))
+CPPSRCS += http_upload.cc
+endif
 
 HOST_CPPSRCS = \
   dump_symbols.cc \
   file_id.cc \
   guid_creator.cc \
-  module.cc \
-  stabs_reader.cc \
   $(NULL)
 
 # need static lib

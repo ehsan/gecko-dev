@@ -103,7 +103,7 @@ moz_test_binary()
 ##########################################################################
 moz_get_debugger()
 {
-	debuggers="ddd gdb dbx bdb"
+	debuggers="ddd gdb dbx bdb native-gdb"
 	debugger="notfound"
 	done="no"
 	for d in $debuggers
@@ -169,6 +169,10 @@ moz_debug_program()
 # If you are not using ddd, gdb and know of a way to convey the arguments 
 # over to the prog then add that here- Gagan Saksena 03/15/00
         case `basename $debugger` in
+            native-gdb) echo "$debugger $moz_debugger_args --args $prog" ${1+"$@"}
+                exec "$debugger" $moz_debugger_args --args "$prog" ${1+"$@"}
+                exitcode=$?
+                ;;
             gdb) echo "$debugger $moz_debugger_args --args $prog" ${1+"$@"}
                 exec "$debugger" $moz_debugger_args --args "$prog" ${1+"$@"}
 		exitcode=$?
@@ -304,36 +308,36 @@ moz_should_set_ld_library_path()
 }
 if moz_should_set_ld_library_path
 then
-	LD_LIBRARY_PATH=${MOZ_DIST_BIN}:${MOZ_DIST_BIN}/plugins:${MRE_HOME}${LD_LIBRARY_PATH+":$LD_LIBRARY_PATH"}
+	LD_LIBRARY_PATH=${MOZ_DIST_BIN}:${MOZ_DIST_BIN}/plugins:${MRE_HOME}${LD_LIBRARY_PATH:+":$LD_LIBRARY_PATH"}
 fi 
 
 if [ -n "$LD_LIBRARYN32_PATH" ]
 then
-	LD_LIBRARYN32_PATH=${MOZ_DIST_BIN}:${MOZ_DIST_BIN}/plugins:${MRE_HOME}${LD_LIBRARYN32_PATH+":$LD_LIBRARYN32_PATH"}
+	LD_LIBRARYN32_PATH=${MOZ_DIST_BIN}:${MOZ_DIST_BIN}/plugins:${MRE_HOME}${LD_LIBRARYN32_PATH:+":$LD_LIBRARYN32_PATH"}
 fi
 if [ -n "$LD_LIBRARYN64_PATH" ]
 then
-	LD_LIBRARYN64_PATH=${MOZ_DIST_BIN}:${MOZ_DIST_BIN}/plugins:${MRE_HOME}${LD_LIBRARYN64_PATH+":$LD_LIBRARYN64_PATH"}
+	LD_LIBRARYN64_PATH=${MOZ_DIST_BIN}:${MOZ_DIST_BIN}/plugins:${MRE_HOME}${LD_LIBRARYN64_PATH:+":$LD_LIBRARYN64_PATH"}
 fi
 if [ -n "$LD_LIBRARY_PATH_64" ]; then
-	LD_LIBRARY_PATH_64=${MOZ_DIST_BIN}:${MOZ_DIST_BIN}/plugins:${MRE_HOME}${LD_LIBRARY_PATH_64+":$LD_LIBRARY_PATH_64"}
+	LD_LIBRARY_PATH_64=${MOZ_DIST_BIN}:${MOZ_DIST_BIN}/plugins:${MRE_HOME}${LD_LIBRARY_PATH_64:+":$LD_LIBRARY_PATH_64"}
 fi
 #
 #
 ## Set SHLIB_PATH for HPUX
-SHLIB_PATH=${MOZ_DIST_BIN}:${MRE_HOME}${SHLIB_PATH+":$SHLIB_PATH"}
+SHLIB_PATH=${MOZ_DIST_BIN}:${MRE_HOME}${SHLIB_PATH:+":$SHLIB_PATH"}
 #
 ## Set LIBPATH for AIX
-LIBPATH=${MOZ_DIST_BIN}:${MRE_HOME}${LIBPATH+":$LIBPATH"}
+LIBPATH=${MOZ_DIST_BIN}:${MRE_HOME}${LIBPATH:+":$LIBPATH"}
 #
 ## Set DYLD_LIBRARY_PATH for Mac OS X (Darwin)
-DYLD_LIBRARY_PATH=${MOZ_DIST_BIN}:${MRE_HOME}${DYLD_LIBRARY_PATH+":$DYLD_LIBRARY_PATH"}
+DYLD_LIBRARY_PATH=${MOZ_DIST_BIN}:${MRE_HOME}${DYLD_LIBRARY_PATH:+":$DYLD_LIBRARY_PATH"}
 #
 ## Set LIBRARY_PATH for BeOS
-LIBRARY_PATH=${MOZ_DIST_BIN}:${MOZ_DIST_BIN}/components:${MRE_HOME}${LIBRARY_PATH+":$LIBRARY_PATH"}
+LIBRARY_PATH=${MOZ_DIST_BIN}:${MOZ_DIST_BIN}/components:${MRE_HOME}${LIBRARY_PATH:+":$LIBRARY_PATH"}
 #
 ## Set ADDON_PATH for BeOS
-ADDON_PATH=${MOZ_DIST_BIN}${ADDON_PATH+":$ADDON_PATH"}
+ADDON_PATH=${MOZ_DIST_BIN}${ADDON_PATH:+":$ADDON_PATH"}
 #
 ## Solaris Xserver(Xsun) tuning - use shared memory transport if available
 if [ "$XSUNTRANSPORT" = "" ]

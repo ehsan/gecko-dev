@@ -41,6 +41,7 @@
 
 #include "mozilla/plugins/PPluginScriptableObjectParent.h"
 
+#include "jsapi.h"
 #include "npfunctions.h"
 #include "npruntime.h"
 
@@ -49,6 +50,7 @@ namespace plugins {
 
 class PluginInstanceParent;
 class PluginScriptableObjectParent;
+class PPluginIdentifierParent;
 
 struct ParentNPObject : NPObject
 {
@@ -76,44 +78,44 @@ public:
   InitializeLocal(NPObject* aObject);
 
   virtual bool
-  AnswerHasMethod(const NPRemoteIdentifier& aId,
+  AnswerHasMethod(PPluginIdentifierParent* aId,
                   bool* aHasMethod);
 
   virtual bool
-  AnswerInvoke(const NPRemoteIdentifier& aId,
-               const nsTArray<Variant>& aArgs,
+  AnswerInvoke(PPluginIdentifierParent* aId,
+               const InfallibleTArray<Variant>& aArgs,
                Variant* aResult,
                bool* aSuccess);
 
   virtual bool
-  AnswerInvokeDefault(const nsTArray<Variant>& aArgs,
+  AnswerInvokeDefault(const InfallibleTArray<Variant>& aArgs,
                       Variant* aResult,
                       bool* aSuccess);
 
   virtual bool
-  AnswerHasProperty(const NPRemoteIdentifier& aId,
+  AnswerHasProperty(PPluginIdentifierParent* aId,
                     bool* aHasProperty);
 
   virtual bool
-  AnswerGetProperty(const NPRemoteIdentifier& aId,
-                    Variant* aResult,
-                    bool* aSuccess);
+  AnswerGetParentProperty(PPluginIdentifierParent* aId,
+                          Variant* aResult,
+                          bool* aSuccess);
 
   virtual bool
-  AnswerSetProperty(const NPRemoteIdentifier& aId,
+  AnswerSetProperty(PPluginIdentifierParent* aId,
                     const Variant& aValue,
                     bool* aSuccess);
 
   virtual bool
-  AnswerRemoveProperty(const NPRemoteIdentifier& aId,
+  AnswerRemoveProperty(PPluginIdentifierParent* aId,
                        bool* aSuccess);
 
   virtual bool
-  AnswerEnumerate(nsTArray<NPRemoteIdentifier>* aProperties,
+  AnswerEnumerate(InfallibleTArray<PPluginIdentifierParent*>* aProperties,
                   bool* aSuccess);
 
   virtual bool
-  AnswerConstruct(const nsTArray<Variant>& aArgs,
+  AnswerConstruct(const InfallibleTArray<Variant>& aArgs,
                   Variant* aResult,
                   bool* aSuccess);
 
@@ -123,10 +125,10 @@ public:
                      bool* aSuccess);
 
   virtual bool
-  AnswerProtect();
+  RecvProtect();
 
   virtual bool
-  AnswerUnprotect();
+  RecvUnprotect();
 
   static const NPClass*
   GetClass()
@@ -166,6 +168,11 @@ public:
   Type() const {
     return mType;
   }
+
+  JSBool GetPropertyHelper(NPIdentifier aName,
+                           PRBool* aHasProperty,
+                           PRBool* aHasMethod,
+                           NPVariant* aResult);
 
 private:
   static NPObject*

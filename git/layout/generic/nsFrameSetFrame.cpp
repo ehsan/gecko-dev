@@ -1,6 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- *
- * ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -70,7 +69,7 @@
 #include "nsCSSAnonBoxes.h"
 #include "nsAutoPtr.h"
 #include "nsStyleSet.h"
-#include "nsIContent.h"
+#include "mozilla/dom/Element.h"
 #include "nsDisplayList.h"
 #include "nsNodeUtils.h"
 #include "mozAutoDocUpdate.h"
@@ -93,16 +92,6 @@ nsFramesetDrag::nsFramesetDrag()
   UnSet();
 }
 
-nsFramesetDrag::nsFramesetDrag(PRBool               aVertical, 
-                               PRInt32              aIndex, 
-                               PRInt32              aChange, 
-                               nsHTMLFramesetFrame* aSource) 
-{
-  mVertical = aVertical;
-  mIndex    = aIndex;
-  mChange   = aChange; 
-  mSource   = aSource;
-}
 void nsFramesetDrag::Reset(PRBool               aVertical, 
                            PRInt32              aIndex, 
                            PRInt32              aChange, 
@@ -269,7 +258,8 @@ nsHTMLFramesetFrame::FrameResizePrefCallback(const char* aPref, void* aClosure)
   nsIDocument* doc = frame->mContent->GetDocument();
   mozAutoDocUpdate updateBatch(doc, UPDATE_CONTENT_MODEL, PR_TRUE);
   if (doc) {
-    nsNodeUtils::AttributeWillChange(frame->mContent, kNameSpaceID_None,
+    nsNodeUtils::AttributeWillChange(frame->GetContent()->AsElement(),
+                                     kNameSpaceID_None,
                                      nsGkAtoms::frameborder,
                                      nsIDOMMutationEvent::MODIFICATION);
   }
@@ -280,7 +270,7 @@ nsHTMLFramesetFrame::FrameResizePrefCallback(const char* aPref, void* aClosure)
 
   frame->RecalculateBorderResize();
   if (doc) {
-    nsNodeUtils::AttributeChanged(frame->GetContent(),
+    nsNodeUtils::AttributeChanged(frame->GetContent()->AsElement(),
                                   kNameSpaceID_None,
                                   nsGkAtoms::frameborder,
                                   nsIDOMMutationEvent::MODIFICATION);
@@ -365,9 +355,15 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
 
   for (PRUint32 childX = 0; childX < numChildren; childX++) {
     if (mChildCount == numCells) { // we have more <frame> or <frameset> than cells
+      // Clear the lazy bits in the remaining children.
+      for (PRUint32 i = childX; i < numChildren; i++) {
+        mContent->GetChildAt(i)->UnsetFlags(NODE_DESCENDANTS_NEED_FRAMES |
+                                            NODE_NEEDS_FRAME);
+      }
       break;
     }
     nsIContent *child = mContent->GetChildAt(childX);
+    child->UnsetFlags(NODE_DESCENDANTS_NEED_FRAMES | NODE_NEEDS_FRAME);
 
     // IMPORTANT: This must match the conditions in
     // nsCSSFrameConstructor::ContentAppended/Inserted/Removed    
@@ -379,7 +375,8 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
       nsRefPtr<nsStyleContext> kidSC;
       nsresult result;
 
-      kidSC = shell->StyleSet()->ResolveStyleFor(child, mStyleContext);
+      kidSC = shell->StyleSet()->ResolveStyleFor(child->AsElement(),
+                                                 mStyleContext);
       if (tag == nsGkAtoms::frameset) {
         frame = NS_NewHTMLFramesetFrame(shell, kidSC);
         if (NS_UNLIKELY(!frame))
@@ -813,11 +810,8 @@ nsHTMLFramesetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   NS_ENSURE_SUCCESS(rv, rv);
   
   if (mDragger && aBuilder->IsForEventDelivery()) {
-    // REVIEW: GetFrameForPoint would always target ourselves if mDragger set
-    nsDisplayItem* item = new (aBuilder) nsDisplayEventReceiver(this);
-    if (!item)
-      return NS_ERROR_OUT_OF_MEMORY;
-    aLists.Content()->AppendToTop(item);
+    rv = aLists.Content()->AppendNewToTop(
+        new (aBuilder) nsDisplayEventReceiver(aBuilder, this));
   }
   return rv;
 }
@@ -1238,8 +1232,7 @@ nsHTMLFramesetFrame::Reflow(nsPresContext*          aPresContext,
   aStatus = NS_FRAME_COMPLETE;
   mDrag.UnSet();
 
-  aDesiredSize.mOverflowArea = nsRect(0, 0,
-                                      aDesiredSize.width, aDesiredSize.height);
+  aDesiredSize.SetOverflowAreasToDesiredBounds();
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
   return NS_OK;
@@ -1615,16 +1608,16 @@ nsHTMLFramesetBorderFrame::Reflow(nsPresContext*          aPresContext,
   // computed values are.
   SizeToAvailSize(aReflowState, aDesiredSize);
 
-  aDesiredSize.mOverflowArea = nsRect(0, 0,
-                                      aDesiredSize.width, aDesiredSize.height);
+  aDesiredSize.SetOverflowAreasToDesiredBounds();
   aStatus = NS_FRAME_COMPLETE;
   return NS_OK;
 }
 
 class nsDisplayFramesetBorder : public nsDisplayItem {
 public:
-  nsDisplayFramesetBorder(nsHTMLFramesetBorderFrame* aFrame)
-    : nsDisplayItem(aFrame) {
+  nsDisplayFramesetBorder(nsDisplayListBuilder* aBuilder,
+                          nsHTMLFramesetBorderFrame* aFrame)
+    : nsDisplayItem(aBuilder, aFrame) {
     MOZ_COUNT_CTOR(nsDisplayFramesetBorder);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -1635,18 +1628,20 @@ public:
 
   // REVIEW: see old GetFrameForPoint
   // Receives events in its bounds
-  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
-                            HitTestState* aState) { return mFrame; }
+  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
+                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) {
+    aOutFrames->AppendElement(mFrame);
+  }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("FramesetBorder")
+  NS_DISPLAY_DECL_NAME("FramesetBorder", TYPE_FRAMESET_BORDER)
 };
 
 void nsDisplayFramesetBorder::Paint(nsDisplayListBuilder* aBuilder,
                                     nsIRenderingContext* aCtx)
 {
   static_cast<nsHTMLFramesetBorderFrame*>(mFrame)->
-    PaintBorder(*aCtx, aBuilder->ToReferenceFrame(mFrame));
+    PaintBorder(*aCtx, ToReferenceFrame());
 }
 
 NS_IMETHODIMP
@@ -1654,11 +1649,8 @@ nsHTMLFramesetBorderFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                             const nsRect&           aDirtyRect,
                                             const nsDisplayListSet& aLists)
 {
-  nsDisplayItem* item = new (aBuilder) nsDisplayFramesetBorder(this);
-  if (!item)
-    return NS_ERROR_OUT_OF_MEMORY;
-  aLists.Content()->AppendToTop(item);
-  return NS_OK;
+  return aLists.Content()->AppendNewToTop(
+      new (aBuilder) nsDisplayFramesetBorder(aBuilder, this));
 }
 
 void nsHTMLFramesetBorderFrame::PaintBorder(nsIRenderingContext& aRenderingContext,
@@ -1822,15 +1814,16 @@ nsHTMLFramesetBlankFrame::Reflow(nsPresContext*          aPresContext,
   // computed values are.
   SizeToAvailSize(aReflowState, aDesiredSize);
 
-  aDesiredSize.mOverflowArea = nsRect(0, 0,
-                                      aDesiredSize.width, aDesiredSize.height);
+  aDesiredSize.SetOverflowAreasToDesiredBounds();
   aStatus = NS_FRAME_COMPLETE;
   return NS_OK;
 }
 
 class nsDisplayFramesetBlank : public nsDisplayItem {
 public:
-  nsDisplayFramesetBlank(nsIFrame* aFrame) : nsDisplayItem(aFrame) {
+  nsDisplayFramesetBlank(nsDisplayListBuilder* aBuilder,
+                         nsIFrame* aFrame) :
+    nsDisplayItem(aBuilder, aFrame) {
     MOZ_COUNT_CTOR(nsDisplayFramesetBlank);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -1840,8 +1833,9 @@ public:
 #endif
 
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("FramesetBlank")
+  NS_DISPLAY_DECL_NAME("FramesetBlank", TYPE_FRAMESET_BLANK)
 };
+
 void nsDisplayFramesetBlank::Paint(nsDisplayListBuilder* aBuilder,
                                    nsIRenderingContext* aCtx)
 {
@@ -1865,9 +1859,6 @@ nsHTMLFramesetBlankFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                            const nsRect&           aDirtyRect,
                                            const nsDisplayListSet& aLists)
 {
-  nsDisplayItem* item = new (aBuilder) nsDisplayFramesetBlank(this);
-  if (!item)
-    return NS_ERROR_OUT_OF_MEMORY;
-  aLists.Content()->AppendToTop(item);
-  return NS_OK;
+  return aLists.Content()->AppendNewToTop(
+      new (aBuilder) nsDisplayFramesetBlank(aBuilder, this));
 }

@@ -55,10 +55,8 @@ interface nsIDOMWindow;
  * of a document. You can also get one from 
  * nsIAccessNode::GetAccessibleDocument() or 
  * nsIAccessibleEvent::GetAccessibleDocument()
- *
- * @status UNDER_REVIEW
  */
-[scriptable, uuid(427597a3-1737-4743-bf43-2311a1ed5fbd)]
+[scriptable, uuid(451242bd-8a0c-4198-ae88-c053609a4e5d)]
 interface nsIAccessibleDocument : nsISupports
 {
   /**
@@ -84,7 +82,7 @@ interface nsIAccessibleDocument : nsISupports
   /**
    * The nsIDOMDocument interface associated with this document.
    */
-  readonly attribute nsIDOMDocument document;
+  readonly attribute nsIDOMDocument DOMDocument;
 
   /**
    * The nsIDOMWindow that the document resides in.
@@ -103,14 +101,17 @@ interface nsIAccessibleDocument : nsISupports
   [noscript] readonly attribute voidPtr windowHandle;
 
   /**
-   * Returns the first accessible parent of a DOM node.
-   * Guaranteed not to return nsnull if the DOM node is in a document.
-   * @param aDOMNode The DOM node we need an accessible for.
-   * @param aCanCreate Can accessibles be created or must it be the first 
-   *                   cached accessible in the parent chain?
-   * @return An first nsIAccessible found by crawling up the DOM node
-   *         to the document root.
+   * Return the parent document accessible.
    */
-  nsIAccessible getAccessibleInParentChain(in nsIDOMNode aDOMNode,
-                                           in boolean aCanCreate);
+  readonly attribute nsIAccessibleDocument parentDocument;
+
+  /**
+   * Return the count of child document accessibles.
+   */
+  readonly attribute unsigned long childDocumentCount;
+
+  /**
+   * Return the child document accessible at the given index.
+   */
+  nsIAccessibleDocument getChildDocumentAt(in unsigned long index);
 };

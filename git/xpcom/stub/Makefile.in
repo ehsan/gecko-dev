@@ -78,6 +78,7 @@ DEPENDENT_LIBS_LIST += \
 	$(LIB_PREFIX)nspr4$(DLL_SUFFIX) \
 	$(LIB_PREFIX)plc4$(DLL_SUFFIX) \
 	$(LIB_PREFIX)plds4$(DLL_SUFFIX) \
+	$(LIB_PREFIX)mozalloc$(DLL_SUFFIX) \
 	$(NULL)
 
 ifdef MOZ_ENABLE_LIBXUL
@@ -88,13 +89,18 @@ DEPENDENT_LIBS_LIST += \
 	$(LIB_PREFIX)nss3$(DLL_SUFFIX) \
 	$(LIB_PREFIX)ssl3$(DLL_SUFFIX) \
 	$(LIB_PREFIX)smime3$(DLL_SUFFIX) \
-	$(LIB_PREFIX)mozjs$(DLL_SUFFIX) \
 	$(NULL)
 
+ifdef JS_SHARED_LIBRARY
+DEPENDENT_LIBS_LIST += $(LIB_PREFIX)mozjs$(DLL_SUFFIX)
+endif
+
+ifndef MOZ_NATIVE_SQLITE
 ifeq ($(OS_TARGET),OS2)
 DEPENDENT_LIBS_LIST += mozsqlt3.dll
 else
 DEPENDENT_LIBS_LIST += $(LIB_PREFIX)mozsqlite3$(DLL_SUFFIX)
+endif
 endif
 
 ifeq (bundle,$(MOZ_FS_LAYOUT))
@@ -114,9 +120,13 @@ else
 DEPENDENT_LIBS_LIST += $(LIB_PREFIX)xpcom_core$(DLL_SUFFIX)
 endif
 
-endif
+endif #ifdef MOZ_ENABLE_LIBXUL
 
-EXTRA_DSO_LDOPTS += $(EXTRA_DSO_LIBS) $(NSPR_LIBS)
+EXTRA_DSO_LDOPTS +=				\
+	$(EXTRA_DSO_LIBS)			\
+	$(NSPR_LIBS)				\
+	$(MOZALLOC_LIB)				\
+	$(NULL)
 
 include $(topsrcdir)/config/rules.mk
 

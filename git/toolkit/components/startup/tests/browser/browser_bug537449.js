@@ -91,15 +91,13 @@ var Watcher = {
 function test() {
   waitForExplicitFinish();
 
-  var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
-                     .getService(Components.interfaces.nsIWindowMediator);
-  wm.addListener(Watcher);
+  Services.wm.addListener(Watcher);
 
   gBrowser.selectedTab = gBrowser.addTab(TEST_URL);
-  gBrowser.addEventListener("load", function() {
+  gBrowser.selectedBrowser.addEventListener("DOMContentLoaded", function() {
     if (window.content.location.href != TEST_URL)
       return;
-    gBrowser.removeEventListener("load", arguments.callee, false);
+    gBrowser.selectedBrowser.removeEventListener("DOMContentLoaded", arguments.callee, false);
     Watcher.seen = false;
     var appStartup = Cc['@mozilla.org/toolkit/app-startup;1'].
                      getService(Ci.nsIAppStartup);
@@ -107,7 +105,8 @@ function test() {
     Watcher.allowClose = true;
     ok(Watcher.seen, "Should have seen a prompt dialog");
     ok(!window.closed, "Shouldn't have closed the window");
-    var win2 = OpenBrowserWindow();
+
+    var win2 = window.openDialog(location, "", "chrome,all,dialog=no", "about:blank");
     ok(win2 != null, "Should have been able to open a new window");
     win2.addEventListener("load", function() {
       win2.removeEventListener("load", arguments.callee, false);
@@ -119,8 +118,6 @@ function test() {
 }
 
 function finish_test() {
-  var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
-                     .getService(Components.interfaces.nsIWindowMediator);
-  wm.removeListener(Watcher);
+  Services.wm.removeListener(Watcher);
   finish();
 }

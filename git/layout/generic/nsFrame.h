@@ -187,7 +187,7 @@ public:
   virtual nsStyleContext* GetAdditionalStyleContext(PRInt32 aIndex) const;
   virtual void SetAdditionalStyleContext(PRInt32 aIndex,
                                          nsStyleContext* aStyleContext);
-  NS_IMETHOD  SetParent(const nsIFrame* aParent);
+  virtual void SetParent(nsIFrame* aParent);
   virtual nscoord GetBaseline() const;
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
   virtual nsFrameList GetChildList(nsIAtom* aListName) const;
@@ -260,7 +260,7 @@ public:
   virtual void ChildIsDirty(nsIFrame* aChild);
 
 #ifdef ACCESSIBILITY
-  NS_IMETHOD  GetAccessible(nsIAccessible** aAccessible);
+  virtual already_AddRefed<nsAccessible> CreateAccessible();
 #endif
 
   NS_IMETHOD GetParentStyleContextFrame(nsPresContext* aPresContext,
@@ -402,9 +402,9 @@ public:
                                         nsIFrame**      aProviderFrame,
                                         PRBool*         aIsChild);
 
-  // incorporate the child overflow area into the parent overflow area
-  // if the child does not have a overflow use the child area
-  void ConsiderChildOverflow(nsRect&   aOverflowArea,
+  // Incorporate the child overflow areas into aOverflowAreas.
+  // If the child does not have a overflow, use the child area.
+  void ConsiderChildOverflow(nsOverflowAreas& aOverflowAreas,
                              nsIFrame* aChildFrame);
 
   virtual const void* GetStyleDataExternal(nsStyleStructID aSID) const;
@@ -488,6 +488,8 @@ public:
   static void DisplayReflowShutdown();
 #endif
 
+  static void ShutdownLayerActivityTimer();
+
   /**
    * Adds display item for standard CSS background if necessary.
    * Does not check IsVisibleForPainting.
@@ -547,7 +549,7 @@ protected:
    * which kind of content this is for
    */
   nsresult DisplaySelectionOverlay(nsDisplayListBuilder* aBuilder,
-      const nsDisplayListSet& aLists, PRUint16 aContentType = nsISelectionDisplay::DISPLAY_FRAMES);
+      nsDisplayList* aList, PRUint16 aContentType = nsISelectionDisplay::DISPLAY_FRAMES);
 
   PRInt16 DisplaySelection(nsPresContext* aPresContext, PRBool isOkToTurnOn = PR_FALSE);
   
@@ -733,7 +735,39 @@ public:
     nsSize& mResult;
     void* mValue;
   };
-  
+
+  struct DR_init_constraints_cookie {
+    DR_init_constraints_cookie(nsIFrame* aFrame, nsHTMLReflowState* aState,
+                               nscoord aCBWidth, nscoord aCBHeight,
+                               const nsMargin* aBorder,
+                               const nsMargin* aPadding);
+    ~DR_init_constraints_cookie();
+
+    nsIFrame* mFrame;
+    nsHTMLReflowState* mState;
+    void* mValue;
+  };
+
+  struct DR_init_offsets_cookie {
+    DR_init_offsets_cookie(nsIFrame* aFrame, nsCSSOffsetState* aState,
+                           nscoord aCBWidth, const nsMargin* aBorder,
+                           const nsMargin* aPadding);
+    ~DR_init_offsets_cookie();
+
+    nsIFrame* mFrame;
+    nsCSSOffsetState* mState;
+    void* mValue;
+  };
+
+  struct DR_init_type_cookie {
+    DR_init_type_cookie(nsIFrame* aFrame, nsHTMLReflowState* aState);
+    ~DR_init_type_cookie();
+
+    nsIFrame* mFrame;
+    nsHTMLReflowState* mState;
+    void* mValue;
+  };
+
 #define DISPLAY_REFLOW(dr_pres_context, dr_frame, dr_rf_state, dr_rf_metrics, dr_rf_status) \
   DR_cookie dr_cookie(dr_pres_context, dr_frame, dr_rf_state, dr_rf_metrics, dr_rf_status); 
 #define DISPLAY_REFLOW_CHANGE() \
@@ -750,6 +784,14 @@ public:
   DR_intrinsic_size_cookie dr_cookie(dr_frame, "Min", dr_result)
 #define DISPLAY_MAX_SIZE(dr_frame, dr_result) \
   DR_intrinsic_size_cookie dr_cookie(dr_frame, "Max", dr_result)
+#define DISPLAY_INIT_CONSTRAINTS(dr_frame, dr_state, dr_cbw, dr_cbh,       \
+                                 dr_bdr, dr_pad)                           \
+  DR_init_constraints_cookie dr_cookie(dr_frame, dr_state, dr_cbw, dr_cbh, \
+                                       dr_bdr, dr_pad)
+#define DISPLAY_INIT_OFFSETS(dr_frame, dr_state, dr_cbw, dr_bdr, dr_pad)  \
+  DR_init_offsets_cookie dr_cookie(dr_frame, dr_state, dr_cbw, dr_bdr, dr_pad)
+#define DISPLAY_INIT_TYPE(dr_frame, dr_result) \
+  DR_init_type_cookie dr_cookie(dr_frame, dr_result)
 
 #else
 
@@ -761,7 +803,13 @@ public:
 #define DISPLAY_PREF_SIZE(dr_frame, dr_result) PR_BEGIN_MACRO PR_END_MACRO
 #define DISPLAY_MIN_SIZE(dr_frame, dr_result) PR_BEGIN_MACRO PR_END_MACRO
 #define DISPLAY_MAX_SIZE(dr_frame, dr_result) PR_BEGIN_MACRO PR_END_MACRO
-  
+#define DISPLAY_INIT_CONSTRAINTS(dr_frame, dr_state, dr_cbw, dr_cbh,       \
+                                 dr_bdr, dr_pad)                           \
+  PR_BEGIN_MACRO PR_END_MACRO
+#define DISPLAY_INIT_OFFSETS(dr_frame, dr_state, dr_cbw, dr_bdr, dr_pad)  \
+  PR_BEGIN_MACRO PR_END_MACRO
+#define DISPLAY_INIT_TYPE(dr_frame, dr_result) PR_BEGIN_MACRO PR_END_MACRO
+
 #endif
 // End Display Reflow Debugging
 

@@ -159,6 +159,8 @@ nsresult nsMathMLmencloseFrame::AddNotation(const nsAString& aNotation)
     mNotationsToDraw |= NOTATION_VERTICALSTRIKE;
   } else if (aNotation.EqualsLiteral("horizontalstrike")) {
     mNotationsToDraw |= NOTATION_HORIZONTALSTRIKE;
+  } else if (aNotation.EqualsLiteral("madruwb")) {
+    mNotationsToDraw |= (NOTATION_RIGHT | NOTATION_BOTTOM);
   }
 
   return NS_OK;
@@ -374,7 +376,7 @@ nsMathMLmencloseFrame::PlaceInternal(nsIRenderingContext& aRenderingContext,
   nscoord onePixel = nsPresContext::CSSPixelsToAppUnits(1);
   nsCOMPtr<nsIFontMetrics> fm;
   nscoord mEmHeight;
-  aRenderingContext.SetFont(GetStyleFont()->mFont, nsnull,
+  aRenderingContext.SetFont(GetStyleFont()->mFont,
                             PresContext()->GetUserFontSet());
   aRenderingContext.GetFontMetrics(*getter_AddRefs(fm));
   GetRuleThickness(aRenderingContext, fm, mRuleThickness);
@@ -737,9 +739,10 @@ nsMathMLmencloseFrame::SetAdditionalStyleContext(PRInt32          aIndex,
 class nsDisplayNotation : public nsDisplayItem
 {
 public:
-  nsDisplayNotation(nsIFrame* aFrame, const nsRect& aRect,
+  nsDisplayNotation(nsDisplayListBuilder* aBuilder,
+                    nsIFrame* aFrame, const nsRect& aRect,
                     nscoord aThickness, nsMencloseNotation aType)
-    : nsDisplayItem(aFrame), mRect(aRect), 
+    : nsDisplayItem(aBuilder, aFrame), mRect(aRect), 
       mThickness(aThickness), mType(aType) {
     MOZ_COUNT_CTOR(nsDisplayNotation);
   }
@@ -751,7 +754,7 @@ public:
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("MathMLMencloseNotation")
+  NS_DISPLAY_DECL_NAME("MathMLMencloseNotation", TYPE_MATHML_MENCLOSE_NOTATION)
 
 private:
   nsRect             mRect;
@@ -764,8 +767,7 @@ void nsDisplayNotation::Paint(nsDisplayListBuilder* aBuilder,
 {
   // get the gfxRect
   nsPresContext* presContext = mFrame->PresContext();
-  gfxRect rect = presContext->
-    AppUnitsToGfxUnits(mRect + aBuilder->ToReferenceFrame(mFrame));
+  gfxRect rect = presContext->AppUnitsToGfxUnits(mRect + ToReferenceFrame());
 
   // paint the frame with the current text color
   aCtx->SetColor(mFrame->GetStyleColor()->mColor);
@@ -821,7 +823,5 @@ nsMathMLmencloseFrame::DisplayNotation(nsDisplayListBuilder* aBuilder,
     return NS_OK;
 
   return aLists.Content()->AppendNewToTop(new (aBuilder)
-                                          nsDisplayNotation(aFrame, aRect,
-                                                            aThickness,
-                                                            aType));
+      nsDisplayNotation(aBuilder, aFrame, aRect, aThickness, aType));
 }

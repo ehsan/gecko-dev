@@ -206,9 +206,15 @@ nsLineBox::List(FILE* out, PRInt32 aIndent) const
   fprintf(out, "{%d,%d,%d,%d} ",
           mBounds.x, mBounds.y, mBounds.width, mBounds.height);
   if (mData) {
-    fprintf(out, "ca={%d,%d,%d,%d} ",
-            mData->mCombinedArea.x, mData->mCombinedArea.y,
-            mData->mCombinedArea.width, mData->mCombinedArea.height);
+    fprintf(out, "vis-overflow={%d,%d,%d,%d} scr-overflow={%d,%d,%d,%d} ",
+            mData->mOverflowAreas.VisualOverflow().x,
+            mData->mOverflowAreas.VisualOverflow().y,
+            mData->mOverflowAreas.VisualOverflow().width,
+            mData->mOverflowAreas.VisualOverflow().height,
+            mData->mOverflowAreas.ScrollableOverflow().x,
+            mData->mOverflowAreas.ScrollableOverflow().y,
+            mData->mOverflowAreas.ScrollableOverflow().width,
+            mData->mOverflowAreas.ScrollableOverflow().height);
   }
   fprintf(out, "<\n");
 
@@ -356,26 +362,6 @@ nsLineBox::DeleteLineList(nsPresContext* aPresContext, nsLineList& aLines,
   }
 }
 
-nsLineBox*
-nsLineBox::FindLineContaining(nsLineList& aLines, nsIFrame* aFrame,
-                              PRInt32* aFrameIndexInLine)
-{
-  NS_PRECONDITION(aFrameIndexInLine && !aLines.empty() && aFrame, "null ptr");
-  for (nsLineList::iterator line = aLines.begin(),
-                            line_end = aLines.end();
-       line != line_end;
-       ++line)
-  {
-    PRInt32 ix = line->IndexOf(aFrame);
-    if (ix >= 0) {
-      *aFrameIndexInLine = ix;
-      return line;
-    }
-  }
-  *aFrameIndexInLine = -1;
-  return nsnull;
-}
-
 PRBool
 nsLineBox::RFindLineContaining(nsIFrame* aFrame,
                                const nsLineList::iterator& aBegin,
@@ -439,7 +425,7 @@ nsLineBox::SetCarriedOutBottomMargin(nsCollapsingMargin aValue)
 void
 nsLineBox::MaybeFreeData()
 {
-  if (mData && (mData->mCombinedArea == mBounds)) {
+  if (mData && mData->mOverflowAreas == nsOverflowAreas(mBounds, mBounds)) {
     if (IsInline()) {
       if (mInlineData->mFloats.IsEmpty()) {
         delete mInlineData;
@@ -509,29 +495,31 @@ nsLineBox::RemoveFloat(nsIFrame* aFrame)
 }
 
 void
-nsLineBox::SetCombinedArea(const nsRect& aCombinedArea)
-{  
-  NS_ASSERTION(aCombinedArea.width >= 0, "illegal width for combined area");
-  NS_ASSERTION(aCombinedArea.height >= 0, "illegal height for combined area");
-  if (aCombinedArea != mBounds) {
-    if (mData) {
-      mData->mCombinedArea = aCombinedArea;
-    }
-    else {
+nsLineBox::SetOverflowAreas(const nsOverflowAreas& aOverflowAreas)
+{
+  NS_FOR_FRAME_OVERFLOW_TYPES(otype) {
+    NS_ASSERTION(aOverflowAreas.Overflow(otype).width >= 0,
+                 "illegal width for combined area");
+    NS_ASSERTION(aOverflowAreas.Overflow(otype).height >= 0,
+                 "illegal height for combined area");
+  }
+  // REVIEW: should this use IsExactEqual?
+  if (aOverflowAreas.VisualOverflow() != mBounds ||
+      aOverflowAreas.ScrollableOverflow() != mBounds) {
+    if (!mData) {
       if (IsInline()) {
-        mInlineData = new ExtraInlineData(aCombinedArea);
+        mInlineData = new ExtraInlineData(mBounds);
       }
       else {
-        mBlockData = new ExtraBlockData(aCombinedArea);
+        mBlockData = new ExtraBlockData(mBounds);
       }
     }
+    mData->mOverflowAreas = aOverflowAreas;
   }
-  else {
-    if (mData) {
-      // Store away new value so that MaybeFreeData compares against
-      // the right value.
-      mData->mCombinedArea = aCombinedArea;
-    }
+  else if (mData) {
+    // Store away new value so that MaybeFreeData compares against
+    // the right value.
+    mData->mOverflowAreas = aOverflowAreas;
     MaybeFreeData();
   }
 }
@@ -654,23 +642,6 @@ nsLineIterator::FindLineContaining(nsIFrame* aFrame)
     line = mLines[++lineNumber];
   }
   return -1;
-}
-
-/* virtual */ PRInt32
-nsLineIterator::FindLineAt(nscoord aY)
-{
-  nsLineBox* line = mLines[0];
-  if (!line || (aY < line->mBounds.y)) {
-    return -1;
-  }
-  PRInt32 lineNumber = 0;
-  while (lineNumber != mNumLines) {
-    if ((aY >= line->mBounds.y) && (aY < line->mBounds.YMost())) {
-      return lineNumber;
-    }
-    line = mLines[++lineNumber];
-  }
-  return mNumLines;
 }
 
 #ifdef IBMBIDI

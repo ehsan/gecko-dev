@@ -40,9 +40,6 @@
 #define nsMenuX_h_
 
 #import <Cocoa/Cocoa.h>
-#if (MAC_OS_X_VERSION_MIN_REQUIRED <= MAC_OS_X_VERSION_10_4)
-#import <Carbon/Carbon.h>
-#endif
 
 #include "nsMenuBaseX.h"
 #include "nsMenuBarX.h"
@@ -56,14 +53,15 @@ class nsMenuItemIconX;
 class nsMenuItemX;
 class nsIWidget;
 
-// MenuDelegate is used to receive Cocoa notifications for
-// setting up carbon events
+// MenuDelegate is used to receive Cocoa notifications for setting
+// up carbon events. Protocol is defined as of 10.6 SDK.
+#if defined(MAC_OS_X_VERSION_10_6) && (MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_6)
+@interface MenuDelegate : NSObject < NSMenuDelegate >
+#else
 @interface MenuDelegate : NSObject
+#endif
 {
   nsMenuX* mGeckoMenu; // weak ref
-#if (MAC_OS_X_VERSION_MIN_REQUIRED <= MAC_OS_X_VERSION_10_4)
-  EventHandlerRef mEventHandler;
-#endif
 }
 - (id)initWithGeckoMenu:(nsMenuX*)geckoMenu;
 @end

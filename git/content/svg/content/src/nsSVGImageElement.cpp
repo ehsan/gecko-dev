@@ -54,7 +54,7 @@ nsSVGElement::LengthInfo nsSVGImageElement::sLengthInfo[4] =
 
 nsSVGElement::StringInfo nsSVGImageElement::sStringInfo[1] =
 {
-  { &nsGkAtoms::href, kNameSpaceID_XLink }
+  { &nsGkAtoms::href, kNameSpaceID_XLink, PR_TRUE }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(Image)
@@ -65,18 +65,20 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Image)
 NS_IMPL_ADDREF_INHERITED(nsSVGImageElement,nsSVGImageElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGImageElement,nsSVGImageElementBase)
 
+DOMCI_NODE_DATA(SVGImageElement, nsSVGImageElement)
+
 NS_INTERFACE_TABLE_HEAD(nsSVGImageElement)
   NS_NODE_INTERFACE_TABLE7(nsSVGImageElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGImageElement,
                            nsIDOMSVGURIReference, imgIDecoderObserver,
                            nsIImageLoadingContent)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGImageElement)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGImageElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGImageElementBase)
 
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGImageElement::nsSVGImageElement(nsINodeInfo *aNodeInfo)
+nsSVGImageElement::nsSVGImageElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsSVGImageElementBase(aNodeInfo)
 {
 }
@@ -204,14 +206,13 @@ nsSVGImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   if (HasAttr(kNameSpaceID_XLink, nsGkAtoms::href)) {
     ClearBrokenState();
     nsContentUtils::AddScriptRunner(
-      new nsRunnableMethod<nsSVGImageElement>(this,
-                                              &nsSVGImageElement::MaybeLoadSVGImage));
+      NS_NewRunnableMethod(this, &nsSVGImageElement::MaybeLoadSVGImage));
   }
 
   return rv;
 }
 
-PRInt32
+nsEventStates
 nsSVGImageElement::IntrinsicState() const
 {
   return nsSVGImageElementBase::IntrinsicState() |
@@ -268,6 +269,17 @@ nsSVGImageElement::GetStringInfo()
 {
   return StringAttributesInfo(mStringAttributes, sStringInfo,
                               NS_ARRAY_LENGTH(sStringInfo));
+}
+
+void
+nsSVGImageElement::DidAnimateString(PRUint8 aAttrEnum)
+{
+  if (aAttrEnum == HREF) {
+    LoadSVGImage(PR_TRUE, PR_FALSE);
+    return;
+  }
+
+  nsSVGImageElementBase::DidAnimateString(aAttrEnum);
 }
 
 nsresult

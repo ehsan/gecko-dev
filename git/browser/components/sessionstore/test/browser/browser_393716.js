@@ -27,7 +27,7 @@ function test() {
     ok(state, "get the tab's state");
     
     // verify the tab state's integrity
-    state = eval("(" + state + ")");
+    state = JSON.parse(state);
     ok(state instanceof Object && state.entries instanceof Array && state.entries.length > 0,
        "state object seems valid");
     ok(state.entries.length == 1 && state.entries[0].url == testURL,
@@ -50,7 +50,7 @@ function test() {
   // create a new tab
   let tab2 = tabbrowser.addTab();
   // set the tab's state
-  ss.setTabState(tab2, state.toSource());
+  ss.setTabState(tab2, JSON.stringify(state));
   tab2.linkedBrowser.addEventListener("load", function(aEvent) {
     this.removeEventListener("load", arguments.callee, true);
     // verify the correctness of the restored tab
@@ -59,7 +59,7 @@ function test() {
     
     // add text data
     let textbox = this.contentDocument.getElementById("textbox");
-    textbox.wrappedJSObject.value = value3;
+    textbox.value = value3;
     
     // duplicate the tab
     let duplicateTab = ss.duplicateTab(window, tab2);
@@ -71,7 +71,7 @@ function test() {
       ok(ss.getTabValue(duplicateTab, key2) == value2 && this.currentURI.spec == testURL,
          "correctly duplicated the tab's state");
       let textbox = this.contentDocument.getElementById("textbox");
-      is(textbox.wrappedJSObject.value, value3, "also duplicated text data");
+      is(textbox.value, value3, "also duplicated text data");
       
       // clean up
       tabbrowser.removeTab(duplicateTab);

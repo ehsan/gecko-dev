@@ -46,18 +46,21 @@ MODULE = update
 
 XPIDLSRCS = nsIUpdateTimerManager.idl
 
-EXTRA_PP_COMPONENTS = nsUpdateTimerManager.js
+EXTRA_PP_COMPONENTS = nsUpdateTimerManager.js nsUpdateTimerManager.manifest
 
 ifdef MOZ_UPDATER
-DIRS = ../readstrings \
-  updater \
-  $(NULL)
+DIRS = ../readstrings
+
+ifneq ($(OS_TARGET),Android)
+DIRS += updater
+endif
 
 XPIDLSRCS += nsIUpdateService.idl
 
 EXTRA_PP_COMPONENTS += \
   nsUpdateService.js \
   nsUpdateServiceStub.js \
+  nsUpdateService.manifest \
   $(NULL)
 endif
 

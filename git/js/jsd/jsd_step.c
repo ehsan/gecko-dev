@@ -69,7 +69,6 @@ _interpreterTrace(JSDContext* jsdc, JSContext *cx, JSStackFrame *fp,
     JSDScript* jsdscript = NULL;
     JSScript * script;
     static indent = 0;
-    char* buf;
     const char* funName = NULL;
 
     script = JS_GetFrameScript(cx, fp);
@@ -86,25 +85,23 @@ _interpreterTrace(JSDContext* jsdc, JSContext *cx, JSStackFrame *fp,
 
     if(before)
     {
-        buf = JS_smprintf("%sentering %s %s this: %0x\n",
-                _indentSpaces(indent++),
-                funName,
-                JS_IsConstructorFrame(cx, fp) ? "constructing":"",
-                (int)JS_GetFrameThis(cx, fp));
+        jsval thisVal;
+
+        printf("%sentering %s %s this: ",
+               _indentSpaces(indent++),
+               funName,
+               JS_IsConstructorFrame(cx, fp) ? "constructing":"");
+
+        if (JS_GetFrameThis(cx, fp, &thisVal))
+            printf("0x%0llx\n", (JSUword) thisVal);
+        else
+            puts("<unavailable>");
     }
     else
     {
-        buf = JS_smprintf("%sleaving %s\n",
-                _indentSpaces(--indent),
-                funName);
+        printf("%sleaving %s\n", _indentSpaces(--indent), funName);
     }
     JS_ASSERT(indent >= 0);
-
-    if(!buf)
-        return;
-
-    printf(buf);
-    free(buf);
 }
 #endif
 
@@ -119,18 +116,20 @@ _callHook(JSDContext *jsdc, JSContext *cx, JSStackFrame *fp, JSBool before,
     if (!jsdc || !jsdc->inited)
         return JS_FALSE;
 
-    if (!hook && !(jsdc->flags & JSD_COLLECT_PROFILE_DATA) &&
-        jsdc->flags & JSD_DISABLE_OBJECT_TRACE)
+    if (!hook && !(jsdc->flags & JSD_COLLECT_PROFILE_DATA))
     {
-        /* no hook to call, no profile data needs to be collected, and
-         * the client has object tracing disabled, so there is nothing
-         * to do here.
+        /* no hook to call, no profile data needs to be collected,
+         * so there is nothing to do here.
          */
         return hookresult;
     }
     
-    if (before && JS_IsConstructorFrame(cx, fp))
-        jsd_Constructing(jsdc, cx, JS_GetFrameThis(cx, fp), fp);
+    if (before && JS_IsConstructorFrame(cx, fp)) {
+        jsval newObj;
+        if (!JS_GetFrameThis(cx, fp, &newObj))
+            return JS_FALSE;
+        jsd_Constructing(jsdc, cx, JSVAL_TO_OBJECT(newObj), fp);
+    }
 
     jsscript = JS_GetFrameScript(cx, fp);
     if (jsscript)

@@ -173,8 +173,6 @@ static const PRLogModuleInfo *gUrlClassifierDbServiceLog = nsnull;
 #define UPDATE_DELAY_TIME           "urlclassifier.updatetime"
 #define UPDATE_DELAY_TIME_DEFAULT   60
 
-#define PAGE_SIZE 4096
-
 class nsUrlClassifierDBServiceWorker;
 
 // Singleton instance.
@@ -581,7 +579,6 @@ nsUrlClassifierStore::Close()
   mPartialEntriesAfterStatement = nsnull;
   mPartialEntriesBeforeStatement = nsnull;
   mLastPartialEntriesStatement = nsnull;
-
   mRandomStatement = nsnull;
 
   mConnection = nsnull;
@@ -1223,6 +1220,7 @@ private:
   nsCOMPtr<mozIStorageStatement> mGetTableIdStatement;
   nsCOMPtr<mozIStorageStatement> mGetTableNameStatement;
   nsCOMPtr<mozIStorageStatement> mInsertTableIdStatement;
+  nsCOMPtr<mozIStorageStatement> mGetPageSizeStatement;
 
   // Stores the last time a given table was updated.
   nsDataHashtable<nsCStringHashKey, PRInt64> mTableFreshness;
@@ -3029,7 +3027,7 @@ nsUrlClassifierDBServiceWorker::BeginStream(const nsACString &table,
 /**
  * Updating the database:
  *
- * The Update() method takes a series of chunks seperated with control data,
+ * The Update() method takes a series of chunks separated with control data,
  * as described in
  * http://code.google.com/p/google-safe-browsing/wiki/Protocolv2Spec
  *
@@ -3164,7 +3162,13 @@ nsUrlClassifierDBServiceWorker::SetupUpdate()
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (gUpdateCacheSize > 0) {
-    PRUint32 cachePages = gUpdateCacheSize / PAGE_SIZE;
+    PRBool hasResult;
+    rv = mGetPageSizeStatement->ExecuteStep(&hasResult);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    NS_ASSERTION(hasResult, "Should always be able to get page size from sqlite");
+    PRUint32 pageSize = mGetPageSizeStatement->AsInt32(0);
+    PRUint32 cachePages = gUpdateCacheSize / pageSize;
     nsCAutoString cacheSizePragma("PRAGMA cache_size=");
     cacheSizePragma.AppendInt(cachePages);
     rv = mConnection->ExecuteSimpleSQL(cacheSizePragma);
@@ -3180,12 +3184,14 @@ nsUrlClassifierDBServiceWorker::ApplyUpdate()
 {
   LOG(("nsUrlClassifierDBServiceWorker::ApplyUpdate"));
 
-  if (NS_FAILED(mUpdateStatus)) {
-    mConnection->RollbackTransaction();
-  } else {
-    mUpdateStatus = FlushChunkLists();
-    if (NS_SUCCEEDED(mUpdateStatus)) {
-      mUpdateStatus = mConnection->CommitTransaction();
+  if (mConnection) {
+    if (NS_FAILED(mUpdateStatus)) {
+      mConnection->RollbackTransaction();
+    } else {
+      mUpdateStatus = FlushChunkLists();
+      if (NS_SUCCEEDED(mUpdateStatus)) {
+        mUpdateStatus = mConnection->CommitTransaction();
+      }
     }
   }
 
@@ -3222,7 +3228,8 @@ nsUrlClassifierDBServiceWorker::FinishUpdate()
   // We need to get the error code before ApplyUpdate, because it might
   // close/open the connection.
   PRInt32 errcode = SQLITE_OK;
-  mConnection->GetLastError(&errcode);
+  if (mConnection)
+    mConnection->GetLastError(&errcode);
 
   ApplyUpdate();
 
@@ -3321,6 +3328,7 @@ nsUrlClassifierDBServiceWorker::CloseDb()
     mGetTableIdStatement = nsnull;
     mGetTableNameStatement = nsnull;
     mInsertTableIdStatement = nsnull;
+    mGetPageSizeStatement = nsnull;
 
     mConnection = nsnull;
     LOG(("urlclassifier db closed\n"));
@@ -3413,11 +3421,7 @@ nsUrlClassifierDBServiceWorker::OpenDb()
     }
   }
 
-  nsCAutoString cacheSizePragma("PRAGMA page_size=");
-  cacheSizePragma.AppendInt(PAGE_SIZE);
-  rv = connection->ExecuteSimpleSQL(cacheSizePragma);
-  NS_ENSURE_SUCCESS(rv, rv);
-
+  connection->SetGrowthIncrement(5 * 1024 * 1024, EmptyCString());
   rv = connection->ExecuteSimpleSQL(NS_LITERAL_CSTRING("PRAGMA synchronous=OFF"));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -3473,6 +3477,11 @@ nsUrlClassifierDBServiceWorker::OpenDb()
     (NS_LITERAL_CSTRING("INSERT INTO moz_tables(id, name, add_chunks, sub_chunks)"
                         " VALUES (null, ?1, null, null)"),
      getter_AddRefs(mInsertTableIdStatement));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = connection->CreateStatement
+    (NS_LITERAL_CSTRING("PRAGMA page_size"),
+     getter_AddRefs(mGetPageSizeStatement));
   NS_ENSURE_SUCCESS(rv, rv);
 
   mConnection = connection;
@@ -3948,7 +3957,7 @@ nsUrlClassifierDBService::Init()
 
   // Add an observer for shutdown
   nsCOMPtr<nsIObserverService> observerService =
-      do_GetService("@mozilla.org/observer-service;1");
+      mozilla::services::GetObserverService();
   if (!observerService)
     return NS_ERROR_FAILURE;
 

@@ -58,6 +58,26 @@ assertEq(testLenientAndStrict('({6.02214179e23:1, 3.1415926535:1})',
                               parsesSuccessfully),
          true);
 
+assertEq(testLenientAndStrict('({ 1: 1, "1": 2 })',
+                              parsesSuccessfully,
+                              parseRaisesException(SyntaxError)),
+         true);
+
+assertEq(testLenientAndStrict('({ "1": 1, 1: 2 })',
+                              parsesSuccessfully,
+                              parseRaisesException(SyntaxError)),
+         true);
+
+assertEq(testLenientAndStrict('({ 2.5: 1, "2.5": 2 })',
+                              parsesSuccessfully,
+                              parseRaisesException(SyntaxError)),
+         true);
+
+assertEq(testLenientAndStrict('({ "2.5": 1, 2.5: 2 })',
+                              parsesSuccessfully,
+                              parseRaisesException(SyntaxError)),
+         true);
+
 /* Many properties, to exercise JSAtomList's hash-table variant. */
 assertEq(testLenientAndStrict('({a:1, b:1, c:1, d:1, e:1, f:1, g:1, h:1, i:1, j:1, k:1, l:1, m:1, n:1, o:1, p:1, q:1, r:1, s:1, t:1, u:1, v:1, w:1, x:1, y:1, z:1})',
                               parsesSuccessfully,
@@ -83,32 +103,32 @@ assertEq(testLenientAndStrict('({x:1, get x() {}})',
                               parseRaisesException(SyntaxError)),
          true);
 
-assertEq(testLenientAndStrict('({set x() {}, x:1})',
+assertEq(testLenientAndStrict('({set x(q) {}, x:1})',
                               parsesSuccessfully,
                               parseRaisesException(SyntaxError)),
          true);
 
-assertEq(testLenientAndStrict('({x:1, set x() {}})',
+assertEq(testLenientAndStrict('({x:1, set x(q) {}})',
                               parsesSuccessfully,
                               parseRaisesException(SyntaxError)),
          true);
 
-assertEq(testLenientAndStrict('({get x() {}, set x() {}})',
+assertEq(testLenientAndStrict('({get x() {}, set x(q) {}})',
                               parsesSuccessfully,
                               parsesSuccessfully),
          true);
 
-assertEq(testLenientAndStrict('({set x() {}, get x() {}})',
+assertEq(testLenientAndStrict('({set x(q) {}, get x() {}})',
                               parsesSuccessfully,
                               parsesSuccessfully),
          true);
 
-assertEq(testLenientAndStrict('({get x() {}, set x() {}, x:1})',
+assertEq(testLenientAndStrict('({get x() {}, set x(q) {}, x:1})',
                               parsesSuccessfully,
                               parseRaisesException(SyntaxError)),
          true);
 
-assertEq(testLenientAndStrict('({set x() {}, get x() {}, x:1})',
+assertEq(testLenientAndStrict('({set x(q) {}, get x() {}, x:1})',
                               parsesSuccessfully,
                               parseRaisesException(SyntaxError)),
          true);
@@ -118,25 +138,9 @@ assertEq(testLenientAndStrict('({get x() {}, get x() {}})',
                               parseRaisesException(SyntaxError)),
          true);
 
-assertEq(testLenientAndStrict('({get x() {}, set x() {}, y:1})',
+assertEq(testLenientAndStrict('({get x() {}, set x(q) {}, y:1})',
                               parsesSuccessfully,
                               parsesSuccessfully),
-         true);
-
-/* Use the old getter/setter syntax as well. */
-assertEq(testLenientAndStrict('({get x() {}, x getter: function() {}})',
-                              parsesSuccessfully,
-                              parseRaisesException(SyntaxError)),
-         true);
-
-assertEq(testLenientAndStrict('({x getter: function() {}, get x() {}})',
-                              parsesSuccessfully,
-                              parseRaisesException(SyntaxError)),
-         true);
-
-assertEq(testLenientAndStrict('({x getter: function() {}, x getter: function() {}})',
-                              parsesSuccessfully,
-                              parseRaisesException(SyntaxError)),
          true);
 
 reportCompare(true, true);

@@ -48,6 +48,9 @@
 #include "nsFrame.h"
 #include "nsRegion.h"
 #include "nsDisplayList.h"
+#include "nsIReflowCallback.h"
+#include "Layers.h"
+#include "ImageLayers.h"
 
 #ifdef ACCESSIBILITY
 class nsIAccessible;
@@ -62,8 +65,15 @@ class nsIDOMElement;
 
 #define nsObjectFrameSuper nsFrame
 
-class nsObjectFrame : public nsObjectFrameSuper, public nsIObjectFrame {
+class nsObjectFrame : public nsObjectFrameSuper,
+                      public nsIObjectFrame,
+                      public nsIReflowCallback {
 public:
+  typedef mozilla::LayerState LayerState;
+  typedef mozilla::layers::Layer Layer;
+  typedef mozilla::layers::LayerManager LayerManager;
+  typedef mozilla::layers::ImageContainer ImageContainer;
+
   NS_DECL_FRAMEARENA_HELPERS
 
   friend nsIFrame* NS_NewObjectFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
@@ -149,7 +159,7 @@ public:
 
   // accessibility support
 #ifdef ACCESSIBILITY
-  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
+  virtual already_AddRefed<nsAccessible> CreateAccessible();
 #ifdef XP_WIN
   NS_IMETHOD GetPluginPort(HWND *aPort);
 #endif
@@ -161,6 +171,32 @@ public:
   // for a given aRoot, this walks the frame tree looking for the next outFrame
   static nsIObjectFrame* GetNextObjectFrame(nsPresContext* aPresContext,
                                             nsIFrame* aRoot);
+
+  // nsIReflowCallback
+  virtual PRBool ReflowFinished();
+  virtual void ReflowCallbackCanceled();
+
+  already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
+                                     LayerManager* aManager,
+                                     nsDisplayItem* aItem);
+
+  virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
+                                   LayerManager* aManager);
+
+  ImageContainer* GetImageContainer();
+
+  /**
+   * If aContent has a nsObjectFrame, then prepare it for a DocShell swap.
+   * @see nsSubDocumentFrame::BeginSwapDocShells.
+   * There will be a call to EndSwapDocShells after we were moved to the
+   * new view tree.
+   */
+  static void BeginSwapDocShells(nsIContent* aContent, void*);
+  /**
+   * If aContent has a nsObjectFrame, then set it up after a DocShell swap.
+   * @see nsSubDocumentFrame::EndSwapDocShells.
+   */
+  static void EndSwapDocShells(nsIContent* aContent, void*);
 
 protected:
   nsObjectFrame(nsStyleContext* aContext);
@@ -203,7 +239,8 @@ protected:
                                const nsRect& aDirtyRect, nsPoint aPt);
   void PrintPlugin(nsIRenderingContext& aRenderingContext,
                    const nsRect& aDirtyRect);
-  void PaintPlugin(nsIRenderingContext& aRenderingContext,
+  void PaintPlugin(nsDisplayListBuilder* aBuilder,
+                   nsIRenderingContext& aRenderingContext,
                    const nsRect& aDirtyRect, const nsRect& aPluginRect);
 
   /**
@@ -252,20 +289,23 @@ private:
   nsIView*                        mInnerView;
   nsCOMPtr<nsIWidget>             mWidget;
   nsIntRect                       mWindowlessRect;
-#ifdef XP_WIN
-  PRUint32                        mDoublePassEvent;
-#endif
 
   // For assertions that make it easier to determine if a crash is due
   // to the underlying problem described in bug 136927, and to prevent
   // reentry into instantiation.
   PRBool mPreventInstantiation;
+
+  PRPackedBool mReflowCallbackPosted;
+
+  // A reference to the ImageContainer which contains the current frame
+  // of plugin to display.
+  nsRefPtr<ImageContainer> mImageContainer;
 };
 
 class nsDisplayPlugin : public nsDisplayItem {
 public:
-  nsDisplayPlugin(nsIFrame* aFrame)
-    : nsDisplayItem(aFrame)
+  nsDisplayPlugin(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
+    : nsDisplayItem(aBuilder, aFrame)
   {
     MOZ_COUNT_CTOR(nsDisplayPlugin);
   }
@@ -275,16 +315,15 @@ public:
   }
 #endif
 
-  virtual Type GetType() { return TYPE_PLUGIN; }
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
-  virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder);
+  virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder,
+                          PRBool* aForceTransparentSurface = nsnull);
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                   nsRegion* aVisibleRegion,
-                                   nsRegion* aVisibleRegionBeforeMove);
+                                   nsRegion* aVisibleRegion);
 
-  NS_DISPLAY_DECL_NAME("Plugin")
+  NS_DISPLAY_DECL_NAME("Plugin", TYPE_PLUGIN)
 
   // Compute the desired position and clip region of the plugin's widget.
   // This will only be called for plugins which have been registered
@@ -295,6 +334,18 @@ public:
   // simply does nothing.
   void GetWidgetConfiguration(nsDisplayListBuilder* aBuilder,
                               nsTArray<nsIWidget::Configuration>* aConfigurations);
+
+  virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
+                                             LayerManager* aManager)
+  {
+    return static_cast<nsObjectFrame*>(mFrame)->BuildLayer(aBuilder, aManager, this);
+  }
+
+  virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
+                                   LayerManager* aManager)
+  {
+    return static_cast<nsObjectFrame*>(mFrame)->GetLayerState(aBuilder, aManager);
+  }
 
 private:
   nsRegion mVisibleRegion;

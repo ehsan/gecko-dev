@@ -35,7 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-var gTestfile = 'regress-355736.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 355736;
 var summary = 'Decompilation of "[reserved]" has extra quotes';
@@ -59,7 +58,7 @@ function test()
   compareSource(expect, actual, summary + ': 1');
 
   f = function() { return { get super() { } } };
-  expect = 'function() { return { super getter : function() { } }; }';
+  expect = 'function() { return { get super() { } }; }';
   actual = f + '';
   compareSource(expect, actual, summary + ': 2');
 

@@ -61,6 +61,7 @@ static const char kCookiesLifetimeDays[] = "network.cookie.lifetime.days";
 static const char kCookiesLifetimeCurrentSession[] = "network.cookie.lifetime.behavior";
 static const char kCookiesP3PString[] = "network.cookie.p3p";
 static const char kCookiesAskPermission[] = "network.cookie.warnAboutCookies";
+static const char kCookiesMaxPerHost[] = "network.cookie.maxPerHost";
 
 static char *sBuffer;
 
@@ -215,6 +216,8 @@ InitPrefs(nsIPrefBranch *aPrefBranch)
     aPrefBranch->SetIntPref(kCookiesLifetimeCurrentSession, 0);
     aPrefBranch->SetIntPref(kCookiesLifetimeDays, 1);
     aPrefBranch->SetBoolPref(kCookiesAskPermission, PR_FALSE);
+    // Set the base domain limit to 50 so we have a known value.
+    aPrefBranch->SetIntPref(kCookiesMaxPerHost, 50);
 }
 
 class ScopedXPCOM
@@ -735,10 +738,11 @@ main(PRInt32 argc, char *argv[])
       rv[13] = NS_SUCCEEDED(cookieMgr2->CookieExists(newDomainCookie, &found)) && !found;
       // sleep four seconds, to make sure the second cookie has expired
       PR_Sleep(4 * PR_TicksPerSecond());
-      // check CountCookiesFromHost() and CookieExists() don't count the expired cookie
+      // check that both CountCookiesFromHost() and CookieExists() count the
+      // expired cookie
       rv[14] = NS_SUCCEEDED(cookieMgr2->CountCookiesFromHost(NS_LITERAL_CSTRING("cookiemgr.test"), &hostCookies)) &&
-              hostCookies == 1;
-      rv[15] = NS_SUCCEEDED(cookieMgr2->CookieExists(expiredCookie, &found)) && !found;
+              hostCookies == 2;
+      rv[15] = NS_SUCCEEDED(cookieMgr2->CookieExists(expiredCookie, &found)) && found;
       // double-check RemoveAll() using the enumerator
       rv[16] = NS_SUCCEEDED(cookieMgr->RemoveAll());
       rv[17] = NS_SUCCEEDED(cookieMgr->GetEnumerator(getter_AddRefs(enumerator))) &&
@@ -761,12 +765,6 @@ main(PRInt32 argc, char *argv[])
         name.AppendInt(i);
         name += NS_LITERAL_CSTRING("=creation");
         SetACookie(cookieService, "http://creation.ordering.tests/", nsnull, name.get(), nsnull);
-
-        if (i == 9) {
-          // sleep a couple of seconds, to make sure the first 10 cookies are older than
-          // subsequent ones (timer resolution varies on different platforms).
-          PR_Sleep(2 * PR_TicksPerSecond());
-        }
 
         if (i >= 10) {
           expected += name;

@@ -75,8 +75,13 @@ function test_template()
     var src = window.location.href.replace(/test_tmpl.*xul/, "animals.rdf");
     ds = RDF.GetDataSourceBlocking(src);
 
-    if (root.datasources == "rdf:null")
-      root.datasources = "animals.rdf";
+    if (expectLoggedMessages) {
+      Components.classes["@mozilla.org/consoleservice;1"].
+                 getService(Components.interfaces.nsIConsoleService).reset();
+    }
+
+    if (root.getAttribute("datasources") == "rdf:null")
+      root.setAttribute("datasources", "animals.rdf");
   }
   else if (queryType == "xml") {
     var src = window.location.href.replace(/test_tmpl.*xul/, "animals.xml");
@@ -126,7 +131,8 @@ function iterateChanged(root, ds)
 
   if (needsOpen)
     root.open = false;
-  compareConsoleMessages();
+  if (expectedConsoleMessages.length)
+    compareConsoleMessages();
   SimpleTest.finish();
 }
 
@@ -151,7 +157,13 @@ function checkResults(root, step)
   if (step > 0)
     adjtestid += " dynamic step " + step;
 
-  if (debug) {
+  var stilltodo = ((step == 0 && notWorkingYet) || (step > 0 && notWorkingYetDynamic));
+  if (stilltodo)
+    todo(false, adjtestid);
+  else
+    ok(!error, adjtestid);
+
+  if ((!stilltodo && error) || debug) {
     // for debugging, serialize the XML output
     var serializedXML = "";
     var rootNodes = actualoutput.childNodes;
@@ -163,14 +175,12 @@ function checkResults(root, step)
 
     // remove the XUL namespace declarations to make the output more readable
     const nsrepl = new RegExp("xmlns=\"" + XUL_NS + "\" ", "g");
-    dump("-------- " + adjtestid + "  " + error + ":\n" +
-         serializedXML.replace(nsrepl, "") + "\n");
+    serializedXML = serializedXML.replace(nsrepl, "");
+    if (debug)
+      dump("-------- " + adjtestid + "  " + error + ":\n" + serializedXML + "\n");
+    if (error)
+      is(serializedXML, "Same", "Error is: " + error);
   }
-
-  if ((step == 0 && notWorkingYet) || (step > 0 && notWorkingYetDynamic))
-    todo(false, adjtestid);
-  else
-    ok(!error, adjtestid);
 }
 
 /**
@@ -431,4 +441,38 @@ function compareConsoleMessages()
    for (var m = 0; m < messages.length; m++) {
      is(messages[m].message, expectedConsoleMessages.shift(), "logged message " + (m + 1));
    }
+}
+
+function copyToProfile(filename)
+{
+  if (Cc === undefined) {
+    var Cc = Components.classes;
+    var Ci = Components.interfaces;
+  }
+
+  var loader = Cc["@mozilla.org/moz/jssubscript-loader;1"]
+                         .getService(Ci.mozIJSSubScriptLoader);
+  loader.loadSubScript("chrome://mochikit/content/chrome-harness.js");
+
+  var file = Cc["@mozilla.org/file/directory_service;1"]
+                       .getService(Ci.nsIProperties)
+                       .get("ProfD", Ci.nsIFile);
+  file.append(filename);
+
+  var parentURI = getResolvedURI(getRootDirectory(window.location.href));
+  if (parentURI.JARFile) {
+    parentURI = extractJarToTmp(parentURI);
+  } else {
+    var fileHandler = Cc["@mozilla.org/network/protocol;1?name=file"].
+                      getService(Ci.nsIFileProtocolHandler);
+    parentURI = fileHandler.getFileFromURLSpec(parentURI.spec);
+  }
+
+  parentURI = parentURI.QueryInterface(Ci.nsILocalFile);
+  parentURI.append(filename);
+  try {
+    var retVal = parentURI.copyToFollowingLinks(file.parent, filename);
+  } catch (ex) {
+    //ignore this error as the file could exist already
+  }
 }

@@ -80,7 +80,7 @@ button:focus {
   -moz-border-left-colors: ThreeDDarkShadow ThreeDHighlight transparent;
 }
 
-button:focus > .button-box {
+button:-moz-focusring > .button-box {
   border: 1px dotted ThreeDDarkShadow;
 }
 
@@ -141,6 +141,12 @@ button[type="menu-button"] {
   -moz-box-align: center;
   -moz-box-pack: center;
   margin: 0;
+  border: none;
+}
+
+.button-menubutton-button {
+  -moz-appearance: none;
+  background-color: transparent;
   border: none;
 }
 

@@ -49,8 +49,10 @@
 
 class nsIXPConnectJSObjectHolder;
 class nsAutoPoolRelease;
-class JSAutoTempValueRooter;
-namespace js { template <class> class LazilyConstructed; }
+namespace js {
+class AutoArrayRooter;
+template <class> class LazilyConstructed;
+}
 
 class nsJSContext : public nsIScriptContext,
                     public nsIXPCScriptNotify
@@ -62,6 +64,8 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsJSContext,
                                                          nsIScriptContext)
+
+  virtual nsIScriptObjectPrincipal* GetObjectPrincipal();
 
   virtual PRUint32 GetScriptTypeID()
     { return nsIProgrammingLanguage::JAVASCRIPT; }
@@ -131,11 +135,16 @@ public:
   virtual nsresult CreateNativeGlobalForInner(
                                       nsIScriptGlobalObject *aGlobal,
                                       PRBool aIsChrome,
+                                      nsIPrincipal *aPrincipal,
                                       void **aNativeGlobal,
                                       nsISupports **aHolder);
   virtual nsresult ConnectToInner(nsIScriptGlobalObject *aNewInner,
                                   void *aOuterGlobal);
-  virtual nsresult InitContext(nsIScriptGlobalObject *aGlobalObject);
+  virtual nsresult InitContext();
+  virtual nsresult CreateOuterObject(nsIScriptGlobalObject *aGlobalObject,
+                                     nsIScriptGlobalObject *aCurrentInner);
+  virtual nsresult SetOuterObject(void *aOuterObject);
+  virtual nsresult InitOuterWindow();
   virtual PRBool IsContextInitialized();
   virtual void FinalizeContext();
 
@@ -180,7 +189,7 @@ public:
 
   // CC does always call cycle collector and it also updates the counters
   // that MaybeCC uses.
-  static void CC();
+  static void CC(nsICycleCollectorListener *aListener);
 
   // MaybeCC calls cycle collector if certain conditions are fulfilled.
   // The conditions are:
@@ -204,6 +213,8 @@ public:
   // Calls IntervalCC() if user is currently inactive, otherwise MaybeCC(PR_TRUE)
   static void CCIfUserInactive();
 
+  static void MaybeCCIfUserInactive();
+
   static void FireGCTimer(PRBool aLoadInProgress);
 
 protected:
@@ -215,7 +226,7 @@ protected:
                                    PRUint32 *aArgc,
                                    jsval **aArgv,
                                    js::LazilyConstructed<nsAutoPoolRelease> &aPoolRelease,
-                                   js::LazilyConstructed<JSAutoTempValueRooter> &aRooter);
+                                   js::LazilyConstructed<js::AutoArrayRooter> &aRooter);
 
   nsresult AddSupportsPrimitiveTojsvals(nsISupports *aArg, jsval *aArgv);
 
@@ -303,12 +314,9 @@ private:
   PRTime mModalStateTime;
   PRUint32 mModalStateDepth;
 
-  // mGlobalWrapperRef is used only to hold a strong reference to the
-  // global object wrapper while the nsJSContext is alive. This cuts
-  // down on the number of rooting and unrooting calls XPConnect has
-  // to make when the global object is touched in JS.
-
-  nsCOMPtr<nsISupports> mGlobalWrapperRef;
+  // mGlobalObjectRef ensures that the outer window stays alive as long as the
+  // context does. It is eventually collected by the cycle collector.
+  nsCOMPtr<nsISupports> mGlobalObjectRef;
 
   static int JSOptionChangedCallback(const char *pref, void *data);
 

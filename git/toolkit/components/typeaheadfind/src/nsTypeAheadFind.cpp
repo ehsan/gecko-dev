@@ -42,7 +42,7 @@
 #include "nsCOMPtr.h"
 #include "nsMemory.h"
 #include "nsIServiceManager.h"
-#include "nsIGenericFactory.h"
+#include "mozilla/ModuleUtils.h"
 #include "nsIWebBrowserChrome.h"
 #include "nsCURILoader.h"
 #include "nsNetUtil.h"
@@ -562,7 +562,8 @@ nsTypeAheadFind::FindItNow(nsIPresShell *aPresShell, PRBool aIsLinksOnly,
         SetSelectionModeAndRepaint(nsISelectionController::SELECTION_ATTENTION);
         selectionController->ScrollSelectionIntoView(
           nsISelectionController::SELECTION_NORMAL, 
-          nsISelectionController::SELECTION_FOCUS_REGION, PR_TRUE);
+          nsISelectionController::SELECTION_WHOLE_SELECTION,
+          nsISelectionController::SCROLL_SYNCHRONOUS);
       }
 
       mCurrentWindow = window;
@@ -711,7 +712,7 @@ nsTypeAheadFind::GetSearchContainers(nsISupports *aContainer,
   }
 
   if (!rootContent)
-    rootContent = doc->GetRootContent();
+    rootContent = doc->GetRootElement();
  
   nsCOMPtr<nsIDOMNode> rootNode(do_QueryInterface(rootContent));
 
@@ -797,7 +798,7 @@ nsTypeAheadFind::RangeStartsInsideLink(nsIDOMRange *aRange,
   }
   origContent = startContent;
 
-  if (startContent->IsNodeOfType(nsINode::eELEMENT)) {
+  if (startContent->IsElement()) {
     nsIContent *childContent = startContent->GetChildAt(startOffset);
     if (childContent) {
       startContent = childContent;
@@ -1007,7 +1008,7 @@ nsTypeAheadFind::Find(const nsAString& aSearchString, PRBool aLinksOnly,
         // If the root element is focused, then it's actually the document
         // that has the focus, so ignore this.
         if (focusedElement &&
-            !SameCOMIdentity(focusedElement, document->GetRootContent())) {
+            !SameCOMIdentity(focusedElement, document->GetRootElement())) {
           fm->MoveCaretToFocus(window);
           isFirstVisiblePreferred = PR_FALSE;
         }

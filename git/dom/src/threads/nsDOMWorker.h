@@ -1,4 +1,4 @@
-/* -*- Mode: c++; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*- */
+/* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -55,6 +55,11 @@
 
 #include "nsDOMWorkerMessageHandler.h"
 
+// {1295EFB5-8644-42B2-8B8E-80EEF56E4284}
+#define NS_WORKERFACTORY_CID \
+ {0x1295efb5, 0x8644, 0x42b2, \
+  {0x8b, 0x8e, 0x80, 0xee, 0xf5, 0x6e, 0x42, 0x84} }
+
 class nsDOMWorker;
 class nsDOMWorkerFeature;
 class nsDOMWorkerMessageHandler;
@@ -64,6 +69,7 @@ class nsDOMWorkerTimeout;
 class nsICancelable;
 class nsIDOMEventListener;
 class nsIEventTarget;
+class nsIRunnable;
 class nsIScriptGlobalObject;
 class nsIXPConnectWrappedNative;
 
@@ -104,6 +110,33 @@ private:
   PRPackedBool mHasOnerror;
 };
 
+class nsLazyAutoRequest
+{
+public:
+  nsLazyAutoRequest() : mCx(nsnull) {}
+
+  ~nsLazyAutoRequest() {
+    if (mCx)
+      JS_EndRequest(mCx);
+  }
+
+  void enter(JSContext *aCx) {
+    JS_BeginRequest(aCx);
+    mCx = aCx;
+  }
+
+  bool entered() const { return mCx != nsnull; }
+
+  void swap(nsLazyAutoRequest &other) {
+    JSContext *tmp = mCx;
+    mCx = other.mCx;
+    other.mCx = tmp;
+  }
+
+private:
+  JSContext *mCx;
+};
+
 class nsDOMWorker : public nsDOMWorkerMessageHandler,
                     public nsIWorker,
                     public nsITimerCallback,
@@ -118,16 +151,12 @@ class nsDOMWorker : public nsDOMWorkerMessageHandler,
   friend class nsDOMWorkerXHR;
   friend class nsDOMWorkerXHRProxy;
   friend class nsReportErrorRunnable;
+  friend class nsDOMFireEventRunnable;
 
   friend JSBool DOMWorkerOperationCallback(JSContext* aCx);
   friend void DOMWorkerErrorReporter(JSContext* aCx,
                                      const char* aMessage,
                                      JSErrorReport* aReport);
-
-#ifdef DEBUG
-  // For fun assertions.
-  friend class nsDOMFireEventRunnable;
-#endif
 
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -141,12 +170,18 @@ public:
   NS_DECL_NSIABSTRACTWORKER
   NS_DECL_NSIWORKER
   NS_DECL_NSITIMERCALLBACK
+  NS_DECL_NSICLASSINFO
   NS_DECL_NSIXPCSCRIPTABLE
 
   static nsresult NewWorker(nsISupports** aNewObject);
+  static nsresult NewChromeWorker(nsISupports** aNewObject);
+  static nsresult NewChromeDOMWorker(nsDOMWorker** aNewObject);
+
+  enum WorkerPrivilegeModel { CONTENT, CHROME };
 
   nsDOMWorker(nsDOMWorker* aParent,
-              nsIXPConnectWrappedNative* aParentWN);
+              nsIXPConnectWrappedNative* aParentWN,
+              WorkerPrivilegeModel aModel);
 
   NS_IMETHOD Initialize(nsISupports* aOwner,
                         JSContext* aCx,
@@ -165,11 +200,13 @@ public:
   void Suspend();
   void Resume();
 
+  // This just calls IsCanceledNoLock with an autolock around the call.
   PRBool IsCanceled();
+
   PRBool IsClosing();
   PRBool IsSuspended();
 
-  PRBool SetGlobalForContext(JSContext* aCx);
+  PRBool SetGlobalForContext(JSContext* aCx, nsLazyAutoRequest *aRequest, JSAutoEnterCompartment *aComp);
 
   void SetPool(nsDOMWorkerPool* aPool);
 
@@ -192,6 +229,10 @@ public:
 #ifdef DEBUG
   PRIntervalTime GetExpirationTime();
 #endif
+
+  PRBool IsPrivileged() {
+    return mPrivilegeModel == CHROME;
+  }
 
   /**
    * Use this chart to help figure out behavior during each of the closing
@@ -249,7 +290,7 @@ private:
 
   nsresult PostMessageInternal(PRBool aToInner);
 
-  PRBool CompileGlobalObject(JSContext* aCx);
+  PRBool CompileGlobalObject(JSContext* aCx, nsLazyAutoRequest *aRequest, JSAutoEnterCompartment *aComp);
 
   PRUint32 NextTimeoutId() {
     return ++mNextTimeoutId;
@@ -288,12 +329,22 @@ private:
     return mLocation;
   }
 
+  PRBool QueueSuspendedRunnable(nsIRunnable* aRunnable);
+
+  // Determines if the worker should be considered "canceled". See the large
+  // comment in the implementation for more details.
+  PRBool IsCanceledNoLock();
+
 private:
 
   // mParent will live as long as mParentWN but only mParentWN will keep the JS
   // reflection alive, so we only hold one strong reference to mParentWN.
   nsDOMWorker* mParent;
   nsCOMPtr<nsIXPConnectWrappedNative> mParentWN;
+
+  // Whether or not this worker has chrome privileges. Never changed after the
+  // worker is created.
+  WorkerPrivilegeModel mPrivilegeModel;
 
   PRLock* mLock;
 
@@ -326,6 +377,8 @@ private:
   nsCOMPtr<nsITimer> mKillTimer;
 
   nsCOMPtr<nsIWorkerLocation> mLocation;
+
+  nsTArray<nsCOMPtr<nsIRunnable> > mQueuedRunnables;
 
   PRPackedBool mSuspended;
   PRPackedBool mCompileAttempted;
@@ -385,6 +438,13 @@ protected:
 private:
   PRPackedBool mHasId;
   PRPackedBool mFreeToDie;
+};
+
+class nsWorkerFactory : public nsIWorkerFactory
+{
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIWORKERFACTORY
 };
 
 #endif /* __NSDOMWORKER_H__ */

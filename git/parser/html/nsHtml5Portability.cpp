@@ -82,7 +82,7 @@ nsHtml5Portability::newCharArrayFromLocal(nsIAtom* local)
   nsAutoString temp;
   local->ToString(temp);
   PRInt32 len = temp.Length();
-  jArray<PRUnichar,PRInt32> arr = jArray<PRUnichar,PRInt32>(len);
+  jArray<PRUnichar,PRInt32> arr = jArray<PRUnichar,PRInt32>::newJArray(len);
   memcpy(arr, temp.BeginReading(), len * sizeof(PRUnichar));
   return arr;
 }
@@ -91,7 +91,7 @@ jArray<PRUnichar,PRInt32>
 nsHtml5Portability::newCharArrayFromString(nsString* string)
 {
   PRInt32 len = string->Length();
-  jArray<PRUnichar,PRInt32> arr = jArray<PRUnichar,PRInt32>(len);
+  jArray<PRUnichar,PRInt32> arr = jArray<PRUnichar,PRInt32>::newJArray(len);
   memcpy(arr, string->BeginReading(), len * sizeof(PRUnichar));
   return arr;
 }
@@ -101,7 +101,7 @@ nsHtml5Portability::newLocalFromLocal(nsIAtom* local, nsHtml5AtomTable* interner
 {
   NS_PRECONDITION(local, "Atom was null.");
   NS_PRECONDITION(interner, "Atom table was null");
-  if (local->IsStaticAtom()) {
+  if (!local->IsStaticAtom()) {
     nsAutoString str;
     local->ToString(str);
     local = interner->GetAtom(str);
@@ -179,16 +179,10 @@ nsHtml5Portability::literalEqualsString(const char* literal, nsString* string)
   return string->EqualsASCII(literal);
 }
 
-jArray<PRUnichar,PRInt32>
-nsHtml5Portability::isIndexPrompt()
+PRBool
+nsHtml5Portability::stringEqualsString(nsString* one, nsString* other)
 {
-  // XXX making this localizable is bug 500631
-  const char* literal = "This is a searchable index. Insert your search keywords here: ";
-  jArray<PRUnichar,PRInt32> arr = jArray<PRUnichar,PRInt32>(62);
-  for (PRInt32 i = 0; i < 62; ++i) {
-    arr[i] = literal[i];
-  }
-  return arr;
+  return one->Equals(*other);
 }
 
 void

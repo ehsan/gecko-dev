@@ -34,10 +34,14 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+
+#ifndef nsHTMLFormElement_h__
+#define nsHTMLFormElement_h__
+
 #include "nsCOMPtr.h"
 #include "nsIForm.h"
 #include "nsIFormControl.h"
-#include "nsIFormSubmission.h"
+#include "nsFormSubmission.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMNSHTMLFormElement.h"
@@ -48,8 +52,10 @@
 #include "nsPIDOMWindow.h"
 #include "nsUnicharUtils.h"
 #include "nsThreadUtils.h"
+#include "nsInterfaceHashtable.h"
 
 class nsFormControlList;
+class nsIMutableArray;
 
 /**
  * hashkey wrapper using nsAString KeyType
@@ -92,7 +98,7 @@ class nsHTMLFormElement : public nsGenericHTMLElement,
                           public nsIRadioGroupContainer
 {
 public:
-  nsHTMLFormElement(nsINodeInfo *aNodeInfo);
+  nsHTMLFormElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLFormElement();
 
   nsresult Init();
@@ -182,13 +188,14 @@ public:
    * Remove an element from this form's list of elements
    *
    * @param aElement the element to remove
-   * @param aNotify If true, send nsIDocumentObserver notifications as needed.
+   * @param aUpdateValidity If true, updates the form validity.
    * @return NS_OK if the element was successfully removed.
    */
-  nsresult RemoveElement(nsGenericHTMLFormElement* aElement, PRBool aNotify);
+  nsresult RemoveElement(nsGenericHTMLFormElement* aElement,
+                         bool aUpdateValidity);
 
   /**
-   * Remove an element from the lookup table mainted by the form.
+   * Remove an element from the lookup table maintained by the form.
    * We can't fold this method into RemoveElement() because when
    * RemoveElement() is called it doesn't know if the element is
    * removed because the id attribute has changed, or bacause the
@@ -204,13 +211,15 @@ public:
    * Add an element to end of this form's list of elements
    *
    * @param aElement the element to add
+   * @param aUpdateValidity If true, the form validity will be updated.
    * @param aNotify If true, send nsIDocumentObserver notifications as needed.
    * @return NS_OK if the element was successfully added
    */
-  nsresult AddElement(nsGenericHTMLFormElement* aElement, PRBool aNotify);
+  nsresult AddElement(nsGenericHTMLFormElement* aElement, bool aUpdateValidity,
+                      PRBool aNotify);
 
   /**    
-   * Add an element to the lookup table mainted by the form.
+   * Add an element to the lookup table maintained by the form.
    *
    * We can't fold this method into AddElement() because when
    * AddElement() is called, the form control has no
@@ -240,8 +249,61 @@ public:
    * submission. In that case the form will defer the submission until the
    * script handler returns and the return value is known.
    */
-  void OnSubmitClickBegin();
+  void OnSubmitClickBegin(nsIContent* aOriginatingElement);
   void OnSubmitClickEnd();
+
+  /**
+   * This method will update the form validity so the submit controls states
+   * will be updated (for -moz-submit-invalid pseudo-class).
+   * This method has to be called by form elements whenever their validity state
+   * or status regarding constraint validation changes.
+   *
+   * @note This method isn't used for CheckValidity().
+   * @note If an element becomes barred from constraint validation, it has to be
+   * considered as valid.
+   *
+   * @param aElementValidityState the new validity state of the element
+   */
+  void UpdateValidity(PRBool aElementValidityState);
+
+  /**
+   * Returns the form validity based on the last UpdateValidity() call.
+   *
+   * @return Whether the form was valid the last time UpdateValidity() was called.
+   *
+   * @note This method may not return the *current* validity state!
+   */
+  PRBool GetValidity() const { return !mInvalidElementsCount; }
+
+  /**
+   * This method check the form validity and make invalid form elements send
+   * invalid event if needed.
+   *
+   * @return Whether the form is valid.
+   *
+   * @note Do not call this method if novalidate/formnovalidate is used.
+   * @note This method might disappear with bug 592124, hopefuly.
+   */
+  bool CheckValidFormSubmission();
+
+  virtual nsXPCClassInfo* GetClassInfo();
+
+  /**
+   * Walk over the form elements and call SubmitNamesValues() on them to get
+   * their data pumped into the FormSubmitter.
+   *
+   * @param aFormSubmission the form submission object
+   */
+  nsresult WalkFormElements(nsFormSubmission* aFormSubmission);
+
+  /**
+   * Whether the submission of this form has been ever prevented because of
+   * being invalid.
+   *
+   * @return Whether the submission of this form has been prevented because of
+   * being invalid.
+   */
+  bool HasEverTriedInvalidSubmit() const { return mEverTriedInvalidSubmit; }
 
 protected:
   class RemoveElementRunnable;
@@ -249,18 +311,17 @@ protected:
 
   class RemoveElementRunnable : public nsRunnable {
   public:
-    RemoveElementRunnable(nsHTMLFormElement* aForm, PRBool aNotify):
-      mForm(aForm), mNotify(aNotify)
+    RemoveElementRunnable(nsHTMLFormElement* aForm)
+      : mForm(aForm)
     {}
 
     NS_IMETHOD Run() {
-      mForm->HandleDefaultSubmitRemoval(mNotify);
+      mForm->HandleDefaultSubmitRemoval();
       return NS_OK;
     }
 
   private:
     nsRefPtr<nsHTMLFormElement> mForm;
-    PRBool mNotify;
   };
 
   nsresult DoSubmitOrReset(nsEvent* aEvent,
@@ -268,7 +329,7 @@ protected:
   nsresult DoReset();
 
   // Async callback to handle removal of our default submit
-  void HandleDefaultSubmitRemoval(PRBool aNotify);
+  void HandleDefaultSubmitRemoval();
 
   //
   // Submit Helpers
@@ -289,23 +350,14 @@ protected:
    * @param aFormSubmission the submission object
    * @param aEvent the DOM event that was passed to us for the submit
    */
-  nsresult BuildSubmission(nsCOMPtr<nsIFormSubmission>& aFormSubmission, 
+  nsresult BuildSubmission(nsFormSubmission** aFormSubmission, 
                            nsEvent* aEvent);
   /**
    * Perform the submission (called by DoSubmit and FlushPendingSubmission)
    *
    * @param aFormSubmission the submission object
    */
-  nsresult SubmitSubmission(nsIFormSubmission* aFormSubmission);
-  /**
-   * Walk over the form elements and call SubmitNamesValues() on them to get
-   * their data pumped into the FormSubmitter.
-   *
-   * @param aFormSubmission the form submission object
-   * @param aSubmitElement the element that was clicked on (nsnull if none)
-   */
-  nsresult WalkFormElements(nsIFormSubmission* aFormSubmission,
-                            nsIContent* aSubmitElement);
+  nsresult SubmitSubmission(nsFormSubmission* aFormSubmission);
 
   /**
    * Notify any submit observers of the submit.
@@ -326,8 +378,20 @@ protected:
    * Get the full URL to submit to.  Do not submit if the returned URL is null.
    *
    * @param aActionURL the full, unadulterated URL you'll be submitting to [OUT]
+   * @param aOriginatingElement the originating element of the form submission [IN]
    */
-  nsresult GetActionURL(nsIURI** aActionURL);
+  nsresult GetActionURL(nsIURI** aActionURL, nsIContent* aOriginatingElement);
+
+  /**
+   * Check the form validity following this algorithm:
+   * http://www.whatwg.org/specs/web-apps/current-work/#statically-validate-the-constraints
+   *
+   * @param aInvalidElements [out] parameter containing the list of unhandled
+   * invalid controls.
+   *
+   * @return Whether the form is currently valid.
+   */
+  PRBool CheckFormValidity(nsIMutableArray* aInvalidElements) const;
 
 public:
   /**
@@ -338,13 +402,6 @@ public:
    */
   void FlushPendingSubmission();
 protected:
-  /**
-   * Forget a possible pending submission. Same as above but this time we
-   * get rid of the pending submission because the handler returned true
-   * so we will rebuild the submission with the name/value of the triggering
-   * element
-   */
-  void ForgetPendingSubmission();
 
   //
   // Data members
@@ -371,7 +428,7 @@ protected:
   PRBool mSubmitInitiatedFromUserInput;
 
   /** The pending submission object */
-  nsCOMPtr<nsIFormSubmission> mPendingSubmission;
+  nsAutoPtr<nsFormSubmission> mPendingSubmission;
   /** The request currently being submitted */
   nsCOMPtr<nsIRequest> mSubmittingRequest;
   /** The web progress object we are currently listening to */
@@ -386,9 +443,24 @@ protected:
   /** The first submit element in mNotInElements -- WEAK */
   nsGenericHTMLFormElement* mFirstSubmitNotInElements;
 
+  /**
+   * Number of invalid and candidate for constraint validation elements in the
+   * form the last time UpdateValidity has been called.
+   * @note Should only be used by UpdateValidity() and GetValidity()!
+   */
+  PRInt32 mInvalidElementsCount;
+
+  /**
+   * Whether the submission of this form has been ever prevented because of
+   * being invalid.
+   */
+  bool mEverTriedInvalidSubmit;
+
 protected:
   /** Detection of first form to notify observers */
   static PRBool gFirstFormSubmitted;
   /** Detection of first password input to initialize the password manager */
   static PRBool gPasswordManagerInitialized;
 };
+
+#endif // nsHTMLFormElement_h__

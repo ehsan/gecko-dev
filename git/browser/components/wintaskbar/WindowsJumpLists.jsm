@@ -15,12 +15,13 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Mozilla Foundation.
+ * the Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Jim Mathies <jmathies@mozilla.com>
+ *   Jim Mathies <jmathies@mozilla.com> (Original author)
+ *   Marco Bonardo <mak77@bonardo.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,6 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+Components.utils.import("resource://gre/modules/Services.jsm");
 
 /**
  * Constants
@@ -45,6 +47,9 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
+// Stop updating jumplists after some idle time.
+const IDLE_TIMEOUT_SECONDS = 5 * 60;
+
 // Prefs
 const PREF_TASKBAR_BRANCH    = "browser.taskbar.lists.";
 const PREF_TASKBAR_ENABLED   = "enabled";
@@ -52,9 +57,13 @@ const PREF_TASKBAR_ITEMCOUNT = "maxListItemCount";
 const PREF_TASKBAR_FREQUENT  = "frequent.enabled";
 const PREF_TASKBAR_RECENT    = "recent.enabled";
 const PREF_TASKBAR_TASKS     = "tasks.enabled";
+const PREF_TASKBAR_REFRESH   = "refreshInSeconds";
 
-// The amount of time between updates for jump lists
-const TIMER_TASKBAR_REFRESH = 1000*60*2; // 2 min.
+// Hash keys for pendingStatements.
+const LIST_TYPE = {
+  FREQUENT: 0
+, RECENT: 1
+}
 
 /**
  * Exports
@@ -69,37 +78,40 @@ let EXPORTED_SYMBOLS = [
  */
 
 XPCOMUtils.defineLazyGetter(this, "_prefs", function() {
-  return Cc["@mozilla.org/preferences-service;1"]
-           .getService(Ci.nsIPrefService)
-           .getBranch(PREF_TASKBAR_BRANCH)
-           .QueryInterface(Ci.nsIPrefBranch2);
+  return Services.prefs.getBranch(PREF_TASKBAR_BRANCH)
+                       .QueryInterface(Ci.nsIPrefBranch2);
 });
 
 XPCOMUtils.defineLazyGetter(this, "_stringBundle", function() {
-  return Cc["@mozilla.org/intl/stringbundle;1"]
-           .getService(Ci.nsIStringBundleService)
-           .createBundle("chrome://browser/locale/taskbar.properties");
+  return Services.strings
+                 .createBundle("chrome://browser/locale/taskbar.properties");
 });
+
+XPCOMUtils.defineLazyGetter(this, "PlacesUtils", function() {
+  Components.utils.import("resource://gre/modules/PlacesUtils.jsm");
+  return PlacesUtils;
+});
+
+XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
+  Components.utils.import("resource://gre/modules/NetUtil.jsm");
+  return NetUtil;
+});
+
+XPCOMUtils.defineLazyServiceGetter(this, "_idle",
+                                   "@mozilla.org/widget/idleservice;1",
+                                   "nsIIdleService");
 
 XPCOMUtils.defineLazyServiceGetter(this, "_taskbarService",
                                    "@mozilla.org/windows-taskbar;1",
                                    "nsIWinTaskbar");
 
-XPCOMUtils.defineLazyServiceGetter(this, "_navHistoryService",
-                                   "@mozilla.org/browser/nav-history-service;1",
-                                   "nsINavHistoryService");
+XPCOMUtils.defineLazyServiceGetter(this, "_winShellService",
+                                   "@mozilla.org/browser/shell-service;1",
+                                   "nsIWindowsShellService");
 
-XPCOMUtils.defineLazyServiceGetter(this, "_observerService",
-                                   "@mozilla.org/observer-service;1",
-                                   "nsIObserverService");
-
-XPCOMUtils.defineLazyServiceGetter(this, "_directoryService",
-                                   "@mozilla.org/file/directory_service;1",
-                                   "nsIProperties");
-
-XPCOMUtils.defineLazyServiceGetter(this, "_ioService",
-                                   "@mozilla.org/network/io-service;1",
-                                   "nsIIOService");
+XPCOMUtils.defineLazyServiceGetter(this, "_privateBrowsingSvc",
+                                   "@mozilla.org/privatebrowsing;1",
+                                   "nsIPrivateBrowsingService");
 
 /**
  * Global functions
@@ -131,7 +143,9 @@ var tasksCfg = [
     args:             "-new-tab about:blank",
     iconIndex:        0, // Fx app icon
     open:             true,
-    close:            false, // The jump list already has an app launch icon
+    close:            true, // The jump list already has an app launch icon, but
+                            // we don't always update the list on shutdown.
+                            // Thus true for consistency.
   },
 
   // Open new tab
@@ -141,7 +155,34 @@ var tasksCfg = [
     args:             "-browser",
     iconIndex:        0, // Fx app icon
     open:             true,
-    close:            false, // no point
+    close:            true, // No point, but we don't always update the list on
+                            //  shutdown.  Thus true for consistency.
+  },
+
+  // Toggle the Private Browsing mode
+  {
+    get title() {
+      if (_privateBrowsingSvc.privateBrowsingEnabled)
+        return _getString("taskbar.tasks.exitPrivacyMode.label");
+      else
+        return _getString("taskbar.tasks.enterPrivacyMode.label");
+    },
+    get description() {
+      if (_privateBrowsingSvc.privateBrowsingEnabled)
+        return _getString("taskbar.tasks.exitPrivacyMode.description");
+      else
+        return _getString("taskbar.tasks.enterPrivacyMode.description");
+    },
+    args:             "-private-toggle",
+    iconIndex:        0, // Fx app icon
+    get open() {
+      // Don't show when inside permanent private browsing mode
+      return !_privateBrowsingSvc.autoStarted;
+    },
+    get close() {
+      // Don't show when inside permanent private browsing mode
+      return !_privateBrowsingSvc.autoStarted;
+    },
   },
 ];
 
@@ -163,20 +204,22 @@ var WinTaskbarJumpList =
     if (!this._initTaskbar())
       return;
 
+    // Win shell shortcut maintenance. If we've gone through an update,
+    // this will update any pinned taskbar shortcuts. Not specific to
+    // jump lists, but this was a convienent place to call it. 
+    this._shortcutMaintenance();
+
     // Store our task list config data
     this._tasks = tasksCfg;
 
     // retrieve taskbar related prefs.
     this._refreshPrefs();
-    
+
     // observer for private browsing and our prefs branch
     this._initObs();
 
     // jump list refresh timer
-    this._initTimer();
-
-    // build the list
-    this.update();
+    this._updateTimer();
   },
 
   update: function WTBJL_update() {
@@ -184,27 +227,54 @@ var WinTaskbarJumpList =
     if (!this._enabled)
       return;
 
-    // hide jump lists when we're enabled and in private browsing mode
-    if (this._inPrivateBrowsing) {
-      this._deleteActiveJumpList();
-      return;
-    }
-
     // do what we came here to do, update the taskbar jumplist
     this._buildList();
   },
 
   _shutdown: function WTBJL__shutdown() {
     this._shuttingDown = true;
-    this.update();
+
+    // Correctly handle a clear history on shutdown.  If there are no
+    // entries be sure to empty all history lists.  Luckily Places caches
+    // this value, so it's a pretty fast call.
+    if (!PlacesUtils.history.hasHistoryEntries) {
+      this.update();
+    }
+
     this._free();
+  },
+
+  _shortcutMaintenance: function WTBJL__maintenace() {
+    _winShellService.shortcutMaintenance();
   },
 
   /**
    * List building
-   */ 
+   *
+   * @note Async builders must add their mozIStoragePendingStatement to
+   *       _pendingStatements object, using a different LIST_TYPE entry for
+   *       each statement. Once finished they must remove it and call
+   *       commitBuild().  When there will be no more _pendingStatements,
+   *       commitBuild() will commit for real.
+   */
+
+  _pendingStatements: {},
+  _hasPendingStatements: function WTBJL__hasPendingStatements() {
+    return Object.keys(this._pendingStatements).length > 0;
+  },
 
   _buildList: function WTBJL__buildList() {
+    if (this._hasPendingStatements()) {
+      // We were requested to update the list while another update was in
+      // progress, this could happen at shutdown, idle or privatebrowsing.
+      // Abort the current list building.
+      for (let listType in this._pendingStatements) {
+        this._pendingStatements[listType].cancel();
+        delete this._pendingStatements[listType];
+      }
+      this._builder.abortListBuild();
+    }
+
     // anything to build?
     if (!this._showFrequent && !this._showRecent && !this._showTasks) {
       // don't leave the last list hanging on the taskbar.
@@ -215,16 +285,15 @@ var WinTaskbarJumpList =
     if (!this._startBuild())
       return;
 
-    if (this._showTasks && !this._buildTasks())
-      return;
+    if (this._showTasks)
+      this._buildTasks();
 
     // Space for frequent items takes priority over recent.
-    
-    if (this._showFrequent && !this._buildFrequent())
-      return;
+    if (this._showFrequent)
+      this._buildFrequent();
 
-    if (this._showRecent && !this._buildRecent())
-      return;
+    if (this._showRecent)
+      this._buildRecent();
 
     this._commitBuild();
   },
@@ -246,8 +315,9 @@ var WinTaskbarJumpList =
   },
 
   _commitBuild: function WTBJL__commitBuild() {
-    if (!this._builder.commitListBuild())
+    if (!this._hasPendingStatements() && !this._builder.commitListBuild()) {
       this._builder.abortListBuild();
+    }
   },
 
   _buildTasks: function WTBJL__buildTasks() {
@@ -261,19 +331,21 @@ var WinTaskbarJumpList =
       items.appendElement(item, false);
     }, this);
     
-    if (items.length == 0)
-      return true;
-
-    return this._builder.addListToBuild(this._builder.JUMPLIST_CATEGORY_TASKS, items);
+    if (items.length > 0)
+      this._builder.addListToBuild(this._builder.JUMPLIST_CATEGORY_TASKS, items);
   },
 
   _buildCustom: function WTBJL__buildCustom(title, items) {
-    if (items.length == 0)
-      return true;
-    return this._builder.addListToBuild(this._builder.JUMPLIST_CATEGORY_CUSTOMLIST, items, title);
+    if (items.length > 0)
+      this._builder.addListToBuild(this._builder.JUMPLIST_CATEGORY_CUSTOMLIST, items, title);
   },
 
   _buildFrequent: function WTBJL__buildFrequent() {
+    // If history is empty, just bail out.
+    if (!PlacesUtils.history.hasHistoryEntries) {
+      return;
+    }
+
     // Windows supports default frequent and recent lists,
     // but those depend on internal windows visit tracking
     // which we don't populate. So we build our own custom
@@ -281,50 +353,76 @@ var WinTaskbarJumpList =
 
     var items = Cc["@mozilla.org/array;1"].
                 createInstance(Ci.nsIMutableArray);
-    var list = this._getNavFrequent(this._maxItemCount);
-
-    if (!list || list.length == 0)
-      return true;
-
     // track frequent items so that we don't add them to
     // the recent list.
     this._frequentHashList = [];
 
-    list.forEach(function (entry) {
-      let shortcut = this._getHandlerAppItem(entry.title, entry.title, entry.uri, 1);
-      items.appendElement(shortcut, false);
-      this._frequentHashList.push(entry.uri);
-    }, this);
-    return this._buildCustom(_getString("taskbar.frequent.label"), items);
+    this._pendingStatements[LIST_TYPE.FREQUENT] = this._getHistoryResults(
+      Ci.nsINavHistoryQueryOptions.SORT_BY_VISITCOUNT_DESCENDING,
+      this._maxItemCount,
+      function (aResult) {
+        if (!aResult) {
+          delete this._pendingStatements[LIST_TYPE.FREQUENT];
+          // The are no more results, build the list.
+          this._buildCustom(_getString("taskbar.frequent.label"), items);
+          this._commitBuild();
+          return;
+        }
+
+        let title = aResult.title || aResult.uri;
+        let shortcut = this._getHandlerAppItem(title, title, aResult.uri, 1);
+        items.appendElement(shortcut, false);
+        this._frequentHashList.push(aResult.uri);
+      },
+      this
+    );
   },
 
   _buildRecent: function WTBJL__buildRecent() {
+    // If history is empty, just bail out.
+    if (!PlacesUtils.history.hasHistoryEntries) {
+      return;
+    }
+
     var items = Cc["@mozilla.org/array;1"].
                 createInstance(Ci.nsIMutableArray);
-    var list = this._getNavRecent(this._maxItemCount*2);
-    
-    if (!list || list.length == 0)
-      return true;
+    // Frequent items will be skipped, so we select a double amount of
+    // entries and stop fetching results at _maxItemCount.
+    var count = 0;
 
-    let count = 0;
-    for (let idx = 0; idx < list.length; idx++) {
-      if (count >= this._maxItemCount)
-        break;
-      let entry = list[idx];
-      // do not add items to recent that have already been added
-      // to frequent.
-      if (this._frequentHashList &&
-          this._frequentHashList.indexOf(entry.uri) != -1)
-        continue;
-      let shortcut = this._getHandlerAppItem(entry.title, entry.title, entry.uri, 1);
-      items.appendElement(shortcut, false);
-      count++;
-    }
-    return this._buildCustom(_getString("taskbar.recent.label"), items);
+    this._pendingStatements[LIST_TYPE.RECENT] = this._getHistoryResults(
+      Ci.nsINavHistoryQueryOptions.SORT_BY_DATE_DESCENDING,
+      this._maxItemCount * 2,
+      function (aResult) {
+        if (!aResult) {
+          // The are no more results, build the list.
+          this._buildCustom(_getString("taskbar.recent.label"), items);
+          delete this._pendingStatements[LIST_TYPE.RECENT];
+          this._commitBuild();
+          return;
+        }
+
+        if (count >= this._maxItemCount) {
+          return;
+        }
+
+        // Do not add items to recent that have already been added to frequent.
+        if (this._frequentHashList &&
+            this._frequentHashList.indexOf(aResult.uri) != -1) {
+          return;
+        }
+
+        let title = aResult.title || aResult.uri;
+        let shortcut = this._getHandlerAppItem(title, title, aResult.uri, 1);
+        items.appendElement(shortcut, false);
+        count++;
+      },
+      this
+    );
   },
 
   _deleteActiveJumpList: function WTBJL__deleteAJL() {
-    return this._builder.deleteActiveList();
+    this._builder.deleteActiveList();
   },
 
   /**
@@ -332,7 +430,7 @@ var WinTaskbarJumpList =
    */
 
   _getHandlerAppItem: function WTBJL__getHandlerAppItem(name, description, args, icon) {
-    var file = _directoryService.get("XCurProcD", Ci.nsILocalFile);
+    var file = Services.dirsvc.get("XCurProcD", Ci.nsILocalFile);
 
     // XXX where can we grab this from in the build? Do we need to?
     file.append("firefox.exe");
@@ -361,79 +459,56 @@ var WinTaskbarJumpList =
 
   /**
    * Nav history helpers
-   */ 
+   */
 
-  _getNavFrequent: function WTBJL__getNavFrequent(depth) {
-    var options = _navHistoryService.getNewQueryOptions();
-    var query = _navHistoryService.getNewQuery();
-    
-    query.beginTimeReference = query.TIME_RELATIVE_NOW;
-    query.beginTime = -24 * 30 * 60 * 60 * 1000000; // one month
-    query.endTimeReference = query.TIME_RELATIVE_NOW;
+  _getHistoryResults:
+  function WTBLJL__getHistoryResults(aSortingMode, aLimit, aCallback, aScope) {
+    var options = PlacesUtils.history.getNewQueryOptions();
+    options.maxResults = aLimit;
+    options.sortingMode = aSortingMode;
+    // We don't want source redirects for these queries.
+    options.redirectsMode = Ci.nsINavHistoryQueryOptions.REDIRECTS_MODE_TARGET;
+    var query = PlacesUtils.history.getNewQuery();
 
-    options.maxResults = depth;
-    options.queryType = options.QUERY_TYPE_HISTORY;
-    options.sortingMode = options.SORT_BY_VISITCOUNT_DESCENDING;
-    options.resultType = options.RESULT_TYPE_URI;
-
-    var result = _navHistoryService.executeQuery(query, options);
-
-    var list = [];
-
-    var rootNode = result.root;
-    rootNode.containerOpen = true;
-
-    for (let idx = 0; idx < rootNode.childCount; idx++) {
-      let node = rootNode.getChild(idx);
-      list.push({uri: node.uri, title: node.title});
-    }
-    rootNode.containerOpen = false;
-
-    return list;
+    // Return the pending statement to the caller, to allow cancelation.
+    return PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase)
+                              .asyncExecuteLegacyQueries([query], 1, options, {
+      handleResult: function (aResultSet) {
+        for (let row; (row = aResultSet.getNextRow());) {
+          try {
+            aCallback.call(aScope,
+                           { uri: row.getResultByIndex(1)
+                           , title: row.getResultByIndex(2)
+                           });
+          } catch (e) {}
+        }
+      },
+      handleError: function (aError) {
+        Components.utils.reportError(
+          "Async execution error (" + aError.result + "): " + aError.message);
+      },
+      handleCompletion: function (aReason) {
+        aCallback.call(WinTaskbarJumpList, null);
+      },
+    });
   },
-  
-  _getNavRecent: function WTBJL__getNavRecent(depth) {
-    var options = _navHistoryService.getNewQueryOptions();
-    var query = _navHistoryService.getNewQuery();
-    
-    query.beginTimeReference = query.TIME_RELATIVE_NOW;
-    query.beginTime = -48 * 60 * 60 * 1000000; // two days
-    query.endTimeReference = query.TIME_RELATIVE_NOW;
 
-    options.maxResults = depth;
-    options.queryType = options.QUERY_TYPE_HISTORY;
-    options.sortingMode = options.SORT_BY_LASTMODIFIED_DESCENDING;
-    options.resultType = options.RESULT_TYPE_URI;
-
-    var result = _navHistoryService.executeQuery(query, options);
-
-    var list = [];
-
-    var rootNode = result.root;
-    rootNode.containerOpen = true;
-
-    for (var idx = 0; idx < rootNode.childCount; idx++) {
-      var node = rootNode.getChild(idx);
-      list.push({uri: node.uri, title: node.title});
-    }
-    rootNode.containerOpen = false;
-
-    return list;
-  },
-  
   _clearHistory: function WTBJL__clearHistory(items) {
     if (!items)
       return;
+    var URIsToRemove = [];
     var enum = items.enumerate();
     while (enum.hasMoreElements()) {
       let oldItem = enum.getNext().QueryInterface(Ci.nsIJumpListShortcut);
       if (oldItem) {
         try { // in case we get a bad uri
           let uriSpec = oldItem.app.getParameter(0);
-          _navHistoryService.QueryInterface(Ci.nsIBrowserHistory).removePage(
-            _ioService.newURI(uriSpec));
+          URIsToRemove.push(NetUtil.newURI(uriSpec));
         } catch (err) { }
       }
+    }
+    if (URIsToRemove.length > 0) {
+      PlacesUtils.bhistory.removePages(URIsToRemove, URIsToRemove.length, true);
     }
   },
 
@@ -447,11 +522,6 @@ var WinTaskbarJumpList =
     this._showRecent = _prefs.getBoolPref(PREF_TASKBAR_RECENT);
     this._showTasks = _prefs.getBoolPref(PREF_TASKBAR_TASKS);
     this._maxItemCount = _prefs.getIntPref(PREF_TASKBAR_ITEMCOUNT);
-
-    // retrieve the initial status of the Private Browsing mode.
-    this._inPrivateBrowsing = Cc["@mozilla.org/privatebrowsing;1"].
-                              getService(Ci.nsIPrivateBrowsingService).
-                              privateBrowsingEnabled;
   },
 
   /**
@@ -467,26 +537,52 @@ var WinTaskbarJumpList =
   },
 
   _initObs: function WTBJL__initObs() {
-    _observerService.addObserver(this, "private-browsing", false);
-    _observerService.addObserver(this, "quit-application-granted", false);
+    Services.obs.addObserver(this, "private-browsing", false);
+    // If the browser is closed while in private browsing mode, the "exit"
+    // notification is fired on quit-application-granted.
+    // History cleanup can happen at profile-change-teardown.
+    Services.obs.addObserver(this, "profile-before-change", false);
+    Services.obs.addObserver(this, "browser:purge-session-history", false);
     _prefs.addObserver("", this, false);
   },
  
   _freeObs: function WTBJL__freeObs() {
-    _observerService.removeObserver(this, "private-browsing");
-    _observerService.removeObserver(this, "quit-application-granted");
+    Services.obs.removeObserver(this, "private-browsing");
+    Services.obs.removeObserver(this, "profile-before-change");
+    Services.obs.removeObserver(this, "browser:purge-session-history");
     _prefs.removeObserver("", this);
   },
 
-  _initTimer: function WTBJL__initTimer(aTimer) {
-    this._timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-    this._timer.initWithCallback(this, TIMER_TASKBAR_REFRESH, this._timer.TYPE_REPEATING_SLACK);
+  _updateTimer: function WTBJL__updateTimer() {
+    if (this._enabled && !this._shuttingDown && !this._timer) {
+      this._timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
+      this._timer.initWithCallback(this,
+                                   _prefs.getIntPref(PREF_TASKBAR_REFRESH)*1000,
+                                   this._timer.TYPE_REPEATING_SLACK);
+    }
+    else if ((!this._enabled || this._shuttingDown) && this._timer) {
+      this._timer.cancel();
+      delete this._timer;
+    }
+  },
+
+  _hasIdleObserver: false,
+  _updateIdleObserver: function WTBJL__updateIdleObserver() {
+    if (this._enabled && !this._shuttingDown && !this._hasIdleObserver) {
+      _idle.addIdleObserver(this, IDLE_TIMEOUT_SECONDS);
+      this._hasIdleObserver = true;
+    }
+    else if ((!this._enabled || this._shuttingDown) && this._hasIdleObserver) {
+      _idle.removeIdleObserver(this, IDLE_TIMEOUT_SECONDS);
+      this._hasIdleObserver = false;
+    }
   },
 
   _free: function WTBJL__free() {
     this._freeObs();
+    this._updateTimer();
+    this._updateIdleObserver();
     delete this._builder;
-    delete this._timer;
   },
 
   /**
@@ -494,17 +590,23 @@ var WinTaskbarJumpList =
    */
 
   notify: function WTBJL_notify(aTimer) {
+    // Add idle observer on the first notification so it doesn't hit startup.
+    this._updateIdleObserver();
     this.update();
   },
 
   observe: function WTBJL_observe(aSubject, aTopic, aData) {
     switch (aTopic) {
       case "nsPref:changed":
+        if (this._enabled == true && !_prefs.getBoolPref(PREF_TASKBAR_ENABLED))
+          this._deleteActiveJumpList();
         this._refreshPrefs();
+        this._updateTimer();
+        this._updateIdleObserver();
         this.update();
       break;
 
-      case "quit-application-granted":
+      case "profile-before-change":
         this._shutdown();
       break;
 
@@ -513,15 +615,18 @@ var WinTaskbarJumpList =
       break;
 
       case "private-browsing":
-        switch (aData) {
-          case "enter":
-            this._inPrivateBrowsing = true;
-            break;
-          case "exit":
-            this._inPrivateBrowsing = false;
-            break;
-        }
         this.update();
+      break;
+
+      case "idle":
+        if (this._timer) {
+          this._timer.cancel();
+          delete this._timer;
+        }
+      break;
+
+      case "back":
+        this._updateTimer();
       break;
     }
   },

@@ -39,9 +39,7 @@
 
 function browserWindowsCount() {
   let count = 0;
-  let e = Cc["@mozilla.org/appshell/window-mediator;1"]
-            .getService(Ci.nsIWindowMediator)
-            .getEnumerator("navigator:browser");
+  let e = Services.wm.getEnumerator("navigator:browser");
   while (e.hasMoreElements()) {
     if (!e.getNext().closed)
       ++count;
@@ -74,10 +72,8 @@ function test() {
   // Wait for the sessionstore.js file to be written before going on.
   // Note: we don't wait for the complete event, since if asyncCopy fails we
   // would timeout.
-  let os = Cc["@mozilla.org/observer-service;1"].
-           getService(Ci.nsIObserverService);
-  os.addObserver(function (aSubject, aTopic, aData) {
-    os.removeObserver(arguments.callee, aTopic);
+  Services.obs.addObserver(function (aSubject, aTopic, aData) {
+    Services.obs.removeObserver(arguments.callee, aTopic);
     info("sessionstore.js is being written");
     executeSoon(continue_test);
   }, "sessionstore-state-write", false);
@@ -143,7 +139,7 @@ function continue_test() {
 
                   // Ensure we added window to undo list.
                   let data = JSON.parse(ss.getClosedWindowData())[0];
-                  ok(data.toSource().indexOf(TESTS[aTestIndex].value) > -1,
+                  ok(JSON.stringify(data).indexOf(TESTS[aTestIndex].value) > -1,
                      "The closed window data was stored correctly");
 
                   if (aRunNextTestInPBMode) {
@@ -168,7 +164,7 @@ function continue_test() {
                        "when exiting PB mode");
 
                     let data = JSON.parse(ss.getClosedWindowData())[0];
-                    ok(data.toSource().indexOf(TESTS[aTestIndex - 1].value) > -1,
+                    ok(JSON.stringify(data).indexOf(TESTS[aTestIndex - 1].value) > -1,
                        "The data associated with the recently closed window was " +
                        "restored when exiting PB mode");
                   }

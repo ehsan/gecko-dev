@@ -105,7 +105,6 @@ public:
                       nsISupports*            aContainer,
                       nsIDocument*            aDocument,
                       float                   aScreenDPI,
-                      nsIWidget*              aParentWidget,
                       FILE*                   aDebugFile);
 
   nsresult GetSeqFrameAndCountPages(nsIFrame*& aSeqFrame, PRInt32& aCount);
@@ -165,7 +164,7 @@ public:
   // Timer Methods
   nsresult StartPagePrintTimer(nsPrintObject* aPO);
 
-  PRBool IsWindowsInOurSubTree(nsIDOMWindow * aDOMWindow);
+  PRBool IsWindowsInOurSubTree(nsPIDOMWindow * aDOMWindow);
   static PRBool IsParentAFrameSet(nsIDocShell * aParent);
   PRBool IsThereAnIFrameSelected(nsIDocShell* aDocShell,
                                  nsIDOMWindow* aDOMWin,
@@ -194,8 +193,6 @@ public:
 
   PRBool   CheckBeforeDestroy();
   nsresult Cancelled();
-
-  nsIWidget* GetPrintPreviewWindow() {return mPrtPreview->mPrintObject->mWindow;}
 
   nsIPresShell* GetPrintPreviewPresShell() {return mPrtPreview->mPrintObject->mPresShell;}
 
@@ -291,7 +288,6 @@ protected:
   nsIPageSequenceFrame*   mPageSeqFrame;
 
   // Print Preview
-  nsCOMPtr<nsIWidget>     mParentWidget;        
   nsPrintData*            mPrtPreview;
   nsPrintData*            mOldPrtPreview;
 

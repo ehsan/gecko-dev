@@ -95,6 +95,9 @@
 #include "nsIObserverService.h"
 #include "prprf.h"
 
+#include "nsIScreenManager.h"
+#include "nsIScreen.h"
+
 #include "nsIContent.h" // for menus
 
 // For calculating size
@@ -162,6 +165,7 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
 
   mIsHiddenWindow = aIsHiddenWindow;
 
+  PRInt32 initialX = 0, initialY = 0;
   nsCOMPtr<nsIBaseWindow> base(do_QueryInterface(aOpener));
   if (base) {
     rv = base->GetPositionAndSize(&mOpenerScreenRect.x,
@@ -170,12 +174,16 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
                                   &mOpenerScreenRect.height);
     if (NS_FAILED(rv)) {
       mOpenerScreenRect.Empty();
+    } else {
+      initialX = mOpenerScreenRect.x;
+      initialY = mOpenerScreenRect.y;
+      ConstrainToOpenerScreen(&initialX, &initialY);
     }
   }
 
   // XXX: need to get the default window size from prefs...
   // Doesn't come from prefs... will come from CSS/XUL/RDF
-  nsIntRect r(0, 0, aInitialWidth, aInitialHeight);
+  nsIntRect r(initialX, initialY, aInitialWidth, aInitialHeight);
   
   // Create top level window
   mWindow = do_CreateInstance(kWindowCID, &rv);
@@ -210,7 +218,9 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
                   nsnull,                             // nsIToolkit
                   &widgetInitData);                   // Widget initialization data
   mWindow->GetClientBounds(r);
-  mWindow->SetBackgroundColor(NS_RGB(192,192,192));
+  // Match the default background color of content. Important on windows
+  // since we no longer use content child widgets.
+  mWindow->SetBackgroundColor(NS_RGB(255,255,255));
 
   // Create web shell
   mDocShell = do_CreateInstance("@mozilla.org/docshell;1");
@@ -319,16 +329,14 @@ nsWebShellWindow::HandleEvent(nsGUIEvent *aEvent)
        * client area of the window...
        */
       case NS_MOVE: {
-#ifndef XP_MACOSX
-        // Move any popups that are attached to their parents. That is, the
-        // popup moves along with the parent window when it moves. This
-        // doesn't need to happen on Mac, as Cocoa provides a nice API
-        // which does this for us.
+        // Adjust any child popups so that their widget offsets and coordinates
+        // are correct with respect to the new position of the window
         nsCOMPtr<nsIMenuRollup> pm =
           do_GetService("@mozilla.org/xul/xul-popup-manager;1");
-        if (pm)
-          pm->AdjustPopupsOnWindowChange();
-#endif
+        if (pm) {
+          nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(docShell);
+          pm->AdjustPopupsOnWindowChange(window);
+        }
 
         // persist position, but not immediately, in case this OS is firing
         // repeated move events as the user drags the window
@@ -336,12 +344,12 @@ nsWebShellWindow::HandleEvent(nsGUIEvent *aEvent)
         break;
       }
       case NS_SIZE: {
-#ifndef XP_MACOSX
         nsCOMPtr<nsIMenuRollup> pm =
           do_GetService("@mozilla.org/xul/xul-popup-manager;1");
-        if (pm)
-          pm->AdjustPopupsOnWindowChange();
-#endif
+        if (pm) {
+          nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(docShell);
+          pm->AdjustPopupsOnWindowChange(window);
+        }
  
         nsSizeEvent* sizeEvent = (nsSizeEvent*)aEvent;
         nsCOMPtr<nsIBaseWindow> shellAsWin(do_QueryInterface(docShell));
@@ -377,6 +385,15 @@ nsWebShellWindow::HandleEvent(nsGUIEvent *aEvent)
         eventWindow->SetPersistenceTimer(PAD_MISC);
         result = nsEventStatus_eConsumeDoDefault;
 
+        // min, max, and normal are all the same to apps, but for
+        // fullscreen we need to let them know so they can update
+        // their ui. 
+        if (modeEvent->mSizeMode == nsSizeMode_Fullscreen) {
+          nsCOMPtr<nsIDOMWindowInternal> ourWindow = do_GetInterface(docShell);
+          if (ourWindow)
+            ourWindow->SetFullScreen(PR_TRUE);
+        }
+
         // Note the current implementation of SetSizeMode just stores
         // the new state; it doesn't actually resize. So here we store
         // the state and pass the event on to the OS. The day is coming
@@ -404,6 +421,15 @@ nsWebShellWindow::HandleEvent(nsGUIEvent *aEvent)
        */
       case NS_DESTROY: {
         eventWindow->Destroy();
+        break;
+      }
+
+      case NS_UISTATECHANGED: {
+        nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(docShell);
+        if (window) {
+          nsUIStateChangeEvent* event = (nsUIStateChangeEvent*)aEvent;
+          window->SetKeyboardIndicators(event->showAccelerators, event->showFocusRings);
+        }
         break;
       }
 
@@ -736,7 +762,7 @@ PRBool nsWebShellWindow::ExecuteCloseHandler()
     nsCOMPtr<nsIDocumentViewer> docViewer(do_QueryInterface(contentViewer));
 
     if (docViewer) {
-      nsCOMPtr<nsPresContext> presContext;
+      nsRefPtr<nsPresContext> presContext;
       docViewer->GetPresContext(getter_AddRefs(presContext));
 
       nsEventStatus status = nsEventStatus_eIgnore;
@@ -753,6 +779,33 @@ PRBool nsWebShellWindow::ExecuteCloseHandler()
 
   return PR_FALSE;
 } // ExecuteCloseHandler
+
+void nsWebShellWindow::ConstrainToOpenerScreen(PRInt32* aX, PRInt32* aY)
+{
+  if (mOpenerScreenRect.IsEmpty()) {
+    *aX = *aY = 0;
+    return;
+  }
+
+  PRInt32 left, top, width, height;
+  // Constrain initial positions to the same screen as opener
+  nsCOMPtr<nsIScreenManager> screenmgr = do_GetService("@mozilla.org/gfx/screenmanager;1");
+  if (screenmgr) {
+    nsCOMPtr<nsIScreen> screen;
+    screenmgr->ScreenForRect(mOpenerScreenRect.x, mOpenerScreenRect.y,
+                             mOpenerScreenRect.width, mOpenerScreenRect.height,
+                             getter_AddRefs(screen));
+    if (screen) {
+      screen->GetAvailRect(&left, &top, &width, &height);
+      if (*aX < left || *aY > left + width) {
+        *aX = left;
+      }
+      if (*aY < top || *aY > top + height) {
+        *aY = top;
+      }
+    }
+  }
+}
 
 // nsIBaseWindow
 NS_IMETHODIMP nsWebShellWindow::Destroy()

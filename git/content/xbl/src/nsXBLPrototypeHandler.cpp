@@ -55,7 +55,7 @@
 #include "nsIDOMNSUIEvent.h"
 #include "nsIURI.h"
 #include "nsIDOMNSHTMLTextAreaElement.h"
-#include "nsIDOMNSHTMLInputElement.h"
+#include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMText.h"
 #include "nsFocusManager.h"
 #include "nsIEventListenerManager.h"
@@ -80,7 +80,6 @@
 #include "nsCRT.h"
 #include "nsXBLEventHandler.h"
 #include "nsEventDispatcher.h"
-#include "nsPresContext.h"
 
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
                      NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
@@ -260,11 +259,8 @@ nsXBLPrototypeHandler::ExecuteHandler(nsPIDOMEventTarget* aTarget,
 
   // Look for a compiled handler on the element. 
   // Should be compiled and bound with "on" in front of the name.
-  nsAutoString onEvent(NS_LITERAL_STRING("onxbl"));
-  nsAutoString str;
-  mEventName->ToString(str);
-  onEvent += str;
-  nsCOMPtr<nsIAtom> onEventAtom = do_GetAtom(onEvent);
+  nsCOMPtr<nsIAtom> onEventAtom = do_GetAtom(NS_LITERAL_STRING("onxbl") +
+                                             nsDependentAtomString(mEventName));
 
   // Compile the event handler.
   PRUint32 stID = nsIProgrammingLanguage::JAVASCRIPT;
@@ -442,10 +438,7 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsPIDOMEventTarget* aTarget, nsIDOMEve
   else
     controller = GetController(aTarget); // We're attached to the receiver possibly.
 
-  nsAutoString type;
-  mEventName->ToString(type);
-
-  if (type.EqualsLiteral("keypress") &&
+  if (mEventName == nsGkAtoms::keypress &&
       mDetail == nsIDOMKeyEvent::DOM_VK_SPACE &&
       mMisc == 1) {
     // get the focused element so that we can pageDown only at
@@ -568,7 +561,7 @@ nsXBLPrototypeHandler::GetController(nsPIDOMEventTarget* aTarget)
   }
 
   if (!controllers) {
-    nsCOMPtr<nsIDOMNSHTMLInputElement> htmlInputElement(do_QueryInterface(aTarget));
+    nsCOMPtr<nsIDOMHTMLInputElement> htmlInputElement(do_QueryInterface(aTarget));
     if (htmlInputElement)
       htmlInputElement->GetControllers(getter_AddRefs(controllers));
   }

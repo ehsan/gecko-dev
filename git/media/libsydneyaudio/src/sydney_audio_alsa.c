@@ -33,20 +33,27 @@
  *
  * ***** END LICENSE BLOCK ***** *
  */
+#include <pthread.h>
 #include <stdlib.h>
 #include <alsa/asoundlib.h>
 #include "sydney_audio.h"
 
 /* ALSA implementation based heavily on sydney_audio_mac.c */
 
+pthread_mutex_t sa_alsa_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 struct sa_stream {
   snd_pcm_t*        output_unit;
   int64_t           bytes_written;
+  int64_t           last_position;
 
   /* audio format info */
   unsigned int      rate;
   unsigned int      n_channels;
+
+  /* work around bug 573924 */
+  int               pulseaudio;
+  int               resumed;
 };
 
 /*
@@ -105,8 +112,11 @@ sa_stream_create_pcm(
 
   s->output_unit  = NULL;
   s->bytes_written = 0;
+  s->last_position = 0;
   s->rate         = rate;
   s->n_channels   = n_channels;
+  s->pulseaudio   = 0;
+  s->resumed      = 0;
 
   *_s = s;
   return SA_SUCCESS;
@@ -115,6 +125,9 @@ sa_stream_create_pcm(
 
 int
 sa_stream_open(sa_stream_t *s) {
+  snd_output_t* out;
+  char* buf;
+  size_t bufsz;
 
   if (s == NULL) {
     return SA_ERROR_NO_INIT;
@@ -123,6 +136,8 @@ sa_stream_open(sa_stream_t *s) {
     return SA_ERROR_INVALID;
   }
 
+  pthread_mutex_lock(&sa_alsa_mutex);
+
   /* Turn off debug output to stderr */
   snd_lib_error_set_handler(quiet_error_handler);
 
@@ -130,6 +145,7 @@ sa_stream_open(sa_stream_t *s) {
                    "default", 
                    SND_PCM_STREAM_PLAYBACK, 
                    0) < 0) {
+    pthread_mutex_unlock(&sa_alsa_mutex);
     return SA_ERROR_NO_DEVICE;
   }
   
@@ -143,12 +159,24 @@ sa_stream_open(sa_stream_t *s) {
                          s->n_channels,
                          s->rate,
                          1,
-                         250000) < 0) {
+                         500000) < 0) {
     snd_pcm_close(s->output_unit);
     s->output_unit = NULL;
+    pthread_mutex_unlock(&sa_alsa_mutex);
     return SA_ERROR_NOT_SUPPORTED;
   }
   
+  /* ugly alsa-pulse plugin detection */
+  snd_output_buffer_open(&out);
+  snd_pcm_dump(s->output_unit, out);
+  bufsz = snd_output_buffer_string(out, &buf);
+  if (strncmp(buf, "ALSA <-> PulseAudio PCM I/O Plugin", bufsz) > 0 ) {
+    s->pulseaudio = 1;
+  }
+  snd_output_close(out);
+
+  pthread_mutex_unlock(&sa_alsa_mutex);
+
   return SA_SUCCESS;
 }
 
@@ -164,9 +192,11 @@ sa_stream_destroy(sa_stream_t *s) {
    * Shut down the audio output device.
    */
   if (s->output_unit != NULL) {
+    pthread_mutex_lock(&sa_alsa_mutex);
     if (snd_pcm_close(s->output_unit) < 0) {
       result = SA_ERROR_SYSTEM;
     }
+    pthread_mutex_unlock(&sa_alsa_mutex);
   }
   free(s);
   return result;
@@ -182,7 +212,7 @@ sa_stream_destroy(sa_stream_t *s) {
 
 int
 sa_stream_write(sa_stream_t *s, const void *data, size_t nbytes) {
-  snd_pcm_sframes_t frames, nframes;
+  snd_pcm_sframes_t frames, nframes, avail;
 
   if (s == NULL || s->output_unit == NULL) {
     return SA_ERROR_NO_INIT;
@@ -194,7 +224,14 @@ sa_stream_write(sa_stream_t *s, const void *data, size_t nbytes) {
   nframes = snd_pcm_bytes_to_frames(s->output_unit, nbytes);
 
   while(nframes>0) {
-    frames = snd_pcm_writei(s->output_unit, data, nframes);
+    if (s->resumed) {
+      avail = snd_pcm_avail_update(s->output_unit);
+      frames = snd_pcm_writei(s->output_unit, data, nframes > avail ? avail : nframes);
+      avail = snd_pcm_avail_update(s->output_unit);
+      s->resumed = avail != 0;
+    } else {
+      frames = snd_pcm_writei(s->output_unit, data, nframes);
+    }
     if (frames < 0) {
       int r = snd_pcm_recover(s->output_unit, frames, 1);
       if (r < 0) {
@@ -263,12 +300,13 @@ sa_stream_get_position(sa_stream_t *s, sa_position_t position, int64_t *pos) {
     state = snd_pcm_state(s->output_unit);
   }
 
-  if (state == SND_PCM_STATE_RUNNING) {
-    if (snd_pcm_delay(s->output_unit, &delay) != 0) {
-      return SA_ERROR_SYSTEM;
-    }
-  } else {
-    delay = 0;
+  if (state != SND_PCM_STATE_RUNNING) {
+    *pos = s->last_position;
+    return SA_SUCCESS;
+  }
+
+  if (snd_pcm_delay(s->output_unit, &delay) != 0) {
+    return SA_ERROR_SYSTEM;
   }
 
   /* delay means audio is 'x' frames behind what we've written. We need to
@@ -282,6 +320,7 @@ sa_stream_get_position(sa_stream_t *s, sa_position_t position, int64_t *pos) {
   } else {
     *pos = 0;
   }
+  s->last_position = *pos;
 
   return SA_SUCCESS;
 }
@@ -308,6 +347,10 @@ sa_stream_resume(sa_stream_t *s) {
     return SA_ERROR_NO_INIT;
   }
 
+  if (s->pulseaudio) {
+    s->resumed = 1;
+  }
+
   if (snd_pcm_pause(s->output_unit, 0) != 0)
     return SA_ERROR_NOT_SUPPORTED;
   return SA_SUCCESS;
@@ -319,6 +362,9 @@ sa_stream_drain(sa_stream_t *s)
 {
   if (s == NULL || s->output_unit == NULL) {
     return SA_ERROR_NO_INIT;
+  }
+  if (snd_pcm_state(s->output_unit) != SND_PCM_STATE_RUNNING) {
+    return SA_ERROR_INVALID;
   }
   snd_pcm_drain(s->output_unit);
   return SA_SUCCESS;

@@ -123,7 +123,7 @@ Window.prototype = {
    */
   _watch : function win_watch(aType) {
     var self = this;
-    this._tabbrowser.addEventListener(aType,
+    this._tabbrowser.tabContainer.addEventListener(aType,
       this._cleanup[aType] = function(e){ self._event(e); },
       true);
   },
@@ -181,7 +181,7 @@ BrowserTab.prototype = {
   },
 
   get index() {
-    var tabs = this._tabbrowser.mTabs;
+    var tabs = this._tabbrowser.tabs;
     for (var i=0; i<tabs.length; i++) {
       if (tabs[i].linkedBrowser == this._browser)
         return i;
@@ -229,7 +229,7 @@ BrowserTab.prototype = {
    * Helper used to determine the index offset of the browsertab
    */
   _getTab : function bt_gettab() {
-    var tabs = this._tabbrowser.mTabs;
+    var tabs = this._tabbrowser.tabs;
     return tabs[this.index] || null;
   },
 
@@ -394,7 +394,7 @@ Bookmark.prototype = {
   onEndUpdateBatch : function bm_oeub() {
   },
 
-  onItemAdded : function bm_oia(aId, aFolder, aIndex) {
+  onItemAdded : function bm_oia(aId, aFolder, aIndex, aItemType, aURI) {
     // bookmark object doesn't exist at this point
   },
 
@@ -547,7 +547,7 @@ BookmarkFolder.prototype = {
   onEndUpdateBatch : function bmf_oeub() {
   },
 
-  onItemAdded : function bmf_oia(aId, aFolder, aIndex) {
+  onItemAdded : function bmf_oia(aId, aFolder, aIndex, aItemType, aURI) {
     // handle root folder events
     if (!this._parent)
       this._events.dispatch("add", aId);
@@ -657,7 +657,6 @@ var ApplicationFactory = {
 };
 
 
-
 //=================================================
 // Application constructor
 function Application() {
@@ -669,9 +668,7 @@ function Application() {
 // Application implementation
 Application.prototype = {
   // for nsIClassInfo + XPCOMUtils
-  classDescription: "Application",
   classID:          Components.ID("fe74cf80-aa2d-11db-abbd-0800200c9a66"),
-  contractID:       "@mozilla.org/fuel/application;1",
 
   // redefine the default factory for XPCOMUtils
   _xpcom_factory: ApplicationFactory,
@@ -719,11 +716,10 @@ Application.prototype = {
   }
 };
 
-//module initialization
-function NSGetModule(aCompMgr, aFileSpec) {
-  // set the proto, defined in extApplication.js
-  Application.prototype.__proto__ = extApplication.prototype;
-  return XPCOMUtils.generateModule([Application]);
-}
-
 #include ../../../toolkit/components/exthelper/extApplication.js
+
+// set the proto, defined in extApplication.js
+Application.prototype.__proto__ = extApplication.prototype;
+
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([Application]);
+

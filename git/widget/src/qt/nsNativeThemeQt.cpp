@@ -38,8 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIFrame.h"
-
 #include <QApplication>
 #include <QStyle>
 #include <QPalette>
@@ -50,6 +48,8 @@
 #include <QStyleOptionButton>
 #include <QFlags>
 #include <QStyleOptionComboBox>
+
+#include "nsIFrame.h"
 
 #include "nsCoord.h"
 #include "nsNativeThemeQt.h"
@@ -86,7 +86,7 @@ nsNativeThemeQt::~nsNativeThemeQt()
 {
 }
 
-NS_IMPL_ISUPPORTS1(nsNativeThemeQt, nsITheme)
+NS_IMPL_ISUPPORTS_INHERITED1(nsNativeThemeQt, nsNativeTheme, nsITheme)
 
 static inline QRect qRectInPixels(const nsRect &aRect,
                                   const PRInt32 p2a)
@@ -105,6 +105,8 @@ _qimage_from_gfximage_format (gfxASurface::gfxImageFormat aFormat)
         return QImage::Format_ARGB32_Premultiplied;
     case gfxASurface::ImageFormatRGB24:
         return QImage::Format_RGB32;
+    case gfxASurface::ImageFormatRGB16_565:
+        return QImage::Format_RGB16;
     case gfxASurface::ImageFormatA8:
         return QImage::Format_Indexed8;
     case gfxASurface::ImageFormatA1:
@@ -130,6 +132,7 @@ nsNativeThemeQt::DrawWidgetBackground(nsIRenderingContext* aContext,
     gfxContext* context = aContext->ThebesContext();
     nsRefPtr<gfxASurface> surface = context->CurrentSurface();
 
+#ifdef CAIRO_HAS_QT_SURFACE
     if (surface->GetType() == gfxASurface::SurfaceTypeQPainter) {
         gfxQPainterSurface* qSurface = (gfxQPainterSurface*) (surface.get());
         QPainter *painter = qSurface->GetQPainter();
@@ -139,8 +142,9 @@ nsNativeThemeQt::DrawWidgetBackground(nsIRenderingContext* aContext,
         return DrawWidgetBackground(painter, aContext,
                                     aFrame, aWidgetType,
                                     aRect, aClipRect);
-    }
-    else if (surface->GetType() == gfxASurface::SurfaceTypeImage) {
+    } else
+#endif
+    if (surface->GetType() == gfxASurface::SurfaceTypeImage) {
         gfxImageSurface* qSurface = (gfxImageSurface*) (surface.get());
         QImage tempQImage(qSurface->Data(),
                           qSurface->Width(),
@@ -310,8 +314,9 @@ nsNativeThemeQt::DrawWidgetBackground(QPainter *qPainter,
     case NS_THEME_TEXTFIELD_MULTILINE:
     case NS_THEME_LISTBOX: {
         QStyleOptionFrameV2 frameOpt;
-        
-        if (!IsDisabled(aFrame))
+        nsEventStates eventState = GetContentState(aFrame, aWidgetType);
+
+        if (!IsDisabled(aFrame, eventState))
             frameOpt.state |= QStyle::State_Enabled;
 
         frameOpt.rect = r;
@@ -627,32 +632,26 @@ nsNativeThemeQt::ThemeNeedsComboboxDropmarker()
     return PR_TRUE;
 }
 
-nsTransparencyMode
-nsNativeThemeQt::GetWidgetTransparency(PRUint8 aWidgetType)
-{
-  return eTransparencyOpaque;
-}
-
 void
 nsNativeThemeQt::InitButtonStyle(PRUint8 aWidgetType,
                                  nsIFrame* aFrame,
                                  QRect rect,
                                  QStyleOptionButton &opt)
 {
-    PRInt32 eventState = GetContentState(aFrame, aWidgetType);
+    nsEventStates eventState = GetContentState(aFrame, aWidgetType);
 
     opt.rect = rect;
     opt.palette = mNoBackgroundPalette;
 
-    PRBool disabled = IsDisabled(aFrame);
+    PRBool isDisabled = IsDisabled(aFrame, eventState);
 
-    if (!disabled)
+    if (!isDisabled)
         opt.state |= QStyle::State_Enabled;
-    if (eventState & NS_EVENT_STATE_HOVER)
+    if (eventState.HasState(NS_EVENT_STATE_HOVER))
         opt.state |= QStyle::State_MouseOver;
-    if (eventState & NS_EVENT_STATE_FOCUS)
+    if (eventState.HasState(NS_EVENT_STATE_FOCUS))
         opt.state |= QStyle::State_HasFocus;
-    if (!disabled && eventState & NS_EVENT_STATE_ACTIVE)
+    if (!isDisabled && eventState.HasState(NS_EVENT_STATE_ACTIVE))
         // Don't allow sunken when disabled
         opt.state |= QStyle::State_Sunken;
 
@@ -666,7 +665,7 @@ nsNativeThemeQt::InitButtonStyle(PRUint8 aWidgetType,
 
         break;
     default:
-        if (!(eventState & NS_EVENT_STATE_ACTIVE))
+        if (!eventState.HasState(NS_EVENT_STATE_ACTIVE))
             opt.state |= QStyle::State_Raised;
         break;
     }
@@ -679,15 +678,15 @@ nsNativeThemeQt::InitPlainStyle(PRUint8 aWidgetType,
                                 QStyleOption &opt,
                                 QStyle::State extraFlags)
 {
-    PRInt32 eventState = GetContentState(aFrame, aWidgetType);
+    nsEventStates eventState = GetContentState(aFrame, aWidgetType);
 
     opt.rect = rect;
 
-    if (!IsDisabled(aFrame))
+    if (!IsDisabled(aFrame, eventState))
         opt.state |= QStyle::State_Enabled;
-    if (eventState & NS_EVENT_STATE_HOVER)
+    if (eventState.HasState(NS_EVENT_STATE_HOVER))
         opt.state |= QStyle::State_MouseOver;
-    if (eventState & NS_EVENT_STATE_FOCUS)
+    if (eventState.HasState(NS_EVENT_STATE_FOCUS))
         opt.state |= QStyle::State_HasFocus;
 
     opt.state |= extraFlags;
@@ -699,19 +698,18 @@ nsNativeThemeQt::InitComboStyle(PRUint8 aWidgetType,
                                 QRect rect,
                                 QStyleOptionComboBox &opt)
 {
-    PRInt32 eventState = GetContentState(aFrame, aWidgetType);
+    nsEventStates eventState = GetContentState(aFrame, aWidgetType);
+    PRBool isDisabled = IsDisabled(aFrame, eventState);
 
-    PRBool disabled = IsDisabled(aFrame);
-
-    if (!disabled)
+    if (!isDisabled)
         opt.state |= QStyle::State_Enabled;
-    if (eventState & NS_EVENT_STATE_HOVER)
+    if (eventState.HasState(NS_EVENT_STATE_HOVER))
         opt.state |= QStyle::State_MouseOver;
-    if (eventState & NS_EVENT_STATE_FOCUS)
+    if (eventState.HasState(NS_EVENT_STATE_FOCUS))
         opt.state |= QStyle::State_HasFocus;
-    if (!(eventState & NS_EVENT_STATE_ACTIVE))
+    if (!eventState.HasState(NS_EVENT_STATE_ACTIVE))
         opt.state |= QStyle::State_Raised;
-    if (!disabled && eventState & NS_EVENT_STATE_ACTIVE)
+    if (!isDisabled && eventState.HasState(NS_EVENT_STATE_ACTIVE))
         // Don't allow sunken when disabled
         opt.state |= QStyle::State_Sunken;
 

@@ -21,7 +21,7 @@
  *
  * Contributor(s):
  *   Pierre Phaneuf <pp@ludusdesign.com>
- *   Mats Palmgren <mats.palmgren@bredband.net>
+ *   Mats Palmgren <matspal@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -50,8 +50,7 @@
 #include "nsIDOMHTMLCollection.h" 
 #include "nsIDOMHTMLOptionsCollection.h" 
 #include "nsIDOMNSHTMLOptionCollectn.h"
-#include "nsIDOMHTMLSelectElement.h" 
-#include "nsIDOMNSHTMLSelectElement.h" 
+#include "nsIDOMHTMLSelectElement.h"
 #include "nsIDOMHTMLOptionElement.h" 
 #include "nsComboboxControlFrame.h"
 #include "nsIViewManager.h"
@@ -89,6 +88,7 @@
 #include "nsIDOMKeyListener.h"
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
+#include "nsIEventStateManager.h"
 
 // Constants
 const nscoord kMaxDropDownRows          = 20; // This matches the setting for 4.x browsers
@@ -242,7 +242,7 @@ nsListControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     // this frame as the root of a stacking context we need make sure to draw
     // some opaque color over the whole widget. (Bug 511323)
     aLists.BorderBackground()->AppendNewToBottom(
-      new (aBuilder) nsDisplaySolidColor(
+      new (aBuilder) nsDisplaySolidColor(aBuilder,
         this, nsRect(aBuilder->ToReferenceFrame(this), GetSize()),
         mLastDropdownBackstopColor));
   }
@@ -285,8 +285,8 @@ void nsListControlFrame::PaintFocus(nsIRenderingContext& aRC, nsPoint aPt)
 
   nsCOMPtr<nsIContent> focusedContent;
 
-  nsCOMPtr<nsIDOMNSHTMLSelectElement> selectNSElement(do_QueryInterface(mContent));
-  NS_ASSERTION(selectNSElement, "Can't be null");
+  nsCOMPtr<nsIDOMHTMLSelectElement> selectDOMElement(do_QueryInterface(mContent));
+  NS_ASSERTION(selectDOMElement, "Can't be null");
 
   nsCOMPtr<nsISelectElement> selectElement(do_QueryInterface(mContent));
   NS_ASSERTION(selectElement, "Can't be null");
@@ -312,7 +312,7 @@ void nsListControlFrame::PaintFocus(nsIRenderingContext& aRC, nsPoint aPt)
       // find the first non-disabled item
       PRBool isDisabled = PR_TRUE;
       for (PRInt32 i=0;i<PRInt32(length) && isDisabled;i++) {
-        if (NS_FAILED(selectNSElement->Item(i, getter_AddRefs(node))) || !node) {
+        if (NS_FAILED(selectDOMElement->Item(i, getter_AddRefs(node))) || !node) {
           break;
         }
         if (NS_FAILED(selectElement->IsOptionDisabled(i, &isDisabled))) {
@@ -338,8 +338,7 @@ void nsListControlFrame::PaintFocus(nsIRenderingContext& aRC, nsPoint aPt)
       // Failing all else, try the first thing we have, but only if
       // it's an element.  Text frames need not apply.
       childframe = containerFrame->GetFirstChild(nsnull);
-      if (childframe &&
-          !childframe->GetContent()->IsNodeOfType(nsINode::eELEMENT)) {
+      if (childframe && !childframe->GetContent()->IsElement()) {
         childframe = nsnull;
       }
       result = NS_OK;
@@ -390,7 +389,7 @@ nsListControlFrame::InvalidateFocus()
     // Invalidating from the containerFrame because that's where our focus
     // is drawn.
     // The origin of the scrollport is the origin of containerFrame.
-    nsRect invalidateArea = containerFrame->GetOverflowRect();
+    nsRect invalidateArea = containerFrame->GetVisualOverflowRect();
     nsRect emptyFallbackArea(0, 0, GetScrollPortRect().width, CalcFallbackRowHeight());
     invalidateArea.UnionRect(invalidateArea, emptyFallbackArea);
     containerFrame->Invalidate(invalidateArea);
@@ -404,17 +403,17 @@ NS_QUERYFRAME_HEAD(nsListControlFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsHTMLScrollFrame)
 
 #ifdef ACCESSIBILITY
-NS_IMETHODIMP nsListControlFrame::GetAccessible(nsIAccessible** aAccessible)
+already_AddRefed<nsAccessible>
+nsListControlFrame::CreateAccessible()
 {
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    nsCOMPtr<nsIDOMNode> node = do_QueryInterface(mContent);
-    nsCOMPtr<nsIWeakReference> weakShell(do_GetWeakReference(PresContext()->PresShell()));
-    return accService->CreateHTMLListboxAccessible(node, weakShell, aAccessible);
+    return accService->CreateHTMLListboxAccessible(mContent,
+                                                   PresContext()->PresShell());
   }
 
-  return NS_ERROR_FAILURE;
+  return nsnull;
 }
 #endif
 
@@ -468,25 +467,6 @@ GetNumberOfOptionsRecursive(nsIContent* aContent)
     }
   }
   return optionCount;
-}
-
-static nscoord
-GetOptGroupLabelsHeight(nsIContent*    aContent,
-                        nscoord        aRowHeight)
-{
-  nscoord height = 0;
-  const PRUint32 childCount = aContent ? aContent->GetChildCount() : 0;
-  for (PRUint32 index = 0; index < childCount; ++index) {
-    nsIContent* child = aContent->GetChildAt(index);
-    if (::IsOptGroup(child)) {
-      PRUint32 numOptions = ::GetNumberOfOptionsRecursive(child);
-      nscoord optionsHeight = aRowHeight * numOptions;
-      nsIFrame* frame = child->GetPrimaryFrame();
-      nscoord totalHeight = frame ? frame->GetSize().height : 0;
-      height += NS_MAX(0, totalHeight - optionsHeight);
-    }
-  }
-  return height;
 }
 
 //-----------------------------------------------------------------
@@ -600,7 +580,7 @@ nsListControlFrame::Reflow(nsPresContext*           aPresContext,
   PRInt32 length = GetNumberOfOptions();  
 
   nscoord oldHeightOfARow = HeightOfARow();
-  
+
   if (!(GetStateBits() & NS_FRAME_FIRST_REFLOW) && autoHeight) {
     // When not doing an initial reflow, and when the height is auto, start off
     // with our computed height set to what we'd expect our height to be.
@@ -616,8 +596,27 @@ nsListControlFrame::Reflow(nsPresContext*           aPresContext,
   if (!mMightNeedSecondPass) {
     NS_ASSERTION(!autoHeight || HeightOfARow() == oldHeightOfARow,
                  "How did our height of a row change if nothing was dirty?");
+    NS_ASSERTION(!autoHeight ||
+                 !(GetStateBits() & NS_FRAME_FIRST_REFLOW),
+                 "How do we not need a second pass during initial reflow at "
+                 "auto height?");
     NS_ASSERTION(!IsScrollbarUpdateSuppressed(),
                  "Shouldn't be suppressing if we don't need a second pass!");
+    if (!autoHeight) {
+      // Update our mNumDisplayRows based on our new row height now that we
+      // know it.  Note that if autoHeight and we landed in this code then we
+      // already set mNumDisplayRows in CalcIntrinsicHeight.  Also note that we
+      // can't use HeightOfARow() here because that just uses a cached value
+      // that we didn't compute.
+      nscoord rowHeight = CalcHeightOfARow();
+      if (rowHeight == 0) {
+        // Just pick something
+        mNumDisplayRows = 1;
+      } else {
+        mNumDisplayRows = NS_MAX(1, state.ComputedHeight() / rowHeight);
+      }
+    }
+
     return rv;
   }
 
@@ -1083,7 +1082,8 @@ nsListControlFrame::HandleEvent(nsPresContext* aPresContext,
   if (uiStyle->mUserInput == NS_STYLE_USER_INPUT_NONE || uiStyle->mUserInput == NS_STYLE_USER_INPUT_DISABLED)
     return nsFrame::HandleEvent(aPresContext, aEvent, aEventStatus);
 
-  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled))
+  nsEventStates eventStates = mContent->IntrinsicState();
+  if (eventStates.HasState(NS_EVENT_STATE_DISABLED))
     return NS_OK;
 
   return nsHTMLScrollFrame::HandleEvent(aPresContext, aEvent, aEventStatus);
@@ -1168,27 +1168,6 @@ nsListControlFrame::Init(nsIContent*     aContent,
   mLastDropdownBackstopColor = PresContext()->DefaultBackgroundColor();
 
   return result;
-}
-
-PRBool
-nsListControlFrame::GetMultiple(nsIDOMHTMLSelectElement* aSelect) const
-{
-  PRBool multiple = PR_FALSE;
-  nsresult rv = NS_OK;
-  if (aSelect) {
-    rv = aSelect->GetMultiple(&multiple);
-  } else {
-    nsCOMPtr<nsIDOMHTMLSelectElement> selectElement = 
-       do_QueryInterface(mContent);
-  
-    if (selectElement) {
-      rv = selectElement->GetMultiple(&multiple);
-    }
-  }
-  if (NS_SUCCEEDED(rv)) {
-    return multiple;
-  }
-  return PR_FALSE;
 }
 
 already_AddRefed<nsIContent> 
@@ -1492,28 +1471,42 @@ nsListControlFrame::AddOption(PRInt32 aIndex)
   return NS_OK;
 }
 
+static PRInt32
+DecrementAndClamp(PRInt32 aSelectionIndex, PRInt32 aLength)
+{
+  return aLength == 0 ? kNothingSelected : NS_MAX(0, aSelectionIndex - 1);
+}
+
 NS_IMETHODIMP
 nsListControlFrame::RemoveOption(PRInt32 aIndex)
 {
+  NS_PRECONDITION(aIndex >= 0, "negative <option> index");
+
   // Need to reset if we're a dropdown
   if (IsInDropDownMode()) {
     mNeedToReset = PR_TRUE;
     mPostChildrenLoadedReset = mIsAllContentHere;
   }
 
-  if (mStartSelectionIndex >= aIndex) {
-    --mStartSelectionIndex;
-    if (mStartSelectionIndex < 0) {
-      mStartSelectionIndex = kNothingSelected;
-    }    
-  }
+  if (mStartSelectionIndex != kNothingSelected) {
+    NS_ASSERTION(mEndSelectionIndex != kNothingSelected, "");
+    PRInt32 numOptions = GetNumberOfOptions();
+    // NOTE: numOptions is the new number of options whereas aIndex is the
+    // unadjusted index of the removed option (hence the <= below).
+    NS_ASSERTION(aIndex <= numOptions, "out-of-bounds <option> index");
 
-  if (mEndSelectionIndex >= aIndex) {
-    --mEndSelectionIndex;
-    if (mEndSelectionIndex < 0) {
-      mEndSelectionIndex = kNothingSelected;
-    }    
+    PRInt32 forward = mEndSelectionIndex - mStartSelectionIndex;
+    PRInt32* low  = forward >= 0 ? &mStartSelectionIndex : &mEndSelectionIndex;
+    PRInt32* high = forward >= 0 ? &mEndSelectionIndex : &mStartSelectionIndex;
+    if (aIndex < *low)
+      *low = ::DecrementAndClamp(*low, numOptions);
+    if (aIndex <= *high)
+      *high = ::DecrementAndClamp(*high, numOptions);
+    if (forward == 0)
+      *low = *high;
   }
+  else
+    NS_ASSERTION(mEndSelectionIndex == kNothingSelected, "");
 
   InvalidateFocus();
   return NS_OK;
@@ -1643,14 +1636,6 @@ nsListControlFrame::FireOnChange()
   if (presShell) {
     presShell->HandleEventWithTarget(&event, this, nsnull, &status);
   }
-}
-
-// Determine if the specified item in the listbox is selected.
-NS_IMETHODIMP
-nsListControlFrame::GetOptionSelected(PRInt32 aIndex, PRBool* aValue)
-{
-  *aValue = IsContentSelectedByIndex(aIndex);
-  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1910,40 +1895,15 @@ nsListControlFrame::CalcIntrinsicHeight(nscoord aHeightOfARow,
 {
   NS_PRECONDITION(!IsInDropDownMode(),
                   "Shouldn't be in dropdown mode when we call this");
-  
+
   mNumDisplayRows = 1;
   GetSizeAttribute(&mNumDisplayRows);
 
-  // Extra height to tack on to aHeightOfARow * mNumDisplayRows
-  nscoord extraHeight = 0;
-  
   if (mNumDisplayRows < 1) {
-    // When SIZE=0 or unspecified we constrain the height to
-    // [2..kMaxDropDownRows] rows.  We add in the height of optgroup labels
-    // (within the constraint above), bug 300474.
-    nscoord labelHeight = ::GetOptGroupLabelsHeight(mContent, aHeightOfARow);
-
-    if (GetMultiple()) {
-      if (aNumberOfOptions < 2) {
-        // Add in 1 aHeightOfARow also when aNumberOfOptions == 0
-        mNumDisplayRows = 1;
-        extraHeight = NS_MAX(aHeightOfARow, labelHeight);
-      }
-      else if (aNumberOfOptions * aHeightOfARow + labelHeight >
-               kMaxDropDownRows * aHeightOfARow) {
-        mNumDisplayRows = kMaxDropDownRows;
-      } else {
-        mNumDisplayRows = aNumberOfOptions;
-        extraHeight = labelHeight;
-      }
-    }
-    else {
-      NS_NOTREACHED("Shouldn't hit this case -- we should a be a combobox if "
-                    "we have no size set and no multiple set!");
-    }
+    mNumDisplayRows = 4;
   }
 
-  return mNumDisplayRows * aHeightOfARow + extraHeight;
+  return mNumDisplayRows * aHeightOfARow;
 }
 
 //----------------------------------------------------------------------
@@ -1958,7 +1918,8 @@ nsListControlFrame::MouseUp(nsIDOMEvent* aMouseEvent)
 
   mButtonDown = PR_FALSE;
 
-  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
+  nsEventStates eventStates = mContent->IntrinsicState();
+  if (eventStates.HasState(NS_EVENT_STATE_DISABLED)) {
     return NS_OK;
   }
 
@@ -2167,7 +2128,8 @@ nsListControlFrame::MouseDown(nsIDOMEvent* aMouseEvent)
 
   UpdateInListState(aMouseEvent);
 
-  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
+  nsEventStates eventStates = mContent->IntrinsicState();
+  if (eventStates.HasState(NS_EVENT_STATE_DISABLED)) {
     return NS_OK;
   }
 
@@ -2473,7 +2435,8 @@ nsListControlFrame::KeyPress(nsIDOMEvent* aKeyEvent)
 {
   NS_ASSERTION(aKeyEvent, "keyEvent is null.");
 
-  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled))
+  nsEventStates eventStates = mContent->IntrinsicState();
+  if (eventStates.HasState(NS_EVENT_STATE_DISABLED))
     return NS_OK;
 
   // Start by making sure we can query for a key event
@@ -2576,13 +2539,13 @@ nsListControlFrame::KeyPress(nsIDOMEvent* aKeyEvent)
     case nsIDOMKeyEvent::DOM_VK_PAGE_UP: {
       AdjustIndexForDisabledOpt(mEndSelectionIndex, newIndex,
                                 (PRInt32)numOptions,
-                                -(mNumDisplayRows-1), -1);
+                                -NS_MAX(1, mNumDisplayRows-1), -1);
       } break;
 
     case nsIDOMKeyEvent::DOM_VK_PAGE_DOWN: {
       AdjustIndexForDisabledOpt(mEndSelectionIndex, newIndex,
                                 (PRInt32)numOptions,
-                                (mNumDisplayRows-1), 1);
+                                NS_MAX(1, mNumDisplayRows-1), 1);
       } break;
 
     case nsIDOMKeyEvent::DOM_VK_HOME: {

@@ -48,7 +48,8 @@ endif
 SYMBOLS_PATH := --symbols-path=$(DIST)/crashreporter-symbols
 
 # Usage: |make [TEST_PATH=...] [EXTRA_TEST_ARGS=...] mochitest*|.
-mochitest:: mochitest-plain mochitest-chrome mochitest-a11y mochitest-ipcplugins
+MOCHITESTS := mochitest-plain mochitest-chrome mochitest-a11y mochitest-ipcplugins
+mochitest:: $(MOCHITESTS)
 
 RUN_MOCHITEST = \
 	rm -f ./$@.log && \
@@ -73,6 +74,12 @@ mochitest-plain:
 	$(RUN_MOCHITEST)
 	$(CHECK_TEST_ERROR)
 
+# Allow mochitest-1 ... mochitest-5 for developer ease
+mochitest-1 mochitest-2 mochitest-3 mochitest-4 mochitest-5: mochitest-%:
+	echo "mochitest: $* / 5"
+	$(RUN_MOCHITEST) --chunk-by-dir=4 --total-chunks=5 --this-chunk=$*
+	$(CHECK_TEST_ERROR)
+
 mochitest-chrome:
 	$(RUN_MOCHITEST) --chrome
 	$(CHECK_TEST_ERROR)
@@ -82,27 +89,41 @@ mochitest-a11y:
 	$(CHECK_TEST_ERROR)
 
 mochitest-ipcplugins:
+ifeq (Darwin,$(OS_ARCH))
+ifeq (i386,$(TARGET_CPU))
+	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.i386.test.plugin=true --test-path=modules/plugin/test
+endif
+ifeq (x86_64,$(TARGET_CPU))
+	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.x86_64.test.plugin=true --test-path=modules/plugin/test
+endif
+ifeq (powerpc,$(TARGET_CPU))
+	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.ppc.test.plugin=true --test-path=modules/plugin/test
+endif
+else
 	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled=true --test-path=modules/plugin/test
+endif
 	$(CHECK_TEST_ERROR)
 
 # Usage: |make [EXTRA_TEST_ARGS=...] *test|.
 RUN_REFTEST = rm -f ./$@.log && $(PYTHON) _tests/reftest/runreftest.py \
   $(SYMBOLS_PATH) $(EXTRA_TEST_ARGS) $(1) | tee ./$@.log
 
-reftest: TEST_PATH=layout/reftests/reftest.list
+reftest: TEST_PATH?=layout/reftests/reftest.list
 reftest:
 	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH))
 	$(CHECK_TEST_ERROR)
 
-crashtest: TEST_PATH=testing/crashtest/crashtests.list
+crashtest: TEST_PATH?=testing/crashtest/crashtests.list
 crashtest:
 	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH))
 	$(CHECK_TEST_ERROR)
 
-jstestbrowser: TEST_PATH=js/src/tests/jstests.list
+jstestbrowser: TEST_PATH?=js/src/tests/jstests.list
 jstestbrowser:
 	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH) --extra-profile-file=$(topsrcdir)/js/src/tests/user.js)
 	$(CHECK_TEST_ERROR)
+
+GARBAGE += $(addsuffix .log,$(MOCHITESTS) reftest crashtest jstestbrowser)
 
 # Execute all xpcshell tests in the directories listed in the manifest.
 # See also config/rules.mk 'xpcshell-tests' target for local execution.
@@ -117,24 +138,34 @@ xpcshell-tests:
 	  $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS) \
 	  $(DIST)/bin/xpcshell
 
-
 # Package up the tests and test harnesses
 include $(topsrcdir)/toolkit/mozapps/installer/package-name.mk
 
 ifndef UNIVERSAL_BINARY
 PKG_STAGE = $(DIST)/test-package-stage
-package-tests: stage-mochitest stage-reftest stage-xpcshell stage-jstests
+package-tests: stage-mochitest stage-reftest stage-xpcshell stage-jstests stage-mozmill stage-jetpack
 else
 # This staging area has been built for us by universal/flight.mk
 PKG_STAGE = $(DIST)/universal/test-package-stage
 endif
 
 package-tests:
+	@rm -f "$(DIST)/$(PKG_PATH)$(TEST_PACKAGE)"
+ifndef UNIVERSAL_BINARY
 	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)
-	@(cd $(PKG_STAGE) && tar $(TAR_CREATE_FLAGS) - *) | bzip2 -f > "$(DIST)/$(PKG_PATH)$(TEST_PACKAGE)"
+else
+	#building tests.jar (bug 543800) fails on unify, so we build tests.jar after unify is run
+	$(MAKE) -C $(DEPTH)/testing/mochitest stage-chromejar PKG_STAGE=$(DIST)/universal
+endif
+	cd $(PKG_STAGE) && \
+	  zip -r9D "$(call core_abspath,$(DIST)/$(PKG_PATH)$(TEST_PACKAGE))" *
+
+ifeq (Android, $(OS_TARGET))
+package-tests: stage-android
+endif
 
 make-stage-dir:
-	rm -rf $(PKG_STAGE) && $(NSINSTALL) -D $(PKG_STAGE) && $(NSINSTALL) -D $(PKG_STAGE)/bin && $(NSINSTALL) -D $(PKG_STAGE)/bin/components && $(NSINSTALL) -D $(PKG_STAGE)/certs
+	rm -rf $(PKG_STAGE) && $(NSINSTALL) -D $(PKG_STAGE) && $(NSINSTALL) -D $(PKG_STAGE)/bin && $(NSINSTALL) -D $(PKG_STAGE)/bin/components && $(NSINSTALL) -D $(PKG_STAGE)/certs && $(NSINSTALL) -D $(PKG_STAGE)/jetpack
 
 stage-mochitest: make-stage-dir
 	$(MAKE) -C $(DEPTH)/testing/mochitest stage-package
@@ -148,9 +179,17 @@ stage-xpcshell: make-stage-dir
 stage-jstests: make-stage-dir
 	$(MAKE) -C $(DEPTH)/js/src/tests stage-package
 
+stage-mozmill: make-stage-dir
+	$(MAKE) -C $(DEPTH)/testing/mozmill stage-package
+
+stage-android: make-stage-dir
+	$(NSINSTALL) $(DEPTH)/build/mobile/sutagent/android/sutAgentAndroid.apk $(PKG_STAGE)/bin
+
+stage-jetpack: make-stage-dir
+	$(NSINSTALL) $(topsrcdir)/testing/jetpack/jetpack-location.txt $(PKG_STAGE)/jetpack
 .PHONY: \
   mochitest mochitest-plain mochitest-chrome mochitest-a11y mochitest-ipcplugins \
   reftest crashtest \
   xpcshell-tests \
   jstestbrowser \
-  package-tests make-stage-dir stage-mochitest stage-reftest stage-xpcshell stage-jstests
+  package-tests make-stage-dir stage-mochitest stage-reftest stage-xpcshell stage-jstests stage-mozmill stage-android stage-jetpack

@@ -94,6 +94,15 @@ protected:
 };
 
 
+#define NS_ENSURE_NATIVE_NUMBER(obj, retval)            \
+  {                                                     \
+    nsCOMPtr<nsISVGValue> val = do_QueryInterface(obj); \
+    if (!val) {                                         \
+      *retval = nsnull;                                 \
+      return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;           \
+    }                                                   \
+  }
+
 //----------------------------------------------------------------------
 // Implementation
 
@@ -112,12 +121,14 @@ nsSVGNumberList::~nsSVGNumberList()
 NS_IMPL_ADDREF(nsSVGNumberList)
 NS_IMPL_RELEASE(nsSVGNumberList)
 
+DOMCI_DATA(SVGNumberList, nsSVGNumberList)
+
 NS_INTERFACE_MAP_BEGIN(nsSVGNumberList)
   NS_INTERFACE_MAP_ENTRY(nsISVGValue)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGNumberList)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsISVGValueObserver)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGNumberList)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGNumberList)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISVGValue)
 NS_INTERFACE_MAP_END
 
@@ -173,7 +184,6 @@ nsSVGNumberList::GetValueString(nsAString& aValue)
     nsIDOMSVGNumber* number = ElementAt(i);
     nsCOMPtr<nsISVGValue> val = do_QueryInterface(number);
     NS_ASSERTION(val, "number doesn't implement required interface");
-    if (!val) continue;
     nsAutoString str;
     val->GetValueString(str);
     aValue.Append(str);
@@ -209,10 +219,7 @@ NS_IMETHODIMP nsSVGNumberList::Clear()
 NS_IMETHODIMP nsSVGNumberList::Initialize(nsIDOMSVGNumber *newItem,
                                           nsIDOMSVGNumber **_retval)
 {
-  if (!newItem) {
-    *_retval = nsnull;
-    return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
-  }
+  NS_ENSURE_NATIVE_NUMBER(newItem, _retval);
   Clear();
   return AppendItem(newItem, _retval);
 }
@@ -236,9 +243,8 @@ nsSVGNumberList::InsertItemBefore(nsIDOMSVGNumber *newItem,
                                   PRUint32 index,
                                   nsIDOMSVGNumber **_retval)
 {
+  NS_ENSURE_NATIVE_NUMBER(newItem, _retval);
   *_retval = newItem;
-  if (!newItem)
-    return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
 
   nsSVGValueAutoNotifier autonotifier(this);
 
@@ -259,10 +265,7 @@ nsSVGNumberList::ReplaceItem(nsIDOMSVGNumber *newItem,
                              PRUint32 index,
                              nsIDOMSVGNumber **_retval)
 {
-  if (!newItem) {
-    *_retval = nsnull;
-    return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
-  }
+  NS_ENSURE_NATIVE_NUMBER(newItem, _retval);
 
   nsresult rv = RemoveItem(index, _retval);
   if (NS_FAILED(rv))
@@ -291,9 +294,8 @@ NS_IMETHODIMP nsSVGNumberList::RemoveItem(PRUint32 index, nsIDOMSVGNumber **_ret
 NS_IMETHODIMP
 nsSVGNumberList::AppendItem(nsIDOMSVGNumber *newItem, nsIDOMSVGNumber **_retval)
 {
+  NS_ENSURE_NATIVE_NUMBER(newItem, _retval);
   *_retval = newItem;
-  if (!newItem)
-    return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
   AppendElement(newItem);
   NS_ADDREF(*_retval);
   return NS_OK;

@@ -126,6 +126,7 @@
 #endif
 
 #include "nsCycleCollectionParticipant.h"
+#include "nsCycleCollectorUtils.h"
 #include "nsIProgrammingLanguage.h"
 #include "nsBaseHashtable.h"
 #include "nsHashKeys.h"
@@ -138,12 +139,17 @@
 #include "prtime.h"
 #include "nsPrintfCString.h"
 #include "nsTArray.h"
+#include "mozilla/FunctionTimer.h"
 #include "nsIObserverService.h"
 #include "nsIConsoleService.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
 #include "nsTPtrArray.h"
 #include "nsTArray.h"
+#include "mozilla/Services.h"
+#include "nsICycleCollectorListener.h"
+#include "nsIXPConnect.h"
+#include "nsIJSRuntimeService.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -151,6 +157,17 @@
 #include <io.h>
 #include <process.h>
 #endif
+
+#ifdef XP_WIN
+#include <windows.h>
+#endif
+
+#include "mozilla/Mutex.h"
+#include "mozilla/CondVar.h"
+
+using namespace mozilla;
+
+//#define COLLECT_TIME_DEBUG
 
 #ifdef DEBUG_CC
 #define IF_DEBUG_CC_PARAM(_p) , _p
@@ -167,14 +184,15 @@
 #define SHUTDOWN_COLLECTIONS(params) DEFAULT_SHUTDOWN_COLLECTIONS
 #endif
 
-#define CC_RUNTIME_ABORT_IF_FALSE(_expr, _msg)                                \
-  PR_BEGIN_MACRO                                                              \
-    if (!(_expr)) {                                                           \
-      NS_ERROR(_msg);                                                         \
-      int *foo = (int*)nsnull;                                                \
-      *foo = 42;                                                              \
-    }                                                                         \
-  PR_END_MACRO
+#if defined(XP_WIN)
+// Defined in nsThreadManager.cpp.
+extern DWORD gTLSThreadIDIndex;
+#elif defined(NS_TLS)
+// Defined in nsThreadManager.cpp.
+extern NS_TLS mozilla::threads::ID gTLSThreadID;
+#else
+PRThread* gCycleCollectorThread = nsnull;
+#endif
 
 // Various parameters of this collector can be tuned using environment
 // variables.
@@ -385,7 +403,6 @@ public:
             { return mPointer != aOther.mPointer; }
 
     private:
-        friend class EdgePool;
         PtrInfoOrBlock *mPointer;
     };
 
@@ -423,7 +440,6 @@ public:
         Block **mNextBlockPtr;
     };
 
-    void CheckIterator(Iterator &aIterator);
 };
 
 #ifdef DEBUG_CC
@@ -631,8 +647,6 @@ public:
         PtrInfo *mNext, *mBlockEnd, *&mLast;
     };
 
-    void CheckPtrInfo(PtrInfo *aPtrInfo);
-
 private:
     Block *mBlocks;
     PtrInfo *mLast;
@@ -659,11 +673,6 @@ struct GCGraph
 // XXX Would be nice to have an nsHashSet<KeyType> API that has
 // Add/Remove/Has rather than PutEntry/RemoveEntry/GetEntry.
 typedef nsTHashtable<nsVoidPtrHashKey> PointerSet;
-
-#ifdef DEBUG_CC
-static void
-WriteGraph(FILE *stream, GCGraph &graph, const void *redPtr);
-#endif
 
 static inline void
 ToParticipant(nsISupports *s, nsXPCOMCycleCollectionParticipant **cp);
@@ -941,7 +950,13 @@ nsPurpleBuffer::SelectPointers(GCGraphBuilder &aBuilder)
 struct nsCycleCollectionXPCOMRuntime : 
     public nsCycleCollectionLanguageRuntime 
 {
-    nsresult BeginCycleCollection(nsCycleCollectionTraversalCallback &cb) 
+    nsresult BeginCycleCollection(nsCycleCollectionTraversalCallback &cb,
+                                  bool explainLiveExpectedGarbage)
+    {
+        return NS_OK;
+    }
+
+    nsresult FinishTraverse() 
     {
         return NS_OK;
     }
@@ -952,10 +967,6 @@ struct nsCycleCollectionXPCOMRuntime :
     }
 
     inline nsCycleCollectionParticipant *ToParticipant(void *p);
-
-    void CommenceShutdown()
-    {
-    }
 
 #ifdef DEBUG_CC
     virtual void PrintAllReferencesTo(void *p) {}
@@ -968,6 +979,8 @@ struct nsCycleCollector
     PRBool mScanInProgress;
     PRBool mFollowupCollection;
     PRUint32 mCollectedObjects;
+    PRBool mFirstCollection;
+    PRTime mCollectionStart;
 
     nsCycleCollectionLanguageRuntime *mRuntimes[nsIProgrammingLanguage::MAX+1];
     nsCycleCollectionXPCOMRuntime mXPCOMRuntime;
@@ -980,6 +993,8 @@ struct nsCycleCollector
     PRUint32 mWhiteNodeCount;
 
     nsPurpleBuffer mPurpleBuf;
+
+    nsCOMPtr<nsICycleCollectorListener> mListener;
 
     void RegisterRuntime(PRUint32 langID, 
                          nsCycleCollectionLanguageRuntime *rt);
@@ -1002,9 +1017,18 @@ struct nsCycleCollector
     nsPurpleBufferEntry* Suspect2(nsISupports *n);
     PRBool Forget2(nsPurpleBufferEntry *e);
 
-    PRUint32 Collect(PRUint32 aTryCollections = 1);
-    PRBool BeginCollection();
+    PRUint32 Collect(PRUint32 aTryCollections,
+                     nsICycleCollectorListener *aListener);
+
+    // Prepare for and cleanup after one or more collection(s).
+    PRBool PrepareForCollection(nsTPtrArray<PtrInfo> *aWhiteNodes);
+    void CleanupAfterCollection();
+
+    // Start and finish an individual collection.
+    PRBool BeginCollection(PRBool aForceGC,
+                           nsICycleCollectorListener *aListener);
     PRBool FinishCollection();
+
     PRUint32 SuspectedCount();
     void Shutdown();
 
@@ -1016,11 +1040,10 @@ struct nsCycleCollector
     }
 
 #ifdef DEBUG_CC
-    nsCycleCollectorStats mStats;    
+    nsCycleCollectorStats mStats;
 
     FILE *mPtrLog;
 
-    void MaybeDrawGraphs();
     void Allocated(void *n, size_t sz);
     void Freed(void *n);
 
@@ -1034,14 +1057,6 @@ struct nsCycleCollector
 };
 
 
-struct DoWalkDebugInfo
-{
-    PtrInfo *mCurrentPI;
-    EdgePool::Iterator mFirstChild;
-    EdgePool::Iterator mLastChild;
-    EdgePool::Iterator mCurrentChild;
-};
-
 /**
  * GraphWalker is templatized over a Visitor class that must provide
  * the following two methods:
@@ -1054,7 +1069,6 @@ class GraphWalker
 {
 private:
     Visitor mVisitor;
-    DoWalkDebugInfo *mDebugInfo;
 
     void DoWalk(nsDeque &aQueue);
 
@@ -1121,20 +1135,6 @@ Fault(const char *msg, const void *ptr=nsnull)
         else
             printf("Fatal fault in cycle collector: %s\n", msg);
 
-     
-        if (sCollector->mGraph.mRootCount > 0) {
-            FILE *stream;
-#ifdef WIN32
-            const char fname[] = "c:\\fault-graph.dot";
-#else
-            const char fname[] = "/tmp/fault-graph.dot";
-#endif
-            printf("depositing faulting cycle-collection graph in %s\n", fname);
-            stream = fopen(fname, "w+");
-            WriteGraph(stream, sCollector->mGraph, ptr);
-            fclose(stream);
-        } 
-
         exit(1);
     }
 #endif
@@ -1189,23 +1189,23 @@ Fault(const char *msg, PtrInfo *pi)
 }
 #endif
 
-static inline bool
-CheckMainThreadIfFast()
+static inline void
+AbortIfOffMainThreadIfCheckFast()
 {
 #if defined(XP_WIN) || defined(NS_TLS)
-    return NS_IsMainThread();
-#else
-    return true;
+    if (!NS_IsMainThread() && !NS_IsCycleCollectorThread()) {
+        NS_RUNTIMEABORT("Main-thread-only object used off the main thread");
+    }
 #endif
 }
 
 static nsISupports *
 canonicalize(nsISupports *in)
 {
-    nsCOMPtr<nsISupports> child;
+    nsISupports* child;
     in->QueryInterface(NS_GET_IID(nsCycleCollectionISupports),
-                       getter_AddRefs(child));
-    return child.get();
+                       reinterpret_cast<void**>(&child));
+    return child;
 }
 
 static inline void
@@ -1254,72 +1254,20 @@ GraphWalker<Visitor>::WalkFromRoots(GCGraph& aGraph)
     DoWalk(queue);
 }
 
-void
-EdgePool::CheckIterator(Iterator &aIterator)
-{
-    PtrInfoOrBlock *iteratorPos = aIterator.mPointer;
-    CC_RUNTIME_ABORT_IF_FALSE(iteratorPos, "Iterator's pos is null.");
-
-    PtrInfoOrBlock *start = &mSentinelAndBlocks[0];
-    size_t sentinelOffset = 0;
-    PtrInfoOrBlock *end;
-    Block *nextBlockPtr;
-    do {
-        end = start + sentinelOffset;
-        nextBlockPtr = (end + 1)->block;
-        // We must be in a block of edges or on a sentinel.
-        if (iteratorPos >= start && iteratorPos <= end)
-            break;
-        sentinelOffset = Block::BlockSize - 2;
-    } while ((start = nextBlockPtr ? nextBlockPtr->Start() : nsnull));
-    CC_RUNTIME_ABORT_IF_FALSE(start, "Iterator doesn't point into EdgePool.");
-
-    // If the ptrInfo is null we need to be on the sentinel.
-    CC_RUNTIME_ABORT_IF_FALSE(iteratorPos->ptrInfo || iteratorPos == end,
-                              "iteratorPos points to null, but it's not a "
-                              "sentinel!");
-}
-
-void
-NodePool::CheckPtrInfo(PtrInfo *aPtrInfo)
-{
-    // Find out if pi is null.
-    CC_RUNTIME_ABORT_IF_FALSE(aPtrInfo, "Pointer is null.");
-
-    // Find out if pi is a dangling pointer.
-    Block *block = mBlocks;
-    do {
-        if(aPtrInfo >= &block->mEntries[0] &&
-           aPtrInfo <= &block->mEntries[BlockSize - 1])
-           break;
-    } while ((block = block->mNext));
-    CC_RUNTIME_ABORT_IF_FALSE(block, "Pointer is outside blocks.");
-}
-
 template <class Visitor>
 void
 GraphWalker<Visitor>::DoWalk(nsDeque &aQueue)
 {
     // Use a aQueue to match the breadth-first traversal used when we
     // built the graph, for hopefully-better locality.
-    DoWalkDebugInfo debugInfo;
-    mDebugInfo = &debugInfo;
-
     while (aQueue.GetSize() > 0) {
         PtrInfo *pi = static_cast<PtrInfo*>(aQueue.PopFront());
 
-        sCollector->mGraph.mNodes.CheckPtrInfo(pi);
-
-        debugInfo.mCurrentPI = pi;
         if (mVisitor.ShouldVisitNode(pi)) {
             mVisitor.VisitNode(pi);
-            debugInfo.mFirstChild = pi->mFirstChild;
-            debugInfo.mLastChild = pi->mLastChild;
-            debugInfo.mCurrentChild = pi->mFirstChild;
             for (EdgePool::Iterator child = pi->mFirstChild,
                                 child_end = pi->mLastChild;
-                 child != child_end; ++child, debugInfo.mCurrentChild = child) {
-                sCollector->mGraph.mEdges.CheckIterator(child);
+                 child != child_end; ++child) {
                 aQueue.Push(*child);
             }
         }
@@ -1330,6 +1278,95 @@ GraphWalker<Visitor>::DoWalk(nsDeque &aQueue)
 #endif
 }
 
+
+class nsCycleCollectorLogger : public nsICycleCollectorListener
+{
+public:
+    nsCycleCollectorLogger() : mStream(nsnull)
+    {
+    }
+    ~nsCycleCollectorLogger()
+    {
+        if (mStream) {
+            fclose(mStream);
+        }
+    }
+    NS_DECL_ISUPPORTS
+
+    NS_IMETHOD Begin()
+    {
+        char name[255];
+        sprintf(name, "cc-edges-%d.log", ++gLogCounter);
+        mStream = fopen(name, "w");
+
+        return mStream ? NS_OK : NS_ERROR_FAILURE;
+    }
+    NS_IMETHOD NoteObject(PRUint64 aAddress, const char *aObjectDescription)
+    {
+        fprintf(mStream, "%p %s\n", (void*)aAddress, aObjectDescription);
+
+        return NS_OK;
+    }
+    NS_IMETHOD NoteEdge(PRUint64 aFromAddress, PRUint64 aToAddress,
+                        const char *aEdgeName)
+    {
+        fprintf(mStream, "> %p %s\n", (void*)aToAddress, aEdgeName);
+
+        return NS_OK;
+    }
+    NS_IMETHOD BeginDescriptions()
+    {
+        fputs("==========\n", mStream);
+
+        return NS_OK;
+    }
+    NS_IMETHOD DescribeRefcountedObject(PRUint64 aAddress, PRUint32 aKnownEdges,
+                                        PRUint32 aTotalEdges)
+    {
+        PRBool root = aKnownEdges != aTotalEdges;
+        fprintf(mStream, "%p", (void*)aAddress);
+        if (root) {
+            fprintf(mStream, " [root] [%u/%u]", aKnownEdges, aTotalEdges);
+        }
+        fputc('\n', mStream);
+
+        return NS_OK;
+    }
+    NS_IMETHOD DescribeGCedObject(PRUint64 aAddress, PRBool aMarked)
+    {
+        fprintf(mStream, "%p%s\n", (void*)aAddress, aMarked ? " [root]" : "");
+
+        return NS_OK;
+    }
+    NS_IMETHOD End()
+    {
+        fclose(mStream);
+        mStream = nsnull;
+
+        return NS_OK;
+    }
+
+private:
+    FILE *mStream;
+
+    static PRUint32 gLogCounter;
+};
+
+NS_IMPL_ISUPPORTS1(nsCycleCollectorLogger, nsICycleCollectorListener)
+
+PRUint32 nsCycleCollectorLogger::gLogCounter = 0;
+
+nsresult
+nsCycleCollectorLoggerConstructor(nsISupports* aOuter,
+                                  const nsIID& aIID,
+                                  void* *aInstancePtr)
+{
+    NS_ENSURE_TRUE(!aOuter, NS_ERROR_NO_AGGREGATION);
+
+    nsISupports *logger = new nsCycleCollectorLogger();
+
+    return logger->QueryInterface(aIID, aInstancePtr);
+}
 
 ////////////////////////////////////////////////////////////////////////
 // Bacon & Rajan's |MarkRoots| routine.
@@ -1369,14 +1406,15 @@ private:
     PLDHashTable mPtrToNodeMap;
     PtrInfo *mCurrPi;
     nsCycleCollectionLanguageRuntime **mRuntimes; // weak, from nsCycleCollector
-#ifdef DEBUG_CC
     nsCString mNextEdgeName;
-#endif
+    nsCOMPtr<nsICycleCollectorListener> mListener;
 
 public:
     GCGraphBuilder(GCGraph &aGraph,
-                   nsCycleCollectionLanguageRuntime **aRuntimes);
+                   nsCycleCollectionLanguageRuntime **aRuntimes,
+                   nsICycleCollectorListener *aListener);
     ~GCGraphBuilder();
+    bool Initialized();
 
     PRUint32 Count() const { return mPtrToNodeMap.entryCount; }
 
@@ -1409,25 +1447,37 @@ private:
 };
 
 GCGraphBuilder::GCGraphBuilder(GCGraph &aGraph,
-                               nsCycleCollectionLanguageRuntime **aRuntimes)
+                               nsCycleCollectionLanguageRuntime **aRuntimes,
+                               nsICycleCollectorListener *aListener)
     : mNodeBuilder(aGraph.mNodes),
       mEdgeBuilder(aGraph.mEdges),
-      mRuntimes(aRuntimes)
+      mRuntimes(aRuntimes),
+      mListener(aListener)
 {
     if (!PL_DHashTableInit(&mPtrToNodeMap, &PtrNodeOps, nsnull,
                            sizeof(PtrToNodeEntry), 32768))
         mPtrToNodeMap.ops = nsnull;
-#ifdef DEBUG_CC
-    // Do we need to set these all the time?
-    mFlags |= nsCycleCollectionTraversalCallback::WANT_DEBUG_INFO |
-              nsCycleCollectionTraversalCallback::WANT_ALL_TRACES;
+    // We want all edges and all info if DEBUG_CC is set or if we have a
+    // listener. Do we want them all the time?
+#ifndef DEBUG_CC
+    if (mListener)
 #endif
+    {
+        mFlags |= nsCycleCollectionTraversalCallback::WANT_DEBUG_INFO |
+                  nsCycleCollectionTraversalCallback::WANT_ALL_TRACES;
+    }
 }
 
 GCGraphBuilder::~GCGraphBuilder()
 {
     if (mPtrToNodeMap.ops)
         PL_DHashTableFinish(&mPtrToNodeMap);
+}
+
+bool
+GCGraphBuilder::Initialized()
+{
+    return !!mPtrToNodeMap.ops;
 }
 
 PtrInfo*
@@ -1522,6 +1572,10 @@ GCGraphBuilder::DescribeNode(CCNodeType type, nsrefcnt refCount,
     mCurrPi->mName = PL_strdup(objName);
 #endif
 
+    if (mListener) {
+        mListener->NoteObject((PRUint64)mCurrPi->mPointer, objName);
+    }
+
     if (type == RefCounted) {
         if (refCount == 0 || refCount == PR_UINT32_MAX)
             Fault("zero or overflowing refcount", mCurrPi);
@@ -1539,10 +1593,11 @@ GCGraphBuilder::DescribeNode(CCNodeType type, nsrefcnt refCount,
 NS_IMETHODIMP_(void)
 GCGraphBuilder::NoteXPCOMChild(nsISupports *child) 
 {
-#ifdef DEBUG_CC
-    nsCString edgeName(mNextEdgeName);
-    mNextEdgeName.Truncate();
-#endif
+    nsCString edgeName;
+    if (WantDebugInfo()) {
+        edgeName.Assign(mNextEdgeName);
+        mNextEdgeName.Truncate();
+    }
     if (!child || !(child = canonicalize(child)))
         return; 
 
@@ -1561,6 +1616,10 @@ GCGraphBuilder::NoteXPCOMChild(nsISupports *child)
 #ifdef DEBUG_CC
         mCurrPi->mEdgeNames.AppendElement(edgeName);
 #endif
+        if (mListener) {
+            mListener->NoteEdge((PRUint64)mCurrPi->mPointer, (PRUint64)child,
+                                edgeName.get());
+        }
         ++childPi->mInternalRefs;
     }
 }
@@ -1569,10 +1628,11 @@ NS_IMETHODIMP_(void)
 GCGraphBuilder::NoteNativeChild(void *child,
                                 nsCycleCollectionParticipant *participant)
 {
-#ifdef DEBUG_CC
-    nsCString edgeName(mNextEdgeName);
-    mNextEdgeName.Truncate();
-#endif
+    nsCString edgeName;
+    if (WantDebugInfo()) {
+        edgeName.Assign(mNextEdgeName);
+        mNextEdgeName.Truncate();
+    }
     if (!child)
         return;
 
@@ -1585,16 +1645,21 @@ GCGraphBuilder::NoteNativeChild(void *child,
 #ifdef DEBUG_CC
     mCurrPi->mEdgeNames.AppendElement(edgeName);
 #endif
+    if (mListener) {
+        mListener->NoteEdge((PRUint64)mCurrPi->mPointer, (PRUint64)child,
+                            edgeName.get());
+    }
     ++childPi->mInternalRefs;
 }
 
 NS_IMETHODIMP_(void)
 GCGraphBuilder::NoteScriptChild(PRUint32 langID, void *child) 
 {
-#ifdef DEBUG_CC
-    nsCString edgeName(mNextEdgeName);
-    mNextEdgeName.Truncate();
-#endif
+    nsCString edgeName;
+    if (WantDebugInfo()) {
+        edgeName.Assign(mNextEdgeName);
+        mNextEdgeName.Truncate();
+    }
     if (!child)
         return;
 
@@ -1620,15 +1685,19 @@ GCGraphBuilder::NoteScriptChild(PRUint32 langID, void *child)
 #ifdef DEBUG_CC
     mCurrPi->mEdgeNames.AppendElement(edgeName);
 #endif
+    if (mListener) {
+        mListener->NoteEdge((PRUint64)mCurrPi->mPointer, (PRUint64)child,
+                            edgeName.get());
+    }
     ++childPi->mInternalRefs;
 }
 
 NS_IMETHODIMP_(void)
 GCGraphBuilder::NoteNextEdgeName(const char* name)
 {
-#ifdef DEBUG_CC
-    mNextEdgeName = name;
-#endif
+    if (WantDebugInfo()) {
+        mNextEdgeName = name;
+    }
 }
 
 static PRBool
@@ -2076,6 +2145,7 @@ nsCycleCollector::nsCycleCollector() :
     mCollectionInProgress(PR_FALSE),
     mScanInProgress(PR_FALSE),
     mCollectedObjects(0),
+    mFirstCollection(PR_TRUE),
     mWhiteNodes(nsnull),
     mWhiteNodeCount(0),
 #ifdef DEBUG_CC
@@ -2139,91 +2209,7 @@ nsCycleCollector::ForgetRuntime(PRUint32 langID)
     mRuntimes[langID] = nsnull;
 }
 
-
 #ifdef DEBUG_CC
-static void
-WriteGraph(FILE *stream, GCGraph &graph, const void *redPtr)
-{
-    fprintf(stream, 
-            "digraph collection {\n"
-            "rankdir=LR\n"
-            "node [fontname=fixed, fontsize=10, style=filled, shape=box]\n"
-            );
-    
-    NodePool::Enumerator etor(graph.mNodes);
-    while (!etor.IsDone()) {
-        PtrInfo *pi = etor.GetNext();
-        const void *p = pi->mPointer;
-        fprintf(stream, 
-                "n%p [label=\"%s\\n%p\\n",
-                p,
-                pi->mName,
-                p);
-        if (pi->mRefCount != 0 && pi->mRefCount != PR_UINT32_MAX) {
-            fprintf(stream, 
-                    "%u/%u refs found",
-                    pi->mInternalRefs, pi->mRefCount);
-        }
-        fprintf(stream, 
-                "\", fillcolor=%s, fontcolor=%s]\n", 
-                (redPtr && redPtr == p ? "red" : (pi->mColor == black ? "black" : "white")),
-                (pi->mColor == black ? "white" : "black"));
-        for (EdgePool::Iterator child = pi->mFirstChild,
-                 child_end = pi->mLastChild;
-             child != child_end; ++child) {
-            fprintf(stream, "n%p -> n%p\n", p, (*child)->mPointer);
-        }
-    }
-    
-    fprintf(stream, "\n}\n");    
-}
-
-
-void 
-nsCycleCollector::MaybeDrawGraphs()
-{
-    if (mParams.mDrawGraphs) {
-        // We draw graphs only if there were any white nodes.
-        PRBool anyWhites = PR_FALSE;
-        NodePool::Enumerator fwetor(mGraph.mNodes);
-        while (!fwetor.IsDone())
-        {
-            PtrInfo *pinfo = fwetor.GetNext();
-            if (pinfo->mColor == white) {
-                anyWhites = PR_TRUE;
-                break;
-            }
-        }
-
-        if (anyWhites) {
-            // We can't just use _popen here because graphviz-for-windows
-            // doesn't set up its stdin stream properly, sigh.
-            FILE *stream;
-#ifdef WIN32
-            stream = fopen("c:\\cycle-graph.dot", "w+");
-#else
-            stream = popen("dotty -", "w");
-#endif
-            WriteGraph(stream, mGraph, nsnull);
-#ifdef WIN32
-            fclose(stream);
-            // Even dotty doesn't work terribly well on windows, since
-            // they execute lefty asynchronously. So we'll just run 
-            // lefty ourselves.
-            _spawnlp(_P_WAIT, 
-                     "lefty", 
-                     "lefty",
-                     "-e",
-                     "\"load('dotty.lefty');"
-                     "dotty.simple('c:\\cycle-graph.dot');\"",
-                     NULL);
-            unlink("c:\\cycle-graph.dot");
-#else
-            pclose(stream);
-#endif
-        }
-    }
-}
 
 class Suppressor :
     public nsCycleCollectionTraversalCallback
@@ -2302,8 +2288,7 @@ nsCycleCollector_isScanSafe(nsISupports *s)
 PRBool
 nsCycleCollector::Suspect(nsISupports *n)
 {
-    if (!CheckMainThreadIfFast())
-        return PR_FALSE;
+    AbortIfOffMainThreadIfCheckFast();
 
     // Re-entering ::Suspect during collection used to be a fault, but
     // we are canonicalizing nsISupports pointers using QI, so we will
@@ -2343,12 +2328,7 @@ nsCycleCollector::Suspect(nsISupports *n)
 PRBool
 nsCycleCollector::Forget(nsISupports *n)
 {
-    if (!CheckMainThreadIfFast()) {
-        if (!mParams.mDoNothing) {
-            Fault("Forget called off main thread");
-        }
-        return PR_TRUE; // it's as good as forgotten
-    }
+    AbortIfOffMainThreadIfCheckFast();
 
     // Re-entering ::Forget during collection used to be a fault, but
     // we are canonicalizing nsISupports pointers using QI, so we will
@@ -2382,8 +2362,7 @@ nsCycleCollector::Forget(nsISupports *n)
 nsPurpleBufferEntry*
 nsCycleCollector::Suspect2(nsISupports *n)
 {
-    if (!CheckMainThreadIfFast())
-        return nsnull;
+    AbortIfOffMainThreadIfCheckFast();
 
     // Re-entering ::Suspect during collection used to be a fault, but
     // we are canonicalizing nsISupports pointers using QI, so we will
@@ -2424,8 +2403,7 @@ nsCycleCollector::Suspect2(nsISupports *n)
 PRBool
 nsCycleCollector::Forget2(nsPurpleBufferEntry *e)
 {
-    if (!CheckMainThreadIfFast())
-        return PR_FALSE;
+    AbortIfOffMainThreadIfCheckFast();
 
     // Re-entering ::Forget during collection used to be a fault, but
     // we are canonicalizing nsISupports pointers using QI, so we will
@@ -2483,8 +2461,8 @@ nsCycleCollector::Freed(void *n)
 }
 #endif
 
-PRUint32
-nsCycleCollector::Collect(PRUint32 aTryCollections)
+PRBool
+nsCycleCollector::PrepareForCollection(nsTPtrArray<PtrInfo> *aWhiteNodes)
 {
 #if defined(DEBUG_CC) && !defined(__MINGW32__)
     if (!mParams.mDoNothing && mParams.mHookMalloc)
@@ -2493,68 +2471,35 @@ nsCycleCollector::Collect(PRUint32 aTryCollections)
 
     // This can legitimately happen in a few cases. See bug 383651.
     if (mCollectionInProgress)
-        return 0;
+        return PR_FALSE;
+
+    NS_TIME_FUNCTION;
 
 #ifdef COLLECT_TIME_DEBUG
-    printf("cc: Starting nsCycleCollector::Collect(%d)\n", aTryCollections);
-    PRTime start = PR_Now();
+    printf("cc: nsCycleCollector::PrepareForCollection()\n");
+    mCollectionStart = PR_Now();
 #endif
 
     mCollectionInProgress = PR_TRUE;
 
     nsCOMPtr<nsIObserverService> obs =
-      do_GetService("@mozilla.org/observer-service;1");
-    if (obs) {
+        mozilla::services::GetObserverService();
+    if (obs)
         obs->NotifyObservers(nsnull, "cycle-collector-begin", nsnull);
-    }
 
     mFollowupCollection = PR_FALSE;
     mCollectedObjects = 0;
-    nsAutoTPtrArray<PtrInfo, 4000> whiteNodes;
-    mWhiteNodes = &whiteNodes;
 
-    PRUint32 totalCollections = 0;
-    while (aTryCollections > totalCollections) {
-        PRBool collected;
-        if (mRuntimes[nsIProgrammingLanguage::JAVASCRIPT]) {
-            collected = static_cast<nsCycleCollectionJSRuntime*>
-                (mRuntimes[nsIProgrammingLanguage::JAVASCRIPT])->Collect();
-        }
-        else {
-            collected = BeginCollection() && FinishCollection();
-        }
+    mWhiteNodes = aWhiteNodes;
 
-#ifdef DEBUG_CC
-        // We wait until after FinishCollection to check the white nodes because
-        // some objects may outlive CollectWhite but then be freed by
-        // FinishCycleCollection (like XPConnect's deferred release of native
-        // objects).
-        PRUint32 i, count = mWhiteNodes->Length();
-        for (i = 0; i < count; ++i) {
-            PtrInfo *pinfo = mWhiteNodes->ElementAt(i);
-            if (pinfo->mLangID == nsIProgrammingLanguage::CPLUSPLUS &&
-                mPurpleBuf.Exists(pinfo->mPointer)) {
-                printf("nsCycleCollector: %s object @%p is still alive after\n"
-                       "  calling RootAndUnlinkJSObjects, Unlink, and Unroot on"
-                       " it!  This probably\n"
-                       "  means the Unlink implementation was insufficient.\n",
-                       pinfo->mName, pinfo->mPointer);
-            }
-        }
-#endif
-        mWhiteNodes->Clear();
-        ClearGraph();
+    return PR_TRUE;
+}
 
-        mParams.mDoNothing = PR_FALSE;
-
-        if (!collected)
-            break;
-        
-        ++totalCollections;
-    }
-
+void
+nsCycleCollector::CleanupAfterCollection()
+{
     mWhiteNodes = nsnull;
-
+    mListener = nsnull;
     mCollectionInProgress = PR_FALSE;
 
 #ifdef XP_OS2
@@ -2565,29 +2510,87 @@ nsCycleCollector::Collect(PRUint32 aTryCollections)
 #endif
 
 #ifdef COLLECT_TIME_DEBUG
-    printf("cc: Collect() took %lldms\n",
-           (PR_Now() - start) / PR_USEC_PER_MSEC);
+    printf("cc: CleanupAfterCollection(), total time %lldms\n",
+           (PR_Now() - mCollectionStart) / PR_USEC_PER_MSEC);
 #endif
 #ifdef DEBUG_CC
     ExplainLiveExpectedGarbage();
 #endif
+}
+
+PRUint32
+nsCycleCollector::Collect(PRUint32 aTryCollections,
+                          nsICycleCollectorListener *aListener)
+{
+    nsAutoTPtrArray<PtrInfo, 4000> whiteNodes;
+
+    if (!PrepareForCollection(&whiteNodes))
+        return 0;
+
+#ifdef DEBUG_CC
+    nsCOMPtr<nsICycleCollectorListener> tempListener;
+    if (!aListener && mParams.mDrawGraphs) {
+        tempListener = new nsCycleCollectorLogger();
+        aListener = tempListener;
+    }
+#endif
+
+    PRUint32 totalCollections = 0;
+    while (aTryCollections > totalCollections) {
+        // Synchronous cycle collection. Always force a JS GC as well.
+        if (!(BeginCollection(PR_TRUE, aListener) && FinishCollection()))
+            break;
+
+        ++totalCollections;
+    }
+
+    CleanupAfterCollection();
+
     return mCollectedObjects;
 }
 
 PRBool
-nsCycleCollector::BeginCollection()
+nsCycleCollector::BeginCollection(PRBool aForceGC,
+                                  nsICycleCollectorListener *aListener)
 {
     if (mParams.mDoNothing)
         return PR_FALSE;
 
-    GCGraphBuilder builder(mGraph, mRuntimes);
+    // The cycle collector uses the mark bitmap to discover what JS objects
+    // were reachable only from XPConnect roots that might participate in
+    // cycles. If this is the first cycle collection after startup force
+    // a garbage collection, otherwise the GC might not have run yet and
+    // the bitmap is invalid.
+    if (mFirstCollection && mRuntimes[nsIProgrammingLanguage::JAVASCRIPT]) {
+        aForceGC = PR_TRUE;
+        mFirstCollection = PR_FALSE;
+    }
+
+    if (aForceGC) {
+#ifdef COLLECT_TIME_DEBUG
+        PRTime start = PR_Now();
+#endif
+        static_cast<nsCycleCollectionJSRuntime*>
+            (mRuntimes[nsIProgrammingLanguage::JAVASCRIPT])->Collect();
+#ifdef COLLECT_TIME_DEBUG
+        printf("cc: GC() took %lldms\n", (PR_Now() - start) / PR_USEC_PER_MSEC);
+#endif
+    }
+
+    if (aListener && NS_FAILED(aListener->Begin())) {
+        aListener = nsnull;
+    }
+
+    GCGraphBuilder builder(mGraph, mRuntimes, aListener);
+    if (!builder.Initialized())
+        return PR_FALSE;
 
 #ifdef COLLECT_TIME_DEBUG
     PRTime now = PR_Now();
 #endif
     for (PRUint32 i = 0; i <= nsIProgrammingLanguage::MAX; ++i) {
         if (mRuntimes[i])
-            mRuntimes[i]->BeginCycleCollection(builder);
+            mRuntimes[i]->BeginCycleCollection(builder, PR_FALSE);
     }
 
 #ifdef COLLECT_TIME_DEBUG
@@ -2656,11 +2659,28 @@ nsCycleCollector::BeginCollection()
                (PR_Now() - now) / PR_USEC_PER_MSEC);
 #endif
 
-#ifdef DEBUG_CC
-        MaybeDrawGraphs();
-#endif
-
         mScanInProgress = PR_FALSE;
+
+        if (aListener) {
+            aListener->BeginDescriptions();
+
+            NodePool::Enumerator etor(mGraph.mNodes);
+            while (!etor.IsDone()) {
+                PtrInfo *pi = etor.GetNext();
+                if (pi->mColor == black) {
+                    PRUint64 p = (PRUint64)pi->mPointer;
+                    if (pi->mRefCount > 0 && pi->mRefCount < PR_UINT32_MAX) {
+                        aListener->DescribeRefcountedObject(p, pi->mInternalRefs,
+                                                           pi->mRefCount);
+                    }
+                    else {
+                        aListener->DescribeGCedObject(p, pi->mRefCount != 0);
+                    }
+                }
+            }
+
+            aListener->End();
+        }
 
 #ifdef DEBUG_CC
         if (mFollowupCollection && purpleStart != purpleEnd) {
@@ -2681,15 +2701,10 @@ nsCycleCollector::BeginCollection()
         }
 #endif
 
-#ifdef COLLECT_TIME_DEBUG
-        now = PR_Now();
-#endif
-        RootWhite();
-
-#ifdef COLLECT_TIME_DEBUG
-        printf("cc: RootWhite() took %lldms\n",
-               (PR_Now() - now) / PR_USEC_PER_MSEC);
-#endif
+        for (PRUint32 i = 0; i <= nsIProgrammingLanguage::MAX; ++i) {
+            if (mRuntimes[i])
+                mRuntimes[i]->FinishTraverse();
+        }
     }
     else {
         mScanInProgress = PR_FALSE;
@@ -2704,6 +2719,15 @@ nsCycleCollector::FinishCollection()
 #ifdef COLLECT_TIME_DEBUG
     PRTime now = PR_Now();
 #endif
+
+    RootWhite();
+
+#ifdef COLLECT_TIME_DEBUG
+    printf("cc: RootWhite() took %lldms\n",
+           (PR_Now() - now) / PR_USEC_PER_MSEC);
+    now = PR_Now();
+#endif
+
     PRBool collected = CollectWhite();
 
 #ifdef COLLECT_TIME_DEBUG
@@ -2724,6 +2748,30 @@ nsCycleCollector::FinishCollection()
 
     mFollowupCollection = PR_TRUE;
 
+#ifdef DEBUG_CC
+    // We wait until after FinishCollection to check the white nodes because
+    // some objects may outlive CollectWhite but then be freed by
+    // FinishCycleCollection (like XPConnect's deferred release of native
+    // objects).
+    PRUint32 i, count = mWhiteNodes->Length();
+    for (i = 0; i < count; ++i) {
+        PtrInfo *pinfo = mWhiteNodes->ElementAt(i);
+        if (pinfo->mLangID == nsIProgrammingLanguage::CPLUSPLUS &&
+            mPurpleBuf.Exists(pinfo->mPointer)) {
+            printf("nsCycleCollector: %s object @%p is still alive after\n"
+                   "  calling RootAndUnlinkJSObjects, Unlink, and Unroot on"
+                   " it!  This probably\n"
+                   "  means the Unlink implementation was insufficient.\n",
+                   pinfo->mName, pinfo->mPointer);
+        }
+    }
+#endif
+
+    mWhiteNodes->Clear();
+    ClearGraph();
+
+    mParams.mDoNothing = PR_FALSE;
+
     return collected;
 }
 
@@ -2739,15 +2787,10 @@ nsCycleCollector::Shutdown()
     // Here we want to run a final collection and then permanently
     // disable the collector because the program is shutting down.
 
-    for (PRUint32 i = 0; i <= nsIProgrammingLanguage::MAX; ++i) {
-        if (mRuntimes[i])
-            mRuntimes[i]->CommenceShutdown();
-    }
-
-    Collect(SHUTDOWN_COLLECTIONS(mParams));
+    Collect(SHUTDOWN_COLLECTIONS(mParams), nsnull);
 
 #ifdef DEBUG_CC
-    GCGraphBuilder builder(mGraph, mRuntimes);
+    GCGraphBuilder builder(mGraph, mRuntimes, nsnull);
     mScanInProgress = PR_TRUE;
     SelectPurple(builder);
     mScanInProgress = PR_FALSE;
@@ -2822,7 +2865,7 @@ nsCycleCollector::ExplainLiveExpectedGarbage()
     mScanInProgress = PR_TRUE;
 
     {
-        GCGraphBuilder builder(mGraph, mRuntimes);
+        GCGraphBuilder builder(mGraph, mRuntimes, nsnull);
 
         // Instead of adding roots from the purple buffer, we add them
         // from the list of nodes we were expected to collect.
@@ -2836,7 +2879,7 @@ nsCycleCollector::ExplainLiveExpectedGarbage()
 
         for (PRUint32 i = 0; i <= nsIProgrammingLanguage::MAX; ++i) {
             if (mRuntimes[i])
-                mRuntimes[i]->BeginCycleCollection(builder);
+                mRuntimes[i]->BeginCycleCollection(builder, PR_TRUE);
         }
 
         // But just for extra information, add entries from the purple
@@ -3142,13 +3185,17 @@ nsCycleCollector::DestroyReversedEdges()
 void
 nsCycleCollector::ShouldBeFreed(nsISupports *n)
 {
-    mExpectedGarbage.PutEntry(n);
+    if (n) {
+        mExpectedGarbage.PutEntry(n);
+    }
 }
 
 void
 nsCycleCollector::WasFreed(nsISupports *n)
 {
-    mExpectedGarbage.RemoveEntry(n);
+    if (n) {
+        mExpectedGarbage.RemoveEntry(n);
+    }
 }
 #endif
 
@@ -3209,48 +3256,10 @@ NS_CycleCollectorForget2(nsPurpleBufferEntry *e)
     return sCollector ? sCollector->Forget2(e) : PR_TRUE;
 }
 
-
-PRUint32
-nsCycleCollector_collect()
-{
-    return sCollector ? sCollector->Collect() : 0;
-}
-
 PRUint32
 nsCycleCollector_suspectedCount()
 {
     return sCollector ? sCollector->SuspectedCount() : 0;
-}
-
-PRBool 
-nsCycleCollector_beginCollection()
-{
-    return sCollector ? sCollector->BeginCollection() : PR_FALSE;
-}
-
-PRBool 
-nsCycleCollector_finishCollection()
-{
-    return sCollector ? sCollector->FinishCollection() : PR_FALSE;
-}
-
-nsresult 
-nsCycleCollector_startup()
-{
-    NS_ASSERTION(!sCollector, "Forgot to call nsCycleCollector_shutdown?");
-
-    sCollector = new nsCycleCollector();
-    return sCollector ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
-}
-
-void 
-nsCycleCollector_shutdown()
-{
-    if (sCollector) {
-        sCollector->Shutdown();
-        delete sCollector;
-        sCollector = nsnull;
-    }
 }
 
 #ifdef DEBUG
@@ -3272,3 +3281,226 @@ nsCycleCollector_DEBUG_wasFreed(nsISupports *n)
 #endif
 }
 #endif
+
+class nsCycleCollectorRunner : public nsRunnable
+{
+    nsCycleCollector *mCollector;
+    nsCOMPtr<nsICycleCollectorListener> mListener;
+    Mutex mLock;
+    CondVar mRequest;
+    CondVar mReply;
+    PRBool mRunning;
+    PRBool mCollected;
+    PRBool mJSGCHasRun;
+
+public:
+    NS_IMETHOD Run()
+    {
+#ifdef XP_WIN
+        TlsSetValue(gTLSThreadIDIndex,
+                    (void*) mozilla::threads::CycleCollector);
+#elif defined(NS_TLS)
+        gTLSThreadID = mozilla::threads::CycleCollector;
+#else
+        gCycleCollectorThread = PR_GetCurrentThread();
+#endif
+
+        NS_ASSERTION(NS_IsCycleCollectorThread() && !NS_IsMainThread(),
+                     "Wrong thread!");
+
+        MutexAutoLock autoLock(mLock);
+
+        mRunning = PR_TRUE;
+
+        while (1) {
+            mRequest.Wait();
+
+            if (!mRunning) {
+                mReply.Notify();
+                return NS_OK;
+            }
+
+            mCollected = mCollector->BeginCollection(PR_FALSE, mListener);
+
+            mReply.Notify();
+        }
+
+        return NS_OK;
+    }
+
+    nsCycleCollectorRunner(nsCycleCollector *collector)
+        : mCollector(collector),
+          mLock("cycle collector lock"),
+          mRequest(mLock, "cycle collector request condvar"),
+          mReply(mLock, "cycle collector reply condvar"),
+          mRunning(PR_FALSE),
+          mCollected(PR_FALSE),
+          mJSGCHasRun(PR_FALSE)
+    {
+        NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+    }
+
+    PRUint32 Collect(nsICycleCollectorListener* aListener)
+    {
+        NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+        MutexAutoLock autoLock(mLock);
+
+        if (!mRunning || !mJSGCHasRun)
+            return 0;
+
+        nsAutoTPtrArray<PtrInfo, 4000> whiteNodes;
+        if (!mCollector->PrepareForCollection(&whiteNodes))
+            return 0;
+
+        NS_ASSERTION(!mListener, "Should have cleared this already!");
+        mListener = aListener;
+
+        mRequest.Notify();
+        mReply.Wait();
+
+        mListener = nsnull;
+
+        if (mCollected) {
+            mCollected = mCollector->FinishCollection();
+
+            mCollector->CleanupAfterCollection();
+
+            return mCollected ? mCollector->mCollectedObjects : 0;
+        }
+
+        return 0;
+    }
+
+    void Shutdown()
+    {
+        NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+        MutexAutoLock autoLock(mLock);
+
+        if (!mRunning)
+            return;
+
+        mRunning = PR_FALSE;
+        mRequest.Notify();
+        mReply.Wait();
+    }
+
+    void JSGCHasRun()
+    {
+        NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+        MutexAutoLock autoLock(mLock);
+        mJSGCHasRun = PR_TRUE;
+    }
+};
+
+// Holds a reference.
+static nsCycleCollectorRunner* sCollectorRunner;
+
+// Holds a reference.
+static nsIThread* sCollectorThread;
+
+static JSBool
+nsCycleCollector_gccallback(JSContext *cx, JSGCStatus status)
+{
+    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+    if (status == JSGC_END) {
+        if (sCollectorRunner)
+            sCollectorRunner->JSGCHasRun();
+
+        nsCOMPtr<nsIJSRuntimeService> rts =
+          do_GetService(nsIXPConnect::GetCID());
+        NS_WARN_IF_FALSE(rts, "Failed to get XPConnect?!");
+        if (rts)
+            rts->UnregisterGCCallback(nsCycleCollector_gccallback);
+    }
+
+    return JS_TRUE;
+}
+
+class nsCycleCollectorGCHookRunnable : public nsRunnable
+{
+public:
+    NS_IMETHOD Run()
+    {
+        NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+        nsCOMPtr<nsIJSRuntimeService> rts =
+            do_GetService(nsIXPConnect::GetCID());
+        if (!rts) {
+            NS_RUNTIMEABORT("This must never fail!");
+        }
+
+        rts->RegisterGCCallback(nsCycleCollector_gccallback);
+        return NS_OK;
+    }
+};
+
+nsresult
+nsCycleCollector_startup()
+{
+    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+    NS_ASSERTION(!sCollector, "Forgot to call nsCycleCollector_shutdown?");
+
+    sCollector = new nsCycleCollector();
+
+    // We can't get XPConnect yet as it hasn't been initialized yet.
+    nsRefPtr<nsCycleCollectorGCHookRunnable> hook =
+        new nsCycleCollectorGCHookRunnable();
+    nsresult rv = NS_DispatchToCurrentThread(hook);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsRefPtr<nsCycleCollectorRunner> runner =
+        new nsCycleCollectorRunner(sCollector);
+
+    nsCOMPtr<nsIThread> thread;
+    rv = NS_NewThread(getter_AddRefs(thread), runner);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    runner.swap(sCollectorRunner);
+    thread.swap(sCollectorThread);
+
+    return rv;
+}
+
+PRUint32
+nsCycleCollector_collect(nsICycleCollectorListener *aListener)
+{
+    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+    if (sCollectorRunner)
+        return sCollectorRunner->Collect(aListener);
+    return sCollector ? sCollector->Collect(1, aListener) : 0;
+}
+
+void
+nsCycleCollector_shutdownThreads()
+{
+    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+    if (sCollectorRunner) {
+        nsRefPtr<nsCycleCollectorRunner> runner;
+        runner.swap(sCollectorRunner);
+        runner->Shutdown();
+    }
+
+    if (sCollectorThread) {
+        nsCOMPtr<nsIThread> thread;
+        thread.swap(sCollectorThread);
+        thread->Shutdown();
+    }
+}
+
+void
+nsCycleCollector_shutdown()
+{
+    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+    NS_ASSERTION(!sCollectorRunner, "Should have finished before!");
+    NS_ASSERTION(!sCollectorThread, "Should have finished before!");
+
+    if (sCollector) {
+        sCollector->Shutdown();
+        delete sCollector;
+        sCollector = nsnull;
+    }
+}

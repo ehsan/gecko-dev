@@ -38,7 +38,7 @@
 #ifndef NS_SMILTARGETIDENTIFIER_H_
 #define NS_SMILTARGETIDENTIFIER_H_
 
-#include "nsIContent.h"
+#include "mozilla/dom/Element.h"
 #include "nsAutoPtr.h"
 #include "prtypes.h"
 
@@ -58,17 +58,20 @@
 struct nsSMILTargetIdentifier
 {
   nsSMILTargetIdentifier()
-    : mElement(nsnull), mAttributeName(nsnull), mIsCSS(PR_FALSE) {}
+    : mElement(nsnull), mAttributeName(nsnull),
+      mAttributeNamespaceID(kNameSpaceID_Unknown), mIsCSS(PR_FALSE) {}
 
   inline PRBool Equals(const nsSMILTargetIdentifier& aOther) const
   {
-    return (aOther.mElement       == mElement &&
-            aOther.mAttributeName == mAttributeName &&
-            aOther.mIsCSS         == mIsCSS);
+    return (aOther.mElement              == mElement &&
+            aOther.mAttributeName        == mAttributeName &&
+            aOther.mAttributeNamespaceID == mAttributeNamespaceID &&
+            aOther.mIsCSS                == mIsCSS);
   }
 
-  nsRefPtr<nsIContent> mElement;
-  nsRefPtr<nsIAtom>    mAttributeName; // XXX need to consider namespaces here
+  nsRefPtr<mozilla::dom::Element> mElement;
+  nsRefPtr<nsIAtom>    mAttributeName;
+  PRInt32              mAttributeNamespaceID;
   PRPackedBool         mIsCSS;
 };
 

@@ -48,7 +48,7 @@
 #include "nsIServiceManager.h"
 #include "nsNetUtil.h"
 #include "nsTextFragment.h"
-#include "nsIContent.h"
+#include "mozilla/dom/Element.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMHTMLMapElement.h"
 #include "nsIDOMHTMLAreaElement.h"
@@ -68,6 +68,8 @@
 #include "nsIDocument.h"
 #include "nsContentUtils.h"
 
+namespace dom = mozilla::dom;
+
 static NS_DEFINE_CID(kCStringBundleServiceCID, NS_STRINGBUNDLESERVICE_CID);
 
 class Area {
@@ -82,8 +84,6 @@ public:
   virtual void GetRect(nsIFrame* aFrame, nsRect& aRect) = 0;
 
   void HasFocus(PRBool aHasFocus);
-
-  void GetHREF(nsAString& aHref) const;
 
   nsCOMPtr<nsIContent> mArea;
   nscoord* mCoords;
@@ -105,15 +105,6 @@ Area::~Area()
 {
   MOZ_COUNT_DTOR(Area);
   delete [] mCoords;
-}
-
-void
-Area::GetHREF(nsAString& aHref) const
-{
-  aHref.Truncate();
-  if (mArea) {
-    mArea->GetAttr(kNameSpaceID_None, nsGkAtoms::href, aHref);
-  }
 }
 
 #include <stdlib.h>
@@ -815,7 +806,7 @@ nsImageMap::SearchForAreas(nsIContent* aParent, PRBool& aFoundArea,
       }
     }
 
-    if (child->IsNodeOfType(nsINode::eELEMENT)) {
+    if (child->IsElement()) {
       mContainsBlockContents = PR_TRUE;
       rv = SearchForAreas(child, aFoundArea, aFoundAnchor);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -841,37 +832,36 @@ nsImageMap::UpdateAreas()
 nsresult
 nsImageMap::AddArea(nsIContent* aArea)
 {
-  nsAutoString coords;
   static nsIContent::AttrValuesArray strings[] =
-    {&nsGkAtoms::_empty, &nsGkAtoms::rect, &nsGkAtoms::rectangle,
-     &nsGkAtoms::poly, &nsGkAtoms::polygon, &nsGkAtoms::circle,
-     &nsGkAtoms::circ, &nsGkAtoms::_default, nsnull};
-
-  aArea->GetAttr(kNameSpaceID_None, nsGkAtoms::coords, coords);
+    {&nsGkAtoms::rect, &nsGkAtoms::rectangle,
+     &nsGkAtoms::circle, &nsGkAtoms::circ,
+     &nsGkAtoms::_default,
+     &nsGkAtoms::poly, &nsGkAtoms::polygon,
+     nsnull};
 
   Area* area;
   switch (aArea->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::shape,
                                  strings, eIgnoreCase)) {
-    case nsIContent::ATTR_MISSING:
-    case 0:
-    case 1:
-    case 2:
-      area = new RectArea(aArea);
-      break;
-    case 3:
-    case 4:
-      area = new PolyArea(aArea);
-      break;
-    case 5:
-    case 6:
-      area = new CircleArea(aArea);
-      break;
-    case 7:
-      area = new DefaultArea(aArea);
-      break;
-    default:
-      // Unknown area type; bail
-      return NS_OK;
+  case nsIContent::ATTR_VALUE_NO_MATCH:
+  case nsIContent::ATTR_MISSING:
+  case 0:
+  case 1:
+    area = new RectArea(aArea);
+    break;
+  case 2:
+  case 3:
+    area = new CircleArea(aArea);
+    break;
+  case 4:
+    area = new DefaultArea(aArea);
+    break;
+  case 5:
+  case 6:
+    area = new PolyArea(aArea);
+    break;
+  default:
+    NS_NOTREACHED("FindAttrValueIn returned an unexpected value.");
+    break;
   }
   if (!area)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -886,6 +876,8 @@ nsImageMap::AddArea(nsIContent* aArea)
   // be removed.
   aArea->SetPrimaryFrame(mImageFrame);
 
+  nsAutoString coords;
+  aArea->GetAttr(kNameSpaceID_None, nsGkAtoms::coords, coords);
   area->ParseCoords(coords);
   mAreas.AppendElement(area);
   return NS_OK;
@@ -928,30 +920,31 @@ nsImageMap::MaybeUpdateAreas(nsIContent *aContent)
 }
 
 void
-nsImageMap::AttributeChanged(nsIDocument* aDocument,
-                             nsIContent*  aContent,
-                             PRInt32      aNameSpaceID,
-                             nsIAtom*     aAttribute,
-                             PRInt32      aModType)
+nsImageMap::AttributeChanged(nsIDocument*  aDocument,
+                             dom::Element* aElement,
+                             PRInt32       aNameSpaceID,
+                             nsIAtom*      aAttribute,
+                             PRInt32       aModType)
 {
   // If the parent of the changing content node is our map then update
   // the map.  But only do this if the node is an HTML <area> or <a>
   // and the attribute that's changing is "shape" or "coords" -- those
   // are the only cases we care about.
-  if ((aContent->NodeInfo()->Equals(nsGkAtoms::area) ||
-       aContent->NodeInfo()->Equals(nsGkAtoms::a)) &&
-      aContent->IsHTML() &&
+  if ((aElement->NodeInfo()->Equals(nsGkAtoms::area) ||
+       aElement->NodeInfo()->Equals(nsGkAtoms::a)) &&
+      aElement->IsHTML() &&
       aNameSpaceID == kNameSpaceID_None &&
       (aAttribute == nsGkAtoms::shape ||
        aAttribute == nsGkAtoms::coords)) {
-    MaybeUpdateAreas(aContent->GetParent());
+    MaybeUpdateAreas(aElement->GetParent());
   }
 }
 
 void
 nsImageMap::ContentAppended(nsIDocument *aDocument,
                             nsIContent* aContainer,
-                            PRInt32     aNewIndexInContainer)
+                            nsIContent* aFirstNewContent,
+                            PRInt32     /* unused */)
 {
   MaybeUpdateAreas(aContainer);
 }
@@ -960,7 +953,7 @@ void
 nsImageMap::ContentInserted(nsIDocument *aDocument,
                             nsIContent* aContainer,
                             nsIContent* aChild,
-                            PRInt32 aIndexInContainer)
+                            PRInt32 /* unused */)
 {
   MaybeUpdateAreas(aContainer);
 }
@@ -969,7 +962,8 @@ void
 nsImageMap::ContentRemoved(nsIDocument *aDocument,
                            nsIContent* aContainer,
                            nsIContent* aChild,
-                           PRInt32 aIndexInContainer)
+                           PRInt32 aIndexInContainer,
+                           nsIContent* aPreviousSibling)
 {
   MaybeUpdateAreas(aContainer);
 }

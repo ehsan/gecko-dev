@@ -44,7 +44,7 @@
 #include "nsGkAtoms.h"
 
 #include "nsHTMLCanvasFrame.h"
-#include "nsICanvasElement.h"
+#include "nsHTMLCanvasElement.h"
 #include "nsDisplayList.h"
 #include "nsLayoutUtils.h"
 
@@ -52,36 +52,58 @@
 
 #include "gfxContext.h"
 
-class nsDisplayItemCanvas : public nsDisplayItem {
+using namespace mozilla;
+using namespace mozilla::layers;
+
+static nsHTMLCanvasElement *
+CanvasElementFromContent(nsIContent *content)
+{
+  nsCOMPtr<nsIDOMHTMLCanvasElement> domCanvas(do_QueryInterface(content));
+  return domCanvas ? static_cast<nsHTMLCanvasElement*>(domCanvas.get()) : nsnull;
+}
+
+class nsDisplayCanvas : public nsDisplayItem {
 public:
-  nsDisplayItemCanvas(nsIFrame* aFrame)
-    : nsDisplayItem(aFrame)
+  nsDisplayCanvas(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
+    : nsDisplayItem(aBuilder, aFrame)
   {
-    MOZ_COUNT_CTOR(nsDisplayItemCanvas);
+    MOZ_COUNT_CTOR(nsDisplayCanvas);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
-  virtual ~nsDisplayItemCanvas() {
-    MOZ_COUNT_DTOR(nsDisplayItemCanvas);
+  virtual ~nsDisplayCanvas() {
+    MOZ_COUNT_DTOR(nsDisplayCanvas);
   }
 #endif
 
-  NS_DISPLAY_DECL_NAME("nsDisplayItemCanvas")
-  
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx) {
-    nsHTMLCanvasFrame* f = static_cast<nsHTMLCanvasFrame*>(GetUnderlyingFrame());
-    f->PaintCanvas(*aCtx, mVisibleRect, aBuilder->ToReferenceFrame(f));
-  }
+  NS_DISPLAY_DECL_NAME("nsDisplayCanvas", TYPE_CANVAS)
 
-  virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder) {
+  virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder,
+                          PRBool* aForceTransparentSurface = nsnull) {
+    if (aForceTransparentSurface) {
+      *aForceTransparentSurface = PR_FALSE;
+    }
     nsIFrame* f = GetUnderlyingFrame();
-    nsCOMPtr<nsICanvasElement> canvas(do_QueryInterface(f->GetContent()));
+    nsHTMLCanvasElement *canvas = CanvasElementFromContent(f->GetContent());
     return canvas->GetIsOpaque();
   }
 
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder) {
     nsHTMLCanvasFrame* f = static_cast<nsHTMLCanvasFrame*>(GetUnderlyingFrame());
-    return f->GetInnerArea() + aBuilder->ToReferenceFrame(f);
+    return f->GetInnerArea() + ToReferenceFrame();
+  }
+
+  virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
+                                             LayerManager* aManager)
+  {
+    return static_cast<nsHTMLCanvasFrame*>(mFrame)->
+      BuildLayer(aBuilder, aManager, this);
+  }
+  virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
+                                   LayerManager* aManager)
+  {
+    // XXX we should have some kind of activity timeout here so that
+    // inactive canvases can be composited into the background
+    return mozilla::LAYER_ACTIVE;
   }
 };
 
@@ -101,21 +123,15 @@ nsHTMLCanvasFrame::~nsHTMLCanvasFrame()
 nsIntSize
 nsHTMLCanvasFrame::GetCanvasSize()
 {
-  PRUint32 w, h;
-  nsresult rv;
-  nsCOMPtr<nsICanvasElement> canvas(do_QueryInterface(GetContent()));
+  nsIntSize size(0,0);
+  nsHTMLCanvasElement *canvas = CanvasElementFromContent(GetContent());
   if (canvas) {
-    rv = canvas->GetSize(&w, &h);
+    size = canvas->GetSize();
   } else {
-    rv = NS_ERROR_NULL_POINTER;
-  }
-
-  if (NS_FAILED(rv)) {
     NS_NOTREACHED("couldn't get canvas size");
-    h = w = 1;
   }
 
-  return nsIntSize(w, h);
+  return size;
 }
 
 /* virtual */ nscoord
@@ -197,7 +213,7 @@ nsHTMLCanvasFrame::Reflow(nsPresContext*           aPresContext,
     aMetrics.height = NS_MAX(0, aMetrics.height);
   }
 
-  aMetrics.mOverflowArea.SetRect(0, 0, aMetrics.width, aMetrics.height);
+  aMetrics.SetOverflowAreasToDesiredBounds();
   FinishAndStoreOverflow(&aMetrics);
 
   if (mRect.width != aMetrics.width || mRect.height != aMetrics.height) {
@@ -224,37 +240,40 @@ nsHTMLCanvasFrame::GetInnerArea() const
   return r;
 }
 
-void
-nsHTMLCanvasFrame::PaintCanvas(nsIRenderingContext& aRenderingContext,
-                               const nsRect& aDirtyRect, nsPoint aPt) 
+already_AddRefed<Layer>
+nsHTMLCanvasFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
+                              LayerManager* aManager,
+                              nsDisplayItem* aItem)
 {
-  nsPresContext *presContext = PresContext();
-  nsRect inner = GetInnerArea() + aPt;
+  nsRect area = GetContentRect() - GetPosition() + aItem->ToReferenceFrame();
+  nsHTMLCanvasElement* element = static_cast<nsHTMLCanvasElement*>(GetContent());
+  nsIntSize canvasSize = GetCanvasSize();
 
-  nsCOMPtr<nsICanvasElement> canvas(do_QueryInterface(GetContent()));
-  if (!canvas)
-    return;
+  if (canvasSize.width <= 0 || canvasSize.height <= 0 || area.IsEmpty())
+    return nsnull;
 
-  // anything to do?
-  if (inner.width == 0 || inner.height == 0)
-    return;
+  CanvasLayer* oldLayer = static_cast<CanvasLayer*>
+    (aBuilder->LayerBuilder()->GetLeafLayerFor(aBuilder, aManager, aItem));
+  nsRefPtr<CanvasLayer> layer = element->GetCanvasLayer(oldLayer, aManager);
+  if (!layer)
+    return nsnull;
 
-  gfxRect devInner(presContext->AppUnitsToGfxUnits(inner));
+  element->MarkContextClean();
 
-  nsIntSize sizeCSSPixels = GetCanvasSize();
-  gfxFloat sx = devInner.size.width / (gfxFloat) sizeCSSPixels.width;
-  gfxFloat sy = devInner.size.height / (gfxFloat) sizeCSSPixels.height;
+  nsPresContext* presContext = PresContext();
+  gfxRect r = gfxRect(presContext->AppUnitsToGfxUnits(area.x),
+                      presContext->AppUnitsToGfxUnits(area.y),
+                      presContext->AppUnitsToGfxUnits(area.width),
+                      presContext->AppUnitsToGfxUnits(area.height));
 
-  gfxContext *ctx = aRenderingContext.ThebesContext();
+  // Transform the canvas into the right place
+  gfxMatrix transform;
+  transform.Translate(r.pos);
+  transform.Scale(r.Width()/canvasSize.width, r.Height()/canvasSize.height);
+  layer->SetTransform(gfx3DMatrix::From2D(transform));
+  layer->SetFilter(nsLayoutUtils::GetGraphicsFilterForFrame(this));
 
-  ctx->Save();
-
-  ctx->Translate(devInner.pos);
-  ctx->Scale(sx, sy);
-
-  canvas->RenderContexts(ctx, nsLayoutUtils::GetGraphicsFilterForFrame(this));
-
-  ctx->Restore();
+  return layer.forget();
 }
 
 NS_IMETHODIMP
@@ -268,12 +287,19 @@ nsHTMLCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = aLists.Content()->AppendNewToTop(new (aBuilder)
-         nsDisplayItemCanvas(this));
+  nsDisplayList replacedContent;
+
+  rv = replacedContent.AppendNewToTop(
+      new (aBuilder) nsDisplayCanvas(aBuilder, this));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return DisplaySelectionOverlay(aBuilder, aLists,
-                                 nsISelectionDisplay::DISPLAY_IMAGES);
+  rv = DisplaySelectionOverlay(aBuilder, &replacedContent,
+                               nsISelectionDisplay::DISPLAY_IMAGES);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  WrapReplacedContentForBorderRadius(aBuilder, &replacedContent, aLists);
+
+  return NS_OK;
 }
 
 nsIAtom*
@@ -307,10 +333,10 @@ nsHTMLCanvasFrame::GetContinuationOffset(nscoord* aWidth) const
 }
 
 #ifdef ACCESSIBILITY
-NS_IMETHODIMP
-nsHTMLCanvasFrame::GetAccessible(nsIAccessible** aAccessible)
+already_AddRefed<nsAccessible>
+nsHTMLCanvasFrame::CreateAccessible()
 {
-  return NS_ERROR_FAILURE;
+  return nsnull;
 }
 #endif
 

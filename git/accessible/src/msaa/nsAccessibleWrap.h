@@ -103,9 +103,9 @@ class nsAccessibleWrap : public nsAccessible,
                          public IAccessible2,
                          public IEnumVARIANT
 {
-  public: // construction, destruction
-    nsAccessibleWrap(nsIDOMNode*, nsIWeakReference *aShell);
-    virtual ~nsAccessibleWrap();
+public: // construction, destruction
+  nsAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell);
+  virtual ~nsAccessibleWrap();
 
     // nsISupports
     NS_DECL_ISUPPORTS_INHERITED
@@ -307,11 +307,11 @@ class nsAccessibleWrap : public nsAccessible,
                                            UINT *puArgErr);
 
   // nsAccessible
-  virtual nsresult HandleAccEvent(nsAccEvent *aEvent);
+  virtual nsresult HandleAccEvent(AccEvent* aEvent);
 
   // Helper methods
-  static PRInt32 GetChildIDFor(nsIAccessible* aAccessible);
-  static HWND GetHWNDFor(nsIAccessible *aAccessible);
+  static PRInt32 GetChildIDFor(nsAccessible* aAccessible);
+  static HWND GetHWNDFor(nsAccessible *aAccessible);
   static HRESULT ConvertToIA2Attributes(nsIPersistentProperties *aAttributes,
                                         BSTR *aIA2Attributes);
 
@@ -324,7 +324,11 @@ class nsAccessibleWrap : public nsAccessible,
    */
   void UpdateSystemCaret();
 
-  virtual void GetXPAccessibleFor(const VARIANT& aVarChild, nsIAccessible **aXPAccessible);
+  /**
+   * Find an accessible by the given child ID in cached documents.
+   */
+  virtual nsAccessible *GetXPAccessibleFor(const VARIANT& aVarChild);
+
   NS_IMETHOD GetNativeInterface(void **aOutAccessible);
 
   // NT4 does not have the oleacc that defines these methods. So we define copies here that automatically
@@ -342,7 +346,7 @@ class nsAccessibleWrap : public nsAccessible,
   void UnattachIEnumVariant();
 
 protected:
-  virtual nsresult FirePlatformEvent(nsAccEvent *aEvent);
+  virtual nsresult FirePlatformEvent(AccEvent* aEvent);
 
   // mEnumVARIANTPosition not the current accessible's position, but a "cursor" of 
   // where we are in the current list of children, with respect to

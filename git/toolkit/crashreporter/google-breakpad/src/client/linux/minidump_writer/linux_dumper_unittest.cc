@@ -29,10 +29,13 @@
 
 #include <limits.h>
 #include <unistd.h>
+#include <signal.h>
+#include <sys/types.h>
 
+#include "breakpad_googletest_includes.h"
 #include "client/linux/minidump_writer/linux_dumper.h"
 #include "common/linux/file_id.h"
-#include "breakpad_googletest_includes.h"
+#include "common/memory.h"
 
 using namespace google_breakpad;
 
@@ -67,7 +70,7 @@ TEST(LinuxDumperTest, ThreadList) {
   LinuxDumper dumper(getpid());
   ASSERT_TRUE(dumper.Init());
 
-  ASSERT_GE(dumper.threads().size(), 1);
+  ASSERT_GE(dumper.threads().size(), (size_t)1);
   bool found = false;
   for (size_t i = 0; i < dumper.threads().size(); ++i) {
     if (dumper.threads()[i] == getpid()) {
@@ -75,6 +78,55 @@ TEST(LinuxDumperTest, ThreadList) {
       break;
     }
   }
+}
+
+TEST(LinuxDumperTest, VerifyStackReadWithMultipleThreads) {
+  static const int kNumberOfThreadsInHelperProgram = 5;
+  char kNumberOfThreadsArgument[2];
+  sprintf(kNumberOfThreadsArgument, "%d", kNumberOfThreadsInHelperProgram);
+
+  pid_t child_pid = fork();
+  if (child_pid == 0) {
+    // Set the number of threads
+    execl("src/client/linux/linux_dumper_unittest_helper",
+          "linux_dumper_unittest_helper",
+          kNumberOfThreadsArgument,
+          NULL);
+    // Kill if we get here.
+    printf("Errno from exec: %d", errno);
+    FAIL() << "Exec failed: " << strerror(errno);
+    exit(0);
+  }
+  // The sleep is flaky, but prevents us from reading
+  // the child process before all threads have been created.
+  sleep(1);
+  LinuxDumper dumper(child_pid);
+  EXPECT_TRUE(dumper.Init());
+  EXPECT_EQ((size_t)kNumberOfThreadsInHelperProgram, dumper.threads().size());
+  EXPECT_TRUE(dumper.ThreadsSuspend());
+
+  ThreadInfo one_thread;
+  for(size_t i = 0; i < dumper.threads().size(); ++i) {
+    EXPECT_TRUE(dumper.ThreadInfoGet(dumper.threads()[i], &one_thread));
+    // In the helper program, we stored a pointer to the thread id in a
+    // specific register. Check that we can recover its value.
+#if defined(__ARM_EABI__)
+    pid_t *process_tid_location = (pid_t *)(one_thread.regs.uregs[3]);
+#elif defined(__i386)
+    pid_t *process_tid_location = (pid_t *)(one_thread.regs.ecx);
+#elif defined(__x86_64)
+    pid_t *process_tid_location = (pid_t *)(one_thread.regs.rcx);
+#else
+#error This test has not been ported to this platform.
+#endif
+    pid_t one_thread_id;
+    dumper.CopyFromProcess(&one_thread_id,
+                           dumper.threads()[i],
+                           process_tid_location,
+                           4);
+    EXPECT_EQ(dumper.threads()[i], one_thread_id);
+  }
+  kill(child_pid, SIGKILL);
 }
 
 TEST(LinuxDumperTest, BuildProcPath) {
@@ -106,28 +158,29 @@ TEST(LinuxDumperTest, BuildProcPath) {
 #endif
 }
 
+#if !defined(__ARM_EABI__)
 TEST(LinuxDumperTest, MappingsIncludeLinuxGate) {
   LinuxDumper dumper(getpid());
   ASSERT_TRUE(dumper.Init());
 
   void* linux_gate_loc = dumper.FindBeginningOfLinuxGateSharedLibrary(getpid());
-  if (linux_gate_loc) {
-    bool found_linux_gate = false;
+  ASSERT_TRUE(linux_gate_loc);
+  bool found_linux_gate = false;
 
-    const wasteful_vector<MappingInfo*> mappings = dumper.mappings();
-    const MappingInfo* mapping;
-    for (unsigned i = 0; i < mappings.size(); ++i) {
-      mapping = mappings[i];
-      if (!strcmp(mapping->name, kLinuxGateLibraryName)) {
-        found_linux_gate = true;
-        break;
-      }
+  const wasteful_vector<MappingInfo*> mappings = dumper.mappings();
+  const MappingInfo* mapping;
+  for (unsigned i = 0; i < mappings.size(); ++i) {
+    mapping = mappings[i];
+    if (!strcmp(mapping->name, kLinuxGateLibraryName)) {
+      found_linux_gate = true;
+      break;
     }
-    EXPECT_TRUE(found_linux_gate);
-    EXPECT_EQ(linux_gate_loc, reinterpret_cast<void*>(mapping->start_addr));
-    EXPECT_EQ(0, memcmp(linux_gate_loc, ELFMAG, SELFMAG));
   }
+  EXPECT_TRUE(found_linux_gate);
+  EXPECT_EQ(linux_gate_loc, reinterpret_cast<void*>(mapping->start_addr));
+  EXPECT_EQ(0, memcmp(linux_gate_loc, ELFMAG, SELFMAG));
 }
+#endif
 
 TEST(LinuxDumperTest, FileIDsMatch) {
   // Calculate the File ID of our binary using both
@@ -169,7 +222,7 @@ TEST(LinuxDumperTest, FileIDsMatch) {
 
   uint8_t identifier1[sizeof(MDGUID)];
   uint8_t identifier2[sizeof(MDGUID)];
-  EXPECT_TRUE(dumper.ElfFileIdentifierForMapping(i, identifier1));
+  EXPECT_TRUE(dumper.ElfFileIdentifierForMapping(*mappings[i], identifier1));
   FileID fileid(exe_name);
   EXPECT_TRUE(fileid.ElfFileIdentifier(identifier2));
   char identifier_string1[37];

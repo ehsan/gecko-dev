@@ -47,6 +47,9 @@
 #include "nsEscape.h"
 #include "nsIFile.h"
 #include "nsDebug.h"
+#if defined(XP_WIN)
+#include <windows.h>
+#endif
 
 /*---------------------------------------------
  *  nsISupports implementation
@@ -87,8 +90,8 @@ nsJARInputStream::InitFile(nsJAR *aJar, nsZipItem *item)
     }
    
     // Must keep handle to filepointer and mmap structure as long as we need access to the mmapped data
-    mFd = aJar->mZip.GetFD();
-    mZs.next_in = aJar->mZip.GetData(item);
+    mFd = aJar->mZip->GetFD();
+    mZs.next_in = (Bytef *)aJar->mZip->GetData(item);
     if (!mZs.next_in)
         return NS_ERROR_FILE_CORRUPTED;
     mZs.avail_in = item->Size();
@@ -147,7 +150,7 @@ nsJARInputStream::InitDirectory(nsJAR* aJar,
     }
     nsCAutoString pattern = escDirName + NS_LITERAL_CSTRING("?*~") +
                             escDirName + NS_LITERAL_CSTRING("?*/?*");
-    rv = mJar->mZip.FindInit(pattern.get(), &find);
+    rv = mJar->mZip->FindInit(pattern.get(), &find);
     if (NS_FAILED(rv)) return rv;
 
     const char *name;
@@ -212,6 +215,7 @@ nsJARInputStream::Read(char* aBuffer, PRUint32 aCount, PRUint32 *aBytesRead)
     *aBytesRead = 0;
 
     nsresult rv = NS_OK;
+MOZ_WIN_MEM_TRY_BEGIN
     switch (mMode) {
       case MODE_NOTINITED:
         return NS_OK;
@@ -250,6 +254,7 @@ nsJARInputStream::Read(char* aBuffer, PRUint32 aCount, PRUint32 *aBytesRead)
         }
         break;
     }
+MOZ_WIN_MEM_TRY_CATCH(rv = NS_ERROR_FAILURE)
     return rv;
 }
 
@@ -341,7 +346,7 @@ nsJARInputStream::ReadDirectory(char* aBuffer, PRUint32 aCount, PRUint32 *aBytes
 
             const char * entryName = mArray[mArrPos].get();
             PRUint32 entryNameLen = mArray[mArrPos].Length();
-            nsZipItem* ze = mJar->mZip.GetItem(entryName);
+            nsZipItem* ze = mJar->mZip->GetItem(entryName);
             NS_ENSURE_TRUE(ze, NS_ERROR_FILE_TARGET_DOES_NOT_EXIST);
 
             // Last Modified Time

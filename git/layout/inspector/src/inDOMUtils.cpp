@@ -232,7 +232,7 @@ inDOMUtils::GetBindingURLs(nsIDOMElement *aElement, nsIArray **_retval)
 }
 
 NS_IMETHODIMP
-inDOMUtils::SetContentState(nsIDOMElement *aElement, PRInt32 aState)
+inDOMUtils::SetContentState(nsIDOMElement *aElement, nsEventStates::InternalType aState)
 {
   NS_ENSURE_ARG_POINTER(aElement);
   
@@ -241,14 +241,14 @@ inDOMUtils::SetContentState(nsIDOMElement *aElement, PRInt32 aState)
     nsCOMPtr<nsIContent> content;
     content = do_QueryInterface(aElement);
   
-    return esm->SetContentState(content, aState);
+    return esm->SetContentState(content, nsEventStates(aState));
   }
   
   return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
-inDOMUtils::GetContentState(nsIDOMElement *aElement, PRInt32* aState)
+inDOMUtils::GetContentState(nsIDOMElement *aElement, nsEventStates::InternalType* aState)
 {
   *aState = 0;
 
@@ -258,8 +258,10 @@ inDOMUtils::GetContentState(nsIDOMElement *aElement, PRInt32* aState)
   if (esm) {
     nsCOMPtr<nsIContent> content;
     content = do_QueryInterface(aElement);
-  
-    return esm->GetContentState(content, *aState);
+    // NOTE: if this method is removed,
+    // please remove GetInternalValue from nsEventStates
+    *aState = esm->GetContentState(content).GetInternalValue();
+    return NS_OK;
   }
 
   return NS_ERROR_FAILURE;
@@ -273,10 +275,14 @@ inDOMUtils::GetRuleNodeForContent(nsIContent* aContent,
   *aRuleNode = nsnull;
   *aStyleContext = nsnull;
 
+  if (!aContent->IsElement()) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
   nsIDocument* doc = aContent->GetDocument();
   NS_ENSURE_TRUE(doc, NS_ERROR_UNEXPECTED);
 
-  nsIPresShell *presShell = doc->GetPrimaryShell();
+  nsIPresShell *presShell = doc->GetShell();
   NS_ENSURE_TRUE(presShell, NS_ERROR_UNEXPECTED);
 
   nsPresContext *presContext = presShell->GetPresContext();
@@ -286,7 +292,8 @@ inDOMUtils::GetRuleNodeForContent(nsIContent* aContent,
   NS_ENSURE_TRUE(safe, NS_ERROR_OUT_OF_MEMORY);
 
   nsRefPtr<nsStyleContext> sContext =
-    nsComputedDOMStyle::GetStyleContextForContent(aContent, nsnull, presShell);
+    nsComputedDOMStyle::GetStyleContextForElement(aContent->AsElement(),
+						  nsnull, presShell);
   *aRuleNode = sContext->GetRuleNode();
   sContext.forget(aStyleContext);
   return NS_OK;

@@ -39,6 +39,7 @@
 #include "Helpers.h"
 #include "mozIStorageError.h"
 #include "nsString.h"
+#include "nsNavHistory.h"
 
 namespace mozilla {
 namespace places {
@@ -58,14 +59,155 @@ AsyncStatementCallback::HandleError(mozIStorageError *aError)
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCAutoString warnMsg;
-  warnMsg.Append("An error occured while executing an async statement: ");
-  warnMsg.Append(result);
+  warnMsg.Append("An error occurred while executing an async statement: ");
+  warnMsg.AppendInt(result);
   warnMsg.Append(" ");
   warnMsg.Append(message);
   NS_WARNING(warnMsg.get());
 #endif
 
   return NS_OK;
+}
+
+#define URI_TO_URLCSTRING(uri, spec) \
+  nsCAutoString spec; \
+  if (NS_FAILED(aURI->GetSpec(spec))) { \
+    return NS_ERROR_UNEXPECTED; \
+  }
+
+// Bind URI to statement by index.
+nsresult // static
+URIBinder::Bind(mozIStorageStatement* aStatement,
+                PRInt32 aIndex,
+                nsIURI* aURI)
+{
+  NS_ASSERTION(aStatement, "Must have non-null statement");
+  NS_ASSERTION(aURI, "Must have non-null uri");
+
+  URI_TO_URLCSTRING(aURI, spec);
+  return URIBinder::Bind(aStatement, aIndex, spec);
+}
+
+// Statement URLCString to statement by index.
+nsresult // static
+URIBinder::Bind(mozIStorageStatement* aStatement,
+                PRInt32 index,
+                const nsACString& aURLString)
+{
+  NS_ASSERTION(aStatement, "Must have non-null statement");
+  return aStatement->BindUTF8StringByIndex(
+    index, StringHead(aURLString, URI_LENGTH_MAX)
+  );
+}
+
+// Bind URI to statement by name.
+nsresult // static
+URIBinder::Bind(mozIStorageStatement* aStatement,
+                const nsACString& aName,
+                nsIURI* aURI)
+{
+  NS_ASSERTION(aStatement, "Must have non-null statement");
+  NS_ASSERTION(aURI, "Must have non-null uri");
+
+  URI_TO_URLCSTRING(aURI, spec);
+  return URIBinder::Bind(aStatement, aName, spec);
+}
+
+// Bind URLCString to statement by name.
+nsresult // static
+URIBinder::Bind(mozIStorageStatement* aStatement,
+                const nsACString& aName,
+                const nsACString& aURLString)
+{
+  NS_ASSERTION(aStatement, "Must have non-null statement");
+  return aStatement->BindUTF8StringByName(
+    aName, StringHead(aURLString, URI_LENGTH_MAX)
+  );
+}
+
+// Bind URI to params by index.
+nsresult // static
+URIBinder::Bind(mozIStorageBindingParams* aParams,
+                PRInt32 aIndex,
+                nsIURI* aURI)
+{
+  NS_ASSERTION(aParams, "Must have non-null statement");
+  NS_ASSERTION(aURI, "Must have non-null uri");
+
+  URI_TO_URLCSTRING(aURI, spec);
+  return URIBinder::Bind(aParams, aIndex, spec);
+}
+
+// Bind URLCString to params by index.
+nsresult // static
+URIBinder::Bind(mozIStorageBindingParams* aParams,
+                PRInt32 index,
+                const nsACString& aURLString)
+{
+  NS_ASSERTION(aParams, "Must have non-null statement");
+  return aParams->BindUTF8StringByIndex(
+    index, StringHead(aURLString, URI_LENGTH_MAX)
+  );
+}
+
+// Bind URI to params by name.
+nsresult // static
+URIBinder::Bind(mozIStorageBindingParams* aParams,
+                const nsACString& aName,
+                nsIURI* aURI)
+{
+  NS_ASSERTION(aParams, "Must have non-null params array");
+  NS_ASSERTION(aURI, "Must have non-null uri");
+
+  URI_TO_URLCSTRING(aURI, spec);
+  return URIBinder::Bind(aParams, aName, spec);
+}
+
+// Bind URLCString to params by name.
+nsresult // static
+URIBinder::Bind(mozIStorageBindingParams* aParams,
+                const nsACString& aName,
+                const nsACString& aURLString)
+{
+  NS_ASSERTION(aParams, "Must have non-null params array");
+
+  nsresult rv = aParams->BindUTF8StringByName(
+    aName, StringHead(aURLString, URI_LENGTH_MAX)
+  );
+  NS_ENSURE_SUCCESS(rv, rv);
+  return NS_OK;
+}
+
+#undef URI_TO_URLCSTRING
+
+nsresult
+GetReversedHostname(nsIURI* aURI, nsString& aRevHost)
+{
+  nsCAutoString forward8;
+  nsresult rv = aURI->GetHost(forward8);
+  // Not all URIs have a host.
+  if (NS_FAILED(rv))
+    return rv;
+
+  // can't do reversing in UTF8, better use 16-bit chars
+  GetReversedHostname(NS_ConvertUTF8toUTF16(forward8), aRevHost);
+  return NS_OK;
+}
+
+void
+GetReversedHostname(const nsString& aForward, nsString& aRevHost)
+{
+  ReverseString(aForward, aRevHost);
+  aRevHost.Append(PRUnichar('.'));
+}
+
+void
+ReverseString(const nsString& aInput, nsString& aReversed)
+{
+  aReversed.Truncate(0);
+  for (PRInt32 i = aInput.Length() - 1; i >= 0; i--) {
+    aReversed.Append(aInput[i]);
+  }
 }
 
 } // namespace places

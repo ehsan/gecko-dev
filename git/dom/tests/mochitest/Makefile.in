@@ -53,10 +53,16 @@ DIRS	+= \
 	general \
 	whatwg \
 	geolocation \
+	globalstorage \
 	localstorage \
 	sessionstorage \
 	storageevent \
 	$(NULL)
+
+#needs IPC support
+ifneq (mobile,$(MOZ_BUILD_APP))
+DIRS	+= notification
+endif
 
 include $(topsrcdir)/config/rules.mk
 

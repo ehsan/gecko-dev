@@ -42,6 +42,9 @@
 #include "nsAccessible.h"
 #include "nsAccessibilityService.h"
 
+#include "nsINodeList.h"
+#include "nsIPresShell.h"
+
 ////////////////////////////////////////////////////////////////////////////////
 // WalkState
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,8 +74,10 @@ nsAccTreeWalker::
   if (aContent)
     mState = new WalkState(aContent);
 
-  mChildType = aWalkAnonContent ? nsIContent::eAllChildren :
+  mChildFilter = aWalkAnonContent ? nsIContent::eAllChildren :
                                   nsIContent::eAllButXBL;
+
+  mChildFilter |= nsIContent::eSkipPlaceholderContent;
 
   MOZ_COUNT_CTOR(nsAccTreeWalker);
 }
@@ -96,7 +101,7 @@ nsAccTreeWalker::GetNextChildInternal(PRBool aNoWalkUp)
     return nsnull;
 
   if (!mState->childList)
-    mState->childList = mState->content->GetChildren(mChildType);
+    mState->childList = mState->content->GetChildren(mChildFilter);
 
   nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(mWeakShell));
 
@@ -108,17 +113,16 @@ nsAccTreeWalker::GetNextChildInternal(PRBool aNoWalkUp)
     nsIContent* childNode = mState->childList->GetNodeAt(mState->childIdx);
     mState->childIdx++;
 
-    PRBool isHidden = PR_FALSE;
-    nsCOMPtr<nsIDOMNode> childDOMNode(do_QueryInterface(childNode));
+    bool isSubtreeHidden = false;
     nsRefPtr<nsAccessible> accessible =
-      GetAccService()->GetAccessible(childDOMNode, presShell, mWeakShell,
-                                     &isHidden);
+      GetAccService()->GetOrCreateAccessible(childNode, presShell, mWeakShell,
+                                             &isSubtreeHidden);
 
     if (accessible)
       return accessible.forget();
 
     // Walk down into subtree to find accessibles.
-    if (!isHidden) {
+    if (!isSubtreeHidden) {
       if (!PushState(childNode))
         break;
 

@@ -44,6 +44,10 @@ relativesrcdir  = content/svg/content/test
 include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/config/rules.mk
 
+# Disabled:
+#		bbox-helper.svg \
+#		test_length.xhtml \
+
 _TEST_FILES = \
 		test_animLengthObjectIdentity.xhtml \
 		test_animLengthReadonly.xhtml \
@@ -59,10 +63,14 @@ _TEST_FILES = \
 		test_getSubStringLength.xhtml \
 		getSubStringLength-helper.svg \
 		test_isSupported.xhtml \
+		test_nonAnimStrings.xhtml \
 		test_pathSeg.xhtml \
 		test_pointer-events.xhtml \
 		test_scientific.html \
 		scientific-helper.svg \
+		test_SVGPathSegList.xhtml \
+		test_SVGStyleElement.xhtml \
+		test_SVGxxxList.xhtml \
 		test_switch.xhtml \
 		switch-helper.svg \
 		test_text.html \
@@ -72,6 +80,8 @@ _TEST_FILES = \
 		test_valueLeaks.xhtml \
 		viewport-helper.svg \
 		test_viewport.html \
+		zoom-helper.svg \
+		test_zoom.xhtml \
 		$(NULL)
 
 libs:: $(_TEST_FILES)

@@ -23,6 +23,7 @@
  *   Brian Ryner <bryner@brianryner.com> (original author)
  *   Dietrich Ayala <dietrich@mozilla.com>
  *   Marco Bonardo <mak77@bonardo.net>
+ *   Drew Willcoxon <adw@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -45,9 +46,19 @@
 #include "nsIAnnotationService.h"
 #include "nsITransaction.h"
 #include "nsNavHistory.h"
-#include "nsNavHistoryResult.h" // need for Int64 hashtable
 #include "nsToolkitCompsCID.h"
 #include "nsCategoryCache.h"
+
+namespace mozilla {
+namespace places {
+
+  enum BookmarkStatementId {
+    DB_FIND_REDIRECTED_BOOKMARK = 0
+  };
+
+} // namespace places
+} // namespace mozilla
+
 
 class nsIOutputStream;
 
@@ -87,8 +98,6 @@ public:
     return gBookmarksService;
   }
 
-  nsresult AddBookmarkToHash(PRInt64 aBookmarkId, PRTime aMinTime);
-
   nsresult ResultNodeForContainer(PRInt64 aID,
                                   nsNavHistoryQueryOptions* aOptions,
                                   nsNavHistoryResultNode** aNode);
@@ -99,6 +108,39 @@ public:
   nsresult QueryFolderChildren(PRInt64 aFolderId,
                                nsNavHistoryQueryOptions* aOptions,
                                nsCOMArray<nsNavHistoryResultNode>* children);
+
+  /**
+   * Turns aRow into a node and appends it to aChildren if it is appropriate to
+   * do so.
+   *
+   * @param aRow
+   *        A Storage statement (in the case of synchronous execution) or row of
+   *        a result set (in the case of asynchronous execution).
+   * @param aOptions
+   *        The options of the parent folder node.
+   * @param aChildren
+   *        The children of the parent folder node.
+   * @param aCurrentIndex
+   *        The index of aRow within the results.  When called on the first row,
+   *        this should be set to -1.
+   */
+  nsresult ProcessFolderNodeRow(mozIStorageValueArray* aRow,
+                                nsNavHistoryQueryOptions* aOptions,
+                                nsCOMArray<nsNavHistoryResultNode>* aChildren,
+                                PRInt32& aCurrentIndex);
+
+  /**
+   * The async version of QueryFolderChildren.
+   *
+   * @param aNode
+   *        The folder node that will receive the children.
+   * @param _pendingStmt
+   *        The Storage pending statement that will be used to control async
+   *        execution.
+   */
+  nsresult QueryFolderChildrenAsync(nsNavHistoryFolderResultNode* aNode,
+                                    PRInt64 aFolderId,
+                                    mozIStoragePendingStatement** _pendingStmt);
 
   // If aFolder is -1, uses the autoincrement id for folder index. Returns
   // the index of the new folder in aIndex, whether it was passed in or
@@ -119,15 +161,24 @@ public:
    */
   PRBool IsRealBookmark(PRInt64 aPlaceId);
 
-  nsresult BeginUpdateBatch();
-  nsresult EndUpdateBatch();
-
   PRBool ItemExists(PRInt64 aItemId);
 
   /**
    * Finalize all internal statements.
    */
   nsresult FinalizeStatements();
+
+  mozIStorageStatement* GetStatementById(
+    enum mozilla::places::BookmarkStatementId aStatementId
+  )
+  {
+    using namespace mozilla::places;
+    switch(aStatementId) {
+      case DB_FIND_REDIRECTED_BOOKMARK:
+        return GetStatement(mDBFindRedirectedBookmark);
+    }
+    return nsnull;
+  }
 
 private:
   static nsNavBookmarks* gBookmarksService;
@@ -179,23 +230,6 @@ private:
 
   // personal toolbar folder
   PRInt64 mToolbarFolder;
-
-  // the level of nesting of batches, 0 when no batches are open
-  PRInt32 mBatchLevel;
-
-  // true if the outermost batch has an associated transaction that should
-  // be committed when our batch level reaches 0 again.
-  PRBool mBatchHasTransaction;
-
-  // This stores a mapping from all pages reachable by redirects from bookmarked
-  // pages to the bookmarked page. Used by GetBookmarkedURIFor.
-  nsDataHashtable<nsTrimInt64HashKey, PRInt64> mBookmarksHash;
-  nsDataHashtable<nsTrimInt64HashKey, PRInt64>* GetBookmarksHash();
-  nsresult FillBookmarksHash();
-  nsresult RecursiveAddBookmarkHash(PRInt64 aBookmarkId,
-                                    PRInt64 aCurrentSource,
-                                    PRTime aMinTime);
-  nsresult UpdateBookmarkHashOnRemove(PRInt64 aPlaceId);
 
   nsresult GetParentAndIndexOfFolder(PRInt64 aFolder,
                                      PRInt64* aParent,
@@ -281,6 +315,7 @@ private:
   nsresult GetBookmarkIdsForURITArray(nsIURI* aURI,
                                       nsTArray<PRInt64>& aResult);
 
+  PRInt64 RecursiveFindRedirectedBookmark(PRInt64 aPlaceId);
 
   /**
    *  You should always use this getter and never use directly the nsCOMPtr.
@@ -330,22 +365,22 @@ private:
   nsCOMPtr<mozIStorageStatement> mDBGetItemIndex;
   nsCOMPtr<mozIStorageStatement> mDBGetChildAt;
   nsCOMPtr<mozIStorageStatement> mDBGetItemIdForGUID;
-  nsCOMPtr<mozIStorageStatement> mDBGetRedirectDestinations;
   nsCOMPtr<mozIStorageStatement> mDBIsBookmarkedInDatabase;
+  nsCOMPtr<mozIStorageStatement> mDBIsURIBookmarkedInDatabase;
   nsCOMPtr<mozIStorageStatement> mDBIsRealBookmark;
   nsCOMPtr<mozIStorageStatement> mDBGetLastBookmarkID;
   nsCOMPtr<mozIStorageStatement> mDBSetItemDateAdded;
   nsCOMPtr<mozIStorageStatement> mDBSetItemLastModified;
   nsCOMPtr<mozIStorageStatement> mDBSetItemIndex;
   nsCOMPtr<mozIStorageStatement> mDBGetKeywordForURI;
-  nsCOMPtr<mozIStorageStatement> mDBGetKeywordForBookmark;
-  nsCOMPtr<mozIStorageStatement> mDBGetURIForKeyword;
+  nsCOMPtr<mozIStorageStatement> mDBGetBookmarksToKeywords;
   nsCOMPtr<mozIStorageStatement> mDBAdjustPosition;
   nsCOMPtr<mozIStorageStatement> mDBRemoveItem;
   nsCOMPtr<mozIStorageStatement> mDBGetLastChildId;
   nsCOMPtr<mozIStorageStatement> mDBMoveItem;
   nsCOMPtr<mozIStorageStatement> mDBSetItemTitle;
   nsCOMPtr<mozIStorageStatement> mDBChangeBookmarkURI;
+  nsCOMPtr<mozIStorageStatement> mDBFindRedirectedBookmark;
 
   class RemoveFolderTransaction : public nsITransaction {
   public:
@@ -405,23 +440,21 @@ private:
   nsCategoryCache<nsINavBookmarkObserver> mCacheObservers;
 
   bool mShuttingDown;
-};
 
-struct nsBookmarksUpdateBatcher
-{
-  nsBookmarksUpdateBatcher()
-  {
-    nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
-    if (bookmarks)
-      bookmarks->BeginUpdateBatch();
-  }
-  ~nsBookmarksUpdateBatcher()
-  {
-    nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
-    if (bookmarks)
-      bookmarks->EndUpdateBatch();
-  }
-};
+  /**
+   * Always call EnsureKeywordsHash() and check it for errors before actually
+   * using the hash.  Internal keyword methods are already doing that.
+   */
+  nsresult EnsureKeywordsHash();
+  nsDataHashtable<nsTrimInt64HashKey, nsString> mBookmarkToKeywordHash;
 
+  /**
+   * This function must be called every time a bookmark is removed.
+   *
+   * @param aURI
+   *        Uri to test.
+   */
+  nsresult UpdateKeywordsHashForRemovedBookmark(PRInt64 aItemId);
+};
 
 #endif // nsNavBookmarks_h_

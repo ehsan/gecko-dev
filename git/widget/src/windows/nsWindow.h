@@ -27,6 +27,7 @@
  *   Masayuki Nakano <masayuki@d-toybox.com>
  *   Ningjie Chen <chenn@email.uc.edu>
  *   Jim Mathies <jmathies@mozilla.com>.
+ *   Mats Palmgren <matspal@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -51,12 +52,16 @@
 
 #include "nsBaseWidget.h"
 #include "nsdefs.h"
+#include "nsIdleService.h"
 #include "nsToolkit.h"
 #include "nsString.h"
 #include "nsTArray.h"
 #include "gfxWindowsSurface.h"
 #include "nsWindowDbg.h"
 #include "cairo.h"
+#ifdef CAIRO_HAS_D2D_SURFACE
+#include "gfxD2DSurface.h"
+#endif
 
 #if !defined(WINCE)
 #include "nsWinGesture.h"
@@ -71,9 +76,12 @@
 
 #ifdef ACCESSIBILITY
 #include "OLEACC.H"
-#include "nsIAccessible.h"
+#include "nsAccessible.h"
 #endif
 
+#if !defined(WINCE)
+#include "nsUXThemeData.h"
+#endif // !defined(WINCE)
 /**
  * Forward class definitions
  */
@@ -115,12 +123,14 @@ public:
   NS_IMETHOD              Destroy();
   NS_IMETHOD              SetParent(nsIWidget *aNewParent);
   virtual nsIWidget*      GetParent(void);
+  virtual float           GetDPI();
   NS_IMETHOD              Show(PRBool bState);
   NS_IMETHOD              IsVisible(PRBool & aState);
   NS_IMETHOD              ConstrainPosition(PRBool aAllowSlop, PRInt32 *aX, PRInt32 *aY);
   NS_IMETHOD              Move(PRInt32 aX, PRInt32 aY);
   NS_IMETHOD              Resize(PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
   NS_IMETHOD              Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
+  NS_IMETHOD              ResizeClient(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
 #if !defined(WINCE)
   NS_IMETHOD              BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
 #endif
@@ -132,6 +142,7 @@ public:
   NS_IMETHOD              GetBounds(nsIntRect &aRect);
   NS_IMETHOD              GetScreenBounds(nsIntRect &aRect);
   NS_IMETHOD              GetClientBounds(nsIntRect &aRect);
+  virtual nsIntPoint      GetClientOffset();
   NS_IMETHOD              SetBackgroundColor(const nscolor &aColor);
   NS_IMETHOD              SetCursor(imgIContainer* aCursor,
                                     PRUint32 aHotspotX, PRUint32 aHotspotY);
@@ -142,14 +153,12 @@ public:
   NS_IMETHOD              Invalidate(PRBool aIsSynchronous);
   NS_IMETHOD              Invalidate(const nsIntRect & aRect, PRBool aIsSynchronous);
   NS_IMETHOD              Update();
-  virtual void            Scroll(const nsIntPoint& aDelta,
-                                 const nsTArray<nsIntRect>& aDestRects,
-                                 const nsTArray<Configuration>& aReconfigureChildren);
   virtual void*           GetNativeData(PRUint32 aDataType);
   virtual void            FreeNativeData(void * data, PRUint32 aDataType);
   NS_IMETHOD              SetTitle(const nsAString& aTitle);
   NS_IMETHOD              SetIcon(const nsAString& aIconSpec);
   virtual nsIntPoint      WidgetToScreenOffset();
+  virtual nsIntSize       ClientToWindowSize(const nsIntSize& aClientSize);
   NS_IMETHOD              DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus);
   NS_IMETHOD              EnableDragDrop(PRBool aEnable);
   NS_IMETHOD              CaptureMouse(PRBool aCapture);
@@ -157,6 +166,7 @@ public:
                                               PRBool aDoCapture, PRBool aConsumeRollupEvent);
   NS_IMETHOD              GetAttention(PRInt32 aCycleCount);
   virtual PRBool          HasPendingInputEvent();
+  virtual LayerManager*   GetLayerManager(bool* aAllowRetaining = nsnull);
   gfxASurface             *GetThebesSurface();
   NS_IMETHOD              OnDefaultButtonLoaded(const nsIntRect &aButtonRect);
   NS_IMETHOD              OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta, PRBool aIsHorizontal, PRInt32 &aOverriddenDelta);
@@ -172,19 +182,25 @@ public:
   NS_IMETHOD              ResetInputState();
   NS_IMETHOD              SetIMEOpenState(PRBool aState);
   NS_IMETHOD              GetIMEOpenState(PRBool* aState);
-  NS_IMETHOD              SetIMEEnabled(PRUint32 aState);
-  NS_IMETHOD              GetIMEEnabled(PRUint32* aState);
+  NS_IMETHOD              SetInputMode(const IMEContext& aContext);
+  NS_IMETHOD              GetInputMode(IMEContext& aContext);
   NS_IMETHOD              CancelIMEComposition();
   NS_IMETHOD              GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState);
+  NS_IMETHOD              RegisterTouchWindow();
+  NS_IMETHOD              UnregisterTouchWindow();
 #ifdef MOZ_XUL
   virtual void            SetTransparencyMode(nsTransparencyMode aMode);
   virtual nsTransparencyMode GetTransparencyMode();
+  virtual void            UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion, const nsIntRegion& aPossiblyTransparentRegion);
 #endif // MOZ_XUL
 #ifdef NS_ENABLE_TSF
   NS_IMETHOD              OnIMEFocusChange(PRBool aFocus);
   NS_IMETHOD              OnIMETextChange(PRUint32 aStart, PRUint32 aOldEnd, PRUint32 aNewEnd);
   NS_IMETHOD              OnIMESelectionChange(void);
 #endif // NS_ENABLE_TSF
+  NS_IMETHOD              GetNonClientMargins(nsIntMargin &margins);
+  NS_IMETHOD              SetNonClientMargins(nsIntMargin &margins);
+  void                    SetDrawsInTitlebar(PRBool aState);
 
   /**
    * Statics used in other classes
@@ -198,7 +214,8 @@ public:
   virtual PRBool          DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
                                              LPARAM lParam,
                                              PRBool aIsContextMenuKey = PR_FALSE,
-                                             PRInt16 aButton = nsMouseEvent::eLeftButton);
+                                             PRInt16 aButton = nsMouseEvent::eLeftButton,
+                                             PRUint16 aInputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_MOUSE);
   virtual PRBool          DispatchWindowEvent(nsGUIEvent* event);
   virtual PRBool          DispatchWindowEvent(nsGUIEvent*event, nsEventStatus &aStatus);
   virtual PRBool          DispatchKeyEvent(PRUint32 aEventType, WORD aCharCode,
@@ -206,11 +223,17 @@ public:
                                            UINT aVirtualCharCode, const MSG *aMsg,
                                            const nsModifierKeyState &aModKeyState,
                                            PRUint32 aFlags = 0);
+  void                    DispatchPendingEvents();
+  PRBool                  DispatchPluginEvent(UINT aMessage,
+                                              WPARAM aWParam,
+                                              LPARAM aLParam,
+                                              PRBool aDispatchPendingEvents);
+
   void                    SuppressBlurEvents(PRBool aSuppress); // Called from nsFilePicker
   PRBool                  BlurEventsSuppressed();
 #ifdef ACCESSIBILITY
-  virtual PRBool          DispatchAccessibleEvent(PRUint32 aEventType, nsIAccessible** aAccessible, nsIntPoint* aPoint = nsnull);
-  already_AddRefed<nsIAccessible> GetRootAccessible();
+  nsAccessible* DispatchAccessibleEvent(PRUint32 aEventType);
+  nsAccessible* GetRootAccessible();
 #endif // ACCESSIBILITY
 
   /**
@@ -223,17 +246,16 @@ public:
   WNDPROC                 GetPrevWindowProc() { return mPrevWndProc; }
   static nsWindow*        GetNSWindowPtr(HWND aWnd);
   WindowHook&             GetWindowHook() { return mWindowHook; }
+  nsWindow*               GetParentWindow(PRBool aIncludeOwner);
 
   /**
    * Misc.
    */
   virtual PRBool          AutoErase(HDC dc);
   nsIntPoint*             GetLastPoint() { return &mLastPoint; }
-  PRInt32                 GetNewCmdMenuId() { mMenuCmdId++; return mMenuCmdId; }
-  PRBool                  GetIMEEnabled() { return mIMEEnabled; }
   // needed in nsIMM32Handler.cpp
-  PRBool                  PluginHasFocus() { return mIMEEnabled == nsIWidget::IME_STATUS_PLUGIN; }
-  virtual void            SetUpForPaint(HDC aHDC);
+  PRBool                  PluginHasFocus() { return mIMEContext.mStatus == nsIWidget::IME_STATUS_PLUGIN; }
+  PRBool                  IsTopLevelWidget() { return mIsTopWidgetWindow; }
 
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
   PRBool HasTaskbarIconBeenCreated() { return mHasTaskbarIconBeenCreated; }
@@ -249,19 +271,27 @@ public:
   void SetTaskbarPreview(nsITaskbarWindowPreview *preview) { mTaskbarPreview = do_GetWeakReference(preview); }
 #endif
 
+  NS_IMETHOD              ReparentNativeWidget(nsIWidget* aNewParent);
 protected:
 
   /**
    * Callbacks
    */
   static LRESULT CALLBACK WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+  static LRESULT CALLBACK WindowProcInternal(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
   static BOOL CALLBACK    BroadcastMsgToChildren(HWND aWnd, LPARAM aMsg);
   static BOOL CALLBACK    BroadcastMsg(HWND aTopWindow, LPARAM aMsg);
   static BOOL CALLBACK    DispatchStarvedPaints(HWND aTopWindow, LPARAM aMsg);
+#if !defined(WINCE)
+  static BOOL CALLBACK    RegisterTouchForDescendants(HWND aTopWindow, LPARAM aMsg);
+  static BOOL CALLBACK    UnregisterTouchForDescendants(HWND aTopWindow, LPARAM aMsg);
+#endif
   static LRESULT CALLBACK MozSpecialMsgFilter(int code, WPARAM wParam, LPARAM lParam);
   static LRESULT CALLBACK MozSpecialWndProc(int code, WPARAM wParam, LPARAM lParam);
   static LRESULT CALLBACK MozSpecialMouseProc(int code, WPARAM wParam, LPARAM lParam);
   static VOID    CALLBACK HookTimerForPopups( HWND hwnd, UINT uMsg, UINT idEvent, DWORD dwTime );
+  static BOOL    CALLBACK ClearResourcesCallback(HWND aChild, LPARAM aParam);
 
   /**
    * Window utilities
@@ -269,18 +299,26 @@ protected:
   static BOOL             SetNSWindowPtr(HWND aWnd, nsWindow * ptr);
   LPARAM                  lParamToScreen(LPARAM lParam);
   LPARAM                  lParamToClient(LPARAM lParam);
-  nsWindow*               GetParentWindow(PRBool aIncludeOwner);
   virtual void            SubclassWindow(BOOL bState);
-  void                    GetNonClientBounds(nsIntRect &aRect);
   PRBool                  CanTakeFocus();
+  PRBool                  UpdateNonClientMargins(PRInt32 aSizeMode = -1, PRBool aReflowWindow = PR_TRUE);
+  void                    UpdateGetWindowInfoCaptionStatus(PRBool aActiveCaption);
+  void                    ResetLayout();
+  void                    InvalidateNonClientRegion();
+  HRGN                    ExcludeNonClientFromPaintRegion(HRGN aRegion);
 #if !defined(WINCE)
-  static void             InitTrackPointHack();
+  static void             InitInputHackDefaults();
 #endif
+  static PRBool           UseTrackPointHack();
+  static void             GetMainWindowClass(nsAString& aClass);
+  PRBool                  HasGlass() const {
+    return mTransparencyMode == eTransparencyGlass ||
+           mTransparencyMode == eTransparencyBorderlessGlass;
+  }
 
   /**
    * Event processing helpers
    */
-  void                    DispatchPendingEvents();
   PRBool                  DispatchPluginEvent(const MSG &aMsg);
   PRBool                  DispatchFocusToTopLevelWindow(PRUint32 aEventType);
   PRBool                  DispatchFocus(PRUint32 aEventType);
@@ -308,6 +346,7 @@ protected:
                                                  PRBool& aResult,
                                                  LRESULT* aRetValue,
                                                  PRBool& aQuitProcessing);
+  PRInt32                 ClientMarginHitTestPoint(PRInt32 mx, PRInt32 my);
 
   /**
    * Event handlers
@@ -332,16 +371,15 @@ protected:
                                     const MSG *aMsg = nsnull,
                                     PRBool *aEventDispatched = nsnull);
   virtual PRBool          OnScroll(UINT aMsg, WPARAM aWParam, LPARAM aLParam);
-  virtual HBRUSH          OnControlColor();
   PRBool                  OnGesture(WPARAM wParam, LPARAM lParam);
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
+  PRBool                  OnTouch(WPARAM wParam, LPARAM lParam);
+#endif
   PRBool                  OnHotKey(WPARAM wParam, LPARAM lParam);
   BOOL                    OnInputLangChange(HKL aHKL);
   void                    OnSettingsChange(WPARAM wParam, LPARAM lParam);
-  virtual PRBool          OnPaint(HDC aDC = nsnull);
+  PRBool                  OnPaint(HDC aDC, PRUint32 aNestingLevel);
   void                    OnWindowPosChanged(WINDOWPOS *wp, PRBool& aResult);
-#if defined(CAIRO_HAS_DDRAW_SURFACE)
-  PRBool                  OnPaintImageDDraw16();
-#endif // defined(CAIRO_HAS_DDRAW_SURFACE)
   PRBool                  OnMouseWheel(UINT msg, WPARAM wParam, LPARAM lParam, 
                                        PRBool& result, PRBool& getWheelInfo,
                                        LRESULT *aRetValue);
@@ -350,13 +388,20 @@ protected:
 #endif // !defined(WINCE)
 
   /**
-   * Methods for derived classes 
+   * Function that registers when the user has been active (used for detecting
+   * when the user is idle).
    */
-  virtual PRInt32         GetHeight(PRInt32 aProposedHeight);
-  virtual LPCWSTR         WindowClass();
-  virtual LPCWSTR         WindowPopupClass();
+  void                    UserActivity();
+
+  PRInt32                 GetHeight(PRInt32 aProposedHeight);
+  void                    GetWindowClass(nsString& aWindowClass);
+  void                    GetWindowPopupClass(nsString& aWindowClass);
   virtual DWORD           WindowStyle();
-  virtual DWORD           WindowExStyle();
+  DWORD                   WindowExStyle();
+
+  void                    RegisterWindowClass(const nsString& aClassName,
+                                              UINT aExtraStyle,
+                                              LPWSTR aIconID);
 
   /**
    * XP and Vista theming support for windows with rounded edges
@@ -382,12 +427,13 @@ private:
   void                    ResizeTranslucentWindow(PRInt32 aNewWidth, PRInt32 aNewHeight, PRBool force = PR_FALSE);
   nsresult                UpdateTranslucentWindow();
   void                    SetupTranslucentWindowMemoryBitmap(nsTransparencyMode aMode);
+  void                    UpdateGlass();
 protected:
 #endif // MOZ_XUL
 
 #ifdef MOZ_IPC
   static bool             IsAsyncResponseEvent(UINT aMsg, LRESULT& aResult);
-  static void             IPCWindowProcHandler(HWND& hWnd, UINT& msg, WPARAM& wParam, LPARAM& lParam);
+  void                    IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam);
 #endif // MOZ_IPC
 
   /**
@@ -399,46 +445,51 @@ protected:
   static void             SetupKeyModifiersSequence(nsTArray<KeyPair>* aArray, PRUint32 aModifiers);
   nsresult                SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
                                               PRBool aIntersectWithExisting);
-  nsCOMPtr<nsIRegion>     GetRegionToPaint(PRBool aForceFullRepaint, 
+  nsIntRegion             GetRegionToPaint(PRBool aForceFullRepaint, 
                                            PAINTSTRUCT ps, HDC aDC);
 #if !defined(WINCE)
   static void             ActivateOtherWindowHelper(HWND aWnd);
+  static PRUint16         GetMouseInputSource();
 #endif
 #ifdef ACCESSIBILITY
   static STDMETHODIMP_(LRESULT) LresultFromObject(REFIID riid, WPARAM wParam, LPUNKNOWN pAcc);
 #endif // ACCESSIBILITY
+  void                    ClearCachedResources();
+
+  nsPopupType PopupType() { return mPopupType; }
 
 protected:
+  nsCOMPtr<nsIWidget>   mParent;
   nsIntSize             mLastSize;
   nsIntPoint            mLastPoint;
   HWND                  mWnd;
   WNDPROC               mPrevWndProc;
   HBRUSH                mBrush;
   PRPackedBool          mIsTopWidgetWindow;
-  PRPackedBool          mHas3DBorder;
   PRPackedBool          mInDtor;
   PRPackedBool          mIsVisible;
   PRPackedBool          mIsInMouseCapture;
   PRPackedBool          mUnicodeWidget;
   PRPackedBool          mPainting;
-  char                  mLeadByte;
+  PRPackedBool          mExitToNonClientArea;
+  PRPackedBool          mTouchWindow;
+  PRPackedBool          mDisplayPanFeedback;
+  PRPackedBool          mHideChrome;
+  PRPackedBool          mIsRTL;
+  PRPackedBool          mFullscreenMode;
   PRUint32              mBlurSuppressLevel;
-  nsContentType         mContentType;
-  PRInt32               mMenuCmdId;
   DWORD_PTR             mOldStyle;
   DWORD_PTR             mOldExStyle;
   HIMC                  mOldIMC;
-  PRUint32              mIMEEnabled;
+  IMEContext            mIMEContext;
   nsNativeDragTarget*   mNativeDragTarget;
   HKL                   mLastKeyboardLayout;
   nsPopupType           mPopupType;
-  PRPackedBool          mDisplayPanFeedback;
+  nsSizeMode            mOldSizeMode;
   WindowHook            mWindowHook;
   static PRUint32       sInstanceCount;
   static TriStateBool   sCanQuit;
   static nsWindow*      sCurrentWindow;
-  static BOOL           sIsRegistered;
-  static BOOL           sIsPopupClassRegistered;
   static BOOL           sIsOleInitialized;
   static HCURSOR        sHCursor;
   static imgIContainer* sCursorImgContainer;
@@ -446,10 +497,27 @@ protected:
   static PRBool         sJustGotDeactivate;
   static PRBool         sJustGotActivate;
   static int            sTrimOnMinimize;
-  static PRBool         sTrackPointHack;
+  static PRBool         sDefaultTrackPointHack;
+  static const char*    sDefaultMainWindowClass;
 #ifdef MOZ_IPC
   static PRUint32       sOOPPPluginFocusEvent;
 #endif
+
+  // Non-client margin settings
+  // Pre-calculated outward offset applied to default frames
+  nsIntMargin           mNonClientOffset;
+  // Margins set by the owner
+  nsIntMargin           mNonClientMargins;
+
+  // Indicates custom frames are enabled
+  PRPackedBool          mCustomNonClient;
+  // Cached copy of L&F's resize border  
+  PRInt32               mHorResizeMargin;
+  PRInt32               mVertResizeMargin;
+  // Height of the caption plus border
+  PRInt32               mCaptionHeight;
+
+  nsCOMPtr<nsIdleService> mIdleService;
 
   // Hook Data Memebers for Dropdowns. sProcessHook Tells the
   // hook methods whether they should be processing the hook
@@ -479,12 +547,20 @@ protected:
   // Graphics
   HDC                   mPaintDC; // only set during painting
 
+#ifdef CAIRO_HAS_D2D_SURFACE
+  nsRefPtr<gfxD2DSurface>    mD2DWindowSurface; // Surface for this window.
+#endif
+
   // Transparency
 #ifdef MOZ_XUL
   // Use layered windows to support full 256 level alpha translucency
-  nsRefPtr<gfxWindowsSurface> mTransparentSurface;
+  nsRefPtr<gfxASurface> mTransparentSurface;
   HDC                   mMemoryDC;
   nsTransparencyMode    mTransparencyMode;
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+  nsIntRegion           mPossiblyTransparentRegion;
+  MARGINS               mGlassMargins;
+#endif // #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
 #endif // MOZ_XUL
 
   // Win7 Gesture processing and management
@@ -518,9 +594,6 @@ class ChildWindow : public nsWindow {
 
 public:
   ChildWindow() {}
-  PRBool DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam, LPARAM lParam,
-                            PRBool aIsContextMenuKey = PR_FALSE,
-                            PRInt16 aButton = nsMouseEvent::eLeftButton);
 
 protected:
   virtual DWORD WindowStyle();

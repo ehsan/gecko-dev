@@ -1,5 +1,5 @@
 /* -*- Mode: c++; c-basic-offset: 4; tab-width: 40; indent-tabs-mode: nil -*- */
-/* vim: set ts=40 sw=4 et tw=78: */
+/* vim: set ts=40 sw=4 et tw=99: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -16,7 +16,7 @@
  * The Original Code is Mozilla WebGL impl
  *
  * The Initial Developer of the Original Code is
- *   Mozilla Corp
+ *   Mozilla Foundation
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -41,6 +41,7 @@
 #define jstypedarray_h
 
 #include "jsapi.h"
+#include "jsvalue.h"
 
 typedef struct JSProperty JSProperty;
 
@@ -55,14 +56,15 @@ namespace js {
  * TypedArray with a size.
  */
 struct JS_FRIEND_API(ArrayBuffer) {
-    static JSClass jsclass;
+    static Class jsclass;
     static JSPropertySpec jsprops[];
 
-    static JSBool prop_getByteLength(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
+    static JSBool prop_getByteLength(JSContext *cx, JSObject *obj, jsid id, Value *vp);
     static void class_finalize(JSContext *cx, JSObject *obj);
 
-    static JSBool class_constructor(JSContext *cx, JSObject *obj,
-                                    uintN argc, jsval *argv, jsval *rval);
+    static JSBool class_constructor(JSContext *cx, uintN argc, Value *vp);
+
+    static bool create(JSContext *cx, uintN argc, Value *argv, Value *rval);
 
     static ArrayBuffer *fromJSObject(JSObject *obj);
 
@@ -101,37 +103,41 @@ struct JS_FRIEND_API(TypedArray) {
         TYPE_INT32,
         TYPE_UINT32,
         TYPE_FLOAT32,
+        TYPE_FLOAT64,
+
+        /*
+         * Special type that's a uint8, but assignments are clamped to 0 .. 255.
+         * Treat the raw data type as a uint8.
+         */
+        TYPE_UINT8_CLAMPED,
+
         TYPE_MAX
     };
 
     // and MUST NOT be used to construct new objects.
-    static JSClass fastClasses[TYPE_MAX];
+    static Class fastClasses[TYPE_MAX];
 
     // These are the slow/original classes, used
     // fo constructing new objects
-    static JSClass slowClasses[TYPE_MAX];
+    static Class slowClasses[TYPE_MAX];
 
     static JSPropertySpec jsprops[];
 
     static TypedArray *fromJSObject(JSObject *obj);
 
-    static JSBool prop_getBuffer(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
-    static JSBool prop_getByteOffset(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
-    static JSBool prop_getByteLength(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
-    static JSBool prop_getLength(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
+    static JSBool prop_getBuffer(JSContext *cx, JSObject *obj, jsid id, Value *vp);
+    static JSBool prop_getByteOffset(JSContext *cx, JSObject *obj, jsid id, Value *vp);
+    static JSBool prop_getByteLength(JSContext *cx, JSObject *obj, jsid id, Value *vp);
+    static JSBool prop_getLength(JSContext *cx, JSObject *obj, jsid id, Value *vp);
 
     static JSBool obj_lookupProperty(JSContext *cx, JSObject *obj, jsid id,
                                      JSObject **objp, JSProperty **propp);
 
-    static void obj_dropProperty(JSContext *cx, JSObject *obj, JSProperty *prop);
-
     static void obj_trace(JSTracer *trc, JSObject *obj);
 
-    static JSBool obj_getAttributes(JSContext *cx, JSObject *obj, jsid id, JSProperty *prop,
-                                    uintN *attrsp);
+    static JSBool obj_getAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp);
 
-    static JSBool obj_setAttributes(JSContext *cx, JSObject *obj, jsid id, JSProperty *prop,
-                                    uintN *attrsp);
+    static JSBool obj_setAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp);
 
     static int32 lengthOffset() { return offsetof(TypedArray, length); }
     static int32 dataOffset() { return offsetof(TypedArray, data); }
@@ -156,8 +162,6 @@ struct JS_FRIEND_API(TypedArray) {
 } // namespace js
 
 /* Friend API methods */
-
-JS_BEGIN_EXTERN_C
 
 JS_FRIEND_API(JSObject *)
 js_InitTypedArrayClasses(JSContext *cx, JSObject *obj);
@@ -197,6 +201,13 @@ JS_FRIEND_API(JSObject *)
 js_CreateTypedArrayWithBuffer(JSContext *cx, jsint atype, JSObject *bufArg,
                               jsint byteoffset, jsint length);
 
-JS_END_EXTERN_C
+/*
+ * Reparent a typed array to a new scope. This should only be used to reparent
+ * a typed array that does not share its underlying ArrayBuffer with another
+ * typed array to avoid having a parent mismatch with the other typed array and
+ * its ArrayBuffer.
+ */
+JS_FRIEND_API(JSBool)
+js_ReparentTypedArrayToScope(JSContext *cx, JSObject *obj, JSObject *scope);
 
 #endif /* jstypedarray_h */

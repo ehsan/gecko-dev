@@ -42,6 +42,9 @@
 /* Class that wraps JS objects to appear as XPCOM objects. */
 
 #include "xpcprivate.h"
+#include "nsAtomicRefcnt.h"
+#include "nsThreadUtils.h"
+#include "nsTextFormatter.h"
 
 // NOTE: much of the fancy footwork is done in xpcstubs.cpp
 
@@ -109,7 +112,7 @@ NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsXPCWrappedJS)
             }
 
             if(tmp->mRefCnt > 1)
-                tmp->RemoveFromRootSet(rt->GetJSRuntime());
+                tmp->RemoveFromRootSet(rt->GetMapLock());
         }
 
         tmp->mJSObj = nsnull;
@@ -158,7 +161,6 @@ nsXPCWrappedJS::QueryInterface(REFNSIID aIID, void** aInstancePtr)
 
     if(aIID.Equals(NS_GET_IID(nsCycleCollectionISupports)))
     {
-        NS_ADDREF(this);
         *aInstancePtr =
             NS_CYCLE_COLLECTION_CLASSNAME(nsXPCWrappedJS)::Upcast(this);
         return NS_OK;
@@ -208,7 +210,7 @@ nsXPCWrappedJS::QueryInterface(REFNSIID aIID, void** aInstancePtr)
 nsrefcnt
 nsXPCWrappedJS::AddRef(void)
 {
-    nsrefcnt cnt = (nsrefcnt) PR_AtomicIncrement((PRInt32*)&mRefCnt);
+    nsrefcnt cnt = NS_AtomicIncrementRefcnt(mRefCnt);
     NS_LOG_ADDREF(this, cnt, "nsXPCWrappedJS", sizeof(*this));
 
     if(2 == cnt && IsValid())
@@ -232,18 +234,18 @@ nsXPCWrappedJS::Release(void)
 
 do_decrement:
 
-    nsrefcnt cnt = (nsrefcnt) PR_AtomicDecrement((PRInt32*)&mRefCnt);
+    nsrefcnt cnt = NS_AtomicDecrementRefcnt(mRefCnt);
     NS_LOG_RELEASE(this, cnt, "nsXPCWrappedJS");
 
     if(0 == cnt)
     {
-        NS_DELETEXPCOM(this);   // also unlinks us from chain
+        delete this;   // also unlinks us from chain
         return 0;
     }
     if(1 == cnt)
     {
         if(IsValid())
-            RemoveFromRootSet(rt->GetJSRuntime());
+            RemoveFromRootSet(rt->GetMapLock());
 
         // If we are not the root wrapper or if we are not being used from a
         // weak reference, then this extra ref is not needed and we can let
@@ -289,6 +291,7 @@ nsXPCWrappedJS::GetJSObject(JSObject** aJSObj)
 {
     NS_PRECONDITION(aJSObj, "bad param");
     NS_PRECONDITION(mJSObj, "bad wrapper");
+
     if(!(*aJSObj = mJSObj))
         return NS_ERROR_OUT_OF_MEMORY;
     return NS_OK;
@@ -432,7 +435,8 @@ nsXPCWrappedJS::nsXPCWrappedJS(XPCCallContext& ccx,
       mClass(aClass),
       mRoot(root ? root : this),
       mNext(nsnull),
-      mOuter(root ? nsnull : aOuter)
+      mOuter(root ? nsnull : aOuter),
+      mMainThread(NS_IsMainThread())
 {
 #ifdef DEBUG_stats_jband
     static int count = 0;
@@ -567,6 +571,20 @@ nsXPCWrappedJS::CallMethod(PRUint16 methodIndex,
 {
     if(!IsValid())
         return NS_ERROR_UNEXPECTED;
+    if (NS_IsMainThread() != mMainThread) {
+        NS_NAMED_LITERAL_STRING(kFmt, "Attempt to use JS function on a different thread calling %s.%s. JS objects may not be shared across threads.");
+        PRUnichar* msg =
+            nsTextFormatter::smprintf(kFmt.get(),
+                                      GetClass()->GetInterfaceName(),
+                                      info->name);
+        nsCOMPtr<nsIConsoleService> cs =
+            do_GetService(NS_CONSOLESERVICE_CONTRACTID);
+        if (cs)
+            cs->LogStringMessage(msg);
+        NS_Free(msg);
+        
+        return NS_ERROR_NOT_SAME_THREAD;
+    }
     return GetClass()->CallMethod(this, methodIndex, info, params);
 }
 
@@ -620,9 +638,12 @@ nsXPCWrappedJS::GetProperty(const nsAString & name, nsIVariant **_retval)
     if(!ccx.IsValid())
         return NS_ERROR_UNEXPECTED;
 
-    jsval jsstr = XPCStringConvert::ReadableToJSVal(ccx, name);
-    if(!jsstr)
+    nsStringBuffer* buf;
+    jsval jsstr = XPCStringConvert::ReadableToJSVal(ccx, name, &buf);
+    if(JSVAL_IS_NULL(jsstr))
         return NS_ERROR_OUT_OF_MEMORY;
+    if(buf)
+        buf->AddRef();
 
     return nsXPCWrappedJSClass::
         GetNamedPropertyAsVariant(ccx, mJSObj, jsstr, _retval);

@@ -56,8 +56,15 @@ static PRUint64 sResolutionSigDigs;
 static const PRUint16 kNsPerUs   =       1000;
 static const PRUint64 kNsPerMs   =    1000000;
 static const PRUint64 kNsPerSec  = 1000000000; 
+static const double kNsPerMsd    =    1000000.0;
 static const double kNsPerSecd   = 1000000000.0;
 
+static PRUint64
+TimespecToNs(const struct timespec& ts)
+{
+  PRUint64 baseNs = PRUint64(ts.tv_sec) * kNsPerSec;
+  return baseNs + PRUint64(ts.tv_nsec);
+}
 
 static PRUint64
 ClockTimeNs()
@@ -73,16 +80,14 @@ ClockTimeNs()
   // bits, tv_sec won't overflow while the browser is open.  Revisit
   // this argument if we're still building with 32-bit time_t around
   // the year 2037.
-  PRUint64 baseNs = PRUint64(ts.tv_sec) * kNsPerSec;
-
-  return baseNs + PRUint64(ts.tv_nsec);
+  return TimespecToNs(ts);
 }
 
 static PRUint64
 ClockResolutionNs()
 {
-  // NB: why not use clock_getres()?  Two reasons: (i) it might lie,
-  // and (ii) it might return an "ideal" resolution that while
+  // NB: why not rely on clock_getres()?  Two reasons: (i) it might
+  // lie, and (ii) it might return an "ideal" resolution that while
   // theoretically true, could never be measured in practice.  Since
   // clock_gettime() likely involves a system call on your platform,
   // the "actual" timing resolution shouldn't be lower than syscall
@@ -105,11 +110,19 @@ ClockResolutionNs()
   }
 
   if (0 == minres) {
-    NS_WARNING("the clock resolution is *not* 1ns, something's wrong");
-    minres = 1;                 // to avoid /0
+    // measurable resolution is either incredibly low, ~1ns, or very
+    // high.  fall back on clock_getres()
+    struct timespec ts;
+    if (0 == clock_getres(CLOCK_MONOTONIC, &ts)) {
+      minres = TimespecToNs(ts);
+    }
   }
-  if (minres / kNsPerMs)
-    NS_WARNING("the clock resolution is *not* >=1ms, something's wrong");
+
+  if (0 == minres) {
+    // clock_getres probably failed.  fall back on NSPR's resolution
+    // assumption
+    minres = 1 * kNsPerMs;
+  }
 
   return minres;
 }
@@ -134,27 +147,36 @@ TimeDuration::ToSecondsSigDigits() const
 }
 
 TimeDuration
-TimeDuration::FromSeconds(PRInt32 aSeconds)
+TimeDuration::FromMilliseconds(double aMilliseconds)
 {
-  return TimeDuration::FromTicks((PRInt64(aSeconds) * PRInt64(kNsPerSec)));
-}
-
-TimeDuration
-TimeDuration::FromMilliseconds(PRInt32 aMilliseconds)
-{
-  return TimeDuration::FromTicks(PRInt64(aMilliseconds) * PRInt64(kNsPerMs));
+  return TimeDuration::FromTicks(aMilliseconds * kNsPerMsd);
 }
 
 TimeDuration
 TimeDuration::Resolution()
 {
-  return TimeDuration::FromTicks(sResolution);
+  return TimeDuration::FromTicks(PRInt64(sResolution));
 }
 
+struct TimeStampInitialization
+{
+  TimeStampInitialization() {
+    TimeStamp::Startup();
+  }
+  ~TimeStampInitialization() {
+    TimeStamp::Shutdown();
+  }
+};
+
+static TimeStampInitialization initOnce;
+static PRBool gInitialized = PR_FALSE;
 
 nsresult
 TimeStamp::Startup()
 {
+  if (gInitialized)
+    return NS_OK;
+
   struct timespec dummy;
   if (0 != clock_gettime(CLOCK_MONOTONIC, &dummy))
       NS_RUNTIMEABORT("CLOCK_MONOTONIC is absent!");
@@ -168,6 +190,7 @@ TimeStamp::Startup()
          || 10*sResolutionSigDigs > sResolution);
        sResolutionSigDigs *= 10);
 
+  gInitialized = PR_TRUE;
   return NS_OK;
 }
 

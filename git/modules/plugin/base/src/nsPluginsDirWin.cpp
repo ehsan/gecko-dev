@@ -54,6 +54,8 @@
 
 #include "nsString.h"
 #include "nsILocalFile.h"
+#include "nsUnicharUtils.h"
+#include "nsSetDllDirectory.h"
 
 /* Local helper functions */
 
@@ -158,6 +160,51 @@ static void FreeStringArray(PRUint32 variants, char ** array)
   PR_Free(array);
 }
 
+PRBool CanLoadPlugin(const char* binaryPath)
+{
+#if defined(_M_IX86) || defined(_M_X64) || defined(_M_IA64)
+  PRBool canLoad = PR_FALSE;
+
+  int len = MultiByteToWideChar(CP_UTF8, 0, binaryPath, -1, NULL, 0);
+  WCHAR *wBinaryPath = new WCHAR[len];
+  MultiByteToWideChar(CP_UTF8, 0, binaryPath, -1, wBinaryPath, len);
+  HANDLE file = CreateFileW(wBinaryPath, GENERIC_READ,
+                            FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+                            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  delete[] wBinaryPath;
+  if (file != INVALID_HANDLE_VALUE) {
+    HANDLE map = CreateFileMappingW(file, NULL, PAGE_READONLY, 0,
+                                    GetFileSize(file, NULL), NULL);
+    if (map != NULL) {
+      LPVOID mapView = MapViewOfFile(map, FILE_MAP_READ, 0, 0, 0);
+      if (mapView != NULL) {
+        if (((IMAGE_DOS_HEADER*)mapView)->e_magic == IMAGE_DOS_SIGNATURE) {
+          long peImageHeaderStart = (((IMAGE_DOS_HEADER*)mapView)->e_lfanew);
+          if (peImageHeaderStart != 0L) {
+            DWORD arch = (((IMAGE_NT_HEADERS*)((LPBYTE)mapView + peImageHeaderStart))->FileHeader.Machine);
+#ifdef _M_IX86
+            canLoad = (arch == IMAGE_FILE_MACHINE_I386);
+#elif defined(_M_X64)
+            canLoad = (arch == IMAGE_FILE_MACHINE_AMD64);
+#elif defined(_M_IA64)
+            canLoad = (arch == IMAGE_FILE_MACHINE_IA64);
+#endif
+          }
+        }
+        UnmapViewOfFile(mapView);
+      }
+      CloseHandle(map);
+    }
+    CloseHandle(file);
+  }
+
+  return canLoad;
+#else
+  // Assume correct binaries for unhandled cases.
+  return PR_TRUE;
+#endif
+}
+
 /* nsPluginsDir implementation */
 
 // The file name must be in the form "np*.dll"
@@ -188,7 +235,9 @@ PRBool nsPluginsDir::IsPluginFile(nsIFile* file)
       if (!PL_strncasecmp(filename, "npoji", 5) ||
           !PL_strncasecmp(filename, "npjava", 6))
         return PR_FALSE;
-      return PR_TRUE;
+
+      // Check this last since it involves opening the file.
+      return CanLoadPlugin(cPath);
     }
   }
 
@@ -212,12 +261,14 @@ nsPluginFile::~nsPluginFile()
  * Loads the plugin into memory using NSPR's shared-library loading
  * mechanism. Handles platform differences in loading shared libraries.
  */
-nsresult nsPluginFile::LoadPlugin(PRLibrary* &outLibrary)
+nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
 {
   nsCOMPtr<nsILocalFile> plugin = do_QueryInterface(mPlugin);
 
   if (!plugin)
     return NS_ERROR_NULL_POINTER;
+
+  PRBool protectCurrentDirectory = PR_TRUE;
 
 #ifndef WINCE
   nsAutoString pluginFolderPath;
@@ -226,6 +277,10 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary* &outLibrary)
   PRInt32 idx = pluginFolderPath.RFindChar('\\');
   if (kNotFound == idx)
     return NS_ERROR_FILE_INVALID_PATH;
+
+  if (Substring(pluginFolderPath, idx).LowerCaseEqualsLiteral("\\np32dsw.dll")) {
+    protectCurrentDirectory = PR_FALSE;
+  }
 
   pluginFolderPath.SetLength(idx);
 
@@ -240,9 +295,17 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary* &outLibrary)
   }
 #endif
 
-  nsresult rv = plugin->Load(&outLibrary);
+  if (protectCurrentDirectory) {
+    mozilla::NS_SetDllDirectory(NULL);
+  }
+
+  nsresult rv = plugin->Load(outLibrary);
   if (NS_FAILED(rv))
-      outLibrary = NULL;
+      *outLibrary = NULL;
+
+  if (protectCurrentDirectory) {
+    mozilla::NS_SetDllDirectory(L"");
+  }
 
 #ifndef WINCE    
   if (restoreOrigDir) {
@@ -257,8 +320,10 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary* &outLibrary)
 /**
  * Obtains all of the information currently available for this plugin.
  */
-nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info)
+nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
 {
+  *outLibrary = nsnull;
+
   nsresult rv = NS_OK;
   DWORD zerome, versionsize;
   WCHAR* verbuf = nsnull;

@@ -348,7 +348,7 @@ HRESULT nsDataObj::CreateStream(IStream **outStream)
   return S_OK;
 }
 
-EXTERN_C GUID CDECL CLSID_nsDataObj =
+static GUID CLSID_nsDataObj =
 	{ 0x1bba7640, 0xdf52, 0x11cf, { 0x82, 0x7b, 0, 0xa0, 0x24, 0x3a, 0xe5, 0x05 } };
 
 /* 
@@ -756,15 +756,11 @@ STDMETHODIMP nsDataObj::EndOperation(HRESULT hResult,
                                      DWORD dwEffects)
 {
   mIsInOperation = FALSE;
-  Release();
   return S_OK;
 }
 
 STDMETHODIMP nsDataObj::GetAsyncMode(BOOL *pfIsOpAsync)
 {
-  if (!pfIsOpAsync)
-    return E_FAIL;
-
   *pfIsOpAsync = mIsAsyncMode;
 
   return S_OK;
@@ -772,9 +768,6 @@ STDMETHODIMP nsDataObj::GetAsyncMode(BOOL *pfIsOpAsync)
 
 STDMETHODIMP nsDataObj::InOperation(BOOL *pfInAsyncOp)
 {
-  if (!pfInAsyncOp)
-    return E_FAIL;
-
   *pfInAsyncOp = mIsInOperation;
 
   return S_OK;
@@ -830,8 +823,8 @@ nsDataObj :: GetDib ( const nsACString& inFlavor, FORMATETC &, STGMEDIUM & aSTG 
   }
   
   if ( image ) {
-    // use a the helper class to build up a bitmap. We now own the bits,
-    // and pass them back to the OS in |aSTG|.
+    // use the |nsImageToClipboard| helper class to build up a bitmap. We now own
+    // the bits, and pass them back to the OS in |aSTG|.
     nsImageToClipboard converter ( image );
     HANDLE bits = nsnull;
     nsresult rv = converter.GetPicture ( &bits );
@@ -999,13 +992,14 @@ CreateFilenameFromTextW(nsString & aText, const wchar_t * aExtension,
 static PRBool
 GetLocalizedString(const PRUnichar * aName, nsXPIDLString & aString)
 {
-  nsresult rv;
-  nsCOMPtr<nsIStringBundleService> stringService = do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
-  if (NS_FAILED(rv)) 
+  nsCOMPtr<nsIStringBundleService> stringService =
+    mozilla::services::GetStringBundleService();
+  if (!stringService)
     return PR_FALSE;
 
   nsCOMPtr<nsIStringBundle> stringBundle;
-  rv = stringService->CreateBundle(PAGEINFO_PROPERTIES, getter_AddRefs(stringBundle));
+  nsresult rv = stringService->CreateBundle(PAGEINFO_PROPERTIES,
+                                            getter_AddRefs(stringBundle));
   if (NS_FAILED(rv))
     return PR_FALSE;
 
@@ -1309,7 +1303,6 @@ HRESULT nsDataObj::GetFile(FORMATETC& aFE, STGMEDIUM& aSTG)
   ULONG count;
   FORMATETC fe;
   m_enumFE->Reset();
-  PRBool found = PR_FALSE;
   while (NOERROR == m_enumFE->Next(1, &fe, &count)
     && dfInx < mDataFlavors.Length()) {
       if (mDataFlavors[dfInx].EqualsLiteral(kNativeImageMime))
@@ -1529,8 +1522,6 @@ HRESULT nsDataObj::DropTempFile(FORMATETC& aFE, STGMEDIUM& aSTG)
 {
   nsresult rv;
   if (!mCachedTempFile) {
-    PRUint32 len = 0;
-
     // Tempfile will need a temporary location.      
     nsCOMPtr<nsIFile> dropFile;
     rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(dropFile));

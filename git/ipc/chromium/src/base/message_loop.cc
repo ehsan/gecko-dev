@@ -27,6 +27,9 @@
 #include "base/message_pump_qt.h"
 #endif
 #endif
+#ifdef MOZ_WIDGET_ANDROID
+#include "base/message_pump_android.h"
+#endif
 
 #ifdef CHROMIUM_MOZILLA_BUILD
 #include "MessagePump.h"
@@ -312,7 +315,11 @@ void MessageLoop::SetNestableTasksAllowed(bool allowed) {
     if (!nestable_tasks_allowed_)
       return;
     // Start the native pump if we are not already pumping.
+#ifndef CHROMIUM_MOZILLA_BUILD
     pump_->ScheduleWork();
+#else
+    pump_->ScheduleWorkForNestedLoop();
+#endif
   }
 }
 

@@ -47,13 +47,12 @@
 #include "nsCSSAnonBoxes.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsCSSKeywords.h"
-#include "nsCSSLoader.h"
+#include "nsCSSParser.h"
 #include "nsCSSProps.h"
 #include "nsCSSPseudoClasses.h"
 #include "nsCSSPseudoElements.h"
 #include "nsCSSRendering.h"
 #include "nsCSSScanner.h"
-#include "nsICSSStyleSheet.h"
 #include "nsDOMAttribute.h"
 #include "nsDOMClassInfo.h"
 #include "nsEventListenerManager.h"
@@ -81,6 +80,7 @@
 #include "nsTextFragment.h"
 #include "nsCSSRuleProcessor.h"
 #include "nsXMLHttpRequest.h"
+#include "nsWebSocket.h"
 #include "nsDOMThreadService.h"
 #include "nsHTMLDNSPrefetch.h"
 #include "nsHtml5Module.h"
@@ -88,7 +88,10 @@
 #include "nsFocusManager.h"
 #include "nsFrameList.h"
 #include "nsListControlFrame.h"
-#include "nsFileControlFrame.h"
+#include "nsHTMLInputElement.h"
+#ifdef MOZ_SVG
+#include "nsSVGUtils.h"
+#endif
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -97,9 +100,7 @@
 #include "nsXULPrototypeCache.h"
 #include "nsXULTooltipListener.h"
 
-#ifndef MOZ_NO_INSPECTOR_APIS
 #include "inDOMView.h"
-#endif
 #endif
 
 #ifdef MOZ_MATHML
@@ -126,14 +127,15 @@ PRBool NS_SVGEnabled();
 #endif
 
 #include "nsError.h"
-#include "nsTraceRefcnt.h"
 
 #include "nsCycleCollector.h"
 #include "nsJSEnvironment.h"
+#include "nsContentSink.h"
+#include "nsFrameMessageManager.h"
 
 extern void NS_ShutdownChainItemPool();
 
-static nsrefcnt sLayoutStaticRefcnt;
+nsrefcnt nsLayoutStatics::sLayoutStaticRefcnt = 0;
 
 nsresult
 nsLayoutStatics::Initialize()
@@ -212,19 +214,12 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-#ifndef MOZ_NO_INSPECTOR_APIS
   inDOMView::InitAtoms();
-#endif
 
 #endif
 
 #ifdef MOZ_MATHML
   nsMathMLOperators::AddRefTable();
-#endif
-
-#ifdef MOZ_SVG
-  if (NS_SVGEnabled())
-    nsContentDLF::RegisterSVG();
 #endif
 
 #ifndef MOZILLA_PLAINTEXT_EDITOR_ONLY
@@ -255,7 +250,11 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  nsCSSRuleProcessor::Startup();
+  rv = nsCSSRuleProcessor::Startup();
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Could not initialize nsCSSRuleProcessor");
+    return rv;
+  }
 
 #ifdef MOZ_XUL
   rv = nsXULPopupManager::Init();
@@ -271,16 +270,14 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-#ifdef MOZ_MEDIA
-  nsHTMLMediaElement::InitMediaTypes();
-#endif
-
 #ifdef MOZ_SYDNEYAUDIO
   nsAudioStream::InitLibrary();
 #endif
 
+  nsContentSink::InitializeStatics();
   nsHtml5Module::InitializeStatics();
-  
+  nsIPresShell::InitializeStatics();
+
   nsCrossSiteListenerProxy::Startup();
 
   rv = nsFrameList::Init();
@@ -297,6 +294,7 @@ nsLayoutStatics::Initialize()
 void
 nsLayoutStatics::Shutdown()
 {
+  nsFrameScriptExecutor::Shutdown();
   nsFocusManager::Shutdown();
 #ifdef MOZ_XUL
   nsXULPopupManager::Shutdown();
@@ -307,8 +305,8 @@ nsLayoutStatics::Shutdown()
   nsDOMEventRTTearoff::Shutdown();
   nsEventListenerManager::Shutdown();
   nsComputedDOMStyle::Shutdown();
-  CSSLoaderImpl::Shutdown();
-  nsCSSRuleProcessor::FreeSystemMetrics();
+  nsCSSParser::Shutdown();
+  nsCSSRuleProcessor::Shutdown();
   nsTextFrameTextRunCache::Shutdown();
   nsHTMLDNSPrefetch::Shutdown();
   nsCSSRendering::Shutdown();
@@ -316,6 +314,7 @@ nsLayoutStatics::Shutdown()
   nsFrame::DisplayReflowShutdown();
 #endif
   nsCellMap::Shutdown();
+  nsFrame::ShutdownLayerActivityTimer();
 
   // Release all of our atoms
   nsColorNames::ReleaseTable();
@@ -329,7 +328,6 @@ nsLayoutStatics::Shutdown()
   nsXULContentUtils::Finish();
   nsXULElement::ReleaseGlobals();
   nsXULPrototypeCache::ReleaseGlobals();
-  nsXULPrototypeElement::ReleaseGlobals();
   nsSprocketLayout::Shutdown();
 #endif
 
@@ -356,7 +354,6 @@ nsLayoutStatics::Shutdown()
   nsJSRuntime::Shutdown();
   nsGlobalWindow::ShutDown();
   nsDOMClassInfo::ShutDown();
-  nsTextControlFrame::ShutDown();
   nsListControlFrame::Shutdown();
   nsXBLWindowKeyHandler::ShutDown();
   nsAutoCopyListener::Shutdown();
@@ -368,15 +365,16 @@ nsLayoutStatics::Shutdown()
 
   nsDOMThreadService::Shutdown();
 
-#ifdef MOZ_MEDIA
-  nsHTMLMediaElement::ShutdownMediaTypes();
-#endif
 #ifdef MOZ_SYDNEYAUDIO
   nsAudioStream::ShutdownLibrary();
 #endif
 
   nsXMLHttpRequest::ShutdownACCache();
   
+  nsWebSocket::ReleaseGlobals();
+  
+  nsIPresShell::ReleaseStatics();
+
   nsHtml5Module::ReleaseStatics();
 
   nsRegion::ShutdownStatic();
@@ -385,27 +383,5 @@ nsLayoutStatics::Shutdown()
 
   nsFrameList::Shutdown();
 
-  nsFileControlFrame::DestroyUploadLastDir();
-}
-
-void
-nsLayoutStatics::AddRef()
-{
-  NS_ASSERTION(sLayoutStaticRefcnt,
-               "nsLayoutStatics already dropped to zero!");
-
-  ++sLayoutStaticRefcnt;
-  NS_LOG_ADDREF(&sLayoutStaticRefcnt, sLayoutStaticRefcnt,
-                "nsLayoutStatics", 1);
-}
-
-void
-nsLayoutStatics::Release()
-{
-  --sLayoutStaticRefcnt;
-  NS_LOG_RELEASE(&sLayoutStaticRefcnt, sLayoutStaticRefcnt,
-                 "nsLayoutStatics");
-
-  if (!sLayoutStaticRefcnt)
-    Shutdown();
+  nsHTMLInputElement::DestroyUploadLastDir();
 }

@@ -90,6 +90,7 @@
 #include "nsILocale.h"
 #include "nsILocaleService.h"
 #include "nsIConsoleService.h"
+#include "nsEscape.h"
 
 static NS_DEFINE_CID(kRDFServiceCID,        NS_RDFSERVICE_CID);
 
@@ -335,6 +336,20 @@ nsXULContentUtils::MakeElementURI(nsIDocument* aDocument,
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIURL> mutableURL(do_QueryInterface(docURIClone));
+    if (!mutableURL) {
+        nsCString uri;
+        rv = docURL->GetSpec(aURI);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        nsCAutoString ref;
+        NS_EscapeURL(NS_ConvertUTF16toUTF8(aElementID), esc_FilePath | esc_AlwaysCopy, ref);
+
+        aURI.Append('#');
+        aURI.Append(ref);
+
+        return NS_OK;
+    }
+
     NS_ENSURE_TRUE(mutableURL, NS_ERROR_NOT_AVAILABLE);
 
     rv = mutableURL->SetRef(NS_ConvertUTF16toUTF8(aElementID));
@@ -381,6 +396,19 @@ nsXULContentUtils::MakeElementID(nsIDocument* aDocument,
         url->GetRef(ref);
         CopyUTF8toUTF16(ref, aElementID);
     } else {
+        const char* start = aURI.BeginReading();
+        const char* end = aURI.EndReading();
+        const char* chr = end;
+
+        while (--chr >= start) {
+            if (*chr == '#') {
+                nsDependentCSubstring ref = Substring(chr + 1, end);
+                nsCAutoString unescaped;
+                CopyUTF8toUTF16(NS_UnescapeURL(ref, esc_FilePath, unescaped), aElementID);
+                return NS_OK;
+            }
+        }
+
         aElementID.Truncate();
     }
 
@@ -395,13 +423,8 @@ nsXULContentUtils::GetResource(PRInt32 aNameSpaceID, nsIAtom* aAttribute, nsIRDF
     if (! aAttribute)
         return NS_ERROR_NULL_POINTER;
 
-    nsresult rv;
-
-    nsAutoString attr;
-    rv = aAttribute->ToString(attr);
-    if (NS_FAILED(rv)) return rv;
-
-    return GetResource(aNameSpaceID, attr, aResult);
+    return GetResource(aNameSpaceID, nsDependentAtomString(aAttribute),
+                       aResult);
 }
 
 

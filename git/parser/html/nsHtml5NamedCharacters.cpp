@@ -1,12 +1,42 @@
-#define nsHtml5NamedCharacters_cpp__
+/*
+ * Copyright (c) 2008-2010 Mozilla Foundation
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a 
+ * copy of this software and associated documentation files (the "Software"), 
+ * to deal in the Software without restriction, including without limitation 
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+ * and/or sell copies of the Software, and to permit persons to whom the 
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in 
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL 
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
+ * DEALINGS IN THE SOFTWARE.
+ */
+
+#define nsHtml5NamedCharacters_cpp_
 #include "prtypes.h"
 #include "jArray.h"
 #include "nscore.h"
+#include "nsDebug.h"
+#include "prlog.h"
+#include "nsMemory.h"
 
 #include "nsHtml5NamedCharacters.h"
 
-jArray<jArray<PRUnichar,PRInt32>,PRInt32> nsHtml5NamedCharacters::NAMES;
-jArray<PRUnichar,PRInt32>* nsHtml5NamedCharacters::VALUES;
+const PRUnichar nsHtml5NamedCharacters::VALUES[][2] = {
+#define NAMED_CHARACTER_REFERENCE(N, CHARS, LEN, FLAG, VALUE) \
+{ VALUE },
+#include "nsHtml5NamedCharactersInclude.h"
+#undef NAMED_CHARACTER_REFERENCE
+{0, 0} };
+
 PRUnichar** nsHtml5NamedCharacters::WINDOWS_1252;
 static PRUnichar const WINDOWS_1252_DATA[] = {
   0x20AC,
@@ -43,52 +73,71 @@ static PRUnichar const WINDOWS_1252_DATA[] = {
   0x0178
 };
 
-#define NAMED_CHARACTER_REFERENCE(N, CHARS, LEN, VALUE, SIZE) \
-static PRUnichar const NAME_##N[] = { CHARS };
+/**
+ * To avoid having lots of pointers in the |charData| array, below,
+ * which would cause us to have to do lots of relocations at library
+ * load time, store all the string data for the names in one big array.
+ * Then use tricks with enums to help us build an array that contains
+ * the positions of each within the big arrays.
+ */
+
+static const PRInt8 ALL_NAMES[] = {
+#define NAMED_CHARACTER_REFERENCE(N, CHARS, LEN, FLAG, VALUE) \
+CHARS ,
 #include "nsHtml5NamedCharactersInclude.h"
 #undef NAMED_CHARACTER_REFERENCE
+};
 
-#define NAMED_CHARACTER_REFERENCE(N, CHARS, LEN, VALUE, SIZE) \
-static PRUnichar const VALUE_##N[] = { VALUE };
+enum NamePositions {
+  DUMMY_INITIAL_NAME_POSITION = 0,
+/* enums don't take up space, so generate _START and _END */
+#define NAMED_CHARACTER_REFERENCE(N, CHARS, LEN, FLAG, VALUE) \
+NAME_##N##_DUMMY, /* automatically one higher than previous */ \
+NAME_##N##_START = NAME_##N##_DUMMY - 1, \
+NAME_##N##_END = NAME_##N##_START + LEN + FLAG,
 #include "nsHtml5NamedCharactersInclude.h"
 #undef NAMED_CHARACTER_REFERENCE
+  DUMMY_FINAL_NAME_VALUE
+};
 
-// XXX bug 501082: for some reason, msvc takes forever to optimize this function
-#ifdef _MSC_VER
-#pragma optimize("", off)
+/* check that the start positions will fit in 16 bits */
+PR_STATIC_ASSERT(NS_ARRAY_LENGTH(ALL_NAMES) < 0x10000);
+
+const nsHtml5CharacterName nsHtml5NamedCharacters::NAMES[] = {
+#ifdef DEBUG
+  #define NAMED_CHARACTER_REFERENCE(N, CHARS, LEN, FLAG, VALUE) \
+{ NAME_##N##_START, LEN, N },
+#else
+  #define NAMED_CHARACTER_REFERENCE(N, CHARS, LEN, FLAG, VALUE) \
+{ NAME_##N##_START, LEN, },
 #endif
+#include "nsHtml5NamedCharactersInclude.h"
+#undef NAMED_CHARACTER_REFERENCE
+};
+
+PRInt32
+nsHtml5CharacterName::length() const
+{
+  return nameLen;
+}
+
+PRUnichar
+nsHtml5CharacterName::charAt(PRInt32 index) const
+{
+  return static_cast<PRUnichar> (ALL_NAMES[nameStart + index]);
+}
 
 void
 nsHtml5NamedCharacters::initializeStatics()
 {
-  NAMES = jArray<jArray<PRUnichar,PRInt32>,PRInt32>(2138);
-
-#define NAMED_CHARACTER_REFERENCE(N, CHARS, LEN, VALUE, SIZE) \
-  NAMES[N] = jArray<PRUnichar,PRInt32>((PRUnichar*)NAME_##N, LEN);
-#include "nsHtml5NamedCharactersInclude.h"
-#undef NAMED_CHARACTER_REFERENCE
-
-  VALUES = new jArray<PRUnichar,PRInt32>[2138];
-
-#define NAMED_CHARACTER_REFERENCE(N, CHARS, LEN, VALUE, SIZE) \
-  VALUES[N] = jArray<PRUnichar,PRInt32>((PRUnichar*)VALUE_##N, SIZE);
-#include "nsHtml5NamedCharactersInclude.h"
-#undef NAMED_CHARACTER_REFERENCE
-
   WINDOWS_1252 = new PRUnichar*[32];
   for (PRInt32 i = 0; i < 32; ++i) {
     WINDOWS_1252[i] = (PRUnichar*)&(WINDOWS_1252_DATA[i]);
   }
 }
 
-#ifdef _MSC_VER
-#pragma optimize("", on)
-#endif
-
 void
 nsHtml5NamedCharacters::releaseStatics()
 {
-  NAMES.release();
-  delete[] VALUES;
   delete[] WINDOWS_1252;
 }

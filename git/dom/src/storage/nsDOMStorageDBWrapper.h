@@ -86,17 +86,22 @@ class nsSessionStorageEntry;
 class nsDOMStorageDBWrapper
 {
 public:
-  nsDOMStorageDBWrapper() {}
-  ~nsDOMStorageDBWrapper() {}
+  nsDOMStorageDBWrapper();
+  ~nsDOMStorageDBWrapper();
 
   nsresult
   Init();
+
+  nsresult
+  EnsureLoadTemporaryTableForStorage(DOMStorageImpl* aStorage);
+  nsresult
+  FlushAndDeleteTemporaryTableForStorage(DOMStorageImpl* aStorage);
 
   /**
    * Retrieve a list of all the keys associated with a particular domain.
    */
   nsresult
-  GetAllKeys(nsDOMStorage* aStorage,
+  GetAllKeys(DOMStorageImpl* aStorage,
              nsTHashtable<nsSessionStorageEntry>* aKeys);
 
   /**
@@ -105,7 +110,7 @@ public:
    * @throws NS_ERROR_DOM_NOT_FOUND_ERR if key not found
    */
   nsresult
-  GetKeyValue(nsDOMStorage* aStorage,
+  GetKeyValue(DOMStorageImpl* aStorage,
               const nsAString& aKey,
               nsAString& aValue,
               PRBool* aSecure);
@@ -114,7 +119,7 @@ public:
    * Set the value and secure flag for a key in storage.
    */
   nsresult
-  SetKey(nsDOMStorage* aStorage,
+  SetKey(DOMStorageImpl* aStorage,
          const nsAString& aKey,
          const nsAString& aValue,
          PRBool aSecure,
@@ -127,7 +132,7 @@ public:
    * not found.
    */
   nsresult
-  SetSecure(nsDOMStorage* aStorage,
+  SetSecure(DOMStorageImpl* aStorage,
             const nsAString& aKey,
             const PRBool aSecure);
 
@@ -135,7 +140,7 @@ public:
    * Removes a key from storage.
    */
   nsresult
-  RemoveKey(nsDOMStorage* aStorage,
+  RemoveKey(DOMStorageImpl* aStorage,
             const nsAString& aKey,
             PRBool aExcludeOfflineFromUsage,
             PRInt32 aKeyUsage);
@@ -144,7 +149,7 @@ public:
     * Remove all keys belonging to this storage.
     */
   nsresult
-  ClearStorage(nsDOMStorage* aStorage);
+  ClearStorage(DOMStorageImpl* aStorage);
 
   /**
    * Drop session-only storage for a specific host and all it's subdomains
@@ -182,7 +187,7 @@ public:
     * Returns usage for a storage using its GetQuotaDomainDBKey() as a key.
     */
   nsresult
-  GetUsage(nsDOMStorage* aStorage, PRBool aExcludeOfflineFromUsage, PRInt32 *aUsage);
+  GetUsage(DOMStorageImpl* aStorage, PRBool aExcludeOfflineFromUsage, PRInt32 *aUsage);
 
   /**
     * Returns usage of the domain and optionaly by any subdomain.
@@ -217,9 +222,12 @@ public:
                                          nsACString& aDomain);
 
 protected:
+  nsDOMStoragePersistentDB mChromePersistentDB;
   nsDOMStoragePersistentDB mPersistentDB;
   nsDOMStorageMemoryDB mSessionOnlyDB;
   nsDOMStorageMemoryDB mPrivateBrowsingDB;
+
+  nsCOMPtr<nsITimer> mFlushTimer;
 };
 
 #endif /* nsDOMStorageDB_h___ */

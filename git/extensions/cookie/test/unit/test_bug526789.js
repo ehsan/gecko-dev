@@ -1,23 +1,5 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cr = Components.results;
-
-Components.utils.import("resource://gre/modules/NetUtil.jsm");
-
-function do_check_throws(f, result, stack)
-{
-  if (!stack)
-    stack = Components.stack.caller;
-
-  try {
-    f();
-  } catch (exc) {
-    if (exc.result == result)
-      return;
-    do_throw("expected result " + result + ", caught " + exc, stack);
-  }
-  do_throw("expected result " + result + ", none thrown", stack);
-}
+/* Any copyright is dedicated to the Public Domain.
+   http://creativecommons.org/publicdomain/zero/1.0/ */
 
 function run_test() {
   var cs = Cc["@mozilla.org/cookieService;1"].getService(Ci.nsICookieService);

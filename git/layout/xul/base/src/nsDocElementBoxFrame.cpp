@@ -38,7 +38,6 @@
 #include "nsContainerFrame.h"
 #include "nsCSSRendering.h"
 #include "nsIDocument.h"
-#include "nsPresContext.h"
 #include "nsPageFrame.h"
 #include "nsIRenderingContext.h"
 #include "nsGUIEvent.h"
@@ -76,7 +75,8 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
+  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
+                                        PRUint32 aFilter);
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
@@ -128,7 +128,8 @@ nsDocElementBoxFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
                                           nsnull, kNameSpaceID_XUL);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  nsresult rv = NS_NewXULElement(getter_AddRefs(mPopupgroupContent), nodeInfo);
+  nsresult rv = NS_NewXULElement(getter_AddRefs(mPopupgroupContent),
+                                 nodeInfo.forget());
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!aElements.AppendElement(mPopupgroupContent))
@@ -139,7 +140,7 @@ nsDocElementBoxFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
                                           kNameSpaceID_XUL);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  rv = NS_NewXULElement(getter_AddRefs(mTooltipContent), nodeInfo);
+  rv = NS_NewXULElement(getter_AddRefs(mTooltipContent), nodeInfo.forget());
   NS_ENSURE_SUCCESS(rv, rv);
 
   mTooltipContent->SetAttr(nsnull, nsGkAtoms::_default,
@@ -152,7 +153,8 @@ nsDocElementBoxFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 }
 
 void
-nsDocElementBoxFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
+nsDocElementBoxFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
+                                               PRUint32 aFilter)
 {
   aElements.MaybeAppendElement(mPopupgroupContent);
   aElements.MaybeAppendElement(mTooltipContent);

@@ -388,13 +388,17 @@ public:
    *
    * @param aType the selection to scroll into view.
    * @param aRegion the region inside the selection to scroll into view.
-   * @param aIsSynchronous when PR_TRUE, scrolls the selection into view
-   * at some point after the method returns.request which is processed
+   * @param aFlags the scroll flags.  Valid bits include:
+   * SCROLL_SYNCHRONOUS: when set, scrolls the selection into view
+   * before returning. If not set, posts a request which is processed
+   * at some point after the method returns.
+   * SCROLL_FIRST_ANCESTOR_ONLY: if set, only the first ancestor will be scrolled
+   * into view.
    */
   /*unsafe*/
   nsresult ScrollSelectionIntoView(SelectionType aType,
                                    SelectionRegion aRegion,
-                                   PRBool aIsSynchronous) const;
+                                   PRInt16 aFlags) const;
 
   /** RepaintSelection repaints the selected frames that are inside the selection
    *  specified by aSelectionType.
@@ -462,6 +466,12 @@ public:
    */
   /*unsafe*/
   nsresult CharacterExtendForDelete();
+
+  /** CharacterExtendForBackspace extends the selection backward (logically) to
+   * the previous character cell, so that the selected cell can be deleted.
+   */
+  /*unsafe*/
+  nsresult CharacterExtendForBackspace();
 
   /** WordMove will generally be called from the nsiselectioncontroller implementations.
    *  the effect being the selection will move one word left or right.
@@ -635,7 +645,11 @@ private:
 
   void ResizeBuffer(PRUint32 aNewBufSize);
 /*HELPER METHODS*/
-  nsresult     MoveCaret(PRUint32 aKeycode, PRBool aContinueSelection, nsSelectionAmount aAmount);
+  nsresult     MoveCaret(PRUint32 aKeycode, PRBool aContinueSelection,
+                         nsSelectionAmount aAmount);
+  nsresult     MoveCaret(PRUint32 aKeycode, PRBool aContinueSelection,
+                         nsSelectionAmount aAmount,
+                         PRBool aVisualMovement);
 
   nsresult     FetchDesiredX(nscoord &aDesiredX); //the x position requested by the Key Handling for up down
   void         InvalidateDesiredX(); //do not listen to mDesiredX you must get another.

@@ -53,6 +53,7 @@
 
 struct RuleCascadeData;
 struct nsCSSSelectorList;
+struct CascadeEnumData;
 
 /**
  * The CSS style rule processor provides a mechanism for sibling style
@@ -67,8 +68,9 @@ struct nsCSSSelectorList;
 
 class nsCSSRuleProcessor: public nsIStyleRuleProcessor {
 public:
-  nsCSSRuleProcessor(const nsCOMArray<nsICSSStyleSheet>& aSheets, 
-                     PRUint8 aSheetType);
+  typedef nsTArray<nsRefPtr<nsCSSStyleSheet> > sheet_array_type;
+
+  nsCSSRuleProcessor(const sheet_array_type& aSheets, PRUint8 aSheetType);
   virtual ~nsCSSRuleProcessor();
 
   NS_DECL_ISUPPORTS
@@ -76,7 +78,8 @@ public:
 public:
   nsresult ClearRuleCascades();
 
-  static void Startup();
+  static nsresult Startup();
+  static void Shutdown();
   static void FreeSystemMetrics();
   static PRBool HasSystemMetric(nsIAtom* aMetric);
 
@@ -91,23 +94,24 @@ public:
                                     nsCSSSelectorList* aSelectorList);
 
   // nsIStyleRuleProcessor
-  NS_IMETHOD RulesMatching(ElementRuleProcessorData* aData);
+  virtual void RulesMatching(ElementRuleProcessorData* aData);
 
-  NS_IMETHOD RulesMatching(PseudoElementRuleProcessorData* aData);
+  virtual void RulesMatching(PseudoElementRuleProcessorData* aData);
 
-  NS_IMETHOD RulesMatching(AnonBoxRuleProcessorData* aData);
+  virtual void RulesMatching(AnonBoxRuleProcessorData* aData);
 
 #ifdef MOZ_XUL
-  NS_IMETHOD RulesMatching(XULTreeRuleProcessorData* aData);
+  virtual void RulesMatching(XULTreeRuleProcessorData* aData);
 #endif
 
-  virtual nsReStyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
+  virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
 
-  virtual nsReStyleHint
+  virtual PRBool HasDocumentStateDependentStyle(StateRuleProcessorData* aData);
+
+  virtual nsRestyleHint
     HasAttributeDependentStyle(AttributeRuleProcessorData* aData);
 
-  NS_IMETHOD MediumFeaturesChanged(nsPresContext* aPresContext,
-                                   PRBool* aRulesChanged);
+  virtual PRBool MediumFeaturesChanged(nsPresContext* aPresContext);
 
   // Append all the currently-active font face rules to aArray.  Return
   // true for success and false for failure.
@@ -121,14 +125,22 @@ public:
   }
 #endif
 
+#ifdef XP_WIN
+  // Cached theme identifier for the moz-windows-theme media query.
+  static PRUint8 GetWindowsThemeIdentifier();
+  static void SetWindowsThemeIdentifier(PRUint8 aId) { 
+    sWinThemeId = aId;
+  }
+#endif
+
 private:
-  static PRBool CascadeSheetEnumFunc(nsICSSStyleSheet* aSheet, void* aData);
+  static PRBool CascadeSheet(nsCSSStyleSheet* aSheet, CascadeEnumData* aData);
 
   RuleCascadeData* GetRuleCascade(nsPresContext* aPresContext);
   void RefreshRuleCascade(nsPresContext* aPresContext);
 
   // The sheet order here is the same as in nsStyleSet::mSheets
-  nsCOMArray<nsICSSStyleSheet> mSheets;
+  sheet_array_type mSheets;
 
   // active first, then cached (most recent first)
   RuleCascadeData* mRuleCascades;
@@ -138,6 +150,10 @@ private:
   
   // type of stylesheet using this processor
   PRUint8 mSheetType;  // == nsStyleSet::sheetType
+
+#ifdef XP_WIN
+  static PRUint8 sWinThemeId;
+#endif
 };
 
 #endif /* nsCSSRuleProcessor_h_ */

@@ -60,7 +60,6 @@
 #include "nsHashtable.h"
 #include "nsAutoLock.h"
 #include "nsIZipReader.h"
-#include "nsIJAR.h"
 #include "nsZipArchive.h"
 #include "nsIPrincipal.h"
 #include "nsISignatureVerifier.h"
@@ -90,10 +89,12 @@ typedef enum
  * nsJAR serves as an XPCOM wrapper for nsZipArchive with the addition of 
  * JAR manifest file parsing. 
  *------------------------------------------------------------------------*/
-class nsJAR : public nsIZipReader, public nsIJAR
+class nsJAR : public nsIZipReader
 {
   // Allows nsJARInputStream to call the verification functions
   friend class nsJARInputStream;
+  // Allows nsZipReaderCache to access mOuterZipEntry
+  friend class nsZipReaderCache;
 
   public:
 
@@ -105,8 +106,6 @@ class nsJAR : public nsIZipReader, public nsIJAR
     NS_DECL_ISUPPORTS
 
     NS_DECL_NSIZIPREADER
-
-    NS_DECL_NSIJAR
 
     nsresult GetJarPath(nsACString& aResult);
 
@@ -133,7 +132,8 @@ class nsJAR : public nsIZipReader, public nsIJAR
   protected:
     //-- Private data members
     nsCOMPtr<nsIFile>        mZipFile;        // The zip/jar file on disk
-    nsZipArchive             mZip;            // The underlying zip archive
+    nsCString                mOuterZipEntry;  // The entry in the zip this zip is reading from
+    nsAutoPtr<nsZipArchive>  mZip;            // The underlying zip archive
     nsObjectHashtable        mManifestData;   // Stores metadata for each entry
     PRBool                   mParsedManifest; // True if manifest has been parsed
     nsCOMPtr<nsIPrincipal>   mPrincipal;      // The entity which signed this file

@@ -43,6 +43,7 @@
 #include "nsIDocument.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsString.h"
+#include "mozilla/FunctionTimer.h"
 #include "nsUnicharUtils.h"
 #include "nsReadableUtils.h"
 #include "nsXBLProtoImplMethod.h"
@@ -148,6 +149,12 @@ nsXBLProtoImplMethod::InstallMember(nsIScriptContext* aContext,
   if (mJSMethodObject && targetClassObject) {
     nsDependentString name(mName);
     JSAutoRequest ar(cx);
+    JSAutoEnterCompartment ac;
+
+    if (!ac.enter(cx, globalObject)) {
+      return NS_ERROR_UNEXPECTED;
+    }
+
     JSObject * method = ::JS_CloneFunctionObject(cx, mJSMethodObject, globalObject);
     if (!method) {
       return NS_ERROR_OUT_OF_MEMORY;
@@ -171,6 +178,7 @@ nsresult
 nsXBLProtoImplMethod::CompileMember(nsIScriptContext* aContext, const nsCString& aClassStr,
                                     void* aClassObject)
 {
+  NS_TIME_FUNCTION_MIN(5);
   NS_PRECONDITION(!IsCompiled(),
                   "Trying to compile an already-compiled method");
   NS_PRECONDITION(aClassObject,
@@ -304,6 +312,10 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
   JSObject* thisObject = JSVAL_TO_OBJECT(v);
 
   JSAutoRequest ar(cx);
+  JSAutoEnterCompartment ac;
+
+  if (!ac.enter(cx, thisObject))
+    return NS_ERROR_UNEXPECTED;
 
   // Clone the function object, using thisObject as the parent so "this" is in
   // the scope chain of the resulting function (for backwards compat to the

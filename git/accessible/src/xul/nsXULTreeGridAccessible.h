@@ -50,8 +50,7 @@ class nsXULTreeGridAccessible : public nsXULTreeAccessible,
                                 public nsIAccessibleTable
 {
 public:
-  nsXULTreeGridAccessible(nsIDOMNode *aDOMNode,
-                          nsIWeakReference *aShell);
+  nsXULTreeGridAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -60,13 +59,12 @@ public:
   NS_DECL_NSIACCESSIBLETABLE
 
   // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual PRUint32 NativeRole();
 
 protected:
 
   // nsXULTreeAccessible
-  virtual void CreateTreeItemAccessible(PRInt32 aRow,
-                                        nsAccessNode** aAccessNode);
+  virtual already_AddRefed<nsAccessible> CreateTreeItemAccessible(PRInt32 aRow);
 };
 
 
@@ -77,7 +75,11 @@ protected:
 class nsXULTreeGridRowAccessible : public nsXULTreeItemAccessibleBase
 {
 public:
-  nsXULTreeGridRowAccessible(nsIDOMNode *aDOMNode, nsIWeakReference *aShell,
+  using nsAccessible::GetChildCount;
+  using nsAccessible::GetChildAt;
+  using nsAccessible::GetChildAtPoint;
+
+  nsXULTreeGridRowAccessible(nsIContent *aContent, nsIWeakReference *aShell,
                              nsAccessible *aParent, nsITreeBoxObject *aTree,
                              nsITreeView *aTreeView, PRInt32 aRow);
 
@@ -87,20 +89,19 @@ public:
                                            nsAccessible)
 
   // nsAccessNode
-  virtual nsresult Shutdown();
+  virtual void Shutdown();
 
   // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual PRUint32 NativeRole();
   virtual nsresult GetChildAtPoint(PRInt32 aX, PRInt32 aY,
                                    PRBool aDeepestChild,
                                    nsIAccessible **aChild);
 
   virtual nsAccessible* GetChildAt(PRUint32 aIndex);
   virtual PRInt32 GetChildCount();
-  virtual PRInt32 GetIndexOf(nsIAccessible *aChild);
 
   // nsXULTreeItemAccessibleBase
-  virtual void GetCellAccessible(nsITreeColumn *aColumn, nsIAccessible **aCell);
+  virtual nsAccessible* GetCellAccessible(nsITreeColumn *aColumn);
   virtual void RowInvalidated(PRInt32 aStartColIdx, PRInt32 aEndColIdx);
 
 protected:
@@ -109,7 +110,7 @@ protected:
   virtual void CacheChildren();
 
   // nsXULTreeItemAccessibleBase
-  nsAccessNodeHashtable mAccessNodeCache;
+  nsAccessibleHashtable mAccessibleCache;
 };
 
 
@@ -130,16 +131,15 @@ class nsXULTreeGridCellAccessible : public nsLeafAccessible,
                                     public nsIAccessibleTableCell
 {
 public:
-  nsXULTreeGridCellAccessible(nsIDOMNode *aDOMNode, nsIWeakReference *aShell,
+  using nsAccessible::GetParent;
+
+  nsXULTreeGridCellAccessible(nsIContent *aContent, nsIWeakReference *aShell,
                               nsXULTreeGridRowAccessible *aRowAcc,
                               nsITreeBoxObject *aTree, nsITreeView *aTreeView,
                               PRInt32 aRow, nsITreeColumn* aColumn);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
-
-  // nsIAccessNode
-  NS_IMETHOD GetUniqueID(void **aUniqueID);
 
   // nsIAccessible
   NS_IMETHOD GetFocusedChild(nsIAccessible **aFocusedChild);
@@ -157,14 +157,14 @@ public:
 
   // nsAccessNode
   virtual PRBool IsDefunct();
-  virtual nsresult Init();
+  virtual PRBool Init();
+  virtual bool IsPrimaryForNode() const;
 
   // nsAccessible
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual PRUint32 NativeRole();
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-
-  virtual nsAccessible* GetParent();
+  virtual PRInt32 GetIndexInParent() { return GetColumnIndex(); }
 
   // nsXULTreeGridCellAccessible
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_XULTREEGRIDCELLACCESSIBLE_IMPL_CID)
@@ -182,8 +182,8 @@ public:
 
 protected:
   // nsAccessible
-  virtual nsIAccessible* GetSiblingAtOffset(PRInt32 aOffset,
-                                            nsresult* aError = nsnull);
+  virtual nsAccessible* GetSiblingAtOffset(PRInt32 aOffset,
+                                           nsresult *aError = nsnull);
   virtual void DispatchClickEvent(nsIContent *aContent, PRUint32 aActionIndex);
 
   // nsXULTreeGridCellAccessible

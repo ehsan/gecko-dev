@@ -38,7 +38,10 @@
 
 #include "nsXULColorPickerAccessible.h"
 
+#include "nsAccUtils.h"
 #include "nsAccTreeWalker.h"
+#include "nsCoreUtils.h"
+#include "nsDocAccessible.h"
 
 #include "nsIDOMElement.h"
 
@@ -48,8 +51,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULColorPickerTileAccessible::
-  nsXULColorPickerTileAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell) :
-  nsAccessibleWrap(aNode, aShell)
+  nsXULColorPickerTileAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsAccessibleWrap(aContent, aShell)
 {
 }
 
@@ -64,20 +67,17 @@ nsXULColorPickerTileAccessible::GetValue(nsAString& aValue)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
-  content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::color, aValue);
-
+  mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::color, aValue);
   return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULColorPickerTileAccessible: nsAccessible
 
-nsresult
-nsXULColorPickerTileAccessible::GetRoleInternal(PRUint32 *aRole)
+PRUint32
+nsXULColorPickerTileAccessible::NativeRole()
 {
-  *aRole = nsIAccessibleRole::ROLE_PUSHBUTTON;
-  return NS_OK;
+  return nsIAccessibleRole::ROLE_PUSHBUTTON;
 }
 
 nsresult
@@ -93,16 +93,14 @@ nsXULColorPickerTileAccessible::GetStateInternal(PRUint32 *aState,
   *aState |= nsIAccessibleStates::STATE_FOCUSABLE;
 
   // Focused?
-  nsCOMPtr<nsIDOMElement> element(do_QueryInterface(mDOMNode));
-  NS_ASSERTION(element, "No XUL Element for colorpicker");
-  PRBool isFocused = PR_FALSE;
-  element->HasAttribute(NS_LITERAL_STRING("hover"), &isFocused);
+  PRBool isFocused = mContent->HasAttr(kNameSpaceID_None,
+                                       nsAccessibilityAtoms::hover);
   if (isFocused)
     *aState |= nsIAccessibleStates::STATE_FOCUSED;
 
-  PRBool isSelected = PR_FALSE;
-  element->HasAttribute(NS_LITERAL_STRING("selected"), &isSelected);
-  if (isFocused)
+  PRBool isSelected = mContent->HasAttr(kNameSpaceID_None,
+                                        nsAccessibilityAtoms::selected);
+  if (isSelected)
     *aState |= nsIAccessibleStates::STATE_SELECTED;
 
   return NS_OK;
@@ -113,25 +111,23 @@ nsXULColorPickerTileAccessible::GetStateInternal(PRUint32 *aState,
 // nsXULColorPickerAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
-/**
-  * Default Constructor
-  */
-nsXULColorPickerAccessible::nsXULColorPickerAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell):
-nsXULColorPickerTileAccessible(aNode, aShell)
-{ 
+nsXULColorPickerAccessible::
+  nsXULColorPickerAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsXULColorPickerTileAccessible(aContent, aShell)
+{
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULColorPickerAccessible: nsAccessNode
 
-nsresult
+PRBool
 nsXULColorPickerAccessible::Init()
 {
-  nsresult rv = nsXULColorPickerTileAccessible::Init();
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (!nsXULColorPickerTileAccessible::Init())
+    return PR_FALSE;
 
-  nsCoreUtils::GeneratePopupTree(mDOMNode, PR_TRUE);
-  return NS_OK;
+  nsCoreUtils::GeneratePopupTree(mContent, PR_TRUE);
+  return PR_TRUE;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,11 +149,10 @@ nsXULColorPickerAccessible::GetStateInternal(PRUint32 *aState,
   return NS_OK;
 }
 
-nsresult
-nsXULColorPickerAccessible::GetRoleInternal(PRUint32 *aRole)
+PRUint32
+nsXULColorPickerAccessible::NativeRole()
 {
-  *aRole = nsIAccessibleRole::ROLE_BUTTONDROPDOWNGRID;
-  return NS_OK;
+  return nsIAccessibleRole::ROLE_BUTTONDROPDOWNGRID;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -166,19 +161,19 @@ nsXULColorPickerAccessible::GetRoleInternal(PRUint32 *aRole)
 void
 nsXULColorPickerAccessible::CacheChildren()
 {
-  nsCOMPtr<nsIContent> node(do_QueryInterface(mDOMNode));
-  nsAccTreeWalker walker(mWeakShell, node, PR_TRUE);
+  nsAccTreeWalker walker(mWeakShell, mContent, PR_TRUE);
 
   nsRefPtr<nsAccessible> child;
   while ((child = walker.GetNextChild())) {
-    PRUint32 role = nsAccUtils::Role(child);
+    PRUint32 role = child->Role();
 
     // Get an accessbile for menupopup or panel elements.
     if (role == nsIAccessibleRole::ROLE_ALERT) {
-      mChildren.AppendElement(child);
-      child->SetParent(this);
-
+      AppendChild(child);
       return;
     }
+
+    // Unbind rejected accessibles from the document.
+    GetDocAccessible()->UnbindFromDocument(child);
   }
 }

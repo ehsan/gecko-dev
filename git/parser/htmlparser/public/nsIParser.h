@@ -55,8 +55,8 @@
 #include "nsIAtom.h"
 
 #define NS_IPARSER_IID \
-{ 0x3db442c2, 0x8a4d, 0x4ce4, \
-{ 0x86, 0x58, 0x48, 0xee, 0x55, 0x4b, 0xbb, 0xd4 } }
+{ 0xcbc0cbd8, 0xbbb7, 0x46d6, \
+  { 0xa5, 0x51, 0x37, 0x8a, 0x69, 0x53, 0xa7, 0x14 } }
 
 // {41421C60-310A-11d4-816F-000064657374}
 #define NS_IDEBUG_DUMP_CONTENT_IID \
@@ -69,6 +69,7 @@ class nsIParserFilter;
 class nsString;
 class nsIURI;
 class nsIChannel;
+class nsIContent;
 
 enum eParserCommands {
   eViewNormal,
@@ -93,18 +94,17 @@ enum eParserDocType {
 #define kCharsetFromDocTypeDefault      3
 #define kCharsetFromCache               4
 #define kCharsetFromParentFrame         5
-#define kCharsetFromBookmarks           6
-#define kCharsetFromAutoDetection       7 
-#define kCharsetFromHintPrevDoc         8 
-#define kCharsetFromMetaPrescan         9 // this one and smaller: HTML5 Tentative
-#define kCharsetFromMetaTag            10 // this one and greater: HTML5 Confident
-#define kCharsetFromByteOrderMark      11
-#define kCharsetFromChannel            12 
-#define kCharsetFromOtherComponent     13
+#define kCharsetFromAutoDetection       6
+#define kCharsetFromHintPrevDoc         7
+#define kCharsetFromMetaPrescan         8 // this one and smaller: HTML5 Tentative
+#define kCharsetFromMetaTag             9 // this one and greater: HTML5 Confident
+#define kCharsetFromByteOrderMark      10
+#define kCharsetFromChannel            11
+#define kCharsetFromOtherComponent     12
 // Levels below here will be forced onto childframes too
-#define kCharsetFromParentForced       14
-#define kCharsetFromUserForced         15
-#define kCharsetFromPreviousLoading    16
+#define kCharsetFromParentForced       13
+#define kCharsetFromUserForced         14
+#define kCharsetFromPreviousLoading    15
 
 enum eStreamState {eNone,eOnStart,eOnDataAvail,eOnStop};
 
@@ -263,7 +263,7 @@ class nsIParser : public nsISupports {
                              nsDTDMode aMode = eDTDMode_autodetect) = 0;
 
     NS_IMETHOD ParseFragment(const nsAString& aSourceBuffer,
-                             nsISupports* aTargetNode,
+                             nsIContent* aTargetNode,
                              nsIAtom* aContextLocalName,
                              PRInt32 aContextNamespace,
                              PRBool aQuirks) = 0;
@@ -397,28 +397,6 @@ const PRUnichar  kQuestionMark     = '?';
 const PRUnichar  kLeftSquareBracket  = '[';
 const PRUnichar  kRightSquareBracket = ']';
 const PRUnichar kNullCh           = '\0';
-
-// XXXbz these type defines should really just go away....  Until they
-// do, changes here should be reflected in nsContentDLF.cpp
-#define kHTMLTextContentType  "text/html"
-#define kXMLTextContentType   "text/xml"
-#define kXMLApplicationContentType "application/xml"
-#define kXHTMLApplicationContentType "application/xhtml+xml"
-#define kXULTextContentType   "application/vnd.mozilla.xul+xml"
-#define kRDFTextContentType   "text/rdf"
-#define kRDFApplicationContentType "application/rdf+xml"
-#define kXIFTextContentType   "text/xif"
-#define kPlainTextContentType "text/plain"
-#define kViewSourceCommand    "view-source"
-#define kViewFragmentCommand  "view-fragment"
-#define kTextCSSContentType   "text/css"
-#define kApplicationJSContentType "application/javascript"
-#define kApplicationXJSContentType "application/x-javascript"
-#define kTextECMAScriptContentType "text/ecmascript"
-#define kApplicationECMAScriptContentType "application/ecmascript"
-#define kTextJSContentType    "text/javascript"
-#define kSGMLTextContentType   "text/sgml"
-#define kSVGTextContentType   "image/svg+xml"
 
 #define NS_IPARSER_FLAG_UNKNOWN_MODE         0x00000000
 #define NS_IPARSER_FLAG_QUIRKS_MODE          0x00000002

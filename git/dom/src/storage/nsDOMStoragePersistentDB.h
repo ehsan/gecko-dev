@@ -44,23 +44,28 @@
 #include "mozIStorageStatement.h"
 #include "nsTHashtable.h"
 
-class nsDOMStorage;
+class DOMStorageImpl;
 class nsSessionStorageEntry;
 
 class nsDOMStoragePersistentDB
 {
 public:
-  nsDOMStoragePersistentDB() {}
+  nsDOMStoragePersistentDB();
   ~nsDOMStoragePersistentDB() {}
 
   nsresult
-  Init();
+  Init(const nsString& aDatabaseName);
+
+  nsresult
+  EnsureLoadTemporaryTableForStorage(DOMStorageImpl* aStorage);
+  nsresult
+  FlushAndDeleteTemporaryTableForStorage(DOMStorageImpl* aStorage);
 
   /**
    * Retrieve a list of all the keys associated with a particular domain.
    */
   nsresult
-  GetAllKeys(nsDOMStorage* aStorage,
+  GetAllKeys(DOMStorageImpl* aStorage,
              nsTHashtable<nsSessionStorageEntry>* aKeys);
 
   /**
@@ -69,7 +74,7 @@ public:
    * @throws NS_ERROR_DOM_NOT_FOUND_ERR if key not found
    */
   nsresult
-  GetKeyValue(nsDOMStorage* aStorage,
+  GetKeyValue(DOMStorageImpl* aStorage,
               const nsAString& aKey,
               nsAString& aValue,
               PRBool* aSecure);
@@ -78,7 +83,7 @@ public:
    * Set the value and secure flag for a key in storage.
    */
   nsresult
-  SetKey(nsDOMStorage* aStorage,
+  SetKey(DOMStorageImpl* aStorage,
          const nsAString& aKey,
          const nsAString& aValue,
          PRBool aSecure,
@@ -91,7 +96,7 @@ public:
    * not found.
    */
   nsresult
-  SetSecure(nsDOMStorage* aStorage,
+  SetSecure(DOMStorageImpl* aStorage,
             const nsAString& aKey,
             const PRBool aSecure);
 
@@ -99,7 +104,7 @@ public:
    * Removes a key from storage.
    */
   nsresult
-  RemoveKey(nsDOMStorage* aStorage,
+  RemoveKey(DOMStorageImpl* aStorage,
             const nsAString& aKey,
             PRBool aExcludeOfflineFromUsage,
             PRInt32 aKeyUsage);
@@ -107,7 +112,7 @@ public:
   /**
     * Remove all keys belonging to this storage.
     */
-  nsresult ClearStorage(nsDOMStorage* aStorage);
+  nsresult ClearStorage(DOMStorageImpl* aStorage);
 
   /**
    * Removes all keys added by a given domain.
@@ -133,7 +138,7 @@ public:
     * Returns usage for a storage using its GetQuotaDomainDBKey() as a key.
     */
   nsresult
-  GetUsage(nsDOMStorage* aStorage, PRBool aExcludeOfflineFromUsage, PRInt32 *aUsage);
+  GetUsage(DOMStorageImpl* aStorage, PRBool aExcludeOfflineFromUsage, PRInt32 *aUsage);
 
   /**
     * Returns usage of the domain and optionaly by any subdomain.
@@ -146,14 +151,27 @@ public:
    */
   nsresult ClearAllPrivateBrowsingData();
 
+  /**
+   * We process INSERTs in a transaction because of performance.
+   * If there is currently no transaction in progress, start one.
+   */
+  nsresult EnsureInsertTransaction();
+
+  /**
+   * If there is an INSERT transaction in progress, commit it now.
+   */
+  nsresult MaybeCommitInsertTransaction();
+
 protected:
 
   nsCOMPtr<mozIStorageConnection> mConnection;
 
+  nsCOMPtr<mozIStorageStatement> mCopyToTempTableStatement;
+  nsCOMPtr<mozIStorageStatement> mCopyBackToDiskStatement;
+  nsCOMPtr<mozIStorageStatement> mDeleteTemporaryTableStatement;
   nsCOMPtr<mozIStorageStatement> mGetAllKeysStatement;
   nsCOMPtr<mozIStorageStatement> mGetKeyValueStatement;
   nsCOMPtr<mozIStorageStatement> mInsertKeyStatement;
-  nsCOMPtr<mozIStorageStatement> mUpdateKeyStatement;
   nsCOMPtr<mozIStorageStatement> mSetSecureStatement;
   nsCOMPtr<mozIStorageStatement> mRemoveKeyStatement;
   nsCOMPtr<mozIStorageStatement> mRemoveOwnerStatement;

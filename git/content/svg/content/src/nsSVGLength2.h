@@ -64,6 +64,7 @@ public:
     mAttrEnum = aAttrEnum;
     mCtxType = aCtxType;
     mIsAnimated = PR_FALSE;
+    mIsBaseSet = PR_FALSE;
   }
 
   nsresult SetBaseValueString(const nsAString& aValue,
@@ -75,12 +76,7 @@ public:
   float GetBaseValue(nsSVGElement* aSVGElement) const
     { return mBaseVal / GetUnitScaleFactor(aSVGElement, mSpecifiedUnitType); }
   float GetAnimValue(nsSVGElement* aSVGElement) const
-  {
-  #ifdef MOZ_SMIL
-    aSVGElement->FlushAnimations();
-  #endif
-    return mAnimVal / GetUnitScaleFactor(aSVGElement, mSpecifiedUnitType);
-  }
+    { return mAnimVal / GetUnitScaleFactor(aSVGElement, mSpecifiedUnitType); }
   float GetAnimValue(nsIFrame* aFrame) const
     { return mAnimVal / GetUnitScaleFactor(aFrame, mSpecifiedUnitType); }
 
@@ -95,6 +91,14 @@ public:
     { return mBaseVal / GetUnitScaleFactor(aCtx, mSpecifiedUnitType); }
   float GetAnimValue(nsSVGSVGElement* aCtx) const
     { return mAnimVal / GetUnitScaleFactor(aCtx, mSpecifiedUnitType); }
+
+  // Returns PR_TRUE if the animated value of this length has been explicitly
+  // set (either by animation, or by taking on the base value which has been
+  // explicitly set by markup or a DOM call), PR_FALSE otherwise.
+  // If this returns PR_FALSE, the animated value is still valid, that is,
+  // useable, and represents the default base value of the attribute.
+  PRBool IsAnimValSet() const
+    { return mIsAnimated || mIsBaseSet; }
   
   nsresult ToDOMAnimatedLength(nsIDOMSVGAnimatedLength **aResult,
                                nsSVGElement* aSVGElement);
@@ -110,9 +114,10 @@ private:
   PRUint8 mSpecifiedUnitType;
   PRUint8 mAttrEnum; // element specified tracking for attribute
   PRUint8 mCtxType; // X, Y or Unspecified
-  PRPackedBool mIsAnimated;
+  PRPackedBool mIsAnimated:1;
+  PRPackedBool mIsBaseSet:1;
   
-  static float GetMMPerPixel(nsIFrame *aNonSVGFrame);
+  static float GetMMPerPixel() { return MM_PER_INCH_FLOAT / 96; }
   float GetAxisLength(nsIFrame *aNonSVGFrame) const;
   static float GetEmLength(nsIFrame *aFrame)
     { return nsSVGUtils::GetFontSize(aFrame); }
@@ -198,6 +203,8 @@ private:
     nsSVGLength2* mVal; // kept alive because it belongs to mSVGElement
     nsRefPtr<nsSVGElement> mSVGElement;
     
+    // Script may have modified animation parameters or timeline -- DOM getters
+    // need to flush any resample requests to reflect these modifications.
     NS_IMETHOD GetUnitType(PRUint16* aResult)
     {
 #ifdef MOZ_SMIL
@@ -248,6 +255,7 @@ private:
       { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
   };
 
+public:
   struct DOMAnimatedLength : public nsIDOMSVGAnimatedLength
   {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -284,7 +292,7 @@ private:
     virtual nsresult ValueFromString(const nsAString& aStr,
                                      const nsISMILAnimationElement* aSrcElement,
                                      nsSMILValue &aValue,
-                                     PRBool& aCanCache) const;
+                                     PRBool& aPreventCachingOfSandwich) const;
     virtual nsSMILValue GetBaseValue() const;
     virtual void ClearAnimValue();
     virtual nsresult SetAnimValue(const nsSMILValue& aValue);

@@ -48,13 +48,9 @@
 #import <Carbon/Carbon.h>
 
 #include "nsCOMPtr.h"
-#include "nsIBaseWindow.h"
 #include "nsINativeAppSupport.h"
-#include "nsIWidget.h"
-#include "nsIWindowMediator.h"
 #include "nsAppRunner.h"
 #include "nsComponentManagerUtils.h"
-#include "nsCommandLineServiceMac.h"
 #include "nsIServiceManager.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIAppStartup.h"
@@ -66,6 +62,8 @@
 #include "nsICommandLineRunner.h"
 #include "nsIMacDockSupport.h"
 #include "nsIStandaloneNativeMenu.h"
+#include "nsILocalFileMac.h"
+#include "nsString.h"
 
 @interface MacApplicationDelegate : NSObject
 {
@@ -92,6 +90,10 @@ SetupMacApplicationDelegate()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
+  // this is called during startup, outside an event loop, and therefore
+  // needs an autorelease pool to avoid cocoa object leakage (bug 559075)
+  NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+
   // This call makes it so that application:openFile: doesn't get bogus calls
   // from Cocoa doing its own parsing of the argument string. And yes, we need
   // to use a string with a boolean value in it. That's just how it works.
@@ -100,7 +102,9 @@ SetupMacApplicationDelegate()
 
   // Create the delegate. This should be around for the lifetime of the app.
   MacApplicationDelegate *delegate = [[MacApplicationDelegate alloc] init];
-  [[NSApplication sharedApplication] setDelegate:delegate];
+  [NSApp setDelegate:delegate];
+
+  [pool release];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -112,10 +116,25 @@ SetupMacApplicationDelegate()
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
   if ((self = [super init])) {
-    [[NSAppleEventManager sharedAppleEventManager] setEventHandler:self
-                                                       andSelector:@selector(handleAppleEvent:withReplyEvent:)
-                                                     forEventClass:kInternetEventClass
-                                                        andEventID:kAEGetURL];
+    NSAppleEventManager *aeMgr = [NSAppleEventManager sharedAppleEventManager];
+
+    [aeMgr setEventHandler:self
+               andSelector:@selector(handleAppleEvent:withReplyEvent:)
+             forEventClass:kInternetEventClass
+                andEventID:kAEGetURL];
+
+    [aeMgr setEventHandler:self
+               andSelector:@selector(handleAppleEvent:withReplyEvent:)
+             forEventClass:'WWW!'
+                andEventID:'OURL'];
+
+    if (![NSApp windowsMenu]) {
+      // If the application has a windows menu, it will keep it up to date and
+      // prepend the window list to the Dock menu automatically.
+      NSMenu* windowsMenu = [[NSMenu alloc] initWithTitle:@"Window"];
+      [NSApp setWindowsMenu:windowsMenu];
+      [windowsMenu release];
+    }
   }
   return self;
 
@@ -126,20 +145,17 @@ SetupMacApplicationDelegate()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  [[NSAppleEventManager sharedAppleEventManager] removeEventHandlerForEventClass:kInternetEventClass andEventID:kAEGetURL];
+  NSAppleEventManager *aeMgr = [NSAppleEventManager sharedAppleEventManager];
+  [aeMgr removeEventHandlerForEventClass:kInternetEventClass andEventID:kAEGetURL];
+  [aeMgr removeEventHandlerForEventClass:'WWW!' andEventID:'OURL'];
   [super dealloc];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-// Opening the application is handled specially elsewhere,
-// don't define applicationOpenUntitledFile: .
-
 // The method that NSApplication calls upon a request to reopen, such as when
-// the Dock icon is clicked and no windows are open.
-
-// A "visible" window may be miniaturized, so we can't skip
-// nsCocoaNativeReOpen() if 'flag' is 'true'.
+// the Dock icon is clicked and no windows are open. A "visible" window may be
+// miniaturized, so we can't skip nsCocoaNativeReOpen() if 'flag' is 'true'.
 - (BOOL)applicationShouldHandleReopen:(NSApplication*)theApp hasVisibleWindows:(BOOL)flag
 {
   nsCOMPtr<nsINativeAppSupport> nas = do_CreateInstance(NS_NATIVEAPPSUPPORT_CONTRACTID);
@@ -155,19 +171,42 @@ SetupMacApplicationDelegate()
 
 // The method that NSApplication calls when documents are requested to be opened.
 // It will be called once for each selected document.
-
 - (BOOL)application:(NSApplication*)theApplication openFile:(NSString*)filename
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
-  // Take advantage of the existing "command line" code for Macs.
-  nsMacCommandLine& cmdLine = nsMacCommandLine::GetMacCommandLine();
-  // URLWithString expects our string to be a legal URL with percent escapes.
-  filename = [filename stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
-  // We don't actually care about Mac filetypes in this context, just pass a placeholder.
-  cmdLine.HandleOpenOneDoc((CFURLRef)[NSURL URLWithString:filename], 'abcd');
+  NSString *escapedPath = [filename stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
 
-  return YES;
+  nsCOMPtr<nsILocalFileMac> inFile;
+  nsresult rv = NS_NewLocalFileWithCFURL((CFURLRef)[NSURL URLWithString:escapedPath], PR_TRUE, getter_AddRefs(inFile));
+  if (NS_FAILED(rv))
+    return NO;
+
+  nsCOMPtr<nsICommandLineRunner> cmdLine(do_CreateInstance("@mozilla.org/toolkit/command-line;1"));
+  if (!cmdLine) {
+    NS_ERROR("Couldn't create command line!");
+    return NO;
+  }
+
+  nsCString filePath;
+  rv = inFile->GetNativePath(filePath);
+  if (NS_FAILED(rv))
+    return NO;
+
+  nsCOMPtr<nsIFile> workingDir;
+  rv = NS_GetSpecialDirectory(NS_OS_CURRENT_WORKING_DIR, getter_AddRefs(workingDir));
+  if (NS_FAILED(rv))
+    return NO;
+
+  const char *argv[3] = {nsnull, "-file", filePath.get()};
+  rv = cmdLine->Init(3, const_cast<char**>(argv), workingDir, nsICommandLine::STATE_REMOTE_EXPLICIT);
+  if (NS_FAILED(rv))
+    return NO;
+
+  if (NS_SUCCEEDED(cmdLine->Run()))
+    return YES;
+
+  return NO;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }
@@ -175,107 +214,23 @@ SetupMacApplicationDelegate()
 // The method that NSApplication calls when documents are requested to be printed
 // from the Finder (under the "File" menu).
 // It will be called once for each selected document.
-
 - (BOOL)application:(NSApplication*)theApplication printFile:(NSString*)filename
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
-  // Take advantage of the existing "command line" code for Macs.
-  nsMacCommandLine& cmdLine = nsMacCommandLine::GetMacCommandLine();
-  // We don't actually care about Mac filetypes in this context, just pass a placeholder.
-  cmdLine.HandlePrintOneDoc((CFURLRef)[NSURL URLWithString:filename], 'abcd');
-
-  return YES;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
-}
-
-// Drill down from nsIXULWindow and get an NSWindow. We get passed nsISupports
-// because that's what nsISimpleEnumerator returns.
-
-static NSWindow* GetCocoaWindowForXULWindow(nsISupports *aXULWindow)
-{
-  nsresult rv;
-  nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(aXULWindow, &rv);
-  NS_ENSURE_SUCCESS(rv, nil);
-  nsCOMPtr<nsIWidget> widget;
-  rv = baseWindow->GetMainWidget(getter_AddRefs(widget));
-  NS_ENSURE_SUCCESS(rv, nil);
-  // If it fails, we return nil anyway, no biggie
-  return (NSWindow *)widget->GetNativeData(NS_NATIVE_WINDOW);
+  return NO;
 }
 
 // Create the menu that shows up in the Dock.
-
 - (NSMenu*)applicationDockMenu:(NSApplication*)sender
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
-
-  // Why we're not just using Cocoa to enumerate our windows:
-  // The Dock thinks we're a Carbon app, probably because we don't have a
-  // blessed Window menu, so we get none of the automatic handling for dock
-  // menus that Cocoa apps get. Add in Cocoa being a bit braindead when you hide
-  // the app, and we end up having to get our list of windows via XPCOM. Ugh.
-
-  // Get the window mediator to do all our lookups.
-  nsresult rv;
-  nsCOMPtr<nsIWindowMediator> wm = do_GetService(NS_WINDOWMEDIATOR_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, nil);
-
-  // Get the frontmost window
-  nsCOMPtr<nsISimpleEnumerator> orderedWindowList;
-  rv = wm->GetZOrderXULWindowEnumerator(nsnull, PR_TRUE,
-                                        getter_AddRefs(orderedWindowList));
-  NS_ENSURE_SUCCESS(rv, nil);
-  PRBool anyWindows = false;
-  rv = orderedWindowList->HasMoreElements(&anyWindows);
-  NS_ENSURE_SUCCESS(rv, nil);
-  nsCOMPtr<nsISupports> frontWindow;
-  rv = orderedWindowList->GetNext(getter_AddRefs(frontWindow));
-  NS_ENSURE_SUCCESS(rv, nil);
-
-  // Get our list of windows and prepare to iterate. We use this list, ordered
-  // by window creation date, instead of the z-ordered list because that's what
-  // native apps do.
-  nsCOMPtr<nsISimpleEnumerator> windowList;
-  rv = wm->GetXULWindowEnumerator(nsnull, getter_AddRefs(windowList));
-  NS_ENSURE_SUCCESS(rv, nil);
 
   // Create the NSMenu that will contain the dock menu items.
   NSMenu *menu = [[[NSMenu alloc] initWithTitle:@""] autorelease];
   [menu setAutoenablesItems:NO];
 
-  // Iterate through our list of windows to create our menu
-  PRBool more;
-  while (NS_SUCCEEDED(windowList->HasMoreElements(&more)) && more) {
-    // Get our native window
-    nsCOMPtr<nsISupports> xulWindow;
-    rv = windowList->GetNext(getter_AddRefs(xulWindow));
-    NS_ENSURE_SUCCESS(rv, nil);
-    NSWindow *cocoaWindow = GetCocoaWindowForXULWindow(xulWindow);
-    if (!cocoaWindow) continue;
-    
-    NSString *windowTitle = [cocoaWindow title];
-    if (!windowTitle) continue;
-    
-    // Now, create a menu item, and add it to the menu
-    NSMenuItem *menuItem = [[NSMenuItem alloc]
-                              initWithTitle:windowTitle
-                                     action:@selector(dockMenuItemSelected:)
-                              keyEquivalent:@""];
-    [menuItem setTarget:self];
-    [menuItem setRepresentedObject:cocoaWindow];
-
-    // If this is the foreground window, put a checkmark next to it
-    if (SameCOMIdentity(xulWindow, frontWindow))
-      [menuItem setState:NSOnState];
-
-    [menu addItem:menuItem];
-    [menuItem release];
-  }
-
   // Add application-specific dock menu items. On error, do not insert the
   // dock menu items.
+  nsresult rv;
   nsCOMPtr<nsIMacDockSupport> dockSupport = do_GetService("@mozilla.org/widget/macdocksupport;1", &rv);
   if (NS_FAILED(rv) || !dockSupport)
     return menu;
@@ -317,18 +272,6 @@ static NSWindow* GetCocoaWindowForXULWindow(nsISupports *aXULWindow)
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
-// One of our dock menu items was selected
-- (void)dockMenuItemSelected:(id)sender
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  // Our represented object is an NSWindow
-  [[sender representedObject] makeKeyAndOrderFront:nil];
-  [NSApp activateIgnoringOtherApps:YES];
-
-  NS_OBJC_END_TRY_ABORT_BLOCK;
-}
-
 // If we don't handle applicationShouldTerminate:, a call to [NSApp terminate:]
 // (from the browser or from the OS) can result in an unclean shutdown.
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender
@@ -364,7 +307,8 @@ static NSWindow* GetCocoaWindowForXULWindow(nsISupports *aXULWindow)
   if (!event)
     return;
 
-  if ([event eventClass] == kInternetEventClass && [event eventID] == kAEGetURL) {
+  if (([event eventClass] == kInternetEventClass && [event eventID] == kAEGetURL) ||
+      ([event eventClass] == 'WWW!' && [event eventID] == 'OURL')) {
     NSString* urlString = [[event paramDescriptorForKeyword:keyDirectObject] stringValue];
 
     // don't open chrome URLs

@@ -8,6 +8,17 @@
 
 SimpleTest.waitForExplicitFinish();
 
+function IsD2DEnabled() {
+    var enabled = false;
+
+    try {
+        netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+        enabled = Components.classes["@mozilla.org/gfx/info;1"].getService(Components.interfaces.nsIGfxInfo).D2DEnabled;
+    } catch(e) {}
+    
+    return enabled;
+}
+
 </script>
 <!-- Includes all the tests in the content/canvas/tests except for test_bug397524.html -->
 
@@ -1463,7 +1474,7 @@ ok(ctx.globalCompositeOperation == 'xor', "ctx.globalCompositeOperation == 'xor'
 } catch (e) {
     _thrown_outer = true;
 }
-todo(!_thrown_outer, 'should not throw exception');
+ok(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -1501,7 +1512,7 @@ var ctx = canvas.getContext('2d');
 
 ctx.globalCompositeOperation = 'xor';
 ctx.globalCompositeOperation = 'darker';
-todo(ctx.globalCompositeOperation == 'xor', "ctx.globalCompositeOperation == 'xor'");
+ok(ctx.globalCompositeOperation == 'xor', "ctx.globalCompositeOperation == 'xor'");
 
 
 }
@@ -1569,7 +1580,7 @@ ok(ctx.globalCompositeOperation == 'xor', "ctx.globalCompositeOperation == 'xor'
 } catch (e) {
     _thrown_outer = true;
 }
-todo(!_thrown_outer, 'should not throw exception');
+ok(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -1596,7 +1607,7 @@ ok(ctx.globalCompositeOperation == 'xor', "ctx.globalCompositeOperation == 'xor'
 } catch (e) {
     _thrown_outer = true;
 }
-todo(!_thrown_outer, 'should not throw exception');
+ok(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -1642,7 +1653,7 @@ ok(ctx.globalCompositeOperation == 'xor', "ctx.globalCompositeOperation == 'xor'
 } catch (e) {
     _thrown_outer = true;
 }
-todo(!_thrown_outer, 'should not throw exception');
+ok(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -3970,7 +3981,7 @@ var canvas = document.getElementById('c138');
 var ctx = canvas.getContext('2d');
 
 ctx.fillStyle = 'rgba(255,255,255,0.45)';
-ok(ctx.fillStyle =~ /^rgba\(255, 255, 255, 0\.4\d+\)$/, "ctx.fillStyle =~ /^rgba\\(255, 255, 255, 0\\.4\\d+\\)$/");
+ok(/^rgba\(255, 255, 255, 0\.4\d+\)$/.test(ctx.fillStyle), "ctx.fillStyle =~ /^rgba\\(255, 255, 255, 0\\.4\\d+\\)$/");
 
 
 }
@@ -4006,7 +4017,7 @@ var canvas = document.getElementById('c140');
 var ctx = canvas.getContext('2d');
 
 ctx.fillStyle = 'rgba(0,0,0,0)';
-ok(ctx.fillStyle == 'rgba(0, 0, 0, 0.0)', "ctx.fillStyle == 'rgba(0, 0, 0, 0.0)'");
+is(ctx.fillStyle, 'rgba(0, 0, 0, 0)', "ctx.fillStyle should be what we set it to");
 
 
 }
@@ -5411,7 +5422,7 @@ var ctx = canvas.getContext('2d');
 
 ctx.fillStyle = '#f00';
 ctx.fillStyle = 'ThreeDDarkShadow';
-ok(ctx.fillStyle =~ /^#(?!(FF0000|ff0000|f00)$)/, "ctx.fillStyle =~ /^#(?!(FF0000|ff0000|f00)$)/"); // test that it's not red
+ok(/^#(?!(FF0000|ff0000|f00)$)/.test(ctx.fillStyle), "ctx.fillStyle =~ /^#(?!(FF0000|ff0000|f00)$)/"); // test that it's not red
 
 
 }
@@ -5688,34 +5699,37 @@ function test_2d_gradient_interpolate_overlap() {
 var canvas = document.getElementById('c215');
 var ctx = canvas.getContext('2d');
 
-canvas.width = 200;
-var g = ctx.createLinearGradient(0, 0, 200, 0);
-g.addColorStop(0, '#f00');
-g.addColorStop(0, '#ff0');
-g.addColorStop(0.25, '#00f');
-g.addColorStop(0.25, '#0f0');
-g.addColorStop(0.25, '#0f0');
-g.addColorStop(0.25, '#0f0');
-g.addColorStop(0.25, '#ff0');
-g.addColorStop(0.5, '#00f');
-g.addColorStop(0.5, '#0f0');
-g.addColorStop(0.75, '#00f');
-g.addColorStop(0.75, '#f00');
-g.addColorStop(0.75, '#ff0');
-g.addColorStop(0.5, '#0f0');
-g.addColorStop(0.5, '#0f0');
-g.addColorStop(0.5, '#ff0');
-g.addColorStop(1, '#00f');
-ctx.fillStyle = g;
-ctx.fillRect(0, 0, 200, 50);
-isPixel(ctx, 49,25, 0,0,255,255, 16);
-isPixel(ctx, 51,25, 255,255,0,255, 16);
-isPixel(ctx, 99,25, 0,0,255,255, 16);
-isPixel(ctx, 101,25, 255,255,0,255, 16);
-isPixel(ctx, 149,25, 0,0,255,255, 16);
-isPixel(ctx, 151,25, 255,255,0,255, 16);
-
-
+if (!IsD2DEnabled()) {
+    // Only run this on non-D2D. On D2D the different nature of how gradients
+    // are drawn makes it so we cannot guarantee these stops are completely
+    // hard.
+    canvas.width = 200;
+    var g = ctx.createLinearGradient(0, 0, 200, 0);
+    g.addColorStop(0, '#f00');
+    g.addColorStop(0, '#ff0');
+    g.addColorStop(0.25, '#00f');
+    g.addColorStop(0.25, '#0f0');
+    g.addColorStop(0.25, '#0f0');
+    g.addColorStop(0.25, '#0f0');
+    g.addColorStop(0.25, '#ff0');
+    g.addColorStop(0.5, '#00f');
+    g.addColorStop(0.5, '#0f0');
+    g.addColorStop(0.75, '#00f');
+    g.addColorStop(0.75, '#f00');
+    g.addColorStop(0.75, '#ff0');
+    g.addColorStop(0.5, '#0f0');
+    g.addColorStop(0.5, '#0f0');
+    g.addColorStop(0.5, '#ff0');
+    g.addColorStop(1, '#00f');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 200, 50);
+    isPixel(ctx, 49,25, 0,0,255,255, 16);
+    isPixel(ctx, 51,25, 255,255,0,255, 16);
+    isPixel(ctx, 99,25, 0,0,255,255, 16);
+    isPixel(ctx, 101,25, 255,255,0,255, 16);
+    isPixel(ctx, 149,25, 0,0,255,255, 16);
+    isPixel(ctx, 151,25, 255,255,0,255, 16);
+}
 }
 </script>
 
@@ -7958,13 +7972,13 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.getImageData(1, 1, 10, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(1, 1, 0, 10);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(1, 1, 0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 
 
 }
@@ -7986,31 +8000,31 @@ var imgdata = ctx.getImageData(0, 0, 10, 10);
 
 imgdata.data[0] = 100;
 imgdata.data[0] = 300;
-todo(imgdata.data[0] === 255, "imgdata.data[\""+(0)+"\"] === 255");
+ok(imgdata.data[0] === 255, "imgdata.data[\""+(0)+"\"] === 255");
 imgdata.data[0] = 100;
 imgdata.data[0] = -100;
-todo(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
+ok(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
 
 imgdata.data[0] = 100;
 imgdata.data[0] = 200+Math.pow(2, 32);
-todo(imgdata.data[0] === 255, "imgdata.data[\""+(0)+"\"] === 255");
+ok(imgdata.data[0] === 255, "imgdata.data[\""+(0)+"\"] === 255");
 imgdata.data[0] = 100;
 imgdata.data[0] = -200-Math.pow(2, 32);
-todo(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
+ok(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
 
 imgdata.data[0] = 100;
 imgdata.data[0] = Math.pow(10, 39);
-todo(imgdata.data[0] === 255, "imgdata.data[\""+(0)+"\"] === 255");
+ok(imgdata.data[0] === 255, "imgdata.data[\""+(0)+"\"] === 255");
 imgdata.data[0] = 100;
 imgdata.data[0] = -Math.pow(10, 39);
-todo(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
+ok(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
 
 imgdata.data[0] = 100;
 imgdata.data[0] = -Infinity;
-todo(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
+ok(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
 imgdata.data[0] = 100;
 imgdata.data[0] = Infinity;
-todo(imgdata.data[0] === 255, "imgdata.data[\""+(0)+"\"] === 255");
+ok(imgdata.data[0] === 255, "imgdata.data[\""+(0)+"\"] === 255");
 
 
 }
@@ -8052,10 +8066,10 @@ var ctx = canvas.getContext('2d');
 var imgdata = ctx.getImageData(0, 0, 10, 10);
 imgdata.data[0] = 100;
 imgdata.data[0] = NaN;
-todo(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
+ok(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
 imgdata.data[0] = 100;
 imgdata.data[0] = "cheese";
-todo(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
+ok(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
 
 
 }
@@ -8101,13 +8115,13 @@ var d = imgdata.data;
 imgdata.width = 123;
 imgdata.height = 123;
 imgdata.data = [100,100,100,100];
-todo(imgdata.width === w, "imgdata.width === w");
-todo(imgdata.height === h, "imgdata.height === h");
-todo(imgdata.data === d, "imgdata.data === d");
-todo(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
-todo(imgdata.data[1] === 0, "imgdata.data[\""+(1)+"\"] === 0");
-todo(imgdata.data[2] === 0, "imgdata.data[\""+(2)+"\"] === 0");
-todo(imgdata.data[3] === 0, "imgdata.data[\""+(3)+"\"] === 0");
+ok(imgdata.width === w, "imgdata.width === w");
+ok(imgdata.height === h, "imgdata.height === h");
+ok(imgdata.data === d, "imgdata.data === d");
+ok(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
+ok(imgdata.data[1] === 0, "imgdata.data[\""+(1)+"\"] === 0");
+ok(imgdata.data[2] === 0, "imgdata.data[\""+(2)+"\"] === 0");
+ok(imgdata.data[3] === 0, "imgdata.data[\""+(3)+"\"] === 0");
 
 
 }
@@ -8127,27 +8141,27 @@ var ctx = canvas.getContext('2d');
 
 var imgdata = ctx.getImageData(0, 0, 10, 10);
 imgdata.data[0] = 0.499;
-todo(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
+ok(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
 imgdata.data[0] = 0.5;
-todo(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
+ok(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
 imgdata.data[0] = 0.501;
-todo(imgdata.data[0] === 1, "imgdata.data[\""+(0)+"\"] === 1");
+ok(imgdata.data[0] === 1, "imgdata.data[\""+(0)+"\"] === 1");
 imgdata.data[0] = 1.499;
-todo(imgdata.data[0] === 1, "imgdata.data[\""+(0)+"\"] === 1");
+ok(imgdata.data[0] === 1, "imgdata.data[\""+(0)+"\"] === 1");
 imgdata.data[0] = 1.5;
-todo(imgdata.data[0] === 2, "imgdata.data[\""+(0)+"\"] === 2");
+ok(imgdata.data[0] === 2, "imgdata.data[\""+(0)+"\"] === 2");
 imgdata.data[0] = 1.501;
-todo(imgdata.data[0] === 2, "imgdata.data[\""+(0)+"\"] === 2");
+ok(imgdata.data[0] === 2, "imgdata.data[\""+(0)+"\"] === 2");
 imgdata.data[0] = 2.5;
-todo(imgdata.data[0] === 2, "imgdata.data[\""+(0)+"\"] === 2");
+ok(imgdata.data[0] === 2, "imgdata.data[\""+(0)+"\"] === 2");
 imgdata.data[0] = 3.5;
-todo(imgdata.data[0] === 4, "imgdata.data[\""+(0)+"\"] === 4");
+ok(imgdata.data[0] === 4, "imgdata.data[\""+(0)+"\"] === 4");
 imgdata.data[0] = 252.5;
-todo(imgdata.data[0] === 252, "imgdata.data[\""+(0)+"\"] === 252");
+ok(imgdata.data[0] === 252, "imgdata.data[\""+(0)+"\"] === 252");
 imgdata.data[0] = 253.5;
-todo(imgdata.data[0] === 254, "imgdata.data[\""+(0)+"\"] === 254");
+ok(imgdata.data[0] === 254, "imgdata.data[\""+(0)+"\"] === 254");
 imgdata.data[0] = 254.5;
-todo(imgdata.data[0] === 254, "imgdata.data[\""+(0)+"\"] === 254");
+ok(imgdata.data[0] === 254, "imgdata.data[\""+(0)+"\"] === 254");
 
 
 }
@@ -8190,13 +8204,13 @@ var ctx = canvas.getContext('2d');
 var imgdata = ctx.getImageData(0, 0, 10, 10);
 imgdata.data[0] = 100;
 imgdata.data[0] = "110";
-todo(imgdata.data[0] === 110, "imgdata.data[\""+(0)+"\"] === 110");
+ok(imgdata.data[0] === 110, "imgdata.data[\""+(0)+"\"] === 110");
 imgdata.data[0] = 100;
 imgdata.data[0] = "0x78";
-todo(imgdata.data[0] === 120, "imgdata.data[\""+(0)+"\"] === 120");
+ok(imgdata.data[0] === 120, "imgdata.data[\""+(0)+"\"] === 120");
 imgdata.data[0] = 100;
 imgdata.data[0] = " +130e0 ";
-todo(imgdata.data[0] === 130, "imgdata.data[\""+(0)+"\"] === 130");
+ok(imgdata.data[0] === 130, "imgdata.data[\""+(0)+"\"] === 130");
 
 
 }
@@ -8217,7 +8231,7 @@ var ctx = canvas.getContext('2d');
 var imgdata = ctx.getImageData(0, 0, 10, 10);
 imgdata.data[0] = 100;
 imgdata.data[0] = undefined;
-todo(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
+ok(imgdata.data[0] === 0, "imgdata.data[\""+(0)+"\"] === 0");
 
 
 }
@@ -8871,7 +8885,7 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.putImageData(null, 0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
 
 
 }
@@ -8986,10 +9000,10 @@ var _thrown = undefined; try {
 } catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
 var _thrown = undefined; try {
   ctx.putImageData("cheese", 0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(42, 0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
 
 
 }
@@ -9131,7 +9145,7 @@ ok(ctx.lineCap === 'butt', "ctx.lineCap === 'butt'");
 } catch (e) {
     _thrown_outer = true;
 }
-todo(!_thrown_outer, 'should not throw exception');
+ok(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -9505,7 +9519,7 @@ ok(ctx.lineJoin === 'bevel', "ctx.lineJoin === 'bevel'");
 } catch (e) {
     _thrown_outer = true;
 }
-todo(!_thrown_outer, 'should not throw exception');
+ok(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -12903,7 +12917,7 @@ ok(ctx.isPointInPath(NaN, NaN) === false, "ctx.isPointInPath(NaN, NaN) === false
 } catch (e) {
     _thrown_outer = true;
 }
-todo(!_thrown_outer, 'should not throw exception');
+ok(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -13807,13 +13821,15 @@ function test_2d_path_rect_zero_3() {
 var canvas = document.getElementById('c438');
 var ctx = canvas.getContext('2d');
 
-ctx.strokeStyle = '#f00';
-ctx.lineWidth = 100;
-ctx.beginPath();
-ctx.rect(50, 25, 0, 0);
-ctx.stroke();
-isPixel(ctx, 50,25, 0,0,0,0, 0);
-
+if (!IsD2DEnabled()) {
+    // Disabled for D2D until we can figure out Bug 587554.
+    ctx.strokeStyle = '#f00';
+    ctx.lineWidth = 100;
+    ctx.beginPath();
+    ctx.rect(50, 25, 0, 0);
+    ctx.stroke();
+    isPixel(ctx, 50,25, 0,0,0,0, 0);
+}
 
 }
 </script>
@@ -14223,37 +14239,39 @@ function test_2d_path_stroke_scale2() {
 var canvas = document.getElementById('c451');
 var ctx = canvas.getContext('2d');
 
-ctx.fillStyle = '#f00';
-ctx.fillRect(0, 0, 100, 50);
+if (!IsD2DEnabled()) {
+    // On D2D a rasterization bug causes a small discrepancy here. See bug 587316
+    ctx.fillStyle = '#f00';
+    ctx.fillRect(0, 0, 100, 50);
 
-ctx.beginPath();
-ctx.rect(25, 12.5, 50, 25);
-ctx.save();
-ctx.rotate(Math.PI/2);
-ctx.scale(25, 50);
-ctx.strokeStyle = '#0f0';
-ctx.stroke();
-ctx.restore();
+    ctx.beginPath();
+    ctx.rect(25, 12.5, 50, 25);
+    ctx.save();
+    ctx.rotate(Math.PI/2);
+    ctx.scale(25, 50);
+    ctx.strokeStyle = '#0f0';
+    ctx.stroke();
+    ctx.restore();
 
-ctx.beginPath();
-ctx.rect(-25, -12.5, 150, 75);
-ctx.save();
-ctx.rotate(Math.PI/2);
-ctx.scale(25, 50);
-ctx.strokeStyle = '#f00';
-ctx.stroke();
-ctx.restore();
+    ctx.beginPath();
+    ctx.rect(-25, -12.5, 150, 75);
+    ctx.save();
+    ctx.rotate(Math.PI/2);
+    ctx.scale(25, 50);
+    ctx.strokeStyle = '#f00';
+    ctx.stroke();
+    ctx.restore();
 
-isPixel(ctx, 0,0, 0,255,0,255, 0);
-isPixel(ctx, 50,0, 0,255,0,255, 0);
-isPixel(ctx, 99,0, 0,255,0,255, 0);
-isPixel(ctx, 0,25, 0,255,0,255, 0);
-isPixel(ctx, 50,25, 0,255,0,255, 0);
-isPixel(ctx, 99,25, 0,255,0,255, 0);
-isPixel(ctx, 0,49, 0,255,0,255, 0);
-isPixel(ctx, 50,49, 0,255,0,255, 0);
-isPixel(ctx, 99,49, 0,255,0,255, 0);
-
+    isPixel(ctx, 0,0, 0,255,0,255, 0);
+    isPixel(ctx, 50,0, 0,255,0,255, 0);
+    isPixel(ctx, 99,0, 0,255,0,255, 0);
+    isPixel(ctx, 0,25, 0,255,0,255, 0);
+    isPixel(ctx, 50,25, 0,255,0,255, 0);
+    isPixel(ctx, 99,25, 0,255,0,255, 0);
+    isPixel(ctx, 0,49, 0,255,0,255, 0);
+    isPixel(ctx, 50,49, 0,255,0,255, 0);
+    isPixel(ctx, 99,49, 0,255,0,255, 0);
+}
 
 }
 </script>
@@ -15886,7 +15904,7 @@ var ctx = canvas.getContext('2d');
 ctx.shadowColor = 'lime';
 ok(ctx.shadowColor === '#00ff00', "ctx.shadowColor === '#00ff00'");
 ctx.shadowColor = 'RGBA(0,255, 0,0)';
-ok(ctx.shadowColor === 'rgba(0, 255, 0, 0.0)', "ctx.shadowColor === 'rgba(0, 255, 0, 0.0)'");
+is(ctx.shadowColor, 'rgba(0, 255, 0, 0)', "ctx.shadowColor should be what we set it to");
 
 
 }
@@ -18054,11 +18072,13 @@ function test_2d_strokeRect_zero_1() {
 var canvas = document.getElementById('c580');
 var ctx = canvas.getContext('2d');
 
-ctx.strokeStyle = '#f00';
-ctx.lineWidth = 250;
-ctx.strokeRect(50, 25, 0, 0);
-isPixel(ctx, 50,25, 0,0,0,0, 0);
-
+if (!IsD2DEnabled()) {
+    // Disabled for D2D until we can figure out Bug 587554.
+    ctx.strokeStyle = '#f00';
+    ctx.lineWidth = 250;
+    ctx.strokeRect(50, 25, 0, 0);
+    isPixel(ctx, 50,25, 0,0,0,0, 0);
+}
 
 }
 </script>
@@ -19316,7 +19336,7 @@ ok(canvas.getContext('2D') === null, "canvas.getContext('2D') === null");
 } catch (e) {
     _thrown_outer = true;
 }
-todo(!_thrown_outer, 'should not throw exception');
+ok(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -19342,7 +19362,7 @@ ok(canvas.getContext("") === null, "canvas.getContext(\"\") === null");
 } catch (e) {
     _thrown_outer = true;
 }
-todo(!_thrown_outer, 'should not throw exception');
+ok(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -19368,7 +19388,7 @@ ok(canvas.getContext('This is not an implemented context in any real browser') =
 } catch (e) {
     _thrown_outer = true;
 }
-todo(!_thrown_outer, 'should not throw exception');
+ok(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -19394,7 +19414,7 @@ ok(canvas.getContext("2d#") === null, "canvas.getContext(\"2d#\") === null");
 } catch (e) {
     _thrown_outer = true;
 }
-todo(!_thrown_outer, 'should not throw exception');
+ok(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -19420,7 +19440,7 @@ ok(canvas.getContext("2d\0") === null, "canvas.getContext(\"2d\\0\") === null");
 } catch (e) {
     _thrown_outer = true;
 }
-todo(!_thrown_outer, 'should not throw exception');
+ok(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -19446,7 +19466,7 @@ ok(canvas.getContext("2\uFF44") === null, "canvas.getContext(\"2\\uFF44\") === n
 } catch (e) {
     _thrown_outer = true;
 }
-todo(!_thrown_outer, 'should not throw exception');
+ok(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -20461,7 +20481,7 @@ var _thrown_outer = false;
 try {
 
 var data = canvas.toDataURL('image/png', 'another argument that should not raise an exception');
-ok(data =~ /^data:image\/png[;,]/, "data =~ /^data:image\\/png[;,]/");
+ok(/^data:image\/png[;,]/.test(data), "data =~ /^data:image\\/png[;,]/");
 
 } catch (e) {
     _thrown_outer = true;
@@ -20488,7 +20508,7 @@ var _thrown_outer = false;
 try {
 
 var data = canvas.toDataURL('image/png', 'another argument that should not raise an exception', 'and another');
-ok(data =~ /^data:image\/png[;,]/, "data =~ /^data:image\\/png[;,]/");
+ok(/^data:image\/png[;,]/.test(data), "data =~ /^data:image\\/png[;,]/");
 
 } catch (e) {
     _thrown_outer = true;
@@ -20516,7 +20536,7 @@ try {
 
 // More arguments that should not raise exceptions
 var data = canvas.toDataURL('image/png', null, null, null);
-ok(data =~ /^data:image\/png[;,]/, "data =~ /^data:image\\/png[;,]/");
+ok(/^data:image\/png[;,]/.test(data), "data =~ /^data:image\\/png[;,]/");
 
 } catch (e) {
     _thrown_outer = true;
@@ -20580,7 +20600,7 @@ var canvas = document.getElementById('c668');
 var ctx = canvas.getContext('2d');
 
 var data = canvas.toDataURL();
-ok(data =~ /^data:image\/png[;,]/, "data =~ /^data:image\\/png[;,]/");
+ok(/^data:image\/png[;,]/.test(data), "data =~ /^data:image\\/png[;,]/");
 
 
 }
@@ -20602,12 +20622,12 @@ var _thrown_outer = false;
 try {
 
 var data = canvas.toDataURL('ImAgE/PnG');
-ok(data =~ /^data:image\/png[;,]/, "data =~ /^data:image\\/png[;,]/");
+ok(/^data:image\/png[;,]/.test(data), "data =~ /^data:image\\/png[;,]/");
 
 } catch (e) {
     _thrown_outer = true;
 }
-todo(!_thrown_outer, 'should not throw exception');
+ok(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -20626,8 +20646,9 @@ var canvas = document.getElementById('c670');
 var ctx = canvas.getContext('2d');
 
 var canvas2 = document.createElement('canvas');
+
 var data = canvas2.toDataURL();
-ok(data =~ /^data:image\/png[;,]/, "data =~ /^data:image\\/png[;,]/");
+ok(/^data:image\/png[;,]/.test(data), "data =~ /^data:image\\/png[;,]/");
 
 
 }
@@ -20646,7 +20667,7 @@ var canvas = document.getElementById('c671');
 var ctx = canvas.getContext('2d');
 
 var data = canvas.toDataURL('image/png');
-ok(data =~ /^data:image\/png[;,]/, "data =~ /^data:image\\/png[;,]/");
+ok(/^data:image\/png[;,]/.test(data), "data =~ /^data:image\\/png[;,]/");
 
 
 }
@@ -20709,12 +20730,12 @@ var _thrown_outer = false;
 try {
 
 var data = canvas.toDataURL('image/example');
-ok(data =~ /^data:image\/png[;,]/, "data =~ /^data:image\\/png[;,]/");
+ok(/^data:image\/png[;,]/.test(data), "data =~ /^data:image\\/png[;,]/");
 
 } catch (e) {
     _thrown_outer = true;
 }
-todo(!_thrown_outer, 'should not throw exception');
+ok(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -21065,7 +21086,7 @@ function runTests() {
  //test_2d_gradient_radial_touch3();
  
  /**
-  * These 19 tests recieve special makefile treatment
+  * These 19 tests receive special makefile treatment
   */
  //test_2d_composite_uncovered_image_destination_atop();
  //test_2d_composite_uncovered_image_destination_in();

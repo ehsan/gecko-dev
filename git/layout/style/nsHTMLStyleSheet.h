@@ -61,40 +61,37 @@ public:
   NS_DECL_ISUPPORTS
 
   // nsIStyleSheet api
-  NS_IMETHOD GetSheetURI(nsIURI** aSheetURL) const;
-  NS_IMETHOD GetBaseURI(nsIURI** aBaseURL) const;
-  NS_IMETHOD GetTitle(nsString& aTitle) const;
-  NS_IMETHOD GetType(nsString& aType) const;
-  NS_IMETHOD_(PRBool) HasRules() const;
-  NS_IMETHOD GetApplicable(PRBool& aApplicable) const;
-  NS_IMETHOD SetEnabled(PRBool aEnabled);
-  NS_IMETHOD GetComplete(PRBool& aComplete) const;
-  NS_IMETHOD SetComplete();
-  NS_IMETHOD GetParentSheet(nsIStyleSheet*& aParent) const;  // will be null
-  NS_IMETHOD GetOwningDocument(nsIDocument*& aDocument) const;
-  NS_IMETHOD SetOwningDocument(nsIDocument* aDocumemt);
+  virtual nsIURI* GetSheetURI() const;
+  virtual nsIURI* GetBaseURI() const;
+  virtual void GetTitle(nsString& aTitle) const;
+  virtual void GetType(nsString& aType) const;
+  virtual PRBool HasRules() const;
+  virtual PRBool IsApplicable() const;
+  virtual void SetEnabled(PRBool aEnabled);
+  virtual PRBool IsComplete() const;
+  virtual void SetComplete();
+  virtual nsIStyleSheet* GetParentSheet() const;  // will be null
+  virtual nsIDocument* GetOwningDocument() const;
+  virtual void SetOwningDocument(nsIDocument* aDocumemt);
 #ifdef DEBUG
   virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
   // nsIStyleRuleProcessor API
-  NS_IMETHOD RulesMatching(ElementRuleProcessorData* aData);
-  NS_IMETHOD RulesMatching(PseudoElementRuleProcessorData* aData);
-  NS_IMETHOD RulesMatching(AnonBoxRuleProcessorData* aData);
+  virtual void RulesMatching(ElementRuleProcessorData* aData);
+  virtual void RulesMatching(PseudoElementRuleProcessorData* aData);
+  virtual void RulesMatching(AnonBoxRuleProcessorData* aData);
 #ifdef MOZ_XUL
-  NS_IMETHOD RulesMatching(XULTreeRuleProcessorData* aData);
+  virtual void RulesMatching(XULTreeRuleProcessorData* aData);
 #endif
-  virtual nsReStyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
-  virtual nsReStyleHint
+  virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
+  virtual PRBool HasDocumentStateDependentStyle(StateRuleProcessorData* aData);
+  virtual nsRestyleHint
     HasAttributeDependentStyle(AttributeRuleProcessorData* aData);
-  NS_IMETHOD MediumFeaturesChanged(nsPresContext* aPresContext,
-                                   PRBool* aRulesChanged);
+  virtual PRBool MediumFeaturesChanged(nsPresContext* aPresContext);
 
   nsresult Init(nsIURI* aURL, nsIDocument* aDocument);
-  nsresult Reset(nsIURI* aURL);
-  nsresult GetLinkColor(nscolor& aColor);
-  nsresult GetActiveLinkColor(nscolor& aColor);
-  nsresult GetVisitedLinkColor(nscolor& aColor);
+  void Reset(nsIURI* aURL);
   nsresult SetLinkColor(nscolor aColor);
   nsresult SetActiveLinkColor(nscolor aColor);
   nsresult SetVisitedLinkColor(nscolor aColor);
@@ -121,14 +118,16 @@ private:
     NS_DECL_ISUPPORTS
 
     // nsIStyleRule interface
-    NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
+    virtual void MapRuleInfoInto(nsRuleData* aRuleData);
   #ifdef DEBUG
-    NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+    virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
   #endif
 
     nscolor             mColor;
   };
 
+  // Implementation of SetLink/VisitedLink/ActiveLinkColor
+  nsresult ImplLinkColorSetter(nsRefPtr<HTMLColorRule>& aRule, nscolor aColor);
 
   class GenericTableRule;
   friend class GenericTableRule;
@@ -139,9 +138,9 @@ private:
     NS_DECL_ISUPPORTS
 
     // nsIStyleRule interface
-    NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
+    virtual void MapRuleInfoInto(nsRuleData* aRuleData);
   #ifdef DEBUG
-    NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+    virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
   #endif
   };
 
@@ -152,18 +151,18 @@ private:
   public:
     TableTHRule() {}
 
-    NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
+    virtual void MapRuleInfoInto(nsRuleData* aRuleData);
   };
 
-  nsIURI*              mURL;
-  nsIDocument*         mDocument;
-  HTMLColorRule*       mLinkRule;
-  HTMLColorRule*       mVisitedRule;
-  HTMLColorRule*       mActiveRule;
-  HTMLColorRule*       mDocumentColorRule;
-  TableTHRule*         mTableTHRule;
+  nsCOMPtr<nsIURI>        mURL;
+  nsIDocument*            mDocument;
+  nsRefPtr<HTMLColorRule> mLinkRule;
+  nsRefPtr<HTMLColorRule> mVisitedRule;
+  nsRefPtr<HTMLColorRule> mActiveRule;
+  nsRefPtr<HTMLColorRule> mDocumentColorRule;
+  nsRefPtr<TableTHRule>   mTableTHRule;
 
-  PLDHashTable         mMappedAttrTable;
+  PLDHashTable            mMappedAttrTable;
 };
 
 // XXX convenience method. Calls Initialize() automatically.

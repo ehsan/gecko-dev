@@ -38,6 +38,8 @@
 
 #include "nsSVGPointList.h"
 #include "nsSVGPoint.h"
+#include "nsSVGUtils.h"
+#include "nsCharSeparatedTokenizer.h"
 #include "nsDOMError.h"
 #include "prdtoa.h"
 #include "nsReadableUtils.h"
@@ -45,6 +47,15 @@
 #include "nsCRT.h"
 #include "nsCOMArray.h"
 #include "nsContentUtils.h"
+
+#define NS_ENSURE_NATIVE_POINT(obj, retval)             \
+  {                                                     \
+    nsCOMPtr<nsISVGValue> val = do_QueryInterface(obj); \
+    if (!val) {                                         \
+      *retval = nsnull;                                 \
+      return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;           \
+    }                                                   \
+  }
 
 nsresult
 nsSVGPointList::Create(const nsAString& aValue,
@@ -144,12 +155,14 @@ nsSVGPointList::InsertElementAt(nsIDOMSVGPoint* aElement, PRInt32 index)
 NS_IMPL_ADDREF(nsSVGPointList)
 NS_IMPL_RELEASE(nsSVGPointList)
 
+DOMCI_DATA(SVGPointList, nsSVGPointList)
+
 NS_INTERFACE_MAP_BEGIN(nsSVGPointList)
   NS_INTERFACE_MAP_ENTRY(nsISVGValue)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGPointList)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsISVGValueObserver)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGPointList)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGPointList)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISVGValue)
 NS_INTERFACE_MAP_END
 
@@ -160,57 +173,65 @@ NS_INTERFACE_MAP_END
 NS_IMETHODIMP
 nsSVGPointList::SetValueString(const nsAString& aValue)
 {
-  nsresult rv = NS_OK;
-
-  char* str = ToNewCString(aValue);
-  
-  char* rest = str;
-  char* token1;
-  char* token2;
-  const char* delimiters = ",\x20\x9\xD\xA";
+  nsCharSeparatedTokenizer
+    tokenizer(aValue, ',',
+              nsCharSeparatedTokenizer::SEPARATOR_OPTIONAL);
   nsCOMArray<nsIDOMSVGPoint> points;
-  
-  while ( (token1 = nsCRT::strtok(rest, delimiters, &rest)) &&
-          (token2 = nsCRT::strtok(rest, delimiters, &rest)) ) {
 
+  PRBool parseError = PR_FALSE;
+
+  while (tokenizer.hasMoreTokens()) {
+    // Parse 2 tokens
+    NS_ConvertUTF16toUTF8 utf8String1(tokenizer.nextToken());
+    const char *token1 = utf8String1.get();
+    if (!tokenizer.hasMoreTokens() ||  // No 2nd token.
+        *token1 == '\0') {             // 1st token is empty string.
+      parseError = PR_TRUE;
+      break;
+    }
+    NS_ConvertUTF16toUTF8 utf8String2(tokenizer.nextToken());
+    const char *token2 = utf8String2.get();
+    if (*token2 == '\0') {             // 2nd token is empty string.
+      parseError = PR_TRUE;
+      break;
+    }
+
+    // Convert parsed tokens to float values.
     char *end;
-    
     float x = float(PR_strtod(token1, &end));
     if (*end != '\0' || !NS_FloatIsFinite(x)) {
-      rv = NS_ERROR_DOM_SYNTAX_ERR;
-      break; // parse error
+      parseError = PR_TRUE;
+      break;
     }
     float y = float(PR_strtod(token2, &end));
     if (*end != '\0' || !NS_FloatIsFinite(y)) {
-      rv = NS_ERROR_DOM_SYNTAX_ERR;
-      break; // parse error
-    }
-    
-    nsCOMPtr<nsIDOMSVGPoint> point;
-    NS_NewSVGPoint(getter_AddRefs(point), x, y);
-    if (!point) {
-      rv = NS_ERROR_OUT_OF_MEMORY;
+      parseError = PR_TRUE;
       break;
     }
+
+    // Build a point from our parsed float values.
+    nsCOMPtr<nsIDOMSVGPoint> point;
+    NS_NewSVGPoint(getter_AddRefs(point), x, y); // uses infallible 'new'.
     points.AppendObject(point);
   }
 
-  if (token1 || NS_FAILED(rv)) {
-    // there was a parse error or we ran out of memory
-    rv = NS_ERROR_DOM_SYNTAX_ERR;
-  } else {
-    WillModify();
-    ReleasePoints();
-    PRInt32 count = points.Count();
-    for (PRInt32 i=0; i<count; ++i) {
-      AppendElement(points.ObjectAt(i));
-    }
-    DidModify();
+  if (tokenizer.lastTokenEndedWithSeparator()) { // Reject trailing comma
+    parseError = PR_TRUE;
   }
 
-  nsMemory::Free(str);
-  
-  return rv;
+  if (parseError) {
+    // XXX nsSVGUtils::ReportToConsole()
+  }
+
+  WillModify();
+  ReleasePoints();
+  PRInt32 count = points.Count();
+  for (PRInt32 i = 0; i < count; ++i) {
+    AppendElement(points.ObjectAt(i));
+  }
+  DidModify();
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -265,10 +286,7 @@ NS_IMETHODIMP nsSVGPointList::Clear()
 NS_IMETHODIMP nsSVGPointList::Initialize(nsIDOMSVGPoint *newItem,
                                          nsIDOMSVGPoint **_retval)
 {
-  if (!newItem) {
-    *_retval = nsnull;
-    return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
-  }
+  NS_ENSURE_NATIVE_POINT(newItem, _retval);
   Clear();
   return AppendItem(newItem, _retval);
 }
@@ -291,9 +309,7 @@ NS_IMETHODIMP nsSVGPointList::InsertItemBefore(nsIDOMSVGPoint *newItem,
                                                PRUint32 index,
                                                nsIDOMSVGPoint **_retval)
 {
-  // null check when implementing - this method can be used by scripts!
-  // if (!newItem)
-  //   return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
+  NS_ENSURE_NATIVE_POINT(newItem, _retval);
 
   NS_NOTYETIMPLEMENTED("write me");
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -304,9 +320,7 @@ NS_IMETHODIMP nsSVGPointList::ReplaceItem(nsIDOMSVGPoint *newItem,
                                           PRUint32 index,
                                           nsIDOMSVGPoint **_retval)
 {
-  // null check when implementing - this method can be used by scripts!
-  // if (!newItem)
-  //   return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
+  NS_ENSURE_NATIVE_POINT(newItem, _retval);
 
   NS_NOTYETIMPLEMENTED("write me");
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -336,9 +350,8 @@ NS_IMETHODIMP nsSVGPointList::AppendItem(nsIDOMSVGPoint *newItem,
   // is removed from its previous list before it is inserted into this
   // list'. We don't do that. Should we?
   
+  NS_ENSURE_NATIVE_POINT(newItem, _retval);
   *_retval = newItem;
-  if (!newItem)
-    return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
   AppendElement(newItem);
   NS_ADDREF(*_retval);
   return NS_OK;

@@ -44,6 +44,10 @@
 
 #include <ole2.h>
 
+// {25589C3E-1FAC-47b9-BF43-CAEA89B79533}
+const IID IID_IDataObjCollection =
+  {0x25589c3e, 0x1fac, 0x47b9, {0xbf, 0x43, 0xca, 0xea, 0x89, 0xb7, 0x95, 0x33}};
+
 /*
  * Class nsDataObjCollection
  */
@@ -251,48 +255,6 @@ void nsDataObjCollection::AddDataObject(IDataObject * aDataObj)
 {
   nsDataObj* dataObj = reinterpret_cast<nsDataObj*>(aDataObj);
   mDataObjects.AppendElement(dataObj);
-}
-
-// IAsyncOperation methods
-STDMETHODIMP nsDataObjCollection::EndOperation(HRESULT hResult,
-                                               IBindCtx *pbcReserved,
-                                               DWORD dwEffects)
-{
-  mIsInOperation = FALSE;
-  Release();
-  return S_OK;
-}
-
-STDMETHODIMP nsDataObjCollection::GetAsyncMode(BOOL *pfIsOpAsync)
-{
-  if (!pfIsOpAsync)
-    return E_FAIL;
-
-  *pfIsOpAsync = mIsAsyncMode;
-
-  return S_OK;
-}
-
-STDMETHODIMP nsDataObjCollection::InOperation(BOOL *pfInAsyncOp)
-{
-  if (!pfInAsyncOp)
-    return E_FAIL;
-
-  *pfInAsyncOp = mIsInOperation;
-
-  return S_OK;
-}
-
-STDMETHODIMP nsDataObjCollection::SetAsyncMode(BOOL fDoOpAsync)
-{
-  mIsAsyncMode = fDoOpAsync;
-  return S_OK;
-}
-
-STDMETHODIMP nsDataObjCollection::StartOperation(IBindCtx *pbcReserved)
-{
-  mIsInOperation = TRUE;
-  return S_OK;
 }
 
 // Methods for getting data

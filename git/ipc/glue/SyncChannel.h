@@ -49,7 +49,7 @@ namespace ipc {
 class SyncChannel : public AsyncChannel
 {
 protected:
-    typedef uint16 MessageId;
+    typedef IPC::Message::msgid_t msgid_t;
 
 public:
     static const int32 kNoTimeout;
@@ -63,20 +63,23 @@ public:
         virtual void OnChannelClose() = 0;
         virtual void OnChannelError() = 0;
         virtual Result OnMessageReceived(const Message& aMessage) = 0;
+        virtual void OnProcessingError(Result aError) = 0;
         virtual bool OnReplyTimeout() = 0;
         virtual Result OnMessageReceived(const Message& aMessage,
                                          Message*& aReply) = 0;
+        virtual void OnChannelConnected(int32 peer_pid) {};
     };
 
     SyncChannel(SyncListener* aListener);
     virtual ~SyncChannel();
 
-    bool Send(Message* msg) {
+    NS_OVERRIDE
+    virtual bool Send(Message* msg) {
         return AsyncChannel::Send(msg);
     }
 
     // Synchronously send |msg| (i.e., wait for |reply|)
-    bool Send(Message* msg, Message* reply);
+    virtual bool Send(Message* msg, Message* reply);
 
     void SetReplyTimeoutMs(int32 aTimeoutMs) {
         AssertWorkerThread();
@@ -94,9 +97,45 @@ public:
         sIsPumpingMessages = aIsPumping;
     }
 
+#ifdef OS_WIN
+    struct NS_STACK_CLASS SyncStackFrame
+    {
+        SyncStackFrame(SyncChannel* channel, bool rpc);
+        ~SyncStackFrame();
+
+        bool mRPC;
+        bool mSpinNestedEvents;
+        SyncChannel* mChannel;
+
+        /* the previous stack frame for this channel */
+        SyncStackFrame* mPrev;
+
+        /* the previous stack frame on any channel */
+        SyncStackFrame* mStaticPrev;
+    };
+    friend struct SyncChannel::SyncStackFrame;
+
+    static bool IsSpinLoopActive() {
+        for (SyncStackFrame* frame = sStaticTopFrame;
+             frame;
+             frame = frame->mPrev) {
+            if (frame->mSpinNestedEvents)
+                return true;
+        }
+        return false;
+    }
+
+protected:
+    /* the deepest sync stack frame for this channel */
+    SyncStackFrame* mTopFrame;
+
+    /* the deepest sync stack frame on any channel */
+    static SyncStackFrame* sStaticTopFrame;
+#endif // OS_WIN
+
 protected:
     // Executed on the worker thread
-    bool ProcessingSyncMessage() {
+    bool ProcessingSyncMessage() const {
         return mProcessingSyncMessage;
     }
 
@@ -128,11 +167,10 @@ protected:
     bool ShouldContinueFromTimeout();
 
     // Executed on the IO thread.
-    void OnSendReply(Message* msg);
     void NotifyWorkerThread();
 
     // On both
-    bool AwaitingSyncReply() {
+    bool AwaitingSyncReply() const {
         mMutex.AssertCurrentThreadOwns();
         return mPendingReply != 0;
     }
@@ -142,7 +180,7 @@ protected:
         return mChild ? --mNextSeqno : ++mNextSeqno;
     }
 
-    MessageId mPendingReply;
+    msgid_t mPendingReply;
     bool mProcessingSyncMessage;
     Message mRecvd;
     // This is only accessed from the worker thread; seqno's are
@@ -152,6 +190,10 @@ protected:
     static bool sIsPumpingMessages;
 
     int32 mTimeoutMs;
+
+#ifdef OS_WIN
+    HANDLE mEvent;
+#endif
 
 private:
     bool EventOccurred();

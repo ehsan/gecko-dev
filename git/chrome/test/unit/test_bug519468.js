@@ -45,9 +45,7 @@ registerManifests(MANIFESTS);
 var chromeReg = Cc["@mozilla.org/chrome/chrome-registry;1"]
                 .getService(Ci.nsIXULChromeRegistry)
                 .QueryInterface(Ci.nsIToolkitChromeRegistry);
-
-var localeService = Cc["@mozilla.org/intl/nslocaleservice;1"]
-                    .getService(Ci.nsILocaleService);
+chromeReg.checkForNewChrome();
 
 var prefService = Cc["@mozilla.org/preferences-service;1"]
                   .getService(Ci.nsIPrefService)

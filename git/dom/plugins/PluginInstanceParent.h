@@ -43,6 +43,8 @@
 #include "mozilla/plugins/PluginScriptableObjectParent.h"
 #if defined(OS_WIN)
 #include "mozilla/gfx/SharedDIBWin.h"
+#elif defined(OS_MACOSX)
+#include "nsCoreAnimationSupport.h"
 #endif
 
 #include "npfunctions.h"
@@ -50,6 +52,10 @@
 #include "nsDataHashtable.h"
 #include "nsHashKeys.h"
 #include "nsRect.h"
+#include "gfxASurface.h"
+#ifdef MOZ_X11
+class gfxXlibSurface;
+#endif
 
 namespace mozilla {
 namespace plugins {
@@ -66,6 +72,7 @@ class PluginInstanceParent : public PPluginInstanceParent
 public:
     PluginInstanceParent(PluginModuleParent* parent,
                          NPP npp,
+                         const nsCString& mimeType,
                          const NPNetscapeFuncs* npniface);
 
     virtual ~PluginInstanceParent();
@@ -78,8 +85,8 @@ public:
     virtual PPluginScriptableObjectParent*
     AllocPPluginScriptableObject();
 
-    virtual bool
-    AnswerPPluginScriptableObjectConstructor(PPluginScriptableObjectParent* aActor);
+    NS_OVERRIDE virtual bool
+    RecvPPluginScriptableObjectConstructor(PPluginScriptableObjectParent* aActor);
 
     virtual bool
     DeallocPPluginScriptableObject(PPluginScriptableObjectParent* aObject);
@@ -126,6 +133,12 @@ public:
     virtual bool
     AnswerNPN_SetValue_NPPVpluginTransparent(const bool& transparent,
                                              NPError* result);
+    virtual bool
+    AnswerNPN_SetValue_NPPVpluginDrawingModel(const int& drawingModel,
+                                             NPError* result);
+    virtual bool
+    AnswerNPN_SetValue_NPPVpluginEventModel(const int& eventModel,
+                                             NPError* result);
 
     virtual bool
     AnswerNPN_GetURL(const nsCString& url, const nsCString& target,
@@ -156,12 +169,17 @@ public:
     virtual bool
     RecvNPN_InvalidateRect(const NPRect& rect);
 
+    // Async rendering
     virtual bool
-    AnswerNPN_PushPopupsEnabledState(const bool& aState,
-                                     bool* aSuccess);
+    RecvShow(const NPRect& updatedRect,
+             const SurfaceDescriptor& newSurface,
+             SurfaceDescriptor* prevSurface);
 
     virtual bool
-    AnswerNPN_PopPopupsEnabledState(bool* aSuccess);
+    AnswerNPN_PushPopupsEnabledState(const bool& aState);
+
+    virtual bool
+    AnswerNPN_PopPopupsEnabledState();
 
     NS_OVERRIDE virtual bool
     AnswerNPN_GetValueForURL(const NPNURLVariable& variable,
@@ -182,6 +200,17 @@ public:
                                     nsCString* username,
                                     nsCString* password,
                                     NPError* result);
+
+    NS_OVERRIDE virtual bool
+    AnswerNPN_ConvertPoint(const double& sourceX,
+                           const bool&   ignoreDestX,
+                           const double& sourceY,
+                           const bool&   ignoreDestY,
+                           const NPCoordinateSpace& sourceSpace,
+                           const NPCoordinateSpace& destSpace,
+                           double *destX,
+                           double *destY,
+                           bool *result);
 
     NPError NPP_SetWindow(const NPWindow* aWindow);
 
@@ -225,12 +254,26 @@ public:
     }
 
     virtual bool
-    AnswerPluginGotFocus();
+    AnswerPluginFocusChange(const bool& gotFocus);
 
-    virtual bool
-    RecvSetNestedEventState(const bool& aState);
+#if defined(OS_MACOSX)
+    void Invalidate();
+#endif // definied(OS_MACOSX)
+
+    nsresult AsyncSetWindow(NPWindow* window);
+    nsresult GetSurface(gfxASurface** aSurface);
 
 private:
+    // Quirks mode support for various plugin mime types
+    enum PluginQuirks {
+        // OSX: Don't use the refresh timer for plug-ins
+        // using this quirk. These plug-in most have another
+        // way to refresh the window.
+        COREANIMATION_REFRESH_TIMER = 1,
+    };
+
+    void InitQuirksModes(const nsCString& aMimeType);
+
     bool InternalGetValueForNPObject(NPNVariable aVariable,
                                      PPluginScriptableObjectParent** aValue,
                                      NPError* aResult);
@@ -240,6 +283,7 @@ private:
     NPP mNPP;
     const NPNetscapeFuncs* mNPNIface;
     NPWindowType mWindowType;
+    int mQuirks;
 
     nsDataHashtable<nsVoidPtrHashKey, PluginScriptableObjectParent*> mScriptableObjects;
 
@@ -264,6 +308,18 @@ private:
     WNDPROC            mPluginWndProc;
     bool               mNestedEventState;
 #endif // defined(XP_WIN)
+#if defined(OS_MACOSX)
+private:
+    Shmem              mShSurface; 
+    size_t             mShWidth;
+    size_t             mShHeight;
+    CGColorSpaceRef    mShColorSpace;
+    int16_t            mDrawingModel;
+    nsIOSurface       *mIOSurface;
+#endif // definied(OS_MACOSX)
+
+    // ObjectFrame layer wrapper
+    nsRefPtr<gfxASurface>    mFrontSurface;
 };
 
 

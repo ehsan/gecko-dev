@@ -354,7 +354,7 @@ nsDOMWorkerXHR::~nsDOMWorkerXHR()
   if (mXHRProxy) {
     if (!NS_IsMainThread()) {
       nsCOMPtr<nsIRunnable> runnable =
-        NS_NEW_RUNNABLE_METHOD(nsDOMWorkerXHRProxy, mXHRProxy.get(), Destroy);
+        NS_NewRunnableMethod(mXHRProxy, &nsDOMWorkerXHRProxy::Destroy);
 
       if (runnable) {
         mXHRProxy = nsnull;
@@ -888,4 +888,11 @@ nsDOMWorkerXHR::SetWithCredentials(PRBool aWithCredentials)
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
+}
+
+/* readonly attribute jsval (ArrayBuffer) mozResponseArrayBuffer; */
+NS_IMETHODIMP
+nsDOMWorkerXHR::GetMozResponseArrayBuffer(jsval *aResult)
+{
+    return NS_ERROR_NOT_IMPLEMENTED;
 }

@@ -51,10 +51,11 @@
 #include "nsAccessibleWrap.h"
 
 #include "nsCOMPtr.h"
+#include "nsIPersistentProperties2.h"
 #include "nsString.h"
 
 #define GET_NSIACCESSIBLETEXT \
-nsCOMPtr<nsIAccessibleText> textAcc(do_QueryInterface(this));\
+nsCOMPtr<nsIAccessibleText> textAcc(do_QueryObject(this));\
 NS_ASSERTION(textAcc,\
              "Subclass of CAccessibleText doesn't implement nsIAccessibleText");\
 if (!textAcc)\
@@ -68,7 +69,7 @@ CAccessibleText::QueryInterface(REFIID iid, void** ppv)
   *ppv = NULL;
 
   if (IID_IAccessibleText == iid) {
-    nsCOMPtr<nsIAccessibleText> textAcc(do_QueryInterface(this));
+    nsCOMPtr<nsIAccessibleText> textAcc(do_QueryObject(this));
     if (!textAcc) {
       return E_NOINTERFACE;
     }

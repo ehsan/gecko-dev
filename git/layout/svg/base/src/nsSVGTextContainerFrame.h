@@ -38,12 +38,14 @@
 #define NS_SVGTEXTCONTAINERFRAME_H
 
 #include "nsSVGContainerFrame.h"
-#include "nsIDOMSVGLengthList.h"
+#include "nsIDOMSVGNumberList.h"
 
 class nsISVGGlyphFragmentNode;
 class nsISVGGlyphFragmentLeaf;
-
 class nsSVGTextFrame;
+namespace mozilla {
+class SVGUserUnitList;
+}
 
 class nsSVGTextContainerFrame : public nsSVGDisplayContainerFrame
 {
@@ -52,10 +54,9 @@ public:
     nsSVGDisplayContainerFrame(aContext) {}
 
   void NotifyGlyphMetricsChange();
-  NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetX();
-  NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetY();
-  NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetDx();
-  NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetDy();
+  virtual void GetXY(mozilla::SVGUserUnitList *aX, mozilla::SVGUserUnitList *aY);
+  virtual void GetDxDy(mozilla::SVGUserUnitList *aDx, mozilla::SVGUserUnitList *aDy);
+  virtual already_AddRefed<nsIDOMSVGNumberList> GetRotate();
   
 public:
   NS_DECL_QUERYFRAME_TARGET(nsSVGTextContainerFrame)
@@ -92,6 +93,9 @@ public:
    * Get the character at the specified position
    */
   virtual PRInt32 GetCharNumAtPosition(nsIDOMSVGPoint *point);
+  void GetEffectiveXY(nsTArray<float> &aX, nsTArray<float> &aY);
+  void GetEffectiveDxDy(nsTArray<float> &aDx, nsTArray<float> &aDy);
+  void GetEffectiveRotate(nsTArray<float> &aRotate);
 
 protected:
   /*
@@ -110,6 +114,15 @@ protected:
    * Set Whitespace handling
    */
   void SetWhitespaceHandling();
+  void CopyPositionList(nsTArray<float> *parentList,
+                        mozilla::SVGUserUnitList *selfList,
+                        nsTArray<float> &dstList,
+                        PRUint32 aOffset);
+  void CopyRotateList(nsTArray<float> *parentList,
+                      nsCOMPtr<nsIDOMSVGNumberList> selfList,
+                      nsTArray<float> &dstList,
+                      PRUint32 aOffset);
+  PRUint32 BuildPositionList(PRUint32 aOffset, PRUint32 aDepth);
 
 private:
   /*
@@ -125,6 +138,11 @@ private:
    * if this is a text frame)
    */
   nsSVGTextFrame * GetTextFrame();
+  nsTArray<float> mX;
+  nsTArray<float> mY;
+  nsTArray<float> mDx;
+  nsTArray<float> mDy;
+  nsTArray<float> mRotate;
 };
 
 #endif

@@ -42,8 +42,6 @@ function test() {
   // initialization
   let pb = Cc["@mozilla.org/privatebrowsing;1"].
            getService(Ci.nsIPrivateBrowsingService);
-  let ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
-           getService(Ci.nsIWindowWatcher);
 
   waitForExplicitFinish();
 
@@ -53,7 +51,7 @@ function test() {
 
     testprivatecl.prototype = {
       _arguments: ["private-toggle"],
-      get length getLength() {
+      get length() {
         return this._arguments.length;
       },
       getArgument: function getArgument(aIndex) {
@@ -84,7 +82,7 @@ function test() {
       STATE_INITIAL_LAUNCH: 0,
       STATE_REMOTE_AUTO: 1,
       STATE_REMOTE_EXPLICIT: 2,
-      get state getState() {
+      get state() {
         return this.STATE_REMOTE_AUTO;
       },
       preventDefault: false,
@@ -120,7 +118,7 @@ function test() {
   function observer(aSubject, aTopic, aData) {
     isnot(aTopic, "domwindowopened", "The -private-toggle argument should be silent");
   }
-  ww.registerNotification(observer);
+  Services.ww.registerNotification(observer);
 
   let tab = gBrowser.selectedTab;
   let browser = gBrowser.getBrowserForTab(tab);
@@ -130,6 +128,8 @@ function test() {
     is(browser.contentWindow.location, "about:", "The correct page has been loaded");
 
     simulatePrivateCommandLineArgument();
+    is(pb.lastChangedByCommandLine, true,
+       "The status change reason should reflect the PB mode being set from the command line");
     tab = gBrowser.selectedTab;
     browser = gBrowser.getBrowserForTab(tab);
     browser.addEventListener("load", function() {
@@ -139,6 +139,8 @@ function test() {
          "about:privatebrowsing should now be loaded");
 
       simulatePrivateCommandLineArgument();
+      is(pb.lastChangedByCommandLine, true,
+         "The status change reason should reflect the PB mode being set from the command line");
       tab = gBrowser.selectedTab;
       browser = gBrowser.getBrowserForTab(tab);
       browser.addEventListener("load", function() {
@@ -149,7 +151,7 @@ function test() {
 
         let newTab = gBrowser.addTab();
         gBrowser.removeTab(tab);
-        ww.unregisterNotification(observer);
+        Services.ww.unregisterNotification(observer);
         finish();
       }, true);
     }, true);

@@ -43,6 +43,7 @@
 #include "nsIContent.h"
 
 #define FOCUSMETHOD_MASK 0xF000
+#define FOCUSMETHODANDRING_MASK 0xF0F000
 
 #define FOCUSMANAGER_CONTRACTID "@mozilla.org/focus-manager;1"
 
@@ -56,6 +57,7 @@ struct nsDelayedBlurOrFocusEvent;
  */
 
 class nsFocusManager : public nsIFocusManager,
+                       public nsIFocusManager_MOZILLA_2_0_BRANCH,
                        public nsIObserver,
                        public nsSupportsWeakReference
 {
@@ -65,6 +67,7 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIOBSERVER
   NS_DECL_NSIFOCUSMANAGER
+  NS_DECL_NSIFOCUSMANAGER_MOZILLA_2_0_BRANCH
 
   // called to initialize and stop the focus manager at startup and shutdown
   static nsresult Init();
@@ -81,6 +84,21 @@ public:
    * pointer filled in to an out-parameter).
    */
   nsIContent* GetFocusedContent() { return mFocusedContent; }
+
+  /**
+   * Called when content has been removed.
+   */
+  nsresult ContentRemoved(nsIDocument* aDocument, nsIContent* aContent);
+
+  /**
+   * Called when mouse button down event handling is started and finished.
+   */
+  void SetMouseButtonDownHandlingDocument(nsIDocument* aDocument)
+  {
+    NS_ASSERTION(!aDocument || !mMouseDownEventHandlingDocument,
+                 "Some mouse button down events are nested?");
+    mMouseDownEventHandlingDocument = aDocument;
+  }
 
   /**
    * Returns the content node that would be focused if aWindow was in an
@@ -107,6 +125,8 @@ public:
    */
   static nsIContent* GetRedirectedFocus(nsIContent* aContent);
 
+  static PRBool sMouseFocusesFormControl;
+
 protected:
 
   nsFocusManager();
@@ -124,11 +144,13 @@ protected:
    * true, then the focus has actually shifted and the caret position will be
    * updated to the new focus, aNewContent will be scrolled into view (unless
    * a flag disables this) and the focus method for the window will be updated.
+   * If aAdjustWidget is false, don't change the widget focus state.
    *
    * All actual focus changes must use this method to do so. (as opposed
    * to those that update the focus in an inactive window for instance).
    */
-  void SetFocusInner(nsIContent* aNewContent, PRInt32 aFlags, PRBool aFocusChanged);
+  void SetFocusInner(nsIContent* aNewContent, PRInt32 aFlags,
+                     PRBool aFocusChanged, PRBool aAdjustWidget);
 
   /**
    * Returns true if aPossibleAncestor is the same as aWindow or an
@@ -156,6 +178,15 @@ protected:
    * Returns true if aWindow is visible.
    */
   PRBool IsWindowVisible(nsPIDOMWindow* aWindow);
+
+  /**
+   * Returns true if aContent is a root element and not focusable.
+   * I.e., even if aContent is editable root element, this returns true when
+   * the document is in designMode.
+   *
+   * @param aContent must not be null and must be in a document.
+   */
+  PRBool IsNonFocusableRoot(nsIContent* aContent);
 
   /**
    * Checks and returns aContent if it may be focused, another content node if
@@ -189,10 +220,13 @@ protected:
    * aIsLeavingDocument should be set to true if the document/window is being
    * blurred as well. Document/window blur events will be fired. It should be
    * false if an element is the same document is about to be focused.
+   *
+   * If aAdjustWidget is false, don't change the widget focus state.
    */
   PRBool Blur(nsPIDOMWindow* aWindowToClear,
               nsPIDOMWindow* aAncestorWindowToFocus,
-              PRBool aIsLeavingDocument);
+              PRBool aIsLeavingDocument,
+              PRBool aAdjustWidget);
 
   /**
    * Focus an element in the active window and child frame.
@@ -217,13 +251,16 @@ protected:
    *
    * aWindowRaised should be true if the window is being raised. In this case,
    * command updaters will not be called.
+   *
+   * If aAdjustWidget is false, don't change the widget focus state.
    */
   void Focus(nsPIDOMWindow* aWindow,
              nsIContent* aContent,
              PRUint32 aFlags,
              PRBool aIsNewDocument,
              PRBool aFocusChanged,
-             PRBool aWindowRaised);
+             PRBool aWindowRaised,
+             PRBool aAdjustWidget);
 
   /**
    * Fires a focus or blur event at aTarget.
@@ -238,7 +275,8 @@ protected:
                             nsIDocument* aDocument,
                             nsISupports* aTarget,
                             PRUint32 aFocusMethod,
-                            PRBool aWindowRaised);
+                            PRBool aWindowRaised,
+                            PRBool aIsRefocus = PR_FALSE);
 
   /**
    * Scrolls aContent into view unless the FLAG_NOSCROLL flag is set.
@@ -448,6 +486,14 @@ protected:
   // synchronized actions cannot be interrupted with events, so queue these up
   // and fire them later.
   nsTArray<nsDelayedBlurOrFocusEvent> mDelayedBlurFocusEvents;
+
+  // A document which is handling a mouse button down event.
+  // When a mouse down event process is finished, ESM sets focus to the target
+  // content.  Therefore, while DOM event handlers are handling mouse down
+  // events, the handlers should be able to steal focus from any elements even
+  // if focus is in chrome content.  So, if this isn't NULL and the caller
+  // can access the document node, the caller should succeed in moving focus.
+  nsCOMPtr<nsIDocument> mMouseDownEventHandlingDocument;
 
   // the single focus manager
   static nsFocusManager* sInstance;

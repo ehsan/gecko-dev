@@ -63,8 +63,7 @@ const PREF_IMPORT_BOOKMARKS_HTML = "browser.places.importBookmarksHTML";
 const PREF_RESTORE_DEFAULT_BOOKMARKS = "browser.bookmarks.restore_default_bookmarks";
 const PREF_SMART_BOOKMARKS_VERSION = "browser.places.smartBookmarksVersion";
 const PREF_AUTO_EXPORT_HTML = "browser.bookmarks.autoExportHTML";
-const TOPIC_PLACES_INIT_COMPLETE = "places-init-complete";
-const TOPIC_PLACES_DATABASE_LOCKED = "places-database-locked";
+
 let tests = [];
 //------------------------------------------------------------------------------
 
@@ -80,7 +79,7 @@ tests.push({
     // Force nsBrowserGlue::_initPlaces().
     print("Simulate Places init");
     bg.QueryInterface(Ci.nsIObserver).observe(null,
-                                              TOPIC_PLACES_INIT_COMPLETE,
+                                              PlacesUtils.TOPIC_INIT_COMPLETE,
                                               null);
     // Check bookmarks.html has been imported, and a smart bookmark has been
     // created.
@@ -109,7 +108,7 @@ tests.push({
     // Force nsBrowserGlue::_initPlaces().
     print("Simulate Places init");
     bg.QueryInterface(Ci.nsIObserver).observe(null,
-                                              TOPIC_PLACES_INIT_COMPLETE,
+                                              PlacesUtils.TOPIC_INIT_COMPLETE,
                                               null);
     // Check bookmarks.html has been imported, but smart bookmarks have not
     // been created.
@@ -137,7 +136,7 @@ tests.push({
     // Force nsBrowserGlue::_initPlaces()
     print("Simulate Places init");
     bg.QueryInterface(Ci.nsIObserver).observe(null,
-                                              TOPIC_PLACES_INIT_COMPLETE,
+                                              PlacesUtils.TOPIC_INIT_COMPLETE,
                                               null);
     // Check bookmarks.html has been imported, but smart bookmarks have not
     // been created.
@@ -166,7 +165,7 @@ tests.push({
     // Force nsBrowserGlue::_initPlaces()
     print("Simulate Places init");
     bg.QueryInterface(Ci.nsIObserver).observe(null,
-                                              TOPIC_PLACES_INIT_COMPLETE,
+                                              PlacesUtils.TOPIC_INIT_COMPLETE,
                                               null);
     // Check bookmarks.html has been imported, but smart bookmarks have not
     // been created.
@@ -192,7 +191,7 @@ tests.push({
     // Force nsBrowserGlue::_initPlaces()
     print("Simulate Places init");
     bg.QueryInterface(Ci.nsIObserver).observe(null,
-                                              TOPIC_PLACES_INIT_COMPLETE,
+                                              PlacesUtils.TOPIC_INIT_COMPLETE,
                                               null);
     // Check bookmarks.html has been restored.
     let itemId = bs.getIdForItemAt(bs.toolbarFolder, SMART_BOOKMARKS_ON_TOOLBAR + 1);
@@ -218,7 +217,7 @@ tests.push({
     // Force nsBrowserGlue::_initPlaces()
     print("Simulate Places init");
     bg.QueryInterface(Ci.nsIObserver).observe(null,
-                                              TOPIC_PLACES_INIT_COMPLETE,
+                                              PlacesUtils.TOPIC_INIT_COMPLETE,
                                               null);
     // Check bookmarks.html has been restored.
     let itemId = bs.getIdForItemAt(bs.toolbarFolder, SMART_BOOKMARKS_ON_TOOLBAR + 1);
@@ -248,9 +247,9 @@ function next_test() {
   // nsBrowserGlue stops observing topics after first notification,
   // so we add back the observer to test additional runs.
   os.addObserver(bg.QueryInterface(Ci.nsIObserver),
-                 TOPIC_PLACES_INIT_COMPLETE, false);
+                 PlacesUtils.TOPIC_INIT_COMPLETE, false);
   os.addObserver(bg.QueryInterface(Ci.nsIObserver),
-                 TOPIC_PLACES_DATABASE_LOCKED, false);
+                 PlacesUtils.TOPIC_DATABASE_LOCKED, false);
   // Execute next test.
   let test = tests.shift();
   print("\nTEST " + (++testIndex) + ": " + test.description);

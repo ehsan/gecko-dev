@@ -37,6 +37,14 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+
+#include <qfile.h>
+#include <qstringlist.h>
+#include <qapplication.h>
+#include <qgraphicsproxywidget.h>
+#include <qgraphicswidget.h>
+#include <qgraphicsscene.h>
+
 #include "nsFilePicker.h"
 
 #include "nsILocalFile.h"
@@ -47,10 +55,11 @@
 #include "nsNetUtil.h"
 #include "nsReadableUtils.h"
 #include "nsIWidget.h"
+#include "prlog.h"
 
-#include <qfile.h>
-#include <qstringlist.h>
-#include <qapplication.h>
+#ifdef PR_LOGGING
+static PRLogModuleInfo* sFilePickerLog = nsnull;
+#endif
 
 /* Implementation file */
 NS_IMPL_ISUPPORTS1(nsFilePicker, nsIFilePicker)
@@ -59,19 +68,20 @@ nsFilePicker::nsFilePicker()
     : mDialog(0),
       mMode(nsIFilePicker::modeOpen)
 {
-    qDebug("nsFilePicker constructor");
+#ifdef PR_LOGGING
+    if (!sFilePickerLog)
+        sFilePickerLog = PR_NewLogModule("nsQtFilePicker");
+#endif
 }
 
 nsFilePicker::~nsFilePicker()
 {
-    qDebug("nsFilePicker destructor");
     delete mDialog;
 }
 
 NS_IMETHODIMP
 nsFilePicker::Init(nsIDOMWindow *parent, const nsAString & title, PRInt16 mode)
 {
-    qDebug("nsFilePicker::Init()");
     return nsBaseFilePicker::Init(parent, title, mode);
 }
 
@@ -105,14 +115,15 @@ nsFilePicker::AppendFilter(const nsAString & aTitle, const nsAString & aFilter)
 NS_IMETHODIMP
 nsFilePicker::GetDefaultString(nsAString & aDefaultString)
 {
-    mDefault = aDefaultString;
-
-    return NS_OK;
+    return NS_ERROR_FAILURE;
 }
+
 NS_IMETHODIMP
 nsFilePicker::SetDefaultString(const nsAString & aDefaultString)
 {
-    return NS_ERROR_FAILURE;
+    mDefault = aDefaultString;
+
+    return NS_OK;
 }
 
 /* attribute AString defaultExtension; */
@@ -199,7 +210,6 @@ nsFilePicker::GetFiles(nsISimpleEnumerator * *aFiles)
 NS_IMETHODIMP
 nsFilePicker::Show(PRInt16 *aReturn)
 {
-    qDebug("nsFilePicker::Show()");
     nsCAutoString directory;
     if (mDisplayDirectory) {
         mDisplayDirectory->GetNativePath(directory);
@@ -213,6 +223,7 @@ nsFilePicker::Show(PRInt16 *aReturn)
         break;
     case nsIFilePicker::modeSave:
         mDialog->setFileMode(QFileDialog::AnyFile);
+        mDialog->setAcceptMode(QFileDialog::AcceptSave);
         break;
     case nsIFilePicker::modeGetFolder:
         mDialog->setFileMode(QFileDialog::DirectoryOnly);
@@ -242,7 +253,7 @@ nsFilePicker::Show(PRInt16 *aReturn)
         }
 
         QString path = QFile::encodeName(selected);
-        qDebug("path is '%s'", path.toAscii().data());
+        PR_LOG(sFilePickerLog, PR_LOG_DEBUG, ("path is '%s'", path.toAscii().data()));
         mFile.Assign(path.toUtf8().data());
         *aReturn = nsIFilePicker::returnOK;
         if (mMode == modeSave) {
@@ -273,12 +284,15 @@ nsFilePicker::Show(PRInt16 *aReturn)
 
 void nsFilePicker::InitNative(nsIWidget *parent, const nsAString &title, PRInt16 mode)
 {
-    qDebug("nsFilePicker::InitNative()");
-
-    QWidget *parentWidget = (parent)?
-        static_cast<QWidget*>(parent->GetNativeData(NS_NATIVE_SHELLWIDGET)):0;
+    PR_LOG(sFilePickerLog, PR_LOG_DEBUG, ("nsFilePicker::InitNative"));
 
     nsAutoString str(title);
-    mDialog = new QFileDialog(parentWidget, QString::fromUtf16(str.get()));
+    mDialog = new QFileDialog(0, QString::fromUtf16(str.get()));
+
+    QGraphicsWidget *parentWidget = static_cast<QGraphicsWidget*>(parent->GetNativeData(NS_NATIVE_WIDGET));
+    if (parentWidget && parentWidget->scene()) {
+        parentWidget->scene()->addWidget(mDialog);
+    }
+
     mMode = mode;
 }

@@ -45,6 +45,10 @@
 #include <gtk/gtk.h>
 #endif
 
+#ifdef ANDROID
+#include "AndroidBridge.h"
+#endif
+
 nsSystemInfo::nsSystemInfo()
 {
 }
@@ -92,7 +96,7 @@ nsSystemInfo::Init()
     // This must be done here because NSPR can only separate OS's when compiled, not libraries.
     char* gtkver = PR_smprintf("GTK %u.%u.%u", gtk_major_version, gtk_minor_version, gtk_micro_version);
     if (gtkver) {
-      rv = SetPropertyAsACString(NS_ConvertASCIItoUTF16("secondaryLibrary"),
+      rv = SetPropertyAsACString(NS_LITERAL_STRING("secondaryLibrary"),
                                  nsDependentCString(gtkver));
       PR_smprintf_free(gtkver);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -109,12 +113,17 @@ nsSystemInfo::Init()
       while ((read = getline(&line, &len, fp)) != -1) {
         if (line) {
           if (strstr(line, "RX-51")) {
-            SetPropertyAsACString(NS_ConvertASCIItoUTF16("device"), NS_LITERAL_CSTRING("Nokia N900"));
+            SetPropertyAsACString(NS_LITERAL_STRING("device"), NS_LITERAL_CSTRING("Nokia N900"));
+            SetPropertyAsACString(NS_LITERAL_STRING("manufacturer"), NS_LITERAL_CSTRING("Nokia"));
+            SetPropertyAsACString(NS_LITERAL_STRING("hardware"), NS_LITERAL_CSTRING("RX-51"));
             break;
           } else if (strstr(line, "RX-44") ||
                      strstr(line, "RX-48") ||
                      strstr(line, "RX-32") ) {
-            SetPropertyAsACString(NS_ConvertASCIItoUTF16("device"), NS_LITERAL_CSTRING("Nokia N8xx"));
+            /* not as accurate as we can be, but these devices are deprecated */
+            SetPropertyAsACString(NS_LITERAL_STRING("device"), NS_LITERAL_CSTRING("Nokia N8xx"));
+            SetPropertyAsACString(NS_LITERAL_STRING("manufacturer"), NS_LITERAL_CSTRING("Nokia"));
+            SetPropertyAsACString(NS_LITERAL_STRING("hardware"), NS_LITERAL_CSTRING("N8xx"));
             break;
           }
         }
@@ -123,7 +132,19 @@ nsSystemInfo::Init()
         free(line);
       fclose(fp);
     }
-#endif   
+#endif
+
+#ifdef ANDROID
+    if (mozilla::AndroidBridge::Bridge()) {
+        nsAutoString str;
+        if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "MODEL", str))
+            SetPropertyAsAString(NS_LITERAL_STRING("device"), str);
+        if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "MANUFACTURER", str))
+            SetPropertyAsAString(NS_LITERAL_STRING("manufacturer"), str);
+        if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "HARDWARE", str))
+            SetPropertyAsAString(NS_LITERAL_STRING("hardware"), str);
+    }
+#endif
     return NS_OK;
 }
 
@@ -133,7 +154,10 @@ nsSystemInfo::SetInt32Property(const nsAString &aPropertyName,
 {
   NS_WARN_IF_FALSE(aValue > 0, "Unable to read system value");
   if (aValue > 0) {
-    nsresult rv = SetPropertyAsInt32(aPropertyName, aValue);
+#ifdef DEBUG
+    nsresult rv =
+#endif
+      SetPropertyAsInt32(aPropertyName, aValue);
     NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Unable to set property");
   }
 }
@@ -144,7 +168,10 @@ nsSystemInfo::SetUint64Property(const nsAString &aPropertyName,
 {
   NS_WARN_IF_FALSE(aValue > 0, "Unable to read system value");
   if (aValue > 0) {
-    nsresult rv = SetPropertyAsUint64(aPropertyName, aValue);
+#ifdef DEBUG
+    nsresult rv =
+#endif
+      SetPropertyAsUint64(aPropertyName, aValue);
     NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Unable to set property");
   }
 }

@@ -56,7 +56,7 @@ typedef void (nsServerSocket:: *nsServerSocketFunc)(void);
 static nsresult
 PostEvent(nsServerSocket *s, nsServerSocketFunc func)
 {
-  nsCOMPtr<nsIRunnable> ev = new nsRunnableMethod<nsServerSocket>(s, func);
+  nsCOMPtr<nsIRunnable> ev = NS_NewRunnableMethod(s, func);
   if (!ev)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -99,7 +99,7 @@ nsServerSocket::~nsServerSocket()
 void
 nsServerSocket::OnMsgClose()
 {
-  LOG(("nsServerSocket::OnMsgClose [this=%p]\n", this));
+  SOCKET_LOG(("nsServerSocket::OnMsgClose [this=%p]\n", this));
 
   if (NS_FAILED(mCondition))
     return;
@@ -116,7 +116,7 @@ nsServerSocket::OnMsgClose()
 void
 nsServerSocket::OnMsgAttach()
 {
-  LOG(("nsServerSocket::OnMsgAttach [this=%p]\n", this));
+  SOCKET_LOG(("nsServerSocket::OnMsgAttach [this=%p]\n", this));
 
   if (NS_FAILED(mCondition))
     return;
@@ -151,7 +151,7 @@ nsServerSocket::TryAttach()
   if (!gSocketTransportService->CanAttachSocket())
   {
     nsCOMPtr<nsIRunnable> event =
-        NS_NEW_RUNNABLE_METHOD(nsServerSocket, this, OnMsgAttach);
+      NS_NewRunnableMethod(this, &nsServerSocket::OnMsgAttach);
     if (!event)
       return NS_ERROR_OUT_OF_MEMORY;
 

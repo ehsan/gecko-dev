@@ -30,10 +30,19 @@
 #ifndef CLIENT_LINUX_MINIDUMP_WRITER_MINIDUMP_WRITER_H_
 #define CLIENT_LINUX_MINIDUMP_WRITER_MINIDUMP_WRITER_H_
 
+#include <list>
+#include <utility>
+
 #include <stdint.h>
 #include <unistd.h>
 
+#include "google_breakpad/common/minidump_format.h"
+
 namespace google_breakpad {
+
+// A list of <MappingInfo, GUID>
+typedef std::pair<struct MappingInfo, u_int8_t[sizeof(MDGUID)]> MappingEntry;
+typedef std::list<MappingEntry> MappingList;
 
 // Write a minidump to the filesystem. This function does not malloc nor use
 // libc functions which may. Thus, it can be used in contexts where the state
@@ -47,6 +56,19 @@ namespace google_breakpad {
 // Returns true iff successful.
 bool WriteMinidump(const char* filename, pid_t crashing_process,
                    const void* blob, size_t blob_size);
+
+// Alternate form of WriteMinidump() that works with processes that
+// are not expected to have crashed.  If |process_blamed_thread| is
+// meaningful, it will be the one from which a crash signature is
+// extracted.  It is not expected that this function will be called
+// from a compromised context, but it is safe to do so.
+bool WriteMinidump(const char* filename, pid_t process,
+                   pid_t process_blamed_thread);
+
+// This overload also allows passing a list of known mappings.
+bool WriteMinidump(const char* filename, pid_t crashing_process,
+                   const void* blob, size_t blob_size,
+                   const MappingList& mappings);
 
 }  // namespace google_breakpad
 

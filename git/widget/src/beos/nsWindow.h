@@ -159,8 +159,8 @@ public:
 	                                           PRUint16 aButton = nsMouseEvent::eLeftButton);
 
 
-	void                   InitEvent(nsGUIEvent& event, nsPoint* aPoint = nsnull);
-
+	void                    InitEvent(nsGUIEvent& event, nsPoint* aPoint = nsnull);
+	NS_IMETHOD              ReparentNativeWidget(nsIWidget* aNewParent);
 protected:
 
 	static PRBool           EventIsInsideWindow(nsWindow* aWindow, nsPoint pos) ;
@@ -193,6 +193,13 @@ protected:
 	PRBool                  DispatchWindowEvent(nsGUIEvent* event);
 	void                    HideKids(PRBool state);
 
+  virtual already_AddRefed<nsIWidget>
+  AllocateChildPopupWidget()
+  {
+    static NS_DEFINE_IID(kCPopUpCID, NS_POPUP_CID);
+    nsCOMPtr<nsIWidget> widget = do_CreateInstance(kCPopUpCID);
+    return widget.forget();
+  }
 
 	nsCOMPtr<nsIWidget> mParent;
 	nsWindow*        mWindowParent;

@@ -50,6 +50,10 @@
 #include "nsServiceManagerUtils.h"
 #include "nsDOMError.h"
 #include "nsGlobalWindow.h"
+#include "jsobj.h"
+#include "jsatom.h"
+#include "jsfun.h"
+#include "nsIContentSecurityPolicy.h"
 
 static const char kSetIntervalStr[] = "setInterval";
 static const char kSetTimeoutStr[] = "setTimeout";
@@ -117,7 +121,39 @@ NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsJSScriptTimeoutHandler)
   tmp->ReleaseJSObjects();
 NS_IMPL_CYCLE_COLLECTION_ROOT_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsJSScriptTimeoutHandler)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsJSScriptTimeoutHandler)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsJSScriptTimeoutHandler)
+  if (NS_UNLIKELY(cb.WantDebugInfo())) {
+    nsCAutoString foo("nsJSScriptTimeoutHandler");
+    if (tmp->mExpr) {
+      foo.AppendLiteral(" [");
+      foo.Append(tmp->mFileName);
+      foo.AppendLiteral(":");
+      foo.AppendInt(tmp->mLineNo);
+      foo.AppendLiteral("]");
+    }
+    else if (tmp->mFunObj) {
+      JSFunction* fun = (JSFunction*)tmp->mFunObj->getPrivate();
+      if (fun->atom) {
+        size_t size = 1 + JS_PutEscapedString(NULL, 0, ATOM_TO_STRING(fun->atom), 0);
+        char *name = new char[size];
+        if (name) {
+          JS_PutEscapedString(name, size, ATOM_TO_STRING(fun->atom), 0);
+          foo.AppendLiteral(" [");
+          foo.Append(name);
+          delete[] name;
+          foo.AppendLiteral("]");
+        }
+      }
+    }
+    cb.DescribeNode(RefCounted, tmp->mRefCnt.get(),
+                    sizeof(nsJSScriptTimeoutHandler), foo.get());
+  }
+  else {
+    cb.DescribeNode(RefCounted, tmp->mRefCnt.get(),
+                    sizeof(nsJSScriptTimeoutHandler),
+                    "nsJSScriptTimeoutHandler");
+  }
+
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mContext)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mArgv)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
@@ -203,7 +239,7 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, PRBool *aIsInterval,
   JSAutoRequest ar(cx);
 
   if (argc < 1) {
-    ::JS_ReportError(cx, "Function %s requires at least 1 parameter",
+    ::JS_ReportError(cx, "Function %s requires at least 2 parameter",
                      *aIsInterval ? kSetIntervalStr : kSetTimeoutStr);
     return NS_ERROR_DOM_TYPE_ERR;
   }
@@ -243,6 +279,32 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, PRBool *aIsInterval,
   }
 
   if (expr) {
+    // if CSP is enabled, and setTimeout/setInterval was called with a string
+    // or object, disable the registration and log an error
+    nsCOMPtr<nsIDocument> doc = do_QueryInterface(aWindow->GetExtantDocument());
+
+    if (doc) {
+      nsCOMPtr<nsIContentSecurityPolicy> csp;
+      nsresult rv = doc->NodePrincipal()->GetCsp(getter_AddRefs(csp));
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      if (csp) {
+        PRBool allowsEval;
+        // this call will send violation reports as warranted (and return true if
+        // reportOnly is set).
+        rv = csp->GetAllowsEval(&allowsEval);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        if (!allowsEval) {
+          ::JS_ReportError(cx, "call to %s blocked by CSP",
+                            *aIsInterval ? kSetIntervalStr : kSetTimeoutStr);
+
+          // Note: Our only caller knows to turn NS_ERROR_DOM_TYPE_ERR into NS_OK.
+          return NS_ERROR_DOM_TYPE_ERR;
+        }
+      }
+    } // if there's no document, we don't have to do anything.
+
     rv = NS_HOLD_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -296,8 +358,8 @@ void nsJSScriptTimeoutHandler::SetLateness(PRIntervalTime aHowLate)
   if (jsarray) {
     PRUint32 argc;
     jsval *jsargv;
-    jsarray->GetArgs(&argc, reinterpret_cast<void **>(&jsargv));
-    if (jsargv && argc)
+    nsresult rv = jsarray->GetArgs(&argc, reinterpret_cast<void **>(&jsargv));
+    if (NS_SUCCEEDED(rv) && jsargv && argc)
       jsargv[argc-1] = INT_TO_JSVAL((jsint) aHowLate);
   } else {
     NS_ERROR("How can our argv not handle this?");

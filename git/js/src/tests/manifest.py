@@ -32,12 +32,12 @@ class XULInfo:
         # Find config/autoconf.mk.
         dir = jsdir
         while True:
-            if os.path.basename(dir) == 'src':
-                path = None
-                break
             path = os.path.join(dir, 'config/autoconf.mk')
             if os.path.isfile(path):
                 break
+            if os.path.dirname(dir) == dir:
+                print "Can't find config/autoconf.mk on a directory containing the JS shell (searched from %s)"%jsdir
+                sys.exit(1)
             dir = os.path.dirname(dir)
 
         # Read the values.
@@ -70,9 +70,9 @@ class XULInfoTester:
             cmd = [ self.js_bin, '-e', self.js_prolog, '-e', 'print(!!(%s))'%cond ]
             p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE)
             out, err = p.communicate()
-            if out == 'true\n':
+            if out in ('true\n', 'true\r\n'):
                 ans = True
-            elif out == 'false\n':
+            elif out in ('false\n', 'false\r\n'):
                 ans = False
             else:
                 raise Exception("Failed to test XUL condition '%s'"%cond)
@@ -110,6 +110,7 @@ def parse(filename, xul_tester, reldir = ''):
             enable = True
             expect = True
             random = False
+            slow = False
 
             pos = 0
             while pos < len(parts):
@@ -127,6 +128,10 @@ def parse(filename, xul_tester, reldir = ''):
                     if xul_tester.test(cond):
                         expect = False
                     pos += 1
+                elif parts[pos].startswith('asserts-if'):
+                    # This directive means we may flunk some number of
+                    # NS_ASSERTIONs in the browser. For the shell, ignore it.
+                    pos += 1
                 elif parts[pos].startswith('skip-if'):
                     cond = parts[pos][len('skip-if('):-1]
                     if xul_tester.test(cond):
@@ -140,11 +145,14 @@ def parse(filename, xul_tester, reldir = ''):
                 elif parts[pos] == 'script':
                     script = parts[pos+1]
                     pos += 2
+                elif parts[pos] == 'slow':
+                    slow = True
+                    pos += 1
                 else:
                     print 'warning: invalid manifest line element "%s"'%parts[pos]
                     pos += 1
 
             assert script is not None
             ans.append(TestCase(os.path.join(reldir, script), 
-                                enable, expect, random))
+                                enable, expect, random, slow))
     return ans

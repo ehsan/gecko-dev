@@ -46,6 +46,8 @@ nsSMILTimeContainer::nsSMILTimeContainer()
   mParentOffset(0L),
   mPauseStart(0L),
   mNeedsPauseSample(PR_FALSE),
+  mNeedsRewind(PR_FALSE),
+  mIsSeeking(PR_FALSE),
   mPauseState(PAUSE_BEGIN)
 {
 }
@@ -145,6 +147,10 @@ nsSMILTimeContainer::GetCurrentTime() const
 void
 nsSMILTimeContainer::SetCurrentTime(nsSMILTime aSeekTo)
 {
+  // SVG 1.1 doesn't specify what to do for negative times so we adopt SVGT1.2's
+  // behaviour of clamping negative times to 0.
+  aSeekTo = PR_MAX(0, aSeekTo);
+
   // The following behaviour is consistent with:
   // http://www.w3.org/2003/01/REC-SVG11-20030114-errata
   //  #getCurrentTime_setCurrentTime_undefined_before_document_timeline_begin
@@ -152,10 +158,17 @@ nsSMILTimeContainer::SetCurrentTime(nsSMILTime aSeekTo)
   // has begun we should still adjust the offset.
   nsSMILTime parentTime = GetParentTime();
   mParentOffset = parentTime - aSeekTo;
+  mIsSeeking = PR_TRUE;
 
   if (IsPaused()) {
     mNeedsPauseSample = PR_TRUE;
     mPauseStart = parentTime;
+  }
+
+  if (aSeekTo < mCurrentTime) {
+    // Backwards seek
+    mNeedsRewind = PR_TRUE;
+    ClearMilestones();
   }
 
   // Force an update to the current time in case we get a call to GetCurrentTime
@@ -202,6 +215,14 @@ nsSMILTimeContainer::SetParent(nsSMILTimeContainer* aParent)
 {
   if (mParent) {
     mParent->RemoveChild(*this);
+    // When we're not attached to a parent time container, GetParentTime() will
+    // return 0. We need to adjust our pause state information to be relative to
+    // this new time base.
+    // Note that since "current time = parent time - parent offset" setting the
+    // parent offset and pause start as follows preserves our current time even
+    // while parent time = 0.
+    mParentOffset = -mCurrentTime;
+    mPauseStart = 0L;
   }
 
   mParent = aParent;
@@ -301,6 +322,7 @@ nsSMILTimeContainer::UpdateCurrentTime()
 {
   nsSMILTime now = IsPaused() ? mPauseStart : GetParentTime();
   mCurrentTime = now - mParentOffset;
+  NS_ABORT_IF_FALSE(mCurrentTime >= 0, "Container has negative time");
 }
 
 void
