@@ -886,7 +886,6 @@ gfxWindowsPlatform::FindFontEntry(const nsAString& aName, const gfxFontStyle& aF
 cmsHPROFILE
 gfxWindowsPlatform::GetPlatformCMSOutputProfile()
 {
-#ifndef WINCE
     WCHAR str[1024+1];
     DWORD size = 1024;
 
@@ -903,9 +902,6 @@ gfxWindowsPlatform::GetPlatformCMSOutputProfile()
                 NS_ConvertUTF16toUTF8(str).get());
 #endif
     return profile;
-#else
-    return nsnull;
-#endif
 }
 
 PRBool

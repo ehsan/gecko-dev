@@ -41,7 +41,7 @@ CPPSRCS += \
 	nsStaticXULComponents.cpp \
 	$(NULL)
 
-ifeq (,$(filter-out WINCE WINNT,$(OS_ARCH)))
+ifeq ($(OS_ARCH),WINNT)
 REQUIRES += libreg widget gfx
 CPPSRCS += \
 	nsDllMain.cpp \

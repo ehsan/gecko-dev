@@ -4839,9 +4839,9 @@ nsGenericElement::GetChildAt(PRUint32 aIndex) const
 }
 
 nsIContent * const *
-nsGenericElement::GetChildArray(PRUint32* aChildCount) const
+nsGenericElement::GetChildArray() const
 {
-  return mAttrsAndChildren.GetChildArray(aChildCount);
+  return mAttrsAndChildren.GetChildArray();
 }
 
 PRInt32
@@ -5095,6 +5095,7 @@ TryMatchingElementsInSubtree(nsINode* aRoot,
                              ElementMatchedCallback aCallback,
                              void* aClosure)
 {
+  PRUint32 count = aRoot->GetChildCount();
   /* To improve the performance of '+' and '~' combinators and the :nth-*
    * selectors, we keep track of the immediately previous sibling data.  That's
    * cheaper than heap-allocating all the datas and keeping track of them all,
@@ -5103,8 +5104,7 @@ TryMatchingElementsInSubtree(nsINode* aRoot,
   char databuf[2 * sizeof(RuleProcessorData)];
   RuleProcessorData* prevSibling = nsnull;
   RuleProcessorData* data = reinterpret_cast<RuleProcessorData*>(databuf);
-  PRUint32 count;
-  nsIContent * const * kidSlot = aRoot->GetChildArray(&count);
+  nsIContent * const * kidSlot = aRoot->GetChildArray();
   nsIContent * const * end = kidSlot + count;
 
 #ifdef DEBUG

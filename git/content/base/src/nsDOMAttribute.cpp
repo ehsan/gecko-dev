@@ -674,9 +674,8 @@ nsDOMAttribute::GetChildAt(PRUint32 aIndex) const
 }
 
 nsIContent * const *
-nsDOMAttribute::GetChildArray(PRUint32* aChildCount) const
+nsDOMAttribute::GetChildArray() const
 {
-  *aChildCount = GetChildCount();
   return &mChild;
 }  
   
