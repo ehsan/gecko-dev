@@ -6747,7 +6747,8 @@ PostMessageReadStructuredClone(JSContext* cx,
                                uint32_t data,
                                void* closure)
 {
-  NS_ASSERTION(closure, "Must have closure!");
+  StructuredCloneInfo* scInfo = static_cast<StructuredCloneInfo*>(closure);
+  NS_ASSERTION(scInfo, "Must have scInfo!");
 
   if (tag == SCTAG_DOM_BLOB || tag == SCTAG_DOM_FILELIST) {
     NS_ASSERTION(!data, "Data should be empty");
@@ -6776,6 +6777,7 @@ PostMessageReadStructuredClone(JSContext* cx,
       if (global) {
         JS::Rooted<JSObject*> obj(cx, port->WrapObject(cx, global));
         if (JS_WrapObject(cx, obj.address())) {
+          port->BindToOwner(scInfo->window);
           return obj;
         }
       }
@@ -6826,7 +6828,7 @@ PostMessageWriteStructuredClone(JSContext* cx,
     MessagePort* port = nullptr;
     nsresult rv = UNWRAP_OBJECT(MessagePort, cx, obj, port);
     if (NS_SUCCEEDED(rv) && scInfo->subsumes) {
-      nsRefPtr<MessagePort> newPort = port->Clone(scInfo->window);
+      nsRefPtr<MessagePort> newPort = port->Clone();
 
       return JS_WriteUint32Pair(writer, SCTAG_DOM_MESSAGEPORT, 0) &&
              JS_WriteBytes(writer, &newPort, sizeof(newPort)) &&
@@ -8264,7 +8266,7 @@ void
 nsGlobalWindow::ActivateOrDeactivate(bool aActivate)
 {
   // Set / unset mIsActive on the top level window, which is used for the
-  // :-moz-window-inactive pseudoclass.
+  // :-moz-window-inactive pseudoclass, and its sheet (if any).
   nsCOMPtr<nsIWidget> mainWidget = GetMainWidget();
   if (!mainWidget)
     return;
@@ -8276,15 +8278,19 @@ nsGlobalWindow::ActivateOrDeactivate(bool aActivate)
     topLevelWidget = mainWidget;
   }
 
-  // Get the top level widget's nsGlobalWindow
-  nsCOMPtr<nsIDOMWindow> topLevelWindow;
-  if (topLevelWidget == mainWidget) {
-    topLevelWindow = static_cast<nsIDOMWindow*>(this);
-  } else {
+  nsCOMPtr<nsPIDOMWindow> piMainWindow(
+    do_QueryInterface(static_cast<nsIDOMWindow*>(this)));
+  piMainWindow->SetActive(aActivate);
+
+  if (mainWidget != topLevelWidget) {
     // This is a workaround for the following problem:
-    // When a window with an open sheet loses focus, only the sheet window
-    // receives the NS_DEACTIVATE event. However, it's not the sheet that
-    // should lose the active styling, but the containing top level window.
+    // When a window with an open sheet gains or loses focus, only the sheet
+    // window receives the NS_ACTIVATE/NS_DEACTIVATE event.  However the
+    // styling of the containing top level window also needs to change.  We
+    // get around this by calling nsPIDOMWindow::SetActive() on both windows.
+
+    // Get the top level widget's nsGlobalWindow
+    nsCOMPtr<nsIDOMWindow> topLevelWindow;
 
     // widgetListener should be a nsXULWindow
     nsIWidgetListener* listener = topLevelWidget->GetWidgetListener();
@@ -8293,10 +8299,11 @@ nsGlobalWindow::ActivateOrDeactivate(bool aActivate)
       nsCOMPtr<nsIInterfaceRequestor> req(do_QueryInterface(window));
       topLevelWindow = do_GetInterface(req);
     }
-  }
-  if (topLevelWindow) {
-    nsCOMPtr<nsPIDOMWindow> piWin(do_QueryInterface(topLevelWindow));
-    piWin->SetActive(aActivate);
+
+    if (topLevelWindow) {
+      nsCOMPtr<nsPIDOMWindow> piWin(do_QueryInterface(topLevelWindow));
+      piWin->SetActive(aActivate);
+    }
   }
 }
 

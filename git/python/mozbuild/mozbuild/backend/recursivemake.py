@@ -20,14 +20,19 @@ from .common import CommonBackend
 from ..frontend.data import (
     ConfigFileSubstitution,
     DirectoryTraversal,
+    Exports,
+    GeneratedEventWebIDLFile,
+    GeneratedWebIDLFile,
     IPDLFile,
     LocalInclude,
-    SandboxDerived,
-    VariablePassthru,
-    Exports,
+    PreprocessedWebIDLFile,
     Program,
+    SandboxDerived,
+    TestWebIDLFile,
+    VariablePassthru,
     XPIDLFile,
     XpcshellManifests,
+    WebIDLFile,
 )
 from ..util import FileAvoidWrite
 
@@ -122,6 +127,11 @@ class RecursiveMakeBackend(CommonBackend):
 
         self._backend_files = {}
         self._ipdl_sources = set()
+        self._webidl_sources = set()
+        self._generated_events_webidl_sources = set()
+        self._test_webidl_sources = set()
+        self._preprocessed_webidl_sources = set()
+        self._generated_webidl_sources = set()
 
         def detailed(summary):
             return '{:d} total backend files. {:d} created; {:d} updated; {:d} unchanged'.format(
@@ -199,6 +209,28 @@ class RecursiveMakeBackend(CommonBackend):
         elif isinstance(obj, IPDLFile):
             self._ipdl_sources.add(mozpath.join(obj.srcdir, obj.basename))
 
+        elif isinstance(obj, WebIDLFile):
+            self._webidl_sources.add(mozpath.join(obj.srcdir, obj.basename))
+            self._process_webidl_basename(obj.basename)
+
+        elif isinstance(obj, GeneratedEventWebIDLFile):
+            self._generated_events_webidl_sources.add(mozpath.join(obj.srcdir, obj.basename))
+
+        elif isinstance(obj, TestWebIDLFile):
+            self._test_webidl_sources.add(mozpath.join(obj.srcdir,
+                                                       obj.basename))
+            # Test WebIDL files are not exported.
+
+        elif isinstance(obj, GeneratedWebIDLFile):
+            self._generated_webidl_sources.add(mozpath.join(obj.srcdir,
+                                                            obj.basename))
+            self._process_webidl_basename(obj.basename)
+
+        elif isinstance(obj, PreprocessedWebIDLFile):
+            self._preprocessed_webidl_sources.add(mozpath.join(obj.srcdir,
+                                                               obj.basename))
+            self._process_webidl_basename(obj.basename)
+
         elif isinstance(obj, Program):
             self._process_program(obj.program, backend_file)
 
@@ -270,6 +302,24 @@ class RecursiveMakeBackend(CommonBackend):
             for p in self._ipdl_sources))))
 
         self._update_from_avoid_write(ipdls.close())
+        self.summary.managed_count += 1
+
+        # Write out master lists of WebIDL source files.
+        webidls = FileAvoidWrite(os.path.join(self.environment.topobjdir,
+              'dom', 'bindings', 'webidlsrcs.mk'))
+
+        for webidl in sorted(self._webidl_sources):
+            webidls.write('webidl_files += %s\n' % os.path.basename(webidl))
+        for webidl in sorted(self._generated_events_webidl_sources):
+            webidls.write('generated_events_webidl_files += %s\n' % os.path.basename(webidl))
+        for webidl in sorted(self._test_webidl_sources):
+            webidls.write('test_webidl_files += %s\n' % os.path.basename(webidl))
+        for webidl in sorted(self._generated_webidl_sources):
+            webidls.write('generated_webidl_files += %s\n' % os.path.basename(webidl))
+        for webidl in sorted(self._preprocessed_webidl_sources):
+            webidls.write('preprocessed_webidl_files += %s\n' % os.path.basename(webidl))
+
+        self._update_from_avoid_write(webidls.close())
         self.summary.managed_count += 1
 
         # Write out a dependency file used to determine whether a config.status
@@ -430,6 +480,10 @@ class RecursiveMakeBackend(CommonBackend):
 
     def _process_program(self, program, backend_file):
         backend_file.write('PROGRAM = %s\n' % program)
+
+    def _process_webidl_basename(self, basename):
+        header = 'mozilla/dom/%sBinding.h' % os.path.splitext(basename)[0]
+        self._install_manifests['dist_include'].add_optional_exists(header)
 
     def _process_xpcshell_manifests(self, obj, backend_file, namespace=""):
         manifest = obj.xpcshell_manifests
