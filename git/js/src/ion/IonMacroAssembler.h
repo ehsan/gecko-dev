@@ -4,10 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_macro_assembler_h__
+#if !defined(jsion_macro_assembler_h__) && defined(JS_ION)
 #define jsion_macro_assembler_h__
-
-#ifdef JS_ION
 
 #if defined(JS_CPU_X86)
 # include "ion/x86/MacroAssembler-x86.h"
@@ -997,7 +995,5 @@ class ABIArgIter
 
 } // namespace ion
 } // namespace js
-
-#endif // JS_ION
 
 #endif // jsion_macro_assembler_h__

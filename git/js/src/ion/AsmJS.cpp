@@ -5316,10 +5316,7 @@ GenerateEntries(ModuleCompiler &m)
 static inline bool
 TryEnablingIon(JSContext *cx, AsmJSModule::ExitDatum *exitDatum, int32_t argc, Value *argv)
 {
-    if (!exitDatum->fun->hasScript())
-        return true;
-
-    JSScript *script = exitDatum->fun->nonLazyScript();
+    JSScript *script = exitDatum->fun->maybeNonLazyScript();
     if (!script)
         return true;
 

@@ -4,10 +4,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#ifdef JSGC_GENERATIONAL
 #ifndef jsgc_storebuffer_h___
 #define jsgc_storebuffer_h___
-
-#ifdef JSGC_GENERATIONAL
 
 #ifndef JSGC_USE_EXACT_ROOTING
 # error "Generational GC requires exact rooting."
@@ -510,6 +509,5 @@ class StoreBuffer
 } /* namespace gc */
 } /* namespace js */
 
-#endif /* JSGC_GENERATIONAL */
-
 #endif /* jsgc_storebuffer_h___ */
+#endif /* JSGC_GENERATIONAL */

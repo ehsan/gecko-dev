@@ -1444,15 +1444,11 @@ ValueToScript(JSContext *cx, jsval v, JSFunction **funp = NULL)
         else
             break;
     }
-
-    if (!fun->isInterpreted()) {
-        JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_SCRIPTS_ONLY);
-        return NULL;
-    }
-
-    JSScript *script = fun->getOrCreateScript(cx);
+    
+    RootedScript script(cx);
+    JSFunction::maybeGetOrCreateScript(cx, fun, &script);
     if (!script)
-        return NULL;
+        JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_SCRIPTS_ONLY);
 
     if (fun && funp)
         *funp = fun;
@@ -1895,14 +1891,13 @@ DisassembleScript(JSContext *cx, HandleScript script, HandleFunction fun, bool l
             JSObject *obj = objects->vector[i];
             if (obj->isFunction()) {
                 Sprint(sp, "\n");
-                RootedFunction fun(cx, obj->toFunction());
-                if (fun->isInterpreted()) {
-                    RootedScript script(cx, fun->getOrCreateScript(cx));
-                    if (!script || !DisassembleScript(cx, script, fun, lines, recursive, sp))
-                        return false;
-                } else {
+                RootedFunction f(cx, obj->toFunction());
+                RootedScript script(cx);
+                JSFunction::maybeGetOrCreateScript(cx, f, &script);
+                if (!script)
                     Sprint(sp, "[native code]\n");
-                }
+                else if (!DisassembleScript(cx, script, fun, lines, recursive, sp))
+                    return false;
             }
         }
     }

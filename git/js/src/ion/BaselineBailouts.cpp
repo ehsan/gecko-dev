@@ -1060,7 +1060,7 @@ ion::BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIt
     RootedFunction callee(cx, iter.maybeCallee());
     if (callee) {
         IonSpew(IonSpew_BaselineBailouts, "  Callee function (%s:%u)",
-                callee->getExistingScript()->filename(), callee->getExistingScript()->lineno);
+                callee->nonLazyScript()->filename(), callee->nonLazyScript()->lineno);
     } else {
         IonSpew(IonSpew_BaselineBailouts, "  No callee!");
     }
@@ -1098,7 +1098,7 @@ ion::BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIt
         caller = scr;
         callerPC = callPC;
         fun = nextCallee;
-        scr = fun->getExistingScript();
+        scr = fun->nonLazyScript();
         snapIter.nextFrame();
 
         frameNo++;
