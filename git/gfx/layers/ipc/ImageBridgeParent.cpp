@@ -191,10 +191,9 @@ bool ImageBridgeParent::DeallocPCompositableParent(PCompositableParent* aActor)
 }
 
 PTextureParent*
-ImageBridgeParent::AllocPTextureParent(const SurfaceDescriptor& aSharedData,
-                                       const TextureFlags& aFlags)
+ImageBridgeParent::AllocPTextureParent()
 {
-  return TextureHost::CreateIPDLActor(this, aSharedData, aFlags);
+  return TextureHost::CreateIPDLActor(this);
 }
 
 bool

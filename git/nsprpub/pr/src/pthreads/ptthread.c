@@ -980,11 +980,10 @@ void _PR_InitThreads(
      * nothing.
      */
     rv = _PT_PTHREAD_KEY_CREATE(&pt_book.key, _pt_thread_death);
-    if (0 != rv)
-        PR_Assert("0 == rv", __FILE__, __LINE__);
+    if (0 != rv) PR_Abort();
     pt_book.keyCreated = PR_TRUE;
     rv = pthread_setspecific(pt_book.key, thred);
-    PR_ASSERT(0 == rv);
+    if (0 != rv) PR_Abort();
 }  /* _PR_InitThreads */
 
 #ifdef __GNUC__
@@ -1049,8 +1048,7 @@ void _PR_Fini(void)
          * PR_Cleanup has been called already. */
         if (pt_book.keyCreated)
         {
-            rv = pthread_key_delete(pt_book.key);
-            PR_ASSERT(0 == rv);
+            pthread_key_delete(pt_book.key);
             pt_book.keyCreated = PR_FALSE;
         }
         return;
@@ -1069,7 +1067,6 @@ void _PR_Fini(void)
     }
     rv = pthread_key_delete(pt_book.key);
     PR_ASSERT(0 == rv);
-    pt_book.keyCreated = PR_FALSE;
     /* TODO: free other resources used by NSPR */
     /* _pr_initialized = PR_FALSE; */
 }  /* _PR_Fini */

@@ -40,7 +40,7 @@ bool WebGLQuery::IsActive() const
 
     MOZ_ASSERT(targetSlot, "unknown query object's type");
 
-    return targetSlot && *targetSlot == this;
+    return *targetSlot == this;
 }
 
 

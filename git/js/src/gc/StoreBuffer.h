@@ -87,12 +87,16 @@ class StoreBuffer
      * type of edge: e.g. Value or Cell*.
      */
     template<typename T>
-    struct MonoTypeBuffer
+    class MonoTypeBuffer
     {
+        friend class StoreBuffer;
+
         LifoAlloc *storage_;
 
         explicit MonoTypeBuffer() : storage_(nullptr) {}
         ~MonoTypeBuffer() { js_delete(storage_); }
+
+        MonoTypeBuffer &operator=(const MonoTypeBuffer& other) MOZ_DELETE;
 
         bool init() {
             if (!storage_)
@@ -138,9 +142,6 @@ class StoreBuffer
 
         /* Mark the source of all edges in the store buffer. */
         void mark(StoreBuffer *owner, JSTracer *trc);
-
-      private:
-        MonoTypeBuffer &operator=(const MonoTypeBuffer& other) MOZ_DELETE;
     };
 
     /*
@@ -148,8 +149,10 @@ class StoreBuffer
      * memory outside of the GC's control.
      */
     template <typename T>
-    struct RelocatableMonoTypeBuffer : public MonoTypeBuffer<T>
+    class RelocatableMonoTypeBuffer : public MonoTypeBuffer<T>
     {
+        friend class StoreBuffer;
+
         /* Override compaction to filter out removed items. */
         void compactMoved(StoreBuffer *owner);
         virtual void compact(StoreBuffer *owner) MOZ_OVERRIDE;
@@ -160,12 +163,16 @@ class StoreBuffer
         }
     };
 
-    struct GenericBuffer
+    class GenericBuffer
     {
+        friend class StoreBuffer;
+
         LifoAlloc *storage_;
 
         explicit GenericBuffer() : storage_(nullptr) {}
         ~GenericBuffer() { js_delete(storage_); }
+
+        GenericBuffer &operator=(const GenericBuffer& other) MOZ_DELETE;
 
         bool init() {
             if (!storage_)
@@ -208,13 +215,14 @@ class StoreBuffer
             if (isAboutToOverflow())
                 owner->setAboutToOverflow();
         }
-
-      private:
-        GenericBuffer &operator=(const GenericBuffer& other) MOZ_DELETE;
     };
 
-    struct CellPtrEdge
+    class CellPtrEdge
     {
+        friend class StoreBuffer;
+        friend class StoreBuffer::MonoTypeBuffer<CellPtrEdge>;
+        friend class StoreBuffer::RelocatableMonoTypeBuffer<CellPtrEdge>;
+
         Cell **edge;
 
         explicit CellPtrEdge(Cell **v) : edge(v) {}
@@ -238,8 +246,12 @@ class StoreBuffer
         bool isTagged() const { return bool(uintptr_t(edge) & 1); }
     };
 
-    struct ValueEdge
+    class ValueEdge
     {
+        friend class StoreBuffer;
+        friend class StoreBuffer::MonoTypeBuffer<ValueEdge>;
+        friend class StoreBuffer::RelocatableMonoTypeBuffer<ValueEdge>;
+
         JS::Value *edge;
 
         explicit ValueEdge(JS::Value *v) : edge(v) {}
@@ -266,6 +278,9 @@ class StoreBuffer
 
     struct SlotEdge
     {
+        friend class StoreBuffer;
+        friend class StoreBuffer::MonoTypeBuffer<SlotEdge>;
+
         JSObject *object;
         uint32_t offset;
         int kind; // this is really just HeapSlot::Kind, but we can't see that type easily here
@@ -292,8 +307,11 @@ class StoreBuffer
         void mark(JSTracer *trc);
     };
 
-    struct WholeCellEdges
+    class WholeCellEdges
     {
+        friend class StoreBuffer;
+        friend class StoreBuffer::MonoTypeBuffer<WholeCellEdges>;
+
         Cell *tenured;
 
         WholeCellEdges(Cell *cell) : tenured(cell) {
@@ -314,8 +332,9 @@ class StoreBuffer
     };
 
     template <typename Key>
-    struct CallbackRef : public BufferableRef
+    class CallbackRef : public BufferableRef
     {
+      public:
         typedef void (*MarkCallback)(JSTracer *trc, Key *key, void *data);
 
         CallbackRef(MarkCallback cb, Key *k, void *d) : callback(cb), key(k), data(d) {}

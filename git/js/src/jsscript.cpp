@@ -82,35 +82,24 @@ Bindings::initWithTemporaryStorage(ExclusiveContext *cx, InternalBindingsHandle 
     self->numArgs_ = numArgs;
     self->numVars_ = numVars;
 
-    // Get the initial shape to use when creating CallObjects for this script.
-    // After creation, a CallObject's shape may change completely (via direct eval() or
-    // other operations that mutate the lexical scope). However, since the
-    // lexical bindings added to the initial shape are permanent and the
-    // allocKind/nfixed of a CallObject cannot change, one may assume that the
-    // slot location (whether in the fixed or dynamic slots) of a variable is
-    // the same as in the initial shape. (This is assumed by the interpreter and
-    // JITs when interpreting/compiling aliasedvar ops.)
+    /*
+     * Get the initial shape to use when creating CallObjects for this script.
+     * Since unaliased variables are, by definition, only accessed by local
+     * operations and never through the scope chain, only give shapes to
+     * aliased variables. While the debugger may observe any scope object at
+     * any time, such accesses are mediated by DebugScopeProxy (see
+     * DebugScopeProxy::handleUnaliasedAccess).
+     */
 
-    // Since unaliased variables are, by definition, only accessed by local
-    // operations and never through the scope chain, only give shapes to
-    // aliased variables. While the debugger may observe any scope object at
-    // any time, such accesses are mediated by DebugScopeProxy (see
-    // DebugScopeProxy::handleUnaliasedAccess).
-    uint32_t nslots = CallObject::RESERVED_SLOTS;
-    for (BindingIter bi(self); bi; bi++) {
-        if (bi->aliased())
-            nslots++;
-    }
-
-    // Put as many of nslots inline into the object header as possible.
-    uint32_t nfixed = gc::GetGCKindSlots(gc::GetGCObjectKind(nslots));
-
-    // Start with the empty shape and then append one shape per aliased binding.
-    RootedShape shape(cx,
+    JS_STATIC_ASSERT(CallObject::RESERVED_SLOTS == 2);
+    gc::AllocKind allocKind = gc::FINALIZE_OBJECT2_BACKGROUND;
+    JS_ASSERT(gc::GetGCKindSlots(allocKind) == CallObject::RESERVED_SLOTS);
+    RootedShape initial(cx,
         EmptyShape::getInitialShape(cx, &CallObject::class_, nullptr, nullptr, nullptr,
-                                    nfixed, BaseShape::VAROBJ | BaseShape::DELEGATE));
-    if (!shape)
+                                    allocKind, BaseShape::VAROBJ | BaseShape::DELEGATE));
+    if (!initial)
         return false;
+    self->callObjShape_.init(initial);
 
 #ifdef DEBUG
     HashSet<PropertyName *> added(cx);
@@ -118,41 +107,44 @@ Bindings::initWithTemporaryStorage(ExclusiveContext *cx, InternalBindingsHandle 
         return false;
 #endif
 
+    BindingIter bi(self);
     uint32_t slot = CallObject::RESERVED_SLOTS;
-    for (BindingIter bi(self); bi; bi++) {
+    for (uint32_t i = 0, n = self->count(); i < n; i++, bi++) {
         if (!bi->aliased())
             continue;
 
 #ifdef DEBUG
-        // The caller ensures no duplicate aliased names.
+        /* The caller ensures no duplicate aliased names. */
         JS_ASSERT(!added.has(bi->name()));
         if (!added.put(bi->name()))
             return false;
 #endif
 
-        StackBaseShape stackBase(cx, &CallObject::class_, nullptr, nullptr,
-                                 BaseShape::VAROBJ | BaseShape::DELEGATE);
+        StackBaseShape base(cx, &CallObject::class_, cx->global(), nullptr,
+                            BaseShape::VAROBJ | BaseShape::DELEGATE);
 
-        UnownedBaseShape *base = BaseShape::getUnowned(cx, stackBase);
-        if (!base)
+        UnownedBaseShape *nbase = BaseShape::getUnowned(cx, base);
+        if (!nbase)
             return false;
 
-        unsigned attrs = JSPROP_PERMANENT |
-                         JSPROP_ENUMERATE |
+        RootedId id(cx, NameToId(bi->name()));
+        uint32_t nfixed = gc::GetGCKindSlots(gc::GetGCObjectKind(slot + 1));
+        unsigned attrs = JSPROP_PERMANENT | JSPROP_ENUMERATE |
                          (bi->kind() == CONSTANT ? JSPROP_READONLY : 0);
-        StackShape child(base, NameToId(bi->name()), slot, attrs, 0, 0);
 
-        shape = cx->compartment()->propertyTree.getChild(cx, shape, child);
+        StackShape child(nbase, id, slot, nfixed, attrs, 0, 0);
+
+        Shape *shape = cx->compartment()->propertyTree.getChild(cx, self->callObjShape_, child);
         if (!shape)
             return false;
 
-        JS_ASSERT(slot < nslots);
+        self->callObjShape_ = shape;
         slot++;
     }
-    JS_ASSERT(slot == nslots);
 
-    JS_ASSERT(!shape->inDictionary());
-    self->callObjShape_.init(shape);
+    JS_ASSERT(!self->callObjShape_->inDictionary());
+    JS_ASSERT(!bi);
+
     return true;
 }
 
@@ -447,19 +439,22 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
     nconsts = nobjects = nregexps = ntrynotes = nblockscopes = 0;
 
     /* XDR arguments and vars. */
-    uint16_t nargs = 0;
-    uint32_t nvars = 0;
+    uint16_t nargs = 0, nvars = 0;
+    uint32_t argsVars = 0;
     if (mode == XDR_ENCODE) {
         script = scriptp.get();
         JS_ASSERT_IF(enclosingScript, enclosingScript->compartment() == script->compartment());
 
         nargs = script->bindings.numArgs();
         nvars = script->bindings.numVars();
+        argsVars = (nargs << 16) | nvars;
     }
-    if (!xdr->codeUint16(&nargs))
+    if (!xdr->codeUint32(&argsVars))
         return false;
-    if (!xdr->codeUint32(&nvars))
-        return false;
+    if (mode == XDR_DECODE) {
+        nargs = argsVars >> 16;
+        nvars = argsVars & 0xFFFF;
+    }
 
     if (mode == XDR_ENCODE)
         length = script->length();

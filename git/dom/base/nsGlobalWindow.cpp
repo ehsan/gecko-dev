@@ -2546,8 +2546,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
         // make sure the cached document property gets updated.
 
         // XXXmarkh - tell other languages about this?
-        JS::Rooted<JSObject*> obj(cx, currentInner->mJSObject);
-        ::JS_DeleteProperty(cx, obj, "document");
+        ::JS_DeleteProperty(cx, currentInner->mJSObject, "document");
       }
     } else {
       newInnerWindow->InnerSetNewDocument(aDocument);
@@ -10866,9 +10865,7 @@ nsGlobalWindow::Observe(nsISupports* aSubject, const char* aTopic,
       nsCOMPtr<nsIDOMStorageManager> storageManager = do_QueryInterface(GetDocShell());
       if (storageManager) {
         rv = storageManager->CheckStorage(principal, changingStorage, &check);
-        if (NS_FAILED(rv)) {
-          return rv;
-        }
+        NS_ENSURE_SUCCESS(rv, rv);
       }
 
       if (!check) {

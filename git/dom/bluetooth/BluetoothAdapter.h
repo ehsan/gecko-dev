@@ -12,6 +12,7 @@
 #include "BluetoothPropertyContainer.h"
 #include "nsCOMPtr.h"
 #include "nsDOMEventTargetHelper.h"
+#include "nsIDOMBluetoothDevice.h"
 
 namespace mozilla {
 namespace dom {

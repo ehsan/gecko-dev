@@ -77,12 +77,8 @@ public:
    * prevent any displacement from happening). If overscroll ocurred, its amount
    * is written to |aOverscrollAmountOut|.
    * The adjusted displacement is returned.
-   *
-   * aScrollingDisabled is used to indicate that no scrolling should happen
-   * in this axis. This is used to implement overflow: hidden;
    */
-  float AdjustDisplacement(float aDisplacement, float& aOverscrollAmountOut,
-                           bool aScrollingDisabled);
+  float AdjustDisplacement(float aDisplacement, float& aOverscrollAmountOut);
 
   /**
    * Gets the distance between the starting position of the touch supplied in
@@ -111,7 +107,7 @@ public:
    */
   bool Scrollable();
 
-  void SetAxisLocked(bool aAxisLocked) { mAxisLocked = aAxisLocked; }
+  void SetScrollingDisabled(bool aDisabled) { mScrollingDisabled = aDisabled; }
 
   /**
    * Gets the overscroll state of the axis in its current position.
@@ -194,7 +190,7 @@ protected:
   // they are flinging multiple times in a row very quickly, probably trying to
   // reach one of the extremes of the page.
   int32_t mAcceleration;
-  bool mAxisLocked;     // Whether movement on this axis is locked.
+  bool mScrollingDisabled;     // Whether movement on this axis is locked.
   AsyncPanZoomController* mAsyncPanZoomController;
   nsTArray<float> mVelocityQueue;
 };
