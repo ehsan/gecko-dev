@@ -39,7 +39,6 @@
 #include "nsWrapperCacheInlines.h"
 #include "nsDOMMutationObserver.h"
 #include "nsICycleCollectorListener.h"
-#include "nsThread.h"
 
 using namespace mozilla::dom;
 using namespace xpc;
@@ -158,12 +157,13 @@ nsXPConnect::GetXPConnect()
         // balanced by explicit call to ReleaseXPConnectSingleton()
         NS_ADDREF(gSelf);
 
-        // Set XPConnect as the main thread observer.
+        // Add XPConnect as an thread observer.
         //
         // The cycle collector sometimes calls GetXPConnect, but it should never
         // be the one that initializes gSelf.
         MOZ_ASSERT(NS_IsMainThread());
-        if (NS_FAILED(nsThread::SetMainThreadObserver(gSelf))) {
+        nsCOMPtr<nsIThreadInternal> thread = do_QueryInterface(NS_GetCurrentThread());
+        if (NS_FAILED(thread->AddObserver(gSelf))) {
             NS_RELEASE(gSelf);
             // Fall through to returning null
         }
@@ -186,7 +186,14 @@ nsXPConnect::ReleaseXPConnectSingleton()
 {
     nsXPConnect* xpc = gSelf;
     if (xpc) {
-        nsThread::SetMainThreadObserver(nullptr);
+
+        // The thread subsystem may have been shut down already, so make sure
+        // to check for null here.
+        nsCOMPtr<nsIThreadInternal> thread = do_QueryInterface(NS_GetCurrentThread());
+        if (thread) {
+            MOZ_ASSERT(NS_IsMainThread());
+            thread->RemoveObserver(xpc);
+        }
 
 #ifdef DEBUG
         // force a dump of the JavaScript gc heap if JS is still alive
