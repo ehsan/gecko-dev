@@ -137,6 +137,10 @@ toolbar[mode="icons"] > #reload-button[displaystop] {
   -moz-binding: url("chrome://browser/content/urlbarBindings.xml#menuitem-iconic-tooltip");
 }
 
+#appmenu_offlineModeRecovery:not([checked=true]) {
+  display: none;
+}
+
 /* ::::: location bar ::::: */
 #urlbar {
   -moz-binding: url(chrome://browser/content/urlbarBindings.xml#urlbar);
@@ -318,13 +322,14 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
   min-width: 1px;
 }
 
-/* Sync statusbar UI */
 %ifdef MOZ_SERVICES_SYNC
-#sync-notifications-box {
+/* Sync notification UI */
+#sync-notifications {
   -moz-binding: url("chrome://browser/content/syncNotification.xml#notificationbox");
+  overflow-y: visible !important;
 }
 
-#sync-notifications-box notification {
+#sync-notifications notification {
   -moz-binding: url("chrome://browser/content/syncNotification.xml#notification");
 }
 %endif
@@ -419,4 +424,15 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
 
 #geolocation-notification {
   -moz-binding: url("chrome://browser/content/urlbarBindings.xml#geolocation-notification");
+}
+
+/* override hidden="true" for the status bar compatibility shim
+   in case it was persisted for the real status bar */
+#status-bar {
+  display: -moz-box;
+}
+
+/* Remove the resizer from the statusbar compatibility shim */
+#status-bar > .statusbar-resizerpanel {
+  display: none;
 }

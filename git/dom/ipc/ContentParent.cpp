@@ -58,13 +58,9 @@
 #include "nsFrameMessageManager.h"
 #include "nsIAlertsService.h"
 #include "nsToolkitCompsCID.h"
+#include "nsIDOMGeoGeolocation.h"
 
 #include "mozilla/dom/ExternalHelperAppParent.h"
-
-#ifdef ANDROID
-#include "AndroidBridge.h"
-using namespace mozilla;
-#endif
 
 using namespace mozilla::ipc;
 using namespace mozilla::net;
@@ -152,6 +148,7 @@ ContentParent::DestroyTestShell(TestShellParent* aTestShell)
 
 ContentParent::ContentParent()
     : mMonitor("ContentParent::mMonitor")
+    , mGeolocationWatchID(-1)
     , mRunToCompletionDepth(0)
     , mShouldCallUnblockChild(false)
     , mIsAlive(true)
@@ -321,9 +318,10 @@ ContentParent::EnsurePermissionService()
     }
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(ContentParent,
+NS_IMPL_THREADSAFE_ISUPPORTS3(ContentParent,
                               nsIObserver,
-                              nsIThreadObserver)
+                              nsIThreadObserver,
+                              nsIDOMGeoPositionCallback)
 
 namespace {
 void
@@ -348,6 +346,8 @@ ContentParent::Observe(nsISupports* aSubject,
             }
         }
 
+        RecvGeolocationStop();
+            
         Close();
         XRE_GetIOMessageLoop()->PostTask(
             FROM_HERE,
@@ -563,33 +563,6 @@ ContentParent::AfterProcessNextEvent(nsIThreadInternal *thread,
     return NS_OK;
 }
 
-
-bool 
-ContentParent::RecvNotifyIMEChange(const nsString& aText, 
-                                   const PRUint32& aTextLen, 
-                                   const int& aStart, const int& aEnd, 
-                                   const int& aNewEnd)
-{
-#ifdef ANDROID
-    AndroidBridge::Bridge()->NotifyIMEChange(aText.get(), aTextLen,
-                                             aStart, aEnd, aNewEnd);
-    return true;
-#else
-    return false;
-#endif
-}
-
-bool 
-ContentParent::RecvNotifyIME(const int& aType, const int& aStatus)
-{
-#ifdef ANDROID
-    AndroidBridge::Bridge()->NotifyIME(aType, aStatus);
-    return true;
-#else
-    return false;
-#endif
-}
-
 bool
 ContentParent::RecvShowAlertNotification(const nsString& aImageUrl, const nsString& aTitle,
                                          const nsString& aText, const PRBool& aTextClickable,
@@ -616,7 +589,6 @@ ContentParent::RecvSyncMessage(const nsString& aMsg, const nsString& aJSON,
   return true;
 }
 
-
 bool
 ContentParent::RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON)
 {
@@ -627,6 +599,35 @@ ContentParent::RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON)
   }
   return true;
 }
-    
+
+bool
+ContentParent::RecvGeolocationStart()
+{
+  nsCOMPtr<nsIDOMGeoGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
+  if (!geo) {
+    return true;
+  }
+  geo->WatchPosition(this, nsnull, nsnull, &mGeolocationWatchID);
+  return true;
+}
+
+bool
+ContentParent::RecvGeolocationStop()
+{
+  nsCOMPtr<nsIDOMGeoGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
+  if (!geo) {
+    return true;
+  }
+  geo->ClearWatch(mGeolocationWatchID);
+  return true;
+}
+
+NS_IMETHODIMP
+ContentParent::HandleEvent(nsIDOMGeoPosition* postion)
+{
+  SendGeolocationUpdate(GeoPosition(postion));
+  return NS_OK;
+}
+
 } // namespace dom
 } // namespace mozilla

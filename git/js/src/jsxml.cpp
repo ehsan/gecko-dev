@@ -4881,6 +4881,14 @@ xml_trace(JSTracer *trc, JSObject *obj)
         JS_CALL_TRACER(trc, xml, JSTRACE_XML, "private");
 }
 
+static JSBool
+xml_fix(JSContext *cx, JSObject *obj, bool *success, AutoIdVector *props)
+{
+    JS_ASSERT(obj->isExtensible());
+    *success = false;
+    return true;
+}
+
 static void
 xml_clear(JSContext *cx, JSObject *obj)
 {
@@ -5100,6 +5108,7 @@ JS_FRIEND_DATA(Class) js_XMLClass = {
         xml_enumerate,
         xml_typeOf,
         NULL,       /* trace */
+        xml_fix,
         NULL,       /* thisObject     */
         xml_clear
     }
@@ -6508,7 +6517,7 @@ xml_setNamespace(JSContext *cx, uintN argc, jsval *vp)
     vp[0] = OBJECT_TO_JSVAL(ns);
     ns->setNamespaceDeclared(JSVAL_TRUE);
 
-    qnargv[0] = vp[2] = OBJECT_TO_JSVAL(ns);
+    qnargv[0] = OBJECT_TO_JSVAL(ns);
     qnargv[1] = OBJECT_TO_JSVAL(xml->name);
     qn = js_ConstructObject(cx, &js_QNameClass, NULL, NULL, 2, Valueify(qnargv));
     if (!qn)
