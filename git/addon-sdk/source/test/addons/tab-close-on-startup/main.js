@@ -21,6 +21,7 @@ exports.testNoTabCloseOnStartup = function(assert, done) {
   });
 }
 
+
 exports.main = function() {
   tabs.on('close', closeEventDetector);
 

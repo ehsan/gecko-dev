@@ -24,9 +24,8 @@ def mkzipdir(zf, path):
 def build_xpi(template_root_dir, manifest, xpi_path,
               harness_options, limit_to=None, extra_harness_options={},
               bundle_sdk=True, pkgdir=""):
-    IGNORED_FILES = [".hgignore", ".DS_Store",
+    IGNORED_FILES = [".hgignore", ".DS_Store", "install.rdf",
                      "application.ini", xpi_path]
-    IGNORED_TOP_LVL_FILES = ["install.rdf"]
 
     files_to_copy = {} # maps zipfile path to local-disk abspath
     dirs_to_create = set() # zipfile paths, no trailing slash
@@ -72,8 +71,6 @@ def build_xpi(template_root_dir, manifest, xpi_path,
               files_to_copy[str(arcpath)] = str(abspath)
 
     for dirpath, dirnames, filenames in os.walk(template_root_dir):
-        if template_root_dir == dirpath:
-            filenames = list(filter_filenames(filenames, IGNORED_TOP_LVL_FILES))
         filenames = list(filter_filenames(filenames, IGNORED_FILES))
         dirnames[:] = filter_dirnames(dirnames)
         for dirname in dirnames:
