@@ -45,6 +45,8 @@
 #include "nsCocoaWindow.h"
 #include "nsWidgetAtoms.h"
 
+#import <Carbon/Carbon.h>
+
 nsEventStatus nsMenuUtilsX::DispatchCommandTo(nsIContent* aTargetContent)
 {
   NS_PRECONDITION(aTargetContent, "null ptr");
@@ -197,40 +199,41 @@ PRBool nsMenuUtilsX::NodeIsHiddenOrCollapsed(nsIContent* inContent)
 
 
 // Determines how many items are visible among the siblings in a menu that are
-// before the given child. This will not count the application menu.
-int nsMenuUtilsX::CalculateNativeInsertionPoint(nsMenuObjectX* aParent,
-                                                nsMenuObjectX* aChild)
+// before the given child. Note that this will not count the application menu.
+nsresult nsMenuUtilsX::CountVisibleBefore(nsMenuObjectX* aParentMenu, nsMenuObjectX* aChild, PRUint32* outVisibleBefore)
 {
-  int insertionPoint = 0;
-  nsMenuObjectTypeX parentType = aParent->MenuObjectType();
+  NS_ASSERTION(outVisibleBefore, "bad index param in nsMenuX::CountVisibleBefore");
+
+  nsMenuObjectTypeX parentType = aParentMenu->MenuObjectType();
   if (parentType == eMenuBarObjectType) {
-    nsMenuBarX* menubarParent = static_cast<nsMenuBarX*>(aParent);
+    *outVisibleBefore = 0;
+    nsMenuBarX* menubarParent = static_cast<nsMenuBarX*>(aParentMenu);
     PRUint32 numMenus = menubarParent->GetMenuCount();
     for (PRUint32 i = 0; i < numMenus; i++) {
       nsMenuX* currMenu = menubarParent->GetMenuAt(i);
       if (currMenu == aChild)
-        return insertionPoint; // we found ourselves, break out
-      if (currMenu && [currMenu->NativeMenuItem() menu])
-        insertionPoint++;
+        return NS_OK; // we found ourselves, break out
+      if (currMenu) {
+        nsIContent* menuContent = currMenu->Content();
+        if (menuContent->GetChildCount() > 0 &&
+            !nsMenuUtilsX::NodeIsHiddenOrCollapsed(menuContent)) {
+          ++(*outVisibleBefore);
+        }
+      }
     }
   }
   else if (parentType == eSubmenuObjectType) {
-    nsMenuX* menuParent = static_cast<nsMenuX*>(aParent);
+    *outVisibleBefore = 0;
+    nsMenuX* menuParent = static_cast<nsMenuX*>(aParentMenu);
     PRUint32 numItems = menuParent->GetItemCount();
     for (PRUint32 i = 0; i < numItems; i++) {
       // Using GetItemAt instead of GetVisibleItemAt to avoid O(N^2)
       nsMenuObjectX* currItem = menuParent->GetItemAt(i);
       if (currItem == aChild)
-        return insertionPoint; // we found ourselves, break out
-      NSMenuItem* nativeItem = nil;
-      nsMenuObjectTypeX currItemType = currItem->MenuObjectType();
-      if (currItemType == eSubmenuObjectType)
-        nativeItem = static_cast<nsMenuX*>(currItem)->NativeMenuItem();
-      else
-        nativeItem = (NSMenuItem*)(currItem->NativeData());
-      if ([nativeItem menu])
-        insertionPoint++;
+        return NS_OK; // we found ourselves, break out
+      if (!nsMenuUtilsX::NodeIsHiddenOrCollapsed(currItem->Content()))
+        ++(*outVisibleBefore);
     }
   }
-  return insertionPoint;
+  return NS_ERROR_FAILURE;
 }
