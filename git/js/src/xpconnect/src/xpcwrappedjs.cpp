@@ -42,7 +42,6 @@
 /* Class that wraps JS objects to appear as XPCOM objects. */
 
 #include "xpcprivate.h"
-#include "nsAtomicRefcnt.h"
 
 // NOTE: much of the fancy footwork is done in xpcstubs.cpp
 
@@ -209,7 +208,7 @@ nsXPCWrappedJS::QueryInterface(REFNSIID aIID, void** aInstancePtr)
 nsrefcnt
 nsXPCWrappedJS::AddRef(void)
 {
-    nsrefcnt cnt = NS_AtomicIncrementRefcnt(mRefCnt);
+    nsrefcnt cnt = (nsrefcnt) PR_AtomicIncrement((PRInt32*)&mRefCnt);
     NS_LOG_ADDREF(this, cnt, "nsXPCWrappedJS", sizeof(*this));
 
     if(2 == cnt && IsValid())
@@ -233,7 +232,7 @@ nsXPCWrappedJS::Release(void)
 
 do_decrement:
 
-    nsrefcnt cnt = NS_AtomicDecrementRefcnt(mRefCnt);
+    nsrefcnt cnt = (nsrefcnt) PR_AtomicDecrement((PRInt32*)&mRefCnt);
     NS_LOG_RELEASE(this, cnt, "nsXPCWrappedJS");
 
     if(0 == cnt)

@@ -52,9 +52,6 @@
 #include "nsIWidget.h"
 #include "prenv.h"
 
-#include "nsIObserverService.h"
-#include "mozilla/Services.h"
-
 class QEvent;
 class QPixmap;
 class QWidget;
@@ -241,10 +238,6 @@ public:
         mStatusBar->appear();
         connect(mStatusBar, SIGNAL(appeared()), this, SLOT(CheckTopLevelSize()));
         connect(mStatusBar, SIGNAL(disappeared()), this, SLOT(CheckTopLevelSize()));
-        MInputMethodState *inputMethodState = MInputMethodState::instance();
-        if (inputMethodState) 
-            connect(inputMethodState, SIGNAL(inputMethodAreaChanged(const QRect &)),
-                    this, SLOT(VisibleScreenAreaChanged(const QRect &)));
     }
 
 protected:
@@ -288,23 +281,6 @@ private slots:
         }
     }
 
-    void VisibleScreenAreaChanged(const QRect & region) {
-        if (mTopLevelWidget) {
-            QRect r = mTopLevelWidget->geometry().toRect();
-            r.setHeight(r.height()-region.height());
-
-            nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
-            if (observerService) {
-                QString rect = QString("{\"left\": %1, \"top\": %2, \"right\": %3, \"bottom\": %4}")
-                                      .arg(r.left())
-                                      .arg(r.top())
-                                      .arg(r.right())
-                                      .arg(r.bottom());
-
-                observerService->NotifyObservers(nsnull, "softkb-change", rect.utf16());
-            }
-        }
-    }
 private:
     MozQWidget* mTopLevelWidget;
     MStatusBar* mStatusBar;
