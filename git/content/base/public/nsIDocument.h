@@ -119,8 +119,8 @@ class Element;
 
 
 #define NS_IDOCUMENT_IID      \
-{ 0xbd862a79, 0xc31b, 0x419b, \
-  { 0x92, 0x90, 0xa0, 0x77, 0x08, 0x62, 0xd4, 0xc4 } }
+{ 0x73d79167, 0xacba, 0x46eb, \
+  { 0xad, 0x45, 0xa3, 0x4b, 0x92, 0xf6, 0x01, 0x5b } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -159,6 +159,7 @@ public:
       // unless we get a window, and in that case the docshell value will get
       // &&-ed in, this is safe.
       mAllowDNSPrefetch(PR_TRUE),
+      mIsBeingUsedAsImage(PR_FALSE),
       mPartID(0)
   {
     mParentPtrBits |= PARENT_BIT_INDOCUMENT;
@@ -1147,6 +1148,19 @@ public:
     return !mParentDocument && !mDisplayDocument;
   }
 
+  PRBool IsBeingUsedAsImage() const {
+    return mIsBeingUsedAsImage;
+  }
+
+  void SetIsBeingUsedAsImage() {
+    mIsBeingUsedAsImage = PR_TRUE;
+  }
+
+  PRBool IsResourceDoc() const {
+    return IsBeingUsedAsImage() || // Are we a helper-doc for an SVG image?
+      !!mDisplayDocument;          // Are we an external resource doc?
+  }
+
   /**
    * Get the document for which this document is an external resource.  This
    * will be null if this document is not an external resource.  Otherwise,
@@ -1617,6 +1631,9 @@ protected:
 
   // True if we're waiting for a before-paint event.
   PRPackedBool mHavePendingPaint;
+
+  // True if we're an SVG document being used as an image.
+  PRPackedBool mIsBeingUsedAsImage;
 
   // The document's script global object, the object from which the
   // document can get its script context and scope. This is the
