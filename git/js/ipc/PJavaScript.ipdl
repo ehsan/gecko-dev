@@ -9,7 +9,7 @@ include protocol PContent;
 include DOMTypes;
 include JavaScriptTypes;
 
-using struct mozilla::void_t from "ipc/IPCMessageUtils.h";
+using mozilla::void_t;
 
 namespace mozilla {
 namespace jsipc {

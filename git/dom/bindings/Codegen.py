@@ -2955,7 +2955,6 @@ for (uint32_t i = 0; i < length; ++i) {
             assert len(dictionaryMemberTypes) == 1
             name = dictionaryMemberTypes[0].inner.identifier.name
             setDictionary = CGGeneric("done = (failed = !%s.TrySetTo%s(cx, ${val}, ${mutableVal}, tryNext)) || !tryNext;" % (unionArgumentObj, name))
-            names.append(name)
         else:
             setDictionary = None
 
@@ -2964,7 +2963,6 @@ for (uint32_t i = 0; i < length; ++i) {
             assert len(objectMemberTypes) == 1
             object = CGGeneric("%s.SetToObject(cx, argObj);\n"
                                "done = true;" % unionArgumentObj)
-            names.append(objectMemberTypes[0].name)
         else:
             object = None
 

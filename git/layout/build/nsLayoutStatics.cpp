@@ -43,7 +43,7 @@
 #include "txMozillaXSLTProcessor.h"
 #include "nsTreeSanitizer.h"
 #include "nsCellMap.h"
-#include "nsTextFrame.h"
+#include "nsTextFrameTextRunCache.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsTextFragment.h"
 #include "nsCSSRuleProcessor.h"
@@ -61,7 +61,6 @@
 #include "DOMStorageObserver.h"
 #include "CacheObserver.h"
 #include "DisplayItemClip.h"
-#include "ActiveLayerTracker.h"
 
 #include "AudioChannelService.h"
 
@@ -312,7 +311,7 @@ nsLayoutStatics::Shutdown()
   nsFrame::DisplayReflowShutdown();
 #endif
   nsCellMap::Shutdown();
-  ActiveLayerTracker::Shutdown();
+  nsFrame::ShutdownLayerActivityTimer();
 
   // Release all of our atoms
   nsColorNames::ReleaseTable();

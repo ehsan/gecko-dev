@@ -43,7 +43,6 @@
 #include "BasicLayers.h"
 #include "libdisplay/GonkDisplay.h"
 #include "pixelflinger/format.h"
-#include "mozilla/BasicEvents.h"
 
 #include "HwcComposer2D.h"
 

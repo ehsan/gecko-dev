@@ -643,9 +643,6 @@ CERT_DecodeOidSequence(const SECItem *seqItem)
     return(oidSeq);
     
 loser:
-    if (arena) {
-        PORT_FreeArena(arena, PR_FALSE);
-    }
     return(NULL);
 }
 

@@ -1560,7 +1560,7 @@ nsGfxScrollFrameInner::nsGfxScrollFrameInner(nsContainerFrame* aOuter,
   , mMayHaveDirtyFixedChildren(false)
   , mUpdateScrollbarAttributes(false)
   , mCollapsedResizer(false)
-  , mShouldBuildScrollableLayer(false)
+  , mShouldBuildLayer(false)
   , mHasBeenScrolled(false)
 {
   mScrollingActive = IsAlwaysActive();
@@ -2131,6 +2131,12 @@ nsGfxScrollFrameInner::AppendScrollPartsTo(nsDisplayListBuilder*   aBuilder,
   }
 }
 
+bool
+nsGfxScrollFrameInner::ShouldBuildLayer() const
+{
+  return mShouldBuildLayer;
+}
+
 class ScrollLayerWrapper : public nsDisplayWrapper
 {
 public:
@@ -2337,9 +2343,8 @@ nsGfxScrollFrameInner::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // When a displayport is being used, force building of a layer so that
   // CompositorParent can always find the scrollable layer for the root content
   // document.
-  bool shouldBuildLayer = false;
   if (usingDisplayport) {
-    shouldBuildLayer = true;
+    mShouldBuildLayer = true;
   } else {
     nsRect scrollRange = GetScrollRange();
     ScrollbarStyles styles = GetScrollbarStylesFromFrame();
@@ -2354,20 +2359,18 @@ nsGfxScrollFrameInner::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       wantSubAPZC = true;
     }
 #endif
-    shouldBuildLayer =
+    mShouldBuildLayer =
       wantSubAPZC &&
       hasScrollableOverflow &&
       (!mIsRoot || !mOuter->PresContext()->IsRootContentDocument());
   }
 
-  mShouldBuildScrollableLayer = false;
-  if (shouldBuildLayer) {
+  if (ShouldBuildLayer()) {
     // ScrollLayerWrapper must always be created because it initializes the
     // scroll layer count. The display lists depend on this.
     ScrollLayerWrapper wrapper(mOuter, mScrolledFrame);
 
     if (usingDisplayport) {
-      mShouldBuildScrollableLayer = true;
       DisplayListClipState::AutoSaveRestore clipState(aBuilder);
 
       // For root scrollframes in documents where the CSS viewport has been

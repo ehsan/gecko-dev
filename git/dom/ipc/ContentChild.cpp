@@ -117,7 +117,6 @@
 #include "AudioChannelService.h"
 #include "JavaScriptChild.h"
 #include "mozilla/dom/telephony/PTelephonyChild.h"
-#include "mozilla/net/NeckoMessageUtils.h"
 
 using namespace base;
 using namespace mozilla;

@@ -51,7 +51,6 @@
 #include "mozilla/dom/TabChild.h"
 #include "nsRefreshDriver.h"
 #include "Layers.h"
-#include "nsIDOMEvent.h"
 
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"

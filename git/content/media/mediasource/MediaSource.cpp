@@ -323,12 +323,11 @@ MediaSource::EndOfStreamInternal(const Optional<MediaSourceEndOfStreamError>& aE
   }
 }
 
-static const char* const gMediaSourceTypes[6] = {
+static const char* const gMediaSourceTypes[5] = {
   "video/webm",
   "audio/webm",
   "video/mp4",
   "audio/mp4",
-  "audio/mpeg",
   nullptr
 };
 
