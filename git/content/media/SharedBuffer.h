@@ -6,7 +6,6 @@
 #ifndef MOZILLA_SHAREDBUFFER_H_
 #define MOZILLA_SHAREDBUFFER_H_
 
-#include "mozilla/CheckedInt.h"
 #include "mozilla/mozalloc.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
@@ -40,12 +39,7 @@ public:
 
   static already_AddRefed<SharedBuffer> Create(size_t aSize)
   {
-    CheckedInt<size_t> size = sizeof(SharedBuffer);
-    size += aSize;
-    if (!size.isValid()) {
-      MOZ_CRASH();
-    }
-    void* m = moz_xmalloc(size.value());
+    void* m = moz_xmalloc(sizeof(SharedBuffer) + aSize);
     nsRefPtr<SharedBuffer> p = new (m) SharedBuffer();
     NS_ASSERTION((reinterpret_cast<char*>(p.get() + 1) - reinterpret_cast<char*>(p.get())) % 4 == 0,
                  "SharedBuffers should be at least 4-byte aligned");

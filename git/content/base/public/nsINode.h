@@ -101,7 +101,7 @@ enum {
   // ancestor.  This flag is set-once: once a node has it, it must not be
   // removed.
   // NOTE: Should only be used on nsIContent nodes
-  NODE_IS_IN_NATIVE_ANONYMOUS_SUBTREE =          NODE_FLAG_BIT(3),
+  NODE_IS_IN_ANONYMOUS_SUBTREE =          NODE_FLAG_BIT(3),
 
   // Whether this node is the root of a native anonymous (from the perspective
   // of its parent) subtree.  This flag is set-once: once a node has it, it
@@ -414,9 +414,7 @@ protected:
   //
   mozilla::dom::ParentObject GetParentObjectInternal(nsINode* aNativeParent) const {
     mozilla::dom::ParentObject p(aNativeParent);
-    // Note that mUseXBLScope is a no-op for chrome, and other places where we
-    // don't use XBL scopes.
-    p.mUseXBLScope = IsInAnonymousSubtree();
+    p.mUseXBLScope = ChromeOnlyAccess();
     return p;
   }
 
@@ -442,10 +440,6 @@ public:
    * IsContent() is true.  This is defined inline in nsIContent.h.
    */
   nsIContent* AsContent();
-  const nsIContent* AsContent() const
-  {
-    return const_cast<nsINode*>(this)->AsContent();
-  }
 
   virtual nsIDOMNode* AsDOMNode() = 0;
 
@@ -956,7 +950,7 @@ public:
   {
     NS_ASSERTION(!(aFlagsToSet & (NODE_IS_ANONYMOUS_ROOT |
                                   NODE_IS_NATIVE_ANONYMOUS_ROOT |
-                                  NODE_IS_IN_NATIVE_ANONYMOUS_SUBTREE |
+                                  NODE_IS_IN_ANONYMOUS_SUBTREE |
                                   NODE_ATTACH_BINDING_ON_POSTCREATE |
                                   NODE_DESCENDANTS_NEED_FRAMES |
                                   NODE_NEEDS_FRAME |
@@ -970,7 +964,7 @@ public:
   {
     NS_ASSERTION(!(aFlagsToUnset &
                    (NODE_IS_ANONYMOUS_ROOT |
-                    NODE_IS_IN_NATIVE_ANONYMOUS_SUBTREE |
+                    NODE_IS_IN_ANONYMOUS_SUBTREE |
                     NODE_IS_NATIVE_ANONYMOUS_ROOT)),
                  "Trying to unset write-only flags");
     nsWrapperCache::UnsetFlags(aFlagsToUnset);
@@ -1001,23 +995,21 @@ public:
   bool IsInNativeAnonymousSubtree() const
   {
 #ifdef DEBUG
-    if (HasFlag(NODE_IS_IN_NATIVE_ANONYMOUS_SUBTREE)) {
+    if (HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE)) {
       return true;
     }
     CheckNotNativeAnonymous();
     return false;
 #else
-    return HasFlag(NODE_IS_IN_NATIVE_ANONYMOUS_SUBTREE);
+    return HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE);
 #endif
   }
-
-  bool IsInAnonymousSubtree() const;
 
   // True for native anonymous content and for XBL content if the binging
   // has chromeOnlyContent="true".
   bool ChromeOnlyAccess() const
   {
-    return HasFlag(NODE_IS_IN_NATIVE_ANONYMOUS_SUBTREE | NODE_CHROME_ONLY_ACCESS);
+    return HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE | NODE_CHROME_ONLY_ACCESS);
   }
 
   /**
