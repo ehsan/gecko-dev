@@ -488,7 +488,6 @@ bool TextureClient::CopyToTextureClient(TextureClient* aTarget,
 void
 TextureClient::Finalize()
 {
-  MOZ_ASSERT(!IsLocked());
   // Always make a temporary strong reference to the actor before we use it,
   // in case TextureChild::ActorDestroy might null mActor concurrently.
   RefPtr<TextureChild> actor = mActor;
@@ -620,7 +619,7 @@ MemoryTextureClient::~MemoryTextureClient()
     // if the buffer has never been shared we must deallocate it or it would
     // leak.
     GfxMemoryImageReporter::WillFree(mBuffer);
-    delete [] mBuffer;
+    delete mBuffer;
   }
 }
 
@@ -649,7 +648,6 @@ BufferTextureClient::GetAllocator() const
 bool
 BufferTextureClient::UpdateSurface(gfxASurface* aSurface)
 {
-  MOZ_ASSERT(mLocked);
   MOZ_ASSERT(aSurface);
   MOZ_ASSERT(!IsImmutable());
   MOZ_ASSERT(IsValid());
@@ -678,7 +676,6 @@ BufferTextureClient::UpdateSurface(gfxASurface* aSurface)
 already_AddRefed<gfxASurface>
 BufferTextureClient::GetAsSurface()
 {
-  MOZ_ASSERT(mLocked);
   MOZ_ASSERT(IsValid());
 
   ImageDataSerializer serializer(GetBuffer(), GetBufferSize());
@@ -718,7 +715,8 @@ TemporaryRef<gfx::DrawTarget>
 BufferTextureClient::GetAsDrawTarget()
 {
   MOZ_ASSERT(IsValid());
-  MOZ_ASSERT(mLocked, "GetAsDrawTarget should be called on locked textures only");
+  // XXX - Turn this into a fatal assertion as soon as Bug 952507 is fixed
+  NS_WARN_IF_FALSE(mLocked, "GetAsDrawTarget should be called on locked textures only");
 
   if (mDrawTarget) {
     return mDrawTarget;
@@ -755,7 +753,8 @@ BufferTextureClient::GetAsDrawTarget()
 bool
 BufferTextureClient::Lock(OpenMode aMode)
 {
-  MOZ_ASSERT(!mLocked, "The TextureClient is already Locked!");
+  // XXX - Turn this into a fatal assertion as soon as Bug 952507 is fixed
+  NS_WARN_IF_FALSE(!mLocked, "The TextureClient is already Locked!");
   mOpenMode = aMode;
   mLocked = IsValid() && IsAllocated();;
   return mLocked;
@@ -764,18 +763,13 @@ BufferTextureClient::Lock(OpenMode aMode)
 void
 BufferTextureClient::Unlock()
 {
-  MOZ_ASSERT(mLocked, "The TextureClient is already Unlocked!");
+  // XXX - Turn this into a fatal assertion as soon as Bug 952507 is fixed
+  NS_WARN_IF_FALSE(mLocked, "The TextureClient is already Unlocked!");
   mLocked = false;
   if (!mDrawTarget) {
     mUsingFallbackDrawTarget = false;
     return;
   }
-
-  // see the comment on TextureClientDrawTarget::GetAsDrawTarget.
-  // This DrawTarget is internal to the TextureClient and is only exposed to the
-  // outside world between Lock() and Unlock(). This assertion checks that no outside
-  // reference remains by the time Unlock() is called.
-  MOZ_ASSERT(mDrawTarget->refCount() == 1);
 
   mDrawTarget->Flush();
   if (mUsingFallbackDrawTarget && (mOpenMode & OPEN_WRITE)) {
@@ -808,7 +802,6 @@ BufferTextureClient::Unlock()
 bool
 BufferTextureClient::UpdateYCbCr(const PlanarYCbCrData& aData)
 {
-  MOZ_ASSERT(mLocked);
   MOZ_ASSERT(mFormat == gfx::SurfaceFormat::YUV, "This textureClient can only use YCbCr data");
   MOZ_ASSERT(!IsImmutable());
   MOZ_ASSERT(IsValid());

@@ -1578,12 +1578,6 @@ class JSJitMethodCallArgs : protected JS::detail::CallArgsBase<JS::detail::NoUse
         return Base::hasDefined(i);
     }
 
-    JSObject &callee() const {
-        // We can't use Base::callee() because that will try to poke at
-        // this->usedRval_, which we don't have.
-        return argv_[-2].toObject();
-    }
-
     // Add get() as needed
 };
 
@@ -1614,7 +1608,6 @@ struct JSJitInfo {
         Setter,
         Method,
         ParallelNative,
-        StaticMethod,
         // Must be last
         OpTypeCount
     };
@@ -1673,9 +1666,9 @@ struct JSJitInfo {
         return type() == ParallelNative;
     }
 
-    bool needsOuterizedThisObject() const
+    bool isDOMJitInfo() const
     {
-        return type() != Getter && type() != Setter;
+        return type() != ParallelNative;
     }
 
     bool isTypedMethodJitInfo() const
@@ -1704,8 +1697,6 @@ struct JSJitInfo {
         JSJitMethodOp method;
         /* An alternative native that's safe to call in parallel mode. */
         JSParallelNative parallelNative;
-        /* A DOM static method, used for Promise wrappers */
-        JSNative staticMethod;
     };
 
     uint16_t protoID;
@@ -1719,7 +1710,9 @@ struct JSJitInfo {
 #define JITINFO_ALIAS_SET_BITS 4
 #define JITINFO_RETURN_TYPE_BITS 8
 
-    // The OpType that says what sort of function we are.
+    // If this field is not ParallelNative, then this is a DOM method.
+    // If you change that, come up with a different way of implementing
+    // isDOMJitInfo().
     uint32_t type_ : JITINFO_OP_TYPE_BITS;
 
     // The alias set for this op.  This is a _minimal_ alias set; in

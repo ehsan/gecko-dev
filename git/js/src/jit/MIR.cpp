@@ -162,6 +162,9 @@ MDefinition::valueHash() const
 bool
 MDefinition::congruentIfOperandsEqual(MDefinition *ins) const
 {
+    if (numOperands() != ins->numOperands())
+        return false;
+
     if (op() != ins->op())
         return false;
 
@@ -169,9 +172,6 @@ MDefinition::congruentIfOperandsEqual(MDefinition *ins) const
         return false;
 
     if (isEffectful() || ins->isEffectful())
-        return false;
-
-    if (numOperands() != ins->numOperands())
         return false;
 
     for (size_t i = 0, e = numOperands(); i < e; i++) {
@@ -1258,20 +1258,20 @@ MBinaryBitwiseInstruction::foldUnnecessaryBitop()
 void
 MBinaryBitwiseInstruction::infer(BaselineInspector *, jsbytecode *)
 {
-    if (getOperand(0)->mightBeType(MIRType_Object) || getOperand(1)->mightBeType(MIRType_Object))
+    if (getOperand(0)->mightBeType(MIRType_Object) || getOperand(1)->mightBeType(MIRType_Object)) {
         specialization_ = MIRType_None;
-    else
-        specializeAsInt32();
+    } else {
+        specialization_ = MIRType_Int32;
+        setCommutative();
+    }
 }
 
 void
-MBinaryBitwiseInstruction::specializeAsInt32()
+MBinaryBitwiseInstruction::specializeForAsmJS()
 {
     specialization_ = MIRType_Int32;
     JS_ASSERT(type() == MIRType_Int32);
-
-    if (isBitOr() || isBitAnd() || isBitXor())
-        setCommutative();
+    setCommutative();
 }
 
 void
@@ -2155,7 +2155,7 @@ MBitAnd *
 MBitAnd::NewAsmJS(TempAllocator &alloc, MDefinition *left, MDefinition *right)
 {
     MBitAnd *ins = new(alloc) MBitAnd(left, right);
-    ins->specializeAsInt32();
+    ins->specializeForAsmJS();
     return ins;
 }
 
@@ -2169,7 +2169,7 @@ MBitOr *
 MBitOr::NewAsmJS(TempAllocator &alloc, MDefinition *left, MDefinition *right)
 {
     MBitOr *ins = new(alloc) MBitOr(left, right);
-    ins->specializeAsInt32();
+    ins->specializeForAsmJS();
     return ins;
 }
 
@@ -2183,7 +2183,7 @@ MBitXor *
 MBitXor::NewAsmJS(TempAllocator &alloc, MDefinition *left, MDefinition *right)
 {
     MBitXor *ins = new(alloc) MBitXor(left, right);
-    ins->specializeAsInt32();
+    ins->specializeForAsmJS();
     return ins;
 }
 
@@ -2197,7 +2197,7 @@ MLsh *
 MLsh::NewAsmJS(TempAllocator &alloc, MDefinition *left, MDefinition *right)
 {
     MLsh *ins = new(alloc) MLsh(left, right);
-    ins->specializeAsInt32();
+    ins->specializeForAsmJS();
     return ins;
 }
 
@@ -2211,7 +2211,7 @@ MRsh *
 MRsh::NewAsmJS(TempAllocator &alloc, MDefinition *left, MDefinition *right)
 {
     MRsh *ins = new(alloc) MRsh(left, right);
-    ins->specializeAsInt32();
+    ins->specializeForAsmJS();
     return ins;
 }
 
@@ -2225,7 +2225,7 @@ MUrsh *
 MUrsh::NewAsmJS(TempAllocator &alloc, MDefinition *left, MDefinition *right)
 {
     MUrsh *ins = new(alloc) MUrsh(left, right);
-    ins->specializeAsInt32();
+    ins->specializeForAsmJS();
 
     // Since Ion has no UInt32 type, we use Int32 and we have a special
     // exception to the type rules: we can return values in
