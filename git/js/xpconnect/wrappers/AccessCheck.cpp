@@ -348,7 +348,7 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapperArg, jsid idArg, Wr
     Access access = NO_ACCESS;
 
     Rooted<JSPropertyDescriptor> desc(cx);
-    if (!JS_GetPropertyDescriptorById(cx, hallpass, id, 0, &desc)) {
+    if (!JS_GetPropertyDescriptorById(cx, hallpass, id, 0, desc.address())) {
         return false; // Error
     }
     if (!desc.object() || !desc.isEnumerable())

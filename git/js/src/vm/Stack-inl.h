@@ -12,12 +12,16 @@
 #include "mozilla/PodOperations.h"
 
 #include "jscntxt.h"
+#include "jscompartment.h"
 
 #include "jit/BaselineFrame.h"
-#include "vm/ScopeObject.h"
+
+#include "jsscriptinlines.h"
 
 #include "jit/BaselineFrame-inl.h"
 #include "jit/IonFrameIterator-inl.h"
+#include "vm/ArgumentsObject-inl.h"
+#include "vm/ScopeObject-inl.h"
 
 namespace js {
 

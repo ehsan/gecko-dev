@@ -10,6 +10,7 @@
 #include "jsapi.h"
 #include "jscntxt.h"
 
+#include "js/HashTable.h"
 #include "js/Vector.h"
 
 namespace js {

@@ -14,7 +14,9 @@
 
 #include "mozilla/Array.h"
 
+#include "jscntxt.h"
 #include "jsinfer.h"
+#include "jslibmath.h"
 
 #include "jit/Bailouts.h"
 #include "jit/CompilerRoot.h"

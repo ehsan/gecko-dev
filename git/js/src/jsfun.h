@@ -6,21 +6,17 @@
 
 #ifndef jsfun_h
 #define jsfun_h
-
 /*
  * JS function definitions.
  */
 
 #include "jsobj.h"
+#include "jsprvtd.h"
 #include "jsscript.h"
 
-namespace js {
-class FunctionExtended;
+#include "gc/Barrier.h"
 
-typedef JSNative           Native;
-typedef JSParallelNative   ParallelNative;
-typedef JSThreadSafeNative ThreadSafeNative;
-}
+namespace js { class FunctionExtended; }
 
 class JSFunction : public JSObject
 {

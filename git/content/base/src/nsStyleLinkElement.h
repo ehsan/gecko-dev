@@ -15,6 +15,7 @@
 
 #include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
+#include "nsIDOMLinkStyle.h"
 #include "nsIStyleSheetLinkingElement.h"
 #include "nsCSSStyleSheet.h"
 #include "nsTArray.h"
@@ -29,13 +30,17 @@
 class nsIDocument;
 class nsIURI;
 
-class nsStyleLinkElement : public nsIStyleSheetLinkingElement
+class nsStyleLinkElement : public nsIDOMLinkStyle,
+                           public nsIStyleSheetLinkingElement
 {
 public:
   nsStyleLinkElement();
   virtual ~nsStyleLinkElement();
 
   NS_IMETHOD QueryInterface(REFNSIID aIID, void** aInstancePtr) MOZ_OVERRIDE = 0;
+
+  // nsIDOMLinkStyle
+  NS_DECL_NSIDOMLINKSTYLE
 
   nsCSSStyleSheet* GetSheet() const { return mStyleSheet; }
 

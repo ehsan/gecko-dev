@@ -6,15 +6,17 @@
 
 #include "jit/Bailouts.h"
 
+#include "jsanalyze.h"
 #include "jscntxt.h"
+#include "jscompartment.h"
+#include "jsinfer.h"
 
 #include "jit/BaselineJIT.h"
 #include "jit/Ion.h"
 #include "jit/IonCompartment.h"
 #include "jit/IonSpewer.h"
 #include "jit/SnapshotReader.h"
-
-#include "jsobjinlines.h"
+#include "vm/Interpreter.h"
 
 #include "vm/Stack-inl.h"
 

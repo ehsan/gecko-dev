@@ -6,21 +6,27 @@
 
 #include "jsworkers.h"
 
-#ifdef JS_WORKER_THREADS
 #include "mozilla/DebugOnly.h"
 
 #include "prmjtime.h"
 
 #include "frontend/BytecodeCompiler.h"
-#include "jit/ExecutionModeInlines.h"
-#include "jit/IonBuilder.h"
+
+#ifdef JS_WORKER_THREADS
+# include "jit/ExecutionModeInlines.h"
+# include "jit/IonBuilder.h"
+#endif
 
 #include "jscntxtinlines.h"
 #include "jscompartmentinlines.h"
 
+#include "vm/ObjectImpl-inl.h"
+
 using namespace js;
 
 using mozilla::DebugOnly;
+
+#ifdef JS_WORKER_THREADS
 
 bool
 js::EnsureWorkerThreadsInitialized(JSRuntime *rt)
@@ -667,8 +673,6 @@ WorkerThread::pause()
 }
 
 #else /* JS_WORKER_THREADS */
-
-using namespace js;
 
 bool
 js::StartOffThreadAsmJSCompile(JSContext *cx, AsmJSParallelTask *asmData)

@@ -18,7 +18,6 @@
 #include "nsIWeakReferenceUtils.h"
 #include "nsThreadUtils.h"
 #include "nsInterfaceHashtable.h"
-#include "nsRefPtrHashtable.h"
 #include "nsDataHashtable.h"
 #include "nsAsyncDOMEvent.h"
 
@@ -67,12 +66,12 @@ public:
 
   // nsIRadioGroupContainer
   void SetCurrentRadioButton(const nsAString& aName,
-                             HTMLInputElement* aRadio) MOZ_OVERRIDE;
-  HTMLInputElement* GetCurrentRadioButton(const nsAString& aName) MOZ_OVERRIDE;
+                             nsIDOMHTMLInputElement* aRadio) MOZ_OVERRIDE;
+  nsIDOMHTMLInputElement* GetCurrentRadioButton(const nsAString& aName) MOZ_OVERRIDE;
   NS_IMETHOD GetNextRadioButton(const nsAString& aName,
                                 const bool aPrevious,
-                                HTMLInputElement* aFocusedRadio,
-                                HTMLInputElement** aRadioOut) MOZ_OVERRIDE;
+                                nsIDOMHTMLInputElement*  aFocusedRadio,
+                                nsIDOMHTMLInputElement** aRadioOut) MOZ_OVERRIDE;
   NS_IMETHOD WalkRadioGroup(const nsAString& aName, nsIRadioVisitor* aVisitor,
                             bool aFlushContent) MOZ_OVERRIDE;
   void AddToRadioGroup(const nsAString& aName, nsIFormControl* aRadio) MOZ_OVERRIDE;
@@ -539,7 +538,7 @@ protected:
   /** The list of controls (form.elements as well as stuff not in elements) */
   nsRefPtr<nsFormControlList> mControls;
   /** The currently selected radio button of each group */
-  nsRefPtrHashtable<nsStringCaseInsensitiveHashKey, HTMLInputElement> mSelectedRadioButtons;
+  nsInterfaceHashtable<nsStringCaseInsensitiveHashKey,nsIDOMHTMLInputElement> mSelectedRadioButtons;
   /** The number of required radio button of each group */
   nsDataHashtable<nsStringCaseInsensitiveHashKey,uint32_t> mRequiredRadioButtonCounts;
   /** The value missing state of each group */

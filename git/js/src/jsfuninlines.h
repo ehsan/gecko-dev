@@ -9,7 +9,14 @@
 
 #include "jsfun.h"
 
-#include "vm/ScopeObject.h"
+#include "jsscript.h"
+
+#include "vm/GlobalObject.h"
+
+#include "jsobjinlines.h"
+
+#include "vm/ScopeObject-inl.h"
+#include "vm/String-inl.h"
 
 inline void
 JSFunction::initAtom(JSAtom *atom)

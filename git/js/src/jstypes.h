@@ -22,7 +22,7 @@
 #define jstypes_h
 
 #include "mozilla/Attributes.h"
-#include "mozilla/Types.h"
+#include "mozilla/Util.h"
 
 #include "js-config.h"
 

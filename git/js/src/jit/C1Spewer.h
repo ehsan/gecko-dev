@@ -9,7 +9,7 @@
 
 #ifdef DEBUG
 
-#include "jsapi.h"
+#include "jsscript.h"
 
 #include "js/RootingAPI.h"
 

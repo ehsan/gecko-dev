@@ -9,17 +9,18 @@
 #ifndef jsanalyze_h
 #define jsanalyze_h
 
+#include "mozilla/PodOperations.h"
+
 #include "jscompartment.h"
+#include "jsinfer.h"
+#include "jsscript.h"
+
+#include "vm/Runtime.h"
 
 class JSScript;
 
 namespace js {
 namespace analyze {
-
-class LoopAnalysis;
-class SlotValue;
-class SSAValue;
-class SSAUseChain;
 
 /*
  * There are three analyses we can perform on a JSScript, outlined below.

@@ -72,7 +72,7 @@ struct BufferSlice {
     unsigned int size() {
         return nodeSize;
     }
-    BufferSlice() : prev(NULL), next(NULL), nodeSize(0) {}
+    BufferSlice() : next(NULL), prev(NULL), nodeSize(0) {}
     void putBlob(uint32_t instSize, uint8_t* inst) {
         if (inst != NULL)
             memcpy(&instructions[size()], inst, instSize);
@@ -203,6 +203,7 @@ struct AssemblerBuffer
             cur_off = bufferSize;
         }
         int count = 0;
+        char sigil;
         if (local_off < cur_off) {
             for (; cur != NULL; cur = cur->getPrev(), cur_off -= cur->size()) {
                 if (local_off >= cur_off) {
@@ -214,12 +215,11 @@ struct AssemblerBuffer
             JS_ASSERT(cur != NULL);
         } else {
             for (; cur != NULL; cur = cur->getNext()) {
-                int cur_size = cur->size();
-                if (local_off < cur_off + cur_size) {
+                if (local_off < cur_off + cur->size()) {
                     local_off -= cur_off;
                     break;
                 }
-                cur_off += cur_size;
+                cur_off += cur->size();
                 count++;
             }
             JS_ASSERT(cur != NULL);
@@ -229,7 +229,7 @@ struct AssemblerBuffer
             finger_offset = cur_off;
         }
         // the offset within this node should not be larger than the node itself.
-        JS_ASSERT(local_off < (int)cur->size());
+        JS_ASSERT(local_off < cur->size());
         return (Inst*)&cur->instructions[local_off];
     }
     BufferOffset nextOffset() const {

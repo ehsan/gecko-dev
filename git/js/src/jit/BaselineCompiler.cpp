@@ -14,8 +14,6 @@
 #include "jit/IonSpewer.h"
 #include "jit/VMFunctions.h"
 
-#include "jsscriptinlines.h"
-
 #include "vm/Interpreter-inl.h"
 
 using namespace js;

@@ -6,8 +6,6 @@
 
 #include "jit/CodeGenerator.h"
 
-#include "jslibmath.h"
-
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"

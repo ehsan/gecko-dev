@@ -38,6 +38,7 @@
 #include "nsFormSubmissionConstants.h"
 
 // radio buttons
+#include "nsIDOMHTMLInputElement.h"
 #include "mozilla/dom/HTMLInputElement.h"
 #include "nsIRadioVisitor.h"
 
@@ -285,13 +286,13 @@ HTMLFormElement::Init()
 // nsISupports
 
 static PLDHashOperator
-ElementTraverser(const nsAString& key, HTMLInputElement* element,
+ElementTraverser(const nsAString& key, nsIDOMHTMLInputElement* element,
                  void* userArg)
 {
-  nsCycleCollectionTraversalCallback *cb =
+  nsCycleCollectionTraversalCallback *cb = 
     static_cast<nsCycleCollectionTraversalCallback*>(userArg);
-
-  cb->NoteXPCOMChild(ToSupports(element));
+ 
+  cb->NoteXPCOMChild(element);
   return PL_DHASH_NEXT;
 }
 
@@ -2118,12 +2119,12 @@ HTMLFormElement::IndexOfControl(nsIFormControl* aControl)
 
 void
 HTMLFormElement::SetCurrentRadioButton(const nsAString& aName,
-                                       HTMLInputElement* aRadio)
+                                       nsIDOMHTMLInputElement* aRadio)
 {
   mSelectedRadioButtons.Put(aName, aRadio);
 }
 
-HTMLInputElement*
+nsIDOMHTMLInputElement*
 HTMLFormElement::GetCurrentRadioButton(const nsAString& aName)
 {
   return mSelectedRadioButtons.GetWeak(aName);
@@ -2132,14 +2133,14 @@ HTMLFormElement::GetCurrentRadioButton(const nsAString& aName)
 NS_IMETHODIMP
 HTMLFormElement::GetNextRadioButton(const nsAString& aName,
                                     const bool aPrevious,
-                                    HTMLInputElement* aFocusedRadio,
-                                    HTMLInputElement** aRadioOut)
+                                    nsIDOMHTMLInputElement*  aFocusedRadio,
+                                    nsIDOMHTMLInputElement** aRadioOut)
 {
   // Return the radio button relative to the focused radio button.
   // If no radio is focused, get the radio relative to the selected one.
   *aRadioOut = nullptr;
 
-  nsRefPtr<HTMLInputElement> currentRadio;
+  nsCOMPtr<nsIDOMHTMLInputElement> currentRadio;
   if (aFocusedRadio) {
     currentRadio = aFocusedRadio;
   }
@@ -2154,14 +2155,18 @@ HTMLFormElement::GetNextRadioButton(const nsAString& aName,
     return NS_ERROR_FAILURE;
   }
 
-  int32_t index = radioGroup->IndexOf(currentRadio);
+  nsCOMPtr<nsIContent> currentRadioNode(do_QueryInterface(currentRadio));
+  NS_ASSERTION(currentRadioNode, "No nsIContent for current radio button");
+  int32_t index = radioGroup->IndexOf(currentRadioNode);
   if (index < 0) {
     return NS_ERROR_FAILURE;
   }
 
   uint32_t numRadios;
   radioGroup->GetLength(&numRadios);
-  nsRefPtr<HTMLInputElement> radio;
+  bool disabled = true;
+  nsCOMPtr<nsIDOMHTMLInputElement> radio;
+  nsCOMPtr<nsIFormControl> formControl;
 
   do {
     if (aPrevious) {
@@ -2172,14 +2177,17 @@ HTMLFormElement::GetNextRadioButton(const nsAString& aName,
     else if (++index >= (int32_t)numRadios) {
       index = 0;
     }
-    radio = HTMLInputElement::FromContentOrNull(radioGroup->Item(index));
+    radio = do_QueryInterface(radioGroup->Item(index));
     if (!radio)
       continue;
 
-    if (radio->GetType() != NS_FORM_INPUT_RADIO)
+    // XXXbz why is this formControl check needed, exactly?
+    formControl = do_QueryInterface(radio);
+    if (!formControl || formControl->GetType() != NS_FORM_INPUT_RADIO)
       continue;
 
-  } while (radio->Disabled() && radio != currentRadio);
+    radio->GetDisabled(&disabled);
+  } while (disabled && radio != currentRadio);
 
   NS_IF_ADDREF(*aRadioOut = radio);
   return NS_OK;

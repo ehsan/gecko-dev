@@ -169,10 +169,10 @@ struct SortComparatorIds
     bool operator()(jsid a, jsid b, bool *lessOrEqualp)
     {
         /* Pick an arbitrary total order on jsids that is stable across executions. */
-        RootedString astr(cx, IdToString(cx, a));
+        JSString *astr = IdToString(cx, a);
 	if (!astr)
 	    return false;
-        RootedString bstr(cx, IdToString(cx, b));
+        JSString *bstr = IdToString(cx, b);
         if (!bstr)
             return false;
 

@@ -6,8 +6,6 @@
 
 #include "jit/LIR.h"
 
-#include <ctype.h>
-
 #include "jsprf.h"
 
 #include "jit/IonSpewer.h"

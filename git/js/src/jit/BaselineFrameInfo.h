@@ -9,6 +9,9 @@
 
 #ifdef JS_ION
 
+#include "jscntxt.h"
+#include "jscompartment.h"
+
 #include "jit/BaselineFrame.h"
 #include "jit/BaselineJIT.h"
 #include "jit/BaselineRegisters.h"

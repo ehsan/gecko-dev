@@ -98,7 +98,6 @@ CPP_SOURCES += [
     'nsWindowMemoryReporter.cpp',
     'nsWindowRoot.cpp',
     'nsWrapperCache.cpp',
-    'WindowNamedPropertiesHandler.cpp',
 ]
 
 EXTRA_COMPONENTS += [

@@ -6,12 +6,15 @@
 
 #include "jit/ParallelSafetyAnalysis.h"
 
+#include <stdio.h>
+
 #include "jit/Ion.h"
 #include "jit/IonAnalysis.h"
 #include "jit/IonSpewer.h"
 #include "jit/MIR.h"
 #include "jit/MIRGraph.h"
 #include "jit/UnreachableCodeElimination.h"
+#include "vm/Stack.h"
 
 #include "jsinferinlines.h"
 

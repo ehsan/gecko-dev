@@ -242,7 +242,7 @@ void CleanupOSFileConstants()
 /**
  * End marker for ConstantSpec
  */
-#define PROP_END { NULL, JS::UndefinedValue() }
+#define PROP_END { NULL, JSVAL_VOID }
 
 
 // Define missing constants for Android
@@ -269,7 +269,7 @@ void CleanupOSFileConstants()
  * keep properties organized by alphabetical order
  * and #ifdef-away properties that are not portable.
  */
-static const dom::ConstantSpec gLibcProperties[] =
+static dom::ConstantSpec gLibcProperties[] =
 {
   // Arguments for open
   INT_CONSTANT(O_APPEND),
@@ -522,7 +522,7 @@ static const dom::ConstantSpec gLibcProperties[] =
  * keep properties organized by alphabetical order
  * and #ifdef-away properties that are not portable.
  */
-static const dom::ConstantSpec gWinProperties[] =
+static dom::ConstantSpec gWinProperties[] =
 {
   // FormatMessage flags
   INT_CONSTANT(FORMAT_MESSAGE_FROM_SYSTEM),

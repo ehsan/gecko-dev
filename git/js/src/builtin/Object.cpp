@@ -9,6 +9,7 @@
 #include "mozilla/Util.h"
 
 #include "jscntxt.h"
+#include "jsobj.h"
 
 #include "frontend/BytecodeCompiler.h"
 #include "vm/StringBuffer.h"

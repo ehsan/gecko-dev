@@ -17,7 +17,6 @@
 #include "vm/Interpreter.h"
 
 #include "jsfuninlines.h"
-#include "jsscriptinlines.h"
 
 #include "vm/BooleanObject-inl.h"
 #include "vm/NumberObject-inl.h"

@@ -8,6 +8,7 @@
 
 #include "mozilla/DebugOnly.h"
 
+#include "builtin/ParallelArray.h"
 #include "jit/IonMacroAssembler.h"
 #include "jit/IonSpewer.h"
 #include "jit/MIR.h"

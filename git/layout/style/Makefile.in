@@ -55,3 +55,4 @@ libs:: $(_FILES)
 install:: $(_FILES)
 	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(mozappdir)/res
 
+DEFINES += -D_IMPL_NS_LAYOUT

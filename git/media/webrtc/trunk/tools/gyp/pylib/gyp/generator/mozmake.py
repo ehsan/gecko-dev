@@ -9,7 +9,6 @@ import sys
 import os
 import re
 import shlex
-from mozbuild.util import FileAvoidWrite
 
 generator_wants_sorted_dependencies = True
 
@@ -103,7 +102,7 @@ endif
 # Rules for regenerating Makefiles from GYP files.
 Makefile: %(input_gypfiles)s %(generator)s
 	$(PYTHON) %(commandline)s
-	@$(TOUCH) $@
+
 endif
 """
 
@@ -146,7 +145,7 @@ def WriteMakefile(filename, data, build_file, depth, topsrcdir, srcdir, relative
   #TODO: should compare with the existing file and not overwrite it if the
   # contents are the same!
   ensure_directory_exists(filename)
-  with FileAvoidWrite(filename) as f:
+  with open(filename, "w") as f:
     f.write(COMMON_HEADER % {'buildfile': build_file,
                              'depth': depth,
                              'topsrcdir': topsrcdir,
@@ -158,7 +157,7 @@ def WriteMakefile(filename, data, build_file, depth, topsrcdir, srcdir, relative
       f.write(extra_data)
 
 def WriteCommonMk(path, build_files, scriptname, commandline):
-  with FileAvoidWrite(path) as f:
+  with open(path, "w") as f:
     f.write(COMMON_MK % {'input_gypfiles': ' '.join(build_files),
                          'generator': scriptname,
                          'commandline': ' '.join(commandline)})

@@ -460,7 +460,7 @@ class nsStyleSet
   nsRefPtr<gfxFontFeatureValueSet> mFontFeatureValuesLookup;
 };
 
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
 inline
 void nsRuleNode::AddRef()
 {

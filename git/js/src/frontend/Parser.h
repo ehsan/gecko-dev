@@ -11,6 +11,7 @@
  * JS parser definitions.
  */
 
+#include "jsprvtd.h"
 #include "jspubtd.h"
 
 #include "frontend/BytecodeCompiler.h"
@@ -266,9 +267,21 @@ struct ParseContext : public GenericParseContext
         prs->pc = this;
     }
 
-    ~ParseContext();
+    ~ParseContext() {
+        // |*parserPC| pointed to this object.  Now that this object is about to
+        // die, make |*parserPC| point to this object's parent.
+        JS_ASSERT(*parserPC == this);
+        *parserPC = this->oldpc;
+        js_delete(funcStmts);
+    }
 
-    bool init();
+    inline bool init()
+{
+    if (!frontend::GenerateBlockId(this, this->bodyid))
+        return false;
+
+    return decls_.init() && lexdeps.ensureMap(sc->context);
+}
 
     unsigned blockid() { return topStmt ? topStmt->blockid : bodyid; }
 

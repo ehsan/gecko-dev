@@ -7,6 +7,8 @@
 #ifndef frontend_FoldConstants_h
 #define frontend_FoldConstants_h
 
+#include "jsprvtd.h"
+
 #include "frontend/SyntaxParseHandler.h"
 
 namespace js {

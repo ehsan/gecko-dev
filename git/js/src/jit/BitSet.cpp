@@ -6,6 +6,8 @@
 
 #include "jit/BitSet.h"
 
+#include "jsutil.h"
+
 using namespace js;
 using namespace js::ion;
 

@@ -30,7 +30,7 @@ AllowedByBase(JSContext *cx, HandleObject wrapper, HandleId id,
 }
 
 static bool
-PropIsFromStandardPrototype(JSContext *cx, JS::MutableHandle<JSPropertyDescriptor> desc)
+PropIsFromStandardPrototype(JSContext *cx, JS::MutableHandle<js::PropertyDescriptor> desc)
 {
     MOZ_ASSERT(desc.object());
     RootedObject unwrapped(cx, js::UncheckedUnwrap(desc.object()));
@@ -63,7 +63,7 @@ bool
 ChromeObjectWrapper::getPropertyDescriptor(JSContext *cx,
                                            HandleObject wrapper,
                                            HandleId id,
-                                           JS::MutableHandle<JSPropertyDescriptor> desc,
+                                           JS::MutableHandle<js::PropertyDescriptor> desc,
                                            unsigned flags)
 {
     assertEnteredPolicy(cx, wrapper, id);
@@ -90,7 +90,7 @@ ChromeObjectWrapper::getPropertyDescriptor(JSContext *cx,
 
     // If not, try doing the lookup on the prototype.
     MOZ_ASSERT(js::IsObjectInContextCompartment(wrapper, cx));
-    return JS_GetPropertyDescriptorById(cx, wrapperProto, id, 0, desc);
+    return JS_GetPropertyDescriptorById(cx, wrapperProto, id, 0, desc.address());
 }
 
 bool
@@ -115,7 +115,7 @@ ChromeObjectWrapper::has(JSContext *cx, HandleObject wrapper,
     // Try the prototype if that failed.
     MOZ_ASSERT(js::IsObjectInContextCompartment(wrapper, cx));
     Rooted<JSPropertyDescriptor> desc(cx);
-    if (!JS_GetPropertyDescriptorById(cx, wrapperProto, id, 0, &desc))
+    if (!JS_GetPropertyDescriptorById(cx, wrapperProto, id, 0, desc.address()))
         return false;
     *bp = !!desc.object();
     return true;

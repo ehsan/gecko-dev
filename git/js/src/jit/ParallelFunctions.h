@@ -9,6 +9,7 @@
 
 #include "gc/Heap.h"
 #include "vm/ForkJoin.h"
+#include "vm/ThreadPool.h"
 
 namespace js {
 namespace ion {

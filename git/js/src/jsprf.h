@@ -26,6 +26,7 @@
 */
 
 #include <stdarg.h>
+#include <stdio.h>
 
 #include "jstypes.h"
 

@@ -2693,7 +2693,7 @@ nsXPCComponents_Utils::LookupMethod(const JS::Value& object,
         // Alright, now do the lookup.
         *retval = UndefinedValue();
         Rooted<JSPropertyDescriptor> desc(cx);
-        if (!JS_GetPropertyDescriptorById(cx, xray, methodId, 0, &desc))
+        if (!JS_GetPropertyDescriptorById(cx, xray, methodId, 0, desc.address()))
             return NS_ERROR_FAILURE;
 
         // First look for a method value. If that's not there, try a getter,
@@ -3097,7 +3097,7 @@ WrapCallable(JSContext *cx, JSObject *callable, JSObject *sandboxProtoProxy)
 }
 
 template<typename Op>
-bool BindPropertyOp(JSContext *cx, Op &op, JSPropertyDescriptor *desc, HandleId id,
+bool BindPropertyOp(JSContext *cx, Op &op, PropertyDescriptor *desc, HandleId id,
                     unsigned attrFlag, HandleObject sandboxProtoProxy)
 {
     if (!op) {
@@ -3134,14 +3134,14 @@ bool
 xpc::SandboxProxyHandler::getPropertyDescriptor(JSContext *cx,
                                                 JS::Handle<JSObject*> proxy,
                                                 JS::Handle<jsid> id,
-                                                JS::MutableHandle<JSPropertyDescriptor> desc,
+                                                JS::MutableHandle<PropertyDescriptor> desc,
                                                 unsigned flags)
 {
     JS::RootedObject obj(cx, wrappedObject(proxy));
 
     MOZ_ASSERT(js::GetObjectCompartment(obj) == js::GetObjectCompartment(proxy));
     if (!JS_GetPropertyDescriptorById(cx, obj, id,
-                                      flags, desc))
+                                      flags, desc.address()))
         return false;
 
     if (!desc.object())
@@ -3182,7 +3182,7 @@ bool
 xpc::SandboxProxyHandler::getOwnPropertyDescriptor(JSContext *cx,
                                                    JS::Handle<JSObject*> proxy,
                                                    JS::Handle<jsid> id,
-                                                   JS::MutableHandle<JSPropertyDescriptor> desc,
+                                                   JS::MutableHandle<PropertyDescriptor> desc,
                                                    unsigned flags)
 {
     if (!getPropertyDescriptor(cx, proxy, id, desc, flags))
@@ -3737,7 +3737,10 @@ public:
     NS_DECL_ISUPPORTS
 
 private:
+    static bool ContextHolderOperationCallback(JSContext *cx);
+
     JSContext* mJSContext;
+    JSContext* mOrigCx;
     nsCOMPtr<nsIPrincipal> mPrincipal;
 };
 
@@ -3747,6 +3750,7 @@ ContextHolder::ContextHolder(JSContext *aOuterCx,
                              HandleObject aSandbox,
                              nsIPrincipal *aPrincipal)
     : mJSContext(JS_NewContext(JS_GetRuntime(aOuterCx), 1024)),
+      mOrigCx(aOuterCx),
       mPrincipal(aPrincipal)
 {
     if (mJSContext) {
@@ -3761,6 +3765,7 @@ ContextHolder::ContextHolder(JSContext *aOuterCx,
                       JSOPTION_PRIVATE_IS_NSISUPPORTS);
         js::SetDefaultObjectForContext(mJSContext, aSandbox);
         JS_SetContextPrivate(mJSContext, this);
+        JS_SetOperationCallback(mJSContext, ContextHolderOperationCallback);
     }
 }
 
@@ -3768,6 +3773,21 @@ ContextHolder::~ContextHolder()
 {
     if (mJSContext)
         JS_DestroyContextNoGC(mJSContext);
+}
+
+bool
+ContextHolder::ContextHolderOperationCallback(JSContext *cx)
+{
+    ContextHolder* thisObject =
+        static_cast<ContextHolder*>(JS_GetContextPrivate(cx));
+    NS_ASSERTION(thisObject, "How did that happen?");
+
+    JSContext *origCx = thisObject->mOrigCx;
+    JSOperationCallback callback = JS_GetOperationCallback(origCx);
+    bool ok = true;
+    if (callback)
+        ok = callback(origCx);
+    return ok;
 }
 
 /***************************************************************************/

@@ -12,14 +12,13 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/PodOperations.h"
 
-#include "jsatom.h"
-#ifdef JS_THREADSAFE
-#include "jslock.h"
-#endif
+#include "jsdbgapi.h"
+#include "jsinfer.h"
 #include "jsobj.h"
 #include "jsopcode.h"
 
 #include "gc/Barrier.h"
+#include "js/RootingAPI.h"
 #include "vm/Shape.h"
 
 namespace js {
@@ -35,19 +34,12 @@ namespace ion {
 
 # define BASELINE_DISABLED_SCRIPT ((js::ion::BaselineScript *)0x1)
 
-class BreakpointSite;
-class BindingIter;
-class RegExpObject;
-struct SourceCompressionToken;
 class Shape;
-class WatchpointMap;
+
+class BindingIter;
 
 namespace analyze {
     class ScriptAnalysis;
-}
-
-namespace frontend {
-    class BytecodeEmitter;
 }
 
 }

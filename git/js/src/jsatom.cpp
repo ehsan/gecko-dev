@@ -23,7 +23,6 @@
 #include "gc/Marking.h"
 #include "vm/Xdr.h"
 
-#include "jscntxtinlines.h"
 #include "jscompartmentinlines.h"
 
 #include "vm/String-inl.h"

@@ -19,3 +19,4 @@ LOCAL_INCLUDES += \
 		-I$(srcdir)/../../content/base/src \
 		$(NULL)
 
+DEFINES += -D_IMPL_NS_LAYOUT

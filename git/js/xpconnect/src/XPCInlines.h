@@ -10,8 +10,6 @@
 #ifndef xpcinlines_h___
 #define xpcinlines_h___
 
-#include <algorithm>
-
 #include "jsfriendapi.h"
 
 /***************************************************************************/
@@ -438,7 +436,7 @@ inline bool
 XPCNativeSet::MatchesSetUpToInterface(const XPCNativeSet* other,
                                       XPCNativeInterface* iface) const
 {
-    int count = std::min(int(mInterfaceCount), int(other->mInterfaceCount));
+    int count = js::Min(int(mInterfaceCount), int(other->mInterfaceCount));
 
     XPCNativeInterface* const * pp1 = mInterfaces;
     XPCNativeInterface* const * pp2 = other->mInterfaces;

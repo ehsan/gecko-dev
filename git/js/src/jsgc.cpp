@@ -13,8 +13,6 @@
 #include "mozilla/Move.h"
 #include "mozilla/Util.h"
 
-#include "jsscriptinlines.h"
-
 using mozilla::Swap;
 
 /*
@@ -56,6 +54,7 @@ using mozilla::Swap;
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "jsobj.h"
+#include "jsproxy.h"
 #include "jsscript.h"
 #include "jstypes.h"
 #include "jsutil.h"

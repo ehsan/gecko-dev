@@ -24,5 +24,6 @@ INCLUDES  += \
   -I$(topsrcdir)/layout/xul/base/src \
   $(NULL)
 
+DEFINES  += -D_IMPL_NS_LAYOUT
 CFLAGS   += $(GSTREAMER_CFLAGS)
 CXXFLAGS += $(GSTREAMER_CFLAGS)

@@ -20,9 +20,7 @@
 #define _MCW_PC MCW_PC
 #endif
 
-#ifdef HAVE_LOCALECONV
 #include <locale.h>
-#endif
 #include <math.h>
 #include <string.h>
 

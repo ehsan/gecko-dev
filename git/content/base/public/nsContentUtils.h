@@ -194,7 +194,7 @@ public:
   static bool     IsImageSrcSetDisabled();
 
   static bool LookupBindingMember(JSContext* aCx, nsIContent *aContent,
-                                  JS::HandleId aId, JS::MutableHandle<JSPropertyDescriptor> aDesc);
+                                  JS::HandleId aId, JSPropertyDescriptor* aDesc);
 
   /**
    * Returns the parent node of aChild crossing document boundaries.

@@ -241,8 +241,8 @@ public:
       return mDocument;
   }
 
-#ifdef MOZILLA_INTERNAL_API
-  nsStyleSet* StyleSet() { return GetPresShell()->StyleSet(); }
+#ifdef _IMPL_NS_LAYOUT
+  nsStyleSet* StyleSet() { return PresShell()->StyleSet(); }
 
   nsFrameManager* FrameManager()
     { return PresShell()->FrameManager(); }
@@ -303,7 +303,7 @@ public:
   uint16_t     ImageAnimationMode() const { return mImageAnimationMode; }
   virtual NS_HIDDEN_(void) SetImageAnimationModeExternal(uint16_t aMode);
   NS_HIDDEN_(void) SetImageAnimationModeInternal(uint16_t aMode);
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
   void SetImageAnimationMode(uint16_t aMode)
   { SetImageAnimationModeInternal(aMode); }
 #else
@@ -431,7 +431,7 @@ public:
 
   virtual NS_HIDDEN_(already_AddRefed<nsISupports>) GetContainerExternal() const;
   NS_HIDDEN_(already_AddRefed<nsISupports>) GetContainerInternal() const;
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
   already_AddRefed<nsISupports> GetContainer() const
   { return GetContainerInternal(); }
 #else
@@ -711,7 +711,7 @@ public:
    *
    *  @lina 07/12/2000
    */
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
   bool BidiEnabled() const { return BidiEnabledInternal(); }
 #else
   bool BidiEnabled() const { return BidiEnabledExternal(); }
@@ -843,7 +843,7 @@ public:
 
   virtual void InvalidateIsChromeCacheExternal();
   void InvalidateIsChromeCacheInternal() { mIsChromeIsCached = false; }
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
   void InvalidateIsChromeCache()
   { InvalidateIsChromeCacheInternal(); }
 #else
@@ -873,7 +873,7 @@ public:
   
   virtual NS_HIDDEN_(gfxUserFontSet*) GetUserFontSetExternal();
   NS_HIDDEN_(gfxUserFontSet*) GetUserFontSetInternal();
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
   gfxUserFontSet* GetUserFontSet() { return GetUserFontSetInternal(); }
 #else
   gfxUserFontSet* GetUserFontSet() { return GetUserFontSetExternal(); }

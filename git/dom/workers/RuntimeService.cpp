@@ -801,7 +801,7 @@ CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate, JSRuntime* aRuntime)
 
   JS_SetErrorReporter(workerCx, ErrorReporter);
 
-  JS_SetOperationCallback(aRuntime, OperationCallback);
+  JS_SetOperationCallback(workerCx, OperationCallback);
 
   js::SetCTypesActivityCallback(aRuntime, CTypesActivityCallback);
 

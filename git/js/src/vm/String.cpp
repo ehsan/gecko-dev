@@ -13,7 +13,6 @@
 
 #include "gc/Marking.h"
 
-#include "jscntxtinlines.h"
 #include "jscompartmentinlines.h"
 
 using namespace js;

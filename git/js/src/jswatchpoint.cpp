@@ -8,7 +8,6 @@
 
 #include "jsatom.h"
 #include "jscompartment.h"
-#include "jsfriendapi.h"
 
 #include "gc/Marking.h"
 

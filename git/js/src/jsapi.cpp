@@ -15,6 +15,7 @@
 
 #include <ctype.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 
@@ -49,6 +50,7 @@
 #if ENABLE_YARR_JIT
 #include "assembler/jit/ExecutableAllocator.h"
 #endif
+#include "builtin/BinaryData.h"
 #include "builtin/Eval.h"
 #include "builtin/Intl.h"
 #include "builtin/MapObject.h"
@@ -58,6 +60,7 @@
 #include "frontend/FullParseHandler.h"  // for JS_BufferIsCompileableUnit
 #include "frontend/Parser.h" // for JS_BufferIsCompileableUnit
 #include "gc/Marking.h"
+#include "gc/Memory.h"
 #include "jit/AsmJSLink.h"
 #include "js/CharacterEncoding.h"
 #if ENABLE_INTL_API
@@ -80,7 +83,6 @@
 #include "yarr/BumpPointerAllocator.h"
 
 #include "jsatominlines.h"
-#include "jsfuninlines.h"
 #include "jsinferinlines.h"
 #include "jsscriptinlines.h"
 
@@ -1360,7 +1362,7 @@ JS_InitStandardClasses(JSContext *cx, JSObject *objArg)
 #define EAGER_ATOM_AND_OCLASP(name) EAGER_CLASS_ATOM(name), OCLASP(name)
 
 typedef struct JSStdName {
-    ClassInitializerOp init;
+    JSClassInitializerOp init;
     size_t      atomOffset;     /* offset of atom pointer in JSAtomState */
     Class       *clasp;
 } JSStdName;
@@ -3601,7 +3603,7 @@ GetPropertyDescriptorById(JSContext *cx, HandleObject obj, HandleId id, unsigned
     if (!LookupPropertyById(cx, obj, id, flags, &obj2, &shape))
         return false;
 
-    desc.clear();
+    JS_ASSERT(desc.isClear());
     if (!shape || (own && obj != obj2))
         return true;
 
@@ -3636,11 +3638,15 @@ GetPropertyDescriptorById(JSContext *cx, HandleObject obj, HandleId id, unsigned
 
 JS_PUBLIC_API(bool)
 JS_GetPropertyDescriptorById(JSContext *cx, JSObject *objArg, jsid idArg, unsigned flags,
-                             MutableHandle<JSPropertyDescriptor> desc)
+                             JSPropertyDescriptor *desc_)
 {
     RootedObject obj(cx, objArg);
     RootedId id(cx, idArg);
-    return GetPropertyDescriptorById(cx, obj, id, flags, false, desc);
+    Rooted<PropertyDescriptor> desc(cx);
+    if (!GetPropertyDescriptorById(cx, obj, id, flags, false, &desc))
+        return false;
+    *desc_ = desc;
+    return true;
 }
 
 JS_PUBLIC_API(bool)
@@ -5419,17 +5425,17 @@ JS_New(JSContext *cx, JSObject *ctorArg, unsigned argc, jsval *argv)
 }
 
 JS_PUBLIC_API(JSOperationCallback)
-JS_SetOperationCallback(JSRuntime *rt, JSOperationCallback callback)
+JS_SetOperationCallback(JSContext *cx, JSOperationCallback callback)
 {
-    JSOperationCallback old = rt->operationCallback;
-    rt->operationCallback = callback;
+    JSOperationCallback old = cx->operationCallback;
+    cx->operationCallback = callback;
     return old;
 }
 
 JS_PUBLIC_API(JSOperationCallback)
-JS_GetOperationCallback(JSRuntime *rt)
+JS_GetOperationCallback(JSContext *cx)
 {
-    return rt->operationCallback;
+    return cx->operationCallback;
 }
 
 JS_PUBLIC_API(void)
