@@ -3,6 +3,8 @@
 
 function test()
 {
+  waitForExplicitFinish();
+
   let inspector, searchBox, state;
   let keypressStates = [3,4,8,18,19,20,21,22];
 

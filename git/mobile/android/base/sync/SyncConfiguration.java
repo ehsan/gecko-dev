@@ -472,7 +472,7 @@ public class SyncConfiguration {
     } else {
       edit.putString(PREF_ENABLED_ENGINE_NAMES, setToJSONObjectString(enabledEngineNames));
     }
-    if (declinedEngineNames == null || declinedEngineNames.isEmpty()) {
+    if (declinedEngineNames.isEmpty()) {
       edit.remove(PREF_DECLINED_ENGINE_NAMES);
     } else {
       edit.putString(PREF_DECLINED_ENGINE_NAMES, setToJSONObjectString(declinedEngineNames));

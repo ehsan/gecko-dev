@@ -134,17 +134,10 @@
   </hbox>
 
   <hbox id="translationBox" hidden="true">
-    <hbox align="center" flex="1">
-      <checkbox id="translate" preference="browser.translation.detectLanguage"
-                label="&translateWebPages.label;." accesskey="&translateWebPages.accesskey;"
-                onsyncfrompreference="return gContentPane.updateButtons('translateButton',
-                                              'browser.translation.detectLanguage');"/>
-      <label>Übersetzungen von</label>
-      <separator orient="vertical" class="thin"/>
-      <image id="translationAttributionImage" aria-label="Microsoft Translator"
-             onclick="gContentPane.openTranslationProviderAttribution()"
-             src="chrome://browser/content/microsoft-translator-attribution.png"/>
-    </hbox>
+    <checkbox id="translate" preference="browser.translation.detectLanguage" flex="1"
+              label="&translateWebPages.label;" accesskey="&translateWebPages.accesskey;"
+              onsyncfrompreference="return gContentPane.updateButtons('translateButton',
+                                    'browser.translation.detectLanguage');"/>
     <button id="translateButton" label="&translateExceptions.label;"
             oncommand="gContentPane.showTranslationExceptions();"
             accesskey="&translateExceptions.accesskey;"/>

@@ -68,7 +68,7 @@ class XPCShellRunner(MozbuildObject):
     def run_test(self, test_paths, interactive=False,
                  keep_going=False, sequential=False, shuffle=False,
                  debugger=None, debuggerArgs=None, debuggerInteractive=None,
-                 rerun_failures=False, test_objects=None,
+                 rerun_failures=False,
                  # ignore parameters from other platforms' options
                  **kwargs):
         """Runs an individual xpcshell test."""
@@ -88,12 +88,9 @@ class XPCShellRunner(MozbuildObject):
                            rerun_failures=rerun_failures)
             return
 
-        if test_objects:
-            tests = test_objects
-        else:
-            resolver = self._spawn(TestResolver)
-            tests = list(resolver.resolve_tests(paths=test_paths,
-                flavor='xpcshell', cwd=self.cwd))
+        resolver = self._spawn(TestResolver)
+        tests = list(resolver.resolve_tests(paths=test_paths, flavor='xpcshell',
+            cwd=self.cwd))
 
         if not tests:
             raise InvalidTestPathError('We could not find an xpcshell test '
@@ -226,7 +223,6 @@ class AndroidXPCShellRunner(MozbuildObject):
     def run_test(self,
                  test_paths, keep_going,
                  devicemanager, ip, port, remote_test_root, no_setup, local_apk,
-                 test_objects=None,
                  # ignore parameters from other platforms' options
                  **kwargs):
         # TODO Bug 794506 remove once mach integrates with virtualenv.
@@ -269,12 +265,6 @@ class AndroidXPCShellRunner(MozbuildObject):
             testdirs = []
             options.testPath = None
             options.verbose = False
-        elif test_objects:
-            if len(test_objects) > 1:
-                print('Warning: only the first test will be used.')
-            testdirs = test_objects[0]['dir_relpath']
-            options.testPath = test_objects[0]['path']
-            options.verbose = True
         else:
             if len(test_paths) > 1:
                 print('Warning: only the first test path argument will be used.')
@@ -341,7 +331,6 @@ class B2GXPCShellRunner(MozbuildObject):
         return busybox_path
 
     def run_test(self, test_paths, b2g_home=None, busybox=None, device_name=None,
-                 test_objects=None,
                  # ignore parameters from other platforms' options
                  **kwargs):
         try:
@@ -353,12 +342,7 @@ class B2GXPCShellRunner(MozbuildObject):
             sys.exit(1)
 
         test_path = None
-        if test_objects:
-            if len(test_objects) > 1:
-                print('Warning: Only the first test will be used.')
-
-            test_path = self._wrap_path_argument(test_objects[0]['path'])
-        elif test_paths:
+        if test_paths:
             if len(test_paths) > 1:
                 print('Warning: Only the first test path will be used.')
 

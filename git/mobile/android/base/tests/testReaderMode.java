@@ -106,8 +106,8 @@ public class testReaderMode extends AboutHomeTest {
         mAsserter.ok(mSolo.waitForText("Robocop Text Page"), "Verify if the page is added to your Reading List", "The page is present in your Reading List");
 
         // Check if the page is added in History tab like a Reading List item
-        openAboutHomeTab(AboutHomeTabs.HISTORY);
-        list = findListViewWithTag("history");
+        openAboutHomeTab(AboutHomeTabs.MOST_RECENT);
+        list = findListViewWithTag("most_recent");
         child = list.getChildAt(1);
         mAsserter.ok(child != null, "item can be retrieved", child != null ? child.toString() : "null!");
         mSolo.clickLongOnView(child);

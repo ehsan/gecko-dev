@@ -12,6 +12,7 @@ function test() {
   let menu;
   let inspector;
 
+  waitForExplicitFinish();
   ignoreAllUncaughtExceptions();
   gBrowser.selectedTab = gBrowser.addTab();
   gBrowser.selectedBrowser.addEventListener("load", function() {
