@@ -143,7 +143,7 @@
                 accesskey="&undoCloseTab.accesskey;"
                 observes="History:UndoCloseTab"/>
       <menuitem id="context_closeTab" label="&closeTab.label;" accesskey="&closeTab.accesskey;"
-                oncommand="gBrowser.removeTab(TabContextMenu.contextTab);"/>
+                oncommand="gBrowser.removeTab(TabContextMenu.contextTab, { animate: true });"/>
     </menupopup>
 
     <menupopup id="backForwardMenu"
@@ -222,7 +222,8 @@
            noautofocus="true"
            noautohide="true"
            onclick="InspectorUI.stopInspecting();"
-           onmousemove="InspectorUI.highlighter.handleMouseMove(event);"/>
+           onmousemove="InspectorUI.highlighter.handleMouseMove(event);"
+           onMozMousePixelScroll="InspectorUI.highlighter.handlePixelScroll(event);"/>
 
     <panel id="inspector-panel"
            orient="vertical"
@@ -442,9 +443,23 @@
             label="&brandShortName;"
             style="-moz-user-focus: ignore;">
       <menupopup id="appmenu-popup">
-        <menuitem id="appmenu_newNavigator"
-                  label="&newNavigatorCmd.label;"
-                  command="cmd_newNavigator"/>
+        <hbox flex="1" class="split-menuitem">
+          <menuitem id="appmenu_newTab"
+                    class="split-menuitem-item"
+                    flex="1"
+                    label="&tabCmd.label;"
+                    command="cmd_newNavigatorTab"/>
+          <menu class="split-menuitem-menu">
+            <menupopup>
+              <menuitem id="appmenu_newTab_sub"
+                        label="&tabCmd.label;"
+                        command="cmd_newNavigatorTab"/>
+              <menuitem id="appmenu_newNavigator"
+                        label="&newNavigatorCmd.label;"
+                        command="cmd_newNavigator"/>
+            </menupopup>
+          </menu>
+        </hbox>
         <menuseparator/>
         <menuitem id="appmenu_savePage"
                   label="&savePageCmd.label;"
