@@ -22,6 +22,7 @@
  * Aza Raskin <aza@mozilla.com>
  * Michael Yoshitaka Erlewine <mitcho@mitcho.com>
  * Ehsan Akhgari <ehsan@mozilla.com>
+ * Raymond Lee <raymond@appcoast.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -445,11 +446,16 @@ window.TabItem.prototype = iQ.extend(new Item(), {
       var scale = window.innerWidth/orig.width;
       
       var tab = this.tab;
-      
+
       function onZoomDone(){
-        UI.tabBar.show(false);              
         TabMirror.resumePainting();
-        tab.focus();
+        // If it's not focused, the onFocus lsitener would handle it.
+        if (tab.isFocused()) {
+          Page.showChrome();
+        } else {
+          tab.focus();
+        }
+
         $tabEl
           .css({
             top:   orig.pos.top,
@@ -457,9 +463,8 @@ window.TabItem.prototype = iQ.extend(new Item(), {
             width: orig.width,
             height:orig.height,
           })
-          .removeClass("front");  
-        Navbar.show();
-               
+          .removeClass("front");
+
         // If the tab is in a group set then set the active
         // group to the tab's parent. 
         if( self.parent ){
@@ -595,9 +600,9 @@ window.TabItems = {
       var $div = iQ(mirror.el);
       var tab = mirror.tab;
 
-      if(tab == Utils.homeTab) 
-        $div.hide();
-      else {
+      //if(tab == Utils.homeTab)
+      //  $div.hide();
+      //else {
         var item = new TabItem(mirror.el, tab);
         
         item.addOnClose(self, function() {
@@ -606,7 +611,7 @@ window.TabItems = {
 
         if(!self.reconnect(item))
           Groups.newTab(item);          
-      }
+      //}
     });
   },
 
