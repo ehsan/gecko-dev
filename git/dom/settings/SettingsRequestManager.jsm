@@ -704,9 +704,7 @@ let SettingsRequestManager = {
   removeObserver: function(aMsgMgr) {
     if (DEBUG) {
       let principal = this.mmPrincipals.get(aMsgMgr);
-      if (principal) {
-        debug("Remove observer for " + principal.origin);
-      }
+      debug("Remove observer for " + principal.origin);
     }
     let index = this.children.indexOf(aMsgMgr);
     if (index != -1) {
@@ -747,31 +745,26 @@ let SettingsRequestManager = {
 
   removeMessageManager: function(aMsgMgr, aPrincipal) {
     if (DEBUG) debug("Removing message manager");
-    let msgMgrPrincipal = this.mmPrincipals.get(aMsgMgr);
     this.removeObserver(aMsgMgr);
-
+    let closedLockIDs = [];
     let lockIDs = Object.keys(this.lockInfo);
     for (let i in lockIDs) {
-      let lockId = lockIDs[i];
-      let lock = this.lockInfo[lockId];
-      if (lock._mm === aMsgMgr && msgMgrPrincipal === aPrincipal) {
+      let lock = this.lockInfo[lockIDs[i]];
+      if (lock._mm == aMsgMgr) {
         let is_finalizing = false;
-        let task_index;
-        // Go in reverse order because finalize should be the last one
-        for (task_index = lock.tasks.length; task_index >= 0; task_index--) {
-          if (lock.tasks[task_index]
-              && lock.tasks[task_index].operation === "finalize") {
+        for (let task_index in lock.tasks) {
+          if (lock.tasks[task_index].operation === "finalize") {
             is_finalizing = true;
             break;
           }
         }
         if (!is_finalizing) {
-          this.queueTask("finalize", {lockID: lockId}, aPrincipal).then(
+          this.queueTask("finalize", {lockID: lockIDs[i]}, aPrincipal).then(
             function() {
-              if (DEBUG) debug("Lock " + lockId + " with dead message manager finalized");
+              if (DEBUG) debug("Lock " + lockIDs[i] + " with dead message manager finalized");
             },
             function(error) {
-              if (DEBUG) debug("Lock " + lockId + " with dead message manager NOT FINALIZED due to error: " + error);
+              if (DEBUG) debug("Lock " + lockIDs[i] + " with dead message manager NOT FINALIZED due to error: " + error);
             }
           );
         }

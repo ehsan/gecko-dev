@@ -14,18 +14,6 @@ namespace widget {
 namespace android {
 void InitStubs(JNIEnv *jEnv);
 
-class DownloadsIntegration : public AutoGlobalWrappedJavaObject {
-public:
-    static void InitStubs(JNIEnv *jEnv);
-    static DownloadsIntegration* Wrap(jobject obj);
-    DownloadsIntegration(jobject obj, JNIEnv* env) : AutoGlobalWrappedJavaObject(obj, env) {};
-    static void ScanMedia(const nsAString& a0, const nsAString& a1);
-    DownloadsIntegration() : AutoGlobalWrappedJavaObject() {};
-protected:
-    static jclass mDownloadsIntegrationClass;
-    static jmethodID jScanMedia;
-};
-
 class GeckoAppShell : public AutoGlobalWrappedJavaObject {
 public:
     static void InitStubs(JNIEnv *jEnv);
@@ -99,6 +87,7 @@ public:
     static void RegisterSurfaceTextureFrameListener(jobject a0, int32_t a1);
     static void RemovePluginView(jobject a0, bool a1);
     static void RequestUiThreadCallback(int64_t a0);
+    static void ScanMedia(const nsAString& a0, const nsAString& a1);
     static void ScheduleRestart();
     static void SendMessageWrapper(const nsAString& a0, const nsAString& a1, int32_t a2);
     static void SetFullScreen(bool a0);
@@ -184,6 +173,7 @@ protected:
     static jmethodID jRegisterSurfaceTextureFrameListener;
     static jmethodID jRemovePluginView;
     static jmethodID jRequestUiThreadCallback;
+    static jmethodID jScanMedia;
     static jmethodID jScheduleRestart;
     static jmethodID jSendMessageWrapper;
     static jmethodID jSetFullScreen;

@@ -371,7 +371,6 @@ BufferTextureHost::SetCompositor(Compositor* aCompositor)
     it->SetCompositor(aCompositor);
     it = it->GetNextSibling();
   }
-  mFirstSource = nullptr;
   mCompositor = aCompositor;
 }
 
