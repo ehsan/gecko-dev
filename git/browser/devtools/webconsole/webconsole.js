@@ -3469,6 +3469,7 @@ JSTerm.prototype = {
   _updateVariablesView: function JST__updateVariablesView(aOptions)
   {
     let view = aOptions.view;
+    view.createHierarchy();
     view.empty();
 
     // We need to avoid pruning the object inspection starting point.
@@ -3515,24 +3516,20 @@ JSTerm.prototype = {
    * @private
    * @param object aOptions
    *        The options used for |this._updateVariablesView()|.
-   * @param object aVar
-   *        The Variable object instance for the edited property.
-   * @param string aValue
-   *        The value the edited property was changed to.
+   * @param string aString
+   *        The string that the variables view wants to evaluate.
    */
-  _variablesViewEvaluate:
-  function JST__variablesViewEvaluate(aOptions, aVar, aValue)
+  _variablesViewEvaluate: function JST__variablesViewEvaluate(aOptions, aString)
   {
     let updater = this._updateVariablesView.bind(this, aOptions);
     let onEval = this._silentEvalCallback.bind(this, updater);
-    let string = aVar.evaluationMacro(aVar, aValue);
 
     let evalOptions = {
       frame: this.SELECTED_FRAME,
       bindObjectActor: aOptions.objectActor.actor,
     };
 
-    this.requestEvaluation(string, evalOptions).then(onEval, onEval);
+    this.requestEvaluation(aString, evalOptions).then(onEval, onEval);
   },
 
   /**

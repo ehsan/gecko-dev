@@ -862,7 +862,7 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
     RootedObject element(cx);
     RootedString elementProperty(cx);
     JSAutoByteString fileNameBytes;
-    RootedString displayURL(cx);
+    RootedString sourceURL(cx);
     RootedString sourceMapURL(cx);
     unsigned lineNumber = 1;
     RootedObject global(cx, nullptr);
@@ -920,11 +920,11 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
                 return false;
         }
 
-        if (!JS_GetProperty(cx, opts, "displayURL", &v))
+        if (!JS_GetProperty(cx, opts, "sourceURL", &v))
             return false;
         if (!v.isUndefined()) {
-            displayURL = ToString(cx, v);
-            if (!displayURL)
+            sourceURL = ToString(cx, v);
+            if (!sourceURL)
                 return false;
         }
 
@@ -1031,11 +1031,11 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
                 return false;
         }
 
-        if (displayURL && !script->scriptSource()->hasDisplayURL()) {
-            const jschar *durl = JS_GetStringCharsZ(cx, displayURL);
-            if (!durl)
+        if (sourceURL && !script->scriptSource()->hasSourceURL()) {
+            const jschar *surl = JS_GetStringCharsZ(cx, sourceURL);
+            if (!surl)
                 return false;
-            if (!script->scriptSource()->setDisplayURL(cx, durl))
+            if (!script->scriptSource()->setSourceURL(cx, surl))
                 return false;
         }
         if (sourceMapURL && !script->scriptSource()->hasSourceMapURL()) {

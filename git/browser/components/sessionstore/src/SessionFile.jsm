@@ -36,8 +36,6 @@ Cu.import("resource://gre/modules/osfile/_PromiseWorker.jsm", this);
 Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://gre/modules/AsyncShutdown.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "console",
-  "resource://gre/modules/devtools/Console.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "TelemetryStopwatch",
   "resource://gre/modules/TelemetryStopwatch.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
@@ -104,7 +102,7 @@ const TaskUtils = {
     return promise.then(
       null,
       function onError(reason) {
-        console.error("Uncaught asynchronous error", reason, "at", reason.stack);
+        Cu.reportError("Uncaught asynchronous error: " + reason + " at\n" + reason.stack);
         throw reason;
       }
     );
@@ -181,7 +179,8 @@ let SessionFileInternal = {
         this._recordTelemetry(msg.telemetry);
       } catch (ex) {
         TelemetryStopwatch.cancel("FX_SESSION_RESTORE_WRITE_FILE_LONGEST_OP_MS", refObj);
-        console.error("Could not write session state file ", this.path, ex);
+        Cu.reportError("Could not write session state file " + this.path
+                       + ": " + ex);
       }
 
       if (isFinalWrite) {
@@ -194,7 +193,7 @@ let SessionFileInternal = {
     SessionWorker.post("writeLoadStateOnceAfterStartup", [aLoadState]).then(msg => {
       this._recordTelemetry(msg.telemetry);
       return msg;
-    }, console.error);
+    }, Cu.reportError);
   },
 
   createBackupCopy: function (ext) {

@@ -36,8 +36,11 @@ MediaOmxReader::MediaOmxReader(AbstractMediaDecoder *aDecoder) :
 
 MediaOmxReader::~MediaOmxReader()
 {
-  ReleaseMediaResources();
-  ReleaseDecoder();
+  ResetDecode();
+  VideoFrameContainer* container = mDecoder->GetVideoFrameContainer();
+  if (container) {
+    container->ClearCurrentFrame();
+  }
   mOmxDecoder.clear();
 }
 

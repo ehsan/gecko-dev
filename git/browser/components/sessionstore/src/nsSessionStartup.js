@@ -43,8 +43,6 @@ Cu.import("resource://gre/modules/TelemetryStopwatch.jsm");
 Cu.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 Cu.import("resource://gre/modules/Promise.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "console",
-  "resource://gre/modules/devtools/Console.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "SessionFile",
   "resource:///modules/sessionstore/SessionFile.jsm");
 
@@ -87,7 +85,7 @@ SessionStartup.prototype = {
 
     SessionFile.read().then(
       this._onSessionFileRead.bind(this),
-      console.error
+      Cu.reportError
     );
   },
 
