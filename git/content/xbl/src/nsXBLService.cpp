@@ -227,7 +227,7 @@ static const size_t kBucketSizes[] = {
 
 static const PRInt32 kNumBuckets = sizeof(kBucketSizes)/sizeof(size_t);
 static const PRInt32 kNumElements = 64;
-static const PRInt32 kInitialSize = sizeof(nsXBLBindingRequest) * kNumElements;
+static const PRInt32 kInitialSize = (NS_SIZE_IN_HEAP(sizeof(nsXBLBindingRequest))) * kNumElements;
 
 nsIXBLService* nsXBLBindingRequest::gXBLService = nsnull;
 int nsXBLBindingRequest::gRefCnt = 0;
@@ -400,7 +400,7 @@ nsXBLStreamListener::HandleEvent(nsIDOMEvent* aEvent)
 
     if (!bindingDocument->GetRootElement()) {
       // FIXME: How about an error console warning?
-      NS_WARNING("XBL doc with no root element - this usually shouldn't happen");
+      NS_WARNING("*** XBL doc with no root element! Something went horribly wrong! ***");
       return NS_ERROR_FAILURE;
     }
 
@@ -836,20 +836,9 @@ nsXBLService::GetBinding(nsIContent* aBoundElement, nsIURI* aURI,
 
   nsXBLPrototypeBinding* protoBinding = docInfo->GetPrototypeBinding(ref);
 
-  if (!protoBinding) {
-#ifdef DEBUG
-    nsCAutoString uriSpec;
-    aURI->GetSpec(uriSpec);
-    nsCAutoString doc;
-    boundDocument->GetDocumentURI()->GetSpec(doc);
-    nsCAutoString message("Unable to locate an XBL binding for URI ");
-    message += uriSpec;
-    message += " in document ";
-    message += doc;
-    NS_WARNING(message.get());
-#endif
+  NS_WARN_IF_FALSE(protoBinding, "Unable to locate an XBL binding");
+  if (!protoBinding)
     return NS_ERROR_FAILURE;
-  }
 
   NS_ENSURE_TRUE(aDontExtendURIs.AppendElement(protoBinding->BindingURI()),
                  NS_ERROR_OUT_OF_MEMORY);

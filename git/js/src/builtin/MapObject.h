@@ -58,7 +58,7 @@ namespace js {
  * All values except ropes are hashable as-is.
  */
 class HashableValue {
-    RelocatableValue value;
+    HeapValue value;
 
   public:
     struct Hasher {
@@ -69,24 +69,14 @@ class HashableValue {
 
     HashableValue() : value(UndefinedValue()) {}
 
+    operator const HeapValue &() const { return value; }
     bool setValue(JSContext *cx, const Value &v);
     HashNumber hash() const;
     bool equals(const HashableValue &other) const;
-    HashableValue mark(JSTracer *trc) const;
-
-    struct StackRoot {
-        StackRoot(JSContext *cx, HashableValue *pv) : valueRoot(cx, (Value*) &pv->value) {}
-        RootValue valueRoot;
-    };
 };
 
-typedef HashMap<HashableValue,
-                RelocatableValue,
-                HashableValue::Hasher,
-                RuntimeAllocPolicy> ValueMap;
-typedef HashSet<HashableValue,
-                HashableValue::Hasher,
-                RuntimeAllocPolicy> ValueSet;
+typedef HashMap<HashableValue, HeapValue, HashableValue::Hasher, RuntimeAllocPolicy> ValueMap;
+typedef HashSet<HashableValue, HashableValue::Hasher, RuntimeAllocPolicy> ValueSet;
 
 class MapObject : public JSObject {
   public:
@@ -97,7 +87,7 @@ class MapObject : public JSObject {
     static JSFunctionSpec methods[];
     ValueMap *getData() { return static_cast<ValueMap *>(getPrivate()); }
     static void mark(JSTracer *trc, JSObject *obj);
-    static void finalize(FreeOp *fop, JSObject *obj);
+    static void finalize(JSContext *cx, JSObject *obj);
     static JSBool construct(JSContext *cx, unsigned argc, Value *vp);
     static JSBool size(JSContext *cx, unsigned argc, Value *vp);
     static JSBool get(JSContext *cx, unsigned argc, Value *vp);
@@ -115,7 +105,7 @@ class SetObject : public JSObject {
     static JSFunctionSpec methods[];
     ValueSet *getData() { return static_cast<ValueSet *>(getPrivate()); }
     static void mark(JSTracer *trc, JSObject *obj);
-    static void finalize(FreeOp *fop, JSObject *obj);
+    static void finalize(JSContext *cx, JSObject *obj);
     static JSBool construct(JSContext *cx, unsigned argc, Value *vp);
     static JSBool size(JSContext *cx, unsigned argc, Value *vp);
     static JSBool has(JSContext *cx, unsigned argc, Value *vp);

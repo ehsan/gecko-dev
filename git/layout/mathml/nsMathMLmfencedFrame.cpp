@@ -220,19 +220,18 @@ nsMathMLmfencedFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   
   ////////////
   // display fences and separators
-  PRUint32 count = 0;
   if (mOpenChar) {
-    rv = mOpenChar->Display(aBuilder, this, aLists, count++);
+    rv = mOpenChar->Display(aBuilder, this, aLists);
     NS_ENSURE_SUCCESS(rv, rv);
   }
   
   if (mCloseChar) {
-    rv = mCloseChar->Display(aBuilder, this, aLists, count++);
+    rv = mCloseChar->Display(aBuilder, this, aLists);
     NS_ENSURE_SUCCESS(rv, rv);
   }
   
   for (PRInt32 i = 0; i < mSeparatorsCount; i++) {
-    rv = mSeparatorsChar[i].Display(aBuilder, this, aLists, count++);
+    rv = mSeparatorsChar[i].Display(aBuilder, this, aLists);
     NS_ENSURE_SUCCESS(rv, rv);
   }
   return NS_OK;

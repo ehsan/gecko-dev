@@ -53,7 +53,7 @@
 #include "nsWrapperCache.h"
 #include "nsStringGlue.h"
 #include "nsTArray.h"
-#include "mozilla/dom/DOMJSClass.h"
+#include "mozilla/dom/bindings/DOMJSClass.h"
 
 class nsIPrincipal;
 class nsIXPConnectWrappedJS;
@@ -154,6 +154,13 @@ xpc_FastGetCachedWrapper(nsWrapperCache *cache, JSObject *scope, jsval *vp)
     return nsnull;
 }
 
+inline JSObject*
+xpc_FastGetCachedWrapper(nsWrapperCache *cache, JSObject *scope)
+{
+    jsval dummy;
+    return xpc_FastGetCachedWrapper(cache, scope, &dummy);
+}
+
 // The JS GC marks objects gray that are held alive directly or
 // indirectly by an XPConnect root. The cycle collector explores only
 // this subset of the JS heap.
@@ -170,57 +177,20 @@ xpc_GCThingIsGrayCCThing(void *thing);
 
 // Implemented in nsXPConnect.cpp.
 extern void
-xpc_UnmarkGrayGCThingRecursive(void *thing, JSGCTraceKind kind);
+xpc_UnmarkGrayObjectRecursive(JSObject* obj);
 
 // Remove the gray color from the given JSObject and any other objects that can
 // be reached through it.
-inline JSObject *
+inline void
 xpc_UnmarkGrayObject(JSObject *obj)
 {
     if (obj) {
         if (xpc_IsGrayGCThing(obj))
-            xpc_UnmarkGrayGCThingRecursive(obj, JSTRACE_OBJECT);
+            xpc_UnmarkGrayObjectRecursive(obj);
         else if (js::IsIncrementalBarrierNeededOnObject(obj))
             js::IncrementalReferenceBarrier(obj);
     }
-    return obj;
 }
-
-inline JSScript *
-xpc_UnmarkGrayScript(JSScript *script)
-{
-    if (script) {
-        if (xpc_IsGrayGCThing(script))
-            xpc_UnmarkGrayGCThingRecursive(script, JSTRACE_SCRIPT);
-        else if (js::IsIncrementalBarrierNeededOnScript(script))
-            js::IncrementalReferenceBarrier(script);
-    }
-    return script;
-}
-
-inline JSContext *
-xpc_UnmarkGrayContext(JSContext *cx)
-{
-    if (cx) {
-        JSObject *global = JS_GetGlobalObject(cx);
-        xpc_UnmarkGrayObject(global);
-        if (global && JS_IsInRequest(JS_GetRuntime(cx))) {
-            JSObject *scope = JS_GetGlobalForScopeChain(cx);
-            if (scope != global)
-                xpc_UnmarkGrayObject(scope);
-        }
-    }
-    return cx;
-}
-
-#ifdef __cplusplus
-class XPCAutoRequest : public JSAutoRequest {
-public:
-    XPCAutoRequest(JSContext *cx) : JSAutoRequest(cx) {
-        xpc_UnmarkGrayContext(cx);
-    }
-};
-#endif
 
 // If aVariant is an XPCVariant, this marks the object to be in aGeneration.
 // This also unmarks the gray JSObject.
@@ -239,8 +209,6 @@ xpc_UnmarkSkippableJSHolders();
 NS_EXPORT_(void)
 xpc_ActivateDebugMode();
 
-class nsIMemoryMultiReporterCallback;
-
 namespace xpc {
 
 // If these functions return false, then an exception will be set on cx.
@@ -255,32 +223,16 @@ bool Base64Decode(JSContext *cx, JS::Value val, JS::Value *out);
 bool StringToJsval(JSContext *cx, nsAString &str, JS::Value *rval);
 bool NonVoidStringToJsval(JSContext *cx, nsAString &str, JS::Value *rval);
 
-nsIPrincipal *GetCompartmentPrincipal(JSCompartment *compartment);
-
 #ifdef DEBUG
 void DumpJSHeap(FILE* file);
 #endif
+} // namespace xpc
 
-/**
- * Define quick stubs on the given object, @a proto.
- *
- * @param cx
- *     A context.  Requires request.
- * @param proto
- *     The (newly created) prototype object for a DOM class.  The JS half
- *     of an XPCWrappedNativeProto.
- * @param flags
- *     Property flags for the quick stub properties--should be either
- *     JSPROP_ENUMERATE or 0.
- * @param interfaceCount
- *     The number of interfaces the class implements.
- * @param interfaceArray
- *     The interfaces the class implements; interfaceArray and
- *     interfaceCount are like what nsIClassInfo.getInterfaces returns.
- */
-bool
-DOM_DefineQuickStubs(JSContext *cx, JSObject *proto, PRUint32 flags,
-                     PRUint32 interfaceCount, const nsIID **interfaceArray);
+class nsIMemoryMultiReporterCallback;
+
+namespace mozilla {
+namespace xpconnect {
+namespace memory {
 
 // This reports all the stats in |rtStats| that belong in the "explicit" tree,
 // (which isn't all of them).
@@ -290,49 +242,9 @@ ReportJSRuntimeExplicitTreeStats(const JS::RuntimeStats &rtStats,
                                  nsIMemoryMultiReporterCallback *cb,
                                  nsISupports *closure);
 
-/**
- * Convert a jsval to PRInt64. Return true on success.
- */
-inline bool
-ValueToInt64(JSContext *cx, JS::Value v, int64_t *result)
-{
-    if (JSVAL_IS_INT(v)) {
-        int32_t intval;
-        if (!JS_ValueToECMAInt32(cx, v, &intval))
-            return false;
-        *result = static_cast<int64_t>(intval);
-    } else {
-        double doubleval;
-        if (!JS_ValueToNumber(cx, v, &doubleval))
-            return false;
-        *result = static_cast<int64_t>(doubleval);
-    }
-    return true;
-}
+} // namespace memory
+} // namespace xpconnect
 
-/**
- * Convert a jsval to uint64_t. Return true on success.
- */
-inline bool
-ValueToUint64(JSContext *cx, JS::Value v, uint64_t *result)
-{
-    if (JSVAL_IS_INT(v)) {
-        uint32_t intval;
-        if (!JS_ValueToECMAUint32(cx, v, &intval))
-            return false;
-        *result = static_cast<uint64_t>(intval);
-    } else {
-        double doubleval;
-        if (!JS_ValueToNumber(cx, v, &doubleval))
-            return false;
-        *result = static_cast<uint64_t>(doubleval);
-    }
-    return true;
-}
-
-} // namespace xpc
-
-namespace mozilla {
 namespace dom {
 namespace binding {
 
@@ -345,7 +257,7 @@ inline bool instanceIsProxy(JSObject *obj)
 }
 
 typedef bool
-(*DefineInterface)(JSContext *cx, JSObject *global, bool *enabled);
+(*DefineInterface)(JSContext *cx, XPCWrappedNativeScope *scope, bool *enabled);
 
 extern bool
 DefineStaticJSVals(JSContext *cx);

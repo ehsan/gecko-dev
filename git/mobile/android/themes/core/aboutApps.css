@@ -31,11 +31,6 @@ html {
 .app img {
   width: 64px;
   height: 64px;
-  pointer-events: none;
-}
-
-.app div {
-  pointer-events: none;
 }
 
 #noapps {

@@ -307,7 +307,10 @@ nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
 
   // Make sure the text fragment can hold the new data.
   if (aLength > aCount && !mText.CanGrowBy(aLength - aCount)) {
-    return NS_ERROR_OUT_OF_MEMORY;
+    // This exception isn't per spec, but the spec doesn't actually
+    // say what to do here.
+
+    return NS_ERROR_DOM_DOMSTRING_SIZE_ERR;
   }
 
   nsIDocument *document = GetCurrentDoc();
@@ -947,6 +950,40 @@ NS_IMETHODIMP
 nsGenericDOMDataNode::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
 {
   return NS_OK;
+}
+
+nsIDOMCSSStyleDeclaration*
+nsGenericDOMDataNode::GetSMILOverrideStyle()
+{
+  return nsnull;
+}
+
+css::StyleRule*
+nsGenericDOMDataNode::GetSMILOverrideStyleRule()
+{
+  return nsnull;
+}
+
+nsresult
+nsGenericDOMDataNode::SetSMILOverrideStyleRule(css::StyleRule* aStyleRule,
+                                               bool aNotify)
+{
+  NS_NOTREACHED("How come we're setting SMILOverrideStyle on a non-element?");
+  return NS_ERROR_UNEXPECTED;
+}
+
+css::StyleRule*
+nsGenericDOMDataNode::GetInlineStyleRule()
+{
+  return nsnull;
+}
+
+NS_IMETHODIMP
+nsGenericDOMDataNode::SetInlineStyleRule(css::StyleRule* aStyleRule,
+                                         bool aNotify)
+{
+  NS_NOTREACHED("How come we're setting inline style on a non-element?");
+  return NS_ERROR_UNEXPECTED;
 }
 
 NS_IMETHODIMP_(bool)

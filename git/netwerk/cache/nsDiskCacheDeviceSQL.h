@@ -89,16 +89,19 @@ private:
 };
 
 class nsOfflineCacheDevice : public nsCacheDevice
-                           , public nsISupports
+                           , public nsIApplicationCacheService
 {
 public:
   nsOfflineCacheDevice();
 
   NS_DECL_ISUPPORTS
+  NS_DECL_NSIAPPLICATIONCACHESERVICE
 
   /**
    * nsCacheDevice methods
    */
+
+  static nsOfflineCacheDevice *GetInstance();
 
   virtual nsresult        Init();
   virtual nsresult        Shutdown();
@@ -170,28 +173,6 @@ public:
                                         const nsCSubstring &clientID);
   nsresult                GetGroupForCache(const nsCSubstring &clientID,
                                            nsCString &out);
-
-  nsresult                CreateApplicationCache(const nsACString &group,
-                                                 nsIApplicationCache **out);
-
-  nsresult                GetApplicationCache(const nsACString &clientID,
-                                              nsIApplicationCache **out);
-
-  nsresult                GetActiveCache(const nsACString &group,
-                                         nsIApplicationCache **out);
-
-  nsresult                DeactivateGroup(const nsACString &group);
-
-  nsresult                ChooseApplicationCache(const nsACString &key,
-                                                 nsIApplicationCache **out);
-
-  nsresult                CacheOpportunistically(nsIApplicationCache* cache,
-                                                 const nsACString &key);
-
-  nsresult                GetGroups(PRUint32 *count,char ***keys);
-
-  nsresult                GetGroupsTimeOrdered(PRUint32 *count,
-                                               char ***keys);
 
   /**
    * Preference accessors

@@ -152,7 +152,7 @@ protected:
   nsMutationReceiverBase(nsINode* aRegisterTarget,
                          nsMutationReceiverBase* aParent)
   : mTarget(nsnull), mObserver(nsnull), mParent(aParent),
-    mRegisterTarget(aRegisterTarget), mKungFuDeathGrip(aParent->Target())
+    mRegisterTarget(aRegisterTarget)
   {
     NS_ASSERTION(mParent->Subtree(), "Should clone a non-subtree observer!");
     mRegisterTarget->AddMutationObserver(this);
@@ -195,9 +195,6 @@ protected:
   // This is different than mTarget when dealing with transient observers.
   nsINode*                           mRegisterTarget;
   nsCOMArray<nsMutationReceiverBase> mTransientReceivers;
-  // While we have transient receivers, keep the original mutation receiver
-  // alive so it doesn't go away and disconnect all its transient receivers.
-  nsCOMPtr<nsINode>                  mKungFuDeathGrip;
   
 private:
   bool                               mSubtree;
@@ -268,12 +265,34 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS(nsMutationReceiver)
 
-  NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTEWILLCHANGE
-  NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATAWILLCHANGE
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
-  NS_DECL_NSIMUTATIONOBSERVER_NODEWILLBEDESTROYED
+  virtual void AttributeWillChange(nsIDocument* aDocument,
+                                   mozilla::dom::Element* aElement,
+                                   PRInt32 aNameSpaceID,
+                                   nsIAtom* aAttribute,
+                                   PRInt32 aModType);
+  virtual void CharacterDataWillChange(nsIDocument *aDocument,
+                                       nsIContent* aContent,
+                                       CharacterDataChangeInfo* aInfo);
+  virtual void ContentAppended(nsIDocument *aDocument,
+                               nsIContent* aContainer,
+                               nsIContent* aFirstNewContent,
+                               PRInt32     aNewIndexInContainer);
+  virtual void ContentInserted(nsIDocument *aDocument,
+                               nsIContent* aContainer,
+                               nsIContent* aChild,
+                               PRInt32 aIndexInContainer);
+  virtual void ContentRemoved(nsIDocument *aDocument,
+                              nsIContent* aContainer,
+                              nsIContent* aChild,
+                              PRInt32 aIndexInContainer,
+                              nsIContent* aPreviousSibling);
+
+  virtual void NodeWillBeDestroyed(const nsINode *aNode)
+  {
+    NS_ASSERTION(!mParent, "Shouldn't have mParent here!");
+    Disconnect(true);
+  }
+  
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsMutationReceiver, NS_MUTATION_OBSERVER_IID)
@@ -319,8 +338,6 @@ protected:
   friend class nsAutoMutationBatch;
   nsMutationReceiver* GetReceiverFor(nsINode* aNode, bool aMayCreate);
   void RemoveReceiver(nsMutationReceiver* aReceiver);
-
-  already_AddRefed<nsIVariant> TakeRecords();
 
   void GetAllSubtreeObserversFor(nsINode* aNode,
                                  nsTArray<nsMutationReceiver*>& aObservers);

@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2012 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2011 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -31,7 +31,6 @@ struct TranslatedAttribute
 
     IDirect3DVertexBuffer9 *vertexBuffer;
     unsigned int serial;
-    unsigned int divisor;
 };
 
 class VertexBuffer
@@ -118,13 +117,13 @@ class VertexDataManager
 
     void dirtyCurrentValue(int index) { mDirtyCurrentValue[index] = true; }
 
-    GLenum prepareVertexData(GLint start, GLsizei count, TranslatedAttribute *outAttribs, GLsizei instances);
+    GLenum prepareVertexData(GLint start, GLsizei count, TranslatedAttribute *outAttribs);
 
   private:
     DISALLOW_COPY_AND_ASSIGN(VertexDataManager);
 
-    std::size_t spaceRequired(const VertexAttribute &attrib, std::size_t count, GLsizei instances) const;
-    std::size_t writeAttributeData(ArrayVertexBuffer *vertexBuffer, GLint start, GLsizei count, const VertexAttribute &attribute, GLsizei instances);
+    std::size_t spaceRequired(const VertexAttribute &attrib, std::size_t count) const;
+    std::size_t writeAttributeData(ArrayVertexBuffer *vertexBuffer, GLint start, GLsizei count, const VertexAttribute &attribute);
 
     Context *const mContext;
     IDirect3DDevice9 *const mDevice;

@@ -56,12 +56,12 @@
 #include "AsyncConnectionHelper.h"
 #include "IDBEvents.h"
 #include "IDBTransaction.h"
-#include "DOMError.h"
 
 USING_INDEXEDDB_NAMESPACE
 
 IDBRequest::IDBRequest()
 : mResultVal(JSVAL_VOID),
+  mErrorCode(0),
   mHaveResultOrErrorCode(false),
   mRooted(false)
 {
@@ -100,7 +100,7 @@ IDBRequest::Reset()
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   mResultVal = JSVAL_VOID;
   mHaveResultOrErrorCode = false;
-  mError = nsnull;
+  mErrorCode = 0;
   UnrootResultVal();
 }
 
@@ -124,7 +124,7 @@ IDBRequest::NotifyHelperCompleted(HelperBase* aHelper)
 
   // If the request failed then set the error code and return.
   if (NS_FAILED(rv)) {
-    mError = DOMError::CreateForNSResult(rv);
+    mErrorCode = NS_ERROR_GET_CODE(rv);
     return NS_OK;
   }
 
@@ -134,11 +134,10 @@ IDBRequest::NotifyHelperCompleted(HelperBase* aHelper)
     nsIThreadJSContextStack* cxStack = nsContentUtils::ThreadJSContextStack();
     NS_ASSERTION(cxStack, "Failed to get thread context stack!");
 
-    cx = cxStack->GetSafeJSContext();
-    if (!cx) {
+    if (NS_FAILED(cxStack->GetSafeJSContext(&cx))) {
       NS_WARNING("Failed to get safe JSContext!");
       rv = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-      mError = DOMError::CreateForNSResult(rv);
+      mErrorCode = NS_ERROR_GET_CODE(rv);
       return rv;
     }
   }
@@ -168,23 +167,14 @@ IDBRequest::NotifyHelperCompleted(HelperBase* aHelper)
   }
 
   if (NS_SUCCEEDED(rv)) {
-    mError = nsnull;
+    mErrorCode = 0;
   }
   else {
-    mError = DOMError::CreateForNSResult(rv);
+    mErrorCode = NS_ERROR_GET_CODE(rv);
     mResultVal = JSVAL_VOID;
   }
 
   return rv;
-}
-
-void
-IDBRequest::SetError(nsresult rv)
-{
-  NS_ASSERTION(NS_FAILED(rv), "Er, what?");
-  NS_ASSERTION(!mError, "Already have an error?");
-
-  mError = DOMError::CreateForNSResult(rv);
 }
 
 void
@@ -249,7 +239,7 @@ IDBRequest::GetResult(jsval* aResult)
 }
 
 NS_IMETHODIMP
-IDBRequest::GetError(nsIDOMDOMError** aError)
+IDBRequest::GetErrorCode(PRUint16* aErrorCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -258,7 +248,7 @@ IDBRequest::GetError(nsIDOMDOMError** aError)
     return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
-  NS_IF_ADDREF(*aError = mError);
+  *aErrorCode = mErrorCode;
   return NS_OK;
 }
 

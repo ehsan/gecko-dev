@@ -1,4 +1,3 @@
-// |reftest| skip-if(!xulRuntime.shell) -- uses evalcx
 /*
  * Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/licenses/publicdomain/

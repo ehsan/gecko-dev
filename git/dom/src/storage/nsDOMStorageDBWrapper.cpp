@@ -321,7 +321,7 @@ nsDOMStorageDBWrapper::CreateOriginScopeDBKey(nsIURI* aUri, nsACString& aKey)
   PRInt32 port = NS_GetRealPort(aUri);
   if (port != -1) {
     aKey.AppendLiteral(":");
-    aKey.Append(nsPrintfCString("%d", port));
+    aKey.Append(nsPrintfCString(32, "%d", port));
   }
 
   return NS_OK;

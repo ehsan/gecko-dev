@@ -40,7 +40,6 @@
 
 #include "nsXULListboxAccessible.h"
 
-#include "Accessible-inl.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
 #include "nsDocAccessible.h"
@@ -211,18 +210,17 @@ nsXULListboxAccessible::NativeState()
 /**
   * Our value is the label of our ( first ) selected child.
   */
-void
-nsXULListboxAccessible::Value(nsString& aValue)
+NS_IMETHODIMP nsXULListboxAccessible::GetValue(nsAString& _retval)
 {
-  aValue.Truncate();
-
+  _retval.Truncate();
   nsCOMPtr<nsIDOMXULSelectControlElement> select(do_QueryInterface(mContent));
   if (select) {
     nsCOMPtr<nsIDOMXULSelectControlItemElement> selectedItem;
     select->GetSelectedItem(getter_AddRefs(selectedItem));
     if (selectedItem)
-      selectedItem->GetLabel(aValue);
+      return selectedItem->GetLabel(_retval);
   }
+  return NS_ERROR_FAILURE;
 }
 
 role
@@ -241,9 +239,23 @@ nsXULListboxAccessible::NativeRole()
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULListboxAccessible. nsIAccessibleTable
 
-PRUint32
-nsXULListboxAccessible::ColCount()
+NS_IMETHODIMP
+nsXULListboxAccessible::GetSummary(nsAString &aSummary)
 {
+  aSummary.Truncate();
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXULListboxAccessible::GetColumnCount(PRInt32 *aColumnsCout)
+{
+  NS_ENSURE_ARG_POINTER(aColumnsCout);
+  *aColumnsCout = 0;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   nsIContent* headContent = nsnull;
   for (nsIContent* childContent = mContent->GetFirstChild(); childContent;
        childContent = childContent->GetNextSibling()) {
@@ -253,7 +265,7 @@ nsXULListboxAccessible::ColCount()
     }
   }
   if (!headContent)
-    return 0;
+    return NS_OK;
 
   PRUint32 columnCount = 0;
   for (nsIContent* childContent = headContent->GetFirstChild(); childContent;
@@ -264,19 +276,28 @@ nsXULListboxAccessible::ColCount()
     }
   }
 
-  return columnCount;
+  *aColumnsCout = columnCount;
+  return NS_OK;
 }
 
-PRUint32
-nsXULListboxAccessible::RowCount()
+NS_IMETHODIMP
+nsXULListboxAccessible::GetRowCount(PRInt32 *aRowCount)
 {
+  NS_ENSURE_ARG_POINTER(aRowCount);
+  *aRowCount = 0;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   nsCOMPtr<nsIDOMXULSelectControlElement> element(do_QueryInterface(mContent));
+  NS_ENSURE_STATE(element);
 
   PRUint32 itemCount = 0;
-  if(element)
-    element->GetItemCount(&itemCount);
+  nsresult rv = element->GetItemCount(&itemCount);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  return itemCount;
+  *aRowCount = itemCount;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -304,6 +325,27 @@ nsXULListboxAccessible::GetCellAt(PRInt32 aRow, PRInt32 aColumn,
   nsresult rv = row->GetChildAt(aColumn, aAccessibleCell);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_INVALID_ARG);
 
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXULListboxAccessible::GetCellIndexAt(PRInt32 aRow, PRInt32 aColumn,
+                                       PRInt32 *aIndex)
+{
+  NS_ENSURE_ARG_POINTER(aIndex);
+  *aIndex = -1;
+
+  PRInt32 rowCount = 0;
+  nsresult rv = GetRowCount(&rowCount);
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(0 <= aRow && aRow <= rowCount, NS_ERROR_INVALID_ARG);
+
+  PRInt32 columnCount = 0;
+  rv = GetColumnCount(&columnCount);
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(0 <= aColumn && aColumn <= columnCount, NS_ERROR_INVALID_ARG);
+
+  *aIndex = aRow * columnCount + aColumn;
   return NS_OK;
 }
 
@@ -754,19 +796,29 @@ nsXULListboxAccessible::SelectColumn(PRInt32 aColumn)
   return NS_OK;
 }
 
-void
-nsXULListboxAccessible::UnselectRow(PRUint32 aRowIdx)
+NS_IMETHODIMP
+nsXULListboxAccessible::UnselectRow(PRInt32 aRow)
 {
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+  
   nsCOMPtr<nsIDOMXULMultiSelectControlElement> control =
     do_QueryInterface(mContent);
   NS_ASSERTION(control,
                "Doesn't implement nsIDOMXULMultiSelectControlElement.");
 
-  if (control) {
-    nsCOMPtr<nsIDOMXULSelectControlItemElement> item;
-    control->GetItemAtIndex(aRowIdx, getter_AddRefs(item));
-    control->RemoveItemFromSelection(item);
-  }
+  nsCOMPtr<nsIDOMXULSelectControlItemElement> item;
+  control->GetItemAtIndex(aRow, getter_AddRefs(item));
+  NS_ENSURE_TRUE(item, NS_ERROR_INVALID_ARG);
+
+  return control->RemoveItemFromSelection(item);
+}
+
+NS_IMETHODIMP
+nsXULListboxAccessible::UnselectColumn(PRInt32 aColumn)
+{
+  // xul:listbox and xul:richlistbox support row selection only.
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

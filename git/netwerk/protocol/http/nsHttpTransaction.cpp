@@ -138,13 +138,14 @@ nsHttpTransaction::nsHttpTransaction()
     , mSSLConnectFailed(false)
     , mHttpResponseMatched(false)
     , mPreserveStream(false)
+    , mToReadBeforeRestart(0)
     , mReportedStart(false)
     , mReportedResponseHeader(false)
     , mForTakeResponseHead(nsnull)
-    , mResponseHeadTaken(false)
+    , mTakenResponseHeader(false)
 {
     LOG(("Creating nsHttpTransaction @%x\n", this));
-    gHttpHandler->GetMaxPipelineObjectSize(&mMaxPipelineObjectSize);
+    gHttpHandler->GetMaxPipelineObjectSize(mMaxPipelineObjectSize);
 }
 
 nsHttpTransaction::~nsHttpTransaction()
@@ -359,22 +360,13 @@ nsHttpTransaction::Connection()
 nsHttpResponseHead *
 nsHttpTransaction::TakeResponseHead()
 {
-    NS_ABORT_IF_FALSE(!mResponseHeadTaken, "TakeResponseHead called 2x");
+    NS_ABORT_IF_FALSE(!mTakenResponseHeader, "TakeResponseHead called 2x");
 
     // Lock RestartInProgress() and TakeResponseHead() against main thread
     MutexAutoLock lock(*nsHttp::GetLock());
 
-    mResponseHeadTaken = true;
+    mTakenResponseHeader = true;
 
-    // Prefer mForTakeResponseHead over mResponseHead. It is always a complete
-    // set of headers.
-    nsHttpResponseHead *head;
-    if (mForTakeResponseHead) {
-        head = mForTakeResponseHead;
-        mForTakeResponseHead = nsnull;
-        return head;
-    }
-    
     // Even in OnStartRequest() the headers won't be available if we were
     // canceled
     if (!mHaveAllHeaders) {
@@ -382,8 +374,16 @@ nsHttpTransaction::TakeResponseHead()
         return nsnull;
     }
 
-    head = mResponseHead;
-    mResponseHead = nsnull;
+    // Prefer mForTakeResponseHead over mResponseHead
+    nsHttpResponseHead *head;
+    if (mForTakeResponseHead) {
+        head = mForTakeResponseHead;
+        mForTakeResponseHead = nsnull;
+    }
+    else {
+        head = mResponseHead;
+        mResponseHead = nsnull;
+    }
     return head;
 }
 
@@ -469,7 +469,7 @@ nsHttpTransaction::OnTransportStatus(nsITransport* transport,
                 PR_Now(), LL_ZERO, EmptyCString());
 
         // report the status and progress
-        if (!mRestartInProgressVerifier.IsDiscardingContent())
+        if (!mRestartInProgressVerifier.Active())
             mActivityDistributor->ObserveActivity(
                 mChannel,
                 NS_HTTP_ACTIVITY_TYPE_SOCKET_TRANSPORT,
@@ -725,15 +725,7 @@ nsHttpTransaction::Close(nsresult reason)
     // mReceivedData == FALSE.  (see bug 203057 for more info.)
     //
     if (reason == NS_ERROR_NET_RESET || reason == NS_OK) {
-
-        // reallySentData is meant to separate the instances where data has
-        // been sent by this transaction but buffered at a higher level while
-        // a TLS session (perhaps via a tunnel) is setup.
-        bool reallySentData =
-            mSentData && (!mConnection || mConnection->BytesWritten());
-        
-        if (!mReceivedData &&
-            (!reallySentData || connReused || mPipelinePosition)) {
+        if (!mReceivedData && (!mSentData || connReused || mPipelinePosition)) {
             // if restarting fails, then we must proceed to close the pipe,
             // which will notify the channel that the transaction failed.
             
@@ -848,40 +840,32 @@ nsHttpTransaction::RestartInProgress()
 {
     NS_ASSERTION(PR_GetCurrentThread() == gSocketThread, "wrong thread");
     
-    if ((mRestartCount + 1) >= gHttpHandler->MaxRequestAttempts()) {
-        LOG(("nsHttpTransaction::RestartInProgress() "
-             "reached max request attempts, failing transaction %p\n", this));
-        return NS_ERROR_NET_RESET;
-    }
-
+    return NS_ERROR_FAILURE;
+    
     // Lock RestartInProgress() and TakeResponseHead() against main thread
     MutexAutoLock lock(*nsHttp::GetLock());
 
-    // Don't try and RestartInProgress() things that haven't gotten a response
-    // header yet. Those should be handled under the normal restart() path if
-    // they are eligible.
-    if (!mHaveAllHeaders)
-        return NS_ERROR_NET_RESET;
-
-    // don't try and restart 0.9 or non 200/Get HTTP/1
-    if (!mRestartInProgressVerifier.IsSetup())
+    // don't try and restart 0.9
+    if (mHaveAllHeaders && !mRestartInProgressVerifier.IsSetup())
         return NS_ERROR_NET_RESET;
 
     LOG(("Will restart transaction %p and skip first %lld bytes, "
          "old Content-Length %lld",
          this, mContentRead, mContentLength));
 
-    mRestartInProgressVerifier.SetAlreadyProcessed(
-        PR_MAX(mRestartInProgressVerifier.AlreadyProcessed(), mContentRead));
+    if (mHaveAllHeaders) {
+        mRestartInProgressVerifier.SetAlreadyProcessed(
+            PR_MAX(mRestartInProgressVerifier.AlreadyProcessed(), mContentRead));
+        mToReadBeforeRestart = mRestartInProgressVerifier.AlreadyProcessed();
+        mRestartInProgressVerifier.SetActive(true);
 
-    if (!mResponseHeadTaken && !mForTakeResponseHead) {
-        // TakeResponseHeader() has not been called yet and this
-        // is the first restart. Store the resp headers exclusively
-        // for TakeResponseHead() which is called from the main thread and
-        // could happen at any time - so we can't continue to modify those
-        // headers (which restarting will effectively do)
-        mForTakeResponseHead = mResponseHead;
-        mResponseHead = nsnull;
+        if (!mTakenResponseHeader && !mForTakeResponseHead) {
+            // TakeResponseHeader() has not been called yet and this
+            // is the first restart. Store the resp headers exclusively
+            // for TakeResponseHeader()
+            mForTakeResponseHead = mResponseHead;
+            mResponseHead = nsnull;
+        }
     }
 
     if (mResponseHead) {
@@ -1234,12 +1218,6 @@ nsHttpTransaction::HandleContentStart()
             LOG(("this response should not contain a body.\n"));
             break;
         }
-        
-        if (mResponseHead->Status() == 200 &&
-            mConnection->IsProxyConnectInProgress()) {
-            // successful CONNECTs do not have response bodies
-            mNoContent = true;
-        }
         mConnection->SetLastTransactionExpectedNoContent(mNoContent);
         if (mInvalidResponseBytesRead)
             gHttpHandler->ConnMgr()->PipelineFeedbackInfo(
@@ -1276,7 +1254,7 @@ nsHttpTransaction::HandleContentStart()
                 LOG(("waiting for the server to close the connection.\n"));
 #endif
         }
-        if (mRestartInProgressVerifier.IsSetup() &&
+        if (mRestartInProgressVerifier.Active() &&
             !mRestartInProgressVerifier.Verify(mContentLength, mResponseHead)) {
             LOG(("Restart in progress subsequent transaction failed to match"));
             return NS_ERROR_ABORT;
@@ -1284,12 +1262,7 @@ nsHttpTransaction::HandleContentStart()
     }
 
     mDidContentStart = true;
-
-    // The verifier only initializes itself once (from the first iteration of
-    // a transaction that gets far enough to have response headers)
-    if (mRequestHead->Method() == nsHttp::Get)
-        mRestartInProgressVerifier.Set(mContentLength, mResponseHead);
-
+    mRestartInProgressVerifier.Set(mContentLength, mResponseHead);
     return NS_OK;
 }
 
@@ -1349,19 +1322,17 @@ nsHttpTransaction::HandleContent(char *buf,
         *contentRead = count;
     }
     
-    PRInt64 toReadBeforeRestart =
-        mRestartInProgressVerifier.ToReadBeforeRestart();
-
-    if (toReadBeforeRestart && *contentRead) {
-        PRUint32 ignore =
-            PR_MIN(toReadBeforeRestart, PR_UINT32_MAX);
-        ignore = PR_MIN(*contentRead, ignore);
+    if (mRestartInProgressVerifier.Active() &&
+        mToReadBeforeRestart && *contentRead) {
+        PRUint32 ignore = PR_MIN(*contentRead, PRUint32(mToReadBeforeRestart));
         LOG(("Due To Restart ignoring %d of remaining %ld",
-             ignore, toReadBeforeRestart));
+             ignore, mToReadBeforeRestart));
         *contentRead -= ignore;
         mContentRead += ignore;
-        mRestartInProgressVerifier.HaveReadBeforeRestart(ignore);
+        mToReadBeforeRestart -= ignore;
         memmove(buf, buf + ignore, *contentRead + *contentRemaining);
+        if (!mToReadBeforeRestart)
+            mRestartInProgressVerifier.SetActive(false);
     }
 
     if (*contentRead) {
@@ -1380,10 +1351,8 @@ nsHttpTransaction::HandleContent(char *buf,
     // for this response reschedule the pipeline
     if ((mClassification != CLASS_SOLO) &&
         mChunkedDecoder &&
-        ((mContentRead + mChunkedDecoder->GetChunkRemaining()) >
-         mMaxPipelineObjectSize)) {
+        (mContentRead > mMaxPipelineObjectSize))
         CancelPipeline(nsHttpConnectionMgr::BadUnexpectedLarge);
-    }
 
     // check for end-of-file
     if ((mContentRead == mContentLength) ||
@@ -1495,7 +1464,7 @@ nsHttpTransaction::CancelPipeline(PRUint32 reason)
         static_cast<nsHttpConnectionMgr::PipelineFeedbackInfoType>(reason),
         nsnull, mClassification);
 
-    mConnection->CancelPipeline(NS_ERROR_ABORT);
+    mConnection->CancelPipeline(NS_ERROR_CORRUPTED_CONTENT);
 
     // Avoid pipelining this transaction on restart by classifying it as solo.
     // This also prevents BadUnexpectedLarge from being reported more
@@ -1624,9 +1593,6 @@ nsHttpTransaction::RestartVerifier::Verify(PRInt64 contentLength,
     if (mContentLength != contentLength)
         return false;
 
-    if (newHead->Status() != 200)
-        return false;
-
     if (!matchOld(newHead, mContentRange, nsHttp::Content_Range))
         return false;
 
@@ -1652,13 +1618,6 @@ nsHttpTransaction::RestartVerifier::Set(PRInt64 contentLength,
     if (mSetup)
         return;
 
-    // If mSetup does not transition to true RestartInPogress() is later
-    // forbidden
-
-    // Only RestartInProgress with 200 response code
-    if (head->Status() != 200)
-        return;
-
     mContentLength = contentLength;
     
     if (head) {
@@ -1678,12 +1637,6 @@ nsHttpTransaction::RestartVerifier::Set(PRInt64 contentLength,
         val = head->PeekHeader(nsHttp::Transfer_Encoding);
         if (val)
             mTransferEncoding.Assign(val);
-
-        // We can only restart with any confidence if we have a stored etag or
-        // last-modified header
-        if (mETag.IsEmpty() && mLastModified.IsEmpty())
-            return;
-
         mSetup = true;
     }
 }

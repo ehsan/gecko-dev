@@ -63,10 +63,6 @@
 
 #include "gfxCrashReporterUtils.h"
 
-#ifdef MOZ_WIDGET_GTK2
-#include "gfxPlatformGtk.h"
-#endif
-
 namespace mozilla {
 namespace gl {
 
@@ -255,13 +251,8 @@ GLXLibrary::EnsureInitialized()
         GLLibraryLoader::LoadSymbols(mOGLLibrary, symbols_texturefrompixmap, 
                                          (GLLibraryLoader::PlatformLookupFunction)&xGetProcAddress))
     {
-#ifdef MOZ_WIDGET_GTK2
-        mUseTextureFromPixmap = gfxPlatformGtk::UseXRender();
-#else
-        mUseTextureFromPixmap = true;
-#endif
+        mHasTextureFromPixmap = true;
     } else {
-        mUseTextureFromPixmap = false;
         NS_WARNING("Texture from pixmap disabled");
     }
 
@@ -287,7 +278,7 @@ GLXLibrary::SupportsTextureFromPixmap(gfxASurface* aSurface)
         return false;
     }
     
-    if (aSurface->GetType() != gfxASurface::SurfaceTypeXlib || !mUseTextureFromPixmap) {
+    if (aSurface->GetType() != gfxASurface::SurfaceTypeXlib || !mHasTextureFromPixmap) {
         return false;
     }
 
@@ -337,7 +328,7 @@ GLXLibrary::CreatePixmap(gfxASurface* aSurface)
 void
 GLXLibrary::DestroyPixmap(GLXPixmap aPixmap)
 {
-    if (!mUseTextureFromPixmap) {
+    if (!mHasTextureFromPixmap) {
         return;
     }
 
@@ -348,7 +339,7 @@ GLXLibrary::DestroyPixmap(GLXPixmap aPixmap)
 void
 GLXLibrary::BindTexImage(GLXPixmap aPixmap)
 {    
-    if (!mUseTextureFromPixmap) {
+    if (!mHasTextureFromPixmap) {
         return;
     }
 
@@ -361,7 +352,7 @@ GLXLibrary::BindTexImage(GLXPixmap aPixmap)
 void
 GLXLibrary::ReleaseTexImage(GLXPixmap aPixmap)
 {
-    if (!mUseTextureFromPixmap) {
+    if (!mHasTextureFromPixmap) {
         return;
     }
 
@@ -785,7 +776,7 @@ TRY_AGAIN_NO_SHARING:
             return false;
         }
 
-        if (!IsExtensionSupported(EXT_framebuffer_object))
+        if (!IsExtensionSupported("GL_EXT_framebuffer_object"))
             return false;
 
         InitFramebuffers();
@@ -852,14 +843,14 @@ TRY_AGAIN_NO_SHARING:
 
     bool TextureImageSupportsGetBackingSurface()
     {
-        return sGLXLibrary.UseTextureFromPixmap();
+        return sGLXLibrary.HasTextureFromPixmap();
     }
 
     virtual already_AddRefed<TextureImage>
     CreateTextureImage(const nsIntSize& aSize,
                        TextureImage::ContentType aContentType,
                        GLenum aWrapMode,
-                       TextureImage::Flags aFlags = TextureImage::NoFlags);
+                       bool aUseNearestFilter = false);
 
 private:
     friend class GLContextProviderGLX;
@@ -896,7 +887,7 @@ class TextureImageGLX : public TextureImage
     GLContextGLX::CreateTextureImage(const nsIntSize&,
                                      ContentType,
                                      GLenum,
-                                     TextureImage::Flags);
+                                     bool);
 
 public:
     virtual ~TextureImageGLX()
@@ -960,9 +951,8 @@ private:
                    ContentType aContentType,
                    GLContext* aContext,
                    gfxASurface* aSurface,
-                   GLXPixmap aPixmap,
-                   TextureImage::Flags aFlags = TextureImage::NoFlags)
-        : TextureImage(aSize, aWrapMode, aContentType, aFlags)
+                   GLXPixmap aPixmap)
+        : TextureImage(aSize, aWrapMode, aContentType)
         , mGLContext(aContext)
         , mUpdateSurface(aSurface)
         , mPixmap(aPixmap)
@@ -992,13 +982,13 @@ already_AddRefed<TextureImage>
 GLContextGLX::CreateTextureImage(const nsIntSize& aSize,
                                  TextureImage::ContentType aContentType,
                                  GLenum aWrapMode,
-                                 TextureImage::Flags aFlags)
+                                 bool aUseNearestFilter)
 {
     if (!TextureImageSupportsGetBackingSurface()) {
         return GLContext::CreateTextureImage(aSize, 
                                              aContentType, 
                                              aWrapMode, 
-                                             aFlags);
+                                             aUseNearestFilter);
     }
 
     Display *display = DefaultXDisplay();
@@ -1033,9 +1023,9 @@ GLContextGLX::CreateTextureImage(const nsIntSize& aSize,
     fBindTexture(LOCAL_GL_TEXTURE_2D, texture);
 
     nsRefPtr<TextureImageGLX> teximage =
-        new TextureImageGLX(texture, aSize, aWrapMode, aContentType, this, surface, pixmap, aFlags);
+        new TextureImageGLX(texture, aSize, aWrapMode, aContentType, this, surface, pixmap);
 
-    GLint texfilter = aFlags & TextureImage::UseNearestFilter ? LOCAL_GL_NEAREST : LOCAL_GL_LINEAR;
+    GLint texfilter = aUseNearestFilter ? LOCAL_GL_NEAREST : LOCAL_GL_LINEAR;
     fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, texfilter);
     fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, texfilter);
     fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_S, aWrapMode);
@@ -1317,7 +1307,7 @@ GLContextProviderGLX::CreateOffscreen(const gfxIntSize& aSize,
         return nsnull;
     }
 
-    if (!glContext->ResizeOffscreenFBOs(aSize, true)) {
+    if (!glContext->ResizeOffscreenFBO(aSize, true)) {
         // we weren't able to create the initial
         // offscreen FBO, so this is dead
         return nsnull;

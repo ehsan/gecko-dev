@@ -79,7 +79,7 @@
 #include "xpcpublic.h"
 #include "nsContentPolicyUtils.h"
 #include "nsContentErrors.h"
-#include "jsfriendapi.h"
+#include "jstypedarray.h"
 #include "prmem.h"
 #include "nsDOMFile.h"
 #include "nsWrapperCacheInlines.h"
@@ -562,7 +562,7 @@ nsWebSocket::Initialize(nsISupports* aOwner,
                         JSContext* aContext,
                         JSObject* aObject,
                         PRUint32 aArgc,
-                        JS::Value* aArgv)
+                        jsval* aArgv)
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
   nsAutoString urlParam;
@@ -608,10 +608,11 @@ nsWebSocket::Initialize(nsISupports* aOwner,
   nsTArray<nsString> protocolArray;
 
   if (aArgc == 2) {
-    if (aArgv[1].isObject() &&
-        JS_IsArrayObject(aContext, &aArgv[1].toObject())) {
-      JSObject* jsobj = &aArgv[1].toObject();
+    JSObject *jsobj;
 
+    if (JSVAL_IS_OBJECT(aArgv[1]) &&
+        (jsobj = JSVAL_TO_OBJECT(aArgv[1])) &&
+        JS_IsArrayObject(aContext, jsobj)) {
       uint32_t len;
       JS_GetArrayLength(aContext, jsobj, &len);
       
@@ -1300,7 +1301,7 @@ ContainsUnpairedSurrogates(const nsAString& aData)
 }
 
 NS_IMETHODIMP
-nsWebSocket::Send(nsIVariant *aData, JSContext *aCx)
+nsWebSocket::Send(nsIVariant *aData)
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
 
@@ -1312,7 +1313,7 @@ nsWebSocket::Send(nsIVariant *aData, JSContext *aCx)
   nsCOMPtr<nsIInputStream> msgStream;
   bool isBinary;
   PRUint32 msgLen;
-  nsresult rv = GetSendParams(aData, msgString, msgStream, isBinary, msgLen, aCx);
+  nsresult rv = GetSendParams(aData, msgString, msgStream, isBinary, msgLen);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Always increment outgoing buffer len, even if closed
@@ -1345,8 +1346,7 @@ nsWebSocket::Send(nsIVariant *aData, JSContext *aCx)
 nsresult
 nsWebSocket::GetSendParams(nsIVariant *aData, nsCString &aStringOut,
                            nsCOMPtr<nsIInputStream> &aStreamOut,
-                           bool &aIsBinary, PRUint32 &aOutgoingLength,
-                           JSContext *aCx)
+                           bool &aIsBinary, PRUint32 &aOutgoingLength)
 {
   // Get type of data (arraybuffer, blob, or string)
   PRUint16 dataType;
@@ -1368,9 +1368,9 @@ nsWebSocket::GetSendParams(nsIVariant *aData, nsCString &aStringOut,
     nsresult rv = aData->GetAsJSVal(&realVal);
     if (NS_SUCCEEDED(rv) && !JSVAL_IS_PRIMITIVE(realVal) &&
         (obj = JSVAL_TO_OBJECT(realVal)) &&
-        (JS_IsArrayBufferObject(obj, aCx))) {
-      PRInt32 len = JS_GetArrayBufferByteLength(obj, aCx);
-      char* data = reinterpret_cast<char*>(JS_GetArrayBufferData(obj, aCx));
+        (js_IsArrayBuffer(obj))) {
+      PRInt32 len = JS_GetArrayBufferByteLength(obj);
+      char* data = (char*)JS_GetArrayBufferData(obj);
 
       aStringOut.Assign(data, len);
       aIsBinary = true;

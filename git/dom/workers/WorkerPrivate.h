@@ -55,7 +55,6 @@
 #include "nsStringGlue.h"
 #include "nsTArray.h"
 #include "nsTPriorityQueue.h"
-#include "StructuredCloneTags.h"
 
 #include "EventTarget.h"
 #include "Queue.h"
@@ -69,7 +68,6 @@ class nsIScriptContext;
 class nsIURI;
 class nsPIDOMWindow;
 class nsITimer;
-class nsIXPCScriptNotify;
 
 BEGIN_WORKERS_NAMESPACE
 
@@ -133,8 +131,6 @@ protected:
 
   virtual void
   PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate, bool aRunResult);
-
-  void NotifyScriptExecutedIfNeeded() const;
 
 private:
   NS_DECL_NSIRUNNABLE
@@ -210,7 +206,6 @@ private:
   // Main-thread things.
   nsCOMPtr<nsPIDOMWindow> mWindow;
   nsCOMPtr<nsIScriptContext> mScriptContext;
-  nsCOMPtr<nsIXPCScriptNotify> mScriptNotify;
   nsCOMPtr<nsIURI> mBaseURI;
   nsCOMPtr<nsIURI> mScriptURI;
   nsCOMPtr<nsIPrincipal> mPrincipal;
@@ -249,15 +244,13 @@ private:
     return static_cast<Derived*>(const_cast<WorkerPrivateParent*>(this));
   }
 
-  // aCx is null when called from the finalizer
   bool
-  NotifyPrivate(JSContext* aCx, Status aStatus);
+  NotifyPrivate(JSContext* aCx, Status aStatus, bool aFromJSFinalizer);
 
-  // aCx is null when called from the finalizer
   bool
-  TerminatePrivate(JSContext* aCx)
+  TerminatePrivate(JSContext* aCx, bool aFromJSFinalizer)
   {
-    return NotifyPrivate(aCx, Terminating);
+    return NotifyPrivate(aCx, Terminating, aFromJSFinalizer);
   }
 
 public:
@@ -269,7 +262,7 @@ public:
   bool
   Notify(JSContext* aCx, Status aStatus)
   {
-    return NotifyPrivate(aCx, aStatus);
+    return NotifyPrivate(aCx, aStatus, false);
   }
 
   bool
@@ -294,7 +287,7 @@ public:
   _Trace(JSTracer* aTrc) MOZ_OVERRIDE;
 
   virtual void
-  _Finalize(JSFreeOp* aFop) MOZ_OVERRIDE;
+  _Finalize(JSContext* aCx) MOZ_OVERRIDE;
 
   void
   Finish(JSContext* aCx)
@@ -307,7 +300,7 @@ public:
   {
     AssertIsOnParentThread();
     RootJSObject(aCx, false);
-    return TerminatePrivate(aCx);
+    return TerminatePrivate(aCx, false);
   }
 
   bool
@@ -388,13 +381,6 @@ public:
   {
     AssertIsOnMainThread();
     return mScriptContext;
-  }
-
-  nsIXPCScriptNotify*
-  GetScriptNotify() const
-  {
-    AssertIsOnMainThread();
-    return mScriptNotify;
   }
 
   JSObject*
@@ -824,7 +810,7 @@ GetWorkerPrivateFromContext(JSContext* aCx);
 
 enum WorkerStructuredDataType
 {
-  DOMWORKER_SCTAG_FILE = SCTAG_DOM_MAX,
+  DOMWORKER_SCTAG_FILE = JS_SCTAG_USER_MIN + 0x1000,
   DOMWORKER_SCTAG_BLOB,
 
   DOMWORKER_SCTAG_END

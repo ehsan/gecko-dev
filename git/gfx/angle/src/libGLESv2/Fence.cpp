@@ -13,9 +13,8 @@
 namespace gl
 {
 
-Fence::Fence(egl::Display* display)
-{
-    mDisplay = display;
+Fence::Fence()
+{ 
     mQuery = NULL;
     mCondition = GL_NONE;
     mStatus = GL_FALSE;
@@ -25,7 +24,7 @@ Fence::~Fence()
 {
     if (mQuery != NULL)
     {
-        mDisplay->freeEventQuery(mQuery);
+        getDisplay()->freeEventQuery(mQuery);
     }
 }
 
@@ -40,7 +39,7 @@ void Fence::setFence(GLenum condition)
 {
     if (!mQuery)
     {
-        mQuery = mDisplay->allocateEventQuery();
+        mQuery = getDisplay()->allocateEventQuery();
         if (!mQuery)
         {
             return error(GL_OUT_OF_MEMORY);

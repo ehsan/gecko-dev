@@ -56,8 +56,9 @@
 #include "nsIPercentHeightObserver.h"
 #include "nsLayoutUtils.h"
 #include "mozilla/Preferences.h"
+#ifdef IBMBIDI
 #include "nsBidiUtils.h"
-#include "nsFontInflationData.h"
+#endif
 
 #ifdef NS_DEBUG
 #undef NOISY_VERTICAL_ALIGN
@@ -303,36 +304,7 @@ nsHTMLReflowState::Init(nsPresContext* aPresContext,
              (frame->GetContent() &&
             !(frame->GetContent()->IsHTML(nsGkAtoms::body) ||
               frame->GetContent()->IsHTML(nsGkAtoms::html)))) {
-
-    // If our height was specified as a percentage, then this could
-    // actually resolve to 'auto', based on:
-    // http://www.w3.org/TR/CSS21/visudet.html#the-height-property
-    nsIFrame* containingBlk = frame;
-    while (containingBlk) {
-      const nsStylePosition* stylePos = containingBlk->GetStylePosition();
-      if ((stylePos->mHeight.IsCoordPercentCalcUnit() &&
-           !stylePos->mHeight.HasPercent()) ||
-          (stylePos->mMaxHeight.IsCoordPercentCalcUnit() &&
-           !stylePos->mMaxHeight.HasPercent())) {
-        frame->AddStateBits(NS_FRAME_IN_CONSTRAINED_HEIGHT);
-        break;
-      } else if ((stylePos->mHeight.IsCoordPercentCalcUnit() &&
-                  stylePos->mHeight.HasPercent()) ||
-                 (stylePos->mMaxHeight.IsCoordPercentCalcUnit() &&
-                  stylePos->mMaxHeight.HasPercent())) {
-        if (!(containingBlk = containingBlk->GetContainingBlock())) {
-          // If we've reached the top of the tree, then we don't have
-          // a constrained height.
-          frame->RemoveStateBits(NS_FRAME_IN_CONSTRAINED_HEIGHT);
-          break;
-        }
-
-        continue;
-      } else {
-        frame->RemoveStateBits(NS_FRAME_IN_CONSTRAINED_HEIGHT);
-        break;
-      }
-    }
+    frame->AddStateBits(NS_FRAME_IN_CONSTRAINED_HEIGHT);
   } else {
     frame->RemoveStateBits(NS_FRAME_IN_CONSTRAINED_HEIGHT);
   }
@@ -344,12 +316,6 @@ nsHTMLReflowState::Init(nsPresContext* aPresContext,
                    "have unconstrained width; this should only result from "
                    "very large sizes, not attempts at intrinsic width "
                    "calculation");
-
-  if (frame->GetStateBits() & NS_FRAME_FONT_INFLATION_FLOW_ROOT) {
-    // Create our font inflation data if we don't have it already, and
-    // give it our current width information.
-    nsFontInflationData::UpdateFontInflationDataWidthFor(*this);
-  }
 }
 
 void nsHTMLReflowState::InitCBReflowState()
@@ -1907,16 +1873,13 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
     } else {
       AutoMaybeNullInflationContainer an(frame);
 
-      bool isBlock = NS_CSS_FRAME_TYPE_BLOCK == NS_FRAME_GET_TYPE(mFrameType);
-      PRUint32 computeSizeFlags = isBlock ? 0 : nsIFrame::eShrinkWrap;
+      bool isBlock =
+        NS_CSS_FRAME_TYPE_BLOCK == NS_FRAME_GET_TYPE(mFrameType);
+      // make sure legend frames with display:block and width:auto still
+      // shrink-wrap
 
-      // Make sure legend frames with display:block and width:auto still
-      // shrink-wrap.
-      if (isBlock &&
-          ((aFrameType == nsGkAtoms::legendFrame &&
-            frame->GetStyleContext()->GetPseudo() != nsCSSAnonBoxes::scrolledContent) ||
-           (aFrameType == nsGkAtoms::scrollFrame &&
-            frame->GetContentInsertionFrame()->GetType() == nsGkAtoms::legendFrame))) {
+      PRUint32 computeSizeFlags = 0;
+      if (!isBlock || aFrameType == nsGkAtoms::legendFrame) {
         computeSizeFlags |= nsIFrame::eShrinkWrap;
       }
 

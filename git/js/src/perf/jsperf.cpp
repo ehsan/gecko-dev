@@ -184,7 +184,7 @@ static const struct pm_const {
 #undef CONSTANT
 
 static JSBool pm_construct(JSContext* cx, unsigned argc, jsval* vp);
-static void pm_finalize(JSFreeOp* fop, JSObject* obj);
+static void pm_finalize(JSContext* cx, JSObject* obj);
 
 static JSClass pm_class = {
     "PerfMeasurement", JSCLASS_HAS_PRIVATE,
@@ -201,7 +201,7 @@ pm_construct(JSContext* cx, unsigned argc, jsval* vp)
     if (!JS_ConvertArguments(cx, argc, JS_ARGV(cx, vp), "u", &mask))
         return JS_FALSE;
 
-    js::RootedVarObject obj(cx, JS_NewObjectForConstructor(cx, &pm_class, vp));
+    JSObject *obj = JS_NewObjectForConstructor(cx, &pm_class, vp);
     if (!obj)
         return JS_FALSE;
 
@@ -220,9 +220,9 @@ pm_construct(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static void
-pm_finalize(JSFreeOp* fop, JSObject* obj)
+pm_finalize(JSContext* cx, JSObject* obj)
 {
-    js::FreeOp::get(fop)->delete_(static_cast<PerfMeasurement*>(JS_GetPrivate(obj)));
+    cx->delete_((PerfMeasurement*) JS_GetPrivate(obj));
 }
 
 // Helpers (declared above)

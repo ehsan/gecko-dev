@@ -57,40 +57,36 @@ public abstract class TileLayer extends Layer {
     private static final String LOGTAG = "GeckoTileLayer";
 
     private final Rect mDirtyRect;
+    private final CairoImage mImage;
+    private final boolean mRepeat;
     private IntSize mSize;
     private int[] mTextureIDs;
 
-    protected final CairoImage mImage;
-
-    public enum PaintMode { NORMAL, REPEAT, STRETCH };
-    private PaintMode mPaintMode;
-
-    public TileLayer(CairoImage image, PaintMode paintMode) {
+    public TileLayer(boolean repeat, CairoImage image) {
         super(image.getSize());
 
-        mPaintMode = paintMode;
+        mRepeat = repeat;
         mImage = image;
         mSize = new IntSize(0, 0);
         mDirtyRect = new Rect();
     }
 
-    protected boolean repeats() { return mPaintMode == PaintMode.REPEAT; }
-    protected boolean stretches() { return mPaintMode == PaintMode.STRETCH; }
+    protected boolean repeats() { return mRepeat; }
     protected int getTextureID() { return mTextureIDs[0]; }
     protected boolean initialized() { return mImage != null && mTextureIDs != null; }
 
     @Override
     protected void finalize() throws Throwable {
-        try {
-            if (mTextureIDs != null)
-                TextureReaper.get().add(mTextureIDs);
-        } finally {
-            super.finalize();
-        }
+        if (mTextureIDs != null)
+            TextureReaper.get().add(mTextureIDs);
     }
 
-    public void setPaintMode(PaintMode mode) {
-        mPaintMode = mode;
+    @Override
+    public void setPosition(Rect newPosition) {
+        if (newPosition.width() != mImage.getSize().width || newPosition.height() != mImage.getSize().height) {
+            throw new RuntimeException("Error: changing the size of a tile layer is not allowed!");
+        }
+        super.setPosition(newPosition);
     }
 
     /**
@@ -113,7 +109,10 @@ public abstract class TileLayer extends Layer {
          *
          * XXX Currently, we don't pick a GLES 2.0 context, so always round.
          */
-        IntSize textureSize = mImage.getSize().nextPowerOfTwo();
+        IntSize bufferSize = mImage.getSize();
+        IntSize textureSize = bufferSize;
+
+        textureSize = bufferSize.nextPowerOfTwo();
 
         if (!textureSize.equals(mSize)) {
             mSize = textureSize;
@@ -131,7 +130,7 @@ public abstract class TileLayer extends Layer {
     }
 
     @Override
-    protected void performUpdates(RenderContext context) {
+    protected boolean performUpdates(RenderContext context) {
         super.performUpdates(context);
 
         // Reallocate the texture if the size has changed
@@ -139,7 +138,7 @@ public abstract class TileLayer extends Layer {
 
         // Don't do any work if the image has an invalid size.
         if (!mImage.getSize().isPositive())
-            return;
+            return true;
 
         // If we haven't allocated a texture, assume the whole region is dirty
         if (mTextureIDs == null) {
@@ -149,6 +148,8 @@ public abstract class TileLayer extends Layer {
         }
 
         mDirtyRect.setEmpty();
+
+        return true;
     }
 
     private void uploadFullTexture() {
@@ -176,17 +177,8 @@ public abstract class TileLayer extends Layer {
 
         bindAndSetGLParameters();
 
-        // XXX TexSubImage2D is too broken to rely on on Adreno, and very slow
-        //     on other chipsets, so we always upload the entire buffer.
-        IntSize bufferSize = mImage.getSize();
-        if (mSize.equals(bufferSize)) {
-            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, glInfo.internalFormat, mSize.width,
-                                mSize.height, 0, glInfo.format, glInfo.type, imageBuffer);
-        } else {
-            // Our texture has been expanded to the next power of two.
-            // XXX We probably never want to take this path, so throw an exception.
-            throw new RuntimeException("Buffer/image size mismatch in TileLayer!");
-        }
+        GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, glInfo.internalFormat, mSize.width,
+                            mSize.height, 0, glInfo.format, glInfo.type, imageBuffer);
     }
 
     private void bindAndSetGLParameters() {
@@ -196,7 +188,7 @@ public abstract class TileLayer extends Layer {
         GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER,
                                GLES20.GL_LINEAR);
 
-        int repeatMode = repeats() ? GLES20.GL_REPEAT : GLES20.GL_CLAMP_TO_EDGE;
+        int repeatMode = mRepeat ? GLES20.GL_REPEAT : GLES20.GL_CLAMP_TO_EDGE;
         GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, repeatMode);
         GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, repeatMode);
     }

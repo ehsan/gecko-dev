@@ -70,7 +70,7 @@ import org.json.*;
 import com.jayway.android.robotium.solo.Solo;
 
 public class FennecNativeDriver implements Driver {
-    private static final int FRAME_TIME_THRESHOLD = 25;     // allow 25ms per frame (40fps)
+    private static final int FRAME_TIME_THRESHOLD = 17;     // allow 17ms per frame (~60fps)
 
     // Map of IDs to element names.
     private HashMap mLocators = null;
@@ -78,7 +78,7 @@ public class FennecNativeDriver implements Driver {
     private Solo mSolo;
 
     private static String mLogFile = null;
-    private static LogLevel mLogLevel = LogLevel.INFO;
+    private static LogLevel mLogLevel = LogLevel.LOG_LEVEL_INFO;
 
     // Objects for reflexive access of fennec classes.
     private ClassLoader mClassLoader;
@@ -95,10 +95,10 @@ public class FennecNativeDriver implements Driver {
     private Method _getPixels;
 
     public enum LogLevel {
-        DEBUG(1),
-        INFO(2),
-        WARN(3),
-        ERROR(4);
+        LOG_LEVEL_DEBUG(1), 
+        LOG_LEVEL_INFO(2),    
+        LOG_LEVEL_WARN(3), 
+        LOG_LEVEL_ERROR(4);
 
         private int mValue;
         LogLevel(int value) {
@@ -142,15 +142,15 @@ public class FennecNativeDriver implements Driver {
 
             Class layerView = mClassLoader.loadClass("org.mozilla.gecko.gfx.LayerView");
             _getPixels = layerView.getDeclaredMethod("getPixels");
-        } catch (ClassNotFoundException e) {
-            log(LogLevel.ERROR, e);
-        } catch (SecurityException e) {
-            log(LogLevel.ERROR, e);
-        } catch (NoSuchMethodException e) {
-            log(LogLevel.ERROR, e);
-        } catch (IllegalArgumentException e) {
-            log(LogLevel.ERROR, e);
-        }
+         } catch (ClassNotFoundException e) {
+             e.printStackTrace();
+         } catch (SecurityException e) {
+             e.printStackTrace();
+         } catch (NoSuchMethodException e) {
+             e.printStackTrace();
+         } catch (IllegalArgumentException e) {
+             e.printStackTrace();
+         }
     }
 
     //Information on the location of the Gecko Frame.
@@ -218,9 +218,9 @@ public class FennecNativeDriver implements Driver {
             Object [] params = null;
             _startFrameRecording.invoke(null, params);
         } catch (IllegalAccessException e) {
-            log(LogLevel.ERROR, e);
+            e.printStackTrace();
         } catch (InvocationTargetException e) {
-            log(LogLevel.ERROR, e);
+            e.printStackTrace();
         }
     }
 
@@ -231,27 +231,20 @@ public class FennecNativeDriver implements Driver {
         try {
             Object [] params = null;
             List<Long> frames = (List<Long>)_stopFrameRecording.invoke(null, params);
-            int badness = 0;
+            int numDelays = 0;
             for (int i = 1; i < frames.size(); i++) {
-                long frameTime = frames.get(i) - frames.get(i - 1);
-                int delay = (int)(frameTime - FRAME_TIME_THRESHOLD);
-                // for each frame we miss, add the square of the delay. This
-                // makes large delays much worse than small delays.
-                if (delay > 0) {
-                    badness += delay * delay;
+                if (frames.get(i) - frames.get(i-1) > FRAME_TIME_THRESHOLD) {
+                    numDelays++;
                 }
             }
-            // Don't do any averaging of the numbers because really we want to
-            // know how bad the jank was at its worst
-            return badness;
+            return numDelays;
         } catch (IllegalAccessException e) {
-            log(LogLevel.ERROR, e);
+            e.printStackTrace();
         } catch (InvocationTargetException e) {
-            log(LogLevel.ERROR, e);
+            e.printStackTrace();
         }
 
-        // higher values are worse, and the test failing is the worst!
-        return Integer.MAX_VALUE;
+        return 0;
     }
 
     public void startCheckerboardRecording() {
@@ -259,9 +252,9 @@ public class FennecNativeDriver implements Driver {
             Object [] params = null;
             _startCheckerboardRecording.invoke(null, params);
         } catch (IllegalAccessException e) {
-            log(LogLevel.ERROR, e);
+            e.printStackTrace();
         } catch (InvocationTargetException e) {
-            log(LogLevel.ERROR, e);
+            e.printStackTrace();
         }
     }
 
@@ -272,15 +265,15 @@ public class FennecNativeDriver implements Driver {
         try {
             Object [] params = null;
             List<Float> checkerboard = (List<Float>)_stopCheckerboardRecording.invoke(null, params);
-            float total = 0;
+            float completeness = 0;
             for (float val : checkerboard) {
-                total += val;
+                completeness += (1.0f - val);
             }
-            return total * 100.0f;
+            return completeness / (float)checkerboard.size();
         } catch (IllegalAccessException e) {
-            log(LogLevel.ERROR, e);
+            e.printStackTrace();
         } catch (InvocationTargetException e) {
-            log(LogLevel.ERROR, e);
+            e.printStackTrace();
         }
 
         return 0.0f;
@@ -295,7 +288,7 @@ public class FennecNativeDriver implements Driver {
                 }
             }
         } catch (ClassNotFoundException e) {
-            log(LogLevel.ERROR, e);
+            e.printStackTrace();
         }
         return null;
     }
@@ -309,7 +302,7 @@ public class FennecNativeDriver implements Driver {
         try {
             pixelBuffer = (IntBuffer)_getPixels.invoke(view);
         } catch (Exception e) {
-            log(LogLevel.ERROR, e);
+            e.printStackTrace();
             return null;
         }
 
@@ -348,7 +341,7 @@ public class FennecNativeDriver implements Driver {
                     fos.close();
                 }
             } catch (IOException e) {
-                log(LogLevel.ERROR, e);
+                e.printStackTrace();
                 throw new RoboCopException("exception closing pixel writer on file: " + mapFile);
             }
         }
@@ -373,7 +366,7 @@ public class FennecNativeDriver implements Driver {
                 }
 
             } catch( Throwable e) {
-                FennecNativeDriver.log(FennecNativeDriver.LogLevel.WARN, 
+                FennecNativeDriver.log(FennecNativeDriver.LogLevel.LOG_LEVEL_WARN, 
                     "WARNING: ScrollReceived, but read wrong!");
             }
             return null;
@@ -400,9 +393,9 @@ public class FennecNativeDriver implements Driver {
             finalParams[1] = Proxy.newProxyInstance(mClassLoader, interfaces, new scrollHandler());
             mRegisterGEL.invoke(null, finalParams);
         } catch (IllegalAccessException e) {
-            log(LogLevel.ERROR, e);
+            e.printStackTrace();
         } catch (InvocationTargetException e) {
-            log(LogLevel.ERROR, e);
+            e.printStackTrace();
         }
 
     }
@@ -423,8 +416,8 @@ public class FennecNativeDriver implements Driver {
                 text.append(line);
                 text.append('\n');
             }
-        } catch (IOException e) {
-            log(LogLevel.ERROR, e);
+        } catch(IOException e) {
+            e.printStackTrace();
         } finally {
             try {
                 br.close();
@@ -500,13 +493,13 @@ public class FennecNativeDriver implements Driver {
             }
         }
 
-        if (level == LogLevel.INFO) {
+        if (level == LogLevel.LOG_LEVEL_INFO) {
             Log.i("Robocop", message, t);
-        } else if (level == LogLevel.DEBUG) {
+        } else if (level == LogLevel.LOG_LEVEL_DEBUG) {
             Log.d("Robocop", message, t);
-        } else if (level == LogLevel.WARN) {
+        } else if (level == LogLevel.LOG_LEVEL_WARN) {
             Log.w("Robocop", message, t);
-        } else if (level == LogLevel.ERROR) {
+        } else if (level == LogLevel.LOG_LEVEL_ERROR) {
             Log.e("Robocop", message, t);
         }
     }

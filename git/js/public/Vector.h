@@ -213,8 +213,6 @@ struct VectorImpl<T, N, AP, true>
 template <class T, size_t N, class AllocPolicy>
 class Vector : private AllocPolicy
 {
-    typedef typename tl::StaticAssert<!tl::IsPostBarrieredType<T>::result>::result _;
-
     /* utilities */
 
     static const bool sElemIsPod = tl::IsPodType<T>::result;
@@ -507,7 +505,7 @@ class Vector : private AllocPolicy
      */
     size_t sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf) const;
 
-    /*
+    /* 
      * Like sizeOfExcludingThis, but also measures the size of the Vector
      * object (which must be heap-allocated) itself.
      */

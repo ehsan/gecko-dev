@@ -163,7 +163,7 @@ XPCWrappedNativeProto::CallPostCreatePrototype(XPCCallContext& ccx)
 }
 
 void
-XPCWrappedNativeProto::JSProtoObjectFinalized(js::FreeOp *fop, JSObject *obj)
+XPCWrappedNativeProto::JSProtoObjectFinalized(JSContext *cx, JSObject *obj)
 {
     NS_ASSERTION(obj == mJSProtoObject, "huh?");
 
@@ -178,7 +178,7 @@ XPCWrappedNativeProto::JSProtoObjectFinalized(js::FreeOp *fop, JSObject *obj)
     GetRuntime()->GetDetachedWrappedNativeProtoMap()->Remove(this);
     GetRuntime()->GetDyingWrappedNativeProtoMap()->Add(this);
 
-    mJSProtoObject.finalize(js::CastToJSFreeOp(fop)->runtime());
+    mJSProtoObject.finalize(cx);
 }
 
 void

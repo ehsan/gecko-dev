@@ -8,6 +8,7 @@ var testGenerator = testSteps();
 function testSteps()
 {
   const IDBObjectStore = Components.interfaces.nsIIDBObjectStore;
+  const IDBDatabaseException = Components.interfaces.nsIIDBDatabaseException;
   const name = this.window ? window.location.pathname : "Splendid Test";
   const description = "My Test Database";
 

@@ -78,8 +78,7 @@ RenderColorLayerD3D9(ColorLayer* aLayer, LayerManagerD3D9 *aManager)
 
   aManager->device()->SetPixelShaderConstantF(0, color, 1);
 
-  aManager->SetShaderMode(DeviceManagerD3D9::SOLIDCOLORLAYER,
-                          aLayer->GetMaskLayer());
+  aManager->SetShaderMode(DeviceManagerD3D9::SOLIDCOLORLAYER);
 
   aManager->device()->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
 }

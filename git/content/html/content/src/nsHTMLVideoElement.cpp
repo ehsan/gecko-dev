@@ -112,15 +112,9 @@ nsHTMLVideoElement::~nsHTMLVideoElement()
 {
 }
 
-nsresult nsHTMLVideoElement::GetVideoSize(nsIntSize* size)
+nsIntSize nsHTMLVideoElement::GetVideoSize(nsIntSize aDefaultSize)
 {
-  if (mMediaSize.width == -1 && mMediaSize.height == -1) {
-    return NS_ERROR_FAILURE;
-  }
-
-  size->height = mMediaSize.height;
-  size->width = mMediaSize.width;
-  return NS_OK;
+  return mMediaSize.width == -1 && mMediaSize.height == -1 ? aDefaultSize : mMediaSize;
 }
 
 bool
@@ -223,13 +217,5 @@ NS_IMETHODIMP nsHTMLVideoElement::GetMozFrameDelay(double *aMozFrameDelay) {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   VideoFrameContainer* container = GetVideoFrameContainer();
   *aMozFrameDelay = container ?  container->GetFrameDelay() : 0;
-  return NS_OK;
-}
-
-
-/* readonly attribute bool mozHasAudio */
-NS_IMETHODIMP nsHTMLVideoElement::GetMozHasAudio(bool *aHasAudio) {
-  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-  *aHasAudio = mHasAudio;
   return NS_OK;
 }

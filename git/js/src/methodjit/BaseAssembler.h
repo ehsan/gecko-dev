@@ -567,17 +567,6 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
         }
     }
 
-    void storeArg(uint32_t i, Imm32 imm) {
-        JS_ASSERT(callIsAligned);
-        RegisterID to;
-        if (Registers::regForArg(callConvention, i, &to)) {
-            move(imm, to);
-            availInCall.takeRegUnchecked(to);
-        } else {
-            store32(imm, addressOfArg(i));
-        }
-    }
-
     // High-level call helper, given an optional function pointer and a
     // calling convention. setupABICall() must have been called beforehand,
     // as well as each numbered argument stored with storeArg().
@@ -1146,7 +1135,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
         done.linkTo(label(), this);
     }
 
-    // Inline version of js::ClampDoubleToUint8.
+    // Inline version of js_TypedArray_uint8_clamp_double.
     void clampDoubleToUint8(FPRegisterID fpReg, FPRegisterID fpTemp, RegisterID reg)
     {
         JS_ASSERT(fpTemp != Registers::FPConversionTemp);
@@ -1175,7 +1164,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
         Jump done3 = branchDouble(Assembler::DoubleNotEqual, fpTemp, Registers::FPConversionTemp);
 
         // It was a tie. Mask out the ones bit to get an even value.
-        // See js::ClampDoubleToUint8 for the reasoning behind this.
+        // See js_TypedArray_uint8_clamp_double for the reasoning behind this.
         and32(Imm32(~1), reg);
 
         done1.linkTo(label(), this);
@@ -1287,8 +1276,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
     /*
      * Get a free object for the specified GC kind in compartment, writing it
      * to result and filling it in according to templateObject. Returns a jump
-     * taken if a free thing was not retrieved. Note: don't call this directly,
-     * use Compiler::getNewObject instead.
+     * taken if a free thing was not retrieved.
      */
     Jump getNewObject(JSContext *cx, RegisterID result, JSObject *templateObject)
     {
@@ -1396,7 +1384,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
     /* Bump the stub call count for script/pc if they are being counted. */
     void bumpStubCount(JSScript *script, jsbytecode *pc, RegisterID scratch)
     {
-        if (script->hasScriptCounts) {
+        if (script->scriptCounts) {
             PCCounts counts = script->getPCCounts(pc);
             double *count = &counts.get(PCCounts::BASE_METHODJIT_STUBS);
             bumpCount(count, scratch);

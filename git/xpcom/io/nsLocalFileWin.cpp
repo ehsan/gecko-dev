@@ -253,21 +253,9 @@ private:
         seinfo.lpParameters =  NULL;
         seinfo.lpDirectory  = NULL;
         seinfo.nShow  = SW_SHOWNORMAL;
-
-        // Use the directory of the file we're launching as the working
-        // directory.  That way if we have a self extracting EXE it won't
-        // suggest to extract to the install directory.
-        WCHAR workingDirectory[MAX_PATH + 1] = { L'\0' };
-        wcsncpy(workingDirectory,  mResolvedPath.get(), MAX_PATH);
-        if (PathRemoveFileSpecW(workingDirectory)) {
-            seinfo.lpDirectory = workingDirectory;
-        } else {
-            NS_WARNING("Could not set working directory for launched file.");
-        }
         
-        if (ShellExecuteExW(&seinfo)) {
+        if (ShellExecuteExW(&seinfo))
             return NS_OK;
-        }
         DWORD r = GetLastError();
         // if the file has no association, we launch windows' 
         // "what do you want to do" dialog
@@ -350,14 +338,6 @@ public:
 
     nsresult Init();
     nsresult Resolve(const WCHAR* in, WCHAR* out);
-    nsresult SetShortcut(bool updateExisting,
-                         const WCHAR* shortcutPath,
-                         const WCHAR* targetPath,
-                         const WCHAR* workingDir,
-                         const WCHAR* args,
-                         const WCHAR* description,
-                         const WCHAR* iconFile,
-                         PRInt32 iconIndex);
 
 private:
     Mutex                  mLock;
@@ -406,76 +386,6 @@ ShortcutResolver::Resolve(const WCHAR* in, WCHAR* out)
         FAILED(mShellLink->Resolve(nsnull, SLR_NO_UI)) ||
         FAILED(mShellLink->GetPath(out, MAX_PATH, NULL, SLGP_UNCPRIORITY)))
         return NS_ERROR_FAILURE;
-    return NS_OK;
-}
-
-nsresult
-ShortcutResolver::SetShortcut(bool updateExisting,
-                              const WCHAR* shortcutPath,
-                              const WCHAR* targetPath,
-                              const WCHAR* workingDir,
-                              const WCHAR* args,
-                              const WCHAR* description,
-                              const WCHAR* iconPath,
-                              PRInt32 iconIndex)
-{
-    if (!mShellLink) {
-      return NS_ERROR_FAILURE;
-    }
-
-    if (!shortcutPath) {
-      return NS_ERROR_FAILURE;
-    }
-
-    MutexAutoLock lock(mLock);
-
-    if (updateExisting) {
-      if (FAILED(mPersistFile->Load(shortcutPath, STGM_READWRITE))) {
-        return NS_ERROR_FAILURE;
-      }
-    } else {
-      if (!targetPath) {
-        return NS_ERROR_FILE_TARGET_DOES_NOT_EXIST;
-      }
-
-      // Since we reuse our IPersistFile, we have to clear out any values that
-      // may be left over from previous calls to SetShortcut.
-      if (FAILED(mShellLink->SetWorkingDirectory(L""))
-       || FAILED(mShellLink->SetArguments(L""))
-       || FAILED(mShellLink->SetDescription(L""))
-       || FAILED(mShellLink->SetIconLocation(L"", 0))) {
-        return NS_ERROR_FAILURE;
-      }
-    }
-
-    if (targetPath && FAILED(mShellLink->SetPath(targetPath))) {
-      return NS_ERROR_FAILURE;
-    }
-
-    if (workingDir && FAILED(mShellLink->SetWorkingDirectory(workingDir))) {
-      return NS_ERROR_FAILURE;
-    }
-
-    if (args && FAILED(mShellLink->SetArguments(args))) {
-      return NS_ERROR_FAILURE;
-    }
-
-    if (description && FAILED(mShellLink->SetDescription(description))) {
-      return NS_ERROR_FAILURE;
-    }
-
-    if (iconPath && FAILED(mShellLink->SetIconLocation(iconPath, iconIndex))) {
-      return NS_ERROR_FAILURE;
-    }
-
-    if (FAILED(mPersistFile->Save(shortcutPath,
-                                  TRUE))) {
-      // Second argument indicates whether the file path specified in the
-      // first argument should become the "current working file" for this
-      // IPersistFile
-      return NS_ERROR_FAILURE;
-    }
-
     return NS_OK;
 }
 
@@ -1178,7 +1088,7 @@ nsLocalFile::Clone(nsIFile **file)
 }
 
 NS_IMETHODIMP
-nsLocalFile::InitWithFile(nsIFile *aFile)
+nsLocalFile::InitWithFile(nsILocalFile *aFile)
 {
     NS_ENSURE_ARG(aFile);
     
@@ -1709,66 +1619,6 @@ nsLocalFile::GetVersionInfoField(const char* aField, nsAString& _retval)
     }
     free(ver);
     
-    return rv;
-}
-
-NS_IMETHODIMP
-nsLocalFile::SetShortcut(nsILocalFile* targetFile,
-                         nsILocalFile* workingDir,
-                         const PRUnichar* args,
-                         const PRUnichar* description,
-                         nsILocalFile* iconFile,
-                         PRInt32 iconIndex)
-{
-    bool exists;
-    nsresult rv = this->Exists(&exists);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-
-    const WCHAR* targetFilePath = NULL;
-    const WCHAR* workingDirPath = NULL;
-    const WCHAR* iconFilePath = NULL;
-
-    nsAutoString targetFilePathAuto;
-    if (targetFile) {
-        rv = targetFile->GetPath(targetFilePathAuto);
-        if (NS_FAILED(rv)) {
-          return rv;
-        }
-        targetFilePath = targetFilePathAuto.get();
-    }
-
-    nsAutoString workingDirPathAuto;
-    if (workingDir) {
-        rv = workingDir->GetPath(workingDirPathAuto);
-        if (NS_FAILED(rv)) {
-          return rv;
-        }
-        workingDirPath = workingDirPathAuto.get();
-    }
-
-    nsAutoString iconPathAuto;
-    if (iconFile) {
-        rv = iconFile->GetPath(iconPathAuto);
-        if (NS_FAILED(rv)) {
-          return rv;
-        }
-        iconFilePath = iconPathAuto.get();
-    }
-
-    rv = gResolver->SetShortcut(exists,
-                                mWorkingPath.get(),
-                                targetFilePath,
-                                workingDirPath,
-                                args,
-                                description,
-                                iconFilePath,
-                                iconFilePath? iconIndex : 0);
-    if (targetFilePath && NS_SUCCEEDED(rv)) {
-      MakeDirty();
-    }
-
     return rv;
 }
 
@@ -2937,22 +2787,19 @@ nsLocalFile::IsSymlink(bool *_retval)
     NS_ENSURE_ARG(_retval);
 
     // unless it is a valid shortcut path it's not a symlink
-    if (!IsShortcutPath(mWorkingPath)) {
+    if (!IsShortcutPath(mWorkingPath))
+    {
         *_retval = false;
         return NS_OK;
     }
 
     // we need to know if this is a file or directory
     nsresult rv = ResolveAndStat();
-    if (NS_FAILED(rv)) {
+    if (NS_FAILED(rv))
         return rv;
-    }
 
-    // We should not check mFileInfo64.type here for PR_FILE_FILE because lnk
-    // files can point to directories or files.  Important security checks
-    // depend on correctly identifying lnk files.  mFileInfo64 now holds info
-    // about the target of the lnk file, not the actual lnk file!
-    *_retval = true;
+    // it's only a shortcut if it is a file
+    *_retval = (mFileInfo64.type == PR_FILE_FILE);
     return NS_OK;
 }
 

@@ -43,9 +43,9 @@
 #include "XPCWrapper.h"
 #include "jsproxy.h"
 
-#include "mozilla/dom/BindingUtils.h"
+#include "mozilla/dom/bindings/Utils.h"
 
-using namespace mozilla;
+using namespace mozilla::dom;
 
 /***************************************************************************/
 
@@ -150,7 +150,7 @@ XPCWrappedNativeScope::XPCWrappedNativeScope(XPCCallContext& ccx,
         mPrototypeNoHelper(nsnull),
         mScriptObjectPrincipal(nsnull),
         mNewDOMBindingsEnabled(ccx.GetRuntime()->NewDOMBindingsEnabled()),
-        mExperimentalBindingsEnabled(ccx.GetRuntime()->ExperimentalBindingsEnabled())
+        mParisBindingsEnabled(ccx.GetRuntime()->ParisBindingsEnabled())
 {
     // add ourselves to the scopes list
     {   // scoped lock
@@ -158,7 +158,7 @@ XPCWrappedNativeScope::XPCWrappedNativeScope(XPCCallContext& ccx,
 
 #ifdef DEBUG
         for (XPCWrappedNativeScope* cur = gScopes; cur; cur = cur->mNext)
-            MOZ_ASSERT(aGlobal != cur->GetGlobalJSObjectPreserveColor(), "dup object");
+            NS_ASSERTION(aGlobal != cur->GetGlobalJSObject(), "dup object");
 #endif
 
         mNext = gScopes;
@@ -190,13 +190,9 @@ XPCWrappedNativeScope::IsDyingScope(XPCWrappedNativeScope *scope)
 void
 XPCWrappedNativeScope::SetComponents(nsXPCComponents* aComponents)
 {
+    NS_IF_ADDREF(aComponents);
+    NS_IF_RELEASE(mComponents);
     mComponents = aComponents;
-}
-
-nsXPCComponents*
-XPCWrappedNativeScope::GetComponents()
-{
-    return mComponents;
 }
 
 // Dummy JS class to let wrappers w/o an xpc prototype share
@@ -258,8 +254,8 @@ XPCWrappedNativeScope::SetGlobal(XPCCallContext& ccx, JSObject* aGlobal,
             // see whether it's what we want.
             priv = static_cast<nsISupports*>(xpc_GetJSPrivate(aGlobal));
         } else if ((jsClass->flags & JSCLASS_IS_DOMJSCLASS) &&
-                   dom::DOMJSClass::FromJSClass(jsClass)->mDOMObjectIsISupports) {
-            priv = dom::UnwrapDOMObject<nsISupports>(aGlobal, jsClass);
+                   bindings::DOMJSClass::FromJSClass(jsClass)->mDOMObjectIsISupports) {
+            priv = bindings::UnwrapDOMObject<nsISupports>(aGlobal, jsClass);
         } else {
             priv = nsnull;
         }
@@ -312,14 +308,9 @@ XPCWrappedNativeScope::~XPCWrappedNativeScope()
     if (mContext)
         mContext->RemoveScope(this);
 
-    // This should not be necessary, since the Components object should die
-    // with the scope but just in case.
-    if (mComponents)
-        mComponents->mScope = nsnull;
-
     // XXX we should assert that we are dead or that xpconnect has shutdown
     // XXX might not want to do this at xpconnect shutdown time???
-    mComponents = nsnull;
+    NS_IF_RELEASE(mComponents);
 
     JSRuntime *rt = mRuntime->GetJSRuntime();
     mGlobalJSObject.finalize(rt);
@@ -405,7 +396,7 @@ XPCWrappedNativeScope::SuspectAllWrappers(XPCJSRuntime* rt,
 
 // static
 void
-XPCWrappedNativeScope::StartFinalizationPhaseOfGC(JSFreeOp *fop, XPCJSRuntime* rt)
+XPCWrappedNativeScope::FinishedMarkPhaseOfGC(JSContext* cx, XPCJSRuntime* rt)
 {
     // FIXME The lock may not be necessary since we are inside JSGC_MARK_END
     // callback and GX serializes access to JS runtime. See bug 380139.
@@ -425,7 +416,7 @@ XPCWrappedNativeScope::StartFinalizationPhaseOfGC(JSFreeOp *fop, XPCJSRuntime* r
 
         if (cur->mGlobalJSObject &&
             JS_IsAboutToBeFinalized(cur->mGlobalJSObject)) {
-            cur->mGlobalJSObject.finalize(fop->runtime());
+            cur->mGlobalJSObject.finalize(cx);
             cur->mScriptObjectPrincipal = nsnull;
             if (cur->GetCachedDOMPrototypes().IsInitialized())
                  cur->GetCachedDOMPrototypes().Clear();
@@ -440,7 +431,7 @@ XPCWrappedNativeScope::StartFinalizationPhaseOfGC(JSFreeOp *fop, XPCJSRuntime* r
         } else {
             if (cur->mPrototypeJSObject &&
                 JS_IsAboutToBeFinalized(cur->mPrototypeJSObject)) {
-                cur->mPrototypeJSObject.finalize(fop->runtime());
+                cur->mPrototypeJSObject.finalize(cx);
             }
             if (cur->mPrototypeNoHelper &&
                 JS_IsAboutToBeFinalized(cur->mPrototypeNoHelper)) {
@@ -455,7 +446,7 @@ XPCWrappedNativeScope::StartFinalizationPhaseOfGC(JSFreeOp *fop, XPCJSRuntime* r
 
 // static
 void
-XPCWrappedNativeScope::FinishedFinalizationPhaseOfGC()
+XPCWrappedNativeScope::FinishedFinalizationPhaseOfGC(JSContext* cx)
 {
     XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
 
@@ -773,7 +764,7 @@ XPCWrappedNativeScope::FindInJSObjectScope(JSContext* cx, JSObject* obj,
         DEBUG_TrackScopeTraversal();
 
         for (XPCWrappedNativeScope* cur = gScopes; cur; cur = cur->mNext) {
-            if (obj == cur->GetGlobalJSObjectPreserveColor()) {
+            if (obj == cur->GetGlobalJSObject()) {
                 found = cur;
                 break;
             }
@@ -915,7 +906,7 @@ XPCWrappedNativeScope::DebugDump(PRInt16 depth)
     XPC_LOG_INDENT();
         XPC_LOG_ALWAYS(("mRuntime @ %x", mRuntime));
         XPC_LOG_ALWAYS(("mNext @ %x", mNext));
-        XPC_LOG_ALWAYS(("mComponents @ %x", mComponents.get()));
+        XPC_LOG_ALWAYS(("mComponents @ %x", mComponents));
         XPC_LOG_ALWAYS(("mGlobalJSObject @ %x", mGlobalJSObject.get()));
         XPC_LOG_ALWAYS(("mPrototypeJSObject @ %x", mPrototypeJSObject.get()));
         XPC_LOG_ALWAYS(("mPrototypeNoHelper @ %x", mPrototypeNoHelper));

@@ -54,7 +54,7 @@ GfxDriverInfo::GfxDriverInfo()
     mDeleteDevices(false),
     mFeature(allFeatures),
     mFeatureStatus(nsIGfxInfo::FEATURE_NO_INFO),
-    mComparisonOp(DRIVER_COMPARISON_IGNORED),
+    mComparisonOp(DRIVER_UNKNOWN_COMPARISON),
     mDriverVersion(0),
     mDriverVersionMax(0),
     mSuggestedVersion(nsnull)

@@ -101,9 +101,19 @@ static const op_info_t op_flags[PIXMAN_N_OPERATORS] =
 
 static void
 general_composite_rect  (pixman_implementation_t *imp,
-                         pixman_composite_info_t *info)
+                         pixman_op_t              op,
+                         pixman_image_t *         src,
+                         pixman_image_t *         mask,
+                         pixman_image_t *         dest,
+                         int32_t                  src_x,
+                         int32_t                  src_y,
+                         int32_t                  mask_x,
+                         int32_t                  mask_y,
+                         int32_t                  dest_x,
+                         int32_t                  dest_y,
+                         int32_t                  width,
+                         int32_t                  height)
 {
-    PIXMAN_COMPOSITE_ARGS (info);
     uint64_t stack_scanline_buffer[(SCANLINE_BUFFER_LENGTH * 3 + 7) / 8];
     uint8_t *scanline_buffer = (uint8_t *) stack_scanline_buffer;
     uint8_t *src_buffer, *mask_buffer, *dest_buffer;
@@ -114,9 +124,9 @@ general_composite_rect  (pixman_implementation_t *imp,
     int Bpp;
     int i;
 
-    if ((src_image->common.flags & FAST_PATH_NARROW_FORMAT)		    &&
-	(!mask_image || mask_image->common.flags & FAST_PATH_NARROW_FORMAT) &&
-	(dest_image->common.flags & FAST_PATH_NARROW_FORMAT))
+    if ((src->common.flags & FAST_PATH_NARROW_FORMAT)		&&
+	(!mask || mask->common.flags & FAST_PATH_NARROW_FORMAT)	&&
+	(dest->common.flags & FAST_PATH_NARROW_FORMAT))
     {
 	narrow = ITER_NARROW;
 	Bpp = 4;
@@ -142,7 +152,7 @@ general_composite_rect  (pixman_implementation_t *imp,
     /* src iter */
     src_flags = narrow | op_flags[op].src;
 
-    _pixman_implementation_src_iter_init (imp->toplevel, &src_iter, src_image,
+    _pixman_implementation_src_iter_init (imp->toplevel, &src_iter, src,
 					  src_x, src_y, width, height,
 					  src_buffer, src_flags);
 
@@ -153,26 +163,39 @@ general_composite_rect  (pixman_implementation_t *imp,
 	/* If it doesn't matter what the source is, then it doesn't matter
 	 * what the mask is
 	 */
-	mask_image = NULL;
+	mask = NULL;
     }
 
     component_alpha =
-        mask_image			      &&
-        mask_image->common.type == BITS       &&
-        mask_image->common.component_alpha    &&
-        PIXMAN_FORMAT_RGB (mask_image->bits.format);
+        mask                            &&
+        mask->common.type == BITS       &&
+        mask->common.component_alpha    &&
+        PIXMAN_FORMAT_RGB (mask->bits.format);
 
     _pixman_implementation_src_iter_init (
-	imp->toplevel, &mask_iter, mask_image, mask_x, mask_y, width, height,
+	imp->toplevel, &mask_iter, mask, mask_x, mask_y, width, height,
 	mask_buffer, narrow | (component_alpha? 0 : ITER_IGNORE_RGB));
 
     /* dest iter */
-    _pixman_implementation_dest_iter_init (
-	imp->toplevel, &dest_iter, dest_image, dest_x, dest_y, width, height,
-	dest_buffer, narrow | op_flags[op].dst);
+    _pixman_implementation_dest_iter_init (imp->toplevel, &dest_iter, dest,
+					   dest_x, dest_y, width, height,
+					   dest_buffer,
+					   narrow | op_flags[op].dst);
 
-    compose = _pixman_implementation_lookup_combiner (
-	imp->toplevel, op, component_alpha, narrow);
+    if (narrow)
+    {
+	if (component_alpha)
+	    compose = _pixman_implementation_combine_32_ca;
+	else
+	    compose = _pixman_implementation_combine_32;
+    }
+    else
+    {
+	if (component_alpha)
+	    compose = (pixman_combine_32_func_t)_pixman_implementation_combine_64_ca;
+	else
+	    compose = (pixman_combine_32_func_t)_pixman_implementation_combine_64;
+    }
 
     if (!compose)
 	return;
@@ -210,8 +233,8 @@ general_blt (pixman_implementation_t *imp,
              int                      dst_bpp,
              int                      src_x,
              int                      src_y,
-             int                      dest_x,
-             int                      dest_y,
+             int                      dst_x,
+             int                      dst_y,
              int                      width,
              int                      height)
 {

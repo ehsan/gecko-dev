@@ -40,16 +40,24 @@
 
 // Tests that code completion works properly.
 
+const TEST_URI = "chrome://browser/content/browser.xul";
+
+registerCleanupFunction(function() {
+  Services.prefs.clearUserPref("devtools.gcli.enable");
+});
+
 function test() {
-  addTab(getBrowserURL());
-  browser.addEventListener("DOMContentLoaded", function onLoad() {
-    browser.removeEventListener("DOMContentLoaded", onLoad, true);
-    openConsole();
-    testChrome(HUDService.getHudByWindow(content));
-  }, true);
+  Services.prefs.setBoolPref("devtools.gcli.enable", false);
+  addTab(TEST_URI);
+  browser.addEventListener("DOMContentLoaded", testChrome, false);
 }
 
-function testChrome(hud) {
+function testChrome() {
+  browser.removeEventListener("DOMContentLoaded", testChrome, false);
+
+  openConsole();
+
+  let hud = HUDService.getHudByWindow(content);
   ok(hud, "we have a console");
   
   ok(hud.HUDBox, "we have the console display");
@@ -66,7 +74,6 @@ function testChrome(hud) {
   jsterm.complete(jsterm.COMPLETE_HINT_ONLY);
   is(jsterm.completeNode.value, "    ment", "'docu' completion");
 
-  gBrowser.removeCurrentTab();
-  executeSoon(finishTest);
+  finishTest();
 }
 

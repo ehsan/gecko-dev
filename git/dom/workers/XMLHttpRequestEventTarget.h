@@ -25,17 +25,17 @@ public:
   _Trace(JSTracer* aTrc) MOZ_OVERRIDE;
 
   virtual void
-  _Finalize(JSFreeOp* aFop) MOZ_OVERRIDE;
+  _Finalize(JSContext* aCx) MOZ_OVERRIDE;
 
 #define IMPL_GETTER_AND_SETTER(_type)                                          \
   JSObject*                                                                    \
-  GetOn##_type(ErrorResult& aRv)                                               \
+  GetOn##_type(nsresult& aRv)                                                  \
   {                                                                            \
     return GetEventListener(NS_LITERAL_STRING(#_type), aRv);                   \
   }                                                                            \
                                                                                \
   void                                                                         \
-  SetOn##_type(JSObject* aListener, ErrorResult& aRv)                          \
+  SetOn##_type(JSObject* aListener, nsresult& aRv)                             \
   {                                                                            \
     SetEventListener(NS_LITERAL_STRING(#_type), aListener, aRv);               \
   }

@@ -52,7 +52,6 @@
 #include "nsIPresShell.h"
 #include "nsContainerFrame.h"
 #include "nsBoxFrame.h"
-#include "StackArena.h"
 
 nsBoxLayout* nsSprocketLayout::gInstance = nsnull;
 
@@ -214,8 +213,7 @@ nsSprocketLayout::Layout(nsIBox* aBox, nsBoxLayoutState& aState)
     return NS_OK;
   }
 
-  nsBoxLayoutState::AutoReflowDepth depth(aState);
-  mozilla::AutoStackArena arena;
+  aState.PushStackMemory();
 
   // ----- figure out our size ----------
   const nsSize originalSize = aBox->GetSize();
@@ -672,6 +670,8 @@ nsSprocketLayout::Layout(nsIBox* aBox, nsBoxLayoutState& aState)
   // Now do our redraw.
   if (needsRedraw)
     aBox->Redraw(aState);
+
+  aState.PopStackMemory();
 
   // That's it!  If you made it this far without having a nervous breakdown, 
   // congratulations!  Go get yourself a beer.
@@ -1667,7 +1667,7 @@ nsBoxSize::nsBoxSize()
 void* 
 nsBoxSize::operator new(size_t sz, nsBoxLayoutState& aState) CPP_THROW_NEW
 {
-  return mozilla::AutoStackArena::Allocate(sz);
+   return aState.AllocateStackMemory(sz);
 }
 
 
@@ -1680,7 +1680,7 @@ nsBoxSize::operator delete(void* aPtr, size_t sz)
 void* 
 nsComputedBoxSize::operator new(size_t sz, nsBoxLayoutState& aState) CPP_THROW_NEW
 {
-   return mozilla::AutoStackArena::Allocate(sz);
+   return aState.AllocateStackMemory(sz);
 }
 
 void 

@@ -75,7 +75,7 @@ public class BrowserDB {
 
         public Cursor getRecentHistory(ContentResolver cr, int limit);
 
-        public void removeHistoryEntry(ContentResolver cr, int id);
+        public int getMaxHistoryCount();
 
         public void clearHistory(ContentResolver cr);
 
@@ -91,7 +91,7 @@ public class BrowserDB {
 
         public void removeBookmarksWithURL(ContentResolver cr, String uri);
 
-        public void updateBookmark(ContentResolver cr, int id, String uri, String title, String keyword);
+        public void updateBookmark(ContentResolver cr, String oldUri, String uri, String title, String keyword);
 
         public BitmapDrawable getFaviconForUrl(ContentResolver cr, String uri);
 
@@ -102,8 +102,6 @@ public class BrowserDB {
         public byte[] getThumbnailForUrl(ContentResolver cr, String uri);
 
         public void registerBookmarkObserver(ContentResolver cr, ContentObserver observer);
-
-        public void registerHistoryObserver(ContentResolver cr, ContentObserver observer);
     }
 
     static {
@@ -144,8 +142,8 @@ public class BrowserDB {
         return sDb.getRecentHistory(cr, limit);
     }
 
-    public static void removeHistoryEntry(ContentResolver cr, int id) {
-        sDb.removeHistoryEntry(cr, id);
+    public static int getMaxHistoryCount() {
+        return sDb.getMaxHistoryCount();
     }
 
     public static void clearHistory(ContentResolver cr) {
@@ -176,8 +174,8 @@ public class BrowserDB {
         sDb.removeBookmarksWithURL(cr, uri);
     }
 
-    public static void updateBookmark(ContentResolver cr, int id, String uri, String title, String keyword) {
-        sDb.updateBookmark(cr, id, uri, title, keyword);
+    public static void updateBookmark(ContentResolver cr, String oldUri, String uri, String title, String keyword) {
+        sDb.updateBookmark(cr, oldUri, uri, title, keyword);
     }
 
     public static BitmapDrawable getFaviconForUrl(ContentResolver cr, String uri) {
@@ -200,11 +198,7 @@ public class BrowserDB {
         sDb.registerBookmarkObserver(cr, observer);
     }
 
-    public static void registerHistoryObserver(ContentResolver cr, ContentObserver observer) {
-        sDb.registerHistoryObserver(cr, observer);
-    }
-
-    public static void unregisterContentObserver(ContentResolver cr, ContentObserver observer) {
+    public static void unregisterBookmarkObserver(ContentResolver cr, ContentObserver observer) {
         cr.unregisterContentObserver(observer);
     }
 }

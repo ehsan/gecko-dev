@@ -38,7 +38,6 @@
 
 #include "nsXULColorPickerAccessible.h"
 
-#include "Accessible-inl.h"
 #include "nsAccUtils.h"
 #include "nsAccTreeWalker.h"
 #include "nsCoreUtils.h"
@@ -64,12 +63,16 @@ nsXULColorPickerTileAccessible::
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULColorPickerTileAccessible: nsIAccessible
 
-void
-nsXULColorPickerTileAccessible::Value(nsString& aValue)
+NS_IMETHODIMP
+nsXULColorPickerTileAccessible::GetValue(nsAString& aValue)
 {
   aValue.Truncate();
 
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::color, aValue);
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

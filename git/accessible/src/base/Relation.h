@@ -74,9 +74,9 @@ public:
     mFirstIter(nsnull), mLastIter(nsnull)
     { AppendTarget(aAcc); }
 
-  Relation(nsDocAccessible* aDocument, nsIContent* aContent) :
+  Relation(nsIContent* aContent) :
     mFirstIter(nsnull), mLastIter(nsnull)
-    { AppendTarget(aDocument, aContent); }
+    { AppendTarget(aContent); }
 
   Relation& operator = (const RelationCopyHelper& aRH)
   {
@@ -120,10 +120,10 @@ public:
    * Append the one accessible for this content node to the set of related
    * accessibles.
    */
-  void AppendTarget(nsDocAccessible* aDocument, nsIContent* aContent)
+  inline void AppendTarget(nsIContent* aContent)
   {
     if (aContent)
-      AppendTarget(aDocument->GetAccessible(aContent));
+      AppendTarget(GetAccService()->GetAccessible(aContent, nsnull));
   }
 
   /**

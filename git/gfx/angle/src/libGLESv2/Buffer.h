@@ -48,12 +48,12 @@ class Buffer : public RefCountObject
     DISALLOW_COPY_AND_ASSIGN(Buffer);
 
     GLubyte *mContents;
-    GLsizeiptr mSize;
+    size_t mSize;
     GLenum mUsage;
 
     StaticVertexBuffer *mStaticVertexBuffer;
     StaticIndexBuffer *mStaticIndexBuffer;
-    GLsizeiptr mUnmodifiedDataUse;
+    size_t mUnmodifiedDataUse;
 };
 
 }

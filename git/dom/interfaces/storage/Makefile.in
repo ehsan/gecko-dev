@@ -59,8 +59,10 @@ SDK_XPIDLSRCS =                      \
         nsIDOMStorage.idl        \
         nsIDOMStorageObsolete.idl\
         nsIDOMStorageEvent.idl   \
+        nsIDOMStorageEventObsolete.idl \
         nsIDOMStorageItem.idl    \
         nsIDOMStorageIndexedDB.idl \
+        nsIDOMStorageList.idl    \
        $(NULL)
 
 include $(topsrcdir)/config/rules.mk

@@ -46,7 +46,7 @@
 #include "xpcprivate.h"
 #include "dombindings.h"
 #include "XPCMaps.h"
-#include "mozilla/dom/BindingUtils.h"
+#include "mozilla/dom/bindings/Utils.h"
 #include "jsfriendapi.h"
 
 using namespace js;
@@ -276,7 +276,7 @@ static XrayType
 GetXrayType(JSObject *obj)
 {
     js::Class* clasp = js::GetObjectClass(obj);
-    if (mozilla::dom::IsDOMClass(Jsvalify(clasp))) {
+    if (mozilla::dom::bindings::IsDOMClass(Jsvalify(clasp))) {
         return XrayForDOMObject;
     }
     if (mozilla::dom::binding::instanceIsProxy(obj)) {
@@ -364,11 +364,8 @@ WrapperFactory::Rewrap(JSContext *cx, JSObject *obj, JSObject *wrappedProto, JSO
                 wrapper = &FilteringWrapper<Xray, CrossOriginAccessiblePropertiesOnly>::singleton;
         } else if (mozilla::dom::binding::instanceIsProxy(obj)) {
             wrapper = &FilteringWrapper<XrayProxy, CrossOriginAccessiblePropertiesOnly>::singleton;
-        } else if (mozilla::dom::IsDOMClass(JS_GetClass(obj))) {
+        } else if (mozilla::dom::bindings::IsDOMClass(JS_GetClass(obj))) {
             wrapper = &FilteringWrapper<XrayDOM, CrossOriginAccessiblePropertiesOnly>::singleton;
-        } else if (IsComponentsObject(obj)) {
-            wrapper = &FilteringWrapper<CrossCompartmentSecurityWrapper,
-                                        ComponentsObjectPolicy>::singleton;
         } else {
             wrapper = &FilteringWrapper<CrossCompartmentSecurityWrapper,
                                         ExposedPropertiesOnly>::singleton;
@@ -376,48 +373,23 @@ WrapperFactory::Rewrap(JSContext *cx, JSObject *obj, JSObject *wrappedProto, JSO
     } else if (AccessCheck::isSameOrigin(origin, target)) {
         // For the same-origin case we use a transparent wrapper, unless one
         // of the following is true:
-        // * The object is flagged as needing a SOW.
-        // * The object is a location object.
+        // * The wrapper is a Location object.
+        // * The wrapper is flagged as needing a SOW.
         // * The context compartment specifically requested Xray vision into
         //   same-origin compartments.
         //
         // The first two cases always require a security wrapper for non-chrome
         // access, regardless of the origin of the object.
-        //
-        // The Location case is a bit tricky. Because the security characteristics
-        // depend on the current outer window, we always have a security wrapper
-        // around locations, same-compartment or cross-compartment. We would
-        // normally just use an identical security policy and just switch between
-        // Wrapper and CrossCompartmentWrapper to differentiate the cases (LW/XLW).
-        // However, there's an added wrinkle that same-origin-but-cross-compartment
-        // scripts expect to be able to see expandos on each others' location
-        // objects. So if all cross-compartment access used XLWs, then the expandos
-        // would live on the per-compartment XrayWrapper expando object, and would
-        // not be shared. So to make sure that expandos work correctly in the
-        // same-origin case, we need to use a transparent CrossCompartmentWrapper
-        // to the LW in the host compartment, rather than an XLW directly to the
-        // Location object. This still doesn't share expandos in the
-        // document.domain case, but that's probably fine. Double-wrapping sucks,
-        // but it's kind of unavoidable here.
         XrayType type;
         if (AccessCheck::needsSystemOnlyWrapper(obj)) {
             wrapper = &FilteringWrapper<CrossCompartmentSecurityWrapper,
                                         OnlyIfSubjectIsSystem>::singleton;
-        } else if (IsComponentsObject(obj)) {
-            wrapper = &FilteringWrapper<CrossCompartmentSecurityWrapper,
-                                        ComponentsObjectPolicy>::singleton;
+        } else if (IsLocationObject(obj)) {
+            typedef XrayWrapper<CrossCompartmentSecurityWrapper> Xray;
+            usingXray = true;
+            wrapper = &FilteringWrapper<Xray, LocationPolicy>::singleton;
         } else if (!targetdata || !targetdata->wantXrays ||
                    (type = GetXrayType(obj)) == NotXray) {
-            // Do the double-wrapping if need be.
-            if (IsLocationObject(obj)) {
-                JSAutoEnterCompartment ac;
-                if (!ac.enter(cx, obj))
-                    return nsnull;
-                XPCWrappedNative *wn = GetWrappedNative(cx, obj);
-                if (!wn)
-                    return nsnull;
-                obj = wn->GetSameCompartmentSecurityWrapper(cx);
-            }
             wrapper = &CrossCompartmentWrapper::singleton;
         } else if (type == XrayForDOMObject) {
             wrapper = &XrayDOM::singleton;
@@ -470,25 +442,6 @@ WrapperFactory::Rewrap(JSContext *cx, JSObject *obj, JSObject *wrappedProto, JSO
         return nsnull;
     js::SetProxyExtra(wrapperObj, 0, js::ObjectValue(*xrayHolder));
     return wrapperObj;
-}
-
-JSObject *
-WrapperFactory::WrapForSameCompartment(JSContext *cx, JSObject *obj)
-{
-    // Only WNs have same-compartment wrappers.
-    //
-    // NB: The contract of WrapForSameCompartment says that |obj| may or may not
-    // be a security wrapper. This check implicitly handles the security wrapper
-    // case.
-    if (!IS_WN_WRAPPER(obj))
-        return obj;
-
-    // Extract the WN. It should exist.
-    XPCWrappedNative *wn = static_cast<XPCWrappedNative *>(xpc_GetJSPrivate(obj));
-    MOZ_ASSERT(wn, "Trying to wrap a dead WN!");
-
-    // The WN knows what to do.
-    return wn->GetSameCompartmentSecurityWrapper(cx);
 }
 
 typedef FilteringWrapper<XrayWrapper<SameCompartmentSecurityWrapper>, LocationPolicy> LW;
@@ -546,23 +499,6 @@ WrapperFactory::WrapSOWObject(JSContext *cx, JSObject *obj)
         Wrapper::New(cx, obj, JS_GetPrototype(obj), JS_GetGlobalForObject(cx, obj),
                      &FilteringWrapper<SameCompartmentSecurityWrapper,
                      OnlyIfSubjectIsSystem>::singleton);
-    return wrapperObj;
-}
-
-bool
-WrapperFactory::IsComponentsObject(JSObject *obj)
-{
-    const char *name = js::GetObjectClass(obj)->name;
-    return name[0] == 'n' && !strcmp(name, "nsXPCComponents");
-}
-
-JSObject *
-WrapperFactory::WrapComponentsObject(JSContext *cx, JSObject *obj)
-{
-    JSObject *wrapperObj =
-        Wrapper::New(cx, obj, JS_GetPrototype(obj), JS_GetGlobalForObject(cx, obj),
-                     &FilteringWrapper<SameCompartmentSecurityWrapper, ComponentsObjectPolicy>::singleton);
-
     return wrapperObj;
 }
 

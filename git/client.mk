@@ -171,7 +171,7 @@ CONFIGURES := $(TOPSRCDIR)/configure
 CONFIGURES += $(TOPSRCDIR)/js/src/configure
 
 # Make targets that are going to be passed to the real build system
-OBJDIR_TARGETS = install export libs clean realclean distclean alldep maybe_clobber_profiledbuild upload sdk installer package fast-package package-compare stage-package source-package l10n-check
+OBJDIR_TARGETS = install export libs clean realclean distclean alldep maybe_clobber_profiledbuild upload sdk installer package package-compare stage-package source-package l10n-check
 
 #######################################################################
 # Rules
@@ -197,9 +197,6 @@ build_all: build
 build_all_dep: alldep
 build_all_depend: alldep
 clobber clobber_all: clean
-
-# helper target for mobile
-build_and_deploy: build fast-package install
 
 # Do everything from scratch
 everything: clean build
@@ -297,15 +294,13 @@ $(CONFIGURES): %: %.in $(EXTRA_CONFIG_DEPS)
 	cd $(@D); $(AUTOCONF)
 
 CONFIG_STATUS_DEPS := \
-	$(wildcard \
-        $(CONFIGURES) \
-        $(TOPSRCDIR)/allmakefiles.sh \
-        $(TOPSRCDIR)/nsprpub/configure \
-        $(TOPSRCDIR)/config/milestone.txt \
-        $(TOPSRCDIR)/js/src/config/milestone.txt \
-        $(TOPSRCDIR)/browser/config/version.txt \
-        $(TOPSRCDIR)/*/confvars.sh \
-	) \
+	$(wildcard $(CONFIGURES)) \
+	$(TOPSRCDIR)/allmakefiles.sh \
+	$(wildcard $(TOPSRCDIR)/nsprpub/configure) \
+	$(wildcard $(TOPSRCDIR)/config/milestone.txt) \
+	$(wildcard $(TOPSRCDIR)/js/src/config/milestone.txt) \
+	$(wildcard $(TOPSRCDIR)/browser/config/version.txt) \
+	$(wildcard $(addsuffix confvars.sh,$(wildcard $(TOPSRCDIR)/*/))) \
 	$(NULL)
 
 CONFIGURE_ENV_ARGS += \
@@ -327,11 +322,7 @@ configure-preqs = \
   configure-files \
   $(call mkdir_deps,$(OBJDIR)) \
   $(if $(MOZ_BUILD_PROJECTS),$(call mkdir_deps,$(MOZ_OBJDIR))) \
-  save-mozconfig \
   $(NULL)
-
-save-mozconfig:
-	-cp $(FOUND_MOZCONFIG) $(OBJDIR)/.mozconfig
 
 configure:: $(configure-preqs)
 	@echo cd $(OBJDIR);
@@ -377,7 +368,8 @@ endif
 ####################################
 # Build it
 
-realbuild::  $(OBJDIR)/Makefile $(OBJDIR)/config.status check-sync-dirs-config
+realbuild::  $(OBJDIR)/Makefile $(OBJDIR)/config.status
+	@$(PYTHON) $(TOPSRCDIR)/js/src/config/check-sync-dirs.py $(TOPSRCDIR)/js/src/config $(TOPSRCDIR)/config
 	$(MOZ_MAKE)
 
 ####################################
@@ -434,12 +426,6 @@ cleansrcdir:
 	          -o \( -name '*.[ao]' -o -name '*.so' \) -type f -print`; \
 	   build/autoconf/clean-config.sh; \
 	fi;
-
-## Sanity check $X and js/src/$X are in sync
-.PHONY: check-sync-dirs
-check-sync-dirs: check-sync-dirs-build check-sync-dirs-config
-check-sync-dirs-%:
-	@$(PYTHON) $(TOPSRCDIR)/js/src/config/check-sync-dirs.py $(TOPSRCDIR)/js/src/$* $(TOPSRCDIR)/$*
 
 echo-variable-%:
 	@echo $($*)

@@ -40,7 +40,7 @@
 #ifndef MOZSTORAGESTATEMENTPARAMS_H
 #define MOZSTORAGESTATEMENTPARAMS_H
 
-#include "mozIStorageStatementParams.h"
+#include "mozIStorageStatementWrapper.h"
 #include "nsIXPCScriptable.h"
 
 class mozIStorageStatement;

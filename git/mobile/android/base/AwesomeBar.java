@@ -40,6 +40,7 @@
 package org.mozilla.gecko;
 
 import android.app.Activity;
+import android.app.ActionBar;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -50,10 +51,10 @@ import android.content.res.Configuration;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.Spanned;
-import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -71,6 +72,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ExpandableListView;
 import android.widget.ImageButton;
+import android.widget.RelativeLayout;
 import android.widget.ListView;
 import android.widget.TabWidget;
 import android.widget.Toast;
@@ -79,7 +81,6 @@ import java.net.URLEncoder;
 import java.util.Map;
 
 import org.mozilla.gecko.db.BrowserContract.Bookmarks;
-import org.mozilla.gecko.db.BrowserContract.Combined;
 import org.mozilla.gecko.db.BrowserDB.URLColumns;
 import org.mozilla.gecko.db.BrowserDB;
 
@@ -396,21 +397,15 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
                 selEnd = mText.getSelectionEnd();
             }
 
+            // Return focus to the edit box, and dispatch the event to it
+            mText.requestFocusFromTouch();
+
             if (selStart >= 0) {
                 // Restore the selection, which gets lost due to the focus switch
                 mText.setSelection(selStart, selEnd);
             }
 
-            // Manually dispatch the key event to the AwesomeBar before restoring (default) input
-            // focus. dispatchKeyEvent() will update AwesomeBar's cursor position.
             mText.dispatchKeyEvent(event);
-            int newCursorPos = mText.getSelectionEnd();
-
-            // requestFocusFromTouch() will select all AwesomeBar text, so we must restore cursor
-            // position so subsequent typing does not overwrite all text.
-            mText.requestFocusFromTouch();
-            mText.setSelection(newCursorPos);
-
             return true;
         }
     }
@@ -485,11 +480,8 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
             // The history list is backed by a SimpleExpandableListAdapter
             @SuppressWarnings("rawtypes")
             Map map = (Map) exList.getExpandableListAdapter().getChild(groupPosition, childPosition);
-            mContextMenuSubject = new ContextMenuSubject((Integer) map.get(Combined.HISTORY_ID),
-                                                         (String) map.get(URLColumns.URL),
-                                                         (byte[]) map.get(URLColumns.FAVICON),
-                                                         (String) map.get(URLColumns.TITLE),
-                                                         null);
+            mContextMenuSubject = new ContextMenuSubject(-1, (String)map.get(URLColumns.URL),
+                    (byte[]) map.get(URLColumns.FAVICON), (String)map.get(URLColumns.TITLE), null);
         } else {
             if (!(menuInfo instanceof AdapterView.AdapterContextMenuInfo)) {
                 Log.e(LOGTAG, "menuInfo is not AdapterContextMenuInfo");
@@ -514,15 +506,12 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
                 if (keywordCol != -1)
                     keyword = cursor.getString(keywordCol);
 
-                // Use the bookmark id for the Bookmarks tab and the history id for the Top Sites tab 
-                int id = (list == findViewById(R.id.bookmarks_list)) ? cursor.getInt(cursor.getColumnIndexOrThrow(Bookmarks._ID)) :
-                                                                       cursor.getInt(cursor.getColumnIndexOrThrow(Combined.HISTORY_ID));
-
-                mContextMenuSubject = new ContextMenuSubject(id,
+                mContextMenuSubject = new ContextMenuSubject(cursor.getInt(cursor.getColumnIndexOrThrow(Bookmarks._ID)),
                                                              cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.URL)),
                                                              cursor.getBlob(cursor.getColumnIndexOrThrow(URLColumns.FAVICON)),
                                                              cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.TITLE)),
-                                                             keyword);
+                                                             keyword
+                );
             }
         }
 
@@ -535,12 +524,6 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
         if (list != findViewById(R.id.bookmarks_list)) {
             menu.findItem(R.id.remove_bookmark).setVisible(false);
             menu.findItem(R.id.edit_bookmark).setVisible(false);
-
-            // Hide "Remove" item if there isn't a valid history ID
-            if (mContextMenuSubject.id < 0)
-                menu.findItem(R.id.remove_history).setVisible(false);
-        } else {
-            menu.findItem(R.id.remove_history).setVisible(false);
         }
 
         menu.setHeaderTitle(mContextMenuSubject.title);
@@ -559,11 +542,6 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
 
         switch (item.getItemId()) {
             case R.id.open_new_tab: {
-                if (url == null) {
-                    Log.e(LOGTAG, "Can't open in new tab because URL is null");
-                    break;
-                }
-
                 GeckoApp.mAppContext.loadUrl(url, AwesomeBar.Type.ADD);
                 Toast.makeText(this, R.string.new_tab_opened, Toast.LENGTH_SHORT).show();
                 break;
@@ -587,7 +565,7 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
                             @Override
                             public Void doInBackground(Void... params) {
                                 String newUrl = locationText.getText().toString().trim();
-                                BrowserDB.updateBookmark(mResolver, id, newUrl, nameText.getText().toString(),
+                                BrowserDB.updateBookmark(mResolver, url, newUrl, nameText.getText().toString(),
                                                          keywordText.getText().toString());
                                 return null;
                             }
@@ -643,41 +621,15 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
                 }).execute();
                 break;
             }
-            case R.id.remove_history: {
-                (new GeckoAsyncTask<Void, Void, Void>() {
-                    @Override
-                    public Void doInBackground(Void... params) {
-                        BrowserDB.removeHistoryEntry(mResolver, id);
-                        return null;
-                    }
-
-                    @Override
-                    public void onPostExecute(Void result) {
-                        Toast.makeText(AwesomeBar.this, R.string.history_removed, Toast.LENGTH_SHORT).show();
-                    }
-                }).execute();
-                break;
-            }
             case R.id.add_to_launcher: {
-                if (url == null) {
-                    Log.e(LOGTAG, "Can't add to home screen because URL is null");
-                    break;
-                }
-
                 Bitmap bitmap = null;
                 if (b != null)
                     bitmap = BitmapFactory.decodeByteArray(b, 0, b.length);
-
-                String shortcutTitle = TextUtils.isEmpty(title) ? url.replaceAll("^([a-z]+://)?(www\\.)?", "") : title;
-                GeckoAppShell.createShortcut(shortcutTitle, url, bitmap, "");
+    
+                GeckoAppShell.createShortcut(title, url, bitmap, "");
                 break;
             }
             case R.id.share: {
-                if (url == null) {
-                    Log.e(LOGTAG, "Can't share because URL is null");
-                    break;
-                }
-
                 GeckoAppShell.openUriExternal(url, "text/plain", "", "",
                                               Intent.ACTION_SEND, title);
                 break;

@@ -53,7 +53,6 @@
 
 #include "frontend/ParseMaps.h"
 #include "frontend/ParseNode.h"
-#include "frontend/TreeContext.h"
 
 #define NUM_TEMP_FREELISTS      6U      /* 32 to 2048 byte size classes (32 bit) */
 
@@ -80,20 +79,16 @@ struct Parser : private AutoGCRooter
     ParseNodeAllocator  allocator;
     uint32_t            functionCount;  /* number of functions in current unit */
     ObjectBox           *traceListHead; /* list of parsed object for GC tracing */
-
     TreeContext         *tc;            /* innermost tree context (stack-allocated) */
 
     /* Root atoms and objects allocated for the parsed tree. */
     AutoKeepAtoms       keepAtoms;
 
     /* Perform constant-folding; must be true when interfacing with the emitter. */
-    const bool          foldConstants:1;
-
-    /* Script can optimize name references based on scope chain. */
-    const bool          compileAndGo:1;
+    bool                foldConstants;
 
     Parser(JSContext *cx, JSPrincipals *prin = NULL, JSPrincipals *originPrin = NULL,
-           StackFrame *cfp = NULL, bool fold = true, bool compileAndGo = false);
+           StackFrame *cfp = NULL, bool fold = true);
     ~Parser();
 
     friend void AutoGCRooter::trace(JSTracer *trc);
@@ -203,7 +198,7 @@ struct Parser : private AutoGCRooter
      */
     ParseNode *functionStmt();
     ParseNode *functionExpr();
-    ParseNode *statements(bool *hasFunctionStmt = NULL);
+    ParseNode *statements();
 
     ParseNode *switchStatement();
     ParseNode *forStatement();
@@ -246,9 +241,9 @@ struct Parser : private AutoGCRooter
      * Additional JS parsers.
      */
     enum FunctionType { Getter, Setter, Normal };
-    bool functionArguments(ParseNode **list);
+    bool functionArguments(TreeContext &funtc, FunctionBox *funbox, ParseNode **list);
 
-    ParseNode *functionDef(HandlePropertyName name, FunctionType type, FunctionSyntaxKind kind);
+    ParseNode *functionDef(PropertyName *name, FunctionType type, FunctionSyntaxKind kind);
 
     ParseNode *unaryOpExpr(ParseNodeKind kind, JSOp op);
 
@@ -299,7 +294,10 @@ Parser::reportErrorNumber(ParseNode *pn, unsigned flags, unsigned errorNumber, .
 }
 
 bool
-DefineArg(ParseNode *pn, JSAtom *atom, unsigned i, Parser *parser);
+CheckStrictParameters(JSContext *cx, TreeContext *tc);
+
+bool
+DefineArg(ParseNode *pn, JSAtom *atom, unsigned i, TreeContext *tc);
 
 } /* namespace js */
 

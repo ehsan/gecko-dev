@@ -93,21 +93,21 @@ GetCurrentNetworkInformation(NetworkInformation* aNetworkInfo)
 }
 
 void
-EnableScreenConfigurationNotifications()
+EnableScreenOrientationNotifications()
 {
-  Hal()->SendEnableScreenConfigurationNotifications();
+  Hal()->SendEnableScreenOrientationNotifications();
 }
 
 void
-DisableScreenConfigurationNotifications()
+DisableScreenOrientationNotifications()
 {
-  Hal()->SendDisableScreenConfigurationNotifications();
+  Hal()->SendDisableScreenOrientationNotifications();
 }
 
 void
-GetCurrentScreenConfiguration(ScreenConfiguration* aScreenConfiguration)
+GetCurrentScreenOrientation(ScreenOrientation* aScreenOrientation)
 {
-  Hal()->SendGetCurrentScreenConfiguration(aScreenConfiguration);
+  Hal()->SendGetCurrentScreenOrientation(aScreenOrientation);
 }
 
 bool
@@ -136,20 +136,6 @@ void
 SetScreenEnabled(bool enabled)
 {
   Hal()->SendSetScreenEnabled(enabled);
-}
-
-bool
-GetCpuSleepAllowed()
-{
-  bool allowed = true;
-  Hal()->SendGetCpuSleepAllowed(&allowed);
-  return allowed;
-}
-
-void
-SetCpuSleepAllowed(bool allowed)
-{
-  Hal()->SendSetCpuSleepAllowed(allowed);
 }
 
 double
@@ -240,33 +226,12 @@ GetWakeLockInfo(const nsAString &aTopic, WakeLockInformation *aWakeLockInfo)
   Hal()->SendGetWakeLockInfo(nsString(aTopic), aWakeLockInfo);
 }
 
-void
-EnableSwitchNotifications(SwitchDevice aDevice)
-{
-  Hal()->SendEnableSwitchNotifications(aDevice);
-}
-
-void
-DisableSwitchNotifications(SwitchDevice aDevice)
-{
-  Hal()->SendDisableSwitchNotifications(aDevice);
-}
-
-SwitchState
-GetCurrentSwitchState(SwitchDevice aDevice)
-{
-  SwitchState state;
-  Hal()->SendGetCurrentSwitchState(aDevice, &state);
-  return state;
-}
-
 class HalParent : public PHalParent
                 , public BatteryObserver
                 , public NetworkObserver
                 , public ISensorObserver
                 , public WakeLockObserver
-                , public ScreenConfigurationObserver
-                , public SwitchObserver
+                , public ScreenOrientationObserver
 {
 public:
   NS_OVERRIDE virtual bool
@@ -353,20 +318,20 @@ public:
   }
 
   NS_OVERRIDE virtual bool
-  RecvEnableScreenConfigurationNotifications() {
-    hal::RegisterScreenConfigurationObserver(this);
+  RecvEnableScreenOrientationNotifications() {
+    hal::RegisterScreenOrientationObserver(this);
     return true;
   }
 
   NS_OVERRIDE virtual bool
-  RecvDisableScreenConfigurationNotifications() {
-    hal::UnregisterScreenConfigurationObserver(this);
+  RecvDisableScreenOrientationNotifications() {
+    hal::UnregisterScreenOrientationObserver(this);
     return true;
   }
 
   NS_OVERRIDE virtual bool
-  RecvGetCurrentScreenConfiguration(ScreenConfiguration* aScreenConfiguration) {
-    hal::GetCurrentScreenConfiguration(aScreenConfiguration);
+  RecvGetCurrentScreenOrientation(ScreenOrientation* aScreenOrientation) {
+    hal::GetCurrentScreenOrientation(aScreenOrientation);
     return true;
   }
 
@@ -384,8 +349,8 @@ public:
     return true;
   }
 
-  void Notify(const ScreenConfiguration& aScreenConfiguration) {
-    unused << SendNotifyScreenConfigurationChange(aScreenConfiguration);
+  void Notify(const ScreenOrientationWrapper& aScreenOrientation) {
+    unused << SendNotifyScreenOrientationChange(aScreenOrientation.orientation);
   }
 
   NS_OVERRIDE virtual bool
@@ -399,20 +364,6 @@ public:
   RecvSetScreenEnabled(const bool &enabled)
   {
     hal::SetScreenEnabled(enabled);
-    return true;
-  }
-
-  NS_OVERRIDE virtual bool
-  RecvGetCpuSleepAllowed(bool *allowed)
-  {
-    *allowed = hal::GetCpuSleepAllowed();
-    return true;
-  }
-
-  NS_OVERRIDE virtual bool
-  RecvSetCpuSleepAllowed(const bool &allowed)
-  {
-    hal::SetCpuSleepAllowed(allowed);
     return true;
   }
 
@@ -522,32 +473,6 @@ public:
   {
     unused << SendNotifyWakeLockChange(aWakeLockInfo);
   }
-
-  NS_OVERRIDE virtual bool
-  RecvEnableSwitchNotifications(const SwitchDevice& aDevice) 
-  {
-    hal::RegisterSwitchObserver(aDevice, this);
-    return true;
-  }
-
-  NS_OVERRIDE virtual bool
-  RecvDisableSwitchNotifications(const SwitchDevice& aDevice) 
-  {
-    hal::UnregisterSwitchObserver(aDevice, this);
-    return true;
-  }
-
-  void Notify(const SwitchEvent& aSwitchEvent)
-  {
-    unused << SendNotifySwitchChange(aSwitchEvent);
-  }
-
-  NS_OVERRIDE virtual bool
-  RecvGetCurrentSwitchState(const SwitchDevice& aDevice, hal::SwitchState *aState)
-  {
-    *aState = hal::GetCurrentSwitchState(aDevice);
-    return true;
-  }
 };
 
 class HalChild : public PHalChild {
@@ -574,14 +499,8 @@ public:
   }
 
   NS_OVERRIDE virtual bool
-  RecvNotifyScreenConfigurationChange(const ScreenConfiguration& aScreenConfiguration) {
-    hal::NotifyScreenConfigurationChange(aScreenConfiguration);
-    return true;
-  }
-
-  NS_OVERRIDE virtual bool
-  RecvNotifySwitchChange(const mozilla::hal::SwitchEvent& aEvent) {
-    hal::NotifySwitchChange(aEvent);
+  RecvNotifyScreenOrientationChange(const ScreenOrientation& aScreenOrientation) {
+    hal::NotifyScreenOrientationChange(aScreenOrientation);
     return true;
   }
 };

@@ -63,14 +63,18 @@ function inspectorUIOpen()
   InspectorUI.stopInspecting();
   is(InspectorUI.selection, div, "selection matches the div element");
 
-  InspectorUI.currentInspector.once("sidebaractivated-ruleview", testInlineStyle);
+  Services.obs.addObserver(testInlineStyle,
+    InspectorUI.INSPECTOR_NOTIFICATIONS.RULEVIEWREADY, false);
 
-  InspectorUI.sidebar.show();
-  InspectorUI.sidebar.activatePanel("ruleview");
+  InspectorUI.showSidebar();
+  InspectorUI.openRuleView();
 }
 
 function testInlineStyle()
 {
+  Services.obs.removeObserver(testInlineStyle,
+    InspectorUI.INSPECTOR_NOTIFICATIONS.RULEVIEWREADY, false);
+
   executeSoon(function() {
     info("clicking an inline style");
 
@@ -145,15 +149,16 @@ function validateStyleEditorSheet(aEditor)
 
 function getLinkByIndex(aIndex)
 {
-  let contentDoc = ruleView().doc;
-  contentWindow = contentDoc.defaultView;
+  let ruleView = document.querySelector("#devtools-sidebar-iframe-ruleview");
+  let contentDoc = ruleView.contentDocument;
   let links = contentDoc.querySelectorAll(".ruleview-rule-source");
+  contentWindow = ruleView.contentWindow;
   return links[aIndex];
 }
 
 function finishup()
 {
-  InspectorUI.sidebar.hide();
+  InspectorUI.hideSidebar();
   InspectorUI.closeInspectorUI();
   gBrowser.removeCurrentTab();
   doc = contentWindow = win = null;

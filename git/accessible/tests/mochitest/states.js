@@ -3,7 +3,6 @@
 //
 // requires:
 //   common.js
-//   role.js
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,7 +16,6 @@ const STATE_COLLAPSED = nsIAccessibleStates.STATE_COLLAPSED;
 const STATE_DEFAULT = nsIAccessibleStates.STATE_DEFAULT;
 const STATE_EXPANDED = nsIAccessibleStates.STATE_EXPANDED;
 const STATE_EXTSELECTABLE = nsIAccessibleStates.STATE_EXTSELECTABLE;
-const STATE_FLOATING = nsIAccessibleStates.STATE_FLOATING;
 const STATE_FOCUSABLE = nsIAccessibleStates.STATE_FOCUSABLE;
 const STATE_FOCUSED = nsIAccessibleStates.STATE_FOCUSED;
 const STATE_HASPOPUP = nsIAccessibleStates.STATE_HASPOPUP;
@@ -73,7 +71,7 @@ function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
                     aAbsentExtraState, aTestName)
 {
   var [state, extraState] = getStates(aAccOrElmOrID);
-  var role = getRole(aAccOrElmOrID);
+
   var id = prettyName(aAccOrElmOrID) + (aTestName ? " [" + aTestName + "]": "");
 
   // Primary test.
@@ -137,7 +135,7 @@ function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
   }
 
   // checked/mixed/checkable
-  if (state & STATE_CHECKED || state & STATE_MIXED && role != ROLE_PROGRESSBAR)
+  if (state & STATE_CHECKED || state & STATE_MIXED)
     isState(state & STATE_CHECKABLE, STATE_CHECKABLE, false,
             "Checked or mixed element must be checkable!");
 

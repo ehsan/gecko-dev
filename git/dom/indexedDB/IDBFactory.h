@@ -57,7 +57,7 @@ struct DatabaseInfo;
 class IDBDatabase;
 struct ObjectStoreInfo;
 
-class IDBFactory MOZ_FINAL : public nsIIDBFactory
+class IDBFactory : public nsIIDBFactory
 {
   typedef nsTArray<nsRefPtr<ObjectStoreInfo> > ObjectStoreInfoArray;
 
@@ -80,6 +80,13 @@ public:
   // than one process type is a very serious error.
   static void
   NoteUsedByProcessType(GeckoProcessType aProcessType);
+
+  static nsresult
+  GetDirectory(nsIFile** aDirectory);
+
+  static nsresult
+  GetDirectoryForOrigin(const nsACString& aASCIIOrigin,
+                        nsIFile** aDirectory);
 
   static nsresult
   LoadDatabaseInformation(mozIStorageConnection* aConnection,

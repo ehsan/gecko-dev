@@ -78,42 +78,31 @@ ifeq (android,$(MOZ_WIDGET_TOOLKIT))
 CPPSRCS += \
   AndroidHal.cpp \
   AndroidSensor.cpp \
-  FallbackPower.cpp \
   $(NULL)
 else ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
 CPPSRCS += \
   GonkHal.cpp \
-  LinuxPower.cpp \
+  Power.cpp \
   GonkSensor.cpp \
-  UeventPoller.cpp \
-  GonkSwitch.cpp \
   $(NULL)
 else ifeq (Linux,$(OS_TARGET))
 CPPSRCS += \
-  LinuxPower.cpp \
-  FallbackScreenConfiguration.cpp \
+  LinuxHal.cpp \
   FallbackSensor.cpp \
-  FallbackVibration.cpp \
+  Power.cpp \
   $(NULL)
 ifdef MOZ_ENABLE_DBUS
 CPPSRCS += UPowerClient.cpp
-else
-CPPSRCS += FallbackBattery.cpp
 endif
 else ifeq (WINNT,$(OS_TARGET))
 CPPSRCS += \
+  WindowsHal.cpp \
   WindowsBattery.cpp \
-  WindowsSensor.cpp \
-  FallbackVibration.cpp \
-  FallbackScreenConfiguration.cpp \
-  FallbackPower.cpp \
+  FallbackSensor.cpp \
   $(NULL)
 else ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 CPPSRCS += \
-  FallbackBattery.cpp \
-  FallbackVibration.cpp \
-  FallbackPower.cpp \
-  FallbackScreenConfiguration.cpp \
+  FallbackHal.cpp \
   $(NULL)
 CMMSRCS += \
   CocoaSensor.mm \
@@ -121,28 +110,18 @@ CMMSRCS += \
   $(NULL)
 else
 CPPSRCS += \
-  FallbackBattery.cpp \
+  FallbackHal.cpp \
   FallbackSensor.cpp \
-  FallbackVibration.cpp \
-  FallbackPower.cpp \
-  FallbackScreenConfiguration.cpp \
   $(NULL)
 endif
 
-# Fallbacks for backends implemented on Gonk only.
 ifneq (gonk,$(MOZ_WIDGET_TOOLKIT)) #{
-CPPSRCS += \
-  FallbackLights.cpp  \
-  FallbackTime.cpp \
-  FallbackWakeLocks.cpp \
-  FallbackSwitch.cpp \
-  FallbackScreenPower.cpp \
-  $(NULL)
+CPPSRCS += FallbackLights.cpp FallbackTime.cpp
 endif #}
 
-# Fallbacks for backends implemented on Android only.
+# Screen Orientation backend
 ifneq (android,$(MOZ_WIDGET_TOOLKIT))
-CPPSRCS += FallbackNetwork.cpp
+CPPSRCS += ScreenOrientationFallback.cpp
 endif
 
 include $(topsrcdir)/config/config.mk
@@ -151,9 +130,3 @@ include $(topsrcdir)/config/rules.mk
 
 CFLAGS          += $(MOZ_DBUS_GLIB_CFLAGS)
 CXXFLAGS        += $(MOZ_DBUS_GLIB_CFLAGS)
-
-ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
-# So that we can call nsScreenManagerGonk::GetConfiguration().
-LOCAL_INCLUDES += -I$(topsrcdir)/widget/gonk
-LOCAL_INCLUDES += -I$(topsrcdir)/widget/xpwidgets
-endif

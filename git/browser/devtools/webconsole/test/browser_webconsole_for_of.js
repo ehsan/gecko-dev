@@ -3,9 +3,14 @@
 
 // A for-of loop in Web Console code can loop over a content NodeList.
 
-const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-for-of.html";
+const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test//test-for-of.html";
+
+registerCleanupFunction(function() {
+  Services.prefs.clearUserPref("devtools.gcli.enable");
+});
 
 function test() {
+  Services.prefs.setBoolPref("devtools.gcli.enable", false);
   addTab(TEST_URI);
   browser.addEventListener("DOMContentLoaded", testForOf, false);
 }

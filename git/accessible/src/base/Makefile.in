@@ -52,14 +52,15 @@ CPPSRCS = \
   AccEvent.cpp \
   AccGroupInfo.cpp \
   AccIterator.cpp \
-  ARIAStateMap.cpp \
   filters.cpp \
   FocusManager.cpp \
   NotificationController.cpp \
   nsAccDocManager.cpp \
   nsAccessNode.cpp \
+  nsARIAGridAccessible.cpp \
   nsARIAMap.cpp \
   nsDocAccessible.cpp \
+  nsOuterDocAccessible.cpp \
   nsCoreUtils.cpp \
   nsAccUtils.cpp \
   nsAccessibilityService.cpp \
@@ -68,10 +69,12 @@ CPPSRCS = \
   nsAccTreeWalker.cpp \
   nsBaseWidgetAccessible.cpp \
   nsEventShell.cpp \
+  nsFormControlAccessible.cpp \
+  nsRootAccessible.cpp \
+  nsApplicationAccessible.cpp \
   nsCaretAccessible.cpp \
   nsTextAccessible.cpp \
   nsTextEquivUtils.cpp \
-  RoleAsserts.cpp \
   StyleInfo.cpp \
   TextAttrs.cpp \
   TextUpdater.cpp \
@@ -83,6 +86,7 @@ EXPORTS = \
   nsAccessibilityService.h \
   nsAccessible.h \
   nsAccessNode.h \
+  nsARIAMap.h \
   $(NULL)
 
 EXPORTS_NAMESPACES = mozilla/a11y
@@ -104,30 +108,14 @@ LOCAL_INCLUDES += \
   -I$(srcdir)/../html \
   -I$(srcdir)/../xpcom \
   -I$(srcdir)/../xul \
-  -I$(srcdir)/../xforms \
   -I$(srcdir)/../../../layout/generic \
   -I$(srcdir)/../../../layout/style \
   -I$(srcdir)/../../../layout/xul/base/src \
+  -I$(srcdir)/../xforms \
   $(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 LOCAL_INCLUDES += \
   -I$(srcdir)/../atk \
   $(NULL)
-else
-ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
-LOCAL_INCLUDES += \
-  -I$(srcdir)/../msaa \
-  $(NULL)
-else
-ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
-LOCAL_INCLUDES += \
-  -I$(srcdir)/../mac \
-  $(NULL)
-else
-LOCAL_INCLUDES += \
-  -I$(srcdir)/../other \
-  $(NULL)
-endif
-endif
 endif

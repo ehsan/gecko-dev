@@ -36,7 +36,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "ScaledFontWin.h"
-#include "ScaledFontBase.h"
+#include "ScaeldFontBase.h"
 
 #ifdef USE_SKIA
 #include "skia/SkTypeface_win.h"
@@ -45,17 +45,18 @@
 namespace mozilla {
 namespace gfx {
 
-ScaledFontWin::ScaledFontWin(LOGFONT* aFont, Float aSize)
+ScaledFontWin::ScaledFontWin(gfxGDIFont* aFont, Float aSize)
   : ScaledFontBase(aSize)
-  , mLogFont(*aFont)
 {
+  LOGFONT lf;
+  GetObject(aFont->GetHFONT(), sizeof(LOGFONT), &lf);
 }
 
 #ifdef USE_SKIA
 SkTypeface* ScaledFontWin::GetSkTypeface()
 {
   if (!mTypeface) {
-    mTypeface = SkCreateTypefaceFromLOGFONT(mLogFont);
+    mTypeface = SkCreateTypefaceFromLOGFONT(lf);
   }
   return mTypeface;
 }

@@ -41,14 +41,6 @@
 /*
  * JS number type and wrapper class.
  */
-
-#include "mozilla/FloatingPoint.h"
-#include "mozilla/RangedPtr.h"
-
-#include "double-conversion.h"
-// Avoid warnings about ASSERT being defined by the assembler as well.
-#undef ASSERT
-
 #ifdef XP_OS2
 #define _PC_53  PC_53
 #define _MCW_EM MCW_EM
@@ -59,6 +51,8 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "mozilla/RangedPtr.h"
 
 #include "jstypes.h"
 #include "jsutil.h"
@@ -79,7 +73,6 @@
 
 #include "vm/GlobalObject.h"
 #include "vm/MethodGuard.h"
-#include "vm/NumericConversions.h"
 #include "vm/StringBuffer.h"
 
 #include "jsatominlines.h"
@@ -273,7 +266,7 @@ num_isNaN(JSContext *cx, unsigned argc, Value *vp)
     double x;
     if (!ToNumber(cx, vp[2], &x))
         return false;
-    vp->setBoolean(MOZ_DOUBLE_IS_NaN(x));
+    vp->setBoolean(JSDOUBLE_IS_NaN(x));
     return JS_TRUE;
 }
 
@@ -287,7 +280,7 @@ num_isFinite(JSContext *cx, unsigned argc, Value *vp)
     double x;
     if (!ToNumber(cx, vp[2], &x))
         return JS_FALSE;
-    vp->setBoolean(MOZ_DOUBLE_IS_FINITE(x));
+    vp->setBoolean(JSDOUBLE_IS_FINITE(x));
     return JS_TRUE;
 }
 
@@ -454,6 +447,11 @@ js::num_parseInt(JSContext *cx, unsigned argc, Value *vp)
     args.rval().setNumber(number);
     return true;
 }
+
+const char js_isNaN_str[]      = "isNaN";
+const char js_isFinite_str[]   = "isFinite";
+const char js_parseFloat_str[] = "parseFloat";
+const char js_parseInt_str[]   = "parseInt";
 
 static JSFunctionSpec number_functions[] = {
     JS_FN(js_isNaN_str,         num_isNaN,           1,0),
@@ -926,25 +924,25 @@ InitRuntimeNumberState(JSRuntime *rt)
 {
     FIX_FPU();
 
-    double d;
+    jsdpun u;
+    u.s.hi = JSDOUBLE_HI32_NAN;
+    u.s.lo = JSDOUBLE_LO32_NAN;
+    number_constants[NC_NaN].dval = js_NaN = u.d;
+    rt->NaNValue.setDouble(u.d);
 
-    /*
-     * Our NaN must be one particular canonical value, because we rely on NaN
-     * encoding for our value representation.  See jsval.h.
-     */
-    d = MOZ_DOUBLE_SPECIFIC_NaN(0, 0x8000000000000ULL);
-    number_constants[NC_NaN].dval = js_NaN = d;
-    rt->NaNValue.setDouble(d);
+    u.s.hi = JSDOUBLE_HI32_EXPMASK;
+    u.s.lo = 0x00000000;
+    number_constants[NC_POSITIVE_INFINITY].dval = js_PositiveInfinity = u.d;
+    rt->positiveInfinityValue.setDouble(u.d);
 
-    d = MOZ_DOUBLE_POSITIVE_INFINITY();
-    number_constants[NC_POSITIVE_INFINITY].dval = js_PositiveInfinity = d;
-    rt->positiveInfinityValue.setDouble(d);
+    u.s.hi = JSDOUBLE_HI32_SIGNBIT | JSDOUBLE_HI32_EXPMASK;
+    u.s.lo = 0x00000000;
+    number_constants[NC_NEGATIVE_INFINITY].dval = js_NegativeInfinity = u.d;
+    rt->negativeInfinityValue.setDouble(u.d);
 
-    d = MOZ_DOUBLE_NEGATIVE_INFINITY();
-    number_constants[NC_NEGATIVE_INFINITY].dval = js_NegativeInfinity = d;
-    rt->negativeInfinityValue.setDouble(d);
-
-    number_constants[NC_MIN_VALUE].dval = MOZ_DOUBLE_MIN_VALUE();
+    u.s.hi = 0;
+    u.s.lo = 1;
+    number_constants[NC_MIN_VALUE].dval = u.d;
 
     /* Copy locale-specific separators into the runtime strings. */
     const char *thousandsSeparator, *decimalPoint, *grouping;
@@ -1013,15 +1011,14 @@ js_InitNumberClass(JSContext *cx, JSObject *obj)
     /* XXX must do at least once per new thread, so do it per JSContext... */
     FIX_FPU();
 
-    RootedVar<GlobalObject*> global(cx, &obj->asGlobal());
+    GlobalObject *global = &obj->asGlobal();
 
-    RootedVarObject numberProto(cx, global->createBlankPrototype(cx, &NumberClass));
+    JSObject *numberProto = global->createBlankPrototype(cx, &NumberClass);
     if (!numberProto)
         return NULL;
     numberProto->asNumber().setPrimitiveValue(0);
 
-    RootedVarFunction ctor(cx);
-    ctor = global->createConstructor(cx, Number, CLASS_NAME(cx, Number), 1);
+    JSFunction *ctor = global->createConstructor(cx, Number, CLASS_ATOM(cx, Number), 1);
     if (!ctor)
         return NULL;
 
@@ -1039,10 +1036,10 @@ js_InitNumberClass(JSContext *cx, JSObject *obj)
         return NULL;
 
     /* ES5 15.1.1.1, 15.1.1.2 */
-    if (!DefineNativeProperty(cx, global, NameToId(cx->runtime->atomState.NaNAtom),
+    if (!DefineNativeProperty(cx, global, ATOM_TO_JSID(cx->runtime->atomState.NaNAtom),
                               cx->runtime->NaNValue, JS_PropertyStub, JS_StrictPropertyStub,
                               JSPROP_PERMANENT | JSPROP_READONLY, 0, 0) ||
-        !DefineNativeProperty(cx, global, NameToId(cx->runtime->atomState.InfinityAtom),
+        !DefineNativeProperty(cx, global, ATOM_TO_JSID(cx->runtime->atomState.InfinityAtom),
                               cx->runtime->positiveInfinityValue,
                               JS_PropertyStub, JS_StrictPropertyStub,
                               JSPROP_PERMANENT | JSPROP_READONLY, 0, 0))
@@ -1056,6 +1053,12 @@ js_InitNumberClass(JSContext *cx, JSObject *obj)
     return numberProto;
 }
 
+namespace v8 {
+namespace internal {
+extern char* DoubleToCString(double v, char* buffer, int buflen);
+}
+}
+
 namespace js {
 
 static char *
@@ -1064,7 +1067,7 @@ FracNumberToCString(JSContext *cx, ToCStringBuf *cbuf, double d, int base = 10)
 #ifdef DEBUG
     {
         int32_t _;
-        JS_ASSERT(!MOZ_DOUBLE_IS_INT32(d, &_));
+        JS_ASSERT(!JSDOUBLE_IS_INT32(d, &_));
     }
 #endif
 
@@ -1076,12 +1079,14 @@ FracNumberToCString(JSContext *cx, ToCStringBuf *cbuf, double d, int base = 10)
          *
          *   Printing floating-point numbers quickly and accurately with integers.
          *   Florian Loitsch, PLDI 2010.
+         *
+         * It fails on a small number of cases, whereupon we fall back to
+         * js_dtostr() (which uses David Gay's dtoa).
          */
-        const double_conversion::DoubleToStringConverter &converter
-            = double_conversion::DoubleToStringConverter::EcmaScriptConverter();
-        double_conversion::StringBuilder builder(cbuf->sbuf, cbuf->sbufSize);
-        converter.ToShortest(d, &builder);
-        numStr = builder.Finalize();
+        numStr = v8::internal::DoubleToCString(d, cbuf->sbuf, cbuf->sbufSize);
+        if (!numStr)
+            numStr = js_dtostr(cx->runtime->dtoaState, cbuf->sbuf, cbuf->sbufSize,
+                               DTOSTR_STANDARD, 0, d);
     } else {
         numStr = cbuf->dbuf = js_dtobasestr(cx->runtime->dtoaState, base, d);
     }
@@ -1092,7 +1097,7 @@ char *
 NumberToCString(JSContext *cx, ToCStringBuf *cbuf, double d, int base/* = 10*/)
 {
     int32_t i;
-    return MOZ_DOUBLE_IS_INT32(d, &i)
+    return (JSDOUBLE_IS_INT32(d, &i))
            ? IntToCString(cbuf, i, base)
            : FracNumberToCString(cx, cbuf, d, base);
 }
@@ -1116,7 +1121,7 @@ js_NumberToStringWithBase(JSContext *cx, double d, int base)
     JSCompartment *c = cx->compartment;
 
     int32_t i;
-    if (MOZ_DOUBLE_IS_INT32(d, &i)) {
+    if (JSDOUBLE_IS_INT32(d, &i)) {
         if (base == 10 && StaticStrings::hasInt(i))
             return cx->runtime->staticStrings.getInt(i);
         if (unsigned(i) < unsigned(base)) {
@@ -1223,25 +1228,6 @@ NumberValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb)
 JS_PUBLIC_API(bool)
 ToNumberSlow(JSContext *cx, Value v, double *out)
 {
-#ifdef DEBUG
-    /*
-     * MSVC bizarrely miscompiles this, complaining about the first brace below
-     * being unmatched (!).  The error message points at both this opening brace
-     * and at the corresponding SkipRoot constructor.  The error seems to derive
-     * from the presence guard-object macros on the SkipRoot class/constructor,
-     * which seems well in the weeds for an unmatched-brace syntax error.
-     * Otherwise the problem is inscrutable, and I haven't found a workaround.
-     * So for now just disable it when compiling with MSVC -- not ideal, but at
-     * least Windows debug shell builds complete again.
-     */
-#ifndef _MSC_VER
-    {
-        SkipRoot skip(cx, &v);
-        MaybeCheckStackRoots(cx);
-    }
-#endif
-#endif
-
     JS_ASSERT(!v.isNumber());
     goto skip_int_double;
     for (;;) {
@@ -1289,7 +1275,7 @@ ToInt32Slow(JSContext *cx, const Value &v, int32_t *out)
         if (!ToNumberSlow(cx, v, &d))
             return false;
     }
-    *out = ToInt32(d);
+    *out = js_DoubleToECMAInt32(d);
     return true;
 }
 
@@ -1304,9 +1290,13 @@ ToUint32Slow(JSContext *cx, const Value &v, uint32_t *out)
         if (!ToNumberSlow(cx, v, &d))
             return false;
     }
-    *out = ToUint32(d);
+    *out = js_DoubleToECMAUint32(d);
     return true;
 }
+
+}  /* namespace js */
+
+namespace js {
 
 bool
 NonstandardToInt32Slow(JSContext *cx, const Value &v, int32_t *out)
@@ -1319,7 +1309,7 @@ NonstandardToInt32Slow(JSContext *cx, const Value &v, int32_t *out)
         return false;
     }
 
-    if (MOZ_DOUBLE_IS_NaN(d) || d <= -2147483649.0 || 2147483648.0 <= d) {
+    if (JSDOUBLE_IS_NaN(d) || d <= -2147483649.0 || 2147483648.0 <= d) {
         js_ReportValueError(cx, JSMSG_CANT_CONVERT,
                             JSDVG_SEARCH_STACK, v, NULL);
         return false;
@@ -1339,7 +1329,7 @@ ValueToUint16Slow(JSContext *cx, const Value &v, uint16_t *out)
         return false;
     }
 
-    if (d == 0 || !MOZ_DOUBLE_IS_FINITE(d)) {
+    if (d == 0 || !JSDOUBLE_IS_FINITE(d)) {
         *out = 0;
         return true;
     }

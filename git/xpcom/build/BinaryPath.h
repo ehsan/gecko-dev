@@ -94,17 +94,12 @@ private:
     return rv;
   }
 
-#elif defined(ANDROID)
+#elif defined(MOZ_WIDGET_ANDROID)
   static nsresult Get(const char *argv0, char aResult[MAXPATHLEN])
   {
     // On Android, we use the GRE_HOME variable that is set by the Java
     // bootstrap code.
     const char *greHome = getenv("GRE_HOME");
-#if defined(MOZ_WIDGET_GONK)
-    if (!greHome)
-      greHome = "/system/b2g";
-#endif
-
     if (!greHome)
       return NS_ERROR_FAILURE;
 

@@ -44,8 +44,8 @@
 #include "nsLineLayout.h"
 #include "prprf.h"
 #include "nsBlockFrame.h"
-#include "nsIFrame.h"
-#include "nsPresArena.h"
+#include "nsGkAtoms.h"
+#include "nsFrameManager.h"
 #ifdef IBMBIDI
 #include "nsBidiPresUtils.h"
 #endif
@@ -61,8 +61,10 @@ const PRUint32 nsLineBox::kMinChildCountForHashtable;
 #endif
 
 nsLineBox::nsLineBox(nsIFrame* aFrame, PRInt32 aCount, bool aIsBlock)
-  : mFirstChild(aFrame)
-// NOTE: memory is already zeroed since we allocate with AllocateByObjectID.
+  : mFirstChild(aFrame),
+    mBounds(0, 0, 0, 0),
+    mAscent(0),
+    mData(nsnull)
 {
   MOZ_COUNT_CTOR(nsLineBox);
 #ifdef DEBUG
@@ -75,6 +77,7 @@ nsLineBox::nsLineBox(nsIFrame* aFrame, PRInt32 aCount, bool aIsBlock)
   }
 #endif
 
+  mAllFlags = 0;
 #if NS_STYLE_CLEAR_NONE > 0
   mFlags.mBreakType = NS_STYLE_CLEAR_NONE;
 #endif
@@ -175,14 +178,14 @@ nsLineBox::NoteFramesMovedFrom(nsLineBox* aFromLine)
 void*
 nsLineBox::operator new(size_t sz, nsIPresShell* aPresShell) CPP_THROW_NEW
 {
-  return aPresShell->AllocateByObjectID(nsPresArena::nsLineBox_id, sz);
+  return aPresShell->AllocateMisc(sz);
 }
 
 void
 nsLineBox::Destroy(nsIPresShell* aPresShell)
 {
   this->nsLineBox::~nsLineBox();
-  aPresShell->FreeByObjectID(nsPresArena::nsLineBox_id, this);
+  aPresShell->FreeMisc(sizeof(*this), this);
 }
 
 void

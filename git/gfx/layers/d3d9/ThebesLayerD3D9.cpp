@@ -271,16 +271,14 @@ ThebesLayerD3D9::RenderThebesLayer(ReadbackProcessor* aReadback)
   SetShaderTransformAndOpacity();
 
   if (mode == SURFACE_COMPONENT_ALPHA) {
-    mD3DManager->SetShaderMode(DeviceManagerD3D9::COMPONENTLAYERPASS1,
-                               GetMaskLayer());
+    mD3DManager->SetShaderMode(DeviceManagerD3D9::COMPONENTLAYERPASS1);
     device()->SetTexture(0, mTexture);
     device()->SetTexture(1, mTextureOnWhite);
     device()->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_ZERO);
     device()->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCCOLOR);
     RenderRegion(neededRegion);
 
-    mD3DManager->SetShaderMode(DeviceManagerD3D9::COMPONENTLAYERPASS2,
-                               GetMaskLayer());
+    mD3DManager->SetShaderMode(DeviceManagerD3D9::COMPONENTLAYERPASS2);
     device()->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_ONE);
     device()->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ONE);
     RenderRegion(neededRegion);
@@ -290,8 +288,7 @@ ThebesLayerD3D9::RenderThebesLayer(ReadbackProcessor* aReadback)
     device()->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
     device()->SetTexture(1, NULL);
   } else {
-    mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBALAYER,
-                               GetMaskLayer());
+    mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBALAYER);
     device()->SetTexture(0, mTexture);
     RenderRegion(neededRegion);
   }

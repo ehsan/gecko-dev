@@ -154,12 +154,7 @@ private:
 inline Machine::Machine(SlotMap & map) throw()
 : _map(map), _status(finished)
 {
-	// Initialise stack guard +1 entries as the stack pointer points to the
-	//  current top of stack, hence the first push will never write entry 0.
-	// Initialising the guard space like this is unnecessary and is only
-	//  done to keep valgrind happy during fuzz testing.  Hopefully loop
-	//  unrolling will flatten this.
-	for (size_t n = STACK_GUARD + 1; n; --n)  _stack[n-1] = 0;
+	memset(_stack, 0, STACK_GUARD);
 }
 
 inline SlotMap& Machine::slotMap() const throw()

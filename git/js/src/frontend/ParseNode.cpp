@@ -112,7 +112,7 @@ bool
 FunctionBox::inAnyDynamicScope() const
 {
     for (const FunctionBox *funbox = this; funbox; funbox = funbox->parent) {
-        if (funbox->inWith || (funbox->tcflags & TCF_FUN_EXTENSIBLE_SCOPE))
+        if (funbox->tcflags & (TCF_IN_WITH | TCF_FUN_EXTENSIBLE_SCOPE))
             return true;
     }
     return false;
@@ -361,8 +361,9 @@ ParseNodeAllocator::allocNode()
 /* used only by static create methods of subclasses */
 
 ParseNode *
-ParseNode::create(ParseNodeKind kind, ParseNodeArity arity, Parser *parser)
+ParseNode::create(ParseNodeKind kind, ParseNodeArity arity, TreeContext *tc)
 {
+    Parser *parser = tc->parser;
     const Token &tok = parser->tokenStream.currentToken();
     return parser->new_<ParseNode>(kind, JSOP_NOP, arity, tok.pos);
 }
@@ -406,7 +407,7 @@ ParseNode::append(ParseNodeKind kind, JSOp op, ParseNode *left, ParseNode *right
 
 ParseNode *
 ParseNode::newBinaryOrAppend(ParseNodeKind kind, JSOp op, ParseNode *left, ParseNode *right,
-                             Parser *parser)
+                             TreeContext *tc)
 {
     if (!left || !right)
         return NULL;
@@ -428,27 +429,24 @@ ParseNode::newBinaryOrAppend(ParseNodeKind kind, JSOp op, ParseNode *left, Parse
     if (kind == PNK_ADD &&
         left->isKind(PNK_NUMBER) &&
         right->isKind(PNK_NUMBER) &&
-        parser->foldConstants)
+        tc->parser->foldConstants)
     {
         left->pn_dval += right->pn_dval;
         left->pn_pos.end = right->pn_pos.end;
-        parser->freeTree(right);
+        tc->freeTree(right);
         return left;
     }
 
-    return parser->new_<BinaryNode>(kind, op, left, right);
+    return tc->parser->new_<BinaryNode>(kind, op, left, right);
 }
 
-// Nb: unlike most functions that are passed a Parser, this one gets a
-// SharedContext passed in separately, because in this case |sc| may not equal
-// |parser->tc->sc|.
 NameNode *
-NameNode::create(ParseNodeKind kind, JSAtom *atom, Parser *parser, SharedContext *sc)
+NameNode::create(ParseNodeKind kind, JSAtom *atom, TreeContext *tc)
 {
-    ParseNode *pn = ParseNode::create(kind, PN_NAME, parser);
+    ParseNode *pn = ParseNode::create(kind, PN_NAME, tc);
     if (pn) {
         pn->pn_atom = atom;
-        ((NameNode *)pn)->initCommon(sc);
+        ((NameNode *)pn)->initCommon(tc);
     }
     return (NameNode *)pn;
 }
@@ -476,14 +474,12 @@ Definition::kindString(Kind kind)
  * binding context as the original tree.
  */
 static ParseNode *
-CloneParseTree(ParseNode *opn, Parser *parser)
+CloneParseTree(ParseNode *opn, TreeContext *tc)
 {
-    TreeContext *tc = parser->tc;
+    JS_CHECK_RECURSION(tc->parser->context, return NULL);
 
-    JS_CHECK_RECURSION(tc->sc->context, return NULL);
-
-    ParseNode *pn = parser->new_<ParseNode>(opn->getKind(), opn->getOp(), opn->getArity(),
-                                            opn->pn_pos);
+    ParseNode *pn = tc->parser->new_<ParseNode>(opn->getKind(), opn->getOp(), opn->getArity(),
+                                                opn->pn_pos);
     if (!pn)
         return NULL;
     pn->setInParens(opn->isInParens());
@@ -495,8 +491,8 @@ CloneParseTree(ParseNode *opn, Parser *parser)
 
       case PN_FUNC:
         NULLCHECK(pn->pn_funbox =
-                  parser->newFunctionBox(opn->pn_funbox->object, pn, tc));
-        NULLCHECK(pn->pn_body = CloneParseTree(opn->pn_body, parser));
+                  tc->parser->newFunctionBox(opn->pn_funbox->object, pn, tc));
+        NULLCHECK(pn->pn_body = CloneParseTree(opn->pn_body, tc));
         pn->pn_cookie = opn->pn_cookie;
         pn->pn_dflags = opn->pn_dflags;
         pn->pn_blockid = opn->pn_blockid;
@@ -506,22 +502,22 @@ CloneParseTree(ParseNode *opn, Parser *parser)
         pn->makeEmpty();
         for (ParseNode *opn2 = opn->pn_head; opn2; opn2 = opn2->pn_next) {
             ParseNode *pn2;
-            NULLCHECK(pn2 = CloneParseTree(opn2, parser));
+            NULLCHECK(pn2 = CloneParseTree(opn2, tc));
             pn->append(pn2);
         }
         pn->pn_xflags = opn->pn_xflags;
         break;
 
       case PN_TERNARY:
-        NULLCHECK(pn->pn_kid1 = CloneParseTree(opn->pn_kid1, parser));
-        NULLCHECK(pn->pn_kid2 = CloneParseTree(opn->pn_kid2, parser));
-        NULLCHECK(pn->pn_kid3 = CloneParseTree(opn->pn_kid3, parser));
+        NULLCHECK(pn->pn_kid1 = CloneParseTree(opn->pn_kid1, tc));
+        NULLCHECK(pn->pn_kid2 = CloneParseTree(opn->pn_kid2, tc));
+        NULLCHECK(pn->pn_kid3 = CloneParseTree(opn->pn_kid3, tc));
         break;
 
       case PN_BINARY:
-        NULLCHECK(pn->pn_left = CloneParseTree(opn->pn_left, parser));
+        NULLCHECK(pn->pn_left = CloneParseTree(opn->pn_left, tc));
         if (opn->pn_right != opn->pn_left)
-            NULLCHECK(pn->pn_right = CloneParseTree(opn->pn_right, parser));
+            NULLCHECK(pn->pn_right = CloneParseTree(opn->pn_right, tc));
         else
             pn->pn_right = pn->pn_left;
         pn->pn_pval = opn->pn_pval;
@@ -529,7 +525,7 @@ CloneParseTree(ParseNode *opn, Parser *parser)
         break;
 
       case PN_UNARY:
-        NULLCHECK(pn->pn_kid = CloneParseTree(opn->pn_kid, parser));
+        NULLCHECK(pn->pn_kid = CloneParseTree(opn->pn_kid, tc));
         pn->pn_hidden = opn->pn_hidden;
         break;
 
@@ -546,7 +542,7 @@ CloneParseTree(ParseNode *opn, Parser *parser)
             pn->pn_link = dn->dn_uses;
             dn->dn_uses = pn;
         } else if (opn->pn_expr) {
-            NULLCHECK(pn->pn_expr = CloneParseTree(opn->pn_expr, parser));
+            NULLCHECK(pn->pn_expr = CloneParseTree(opn->pn_expr, tc));
 
             /*
              * If the old name is a definition, the new one has pn_defn set.
@@ -554,14 +550,14 @@ CloneParseTree(ParseNode *opn, Parser *parser)
              */
             if (opn->isDefn()) {
                 opn->setDefn(false);
-                LinkUseToDef(opn, (Definition *) pn);
+                LinkUseToDef(opn, (Definition *) pn, tc);
             }
         }
         break;
 
       case PN_NAMESET:
         pn->pn_names = opn->pn_names;
-        NULLCHECK(pn->pn_tree = CloneParseTree(opn->pn_tree, parser));
+        NULLCHECK(pn->pn_tree = CloneParseTree(opn->pn_tree, tc));
         break;
 
       case PN_NULLARY:
@@ -587,10 +583,10 @@ CloneParseTree(ParseNode *opn, Parser *parser)
  * the original tree.
  */
 ParseNode *
-js::CloneLeftHandSide(ParseNode *opn, Parser *parser)
+js::CloneLeftHandSide(ParseNode *opn, TreeContext *tc)
 {
-    ParseNode *pn = parser->new_<ParseNode>(opn->getKind(), opn->getOp(), opn->getArity(),
-                                            opn->pn_pos);
+    ParseNode *pn = tc->parser->new_<ParseNode>(opn->getKind(), opn->getOp(), opn->getArity(),
+                                                opn->pn_pos);
     if (!pn)
         return NULL;
     pn->setInParens(opn->isInParens());
@@ -607,19 +603,19 @@ js::CloneLeftHandSide(ParseNode *opn, Parser *parser)
                 JS_ASSERT(opn2->isArity(PN_BINARY));
                 JS_ASSERT(opn2->isKind(PNK_COLON));
 
-                ParseNode *tag = CloneParseTree(opn2->pn_left, parser);
+                ParseNode *tag = CloneParseTree(opn2->pn_left, tc);
                 if (!tag)
                     return NULL;
-                ParseNode *target = CloneLeftHandSide(opn2->pn_right, parser);
+                ParseNode *target = CloneLeftHandSide(opn2->pn_right, tc);
                 if (!target)
                     return NULL;
 
-                pn2 = parser->new_<BinaryNode>(PNK_COLON, JSOP_INITPROP, opn2->pn_pos, tag, target);
+                pn2 = tc->parser->new_<BinaryNode>(PNK_COLON, JSOP_INITPROP, opn2->pn_pos, tag, target);
             } else if (opn2->isArity(PN_NULLARY)) {
                 JS_ASSERT(opn2->isKind(PNK_COMMA));
-                pn2 = CloneParseTree(opn2, parser);
+                pn2 = CloneParseTree(opn2, tc);
             } else {
-                pn2 = CloneLeftHandSide(opn2, parser);
+                pn2 = CloneLeftHandSide(opn2, tc);
             }
 
             if (!pn2)
@@ -650,7 +646,7 @@ js::CloneLeftHandSide(ParseNode *opn, Parser *parser)
             pn->pn_dflags &= ~PND_BOUND;
             pn->setDefn(false);
 
-            LinkUseToDef(pn, (Definition *) opn);
+            LinkUseToDef(pn, (Definition *) opn, tc);
         }
     }
     return pn;

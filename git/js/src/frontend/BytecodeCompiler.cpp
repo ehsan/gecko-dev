@@ -49,26 +49,69 @@
 
 #include "jsinferinlines.h"
 
-#include "frontend/TreeContext-inl.h"
-
 using namespace js;
 using namespace js::frontend;
 
 bool
-MarkInnerAndOuterFunctions(JSContext *cx, JSScript* script)
+DefineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *script)
 {
-    Root<JSScript*> root(cx, &script);
+    JSObject *globalObj = globalScope.globalObj;
+
+    /* Define and update global properties. */
+    for (size_t i = 0; i < globalScope.defs.length(); i++) {
+        GlobalScope::GlobalDef &def = globalScope.defs[i];
+
+        /* Names that could be resolved ahead of time can be skipped. */
+        if (!def.atom)
+            continue;
+
+        jsid id = ATOM_TO_JSID(def.atom);
+        Value rval;
+
+        if (def.funbox) {
+            JSFunction *fun = def.funbox->function();
+
+            /*
+             * No need to check for redeclarations or anything, global
+             * optimizations only take place if the property is not defined.
+             */
+            rval.setObject(*fun);
+            types::AddTypePropertyId(cx, globalObj, id, rval);
+        } else {
+            rval.setUndefined();
+        }
+
+        /*
+         * Don't update the type information when defining the property for the
+         * global object, per the consistency rules for type properties. If the
+         * property is only undefined before it is ever written, we can check
+         * the global directly during compilation and avoid having to emit type
+         * checks every time it is accessed in the script.
+         */
+        const Shape *shape =
+            DefineNativeProperty(cx, globalObj, id, rval, JS_PropertyStub, JS_StrictPropertyStub,
+                                 JSPROP_ENUMERATE | JSPROP_PERMANENT, 0, 0, DNP_SKIP_TYPE);
+        if (!shape)
+            return false;
+        def.knownSlot = shape->slot();
+    }
 
     Vector<JSScript *, 16> worklist(cx);
     if (!worklist.append(script))
         return false;
 
+    /*
+     * Recursively walk through all scripts we just compiled. For each script,
+     * go through all global uses. Each global use indexes into globalScope->defs.
+     * Use this information to repoint each use to the correct slot in the global
+     * object.
+     */
     while (worklist.length()) {
         JSScript *outer = worklist.back();
         worklist.popBack();
 
-        if (outer->hasObjects()) {
-            ObjectArray *arr = outer->objects();
+        if (JSScript::isValidOffset(outer->objectsOffset)) {
+            JSObjectArray *arr = outer->objects();
 
             /*
              * If this is an eval script, don't treat the saved caller function
@@ -87,11 +130,24 @@ MarkInnerAndOuterFunctions(JSContext *cx, JSScript* script)
                     outer->isOuterFunction = true;
                     inner->isInnerFunction = true;
                 }
-                if (!inner->hasObjects())
+                if (!JSScript::isValidOffset(inner->globalsOffset) &&
+                    !JSScript::isValidOffset(inner->objectsOffset)) {
                     continue;
+                }
                 if (!worklist.append(inner))
                     return false;
             }
+        }
+
+        if (!JSScript::isValidOffset(outer->globalsOffset))
+            continue;
+
+        GlobalSlotArray *globalUses = outer->globals();
+        uint32_t nGlobalUses = globalUses->length;
+        for (uint32_t i = 0; i < nGlobalUses; i++) {
+            uint32_t index = globalUses->vector[i].slot;
+            JS_ASSERT(index < globalScope.defs.length());
+            globalUses->vector[i].slot = globalScope.defs[index].knownSlot;
         }
     }
 
@@ -101,7 +157,7 @@ MarkInnerAndOuterFunctions(JSContext *cx, JSScript* script)
 JSScript *
 frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerFrame,
                         JSPrincipals *principals, JSPrincipals *originPrincipals,
-                        bool compileAndGo, bool noScriptRval, bool needScriptGlobal,
+                        uint32_t tcflags,
                         const jschar *chars, size_t length,
                         const char *filename, unsigned lineno, JSVersion version,
                         JSString *source /* = NULL */,
@@ -109,30 +165,27 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
 {
     TokenKind tt;
     ParseNode *pn;
+    JSScript *script;
     bool inDirectivePrologue;
+
+    JS_ASSERT(!(tcflags & ~(TCF_COMPILE_N_GO | TCF_NO_SCRIPT_RVAL | TCF_COMPILE_FOR_EVAL
+                            | TCF_NEED_SCRIPT_GLOBAL)));
 
     /*
      * The scripted callerFrame can only be given for compile-and-go scripts
      * and non-zero static level requires callerFrame.
      */
-    JS_ASSERT_IF(callerFrame, compileAndGo);
+    JS_ASSERT_IF(callerFrame, tcflags & TCF_COMPILE_N_GO);
     JS_ASSERT_IF(staticLevel != 0, callerFrame);
 
-    bool foldConstants = true;
-    Parser parser(cx, principals, originPrincipals, callerFrame, foldConstants, compileAndGo);
+    Parser parser(cx, principals, originPrincipals, callerFrame);
     if (!parser.init(chars, length, filename, lineno, version))
         return NULL;
 
     TokenStream &tokenStream = parser.tokenStream;
 
-    SharedContext sc(cx, /* inFunction = */ false);
-
-    TreeContext tc(&parser, &sc);
-    if (!tc.init(cx))
-        return NULL;
-
-    BytecodeEmitter bce(&parser, &sc, tokenStream.getLineno(), noScriptRval, needScriptGlobal);
-    if (!bce.init())
+    BytecodeEmitter bce(&parser, tokenStream.getLineno());
+    if (!bce.init(cx, TreeContext::USED_AS_TREE_CONTEXT))
         return NULL;
 
     Probes::compileScriptBegin(cx, filename, lineno);
@@ -146,19 +199,21 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     JS_ASSERT_IF(globalObj, globalObj->isNative());
     JS_ASSERT_IF(globalObj, JSCLASS_HAS_GLOBAL_FLAG_AND_SLOTS(globalObj->getClass()));
 
-    RootedVar<JSScript*> script(cx);
+    /* Null script early in case of error, to reduce our code footprint. */
+    script = NULL;
 
-    GlobalScope globalScope(cx, globalObj);
-    bce.sc->setScopeChain(scopeChain);
+    GlobalScope globalScope(cx, globalObj, &bce);
+    bce.flags |= tcflags;
+    bce.setScopeChain(scopeChain);
     bce.globalScope = &globalScope;
-    if (!SetStaticLevel(bce.sc, staticLevel))
+    if (!SetStaticLevel(&bce, staticLevel))
         goto out;
 
     /* If this is a direct call to eval, inherit the caller's strictness.  */
     if (callerFrame &&
         callerFrame->isScriptFrame() &&
         callerFrame->script()->strictModeCode) {
-        bce.sc->flags |= TCF_STRICT_MODE_CODE;
+        bce.flags |= TCF_STRICT_MODE_CODE;
         tokenStream.setStrictMode();
     }
 
@@ -166,7 +221,7 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     bool savedCallerFun;
     savedCallerFun = false;
 #endif
-    if (compileAndGo) {
+    if (tcflags & TCF_COMPILE_N_GO) {
         if (source) {
             /*
              * Save eval program source in script->atoms[0] for the
@@ -201,9 +256,9 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
      * generate our script-body blockid since we aren't calling Statements.
      */
     uint32_t bodyid;
-    if (!GenerateBlockId(bce.sc, bodyid))
+    if (!GenerateBlockId(&bce, bodyid))
         goto out;
-    bce.sc->bodyid = bodyid;
+    bce.bodyid = bodyid;
 
 #if JS_HAS_XML_SUPPORT
     pn = NULL;
@@ -225,16 +280,17 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
         pn = parser.statement();
         if (!pn)
             goto out;
+        JS_ASSERT(!bce.blockNode);
 
         if (inDirectivePrologue && !parser.recognizeDirectivePrologue(pn, &inDirectivePrologue))
             goto out;
 
-        if (!FoldConstants(cx, pn, bce.parser))
+        if (!FoldConstants(cx, pn, &bce))
             goto out;
 
-        if (!AnalyzeFunctions(bce.parser))
+        if (!AnalyzeFunctions(&bce))
             goto out;
-        bce.sc->functionList = NULL;
+        bce.functionList = NULL;
 
         if (!EmitTree(cx, &bce, pn))
             goto out;
@@ -243,7 +299,7 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
         if (!pn->isKind(PNK_SEMI) || !pn->pn_kid || !pn->pn_kid->isXMLItem())
             onlyXML = false;
 #endif
-        bce.parser->freeTree(pn);
+        bce.freeTree(pn);
     }
 
 #if JS_HAS_XML_SUPPORT
@@ -274,7 +330,7 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
 
     JS_ASSERT(script->savedCallerFun == savedCallerFun);
 
-    if (!MarkInnerAndOuterFunctions(cx, script))
+    if (!DefineGlobals(cx, globalScope, script))
         script = NULL;
 
   out:
@@ -298,25 +354,19 @@ frontend::CompileFunctionBody(JSContext *cx, JSFunction *fun,
 
     TokenStream &tokenStream = parser.tokenStream;
 
-    SharedContext funsc(cx, /* inFunction = */ true);
-
-    TreeContext funtc(&parser, &funsc);
-    if (!funtc.init(cx))
-        return NULL;
-
-    BytecodeEmitter funbce(&parser, &funsc, tokenStream.getLineno(),
-                           /* noScriptRval = */ false, /* needsScriptGlobal = */ false);
-    if (!funbce.init())
+    BytecodeEmitter funbce(&parser, tokenStream.getLineno());
+    if (!funbce.init(cx, TreeContext::USED_AS_TREE_CONTEXT))
         return false;
 
-    funsc.setFunction(fun);
-    funsc.bindings.transfer(cx, bindings);
-    fun->setArgCount(funsc.bindings.numArgs());
-    if (!GenerateBlockId(&funsc, funsc.bodyid))
+    funbce.flags |= TCF_IN_FUNCTION;
+    funbce.setFunction(fun);
+    funbce.bindings.transfer(cx, bindings);
+    fun->setArgCount(funbce.bindings.countArgs());
+    if (!GenerateBlockId(&funbce, funbce.bodyid))
         return false;
 
     /* FIXME: make Function format the source for a function definition. */
-    ParseNode *fn = FunctionNode::create(PNK_NAME, &parser);
+    ParseNode *fn = FunctionNode::create(PNK_NAME, &funbce);
     if (fn) {
         fn->pn_body = NULL;
         fn->pn_cookie.makeFree();
@@ -327,12 +377,12 @@ frontend::CompileFunctionBody(JSContext *cx, JSFunction *fun,
              * NB: do not use AutoLocalNameArray because it will release space
              * allocated from cx->tempLifoAlloc by DefineArg.
              */
-            BindingNames names(cx);
-            if (!funsc.bindings.getLocalNameArray(cx, &names)) {
+            Vector<JSAtom *> names(cx);
+            if (!funbce.bindings.getLocalNameArray(cx, &names)) {
                 fn = NULL;
             } else {
                 for (unsigned i = 0; i < nargs; i++) {
-                    if (!DefineArg(fn, names[i].maybeAtom, i, &parser)) {
+                    if (!DefineArg(fn, names[i], i, &funbce)) {
                         fn = NULL;
                         break;
                     }
@@ -348,13 +398,15 @@ frontend::CompileFunctionBody(JSContext *cx, JSFunction *fun,
      */
     ParseNode *pn = fn ? parser.functionBody(Parser::StatementListBody) : NULL;
     if (pn) {
-        if (!tokenStream.matchToken(TOK_EOF)) {
+        if (!CheckStrictParameters(cx, &funbce)) {
+            pn = NULL;
+        } else if (!tokenStream.matchToken(TOK_EOF)) {
             parser.reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_SYNTAX_ERROR);
             pn = NULL;
-        } else if (!FoldConstants(cx, pn, &parser)) {
+        } else if (!FoldConstants(cx, pn, &funbce)) {
             /* FoldConstants reported the error already. */
             pn = NULL;
-        } else if (!AnalyzeFunctions(&parser)) {
+        } else if (!AnalyzeFunctions(&funbce)) {
             pn = NULL;
         } else {
             if (fn->pn_body) {

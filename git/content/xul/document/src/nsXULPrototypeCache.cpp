@@ -227,12 +227,14 @@ nsXULPrototypeCache::PutStyleSheet(nsCSSStyleSheet* aStyleSheet)
 
 
 JSScript*
-nsXULPrototypeCache::GetScript(nsIURI* aURI)
+nsXULPrototypeCache::GetScript(nsIURI* aURI, PRUint32 *aLangID)
 {
     CacheScriptEntry entry;
     if (!mScriptTable.Get(aURI, &entry)) {
+        *aLangID = nsIProgrammingLanguage::UNKNOWN;
         return nsnull;
     }
+    *aLangID = entry.mScriptTypeID;
     return entry.mScriptObject;
 }
 
@@ -242,13 +244,13 @@ static PLDHashOperator
 ReleaseScriptObjectCallback(nsIURI* aKey, CacheScriptEntry &aData, void* aClosure)
 {
     nsCOMPtr<nsIScriptRuntime> rt;
-    if (NS_SUCCEEDED(NS_GetJSRuntime(getter_AddRefs(rt))))
+    if (NS_SUCCEEDED(NS_GetScriptRuntimeByID(aData.mScriptTypeID, getter_AddRefs(rt))))
         rt->DropScriptObject(aData.mScriptObject);
     return PL_DHASH_REMOVE;
 }
 
 nsresult
-nsXULPrototypeCache::PutScript(nsIURI* aURI, JSScript* aScriptObject)
+nsXULPrototypeCache::PutScript(nsIURI* aURI, PRUint32 aLangID, JSScript* aScriptObject)
 {
     CacheScriptEntry existingEntry;
     if (mScriptTable.Get(aURI, &existingEntry)) {
@@ -264,13 +266,13 @@ nsXULPrototypeCache::PutScript(nsIURI* aURI, JSScript* aScriptObject)
         ReleaseScriptObjectCallback(aURI, existingEntry, nsnull);
     }
 
-    CacheScriptEntry entry = {aScriptObject};
+    CacheScriptEntry entry = {aLangID, aScriptObject};
 
     NS_ENSURE_TRUE(mScriptTable.Put(aURI, entry), NS_ERROR_OUT_OF_MEMORY);
 
     // Lock the object from being gc'd until it is removed from the cache
     nsCOMPtr<nsIScriptRuntime> rt;
-    nsresult rv = NS_GetJSRuntime(getter_AddRefs(rt));
+    nsresult rv = NS_GetScriptRuntimeByID(aLangID, getter_AddRefs(rt));
     if (NS_SUCCEEDED(rv))
         rv = rt->HoldScriptObject(aScriptObject);
     NS_ASSERTION(NS_SUCCEEDED(rv), "Failed to GC lock the object");

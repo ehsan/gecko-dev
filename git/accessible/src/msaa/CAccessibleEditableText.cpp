@@ -40,11 +40,19 @@
 
 #include "CAccessibleEditableText.h"
 
+#include "nsIAccessibleEditableText.h"
 #include "AccessibleEditableText_i.c"
-#include "nsHyperTextAccessible.h"
+#include "nsAccessNodeWrap.h"
 
 #include "nsCOMPtr.h"
 #include "nsString.h"
+
+#define GET_NSIACCESSIBLEEDITABLETEXT \
+nsCOMPtr<nsIAccessibleEditableText> textAcc(do_QueryObject(this));\
+NS_ASSERTION(textAcc,\
+             "Subclass of CAccessibleEditableText doesn't implement nsIAccessibleEditableText");\
+if (!textAcc)\
+  return E_FAIL;\
 
 // IUnknown
 
@@ -71,9 +79,7 @@ STDMETHODIMP
 CAccessibleEditableText::copyText(long aStartOffset, long aEndOffset)
 {
 __try {
-  nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
-  if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+  GET_NSIACCESSIBLEEDITABLETEXT
 
   nsresult rv = textAcc->CopyText(aStartOffset, aEndOffset);
   return GetHRESULT(rv);
@@ -86,9 +92,7 @@ STDMETHODIMP
 CAccessibleEditableText::deleteText(long aStartOffset, long aEndOffset)
 {
 __try {
-  nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
-  if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+  GET_NSIACCESSIBLEEDITABLETEXT
 
   nsresult rv = textAcc->DeleteText(aStartOffset, aEndOffset);
   return GetHRESULT(rv);
@@ -101,9 +105,7 @@ STDMETHODIMP
 CAccessibleEditableText::insertText(long aOffset, BSTR *aText)
 {
 __try {
-  nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
-  if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+  GET_NSIACCESSIBLEEDITABLETEXT
 
   PRUint32 length = ::SysStringLen(*aText);
   nsAutoString text(*aText, length);
@@ -119,9 +121,7 @@ STDMETHODIMP
 CAccessibleEditableText::cutText(long aStartOffset, long aEndOffset)
 {
 __try {
-  nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
-  if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+  GET_NSIACCESSIBLEEDITABLETEXT
 
   nsresult rv = textAcc->CutText(aStartOffset, aEndOffset);
   return GetHRESULT(rv);
@@ -134,9 +134,7 @@ STDMETHODIMP
 CAccessibleEditableText::pasteText(long aOffset)
 {
 __try {
-  nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
-  if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+  GET_NSIACCESSIBLEEDITABLETEXT
 
   nsresult rv = textAcc->PasteText(aOffset);
   return GetHRESULT(rv);
@@ -150,9 +148,7 @@ CAccessibleEditableText::replaceText(long aStartOffset, long aEndOffset,
                                      BSTR *aText)
 {
 __try {
-  nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
-  if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+  GET_NSIACCESSIBLEEDITABLETEXT
 
   nsresult rv = textAcc->DeleteText(aStartOffset, aEndOffset);
   if (NS_FAILED(rv))

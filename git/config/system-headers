@@ -1047,7 +1047,6 @@ vpx/vpx_codec.h
 vpx/vpx_decoder.h
 vpx/vp8dx.h
 sydneyaudio/sydney_audio.h
-speex/speex_resampler.h
 vorbis/codec.h
 theora/theoradec.h
 tremor/ivorbiscodec.h
@@ -1056,7 +1055,3 @@ ogg/os_types.h
 nestegg/nestegg.h
 cubeb/cubeb.h
 #endif
-gst/gst.h
-gst/app/gstappsink.h
-gst/app/gstappsrc.h
-gst/video/video.h

@@ -53,6 +53,7 @@ MOZILLA_INTERNAL_API = 1
 CPPSRCS		=				\
 		nsDependentString.cpp		\
 		nsDependentSubstring.cpp	\
+		nsPrintfCString.cpp		\
 		nsPromiseFlatString.cpp		\
 		nsReadableUtils.cpp		\
 		nsSubstring.cpp			\

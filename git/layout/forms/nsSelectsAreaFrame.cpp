@@ -149,8 +149,7 @@ public:
   }
 #endif
 
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) {
-    *aSnap = false;
+  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder) {
     // override bounds because the list item focus ring may extend outside
     // the nsSelectsAreaFrame
     nsListControlFrame* listFrame = GetEnclosingListFrame(GetUnderlyingFrame());

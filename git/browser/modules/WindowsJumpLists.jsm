@@ -141,7 +141,7 @@ var tasksCfg = [
     get title()       _getString("taskbar.tasks.newTab.label"),
     get description() _getString("taskbar.tasks.newTab.description"),
     args:             "-new-tab about:blank",
-    iconIndex:        3, // New window icon
+    iconIndex:        0, // Fx app icon
     open:             true,
     close:            true, // The jump list already has an app launch icon, but
                             // we don't always update the list on shutdown.
@@ -153,7 +153,7 @@ var tasksCfg = [
     get title()       _getString("taskbar.tasks.newWindow.label"),
     get description() _getString("taskbar.tasks.newWindow.description"),
     args:             "-browser",
-    iconIndex:        2, // New tab icon
+    iconIndex:        0, // Fx app icon
     open:             true,
     close:            true, // No point, but we don't always update the list on
                             //  shutdown.  Thus true for consistency.
@@ -174,7 +174,7 @@ var tasksCfg = [
         return _getString("taskbar.tasks.enterPrivacyMode.description");
     },
     args:             "-private-toggle",
-    iconIndex:        4, // Private browsing mode icon
+    iconIndex:        0, // Fx app icon
     get open() {
       // Don't show when inside permanent private browsing mode
       return !_privateBrowsingSvc.autoStarted;
@@ -477,6 +477,8 @@ var WinTaskbarJumpList =
     var options = PlacesUtils.history.getNewQueryOptions();
     options.maxResults = aLimit;
     options.sortingMode = aSortingMode;
+    // We don't want source redirects for these queries.
+    options.redirectsMode = Ci.nsINavHistoryQueryOptions.REDIRECTS_MODE_TARGET;
     var query = PlacesUtils.history.getNewQuery();
 
     // Return the pending statement to the caller, to allow cancelation.

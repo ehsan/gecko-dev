@@ -526,14 +526,6 @@ public:
   NS_HIDDEN_(nsresult) GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsAString& aResult);
 
   /**
-   * Gets the absolute URI values of an attribute, by resolving any relative
-   * URIs in the attribute against the baseuri of the element. If a substring
-   * isn't a relative URI, the substring is returned as is. Only works for
-   * attributes in null namespace.
-   */
-  bool GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsIURI** aURI) const;
-
-  /**
    * Returns the current disabled state of the element.
    */
   virtual bool IsDisabled() const {
@@ -617,6 +609,18 @@ protected:
 
   /**
    * Helper method for NS_IMPL_STRING_ATTR macro.
+   * Gets the value of an attribute, returns empty string if
+   * attribute isn't set. Only works for attributes in null namespace.
+   *
+   * @param aAttr    name of attribute.
+   * @param aDefault default-value to return if attribute isn't set.
+   * @param aResult  result value [out]
+   * @result always NS_OK
+   */
+  NS_HIDDEN_(nsresult) GetAttrHelper(nsIAtom* aAttr, nsAString& aValue);
+
+  /**
+   * Helper method for NS_IMPL_STRING_ATTR macro.
    * Sets the value of an attribute, returns specified default value if the
    * attribute isn't set. Only works for attributes in null namespace.
    *
@@ -692,6 +696,19 @@ protected:
   NS_HIDDEN_(nsresult) SetUnsignedIntAttr(nsIAtom* aAttr, PRUint32 aValue);
 
   /**
+   * Helper method for NS_IMPL_DOUBLE_ATTR macro.
+   * Gets the double-value of an attribute, returns specified default value
+   * if the attribute isn't set or isn't set to a double. Only works for
+   * attributes in null namespace.
+   *
+   * @param aAttr    name of attribute.
+   * @param aDefault default-value to return if attribute isn't set.
+   * @param aResult  result value [out]
+   */
+  NS_HIDDEN_(nsresult) GetDoubleAttr(nsIAtom* aAttr, double aDefault, double* aValue);
+
+  /**
+   * Helper method for NS_IMPL_DOUBLE_ATTR macro.
    * Sets value of attribute to specified double. Only works for attributes
    * in null namespace.
    *
@@ -699,6 +716,14 @@ protected:
    * @param aValue   Double value of attribute.
    */
   NS_HIDDEN_(nsresult) SetDoubleAttr(nsIAtom* aAttr, double aValue);
+
+  /**
+   * Helper for GetURIAttr and GetHrefURIForAnchors which returns an
+   * nsIURI in the out param.
+   *
+   * @return true if we had the attr, false otherwise.
+   */
+  NS_HIDDEN_(bool) GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsIURI** aURI) const;
 
   /**
    * This method works like GetURIAttr, except that it supports multiple
@@ -897,6 +922,8 @@ protected:
   virtual nsresult AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                 const nsAttrValue* aValue, bool aNotify);
 
+  void UpdateEditableFormControlState(bool aNotify);
+
   /**
    * This method will update the form owner, using @form or looking to a parent.
    *
@@ -978,6 +1005,23 @@ protected:
 PR_STATIC_ASSERT(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET + 1 < 32);
 
 //----------------------------------------------------------------------
+
+/**
+ * A macro to implement the getter and setter for a given string
+ * valued content property. The method uses the generic GetAttr and
+ * SetAttr methods.
+ */
+#define NS_IMPL_STRING_ATTR(_class, _method, _atom)                  \
+  NS_IMETHODIMP                                                      \
+  _class::Get##_method(nsAString& aValue)                            \
+  {                                                                  \
+    return GetAttrHelper(nsGkAtoms::_atom, aValue);                  \
+  }                                                                  \
+  NS_IMETHODIMP                                                      \
+  _class::Set##_method(const nsAString& aValue)                      \
+  {                                                                  \
+    return SetAttrHelper(nsGkAtoms::_atom, aValue);                  \
+  }
 
 /**
  * This macro is similar to NS_IMPL_STRING_ATTR except that the getter method
@@ -1077,6 +1121,26 @@ PR_STATIC_ASSERT(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET + 1 < 32);
       return NS_ERROR_DOM_INDEX_SIZE_ERR;                                 \
     }                                                                     \
     return SetUnsignedIntAttr(nsGkAtoms::_atom, aValue);                  \
+  }
+
+/**
+ * A macro to implement the getter and setter for a given double-precision
+ * floating point valued content property. The method uses GetDoubleAttr and
+ * SetDoubleAttr methods.
+ */
+#define NS_IMPL_DOUBLE_ATTR(_class, _method, _atom)                    \
+  NS_IMPL_DOUBLE_ATTR_DEFAULT_VALUE(_class, _method, _atom, 0.0)
+
+#define NS_IMPL_DOUBLE_ATTR_DEFAULT_VALUE(_class, _method, _atom, _default) \
+  NS_IMETHODIMP                                                             \
+  _class::Get##_method(double* aValue)                                      \
+  {                                                                         \
+    return GetDoubleAttr(nsGkAtoms::_atom, _default, aValue);               \
+  }                                                                         \
+  NS_IMETHODIMP                                                             \
+  _class::Set##_method(double aValue)                                       \
+  {                                                                         \
+    return SetDoubleAttr(nsGkAtoms::_atom, aValue);                         \
   }
 
 /**

@@ -22,12 +22,19 @@ function docLoaded()
 {
   browser.removeEventListener("load", docLoaded, true);
   doc = content.document;
-  stylePanel = new ComputedViewPanel(window);
-  stylePanel.createPanel(doc.body, checkSheets);
+  stylePanel = new StyleInspector(window);
+  Services.obs.addObserver(checkSheets, "StyleInspector-opened", false);
+  stylePanel.createPanel(false, function() {
+    stylePanel.open(doc.body);
+  });
 }
 
 function checkSheets()
 {
+  Services.obs.removeObserver(checkSheets, "StyleInspector-opened", false);
+
+  ok(stylePanel.isOpen(), "style inspector is open");
+
   var div = doc.querySelector("div");
   ok(div, "captain, we have the div");
 
@@ -48,12 +55,13 @@ function checkSheets()
   is(cssLogic._matchedRules[1][0].source, source2,
     "rule.source gives correct output for rule 2");
 
-  stylePanel.destroy();
-  finishUp();
+  Services.obs.addObserver(finishUp, "StyleInspector-closed", false);
+  stylePanel.close();
 }
 
 function finishUp()
 {
+  Services.obs.removeObserver(finishUp, "StyleInspector-closed", false);
   doc = null;
   gBrowser.removeCurrentTab();
   finish();

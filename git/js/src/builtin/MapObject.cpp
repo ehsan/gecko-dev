@@ -38,15 +38,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/FloatingPoint.h"
-
 #include "builtin/MapObject.h"
 
 #include "jscntxt.h"
+#include "jsgcmark.h"
 #include "jsiter.h"
 #include "jsobj.h"
 
-#include "gc/Marking.h"
 #include "vm/GlobalObject.h"
 #include "vm/MethodGuard.h"
 #include "vm/Stack.h"
@@ -56,16 +54,16 @@
 using namespace js;
 
 static JSObject *
-InitClass(JSContext *cx, Handle<GlobalObject*> global, Class *clasp, JSProtoKey key, Native construct,
+InitClass(JSContext *cx, GlobalObject *global, Class *clasp, JSProtoKey key, Native construct,
           JSFunctionSpec *methods)
 {
-    RootedVarObject proto(cx, global->createBlankPrototype(cx, clasp));
+    JSObject *proto = global->createBlankPrototype(cx, clasp);
     if (!proto)
         return NULL;
     proto->setPrivate(NULL);
 
     JSAtom *atom = cx->runtime->atomState.classAtoms[key];
-    RootedVarFunction ctor(cx, global->createConstructor(cx, construct, atom, 1));
+    JSFunction *ctor = global->createConstructor(cx, construct, atom, 1);
     if (!ctor ||
         !LinkConstructorAndPrototype(cx, ctor, proto) ||
         !DefinePropertiesAndBrand(cx, proto, NULL, methods) ||
@@ -91,10 +89,10 @@ HashableValue::setValue(JSContext *cx, const Value &v)
     } else if (v.isDouble()) {
         double d = v.toDouble();
         int32_t i;
-        if (MOZ_DOUBLE_IS_INT32(d, &i)) {
+        if (JSDOUBLE_IS_INT32(d, &i)) {
             /* Normalize int32-valued doubles to int32 for faster hashing and testing. */
             value = Int32Value(i);
-        } else if (MOZ_DOUBLE_IS_NaN(d)) {
+        } else if (JSDOUBLE_IS_NaN(d)) {
             /* NaNs with different bits must hash and test identically. */
             value = DoubleValue(js_NaN);
         } else {
@@ -145,15 +143,6 @@ HashableValue::equals(const HashableValue &other) const
     return b;
 }
 
-HashableValue
-HashableValue::mark(JSTracer *trc) const
-{
-    HashableValue hv(*this);
-    JS_SET_TRACING_LOCATION(trc, (void *)this);
-    gc::MarkValue(trc, &hv.value, "key");
-    return hv;
-}
-
 
 /*** Map *****************************************************************************************/
 
@@ -188,8 +177,7 @@ JSFunctionSpec MapObject::methods[] = {
 JSObject *
 MapObject::initClass(JSContext *cx, JSObject *obj)
 {
-    return InitClass(cx, RootedVar<GlobalObject*>(cx, &obj->asGlobal()),
-                     &class_, JSProto_Map, construct, methods);
+    return InitClass(cx, &obj->asGlobal(), &class_, JSProto_Map, construct, methods);
 }
 
 void
@@ -197,19 +185,22 @@ MapObject::mark(JSTracer *trc, JSObject *obj)
 {
     MapObject *mapobj = static_cast<MapObject *>(obj);
     if (ValueMap *map = mapobj->getData()) {
-        for (ValueMap::Enum iter(*map); !iter.empty(); iter.popFront()) {
-            gc::MarkValue(trc, &iter.front().value, "value");
-            iter.rekeyFront(iter.front().key.mark(trc));
+        for (ValueMap::Range r = map->all(); !r.empty(); r.popFront()) {
+            const HeapValue &key = r.front().key;
+            HeapValue tmp(key);
+            gc::MarkValue(trc, &tmp, "key");
+            JS_ASSERT(tmp.get() == key.get());
+            gc::MarkValue(trc, &r.front().value, "value");
         }
     }
 }
 
 void
-MapObject::finalize(FreeOp *fop, JSObject *obj)
+MapObject::finalize(JSContext *cx, JSObject *obj)
 {
     MapObject *mapobj = static_cast<MapObject *>(obj);
     if (ValueMap *map = mapobj->getData())
-        fop->delete_(map);
+        cx->delete_(map);
 }
 
 class AddToMap {
@@ -231,8 +222,6 @@ class AddToMap {
         if (!hkey.setValue(cx, key))
             return false;
 
-        HashableValue::StackRoot hkeyRoot(cx, &hkey);
-
         Value val;
         if (!pairobj->getElement(cx, 1, &val))
             return false;
@@ -248,7 +237,7 @@ class AddToMap {
 JSBool
 MapObject::construct(JSContext *cx, unsigned argc, Value *vp)
 {
-    RootedVarObject obj(cx, NewBuiltinClassInstance(cx, &class_));
+    JSObject *obj = NewBuiltinClassInstance(cx, &class_);
     if (!obj)
         return false;
 
@@ -297,7 +286,7 @@ MapObject::construct(JSContext *cx, unsigned argc, Value *vp)
 JSBool
 MapObject::size(JSContext *cx, unsigned argc, Value *vp)
 {
-    THIS_MAP(size, cx, argc, vp, args, map);
+    THIS_MAP(get, cx, argc, vp, args, map);
     JS_STATIC_ASSERT(sizeof map.count() <= sizeof(uint32_t));
     args.rval().setNumber(map.count());
     return true;
@@ -390,8 +379,7 @@ JSFunctionSpec SetObject::methods[] = {
 JSObject *
 SetObject::initClass(JSContext *cx, JSObject *obj)
 {
-    return InitClass(cx, RootedVar<GlobalObject*>(cx, &obj->asGlobal()),
-                     &class_, JSProto_Set, construct, methods);
+    return InitClass(cx, &obj->asGlobal(), &class_, JSProto_Set, construct, methods);
 }
 
 void
@@ -399,17 +387,21 @@ SetObject::mark(JSTracer *trc, JSObject *obj)
 {
     SetObject *setobj = static_cast<SetObject *>(obj);
     if (ValueSet *set = setobj->getData()) {
-        for (ValueSet::Enum iter(*set); !iter.empty(); iter.popFront())
-            iter.rekeyFront(iter.front().mark(trc));
+        for (ValueSet::Range r = set->all(); !r.empty(); r.popFront()) {
+            const HeapValue &key = r.front();
+            HeapValue tmp(key);
+            gc::MarkValue(trc, &tmp, "key");
+            JS_ASSERT(tmp.get() == key.get());
+        }
     }
 }
 
 void
-SetObject::finalize(FreeOp *fop, JSObject *obj)
+SetObject::finalize(JSContext *cx, JSObject *obj)
 {
     SetObject *setobj = static_cast<SetObject *>(obj);
     if (ValueSet *set = setobj->getData())
-        fop->delete_(set);
+        cx->delete_(set);
 }
 
 class AddToSet {
@@ -434,7 +426,7 @@ class AddToSet {
 JSBool
 SetObject::construct(JSContext *cx, unsigned argc, Value *vp)
 {
-    RootedVarObject obj(cx, NewBuiltinClassInstance(cx, &class_));
+    JSObject *obj = NewBuiltinClassInstance(cx, &class_);
     if (!obj)
         return false;
 
@@ -463,7 +455,7 @@ SetObject::construct(JSContext *cx, unsigned argc, Value *vp)
 JSBool
 SetObject::size(JSContext *cx, unsigned argc, Value *vp)
 {
-    THIS_SET(size, cx, argc, vp, args, set);
+    THIS_SET(has, cx, argc, vp, args, set);
     JS_STATIC_ASSERT(sizeof set.count() <= sizeof(uint32_t));
     args.rval().setNumber(set.count());
     return true;
@@ -508,4 +500,4 @@ JSObject *
 js_InitSetClass(JSContext *cx, JSObject *obj)
 {
     return SetObject::initClass(cx, obj);
-}
+} 

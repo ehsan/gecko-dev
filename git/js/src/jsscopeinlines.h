@@ -47,11 +47,11 @@
 #include "jscntxt.h"
 #include "jsdbgapi.h"
 #include "jsfun.h"
-#include "jsgc.h"
 #include "jsobj.h"
 #include "jsscope.h"
+#include "jsgc.h"
+#include "jsgcmark.h"
 
-#include "gc/Marking.h"
 #include "vm/ArgumentsObject.h"
 #include "vm/ScopeObject.h"
 #include "vm/StringObject.h"
@@ -176,7 +176,7 @@ BaseShape::adoptUnowned(UnownedBaseShape *other)
     JS_ASSERT((flags & other->getObjectFlags()) == flags);
 
     uint32_t span = slotSpan();
-    ShapeTable *table = &this->table();
+    PropertyTable *table = &this->table();
 
     *this = *other;
     setOwned(other);
@@ -277,27 +277,6 @@ Shape::matchesParamsAfterId(BaseShape *base, uint32_t aslot,
 }
 
 inline bool
-Shape::getUserId(JSContext *cx, jsid *idp) const
-{
-    const Shape *self = this;
-#ifdef DEBUG
-    {
-        SkipRoot skip(cx, &self);
-        MaybeCheckStackRoots(cx);
-    }
-#endif
-    if (self->hasShortID()) {
-        int16_t id = self->shortid();
-        if (id < 0)
-            return ValueToId(cx, Int32Value(id), idp);
-        *idp = INT_TO_JSID(id);
-    } else {
-        *idp = propid();
-    }
-    return true;
-}
-
-inline bool
 Shape::get(JSContext* cx, JSObject *receiver, JSObject* obj, JSObject *pobj, js::Value* vp) const
 {
     JS_ASSERT(!hasDefaultGetter());
@@ -313,12 +292,7 @@ Shape::get(JSContext* cx, JSObject *receiver, JSObject* obj, JSObject *pobj, js:
      */
     if (obj->isWith())
         obj = &obj->asWith().object();
-
-    jsid id;
-    if (!getUserId(cx, &id))
-        return false;
-
-    return js::CallJSPropertyOp(cx, getterOp(), receiver, id, vp);
+    return js::CallJSPropertyOp(cx, getterOp(), receiver, getUserId(), vp);
 }
 
 inline bool
@@ -337,12 +311,7 @@ Shape::set(JSContext* cx, JSObject* obj, bool strict, js::Value* vp) const
     /* See the comment in js::Shape::get as to why we check for With. */
     if (obj->isWith())
         obj = &obj->asWith().object();
-
-    jsid id;
-    if (!getUserId(cx, &id))
-        return false;
-
-    return js::CallJSPropertyOpSetter(cx, setterOp(), obj, id, strict, vp);
+    return js::CallJSPropertyOpSetter(cx, setterOp(), obj, getUserId(), strict, vp);
 }
 
 inline void

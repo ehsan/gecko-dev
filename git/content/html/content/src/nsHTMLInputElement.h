@@ -182,6 +182,7 @@ public:
   NS_IMETHOD_(void) GetDefaultValueFromContent(nsAString& aValue);
   NS_IMETHOD_(bool) ValueChanged() const;
   NS_IMETHOD_(void) GetTextEditorValue(nsAString& aValue, bool aIgnoreWrap) const;
+  NS_IMETHOD_(void) SetTextEditorValue(const nsAString& aValue, bool aUserInput);
   NS_IMETHOD_(nsIEditor*) GetTextEditor();
   NS_IMETHOD_(nsISelectionController*) GetSelectionController();
   NS_IMETHOD_(nsFrameSelection*) GetConstFrameSelection();
@@ -191,6 +192,7 @@ public:
   NS_IMETHOD_(nsIContent*) GetRootEditorNode();
   NS_IMETHOD_(nsIContent*) CreatePlaceholderNode();
   NS_IMETHOD_(nsIContent*) GetPlaceholderNode();
+  NS_IMETHOD_(void) UpdatePlaceholderText(bool aNotify);
   NS_IMETHOD_(void) SetPlaceholderClass(bool aVisible, bool aNotify);
   NS_IMETHOD_(void) InitializeKeyboardEventListeners();
   NS_IMETHOD_(void) OnValueChanged(bool aNotify);
@@ -221,6 +223,11 @@ public:
 
   NS_IMETHOD FireAsyncClickHandler();
 
+  virtual void UpdateEditableState(bool aNotify)
+  {
+    return UpdateEditableFormControlState(aNotify);
+  }
+
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHTMLInputElement,
                                            nsGenericHTMLFormElement)
 
@@ -233,8 +240,6 @@ public:
   void MaybeLoadImage();
 
   virtual nsXPCClassInfo* GetClassInfo();
-
-  virtual nsIDOMNode* AsDOMNode() { return this; }
 
   static nsHTMLInputElement* FromContent(nsIContent *aContent)
   {
@@ -295,11 +300,6 @@ public:
   bool DefaultChecked() const {
     return HasAttr(kNameSpaceID_None, nsGkAtoms::checked);
   }
-
-  /**
-   * Fires change event if mFocusedValue and current value held are unequal.
-   */
-  void FireChangeEventIfNeeded();
 
 protected:
   // Pull IsSingleLineTextControl into our scope, otherwise it'd be hidden
@@ -583,15 +583,6 @@ protected:
   nsRefPtr<nsDOMFileList>  mFileList;
 
   nsString mStaticDocFileList;
-  
-  /** 
-   * The value of the input element when first initialized and it is updated
-   * when the element is either changed through a script, focused or dispatches   
-   * a change event. This is to ensure correct future change event firing.
-   * NB: This is ONLY applicable where the element is a text control. ie,
-   * where type= "text", "email", "search", "tel", "url" or "password".
-   */
-  nsString mFocusedValue;  
 
   /**
    * The type of this input (<input type=...>) as an integer.

@@ -79,25 +79,72 @@ js_ValueToAtom(JSContext *cx, const js::Value &v, JSAtom **atomp)
     return !!*atomp;
 }
 
-namespace js {
+inline bool
+js_ValueToStringId(JSContext *cx, const js::Value &v, jsid *idp)
+{
+    JSAtom *atom;
+    if (js_ValueToAtom(cx, v, &atom)) {
+        *idp = ATOM_TO_JSID(atom);
+        return true;
+    }
+    return false;
+}
 
 inline bool
-ValueToId(JSContext* cx, JSObject *obj, const Value &v, jsid *idp)
+js_InternNonIntElementId(JSContext *cx, JSObject *obj, const js::Value &idval,
+                         jsid *idp)
 {
-    int32_t i;
-    if (ValueFitsInInt32(v, &i) && INT_FITS_IN_JSID(i)) {
-        *idp = INT_TO_JSID(i);
+    JS_ASSERT(!idval.isInt32() || !INT_FITS_IN_JSID(idval.toInt32()));
+
+#if JS_HAS_XML_SUPPORT
+    extern bool js_InternNonIntElementIdSlow(JSContext *, JSObject *,
+                                             const js::Value &, jsid *);
+    if (idval.isObject())
+        return js_InternNonIntElementIdSlow(cx, obj, idval, idp);
+#endif
+
+    return js_ValueToStringId(cx, idval, idp);
+}
+
+inline bool
+js_InternNonIntElementId(JSContext *cx, JSObject *obj, const js::Value &idval,
+                         jsid *idp, js::Value *vp)
+{
+    JS_ASSERT(!idval.isInt32() || !INT_FITS_IN_JSID(idval.toInt32()));
+
+#if JS_HAS_XML_SUPPORT
+    extern bool js_InternNonIntElementIdSlow(JSContext *, JSObject *,
+                                             const js::Value &,
+                                             jsid *, js::Value *);
+    if (idval.isObject())
+        return js_InternNonIntElementIdSlow(cx, obj, idval, idp, vp);
+#endif
+
+    JSAtom *atom;
+    if (js_ValueToAtom(cx, idval, &atom)) {
+        *idp = ATOM_TO_JSID(atom);
+        vp->setString(atom);
+        return true;
+    }
+    return false;
+}
+
+inline bool
+js_Int32ToId(JSContext* cx, int32_t index, jsid* id)
+{
+    if (INT_FITS_IN_JSID(index)) {
+        *id = INT_TO_JSID(index);
         return true;
     }
 
-    return InternNonIntElementId(cx, obj, v, idp);
+    JSString* str = js_NumberToString(cx, index);
+    if (!str)
+        return false;
+
+    return js_ValueToStringId(cx, js::StringValue(str), id);
 }
 
-inline bool
-ValueToId(JSContext* cx, const Value &v, jsid *idp)
-{
-    return ValueToId(cx, NULL, v, idp);
-}
+namespace js {
 
 /*
  * Write out character representing |index| to the memory just before |end|.
@@ -131,8 +178,6 @@ BackfillIndexInCharBuffer(uint32_t index, mozilla::RangedPtr<T> end)
 inline bool
 IndexToId(JSContext *cx, uint32_t index, jsid *idp)
 {
-    MaybeCheckStackRoots(cx);
-
     if (index <= JSID_INT_MAX) {
         *idp = INT_TO_JSID(index);
         return true;
@@ -140,18 +185,6 @@ IndexToId(JSContext *cx, uint32_t index, jsid *idp)
 
     extern bool IndexToIdSlow(JSContext *cx, uint32_t index, jsid *idp);
     return IndexToIdSlow(cx, index, idp);
-}
-
-inline jsid
-AtomToId(JSAtom *atom)
-{
-    JS_STATIC_ASSERT(JSID_INT_MIN == 0);
-
-    uint32_t index;
-    if (atom->isIndex(&index) && index <= JSID_INT_MAX)
-        return INT_TO_JSID((int32_t) index);
-
-    return JSID_FROM_BITS((size_t)atom);
 }
 
 static JS_ALWAYS_INLINE JSFlatString *

@@ -41,9 +41,9 @@
 
 %{C++
 #include "nsEvent.h"
-#include "mozilla/dom/Nullable.h"
+#include "mozilla/dom/bindings/Nullable.h"
 
-using mozilla::dom::Nullable;
+using mozilla::dom::bindings::Nullable;
 
 class nsPresContext;
 class nsEventChainPreVisitor;

@@ -103,7 +103,6 @@ XPIDLSRCS	= \
 		nsITransport.idl \
 		nsISocketTransport.idl \
 		nsISocketTransportService.idl \
-		nsISpeculativeConnect.idl \
 		nsIServerSocket.idl \
 		nsIResumableChannel.idl \
 		nsIRequestObserverProxy.idl \
@@ -165,7 +164,6 @@ EXPORTS		= \
 		nsReadLine.h \
 		nsASocketHandler.h \
 		nsAsyncRedirectVerifyHelper.h \
-		nsStreamListenerWrapper.h \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk

@@ -38,7 +38,7 @@
 
 #include "nsIDOMSVGElement.idl"
 
-[scriptable, uuid(B3314A7D-9909-4367-BBDB-9FAFB069CDFD)]
+[scriptable, uuid(2a837684-cf83-4fea-af06-fd1f351f901b)]
 interface nsIDOMSVGScriptElement
   : nsIDOMSVGElement
 /*
@@ -55,5 +55,4 @@ interface nsIDOMSVGScriptElement
 { 
   attribute DOMString         type;
       // raises DOMException on setting
-  attribute DOMString         crossOrigin;
 };

@@ -463,8 +463,8 @@ listTemplate = (
 "    NULL,                   /* finalize    */\n"
 "    NULL,                   /* checkAccess */\n"
 "    NULL,                   /* call        */\n"
-"    interface_hasInstance,\n"
-"    NULL                    /* construct   */\n"
+"    NULL,                   /* construct   */\n"
+"    interface_hasInstance\n"
 "};\n"
 "\n")
 
@@ -497,20 +497,15 @@ derivedClassTemplate = (
 prefableClassTemplate = (
 "template<>\n"
 "JSObject *\n"
-"${name}Wrapper::getPrototype(JSContext *cx, JSObject *receiver, bool *enabled)\n"
+"${name}Wrapper::getPrototype(JSContext *cx, XPCWrappedNativeScope *scope, bool *enabled)\n"
 "{\n"
-"    XPCWrappedNativeScope *scope =\n"
-"        XPCWrappedNativeScope::FindInJSObjectScope(cx, receiver);\n"
-"    if (!scope)\n"
-"        return false;\n"
-"\n"
 "    if (!scope->NewDOMBindingsEnabled()) {\n"
 "        *enabled = false;\n"
 "        return NULL;\n"
 "    }\n"
 "\n"
 "    *enabled = true;\n"
-"    return getPrototype(cx, scope, receiver);\n"
+"    return getPrototype(cx, scope);\n"
 "}\n"
 "\n")
 

@@ -1204,11 +1204,10 @@ nsNavHistory::invalidateFrecencies(const nsCString& aPlaceIdsQueryString)
       "THEN 0 "
       "ELSE -1 "
       "END) "
-    "WHERE frecency > 0 "
   );
 
   if (!aPlaceIdsQueryString.IsEmpty()) {
-    invalideFrecenciesSQLFragment.AppendLiteral("AND id IN(");
+    invalideFrecenciesSQLFragment.AppendLiteral("WHERE id IN(");
     invalideFrecenciesSQLFragment.Append(aPlaceIdsQueryString);
     invalideFrecenciesSQLFragment.AppendLiteral(")");
   }
@@ -1632,10 +1631,10 @@ nsNavHistory::ExecuteQueries(nsINavHistoryQuery** aQueries, PRUint32 aQueryCount
 // determine from our nsNavHistoryQuery array and nsNavHistoryQueryOptions
 // if this is the place query from the history menu.
 // from browser-menubar.inc, our history menu query is:
-// place:sort=4&maxResults=10
+// place:redirectsMode=2&sort=4&maxResults=10
 // note, any maxResult > 0 will still be considered a history menu query
-// or if this is the place query from the "Most Visited" item in the
-// "Smart Bookmarks" folder: place:sort=8&maxResults=10
+// or if this is the place query from the "Most Visited" item in the "Smart Bookmarks" folder:
+// place:redirectsMode=2&sort=8&maxResults=10
 // note, any maxResult > 0 will still be considered a Most Visited menu query
 static
 bool IsOptimizableHistoryQuery(const nsCOMArray<nsNavHistoryQuery>& aQueries,
@@ -1749,6 +1748,7 @@ private:
   PRUint16 mResultType;
   PRUint16 mQueryType;
   bool mIncludeHidden;
+  PRUint16 mRedirectsMode;
   PRUint16 mSortingMode;
   PRUint32 mMaxResults;
 
@@ -1771,6 +1771,7 @@ PlacesSQLQueryBuilder::PlacesSQLQueryBuilder(
 , mResultType(aOptions->ResultType())
 , mQueryType(aOptions->QueryType())
 , mIncludeHidden(aOptions->IncludeHidden())
+, mRedirectsMode(aOptions->RedirectsMode())
 , mSortingMode(aOptions->SortingMode())
 , mMaxResults(aOptions->MaxResults())
 , mSkipOrderBy(false)
@@ -1969,7 +1970,7 @@ PlacesSQLQueryBuilder::SelectAsDay()
   // beginTime will become the node's time property, we don't use endTime
   // because it could overlap, and we use time to sort containers and find
   // insert position in a result.
-  mQueryString = nsPrintfCString(
+  mQueryString = nsPrintfCString(1024,
      "SELECT null, "
        "'place:type=%ld&sort=%ld&beginTime='||beginTime||'&endTime='||endTime, "
       "dayTitle, null, null, beginTime, null, null, null, null, null, null "
@@ -2117,7 +2118,7 @@ PlacesSQLQueryBuilder::SelectAsDay()
     nsPrintfCString dateParam("dayTitle%d", i);
     mAddParams.Put(dateParam, dateName);
 
-    nsPrintfCString dayRange(
+    nsPrintfCString dayRange(1024,
       "SELECT :%s AS dayTitle, "
              "%s AS beginTime, "
              "%s AS endTime "
@@ -2173,7 +2174,7 @@ PlacesSQLQueryBuilder::SelectAsSite()
                                     "'&endTime='||:end_time");
   }
 
-  mQueryString = nsPrintfCString(
+  mQueryString = nsPrintfCString(2048,
     "SELECT null, 'place:type=%ld&sort=%ld&domain=&domainIsHost=true'%s, "
            ":localhost, :localhost, null, null, null, null, null, null, null "
     "WHERE EXISTS ( "
@@ -2225,7 +2226,7 @@ PlacesSQLQueryBuilder::SelectAsTag()
   // other history queries.
   mHasDateColumns = true; 
 
-  mQueryString = nsPrintfCString(
+  mQueryString = nsPrintfCString(2048,
     "SELECT null, 'place:folder=' || id || '&queryType=%d&type=%ld', "
            "title, null, null, null, null, null, null, dateAdded, "
            "lastModified, null, null "
@@ -2246,6 +2247,27 @@ PlacesSQLQueryBuilder::Where()
   // Set query options
   nsCAutoString additionalVisitsConditions;
   nsCAutoString additionalPlacesConditions;
+
+  if (mRedirectsMode == nsINavHistoryQueryOptions::REDIRECTS_MODE_SOURCE) {
+    // At least one visit that is not a redirect target should exist.
+    additionalVisitsConditions += NS_LITERAL_CSTRING(
+      "AND visit_type NOT IN ") +
+      nsPrintfCString("(%d,%d) ", nsINavHistoryService::TRANSITION_REDIRECT_PERMANENT,
+                                  nsINavHistoryService::TRANSITION_REDIRECT_TEMPORARY);
+  }
+  else if (mRedirectsMode == nsINavHistoryQueryOptions::REDIRECTS_MODE_TARGET) {
+    // At least one visit that is not a redirect source should exist.
+    additionalPlacesConditions += nsPrintfCString(1024,
+      "AND EXISTS ( "
+        "SELECT id "
+        "FROM moz_historyvisits v "
+        "WHERE place_id = h.id "
+          "AND NOT EXISTS(SELECT id FROM moz_historyvisits "
+                         "WHERE from_visit = v.id AND visit_type IN (%d,%d)) "
+      ") ",
+      nsINavHistoryService::TRANSITION_REDIRECT_PERMANENT,
+      nsINavHistoryService::TRANSITION_REDIRECT_TEMPORARY);
+  }
 
   if (!mIncludeHidden) {
     additionalPlacesConditions += NS_LITERAL_CSTRING("AND hidden = 0 ");
@@ -2390,23 +2412,23 @@ PlacesSQLQueryBuilder::OrderBy()
 
 void PlacesSQLQueryBuilder::OrderByColumnIndexAsc(PRInt32 aIndex)
 {
-  mQueryString += nsPrintfCString(" ORDER BY %d ASC", aIndex+1);
+  mQueryString += nsPrintfCString(128, " ORDER BY %d ASC", aIndex+1);
 }
 
 void PlacesSQLQueryBuilder::OrderByColumnIndexDesc(PRInt32 aIndex)
 {
-  mQueryString += nsPrintfCString(" ORDER BY %d DESC", aIndex+1);
+  mQueryString += nsPrintfCString(128, " ORDER BY %d DESC", aIndex+1);
 }
 
 void PlacesSQLQueryBuilder::OrderByTextColumnIndexAsc(PRInt32 aIndex)
 {
-  mQueryString += nsPrintfCString(" ORDER BY %d COLLATE NOCASE ASC",
+  mQueryString += nsPrintfCString(128, " ORDER BY %d COLLATE NOCASE ASC",
                                   aIndex+1);
 }
 
 void PlacesSQLQueryBuilder::OrderByTextColumnIndexDesc(PRInt32 aIndex)
 {
-  mQueryString += nsPrintfCString(" ORDER BY %d COLLATE NOCASE DESC",
+  mQueryString += nsPrintfCString(128, " ORDER BY %d COLLATE NOCASE DESC",
                                   aIndex+1);
 }
 
@@ -2485,7 +2507,33 @@ nsNavHistory::ConstructQueryString(
     queryString.AppendInt(aOptions->MaxResults());
 
     nsCAutoString additionalQueryOptions;
-
+    if (aOptions->RedirectsMode() ==
+          nsINavHistoryQueryOptions::REDIRECTS_MODE_SOURCE) {
+      // At least one visit that is not a redirect target should exist.
+      additionalQueryOptions +=  nsPrintfCString(256,
+        "AND EXISTS ( "
+          "SELECT id "
+          "FROM moz_historyvisits "
+          "WHERE place_id = h.id "
+            "AND visit_type NOT IN (%d,%d)"
+        ") ",
+        TRANSITION_REDIRECT_PERMANENT,
+        TRANSITION_REDIRECT_TEMPORARY);
+    }
+    else if (aOptions->RedirectsMode() ==
+              nsINavHistoryQueryOptions::REDIRECTS_MODE_TARGET) {
+      // At least one visit that is not a redirect source should exist.
+      additionalQueryOptions += nsPrintfCString(1024,
+        "AND EXISTS ( "
+          "SELECT id "
+          "FROM moz_historyvisits v "
+          "WHERE place_id = h.id "
+            "AND NOT EXISTS(SELECT id FROM moz_historyvisits "
+                           "WHERE from_visit = v.id AND visit_type IN (%d,%d)) "
+        ") ",
+        TRANSITION_REDIRECT_PERMANENT,
+        TRANSITION_REDIRECT_TEMPORARY);
+    }
     queryString.ReplaceSubstring("{QUERY_OPTIONS}",
                                   additionalQueryOptions.get());
     return NS_OK;
@@ -2685,6 +2733,56 @@ nsNavHistory::GetHistoryDisabled(bool *_retval)
 }
 
 // Browser history *************************************************************
+
+
+// nsNavHistory::AddPageWithDetails
+//
+//    This function is used by the migration components to import history.
+//
+//    Note that this always adds the page with one visit and no parent, which
+//    is appropriate for imported URIs.
+
+NS_IMETHODIMP
+nsNavHistory::AddPageWithDetails(nsIURI *aURI, const PRUnichar *aTitle,
+                                 PRInt64 aLastVisited)
+{
+  NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
+  NS_ENSURE_ARG(aURI);
+
+  // Don't update the page title inside the private browsing mode.
+  if (InPrivateBrowsingMode())
+    return NS_OK;
+
+  PRInt64 visitID;
+  nsresult rv = AddVisit(aURI, aLastVisited, 0, TRANSITION_LINK, false,
+                         0, &visitID);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return SetPageTitleInternal(aURI, nsString(aTitle));
+}
+
+
+// nsNavHistory::GetCount
+//
+//    This function is used in legacy code to see if there is any history to
+//    clear. Counting the actual number of history entries is very slow, so
+//    we just see if there are any and return 0 or 1, which is enough to make
+//    all the code that uses this function happy.
+
+NS_IMETHODIMP
+nsNavHistory::GetCount(PRUint32 *aCount)
+{
+  NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
+  NS_ENSURE_ARG_POINTER(aCount);
+
+  bool hasEntries = false;
+  nsresult rv = GetHasHistoryEntries(&hasEntries);
+  if (hasEntries)
+    *aCount = 1;
+  else
+    *aCount = 0;
+  return rv;
+}
 
 
 // nsNavHistory::RemovePagesInternal
@@ -3161,6 +3259,21 @@ nsNavHistory::RemoveAllPages()
   NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "failed to fix invalid frecencies");
 
   return NS_OK;
+}
+
+
+// nsNavHistory::HidePage
+//
+//    Sets the 'hidden' column to true. If we've not heard of the page, we
+//    succeed and do nothing.
+
+NS_IMETHODIMP
+nsNavHistory::HidePage(nsIURI *aURI)
+{
+  NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
+  NS_ENSURE_ARG(aURI);
+
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 
@@ -3913,7 +4026,7 @@ nsNavHistory::QueryToSelectClause(nsNavHistoryQuery* aQuery, // const
     // it can match everything and work as a nice case insensitive comparator.
     clause.Condition("AUTOCOMPLETE_MATCH(").Param(":search_string")
           .Str(", h.url, page_title, tags, ")
-          .Str(nsPrintfCString("0, 0, 0, 0, %d, 0)",
+          .Str(nsPrintfCString(17, "0, 0, 0, 0, %d, 0)",
                                mozIPlacesAutoComplete::MATCH_ANYWHERE_UNMODIFIED).get());
     // Serching by terms implicitly exclude queries.
     excludeQueries = true;

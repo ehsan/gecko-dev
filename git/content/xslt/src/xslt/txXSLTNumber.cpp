@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/FloatingPoint.h"
-
 #include "txXSLTNumber.h"
 #include "nsGkAtoms.h"
 #include "txCore.h"
@@ -124,7 +122,7 @@ txXSLTNumber::getValueList(Expr* aValueExpr, txPattern* aCountPattern,
 
         double value = result->numberValue();
 
-        if (MOZ_DOUBLE_IS_INFINITE(value) || MOZ_DOUBLE_IS_NaN(value) ||
+        if (txDouble::isInfinite(value) || txDouble::isNaN(value) ||
             value < 0.5) {
             txDouble::toString(value, aValueString);
             return NS_OK;

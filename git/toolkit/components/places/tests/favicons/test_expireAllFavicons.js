@@ -42,7 +42,8 @@ add_test(function test_expireAllFavicons() {
                           PlacesUtils.bookmarks.DEFAULT_INDEX,
                           "Test bookmark");
     PlacesUtils.favicons.setAndFetchFaviconForPage(
-      BOOKMARKED_PAGE_URI, SMALLPNG_DATA_URI, true, function () {
+      BOOKMARKED_PAGE_URI, SMALLPNG_DATA_URI, true,
+      function EAF_onFaviconDataAvailable() {
         // Start expiration only after data has been saved in the database.
         PlacesUtils.favicons.expireAllFavicons();
       });

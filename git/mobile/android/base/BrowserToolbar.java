@@ -60,7 +60,6 @@ import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.RelativeLayout.LayoutParams;
 import android.widget.TextView;
 import android.widget.TextSwitcher;
 import android.widget.ViewSwitcher.ViewFactory;
@@ -173,26 +172,12 @@ public class BrowserToolbar {
 
         mFavicon = (ImageButton) mLayout.findViewById(R.id.favicon);
         mSiteSecurity = (ImageButton) mLayout.findViewById(R.id.site_security);
-        mSiteSecurity.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View view) {
-                int[] lockLocation = new int[2];
-                view.getLocationOnScreen(lockLocation);
-                LayoutParams lockLayoutParams = (LayoutParams) view.getLayoutParams();
-
-                // Calculate the left margin for the arrow based on the position of the lock icon.
-                int leftMargin = lockLocation[0] - lockLayoutParams.rightMargin;
-                SiteIdentityPopup.getInstance().show(leftMargin);
-            }
-        });
-
         mProgressSpinner = (AnimationDrawable) resources.getDrawable(R.drawable.progress_spinner);
         
         mStop = (ImageButton) mLayout.findViewById(R.id.stop);
         mStop.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View v) {
-                Tab tab = Tabs.getInstance().getSelectedTab();
-                if (tab != null)
-                    tab.doStop();
+                doStop();
             }
         });
 
@@ -223,6 +208,10 @@ public class BrowserToolbar {
         GeckoApp.mAppContext.showTabs();
     }
 
+    private void doStop() {
+        GeckoApp.mAppContext.doStop();
+    }
+
     public int getHighlightColor() {
         return mColor;
     }
@@ -246,7 +235,6 @@ public class BrowserToolbar {
             mTabsCount.setVisibility(View.VISIBLE);
             // Set image to more tabs dropdown "v"
             mTabs.setImageLevel(count);
-            mTabs.setContentDescription(mContext.getString(R.string.num_tabs, count));
         }
 
         mHandler.postDelayed(new Runnable() {
@@ -264,7 +252,6 @@ public class BrowserToolbar {
                     // Set image to new tab button "+"
                     mTabs.setImageLevel(1);
                     mTabsCount.setVisibility(View.GONE);
-                    mTabs.setContentDescription(mContext.getString(R.string.new_tab));
                 }
                 ((TextView) mTabsCount.getCurrentView()).setTextColor(mCounterColor);
             }
@@ -274,13 +261,7 @@ public class BrowserToolbar {
     public void updateTabCount(int count) {
         mTabsCount.setCurrentText(String.valueOf(count));
         mTabs.setImageLevel(count);
-        if (count > 1) {
-            mTabsCount.setVisibility(View.VISIBLE);
-            mTabs.setContentDescription(mContext.getString(R.string.num_tabs, count));
-        } else {
-            mTabsCount.setVisibility(View.INVISIBLE);
-            mTabs.setContentDescription(mContext.getString(R.string.new_tab));
-        }
+        mTabsCount.setVisibility(count > 1 ? View.VISIBLE : View.INVISIBLE);
     }
 
     public void setProgressVisibility(boolean visible) {
@@ -292,9 +273,7 @@ public class BrowserToolbar {
         } else {
             mProgressSpinner.stop();
             setStopVisibility(false);
-            Tab selectedTab = Tabs.getInstance().getSelectedTab();
-            if (selectedTab != null)
-                setFavicon(selectedTab.getFavicon());
+            setFavicon(Tabs.getInstance().getSelectedTab().getFavicon());
             Log.i(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - Throbber stop");
         }
     }
@@ -341,9 +320,9 @@ public class BrowserToolbar {
     public void setSecurityMode(String mode) {
         mTitleCanExpand = false;
 
-        if (mode.equals(SiteIdentityPopup.IDENTIFIED)) {
+        if (mode.equals("identified")) {
             mSiteSecurity.setImageLevel(1);
-        } else if (mode.equals(SiteIdentityPopup.VERIFIED)) {
+        } else if (mode.equals("verified")) {
             mSiteSecurity.setImageLevel(2);
         } else {
             mSiteSecurity.setImageLevel(0);

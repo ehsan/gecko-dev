@@ -399,6 +399,7 @@ class GCCompartmentsIter {
         end = rt->compartments.end();
         if (!(*it)->isCollecting())
             next();
+        JS_ASSERT(it < end);
     }
 
     bool done() const { return it == end; }
@@ -439,14 +440,14 @@ NewGCThing(JSContext *cx, js::gc::AllocKind kind, size_t thingSize)
     JS_ASSERT(!cx->runtime->noGCOrAllocationCheck);
 
     /* For testing out of memory conditions */
-    JS_OOM_POSSIBLY_FAIL_REPORT(cx);
+    JS_OOM_POSSIBLY_FAIL();
 
 #ifdef JS_GC_ZEAL
     if (cx->runtime->needZealousGC())
         js::gc::RunDebugGC(cx);
 #endif
 
-    MaybeCheckStackRoots(cx);
+    js::gc::MaybeCheckStackRoots(cx);
 
     JSCompartment *comp = cx->compartment;
     void *t = comp->arenas.allocateFromFreeList(kind, thingSize);

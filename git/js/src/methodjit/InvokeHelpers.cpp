@@ -78,7 +78,7 @@ FindExceptionHandler(JSContext *cx)
     StackFrame *fp = cx->fp();
     JSScript *script = fp->script();
 
-    if (!script->hasTrynotes())
+    if (!JSScript::isValidOffset(script->trynotesOffset))
         return NULL;
 
   error:
@@ -156,7 +156,7 @@ static void
 InlineReturn(VMFrame &f)
 {
     JS_ASSERT(f.fp() != f.entryfp);
-    JS_ASSERT(!IsActiveWithOrBlock(f.cx, *f.fp()->scopeChain(), 0));
+    JS_ASSERT(!IsActiveWithOrBlock(f.cx, f.fp()->scopeChain(), 0));
     JS_ASSERT(!f.fp()->hasBlockChain());
     f.cx->stack.popInlineFrame(f.regs);
 
@@ -172,9 +172,6 @@ InlineReturn(VMFrame &f)
 void JS_FASTCALL
 stubs::SlowCall(VMFrame &f, uint32_t argc)
 {
-    if (*f.regs.pc == JSOP_FUNAPPLY && !GuardFunApplySpeculation(f.cx, f.regs))
-        THROW();
-
     CallArgs args = CallArgsFromSp(argc, f.regs.sp);
     if (!InvokeKernel(f.cx, args))
         THROW();
@@ -301,8 +298,7 @@ UncachedInlineCall(VMFrame &f, InitialFrameFlags initial,
     bool newType = construct && cx->typeInferenceEnabled() &&
         types::UseNewType(cx, f.script(), f.pc());
 
-    if (!types::TypeMonitorCall(cx, args, construct))
-        return false;
+    types::TypeMonitorCall(cx, args, construct);
 
     /* Try to compile if not already compiled. */
     CompileStatus status = CanMethodJIT(cx, newscript, newscript->code, construct, CompileRequest_Interpreter);
@@ -348,7 +344,7 @@ UncachedInlineCall(VMFrame &f, InitialFrameFlags initial,
      * will be constructing a new type object for 'this'.
      */
     if (!newType) {
-        if (JITScript *jit = newscript->getJIT(regs.fp()->isConstructing(), cx->compartment->needsBarrier())) {
+        if (JITScript *jit = newscript->getJIT(regs.fp()->isConstructing())) {
             if (jit->invokeEntry) {
                 *pret = jit->invokeEntry;
 
@@ -430,7 +426,7 @@ stubs::Eval(VMFrame &f, uint32_t argc)
 {
     CallArgs args = CallArgsFromSp(argc, f.regs.sp);
 
-    if (!IsBuiltinEvalForScope(f.fp()->scopeChain(), args.calleev())) {
+    if (!IsBuiltinEvalForScope(&f.fp()->scopeChain(), args.calleev())) {
         if (!InvokeKernel(f.cx, args))
             THROW();
 
@@ -485,20 +481,20 @@ RemoveOrphanedNative(JSContext *cx, StackFrame *fp)
      * pools. We don't release pools piecemeal as a pool can be referenced by
      * multiple frames.
      */
-    JaegerRuntime &jr = cx->jaegerRuntime();
-    if (jr.orphanedNativeFrames.empty())
+    JaegerCompartment *jc = cx->compartment->jaegerCompartment();
+    if (jc->orphanedNativeFrames.empty())
         return;
-    for (unsigned i = 0; i < jr.orphanedNativeFrames.length(); i++) {
-        if (fp == jr.orphanedNativeFrames[i]) {
-            jr.orphanedNativeFrames[i] = jr.orphanedNativeFrames.back();
-            jr.orphanedNativeFrames.popBack();
+    for (unsigned i = 0; i < jc->orphanedNativeFrames.length(); i++) {
+        if (fp == jc->orphanedNativeFrames[i]) {
+            jc->orphanedNativeFrames[i] = jc->orphanedNativeFrames.back();
+            jc->orphanedNativeFrames.popBack();
             break;
         }
     }
-    if (jr.orphanedNativeFrames.empty()) {
-        for (unsigned i = 0; i < jr.orphanedNativePools.length(); i++)
-            jr.orphanedNativePools[i]->release();
-        jr.orphanedNativePools.clear();
+    if (jc->orphanedNativeFrames.empty()) {
+        for (unsigned i = 0; i < jc->orphanedNativePools.length(); i++)
+            jc->orphanedNativePools[i]->release();
+        jc->orphanedNativePools.clear();
     }
 }
 
@@ -542,7 +538,7 @@ js_InternalThrow(VMFrame &f)
                 case JSTRAP_RETURN:
                     cx->clearPendingException();
                     cx->fp()->setReturnValue(rval);
-                    return cx->jaegerRuntime().forceReturnFromExternC();
+                    return cx->jaegerCompartment()->forceReturnFromExternC();
 
                 case JSTRAP_THROW:
                     cx->setPendingException(rval);
@@ -565,14 +561,14 @@ js_InternalThrow(VMFrame &f)
         // property.
         JS_ASSERT(!f.fp()->finishedInInterpreter());
         UnwindScope(cx, 0);
-        f.regs.setToEndOfScript();
+        f.regs.sp = f.fp()->base();
 
         if (cx->compartment->debugMode()) {
             // This can turn a throw or error into a healthy return. Note that
             // we will run ScriptDebugEpilogue again (from AnyFrameEpilogue);
             // ScriptDebugEpilogue is prepared for this eventuality.
             if (js::ScriptDebugEpilogue(cx, f.fp(), false))
-                return cx->jaegerRuntime().forceReturnFromExternC();
+                return cx->jaegerCompartment()->forceReturnFromExternC();
         }
                 
 
@@ -603,7 +599,7 @@ js_InternalThrow(VMFrame &f)
      * thus can only enter JIT code via EnterMethodJIT (which overwrites
      * its entry frame's ncode). See ClearAllFrames.
      */
-    cx->jaegerRuntime().setLastUnfinished(Jaeger_Unfinished);
+    cx->compartment->jaegerCompartment()->setLastUnfinished(Jaeger_Unfinished);
 
     if (!script->ensureRanAnalysis(cx, NULL)) {
         js_ReportOutOfMemory(cx);
@@ -641,7 +637,7 @@ stubs::CreateThis(VMFrame &f, JSObject *proto)
 {
     JSContext *cx = f.cx;
     StackFrame *fp = f.fp();
-    RootedVarObject callee(cx, &fp->callee());
+    JSObject *callee = &fp->callee();
     JSObject *obj = js_CreateThisForFunctionWithProto(cx, callee, proto);
     if (!obj)
         THROW();
@@ -657,7 +653,7 @@ stubs::ScriptDebugPrologue(VMFrame &f)
       case JSTRAP_CONTINUE:
         break;
       case JSTRAP_RETURN:
-        *f.returnAddressLocation() = f.cx->jaegerRuntime().forceReturnFromFastCall();
+        *f.returnAddressLocation() = f.cx->jaegerCompartment()->forceReturnFromFastCall();
         return;
       case JSTRAP_ERROR:
       case JSTRAP_THROW:
@@ -903,7 +899,7 @@ js_InternalInterpret(void *returnData, void *returnType, void *returnReg, js::VM
         break;
 
       case REJOIN_THIS_PROTOTYPE: {
-        RootedVarObject callee(cx, &fp->callee());
+        JSObject *callee = &fp->callee();
         JSObject *proto = f.regs.sp[0].isObject() ? &f.regs.sp[0].toObject() : NULL;
         JSObject *obj = js_CreateThisForFunctionWithProto(cx, callee, proto);
         if (!obj)
@@ -919,7 +915,7 @@ js_InternalInterpret(void *returnData, void *returnType, void *returnReg, js::VM
               case JSTRAP_CONTINUE:
                 break;
               case JSTRAP_RETURN:
-                *f.returnAddressLocation() = f.cx->jaegerRuntime().forceReturnFromExternC();
+                *f.returnAddressLocation() = f.cx->jaegerCompartment()->forceReturnFromExternC();
                 return NULL;
               case JSTRAP_THROW:
               case JSTRAP_ERROR:
@@ -1102,7 +1098,7 @@ js_InternalInterpret(void *returnData, void *returnType, void *returnReg, js::VM
 
     /* Mark the entry frame as unfinished, and update the regs to resume at. */
     JaegerStatus status = skipTrap ? Jaeger_UnfinishedAtTrap : Jaeger_Unfinished;
-    cx->jaegerRuntime().setLastUnfinished(status);
+    cx->compartment->jaegerCompartment()->setLastUnfinished(status);
     *f.oldregs = f.regs;
 
     return NULL;

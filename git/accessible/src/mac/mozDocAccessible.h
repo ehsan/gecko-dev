@@ -44,7 +44,7 @@
 
 /* 
   The root accessible. There is one per window.
-  Created by the RootAccessibleWrap.
+  Created by the nsRootAccessibleWrap.
 */
 @interface mozRootAccessible : mozAccessible
 {

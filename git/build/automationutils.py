@@ -459,7 +459,7 @@ class ShutdownLeakLogger(object):
   DOM windows (that are still around after test suite shutdown, despite running
   the GC) to the tests that created them and prints leak statistics.
   """
-  MAX_LEAK_COUNT = 10
+  MAX_LEAK_COUNT = 121
 
   def __init__(self, logger):
     self.logger = logger
@@ -479,7 +479,7 @@ class ShutdownLeakLogger(object):
       self.currentTest = {"fileName": fileName, "windows": set(), "docShells": set()}
     elif line.startswith("INFO TEST-END"):
       # don't track a test if no windows or docShells leaked
-      if self.currentTest and (self.currentTest["windows"] or self.currentTest["docShells"]):
+      if self.currentTest["windows"] or self.currentTest["docShells"]:
         self.tests.append(self.currentTest)
       self.currentTest = None
     elif line.startswith("INFO TEST-START | Shutdown"):
@@ -507,10 +507,6 @@ class ShutdownLeakLogger(object):
     created = line[:2] == "++"
     id = self._parseValue(line, "serial")
 
-    # log line has invalid format
-    if not id:
-      return
-
     if self.currentTest:
       windows = self.currentTest["windows"]
       if created:
@@ -524,10 +520,6 @@ class ShutdownLeakLogger(object):
     created = line[:2] == "++"
     id = self._parseValue(line, "id")
 
-    # log line has invalid format
-    if not id:
-      return
-
     if self.currentTest:
       docShells = self.currentTest["docShells"]
       if created:
@@ -538,10 +530,7 @@ class ShutdownLeakLogger(object):
       self.leakedDocShells.add(id)
 
   def _parseValue(self, line, name):
-    match = re.search("\[%s = (.+?)\]" % name, line)
-    if match:
-      return match.group(1)
-    return None
+    return re.search("\[%s = (.+?)\]" % name, line).group(1)
 
   def _parseLeakingTests(self):
     leakingTests = []

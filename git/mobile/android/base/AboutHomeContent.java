@@ -324,6 +324,14 @@ public class AboutHomeContent extends ScrollView
             return NUMBER_OF_TOP_SITES_PORTRAIT;
     }
 
+    private int getNumberOfColumns() {
+        Configuration config = getContext().getResources().getConfiguration();
+        if (config.orientation == Configuration.ORIENTATION_LANDSCAPE)
+            return NUMBER_OF_COLS_LANDSCAPE;
+        else
+            return NUMBER_OF_COLS_PORTRAIT;
+    }
+
     private void loadTopSites(final Activity activity) {
         // Ensure we initialize GeckoApp's startup mode in
         // background thread before we use it when updating
@@ -334,10 +342,8 @@ public class AboutHomeContent extends ScrollView
         // UI thread as it touches disk to access a sqlite DB.
         final boolean syncIsSetup = isSyncSetup();
 
-        final ContentResolver resolver = GeckoApp.mAppContext.getContentResolver();
-        final Cursor oldCursor = mCursor;
-        // Swap in the new cursor.
-        mCursor = BrowserDB.getTopSites(resolver, NUMBER_OF_TOP_SITES_PORTRAIT);;
+        ContentResolver resolver = GeckoApp.mAppContext.getContentResolver();
+        mCursor = BrowserDB.getTopSites(resolver, NUMBER_OF_TOP_SITES_PORTRAIT);
 
         GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
             public void run() {
@@ -355,11 +361,9 @@ public class AboutHomeContent extends ScrollView
                     mTopSitesAdapter.changeCursor(mCursor);
                 }
 
-                updateLayout(startupMode, syncIsSetup);
+                mTopSitesGrid.setNumColumns(getNumberOfColumns());
 
-                // Free the old Cursor in the right thread now.
-                if (oldCursor != null && !oldCursor.isClosed())
-                    oldCursor.close();
+                updateLayout(startupMode, syncIsSetup);
             }
         });
     }
@@ -392,6 +396,8 @@ public class AboutHomeContent extends ScrollView
 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
+        if (mTopSitesGrid != null) 
+            mTopSitesGrid.setNumColumns(getNumberOfColumns());
         if (mTopSitesAdapter != null)
             mTopSitesAdapter.notifyDataSetChanged();
 
@@ -703,16 +709,13 @@ public class AboutHomeContent extends ScrollView
             if (config.orientation == Configuration.ORIENTATION_LANDSCAPE) {
                 nSites = Math.min(nSites, NUMBER_OF_TOP_SITES_LANDSCAPE);
                 numRows = (int) Math.round((double) nSites / NUMBER_OF_COLS_LANDSCAPE);
-                setNumColumns(NUMBER_OF_COLS_LANDSCAPE);
             } else {
                 nSites = Math.min(nSites, NUMBER_OF_TOP_SITES_PORTRAIT);
                 numRows = (int) Math.round((double) nSites / NUMBER_OF_COLS_PORTRAIT);
-                setNumColumns(NUMBER_OF_COLS_PORTRAIT);
             }
             int expandedHeightSpec = 
                 MeasureSpec.makeMeasureSpec((int)(mDisplayDensity * numRows * kTopSiteItemHeight),
                                             MeasureSpec.EXACTLY);
-
             super.onMeasure(widthMeasureSpec, expandedHeightSpec);
         }
     }
@@ -726,13 +729,6 @@ public class AboutHomeContent extends ScrollView
         @Override
         public int getCount() {
             return Math.min(super.getCount(), getNumberOfTopSites());
-        }
-
-        @Override
-        protected void onContentChanged () {
-            // Don't do anything. We don't want to regenerate every time
-            // our history database is updated.
-            return;
         }
     }
 

@@ -82,35 +82,6 @@ void nsBuiltinDecoder::SetVolume(double aVolume)
   }
 }
 
-void nsBuiltinDecoder::SetAudioCaptured(bool aCaptured)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-  mInitialAudioCaptured = aCaptured;
-  if (mDecoderStateMachine) {
-    mDecoderStateMachine->SetAudioCaptured(aCaptured);
-  }
-}
-
-void nsBuiltinDecoder::AddOutputStream(SourceMediaStream* aStream, bool aFinishWhenEnded)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-
-  {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-    OutputMediaStream* ms = mOutputStreams.AppendElement();
-    ms->Init(PRInt64(mCurrentTime*USECS_PER_S), aStream, aFinishWhenEnded);
-  }
-
-  // This can be called before Load(), in which case our mDecoderStateMachine
-  // won't have been created yet and we can rely on Load() to schedule it
-  // once it is created.
-  if (mDecoderStateMachine) {
-    // Make sure the state machine thread runs so that any buffered data
-    // is fed into our stream.
-    ScheduleStateMachineThread();
-  }
-}
-
 double nsBuiltinDecoder::GetDuration()
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
@@ -246,7 +217,6 @@ nsresult nsBuiltinDecoder::Load(MediaResource* aResource,
     mDecoderStateMachine->SetSeekable(mSeekable);
     mDecoderStateMachine->SetDuration(mDuration);
     mDecoderStateMachine->SetVolume(mInitialVolume);
-    mDecoderStateMachine->SetAudioCaptured(mInitialAudioCaptured);
     
     if (mFrameBufferLength > 0) {
       // The valid mFrameBufferLength value was specified earlier
@@ -438,30 +408,34 @@ void nsBuiltinDecoder::AudioAvailable(float* aFrameBuffer,
 }
 
 void nsBuiltinDecoder::MetadataLoaded(PRUint32 aChannels,
-                                      PRUint32 aRate,
-                                      bool aHasAudio)
+                                      PRUint32 aRate)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   if (mShuttingDown) {
     return;
   }
 
+  // Only inform the element of MetadataLoaded if not doing a load() in order
+  // to fulfill a seek, otherwise we'll get multiple metadataloaded events.
+  bool notifyElement = true;
   {
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
     mDuration = mDecoderStateMachine ? mDecoderStateMachine->GetDuration() : -1;
     // Duration has changed so we should recompute playback rate
     UpdatePlaybackRate();
+
+    notifyElement = mNextState != PLAY_STATE_SEEKING;
   }
 
   if (mDuration == -1) {
     SetInfinite(true);
   }
 
-  if (mElement) {
+  if (mElement && notifyElement) {
     // Make sure the element and the frame (if any) are told about
     // our new size.
     Invalidate();
-    mElement->MetadataLoaded(aChannels, aRate, aHasAudio);
+    mElement->MetadataLoaded(aChannels, aRate);
   }
 
   if (!mResourceLoaded) {
@@ -477,7 +451,7 @@ void nsBuiltinDecoder::MetadataLoaded(PRUint32 aChannels,
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
   bool resourceIsLoaded = !mResourceLoaded && mResource &&
     mResource->IsDataCachedToEndOfResource(mDecoderPosition);
-  if (mElement) {
+  if (mElement && notifyElement) {
     mElement->FirstFrameLoaded(resourceIsLoaded);
   }
 
@@ -562,13 +536,11 @@ void nsBuiltinDecoder::DecodeError()
 
 bool nsBuiltinDecoder::IsSeeking() const
 {
-  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-  return mPlayState == PLAY_STATE_SEEKING;
+  return mPlayState == PLAY_STATE_SEEKING || mNextState == PLAY_STATE_SEEKING;
 }
 
 bool nsBuiltinDecoder::IsEnded() const
 {
-  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   return mPlayState == PLAY_STATE_ENDED || mPlayState == PLAY_STATE_SHUTDOWN;
 }
 
@@ -577,7 +549,6 @@ void nsBuiltinDecoder::PlaybackEnded()
   if (mShuttingDown || mPlayState == nsBuiltinDecoder::PLAY_STATE_SEEKING)
     return;
 
-  printf("nsBuiltinDecoder::PlaybackEnded mPlayState=%d\n", mPlayState);
   PlaybackPositionChanged();
   ChangeState(PLAY_STATE_ENDED);
 
@@ -720,13 +691,6 @@ void nsBuiltinDecoder::NotifyDownloadEnded(nsresult aStatus)
   UpdateReadyStateForData();
 }
 
-void nsBuiltinDecoder::NotifyPrincipalChanged()
-{
-  if (mElement) {
-    mElement->NotifyDecoderPrincipalChanged();
-  }
-}
-
 void nsBuiltinDecoder::NotifyBytesConsumed(PRInt64 aBytes)
 {
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
@@ -792,7 +756,6 @@ void nsBuiltinDecoder::SeekingStopped()
       seekWasAborted = true;
     } else {
       UnpinForSeek();
-      printf("nsBuiltinDecoder::SeekingStopped, next state=%d\n", mNextState);
       ChangeState(mNextState);
     }
   }
@@ -826,7 +789,6 @@ void nsBuiltinDecoder::SeekingStoppedAtEnd()
       seekWasAborted = true;
     } else {
       UnpinForSeek();
-      printf("nsBuiltinDecoder::SeekingStoppedAtEnd, next state=PLAY_STATE_ENDED\n");
       fireEnded = true;
       ChangeState(PLAY_STATE_ENDED);
     }
@@ -909,9 +871,6 @@ void nsBuiltinDecoder::PlaybackPositionChanged()
         // current time after the seek has started but before it has
         // completed.
         mCurrentTime = mDecoderStateMachine->GetCurrentTime();
-      } else {
-        printf("Suppressed timeupdate during seeking: currentTime=%f, new time=%f\n",
-               mCurrentTime, mDecoderStateMachine->GetCurrentTime());
       }
       mDecoderStateMachine->ClearPositionChangeFlag();
     }

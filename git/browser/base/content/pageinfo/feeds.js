@@ -77,8 +77,8 @@ function initFeedTab()
 function onSubscribeFeed()
 {
   var listbox = document.getElementById("feedListbox");
-  openUILinkIn(listbox.selectedItem.getAttribute("feedURL"), "current",
-               { ignoreAlt: true });
+  openUILink(listbox.selectedItem.getAttribute("feedURL"),
+             null, false, true, false, null);
 }
 
 function addRow(name, type, url)

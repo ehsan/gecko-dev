@@ -23,7 +23,7 @@ function test()
 }
 
 function createDocument()
-{
+{  
   div = doc.createElement("div");
   div.textContent = "test div";
 
@@ -34,7 +34,7 @@ function createDocument()
   style.appendChild(rules);
   head.appendChild(style);
   doc.body.appendChild(div);
-
+  
   setupTests();
 }
 
@@ -51,22 +51,26 @@ function selectNode()
     InspectorUI.INSPECTOR_NOTIFICATIONS.OPENED);
 
   executeSoon(function() {
-    InspectorUI.highlighter.addListener("locked", openRuleView);
+    InspectorUI.highlighter.addListener("nodeselected", openRuleView);
     InspectorUI.inspectNode(div);
-    InspectorUI.stopInspecting();
   });
 }
 
 function openRuleView()
 {
-  InspectorUI.sidebar.show();
-  InspectorUI.currentInspector.once("sidebaractivated-ruleview", performTests);
-  InspectorUI.sidebar.activatePanel("ruleview");
+  Services.obs.addObserver(performTests,
+    InspectorUI.INSPECTOR_NOTIFICATIONS.RULEVIEWREADY, false);
+
+  InspectorUI.showSidebar();
+  InspectorUI.openRuleView();
 }
 
 function performTests()
 {
-  InspectorUI.highlighter.removeListener("locked", performTests);
+  Services.obs.removeObserver(performTests,
+    InspectorUI.INSPECTOR_NOTIFICATIONS.RULEVIEWREADY);
+
+  InspectorUI.highlighter.removeListener("nodeselected", performTests);
 
   // toggle the class
   InspectorUI.highlighter.pseudoClassLockToggled(pseudo);
@@ -103,10 +107,10 @@ function testAdded()
   is(pseudoClassesBox.textContent, pseudo, "pseudo-class in infobar selector");
   
   // ruleview contains pseudo-class rule
-  is(ruleView().element.children.length, 3,
+  is(InspectorUI.ruleView.element.children.length, 3,
      "rule view is showing 3 rules for pseudo-class locked div");
      
-  is(ruleView().element.children[1]._ruleEditor.rule.selectorText,
+  is(InspectorUI.ruleView.element.children[1]._ruleEditor.rule.selectorText,
      "div:hover", "rule view is showing " + pseudo + " rule");
 }
 
@@ -128,7 +132,7 @@ function testRemovedFromUI()
   is(pseudoClassesBox.textContent, "", "pseudo-class removed from infobar selector");    
 
   // ruleview no longer contains pseudo-class rule
-  is(ruleView().element.children.length, 2,
+  is(InspectorUI.ruleView.element.children.length, 2,
      "rule view is showing 2 rules after removing lock");    
 }
 

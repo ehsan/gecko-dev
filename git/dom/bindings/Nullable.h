@@ -4,13 +4,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_Nullable_h
-#define mozilla_dom_Nullable_h
+#ifndef mozilla_dom_bindings_Nullable_h
+#define mozilla_dom_bindings_Nullable_h
 
 #include "mozilla/Assertions.h"
 
 namespace mozilla {
 namespace dom {
+namespace bindings {
 
 // Support for nullable types
 template <typename T>
@@ -35,19 +36,11 @@ public:
     mIsNull = false;
   }
 
-  // For cases when |T| is some type with nontrivial copy behavior, we may want
-  // to get a reference to our internal copy of T and work with it directly
-  // instead of relying on the copying version of SetValue().
-  T& SetValue() {
-    mIsNull = false;
-    return mValue;
-  }
-
   void SetNull() {
     mIsNull = true;
   }
 
-  const T& Value() const {
+  T Value() const {
     MOZ_ASSERT(!mIsNull);
     return mValue;
   }
@@ -57,7 +50,8 @@ public:
   }
 };
 
+} // namespace bindings
 } // namespace dom
 } // namespace mozilla
 
-#endif /* mozilla_dom_Nullable_h */
+#endif /* mozilla_dom_bindings_Nullable_h */

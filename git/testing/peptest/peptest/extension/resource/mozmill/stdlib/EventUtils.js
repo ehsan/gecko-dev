@@ -3,7 +3,7 @@ var EXPORTED_SYMBOLS = ["sendMouseEvent", "sendChar", "sendString", "sendKey",
                         "synthesizeMouse", "synthesizeMouseScroll", "synthesizeKey",
                         "synthesizeMouseExpectEvent", "synthesizeKeyExpectEvent",
                         "synthesizeDragStart", "synthesizeDrop", "synthesizeText",
-                        "disableNonTestMouseEvents", "synthesizeComposition",
+                        "disableNonTestMouseEvents", "synthesizeComposition", 
                         "synthesizeQuerySelectedText", "synthesizeQueryTextContent",
                         "synthesizeQueryCaretRect", "synthesizeQueryTextRect",
                         "synthesizeQueryEditorRect", "synthesizeCharAtPoint",
@@ -37,7 +37,7 @@ function getKeyEvent(aWindow) {
  */
 function sendMouseEvent(aEvent, aTarget, aWindow) {
   if (['click', 'mousedown', 'mouseup', 'mouseover', 'mouseout'].indexOf(aEvent.type) == -1) {
-    throw new Error("sendMouseEvent doesn't know about event type '" + aEvent.type + "'");
+    throw new Error("sendMouseEvent doesn't know about event type '"+aEvent.type+"'");
   }
 
   if (!aWindow) {
@@ -116,10 +116,9 @@ function sendString(aStr, aTarget) {
 
 /**
  * Send the non-character key aKey to the node with id aTarget. If aTarget is
- * not provided, use "target".
- * The name of the key should be the part that comes after "DOM_VK_" in the
- *   KeyEvent constant name for this key.
- * No modifiers are handled at this point.
+ * not provided, use "target".  The name of the key should be a lowercase
+ * version of the part that comes after "DOM_VK_" in the KeyEvent constant
+ * name for this key.  No modifiers are handled at this point.
  *
  * Returns true if the keypress event was accepted (no calls to preventDefault
  * or anything like that), false otherwise.
@@ -128,7 +127,7 @@ function sendKey(aKey, aTarget, aWindow) {
   if (!aWindow)
     aWindow = window;
 
-  var keyName = "DOM_VK_" + aKey.toUpperCase();
+  keyName = "DOM_VK_" + aKey.toUpperCase();
 
   if (!getKeyEvent(aWindow)[keyName]) {
     throw "Unknown key: " + keyName;
@@ -239,7 +238,7 @@ function synthesizeMouse(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
     var left = rect.left + aOffsetX;
     var top = rect.top + aOffsetY;
 
-    if (("type" in aEvent) && aEvent.type) {
+    if (aEvent.type) {
       utils.sendMouseEvent(aEvent.type, left, top, button, clickCount, modifiers);
     }
     else {
@@ -291,7 +290,7 @@ function synthesizeMouseScroll(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
     var left = rect.left;
     var top = rect.top;
 
-    var type = (("type" in aEvent) && aEvent.type) || "DOMMouseScroll";
+    var type = aEvent.type || "DOMMouseScroll";
     var axis = aEvent.axis || "vertical";
     var scrollFlags = (axis == "horizontal") ? kIsHorizontal : kIsVertical;
     if (aEvent.hasPixels) {
@@ -333,16 +332,15 @@ function synthesizeKey(aKey, aEvent, aWindow)
 
     var modifiers = _parseModifiers(aEvent);
 
-    if (!("type" in aEvent) || !aEvent.type) {
-      // Send keydown + keypress + keyup events.
+    if (aEvent.type) {
+      utils.sendKeyEvent(aEvent.type, keyCode, charCode, modifiers);
+    }
+    else {
       var keyDownDefaultHappened =
           utils.sendKeyEvent("keydown", keyCode, charCode, modifiers);
       utils.sendKeyEvent("keypress", keyCode, charCode, modifiers,
                          !keyDownDefaultHappened);
       utils.sendKeyEvent("keyup", keyCode, charCode, modifiers);
-    } else {
-      // Send standalone event.
-      utils.sendKeyEvent(aEvent.type, keyCode, charCode, modifiers);
     }
   }
 }
@@ -702,7 +700,6 @@ function synthesizeQuerySelectedText(aWindow)
   if (!utils) {
     return null;
   }
-
   return utils.sendQueryContentEvent(utils.QUERY_SELECTED_TEXT, 0, 0, 0, 0);
 }
 
@@ -723,7 +720,6 @@ function synthesizeQueryTextContent(aOffset, aLength, aWindow)
   if (!utils) {
     return null;
   }
-
   return utils.sendQueryContentEvent(utils.QUERY_TEXT_CONTENT,
                                      aOffset, aLength, 0, 0);
 }
@@ -743,7 +739,6 @@ function synthesizeQueryCaretRect(aOffset, aWindow)
   if (!utils) {
     return null;
   }
-
   return utils.sendQueryContentEvent(utils.QUERY_CARET_RECT,
                                      aOffset, 0, 0, 0);
 }
@@ -765,7 +760,6 @@ function synthesizeQueryTextRect(aOffset, aLength, aWindow)
   if (!utils) {
     return null;
   }
-
   return utils.sendQueryContentEvent(utils.QUERY_TEXT_RECT,
                                      aOffset, aLength, 0, 0);
 }
@@ -783,7 +777,6 @@ function synthesizeQueryEditorRect(aWindow)
   if (!utils) {
     return null;
   }
-
   return utils.sendQueryContentEvent(utils.QUERY_EDITOR_RECT, 0, 0, 0, 0);
 }
 
@@ -801,7 +794,6 @@ function synthesizeCharAtPoint(aX, aY, aWindow)
   if (!utils) {
     return null;
   }
-
   return utils.sendQueryContentEvent(utils.QUERY_CHARACTER_AT_POINT,
                                      0, 0, aX, aY);
 }
@@ -824,6 +816,5 @@ function synthesizeSelectionSet(aOffset, aLength, aReverse, aWindow)
   if (!utils) {
     return false;
   }
-
   return utils.sendSelectionSetEvent(aOffset, aLength, aReverse);
 }

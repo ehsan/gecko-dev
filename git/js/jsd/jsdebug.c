@@ -98,13 +98,6 @@ JSD_GetDefaultJSContext(JSDContext* jsdc)
     return jsdc->dumbContext;
 }
 
-JSD_PUBLIC_API(JSRuntime*)
-JSD_GetJSRuntime(JSDContext* jsdc)
-{
-    JSD_ASSERT_VALID_CONTEXT(jsdc);
-    return jsdc->jsrt;
-}
-
 JSD_PUBLIC_API(void)
 JSD_SetUserCallbacks(JSRuntime* jsrt, JSD_UserCallbacks* callbacks, void* user)
 {
@@ -387,11 +380,11 @@ JSD_ScriptCreated(JSDContext* jsdc,
 
 JSD_PUBLIC_API(void)
 JSD_ScriptDestroyed(JSDContext* jsdc,
-                    JSFreeOp    *fop,
+                    JSContext   *cx,
                     JSScript    *script)
 {
     JSD_ASSERT_VALID_CONTEXT(jsdc);
-    jsd_ScriptDestroyed(jsdc, fop, script);
+    jsd_ScriptDestroyed(jsdc, cx, script);
 }
 
 /***************************************************************************/

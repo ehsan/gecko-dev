@@ -193,7 +193,7 @@ CanvasLayerD3D9::UpdateSurface()
                                           gfxASurface::ImageFormatARGB32);
       nsRefPtr<gfxContext> ctx = new gfxContext(sourceSurface);
       ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-      ctx->SetSource(tempSurface);
+      ctx->SetSource(mSurface);
       ctx->Paint();
     }
 
@@ -246,9 +246,9 @@ CanvasLayerD3D9::RenderLayer()
   SetShaderTransformAndOpacity();
 
   if (mHasAlpha) {
-    mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBALAYER, GetMaskLayer());
+    mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBALAYER);
   } else {
-    mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBLAYER, GetMaskLayer());
+    mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBLAYER);
   }
 
   if (mFilter == gfxPattern::FILTER_NEAREST) {

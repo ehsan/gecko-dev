@@ -12,139 +12,138 @@ class DialListenerTest(MarionetteTestCase):
         sender = self.get_new_emulator()
         receiver = self.marionette
 
-        self.set_up_test_page(sender, "test.html", ["dom.telephony.app.phone.url"])
-        self.set_up_test_page(receiver, "test.html", ["dom.telephony.app.phone.url"])
-
-        receiver.set_script_timeout(10000)
-        sender.set_script_timeout(10000)
-
+        receiver.set_script_timeout(30000)
+        sender.set_script_timeout(30000)
+        receiver.set_context("chrome")
+        sender.set_context("chrome")
         toPhoneNumber = "1555521%d" % receiver.emulator.port
         fromPhoneNumber = "1555521%d" % sender.emulator.port
 
         # Setup the event listsener on the receiver, which should store
         # a global variable when an incoming call is received.
         self.assertTrue(receiver.execute_script("""
-return window.navigator.mozTelephony != undefined && window.navigator.mozTelephony != null;
-""", new_sandbox=False))
+return navigator.mozTelephony != undefined && navigator.mozTelephony != null;
+"""))
         receiver.execute_script("""
-global.incoming = null;
-window.navigator.mozTelephony.addEventListener("incoming", function test_incoming(e) {
-    window.navigator.mozTelephony.removeEventListener("incoming", test_incoming);
-    global.incoming = e.call;
+window.wrappedJSObject.incoming = null;
+navigator.mozTelephony.addEventListener("incoming", function test_incoming(e) {
+    navigator.mozTelephony.removeEventListener("incoming", test_incoming);
+    window.wrappedJSObject.incoming = e.call;
 });
-""", new_sandbox=False)
+""")
 
         # dial the receiver from the sender
         sender.execute_script("""
-global.sender_state = [];
-global.sender_call = window.navigator.mozTelephony.dial("%s");
-global.sender_call.addEventListener("statechange", function test_sender_statechange(e) {
+window.wrappedJSObject.sender_state = [];
+window.wrappedJSObject.sender_call = navigator.mozTelephony.dial("%s");
+window.wrappedJSObject.sender_call.addEventListener("statechange", function test_sender_statechange(e) {
     if (e.call.state == 'disconnected')
-        global.sender_call.removeEventListener("statechange", test_sender_statechange);
-    global.sender_state.push(e.call.state);
+        window.wrappedJSObject.sender_call.removeEventListener("statechange", test_sender_statechange);
+    window.wrappedJSObject.sender_state.push(e.call.state);
 });
-global.sender_alerting = false;
-global.sender_call.addEventListener("alerting", function test_sender_alerting(e) {
-    global.sender_call.removeEventListener("alerting", test_sender_alerting);
-    global.sender_alerting = e.call.state == 'alerting';
+window.wrappedJSObject.sender_alerting = false;
+window.wrappedJSObject.sender_call.addEventListener("alerting", function test_sender_alerting(e) {
+    window.wrappedJSObject.sender_call.removeEventListener("alerting", test_sender_alerting);
+    window.wrappedJSObject.sender_alerting = e.call.state == 'alerting';
 });
-""" % toPhoneNumber, new_sandbox=False)
+""" % toPhoneNumber)
 
         # On the receiver, wait up to 30s for an incoming call to be 
         # detected, by checking the value of the global var that the 
         # listener will change.
         received = receiver.execute_async_script("""
-global.receiver_state = [];
+window.wrappedJSObject.receiver_state = [];
 waitFor(function() {
-    let call = global.incoming;
+    let call = window.wrappedJSObject.incoming;
     call.addEventListener("statechange", function test_statechange(e) {
         if (e.call.state == 'disconnected')
             call.removeEventListener("statechange", test_statechange);
-        global.receiver_state.push(e.call.state);
+        window.wrappedJSObject.receiver_state.push(e.call.state);
     });
     call.addEventListener("connected", function test_connected(e) {
         call.removeEventListener("connected", test_connected);
-        global.receiver_connected = e.call.state == 'connected';
+        window.wrappedJSObject.receiver_connected = e.call.state == 'connected';
     });
     marionetteScriptFinished(call.number);
 },
 function() {
-    return global.incoming != null;
+    return window.wrappedJSObject.incoming != null;
 });
-""", new_sandbox=False)
+""")
         # Verify the phone number of the incoming call.
         self.assertEqual(received, fromPhoneNumber)
 
         # At this point, the sender's call should be in a 'alerting' state,
         # as reflected by both 'statechange' and 'alerting' listeners.
-        self.assertTrue('alerting' in sender.execute_script("return global.sender_state;", new_sandbox=False))
-        self.assertTrue(sender.execute_script("return global.sender_alerting;", new_sandbox=False))
+        self.assertTrue('alerting' in sender.execute_script("return window.wrappedJSObject.sender_state;"))
+        self.assertTrue(sender.execute_script("return window.wrappedJSObject.sender_alerting;"))
 
         # Answer the call and verify that the callstate changes to
         # connected.
         receiver.execute_async_script("""
-global.incoming.answer();
+window.wrappedJSObject.incoming.answer();
 waitFor(function() {
     marionetteScriptFinished(true);
 }, function() {
-    return global.receiver_connected;
+    return window.wrappedJSObject.receiver_connected;
 });
-""", new_sandbox=False)
-        state = receiver.execute_script("return global.receiver_state;", new_sandbox=False)
+""")
+        state = receiver.execute_script("return window.wrappedJSObject.receiver_state;")
         self.assertTrue('connecting' in state)
         self.assertTrue('connected' in state)
 
         # verify that the callstate changes to connected on the caller as well
         self.assertTrue('connected' in sender.execute_async_script("""
 waitFor(function() {
-    marionetteScriptFinished(global.sender_state);
+    marionetteScriptFinished(window.wrappedJSObject.sender_state);
 }, function() {
-    return global.sender_call.state == "connected";
+    return window.wrappedJSObject.sender_call.state == "connected";
 });
-""", new_sandbox=False))
+"""))
 
         # setup listeners to detect the 'disconnected event'
         sender.execute_script("""
-global.sender_disconnected = null;
-global.sender_call.addEventListener("disconnected", function test_disconnected(e) {
-    global.sender_call.removeEventListener("disconnected", test_disconnected);
-    global.sender_disconnected = e.call.state == 'disconnected';
+window.wrappedJSObject.sender_disconnected = null;
+window.wrappedJSObject.sender_call.addEventListener("disconnected", function test_disconnected(e) {
+    window.wrappedJSObject.sender_call.removeEventListener("disconnected", test_disconnected);
+    window.wrappedJSObject.sender_disconnected = e.call.state == 'disconnected';
 });
-""", new_sandbox=False)
+""")
         receiver.execute_script("""
-global.receiver_disconnected = null;
-global.incoming.addEventListener("disconnected", function test_disconnected(e) {
-    global.incoming.removeEventListener("disconnected", test_disconnected);
-    global.receiver_disconnected = e.call.state == 'disconnected';
+window.wrappedJSObject.receiver_disconnected = null;
+window.wrappedJSObject.incoming.addEventListener("disconnected", function test_disconnected(e) {
+    window.wrappedJSObject.incoming.removeEventListener("disconnected", test_disconnected);
+    window.wrappedJSObject.receiver_disconnected = e.call.state == 'disconnected';
 });
-""", new_sandbox=False)
+""")
 
         # hang up from the receiver's side
         receiver.execute_script("""
-global.incoming.hangUp();
-""", new_sandbox=False)
+window.wrappedJSObject.incoming.hangUp();
+""")
 
         # Verify that the call state on the sender is 'disconnected', as
         # notified by both the 'statechange' and 'disconnected' listeners.
         sender_state = sender.execute_async_script("""
 waitFor(function() {
-    marionetteScriptFinished(global.sender_state);
+    marionetteScriptFinished(window.wrappedJSObject.sender_state);
 }, function () {
-    return global.sender_call.state == 'disconnected';
+    return window.wrappedJSObject.sender_call.state == 'disconnected';
 });
-""", new_sandbox=False)
+""")
         self.assertTrue('disconnected' in sender_state)
-        self.assertTrue(sender.execute_script("return global.sender_disconnected;", new_sandbox=False))
+        self.assertTrue(sender.execute_script("return window.wrappedJSObject.sender_disconnected;"))
 
         # Verify that the call state on the receiver is 'disconnected', as
         # notified by both the 'statechange' and 'disconnected' listeners.
         state = receiver.execute_async_script("""
 waitFor(function() {
-    marionetteScriptFinished(global.receiver_state);
+    marionetteScriptFinished(window.wrappedJSObject.receiver_state);
 }, function () {
-    return global.incoming.state == 'disconnected';
+    return window.wrappedJSObject.incoming.state == 'disconnected';
 });
-""", new_sandbox=False)
+""")
         self.assertTrue('disconnected' in state)
         self.assertTrue('disconnecting' in state)
-        self.assertTrue(receiver.execute_script("return global.receiver_disconnected;", new_sandbox=False))
+        self.assertTrue(receiver.execute_script("return window.wrappedJSObject.receiver_disconnected;"))
+

@@ -9,7 +9,7 @@
 ;
 
 
-    EXPORT |vp8_memcpy_partial_neon|
+    EXPORT |vp8_memcpy_neon|
 
     ARM
     REQUIRE8
@@ -17,10 +17,8 @@
 
     AREA ||.text||, CODE, READONLY, ALIGN=2
 ;=========================================
-;this is not a full memcpy function!!!
-;void vp8_memcpy_partial_neon(unsigned char *dst_ptr, unsigned char *src_ptr,
-;                             int sz);
-|vp8_memcpy_partial_neon| PROC
+;void vp8_memcpy_neon(unsigned char *dst_ptr, unsigned char *src_ptr, int sz);
+|vp8_memcpy_neon| PROC
     ;pld                [r1]                        ;preload pred data
     ;pld                [r1, #128]
     ;pld                [r1, #256]

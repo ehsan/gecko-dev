@@ -3178,16 +3178,16 @@ nsCSSFrameConstructor::ConstructFieldSetFrame(nsFrameConstructorState& aState,
   fieldsetKids.AddChild(blockFrame);
 
   for (nsFrameList::Enumerator e(childItems); !e.AtEnd(); e.Next()) {
-    nsIFrame* child = e.get();
-    if (child->GetContentInsertionFrame()->GetType() == nsGkAtoms::legendFrame) {
+    nsLegendFrame* legendFrame = do_QueryFrame(e.get());
+    if (legendFrame) {
       // We want the legend to be the first frame in the fieldset child list.
       // That way the EventStateManager will do the right thing when tabbing
       // from a selection point within the legend (bug 236071), which is
       // used for implementing legend access keys (bug 81481).
       // GetAdjustedParentFrame() below depends on this frame order.
-      childItems.RemoveFrame(child);
+      childItems.RemoveFrame(legendFrame);
       // Make sure to reparent the legend so it has the fieldset as the parent.
-      fieldsetKids.InsertFrame(newFrame, nsnull, child);
+      fieldsetKids.InsertFrame(newFrame, nsnull, legendFrame);
       break;
     }
   }
@@ -3414,8 +3414,7 @@ nsCSSFrameConstructor::FindHTMLData(Element* aElement,
     COMPLEX_TAG_CREATE(fieldset,
                        &nsCSSFrameConstructor::ConstructFieldSetFrame),
     { &nsGkAtoms::legend,
-      FCDATA_DECL(FCDATA_ALLOW_BLOCK_STYLES | FCDATA_MAY_NEED_SCROLLFRAME,
-                  NS_NewLegendFrame) },
+      FCDATA_DECL(FCDATA_ALLOW_BLOCK_STYLES, NS_NewLegendFrame) },
     SIMPLE_TAG_CREATE(frameset, NS_NewHTMLFramesetFrame),
     SIMPLE_TAG_CREATE(iframe, NS_NewSubDocumentFrame),
     { &nsGkAtoms::button,
@@ -3873,31 +3872,6 @@ nsCSSFrameConstructor::CreateAnonymousFrames(nsFrameConstructorState& aState,
   return NS_OK;
 }
 
-static void
-SetFlagsOnSubtree(nsIContent *aNode, PtrBits aFlagsToSet)
-{
-#ifdef DEBUG
-  // Make sure that the node passed to us doesn't have any XBL children
-  {
-    nsIDocument *doc = aNode->OwnerDoc();
-    NS_ASSERTION(doc, "The node must be in a document");
-    NS_ASSERTION(!doc->BindingManager()->GetXBLChildNodesFor(aNode),
-                 "The node should not have any XBL children");
-  }
-#endif
-
-  // Set the flag on the node itself
-  aNode->SetFlags(aFlagsToSet);
-
-  // Set the flag on all of its children recursively
-  PRUint32 count;
-  nsIContent * const *children = aNode->GetChildArray(&count);
-
-  for (PRUint32 index = 0; index < count; ++index) {
-    SetFlagsOnSubtree(children[index], aFlagsToSet);
-  }
-}
-
 nsresult
 nsCSSFrameConstructor::GetAnonymousContent(nsIContent* aParent,
                                            nsIFrame* aParentFrame,
@@ -3925,17 +3899,7 @@ nsCSSFrameConstructor::GetAnonymousContent(nsIContent* aParent,
       content->SetNativeAnonymous();
     }
 
-    bool anonContentIsEditable = content->HasFlag(NODE_IS_EDITABLE);
     rv = content->BindToTree(mDocument, aParent, aParent, true);
-    // If the anonymous content creator requested that the content should be
-    // editable, honor its request.
-    // We need to set the flag on the whole subtree, because existing
-    // children's flags have already been set as part of the BindToTree operation.
-    if (anonContentIsEditable) {
-      NS_ASSERTION(aParentFrame->GetType() == nsGkAtoms::textInputFrame,
-                   "We only expect this for anonymous content under a text control frame");
-      SetFlagsOnSubtree(content, NODE_IS_EDITABLE);
-    }
     if (NS_FAILED(rv)) {
       content->UnbindFromTree();
       return rv;
@@ -5849,7 +5813,7 @@ nsCSSFrameConstructor::IsValidSibling(nsIFrame*              aSibling,
            (nsGkAtoms::fieldSetFrame == grandparentType &&
             nsGkAtoms::blockFrame == parentType)) {
     // Legends can be sibling of legends but not of other content in the fieldset
-    nsIAtom* sibType = aSibling->GetContentInsertionFrame()->GetType();
+    nsIAtom* sibType = aSibling->GetType();
     nsCOMPtr<nsIDOMHTMLLegendElement> legendContent(do_QueryInterface(aContent));
 
     if ((legendContent  && (nsGkAtoms::legendFrame != sibType)) ||
@@ -6143,6 +6107,25 @@ nsCSSFrameConstructor::ReframeTextIfNeeded(nsIContent* aParentContent,
   ContentInserted(aParentContent, aContent, nsnull, false);
 }
 
+// We want to disable lazy frame construction for nodes that are under an
+// editor. We use nsINode::IsEditable, but that includes inputs with type text
+// and password and textareas, which are common and aren't really editable (the
+// native anonymous content under them is what is actually editable) so we want
+// to construct frames for those lazily.
+// The logic for this check is based on
+// nsGenericHTMLFormElement::UpdateEditableFormControlState and so must be kept
+// in sync with that.  MayHaveContentEditableAttr() being true only indicates
+// a contenteditable attribute, it doesn't indicate whether it is true or false,
+// so we force eager construction in some cases when the node is not editable,
+// but that should be rare.
+static inline bool
+IsActuallyEditable(nsIContent* aContainer, nsIContent* aChild)
+{
+  return (aChild->IsEditable() &&
+          (aContainer->IsEditable() ||
+           aChild->MayHaveContentEditableAttr()));
+}
+
 // For inserts aChild should be valid, for appends it should be null.
 // Returns true if this operation can be lazy, false if not.
 bool
@@ -6157,7 +6140,7 @@ nsCSSFrameConstructor::MaybeConstructLazily(Operation aOperation,
 
   if (aOperation == CONTENTINSERT) {
     if (aChild->IsRootOfAnonymousSubtree() ||
-        aChild->IsEditable() || aChild->IsXUL()) {
+        aChild->IsXUL() || IsActuallyEditable(aContainer, aChild)) {
       return false;
     }
   } else { // CONTENTAPPEND
@@ -6166,7 +6149,7 @@ nsCSSFrameConstructor::MaybeConstructLazily(Operation aOperation,
     for (nsIContent* child = aChild; child; child = child->GetNextSibling()) {
       NS_ASSERTION(!child->IsRootOfAnonymousSubtree(),
                    "Should be coming through the CONTENTAPPEND case");
-      if (child->IsXUL() || child->IsEditable()) {
+      if (child->IsXUL() || IsActuallyEditable(aContainer, child)) {
         return false;
       }
     }
@@ -8825,21 +8808,29 @@ nsCSSFrameConstructor::GetInsertionPoint(nsIFrame*     aParentFrame,
 
 // Capture state for the frame tree rooted at the frame associated with the
 // content object, aContent
-void
+nsresult
 nsCSSFrameConstructor::CaptureStateForFramesOf(nsIContent* aContent,
                                                nsILayoutHistoryState* aHistoryState)
 {
-  if (!aHistoryState) {
-    return;
-  }
   nsIFrame* frame = aContent->GetPrimaryFrame();
   if (frame == mRootElementFrame) {
     frame = mFixedContainingBlock;
   }
-  for ( ; frame;
-        frame = nsLayoutUtils::GetNextContinuationOrSpecialSibling(frame)) {
-    CaptureFrameState(frame, aHistoryState);
+  if (frame) {
+    CaptureStateFor(frame, aHistoryState);
   }
+  return NS_OK;
+}
+
+// Capture state for the frame tree rooted at aFrame.
+nsresult
+nsCSSFrameConstructor::CaptureStateFor(nsIFrame* aFrame,
+                                       nsILayoutHistoryState* aHistoryState)
+{
+  if (aFrame && aHistoryState) {
+    CaptureFrameState(aFrame, aHistoryState);
+  }
+  return NS_OK;
 }
 
 nsresult
@@ -8909,7 +8900,7 @@ nsCSSFrameConstructor::MaybeRecreateContainerForFrameRemoval(nsIFrame* aFrame,
     return true;
   }
 
-  if (aFrame->GetContentInsertionFrame()->GetType() == nsGkAtoms::legendFrame &&
+  if (aFrame->GetType() == nsGkAtoms::legendFrame &&
       aFrame->GetParent()->GetType() == nsGkAtoms::fieldSetFrame) {
     // When we remove the legend for a fieldset, we should reframe
     // the fieldset to ensure another legend is used, if there is one
@@ -8977,8 +8968,8 @@ nsCSSFrameConstructor::MaybeRecreateContainerForFrameRemoval(nsIFrame* aFrame,
   // a non-fluid continuation, i.e. it was split by bidi resolution
   if (!inFlowFrame->GetPrevSibling() &&
       !inFlowFrame->GetNextSibling() &&
-      ((parent->GetPrevContinuation() && !parent->GetPrevInFlow()) ||
-       (parent->GetNextContinuation() && !parent->GetNextInFlow()))) {
+      (parent->GetPrevContinuation() && !parent->GetPrevInFlow() ||
+       parent->GetNextContinuation() && !parent->GetNextInFlow())) {
     *aResult = RecreateFramesForContent(parent->GetContent(), true);
     return true;
   }

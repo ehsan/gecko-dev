@@ -37,14 +37,11 @@
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
-#include <fcntl.h>
 
 #include "android/log.h"
 #include "ui/FramebufferNativeWindow.h"
 
 #include "mozilla/Hal.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/FileUtils.h"
 #include "Framebuffer.h"
 #include "gfxContext.h"
 #include "gfxUtils.h"
@@ -62,8 +59,6 @@
 #define IS_TOPLEVEL() (mWindowType == eWindowType_toplevel || mWindowType == eWindowType_dialog)
 
 using namespace mozilla;
-using namespace mozilla::dom;
-using namespace mozilla::hal;
 using namespace mozilla::gl;
 using namespace mozilla::layers;
 using namespace mozilla::widget;
@@ -79,116 +74,29 @@ static nsWindow *gWindowToRedraw = nsnull;
 static nsWindow *gFocusedWindow = nsnull;
 static android::FramebufferNativeWindow *gNativeWindow = nsnull;
 static bool sFramebufferOpen;
-static bool sUsingOMTC;
-static nsRefPtr<gfxASurface> sOMTCSurface;
-static pthread_t sFramebufferWatchThread;
-
-namespace {
-
-class ScreenOnOffEvent : public nsRunnable {
-public:
-    ScreenOnOffEvent(bool on)
-        : mIsOn(on)
-    {}
-
-    NS_IMETHOD Run() {
-        nsSizeModeEvent event(true, NS_SIZEMODE, NULL);
-        nsEventStatus status;
-
-        event.time = PR_Now() / 1000;
-        event.mSizeMode = mIsOn ? nsSizeMode_Fullscreen : nsSizeMode_Minimized;
-
-        for (PRUint32 i = 0; i < sTopWindows.Length(); i++) {
-            nsWindow *win = sTopWindows[i];
-            event.widget = win;
-            win->DispatchEvent(&event, status);
-        }
-
-        return NS_OK;
-    }
-
-private:
-    bool mIsOn;
-};
-
-static const char* kSleepFile = "/sys/power/wait_for_fb_sleep";
-static const char* kWakeFile = "/sys/power/wait_for_fb_wake";
-
-static void *frameBufferWatcher(void *) {
-
-    int len = 0;
-    char buf;
-
-    nsRefPtr<ScreenOnOffEvent> mScreenOnEvent = new ScreenOnOffEvent(true);
-    nsRefPtr<ScreenOnOffEvent> mScreenOffEvent = new ScreenOnOffEvent(false);
-
-    while (true) {
-        // Cannot use epoll here because kSleepFile and kWakeFile are
-        // always ready to read and blocking.
-        {
-            ScopedClose fd(open(kSleepFile, O_RDONLY, 0));
-            do {
-                len = read(fd.get(), &buf, 1);
-            } while (len < 0 && errno == EINTR);
-            NS_WARN_IF_FALSE(len >= 0, "WAIT_FOR_FB_SLEEP failed");
-            NS_DispatchToMainThread(mScreenOffEvent);
-        }
-
-        {
-            ScopedClose fd(open(kWakeFile, O_RDONLY, 0));
-            do {
-                len = read(fd.get(), &buf, 1);
-            } while (len < 0 && errno == EINTR);
-            NS_WARN_IF_FALSE(len >= 0, "WAIT_FOR_FB_WAKE failed");
-            NS_DispatchToMainThread(mScreenOnEvent);
-        }
-    }
-    
-    return NULL;
-}
-
-} // anonymous namespace
 
 nsWindow::nsWindow()
 {
-    if (!sGLContext && !sFramebufferOpen && !sUsingOMTC) {
+    if (!sGLContext && !sFramebufferOpen) {
         // workaround Bug 725143
         hal::SetScreenEnabled(true);
-
-        // Watching screen on/off state by using a pthread
-        // which implicitly calls exit() when the main thread ends
-        if (pthread_create(&sFramebufferWatchThread, NULL, frameBufferWatcher, NULL)) {
-            NS_RUNTIMEABORT("Failed to create framebufferWatcherThread, aborting...");
-        }
-
-        sUsingOMTC = Preferences::GetBool("layers.offmainthreadcomposition.enabled", false);
 
         // We (apparently) don't have a way to tell if allocating the
         // fbs succeeded or failed.
         gNativeWindow = new android::FramebufferNativeWindow();
-        if (sUsingOMTC) {
+        sGLContext = GLContextProvider::CreateForWindow(this);
+        // CreateForWindow sets up gScreenBounds
+        if (!sGLContext) {
+            LOG("Failed to create GL context for fb, trying /dev/graphics/fb0");
+
+            // We can't delete gNativeWindow.
+
             nsIntSize screenSize;
-            bool gotFB = Framebuffer::GetSize(&screenSize);
-            MOZ_ASSERT(gotFB);
+            sFramebufferOpen = Framebuffer::Open(&screenSize);
             gScreenBounds = nsIntRect(nsIntPoint(0, 0), screenSize);
-
-            sOMTCSurface = new gfxImageSurface(gfxIntSize(1, 1),
-                gfxASurface::ImageFormatRGB24);
-        } else {
-            sGLContext = GLContextProvider::CreateForWindow(this);
-            // CreateForWindow sets up gScreenBounds
-            if (!sGLContext) {
-                LOG("Failed to create GL context for fb, trying /dev/graphics/fb0");
-
-                // We can't delete gNativeWindow.
-
-                nsIntSize screenSize;
-                sFramebufferOpen = Framebuffer::Open(&screenSize);
-                gScreenBounds = nsIntRect(nsIntPoint(0, 0), screenSize);
-                if (!sFramebufferOpen) {
-                    LOG("Failed to mmap fb(?!?), aborting ...");
-                    NS_RUNTIMEABORT("Can't open GL context and can't fall back on /dev/graphics/fb0 ...");
-                }
+            if (!sFramebufferOpen) {
+                LOG("Failed to mmap fb(?!?), aborting ...");
+                NS_RUNTIMEABORT("Can't open GL context and can't fall back on /dev/graphics/fb0 ...");
             }
         }
         sVirtualBounds = gScreenBounds;
@@ -225,16 +133,11 @@ nsWindow::DoDraw(void)
         oglm->SetWorldTransform(sRotationMatrix);
         gWindowToRedraw->mEventCallback(&event);
     } else if (LayerManager::LAYERS_BASIC == lm->GetBackendType()) {
-        MOZ_ASSERT(sFramebufferOpen || sUsingOMTC);
-        nsRefPtr<gfxASurface> targetSurface;
+        MOZ_ASSERT(sFramebufferOpen);
 
-        if(sUsingOMTC)
-            targetSurface = sOMTCSurface;
-        else
-            targetSurface = Framebuffer::BackBuffer();
-
+        nsRefPtr<gfxASurface> backBuffer = Framebuffer::BackBuffer();
         {
-            nsRefPtr<gfxContext> ctx = new gfxContext(targetSurface);
+            nsRefPtr<gfxContext> ctx = new gfxContext(backBuffer);
             gfxUtils::PathFromRegion(ctx, event.region);
             ctx->Clip();
 
@@ -243,11 +146,9 @@ nsWindow::DoDraw(void)
                 gWindowToRedraw, ctx, BasicLayerManager::BUFFER_NONE);
             gWindowToRedraw->mEventCallback(&event);
         }
+        backBuffer->Flush();
 
-        if (!sUsingOMTC) {
-            targetSurface->Flush();
-            Framebuffer::Present(event.region);
-        }
+        Framebuffer::Present(event.region);
     } else {
         NS_RUNTIMEABORT("Unexpected layer manager type");
     }
@@ -510,12 +411,6 @@ nsWindow::GetLayerManager(PLayersChild* aShadowManager,
         return nsnull;
     }
 
-    if (sUsingOMTC) {
-        CreateCompositor();
-        if (mLayerManager)
-            return mLayerManager;
-    }
-
     if (sGLContext) {
         nsRefPtr<LayerManagerOGL> layerManager = new LayerManagerOGL(this);
 
@@ -613,18 +508,11 @@ nsScreenGonk::GetAvailRect(PRInt32 *outLeft,  PRInt32 *outTop,
     return GetRect(outLeft, outTop, outWidth, outHeight);
 }
 
-static uint32_t
-ColorDepth()
-{
-    return gNativeWindow->getDevice()->format == GGL_PIXEL_FORMAT_RGB_565 ? 16 : 24;
-}
 
 NS_IMETHODIMP
 nsScreenGonk::GetPixelDepth(PRInt32 *aPixelDepth)
 {
-    // XXX: this should actually return 32 when we're using 24-bit
-    // color, because we use RGBX.
-    *aPixelDepth = ColorDepth();
+    *aPixelDepth = gNativeWindow->getDevice()->format == GGL_PIXEL_FORMAT_RGB_565 ? 16 : 24;
     return NS_OK;
 }
 
@@ -684,54 +572,13 @@ nsScreenGonk::SetRotation(PRUint32 aRotation)
                                sVirtualBounds.height,
                                !i);
 
-    nsAppShell::NotifyScreenRotation();
-
     return NS_OK;
 }
 
-// NB: This isn't gonk-specific, but gonk is the only widget backend
-// that does this calculation itself, currently.
-static ScreenOrientation
-ComputeOrientation(uint32_t aRotation, const nsIntSize& aScreenSize)
-{
-    bool naturallyPortrait = (aScreenSize.height > aScreenSize.width);
-    switch (aRotation) {
-    case nsIScreen::ROTATION_0_DEG:
-        return (naturallyPortrait ? eScreenOrientation_PortraitPrimary : 
-                eScreenOrientation_LandscapePrimary);
-    case nsIScreen::ROTATION_90_DEG:
-        // Arbitrarily choosing 90deg to be primary "unnatural"
-        // rotation.
-        return (naturallyPortrait ? eScreenOrientation_LandscapePrimary : 
-                eScreenOrientation_PortraitPrimary);
-    case nsIScreen::ROTATION_180_DEG:
-        return (naturallyPortrait ? eScreenOrientation_PortraitSecondary : 
-                eScreenOrientation_LandscapeSecondary);
-    case nsIScreen::ROTATION_270_DEG:
-        return (naturallyPortrait ? eScreenOrientation_LandscapeSecondary : 
-                eScreenOrientation_PortraitSecondary);
-    default:
-        MOZ_NOT_REACHED("Gonk screen must always have a known rotation");
-        return eScreenOrientation_None;
-    }
-}
-
-/*static*/ uint32_t
+uint32_t
 nsScreenGonk::GetRotation()
 {
     return sScreenRotation;
-}
-
-/*static*/ ScreenConfiguration
-nsScreenGonk::GetConfiguration()
-{
-    ScreenOrientation orientation = ComputeOrientation(sScreenRotation,
-                                                       gScreenBounds.Size());
-    uint32_t colorDepth = ColorDepth();
-    // NB: perpetuating colorDepth == pixelDepth illusion here, for
-    // consistency.
-    return ScreenConfiguration(sVirtualBounds, orientation,
-                               colorDepth, colorDepth);
 }
 
 NS_IMPL_ISUPPORTS1(nsScreenManagerGonk, nsIScreenManager)

@@ -96,6 +96,34 @@ Tester.prototype = {
     this._globalProperties = Object.keys(window);
     this._globalPropertyWhitelist = ["navigator", "constructor", "Application",
       "__SS_tabsToRestore", "__SSi", "webConsoleCommandController",
+
+      // Temporarily added to whitelist for Fennec tests:
+      "AddonUpdateChecker",
+      "PlacesAggregatedTransaction",
+      "PlacesCreateFolderTransaction",
+      "PlacesCreateBookmarkTransaction",
+      "PlacesCreateSeparatorTransaction",
+      "PlacesCreateLivemarkTransaction",
+      "PlacesMoveItemTransaction",
+      "PlacesRemoveItemTransaction",
+      "PlacesEditItemTitleTransaction",
+      "PlacesEditBookmarkURITransaction",
+      "PlacesSetItemAnnotationTransaction",
+      "PlacesSetPageAnnotationTransaction",
+      "PlacesEditBookmarkKeywordTransaction",
+      "PlacesEditBookmarkPostDataTransaction",
+      "PlacesEditLivemarkSiteURITransaction",
+      "PlacesEditLivemarkFeedURITransaction",
+      "PlacesEditItemDateAddedTransaction",
+      "PlacesEditItemLastModifiedTransaction",
+      "PlacesSortFolderByNameTransaction",
+      "PlacesTagURITransaction",
+      "PlacesUntagURITransaction",
+      "DownloadUtils",
+      "AddonRepository",
+      "LocaleRepository",
+      "Contacts",
+      "VKBstateHasChanged"
     ];
 
     if (this.tests.length)
@@ -281,7 +309,7 @@ Tester.prototype = {
     this.currentTest.scope.gTestPath = this.currentTest.path;
 
     // Override SimpleTest methods with ours.
-    ["ok", "is", "isnot", "ise", "todo", "todo_is", "todo_isnot", "info"].forEach(function(m) {
+    ["ok", "is", "isnot", "todo", "todo_is", "todo_isnot", "info"].forEach(function(m) {
       this.SimpleTest[m] = this[m];
     }, this.currentTest.scope);
 
@@ -419,10 +447,6 @@ function testScope(aTester, aTest) {
   };
   this.isnot = function test_isnot(a, b, name) {
     self.ok(a != b, name, "Didn't expect " + a + ", but got it", false,
-            Components.stack.caller);
-  };
-  this.ise = function test_ise(a, b, name) {
-    self.ok(a === b, name, "Got " + a + ", strictly expected " + b, false,
             Components.stack.caller);
   };
   this.todo = function test_todo(condition, name, diag, stack) {

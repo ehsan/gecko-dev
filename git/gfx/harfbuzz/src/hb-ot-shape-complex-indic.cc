@@ -57,11 +57,11 @@ enum indic_category_t {
 
 /* Visual positions in a syllable from left to right. */
 enum indic_position_t {
-  POS_PRE = 1,
-  POS_BASE = 3,
-  POS_ABOVE = 5,
-  POS_BELOW = 7,
-  POS_POST = 9
+  POS_PRE,
+  POS_BASE,
+  POS_ABOVE,
+  POS_BELOW,
+  POS_POST
 };
 
 /* Categories used in IndicSyllabicCategory.txt from UCD */
@@ -95,7 +95,7 @@ enum indic_syllabic_category_t {
 enum indic_matra_category_t {
   INDIC_MATRA_CATEGORY_NOT_APPLICABLE		= POS_BASE,
 
-  INDIC_MATRA_CATEGORY_LEFT			= POS_PRE - 1, /* Move *before* existing "pre" chars */
+  INDIC_MATRA_CATEGORY_LEFT			= POS_PRE,
   INDIC_MATRA_CATEGORY_TOP			= POS_ABOVE,
   INDIC_MATRA_CATEGORY_BOTTOM			= POS_BELOW,
   INDIC_MATRA_CATEGORY_RIGHT			= POS_POST,
@@ -369,16 +369,16 @@ _hb_ot_shape_complex_collect_features_indic (hb_ot_map_builder_t *map, const hb_
 }
 
 
-hb_ot_shape_normalization_mode_t
-_hb_ot_shape_complex_normalization_preference_indic (void)
+bool
+_hb_ot_shape_complex_prefer_decomposed_indic (void)
 {
   /* We want split matras decomposed by the common shaping logic. */
-  return HB_OT_SHAPE_NORMALIZATION_MODE_DECOMPOSED;
+  return TRUE;
 }
 
 
 void
-_hb_ot_shape_complex_setup_masks_indic (hb_ot_map_t *map, hb_buffer_t *buffer, hb_font_t *font)
+_hb_ot_shape_complex_setup_masks_indic (hb_ot_map_t *map, hb_buffer_t *buffer)
 {
   HB_BUFFER_ALLOCATE_VAR (buffer, indic_category);
   HB_BUFFER_ALLOCATE_VAR (buffer, indic_position);

@@ -52,10 +52,6 @@
 #endif
 #include "xpcom-config.h"
 
-#if defined(__cplusplus)
-#include "mozilla/fallible.h"
-#endif
-
 #define MOZALLOC_HAVE_XMALLOC
 
 #if defined(MOZALLOC_EXPORT)
@@ -150,7 +146,7 @@ MOZALLOC_EXPORT char* moz_strndup(const char* str, size_t strsize)
 #endif /* if defined(HAVE_STRNDUP) */
 
 
-#if defined(HAVE_POSIX_MEMALIGN)
+#if defined(HAVE_POSIX_MEMALIGN) || defined(HAVE_JEMALLOC_POSIX_MEMALIGN)
 MOZALLOC_EXPORT int moz_xposix_memalign(void **ptr, size_t alignment, size_t size)
     NS_WARN_UNUSED_RESULT;
 
@@ -159,7 +155,7 @@ MOZALLOC_EXPORT int moz_posix_memalign(void **ptr, size_t alignment, size_t size
 #endif /* if defined(HAVE_POSIX_MEMALIGN) */
 
 
-#if defined(HAVE_MEMALIGN)
+#if defined(HAVE_MEMALIGN) || defined(HAVE_JEMALLOC_MEMALIGN)
 MOZALLOC_EXPORT void* moz_xmemalign(size_t boundary, size_t size)
     NS_ATTR_MALLOC NS_WARN_UNUSED_RESULT;
 
@@ -168,7 +164,7 @@ MOZALLOC_EXPORT void* moz_memalign(size_t boundary, size_t size)
 #endif /* if defined(HAVE_MEMALIGN) */
 
 
-#if defined(HAVE_VALLOC)
+#if defined(HAVE_VALLOC) || defined(HAVE_JEMALLOC_VALLOC)
 MOZALLOC_EXPORT void* moz_xvalloc(size_t size)
     NS_ATTR_MALLOC NS_WARN_UNUSED_RESULT;
 
@@ -294,6 +290,12 @@ void operator delete[](void* ptr, const std::nothrow_t&) MOZALLOC_THROW_IF_HAS_E
  *   (3) the matching system |operator delete(void*, std::nothrow)|
  *   (4) the matching system |operator delete(void*) throw(std::bad_alloc)|
  */
+
+namespace mozilla {
+
+struct MOZALLOC_EXPORT fallible_t { };
+
+} /* namespace mozilla */
 
 MOZALLOC_INLINE
 void* operator new(size_t size, const mozilla::fallible_t&) MOZALLOC_THROW_IF_HAS_EXCEPTIONS

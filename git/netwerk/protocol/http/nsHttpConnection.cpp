@@ -56,7 +56,6 @@
 #include "SpdySession.h"
 #include "mozilla/Telemetry.h"
 #include "nsISupportsPriority.h"
-#include "nsHttpPipeline.h"
 
 #ifdef DEBUG
 // defined by the socket transport service while active
@@ -73,13 +72,11 @@ using namespace mozilla::net;
 
 nsHttpConnection::nsHttpConnection()
     : mTransaction(nsnull)
-    , mIdleTimeout(0)
     , mConsiderReusedAfterInterval(0)
     , mConsiderReusedAfterEpoch(0)
     , mCurrentBytesRead(0)
     , mMaxBytesRead(0)
     , mTotalBytesRead(0)
-    , mTotalBytesWritten(0)
     , mKeepAlive(true) // assume to keep-alive by default
     , mKeepAliveMask(true)
     , mSupportsPipelining(false) // assume low-grade server
@@ -415,9 +412,11 @@ nsHttpConnection::SetupNPN(PRUint8 caps)
 
         mNPNComplete = true;
 
-        if (mConnInfo->UsingSSL()) {
-            LOG(("nsHttpConnection::SetupNPN Setting up "
-                 "Next Protocol Negotiation"));
+        if (mConnInfo->UsingSSL() &&
+            !(caps & NS_HTTP_DISALLOW_SPDY) &&
+            !mConnInfo->UsingHttpProxy() &&
+            gHttpHandler->IsSpdyEnabled()) {
+            LOG(("nsHttpConnection::Init Setting up SPDY Negotiation"));
             nsCOMPtr<nsISupports> securityInfo;
             nsresult rv =
                 mSocketTransport->GetSecurityInfo(getter_AddRefs(securityInfo));
@@ -430,12 +429,7 @@ nsHttpConnection::SetupNPN(PRUint8 caps)
                 return;
 
             nsTArray<nsCString> protocolArray;
-            if (gHttpHandler->IsSpdyEnabled() &&
-                !(caps & NS_HTTP_DISALLOW_SPDY)) {
-                LOG(("nsHttpConnection::SetupNPN Allow SPDY NPN selection"));
-                protocolArray.AppendElement(NS_LITERAL_CSTRING("spdy/2"));
-            }
-
+            protocolArray.AppendElement(NS_LITERAL_CSTRING("spdy/2"));
             protocolArray.AppendElement(NS_LITERAL_CSTRING("http/1.1"));
             if (NS_SUCCEEDED(ssl->SetNPNList(protocolArray))) {
                 LOG(("nsHttpConnection::Init Setting up SPDY Negotiation OK"));
@@ -581,7 +575,7 @@ nsHttpConnection::CanReuse()
     // path is more expensive than just closing the socket now.
 
     PRUint32 dataSize;
-    if (canReuse && mSocketIn && !mUsingSpdy && mHttp1xTransactionCount &&
+    if (canReuse && mSocketIn && !mUsingSpdy &&
         NS_SUCCEEDED(mSocketIn->Available(&dataSize)) && dataSize) {
         LOG(("nsHttpConnection::CanReuse %p %s"
              "Socket not reusable because read data pending (%d) on it.\n",
@@ -826,7 +820,7 @@ nsHttpConnection::OnHeadersAvailable(nsAHttpTransaction *trans,
             if (cp)
                 mIdleTimeout = PR_SecondsToInterval((PRUint32) atoi(cp + 8));
             else
-                mIdleTimeout = gHttpHandler->IdleTimeout();
+                mIdleTimeout = gHttpHandler->SpdyTimeout();
 
             cp = PL_strcasestr(val, "max=");
             if (cp) {
@@ -870,7 +864,6 @@ nsHttpConnection::OnHeadersAvailable(nsAHttpTransaction *trans,
                     LOG(("ProxyStartSSL failed [rv=%x]\n", rv));
             }
             mCompletedProxyConnect = true;
-            mProxyConnectInProgress = false;
             rv = mSocketOut->AsyncWait(this, 0, 0, nsnull);
             // XXX what if this fails -- need to handle this error
             NS_ASSERTION(NS_SUCCEEDED(rv), "mSocketOut->AsyncWait failed");
@@ -963,16 +956,14 @@ nsHttpConnection::ReadTimeoutTick(PRIntervalTime now)
     if (!mTransaction)
         return;
 
-    // Spdy implements some timeout handling using the SPDY ping frame.
+    // Spdy in the future actually should implement some timeout handling
+    // using the SPDY ping frame.
     if (mSpdySession) {
         mSpdySession->ReadTimeoutTick(now);
         return;
     }
     
-    if (!gHttpHandler->GetPipelineRescheduleOnTimeout())
-        return;
-
-    PRIntervalTime delta = now - mLastReadTime;
+    PRIntervalTime delta = PR_IntervalNow() - mLastReadTime;
 
     // we replicate some of the checks both here and in OnSocketReadable() as
     // they will be discovered under different conditions. The ones here
@@ -983,30 +974,28 @@ nsHttpConnection::ReadTimeoutTick(PRIntervalTime now)
     // Right now we only take action if pipelining is involved, but this would
     // be the place to add general read timeout handling if it is desired.
 
+    const PRIntervalTime k1000ms = PR_MillisecondsToInterval(1000);
+
+    if (delta < k1000ms)
+        return;
+
     PRUint32 pipelineDepth = mTransaction->PipelineDepth();
 
-    if (delta >= gHttpHandler->GetPipelineRescheduleTimeout()) {
+    // this just reschedules blocked transactions. no transaction
+    // is aborted completely.
+    LOG(("cancelling pipeline due to a %ums stall - depth %d\n",
+         PR_IntervalToMilliseconds(delta), pipelineDepth));
 
-        // this just reschedules blocked transactions. no transaction
-        // is aborted completely.
-        LOG(("cancelling pipeline due to a %ums stall - depth %d\n",
-             PR_IntervalToMilliseconds(delta), pipelineDepth));
-
-        if (pipelineDepth > 1) {
-            nsHttpPipeline *pipeline = mTransaction->QueryPipeline();
-            NS_ABORT_IF_FALSE(pipeline, "pipelinedepth > 1 without pipeline");
-            // code this defensively for the moment and check for null in opt build
-            // This will reschedule blocked members of the pipeline, but the
-            // blocking transaction (i.e. response 0) will not be changed.
-            if (pipeline) {
-                pipeline->CancelPipeline(NS_ERROR_NET_TIMEOUT);
-                LOG(("Rescheduling the head of line blocked members of a pipeline "
-                     "because reschedule-timeout idle interval exceeded"));
-            }
-        }
+    if (pipelineDepth > 1) {
+        nsHttpPipeline *pipeline = mTransaction->QueryPipeline();
+        NS_ABORT_IF_FALSE(pipeline, "pipelinedepth > 1 without pipeline");
+        // code this defensively for the moment and check for null in opt build
+        if (pipeline)
+            pipeline->CancelPipeline(NS_ERROR_NET_TIMEOUT);
     }
-
-    if (delta < gHttpHandler->GetPipelineTimeout())
+    
+    PRIntervalTime pipelineTimeout = gHttpHandler->GetPipelineTimeout();
+    if (!pipelineTimeout || (delta < pipelineTimeout))
         return;
 
     if (pipelineDepth <= 1 && !mTransaction->PipelinePosition())
@@ -1144,12 +1133,10 @@ nsHttpConnection::CloseTransaction(nsAHttpTransaction *trans, nsresult reason)
         mSpdySession = nsnull;
     }
 
-    if (mTransaction) {
-        mHttp1xTransactionCount += mTransaction->Http1xTransactionCount();
+    mHttp1xTransactionCount += mTransaction->Http1xTransactionCount();
 
-        mTransaction->Close(reason);
-        mTransaction = nsnull;
-    }
+    mTransaction->Close(reason);
+    mTransaction = nsnull;
 
     if (mCallbacks) {
         nsIInterfaceRequestor *cbs = nsnull;
@@ -1196,11 +1183,8 @@ nsHttpConnection::OnReadSegment(const char *buf,
         mSocketOutCondition = rv;
     else if (*countRead == 0)
         mSocketOutCondition = NS_BASE_STREAM_CLOSED;
-    else {
+    else
         mSocketOutCondition = NS_OK; // reset condition
-        if (!mProxyConnectInProgress)
-            mTotalBytesWritten += *countRead;
-    }
 
     return mSocketOutCondition;
 }
@@ -1259,7 +1243,7 @@ nsHttpConnection::OnSocketWritable()
             rv, n, mSocketOutCondition));
 
         // XXX some streams return NS_BASE_STREAM_CLOSED to indicate EOF.
-        if (rv == NS_BASE_STREAM_CLOSED && !mTransaction->IsDone()) {
+        if (rv == NS_BASE_STREAM_CLOSED) {
             rv = NS_OK;
             n = 0;
         }
@@ -1351,9 +1335,10 @@ nsHttpConnection::OnSocketReadable()
     else
         delta = 0;
 
-    static const PRIntervalTime k400ms  = PR_MillisecondsToInterval(400);
+    const PRIntervalTime k400ms  = PR_MillisecondsToInterval(400);
+    const PRIntervalTime k1200ms = PR_MillisecondsToInterval(1200);
 
-    if (delta >= (mRtt + gHttpHandler->GetPipelineRescheduleTimeout())) {
+    if (delta > k1200ms) {
         LOG(("Read delta ms of %u causing slow read major "
              "event and pipeline cancellation",
              PR_IntervalToMilliseconds(delta)));
@@ -1361,19 +1346,12 @@ nsHttpConnection::OnSocketReadable()
         gHttpHandler->ConnMgr()->PipelineFeedbackInfo(
             mConnInfo, nsHttpConnectionMgr::BadSlowReadMajor, this, 0);
 
-        if (gHttpHandler->GetPipelineRescheduleOnTimeout() &&
-            mTransaction->PipelineDepth() > 1) {
+        if (mTransaction->PipelineDepth() > 1) {
             nsHttpPipeline *pipeline = mTransaction->QueryPipeline();
             NS_ABORT_IF_FALSE(pipeline, "pipelinedepth > 1 without pipeline");
             // code this defensively for the moment and check for null
-            // This will reschedule blocked members of the pipeline, but the
-            // blocking transaction (i.e. response 0) will not be changed.
-            if (pipeline) {
+            if (pipeline)
                 pipeline->CancelPipeline(NS_ERROR_NET_TIMEOUT);
-                LOG(("Rescheduling the head of line blocked members of a "
-                     "pipeline because reschedule-timeout idle interval "
-                     "exceeded"));
-            }
         }
     }
     else if (delta > k400ms) {

@@ -11,10 +11,9 @@
 // I hate having to export this...
 #include "mozilla/dom/workers/bindings/EventListenerManager.h"
 
-#include "mozilla/dom/Nullable.h"
-#include "mozilla/ErrorResult.h"
+#include "mozilla/dom/bindings/Nullable.h"
 
-using namespace mozilla::dom;
+using namespace mozilla::dom::bindings;
 
 BEGIN_WORKERS_NAMESPACE
 
@@ -35,29 +34,28 @@ public:
   _Trace(JSTracer* aTrc) MOZ_OVERRIDE;
 
   virtual void
-  _Finalize(JSFreeOp* aFop) MOZ_OVERRIDE;
+  _Finalize(JSContext* aCx) MOZ_OVERRIDE;
 
   void
   AddEventListener(const nsAString& aType, JSObject* aListener,
-                   bool aCapture, Nullable<bool> aWantsUntrusted,
-                   ErrorResult& aRv);
+                   bool aCapture, Nullable<bool> aWantsUntrusted, nsresult& aRv);
 
   void
   RemoveEventListener(const nsAString& aType, JSObject* aListener,
-                      bool aCapture, ErrorResult& aRv);
+                      bool aCapture, nsresult& aRv);
 
   bool
-  DispatchEvent(JSObject* aEvent, ErrorResult& aRv) const
+  DispatchEvent(JSObject* aEvent, nsresult& aRv) const
   {
     return mListenerManager.DispatchEvent(GetJSContext(), *this, aEvent, aRv);
   }
 
   JSObject*
-  GetEventListener(const nsAString& aType, ErrorResult& aRv) const;
+  GetEventListener(const nsAString& aType, nsresult& aRv) const;
 
   void
   SetEventListener(const nsAString& aType, JSObject* aListener,
-                   ErrorResult& aRv);
+                   nsresult& aRv);
 
   bool
   HasListeners() const

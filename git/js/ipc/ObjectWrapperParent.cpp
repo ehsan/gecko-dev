@@ -174,8 +174,8 @@ const js::Class ObjectWrapperParent::sCPOW_JSClass = {
       ObjectWrapperParent::CPOW_Finalize,
       nsnull, // checkAccess
       ObjectWrapperParent::CPOW_Call,
-      ObjectWrapperParent::CPOW_HasInstance,
       ObjectWrapperParent::CPOW_Construct,
+      ObjectWrapperParent::CPOW_HasInstance,
       nsnull, // trace
       {
           ObjectWrapperParent::CPOW_Equality,
@@ -627,7 +627,7 @@ ObjectWrapperParent::CPOW_Convert(JSContext *cx, JSObject *obj, JSType type,
 }
 
 /*static*/ void
-ObjectWrapperParent::CPOW_Finalize(js::FreeOp* fop, JSObject* obj)
+ObjectWrapperParent::CPOW_Finalize(JSContext* cx, JSObject* obj)
 {
     CPOW_LOG(("Calling CPOW_Finalize..."));
     

@@ -229,14 +229,8 @@ NS_NewChannel(nsIChannel           **result,
                 rv |= chan->SetLoadGroup(loadGroup);
             if (callbacks)
                 rv |= chan->SetNotificationCallbacks(callbacks);
-            if (loadFlags != nsIRequest::LOAD_NORMAL) {
-                // Retain the LOAD_REPLACE load flag if set.
-                nsLoadFlags normalLoadFlags = 0;
-                chan->GetLoadFlags(&normalLoadFlags);
-                rv |= chan->SetLoadFlags(loadFlags | 
-                                         (normalLoadFlags & 
-                                          nsIChannel::LOAD_REPLACE));
-            }
+            if (loadFlags != nsIRequest::LOAD_NORMAL)
+                rv |= chan->SetLoadFlags(loadFlags);
             if (channelPolicy) {
                 nsCOMPtr<nsIWritablePropertyBag2> props = do_QueryInterface(chan);
                 if (props) {
@@ -1194,21 +1188,17 @@ NS_ReadInputStreamToBuffer(nsIInputStream *aInputStream,
     return rv; 
 }
 
-// external code can't see fallible_t
-#ifdef MOZILLA_INTERNAL_API
-
 inline nsresult
 NS_ReadInputStreamToString(nsIInputStream *aInputStream, 
                            nsACString &aDest,
                            PRUint32 aCount)
 {
-    if (!aDest.SetLength(aCount, mozilla::fallible_t()))
+    aDest.SetLength(aCount);
+    if (aDest.Length() != aCount)
         return NS_ERROR_OUT_OF_MEMORY;
     void* dest = aDest.BeginWriting();
     return NS_ReadInputStreamToBuffer(aInputStream, &dest, aCount);
 }
-
-#endif
 
 inline nsresult
 NS_LoadPersistentPropertiesFromURI(nsIPersistentProperties **result,

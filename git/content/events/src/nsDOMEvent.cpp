@@ -100,8 +100,6 @@ static const char* const sEventNames[] = {
   "MozBeforeResize",
   "mozfullscreenchange",
   "mozfullscreenerror",
-  "mozpointerlockchange",
-  "mozpointerlockerror",
   "MozSwipeGesture",
   "MozMagnifyGestureStart",
   "MozMagnifyGestureUpdate",
@@ -126,9 +124,7 @@ static const char* const sEventNames[] = {
   "animationend",
   "animationiteration",
   "devicemotion",
-  "deviceorientation",
-  "deviceproximity",
-  "devicelight"
+  "deviceorientation"
 };
 
 static char *sPopupAllowedEvents;
@@ -429,8 +425,7 @@ nsDOMEvent::GetEventPhase(PRUint16* aEventPhase)
 {
   // Note, remember to check that this works also
   // if or when Bug 235441 is fixed.
-  if ((mEvent->currentTarget &&
-       mEvent->currentTarget == mEvent->target) ||
+  if (mEvent->currentTarget == mEvent->target ||
       ((mEvent->flags & NS_EVENT_FLAG_CAPTURE) &&
        (mEvent->flags & NS_EVENT_FLAG_BUBBLE))) {
     *aEventPhase = nsIDOMEvent::AT_TARGET;
@@ -439,7 +434,7 @@ nsDOMEvent::GetEventPhase(PRUint16* aEventPhase)
   } else if (mEvent->flags & NS_EVENT_FLAG_BUBBLE) {
     *aEventPhase = nsIDOMEvent::BUBBLING_PHASE;
   } else {
-    *aEventPhase = nsIDOMEvent::NONE;
+    *aEventPhase = 0;
   }
   return NS_OK;
 }
@@ -682,7 +677,6 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       isInputEvent = true;
       keyEvent->keyCode = oldKeyEvent->keyCode;
       keyEvent->charCode = oldKeyEvent->charCode;
-      keyEvent->location = oldKeyEvent->location;
       keyEvent->isChar = oldKeyEvent->isChar;
       newEvent = keyEvent;
       break;
@@ -699,7 +693,6 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       mouseEvent->context = oldMouseEvent->context;
       mouseEvent->relatedTarget = oldMouseEvent->relatedTarget;
       mouseEvent->button = oldMouseEvent->button;
-      mouseEvent->buttons = oldMouseEvent->buttons;
       mouseEvent->pressure = oldMouseEvent->pressure;
       mouseEvent->inputSource = oldMouseEvent->inputSource;
       newEvent = mouseEvent;
@@ -717,7 +710,6 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       dragEvent->acceptActivation = oldDragEvent->acceptActivation;
       dragEvent->relatedTarget = oldDragEvent->relatedTarget;
       dragEvent->button = oldDragEvent->button;
-      dragEvent->buttons = oldDragEvent->buttons;
       static_cast<nsMouseEvent*>(dragEvent)->inputSource =
         static_cast<nsMouseEvent*>(oldDragEvent)->inputSource;
       newEvent = dragEvent;
@@ -759,7 +751,6 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       mouseScrollEvent->delta = oldMouseScrollEvent->delta;
       mouseScrollEvent->relatedTarget = oldMouseScrollEvent->relatedTarget;
       mouseScrollEvent->button = oldMouseScrollEvent->button;
-      mouseScrollEvent->buttons = oldMouseScrollEvent->buttons;
       static_cast<nsMouseEvent_base*>(mouseScrollEvent)->inputSource =
         static_cast<nsMouseEvent_base*>(oldMouseScrollEvent)->inputSource;
       newEvent = mouseScrollEvent;
@@ -897,20 +888,15 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
     }
     case NS_MOZTOUCH_EVENT:
     {
-      nsMozTouchEvent* oldMozTouchEvent = static_cast<nsMozTouchEvent*>(mEvent);
-      nsMozTouchEvent* mozTouchEvent =
-        new nsMozTouchEvent(false, msg, nsnull,
-                            static_cast<nsMozTouchEvent*>(mEvent)->streamId);
-      NS_ENSURE_TRUE(mozTouchEvent, NS_ERROR_OUT_OF_MEMORY);
+      newEvent = new nsMozTouchEvent(false, msg, nsnull,
+                                     static_cast<nsMozTouchEvent*>(mEvent)->streamId);
+      NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
       isInputEvent = true;
-      mozTouchEvent->buttons = oldMozTouchEvent->buttons;
-      newEvent = mozTouchEvent;
       break;
     }
     case NS_TOUCH_EVENT:
     {
-      nsTouchEvent *oldTouchEvent = static_cast<nsTouchEvent*>(mEvent);
-      newEvent = new nsTouchEvent(false, oldTouchEvent);
+      newEvent = new nsTouchEvent(false, msg, nsnull);
       NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
       isInputEvent = true;
       break;
@@ -927,7 +913,10 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
   if (isInputEvent) {
     nsInputEvent* oldInputEvent = static_cast<nsInputEvent*>(mEvent);
     nsInputEvent* newInputEvent = static_cast<nsInputEvent*>(newEvent);
-    newInputEvent->modifiers = oldInputEvent->modifiers;
+    newInputEvent->isShift = oldInputEvent->isShift;
+    newInputEvent->isControl = oldInputEvent->isControl;
+    newInputEvent->isAlt = oldInputEvent->isAlt;
+    newInputEvent->isMeta = oldInputEvent->isMeta;
   }
 
   newEvent->target                 = mEvent->target;
@@ -1180,10 +1169,6 @@ nsDOMEvent::GetScreenCoords(nsPresContext* aPresContext,
                             nsEvent* aEvent,
                             nsIntPoint aPoint)
 {
-  if (nsEventStateManager::sIsPointerLocked) {
-    return nsEventStateManager::sLastScreenPoint;
-  }
-
   if (!aEvent || 
        (aEvent->eventStructType != NS_MOUSE_EVENT &&
         aEvent->eventStructType != NS_POPUP_EVENT &&
@@ -1239,10 +1224,6 @@ nsDOMEvent::GetClientCoords(nsPresContext* aPresContext,
                             nsIntPoint aPoint,
                             nsIntPoint aDefaultPoint)
 {
-  if (nsEventStateManager::sIsPointerLocked) {
-    return nsEventStateManager::sLastClientPoint;
-  }
-
   if (!aEvent ||
       (aEvent->eventStructType != NS_MOUSE_EVENT &&
        aEvent->eventStructType != NS_POPUP_EVENT &&
@@ -1555,10 +1536,6 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_devicemotion];
   case NS_DEVICE_ORIENTATION:
     return sEventNames[eDOMEvents_deviceorientation];
-  case NS_DEVICE_PROXIMITY:
-    return sEventNames[eDOMEvents_deviceproximity];
-  case NS_DEVICE_LIGHT:
-    return sEventNames[eDOMEvents_devicelight];
   case NS_FULLSCREENCHANGE:
     return sEventNames[eDOMEvents_mozfullscreenchange];
   case NS_FULLSCREENERROR:

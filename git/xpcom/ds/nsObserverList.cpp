@@ -40,7 +40,6 @@
 #include "nsAutoPtr.h"
 #include "nsCOMArray.h"
 #include "nsISimpleEnumerator.h"
-#include "xpcpublic.h"
 
 nsresult
 nsObserverList::AddObserver(nsIObserver* anObserver, bool ownsWeak)
@@ -129,16 +128,6 @@ nsObserverList::NotifyObservers(nsISupports *aSubject,
 
     for (PRInt32 i = 0; i < observers.Count(); ++i) {
         observers[i]->Observe(aSubject, aTopic, someData);
-    }
-}
-
-void
-nsObserverList::UnmarkGrayStrongObservers()
-{
-    for (PRUint32 i = 0; i < mObservers.Length(); ++i) {
-        if (!mObservers[i].isWeakRef) {
-            xpc_TryUnmarkWrappedGrayObject(mObservers[i].asObserver());
-        }
     }
 }
 

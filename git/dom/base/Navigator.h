@@ -87,7 +87,6 @@ class SmsManager;
 
 namespace network {
 class Connection;
-class MobileConnection;
 } // namespace Connection;
 
 namespace power {
@@ -159,7 +158,6 @@ private:
   nsCOMPtr<nsIDOMTelephony> mTelephony;
 #endif
   nsRefPtr<network::Connection> mConnection;
-  nsRefPtr<network::MobileConnection> mMobileConnection;
 #ifdef MOZ_B2G_BT
   nsCOMPtr<nsIDOMBluetoothAdapter> mBluetooth;
 #endif

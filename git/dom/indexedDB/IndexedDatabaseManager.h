@@ -60,7 +60,6 @@
 #define INDEXEDDB_MANAGER_CONTRACTID "@mozilla.org/dom/indexeddb/manager;1"
 
 class mozIStorageQuotaCallback;
-class nsIFile;
 class nsITimer;
 
 BEGIN_INDEXEDDB_NAMESPACE
@@ -69,8 +68,8 @@ class AsyncConnectionHelper;
 
 class CheckQuotaHelper;
 
-class IndexedDatabaseManager MOZ_FINAL : public nsIIndexedDatabaseManager,
-                                         public nsIObserver
+class IndexedDatabaseManager : public nsIIndexedDatabaseManager,
+                               public nsIObserver
 {
   friend class IDBDatabase;
 
@@ -194,16 +193,6 @@ public:
   nsresult AsyncDeleteFile(FileManager* aFileManager,
                            PRInt64 aFileId);
 
-  const nsString&
-  GetBaseDirectory() const
-  {
-    return mDatabaseBasePath;
-  }
-
-  nsresult
-  GetDirectoryForOrigin(const nsACString& aASCIIOrigin,
-                        nsIFile** aDirectory) const;
-
   static mozilla::Mutex& FileMutex()
   {
     IndexedDatabaseManager* mgr = Get();
@@ -243,7 +232,7 @@ private:
   // directory that contains them before dispatching itself back to the main
   // thread. When back on the main thread the runnable will notify the
   // IndexedDatabaseManager that the job has been completed.
-  class OriginClearRunnable MOZ_FINAL : public nsIRunnable
+  class OriginClearRunnable : public nsIRunnable
   {
   public:
     NS_DECL_ISUPPORTS
@@ -272,7 +261,7 @@ private:
   // before dispatching itself back to the main thread. When on the main thread
   // the runnable will call the callback and then notify the
   // IndexedDatabaseManager that the job has been completed.
-  class AsyncUsageRunnable MOZ_FINAL : public nsIRunnable
+  class AsyncUsageRunnable : public nsIRunnable
   {
   public:
     NS_DECL_ISUPPORTS
@@ -326,7 +315,7 @@ private:
 
   // A callback runnable used by the TransactionPool when it's safe to proceed
   // with a SetVersion/DeleteDatabase/etc.
-  class WaitForTransactionsToFinishRunnable MOZ_FINAL : public nsIRunnable
+  class WaitForTransactionsToFinishRunnable : public nsIRunnable
   {
   public:
     WaitForTransactionsToFinishRunnable(SynchronizedOp* aOp)
@@ -345,7 +334,7 @@ private:
     SynchronizedOp* mOp;
   };
 
-  class AsyncDeleteFileRunnable MOZ_FINAL : public nsIRunnable
+  class AsyncDeleteFileRunnable : public nsIRunnable
   {
   public:
     NS_DECL_ISUPPORTS
@@ -399,8 +388,6 @@ private:
   // It's s also used to atomically update FileInfo.mRefCnt, FileInfo.mDBRefCnt
   // and FileInfo.mSliceRefCnt
   mozilla::Mutex mFileMutex;
-
-  nsString mDatabaseBasePath;
 };
 
 class AutoEnterWindow

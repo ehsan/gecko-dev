@@ -39,16 +39,18 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-console.html";
+const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test//test-console.html";
 
 let jsterm;
 
+registerCleanupFunction(function() {
+  Services.prefs.clearUserPref("devtools.gcli.enable");
+});
+
 function test() {
+  Services.prefs.setBoolPref("devtools.gcli.enable", false);
   addTab(TEST_URI);
-  browser.addEventListener("load", function onLoad() {
-    browser.removeEventListener("load", onLoad, true);
-    openConsole(null, testJSTerm);
-  }, true);
+  browser.addEventListener("DOMContentLoaded", testJSTerm, false);
 }
 
 function checkResult(msg, desc, lines) {
@@ -58,9 +60,13 @@ function checkResult(msg, desc, lines) {
     desc);
 }
 
-function testJSTerm(hud)
+function testJSTerm()
 {
-  jsterm = hud.jsterm;
+  browser.removeEventListener("DOMContentLoaded", testJSTerm, false);
+
+  openConsole();
+
+  jsterm = HUDService.getHudByWindow(content).jsterm;
 
   jsterm.clearOutput();
   jsterm.execute("'id=' + $('header').getAttribute('id')");
@@ -154,5 +160,5 @@ function testJSTerm(hud)
   checkResult("null", "null is null", 1);
 
   jsterm = null;
-  executeSoon(finishTest);
+  finishTest();
 }

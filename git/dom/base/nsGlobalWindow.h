@@ -88,6 +88,7 @@
 #include "mozFlushType.h"
 #include "prclist.h"
 #include "nsIDOMStorageObsolete.h"
+#include "nsIDOMStorageList.h"
 #include "nsIDOMStorageEvent.h"
 #include "nsIDOMStorageIndexedDB.h"
 #include "nsIDOMOfflineResourceList.h"
@@ -98,7 +99,6 @@
 #include "mozilla/TimeStamp.h"
 #include "nsIDOMTouchEvent.h"
 #include "nsIInlineEventHandlers.h"
-#include "nsWrapperCacheInlines.h"
 
 // JS includes
 #include "jsapi.h"
@@ -130,6 +130,7 @@ class nsIDocShellLoadInfo;
 class WindowStateHolder;
 class nsGlobalWindowObserver;
 class nsGlobalWindow;
+class nsDummyJavaPluginOwner;
 class PostMessageEvent;
 class nsRunnable;
 class nsDOMEventTargetHelper;
@@ -300,6 +301,10 @@ public:
 
   virtual nsIScriptContext *GetScriptContext();
 
+  // Set a new script language context for this global.  The native global
+  // for the context is created by the context's GetNativeGlobal() method.
+  virtual nsresult SetScriptContext(nsIScriptContext *aContext);
+  
   virtual void OnFinalize(JSObject* aObject);
   virtual void SetScriptsEnabled(bool aEnabled, bool aFireTimeouts);
 
@@ -488,6 +493,8 @@ public:
   NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsGlobalWindow,
                                                                    nsIScriptGlobalObject)
 
+  void InitJavaProperties();
+
   virtual NS_HIDDEN_(JSObject*)
     GetCachedXBLPrototypeHandler(nsXBLPrototypeHandler* aKey);
 
@@ -558,22 +565,9 @@ public:
   void AddEventTargetObject(nsDOMEventTargetHelper* aObject);
   void RemoveEventTargetObject(nsDOMEventTargetHelper* aObject);
 
-  /**
-   * Returns if the window is part of an application.
-   * It will check for the window app state and its parents until a window has
-   * an app state different from |TriState_Unknown|.
-   */
-  bool IsPartOfApp();
-
 protected:
   friend class HashchangeCallback;
   friend class nsBarProp;
-
-  enum TriState {
-    TriState_Unknown = -1,
-    TriState_False,
-    TriState_True
-  };
 
   // Object Management
   virtual ~nsGlobalWindow();
@@ -581,15 +575,7 @@ protected:
   void ClearControllers();
   nsresult FinalClose();
 
-  inline void MaybeClearInnerWindow(nsGlobalWindow* aExpectedInner)
-  {
-    if(mInnerWindow == aExpectedInner) {
-      mInnerWindow = nsnull;
-    }
-  }
-
   void FreeInnerObjects();
-  JSObject *CallerGlobal();
   nsGlobalWindow *CallerInnerWindow();
 
   nsresult InnerSetNewDocument(nsIDocument* aDocument);
@@ -824,8 +810,6 @@ protected:
   nsresult CloneStorageEvent(const nsAString& aType,
                              nsCOMPtr<nsIDOMStorageEvent>& aEvent);
 
-  void SetIsApp(bool aValue);
-
   // When adding new member variables, be careful not to create cycles
   // through JavaScript.  If there is any chance that a member variable
   // could own objects that are implemented in JavaScript, then those
@@ -840,6 +824,10 @@ protected:
   // where we don't want to force creation of a new inner window since
   // we're in the middle of doing just that.
   bool                          mIsFrozen : 1;
+
+  // True if the Java properties have been initialized on this
+  // window. Only used on inner windows.
+  bool                          mDidInitJavaProperties : 1;
   
   // These members are only used on outer window objects. Make sure
   // you never set any of these on an inner object!
@@ -893,11 +881,6 @@ protected:
   // whether we've sent the destroy notification for our window id
   bool                   mNotifiedIDDestroyed : 1;
 
-  // Whether the window is the window of an application frame.
-  // This is TriState_Unknown if the object is the content window of an
-  // iframe which is neither mozBrowser nor mozApp.
-  TriState               mIsApp : 2;
-
   nsCOMPtr<nsIScriptContext>    mContext;
   nsWeakPtr                     mOpener;
   nsCOMPtr<nsIControllers>      mControllers;
@@ -945,6 +928,10 @@ protected:
   nsRefPtr<nsLocation>          mLocation;
   nsRefPtr<nsHistory>           mHistory;
 
+  // Holder of the dummy java plugin, used to expose window.java and
+  // window.packages.
+  nsRefPtr<nsDummyJavaPluginOwner> mDummyJavaPluginOwner;
+
   // These member variables are used on both inner and the outer windows.
   nsCOMPtr<nsIPrincipal> mDocumentPrincipal;
   nsCOMPtr<nsIDocument> mDoc;  // For fast access to principals
@@ -952,6 +939,7 @@ protected:
 
   typedef nsCOMArray<nsIDOMStorageEvent> nsDOMStorageEventArray;
   nsDOMStorageEventArray mPendingStorageEvents;
+  nsAutoPtr< nsDataHashtable<nsStringHashKey, bool> > mPendingStorageEventsObsolete;
 
   PRUint32 mTimeoutsSuspendDepth;
 
@@ -1070,20 +1058,8 @@ protected:
 };
 
 /* factory function */
-inline already_AddRefed<nsGlobalWindow>
-NS_NewScriptGlobalObject(bool aIsChrome, bool aIsModalContentWindow)
-{
-  nsRefPtr<nsGlobalWindow> global;
-
-  if (aIsChrome) {
-    global = new nsGlobalChromeWindow(nsnull);
-  } else if (aIsModalContentWindow) {
-    global = new nsGlobalModalWindow(nsnull);
-  } else {
-    global = new nsGlobalWindow(nsnull);
-  }
-
-  return global.forget();
-}
+nsresult
+NS_NewScriptGlobalObject(bool aIsChrome, bool aIsModalContentWindow,
+                         nsIScriptGlobalObject **aResult);
 
 #endif /* nsGlobalWindow_h___ */

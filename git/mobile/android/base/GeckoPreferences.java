@@ -126,8 +126,7 @@ public class GeckoPreferences
                 initGroups((PreferenceGroup)pref);
             else {
                 pref.setOnPreferenceChangeListener(this);
-                if (pref.getKey() != null)
-                    mPreferencesList.add(pref.getKey());
+                mPreferencesList.add(pref.getKey());
             }
         }
     }

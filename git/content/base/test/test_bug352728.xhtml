@@ -91,7 +91,6 @@ function testComment(aText, aShouldSucceed)
     if (aShouldSucceed) {
       ok(0, "Correct functioning of comment stuff", "something broke: " + e);
     } else {
-      is(e.name, "InvalidCharacterError", "Check exception");
       is(e.code, DOMException.INVALID_CHARACTER_ERR, "Check exception code");
     }
   }
@@ -123,7 +122,6 @@ function testCDATASection(aText, aShouldSucceed)
       ok(0, "Correct functioning of CDATA section stuff",
          "something broke: " + e);
     } else {
-      is(e.name, "InvalidCharacterError", "Check exception");
       is(e.code, DOMException.INVALID_CHARACTER_ERR, "Check exception code");
     }
   }
@@ -157,7 +155,6 @@ function testPI(aTarget, aData, aShouldSucceed, aReason)
       ok(0, "Correct functioning of processing instruction stuff",
          "something broke: " + e);
     } else {
-      is(e.name, "InvalidCharacterError", "Check exception");
       is(e.code, DOMException.INVALID_CHARACTER_ERR, "Check exception code");
     }
   }

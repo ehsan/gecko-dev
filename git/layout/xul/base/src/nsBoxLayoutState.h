@@ -82,12 +82,10 @@ public:
   // doing box layout or intrinsic size calculation will cause bugs.
   nsRenderingContext* GetRenderingContext() const { return mRenderingContext; }
 
-  struct AutoReflowDepth {
-    AutoReflowDepth(nsBoxLayoutState& aState)
-      : mState(aState) { ++mState.mReflowDepth; }
-    ~AutoReflowDepth() { --mState.mReflowDepth; }
-    nsBoxLayoutState& mState;
-  };
+  void PushStackMemory() { PresShell()->PushStackMemory(); ++mReflowDepth; }
+  void PopStackMemory()  { PresShell()->PopStackMemory(); --mReflowDepth; }
+  void* AllocateStackMemory(size_t aSize)
+  { return PresShell()->AllocateStackMemory(aSize); }
 
   // The HTML reflow state that lives outside the box-block boundary.
   // May not be set reliably yet.

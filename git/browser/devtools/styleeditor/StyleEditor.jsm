@@ -1177,8 +1177,7 @@ function setupBracketCompletion(aSourceEditor)
 
   editorElement.addEventListener("keypress", function onKeyPress(aEvent) {
     let pair = pairs[aEvent.charCode];
-    if (!pair || aEvent.ctrlKey || aEvent.metaKey ||
-        aEvent.accelKey || aEvent.altKey) {
+    if (!pair) {
       return true;
     }
 

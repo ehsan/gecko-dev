@@ -60,14 +60,12 @@
 #include "nsPrintfCString.h"
 #endif
 
-#include "mozilla/StandardInteger.h"
-
 // Even on 32-bit systems, we allocate objects from the frame arena
-// that require 8-byte alignment.  The cast to uintptr_t is needed
+// that require 8-byte alignment.  The cast to PRUword is needed
 // because plarena isn't as careful about mask construction as it
 // ought to be.
 #define ALIGN_SHIFT 3
-#define PL_ARENA_CONST_ALIGN_MASK ((uintptr_t(1) << ALIGN_SHIFT) - 1)
+#define PL_ARENA_CONST_ALIGN_MASK ((PRUword(1) << ALIGN_SHIFT) - 1)
 #include "plarena.h"
 
 #ifdef _WIN32
@@ -97,31 +95,31 @@ static const size_t ARENA_PAGE_SIZE = 8192;
 
 #ifdef _WIN32
 static void *
-ReserveRegion(uintptr_t region, uintptr_t size)
+ReserveRegion(PRUword region, PRUword size)
 {
   return VirtualAlloc((void *)region, size, MEM_RESERVE, PAGE_NOACCESS);
 }
 
 static void
-ReleaseRegion(void *region, uintptr_t size)
+ReleaseRegion(void *region, PRUword size)
 {
   VirtualFree(region, size, MEM_RELEASE);
 }
 
 static bool
-ProbeRegion(uintptr_t region, uintptr_t size)
+ProbeRegion(PRUword region, PRUword size)
 {
   SYSTEM_INFO sinfo;
   GetSystemInfo(&sinfo);
-  if (region >= (uintptr_t)sinfo.lpMaximumApplicationAddress &&
-      region + size >= (uintptr_t)sinfo.lpMaximumApplicationAddress) {
+  if (region >= (PRUword)sinfo.lpMaximumApplicationAddress &&
+      region + size >= (PRUword)sinfo.lpMaximumApplicationAddress) {
     return true;
   } else {
     return false;
   }
 }
 
-static uintptr_t
+static PRUword
 GetDesiredRegionSize()
 {
   SYSTEM_INFO sinfo;
@@ -133,7 +131,7 @@ GetDesiredRegionSize()
 
 #elif defined(__OS2__)
 static void *
-ReserveRegion(uintptr_t region, uintptr_t size)
+ReserveRegion(PRUword region, PRUword size)
 {
   // OS/2 doesn't support allocation at an arbitrary address,
   // so return an address that is known to be invalid.
@@ -141,20 +139,20 @@ ReserveRegion(uintptr_t region, uintptr_t size)
 }
 
 static void
-ReleaseRegion(void *region, uintptr_t size)
+ReleaseRegion(void *region, PRUword size)
 {
   return;
 }
 
 static bool
-ProbeRegion(uintptr_t region, uintptr_t size)
+ProbeRegion(PRUword region, PRUword size)
 {
   // There's no reliable way to probe an address in the system
   // arena other than by touching it and seeing if a trap occurs.
   return false;
 }
 
-static uintptr_t
+static PRUword
 GetDesiredRegionSize()
 {
   // Page size is fixed at 4k.
@@ -166,19 +164,19 @@ GetDesiredRegionSize()
 #else // Unix
 
 static void *
-ReserveRegion(uintptr_t region, uintptr_t size)
+ReserveRegion(PRUword region, PRUword size)
 {
   return mmap((caddr_t)region, size, PROT_NONE, MAP_PRIVATE|MAP_ANON, -1, 0);
 }
 
 static void
-ReleaseRegion(void *region, uintptr_t size)
+ReleaseRegion(void *region, PRUword size)
 {
   munmap((caddr_t)region, size);
 }
 
 static bool
-ProbeRegion(uintptr_t region, uintptr_t size)
+ProbeRegion(PRUword region, PRUword size)
 {
   if (madvise((caddr_t)region, size, MADV_NORMAL)) {
     return true;
@@ -187,7 +185,7 @@ ProbeRegion(uintptr_t region, uintptr_t size)
   }
 }
 
-static uintptr_t
+static PRUword
 GetDesiredRegionSize()
 {
   return sysconf(_SC_PAGESIZE);
@@ -197,23 +195,23 @@ GetDesiredRegionSize()
 
 #endif // system dependencies
 
-PR_STATIC_ASSERT(sizeof(uintptr_t) == 4 || sizeof(uintptr_t) == 8);
-PR_STATIC_ASSERT(sizeof(uintptr_t) == sizeof(void *));
+PR_STATIC_ASSERT(sizeof(PRUword) == 4 || sizeof(PRUword) == 8);
+PR_STATIC_ASSERT(sizeof(PRUword) == sizeof(void *));
 
-static uintptr_t
-ReservePoisonArea(uintptr_t rgnsize)
+static PRUword
+ReservePoisonArea(PRUword rgnsize)
 {
-  if (sizeof(uintptr_t) == 8) {
+  if (sizeof(PRUword) == 8) {
     // Use the hardware-inaccessible region.
     // We have to avoid 64-bit constants and shifts by 32 bits, since this
     // code is compiled in 32-bit mode, although it is never executed there.
     return
-      (((uintptr_t(0x7FFFFFFFu) << 31) << 1 | uintptr_t(0xF0DEAFFFu))
+      (((PRUword(0x7FFFFFFFu) << 31) << 1 | PRUword(0xF0DEAFFFu))
        & ~(rgnsize-1));
 
   } else {
     // First see if we can allocate the preferred poison address from the OS.
-    uintptr_t candidate = (0xF0DEAFFF & ~(rgnsize-1));
+    PRUword candidate = (0xF0DEAFFF & ~(rgnsize-1));
     void *result = ReserveRegion(candidate, rgnsize);
     if (result == (void *)candidate) {
       // success - inaccessible page allocated
@@ -232,14 +230,14 @@ ReservePoisonArea(uintptr_t rgnsize)
     // The preferred address is already in use.  Did the OS give us a
     // consolation prize?
     if (result != RESERVE_FAILED) {
-      return uintptr_t(result);
+      return PRUword(result);
     }
 
     // It didn't, so try to allocate again, without any constraint on
     // the address.
     result = ReserveRegion(0, rgnsize);
     if (result != RESERVE_FAILED) {
-      return uintptr_t(result);
+      return PRUword(result);
     }
 
     NS_RUNTIMEABORT("no usable poison region identified");
@@ -247,14 +245,14 @@ ReservePoisonArea(uintptr_t rgnsize)
   }
 }
 
-static uintptr_t ARENA_POISON;
+static PRUword ARENA_POISON;
 static PRCallOnceType ARENA_POISON_guard;
 
 static PRStatus
 ARENA_POISON_init()
 {
-  uintptr_t rgnsize = GetDesiredRegionSize();
-  uintptr_t rgnbase = ReservePoisonArea(rgnsize);
+  PRUword rgnsize = GetDesiredRegionSize();
+  PRUword rgnbase = ReservePoisonArea(rgnsize);
 
   if (rgnsize == 0) // can't happen
     return PR_FAILURE;
@@ -267,7 +265,7 @@ ARENA_POISON_init()
   bool enabled;
   if (cr && NS_SUCCEEDED(cr->GetEnabled(&enabled)) && enabled) {
     cr->AnnotateCrashReport(NS_LITERAL_CSTRING("FramePoisonBase"),
-                            nsPrintfCString("%.16llx", PRUint64(rgnbase)));
+                            nsPrintfCString(17, "%.16llx", PRUint64(rgnbase)));
     cr->AnnotateCrashReport(NS_LITERAL_CSTRING("FramePoisonSize"),
                             nsPrintfCString("%lu", PRUint32(rgnsize)));
   }
@@ -359,8 +357,8 @@ struct nsPresArena::State {
       {
         char* p = reinterpret_cast<char*>(result);
         char* limit = p + list->mEntrySize;
-        for (; p < limit; p += sizeof(uintptr_t)) {
-          NS_ABORT_IF_FALSE(*reinterpret_cast<uintptr_t*>(p) == ARENA_POISON,
+        for (; p < limit; p += sizeof(PRUword)) {
+          NS_ABORT_IF_FALSE(*reinterpret_cast<PRUword*>(p) == ARENA_POISON,
                             "PresArena: poison overwritten");
         }
       }
@@ -382,8 +380,8 @@ struct nsPresArena::State {
 
     char* p = reinterpret_cast<char*>(aPtr);
     char* limit = p + list->mEntrySize;
-    for (; p < limit; p += sizeof(uintptr_t)) {
-      *reinterpret_cast<uintptr_t*>(p) = ARENA_POISON;
+    for (; p < limit; p += sizeof(PRUword)) {
+      *reinterpret_cast<PRUword*>(p) = ARENA_POISON;
     }
 
     list->mEntries.AppendElement(aPtr);
@@ -469,30 +467,18 @@ nsPresArena::FreeBySize(size_t aSize, void* aPtr)
 }
 
 void*
-nsPresArena::AllocateByFrameID(nsQueryFrame::FrameIID aID, size_t aSize)
+nsPresArena::AllocateByCode(nsQueryFrame::FrameIID aCode, size_t aSize)
 {
-  return mState->Allocate(aID, aSize);
+  return mState->Allocate(aCode, aSize);
 }
 
 void
-nsPresArena::FreeByFrameID(nsQueryFrame::FrameIID aID, void* aPtr)
+nsPresArena::FreeByCode(nsQueryFrame::FrameIID aCode, void* aPtr)
 {
-  mState->Free(aID, aPtr);
+  mState->Free(aCode, aPtr);
 }
 
-void*
-nsPresArena::AllocateByObjectID(ObjectID aID, size_t aSize)
-{
-  return mState->Allocate(aID, aSize);
-}
-
-void
-nsPresArena::FreeByObjectID(ObjectID aID, void* aPtr)
-{
-  mState->Free(aID, aPtr);
-}
-
-/* static */ uintptr_t
+/* static */ PRUword
 nsPresArena::GetPoisonValue()
 {
   return ARENA_POISON;

@@ -1,7 +1,7 @@
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/engines/bookmarks.js");
 Cu.import("resource://services-sync/record.js");
-Cu.import("resource://services-common/log4moz.js");
+Cu.import("resource://services-sync/log4moz.js");
 Cu.import("resource://services-sync/util.js");
 
 Cu.import("resource://services-sync/service.js");
@@ -73,7 +73,9 @@ add_test(function test_annotation_uploaded() {
   _("Create a smart bookmark in the toolbar.");
   let parent = PlacesUtils.toolbarFolderId;
   let uri =
-    Utils.makeURI("place:sort=" +
+    Utils.makeURI("place:redirectsMode=" +
+                  Ci.nsINavHistoryQueryOptions.REDIRECTS_MODE_TARGET +
+                  "&sort=" +
                   Ci.nsINavHistoryQueryOptions.SORT_BY_VISITCOUNT_DESCENDING +
                   "&maxResults=10");
   let title = "Most Visited";
@@ -131,6 +133,7 @@ add_test(function test_annotation_uploaded() {
     
     // "Clear" by changing attributes: if we delete it, apparently it sticks
     // around as a deleted record...
+    PlacesUtils.bookmarks.setItemGUID(mostVisitedID, "abcdefabcdef");
     PlacesUtils.bookmarks.setItemTitle(mostVisitedID, "Not Most Visited");
     PlacesUtils.bookmarks.changeBookmarkURI(
       mostVisitedID, Utils.makeURI("http://something/else"));
@@ -177,7 +180,9 @@ add_test(function test_smart_bookmarks_duped() {
 
   let parent = PlacesUtils.toolbarFolderId;
   let uri =
-    Utils.makeURI("place:sort=" +
+    Utils.makeURI("place:redirectsMode=" +
+                  Ci.nsINavHistoryQueryOptions.REDIRECTS_MODE_TARGET +
+                  "&sort=" +
                   Ci.nsINavHistoryQueryOptions.SORT_BY_VISITCOUNT_DESCENDING +
                   "&maxResults=10");
   let title = "Most Visited";

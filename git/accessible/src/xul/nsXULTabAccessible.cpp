@@ -160,7 +160,7 @@ nsXULTabAccessible::RelationByType(PRUint32 aType)
     return rel;
 
   nsCOMPtr<nsIContent> tabpanelContent(do_QueryInterface(tabpanelNode));
-  rel.AppendTarget(mDoc, tabpanelContent);
+  rel.AppendTarget(tabpanelContent);
   return rel;
 }
 
@@ -187,10 +187,10 @@ nsXULTabsAccessible::ActionCount()
   return 0;
 }
 
-void
-nsXULTabsAccessible::Value(nsString& aValue)
+/** no value */
+NS_IMETHODIMP nsXULTabsAccessible::GetValue(nsAString& _retval)
 {
-  aValue.Truncate();
+  return NS_OK;
 }
 
 nsresult
@@ -254,6 +254,6 @@ nsXULTabpanelAccessible::RelationByType(PRUint32 aType)
     return rel;
 
   nsCOMPtr<nsIContent> tabContent(do_QueryInterface(tabNode));
-  rel.AppendTarget(mDoc, tabContent);
+  rel.AppendTarget(tabContent);
   return rel;
 }

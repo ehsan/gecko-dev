@@ -59,12 +59,12 @@
 #include "mozilla/scache/StartupCache.h"
 #include "mozilla/scache/StartupCacheUtils.h"
 #include "nsCCUncollectableMarker.h"
-#include "mozilla/dom/BindingUtils.h"
+#include "mozilla/dom/bindings/Utils.h"
 
 using namespace mozilla::scache;
 using namespace mozilla;
 
-using mozilla::dom::DestroyProtoOrIfaceCache;
+using mozilla::dom::bindings::DestroyProtoOrIfaceCache;
 
 static const char kXBLCachePrefix[] = "xblcache";
 
@@ -83,10 +83,7 @@ public:
   
   // nsIScriptGlobalObject methods
   virtual nsresult EnsureScriptEnvironment();
-  void ClearScriptContext()
-  {
-    mScriptContext = NULL;
-  }
+  virtual nsresult SetScriptContext(nsIScriptContext *aContext);
 
   virtual nsIScriptContext *GetContext();
   virtual JSObject *GetGlobalJSObject();
@@ -109,6 +106,7 @@ public:
 protected:
   virtual ~nsXBLDocGlobalObject();
 
+  void SetContext(nsIScriptContext *aContext);
   nsIScriptContext *GetScriptContext();
 
   nsCOMPtr<nsIScriptContext> mScriptContext;
@@ -174,7 +172,7 @@ nsXBLDocGlobalObject_checkAccess(JSContext *cx, JSObject *obj, jsid id,
 }
 
 static void
-nsXBLDocGlobalObject_finalize(JSFreeOp *fop, JSObject *obj)
+nsXBLDocGlobalObject_finalize(JSContext *cx, JSObject *obj)
 {
   nsISupports *nativeThis = (nsISupports*)JS_GetPrivate(obj);
 
@@ -266,6 +264,33 @@ XBL_ProtoErrorReporter(JSContext *cx,
 // nsIScriptGlobalObject methods
 //
 
+void
+nsXBLDocGlobalObject::SetContext(nsIScriptContext *aScriptContext)
+{
+  if (!aScriptContext) {
+    mScriptContext = nsnull;
+    return;
+  }
+  aScriptContext->WillInitializeContext();
+  // NOTE: We init this context with a NULL global, so we automatically
+  // hook up to the existing nsIScriptGlobalObject global setup by
+  // nsGlobalWindow.
+  DebugOnly<nsresult> rv;
+  rv = aScriptContext->InitContext();
+  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Script Language's InitContext failed");
+  aScriptContext->SetGCOnDestruction(false);
+  aScriptContext->DidInitializeContext();
+  // and we set up our global manually
+  mScriptContext = aScriptContext;
+}
+
+nsresult
+nsXBLDocGlobalObject::SetScriptContext(nsIScriptContext *aContext)
+{
+  SetContext(aContext);
+  return NS_OK;
+}
+
 nsIScriptContext *
 nsXBLDocGlobalObject::GetScriptContext()
 {
@@ -275,28 +300,19 @@ nsXBLDocGlobalObject::GetScriptContext()
 nsresult
 nsXBLDocGlobalObject::EnsureScriptEnvironment()
 {
-  if (mScriptContext) {
-    // Already initialized.
-    return NS_OK;
-  }
+  if (mScriptContext)
+    return NS_OK; // already initialized for this lang
+  nsCOMPtr<nsIDOMScriptObjectFactory> factory = do_GetService(kDOMScriptObjectFactoryCID);
+  NS_ENSURE_TRUE(factory, NS_OK);
+
+  nsresult rv;
 
   nsCOMPtr<nsIScriptRuntime> scriptRuntime;
-  NS_GetJSRuntime(getter_AddRefs(scriptRuntime));
-  NS_ENSURE_TRUE(scriptRuntime, NS_OK);
-
+  rv = NS_GetScriptRuntimeByID(nsIProgrammingLanguage::JAVASCRIPT,
+                               getter_AddRefs(scriptRuntime));
+  NS_ENSURE_SUCCESS(rv, rv);
   nsCOMPtr<nsIScriptContext> newCtx = scriptRuntime->CreateContext();
-  MOZ_ASSERT(newCtx);
-
-  newCtx->WillInitializeContext();
-  // NOTE: We init this context with a NULL global, so we automatically
-  // hook up to the existing nsIScriptGlobalObject global setup by
-  // nsGlobalWindow.
-  nsresult rv = newCtx->InitContext();
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Script Language's InitContext failed");
-  newCtx->SetGCOnDestruction(false);
-  newCtx->DidInitializeContext();
-
-  mScriptContext = newCtx;
+  rv = SetScriptContext(newCtx);
 
   JSContext *cx = mScriptContext->GetNativeContext();
   JSAutoRequest ar(cx);
@@ -479,9 +495,11 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsXBLDocumentInfo)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 static void
-UnmarkXBLJSObject(void* aP, const char* aName, void* aClosure)
+UnmarkXBLJSObject(PRUint32 aLangID, void* aP, const char* aName, void* aClosure)
 {
-  xpc_UnmarkGrayObject(static_cast<JSObject*>(aP));
+  if (aLangID == nsIProgrammingLanguage::JAVASCRIPT) {
+    xpc_UnmarkGrayObject(static_cast<JSObject*>(aP));
+  }
 }
 
 static bool
@@ -542,7 +560,7 @@ nsXBLDocumentInfo::~nsXBLDocumentInfo()
   /* destructor code */
   if (mGlobalObject) {
     // remove circular reference
-    mGlobalObject->ClearScriptContext();
+    mGlobalObject->SetScriptContext(nsnull);
     mGlobalObject->ClearGlobalObjectOwner(); // just in case
   }
   if (mBindingTable) {

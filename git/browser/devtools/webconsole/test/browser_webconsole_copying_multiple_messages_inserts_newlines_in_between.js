@@ -12,37 +12,35 @@
 
 const TEST_URI = "data:text/html;charset=utf-8,Web Console test for bug 586142";
 
+registerCleanupFunction(function() {
+  Services.prefs.clearUserPref("devtools.gcli.enable");
+});
+
 function test()
 {
+  Services.prefs.setBoolPref("devtools.gcli.enable", false);
   addTab(TEST_URI);
   browser.addEventListener("DOMContentLoaded", onLoad, false);
 }
 
 function onLoad() {
-  browser.removeEventListener("DOMContentLoaded", onLoad, false);
-  openConsole(null, testNewlines);
+  browser.removeEventListener("DOMContentLoaded", onLoad,
+                                               false);
+  executeSoon(testNewlines);
 }
 
-function testNewlines(aHud) {
-  hud = aHud;
+function testNewlines() {
+  openConsole();
+  hud = HUDService.getHudByWindow(content);
   hud.jsterm.clearOutput();
 
+  let console = content.wrappedJSObject.console;
+  ok(console != null, "we have the console object");
+
   for (let i = 0; i < 20; i++) {
-    content.console.log("Hello world #" + i);
+    console.log("Hello world!");
   }
 
-  waitForSuccess({
-    name: "20 console.log messages displayed",
-    validatorFn: function()
-    {
-      return hud.outputNode.itemCount == 20;
-    },
-    successFn: testClipboard,
-    failureFn: finishTest,
-  });
-}
-
-function testClipboard() {
   let outputNode = hud.outputNode;
 
   outputNode.selectAll();
@@ -51,8 +49,7 @@ function testClipboard() {
   let clipboardTexts = [];
   for (let i = 0; i < outputNode.itemCount; i++) {
     let item = outputNode.getItemAtIndex(i);
-    clipboardTexts.push("[" +
-                        WebConsoleUtils.l10n.timestampString(item.timestamp) +
+    clipboardTexts.push("[" + ConsoleUtils.timestampString(item.timestamp) +
                         "] " + item.clipboardText);
   }
 

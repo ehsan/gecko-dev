@@ -50,6 +50,7 @@
 #include "nsIAccessibleRole.h"
 #include "nsIAccessibleStates.h"
 
+#include "nsARIAMap.h"
 #include "nsStringGlue.h"
 #include "nsTArray.h"
 #include "nsRefPtrHashtable.h"
@@ -62,29 +63,12 @@ class nsAccessible;
 class nsHyperTextAccessible;
 class nsHTMLImageAccessible;
 class nsHTMLImageMapAccessible;
+class nsHTMLLIAccessible;
 struct nsRoleMapEntry;
 class Relation;
-
 namespace mozilla {
 namespace a11y {
-
-class HTMLLIAccessible;
 class TableAccessible;
-
-/**
- * Name type flags.
- */
-enum ENameValueFlag {
-  /**
-   * Name either
-   *  a) present (not empty): !name.IsEmpty()
-   *  b) no name (was missed): name.IsVoid()
-   *  c) was left empty by the author on demand: name.IsEmpty() && !name.IsVoid()
-   */
- eNameOK,
- eNameFromTooltip // Tooltip was used as a name
-};
-
 }
 }
 class nsTextAccessible;
@@ -148,19 +132,9 @@ public:
   // Public methods
 
   /**
-   * Get the description of this accessible.
+   * get the description of this accessible
    */
   virtual void Description(nsString& aDescription);
-
-  /**
-   * Get the value of this accessible.
-   */
-  virtual void Value(nsString& aValue);
-
-  /**
-   * Get the name of this accessible.
-   */
-  virtual mozilla::a11y::ENameValueFlag Name(nsString& aName);
 
   /**
    * Return DOM node associated with this accessible.
@@ -202,19 +176,33 @@ public:
   /**
    * Return enumerated accessible role (see constants in Role.h).
    */
-  mozilla::a11y::role Role();
+  inline mozilla::a11y::role Role()
+  {
+    if (!mRoleMapEntry || mRoleMapEntry->roleRule != kUseMapRole)
+      return ARIATransformRole(NativeRole());
+
+    return ARIATransformRole(mRoleMapEntry->role);
+  }
 
   /**
    * Return true if ARIA role is specified on the element.
    */
-  bool HasARIARole() const
-    { return mRoleMapEntry; }
+  inline bool HasARIARole() const
+  {
+    return mRoleMapEntry;
+  }
 
   /**
    * Return accessible role specified by ARIA (see constants in
    * roles).
    */
-  mozilla::a11y::role ARIARole();
+  inline mozilla::a11y::role ARIARole()
+  {
+    if (!mRoleMapEntry || mRoleMapEntry->roleRule != kUseMapRole)
+      return mozilla::a11y::roles::NOTHING;
+
+    return ARIATransformRole(mRoleMapEntry->role);
+  }
 
   /**
    * Returns enumerated accessible role from native markup (see constants in
@@ -298,7 +286,7 @@ public:
    * @param aRoleMapEntry The ARIA nsRoleMapEntry* for the accessible, or 
    *                      nsnull if none.
    */
-  virtual void SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry);
+  virtual void SetRoleMapEntry(nsRoleMapEntry *aRoleMapEntry);
 
   /**
    * Update the children cache.
@@ -446,11 +434,6 @@ public:
    */
   void TestChildCache(nsAccessible* aCachedChild) const;
 
-  /**
-   * Return boundaries rect relative the bounding frame.
-   */
-  virtual void GetBoundsRect(nsRect& aRect, nsIFrame** aRelativeFrame);
-
   //////////////////////////////////////////////////////////////////////////////
   // Downcasting and types
 
@@ -477,7 +460,7 @@ public:
   inline bool IsHTMLFileInput() const { return mFlags & eHTMLFileInputAccessible; }
 
   inline bool IsHTMLListItem() const { return mFlags & eHTMLListItemAccessible; }
-  mozilla::a11y::HTMLLIAccessible* AsHTMLListItem();
+  nsHTMLLIAccessible* AsHTMLListItem();
 
   inline bool IsImageAccessible() const { return mFlags & eImageAccessible; }
   nsHTMLImageAccessible* AsImage();
@@ -495,7 +478,7 @@ public:
   inline bool IsMenuPopup() const { return mFlags & eMenuPopupAccessible; }
 
   inline bool IsRoot() const { return mFlags & eRootAccessible; }
-  mozilla::a11y::RootAccessible* AsRoot();
+  nsRootAccessible* AsRoot();
 
   virtual mozilla::a11y::TableAccessible* AsTable() { return nsnull; }
 
@@ -662,7 +645,7 @@ public:
   /**
    * Return the localized string for the given key.
    */
-  static void TranslateString(const nsString& aKey, nsAString& aStringOut);
+  static void TranslateString(const nsAString& aKey, nsAString& aStringOut);
 
   /**
    * Return true if the accessible is defunct.
@@ -750,6 +733,9 @@ protected:
    * Return ARIA role (helper method).
    */
   mozilla::a11y::role ARIATransformRole(mozilla::a11y::role aRole);
+
+  virtual nsIFrame* GetBoundsFrame();
+  virtual void GetBoundsRect(nsRect& aRect, nsIFrame** aRelativeFrame);
 
   //////////////////////////////////////////////////////////////////////////////
   // Name helpers
@@ -860,11 +846,8 @@ protected:
 
   nsAutoPtr<AccGroupInfo> mGroupInfo;
   friend class AccGroupInfo;
-  
-  /**
-   * Non-null indicates author-supplied role; possibly state & value as well
-   */
-  nsRoleMapEntry* mRoleMapEntry;
+
+  nsRoleMapEntry *mRoleMapEntry; // Non-null indicates author-supplied role; possibly state & value as well
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsAccessible,

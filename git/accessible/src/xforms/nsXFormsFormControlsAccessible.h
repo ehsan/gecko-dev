@@ -79,11 +79,12 @@ public:
   nsXFormsTriggerAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
 
   // nsIAccessible
+  NS_IMETHOD GetValue(nsAString& aValue);
+
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
   // nsAccessible
-  virtual void Value(nsString& aValue);
   virtual mozilla::a11y::role NativeRole();
 
   // ActionAccessible
@@ -155,8 +156,10 @@ class nsXFormsSecretAccessible : public nsXFormsInputAccessible
 public:
   nsXFormsSecretAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
 
+  // nsIAccessible
+  NS_IMETHOD GetValue(nsAString& aValue);
+
   // nsAccessible
-  virtual void Value(nsString& aValue);
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
 };
@@ -208,9 +211,9 @@ public:
   nsXFormsChoicesAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
 
   // nsIAccessible
+  NS_IMETHOD GetValue(nsAString& aValue);
 
   // nsAccessible
-  virtual void Value(nsString& aValue);
   virtual mozilla::a11y::role NativeRole();
 
 protected:

@@ -304,23 +304,23 @@ protected:
 
 static WakeLockObserversManager sWakeLockObservers;
 
-class ScreenConfigurationObserversManager : public CachingObserversManager<ScreenConfiguration>
+class ScreenOrientationObserversManager : public CachingObserversManager<dom::ScreenOrientationWrapper>
 {
 protected:
   void EnableNotifications() {
-    PROXY_IF_SANDBOXED(EnableScreenConfigurationNotifications());
+    PROXY_IF_SANDBOXED(EnableScreenOrientationNotifications());
   }
 
   void DisableNotifications() {
-    PROXY_IF_SANDBOXED(DisableScreenConfigurationNotifications());
+    PROXY_IF_SANDBOXED(DisableScreenOrientationNotifications());
   }
 
-  void GetCurrentInformationInternal(ScreenConfiguration* aInfo) {
-    PROXY_IF_SANDBOXED(GetCurrentScreenConfiguration(aInfo));
+  void GetCurrentInformationInternal(dom::ScreenOrientationWrapper* aInfo) {
+    PROXY_IF_SANDBOXED(GetCurrentScreenOrientation(&(aInfo->orientation)));
   }
 };
 
-static ScreenConfigurationObserversManager sScreenConfigurationObservers;
+static ScreenOrientationObserversManager sScreenOrientationObservers;
 
 void
 RegisterBatteryObserver(BatteryObserver* aObserver)
@@ -361,22 +361,6 @@ void SetScreenEnabled(bool enabled)
 {
   AssertMainThread();
   PROXY_IF_SANDBOXED(SetScreenEnabled(enabled));
-}
-
-bool GetCpuSleepAllowed()
-{
-  // Generally for interfaces that are accessible by normal web content
-  // we should cache the result and be notified on state changes, like
-  // what the battery API does. But since this is only used by
-  // privileged interface, the synchronous getter is OK here.
-  AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(GetCpuSleepAllowed());
-}
-
-void SetCpuSleepAllowed(bool allowed)
-{
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(SetCpuSleepAllowed(allowed));
 }
 
 double GetScreenBrightness()
@@ -555,31 +539,31 @@ NotifyWakeLockChange(const WakeLockInformation& aInfo)
 }
 
 void
-RegisterScreenConfigurationObserver(ScreenConfigurationObserver* aObserver)
+RegisterScreenOrientationObserver(hal::ScreenOrientationObserver* aObserver)
 {
   AssertMainThread();
-  sScreenConfigurationObservers.AddObserver(aObserver);
+  sScreenOrientationObservers.AddObserver(aObserver);
 }
 
 void
-UnregisterScreenConfigurationObserver(ScreenConfigurationObserver* aObserver)
+UnregisterScreenOrientationObserver(hal::ScreenOrientationObserver* aObserver)
 {
   AssertMainThread();
-  sScreenConfigurationObservers.RemoveObserver(aObserver);
+  sScreenOrientationObservers.RemoveObserver(aObserver);
 }
 
 void
-GetCurrentScreenConfiguration(ScreenConfiguration* aScreenConfiguration)
+GetCurrentScreenOrientation(dom::ScreenOrientation* aScreenOrientation)
 {
   AssertMainThread();
-  *aScreenConfiguration = sScreenConfigurationObservers.GetCurrentInformation();
+  *aScreenOrientation = sScreenOrientationObservers.GetCurrentInformation().orientation;
 }
 
 void
-NotifyScreenConfigurationChange(const ScreenConfiguration& aScreenConfiguration)
+NotifyScreenOrientationChange(const dom::ScreenOrientation& aScreenOrientation)
 {
-  sScreenConfigurationObservers.CacheInformation(aScreenConfiguration);
-  sScreenConfigurationObservers.BroadcastCachedInformation();
+  sScreenOrientationObservers.CacheInformation(dom::ScreenOrientationWrapper(aScreenOrientation));
+  sScreenOrientationObservers.BroadcastCachedInformation();
 }
 
 bool
@@ -594,84 +578,6 @@ UnlockScreenOrientation()
 {
   AssertMainThread();
   PROXY_IF_SANDBOXED(UnlockScreenOrientation());
-}
-
-void
-EnableSwitchNotifications(hal::SwitchDevice aDevice) {
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(EnableSwitchNotifications(aDevice));
-}
-
-void
-DisableSwitchNotifications(hal::SwitchDevice aDevice) {
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(DisableSwitchNotifications(aDevice));
-}
-
-hal::SwitchState GetCurrentSwitchState(hal::SwitchDevice aDevice)
-{
-  AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(GetCurrentSwitchState(aDevice));
-}
-
-typedef mozilla::ObserverList<SwitchEvent> SwitchObserverList;
-
-static SwitchObserverList *sSwitchObserverLists = NULL;
-
-static SwitchObserverList&
-GetSwitchObserverList(hal::SwitchDevice aDevice) {
-  MOZ_ASSERT(0 <= aDevice && aDevice < NUM_SWITCH_DEVICE); 
-  if (sSwitchObserverLists == NULL) {
-    sSwitchObserverLists = new SwitchObserverList[NUM_SWITCH_DEVICE];
-  }
-  return sSwitchObserverLists[aDevice];
-}
-
-static void
-ReleaseObserversIfNeeded() {
-  for (int i = 0; i < NUM_SWITCH_DEVICE; i++) {
-    if (sSwitchObserverLists[i].Length() != 0)
-      return;
-  }
-
-  //The length of every list is 0, no observer in the list.
-  delete [] sSwitchObserverLists;
-  sSwitchObserverLists = NULL;
-}
-
-void
-RegisterSwitchObserver(hal::SwitchDevice aDevice, hal::SwitchObserver *aObserver)
-{
-  AssertMainThread();
-  SwitchObserverList& observer = GetSwitchObserverList(aDevice);
-  observer.AddObserver(aObserver);
-  if (observer.Length() == 1) {
-    EnableSwitchNotifications(aDevice);
-  }
-}
-
-void
-UnregisterSwitchObserver(hal::SwitchDevice aDevice, hal::SwitchObserver *aObserver)
-{
-  AssertMainThread();
-  SwitchObserverList& observer = GetSwitchObserverList(aDevice);
-  observer.RemoveObserver(aObserver);
-  if (observer.Length() == 0) {
-    DisableSwitchNotifications(aDevice);
-    ReleaseObserversIfNeeded();
-  }
-}
-
-void
-NotifySwitchChange(const hal::SwitchEvent& aEvent)
-{
-  // When callback this notification, main thread may call unregister function
-  // first. We should check if this pointer is valid.
-  if (!sSwitchObserverLists)
-    return;
-
-  SwitchObserverList& observer = GetSwitchObserverList(aEvent.device());
-  observer.Broadcast(aEvent);
 }
 
 } // namespace hal

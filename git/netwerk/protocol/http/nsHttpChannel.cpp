@@ -72,8 +72,6 @@
 #include "nsAlgorithm.h"
 #include "sampler.h"
 #include "nsIConsoleService.h"
-#include "base/compiler_specific.h"
-#include "NullHttpTransaction.h"
 
 using namespace mozilla;
 
@@ -123,7 +121,7 @@ AutoRedirectVetoNotifier::ReportRedirectResult(bool succeeded)
 //-----------------------------------------------------------------------------
 
 nsHttpChannel::nsHttpChannel()
-    : ALLOW_THIS_IN_INITIALIZER_LIST(HttpAsyncAborter<nsHttpChannel>(this))
+    : HttpAsyncAborter<nsHttpChannel>(this)
     , mLogicalOffset(0)
     , mCacheAccess(0)
     , mPostID(0)
@@ -136,6 +134,7 @@ nsHttpChannel::nsHttpChannel()
     , mResuming(false)
     , mInitedCacheEntry(false)
     , mCacheForOfflineUse(false)
+    , mCachingOpportunistically(false)
     , mFallbackChannel(false)
     , mCustomConditionalRequest(false)
     , mFallingBack(false)
@@ -232,10 +231,6 @@ nsHttpChannel::Connect(bool firstTime)
 
     // true when called from AsyncOpen
     if (firstTime) {
-
-        // Consider opening a TCP connection right away
-        SpeculativeConnect();
-
         // are we offline?
         bool offline = gIOService->IsOffline();
         if (offline)
@@ -360,35 +355,6 @@ nsHttpChannel::Connect(bool firstTime)
         mTransactionPump->Suspend();
 
     return NS_OK;
-}
-
-void
-nsHttpChannel::SpeculativeConnect()
-{
-    // Before we take the latency hit of dealing with the cache, try and
-    // get the TCP (and SSL) handshakes going so they can overlap.
-
-    // don't speculate on uses of the offline application cache or if
-    // we are actually offline
-    if (mApplicationCache || gIOService->IsOffline())
-        return;
-
-    // LOAD_ONLY_FROM_CACHE and LOAD_NO_NETWORK_IO must not hit network.
-    // LOAD_FROM_CACHE and LOAD_CHECK_OFFLINE_CACHE are unlikely to hit network,
-    // so skip preconnects for them.
-    if (mLoadFlags & (LOAD_ONLY_FROM_CACHE | LOAD_FROM_CACHE |
-                      LOAD_NO_NETWORK_IO | LOAD_CHECK_OFFLINE_CACHE))
-        return;
-    
-    nsCOMPtr<nsIInterfaceRequestor> callbacks;
-    NS_NewNotificationCallbacksAggregation(mCallbacks, mLoadGroup,
-                                           getter_AddRefs(callbacks));
-    if (!callbacks)
-        return;
-
-    mConnectionInfo->SetAnonymous((mLoadFlags & LOAD_ANONYMOUS) != 0);
-    gHttpHandler->SpeculativeConnect(mConnectionInfo,
-                                     callbacks, NS_GetCurrentThread());
 }
 
 void
@@ -1024,6 +990,8 @@ nsHttpChannel::ProcessResponse()
     LOG(("nsHttpChannel::ProcessResponse [this=%p httpStatus=%u]\n",
         this, httpStatus));
 
+    UpdateInhibitPersistentCachingFlag();
+
     if (mTransaction->SSLConnectFailed()) {
         if (!ShouldSSLProxyResponseContinue(httpStatus))
             return ProcessFailedSSLConnect(httpStatus);
@@ -1181,11 +1149,6 @@ nsHttpChannel::ProcessResponse()
 nsresult
 nsHttpChannel::ContinueProcessResponse(nsresult rv)
 {
-    if (rv == NS_ERROR_CORRUPTED_CONTENT) {
-        // don't ever render responses we've flagged as suspect content
-        return NS_ERROR_CORRUPTED_CONTENT;
-    }
-
     if (rv == NS_ERROR_DOM_BAD_URI && mRedirectURI) {
 
         bool isHTTP = false;
@@ -1270,8 +1233,6 @@ nsHttpChannel::ContinueProcessNormal(nsresult rv)
     mCachedContentIsPartial = false;
 
     ClearBogusContentEncodingIfNeeded();
-
-    UpdateInhibitPersistentCachingFlag();
 
     // this must be called before firing OnStartRequest, since http clients,
     // such as imagelib, expect our cache entry to already have the correct
@@ -2025,20 +1986,17 @@ nsHttpChannel::ProcessNotModified()
     // that cache entry so there is a fighting chance of getting things on the
     // right track as well as disabling pipelining for that host.
 
-    nsCAutoString lastModifiedCached;
+    nsCAutoString lastModified;
     nsCAutoString lastModified304;
 
     rv = mCachedResponseHead->GetHeader(nsHttp::Last_Modified,
-                                        lastModifiedCached);
-    if (NS_SUCCEEDED(rv)) {
+                                        lastModified);
+    if (NS_SUCCEEDED(rv))
         rv = mResponseHead->GetHeader(nsHttp::Last_Modified, 
                                       lastModified304);
-    }
-
-    if (NS_SUCCEEDED(rv) && !lastModified304.Equals(lastModifiedCached)) {
+    if (NS_SUCCEEDED(rv) && !lastModified304.Equals(lastModified)) {
         LOG(("Cache Entry and 304 Last-Modified Headers Do Not Match "
-             "[%s] and [%s]\n",
-             lastModifiedCached.get(), lastModified304.get()));
+             "%s and %s\n", lastModified.get(), lastModified304.get()));
 
         mCacheEntry->Doom();
         if (mConnectionInfo)
@@ -2046,7 +2004,6 @@ nsHttpChannel::ProcessNotModified()
                 PipelineFeedbackInfo(mConnectionInfo,
                                      nsHttpConnectionMgr::RedCorruptedContent,
                                      nsnull, 0);
-        Telemetry::Accumulate(Telemetry::CACHE_LM_INCONSISTENT, true);
     }
 
     // merge any new headers with the cached response headers
@@ -2115,8 +2072,8 @@ nsHttpChannel::ProcessFallback(bool *waitingForRedirectCallback)
     NS_ASSERTION(fallbackEntryType & nsIApplicationCache::ITEM_FALLBACK,
                  "Fallback entry not marked correctly!");
 
-    // Kill any offline cache entry, and disable offline caching for the
-    // fallback.
+    // Kill any opportunistic cache entry, and disable opportunistic
+    // caching for the fallback.
     if (mOfflineCacheEntry) {
         mOfflineCacheEntry->Doom();
         mOfflineCacheEntry = 0;
@@ -2124,6 +2081,7 @@ nsHttpChannel::ProcessFallback(bool *waitingForRedirectCallback)
     }
 
     mCacheForOfflineUse = false;
+    mCachingOpportunistically = false;
     mOfflineCacheClientID.Truncate();
     mOfflineCacheEntry = 0;
     mOfflineCacheAccess = 0;
@@ -2376,10 +2334,12 @@ nsHttpChannel::OnOfflineCacheEntryAvailable(nsICacheEntryDescriptor *aEntry,
             NS_FAILED(namespaceEntry->GetItemType(&namespaceType)) ||
             (namespaceType &
              (nsIApplicationCacheNamespace::NAMESPACE_FALLBACK |
+              nsIApplicationCacheNamespace::NAMESPACE_OPPORTUNISTIC |
               nsIApplicationCacheNamespace::NAMESPACE_BYPASS)) == 0) {
             // When loading from an application cache, only items
             // on the whitelist or matching a
-            // fallback namespace should hit the network...
+            // fallback/opportunistic namespace should hit the
+            // network...
             mLoadFlags |= LOAD_ONLY_FROM_CACHE;
 
             // ... and if there were an application cache entry,
@@ -2391,6 +2351,19 @@ nsHttpChannel::OnOfflineCacheEntryAvailable(nsICacheEntryDescriptor *aEntry,
             nsIApplicationCacheNamespace::NAMESPACE_FALLBACK) {
             rv = namespaceEntry->GetData(mFallbackKey);
             NS_ENSURE_SUCCESS(rv, rv);
+        }
+
+        if ((namespaceType &
+             nsIApplicationCacheNamespace::NAMESPACE_OPPORTUNISTIC) &&
+            mLoadFlags & LOAD_DOCUMENT_URI) {
+            // Document loads for items in an opportunistic namespace
+            // should be placed in the offline cache.
+            nsCString clientID;
+            mApplicationCache->GetClientID(clientID);
+
+            mCacheForOfflineUse = !clientID.IsEmpty();
+            SetOfflineCacheClientID(clientID);
+            mCachingOpportunistically = true;
         }
     }
 
@@ -2413,13 +2386,11 @@ nsHttpChannel::OpenNormalCacheEntry()
     nsCOMPtr<nsICacheSession> session;
     rv = gHttpHandler->GetCacheSession(storagePolicy,
                                        getter_AddRefs(session));
-    if (NS_FAILED(rv))
-        return rv;
+    if (NS_FAILED(rv)) return rv;
 
-    nsCacheAccessMode accessRequested = 0;
+    nsCacheAccessMode accessRequested;
     rv = DetermineCacheAccess(&accessRequested);
-    if (NS_FAILED(rv))
-        return rv;
+    if (NS_FAILED(rv)) return rv;
 
     mOnCacheEntryAvailableCallback =
         &nsHttpChannel::OnNormalCacheEntryAvailable;
@@ -3133,6 +3104,17 @@ nsHttpChannel::CloseOfflineCacheEntry()
 
     mOfflineCacheEntry = 0;
     mOfflineCacheAccess = 0;
+
+    if (mCachingOpportunistically) {
+        nsCOMPtr<nsIApplicationCacheService> appCacheService =
+            do_GetService(NS_APPLICATIONCACHESERVICE_CONTRACTID);
+        if (appCacheService) {
+            nsCAutoString cacheKey;
+            GenerateCacheKey(mPostID, cacheKey);
+            appCacheService->CacheOpportunistically(mApplicationCache,
+                                                    cacheKey);
+        }
+    }
 }
 
 
@@ -3197,7 +3179,7 @@ nsHttpChannel::InitOfflineCacheEntry()
         return NS_OK;
     }
 
-    if (!mResponseHead || mResponseHead->NoStore()) {
+    if (mResponseHead && mResponseHead->NoStore()) {
         CloseOfflineCacheEntry();
 
         return NS_OK;
@@ -3567,11 +3549,7 @@ nsHttpChannel::AsyncProcessRedirection(PRUint32 redirectType)
 
     nsresult rv = CreateNewURI(location, getter_AddRefs(mRedirectURI));
 
-    if (NS_FAILED(rv)) {
-        LOG(("Invalid URI for redirect: Location: %s\n", location));
-        Cancel(NS_ERROR_CORRUPTED_CONTENT);
-        return NS_ERROR_CORRUPTED_CONTENT;
-    }
+    if (NS_FAILED(rv)) return rv;
 
     if (mApplicationCache) {
         // if we are redirected to a different origin check if there is a fallback
@@ -4177,7 +4155,7 @@ nsHttpChannel::Get##name##Time(PRTime* _retval) {              \
         return NS_OK;                                          \
     }                                                          \
     *_retval = mChannelCreationTime +                          \
-        (PRTime) ((stamp - mChannelCreationTimestamp).ToSeconds() * 1e6); \
+        (stamp - mChannelCreationTimestamp).ToSeconds() * 1e6; \
     return NS_OK;                                              \
 }
 
@@ -4500,8 +4478,18 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
         
         if (mUpgradeProtocolCallback && stickyConn &&
             mResponseHead && mResponseHead->Status() == 101) {
-            gHttpHandler->ConnMgr()->CompleteUpgrade(stickyConn,
-                                                     mUpgradeProtocolCallback);
+            nsCOMPtr<nsISocketTransport>    socketTransport;
+            nsCOMPtr<nsIAsyncInputStream>   socketIn;
+            nsCOMPtr<nsIAsyncOutputStream>  socketOut;
+
+            nsresult rv;
+            rv = stickyConn->TakeTransport(getter_AddRefs(socketTransport),
+                                           getter_AddRefs(socketIn),
+                                           getter_AddRefs(socketOut));
+            if (NS_SUCCEEDED(rv))
+                mUpgradeProtocolCallback->OnTransportAvailable(socketTransport,
+                                                               socketIn,
+                                                               socketOut);
         }
     }
 
@@ -4613,18 +4601,10 @@ nsHttpChannel::OnDataAvailable(nsIRequest *request, nsISupports *ctxt,
         // already streamed some data from another source (see, for example,
         // OnDoneReadingPartialCacheEntry).
         //
-
-        // report the current stream offset to our listener... if we've
-        // streamed more than PR_UINT32_MAX, then avoid overflowing the
-        // stream offset.  it's the best we can do without a 64-bit stream
-        // listener API. (Copied from nsInputStreamPump::OnStateTransfer.)
-        PRUint32 odaOffset = mLogicalOffset > PR_UINT32_MAX
-                           ? PR_UINT32_MAX : PRUint32(mLogicalOffset);
-
         nsresult rv =  mListener->OnDataAvailable(this,
                                                   mListenerContext,
                                                   input,
-                                                  odaOffset,
+                                                  mLogicalOffset,
                                                   count);
         if (NS_SUCCEEDED(rv))
             mLogicalOffset = progress;
@@ -5178,40 +5158,20 @@ nsHttpChannel::SetChooseApplicationCache(bool aChoose)
     return NS_OK;
 }
 
-nsHttpChannel::OfflineCacheEntryAsForeignMarker*
-nsHttpChannel::GetOfflineCacheEntryAsForeignMarker()
+NS_IMETHODIMP
+nsHttpChannel::MarkOfflineCacheEntryAsForeign()
 {
     if (!mApplicationCache)
-        return nsnull;
+        return NS_ERROR_NOT_AVAILABLE;
 
     nsresult rv;
 
     nsCAutoString cacheKey;
     rv = GenerateCacheKey(mPostID, cacheKey);
-    NS_ENSURE_SUCCESS(rv, nsnull);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    return new OfflineCacheEntryAsForeignMarker(mApplicationCache, cacheKey);
-}
-
-nsresult
-nsHttpChannel::OfflineCacheEntryAsForeignMarker::MarkAsForeign()
-{
-    return mApplicationCache->MarkEntry(mCacheKey,
-                                        nsIApplicationCache::ITEM_FOREIGN);
-}
-
-NS_IMETHODIMP
-nsHttpChannel::MarkOfflineCacheEntryAsForeign()
-{
-    nsresult rv;
-
-    nsAutoPtr<OfflineCacheEntryAsForeignMarker> marker(
-        GetOfflineCacheEntryAsForeignMarker());
-
-    if (!marker)
-        return NS_ERROR_NOT_AVAILABLE;
-
-    rv = marker->MarkAsForeign();
+    rv = mApplicationCache->MarkEntry(cacheKey,
+                                      nsIApplicationCache::ITEM_FOREIGN);
     NS_ENSURE_SUCCESS(rv, rv);
 
     return NS_OK;

@@ -109,7 +109,7 @@ static void*
 TryAllocAlignedBytes(size_t aSize)
 {
     // Use fallible allocators here
-#if defined(HAVE_POSIX_MEMALIGN)
+#if defined(HAVE_POSIX_MEMALIGN) || defined(HAVE_JEMALLOC_POSIX_MEMALIGN)
     void* ptr;
     // Try to align for fast alpha recovery.  This should only help
     // cairo too, can't hurt.
@@ -123,7 +123,7 @@ TryAllocAlignedBytes(size_t aSize)
 #endif
 }
 
-gfxImageSurface::gfxImageSurface(const gfxIntSize& size, gfxImageFormat format, bool aClear) :
+gfxImageSurface::gfxImageSurface(const gfxIntSize& size, gfxImageFormat format) :
     mSize(size), mOwnsData(false), mData(nsnull), mFormat(format)
 {
     mStride = ComputeStride();
@@ -139,8 +139,7 @@ gfxImageSurface::gfxImageSurface(const gfxIntSize& size, gfxImageFormat format, 
         mData = (unsigned char *) TryAllocAlignedBytes(mSize.height * mStride);
         if (!mData)
             return;
-        if (aClear)
-            memset(mData, 0, mSize.height * mStride);
+        memset(mData, 0, mSize.height * mStride);
     }
 
     mOwnsData = true;

@@ -109,9 +109,6 @@ GetObjectOrRepresentedView(id <mozAccessible> aObject)
 // the role might be "textfield", while the subrole is "password textfield".
 - (NSString*)subrole;
 
-// Return the role description, as there are a few exceptions.
-- (NSString*)roleDescription;
-
 // returns the native window we're inside.
 - (NSWindow*)window;
 
@@ -150,6 +147,9 @@ GetObjectOrRepresentedView(id <mozAccessible> aObject)
  * Append a child if they are already cached.
  */
 - (void)appendChild:(nsAccessible*)aAccessible;
+
+// invalidates the cached parent, used by invalidateChildren.
+- (void)invalidateParent;
 
 // makes ourselves "expired". after this point, we might be around if someone
 // has retained us (e.g., a third-party), but we really contain no information.

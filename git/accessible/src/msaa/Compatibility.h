@@ -57,22 +57,22 @@ public:
   /**
    * Return true if IAccessible2 disabled.
    */
-  static bool IsIA2Off() { return !!(sConsumers & OLDJAWS); }
+  static bool IsIA2Off() { return sMode & IA2OffMode; }
 
   /**
    * Return true if JAWS mode is enabled.
    */
-  static bool IsJAWS() { return !!(sConsumers & (JAWS | OLDJAWS)); }
+  static bool IsJAWS() { return sMode & JAWSMode; }
 
   /**
    * Return true if WE mode is enabled.
    */
-  static bool IsWE() { return !!(sConsumers & WE); }
+  static bool IsWE() { return sMode & WEMode; }
 
   /**
    * Return true if Dolphin mode is enabled.
    */
-  static bool IsDolphin() { return !!(sConsumers & DOLPHIN); }
+  static bool IsDolphin() { return sMode & DolphinMode; }
 
 private:
   Compatibility();
@@ -87,25 +87,34 @@ private:
   friend class nsAccessNodeWrap;
 
   /**
-   * List of detected consumers of a11y (used for statistics/telemetry and compat)
+   * List of compatibility modes.
    */
   enum {
-    NVDA = 1 << 0,
-    JAWS = 1 << 1,
-    OLDJAWS = 1 << 2,
-    WE = 1 << 3,
-    DOLPHIN = 1 << 4,
-    SEROTEK = 1 << 5,
-    COBRA = 1 << 6,
-    ZOOMTEXT = 1 << 7,
-    KAZAGURU = 1 << 8,
-    YOUDAO = 1 << 9,
-    UNKNOWN = 1 << 10,
-    UIAUTOMATION = 1 << 11
+    NoCompatibilityMode = 0,
+    JAWSMode = 1 << 0,
+    WEMode = 1 << 1,
+    DolphinMode = 1 << 2,
+    IA2OffMode = 1 << 3
+  };
+
+  /**
+   * List of detected consumers of a11y (used for statistics/telemetry)
+   */
+  enum {
+    NVDA = 0,
+    JAWS = 1,
+    OLDJAWS = 2,
+    WE = 3,
+    DOLPHIN = 4,
+    SEROTEK = 5,
+    COBRA = 6,
+    ZOOMTEXT = 7,
+    KAZAGURU = 8,
+    YOUDAO = 9
   };
 
 private:
-  static PRUint32 sConsumers;
+  static PRUint32 sMode;
 };
 
 } // a11y namespace

@@ -16,8 +16,6 @@
   <script type="application/javascript"
           src="../events.js"></script>
   <script type="application/javascript"
-          src="../role.js"></script>
-  <script type="application/javascript"
           src="../states.js"></script>
 
   <script type="application/javascript">
@@ -28,13 +26,6 @@
 
     function doTests()
     {
-      // Bug 746534 - File causes crash or hang on OS X
-      if (MAC) {
-        todo(false, "Bug 746534 - test file causes crash or hang on OS X");
-        SimpleTest.finish();
-        return;
-      }
-
       gQueue = new eventQueue();
 
       // first item is focused until there's selection

@@ -96,6 +96,7 @@ struct JSFunction : public JSObject
     } u;
     js::HeapPtrAtom  atom;        /* name for diagnostics and decompiling */
 
+    bool optimizedClosure()  const { return kind() > JSFUN_INTERPRETED; }
     bool isInterpreted()     const { return kind() >= JSFUN_INTERPRETED; }
     bool isNative()          const { return !isInterpreted(); }
     bool isNativeConstructor() const { return flags & JSFUN_CONSTRUCTOR; }
@@ -121,6 +122,9 @@ struct JSFunction : public JSObject
     /* uint16_t representation bounds number of call object dynamic slots. */
     enum { MAX_ARGS_AND_VARS = 2 * ((1U << 16) - 1) };
 
+#define JS_LOCAL_NAME_TO_ATOM(nameWord)  ((JSAtom *) ((nameWord) & ~uintptr_t(1)))
+#define JS_LOCAL_NAME_IS_CONST(nameWord) ((((nameWord) & uintptr_t(1))) != 0)
+
     /*
      * For an interpreted function, accessors for the initial scope object of
      * activations (stack frames) of the function.
@@ -131,12 +135,7 @@ struct JSFunction : public JSObject
 
     static inline size_t offsetOfEnvironment() { return offsetof(JSFunction, u.i.env_); }
 
-    JSScript *script() const {
-        JS_ASSERT(isInterpreted());
-        return *(js::HeapPtrScript *)&u.i.script_;
-    }
-
-    js::HeapPtrScript &mutableScript() {
+    js::HeapPtrScript &script() const {
         JS_ASSERT(isInterpreted());
         return *(js::HeapPtrScript *)&u.i.script_;
     }
@@ -145,7 +144,7 @@ struct JSFunction : public JSObject
     inline void initScript(JSScript *script_);
 
     JSScript *maybeScript() const {
-        return isInterpreted() ? script() : NULL;
+        return isInterpreted() ? script().get() : NULL;
     }
 
     JSNative native() const {
@@ -185,7 +184,7 @@ struct JSFunction : public JSObject
 
     /* Bound function accessors. */
 
-    inline bool initBoundFunction(JSContext *cx, js::HandleValue thisArg,
+    inline bool initBoundFunction(JSContext *cx, const js::Value &thisArg,
                                   const js::Value *args, unsigned argslen);
 
     inline JSObject *getBoundFunctionTarget() const;
@@ -241,8 +240,7 @@ js_NewFunction(JSContext *cx, JSObject *funobj, JSNative native, unsigned nargs,
                js::gc::AllocKind kind = JSFunction::FinalizeKind);
 
 extern JSFunction * JS_FASTCALL
-js_CloneFunctionObject(JSContext *cx, js::HandleFunction fun,
-                       js::HandleObject parent, js::HandleObject proto,
+js_CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent, JSObject *proto,
                        js::gc::AllocKind kind = JSFunction::FinalizeKind);
 
 extern JSFunction *
@@ -311,9 +309,6 @@ template<XDRMode mode>
 bool
 XDRInterpretedFunction(XDRState<mode> *xdr, JSObject **objp, JSScript *parentScript);
 
-extern JSObject *
-CloneInterpretedFunction(JSContext *cx, JSFunction *fun);
-
 } /* namespace js */
 
 extern JSBool
@@ -321,9 +316,5 @@ js_fun_apply(JSContext *cx, unsigned argc, js::Value *vp);
 
 extern JSBool
 js_fun_call(JSContext *cx, unsigned argc, js::Value *vp);
-
-extern JSObject*
-js_fun_bind(JSContext *cx, js::HandleObject target, js::HandleValue thisArg,
-            js::Value *boundArgs, unsigned argslen);
 
 #endif /* jsfun_h___ */

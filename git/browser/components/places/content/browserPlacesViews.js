@@ -166,26 +166,14 @@ PlacesViewBase.prototype = {
       window.content.focus();
   },
 
-  _cleanPopup: function PVB_cleanPopup(aPopup, aDelay) {
+  _cleanPopup: function PVB_cleanPopup(aPopup) {
     // Remove Places nodes from the popup.
     let child = aPopup._startMarker;
     while (child.nextSibling != aPopup._endMarker) {
-      let sibling = child.nextSibling;
-      if (sibling._placesNode && !aDelay) {
-        aPopup.removeChild(sibling);
-      }
-      else if (sibling._placesNode && aDelay) {
-        // HACK (bug 733419): the popups originating from the OS X native
-        // menubar don't live-update while open, thus we don't clean it
-        // until the next popupshowing, to avoid zombie menuitems.
-        if (!aPopup._delayedRemovals)
-          aPopup._delayedRemovals = [];
-        aPopup._delayedRemovals.push(sibling);
+      if (child.nextSibling._placesNode)
+        aPopup.removeChild(child.nextSibling);
+      else
         child = child.nextSibling;
-      }
-      else {
-        child = child.nextSibling;
-      }
     }
   },
 
@@ -407,8 +395,7 @@ PlacesViewBase.prototype = {
     }
     else {
       // The livemark has finished loading.
-      if (aPopup._statusMenuitem.parentNode == aPopup)
-        aPopup.removeChild(aPopup._statusMenuitem);
+      aPopup.removeChild(aPopup._statusMenuitem);
     }
   },
 
@@ -684,9 +671,7 @@ PlacesViewBase.prototype = {
   _populateLivemarkPopup: function PVB__populateLivemarkPopup(aPopup)
   {
     this._setLivemarkSiteURIMenuItem(aPopup);
-    // Show the loading status only if there are no entries yet.
-    if (aPopup._startMarker.nextSibling == aPopup._endMarker)
-      this._setLivemarkStatusMenuItem(aPopup, Ci.mozILivemark.STATUS_LOADING);
+    this._setLivemarkStatusMenuItem(aPopup, Ci.mozILivemark.STATUS_LOADING);
 
     PlacesUtils.livemarks.getLivemark({ id: aPopup._placesNode.itemId },
       (function (aStatus, aLivemark) {
@@ -694,10 +679,8 @@ PlacesViewBase.prototype = {
         if (!Components.isSuccessCode(aStatus) || !placesNode.containerOpen)
           return;
 
-        if (aLivemark.status != Ci.mozILivemark.STATUS_LOADING)
-          this._setLivemarkStatusMenuItem(aPopup, aLivemark.status);
-        this._cleanPopup(aPopup,
-          this._nativeView && aPopup.parentNode.hasAttribute("open"));
+        this._setLivemarkStatusMenuItem(aPopup, aLivemark.status);
+        this._cleanPopup(aPopup);
 
         let children = aLivemark.getNodesForContainer(placesNode);
         for (let i = 0; i < children.length; i++) {
@@ -749,8 +732,6 @@ PlacesViewBase.prototype = {
                                  .getComputedStyle(this.viewElt, "")
                                  .direction == "rtl";
   },
-
-  get ownerWindow() window,
 
   /**
    * Adds an "Open All in Tabs" menuitem to the bottom of the popup.
@@ -851,13 +832,6 @@ PlacesViewBase.prototype = {
     let popup = aEvent.originalTarget;
 
     this._ensureMarkers(popup);
-
-    // Remove any delayed element, see _cleanPopup for details.
-    if ("_delayedRemovals" in popup) {
-      while (popup._delayedRemovals.length > 0) {
-        popup.removeChild(popup._delayedRemovals.shift());
-      }
-    }
 
     if (popup._placesNode && PlacesUIUtils.getViewForNode(popup) == this) {
       if (!popup._placesNode.containerOpen)
@@ -1762,12 +1736,8 @@ function PlacesMenu(aPopupShowingEvent, aPlace) {
   this._addEventListeners(window, ["unload"], false);
 
 #ifdef XP_MACOSX
-  // Must walk up to support views in sub-menus, like Bookmarks Toolbar menu.
-  for (let elt = this._viewElt.parentNode; elt; elt = elt.parentNode) {
-    if (elt.localName == "menubar") {
-      this._nativeView = true;
-      break;
-    }
+  if (this._viewElt.parentNode.localName == "menubar") {
+    this._nativeView = true;
   }
 #endif
 

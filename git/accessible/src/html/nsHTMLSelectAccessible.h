@@ -39,7 +39,7 @@
 #ifndef __nsHTMLSelectAccessible_h__
 #define __nsHTMLSelectAccessible_h__
 
-#include "HTMLFormControlAccessible.h"
+#include "nsHTMLFormControlAccessible.h"
 #include "nsIDOMHTMLOptionsCollection.h"
 #include "nsIDOMHTMLOptionElement.h"
 #include "nsIDOMNode.h"
@@ -122,7 +122,6 @@ public:
   virtual PRUint64 NativeState();
 
   virtual PRInt32 GetLevelInternal();
-  virtual void GetBoundsRect(nsRect& aTotalBounds, nsIFrame** aBoundingFrame);
 
   // ActionAccessible
   virtual PRUint8 ActionCount();
@@ -130,33 +129,18 @@ public:
   // Widgets
   virtual nsAccessible* ContainerWidget() const;
 
+protected:
+  // nsAccessible
+  virtual nsIFrame* GetBoundsFrame();
+
 private:
   
   /**
-   * Return a select accessible the option belongs to if any.
+   * Get Select element's accessible state
+   * @param aState, Select element state
+   * @return Select element content, returns null if not avaliable
    */ 
-  nsAccessible* GetSelect() const
-  {
-    if (mParent && mParent->IsListControl()) {
-      nsAccessible* combobox = mParent->Parent();
-      return combobox && combobox->IsCombobox() ? combobox : mParent.get();
-    }
-
-    return nsnull;
-  }
-
-  /**
-   * Return a combobox accessible the option belongs to if any.
-   */
-  nsAccessible* GetCombobox() const
-  {
-    if (mParent && mParent->IsListControl()) {
-      nsAccessible* combobox = mParent->Parent();
-      return combobox && combobox->IsCombobox() ? combobox : nsnull;
-    }
-
-    return nsnull;
-  }
+  nsIContent* GetSelectState(PRUint64* aState);
 };
 
 /*
@@ -203,6 +187,7 @@ public:
   virtual ~nsHTMLComboboxAccessible() {}
 
   // nsIAccessible
+  NS_IMETHOD GetValue(nsAString& _retval);
   NS_IMETHOD DoAction(PRUint8 index);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
 
@@ -211,7 +196,6 @@ public:
 
   // nsAccessible
   virtual void Description(nsString& aDescription);
-  virtual void Value(nsString& aValue);
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
   virtual void InvalidateChildren();

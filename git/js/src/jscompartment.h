@@ -58,8 +58,63 @@
 
 namespace js {
 
+typedef HashMap<JSFunction *,
+                JSString *,
+                DefaultHasher<JSFunction *>,
+                SystemAllocPolicy> ToSourceCache;
+
+namespace mjit {
+class JaegerCompartment;
+}
+
 /* Defined in jsapi.cpp */
 extern Class dummy_class;
+
+} /* namespace js */
+
+#ifndef JS_EVAL_CACHE_SHIFT
+# define JS_EVAL_CACHE_SHIFT        6
+#endif
+
+/* Number of buckets in the hash of eval scripts. */
+#define JS_EVAL_CACHE_SIZE          JS_BIT(JS_EVAL_CACHE_SHIFT)
+
+namespace js {
+
+class NativeIterCache {
+    static const size_t SIZE = size_t(1) << 8;
+    
+    /* Cached native iterators. */
+    JSObject            *data[SIZE];
+
+    static size_t getIndex(uint32_t key) {
+        return size_t(key) % SIZE;
+    }
+
+  public:
+    /* Native iterator most recently started. */
+    JSObject            *last;
+
+    NativeIterCache()
+      : last(NULL) {
+        PodArrayZero(data);
+    }
+
+    void purge() {
+        PodArrayZero(data);
+        last = NULL;
+    }
+
+    JSObject *get(uint32_t key) const {
+        return data[getIndex(key)];
+    }
+
+    void set(uint32_t key, JSObject *iterobj) {
+        data[getIndex(key)] = iterobj;
+    }
+};
+
+class MathCache;
 
 /*
  * A single-entry cache for some base-10 double-to-string conversions. This
@@ -88,6 +143,25 @@ class DtoaCache {
 
 };
 
+struct ScriptFilenameEntry
+{
+    bool marked;
+    char filename[1];
+};
+
+struct ScriptFilenameHasher
+{
+    typedef const char *Lookup;
+    static HashNumber hash(const char *l) { return JS_HashString(l); }
+    static bool match(const ScriptFilenameEntry *e, const char *l) {
+        return strcmp(e->filename, l) == 0;
+    }
+};
+
+typedef HashSet<ScriptFilenameEntry *,
+                ScriptFilenameHasher,
+                SystemAllocPolicy> ScriptFilenameTable;
+
 /* If HashNumber grows, need to change WrapperHasher. */
 JS_STATIC_ASSERT(sizeof(HashNumber) == 4);
 
@@ -96,7 +170,6 @@ struct WrapperHasher
     typedef Value Lookup;
 
     static HashNumber hash(Value key) {
-        JS_ASSERT(!IsPoisonedValue(key));
         uint64_t bits = JSVAL_TO_IMPL(key).asBits;
         return uint32_t(bits) ^ uint32_t(bits >> 32);
     }
@@ -119,15 +192,11 @@ struct JSCompartment
 
     js::gc::ArenaLists           arenas;
 
-  private:
     bool                         needsBarrier_;
-  public:
 
     bool needsBarrier() const {
         return needsBarrier_;
     }
-
-    void setNeedsBarrier(bool needs);
 
     js::GCMarker *barrierTracer() {
         JS_ASSERT(needsBarrier_);
@@ -142,7 +211,6 @@ struct JSCompartment
     };
 
     CompartmentGCState           gcState;
-    bool                         gcPreserveCode;
 
   public:
     bool isCollecting() const {
@@ -153,10 +221,6 @@ struct JSCompartment
             JS_ASSERT(gcState != GCRunning);
             return needsBarrier();
         }
-    }
-
-    bool isPreservingCode() const {
-        return gcPreserveCode;
     }
 
     /*
@@ -181,27 +245,16 @@ struct JSCompartment
         gcState = GCScheduled;
     }
 
-    void unscheduleGC() {
-        JS_ASSERT(!rt->gcRunning);
-        JS_ASSERT(gcState != GCRunning);
-        gcState = NoGCScheduled;
-    }
-
     bool isGCScheduled() const {
         return gcState == GCScheduled;
     }
 
-    void setPreservingCode(bool preserving) {
-        gcPreserveCode = preserving;
-    }
-
     size_t                       gcBytes;
     size_t                       gcTriggerBytes;
+    size_t                       gcMaxMallocBytes;
 
     bool                         hold;
     bool                         isSystemCompartment;
-
-    int64_t                      lastCodeRelease;
 
     /*
      * Pool for analysis and intermediate type information in this compartment.
@@ -216,12 +269,38 @@ struct JSCompartment
     /* Type information about the scripts and objects in this compartment. */
     js::types::TypeCompartment   types;
 
+  public:
+    /* Hashed lists of scripts created by eval to garbage-collect. */
+    JSScript                     *evalCache[JS_EVAL_CACHE_SIZE];
+
     void                         *data;
     bool                         active;  // GC flag, whether there are active frames
     js::WrapperMap               crossCompartmentWrappers;
 
-    /* Last time at which an animation was played for a global in this compartment. */
-    int64_t                      lastAnimationTime;
+#ifdef JS_METHODJIT
+  private:
+    /* This is created lazily because many compartments don't need it. */
+    js::mjit::JaegerCompartment  *jaegerCompartment_;
+    /*
+     * This function is here so that xpconnect/src/xpcjsruntime.cpp doesn't
+     * need to see the declaration of JaegerCompartment, which would require
+     * #including MethodJIT.h into xpconnect/src/xpcjsruntime.cpp, which is
+     * difficult due to reasons explained in bug 483677.
+     */
+  public:
+    bool hasJaegerCompartment() {
+        return !!jaegerCompartment_;
+    }
+
+    js::mjit::JaegerCompartment *jaegerCompartment() const {
+        JS_ASSERT(jaegerCompartment_);
+        return jaegerCompartment_;
+    }
+
+    bool ensureJaegerCompartmentExists(JSContext *cx);
+
+    size_t sizeOfMjitCode() const;
+#endif
 
     js::RegExpCompartment        regExps;
 
@@ -235,23 +314,26 @@ struct JSCompartment
 
     /* Set of all unowned base shapes in the compartment. */
     js::BaseShapeSet             baseShapes;
-    void sweepBaseShapeTable();
+    void sweepBaseShapeTable(JSContext *cx);
 
     /* Set of initial shapes in the compartment. */
     js::InitialShapeSet          initialShapes;
-    void sweepInitialShapeTable();
+    void sweepInitialShapeTable(JSContext *cx);
 
     /* Set of default 'new' or lazy types in the compartment. */
     js::types::TypeObjectSet     newTypeObjects;
     js::types::TypeObjectSet     lazyTypeObjects;
-    void sweepNewTypeObjectTable(js::types::TypeObjectSet &table);
+    void sweepNewTypeObjectTable(JSContext *cx, js::types::TypeObjectSet &table);
 
-    js::ReadBarriered<js::types::TypeObject> emptyTypeObject;
+    js::types::TypeObject        *emptyTypeObject;
 
     /* Get the default 'new' type for objects with a NULL prototype. */
     inline js::types::TypeObject *getEmptyType(JSContext *cx);
 
     js::types::TypeObject *getLazyType(JSContext *cx, JSObject *proto);
+
+    /* Cache to speed up object creation. */
+    js::NewObjectCache           newObjectCache;
 
     /*
      * Keeps track of the total number of malloc bytes connected to a
@@ -268,14 +350,20 @@ struct JSCompartment
      * gcMaxMallocBytes down to zero. This counter should be used only when it's
      * not possible to know the size of a free.
      */
-    size_t                       gcMallocBytes;
-    size_t                       gcMaxMallocBytes;
+    ptrdiff_t                    gcMallocBytes;
 
     enum { DebugFromC = 1, DebugFromJS = 2 };
 
     unsigned                     debugModeBits;  // see debugMode() below
 
   public:
+    js::NativeIterCache          nativeIterCache;
+
+    typedef js::Maybe<js::ToSourceCache> LazyToSourceCache;
+    LazyToSourceCache            toSourceCache;
+
+    js::ScriptFilenameTable      scriptFilenameTable;
+
     JSCompartment(JSRuntime *rt);
     ~JSCompartment();
 
@@ -295,8 +383,8 @@ struct JSCompartment
     bool wrap(JSContext *cx, js::AutoIdVector &props);
 
     void markTypes(JSTracer *trc);
-    void discardJitCode(js::FreeOp *fop);
-    void sweep(js::FreeOp *fop, bool releaseTypes);
+    void discardJitCode(JSContext *cx);
+    void sweep(JSContext *cx, bool releaseTypes);
     void purge();
 
     void setGCLastBytes(size_t lastBytes, size_t lastMallocBytes, js::JSGCInvocationKind gckind);
@@ -305,18 +393,12 @@ struct JSCompartment
     void resetGCMallocBytes();
     void setGCMaxMallocBytes(size_t value);
     void updateMallocCounter(size_t nbytes) {
-        size_t oldCount = gcMallocBytes;
-        size_t newCount = oldCount - nbytes;
+        ptrdiff_t oldCount = gcMallocBytes;
+        ptrdiff_t newCount = oldCount - ptrdiff_t(nbytes);
         gcMallocBytes = newCount;
-        // gcMallocBytes will wrap around and be bigger than gcMaxAllocBytes if a signed value
-        // would be < 0
-        if (JS_UNLIKELY(oldCount <= gcMaxMallocBytes && newCount > gcMaxMallocBytes))
+        if (JS_UNLIKELY(newCount <= 0 && oldCount > 0))
             onTooMuchMalloc();
     }
-
-    bool isTooMuchMalloc() const {
-        return gcMallocBytes > gcMaxMallocBytes;
-     }
 
     void onTooMuchMalloc();
 
@@ -332,6 +414,10 @@ struct JSCompartment
     js::DtoaCache dtoaCache;
 
   private:
+    js::MathCache                *mathCache;
+
+    js::MathCache *allocMathCache(JSContext *cx);
+
     /*
      * Weak reference to each global in this compartment that is a debuggee.
      * Each global has its own list of debuggers.
@@ -342,6 +428,10 @@ struct JSCompartment
     JSCompartment *thisForCtor() { return this; }
 
   public:
+    js::MathCache *getMathCache(JSContext *cx) {
+        return mathCache ? mathCache : allocMathCache(cx);
+    }
+
     /*
      * There are dueling APIs for debug mode. It can be enabled or disabled via
      * JS_SetDebugModeForCompartment. It is automatically enabled and disabled
@@ -356,32 +446,34 @@ struct JSCompartment
 
   private:
     /* This is called only when debugMode() has just toggled. */
-    void updateForDebugMode(js::FreeOp *fop);
+    void updateForDebugMode(JSContext *cx);
 
   public:
     js::GlobalObjectSet &getDebuggees() { return debuggees; }
     bool addDebuggee(JSContext *cx, js::GlobalObject *global);
-    void removeDebuggee(js::FreeOp *fop, js::GlobalObject *global,
+    void removeDebuggee(JSContext *cx, js::GlobalObject *global,
                         js::GlobalObjectSet::Enum *debuggeesEnum = NULL);
     bool setDebugModeFromC(JSContext *cx, bool b);
 
-    void clearBreakpointsIn(js::FreeOp *fop, js::Debugger *dbg, JSObject *handler);
-    void clearTraps(js::FreeOp *fop);
+    void clearBreakpointsIn(JSContext *cx, js::Debugger *dbg, JSObject *handler);
+    void clearTraps(JSContext *cx);
 
   private:
-    void sweepBreakpoints(js::FreeOp *fop);
+    void sweepBreakpoints(JSContext *cx);
 
   public:
     js::WatchpointMap *watchpointMap;
-
-    js::ScriptCountsMap *scriptCountsMap;
-
-    js::SourceMapMap *sourceMapMap;
-
-    js::DebugScriptMap *debugScriptMap;
 };
 
 #define JS_PROPERTY_TREE(cx)    ((cx)->compartment->propertyTree)
+
+namespace js {
+static inline MathCache *
+GetMathCache(JSContext *cx)
+{
+    return cx->compartment->getMathCache(cx);
+}
+}
 
 inline void
 JSContext::setCompartment(JSCompartment *compartment)
@@ -484,10 +576,10 @@ class AutoCompartment
 class ErrorCopier
 {
     AutoCompartment &ac;
-    RootedVarObject scope;
+    JSObject *scope;
 
   public:
-    ErrorCopier(AutoCompartment &ac, JSObject *scope) : ac(ac), scope(ac.context, scope) {
+    ErrorCopier(AutoCompartment &ac, JSObject *scope) : ac(ac), scope(scope) {
         JS_ASSERT(scope->compartment() == ac.origin);
     }
     ~ErrorCopier();

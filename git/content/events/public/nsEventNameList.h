@@ -275,14 +275,6 @@ EVENT(mozfullscreenerror,
       NS_FULLSCREENERROR,
       EventNameType_HTML,
       NS_EVENT_NULL)
-EVENT(mozpointerlockchange,
-      NS_POINTERLOCKCHANGE,
-      EventNameType_HTML,
-      NS_EVENT_NULL)
-EVENT(mozpointerlockerror,
-      NS_POINTERLOCKERROR,
-      EventNameType_HTML,
-      NS_EVENT_NULL)
 // Not supported yet; probably never because "wheel" is a better idea.
 // EVENT(mousewheel)
 EVENT(pause,
@@ -453,14 +445,6 @@ WINDOW_ONLY_EVENT(devicemotion,
                   NS_EVENT)
 WINDOW_ONLY_EVENT(deviceorientation,
                   NS_DEVICE_ORIENTATION,
-                  EventNameType_None,
-                  NS_EVENT)
-WINDOW_ONLY_EVENT(deviceproximity,
-                  NS_DEVICE_PROXIMITY,
-                  EventNameType_None,
-                  NS_EVENT)
-WINDOW_ONLY_EVENT(devicelight,
-                  NS_DEVICE_LIGHT,
                   EventNameType_None,
                   NS_EVENT)
 

@@ -168,8 +168,8 @@ public:
                                      LayerManager* aManager,
                                      nsDisplayItem* aItem);
 
-  LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
-                           LayerManager* aManager);
+  virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
+                                   LayerManager* aManager);
 
   already_AddRefed<ImageContainer> GetImageContainer();
   /**
@@ -299,9 +299,9 @@ public:
   }
 #endif
 
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap);
+  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
   virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
-                                   bool* aSnap);
+                                   bool* aForceTransparentSurface = nsnull);
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsRenderingContext* aCtx);
   virtual bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
@@ -330,8 +330,7 @@ public:
   }
 
   virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
-                                   LayerManager* aManager,
-                                   const ContainerParameters& aParameters)
+                                   LayerManager* aManager)
   {
     return static_cast<nsObjectFrame*>(mFrame)->GetLayerState(aBuilder,
                                                               aManager);

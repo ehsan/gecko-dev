@@ -65,9 +65,11 @@ public class ScrollbarLayer extends TileLayer {
     private static final int CAP_RADIUS = (BAR_SIZE / 2);
 
     private final boolean mVertical;
+    private final ByteBuffer mBuffer;
     private final Bitmap mBitmap;
     private final Canvas mCanvas;
     private float mOpacity;
+    private boolean mFinalized = false;
 
     private LayerRenderer mRenderer;
     private int mProgram;
@@ -139,8 +141,9 @@ public class ScrollbarLayer extends TileLayer {
     };
 
     private ScrollbarLayer(LayerRenderer renderer, CairoImage image, boolean vertical, ByteBuffer buffer) {
-        super(image, TileLayer.PaintMode.NORMAL);
+        super(false, image);
         mVertical = vertical;
+        mBuffer = buffer;
         mRenderer = renderer;
 
         IntSize size = image.getSize();
@@ -156,7 +159,17 @@ public class ScrollbarLayer extends TileLayer {
         mCanvas.drawColor(Color.argb(0, 0, 0, 0), PorterDuff.Mode.CLEAR);
         mCanvas.drawCircle(CAP_RADIUS, CAP_RADIUS, CAP_RADIUS, foregroundPaint);
 
-        mBitmap.copyPixelsToBuffer(buffer.asIntBuffer());
+        mBitmap.copyPixelsToBuffer(mBuffer.asIntBuffer());
+    }
+
+    protected void finalize() throws Throwable {
+        try {
+            if (!mFinalized && mBuffer != null)
+                GeckoAppShell.freeDirectBuffer(mBuffer);
+            mFinalized = true;
+        } finally {
+            super.finalize();
+        }
     }
 
     public static ScrollbarLayer create(LayerRenderer renderer, boolean vertical) {
@@ -220,8 +233,11 @@ public class ScrollbarLayer extends TileLayer {
             return false;
         }
         beginTransaction(); // called on compositor thread
-        mOpacity = Math.max(mOpacity - FADE_AMOUNT, 0.0f);
-        endTransaction();
+        try {
+            mOpacity = Math.max(mOpacity - FADE_AMOUNT, 0.0f);
+        } finally {
+            endTransaction();
+        }
         return true;
     }
 
@@ -235,8 +251,11 @@ public class ScrollbarLayer extends TileLayer {
             return false;
         }
         beginTransaction(); // called on compositor thread
-        mOpacity = 1.0f;
-        endTransaction();
+        try {
+            mOpacity = 1.0f;
+        } finally {
+            endTransaction();
+        }
         return true;
     }
 
@@ -293,9 +312,6 @@ public class ScrollbarLayer extends TileLayer {
         // clean up after themselves
         coordBuffer.position(0);
         coordBuffer.put(bodyCoords);
-
-        // Unbind any the current array buffer so we can use client side buffers
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
 
         // Vertex coordinates are x,y,z starting at position 0 into the buffer.
         coordBuffer.position(0);

@@ -248,7 +248,6 @@ class Compiler : public BaseCompiler
         PropertyName *name;
         bool hasTypeCheck;
         bool typeMonitored;
-        bool cached;
         types::TypeSet *rhsTypes;
         ValueRemat vr;
         union {
@@ -288,7 +287,6 @@ class Compiler : public BaseCompiler
                 ic.u.get.hasTypeCheck = hasTypeCheck;
             }
             ic.typeMonitored = typeMonitored;
-            ic.cached = cached;
             ic.rhsTypes = rhsTypes;
             if (ic.isGet())
                 ic.setLabels(getPropLabels());
@@ -470,8 +468,6 @@ private:
     js::Vector<CallPatchInfo, 64, CompilerAllocPolicy> callPatches;
     js::Vector<InternalCallSite, 64, CompilerAllocPolicy> callSites;
     js::Vector<DoublePatch, 16, CompilerAllocPolicy> doubleList;
-    js::Vector<JSObject*, 0, CompilerAllocPolicy> rootedTemplates;
-    js::Vector<RegExpShared*, 0, CompilerAllocPolicy> rootedRegExps;
     js::Vector<uint32_t> fixedIntToDoubleEntries;
     js::Vector<uint32_t> fixedDoubleToAnyEntries;
     js::Vector<JumpTable, 16> jumpTables;
@@ -493,6 +489,7 @@ private:
     bool oomInVector;       // True if we have OOM'd appending to a vector. 
     bool overflowICSpace;   // True if we added a constant pool in a reserved space.
     uint64_t gcNumber;
+    enum { NoApplyTricks, LazyArgsObj } applyTricks;
     PCLengthEntry *pcLengths;
 
     Compiler *thisFromCtor() { return this; }
@@ -525,7 +522,7 @@ private:
     }
 
     JITScript *outerJIT() {
-        return outerScript->getJIT(isConstructing, cx->compartment->needsBarrier());
+        return outerScript->getJIT(isConstructing);
     }
 
     ChunkDescriptor &outerChunkRef() {
@@ -616,6 +613,7 @@ private:
     void pushSyncedEntry(uint32_t pushed);
     bool jumpInScript(Jump j, jsbytecode *pc);
     bool compareTwoValues(JSContext *cx, JSOp op, const Value &lhs, const Value &rhs);
+    bool canUseApplyTricks();
 
     /* Emitting helpers. */
     bool constantFoldBranch(jsbytecode *target, bool taken);
@@ -671,7 +669,8 @@ private:
     void interruptCheckHelper();
     void recompileCheckHelper();
     void emitUncachedCall(uint32_t argc, bool callingNew);
-    void checkCallApplySpeculation(uint32_t argc, FrameEntry *origCallee, FrameEntry *origThis,
+    void checkCallApplySpeculation(uint32_t callImmArgc, uint32_t speculatedArgc,
+                                   FrameEntry *origCallee, FrameEntry *origThis,
                                    MaybeRegisterID origCalleeType, RegisterID origCalleeData,
                                    MaybeRegisterID origThisType, RegisterID origThisData,
                                    Jump *uncachedCallSlowRejoin, CallPatchInfo *uncachedCallPatch);
@@ -695,8 +694,8 @@ private:
     void enterBlock(StaticBlockObject *block);
     void leaveBlock();
     void emitEval(uint32_t argc);
+    void jsop_arguments(RejoinState rejoin);
     bool jsop_tableswitch(jsbytecode *pc);
-    Jump getNewObject(JSContext *cx, RegisterID result, JSObject *templateObject);
 
     /* Fast arithmetic. */
     bool jsop_binary_slow(JSOp op, VoidStub stub, JSValueType type, FrameEntry *lhs, FrameEntry *rhs);
@@ -797,6 +796,7 @@ private:
 
     /* Fast builtins. */
     JSObject *pushedSingleton(unsigned pushed);
+    CompileStatus callArrayBuiltin(uint32_t argc, bool callingNew);
     CompileStatus inlineNativeFunction(uint32_t argc, bool callingNew);
     CompileStatus inlineScriptedFunction(uint32_t argc, bool callingNew);
     CompileStatus compileMathAbsInt(FrameEntry *arg);

@@ -102,4 +102,3 @@ gfxRect::Condition()
         height = CAIRO_COORD_MAX - y;
     }
 }
-

@@ -47,19 +47,12 @@ const Cr = Components.results;
 var EXPORTED_SYMBOLS = [];
 
 Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "AddonRepository",
-                                  "resource://gre/modules/AddonRepository.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "ChromeManifestParser",
-                                  "resource://gre/modules/ChromeManifestParser.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "LightweightThemeManager",
-                                  "resource://gre/modules/LightweightThemeManager.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
-                                  "resource://gre/modules/FileUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
-                                  "resource://gre/modules/NetUtil.jsm");
+Components.utils.import("resource://gre/modules/AddonRepository.jsm");
+Components.utils.import("resource://gre/modules/ChromeManifestParser.jsm");
+Components.utils.import("resource://gre/modules/LightweightThemeManager.jsm");
+Components.utils.import("resource://gre/modules/FileUtils.jsm");
+Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
 const PREF_DB_SCHEMA                  = "extensions.databaseSchema";
 const PREF_INSTALL_CACHE              = "extensions.installCache";
@@ -2396,12 +2389,6 @@ var XPIProvider = {
       if (aOldAddon.visible) {
         visibleAddons[aOldAddon.id] = aOldAddon;
 
-        if (aOldAddon.bootstrap) {
-          let bootstrap = oldBootstrappedAddons[aOldAddon.id];
-          bootstrap.descriptor = aAddonState.descriptor;
-          XPIProvider.bootstrappedAddons[aOldAddon.id] = bootstrap;
-        }
-
         return true;
       }
 
@@ -3598,7 +3585,7 @@ var XPIProvider = {
     if (!aFile.exists()) {
       this.bootstrapScopes[aId] = new Components.utils.Sandbox(principal,
                                                                {sandboxName: aFile.path});
-      ERROR("Attempted to load bootstrap scope from missing directory " + aFile.path);
+      ERROR("Attempted to load bootstrap scope from missing directory " + bootstrap.path);
       return;
     }
 
@@ -3610,16 +3597,6 @@ var XPIProvider = {
                  createInstance(Ci.mozIJSSubScriptLoader);
 
     try {
-      // Copy the reason values from the global object into the bootstrap scope.
-      for (let name in BOOTSTRAP_REASONS)
-        this.bootstrapScopes[aId][name] = BOOTSTRAP_REASONS[name];
-
-      // Add other stuff that extensions want.
-      const features = [ "Worker", "ChromeWorker" ];
-
-      for (let feature of features)
-        this.bootstrapScopes[aId][feature] = gGlobalScope[feature];
-
       // As we don't want our caller to control the JS version used for the
       // bootstrap file, we run loadSubScript within the context of the
       // sandbox with the latest JS version set explicitly.
@@ -3637,6 +3614,17 @@ var XPIProvider = {
     catch (e) {
       WARN("Error loading bootstrap.js for " + aId, e);
     }
+
+    // Copy the reason values from the global object into the bootstrap scope.
+    for (let name in BOOTSTRAP_REASONS)
+      this.bootstrapScopes[aId][name] = BOOTSTRAP_REASONS[name];
+
+
+    // Add other stuff that extensions want.
+    const features = [ "Worker", "ChromeWorker" ];
+
+    for each (let feature in features)
+      this.bootstrapScopes[aId][feature] = gGlobalScope[feature];
   },
 
   /**
@@ -5653,13 +5641,9 @@ var XPIDatabase = {
 
     if (fullCount > 0) {
       LOG("Writing add-ons list");
-
-      let addonsListTmp = FileUtils.getFile(KEY_PROFILEDIR, [FILE_XPI_ADDONS_LIST + ".tmp"],
-                                            true);
-      var fos = FileUtils.openFileOutputStream(addonsListTmp);
+      var fos = FileUtils.openSafeFileOutputStream(addonsList);
       fos.write(text, text.length);
-      fos.close();
-      addonsListTmp.moveTo(addonsListTmp.parent, FILE_XPI_ADDONS_LIST);
+      FileUtils.closeSafeFileOutputStream(fos);
 
       Services.prefs.setCharPref(PREF_EM_ENABLED_ADDONS, enabledAddons.join(","));
     }

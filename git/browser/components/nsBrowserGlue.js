@@ -68,9 +68,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "BookmarkHTMLUtils",
 XPCOMUtils.defineLazyModuleGetter(this, "webappsUI", 
                                   "resource:///modules/webappsUI.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "PageThumbs",
-                                  "resource:///modules/PageThumbs.jsm");
-
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
 
@@ -361,8 +358,6 @@ BrowserGlue.prototype = {
     // Initialize webapps UI
     webappsUI.init();
 
-    PageThumbs.init();
-
     Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
   },
 
@@ -384,7 +379,6 @@ BrowserGlue.prototype = {
   _onProfileShutdown: function BG__onProfileShutdown() {
     this._shutdownPlaces();
     this._sanitizer.onShutdown();
-    PageThumbs.uninit();
   },
 
   // All initial windows have opened.
@@ -811,7 +805,7 @@ BrowserGlue.prototype = {
     try {
       // This will throw NS_ERROR_NOT_AVAILABLE if the notification cannot
       // be displayed per the idl.
-      notifier.showAlertNotification(null, title, text,
+      notifier.showAlertNotification("post-update-notification", title, text,
                                      true, url, clickCallback);
     }
     catch (e) {
@@ -1358,7 +1352,7 @@ BrowserGlue.prototype = {
     // be set to the version it has been added in, we will compare its value
     // to users' smartBookmarksVersion and add new smart bookmarks without
     // recreating old deleted ones.
-    const SMART_BOOKMARKS_VERSION = 4;
+    const SMART_BOOKMARKS_VERSION = 3;
     const SMART_BOOKMARKS_ANNO = "Places/SmartBookmark";
     const SMART_BOOKMARKS_PREF = "browser.places.smartBookmarksVersion";
 
@@ -1386,7 +1380,9 @@ BrowserGlue.prototype = {
         let smartBookmarks = {
           MostVisited: {
             title: bundle.GetStringFromName("mostVisitedTitle"),
-            uri: NetUtil.newURI("place:sort=" +
+            uri: NetUtil.newURI("place:redirectsMode=" +
+                                Ci.nsINavHistoryQueryOptions.REDIRECTS_MODE_TARGET +
+                                "&sort=" +
                                 Ci.nsINavHistoryQueryOptions.SORT_BY_VISITCOUNT_DESCENDING +
                                 "&maxResults=" + MAX_RESULTS),
             parent: PlacesUtils.toolbarFolderId,
@@ -1419,7 +1415,7 @@ BrowserGlue.prototype = {
             parent: PlacesUtils.bookmarksMenuFolderId,
             position: menuIndex++,
             newInVersion: 1
-          }
+          },
         };
 
         // Set current itemId, parent and position if Smart Bookmark exists,
@@ -1430,9 +1426,9 @@ BrowserGlue.prototype = {
           let queryId = PlacesUtils.annotations.getItemAnnotation(itemId, SMART_BOOKMARKS_ANNO);
           if (queryId in smartBookmarks) {
             let smartBookmark = smartBookmarks[queryId];
-            smartBookmark.itemId = itemId;
-            smartBookmark.parent = PlacesUtils.bookmarks.getFolderIdForItem(itemId);
-            smartBookmark.position = PlacesUtils.bookmarks.getItemIndex(itemId);
+            smartBookmarks[queryId].itemId = itemId;
+            smartBookmarks[queryId].parent = PlacesUtils.bookmarks.getFolderIdForItem(itemId);
+            smartBookmarks[queryId].position = PlacesUtils.bookmarks.getItemIndex(itemId);
           }
           else {
             // We don't remove old Smart Bookmarks because user could still

@@ -103,8 +103,6 @@
 #define MAPVK_VK_TO_VSC                   0
 #define MAPVK_VSC_TO_VK                   1
 #define MAPVK_VK_TO_CHAR                  2
-#define MAPVK_VSC_TO_VK_EX                3
-#define MAPVK_VK_TO_VSC_EX                4
 #endif
 
 // ConstrainPosition window positioning slop value
@@ -263,26 +261,14 @@ struct nsModifierKeyState {
   bool mIsShiftDown;
   bool mIsControlDown;
   bool mIsAltDown;
-  bool mIsWinDown;
 
-  bool mIsCapsLocked;
-  bool mIsNumLocked;
-  bool mIsScrollLocked;
-
-  nsModifierKeyState()
-  {
-    Update();
-  }
+  nsModifierKeyState();
   nsModifierKeyState(bool aIsShiftDown, bool aIsControlDown,
-                     bool aIsAltDown)
+                     bool aIsAltDown) :
+    mIsShiftDown(aIsShiftDown), mIsControlDown(aIsControlDown),
+    mIsAltDown(aIsAltDown)
   {
-    Update();
-    mIsShiftDown = aIsShiftDown;
-    mIsControlDown = aIsControlDown;
-    mIsAltDown = aIsAltDown;
   }
-
-  void Update();
 
   void InitInputEvent(nsInputEvent& aInputEvent) const;
 };

@@ -54,7 +54,6 @@
 #include "gfxQuartzImageSurface.h"
 #endif
 #include "nsAutoPtr.h"
-#include "imgIContainer.h"
 
 class imgFrame
 {
@@ -67,8 +66,7 @@ public:
 
   void Draw(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter,
             const gfxMatrix &aUserSpaceToImageSpace, const gfxRect& aFill,
-            const nsIntMargin &aPadding, const nsIntRect &aSubimage,
-            PRUint32 aImageFlags = imgIContainer::FLAG_NONE);
+            const nsIntMargin &aPadding, const nsIntRect &aSubimage);
 
   nsresult Extract(const nsIntRect& aRegion, imgFrame** aResult);
 

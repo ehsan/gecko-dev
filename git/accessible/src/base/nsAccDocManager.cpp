@@ -38,11 +38,11 @@
 
 #include "nsAccDocManager.h"
 
-#include "ApplicationAccessible.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
-#include "nsARIAMap.h"
-#include "RootAccessibleWrap.h"
+#include "nsApplicationAccessible.h"
+#include "nsOuterDocAccessible.h"
+#include "nsRootAccessibleWrap.h"
 #include "States.h"
 
 #include "nsCURILoader.h"
@@ -356,7 +356,7 @@ nsAccDocManager::AddListeners(nsIDocument *aDocument,
 }
 
 nsDocAccessible*
-nsAccDocManager::CreateDocOrRootAccessible(nsIDocument* aDocument)
+nsAccDocManager::CreateDocOrRootAccessible(nsIDocument *aDocument)
 {
   // Ignore temporary, hiding, resource documents and documents without
   // docshell.
@@ -391,7 +391,7 @@ nsAccDocManager::CreateDocOrRootAccessible(nsIDocument* aDocument)
   // We only create root accessibles for the true root, otherwise create a
   // doc accessible.
   nsRefPtr<nsDocAccessible> docAcc = isRootDoc ?
-    new RootAccessibleWrap(aDocument, rootElm, presShell) :
+    new nsRootAccessibleWrap(aDocument, rootElm, presShell) :
     new nsDocAccessibleWrap(aDocument, rootElm, presShell);
 
   // Cache the document accessible into document cache.
@@ -403,7 +403,7 @@ nsAccDocManager::CreateDocOrRootAccessible(nsIDocument* aDocument)
     docAcc->Shutdown();
     return nsnull;
   }
-  docAcc->SetRoleMapEntry(aria::GetRoleMap(aDocument));
+  docAcc->SetRoleMapEntry(nsAccUtils::GetRoleMapEntry(aDocument));
 
   // Bind the document to the tree.
   if (isRootDoc) {

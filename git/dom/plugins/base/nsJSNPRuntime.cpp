@@ -166,7 +166,7 @@ static JSBool
 NPObjWrapper_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp);
 
 static void
-NPObjWrapper_Finalize(JSFreeOp *fop, JSObject *obj);
+NPObjWrapper_Finalize(JSContext *cx, JSObject *obj);
 
 static JSBool
 NPObjWrapper_Call(JSContext *cx, unsigned argc, jsval *vp);
@@ -182,17 +182,11 @@ static JSClass sNPObjectJSWrapperClass =
   {
     NPRUNTIME_JSCLASS_NAME,
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_NEW_RESOLVE | JSCLASS_NEW_ENUMERATE,
-    NPObjWrapper_AddProperty,
-    NPObjWrapper_DelProperty,
-    NPObjWrapper_GetProperty,
-    NPObjWrapper_SetProperty,
+    NPObjWrapper_AddProperty, NPObjWrapper_DelProperty,
+    NPObjWrapper_GetProperty, NPObjWrapper_SetProperty,
     (JSEnumerateOp)NPObjWrapper_newEnumerate,
-    (JSResolveOp)NPObjWrapper_NewResolve,
-    NPObjWrapper_Convert,
-    NPObjWrapper_Finalize,
-    nsnull,                                                /* checkAccess */
-    NPObjWrapper_Call,
-    nsnull,                                                /* hasInstance */
+    (JSResolveOp)NPObjWrapper_NewResolve, NPObjWrapper_Convert,
+    NPObjWrapper_Finalize, nsnull, NPObjWrapper_Call,
     NPObjWrapper_Construct
   };
 
@@ -207,7 +201,7 @@ static JSBool
 NPObjectMember_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp);
 
 static void
-NPObjectMember_Finalize(JSFreeOp *fop, JSObject *obj);
+NPObjectMember_Finalize(JSContext *cx, JSObject *obj);
 
 static JSBool
 NPObjectMember_Call(JSContext *cx, unsigned argc, jsval *vp);
@@ -1718,7 +1712,7 @@ NPObjWrapper_Convert(JSContext *cx, JSObject *obj, JSType hint, jsval *vp)
 }
 
 static void
-NPObjWrapper_Finalize(JSFreeOp *fop, JSObject *obj)
+NPObjWrapper_Finalize(JSContext *cx, JSObject *obj)
 {
   NPObject *npobj = (NPObject *)::JS_GetPrivate(obj);
   if (npobj) {
@@ -1991,7 +1985,8 @@ nsJSNPRuntime::OnPluginDestroy(NPP npp)
     return;
   }
 
-  JSContext* cx = stack->GetSafeJSContext();
+  JSContext *cx;
+  stack->GetSafeJSContext(&cx);
   if (!cx) {
     NS_ERROR("No safe JS context available!");
 
@@ -2219,7 +2214,7 @@ NPObjectMember_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
 }
 
 static void
-NPObjectMember_Finalize(JSFreeOp *fop, JSObject *obj)
+NPObjectMember_Finalize(JSContext *cx, JSObject *obj)
 {
   NPObjectMemberPrivate *memberPrivate;
 

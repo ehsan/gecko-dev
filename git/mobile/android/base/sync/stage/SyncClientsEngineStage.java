@@ -41,43 +41,15 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
   public static final int CLIENTS_TTL_REFRESH = 604800000; // 7 days
   public static final int MAX_UPLOAD_FAILURE_COUNT = 5;
 
-  protected final GlobalSession session;
+  protected GlobalSession session;
   protected final ClientRecordFactory factory = new ClientRecordFactory();
   protected ClientUploadDelegate clientUploadDelegate;
   protected ClientDownloadDelegate clientDownloadDelegate;
-
-  // Be sure to use this safely via getClientsDatabaseAccessor/closeDataAccessor.
   protected ClientsDatabaseAccessor db;
 
   protected volatile boolean shouldWipe;
   protected volatile boolean commandsProcessedShouldUpload;
   protected final AtomicInteger uploadAttemptsCount = new AtomicInteger();
-
-  public SyncClientsEngineStage(GlobalSession session) {
-    if (session == null) {
-      throw new IllegalArgumentException("session must not be null.");
-    }
-    this.session = session;
-  }
-
-  protected int getClientsCount() {
-    return getClientsDatabaseAccessor().clientsCount();
-  }
-
-  protected synchronized ClientsDatabaseAccessor getClientsDatabaseAccessor() {
-    if (db == null) {
-      db = new ClientsDatabaseAccessor(session.getContext());
-    }
-    return db;
-  }
-
-  protected synchronized void closeDataAccessor() {
-    if (db == null) {
-      return;
-    }
-    db.close();
-    db = null;
-  }
 
   /**
    * The following two delegates, ClientDownloadDelegate and ClientUploadDelegate
@@ -109,11 +81,7 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
 
     @Override
     public void handleRequestSuccess(SyncStorageResponse response) {
-
-      // Hang onto the server's last modified timestamp to use
-      // in X-If-Unmodified-Since for upload.
-      session.config.persistServerClientsTimestamp(response.normalizedWeaveTimestamp());
-      BaseResource.consumeEntity(response);
+      BaseResource.consumeEntity(response); // We don't need the response at all.
 
       // If we successfully downloaded all records but ours was not one of them
       // then reset the timestamp.
@@ -125,11 +93,11 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
 
       final int clientsCount;
       try {
-        clientsCount = getClientsCount();
+        clientsCount = db.clientsCount();
       } finally {
         // Close the database to clear cached readableDatabase/writableDatabase
         // after we've completed our last transaction (db.store()).
-        closeDataAccessor();
+        db.close();
       }
 
       Logger.debug(LOG_TAG, "Database contains " + clientsCount + " clients.");
@@ -151,7 +119,7 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
         session.abort(new HTTPFailureException(response), "Client download failed.");
       } finally {
         // Close the database upon failure.
-        closeDataAccessor();
+        db.close();
       }
     }
 
@@ -163,7 +131,7 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
         session.abort(ex, "Failure fetching client record.");
       } finally {
         // Close the database upon error.
-        closeDataAccessor();
+        db.close();
       }
     }
 
@@ -174,9 +142,13 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
         r = (ClientRecord) factory.createRecord(record.decrypt());
         if (clientsDelegate.isLocalGUID(r.guid)) {
           Logger.info(LOG_TAG, "Local client GUID exists on server and was downloaded");
-
           localAccountGUIDDownloaded = true;
+          // Oh hey! Our record is on the server. This is the authoritative
+          // server timestamp, so let's hang on to it to decide whether we
+          // need to upload.
           session.config.persistServerClientRecordTimestamp(r.lastModified);
+
+          // Process commands.
           processCommands(r.commands);
         }
         RepoUtils.logClient(r);
@@ -190,7 +162,7 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
     @Override
     public KeyBundle keyBundle() {
       try {
-        return session.keyBundleForCollection(COLLECTION_NAME);
+        return session.keyForCollection(COLLECTION_NAME);
       } catch (NoCollectionKeysSetException e) {
         session.abort(e, "No collection keys set.");
         return null;
@@ -208,8 +180,7 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
 
     @Override
     public String ifUnmodifiedSince() {
-      // Use the timestamp for the whole collection per Sync storage 1.1 spec.
-      Long timestampInMilliseconds = session.config.getPersistedServerClientsTimestamp();
+      Long timestampInMilliseconds = session.config.getPersistedServerClientRecordTimestamp();
 
       // It's the first upload so we don't care about X-If-Unmodified-Since.
       if (timestampInMilliseconds == 0) {
@@ -226,14 +197,12 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
         commandsProcessedShouldUpload = false;
         uploadAttemptsCount.set(0);
 
-        // Persist the timestamp for the record we just uploaded,
-        // and bump the collection timestamp, too.
-        long timestamp = response.normalizedWeaveTimestamp();
+        long timestamp = Utils.decimalSecondsToMilliseconds(response.body());
         session.config.persistServerClientRecordTimestamp(timestamp);
-        session.config.persistServerClientsTimestamp(timestamp);
         BaseResource.consumeEntity(response);
 
-        Logger.debug(LOG_TAG, "Timestamp is " + timestamp);
+        Logger.debug(LOG_TAG, "Timestamp from body is: " + timestamp);
+        Logger.debug(LOG_TAG, "Timestamp from header is: " + response.normalizedWeaveTimestamp());
       } catch (Exception e) {
         session.abort(e, "Unable to fetch timestamp.");
         return;
@@ -272,7 +241,7 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
     @Override
     public KeyBundle keyBundle() {
       try {
-        return session.keyBundleForCollection(COLLECTION_NAME);
+        return session.keyForCollection(COLLECTION_NAME);
       } catch (NoCollectionKeysSetException e) {
         session.abort(e, "No collection keys set.");
         return null;
@@ -281,32 +250,15 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
   }
 
   @Override
-  public void execute() throws NoSuchStageException {
+  public void execute(GlobalSession session) throws NoSuchStageException {
+    this.session = session;
+    init();
+
     if (shouldDownload()) {
       downloadClientRecords();   // Will kick off upload, too…
     } else {
       // Upload if necessary.
     }
-  }
-
-  @Override
-  public void resetLocal() {
-    // Clear timestamps and local data.
-    session.config.persistServerClientRecordTimestamp(0L);   // TODO: roll these into one.
-    session.config.persistServerClientsTimestamp(0L);
-
-    session.getClientsDelegate().setClientsCount(0);
-    try {
-      getClientsDatabaseAccessor().wipe();
-    } finally {
-      closeDataAccessor();
-    }
-  }
-
-  @Override
-  public void wipeLocal() throws Exception {
-    // Nothing more to do.
-    this.resetLocal();
   }
 
   protected ClientRecord newLocalClientRecord(ClientsDataDelegate delegate) {
@@ -316,6 +268,10 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
     ClientRecord r = new ClientRecord(ourGUID);
     r.name = ourName;
     return r;    
+  }
+
+  protected void init() {
+    db = new ClientsDatabaseAccessor(session.getContext());
   }
 
   // TODO: Bug 726055 - More considered handling of when to sync.
@@ -353,7 +309,7 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
 
     // TODO: Bug 715792 - Process commands here.
     for (int i = 0; i < commands.size(); i++) {
-      processor.processCommand(new ExtendedJSONObject((JSONObject) commands.get(i)));
+      processor.processCommand(new ExtendedJSONObject((JSONObject)commands.get(i)));
     }
   }
 
@@ -396,16 +352,14 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
     }
   }
 
-  /**
-   * Upload a client record via HTTP POST to the parent collection.
-   */
   protected void uploadClientRecord(CryptoRecord record) {
     Logger.debug(LOG_TAG, "Uploading client record " + record.guid);
     try {
-      URI postURI = session.config.collectionURI(COLLECTION_NAME);
-      SyncStorageRecordRequest request = new SyncStorageRecordRequest(postURI);
+      URI putURI = session.config.wboURI(COLLECTION_NAME, record.guid);
+
+      SyncStorageRecordRequest request = new SyncStorageRecordRequest(putURI);
       request.delegate = clientUploadDelegate;
-      request.post(record);
+      request.put(record);
     } catch (URISyntaxException e) {
       session.abort(e, "Invalid URI.");
     }
@@ -416,7 +370,6 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
   }
 
   protected void wipeAndStore(ClientRecord record) {
-    ClientsDatabaseAccessor db = getClientsDatabaseAccessor();
     if (shouldWipe) {
       db.wipe();
       shouldWipe = false;

@@ -29,9 +29,9 @@ public class PaintedSurface {
             FileInputStream pixelFile = new FileInputStream(filename);
             mPixelBuffer = pixelFile.getChannel().map(FileChannel.MapMode.READ_ONLY, 0, pixelSize);
         } catch (java.io.FileNotFoundException e) {
-            FennecNativeDriver.log(FennecNativeDriver.LogLevel.ERROR, e);
+            e.printStackTrace();
         } catch (java.io.IOException e) {
-            FennecNativeDriver.log(FennecNativeDriver.LogLevel.ERROR, e);
+            e.printStackTrace();
         }
     }
 

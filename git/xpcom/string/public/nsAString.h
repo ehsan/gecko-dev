@@ -56,9 +56,6 @@
 #endif /* !NS_DISABLE_LITERAL_TEMPLATE */
 
 #include <string.h>
-#include <stdarg.h>
-
-#include "mozilla/fallible.h"
 
 #define kNotFound -1
 

@@ -308,14 +308,14 @@ nsXPCWrappedJSClass::CallQueryInterfaceOnJSObject(XPCCallContext& ccx,
 
             if (JS_GetPendingException(cx, &jsexception)) {
                 nsresult rv;
-                if (jsexception.isObject()) {
+                if (JSVAL_IS_OBJECT(jsexception)) {
                     // XPConnect may have constructed an object to represent a
                     // C++ QI failure. See if that is the case.
                     nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
 
                     nsXPConnect::GetXPConnect()->
                         GetWrappedNativeOfJSObject(ccx,
-                                                   &jsexception.toObject(),
+                                                   JSVAL_TO_OBJECT(jsexception),
                                                    getter_AddRefs(wrapper));
 
                     if (wrapper) {
@@ -1037,7 +1037,15 @@ nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
                 // Finally, check to see if this is the last JS frame on the
                 // stack. If so then we always want to report it.
                 if (!reportable) {
-                    reportable = !JS_DescribeScriptedCaller(cx, nsnull, nsnull);
+                    bool onlyNativeStackFrames = true;
+                    JSStackFrame * fp = nsnull;
+                    while ((fp = JS_FrameIterator(cx, &fp))) {
+                        if (JS_IsScriptFrame(cx, fp)) {
+                            onlyNativeStackFrames = false;
+                            break;
+                        }
+                    }
+                    reportable = onlyNativeStackFrames;
                 }
 
                 // Ugly special case for GetInterface. It's "special" in the
@@ -1189,7 +1197,7 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16_t methodIndex,
         return retval;
 
     XPCContext *xpcc = ccx.GetXPCContext();
-    JSContext *cx = xpc_UnmarkGrayContext(ccx.GetJSContext());
+    JSContext *cx = ccx.GetJSContext();
 
     if (!cx || !xpcc || !IsReflectable(methodIndex))
         return NS_ERROR_FAILURE;

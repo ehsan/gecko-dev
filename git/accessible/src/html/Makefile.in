@@ -51,8 +51,7 @@ LIBXUL_LIBRARY = 1
 
 CPPSRCS = \
   nsHTMLCanvasAccessible.cpp \
-  HTMLFormControlAccessible.cpp \
-  HTMLListAccessible.cpp \
+  nsHTMLFormControlAccessible.cpp \
   nsHTMLImageAccessible.cpp \
   nsHTMLImageMapAccessible.cpp \
   nsHTMLLinkAccessible.cpp \
@@ -64,6 +63,7 @@ CPPSRCS = \
 
 EXPORTS = \
   nsHyperTextAccessible.h \
+  nsHTMLFormControlAccessible.h \
   $(NULL)
 
 # we don't want the shared lib, but we want to force the creation of a static lib.
@@ -75,30 +75,6 @@ LOCAL_INCLUDES = \
   -I$(srcdir)/../base \
   -I$(srcdir)/../generic \
   -I$(srcdir)/../xpcom \
-  -I$(srcdir)/../../../content/base/src \
-  -I$(srcdir)/../../../content/html/content/src \
   -I$(srcdir)/../../../layout/generic \
   -I$(srcdir)/../../../layout/xul/base/src \
   $(NULL)
-
-ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
-LOCAL_INCLUDES += \
-  -I$(srcdir)/../atk \
-  $(NULL)
-else
-ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
-LOCAL_INCLUDES += \
-  -I$(srcdir)/../msaa \
-  $(NULL)
-else
-ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
-LOCAL_INCLUDES += \
-  -I$(srcdir)/../mac \
-  $(NULL)
-else
-LOCAL_INCLUDES += \
-  -I$(srcdir)/../other \
-  $(NULL)
-endif
-endif
-endif

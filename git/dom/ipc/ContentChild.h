@@ -170,8 +170,6 @@ public:
     virtual bool RecvAppInfo(const nsCString& version, const nsCString& buildID);
     virtual bool RecvSetID(const PRUint64 &id);
 
-    virtual bool RecvLastPrivateDocShellDestroyed();
-
 #ifdef ANDROID
     gfxIntSize GetScreenSize() { return mScreenSize; }
 #endif
@@ -201,6 +199,8 @@ private:
     gfxIntSize mScreenSize;
 #endif
 
+    AppInfo mAppInfo;
+
     /**
      * An ID unique to the process containing our corresponding
      * content parent.
@@ -209,8 +209,6 @@ private:
      * channel to us.
      */
     PRUint64 mID;
-
-    AppInfo mAppInfo;
 
     static ContentChild* sSingleton;
 

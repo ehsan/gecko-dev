@@ -55,7 +55,6 @@ public abstract class Layer {
 
     protected Rect mPosition;
     protected float mResolution;
-    protected boolean mUsesDefaultProgram = true;
 
     public Layer() {
         this(null);
@@ -83,8 +82,7 @@ public abstract class Layer {
 
         if (mTransactionLock.tryLock()) {
             try {
-                performUpdates(context);
-                return true;
+                return performUpdates(context);
             } finally {
                 mTransactionLock.unlock();
             }
@@ -166,17 +164,13 @@ public abstract class Layer {
         mNewResolution = newResolution;
     }
 
-    public boolean usesDefaultProgram() {
-        return mUsesDefaultProgram;
-    }
-
     /**
      * Subclasses may override this method to perform custom layer updates. This will be called
      * with the transaction lock held. Subclass implementations of this method must call the
      * superclass implementation. Returns false if there is still work to be done after this
      * update is complete.
      */
-    protected void performUpdates(RenderContext context) {
+    protected boolean performUpdates(RenderContext context) {
         if (mNewPosition != null) {
             mPosition = mNewPosition;
             mNewPosition = null;
@@ -185,22 +179,22 @@ public abstract class Layer {
             mResolution = mNewResolution;
             mNewResolution = 0.0f;
         }
+
+        return true;
     }
 
     public static class RenderContext {
         public final RectF viewport;
         public final FloatSize pageSize;
-        public final IntSize screenSize;
         public final float zoomFactor;
         public final int positionHandle;
         public final int textureHandle;
         public final FloatBuffer coordBuffer;
 
-        public RenderContext(RectF aViewport, FloatSize aPageSize, IntSize aScreenSize, float aZoomFactor,
+        public RenderContext(RectF aViewport, FloatSize aPageSize, float aZoomFactor,
                              int aPositionHandle, int aTextureHandle, FloatBuffer aCoordBuffer) {
             viewport = aViewport;
             pageSize = aPageSize;
-            screenSize = aScreenSize;
             zoomFactor = aZoomFactor;
             positionHandle = aPositionHandle;
             textureHandle = aTextureHandle;

@@ -293,9 +293,9 @@ static const size_t kAttrBucketSizes[] = {
 };
 
 static const PRInt32 kAttrNumBuckets = sizeof(kAttrBucketSizes)/sizeof(size_t);
-static const PRInt32 kAttrInitialSize = sizeof(nsXBLAttributeEntry) * kNumElements;
+static const PRInt32 kAttrInitialSize = (NS_SIZE_IN_HEAP(sizeof(nsXBLAttributeEntry))) * kNumElements;
 
-static const PRInt32 kInsInitialSize = sizeof(nsXBLInsertionPointEntry) * kNumElements;
+static const PRInt32 kInsInitialSize = (NS_SIZE_IN_HEAP(sizeof(nsXBLInsertionPointEntry))) * kNumElements;
 
 // Implementation /////////////////////////////////////////////////////////////////
 
@@ -1879,6 +1879,7 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
     NS_ENSURE_TRUE(prototype, NS_ERROR_OUT_OF_MEMORY);
 
     prototype->mNodeInfo = nodeInfo;
+    prototype->mScriptTypeID = nsIProgrammingLanguage::JAVASCRIPT;
 
     nsCOMPtr<Element> result;
     nsresult rv =

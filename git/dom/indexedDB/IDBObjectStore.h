@@ -63,7 +63,7 @@ struct IndexUpdateInfo;
 struct StructuredCloneReadInfo;
 struct StructuredCloneWriteInfo;
 
-class IDBObjectStore MOZ_FINAL : public nsIIDBObjectStore
+class IDBObjectStore : public nsIIDBObjectStore
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS

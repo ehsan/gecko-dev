@@ -62,7 +62,6 @@
     ////////////////////////////////////////////////////////////////////////////
     // Test
     var gQueue = null;
-    gA11yEventDumpToConsole = true;
     function doTest()
     {
       // Load documents into tabs and wait for DocLoadComplete events caused by

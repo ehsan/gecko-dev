@@ -146,7 +146,6 @@ public class CheckerboardImage extends CairoImage {
         try {
             if (mBuffer != null) {
                 GeckoAppShell.freeDirectBuffer(mBuffer);
-                mBuffer = null;
             }
         } finally {
             super.finalize();

@@ -48,8 +48,6 @@
 #include "nsPresContext.h"
 #include "nsStyleStruct.h"
 
-#include "mozilla/StandardInteger.h"
-
 class nsStyleContext;
 struct PLDHashTable;
 struct nsRuleData;
@@ -60,7 +58,6 @@ class nsCSSValue;
 struct nsCSSRect;
 
 class nsStyleCoord;
-struct nsCSSValuePairList;
 
 template <nsStyleStructID MinIndex, nsStyleStructID Count>
 class FixedStyleStructArray
@@ -355,7 +352,7 @@ private:
     return mChildren.asVoid != nsnull;
   }
   bool ChildrenAreHashed() {
-    return (intptr_t(mChildren.asVoid) & kTypeMask) == kHashType;
+    return (PRWord(mChildren.asVoid) & kTypeMask) == kHashType;
   }
   nsRuleNode* ChildrenList() {
     return mChildren.asList;
@@ -364,17 +361,17 @@ private:
     return &mChildren.asList;
   }
   PLDHashTable* ChildrenHash() {
-    return (PLDHashTable*) (intptr_t(mChildren.asHash) & ~intptr_t(kTypeMask));
+    return (PLDHashTable*) (PRWord(mChildren.asHash) & ~PRWord(kTypeMask));
   }
   void SetChildrenList(nsRuleNode *aList) {
-    NS_ASSERTION(!(intptr_t(aList) & kTypeMask),
+    NS_ASSERTION(!(PRWord(aList) & kTypeMask),
                  "pointer not 2-byte aligned");
     mChildren.asList = aList;
   }
   void SetChildrenHash(PLDHashTable *aHashtable) {
-    NS_ASSERTION(!(intptr_t(aHashtable) & kTypeMask),
+    NS_ASSERTION(!(PRWord(aHashtable) & kTypeMask),
                  "pointer not 2-byte aligned");
-    mChildren.asHash = (PLDHashTable*)(intptr_t(aHashtable) | kHashType);
+    mChildren.asHash = (PLDHashTable*)(PRWord(aHashtable) | kHashType);
   }
   void ConvertChildrenToHash();
 
@@ -748,9 +745,6 @@ public:
   bool NodeHasCachedData(const nsStyleStructID aSID) {
     return !!mStyleData.GetStyleData(aSID);
   }
-
-  static void ComputeFontFeatures(const nsCSSValuePairList *aFeaturesList,
-                                  nsTArray<gfxFontFeature>& aFeatureSettings);
 };
 
 #endif

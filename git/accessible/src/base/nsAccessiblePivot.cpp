@@ -39,10 +39,9 @@
 
 #include "nsAccessiblePivot.h"
 
-#include "Accessible-inl.h"
+#include "nsAccessible.h"
 #include "nsAccUtils.h"
 #include "nsHyperTextAccessible.h"
-#include "nsDocAccessible.h"
 #include "States.h"
 
 #include "nsArrayUtils.h"
@@ -218,10 +217,6 @@ nsAccessiblePivot::MoveNext(nsIAccessibleTraversalRule* aRule, bool* aResult)
   NS_ENSURE_ARG(aResult);
   NS_ENSURE_ARG(aRule);
 
-  if (mPosition && (mPosition->IsDefunct() ||
-                    !mPosition->Document()->IsInDocument(mPosition)))
-    return NS_ERROR_NOT_IN_TREE;
-
   nsresult rv = NS_OK;
   nsAccessible* accessible = SearchForward(mPosition, aRule, false, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -239,10 +234,6 @@ nsAccessiblePivot::MovePrevious(nsIAccessibleTraversalRule* aRule, bool* aResult
   NS_ENSURE_ARG(aResult);
   NS_ENSURE_ARG(aRule);
 
-  if (mPosition && (mPosition->IsDefunct() ||
-                    !mPosition->Document()->IsInDocument(mPosition)))
-    return NS_ERROR_NOT_IN_TREE;
-
   nsresult rv = NS_OK;
   nsAccessible* accessible = SearchBackward(mPosition, aRule, false, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -259,10 +250,6 @@ nsAccessiblePivot::MoveFirst(nsIAccessibleTraversalRule* aRule, bool* aResult)
 {
   NS_ENSURE_ARG(aResult);
   NS_ENSURE_ARG(aRule);
-
-  if (mRoot && mRoot->IsDefunct())
-    return NS_ERROR_NOT_IN_TREE;
-
   nsresult rv = NS_OK;
   nsAccessible* accessible = SearchForward(mRoot, aRule, true, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -279,9 +266,6 @@ nsAccessiblePivot::MoveLast(nsIAccessibleTraversalRule* aRule, bool* aResult)
 {
   NS_ENSURE_ARG(aResult);
   NS_ENSURE_ARG(aRule);
-
-  if (mRoot && mRoot->IsDefunct())
-    return NS_ERROR_NOT_IN_TREE;
 
   *aResult = false;
   nsresult rv = NS_OK;
@@ -350,9 +334,6 @@ nsAccessiblePivot::RemoveObserver(nsIAccessiblePivotObserver* aObserver)
 bool
 nsAccessiblePivot::IsRootDescendant(nsAccessible* aAccessible)
 {
-  if (!mRoot || mRoot->IsDefunct())
-    return false;
-
   nsAccessible* accessible = aAccessible;
   do {
     if (accessible == mRoot)

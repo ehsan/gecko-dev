@@ -74,9 +74,6 @@ CAccessibleText::addSelection(long aStartOffset, long aEndOffset)
 {
 __try {
   nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
-  if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
-
   nsresult rv = textAcc->AddSelection(aStartOffset, aEndOffset);
   return GetHRESULT(rv);
 
@@ -97,8 +94,6 @@ __try {
   *aTextAttributes = NULL;
 
   nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
-  if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
 
   PRInt32 startOffset = 0, endOffset = 0;
   nsCOMPtr<nsIPersistentProperties> attributes;
@@ -129,8 +124,6 @@ __try {
   *aOffset = -1;
 
   nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
-  if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
 
   PRInt32 offset = 0;
   nsresult rv = textAcc->GetCaretOffset(&offset);
@@ -157,8 +150,6 @@ __try {
   *aHeight = 0;
 
   nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
-  if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
 
   PRUint32 geckoCoordType = (aCoordType == IA2_COORDTYPE_SCREEN_RELATIVE) ?
     nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE :
@@ -188,7 +179,7 @@ __try {
 
   nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
   if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+    return E_FAIL;
 
   PRInt32 selCount = 0;
   nsresult rv = textAcc->GetSelectionCount(&selCount);
@@ -211,8 +202,6 @@ __try {
   *aOffset = 0;
 
   nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
-  if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
 
   PRUint32 geckoCoordType = (aCoordType == IA2_COORDTYPE_SCREEN_RELATIVE) ?
     nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE :
@@ -239,8 +228,6 @@ __try {
   *aEndOffset = 0;
 
   nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
-  if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
 
   PRInt32 startOffset = 0, endOffset = 0;
   nsresult rv = textAcc->GetSelectionBounds(aSelectionIndex,
@@ -263,8 +250,6 @@ __try {
   *aText = NULL;
 
   nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
-  if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
 
   nsAutoString text;
   nsresult rv = textAcc->GetText(aStartOffset, aEndOffset, text);
@@ -294,7 +279,7 @@ __try {
 
   nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
   if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+    return E_FAIL;
 
   nsresult rv = NS_OK;
   nsAutoString text;
@@ -341,7 +326,7 @@ __try {
 
   nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
   if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+    return E_FAIL;
 
   nsresult rv = NS_OK;
   nsAutoString text;
@@ -388,7 +373,7 @@ __try {
 
   nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
   if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+    return E_FAIL;
 
   nsresult rv = NS_OK;
   nsAutoString text;
@@ -427,8 +412,6 @@ CAccessibleText::removeSelection(long aSelectionIndex)
 {
 __try {
   nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
-  if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
 
   nsresult rv = textAcc->RemoveSelection(aSelectionIndex);
   return GetHRESULT(rv);
@@ -442,8 +425,6 @@ CAccessibleText::setCaretOffset(long aOffset)
 {
 __try {
   nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
-  if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
 
   nsresult rv = textAcc->SetCaretOffset(aOffset);
   return GetHRESULT(rv);
@@ -458,8 +439,6 @@ CAccessibleText::setSelection(long aSelectionIndex, long aStartOffset,
 {
 __try {
   nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
-  if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
 
   nsresult rv = textAcc->SetSelectionBounds(aSelectionIndex,
                                             aStartOffset, aEndOffset);
@@ -477,7 +456,7 @@ __try {
 
   nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
   if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+    return E_FAIL;
 
   *aNCharacters  = textAcc->CharacterCount();
   return S_OK;
@@ -492,8 +471,6 @@ CAccessibleText::scrollSubstringTo(long aStartIndex, long aEndIndex,
 {
 __try {
   nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
-  if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
 
   nsresult rv = textAcc->ScrollSubstringTo(aStartIndex, aEndIndex, aScrollType);
   return GetHRESULT(rv);
@@ -509,8 +486,6 @@ CAccessibleText::scrollSubstringToPoint(long aStartIndex, long aEndIndex,
 {
 __try {
   nsRefPtr<nsHyperTextAccessible> textAcc(do_QueryObject(this));
-  if (textAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
 
   PRUint32 geckoCoordType = (aCoordType == IA2_COORDTYPE_SCREEN_RELATIVE) ?
     nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE :

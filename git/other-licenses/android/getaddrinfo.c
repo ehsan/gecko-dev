@@ -40,7 +40,6 @@
  * file, whose copyright and license are unchanged above.
  */
 #define ANDROID_CHANGES 1
-#define INET6 1
 
 /*
  * Issues to be discussed:

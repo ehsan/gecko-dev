@@ -131,6 +131,9 @@ include datalist/reftest.list
 # dom/
 include dom/reftest.list
 
+# editor/
+include editor/reftest.list
+
 # generated-content/
 include generated-content/reftest.list
 
@@ -148,9 +151,6 @@ include font-face/reftest.list
 
 # font features (opentype)
 include font-features/reftest.list
-
-# mobile font size inflation
-include font-inflation/reftest.list
 
 # font matching
 include font-matching/reftest.list
@@ -306,6 +306,3 @@ include z-index/reftest.list
 # reftest(s) to verify content bugfixes
 include ../../content/html/document/reftests/reftests.list
 include ../../content/html/content/reftests/reftest.list
-
-# editor/
-include ../../editor/reftests/reftest.list

@@ -38,6 +38,7 @@
 #include "mozilla/FunctionTimer.h"
 #include "prenv.h"
 #include "prprf.h"
+#include "EGLUtils.h"
 #include "nsHashKeys.h"
 
 #include "AndroidBridge.h"
@@ -91,11 +92,11 @@ GfxInfo::GetCleartypeParameters(nsAString & aCleartypeParams)
 nsresult
 GfxInfo::Init()
 {
-  mAdapterDescription.AssignLiteral(""); // we may append to it below
+  mAdapterDescription.AssignASCII(mozilla::gl::GetVendor());
   if (mozilla::AndroidBridge::Bridge()) {
     nsAutoString str;
 
-    mAdapterDescription.Append(NS_LITERAL_STRING("Model: '"));
+    mAdapterDescription.Append(NS_LITERAL_STRING(", Model: '"));
     if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "MODEL", str)) {
       mAdapterDeviceID = str;
       mAdapterDescription.Append(str);

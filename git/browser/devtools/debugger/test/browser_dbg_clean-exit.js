@@ -15,16 +15,16 @@ function test() {
   debug_tab_pane(DEBUGGER_TAB_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
     gPane = aPane;
-    gDebugger = gPane.contentWindow;
+    gDebugger = gPane.debuggerWindow;
 
     testCleanExit();
   });
 }
 
 function testCleanExit() {
-  gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
+  gPane.activeThread.addOneTimeListener("framesadded", function() {
     Services.tm.currentThread.dispatch({ run: function() {
-      is(gDebugger.DebuggerController.activeThread.paused, true,
+      is(gDebugger.StackFrames.activeThread.paused, true,
         "Should be paused after the debugger statement.");
 
       closeDebuggerAndFinish(gTab);

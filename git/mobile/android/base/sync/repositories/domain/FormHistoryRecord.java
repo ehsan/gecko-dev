@@ -22,7 +22,6 @@ public class FormHistoryRecord extends Record {
   public static final String  COLLECTION_NAME = "forms";
   private static final String PAYLOAD_NAME    = "name";
   private static final String PAYLOAD_VALUE   = "value";
-  public static final long FORMS_TTL = 60 * 24 * 60 * 60; // 60 days in seconds.
 
   /**
    * The name of the saved form field.
@@ -36,23 +35,22 @@ public class FormHistoryRecord extends Record {
 
   public FormHistoryRecord(String guid, String collection, long lastModified, boolean deleted) {
     super(guid, collection, lastModified, deleted);
-    this.ttl = FORMS_TTL;
   }
 
   public FormHistoryRecord(String guid, String collection, long lastModified) {
-    this(guid, collection, lastModified, false);
+    super(guid, collection, lastModified, false);
   }
 
   public FormHistoryRecord(String guid, String collection) {
-    this(guid, collection, 0, false);
+    super(guid, collection, 0, false);
   }
 
   public FormHistoryRecord(String guid) {
-    this(guid, COLLECTION_NAME, 0, false);
+    super(guid, COLLECTION_NAME, 0, false);
   }
 
   public FormHistoryRecord() {
-    this(Utils.generateGuid(), COLLECTION_NAME, 0, false);
+    super(Utils.generateGuid(), COLLECTION_NAME, 0, false);
   }
 
   @Override

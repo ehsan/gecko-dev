@@ -13,17 +13,6 @@ var hwaddr = ctypes.uint8_t.array(6)();
 var len = ctypes.size_t();
 var ints = ctypes.int.array(8)();
 
-let DEBUG = false;
-
-let debug;
-if (DEBUG) {
-  debug = function (s) {
-    dump("-*- WifiWorker component: " + s + "\n");
-  };
-} else {
-  debug = function (s) {};
-}
-
 // TODO: consolidate with implementation in systemlibs.js
 let libcutils = (function () {
   let library = ctypes.open("libcutils.so");
@@ -78,7 +67,7 @@ self.onmessage = function(e) {
     postMessage({ id: id, status: ret });
     break;
   case "ifc_configure":
-    debug("WIFI: data: " + uneval(data) + "\n");
+    dump("WIFI: data: " + uneval(data) + "\n");
     var ret = libnetutils.ifc_configure(data.ifname, data.ipaddr, data.mask, data.gateway, data.dns1, data.dns2);
     postMessage({ id: id, status: ret });
     break;
@@ -101,14 +90,10 @@ self.onmessage = function(e) {
     var ret = libcutils.property_set(data.key, data.value);
     postMessage({ id: id, status: ret });
     break;
-  case "close_supplicant_connection":
-    libhardware_legacy.close_supplicant_connection();
-    postMessage({ id: id, status: ret });
-    break;
   default:
     var f = libhardware_legacy[cmd] || libnetutils[cmd];
     var ret = f();
-    debug("WIFI: " + cmd + " returned: " + ret);
+    dump("WIFI: " + cmd + " returned: " + ret);
     postMessage({ id: id, status: ret });
     break;
   }

@@ -1708,8 +1708,12 @@ private:
 
   // Capture state for the frame tree rooted at the frame associated with the
   // content object, aContent
-  void CaptureStateForFramesOf(nsIContent* aContent,
-                               nsILayoutHistoryState* aHistoryState);
+  nsresult CaptureStateForFramesOf(nsIContent* aContent,
+                                   nsILayoutHistoryState* aHistoryState);
+
+  // Capture state for the frame tree rooted at aFrame.
+  nsresult CaptureStateFor(nsIFrame*              aFrame,
+                           nsILayoutHistoryState* aHistoryState);
 
   //----------------------------------------
 

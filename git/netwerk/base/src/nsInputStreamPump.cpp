@@ -404,10 +404,6 @@ nsInputStreamPump::OnInputStreamReady(nsIAsyncInputStream *stream)
         case STATE_STOP:
             nextState = OnStateStop();
             break;
-        default:
-            nextState = 0;
-            NS_NOTREACHED("Unknown enum value.");
-            return NS_ERROR_UNEXPECTED;
         }
 
         if (mState == nextState && !mSuspendCount) {

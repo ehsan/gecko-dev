@@ -296,7 +296,7 @@ nsNativeKeyBindings::KeyPress(const nsNativeKeyEvent& aEvent,
   }
 
   for (PRUint32 i = 0; i < nativeKeyEvent->alternativeCharCodes.Length(); ++i) {
-    PRUint32 ch = nativeKeyEvent->IsShift() ?
+    PRUint32 ch = nativeKeyEvent->isShift ?
         nativeKeyEvent->alternativeCharCodes[i].mShiftedCharCode :
         nativeKeyEvent->alternativeCharCodes[i].mUnshiftedCharCode;
     if (ch && ch != aEvent.charCode) {

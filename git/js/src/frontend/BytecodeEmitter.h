@@ -53,11 +53,98 @@
 
 #include "frontend/Parser.h"
 #include "frontend/ParseMaps.h"
-#include "frontend/TreeContext.h"
-
-#include "vm/ScopeObject.h"
 
 namespace js {
+
+/*
+ * NB: If you add enumerators for scope statements, add them between STMT_WITH
+ * and STMT_CATCH, or you will break the STMT_TYPE_IS_SCOPE macro. If you add
+ * non-looping statement enumerators, add them before STMT_DO_LOOP or you will
+ * break the STMT_TYPE_IS_LOOP macro.
+ *
+ * Also remember to keep the statementName array in BytecodeEmitter.cpp in
+ * sync.
+ */
+enum StmtType {
+    STMT_LABEL,                 /* labeled statement:  L: s */
+    STMT_IF,                    /* if (then) statement */
+    STMT_ELSE,                  /* else clause of if statement */
+    STMT_SEQ,                   /* synthetic sequence of statements */
+    STMT_BLOCK,                 /* compound statement: { s1[;... sN] } */
+    STMT_SWITCH,                /* switch statement */
+    STMT_WITH,                  /* with statement */
+    STMT_CATCH,                 /* catch block */
+    STMT_TRY,                   /* try block */
+    STMT_FINALLY,               /* finally block */
+    STMT_SUBROUTINE,            /* gosub-target subroutine body */
+    STMT_DO_LOOP,               /* do/while loop statement */
+    STMT_FOR_LOOP,              /* for loop statement */
+    STMT_FOR_IN_LOOP,           /* for/in loop statement */
+    STMT_WHILE_LOOP,            /* while loop statement */
+    STMT_LIMIT
+};
+
+inline bool
+STMT_TYPE_IN_RANGE(uint16_t type, StmtType begin, StmtType end)
+{
+    return begin <= type && type <= end;
+}
+
+/*
+ * A comment on the encoding of the js::StmtType enum and type-testing macros:
+ *
+ * STMT_TYPE_MAYBE_SCOPE tells whether a statement type is always, or may
+ * become, a lexical scope.  It therefore includes block and switch (the two
+ * low-numbered "maybe" scope types) and excludes with (with has dynamic scope
+ * pending the "reformed with" in ES4/JS2).  It includes all try-catch-finally
+ * types, which are high-numbered maybe-scope types.
+ *
+ * STMT_TYPE_LINKS_SCOPE tells whether a js::StmtInfo of the given type eagerly
+ * links to other scoping statement info records.  It excludes the two early
+ * "maybe" types, block and switch, as well as the try and both finally types,
+ * since try and the other trailing maybe-scope types don't need block scope
+ * unless they contain let declarations.
+ *
+ * We treat WITH as a static scope because it prevents lexical binding from
+ * continuing further up the static scope chain. With the lost "reformed with"
+ * proposal for ES4, we would be able to model it statically, too.
+ */
+#define STMT_TYPE_MAYBE_SCOPE(type)                                           \
+    (type != STMT_WITH &&                                                     \
+     STMT_TYPE_IN_RANGE(type, STMT_BLOCK, STMT_SUBROUTINE))
+
+#define STMT_TYPE_LINKS_SCOPE(type)                                           \
+    STMT_TYPE_IN_RANGE(type, STMT_WITH, STMT_CATCH)
+
+#define STMT_TYPE_IS_TRYING(type)                                             \
+    STMT_TYPE_IN_RANGE(type, STMT_TRY, STMT_SUBROUTINE)
+
+#define STMT_TYPE_IS_LOOP(type) ((type) >= STMT_DO_LOOP)
+
+#define STMT_MAYBE_SCOPE(stmt)  STMT_TYPE_MAYBE_SCOPE((stmt)->type)
+#define STMT_LINKS_SCOPE(stmt)  (STMT_TYPE_LINKS_SCOPE((stmt)->type) ||       \
+                                 ((stmt)->flags & SIF_SCOPE))
+#define STMT_IS_TRYING(stmt)    STMT_TYPE_IS_TRYING((stmt)->type)
+#define STMT_IS_LOOP(stmt)      STMT_TYPE_IS_LOOP((stmt)->type)
+
+struct StmtInfo {
+    uint16_t        type;           /* statement type */
+    uint16_t        flags;          /* flags, see below */
+    uint32_t        blockid;        /* for simplified dominance computation */
+    ptrdiff_t       update;         /* loop update offset (top if none) */
+    ptrdiff_t       breaks;         /* offset of last break in loop */
+    ptrdiff_t       continues;      /* offset of last continue in loop */
+    union {
+        JSAtom      *label;         /* name of LABEL */
+        StaticBlockObject *blockObj;/* block scope object */
+    };
+    StmtInfo        *down;          /* info for enclosing statement */
+    StmtInfo        *downScope;     /* next enclosing lexical scope */
+};
+
+#define SIF_SCOPE        0x0001     /* statement has its own lexical scope */
+#define SIF_BODY_BLOCK   0x0002     /* STMT_BLOCK type is a function body */
+#define SIF_FOR_BLOCK    0x0004     /* for (let ...) induced block scope */
 
 /*
  * To reuse space in StmtInfo, rename breaks and continues for use during
@@ -71,6 +158,349 @@ namespace js {
 #define GOSUBS(stmt)     ((stmt).breaks)
 #define GUARDJUMP(stmt)  ((stmt).continues)
 
+#define SET_STATEMENT_TOP(stmt, top)                                          \
+    ((stmt)->update = (top), (stmt)->breaks = (stmt)->continues = (-1))
+
+JS_ENUM_HEADER(TreeContextFlags, uint32_t)
+{
+    /* TreeContext is BytecodeEmitter */
+    TCF_COMPILING =                            0x1,
+
+    /* parsing inside function body */
+    TCF_IN_FUNCTION =                          0x2,
+
+    /* function has 'return expr;' */
+    TCF_RETURN_EXPR =                          0x4,
+
+    /* function has 'return;' */
+    TCF_RETURN_VOID =                          0x8,
+
+    /* parsing init expr of for; exclude 'in' */
+    TCF_IN_FOR_INIT =                         0x10,
+
+    /* function has parameter named arguments */
+    TCF_FUN_PARAM_ARGUMENTS =                 0x20,
+
+    /* function may contain a local named arguments */
+    TCF_FUN_LOCAL_ARGUMENTS =                 0x40,
+
+    /* function uses arguments except as a parameter name */
+    TCF_FUN_USES_ARGUMENTS =                  0x80,
+
+    /* function needs Call object per call */
+    TCF_FUN_HEAVYWEIGHT =                    0x100,
+
+    /* parsed yield statement in function */
+    TCF_FUN_IS_GENERATOR =                   0x200,
+
+    /* named function expression that uses its own name */
+    TCF_FUN_USES_OWN_NAME =                  0x400,
+
+    /* block contains a function statement */
+    TCF_HAS_FUNCTION_STMT =                  0x800,
+
+    /* flag lambda from generator expression */
+    TCF_GENEXP_LAMBDA =                     0x1000,
+
+    /* script can optimize name references based on scope chain */
+    TCF_COMPILE_N_GO =                      0x2000,
+
+    /* API caller does not want result value from global script */
+    TCF_NO_SCRIPT_RVAL =                    0x4000,
+
+    /*
+     * Set when parsing a declaration-like destructuring pattern.  This flag
+     * causes PrimaryExpr to create PN_NAME parse nodes for variable references
+     * which are not hooked into any definition's use chain, added to any tree
+     * context's AtomList, etc. etc.  CheckDestructuring will do that work
+     * later.
+     *
+     * The comments atop CheckDestructuring explain the distinction between
+     * assignment-like and declaration-like destructuring patterns, and why
+     * they need to be treated differently.
+     */
+    TCF_DECL_DESTRUCTURING =                0x8000,
+
+    /*
+     * This function/global/eval code body contained a Use Strict Directive.
+     * Treat certain strict warnings as errors, and forbid the use of 'with'.
+     * See also TSF_STRICT_MODE_CODE, JSScript::strictModeCode, and
+     * JSREPORT_STRICT_ERROR.
+     */
+    TCF_STRICT_MODE_CODE =                 0x10000,
+
+    /* The function calls 'eval'. */
+    TCF_FUN_CALLS_EVAL =                   0x20000,
+
+    /* The function mutates a positional (non-destructuring) parameter. */
+    TCF_FUN_MUTATES_PARAMETER =            0x40000,
+
+    /* Compiling an eval() script. */
+    TCF_COMPILE_FOR_EVAL =                0x100000,
+
+    /*
+     * The function or a function that encloses it may define new local names
+     * at runtime through means other than calling eval.
+     */
+    TCF_FUN_MIGHT_ALIAS_LOCALS =          0x200000,
+
+    /* The script contains singleton initialiser JSOP_OBJECT. */
+    TCF_HAS_SINGLETONS =                  0x400000,
+
+    /* Some enclosing scope is a with-statement or E4X filter-expression. */
+    TCF_IN_WITH =                         0x800000,
+
+    /*
+     * This function does something that can extend the set of bindings in its
+     * call objects --- it does a direct eval in non-strict code, or includes a
+     * function statement (as opposed to a function definition).
+     *
+     * This flag is *not* inherited by enclosed or enclosing functions; it
+     * applies only to the function in whose flags it appears.
+     */
+    TCF_FUN_EXTENSIBLE_SCOPE =           0x1000000,
+
+    /* The caller is JS_Compile*Script*. */
+    TCF_NEED_SCRIPT_GLOBAL =             0x2000000
+
+} JS_ENUM_FOOTER(TreeContextFlags);
+
+/* Flags to check for return; vs. return expr; in a function. */
+static const uint32_t TCF_RETURN_FLAGS = TCF_RETURN_EXPR | TCF_RETURN_VOID;
+
+/*
+ * Sticky deoptimization flags to propagate from FunctionBody.
+ */
+static const uint32_t TCF_FUN_FLAGS = TCF_FUN_USES_ARGUMENTS |
+                                      TCF_FUN_PARAM_ARGUMENTS |
+                                      TCF_FUN_LOCAL_ARGUMENTS |
+                                      TCF_FUN_HEAVYWEIGHT |
+                                      TCF_FUN_IS_GENERATOR |
+                                      TCF_FUN_USES_OWN_NAME |
+                                      TCF_FUN_CALLS_EVAL |
+                                      TCF_FUN_MIGHT_ALIAS_LOCALS |
+                                      TCF_FUN_MUTATES_PARAMETER |
+                                      TCF_STRICT_MODE_CODE |
+                                      TCF_FUN_EXTENSIBLE_SCOPE;
+
+struct BytecodeEmitter;
+
+struct TreeContext {                /* tree context for semantic checks */
+    uint32_t        flags;          /* statement state flags, see above */
+    uint32_t        bodyid;         /* block number of program/function body */
+    uint32_t        blockidGen;     /* preincremented block number generator */
+    uint32_t        parenDepth;     /* nesting depth of parens that might turn out
+                                       to be generator expressions */
+    uint32_t        yieldCount;     /* number of |yield| tokens encountered at
+                                       non-zero depth in current paren tree */
+    uint32_t        argumentsCount; /* number of |arguments| references encountered
+                                       at non-zero depth in current paren tree */
+    StmtInfo        *topStmt;       /* top of statement info stack */
+    StmtInfo        *topScopeStmt;  /* top lexical scope statement */
+    StaticBlockObject *blockChain;  /* compile block scope chain (NB: one
+                                       deeper than the topScopeStmt/downScope
+                                       chain when in head of let block/expr) */
+    ParseNode       *blockNode;     /* parse node for a block with let declarations
+                                       (block with its own lexical scope)  */
+    AtomDecls       decls;          /* function, const, and var declarations */
+    Parser          *parser;        /* ptr to common parsing and lexing data */
+    ParseNode       *yieldNode;     /* parse node for a yield expression that might
+                                       be an error if we turn out to be inside a
+                                       generator expression */
+    ParseNode       *argumentsNode; /* parse node for an arguments variable that
+                                       might be an error if we turn out to be
+                                       inside a generator expression */
+
+  private:
+    union {
+        JSFunction  *fun_;          /* function to store argument and variable
+                                       names when flags & TCF_IN_FUNCTION */
+        JSObject    *scopeChain_;   /* scope chain object for the script */
+    };
+
+  public:
+    JSFunction *fun() const {
+        JS_ASSERT(inFunction());
+        return fun_;
+    }
+    void setFunction(JSFunction *fun) {
+        JS_ASSERT(inFunction());
+        fun_ = fun;
+    }
+    JSObject *scopeChain() const {
+        JS_ASSERT(!inFunction());
+        return scopeChain_;
+    }
+    void setScopeChain(JSObject *scopeChain) {
+        JS_ASSERT(!inFunction());
+        scopeChain_ = scopeChain;
+    }
+
+    OwnedAtomDefnMapPtr lexdeps;    /* unresolved lexical name dependencies */
+    TreeContext     *parent;        /* enclosing function or global context */
+    unsigned           staticLevel;    /* static compilation unit nesting level */
+
+    FunctionBox     *funbox;        /* null or box for function we're compiling
+                                       if (flags & TCF_IN_FUNCTION) and not in
+                                       js::frontend::CompileFunctionBody */
+    FunctionBox     *functionList;
+
+    ParseNode       *innermostWith; /* innermost WITH parse node */
+
+    Bindings        bindings;       /* bindings in this code, including
+                                       arguments if we're compiling a function */
+    Bindings::StackRoot bindingsRoot; /* root for stack allocated bindings. */
+
+    void trace(JSTracer *trc);
+
+    inline TreeContext(Parser *prs);
+    inline ~TreeContext();
+
+    /*
+     * js::BytecodeEmitter derives from js::TreeContext; however, only the
+     * top-level BytecodeEmitters are actually used as full-fledged tree contexts
+     * (to hold decls and lexdeps). We can avoid allocation overhead by making
+     * this distinction explicit.
+     */
+    enum InitBehavior {
+        USED_AS_TREE_CONTEXT,
+        USED_AS_CODE_GENERATOR
+    };
+
+    bool init(JSContext *cx, InitBehavior ib = USED_AS_TREE_CONTEXT) {
+        if (ib == USED_AS_CODE_GENERATOR)
+            return true;
+        return decls.init() && lexdeps.ensureMap(cx);
+    }
+
+    unsigned blockid() { return topStmt ? topStmt->blockid : bodyid; }
+
+    /*
+     * True if we are at the topmost level of a entire script or function body.
+     * For example, while parsing this code we would encounter f1 and f2 at
+     * body level, but we would not encounter f3 or f4 at body level:
+     *
+     *   function f1() { function f2() { } }
+     *   if (cond) { function f3() { if (cond) { function f4() { } } } }
+     */
+    bool atBodyLevel() { return !topStmt || (topStmt->flags & SIF_BODY_BLOCK); }
+
+    /* Test whether we're in a statement of given type. */
+    bool inStatement(StmtType type);
+
+    bool inStrictMode() const {
+        return flags & TCF_STRICT_MODE_CODE;
+    }
+
+    inline bool needStrictChecks();
+
+    // Return true there is a generator function within |skip| lexical scopes
+    // (going upward) from this context's lexical scope. Always return true if
+    // this context is itself a generator.
+    bool skipSpansGenerator(unsigned skip);
+
+    bool compileAndGo() const { return flags & TCF_COMPILE_N_GO; }
+    bool inFunction() const { return flags & TCF_IN_FUNCTION; }
+
+    bool compiling() const { return flags & TCF_COMPILING; }
+    inline BytecodeEmitter *asBytecodeEmitter();
+
+    bool usesArguments() const {
+        return flags & TCF_FUN_USES_ARGUMENTS;
+    }
+
+    void noteCallsEval() {
+        flags |= TCF_FUN_CALLS_EVAL;
+    }
+
+    bool callsEval() const {
+        return flags & TCF_FUN_CALLS_EVAL;
+    }
+
+    void noteMightAliasLocals() {
+        flags |= TCF_FUN_MIGHT_ALIAS_LOCALS;
+    }
+
+    bool mightAliasLocals() const {
+        return flags & TCF_FUN_MIGHT_ALIAS_LOCALS;
+    }
+
+    void noteParameterMutation() {
+        JS_ASSERT(inFunction());
+        flags |= TCF_FUN_MUTATES_PARAMETER;
+    }
+
+    bool mutatesParameter() const {
+        JS_ASSERT(inFunction());
+        return flags & TCF_FUN_MUTATES_PARAMETER;
+    }
+
+    bool mayOverwriteArguments() const {
+        JS_ASSERT(inFunction());
+        JS_ASSERT_IF(inStrictMode(),
+                     !(flags & (TCF_FUN_PARAM_ARGUMENTS | TCF_FUN_LOCAL_ARGUMENTS)));
+        return !inStrictMode() &&
+               (callsEval() ||
+                flags & (TCF_FUN_PARAM_ARGUMENTS | TCF_FUN_LOCAL_ARGUMENTS));
+    }
+
+    void noteLocalOverwritesArguments() {
+        flags |= TCF_FUN_LOCAL_ARGUMENTS;
+    }
+
+    void noteArgumentsNameUse(ParseNode *node) {
+        JS_ASSERT(inFunction());
+        JS_ASSERT(node->isKind(PNK_NAME));
+        JS_ASSERT(node->pn_atom == parser->context->runtime->atomState.argumentsAtom);
+        countArgumentsUse(node);
+        flags |= TCF_FUN_USES_ARGUMENTS;
+    }
+
+    /*
+     * Uses of |arguments| must be noted so that such uses can be forbidden if
+     * they occur inside generator expressions (which desugar to functions and
+     * yields, in which |arguments| would have an entirely different meaning).
+     */
+    void countArgumentsUse(ParseNode *node) {
+        JS_ASSERT(node->isKind(PNK_NAME));
+        JS_ASSERT(node->pn_atom == parser->context->runtime->atomState.argumentsAtom);
+        argumentsCount++;
+        argumentsNode = node;
+    }
+
+    bool needsEagerArguments() const {
+        return inStrictMode() && ((usesArguments() && mutatesParameter()) || callsEval());
+    }
+
+    void noteHasExtensibleScope() {
+        flags |= TCF_FUN_EXTENSIBLE_SCOPE;
+    }
+
+    bool hasExtensibleScope() const {
+        return flags & TCF_FUN_EXTENSIBLE_SCOPE;
+    }
+
+    ParseNode *freeTree(ParseNode *pn) { return parser->freeTree(pn); }
+};
+
+/*
+ * Return true if we need to check for conditions that elicit
+ * JSOPTION_STRICT warnings or strict mode errors.
+ */
+inline bool TreeContext::needStrictChecks() {
+    return parser->context->hasStrictOption() || inStrictMode();
+}
+
+namespace frontend {
+
+bool
+SetStaticLevel(TreeContext *tc, unsigned staticLevel);
+
+bool
+GenerateBlockId(TreeContext *tc, uint32_t &blockid);
+
+} /* namespace frontend */
+
 struct TryNode {
     JSTryNote       note;
     TryNode       *prev;
@@ -83,58 +513,75 @@ struct CGObjectList {
     CGObjectList() : length(0), lastbox(NULL) {}
 
     unsigned index(ObjectBox *objbox);
-    void finish(ObjectArray *array);
+    void finish(JSObjectArray *array);
 };
 
 class GCConstList {
     Vector<Value> list;
   public:
     GCConstList(JSContext *cx) : list(cx) {}
-    bool append(Value v) { JS_ASSERT_IF(v.isString(), v.toString()->isAtom()); return list.append(v); }
+    bool append(Value v) { return list.append(v); }
     size_t length() const { return list.length(); }
-    void finish(ConstArray *array);
+    void finish(JSConstArray *array);
 };
 
 struct GlobalScope {
-    GlobalScope(JSContext *cx, JSObject *globalObj)
-      : globalObj(cx, globalObj)
+    GlobalScope(JSContext *cx, JSObject *globalObj, BytecodeEmitter *bce)
+      : globalObj(globalObj), bce(bce), defs(cx), names(cx)
     { }
 
-    RootedVarObject globalObj;
+    struct GlobalDef {
+        JSAtom        *atom;        // If non-NULL, specifies the property name to add.
+        FunctionBox   *funbox;      // If non-NULL, function value for the property.
+                                    // This value is only set/used if atom is non-NULL.
+        uint32_t      knownSlot;    // If atom is NULL, this is the known shape slot.
+
+        GlobalDef() { }
+        GlobalDef(uint32_t knownSlot) : atom(NULL), knownSlot(knownSlot) { }
+        GlobalDef(JSAtom *atom, FunctionBox *box) : atom(atom), funbox(box) { }
+    };
+
+    JSObject        *globalObj;
+    BytecodeEmitter *bce;
+
+    /*
+     * This is the table of global names encountered during parsing. Each
+     * global name appears in the list only once, and the |names| table
+     * maps back into |defs| for fast lookup.
+     *
+     * A definition may either specify an existing global property, or a new
+     * one that must be added after compilation succeeds.
+     */
+    Vector<GlobalDef, 16> defs;
+    AtomIndexMap      names;
 };
 
-struct BytecodeEmitter
+struct BytecodeEmitter : public TreeContext
 {
-    SharedContext   *sc;            /* context shared between parsing and bytecode generation */
-
-    BytecodeEmitter *parent;        /* enclosing function or global context */
-
     struct {
         jsbytecode  *base;          /* base of JS bytecode vector */
         jsbytecode  *limit;         /* one byte beyond end of bytecode */
         jsbytecode  *next;          /* pointer to next free bytecode */
         jssrcnote   *notes;         /* source notes, see below */
-        unsigned    noteCount;      /* number of source notes so far */
-        unsigned    noteLimit;      /* limit number for source notes in notePool */
+        unsigned       noteCount;      /* number of source notes so far */
+        unsigned       noteLimit;      /* limit number for source notes in notePool */
         ptrdiff_t   lastNoteOffset; /* code offset for last source note */
-        unsigned    currentLine;    /* line number for tree-based srcnote gen */
+        unsigned       currentLine;    /* line number for tree-based srcnote gen */
     } prolog, main, *current;
-
-    Parser          *parser;        /* the parser */
 
     OwnedAtomIndexMapPtr atomIndices; /* literals indexed for mapping */
     AtomDefnMapPtr  roLexdeps;
-    unsigned        firstLine;      /* first line, for JSScript::NewScriptFromEmitter */
+    unsigned           firstLine;      /* first line, for JSScript::NewScriptFromEmitter */
 
-    int             stackDepth;     /* current stack depth in script frame */
-    unsigned        maxStackDepth;  /* maximum stack depth so far */
+    int            stackDepth;     /* current stack depth in script frame */
+    unsigned           maxStackDepth;  /* maximum stack depth so far */
 
-    unsigned        ntrynotes;      /* number of allocated so far try notes */
+    unsigned           ntrynotes;      /* number of allocated so far try notes */
     TryNode         *lastTryNode;   /* the last allocated try node */
 
-    unsigned        arrayCompDepth; /* stack depth of array in comprehension */
+    unsigned           arrayCompDepth; /* stack depth of array in comprehension */
 
-    unsigned        emitLevel;      /* js::frontend::EmitTree recursion level */
+    unsigned           emitLevel;      /* js::frontend::EmitTree recursion level */
 
     typedef HashMap<JSAtom *, Value> ConstMap;
     ConstMap        constMap;       /* compile time constants */
@@ -147,6 +594,11 @@ struct BytecodeEmitter
 
     GlobalScope     *globalScope;   /* frontend::CompileScript global scope, or null */
 
+    typedef Vector<GlobalSlotArray::Entry, 16> GlobalUseVector;
+
+    GlobalUseVector globalUses;     /* per-script global uses */
+    OwnedAtomIndexMapPtr globalMap; /* per-script map of global name to globalUses vector */
+
     /* Vectors of pn_cookie slot values. */
     typedef Vector<uint32_t, 8> SlotVector;
     SlotVector      closedArgs;
@@ -154,16 +606,12 @@ struct BytecodeEmitter
 
     uint16_t        typesetCount;   /* Number of JOF_TYPESET opcodes generated */
 
-    /* These two should only be true if sc->inFunction() is false. */
-    const bool      noScriptRval:1;     /* The caller is JS_Compile*Script*. */
-    const bool      needScriptGlobal:1; /* API caller does not want result value 
-                                           from global script. */
+    BytecodeEmitter(Parser *parser, unsigned lineno);
+    bool init(JSContext *cx, TreeContext::InitBehavior ib = USED_AS_CODE_GENERATOR);
 
-    bool            hasSingletons:1;    /* script contains singleton initializer JSOP_OBJECT */
-
-    BytecodeEmitter(Parser *parser, SharedContext *sc, unsigned lineno,
-                    bool noScriptRval, bool needScriptGlobal);
-    bool init();
+    JSContext *context() {
+        return parser->context;
+    }
 
     /*
      * Note that BytecodeEmitters are magic: they own the arena "top-of-stack"
@@ -173,12 +621,26 @@ struct BytecodeEmitter
      */
     ~BytecodeEmitter();
 
+    /*
+     * Adds a use of a variable that is statically known to exist on the
+     * global object.
+     *
+     * The actual slot of the variable on the global object is not known
+     * until after compilation. Properties must be resolved before being
+     * added, to avoid aliasing properties that should be resolved. This makes
+     * slot prediction based on the global object's free slot impossible. So,
+     * we use the slot to index into bce->globalScope->defs, and perform a
+     * fixup of the script at the very end of compilation.
+     *
+     * If the global use can be cached, |cookie| will be set to |slot|.
+     * Otherwise, |cookie| is set to the free cookie value.
+     */
+    bool addGlobalUse(JSAtom *atom, uint32_t slot, UpvarCookie *cookie);
+
+    bool compilingForEval() const { return !!(flags & TCF_COMPILE_FOR_EVAL); }
     JSVersion version() const { return parser->versionWithFlags(); }
 
-    bool isAliasedName(ParseNode *pn);
     bool shouldNoteClosedName(ParseNode *pn);
-    bool noteClosedVar(ParseNode *pn);
-    bool noteClosedArg(ParseNode *pn);
 
     JS_ALWAYS_INLINE
     bool makeAtomIndex(JSAtom *atom, jsatomid *indexp) {
@@ -197,13 +659,13 @@ struct BytecodeEmitter
     }
 
     bool checkSingletonContext() {
-        if (!parser->compileAndGo || sc->inFunction)
+        if (!compileAndGo() || inFunction())
             return false;
-        for (StmtInfo *stmt = sc->topStmt; stmt; stmt = stmt->down) {
+        for (StmtInfo *stmt = topStmt; stmt; stmt = stmt->down) {
             if (STMT_IS_LOOP(stmt))
                 return false;
         }
-        hasSingletons = true;
+        flags |= TCF_HAS_SINGLETONS;
         return true;
     }
 
@@ -229,6 +691,13 @@ struct BytecodeEmitter
 
     inline ptrdiff_t countFinalSourceNotes();
 };
+
+inline BytecodeEmitter *
+TreeContext::asBytecodeEmitter()
+{
+    JS_ASSERT(compiling());
+    return static_cast<BytecodeEmitter *>(this);
+}
 
 namespace frontend {
 
@@ -257,6 +726,27 @@ ptrdiff_t
 EmitN(JSContext *cx, BytecodeEmitter *bce, JSOp op, size_t extra);
 
 /*
+ * Push the C-stack-allocated struct at stmt onto the stmtInfo stack.
+ */
+void
+PushStatement(TreeContext *tc, StmtInfo *stmt, StmtType type, ptrdiff_t top);
+
+/*
+ * Push a block scope statement and link blockObj into tc->blockChain. To pop
+ * this statement info record, use PopStatementTC as usual, or if appropriate
+ * (if generating code), PopStatementBCE.
+ */
+void
+PushBlockScope(TreeContext *tc, StmtInfo *stmt, StaticBlockObject &blockObj, ptrdiff_t top);
+
+/*
+ * Pop tc->topStmt. If the top StmtInfo struct is not stack-allocated, it
+ * is up to the caller to free it.
+ */
+void
+PopStatementTC(TreeContext *tc);
+
+/*
  * Like PopStatementTC(bce), also patch breaks and continues unless the top
  * statement info record represents a try-catch-finally suite. May fail if a
  * jump offset overflows.
@@ -278,6 +768,23 @@ PopStatementBCE(JSContext *cx, BytecodeEmitter *bce);
  */
 JSBool
 DefineCompileTimeConstant(JSContext *cx, BytecodeEmitter *bce, JSAtom *atom, ParseNode *pn);
+
+/*
+ * Find a lexically scoped variable (one declared by let, catch, or an array
+ * comprehension) named by atom, looking in tc's compile-time scopes.
+ *
+ * If a WITH statement is reached along the scope stack, return its statement
+ * info record, so callers can tell that atom is ambiguous. If slotp is not
+ * null, then if atom is found, set *slotp to its stack slot, otherwise to -1.
+ * This means that if slotp is not null, all the block objects on the lexical
+ * scope chain must have had their depth slots computed by the code generator,
+ * so the caller must be under EmitTree.
+ *
+ * In any event, directly return the statement info record in which atom was
+ * found. Otherwise return null.
+ */
+StmtInfo *
+LexicalLookup(TreeContext *tc, JSAtom *atom, int *slotp, StmtInfo *stmt = NULL);
 
 /*
  * Emit code into bce for the tree rooted at pn.
@@ -462,7 +969,7 @@ JSBool
 FinishTakingSrcNotes(JSContext *cx, BytecodeEmitter *bce, jssrcnote *notes);
 
 void
-FinishTakingTryNotes(BytecodeEmitter *bce, TryNoteArray *array);
+FinishTakingTryNotes(BytecodeEmitter *bce, JSTryNoteArray *array);
 
 } /* namespace frontend */
 

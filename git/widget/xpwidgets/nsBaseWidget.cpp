@@ -77,9 +77,6 @@ using base::Thread;
 using mozilla::ipc::AsyncChannel;
 
 nsIContent* nsBaseWidget::mLastRollup = nsnull;
-// Global user preference for disabling native theme. Used
-// in NativeWindowTheme.
-bool            gDisableNativeTheme               = false;
 
 // nsBaseWidget
 NS_IMPL_ISUPPORTS1(nsBaseWidget, nsIWidget)
@@ -207,14 +204,6 @@ void nsBaseWidget::BaseCreate(nsIWidget *aParent,
                               nsDeviceContext *aContext,
                               nsWidgetInitData *aInitData)
 {
-  static bool gDisableNativeThemeCached = false;
-  if (!gDisableNativeThemeCached) {
-    mozilla::Preferences::AddBoolVarCache(&gDisableNativeTheme,
-                                          "mozilla.widget.disable-native-theme",
-                                          gDisableNativeTheme);
-    gDisableNativeThemeCached = true;
-  }
-
   // save the event callback function
   mEventCallback = aHandleEventFunction;
   
@@ -831,7 +820,7 @@ nsBaseWidget::GetShouldAccelerate()
 #endif
 
   // we should use AddBoolPrefVarCache
-  bool disableAcceleration = (mWindowType == eWindowType_popup) || 
+  bool disableAcceleration =
     Preferences::GetBool("layers.acceleration.disabled", false);
   mForceLayersAcceleration =
     Preferences::GetBool("layers.acceleration.force-enabled", false);
@@ -884,16 +873,8 @@ nsBaseWidget::GetShouldAccelerate()
 void nsBaseWidget::CreateCompositor()
 {
   mCompositorThread = new Thread("CompositorThread");
+  mCompositorParent = new CompositorParent(this, mCompositorThread);
   if (mCompositorThread->Start()) {
-    bool renderToEGLSurface = false;
-#ifdef MOZ_JAVA_COMPOSITOR
-    renderToEGLSurface = true;
-#endif
-    nsIntRect rect;
-    GetBounds(rect);
-    mCompositorParent =
-      new CompositorParent(this, mCompositorThread->message_loop(), mCompositorThread->thread_id(),
-                           renderToEGLSurface, rect.width, rect.height);
     LayerManager* lm = CreateBasicLayerManager();
     MessageLoop *childMessageLoop = mCompositorThread->message_loop();
     mCompositorChild = new CompositorChild(lm);

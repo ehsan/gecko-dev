@@ -98,9 +98,6 @@ nsFontFaceLoader::nsFontFaceLoader(gfxProxyFontEntry *aProxy, nsIURI *aFontURI,
 
 nsFontFaceLoader::~nsFontFaceLoader()
 {
-  if (mFontEntry) {
-    mFontEntry->mLoader = nsnull;
-  }
   if (mLoadTimer) {
     mLoadTimer->Cancel();
     mLoadTimer = nsnull;
@@ -262,7 +259,6 @@ void
 nsFontFaceLoader::Cancel()
 {
   mFontEntry->mLoadingState = gfxProxyFontEntry::NOT_LOADING;
-  mFontEntry->mLoader = nsnull;
   mFontSet = nsnull;
   if (mLoadTimer) {
     mLoadTimer->Cancel();
@@ -425,8 +421,6 @@ nsUserFontSet::StartLoad(gfxProxyFontEntry *aProxy,
   if (NS_SUCCEEDED(rv)) {
     mLoaders.PutEntry(fontLoader);
     fontLoader->StartedLoading(streamLoader);
-    aProxy->mLoader = fontLoader; // let the font entry remember the loader,
-                                  // in case we need to cancel it
   }
 
   return rv;
@@ -472,19 +466,6 @@ nsUserFontSet::UpdateRules(const nsTArray<nsFontFaceRuleContainer>& aRules)
   // if any rules are left in the old list, note that the set has changed
   if (oldRules.Length() > 0) {
     modified = true;
-    // any in-progress loaders for obsolete rules should be cancelled
-    size_t count = oldRules.Length();
-    for (size_t i = 0; i < count; ++i) {
-      gfxFontEntry *fe = oldRules[i].mFontEntry;
-      if (!fe->mIsProxy) {
-        continue;
-      }
-      gfxProxyFontEntry *proxy = static_cast<gfxProxyFontEntry*>(fe);
-      if (proxy->mLoader != nsnull) {
-        proxy->mLoader->Cancel();
-        RemoveLoader(proxy->mLoader);
-      }
-    }
   }
 
   if (modified) {
@@ -544,7 +525,7 @@ nsUserFontSet::InsertRule(nsCSSFontFaceRule *aRule, PRUint8 aSheetType,
   PRUint32 weight = NS_STYLE_FONT_WEIGHT_NORMAL;
   PRUint32 stretch = NS_STYLE_FONT_STRETCH_NORMAL;
   PRUint32 italicStyle = NS_STYLE_FONT_STYLE_NORMAL;
-  nsString languageOverride;
+  nsString featureSettings, languageOverride;
 
   // set up weight
   aRule->GetDesc(eCSSFontDesc_Weight, val);
@@ -583,13 +564,12 @@ nsUserFontSet::InsertRule(nsCSSFontFaceRule *aRule, PRUint8 aSheetType,
   }
 
   // set up font features
-  nsTArray<gfxFontFeature> featureSettings;
   aRule->GetDesc(eCSSFontDesc_FontFeatureSettings, val);
   unit = val.GetUnit();
   if (unit == eCSSUnit_Normal) {
-    // empty list of features
-  } else if (unit == eCSSUnit_PairList || unit == eCSSUnit_PairListDep) {
-    nsRuleNode::ComputeFontFeatures(val.GetPairListValue(), featureSettings);
+    // empty feature string
+  } else if (unit == eCSSUnit_String) {
+    val.GetStringValue(featureSettings);
   } else {
     NS_ASSERTION(unit == eCSSUnit_Null,
                  "@font-face font-feature-settings has unexpected unit");
@@ -761,7 +741,8 @@ nsUserFontSet::LogMessage(gfxProxyFontEntry *aProxy,
   }
 
   nsPrintfCString
-    msg("downloadable font: %s "
+    msg(1024,
+        "downloadable font: %s "
         "(font-family: \"%s\" style:%s weight:%s stretch:%s src index:%d)",
         aMessage,
         familyName.get(),

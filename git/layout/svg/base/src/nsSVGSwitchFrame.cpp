@@ -82,7 +82,7 @@ public:
   NS_IMETHOD PaintSVG(nsRenderingContext* aContext, const nsIntRect *aDirtyRect);
   NS_IMETHODIMP_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
   NS_IMETHODIMP_(nsRect) GetCoveredRegion();
-  virtual SVGBBox GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
+  virtual gfxRect GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
                                       PRUint32 aFlags);
 
 private:
@@ -164,24 +164,22 @@ nsSVGSwitchFrame::GetCoveredRegion()
   return rect;
 }
 
-SVGBBox
+gfxRect
 nsSVGSwitchFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
                                       PRUint32 aFlags)
 {
   nsIFrame* kid = GetActiveChildFrame();
-  if (kid) {
-    nsISVGChildFrame* svgKid = do_QueryFrame(kid);
-    if (svgKid) {
-      nsIContent *content = kid->GetContent();
-      gfxMatrix transform = aToBBoxUserspace;
-      if (content->IsSVG()) {
-        transform = static_cast<nsSVGElement*>(content)->
-                      PrependLocalTransformsTo(aToBBoxUserspace);
-      }
-      return svgKid->GetBBoxContribution(transform, aFlags);
+  nsISVGChildFrame* svgKid = do_QueryFrame(kid);
+  if (svgKid) {
+    nsIContent *content = kid->GetContent();
+    gfxMatrix transform = aToBBoxUserspace;
+    if (content->IsSVG()) {
+      transform = static_cast<nsSVGElement*>(content)->
+                    PrependLocalTransformsTo(aToBBoxUserspace);
     }
+    return svgKid->GetBBoxContribution(transform, aFlags);
   }
-  return SVGBBox();
+  return gfxRect(0.0, 0.0, 0.0, 0.0);
 }
 
 nsIFrame *

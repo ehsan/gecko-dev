@@ -77,8 +77,6 @@ public:
   nsGfxScrollFrameInner(nsContainerFrame* aOuter, bool aIsRoot);
   ~nsGfxScrollFrameInner();
 
-  void Init();
-
   typedef nsIScrollableFrame::ScrollbarStyles ScrollbarStyles;
   ScrollbarStyles GetScrollbarStylesFromFrame() const;
 
@@ -153,8 +151,7 @@ public:
   static void SetScrollbarEnabled(nsIContent* aContent, nscoord aMaxPos);
   static void SetCoordAttribute(nsIContent* aContent, nsIAtom* aAtom,
                                 nscoord aSize);
-  nscoord GetCoordAttribute(nsIBox* aFrame, nsIAtom* aAtom, nscoord aDefaultValue,
-                            nscoord* aRangeStart, nscoord* aRangeLength);
+  nscoord GetCoordAttribute(nsIBox* aFrame, nsIAtom* atom, nscoord defaultValue);
 
   // Update scrollbar curpos attributes to reflect current scroll position
   void UpdateScrollbarPosition();
@@ -179,24 +176,14 @@ public:
     return pt;
   }
   nsRect GetScrollRange() const;
-  // Get the scroll range assuming the scrollport has size (aWidth, aHeight).
-  nsRect GetScrollRange(nscoord aWidth, nscoord aHeight) const;
-protected:
-  nsRect GetScrollRangeForClamping() const;
 
-public:
-  static void AsyncScrollCallback(void* anInstance, mozilla::TimeStamp aTime);
-  /**
-   * aRange is the range of allowable scroll positions around the desired
-   * aScrollPosition. Null means only aScrollPosition is allowed.
-   * This is a closed-ended range --- aRange.XMost()/aRange.YMost() are allowed.
-   */
-  void ScrollTo(nsPoint aScrollPosition, nsIScrollableFrame::ScrollMode aMode,
-                const nsRect* aRange = nsnull) {
-    ScrollToWithOrigin(aScrollPosition, aMode, nsGkAtoms::other, aRange);
-  }
-  void ScrollToCSSPixels(nsIntPoint aScrollPosition);
-  void ScrollToImpl(nsPoint aScrollPosition, const nsRect& aRange);
+  nsPoint RestrictToDevPixels(const nsPoint& aPt, nsIntPoint* aPtDevPx, bool aShouldClamp) const;
+  nsPoint ClampScrollPosition(const nsPoint& aPt) const;
+  static void AsyncScrollCallback(nsITimer *aTimer, void* anInstance);
+  void ScrollTo(nsPoint aScrollPosition, nsIScrollableFrame::ScrollMode aMode) {
+    ScrollToWithOrigin(aScrollPosition, aMode, nsGkAtoms::other);
+  };
+  void ScrollToImpl(nsPoint aScrollPosition);
   void ScrollVisual(nsPoint aOldScrolledFramePosition);
   void ScrollBy(nsIntPoint aDelta, nsIScrollableFrame::ScrollUnit aUnit,
                 nsIScrollableFrame::ScrollMode aMode, nsIntPoint* aOverflow, nsIAtom *aOrigin = nsnull);
@@ -301,7 +288,7 @@ public:
   nsIBox* mScrollCornerBox;
   nsIBox* mResizerBox;
   nsContainerFrame* mOuter;
-  nsRefPtr<AsyncScroll> mAsyncScroll;
+  AsyncScroll* mAsyncScroll;
   nsTArray<nsIScrollPositionListener*> mListeners;
   nsRect mScrollPort;
   // Where we're currently scrolling to, if we're scrolling asynchronously.
@@ -359,8 +346,7 @@ public:
 protected:
   void ScrollToWithOrigin(nsPoint aScrollPosition,
                           nsIScrollableFrame::ScrollMode aMode,
-                          nsIAtom *aOrigin, // nsnull indicates "other" origin
-                          const nsRect* aRange);
+                          nsIAtom *aOrigin); // nsnull indicates "other" origin
 };
 
 /**
@@ -384,9 +370,6 @@ public:
 
   // Called to set the child frames. We typically have three: the scroll area,
   // the vertical scrollbar, and the horizontal scrollbar.
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,
                                  nsFrameList&    aChildList);
 
@@ -502,12 +485,8 @@ public:
   virtual nsSize GetPageScrollAmount() const {
     return mInner.GetPageScrollAmount();
   }
-  virtual void ScrollTo(nsPoint aScrollPosition, ScrollMode aMode,
-                        const nsRect* aRange = nsnull) {
-    mInner.ScrollTo(aScrollPosition, aMode, aRange);
-  }
-  virtual void ScrollToCSSPixels(nsIntPoint aScrollPosition) {
-    mInner.ScrollToCSSPixels(aScrollPosition);
+  virtual void ScrollTo(nsPoint aScrollPosition, ScrollMode aMode) {
+    mInner.ScrollTo(aScrollPosition, aMode);
   }
   virtual void ScrollBy(nsIntPoint aDelta, ScrollUnit aUnit, ScrollMode aMode,
                         nsIntPoint* aOverflow, nsIAtom *aOrigin = nsnull) {
@@ -619,9 +598,6 @@ public:
 
   // Called to set the child frames. We typically have three: the scroll area,
   // the vertical scrollbar, and the horizontal scrollbar.
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,
                                  nsFrameList&    aChildList);
 
@@ -747,12 +723,8 @@ public:
   virtual nsSize GetPageScrollAmount() const {
     return mInner.GetPageScrollAmount();
   }
-  virtual void ScrollTo(nsPoint aScrollPosition, ScrollMode aMode,
-                        const nsRect* aRange = nsnull) {
-    mInner.ScrollTo(aScrollPosition, aMode, aRange);
-  }
-  virtual void ScrollToCSSPixels(nsIntPoint aScrollPosition) {
-    mInner.ScrollToCSSPixels(aScrollPosition);
+  virtual void ScrollTo(nsPoint aScrollPosition, ScrollMode aMode) {
+    mInner.ScrollTo(aScrollPosition, aMode);
   }
   virtual void ScrollBy(nsIntPoint aDelta, ScrollUnit aUnit, ScrollMode aMode,
                         nsIntPoint* aOverflow, nsIAtom *aOrigin = nsnull) {
@@ -826,9 +798,12 @@ protected:
     /* 
      * For RTL frames, restore the original scrolled position of the right
      * edge, then subtract the current width to find the physical position.
+     * This can break the invariant that the scroll position is a multiple of
+     * device pixels, so round off the result to the nearest device pixel.
      */
     if (!mInner.IsLTR()) {
-      aRect.x = mInner.mScrollPort.XMost() - aScrollPosition.x - aRect.width;
+      aRect.x = PresContext()->RoundAppUnitsToNearestDevPixels(
+         mInner.mScrollPort.XMost() - aScrollPosition.x - aRect.width);
     }
     mInner.mScrolledFrame->SetBounds(aState, aRect, aRemoveOverflowAreas);
   }

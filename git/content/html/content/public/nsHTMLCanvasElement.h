@@ -95,6 +95,11 @@ public:
                                            nsGenericHTMLElement)
 
   /**
+   * Ask the canvas Element to return the primary frame, if any
+   */
+  nsIFrame *GetPrimaryCanvasFrame();
+
+  /**
    * Get the size in pixels of this canvas element
    */
   nsIntSize GetSize();
@@ -179,8 +184,6 @@ public:
   void MarkContextClean();
 
   virtual nsXPCClassInfo* GetClassInfo();
-
-  virtual nsIDOMNode* AsDOMNode() { return this; }
 protected:
   nsIntSize GetWidthHeight();
 

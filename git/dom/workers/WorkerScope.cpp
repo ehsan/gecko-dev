@@ -42,12 +42,11 @@
 #include "jsapi.h"
 #include "jsdbgapi.h"
 #include "mozilla/Util.h"
-#include "mozilla/dom/DOMJSClass.h"
-#include "mozilla/dom/EventTargetBinding.h"
-#include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/XMLHttpRequestBinding.h"
-#include "mozilla/dom/XMLHttpRequestUploadBinding.h"
-#include "mozilla/OSFileConstants.h"
+#include "mozilla/dom/bindings/DOMJSClass.h"
+#include "mozilla/dom/bindings/EventTargetBinding.h"
+#include "mozilla/dom/bindings/Utils.h"
+#include "mozilla/dom/bindings/XMLHttpRequestBinding.h"
+#include "mozilla/dom/bindings/XMLHttpRequestUploadBinding.h"
 #include "nsTraceRefcnt.h"
 #include "xpcpublic.h"
 
@@ -63,7 +62,6 @@
 #include "File.h"
 #include "FileReaderSync.h"
 #include "Location.h"
-#include "ImageData.h"
 #include "Navigator.h"
 #include "Principal.h"
 #include "ScriptLoader.h"
@@ -80,6 +78,7 @@
   JSPROP_ENUMERATE
 
 using namespace mozilla;
+using namespace mozilla::dom::bindings;
 USING_WORKERS_NAMESPACE
 
 namespace {
@@ -160,9 +159,9 @@ protected:
   }
 
   virtual void
-  _Finalize(JSFreeOp* aFop) MOZ_OVERRIDE
+  _Finalize(JSContext* aCx) MOZ_OVERRIDE
   {
-    EventTarget::_Finalize(aFop);
+    EventTarget::_Finalize(aCx);
   }
 
 private:
@@ -178,12 +177,12 @@ private:
       return false;
     }
 
-    ErrorResult rv;
+    nsresult rv = NS_OK;
 
     JSObject* listener =
       scope->GetEventListener(NS_ConvertASCIItoUTF16(name + 2), rv);
 
-    if (rv.Failed()) {
+    if (NS_FAILED(rv)) {
       JS_ReportError(aCx, "Failed to get event listener!");
       return false;
     }
@@ -210,10 +209,10 @@ private:
       return false;
     }
 
-    ErrorResult rv;
+    nsresult rv = NS_OK;
     scope->SetEventListener(NS_ConvertASCIItoUTF16(name + 2),
                             JSVAL_TO_OBJECT(*aVp), rv);
-    if (rv.Failed()) {
+    if (NS_FAILED(rv)) {
       JS_ReportError(aCx, "Failed to set event listener!");
       return false;
     }
@@ -297,18 +296,19 @@ private:
   static JSBool
   UnwrapErrorEvent(JSContext* aCx, unsigned aArgc, jsval* aVp)
   {
+    JS_ASSERT(JSVAL_IS_OBJECT(JS_CALLEE(aCx, aVp)));
     JS_ASSERT(aArgc == 1);
-    JS_ASSERT((JS_ARGV(aCx, aVp)[0]).isObject());
+    JS_ASSERT(JSVAL_IS_OBJECT(JS_ARGV(aCx, aVp)[0]));
 
-    JSObject* wrapper = &JS_CALLEE(aCx, aVp).toObject();
+    JSObject* wrapper = JSVAL_TO_OBJECT(JS_CALLEE(aCx, aVp));
     JS_ASSERT(JS_ObjectIsFunction(aCx, wrapper));
 
     jsval scope = js::GetFunctionNativeReserved(wrapper, SLOT_wrappedScope);
     jsval listener = js::GetFunctionNativeReserved(wrapper, SLOT_wrappedFunction);
 
-    JS_ASSERT(scope.isObject());
+    JS_ASSERT(JSVAL_IS_OBJECT(scope));
 
-    JSObject* event = &JS_ARGV(aCx, aVp)[0].toObject();
+    JSObject* event = JSVAL_TO_OBJECT(JS_ARGV(aCx, aVp)[0]);
 
     jsval argv[3] = { JSVAL_VOID, JSVAL_VOID, JSVAL_VOID };
     if (!JS_GetProperty(aCx, event, "message", &argv[0]) ||
@@ -341,12 +341,12 @@ private:
       return false;
     }
 
-    ErrorResult rv;
+    nsresult rv = NS_OK;
 
     JSObject* adaptor =
       scope->GetEventListener(NS_ConvertASCIItoUTF16(name + 2), rv);
 
-    if (rv.Failed()) {
+    if (NS_FAILED(rv)) {
       JS_ReportError(aCx, "Failed to get event listener!");
       return false;
     }
@@ -394,11 +394,11 @@ private:
                                   OBJECT_TO_JSVAL(aObj));
     js::SetFunctionNativeReserved(listener, SLOT_wrappedFunction, *aVp);
 
-    ErrorResult rv;
+    nsresult rv = NS_OK;
 
     scope->SetEventListener(NS_ConvertASCIItoUTF16(name + 2), listener, rv);
 
-    if (rv.Failed()) {
+    if (NS_FAILED(rv)) {
       JS_ReportError(aCx, "Failed to set event listener!");
       return false;
     }
@@ -706,7 +706,7 @@ public:
   {
     JS_ASSERT(JS_GetClass(aObj) == Class());
 
-    dom::AllocateProtoOrIfaceCache(aObj);
+    mozilla::dom::bindings::AllocateProtoOrIfaceCache(aObj);
 
     nsRefPtr<DedicatedWorkerGlobalScope> scope =
       new DedicatedWorkerGlobalScope(aCx, aWorkerPrivate);
@@ -745,12 +745,12 @@ private:
       return false;
     }
 
-    ErrorResult rv;
+    nsresult rv = NS_OK;
 
     JSObject* listener =
       scope->GetEventListener(NS_ConvertASCIItoUTF16(name + 2), rv);
 
-    if (rv.Failed()) {
+    if (NS_FAILED(rv)) {
       JS_ReportError(aCx, "Failed to get event listener!");
       return false;
     }
@@ -777,12 +777,12 @@ private:
       return false;
     }
 
-    ErrorResult rv;
+    nsresult rv = NS_OK;
 
     scope->SetEventListener(NS_ConvertASCIItoUTF16(name + 2),
                             JSVAL_TO_OBJECT(*aVp), rv);
 
-    if (rv.Failed()) {
+    if (NS_FAILED(rv)) {
       JS_ReportError(aCx, "Failed to set event listener!");
       return false;
     }
@@ -826,14 +826,14 @@ private:
   }
 
   static void
-  Finalize(JSFreeOp* aFop, JSObject* aObj)
+  Finalize(JSContext* aCx, JSObject* aObj)
   {
     JS_ASSERT(JS_GetClass(aObj) == Class());
     DedicatedWorkerGlobalScope* scope =
       UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj, Class());
     if (scope) {
       DestroyProtoOrIfaceCache(aObj);
-      scope->_Finalize(aFop);
+      scope->_Finalize(aCx);
     }
   }
 
@@ -844,7 +844,6 @@ private:
     DedicatedWorkerGlobalScope* scope =
       UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj, Class());
     if (scope) {
-      mozilla::dom::TraceProtoOrIfaceCache(aTrc, aObj);
       scope->_Trace(aTrc);
     }
   }
@@ -930,7 +929,7 @@ BEGIN_WORKERS_NAMESPACE
 JSObject*
 CreateDedicatedWorkerGlobalScope(JSContext* aCx)
 {
-  using namespace mozilla::dom;
+  using namespace mozilla::dom::bindings::prototypes;
 
   WorkerPrivate* worker = GetWorkerPrivateFromContext(aCx);
   JS_ASSERT(worker);
@@ -958,8 +957,7 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
   //          -> EventTarget
   //          -> Object
 
-  JSObject* eventTargetProto =
-    EventTargetBinding_workers::GetProtoObject(aCx, global, global);
+  JSObject* eventTargetProto = EventTarget_workers::GetProtoObject(aCx, global);
   if (!eventTargetProto) {
     return NULL;
   }
@@ -988,8 +986,7 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
 
   if (worker->IsChromeWorker() &&
       (!chromeworker::InitClass(aCx, global, workerProto, false) ||
-       !DefineChromeWorkerFunctions(aCx, global)) ||
-       !DefineOSFileConstants(aCx, global)) {
+       !DefineChromeWorkerFunctions(aCx, global))) {
     return NULL;
   }
 
@@ -999,16 +996,13 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
       !filereadersync::InitClass(aCx, global) ||
       !exceptions::InitClasses(aCx, global) ||
       !location::InitClass(aCx, global) ||
-      !imagedata::InitClass(aCx, global) ||
       !navigator::InitClass(aCx, global)) {
     return NULL;
   }
 
   // Init other paris-bindings.
-  if (!XMLHttpRequestBinding_workers::CreateInterfaceObjects(aCx, global,
-                                                             global) ||
-      !XMLHttpRequestUploadBinding_workers::CreateInterfaceObjects(aCx, global,
-                                                                   global)) {
+  if (!XMLHttpRequest_workers::CreateInterfaceObjects(aCx, global) ||
+      !XMLHttpRequestUpload_workers::CreateInterfaceObjects(aCx, global)) {
     return NULL;
   }
 

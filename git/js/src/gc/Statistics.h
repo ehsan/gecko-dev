@@ -57,7 +57,6 @@ enum Phase {
     PHASE_PURGE,
     PHASE_MARK,
     PHASE_MARK_ROOTS,
-    PHASE_MARK_TYPES,
     PHASE_MARK_DELAYED,
     PHASE_MARK_OTHER,
     PHASE_FINALIZE_START,
@@ -95,7 +94,7 @@ struct Statistics {
     void beginPhase(Phase phase);
     void endPhase(Phase phase);
 
-    void beginSlice(int collectedCount, int compartmentCount, gcreason::Reason reason);
+    void beginSlice(bool full, gcreason::Reason reason);
     void endSlice();
 
     void reset(const char *reason) { slices.back().resetReason = reason; }
@@ -117,14 +116,7 @@ struct Statistics {
     FILE *fp;
     bool fullFormat;
 
-    /*
-     * GCs can't really nest, but a second GC can be triggered from within the
-     * JSGC_END callback.
-     */
-    int gcDepth;
-
-    int collectedCount;
-    int compartmentCount;
+    bool wasFullGC;
     const char *nonincrementalReason;
 
     struct SliceData {
@@ -132,14 +124,12 @@ struct Statistics {
           : reason(reason), resetReason(NULL), start(start)
         {
             PodArrayZero(phaseTimes);
-            PodArrayZero(phaseFaults);
         }
 
         gcreason::Reason reason;
         const char *resetReason;
         int64_t start, end;
         int64_t phaseTimes[PHASE_LIMIT];
-        size_t phaseFaults[PHASE_LIMIT];
 
         int64_t duration() const { return end - start; }
     };
@@ -147,12 +137,10 @@ struct Statistics {
     Vector<SliceData, 8, SystemAllocPolicy> slices;
 
     /* Most recent time when the given phase started. */
-    int64_t phaseStartTimes[PHASE_LIMIT];
-    size_t phaseStartFaults[PHASE_LIMIT];
+    int64_t phaseStarts[PHASE_LIMIT];
 
     /* Total time in a given phase for this GC. */
     int64_t phaseTimes[PHASE_LIMIT];
-    size_t phaseFaults[PHASE_LIMIT];
 
     /* Total time in a given phase over all GCs. */
     int64_t phaseTotals[PHASE_LIMIT];
@@ -174,13 +162,9 @@ struct Statistics {
 };
 
 struct AutoGCSlice {
-    AutoGCSlice(Statistics &stats, int collectedCount, int compartmentCount, gcreason::Reason reason
+    AutoGCSlice(Statistics &stats, bool full, gcreason::Reason reason
                 JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : stats(stats)
-    {
-        JS_GUARD_OBJECT_NOTIFIER_INIT;
-        stats.beginSlice(collectedCount, compartmentCount, reason);
-    }
+      : stats(stats) { JS_GUARD_OBJECT_NOTIFIER_INIT; stats.beginSlice(full, reason); }
     ~AutoGCSlice() { stats.endSlice(); }
 
     Statistics &stats;

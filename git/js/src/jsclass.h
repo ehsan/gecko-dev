@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=4 sw=4 et tw=79 ft=cpp:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -235,12 +235,20 @@ typedef JSBool
 typedef JSType
 (* TypeOfOp)(JSContext *cx, JSObject *obj);
 
+/*
+ * Prepare to make |obj| non-extensible; in particular, fully resolve its properties.
+ * On error, return false.
+ * If |obj| is now ready to become non-extensible, set |*fixed| to true and return true.
+ * If |obj| refuses to become non-extensible, set |*fixed| to false and return true; the
+ * caller will throw an appropriate error.
+ */
+typedef JSBool
+(* FixOp)(JSContext *cx, JSObject *obj, bool *fixed, AutoIdVector *props);
+
 typedef JSObject *
 (* ObjectOp)(JSContext *cx, JSObject *obj);
 typedef void
-(* FinalizeOp)(FreeOp *fop, JSObject *obj);
-typedef void
-(* ClearOp)(JSContext *cx, JSObject *obj);
+(* FinalizeOp)(JSContext *cx, JSObject *obj);
 
 #define JS_CLASS_MEMBERS                                                      \
     const char          *name;                                                \
@@ -254,13 +262,13 @@ typedef void
     JSEnumerateOp       enumerate;                                            \
     JSResolveOp         resolve;                                              \
     JSConvertOp         convert;                                              \
-    FinalizeOp          finalize;                                             \
+    JSFinalizeOp        finalize;                                             \
                                                                               \
     /* Optionally non-null members start here. */                             \
     JSCheckAccessOp     checkAccess;                                          \
     JSNative            call;                                                 \
-    JSHasInstanceOp     hasInstance;                                          \
     JSNative            construct;                                            \
+    JSHasInstanceOp     hasInstance;                                          \
     JSTraceOp           trace
 
 /*
@@ -322,14 +330,15 @@ struct ObjectOps
 
     JSNewEnumerateOp    enumerate;
     TypeOfOp            typeOf;
+    FixOp               fix;
     ObjectOp            thisObject;
-    ClearOp             clear;
+    FinalizeOp          clear;
 };
 
 #define JS_NULL_OBJECT_OPS                                                    \
     {NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,   \
      NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,        \
-     NULL,NULL,NULL,NULL,NULL}
+     NULL,NULL,NULL,NULL,NULL,NULL}
 
 struct Class
 {
@@ -412,25 +421,6 @@ inline bool
 IsObjectWithClass(const Value &v, ESClassValue classValue, JSContext *cx);
 
 }  /* namespace js */
-
-namespace JS {
-
-inline bool
-IsPoisonedSpecialId(js::SpecialId iden)
-{
-    if (iden.isObject())
-        return IsPoisonedPtr(iden.toObject());
-    return false;
-}
-
-template <> struct RootMethods<js::SpecialId>
-{
-    static js::SpecialId initial() { return js::SpecialId(); }
-    static ThingRootKind kind() { return THING_ROOT_ID; }
-    static bool poisoned(js::SpecialId id) { return IsPoisonedSpecialId(id); }
-};
-
-} /* namespace JS */
 
 #endif  /* __cplusplus */
 

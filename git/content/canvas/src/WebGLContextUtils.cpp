@@ -135,7 +135,7 @@ WebGLContext::GetImageSize(WebGLsizei height,
     return checked_neededByteLength;
 }
 
-void
+nsresult
 WebGLContext::SynthesizeGLError(WebGLenum err)
 {
     // If there is already a pending error, don't overwrite it;
@@ -149,9 +149,11 @@ WebGLContext::SynthesizeGLError(WebGLenum err)
 
     if (!mWebGLError)
         mWebGLError = err;
+
+    return NS_OK;
 }
 
-void
+nsresult
 WebGLContext::SynthesizeGLError(WebGLenum err, const char *fmt, ...)
 {
     va_list va;
@@ -162,7 +164,7 @@ WebGLContext::SynthesizeGLError(WebGLenum err, const char *fmt, ...)
     return SynthesizeGLError(err);
 }
 
-void
+nsresult
 WebGLContext::ErrorInvalidEnum(const char *fmt, ...)
 {
     va_list va;
@@ -173,7 +175,7 @@ WebGLContext::ErrorInvalidEnum(const char *fmt, ...)
     return SynthesizeGLError(LOCAL_GL_INVALID_ENUM);
 }
 
-void
+nsresult
 WebGLContext::ErrorInvalidOperation(const char *fmt, ...)
 {
     va_list va;
@@ -184,7 +186,7 @@ WebGLContext::ErrorInvalidOperation(const char *fmt, ...)
     return SynthesizeGLError(LOCAL_GL_INVALID_OPERATION);
 }
 
-void
+nsresult
 WebGLContext::ErrorInvalidValue(const char *fmt, ...)
 {
     va_list va;
@@ -195,7 +197,7 @@ WebGLContext::ErrorInvalidValue(const char *fmt, ...)
     return SynthesizeGLError(LOCAL_GL_INVALID_VALUE);
 }
 
-void
+nsresult
 WebGLContext::ErrorInvalidFramebufferOperation(const char *fmt, ...)
 {
     va_list va;
@@ -206,7 +208,7 @@ WebGLContext::ErrorInvalidFramebufferOperation(const char *fmt, ...)
     return SynthesizeGLError(LOCAL_GL_INVALID_FRAMEBUFFER_OPERATION);
 }
 
-void
+nsresult
 WebGLContext::ErrorOutOfMemory(const char *fmt, ...)
 {
     va_list va;

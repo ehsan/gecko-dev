@@ -7,9 +7,13 @@
  *   Mihai Șucan <mihai.sucan@gmail.com>
  */
 
-function consoleOpened(hud) {
-  hud.jsterm.clearOutput();
+function tabLoad(aEvent) {
+  browser.removeEventListener(aEvent.type, arguments.callee, true);
 
+  openConsole();
+
+  let hudId = HUDService.getHudIdByWindow(content);
+  let hud = HUDService.hudReferences[hudId];
   let outputNode = hud.outputNode;
   let boxObject = outputNode.scrollBoxObject.element;
 
@@ -17,37 +21,28 @@ function consoleOpened(hud) {
     hud.console.log("test message " + i);
   }
 
-  waitForSuccess({
-    name: "console.log messages displayed",
-    validatorFn: function()
-    {
-      return outputNode.itemCount == 150;
-    },
-    successFn: function()
-    {
-      let oldScrollTop = boxObject.scrollTop;
-      ok(oldScrollTop > 0, "scroll location is not at the top");
+  let oldScrollTop = boxObject.scrollTop;
+  ok(oldScrollTop > 0, "scroll location is not at the top");
 
-      hud.jsterm.execute("'hello world'");
+  hud.jsterm.execute("'hello world'");
 
-      isnot(boxObject.scrollTop, oldScrollTop, "scroll location updated");
+  isnot(boxObject.scrollTop, oldScrollTop, "scroll location updated");
 
-      oldScrollTop = boxObject.scrollTop;
-      outputNode.scrollBoxObject.ensureElementIsVisible(outputNode.lastChild);
+  oldScrollTop = boxObject.scrollTop;
+  outputNode.scrollBoxObject.ensureElementIsVisible(outputNode.lastChild);
 
-      is(boxObject.scrollTop, oldScrollTop, "scroll location is the same");
+  is(boxObject.scrollTop, oldScrollTop, "scroll location is the same");
 
-      finishTest();
-    },
-    failureFn: finishTest,
-  });
+  finishTest();
 }
 
+registerCleanupFunction(function() {
+  Services.prefs.clearUserPref("devtools.gcli.enable");
+});
+
 function test() {
+  Services.prefs.setBoolPref("devtools.gcli.enable", false);
   addTab("data:text/html;charset=utf-8,Web Console test for bug 614793: jsterm result scroll");
-  browser.addEventListener("load", function onLoad(aEvent) {
-    browser.removeEventListener(aEvent.type, onLoad, true);
-    openConsole(null, consoleOpened);
-  }, true);
+  browser.addEventListener("load", tabLoad, true);
 }
 

@@ -68,11 +68,13 @@
 #include "nsAutoPtr.h"
 #include "nsThreadUtils.h"
 
+#if defined(MOZ_PLATFORM_MAEMO) || defined(ANDROID) || defined(MOZ_EGL_XRENDER_COMPOSITE)
+#define USE_GLES2 1
+#endif
+
 typedef char realGLboolean;
 
 #include "GLContextSymbols.h"
-
-#include "mozilla/mozalloc.h"
 
 namespace mozilla {
   namespace layers {
@@ -125,12 +127,6 @@ public:
       Created, // Texture created, but has not had glTexImage called to initialize it.
       Allocated,  // Texture memory exists, but contents are invalid.
       Valid  // Texture fully ready to use.
-    };
-
-    enum Flags {
-        NoFlags          = 0x0,
-        UseNearestFilter = 0x1,
-        NeedsYFlip       = 0x2
     };
 
     typedef gfxASurface::gfxContentType ContentType;
@@ -324,24 +320,18 @@ protected:
      */
     TextureImage(const nsIntSize& aSize,
                  GLenum aWrapMode, ContentType aContentType,
-                 Flags aFlags = NoFlags)
+                 bool aIsRGB = false)
         : mSize(aSize)
         , mWrapMode(aWrapMode)
         , mContentType(aContentType)
         , mFilter(gfxPattern::FILTER_GOOD)
-        , mFlags(aFlags)
     {}
-
-    virtual nsIntRect GetSrcTileRect() {
-        return nsIntRect(nsIntPoint(0,0), mSize);
-    };
 
     nsIntSize mSize;
     GLenum mWrapMode;
     ContentType mContentType;
     ShaderProgramType mShaderType;
     gfxPattern::GraphicsFilter mFilter;
-    Flags mFlags;
 };
 
 /**
@@ -364,9 +354,8 @@ public:
                       const nsIntSize& aSize,
                       GLenum aWrapMode,
                       ContentType aContentType,
-                      GLContext* aContext,
-                      TextureImage::Flags aFlags = TextureImage::NoFlags)
-        : TextureImage(aSize, aWrapMode, aContentType, aFlags)
+                      GLContext* aContext)
+        : TextureImage(aSize, aWrapMode, aContentType)
         , mTexture(aTexture)
         , mTextureState(Created)
         , mGLContext(aContext)
@@ -421,7 +410,7 @@ class TiledTextureImage
 {
 public:
     TiledTextureImage(GLContext* aGL, nsIntSize aSize,
-        TextureImage::ContentType, TextureImage::Flags aFlags = TextureImage::NoFlags);
+        TextureImage::ContentType, bool aUseNearestFilter = false);
     ~TiledTextureImage();
     void DumpDiv();
     virtual gfxASurface* BeginUpdate(nsIntRegion& aRegion);
@@ -441,10 +430,7 @@ public:
     virtual bool InUpdate() const { return mInUpdate; };
     virtual void BindTexture(GLenum);
     virtual void ApplyFilter();
-
 protected:
-    virtual nsIntRect GetSrcTileRect();
-
     unsigned int mCurrentImage;
     TileIterationCallback mIterationCallback;
     void* mIterationCallbackData;
@@ -454,6 +440,7 @@ protected:
     unsigned int mTileSize;
     unsigned int mRows, mColumns;
     GLContext* mGL;
+    bool mUseNearestFilter;
     // A temporary surface to faciliate cross-tile updates.
     nsRefPtr<gfxASurface> mUpdateSurface;
     // The region of update requested
@@ -544,7 +531,11 @@ public:
         mOffscreenFBOsDirty(false),
         mInitialized(false),
         mIsOffscreen(aIsOffscreen),
+#ifdef USE_GLES2
+        mIsGLES2(true),
+#else
         mIsGLES2(false),
+#endif
         mIsGlobalSharedContext(false),
         mHasRobustness(false),
         mContextLost(false),
@@ -564,14 +555,12 @@ public:
         mMaxTextureSize(0),
         mMaxCubeMapTextureSize(0),
         mMaxTextureImageSize(0),
-        mMaxRenderbufferSize(0),
-        mWorkAroundDriverBugs(true)
+        mMaxRenderbufferSize(0)
 #ifdef DEBUG
         , mGLError(LOCAL_GL_NO_ERROR)
 #endif
     {
         mUserData.Init();
-        mOwningThread = NS_GetCurrentThread();
     }
 
     virtual ~GLContext() {
@@ -658,23 +647,6 @@ public:
     bool IsGlobalSharedContext() { return mIsGlobalSharedContext; }
     void SetIsGlobalSharedContext(bool aIsOne) { mIsGlobalSharedContext = aIsOne; }
 
-    /**
-     * Returns true if the thread on which this context was created is the currently
-     * executing thread.
-     */
-    bool IsOwningThreadCurrent() { return NS_GetCurrentThread() == mOwningThread; }
-
-    void DispatchToOwningThread(nsIRunnable *event) {
-        // Before dispatching, we need to ensure we're not in the middle of
-        // shutting down. Dispatching runnables in the middle of shutdown
-        // (that is, when the main thread is no longer get-able) can cause them
-        // to leak. See Bug 741319, and Bug 744115.
-        nsCOMPtr<nsIThread> mainThread;
-        if (NS_SUCCEEDED(NS_GetMainThread(getter_AddRefs(mainThread)))) {
-            mOwningThread->Dispatch(event, NS_DISPATCH_NORMAL);
-        }
-    }
-
     const ContextFormat& CreationFormat() { return mCreationFormat; }
     const ContextFormat& ActualFormat() { return mActualFormat; }
 
@@ -746,7 +718,6 @@ public:
     bool CanUploadSubTextures();
     bool CanUploadNonPowerOfTwo();
     bool WantsSmallTiles();
-    virtual bool HasLockSurface() { return false; }
 
     /**
      * If this context wraps a double-buffered target, swap the back
@@ -847,7 +818,7 @@ public:
      */
     virtual bool ResizeOffscreen(const gfxIntSize& aNewSize) {
         if (mOffscreenDrawFBO || mOffscreenReadFBO)
-            return ResizeOffscreenFBOs(aNewSize, mOffscreenReadFBO != 0);
+            return ResizeOffscreenFBO(aNewSize, mOffscreenReadFBO != 0);
         return false;
     }
 
@@ -1289,8 +1260,7 @@ public:
      * |aContentType|.  The TextureImage's texture is configured to
      * use |aWrapMode| (usually GL_CLAMP_TO_EDGE or GL_REPEAT) and by
      * default, GL_LINEAR filtering.  Specify
-     * |aFlags=UseNearestFilter| for GL_NEAREST filtering. Specify
-     * |aFlags=NeedsYFlip| if the image is flipped. Return
+     * |aUseNearestFilter=true| for GL_NEAREST filtering.  Return
      * NULL if creating the TextureImage fails.
      *
      * The returned TextureImage may only be used with this GLContext.
@@ -1302,7 +1272,7 @@ public:
     CreateTextureImage(const nsIntSize& aSize,
                        TextureImage::ContentType aContentType,
                        GLenum aWrapMode,
-                       TextureImage::Flags aFlags = TextureImage::NoFlags);
+                       bool aUseNearestFilter=false);
 
     /**
      * In EGL we want to use Tiled Texture Images, which we return
@@ -1314,7 +1284,7 @@ public:
     virtual already_AddRefed<TextureImage>
     TileGenFunc(const nsIntSize& aSize,
                 TextureImage::ContentType aContentType,
-                TextureImage::Flags aFlags = TextureImage::NoFlags)
+                bool aUseNearestFilter = false)
     {
         return nsnull;
     };
@@ -1398,10 +1368,6 @@ public:
      * \param aPixelBuffer Pass true to upload texture data with an
      *  offset from the base data (generally for pixel buffer objects), 
      *  otherwise textures are upload with an absolute pointer to the data.
-     * \param aTextureUnit, the texture unit used temporarily to upload the
-     *  surface. This testure may be overridden, clients should not rely on
-     *  the contents of this texture after this call or even on this
-     *  texture unit being active.
      * \return Shader program needed to render this texture.
      */
     ShaderProgramType UploadSurfaceToTexture(gfxASurface *aSurface, 
@@ -1409,8 +1375,7 @@ public:
                                              GLuint& aTexture,
                                              bool aOverwrite = false,
                                              const nsIntPoint& aSrcPoint = nsIntPoint(0, 0),
-                                             bool aPixelBuffer = false,
-                                             GLenum aTextureUnit = LOCAL_GL_TEXTURE0);
+                                             bool aPixelBuffer = false);
 
     
     void TexImage2D(GLenum target, GLint level, GLint internalformat, 
@@ -1528,7 +1493,6 @@ public:
         EXT_unpack_subimage,
         OES_standard_derivatives,
         EXT_texture_filter_anisotropic,
-        EXT_texture_compression_s3tc,
         EXT_framebuffer_blit,
         ANGLE_framebuffer_blit,
         EXT_framebuffer_multisample,
@@ -1536,7 +1500,6 @@ public:
         OES_rgb8_rgba8,
         ARB_robustness,
         EXT_robustness,
-        ARB_sync,
         Extensions_Max
     };
 
@@ -1544,13 +1507,12 @@ public:
         return mAvailableExtensions[aKnownExtension];
     }
 
-    void MarkExtensionUnsupported(GLExtensions aKnownExtension) {
-        mAvailableExtensions[aKnownExtension] = 0;
-    }
+    // for unknown extensions
+    bool IsExtensionSupported(const char *extension);
 
     // Shared code for GL extensions and GLX extensions.
     static bool ListHasExtension(const GLubyte *extensions,
-                                 const char *extension);
+                                   const char *extension);
 
     GLint GetMaxTextureSize() { return mMaxTextureSize; }
     GLint GetMaxTextureImageSize() { return mMaxTextureImageSize; }
@@ -1624,9 +1586,6 @@ protected:
     ContextFormat mCreationFormat;
     nsRefPtr<GLContext> mSharedContext;
 
-    // The thread on which this context was created.
-    nsCOMPtr<nsIThread> mOwningThread;
-
     GLContextSymbols mSymbols;
 
 #ifdef DEBUG
@@ -1654,62 +1613,30 @@ protected:
     // Helper to create/resize an offscreen FBO,
     // for offscreen implementations that use FBOs.
     // Note that it does -not- clear the resized buffers.
-    bool ResizeOffscreenFBOs(const ContextFormat& aCF, const gfxIntSize& aSize, const bool aNeedsReadBuffer);
-    bool ResizeOffscreenFBOs(const gfxIntSize& aSize, const bool aNeedsReadBuffer) {
-        if (!IsOffscreenSizeAllowed(aSize))
-            return false;
-
-        ContextFormat format(mCreationFormat);
-
-        if (format.samples) {
-            // AA path
-            if (ResizeOffscreenFBOs(format, aSize, aNeedsReadBuffer))
-                return true;
-
-            NS_WARNING("ResizeOffscreenFBOs failed to resize an AA context! Falling back to no AA...");
-            format.samples = 0;
-        }
-
-        if (ResizeOffscreenFBOs(format, aSize, aNeedsReadBuffer))
+    bool ResizeOffscreenFBO(const gfxIntSize& aSize, const bool aUseReadFBO, const bool aDisableAA);
+    bool ResizeOffscreenFBO(const gfxIntSize& aSize, const bool aUseReadFBO) {
+        if (ResizeOffscreenFBO(aSize, aUseReadFBO, false))
             return true;
 
-        NS_WARNING("ResizeOffscreenFBOs failed to resize non-AA context!");
+        if (!mCreationFormat.samples) {
+            NS_WARNING("ResizeOffscreenFBO failed to resize non-AA context!");
+            return false;
+        } else {
+            NS_WARNING("ResizeOffscreenFBO failed to resize AA context! Falling back to no AA...");
+        }
+
+        if (DebugMode()) {
+            printf_stderr("Requested level of multisampling is unavailable, continuing without multisampling\n");
+        }
+
+        if (ResizeOffscreenFBO(aSize, aUseReadFBO, true))
+            return true;
+
+        NS_WARNING("ResizeOffscreenFBO failed to resize AA context even without AA!");
         return false;
     }
 
-    struct GLFormats {
-        GLFormats()
-            : texColor(0)
-            , texColorType(0)
-            , rbColor(0)
-            , depthStencil(0)
-            , depth(0)
-            , stencil(0)
-            , samples(0)
-        {}
-
-        GLenum texColor;
-        GLenum texColorType;
-        GLenum rbColor;
-        GLenum depthStencil;
-        GLenum depth;
-        GLenum stencil;
-        GLsizei samples;
-    };
-
-    GLFormats ChooseGLFormats(ContextFormat& aCF);
-    void CreateTextureForOffscreen(const GLFormats& aFormats, const gfxIntSize& aSize,
-                                   GLuint& texture);
-    void CreateRenderbuffersForOffscreen(const GLContext::GLFormats& aFormats, const gfxIntSize& aSize,
-                                         GLuint& colorMSRB, GLuint& depthRB, GLuint& stencilRB);
-    bool AssembleOffscreenFBOs(const GLuint colorMSRB,
-                               const GLuint depthRB,
-                               const GLuint stencilRB,
-                               const GLuint texture,
-                               GLuint& drawFBO,
-                               GLuint& readFBO);
-
-    void DeleteOffscreenFBOs();
+    void DeleteOffscreenFBO();
 
     GLuint mOffscreenDrawFBO;
     GLuint mOffscreenReadFBO;
@@ -1724,8 +1651,6 @@ protected:
     // Useful for resizing offscreen buffers.
 public:
     void ClearSafely();
-
-    bool WorkAroundDriverBugs() const { return mWorkAroundDriverBugs; }
 
 protected:
 
@@ -1745,11 +1670,10 @@ protected:
                             const nsIntSize& aSize,
                             GLenum aWrapMode,
                             TextureImage::ContentType aContentType,
-                            GLContext* aContext,
-                            TextureImage::Flags aFlags = TextureImage::NoFlags)
+                            GLContext* aContext)
     {
         nsRefPtr<BasicTextureImage> teximage(
-            new BasicTextureImage(aTexture, aSize, aWrapMode, aContentType, aContext, aFlags));
+            new BasicTextureImage(aTexture, aSize, aWrapMode, aContentType, aContext));
         return teximage.forget();
     }
 
@@ -1759,6 +1683,7 @@ protected:
         return biggerDimension <= maxAllowed;
     }
 
+protected:
     nsTArray<nsIntRect> mViewportStack;
     nsTArray<nsIntRect> mScissorStack;
 
@@ -1766,12 +1691,10 @@ protected:
     GLint mMaxCubeMapTextureSize;
     GLint mMaxTextureImageSize;
     GLint mMaxRenderbufferSize;
-    bool mWorkAroundDriverBugs;
 
     bool IsTextureSizeSafeToPassToDriver(GLenum target, GLsizei width, GLsizei height) const {
 #ifdef XP_MACOSX
-        if (mWorkAroundDriverBugs &&
-            mVendor == VendorIntel) {
+        if (mVendor == VendorIntel) {
             // see bug 737182 for 2D textures, bug 684822 for cube map textures.
             // some drivers handle incorrectly some large texture sizes that are below the
             // max texture size that they report. So we check ourselves against our own values
@@ -2086,16 +2009,6 @@ public:
     void fBufferData(GLenum target, GLsizeiptr size, const GLvoid* data, GLenum usage) {
         BEFORE_GL_CALL;
         mSymbols.fBufferData(target, size, data, usage);
-
-        // bug 744888
-        if (WorkAroundDriverBugs() &&
-            !data &&
-            Vendor() == VendorNVIDIA)
-        {
-            char c = 0;
-            mSymbols.fBufferSubData(target, size-1, 1, &c);
-        }
-
         AFTER_GL_CALL;
     }
 
@@ -2126,18 +2039,6 @@ public:
     void fColorMask(realGLboolean red, realGLboolean green, realGLboolean blue, realGLboolean alpha) {
         BEFORE_GL_CALL;
         mSymbols.fColorMask(red, green, blue, alpha);
-        AFTER_GL_CALL;
-    }
-
-    void fCompressedTexImage2D(GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const GLvoid *pixels) {
-        BEFORE_GL_CALL;
-        mSymbols.fCompressedTexImage2D(target, level, internalformat, width, height, border, imageSize, pixels);
-        AFTER_GL_CALL;
-    }
-
-    void fCompressedTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const GLvoid *pixels) {
-        BEFORE_GL_CALL;
-        mSymbols.fCompressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, imageSize, pixels);
         AFTER_GL_CALL;
     }
 
@@ -2994,51 +2895,6 @@ public:
          GLenum ret = mHasRobustness ? mSymbols.fGetGraphicsResetStatus() : 0;
          AFTER_GL_CALL;
          return ret;
-     }
-
-     GLsync GLAPIENTRY fFenceSync(GLenum condition, GLbitfield flags) {
-         BEFORE_GL_CALL;
-         GLsync ret = mSymbols.fFenceSync(condition, flags);
-         AFTER_GL_CALL;
-         return ret;
-     }
-
-     realGLboolean GLAPIENTRY fIsSync(GLsync sync) {
-         BEFORE_GL_CALL;
-         realGLboolean ret = mSymbols.fIsSync(sync);
-         AFTER_GL_CALL;
-         return ret;
-     }
-
-     void GLAPIENTRY fDeleteSync(GLsync sync) {
-         BEFORE_GL_CALL;
-         mSymbols.fDeleteSync(sync);
-         AFTER_GL_CALL;
-     }
-
-     GLenum GLAPIENTRY fClientWaitSync(GLsync sync, GLbitfield flags, GLuint64 timeout) {
-         BEFORE_GL_CALL;
-         GLenum ret = mSymbols.fClientWaitSync(sync, flags, timeout);
-         AFTER_GL_CALL;
-         return ret;
-     }
-
-     void GLAPIENTRY fWaitSync(GLsync sync, GLbitfield flags, GLuint64 timeout) {
-         BEFORE_GL_CALL;
-         mSymbols.fWaitSync(sync, flags, timeout);
-         AFTER_GL_CALL;
-     }
-
-     void GLAPIENTRY fGetInteger64v(GLenum pname, GLint64 *params) {
-         BEFORE_GL_CALL;
-         mSymbols.fGetInteger64v(pname, params);
-         AFTER_GL_CALL;
-     }
-
-     void GLAPIENTRY fGetSynciv(GLsync sync, GLenum pname, GLsizei bufSize, GLsizei *length, GLint *values) {
-         BEFORE_GL_CALL;
-         mSymbols.fGetSynciv(sync, pname, bufSize, length, values);
-         AFTER_GL_CALL;
      }
 
 #ifdef DEBUG

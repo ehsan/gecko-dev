@@ -119,32 +119,33 @@ class ProfileEntry
 public:
   ProfileEntry()
     : mTagData(NULL)
+    , mLeafAddress(0)
     , mTagName(0)
   { }
 
   // aTagData must not need release (i.e. be a string from the text segment)
   ProfileEntry(char aTagName, const char *aTagData)
     : mTagData(aTagData)
+    , mLeafAddress(0)
     , mTagName(aTagName)
   { }
 
-  ProfileEntry(char aTagName, void *aTagPtr)
-    : mTagPtr(aTagPtr)
+  // aTagData must not need release (i.e. be a string from the text segment)
+  ProfileEntry(char aTagName, const char *aTagData, Address aLeafAddress)
+    : mTagData(aTagData)
+    , mLeafAddress(aLeafAddress)
     , mTagName(aTagName)
   { }
 
   ProfileEntry(char aTagName, double aTagFloat)
     : mTagFloat(aTagFloat)
+    , mLeafAddress(0)
     , mTagName(aTagName)
   { }
 
   ProfileEntry(char aTagName, uintptr_t aTagOffset)
     : mTagOffset(aTagOffset)
-    , mTagName(aTagName)
-  { }
-
-  ProfileEntry(char aTagName, Address aTagAddress)
-    : mTagAddress(aTagAddress)
+    , mLeafAddress(0)
     , mTagName(aTagName)
   { }
 
@@ -154,11 +155,11 @@ private:
   friend class ThreadProfile;
   union {
     const char* mTagData;
-    void* mTagPtr;
     double mTagFloat;
     Address mTagAddress;
     uintptr_t mTagOffset;
   };
+  Address mLeafAddress;
   char mTagName;
 };
 
@@ -290,10 +291,7 @@ public:
             if (sample) {
               JSObject *frame = b.CreateObject();
               char tagBuff[1024];
-              // Bug 753041
-              // We need a double cast here to tell GCC that we don't want to sign
-              // extend 32-bit addresses starting with 0xFXXXXXX.
-              unsigned long long pc = (unsigned long long)(uintptr_t)entry.mTagPtr;
+              unsigned long long pc = (unsigned long long)entry.mTagData;
               snprintf(tagBuff, 1024, "%#llx", pc);
               b.DefineProperty(frame, "location", tagBuff);
               b.ArrayPush(frames, frame);
@@ -381,8 +379,6 @@ private:
   bool mJankOnly;
 };
 
-std::string GetSharedLibraryInfoString();
-
 /**
  * This is an event used to save the profile on the main thread
  * to be sure that it is not being modified while saving.
@@ -418,7 +414,6 @@ public:
     stream.open(buff);
     if (stream.is_open()) {
       stream << *(t->GetPrimaryThreadProfile());
-      stream << "h-" << GetSharedLibraryInfoString() << std::endl;
       stream.close();
       LOG("Saved to " FOLDER "profile_TYPE_PID.txt");
     } else {
@@ -468,11 +463,11 @@ void TableTicker::doBacktrace(ThreadProfile &aProfile, TickSample* aSample)
   void *array[100];
   int count = backtrace (array, 100);
 
-  aProfile.addTag(ProfileEntry('s', "(root)"));
+  aProfile.addTag(ProfileEntry('s', "(root)", 0));
 
   for (int i = 0; i < count; i++) {
     if( (intptr_t)array[i] == -1 ) break;
-    aProfile.addTag(ProfileEntry('l', (void*)array[i]));
+    aProfile.addTag(ProfileEntry('l', (const char*)array[i]));
   }
 }
 #endif
@@ -522,10 +517,10 @@ void TableTicker::doBacktrace(ThreadProfile &aProfile, TickSample* aSample)
   nsresult rv = NS_StackWalk(StackWalkCallback, 0, &array, thread);
 #endif
   if (NS_SUCCEEDED(rv)) {
-    aProfile.addTag(ProfileEntry('s', "(root)"));
+    aProfile.addTag(ProfileEntry('s', "(root)", 0));
 
     for (size_t i = array.count; i > 0; --i) {
-      aProfile.addTag(ProfileEntry('l', (void*)array.array[i - 1]));
+      aProfile.addTag(ProfileEntry('l', (const char*)array.array[i - 1]));
     }
   }
 }
@@ -572,9 +567,9 @@ void TableTicker::doBacktrace(ThreadProfile &aProfile, TickSample* aSample)
     pc_array[count++] = reinterpret_cast<void*> (ip);
   }
 
-  aProfile.addTag(ProfileEntry('s', "(root)"));
+  aProfile.addTag(ProfileEntry('s', "(root)", 0));
   for (size_t i = count; i > 0; --i) {
-    aProfile.addTag(ProfileEntry('l', reinterpret_cast<void*>(pc_array[i - 1])));
+    aProfile.addTag(ProfileEntry('l', reinterpret_cast<const char*>(pc_array[i - 1])));
   }
 }
 #endif
@@ -585,18 +580,17 @@ void doSampleStackTrace(ProfileStack *aStack, ThreadProfile &aProfile, TickSampl
   // Sample
   // 's' tag denotes the start of a sample block
   // followed by 0 or more 'c' tags.
-  for (mozilla::sig_safe_t i = 0; i < aStack->mStackPointer; i++) {
+  for (int i = 0; i < aStack->mStackPointer; i++) {
     if (i == 0) {
-      aProfile.addTag(ProfileEntry('s', aStack->mStack[i]));
+      Address pc = 0;
+      if (sample) {
+        pc = sample->pc;
+      }
+      aProfile.addTag(ProfileEntry('s', aStack->mStack[i], pc));
     } else {
       aProfile.addTag(ProfileEntry('c', aStack->mStack[i]));
     }
   }
-#ifdef ENABLE_SPS_LEAF_DATA
-  if (sample) {
-    aProfile.addTag(ProfileEntry('l', (void*)sample->pc));
-  }
-#endif
 }
 
 /* used to keep track of the last event that we sampled during */
@@ -679,12 +673,18 @@ std::ostream& operator<<(std::ostream& stream, const ProfileEntry& entry)
     // Bug 739800 - Force l-tag addresses to have a "0x" prefix on all platforms
     // Additionally, stringstream seemed to be ignoring formatter flags.
     char tagBuff[1024];
-    unsigned long long pc = (unsigned long long)(uintptr_t)entry.mTagPtr;
+    unsigned long long pc = (unsigned long long)entry.mTagData;
     snprintf(tagBuff, 1024, "l-%#llx\n", pc);
     stream << tagBuff;
   } else {
     stream << entry.mTagName << "-" << entry.mTagData << "\n";
   }
+
+#ifdef ENABLE_SPS_LEAF_DATA
+  if (entry.mLeafAddress) {
+    stream << entry.mTagName << "-" << entry.mLeafAddress << "\n";
+  }
+#endif
   return stream;
 }
 

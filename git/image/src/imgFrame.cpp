@@ -466,8 +466,7 @@ imgFrame::SurfaceForDrawing(bool               aDoPadding,
 
 void imgFrame::Draw(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter,
                     const gfxMatrix &aUserSpaceToImageSpace, const gfxRect& aFill,
-                    const nsIntMargin &aPadding, const nsIntRect &aSubimage,
-                    PRUint32 aImageFlags)
+                    const nsIntMargin &aPadding, const nsIntRect &aSubimage)
 {
   SAMPLE_LABEL("image", "imgFrame::Draw");
   NS_ASSERTION(!aFill.IsEmpty(), "zero dest size --- fix caller");
@@ -492,8 +491,7 @@ void imgFrame::Draw(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter,
   NS_ASSERTION(!sourceRect.Intersect(subimage).IsEmpty(),
                "We must be allowed to sample *some* source pixels!");
 
-  bool doTile = !imageRect.Contains(sourceRect) &&
-                !(aImageFlags & imgIContainer::FLAG_CLAMP);
+  bool doTile = !imageRect.Contains(sourceRect);
   SurfaceWithFormat surfaceResult =
     SurfaceForDrawing(doPadding, doPartialDecode, doTile, aPadding,
                       userSpaceToImageSpace, fill, subimage, sourceRect,
@@ -503,7 +501,7 @@ void imgFrame::Draw(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter,
     gfxUtils::DrawPixelSnapped(aContext, surfaceResult.mDrawable,
                                userSpaceToImageSpace,
                                subimage, sourceRect, imageRect, fill,
-                               surfaceResult.mFormat, aFilter, aImageFlags);
+                               surfaceResult.mFormat, aFilter);
   }
 }
 

@@ -81,7 +81,7 @@
 //
 //-------------------------------------------------------------------------
 nsDragService::nsDragService()
-  : mNativeDragTarget(nsnull), mDataObject(nsnull), mSentLocalDropEvent(false)
+  : mNativeDragSrc(nsnull), mNativeDragTarget(nsnull), mDataObject(nsnull), mSentLocalDropEvent(false)
 {
 }
 
@@ -92,6 +92,7 @@ nsDragService::nsDragService()
 //-------------------------------------------------------------------------
 nsDragService::~nsDragService()
 {
+  NS_IF_RELEASE(mNativeDragSrc);
   NS_IF_RELEASE(mNativeDragTarget);
   NS_IF_RELEASE(mDataObject);
 }
@@ -273,8 +274,13 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
 {
   // To do the drag we need to create an object that
   // implements the IDataObject interface (for OLE)
-  nsRefPtr<nsNativeDragSource> nativeDragSrc =
-    new nsNativeDragSource(mDataTransfer);
+  nsNativeDragSource* nativeDragSource = new nsNativeDragSource(mDataTransfer);
+  if (!nativeDragSource)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  NS_IF_RELEASE(mNativeDragSrc);
+  mNativeDragSrc = (IDropSource *)nativeDragSource;
+  mNativeDragSrc->AddRef();
 
   // Now figure out what the native drag effect should be
   DWORD winDropRes;
@@ -308,7 +314,7 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
   }
 
   // Call the native D&D method
-  HRESULT res = ::DoDragDrop(aDataObj, nativeDragSrc, effects, &winDropRes);
+  HRESULT res = ::DoDragDrop(aDataObj, mNativeDragSrc, effects, &winDropRes);
 
   // In  cases where the drop operation completed outside the application, update
   // the source node's nsIDOMDataTransfer dropEffect value so it is up to date.  
@@ -332,7 +338,7 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
     }
   }
 
-  mUserCancelled = nativeDragSrc->UserCancelled();
+  mUserCancelled = nativeDragSource->UserCancelled();
 
   // We're done dragging, get the cursor position and end the drag
   // Use GetMessagePos to get the position of the mouse at the last message

@@ -4,7 +4,7 @@
 let tmp = {};
 Cu.import("resource:///modules/PageThumbs.jsm", tmp);
 let PageThumbs = tmp.PageThumbs;
-let PageThumbsStorage = tmp.PageThumbsStorage;
+let PageThumbsCache = tmp.PageThumbsCache;
 
 registerCleanupFunction(function () {
   while (gBrowser.tabs.length > 1)
@@ -29,12 +29,9 @@ let TestRunner = {
    */
   run: function () {
     waitForExplicitFinish();
-    this._iter = runTests();
 
-    if (this._iter)
-      this.next();
-    else
-      finish();
+    this._iter = runTests();
+    this.next();
   },
 
   /**

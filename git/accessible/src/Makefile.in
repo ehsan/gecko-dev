@@ -61,9 +61,7 @@ DIRS += $(PLATFORM_DIR)
 
 DIRS += \
   base \
-  generic \
   html \
-  jsat \
   xpcom \
   xforms \
   $(null)

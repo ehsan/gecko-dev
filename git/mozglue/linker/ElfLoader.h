@@ -10,7 +10,6 @@
 #include <signal.h>
 #include "mozilla/RefPtr.h"
 #include "Zip.h"
-#include "Elfxx.h"
 
 /**
  * dlfcn.h replacement functions
@@ -34,16 +33,6 @@ extern "C" {
   sighandler_t __wrap_signal(int signum, sighandler_t handler);
   int __wrap_sigaction(int signum, const struct sigaction *act,
                        struct sigaction *oldact);
-
-  struct dl_phdr_info {
-    Elf::Addr dlpi_addr;
-    const char *dlpi_name;
-    const Elf::Phdr *dlpi_phdr;
-    Elf::Half dlpi_phnum;
-  };
-
-  typedef int (*dl_phdr_cb)(struct dl_phdr_info *, size_t, void *);
-  int __wrap_dl_iterate_phdr(dl_phdr_cb callback, void *data);
 }
 
 /**
@@ -367,8 +356,6 @@ private:
   /* Keep track of Zips used for library loading */
   ZipCollection zips;
 
-  /* Forward declaration, see further below */
-  class r_debug;
 public:
   /* Loaded object descriptor for the debugger interface below*/
   struct link_map {
@@ -378,9 +365,6 @@ public:
     const char *l_name;
     /* Address of the PT_DYNAMIC segment. */
     const void *l_ld;
-
-  private:
-    friend class ElfLoader::r_debug;
     /* Double linked list of loaded objects. */
     link_map *l_next, *l_prev;
   };
@@ -396,45 +380,6 @@ private:
 
     /* Make the debugger aware of the unloading of an object */
     void Remove(link_map *map);
-
-    /* Iterates over all link_maps */
-    class iterator
-    {
-    public:
-      const link_map *operator ->() const
-      {
-        return item;
-      }
-
-      const link_map &operator ++()
-      {
-        item = item->l_next;
-        return *item;
-      }
-
-      bool operator<(const iterator &other) const
-      {
-        if (other.item == NULL)
-          return item ? true : false;
-        MOZ_NOT_REACHED("r_debug::iterator::operator< called with something else than r_debug::end()");
-      }
-    protected:
-      friend class r_debug;
-      iterator(const link_map *item): item(item) { }
-
-    private:
-      const link_map *item;
-    };
-
-    iterator begin() const
-    {
-      return iterator(r_map);
-    }
-
-    iterator end() const
-    {
-      return iterator(NULL);
-    }
 
   private:
     /* Version number of the protocol. */
@@ -456,7 +401,6 @@ private:
       RT_DELETE      /* Beginning to remove an object */
     } r_state;
   };
-  friend int __wrap_dl_iterate_phdr(dl_phdr_cb callback, void *data);
   r_debug *dbg;
 
   /**

@@ -405,7 +405,6 @@ nsDiskCacheDevice::nsDiskCacheDevice()
     : mCacheCapacity(0)
     , mMaxEntrySize(-1) // -1 means "no limit"
     , mInitialized(false)
-    , mClearingDiskCache(false)
 {
 }
 
@@ -513,7 +512,6 @@ nsDiskCacheDevice::FindEntry(nsCString * key, bool *collision)
 {
     Telemetry::AutoTimer<Telemetry::CACHE_DISK_SEARCH> timer;
     if (!Initialized())  return nsnull;  // NS_ERROR_NOT_INITIALIZED
-    if (mClearingDiskCache)  return nsnull;
     nsDiskCacheRecord       record;
     nsDiskCacheBinding *    binding = nsnull;
     PLDHashNumber           hashNumber = nsDiskCache::Hash(key->get());
@@ -642,7 +640,6 @@ nsresult
 nsDiskCacheDevice::BindEntry(nsCacheEntry * entry)
 {
     if (!Initialized())  return  NS_ERROR_NOT_INITIALIZED;
-    if (mClearingDiskCache)  return NS_ERROR_NOT_AVAILABLE;
     nsresult rv = NS_OK;
     nsDiskCacheRecord record, oldRecord;
     nsDiskCacheBinding *binding;
@@ -1023,20 +1020,15 @@ nsDiskCacheDevice::OpenDiskCache()
         // Try opening cache map file.
         rv = mCacheMap.Open(mCacheDirectory);        
         // move "corrupt" caches to trash
-        if (NS_SUCCEEDED(rv)) {
-            Telemetry::Accumulate(Telemetry::DISK_CACHE_CORRUPT, 0);
-        } else if (rv == NS_ERROR_FILE_CORRUPTED) {
-            Telemetry::Accumulate(Telemetry::DISK_CACHE_CORRUPT, 1);
+        if (rv == NS_ERROR_FILE_CORRUPTED) {
             // delay delete by 1 minute to avoid IO thrash at startup
             rv = nsDeleteDir::DeleteDir(mCacheDirectory, true, 60000);
             if (NS_FAILED(rv))
                 return rv;
             exists = false;
-        } else {
-            // don't gather telemetry for "corrupt cache" for new profile
-            // where cache doesn't exist (most likely case if we're here).
-            return rv;
         }
+        else if (NS_FAILED(rv))
+            return rv;
     }
 
     // if we don't have a cache directory, create one and open it
@@ -1063,13 +1055,9 @@ nsDiskCacheDevice::ClearDiskCache()
     if (mBindery.ActiveBindings())
         return NS_ERROR_CACHE_IN_USE;
 
-    mClearingDiskCache = true;
-
     nsresult rv = Shutdown_Private(false);  // false: don't bother flushing
     if (NS_FAILED(rv))
         return rv;
-
-    mClearingDiskCache = false;
 
     // If the disk cache directory is already gone, then it's not an error if
     // we fail to delete it ;-)

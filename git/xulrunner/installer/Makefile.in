@@ -50,21 +50,11 @@ NO_PKG_FILES = \
 	regxpcom* \
 	$(NULL)
 
-# We want xpcshell and run-mozilla in the SDK but not in the binary package.
-ifndef STAGE_SDK
-NO_PKG_FILES += \
-	xpcshell* \
-	run-mozilla* \
-	$(NULL)
-endif
-
 # If we're on mac, we don't want an end-user-facing DMG, we want a .tar.bz2
 # which developers then use to package their application.
 
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 MOZ_PKG_FORMAT = BZ2
-_APPNAME = XUL.framework
-_BINPATH = /$(_APPNAME)/Versions/Current
 endif
 
 include $(topsrcdir)/config/rules.mk

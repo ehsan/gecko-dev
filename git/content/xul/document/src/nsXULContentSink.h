@@ -117,6 +117,10 @@ protected:
 
     static bool IsDataInBuffer(PRUnichar* aBuffer, PRInt32 aLength);
 
+    nsresult SetElementScriptType(nsXULPrototypeElement* element,
+                                  const PRUnichar** aAttributes,
+                                  const PRUint32 aAttrLen);
+
     // Text management
     nsresult FlushText(bool aCreateTextNode = true);
     nsresult AddText(const PRUnichar* aText, PRInt32 aLength);
@@ -162,6 +166,7 @@ protected:
 
         nsresult GetTopNode(nsRefPtr<nsXULPrototypeNode>& aNode);
         nsresult GetTopChildren(nsPrototypeArray** aChildren);
+        nsresult GetTopNodeScriptType(PRUint32 *aScriptType);
 
         void Clear();
     };

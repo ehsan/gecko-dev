@@ -139,21 +139,9 @@ CurrentScriptFileLineOrigin(JSContext *cx, const char **file, unsigned *linenop,
 }
 
 inline void
-ScriptCounts::destroy(FreeOp *fop)
+ScriptCounts::destroy(JSContext *cx)
 {
-    fop->free_(pcCountsVector);
-}
-
-inline void
-MarkScriptFilename(JSRuntime *rt, const char *filename)
-{
-    /*
-     * As an invariant, a ScriptFilenameEntry should not be 'marked' outside of
-     * a GC. Since SweepScriptFilenames is only called during a full gc,
-     * to preserve this invariant, only mark during a full gc.
-     */
-    if (rt->gcIsFull)
-        ScriptFilenameEntry::fromFilename(filename)->marked = true;
+    cx->free_(pcCountsVector);
 }
 
 } // namespace js
@@ -182,7 +170,7 @@ JSScript::getCallerFunction()
 inline JSObject *
 JSScript::getRegExp(size_t index)
 {
-    js::ObjectArray *arr = regexps();
+    JSObjectArray *arr = regexps();
     JS_ASSERT(uint32_t(index) < arr->length);
     JSObject *obj = arr->vector[index];
     JS_ASSERT(obj->isRegExp());

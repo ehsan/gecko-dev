@@ -288,12 +288,15 @@ my_ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
     int i, j, k, n;
     char *prefix = NULL, *tmp;
     const char *ctmp;
+    JSStackFrame * fp = nsnull;
     nsCOMPtr<nsIXPConnect> xpc;
 
     // Don't report an exception from inner JS frames as the callers may intend
     // to handle it.
-    if (JS_DescribeScriptedCaller(cx, nsnull, nsnull)) {
-        return;
+    while ((fp = JS_FrameIterator(cx, &fp))) {
+        if (JS_IsScriptFrame(cx, fp)) {
+            return;
+        }
     }
 
     // In some cases cx->fp is null here so use XPConnect to tell us about inner
@@ -549,10 +552,9 @@ DumpXPC(JSContext *cx, unsigned argc, jsval *vp)
 static JSBool
 GC(JSContext *cx, unsigned argc, jsval *vp)
 {
-    JSRuntime *rt = JS_GetRuntime(cx);
-    JS_GC(rt);
+    JS_GC(cx);
 #ifdef JS_GCMETER
-    js_DumpGCStats(rt, stdout);
+    js_DumpGCStats(JS_GetRuntime(cx), stdout);
 #endif
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return true;
@@ -566,7 +568,7 @@ GCZeal(JSContext *cx, unsigned argc, jsval *vp)
     if (!JS_ValueToECMAUint32(cx, argc ? JS_ARGV(cx, vp)[0] : JSVAL_VOID, &zeal))
         return false;
 
-    JS_SetGCZeal(cx, uint8_t(zeal), JS_DEFAULT_ZEAL_FREQ);
+    JS_SetGCZeal(cx, uint8_t(zeal), JS_DEFAULT_ZEAL_FREQ, false);
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return true;
 }
@@ -661,6 +663,19 @@ DumpHeap(JSContext *cx, unsigned argc, jsval *vp)
 #endif /* DEBUG */
 
 static JSBool
+Clear(JSContext *cx, unsigned argc, jsval *vp)
+{
+    if (argc > 0 && !JSVAL_IS_PRIMITIVE(JS_ARGV(cx, vp)[0])) {
+        JS_ClearScope(cx, JSVAL_TO_OBJECT(JS_ARGV(cx, vp)[0]));
+    } else {
+        JS_ReportError(cx, "'clear' requires an object");
+        return false;
+    }
+    JS_SET_RVAL(cx, vp, JSVAL_VOID);
+    return true;
+}
+
+static JSBool
 SendCommand(JSContext* cx,
             unsigned argc,
             jsval* vp)
@@ -717,7 +732,6 @@ static const struct JSOption {
     {"strict",          JSOPTION_STRICT},
     {"werror",          JSOPTION_WERROR},
     {"xml",             JSOPTION_XML},
-    {"strict_mode",     JSOPTION_STRICT_MODE},
 };
 
 static uint32_t
@@ -831,6 +845,7 @@ static JSFunctionSpec glob_functions[] = {
 #ifdef JS_GC_ZEAL
     {"gczeal",          GCZeal,         1,0},
 #endif
+    {"clear",           Clear,          1,0},
     {"options",         Options,        0,0},
     JS_FN("parent",     Parent,         1,0),
 #ifdef DEBUG
@@ -1494,6 +1509,29 @@ FullTrustSecMan::EnableCapability(const char *capability)
     return NS_OK;;
 }
 
+/* void revertCapability (in string capability); */
+NS_IMETHODIMP
+FullTrustSecMan::RevertCapability(const char *capability)
+{
+    return NS_OK;
+}
+
+/* void disableCapability (in string capability); */
+NS_IMETHODIMP
+FullTrustSecMan::DisableCapability(const char *capability)
+{
+    return NS_OK;
+}
+
+/* void setCanEnableCapability (in AUTF8String certificateFingerprint, in string capability, in short canEnable); */
+NS_IMETHODIMP
+FullTrustSecMan::SetCanEnableCapability(const nsACString & certificateFingerprint,
+                                        const char *capability,
+                                        PRInt16 canEnable)
+{
+    return NS_OK;
+}
+
 /* [noscript] nsIPrincipal getObjectPrincipal (in JSContextPtr cx, in JSObjectPtr obj); */
 NS_IMETHODIMP
 FullTrustSecMan::GetObjectPrincipal(JSContext * cx, JSObject * obj,
@@ -1975,12 +2013,12 @@ main(int argc, char **argv, char **envp)
 #endif
             JS_DropPrincipals(rt, gJSPrincipals);
             JS_ClearScope(cx, glob);
-            JS_GC(rt);
+            JS_GC(cx);
             JSContext *oldcx;
             cxstack->Pop(&oldcx);
             NS_ASSERTION(oldcx == cx, "JS thread context push/pop mismatch");
             cxstack = nsnull;
-            JS_GC(rt);
+            JS_GC(cx);
         } //this scopes the JSAutoCrossCompartmentCall
         JS_EndRequest(cx);
         JS_DestroyContext(cx);

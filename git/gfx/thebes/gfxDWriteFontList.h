@@ -232,21 +232,21 @@ public:
 
     // IDWriteTextRenderer methods
     IFACEMETHOD(DrawGlyphRun)(
-        void* clientDrawingContext,
+        __maybenull void* clientDrawingContext,
         FLOAT baselineOriginX,
         FLOAT baselineOriginY,
         DWRITE_MEASURING_MODE measuringMode,
-        DWRITE_GLYPH_RUN const* glyphRun,
-        DWRITE_GLYPH_RUN_DESCRIPTION const* glyphRunDescription,
-        IUnknown* clientDrawingEffect
+        __in DWRITE_GLYPH_RUN const* glyphRun,
+        __in DWRITE_GLYPH_RUN_DESCRIPTION const* glyphRunDescription,
+        __maybenull IUnknown* clientDrawingEffect
         );
 
     IFACEMETHOD(DrawUnderline)(
-        void* clientDrawingContext,
+        __maybenull void* clientDrawingContext,
         FLOAT baselineOriginX,
         FLOAT baselineOriginY,
-        DWRITE_UNDERLINE const* underline,
-        IUnknown* clientDrawingEffect
+        __in DWRITE_UNDERLINE const* underline,
+        __maybenull IUnknown* clientDrawingEffect
         )
     {
         return E_NOTIMPL;
@@ -254,11 +254,11 @@ public:
 
 
     IFACEMETHOD(DrawStrikethrough)(
-        void* clientDrawingContext,
+        __maybenull void* clientDrawingContext,
         FLOAT baselineOriginX,
         FLOAT baselineOriginY,
-        DWRITE_STRIKETHROUGH const* strikethrough,
-        IUnknown* clientDrawingEffect
+        __in DWRITE_STRIKETHROUGH const* strikethrough,
+        __maybenull IUnknown* clientDrawingEffect
         )
     {
         return E_NOTIMPL;
@@ -266,13 +266,13 @@ public:
 
 
     IFACEMETHOD(DrawInlineObject)(
-        void* clientDrawingContext,
+        __maybenull void* clientDrawingContext,
         FLOAT originX,
         FLOAT originY,
         IDWriteInlineObject* inlineObject,
         BOOL isSideways,
         BOOL isRightToLeft,
-        IUnknown* clientDrawingEffect
+        __maybenull IUnknown* clientDrawingEffect
         )
     {
         return E_NOTIMPL;
@@ -281,8 +281,8 @@ public:
     // IDWritePixelSnapping methods
 
     IFACEMETHOD(IsPixelSnappingDisabled)(
-        void* clientDrawingContext,
-        BOOL* isDisabled
+        __maybenull void* clientDrawingContext,
+        __out BOOL* isDisabled
         )
     {
         *isDisabled = FALSE;
@@ -290,8 +290,8 @@ public:
     }
 
     IFACEMETHOD(GetCurrentTransform)(
-        void* clientDrawingContext,
-        DWRITE_MATRIX* transform
+        __maybenull void* clientDrawingContext,
+        __out DWRITE_MATRIX* transform
         )
     {
         const DWRITE_MATRIX ident = {1.0, 0.0, 0.0, 1.0, 0.0, 0.0};
@@ -300,8 +300,8 @@ public:
     }
 
     IFACEMETHOD(GetPixelsPerDip)(
-        void* clientDrawingContext,
-        FLOAT* pixelsPerDip
+        __maybenull void* clientDrawingContext,
+        __out FLOAT* pixelsPerDip
         )
     {
         *pixelsPerDip = 1.0f;
@@ -347,7 +347,7 @@ public:
     const nsString& FallbackFamilyName() { return mFamilyName; }
 
 protected:
-    long mRefCount;
+    unsigned long mRefCount;
     nsRefPtr<IDWriteFontCollection> mSystemFonts;
     nsString mFamilyName;
 };

@@ -84,7 +84,6 @@
 #include "mozilla/FunctionTimer.h"
 #include "mozilla/Util.h" // for DebugOnly
 
-using namespace mozilla;
 using namespace mozilla::net;
 
 /******************************************************************************
@@ -3542,7 +3541,7 @@ nsCookieService::FindStaleCookie(nsCookieEntry *aEntry,
 {
   aIter.entry = NULL;
 
-  PRInt64 oldestTime = 0;
+  PRInt64 oldestTime;
   const nsCookieEntry::ArrayType &cookies = aEntry->GetCookies();
   for (nsCookieEntry::IndexType i = 0; i < cookies.Length(); ++i) {
     nsCookie *cookie = cookies[i];
@@ -3673,9 +3672,8 @@ nsCookieService::RemoveCookieFromList(const nsListIter              &aIter,
     nsCOMPtr<mozIStorageBindingParams> params;
     paramsArray->NewBindingParams(getter_AddRefs(params));
 
-    DebugOnly<nsresult> rv =
-      params->BindUTF8StringByName(NS_LITERAL_CSTRING("name"),
-                                   aIter.Cookie()->Name());
+    nsresult rv = params->BindUTF8StringByName(NS_LITERAL_CSTRING("name"),
+                                               aIter.Cookie()->Name());
     NS_ASSERT_SUCCESS(rv);
 
     rv = params->BindUTF8StringByName(NS_LITERAL_CSTRING("host"),
@@ -3720,12 +3718,12 @@ bindCookieParameters(mozIStorageBindingParamsArray *aParamsArray,
 {
   NS_ASSERTION(aParamsArray, "Null params array passed to bindCookieParameters!");
   NS_ASSERTION(aCookie, "Null cookie passed to bindCookieParameters!");
+  nsresult rv;
 
   // Use the asynchronous binding methods to ensure that we do not acquire the
   // database lock.
   nsCOMPtr<mozIStorageBindingParams> params;
-  DebugOnly<nsresult> rv =
-    aParamsArray->NewBindingParams(getter_AddRefs(params));
+  rv = aParamsArray->NewBindingParams(getter_AddRefs(params));
   NS_ASSERT_SUCCESS(rv);
 
   // Bind our values to params

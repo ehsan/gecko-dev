@@ -45,7 +45,6 @@ VPATH           = \
 
 include $(DEPTH)/config/autoconf.mk
 
-EXPORTS         = OrientationObserver.h
 MODULE          = widget
 LIBRARY_NAME    = widget_gonk
 EXPORT_LIBRARY  = 1
@@ -62,7 +61,6 @@ CPPSRCS	= \
 	nsWindow.cpp \
 	nsLookAndFeel.cpp \
 	nsIdleServiceGonk.cpp \
-	OrientationObserver.cpp \
 	EventHub.cpp \
 	Input.cpp \
 	InputApplication.cpp \
@@ -76,8 +74,6 @@ CPPSRCS	= \
 	KeyLayoutMap.cpp \
 	PixelFormat.cpp \
 	VirtualKeyMap.cpp \
-	PointerController.cpp \
-	SpriteController.cpp \
 	PropertyMap.cpp \
 	Unicode.cpp \
 	Timers.cpp \

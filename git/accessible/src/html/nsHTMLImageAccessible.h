@@ -42,8 +42,6 @@
 #include "nsBaseWidgetAccessible.h"
 #include "nsIAccessibleImage.h"
 
-class nsGenericHTMLElement;
-
 /* Accessible for supporting images
  * supports:
  * - gets name, role
@@ -76,37 +74,26 @@ public:
 
 private:
   /**
-   * Return whether the element has a longdesc URI.
+   * Determine if this image accessible has a longdesc attribute.
+   *
+   * @returns  true if the longdesc attribute is present.
    */
-  bool HasLongDesc() const
-  {
-    nsCOMPtr<nsIURI> uri = GetLongDescURI();
-    return uri;
-  }
-
-  /**
-   * Return an URI for showlongdesc action if any.
-   */
-  already_AddRefed<nsIURI> GetLongDescURI() const;
-
+  bool HasLongDesc();
+  
   /**
    * Used by GetActionName and DoAction to ensure the index for opening the
    * longdesc URL is valid.
    * It is always assumed that the highest possible index opens the longdesc.
-   * This doesn't check that there is actually a longdesc, just that the index
-   * would be correct if there was one.
    *
    * @param aIndex  The 0-based index to be tested.
    *
    * @returns  true if index is valid for longdesc action.
    */
-  inline bool IsLongDescIndex(PRUint8 aIndex);
-
+  bool IsValidLongDescIndex(PRUint8 aIndex);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessible downcasting method
-
 inline nsHTMLImageAccessible*
 nsAccessible::AsImage()
 {

@@ -48,7 +48,7 @@
 #include "ScaledFontFreetype.h"
 #endif
 
-#if defined(WIN32) && defined(USE_SKIA)
+#ifdef WIN32
 #include "ScaledFontWin.h"
 #endif
 
@@ -75,90 +75,6 @@
 PRLogModuleInfo *sGFX2DLog = PR_NewLogModule("gfx2d");
 #endif
 
-// The following code was largely taken from xpcom/glue/SSE.cpp and
-// made a little simpler.
-enum CPUIDRegister { eax = 0, ebx = 1, ecx = 2, edx = 3 };
-
-#ifdef HAVE_CPUID_H
-
-// cpuid.h is available on gcc 4.3 and higher on i386 and x86_64
-#include <cpuid.h>
-
-static bool
-HasCPUIDBit(unsigned int level, CPUIDRegister reg, unsigned int bit)
-{
-  unsigned int regs[4];
-  return __get_cpuid(level, &regs[0], &regs[1], &regs[2], &regs[3]) &&
-         (regs[reg] & bit);
-}
-
-#define HAVE_CPU_DETECTION
-#else
-
-#if defined(_MSC_VER) && _MSC_VER >= 1400 && (defined(_M_IX86) || defined(_M_AMD64))
-// MSVC 2005 or newer on x86-32 or x86-64
-#include <intrin.h>
-
-#define HAVE_CPU_DETECTION
-#elif defined(__SUNPRO_CC) && (defined(__i386) || defined(__x86_64__))
-
-// Define a function identical to MSVC function.
-#ifdef __i386
-static void
-__cpuid(int CPUInfo[4], int InfoType)
-{
-  asm (
-    "xchg %esi, %ebx\n"
-    "cpuid\n"
-    "movl %eax, (%edi)\n"
-    "movl %ebx, 4(%edi)\n"
-    "movl %ecx, 8(%edi)\n"
-    "movl %edx, 12(%edi)\n"
-    "xchg %esi, %ebx\n"
-    :
-    : "a"(InfoType), // %eax
-      "D"(CPUInfo) // %edi
-    : "%ecx", "%edx", "%esi"
-  );
-}
-#else
-static void
-__cpuid(int CPUInfo[4], int InfoType)
-{
-  asm (
-    "xchg %rsi, %rbx\n"
-    "cpuid\n"
-    "movl %eax, (%rdi)\n"
-    "movl %ebx, 4(%rdi)\n"
-    "movl %ecx, 8(%rdi)\n"
-    "movl %edx, 12(%rdi)\n"
-    "xchg %rsi, %rbx\n"
-    :
-    : "a"(InfoType), // %eax
-      "D"(CPUInfo) // %rdi
-    : "%ecx", "%edx", "%rsi"
-  );
-}
-
-#define HAVE_CPU_DETECTION
-#endif
-#endif
-
-#ifdef HAVE_CPU_DETECTION
-static bool
-HasCPUIDBit(unsigned int level, CPUIDRegister reg, unsigned int bit)
-{
-  // Check that the level in question is supported.
-  volatile int regs[4];
-  __cpuid((int *)regs, level & 0x80000000u);
-  if (unsigned(regs[0]) < level)
-    return false;
-  __cpuid((int *)regs, level);
-  return !!(unsigned(regs[reg]) & bit);
-}
-#endif
-#endif
-
 namespace mozilla {
 namespace gfx {
 
@@ -168,19 +84,6 @@ int sGfxLogLevel = LOG_DEBUG;
 #ifdef WIN32
 ID3D10Device1 *Factory::mD3D10Device;
 #endif
-
-bool
-Factory::HasSSE2()
-{
-#if defined(HAVE_CPU_DETECTION)
-  return HasCPUIDBit(1u, edx, (1u<<26));
-#elif defined(XP_MACOSX)
-  // Intel macs always have SSE2.
-  return true;
-#else
-  return false;
-#endif
-}
 
 TemporaryRef<DrawTarget>
 Factory::CreateDrawTarget(BackendType aBackend, const IntSize &aSize, SurfaceFormat aFormat)
@@ -196,17 +99,7 @@ Factory::CreateDrawTarget(BackendType aBackend, const IntSize &aSize, SurfaceFor
       }
       break;
     }
-#elif defined XP_MACOSX
-  case BACKEND_COREGRAPHICS:
-    {
-      RefPtr<DrawTargetCG> newTarget;
-      newTarget = new DrawTargetCG();
-      if (newTarget->Init(aSize, aFormat)) {
-        return newTarget;
-      }
-      break;
-    }
-#endif
+#elif defined XP_MACOSX || defined ANDROID || defined LINUX
 #ifdef USE_SKIA
   case BACKEND_SKIA:
     {
@@ -217,6 +110,18 @@ Factory::CreateDrawTarget(BackendType aBackend, const IntSize &aSize, SurfaceFor
       }
       break;
     }
+#endif
+#ifdef XP_MACOSX
+  case BACKEND_COREGRAPHICS:
+    {
+      RefPtr<DrawTargetCG> newTarget;
+      newTarget = new DrawTargetCG();
+      if (newTarget->Init(aSize, aFormat)) {
+        return newTarget;
+      }
+      break;
+    }
+#endif
 #endif
   default:
     gfxDebug() << "Invalid draw target type specified.";
@@ -275,7 +180,7 @@ Factory::CreateScaledFontForNativeFont(const NativeFont &aNativeFont, Float aSiz
 #ifdef WIN32
   case NATIVE_FONT_GDI_FONT_FACE:
     {
-      return new ScaledFontWin(static_cast<LOGFONT*>(aNativeFont.mFont), aSize);
+      return new ScaledFontWin(static_cast<gfxGDIFont*>(aNativeFont.mFont), aSize);
     }
 #endif
   case NATIVE_FONT_SKIA_FONT_FACE:
@@ -377,18 +282,18 @@ Factory::CreateDWriteGlyphRenderingOptions(IDWriteRenderingParams *aParams)
 
 #endif // XP_WIN
 
+#ifdef USE_CAIRO
 TemporaryRef<DrawTarget>
 Factory::CreateDrawTargetForCairoSurface(cairo_surface_t* aSurface)
 {
-#ifdef USE_CAIRO
   RefPtr<DrawTargetCairo> newTarget = new DrawTargetCairo();
   if (newTarget->Init(aSurface)) {
     return newTarget;
   }
 
-#endif
   return NULL;
 }
+#endif
 
 }
 }

@@ -48,37 +48,60 @@ LIBXUL_LIBRARY = 1
 
 
 CPPSRCS = \
-  ApplicationAccessibleWrap.cpp \
-  ARIAGridAccessibleWrap.cpp \
   nsAccessNodeWrap.cpp \
   nsAccessibleWrap.cpp \
   nsTextAccessibleWrap.cpp \
   nsDocAccessibleWrap.cpp \
   nsHTMLWin32ObjectAccessible.cpp \
+  nsARIAGridAccessibleWrap.cpp \
+  nsRootAccessibleWrap.cpp \
   nsXULMenuAccessibleWrap.cpp \
   nsXULListboxAccessibleWrap.cpp \
   nsXULTreeGridAccessibleWrap.cpp \
   nsHyperTextAccessibleWrap.cpp \
   nsHTMLImageAccessibleWrap.cpp \
   nsHTMLTableAccessibleWrap.cpp \
+  nsApplicationAccessibleWrap.cpp \
   nsWinUtils.cpp \
   ia2AccessibleAction.cpp \
-  ia2AccessibleComponent.cpp \
   CAccessibleImage.cpp \
+  CAccessibleComponent.cpp \
   CAccessibleText.cpp \
   CAccessibleEditableText.cpp \
   CAccessibleHyperlink.cpp \
-  ia2AccessibleHypertext.cpp \
+  CAccessibleHypertext.cpp \
   ia2AccessibleRelation.cpp \
   CAccessibleTable.cpp \
   CAccessibleTableCell.cpp \
   CAccessibleValue.cpp \
   Compatibility.cpp \
-  RootAccessibleWrap.cpp \
   $(NULL)
 
 EXPORTS = \
   nsAccessNodeWrap.h \
+  nsAccessibleWrap.h \
+  nsTextAccessibleWrap.h \
+  nsDocAccessibleWrap.h \
+  nsRootAccessibleWrap.h \
+  nsHTMLWin32ObjectAccessible.h \
+  nsARIAGridAccessibleWrap.h \
+  nsXULMenuAccessibleWrap.h \
+  nsXULListboxAccessibleWrap.h \
+  nsXULTreeGridAccessibleWrap.h \
+  nsHyperTextAccessibleWrap.h \
+  nsHTMLImageAccessibleWrap.h \
+  nsHTMLTableAccessibleWrap.h \
+  nsApplicationAccessibleWrap.h \
+  ia2AccessibleAction.h \
+  CAccessibleImage.h \
+  CAccessibleComponent.h \
+  CAccessibleText.h \
+  CAccessibleEditableText.h \
+  CAccessibleHyperlink.h \
+  CAccessibleHypertext.h \
+  CAccessibleTable.h \
+  CAccessibleTableCell.h \
+  CAccessibleValue.h \
   $(NULL)
 
 # we don't want the shared lib, but we want to force the creation of a static lib.

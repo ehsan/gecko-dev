@@ -6,24 +6,31 @@
 var SelectHelper = {
   _uiBusy: false,
 
-  handleEvent: function(aEvent) {
-    this.handleClick(aEvent.target);
-  },
-
   handleClick: function(aTarget) {
     // if we're busy looking at a select we want to eat any clicks that
     // come to us, but not to process them
-    if (this._uiBusy || !this._isMenu(aTarget))
-        return;
+    if (this._uiBusy)
+        return true;
 
-    this._uiBusy = true;
-    this.show(aTarget);
-    this._uiBusy = false;
+    let target = aTarget;
+    while (target) {
+      if (this._isMenu(target) && !target.disabled) {
+        this._uiBusy = true;
+        target.focus();
+        let list = this.getListForElement(target);
+        this.show(list, target);
+        target = null;
+        this._uiBusy = false;
+        return true;
+      }
+      if (target)
+        target = target.parentNode;
+    }
+    return false;
   },
 
-  show: function(aElement) {
-    let list = this.getListForElement(aElement);
-    let data = JSON.parse(sendMessageToJava({ gecko: list }));
+  show: function(aList, aElement) {
+    let data = JSON.parse(sendMessageToJava({ gecko: aList }));
     let selected = data.button;
     if (selected == -1)
         return;
@@ -33,7 +40,7 @@ var SelectHelper = {
     } else if (aElement instanceof HTMLSelectElement) {
       if (!(selected instanceof Array)) {
         let temp = [];
-        for (let i = 0; i < list.listitems.length; i++) {
+        for (let i = 0; i < aList.listitems.length; i++) {
           temp[i] = (i == selected);
         }
         selected = temp;

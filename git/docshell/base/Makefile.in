@@ -53,6 +53,7 @@ DEFINES += -DMOZ_TOOLKIT_SEARCH
 endif
 
 SDK_XPIDLSRCS = \
+  nsIGlobalHistory.idl \
   nsIClipboardCommands.idl \
   $(NULL)
 
@@ -82,7 +83,6 @@ XPIDLSRCS = \
   nsIRefreshURI.idl \
   nsIContentViewerContainer.idl \
   nsIDocumentLoaderFactory.idl \
-  nsIPrivacyTransitionObserver.idl \
   $(NULL)
 
 EXPORTS = \
@@ -114,8 +114,6 @@ CPPSRCS = \
 # static lib.
 FORCE_STATIC_LIB = 1
 
-include $(topsrcdir)/config/config.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
 
 LOCAL_INCLUDES += \

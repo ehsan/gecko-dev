@@ -28,7 +28,7 @@ function test() {
 }
 
 function onWindowLoad(aEvent) {
-  win2.removeEventListener(aEvent.type, onWindowLoad, true);
+  win2.removeEventListener(aEvent.type, arguments.callee, true);
 
   // Add two tabs in the new window.
   addTabs(win2);
@@ -39,71 +39,48 @@ function addTabs(aWindow) {
     let tab = aWindow.gBrowser.addTab(TEST_URI);
     openTabs.push(tab);
 
-    tab.linkedBrowser.addEventListener("load", function onLoad(aEvent) {
-      tab.linkedBrowser.removeEventListener(aEvent.type, onLoad, true);
+    tab.linkedBrowser.addEventListener("load", function(aEvent) {
+      tab.linkedBrowser.removeEventListener(aEvent.type, arguments.callee,
+        true);
 
       loadedTabCount++;
       if (loadedTabCount >= 4) {
-        executeSoon(openConsoles);
+        executeSoon(performTest);
       }
     }, true);
   }
 }
 
-function openConsoles() {
+function performTest() {
   // open the Web Console for each of the four tabs and log a message.
-  let consolesOpen = 0;
   for (let i = 0; i < openTabs.length; i++) {
     let tab = openTabs[i];
-    openConsole(tab, function(index, hud) {
-      ok(hud, "HUD is open for tab " + index);
-      hud.console.log("message for tab " + index);
-      consolesOpen++;
-    }.bind(null, i));
+    HUDService.activateHUDForContext(tab);
+    let hudId = HUDService.getHudIdByWindow(tab.linkedBrowser.contentWindow);
+    ok(hudId, "HUD is open for tab " + i);
+    let HUD = HUDService.hudReferences[hudId];
+    HUD.console.log("message for tab " + i);
   }
 
-  waitForSuccess({
-    name: "4 web consoles opened",
-    validatorFn: function()
-    {
-      return consolesOpen == 4;
-    },
-    successFn: closeConsoles,
-    failureFn: closeConsoles,
-  });
-}
-
-function closeConsoles() {
-  let consolesClosed = 0;
-
-  function onWebConsoleClose(aSubject, aTopic) {
-    if (aTopic == "web-console-destroyed") {
-      consolesClosed++;
-    }
-  }
-
-  Services.obs.addObserver(onWebConsoleClose, "web-console-destroyed", false);
+  let displays = Object.keys(HUDService.hudReferences);
+  is(displays.length, 4, "four displays found");
 
   win2.close();
 
-  win1.gBrowser.removeTab(openTabs[0]);
-  win1.gBrowser.removeTab(openTabs[1]);
+  executeSoon(function() {
+    win1.gBrowser.removeTab(openTabs[0]);
+    win1.gBrowser.removeTab(openTabs[1]);
 
-  openTabs = win1 = win2 = null;
+    executeSoon(function() {
+      displays = Object.keys(HUDService.hudReferences);
+      is(displays.length, 0, "no displays found");
+      ok(!HUDService.storage, "no storage found");
+      ok(!HUDService.httpObserver, "no httpObserver found");
 
-  function onTimeout() {
-    Services.obs.removeObserver(onWebConsoleClose, "web-console-destroyed");
-    executeSoon(finishTest);
-  }
+      displays = openTabs = win1 = win2 = null;
 
-  waitForSuccess({
-    name: "4 web consoles closed",
-    validatorFn: function()
-    {
-      return consolesClosed == 4;
-    },
-    successFn: onTimeout,
-    failureFn: onTimeout,
+      finishTest();
+    });
   });
 }
 

@@ -82,21 +82,20 @@ public:
   NS_DISPLAY_DECL_NAME("nsDisplayCanvas", TYPE_CANVAS)
 
   virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
-                                   bool* aSnap,
-                                   bool* aForceTransparentSurface) {
-    *aForceTransparentSurface = false;
-    *aSnap = false;
+                                   bool* aForceTransparentSurface = nsnull) {
+    if (aForceTransparentSurface) {
+      *aForceTransparentSurface = false;
+    }
     nsIFrame* f = GetUnderlyingFrame();
     nsHTMLCanvasElement *canvas = CanvasElementFromContent(f->GetContent());
     nsRegion result;
     if (canvas->GetIsOpaque()) {
-      result = GetBounds(aBuilder, aSnap);
+      result = GetBounds(aBuilder);
     }
     return result;
   }
 
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) {
-    *aSnap = false;
+  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder) {
     nsHTMLCanvasFrame* f = static_cast<nsHTMLCanvasFrame*>(GetUnderlyingFrame());
     return f->GetInnerArea() + ToReferenceFrame();
   }
@@ -109,8 +108,7 @@ public:
       BuildLayer(aBuilder, aManager, this);
   }
   virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
-                                   LayerManager* aManager,
-                                   const FrameLayerBuilder::ContainerParameters& aParameters)
+                                   LayerManager* aManager)
   {
     if (CanvasElementFromContent(mFrame->GetContent())->ShouldForceInactiveLayer(aManager))
       return LAYER_INACTIVE;

@@ -39,9 +39,6 @@
 #define MOZILLA_GFX_TOOLS_H_
 
 #include "Types.h"
-#if defined(_MSC_VER) && (_MSC_VER < 1600)
-#define hypotf _hypotf
-#endif
 
 namespace mozilla {
 namespace gfx {
@@ -68,21 +65,6 @@ struct ClassStorage
   const T *addr() const { return (const T *)bytes; }
   T *addr() { return (T *)(void *)bytes; }
 };
-
-static inline bool
-FuzzyEqual(Float aA, Float aB, Float aErr)
-{
-  if ((aA + aErr > aB) && (aA - aErr < aB)) {
-    return true;
-  }
-  return false;
-}
-
-static inline Float
-Distance(Point aA, Point aB)
-{
-  return hypotf(aB.x - aA.x, aB.y - aA.y);
-}
 
 }
 }

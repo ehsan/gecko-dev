@@ -45,6 +45,9 @@ class nsIPrincipal;
 
 namespace xpc {
 
+nsIPrincipal *
+GetCompartmentPrincipal(JSCompartment *compartment);
+
 class AccessCheck {
   public:
     static bool isSameOrigin(JSCompartment *a, JSCompartment *b);
@@ -171,12 +174,6 @@ struct LocationPolicy : public Policy {
 // This policy only permits access to properties if they appear in the
 // objects exposed properties list.
 struct ExposedPropertiesOnly : public Policy {
-    static bool check(JSContext *cx, JSObject *wrapper, jsid id, js::Wrapper::Action act,
-                      Permission &perm);
-};
-
-// Components specific policy
-struct ComponentsObjectPolicy : public Policy {
     static bool check(JSContext *cx, JSObject *wrapper, jsid id, js::Wrapper::Action act,
                       Permission &perm);
 };

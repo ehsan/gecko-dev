@@ -130,14 +130,13 @@ class MarionetteTextTestRunner(unittest.TextTestRunner):
 
 class MarionetteTestRunner(object):
 
-    def __init__(self, address=None, emulator=None, homedir=None,
-                 b2gbin=None, autolog=False, revision=None, es_server=None,
+    def __init__(self, address=None, emulator=False, homedir=None,
+                 autolog=False, revision=None, es_server=None,
                  rest_server=None, logger=None, testgroup="marionette",
-                 noWindow=False, logcat_dir=None):
+                 noWindow=False):
         self.address = address
         self.emulator = emulator
         self.homedir = homedir
-        self.b2gbin = b2gbin
         self.autolog = autolog
         self.testgroup = testgroup
         self.revision = revision
@@ -148,7 +147,6 @@ class MarionetteTestRunner(object):
         self.httpd = None
         self.baseurl = None
         self.marionette = None
-        self.logcat_dir = logcat_dir
 
         self.reset_test_stats()
 
@@ -156,10 +154,6 @@ class MarionetteTestRunner(object):
             self.logger = logging.getLogger('Marionette')
             self.logger.setLevel(logging.INFO)
             self.logger.addHandler(logging.StreamHandler())
-
-        if self.logcat_dir:
-            if not os.access(self.logcat_dir, os.F_OK):
-                os.mkdir(self.logcat_dir)
 
     def reset_test_stats(self):
         self.passed = 0
@@ -186,25 +180,16 @@ class MarionetteTestRunner(object):
             host, port = self.address.split(':')
             if self.emulator:
                 self.marionette = Marionette(host=host, port=int(port),
-                                             connectToRunningEmulator=True,
-                                             homedir=self.homedir,
-                                             baseurl=self.baseurl,
-                                             logcat_dir=self.logcat_dir)
-            if self.b2gbin:
-                self.marionette = Marionette(host=host,
-                                             port=int(port),
-                                             b2gbin=self.b2gbin,
-                                             baseurl=self.baseurl)
+                                            connectToRunningEmulator=True,
+                                            homedir=self.homedir,
+                                            baseurl=self.baseurl)
             else:
-                self.marionette = Marionette(host=host,
-                                             port=int(port),
-                                             baseurl=self.baseurl)
+                self.marionette = Marionette(host=host, port=int(port), baseurl=self.baseurl)
         elif self.emulator:
-            self.marionette = Marionette(emulator=self.emulator,
+            self.marionette = Marionette(emulator=True,
                                          homedir=self.homedir,
                                          baseurl=self.baseurl,
-                                         noWindow=self.noWindow,
-                                         logcat_dir=self.logcat_dir)
+                                         noWindow=self.noWindow)
         else:
             raise Exception("must specify address or emulator")
 
@@ -265,7 +250,10 @@ class MarionetteTestRunner(object):
         if not self.marionette:
             self.start_marionette()
 
-        filepath = os.path.abspath(test)
+        if not os.path.isabs(test):
+            filepath = os.path.join(os.path.dirname(__file__), test)
+        else:
+            filepath = test
 
         if os.path.isdir(filepath):
             for root, dirs, files in os.walk(filepath):
@@ -354,17 +342,14 @@ if __name__ == "__main__":
                       action = "store", dest = "testgroup",
                       help = "testgroup names for autolog submissions")
     parser.add_option("--emulator",
-                      action = "store", dest = "emulator",
-                      default = None, choices = ["x86", "arm"],
-                      help = "Launch a B2G emulator on which to run tests. "
-                      "You need to specify which architecture to emulate.")
+                      action = "store_true", dest = "emulator",
+                      default = False,
+                      help = "launch a B2G emulator on which to run tests")
     parser.add_option("--no-window",
                       action = "store_true", dest = "noWindow",
                       default = False,
                       help = "when Marionette launches an emulator, start it "
                       "with the -no-window argument")
-    parser.add_option('--logcat-dir', dest='logcat_dir', action='store',
-                      help='directory to store logcat dump files')
     parser.add_option('--address', dest='address', action='store',
                       help='host:port of running Gecko instance to connect to')
     parser.add_option('--type', dest='type', action='store',
@@ -379,8 +364,6 @@ if __name__ == "__main__":
                       "tests from .ini files.")
     parser.add_option('--homedir', dest='homedir', action='store',
                       help='home directory of emulator files')
-    parser.add_option('--b2gbin', dest='b2gbin', action='store',
-                      help='b2g executable')
 
     options, tests = parser.parse_args()
 
@@ -393,15 +376,9 @@ if __name__ == "__main__":
         print "must specify --emulator or --address"
         parser.exit()
 
-    # default to storing logcat output for emulator runs
-    if options.emulator and not options.logcat_dir:
-        options.logcat_dir = 'logcat'
-
     runner = MarionetteTestRunner(address=options.address,
                                   emulator=options.emulator,
                                   homedir=options.homedir,
-                                  logcat_dir=options.logcat_dir,
-                                  b2gbin=options.b2gbin,
                                   noWindow=options.noWindow,
                                   revision=options.revision,
                                   testgroup=options.testgroup,

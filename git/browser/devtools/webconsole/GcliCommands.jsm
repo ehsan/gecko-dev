@@ -101,20 +101,8 @@ gcli.addCommand({
   name: "console close",
   description: gcli.lookup("consolecloseDesc"),
   exec: function Command_consoleClose(args, context) {
-    let tab = context.environment.chromeDocument.defaultView.gBrowser.selectedTab
+    let tab = HUDService.getHudReferenceById(context.environment.hudId).tab;
     HUDService.deactivateHUDForContext(tab);
-  }
-});
-
-/**
- * 'console open' command
- */
-gcli.addCommand({
-  name: "console open",
-  description: gcli.lookup("consoleopenDesc"),
-  exec: function Command_consoleOpen(args, context) {
-    let tab = context.environment.chromeDocument.defaultView.gBrowser.selectedTab
-    HUDService.activateHUDForContext(tab);
   }
 });
 
@@ -241,8 +229,8 @@ gcli.addCommand({
           let dbg = win.DebuggerUI.getDebugger(win.gBrowser.selectedTab);
           let files = [];
           if (dbg) {
-            let scriptsView = dbg.contentWindow.DebuggerView.Scripts;
-            for each (let script in scriptsView.scriptLocations) {
+            let scriptsView = dbg.frame.contentWindow.DebuggerView.Scripts;
+            for each (let script in scriptsView.scriptLocations()) {
               files.push(script);
             }
           }

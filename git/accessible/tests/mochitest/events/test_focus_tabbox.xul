@@ -14,8 +14,6 @@
   <script type="application/javascript"
           src="../common.js" />
   <script type="application/javascript"
-          src="../role.js" />
-  <script type="application/javascript"
           src="../states.js" />
   <script type="application/javascript"
           src="../events.js" />
@@ -27,12 +25,6 @@
     var gQueue = null;
     function doTests()
     {
-      if (MAC) {
-        todo(false, "Tests disabled because of imminent failure.");
-        SimpleTest.finish();
-        return;
-      }
-
       // Test focus events.
       gQueue = new eventQueue();
 

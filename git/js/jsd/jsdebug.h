@@ -189,12 +189,6 @@ extern JSD_PUBLIC_API(JSContext*)
 JSD_GetDefaultJSContext(JSDContext* jsdc);
 
 /*
-* Returns a JSRuntime this context is associated with
-*/
-extern JSD_PUBLIC_API(JSRuntime*)
-JSD_GetJSRuntime(JSDContext* jsdc);
-
-/*
 * Set the private data for this context, returns previous value
 */
 extern JSD_PUBLIC_API(void *)
@@ -535,7 +529,7 @@ JSD_ScriptCreated(JSDContext* jsdc,
 */
 extern JSD_PUBLIC_API(void)
 JSD_ScriptDestroyed(JSDContext* jsdc,
-                    JSFreeOp    *fop,
+                    JSContext   *cx,
                     JSScript    *script);
 
 /***************************************************************************/

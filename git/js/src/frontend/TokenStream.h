@@ -336,14 +336,12 @@ struct Token {
 
     void setName(JSOp op, PropertyName *name) {
         JS_ASSERT(op == JSOP_NAME);
-        JS_ASSERT(!IsPoisonedPtr(name));
         u.s.op = op;
         u.s.n.name = name;
     }
 
     void setAtom(JSOp op, JSAtom *atom) {
         JS_ASSERT(op == JSOP_STRING || op == JSOP_XMLCOMMENT || JSOP_XMLCDATA);
-        JS_ASSERT(!IsPoisonedPtr(atom));
         u.s.op = op;
         u.s.n.atom = atom;
     }
@@ -352,8 +350,6 @@ struct Token {
         JS_ASSERT(target);
         JS_ASSERT(data);
         JS_ASSERT(!target->empty());
-        JS_ASSERT(!IsPoisonedPtr(target));
-        JS_ASSERT(!IsPoisonedPtr(data));
         u.xmlpi.target = target;
         u.xmlpi.data = data;
     }
@@ -812,17 +808,13 @@ class TokenStream
     void updateFlagsForEOL();
 
     Token               tokens[ntokens];/* circular token buffer */
-    JS::SkipRoot        tokensRoot;     /* prevent overwriting of token buffer */
-    unsigned            cursor;         /* index of last parsed token */
-    unsigned            lookahead;      /* count of lookahead tokens */
-    unsigned            lineno;         /* current line number */
-    unsigned            flags;          /* flags -- see above */
+    unsigned               cursor;         /* index of last parsed token */
+    unsigned               lookahead;      /* count of lookahead tokens */
+    unsigned               lineno;         /* current line number */
+    unsigned               flags;          /* flags -- see above */
     const jschar        *linebase;      /* start of current line;  points into userbuf */
     const jschar        *prevLinebase;  /* start of previous line;  NULL if on the first line */
-    JS::SkipRoot        linebaseRoot;
-    JS::SkipRoot        prevLinebaseRoot;
     TokenBuf            userbuf;        /* user input buffer */
-    JS::SkipRoot        userbufRoot;
     const char          *filename;      /* input filename or null */
     jschar              *sourceMap;     /* source map's filename or null */
     void                *listenerTSData;/* listener data for this TokenStream */
@@ -882,15 +874,15 @@ ReportCompileErrorNumber(JSContext *cx, TokenStream *ts, ParseNode *pn, unsigned
  * One could have ReportCompileErrorNumber recognize the
  * JSREPORT_STRICT_MODE_ERROR flag instead of having a separate function
  * like this one.  However, the strict mode code flag we need to test is
- * in the ShareContext structure for that code; we would have to change
+ * in the TreeContext structure for that code; we would have to change
  * the ~120 ReportCompileErrorNumber calls to pass the additional
  * argument, even though many of those sites would never use it.  Using
- * ts's TSF_STRICT_MODE_CODE flag instead of sc's would be brittle: at some
- * points ts's flags don't correspond to those of the sc relevant to the
+ * ts's TSF_STRICT_MODE_CODE flag instead of tc's would be brittle: at some
+ * points ts's flags don't correspond to those of the tc relevant to the
  * error.
  */
 bool
-ReportStrictModeError(JSContext *cx, TokenStream *ts, SharedContext *sc, ParseNode *pn,
+ReportStrictModeError(JSContext *cx, TokenStream *ts, TreeContext *tc, ParseNode *pn,
                       unsigned errorNumber, ...);
 
 } /* namespace js */

@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2012 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -463,8 +463,10 @@ bool TParseContext::reservedErrorCheck(int line, const TString& identifier)
             }
         }
         if (identifier.find("__") != TString::npos) {
-            error(line, "identifiers containing two consecutive underscores (__) are reserved as possible future keywords", identifier.c_str(), "", "");
-            return true;
+            //error(line, "Two consecutive underscores are reserved for future use.", identifier.c_str(), "", "");
+            //return true;
+            infoSink.info.message(EPrefixWarning, "Two consecutive underscores are reserved for future use.", line);
+            return false;
         }
     }
 
@@ -1488,9 +1490,8 @@ int PaParseStrings(int count, const char* const string[], const int length[],
     if (glslang_initialize(context))
         return 1;
 
-    int error = glslang_scan(count, string, length, context);
-    if (!error)
-        error = glslang_parse(context);
+    glslang_scan(count, string, length, context);
+    int error = glslang_parse(context);
 
     glslang_finalize(context);
     FinalizePreprocessor();

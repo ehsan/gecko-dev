@@ -31,29 +31,30 @@
 #include "hb-buffer-private.hh"
 
 #ifdef HAVE_GRAPHITE
-#include "hb-graphite2-private.hh"
+#include "hb-graphite2.h"
 #endif
 #ifdef HAVE_UNISCRIBE
-# include "hb-uniscribe-private.hh"
+# include "hb-uniscribe.h"
 #endif
 #ifdef HAVE_OT
-# include "hb-ot-shape-private.hh"
+# include "hb-ot-shape.h"
 #endif
 #include "hb-fallback-shape-private.hh"
 
 typedef hb_bool_t (*hb_shape_func_t) (hb_font_t          *font,
 				      hb_buffer_t        *buffer,
 				      const hb_feature_t *features,
-				      unsigned int        num_features);
+				      unsigned int        num_features,
+				      const char * const *shaper_options);
 
-#define HB_SHAPER_IMPLEMENT(name) {#name, _hb_##name##_shape}
+#define HB_SHAPER_IMPLEMENT(name) {#name, hb_##name##_shape}
 static struct hb_shaper_pair_t {
   char name[16];
   hb_shape_func_t func;
 } shapers[] = {
   /* v--- Add new shapers in the right place here */
 #ifdef HAVE_GRAPHITE
-  HB_SHAPER_IMPLEMENT (graphite2),
+  HB_SHAPER_IMPLEMENT (graphite),
 #endif
 #ifdef HAVE_UNISCRIBE
   HB_SHAPER_IMPLEMENT (uniscribe),
@@ -119,17 +120,22 @@ hb_shape_full (hb_font_t          *font,
 	       hb_buffer_t        *buffer,
 	       const hb_feature_t *features,
 	       unsigned int        num_features,
+	       const char * const *shaper_options,
 	       const char * const *shaper_list)
 {
   if (likely (!shaper_list)) {
     for (unsigned int i = 0; i < ARRAY_LENGTH (shapers); i++)
-      if (likely (shapers[i].func (font, buffer, features, num_features)))
+      if (likely (shapers[i].func (font, buffer,
+				   features, num_features,
+				   shaper_options)))
         return TRUE;
   } else {
     while (*shaper_list) {
       for (unsigned int i = 0; i < ARRAY_LENGTH (shapers); i++)
 	if (0 == strcmp (*shaper_list, shapers[i].name)) {
-	  if (likely (shapers[i].func (font, buffer, features, num_features)))
+	  if (likely (shapers[i].func (font, buffer,
+				       features, num_features,
+				       shaper_options)))
 	    return TRUE;
 	  break;
 	}
@@ -145,5 +151,5 @@ hb_shape (hb_font_t           *font,
 	  const hb_feature_t  *features,
 	  unsigned int         num_features)
 {
-  hb_shape_full (font, buffer, features, num_features, NULL);
+  hb_shape_full (font, buffer, features, num_features, NULL, NULL);
 }

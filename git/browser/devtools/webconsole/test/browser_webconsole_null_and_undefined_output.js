@@ -41,18 +41,26 @@
 // Test that JavaScript expressions that evaluate to null or undefined produce
 // meaningful output.
 
-const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-console.html";
+const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test//test-console.html";
+
+registerCleanupFunction(function() {
+  Services.prefs.clearUserPref("devtools.gcli.enable");
+});
 
 function test() {
+  Services.prefs.setBoolPref("devtools.gcli.enable", false);
   addTab(TEST_URI);
-  browser.addEventListener("load", function onLoad() {
-    browser.removeEventListener("load", onLoad, true);
-    openConsole(null, testNullAndUndefinedOutput);
-  }, true);
+  browser.addEventListener("DOMContentLoaded", testNullAndUndefinedOutput,
+                           false);
 }
 
-function testNullAndUndefinedOutput(hud) {
-  let jsterm = hud.jsterm;
+function testNullAndUndefinedOutput() {
+  browser.removeEventListener("DOMContentLoaded",
+                              testNullAndUndefinedOutput, false);
+
+  openConsole();
+
+  let jsterm = HUDService.getHudByWindow(content).jsterm;
   let outputNode = jsterm.outputNode;
 
   jsterm.clearOutput();
@@ -69,6 +77,9 @@ function testNullAndUndefinedOutput(hud) {
   is(nodes.length, 2, "2 nodes in output");
   ok(nodes[1].textContent.indexOf("undefined") > -1, "'undefined' printed to output");
 
-  executeSoon(finishTest);
+  jsterm.clearOutput();
+  jsterm.history.splice(0, jsterm.history.length);   // workaround for bug 592552
+
+  finishTest();
 }
 

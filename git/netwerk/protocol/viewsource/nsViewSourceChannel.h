@@ -50,7 +50,6 @@
 #include "nsIHttpChannel.h"
 #include "nsIHttpChannelInternal.h"
 #include "nsICachingChannel.h"
-#include "nsIApplicationCacheChannel.h"
 #include "nsIUploadChannel.h"
 
 class nsViewSourceChannel : public nsIViewSourceChannel,
@@ -58,7 +57,6 @@ class nsViewSourceChannel : public nsIViewSourceChannel,
                             public nsIHttpChannel,
                             public nsIHttpChannelInternal,
                             public nsICachingChannel,
-                            public nsIApplicationCacheChannel,
                             public nsIUploadChannel
 {
 
@@ -72,8 +70,6 @@ public:
     NS_DECL_NSIHTTPCHANNEL
     NS_FORWARD_SAFE_NSICACHEINFOCHANNEL(mCachingChannel)
     NS_FORWARD_SAFE_NSICACHINGCHANNEL(mCachingChannel)
-    NS_FORWARD_SAFE_NSIAPPLICATIONCACHECHANNEL(mApplicationCacheChannel)
-    NS_FORWARD_SAFE_NSIAPPLICATIONCACHECONTAINER(mApplicationCacheChannel)
     NS_FORWARD_SAFE_NSIUPLOADCHANNEL(mUploadChannel)
     NS_FORWARD_SAFE_NSIHTTPCHANNELINTERNAL(mHttpChannelInternal)
 
@@ -89,7 +85,6 @@ protected:
     nsCOMPtr<nsIHttpChannel>    mHttpChannel;
     nsCOMPtr<nsIHttpChannelInternal>    mHttpChannelInternal;
     nsCOMPtr<nsICachingChannel> mCachingChannel;
-    nsCOMPtr<nsIApplicationCacheChannel> mApplicationCacheChannel;
     nsCOMPtr<nsIUploadChannel>  mUploadChannel;
     nsCOMPtr<nsIStreamListener> mListener;
     nsCOMPtr<nsIURI>            mOriginalURI;

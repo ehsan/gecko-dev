@@ -18,11 +18,11 @@ function test() {
 
   let browser = tab.linkedBrowser;
 
-  waitForTabState(tab, tabState, function () {
+  whenBrowserLoaded(browser, function () {
+    ss.setTabState(tab, JSON.stringify(tabState));
 
     let sessionHistory = browser.sessionHistory;
     let entry = sessionHistory.getEntryAtIndex(0, false);
-    entry.QueryInterface(Ci.nsISHContainer);
 
     whenChildCount(entry, 1, function () {
       whenChildCount(entry, 2, function () {
@@ -47,6 +47,13 @@ function test() {
       iframe.setAttribute("src", "about:mozilla");
     });
   });
+}
+
+function whenBrowserLoaded(aBrowser, aCallback) {
+  aBrowser.addEventListener("load", function onLoad() {
+    aBrowser.removeEventListener("load", onLoad, true);
+    executeSoon(aCallback);
+  }, true);
 }
 
 function whenChildCount(aEntry, aChildCount, aCallback) {

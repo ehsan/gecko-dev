@@ -26,7 +26,6 @@
  *   Julian Viereck <jviereck@mozilla.com>
  *   Paul Rouget <paul@mozilla.com>
  *   Kyle Simpson <getify@mozilla.com>
- *   Dave Camp <dcamp@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -47,7 +46,6 @@ const Cu = Components.utils;
 Cu.import("resource:///modules/domplate.jsm");
 Cu.import("resource:///modules/InsideOutBox.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource:///modules/inspector.jsm");
 
 var EXPORTED_SYMBOLS = ["TreePanel", "DOMHelpers"];
 
@@ -124,10 +122,8 @@ TreePanel.prototype = {
     delete this.initializingTreePanel;
     Services.obs.notifyObservers(null,
       this.IUI.INSPECTOR_NOTIFICATIONS.TREEPANELREADY, null);
-    if (this.pendingSelection) {
-      this.select(this.pendingSelection.node, this.pendingSelection.scroll);
-      delete this.pendingSelection;
-    }
+    if (this.IUI.selection)
+      this.select(this.IUI.selection, true);
   },
 
   /**
@@ -168,7 +164,6 @@ TreePanel.prototype = {
 
     this.splitter = this.document.createElement("splitter");
     this.splitter.id = "inspector-tree-splitter";
-    this.splitter.className = "devtools-horizontal-splitter";
 
     let container = this.document.getElementById("appcontent");
     container.appendChild(this.splitter);
@@ -222,11 +217,6 @@ TreePanel.prototype = {
       parent.removeChild(this.treePanelDiv);
       delete this.treePanelDiv;
       delete this.treeBrowserDocument;
-    }
-
-    if (this.ioBox) {
-      this.ioBox.destroy();
-      delete this.ioBox;
     }
 
     this.treeLoaded = false;
@@ -582,11 +572,8 @@ TreePanel.prototype = {
    */
   select: function TP_select(aNode, aScroll)
   {
-    if (this.ioBox) {
+    if (this.ioBox)
       this.ioBox.select(aNode, true, true, aScroll);
-    } else {
-      this.pendingSelection = { node: aNode, scroll: aScroll };
-    }
   },
 
   ///////////////////////////////////////////////////////////////////////////
@@ -703,6 +690,11 @@ TreePanel.prototype = {
       let parent = this.treeIFrame.parentNode;
       parent.removeChild(this.treeIFrame);
       delete this.treeIFrame;
+    }
+
+    if (this.ioBox) {
+      this.ioBox.destroy();
+      delete this.ioBox;
     }
   }
 };

@@ -64,7 +64,7 @@ void NS_ShutdownLocalFile()
 
 #if !defined(MOZ_WIDGET_COCOA) && !defined(XP_WIN)
 NS_IMETHODIMP
-nsLocalFile::InitWithFile(nsIFile *aFile)
+nsLocalFile::InitWithFile(nsILocalFile *aFile)
 {
     NS_ENSURE_ARG(aFile);
     
@@ -220,7 +220,7 @@ static PRInt32 SplitPath(PRUnichar *path, PRUnichar **nodeArray, PRInt32 arrayLe
 
  
 NS_IMETHODIMP
-nsLocalFile::GetRelativeDescriptor(nsIFile *fromFile, nsACString& _retval)
+nsLocalFile::GetRelativeDescriptor(nsILocalFile *fromFile, nsACString& _retval)
 {
     NS_ENSURE_ARG_POINTER(fromFile);
     const PRInt32 kMaxNodesInPath = 32;
@@ -276,7 +276,7 @@ nsLocalFile::GetRelativeDescriptor(nsIFile *fromFile, nsACString& _retval)
 }
 
 NS_IMETHODIMP
-nsLocalFile::SetRelativeDescriptor(nsIFile *fromFile, const nsACString& relativeDesc)
+nsLocalFile::SetRelativeDescriptor(nsILocalFile *fromFile, const nsACString& relativeDesc)
 {
     NS_NAMED_LITERAL_CSTRING(kParentDirStr, "../");
  
@@ -319,5 +319,6 @@ nsLocalFile::SetRelativeDescriptor(nsIFile *fromFile, const nsACString& relative
       nodeBegin = nodeEnd;
     }
 
-    return InitWithFile(targetFile);
+    nsCOMPtr<nsILocalFile> targetLocalFile(do_QueryInterface(targetFile));
+    return InitWithFile(targetLocalFile);
 }

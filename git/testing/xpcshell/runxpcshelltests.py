@@ -69,11 +69,10 @@ class XPCShellTests(object):
   oldcwd = os.getcwd()
 
   def __init__(self, log=sys.stdout):
-    """ Init logging and node status """
+    """ Init logging """
     handler = logging.StreamHandler(log)
     self.log.setLevel(logging.INFO)
     self.log.addHandler(handler)
-    self.nodeProc = None
 
   def buildTestList(self):
     """
@@ -222,26 +221,10 @@ class XPCShellTests(object):
     #   do_load_child_test_harness() in head.js
     if not self.appPath:
         self.appPath = self.xrePath
-
-    self.xpcsCmd = [
-        self.xpcshell,
-        '-g', self.xrePath,
-        '-a', self.appPath,
-        '-r', self.httpdManifest,
-        '-m',
-        '-n',
-        '-s',
-        '-e', 'const _HTTPD_JS_PATH = "%s";' % self.httpdJSPath,
-        '-e', 'const _HEAD_JS_PATH = "%s";' % self.headJSPath
-    ]
-
-    if self.testingModulesDir:
-        self.xpcsCmd.extend([
-            '-e',
-            'const _TESTING_MODULES_DIR = "%s";' % self.testingModulesDir
-        ])
-
-    self.xpcsCmd.extend(['-f', os.path.join(self.testharnessdir, 'head.js')])
+    self.xpcsCmd = [self.xpcshell, '-g', self.xrePath, '-a', self.appPath, '-r', self.httpdManifest, '-m', '-n', '-s'] + \
+        ['-e', 'const _HTTPD_JS_PATH = "%s";' % self.httpdJSPath,
+         '-e', 'const _HEAD_JS_PATH = "%s";' % self.headJSPath,
+         '-f', os.path.join(self.testharnessdir, 'head.js')]
 
     if self.debuggerInfo:
       self.xpcsCmd = [self.debuggerInfo["path"]] + self.debuggerInfo["args"] + self.xpcsCmd
@@ -410,54 +393,6 @@ class XPCShellTests(object):
     return ['-e', 'const _TEST_FILE = ["%s"];' %
               replaceBackSlashes(name)]
 
-  def trySetupNode(self):
-    """
-      Run node for SPDY tests, if available, and updates mozinfo as appropriate.
-    """
-    nodeMozInfo = {'hasNode': False} # Assume the worst
-    nodeBin = None
-
-    # We try to find the node executable in the path given to us by the user in
-    # the MOZ_NODE_PATH environment variable
-    localPath = os.getenv('MOZ_NODE_PATH', None)
-    if localPath and os.path.exists(localPath) and os.path.isfile(localPath):
-      nodeBin = localPath
-
-    if nodeBin:
-      self.log.info('Found node at %s' % (nodeBin,))
-      myDir = os.path.split(os.path.abspath(__file__))[0]
-      mozSpdyJs = os.path.join(myDir, 'moz-spdy', 'moz-spdy.js')
-
-      if os.path.exists(mozSpdyJs):
-        # OK, we found our SPDY server, let's try to get it running
-        self.log.info('Found moz-spdy at %s' % (mozSpdyJs,))
-        stdout, stderr = self.getPipes()
-        try:
-          # We pipe stdin to node because the spdy server will exit when its
-          # stdin reaches EOF
-          self.nodeProc = Popen([nodeBin, mozSpdyJs], stdin=PIPE, stdout=PIPE,
-                  stderr=STDOUT, env=self.env, cwd=os.getcwd())
-
-          # Check to make sure the server starts properly by waiting for it to
-          # tell us it's started
-          msg = self.nodeProc.stdout.readline()
-          if msg.startswith('SPDY server listening'):
-              nodeMozInfo['hasNode'] = True
-        except OSError, e:
-          # This occurs if the subprocess couldn't be started
-          self.log.error('Could not run node SPDY server: %s' % (str(e),))
-
-    mozinfo.update(nodeMozInfo)
-
-  def shutdownNode(self):
-    """
-      Shut down our node process, if it exists
-    """
-    if self.nodeProc:
-      self.log.info('Node SPDY server shutting down ...')
-      # moz-spdy exits when its stdin reaches EOF, so force that to happen here
-      self.nodeProc.communicate()
-
   def writeXunitResults(self, results, name=None, filename=None, fh=None):
     """
       Write Xunit XML from results.
@@ -569,7 +504,7 @@ class XPCShellTests(object):
                debuggerArgs=None, debuggerInteractive=False,
                profileName=None, mozInfo=None, shuffle=False,
                testsRootDir=None, xunitFilename=None, xunitName=None,
-               testingModulesDir=None, **otherOptions):
+               **otherOptions):
     """Run xpcshell tests.
 
     |xpcshell|, is the xpcshell executable to use to run the tests.
@@ -600,8 +535,6 @@ class XPCShellTests(object):
       results.
     |xunitName|, if outputting an xUnit XML file, the str value to use for the
       testsuite name.
-    |testingModulesDir|, if provided, specifies where JS modules reside.
-      xpcshell will register a resource handler mapping this path.
     |otherOptions| may be present for the convenience of subclasses
     """
 
@@ -621,10 +554,6 @@ class XPCShellTests(object):
             raise Exception("testsRootDir path does not exists: %s" %
                     testsRootDir)
 
-    if testingModulesDir:
-        if not os.path.isabs(testingModulesDir):
-            testingModulesDir = os.path.abspath(testingModulesDir)
-
     self.xpcshell = xpcshell
     self.xrePath = xrePath
     self.appPath = appPath
@@ -641,7 +570,6 @@ class XPCShellTests(object):
     self.debuggerInfo = getDebuggerInfo(self.oldcwd, debugger, debuggerArgs, debuggerInteractive)
     self.profileName = profileName or "xpcshell"
     self.mozInfo = mozInfo
-    self.testingModulesDir = testingModulesDir
 
     # If we have an interactive debugger, disable ctrl-c.
     if self.debuggerInfo and self.debuggerInfo["interactive"]:
@@ -669,10 +597,6 @@ class XPCShellTests(object):
         return False
       self.mozInfo = parse_json(open(mozInfoFile).read())
     mozinfo.update(self.mozInfo)
-
-    # We have to do this before we build the test list so we know whether or
-    # not to run tests that depend on having the node spdy server
-    self.trySetupNode()
     
     pStdout, pStderr = self.getPipes()
 
@@ -728,25 +652,15 @@ class XPCShellTests(object):
       # The test file will have to be loaded after the head files.
       cmdT = self.buildCmdTestFile(name)
 
-      args = self.xpcsRunArgs[:]
+      args = self.xpcsRunArgs
       if 'debug' in test:
           args.insert(0, '-d')
 
-      completeCmd = cmdH + cmdT + args
-
       try:
         self.log.info("TEST-INFO | %s | running test ..." % name)
-        if verbose:
-            self.log.info("TEST-INFO | %s | full command: %r" % (name, completeCmd))
-            self.log.info("TEST-INFO | %s | current directory: %r" % (name, testdir))
-            # Show only those environment variables that are changed from
-            # the ambient environment.
-            changedEnv = (set("%s=%s" % i for i in self.env.iteritems())
-                          - set("%s=%s" % i for i in os.environ.iteritems()))
-            self.log.info("TEST-INFO | %s | environment: %s" % (name, list(changedEnv)))
         startTime = time.time()
 
-        proc = self.launchProcess(completeCmd,
+        proc = self.launchProcess(cmdH + cmdT + args,
                     stdout=pStdout, stderr=pStderr, env=self.env, cwd=testdir)
 
         # Allow user to kill hung subprocess with SIGINT w/o killing this script
@@ -845,8 +759,6 @@ class XPCShellTests(object):
 
       xunitResults.append(xunitResult)
 
-    self.shutdownNode()
-
     if self.testCount == 0:
       self.log.error("TEST-UNEXPECTED-FAIL | runxpcshelltests.py | No tests run. Did you pass an invalid --test-path?")
       self.failCount = 1
@@ -900,9 +812,6 @@ class XPCShellOptions(OptionParser):
     self.add_option("--tests-root-dir",
                     type="string", dest="testsRootDir", default=None,
                     help="absolute path to directory where all tests are located. this is typically $(objdir)/_tests")
-    self.add_option("--testing-modules-dir",
-                    dest="testingModulesDir", default=None,
-                    help="Directory where testing modules are located.")
     self.add_option("--total-chunks",
                     type = "int", dest = "totalChunks", default=1,
                     help = "how many chunks to split the tests up into")

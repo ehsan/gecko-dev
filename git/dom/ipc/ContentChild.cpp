@@ -76,7 +76,6 @@
 #include "nsIConsoleService.h"
 #include "nsJSEnvironment.h"
 #include "SandboxHal.h"
-#include "nsDebugImpl.h"
 
 #include "History.h"
 #include "nsDocShellCID.h"
@@ -233,14 +232,11 @@ ConsoleListener::Observe(nsIConsoleMessage* aMessage)
 ContentChild* ContentChild::sSingleton;
 
 ContentChild::ContentChild()
- : mID(PRUint64(-1))
 #ifdef ANDROID
- , mScreenSize(0, 0)
+ : mScreenSize(0, 0)
+ , mID(PRUint64(-1))
 #endif
 {
-    // This process is a content process, so it's clearly running in
-    // multiprocess mode!
-    nsDebugImpl::SetMultiprocessMode("Child");
 }
 
 ContentChild::~ContentChild()
@@ -366,7 +362,8 @@ ContentChild::RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* chi
 
     InfallibleTArray<MemoryReport> reports;
 
-    nsPrintfCString process("Content (%d)", getpid());
+    static const int maxLength = 31;   // big enough; pid is only a few chars
+    nsPrintfCString process(maxLength, "Content (%d)", getpid());
 
     // First do the vanilla memory reporters.
     nsCOMPtr<nsISimpleEnumerator> e;
@@ -381,16 +378,14 @@ ContentChild::RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* chi
       PRInt32 units;
       PRInt64 amount;
       nsCString desc;
+      r->GetPath(path);
+      r->GetKind(&kind);
+      r->GetUnits(&units);
+      r->GetAmount(&amount);
+      r->GetDescription(desc);
 
-      if (NS_SUCCEEDED(r->GetPath(path)) &&
-          NS_SUCCEEDED(r->GetKind(&kind)) &&
-          NS_SUCCEEDED(r->GetUnits(&units)) &&
-          NS_SUCCEEDED(r->GetAmount(&amount)) &&
-          NS_SUCCEEDED(r->GetDescription(desc)))
-      {
-        MemoryReport memreport(process, path, kind, units, amount, desc);
-        reports.AppendElement(memreport);
-      }
+      MemoryReport memreport(process, path, kind, units, amount, desc);
+      reports.AppendElement(memreport);
     }
 
     // Then do the memory multi-reporters, by calling CollectReports on each
@@ -791,14 +786,14 @@ ContentChild::GetIndexedDBPath()
 bool
 ContentChild::RecvGarbageCollect()
 {
-    nsJSContext::GarbageCollectNow(js::gcreason::DOM_IPC, nsGCNormal, true);
+    nsJSContext::GarbageCollectNow(js::gcreason::DOM_IPC);
     return true;
 }
 
 bool
 ContentChild::RecvCycleCollect()
 {
-    nsJSContext::GarbageCollectNow(js::gcreason::DOM_IPC, nsGCNormal, true);
+    nsJSContext::GarbageCollectNow(js::gcreason::DOM_IPC);
     nsJSContext::CycleCollectNow();
     return true;
 }
@@ -818,14 +813,6 @@ ContentChild::RecvSetID(const PRUint64 &id)
         NS_WARNING("Setting content child's ID twice?");
     }
     mID = id;
-    return true;
-}
-
-bool
-ContentChild::RecvLastPrivateDocShellDestroyed()
-{
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    obs->NotifyObservers(nsnull, "last-pb-context-exited", nsnull);
     return true;
 }
 

@@ -250,28 +250,6 @@ public:
     return HasOutsideBullet() || HasInsideBullet();
   }
 
-  /**
-   * @return true if this frame has an inside bullet frame.
-   */
-  bool HasInsideBullet() const {
-    return 0 != (mState & NS_BLOCK_FRAME_HAS_INSIDE_BULLET);
-  }
-
-  /**
-   * @return true if this frame has an outside bullet frame.
-   */
-  bool HasOutsideBullet() const {
-    return 0 != (mState & NS_BLOCK_FRAME_HAS_OUTSIDE_BULLET);
-  }
-
-  /**
-   * @return the bullet frame or nsnull if we don't have one.
-   */
-  nsBulletFrame* GetBullet() const {
-    nsBulletFrame* outside = GetOutsideBullet();
-    return outside ? outside : GetInsideBullet();
-  }
-
   virtual void MarkIntrinsicWidthsDirty();
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
@@ -376,12 +354,6 @@ protected:
 #endif
 #endif
 
-  NS_DECLARE_FRAME_PROPERTY(LineCursorProperty, nsnull)
-  nsLineBox* GetLineCursor() {
-    return (GetStateBits() & NS_BLOCK_HAS_LINE_CURSOR) ?
-      static_cast<nsLineBox*>(Properties().Get(LineCursorProperty())) : nsnull;
-  }
-
   nsLineBox* NewLineBox(nsIFrame* aFrame, bool aIsBlock) {
     return NS_NewLineBox(PresContext()->PresShell(), aFrame, aIsBlock);
   }
@@ -389,9 +361,6 @@ protected:
     return NS_NewLineBox(PresContext()->PresShell(), aFromLine, aFrame, aCount);
   }
   void FreeLineBox(nsLineBox* aLine) {
-    if (aLine == GetLineCursor()) {
-      ClearLineCursor();
-    }
     aLine->Destroy(PresContext()->PresShell());
   }
 
@@ -771,9 +740,23 @@ protected:
   void SetOverflowOutOfFlows(const nsFrameList& aList, nsFrameList* aPropValue);
 
   /**
+   * @return true if this frame has an inside bullet frame.
+   */
+  bool HasInsideBullet() const {
+    return 0 != (mState & NS_BLOCK_FRAME_HAS_INSIDE_BULLET);
+  }
+
+  /**
    * @return the inside bullet frame or nsnull if we don't have one.
    */
   nsBulletFrame* GetInsideBullet() const;
+
+  /**
+   * @return true if this frame has an outside bullet frame.
+   */
+  bool HasOutsideBullet() const {
+    return 0 != (mState & NS_BLOCK_FRAME_HAS_OUTSIDE_BULLET);
+  }
 
   /**
    * @return the outside bullet frame or nsnull if we don't have one.
@@ -785,6 +768,14 @@ protected:
    */
   nsFrameList* GetOutsideBulletList() const;
 
+  /**
+   * @return the bullet frame or nsnull if we don't have one.
+   */
+  nsBulletFrame* GetBullet() const {
+    nsBulletFrame* outside = GetOutsideBullet();
+    return outside ? outside : GetInsideBullet();
+  }
+  
   /**
    * @return true if this frame has pushed floats.
    */

@@ -64,9 +64,9 @@
 #include "jsopcode.h"
 #include "jsscript.h"
 
+#include "frontend/BytecodeEmitter.h"
 #include "frontend/Parser.h"
 #include "frontend/TokenStream.h"
-#include "frontend/TreeContext.h"
 #include "vm/RegExpObject.h"
 
 #include "jsscriptinlines.h"
@@ -154,10 +154,7 @@ js::IsIdentifier(JSLinearString *str)
 
 /* Initialize members that aren't initialized in |init|. */
 TokenStream::TokenStream(JSContext *cx, JSPrincipals *prin, JSPrincipals *originPrin)
-  : tokens(), tokensRoot(cx, &tokens),
-    cursor(), lookahead(), flags(),
-    linebaseRoot(cx, &linebase), prevLinebaseRoot(cx, &prevLinebase), userbufRoot(cx, &userbuf),
-    listenerTSData(), tokenbuf(cx),
+  : tokens(), cursor(), lookahead(), flags(), listenerTSData(), tokenbuf(cx),
     cx(cx), originPrincipals(JSScript::normalizeOriginPrincipals(prin, originPrin))
 {
     if (originPrincipals)
@@ -555,15 +552,15 @@ TokenStream::reportCompileErrorNumberVA(ParseNode *pn, unsigned flags, unsigned 
 }
 
 bool
-js::ReportStrictModeError(JSContext *cx, TokenStream *ts, SharedContext *sc, ParseNode *pn,
+js::ReportStrictModeError(JSContext *cx, TokenStream *ts, TreeContext *tc, ParseNode *pn,
                           unsigned errorNumber, ...)
 {
-    JS_ASSERT(ts || sc);
+    JS_ASSERT(ts || tc);
     JS_ASSERT(cx == ts->getContext());
 
     /* In strict mode code, this is an error, not merely a warning. */
     unsigned flags;
-    if ((ts && ts->isStrictMode()) || (sc && (sc->flags & TCF_STRICT_MODE_CODE))) {
+    if ((ts && ts->isStrictMode()) || (tc && (tc->flags & TCF_STRICT_MODE_CODE))) {
         flags = JSREPORT_ERROR;
     } else {
         if (!cx->hasStrictOption())
@@ -1325,12 +1322,18 @@ TokenStream::checkForKeyword(const jschar *s, size_t length, TokenKind *ttp, JSO
                                             JSMSG_RESERVED_ID, kw->chars);
         }
 
+        /* The let keyword is reserved on <1.7 */
+        if (kw->tokentype == TOK_LET) {
+            return ReportCompileErrorNumber(cx, this, NULL, JSREPORT_ERROR,
+                                            JSMSG_RESERVED_ID, kw->chars);
+        }
+
         /*
          * The keyword is not in this version. Treat it as an identifier,
-         * unless it is let or yield which we treat as TOK_STRICT_RESERVED by
-         * falling through to the code below (ES5 forbids them in strict mode).
+         * unless it is yield which we treat as TOK_STRICT_RESERVED by
+         * falling through to the code below (ES5 forbids it in strict mode).
          */
-        if (kw->tokentype != TOK_LET && kw->tokentype != TOK_YIELD)
+        if (kw->tokentype != TOK_YIELD)
             return true;
     }
 

@@ -70,8 +70,10 @@ _TEST_FILES = 	test_bug1682.html \
 		test_bug402680.html \
 		test_bug403868.html \
 		test_bug403868.xhtml \
+		test_bug404320.html \
 		$(warning test_bug435128.html disabled because it takes 60 seconds) \
 		test_bug463104.html \
+		test_bug468353.html \
 		test_form-parsing.html \
 		test_viewport.html \
 		test_documentAll.html \
@@ -104,7 +106,6 @@ _TEST_FILES = 	test_bug1682.html \
 		test_bug571981.html \
 		test_bug677495.html \
 		test_bug677495-1.html \
-		test_bug741266.html \
 		$(NULL)
 
 ifneq (mobile,$(MOZ_BUILD_APP))

@@ -8,7 +8,7 @@
 #include "nsIJSContextStack.h"
 
 #include "jsfriendapi.h"
-#include "mozilla/dom/DOMJSClass.h"
+#include "mozilla/dom/bindings/DOMJSClass.h"
 #include "nsContentUtils.h"
 #include "nsWrapperCacheInlines.h"
 
@@ -39,7 +39,7 @@ DOMBindingBase::_Trace(JSTracer* aTrc)
 }
 
 void
-DOMBindingBase::_Finalize(JSFreeOp* aFop)
+DOMBindingBase::_Finalize(JSContext* aCx)
 {
   ClearWrapper();
   NS_RELEASE_THIS();

@@ -123,8 +123,6 @@
  * jemalloc_purge_freed_pages(), which will force the OS to release those
  * MADV_FREE'd pages, making the process's RSS reflect its true memory usage.
  *
- * The jemalloc_purge_freed_pages definition in jemalloc.h needs to be
- * adjusted if MALLOC_DOUBLE_PURGE is ever enabled on Linux.
  */
 #ifdef MOZ_MEMORY_DARWIN
 #define MALLOC_DOUBLE_PURGE
@@ -376,7 +374,7 @@ __FBSDID("$FreeBSD: head/lib/libc/stdlib/malloc.c 180599 2008-07-18 19:35:44Z ja
 
 #endif
 
-#include "jemalloc_types.h"
+#include "jemalloc.h"
 #include "linkedlist.h"
 
 /* Some tools, such as /dev/dsp wrappers, LD_PRELOAD libraries that
@@ -405,9 +403,9 @@ void *_mmap(void *addr, size_t length, int prot, int flags,
 	struct {
 		void *addr;
 		size_t length;
-		long prot;
-		long flags;
-		long fd;
+		int prot;
+		int flags;
+		int fd;
 		off_t offset;
 	} args = { addr, length, prot, flags, fd, offset };
 	return (void *) syscall(SYS_mmap, &args);
@@ -5920,7 +5918,7 @@ MALLOC_OUT:
 #endif
 	}
 
-#if !defined(MOZ_MEMORY_WINDOWS) && !defined(MOZ_MEMORY_DARWIN)
+#if !defined(MOZ_MEMORY_WINDOWS)
 	/* Prevent potential deadlock on malloc locks after fork. */
 	pthread_atfork(_malloc_prefork, _malloc_postfork, _malloc_postfork);
 #endif
@@ -6552,11 +6550,8 @@ free(void *ptr)
  */
 
 /* This was added by Mozilla for use by SQLite. */
-#ifdef MOZ_MEMORY_DARWIN
-static
-#endif
 size_t
-je_malloc_good_size(size_t size)
+je_malloc_usable_size_in_advance(size_t size)
 {
 	/*
 	 * This duplicates the logic in imalloc(), arena_malloc() and
@@ -6586,7 +6581,7 @@ je_malloc_good_size(size_t size)
 		 * Huge.  We use PAGE_CEILING to get psize, instead of using
 		 * CHUNK_CEILING to get csize.  This ensures that this
 		 * malloc_usable_size(malloc(n)) always matches
-		 * je_malloc_good_size(n).
+		 * je_malloc_usable_size_in_advance(n).
 		 */
 		size = PAGE_CEILING(size);
 	}
@@ -6920,7 +6915,7 @@ zone_destroy(malloc_zone_t *zone)
 static size_t
 zone_good_size(malloc_zone_t *zone, size_t size)
 {
-	return je_malloc_good_size(size);
+	return je_malloc_usable_size_in_advance(size);
 }
 
 static size_t
@@ -7157,4 +7152,31 @@ BOOL APIENTRY DllMain(HINSTANCE hModule,
 
   return TRUE;
 }
+
+/*
+ *  There's a fun allocator mismatch in (at least) the VS 2010 CRT
+ *  (see the giant comment in this directory's Makefile.in
+ *  that gets redirected here to avoid a crash on shutdown.
+ */
+void
+je_dumb_free_thunk(void *ptr)
+{
+  return; /* shutdown leaks that we don't care about */
+}
+
+#include <wchar.h>
+
+/*
+ *  We also need to provide our own impl of wcsdup so that we don't ask
+ *  the CRT for memory from its heap (which will then be unfreeable).
+ */
+wchar_t *je_wcsdup(const wchar_t *src)
+{
+  size_t len = wcslen(src);
+  wchar_t* dst = (wchar_t*)je_malloc((len + 1) * sizeof(wchar_t));
+  if(dst)
+    wcsncpy(dst, src, len + 1);
+  return dst;
+}
+
 #endif

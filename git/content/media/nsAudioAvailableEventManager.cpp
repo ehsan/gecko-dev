@@ -161,19 +161,10 @@ void nsAudioAvailableEventManager::QueueWrittenAudioData(AudioDataValue* aAudioD
     // Fill the signalBuffer.
     PRUint32 i;
     float *signalBuffer = mSignalBuffer.get() + mSignalBufferPosition;
-    if (audioData) {
-      for (i = 0; i < signalBufferTail; ++i) {
-        signalBuffer[i] = MOZ_CONVERT_AUDIO_SAMPLE(audioData[i]);
-      }
-    } else {
-      memset(signalBuffer, 0, signalBufferTail*sizeof(signalBuffer[0]));
+    for (i = 0; i < signalBufferTail; ++i) {
+      signalBuffer[i] = MOZ_CONVERT_AUDIO_SAMPLE(audioData[i]);
     }
-    if (audioData) {
-      audioData += signalBufferTail;
-    }
-
-    NS_ASSERTION(audioDataLength >= signalBufferTail,
-                 "audioDataLength about to wrap past zero to +infinity!");
+    audioData += signalBufferTail;
     audioDataLength -= signalBufferTail;
 
     if (mPendingEvents.Length() > 0) {
@@ -201,6 +192,7 @@ void nsAudioAvailableEventManager::QueueWrittenAudioData(AudioDataValue* aAudioD
     mSignalBuffer = new float[currentBufferSize];
     mSignalBufferPosition = 0;
     signalBufferTail = currentBufferSize;
+    NS_ASSERTION(audioDataLength >= 0, "Past new signal data length.");
   }
 
   NS_ASSERTION(mSignalBufferPosition + audioDataLength < mSignalBufferLength,
@@ -210,12 +202,8 @@ void nsAudioAvailableEventManager::QueueWrittenAudioData(AudioDataValue* aAudioD
     // Add data to the signalBuffer.
     PRUint32 i;
     float *signalBuffer = mSignalBuffer.get() + mSignalBufferPosition;
-    if (audioData) {
-      for (i = 0; i < audioDataLength; ++i) {
-        signalBuffer[i] = MOZ_CONVERT_AUDIO_SAMPLE(audioData[i]);
-      }
-    } else {
-      memset(signalBuffer, 0, audioDataLength*sizeof(signalBuffer[0]));
+    for (i = 0; i < audioDataLength; ++i) {
+      signalBuffer[i] = MOZ_CONVERT_AUDIO_SAMPLE(audioData[i]);
     }
     mSignalBufferPosition += audioDataLength;
   }

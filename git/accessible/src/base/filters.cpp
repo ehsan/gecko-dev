@@ -37,7 +37,7 @@
 
 #include "filters.h"
 
-#include "Accessible-inl.h"
+#include "nsAccessible.h"
 #include "nsAccUtils.h"
 #include "Role.h"
 #include "States.h"

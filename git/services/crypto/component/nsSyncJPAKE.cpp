@@ -50,8 +50,6 @@
 #include <base64.h>
 #include <nsString.h>
 
-using mozilla::fallible_t;
-
 static bool
 hex_from_2char(const unsigned char *c2, unsigned char *byteval)
 {
@@ -107,7 +105,7 @@ static bool
 toHexString(const unsigned char * str, unsigned len, nsACString & out)
 {
   static const char digits[] = "0123456789ABCDEF";
-  if (!out.SetCapacity(2 * len, fallible_t()))
+  if (!out.SetCapacity(2 * len))
     return false;
   out.SetLength(0);
   for (unsigned i = 0; i < len; ++i) {
@@ -334,7 +332,7 @@ setBase64(const unsigned char * data, unsigned len, nsACString & out)
   
   if (base64 != NULL) {
     size_t len = PORT_Strlen(base64);
-    if (out.SetCapacity(len, fallible_t())) {
+    if (out.SetCapacity(len)) {
       out.SetLength(0);
       out.Append(base64, len);
       PORT_Free((void*) base64);

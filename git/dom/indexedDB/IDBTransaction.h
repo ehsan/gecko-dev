@@ -47,6 +47,7 @@
 #include "mozIStorageFunction.h"
 #include "nsIIDBTransaction.h"
 #include "nsIRunnable.h"
+#include "nsIThreadInternal.h"
 
 #include "nsAutoPtr.h"
 #include "nsClassHashtable.h"
@@ -78,7 +79,7 @@ public:
 
 class IDBTransaction : public IDBWrapperCache,
                        public nsIIDBTransaction,
-                       public nsIRunnable
+                       public nsIThreadObserver
 {
   friend class AsyncConnectionHelper;
   friend class CommitHelper;
@@ -88,7 +89,7 @@ class IDBTransaction : public IDBWrapperCache,
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIIDBTRANSACTION
-  NS_DECL_NSIRUNNABLE
+  NS_DECL_NSITHREADOBSERVER
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBTransaction, IDBWrapperCache)
 
@@ -189,6 +190,7 @@ private:
   ReadyState mReadyState;
   Mode mMode;
   PRUint32 mPendingRequests;
+  PRUint32 mCreatedRecursionDepth;
 
   // Only touched on the main thread.
   NS_DECL_EVENT_HANDLER(error)
@@ -219,7 +221,7 @@ private:
   nsTArray<nsRefPtr<FileInfo> > mCreatedFileInfos;
 };
 
-class CommitHelper MOZ_FINAL : public nsIRunnable
+class CommitHelper : public nsIRunnable
 {
 public:
   NS_DECL_ISUPPORTS
@@ -263,7 +265,7 @@ private:
   bool mAborted;
 };
 
-class UpdateRefcountFunction MOZ_FINAL : public mozIStorageFunction
+class UpdateRefcountFunction : public mozIStorageFunction
 {
 public:
   NS_DECL_ISUPPORTS

@@ -1,12 +1,13 @@
 #filter substitution
 package @ANDROID_PACKAGE_NAME@.tests;
 
+import java.io.IOException;
 import @ANDROID_PACKAGE_NAME@.*;
 
 public class testCheck2 extends PixelTest {
     public void testCheck2() {
         setTestType("talos");
-        String url = getAbsoluteUrl("/startup_test/fennecmark/cnn/cnn.com/index.html");
+        String url = getAbsoluteUrl("/startup_test/fennecmark/timecube.html");
 
         mActions.expectGeckoEvent("Gecko:Ready").blockForEvent();
         loadAndPaint(url);
@@ -28,17 +29,19 @@ public class testCheck2 extends PixelTest {
 
         MotionEventReplayer mer = new MotionEventReplayer(getInstrumentation(), mDriver.getGeckoLeft(), mDriver.getGeckoTop());
 
-        float completeness = 0.0f;
         mDriver.startCheckerboardRecording();
         // replay the events
         try {
             mer.replayEvents(getAsset("testcheck2-motionevents"));
-            // give it some time to draw any final frames
-            Thread.sleep(1000);
-            completeness = mDriver.stopCheckerboardRecording();
-        } catch (Exception e) {
-            mAsserter.dumpLog("Exception while replaying events", e);
+        } catch (IOException ioe) {
+            mAsserter.dumpLog("IOException while replaying events", ioe);
         }
+        // give it some time to draw any final frames
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException ie) {
+        }
+        float completeness = mDriver.stopCheckerboardRecording();
 
         mAsserter.dumpLog("__start_report" + completeness + "__end_report");
         System.out.println("Completeness score: " + completeness);

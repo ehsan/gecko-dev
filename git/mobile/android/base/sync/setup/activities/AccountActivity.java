@@ -8,11 +8,8 @@ import java.util.Locale;
 
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.sync.setup.Constants;
-import org.mozilla.gecko.sync.setup.InvalidSyncKeyException;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
-import org.mozilla.gecko.sync.setup.SyncAccounts.SyncAccountParameters;
 
-import android.accounts.Account;
 import android.accounts.AccountAuthenticatorActivity;
 import android.accounts.AccountManager;
 import android.content.Context;
@@ -27,7 +24,6 @@ import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.CompoundButton.OnCheckedChangeListener;
 import android.widget.EditText;
-import android.widget.Toast;
 
 public class AccountActivity extends AccountAuthenticatorActivity {
   private final static String LOG_TAG        = "AccountActivity";
@@ -109,22 +105,13 @@ public class AccountActivity extends AccountAuthenticatorActivity {
    */
   public void connectClickHandler(View target) {
     Log.d(LOG_TAG, "connectClickHandler for view " + target);
-    enableCredEntry(false);
-    // Validate sync key format.
-    try {
-      key = ActivityUtils.validateSyncKey(synckeyInput.getText().toString());
-    } catch (InvalidSyncKeyException e) {
-      enableCredEntry(true);
-      // Toast: invalid sync key format.
-      Toast toast = Toast.makeText(mContext, R.string.sync_new_recoverykey_status_incorrect, Toast.LENGTH_LONG);
-      toast.show();
-      return;
-    }
     username = usernameInput.getText().toString().toLowerCase(Locale.US);
     password = passwordInput.getText().toString();
+    key = synckeyInput.getText().toString();
     if (serverCheckbox.isChecked()) {
       server = serverInput.getText().toString();
     }
+    enableCredEntry(false);
 
     // TODO : Authenticate with Sync Service, once implemented, with
     // onAuthSuccess as callback
@@ -180,34 +167,21 @@ public class AccountActivity extends AccountAuthenticatorActivity {
   private void authCallback() {
     // Create and add account to AccountManager
     // TODO: only allow one account to be added?
-    final SyncAccountParameters syncAccount = new SyncAccountParameters(mContext, mAccountManager,
-        username, key, password, server);
-    final Account account = SyncAccounts.createSyncAccount(syncAccount);
-    final boolean result = (account != null);
-
-    final Intent intent = new Intent(); // The intent to return.
-    intent.putExtra(AccountManager.KEY_ACCOUNT_NAME, syncAccount.username);
-    intent.putExtra(AccountManager.KEY_ACCOUNT_TYPE, Constants.ACCOUNTTYPE_SYNC);
-    intent.putExtra(AccountManager.KEY_AUTHTOKEN, Constants.ACCOUNTTYPE_SYNC);
+    Log.d(LOG_TAG, "Using account manager " + mAccountManager);
+    final Intent intent = SyncAccounts.createAccount(mContext, mAccountManager,
+                                        username,
+                                        key, password, server);
     setAccountAuthenticatorResult(intent.getExtras());
 
-    if (!result) {
-      // Failed to add account!
-      setResult(RESULT_CANCELED, intent);
-      runOnUiThread(new Runnable() {
-        @Override
-        public void run() {
-          authFailure();
-        }
-      });
-      return;
-    }
+    // Testing out the authFailure case
+    // authFailure();
 
     // TODO: Currently, we do not actually authenticate username/pass against
     // Moz sync server.
 
-    // Successfully added account.
+    // Successful authentication result
     setResult(RESULT_OK, intent);
+
     runOnUiThread(new Runnable() {
       @Override
       public void run() {
@@ -216,6 +190,7 @@ public class AccountActivity extends AccountAuthenticatorActivity {
     });
   }
 
+  @SuppressWarnings("unused")
   private void authFailure() {
     enableCredEntry(true);
     Intent intent = new Intent(mContext, SetupFailureActivity.class);

@@ -87,7 +87,6 @@ CPPSRCS		= \
 		nsContainerFrame.cpp \
 		nsFirstLetterFrame.cpp \
 		nsFloatManager.cpp \
-		nsFontInflationData.cpp \
 		nsFrame.cpp \
 		nsFrameList.cpp \
 		nsFrameSetFrame.cpp \

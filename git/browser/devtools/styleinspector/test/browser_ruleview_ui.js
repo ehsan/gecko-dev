@@ -72,13 +72,7 @@ function startTest()
     ruleView = new CssRuleView(doc);
     doc.documentElement.appendChild(ruleView.element);
     ruleView.element.addEventListener("CssRuleViewChanged", ruleViewChanged, false);
-    is(ruleView.element.querySelectorAll("#noResults").length, 1, "Has a no-results element.");
     ruleView.highlight(testElement);
-    is(ruleView.element.querySelectorAll("#noResults").length, 0, "After a highlight, no longer has a no-results element.");
-    ruleView.highlight(null);
-    is(ruleView.element.querySelectorAll("#noResults").length, 1, "After highlighting null, has a no-results element again.");
-    ruleView.highlight(testElement);
-
     waitForFocus(testCancelNew, ruleDialog);
   }, true);
 }
@@ -155,12 +149,6 @@ function testEditProperty()
         expectChange();
         is(idRuleEditor.rule.style.getPropertyValue("border-color"), "red",
            "border-color should have been set.");
-
-        let props = ruleView.element.querySelectorAll(".ruleview-property");
-        for (let i = 0; i < props.length; i++) {
-          is(props[i].hasAttribute("dirty"), i <= 1,
-            "props[" + i + "] marked dirty as appropriate");
-        }
         testDisableProperty();
       });
 

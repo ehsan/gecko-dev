@@ -314,10 +314,6 @@ nsGenericHTMLElement::CopyInnerTo(nsGenericElement* aDst) const
   for (i = 0; i < count; ++i) {
     const nsAttrName *name = mAttrsAndChildren.AttrNameAt(i);
     const nsAttrValue *value = mAttrsAndChildren.AttrAt(i);
-
-    nsAutoString valStr;
-    value->ToString(valStr);
-
     if (name->Equals(nsGkAtoms::style, kNameSpaceID_None) &&
         value->Type() == nsAttrValue::eCSSStyleRule) {
       // We can't just set this as a string, because that will fail
@@ -327,12 +323,14 @@ nsGenericHTMLElement::CopyInnerTo(nsGenericElement* aDst) const
       nsRefPtr<mozilla::css::StyleRule> styleRule = do_QueryObject(ruleClone);
       NS_ENSURE_TRUE(styleRule, NS_ERROR_UNEXPECTED);
 
-      rv = aDst->SetInlineStyleRule(styleRule, &valStr, false);
+      rv = aDst->SetInlineStyleRule(styleRule, false);
       NS_ENSURE_SUCCESS(rv, rv);
 
       continue;
     }
 
+    nsAutoString valStr;
+    value->ToString(valStr);
     rv = aDst->SetAttr(name->NamespaceID(), name->LocalName(),
                        name->GetPrefix(), valStr, false);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -697,24 +695,13 @@ nsGenericHTMLElement::GetMarkup(bool aIncludeSelf, nsAString& aMarkup)
 
   NS_ENSURE_TRUE(docEncoder, NS_ERROR_FAILURE);
 
-  PRUint32 flags = nsIDocumentEncoder::OutputEncodeBasicEntities |
-                   // Output DOM-standard newlines
-                   nsIDocumentEncoder::OutputLFLineBreak |
-                   // Don't do linebreaking that's not present in
-                   // the source
-                   nsIDocumentEncoder::OutputRaw |
-                   // Only check for mozdirty when necessary (bug 599983)
-                   nsIDocumentEncoder::OutputIgnoreMozDirty;
-
-  if (IsEditable()) {
-    nsCOMPtr<nsIEditor> editor;
-    GetEditorInternal(getter_AddRefs(editor));
-    if (editor && editor->OutputsMozDirty()) {
-      flags &= ~nsIDocumentEncoder::OutputIgnoreMozDirty;
-    }
-  }
-
-  nsresult rv = docEncoder->NativeInit(doc, contentType, flags);
+  nsresult rv = docEncoder->NativeInit(doc, contentType,
+                                       nsIDocumentEncoder::OutputEncodeBasicEntities |
+                                       // Output DOM-standard newlines
+                                       nsIDocumentEncoder::OutputLFLineBreak |
+                                       // Don't do linebreaking that's not present in
+                                       // the source
+                                       nsIDocumentEncoder::OutputRaw);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aIncludeSelf) {
@@ -1876,6 +1863,37 @@ nsGenericHTMLElement::MapCommonAttributesInto(const nsMappedAttributes* aAttribu
   }
 }
 
+void
+nsGenericHTMLFormElement::UpdateEditableFormControlState(bool aNotify)
+{
+  // nsCSSFrameConstructor::MaybeConstructLazily is based on the logic of this
+  // function, so should be kept in sync with that.
+
+  ContentEditableTristate value = GetContentEditableValue();
+  if (value != eInherit) {
+    DoSetEditableFlag(!!value, aNotify);
+    return;
+  }
+
+  nsIContent *parent = GetParent();
+
+  if (parent && parent->HasFlag(NODE_IS_EDITABLE)) {
+    DoSetEditableFlag(true, aNotify);
+    return;
+  }
+
+  if (!IsTextControl(false)) {
+    DoSetEditableFlag(false, aNotify);
+    return;
+  }
+
+  // If not contentEditable we still need to check the readonly attribute.
+  bool roState;
+  GetBoolAttr(nsGkAtoms::readonly, &roState);
+
+  DoSetEditableFlag(!roState, aNotify);
+}
+
 
 /* static */ const nsGenericHTMLElement::MappedAttributeEntry
 nsGenericHTMLElement::sCommonAttributeMap[] = {
@@ -2244,6 +2262,13 @@ nsGenericHTMLElement::MapScrollingAttributeInto(const nsMappedAttributes* aAttri
 //----------------------------------------------------------------------
 
 nsresult
+nsGenericHTMLElement::GetAttrHelper(nsIAtom* aAttr, nsAString& aValue)
+{
+  GetAttr(kNameSpaceID_None, aAttr, aValue);
+  return NS_OK;
+}
+
+nsresult
 nsGenericHTMLElement::SetAttrHelper(nsIAtom* aAttr, const nsAString& aValue)
 {
   return SetAttr(kNameSpaceID_None, aAttr, aValue, true);
@@ -2309,6 +2334,19 @@ nsGenericHTMLElement::SetUnsignedIntAttr(nsIAtom* aAttr, PRUint32 aValue)
   value.AppendInt(aValue);
 
   return SetAttr(kNameSpaceID_None, aAttr, value, true);
+}
+
+nsresult
+nsGenericHTMLElement::GetDoubleAttr(nsIAtom* aAttr, double aDefault, double* aResult)
+{
+  const nsAttrValue* attrVal = mAttrsAndChildren.GetAttr(aAttr);
+  if (attrVal && attrVal->Type() == nsAttrValue::eDoubleValue) {
+    *aResult = attrVal->GetDoubleValue();
+  }
+  else {
+    *aResult = aDefault;
+  }
+  return NS_OK;
 }
 
 nsresult
@@ -2885,7 +2923,8 @@ nsGenericHTMLFormElement::CanBeDisabled() const
   return
     type != NS_FORM_LABEL &&
     type != NS_FORM_OBJECT &&
-    type != NS_FORM_OUTPUT;
+    type != NS_FORM_OUTPUT &&
+    type != NS_FORM_PROGRESS;
 }
 
 bool
@@ -2928,18 +2967,6 @@ nsGenericHTMLFormElement::IntrinsicState() const
                    "Default submit element that isn't a submit control.");
       // We are the default submit element (:default)
       state |= NS_EVENT_STATE_DEFAULT;
-  }
-
-  // Make the text controls read-write
-  if (!state.HasState(NS_EVENT_STATE_MOZ_READWRITE) &&
-      IsTextControl(false)) {
-    bool roState;
-    GetBoolAttr(nsGkAtoms::readonly, &roState);
-
-    if (!roState) {
-      state |= NS_EVENT_STATE_MOZ_READWRITE;
-      state &= ~NS_EVENT_STATE_MOZ_READONLY;
-    }
   }
 
   return state;

@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/FloatingPoint.h"
-
 #include "txExpr.h"
 #include "txExprResult.h"
 #include "txSingleNodeContext.h"
@@ -60,7 +58,7 @@ double
 txUnionNodeTest::getDefaultPriority()
 {
     NS_ERROR("Don't call getDefaultPriority on txUnionPattern");
-    return MOZ_DOUBLE_NaN();
+    return txDouble::NaN;
 }
 
 bool

@@ -279,16 +279,7 @@ ContainerRender(Container* aContainer,
 
     aContainer->gl()->fBindTexture(aManager->FBOTextureTarget(), containerSurface);
 
-    MaskType maskType = MaskNone;
-    if (aContainer->GetMaskLayer()) {
-      if (!aContainer->GetTransform().CanDraw2D()) {
-        maskType = Mask3d;
-      } else {
-        maskType = Mask2d;
-      }
-    }
-    ShaderProgramOGL *rgb =
-      aManager->GetFBOLayerProgram(maskType);
+    ColorTextureLayerProgram *rgb = aManager->GetFBOLayerProgram();
 
     rgb->Activate();
     rgb->SetLayerQuadRect(visibleRect);
@@ -296,11 +287,12 @@ ContainerRender(Container* aContainer,
     rgb->SetLayerOpacity(opacity);
     rgb->SetRenderOffset(aOffset);
     rgb->SetTextureUnit(0);
-    rgb->LoadMask(aContainer->GetMaskLayer());
 
     if (rgb->GetTexCoordMultiplierUniformLocation() != -1) {
       // 2DRect case, get the multiplier right for a sampler2DRect
-      rgb->SetTexCoordMultiplier(visibleRect.width, visibleRect.height);
+      float f[] = { float(visibleRect.width), float(visibleRect.height) };
+      rgb->SetUniform(rgb->GetTexCoordMultiplierUniformLocation(),
+                      2, f);
     }
 
     // Drawing is always flipped, but when copying between surfaces we want to avoid

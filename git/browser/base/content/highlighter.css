@@ -12,11 +12,6 @@
   overflow: hidden;
 }
 
-#highlighter-veil-container:not([dim]) > .highlighter-veil,
-#highlighter-veil-container:not([dim]) > hbox > .highlighter-veil {
-  visibility: hidden;
-}
-
 #highlighter-veil-container:not([disable-transitions]) > .highlighter-veil,
 #highlighter-veil-container:not([disable-transitions]) > #highlighter-veil-middlebox,
 #highlighter-veil-container:not([disable-transitions]) > #highlighter-veil-middlebox > .highlighter-veil,
@@ -54,29 +49,20 @@
   -moz-transition-timing-function: linear;
 }
 
-#highlighter-nodeinfobar-text {
-  overflow: hidden;
+#highlighter-nodeinfobar {
+  display: block;
   white-space: nowrap;
-  text-overflow: ellipsis;
   direction: ltr;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.highlighter-nodeinfobar-button > .toolbarbutton-text {
-  display: none;
-}
-
-#highlighter-nodeinfobar-container:not([locked]):not(:hover) > #highlighter-nodeinfobar > .highlighter-nodeinfobar-button {
-  visibility: hidden;
-}
-
-#highlighter-nodeinfobar-container[locked] > #highlighter-nodeinfobar,
-#highlighter-nodeinfobar-container:not([locked]):hover > #highlighter-nodeinfobar {
+#highlighter-nodeinfobar-container[locked] > #highlighter-nodeinfobar {
   pointer-events: auto;
 }
 
 html|*#highlighter-nodeinfobar-id,
 html|*#highlighter-nodeinfobar-classes,
-html|*#highlighter-nodeinfobar-pseudo-classes,
 html|*#highlighter-nodeinfobar-tagname {
   -moz-user-select: text;
   cursor: text;
@@ -104,20 +90,4 @@ html|*#highlighter-nodeinfobar-tagname {
 
 .devtools-toolbarbutton:not([label]) > .toolbarbutton-text {
   display: none;
-}
-
-#inspector-option-toolbarbutton > .toolbarbutton-menu-dropmarker {
-  display: none;
-}
-
-#inspector-layoutview-container > iframe {
-  -moz-transition-property: height;
-  -moz-transition-duration: 0.1s;
-  /* header size */
-  height: 22px;
-}
-
-#inspector-layoutview-container > iframe[open] {
-  /* header size + layout view size: 22px + 155px */
-  height: 177px;
 }

@@ -3,43 +3,25 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-let {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
+let Cu = Components.utils;
+let uuidGen = Components.classes["@mozilla.org/uuid-generator;1"]
+             .getService(Components.interfaces.nsIUUIDGenerator);
 
-let uuidGen = Cc["@mozilla.org/uuid-generator;1"]
-                .getService(Ci.nsIUUIDGenerator);
-
-let loader = Cc["@mozilla.org/moz/jssubscript-loader;1"]
-               .getService(Ci.mozIJSSubScriptLoader);
-
+let loader = Components.classes["@mozilla.org/moz/jssubscript-loader;1"]
+             .getService(Components.interfaces.mozIJSSubScriptLoader);
 loader.loadSubScript("chrome://marionette/content/marionette-simpletest.js");
 loader.loadSubScript("chrome://marionette/content/marionette-log-obj.js");
-Cu.import("chrome://marionette/content/marionette-elements.js");
-let utils = {};
-utils.window = content;
-// Load Event/ChromeUtils for use with JS scripts:
-loader.loadSubScript("chrome://marionette/content/EventUtils.js", utils);
-loader.loadSubScript("chrome://marionette/content/ChromeUtils.js", utils);
-loader.loadSubScript("chrome://marionette/content/atoms.js", utils);
+Components.utils.import("chrome://marionette/content/marionette-elements.js");
 let marionetteLogObj = new MarionetteLogObj();
 
 let isB2G = false;
 
 let marionetteTimeout = null;
-let winUtil = content.QueryInterface(Ci.nsIInterfaceRequestor)
-                     .getInterface(Ci.nsIDOMWindowUtils);
+let winUtil = content.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIDOMWindowUtils);
 let listenerId = null; //unique ID of this listener
 let activeFrame = null;
-let curWindow = content;
+let win = content;
 let elementManager = new ElementManager([]);
-
-// The sandbox we execute test scripts in. Gets lazily created in
-// createExecuteContentSandbox().
-let sandbox;
-
-// Flag to indicate whether an async script is currently running or not.
-let asyncTestRunning = false;
-let asyncTestCommandId;
-let asyncTestTimeoutId;
 
 /**
  * Called when listener is first started up. 
@@ -56,47 +38,26 @@ function registerSelf() {
 }
 
 /**
- * Add a message listener that's tied to our listenerId.
- */
-function addMessageListenerId(messageName, handler) {
-  addMessageListener(messageName + listenerId, handler);
-}
-
-/**
- * Remove a message listener that's tied to our listenerId.
- */
-function removeMessageListenerId(messageName, handler) {
-  removeMessageListener(messageName + listenerId, handler);
-}
-
-/**
  * Start all message listeners
  */
 function startListeners() {
-  addMessageListenerId("Marionette:newSession", newSession);
-  addMessageListenerId("Marionette:executeScript", executeScript);
-  addMessageListenerId("Marionette:setScriptTimeout", setScriptTimeout);
-  addMessageListenerId("Marionette:executeAsyncScript", executeAsyncScript);
-  addMessageListenerId("Marionette:executeJSScript", executeJSScript);
-  addMessageListenerId("Marionette:setSearchTimeout", setSearchTimeout);
-  addMessageListenerId("Marionette:goUrl", goUrl);
-  addMessageListenerId("Marionette:getUrl", getUrl);
-  addMessageListenerId("Marionette:goBack", goBack);
-  addMessageListenerId("Marionette:goForward", goForward);
-  addMessageListenerId("Marionette:refresh", refresh);
-  addMessageListenerId("Marionette:findElementContent", findElementContent);
-  addMessageListenerId("Marionette:findElementsContent", findElementsContent);
-  addMessageListenerId("Marionette:clickElement", clickElement);
-  addMessageListenerId("Marionette:getElementAttribute", getElementAttribute);
-  addMessageListenerId("Marionette:getElementText", getElementText);
-  addMessageListenerId("Marionette:isElementDisplayed", isElementDisplayed);
-  addMessageListenerId("Marionette:isElementEnabled", isElementEnabled);
-  addMessageListenerId("Marionette:isElementSelected", isElementSelected);
-  addMessageListenerId("Marionette:sendKeysToElement", sendKeysToElement);
-  addMessageListenerId("Marionette:clearElement", clearElement);
-  addMessageListenerId("Marionette:switchToFrame", switchToFrame);
-  addMessageListenerId("Marionette:deleteSession", deleteSession);
-  addMessageListenerId("Marionette:sleepSession", sleepSession);
+  addMessageListener("Marionette:newSession" + listenerId, newSession);
+  addMessageListener("Marionette:executeScript" + listenerId, executeScript);
+  addMessageListener("Marionette:setScriptTimeout" + listenerId, setScriptTimeout);
+  addMessageListener("Marionette:executeAsyncScript" + listenerId, executeAsyncScript);
+  addMessageListener("Marionette:executeJSScript" + listenerId, executeJSScript);
+  addMessageListener("Marionette:setSearchTimeout" + listenerId, setSearchTimeout);
+  addMessageListener("Marionette:goUrl" + listenerId, goUrl);
+  addMessageListener("Marionette:getUrl" + listenerId, getUrl);
+  addMessageListener("Marionette:goBack" + listenerId, goBack);
+  addMessageListener("Marionette:goForward" + listenerId, goForward);
+  addMessageListener("Marionette:refresh" + listenerId, refresh);
+  addMessageListener("Marionette:findElementContent" + listenerId, findElementContent);
+  addMessageListener("Marionette:findElementsContent" + listenerId, findElementsContent);
+  addMessageListener("Marionette:clickElement" + listenerId, clickElement);
+  addMessageListener("Marionette:switchToFrame" + listenerId, switchToFrame);
+  addMessageListener("Marionette:deleteSession" + listenerId, deleteSession);
+  addMessageListener("Marionette:sleepSession" + listenerId, sleepSession);
 }
 
 /**
@@ -130,30 +91,23 @@ function restart() {
  * Removes all listeners
  */
 function deleteSession(msg) {
-  removeMessageListenerId("Marionette:newSession", newSession);
-  removeMessageListenerId("Marionette:executeScript", executeScript);
-  removeMessageListenerId("Marionette:setScriptTimeout", setScriptTimeout);
-  removeMessageListenerId("Marionette:executeAsyncScript", executeAsyncScript);
-  removeMessageListenerId("Marionette:executeJSScript", executeJSScript);
-  removeMessageListenerId("Marionette:setSearchTimeout", setSearchTimeout);
-  removeMessageListenerId("Marionette:goUrl", goUrl);
-  removeMessageListenerId("Marionette:getUrl", getUrl);
-  removeMessageListenerId("Marionette:goBack", goBack);
-  removeMessageListenerId("Marionette:goForward", goForward);
-  removeMessageListenerId("Marionette:refresh", refresh);
-  removeMessageListenerId("Marionette:findElementContent", findElementContent);
-  removeMessageListenerId("Marionette:findElementsContent", findElementsContent);
-  removeMessageListenerId("Marionette:clickElement", clickElement);
-  removeMessageListenerId("Marionette:getElementAttribute", getElementAttribute);
-  removeMessageListenerId("Marionette:getElementText", getElementText);
-  removeMessageListenerId("Marionette:isElementDisplayed", isElementDisplayed);
-  removeMessageListenerId("Marionette:isElementEnabled", isElementEnabled);
-  removeMessageListenerId("Marionette:isElementSelected", isElementSelected);
-  removeMessageListenerId("Marionette:sendKeysToElement", sendKeysToElement);
-  removeMessageListenerId("Marionette:clearElement", clearElement);
-  removeMessageListenerId("Marionette:switchToFrame", switchToFrame);
-  removeMessageListenerId("Marionette:deleteSession", deleteSession);
-  removeMessageListenerId("Marionette:sleepSession", sleepSession);
+  removeMessageListener("Marionette:newSession" + listenerId, newSession);
+  removeMessageListener("Marionette:executeScript" + listenerId, executeScript);
+  removeMessageListener("Marionette:setScriptTimeout" + listenerId, setScriptTimeout);
+  removeMessageListener("Marionette:executeAsyncScript" + listenerId, executeAsyncScript);
+  removeMessageListener("Marionette:executeJSScript" + listenerId, executeJSScript);
+  removeMessageListener("Marionette:setSearchTimeout" + listenerId, setSearchTimeout);
+  removeMessageListener("Marionette:goUrl" + listenerId, goUrl);
+  removeMessageListener("Marionette:getUrl" + listenerId, getUrl);
+  removeMessageListener("Marionette:goBack" + listenerId, goBack);
+  removeMessageListener("Marionette:goForward" + listenerId, goForward);
+  removeMessageListener("Marionette:refresh" + listenerId, refresh);
+  removeMessageListener("Marionette:findElementContent" + listenerId, findElementContent);
+  removeMessageListener("Marionette:findElementsContent" + listenerId, findElementsContent);
+  removeMessageListener("Marionette:clickElement" + listenerId, clickElement);
+  removeMessageListener("Marionette:switchToFrame" + listenerId, switchToFrame);
+  removeMessageListener("Marionette:deleteSession" + listenerId, deleteSession);
+  removeMessageListener("Marionette:sleepSession" + listenerId, sleepSession);
   this.elementManager.reset();
 }
 
@@ -204,9 +158,7 @@ function sendError(message, status, trace, command_id) {
  * Clear test values after completion of test
  */
 function resetValues() {
-  sandbox = null;
   marionetteTimeout = null;
-  curWin = content;
 }
 
 /**
@@ -224,53 +176,26 @@ function errUnload() {
 /**
  * Returns a content sandbox that can be used by the execute_foo functions.
  */
-function createExecuteContentSandbox(aWindow) {
+function createExecuteContentSandbox(aWindow, marionette, args) {
+  try {
+    args = elementManager.convertWrappedArguments(args, aWindow);
+  }
+  catch(e) {
+    sendError(e.message, e.num, e.stack);
+    return;
+  }
+
   let sandbox = new Cu.Sandbox(aWindow);
-  sandbox.global = sandbox;
   sandbox.window = aWindow;
   sandbox.document = sandbox.window.document;
   sandbox.navigator = sandbox.window.navigator;
+  sandbox.__namedArgs = elementManager.applyNamedArgs(args);
+  sandbox.__marionetteParams = args;
   sandbox.__proto__ = sandbox.window;
-  sandbox.testUtils = utils;
 
-  let marionette = new Marionette(false, aWindow, "content", marionetteLogObj);
-  sandbox.marionette = marionette;
   marionette.exports.forEach(function(fn) {
     sandbox[fn] = marionette[fn].bind(marionette);
   });
-
-  sandbox.asyncComplete = function sandbox_asyncComplete(value, status) {
-    curWindow.removeEventListener("unload", errUnload, false);
-
-    /* clear all timeouts potentially generated by the script*/
-    for (let i = 0; i <= asyncTestTimeoutId; i++) {
-      curWindow.clearTimeout(i);
-    }
-
-    sendSyncMessage("Marionette:testLog",
-                    {value: elementManager.wrapValue(marionetteLogObj.getLogs())});
-    marionetteLogObj.clearLogs();
-    if (status == 0){
-      sendResponse({value: elementManager.wrapValue(value), status: status}, asyncTestCommandId);
-    }
-    else {
-      sendError(value, status, null, asyncTestCommandId);
-    }
-
-    asyncTestRunning = false;
-    asyncTestTimeoutId = undefined;
-    asyncTestCommandId = undefined;
-  };
-  sandbox.finish = function sandbox_finish() {
-    if (asyncTestRunning) {
-      sandbox.asyncComplete(marionette.generate_results(), 0);
-    } else {
-      return marionette.generate_results();
-    }
-  };
-  sandbox.marionetteScriptFinished = function sandbox_marionetteScriptFinished(value) {
-    return sandbox.asyncComplete(value, 0);
-  };
 
   return sandbox;
 }
@@ -281,14 +206,15 @@ function createExecuteContentSandbox(aWindow) {
  */
 function executeScript(msg, directInject) {
   let script = msg.json.value;
+  let marionette = new Marionette(false, win, "content", marionetteLogObj);
 
-  if (msg.json.newSandbox || !sandbox) {
-    sandbox = createExecuteContentSandbox(curWindow);
-    if (!sandbox) {
-      sendError("Could not create sandbox!");
-      return;
-    }
-  }
+  let sandbox = createExecuteContentSandbox(win, marionette, msg.json.args);
+  if (!sandbox)
+    return;
+
+  sandbox.finish = function sandbox_finish() {
+    return marionette.generate_results();
+  };
 
   try {
     if (directInject) {
@@ -303,15 +229,6 @@ function executeScript(msg, directInject) {
       }
     }
     else {
-      try {
-        sandbox.__marionetteParams = elementManager.convertWrappedArguments(
-          msg.json.args, curWindow);
-      }
-      catch(e) {
-        sendError(e.message, e.num, e.stack);
-        return;
-      }
-
       let scriptSrc = "let __marionetteFunc = function(){" + script + "};" +
                       "__marionetteFunc.apply(null, __marionetteParams);";
       let res = Cu.evalInSandbox(scriptSrc, sandbox, "1.8");
@@ -361,33 +278,41 @@ function executeJSScript(msg) {
  * method is called, or if it times out.
  */
 function executeWithCallback(msg, timeout) {
-  curWindow.addEventListener("unload", errUnload, false);
+  win.addEventListener("unload", errUnload, false);
   let script = msg.json.value;
-  asyncTestCommandId = msg.json.id;
-
-  if (msg.json.newSandbox || !sandbox) {
-    sandbox = createExecuteContentSandbox(curWindow);
-    if (!sandbox) {
-      sendError("Could not create sandbox!");
-      return;
-    }
-  }
+  let command_id = msg.json.id;
 
   // Error code 28 is scriptTimeout, but spec says execute_async should return 21 (Timeout),
   // see http://code.google.com/p/selenium/wiki/JsonWireProtocol#/session/:sessionId/execute_async.
   // However Selenium code returns 28, see
   // http://code.google.com/p/selenium/source/browse/trunk/javascript/firefox-driver/js/evaluate.js.
   // We'll stay compatible with the Selenium code.
-  asyncTestTimeoutId = curWindow.setTimeout(function() {
-    sandbox.asyncComplete('timed out', 28);
+  let timeoutId = win.setTimeout(function() {
+    contentAsyncReturnFunc('timed out', 28);
   }, marionetteTimeout);
-  sandbox.marionette.timeout = marionetteTimeout;
-
-  curWindow.addEventListener('error', function win__onerror(evt) {
-    curWindow.removeEventListener('error', win__onerror, true);
-    sandbox.asyncComplete(evt, 17);
+  win.addEventListener('error', function win__onerror(evt) {
+    win.removeEventListener('error', win__onerror, true);
+    contentAsyncReturnFunc(evt, 17);
     return true;
   }, true);
+
+  function contentAsyncReturnFunc(value, status) {
+    win.removeEventListener("unload", errUnload, false);
+
+    /* clear all timeouts potentially generated by the script*/
+    for(let i=0; i<=timeoutId; i++) {
+      win.clearTimeout(i);
+    }
+
+    sendSyncMessage("Marionette:testLog", {value: elementManager.wrapValue(marionetteLogObj.getLogs())});
+    marionetteLogObj.clearLogs();
+    if (status == 0){
+      sendResponse({value: elementManager.wrapValue(value), status: status}, command_id);
+    }
+    else {
+      sendError(value, status, null, command_id);
+    }
+  };
 
   let scriptSrc;
   if (timeout) {
@@ -397,23 +322,25 @@ function executeWithCallback(msg, timeout) {
     scriptSrc = script;
   }
   else {
-    try {
-      sandbox.__marionetteParams = elementManager.convertWrappedArguments(
-        msg.json.args, curWindow);
-    }
-    catch(e) {
-      sendError(e.message, e.num, e.stack);
-      return;
-    }
-
-    scriptSrc = "__marionetteParams.push(marionetteScriptFinished);" +
+    scriptSrc = "let marionetteScriptFinished = function(value) { return asyncComplete(value,0);};" +
+                "__marionetteParams.push(marionetteScriptFinished);" +
                 "let __marionetteFunc = function() { " + script + "};" +
                 "__marionetteFunc.apply(null, __marionetteParams); ";
   }
 
+  let marionette = new Marionette(true, win, "content", marionetteLogObj);
+
+  let sandbox = createExecuteContentSandbox(win, marionette, msg.json.args);
+  if (!sandbox)
+    return;
+
+  sandbox.asyncComplete = contentAsyncReturnFunc;
+  sandbox.finish = function sandbox_finish() {
+    contentAsyncReturnFunc(marionette.generate_results(), 0);
+  };
+
   try {
-    asyncTestRunning = true;
-    Cu.evalInSandbox(scriptSrc, sandbox, "1.8");
+   Cu.evalInSandbox(scriptSrc, sandbox, "1.8");
   } catch (e) {
     // 17 = JavascriptException
     sendError(e.name + ': ' + e.message, 17, e.stack);
@@ -439,31 +366,37 @@ function setSearchTimeout(msg) {
  * All other navigation is handled by the server (in chrome space).
  */
 function goUrl(msg) {
-  curWindow.location = msg.json.value;
-  //TODO: replace this with DOMContentLoaded event listening when Bug 720714 is resolved
-  let checkTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-  function checkLoad() { 
-    if (curWindow.document.readyState == "complete") { 
-      sendOk();
-      return;
-    } 
-    checkTimer.initWithCallback(checkLoad, 100, Ci.nsITimer.TYPE_ONE_SHOT);
+  if (activeFrame != null) {
+    win.document.location = msg.json.value;
+    //TODO: replace this with event firing when Bug 720714 is resolved
+    let checkTimer = Components.classes["@mozilla.org/timer;1"].createInstance(Components.interfaces.nsITimer);
+    let checkLoad = function () { 
+                      if (win.document.readyState == "complete") { 
+                        sendOk();
+                      } 
+                      else { 
+                        checkTimer.initWithCallback(checkLoad, 100, Components.interfaces.nsITimer.TYPE_ONE_SHOT);
+                      }
+                    };
+    checkLoad();
   }
-  checkTimer.initWithCallback(checkLoad, 100, Ci.nsITimer.TYPE_ONE_SHOT);
+  else {
+    sendAsyncMessage("Marionette:goUrl", {value: msg.json.value});
+  }
 }
 
 /**
  * Get the current URI
  */
 function getUrl(msg) {
-  sendResponse({value: curWindow.location.href});
+  sendResponse({value: win.location.href});
 }
 
 /**
  * Go back in history 
  */
 function goBack(msg) {
-  curWindow.history.back();
+  win.history.back();
   sendOk();
 }
 
@@ -471,7 +404,7 @@ function goBack(msg) {
  * Go forward in history 
  */
 function goForward(msg) {
-  curWindow.history.forward();
+  win.history.forward();
   sendOk();
 }
 
@@ -479,7 +412,7 @@ function goForward(msg) {
  * Refresh the page
  */
 function refresh(msg) {
-  curWindow.location.reload(true);
+  win.location.reload(true);
   let listen = function() { removeEventListener("DOMContentLoaded", arguments.callee, false); sendOk() } ;
   addEventListener("DOMContentLoaded", listen, false);
 }
@@ -488,13 +421,16 @@ function refresh(msg) {
  * Find an element in the document using requested search strategy 
  */
 function findElementContent(msg) {
+  //Todo: extend to support findChildElement
   let id;
   try {
     let notify = function(id) { sendResponse({value:id});};
-    id = elementManager.find(curWindow, msg.json, notify, false);
+    let curWin = activeFrame ? win.frames[activeFrame] : win;
+    id = elementManager.find(curWin, msg.json, notify, false);
   }
   catch (e) {
     sendError(e.message, e.num, e.stack);
+    return;
   }
 }
 
@@ -502,13 +438,16 @@ function findElementContent(msg) {
  * Find elements in the document using requested search strategy 
  */
 function findElementsContent(msg) {
+  //Todo: extend to support findChildElement
   let id;
   try {
     let notify = function(id) { sendResponse({value:id});};
-    id = elementManager.find(curWindow, msg.json, notify, true);
+    let curWin = activeFrame ? win.frames[activeFrame] : win;
+    id = elementManager.find(curWin, msg.json, notify, true);
   }
   catch (e) {
     sendError(e.message, e.num, e.stack);
+    return;
   }
 }
 
@@ -518,106 +457,14 @@ function findElementsContent(msg) {
 function clickElement(msg) {
   let el;
   try {
-    el = elementManager.getKnownElement(msg.json.element, curWindow);
-    utils.click(el);
-    sendOk();
+    el = elementManager.getKnownElement(msg.json.element, win);
   }
   catch (e) {
     sendError(e.message, e.num, e.stack);
+    return;
   }
-}
-
-/**
- * Get a given attribute of an element
- */
-function getElementAttribute(msg) {
-  try {
-    let el = elementManager.getKnownElement(msg.json.element, curWindow);
-    sendResponse({value: utils.getElementAttribute(el, msg.json.name)});
-  }
-  catch (e) {
-    sendError(e.message, e.num, e.stack);
-  }
-}
-
-/**
- * Get the text of this element. This includes text from child elements.
- */
-function getElementText(msg) {
-  try {
-    let el = elementManager.getKnownElement(msg.json.element, curWindow);
-    sendResponse({value: utils.getElementText(el)});
-  }
-  catch (e) {
-    sendError(e.message, e.num, e.stack);
-  }
-}
-
-/**
- * Check if element is displayed
- */
-function isElementDisplayed(msg) {
-  try {
-    let el = elementManager.getKnownElement(msg.json.element, curWindow);
-    sendResponse({value: utils.isElementDisplayed(el)});
-  }
-  catch (e) {
-    sendError(e.message, e.num, e.stack);
-  }
-}
-
-/**
- * Check if element is enabled
- */
-function isElementEnabled(msg) {
-  try {
-    let el = elementManager.getKnownElement(msg.json.element, curWindow);
-    sendResponse({value: utils.isElementEnabled(el)});
-  }
-  catch (e) {
-    sendError(e.message, e.num, e.stack);
-  }
-}
-
-/**
- * Check if element is selected
- */
-function isElementSelected(msg) {
-  try {
-    let el = elementManager.getKnownElement(msg.json.element, curWindow);
-    sendResponse({value: utils.isElementSelected(el)});
-  }
-  catch (e) {
-    sendError(e.message, e.num, e.stack);
-  }
-}
-
-/**
- * Send keys to element
- */
-function sendKeysToElement(msg) {
-  try {
-    let el = elementManager.getKnownElement(msg.json.element, curWindow);
-    utils.sendKeysToElement(el, msg.json.value);
-    sendOk();
-  }
-  catch (e) {
-    sendError(e.message, e.num, e.stack);
-  }
-}
-
-/**
- * Clear the text of an element
- */
-function clearElement(msg) {
-  try {
-    let el = elementManager.getKnownElement(msg.json.element, curWindow);
-    utils.clearElement(el);
-    sendOk();
-  }
-  catch (e) {
-    sendError(e.message, e.num, e.stack);
-  }
+  el.click();
+  sendOk();
 }
 
 /**
@@ -627,19 +474,21 @@ function clearElement(msg) {
 function switchToFrame(msg) {
   let foundFrame = null;
   if ((msg.json.value == null) && (msg.json.element == null)) {
-    curWindow = content;
-    curWindow.focus();
+    win = content;
+    activeFrame = null;
+    content.focus();
     sendOk();
     return;
   }
   if (msg.json.element != undefined) {
     if (elementManager.seenItems[msg.json.element] != undefined) {
-      let wantedFrame = elementManager.getKnownElement(msg.json.element, curWindow); //HTMLIFrameElement
-      let numFrames = curWindow.frames.length;
+      let wantedFrame = elementManager.getKnownElement(msg.json.element, win);//HTMLIFrameElement
+      let numFrames = win.frames.length;
       for (let i = 0; i < numFrames; i++) {
-        if (curWindow.frames[i].frameElement == wantedFrame) {
-          curWindow = curWindow.frames[i]; 
-          curWindow.focus();
+        if (win.frames[i].frameElement == wantedFrame) {
+          win = win.frames[i]; 
+          activeFrame = i;
+          win.focus();
           sendOk();
           return;
         }
@@ -649,10 +498,10 @@ function switchToFrame(msg) {
   switch(typeof(msg.json.value)) {
     case "string" :
       let foundById = null;
-      let numFrames = curWindow.frames.length;
+      let numFrames = win.frames.length;
       for (let i = 0; i < numFrames; i++) {
         //give precedence to name
-        let frame = curWindow.frames[i];
+        let frame = win.frames[i];
         let frameElement = frame.frameElement;
         if (frameElement.name == msg.json.value) {
           foundFrame = i;
@@ -666,20 +515,21 @@ function switchToFrame(msg) {
       }
       break;
     case "number":
-      if (curWindow.frames[msg.json.value] != undefined) {
+      if (win.frames[msg.json.value] != undefined) {
         foundFrame = msg.json.value;
       }
       break;
   }
-  if (foundFrame == null) {
+  //TODO: implement index
+  if (foundFrame != null) {
+    let frameWindow = win.frames[foundFrame];
+    activeFrame = foundFrame;
+    win = frameWindow;
+    win.focus();
+    sendOk();
+  } else {
     sendError("Unable to locate frame: " + msg.json.value, 8, null);
-    return;
   }
-  curWindow = curWindow.frames[foundFrame];
-  curWindow.focus();
-  sendOk();
-
-  sandbox = null;
 }
 
 //call register self when we get loaded

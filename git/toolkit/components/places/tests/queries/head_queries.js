@@ -107,42 +107,18 @@ function populateDB(aArray) {
             }
           }
 
-          if (qdata.isRedirect) {
-            // Redirect sources added through the docshell are properly marked
-            // as redirects and get hidden state, the API doesn't have that
-            // power (And actually doesn't make much sense to add redirects
-            // through the API).
-            // This must be async cause otherwise the updateFrecency call
-            // done by addVisits may randomly happen after it, overwriting the
-            // value.
-            let stmt = DBConn().createAsyncStatement(
-              "UPDATE moz_places SET hidden = 1 WHERE url = :url");
-            stmt.params.url = qdata.uri;
-            try {
-              stmt.executeAsync();
-            }
-            catch (ex) {
-              print("Error while setting hidden.");
-            }
-            finally {
-              stmt.finalize();
-            }
-          }
-
           if (qdata.isDetails) {
             // Then we add extraneous page details for testing
-            PlacesUtils.history.addVisit(uri(qdata.uri),
-                                         qdata.lastVisit,
-                                         null,
-                                         TRANSITION_LINK,
-                                         false,
-                                         0);
-            PlacesUtils.ghistory2.setPageTitle(uri(qdata.uri),
-                                               qdata.title);
+            PlacesUtils.history.addPageWithDetails(uri(qdata.uri),
+                                                   qdata.title, qdata.lastVisit);
           }
 
           if (qdata.markPageAsTyped){
             PlacesUtils.bhistory.markPageAsTyped(uri(qdata.uri));
+          }
+
+          if (qdata.hidePage){
+            PlacesUtils.bhistory.hidePage(uri(qdata.uri));
           }
 
           if (qdata.isPageAnnotation) {
@@ -278,6 +254,7 @@ function queryData(obj) {
   this.isDetails = obj.isDetails ? obj.isDetails : false;
   this.title = obj.title ? obj.title : "";
   this.markPageAsTyped = obj.markPageAsTyped ? obj.markPageAsTyped : false;
+  this.hidePage = obj.hidePage ? obj.hidePage : false;
   this.isPageAnnotation = obj.isPageAnnotation ? obj.isPageAnnotation : false;
   this.removeAnnotation= obj.removeAnnotation ? true : false;
   this.annoName = obj.annoName ? obj.annoName : "";

@@ -88,6 +88,7 @@
 #include "nsIContentSecurityPolicy.h"
 #include "nsJSEnvironment.h"
 #include "xpcpublic.h"
+#include "sampler.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::hal;
@@ -289,13 +290,16 @@ nsEventListenerManager::AddEventListener(nsIDOMEventListener *aListener,
                                    MutationBitForEventType(aType));
     }
   } else if (aTypeAtom == nsGkAtoms::ondeviceorientation) {
-    EnableDevice(NS_DEVICE_ORIENTATION);
-  } else if (aTypeAtom == nsGkAtoms::ondeviceproximity) {
-    EnableDevice(NS_DEVICE_PROXIMITY);
-  } else if (aTypeAtom == nsGkAtoms::ondevicelight) {
-    EnableDevice(NS_DEVICE_LIGHT);
+     nsPIDOMWindow* window = GetInnerWindowForTarget();
+     if (window)
+       window->EnableDeviceSensor(SENSOR_ORIENTATION);
   } else if (aTypeAtom == nsGkAtoms::ondevicemotion) {
-    EnableDevice(NS_DEVICE_MOTION);
+    nsPIDOMWindow* window = GetInnerWindowForTarget();
+    if (window) {
+      window->EnableDeviceSensor(SENSOR_ACCELERATION);
+      window->EnableDeviceSensor(SENSOR_LINEAR_ACCELERATION);
+      window->EnableDeviceSensor(SENSOR_GYROSCOPE);
+    }
   } else if ((aType >= NS_MOZTOUCH_DOWN && aType <= NS_MOZTOUCH_UP) ||
              (aTypeAtom == nsGkAtoms::ontouchstart ||
               aTypeAtom == nsGkAtoms::ontouchend ||
@@ -337,46 +341,12 @@ nsEventListenerManager::IsDeviceType(PRUint32 aType)
 }
 
 void
-nsEventListenerManager::EnableDevice(PRUint32 aType)
-{
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(mTarget);
-  if (!window) {
-    return;
-  }
-
-  NS_ASSERTION(window->IsInnerWindow(), "Target should not be an outer window");
-
-  switch (aType) {
-    case NS_DEVICE_ORIENTATION:
-      window->EnableDeviceSensor(SENSOR_ORIENTATION);
-      break;
-    case NS_DEVICE_PROXIMITY:
-      window->EnableDeviceSensor(SENSOR_PROXIMITY);
-      break;
-    case NS_DEVICE_LIGHT:
-      window->EnableDeviceSensor(SENSOR_LIGHT);
-      break;
-    case NS_DEVICE_MOTION:
-      window->EnableDeviceSensor(SENSOR_ACCELERATION);
-      window->EnableDeviceSensor(SENSOR_LINEAR_ACCELERATION);
-      window->EnableDeviceSensor(SENSOR_GYROSCOPE);
-      break;
-    default:
-      NS_WARNING("Enabling an unknown device sensor.");
-      break;
-  }
-}
-
-void
 nsEventListenerManager::DisableDevice(PRUint32 aType)
 {
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(mTarget);
+  nsPIDOMWindow* window = GetInnerWindowForTarget();
   if (!window) {
     return;
   }
-
-  NS_ASSERTION(window->IsInnerWindow(), "Target should not be an outer window");
-
   switch (aType) {
     case NS_DEVICE_ORIENTATION:
       window->DisableDeviceSensor(SENSOR_ORIENTATION);
@@ -385,12 +355,6 @@ nsEventListenerManager::DisableDevice(PRUint32 aType)
       window->DisableDeviceSensor(SENSOR_ACCELERATION);
       window->DisableDeviceSensor(SENSOR_LINEAR_ACCELERATION);
       window->DisableDeviceSensor(SENSOR_GYROSCOPE);
-      break;
-    case NS_DEVICE_PROXIMITY:
-      window->DisableDeviceSensor(SENSOR_PROXIMITY);
-      break;
-    case NS_DEVICE_LIGHT:
-      window->DisableDeviceSensor(SENSOR_LIGHT);
       break;
     default:
       NS_WARNING("Disabling an unknown device sensor.");
@@ -413,7 +377,6 @@ nsEventListenerManager::RemoveEventListener(nsIDOMEventListener *aListener,
 
   PRUint32 count = mListeners.Length();
   PRUint32 typeCount = 0;
-  bool deviceType = IsDeviceType(aType);
 
   for (PRUint32 i = 0; i < count; ++i) {
     ls = &mListeners.ElementAt(i);
@@ -427,7 +390,7 @@ nsEventListenerManager::RemoveEventListener(nsIDOMEventListener *aListener,
         mNoListenerForEvent = NS_EVENT_TYPE_NULL;
         mNoListenerForEventAtom = nsnull;
 
-        if (deviceType) {
+        if (!IsDeviceType(aType)) {
           return;
         }
         --typeCount;
@@ -435,7 +398,7 @@ nsEventListenerManager::RemoveEventListener(nsIDOMEventListener *aListener,
     }
   }
 
-  if (deviceType && typeCount == 0) {
+  if (typeCount == 0) {
     DisableDevice(aType);
   }
 }
@@ -563,8 +526,7 @@ nsEventListenerManager::AddScriptEventListener(nsIAtom *aName,
     // Try to get context from doc
     // XXX sXBL/XBL2 issue -- do we really want the owner here?  What
     // if that's the XBL document?
-    doc = node->OwnerDoc();
-    global = doc->GetScriptGlobalObject();
+    global = node->OwnerDoc()->GetScriptGlobalObject();
   } else {
     nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(mTarget));
     if (win) {
@@ -852,6 +814,7 @@ nsEventListenerManager::HandleEventInternal(nsPresContext* aPresContext,
                                             nsEventStatus* aEventStatus,
                                             nsCxPusher* aPusher)
 {
+  SAMPLE_LABEL("nsEventListenerManager", "HandleEventInternal");
   //Set the value of the internal PreventDefault flag properly based on aEventStatus
   if (*aEventStatus == nsEventStatus_eConsumeNoDefault) {
     aEvent->flags |= NS_EVENT_FLAG_NO_DEFAULT;

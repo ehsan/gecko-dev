@@ -108,42 +108,15 @@ static void tokenize2nd_order_b
     ENTROPY_CONTEXT * a;
     ENTROPY_CONTEXT * l;
     int band, rc, v, token;
-    int eob;
 
     b = x->block + 24;
     qcoeff_ptr = b->qcoeff;
     a = (ENTROPY_CONTEXT *)x->above_context + 8;
     l = (ENTROPY_CONTEXT *)x->left_context + 8;
-    eob = x->eobs[24];
+
     VP8_COMBINEENTROPYCONTEXTS(pt, *a, *l);
 
-    if(!eob)
-    {
-        /* c = band for this case */
-        t->Token = DCT_EOB_TOKEN;
-        t->context_tree = cpi->common.fc.coef_probs [1] [0] [pt];
-        t->skip_eob_node = 0;
-
-        ++cpi->coef_counts       [1] [0] [pt] [DCT_EOB_TOKEN];
-        t++;
-        *tp = t;
-        *a = *l = 0;
-        return;
-    }
-
-    v = qcoeff_ptr[0];
-    t->Extra = vp8_dct_value_tokens_ptr[v].Extra;
-    token    = vp8_dct_value_tokens_ptr[v].Token;
-    t->Token = token;
-
-    t->context_tree = cpi->common.fc.coef_probs [1] [0] [pt];
-    t->skip_eob_node = 0;
-    ++cpi->coef_counts       [1] [0] [pt] [token];
-    pt = vp8_prev_token_class[token];
-    t++;
-    c = 1;
-
-    for (; c < eob; c++)
+    for (c = 0; c < b->eob; c++)
     {
         rc = vp8_default_zig_zag1d[c];
         band = vp8_coef_bands[c];
@@ -155,7 +128,7 @@ static void tokenize2nd_order_b
         t->Token = token;
         t->context_tree = cpi->common.fc.coef_probs [1] [band] [pt];
 
-        t->skip_eob_node = ((pt == 0));
+        t->skip_eob_node = ((pt == 0) && (band > 0));
 
         ++cpi->coef_counts       [1] [band] [pt] [token];
 
@@ -168,7 +141,7 @@ static void tokenize2nd_order_b
         t->Token = DCT_EOB_TOKEN;
         t->context_tree = cpi->common.fc.coef_probs [1] [band] [pt];
 
-        t->skip_eob_node = 0;
+        t->skip_eob_node = ((pt == 0) && (band > 0));
 
         ++cpi->coef_counts       [1] [band] [pt] [DCT_EOB_TOKEN];
 
@@ -176,7 +149,8 @@ static void tokenize2nd_order_b
     }
 
     *tp = t;
-    *a = *l = 1;
+    pt = (c != 0); /* 0 <-> all coeff data is zero */
+    *a = *l = pt;
 
 }
 
@@ -214,34 +188,7 @@ static void tokenize1st_order_b
 
         c = type ? 0 : 1;
 
-        if(c >= *b->eob)
-        {
-            /* c = band for this case */
-            t->Token = DCT_EOB_TOKEN;
-            t->context_tree = cpi->common.fc.coef_probs [type] [c] [pt];
-            t->skip_eob_node = 0;
-
-            ++cpi->coef_counts       [type] [c] [pt] [DCT_EOB_TOKEN];
-            t++;
-            *tp = t;
-            *a = *l = 0;
-            continue;
-        }
-
-        v = qcoeff_ptr[c];
-
-        t->Extra = vp8_dct_value_tokens_ptr[v].Extra;
-        token    = vp8_dct_value_tokens_ptr[v].Token;
-        t->Token = token;
-
-        t->context_tree = cpi->common.fc.coef_probs [type] [c] [pt];
-        t->skip_eob_node = 0;
-        ++cpi->coef_counts       [type] [c] [pt] [token];
-        pt = vp8_prev_token_class[token];
-        t++;
-        c++;
-
-        for (; c < *b->eob; c++)
+        for (; c < b->eob; c++)
         {
             rc = vp8_default_zig_zag1d[c];
             band = vp8_coef_bands[c];
@@ -253,7 +200,9 @@ static void tokenize1st_order_b
             t->Token = token;
             t->context_tree = cpi->common.fc.coef_probs [type] [band] [pt];
 
-            t->skip_eob_node = (pt == 0);
+            t->skip_eob_node = pt == 0 &&
+                ((band > 0 && type > 0) || (band > 1 && type == 0));
+
             ++cpi->coef_counts       [type] [band] [pt] [token];
 
             pt = vp8_prev_token_class[token];
@@ -265,15 +214,18 @@ static void tokenize1st_order_b
             t->Token = DCT_EOB_TOKEN;
             t->context_tree = cpi->common.fc.coef_probs [type] [band] [pt];
 
-            t->skip_eob_node = 0;
+            t->skip_eob_node = pt == 0 &&
+                ((band > 0 && type > 0) || (band > 1 && type == 0));
+
             ++cpi->coef_counts       [type] [band] [pt] [DCT_EOB_TOKEN];
 
             t++;
         }
         *tp = t;
-        *a = *l = 1;
-    }
+        pt = (c != !type); /* 0 <-> all coeff data is zero */
+        *a = *l = pt;
 
+    }
     /* Chroma */
     for (block = 16; block < 24; block++, b++)
     {
@@ -285,34 +237,7 @@ static void tokenize1st_order_b
 
         VP8_COMBINEENTROPYCONTEXTS(pt, *a, *l);
 
-        if(!(*b->eob))
-        {
-            /* c = band for this case */
-            t->Token = DCT_EOB_TOKEN;
-            t->context_tree = cpi->common.fc.coef_probs [2] [0] [pt];
-            t->skip_eob_node = 0;
-
-            ++cpi->coef_counts       [2] [0] [pt] [DCT_EOB_TOKEN];
-            t++;
-            *tp = t;
-            *a = *l = 0;
-            continue;
-        }
-
-        v = qcoeff_ptr[0];
-
-        t->Extra = vp8_dct_value_tokens_ptr[v].Extra;
-        token    = vp8_dct_value_tokens_ptr[v].Token;
-        t->Token = token;
-
-        t->context_tree = cpi->common.fc.coef_probs [2] [0] [pt];
-        t->skip_eob_node = 0;
-        ++cpi->coef_counts       [2] [0] [pt] [token];
-        pt = vp8_prev_token_class[token];
-        t++;
-        c = 1;
-
-        for (; c < *b->eob; c++)
+        for (c = 0; c < b->eob; c++)
         {
             rc = vp8_default_zig_zag1d[c];
             band = vp8_coef_bands[c];
@@ -324,7 +249,7 @@ static void tokenize1st_order_b
             t->Token = token;
             t->context_tree = cpi->common.fc.coef_probs [2] [band] [pt];
 
-            t->skip_eob_node = (pt == 0);
+            t->skip_eob_node = ((pt == 0) && (band > 0));
 
             ++cpi->coef_counts       [2] [band] [pt] [token];
 
@@ -337,15 +262,17 @@ static void tokenize1st_order_b
             t->Token = DCT_EOB_TOKEN;
             t->context_tree = cpi->common.fc.coef_probs [2] [band] [pt];
 
-            t->skip_eob_node = 0;
+            t->skip_eob_node = ((pt == 0) && (band > 0));
 
             ++cpi->coef_counts       [2] [band] [pt] [DCT_EOB_TOKEN];
 
             t++;
         }
         *tp = t;
-        *a = *l = 1;
+        pt = (c != 0); /* 0 <-> all coeff data is zero */
+        *a = *l = pt;
     }
+
 }
 
 
@@ -357,11 +284,11 @@ static int mb_is_skippable(MACROBLOCKD *x, int has_y2_block)
     if (has_y2_block)
     {
         for (i = 0; i < 16; i++)
-            skip &= (x->eobs[i] < 2);
+            skip &= (x->block[i].eob < 2);
     }
 
     for (; i < 24 + has_y2_block; i++)
-        skip &= (!x->eobs[i]);
+        skip &= (!x->block[i].eob);
 
     return skip;
 }
@@ -485,7 +412,7 @@ void vp8_tokenize_initialize()
 }
 
 
-static void stuff2nd_order_b
+static __inline void stuff2nd_order_b
 (
     TOKENEXTRA **tp,
     ENTROPY_CONTEXT *a,
@@ -509,31 +436,29 @@ static void stuff2nd_order_b
 
 }
 
-static void stuff1st_order_b
+static __inline void stuff1st_order_b
 (
     TOKENEXTRA **tp,
     ENTROPY_CONTEXT *a,
     ENTROPY_CONTEXT *l,
-    int type,
     VP8_COMP *cpi
 )
 {
     int pt; /* near block/prev token context index */
-    int band;
     TOKENEXTRA *t = *tp;        /* store tokens starting here */
     VP8_COMBINEENTROPYCONTEXTS(pt, *a, *l);
-    band = type ? 0 : 1;
+
     t->Token = DCT_EOB_TOKEN;
-    t->context_tree = cpi->common.fc.coef_probs [type] [band] [pt];
+    t->context_tree = cpi->common.fc.coef_probs [0] [1] [pt];
     t->skip_eob_node = 0;
-    ++cpi->coef_counts       [type] [band] [pt] [DCT_EOB_TOKEN];
+    ++cpi->coef_counts       [0] [1] [pt] [DCT_EOB_TOKEN];
     ++t;
     *tp = t;
     pt = 0; /* 0 <-> all coeff data is zero */
     *a = *l = pt;
 
 }
-static
+static __inline
 void stuff1st_order_buv
 (
     TOKENEXTRA **tp,
@@ -563,19 +488,15 @@ void vp8_stuff_mb(VP8_COMP *cpi, MACROBLOCKD *x, TOKENEXTRA **t)
     ENTROPY_CONTEXT * L = (ENTROPY_CONTEXT *)x->left_context;
     int plane_type;
     int b;
-    plane_type = 3;
-    if((x->mode_info_context->mbmi.mode != B_PRED
-                        && x->mode_info_context->mbmi.mode != SPLITMV))
-    {
-        stuff2nd_order_b(t,
+
+    stuff2nd_order_b(t,
                      A + vp8_block2above[24], L + vp8_block2left[24], cpi);
-        plane_type = 0;
-    }
+    plane_type = 0;
 
     for (b = 0; b < 16; b++)
         stuff1st_order_b(t,
                          A + vp8_block2above[b],
-                         L + vp8_block2left[b], plane_type, cpi);
+                         L + vp8_block2left[b], cpi);
 
     for (b = 16; b < 24; b++)
         stuff1st_order_buv(t,

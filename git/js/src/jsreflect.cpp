@@ -57,9 +57,9 @@
 #include "jsarray.h"
 #include "jsnum.h"
 
+#include "frontend/BytecodeEmitter.h"
 #include "frontend/Parser.h"
 #include "frontend/TokenStream.h"
-#include "frontend/TreeContext.h"
 #include "vm/RegExpObject.h"
 
 #include "jsscriptinlines.h"
@@ -179,9 +179,7 @@ class NodeBuilder
         : cx(c), saveLoc(l), src(s) {
     }
 
-    bool init(JSObject *userobj_ = NULL) {
-        RootedVarObject userobj(cx, userobj_);
-
+    bool init(JSObject *userobj = NULL) {
         if (src) {
             if (!atomValue(src, &srcval))
                 return false;
@@ -204,10 +202,7 @@ class NodeBuilder
 
             const char *name = callbackNames[i];
             JSAtom *atom = js_Atomize(cx, name, strlen(name));
-            if (!atom)
-                return false;
-            RootedVarId id(cx, AtomToId(atom));
-            if (!GetPropertyDefault(cx, userobj, id, NullValue(), &funv))
+            if (!atom || !GetPropertyDefault(cx, userobj, ATOM_TO_JSID(atom), NullValue(), &funv))
                 return false;
 
             if (funv.isNullOrUndefined()) {
@@ -2825,7 +2820,7 @@ ASTSerializer::literal(ParseNode *pn, Value *dst)
         LOCAL_ASSERT(re1 && re1->isRegExp());
 
         JSObject *proto;
-        if (!js_GetClassPrototype(cx, cx->fp()->scopeChain(), JSProto_RegExp, &proto))
+        if (!js_GetClassPrototype(cx, &cx->fp()->scopeChain(), JSProto_RegExp, &proto))
             return false;
 
         JSObject *re2 = CloneRegExpObject(cx, re1, proto);
@@ -3102,8 +3097,6 @@ ASTSerializer::functionBody(ParseNode *pn, TokenPos *pos, Value *dst)
 static JSBool
 reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
 {
-    cx->runtime->gcExactScanningEnabled = false;
-
     if (argc < 1) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
                              "Reflect.parse", "0", "s");
@@ -3130,22 +3123,24 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
             return JS_FALSE;
         }
 
-        RootedVarObject config(cx, &arg.toObject());
+        JSObject *config = &arg.toObject();
 
         Value prop;
 
         /* config.loc */
-        RootedVarId locId(cx, NameToId(cx->runtime->atomState.locAtom));
-        if (!GetPropertyDefault(cx, config, locId, BooleanValue(true), &prop))
+        if (!GetPropertyDefault(cx, config, ATOM_TO_JSID(cx->runtime->atomState.locAtom),
+                                BooleanValue(true), &prop)) {
             return JS_FALSE;
+        }
 
         loc = js_ValueToBoolean(prop);
 
         if (loc) {
             /* config.source */
-            RootedVarId sourceId(cx, NameToId(cx->runtime->atomState.sourceAtom));
-            if (!GetPropertyDefault(cx, config, sourceId, NullValue(), &prop))
+            if (!GetPropertyDefault(cx, config, ATOM_TO_JSID(cx->runtime->atomState.sourceAtom),
+                                    NullValue(), &prop)) {
                 return JS_FALSE;
+            }
 
             if (!prop.isNullOrUndefined()) {
                 JSString *str = ToString(cx, prop);
@@ -3164,17 +3159,18 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
             }
 
             /* config.line */
-            RootedVarId lineId(cx, NameToId(cx->runtime->atomState.lineAtom));
-            if (!GetPropertyDefault(cx, config, lineId, Int32Value(1), &prop) ||
+            if (!GetPropertyDefault(cx, config, ATOM_TO_JSID(cx->runtime->atomState.lineAtom),
+                                    Int32Value(1), &prop) ||
                 !ToUint32(cx, prop, &lineno)) {
                 return JS_FALSE;
             }
         }
 
         /* config.builder */
-        RootedVarId builderId(cx, NameToId(cx->runtime->atomState.builderAtom));
-        if (!GetPropertyDefault(cx, config, builderId, NullValue(), &prop))
+        if (!GetPropertyDefault(cx, config, ATOM_TO_JSID(cx->runtime->atomState.builderAtom),
+                                NullValue(), &prop)) {
             return JS_FALSE;
+        }
 
         if (!prop.isNullOrUndefined()) {
             if (!prop.isObject()) {

@@ -248,8 +248,9 @@ RasterImage::~RasterImage()
              num_discardable_containers,
              total_source_bytes,
              discardable_source_bytes));
-    DiscardTracker::Remove(&mDiscardTrackerNode);
   }
+
+  DiscardTracker::Remove(&mDiscardTrackerNode);
 
   // If we have a decoder open, shut it down
   if (mDecoder) {
@@ -851,9 +852,8 @@ RasterImage::CopyFrame(PRUint32 aWhichFrame,
                                                              gfxASurface::ImageFormatARGB32);
   gfxContext ctx(imgsurface);
   ctx.SetOperator(gfxContext::OPERATOR_SOURCE);
-  ctx.Rectangle(framerect);
-  ctx.Translate(framerect.TopLeft());
   ctx.SetPattern(pattern);
+  ctx.Rectangle(framerect);
   ctx.Fill();
 
   *_retval = imgsurface.forget().get();
@@ -2634,7 +2634,7 @@ RasterImage::Draw(gfxContext *aContext,
                       mSize.width - framerect.XMost(),
                       mSize.height - framerect.YMost());
 
-  frame->Draw(aContext, aFilter, aUserSpaceToImageSpace, aFill, padding, aSubimage, aFlags);
+  frame->Draw(aContext, aFilter, aUserSpaceToImageSpace, aFill, padding, aSubimage);
 
   if (mDecoded && !mDrawStartTime.IsNull()) {
       TimeDuration drawLatency = TimeStamp::Now() - mDrawStartTime;

@@ -47,7 +47,7 @@ NS_IMPL_ISUPPORTS_INHERITED0(nsHyperTextAccessibleWrap,
 
 IMPL_IUNKNOWN_INHERITED2(nsHyperTextAccessibleWrap,
                          nsAccessibleWrap,
-                         ia2AccessibleHypertext,
+                         CAccessibleHypertext,
                          CAccessibleEditableText);
 
 nsresult

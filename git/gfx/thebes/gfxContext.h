@@ -930,33 +930,23 @@ public:
     gfxContextAutoDisableSubpixelAntialiasing(gfxContext *aContext, bool aDisable)
     {
         if (aDisable) {
-            if (aContext->IsCairo()) {
-                mSurface = aContext->CurrentSurface();
-                if (!mSurface) {
-                  return;
-                }
-                mSubpixelAntialiasingEnabled = mSurface->GetSubpixelAntialiasingEnabled();
-                mSurface->SetSubpixelAntialiasingEnabled(false);
-            } else {
-                mDT = aContext->GetDrawTarget();
-
-                mSubpixelAntialiasingEnabled = mDT->GetPermitSubpixelAA();
-                mDT->SetPermitSubpixelAA(false);
+            mSurface = aContext->CurrentSurface();
+            if (!mSurface) {
+              return;
             }
+            mSubpixelAntialiasingEnabled = mSurface->GetSubpixelAntialiasingEnabled();
+            mSurface->SetSubpixelAntialiasingEnabled(false);
         }
     }
     ~gfxContextAutoDisableSubpixelAntialiasing()
     {
         if (mSurface) {
             mSurface->SetSubpixelAntialiasingEnabled(mSubpixelAntialiasingEnabled);
-        } else if (mDT) {
-            mDT->SetPermitSubpixelAA(mSubpixelAntialiasingEnabled);
         }
     }
 
 private:
     nsRefPtr<gfxASurface> mSurface;
-    mozilla::RefPtr<mozilla::gfx::DrawTarget> mDT;
     bool mSubpixelAntialiasingEnabled;
 };
 

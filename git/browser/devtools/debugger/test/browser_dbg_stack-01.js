@@ -14,20 +14,20 @@ function test() {
     gTab = aTab;
     gDebuggee = aDebuggee;
     gPane = aPane;
-    gDebugger = gPane.contentWindow;
+    gDebugger = gPane.debuggerWindow;
 
     testSimpleCall();
   });
 }
 
 function testSimpleCall() {
-  gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
+  gPane.activeThread.addOneTimeListener("framesadded", function() {
     Services.tm.currentThread.dispatch({ run: function() {
 
-      let frames = gDebugger.DebuggerView.StackFrames._frames;
+      let frames = gDebugger.DebuggerView.Stackframes._frames;
       let childNodes = frames.childNodes;
 
-      is(gDebugger.DebuggerController.activeThread.state, "paused",
+      is(gDebugger.StackFrames.activeThread.state, "paused",
         "Should only be getting stack frames while paused.");
 
       is(frames.querySelectorAll(".dbg-stackframe").length, 1,
@@ -36,7 +36,7 @@ function testSimpleCall() {
       is(childNodes.length, frames.querySelectorAll(".dbg-stackframe").length,
         "All children should be frames.");
 
-      gDebugger.DebuggerController.activeThread.resume(function() {
+      gDebugger.StackFrames.activeThread.resume(function() {
         closeDebuggerAndFinish(gTab);
       });
     }}, 0);

@@ -68,7 +68,6 @@ public:
     cairo_scaled_font_t *CairoScaledFont() { return mScaledFont; };
     virtual bool SetupCairoFont(gfxContext *aContext);
 
-    virtual FontType GetType() const { return FONT_TYPE_FT2; }
 protected:
     PRUint32 mSpaceGlyph;
     bool mHasMetrics;

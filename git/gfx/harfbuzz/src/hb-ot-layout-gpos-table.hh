@@ -46,7 +46,8 @@ typedef Value ValueRecord[VAR];
 
 struct ValueFormat : USHORT
 {
-  enum Flags {
+  enum
+  {
     xPlacement	= 0x0001,	/* Includes horizontal adjustment for placement */
     yPlacement	= 0x0002,	/* Includes vertical adjustment for placement */
     xAdvance	= 0x0004,	/* Includes horizontal adjustment for advance */
@@ -1335,7 +1336,7 @@ struct PosLookupSubTable
 {
   friend struct PosLookup;
 
-  enum Type {
+  enum {
     Single		= 1,
     Pair		= 2,
     Cursive		= 3,
@@ -1403,9 +1404,23 @@ struct PosLookup : Lookup
   inline const PosLookupSubTable& get_subtable (unsigned int i) const
   { return this+CastR<OffsetArrayOf<PosLookupSubTable> > (subTable)[i]; }
 
-  inline bool apply_once (hb_apply_context_t *c) const
+  inline bool apply_once (hb_font_t *font,
+			  hb_buffer_t *buffer,
+			  hb_mask_t lookup_mask,
+			  unsigned int context_length,
+			  unsigned int nesting_level_left) const
   {
     unsigned int lookup_type = get_type ();
+    hb_apply_context_t c[1] = {{0}};
+
+    c->font = font;
+    c->face = font->face;
+    c->buffer = buffer;
+    c->direction = buffer->props.direction;
+    c->lookup_mask = lookup_mask;
+    c->context_length = context_length;
+    c->nesting_level_left = nesting_level_left;
+    c->lookup_props = get_props ();
 
     if (!_hb_ot_layout_check_glyph_property (c->face, &c->buffer->info[c->buffer->idx], c->lookup_props, &c->property))
       return false;
@@ -1426,12 +1441,11 @@ struct PosLookup : Lookup
     if (unlikely (!buffer->len))
       return false;
 
-    hb_apply_context_t c (font, font->face, buffer, mask, *this);
-
     buffer->idx = 0;
     while (buffer->idx < buffer->len)
     {
-      if ((buffer->info[buffer->idx].mask & mask) && apply_once (&c))
+      if ((buffer->info[buffer->idx].mask & mask) &&
+	  apply_once (font, buffer, mask, NO_CONTEXT, MAX_NESTING_LEVEL))
 	ret = true;
       else
 	buffer->idx++;
@@ -1584,8 +1598,7 @@ static inline bool position_lookup (hb_apply_context_t *c, unsigned int lookup_i
   if (unlikely (c->context_length < 1))
     return false;
 
-  hb_apply_context_t new_c (*c, l);
-  return l.apply_once (&new_c);
+  return l.apply_once (c->font, c->buffer, c->lookup_mask, c->context_length, c->nesting_level_left - 1);
 }
 
 

@@ -48,6 +48,10 @@ SIMPLECSRCS	+= \
 		tmstats.c \
 		$(NULL)
 
+# Set CPP_PROG_LINK manually since we're using SIMPLECPPSRCS rather than
+# CPPSRCS.
+CPP_PROG_LINK	= 1
+
 SIMPLECPPSRCS	= \
 		leaksoup.cpp \
 		bloatblame.cpp \
@@ -58,23 +62,15 @@ SIMPLE_PROGRAMS	= \
 		$(SIMPLECPPSRCS:.cpp=$(BIN_SUFFIX)) \
 		$(NULL)
 
-EXTRACSRCS = tmreader.c
-EXTRACPPSRCS = adreader.cpp
+CSRCS            = \
+		spacetrace.c \
+		spacecategory.c \
+		formdata.c \
+		$(NULL)
 
 ifndef MOZ_PROFILE_GENERATE
 PROGRAM		= spacetrace$(BIN_SUFFIX)
-
-PROGCSRCS = \
-  spacetrace.c \
-  spacecategory.c \
-  formdata.c \
-  $(NULL)
-
-PROGOBJS = $(PROGCSRCS:.c=.$(OBJ_SUFFIX))
 endif
-
-CSRCS = $(SIMPLECSRCS) $(EXTRACSRCS) $(PROGCSRCS)
-CPPSRCS = $(SIMPLECPPSRCS) $(EXTRACPPSRCS)
 
 ifeq ($(OS_ARCH),WINNT)
 LOCAL_INCLUDES	+= -I$(topsrcdir)/config/os2
@@ -119,7 +115,8 @@ DEFINES		+= \
 		$(NULL)
 endif
 
-EXTRA_DEPS = $(EXTRACSRCS:.c=.$(OBJ_SUFFIX)) $(EXTRACPPSRCS:.cpp=.$(OBJ_SUFFIX))
+EXTRA_DEPS      = tmreader.$(OBJ_SUFFIX) adreader.$(OBJ_SUFFIX)
+GARBAGE		+= tmreader.$(OBJ_SUFFIX) adreader.$(OBJ_SUFFIX)
 
 include $(topsrcdir)/config/rules.mk
 

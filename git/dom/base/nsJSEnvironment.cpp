@@ -86,8 +86,6 @@
 #include "WrapperFactory.h"
 #include "nsGlobalWindow.h"
 #include "nsScriptNameSpaceManager.h"
-#include "StructuredCloneTags.h"
-#include "mozilla/dom/ImageData.h"
 
 #include "nsJSPrincipals.h"
 
@@ -110,12 +108,11 @@
 #include "mozilla/FunctionTimer.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/dom/BindingUtils.h"
+#include "mozilla/dom/bindings/Utils.h"
 
 #include "sampler.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 const size_t gStackSize = 8192;
 
@@ -133,10 +130,6 @@ static PRLogModuleInfo* gJSDiagnostics;
 // The amount of time we wait from the first request to GC to actually
 // doing the first GC.
 #define NS_FIRST_GC_DELAY           10000 // ms
-
-#define NS_FULL_GC_DELAY            60000 // ms
-
-#define NS_MAX_COMPARTMENT_GC_COUNT 20
 
 // Maximum amount of time that should elapse between incremental GC slices
 #define NS_INTERSLICE_GC_DELAY      100 // ms
@@ -163,7 +156,6 @@ static PRLogModuleInfo* gJSDiagnostics;
 static nsITimer *sGCTimer;
 static nsITimer *sShrinkGCBuffersTimer;
 static nsITimer *sCCTimer;
-static nsITimer *sFullGCTimer;
 
 static PRTime sLastCCEndTime;
 
@@ -183,7 +175,6 @@ static bool sLoadingInProgress;
 
 static PRUint32 sCCollectedWaitingForGC;
 static bool sPostGCEventsToConsole;
-static bool sDisableExplicitCompartmentGC;
 static PRUint32 sCCTimerFireCount = 0;
 static PRUint32 sMinForgetSkippableTime = PR_UINT32_MAX;
 static PRUint32 sMaxForgetSkippableTime = 0;
@@ -191,10 +182,9 @@ static PRUint32 sTotalForgetSkippableTime = 0;
 static PRUint32 sRemovedPurples = 0;
 static PRUint32 sForgetSkippableBeforeCC = 0;
 static PRUint32 sPreviousSuspectedCount = 0;
-static PRUint32 sCompartmentGCCount = NS_MAX_COMPARTMENT_GC_COUNT;
-static PRUint32 sCleanupsSinceLastGC = PR_UINT32_MAX;
+
+static bool sCleanupSinceLastGC = true;
 static bool sNeedsFullCC = false;
-static nsJSContext *sContextList = nsnull;
 
 nsScriptNameSpaceManager *gNameSpaceManager;
 
@@ -236,8 +226,7 @@ nsMemoryPressureObserver::Observe(nsISupports* aSubject, const char* aTopic,
                                   const PRUnichar* aData)
 {
   if (sGCOnMemoryPressure) {
-    nsJSContext::GarbageCollectNow(js::gcreason::MEM_PRESSURE, nsGCShrinking,
-                                   true);
+    nsJSContext::GarbageCollectNow(js::gcreason::MEM_PRESSURE, nsGCShrinking);
     nsJSContext::CycleCollectNow();
   }
   return NS_OK;
@@ -456,8 +445,11 @@ NS_ScriptErrorReporter(JSContext *cx,
   // We don't want to report exceptions too eagerly, but warnings in the
   // absence of werror are swallowed whole, so report those now.
   if (!JSREPORT_IS_WARNING(report->flags)) {
-    if (JS_DescribeScriptedCaller(cx, nsnull, nsnull)) {
-      return;
+    JSStackFrame * fp = nsnull;
+    while ((fp = JS_FrameIterator(cx, &fp))) {
+      if (JS_IsScriptFrame(cx, fp)) {
+        return;
+      }
     }
 
     nsIXPConnect* xpc = nsContentUtils::XPConnect();
@@ -495,15 +487,10 @@ NS_ScriptErrorReporter(JSContext *cx,
         fileName.AssignWithConversion(report->filename);
       }
 
-      const PRUnichar* m = static_cast<const PRUnichar*>(report->ucmessage);
+      const PRUnichar *m = reinterpret_cast<const PRUnichar*>
+                                             (report->ucmessage);
       if (m) {
-        const PRUnichar* n = static_cast<const PRUnichar*>
-            (js::GetErrorTypeNameFromNumber(cx, report->errorNumber));
-        if (n) {
-          msg.Assign(n);
-          msg.AppendLiteral(": ");
-        }
-        msg.Append(m);
+        msg.Assign(m);
       }
 
       if (msg.IsEmpty() && message) {
@@ -928,6 +915,7 @@ static const char js_relimit_option_str[]= JS_OPTIONS_DOT_STR "relimit";
 #ifdef JS_GC_ZEAL
 static const char js_zeal_option_str[]        = JS_OPTIONS_DOT_STR "gczeal";
 static const char js_zeal_frequency_str[]     = JS_OPTIONS_DOT_STR "gczeal.frequency";
+static const char js_zeal_compartment_str[]   = JS_OPTIONS_DOT_STR "gczeal.compartment_gc";
 #endif
 static const char js_methodjit_content_str[]  = JS_OPTIONS_DOT_STR "methodjit.content";
 static const char js_methodjit_chrome_str[]   = JS_OPTIONS_DOT_STR "methodjit.chrome";
@@ -937,8 +925,6 @@ static const char js_pccounts_content_str[]   = JS_OPTIONS_DOT_STR "pccounts.con
 static const char js_pccounts_chrome_str[]    = JS_OPTIONS_DOT_STR "pccounts.chrome";
 static const char js_jit_hardening_str[]      = JS_OPTIONS_DOT_STR "jit_hardening";
 static const char js_memlog_option_str[] = JS_OPTIONS_DOT_STR "mem.log";
-static const char js_disable_explicit_compartment_gc[] =
-  JS_OPTIONS_DOT_STR "disable_explicit_compartment_gc";
 
 int
 nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
@@ -948,8 +934,6 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
   PRUint32 newDefaultJSOptions = oldDefaultJSOptions;
 
   sPostGCEventsToConsole = Preferences::GetBool(js_memlog_option_str);
-  sDisableExplicitCompartmentGC =
-    Preferences::GetBool(js_disable_explicit_compartment_gc);
 
   bool strict = Preferences::GetBool(js_strict_option_str);
   if (strict)
@@ -957,11 +941,7 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
   else
     newDefaultJSOptions &= ~JSOPTION_STRICT;
 
-  // The vanilla GetGlobalObject returns null if a global isn't set up on
-  // the context yet. We can sometimes be call midway through context init,
-  // So ask for the member directly instead.
-  nsIScriptGlobalObject *global = context->GetGlobalObjectRef();
-
+  nsIScriptGlobalObject *global = context->GetGlobalObject();
   // XXX should we check for sysprin instead of a chrome window, to make
   // XXX components be covered by the chrome pref instead of the content one?
   nsCOMPtr<nsIDOMWindow> contentWindow(do_QueryInterface(global));
@@ -1042,24 +1022,18 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
 #ifdef JS_GC_ZEAL
   PRInt32 zeal = Preferences::GetInt(js_zeal_option_str, -1);
   PRInt32 frequency = Preferences::GetInt(js_zeal_frequency_str, JS_DEFAULT_ZEAL_FREQ);
+  bool compartment = Preferences::GetBool(js_zeal_compartment_str, false);
   if (zeal >= 0)
-    ::JS_SetGCZeal(context->mContext, (PRUint8)zeal, frequency);
+    ::JS_SetGCZeal(context->mContext, (PRUint8)zeal, frequency, compartment);
 #endif
 
   return 0;
 }
 
 nsJSContext::nsJSContext(JSRuntime *aRuntime)
-  : mActive(false),
-    mGCOnDestruction(true),
+  : mGCOnDestruction(true),
     mExecuteDepth(0)
 {
-  mNext = sContextList;
-  mPrev = &sContextList;
-  if (sContextList) {
-    sContextList->mPrev = &mNext;
-  }
-  sContextList = this;
 
   ++sContextCount;
 
@@ -1097,11 +1071,6 @@ nsJSContext::~nsJSContext()
 #ifdef DEBUG
   nsCycleCollector_DEBUG_wasFreed(static_cast<nsIScriptContext*>(this));
 #endif
-
-  *mPrev = mNext;
-  if (mNext) {
-    mNext->mPrev = mPrev;
-  }
 
   // We may still have pending termination functions if the context is destroyed
   // before they could be executed. In this case, free the references to their
@@ -1218,7 +1187,6 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
     return NS_OK;
   }
 
-  xpc_UnmarkGrayObject(aScopeObject);
   nsAutoMicroTask mt;
 
   // Safety first: get an object representing the script's principals, i.e.,
@@ -1268,7 +1236,7 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
   // check it isn't JSVERSION_UNKNOWN.
   if (ok && ((JSVersion)aVersion) != JSVERSION_UNKNOWN) {
 
-    XPCAutoRequest ar(mContext);
+    JSAutoRequest ar(mContext);
 
     JSAutoEnterCompartment ac;
     if (!ac.enter(mContext, aScopeObject)) {
@@ -1421,8 +1389,6 @@ nsJSContext::EvaluateString(const nsAString& aScript,
     aScopeObject = JS_GetGlobalObject(mContext);
   }
 
-  xpc_UnmarkGrayObject(aScopeObject);
-
   // Safety first: get an object representing the script's principals, i.e.,
   // the entities who signed this script, or the fully-qualified-domain-name
   // or "codebase" from which it was loaded.
@@ -1471,7 +1437,7 @@ nsJSContext::EvaluateString(const nsAString& aScript,
   // Since the caller is responsible for parsing the version strings, we just
   // check it isn't JSVERSION_UNKNOWN.
   if (ok && JSVersion(aVersion) != JSVERSION_UNKNOWN) {
-    XPCAutoRequest ar(mContext);
+    JSAutoRequest ar(mContext);
     JSAutoEnterCompartment ac;
     if (!ac.enter(mContext, aScopeObject)) {
       stack->Pop(nsnull);
@@ -1495,7 +1461,7 @@ nsJSContext::EvaluateString(const nsAString& aScript,
 
   // If all went well, convert val to a string if one is wanted.
   if (ok) {
-    XPCAutoRequest ar(mContext);
+    JSAutoRequest ar(mContext);
     JSAutoEnterCompartment ac;
     if (!ac.enter(mContext, aScopeObject)) {
       stack->Pop(nsnull);
@@ -1540,7 +1506,6 @@ nsJSContext::CompileScript(const PRUnichar* aText,
   NS_ENSURE_ARG_POINTER(aPrincipal);
 
   JSObject* scopeObject = ::JS_GetGlobalObject(mContext);
-  xpc_UnmarkGrayObject(scopeObject);
 
   bool ok = false;
 
@@ -1557,8 +1522,7 @@ nsJSContext::CompileScript(const PRUnichar* aText,
   if (!ok || JSVersion(aVersion) == JSVERSION_UNKNOWN)
     return NS_OK;
     
-  XPCAutoRequest ar(mContext);
-
+  JSAutoRequest ar(mContext);
 
   JSScript* script =
     ::JS_CompileUCScriptForPrincipalsVersion(mContext,
@@ -1572,6 +1536,8 @@ nsJSContext::CompileScript(const PRUnichar* aText,
   if (!script) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
+  NS_ASSERTION(aScriptObject.getScriptTypeID()==JAVASCRIPT,
+               "Expecting JS script object holder");
   return aScriptObject.set(script);
 }
 
@@ -1601,9 +1567,6 @@ nsJSContext::ExecuteScript(JSScript* aScriptObject,
     aScopeObject = JS_GetGlobalObject(mContext);
   }
 
-  xpc_UnmarkGrayScript(aScriptObject);
-  xpc_UnmarkGrayObject(aScopeObject);
-
   // Push our JSContext on our thread's context stack, in case native code
   // called from JS calls back into JS via XPConnect.
   nsresult rv;
@@ -1623,7 +1586,7 @@ nsJSContext::ExecuteScript(JSScript* aScriptObject,
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsJSContext::TerminationFuncHolder holder(this);
-  XPCAutoRequest ar(mContext);
+  JSAutoRequest ar(mContext);
   ++mExecuteDepth;
 
   // The result of evaluation, used only if there were no errors. This need
@@ -1706,7 +1669,7 @@ nsJSContext::JSObjectFromInterface(nsISupports* aTarget, JSObject* aScope, JSObj
   NS_ASSERTION(native == targetSupp, "Native should be the target!");
 #endif
 
-  *aRet = xpc_UnmarkGrayObject(JSVAL_TO_OBJECT(v));
+  *aRet = JSVAL_TO_OBJECT(v);
 
   return NS_OK;
 }
@@ -1751,7 +1714,7 @@ nsJSContext::CompileEventHandler(nsIAtom *aName,
   // Event handlers are always shared, and must be bound before use.
   // Therefore we never bother compiling with principals.
   // (that probably means we should avoid JS_CompileUCFunctionForPrincipals!)
-  XPCAutoRequest ar(mContext);
+  JSAutoRequest ar(mContext);
 
   JSFunction* fun =
       ::JS_CompileUCFunctionForPrincipalsVersion(mContext,
@@ -1767,6 +1730,8 @@ nsJSContext::CompileEventHandler(nsIAtom *aName,
   }
 
   JSObject *handler = ::JS_GetFunctionObject(fun);
+  NS_ASSERTION(aHandler.getScriptTypeID()==JAVASCRIPT,
+               "Expecting JS script object holder");
   return aHandler.set(handler);
 }
 
@@ -1798,8 +1763,6 @@ nsJSContext::CompileFunction(JSObject* aTarget,
     return NS_ERROR_ILLEGAL_VALUE;
   }
 
-  xpc_UnmarkGrayObject(aTarget);
-
   nsIScriptGlobalObject *global = GetGlobalObject();
   nsCOMPtr<nsIPrincipal> principal;
   if (global) {
@@ -1814,7 +1777,7 @@ nsJSContext::CompileFunction(JSObject* aTarget,
 
   JSObject *target = aTarget;
 
-  XPCAutoRequest ar(mContext);
+  JSAutoRequest ar(mContext);
 
   JSFunction* fun =
       ::JS_CompileUCFunctionForPrincipalsVersion(mContext,
@@ -1859,10 +1822,7 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, JSObject* aScope,
   SAMPLE_LABEL("JS", "CallEventHandler");
 
   nsAutoMicroTask mt;
-  xpc_UnmarkGrayObject(aScope);
-  xpc_UnmarkGrayObject(aHandler);
-
-  XPCAutoRequest ar(mContext);
+  JSAutoRequest ar(mContext);
   JSObject* target = nsnull;
   nsresult rv = JSObjectFromInterface(aTarget, aScope, &target);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1920,11 +1880,6 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, JSObject* aScope,
     // in the same scope as aTarget.
     rv = ConvertSupportsTojsvals(aargv, target, &argc, &argv, tempStorage);
     NS_ENSURE_SUCCESS(rv, rv);
-    for (uint32_t i = 0; i < argc; i++) {
-      if (!JSVAL_IS_PRIMITIVE(argv[i])) {
-        xpc_UnmarkGrayObject(JSVAL_TO_OBJECT(argv[i]));
-      }
-    }
 
     ++mExecuteDepth;
     bool ok = ::JS_CallFunctionValue(mContext, target,
@@ -1971,10 +1926,7 @@ nsJSContext::BindCompiledEventHandler(nsISupports* aTarget, JSObject* aScope,
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_NOT_INITIALIZED);
   NS_PRECONDITION(!aBoundHandler, "Shouldn't already have a bound handler!");
 
-  xpc_UnmarkGrayObject(aScope);
-  xpc_UnmarkGrayObject(aHandler);
-
-  XPCAutoRequest ar(mContext);
+  JSAutoRequest ar(mContext);
 
   // Get the jsobject associated with this target
   JSObject *target = nsnull;
@@ -2023,8 +1975,6 @@ nsJSContext::Serialize(nsIObjectOutputStream* aStream, JSScript* aScriptObject)
     return NS_ERROR_FAILURE;
 
   return nsContentUtils::XPConnect()->WriteScript(aStream, mContext, aScriptObject);
-    xpc_UnmarkGrayScript(aScriptObject);
-
 }
 
 nsresult
@@ -2131,7 +2081,7 @@ nsJSContext::CreateNativeGlobalForInner(
 JSContext*
 nsJSContext::GetNativeContext()
 {
-  return xpc_UnmarkGrayContext(mContext);
+  return mContext;
 }
 
 nsresult
@@ -2177,7 +2127,7 @@ nsJSContext::SetProperty(JSObject* aTarget, const char* aPropName, nsISupports* 
   PRUint32  argc;
   jsval    *argv = nsnull;
 
-  XPCAutoRequest ar(mContext);
+  JSAutoRequest ar(mContext);
 
   Maybe<nsRootedJSValueArray> tempStorage;
 
@@ -2488,9 +2438,8 @@ nsJSContext::AddSupportsPrimitiveTojsvals(nsISupports *aArg, jsval *aArgv)
       AutoFree iidGuard(iid); // Free iid upon destruction.
 
       nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-      JSObject *global = xpc_UnmarkGrayObject(::JS_GetGlobalObject(cx));
       jsval v;
-      nsresult rv = nsContentUtils::WrapNative(cx, global,
+      nsresult rv = nsContentUtils::WrapNative(cx, ::JS_GetGlobalObject(cx),
                                                data, iid, &v,
                                                getter_AddRefs(wrapper));
       NS_ENSURE_SUCCESS(rv, rv);
@@ -2873,7 +2822,6 @@ nsJSContext::ScriptEvaluated(bool aTerminated)
   if (aTerminated) {
     mOperationCallbackTime = 0;
     mModalStateTime = 0;
-    mActive = true;
   }
 }
 
@@ -2941,20 +2889,9 @@ nsJSContext::ScriptExecuted()
   return NS_OK;
 }
 
-void
-FullGCTimerFired(nsITimer* aTimer, void* aClosure)
-{
-  NS_RELEASE(sFullGCTimer);
-
-  uintptr_t reason = reinterpret_cast<uintptr_t>(aClosure);
-  nsJSContext::GarbageCollectNow(static_cast<js::gcreason::Reason>(reason),
-                                 nsGCNormal, true);
-}
-
 //static
 void
-nsJSContext::GarbageCollectNow(js::gcreason::Reason aReason, PRUint32 aGckind,
-                               bool aGlobal)
+nsJSContext::GarbageCollectNow(js::gcreason::Reason reason, PRUint32 gckind)
 {
   NS_TIME_FUNCTION_MIN(1.0);
   SAMPLE_LABEL("GC", "GarbageCollectNow");
@@ -2971,35 +2908,9 @@ nsJSContext::GarbageCollectNow(js::gcreason::Reason aReason, PRUint32 aGckind,
   sPendingLoadCount = 0;
   sLoadingInProgress = false;
 
-  if (!nsContentUtils::XPConnect()) {
-    return;
+  if (nsContentUtils::XPConnect()) {
+    nsContentUtils::XPConnect()->GarbageCollect(reason, gckind);
   }
-  
-  // Use compartment GC when we're not asked to do a shrinking GC nor
-  // global GC and compartment GC has been called less than
-  // NS_MAX_COMPARTMENT_GC_COUNT times after the previous global GC.
-  if (!sDisableExplicitCompartmentGC &&
-      aGckind != nsGCShrinking && !aGlobal &&
-      sCompartmentGCCount < NS_MAX_COMPARTMENT_GC_COUNT) {  
-    js::PrepareForFullGC(nsJSRuntime::sRuntime);
-    for (nsJSContext* cx = sContextList; cx; cx = cx->mNext) {
-      if (!cx->mActive && cx->mContext) {
-        if (JSObject* global = cx->GetNativeGlobal()) {
-          js::SkipCompartmentForGC(js::GetObjectCompartment(global));
-        }
-      }
-      cx->mActive = false;
-    }
-    if (js::IsGCScheduled(nsJSRuntime::sRuntime)) {
-      js::IncrementalGC(nsJSRuntime::sRuntime, aReason);
-    }
-    return;
-  }
-
-  for (nsJSContext* cx = sContextList; cx; cx = cx->mNext) {
-    cx->mActive = false;
-  }
-  nsContentUtils::XPConnect()->GarbageCollect(aReason, aGckind);
 }
 
 //static
@@ -3025,7 +2936,7 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
 
   if (sCCLockedOut) {
     // We're in the middle of an incremental GC; finish it first
-    nsJSContext::GarbageCollectNow(js::gcreason::CC_FORCED, nsGCNormal, true);
+    nsJSContext::GarbageCollectNow(js::gcreason::CC_FORCED, nsGCNormal);
   }
 
   SAMPLE_LABEL("GC", "CycleCollectNow");
@@ -3037,18 +2948,14 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
 
   PRUint32 suspected = nsCycleCollector_suspectedCount();
 
-  // nsCycleCollector_forgetSkippable may mark some gray js to black.
-  if (sCleanupsSinceLastGC < 2 && aExtraForgetSkippableCalls >= 0) {
-    for (;sCleanupsSinceLastGC < 2; ++sCleanupsSinceLastGC) {
-      nsCycleCollector_forgetSkippable();
-    }
-  }
-
   for (PRInt32 i = 0; i < aExtraForgetSkippableCalls; ++i) {
     nsCycleCollector_forgetSkippable();
-    ++sCleanupsSinceLastGC;
   }
 
+  // nsCycleCollector_forgetSkippable may mark some gray js to black.
+  if (!sCleanupSinceLastGC && aExtraForgetSkippableCalls >= 0) {
+    nsCycleCollector_forgetSkippable();
+  }
   nsCycleCollectorResults ccResults;
   nsCycleCollector_collect(&ccResults, aListener);
   sCCollectedWaitingForGC += ccResults.mFreedRefCounted + ccResults.mFreedGCed;
@@ -3152,6 +3059,7 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
   sTotalForgetSkippableTime = 0;
   sRemovedPurples = 0;
   sForgetSkippableBeforeCC = 0;
+  sCleanupSinceLastGC = true;
   sNeedsFullCC = false;
 }
 
@@ -3162,8 +3070,7 @@ GCTimerFired(nsITimer *aTimer, void *aClosure)
   NS_RELEASE(sGCTimer);
 
   uintptr_t reason = reinterpret_cast<uintptr_t>(aClosure);
-  nsJSContext::GarbageCollectNow(static_cast<js::gcreason::Reason>(reason),
-                                 nsGCNormal, false);
+  nsJSContext::GarbageCollectNow(static_cast<js::gcreason::Reason>(reason), nsGCIncremental);
 }
 
 void
@@ -3188,7 +3095,7 @@ TimerFireForgetSkippable(PRUint32 aSuspected, bool aRemoveChildless)
   PRTime startTime = PR_Now();
   nsCycleCollector_forgetSkippable(aRemoveChildless);
   sPreviousSuspectedCount = nsCycleCollector_suspectedCount();
-  ++sCleanupsSinceLastGC;
+  sCleanupSinceLastGC = true;
   PRTime delta = PR_Now() - startTime;
   if (sMinForgetSkippableTime > delta) {
     sMinForgetSkippableTime = delta;
@@ -3219,7 +3126,7 @@ CCTimerFired(nsITimer *aTimer, void *aClosure)
     }
 
     // Finish the current incremental GC
-    nsJSContext::GarbageCollectNow(js::gcreason::CC_FORCED, nsGCNormal, true);
+    nsJSContext::GarbageCollectNow(js::gcreason::CC_FORCED, nsGCNormal);
   }
 
   ++sCCTimerFireCount;
@@ -3257,10 +3164,10 @@ CCTimerFired(nsITimer *aTimer, void *aClosure)
 }
 
 // static
-PRUint32
-nsJSContext::CleanupsSinceLastGC()
+bool
+nsJSContext::CleanupSinceLastGC()
 {
-  return sCleanupsSinceLastGC;
+  return sCleanupSinceLastGC;
 }
 
 // static
@@ -3372,15 +3279,6 @@ nsJSContext::KillGCTimer()
   }
 }
 
-void
-nsJSContext::KillFullGCTimer()
-{
-  if (sFullGCTimer) {
-    sFullGCTimer->Cancel();
-    NS_RELEASE(sFullGCTimer);
-  }
-}
-
 //static
 void
 nsJSContext::KillShrinkGCBuffersTimer()
@@ -3408,7 +3306,6 @@ nsJSContext::KillCCTimer()
 void
 nsJSContext::GC(js::gcreason::Reason aReason)
 {
-  mActive = true;
   PokeGC(aReason);
 }
 
@@ -3489,24 +3386,21 @@ DOMGCSliceCallback(JSRuntime *aRt, js::GCProgress aProgress, const js::GCDescrip
     nsJSContext::KillGCTimer();
 
     sCCollectedWaitingForGC = 0;
-    sCleanupsSinceLastGC = 0;
+    sCleanupSinceLastGC = false;
+
+    if (aDesc.isCompartment) {
+      // If this is a compartment GC, restart it. We still want
+      // a full GC to happen. Compartment GCs usually happen as a
+      // result of last-ditch or MaybeGC. In both cases it is
+      // probably a time of heavy activity and we want to delay
+      // the full GC, but we do want it to happen eventually.
+      nsJSContext::PokeGC(js::gcreason::POST_COMPARTMENT);
+    }
+
     sNeedsFullCC = true;
     nsJSContext::MaybePokeCC();
 
-    if (aDesc.isCompartment) {
-      ++sCompartmentGCCount;
-      if (!sFullGCTimer) {
-        CallCreateInstance("@mozilla.org/timer;1", &sFullGCTimer);
-        js::gcreason::Reason reason = js::gcreason::FULL_GC_TIMER;
-        sFullGCTimer->InitWithFuncCallback(FullGCTimerFired,
-                                           reinterpret_cast<void *>(reason),
-                                           NS_FULL_GC_DELAY,
-                                           nsITimer::TYPE_ONE_SHOT);
-      }
-    } else {
-      sCompartmentGCCount = 0;
-      nsJSContext::KillFullGCTimer();
-
+    if (!aDesc.isCompartment) {
       // Avoid shrinking during heavy activity, which is suggested by
       // compartment GC.
       nsJSContext::PokeShrinkGCBuffers();
@@ -3606,7 +3500,7 @@ void
 nsJSRuntime::Startup()
 {
   // initialize all our statics, so that we can restart XPCOM
-  sGCTimer = sFullGCTimer = sCCTimer = nsnull;
+  sGCTimer = sCCTimer = nsnull;
   sCCLockedOut = false;
   sCCLockedOutTime = 0;
   sLastCCEndTime = 0;
@@ -3614,7 +3508,6 @@ nsJSRuntime::Startup()
   sLoadingInProgress = false;
   sCCollectedWaitingForGC = 0;
   sPostGCEventsToConsole = false;
-  sDisableExplicitCompartmentGC = false;
   sNeedsFullCC = false;
   gNameSpaceManager = nsnull;
   sRuntimeService = nsnull;
@@ -3682,8 +3575,8 @@ SetMemoryMaxPrefChangedCallback(const char* aPrefName, void* aClosure)
 static int
 SetMemoryGCModePrefChangedCallback(const char* aPrefName, void* aClosure)
 {
-  bool enableCompartmentGC = Preferences::GetBool("javascript.options.mem.gc_per_compartment");
-  bool enableIncrementalGC = Preferences::GetBool("javascript.options.mem.gc_incremental");
+  PRBool enableCompartmentGC = Preferences::GetBool("javascript.options.mem.gc_per_compartment");
+  PRBool enableIncrementalGC = Preferences::GetBool("javascript.options.mem.gc_incremental");
   JSGCMode mode;
   if (enableIncrementalGC) {
     mode = JSGC_MODE_INCREMENTAL;
@@ -3713,36 +3606,7 @@ NS_DOMReadStructuredClone(JSContext* cx,
                           uint32_t data,
                           void* closure)
 {
-  if (tag == SCTAG_DOM_IMAGEDATA) {
-    // Read the information out of the stream.
-    uint32_t width, height;
-    JS::Value dataArray;
-    if (!JS_ReadUint32Pair(reader, &width, &height) ||
-        !JS_ReadTypedArray(reader, &dataArray)) {
-      return nsnull;
-    }
-    MOZ_ASSERT(dataArray.isObject());
-
-    // Construct the ImageData.
-    nsCOMPtr<nsIDOMImageData> imageData = new ImageData(width, height,
-                                                        dataArray.toObject());
-    // Wrap it in a jsval.
-    JSObject* global = JS_GetGlobalForScopeChain(cx);
-    if (!global) {
-      return nsnull;
-    }
-    nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-    JS::Value val;
-    nsresult rv =
-      nsContentUtils::WrapNative(cx, global, imageData, &val,
-                                 getter_AddRefs(wrapper));
-    if (NS_FAILED(rv)) {
-      return nsnull;
-    }
-    return val.toObjectOrNull();
-  }
-
-  // Don't know what this is. Bail.
+  // We don't currently support any extensions to structured cloning.
   nsDOMClassInfo::ThrowJSException(cx, NS_ERROR_DOM_DATA_CLONE_ERR);
   return nsnull;
 }
@@ -3753,30 +3617,7 @@ NS_DOMWriteStructuredClone(JSContext* cx,
                            JSObject* obj,
                            void *closure)
 {
-  nsCOMPtr<nsIXPConnectWrappedNative> wrappedNative;
-  nsContentUtils::XPConnect()->
-    GetWrappedNativeOfJSObject(cx, obj, getter_AddRefs(wrappedNative));
-  nsISupports *native = wrappedNative ? wrappedNative->Native() : nsnull;
-
-  nsCOMPtr<nsIDOMImageData> imageData = do_QueryInterface(native);
-  if (imageData) {
-    // Prepare the ImageData internals.
-    PRUint32 width, height;
-    JS::Value dataArray;
-    if (NS_FAILED(imageData->GetWidth(&width)) ||
-        NS_FAILED(imageData->GetHeight(&height)) ||
-        NS_FAILED(imageData->GetData(cx, &dataArray)))
-    {
-      return false;
-    }
-
-    // Write the internals to the stream.
-    return JS_WriteUint32Pair(writer, SCTAG_DOM_IMAGEDATA, 0) &&
-           JS_WriteUint32Pair(writer, width, height) &&
-           JS_WriteTypedArray(writer, dataArray);
-  }
-
-  // Don't know what this is. Bail.
+  // We don't currently support any extensions to structured cloning.
   nsDOMClassInfo::ThrowJSException(cx, NS_ERROR_DOM_DATA_CLONE_ERR);
   return JS_FALSE;
 }
@@ -3906,7 +3747,6 @@ nsJSRuntime::Shutdown()
   nsJSContext::KillGCTimer();
   nsJSContext::KillShrinkGCBuffersTimer();
   nsJSContext::KillCCTimer();
-  nsJSContext::KillFullGCTimer();
 
   NS_IF_RELEASE(gNameSpaceManager);
 
@@ -4048,8 +3888,9 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsJSArgArray)
     jsval *end;
     for (end = argv + tmp->mArgc; argv < end; ++argv) {
       if (JSVAL_IS_GCTHING(*argv))
-        NS_IMPL_CYCLE_COLLECTION_TRACE_JS_CALLBACK(JSVAL_TO_GCTHING(*argv),
-                                                   "mArgv[i]")
+        NS_IMPL_CYCLE_COLLECTION_TRACE_CALLBACK(JAVASCRIPT,
+                                                JSVAL_TO_GCTHING(*argv),
+                                                "mArgv[i]")
     }
   }
 NS_IMPL_CYCLE_COLLECTION_TRACE_END

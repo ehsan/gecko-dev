@@ -110,7 +110,6 @@ protected:
 
 private:
     static nsTArray<ContentParent*>* gContentParents;
-    static nsTArray<ContentParent*>* gPrivateContent;
 
     // Hide the raw constructor methods since we don't want client code
     // using them.
@@ -222,8 +221,6 @@ private:
                                  const PRUint32& aColNumber,
                                  const PRUint32& aFlags,
                                  const nsCString& aCategory);
-
-    virtual bool RecvPrivateDocShellsExist(const bool& aExist);
 
     GeckoChildProcessHost* mSubprocess;
 

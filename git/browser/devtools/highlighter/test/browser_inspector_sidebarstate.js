@@ -8,21 +8,22 @@ function createDocument()
   doc.body.innerHTML = '<h1>Sidebar state test</h1>';
   doc.title = "Sidebar State Test";
 
-  InspectorUI.openInspectorUI();
-
   // Open the sidebar and wait for the default view (the rule view) to show.
-  InspectorUI.currentInspector.once("sidebaractivated-ruleview", inspectorRuleViewOpened);
+  Services.obs.addObserver(inspectorRuleViewOpened,
+    InspectorUI.INSPECTOR_NOTIFICATIONS.RULEVIEWREADY, false);
 
-  InspectorUI.sidebar.show();
-  InspectorUI.sidebar.activatePanel("ruleview");
+  InspectorUI.openInspectorUI();
+  InspectorUI.showSidebar();
 }
 
 function inspectorRuleViewOpened()
 {
-  is(InspectorUI.sidebar.activePanel, "ruleview", "Rule View is selected by default");
+  Services.obs.removeObserver(inspectorRuleViewOpened,
+    InspectorUI.INSPECTOR_NOTIFICATIONS.RULEVIEWREADY);
+  is(InspectorUI.activeSidebarPanel, "ruleview", "Rule View is selected by default");
 
   // Select the computed view and turn off the inspector.
-  InspectorUI.sidebar.activatePanel("computedview");
+  InspectorUI.activateSidebarPanel("styleinspector");
 
   Services.obs.addObserver(inspectorClosed,
     InspectorUI.INSPECTOR_NOTIFICATIONS.CLOSED, false);
@@ -45,7 +46,7 @@ function computedViewPopulated()
 {
   Services.obs.removeObserver(computedViewPopulated,
     "StyleInspector-populated");
-  is(InspectorUI.sidebar.activePanel, "computedview", "Computed view is selected by default.");
+  is(InspectorUI.activeSidebarPanel, "styleinspector", "Computed view is selected by default.");
 
   finishTest();
 }

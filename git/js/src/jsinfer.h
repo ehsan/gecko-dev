@@ -43,12 +43,12 @@
 #define jsinfer_h___
 
 #include "jsalloc.h"
+#include "jscell.h"
 #include "jsfriendapi.h"
 #include "jsprvtd.h"
 
 #include "ds/LifoAlloc.h"
 #include "gc/Barrier.h"
-#include "gc/Heap.h"
 #include "js/HashTable.h"
 
 namespace JS {
@@ -107,7 +107,10 @@ class Type
         return data > JSVAL_TYPE_UNKNOWN;
     }
 
-    inline TypeObjectKey *objectKey() const;
+    TypeObjectKey *objectKey() const {
+        JS_ASSERT(isObject());
+        return (TypeObjectKey *) data;
+    }
 
     /* Accessors for JSObject types */
 
@@ -115,7 +118,10 @@ class Type
         return isObject() && !!(data & 1);
     }
 
-    inline JSObject *singleObject() const;
+    JSObject *singleObject() const {
+        JS_ASSERT(isSingleObject());
+        return (JSObject *) (data ^ 1);
+    }
 
     /* Accessors for TypeObject types */
 
@@ -123,7 +129,10 @@ class Type
         return isObject() && !(data & 1);
     }
 
-    inline TypeObject *typeObject() const;
+    TypeObject *typeObject() const {
+        JS_ASSERT(isTypeObject());
+        return (TypeObject *) data;
+    }
 
     bool operator == (Type o) const { return data == o.data; }
     bool operator != (Type o) const { return data != o.data; }
@@ -134,7 +143,7 @@ class Type
     static inline Type Int32Type()     { return Type(JSVAL_TYPE_INT32); }
     static inline Type DoubleType()    { return Type(JSVAL_TYPE_DOUBLE); }
     static inline Type StringType()    { return Type(JSVAL_TYPE_STRING); }
-    static inline Type MagicArgType()  { return Type(JSVAL_TYPE_MAGIC); }
+    static inline Type LazyArgsType()  { return Type(JSVAL_TYPE_MAGIC); }
     static inline Type AnyObjectType() { return Type(JSVAL_TYPE_OBJECT); }
     static inline Type UnknownType()   { return Type(JSVAL_TYPE_UNKNOWN); }
 
@@ -357,7 +366,7 @@ class TypeSet
 
     void print(JSContext *cx);
 
-    inline void sweep(JSCompartment *compartment);
+    inline void sweep(JSContext *cx, JSCompartment *compartment);
     inline size_t computedSizeOfExcludingThis();
 
     /* Whether this set contains a specific type. */
@@ -459,7 +468,7 @@ class TypeSet
     /* Get any type tag which all values in this set must have. */
     JSValueType getKnownTypeTag(JSContext *cx);
 
-    bool isMagicArguments(JSContext *cx) { return getKnownTypeTag(cx) == JSVAL_TYPE_MAGIC; }
+    bool isLazyArguments(JSContext *cx) { return getKnownTypeTag(cx) == JSVAL_TYPE_MAGIC; }
 
     /* Whether the type set or a particular object has any of a set of flags. */
     bool hasObjectFlags(JSContext *cx, TypeObjectFlags flags);
@@ -855,7 +864,7 @@ struct TypeObject : gc::Cell
     void print(JSContext *cx);
 
     inline void clearProperties();
-    inline void sweep(FreeOp *fop);
+    inline void sweep(JSContext *cx);
 
     inline size_t computedSizeOfExcludingThis();
 
@@ -866,7 +875,7 @@ struct TypeObject : gc::Cell
      * object pending deletion is released when weak references are sweeped
      * from all the compartment's type objects.
      */
-    void finalize(FreeOp *fop) {}
+    void finalize(JSContext *cx, bool background) {}
 
     static inline void writeBarrierPre(TypeObject *type);
     static inline void writeBarrierPost(TypeObject *type, void *addr);
@@ -925,8 +934,8 @@ struct TypeCallsite
     bool isNew;
 
     /* Types of each argument to the call. */
-    unsigned argumentCount;
     TypeSet **argumentTypes;
+    unsigned argumentCount;
 
     /* Types of the this variable. */
     TypeSet *thisTypes;
@@ -1112,7 +1121,7 @@ class TypeScript
     static inline void SetArgument(JSContext *cx, JSScript *script, unsigned arg, Type type);
     static inline void SetArgument(JSContext *cx, JSScript *script, unsigned arg, const js::Value &value);
 
-    static void Sweep(FreeOp *fop, JSScript *script);
+    static void Sweep(JSContext *cx, JSScript *script);
     inline void trace(JSTracer *trc);
     void destroy();
 };
@@ -1130,51 +1139,28 @@ typedef HashMap<AllocationSiteKey,ReadBarriered<TypeObject>,AllocationSiteKey,Sy
 struct RecompileInfo
 {
     JSScript *script;
-    bool constructing : 1;
-    bool barriers : 1;
-    uint32_t chunkIndex:30;
+    bool constructing:1;
+    uint32_t chunkIndex:31;
 
     bool operator == (const RecompileInfo &o) const {
-        return script == o.script
-            && constructing == o.constructing
-            && barriers == o.barriers
-            && chunkIndex == o.chunkIndex;
+        return script == o.script && constructing == o.constructing && chunkIndex == o.chunkIndex;
     }
 };
 
 /* Type information for a compartment. */
 struct TypeCompartment
 {
-    /* Constraint solving worklist structures. */
-
-    /*
-     * Worklist of types which need to be propagated to constraints. We use a
-     * worklist to avoid blowing the native stack.
-     */
-    struct PendingWork
-    {
-        TypeConstraint *constraint;
-        TypeSet *source;
-        Type type;
-    };
-    PendingWork *pendingArray;
-    unsigned pendingCount;
-    unsigned pendingCapacity;
-
-    /* Whether we are currently resolving the pending worklist. */
-    bool resolving;
-
     /* Whether type inference is enabled in this compartment. */
     bool inferenceEnabled;
+
+    /* Number of scripts in this compartment. */
+    unsigned scriptCount;
 
     /*
      * Bit set if all current types must be marked as unknown, and all scripts
      * recompiled. Caused by OOM failure within inference operations.
      */
     bool pendingNukeTypes;
-
-    /* Number of scripts in this compartment. */
-    unsigned scriptCount;
 
     /* Pending recompilations to perform before execution of JIT code can resume. */
     Vector<RecompileInfo> *pendingRecompiles;
@@ -1204,6 +1190,25 @@ struct TypeCompartment
 
     void fixArrayType(JSContext *cx, JSObject *obj);
     void fixObjectType(JSContext *cx, JSObject *obj);
+
+    /* Constraint solving worklist structures. */
+
+    /*
+     * Worklist of types which need to be propagated to constraints. We use a
+     * worklist to avoid blowing the native stack.
+     */
+    struct PendingWork
+    {
+        TypeConstraint *constraint;
+        TypeSet *source;
+        Type type;
+    };
+    PendingWork *pendingArray;
+    unsigned pendingCount;
+    unsigned pendingCapacity;
+
+    /* Whether we are currently resolving the pending worklist. */
+    bool resolving;
 
     /* Logging fields */
 
@@ -1239,12 +1244,11 @@ struct TypeCompartment
     /* Make an object for an allocation site. */
     TypeObject *newAllocationSiteTypeObject(JSContext *cx, const AllocationSiteKey &key);
 
-    void nukeTypes(FreeOp *fop);
-    void processPendingRecompiles(FreeOp *fop);
+    void nukeTypes(JSContext *cx);
+    void processPendingRecompiles(JSContext *cx);
 
     /* Mark all types as needing destruction once inference has 'finished'. */
     void setPendingNukeTypes(JSContext *cx);
-    void setPendingNukeTypesNoReport();
 
     /* Mark a script as needing recompilation once inference has finished. */
     void addPendingRecompile(JSContext *cx, const RecompileInfo &info);
@@ -1257,7 +1261,7 @@ struct TypeCompartment
     /* Mark any type set containing obj as having a generic object type. */
     void markSetsUnknown(JSContext *cx, TypeObject *obj);
 
-    void sweep(FreeOp *fop);
+    void sweep(JSContext *cx);
     void finalizeObjects();
 };
 

@@ -41,20 +41,10 @@
 #define ParseNode_inl_h__
 
 #include "frontend/ParseNode.h"
+#include "frontend/BytecodeEmitter.h"
 #include "frontend/TokenStream.h"
-#include "frontend/TreeContext.h"
-
-#include "frontend/TreeContext-inl.h"
 
 namespace js {
-
-inline PropertyName *
-ParseNode::atom() const
-{
-    JS_ASSERT(isKind(PNK_FUNCTION) || isKind(PNK_NAME));
-    JSAtom *atom = isKind(PNK_FUNCTION) ? pn_funbox->function()->atom : pn_atom;
-    return atom->asPropertyName();
-}
 
 inline bool
 ParseNode::isConstant()
@@ -200,14 +190,14 @@ NameNode::dump(int indent)
 #endif
 
 inline void
-NameNode::initCommon(SharedContext *sc)
+NameNode::initCommon(TreeContext *tc)
 {
     pn_expr = NULL;
     pn_cookie.makeFree();
-    pn_dflags = (!sc->topStmt || sc->topStmt->type == STMT_BLOCK)
+    pn_dflags = (!tc->topStmt || tc->topStmt->type == STMT_BLOCK)
                 ? PND_BLOCKCHILD
                 : 0;
-    pn_blockid = sc->blockid();
+    pn_blockid = tc->blockid();
 }
 
 } /* namespace js */

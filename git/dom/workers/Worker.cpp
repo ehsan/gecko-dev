@@ -38,8 +38,8 @@
 
 #include "Worker.h"
 
-#include "mozilla/dom/DOMJSClass.h"
-#include "mozilla/dom/BindingUtils.h"
+#include "mozilla/dom/bindings/DOMJSClass.h"
+#include "mozilla/dom/bindings/Utils.h"
 
 #include "EventTarget.h"
 #include "RuntimeService.h"
@@ -55,8 +55,7 @@
 
 USING_WORKERS_NAMESPACE
 
-using namespace mozilla::dom;
-using mozilla::ErrorResult;
+using namespace mozilla::dom::bindings;
 
 namespace {
 
@@ -199,10 +198,10 @@ private:
     }
 
     NS_ConvertASCIItoUTF16 nameStr(name + 2);
-    ErrorResult rv;
+    nsresult rv = NS_OK;
     JSObject* listener = worker->GetEventListener(nameStr, rv);
 
-    if (rv.Failed()) {
+    if (NS_FAILED(rv)) {
       JS_ReportError(aCx, "Failed to get listener!");
     }
 
@@ -229,10 +228,10 @@ private:
     }
 
     NS_ConvertASCIItoUTF16 nameStr(name + 2);
-    ErrorResult rv;
+    nsresult rv = NS_OK;
     worker->SetEventListener(nameStr, listener, rv);
 
-    if (rv.Failed()) {
+    if (NS_FAILED(rv)) {
       JS_ReportError(aCx, "Failed to set listener!");
       return false;
     }
@@ -247,12 +246,12 @@ private:
   }
 
   static void
-  Finalize(JSFreeOp* aFop, JSObject* aObj)
+  Finalize(JSContext* aCx, JSObject* aObj)
   {
     JS_ASSERT(JS_GetClass(aObj) == Class());
     WorkerPrivate* worker = UnwrapDOMObject<WorkerPrivate>(aObj, Class());
     if (worker) {
-      worker->_Finalize(aFop);
+      worker->_Finalize(aCx);
     }
   }
 
@@ -405,12 +404,12 @@ private:
   }
 
   static void
-  Finalize(JSFreeOp* aFop, JSObject* aObj)
+  Finalize(JSContext* aCx, JSObject* aObj)
   {
     JS_ASSERT(JS_GetClass(aObj) == Class());
     WorkerPrivate* worker = UnwrapDOMObject<WorkerPrivate>(aObj, Class());
     if (worker) {
-      worker->_Finalize(aFop);
+      worker->_Finalize(aCx);
     }
   }
 

@@ -149,22 +149,8 @@ public:
   /**
    * Clamps aScrollPosition to GetScrollRange and sets the scroll position
    * to that value.
-   * @param aRange If non-null, specifies area which contains aScrollPosition
-   * and can be used for choosing a performance-optimized scroll position.
-   * Any point within this area can be chosen.
-   * The choosen point will be as close as possible to aScrollPosition.
    */
-  virtual void ScrollTo(nsPoint aScrollPosition, ScrollMode aMode,
-                        const nsRect* aRange = nsnull) = 0;
-  /**
-   * Scrolls to a particular position in integer CSS pixels.
-   * Keeps the exact current horizontal or vertical position if the current
-   * position, rounded to CSS pixels, matches aScrollPosition. If
-   * aScrollPosition.x/y is different from the current CSS pixel position,
-   * makes sure we only move in the direction given by the difference.
-   * The scroll mode is INSTANT.
-   */
-  virtual void ScrollToCSSPixels(nsIntPoint aScrollPosition) = 0;
+  virtual void ScrollTo(nsPoint aScrollPosition, ScrollMode aMode) = 0;
   /**
    * When scrolling by a relative amount, we can choose various units.
    */

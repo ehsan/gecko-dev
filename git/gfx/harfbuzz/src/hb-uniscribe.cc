@@ -223,10 +223,11 @@ hb_uniscribe_font_get_hfont (hb_font_t *font)
 
 
 hb_bool_t
-_hb_uniscribe_shape (hb_font_t          *font,
-		     hb_buffer_t        *buffer,
-		     const hb_feature_t *features,
-		     unsigned int        num_features)
+hb_uniscribe_shape (hb_font_t          *font,
+		    hb_buffer_t        *buffer,
+		    const hb_feature_t *features,
+		    unsigned int        num_features,
+		    const char * const *shaper_options)
 {
   buffer->guess_properties ();
 

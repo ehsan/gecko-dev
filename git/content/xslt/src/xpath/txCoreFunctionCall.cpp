@@ -36,7 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/FloatingPoint.h"
 #include "mozilla/Util.h"
 
 #include "txExpr.h"
@@ -397,8 +396,8 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             NS_ENSURE_SUCCESS(rv, rv);
 
             // check for NaN or +/-Inf
-            if (MOZ_DOUBLE_IS_NaN(start) ||
-                MOZ_DOUBLE_IS_INFINITE(start) ||
+            if (txDouble::isNaN(start) ||
+                txDouble::isInfinite(start) ||
                 start >= src.Length() + 0.5) {
                 aContext->recycler()->getEmptyStringResult(aResult);
 
@@ -413,7 +412,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
                 NS_ENSURE_SUCCESS(rv, rv);
 
                 end += start;
-                if (MOZ_DOUBLE_IS_NaN(end) || end < 0) {
+                if (txDouble::isNaN(end) || end < 0) {
                     aContext->recycler()->getEmptyStringResult(aResult);
 
                     return NS_OK;
@@ -557,8 +556,8 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             rv = evaluateToNumber(mParams[0], aContext, &dbl);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            if (!MOZ_DOUBLE_IS_NaN(dbl) && !MOZ_DOUBLE_IS_INFINITE(dbl)) {
-                if (MOZ_DOUBLE_IS_NEGATIVE(dbl) && dbl >= -0.5) {
+            if (!txDouble::isNaN(dbl) && !txDouble::isInfinite(dbl)) {
+                if (txDouble::isNeg(dbl) && dbl >= -0.5) {
                     dbl *= 0;
                 }
                 else {
@@ -574,9 +573,9 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             rv = evaluateToNumber(mParams[0], aContext, &dbl);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            if (!MOZ_DOUBLE_IS_NaN(dbl) &&
-                !MOZ_DOUBLE_IS_INFINITE(dbl) &&
-                !(dbl == 0 && MOZ_DOUBLE_IS_NEGATIVE(dbl))) {
+            if (!txDouble::isNaN(dbl) &&
+                !txDouble::isInfinite(dbl) &&
+                !(dbl == 0 && txDouble::isNeg(dbl))) {
                 dbl = floor(dbl);
             }
 
@@ -588,8 +587,8 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             rv = evaluateToNumber(mParams[0], aContext, &dbl);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            if (!MOZ_DOUBLE_IS_NaN(dbl) && !MOZ_DOUBLE_IS_INFINITE(dbl)) {
-                if (MOZ_DOUBLE_IS_NEGATIVE(dbl) && dbl > -1) {
+            if (!txDouble::isNaN(dbl) && !txDouble::isInfinite(dbl)) {
+                if (txDouble::isNeg(dbl) && dbl > -1) {
                     dbl *= 0;
                 }
                 else {

@@ -107,5 +107,3 @@ endif
 include $(topsrcdir)/config/rules.mk
 
 LOCAL_INCLUDES += -I$(srcdir)/../include
-
-CFLAGS += $(MOZ_ALSA_CFLAGS)

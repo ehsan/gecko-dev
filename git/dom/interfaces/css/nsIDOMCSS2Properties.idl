@@ -660,9 +660,6 @@ interface nsIDOMCSS2Properties : nsISupports
            attribute DOMString        MozColumnRuleColor;
                                         // raises(DOMException) on setting
 
-           attribute DOMString        wordBreak;
-                                        // raises(DOMException) on setting
-
            attribute DOMString        wordWrap;
                                         // raises(DOMException) on setting
 

@@ -38,23 +38,18 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsIDOMEventTarget.idl"
-#include "nsIDOMDOMError.idl"
 
 interface nsIDOMEventListener;
 
-[scriptable, builtinclass, uuid(d902afb1-2e1d-412e-bfa3-cb6a9453a4db)]
+[scriptable, builtinclass, uuid(f741d52a-38bd-48f8-838b-cf4cd74a6ea5)]
 interface nsIDOMTelephonyCall : nsIDOMEventTarget
 {
   readonly attribute DOMString number;
 
   readonly attribute DOMString state;
 
-  readonly attribute nsIDOMDOMError error;
-
   void answer();
   void hangUp();
-  void hold();
-  void resume();
 
   attribute nsIDOMEventListener onstatechange;
 
@@ -65,9 +60,5 @@ interface nsIDOMTelephonyCall : nsIDOMEventTarget
   attribute nsIDOMEventListener onconnected;
   attribute nsIDOMEventListener ondisconnecting;
   attribute nsIDOMEventListener ondisconnected;
-  attribute nsIDOMEventListener onholding;
-  attribute nsIDOMEventListener onheld;
-  attribute nsIDOMEventListener onresuming;
-
-  attribute nsIDOMEventListener onerror;
+  attribute nsIDOMEventListener onincoming;
 };

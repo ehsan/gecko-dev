@@ -45,7 +45,6 @@
 #include "CustomQS_Canvas.h"
 
 #include "jsapi.h"
-#include "jsfriendapi.h"
 
 typedef NS_STDCALL_FUNCPROTO(nsresult, CanvasStyleSetterType, nsIDOMCanvasRenderingContext2D,
                              SetStrokeStyle_multi, (const nsAString &, nsISupports *));
@@ -174,7 +173,8 @@ CreateImageData(JSContext* cx, JSObject* obj, uint32_t w, uint32_t h, jsval* vp)
     }
 
     // Create the fast typed array; it's initialized to 0 by default.
-    JSObject* darray = JS_NewUint8ClampedArray(cx, len.value());
+    JSObject* darray =
+      js_CreateTypedArray(cx, js::TypedArray::TYPE_UINT8_CLAMPED, len.value());
     JS::AutoObjectRooter rd(cx, darray);
     if (!darray) {
         return false;
@@ -305,30 +305,26 @@ nsIDOMCanvasRenderingContext2D_PutImageData(JSContext *cx, unsigned argc, jsval 
 
     JS::AutoValueRooter tsrc_tvr(cx);
 
-    JSObject * tsrc = NULL;
-    if (JS_IsInt8Array(darray.get(), cx) ||
-        JS_IsUint8Array(darray.get(), cx) ||
-        JS_IsUint8ClampedArray(darray.get(), cx))
+    JSObject *tsrc = NULL;
+    if (js::GetObjectClass(darray.get()) == &js::TypedArray::fastClasses[js::TypedArray::TYPE_UINT8] ||
+        js::GetObjectClass(darray.get()) == &js::TypedArray::fastClasses[js::TypedArray::TYPE_UINT8_CLAMPED])
     {
         tsrc = darray.get();
-    } else if (JS_IsTypedArrayObject(darray.get(), cx) || JS_IsArrayObject(cx, darray.get())) {
+    } else if (JS_IsArrayObject(cx, darray.get()) || js_IsTypedArray(darray.get())) {
         // ugh, this isn't a uint8 typed array, someone made their own object; convert it to a typed array
-        JSObject *nobj = JS_NewUint8ClampedArrayFromArray(cx, darray.get());
+        JSObject *nobj = js_CreateTypedArrayWithArray(cx, js::TypedArray::TYPE_UINT8, darray.get());
         if (!nobj)
             return JS_FALSE;
 
         *tsrc_tvr.jsval_addr() = OBJECT_TO_JSVAL(nobj);
-        tsrc = nobj;
+        tsrc = js::TypedArray::getTypedArray(nobj);
     } else {
         // yeah, no.
         return xpc_qsThrow(cx, NS_ERROR_DOM_TYPE_MISMATCH_ERR);
     }
 
     // make the call
-    MOZ_ASSERT(JS_IsTypedArrayObject(tsrc, cx));
-    PRUint8* data = reinterpret_cast<PRUint8*>(JS_GetArrayBufferViewData(tsrc, cx));
-    uint32_t byteLength = JS_GetTypedArrayByteLength(tsrc, cx);
-    rv = self->PutImageData_explicit(x, y, w, h, data, byteLength, hasDirtyRect, dirtyX, dirtyY, dirtyWidth, dirtyHeight);
+    rv = self->PutImageData_explicit(x, y, w, h, static_cast<PRUint8*>(JS_GetTypedArrayData(tsrc)), JS_GetTypedArrayByteLength(tsrc), hasDirtyRect, dirtyX, dirtyY, dirtyWidth, dirtyHeight);
     if (NS_FAILED(rv))
         return xpc_qsThrowMethodFailed(cx, rv, vp);
 

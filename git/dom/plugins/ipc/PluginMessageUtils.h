@@ -93,6 +93,7 @@ inline bool IsDrawingModelAsync(int16_t aModel) {
   return aModel == NPDrawingModelAsyncBitmapSurface
 #ifdef XP_WIN
          || aModel == NPDrawingModelAsyncWindowsDXGISurface
+         || aModel == NPDrawingModelAsyncWindowsDX9ExSurface
 #endif
          ;
 }

@@ -1,6 +1,16 @@
 function testValue(aID, aAcc, aValue, aRole)
 {
-  is(aAcc.value, aValue, "Wrong value for " + aID + "!");
+  if (aRole == ROLE_PASSWORD_TEXT) {
+    var value;
+    try {
+      value = aAcc.value;
+      do_throw("We do not want a value on " + aID + "!");
+    } catch(e) {
+      is(e.result, Components.results.NS_ERROR_FAILURE,
+         "Wrong return value for getValue on " + aID + "!");
+    }
+  } else
+    is(aAcc.value, aValue, "Wrong value for " + aID + "!");
 }
 
 function testAction(aID, aAcc, aNumActions, aActionName, aActionDescription)

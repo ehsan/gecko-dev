@@ -54,6 +54,7 @@
 #include "nsNPAPIPluginStreamListener.h"
 #include "nsIServiceManager.h"
 #include "nsThreadUtils.h"
+#include "nsIPrivateBrowsingService.h"
 #include "mozilla/Preferences.h"
 
 #include "nsIPluginStreamListener.h"
@@ -104,8 +105,6 @@
 #include "nsJSNPRuntime.h"
 #include "nsIHttpAuthManager.h"
 #include "nsICookieService.h"
-#include "nsILoadContext.h"
-#include "nsIDocShell.h"
 
 #include "nsNetUtil.h"
 
@@ -383,6 +382,7 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
 
   // Java plugins include a number of different file names,
   // so use the mime type (mIsJavaPlugin) and a special pref.
+  bool javaIsEnabled;
   if (aPluginTag->mIsJavaPlugin &&
       !Preferences::GetBool("dom.ipc.plugins.java.enabled", true)) {
     return false;
@@ -1349,10 +1349,10 @@ _getstringidentifier(const NPUTF8* name)
   if (!stack)
     return NULL;
 
-  JSContext* cx = stack->GetSafeJSContext();
-  if (!cx) {
+  JSContext *cx = nsnull;
+  stack->GetSafeJSContext(&cx);
+  if (!cx)
     return NULL;
-  }
 
   JSAutoRequest ar(cx);
   return doGetIdentifier(cx, name);
@@ -1370,10 +1370,10 @@ _getstringidentifiers(const NPUTF8** names, int32_t nameCount,
   if (!stack)
     return;
 
-  JSContext* cx = stack->GetSafeJSContext();
-  if (!cx) {
+  JSContext *cx = nsnull;
+  stack->GetSafeJSContext(&cx);
+  if (!cx)
     return;
-  }
 
   JSAutoRequest ar(cx);
 
@@ -2136,13 +2136,11 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   }
 
   case NPNVprivateModeBool: {
-    nsCOMPtr<nsIDocument> doc = GetDocumentFromNPP(npp);
-    NS_ENSURE_TRUE(doc, NPERR_GENERIC_ERROR);
-    nsCOMPtr<nsPIDOMWindow> domwindow = doc->GetWindow();
-    if (domwindow) {
-      nsCOMPtr<nsIDocShell> docShell = domwindow->GetDocShell();
-      nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(docShell);
-      *(NPBool*)result = (NPBool)(loadContext && loadContext->UsePrivateBrowsing());
+    nsCOMPtr<nsIPrivateBrowsingService> pbs = do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
+    if (pbs) {
+      bool enabled;
+      pbs->GetPrivateBrowsingEnabled(&enabled);
+      *(NPBool*)result = (NPBool)enabled;
       return NPERR_NO_ERROR;
     }
     return NPERR_GENERIC_ERROR;

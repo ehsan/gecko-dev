@@ -53,7 +53,6 @@
 #include "nsNetUtil.h"
 #include "nsServiceManagerUtils.h"
 #include "SystemWorkerManager.h"
-#include "nsRadioInterfaceLayer.h"
 
 #include "CallEvent.h"
 #include "TelephonyCall.h"
@@ -132,7 +131,7 @@ Telephony::Telephony()
 Telephony::~Telephony()
 {
   if (mRIL && mRILTelephonyCallback) {
-    mRIL->UnregisterTelephonyCallback(mRILTelephonyCallback);
+    mRIL->UnregisterCallback(mRILTelephonyCallback);
   }
 
   if (mRooted) {
@@ -153,7 +152,7 @@ Telephony::~Telephony()
 
 // static
 already_AddRefed<Telephony>
-Telephony::Create(nsPIDOMWindow* aOwner, nsIRILContentHelper* aRIL)
+Telephony::Create(nsPIDOMWindow* aOwner, nsIRadioInterfaceLayer* aRIL)
 {
   NS_ASSERTION(aOwner, "Null owner!");
   NS_ASSERTION(aRIL, "Null RIL!");
@@ -174,7 +173,7 @@ Telephony::Create(nsPIDOMWindow* aOwner, nsIRILContentHelper* aRIL)
   nsresult rv = aRIL->EnumerateCalls(telephony->mRILTelephonyCallback);
   NS_ENSURE_SUCCESS(rv, nsnull);
 
-  rv = aRIL->RegisterTelephonyCallback(telephony->mRILTelephonyCallback);
+  rv = aRIL->RegisterCallback(telephony->mRILTelephonyCallback);
   NS_ENSURE_SUCCESS(rv, nsnull);
 
   return telephony.forget();
@@ -404,7 +403,7 @@ NS_IMPL_EVENT_HANDLER(Telephony, callschanged)
 
 NS_IMETHODIMP
 Telephony::CallStateChanged(PRUint32 aCallIndex, PRUint16 aCallState,
-                            const nsAString& aNumber, bool aIsActive)
+                            const nsAString& aNumber)
 {
   NS_ASSERTION(aCallIndex != kOutgoingPlaceholderCallIndex,
                "This should never happen!");
@@ -445,7 +444,7 @@ Telephony::CallStateChanged(PRUint32 aCallIndex, PRUint16 aCallState,
     modifiedCall->ChangeState(aCallState);
 
     // See if this should replace our current active call.
-    if (aIsActive) {
+    if (aCallState == nsIRadioInterfaceLayer::CALL_STATE_CONNECTED) {
       mActiveCall = modifiedCall;
     }
 
@@ -497,31 +496,6 @@ Telephony::EnumerateCallState(PRUint32 aCallIndex, PRUint16 aCallState,
   }
 
   *aContinue = true;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-Telephony::NotifyError(PRInt32 aCallIndex,
-                        const nsAString& aError)
-{
-  PRInt32 index = -1;
-  PRInt32 length = mCalls.Length();
-
-  // The connection is not established yet, remove the latest call object
-  if (aCallIndex == -1) {
-    if (length > 0) {
-      index = length - 1;
-    }
-  } else {
-    if (aCallIndex < 0 || aCallIndex >= length) {
-      return NS_ERROR_INVALID_ARG;
-    }
-    index = aCallIndex;
-  }
-  if (index != -1) {
-    mCalls[index]->NotifyError(aError);
-  }
-
   return NS_OK;
 }
 
@@ -597,8 +571,11 @@ NS_NewTelephony(nsPIDOMWindow* aWindow, nsIDOMTelephony** aTelephony)
     }
   }
 
-  nsCOMPtr<nsIRILContentHelper> ril =
-    do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
+  // Security checks passed, make a telephony object.
+  nsIInterfaceRequestor* ireq = SystemWorkerManager::GetInterfaceRequestor();
+  NS_ENSURE_TRUE(ireq, NS_ERROR_UNEXPECTED);
+
+  nsCOMPtr<nsIRadioInterfaceLayer> ril = do_GetInterface(ireq);
   NS_ENSURE_TRUE(ril, NS_ERROR_UNEXPECTED);
 
   nsRefPtr<Telephony> telephony = Telephony::Create(innerWindow, ril);

@@ -127,8 +127,6 @@ public:
                                 const nsAttrValue* aValue, bool aNotify);
 
   virtual nsXPCClassInfo* GetClassInfo();
-
-  virtual nsIDOMNode* AsDOMNode() { return this; }
 protected:
   // nsScriptElement
   virtual bool HasScriptContent();
@@ -245,7 +243,6 @@ NS_IMPL_URI_ATTR(nsHTMLScriptElement, Src, src)
 NS_IMPL_STRING_ATTR(nsHTMLScriptElement, Type, type)
 NS_IMPL_STRING_ATTR(nsHTMLScriptElement, HtmlFor, _for)
 NS_IMPL_STRING_ATTR(nsHTMLScriptElement, Event, event)
-NS_IMPL_STRING_ATTR(nsHTMLScriptElement, CrossOrigin, crossorigin)
 
 nsresult
 nsHTMLScriptElement::GetAsync(bool* aValue)

@@ -247,19 +247,14 @@ class HashTable : private AllocPolicy
          * a new key at the new Lookup position.  |front()| is invalid after
          * this operation until the next call to |popFront()|.
          */
-        void rekeyFront(const Lookup &l, const Key &k) {
+        void rekeyFront(Key &k) {
             JS_ASSERT(&k != &HashPolicy::getKey(this->cur->t));
-            if (match(*this->cur, l))
-                return;
+            JS_ASSERT(!table.match(*this->cur, k));
             Entry e = *this->cur;
-            HashPolicy::setKey(e.t, const_cast<Key &>(k));
+            HashPolicy::setKey(e.t, k);
             table.remove(*this->cur);
-            table.add(l, e);
+            table.add(k, e);
             added = true;
-        }
-
-        void rekeyFront(const Key &k) {
-            rekeyFront(k, k);
         }
 
         /* Potentially rehashes the table. */
@@ -389,7 +384,7 @@ class HashTable : private AllocPolicy
         mutationCount(0)
     {}
 
-    MOZ_WARN_UNUSED_RESULT bool init(uint32_t length)
+    bool init(uint32_t length)
     {
         /* Make sure that init isn't called twice. */
         JS_ASSERT(table == NULL);
@@ -624,20 +619,23 @@ class HashTable : private AllocPolicy
 
     bool checkOverloaded()
     {
-        if (!overloaded())
-            return false;
+        if (overloaded()) {
+            /* Compress if a quarter or more of all entries are removed. */
+            int deltaLog2;
+            if (removedCount >= (capacity() >> 2)) {
+                METER(stats.compresses++);
+                deltaLog2 = 0;
+            } else {
+                METER(stats.grows++);
+                deltaLog2 = 1;
+            }
 
-        /* Compress if a quarter or more of all entries are removed. */
-        int deltaLog2;
-        if (removedCount >= (capacity() >> 2)) {
-            METER(stats.compresses++);
-            deltaLog2 = 0;
-        } else {
-            METER(stats.grows++);
-            deltaLog2 = 1;
+            (void) changeTableSize(deltaLog2);
+
+            return true;
         }
 
-        return changeTableSize(deltaLog2);
+        return false;
     }
 
     void remove(Entry &e)
@@ -1155,7 +1153,7 @@ class HashMap
         return impl.lookup(l) != NULL;
     }
 
-    /* Overwrite existing value with v. Return false on oom. */
+    /* Overwrite existing value with v. Return NULL on oom. */
     template<typename KeyInput, typename ValueInput>
     bool put(const KeyInput &k, const ValueInput &v) {
         AddPtr p = lookupForAdd(k);

@@ -327,7 +327,7 @@ struct GDEF
 {
   static const hb_tag_t Tag	= HB_OT_TAG_GDEF;
 
-  enum GlyphClasses {
+  enum {
     UnclassifiedGlyph	= 0,
     BaseGlyph		= 1,
     LigatureGlyph	= 2,

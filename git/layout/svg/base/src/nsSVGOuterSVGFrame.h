@@ -114,7 +114,7 @@ public:
                                PRInt32         aModType);
 
   // nsISVGSVGFrame interface:
-  virtual void NotifyViewportOrTransformChanged(PRUint32 aFlags);
+  virtual void NotifyViewportChange();
 
   // nsSVGContainerFrame methods:
   virtual gfxMatrix GetCanvasTM();

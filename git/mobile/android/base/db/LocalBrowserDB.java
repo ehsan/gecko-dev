@@ -40,7 +40,6 @@
 package org.mozilla.gecko.db;
 
 import java.io.ByteArrayOutputStream;
-import java.util.HashMap;
 
 import org.mozilla.gecko.db.BrowserContract.Bookmarks;
 import org.mozilla.gecko.db.BrowserContract.History;
@@ -64,6 +63,12 @@ import android.provider.Browser;
 import android.util.Log;
 
 public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
+    // Same as android.provider.Browser for consistency.
+    private static final int MAX_HISTORY_COUNT = 250;
+
+    // Same as android.provider.Browser for consistency.
+    public static final int TRUNCATE_N_OLDEST = 5;
+
     // Calculate these once, at initialization. isLoggable is too expensive to
     // have in-line in each log call.
     private static final String LOGTAG = "GeckoLocalBrowserDB";
@@ -75,9 +80,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     private final String mProfile;
-
-    // Map of folder GUIDs to IDs. Used for caching.
-    private HashMap<String, Long> mFolderIdMap;
+    private long mMobileFolderId;
 
     // Use wrapped Boolean so that we can have a null state
     private Boolean mDesktopBookmarksExist;
@@ -88,7 +91,6 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     private final Uri mImagesUriWithProfile;
     private final Uri mCombinedUriWithProfile;
     private final Uri mDeletedHistoryUriWithProfile;
-    private final Uri mUpdateHistoryUriWithProfile;
 
     private static final String[] DEFAULT_BOOKMARK_COLUMNS =
             new String[] { Bookmarks._ID,
@@ -102,7 +104,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
 
     public LocalBrowserDB(String profile) {
         mProfile = profile;
-        mFolderIdMap = new HashMap<String, Long>();
+        mMobileFolderId = -1;
         mDesktopBookmarksExist = null;
 
         mBookmarksUriWithProfile = appendProfile(Bookmarks.CONTENT_URI);
@@ -113,10 +115,6 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
 
         mDeletedHistoryUriWithProfile = mHistoryUriWithProfile.buildUpon().
             appendQueryParameter(BrowserContract.PARAM_SHOW_DELETED, "1").build();
-
-        mUpdateHistoryUriWithProfile = mHistoryUriWithProfile.buildUpon().
-            appendQueryParameter(BrowserContract.PARAM_INCREMENT_VISITS, "true").
-            appendQueryParameter(BrowserContract.PARAM_INSERT_IF_NEEDED, "true").build();
     }
 
     // Invalidate cached data
@@ -170,10 +168,8 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         // approximation using the Cauchy distribution: multiplier = 15^2 / (age^2 + 15^2).
         // Using 15 as our scale parameter, we get a constant 15^2 = 225. Following this math,
         // frecencyScore = numVisits * max(1, 100 * 225 / (age*age + 225)). (See bug 704977)
-        // We also give bookmarks an extra bonus boost by adding 100 points to their frecency score.
         final String age = "(" + Combined.DATE_LAST_VISITED + " - " + System.currentTimeMillis() + ") / 86400000";
-        final String sortOrder = "(CASE WHEN " + Combined.BOOKMARK_ID + " > -1 THEN 100 ELSE 0 END) + " +
-                                 Combined.VISITS + " * MAX(1, 100 * 225 / (" + age + "*" + age + " + 225)) DESC";
+        final String sortOrder = Combined.VISITS + " * MAX(1, 100 * 225 / (" + age + "*" + age + " + 225)) DESC";
 
         Cursor c = cr.query(combinedUriWithLimit(limit),
                             projection,
@@ -189,9 +185,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
                               new String[] { Combined._ID,
                                              Combined.URL,
                                              Combined.TITLE,
-                                             Combined.FAVICON,
-                                             Combined.BOOKMARK_ID,
-                                             Combined.HISTORY_ID },
+                                             Combined.FAVICON },
                               constraint,
                               limit,
                               null);
@@ -208,19 +202,79 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
                               BrowserDB.ABOUT_PAGES_URL_FILTER);
     }
 
+    private void truncateHistory(ContentResolver cr) {
+        Cursor cursor = null;
+
+        try {
+            cursor = cr.query(mHistoryUriWithProfile,
+                              new String[] { History._ID },
+                              null,
+                              null,
+                              History.DATE_LAST_VISITED + " ASC");
+
+            if (cursor.getCount() < MAX_HISTORY_COUNT)
+                return;
+
+            if (cursor.moveToFirst()) {
+                for (int i = 0; i < TRUNCATE_N_OLDEST; i++) {
+                    Uri historyUri = ContentUris.withAppendedId(History.CONTENT_URI, cursor.getLong(0)); 
+                    cr.delete(appendProfile(historyUri), null, null);
+
+                    if (!cursor.moveToNext())
+                        break;
+                }
+            }
+        } finally {
+            if (cursor != null)
+                cursor.close();
+        }
+    }
+
     public void updateVisitedHistory(ContentResolver cr, String uri) {
-        ContentValues values = new ContentValues();
+        long now = System.currentTimeMillis();
+        Cursor cursor = null;
 
-        values.put(History.URL, uri);
-        values.put(History.DATE_LAST_VISITED, System.currentTimeMillis());
-        values.put(History.IS_DELETED, 0);
+        try {
+            final String[] projection = new String[] {
+                    History._ID,    // 0
+                    History.VISITS, // 1
+            };
 
-        // This will insert a new history entry if one for this URL
-        // doesn't already exist
-        cr.update(mUpdateHistoryUriWithProfile,
-                  values,
-                  History.URL + " = ?",
-                  new String[] { uri });
+            cursor = cr.query(mDeletedHistoryUriWithProfile,
+                              projection,
+                              History.URL + " = ?",
+                              new String[] { uri },
+                              null);
+
+            if (cursor.moveToFirst()) {
+                ContentValues values = new ContentValues();
+
+                values.put(History.VISITS, cursor.getInt(1) + 1);
+                values.put(History.DATE_LAST_VISITED, now);
+
+                // Restore deleted record if possible
+                values.put(History.IS_DELETED, 0);
+
+                Uri historyUri = ContentUris.withAppendedId(History.CONTENT_URI, cursor.getLong(0));
+                cr.update(appendProfile(historyUri), values, null, null);
+            } else {
+                // Ensure we don't blow up our database with too
+                // many history items.
+                truncateHistory(cr);
+
+                ContentValues values = new ContentValues();
+
+                values.put(History.URL, uri);
+                values.put(History.VISITS, 1);
+                values.put(History.DATE_LAST_VISITED, now);
+                values.put(History.TITLE, uri);
+
+                cr.insert(mHistoryUriWithProfile, values);
+            }
+        } finally {
+            if (cursor != null)
+                cursor.close();
+        }
     }
 
     public void updateHistoryTitle(ContentResolver cr, String uri, String title) {
@@ -276,15 +330,13 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     public Cursor getRecentHistory(ContentResolver cr, int limit) {
-        Cursor c = cr.query(combinedUriWithLimit(limit),
-                            new String[] { Combined._ID,
-                                           Combined.BOOKMARK_ID,
-                                           Combined.HISTORY_ID,
-                                           Combined.URL,
-                                           Combined.TITLE,
-                                           Combined.FAVICON,
-                                           Combined.DATE_LAST_VISITED,
-                                           Combined.VISITS },
+        Cursor c = cr.query(historyUriWithLimit(limit),
+                            new String[] { History._ID,
+                                           History.URL,
+                                           History.TITLE,
+                                           History.FAVICON,
+                                           History.DATE_LAST_VISITED,
+                                           History.VISITS },
                             History.DATE_LAST_VISITED + " > 0",
                             null,
                             History.DATE_LAST_VISITED + " DESC");
@@ -292,10 +344,8 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         return new LocalDBCursor(c);
     }
 
-    public void removeHistoryEntry(ContentResolver cr, int id) {
-        cr.delete(mHistoryUriWithProfile,
-                  History._ID + " = ?",
-                  new String[] { String.valueOf(id) });
+    public int getMaxHistoryCount() {
+        return MAX_HISTORY_COUNT;
     }
 
     public void clearHistory(ContentResolver cr) {
@@ -308,7 +358,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
 
         // We always want to show mobile bookmarks in the root view.
         if (folderId == Bookmarks.FIXED_ROOT_ID) {
-            folderId = getFolderIdFromGuid(cr, Bookmarks.MOBILE_FOLDER_GUID);
+            folderId = getMobileBookmarksFolderId(cr);
 
             // We'll add a fake "Desktop Bookmarks" folder to the root view if desktop 
             // bookmarks exist, so that the user can still access non-mobile bookmarks.
@@ -357,16 +407,12 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         Cursor c = null;
         int count = 0;
         try {
-            // Check to see if there are any bookmarks in one of our three
-            // fixed "Desktop Boomarks" folders.
             c = cr.query(bookmarksUriWithLimit(1),
                          new String[] { Bookmarks._ID },
-                         Bookmarks.PARENT + " = ? OR " +
-                         Bookmarks.PARENT + " = ? OR " +
-                         Bookmarks.PARENT + " = ?",
-                         new String[] { String.valueOf(getFolderIdFromGuid(cr, Bookmarks.TOOLBAR_FOLDER_GUID)),
-                                        String.valueOf(getFolderIdFromGuid(cr, Bookmarks.MENU_FOLDER_GUID)),
-                                        String.valueOf(getFolderIdFromGuid(cr, Bookmarks.UNFILED_FOLDER_GUID)) },
+                         Bookmarks.PARENT + " != ? AND " +
+                         Bookmarks.PARENT + " != ?",
+                         new String[] { String.valueOf(getMobileBookmarksFolderId(cr)),
+                                        String.valueOf(Bookmarks.FIXED_ROOT_ID) },
                          null);
             count = c.getCount();
         } finally {
@@ -409,10 +455,15 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         return url;
     }
 
-    private synchronized long getFolderIdFromGuid(ContentResolver cr, String guid) {
-        if (mFolderIdMap.containsKey(guid))
-          return mFolderIdMap.get(guid);
+    private long getMobileBookmarksFolderId(ContentResolver cr) {
+        if (mMobileFolderId >= 0)
+            return mMobileFolderId;
 
+        mMobileFolderId = getFolderIdFromGuid(cr, Bookmarks.MOBILE_FOLDER_GUID);
+        return mMobileFolderId;
+    }
+
+    private long getFolderIdFromGuid(ContentResolver cr, String guid) {
         long folderId = -1;
         Cursor c = null;
 
@@ -430,7 +481,6 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
                 c.close();
         }
 
-        mFolderIdMap.put(guid, folderId);
         return folderId;
     }
 
@@ -449,7 +499,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     public void addBookmark(ContentResolver cr, String title, String uri) {
-        long folderId = getFolderIdFromGuid(cr, Bookmarks.MOBILE_FOLDER_GUID);
+        long folderId = getMobileBookmarksFolderId(cr);
         if (folderId < 0)
             return;
 
@@ -508,14 +558,11 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     public void registerBookmarkObserver(ContentResolver cr, ContentObserver observer) {
-        cr.registerContentObserver(mBookmarksUriWithProfile, false, observer);
+        Uri uri = mBookmarksUriWithProfile;
+        cr.registerContentObserver(uri, false, observer);
     }
 
-    public void registerHistoryObserver(ContentResolver cr, ContentObserver observer) {
-        cr.registerContentObserver(mHistoryUriWithProfile, false, observer);
-    }
-
-    public void updateBookmark(ContentResolver cr, int id, String uri, String title, String keyword) {
+    public void updateBookmark(ContentResolver cr, String oldUri, String uri, String title, String keyword) {
         ContentValues values = new ContentValues();
         values.put(Browser.BookmarkColumns.TITLE, title);
         values.put(Bookmarks.URL, uri);
@@ -523,8 +570,8 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
 
         cr.update(mBookmarksUriWithProfile,
                   values,
-                  Bookmarks._ID + " = ?",
-                  new String[] { String.valueOf(id) });
+                  Bookmarks.URL + " = ?",
+                  new String[] { oldUri });
     }
 
     public BitmapDrawable getFaviconForUrl(ContentResolver cr, String uri) {

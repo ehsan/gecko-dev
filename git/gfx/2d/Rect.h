@@ -83,14 +83,6 @@ struct Rect :
     explicit Rect(const IntRect& rect) :
         Super(float(rect.x), float(rect.y),
               float(rect.width), float(rect.height)) {}
-
-    bool ToIntRect(IntRect *aOut)
-    {
-      *aOut = IntRect(int32_t(X()), int32_t(Y()),
-                    int32_t(Width()), int32_t(Height()));
-      return Rect(Float(aOut->x), Float(aOut->y), 
-                  Float(aOut->width), Float(aOut->height)).IsEqualEdges(*this);
-    }
 };
 
 }

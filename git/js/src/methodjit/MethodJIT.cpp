@@ -40,8 +40,8 @@
 #include "Logging.h"
 #include "assembler/jit/ExecutableAllocator.h"
 #include "assembler/assembler/RepatchBuffer.h"
-#include "gc/Marking.h"
 #include "js/MemoryMetrics.h"
+#include "jsgcmark.h"
 #include "BaseAssembler.h"
 #include "Compiler.h"
 #include "MonoIC.h"
@@ -145,7 +145,7 @@ PushActiveVMFrame(VMFrame &f)
 {
     f.oldregs = &f.cx->stack.regs();
     f.cx->stack.repointRegs(&f.regs);
-    f.cx->jaegerRuntime().pushActiveFrame(&f);
+    f.entryfp->script()->compartment()->jaegerCompartment()->pushActiveFrame(&f);
     f.entryfp->setNativeReturnAddress(JS_FUNC_TO_DATA_PTR(void*, JaegerTrampolineReturn));
     f.regs.clearInlined();
 }
@@ -154,7 +154,7 @@ PushActiveVMFrame(VMFrame &f)
 extern "C" void JS_FASTCALL
 PopActiveVMFrame(VMFrame &f)
 {
-    f.cx->jaegerRuntime().popActiveFrame();
+    f.entryfp->script()->compartment()->jaegerCompartment()->popActiveFrame();
     f.cx->stack.repointRegs(f.oldregs);
 }
 
@@ -983,20 +983,24 @@ JS_STATIC_ASSERT(JSVAL_PAYLOAD_MASK == 0x00007FFFFFFFFFFFLL);
 
 #endif                   /* _WIN64 */
 
-JaegerRuntime::JaegerRuntime()
+JaegerCompartment::JaegerCompartment()
     : orphanedNativeFrames(SystemAllocPolicy()), orphanedNativePools(SystemAllocPolicy())
 {}
 
 bool
-JaegerRuntime::init(JSContext *cx)
+JaegerCompartment::Initialize(JSContext *cx)
 {
-    JSC::ExecutableAllocator *execAlloc = cx->runtime->getExecAlloc(cx);
-    if (!execAlloc)
+    execAlloc_ = js::OffTheBooks::new_<JSC::ExecutableAllocator>(
+        cx->runtime->getJitHardening() ? JSC::AllocationCanRandomize : JSC::AllocationDeterministic);
+    if (!execAlloc_)
         return false;
-
-    TrampolineCompiler tc(execAlloc, &trampolines);
-    if (!tc.compile())
+    
+    TrampolineCompiler tc(execAlloc_, &trampolines);
+    if (!tc.compile()) {
+        js::Foreground::delete_(execAlloc_);
+        execAlloc_ = NULL;
         return false;
+    }
 
 #ifdef JS_METHODJIT_PROFILE_STUBS
     for (size_t i = 0; i < STUB_CALLS_FOR_OP_COUNT; ++i)
@@ -1010,9 +1014,10 @@ JaegerRuntime::init(JSContext *cx)
 }
 
 void
-JaegerRuntime::finish()
+JaegerCompartment::Finish()
 {
     TrampolineCompiler::release(&trampolines);
+    Foreground::delete_(execAlloc_);
 #ifdef JS_METHODJIT_PROFILE_STUBS
     FILE *fp = fopen("/tmp/stub-profiling", "wt");
 # define OPDEF(op,val,name,image,length,nuses,ndefs,prec,format) \
@@ -1052,7 +1057,7 @@ mjit::EnterMethodJIT(JSContext *cx, StackFrame *fp, void *code, Value *stackLimi
     JaegerSpew(JSpew_Prof, "script run took %d ms\n", prof.time_ms());
 #endif
 
-    JaegerStatus status = cx->jaegerRuntime().lastUnfinished();
+    JaegerStatus status = cx->compartment->jaegerCompartment()->lastUnfinished();
     if (status) {
         if (partial) {
             /*
@@ -1075,9 +1080,6 @@ mjit::EnterMethodJIT(JSContext *cx, StackFrame *fp, void *code, Value *stackLimi
 
         return ok ? Jaeger_Returned : Jaeger_Throwing;
     }
-
-    cx->regs().refreshFramePointer(fp);
-    cx->regs().setToEndOfScript();
 
     /* The entry frame should have finished. */
     JS_ASSERT(fp == cx->fp());
@@ -1114,7 +1116,7 @@ mjit::JaegerShot(JSContext *cx, bool partial)
 {
     StackFrame *fp = cx->fp();
     JSScript *script = fp->script();
-    JITScript *jit = script->getJIT(fp->isConstructing(), cx->compartment->needsBarrier());
+    JITScript *jit = script->getJIT(fp->isConstructing());
 
     JS_ASSERT(cx->regs().pc == script->code);
 
@@ -1145,22 +1147,10 @@ JITChunk::callSites() const
     return (js::mjit::CallSite *)&inlineFrames()[nInlineFrames];
 }
 
-JSObject **
-JITChunk::rootedTemplates() const
-{
-    return (JSObject **)&callSites()[nCallSites];
-}
-
-RegExpShared **
-JITChunk::rootedRegExps() const
-{
-    return (RegExpShared **)&rootedTemplates()[nRootedTemplates];
-}
-
 char *
 JITChunk::commonSectionLimit() const
 {
-    return (char *)&rootedRegExps()[nRootedRegExps];
+    return (char *)&callSites()[nCallSites];
 }
 
 #ifdef JS_MONOIC
@@ -1274,36 +1264,72 @@ JITScript::patchEdge(const CrossChunkEdge &edge, void *label)
     }
 }
 
+template <typename T>
+static inline void Destroy(T &t)
+{
+    t.~T();
+}
+
 JITChunk::~JITChunk()
 {
-    purgeCaches();
     code.release();
-
-    for (size_t i = 0; i < nRootedRegExps; i++)
-        rootedRegExps()[i]->decRef();
 
     if (pcLengths)
         Foreground::free_(pcLengths);
+
+#if defined JS_POLYIC
+    ic::GetElementIC *getElems_ = getElems();
+    ic::SetElementIC *setElems_ = setElems();
+    ic::PICInfo *pics_ = pics();
+    for (uint32_t i = 0; i < nGetElems; i++)
+        Destroy(getElems_[i]);
+    for (uint32_t i = 0; i < nSetElems; i++)
+        Destroy(setElems_[i]);
+    for (uint32_t i = 0; i < nPICs; i++)
+        Destroy(pics_[i]);
+#endif
+
+#if defined JS_MONOIC
+    for (JSC::ExecutablePool **pExecPool = execPools.begin();
+         pExecPool != execPools.end();
+         ++pExecPool)
+    {
+        (*pExecPool)->release();
+    }
+
+    for (unsigned i = 0; i < nativeCallStubs.length(); i++) {
+        JSC::ExecutablePool *pool = nativeCallStubs[i].pool;
+        if (pool)
+            pool->release();
+    }
+
+    ic::CallICInfo *callICs_ = callICs();
+    for (uint32_t i = 0; i < nCallICs; i++) {
+        callICs_[i].releasePools();
+        if (callICs_[i].fastGuardedObject)
+            callICs_[i].purgeGuardedObject();
+    }
+#endif
 }
 
 void
-JITScript::destroy(FreeOp *fop)
+JITScript::destroy(JSContext *cx)
 {
     for (unsigned i = 0; i < nchunks; i++)
-        destroyChunk(fop, i);
+        destroyChunk(cx, i);
 
     if (shimPool)
         shimPool->release();
 }
 
 void
-JITScript::destroyChunk(FreeOp *fop, unsigned chunkIndex, bool resetUses)
+JITScript::destroyChunk(JSContext *cx, unsigned chunkIndex, bool resetUses)
 {
     ChunkDescriptor &desc = chunkDescriptor(chunkIndex);
 
     if (desc.chunk) {
-        Probes::discardMJITCode(fop, this, desc.chunk, desc.chunk->code.m_code.executableAddress());
-        fop->delete_(desc.chunk);
+        Probes::discardMJITCode(cx, this, script, desc.chunk->code.m_code.executableAddress());
+        cx->delete_(desc.chunk);
         desc.chunk = NULL;
 
         CrossChunkEdge *edges = this->edges();
@@ -1315,7 +1341,7 @@ JITScript::destroyChunk(FreeOp *fop, unsigned chunkIndex, bool resetUses)
                 edge.sourceTrampoline = NULL;
 #endif
                 if (edge.jumpTableEntries) {
-                    fop->delete_(edge.jumpTableEntries);
+                    cx->delete_(edge.jumpTableEntries);
                     edge.jumpTableEntries = NULL;
                 }
             } else if (edge.target >= desc.begin && edge.target < desc.end) {
@@ -1336,8 +1362,13 @@ JITScript::destroyChunk(FreeOp *fop, unsigned chunkIndex, bool resetUses)
 
         invokeEntry = NULL;
         fastEntry = NULL;
-        argsCheckEntry = NULL;
         arityCheckEntry = NULL;
+        argsCheckEntry = NULL;
+
+        if (script->jitNormal == this)
+            script->jitArityCheckNormal = NULL;
+        else
+            script->jitArityCheckCtor = NULL;
 
         // Fixup any ICs still referring to this chunk.
         while (!JS_CLIST_IS_EMPTY(&callers)) {
@@ -1354,50 +1385,14 @@ JITScript::destroyChunk(FreeOp *fop, unsigned chunkIndex, bool resetUses)
     }
 }
 
-void
-JITScript::trace(JSTracer *trc)
-{
-    for (unsigned i = 0; i < nchunks; i++) {
-        ChunkDescriptor &desc = chunkDescriptor(i);
-        if (desc.chunk)
-            desc.chunk->trace(trc);
-    }
-}
-
-void
-JITScript::purgeCaches()
-{
-    for (unsigned i = 0; i < nchunks; i++) {
-        ChunkDescriptor &desc = chunkDescriptor(i);
-        if (desc.chunk)
-            desc.chunk->purgeCaches();
-    }
-}
-
-const js::mjit::JITScript *JSScript::JITScriptHandle::UNJITTABLE =
-    reinterpret_cast<js::mjit::JITScript *>(1);
-
-void
-JSScript::JITScriptHandle::staticAsserts()
-{
-    // JITScriptHandle's memory layout must match that of JITScript *.
-    JS_STATIC_ASSERT(sizeof(JSScript::JITScriptHandle) == sizeof(js::mjit::JITScript *));
-    JS_STATIC_ASSERT(JS_ALIGNMENT_OF(JSScript::JITScriptHandle) ==
-                     JS_ALIGNMENT_OF(js::mjit::JITScript *));
-    JS_STATIC_ASSERT(offsetof(JSScript::JITScriptHandle, value) == 0);
-}
-
 size_t
 JSScript::sizeOfJitScripts(JSMallocSizeOfFun mallocSizeOf)
 {
     size_t n = 0;
-    for (int constructing = 0; constructing <= 1; constructing++) {
-        for (int barriers = 0; barriers <= 1; barriers++) {
-            JITScript *jit = getJIT((bool) constructing, (bool) barriers);
-            if (jit)
-                n += jit->sizeOfIncludingThis(mallocSizeOf);
-        }
-    }
+    if (jitNormal)
+        n += jitNormal->sizeOfIncludingThis(mallocSizeOf); 
+    if (jitCtor)
+        n += jitCtor->sizeOfIncludingThis(mallocSizeOf); 
     return n;
 }
 
@@ -1421,8 +1416,6 @@ mjit::JITChunk::computedSizeOfIncludingThis()
            sizeof(NativeMapEntry) * nNmapPairs +
            sizeof(InlineFrame) * nInlineFrames +
            sizeof(CallSite) * nCallSites +
-           sizeof(JSObject*) * nRootedTemplates +
-           sizeof(RegExpShared*) * nRootedRegExps +
 #if defined JS_MONOIC
            sizeof(ic::GetGlobalNameIC) * nGetGlobalNames +
            sizeof(ic::SetGlobalNameIC) * nSetGlobalNames +
@@ -1445,16 +1438,21 @@ mjit::JITChunk::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf)
 }
 
 void
-JSScript::ReleaseCode(FreeOp *fop, JITScriptHandle *jith)
+mjit::ReleaseScriptCode(JSContext *cx, JSScript *script, bool construct)
 {
     // NB: The recompiler may call ReleaseScriptCode, in which case it
     // will get called again when the script is destroyed, so we
     // must protect against calling ReleaseScriptCode twice.
 
-    JITScript *jit = jith->getValid();
-    jit->destroy(fop);
-    fop->free_(jit);
-    jith->setEmpty();
+    JITScript **pjit = construct ? &script->jitCtor : &script->jitNormal;
+    void **parity = construct ? &script->jitArityCheckCtor : &script->jitArityCheckNormal;
+
+    if (*pjit) {
+        (*pjit)->destroy(cx);
+        cx->free_(*pjit);
+        *pjit = NULL;
+        *parity = NULL;
+    }
 }
 
 #ifdef JS_METHODJIT_PROFILE_STUBS
@@ -1482,8 +1480,6 @@ JITScript::nativeToPC(void *returnAddress, CallSite **pinline)
 {
     JITChunk *chunk = findCodeChunk(returnAddress);
     JS_ASSERT(chunk);
-
-    JS_ASSERT(chunk->isValidCode(returnAddress));
 
     size_t low = 0;
     size_t high = chunk->nCallICs;
@@ -1527,79 +1523,3 @@ mjit::NativeToPC(JITScript *jit, void *ncode, mjit::CallSite **pinline)
 }
 
 /* static */ const double mjit::Assembler::oneDouble = 1.0;
-
-void
-JITChunk::trace(JSTracer *trc)
-{
-    JSObject **rootedTemplates_ = rootedTemplates();
-    for (size_t i = 0; i < nRootedTemplates; i++)
-        MarkObjectUnbarriered(trc, &rootedTemplates_[i], "jitchunk_template");
-}
-
-void
-JITChunk::purgeCaches()
-{
-    ic::Repatcher repatch(this);
-
-#if defined JS_MONOIC
-    uint32_t releasedExecPools = 0;
-
-    ic::EqualityICInfo *equalityICs_ = equalityICs();
-    for (uint32_t i = 0; i < nEqualityICs; i++) {
-        ic::EqualityICInfo &ic = equalityICs_[i];
-        if (!ic.generated)
-            continue;
-
-        JSC::FunctionPtr fptr(JS_FUNC_TO_DATA_PTR(void *, ic::Equality));
-        repatch.relink(ic.stubCall, fptr);
-        repatch.relink(ic.jumpToStub, ic.stubEntry);
-
-        ic.generated = false;
-        releasedExecPools++;
-    }
-
-    JS_ASSERT(releasedExecPools == execPools.length());
-    for (JSC::ExecutablePool **pExecPool = execPools.begin();
-         pExecPool != execPools.end();
-         ++pExecPool)
-    {
-        (*pExecPool)->release();
-    }
-    execPools.clear();
-
-    for (unsigned i = 0; i < nativeCallStubs.length(); i++) {
-        JSC::ExecutablePool *pool = nativeCallStubs[i].pool;
-        if (pool)
-            pool->release();
-    }
-    nativeCallStubs.clear();
-
-    ic::GetGlobalNameIC *getGlobalNames_ = getGlobalNames();
-    for (uint32_t i = 0; i < nGetGlobalNames; i++) {
-        ic::GetGlobalNameIC &ic = getGlobalNames_[i];
-        repatch.repatch(ic.fastPathStart.dataLabelPtrAtOffset(ic.shapeOffset), NULL);
-    }
-
-    ic::SetGlobalNameIC *setGlobalNames_ = setGlobalNames();
-    for (uint32_t i = 0; i < nSetGlobalNames; i++) {
-        ic::SetGlobalNameIC &ic = setGlobalNames_[i];
-        ic.patchInlineShapeGuard(repatch, NULL);
-    }
-
-    ic::CallICInfo *callICs_ = callICs();
-    for (uint32_t i = 0; i < nCallICs; i++)
-        callICs_[i].reset(repatch);
-#endif
-
-#if defined JS_POLYIC
-    ic::GetElementIC *getElems_ = getElems();
-    ic::SetElementIC *setElems_ = setElems();
-    ic::PICInfo *pics_ = pics();
-    for (uint32_t i = 0; i < nGetElems; i++)
-        getElems_[i].purge(repatch);
-    for (uint32_t i = 0; i < nSetElems; i++)
-        setElems_[i].purge(repatch);
-    for (uint32_t i = 0; i < nPICs; i++)
-        pics_[i].purge(repatch);
-#endif
-}

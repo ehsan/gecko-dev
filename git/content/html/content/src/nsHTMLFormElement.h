@@ -98,6 +98,9 @@ public:
                                    nsIDOMHTMLInputElement* aRadio);
   NS_IMETHOD GetCurrentRadioButton(const nsAString& aName,
                                    nsIDOMHTMLInputElement** aRadio);
+  NS_IMETHOD GetPositionInGroup(nsIDOMHTMLInputElement *aRadio,
+                                PRInt32 *aPositionIndex,
+                                PRInt32 *aItemsInGroup);
   NS_IMETHOD GetNextRadioButton(const nsAString& aName,
                                 const bool aPrevious,
                                 nsIDOMHTMLInputElement*  aFocusedRadio,
@@ -255,8 +258,6 @@ public:
   bool CheckValidFormSubmission();
 
   virtual nsXPCClassInfo* GetClassInfo();
-
-  virtual nsIDOMNode* AsDOMNode() { return this; }
 
   /**
    * Walk over the form elements and call SubmitNamesValues() on them to get

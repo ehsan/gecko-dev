@@ -35,7 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const CURRENT_SCHEMA_VERSION = 20;
+const CURRENT_SCHEMA_VERSION = 19;
 
 const NS_APP_USER_PROFILE_50_DIR = "ProfD";
 const NS_APP_PROFILE_DIR_STARTUP = "ProfDS";
@@ -197,26 +197,6 @@ function readFileOfLength(aFileName, aExpectedLength) {
   let data = readFileData(do_get_file(aFileName));
   do_check_eq(data.length, aExpectedLength);
   return data;
-}
-
-
-/**
- * Returns the base64-encoded version of the given string.  This function is
- * similar to window.btoa, but is available to xpcshell tests also.
- *
- * @param aString
- *        Each character in this string corresponds to a byte, and must be a
- *        code point in the range 0-255.
- *
- * @return The base64-encoded string.
- */
-function base64EncodeString(aString) {
-  var stream = Cc["@mozilla.org/io/string-input-stream;1"]
-               .createInstance(Ci.nsIStringInputStream);
-  stream.setData(aString, aString.length);
-  var encoder = Cc["@mozilla.org/scriptablebase64encoder;1"]
-                .createInstance(Ci.nsIScriptableBase64Encoder);
-  return encoder.encodeToString(stream, aString.length);
 }
 
 
@@ -902,7 +882,6 @@ NavHistoryResultObserver.prototype = {
  *            transition: one of the TRANSITION_* from nsINavHistoryService,
  *            [optional] title: title of the page,
  *            [optional] visitDate: visit date in microseconds from the epoch
- *            [optional] referrer: nsIURI of the referrer for this visit
  *          }
  * @param [optional] aCallback
  *        Function to be invoked on completion.
@@ -931,8 +910,7 @@ function addVisits(aPlaceInfo, aCallback, aStack)
     places[i].visits = [{
       transitionType: places[i].transition === undefined ? TRANSITION_LINK
                                                          : places[i].transition,
-      visitDate: places[i].visitDate || (now++) * 1000,
-      referrerURI: places[i].referrer
+      visitDate: places[i].visitDate || (now++) * 1000
     }];
   }
 

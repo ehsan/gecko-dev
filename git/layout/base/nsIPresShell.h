@@ -72,7 +72,6 @@
 #include "nsGUIEvent.h"
 #include "nsInterfaceHashtable.h"
 #include "nsEventStates.h"
-#include "nsPresArena.h"
 
 class nsIContent;
 class nsIDocument;
@@ -135,22 +134,18 @@ class LayerManager;
 #define CAPTURE_RETARGETTOELEMENT 2
 // true if the current capture wants drags to be prevented
 #define CAPTURE_PREVENTDRAG 4
-// true when the mouse is pointer locked, and events are sent to locked elemnt
-#define CAPTURE_POINTERLOCK 8
 
 typedef struct CapturingContentInfo {
   // capture should only be allowed during a mousedown event
   bool mAllowed;
-  bool mPointerLock;
   bool mRetargetToElement;
   bool mPreventDrag;
   nsIContent* mContent;
 } CapturingContentInfo;
 
-// d2236911-9b7c-490a-a08b-2580d5f7a6de
-#define NS_IPRESSHELL_IID \
-  { 0xd2236911, 0x9b7c, 0x490a, \
-    { 0xa0, 0x8b, 0x25, 0x80, 0xd5, 0xf7, 0xa6, 0xde } }
+#define NS_IPRESSHELL_IID    \
+        { 0x4dc4db09, 0x03d4, 0x4427, \
+          { 0xbe, 0xfb, 0xc9, 0x29, 0xac, 0x5c, 0x62, 0xab } }
 
 // debug VerifyReflow flags
 #define VERIFY_REFLOW_ON                    0x01
@@ -220,88 +215,39 @@ public:
 
   bool IsDestroying() { return mIsDestroying; }
 
-  /**
-   * All frames owned by the shell are allocated from an arena.  They
-   * are also recycled using free lists.  Separate free lists are
-   * maintained for each frame type (aID), which must always correspond
-   * to the same aSize value.  AllocateFrame returns zero-filled memory.
-   * AllocateFrame is fallible, it returns nsnull on out-of-memory.
-   */
-  void* AllocateFrame(nsQueryFrame::FrameIID aID, size_t aSize)
-  {
-#ifdef DEBUG
-    mPresArenaAllocCount++;
-#endif
-    void* result = mFrameArena.AllocateByFrameID(aID, aSize);
-  
-    if (result) {
-      memset(result, 0, aSize);
-    }
-    return result;
-  }
+  // All frames owned by the shell are allocated from an arena.  They
+  // are also recycled using free lists.  Separate free lists are
+  // maintained for each frame type (aCode), which must always
+  // correspond to the same aSize value. AllocateFrame clears the
+  // memory that it returns.
+  virtual void* AllocateFrame(nsQueryFrame::FrameIID aCode, size_t aSize) = 0;
+  virtual void  FreeFrame(nsQueryFrame::FrameIID aCode, void* aChunk) = 0;
 
-  void FreeFrame(nsQueryFrame::FrameIID aID, void* aPtr)
-  {
-#ifdef DEBUG
-    mPresArenaAllocCount--;
-#endif
-    if (PRESARENA_MUST_FREE_DURING_DESTROY || !mIsDestroying)
-      mFrameArena.FreeByFrameID(aID, aPtr);
-  }
+  // Objects closely related to the frame tree, but that are not
+  // actual frames (subclasses of nsFrame) are also allocated from the
+  // arena, and recycled via a separate set of per-size free lists.
+  // AllocateMisc does *not* clear the memory that it returns.
+  virtual void* AllocateMisc(size_t aSize) = 0;
+  virtual void  FreeMisc(size_t aSize, void* aChunk) = 0;
 
   /**
-   * This is for allocating other types of objects (not frames).  Separate free
-   * lists are maintained for each type (aID), which must always correspond to
-   * the same aSize value.  AllocateByObjectID returns zero-filled memory.
-   * AllocateByObjectID is fallible, it returns nsnull on out-of-memory.
-   */
-  void* AllocateByObjectID(nsPresArena::ObjectID aID, size_t aSize)
-  {
-#ifdef DEBUG
-    mPresArenaAllocCount++;
-#endif
-    void* result = mFrameArena.AllocateByObjectID(aID, aSize);
-  
-    if (result) {
-      memset(result, 0, aSize);
-    }
-    return result;
-  }
-
-  void FreeByObjectID(nsPresArena::ObjectID aID, void* aPtr)
-  {
-#ifdef DEBUG
-    mPresArenaAllocCount--;
-#endif
-    if (PRESARENA_MUST_FREE_DURING_DESTROY || !mIsDestroying)
-      mFrameArena.FreeByObjectID(aID, aPtr);
-  }
-
-  /**
-   * Other objects closely related to the frame tree that are allocated
-   * from a separate set of per-size free lists.  Note that different types
-   * of objects that has the same size are allocated from the same list.
-   * AllocateMisc does *not* clear the memory that it returns.
-   * AllocateMisc is fallible, it returns nsnull on out-of-memory.
+   * Stack memory allocation:
    *
-   * @deprecated use AllocateByObjectID/FreeByObjectID instead
+   * Callers who wish to allocate memory whose lifetime corresponds to
+   * the lifetime of a stack-allocated object can use this API.  The
+   * caller must use a pair of calls to PushStackMemory and
+   * PopStackMemory, such that all stack object lifetimes are either
+   * entirely between the calls or containing both calls.
+   *
+   * Then, between the calls, the caller can call AllocateStackMemory to
+   * allocate memory from an arena pool that will be freed by the call
+   * to PopStackMemory.
+   *
+   * The allocations cannot be for more than 4044 bytes.
    */
-  void* AllocateMisc(size_t aSize)
-  {
-#ifdef DEBUG
-    mPresArenaAllocCount++;
-#endif
-    return mFrameArena.AllocateBySize(aSize);
-  }
-
-  void FreeMisc(size_t aSize, void* aPtr)
-  {
-#ifdef DEBUG
-    mPresArenaAllocCount--;
-#endif
-    if (PRESARENA_MUST_FREE_DURING_DESTROY || !mIsDestroying)
-      mFrameArena.FreeBySize(aSize, aPtr);
-  }
+  virtual void PushStackMemory() = 0;
+  virtual void PopStackMemory() = 0;
+  virtual void* AllocateStackMemory(size_t aSize) = 0;
 
   nsIDocument* GetDocument() const { return mDocument; }
 
@@ -1157,11 +1103,6 @@ public:
    *
    * If CAPTURE_PREVENTDRAG is set then drags are prevented from starting while
    * this capture is active.
-   *
-   * If CAPTURE_POINTERLOCK is set, similar to CAPTURE_RETARGETTOELEMENT, then
-   * events are targeted at aContent, but capturing is held more strongly (i.e.,
-   * calls to SetCapturingContent won't unlock unless CAPTURE_POINTERLOCK is
-   * set again).
    */
   static void SetCapturingContent(nsIContent* aContent, PRUint8 aFlags);
 
@@ -1273,8 +1214,7 @@ public:
   virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                    size_t *aArenasSize,
                                    size_t *aStyleSetsSize,
-                                   size_t *aTextRunsSize,
-                                   size_t *aPresContextSize) const = 0;
+                                   size_t *aTextRunsSize) const = 0;
 
   /**
    * Refresh observer management.
@@ -1317,15 +1257,6 @@ public:
   // clears that capture.
   static void ClearMouseCapture(nsIFrame* aFrame);
 
-  void SetScrollPositionClampingScrollPortSize(nscoord aWidth, nscoord aHeight);
-  bool IsScrollPositionClampingScrollPortSizeSet() {
-    return mScrollPositionClampingScrollPortSizeSet;
-  }
-  nsSize GetScrollPositionClampingScrollPortSize() {
-    NS_ASSERTION(mScrollPositionClampingScrollPortSizeSet, "asking for scroll port when its not set?");
-    return mScrollPositionClampingScrollPortSize;
-  }
-
 protected:
   friend class nsRefreshDriver;
 
@@ -1340,7 +1271,6 @@ protected:
   nsStyleSet*               mStyleSet;      // [OWNS]
   nsCSSFrameConstructor*    mFrameConstructor; // [OWNS]
   nsIViewManager*           mViewManager;   // [WEAK] docViewer owns it so I don't have to
-  nsPresArena               mFrameArena;
   nsFrameSelection*         mSelection;
   // Pointer into mFrameConstructor - this is purely so that FrameManager() and
   // GetRootFrame() can be inlined:
@@ -1349,8 +1279,6 @@ protected:
 
 #ifdef NS_DEBUG
   nsIFrame*                 mDrawEventTargetFrame;
-  // Ensure that every allocation from the PresArena is eventually freed.
-  PRUint32                  mPresArenaAllocCount;
 #endif
 
   // Count of the number of times this presshell has been painted to
@@ -1379,8 +1307,6 @@ protected:
 
   bool                      mSuppressInterruptibleReflows;
 
-  bool                      mScrollPositionClampingScrollPortSizeSet;
-
   // A list of weak frames. This is a pointer to the last item in the list.
   nsWeakFrame*              mWeakFrames;
 
@@ -1398,8 +1324,6 @@ protected:
   // less pixels in the given dimension.
   float                     mXResolution;
   float                     mYResolution;
-
-  nsSize                    mScrollPositionClampingScrollPortSize;
 
   static nsIContent* gKeyDownTarget;
 };

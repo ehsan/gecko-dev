@@ -98,7 +98,7 @@ JS_GetObjectFunction(JSObject *obj)
 JS_FRIEND_API(JSObject *)
 JS_GetGlobalForFrame(JSStackFrame *fp)
 {
-    return &Valueify(fp)->global();
+    return &Valueify(fp)->scopeChain().global();
 }
 
 JS_FRIEND_API(JSBool)
@@ -132,51 +132,31 @@ JS_NewObjectWithUniqueType(JSContext *cx, JSClass *clasp, JSObject *proto, JSObj
 }
 
 JS_FRIEND_API(void)
-js::PrepareCompartmentForGC(JSCompartment *comp)
+js::GCForReason(JSContext *cx, gcreason::Reason reason)
 {
-    comp->scheduleGC();
+    GC(cx, true, GC_NORMAL, reason);
 }
 
 JS_FRIEND_API(void)
-js::PrepareForFullGC(JSRuntime *rt)
+js::CompartmentGCForReason(JSContext *cx, JSCompartment *comp, gcreason::Reason reason)
 {
-    for (CompartmentsIter c(rt); !c.done(); c.next())
-        c->scheduleGC();
-}
+    /* We cannot GC the atoms compartment alone; use a full GC instead. */
+    JS_ASSERT(comp != cx->runtime->atomsCompartment);
 
-JS_FRIEND_API(bool)
-js::IsGCScheduled(JSRuntime *rt)
-{
-    for (CompartmentsIter c(rt); !c.done(); c.next()) {
-        if (c->isGCScheduled())
-            return true;
-    }
-
-    return false;
+    PrepareCompartmentForGC(comp);
+    GC(cx, false, GC_NORMAL, reason);
 }
 
 JS_FRIEND_API(void)
-js::SkipCompartmentForGC(JSCompartment *comp)
+js::ShrinkingGC(JSContext *cx, gcreason::Reason reason)
 {
-    comp->unscheduleGC();
+    GC(cx, true, GC_SHRINK, reason);
 }
 
 JS_FRIEND_API(void)
-js::GCForReason(JSRuntime *rt, gcreason::Reason reason)
+js::IncrementalGC(JSContext *cx, gcreason::Reason reason)
 {
-    GC(rt, GC_NORMAL, reason);
-}
-
-JS_FRIEND_API(void)
-js::ShrinkingGC(JSRuntime *rt, gcreason::Reason reason)
-{
-    GC(rt, GC_SHRINK, reason);
-}
-
-JS_FRIEND_API(void)
-js::IncrementalGC(JSRuntime *rt, gcreason::Reason reason)
-{
-    GCSlice(rt, GC_NORMAL, reason);
+    GCSlice(cx, true, GC_NORMAL, reason);
 }
 
 JS_FRIEND_API(void)
@@ -204,7 +184,7 @@ JS_TraceShapeCycleCollectorChildren(JSTracer *trc, void *shape)
 }
 
 static bool
-DefineHelpProperty(JSContext *cx, HandleObject obj, const char *prop, const char *value)
+DefineHelpProperty(JSContext *cx, JSObject *obj, const char *prop, const char *value)
 {
     JSAtom *atom = js_Atomize(cx, value, strlen(value));
     if (!atom)
@@ -229,9 +209,8 @@ JS_DefineFunctionsWithHelp(JSContext *cx, JSObject *obj, const JSFunctionSpecWit
         if (!atom)
             return false;
 
-        RootedVarFunction fun(cx);
-        fun = js_DefineFunction(cx, objRoot, AtomToId(atom),
-                                fs->call, fs->nargs, fs->flags);
+        JSFunction *fun = js_DefineFunction(cx, objRoot,
+                                            ATOM_TO_JSID(atom), fs->call, fs->nargs, fs->flags);
         if (!fun)
             return false;
 
@@ -247,6 +226,19 @@ JS_DefineFunctionsWithHelp(JSContext *cx, JSObject *obj, const JSFunctionSpecWit
     }
 
     return true;
+}
+
+AutoPreserveCompartment::AutoPreserveCompartment(JSContext *cx
+                                                 JS_GUARD_OBJECT_NOTIFIER_PARAM_NO_INIT)
+  : cx(cx), oldCompartment(cx->compartment)
+{
+    JS_GUARD_OBJECT_NOTIFIER_INIT;
+}
+
+AutoPreserveCompartment::~AutoPreserveCompartment()
+{
+    /* The old compartment may have been destroyed, so we can't use cx->setCompartment. */
+    cx->compartment = oldCompartment;
 }
 
 AutoSwitchCompartment::AutoSwitchCompartment(JSContext *cx, JSCompartment *newCompartment
@@ -301,12 +293,6 @@ js::GetGlobalForObjectCrossCompartment(JSObject *obj)
     return &obj->global();
 }
 
-JS_FRIEND_API(void)
-js::NotifyAnimationActivity(JSObject *obj)
-{
-    obj->compartment()->lastAnimationTime = PRMJ_Now();
-}
-
 JS_FRIEND_API(uint32_t)
 js::GetObjectSlotSpan(JSObject *obj)
 {
@@ -337,8 +323,7 @@ js::DefineFunctionWithReserved(JSContext *cx, JSObject *obj, const char *name, J
     JSAtom *atom = js_Atomize(cx, name, strlen(name));
     if (!atom)
         return NULL;
-    return js_DefineFunction(cx, objRoot, AtomToId(atom),
-                             call, nargs, attrs,
+    return js_DefineFunction(cx, objRoot, ATOM_TO_JSID(atom), call, nargs, attrs,
                              JSFunction::ExtendedFinalizeKind);
 }
 
@@ -666,6 +651,26 @@ GetContextOutstandingRequests(const JSContext *cx)
 {
     return cx->outstandingRequests;
 }
+
+AutoSkipConservativeScan::AutoSkipConservativeScan(JSContext *cx
+                                                   MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
+  : context(cx)
+{
+    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+
+    JSRuntime *rt = context->runtime;
+    JS_ASSERT(rt->requestDepth >= 1);
+    JS_ASSERT(!rt->conservativeGC.requestThreshold);
+    if (rt->requestDepth == 1)
+        rt->conservativeGC.requestThreshold = 1;
+}
+
+AutoSkipConservativeScan::~AutoSkipConservativeScan()
+{
+    JSRuntime *rt = context->runtime;
+    if (rt->requestDepth == 1)
+        rt->conservativeGC.requestThreshold = 0;
+}
 #endif
 
 JS_FRIEND_API(JSCompartment *)
@@ -725,17 +730,30 @@ GCDescription::formatJSON(JSRuntime *rt, uint64_t timestamp) const
     return rt->gcStats.formatJSON(timestamp);
 }
 
-JS_FRIEND_API(void)
-NotifyDidPaint(JSRuntime *rt)
+JS_FRIEND_API(bool)
+WantGCSlice(JSRuntime *rt)
 {
+    if (rt->gcZeal() == gc::ZealFrameVerifierValue || rt->gcZeal() == gc::ZealFrameGCValue)
+        return true;
+
+    if (rt->gcIncrementalState != gc::NO_INCREMENTAL)
+        return true;
+
+    return false;
+}
+
+JS_FRIEND_API(void)
+NotifyDidPaint(JSContext *cx)
+{
+    JSRuntime *rt = cx->runtime;
+
     if (rt->gcZeal() == gc::ZealFrameVerifierValue) {
-        gc::VerifyBarriers(rt);
+        gc::VerifyBarriers(cx);
         return;
     }
 
     if (rt->gcZeal() == gc::ZealFrameGCValue) {
-        PrepareForFullGC(rt);
-        GCSlice(rt, GC_NORMAL, gcreason::REFRESH_FRAME);
+        GCSlice(cx, true, GC_NORMAL, gcreason::REFRESH_FRAME);
         return;
     }
 
@@ -744,7 +762,7 @@ NotifyDidPaint(JSRuntime *rt)
             if (c->needsBarrier())
                 PrepareCompartmentForGC(c);
         }
-        GCSlice(rt, GC_NORMAL, gcreason::REFRESH_FRAME);
+        GCSlice(cx, rt->gcIncrementalIsFull, GC_NORMAL, gcreason::REFRESH_FRAME);
     }
 
     rt->gcInterFrameGC = false;
@@ -753,7 +771,7 @@ NotifyDidPaint(JSRuntime *rt)
 extern JS_FRIEND_API(bool)
 IsIncrementalGCEnabled(JSRuntime *rt)
 {
-    return rt->gcIncrementalEnabled && rt->gcMode == JSGC_MODE_INCREMENTAL;
+    return rt->gcIncrementalEnabled;
 }
 
 extern JS_FRIEND_API(void)
@@ -780,12 +798,6 @@ IsIncrementalBarrierNeededOnObject(JSObject *obj)
     return obj->compartment()->needsBarrier();
 }
 
-JS_FRIEND_API(bool)
-IsIncrementalBarrierNeededOnScript(JSScript *script)
-{
-    return script->compartment()->needsBarrier();
-}
-
 extern JS_FRIEND_API(void)
 IncrementalReferenceBarrier(void *ptr)
 {
@@ -797,14 +809,6 @@ IncrementalReferenceBarrier(void *ptr)
         JSObject::writeBarrierPre((JSObject *) ptr);
     else if (kind == JSTRACE_STRING)
         JSString::writeBarrierPre((JSString *) ptr);
-    else if (kind == JSTRACE_SCRIPT)
-        JSScript::writeBarrierPre((JSScript *) ptr);
-    else if (kind == JSTRACE_SHAPE)
-        Shape::writeBarrierPre((Shape *) ptr);
-    else if (kind == JSTRACE_BASE_SHAPE)
-        BaseShape::writeBarrierPre((BaseShape *) ptr);
-    else if (kind == JSTRACE_TYPE_OBJECT)
-        types::TypeObject::writeBarrierPre((types::TypeObject *) ptr);
     else
         JS_NOT_REACHED("invalid trace kind");
 }

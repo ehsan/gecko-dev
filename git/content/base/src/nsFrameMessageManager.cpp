@@ -379,7 +379,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
 {
   JSContext* ctx = mContext ? mContext : aContext;
   if (!ctx) {
-    ctx = nsContentUtils::ThreadJSContextStack()->GetSafeJSContext();
+    nsContentUtils::ThreadJSContextStack()->GetSafeJSContext(&ctx);
   }
   if (mListeners.Length()) {
     nsCOMPtr<nsIAtom> name = do_GetAtom(aMessage);
@@ -453,10 +453,10 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
 
         jsval thisValue = JSVAL_VOID;
 
-        JS::Value funval;
+        jsval funval = JSVAL_VOID;
         if (JS_ObjectIsCallable(ctx, object)) {
           // If the listener is a JS function:
-          funval.setObject(*object);
+          funval = OBJECT_TO_JSVAL(object);
 
           // A small hack to get 'this' value right on content side where
           // messageManager is wrapped in TabChildGlobal.
@@ -471,13 +471,13 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
                                      defaultThisValue, &thisValue, nsnull, true);
         } else {
           // If the listener is a JS object which has receiveMessage function:
-          if (!JS_GetProperty(ctx, object, "receiveMessage", &funval) ||
-              !funval.isObject())
-            return NS_ERROR_UNEXPECTED;
-
-          // Check if the object is even callable.
-          NS_ENSURE_STATE(JS_ObjectIsCallable(ctx, &funval.toObject()));
-          thisValue.setObject(*object);
+          NS_ENSURE_STATE(JS_GetProperty(ctx, object, "receiveMessage",
+                                         &funval) &&
+                          JSVAL_IS_OBJECT(funval) &&
+                          !JSVAL_IS_NULL(funval));
+          JSObject* funobject = JSVAL_TO_OBJECT(funval);
+          NS_ENSURE_STATE(JS_ObjectIsCallable(ctx, funobject));
+          thisValue = OBJECT_TO_JSVAL(object);
         }
 
         jsval rval = JSVAL_VOID;
@@ -723,7 +723,8 @@ void
 nsFrameScriptExecutor::Shutdown()
 {
   if (sCachedScripts) {
-    JSContext* cx = nsContentUtils::ThreadJSContextStack()->GetSafeJSContext();
+    JSContext* cx = nsnull;
+    nsContentUtils::ThreadJSContextStack()->GetSafeJSContext(&cx);
     if (cx) {
 #ifdef DEBUG_smaug
       printf("Will clear cached frame manager scripts!\n");
@@ -899,11 +900,8 @@ nsFrameScriptExecutor::Traverse(nsFrameScriptExecutor *tmp,
                                 nsCycleCollectionTraversalCallback &cb)
 {
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mGlobal)
-  nsIXPConnect* xpc = nsContentUtils::XPConnect();
-  if (xpc) {
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mCx");
-    xpc->NoteJSContext(tmp->mCx, cb);
-  }
+  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mCx");
+  nsContentUtils::XPConnect()->NoteJSContext(tmp->mCx, cb);
 }
 
 NS_IMPL_ISUPPORTS1(nsScriptCacheCleaner, nsIObserver)

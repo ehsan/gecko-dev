@@ -116,45 +116,19 @@ function sendKey(aKey, aWindow) {
  */
 function _parseModifiers(aEvent)
 {
-  const nsIDOMWindowUtils = Components.interfaces.nsIDOMWindowUtils;
+  const masks = Components.interfaces.nsIDOMNSEvent;
   var mval = 0;
-  if (aEvent.shiftKey) {
-    mval |= nsIDOMWindowUtils.MODIFIER_SHIFT;
-  }
-  if (aEvent.ctrlKey) {
-    mval |= nsIDOMWindowUtils.MODIFIER_CONTROL;
-  }
-  if (aEvent.altKey) {
-    mval |= nsIDOMWindowUtils.MODIFIER_ALT;
-  }
-  if (aEvent.metaKey) {
-    mval |= nsIDOMWindowUtils.MODIFIER_META;
-  }
-  if (aEvent.accelKey) {
-    mval |= (navigator.platform.indexOf("Mac") >= 0) ?
-      nsIDOMWindowUtils.MODIFIER_META : nsIDOMWindowUtils.MODIFIER_CONTROL;
-  }
-  if (aEvent.altGrKey) {
-    mval |= nsIDOMWindowUtils.MODIFIER_ALTGRAPH;
-  }
-  if (aEvent.capsLockKey) {
-    mval |= nsIDOMWindowUtils.MODIFIER_CAPSLOCK;
-  }
-  if (aEvent.fnKey) {
-    mval |= nsIDOMWindowUtils.MODIFIER_FN;
-  }
-  if (aEvent.numLockKey) {
-    mval |= nsIDOMWindowUtils.MODIFIER_NUMLOCK;
-  }
-  if (aEvent.scrollLockKey) {
-    mval |= nsIDOMWindowUtils.MODIFIER_SCROLL;
-  }
-  if (aEvent.symbolLockKey) {
-    mval |= nsIDOMWindowUtils.MODIFIER_SYMBOLLOCK;
-  }
-  if (aEvent.winKey) {
-    mval |= nsIDOMWindowUtils.MODIFIER_WIN;
-  }
+  if (aEvent.shiftKey)
+    mval |= masks.SHIFT_MASK;
+  if (aEvent.ctrlKey)
+    mval |= masks.CONTROL_MASK;
+  if (aEvent.altKey)
+    mval |= masks.ALT_MASK;
+  if (aEvent.metaKey)
+    mval |= masks.META_MASK;
+  if (aEvent.accelKey)
+    mval |= (navigator.platform.indexOf("Mac") >= 0) ? masks.META_MASK :
+                                                       masks.CONTROL_MASK;
 
   return mval;
 }
@@ -390,10 +364,7 @@ function isKeypressFiredKey(aDOMKeyCode)
  * VK_ENTER.
  *
  * aEvent is an object which may contain the properties:
- *   shiftKey, ctrlKey, altKey, metaKey, accessKey, type, location
- *
- * Sets one of KeyboardEvent.DOM_KEY_LOCATION_* to location.  Otherwise,
- * DOMWindowUtils will choose good location from the keycode.
+ *   shiftKey, ctrlKey, altKey, metaKey, accessKey, type
  *
  * If the type is specified, a key event of that type is fired. Otherwise,
  * a keydown, a keypress and then a keyup event are fired in sequence.
@@ -416,47 +387,23 @@ function synthesizeKey(aKey, aEvent, aWindow)
     }
 
     var modifiers = _parseModifiers(aEvent);
-    var flags = 0;
-    if (aEvent.location != undefined) {
-      switch (aEvent.location) {
-        case KeyboardEvent.DOM_KEY_LOCATION_STANDARD:
-          flags |= utils.KEY_FLAG_LOCATION_STANDARD;
-          break;
-        case KeyboardEvent.DOM_KEY_LOCATION_LEFT:
-          flags |= utils.KEY_FLAG_LOCATION_LEFT;
-          break;
-        case KeyboardEvent.DOM_KEY_LOCATION_RIGHT:
-          flags |= utils.KEY_FLAG_LOCATION_RIGHT;
-          break;
-        case KeyboardEvent.DOM_KEY_LOCATION_NUMPAD:
-          flags |= utils.KEY_FLAG_LOCATION_NUMPAD;
-          break;
-        case KeyboardEvent.DOM_KEY_LOCATION_MOBILE:
-          flags |= utils.KEY_FLAG_LOCATION_MOBILE;
-          break;
-        case KeyboardEvent.DOM_KEY_LOCATION_JOYSTICK:
-          flags |= utils.KEY_FLAG_LOCATION_JOYSTICK;
-          break;
-      }
-    }
 
     if (!("type" in aEvent) || !aEvent.type) {
       // Send keydown + (optional) keypress + keyup events.
       var keyDownDefaultHappened =
-        utils.sendKeyEvent("keydown", keyCode, 0, modifiers, flags);
+          utils.sendKeyEvent("keydown", keyCode, 0, modifiers);
       if (isKeypressFiredKey(keyCode)) {
-        if (!keyDownDefaultHappened) {
-          flags |= utils.KEY_FLAG_PREVENT_DEFAULT;
-        }
-        utils.sendKeyEvent("keypress", keyCode, charCode, modifiers, flags);
+        utils.sendKeyEvent("keypress", charCode ? 0 : keyCode, charCode,
+                           modifiers, !keyDownDefaultHappened);
       }
-      utils.sendKeyEvent("keyup", keyCode, 0, modifiers, flags);
+      utils.sendKeyEvent("keyup", keyCode, 0, modifiers);
     } else if (aEvent.type == "keypress") {
       // Send standalone keypress event.
-      utils.sendKeyEvent(aEvent.type, keyCode, charCode, modifiers, flags);
+      utils.sendKeyEvent(aEvent.type, charCode ? 0 : keyCode,
+                         charCode, modifiers);
     } else {
       // Send other standalone event than keypress.
-      utils.sendKeyEvent(aEvent.type, keyCode, 0, modifiers, flags);
+      utils.sendKeyEvent(aEvent.type, keyCode, 0, modifiers);
     }
   }
 }

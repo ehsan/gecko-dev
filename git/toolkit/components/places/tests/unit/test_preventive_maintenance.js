@@ -109,99 +109,6 @@ let current_test = null;
 //------------------------------------------------------------------------------
 
 tests.push({
-  name: "A.1",
-  desc: "Remove obsolete annotations from moz_annos",
-
-  _obsoleteWeaveAttribute: "weave/test",
-  _placeId: null,
-
-  setup: function() {
-    // Add a place to ensure place_id = 1 is valid.
-    this._placeId = addPlace();
-    // Add an obsolete attribute.
-    let stmt = mDBConn.createStatement(
-      "INSERT INTO moz_anno_attributes (name) VALUES (:anno)"
-    );
-    stmt.params['anno'] = this._obsoleteWeaveAttribute;
-    stmt.execute();
-    stmt.finalize();
-    stmt = mDBConn.createStatement(
-      "INSERT INTO moz_annos (place_id, anno_attribute_id) "
-    + "VALUES (:place_id, "
-    +   "(SELECT id FROM moz_anno_attributes WHERE name = :anno)"
-    + ")"
-    );
-    stmt.params['place_id'] = this._placeId;
-    stmt.params['anno'] = this._obsoleteWeaveAttribute;
-    stmt.execute();
-    stmt.finalize();
-  },
-
-  check: function() {
-    // Check that the obsolete annotation has been removed.
-    let stmt = mDBConn.createStatement(
-      "SELECT id FROM moz_anno_attributes WHERE name = :anno"
-    );
-    stmt.params['anno'] = this._obsoleteWeaveAttribute;
-    do_check_false(stmt.executeStep());
-    stmt.finalize();
-  }
-});
-
-tests.push({
-  name: "A.2",
-  desc: "Remove obsolete annotations from moz_items_annos",
-
-  _obsoleteSyncAttribute: "sync/children",
-  _obsoleteGuidAttribute: "placesInternal/GUID",
-  _obsoleteWeaveAttribute: "weave/test",
-  _placeId: null,
-  _bookmarkId: null,
-
-  setup: function() {
-    // Add a place to ensure place_id = 1 is valid.
-    this._placeId = addPlace();
-    // Add a bookmark.
-    this._bookmarkId = addBookmark(this._placeId);
-    // Add an obsolete attribute.
-    let stmt = mDBConn.createStatement(
-      "INSERT INTO moz_anno_attributes (name) "
-    + "VALUES (:anno1), (:anno2), (:anno3)"
-    );
-    stmt.params['anno1'] = this._obsoleteSyncAttribute;
-    stmt.params['anno2'] = this._obsoleteGuidAttribute;
-    stmt.params['anno3'] = this._obsoleteWeaveAttribute;
-    stmt.execute();
-    stmt.finalize();
-    stmt = mDBConn.createStatement(
-      "INSERT INTO moz_items_annos (item_id, anno_attribute_id) "
-    + "SELECT :item_id, id "
-    + "FROM moz_anno_attributes "
-    + "WHERE name IN (:anno1, :anno2, :anno3)"
-    );
-    stmt.params['item_id'] = this._bookmarkId;
-    stmt.params['anno1'] = this._obsoleteSyncAttribute;
-    stmt.params['anno2'] = this._obsoleteGuidAttribute;
-    stmt.params['anno3'] = this._obsoleteWeaveAttribute;
-    stmt.execute();
-    stmt.finalize();
-  },
-
-  check: function() {
-    // Check that the obsolete annotations have been removed.
-    let stmt = mDBConn.createStatement(
-      "SELECT id FROM moz_anno_attributes "
-    + "WHERE name IN (:anno1, :anno2, :anno3)"
-    );
-    stmt.params['anno1'] = this._obsoleteSyncAttribute;
-    stmt.params['anno2'] = this._obsoleteGuidAttribute;
-    stmt.params['anno3'] = this._obsoleteWeaveAttribute;
-    do_check_false(stmt.executeStep());
-    stmt.finalize();
-  }
-});
-
-tests.push({
   name: "A.3",
   desc: "Remove unused attributes",
 
@@ -1239,54 +1146,6 @@ tests.push({
 //------------------------------------------------------------------------------
 
 tests.push({
-  name: "L.3",
-  desc: "recalculate hidden for redirects.",
-
-  setup: function() {
-    addVisits([
-      { uri: NetUtil.newURI("http://l3.moz.org/"),
-        transition: TRANSITION_TYPED },
-      { uri: NetUtil.newURI("http://l3.moz.org/redirecting/"),
-        transition: TRANSITION_TYPED },
-      { uri: NetUtil.newURI("http://l3.moz.org/redirecting2/"),
-        transition: TRANSITION_REDIRECT_TEMPORARY,
-        referrer: NetUtil.newURI("http://l3.moz.org/redirecting/") },
-      { uri: NetUtil.newURI("http://l3.moz.org/target/"),
-        transition: TRANSITION_REDIRECT_PERMANENT,
-        referrer: NetUtil.newURI("http://l3.moz.org/redirecting2/") },
-    ]);
-  },
-
-  asyncCheck: function(aCallback) {
-    let stmt = mDBConn.createAsyncStatement(
-      "SELECT h.url FROM moz_places h WHERE h.hidden = 1"
-    );
-    stmt.executeAsync({
-      _count: 0,
-      handleResult: function(aResultSet) {
-        for (let row; (row = aResultSet.getNextRow());) {
-          let url = row.getResultByIndex(0);
-          do_check_true(/redirecting/.test(url));
-          this._count++;
-        }
-      },
-      handleError: function(aError) {
-      },
-      handleCompletion: function(aReason) {
-        dump_table("moz_places");
-        dump_table("moz_historyvisits");
-        do_check_eq(aReason, Ci.mozIStorageStatementCallback.REASON_FINISHED);
-        do_check_eq(this._count, 2);
-        aCallback();
-      }
-    });
-    stmt.finalize();
-  }
-});
-
-//------------------------------------------------------------------------------
-
-tests.push({
   name: "Z",
   desc: "Sanity: Preventive maintenance does not touch valid items",
 
@@ -1335,8 +1194,9 @@ tests.push({
     do_check_eq(as.getPageAnnotation(this._uri2, "anno"), "anno");
     do_check_eq(as.getItemAnnotation(this._bookmarkId, "anno"), "anno");
 
-    fs.getFaviconURLForPage(this._uri2, function (aFaviconURI) {
-        do_check_true(aFaviconURI.equals(SMALLPNG_DATA_URI));
+    fs.getFaviconURLForPage(this._uri2,
+      function AC_onFaviconDataAvailable(aURI) {
+        do_check_true(aURI.equals(SMALLPNG_DATA_URI));
         aCallback();
       });
   }

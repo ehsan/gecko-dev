@@ -42,6 +42,7 @@
 #include "nsHttp.h"
 #include "nsHttpConnectionInfo.h"
 #include "nsAHttpTransaction.h"
+#include "nsHttpPipeline.h"
 #include "nsXPIDLString.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
@@ -166,10 +167,6 @@ public:
 
     bool UsingSpdy() { return mUsingSpdy; }
 
-    // true when connection SSL NPN phase is complete and we know
-    // authoritatively whether UsingSpdy() or not.
-    bool ReportedNPN() { return mReportedSpdy; }
-
     // When the connection is active this is called every 1 second
     void  ReadTimeoutTick(PRIntervalTime now);
 
@@ -181,8 +178,6 @@ public:
 
     // When the connection is active this is called every second
     void  ReadTimeoutTick();
-
-    PRInt64 BytesWritten() { return mTotalBytesWritten; }
 
 private:
     // called to cause the underlying socket to start speaking SSL
@@ -241,7 +236,6 @@ private:
     PRInt64                         mCurrentBytesRead;   // data read per activation
     PRInt64                         mMaxBytesRead;       // max read in 1 activation
     PRInt64                         mTotalBytesRead;     // total data read
-    PRInt64                         mTotalBytesWritten;  // does not include CONNECT tunnel
 
     nsRefPtr<nsIAsyncInputStream>   mInputOverflow;
 

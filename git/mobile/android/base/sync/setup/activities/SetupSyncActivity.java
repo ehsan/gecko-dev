@@ -14,7 +14,6 @@ import org.mozilla.gecko.sync.jpake.JPakeClient;
 import org.mozilla.gecko.sync.jpake.JPakeNoActivePairingException;
 import org.mozilla.gecko.sync.setup.Constants;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
-import org.mozilla.gecko.sync.setup.SyncAccounts.SyncAccountParameters;
 
 import android.accounts.Account;
 import android.accounts.AccountAuthenticatorActivity;
@@ -153,21 +152,11 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
     if (jClient != null) {
       jClient.abort(Constants.JPAKE_ERROR_USERABORT);
     }
-    if (pairWithPin) {
-      finish();
-    }
   }
 
   @Override
   public void onNewIntent(Intent intent) {
-    Logger.debug(LOG_TAG, "Started SetupSyncActivity with new intent.");
     setIntent(intent);
-  }
-
-  @Override
-  public void onDestroy() {
-    Logger.debug(LOG_TAG, "onDestroy() called.");
-    super.onDestroy();
   }
 
   /* Click Handlers */
@@ -260,12 +249,7 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
    */
   public void displayAbort(String error) {
     if (!Constants.JPAKE_ERROR_USERABORT.equals(error) && !hasInternet()) {
-      runOnUiThread(new Runnable() {
-        @Override
-        public void run() {
-          setContentView(R.layout.sync_setup_nointernet);
-        }
-      });
+      setContentView(R.layout.sync_setup_nointernet);
       return;
     }
     if (pairWithPin) {
@@ -372,38 +356,26 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
    * @param jCreds
    */
   public void onComplete(JSONObject jCreds) {
-    boolean result = true;
-
     if (!pairWithPin) {
       String accountName  = (String) jCreds.get(Constants.JSON_KEY_ACCOUNT);
       String password     = (String) jCreds.get(Constants.JSON_KEY_PASSWORD);
       String syncKey      = (String) jCreds.get(Constants.JSON_KEY_SYNCKEY);
       String serverURL    = (String) jCreds.get(Constants.JSON_KEY_SERVER);
 
-      final SyncAccountParameters syncAccount = new SyncAccountParameters(mContext, mAccountManager,
-          accountName, syncKey, password, serverURL);
-      final Account account = SyncAccounts.createSyncAccount(syncAccount);
-      result = (account != null);
-
-      final Intent intent = new Intent(); // The intent to return.
-      intent.putExtra(AccountManager.KEY_ACCOUNT_NAME, syncAccount.username);
-      intent.putExtra(AccountManager.KEY_ACCOUNT_TYPE, Constants.ACCOUNTTYPE_SYNC);
-      intent.putExtra(AccountManager.KEY_AUTHTOKEN, Constants.ACCOUNTTYPE_SYNC);
+      Logger.debug(LOG_TAG, "Using account manager " + mAccountManager);
+      final Intent intent = SyncAccounts.createAccount(mContext, mAccountManager,
+                                                          accountName,
+                                                          syncKey, password, serverURL);
       setAccountAuthenticatorResult(intent.getExtras());
 
-      if (result) {
-        setResult(RESULT_OK, intent);
-      } else {
-        setResult(RESULT_CANCELED, intent);
-      }
+      setResult(RESULT_OK, intent);
     }
 
-    jClient = null; // Sync should be set up. Kill reference to JPakeClient object.
-    final boolean res = result;
+    jClient = null; // Sync is set up. Kill reference to JPakeClient object.
     runOnUiThread(new Runnable() {
       @Override
       public void run() {
-        displayResult(res);
+        displayAccount(true);
       }
     });
   }
@@ -424,20 +396,16 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
   }
 
   /**
-   * Displays Sync account setup result to user.
+   * Displays Sync account setup completed feedback to user.
    *
    * @param isSetup
-   *          true is account was set up successfully, false otherwise.
+   *          boolean for whether success screen is reached during setup
+   *          completion, or otherwise.
    */
-  private void displayResult(boolean isSuccess) {
-    Intent intent = null;
-    if (isSuccess) {
-      intent = new Intent(mContext, SetupSuccessActivity.class);
-    }  else {
-      intent = new Intent(mContext, SetupFailureActivity.class);
-    }
+  private void displayAccount(boolean isSetup) {
+    Intent intent = new Intent(mContext, SetupSuccessActivity.class);
     intent.setFlags(Constants.FLAG_ACTIVITY_REORDER_TO_FRONT_NO_ANIMATION);
-    intent.putExtra(Constants.INTENT_EXTRA_IS_SETUP, !pairWithPin);
+    intent.putExtra(Constants.INTENT_EXTRA_IS_SETUP, isSetup);
     startActivity(intent);
     finish();
   }

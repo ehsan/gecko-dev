@@ -1,4 +1,3 @@
-// |reftest| skip-if(Android)
 /* -*- Mode: java; tab-width:8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 
 /* ***** BEGIN LICENSE BLOCK *****

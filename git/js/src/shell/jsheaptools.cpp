@@ -352,10 +352,10 @@ HeapReverser::getEdgeDescription()
 class ReferenceFinder {
   public:
     ReferenceFinder(JSContext *cx, const HeapReverser &reverser) 
-      : context(cx), reverser(reverser), result(cx) { }
+      : context(cx), reverser(reverser) { }
 
     /* Produce an object describing all references to |target|. */
-    JSObject *findReferences(HandleObject target);
+    JSObject *findReferences(JSObject *target);
 
   private:
     /* The context in which to do allocation and error-handling. */
@@ -365,7 +365,7 @@ class ReferenceFinder {
     const HeapReverser &reverser;
 
     /* The results object we're currently building. */
-    RootedVarObject result;
+    JSObject *result;
 
     /* A list of edges we've traversed to get to a certain point. */
     class Path {
@@ -513,23 +513,22 @@ ReferenceFinder::addReferrer(jsval referrer, Path *path)
         return false;
     AutoReleasePtr releasePathName(context, pathName);
 
-    Root<jsval> referrerRoot(context, &referrer);
-
     /* Find the property of the results object named |pathName|. */
-    JS::Value v;
+    jsval v;
     if (!JS_GetProperty(context, result, pathName, &v))
         return false;
-    if (v.isUndefined()) {
+    if (JSVAL_IS_VOID(v)) {
         /* Create an array to accumulate referents under this path. */
         JSObject *array = JS_NewArrayObject(context, 1, &referrer);
         if (!array)
             return false;
-        v.setObject(*array);
+        v = OBJECT_TO_JSVAL(array);
         return !!JS_SetProperty(context, result, pathName, &v);
     }
 
     /* The property's value had better be an array. */
-    RootedVarObject array(context, &v.toObject());
+    JS_ASSERT(JSVAL_IS_OBJECT(v) && !JSVAL_IS_NULL(v));
+    JSObject *array = JSVAL_TO_OBJECT(v);
     JS_ASSERT(JS_IsArrayObject(context, array));
 
     /* Append our referrer to this array. */
@@ -539,7 +538,7 @@ ReferenceFinder::addReferrer(jsval referrer, Path *path)
 }
 
 JSObject *
-ReferenceFinder::findReferences(HandleObject target)
+ReferenceFinder::findReferences(JSObject *target)
 {
     result = JS_NewObject(context, NULL, NULL, NULL);
     if (!result)
@@ -560,8 +559,8 @@ FindReferences(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
 
-    JS::Value target = JS_ARGV(cx, vp)[0];
-    if (!target.isObject()) {
+    jsval target = JS_ARGV(cx, vp)[0];
+    if (!JSVAL_IS_OBJECT(target) || JSVAL_IS_NULL(target)) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_UNEXPECTED_TYPE,
                              "argument", "not an object");
         return false;
@@ -574,7 +573,7 @@ FindReferences(JSContext *cx, unsigned argc, jsval *vp)
 
     /* Given the reversed map, find the referents of target. */
     ReferenceFinder finder(cx, reverser);
-    JSObject *references = finder.findReferences(RootedVarObject(cx, &target.toObject()));
+    JSObject *references = finder.findReferences(JSVAL_TO_OBJECT(target));
     if (!references)
         return false;
     

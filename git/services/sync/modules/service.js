@@ -63,9 +63,9 @@ Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/engines/clients.js");
-Cu.import("resource://services-common/preferences.js");
+Cu.import("resource://services-sync/ext/Preferences.js");
 Cu.import("resource://services-sync/identity.js");
-Cu.import("resource://services-common/log4moz.js");
+Cu.import("resource://services-sync/log4moz.js");
 Cu.import("resource://services-sync/resource.js");
 Cu.import("resource://services-sync/rest.js");
 Cu.import("resource://services-sync/status.js");
@@ -554,16 +554,17 @@ WeaveSvc.prototype = {
     // Furthermore, we assume that our sync key is already upgraded,
     // and fail if that assumption is invalidated.
 
-    if (!this._identity.syncKey) {
+    let syncKeyBundle = this._identity.syncKeyBundle;
+    if (!syncKeyBundle) {
+      this._log.error("No sync key: cannot fetch symmetric keys.");
       Status.login = LOGIN_FAILED_NO_PASSPHRASE;
-      Status.sync = CREDENTIALS_CHANGED;
+      Status.sync = CREDENTIALS_CHANGED;             // For want of a better option.
       return false;
     }
 
-    let syncKeyBundle = this._identity.syncKeyBundle;
-    if (!syncKeyBundle) {
-      this._log.error("Sync Key Bundle not set. Invalid Sync Key?");
-
+    // Not sure this validation is necessary now.
+    if (!Utils.isPassphrase(this._identity.syncKey)) {
+      this._log.warn("Sync key input is invalid: cannot fetch symmetric keys.");
       Status.login = LOGIN_FAILED_INVALID_PASSPHRASE;
       Status.sync = CREDENTIALS_CHANGED;
       return false;

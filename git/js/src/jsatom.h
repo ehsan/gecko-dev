@@ -67,37 +67,14 @@ JSID_FROM_BITS(size_t bits)
     return id;
 }
 
-/*
- * Must not be used on atoms that are representable as integer jsids.
- * Prefer NameToId or AtomToId over this function:
- *
- * A PropertyName is an atom that does not contain an integer in the range
- * [0, UINT32_MAX]. However, jsid can only hold an integer in the range
- * [0, JSID_INT_MAX] (where JSID_INT_MAX == 2^31-1).  Thus, for the range of
- * integers (JSID_INT_MAX, UINT32_MAX], to represent as a jsid 'id', it must be
- * the case JSID_IS_ATOM(id) and !JSID_TO_ATOM(id)->isPropertyName().  In most
- * cases when creating a jsid, code does not have to care about this corner
- * case because:
- *
- * - When given an arbitrary JSAtom*, AtomToId must be used, which checks for
- *   integer atoms representable as integer jsids, and does this conversion.
- *
- * - When given a PropertyName*, NameToId can be used which which does not need
- *   to do any dynamic checks.
- *
- * Thus, it is only the rare third case which needs this function, which
- * handles any JSAtom* that is known not to be representable with an int jsid.
- */
 static JS_ALWAYS_INLINE jsid
-NON_INTEGER_ATOM_TO_JSID(JSAtom *atom)
+ATOM_TO_JSID(JSAtom *atom)
 {
     JS_ASSERT(((size_t)atom & 0x7) == 0);
-    jsid id = JSID_FROM_BITS((size_t)atom);
-    JS_ASSERT(id == INTERNED_STRING_TO_JSID(NULL, (JSString*)atom));
-    return id;
+    return JSID_FROM_BITS((size_t)atom);
 }
 
-/* All strings stored in jsids are atomized, but are not necessarily property names. */
+/* All strings stored in jsids are atomized. */
 static JS_ALWAYS_INLINE JSBool
 JSID_IS_ATOM(jsid id)
 {
@@ -107,7 +84,7 @@ JSID_IS_ATOM(jsid id)
 static JS_ALWAYS_INLINE JSBool
 JSID_IS_ATOM(jsid id, JSAtom *atom)
 {
-    return id == JSID_FROM_BITS((size_t)atom);
+    return JSID_BITS(id) == JSID_BITS(ATOM_TO_JSID(atom));
 }
 
 static JS_ALWAYS_INLINE JSAtom *
@@ -115,6 +92,9 @@ JSID_TO_ATOM(jsid id)
 {
     return (JSAtom *)JSID_TO_STRING(id);
 }
+
+extern jsid
+js_CheckForStringIndex(jsid id);
 
 JS_STATIC_ASSERT(sizeof(JSHashNumber) == 4);
 JS_STATIC_ASSERT(sizeof(jsid) == JS_BYTES_PER_WORD);
@@ -124,6 +104,7 @@ namespace js {
 static JS_ALWAYS_INLINE JSHashNumber
 HashId(jsid id)
 {
+    JS_ASSERT(js_CheckForStringIndex(id) == id);
     JSHashNumber n =
 #if JS_BYTES_PER_WORD == 4
         JSHashNumber(JSID_BITS(id));
@@ -159,9 +140,11 @@ struct DefaultHasher<jsid>
 {
     typedef jsid Lookup;
     static HashNumber hash(const Lookup &l) {
+        JS_ASSERT(l == js_CheckForStringIndex(l));
         return HashNumber(JSID_BITS(l));
     }
     static bool match(const jsid &id, const Lookup &l) {
+        JS_ASSERT(l == js_CheckForStringIndex(l));
         return id == l;
     }
 };
@@ -308,7 +291,38 @@ struct JSAtomState
 #undef DEFINE_PROTOTYPE_ATOM
 #undef DEFINE_KEYWORD_ATOM
 
+    /* Less frequently used atoms, pinned lazily by JS_ResolveStandardClass. */
+    struct {
+        js::PropertyName *XMLListAtom;
+        js::PropertyName *decodeURIAtom;
+        js::PropertyName *decodeURIComponentAtom;
+        js::PropertyName *defineGetterAtom;
+        js::PropertyName *defineSetterAtom;
+        js::PropertyName *encodeURIAtom;
+        js::PropertyName *encodeURIComponentAtom;
+        js::PropertyName *escapeAtom;
+        js::PropertyName *hasOwnPropertyAtom;
+        js::PropertyName *isFiniteAtom;
+        js::PropertyName *isNaNAtom;
+        js::PropertyName *isPrototypeOfAtom;
+        js::PropertyName *isXMLNameAtom;
+        js::PropertyName *lookupGetterAtom;
+        js::PropertyName *lookupSetterAtom;
+        js::PropertyName *parseFloatAtom;
+        js::PropertyName *parseIntAtom;
+        js::PropertyName *propertyIsEnumerableAtom;
+        js::PropertyName *unescapeAtom;
+        js::PropertyName *unevalAtom;
+        js::PropertyName *unwatchAtom;
+        js::PropertyName *watchAtom;
+    } lazy;
+
     static const size_t commonAtomsOffset;
+    static const size_t lazyAtomsOffset;
+
+    void clearLazyAtoms() {
+        memset(&lazy, 0, sizeof(lazy));
+    }
 
     void junkAtoms() {
 #ifdef DEBUG
@@ -335,10 +349,10 @@ AtomIsInterned(JSContext *cx, JSAtom *atom);
     ((offsetof(JSAtomState, typeAtoms[type]) - JSAtomState::commonAtomsOffset)\
      / sizeof(JSAtom*))
 
-#define NAME_OFFSET(name)       offsetof(JSAtomState, name##Atom)
-#define OFFSET_TO_NAME(rt,off)  (*(js::PropertyName **)((char*)&(rt)->atomState + (off)))
-#define CLASS_NAME_OFFSET(name) offsetof(JSAtomState, classAtoms[JSProto_##name])
-#define CLASS_NAME(cx,name)     ((cx)->runtime->atomState.classAtoms[JSProto_##name])
+#define ATOM_OFFSET(name)       offsetof(JSAtomState, name##Atom)
+#define OFFSET_TO_ATOM(rt,off)  (*(JSAtom **)((char*)&(rt)->atomState + (off)))
+#define CLASS_ATOM_OFFSET(name) offsetof(JSAtomState, classAtoms[JSProto_##name])
+#define CLASS_ATOM(cx,name)     ((cx)->runtime->atomState.classAtoms[JSProto_##name])
 
 extern const char *const js_common_atom_names[];
 extern const size_t      js_common_atom_count;
@@ -394,19 +408,19 @@ js_FinishAtomState(JSRuntime *rt);
  * Atom tracing and garbage collection hooks.
  */
 
-namespace js {
+extern void
+js_TraceAtomState(JSTracer *trc);
 
 extern void
-MarkAtomState(JSTracer *trc, bool markAll);
-
-extern void
-SweepAtomState(JSRuntime *rt);
+js_SweepAtomState(JSRuntime *rt);
 
 extern bool
-InitCommonAtoms(JSContext *cx);
+js_InitCommonAtoms(JSContext *cx);
 
 extern void
-FinishCommonAtoms(JSRuntime *rt);
+js_FinishCommonAtoms(JSContext *cx);
+
+namespace js {
 
 /* N.B. must correspond to boolean tagging behavior. */
 enum InternBehavior
@@ -446,18 +460,15 @@ js_DumpAtoms(JSContext *cx, FILE *fp);
 inline bool
 js_ValueToAtom(JSContext *cx, const js::Value &v, JSAtom **atomp);
 
-namespace js {
-
-bool
-InternNonIntElementId(JSContext *cx, JSObject *obj, const Value &idval,
-                      jsid *idp, Value *vp);
+inline bool
+js_ValueToStringId(JSContext *cx, const js::Value &v, jsid *idp);
 
 inline bool
-InternNonIntElementId(JSContext *cx, JSObject *obj, const Value &idval, jsid *idp)
-{
-    Value dummy;
-    return InternNonIntElementId(cx, obj, idval, idp, &dummy);
-}
+js_InternNonIntElementId(JSContext *cx, JSObject *obj, const js::Value &idval,
+                         jsid *idp);
+inline bool
+js_InternNonIntElementId(JSContext *cx, JSObject *obj, const js::Value &idval,
+                         jsid *idp, js::Value *vp);
 
 /*
  * For all unmapped atoms recorded in al, add a mapping from the atom's index
@@ -465,7 +476,9 @@ InternNonIntElementId(JSContext *cx, JSObject *obj, const Value &idval, jsid *id
  * the list and map->vector must point to pre-allocated memory.
  */
 extern void
-InitAtomMap(JSContext *cx, AtomIndexMap *indices, HeapPtr<JSAtom> *atoms);
+js_InitAtomMap(JSContext *cx, js::AtomIndexMap *indices, JSAtom **atoms);
+
+namespace js {
 
 template<XDRMode mode>
 bool

@@ -275,8 +275,8 @@ private:
 
 // IID for the nsINode interface
 #define NS_INODE_IID \
-{ 0xf73e3890, 0xe4ab, 0x453e, \
-  { 0x8c, 0x78, 0x2d, 0x1f, 0xa4, 0x0b, 0x48, 0x00 } }
+{ 0x772e7e52, 0xfadf, 0x4962, \
+  { 0x8d, 0x96, 0x58, 0xfe, 0x75, 0x68, 0xaf, 0xa8 } }
 
 /**
  * An internal interface that abstracts some DOMNode-related parts that both
@@ -402,11 +402,9 @@ public:
 
   /**
    * Return this node as an Element.  Should only be used for nodes
-   * for which IsElement() is true.  This is defined inline in Element.h.
+   * for which IsElement() is true.
    */
   mozilla::dom::Element* AsElement();
-
-  virtual nsIDOMNode* AsDOMNode() = 0;
 
   /**
    * Return if this node has any children.
@@ -755,9 +753,9 @@ public:
    * Get the parent nsINode for this node if it is an Element.
    * @return the parent node
    */
-  mozilla::dom::Element* GetElementParent() const
+  nsINode* GetElementParent() const
   {
-    return mParent && mParent->IsElement() ? mParent->AsElement() : nsnull;
+    return mParent && mParent->IsElement() ? mParent : nsnull;
   }
 
   /**
@@ -1297,8 +1295,6 @@ private:
     NodeHasExplicitBaseURI,
     // Set if the element has some style states locked
     ElementHasLockedStyleStates,
-    // Set if element has pointer locked
-    ElementHasPointerLock,
     // Set if the node may have DOMMutationObserver attached to it.
     NodeMayHaveDOMMutationObserver,
     // Guard value
@@ -1362,9 +1358,6 @@ public:
   void SetMayHaveDOMMutationObserver()
     { SetBoolFlag(NodeMayHaveDOMMutationObserver, true); }
   bool HasListenerManager() { return HasFlag(NODE_HAS_LISTENERMANAGER); }
-  bool HasPointerLock() const { return GetBoolFlag(ElementHasPointerLock); }
-  void SetPointerLock() { SetBoolFlag(ElementHasPointerLock); }
-  void ClearPointerLock() { ClearBoolFlag(ElementHasPointerLock); }
 protected:
   void SetParentIsContent(bool aValue) { SetBoolFlag(ParentIsContent, aValue); }
   void SetInDocument() { SetBoolFlag(IsInDocument); }
@@ -1667,6 +1660,13 @@ extern const nsIID kThisPtrOffsetsSID;
 
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsINode, NS_INODE_IID)
+
+
+#define NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER \
+  nsContentUtils::TraceWrapper(tmp, aCallback, aClosure);
+
+#define NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER \
+  nsContentUtils::ReleaseWrapper(s, tmp);
 
 
 #endif /* nsINode_h___ */

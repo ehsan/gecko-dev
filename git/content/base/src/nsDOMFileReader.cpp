@@ -81,7 +81,7 @@
 #include "nsDOMJSUtils.h"
 #include "nsDOMEventTargetHelper.h"
 
-#include "jsfriendapi.h"
+#include "jstypedarray.h"
 
 using namespace mozilla;
 
@@ -359,9 +359,11 @@ nsDOMFileReader::DoOnDataAvailable(nsIRequest *aRequest,
     NS_ASSERTION(bytesRead == aCount, "failed to read data");
   }
   else if (mDataFormat == FILE_AS_ARRAYBUFFER) {
+    JSObject* abuf = js::ArrayBuffer::getArrayBuffer(mResultArrayBuffer);
+    NS_ASSERTION(abuf, "What happened?");
+  
     PRUint32 bytesRead = 0;
-    aInputStream->Read((char*)JS_GetArrayBufferData(mResultArrayBuffer, NULL) + aOffset,
-                       aCount, &bytesRead);
+    aInputStream->Read((char*)JS_GetArrayBufferData(abuf) + aOffset, aCount, &bytesRead);
     NS_ASSERTION(bytesRead == aCount, "failed to read data");
   }
   else {
@@ -468,7 +470,7 @@ nsDOMFileReader::ReadFileContent(JSContext* aCx,
   
   if (mDataFormat == FILE_AS_ARRAYBUFFER) {
     RootResultArrayBuffer();
-    mResultArrayBuffer = JS_NewArrayBuffer(aCx, mTotal);
+    mResultArrayBuffer = js_CreateArrayBuffer(aCx, mTotal);
     if (!mResultArrayBuffer) {
       NS_WARNING("Failed to create JS array buffer");
       return NS_ERROR_FAILURE;

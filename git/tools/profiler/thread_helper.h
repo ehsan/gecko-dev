@@ -38,9 +38,6 @@
 
 // Cross-platform lightweight thread local data wrappers
 
-#ifndef MOZ_THREAD_HELPER_H
-#define MOZ_THREAD_HELPER_H
-
 #if defined(XP_WIN)
   // This file will get included in any file that wants to add
   // a profiler mark. In order to not bring <windows.h> together
@@ -117,4 +114,3 @@ inline bool create(key* mykey) {
 
 }
  
-#endif // MOZ_THREAD_HELPER_H

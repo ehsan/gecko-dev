@@ -39,7 +39,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsISupports.idl"
-#include "nsIDOMDOMError.idl"
 
 interface nsIDOMEventListener;
 interface nsIIDBTransaction;
@@ -49,19 +48,19 @@ interface nsIIDBTransaction;
  * http://dev.w3.org/2006/webapi/WebSimpleDB/#idl-def-IDBRequest for more
  * information.
  */
-[scriptable, builtinclass, uuid(4b9d901b-14a4-430c-b41b-5ecb238f4184)]
+[scriptable, builtinclass, uuid(fe30ca60-bb90-4d68-af2f-4735f9228a54)]
 interface nsIIDBRequest : nsISupports
 {
-  readonly attribute jsval result;
-
-  readonly attribute nsIDOMDOMError error;
+  // "pending" or "done"
+  readonly attribute DOMString readyState;
 
   readonly attribute nsISupports source;
 
   readonly attribute nsIIDBTransaction transaction;
 
-  // "pending" or "done"
-  readonly attribute DOMString readyState;
+  readonly attribute jsval result;
+
+  readonly attribute unsigned short errorCode;
 
   attribute nsIDOMEventListener onsuccess;
   attribute nsIDOMEventListener onerror;

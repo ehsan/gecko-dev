@@ -17,20 +17,20 @@ function test()
     gTab = aTab;
     gDebuggee = aDebuggee;
     gPane = aPane;
-    gDebugger = gPane.contentWindow;
+    gDebugger = gPane.debuggerWindow;
 
     testSimpleCall();
   });
 }
 
 function testSimpleCall() {
-  gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
+  gPane.activeThread.addOneTimeListener("framesadded", function() {
     Services.tm.currentThread.dispatch({
       run: function() {
-        var frames = gDebugger.DebuggerView.StackFrames._frames,
+        var frames = gDebugger.DebuggerView.Stackframes._frames,
             childNodes = frames.childNodes;
 
-        is(gDebugger.DebuggerController.activeThread.state, "paused",
+        is(gDebugger.StackFrames.activeThread.state, "paused",
           "Should only be getting stack frames while paused.");
 
         is(frames.querySelectorAll(".dbg-stackframe").length, 1,
@@ -49,10 +49,10 @@ function testSimpleCall() {
 
 function testLocationChange()
 {
-  gDebugger.DebuggerController.activeThread.resume(function() {
-    gDebugger.DebuggerController.client.addOneTimeListener("tabNavigated", function(aEvent, aPacket) {
+  gDebugger.StackFrames.activeThread.resume(function() {
+    gPane._client.addOneTimeListener("tabNavigated", function(aEvent, aPacket) {
       ok(true, "tabNavigated event was fired.");
-      gDebugger.DebuggerController.client.addOneTimeListener("tabAttached", function(aEvent, aPacket) {
+      gPane._client.addOneTimeListener("tabAttached", function(aEvent, aPacket) {
         ok(true, "Successfully reattached to the tab again.");
 
         closeDebuggerAndFinish(gTab);

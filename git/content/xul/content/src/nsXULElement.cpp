@@ -371,7 +371,8 @@ NS_TrustedNewXULElement(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNod
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULElement,
                                                   nsStyledElement)
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPrototype)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mPrototype,
+                                                    nsXULPrototypeElement)
     {
         nsXULSlots* slots = static_cast<nsXULSlots*>(tmp->GetExistingSlots());
         if (slots) {
@@ -413,6 +414,8 @@ nsXULElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
     nsRefPtr<nsXULElement> element;
     if (mPrototype) {
         element = nsXULElement::Create(mPrototype, aNodeInfo, true);
+        NS_ASSERTION(nsIProgrammingLanguage::JAVASCRIPT == mPrototype->mScriptTypeID,
+                     "Didn't get the default language from proto?");
     }
     else {
         nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
@@ -1090,12 +1093,19 @@ nsXULElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
         // the attribute isn't set yet.
         MaybeAddPopupListener(aName);
         if (nsContentUtils::IsEventAttributeName(aName, EventNameType_XUL) && aValue) {
+            // If mPrototype->mScriptTypeID != nsIProgrammingLanguage::JAVASCRIPT, it means
+            // we are resolving an overlay with a different default script
+            // language.  We can't defer compilation of those handlers as
+            // we will have lost the script language (storing it on each
+            // nsXULPrototypeAttribute is expensive!)
+            bool defer = mPrototype == nsnull ||
+                           mPrototype->mScriptTypeID == nsIProgrammingLanguage::JAVASCRIPT;
             if (aValue->Type() == nsAttrValue::eString) {
-                AddScriptEventListener(aName, aValue->GetStringValue(), true);
+                AddScriptEventListener(aName, aValue->GetStringValue(), defer);
             } else {
                 nsAutoString body;
                 aValue->ToString(body);
-                AddScriptEventListener(aName, body, true);
+                AddScriptEventListener(aName, body, defer);
             }
         }
 
@@ -1665,10 +1675,10 @@ nsXULElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
                   NS_IS_TRUSTED_EVENT(aVisitor.mEvent),
                   aVisitor.mDOMEvent,
                   nsnull,
-                  orig->IsControl(),
-                  orig->IsAlt(),
-                  orig->IsShift(),
-                  orig->IsMeta());
+                  orig->isControl,
+                  orig->isAlt,
+                  orig->isShift,
+                  orig->isMeta);
             } else {
                 NS_WARNING("A XUL element is attached to a command that doesn't exist!\n");
             }
@@ -2496,6 +2506,11 @@ nsXULElement::RecompileScriptEventListeners()
     }
 
     if (mPrototype) {
+        // If we have a prototype, the node we are binding to should
+        // have the same script-type - otherwise we will compile the
+        // event handlers incorrectly.
+        NS_ASSERTION(mPrototype->mScriptTypeID == nsIProgrammingLanguage::JAVASCRIPT,
+                     "Prototype and node confused about default language?");
 
         count = mPrototype->mNumAttributes;
         for (i = 0; i < count; ++i) {
@@ -2525,7 +2540,7 @@ nsXULElement::RecompileScriptEventListeners()
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULPrototypeNode)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULPrototypeNode)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_NATIVE(nsXULPrototypeNode)
     if (tmp->mType == nsXULPrototypeNode::eType_Element) {
         static_cast<nsXULPrototypeElement*>(tmp)->Unlink();
     }
@@ -2533,7 +2548,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULPrototypeNode)
         static_cast<nsXULPrototypeScript*>(tmp)->UnlinkJSObjects();
     }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULPrototypeNode)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_BEGIN(nsXULPrototypeNode)
     if (tmp->mType == nsXULPrototypeNode::eType_Element) {
         nsXULPrototypeElement *elem =
             static_cast<nsXULPrototypeElement*>(tmp);
@@ -2549,13 +2564,14 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULPrototypeNode)
             }
         }
         for (i = 0; i < elem->mChildren.Length(); ++i) {
-            NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mChildren[i]");
-            cb.NoteXPCOMChild(elem->mChildren[i]);
+            NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_PTR(elem->mChildren[i].get(),
+                                                         nsXULPrototypeNode,
+                                                         "mChildren[i]")
         }
     }
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsXULPrototypeNode)
+NS_IMPL_CYCLE_COLLECTION_TRACE_NATIVE_BEGIN(nsXULPrototypeNode)
     if (tmp->mType == nsXULPrototypeNode::eType_Element) {
         nsXULPrototypeElement *elem =
             static_cast<nsXULPrototypeElement*>(tmp);
@@ -2563,25 +2579,22 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsXULPrototypeNode)
             PRUint32 i;
             for (i = 0; i < elem->mNumAttributes; ++i) {
                 JSObject* handler = elem->mAttributes[i].mEventHandler;
-                NS_IMPL_CYCLE_COLLECTION_TRACE_JS_CALLBACK(handler,
-                                                           "mAttributes[i].mEventHandler")
+                NS_IMPL_CYCLE_COLLECTION_TRACE_CALLBACK(elem->mScriptTypeID,
+                                                        handler,
+                                                        "mAttributes[i].mEventHandler")
             }
         }
     }
     else if (tmp->mType == nsXULPrototypeNode::eType_Script) {
         nsXULPrototypeScript *script =
             static_cast<nsXULPrototypeScript*>(tmp);
-        NS_IMPL_CYCLE_COLLECTION_TRACE_JS_CALLBACK(script->mScriptObject.mObject,
-                                                   "mScriptObject.mObject")
+        NS_IMPL_CYCLE_COLLECTION_TRACE_CALLBACK(script->mScriptObject.mLangID,
+                                                script->mScriptObject.mObject,
+                                                "mScriptObject.mObject")
     }
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsXULPrototypeNode)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsXULPrototypeNode)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXULPrototypeNode)
-    NS_INTERFACE_MAP_ENTRY(nsISupports)
-NS_INTERFACE_MAP_END
+NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(nsXULPrototypeNode, AddRef)
+NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(nsXULPrototypeNode, Release)
 
 //----------------------------------------------------------------------
 //
@@ -2608,6 +2621,9 @@ nsXULPrototypeElement::Serialize(nsIObjectOutputStream* aStream,
 
     // Write basic prototype data
     rv = aStream->Write32(mType);
+
+    // Write script language
+    rv |= aStream->Write32(mScriptTypeID);
 
     // Write Node Info
     PRInt32 index = aNodeInfos->IndexOf(mNodeInfo);
@@ -2654,6 +2670,8 @@ nsXULPrototypeElement::Serialize(nsIObjectOutputStream* aStream,
             rv |= aStream->Write32(child->mType);
             nsXULPrototypeScript* script = static_cast<nsXULPrototypeScript*>(child);
 
+            rv |= aStream->Write32(script->mScriptObject.mLangID);
+
             rv |= aStream->Write8(script->mOutOfLine);
             if (! script->mOutOfLine) {
                 rv |= script->Serialize(aStream, aGlobal, aNodeInfos);
@@ -2685,10 +2703,16 @@ nsXULPrototypeElement::Deserialize(nsIObjectInputStream* aStream,
                                    const nsCOMArray<nsINodeInfo> *aNodeInfos)
 {
     NS_PRECONDITION(aNodeInfos, "missing nodeinfo array");
+    nsresult rv;
+
+    // Read script language
+    PRUint32 scriptId = 0;
+    rv = aStream->Read32(&scriptId);
+    mScriptTypeID = scriptId;
 
     // Read Node Info
     PRUint32 number;
-    nsresult rv = aStream->Read32(&number);
+    rv |= aStream->Read32(&number);
     mNodeInfo = aNodeInfos->SafeObjectAt(number);
     if (!mNodeInfo)
         return NS_ERROR_UNEXPECTED;
@@ -2759,8 +2783,11 @@ nsXULPrototypeElement::Deserialize(nsIObjectInputStream* aStream,
                                          aNodeInfos);
                 break;
             case eType_Script: {
+                PRUint32 langID = nsIProgrammingLanguage::UNKNOWN;
+                rv |= aStream->Read32(&langID);
+
                 // language version/options obtained during deserialization.
-                nsXULPrototypeScript* script = new nsXULPrototypeScript(0, 0);
+                nsXULPrototypeScript* script = new nsXULPrototypeScript(langID, 0, 0);
                 if (! script)
                     return NS_ERROR_OUT_OF_MEMORY;
                 child = script;
@@ -2878,15 +2905,17 @@ nsXULPrototypeElement::Unlink()
 // nsXULPrototypeScript
 //
 
-nsXULPrototypeScript::nsXULPrototypeScript(PRUint32 aLineNo, PRUint32 aVersion)
+nsXULPrototypeScript::nsXULPrototypeScript(PRUint32 aLangID, PRUint32 aLineNo, PRUint32 aVersion)
     : nsXULPrototypeNode(eType_Script),
       mLineNo(aLineNo),
       mSrcLoading(false),
       mOutOfLine(true),
       mSrcLoadWaiters(nsnull),
       mLangVersion(aVersion),
-      mScriptObject()
+      mScriptObject(aLangID)
 {
+    NS_ASSERTION(aLangID != nsIProgrammingLanguage::UNKNOWN,
+                 "The language ID must be known and constant");
 }
 
 
@@ -3017,10 +3046,23 @@ nsXULPrototypeScript::DeserializeOutOfLine(nsIObjectInputStream* aInput,
             useXULCache = cache->IsEnabled();
 
             if (useXULCache) {
+                PRUint32 newLangID = nsIProgrammingLanguage::UNKNOWN;
                 JSScript* newScriptObject =
-                    cache->GetScript(mSrcURI);
-                if (newScriptObject)
+                    cache->GetScript(mSrcURI, &newLangID);
+                if (newScriptObject) {
+                    // Things may blow here if we simply change the script
+                    // language - other code may already have pre-fetched the
+                    // global for the language. (You can see this code by
+                    // setting langID to UNKNOWN in the nsXULPrototypeScript
+                    // ctor and not setting it until the scriptObject is set -
+                    // code that pre-fetches these globals will then start
+                    // asserting.)
+                    if (mScriptObject.mLangID != newLangID) {
+                        NS_ERROR("XUL cache gave different language?");
+                        return NS_ERROR_UNEXPECTED;
+                    }
                     Set(newScriptObject);
+                }
             }
         }
 
@@ -3044,8 +3086,11 @@ nsXULPrototypeScript::DeserializeOutOfLine(nsIObjectInputStream* aInput,
                 if (useXULCache && mSrcURI) {
                     bool isChrome = false;
                     mSrcURI->SchemeIs("chrome", &isChrome);
-                    if (isChrome)
-                        cache->PutScript(mSrcURI, mScriptObject.mObject);
+                    if (isChrome) {
+                        cache->PutScript(mSrcURI,
+                                         mScriptObject.mLangID,
+                                         mScriptObject.mObject);
+                    }
                 }
                 cache->FinishInputStream(mSrcURI);
             } else {

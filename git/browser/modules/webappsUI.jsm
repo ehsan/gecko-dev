@@ -11,7 +11,6 @@ let Cu = Components.utils;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Webapps.jsm");
-Cu.import("resource:///modules/WebappsInstaller.jsm");
 
 let webappsUI = {
   init: function webappsUI_init() {
@@ -109,11 +108,8 @@ let webappsUI = {
       label: bundle.getString("webapps.install"),
       accessKey: bundle.getString("webapps.install.accesskey"),
       callback: function(notification) {
-        if (WebappsInstaller.install(aData)) {
-          DOMApplicationRegistry.confirmInstall(aData);
-        } else {
-          DOMApplicationRegistry.denyInstall(aData);
-        }
+        installDone = true;
+        DOMApplicationRegistry.confirmInstall(aData);
       }
     };
 
@@ -130,8 +126,8 @@ let webappsUI = {
     let message = bundle.getFormattedString("webapps.requestInstall",
                                             [manifest.name, host], 2);
 
-    aWindow.PopupNotifications.show(aBrowser, "webapps-install", message,
-                                    "webapps-notification-icon", mainAction);
+    aWindow.PopupNotifications.show(aBrowser, "webapps-install", message, "webapps-notification-icon",
+                                                       mainAction, null, { popupIconURL: manifest.iconURLForSize(64) });
 
   }
 }
