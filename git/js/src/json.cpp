@@ -298,8 +298,8 @@ JO(JSContext *cx, jsval *vp, StringifyContext *scx)
         }
 
         // We should have a string id by this point. Either from 
-        // JS_Enumerate's id array, or by converting an element
-        // of the whitelist.
+        // JS_Enumerate's id array, or by converting the values
+        // in the whitelist.
         JS_ASSERT(JSVAL_IS_STRING(ID_TO_VALUE(id)));
 
         if (!JS_GetPropertyById(cx, obj, id, &outputValue))
@@ -514,11 +514,6 @@ JSBool
 js_Stringify(JSContext *cx, jsval *vp, JSObject *replacer, jsval space,
              JSCharBuffer &cb)
 {
-    // XXX stack
-    JSObject *stack = JS_NewArrayObject(cx, 0, NULL);
-    if (!stack)
-        return JS_FALSE;
-
     StringifyContext scx(cx, cb, replacer);
     if (!InitializeGap(cx, space, scx.gap))
         return JS_FALSE;
@@ -527,6 +522,7 @@ js_Stringify(JSContext *cx, jsval *vp, JSObject *replacer, jsval space,
     if (!obj)
         return JS_FALSE;
 
+    AutoObjectRooter tvr(cx, obj);
     if (!obj->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.emptyAtom),
                              *vp, NULL, NULL, JSPROP_ENUMERATE)) {
         return JS_FALSE;
