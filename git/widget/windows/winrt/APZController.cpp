@@ -103,7 +103,7 @@ public:
 
     nsCOMPtr<nsIDocument> subDocument;
     nsCOMPtr<nsIContent> targetContent;
-    if (!GetDOMTargets(mFrameMetrics.GetScrollId(),
+    if (!GetDOMTargets(mFrameMetrics.mScrollId,
                        subDocument, targetContent)) {
       return NS_OK;
     }
@@ -132,7 +132,7 @@ public:
 
 #ifdef DEBUG_CONTROLLER
         WinUtils::Log("APZController: %I64d mDisplayPort: %0.2f %0.2f %0.2f %0.2f",
-          mFrameMetrics.GetScrollId(),
+          mFrameMetrics.mScrollId,
           mFrameMetrics.mDisplayPort.x,
           mFrameMetrics.mDisplayPort.y,
           mFrameMetrics.mDisplayPort.width,
@@ -205,7 +205,7 @@ APZController::RequestContentRepaint(const FrameMetrics& aFrameMetrics)
 
 #ifdef DEBUG_CONTROLLER
   WinUtils::Log("APZController::RequestContentRepaint scrollid=%I64d",
-    aFrameMetrics.GetScrollId());
+    aFrameMetrics.mScrollId);
 #endif
   nsCOMPtr<nsIRunnable> r1 = new RequestContentRepaintEvent(aFrameMetrics,
                                                             mWidgetListener);

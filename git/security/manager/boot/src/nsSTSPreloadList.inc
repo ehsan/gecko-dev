@@ -8,7 +8,7 @@
 /*****************************************************************************/
 
 #include <stdint.h>
-const PRTime gPreloadListExpirationTime = INT64_C(1406369283264000);
+const PRTime gPreloadListExpirationTime = INT64_C(1405764354321000);
 
 class nsSTSPreload
 {
@@ -81,10 +81,7 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "espra.com", true },
   { "f-droid.org", true },
   { "factor.cc", false },
-  { "fairbill.com", true },
   { "faq.lookout.com", false },
-  { "feedbin.com", false },
-  { "fiken.no", true },
   { "forum.linode.com", false },
   { "forum.quantifiedself.com", true },
   { "gernert-server.de", true },
@@ -131,7 +128,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "market.android.com", true },
   { "matteomarescotti.name", true },
   { "mattmccutchen.net", true },
-  { "mbp.banking.co.at", false },
   { "mediacru.sh", true },
   { "mega.co.nz", false },
   { "members.mayfirst.org", false },
@@ -140,6 +136,7 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "mudcrab.us", true },
   { "my.onlime.ch", false },
   { "my.xero.com", false },
+  { "mykolab.com", true },
   { "mylookout.com", false },
   { "neg9.org", false },
   { "neilwynne.com", false },
@@ -168,7 +165,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "script.google.com", true },
   { "security.google.com", true },
   { "securityheaders.com", true },
-  { "semenkovich.com", true },
   { "shodan.io", true },
   { "silentcircle.com", false },
   { "simbolo.co.uk", false },
@@ -199,7 +195,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "writeapp.me", false },
   { "www.aclu.org", false },
   { "www.apollo-auto.com", true },
-  { "www.banking.co.at", false },
   { "www.braintreepayments.com", false },
   { "www.cyveillance.com", true },
   { "www.entropia.de", false },

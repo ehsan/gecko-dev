@@ -244,46 +244,41 @@ struct BasicTiledLayerPaintData {
    * The scroll offset of the content from the nearest ancestor layer that
    * represents scrollable content with a display port set.
    */
-  ParentLayerPoint mScrollOffset;
+  ScreenPoint mScrollOffset;
 
   /*
    * The scroll offset of the content from the nearest ancestor layer that
    * represents scrollable content with a display port set, for the last
    * layer update transaction.
    */
-  ParentLayerPoint mLastScrollOffset;
+  ScreenPoint mLastScrollOffset;
 
   /*
-   * The transform matrix to go from Screen units to ParentLayer units.
+   * The transform matrix to go from ParentLayer units to transformed
+   * LayoutDevice units.
    */
-  gfx3DMatrix mTransformParentLayerToLayoutDevice;
+  gfx3DMatrix mTransformParentLayerToLayout;
 
   /*
    * The critical displayport of the content from the nearest ancestor layer
    * that represents scrollable content with a display port set. Empty if a
    * critical displayport is not set.
    *
-   * This is in LayoutDevice coordinates, but is stored as an nsIntRect for
-   * convenience when intersecting with the layer's mValidRegion.
+   * This is in transformed LayoutDevice coordinates, but is stored as an
+   * nsIntRect for convenience when intersecting with the layer's mValidRegion.
    */
-  nsIntRect mCriticalDisplayPort;
-
-  /*
-   * The viewport of the content from the nearest ancestor layer that
-   * represents scrollable content with a display port set.
-   */
-  LayoutDeviceRect mViewport;
+  nsIntRect mLayoutCriticalDisplayPort;
 
   /*
    * The render resolution of the document that the content this layer
    * represents is in.
    */
-  CSSToParentLayerScale mResolution;
+  CSSToScreenScale mResolution;
 
   /*
-   * The composition bounds of the layer, in LayoutDevice coordinates. This is
-   * used to make sure that tiled updates to regions that are visible to the
-   * user are grouped coherently.
+   * The composition bounds of the primary scrollable layer, in transformed
+   * layout device coordinates. This is used to make sure that tiled updates to
+   * regions that are visible to the user are grouped coherently.
    */
   LayoutDeviceRect mCompositionBounds;
 
@@ -386,9 +381,9 @@ public:
 
   void DiscardBackBuffers();
 
-  const CSSToParentLayerScale& GetFrameResolution() { return mFrameResolution; }
+  const CSSToScreenScale& GetFrameResolution() { return mFrameResolution; }
 
-  void SetFrameResolution(const CSSToParentLayerScale& aResolution) { mFrameResolution = aResolution; }
+  void SetFrameResolution(const CSSToScreenScale& aResolution) { mFrameResolution = aResolution; }
 
   bool HasFormatChanged() const;
 
@@ -429,7 +424,7 @@ private:
   ClientLayerManager* mManager;
   LayerManager::DrawThebesLayerCallback mCallback;
   void* mCallbackData;
-  CSSToParentLayerScale mFrameResolution;
+  CSSToScreenScale mFrameResolution;
   bool mLastPaintOpaque;
 
   // The DrawTarget we use when UseSinglePaintBuffer() above is true.

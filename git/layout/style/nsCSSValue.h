@@ -136,64 +136,6 @@ struct ImageValue : public URLValue {
   NS_INLINE_DECL_REFCOUNTING(ImageValue)
 };
 
-struct GridNamedArea {
-  nsString mName;
-  uint32_t mColumnStart;
-  uint32_t mColumnEnd;
-  uint32_t mRowStart;
-  uint32_t mRowEnd;
-};
-
-struct GridTemplateAreasValue MOZ_FINAL {
-  // Parsed value
-  nsTArray<GridNamedArea> mNamedAreas;
-
-  // Original <string> values. Length gives the number of rows,
-  // content makes serialization easier.
-  nsTArray<nsString> mTemplates;
-
-  // How many columns grid-template-areas contributes to the explicit grid.
-  // http://dev.w3.org/csswg/css-grid/#explicit-grid
-  uint32_t mNColumns;
-
-  // How many rows grid-template-areas contributes to the explicit grid.
-  // http://dev.w3.org/csswg/css-grid/#explicit-grid
-  uint32_t NRows() const {
-    return mTemplates.Length();
-  }
-
-  GridTemplateAreasValue()
-    : mNColumns(0)
-    // Default constructors for mNamedAreas and mTemplates: empty arrays.
-  {
-  }
-
-  bool operator==(const GridTemplateAreasValue& aOther) const
-  {
-    return mTemplates == aOther.mTemplates;
-  }
-
-  bool operator!=(const GridTemplateAreasValue& aOther) const
-  {
-    return !(*this == aOther);
-  }
-
-  NS_INLINE_DECL_REFCOUNTING(GridTemplateAreasValue)
-
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
-
-private:
-  // Private destructor to make sure this isn't used as a stack variable
-  // or member variable.
-  ~GridTemplateAreasValue()
-  {
-  }
-
-  GridTemplateAreasValue(const GridTemplateAreasValue& aOther) MOZ_DELETE;
-  GridTemplateAreasValue&
-  operator=(const GridTemplateAreasValue& aOther) MOZ_DELETE;
-};
-
 }
 }
 
@@ -251,8 +193,6 @@ enum nsCSSUnit {
   eCSSUnit_Image        = 41,     // (nsCSSValue::Image*) value
   eCSSUnit_Gradient     = 42,     // (nsCSSValueGradient*) value
   eCSSUnit_TokenStream  = 43,     // (nsCSSValueTokenStream*) value
-  eCSSUnit_GridTemplateAreas   = 44,   // (GridTemplateAreasValue*)
-                                       // for grid-template-areas
 
   eCSSUnit_Pair         = 50,     // (nsCSSValuePair*) pair of values
   eCSSUnit_Triplet      = 51,     // (nsCSSValueTriplet*) triplet of values
@@ -265,6 +205,8 @@ enum nsCSSUnit {
   eCSSUnit_PairList     = 56,     // (nsCSSValuePairList*) list of value pairs
   eCSSUnit_PairListDep  = 57,     // (nsCSSValuePairList*) same as PairList
                                   //   but does not own the list
+
+  eCSSUnit_GridTemplateAreas   = 60,   // (nsCSSValueGridTemplateAreas*) for grid-template-areas
 
   eCSSUnit_Integer      = 70,     // (int) simple value
   eCSSUnit_Enumerated   = 71,     // (int) value has enumerated meaning
@@ -337,6 +279,7 @@ struct nsCSSValuePairList;
 struct nsCSSValuePairList_heap;
 struct nsCSSValueTriplet;
 struct nsCSSValueTriplet_heap;
+struct nsCSSValueGridTemplateAreas;
 class nsCSSValueFloatColor;
 
 class nsCSSValue {
@@ -363,7 +306,6 @@ public:
   explicit nsCSSValue(mozilla::css::ImageValue* aValue);
   explicit nsCSSValue(nsCSSValueGradient* aValue);
   explicit nsCSSValue(nsCSSValueTokenStream* aValue);
-  explicit nsCSSValue(mozilla::css::GridTemplateAreasValue* aValue);
   nsCSSValue(const nsCSSValue& aCopy);
   ~nsCSSValue() { Reset(); }
 
@@ -558,6 +500,8 @@ public:
   inline nsCSSValueTriplet& GetTripletValue();
   inline const nsCSSValueTriplet& GetTripletValue() const;
 
+  inline nsCSSValueGridTemplateAreas& GetGridTemplateAreas();
+  inline const nsCSSValueGridTemplateAreas& GetGridTemplateAreas() const;
 
   mozilla::css::URLValue* GetURLStructValue() const
   {
@@ -571,13 +515,6 @@ public:
   {
     NS_ABORT_IF_FALSE(mUnit == eCSSUnit_Image, "not an Image value");
     return mValue.mImage;
-  }
-
-  mozilla::css::GridTemplateAreasValue* GetGridTemplateAreas() const
-  {
-    NS_ABORT_IF_FALSE(mUnit == eCSSUnit_GridTemplateAreas,
-                      "not a grid-template-areas value");
-    return mValue.mGridTemplateAreas;
   }
 
   const char16_t* GetOriginalURLValue() const
@@ -621,7 +558,6 @@ public:
   void SetImageValue(mozilla::css::ImageValue* aImage);
   void SetGradientValue(nsCSSValueGradient* aGradient);
   void SetTokenStreamValue(nsCSSValueTokenStream* aTokenStream);
-  void SetGridTemplateAreas(mozilla::css::GridTemplateAreasValue* aValue);
   void SetPairValue(const nsCSSValuePair* aPair);
   void SetPairValue(const nsCSSValue& xValue, const nsCSSValue& yValue);
   void SetSharedListValue(nsCSSValueSharedList* aList);
@@ -645,6 +581,7 @@ public:
   nsCSSRect& SetRectValue();
   nsCSSValueList* SetListValue();
   nsCSSValuePairList* SetPairListValue();
+  nsCSSValueGridTemplateAreas& SetGridTemplateAreas();
 
   void StartImageLoad(nsIDocument* aDocument) const;  // Only pretend const
 
@@ -677,7 +614,6 @@ protected:
     Array*     mArray;
     mozilla::css::URLValue* mURL;
     mozilla::css::ImageValue* mImage;
-    mozilla::css::GridTemplateAreasValue* mGridTemplateAreas;
     nsCSSValueGradient* mGradient;
     nsCSSValueTokenStream* mTokenStream;
     nsCSSValuePair_heap* mPair;
@@ -688,6 +624,7 @@ protected:
     nsCSSValueSharedList* mSharedList;
     nsCSSValuePairList_heap* mPairList;
     nsCSSValuePairList* mPairListDependent;
+    nsCSSValueGridTemplateAreas* mGridTemplateAreas;
     nsCSSValueFloatColor* mFloatColor;
   } mValue;
 };
@@ -1256,6 +1193,22 @@ nsCSSValue::GetPairListValue() const
   }
 }
 
+inline nsCSSValueGridTemplateAreas&
+nsCSSValue::GetGridTemplateAreas()
+{
+  NS_ABORT_IF_FALSE (mUnit == eCSSUnit_GridTemplateAreas,
+                     "not a grid-template-areas value");
+  return *mValue.mGridTemplateAreas;
+}
+
+inline const nsCSSValueGridTemplateAreas&
+nsCSSValue::GetGridTemplateAreas() const
+{
+  NS_ABORT_IF_FALSE (mUnit == eCSSUnit_GridTemplateAreas,
+                     "not a grid-template-areas value");
+  return *mValue.mGridTemplateAreas;
+}
+
 struct nsCSSValueGradientStop {
 public:
   nsCSSValueGradientStop();
@@ -1551,6 +1504,63 @@ struct nsCSSCornerSizes {
 protected:
   typedef nsCSSValue nsCSSCornerSizes::*corner_type;
   static const corner_type corners[4];
+};
+
+struct nsCSSGridNamedArea {
+  nsString mName;
+  uint32_t mColumnStart;
+  uint32_t mColumnEnd;
+  uint32_t mRowStart;
+  uint32_t mRowEnd;
+};
+
+struct nsCSSValueGridTemplateAreas {
+  // Parsed value
+  nsTArray<nsCSSGridNamedArea> mNamedAreas;
+
+  // Original <string> values. Length gives the number of rows,
+  // content makes serialization easier.
+  nsTArray<nsString> mTemplates;
+
+  // How many columns grid-template-areas contributes to the explicit grid.
+  // http://dev.w3.org/csswg/css-grid/#explicit-grid
+  uint32_t mNColumns;
+
+  // How many rows grid-template-areas contributes to the explicit grid.
+  // http://dev.w3.org/csswg/css-grid/#explicit-grid
+  uint32_t NRows() const {
+    return mTemplates.Length();
+  }
+
+  nsCSSValueGridTemplateAreas()
+    : mNColumns(0)
+    // Default constructors for mNamedAreas and mTemplates: empty arrays.
+  {
+  }
+
+  void Reset()
+  {
+    mNamedAreas.Clear();
+    mTemplates.Clear();
+    mNColumns = 0;
+  }
+
+  void AppendToString(nsCSSProperty aProperty, nsAString& aResult,
+                      nsCSSValue::Serialization aValueSerialization) const;
+
+  bool operator==(const nsCSSValueGridTemplateAreas& aOther) const
+  {
+    return mTemplates == aOther.mTemplates;
+  }
+
+  bool operator!=(const nsCSSValueGridTemplateAreas& aOther) const
+  {
+    return !(*this == aOther);
+  }
+
+  NS_INLINE_DECL_REFCOUNTING(nsCSSValueGridTemplateAreas)
+
+  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 };
 
 #endif /* nsCSSValue_h___ */

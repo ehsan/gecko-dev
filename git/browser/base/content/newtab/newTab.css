@@ -82,7 +82,6 @@ input[type=button] {
   display: -moz-box;
   -moz-box-flex: 5;
   -moz-box-orient: vertical;
-  -moz-box-pack: center;
   min-width: 600px;
   min-height: 400px;
   transition: 100ms ease-out;
@@ -103,15 +102,13 @@ input[type=button] {
   display: -moz-box;
   -moz-box-orient: horizontal;
   -moz-box-direction: normal;
-  -moz-box-pack: center;
+  -moz-box-flex: 1;
 }
 
 /* CELLS */
 .newtab-cell {
   display: -moz-box;
-  height: 150px;
-  margin: 16px;
-  width: 243px;
+  -moz-box-flex: 1;
 }
 
 /* SITES */
@@ -155,11 +152,10 @@ input[type=button] {
 
 /* TITLES */
 .newtab-title {
-  bottom: -20px;
   position: absolute;
   left: 0;
-  line-height: 20px;
   right: 0;
+  bottom: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

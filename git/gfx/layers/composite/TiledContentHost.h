@@ -114,7 +114,7 @@ public:
 
   // Stores the absolute resolution of the containing frame, calculated
   // by the sum of the resolutions of all parent layers' FrameMetrics.
-  const CSSToParentLayerScale& GetFrameResolution() { return mFrameResolution; }
+  const CSSToScreenScale& GetFrameResolution() { return mFrameResolution; }
 
   void ReadUnlock();
 
@@ -144,7 +144,7 @@ protected:
   void SwapTiles(TileHost& aTileA, TileHost& aTileB) { std::swap(aTileA, aTileB); }
 
 private:
-  CSSToParentLayerScale mFrameResolution;
+  CSSToScreenScale mFrameResolution;
   bool mHasDoubleBufferedTiles;
   bool mUninitialized;
 };

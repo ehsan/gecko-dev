@@ -366,6 +366,34 @@ CompositorParent::RecvStopFrameTimeRecording(const uint32_t& aStartIndex,
   return true;
 }
 
+bool
+CompositorParent::RecvSetTestSampleTime(const TimeStamp& aTime)
+{
+  if (aTime.IsNull()) {
+    return false;
+  }
+
+  mIsTesting = true;
+  mTestTime = aTime;
+
+  // Update but only if we were already scheduled to animate
+  if (mCompositionManager && mCurrentCompositeTask) {
+    bool requestNextFrame = mCompositionManager->TransformShadowTree(aTime);
+    if (!requestNextFrame) {
+      CancelCurrentCompositeTask();
+    }
+  }
+
+  return true;
+}
+
+bool
+CompositorParent::RecvLeaveTestMode()
+{
+  mIsTesting = false;
+  return true;
+}
+
 void
 CompositorParent::ActorDestroy(ActorDestroyReason why)
 {
@@ -761,7 +789,6 @@ CompositorParent::ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
     // scheduled in order to better match the behavior under regular sampling
     // conditions.
     if (mIsTesting && root && mCurrentCompositeTask) {
-      AutoResolveRefLayers resolve(mCompositionManager);
       bool requestNextFrame =
         mCompositionManager->TransformShadowTree(mTestTime);
       if (!requestNextFrame) {
@@ -776,35 +803,6 @@ void
 CompositorParent::ForceComposite(LayerTransactionParent* aLayerTree)
 {
   ScheduleComposition();
-}
-
-bool
-CompositorParent::SetTestSampleTime(LayerTransactionParent* aLayerTree,
-                                    const TimeStamp& aTime)
-{
-  if (aTime.IsNull()) {
-    return false;
-  }
-
-  mIsTesting = true;
-  mTestTime = aTime;
-
-  // Update but only if we were already scheduled to animate
-  if (mCompositionManager && mCurrentCompositeTask) {
-    AutoResolveRefLayers resolve(mCompositionManager);
-    bool requestNextFrame = mCompositionManager->TransformShadowTree(aTime);
-    if (!requestNextFrame) {
-      CancelCurrentCompositeTask();
-    }
-  }
-
-  return true;
-}
-
-void
-CompositorParent::LeaveTestMode(LayerTransactionParent* aLayerTree)
-{
-  mIsTesting = false;
 }
 
 void
@@ -1069,6 +1067,8 @@ public:
   virtual bool RecvNotifyRegionInvalidated(const nsIntRegion& aRegion) { return true; }
   virtual bool RecvStartFrameTimeRecording(const int32_t& aBufferSize, uint32_t* aOutStartIndex) MOZ_OVERRIDE { return true; }
   virtual bool RecvStopFrameTimeRecording(const uint32_t& aStartIndex, InfallibleTArray<float>* intervals) MOZ_OVERRIDE  { return true; }
+  virtual bool RecvSetTestSampleTime(const TimeStamp& aTime) MOZ_OVERRIDE { return true; }
+  virtual bool RecvLeaveTestMode() MOZ_OVERRIDE { return true; }
 
   virtual PLayerTransactionParent*
     AllocPLayerTransactionParent(const nsTArray<LayersBackend>& aBackendHints,
@@ -1083,9 +1083,6 @@ public:
                                    bool aIsFirstPaint,
                                    bool aScheduleComposite) MOZ_OVERRIDE;
   virtual void ForceComposite(LayerTransactionParent* aLayerTree) MOZ_OVERRIDE;
-  virtual bool SetTestSampleTime(LayerTransactionParent* aLayerTree,
-                                 const TimeStamp& aTime) MOZ_OVERRIDE;
-  virtual void LeaveTestMode(LayerTransactionParent* aLayerTree) MOZ_OVERRIDE;
 
   virtual AsyncCompositionManager* GetCompositionManager(LayerTransactionParent* aParent) MOZ_OVERRIDE;
 
@@ -1246,23 +1243,6 @@ CrossProcessCompositorParent::ForceComposite(LayerTransactionParent* aLayerTree)
   sIndirectLayerTrees[id].mParent->ForceComposite(aLayerTree);
 }
 
-bool
-CrossProcessCompositorParent::SetTestSampleTime(
-  LayerTransactionParent* aLayerTree, const TimeStamp& aTime)
-{
-  uint64_t id = aLayerTree->GetId();
-  MOZ_ASSERT(id != 0);
-  return sIndirectLayerTrees[id].mParent->SetTestSampleTime(aLayerTree, aTime);
-}
-
-void
-CrossProcessCompositorParent::LeaveTestMode(LayerTransactionParent* aLayerTree)
-{
-  uint64_t id = aLayerTree->GetId();
-  MOZ_ASSERT(id != 0);
-  sIndirectLayerTrees[id].mParent->LeaveTestMode(aLayerTree);
-}
-
 AsyncCompositionManager*
 CrossProcessCompositorParent::GetCompositionManager(LayerTransactionParent* aLayerTree)
 {
@@ -1273,12 +1253,8 @@ CrossProcessCompositorParent::GetCompositionManager(LayerTransactionParent* aLay
 void
 CrossProcessCompositorParent::DeferredDestroy()
 {
-  CrossProcessCompositorParent* self;
-  mSelfRef.forget(&self);
-
-  nsCOMPtr<nsIRunnable> runnable =
-    NS_NewNonOwningRunnableMethod(self, &CrossProcessCompositorParent::Release);
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_DispatchToMainThread(runnable)));
+  mSelfRef = nullptr;
+  // |this| was just destroyed, hands off
 }
 
 CrossProcessCompositorParent::~CrossProcessCompositorParent()

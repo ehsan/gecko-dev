@@ -207,6 +207,6 @@ function AsmJSArrayBuffer(size) {
 '        var i32 = new global.Int32Array(buffer);' +
 '        function g() {};' +
 '        return g;' +
-''))(Function("return this")(),null,ab);
+''))(this,null,ab);
     return ab;
 }

@@ -21,8 +21,9 @@
 class nsJSEventListener : public nsIJSEventListener
 {
 public:
-  nsJSEventListener(nsISupports* aTarget, nsIAtom* aType,
-                    const nsEventHandler& aHandler);
+  nsJSEventListener(JSObject* aScopeObject, nsISupports* aTarget,
+                    nsIAtom* aType, const nsEventHandler& aHandler);
+  virtual ~nsJSEventListener();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
@@ -36,7 +37,10 @@ public:
     return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
   }
 
-  NS_DECL_CYCLE_COLLECTION_SKIPPABLE_CLASS(nsJSEventListener)
+  NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS(nsJSEventListener)
+
+protected:
+  virtual void UpdateScopeObject(JS::Handle<JSObject*> aScopeObject);
 
   bool IsBlackForCC();
 };
