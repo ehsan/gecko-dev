@@ -933,83 +933,23 @@ GLContext::DeleteOffscreenFBO()
 void
 GLContext::ClearSafely()
 {
-    // bug 659349 --- we must be very careful here: clearing a GL framebuffer is nontrivial, relies on a lot of state,
-    // and in the case of the backbuffer of a WebGL context, state is exposed to scripts.
-    //
-    // The code here is taken from WebGLContext::ForceClearFramebufferWithDefaultValues, but I didn't find a good way of
-    // sharing code with it. WebGL's code is somewhat performance-critical as it is typically called on every frame, so
-    // WebGL keeps track of GL state to avoid having to query it everytime, and also tries to only do work for actually
-    // present buffers (e.g. stencil buffer). Doing that here seems like premature optimization,
-    // as ClearSafely() is called only when e.g. a canvas is resized, not on every animation frame.
+    GLfloat clearColor[4];
+    GLfloat clearDepth;
+    GLint clearStencil;
 
-    realGLboolean scissorTestEnabled;
-    realGLboolean ditherEnabled;
-    realGLboolean colorWriteMask[4];
-    realGLboolean depthWriteMask;
-    GLint stencilWriteMaskFront, stencilWriteMaskBack;
-    GLfloat colorClearValue[4];
-    GLfloat depthClearValue;
-    GLint stencilClearValue;
+    fGetFloatv(LOCAL_GL_COLOR_CLEAR_VALUE, clearColor);
+    fGetFloatv(LOCAL_GL_DEPTH_CLEAR_VALUE, &clearDepth);
+    fGetIntegerv(LOCAL_GL_STENCIL_CLEAR_VALUE, &clearStencil);
 
-    // save current GL state
-    fGetBooleanv(LOCAL_GL_SCISSOR_TEST, &scissorTestEnabled);
-    fGetBooleanv(LOCAL_GL_DITHER, &ditherEnabled);
-    fGetBooleanv(LOCAL_GL_COLOR_WRITEMASK, colorWriteMask);
-    fGetBooleanv(LOCAL_GL_DEPTH_WRITEMASK, &depthWriteMask);
-    fGetIntegerv(LOCAL_GL_STENCIL_WRITEMASK, &stencilWriteMaskFront);
-    fGetIntegerv(LOCAL_GL_STENCIL_BACK_WRITEMASK, &stencilWriteMaskBack);
-    fGetFloatv(LOCAL_GL_COLOR_CLEAR_VALUE, colorClearValue);
-    fGetFloatv(LOCAL_GL_DEPTH_CLEAR_VALUE, &depthClearValue);
-    fGetIntegerv(LOCAL_GL_STENCIL_CLEAR_VALUE, &stencilClearValue);
-
-    // prepare GL state for clearing
-    fDisable(LOCAL_GL_SCISSOR_TEST);
-    fDisable(LOCAL_GL_DITHER);
-    PushViewportRect(nsIntRect(0, 0, mOffscreenSize.width, mOffscreenSize.height));
-
-    fColorMask(1, 1, 1, 1);
-    fClearColor(0.f, 0.f, 0.f, 0.f);
-
-    fDepthMask(1);
+    fClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    fClearStencil(0);
     fClearDepth(1.0f);
 
-    fStencilMask(0xffffffff);
-    fClearStencil(0);
+    fClear(LOCAL_GL_COLOR_BUFFER_BIT | LOCAL_GL_DEPTH_BUFFER_BIT | LOCAL_GL_STENCIL_BUFFER_BIT);
 
-    // do clear
-    fClear(LOCAL_GL_COLOR_BUFFER_BIT |
-           LOCAL_GL_DEPTH_BUFFER_BIT |
-           LOCAL_GL_STENCIL_BUFFER_BIT);
-
-    // restore GL state after clearing
-    fColorMask(colorWriteMask[0],
-               colorWriteMask[1],
-               colorWriteMask[2],
-               colorWriteMask[3]);
-    fClearColor(colorClearValue[0],
-                colorClearValue[1],
-                colorClearValue[2],
-                colorClearValue[3]);
-
-    fDepthMask(depthWriteMask);
-    fClearDepth(depthClearValue);
-
-    fStencilMaskSeparate(LOCAL_GL_FRONT, stencilWriteMaskFront);
-    fStencilMaskSeparate(LOCAL_GL_BACK, stencilWriteMaskBack);
-    fClearStencil(stencilClearValue);
-
-    PopViewportRect();
-
-    if (ditherEnabled)
-        fEnable(LOCAL_GL_DITHER);
-    else
-        fDisable(LOCAL_GL_DITHER);
-
-    if (scissorTestEnabled)
-        fEnable(LOCAL_GL_SCISSOR_TEST);
-    else
-        fDisable(LOCAL_GL_SCISSOR_TEST);
-
+    fClearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
+    fClearStencil(clearStencil);
+    fClearDepth(clearDepth);
 }
 
 void

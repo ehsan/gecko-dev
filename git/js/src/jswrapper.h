@@ -168,7 +168,6 @@ class JS_FRIEND_API(ForceFrame)
 
   public:
     ForceFrame(JSContext *cx, JSObject *target);
-    ~ForceFrame();
     bool enter();
 };
 

@@ -50,7 +50,7 @@
 #include "nsIDocShell.h"
 #include "nsIDocument.h"
 #include "nsIDOMDataContainerEvent.h"
-#include "nsIDOMDocument.h"
+#include "nsIDOMDocumentEvent.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIExternalProtocolHandler.h"
 #include "nsEventStates.h"
@@ -257,16 +257,16 @@ nsPluginCrashedEvent::Run()
   LOG(("OBJLC []: Firing plugin crashed event for content %p\n",
        mContent.get()));
 
-  nsCOMPtr<nsIDOMDocument> domDoc =
+  nsCOMPtr<nsIDOMDocumentEvent> domEventDoc =
     do_QueryInterface(mContent->GetDocument());
-  if (!domDoc) {
+  if (!domEventDoc) {
     NS_WARNING("Couldn't get document for PluginCrashed event!");
     return NS_OK;
   }
 
   nsCOMPtr<nsIDOMEvent> event;
-  domDoc->CreateEvent(NS_LITERAL_STRING("datacontainerevents"),
-                      getter_AddRefs(event));
+  domEventDoc->CreateEvent(NS_LITERAL_STRING("datacontainerevents"),
+                           getter_AddRefs(event));
   nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(event));
   nsCOMPtr<nsIDOMDataContainerEvent> containerEvent(do_QueryInterface(event));
   if (!privateEvent || !containerEvent) {
@@ -337,7 +337,9 @@ class AutoNotifier {
         mOldState = aContent->ObjectState();
     }
     ~AutoNotifier() {
-      mContent->NotifyStateChanged(mOldType, mOldState, PR_FALSE, mNotify);
+      if (mNotify) {
+        mContent->NotifyStateChanged(mOldType, mOldState, PR_FALSE);
+      }
     }
 
     /**
@@ -348,7 +350,7 @@ class AutoNotifier {
     void Notify() {
       NS_ASSERTION(mNotify, "Should not notify when notify=false");
 
-      mContent->NotifyStateChanged(mOldType, mOldState, PR_TRUE, PR_TRUE);
+      mContent->NotifyStateChanged(mOldType, mOldState, PR_TRUE);
       mOldType = mContent->Type();
       mOldState = mContent->ObjectState();
     }
@@ -1495,8 +1497,11 @@ nsObjectLoadingContent::GetCapabilities() const
 {
   return eSupportImages |
          eSupportPlugins |
-         eSupportDocuments |
-         eSupportSVG;
+         eSupportDocuments
+#ifdef MOZ_SVG
+         | eSupportSVG
+#endif
+         ;
 }
 
 void
@@ -1637,9 +1642,7 @@ nsObjectLoadingContent::UnloadContent()
 
 void
 nsObjectLoadingContent::NotifyStateChanged(ObjectType aOldType,
-                                           nsEventStates aOldState,
-                                           PRBool aSync,
-                                           PRBool aNotify)
+                                          nsEventStates aOldState, PRBool aSync)
 {
   LOG(("OBJLC [%p]: Notifying about state change: (%u, %llx) -> (%u, %llx) (sync=%i)\n",
        this, aOldType, aOldState.GetInternalValue(), mType,
@@ -1648,18 +1651,6 @@ nsObjectLoadingContent::NotifyStateChanged(ObjectType aOldType,
   nsCOMPtr<nsIContent> thisContent = 
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
   NS_ASSERTION(thisContent, "must be a content");
-
-  NS_ASSERTION(thisContent->IsElement(), "Not an element?");
-
-  // Unfortunately, we do some state changes without notifying
-  // (e.g. in Fallback when canceling image requests), so we have to
-  // manually notify object state changes.
-  thisContent->AsElement()->UpdateState(false);
-
-  if (!aNotify) {
-    // We're done here
-    return;
-  }
 
   nsIDocument* doc = thisContent->GetCurrentDoc();
   if (!doc) {
@@ -1674,11 +1665,12 @@ nsObjectLoadingContent::NotifyStateChanged(ObjectType aOldType,
     nsEventStates changedBits = aOldState ^ newState;
 
     {
-      nsAutoScriptBlocker scriptBlocker;
+      mozAutoDocUpdate upd(doc, UPDATE_CONTENT_STATE, PR_TRUE);
       doc->ContentStateChanged(thisContent, changedBits);
     }
     if (aSync) {
-      // Make sure that frames are actually constructed immediately.
+      // Make sure that frames are actually constructed, and do it after
+      // EndUpdate was called.
       doc->FlushPendingNotifications(Flush_Frames);
     }
   } else if (aOldType != mType) {
@@ -1714,8 +1706,12 @@ nsObjectLoadingContent::GetTypeOfContent(const nsCString& aMIMEType)
     return eType_Image;
   }
 
+#ifdef MOZ_SVG
   PRBool isSVG = aMIMEType.LowerCaseEqualsLiteral("image/svg+xml");
   PRBool supportedSVG = isSVG && (caps & eSupportSVG);
+#else
+  PRBool supportedSVG = PR_FALSE;
+#endif
   if (((caps & eSupportDocuments) || supportedSVG) &&
       IsSupportedDocument(aMIMEType)) {
     return eType_Document;

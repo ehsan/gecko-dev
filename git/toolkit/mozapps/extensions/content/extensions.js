@@ -50,7 +50,7 @@ Cu.import("resource://gre/modules/AddonRepository.jsm");
 
 const PREF_DISCOVERURL = "extensions.webservice.discoverURL";
 const PREF_MAXRESULTS = "extensions.getAddons.maxResults";
-const PREF_CHECK_COMPATIBILITY_BASE = "extensions.checkCompatibility";
+const PREF_CHECK_COMPATIBILITY = "extensions.checkCompatibility";
 const PREF_CHECK_UPDATE_SECURITY = "extensions.checkUpdateSecurity";
 const PREF_AUTOUPDATE_DEFAULT = "extensions.update.autoUpdateDefault";
 const PREF_GETADDONS_CACHE_ENABLED = "extensions.getAddons.cache.enabled";
@@ -59,14 +59,6 @@ const PREF_UI_TYPE_HIDDEN = "extensions.ui.%TYPE%.hidden";
 const PREF_UI_LASTCATEGORY = "extensions.ui.lastCategory";
 
 const BRANCH_REGEXP = /^([^\.]+\.[0-9]+[a-z]*).*/gi;
-
-#ifdef MOZ_COMPATABILITY_NIGHTLY
-const PREF_CHECK_COMPATIBILITY = PREF_CHECK_COMPATIBILITY_BASE +
-                                 ".nightly";
-#else
-const PREF_CHECK_COMPATIBILITY = PREF_CHECK_COMPATIBILITY_BASE + "." +
-                                 Services.appinfo.version.replace(BRANCH_REGEXP, "$1");
-#endif
 
 const LOADING_MSG_DELAY = 100;
 
@@ -314,6 +306,7 @@ else {
 var gEventManager = {
   _listeners: {},
   _installListeners: [],
+  checkCompatibilityPref: "",
 
   initialize: function() {
     var self = this;
@@ -336,8 +329,11 @@ var gEventManager = {
     });
     AddonManager.addInstallListener(this);
     AddonManager.addAddonListener(this);
+    
+    var version = Services.appinfo.version.replace(BRANCH_REGEXP, "$1");
+    this.checkCompatibilityPref = PREF_CHECK_COMPATIBILITY + "." + version;
 
-    Services.prefs.addObserver(PREF_CHECK_COMPATIBILITY, this, false);
+    Services.prefs.addObserver(this.checkCompatibilityPref, this, false);
     Services.prefs.addObserver(PREF_CHECK_UPDATE_SECURITY, this, false);
     Services.prefs.addObserver(PREF_AUTOUPDATE_DEFAULT, this, false);
 
@@ -365,7 +361,7 @@ var gEventManager = {
   },
 
   shutdown: function() {
-    Services.prefs.removeObserver(PREF_CHECK_COMPATIBILITY, this);
+    Services.prefs.removeObserver(this.checkCompatibilityPref, this);
     Services.prefs.removeObserver(PREF_CHECK_UPDATE_SECURITY, this);
     Services.prefs.removeObserver(PREF_AUTOUPDATE_DEFAULT, this, false);
 
@@ -466,7 +462,7 @@ var gEventManager = {
 
     var checkCompatibility = true;
     try {
-      checkCompatibility = Services.prefs.getBoolPref(PREF_CHECK_COMPATIBILITY);
+      checkCompatibility = Services.prefs.getBoolPref(this.checkCompatibilityPref);
     } catch(e) { }
     if (!checkCompatibility) {
       page.setAttribute("warning", "checkcompatibility");
@@ -489,7 +485,7 @@ var gEventManager = {
   
   observe: function(aSubject, aTopic, aData) {
     switch (aData) {
-    case PREF_CHECK_COMPATIBILITY:
+    case this.checkCompatibilityPref:
     case PREF_CHECK_UPDATE_SECURITY:
       this.refreshGlobalWarning();
       break;
@@ -724,7 +720,7 @@ var gViewController = {
     cmd_enableCheckCompatibility: {
       isEnabled: function() true,
       doCommand: function() {
-        Services.prefs.clearUserPref(PREF_CHECK_COMPATIBILITY);
+        Services.prefs.clearUserPref(gEventManager.checkCompatibilityPref);
       }
     },
 
@@ -924,20 +920,11 @@ var gViewController = {
 
     cmd_showItemPreferences: {
       isEnabled: function(aAddon) {
-        if (!aAddon || !aAddon.isActive || !aAddon.optionsURL)
+        if (!aAddon)
           return false;
-        if (gViewController.currentViewObj == gDetailView &&
-            aAddon.optionsType == AddonManager.OPTIONS_TYPE_INLINE) {
-          return false;
-        }
-        return true;
+        return aAddon.isActive && !!aAddon.optionsURL;
       },
       doCommand: function(aAddon) {
-        if (gViewController.currentViewObj == gListView &&
-            aAddon.optionsType == AddonManager.OPTIONS_TYPE_INLINE) {
-          gViewController.commands.cmd_showItemDetails.doCommand(aAddon);
-          return;
-        }
         var optionsURL = aAddon.optionsURL;
         var windows = Services.wm.getEnumerator(null);
         while (windows.hasMoreElements()) {
@@ -2663,8 +2650,7 @@ var gDetailView = {
       document.getElementById("detail-findUpdates-btn").hidden = false;
     }
 
-    document.getElementById("detail-prefs-btn").hidden = !aIsRemote &&
-      !gViewController.commands.cmd_showItemPreferences.isEnabled(aAddon);
+    document.getElementById("detail-prefs-btn").hidden = !aIsRemote && !aAddon.optionsURL;
     
     var gridRows = document.querySelectorAll("#detail-grid rows row");
     for (var i = 0, first = true; i < gridRows.length; ++i) {
@@ -2675,8 +2661,6 @@ var gDetailView = {
         gridRows[i].removeAttribute("first-row");
       }
     }
-
-    this.fillSettingsRows();
 
     this.updateState();
 
@@ -2763,7 +2747,7 @@ var gDetailView = {
         );
         var errorLink = document.getElementById("detail-error-link");
         errorLink.value = gStrings.ext.GetStringFromName("details.notification.blocked.link");
-        errorLink.href = this._addon.blocklistURL;
+        errorLink.href = Services.urlFormatter.formatURLPref("extensions.blocklist.detailsURL");
         errorLink.hidden = false;
       } else if (!this._addon.isCompatible) {
         this.node.setAttribute("notification", "warning");
@@ -2780,7 +2764,7 @@ var gDetailView = {
         );
         var warningLink = document.getElementById("detail-warning-link");
         warningLink.value = gStrings.ext.GetStringFromName("details.notification.softblocked.link");
-        warningLink.href = this._addon.blocklistURL;
+        warningLink.href = Services.urlFormatter.formatURLPref("extensions.blocklist.detailsURL");
         warningLink.hidden = false;
       } else if (this._addon.blocklistState == Ci.nsIBlocklistService.STATE_OUTDATED) {
         this.node.setAttribute("notification", "warning");
@@ -2809,71 +2793,6 @@ var gDetailView = {
     this.node.removeAttribute("loading-extended");
   },
 
-  emptySettingsRows: function () {
-    var lastRow = document.getElementById("detail-downloads");
-    var rows = lastRow.parentNode;
-    while (lastRow.nextSibling)
-      rows.removeChild(rows.lastChild);
-  },
-
-  fillSettingsRows: function () {
-    this.emptySettingsRows();
-    if (this._addon.optionsType != AddonManager.OPTIONS_TYPE_INLINE)
-      return;
-
-    var rows = document.getElementById("detail-downloads").parentNode;
-
-    var xhr = new XMLHttpRequest();
-    xhr.open("GET", this._addon.optionsURL, false);
-    xhr.send();
-
-    var xml = xhr.responseXML;
-    var settings = xml.querySelectorAll(":root > setting");
-
-    // This horrible piece of code fixes two problems. 1) The menulist binding doesn't apply
-    // correctly when it's moved from one document to another (bug 659163), which is solved 
-    // by manually cloning the menulist. 2) Labels and controls aligned to the top of a row 
-    // looks really bad, so the description is put on a new row to preserve alignment.
-    for (var i = 0; i < settings.length; i++) {
-      var setting = settings[i];
-      if (i == 0)
-        setting.setAttribute("first-row", true);
-
-      // remove menulist controls for replacement later
-      var control = setting.firstElementChild;
-      if (setting.getAttribute("type") == "control" && control && control.localName == "menulist") {
-        setting.removeChild(control);
-        var consoleMessage = Cc["@mozilla.org/scripterror;1"].
-                             createInstance(Ci.nsIScriptError);
-        consoleMessage.init("Menulist is not available in the addons-manager yet, due to bug 659163",
-                            this._addon.optionsURL, null, null, 0, Ci.nsIScriptError.warningFlag, null);
-        Services.console.logMessage(consoleMessage);
-        continue;
-      }
-
-      // remove setting description, for replacement later
-      var desc = setting.textContent.trim();
-      if (desc)
-        setting.textContent = "";
-      if (setting.hasAttribute("desc")) {
-        desc = setting.getAttribute("desc");
-        setting.removeAttribute("desc");
-      }
-
-      rows.appendChild(setting);
-
-      // add a new row containing the description
-      if (desc) {
-        var row = document.createElement("row");
-        var label = document.createElement("label");
-        label.className = "preferences-description";
-        label.textContent = desc;
-        row.appendChild(label);
-        rows.appendChild(row);
-      }
-    }
-  },
-
   getSelectedAddon: function() {
     return this._addon;
   },
@@ -2884,7 +2803,6 @@ var gDetailView = {
 
   onEnabled: function() {
     this.updateState();
-    this.fillSettingsRows();
   },
 
   onDisabling: function() {
@@ -2893,7 +2811,6 @@ var gDetailView = {
 
   onDisabled: function() {
     this.updateState();
-    this.emptySettingsRows();
   },
 
   onUninstalling: function() {

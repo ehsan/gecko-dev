@@ -124,8 +124,8 @@ class Element;
 
 
 #define NS_IDOCUMENT_IID      \
-{ 0x2ec7872f, 0x97c3, 0x43de, \
-  { 0x81, 0x0a, 0x8f, 0x18, 0xa0, 0xa0, 0xdf, 0x30 } }
+{ 0x26ef6218, 0xcd5e, 0x4953,  \
+ { 0xbb, 0x57, 0xb8, 0x50, 0x29, 0xa1, 0xae, 0x40 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -361,7 +361,7 @@ public:
   /**
    * Get the Content-Type of this document.
    * (This will always return NS_OK, but has this signature to be compatible
-   *  with nsIDOMDocument::GetContentType())
+   *  with nsIDOMNSDocument::GetContentType())
    */
   NS_IMETHOD GetContentType(nsAString& aContentType) = 0;
 
@@ -479,6 +479,8 @@ public:
 
   void SetBFCacheEntry(nsISHEntry* aSHEntry) {
     mSHEntry = aSHEntry;
+    // Doing this just to keep binary compat for the gecko 2.0 release
+    mShellIsHidden = !!aSHEntry;
   }
 
   nsISHEntry* GetBFCacheEntry() const { return mSHEntry; }
@@ -756,8 +758,7 @@ public:
   virtual void SetReadyStateInternal(ReadyState rs) = 0;
   virtual ReadyState GetReadyStateEnum() = 0;
 
-  // notify that a content node changed state.  This must happen under
-  // a scriptblocker but NOT within a begin/end update.
+  // notify that a content node changed state
   virtual void ContentStateChanged(nsIContent* aContent,
                                    nsEventStates aStateMask) = 0;
 
@@ -1078,7 +1079,7 @@ public:
                                      nsIDOMNodeList** aResult) = 0;
 
   /**
-   * Helper for nsIDOMDocument::elementFromPoint implementation that allows
+   * Helper for nsIDOMNSDocument::elementFromPoint implementation that allows
    * ignoring the scroll frame and/or avoiding layout flushes.
    *
    * @see nsIDOMWindowUtils::elementFromPoint
@@ -1518,8 +1519,6 @@ public:
 
   virtual nsresult GetStateObject(nsIVariant** aResult) = 0;
 
-  virtual Element* FindImageMap(const nsAString& aNormalizedMapName) = 0;
-
 protected:
   ~nsIDocument()
   {
@@ -1621,6 +1620,10 @@ protected:
   // documents created to satisfy a GetDocument() on a window when there's no
   // document in it.
   PRPackedBool mIsInitialDocumentInWindow;
+
+  // True if we're currently bfcached. This is only here for binary compat.
+  // Remove once the gecko 2.0 has branched and just use mSHEntry instead.
+  PRPackedBool mShellIsHidden;
 
   PRPackedBool mIsRegularHTML;
   PRPackedBool mIsXUL;
@@ -1793,8 +1796,10 @@ NS_NewHTMLDocument(nsIDocument** aInstancePtrResult);
 nsresult
 NS_NewXMLDocument(nsIDocument** aInstancePtrResult);
 
+#ifdef MOZ_SVG
 nsresult
 NS_NewSVGDocument(nsIDocument** aInstancePtrResult);
+#endif
 
 nsresult
 NS_NewImageDocument(nsIDocument** aInstancePtrResult);

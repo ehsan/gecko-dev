@@ -56,9 +56,6 @@
 #include "nsSVGUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIPrefService.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 /*static*/ PRBool
 nsSVGFeatures::HaveFeature(nsISupports* aObject, const nsAString& aFeature)
@@ -106,7 +103,9 @@ nsSVGFeatures::HaveExtension(const nsAString& aExtension)
 {
 #define SVG_SUPPORTED_EXTENSION(str) if (aExtension.EqualsLiteral(str)) return PR_TRUE;
   SVG_SUPPORTED_EXTENSION("http://www.w3.org/1999/xhtml")
+#ifdef MOZ_MATHML
   SVG_SUPPORTED_EXTENSION("http://www.w3.org/1998/Math/MathML")
+#endif
 #undef SVG_SUPPORTED_EXTENSION
 
   return PR_FALSE;
@@ -240,7 +239,7 @@ nsSVGFeatures::PassesConditionalProcessingTests(nsIContent *aContent,
                         value)) {
 
     const nsAutoString acceptLangs(aAcceptLangs ? *aAcceptLangs :
-      Preferences::GetLocalizedString("intl.accept_languages"));
+      nsContentUtils::GetLocalizedStringPref("intl.accept_languages"));
 
     // Get our language preferences
     if (!acceptLangs.IsEmpty()) {

@@ -566,7 +566,6 @@ static const char *sSurfaceNamesForSurfaceType[] = {
     "explicit/gfx/surface/tee",
     "explicit/gfx/surface/xml",
     "explicit/gfx/surface/skia",
-    "explicit/gfx/surface/subsurface",
     "explicit/gfx/surface/d2d"
 };
 
@@ -599,11 +598,6 @@ public:
     { }
 
     NS_DECL_ISUPPORTS
-
-    NS_IMETHOD GetProcess(char **process) {
-        *process = strdup("");
-        return NS_OK;
-    }
 
     NS_IMETHOD GetPath(char **memoryPath) {
         *memoryPath = strdup(SurfaceMemoryReporterPathForType(mType));

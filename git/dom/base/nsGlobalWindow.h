@@ -109,6 +109,7 @@
 #include "nsIIDBFactory.h"
 #include "nsFrameMessageManager.h"
 #include "mozilla/TimeStamp.h"
+#include "nsContentUtils.h"
 
 // JS includes
 #include "jsapi.h"
@@ -567,7 +568,9 @@ public:
     return sOuterWindowsById ? sOuterWindowsById->Get(aWindowID) : nsnull;
   }
 
-  static bool HasIndexedDBSupport();
+  static bool HasIndexedDBSupport() {
+    return nsContentUtils::GetBoolPref("indexedDB.feature.enabled", PR_TRUE);
+  }
 
 private:
   // Enable updates for the accelerometer.
@@ -724,7 +727,7 @@ protected:
 
   static void MakeScriptDialogTitle(nsAString &aOutTitle);
 
-  PRBool CanMoveResizeWindows();
+  static PRBool CanMoveResizeWindows();
 
   PRBool   GetBlurSuppression();
 
@@ -757,13 +760,11 @@ protected:
   {
     NS_ASSERTION(!IsFrozen(), "Double-freezing?");
     mIsFrozen = PR_TRUE;
-    NotifyDOMWindowFrozen(this);
   }
 
   void Thaw()
   {
     mIsFrozen = PR_FALSE;
-    NotifyDOMWindowThawed(this);
   }
 
   PRBool IsInModalState();
@@ -809,9 +810,6 @@ protected:
 
   static void NotifyDOMWindowDestroyed(nsGlobalWindow* aWindow);
   void NotifyWindowIDDestroyed(const char* aTopic);
-
-  static void NotifyDOMWindowFrozen(nsGlobalWindow* aWindow);
-  static void NotifyDOMWindowThawed(nsGlobalWindow* aWindow);
   
   void ClearStatus();
 

@@ -41,10 +41,13 @@
 
 #include "GfxInfoWebGL.h"
 #include "GfxDriverInfo.h"
+#include "nsIPrefBranch2.h"
+#include "nsIPrefService.h"
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
 #include "nsAutoPtr.h"
 #include "nsString.h"
+#include "nsServiceManagerUtils.h"
 #include "mozilla/Services.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
@@ -53,9 +56,8 @@
 #include "nsIDOM3Node.h"
 #include "nsIDOMNodeList.h"
 #include "nsTArray.h"
-#include "mozilla/Preferences.h"
 
-#if defined(MOZ_CRASHREPORTER)
+#if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
 #include "nsExceptionHandler.h"
 #endif
 
@@ -87,7 +89,7 @@ StoreSpline(int ax, int ay, int bx, int by, int cx, int cy, int dx, int dy) {
 
 void
 CrashSpline(double tolerance, int ax, int ay, int bx, int by, int cx, int cy, int dx, int dy) {
-#if defined(MOZ_CRASHREPORTER)
+#if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
   static bool annotated;
 
   if (!annotated) {
@@ -120,7 +122,6 @@ CrashSpline(double tolerance, int ax, int ay, int bx, int by, int cx, int cy, in
 
 
 using namespace mozilla::widget;
-using namespace mozilla;
 
 NS_IMPL_ISUPPORTS3(GfxInfoBase, nsIGfxInfo, nsIObserver, nsISupportsWeakReference)
 
@@ -170,8 +171,16 @@ GetPrefValueForFeature(PRInt32 aFeature, PRInt32& aValue)
   if (!prefname)
     return false;
 
-  aValue = PR_FALSE;
-  return NS_SUCCEEDED(Preferences::GetInt(prefname, &aValue));
+  nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  if (prefs) {
+    PRInt32 val;
+    if (NS_SUCCEEDED(prefs->GetIntPref(prefname, &val))) {
+      aValue = val;
+      return true;
+    }
+  }
+
+  return false;
 }
 
 static void
@@ -181,7 +190,10 @@ SetPrefValueForFeature(PRInt32 aFeature, PRInt32 aValue)
   if (!prefname)
     return;
 
-  Preferences::SetInt(prefname, aValue);
+  nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  if (prefs) {
+    prefs->SetIntPref(prefname, aValue);
+  }
 }
 
 static void
@@ -191,26 +203,46 @@ RemovePrefForFeature(PRInt32 aFeature)
   if (!prefname)
     return;
 
-  Preferences::ClearUser(prefname);
+  nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  if (prefs) {
+    prefs->ClearUserPref(prefname);
+  }
 }
 
 static bool
-GetPrefValueForDriverVersion(nsCString& aVersion)
+GetPrefValueForDriverVersion(nsACString& aVersion)
 {
-  return NS_SUCCEEDED(Preferences::GetCString(SUGGESTED_VERSION_PREF,
-                                              &aVersion));
+  nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  if (prefs) {
+    nsXPIDLCString version;
+    if (NS_SUCCEEDED(prefs->GetCharPref(SUGGESTED_VERSION_PREF,
+                                        getter_Copies(version)))) {
+      aVersion = version;
+      return true;
+    }
+  }
+
+  return false;
 }
 
 static void
 SetPrefValueForDriverVersion(const nsAString& aVersion)
 {
-  Preferences::SetString(SUGGESTED_VERSION_PREF, aVersion);
+  nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  if (prefs) {
+    nsCAutoString ver = NS_LossyConvertUTF16toASCII(aVersion);
+    prefs->SetCharPref(SUGGESTED_VERSION_PREF,
+                       PromiseFlatCString(ver).get());
+  }
 }
 
 static void
 RemovePrefForDriverVersion()
 {
-  Preferences::ClearUser(SUGGESTED_VERSION_PREF);
+  nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  if (prefs) {
+    prefs->ClearUserPref(SUGGESTED_VERSION_PREF);
+  }
 }
 
 // <foo>Hello</foo> - "Hello" is stored as a child text node of the foo node.
@@ -645,7 +677,7 @@ GfxInfoBase::LogFailure(const nsACString &failure)
     mFailures[mFailureCount++] = failure;
 
     /* record it in the crash notes too */
-#if defined(MOZ_CRASHREPORTER)
+#if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
     CrashReporter::AppendAppNotesToCrashReport(failure);
 #endif
   }

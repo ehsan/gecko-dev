@@ -1185,8 +1185,7 @@ init_declarator_list
         }
     }
     | init_declarator_list COMMA IDENTIFIER {
-        TIntermSymbol* symbol = context->intermediate.addSymbol(0, *$3.string, TType($1.type), $3.line);
-        $$.intermAggregate = context->intermediate.growAggregate($1.intermNode, symbol, $3.line);
+        $$.intermAggregate = context->intermediate.growAggregate($1.intermNode, context->intermediate.addSymbol(0, *$3.string, TType($1.type), $3.line), $3.line);
         
         if (context->structQualifierErrorCheck($3.line, $$.type))
             context->recover();
@@ -1194,11 +1193,8 @@ init_declarator_list
         if (context->nonInitConstErrorCheck($3.line, *$3.string, $$.type))
             context->recover();
 
-        TVariable* variable = 0;
-        if (context->nonInitErrorCheck($3.line, *$3.string, $$.type, variable))
+        if (context->nonInitErrorCheck($3.line, *$3.string, $$.type))
             context->recover();
-        if (symbol && variable)
-            symbol->setId(variable->getUniqueId());
     }
     | init_declarator_list COMMA IDENTIFIER LEFT_BRACKET RIGHT_BRACKET {
         if (context->structQualifierErrorCheck($3.line, $1.type))
@@ -1234,12 +1230,12 @@ init_declarator_list
             if (context->arraySizeErrorCheck($4.line, $5, size))
                 context->recover();
             $1.type.setArray(true, size);
-            TVariable* variable = 0;
+            TVariable* variable;
             if (context->arrayErrorCheck($4.line, *$3.string, $1.type, variable))
                 context->recover();
             TType type = TType($1.type);
             type.setArraySize(size);
-            $$.intermAggregate = context->intermediate.growAggregate($1.intermNode, context->intermediate.addSymbol(variable ? variable->getUniqueId() : 0, *$3.string, type, $3.line), $3.line);
+            $$.intermAggregate = context->intermediate.growAggregate($1.intermNode, context->intermediate.addSymbol(0, *$3.string, type, $3.line), $3.line);
         }
     }
     | init_declarator_list COMMA IDENTIFIER EQUAL initializer {
@@ -1270,8 +1266,7 @@ single_declaration
         $$.intermAggregate = context->intermediate.makeAggregate(context->intermediate.addSymbol(0, "", TType($1), $1.line), $1.line);
     }
     | fully_specified_type IDENTIFIER {
-        TIntermSymbol* symbol = context->intermediate.addSymbol(0, *$2.string, TType($1), $2.line);
-        $$.intermAggregate = context->intermediate.makeAggregate(symbol, $2.line);
+        $$.intermAggregate = context->intermediate.makeAggregate(context->intermediate.addSymbol(0, *$2.string, TType($1), $2.line), $2.line);
         
         if (context->structQualifierErrorCheck($2.line, $$.type))
             context->recover();
@@ -1281,15 +1276,11 @@ single_declaration
             
             $$.type = $1;
 
-        TVariable* variable = 0;
-        if (context->nonInitErrorCheck($2.line, *$2.string, $$.type, variable))
+        if (context->nonInitErrorCheck($2.line, *$2.string, $$.type))
             context->recover();
-        if (variable && symbol)
-            symbol->setId(variable->getUniqueId());
     }
     | fully_specified_type IDENTIFIER LEFT_BRACKET RIGHT_BRACKET {
-        TIntermSymbol* symbol = context->intermediate.addSymbol(0, *$2.string, TType($1), $2.line);
-        $$.intermAggregate = context->intermediate.makeAggregate(symbol, $2.line);
+        $$.intermAggregate = context->intermediate.makeAggregate(context->intermediate.addSymbol(0, *$2.string, TType($1), $2.line), $2.line);
         
         if (context->structQualifierErrorCheck($2.line, $1))
             context->recover();
@@ -1303,11 +1294,9 @@ single_declaration
             context->recover();
         else {
             $1.setArray(true);
-            TVariable* variable = 0;
+            TVariable* variable;
             if (context->arrayErrorCheck($3.line, *$2.string, $1, variable))
                 context->recover();
-            if (variable && symbol)
-                symbol->setId(variable->getUniqueId());
         }
     }
     | fully_specified_type IDENTIFIER LEFT_BRACKET constant_expression RIGHT_BRACKET {
@@ -1316,8 +1305,7 @@ single_declaration
         if (context->arraySizeErrorCheck($2.line, $4, size))
             context->recover();
         type.setArraySize(size);
-        TIntermSymbol* symbol = context->intermediate.addSymbol(0, *$2.string, type, $2.line);
-        $$.intermAggregate = context->intermediate.makeAggregate(symbol, $2.line);
+        $$.intermAggregate = context->intermediate.makeAggregate(context->intermediate.addSymbol(0, *$2.string, type, $2.line), $2.line);
         
         if (context->structQualifierErrorCheck($2.line, $1))
             context->recover();
@@ -1335,11 +1323,9 @@ single_declaration
                 context->recover();
 
             $1.setArray(true, size);
-            TVariable* variable = 0;
+            TVariable* variable;
             if (context->arrayErrorCheck($3.line, *$2.string, $1, variable))
                 context->recover();
-            if (variable && symbol)
-                symbol->setId(variable->getUniqueId());
         }
     }
     | fully_specified_type IDENTIFIER EQUAL initializer {

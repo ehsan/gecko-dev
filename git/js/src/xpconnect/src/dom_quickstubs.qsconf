@@ -111,17 +111,6 @@ members = [
     'nsIDOMDocument.adoptNode',
     'nsIDOMDocument.defaultView',
     'nsIDOMDocument.createNodeIterator',
-    'nsIDOMDocument.createEvent',
-    'nsIDOMDocument.getElementsByClassName',
-    'nsIDOMDocument.title',
-    'nsIDOMDocument.referrer',
-    'nsIDOMDocument.hasFocus',
-    # This property is treated specially in nsDOMClassInfo in a way that
-    # would shadow any quick stub.  Also, document.location is a special
-    # case for security.
-    #'nsIDOMDocument.location',
-    'nsIDOMDocument.elementFromPoint',
-    'nsIDOMDocument.activeElement',
     'nsIDOMElement.removeAttributeNS',
     'nsIDOMElement.removeAttribute',
     'nsIDOMElement.getAttribute',
@@ -171,6 +160,15 @@ members = [
     'nsIDOMNameList.containsNS',
     'nsIDOMNameList.length',
     'nsIDOMNameList.getNamespaceURI',
+    'nsIDOMNSDocument.getElementsByClassName',
+    'nsIDOMNSDocument.title',
+    'nsIDOMNSDocument.hasFocus',
+    # This property is treated specially in nsDOMClassInfo in a way that
+    # would shadow any quick stub.  Also, document.location is a special
+    # case for security.
+    #'nsIDOMNSDocument.location',
+    'nsIDOMNSDocument.elementFromPoint',
+    'nsIDOMNSDocument.activeElement',
     'nsIDOMXULDocument.getBoxObjectFor',
     'nsIDOMNSElement.*',
 
@@ -184,6 +182,7 @@ members = [
     'nsIDOMEventTarget.dispatchEvent',
     'nsIDOMEventTarget.removeEventListener',
     'nsIDOMNSEventTarget.addEventListener',
+    'nsIDOMDocumentEvent.*',
 
     'nsIDOMEvent.*',
     'nsIDOMMouseEvent.*',
@@ -236,15 +235,14 @@ members = [
     'nsIDOMHTMLDocument.getElementsByName',
     'nsIDOMHTMLDocument.anchors',
     'nsIDOMHTMLDocument.links',
+    'nsIDOMHTMLDocument.title',
     'nsIDOMHTMLDocument.URL',
+    'nsIDOMHTMLDocument.referrer',
     'nsIDOMHTMLDocument.forms',
     'nsIDOMHTMLDocument.cookie',
     'nsIDOMHTMLDocument.images',
     'nsIDOMHTMLDocument.write',
     'nsIDOMHTMLDocument.writeln',
-    'nsIDOMHTMLDocument.domain',
-    'nsIDOMHTMLDocument.getSelection',
-    'nsIDOMHTMLDocument.designMode',
     'nsIDOMHTMLElement.*',
     'nsIDOMHTMLFormElement.elements',
     'nsIDOMHTMLFormElement.name',
@@ -338,6 +336,9 @@ members = [
     'nsIDOMHTMLCanvasElement.height',
     'nsIDOMHTMLCanvasElement.getContext',
     'nsIDOMHTMLCanvasElement.toDataURL',
+    'nsIDOMNSHTMLDocument.domain',
+    'nsIDOMNSHTMLDocument.getSelection',
+    'nsIDOMNSHTMLDocument.designMode',
     'nsIDOMNSHTMLElement.contentEditable',
     'nsIDOMNSHTMLElement.isContentEditable',
     'nsIDOMNSHTMLElement.offsetParent',
@@ -553,7 +554,7 @@ nsIDOMHTMLDocument_Write_customMethodCallCode = """
       str.Append(next_arg);
     }
 
-    rv = self->%s(arg0, cx);
+    rv = self->%s(arg0);
 """
 
 nsIDOMStorage_Clear_customMethodCallCode = """
@@ -669,6 +670,9 @@ customMethodCalls = {
                 'self->GetElementsByName(arg0);',
         'canFail': False
         },
+    'nsIDOMNSHTMLDocument_': {
+        'thisType': 'nsHTMLDocument'
+        },
     'nsIDOMStorage_Clear': {
         'code': nsIDOMStorage_Clear_customMethodCallCode
         },
@@ -780,6 +784,19 @@ customMethodCalls = {
         'thisType': 'nsGenericElement',
         'code': '    PRBool result = self->MozMatchesSelector(arg0, &rv);',
         },
+    'nsIDOM3Text_': {
+        'thisType': 'nsGenericTextNode'
+        },
+    'nsIDOM3Text_IsElementContentWhitespace': {
+        'thisType': 'nsGenericTextNode',
+        'code': '    PRBool result = self->IsElementContentWhitespace();',
+        'canFail': False
+        },
+    'nsIDOM3Text_ReplaceWholeText': {
+        'thisType': 'nsGenericTextNode',
+        'code': '    nsIContent* result = '
+                'self->ReplaceWholeText(PromiseFlatString(arg0), &rv);'
+        },
     'nsIDOMNodeSelector_QuerySelector': {
         'thisType': 'nsINode',
         'code': '    nsIContent* result = '
@@ -875,6 +892,9 @@ customMethodCalls = {
         'code': '    nsRefPtr<nsContentList> result ='
                 'self->GetElementsByTagNameNS(arg0, arg1);',
         'canFail': False
+        },
+    'nsIDOMNSDocument_': {
+        'thisType': 'nsDocument'
         },
     'nsIDOMElement_': {
         'thisType': 'nsGenericElement'

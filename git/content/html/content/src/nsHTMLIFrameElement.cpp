@@ -37,8 +37,10 @@
 #include "nsIDOMHTMLIFrameElement.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMDocument.h"
+#ifdef MOZ_SVG
 #include "nsIDOMGetSVGDocument.h"
 #include "nsIDOMSVGDocument.h"
+#endif
 #include "nsGkAtoms.h"
 #include "nsIDocument.h"
 #include "nsMappedAttributes.h"
@@ -50,7 +52,9 @@ using namespace mozilla::dom;
 
 class nsHTMLIFrameElement : public nsGenericHTMLFrameElement
                           , public nsIDOMHTMLIFrameElement
+#ifdef MOZ_SVG
                           , public nsIDOMGetSVGDocument
+#endif
 {
 public:
   nsHTMLIFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
@@ -72,8 +76,10 @@ public:
   // nsIDOMHTMLIFrameElement
   NS_DECL_NSIDOMHTMLIFRAMEELEMENT
 
+#ifdef MOZ_SVG
   // nsIDOMGetSVGDocument
   NS_DECL_NSIDOMGETSVGDOCUMENT
+#endif
 
   // nsIContent
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
@@ -111,7 +117,9 @@ DOMCI_NODE_DATA(HTMLIFrameElement, nsHTMLIFrameElement)
 NS_INTERFACE_TABLE_HEAD(nsHTMLIFrameElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(nsHTMLIFrameElement)
     NS_INTERFACE_TABLE_ENTRY(nsHTMLIFrameElement, nsIDOMHTMLIFrameElement)
+#ifdef MOZ_SVG
     NS_INTERFACE_TABLE_ENTRY(nsHTMLIFrameElement, nsIDOMGetSVGDocument)
+#endif
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLIFrameElement,
                                                nsGenericHTMLFrameElement)
@@ -138,11 +146,13 @@ nsHTMLIFrameElement::GetContentDocument(nsIDOMDocument** aContentDocument)
   return nsGenericHTMLFrameElement::GetContentDocument(aContentDocument);
 }
 
+#ifdef MOZ_SVG
 NS_IMETHODIMP
 nsHTMLIFrameElement::GetSVGDocument(nsIDOMDocument **aResult)
 {
   return GetContentDocument(aResult);
 }
+#endif
 
 PRBool
 nsHTMLIFrameElement::ParseAttribute(PRInt32 aNamespaceID,

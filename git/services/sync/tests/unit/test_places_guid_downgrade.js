@@ -1,4 +1,3 @@
-Cu.import("resource://services-sync/async.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/engines/history.js");
@@ -82,18 +81,13 @@ function test_history_guids() {
   let engine = new HistoryEngine();
   let store = engine._store;
 
-  PlacesUtils.history.addPageWithDetails(fxuri, "Get Firefox!",
-                                         Date.now() * 1000);
-  PlacesUtils.history.addPageWithDetails(tburi, "Get Thunderbird!",
-                                         Date.now() * 1000);
+  Svc.History.addPageWithDetails(fxuri, "Get Firefox!", Date.now() * 1000);
+  Svc.History.addPageWithDetails(tburi, "Get Thunderbird!", Date.now() * 1000);
 
   // Hack: flush the places db by adding a random bookmark.
   let uri = Utils.makeURI("http://mozilla.com/");
-  let fxid = PlacesUtils.bookmarks.insertBookmark(
-    PlacesUtils.bookmarks.toolbarFolder,
-    uri,
-    PlacesUtils.bookmarks.DEFAULT_INDEX,
-    "Mozilla");
+  let fxid = Svc.Bookmark.insertBookmark(
+    Svc.Bookmark.toolbarFolder, uri, Svc.Bookmark.DEFAULT_INDEX, "Mozilla");
 
   let fxguid = store.GUIDForUri(fxuri, true);
   let tbguid = store.GUIDForUri(tburi, true);
@@ -101,27 +95,27 @@ function test_history_guids() {
   dump("tbguid: " + tbguid + "\n");
 
   _("History: Verify GUIDs are added to the guid column.");
-  let stmt = PlacesUtils.history.DBConnection.createAsyncStatement(
+  let stmt = Svc.History.DBConnection.createAsyncStatement(
     "SELECT id FROM moz_places WHERE guid = :guid");
 
   stmt.params.guid = fxguid;
-  let result = Async.querySpinningly(stmt, ["id"]);
+  let result = Utils.queryAsync(stmt, ["id"]);
   do_check_eq(result.length, 1);
 
   stmt.params.guid = tbguid;
-  result = Async.querySpinningly(stmt, ["id"]);
+  result = Utils.queryAsync(stmt, ["id"]);
   do_check_eq(result.length, 1);
 
   _("History: Verify GUIDs weren't added to annotations.");
-  stmt = PlacesUtils.history.DBConnection.createAsyncStatement(
+  stmt = Svc.History.DBConnection.createAsyncStatement(
     "SELECT a.content AS guid FROM moz_annos a WHERE guid = :guid");
 
   stmt.params.guid = fxguid;
-  result = Async.querySpinningly(stmt, ["guid"]);
+  result = Utils.queryAsync(stmt, ["guid"]);
   do_check_eq(result.length, 0);
 
   stmt.params.guid = tbguid;
-  result = Async.querySpinningly(stmt, ["guid"]);
+  result = Utils.queryAsync(stmt, ["guid"]);
   do_check_eq(result.length, 0);
 }
 
@@ -129,44 +123,40 @@ function test_bookmark_guids() {
   let engine = new BookmarksEngine();
   let store = engine._store;
 
-  let fxid = PlacesUtils.bookmarks.insertBookmark(
-    PlacesUtils.bookmarks.toolbarFolder,
-    fxuri,
-    PlacesUtils.bookmarks.DEFAULT_INDEX,
+  let fxid = Svc.Bookmark.insertBookmark(
+    Svc.Bookmark.toolbarFolder, fxuri, Svc.Bookmark.DEFAULT_INDEX,
     "Get Firefox!");
-  let tbid = PlacesUtils.bookmarks.insertBookmark(
-    PlacesUtils.bookmarks.toolbarFolder,
-    tburi,
-    PlacesUtils.bookmarks.DEFAULT_INDEX,
+  let tbid = Svc.Bookmark.insertBookmark(
+    Svc.Bookmark.toolbarFolder, tburi, Svc.Bookmark.DEFAULT_INDEX,
     "Get Thunderbird!");
 
   let fxguid = store.GUIDForId(fxid);
   let tbguid = store.GUIDForId(tbid);
 
   _("Bookmarks: Verify GUIDs are added to the guid column.");
-  let stmt = PlacesUtils.history.DBConnection.createAsyncStatement(
+  let stmt = Svc.History.DBConnection.createAsyncStatement(
     "SELECT id FROM moz_bookmarks WHERE guid = :guid");
 
   stmt.params.guid = fxguid;
-  let result = Async.querySpinningly(stmt, ["id"]);
+  let result = Utils.queryAsync(stmt, ["id"]);
   do_check_eq(result.length, 1);
   do_check_eq(result[0].id, fxid);
 
   stmt.params.guid = tbguid;
-  result = Async.querySpinningly(stmt, ["id"]);
+  result = Utils.queryAsync(stmt, ["id"]);
   do_check_eq(result.length, 1);
   do_check_eq(result[0].id, tbid);
 
   _("Bookmarks: Verify GUIDs weren't added to annotations.");
-  stmt = PlacesUtils.history.DBConnection.createAsyncStatement(
+  stmt = Svc.History.DBConnection.createAsyncStatement(
     "SELECT a.content AS guid FROM moz_items_annos a WHERE guid = :guid");
 
   stmt.params.guid = fxguid;
-  result = Async.querySpinningly(stmt, ["guid"]);
+  result = Utils.queryAsync(stmt, ["guid"]);
   do_check_eq(result.length, 0);
 
   stmt.params.guid = tbguid;
-  result = Async.querySpinningly(stmt, ["guid"]);
+  result = Utils.queryAsync(stmt, ["guid"]);
   do_check_eq(result.length, 0);
 }
 

@@ -465,8 +465,14 @@ nsWindow::SetParent(nsIWidget *aNewParent)
     if (parent) {
         parent->RemoveChild(this);
     }
-    ReparentNativeWidget(aNewParent);
-    aNewParent->AddChild(this);
+    if (aNewParent) {
+        ReparentNativeWidget(aNewParent);
+        aNewParent->AddChild(this);
+        return NS_OK;
+    }
+    if (mWidget) {
+        mWidget->setParentItem(0);
+    }
     return NS_OK;
 }
 

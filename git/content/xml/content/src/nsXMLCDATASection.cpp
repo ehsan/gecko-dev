@@ -36,13 +36,14 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsIDOMCDATASection.h"
+#include "nsIDOM3Text.h"
 #include "nsGenericDOMDataNode.h"
 #include "nsGkAtoms.h"
 #include "nsIDocument.h"
 #include "nsContentUtils.h"
 
 
-class nsXMLCDATASection : public nsGenericDOMDataNode,
+class nsXMLCDATASection : public nsGenericTextNode,
                           public nsIDOMCDATASection
 {
 public:
@@ -98,7 +99,7 @@ NS_NewXMLCDATASection(nsIContent** aInstancePtrResult,
 }
 
 nsXMLCDATASection::nsXMLCDATASection(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : nsGenericDOMDataNode(aNodeInfo)
+  : nsGenericTextNode(aNodeInfo)
 {
 }
 
@@ -113,6 +114,7 @@ DOMCI_NODE_DATA(CDATASection, nsXMLCDATASection)
 NS_INTERFACE_TABLE_HEAD(nsXMLCDATASection)
   NS_NODE_INTERFACE_TABLE4(nsXMLCDATASection, nsIDOMNode, nsIDOMCharacterData,
                            nsIDOMText, nsIDOMCDATASection)
+  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOM3Text, new nsText3Tearoff(this))
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CDATASection)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericDOMDataNode)
 

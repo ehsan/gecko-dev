@@ -13,7 +13,6 @@ struct TLoopInfo {
     struct TIndex {
         int id;  // symbol id.
     } index;
-    TIntermLoop* loop;
 };
 typedef TVector<TLoopInfo> TLoopStack;
 

@@ -636,11 +636,8 @@ let Content = {
       }
 
       if (isTouchClick) {
-        let rect = new Rect(rects[0]);
-        if (rect.isEmpty())
-          return;
-
-        let point = rect.center();
+        let rect = rects[0];
+        let point = (new Rect(rect.left, rect.top, rect.width, rect.height)).center();
         aX = point.x;
         aY = point.y;
       }
@@ -653,7 +650,7 @@ let Content = {
   },
 
   _setMinFontSize: function _setMinFontSize(aSize) {
-    let viewer = docShell.contentViewer.QueryInterface(Ci.nsIMarkupDocumentViewer);
+    let viewer = docShell.contentViewer.QueryInterface(Ci.nsIMarkupDocumentViewer_MOZILLA_2_0_BRANCH);
     if (viewer)
       viewer.minFontSize = aSize;
   }
@@ -995,7 +992,7 @@ ContextHandler.registerType("link-shareable", function(aState, aElement) {
 });
 
 ContextHandler.registerType("input-text", function(aState, aElement) {
-    return (aElement instanceof Ci.nsIDOMHTMLInputElement && aElement.mozIsTextField(false)) || aElement instanceof Ci.nsIDOMHTMLTextAreaElement;
+    return aElement instanceof Ci.nsIDOMHTMLInputElement;
 });
 
 ["image", "video"].forEach(function(aType) {

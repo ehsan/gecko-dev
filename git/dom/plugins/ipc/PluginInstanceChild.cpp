@@ -105,7 +105,6 @@ static const TCHAR kPluginIgnoreSubclassProperty[] = TEXT("PluginIgnoreSubclassP
 
 #elif defined(XP_MACOSX)
 #include <ApplicationServices/ApplicationServices.h>
-#include "PluginUtilsOSX.h"
 #endif // defined(XP_MACOSX)
 
 template<>
@@ -136,7 +135,6 @@ PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface)
     , mShColorSpace(nsnull)
     , mShContext(nsnull)
     , mDrawingModel(NPDrawingModelCoreGraphics)
-    , mCGLayer(nsnull)
     , mCurrentEvent(nsnull)
 #endif
     , mLayersRendering(false)
@@ -154,7 +152,7 @@ PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface)
     , mHasPainted(false)
     , mSurfaceDifferenceRect(0,0,0,0)
 #if (MOZ_PLATFORM_MAEMO == 5) || (MOZ_PLATFORM_MAEMO == 6)
-    , mMaemoImageRendering(PR_TRUE)
+    , mMaemoImageRendering(PR_FALSE)
 #endif
 {
     memset(&mWindow, 0, sizeof(mWindow));
@@ -184,9 +182,6 @@ PluginInstanceChild::~PluginInstanceChild()
     }
     if (mShContext) {
         ::CGContextRelease(mShContext);
-    }
-    if (mCGLayer) {
-        mozilla::plugins::PluginUtilsOSX::ReleaseCGLayer(mCGLayer);
     }
 #endif
 }
@@ -286,7 +281,7 @@ PluginInstanceChild::NPN_GetValue(NPNVariable aVar,
     switch(aVar) {
 
     case NPNVSupportsWindowless:
-#if defined(OS_LINUX) || defined(MOZ_X11) || defined(OS_WIN)
+#if defined(OS_LINUX) || defined(OS_WIN)
         *((NPBool*)aValue) = true;
 #else
         *((NPBool*)aValue) = false;
@@ -305,7 +300,7 @@ PluginInstanceChild::NPN_GetValue(NPNVariable aVar,
         return NPERR_NO_ERROR;
     }
 #endif
-#if defined(MOZ_X11)
+#if defined(OS_LINUX)
     case NPNVSupportsXEmbedBool:
         *((NPBool*)aValue) = true;
         return NPERR_NO_ERROR;
@@ -482,9 +477,6 @@ PluginInstanceChild::NPN_SetValue(NPPVariable aVar, void* aValue)
             return NPERR_GENERIC_ERROR;
         mDrawingModel = drawingModel;
 
-        PLUGIN_LOG_DEBUG(("  Plugin requested drawing model id  #%i\n",
-            mDrawingModel));
-
         return rv;
     }
 
@@ -497,9 +489,6 @@ PluginInstanceChild::NPN_SetValue(NPPVariable aVar, void* aValue)
 #if defined(__i386__)
         mEventModel = static_cast<NPEventModel>(eventModel);
 #endif
-
-        PLUGIN_LOG_DEBUG(("  Plugin requested event model id # %i\n",
-            eventModel));
 
         return rv;
     }
@@ -789,32 +778,6 @@ PluginInstanceChild::AnswerNPP_HandleEvent_Shmem(const NPRemoteEvent& event,
 #endif
 
 #ifdef XP_MACOSX
-
-void CallCGDraw(CGContextRef ref, void* aPluginInstance, nsIntRect aUpdateRect) {
-  PluginInstanceChild* pluginInstance = (PluginInstanceChild*)aPluginInstance;
-
-  pluginInstance->CGDraw(ref, aUpdateRect);
-}
-
-bool
-PluginInstanceChild::CGDraw(CGContextRef ref, nsIntRect aUpdateRect) {
-
-  NPCocoaEvent drawEvent;
-  drawEvent.type = NPCocoaEventDrawRect;
-  drawEvent.version = 0;
-  drawEvent.data.draw.x = aUpdateRect.x;
-  drawEvent.data.draw.y = aUpdateRect.y;
-  drawEvent.data.draw.width = aUpdateRect.width;
-  drawEvent.data.draw.height = aUpdateRect.height;
-  drawEvent.data.draw.context = ref;
-
-  NPRemoteEvent remoteDrawEvent = {drawEvent};
-
-  int16_t handled;
-  AnswerNPP_HandleEvent(remoteDrawEvent, &handled);
-  return handled == true;
-}
-
 bool
 PluginInstanceChild::AnswerNPP_HandleEvent_IOSurface(const NPRemoteEvent& event,
                                                      const uint32_t &surfaceid,
@@ -840,16 +803,13 @@ PluginInstanceChild::AnswerNPP_HandleEvent_IOSurface(const NPRemoteEvent& event,
             NPError result = mPluginIface->getvalue(GetNPP(), 
                                      NPPVpluginCoreAnimationLayer,
                                      &caLayer);
-            
             if (result != NPERR_NO_ERROR || !caLayer) {
                 PLUGIN_LOG_DEBUG(("Plugin requested CoreAnimation but did not "
                                   "provide CALayer."));
                 *handled = false;
                 return false;
             }
-
             mCARenderer.SetupRenderer(caLayer, mWindow.width, mWindow.height);
-
             // Flash needs to have the window set again after this step
             if (mPluginIface->setwindow)
                 (void) mPluginIface->setwindow(&mData, &mWindow);
@@ -2318,17 +2278,12 @@ PluginInstanceChild::DoAsyncSetWindow(const gfxSurfaceType& aSurfaceType,
     }
 
     mWindow.window = NULL;
-#ifdef XP_MACOSX
-    if (mWindow.width != aWindow.width || mWindow.height != aWindow.height) 
-        mAccumulatedInvalidRect = nsIntRect(0, 0, aWindow.width, aWindow.height);
-#else
     if (mWindow.width != aWindow.width || mWindow.height != aWindow.height ||
         mWindow.clipRect.top != aWindow.clipRect.top ||
         mWindow.clipRect.left != aWindow.clipRect.left ||
         mWindow.clipRect.bottom != aWindow.clipRect.bottom ||
         mWindow.clipRect.right != aWindow.clipRect.right)
         mAccumulatedInvalidRect = nsIntRect(0, 0, aWindow.width, aWindow.height);
-#endif
 
     mWindow.x = aWindow.x;
     mWindow.y = aWindow.y;
@@ -2396,16 +2351,7 @@ PluginInstanceChild::CreateOptSurface(void)
     }
 
     if (mSurfaceType == gfxASurface::SurfaceTypeXlib) {
-        if (!mIsTransparent  || mBackground) {
-            Visual* defaultVisual = DefaultVisualOfScreen(screen);
-            mCurrentSurface =
-                gfxXlibSurface::Create(screen, defaultVisual,
-                                       gfxIntSize(mWindow.width,
-                                                  mWindow.height));
-            return mCurrentSurface != nsnull;
-        }
-
-        XRenderPictFormat* xfmt = XRenderFindStandardFormat(dpy, PictStandardARGB32);
+        XRenderPictFormat* xfmt = gfxXlibSurface::FindRenderFormat(dpy, format);
         if (!xfmt) {
             NS_ERROR("Need X falback surface, but FindRenderFormat failed");
             return false;
@@ -2517,7 +2463,6 @@ PluginInstanceChild::MaybeCreatePlatformHelperSurface(void)
 bool
 PluginInstanceChild::EnsureCurrentBuffer(void)
 {
-#ifndef XP_MACOSX
     nsIntRect toInvalidate(0, 0, 0, 0);
     gfxIntSize winSize = gfxIntSize(mWindow.width, mWindow.height);
 
@@ -2549,7 +2494,7 @@ PluginInstanceChild::EnsureCurrentBuffer(void)
     mAccumulatedInvalidRect.UnionRect(mAccumulatedInvalidRect, toInvalidate);
 
     if (mCurrentSurface) {
-        return true;
+       return true;
     }
 
     if (!CreateOptSurface()) {
@@ -2563,65 +2508,6 @@ PluginInstanceChild::EnsureCurrentBuffer(void)
     }
 
     return true;
-#else // XP_MACOSX
-    if (mCurrentIOSurface && 
-        (mCurrentIOSurface->GetWidth() != mWindow.width ||
-         mCurrentIOSurface->GetHeight() != mWindow.height) ) {
-        mCurrentIOSurface = nsnull;
-    }
-
-    if (!mCARenderer.isInit() || !mCurrentIOSurface) {
-        if (!mCurrentIOSurface) {
-            mCurrentIOSurface = nsIOSurface::CreateIOSurface(mWindow.width, mWindow.height);
-
-            nsIntRect toInvalidate(0, 0, mWindow.width, mWindow.height);
-            mAccumulatedInvalidRect.UnionRect(mAccumulatedInvalidRect, toInvalidate);
-        }
-
-        if (!mCurrentIOSurface) {
-            NS_WARNING("Failed to allocate IOSurface");
-            return false;
-        }
-
-        nsIOSurface *rendererSurface = nsIOSurface::LookupSurface(mCurrentIOSurface->GetIOSurfaceID()); 
-        if (!rendererSurface) {
-            NS_WARNING("Failed to lookup IOSurface");
-            return false;
-        }
-        mCARenderer.AttachIOSurface(rendererSurface);
-
-        void *caLayer = nsnull;
-        if (mDrawingModel == NPDrawingModelCoreGraphics) {
-            if (mCGLayer) {
-                mozilla::plugins::PluginUtilsOSX::ReleaseCGLayer(mCGLayer);
-                mCGLayer = nsnull;
-            }
-
-            caLayer = mozilla::plugins::PluginUtilsOSX::GetCGLayer(CallCGDraw, this);
-            if (!caLayer) {
-                return false;
-            }
-
-            mCGLayer = caLayer;
-        } else {
-            NPError result = mPluginIface->getvalue(GetNPP(),
-                                     NPPVpluginCoreAnimationLayer,
-                                     &caLayer);
-            if (result != NPERR_NO_ERROR || !caLayer) {
-                PLUGIN_LOG_DEBUG(("Plugin requested CoreAnimation but did not "
-                                  "provide CALayer."));
-                return false;
-            }
-        }
-
-        mCARenderer.SetupRenderer(caLayer, mWindow.width, mWindow.height);
-        // Flash needs to have the window set again after this step
-        if (mPluginIface->setwindow)
-            (void) mPluginIface->setwindow(&mData, &mWindow);
-    }
-
-    return true;
-#endif
 }
 
 void
@@ -2839,7 +2725,7 @@ PluginInstanceChild::PaintRectToSurface(const nsIntRect& aRect,
         // provided it is within the clipRect.), see bug 574583
         plPaintRect.SetRect(0, 0, aRect.XMost(), aRect.YMost());
     }
-    if (mHelperSurface) {
+    if (renderSurface->GetType() != gfxASurface::SurfaceTypeXlib) {
         // On X11 we can paint to non Xlib surface only with HelperSurface
 #if (MOZ_PLATFORM_MAEMO == 5) || (MOZ_PLATFORM_MAEMO == 6)
         // Don't use mHelperSurface if surface is image and mMaemoImageRendering is TRUE
@@ -2998,57 +2884,6 @@ PluginInstanceChild::ShowPluginFrame()
     AutoRestore<bool> pending(mPendingPluginCall);
     mPendingPluginCall = true;
 
-#ifdef XP_MACOSX
-    // We can't use the thebes code with CoreAnimation so we will
-    // take a different code path.
-    if (mDrawingModel == NPDrawingModelCoreAnimation ||
-        mDrawingModel == NPDrawingModelInvalidatingCoreAnimation ||
-        mDrawingModel == NPDrawingModelCoreGraphics) {
-
-        if (!EnsureCurrentBuffer()) {
-          return false;
-        }
-
-        // Clear accRect here to be able to pass
-        // test_invalidate_during_plugin_paint  test
-        nsIntRect rect = mAccumulatedInvalidRect;
-        mAccumulatedInvalidRect.SetEmpty();
-
-        // Fix up old invalidations that might have been made when our
-        // surface was a different size
-        rect.IntersectRect(rect,
-                         nsIntRect(0, 0, mCurrentIOSurface->GetWidth(), mCurrentIOSurface->GetHeight()));
-      
-        if (!mCARenderer.isInit()) {
-            NS_ERROR("CARenderer not initialized");
-            return false;
-        }
-
-        if (mDrawingModel == NPDrawingModelCoreGraphics) {
-            mozilla::plugins::PluginUtilsOSX::Repaint(mCGLayer, rect);
-        }
-
-        mCARenderer.Render(mWindow.width, mWindow.height, nsnull);
-
-        NPRect r = { (uint16_t)rect.y, (uint16_t)rect.x,
-                     (uint16_t)rect.YMost(), (uint16_t)rect.XMost() };
-        SurfaceDescriptor currSurf;
-        currSurf = IOSurfaceDescriptor(mCurrentIOSurface->GetIOSurfaceID());
-
-        // Unused
-        SurfaceDescriptor returnSurf;
-
-        if (!SendShow(r, currSurf, &returnSurf)) {
-            return false;
-        }
-
-        return true;
-    } else {
-        NS_ERROR("Unsupported drawing model for async layer rendering");
-        return false;
-    }
-#endif
-
     bool temporarilyMakeVisible = !IsVisible() && !mHasPainted;
     if (temporarilyMakeVisible && mWindow.width && mWindow.height) {
         mWindow.clipRect.right = mWindow.width;
@@ -3099,8 +2934,7 @@ PluginInstanceChild::ShowPluginFrame()
         PLUGIN_LOG_DEBUG(("  (on background)"));
         // Source the background pixels ...
         {
-            nsRefPtr<gfxContext> ctx =
-                new gfxContext(mHelperSurface ? mHelperSurface : mCurrentSurface);
+            nsRefPtr<gfxContext> ctx = new gfxContext(mCurrentSurface);
             ctx->SetSource(mBackground);
             ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
             ctx->Rectangle(gfxRect(rect.x, rect.y, rect.width, rect.height));
@@ -3301,7 +3135,6 @@ PluginInstanceChild::InvalidateRect(NPRect* aInvalidRect)
         AsyncShowPluginFrame();
         return;
     }
-
     // If we were going to use layers rendering but it's not set up
     // yet, and the plugin happens to call this first, we'll forward
     // the invalidation to the browser.  It's unclear whether
@@ -3498,7 +3331,13 @@ PluginInstanceChild::SwapSurfaces()
     if (mCurrentSurface && mBackSurface &&
         (mCurrentSurface->GetSize() != mBackSurface->GetSize() ||
          mCurrentSurface->GetContentType() != mBackSurface->GetContentType())) {
-        ClearCurrentSurface();
+        mCurrentSurface = nsnull;
+#ifdef XP_WIN
+        if (mCurrentSurfaceActor) {
+            PPluginSurfaceChild::Send__delete__(mCurrentSurfaceActor);
+            mCurrentSurfaceActor = NULL;
+        }
+#endif
     }
 }
 
@@ -3540,18 +3379,6 @@ PluginInstanceChild::ClearAllSurfaces()
         PPluginSurfaceChild::Send__delete__(mBackSurfaceActor);
         mBackSurfaceActor = NULL;
     }
-#endif
-
-#ifdef XP_MACOSX
-    if (mCurrentIOSurface) {
-        // Get last surface back, and drop it
-        SurfaceDescriptor temp = null_t();
-        NPRect r = { 0, 0, 1, 1 };
-        SendShow(r, temp, &temp);
-
-    }
-
-    mCurrentIOSurface = nsnull;
 #endif
 }
 

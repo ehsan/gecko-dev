@@ -54,6 +54,8 @@
 #include "nsIDOMCharacterData.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMDocumentType.h"
+#include "nsIDOMNSDocument.h"
+#include "nsIDOMNSHTMLDocument.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsPIDOMWindow.h"
@@ -313,7 +315,12 @@ nsDocAccessible::NativeState()
   }
  
   nsIFrame* frame = GetFrame();
-  if (!frame || !nsCoreUtils::CheckVisibilityInParentChain(frame)) {
+  while (frame != nsnull && !frame->HasView()) {
+    frame = frame->GetParent();
+  }
+ 
+  if (frame == nsnull ||
+      !CheckVisibilityInParentChain(mDocument, frame->GetViewExternal())) {
     state |= states::INVISIBLE | states::OFFSCREEN;
   }
 
@@ -404,24 +411,22 @@ NS_IMETHODIMP nsDocAccessible::GetURL(nsAString& aURL)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDocAccessible::GetTitle(nsAString& aTitle)
+NS_IMETHODIMP nsDocAccessible::GetTitle(nsAString& aTitle)
 {
-  nsCOMPtr<nsIDOMDocument> domDocument = do_QueryInterface(mDocument);
-  if (!domDocument) {
-    return NS_ERROR_FAILURE;
+  nsCOMPtr<nsIDOMNSDocument> domnsDocument(do_QueryInterface(mDocument));
+  if (domnsDocument) {
+    return domnsDocument->GetTitle(aTitle);
   }
-  return domDocument->GetTitle(aTitle);
+  return NS_ERROR_FAILURE;
 }
 
-NS_IMETHODIMP
-nsDocAccessible::GetMimeType(nsAString& aMimeType)
+NS_IMETHODIMP nsDocAccessible::GetMimeType(nsAString& aMimeType)
 {
-  nsCOMPtr<nsIDOMDocument> domDocument = do_QueryInterface(mDocument);
-  if (!domDocument) {
-    return NS_ERROR_FAILURE;
+  nsCOMPtr<nsIDOMNSDocument> domnsDocument(do_QueryInterface(mDocument));
+  if (domnsDocument) {
+    return domnsDocument->GetContentType(aMimeType);
   }
-  return domDocument->GetContentType(aMimeType);
+  return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP nsDocAccessible::GetDocType(nsAString& aDocType)
@@ -602,12 +607,6 @@ nsDocAccessible::Init()
   if (!mNotificationController)
     return PR_FALSE;
 
-  // Mark the document accessible as loaded if its DOM document was loaded at
-  // this point (this can happen because a11y is started late or DOM document
-  // having no container was loaded.
-  if (mDocument->GetReadyStateEnum() == nsIDocument::READYSTATE_COMPLETE)
-    mIsLoaded = PR_TRUE;
-
   AddEventListeners();
   return PR_TRUE;
 }
@@ -671,8 +670,8 @@ nsDocAccessible::GetFrame() const
   return root;
 }
 
-bool
-nsDocAccessible::IsDefunct() const
+PRBool
+nsDocAccessible::IsDefunct()
 {
   return nsHyperTextAccessibleWrap::IsDefunct() || !mDocument;
 }
@@ -1035,14 +1034,6 @@ nsDocAccessible::AttributeChangedImpl(nsIContent* aContent, PRInt32 aNameSpaceID
       aAttribute == nsAccessibilityAtoms::aria_labelledby) {
     FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_NAME_CHANGE,
                                aContent);
-    return;
-  }
-
-  if (aAttribute == nsAccessibilityAtoms::aria_busy) {
-    PRBool isOn = !aContent->AttrValueIs(aNameSpaceID, aAttribute,
-                                         nsAccessibilityAtoms::_true, eCaseMatters);
-    nsRefPtr<AccEvent> event = new AccStateChangeEvent(aContent, states::BUSY, isOn);
-    FireDelayedAccessibleEvent(event);
     return;
   }
 

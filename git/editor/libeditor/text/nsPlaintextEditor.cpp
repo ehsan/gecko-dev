@@ -79,7 +79,6 @@
 #include "nsEventDispatcher.h"
 #include "nsGkAtoms.h"
 #include "nsDebug.h"
-#include "mozilla/Preferences.h"
 
 // Drag & Drop, Clipboard
 #include "nsIClipboard.h"
@@ -87,8 +86,6 @@
 #include "nsCopySupport.h"
 
 #include "mozilla/FunctionTimer.h"
-
-using namespace mozilla;
 
 nsPlaintextEditor::nsPlaintextEditor()
 : nsEditor()
@@ -174,11 +171,10 @@ static int
 EditorPrefsChangedCallback(const char *aPrefName, void *)
 {
   if (nsCRT::strcmp(aPrefName, "editor.singleLine.pasteNewlines") == 0) {
-    sNewlineHandlingPref =
-      Preferences::GetInt("editor.singleLine.pasteNewlines",
-                          nsIPlaintextEditor::eNewlinesPasteToFirst);
+    sNewlineHandlingPref = nsContentUtils::GetIntPref("editor.singleLine.pasteNewlines",
+                                                      nsIPlaintextEditor::eNewlinesPasteToFirst);
   } else if (nsCRT::strcmp(aPrefName, "layout.selection.caret_style") == 0) {
-    sCaretStylePref = Preferences::GetInt("layout.selection.caret_style",
+    sCaretStylePref = nsContentUtils::GetIntPref("layout.selection.caret_style",
 #ifdef XP_WIN
                                                  1);
     if (sCaretStylePref == 0)
@@ -196,11 +192,13 @@ nsPlaintextEditor::GetDefaultEditorPrefs(PRInt32 &aNewlineHandling,
                                          PRInt32 &aCaretStyle)
 {
   if (sNewlineHandlingPref == -1) {
-    Preferences::RegisterCallback(EditorPrefsChangedCallback,
-                                  "editor.singleLine.pasteNewlines");
+    nsContentUtils::RegisterPrefCallback("editor.singleLine.pasteNewlines",
+                                         EditorPrefsChangedCallback,
+                                         nsnull);
     EditorPrefsChangedCallback("editor.singleLine.pasteNewlines", nsnull);
-    Preferences::RegisterCallback(EditorPrefsChangedCallback,
-                                  "layout.selection.caret_style");
+    nsContentUtils::RegisterPrefCallback("layout.selection.caret_style",
+                                         EditorPrefsChangedCallback,
+                                         nsnull);
     EditorPrefsChangedCallback("layout.selection.caret_style", nsnull);
   }
 
@@ -1698,27 +1696,7 @@ nsPlaintextEditor::SelectEntireDocument(nsISelection *aSelection)
     return aSelection->Collapse(rootElement, 0);
   }
 
-  nsresult rv = nsEditor::SelectEntireDocument(aSelection);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Don't select the trailing BR node if we have one
-  PRInt32 selOffset;
-  nsCOMPtr<nsIDOMNode> selNode;
-  rv = GetEndNodeAndOffset(aSelection, getter_AddRefs(selNode), &selOffset);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIDOMNode> childNode = GetChildAt(selNode, selOffset - 1);
-
-  if (childNode && nsTextEditUtils::IsMozBR(childNode)) {
-    nsCOMPtr<nsIDOMNode> parentNode;
-    PRInt32 parentOffset;
-    rv = GetNodeLocation(childNode, address_of(parentNode), &parentOffset);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    return aSelection->Extend(parentNode, parentOffset);
-  }
-
-  return NS_OK;
+  return nsEditor::SelectEntireDocument(aSelection);
 }
 
 already_AddRefed<nsPIDOMEventTarget>

@@ -68,7 +68,6 @@ MAKEFILES_dom="
   dom/interfaces/sidebar/Makefile
   dom/interfaces/storage/Makefile
   dom/interfaces/stylesheets/Makefile
-  dom/interfaces/svg/Makefile
   dom/interfaces/threads/Makefile
   dom/interfaces/traversal/Makefile
   dom/interfaces/xbl/Makefile
@@ -237,11 +236,6 @@ MAKEFILES_content="
   content/html/document/Makefile
   content/html/document/public/Makefile
   content/html/document/src/Makefile
-  content/svg/Makefile
-  content/svg/document/Makefile
-  content/svg/document/src/Makefile
-  content/svg/content/Makefile
-  content/svg/content/src/Makefile
   content/xml/Makefile
   content/xml/content/Makefile
   content/xml/content/src/Makefile
@@ -290,7 +284,6 @@ MAKEFILES_layout="
   layout/style/Makefile
   layout/style/xbl-marquee/Makefile
   layout/tables/Makefile
-  layout/svg/base/src/Makefile
   layout/xul/base/public/Makefile
   layout/xul/base/src/Makefile
   layout/xul/base/src/grid/Makefile
@@ -362,13 +355,6 @@ MAKEFILES_libnestegg="
   media/libnestegg/Makefile
   media/libnestegg/include/Makefile
   media/libnestegg/src/Makefile
-"
-
-MAKEFILES_mathml="
-  content/mathml/Makefile
-  content/mathml/content/Makefile
-  content/mathml/content/src/Makefile
-  layout/mathml/Makefile
 "
 
 MAKEFILES_netwerk="
@@ -759,7 +745,6 @@ add_makefiles "
   $MAKEFILES_libjar
   $MAKEFILES_libreg
   $MAKEFILES_libpref
-  $MAKEFILES_mathml
   $MAKEFILES_plugin
   $MAKEFILES_netwerk
   $MAKEFILES_uriloader
@@ -1107,6 +1092,27 @@ fi
 if [ "$MOZ_MAPINFO" ]; then
   add_makefiles "
     tools/codesighs/Makefile
+  "
+fi
+
+if [ "$MOZ_MATHML" ]; then
+  add_makefiles "
+    content/mathml/Makefile
+    content/mathml/content/Makefile
+    content/mathml/content/src/Makefile
+    layout/mathml/Makefile
+  "
+fi
+
+if [ "$MOZ_SVG" ]; then
+  add_makefiles "
+    content/svg/Makefile
+    content/svg/document/Makefile
+    content/svg/document/src/Makefile
+    content/svg/content/Makefile
+    content/svg/content/src/Makefile
+    dom/interfaces/svg/Makefile
+    layout/svg/base/src/Makefile
   "
 fi
 

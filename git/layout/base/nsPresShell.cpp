@@ -209,7 +209,6 @@
 #include "gfxPlatform.h"
 
 #include "mozilla/FunctionTimer.h"
-#include "mozilla/Preferences.h"
 
 #include "Layers.h"
 
@@ -1675,7 +1674,6 @@ NS_NewPresShell(nsIPresShell** aInstancePtrResult)
 }
 
 nsTHashtable<PresShell::PresShellPtrKey> *nsIPresShell::sLiveShells = 0;
-static PRBool sSynthMouseMove = PR_TRUE;
 
 NS_MEMORY_REPORTER_IMPLEMENT(LayoutPresShell,
     "explicit/layout/all",
@@ -1720,8 +1718,6 @@ PresShell::PresShell()
   if (!registeredReporter) {
     NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(LayoutPresShell));
     NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(LayoutBidi));
-    Preferences::AddBoolVarCache(&sSynthMouseMove,
-                                 "layout.reflow.synthMouseMove", PR_TRUE);
     registeredReporter = true;
   }
 
@@ -1863,7 +1859,8 @@ PresShell::Init(nsIDocument* aDocument,
   
   if (gMaxRCProcessingTime == -1) {
     gMaxRCProcessingTime =
-      Preferences::GetInt("layout.reflow.timeslice", NS_MAX_REFLOW_TIME);
+      nsContentUtils::GetIntPref("layout.reflow.timeslice",
+                                 NS_MAX_REFLOW_TIME);
   }
 
   {
@@ -1888,13 +1885,13 @@ PresShell::Init(nsIDocument* aDocument,
 #ifdef MOZ_REFLOW_PERF
     if (mReflowCountMgr) {
       PRBool paintFrameCounts =
-        Preferences::GetBool("layout.reflow.showframecounts");
+        nsContentUtils::GetBoolPref("layout.reflow.showframecounts");
 
       PRBool dumpFrameCounts =
-        Preferences::GetBool("layout.reflow.dumpframecounts");
+        nsContentUtils::GetBoolPref("layout.reflow.dumpframecounts");
 
       PRBool dumpFrameByFrameCounts =
-        Preferences::GetBool("layout.reflow.dumpframebyframecounts");
+        nsContentUtils::GetBoolPref("layout.reflow.dumpframebyframecounts");
 
       mReflowCountMgr->SetDumpFrameCounts(dumpFrameCounts);
       mReflowCountMgr->SetDumpFrameByFrameCounts(dumpFrameByFrameCounts);
@@ -2819,8 +2816,8 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
 
       // Default to PAINTLOCK_EVENT_DELAY if we can't get the pref value.
       PRInt32 delay =
-        Preferences::GetInt("nglayout.initialpaint.delay",
-                            PAINTLOCK_EVENT_DELAY);
+        nsContentUtils::GetIntPref("nglayout.initialpaint.delay",
+                                   PAINTLOCK_EVENT_DELAY);
 
       mPaintSuppressionTimer->InitWithFuncCallback(sPaintSuppressionCallback,
                                                    this, delay, 
@@ -3923,7 +3920,7 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, PRBool aScroll)
 
     // Should we select the target? This action is controlled by a
     // preference: the default is to not select.
-    PRBool selectAnchor = Preferences::GetBool("layout.selectanchor");
+    PRBool selectAnchor = nsContentUtils::GetBoolPref("layout.selectanchor");
 
     // Even if select anchor pref is false, we must still move the
     // caret there. That way tabbing will start from the new
@@ -7859,9 +7856,7 @@ PresShell::DidDoReflow(PRBool aInterruptible)
   mFrameConstructor->EndUpdate();
   
   HandlePostedReflowCallbacks(aInterruptible);
-  if (sSynthMouseMove) {
-    SynthesizeMouseMove(PR_FALSE);
-  }
+  SynthesizeMouseMove(PR_FALSE);
   if (mCaret) {
     // Update the caret's position now to account for any changes created by
     // the reflow.
@@ -9424,7 +9419,16 @@ nsIFrame* nsIPresShell::GetAbsoluteContainingBlock(nsIFrame *aFrame)
 nsAccessibilityService*
 nsIPresShell::AccService()
 {
+#ifdef MOZ_ENABLE_LIBXUL
   return GetAccService();
+#else
+  if (gIsAccessibilityActive) {
+    nsCOMPtr<nsIAccessibilityService> srv =
+      do_GetService("@mozilla.org/accessibilityService;1");
+    return static_cast<nsAccessibilityService*>(srv.get());
+  }
+  return nsnull;
+#endif
 }
 #endif
 
