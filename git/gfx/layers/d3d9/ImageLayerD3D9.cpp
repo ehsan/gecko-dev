@@ -128,8 +128,9 @@ SurfaceToTexture(IDirect3DDevice9 *aDevice,
   return texture.forget();
 }
 
-ImageContainerD3D9::ImageContainerD3D9(LayerManagerD3D9 *aManager)
-  : ImageContainer(aManager)
+ImageContainerD3D9::ImageContainerD3D9(IDirect3DDevice9 *aDevice)
+  : ImageContainer(nsnull)
+  , mDevice(aDevice)
   , mActiveImageLock("mozilla.layers.ImageContainerD3D9.mActiveImageLock")
 {
 }
@@ -145,7 +146,7 @@ ImageContainerD3D9::CreateImage(const Image::Format *aFormats,
   if (aFormats[0] == Image::PLANAR_YCBCR) {
     img = new PlanarYCbCrImageD3D9();
   } else if (aFormats[0] == Image::CAIRO_SURFACE) {
-    img = new CairoImageD3D9(static_cast<LayerManagerD3D9*>(mManager)->device());
+    img = new CairoImageD3D9(mDevice);
   }
   return img.forget();
 }
@@ -218,7 +219,6 @@ PRBool
 ImageContainerD3D9::SetLayerManager(LayerManager *aManager)
 {
   if (aManager->GetBackendType() == LayerManager::LAYERS_D3D9) {
-    mManager = aManager;
     return PR_TRUE;
   }
 
@@ -239,14 +239,11 @@ ImageLayerD3D9::RenderLayer()
   }
 
   nsRefPtr<Image> image = GetContainer()->GetCurrentImage();
-
-  if (Manager() != GetContainer()->Manager()) {
-    GetContainer()->SetLayerManager(Manager());
-  }
   
   SetShaderTransformAndOpacity();
 
-  if (Manager() != GetContainer()->Manager()) {
+  if (GetContainer()->GetBackendType() != LayerManager::LAYERS_D3D9)
+  {
     gfxIntSize size;
     nsRefPtr<gfxASurface> surface =
       GetContainer()->GetCurrentAsSurface(&size);
@@ -316,21 +313,25 @@ ImageLayerD3D9::RenderLayer()
       }
     }
 
+    // Linear scaling is default here, adhering to mFilter is difficult since
+    // presumably even with point filtering we'll still want chroma upsampling
+    // to be linear. In the current approach we can't.
     device()->SetTexture(0, yuvImage->mYTexture);
-    device()->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
-    device()->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
     device()->SetTexture(1, yuvImage->mCbTexture);
-    device()->SetSamplerState(1, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
-    device()->SetSamplerState(1, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
     device()->SetTexture(2, yuvImage->mCrTexture);
-    device()->SetSamplerState(2, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
-    device()->SetSamplerState(2, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
 
     device()->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
 
   } else if (image->GetFormat() == Image::CAIRO_SURFACE) {
     CairoImageD3D9 *cairoImage =
       static_cast<CairoImageD3D9*>(image.get());
+    ImageContainerD3D9 *container =
+      static_cast<ImageContainerD3D9*>(GetContainer());
+
+    if (container->device() != device()) {
+      // Ensure future images get created with the right device.
+      container->SetDevice(device());
+    }
 
     if (cairoImage->device() != device()) {
       cairoImage->SetDevice(device());
@@ -349,8 +350,16 @@ ImageLayerD3D9::RenderLayer()
       mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBLAYER);
     }
 
+    if (mFilter == gfxPattern::FILTER_NEAREST) {
+      device()->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+      device()->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_POINT);
+    }
     device()->SetTexture(0, cairoImage->GetOrCreateTexture());
     device()->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
+    if (mFilter == gfxPattern::FILTER_NEAREST) {
+      device()->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+      device()->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+    }
   }
 }
 
