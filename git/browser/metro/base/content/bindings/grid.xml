@@ -26,10 +26,6 @@
 
       <field name="controller">null</field>
 
-      <!-- collection of child items excluding empty tiles -->
-      <property name="items" readonly="true" onget="return this.querySelectorAll('richgriditem');"/>
-      <property name="itemCount" readonly="true" onget="return this.items.length;"/>
-
       <!-- nsIDOMXULMultiSelectControlElement (not fully implemented) -->
 
       <method name="clearSelection">
@@ -162,6 +158,8 @@
 
     <!-- nsIDOMXULSelectControlElement -->
 
+      <property name="itemCount" readonly="true" onget="return this.children.length;"/>
+
       <field name="_selectedItem">null</field>
       <property name="selectedItem" onget="return this._selectedItem;">
         <setter>
@@ -204,7 +202,7 @@
         <parameter name="aSkipArrange"/>
         <body>
           <![CDATA[
-            let addition = this._createItemElement(aLabel, aValue);
+            let addition = this.createItemElement(aLabel, aValue);
             this.appendChild(addition);
             if (!aSkipArrange)
               this.arrangeItems();
@@ -234,7 +232,7 @@
         <body>
           <![CDATA[
             let existing = this.getItemAtIndex(anIndex);
-            let addition = this._createItemElement(aLabel, aValue);
+            let addition = this.createItemElement(aLabel, aValue);
             if (existing) {
               this.insertBefore(addition, existing);
             } else {
@@ -252,9 +250,7 @@
         <body>
           <![CDATA[
             let item = this.getItemAtIndex(anIndex);
-            if (!item)
-              return null;
-            return this.removeItem(item, aSkipArrange);
+            return item ? this.removeItem(item, aSkipArrange) : null;
           ]]>
         </body>
       </method>
@@ -264,9 +260,7 @@
         <parameter name="aSkipArrange"/>
         <body>
           <![CDATA[
-            if (!aItem || Array.indexOf(this.items, aItem) < 0)
-              return null;
-            let removal = this.removeChild(aItem);
+            let removal = aItem.parentNode == this && this.removeChild(aItem);
             if (removal && !aSkipArrange)
                 this.arrangeItems();
 
@@ -277,6 +271,7 @@
         </body>
       </method>
 
+
       <method name="getIndexOfItem">
         <parameter name="anItem"/>
         <body>
@@ -284,7 +279,7 @@
             if (!anItem)
               return -1;
 
-            return Array.indexOf(this.items, anItem);
+            return Array.indexOf(this.children, anItem);
           ]]>
         </body>
       </method>
@@ -295,7 +290,7 @@
           <![CDATA[
             if (!this._isIndexInBounds(anIndex))
               return null;
-            return this.items.item(anIndex);
+            return this.children.item(anIndex);
           ]]>
         </body>
       </method>
@@ -614,17 +609,15 @@
         </body>
       </method>
 
-      <method name="_createItemElement">
+      <method name="createItemElement">
         <parameter name="aLabel"/>
         <parameter name="aValue"/>
         <body>
           <![CDATA[
             let item = this.ownerDocument.createElement("richgriditem");
+            item.setAttribute("label", aLabel);
             if (aValue) {
               item.setAttribute("value", aValue);
-            }
-            if (aLabel) {
-              item.setAttribute("label", aLabel);
             }
             if(this.hasAttribute("tiletype")) {
               item.setAttribute("tiletype", this.getAttribute("tiletype"));
@@ -867,7 +860,7 @@
       <property name="control">
         <getter><![CDATA[
           let parent = this.parentNode;
-          while (parent && parent != this.ownerDocument.documentElement) {
+          while (parent) {
             if (parent instanceof Components.interfaces.nsIDOMXULSelectControlElement)
               return parent;
             parent = parent.parentNode;

@@ -351,7 +351,6 @@ public class Favicons {
                            "/favicon.ico", null,
                            null).toString();
         } catch (URISyntaxException e) {
-            Log.e(LOGTAG, "URISyntaxException getting default favicon URL", e);
             return null;
         }
     }

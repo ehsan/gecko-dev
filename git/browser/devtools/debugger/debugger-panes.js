@@ -50,6 +50,7 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
     this._cmPopup = document.getElementById("sourceEditorContextMenu");
     this._cbPanel = document.getElementById("conditional-breakpoint-panel");
     this._cbTextbox = document.getElementById("conditional-breakpoint-panel-textbox");
+    this._editorDeck = document.getElementById("editor-deck");
     this._stopBlackBoxButton = document.getElementById("black-boxed-message-button");
     this._prettyPrintButton = document.getElementById("pretty-print");
 
@@ -382,10 +383,6 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
    * Pretty print the selected source.
    */
   prettyPrint: function() {
-    if (this._prettyPrintButton.hasAttribute("disabled")) {
-      return;
-    }
-
     const resetEditor = ([{ url }]) => {
       // Only set the text when the source is still selected.
       if (url == this.selectedValue) {
@@ -400,11 +397,9 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
       return;
     }
 
-    DebuggerView.showProgressBar();
-    const { source } = this.selectedItem.attachment;
-    DebuggerController.SourceScripts.prettyPrint(source)
-      .then(resetEditor, printError)
-      .then(DebuggerView.showEditor);
+    let { source } = this.selectedItem.attachment;
+    let prettyPrinted = DebuggerController.SourceScripts.prettyPrint(source);
+    prettyPrinted.then(resetEditor, printError);
   },
 
   /**
@@ -695,21 +690,17 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
     let script = sourceItem.value.split(" -> ").pop();
     document.title = L10N.getFormatStr("DebuggerWindowScriptTitle", script);
 
-    DebuggerView.maybeShowBlackBoxMessage();
-    this._updatePrettyPrintButtonState();
+    this.maybeShowBlackBoxMessage();
   },
 
   /**
-   * Enable or disable the pretty print button depending on whether the selected
-   * source is black boxed or not.
+   * Show or hide the black box message vs. source editor depending on if the
+   * selected source is black boxed or not.
    */
-  _updatePrettyPrintButtonState: function() {
-    const { source } = this.selectedItem.attachment;
-    if (gThreadClient.source(source).isBlackBoxed) {
-      this._prettyPrintButton.setAttribute("disabled", true);
-    } else {
-      this._prettyPrintButton.removeAttribute("disabled");
-    }
+  maybeShowBlackBoxMessage: function() {
+    let sourceForm = this.selectedItem.attachment.source;
+    let sourceClient = DebuggerController.activeThread.source(sourceForm);
+    this._editorDeck.selectedIndex = sourceClient.isBlackBoxed ? 1 : 0;
   },
 
   /**
@@ -724,23 +715,8 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
    * The check listener for the sources container.
    */
   _onSourceCheck: function({ detail: { checked }, target }) {
-    const shouldBlackBox = !checked;
-
-    // Be optimistic that the (un-)black boxing will succeed and enable/disable
-    // the pretty print button immediately. Then, once we actually get the
-    // results from the server, make sure that it is in the correct state again
-    // by calling `_updatePrettyPrintButtonState`.
-
-    if (shouldBlackBox) {
-      this._prettyPrintButton.setAttribute("disabled", true);
-    } else {
-      this._prettyPrintButton.removeAttribute("disabled");
-    }
-
-    const { source } = this.getItemForElement(target).attachment;
-    DebuggerController.SourceScripts.blackBox(source, shouldBlackBox)
-      .then(this._updatePrettyPrintButtonState,
-            this._updatePrettyPrintButtonState);
+    let item = this.getItemForElement(target);
+    DebuggerController.SourceScripts.blackBox(item.attachment.source, !checked);
   },
 
   /**
