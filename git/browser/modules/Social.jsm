@@ -123,7 +123,6 @@ this.Social = {
         if (active) {
           Services.prefs.clearUserPref("social.active");
           currentProvider = providers[0];
-          currentProvider.active = true;
         }
       } catch(ex) {}
     }
