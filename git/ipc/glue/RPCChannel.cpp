@@ -89,25 +89,35 @@ public:
 namespace mozilla {
 namespace ipc {
 
-RPCChannel::RPCChannel(RPCListener* aListener,
-                       RacyRPCPolicy aPolicy)
+RPCChannel::RPCChannel(RPCListener* aListener)
   : SyncChannel(aListener),
     mPending(),
     mStack(),
     mOutOfTurnReplies(),
     mDeferred(),
     mRemoteStackDepthGuess(0),
-    mRacePolicy(aPolicy),
     mBlockedOnParent(false),
     mCxxStackFrames(0)
 {
     MOZ_COUNT_CTOR(RPCChannel);
+
+    mDequeueOneTask = new RefCountedTask(NewRunnableMethod(
+                                                 this,
+                                                 &RPCChannel::OnMaybeDequeueOne));
 }
 
 RPCChannel::~RPCChannel()
 {
     MOZ_COUNT_DTOR(RPCChannel);
     RPC_ASSERT(0 == mCxxStackFrames, "mismatched CxxStackFrame ctor/dtors");
+}
+
+void
+RPCChannel::Clear()
+{
+    mDequeueOneTask->Cancel();
+
+    AsyncChannel::Clear();
 }
 
 #ifdef OS_WIN
@@ -171,6 +181,16 @@ RPCChannel::Call(Message* msg, Message* reply)
         NewRunnableMethod(this, &RPCChannel::OnSend, msg));
 
     while (1) {
+        // if a handler invoked by *Dispatch*() spun a nested event
+        // loop, and the connection was broken during that loop, we
+        // might have already processed the OnError event. if so,
+        // trying another loop iteration will be futile because
+        // channel state will have been cleared
+        if (!Connected()) {
+            ReportConnectionError("RPCChannel");
+            return false;
+        }
+
         // now might be the time to process a message deferred because
         // of race resolution
         MaybeProcessDeferredIncall();
@@ -324,7 +344,7 @@ RPCChannel::EnqueuePendingMessages()
     for (size_t i = 0; i < mDeferred.size(); ++i)
         mWorkerLoop->PostTask(
             FROM_HERE,
-            NewRunnableMethod(this, &RPCChannel::OnMaybeDequeueOne));
+            new DequeueTask(mDequeueOneTask));
 
     // XXX performance tuning knob: could process all or k pending
     // messages here, rather than enqueuing for later processing
@@ -332,7 +352,7 @@ RPCChannel::EnqueuePendingMessages()
     for (size_t i = 0; i < mPending.size(); ++i)
         mWorkerLoop->PostTask(
             FROM_HERE,
-            NewRunnableMethod(this, &RPCChannel::OnMaybeDequeueOne));
+            new DequeueTask(mDequeueOneTask));
 }
 
 void
@@ -347,6 +367,11 @@ RPCChannel::OnMaybeDequeueOne()
     Message recvd;
     {
         MutexAutoLock lock(mMutex);
+
+        if (!Connected()) {
+            ReportConnectionError("RPCChannel");
+            return;
+        }
 
         if (!mDeferred.empty())
             return MaybeProcessDeferredIncall();
@@ -395,7 +420,8 @@ RPCChannel::Incall(const Message& call, size_t stackDepth)
         // the other side's in-call
         bool defer;
         const char* winner;
-        switch (mRacePolicy) {
+        switch (Listener()->MediateRPCRace(mChild ? call : mStack.top(),
+                                           mChild ? mStack.top() : call)) {
         case RRPChildWins:
             winner = "child";
             defer = mChild;
@@ -443,8 +469,7 @@ RPCChannel::DispatchIncall(const Message& call)
     Message* reply = nsnull;
 
     ++mRemoteStackDepthGuess;
-    Result rv =
-        static_cast<RPCListener*>(mListener)->OnCallReceived(call, reply);
+    Result rv = Listener()->OnCallReceived(call, reply);
     --mRemoteStackDepthGuess;
 
     if (!MaybeHandleError(rv, "RPCChannel")) {
@@ -612,6 +637,9 @@ RPCChannel::OnMessageReceived(const Message& msg)
     AssertIOThread();
     MutexAutoLock lock(mMutex);
 
+    if (MaybeInterceptSpecialIOMessage(msg))
+        return;
+
     // regardless of the RPC stack, if we're awaiting a sync reply, we
     // know that it needs to be immediately handled to unblock us.
     if (AwaitingSyncReply() && msg.is_sync()) {
@@ -623,11 +651,10 @@ RPCChannel::OnMessageReceived(const Message& msg)
 
     mPending.push(msg);
 
-    if (0 == StackDepth() && !mBlockedOnParent)
+    if (0 == StackDepth() && !mBlockedOnParent) {
         // the worker thread might be idle, make sure it wakes up
-        mWorkerLoop->PostTask(
-            FROM_HERE,
-            NewRunnableMethod(this, &RPCChannel::OnMaybeDequeueOne));
+        mWorkerLoop->PostTask(FROM_HERE, new DequeueTask(mDequeueOneTask));
+    }
     else if (!AwaitingSyncReply())
         NotifyWorkerThread();
 }
@@ -653,7 +680,6 @@ RPCChannel::OnChannelError()
 
     AsyncChannel::OnChannelError();
 }
-
 
 } // namespace ipc
 } // namespace mozilla
