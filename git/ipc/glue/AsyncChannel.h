@@ -161,6 +161,8 @@ protected:
 
     // Run on the worker thread
 
+    bool ProcessGoodbyeMessage();
+
     void NotifyChannelClosed();
     void NotifyMaybeChannelError();
 
@@ -171,11 +173,6 @@ protected:
     void OnChannelOpened();
     void OnSend(Message* aMsg);
     void OnCloseChannel();
-
-    // Return true if |msg| is a special message targeted at the IO
-    // thread, in which case it shouldn't be delivered to the worker.
-    bool MaybeInterceptSpecialIOMessage(const Message& msg);
-    void ProcessGoodbyeMessage();
 
     Transport* mTransport;
     AsyncListener* mListener;
