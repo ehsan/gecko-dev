@@ -124,9 +124,7 @@
 #include "nsDOMCID.h"
 
 #include "jsapi.h"
-#include "nsIJSContextStack.h"
 #include "nsIXPConnect.h"
-#include "nsCycleCollector.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsIContentPolicy.h"
 #include "nsContentPolicyUtils.h"
@@ -1867,7 +1865,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 static bool sPrefsInitialized = false;
-static int32_t sOnloadDecodeLimit = 0;
+static uint32_t sOnloadDecodeLimit = 0;
 
 nsresult
 nsDocument::Init()
@@ -1878,7 +1876,7 @@ nsDocument::Init()
 
   if (!sPrefsInitialized) {
     sPrefsInitialized = true;
-    Preferences::AddIntVarCache(&sOnloadDecodeLimit, "image.onload.decode.limit", 0);
+    Preferences::AddUintVarCache(&sOnloadDecodeLimit, "image.onload.decode.limit", 0);
   }
 
   mIdentifierMap.Init();

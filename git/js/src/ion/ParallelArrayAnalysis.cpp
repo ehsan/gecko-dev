@@ -192,6 +192,8 @@ class ParallelArrayVisitor : public MInstructionVisitor
     SAFE_OP(TypeBarrier) // causes a bailout if the type is not found: a-ok with us
     SAFE_OP(MonitorTypes) // causes a bailout if the type is not found: a-ok with us
     SAFE_OP(GetPropertyCache)
+    SAFE_OP(GetPropertyPolymorphic)
+    UNSAFE_OP(SetPropertyPolymorphic)
     UNSAFE_OP(GetElementCache)
     UNSAFE_OP(BindNameCache)
     SAFE_OP(GuardShape)
@@ -495,8 +497,6 @@ bool
 ParallelArrayVisitor::visitCompare(MCompare *compare)
 {
     MCompare::CompareType type = compare->compareType();
-    MBox *lhsBox, *rhsBox;
-    MBasicBlock *block;
 
     switch (type) {
       case MCompare::Compare_Int32:

@@ -208,31 +208,49 @@ static const double DoubleZero = 0.0;
 bool
 CodeGenerator::visitValueToDouble(LValueToDouble *lir)
 {
+    MToDouble *mir = lir->mir();
     ValueOperand operand = ToValue(lir, LValueToDouble::Input);
     FloatRegister output = ToFloatRegister(lir->output());
 
     Register tag = masm.splitTagForTest(operand);
 
-    Label isDouble, isInt32, isBool, isNull, done;
-    // Type-check switch.
+    Label isDouble, isInt32, isBool, isNull, isUndefined, done;
+    bool hasBoolean = false, hasNull = false, hasUndefined = false;
+
     masm.branchTestDouble(Assembler::Equal, tag, &isDouble);
     masm.branchTestInt32(Assembler::Equal, tag, &isInt32);
-    masm.branchTestBoolean(Assembler::Equal, tag, &isBool);
-    masm.branchTestNull(Assembler::Equal, tag, &isNull);
 
-    Assembler::Condition cond = masm.testUndefined(Assembler::NotEqual, tag);
-    if (!bailoutIf(cond, lir->snapshot()))
+    if (mir->conversion() != MToDouble::NumbersOnly) {
+        masm.branchTestBoolean(Assembler::Equal, tag, &isBool);
+        masm.branchTestUndefined(Assembler::Equal, tag, &isUndefined);
+        hasBoolean = true;
+        hasUndefined = true;
+        if (mir->conversion() != MToDouble::NonNullNonStringPrimitives) {
+            masm.branchTestNull(Assembler::Equal, tag, &isNull);
+            hasNull = true;
+        }
+    }
+
+    if (!bailout(lir->snapshot()))
         return false;
-    masm.loadStaticDouble(&js_NaN, output);
-    masm.jump(&done);
 
-    masm.bind(&isNull);
-    masm.loadStaticDouble(&DoubleZero, output);
-    masm.jump(&done);
+    if (hasNull) {
+        masm.bind(&isNull);
+        masm.loadStaticDouble(&DoubleZero, output);
+        masm.jump(&done);
+    }
 
-    masm.bind(&isBool);
-    masm.boolValueToDouble(operand, output);
-    masm.jump(&done);
+    if (hasUndefined) {
+        masm.bind(&isUndefined);
+        masm.loadStaticDouble(&js_NaN, output);
+        masm.jump(&done);
+    }
+
+    if (hasBoolean) {
+        masm.bind(&isBool);
+        masm.boolValueToDouble(operand, output);
+        masm.jump(&done);
+    }
 
     masm.bind(&isInt32);
     masm.int32ValueToDouble(operand, output);
@@ -905,6 +923,129 @@ CodeGenerator::visitStoreSlotV(LStoreSlotV *store)
 
     masm.storeValue(value, Address(base, offset));
     return true;
+}
+
+bool
+CodeGenerator::emitGetPropertyPolymorphic(LInstruction *ins, Register obj, Register scratch,
+                                          const TypedOrValueRegister &output)
+{
+    MGetPropertyPolymorphic *mir = ins->mirRaw()->toGetPropertyPolymorphic();
+    JS_ASSERT(mir->numShapes() > 1);
+
+    masm.loadObjShape(obj, scratch);
+
+    Label done;
+    for (size_t i = 0; i < mir->numShapes(); i++) {
+        Label next;
+        masm.branchPtr(Assembler::NotEqual, scratch, ImmGCPtr(mir->objShape(i)), &next);
+
+        RawShape shape = mir->shape(i);
+        if (shape->slot() < shape->numFixedSlots()) {
+            // Fixed slot.
+            masm.loadTypedOrValue(Address(obj, JSObject::getFixedSlotOffset(shape->slot())),
+                                  output);
+        } else {
+            // Dynamic slot.
+            uint32_t offset = (shape->slot() - shape->numFixedSlots()) * sizeof(js::Value);
+            masm.loadPtr(Address(obj, JSObject::offsetOfSlots()), scratch);
+            masm.loadTypedOrValue(Address(scratch, offset), output);
+        }
+
+        masm.jump(&done);
+        masm.bind(&next);
+    }
+
+    // Bailout if no shape matches.
+    if (!bailout(ins->snapshot()))
+        return false;
+
+    masm.bind(&done);
+    return true;
+}
+
+bool
+CodeGenerator::visitGetPropertyPolymorphicV(LGetPropertyPolymorphicV *ins)
+{
+    Register obj = ToRegister(ins->obj());
+    ValueOperand output = GetValueOutput(ins);
+    return emitGetPropertyPolymorphic(ins, obj, output.scratchReg(), output);
+}
+
+bool
+CodeGenerator::visitGetPropertyPolymorphicT(LGetPropertyPolymorphicT *ins)
+{
+    Register obj = ToRegister(ins->obj());
+    TypedOrValueRegister output(ins->mir()->type(), ToAnyRegister(ins->output()));
+    Register temp = (output.type() == MIRType_Double)
+                    ? ToRegister(ins->temp())
+                    : output.typedReg().gpr();
+    return emitGetPropertyPolymorphic(ins, obj, temp, output);
+}
+
+bool
+CodeGenerator::emitSetPropertyPolymorphic(LInstruction *ins, Register obj, Register scratch,
+                                          const ConstantOrRegister &value)
+{
+    MSetPropertyPolymorphic *mir = ins->mirRaw()->toSetPropertyPolymorphic();
+    JS_ASSERT(mir->numShapes() > 1);
+
+    masm.loadObjShape(obj, scratch);
+
+    Label done;
+    for (size_t i = 0; i < mir->numShapes(); i++) {
+        Label next;
+        masm.branchPtr(Assembler::NotEqual, scratch, ImmGCPtr(mir->objShape(i)), &next);
+
+        RawShape shape = mir->shape(i);
+        if (shape->slot() < shape->numFixedSlots()) {
+            // Fixed slot.
+            Address addr(obj, JSObject::getFixedSlotOffset(shape->slot()));
+            if (mir->needsBarrier())
+                emitPreBarrier(addr, MIRType_Value);
+            masm.storeConstantOrRegister(value, addr);
+        } else {
+            // Dynamic slot.
+            masm.loadPtr(Address(obj, JSObject::offsetOfSlots()), scratch);
+            Address addr(scratch, (shape->slot() - shape->numFixedSlots()) * sizeof(js::Value));
+            if (mir->needsBarrier())
+                emitPreBarrier(addr, MIRType_Value);
+            masm.storeConstantOrRegister(value, addr);
+        }
+
+        masm.jump(&done);
+        masm.bind(&next);
+    }
+
+    // Bailout if no shape matches.
+    if (!bailout(ins->snapshot()))
+        return false;
+
+    masm.bind(&done);
+    return true;
+}
+
+bool
+CodeGenerator::visitSetPropertyPolymorphicV(LSetPropertyPolymorphicV *ins)
+{
+    Register obj = ToRegister(ins->obj());
+    Register temp = ToRegister(ins->temp());
+    ValueOperand value = ToValue(ins, LSetPropertyPolymorphicV::Value);
+    return emitSetPropertyPolymorphic(ins, obj, temp, TypedOrValueRegister(value));
+}
+
+bool
+CodeGenerator::visitSetPropertyPolymorphicT(LSetPropertyPolymorphicT *ins)
+{
+    Register obj = ToRegister(ins->obj());
+    Register temp = ToRegister(ins->temp());
+
+    ConstantOrRegister value;
+    if (ins->mir()->value()->isConstant())
+        value = ConstantOrRegister(ins->mir()->value()->toConstant()->value());
+    else
+        value = TypedOrValueRegister(ins->mir()->value()->type(), ToAnyRegister(ins->value()));
+
+    return emitSetPropertyPolymorphic(ins, obj, temp, value);
 }
 
 bool
@@ -3670,7 +3811,7 @@ IonCompartment::generateStringConcatStub(JSContext *cx)
                   &isShort);
 
     // Ensure result length <= JSString::MAX_LENGTH.
-    masm.branch32(Assembler::Above, temp1, Imm32(JSString::MAX_LENGTH), &failure);
+    masm.branch32(Assembler::Above, temp2, Imm32(JSString::MAX_LENGTH), &failure);
 
     // Allocate a new rope.
     masm.newGCString(output, &failure);

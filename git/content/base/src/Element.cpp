@@ -73,7 +73,6 @@
 #include "nsLayoutUtils.h"
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
-#include "nsIJSContextStack.h"
 
 #include "nsIDOMEventListener.h"
 #include "nsIWebNavigation.h"
@@ -117,7 +116,6 @@
 #include "nsDOMMutationObserver.h"
 #include "nsSVGFeatures.h"
 #include "nsWrapperCacheInlines.h"
-#include "nsCycleCollector.h"
 #include "xpcpublic.h"
 #include "nsIScriptError.h"
 #include "nsLayoutStatics.h"

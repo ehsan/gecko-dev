@@ -222,7 +222,6 @@
 #include "nsIDOMSVGLength.h"
 #include "nsIDOMSVGNumber.h"
 #include "nsIDOMSVGRect.h"
-#include "nsIDOMSVGZoomEvent.h"
 
 #include "nsIImageDocument.h"
 
@@ -279,6 +278,8 @@ using mozilla::dom::indexedDB::IDBWrapperCache;
 using mozilla::dom::workers::ResolveWorkerClasses;
 
 #include "nsIDOMMediaQueryList.h"
+
+#include "mozilla/dom/Activity.h"
 
 #include "nsDOMTouchEvent.h"
 
@@ -712,8 +713,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(SVGNumber, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(SVGRect, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(SVGZoomEvent, nsEventSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(MozCanvasPrintState, nsDOMGenericSH,
@@ -1655,9 +1654,8 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigatorBluetooth)
 #endif
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigatorCamera)
-#ifdef MOZ_SYS_MSG
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigatorSystemMessages)
-#endif
+    DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsIDOMNavigatorSystemMessages,
+                                        Activity::PrefEnabled())
 #ifdef MOZ_TIME_MANAGER
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozNavigatorTime)
 #endif
@@ -1975,11 +1973,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(SVGRect, nsIDOMSVGRect)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGRect)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(SVGZoomEvent, nsIDOMSVGZoomEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGZoomEvent)
-    DOM_CLASSINFO_UI_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(MozCanvasPrintState, nsIDOMMozCanvasPrintState)
@@ -3169,7 +3162,7 @@ GetDocument(JSObject *obj)
 JSBool
 nsWindowSH::GlobalScopePolluterNewResolve(JSContext *cx, JSHandleObject obj,
                                           JSHandleId id, unsigned flags,
-                                          JSMutableHandleObject objp)
+                                          JS::MutableHandle<JSObject*> objp)
 {
   if (!JSID_IS_STRING(id)) {
     // Nothing to do if we're resolving a non-string property.
@@ -5043,24 +5036,26 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     // compatibility, this should spit out an message on the JS
     // console.
 
-    JSObject *windowObj = win->GetGlobalJSObject();
+    JSObject* windowObj = js::CheckedUnwrap(obj, /* stopAtOuter = */ false);
+    NS_ENSURE_TRUE(windowObj, NS_ERROR_DOM_SECURITY_ERR);
 
-    JSAutoCompartment ac(cx, windowObj);
-    JSAutoRequest ar(cx);
-
-    JSFunction *fun = ::JS_NewFunction(cx, ContentWindowGetter, 0, 0,
-                                       windowObj, "_content");
-    if (!fun) {
-      return NS_ERROR_OUT_OF_MEMORY;
+    JSObject *funObj;
+    {
+      JSAutoCompartment ac(cx, windowObj);
+      JSFunction *fun = ::JS_NewFunction(cx, ContentWindowGetter, 0, 0,
+                                         windowObj, "_content");
+      if (!fun) {
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
+      funObj = ::JS_GetFunctionObject(fun);
     }
 
-    JSObject *funObj = ::JS_GetFunctionObject(fun);
-
-    if (!::JS_DefinePropertyById(cx, windowObj, id, JSVAL_VOID,
-                                 JS_DATA_TO_FUNC_PTR(JSPropertyOp, funObj),
-                                 JS_StrictPropertyStub,
-                                 JSPROP_ENUMERATE | JSPROP_GETTER |
-                                 JSPROP_SHARED)) {
+    if (!JS_WrapObject(cx, &funObj) ||
+        !JS_DefinePropertyById(cx, obj, id, JSVAL_VOID,
+                               JS_DATA_TO_FUNC_PTR(JSPropertyOp, funObj),
+                               JS_StrictPropertyStub,
+                               JSPROP_ENUMERATE | JSPROP_GETTER |
+                               JSPROP_SHARED)) {
       return NS_ERROR_FAILURE;
     }
 
@@ -5360,6 +5355,40 @@ nsNavigatorSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   if (!name_struct) {
     return NS_OK;
   }
+
+  if (name_struct->mType == nsGlobalNameStruct::eTypeNewDOMBinding) {
+    mozilla::dom::ConstructNavigatorProperty construct = name_struct->mConstructNavigatorProperty;
+    MOZ_ASSERT(construct);
+
+    if (name_struct->mPrefEnabled && !(*name_struct->mPrefEnabled)()) {
+      return NS_OK;
+    }
+
+    JS::Rooted<JSObject*> naviObj(cx, js::CheckedUnwrap(obj, /* stopAtOuter = */ false));
+    NS_ENSURE_TRUE(naviObj, NS_ERROR_DOM_SECURITY_ERR);
+
+    JS::Rooted<JSObject*> domObject(cx);
+    {
+      JSAutoCompartment ac(cx, naviObj);
+      domObject = construct(cx, naviObj);
+      if (!domObject) {
+        return NS_ERROR_FAILURE;
+      }
+    }
+
+    if (!JS_WrapObject(cx, domObject.address()) ||
+        !JS_DefinePropertyById(cx, obj, id,
+                               JS::ObjectValue(*domObject),
+                               nullptr, nullptr, JSPROP_ENUMERATE)) {
+      return NS_ERROR_FAILURE;
+    }
+
+    *_retval = true;
+    *objp = obj;
+
+    return NS_OK;
+  }
+
   NS_ASSERTION(name_struct->mType == nsGlobalNameStruct::eTypeNavigatorProperty,
                "unexpected type");
 
@@ -6386,7 +6415,7 @@ nsHTMLDocumentSH::DocumentAllGetProperty(JSContext *cx, JSHandleObject obj_,
 
 JSBool
 nsHTMLDocumentSH::DocumentAllNewResolve(JSContext *cx, JSHandleObject obj, JSHandleId id,
-                                        unsigned flags, JSMutableHandleObject objp)
+                                        unsigned flags, JS::MutableHandle<JSObject*> objp)
 {
   JS::RootedValue v(cx);
 
@@ -6544,7 +6573,7 @@ nsHTMLDocumentSH::DocumentAllHelperGetProperty(JSContext *cx, JSHandleObject obj
 JSBool
 nsHTMLDocumentSH::DocumentAllHelperNewResolve(JSContext *cx, JSHandleObject obj,
                                               JSHandleId id, unsigned flags,
-                                              JSMutableHandleObject objp)
+                                              JS::MutableHandle<JSObject*> objp)
 {
   if (nsDOMClassInfo::sAll_id == id) {
     // document.all is resolved for the first time. Define it.
@@ -6570,7 +6599,7 @@ nsHTMLDocumentSH::DocumentAllHelperNewResolve(JSContext *cx, JSHandleObject obj,
 JSBool
 nsHTMLDocumentSH::DocumentAllTagsNewResolve(JSContext *cx, JSHandleObject obj,
                                             JSHandleId id, unsigned flags,
-                                            JSMutableHandleObject objp)
+                                            JS::MutableHandle<JSObject*> objp)
 {
   if (JSID_IS_STRING(id)) {
     nsDocument *doc = GetDocument(obj);
