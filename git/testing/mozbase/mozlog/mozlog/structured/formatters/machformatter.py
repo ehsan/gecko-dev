@@ -83,9 +83,6 @@ class BaseMachFormatter(base.BaseFormatter):
                                              data["command"])
 
     def log(self, data):
-        if data.get('component'):
-            return " ".join([data["component"], data["level"], data["message"]])
-
         return "%s %s" % (data["level"], data["message"])
 
     def _get_subtest_data(self, data):

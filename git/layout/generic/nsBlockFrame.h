@@ -193,7 +193,7 @@ public:
   /**
    * Return the bullet text equivalent.
    */
-  void GetSpokenBulletText(nsAString& aText) const;
+  void GetBulletText(nsAString& aText) const;
 
   /**
    * Return true if there's a bullet.

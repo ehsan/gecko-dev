@@ -28,7 +28,6 @@
 #include "nsISSLSocketControl.h"
 #include "nsISSLStatus.h"
 #include "nsISSLStatusProvider.h"
-#include "nsISupportsPriority.h"
 #include "prprf.h"
 #include "prnetdb.h"
 #include "sslt.h"
@@ -2889,7 +2888,7 @@ Http2Session::DispatchOnTunnel(nsAHttpTransaction *aHttpTransaction,
     nsRefPtr<SpdyConnectTransaction> connectTrans =
       new SpdyConnectTransaction(ci, aCallbacks,
                                  trans->Caps(), trans, this);
-    AddStream(connectTrans, nsISupportsPriority::PRIORITY_NORMAL,
+    AddStream(connectTrans, trans->Priority(),
               false, nullptr);
     Http2Stream *tunnel = mStreamTransactionHash.Get(connectTrans);
     MOZ_ASSERT(tunnel);

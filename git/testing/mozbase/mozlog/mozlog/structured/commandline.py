@@ -4,9 +4,8 @@
 
 import argparse
 import sys
-import optparse
 
-from structuredlog import StructuredLogger, set_default_logger
+from structuredlog import StructuredLogger
 import handlers
 import formatters
 
@@ -30,44 +29,28 @@ def log_file(name):
 
 def add_logging_group(parser):
     """
-    Add logging options to an argparse ArgumentParser or
-    optparse OptionParser.
+    Add logging options to an argparse ArgumentParser.
 
     Each formatter has a corresponding option of the form --log-{name}
     where {name} is the name of the formatter. The option takes a value
     which is either a filename or "-" to indicate stdout.
 
-    :param parser: The ArgumentParser or OptionParser object that should have
-                   logging options added.
+    :param parser: The ArgumentParser object that should have logging
+                   options added.
     """
-    group_name = "Output Logging"
-    group_description = ("Each option represents a possible logging format "
-                         "and takes a filename to write that format to, "
-                         "or '-' to write to stdout.")
-
-    if isinstance(parser, optparse.OptionParser):
-        group = optparse.OptionGroup(parser,
-                                     group_name,
-                                     group_description)
-        for name, (cls, help_str) in log_formatters.iteritems():
-            group.add_option("--log-" + name, action="append", type="str",
-                             help=help_str)
-
-        parser.add_option_group(group)
-    else:
-        group = parser.add_argument_group(group_name,
-                                          group_description)
-        for name, (cls, help_str) in log_formatters.iteritems():
-            group.add_argument("--log-" + name, action="append", type=log_file,
-                               help=help_str)
+    group = parser.add_argument_group("Output Logging",
+                                      description="Options for logging output.\n"
+                                      "Each option represents a possible logging format "
+                                      "and takes a filename to write that format to, "
+                                      "or '-' to write to stdout.")
+    for name, (cls, help_str) in log_formatters.iteritems():
+        group.add_argument("--log-" + name, action="append", type=log_file,
+                           help=help_str)
 
 
 def setup_logging(suite, args, defaults):
     """
     Configure a structuredlogger based on command line arguments.
-
-    The created structuredlogger will also be set as the default logger, and
-    can be retrieved with :py:func:`get_default_logger`.
 
     :param suite: The name of the testsuite being run
     :param args: A dictionary of {argument_name:value} produced from
@@ -87,8 +70,6 @@ def setup_logging(suite, args, defaults):
         if name.startswith(prefix) and values is not None:
             for value in values:
                 found = True
-                if isinstance(value, str):
-                    value = log_file(value)
                 if value == sys.stdout:
                     found_stdout_logger = True
                 formatter_cls = log_formatters[name[len(prefix):]][0]
@@ -108,7 +89,5 @@ def setup_logging(suite, args, defaults):
                 formatter_cls = log_formatters[name][0]
                 logger.add_handler(handlers.StreamHandler(stream=value,
                                                           formatter=formatter_cls()))
-
-    set_default_logger(logger)
 
     return logger

@@ -371,7 +371,7 @@ DrawTargetRecording::Snapshot()
 
   mRecorder->RecordEvent(RecordedSnapshot(retSurf, this));
 
-  return retSurf.forget();
+  return retSurf;
 }
 
 void
@@ -416,7 +416,7 @@ DrawTargetRecording::CreateFilter(FilterType aType)
 
   mRecorder->RecordEvent(RecordedFilterNodeCreation(retNode, aType));
 
-  return retNode.forget();
+  return retNode;
 }
 
 void
@@ -470,7 +470,7 @@ DrawTargetRecording::CreateSourceSurfaceFromData(unsigned char *aData,
 
   mRecorder->RecordEvent(RecordedSourceSurfaceCreation(retSurf, aData, aStride, aSize, aFormat));
 
-  return retSurf.forget();
+  return retSurf;
 }
 
 TemporaryRef<SourceSurface>
@@ -503,7 +503,7 @@ DrawTargetRecording::OptimizeSourceSurface(SourceSurface *aSurface) const
                                     dataSurf->GetSize(), dataSurf->GetFormat()));
   }
 
-  return retSurf.forget();
+  return retSurf;
 }
 
 TemporaryRef<SourceSurface>
@@ -531,14 +531,17 @@ DrawTargetRecording::CreateSourceSurfaceFromNativeSurface(const NativeSurface &a
                                     dataSurf->GetSize(), dataSurf->GetFormat()));
   }
 
-  return retSurf.forget();
+  return retSurf;
 }
 
 TemporaryRef<DrawTarget>
 DrawTargetRecording::CreateSimilarDrawTarget(const IntSize &aSize, SurfaceFormat aFormat) const
 {
   RefPtr<DrawTarget> dt = mFinalDT->CreateSimilarDrawTarget(aSize, aFormat);
-  return new DrawTargetRecording(mRecorder.get(), dt);
+
+  RefPtr<DrawTarget> retDT = new DrawTargetRecording(mRecorder.get(), dt);
+
+  return retDT;
 }
 
 TemporaryRef<PathBuilder>
@@ -559,7 +562,7 @@ DrawTargetRecording::CreateGradientStops(GradientStop *aStops,
 
   mRecorder->RecordEvent(RecordedGradientStopsCreation(retStops, aStops, aNumStops, aExtendMode));
 
-  return retStops.forget();
+  return retStops;
 }
 
 void

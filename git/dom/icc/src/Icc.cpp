@@ -7,7 +7,6 @@
 #include "mozilla/dom/MozIccBinding.h"
 #include "mozilla/dom/MozStkCommandEvent.h"
 #include "mozilla/dom/DOMRequest.h"
-#include "mozilla/dom/ScriptSettings.h"
 #include "nsIDOMIccInfo.h"
 #include "nsJSON.h"
 #include "nsRadioInterfaceLayer.h"
@@ -52,9 +51,7 @@ Icc::NotifyStkEvent(const nsAString& aName, const nsAString& aMessage)
   nsIScriptContext* sc = GetContextForEventHandlers(&rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  AutoJSAPIWithErrorsReportedToWindow jsapi(sc);
-  JSContext* cx = jsapi.cx();
-  JSAutoCompartment ac(cx, sc->GetWindowProxyPreserveColor());
+  AutoPushJSContext cx(sc->GetNativeContext());
   JS::Rooted<JS::Value> value(cx);
 
   if (!aMessage.IsEmpty()) {

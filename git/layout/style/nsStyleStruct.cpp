@@ -25,7 +25,6 @@
 
 #include "imgIRequest.h"
 #include "imgIContainer.h"
-#include "CounterStyleManager.h"
 
 #include "mozilla/Likely.h"
 #include "nsIURI.h"
@@ -652,11 +651,9 @@ nsChangeHint nsStyleOutline::CalcDifference(const nsStyleOutline& aOther) const
 // --------------------
 // nsStyleList
 //
-nsStyleList::nsStyleList(nsPresContext* aPresContext) 
-  : mListStylePosition(NS_STYLE_LIST_STYLE_POSITION_OUTSIDE),
-    mListStyleType(NS_LITERAL_STRING("disc")),
-    mCounterStyle(aPresContext->CounterStyleManager()->
-                  BuildCounterStyle(mListStyleType))
+nsStyleList::nsStyleList() 
+  : mListStyleType(NS_STYLE_LIST_STYLE_DISC),
+    mListStylePosition(NS_STYLE_LIST_STYLE_POSITION_OUTSIDE)
 {
   MOZ_COUNT_CTOR(nsStyleList);
 }
@@ -667,9 +664,8 @@ nsStyleList::~nsStyleList()
 }
 
 nsStyleList::nsStyleList(const nsStyleList& aSource)
-  : mListStylePosition(aSource.mListStylePosition),
-    mListStyleType(aSource.mListStyleType),
-    mCounterStyle(aSource.mCounterStyle),
+  : mListStyleType(aSource.mListStyleType),
+    mListStylePosition(aSource.mListStylePosition),
     mImageRegion(aSource.mImageRegion)
 {
   SetListStyleImage(aSource.GetListStyleImage());

@@ -41,8 +41,7 @@ class ClientTiledThebesLayer : public ThebesLayer,
   typedef ThebesLayer Base;
 
 public:
-  ClientTiledThebesLayer(ClientLayerManager* const aManager,
-                         ClientLayerManager::ThebesLayerCreationHint aCreationHint = LayerManager::NONE);
+  ClientTiledThebesLayer(ClientLayerManager* const aManager);
   ~ClientTiledThebesLayer();
 
   // Override name to distinguish it from ClientThebesLayer in layer dumps

@@ -1098,12 +1098,13 @@ nsComputedDOMStyle::DoGetContent()
               nsDependentString(a->Item(1).GetStringBufferValue()), str);
           }
           NS_ABORT_IF_FALSE(eCSSUnit_None != a->Item(typeItem).GetUnit(),
-                            "'none' should be handled as identifier value");
-          nsString type;
-          a->Item(typeItem).GetStringValue(type);
-          if (!type.LowerCaseEqualsLiteral("decimal")) {
+                            "'none' should be handled  as enumerated value");
+          int32_t type = a->Item(typeItem).GetIntValue();
+          if (type != NS_STYLE_LIST_STYLE_DECIMAL) {
             str.AppendLiteral(", ");
-            nsStyleUtil::AppendEscapedCSSIdent(type, str);
+            AppendASCIItoUTF16(
+              nsCSSProps::ValueToKeyword(type, nsCSSProps::kListStyleKTable),
+              str);
           }
 
           str.Append(char16_t(')'));
@@ -2991,12 +2992,9 @@ CSSValue*
 nsComputedDOMStyle::DoGetListStyleType()
 {
   nsROCSSPrimitiveValue *val = new nsROCSSPrimitiveValue;
-  // want SetIdent
-  nsString type;
-  StyleList()->GetListStyleType(type);
-  nsString value;
-  nsStyleUtil::AppendEscapedCSSIdent(type, value);
-  val->SetString(value);
+  val->SetIdent(
+    nsCSSProps::ValueToKeywordEnum(StyleList()->mListStyleType,
+                                   nsCSSProps::kListStyleKTable));
   return val;
 }
 

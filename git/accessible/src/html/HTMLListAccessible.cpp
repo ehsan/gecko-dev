@@ -165,7 +165,7 @@ HTMLListBulletAccessible::Name(nsString &aName)
   // Native anonymous content, ARIA can't be used. Get list bullet text.
   nsBlockFrame* blockFrame = do_QueryFrame(mContent->GetPrimaryFrame());
   if (blockFrame) {
-    blockFrame->GetSpokenBulletText(aName);
+    blockFrame->GetBulletText(aName);
   }
 
   return eNameOK;
@@ -190,7 +190,7 @@ HTMLListBulletAccessible::AppendTextTo(nsAString& aText, uint32_t aStartOffset,
   nsAutoString bulletText;
   nsBlockFrame* blockFrame = do_QueryFrame(mContent->GetPrimaryFrame());
   if (blockFrame)
-    blockFrame->GetSpokenBulletText(bulletText);
+    blockFrame->GetBulletText(bulletText);
 
   aText.Append(Substring(bulletText, aStartOffset, aLength));
 }

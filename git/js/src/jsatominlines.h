@@ -137,15 +137,9 @@ IdToString(JSContext *cx, jsid id)
 
 inline
 AtomHasher::Lookup::Lookup(const JSAtom *atom)
-  : isLatin1(atom->hasLatin1Chars()), length(atom->length()), atom(atom)
+  : chars(atom->chars()), length(atom->length()), atom(atom)
 {
-    if (isLatin1) {
-        latin1Chars = atom->latin1Chars(nogc);
-        hash = mozilla::HashString(latin1Chars, length);
-    } else {
-        twoByteChars = atom->twoByteChars(nogc);
-        hash = mozilla::HashString(twoByteChars, length);
-    }
+    hash = mozilla::HashString(chars, length);
 }
 
 inline bool
@@ -156,18 +150,7 @@ AtomHasher::match(const AtomStateEntry &entry, const Lookup &lookup)
         return lookup.atom == key;
     if (key->length() != lookup.length)
         return false;
-
-    if (key->hasLatin1Chars()) {
-        const Latin1Char *keyChars = key->latin1Chars(lookup.nogc);
-        if (lookup.isLatin1)
-            return mozilla::PodEqual(keyChars, lookup.latin1Chars, lookup.length);
-        return EqualCharsLatin1TwoByte(keyChars, lookup.twoByteChars, lookup.length);
-    }
-
-    const jschar *keyChars = key->twoByteChars(lookup.nogc);
-    if (lookup.isLatin1)
-        return EqualCharsLatin1TwoByte(lookup.latin1Chars, keyChars, lookup.length);
-    return mozilla::PodEqual(keyChars, lookup.twoByteChars, lookup.length);
+    return mozilla::PodEqual(key->chars(), lookup.chars, lookup.length);
 }
 
 inline Handle<PropertyName*>
