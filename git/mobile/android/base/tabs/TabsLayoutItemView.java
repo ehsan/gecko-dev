@@ -95,14 +95,16 @@ public class TabsLayoutItemView extends LinearLayout
         mTabId = tab.getId();
 
         Drawable thumbnailImage = tab.getThumbnail();
-        mThumbnail.setImageDrawable(thumbnailImage);
-
+        if (thumbnailImage != null) {
+            setThumbnail(thumbnailImage);
+        } else {
+            mThumbnail.setImageResource(R.drawable.tab_thumbnail_default);
+        }
         if (mThumbnailWrapper != null) {
             mThumbnailWrapper.setRecording(tab.isRecording());
         }
         mTitle.setText(tab.getDisplayTitle());
         mCloseButton.setTag(this);
-
     }
 
     public int getTabId() {

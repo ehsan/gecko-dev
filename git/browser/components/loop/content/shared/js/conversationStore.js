@@ -121,7 +121,7 @@ loop.store.ConversationStore = (function() {
       this.dispatcher.register(this, [
         "connectionFailure",
         "connectionProgress",
-        "setupWindowData",
+        "gatherCallData",
         "connectCall",
         "hangupCall",
         "peerHungupCall",
@@ -188,22 +188,36 @@ loop.store.ConversationStore = (function() {
       }
     },
 
-    setupWindowData: function(actionData) {
-      var windowType = actionData.type;
-      if (windowType !== "outgoing" &&
-          windowType !== "incoming") {
-        // Not for this store, don't do anything.
+    /**
+     * Handles the gather call data action, setting the state
+     * and starting to get the appropriate data for the type of call.
+     *
+     * @param {sharedActions.GatherCallData} actionData The action data.
+     */
+    gatherCallData: function(actionData) {
+      if (!actionData.outgoing) {
+        // XXX Other types aren't supported yet, but set the state for the
+        // view selection.
+        this.set({outgoing: false});
+        return;
+      }
+
+      var callData = navigator.mozLoop.getCallData(actionData.windowId);
+      if (!callData) {
+        console.error("Failed to get the call data");
+        this.set({callState: CALL_STATES.TERMINATED});
         return;
       }
 
       this.set({
-        contact: actionData.contact,
-        outgoing: windowType === "outgoing",
+        contact: callData.contact,
+        outgoing: actionData.outgoing,
         windowId: actionData.windowId,
-        callType: actionData.callType,
-        callState: CALL_STATES.GATHER,
-        videoMuted: actionData.callType === CALL_TYPES.AUDIO_ONLY
+        callType: callData.callType,
+        callState: CALL_STATES.GATHER
       });
+
+      this.set({videoMuted: this.get("callType") === CALL_TYPES.AUDIO_ONLY});
 
       if (this.get("outgoing")) {
         this._setupOutgoingCall();
@@ -316,8 +330,6 @@ loop.store.ConversationStore = (function() {
       var contactAddresses = [];
       var contact = this.get("contact");
 
-      navigator.mozLoop.calls.setCallInProgress(this.get("windowId"));
-
       function appendContactValues(property, strip) {
         if (contact.hasOwnProperty(property)) {
           contact[property].forEach(function(item) {
@@ -397,7 +409,7 @@ loop.store.ConversationStore = (function() {
         delete this._websocket;
       }
 
-      navigator.mozLoop.calls.clearCallInProgress(this.get("windowId"));
+      navigator.mozLoop.releaseCallData(this.get("windowId"));
     },
 
     /**

@@ -202,7 +202,6 @@ abstract class BaseTest extends BaseRobocopTest {
      */
     protected final void focusUrlBar() {
         // Click on the browser toolbar to enter editing mode
-        mSolo.waitForView(R.id.browser_toolbar);
         final View toolbarView = mSolo.getView(R.id.browser_toolbar);
         mSolo.clickOnView(toolbarView);
 
@@ -222,9 +221,9 @@ abstract class BaseTest extends BaseRobocopTest {
     }
 
     protected final void enterUrl(String url) {
-        focusUrlBar();
-
         final EditText urlEditView = (EditText) mSolo.getView(R.id.url_edit_text);
+
+        focusUrlBar();
 
         // Send the keys for the URL we want to enter
         mSolo.clearEditText(urlEditView);
@@ -330,27 +329,25 @@ abstract class BaseTest extends BaseRobocopTest {
         return result;
     }
 
-    /**
-     * @deprecated use {@link #waitForCondition(Condition, int)} instead
-     */
-    @Deprecated
-    protected final boolean waitForTest(final BooleanTest t, final int timeout) {
-        final boolean isSatisfied = mSolo.waitForCondition(new Condition() {
-            @Override
-            public boolean isSatisfied() {
-                return t.test();
+    // TODO: With Robotium 4.2, we should use Condition and waitForCondition instead.
+    // Future boolean tests should not use this method.
+    protected final boolean waitForTest(BooleanTest t, int timeout) {
+        long end = SystemClock.uptimeMillis() + timeout;
+        while (SystemClock.uptimeMillis() < end) {
+            if (t.test()) {
+                return true;
             }
-        }, timeout);
-
-        if (!isSatisfied) {
-            // log out wait failure for diagnostic purposes only;
-            // a failed wait may be normal and does not necessarily
-            // warrant a test assertion/failure
-            mAsserter.dumpLog("waitForTest timeout after " + timeout + " ms");
+            mSolo.sleep(100);
         }
-        return isSatisfied;
+        // log out wait failure for diagnostic purposes only;
+        // a failed wait may be normal and does not necessarily
+        // warrant a test assertion/failure
+        mAsserter.dumpLog("waitForTest timeout after "+timeout+" ms");
+        return false;
     }
 
+    // TODO: With Robotium 4.2, we should use Condition and waitForCondition instead.
+    // Future boolean tests should not implement this interface.
     protected interface BooleanTest {
         public boolean test();
     }

@@ -31,31 +31,19 @@ loop.shared.actions = (function() {
 
   return {
     /**
-     * Get the window data for the provided window id
-     */
-    GetWindowData: Action.define("getWindowData", {
-      windowId: String
-    }),
-
-    /**
-     * Used to pass round the window data so that stores can
-     * record the appropriate data.
-     */
-    SetupWindowData: Action.define("setupWindowData", {
-      windowId: String,
-      type: String
-
-      // Optional Items. There are other optional items typically sent
-      // around with this action. They are for the setup of calls and rooms and
-      // depend on the type. See LoopCalls and LoopRooms for the details of this
-      // data.
-    }),
-
-    /**
      * Fetch a new call url from the server, intended to be sent over email when
      * a contact can't be reached.
      */
     FetchEmailLink: Action.define("fetchEmailLink", {
+    }),
+
+    /**
+     * Used to trigger gathering of initial call data.
+     */
+    GatherCallData: Action.define("gatherCallData", {
+      // Specify the callId for an incoming call.
+      windowId: [String, null],
+      outgoing: Boolean
     }),
 
     /**
@@ -182,11 +170,13 @@ loop.shared.actions = (function() {
     }),
 
     /**
-     * Opens a room.
-     * XXX: should move to some roomActions module - refs bug 1079284
+     * Primes localRoomStore with roomLocalId, which triggers the EmptyRoomView
+     * to do any necessary setup.
+     *
+     * XXX should move to localRoomActions module
      */
-    OpenRoom: Action.define("openRoom", {
-      roomToken: String
+    SetupEmptyRoom: Action.define("setupEmptyRoom", {
+      localRoomId: String
     })
   };
 })();
