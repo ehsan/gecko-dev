@@ -11,13 +11,6 @@
 BEGIN_INDEXEDDB_NAMESPACE
 
 inline
-StructuredCloneWriteInfo::StructuredCloneWriteInfo()
-: mTransaction(nsnull),
-  mOffsetToKeyProp(0)
-{
-}
-
-inline
 bool
 StructuredCloneWriteInfo::SetFromSerialized(
                                const SerializedStructuredCloneWriteInfo& aOther)
@@ -29,15 +22,9 @@ StructuredCloneWriteInfo::SetFromSerialized(
     return false;
   }
 
-  mFiles.Clear();
+  mBlobs.Clear();
   mOffsetToKeyProp = aOther.offsetToKeyProp;
   return true;
-}
-
-inline
-StructuredCloneReadInfo::StructuredCloneReadInfo()
-: mDatabase(nsnull)
-{
 }
 
 inline

@@ -266,10 +266,6 @@ public class AndroidBrowserDB implements BrowserDB.BrowserDBIface {
             removeBookmarkPre11(cr, uri);
     }
 
-    public void addReadingListItem(ContentResolver cr, String title, String uri) {
-        // Do nothing
-    }
-
     public void registerBookmarkObserverPre11(ContentResolver cr, ContentObserver observer) {
         cr.registerContentObserver(Browser.BOOKMARKS_URI, false, observer);
     }

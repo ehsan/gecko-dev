@@ -607,7 +607,7 @@ GLContextProviderCGL::CreateForNativePixmapSurface(gfxASurface *aSurface)
 static nsRefPtr<GLContext> gGlobalContext;
 
 GLContext *
-GLContextProviderCGL::GetGlobalContext(const ContextFlags)
+GLContextProviderCGL::GetGlobalContext()
 {
     if (!sCGLLibrary.EnsureInitialized()) {
         return nsnull;

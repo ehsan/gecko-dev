@@ -22,7 +22,6 @@
 #ifdef MOZ_B2G_BT
 #include "mozilla/ipc/DBusThread.h"
 #include "BluetoothFirmware.h"
-#include "BluetoothUtils.h"
 #endif
 #include "nsContentUtils.h"
 #include "nsServiceManagerUtils.h"
@@ -235,7 +234,6 @@ SystemWorkerManager::Init()
     NS_WARNING("Failed to initialize Bluetooth!");
     return rv;
   }
-
 #endif
 
 #ifdef MOZ_WIDGET_GONK
@@ -397,7 +395,6 @@ SystemWorkerManager::InitBluetooth(JSContext *cx)
   if(EnsureBluetoothInit()) {
 #endif
     StartDBus();
-    StartBluetoothConnection();
 #ifdef MOZ_WIDGET_GONK
   }
   else {

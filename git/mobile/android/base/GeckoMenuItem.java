@@ -33,15 +33,13 @@ public class GeckoMenuItem implements MenuItem, View.OnClickListener {
     }
 
     public static interface OnShowAsActionChangedListener {
-        public boolean hasActionItemBar();
-        public void onShowAsActionChanged(GeckoMenuItem item, boolean isActionItem);
+        public void onShowAsActionChanged(GeckoMenuItem item);
     }
 
     private Context mContext;
     private int mId;
     private int mOrder;
     private GeckoMenuItem.Layout mLayout;
-    private boolean mActionItem;
     private CharSequence mTitle;
     private CharSequence mTitleCondensed;
     private boolean mCheckable;
@@ -60,7 +58,6 @@ public class GeckoMenuItem implements MenuItem, View.OnClickListener {
 
         mId = id;
         mOrder = 0;
-        mActionItem = false;
         mVisible = true;
         mEnabled = true;
         mCheckable = true;
@@ -267,40 +264,26 @@ public class GeckoMenuItem implements MenuItem, View.OnClickListener {
 
     @Override
     public void setShowAsAction(int actionEnum) {
-        if (mShowAsActionChangedListener == null)
-            return;
-
-        if (mActionItem == (actionEnum == 1))
-            return;
-
         if (actionEnum == 1) {
-            if (!mShowAsActionChangedListener.hasActionItemBar())
-                return;
-
             // Change the type to just an icon
             mLayout = new MenuItemActionBar(mContext, null);
-        } else {
-            // Change the type to default
-            mLayout = new MenuItemDefault(mContext, null);
+            mLayout.setId(mId);
+            
+            setVisible(mVisible);
+            setEnabled(mEnabled);
+            setCheckable(mCheckable);
+            setChecked(mChecked);
+
+            if (mIcon == null)
+                setIcon(mIconRes);
+            else
+                setIcon(mIcon);
+            
+            mLayout.setOnClickListener(this);
+
+            if (mShowAsActionChangedListener != null)
+                mShowAsActionChangedListener.onShowAsActionChanged(this);
         }
-
-        mActionItem = (actionEnum == 1);         
-
-        mLayout.setId(mId);
-        mLayout.setOnClickListener(this);
-
-        setTitle(mTitle);        
-        setVisible(mVisible);
-        setEnabled(mEnabled);
-        setCheckable(mCheckable);
-        setChecked(mChecked);
-
-        if (mIcon == null)
-            setIcon(mIconRes);
-        else
-            setIcon(mIcon);
-        
-        mShowAsActionChangedListener.onShowAsActionChanged(this, mActionItem);
     }
 
     @Override

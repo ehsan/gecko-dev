@@ -43,7 +43,6 @@ public final class Tab {
     private String mFaviconUrl;
     private int mFaviconSize;
     private JSONObject mIdentityData;
-    private boolean mReaderEnabled;
     private Drawable mThumbnail;
     private int mHistoryIndex;
     private int mHistorySize;
@@ -81,7 +80,6 @@ public final class Tab {
         mFaviconUrl = null;
         mFaviconSize = 0;
         mIdentityData = null;
-        mReaderEnabled = false;
         mThumbnail = null;
         mHistoryIndex = -1;
         mHistorySize = 0;
@@ -199,10 +197,6 @@ public final class Tab {
 
     public JSONObject getIdentityData() {
         return mIdentityData;
-    }
-
-    public boolean getReaderEnabled() {
-        return mReaderEnabled;
     }
 
     public boolean isBookmark() {
@@ -339,10 +333,6 @@ public final class Tab {
         mIdentityData = identityData;
     }
 
-    public void setReaderEnabled(boolean readerEnabled) {
-        mReaderEnabled = readerEnabled;
-    }
-
     private void updateBookmark() {
         final String url = getURL();
         if (url == null)
@@ -380,28 +370,6 @@ public final class Tab {
                 BrowserDB.removeBookmarksWithURL(mContentResolver, url);
             }
         });
-    }
-
-    public void addToReadingList() {
-        if (!mReaderEnabled)
-            return;
-
-        GeckoAppShell.getHandler().post(new Runnable() {
-            public void run() {
-                String url = getURL();
-                if (url == null)
-                    return;
-
-                BrowserDB.addReadingListItem(mContentResolver, getTitle(), url);
-            }
-        });
-    }
-
-    public void readerMode() {
-        if (!mReaderEnabled)
-            return;
-
-        // Do nothing for now
     }
 
     public boolean doReload() {

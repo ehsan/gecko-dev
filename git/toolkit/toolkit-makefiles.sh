@@ -37,7 +37,6 @@ MAKEFILES_dom="
   dom/interfaces/xul/Makefile
   dom/base/Makefile
   dom/battery/Makefile
-  dom/file/Makefile
   dom/indexedDB/Makefile
   dom/ipc/Makefile
   dom/locales/Makefile

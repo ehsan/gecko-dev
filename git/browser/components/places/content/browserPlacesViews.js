@@ -313,6 +313,8 @@ PlacesViewBase.prototype = {
                 element.setAttribute("image", "");
                 element.removeAttribute("image");
 #endif
+                // Set an expando on the node, controller will use it to build
+                // its metadata.
                 this.controller.cacheLivemarkInfo(aPlacesNode, aLivemark);
               }
             }.bind(this)
@@ -528,7 +530,7 @@ PlacesViewBase.prototype = {
 
   nodeRemoved:
   function PVB_nodeRemoved(aParentPlacesNode, aPlacesNode, aIndex) {
-    let parentElt = this._getDOMNodeForPlacesNode(aParentPlacesNode);
+    let parentElt = this._getDOMNodeForPlacesNode(aPlacesNode);
     let elt = this._getDOMNodeForPlacesNode(aPlacesNode);
 
     // Here we need the <menu>.
@@ -998,6 +1000,8 @@ PlacesToolbar.prototype = {
             function (aStatus, aLivemark) {
               if (Components.isSuccessCode(aStatus)) {
                 button.setAttribute("livemark", "true");
+                // Set an expando on the node, controller will use it to build
+                // its metadata.
                 this.controller.cacheLivemarkInfo(aChild, aLivemark);
               }
             }.bind(this)
@@ -1248,6 +1252,8 @@ PlacesToolbar.prototype = {
           { id: aPlacesNode.itemId },
           function (aStatus, aLivemark) {
             if (Components.isSuccessCode(aStatus)) {
+              // Set an expando on the node, controller will use it to build
+              // its metadata.
               this.controller.cacheLivemarkInfo(aPlacesNode, aLivemark);
               this.invalidateContainer(aPlacesNode);
             }

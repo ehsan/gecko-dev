@@ -1083,7 +1083,6 @@ nsGlobalWindow::FreeInnerObjects()
   mHistory = nsnull;
 
   if (mNavigator) {
-    mNavigator->OnNavigation();
     mNavigator->Invalidate();
     mNavigator = nsnull;
   }
@@ -1748,10 +1747,6 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
   mContext->WillInitializeContext();
 
   nsGlobalWindow *currentInner = GetCurrentInnerWindowInternal();
-
-  if (currentInner && currentInner->mNavigator) {
-    currentInner->mNavigator->OnNavigation();
-  }
 
   nsRefPtr<nsGlobalWindow> newInnerWindow;
   bool createdInnerWindow = false;
