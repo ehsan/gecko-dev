@@ -1157,7 +1157,6 @@ var gEditItemOverlay = {
 
   onBeginUpdateBatch: function() { },
   onEndUpdateBatch: function() { },
-  onBeforeItemRemoved: function() { },
   onItemRemoved: function() { },
   onItemVisited: function() { },
 };

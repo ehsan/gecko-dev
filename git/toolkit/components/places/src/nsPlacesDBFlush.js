@@ -240,7 +240,6 @@ nsPlacesDBFlush.prototype = {
       this._flushWithQueries([kQuerySyncPlacesId]);
   },
 
-  onBeforeItemRemoved: function() { },
   onItemRemoved: function() { },
   onItemVisited: function() { },
   onItemMoved: function() { },
