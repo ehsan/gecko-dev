@@ -50,6 +50,7 @@
 
 #include "mozStorageConnection.h"
 #include "mozStorageStatementJSHelper.h"
+#include "mozStorageValueArray.h"
 #include "mozStoragePrivateHelpers.h"
 #include "mozStorageEvents.h"
 #include "mozStorageStatementParams.h"

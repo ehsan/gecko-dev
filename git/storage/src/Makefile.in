@@ -68,8 +68,8 @@ CPPSRCS = \
   mozStorageStatementWrapper.cpp \
   mozStorageStatementParams.cpp \
   mozStorageStatementRow.cpp \
-  mozStorageArgValueArray.cpp \
-  mozStorageSQLFunctions.cpp \
+  mozStorageValueArray.cpp \
+  mozStorageUnicodeFunctions.cpp \
   mozStorageRow.cpp \
   mozStorageResultSet.cpp \
   mozStorageError.cpp \

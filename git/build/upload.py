@@ -224,7 +224,5 @@ if __name__ == '__main__':
                     verbose=True)
     except IOError, (strerror):
         print strerror
-        sys.exit(1)
     except Exception, (err):
         print err
-        sys.exit(2)

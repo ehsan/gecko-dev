@@ -1,5 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim:set ts=2 sw=2 sts=2 et: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -16,16 +15,15 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * The Mozilla Foundation
- * Portions created by the Initial Developer are Copyright (C) 2009
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *  Ted Mielczarek <ted.mielczarek@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -37,9 +35,33 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-var subscriptLoaded = false;
+#ifndef nsAOLCiter_h__
+#define nsAOLCiter_h__
 
-function run_test() {
-  load("load_subscript.js");
-  do_check_true(subscriptLoaded);
-}
+#include "nsString.h"
+#include "nsICiter.h"
+
+
+/** Mail citations using the AOL style >> This is a citation <<
+  */
+class nsAOLCiter  : public nsICiter
+{
+public:
+  nsAOLCiter();
+  virtual ~nsAOLCiter();
+//Interfaces for addref and release and queryinterface
+//NOTE: Use   NS_DECL_ISUPPORTS_INHERITED in any class inherited from nsEditor
+  NS_DECL_ISUPPORTS
+
+  NS_IMETHOD GetCiteString(const nsAString & aInString, nsAString & aOutString);
+
+  NS_IMETHOD StripCites(const nsAString & aInString, nsAString & aOutString);
+
+  NS_IMETHOD Rewrap(const nsAString & aInString,
+                    PRUint32 aWrapCol, PRUint32 aFirstLineOffset,
+                    PRBool aRespectNewlines,
+                    nsAString & aOutString);
+};
+
+#endif //nsAOLCiter_h__
+

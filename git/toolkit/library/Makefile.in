@@ -205,12 +205,9 @@ EXTRA_DSO_LDOPTS += \
 	-lcrypto \
 	$(TK_LIBS) \
 	$(NULL)
-endif
 
-ifeq ($(OS_ARCH),Darwin)
 ifdef MOZ_SYDNEYAUDIO
 EXTRA_DSO_LDOPTS += \
-	-framework Carbon \
 	-framework CoreAudio \
 	-framework AudioToolbox \
 	-framework AudioUnit \

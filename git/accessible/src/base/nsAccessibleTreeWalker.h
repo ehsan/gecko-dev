@@ -45,7 +45,6 @@
 #include "nsCOMPtr.h"
 #include "nsIDocument.h"
 #include "nsIAccessible.h"
-#include "nsIDOMNode.h"
 #include "nsIDOMNodeList.h"
 #include "nsIAccessibilityService.h"
 #include "nsIWeakReference.h"
