@@ -74,8 +74,8 @@ public:
 
         ImageInfo(GLsizei width,
                   GLsizei height,
-                  TexInternalFormat webGLFormat,
-                  TexType webGLType,
+                  GLenum webGLFormat,
+                  GLenum webGLType,
                   WebGLImageDataStatus status)
             : WebGLRectangleObject(width, height)
             , mWebGLFormat(webGLFormat)
@@ -114,16 +114,16 @@ public:
          * It can be converted to a value to be passed to driver with
          * DriverFormatsFromFormatAndType().
          */
-        TexInternalFormat WebGLFormat() const { return mWebGLFormat; }
+        GLenum WebGLFormat() const { return mWebGLFormat; }
         /*! This is the type passed from JS to WebGL.
          * It can be converted to a value to be passed to driver with
          * DriverTypeFromType().
          */
-        TexType WebGLType() const { return mWebGLType; }
+        GLenum WebGLType() const { return mWebGLType; }
 
     protected:
-        TexInternalFormat mWebGLFormat; //!< This is the WebGL/GLES format
-        TexType mWebGLType;   //!< This is the WebGL/GLES type
+        GLenum mWebGLFormat; //!< This is the WebGL/GLES format
+        GLenum mWebGLType;   //!< This is the WebGL/GLES type
         WebGLImageDataStatus mImageDataStatus;
 
         friend class WebGLTexture;
@@ -225,7 +225,7 @@ public:
 
     void SetImageInfo(TexImageTarget aTarget, GLint aLevel,
                       GLsizei aWidth, GLsizei aHeight,
-                      TexInternalFormat aFormat, TexType aType, WebGLImageDataStatus aStatus);
+                      GLenum aFormat, GLenum aType, WebGLImageDataStatus aStatus);
 
     void SetMinFilter(GLenum aMinFilter) {
         mMinFilter = aMinFilter;

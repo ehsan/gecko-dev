@@ -216,26 +216,8 @@ nsConsoleService::LogMessageWithMode(nsIConsoleMessage* aMessage,
         appName = "GeckoConsole";
       }
 
-      uint32_t logLevel = 0;
-      aMessage->GetLogLevel(&logLevel);
-
-      android_LogPriority logPriority = ANDROID_LOG_INFO;
-      switch (logLevel) {
-        case nsIConsoleMessage::debug:
-          logPriority = ANDROID_LOG_DEBUG;
-          break;
-        case nsIConsoleMessage::info:
-          logPriority = ANDROID_LOG_INFO;
-          break;
-        case nsIConsoleMessage::warn:
-          logPriority = ANDROID_LOG_WARN;
-          break;
-        case nsIConsoleMessage::error:
-          logPriority = ANDROID_LOG_ERROR;
-          break;
-      }
-
-      __android_log_print(logPriority, appName.get(), "%s", msg.get());
+      __android_log_print(ANDROID_LOG_ERROR, appName.get(),
+                          "%s", msg.get());
     }
 #endif
 #ifdef XP_WIN

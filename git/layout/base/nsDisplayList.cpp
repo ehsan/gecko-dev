@@ -815,14 +815,14 @@ nsDisplayScrollLayer::ComputeFrameMetrics(nsIFrame* aForFrame,
         }
 #endif
       } else {
-        LayoutDeviceIntSize contentSize;
-        if (nsLayoutUtils::GetContentViewerSize(presContext, contentSize)) {
+        LayoutDeviceIntRect contentBounds;
+        if (nsLayoutUtils::GetContentViewerBounds(presContext, contentBounds)) {
           LayoutDeviceToParentLayerScale scale(1.0f);
           if (presContext->GetParentPresContext()) {
             gfxSize res = presContext->GetParentPresContext()->PresShell()->GetCumulativeResolution();
             scale = LayoutDeviceToParentLayerScale(res.width, res.height);
           }
-          metrics.mCompositionBounds.SizeTo(contentSize * scale);
+          metrics.mCompositionBounds = LayoutDeviceRect(contentBounds) * scale;
         }
       }
     }

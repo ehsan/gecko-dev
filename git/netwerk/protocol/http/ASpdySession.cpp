@@ -44,7 +44,6 @@ ASpdySession::NewSpdySession(uint32_t version,
   // requests as a precondition
   MOZ_ASSERT(version == SPDY_VERSION_3 ||
              version == SPDY_VERSION_31 ||
-             version == HTTP_VERSION_2 ||
              version == NS_HTTP2_DRAFT_VERSION,
              "Unsupported spdy version");
 
@@ -59,7 +58,7 @@ ASpdySession::NewSpdySession(uint32_t version,
     return new SpdySession3(aTransport);
   } else  if (version == SPDY_VERSION_31) {
     return new SpdySession31(aTransport);
-  } else  if (version == NS_HTTP2_DRAFT_VERSION || version == HTTP_VERSION_2) {
+  } else  if (version == NS_HTTP2_DRAFT_VERSION) {
     return new Http2Session(aTransport);
   }
 
@@ -82,13 +81,9 @@ SpdyInformation::SpdyInformation()
   VersionString[1] = NS_LITERAL_CSTRING("spdy/3.1");
   ALPNCallbacks[1] = SpdySessionTrue;
 
-  Version[2] = HTTP_VERSION_2;
-  VersionString[2] = NS_LITERAL_CSTRING("h2");
+  Version[2] = NS_HTTP2_DRAFT_VERSION;
+  VersionString[2] = NS_LITERAL_CSTRING(NS_HTTP2_DRAFT_TOKEN);
   ALPNCallbacks[2] = Http2Session::ALPNCallback;
-
-  Version[3] = NS_HTTP2_DRAFT_VERSION;
-  VersionString[3] = NS_LITERAL_CSTRING(NS_HTTP2_DRAFT_TOKEN);
-  ALPNCallbacks[3] = Http2Session::ALPNCallback;
 }
 
 bool
@@ -102,8 +97,6 @@ SpdyInformation::ProtocolEnabled(uint32_t index) const
   case 1:
     return gHttpHandler->IsSpdyV31Enabled();
   case 2:
-    return gHttpHandler->IsHttp2Enabled();
-  case 3:
     return gHttpHandler->IsHttp2DraftEnabled();
   }
   return false;

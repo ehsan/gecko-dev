@@ -130,7 +130,7 @@ public:
   typedef mozilla::CSSPoint CSSPoint;
   typedef mozilla::CSSSize CSSSize;
   typedef mozilla::LayerMargin LayerMargin;
-  typedef mozilla::LayoutDeviceIntSize LayoutDeviceIntSize;
+  typedef mozilla::LayoutDeviceIntRect LayoutDeviceIntRect;
 
   /**
    * Finds previously assigned ViewID for the given content element, if any.
@@ -2175,13 +2175,13 @@ public:
   UpdateImageVisibilityForFrame(nsIFrame* aImageFrame);
 
   /**
-   * Populate aOutSize with the size of the content viewer corresponding
-   * to the given prescontext. Return true if the size was set, false
+   * Populate aOutRect with the bounds of the content viewer corresponding
+   * to the given prescontext. Return true if the bounds were set, false
    * otherwise.
    */
   static bool
-  GetContentViewerSize(nsPresContext* aPresContext,
-                       LayoutDeviceIntSize& aOutSize);
+  GetContentViewerBounds(nsPresContext* aPresContext,
+                         LayoutDeviceIntRect& aOutRect);
 
  /**
   * Calculate the compostion size for a frame. See FrameMetrics.h for

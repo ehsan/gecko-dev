@@ -213,11 +213,11 @@ loop.panel = (function(_, mozL10n) {
     mixins: [sharedMixins.DropdownMenuMixin],
 
     handleClickSettingsEntry: function() {
-      // XXX to be implemented at the same time as unhiding the entry
+      // XXX to be implemented
     },
 
     handleClickAccountEntry: function() {
-      navigator.mozLoop.openFxASettings();
+      // XXX to be implemented
     },
 
     handleClickAuthEntry: function() {
@@ -242,7 +242,6 @@ loop.panel = (function(_, mozL10n) {
               onMouseLeave={this.hideDropdownMenu}>
             <SettingsDropdownEntry label={__("settings_menu_item_settings")}
                                    onClick={this.handleClickSettingsEntry}
-                                   displayed={false}
                                    icon="settings" />
             <SettingsDropdownEntry label={__("settings_menu_item_account")}
                                    onClick={this.handleClickAccountEntry}
@@ -428,7 +427,7 @@ loop.panel = (function(_, mozL10n) {
     },
 
     render: function() {
-      if (navigator.mozLoop.userProfile) {
+      if (navigator.mozLoop.loggedInToFxA) { // XXX to be implemented
         return null;
       }
       return (
