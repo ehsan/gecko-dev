@@ -57,7 +57,6 @@
 #include "nsNSSShutDown.h"
 #include "nsAutoPtr.h"
 #include "nsNSSCertificate.h"
-#include "nsDataHashtable.h"
 
 class nsIChannel;
 class nsSSLThread;
@@ -243,31 +242,6 @@ friend class nsSSLThread;
 
 class nsCStringHashSet;
 
-class nsSSLStatus;
-class nsNSSSocketInfo;
-
-class nsPSMRememberCertErrorsTable
-{
-private:
-  struct CertStateBits
-  {
-    PRBool mIsDomainMismatch;
-    PRBool mIsNotValidAtThisTime;
-    PRBool mIsUntrusted;
-  };
-  nsDataHashtableMT<nsCStringHashKey, CertStateBits> mErrorHosts;
-  nsresult GetHostPortKey(nsNSSSocketInfo* infoObject, nsCAutoString& result);
-
-public:
-  friend class nsSSLIOLayerHelpers;
-  nsPSMRememberCertErrorsTable();
-  void RememberCertHasError(nsNSSSocketInfo* infoObject,
-                           nsSSLStatus* status,
-                           SECStatus certVerificationResult);
-  void LookupCertErrorBits(nsNSSSocketInfo* infoObject,
-                           nsSSLStatus* status);
-};
-
 class nsSSLIOLayerHelpers
 {
 public:
@@ -280,7 +254,6 @@ public:
 
   static PRLock *mutex;
   static nsCStringHashSet *mTLSIntolerantSites;
-  static nsPSMRememberCertErrorsTable* mHostsWithCertErrors;
   
   static PRBool rememberPossibleTLSProblemSite(PRFileDesc* fd, nsNSSSocketInfo *socketInfo);
 
