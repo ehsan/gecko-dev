@@ -383,7 +383,7 @@ ProgressController.prototype = {
   onLocationChange : function(aWebProgress, aRequest, aLocation) {
     if (aWebProgress.DOMWindow == this._browser.contentWindow) {
       if (LocationBar)
-        LocationBar.setURI();
+        LocationBar.setURI(aLocation.spec);
       if (HUDBar)
         HUDBar.setURI(aLocation.spec);
     }

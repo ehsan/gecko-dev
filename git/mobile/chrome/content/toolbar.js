@@ -124,8 +124,6 @@ var LocationBar = {
     }
   },
 
-  _URIFixup: null,
-
   /* Set the location to the current content */
   setURI : function() {
     // Update UI for history
@@ -145,22 +143,13 @@ var LocationBar = {
       star.setAttribute("starred", "true");
     }
 
-    var uri = browser.currentURI;
-
-    if (!this._URIFixup)
-      this._URIFixup = Cc["@mozilla.org/docshell/urifixup;1"].getService(Ci.nsIURIFixup);
-
-    try {
-      uri = this._URIFixup.createExposableURI(uri);
-    } catch (ex) {}
-
-    var urlString = uri.spec;
-    if (urlString == "about:blank") {
-      urlString = "";
+    var uri = browser.currentURI.spec;
+    if (uri == "about:blank") {
+      uri = "";
       this._urlbar.focus();
     }
 
-    this._urlbar.value = urlString;
+    this._urlbar.value = uri;
   },
 
   revertURI : function() {
