@@ -8,6 +8,174 @@ include('/build/gyp.mozbuild')
 
 GYP_DIRS += ['trunk']
 
+GYP_NON_UNIFIED_SOURCES = [
+    './src/sipcc/core/gsm/fim.c',                           # Because of name clash in the logTag variable
+    './src/sipcc/core/gsm/gsm_sdp.c',                       # Because of name clash in the logTag variable
+    './src/sipcc/core/gsm/lsm.c',                           # Because of name clash in the logTag variable
+    './src/sipcc/core/sdp/sdp_base64.c',                    # Because of name clash with the macro PADDING
+    'audio_coding/codecs/g722/g722_decode.c',               # Because of name clash in the saturate function
+    'audio_coding/codecs/g722/g722_encode.c',               # Because of name clash in the saturate function
+    'audio_coding/codecs/isac/fix/source/pitch_filter.c',   # Because of name clash in the kDampFilter variable
+    'audio_coding/codecs/isac/fix/source/pitch_filter_c.c', # Because of name clash in the kDampFilter variable
+    'audio_coding/neteq4/audio_vector.cc',                  # Because of explicit template specializations
+    'audio_device/opensl/opensles_input.cc',                # Because of name clash in the kOption variable
+    'audio_device/opensl/opensles_output.cc',               # Because of name clash in the kOption variable
+    'audio_device/win/audio_device_core_win.cc',            # Because of ordering assumptions in strsafe.h
+    'audio_processing/aec/aec_core.c',                      # Because of name clash in the ComfortNoise function
+    'audio_processing/aecm/aecm_core.c',                    # Because of name clash in the ComfortNoise function
+    'audio_processing/aecm/echo_control_mobile.c',          # Because of name clash in the kInitCheck variable
+    'audio_processing/agc/analog_agc.c',                    # Because of name clash in the kInitCheck variable
+    'audio_processing/echo_cancellation_impl.cc',           # Because of name clash in the MapError function
+    'audio_processing/echo_control_mobile_impl.cc',         # Because of name clash in the MapError function
+    'audio_processing/gain_control_impl.cc',                # Because of name clash in the Handle typedef
+    'audio_processing/high_pass_filter_impl.cc',            # Because of name clash in the Handle typedef
+    'audio_processing/noise_suppression_impl.cc',           # Because of name clash in the Handle typedef
+    'vad/vad_core.c',                                       # Because of name clash in the kInitCheck variable
+    'vad/webrtc_vac.c',                                     # Because of name clash in the kInitCheck variable
+    'video_capture/mac/qtkit/video_capture_qtkit.mm',       # Because of name clash in the nsAutoreleasePool class
+    'video_capture/mac/qtkit/video_capture_qtkit_info.mm',  # Because of name clash in the nsAutoreleasePool class
+    'video_capture/windows/device_info_ds.cc',              # Because of the MEDIASUBTYPE_HDYC variable
+    'video_capture/windows/sink_filter_ds.cc',              # Because of the MEDIASUBTYPE_HDYC variable
+]
+
+# These files cannot be built in unified mode because they force NSPR logging.
+GYP_NON_UNIFIED_SOURCES += [
+    './src/callcontrol/CallControlManagerImpl.cpp',
+    './src/common/browser_logging/CSFLog.cpp',
+    './src/media-conduit/AudioConduit.cpp',
+    './src/media-conduit/VideoConduit.cpp',
+    './src/media/CSFAudioControlWrapper.cpp',
+    './src/media/CSFVideoControlWrapper.cpp',
+    './src/media/VcmSIPCCBinding.cpp',
+    './src/mediapipeline/MediaPipeline.cpp',
+    './src/mediapipeline/SrtpFlow.cpp',
+    './src/peerconnection/MediaStreamList.cpp',
+    './src/peerconnection/PeerConnectionCtx.cpp',
+    './src/peerconnection/PeerConnectionImpl.cpp',
+    './src/peerconnection/PeerConnectionMedia.cpp',
+    './src/sipcc/core/ccapp/call_logger.c',
+    './src/sipcc/core/ccapp/capability_set.c',
+    './src/sipcc/core/ccapp/cc_call_feature.c',
+    './src/sipcc/core/ccapp/cc_config.c',
+    './src/sipcc/core/ccapp/cc_device_feature.c',
+    './src/sipcc/core/ccapp/cc_device_manager.c',
+    './src/sipcc/core/ccapp/cc_info.c',
+    './src/sipcc/core/ccapp/cc_service.c',
+    './src/sipcc/core/ccapp/ccapi_call.c',
+    './src/sipcc/core/ccapp/ccapi_call_info.c',
+    './src/sipcc/core/ccapp/ccapi_config.c',
+    './src/sipcc/core/ccapp/ccapi_device.c',
+    './src/sipcc/core/ccapp/ccapi_device_info.c',
+    './src/sipcc/core/ccapp/ccapi_feature_info.c',
+    './src/sipcc/core/ccapp/ccapi_line_info.c',
+    './src/sipcc/core/ccapp/ccapi_service.c',
+    './src/sipcc/core/ccapp/ccapi_snapshot.c',
+    './src/sipcc/core/ccapp/ccapp_task.c',
+    './src/sipcc/core/ccapp/ccprovider.c',
+    './src/sipcc/core/ccapp/conf_roster.c',
+    './src/sipcc/core/common/cfgfile_utils.c',
+    './src/sipcc/core/common/config_api.c',
+    './src/sipcc/core/common/config_parser.c',
+    './src/sipcc/core/common/init.c',
+    './src/sipcc/core/common/logger.c',
+    './src/sipcc/core/common/misc.c',
+    './src/sipcc/core/common/plat.c',
+    './src/sipcc/core/common/platform_api.c',
+    './src/sipcc/core/common/prot_configmgr.c',
+    './src/sipcc/core/common/resource_manager.c',
+    './src/sipcc/core/common/subscription_handler.c',
+    './src/sipcc/core/common/ui.c',
+    './src/sipcc/core/gsm/ccapi.c',
+    './src/sipcc/core/gsm/ccapi_strings.c',
+    './src/sipcc/core/gsm/dcsm.c',
+    './src/sipcc/core/gsm/fsm.c',
+    './src/sipcc/core/gsm/fsmb2bcnf.c',
+    './src/sipcc/core/gsm/fsmcac.c',
+    './src/sipcc/core/gsm/fsmcnf.c',
+    './src/sipcc/core/gsm/fsmdef.c',
+    './src/sipcc/core/gsm/fsmxfr.c',
+    './src/sipcc/core/gsm/gsm.c',
+    './src/sipcc/core/gsm/gsm_sdp_crypto.c',
+    './src/sipcc/core/gsm/media_cap_tbl.c',
+    './src/sipcc/core/gsm/sm.c',
+    './src/sipcc/core/gsm/subapi.c',
+    './src/sipcc/core/sdp/ccsdp.c',
+    './src/sipcc/core/sdp/sdp_access.c',
+    './src/sipcc/core/sdp/sdp_attr.c',
+    './src/sipcc/core/sdp/sdp_attr_access.c',
+    './src/sipcc/core/sdp/sdp_config.c',
+    './src/sipcc/core/sdp/sdp_main.c',
+    './src/sipcc/core/sdp/sdp_services_unix.c',
+    './src/sipcc/core/sdp/sdp_token.c',
+    './src/sipcc/core/sdp/sdp_utils.c',
+    './src/sipcc/core/sipstack/ccsip_callinfo.c',
+    './src/sipcc/core/sipstack/ccsip_cc.c',
+    './src/sipcc/core/sipstack/ccsip_common_util.c',
+    './src/sipcc/core/sipstack/ccsip_core.c',
+    './src/sipcc/core/sipstack/ccsip_debug.c',
+    './src/sipcc/core/sipstack/ccsip_info.c',
+    './src/sipcc/core/sipstack/ccsip_messaging.c',
+    './src/sipcc/core/sipstack/ccsip_platform.c',
+    './src/sipcc/core/sipstack/ccsip_platform_tcp.c',
+    './src/sipcc/core/sipstack/ccsip_platform_timers.c',
+    './src/sipcc/core/sipstack/ccsip_platform_tls.c',
+    './src/sipcc/core/sipstack/ccsip_platform_udp.c',
+    './src/sipcc/core/sipstack/ccsip_pmh.c',
+    './src/sipcc/core/sipstack/ccsip_publish.c',
+    './src/sipcc/core/sipstack/ccsip_register.c',
+    './src/sipcc/core/sipstack/ccsip_reldev.c',
+    './src/sipcc/core/sipstack/ccsip_sdp.c',
+    './src/sipcc/core/sipstack/ccsip_spi_utils.c',
+    './src/sipcc/core/sipstack/ccsip_subsmanager.c',
+    './src/sipcc/core/sipstack/ccsip_task.c',
+    './src/sipcc/core/sipstack/httpish.c',
+    './src/sipcc/core/sipstack/sip_common_regmgr.c',
+    './src/sipcc/core/sipstack/sip_common_transport.c',
+    './src/sipcc/core/sipstack/sip_csps_transport.c',
+    './src/sipcc/core/sipstack/sip_interface_regmgr.c',
+    './src/sipcc/core/sipstack/sip_platform_task.c',
+    './src/sipcc/core/sipstack/sip_platform_win32_task.c',
+    './src/sipcc/core/src-common/configapp.c',
+    './src/sipcc/core/src-common/dialplan.c',
+    './src/sipcc/core/src-common/dialplanint.c',
+    './src/sipcc/core/src-common/digcalc.c',
+    './src/sipcc/core/src-common/kpml_common_util.c',
+    './src/sipcc/core/src-common/kpmlmap.c',
+    './src/sipcc/core/src-common/misc_apps_task.c',
+    './src/sipcc/core/src-common/pres_sub_not_handler.c',
+    './src/sipcc/core/src-common/publish_int.c',
+    './src/sipcc/core/src-common/string_lib.c',
+    './src/sipcc/core/src-common/util_ios_queue.c',
+    './src/sipcc/cpr/android/cpr_android_init.c',
+    './src/sipcc/cpr/android/cpr_android_stdio.c',
+    './src/sipcc/cpr/android/cpr_android_timers_using_select.c',
+    './src/sipcc/cpr/darwin/cpr_darwin_init.c',
+    './src/sipcc/cpr/darwin/cpr_darwin_stdio.c',
+    './src/sipcc/cpr/darwin/cpr_darwin_timers_using_select.c',
+    './src/sipcc/cpr/linux/cpr_linux_init.c',
+    './src/sipcc/cpr/linux/cpr_linux_ipc.c',
+    './src/sipcc/cpr/linux/cpr_linux_stdio.c',
+    './src/sipcc/cpr/linux/cpr_linux_timers_using_select.c',
+    './src/sipcc/cpr/win32/cpr_win_stdio.c',
+    './src/sipcc/cpr/win32/cpr_win_timers.c',
+    './src/sipcc/plat/common/dns_utils.c',
+    './src/sipcc/plat/csf2g/reset_api.c',
+    './src/sipcc/plat/win32/dns_utils.c',
+    './src/sipcc/plat/win32/mystub.c',
+    './src/sipcc/plat/win32/plat_api_stub.c',
+    './src/sipcc/plat/win32/plat_api_win.c',
+    './src/softphonewrapper/CC_SIPCCCall.cpp',
+    './src/softphonewrapper/CC_SIPCCCallInfo.cpp',
+    './src/softphonewrapper/CC_SIPCCCallServerInfo.cpp',
+    './src/softphonewrapper/CC_SIPCCDevice.cpp',
+    './src/softphonewrapper/CC_SIPCCDeviceInfo.cpp',
+    './src/softphonewrapper/CC_SIPCCFeatureInfo.cpp',
+    './src/softphonewrapper/CC_SIPCCLine.cpp',
+    './src/softphonewrapper/CC_SIPCCLineInfo.cpp',
+    './src/softphonewrapper/CC_SIPCCService.cpp',
+    './src/softphonewrapper/ccapi_plat_api_impl.cpp',
+]
+
 GYP_DIRS['trunk'].input = 'trunk/peerconnection.gyp'
 GYP_DIRS['trunk'].variables = gyp_vars
 GYP_DIRS['trunk'].sandbox_vars['FINAL_LIBRARY'] = 'webrtc'

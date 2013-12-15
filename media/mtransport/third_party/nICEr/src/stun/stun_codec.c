@@ -31,8 +31,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 
-static char *RCSSTRING __UNUSED__="$Id: stun_codec.c,v 1.2 2008/04/28 18:21:30 ekr Exp $";
-
 #include <errno.h>
 #include <csi_platform.h>
 

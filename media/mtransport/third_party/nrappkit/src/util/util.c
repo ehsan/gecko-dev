@@ -37,8 +37,6 @@
  */
 
 
-static char *RCSSTRING __UNUSED__ ="$Id: util.c,v 1.5 2007/11/21 00:09:13 adamcain Exp $";
-
 #ifndef WIN32
 #include <sys/uio.h>
 #include <pwd.h>

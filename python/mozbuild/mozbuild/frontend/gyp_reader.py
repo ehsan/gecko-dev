@@ -71,7 +71,7 @@ def encode(value):
     return value
 
 
-def read_from_gyp(config, path, output, vars):
+def read_from_gyp(config, path, output, vars, non_unified_sources):
     """Read a gyp configuration and emits GypSandboxes for the backend to
     process.
 
@@ -163,8 +163,13 @@ def read_from_gyp(config, path, output, vars):
             # The sandbox expects alphabetical order when adding sources
             sources = alphabetical_sorted(spec.get('sources', []))
             # gyp files contain headers in sources lists.
+            sandbox['UNIFIED_SOURCES'] = \
+                [f for f in sources if mozpath.splitext(f)[-1] not in ['.h', '.S'] and f not in non_unified_sources]
             sandbox['SOURCES'] = \
-                [f for f in sources if mozpath.splitext(f)[-1] != '.h']
+                [f for f in sources if mozpath.splitext(f)[-1] == '.S']
+            sandbox['SOURCES'] += \
+                [f for f in sources if mozpath.splitext(f)[-1] != '.h' and f in non_unified_sources]
+            sandbox['LOCAL_INCLUDES'] += ['.']
 
             for define in target_conf.get('defines', []):
                 if '=' in define:

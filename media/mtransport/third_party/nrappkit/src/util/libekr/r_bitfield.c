@@ -45,8 +45,6 @@
  */
 
 
-static char *RCSSTRING __UNUSED__ ="$Id: r_bitfield.c,v 1.2 2006/08/16 19:39:17 adamcain Exp $";
-
 #include <string.h>
 #include <r_common.h>
 #include <string.h>

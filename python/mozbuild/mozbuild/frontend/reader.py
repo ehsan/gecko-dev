@@ -772,7 +772,8 @@ class BuildReader(object):
                                              mozpath.join(curdir, gyp_dir.input),
                                              mozpath.join(sandbox['OBJDIR'],
                                                           target_dir),
-                                             gyp_dir.variables):
+                                             gyp_dir.variables,
+                                             sandbox['GYP_NON_UNIFIED_SOURCES']):
                 gyp_sandbox.update(gyp_dir.sandbox_vars)
                 gyp_sandboxes.append(gyp_sandbox)
 

@@ -80,8 +80,6 @@
  */
 
 
-static char *RCSSTRING __UNUSED__ ="$Id: r_time.c,v 1.5 2008/11/26 03:22:02 adamcain Exp $";
-
 #include <r_common.h>
 #include <r_time.h>
 

@@ -37,8 +37,6 @@
  */
 
 
-static char *RCSSTRING __UNUSED__ ="$Id: hex.c,v 1.3 2007/06/26 22:37:56 adamcain Exp $";
-
 #include <sys/types.h>
 #include <string.h>
 #include <ctype.h>

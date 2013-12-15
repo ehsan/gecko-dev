@@ -590,6 +590,14 @@ VARIABLES = {
             (...)
         """, None),
 
+    'GYP_NON_UNIFIED_SOURCES': (StrictOrderingOnAppendList, list,
+        """GYP source code files which should be excluded from unified builds.
+
+        This variable contains a list of source code files in a GYP project to
+        compile in non-unified mode.
+        Accepts assembler, C, C++, Objective C/C++.
+        """, None),
+
     'SPHINX_TREES': (dict, dict,
         """Describes what the Sphinx documentation tree will look like.
 

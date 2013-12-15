@@ -81,9 +81,6 @@
  */
 
 
-static char *RCSSTRING __UNUSED__ ="$Id: debug.c,v 1.3 2007/06/26 22:37:57 adamcain Exp $";
-
-
 #include <stdarg.h>
 #include <stdio.h>
 #include "r_common.h"

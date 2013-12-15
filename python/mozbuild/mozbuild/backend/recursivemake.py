@@ -608,7 +608,9 @@ class RecursiveMakeBackend(CommonBackend):
             for i, unified_group in enumerate(grouper(files_per_unified_file,
                                                       files)):
                 just_the_filenames = list(filter_out_dummy(unified_group))
-                yield '%s%d.%s' % (unified_prefix, i, unified_suffix), just_the_filenames
+                # On Windows, path names have a maximum length of 255 characters,
+                # so avoid creating extremely long path names.
+                yield '%s%d.%s' % (unified_prefix[0:50], i, unified_suffix), just_the_filenames
 
         all_sources = ' '.join(source for source, _ in unified_files())
         makefile.add_statement('%s := %s' % (unified_files_makefile_variable,
