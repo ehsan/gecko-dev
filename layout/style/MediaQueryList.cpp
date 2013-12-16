@@ -94,31 +94,7 @@ MediaQueryList::Matches()
 NS_IMETHODIMP
 MediaQueryList::AddListener(nsIDOMMediaQueryListListener *aListener)
 {
-  if (!aListener) {
-    return NS_OK;
-  }
-
-  if (!HasListeners()) {
-    // When we have listeners, the pres context owns a reference to
-    // this.  This is a cyclic reference that can only be broken by
-    // cycle collection.
-    NS_ADDREF_THIS();
-  }
-
-  if (!mMatchesValid) {
-    NS_ABORT_IF_FALSE(!HasListeners(),
-                      "when listeners present, must keep mMatches current");
-    RecomputeMatches();
-  }
-
-  if (!mListeners.Contains(aListener)) {
-    mListeners.AppendElement(aListener);
-    if (!HasListeners()) {
-      // Append failed; undo the AddRef above.
-      NS_RELEASE_THIS();
-    }
-  }
-  return NS_OK;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 void
@@ -157,16 +133,7 @@ MediaQueryList::AddListener(MediaQueryListListener& aListener)
 NS_IMETHODIMP
 MediaQueryList::RemoveListener(nsIDOMMediaQueryListListener *aListener)
 {
-  bool removed = mListeners.RemoveElement(aListener);
-  NS_ABORT_IF_FALSE(!mListeners.Contains(aListener),
-                    "duplicate occurrence of listeners");
-
-  if (removed && !HasListeners()) {
-    // See NS_ADDREF_THIS() in AddListener.
-    NS_RELEASE_THIS();
-  }
-
-  return NS_OK;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 void
