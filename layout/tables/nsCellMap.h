@@ -46,8 +46,8 @@ enum Corner
 
 struct BCInfo
 {
-  nsTArray<BCData> mRightBorders;
-  nsTArray<BCData> mBottomBorders;
+  FallibleTArray<BCData> mRightBorders;
+  FallibleTArray<BCData> mBottomBorders;
   BCData           mLowerRightCorner;
 };
 
