@@ -620,7 +620,7 @@ private:
     bool mIsPaused;
     uint32_t mNextIndex;
     TimeStamp mLastFrameTime;
-    nsTArray<float> mIntervals;
+    FallibleTArray<float> mIntervals;
     uint32_t mLatestStartIndex;
     uint32_t mCurrentRunStartIndex;
   };
