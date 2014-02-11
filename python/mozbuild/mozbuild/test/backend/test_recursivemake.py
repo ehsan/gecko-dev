@@ -334,6 +334,9 @@ class TestRecursiveMakeBackend(BackendTester):
             'RESFILE': [
                 'RESFILE := bar.res',
             ],
+            'DEFFILE': [
+                'DEFFILE := baz.def',
+            ],
         }
 
         for var, val in expected.items():

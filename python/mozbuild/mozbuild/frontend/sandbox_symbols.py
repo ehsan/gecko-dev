@@ -334,6 +334,12 @@ VARIABLES = {
         This variable can only be used on Windows (and OS/2).
         """, None),
 
+    'DEFFILE': (unicode, unicode,
+        """The program .def (module definition) file.
+
+        This variable can only be used on Windows.
+        """, None),
+
     'SDK_LIBRARY': (StrictOrderingOnAppendList, list,
         """Elements of the distributed SDK.
 
