@@ -174,6 +174,7 @@ class TestEmitterBasic(unittest.TestCase):
             RCFILE='foo.rc',
             RESFILE='bar.res',
             DEFFILE='baz.def',
+            USE_STATIC_LIBS=True,
         )
 
         variables = objs[0].variables

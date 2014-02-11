@@ -337,6 +337,9 @@ class TestRecursiveMakeBackend(BackendTester):
             'DEFFILE': [
                 'DEFFILE := baz.def',
             ],
+            'USE_STATIC_LIBS': [
+                'USE_STATIC_LIBS := 1',
+            ],
         }
 
         for var, val in expected.items():
