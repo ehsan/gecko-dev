@@ -86,7 +86,7 @@ class WeakReference : public ::mozilla::RefCounted<WeakReference<T> >
   public:
     explicit WeakReference(T* p) : ptr(p) {
 #ifdef MOZ_REFCOUNTED_LEAK_CHECKING
-      memset(nameBuffer, 0, sizeof(nameBuffer));
+      clearName();
 #endif
     }
     T* get() const {
@@ -103,7 +103,8 @@ class WeakReference : public ::mozilla::RefCounted<WeakReference<T> >
         return nameBuffer;
       }
       if (!ptr) {
-        return "WeakReference(nullptr)";
+        strcpy(nameBuffer, "WeakReference(nullptr)");
+        return nameBuffer;
       }
       const char* innerType = ptr->typeName();
       // We could do fancier length checks at runtime, but innerType is
@@ -118,6 +119,10 @@ class WeakReference : public ::mozilla::RefCounted<WeakReference<T> >
     }
     size_t typeSize() const {
       return sizeof(*this);
+    }
+  private:
+    void clearName() {
+      memset(nameBuffer, 0, sizeof(nameBuffer));
     }
 #undef snprintf
 #endif
@@ -186,6 +191,21 @@ class WeakPtrBase
 
     T* get() const {
       return ref->get();
+    }
+
+    WeakPtrBase<T, WeakReference>& operator=(const WeakPtrBase<T, WeakReference>& o) {
+#ifdef MOZ_REFCOUNTED_LEAK_CHECKING
+      bool isOursNull = !ref.get();
+      bool isTheirsNull = !o.ref.get();
+#endif
+      ref = o.ref;
+#ifdef MOZ_REFCOUNTED_LEAK_CHECKING
+      if ((isOursNull && !isTheirsNull) ||
+          (isTheirsNull && !isOursNull)) {
+        ref->clearName();
+      }
+#endif
+      return *this;
     }
 
   private:
