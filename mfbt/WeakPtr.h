@@ -84,7 +84,11 @@ template<class T>
 class WeakReference : public ::mozilla::RefCounted<WeakReference<T> >
 {
   public:
-    explicit WeakReference(T* p) : ptr(p) {}
+    explicit WeakReference(T* p) : ptr(p) {
+#ifdef MOZ_REFCOUNTED_LEAK_CHECKING
+      memset(nameBuffer, 0, sizeof(nameBuffer));
+#endif
+    }
     T* get() const {
       return ptr;
     }
@@ -94,10 +98,13 @@ class WeakReference : public ::mozilla::RefCounted<WeakReference<T> >
 #define snprintf _snprintf
 #endif
     const char* typeName() const {
+      if (nameBuffer[0] != '\0') {
+        // We have already obtained the name
+        return nameBuffer;
+      }
       if (!ptr) {
         return "WeakReference(nullptr)";
       }
-      static char nameBuffer[1024];
       const char* innerType = ptr->typeName();
       // We could do fancier length checks at runtime, but innerType is
       // controlled by us so we can ensure that this never causes a buffer
@@ -122,6 +129,9 @@ class WeakReference : public ::mozilla::RefCounted<WeakReference<T> >
       ptr = nullptr;
     }
     T* ptr;
+#ifdef MOZ_REFCOUNTED_LEAK_CHECKING
+    mutable char nameBuffer[1024];
+#endif
 };
 
 } // namespace detail
