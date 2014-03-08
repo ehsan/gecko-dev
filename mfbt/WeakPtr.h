@@ -94,6 +94,9 @@ class WeakReference : public ::mozilla::RefCounted<WeakReference<T> >
 #define snprintf _snprintf
 #endif
     const char* typeName() const {
+      if (!ptr) {
+        return "WeakReference(nullptr)";
+      }
       static char nameBuffer[1024];
       const char* innerType = ptr->typeName();
       // We could do fancier length checks at runtime, but innerType is
