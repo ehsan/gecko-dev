@@ -16,6 +16,7 @@ CPPSRCS := \
 
 TESTSRCS := \
 	TestCustomHeap.cpp \
+	TestHeapClass.cpp \
 	TestMustOverride.cpp \
 	TestNonHeapClass.cpp \
 	TestStackClass.cpp \

@@ -1,4 +1,5 @@
 #define MOZ_NONHEAP_CLASS __attribute__((annotate("moz_nonheap_class")))
+#define MOZ_HEAP_CLASS __attribute__((annotate("moz_heap_class")))
 #define MOZ_HEAP_ALLOCATOR \
   _Pragma("GCC diagnostic push") \
   _Pragma("GCC diagnostic ignored \"-Wgcc-compat\"") \
@@ -9,6 +10,9 @@
 #include <memory>
 
 struct MOZ_NONHEAP_CLASS X {
+};
+
+struct MOZ_HEAP_CLASS Y {
 };
 
 void *operator new(size_t x, int qual) MOZ_HEAP_ALLOCATOR {
@@ -25,4 +29,6 @@ template <typename T>
 void misuseX(T q) {
   X *foo = customAlloc<X>(); // expected-error {{variable of type 'X' is not valid on the heap}}
   X *foo2 = new (100) X(); // expected-error {{variable of type 'X' is not valid on the heap}}
+  Y *bar = customAlloc<Y>();
+  Y *bar2 = new (100) Y();
 }
