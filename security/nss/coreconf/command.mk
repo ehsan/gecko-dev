@@ -11,8 +11,9 @@
 AS            = $(CC)
 ASFLAGS      += $(CFLAGS)
 CCF           = $(CC) $(CFLAGS)
-LINK_DLL      = $(LINK) $(OS_DLLFLAGS) $(DLLFLAGS)
-LINK_EXE      = $(LINK) $(OS_LFLAGS) $(LFLAGS)
+ASANFLAGS     = clang_rt.asan_dynamic-i386.lib clang_rt.asan_dynamic_runtime_thunk-i386.lib
+LINK_DLL      = $(LINK) $(OS_DLLFLAGS) $(DLLFLAGS) $(ASANFLAGS)
+LINK_EXE      = $(LINK) $(OS_LFLAGS) $(LFLAGS) $(ASANFLAGS)
 CFLAGS        = $(OPTIMIZER) $(OS_CFLAGS) $(XP_DEFINE) $(DEFINES) $(INCLUDES) \
 		$(XCFLAGS)
 PERL          = perl
