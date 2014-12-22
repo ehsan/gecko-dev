@@ -29,6 +29,7 @@ UNIFIED_SOURCES += [
     'NonMemMovableMemberChecker.cpp',
     'NonMemMovableTemplateArgChecker.cpp',
     'NonParamInsideFunctionDeclChecker.cpp',
+    'NoRefcountedRawPointerMemberChecker.cpp',
     'OverrideBaseCallChecker.cpp',
     'OverrideBaseCallUsageChecker.cpp',
     'RefCountedCopyConstructorChecker.cpp',

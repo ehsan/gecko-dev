@@ -35,6 +35,7 @@ SOURCES += [
     'TestNonParameterChecker.cpp',
     'TestNonTemporaryClass.cpp',
     'TestNoRefcountedInsideLambdas.cpp',
+    'TestNoRefcountedRawPointerMember.cpp',
     'TestOverrideBaseCall.cpp',
     'TestOverrideBaseCallAnnotation.cpp',
     'TestRefCountedCopyConstructor.cpp',

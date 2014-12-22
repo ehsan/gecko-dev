@@ -113,6 +113,10 @@ AST_MATCHER(MemberExpr, isAddRefOrRelease) {
 }
 
 /// This matcher will select classes which are refcounted.
+AST_MATCHER(QualType, isRefCounted) {
+  return isClassRefCounted(Node);
+}
+
 AST_MATCHER(CXXRecordDecl, hasRefCntMember) {
   return isClassRefCounted(&Node) && getClassRefCntMember(&Node);
 }
@@ -236,6 +240,14 @@ AST_MATCHER(FunctionDecl, isMozMustReturnFromCaller) {
   const FunctionDecl *Decl = Node.getCanonicalDecl();
   return Decl && hasCustomAnnotation(Decl, "moz_must_return_from_caller");
 }
+
+/// This matcher will match any field declaration that is marked as a strong
+/// or a weak reference.
+AST_MATCHER(FieldDecl, isStrongOrWeakRef) {
+  return hasCustomAnnotation(&Node, "moz_strong_ref") ||
+         hasCustomAnnotation(&Node, "moz_weak_ref");
+}
+
 }
 }
 
