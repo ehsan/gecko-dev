@@ -82,6 +82,11 @@ private:
     virtual void run(const MatchFinder::MatchResult &Result);
   };
 
+  class WeakPtrRefCountedMemberChecker : public MatchFinder::MatchCallback {
+  public:
+    virtual void run(const MatchFinder::MatchResult &Result);
+  };
+
   class NoAddRefReleaseOnReturnChecker : public MatchFinder::MatchCallback {
   public:
     virtual void run(const MatchFinder::MatchResult &Result);
@@ -103,6 +108,7 @@ private:
   ArithmeticArgChecker arithmeticArgChecker;
   TrivialCtorDtorChecker trivialCtorDtorChecker;
   NaNExprChecker nanExprChecker;
+  WeakPtrRefCountedMemberChecker weakPtrRefCountedMemberChecker;
   NoAddRefReleaseOnReturnChecker noAddRefReleaseOnReturnChecker;
   RefCountedInsideLambdaChecker refCountedInsideLambdaChecker;
   ExplicitOperatorBoolChecker explicitOperatorBoolChecker;
@@ -689,6 +695,13 @@ AST_POLYMORPHIC_MATCHER_P(equalsBoundNode,
 
 #endif
 
+/// This matcher will match any field declaration that is marked as a strong
+/// or a weak reference.
+AST_MATCHER(FieldDecl, isStrongOrWeakRef) {
+  return MozChecker::hasCustomAnnotation(&Node, "moz_strong_ref") ||
+         MozChecker::hasCustomAnnotation(&Node, "moz_weak_ref");
+}
+
 }
 }
 
@@ -779,6 +792,10 @@ DiagnosticsMatcher::DiagnosticsMatcher()
           unless(anyOf(isInSystemHeader(), isInSkScalarDotH()))
       )).bind("node"),
     &nanExprChecker);
+
+  astMatcher.addMatcher(fieldDecl(hasType(pointerType(pointee(isRefCounted()))),
+                                  unless(isStrongOrWeakRef())).bind("node"),
+    &weakPtrRefCountedMemberChecker);
 
   // First, look for direct parents of the MemberExpr.
   astMatcher.addMatcher(callExpr(callee(functionDecl(hasNoAddRefReleaseOnReturnAttr()).bind("func")),
@@ -1040,6 +1057,23 @@ void DiagnosticsMatcher::ExplicitOperatorBoolChecker::run(
     Diag.Report(method->getLocStart(), errorID) << clazz;
     Diag.Report(method->getLocStart(), noteID) << "'operator bool'";
   }
+}
+
+void DiagnosticsMatcher::WeakPtrRefCountedMemberChecker::run(
+    const MatchFinder::MatchResult &Result) {
+  DiagnosticsEngine &Diag = Result.Context->getDiagnostics();
+  unsigned errorID = Diag.getDiagnosticIDs()->getCustomDiagID(
+      DiagnosticIDs::Error, "Raw pointer member %0 points to refcounted class %1");
+  unsigned noteID = Diag.getDiagnosticIDs()->getCustomDiagID(
+      DiagnosticIDs::Note, "Please use the appropriate smart pointer class (such as nsCOMPtr, nsRefPtr)");
+  const FieldDecl *node = Result.Nodes.getNodeAs<FieldDecl>("node");
+
+  if (!getenv("MOZ_BAD_REFS")) {
+    return;
+  }
+  Diag.Report(node->getLocStart(), errorID) << node <<
+    node->getType()->getPointeeType();
+  Diag.Report(node->getLocStart(), noteID);
 }
 
 class MozCheckAction : public PluginASTAction {

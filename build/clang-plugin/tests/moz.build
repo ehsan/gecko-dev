@@ -17,6 +17,7 @@ SOURCES += [
     'TestNoArithmeticExprInArgument.cpp',
     'TestNonHeapClass.cpp',
     'TestNoRefcountedInsideLambdas.cpp',
+    'TestNoRefcountedRawPointerMember.cpp',
     'TestStackClass.cpp',
     'TestTrivialCtorDtor.cpp',
 ]
