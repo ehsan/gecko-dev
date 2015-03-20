@@ -558,7 +558,7 @@ GetterOnlyJSNative(JSContext* aCx, unsigned aArgc, JS::Value* aVp)
 namespace {
 
 class WorkerScopeUnregisterRunnable;
-class UnregisterResultRunnable MOZ_FINAL : public WorkerRunnable
+class UnregisterResultRunnable final : public WorkerRunnable
 {
 public:
   enum State { Succeeded, Failed };
@@ -575,7 +575,7 @@ public:
   }
 
   virtual bool
-  WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate) MOZ_OVERRIDE;
+  WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate) override;
 
 private:
   nsRefPtr<WorkerScopeUnregisterRunnable> mRunnable;
@@ -583,7 +583,7 @@ private:
   bool mValue;
 };
 
-class WorkerScopeUnregisterRunnable MOZ_FINAL : public nsRunnable
+class WorkerScopeUnregisterRunnable final : public nsRunnable
                                               , public nsIServiceWorkerUnregisterCallback
                                               , public WorkerFeature
 {
@@ -631,7 +631,7 @@ public:
   }
 
   NS_IMETHODIMP
-  UnregisterSucceeded(bool aState) MOZ_OVERRIDE
+  UnregisterSucceeded(bool aState) override
   {
     AssertIsOnMainThread();
 
@@ -643,7 +643,7 @@ public:
   }
 
   NS_IMETHODIMP
-  UnregisterFailed() MOZ_OVERRIDE
+  UnregisterFailed() override
   {
     AssertIsOnMainThread();
 
@@ -669,7 +669,7 @@ public:
   }
 
   NS_IMETHODIMP
-  Run() MOZ_OVERRIDE
+  Run() override
   {
     AssertIsOnMainThread();
 
@@ -693,7 +693,7 @@ public:
     return NS_OK;
   }
 
-  virtual bool Notify(JSContext* aCx, workers::Status aStatus) MOZ_OVERRIDE
+  virtual bool Notify(JSContext* aCx, workers::Status aStatus) override
   {
     mWorkerPrivate->AssertIsOnWorkerThread();
     MOZ_ASSERT(aStatus > workers::Running);
@@ -747,7 +747,7 @@ ServiceWorkerGlobalScope::Unregister(ErrorResult& aRv)
 
 namespace {
 
-class UpdateRunnable MOZ_FINAL : public nsRunnable
+class UpdateRunnable final : public nsRunnable
 {
   nsString mScope;
 
