@@ -347,7 +347,7 @@ txMozillaXSLTProcessor::txMozillaXSLTProcessor()
     mStylesheetDocument(nullptr),
     mTransformResult(NS_OK),
     mCompileResult(NS_OK),
-    mFlags(0)
+    mLoadFlags(0)
 {
 }
 
@@ -356,7 +356,7 @@ txMozillaXSLTProcessor::txMozillaXSLTProcessor(nsISupports* aOwner)
     mStylesheetDocument(nullptr),
     mTransformResult(NS_OK),
     mCompileResult(NS_OK),
-    mFlags(0)
+    mLoadFlags(0)
 {
 }
 
@@ -1019,7 +1019,7 @@ txMozillaXSLTProcessor::SetFlags(uint32_t aFlags)
     NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(),
                    NS_ERROR_DOM_SECURITY_ERR);
 
-    mFlags = aFlags;
+    mLoadFlags = aFlags;
 
     return NS_OK;
 }
@@ -1030,7 +1030,7 @@ txMozillaXSLTProcessor::GetFlags(uint32_t* aFlags)
     NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(),
                    NS_ERROR_DOM_SECURITY_ERR);
 
-    *aFlags = mFlags;
+    *aFlags = mLoadFlags;
 
     return NS_OK;
 }

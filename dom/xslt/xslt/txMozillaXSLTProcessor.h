@@ -149,7 +149,7 @@ public:
 
     bool IsLoadDisabled()
     {
-        return (mFlags & DISABLE_ALL_LOADS) != 0;
+        return (mLoadFlags & DISABLE_ALL_LOADS) != 0;
     }
 
     static nsresult Startup();
@@ -181,7 +181,7 @@ private:
     txNamespaceMap mParamNamespaceMap;
     nsRefPtr<txResultRecycler> mRecycler;
 
-    uint32_t mFlags;
+    uint32_t mLoadFlags;
 };
 
 extern nsresult TX_LoadSheet(nsIURI* aUri, txMozillaXSLTProcessor* aProcessor,
