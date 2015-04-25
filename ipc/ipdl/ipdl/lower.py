@@ -121,20 +121,20 @@ def _actorTypeTagType():
 
 def _actorId(actor=None):
     if actor is not None:
-        return ExprSelect(actor, '->', 'mId')
-    return ExprVar('mId')
+        return ExprSelect(actor, '->', 'mIPDL_Id')
+    return ExprVar('mIPDL_Id')
 
 def _actorHId(actorhandle):
     return ExprSelect(actorhandle, '.', 'mId')
 
 def _actorChannel(actor):
-    return ExprSelect(actor, '->', 'mChannel')
+    return ExprSelect(actor, '->', 'mIPDL_Channel')
 
 def _actorManager(actor):
-    return ExprSelect(actor, '->', 'mManager')
+    return ExprSelect(actor, '->', 'mIPDL_Manager')
 
 def _actorState(actor):
-    return ExprSelect(actor, '->', 'mState')
+    return ExprSelect(actor, '->', 'mIPDL_State')
 
 def _backstagePass():
     return ExprCall(ExprVar('mozilla::ipc::PrivateIPDLInterface'))
@@ -794,7 +794,7 @@ IPDL union type."""
 
     def unionValue(self):
         # NB: knows that Union's storage C union is named |mValue|
-        return ExprSelect(ExprVar('mValue'), '.', self.name)
+        return ExprSelect(ExprVar('mIPDL_Value'), '.', self.name)
 
     def typedef(self):
         return self.flattypename +'__tdef'
@@ -1197,16 +1197,16 @@ class Protocol(ipdl.ast.Protocol):
     # an actor's C++ private variables
     def lastActorIdVar(self):
         assert self.decl.type.isToplevel()
-        return ExprVar('mLastRouteId')
+        return ExprVar('mIPDL_LastRouteId')
 
     def actorMapVar(self):
         assert self.decl.type.isToplevel()
-        return ExprVar('mActorMap')
+        return ExprVar('mIPDL_ActorMap')
 
     def channelVar(self, actorThis=None):
         if actorThis is not None:
-            return ExprSelect(actorThis, '->', 'mChannel')
-        return ExprVar('mChannel')
+            return ExprSelect(actorThis, '->', 'mIPDL_Channel')
+        return ExprVar('mIPDL_Channel')
 
     def channelForSubactor(self):
         if self.decl.type.isToplevel():
@@ -1222,12 +1222,12 @@ class Protocol(ipdl.ast.Protocol):
 
     def idVar(self):
         assert not self.decl.type.isToplevel()
-        return ExprVar('mId')
+        return ExprVar('mIPDL_Id')
 
     def stateVar(self, actorThis=None):
         if actorThis is not None:
-            return ExprSelect(actorThis, '->', 'mState')
-        return ExprVar('mState')
+            return ExprSelect(actorThis, '->', 'mIPDL_State')
+        return ExprVar('mIPDL_State')
 
     def fqStateType(self):
         return Type(self.decl.type.name() +'::State')
@@ -1243,14 +1243,14 @@ class Protocol(ipdl.ast.Protocol):
 
     def managerVar(self, thisexpr=None):
         assert thisexpr is not None or not self.decl.type.isToplevel()
-        mvar = ExprVar('mManager')
+        mvar = ExprVar('mIPDL_Manager')
         if thisexpr is not None:
             mvar = ExprSelect(thisexpr, '->', mvar.name)
         return mvar
 
     def otherPidVar(self):
         assert self.decl.type.isToplevel()
-        return ExprVar('mOtherPid')
+        return ExprVar('mIPDL_OtherPid')
 
     def managedCxxType(self, actortype, side):
         assert self.decl.type.isManagerOf(actortype)
@@ -1262,7 +1262,7 @@ class Protocol(ipdl.ast.Protocol):
 
     def managedVar(self, actortype, side):
         assert self.decl.type.isManagerOf(actortype)
-        return ExprVar('mManaged'+ _actorName(actortype.name(), side))
+        return ExprVar('mIPDL_Managed'+ _actorName(actortype.name(), side))
 
     def managedVarType(self, actortype, side, const=0, ref=0):
         assert self.decl.type.isManagerOf(actortype)
@@ -1274,7 +1274,7 @@ class Protocol(ipdl.ast.Protocol):
         assert self.decl.type.isManaged()
         return ExprSelect(
             ExprCall(self.managerMethod(thisvar)),
-            '->', 'mManaged'+ _actorName(self.decl.type.name(), side))
+            '->', 'mIPDL_Managed'+ _actorName(self.decl.type.name(), side))
 
     # shmem stuff
     def shmemMapType(self):
@@ -1288,11 +1288,11 @@ class Protocol(ipdl.ast.Protocol):
 
     def shmemMapVar(self):
         assert self.decl.type.isToplevel()
-        return ExprVar('mShmemMap')
+        return ExprVar('mIPDL_ShmemMap')
 
     def lastShmemIdVar(self):
         assert self.decl.type.isToplevel()
-        return ExprVar('mLastShmemId')
+        return ExprVar('mIPDL_LastShmemId')
 
     def shmemIdInit(self, side):
         assert self.decl.type.isToplevel()
@@ -2194,8 +2194,8 @@ def _generateCxxUnion(ud):
     refClsType = Type(ud.name, ref=1)
     typetype = Type('Type')
     valuetype = Type('Value')
-    mtypevar = ExprVar('mType')
-    mvaluevar = ExprVar('mValue')
+    mtypevar = ExprVar('mIPDL_Type')
+    mvaluevar = ExprVar('mIPDL_Value')
     maybedtorvar = ExprVar('MaybeDestroy')
     assertsanityvar = ExprVar('AssertSanity')
     tnonevar = ExprVar('T__None')
@@ -3169,7 +3169,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
             if ptype.hasReentrantDelete:
                 msgVar = ExprVar(params[0].name)
                 ifdying = StmtIf(ExprBinary(
-                    ExprBinary(ExprVar('mState'), '==', _dyingState(ptype)),
+                    ExprBinary(ExprVar('mIPDL_State'), '==', _dyingState(ptype)),
                     '&&',
                     ExprBinary(
                         ExprBinary(ExprCall(ExprSelect(msgVar, '.', 'is_reply')), '!=', ExprLiteral.TRUE),
@@ -3525,7 +3525,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         self.implementPickling()
 
         ## private members
-        self.cls.addstmt(StmtDecl(Decl(p.channelType(), 'mChannel')))
+        self.cls.addstmt(StmtDecl(Decl(p.channelType(), 'mIPDL_Channel')))
         if ptype.isToplevel():
             self.cls.addstmts([
                 StmtDecl(Decl(Type('IDMap', T=Type('ProtocolBase')),
