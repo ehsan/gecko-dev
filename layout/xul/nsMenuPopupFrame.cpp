@@ -87,7 +87,7 @@ NS_QUERYFRAME_TAIL_INHERITING(nsBoxFrame)
 nsMenuPopupFrame::nsMenuPopupFrame(nsStyleContext* aContext)
   :nsBoxFrame(aContext),
   mCurrentMenu(nullptr),
-  mPrefSize(-1, -1),
+  mPopupPrefSize(-1, -1),
   mLastClientOffset(0, 0),
   mPopupType(ePopupTypePanel),
   mPopupState(ePopupClosed),
@@ -454,10 +454,10 @@ nsMenuPopupFrame::LayoutPopup(nsBoxLayoutState& aState, nsIFrame* aParentMenu,
   prefSize = BoundsCheck(minSize, prefSize, maxSize);
 
   // if the size changed then set the bounds to be the preferred size
-  bool sizeChanged = (mPrefSize != prefSize);
+  bool sizeChanged = (mPopupPrefSize != prefSize);
   if (sizeChanged) {
     SetBounds(aState, nsRect(0, 0, prefSize.width, prefSize.height), false);
-    mPrefSize = prefSize;
+    mPopupPrefSize = prefSize;
   }
 
   bool needCallback = false;
@@ -479,7 +479,7 @@ nsMenuPopupFrame::LayoutPopup(nsBoxLayoutState& aState, nsIFrame* aParentMenu,
     if (newsize.width > bounds.width || newsize.height > bounds.height) {
       // the size after layout was larger than the preferred size,
       // so set the preferred size accordingly
-      mPrefSize = newsize;
+      mPopupPrefSize = newsize;
       if (isOpen) {
         SetPopupPosition(aAnchor, false, aSizedToPopup);
         needCallback = true;
@@ -1217,7 +1217,7 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame, bool aIsMove, bool aS
 
   // If this is due to a move, return early if the popup hasn't been laid out
   // yet. On Windows, this can happen when using a drag popup before it opens.
-  if (aIsMove && (mPrefSize.width == -1 || mPrefSize.height == -1)) {
+  if (aIsMove && (mPopupPrefSize.width == -1 || mPopupPrefSize.height == -1)) {
     return NS_OK;
   }
 
@@ -1291,10 +1291,10 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame, bool aIsMove, bool aS
   // adjusted to fit on the screen or within the content area. If the anchor
   // is sized to the popup, use the anchor's width instead of the preferred
   // width. The preferred size should already be set by the parent frame.
-  NS_ASSERTION(mPrefSize.width >= 0 || mPrefSize.height >= 0,
+  NS_ASSERTION(mPopupPrefSize.width >= 0 || mPopupPrefSize.height >= 0,
                "preferred size of popup not set");
-  mRect.width = aSizedToPopup ? parentWidth : mPrefSize.width;
-  mRect.height = mPrefSize.height;
+  mRect.width = aSizedToPopup ? parentWidth : mPopupPrefSize.width;
+  mRect.height = mPopupPrefSize.height;
 
   // If we're anchoring to a rect, and the rect is smaller than the preferred size
   // of the popup, change its width accordingly.

@@ -511,10 +511,11 @@ protected:
   nsRefPtr<nsXULPopupShownEvent> mPopupShownDispatcher;
 
   // A popup's preferred size may be different than its actual size stored in
-  // mRect in the case where the popup was resized because it was too large
-  // for the screen. The preferred size mPrefSize holds the full size the popup
-  // would be before resizing. Computations are performed using this size.
-  nsSize mPrefSize;
+  // mRect in the case where the popup was resized because it was too large for
+  // the screen. The preferred size mPopupPrefSize holds the full size the
+  // popup would be before resizing. Computations are performed using this
+  // size.
+  nsSize mPopupPrefSize;
 
   // The position of the popup, in CSS pixels.
   // The screen coordinates, if set to values other than -1,
