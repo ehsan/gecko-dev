@@ -12,17 +12,17 @@ namespace mozilla {
 namespace layout {
 
 FrameChildListIterator::FrameChildListIterator(const nsIFrame* aFrame)
-  : FrameChildListArrayIterator(mLists)
+  : FrameChildListArrayIterator(mStoredLists)
 {
-  aFrame->GetChildLists(&mLists);
+  aFrame->GetChildLists(&mStoredLists);
 #ifdef DEBUG
   // Make sure that there are no duplicate list IDs.
   FrameChildListIDs ids;
-  uint32_t count = mLists.Length();
+  uint32_t count = mStoredLists.Length();
   for (uint32_t i = 0; i < count; ++i) {
-    NS_ASSERTION(!ids.Contains(mLists[i].mID),
+    NS_ASSERTION(!ids.Contains(mStoredLists[i].mID),
                  "Duplicate item found!");
-    ids |= mLists[i].mID;
+    ids |= mStoredLists[i].mID;
   }
 #endif
 }
