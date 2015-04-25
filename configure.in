@@ -1641,6 +1641,7 @@ if test "$GNU_CXX"; then
     # -Wpointer-arith - catches pointer arithmetic using NULL or sizeof(void)
     # -Wreturn-type - catches missing returns, zero false positives
     # -Wsequence-point - catches undefined order behavior like `a = a++`
+    # -Wshadow-field - catches derived class members shadowing base members
     # -Wsign-compare - catches comparison of signed and unsigned types
     # -Wswitch - catches switches without all enum cases or default case
     # -Wtrigraphs - catches unlikely use of trigraphs
@@ -1653,6 +1654,8 @@ if test "$GNU_CXX"; then
     _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Woverloaded-virtual"
     _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Wsign-compare"
     _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Wwrite-strings"
+
+    MOZ_CXX_SUPPORTS_WARNING(-W, shadow-field, ac_cxx_has_w_shadow_field)
 
     # Treat some warnings as errors if --enable-warnings-as-errors:
     if test "$MOZ_ENABLE_WARNINGS_AS_ERRORS"; then
