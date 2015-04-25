@@ -41,7 +41,7 @@ void ProtocolCloneContext::SetContentParent(ContentParent* aContentParent)
 static StaticMutex gProtocolMutex;
 
 IToplevelProtocol::IToplevelProtocol(ProtocolId aProtoId)
- : mOpener(nullptr)
+ : mOpenerProtocol(nullptr)
  , mProtocolId(aProtoId)
  , mTrans(nullptr)
 {
@@ -54,13 +54,13 @@ IToplevelProtocol::~IToplevelProtocol()
   for (IToplevelProtocol* actor = mOpenActors.getFirst();
        actor;
        actor = actor->getNext()) {
-    actor->mOpener = nullptr;
+    actor->mOpenerProtocol = nullptr;
   }
 
   mOpenActors.clear();
 
-  if (mOpener) {
-      removeFrom(mOpener->mOpenActors);
+  if (mOpenerProtocol) {
+      removeFrom(mOpenerProtocol->mOpenActors);
   }
 }
 
@@ -78,7 +78,7 @@ IToplevelProtocol::AddOpenedActorLocked(IToplevelProtocol* aActor)
   }
 #endif
 
-  aActor->mOpener = this;
+  aActor->mOpenerProtocol = this;
   mOpenActors.insertBack(aActor);
 }
 

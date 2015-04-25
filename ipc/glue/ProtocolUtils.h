@@ -256,7 +256,7 @@ private:
     void GetOpenedActorsLocked(nsTArray<IToplevelProtocol*>& aActors);
 
     LinkedList<IToplevelProtocol> mOpenActors; // All protocol actors opened by this.
-    IToplevelProtocol* mOpener;
+    IToplevelProtocol* mOpenerProtocol;
 
     ProtocolId mProtocolId;
     Transport* mTrans;
