@@ -99,6 +99,9 @@
   #main-window:not(:-moz-lwtheme) > #titlebar {
     -moz-appearance: -moz-mac-vibrancy-light;
   }
+  #main-window[privatebrowsingmode=temporary]:not(:-moz-lwtheme) > #titlebar {
+    -moz-appearance: -moz-mac-vibrancy-dark;
+  }
 }
 
 #main-window:not([tabsintitlebar]) > #titlebar {
