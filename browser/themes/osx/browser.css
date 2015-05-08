@@ -99,8 +99,13 @@
   #main-window:not(:-moz-lwtheme) > #titlebar {
     -moz-appearance: -moz-mac-vibrancy-light;
   }
-  #main-window[privatebrowsingmode=temporary]:not(:-moz-lwtheme) > #titlebar {
-    -moz-appearance: -moz-mac-vibrancy-dark;
+  #main-window[privatebrowsingmode=temporary]:not(:-moz-lwtheme) > #titlebar,
+  #main-window[privatebrowsingmode=temporary]:not(:-moz-lwtheme) #TabsToolbar {
+    -moz-appearance: -moz-mac-vibrancy-dark !important;
+    color: white;
+  }
+  #main-window[privatebrowsingmode=temporary]:not(:-moz-lwtheme) .tabbrowser-tab[visuallyselected=true]:not(:-moz-lwtheme) {
+    color: var(--tabs-toolbar-color);
   }
 }
 
