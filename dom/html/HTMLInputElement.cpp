@@ -4606,7 +4606,7 @@ HTMLInputElement::UnbindFromTree(bool aDeep, bool aNullParent)
   // that takes care of form's WillRemove so we just have to take care
   // of the case where we're removing from the document and we don't
   // have a form
-  if (!mForm && mType == NS_FORM_INPUT_RADIO) {
+  if (!HasFlag(HAVE_HAD_FORM) && mType == NS_FORM_INPUT_RADIO) {
     WillRemoveFromRadioGroup();
   }
 

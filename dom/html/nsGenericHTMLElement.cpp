@@ -1957,6 +1957,7 @@ nsGenericHTMLFormElement::SetForm(nsIDOMHTMLFormElement* aForm)
 
   // keep a *weak* ref to the form here
   mForm = static_cast<HTMLFormElement*>(aForm);
+  SetFlags(HAVE_HAD_FORM);
 }
 
 void
