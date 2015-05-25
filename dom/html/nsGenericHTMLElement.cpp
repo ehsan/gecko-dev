@@ -2478,6 +2478,7 @@ nsGenericHTMLFormElement::UpdateFormOwner(bool aBindToTree,
 
         if (element && element->IsHTMLElement(nsGkAtoms::form)) {
           mForm = static_cast<HTMLFormElement*>(element);
+          SetFlags(HAVE_HAD_FORM);
         }
       }
      } else {
