@@ -1433,15 +1433,8 @@ HttpBaseChannel::OverrideSecurityInfo(nsISupports* aSecurityInfo)
              "This can only be called when we don't have a security info object already");
   MOZ_RELEASE_ASSERT(aSecurityInfo,
                      "This can only be called with a valid security info object");
-  MOZ_ASSERT(ShouldIntercept(),
-             "This can only be called on channels that can be intercepted");
   if (mSecurityInfo) {
     LOG(("HttpBaseChannel::OverrideSecurityInfo mSecurityInfo is null! "
-         "[this=%p]\n", this));
-    return NS_ERROR_UNEXPECTED;
-  }
-  if (!ShouldIntercept()) {
-    LOG(("HttpBaseChannel::OverrideSecurityInfo channel cannot be intercepted! "
          "[this=%p]\n", this));
     return NS_ERROR_UNEXPECTED;
   }
@@ -1455,16 +1448,9 @@ HttpBaseChannel::OverrideURI(nsIURI* aRedirectedURI)
 {
   MOZ_ASSERT(mLoadFlags & LOAD_REPLACE,
              "This can only happen if the LOAD_REPLACE flag is set");
-  MOZ_ASSERT(ShouldIntercept(),
-             "This can only be called on channels that can be intercepted");
   if (!(mLoadFlags & LOAD_REPLACE)) {
     LOG(("HttpBaseChannel::OverrideURI LOAD_REPLACE flag not set! [this=%p]\n",
          this));
-    return NS_ERROR_UNEXPECTED;
-  }
-  if (!ShouldIntercept()) {
-    LOG(("HttpBaseChannel::OverrideURI channel cannot be intercepted! "
-         "[this=%p]\n", this));
     return NS_ERROR_UNEXPECTED;
   }
 
