@@ -355,3 +355,20 @@ searchbar:not([oneoffui]) .search-go-button {
   background-color: var(--tab-hover-background-color) !important;
   background-image: none;
 }
+
+/* Alternate tab audio icons for the dark devedition theme. */
+:root[devtoolstheme="dark"] .tab-icon-overlay[playing][pinned] {
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio-small.svg#tab-audio-dark");
+}
+
+:root[devtoolstheme="dark"] .tab-icon-media[playing] {
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio.svg#tab-audio-dark");
+}
+
+:root[devtoolstheme="dark"] .tab-icon-media[playing]:hover {
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio.svg#tab-audio-dark-hover");
+}
+
+:root[devtoolstheme="dark"] .tab-icon-media[playing]:active {
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio.svg#tab-audio-dark-pressed");
+}

@@ -2639,7 +2639,8 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
  * Force the overlay to create a new stacking context so it always appears on
  * top of the icon.
  */
-.tab-icon-overlay {
+.tab-icon-overlay,
+.tab-icon-media[pinned] {
   opacity: 0.9999;
 }
 
