@@ -3861,11 +3861,18 @@
             event.preventDefault();
             return;
           }
-          event.target.setAttribute("label",
-                                    tab.mOverCloseButton ?
-                                    tab.getAttribute("closetabtext") :
-                                    tab.getAttribute("label") +
-                                      (this.AppConstants.E10S_TESTING_ONLY && tab.linkedBrowser && tab.linkedBrowser.isRemoteBrowser ? " - e10s" : ""));
+          var label;
+          if (tab.mOverCloseButton) {
+            label = tab.getAttribute("closetabtext");
+          } else if (tab.mOverPlayingIcon) {
+            label = tab.linkedBrowser.audioMuted ?
+              tab.getAttribute("mutedtext") :
+              tab.getAttribute("playingtext");
+          } else {
+            label = tab.getAttribute("label") +
+                      (this.AppConstants.E10S_TESTING_ONLY && tab.linkedBrowser && tab.linkedBrowser.isRemoteBrowser ? " - e10s" : "");
+          }
+          event.target.setAttribute("label", label);
         ]]></body>
       </method>
 
@@ -5649,7 +5656,10 @@
       <stylesheet src="chrome://browser/content/tabbrowser.css"/>
     </resources>
 
-    <content context="tabContextMenu" closetabtext="&closeTab.label;">
+    <content context="tabContextMenu"
+             closetabtext="&closeTab.label;"
+             playingtext="&playingAudio.label;"
+             mutedtext="&mutedAudio.label;">
       <xul:stack class="tab-stack" flex="1">
         <xul:hbox xbl:inherits="pinned,selected,visuallyselected,titlechanged,fadein"
                   class="tab-background">
@@ -5680,6 +5690,7 @@
                      class="tab-text tab-label"
                      role="presentation"/>
           <xul:image xbl:inherits="playing,pinned"
+                     anonid="playing-icon"
                      class="tab-icon-media"
                      role="presentation"/>
           <xul:toolbarbutton anonid="close-button"
@@ -5756,6 +5767,7 @@
       </property>
 
       <field name="mOverCloseButton">false</field>
+      <field name="mOverPlayingIcon">false</field>
       <field name="mCorrespondingMenuitem">null</field>
 
       <!--
@@ -5817,15 +5829,23 @@
     <handlers>
       <handler event="mouseover"><![CDATA[
         let anonid = event.originalTarget.getAttribute("anonid");
+        let playing = event.originalTarget.hasAttribute("playing");
         if (anonid == "close-button")
           this.mOverCloseButton = true;
+        else if ((anonid == "playing-icon") ||
+                 ((anonid == "overlay-icon") && playing))
+          this.mOverPlayingIcon = true;
 
         this._mouseenter();
       ]]></handler>
       <handler event="mouseout"><![CDATA[
         let anonid = event.originalTarget.getAttribute("anonid");
+        let playing = event.originalTarget.hasAttribute("playing");
         if (anonid == "close-button")
           this.mOverCloseButton = false;
+        else if ((anonid == "playing-icon") ||
+                 ((anonid == "overlay-icon") && playing))
+          this.mOverPlayingIcon = false;
 
         this._mouseleave();
       ]]></handler>
