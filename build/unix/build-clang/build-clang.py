@@ -30,10 +30,11 @@ def patch(patch, srcdir):
                '-s'])
 
 
-def build_package(package_build_dir, cmake_args):
+def build_package(package_build_dir, run_cmake, cmake_args):
     if not os.path.exists(package_build_dir):
         os.mkdir(package_build_dir)
-    run_in(package_build_dir, ["cmake"] + cmake_args)
+    if run_cmake:
+        run_in(package_build_dir, ["cmake"] + cmake_args)
     run_in(package_build_dir, ["ninja", "install"])
 
 
@@ -78,10 +79,15 @@ def is_darwin():
 
 
 def build_one_stage_aux(src_dir, stage_dir, gcc_toolchain_dir, build_libcxx):
-    os.mkdir(stage_dir)
+    if not os.path.exists(stage_dir):
+        os.mkdir(stage_dir)
 
     build_dir = stage_dir + "/build"
     inst_dir = stage_dir + "/clang"
+
+    run_cmake = True
+    if os.path.exists(build_dir):
+        run_cmake = False
 
     cmake_args = ["-GNinja",
                   "-DCMAKE_BUILD_TYPE=Release",
@@ -92,7 +98,7 @@ def build_one_stage_aux(src_dir, stage_dir, gcc_toolchain_dir, build_libcxx):
                   "-DGCC_INSTALL_PREFIX=%s" % gcc_toolchain_dir,
                   "-DLLVM_EXTERNAL_LIBCXX_BUILD=%s" % ("ON" if build_libcxx else "OFF"),
                   src_dir];
-    build_package(build_dir, cmake_args)
+    build_package(build_dir, run_cmake, cmake_args)
 
 if __name__ == "__main__":
     # The directories end up in the debug info, so the easy way of getting
@@ -141,9 +147,8 @@ if __name__ == "__main__":
         for p in config.get("patches", {}).get(get_platform(), []):
             patch(p, source_dir)
 
-    if os.path.exists(build_dir):
-        shutil.rmtree(build_dir)
-    os.makedirs(build_dir)
+    if not os.path.exists(build_dir):
+        os.makedirs(build_dir)
 
     stage1_dir = build_dir + '/stage1'
     stage1_inst_dir = stage1_dir + '/clang'
