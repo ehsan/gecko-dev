@@ -30,14 +30,11 @@ def patch(patch, srcdir):
                '-s'])
 
 
-def build_package(package_source_dir, package_build_dir, configure_args,
-                  make_args):
+def build_package(package_build_dir, cmake_args):
     if not os.path.exists(package_build_dir):
         os.mkdir(package_build_dir)
-    run_in(package_build_dir,
-           ["%s/configure" % package_source_dir] + configure_args)
-    run_in(package_build_dir, ["make", "-j4"] + make_args)
-    run_in(package_build_dir, ["make", "install"])
+    run_in(package_build_dir, ["cmake"] + cmake_args)
+    run_in(package_build_dir, ["ninja", "install"])
 
 
 def with_env(env, f):
@@ -57,9 +54,9 @@ def svn_co(url, directory, revision):
     check_run(["svn", "co", "-r", revision, url, directory])
 
 
-def build_one_stage(env, stage_dir, llvm_source_dir, gcc_toolchain_dir):
+def build_one_stage(env, src_dir, stage_dir, gcc_toolchain_dir, build_libcxx):
     def f():
-        build_one_stage_aux(stage_dir, llvm_source_dir, gcc_toolchain_dir)
+        build_one_stage_aux(src_dir, stage_dir, gcc_toolchain_dir, build_libcxx)
     with_env(env, f)
 
 
@@ -80,29 +77,22 @@ def is_darwin():
     return platform.system() == "Darwin"
 
 
-def build_one_stage_aux(stage_dir, llvm_source_dir, gcc_toolchain_dir):
+def build_one_stage_aux(src_dir, stage_dir, gcc_toolchain_dir, build_libcxx):
     os.mkdir(stage_dir)
 
     build_dir = stage_dir + "/build"
     inst_dir = stage_dir + "/clang"
 
-    targets = ["x86", "x86_64"]
-    # The Darwin equivalents of binutils appear to have intermittent problems
-    # with objects in compiler-rt that are compiled for arm.  Since the arm
-    # support is only necessary for iOS (which we don't support), only enable
-    # arm support on Linux.
-    if not is_darwin():
-        targets.append("arm")
-
-    configure_opts = ["--enable-optimized",
-                      "--enable-targets=" + ",".join(targets),
-                      "--disable-assertions",
-                      "--disable-libedit",
-                      "--with-python=/usr/local/bin/python2.7",
-                      "--prefix=%s" % inst_dir,
-                      "--with-gcc-toolchain=%s" % gcc_toolchain_dir,
-                      "--disable-compiler-version-checks"]
-    build_package(llvm_source_dir, build_dir, configure_opts, [])
+    cmake_args = ["-GNinja",
+                  "-DCMAKE_BUILD_TYPE=Release",
+                  "-DLLVM_TARGETS_TO_BUILD=X86;ARM",
+                  "-DLLVM_ENABLE_ASSERTIONS=OFF",
+                  "-DPYTHON_EXECUTABLE=/usr/local/bin/python2.7",
+                  "-DCMAKE_INSTALL_PREFIX=%s" % inst_dir,
+                  "-DGCC_INSTALL_PREFIX=%s" % gcc_toolchain_dir,
+                  "-DLLVM_EXTERNAL_LIBCXX_BUILD=%s" % ("ON" if build_libcxx else "OFF"),
+                  src_dir];
+    build_package(build_dir, cmake_args)
 
 if __name__ == "__main__":
     # The directories end up in the debug info, so the easy way of getting
@@ -165,6 +155,7 @@ if __name__ == "__main__":
         extra_cxxflags2 = "-stdlib=libc++"
         cc = "/usr/bin/clang"
         cxx = "/usr/bin/clang++"
+        build_libcxx = True
     else:
         extra_cflags = ""
         extra_cxxflags = ""
@@ -172,6 +163,7 @@ if __name__ == "__main__":
         extra_cxxflags2 = "-static-libgcc -static-libstdc++"
         cc = gcc_dir + "/bin/gcc"
         cxx = gcc_dir + "/bin/g++"
+        build_libcxx = False
 
     if os.environ.has_key('LD_LIBRARY_PATH'):
         os.environ['LD_LIBRARY_PATH'] = '%s/lib64/:%s' % (gcc_dir, os.environ['LD_LIBRARY_PATH']);
@@ -181,12 +173,12 @@ if __name__ == "__main__":
     build_one_stage(
         {"CC": cc + " %s" % extra_cflags,
          "CXX": cxx + " %s" % extra_cxxflags},
-        stage1_dir, llvm_source_dir, gcc_dir)
+        llvm_source_dir, stage1_dir, gcc_dir, build_libcxx)
 
     stage2_dir = build_dir + '/stage2'
     build_one_stage(
         {"CC": stage1_inst_dir + "/bin/clang %s" % extra_cflags2,
          "CXX": stage1_inst_dir + "/bin/clang++ %s" % extra_cxxflags2},
-        stage2_dir, llvm_source_dir, gcc_dir)
+        llvm_source_dir, stage2_dir, gcc_dir, build_libcxx)
 
     build_tar_package("tar", "clang.tar.bz2", stage2_dir, "clang")
