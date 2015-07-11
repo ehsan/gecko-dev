@@ -136,6 +136,11 @@ if __name__ == "__main__":
     clang_repo = config["clang_repo"]
     compiler_repo = config["compiler_repo"]
     libcxx_repo = config["libcxx_repo"]
+    stages = 3
+    if "stages" in config:
+        stages = int(config["stages"])
+        if stages not in (1, 2, 3):
+            raise ValueError("We only know how to build 1, 2, or 3 stages")
 
     if not os.path.exists(source_dir):
         os.makedirs(source_dir)
@@ -161,6 +166,8 @@ if __name__ == "__main__":
 
     stage1_dir = build_dir + '/stage1'
     stage1_inst_dir = stage1_dir + '/clang'
+
+    final_stage_dir = stage1_dir
 
     if is_darwin():
         extra_cflags = ""
@@ -189,10 +196,21 @@ if __name__ == "__main__":
          "CXX": cxx + " %s" % extra_cxxflags},
         llvm_source_dir, stage1_dir, gcc_dir, build_libcxx)
 
-    stage2_dir = build_dir + '/stage2'
-    build_one_stage(
-        {"CC": stage1_inst_dir + "/bin/clang %s" % extra_cflags2,
-         "CXX": stage1_inst_dir + "/bin/clang++ %s" % extra_cxxflags2},
-        llvm_source_dir, stage2_dir, gcc_dir, build_libcxx)
+    if stages > 1:
+        stage2_dir = build_dir + '/stage2'
+        stage2_inst_dir = stage2_dir + '/clang'
+        final_stage_dir = stage2_dir
+        build_one_stage(
+            {"CC": stage1_inst_dir + "/bin/clang %s" % extra_cflags2,
+             "CXX": stage1_inst_dir + "/bin/clang++ %s" % extra_cxxflags2},
+            llvm_source_dir, stage2_dir, gcc_dir, build_libcxx)
 
-    build_tar_package("tar", "clang.tar.bz2", stage2_dir, "clang")
+        if stages > 2:
+            stage3_dir = build_dir + '/stage3'
+            final_stage_dir = stage3_dir
+            build_one_stage(
+                {"CC": stage2_inst_dir + "/bin/clang %s" % extra_cflags2,
+                 "CXX": stage2_inst_dir + "/bin/clang++ %s" % extra_cxxflags2},
+                llvm_source_dir, stage3_dir, gcc_dir, build_libcxx)
+
+    build_tar_package("tar", "clang.tar.bz2", final_stage_dir, "clang")
