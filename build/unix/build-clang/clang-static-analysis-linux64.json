@@ -1,6 +1,9 @@
 {
     "llvm_revision": "241406",
     "stages": "3",
+    "build_libcxx": false,
+    "build_type": "Release",
+    "assertions": false,
     "llvm_repo": "https://llvm.org/svn/llvm-project/llvm/trunk",
     "clang_repo": "https://llvm.org/svn/llvm-project/cfe/trunk",
     "compiler_repo": "https://llvm.org/svn/llvm-project/compiler-rt/trunk",
