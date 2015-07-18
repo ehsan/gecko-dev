@@ -264,6 +264,7 @@ class ServiceWorkerManager final
   friend class GetReadyPromiseRunnable;
   friend class GetRegistrationsRunnable;
   friend class GetRegistrationRunnable;
+  friend class ServiceWorker;
   friend class ServiceWorkerJobQueue;
   friend class ServiceWorkerRegisterJob;
   friend class ServiceWorkerRegistrationInfo;

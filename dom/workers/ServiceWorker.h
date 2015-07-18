@@ -74,7 +74,7 @@ public:
               ErrorResult& aRv);
 
   WorkerPrivate*
-  GetWorkerPrivate() const;
+  GetWorkerPrivate();
 
 private:
   // This class can only be created from the ServiceWorkerManager.
@@ -84,8 +84,10 @@ private:
   // This class is reference-counted and will be destroyed from Release().
   ~ServiceWorker();
 
+  void Swap(ServiceWorker& aOtherServiceWorker);
+
   ServiceWorkerState mState;
-  const nsRefPtr<ServiceWorkerInfo> mInfo;
+  nsRefPtr<ServiceWorkerInfo> mInfo;
 
   // To allow ServiceWorkers to potentially drop the backing DOMEventTargetHelper and
   // re-instantiate it later, they simply own a SharedWorker member that

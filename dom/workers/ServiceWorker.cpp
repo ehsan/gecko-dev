@@ -17,6 +17,8 @@
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/ServiceWorkerGlobalScopeBinding.h"
 
+#include <algorithm>
+
 #ifdef XP_WIN
 #undef PostMessage
 #endif
@@ -96,7 +98,10 @@ ServiceWorker::PostMessage(JSContext* aCx, JS::Handle<JS::Value> aMessage,
                            ErrorResult& aRv)
 {
   WorkerPrivate* workerPrivate = GetWorkerPrivate();
-  MOZ_ASSERT(workerPrivate);
+  if (NS_WARN_IF(!workerPrivate)) {
+    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
+    return;
+  }
 
   if (State() == ServiceWorkerState::Redundant) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
@@ -115,13 +120,43 @@ ServiceWorker::PostMessage(JSContext* aCx, JS::Handle<JS::Value> aMessage,
 }
 
 WorkerPrivate*
-ServiceWorker::GetWorkerPrivate() const
+ServiceWorker::GetWorkerPrivate()
 {
   // At some point in the future, this may be optimized to terminate a worker
   // that hasn't been used in a certain amount of time or when there is memory
   // pressure or similar.
   MOZ_ASSERT(mSharedWorker);
-  return mSharedWorker->GetWorkerPrivate();
+  WorkerPrivate* worker = mSharedWorker->GetWorkerPrivate();
+  if (!worker) {
+    // We need to restart the service worker if it has died!
+    nsRefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
+    MOZ_ASSERT(swm);
+
+    nsCOMPtr<nsIScriptGlobalObject> global = do_QueryInterface(mWindow);
+    MOZ_ASSERT(global);
+
+    nsRefPtr<ServiceWorker> newServiceWorker;
+    nsresult rv = swm->CreateServiceWorkerForWindow(mWindow, mInfo, nullptr,
+                                                    getter_AddRefs(newServiceWorker));
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return nullptr;
+    }
+
+    Swap(*newServiceWorker);
+
+    return mSharedWorker->GetWorkerPrivate();
+  }
+  return worker;
+}
+
+void
+ServiceWorker::Swap(ServiceWorker& aOtherServiceWorker)
+{
+  std::swap(mState, aOtherServiceWorker.mState);
+  mInfo.swap(aOtherServiceWorker.mInfo);
+  mSharedWorker.swap(aOtherServiceWorker.mSharedWorker);
+  mDocument.swap(aOtherServiceWorker.mDocument);
+  mWindow.swap(aOtherServiceWorker.mWindow);
 }
 
 void
