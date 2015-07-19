@@ -7497,6 +7497,28 @@ var TabContextMenu = {
   }
 };
 
+let PlayingAudioContextMenu = {
+  contextTab: null,
+  updateContextMenu(aPopupMenu, event) {
+    if (!aPopupMenu.triggerNode.hasAttribute("playing")) {
+      // We might be dealing with a tab crashed icon for example!
+      event.preventDefault();
+    }
+    this.contextTab = aPopupMenu.triggerNode.localName == "image" ?
+                      aPopupMenu.triggerNode.parentNode.parentNode.parentNode :
+                      gBrowser.selectedTab;
+    let muteMenuItem = document.getElementById("muteAudio");
+    let browser = this.contextTab.linkedBrowser;
+    if (browser.audioMuted) {
+      muteMenuItem.setAttribute("label",
+        muteMenuItem.getAttribute("unmutelabel"));
+    } else {
+      muteMenuItem.setAttribute("label",
+        muteMenuItem.getAttribute("mutelabel"));
+    }
+  },
+};
+
 XPCOMUtils.defineLazyModuleGetter(this, "gDevTools",
                                   "resource:///modules/devtools/gDevTools.jsm");
 

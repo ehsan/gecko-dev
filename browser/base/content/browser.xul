@@ -529,6 +529,19 @@
                 acceskey="&emeNotificationsDontAskAgain.accesskey;"
                 oncommand="gEMEHandler.onDontAskAgain(this);"/>
     </menupopup>
+
+    <menupopup id="playingAudioContextMenu"
+               onpopupshowing="if (event.target == this) PlayingAudioContextMenu.updateContextMenu(this, event);"
+               onpopuphidden="if (event.target == this) PlayingAudioContextMenu.contextTab = null;">
+      <menuitem id="muteAudio"
+                label="&muteTab.label;"
+                accesskey="&muteTab.accesskey;"
+                mutelabel="&muteTab.label;"
+                unmutelabel="&unmuteTab.label;"
+                muteaccesskey="&muteTab.accesskey;"
+                unmuteaccesskey="&unmuteTab.accesskey;"
+                oncommand="gBrowser.toggleMuteAudio(PlayingAudioContextMenu.contextTab);"/>
+    </menupopup>
   </popupset>
 
 #ifdef CAN_DRAW_IN_TITLEBAR

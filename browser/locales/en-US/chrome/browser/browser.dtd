@@ -54,6 +54,11 @@ can reach it easily. -->
 
 <!ENTITY  listAllTabs.label      "List all tabs">
 
+<!ENTITY  muteTab.label          "Mute Tab">
+<!ENTITY  muteTab.accesskey      "M">
+<!ENTITY  unmuteTab.label        "Unmute Tab">
+<!ENTITY  unmuteTab.accesskey    "U">
+
 <!ENTITY tabCmd.label "New Tab">
 <!ENTITY tabCmd.accesskey "T">
 <!ENTITY tabCmd.commandkey "t">

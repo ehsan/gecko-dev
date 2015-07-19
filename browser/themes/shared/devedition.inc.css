@@ -361,6 +361,10 @@ searchbar:not([oneoffui]) .search-go-button {
   list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio-small.svg#tab-audio-dark");
 }
 
+:root[devtoolstheme="dark"] .tab-icon-overlay[muted][pinned] {
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio-small.svg#tab-audio-muted-dark");
+}
+
 :root[devtoolstheme="dark"] .tab-icon-media[playing] {
   list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio.svg#tab-audio-dark");
 }
@@ -371,4 +375,16 @@ searchbar:not([oneoffui]) .search-go-button {
 
 :root[devtoolstheme="dark"] .tab-icon-media[playing]:active {
   list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio.svg#tab-audio-dark-pressed");
+}
+
+:root[devtoolstheme="dark"] .tab-icon-media[muted] {
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio.svg#tab-audio-muted-dark");
+}
+
+:root[devtoolstheme="dark"] .tab-icon-media[muted]:hover {
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio.svg#tab-audio-muted-dark-hover");
+}
+
+:root[devtoolstheme="dark"] .tab-icon-media[muted]:active {
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio.svg#tab-audio-muted-dark-pressed");
 }

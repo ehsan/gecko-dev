@@ -4162,6 +4162,23 @@
         ]]>
         </getter>
       </property>
+
+      <method name="toggleMuteAudio">
+        <parameter name="aTab"/>
+        <body>
+        <![CDATA[
+          let browser = aTab.linkedBrowser;
+          if (browser.audioMuted) {
+            browser.unmute();
+            aTab.removeAttribute("muted");
+          } else {
+            browser.mute();
+            aTab.setAttribute("muted", "true");
+          }
+          this._tabAttrModified(aTab, ["muted"]);
+        ]]>
+        </body>
+      </method>
     </implementation>
 
     <handlers>
@@ -5681,17 +5698,20 @@
                      class="tab-icon-image"
                      validate="never"
                      role="presentation"/>
-          <xul:image xbl:inherits="crashed,busy,playing,pinned"
+          <xul:image xbl:inherits="crashed,busy,playing,pinned,muted"
+                     anonid="overlay-icon"
                      class="tab-icon-overlay"
+                     context="playingAudioContextMenu"
                      role="presentation"/>
           <xul:label flex="1"
                      anonid="tab-label"
                      xbl:inherits="value=visibleLabel,crop,accesskey,fadein,pinned,selected,visuallyselected"
                      class="tab-text tab-label"
                      role="presentation"/>
-          <xul:image xbl:inherits="playing,pinned"
+          <xul:image xbl:inherits="playing,pinned,muted"
                      anonid="playing-icon"
                      class="tab-icon-media"
+                     context="playingAudioContextMenu"
                      role="presentation"/>
           <xul:toolbarbutton anonid="close-button"
                              xbl:inherits="fadein,pinned,selected,visuallyselected"
