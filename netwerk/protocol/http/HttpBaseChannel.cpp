@@ -89,6 +89,8 @@ HttpBaseChannel::HttpBaseChannel()
   , mCorsIncludeCredentials(false)
   , mCorsMode(nsIHttpChannelInternal::CORS_MODE_NO_CORS)
   , mOnStartRequestCalled(false)
+  , mRequireCORSPreflight(false)
+  , mWithCredentials(false)
 {
   LOG(("Creating HttpBaseChannel @%x\n", this));
 
@@ -2795,6 +2797,18 @@ HttpBaseChannel::EnsureSchedulingContextID()
     // Set the load group connection scope on the transaction
     rootLoadGroup->GetSchedulingContextID(&mSchedulingContextID);
     return true;
+}
+
+NS_IMETHODIMP
+HttpBaseChannel::SetCorsPreflightParameters(const nsTArray<nsCString>& aUnsafeHeaders,
+                                            bool aWithCredentials,
+                                            nsIPrincipal* aPrincipal)
+{
+  mRequireCORSPreflight = true;
+  mUnsafeHeaders = aUnsafeHeaders;
+  mWithCredentials = aWithCredentials;
+  mPreflightPrincipal = aPrincipal;
+  return NS_OK;
 }
 
 } // namespace net
