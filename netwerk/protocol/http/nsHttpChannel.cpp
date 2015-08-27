@@ -261,6 +261,7 @@ nsHttpChannel::nsHttpChannel()
     , mIsPartialRequest(0)
     , mHasAutoRedirectVetoNotifier(0)
     , mIsPackagedAppResource(0)
+    , mIsCorsPreflightDone(0)
     , mPushedStream(nullptr)
     , mLocalBlocklist(false)
     , mWarningReporter(nullptr)
@@ -451,6 +452,22 @@ nsHttpChannel::Connect()
 nsresult
 nsHttpChannel::ContinueConnect()
 {
+    // If we need to start a CORS preflight, do it now!
+    // Note that it is important to do this before the early returns below.
+    if (!mIsCorsPreflightDone && mRequireCORSPreflight &&
+        mInterceptCache != INTERCEPTED) {
+        nsCOMPtr<nsIChannel> preflightChannel;
+        nsresult rv = NS_StartCORSPreflight(this, mListener, mPreflightPrincipal,
+                                            this, mWithCredentials, mUnsafeHeaders,
+                                            getter_AddRefs(preflightChannel));
+        return rv;
+    }
+
+    if (mRequireCORSPreflight && mInterceptCache != INTERCEPTED) {
+        MOZ_RELEASE_ASSERT(mIsCorsPreflightDone,
+                           "CORS preflight must have been finished by the time we do the rest of ContinueConnect");
+    }
+
     // we may or may not have a cache entry at this point
     if (mCacheEntry) {
         // read straight from the cache if possible...
@@ -945,6 +962,11 @@ CallTypeSniffers(void *aClosure, const uint8_t *aData, uint32_t aCount)
 nsresult
 nsHttpChannel::CallOnStartRequest()
 {
+    if (mRequireCORSPreflight && mInterceptCache != INTERCEPTED) {
+        MOZ_RELEASE_ASSERT(mIsCorsPreflightDone,
+                           "CORS preflight must have been finished by the time we call OnStartRequest");
+    }
+
     nsresult rv;
 
     mTracingEnabled = false;
@@ -4847,6 +4869,7 @@ NS_INTERFACE_MAP_BEGIN(nsHttpChannel)
     NS_INTERFACE_MAP_ENTRY(nsIThreadRetargetableStreamListener)
     NS_INTERFACE_MAP_ENTRY(nsIDNSListener)
     NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
+    NS_INTERFACE_MAP_ENTRY(nsICorsPreflightCallback)
     // we have no macro that covers this case.
     if (aIID.Equals(NS_GET_IID(nsHttpChannel)) ) {
         AddRef();
@@ -6964,6 +6987,33 @@ nsHttpChannel::OnPush(const nsACString &url, Http2PushedStream *pushedStream)
     channel->SetPushedStream(pushedStream);
     rv = pushListener->OnPush(this, pushHttpChannel);
     return rv;
+}
+
+NS_IMETHODIMP
+nsHttpChannel::OnPreflightSucceeded()
+{
+    MOZ_ASSERT(mRequireCORSPreflight, "Why did a preflight happen?");
+    mIsCorsPreflightDone = 1;
+
+    return ContinueConnect();
+}
+
+NS_IMETHODIMP
+nsHttpChannel::OnPreflightFailed(nsresult aError)
+{
+    MOZ_ASSERT(mRequireCORSPreflight, "Why did a preflight happen?");
+    mIsCorsPreflightDone = 1;
+
+    Cancel(aError);
+    // XXX I think that we should do something more than just rely on
+    // nsCORSPreflightListener::OnStartRequest calling OnStartRequest and OnStopRequest on the listener.
+    //
+    // We shall see...
+
+    //AsyncAbort(aError);
+    CloseCacheEntry(true);
+    //return CallOnStartRequest();
+    return NS_OK;
 }
 
 } // namespace net
