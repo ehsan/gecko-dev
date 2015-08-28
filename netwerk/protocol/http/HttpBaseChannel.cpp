@@ -2303,10 +2303,10 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
   }
 
   // Preserve any skip-serviceworker-flag if possible.
+  nsCOMPtr<nsIHttpChannelInternal> httpInternal = do_QueryInterface(newChannel);
   if (mForceNoIntercept) {
-    nsCOMPtr<nsIHttpChannelInternal> httpChan = do_QueryInterface(newChannel);
-    if (httpChan) {
-      httpChan->ForceNoIntercept();
+    if (httpInternal) {
+      httpInternal->ForceNoIntercept();
     }
   }
 
@@ -2316,6 +2316,15 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
   nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(newChannel);
   if (!httpChannel)
     return NS_OK; // no other options to set
+
+  // Preserve the CORS preflight information.
+  if (mRequireCORSPreflight && httpInternal) {
+    rv = httpInternal->SetCorsPreflightParameters(mUnsafeHeaders, mWithCredentials,
+                                                  mPreflightPrincipal);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return rv;
+    }
+  }
 
   if (preserveMethod) {
     nsCOMPtr<nsIUploadChannel> uploadChannel =
@@ -2386,7 +2395,6 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
     }
   }
 
-  nsCOMPtr<nsIHttpChannelInternal> httpInternal = do_QueryInterface(newChannel);
   if (httpInternal) {
     // Convey third party cookie and spdy flags.
     httpInternal->SetThirdPartyFlags(mThirdPartyFlags);
