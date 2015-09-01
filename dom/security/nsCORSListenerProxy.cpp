@@ -391,10 +391,10 @@ nsPreflightCache::GetCacheKey(nsIURI* aURI,
 
   nsAutoCString cred;
   if (aWithCredentials) {
-    _retval.AssignLiteral("cred");
+    cred.AssignLiteral("cred");
   }
   else {
-    _retval.AssignLiteral("nocred");
+    cred.AssignLiteral("nocred");
   }
 
   nsAutoCString spec;
