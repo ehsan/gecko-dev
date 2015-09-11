@@ -62,10 +62,10 @@ def svn_update(directory, revision):
 
 
 def build_one_stage(env, src_dir, stage_dir, gcc_toolchain_dir, build_libcxx,
-                    build_type, assertions):
+                    build_type, assertions, python_path):
     def f():
         build_one_stage_aux(src_dir, stage_dir, gcc_toolchain_dir, build_libcxx,
-                            build_type, assertions)
+                            build_type, assertions, python_path)
     with_env(env, f)
 
 
@@ -87,18 +87,12 @@ def is_darwin():
 
 
 def build_one_stage_aux(src_dir, stage_dir, gcc_toolchain_dir, build_libcxx,
-                        build_type, assertions):
+                        build_type, assertions, python_path):
     if not os.path.exists(stage_dir):
         os.mkdir(stage_dir)
 
     build_dir = stage_dir + "/build"
     inst_dir = stage_dir + "/clang"
-
-    global centOS6
-    if centOS6:
-        python_path = "/usr/bin/python2.7"
-    else:
-        python_path = "/usr/local/bin/python2.7"
 
     run_cmake = True
     if os.path.exists(build_dir):
@@ -179,6 +173,10 @@ if __name__ == "__main__":
         assertions = config["assertions"]
         if assertions not in (True, False):
             raise ValueError("Only boolean values are accepted for assertions.")
+    python_path = None
+    if "python_path" not in config:
+        raise ValueError("Config file needs to set python_path")
+    python_path = config["python_path"]
 
     if not os.path.exists(source_dir):
         os.makedirs(source_dir)
@@ -231,7 +229,7 @@ if __name__ == "__main__":
         {"CC": cc + " %s" % extra_cflags,
          "CXX": cxx + " %s" % extra_cxxflags},
         llvm_source_dir, stage1_dir, gcc_dir, build_libcxx,
-        build_type, assertions)
+        build_type, assertions, python_path)
 
     if stages > 1:
         stage2_dir = build_dir + '/stage2'
@@ -241,7 +239,7 @@ if __name__ == "__main__":
             {"CC": stage1_inst_dir + "/bin/clang %s" % extra_cflags2,
              "CXX": stage1_inst_dir + "/bin/clang++ %s" % extra_cxxflags2},
             llvm_source_dir, stage2_dir, gcc_dir, build_libcxx,
-            build_type, assertions)
+            build_type, assertions, python_path)
 
         if stages > 2:
             stage3_dir = build_dir + '/stage3'
@@ -250,6 +248,6 @@ if __name__ == "__main__":
                 {"CC": stage2_inst_dir + "/bin/clang %s" % extra_cflags2,
                  "CXX": stage2_inst_dir + "/bin/clang++ %s" % extra_cxxflags2},
                 llvm_source_dir, stage3_dir, gcc_dir, build_libcxx,
-                build_type, assertions)
+                build_type, assertions, python_path)
 
     build_tar_package("tar", "clang.tar.bz2", final_stage_dir, "clang")
