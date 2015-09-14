@@ -13,6 +13,13 @@ SOURCES += [
 DISABLE_STL_WRAPPING = True
 NO_VISIBILITY_FLAGS = True
 
+# When cross compiling to OSX on Linux, pick the default standard library
+# manually, since clang can't pick one up.
+if CONFIG['CROSS_COMPILE'] and \
+   CONFIG['HOST_OS_ARCH'] == 'Linux' and \
+   CONFIG['OS_TARGET'] == 'Darwin':
+    CXXFLAGS += ['-stdlib=libc++']
+
 DIRS += [
     'tests',
 ]
