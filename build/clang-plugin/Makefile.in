@@ -15,6 +15,7 @@ OS_LDFLAGS := $(LLVM_LDFLAGS) $(CLANG_LDFLAGS)
 DSO_LDOPTS := -shared
 # Use the host compiler instead of the target compiler.
 CXX := $(HOST_CXX)
+EXPAND_MKSHLIB_ARGS :=
 
 # Use the default OS X deployment target to enable using the libc++ headers
 # correctly.  Note that the binary produced here is a host tool and doesn't need
