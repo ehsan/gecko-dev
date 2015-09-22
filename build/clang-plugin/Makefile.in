@@ -16,6 +16,7 @@ DSO_LDOPTS := -shared
 # Use the host compiler instead of the target compiler.
 CXX := $(HOST_CXX)
 EXPAND_MKSHLIB_ARGS :=
+MOZ_FIX_LINK_PATHS :=
 
 # Use the default OS X deployment target to enable using the libc++ headers
 # correctly.  Note that the binary produced here is a host tool and doesn't need

@@ -19,6 +19,7 @@ if CONFIG['CROSS_COMPILE'] and \
    CONFIG['HOST_OS_ARCH'] == 'Linux' and \
    CONFIG['OS_TARGET'] == 'Darwin':
     CXXFLAGS += ['-stdlib=libc++']
+    EXTRA_DSO_LDOPTS = []
 
 DIRS += [
     'tests',
