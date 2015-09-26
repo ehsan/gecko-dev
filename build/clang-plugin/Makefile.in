@@ -13,10 +13,17 @@ OS_CXXFLAGS := $(LLVM_CXXFLAGS) -fno-rtti -fno-exceptions
 OS_COMPILE_CXXFLAGS :=
 OS_LDFLAGS := $(LLVM_LDFLAGS) $(CLANG_LDFLAGS)
 DSO_LDOPTS := -shared
+
+ifdef CROSS_COMPILE
+ifeq ($(HOST_OS_ARCH)_$(OS_TARGET),Linux_Darwin)
 # Use the host compiler instead of the target compiler.
 CXX := $(HOST_CXX)
+# Don't use --uselist with expandlibs_exec.py.
 EXPAND_MKSHLIB_ARGS :=
+# Don't pass OSX linker arguments.
 MOZ_FIX_LINK_PATHS :=
+endif
+endif
 
 # Use the default OS X deployment target to enable using the libc++ headers
 # correctly.  Note that the binary produced here is a host tool and doesn't need
