@@ -392,36 +392,7 @@ typedef union jsval_layout
 
 JS_STATIC_ASSERT(sizeof(jsval_layout) == 8);
 
-/*
- * For codesize purposes on some platforms, it's important that the
- * compiler know that JS::Values constructed from constant values can be
- * folded to constant bit patterns at compile time, rather than
- * constructed at runtime.  Doing this requires a fair amount of C++11
- * features, which are not supported on all of our compilers.  Set up
- * some defines and helper macros in an attempt to confine the ugliness
- * here, rather than scattering it all about the file.  The important
- * features are:
- *
- * - constexpr;
- * - defaulted functions;
- * - C99-style designated initializers.
- */
-#if defined(__clang__)
-#  if __has_feature(cxx_constexpr) && __has_feature(cxx_defaulted_functions)
-#    define JS_VALUE_IS_CONSTEXPR
-#  endif
-#elif defined(__GNUC__)
-/*
- * We need 4.5 for defaulted functions, 4.6 for constexpr, 4.7 because 4.6
- * doesn't understand |(X) { .field = ... }| syntax, and 4.7.3 because
- * versions prior to that have bugs in the C++ front-end that cause crashes.
- */
-#  if MOZ_GCC_VERSION_AT_LEAST(4, 7, 3)
-#    define JS_VALUE_IS_CONSTEXPR
-#  endif
-#endif
-
-#if defined(JS_VALUE_IS_CONSTEXPR)
+#if defined(MOZ_HAVE_CXX11_CONSTEXPR)
 #  define JS_RETURN_LAYOUT_FROM_BITS(BITS) \
     return (jsval_layout) { .asBits = (BITS) }
 #  define JS_VALUE_CONSTEXPR MOZ_CONSTEXPR
@@ -479,7 +450,7 @@ JSVAL_TO_INT32_IMPL(jsval_layout l)
 static inline JS_VALUE_CONSTEXPR jsval_layout
 INT32_TO_JSVAL_IMPL(int32_t i)
 {
-#if defined(JS_VALUE_IS_CONSTEXPR)
+#if defined(MOZ_HAVE_CXX11_CONSTEXPR)
     return BUILD_JSVAL(JSVAL_TAG_INT32, i);
 #else
     jsval_layout l;
@@ -1040,10 +1011,8 @@ class Value
      * N.B. the default constructor leaves Value unitialized. Adding a default
      * constructor prevents Value from being stored in a union.
      */
-#if defined(JS_VALUE_IS_CONSTEXPR)
     Value() = default;
     Value(const Value& v) = default;
-#endif
 
     /**
      * Returns false if creating a NumberValue containing the given type would
@@ -1381,7 +1350,7 @@ class Value
     jsval_layout data;
 
   private:
-#if defined(JS_VALUE_IS_CONSTEXPR)
+#if defined(MOZ_HAVE_CXX11_CONSTEXPR)
     MOZ_IMPLICIT JS_VALUE_CONSTEXPR Value(jsval_layout layout) : data(layout) {}
 #endif
 
@@ -1427,7 +1396,7 @@ NullValue()
 static inline JS_VALUE_CONSTEXPR Value
 UndefinedValue()
 {
-#if defined(JS_VALUE_IS_CONSTEXPR)
+#if defined(MOZ_HAVE_CXX11_CONSTEXPR)
     return Value(BUILD_JSVAL(JSVAL_TAG_UNDEFINED, 0));
 #else
     JS::Value v;
@@ -1459,7 +1428,7 @@ CanonicalizedDoubleValue(double d)
      *    return IMPL_TO_JSVAL(DOUBLE_TO_JSVAL_IMPL(d));
      * because GCC from XCode 3.1.4 miscompiles the above code.
      */
-#if defined(JS_VALUE_IS_CONSTEXPR)
+#if defined(MOZ_HAVE_CXX11_CONSTEXPR)
     return IMPL_TO_JSVAL(MOZ_UNLIKELY(mozilla::IsNaN(d))
                          ? (jsval_layout) { .asBits = 0x7FF8000000000000LL }
                          : (jsval_layout) { .asDouble = d });
@@ -1908,7 +1877,7 @@ JSVAL_TO_IMPL(JS::Value v)
 inline JS_VALUE_CONSTEXPR JS::Value
 IMPL_TO_JSVAL(jsval_layout l)
 {
-#if defined(JS_VALUE_IS_CONSTEXPR)
+#if defined(MOZ_HAVE_CXX11_CONSTEXPR)
     return JS::Value(l);
 #else
     JS::Value v;
@@ -1949,7 +1918,6 @@ extern JS_PUBLIC_DATA(const HandleValue) FalseHandleValue;
 
 } // namespace JS
 
-#undef JS_VALUE_IS_CONSTEXPR
 #undef JS_RETURN_LAYOUT_FROM_BITS
 
 #endif /* js_Value_h */
