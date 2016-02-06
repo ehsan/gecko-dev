@@ -1517,3 +1517,4 @@ public:
 
 static FrontendPluginRegistry::Add<MozCheckAction> X("moz-check",
                                                      "check moz action");
+LLVM_EXPORT_REGISTRY(FrontendPluginRegistry)
