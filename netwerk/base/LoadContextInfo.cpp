@@ -117,8 +117,6 @@ GetLoadContextInfo(nsIChannel * aChannel)
 {
   nsresult rv;
 
-  DebugOnly<bool> pb = NS_UsePrivateBrowsing(aChannel);
-
   bool anon = false;
   nsLoadFlags loadFlags;
   rv = aChannel->GetLoadFlags(&loadFlags);
@@ -128,7 +126,6 @@ GetLoadContextInfo(nsIChannel * aChannel)
 
   NeckoOriginAttributes oa;
   NS_GetOriginAttributes(aChannel, oa);
-  MOZ_ASSERT(pb == (oa.mPrivateBrowsingId > 0));
 
   return new LoadContextInfo(anon, oa);
 }

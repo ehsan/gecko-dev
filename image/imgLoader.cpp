@@ -2138,7 +2138,9 @@ imgLoader::LoadImage(nsIURI* aURI,
       return NS_ERROR_FAILURE;
     }
 
-    MOZ_ASSERT(NS_UsePrivateBrowsing(newChannel) == mRespectPrivacy);
+    NeckoOriginAttributes attrs;
+    MOZ_ASSERT(NS_GetOriginAttributes(newChannel, attrs) &&
+      (((attrs.mPrivateBrowsingId > 0) == mRespectPrivacy)));
 
     NewRequestAndEntry(forcePrincipalCheck, this, key,
                        getter_AddRefs(request),
@@ -2272,7 +2274,9 @@ imgLoader::LoadImageWithChannel(nsIChannel* channel,
   NS_ASSERTION(channel,
                "imgLoader::LoadImageWithChannel -- NULL channel pointer");
 
-  MOZ_ASSERT(NS_UsePrivateBrowsing(channel) == mRespectPrivacy);
+  DebugOnly<NeckoOriginAttributes> channelAttrs;
+  MOZ_ASSERT(NS_GetOriginAttributes(channel, channelAttrs) &&
+    ((NeckoOriginAttributes(channelAttrs).mPrivateBrowsingId > 0) == mRespectPrivacy));
 
   RefPtr<imgRequest> request;
 

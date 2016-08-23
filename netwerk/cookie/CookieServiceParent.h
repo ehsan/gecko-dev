@@ -24,8 +24,7 @@ public:
 protected:
   MOZ_MUST_USE bool
   GetOriginAttributesFromParams(const IPC::SerializedLoadContext &aLoadContext,
-                                NeckoOriginAttributes& aAttrs,
-                                bool& aIsPrivate);
+                                NeckoOriginAttributes& aAttrs);
 
   virtual void ActorDestroy(ActorDestroyReason aWhy) override;
 

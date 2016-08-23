@@ -1388,7 +1388,8 @@ void nsExternalAppHandler::RetargetLoadNotifications(nsIRequest *request)
     origContextLoader->GetDocumentChannel(getter_AddRefs(mOriginalChannel));
   }
 
-  bool isPrivate = NS_UsePrivateBrowsing(aChannel);
+  NeckoOriginAttributes attrs;
+  bool isPrivate = NS_GetOriginAttributes(aChannel, attrs) && attrs.mPrivateBrowsingId > 0;
 
   nsCOMPtr<nsILoadGroup> oldLoadGroup;
   aChannel->GetLoadGroup(getter_AddRefs(oldLoadGroup));
@@ -1683,8 +1684,9 @@ NS_IMETHODIMP nsExternalAppHandler::OnStartRequest(nsIRequest *request, nsISuppo
   rv = SetUpTempFile(aChannel);
   if (NS_FAILED(rv)) {
     nsresult transferError = rv;
-
-    rv = CreateFailedTransfer(aChannel && NS_UsePrivateBrowsing(aChannel));
+    NeckoOriginAttributes attrs;
+    rv = CreateFailedTransfer(aChannel && NS_GetOriginAttributes(aChannel, attrs) &&
+      attrs.mPrivateBrowsingId > 0);
     if (NS_FAILED(rv)) {
       LOG(("Failed to create transfer to report failure."
            "Will fallback to prompter!"));
@@ -2091,7 +2093,9 @@ nsExternalAppHandler::OnSaveComplete(nsIBackgroundFileSaver *aSaver,
       // have to.
       if (!mTransfer) {
         // We don't care if this fails.
-        CreateFailedTransfer(channel && NS_UsePrivateBrowsing(channel));
+        NeckoOriginAttributes attrs;
+        CreateFailedTransfer(channel && NS_GetOriginAttributes(channel, attrs) &&
+          attrs.mPrivateBrowsingId > 0);
       }
 
       SendStatusChange(kWriteError, aStatus, nullptr, path);
@@ -2188,16 +2192,17 @@ nsresult nsExternalAppHandler::CreateTransfer()
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIChannel> channel = do_QueryInterface(mRequest);
-
+  NeckoOriginAttributes attrs;
   rv = transfer->Init(mSourceUrl, target, EmptyString(),
                        mMimeInfo, mTimeDownloadStarted, mTempFile, this,
-                       channel && NS_UsePrivateBrowsing(channel));
+                       channel && NS_GetOriginAttributes(channel, attrs) &&
+                       attrs.mPrivateBrowsingId > 0);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Now let's add the download to history
   nsCOMPtr<nsIDownloadHistory> dh(do_GetService(NS_DOWNLOADHISTORY_CONTRACTID));
   if (dh) {
-    if (channel && !NS_UsePrivateBrowsing(channel)) {
+    if (channel && NS_GetOriginAttributes(channel, attrs) && attrs.mPrivateBrowsingId == 0) {
       nsCOMPtr<nsIURI> referrer;
       NS_GetReferrerFromChannel(channel, getter_AddRefs(referrer));
 

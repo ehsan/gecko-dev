@@ -1574,8 +1574,9 @@ nsHttpChannel::ProcessSecurityHeaders()
     // security of the connection.
     NS_ENSURE_TRUE(mSecurityInfo, NS_OK);
 
-    uint32_t flags =
-      NS_UsePrivateBrowsing(this) ? nsISocketProvider::NO_PERMANENT_STORAGE : 0;
+    NeckoOriginAttributes attrs;
+    uint32_t flags = (NS_GetOriginAttributes(this, attrs) && (attrs.mPrivateBrowsingId > 0))
+        ? nsISocketProvider::NO_PERMANENT_STORAGE : 0;
 
     // Get the SSLStatus
     nsCOMPtr<nsISSLStatusProvider> sslprov = do_QueryInterface(mSecurityInfo);

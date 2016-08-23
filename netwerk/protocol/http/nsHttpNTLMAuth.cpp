@@ -194,7 +194,9 @@ CanUseDefaultCredentials(nsIHttpAuthenticableChannel *channel,
     nsCOMPtr<nsIChannel> bareChannel = do_QueryInterface(channel);
     MOZ_ASSERT(bareChannel);
 
-    if (NS_UsePrivateBrowsing(bareChannel)) {
+    NeckoOriginAttributes attrs;
+    if (NS_GetOriginAttributes(bareChannel, attrs) &&
+        attrs.mPrivateBrowsingId > 0) {
         // But allow when in the "Never remember history" mode.
         bool dontRememberHistory;
         if (prefs &&

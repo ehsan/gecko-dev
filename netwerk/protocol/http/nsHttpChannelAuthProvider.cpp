@@ -119,7 +119,9 @@ nsHttpChannelAuthProvider::Init(nsIHttpAuthenticableChannel *channel)
     if (NS_FAILED(rv)) return rv;
 
     nsCOMPtr<nsIChannel> bareChannel = do_QueryInterface(channel);
-    mIsPrivate = NS_UsePrivateBrowsing(bareChannel);
+    NeckoOriginAttributes attrs;
+    mIsPrivate = NS_GetOriginAttributes(bareChannel, attrs) &&
+        attrs.mPrivateBrowsingId > 0;
 
     return NS_OK;
 }

@@ -163,7 +163,8 @@ nsChannelClassifier::ShouldEnableTrackingProtection(nsIChannel *aChannel,
     }
 
     // In Private Browsing Mode we also check against an in-memory list.
-    if (NS_UsePrivateBrowsing(aChannel)) {
+    NeckoOriginAttributes attrs;
+    if (NS_GetOriginAttributes(aChannel, attrs) && (attrs.mPrivateBrowsingId > 0)) {
       nsCOMPtr<nsIPrivateBrowsingTrackingProtectionWhitelist> pbmtpWhitelist =
           do_GetService(NS_PBTRACKINGPROTECTIONWHITELIST_CONTRACTID, &rv);
       NS_ENSURE_SUCCESS(rv, rv);

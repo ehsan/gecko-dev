@@ -3485,7 +3485,9 @@ WebSocketChannel::AsyncOpen(nsIURI *aURI,
   if (NS_FAILED(rv))
     return rv;
 
-  mPrivateBrowsing = NS_UsePrivateBrowsing(localChannel);
+  NeckoOriginAttributes attrs;
+  mPrivateBrowsing = NS_GetOriginAttributes(localChannel, attrs) &&
+    attrs.mPrivateBrowsingId > 0;
 
   if (mConnectionLogService && !mPrivateBrowsing) {
     mConnectionLogService->AddHost(mHost, mSerial,

@@ -66,7 +66,9 @@ TestNotInPBMode(nsIHttpAuthenticableChannel *authChannel)
     nsCOMPtr<nsIChannel> bareChannel = do_QueryInterface(authChannel);
     MOZ_ASSERT(bareChannel);
 
-    if (!NS_UsePrivateBrowsing(bareChannel)) {
+    mozilla::NeckoOriginAttributes attrs;
+    if (NS_GetOriginAttributes(bareChannel, attrs) &&
+        attrs.mPrivateBrowsingId == 0) {
         return true;
     }
 

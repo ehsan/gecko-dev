@@ -692,12 +692,6 @@ NS_QueryNotificationCallbacks(nsIInterfaceRequestor  *callbacks,
 }
 
 /**
- * Returns true if channel is using Private Browsing, or false if not.
- * Returns false if channel's callbacks don't implement nsILoadContext.
- */
-bool NS_UsePrivateBrowsing(nsIChannel *channel);
-
-/**
  * Extract the NeckoOriginAttributes from the channel's triggering principal.
  */
 bool NS_GetOriginAttributes(nsIChannel *aChannel,
@@ -736,9 +730,7 @@ nsresult NS_GetAppInfoFromClearDataNotification(nsISupports *aSubject,
 /**
  * Determines whether appcache should be checked for a given URI.
  */
-bool NS_ShouldCheckAppCache(nsIURI *aURI, bool usePrivateBrowsing);
-
-bool NS_ShouldCheckAppCache(nsIPrincipal *aPrincipal, bool usePrivateBrowsing);
+bool NS_ShouldCheckAppCache(nsIPrincipal *aPrincipal);
 
 /**
  * Wraps an nsIAuthPrompt so that it can be used as an nsIAuthPrompt2. This

@@ -3111,7 +3111,9 @@ nsContentUtils::IsInPrivateBrowsing(nsIDocument* aDoc)
   }
 
   nsCOMPtr<nsIChannel> channel = aDoc->GetChannel();
-  return channel && NS_UsePrivateBrowsing(channel);
+  NeckoOriginAttributes attrs;
+  return channel && NS_GetOriginAttributes(channel, attrs) &&
+    (attrs.mPrivateBrowsingId > 0);
 }
 
 // static

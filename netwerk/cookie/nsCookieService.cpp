@@ -1910,11 +1910,8 @@ nsCookieService::GetCookieStringCommon(nsIURI *aHostURI,
     NS_GetOriginAttributes(aChannel, attrs);
   }
 
-  bool isPrivate = aChannel && NS_UsePrivateBrowsing(aChannel);
-
   nsAutoCString result;
-  GetCookieStringInternal(aHostURI, isForeign, aHttpBound, attrs,
-                          isPrivate, result);
+  GetCookieStringInternal(aHostURI, isForeign, aHttpBound, attrs, result);
   *aCookie = result.IsEmpty() ? nullptr : ToNewCString(result);
   return NS_OK;
 }
@@ -1983,13 +1980,10 @@ nsCookieService::SetCookieStringCommon(nsIURI *aHostURI,
     NS_GetOriginAttributes(aChannel, attrs);
   }
 
-  bool isPrivate = aChannel && NS_UsePrivateBrowsing(aChannel);
-
   nsDependentCString cookieString(aCookieHeader);
   nsDependentCString serverTime(aServerTime ? aServerTime : "");
   SetCookieStringInternal(aHostURI, isForeign, cookieString,
-                          serverTime, aFromHttp, attrs,
-                          isPrivate, aChannel);
+                          serverTime, aFromHttp, attrs, aChannel);
   return NS_OK;
 }
 
@@ -2000,7 +1994,6 @@ nsCookieService::SetCookieStringInternal(nsIURI                 *aHostURI,
                                          const nsCString        &aServerTime,
                                          bool                    aFromHttp,
                                          const NeckoOriginAttributes &aOriginAttrs,
-                                         bool                    aIsPrivate,
                                          nsIChannel             *aChannel)
 {
   NS_ASSERTION(aHostURI, "null host!");
@@ -2011,7 +2004,7 @@ nsCookieService::SetCookieStringInternal(nsIURI                 *aHostURI,
   }
 
   AutoRestore<DBState*> savePrevDBState(mDBState);
-  mDBState = aIsPrivate ? mPrivateDBState : mDefaultDBState;
+  mDBState = aOriginAttrs.mPrivateBrowsingId > 0 ? mPrivateDBState : mDefaultDBState;
 
   // get the base domain for the host URI.
   // e.g. for "www.bbc.co.uk", this would be "bbc.co.uk".
@@ -3044,7 +3037,6 @@ nsCookieService::GetCookieStringInternal(nsIURI *aHostURI,
                                          bool aIsForeign,
                                          bool aHttpBound,
                                          const NeckoOriginAttributes aOriginAttrs,
-                                         bool aIsPrivate,
                                          nsCString &aCookieString)
 {
   NS_ASSERTION(aHostURI, "null host!");
@@ -3055,7 +3047,7 @@ nsCookieService::GetCookieStringInternal(nsIURI *aHostURI,
   }
 
   AutoRestore<DBState*> savePrevDBState(mDBState);
-  mDBState = aIsPrivate ? mPrivateDBState : mDefaultDBState;
+  mDBState = aOriginAttrs.mPrivateBrowsingId > 0 ? mPrivateDBState : mDefaultDBState;
 
   // get the base domain, host, and path from the URI.
   // e.g. for "www.bbc.co.uk", the base domain would be "bbc.co.uk".
