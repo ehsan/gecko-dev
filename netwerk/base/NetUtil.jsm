@@ -337,7 +337,8 @@ this.NetUtil = {
               loadUsingSystemPrincipal,
               triggeringPrincipal,
               securityFlags,
-              contentPolicyType } = aWhatToLoad;
+              contentPolicyType,
+              originAttributes } = aWhatToLoad;
 
         if (!uri) {
             throw new Components.Exception(
@@ -400,12 +401,17 @@ this.NetUtil = {
             contentPolicyType = Ci.nsIContentPolicy.TYPE_OTHER;
         }
 
-        return this.ioService.newChannelFromURI2(uri,
-                                                 loadingNode || null,
-                                                 loadingPrincipal || null,
-                                                 triggeringPrincipal || null,
-                                                 securityFlags,
-                                                 contentPolicyType);
+        let channel = this.ioService.newChannelFromURI2(uri,
+                                                        loadingNode || null,
+                                                        loadingPrincipal || null,
+                                                        triggeringPrincipal || null,
+                                                        securityFlags,
+                                                        contentPolicyType);
+        if (originAttributes !== undefined) {
+            channel.loadInfo.originAttributes = originAttributes;
+        }
+
+        return channel;
     },
 
     /**

@@ -674,8 +674,7 @@ NewImageChannel(nsIChannel** aResult,
                 nsLoadFlags aLoadFlags,
                 nsContentPolicyType aPolicyType,
                 nsIPrincipal* aLoadingPrincipal,
-                nsISupports* aRequestingContext,
-                bool aRespectPrivacy)
+                nsISupports* aRequestingContext)
 {
   MOZ_ASSERT(aResult);
 
@@ -715,10 +714,6 @@ NewImageChannel(nsIChannel** aResult,
     securityFlags |= nsILoadInfo::SEC_COOKIES_INCLUDE;
   }
   securityFlags |= nsILoadInfo::SEC_ALLOW_CHROME;
-
-  if (aRespectPrivacy) {
-    securityFlags |= nsILoadInfo::SEC_FORCE_PRIVATE_BROWSING;
-  }
 
   // Note we are calling NS_NewChannelWithTriggeringPrincipal() here with a
   // node and a principal. This is for things like background images that are
@@ -1602,8 +1597,7 @@ imgLoader::ValidateRequestWithNewChannel(imgRequest* request,
                          aLoadFlags,
                          aLoadPolicyType,
                          aLoadingPrincipal,
-                         aCX,
-                         mRespectPrivacy);
+                         aCX);
     if (NS_FAILED(rv)) {
       return false;
     }
@@ -2132,8 +2126,7 @@ imgLoader::LoadImage(nsIURI* aURI,
                          requestFlags,
                          aContentPolicyType,
                          aLoadingPrincipal,
-                         aContext,
-                         mRespectPrivacy);
+                         aContext);
     if (NS_FAILED(rv)) {
       return NS_ERROR_FAILURE;
     }
