@@ -2139,6 +2139,13 @@ imgLoader::LoadImage(nsIURI* aURI,
     }
 
     NeckoOriginAttributes attrs;
+    if (!(NS_GetOriginAttributes(newChannel, attrs) &&
+      (((attrs.mPrivateBrowsingId > 0) == mRespectPrivacy)))) {
+      printf("XXXehsan NS_Get: %d\n", (int)NS_GetOriginAttributes(newChannel, attrs));
+      printf("XXXehsan pbid: %d\n", (int)attrs.mPrivateBrowsingId);
+      printf("XXXehsan mRespectPrivacy: %d\n", (int)mRespectPrivacy);
+      fflush(stdout);
+    }
     MOZ_ASSERT(NS_GetOriginAttributes(newChannel, attrs) &&
       (((attrs.mPrivateBrowsingId > 0) == mRespectPrivacy)));
 
