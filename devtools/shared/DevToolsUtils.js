@@ -508,41 +508,26 @@ function mainThreadFetch(aURL, aOptions = { loadFromCache: true,
  */
 function newChannelForURL(url, { policy, window, principal }) {
   var securityFlags = Ci.nsILoadInfo.SEC_ALLOW_CROSS_ORIGIN_DATA_IS_NULL;
-  if (window) {
-    // Respect private browsing.
-    var req = window.QueryInterface(Ci.nsIInterfaceRequestor)
-                    .getInterface(Ci.nsIWebNavigation)
-                    .QueryInterface(Ci.nsIDocumentLoader)
-                    .loadGroup;
-    if (req) {
-      var nc = req.notificationCallbacks;
-      if (nc) {
-        try {
-          var lc = nc.getInterface(Ci.nsILoadContext);
-          if (lc) {
-            if (lc.usePrivateBrowsing) {
-              securityFlags |= Ci.nsILoadInfo.SEC_FORCE_PRIVATE_BROWSING;
-            }
-          }
-        } catch (ex) {}
-      }
-    }
-  }
 
   let channelOptions = {
     contentPolicyType: policy,
     securityFlags: securityFlags,
     uri: url
   };
-  if (principal) {
-    // contentPolicyType is required when loading with a custom principal
-    if (!channelOptions.contentPolicyType) {
-      channelOptions.contentPolicyType = Ci.nsIContentPolicy.TYPE_OTHER;
+  if (!principal) {
+    let oa = {};
+    if (window) {
+      oa = window.document.nodePrincipal.originAttributes;
     }
-    channelOptions.loadingPrincipal = principal;
-  } else {
-    channelOptions.loadUsingSystemPrincipal = true;
+    let uri = Services.io.newURI(url, null, null);
+    principal = Services.scriptSecurityManager
+                        .createCodebasePrincipal(uri, oa);
   }
+  // contentPolicyType is required when loading with a custom principal
+  if (!channelOptions.contentPolicyType) {
+    channelOptions.contentPolicyType = Ci.nsIContentPolicy.TYPE_OTHER;
+  }
+  channelOptions.loadingPrincipal = principal;
 
   try {
     return NetUtil.newChannel(channelOptions);
