@@ -674,7 +674,8 @@ NewImageChannel(nsIChannel** aResult,
                 nsLoadFlags aLoadFlags,
                 nsContentPolicyType aPolicyType,
                 nsIPrincipal* aLoadingPrincipal,
-                nsISupports* aRequestingContext)
+                nsISupports* aRequestingContext,
+                bool aRespectPrivacy)
 {
   MOZ_ASSERT(aResult);
 
@@ -732,11 +733,18 @@ NewImageChannel(nsIChannel** aResult,
   } else {
     // either we are loading something inside a document, in which case
     // we should always have a requestingNode, or we are loading something
-    // outside a document, in which case the loadingPrincipal and
-    // triggeringPrincipal should always be the systemPrincipal.
+    // outside a document, in which case we create a codebase principal using
+    // the origin attributes reflecting private browsing state.
     // However, there are two exceptions: one is Notifications and the
     // other one is Favicons which create a channel in the parent prcoess
     // in which case we can't get a requestingNode.
+    PrincipalOriginAttributes attrs;
+    if (aLoadingPrincipal) {
+      attrs = BasePrincipal::Cast(aLoadingPrincipal)->OriginAttributesRef();
+    }
+    attrs.mPrivateBrowsingId = aRespectPrivacy ? 1 : 0;
+    nsCOMPtr<nsIPrincipal> principal =
+      BasePrincipal::CreateCodebasePrincipal(aURI, attrs);
     rv = NS_NewChannel(aResult,
                        aURI,
                        nsContentUtils::GetSystemPrincipal(),
@@ -1597,7 +1605,8 @@ imgLoader::ValidateRequestWithNewChannel(imgRequest* request,
                          aLoadFlags,
                          aLoadPolicyType,
                          aLoadingPrincipal,
-                         aCX);
+                         aCX,
+                         mRespectPrivacy);
     if (NS_FAILED(rv)) {
       return false;
     }
@@ -2126,7 +2135,8 @@ imgLoader::LoadImage(nsIURI* aURI,
                          requestFlags,
                          aContentPolicyType,
                          aLoadingPrincipal,
-                         aContext);
+                         aContext,
+                         mRespectPrivacy);
     if (NS_FAILED(rv)) {
       return NS_ERROR_FAILURE;
     }
