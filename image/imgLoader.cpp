@@ -747,7 +747,7 @@ NewImageChannel(nsIChannel** aResult,
       BasePrincipal::CreateCodebasePrincipal(aURI, attrs);
     rv = NS_NewChannel(aResult,
                        aURI,
-                       nsContentUtils::GetSystemPrincipal(),
+                       principal,
                        securityFlags,
                        aPolicyType,
                        nullptr,   // loadGroup
