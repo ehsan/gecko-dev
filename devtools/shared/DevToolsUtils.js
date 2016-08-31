@@ -6,7 +6,7 @@
 
 /* General utilities used throughout devtools. */
 
-var { Ci, Cu, Cc, components } = require("chrome");
+var { Ci, Cu, Cc, Cr, components } = require("chrome");
 var Services = require("Services");
 var promise = require("promise");
 var defer = require("devtools/shared/defer");
@@ -509,17 +509,25 @@ function mainThreadFetch(aURL, aOptions = { loadFromCache: true,
 function newChannelForURL(url, { policy, window, principal }) {
   var securityFlags = Ci.nsILoadInfo.SEC_ALLOW_CROSS_ORIGIN_DATA_IS_NULL;
 
+  let uri;
+  try {
+    uri = Services.io.newURI(url, null, null);
+  } catch (e if (e.result == Cr.NS_ERROR_MALFORMED_URI)) {
+    // In the xpcshell tests, the script url is the absolute path of the test
+    // file, which will make a malformed URI error be thrown. Add the file
+    // scheme to see if it helps.
+    uri = Services.io.newURI("file://" + url, null, null);
+  }
   let channelOptions = {
     contentPolicyType: policy,
     securityFlags: securityFlags,
-    uri: url
+    uri: uri
   };
   if (!principal) {
     let oa = {};
     if (window) {
       oa = window.document.nodePrincipal.originAttributes;
     }
-    let uri = Services.io.newURI(url, null, null);
     principal = Services.scriptSecurityManager
                         .createCodebasePrincipal(uri, oa);
   }
@@ -529,16 +537,7 @@ function newChannelForURL(url, { policy, window, principal }) {
   }
   channelOptions.loadingPrincipal = principal;
 
-  try {
-    return NetUtil.newChannel(channelOptions);
-  } catch (e) {
-    // In the xpcshell tests, the script url is the absolute path of the test
-    // file, which will make a malformed URI error be thrown. Add the file
-    // scheme to see if it helps.
-    channelOptions.uri = "file://" + url;
-
-    return NetUtil.newChannel(channelOptions);
-  }
+  return NetUtil.newChannel(channelOptions);
 }
 
 // Fetch is defined differently depending on whether we are on the main thread
