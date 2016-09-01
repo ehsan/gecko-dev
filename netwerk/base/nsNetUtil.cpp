@@ -2450,6 +2450,8 @@ NS_CompareLoadInfoAndLoadContext(nsIChannel *aChannel)
              "The value of mUserContextId in the loadContext and in the "
              "loadInfo are not the same!");
 
+  printf("XXXehsan originAttrsLoadInfo.mPrivateBrowsingId: %d\n", originAttrsLoadInfo.mPrivateBrowsingId);
+  printf("XXXehsan originAttrsLoadContext.mPrivateBrowsingId: %d\n", originAttrsLoadContext.mPrivateBrowsingId);
   MOZ_ASSERT(originAttrsLoadInfo.mPrivateBrowsingId ==
              originAttrsLoadContext.mPrivateBrowsingId,
              "The value of mPrivateBrowsingId in the loadContext and in the "

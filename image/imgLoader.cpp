@@ -739,6 +739,7 @@ NewImageChannel(nsIChannel** aResult,
     // other one is Favicons which create a channel in the parent prcoess
     // in which case we can't get a requestingNode.
     PrincipalOriginAttributes attrs;
+    printf("XXXehsan in the else branch, mRespectPrivacy: %d\n", (int)aRespectPrivacy);
     if (aLoadingPrincipal) {
       attrs = BasePrincipal::Cast(aLoadingPrincipal)->OriginAttributesRef();
     }
@@ -2013,6 +2014,7 @@ imgLoader::LoadImage(nsIURI* aURI,
   nsAutoCString spec;
   aURI->GetSpec(spec);
   LOG_SCOPE_WITH_PARAM(gImgLog, "imgLoader::LoadImage", "aURI", spec.get());
+  printf("XXXehsan imgLoader::LoadImage(%s)\n", spec.get());
 
   *_retval = nullptr;
 
