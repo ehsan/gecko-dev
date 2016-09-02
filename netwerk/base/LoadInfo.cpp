@@ -173,10 +173,16 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
       }
     }
 
+  InheritOriginAttributes(mLoadingPrincipal, mOriginAttributes);
+
+  // We need to do this after inheriting the document's origin attributes
+  // above, in case the loading principal ends up being the system principal.
   if (aLoadingContext) {
     nsCOMPtr<nsILoadContext> loadContext =
       aLoadingContext->OwnerDoc()->GetLoadContext();
-    if (loadContext) {
+    nsCOMPtr<nsIDocShell> docShell = aLoadingContext->OwnerDoc()->GetDocShell();
+    if (loadContext && docShell &&
+        docShell->ItemType() == nsIDocShellTreeItem::typeContent) {
       bool usePrivateBrowsing;
       nsresult rv = loadContext->GetUsePrivateBrowsing(&usePrivateBrowsing);
       if (NS_SUCCEEDED(rv)) {
@@ -184,8 +190,6 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
       }
     }
   }
-
-  InheritOriginAttributes(mLoadingPrincipal, mOriginAttributes);
 
   // For chrome docshell, the mPrivateBrowsingId remains 0 even its
   // UsePrivateBrowsing() is true, so we only update the mPrivateBrowsingId in
