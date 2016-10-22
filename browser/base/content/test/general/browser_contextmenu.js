@@ -1,5 +1,7 @@
 "use strict";
 
+SimpleTest.requestCompleteLog();
+
 let contextMenu;
 let LOGIN_FILL_ITEMS = [
   "---", null,

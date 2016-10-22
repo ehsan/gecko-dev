@@ -420,6 +420,10 @@ nsContextMenu.prototype = {
     var canSpell = InlineSpellCheckerUI.canSpellCheck &&
                    !InlineSpellCheckerUI.initialSpellCheckPending &&
                    this.canSpellCheck;
+    dump(`XXXehsan
+         canSpellCheck: ${InlineSpellCheckerUI.canSpellCheck}
+         initialSpellCheckPending: ${InlineSpellCheckerUI.initialSpellCheckPending}
+         canSpellCheck: ${this.canSpellCheck}\n`);
     let showDictionaries = canSpell && InlineSpellCheckerUI.enabled;
     var onMisspelling = InlineSpellCheckerUI.overMisspelling;
     var showUndo = canSpell && InlineSpellCheckerUI.canUndo();
