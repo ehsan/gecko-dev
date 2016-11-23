@@ -38,6 +38,7 @@ SOURCES += [
     'TestRefCountedCopyConstructor.cpp',
     'TestSprintfLiteral.cpp',
     'TestStackClass.cpp',
+    'TestThisInConstructorDefinition.cpp',
     'TestTrivialCtorDtor.cpp',
 ]
 

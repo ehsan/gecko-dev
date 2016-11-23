@@ -41,6 +41,7 @@ typedef ASTConsumer *ASTConsumerPtr;
 #define cxxMethodDecl methodDecl
 #define cxxNewExpr newExpr
 #define cxxRecordDecl recordDecl
+#define cxxThisExpr thisExpr
 #endif
 
 #ifndef HAS_ACCEPTS_IGNORINGPARENIMPCASTS
@@ -204,6 +205,11 @@ private:
     virtual void run(const MatchFinder::MatchResult &Result);
   };
 
+  class ThisInConstructorDefinitionChecker : public MatchFinder::MatchCallback {
+  public:
+    virtual void run(const MatchFinder::MatchResult &Result);
+  };
+
   ScopeChecker Scope;
   ArithmeticArgChecker ArithmeticArg;
   TrivialCtorDtorChecker TrivialCtorDtor;
@@ -225,6 +231,7 @@ private:
   OverrideBaseCallChecker OverrideBaseCall;
   OverrideBaseCallUsageChecker OverrideBaseCallUsage;
   NonParamInsideFunctionDeclChecker NonParamInsideFunctionDecl;
+  ThisInConstructorDefinitionChecker ThisInConstructorDefinition;
   MatchFinder AstMatcher;
 };
 
@@ -1349,6 +1356,12 @@ DiagnosticsMatcher::DiagnosticsMatcher() {
   AstMatcher.addMatcher(
       lambdaExpr().bind("lambda"),
       &NonParamInsideFunctionDecl);
+
+  AstMatcher.addMatcher(
+      callExpr(allOf(hasAncestor(cxxConstructorDecl(isDefinition())),
+                     hasAnyArgument(cxxThisExpr())))
+          .bind("call"),
+      &ThisInConstructorDefinition);
 }
 
 // These enum variants determine whether an allocation has occured in the code.
@@ -2199,6 +2212,34 @@ void DiagnosticsMatcher::NonParamInsideFunctionDeclChecker::run(
       if (Spec) {
         Diag.Report(Spec->getPointOfInstantiation(), SpecNoteID)
           << Spec->getSpecializedTemplate();
+      }
+    }
+  }
+}
+
+void DiagnosticsMatcher::ThisInConstructorDefinitionChecker::run(
+    const MatchFinder::MatchResult &Result) {
+  const CallExpr *call = Result.Nodes.getNodeAs<CallExpr>("call");
+  const FunctionDecl *calleeDecl = dyn_cast_or_null<FunctionDecl>(call->getCalleeDecl());
+
+  if (!calleeDecl) {
+    return;
+  }
+
+  DiagnosticsEngine &Diag = Result.Context->getDiagnostics();
+  unsigned ErrorID = Diag.getDiagnosticIDs()->getCustomDiagID(
+      DiagnosticIDs::Warning, "`this' pointer cannot be passed as argument %0 to %1 of type %2");
+
+  unsigned argCount = call->getNumArgs();
+  unsigned paramCount = calleeDecl->getNumParams();
+  for (unsigned i = 0; i < std::min(argCount, paramCount); ++i) {
+    const Expr *arg = IgnoreImplicit(call->getArg(i));
+    if (isa<CXXThisExpr>(arg)) {
+      const QualType qtype = calleeDecl->getParamDecl(i)->getOriginalType();
+      const Type *type = qtype.getTypePtr();
+      if (type->isPointerType() &&
+          isClassRefCounted(type->getPointeeType())) {
+        Diag.Report(arg->getLocStart(), ErrorID) << i << calleeDecl << qtype;
       }
     }
   }
