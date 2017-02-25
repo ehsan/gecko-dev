@@ -621,6 +621,15 @@ child:
 
     async PIPCBlobInputStream(nsID aID, uint64_t aSize);
 
+    async WindowCreated(nsID aID,
+                        nsresult rv,
+                        bool windowOpened,
+                        FrameScriptInfo[] frameScripts,
+                        nsCString urlToLoad,
+                        TextureFactoryIdentifier textureFactoryIdentifier,
+                        uint64_t layersId,
+                        CompositorOptions compositorOptions);
+
 parent:
     async InitBackground(Endpoint<PBackgroundParent> aEndpoint);
 
@@ -1003,24 +1012,18 @@ parent:
     sync GetGraphicsDeviceInitData()
         returns (ContentDeviceData aData);
 
-    sync CreateWindow(nullable PBrowser aThisTab,
-                      PBrowser aNewTab,
-                      PRenderFrame aRenderFrame,
-                      uint32_t aChromeFlags,
-                      bool aCalledFromJS,
-                      bool aPositionSpecified,
-                      bool aSizeSpecified,
-                      nsCString aFeatures,
-                      nsCString aBaseURI,
-                      OriginAttributes aOpenerOriginAttributes,
-                      float aFullZoom)
-      returns (nsresult rv,
-               bool windowOpened,
-               FrameScriptInfo[] frameScripts,
-               nsCString urlToLoad,
-               TextureFactoryIdentifier textureFactoryIdentifier,
-               uint64_t layersId,
-               CompositorOptions compositorOptions);
+    async CreateWindow(nsID aID,
+                       nullable PBrowser aThisTab,
+                       PBrowser aNewTab,
+                       PRenderFrame aRenderFrame,
+                       uint32_t aChromeFlags,
+                       bool aCalledFromJS,
+                       bool aPositionSpecified,
+                       bool aSizeSpecified,
+                       nsCString aFeatures,
+                       nsCString aBaseURI,
+                       OriginAttributes aOpenerOriginAttributes,
+                       float aFullZoom);
 
     async CreateWindowInDifferentProcess(
       PBrowser aThisTab,

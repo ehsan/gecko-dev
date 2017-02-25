@@ -81,19 +81,18 @@ public:
   };
 
   nsresult
-  ProvideWindowCommon(TabChild* aTabOpener,
-                      mozIDOMWindowProxy* aOpener,
-                      bool aIframeMoz,
-                      uint32_t aChromeFlags,
-                      bool aCalledFromJS,
-                      bool aPositionSpecified,
-                      bool aSizeSpecified,
-                      nsIURI* aURI,
-                      const nsAString& aName,
-                      const nsACString& aFeatures,
-                      bool aForceNoOpener,
-                      bool* aWindowIsNew,
-                      mozIDOMWindowProxy** aReturn);
+  AsyncProvideWindowCommon(TabChild* aTabOpener,
+                           mozIDOMWindowProxy* aOpener,
+                           bool aIframeMoz,
+                           uint32_t aChromeFlags,
+                           bool aCalledFromJS,
+                           bool aPositionSpecified,
+                           bool aSizeSpecified,
+                           nsIURI* aURI,
+                           const nsAString& aName,
+                           const nsACString& aFeatures,
+                           bool aForceNoOpener,
+                           nsIAsyncProvideWindowCalback* aCallback);
 
   bool Init(MessageLoop* aIOLoop,
             base::ProcessId aParentPid,
@@ -492,6 +491,16 @@ public:
   mozilla::ipc::IPCResult
   RecvRefreshScreens(nsTArray<ScreenDetails>&& aScreens) override;
 
+  virtual mozilla::ipc::IPCResult
+  RecvWindowCreated(const nsID& aID,
+                    const nsresult& aRV,
+                    const bool& aWindowOpened,
+                    nsTArray<FrameScriptInfo>&& aFrameScripts,
+                    const nsCString& aURLToLoad,
+                    const TextureFactoryIdentifier& aTextureFactoryIdentifier,
+                    const uint64_t& aLayersId,
+                    const CompositorOptions& compositorOptions) override;
+
   // Get the directory for IndexedDB files. We query the parent for this and
   // cache the value
   nsString &GetIndexedDBPath();
@@ -736,6 +745,16 @@ private:
   // These items are removed when RecvFileCreationResponse is received.
   nsRefPtrHashtable<nsIDHashKey, FileCreatorHelper> mFileCreationPending;
 
+  // Hashtable to keep track of pending window open jobs.
+  struct PendingWindowCreation {
+    PRenderFrameChild* mRenderFrame;
+    nsCOMPtr<mozIDOMWindowProxy> mParent;
+    RefPtr<TabChild> mTabOpener;
+    RefPtr<TabChild> mNewChild;
+    nsCOMPtr<nsIAsyncProvideWindowCalback> mCallback;
+    bool mForceNoOpener;
+  };
+  nsClassHashtable<nsIDHashKey, PendingWindowCreation> mPendingWindowCreations;
 
   nsClassHashtable<nsUint64HashKey, AnonymousTemporaryFileCallback> mPendingAnonymousTemporaryFiles;
 

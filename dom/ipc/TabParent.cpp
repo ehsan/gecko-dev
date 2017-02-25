@@ -15,6 +15,7 @@
 #endif
 #include "mozilla/BrowserElementParent.h"
 #include "mozilla/dom/ContentBridgeParent.h"
+#include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/DataTransfer.h"
 #include "mozilla/dom/Event.h"
@@ -2628,25 +2629,33 @@ TabParent::ApzAwareEventRoutingToChild(ScrollableLayerGuid* aOutTargetGuid,
 }
 
 mozilla::ipc::IPCResult
-TabParent::RecvBrowserFrameOpenWindow(PBrowserParent* aOpener,
+TabParent::RecvBrowserFrameOpenWindow(const nsID& aID,
+                                      PBrowserParent* aOpener,
                                       PRenderFrameParent* aRenderFrame,
                                       const nsString& aURL,
                                       const nsString& aName,
-                                      const nsString& aFeatures,
-                                      bool* aOutWindowOpened,
-                                      TextureFactoryIdentifier* aTextureFactoryIdentifier,
-                                      uint64_t* aLayersId,
-                                      CompositorOptions* aCompositorOptions)
+                                      const nsString& aFeatures)
 {
+  TextureFactoryIdentifier textureFactoryIdentifier;
+  CompositorOptions compositorOptions =
+    static_cast<RenderFrameParent*>(aRenderFrame)->GetCompositorOptions();
+  uint64_t layersId = 0;
+
   BrowserElementParent::OpenWindowResult opened =
     BrowserElementParent::OpenWindowOOP(TabParent::GetFrom(aOpener),
                                         this, aRenderFrame, aURL, aName, aFeatures,
-                                        aTextureFactoryIdentifier, aLayersId);
-  *aCompositorOptions = static_cast<RenderFrameParent*>(aRenderFrame)->GetCompositorOptions();
-  *aOutWindowOpened = (opened == BrowserElementParent::OPEN_WINDOW_ADDED);
-  if (!*aOutWindowOpened) {
+                                        &textureFactoryIdentifier, &layersId);
+  bool windowOpened = (opened == BrowserElementParent::OPEN_WINDOW_ADDED);
+  if (!windowOpened) {
     Destroy();
   }
+
+  ContentParent* cp = Manager()->AsContentParent();
+  InfallibleTArray<FrameScriptInfo> emptyArray;
+  Unused << cp->SendWindowCreated(aID, NS_OK, windowOpened, emptyArray,
+                                  EmptyCString(), textureFactoryIdentifier,
+                                  layersId, compositorOptions);
+
   return IPC_OK();
 }
 

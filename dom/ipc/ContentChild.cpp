@@ -503,6 +503,8 @@ ContentChild::~ContentChild()
 {
 #ifndef NS_FREE_PERMANENT_DATA
   MOZ_CRASH("Content Child shouldn't be destroyed.");
+#else
+  MOZ_ASSERT(!mPendingWindowCreations.Count());
 #endif
 }
 
@@ -663,10 +665,25 @@ ContentChild::ProvideWindow(mozIDOMWindowProxy* aParent,
                             bool* aWindowIsNew,
                             mozIDOMWindowProxy** aReturn)
 {
-  return ProvideWindowCommon(nullptr, aParent, false, aChromeFlags,
-                             aCalledFromJS, aPositionSpecified,
-                             aSizeSpecified, aURI, aName, aFeatures,
-                             aForceNoOpener, aWindowIsNew, aReturn);
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+ContentChild::AsyncProvideWindow(mozIDOMWindowProxy* aParent,
+                                 uint32_t aChromeFlags,
+                                 bool aCalledFromJS,
+                                 bool aPositionSpecified,
+                                 bool aSizeSpecified,
+                                 nsIURI* aURI,
+                                 const nsAString& aName,
+                                 const nsACString& aFeatures,
+                                 bool aForceNoOpener,
+                                 nsIAsyncProvideWindowCalback* aCallback)
+{
+  return AsyncProvideWindowCommon(nullptr, aParent, false, aChromeFlags,
+                                  aCalledFromJS, aPositionSpecified,
+                                  aSizeSpecified, aURI, aName, aFeatures,
+                                  aForceNoOpener, aCallback);
 }
 
 static nsresult
@@ -707,22 +724,19 @@ GetWindowParamsFromParent(mozIDOMWindowProxy* aParent,
 }
 
 nsresult
-ContentChild::ProvideWindowCommon(TabChild* aTabOpener,
-                                  mozIDOMWindowProxy* aParent,
-                                  bool aIframeMoz,
-                                  uint32_t aChromeFlags,
-                                  bool aCalledFromJS,
-                                  bool aPositionSpecified,
-                                  bool aSizeSpecified,
-                                  nsIURI* aURI,
-                                  const nsAString& aName,
-                                  const nsACString& aFeatures,
-                                  bool aForceNoOpener,
-                                  bool* aWindowIsNew,
-                                  mozIDOMWindowProxy** aReturn)
+ContentChild::AsyncProvideWindowCommon(TabChild* aTabOpener,
+                                       mozIDOMWindowProxy* aParent,
+                                       bool aIframeMoz,
+                                       uint32_t aChromeFlags,
+                                       bool aCalledFromJS,
+                                       bool aPositionSpecified,
+                                       bool aSizeSpecified,
+                                       nsIURI* aURI,
+                                       const nsAString& aName,
+                                       const nsACString& aFeatures,
+                                       bool aForceNoOpener,
+                                       nsIAsyncProvideWindowCalback* aCallback)
 {
-  *aReturn = nullptr;
-
   nsAutoPtr<IPCTabContext> ipcContext;
   TabId openerTabId = TabId(0);
   nsAutoCString features(aFeatures);
@@ -814,9 +828,22 @@ ContentChild::ProvideWindowCommon(TabChild* aTabOpener,
   nsCString urlToLoad;
 
   PRenderFrameChild* renderFrame = newChild->SendPRenderFrameConstructor();
-  TextureFactoryIdentifier textureFactoryIdentifier;
-  uint64_t layersId = 0;
-  CompositorOptions compositorOptions;
+
+  // Allocate a UUID for the window open job.  This is how we associate the
+  // asynchronous response with this task.
+  nsID id;
+  rv = nsContentUtils::GenerateUUIDInPlace(id);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  PendingWindowCreation* pwc = mPendingWindowCreations.LookupOrAdd(id);
+  pwc->mRenderFrame = renderFrame;
+  pwc->mParent = aParent;
+  pwc->mTabOpener = aTabOpener;
+  pwc->mNewChild = newChild;
+  pwc->mCallback = aCallback;
+  pwc->mForceNoOpener = aForceNoOpener;
 
   if (aIframeMoz) {
     MOZ_ASSERT(aTabOpener);
@@ -830,10 +857,8 @@ ContentChild::ProvideWindowCommon(TabChild* aTabOpener,
       url.SetIsVoid(true);
     }
 
-    newChild->SendBrowserFrameOpenWindow(aTabOpener, renderFrame, NS_ConvertUTF8toUTF16(url),
-                                         name, NS_ConvertUTF8toUTF16(features),
-                                         aWindowIsNew, &textureFactoryIdentifier,
-                                         &layersId, &compositorOptions);
+    newChild->SendBrowserFrameOpenWindow(id, aTabOpener, renderFrame, NS_ConvertUTF8toUTF16(url),
+                                         name, NS_ConvertUTF8toUTF16(features));
   } else {
     nsAutoCString baseURIString;
     float fullZoom;
@@ -844,80 +869,100 @@ ContentChild::ProvideWindowCommon(TabChild* aTabOpener,
       return rv;
     }
 
-    if (!SendCreateWindow(aTabOpener, newChild, renderFrame,
+    if (!SendCreateWindow(id, aTabOpener, newChild, renderFrame,
                           aChromeFlags, aCalledFromJS, aPositionSpecified,
                           aSizeSpecified,
                           features,
                           baseURIString,
                           originAttributes,
-                          fullZoom,
-                          &rv,
-                          aWindowIsNew,
-                          &frameScripts,
-                          &urlToLoad,
-                          &textureFactoryIdentifier,
-                          &layersId,
-                          &compositorOptions)) {
+                          fullZoom)) {
       PRenderFrameChild::Send__delete__(renderFrame);
       return NS_ERROR_NOT_AVAILABLE;
     }
-
-    if (NS_FAILED(rv)) {
-      PRenderFrameChild::Send__delete__(renderFrame);
-      return rv;
-    }
-  }
-  if (!*aWindowIsNew) {
-    PRenderFrameChild::Send__delete__(renderFrame);
-    return NS_ERROR_ABORT;
   }
 
-  if (layersId == 0) { // if renderFrame is invalid.
-    PRenderFrameChild::Send__delete__(renderFrame);
-    renderFrame = nullptr;
+  // Indicate the pending window creation to the caller.
+  return NS_OK;
+}
+
+mozilla::ipc::IPCResult
+ContentChild::RecvWindowCreated(const nsID& aID,
+                                const nsresult& aRV,
+                                const bool& aWindowOpened,
+                                nsTArray<FrameScriptInfo>&& aFrameScripts,
+                                const nsCString& aURLToLoad,
+                                const TextureFactoryIdentifier& aTextureFactoryIdentifier,
+                                const uint64_t& aLayersId,
+                                const CompositorOptions& aCompositorOptions)
+{
+  nsAutoPtr<PendingWindowCreation> pwc;
+  mPendingWindowCreations.RemoveAndForget(aID, pwc);
+  if (!pwc) {
+    // The parent is notifying us about a window creation that is not in
+    // progress??  Something must be horribly wrong.
+    return IPC_FAIL_NO_REASON(this);
+  }
+
+  if (NS_FAILED(aRV)) {
+    PRenderFrameChild::Send__delete__(pwc->mRenderFrame);
+    return IPC_OK();
+  }
+
+  if (!aWindowOpened) {
+    PRenderFrameChild::Send__delete__(pwc->mRenderFrame);
+    return IPC_OK();
+  }
+
+  if (aLayersId == 0) { // if renderFrame is invalid.
+    PRenderFrameChild::Send__delete__(pwc->mRenderFrame);
+    pwc->mRenderFrame = nullptr;
   }
 
   ShowInfo showInfo(EmptyString(), false, false, true, false, 0, 0, 0);
-  auto* opener = nsPIDOMWindowOuter::From(aParent);
+  auto* opener = nsPIDOMWindowOuter::From(pwc->mParent);
   nsIDocShell* openerShell;
   if (opener && (openerShell = opener->GetDocShell())) {
     nsCOMPtr<nsILoadContext> context = do_QueryInterface(openerShell);
     showInfo = ShowInfo(EmptyString(), false,
                         context->UsePrivateBrowsing(), true, false,
-                        aTabOpener->mDPI, aTabOpener->mRounding,
-                        aTabOpener->mDefaultScale);
+                        pwc->mTabOpener->mDPI, pwc->mTabOpener->mRounding,
+                        pwc->mTabOpener->mDefaultScale);
   }
 
   // Set the opener window for this window before we start loading the document
   // inside of it. We have to do this before loading the remote scripts, because
   // they can poke at the document and cause the nsDocument to be created before
   // the openerwindow
-  nsCOMPtr<mozIDOMWindowProxy> windowProxy = do_GetInterface(newChild->WebNavigation());
-  if (!aForceNoOpener && windowProxy && aParent) {
+  nsCOMPtr<mozIDOMWindowProxy> windowProxy =
+    do_GetInterface(pwc->mNewChild->WebNavigation());
+  if (!pwc->mForceNoOpener && windowProxy && pwc->mParent) {
     nsPIDOMWindowOuter* outer = nsPIDOMWindowOuter::From(windowProxy);
-    nsPIDOMWindowOuter* parent = nsPIDOMWindowOuter::From(aParent);
-    outer->SetOpenerWindow(parent, *aWindowIsNew);
+    nsPIDOMWindowOuter* parent = nsPIDOMWindowOuter::From(pwc->mParent);
+    outer->SetOpenerWindow(parent, aWindowOpened);
   }
 
   // Unfortunately we don't get a window unless we've shown the frame.  That's
   // pretty bogus; see bug 763602.
-  newChild->DoFakeShow(textureFactoryIdentifier, layersId, compositorOptions,
-                       renderFrame, showInfo);
+  pwc->mNewChild->DoFakeShow(aTextureFactoryIdentifier, aLayersId,
+                             aCompositorOptions, pwc->mRenderFrame, showInfo);
 
-  for (size_t i = 0; i < frameScripts.Length(); i++) {
-    FrameScriptInfo& info = frameScripts[i];
-    if (!newChild->RecvLoadRemoteScript(info.url(), info.runInGlobalScope())) {
+  for (size_t i = 0; i < aFrameScripts.Length(); i++) {
+    FrameScriptInfo& info = aFrameScripts[i];
+    if (!pwc->mNewChild->RecvLoadRemoteScript(info.url(), info.runInGlobalScope())) {
       MOZ_CRASH();
     }
   }
 
-  if (!urlToLoad.IsEmpty()) {
-    newChild->RecvLoadURL(urlToLoad, showInfo);
+  if (!aURLToLoad.IsEmpty()) {
+    pwc->mNewChild->RecvLoadURL(aURLToLoad, showInfo);
   }
 
-  nsCOMPtr<mozIDOMWindowProxy> win = do_GetInterface(newChild->WebNavigation());
-  win.forget(aReturn);
-  return NS_OK;
+  nsCOMPtr<mozIDOMWindowProxy> win = do_GetInterface(pwc->mNewChild->WebNavigation());
+
+  MOZ_ASSERT(pwc->mCallback);
+  Unused << pwc->mCallback->ProvideWindowFinished(win, aWindowOpened);
+
+  return IPC_OK();
 }
 
 void

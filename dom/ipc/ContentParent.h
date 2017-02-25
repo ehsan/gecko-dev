@@ -530,7 +530,8 @@ public:
   void ForkNewProcess(bool aBlocking);
 
   virtual mozilla::ipc::IPCResult
-  RecvCreateWindow(PBrowserParent* aThisTabParent,
+  RecvCreateWindow(const nsID& aID,
+                   PBrowserParent* aThisTabParent,
                    PBrowserParent* aNewTab,
                    layout::PRenderFrameParent* aRenderFrame,
                    const uint32_t& aChromeFlags,
@@ -540,14 +541,7 @@ public:
                    const nsCString& aFeatures,
                    const nsCString& aBaseURI,
                    const OriginAttributes& aOpenerOriginAttributes,
-                   const float& aFullZoom,
-                   nsresult* aResult,
-                   bool* aWindowIsNew,
-                   InfallibleTArray<FrameScriptInfo>* aFrameScripts,
-                   nsCString* aURLToLoad,
-                   layers::TextureFactoryIdentifier* aTextureFactoryIdentifier,
-                   uint64_t* aLayersId,
-                   mozilla::layers::CompositorOptions* aCompositorOptions) override;
+                   const float& aFullZoom) override;
 
   virtual mozilla::ipc::IPCResult RecvCreateWindowInDifferentProcess(
     PBrowserParent* aThisTab,

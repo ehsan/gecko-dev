@@ -16,9 +16,23 @@
 interface mozIDOMWindowProxy;
 interface nsIURI;
 
+[uuid(bf9c853c-fb85-11e6-bc64-92361f002671)]
+interface nsIAsyncProvideWindowCalback : nsISupports
+{
+  /**
+   * Called when an asyncProvideWindow() call finishes.
+   *
+   * @param aWindow The opened window.  This is equivalent to the return value
+   *                of nsIWindowProvider.provideWindow().
+   * @param aWindowIsNew Whether a new window was created.
+   */
+  void provideWindowFinished(in mozIDOMWindowProxy aWindow,
+                             in boolean aWindowIsNew);
+};
+
 /**
  * The nsIWindowProvider interface exists so that the window watcher's default
- * behavior of opening a new window can be easly modified.  When the window
+ * behavior of opening a new window can be easily modified.  When the window
  * watcher needs to open a new window, it will first check with the
  * nsIWindowProvider it gets from the parent window.  If there is no provider
  * or the provider does not provide a window, the window watcher will proceed
@@ -100,4 +114,22 @@ interface nsIWindowProvider : nsISupports
                                    in AUTF8String aFeatures,
                                    in boolean aForceNoOpener,
                                    out boolean aWindowIsNew);
+
+  /**
+   * The asynchronous version of provideWindow(), used in the content process.
+   * All arguments have the same semantics as provideWindow().  aCallback is
+   * the asynchronous callback that is used to deliver the opened window
+   * reference as well as information about whether a new window was created.
+   */
+  [noscript]
+  void asyncProvideWindow(in mozIDOMWindowProxy aParent,
+                          in unsigned long aChromeFlags,
+                          in boolean aCalledFromJS,
+                          in boolean aPositionSpecified,
+                          in boolean aSizeSpecified,
+                          in nsIURI aURI,
+                          in AString aName,
+                          in AUTF8String aFeatures,
+                          in boolean aForceNoOpener,
+                          in nsIAsyncProvideWindowCalback aCallback);
 };

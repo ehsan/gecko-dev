@@ -4594,7 +4594,8 @@ ContentParent::CommonCreateWindow(PBrowserParent* aThisTab,
 }
 
 mozilla::ipc::IPCResult
-ContentParent::RecvCreateWindow(PBrowserParent* aThisTab,
+ContentParent::RecvCreateWindow(const nsID& aID,
+                                PBrowserParent* aThisTab,
                                 PBrowserParent* aNewTab,
                                 PRenderFrameParent* aRenderFrame,
                                 const uint32_t& aChromeFlags,
@@ -4604,24 +4605,21 @@ ContentParent::RecvCreateWindow(PBrowserParent* aThisTab,
                                 const nsCString& aFeatures,
                                 const nsCString& aBaseURI,
                                 const OriginAttributes& aOpenerOriginAttributes,
-                                const float& aFullZoom,
-                                nsresult* aResult,
-                                bool* aWindowIsNew,
-                                InfallibleTArray<FrameScriptInfo>* aFrameScripts,
-                                nsCString* aURLToLoad,
-                                TextureFactoryIdentifier* aTextureFactoryIdentifier,
-                                uint64_t* aLayersId,
-                                CompositorOptions* aCompositorOptions)
+                                const float& aFullZoom)
 {
+  nsresult rv = NS_OK;
   // We always expect to open a new window here. If we don't, it's an error.
-  *aWindowIsNew = true;
-  *aResult = NS_OK;
+  bool windowIsNew = true;
+  InfallibleTArray<FrameScriptInfo> frameScripts;
+  nsAutoCString urlToLoad;
+  TextureFactoryIdentifier textureFactoryIdentifier;
+  uint64_t layersId = 0;
 
   TabParent* newTab = TabParent::GetFrom(aNewTab);
   MOZ_ASSERT(newTab);
 
   auto destroyNewTabOnError = MakeScopeExit([&] {
-    if (!*aWindowIsNew || NS_FAILED(*aResult)) {
+    if (!windowIsNew || NS_FAILED(rv)) {
       if (newTab) {
         newTab->Destroy();
       }
@@ -4632,7 +4630,7 @@ ContentParent::RecvCreateWindow(PBrowserParent* aThisTab,
   // we must have an opener.
   newTab->SetHasContentOpener(true);
 
-  TabParent::AutoUseNewTab aunt(newTab, aURLToLoad);
+  TabParent::AutoUseNewTab aunt(newTab, &urlToLoad);
   const uint64_t nextTabParentId = ++sNextTabParentId;
   sNextTabParents.Put(nextTabParentId, newTab);
 
@@ -4641,29 +4639,34 @@ ContentParent::RecvCreateWindow(PBrowserParent* aThisTab,
     CommonCreateWindow(aThisTab, /* aSetOpener = */ true, aChromeFlags,
                        aCalledFromJS, aPositionSpecified, aSizeSpecified,
                        nullptr, aFeatures, aBaseURI, aOpenerOriginAttributes,
-                       aFullZoom, nextTabParentId, *aResult,
-                       newRemoteTab, aWindowIsNew);
+                       aFullZoom, nextTabParentId, rv,
+                       newRemoteTab, &windowIsNew);
   if (!ipcResult) {
     return ipcResult;
   }
 
-  if (NS_WARN_IF(NS_FAILED(*aResult))) {
+  if (NS_WARN_IF(NS_FAILED(rv))) {
     return IPC_OK();
   }
 
   if (sNextTabParents.GetAndRemove(nextTabParentId).valueOr(nullptr)) {
-    *aWindowIsNew = false;
+    windowIsNew = false;
   }
   MOZ_ASSERT(TabParent::GetFrom(newRemoteTab) == newTab);
 
-  newTab->SwapFrameScriptsFrom(*aFrameScripts);
+  newTab->SwapFrameScriptsFrom(frameScripts);
 
   RenderFrameParent* rfp = static_cast<RenderFrameParent*>(aRenderFrame);
   if (!newTab->SetRenderFrame(rfp) ||
-      !newTab->GetRenderFrameInfo(aTextureFactoryIdentifier, aLayersId)) {
-    *aResult = NS_ERROR_FAILURE;
+      !newTab->GetRenderFrameInfo(&textureFactoryIdentifier, &layersId)) {
+    rv = NS_ERROR_FAILURE;
   }
-  *aCompositorOptions = rfp->GetCompositorOptions();
+
+  if (!SendWindowCreated(aID, rv, windowIsNew, frameScripts,
+                         urlToLoad, textureFactoryIdentifier, layersId,
+                         rfp->GetCompositorOptions())) {
+    rv = NS_ERROR_FAILURE;
+  }
 
   return IPC_OK();
 }

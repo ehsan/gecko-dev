@@ -932,6 +932,21 @@ nsContentTreeOwner::ProvideWindow(mozIDOMWindowProxy* aParent,
   }
 }
 
+NS_IMETHODIMP
+nsContentTreeOwner::AsyncProvideWindow(mozIDOMWindowProxy* aParent,
+                                       uint32_t aChromeFlags,
+                                       bool aCalledFromJS,
+                                       bool aPositionSpecified,
+                                       bool aSizeSpecified,
+                                       nsIURI* aURI,
+                                       const nsAString& aName,
+                                       const nsACString& aFeatures,
+                                       bool aForceNoOpener,
+                                       nsIAsyncProvideWindowCalback* aCallback)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
 //*****************************************************************************
 // nsContentTreeOwner: Accessors
 //*****************************************************************************

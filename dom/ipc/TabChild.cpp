@@ -1038,8 +1038,18 @@ TabChild::ProvideWindow(mozIDOMWindowProxy* aParent,
                         const nsACString& aFeatures, bool aForceNoOpener,
                         bool* aWindowIsNew, mozIDOMWindowProxy** aReturn)
 {
-    *aReturn = nullptr;
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
 
+NS_IMETHODIMP
+TabChild::AsyncProvideWindow(mozIDOMWindowProxy* aParent,
+                             uint32_t aChromeFlags,
+                             bool aCalledFromJS,
+                             bool aPositionSpecified, bool aSizeSpecified,
+                             nsIURI* aURI, const nsAString& aName,
+                             const nsACString& aFeatures, bool aForceNoOpener,
+                             nsIAsyncProvideWindowCalback* aCallback)
+{
     // If aParent is inside an <iframe mozbrowser> and this isn't a request to
     // open a modal-type window, we're going to create a new <iframe mozbrowser>
     // and return its window here.
@@ -1059,8 +1069,11 @@ TabChild::ProvideWindow(mozIDOMWindowProxy* aParent,
       // current browser's docshell.
       if (openLocation == nsIBrowserDOMWindow::OPEN_CURRENTWINDOW) {
         nsCOMPtr<nsIWebBrowser> browser = do_GetInterface(WebNavigation());
-        *aWindowIsNew = false;
-        return browser->GetContentDOMWindow(aReturn);
+        nsCOMPtr<mozIDOMWindowProxy> window;
+        nsresult rv = browser->GetContentDOMWindow(getter_AddRefs(window));
+        NS_ENSURE_SUCCESS(rv, rv);
+        Unused << aCallback->ProvideWindowFinished(window, false);
+        return NS_OK;
       }
     }
 
@@ -1068,19 +1081,18 @@ TabChild::ProvideWindow(mozIDOMWindowProxy* aParent,
     // open window call was canceled.  It's important that we pass this error
     // code back to our caller.
     ContentChild* cc = ContentChild::GetSingleton();
-    return cc->ProvideWindowCommon(this,
-                                   aParent,
-                                   iframeMoz,
-                                   aChromeFlags,
-                                   aCalledFromJS,
-                                   aPositionSpecified,
-                                   aSizeSpecified,
-                                   aURI,
-                                   aName,
-                                   aFeatures,
-                                   aForceNoOpener,
-                                   aWindowIsNew,
-                                   aReturn);
+    return cc->AsyncProvideWindowCommon(this,
+                                        aParent,
+                                        iframeMoz,
+                                        aChromeFlags,
+                                        aCalledFromJS,
+                                        aPositionSpecified,
+                                        aSizeSpecified,
+                                        aURI,
+                                        aName,
+                                        aFeatures,
+                                        aForceNoOpener,
+                                        aCallback);
 }
 
 void
