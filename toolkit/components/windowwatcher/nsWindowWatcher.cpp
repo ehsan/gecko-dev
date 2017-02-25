@@ -664,6 +664,42 @@ nsWindowWatcher::OpenWindowWithTabParent(nsITabParent* aOpeningTabParent,
   return NS_OK;
 }
 
+class ProvideWindowCallback final : public nsIAsyncProvideWindowCalback
+{
+public:
+  NS_DECL_ISUPPORTS
+
+  NS_IMETHOD ProvideWindowFinished(mozIDOMWindowProxy* aWindow,
+                                   bool aWindowIsNew) override
+  {
+    mWindow = aWindow;
+    mWindowIsNew = aWindowIsNew;
+    return NS_OK;
+  }
+
+  bool IsPending() const
+  {
+    return !mWindow;
+  }
+
+  mozIDOMWindowProxy* GetWindow() const
+  {
+    return mWindow;
+  }
+  bool WindowIsNew() const
+  {
+    return mWindowIsNew;
+  }
+
+private:
+  ~ProvideWindowCallback() = default;
+
+  nsCOMPtr<mozIDOMWindowProxy> mWindow;
+  bool mWindowIsNew = false;
+};
+
+NS_IMPL_ISUPPORTS(ProvideWindowCallback, nsIAsyncProvideWindowCalback)
+
 nsresult
 nsWindowWatcher::OpenWindowInternal(mozIDOMWindowProxy* aParent,
                                     const char* aUrl,
@@ -837,6 +873,14 @@ nsWindowWatcher::OpenWindowInternal(mozIDOMWindowProxy* aParent,
     }
   }
 
+  nsCOMPtr<nsPIDOMWindowInner> parentTopInnerWindow;
+  if (parentWindow) {
+    nsCOMPtr<nsPIDOMWindowOuter> parentTopWindow = parentWindow->GetTop();
+    if (parentTopWindow) {
+      parentTopInnerWindow = parentTopWindow->GetCurrentInnerWindow();
+    }
+  }
+
   uint32_t activeDocsSandboxFlags = 0;
   if (!newDocShellItem) {
     // We're going to either open up a new window ourselves or ask a
@@ -875,11 +919,56 @@ nsWindowWatcher::OpenWindowInternal(mozIDOMWindowProxy* aParent,
 
       if (provider) {
         nsCOMPtr<mozIDOMWindowProxy> newWindow;
-        rv = provider->ProvideWindow(aParent, chromeFlags, aCalledFromJS,
-                                     sizeSpec.PositionSpecified(),
-                                     sizeSpec.SizeSpecified(),
-                                     uriToLoad, name, features, aForceNoOpener,
-                                     &windowIsNew, getter_AddRefs(newWindow));
+        if (XRE_IsParentProcess()) {
+          rv = provider->ProvideWindow(aParent, chromeFlags, aCalledFromJS,
+                                       sizeSpec.PositionSpecified(),
+                                       sizeSpec.SizeSpecified(),
+                                       uriToLoad, name, features, aForceNoOpener,
+                                       &windowIsNew, getter_AddRefs(newWindow));
+        } else {
+          // In the content process, we don't have a synchronous API to use
+          // here.  In order to avoid making all of the callers of this function
+          // asynchronous, we spin a nested event loop here waiting for our
+          // callback before proceeding.
+          //
+          // This is less bad than appears at the first sight, because in case
+          // we are creating a new content window we already need to spin the
+          // event loop while the chrome window is ready, so we can take the
+          // same precautions used for that nested event loop here as well.
+
+          if (parentTopInnerWindow) {
+            parentTopInnerWindow->Suspend();
+          }
+
+          RefPtr<ProvideWindowCallback> callback =
+            new ProvideWindowCallback();
+          rv = provider->AsyncProvideWindow(aParent, chromeFlags, aCalledFromJS,
+                                            sizeSpec.PositionSpecified(),
+                                            sizeSpec.SizeSpecified(),
+                                            uriToLoad, name, features, aForceNoOpener,
+                                            callback);
+
+          {
+            AutoNoJSAPI nojsapi;
+            nsIThread* thread = NS_GetCurrentThread();
+            while (callback->IsPending()) {
+              if (!NS_ProcessNextEvent(thread)) {
+                break;
+              }
+            }
+
+            if (callback->IsPending()) {
+              rv = NS_ERROR_FAILURE;
+            } else {
+              newWindow = callback->GetWindow();
+              windowIsNew = callback->WindowIsNew();
+            }
+          }
+
+          if (parentTopInnerWindow) {
+            parentTopInnerWindow->Resume();
+          }
+        }
 
         if (NS_SUCCEEDED(rv)) {
           GetWindowTreeItem(newWindow, getter_AddRefs(newDocShellItem));
@@ -964,14 +1053,6 @@ nsWindowWatcher::OpenWindowInternal(mozIDOMWindowProxy* aParent,
     rv = NS_ERROR_FAILURE;
     if (mWindowCreator) {
       nsCOMPtr<nsIWebBrowserChrome> newChrome;
-
-      nsCOMPtr<nsPIDOMWindowInner> parentTopInnerWindow;
-      if (parentWindow) {
-        nsCOMPtr<nsPIDOMWindowOuter> parentTopWindow = parentWindow->GetTop();
-        if (parentTopWindow) {
-          parentTopInnerWindow = parentTopWindow->GetCurrentInnerWindow();
-        }
-      }
 
       if (parentTopInnerWindow) {
         parentTopInnerWindow->Suspend();
