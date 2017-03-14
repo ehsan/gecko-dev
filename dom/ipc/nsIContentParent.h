@@ -84,7 +84,8 @@ public:
                           const IPCTabContext& context,
                           const uint32_t& chromeFlags,
                           const ContentParentId& aCpId,
-                          const bool& aIsForBrowser) = 0;
+                          const bool& aIsForBrowser,
+                          const uint32_t& aMaxTouchPoints) = 0;
 
   virtual mozilla::ipc::PFileDescriptorSetParent*
   SendPFileDescriptorSetConstructor(const mozilla::ipc::FileDescriptor&) = 0;
@@ -123,7 +124,8 @@ protected: // IPDL methods
                                               const IPCTabContext& aContext,
                                               const uint32_t& aChromeFlags,
                                               const ContentParentId& aCpId,
-                                              const bool& aIsForBrowser);
+                                              const bool& aIsForBrowser,
+                                              const uint32_t& aMaxTouchPoints);
   virtual bool DeallocPBrowserParent(PBrowserParent* frame);
 
   virtual PBlobParent* AllocPBlobParent(const BlobConstructorParams& aParams);

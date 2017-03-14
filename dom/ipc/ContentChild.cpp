@@ -804,7 +804,8 @@ ContentChild::AsyncProvideWindowCommon(TabChild* aTabOpener,
 
   TabContext newTabContext = aTabOpener ? *aTabOpener : TabContext();
   RefPtr<TabChild> newChild = new TabChild(this, tabId, tabGroup,
-                                           newTabContext, aChromeFlags);
+                                           newTabContext, aChromeFlags,
+                                           0 /* TODO: FIX */);
   if (NS_FAILED(newChild->Init())) {
     return NS_ERROR_ABORT;
   }
@@ -821,7 +822,7 @@ ContentChild::AsyncProvideWindowCommon(TabChild* aTabOpener,
     // We release this ref in DeallocPBrowserChild
     RefPtr<TabChild>(newChild).forget().take(),
     tabId, TabId(0), *ipcContext, aChromeFlags,
-    GetID(), IsForBrowser());
+    GetID(), IsForBrowser(), 0 /* TODO: FIX */);
 
   nsString name(aName);
   nsTArray<FrameScriptInfo> frameScripts;
@@ -1524,14 +1525,16 @@ ContentChild::AllocPBrowserChild(const TabId& aTabId,
                                  const IPCTabContext& aContext,
                                  const uint32_t& aChromeFlags,
                                  const ContentParentId& aCpID,
-                                 const bool& aIsForBrowser)
+                                 const bool& aIsForBrowser,
+                                 const uint32_t& aMaxTouchPoints)
 {
   return nsIContentChild::AllocPBrowserChild(aTabId,
                                              aSameTabGroupAs,
                                              aContext,
                                              aChromeFlags,
                                              aCpID,
-                                             aIsForBrowser);
+                                             aIsForBrowser,
+                                             aMaxTouchPoints);
 }
 
 bool
@@ -1541,7 +1544,8 @@ ContentChild::SendPBrowserConstructor(PBrowserChild* aActor,
                                       const IPCTabContext& aContext,
                                       const uint32_t& aChromeFlags,
                                       const ContentParentId& aCpID,
-                                      const bool& aIsForBrowser)
+                                      const bool& aIsForBrowser,
+                                      const uint32_t& aMaxTouchPoints)
 {
   if (IsShuttingDown()) {
     return false;
@@ -1553,7 +1557,8 @@ ContentChild::SendPBrowserConstructor(PBrowserChild* aActor,
                                                 aContext,
                                                 aChromeFlags,
                                                 aCpID,
-                                                aIsForBrowser);
+                                                aIsForBrowser,
+                                                aMaxTouchPoints);
 }
 
 mozilla::ipc::IPCResult
@@ -1563,7 +1568,8 @@ ContentChild::RecvPBrowserConstructor(PBrowserChild* aActor,
                                       const IPCTabContext& aContext,
                                       const uint32_t& aChromeFlags,
                                       const ContentParentId& aCpID,
-                                      const bool& aIsForBrowser)
+                                      const bool& aIsForBrowser,
+                                      const uint32_t& aMaxTouchPoints)
 {
   MOZ_ASSERT(!IsShuttingDown());
 
@@ -1582,7 +1588,8 @@ ContentChild::RecvPBrowserConstructor(PBrowserChild* aActor,
                                                   aContext,
                                                   aChromeFlags,
                                                   aCpID,
-                                                  aIsForBrowser);
+                                                  aIsForBrowser,
+                                                  aMaxTouchPoints);
 }
 
 void

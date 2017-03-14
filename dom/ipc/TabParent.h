@@ -312,8 +312,6 @@ public:
 
   virtual mozilla::ipc::IPCResult RecvGetWidgetRounding(int32_t* aValue) override;
 
-  virtual mozilla::ipc::IPCResult RecvGetMaxTouchPoints(uint32_t* aTouchPoints) override;
-
   virtual mozilla::ipc::IPCResult RecvGetWidgetNativeData(WindowsHandle* aValue) override;
 
   virtual mozilla::ipc::IPCResult RecvSetNativeChildOfShareableWindow(const uintptr_t& childWindow) override;

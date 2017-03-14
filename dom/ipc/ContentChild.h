@@ -175,7 +175,8 @@ public:
                                             const IPCTabContext& aContext,
                                             const uint32_t& aChromeFlags,
                                             const ContentParentId& aCpID,
-                                            const bool& aIsForBrowser) override;
+                                            const bool& aIsForBrowser,
+                                            const uint32_t& aMaxTouchPoints) override;
 
   virtual bool DeallocPBrowserChild(PBrowserChild*) override;
 
@@ -535,7 +536,8 @@ public:
                                        const IPCTabContext& context,
                                        const uint32_t& chromeFlags,
                                        const ContentParentId& aCpID,
-                                       const bool& aIsForBrowser) override;
+                                       const bool& aIsForBrowser,
+                                       const uint32_t& aMaxTouchPoints) override;
 
   virtual mozilla::ipc::IPCResult RecvPBrowserConstructor(PBrowserChild* aCctor,
                                                           const TabId& aTabId,
@@ -543,7 +545,8 @@ public:
                                                           const IPCTabContext& aContext,
                                                           const uint32_t& aChromeFlags,
                                                           const ContentParentId& aCpID,
-                                                          const bool& aIsForBrowser) override;
+                                                          const bool& aIsForBrowser,
+                                                          const uint32_t& aMaxTouchPoints) override;
 
   FORWARD_SHMEM_ALLOCATOR_TO(PContentChild)
 

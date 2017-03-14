@@ -47,7 +47,8 @@ public:
                                        const IPCTabContext& aContext,
                                        const uint32_t& aChromeFlags,
                                        const ContentParentId& aCpID,
-                                       const bool& aIsForBrowser) override;
+                                       const bool& aIsForBrowser,
+                                       const uint32_t& aMaxTouchPoints) override;
 
   virtual mozilla::ipc::PFileDescriptorSetChild*
   SendPFileDescriptorSetConstructor(const mozilla::ipc::FileDescriptor&) override;
@@ -72,7 +73,8 @@ protected:
                                             const IPCTabContext& aContext,
                                             const uint32_t& aChromeFlags,
                                             const ContentParentId& aCpID,
-                                            const bool& aIsForBrowser) override;
+                                            const bool& aIsForBrowser,
+                                            const uint32_t& aMaxTouchPoints) override;
   virtual bool DeallocPBrowserChild(PBrowserChild*) override;
   virtual mozilla::ipc::IPCResult RecvPBrowserConstructor(PBrowserChild* aCctor,
                                                           const TabId& aTabId,
@@ -80,7 +82,8 @@ protected:
                                                           const IPCTabContext& aContext,
                                                           const uint32_t& aChromeFlags,
                                                           const ContentParentId& aCpID,
-                                                          const bool& aIsForBrowser) override;
+                                                          const bool& aIsForBrowser,
+                                                          const uint32_t& aMaxTouchPoints) override;
 
   virtual mozilla::jsipc::PJavaScriptChild* AllocPJavaScriptChild() override;
   virtual bool DeallocPJavaScriptChild(mozilla::jsipc::PJavaScriptChild*) override;

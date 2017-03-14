@@ -102,7 +102,8 @@ ContentBridgeParent::SendPBrowserConstructor(PBrowserParent* aActor,
                                              const IPCTabContext& aContext,
                                              const uint32_t& aChromeFlags,
                                              const ContentParentId& aCpID,
-                                             const bool& aIsForBrowser)
+                                             const bool& aIsForBrowser,
+                                             const uint32_t& aMaxTouchPoints)
 {
   return PContentBridgeParent::SendPBrowserConstructor(aActor,
                                                        aTabId,
@@ -110,7 +111,8 @@ ContentBridgeParent::SendPBrowserConstructor(PBrowserParent* aActor,
                                                        aContext,
                                                        aChromeFlags,
                                                        aCpID,
-                                                       aIsForBrowser);
+                                                       aIsForBrowser,
+                                                       aMaxTouchPoints);
 }
 
 PParentToChildStreamParent*
@@ -183,14 +185,16 @@ ContentBridgeParent::AllocPBrowserParent(const TabId& aTabId,
                                          const IPCTabContext &aContext,
                                          const uint32_t& aChromeFlags,
                                          const ContentParentId& aCpID,
-                                         const bool& aIsForBrowser)
+                                         const bool& aIsForBrowser,
+                                         const uint32_t& aMaxTouchPoints)
 {
   return nsIContentParent::AllocPBrowserParent(aTabId,
                                                aSameTabGroupAs,
                                                aContext,
                                                aChromeFlags,
                                                aCpID,
-                                               aIsForBrowser);
+                                               aIsForBrowser,
+                                               aMaxTouchPoints);
 }
 
 bool

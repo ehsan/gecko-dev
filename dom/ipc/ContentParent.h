@@ -696,7 +696,8 @@ private:
       const IPCTabContext& context,
       const uint32_t& chromeFlags,
       const ContentParentId& aCpId,
-      const bool& aIsForBrowser) override;
+      const bool& aIsForBrowser,
+      const uint32_t& aMaxTouchPoints) override;
   using PContentParent::SendPTestShellConstructor;
 
   mozilla::ipc::IPCResult
@@ -830,7 +831,8 @@ private:
                                               const IPCTabContext& aContext,
                                               const uint32_t& aChromeFlags,
                                               const ContentParentId& aCpId,
-                                              const bool& aIsForBrowser) override;
+                                              const bool& aIsForBrowser,
+                                              const uint32_t& aMaxTouchPoints) override;
 
   virtual bool DeallocPBrowserParent(PBrowserParent* frame) override;
 

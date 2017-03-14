@@ -2322,18 +2322,6 @@ TabParent::RecvGetWidgetRounding(int32_t* aValue)
   return IPC_OK();
 }
 
-mozilla::ipc::IPCResult
-TabParent::RecvGetMaxTouchPoints(uint32_t* aTouchPoints)
-{
-  nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (widget) {
-    *aTouchPoints = widget->GetMaxTouchPoints();
-  } else {
-    *aTouchPoints = 0;
-  }
-  return IPC_OK();
-}
-
 already_AddRefed<nsIWidget>
 TabParent::GetTopLevelWidget()
 {

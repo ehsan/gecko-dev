@@ -1237,6 +1237,12 @@ ContentParent::CreateBrowser(const TabContext& aContext,
                                        aContext, chromeFlags));
     tp->SetInitedByParent();
 
+    nsCOMPtr<nsIWidget> widget = tp->GetWidget();
+    uint32_t maxTouchPoints = 0;
+    if (widget) {
+      maxTouchPoints = widget->GetMaxTouchPoints();
+    }
+
     PBrowserParent* browser =
     constructorSender->SendPBrowserConstructor(
       // DeallocPBrowserParent() releases this ref.
@@ -1245,7 +1251,8 @@ ContentParent::CreateBrowser(const TabContext& aContext,
       aContext.AsIPCTabContext(),
       chromeFlags,
       constructorSender->ChildID(),
-      constructorSender->IsForBrowser());
+      constructorSender->IsForBrowser(),
+      maxTouchPoints);
 
     if (remoteType.EqualsLiteral(LARGE_ALLOCATION_REMOTE_TYPE)) {
       // Tell the TabChild object that it was created due to a Large-Allocation
@@ -2829,14 +2836,16 @@ ContentParent::AllocPBrowserParent(const TabId& aTabId,
                                    const IPCTabContext& aContext,
                                    const uint32_t& aChromeFlags,
                                    const ContentParentId& aCpId,
-                                   const bool& aIsForBrowser)
+                                   const bool& aIsForBrowser,
+                                   const uint32_t& aMaxTouchPoints)
 {
   return nsIContentParent::AllocPBrowserParent(aTabId,
                                                aSameTabGroupAs,
                                                aContext,
                                                aChromeFlags,
                                                aCpId,
-                                               aIsForBrowser);
+                                               aIsForBrowser,
+                                               aMaxTouchPoints);
 }
 
 bool
@@ -3894,7 +3903,8 @@ ContentParent::SendPBrowserConstructor(PBrowserParent* aActor,
                                        const IPCTabContext& aContext,
                                        const uint32_t& aChromeFlags,
                                        const ContentParentId& aCpId,
-                                       const bool& aIsForBrowser)
+                                       const bool& aIsForBrowser,
+                                       const uint32_t& aMaxTouchPoints)
 {
   return PContentParent::SendPBrowserConstructor(aActor,
                                                  aTabId,
@@ -3902,7 +3912,8 @@ ContentParent::SendPBrowserConstructor(PBrowserParent* aActor,
                                                  aContext,
                                                  aChromeFlags,
                                                  aCpId,
-                                                 aIsForBrowser);
+                                                 aIsForBrowser,
+                                                 aMaxTouchPoints);
 }
 
 mozilla::ipc::IPCResult

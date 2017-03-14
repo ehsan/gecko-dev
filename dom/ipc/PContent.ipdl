@@ -338,7 +338,8 @@ both:
     // Keep the last 3 attributes in sync with GetProcessAttributes!
     async PBrowser(TabId tabId, TabId sameTabGroupAs,
                    IPCTabContext context, uint32_t chromeFlags,
-                   ContentParentId cpId, bool isForBrowser);
+                   ContentParentId cpId, bool isForBrowser,
+                   uint32_t maxTouchPoints);
 
     async PBlob(BlobConstructorParams params);
 

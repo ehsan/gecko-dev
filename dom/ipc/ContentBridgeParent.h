@@ -44,7 +44,8 @@ public:
                           const IPCTabContext& aContext,
                           const uint32_t& aChromeFlags,
                           const ContentParentId& aCpID,
-                          const bool& aIsForBrowser) override;
+                          const bool& aIsForBrowser,
+                          const uint32_t& aMaxTouchPoints) override;
 
   virtual PFileDescriptorSetParent*
   SendPFileDescriptorSetConstructor(const FileDescriptor&) override;
@@ -129,7 +130,8 @@ protected:
                       const IPCTabContext &aContext,
                       const uint32_t& aChromeFlags,
                       const ContentParentId& aCpID,
-                      const bool& aIsForBrowser) override;
+                      const bool& aIsForBrowser,
+                      const uint32_t& aMaxTouchPoints) override;
 
   virtual bool DeallocPBrowserParent(PBrowserParent*) override;
 

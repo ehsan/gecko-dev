@@ -127,7 +127,8 @@ nsIContentParent::AllocPBrowserParent(const TabId& aTabId,
                                       const IPCTabContext& aContext,
                                       const uint32_t& aChromeFlags,
                                       const ContentParentId& aCpId,
-                                      const bool& aIsForBrowser)
+                                      const bool& aIsForBrowser,
+                                      const uint32_t& aMaxTouchPoints)
 {
   MOZ_ASSERT(!aSameTabGroupAs);
 

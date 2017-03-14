@@ -51,7 +51,8 @@ nsIContentChild::AllocPBrowserChild(const TabId& aTabId,
                                     const IPCTabContext& aContext,
                                     const uint32_t& aChromeFlags,
                                     const ContentParentId& aCpID,
-                                    const bool& aIsForBrowser)
+                                    const bool& aIsForBrowser,
+                                    const uint32_t& aMaxTouchPoints)
 {
   // We'll happily accept any kind of IPCTabContext here; we don't need to
   // check that it's of a certain type for security purposes, because we
@@ -67,7 +68,8 @@ nsIContentChild::AllocPBrowserChild(const TabId& aTabId,
 
   RefPtr<TabChild> child =
     TabChild::Create(this, aTabId, aSameTabGroupAs,
-                     tc.GetTabContext(), aChromeFlags);
+                     tc.GetTabContext(), aChromeFlags,
+                     aMaxTouchPoints);
 
   // The ref here is released in DeallocPBrowserChild.
   return child.forget().take();
@@ -88,7 +90,8 @@ nsIContentChild::RecvPBrowserConstructor(PBrowserChild* aActor,
                                          const IPCTabContext& aContext,
                                          const uint32_t& aChromeFlags,
                                          const ContentParentId& aCpID,
-                                         const bool& aIsForBrowser)
+                                         const bool& aIsForBrowser,
+                                         const uint32_t& aMaxTouchPoints)
 {
   // This runs after AllocPBrowserChild() returns and the IPC machinery for this
   // PBrowserChild has been set up.

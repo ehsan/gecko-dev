@@ -392,11 +392,6 @@ parent:
     sync GetWidgetRounding() returns (int32_t value);
 
     /**
-     * Gets maximum of touch points at current device.
-     */
-    sync GetMaxTouchPoints() returns (uint32_t value);
-
-    /**
      * Set the native cursor.
      * @param value
      *   The widget cursor to set.

@@ -280,7 +280,8 @@ public:
            const TabId& aTabId,
            TabGroup* aTabGroup,
            const TabContext& aContext,
-           uint32_t aChromeFlags);
+           uint32_t aChromeFlags,
+           uint32_t aMaxTouchPoints);
 
   nsresult Init();
 
@@ -288,7 +289,8 @@ public:
   static already_AddRefed<TabChild>
   Create(nsIContentChild* aManager, const TabId& aTabId,
          const TabId& aSameTabGroupAs,
-         const TabContext& aContext, uint32_t aChromeFlags);
+         const TabContext& aContext, uint32_t aChromeFlags,
+         uint32_t aMaxTouchPoints);
 
   // Let managees query if it is safe to send messages.
   bool IsDestroyed() const{ return mDestroyed; }
@@ -790,6 +792,7 @@ private:
   RefPtr<nsIContentChild> mManager;
   RefPtr<TabChildSHistoryListener> mHistoryListener;
   uint32_t mChromeFlags;
+  const uint32_t mMaxTouchPoints;
   int32_t mActiveSuppressDisplayport;
   uint64_t mLayersId;
   int64_t mBeforeUnloadListeners;

@@ -359,12 +359,14 @@ TabChild::Create(nsIContentChild* aManager,
                  const TabId& aTabId,
                  const TabId& aSameTabGroupAs,
                  const TabContext &aContext,
-                 uint32_t aChromeFlags)
+                 uint32_t aChromeFlags,
+                 uint32_t aMaxTouchPoints)
 {
   RefPtr<TabChild> groupChild = FindTabChild(aSameTabGroupAs);
   dom::TabGroup* group = groupChild ? groupChild->TabGroup() : nullptr;
   RefPtr<TabChild> iframe = new TabChild(aManager, aTabId, group,
-                                         aContext, aChromeFlags);
+                                         aContext, aChromeFlags,
+                                         aMaxTouchPoints);
   return iframe.forget();
 }
 
@@ -372,12 +374,14 @@ TabChild::TabChild(nsIContentChild* aManager,
                    const TabId& aTabId,
                    dom::TabGroup* aTabGroup,
                    const TabContext& aContext,
-                   uint32_t aChromeFlags)
+                   uint32_t aChromeFlags,
+                   uint32_t aMaxTouchPoints)
   : TabContext(aContext)
   , mTabGroup(aTabGroup)
   , mRemoteFrame(nullptr)
   , mManager(aManager)
   , mChromeFlags(aChromeFlags)
+  , mMaxTouchPoints(aMaxTouchPoints)
   , mActiveSuppressDisplayport(0)
   , mLayersId(0)
   , mBeforeUnloadListeners(0)
@@ -2825,8 +2829,7 @@ TabChild::GetWidgetRounding(int32_t* aRounding)
 void
 TabChild::GetMaxTouchPoints(uint32_t* aTouchPoints)
 {
-  // Fallback to a sync call.
-  SendGetMaxTouchPoints(aTouchPoints);
+  *aTouchPoints = mMaxTouchPoints;
 }
 
 void

@@ -81,7 +81,8 @@ ContentBridgeChild::SendPBrowserConstructor(PBrowserChild* aActor,
                                             const IPCTabContext& aContext,
                                             const uint32_t& aChromeFlags,
                                             const ContentParentId& aCpID,
-                                            const bool& aIsForBrowser)
+                                            const bool& aIsForBrowser,
+                                            const uint32_t& aMaxTouchPoints)
 {
   return PContentBridgeChild::SendPBrowserConstructor(aActor,
                                                       aTabId,
@@ -89,7 +90,8 @@ ContentBridgeChild::SendPBrowserConstructor(PBrowserChild* aActor,
                                                       aContext,
                                                       aChromeFlags,
                                                       aCpID,
-                                                      aIsForBrowser);
+                                                      aIsForBrowser,
+                                                      aMaxTouchPoints);
 }
 
 PFileDescriptorSetChild*
@@ -134,14 +136,16 @@ ContentBridgeChild::AllocPBrowserChild(const TabId& aTabId,
                                        const IPCTabContext &aContext,
                                        const uint32_t& aChromeFlags,
                                        const ContentParentId& aCpID,
-                                       const bool& aIsForBrowser)
+                                       const bool& aIsForBrowser,
+                                       const uint32_t& aMaxTouchPoints)
 {
   return nsIContentChild::AllocPBrowserChild(aTabId,
                                              aSameTabGroupAs,
                                              aContext,
                                              aChromeFlags,
                                              aCpID,
-                                             aIsForBrowser);
+                                             aIsForBrowser,
+                                             aMaxTouchPoints);
 }
 
 bool
@@ -157,7 +161,8 @@ ContentBridgeChild::RecvPBrowserConstructor(PBrowserChild* aActor,
                                             const IPCTabContext& aContext,
                                             const uint32_t& aChromeFlags,
                                             const ContentParentId& aCpID,
-                                            const bool& aIsForBrowser)
+                                            const bool& aIsForBrowser,
+                                            const uint32_t& aMaxTouchPoints)
 {
   return nsIContentChild::RecvPBrowserConstructor(aActor,
                                                   aTabId,
@@ -165,7 +170,8 @@ ContentBridgeChild::RecvPBrowserConstructor(PBrowserChild* aActor,
                                                   aContext,
                                                   aChromeFlags,
                                                   aCpID,
-                                                  aIsForBrowser);
+                                                  aIsForBrowser,
+                                                  aMaxTouchPoints);
 }
 
 PBlobChild*
