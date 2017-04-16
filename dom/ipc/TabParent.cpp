@@ -577,16 +577,6 @@ TabParent::RecvEvent(const RemoteDOMEvent& aEvent)
   return IPC_OK();
 }
 
-TabParent* TabParent::sNextTabParent;
-
-/* static */ TabParent*
-TabParent::GetNextTabParent()
-{
-  TabParent* result = sNextTabParent;
-  sNextTabParent = nullptr;
-  return result;
-}
-
 bool
 TabParent::SendLoadRemoteScript(const nsString& aURL,
                                 const bool& aRunInGlobalScope)
