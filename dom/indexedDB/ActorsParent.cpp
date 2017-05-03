@@ -12400,16 +12400,19 @@ ConnectionPool::Start(const nsID& aBackgroundChildLoggingId,
 
   const uint64_t transactionId = ++mNextTransactionId;
 
-  DatabaseInfo* dbInfo = mDatabases.Get(aDatabaseId);
+  auto p = mDatabases.LookupForAdd(aDatabaseId);
 
-  const bool databaseInfoIsNew = !dbInfo;
+  const bool databaseInfoIsNew = !p;
 
-  if (databaseInfoIsNew) {
-    dbInfo = new DatabaseInfo(this, aDatabaseId);
-
+  // The DatabaseInfo object in the hashtable, either one that existed
+  // previously or the one we just inserted now.
+  DatabaseInfo* dbInfo;
+  {
     MutexAutoLock lock(mDatabasesMutex);
+    dbInfo = p.OrInsert([this, &aDatabaseId]() {
+        return new DatabaseInfo(this, aDatabaseId);
+      });
 
-    mDatabases.Put(aDatabaseId, dbInfo);
   }
 
   auto* transactionInfo =
