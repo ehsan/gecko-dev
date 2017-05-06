@@ -24,7 +24,7 @@
 #endif
 
 #if !defined(RELEASE_OR_BETA) || defined(DEBUG)
-#define MOZ_PICKLE_SENTINEL_CHECKING
+//#define MOZ_PICKLE_SENTINEL_CHECKING
 #endif
 
 class Pickle;
