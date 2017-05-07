@@ -164,6 +164,16 @@ nsHttpRequestHead::SetHeader(nsHttpAtom h, const nsACString &v, bool m,
 {
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
 
+    return SetHeaderNonThreadSafe(h, v, m, variety);
+}
+
+
+nsresult
+nsHttpRequestHead::SetHeaderNonThreadSafe(nsHttpAtom h,
+                                          const nsACString &v,
+                                          bool m,
+                                          nsHttpHeaderArray::HeaderVariety variety)
+{
     if (mInVisitHeaders) {
         return NS_ERROR_FAILURE;
     }

@@ -15,6 +15,9 @@ class nsIHttpHeaderVisitor;
 
 namespace mozilla { namespace net {
 
+class nsHttpHandler;
+class HttpBaseChannel;
+
 //-----------------------------------------------------------------------------
 // nsHttpRequestHead represents the request line and headers from an HTTP
 // request.
@@ -104,6 +107,19 @@ public:
     bool IsPut() { return EqualsMethod(kMethod_Put); }
     bool IsTrace() { return EqualsMethod(kMethod_Trace); }
     void ParseHeaderSet(const char *buffer);
+
+private:
+    friend class mozilla::net::nsHttpHandler;
+    friend class mozilla::net::HttpBaseChannel;
+    // This function is designed to only be called during the
+    // creation of this object, and doesn't grab the lock of the
+    // object before setting the header.  Please do not use it if
+    // you are not sure why you need it.
+    MOZ_MUST_USE nsresult SetHeaderNonThreadSafe(nsHttpAtom h,
+                                                 const nsACString &v,
+                                                 bool m,
+                                                 nsHttpHeaderArray::HeaderVariety variety);
+
 private:
     // All members must be copy-constructable and assignable
     nsHttpHeaderArray mHeaders;
