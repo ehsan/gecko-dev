@@ -120,6 +120,27 @@ private:
                                                  bool m,
                                                  nsHttpHeaderArray::HeaderVariety variety);
 
+#ifdef DEBUG
+    // This helper class is used to enable calling the SetHeaderNonThreadSafe() function from
+    // the callers that we want.
+    class MOZ_RAII AutoEnableCallingSetHeaderNonThreadSafe final
+    {
+    public:
+      explicit AutoEnableCallingSetHeaderNonThreadSafe(nsHttpRequestHead* aSelf)
+        : mSelf(aSelf)
+      {
+        mSelf->mCanCallSetHeaderNonThreadSafe = true;
+      }
+      ~AutoEnableCallingSetHeaderNonThreadSafe()
+      {
+        mSelf->mCanCallSetHeaderNonThreadSafe = true;
+      }
+
+    private:
+      nsHttpRequestHead* mSelf;
+    };
+#endif
+
 private:
     // All members must be copy-constructable and assignable
     nsHttpHeaderArray mHeaders;
@@ -141,6 +162,12 @@ private:
 
     // During VisitHeader we sould not allow cal to SetHeader.
     bool mInVisitHeaders;
+
+#ifdef DEBUG
+    // Calls to SetHeaderNonThreadSafe can either be made through HttpBaseChannel::Init()
+    // or through the SetHeader method.
+    bool mCanCallSetHeaderNonThreadSafe;
+#endif
 };
 
 } // namespace net

@@ -271,6 +271,12 @@ HttpBaseChannel::Init(nsIURI *aURI,
 
   NS_PRECONDITION(aURI, "null uri");
 
+#ifdef DEBUG
+  typedef nsHttpRequestHead::AutoEnableCallingSetHeaderNonThreadSafe
+    AutoEnableCallingSetHeaderNonThreadSafe;
+  AutoEnableCallingSetHeaderNonThreadSafe enabler(&mRequestHead);
+#endif
+
   mURI = aURI;
   mOriginalURI = aURI;
   mDocumentURI = nullptr;
