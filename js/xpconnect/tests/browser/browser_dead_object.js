@@ -8,10 +8,17 @@
 add_task(function* test() {
   const url = "http://mochi.test:8888/browser/js/xpconnect/tests/browser/browser_deadObjectOnUnload.html";
   let newTab = yield BrowserTestUtils.openNewForegroundTab(gBrowser, url);
+  let dwu = content.window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                          .getInterface(Components.interfaces.nsIDOMWindowUtils);
+  let innerWindowId = dwu.currentInnerWindowID;
   let browser = gBrowser.selectedBrowser;
-  let contentDocDead = yield ContentTask.spawn(browser,{}, function*(browser){
+  let contentDocDead = yield ContentTask.spawn(browser,{innerWindowId}, function*(args){
     let doc = content.document;
-    let promise = ContentTaskUtils.waitForEvent(this, "DOMContentLoaded", true);
+    Components.utils.import("resource://testing-common/TestUtils.jsm");
+    let promise = TestUtils.topicObserved("inner-window-destroyed", (subject, data) => {
+      let id = subject.QueryInterface(Components.interfaces.nsISupportsPRUint64).data;
+      return id == args.innerWindowId;
+    });
     content.location = "about:home";
     yield promise;
     return Components.utils.isDeadWrapper(doc);
