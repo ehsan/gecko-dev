@@ -30,6 +30,9 @@ function test() {
   function* runner() {
     Services.prefs.setBoolPref("devtools.chrome.enabled", true);
     yield loadTab(TEST_URI);
+    let dwu = content.window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                            .getInterface(Components.interfaces.nsIDOMWindowUtils);
+    let winID = dwu.outerWindowID;
 
     info("open the browser console");
 
@@ -49,6 +52,12 @@ function test() {
                   "delete chromeWindow");
 
     gBrowser.removeCurrentTab();
+
+    let browser = gBrowser.selectedBrowser;
+    yield TestUtils.topicObserved("outer-window-destroyed", (subject, data) => {
+      let id = subject.QueryInterface(Components.interfaces.nsISupportsPRUint64).data;
+      return id == winID;
+    });
 
     let msg = yield jsterm.execute("foobarzTezt");
 
