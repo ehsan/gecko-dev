@@ -63,6 +63,14 @@ namespace mozilla {
  *
  */
 
+// Branch-less sign function.
+// Returns -1 if its argument is negative, 1 if its argument is positive, and 0 if it is 0.
+template<typename T>
+T Sign(T aValue)
+{
+  return (T(0) < aValue) - (aValue < T(0));
+}
+
 template<typename Container, typename Comparator>
 bool
 BinarySearchIf(const Container& aContainer, size_t aBegin, size_t aEnd,
@@ -70,29 +78,36 @@ BinarySearchIf(const Container& aContainer, size_t aBegin, size_t aEnd,
 {
   MOZ_ASSERT(aBegin <= aEnd);
 
-  size_t low = aBegin;
-  size_t high = aEnd;
-  while (high != low) {
-    size_t middle = low + (high - low) / 2;
+  size_t base = aBegin;
+  size_t count = aEnd - aBegin;
 
-    // Allow any intermediate type so long as it provides a suitable ordering
-    // relation.
-    const int result = aCompare(aContainer[middle]);
-
-    if (result == 0) {
-      *aMatchOrInsertionPoint = middle;
-      return true;
-    }
-
-    if (result < 0) {
-      high = middle;
-    } else {
-      low = middle + 1;
-    }
+  // Handle invalid input.
+  if (count <= 0) {
+    *aMatchOrInsertionPoint = aBegin;
+    return false;
   }
 
-  *aMatchOrInsertionPoint = low;
-  return false;
+  // Branch-free binary-search algorithm based on the one described in
+  // https://arxiv.org/abs/1509.05053.
+  int result = -1;
+  while (count > 1) {
+    const size_t half = count / 2;
+    result = aCompare(aContainer[base + half]);
+    base = (result >= 0) ? (base + half) : base;
+    count -= half;
+  }
+
+  // Handle the case where the last iteration of the loop found the target.
+  if (result != 0) {
+    result = Sign(aCompare(aContainer[base]));
+  }
+  // Use a trick here based on result always being either -1, 0 or 1.
+  *aMatchOrInsertionPoint = base + result;
+  if ((*aMatchOrInsertionPoint - aBegin) == size_t(-1)) {
+    *aMatchOrInsertionPoint = aBegin;
+    return false;
+  }
+  return result == 0;
 }
 
 namespace detail {
