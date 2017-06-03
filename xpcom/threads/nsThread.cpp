@@ -644,6 +644,7 @@ nsThread::nsThread(MainThreadFlag aMainThread, uint32_t aStackSize)
   , mIsMainThread(aMainThread)
   , mLastUnlabeledRunnable(TimeStamp::Now())
   , mCanInvokeJS(false)
+  , mHasPendingEventsPromisedIdleEvent(false)
 {
 }
 
@@ -1037,16 +1038,62 @@ nsThread::Shutdown()
   return NS_OK;
 }
 
+TimeStamp
+nsThread::GetIdleDeadline()
+{
+  TimeStamp idleDeadline;
+  {
+    // Releasing the lock temporarily since getting the idle period
+    // might need to lock the timer thread. Unlocking here might make
+    // us receive an event on the main queue, but we've committed to
+    // run an idle event anyhow.
+    MutexAutoUnlock unlock(mLock);
+    mIdlePeriod->GetIdlePeriodHint(&idleDeadline);
+  }
+
+  // If HasPendingEvents() has been called and it has returned true because of
+  // pending idle events, there is a risk that we may decide here that we aren't
+  // idle and return null, in which case HasPendingEvents() has effectively
+  // lied.  Since we can't go back and fix the past, we have to adjust what we
+  // do here and forcefully pick the idle queue task here.  Note that this means
+  // that we are choosing to run a task from the idle queue when we would
+  // normally decide that we aren't in an idle period, but this can only happen
+  // if we fall out of the idle period in between the call to HasPendingEvents()
+  // and here, which should hopefully be quite rare.  We are effectively
+  // choosing to prioritize the sanity of our API semantics over the optimal
+  // scheduling.
+  if (!mHasPendingEventsPromisedIdleEvent &&
+      (!idleDeadline || idleDeadline < TimeStamp::Now())) {
+    return TimeStamp();
+  }
+  return idleDeadline;
+}
+
 NS_IMETHODIMP
 nsThread::HasPendingEvents(bool* aResult)
 {
+  mHasPendingEventsPromisedIdleEvent = false;
+
   if (NS_WARN_IF(PR_GetCurrentThread() != mThread)) {
     return NS_ERROR_NOT_SAME_THREAD;
   }
 
   {
     MutexAutoLock lock(mLock);
-    *aResult = mEvents->HasPendingEvent(lock);
+    bool hasPendingEvent = mEvents->HasPendingEvent(lock);
+    bool hasPendingIdleEvent = false;
+    if (!hasPendingEvent) {
+      // Note that GetIdleDeadline() checks mHasPendingEventsPromisedIdleEvent,
+      // but that's OK since we set it to false in the beginning of this method!
+      TimeStamp idleDeadline = GetIdleDeadline();
+
+      // Only examine the idle queue if we are in an idle period.
+      if (idleDeadline) {
+        hasPendingIdleEvent = mIdleEvents.HasPendingEvent(lock);
+        mHasPendingEventsPromisedIdleEvent = hasPendingIdleEvent;
+      }
+    }
+    *aResult = hasPendingEvent || hasPendingIdleEvent;
   }
   return NS_OK;
 }
@@ -1154,21 +1201,13 @@ nsThread::GetIdleEvent(nsIRunnable** aEvent, MutexAutoLock& aProofOfLock)
   MOZ_ASSERT(aEvent);
 
   if (!mIdleEvents.HasPendingEvent(aProofOfLock)) {
+    MOZ_ASSERT(!mHasPendingEventsPromisedIdleEvent);
     aEvent = nullptr;
     return;
   }
 
-  TimeStamp idleDeadline;
-  {
-    // Releasing the lock temporarily since getting the idle period
-    // might need to lock the timer thread. Unlocking here might make
-    // us receive an event on the main queue, but we've committed to
-    // run an idle event anyhow.
-    MutexAutoUnlock unlock(mLock);
-    mIdlePeriod->GetIdlePeriodHint(&idleDeadline);
-  }
-
-  if (!idleDeadline || idleDeadline < TimeStamp::Now()) {
+  TimeStamp idleDeadline = GetIdleDeadline();
+  if (!idleDeadline) {
     aEvent = nullptr;
     return;
   }
@@ -1190,6 +1229,10 @@ nsThread::GetEvent(bool aWait, nsIRunnable** aEvent,
 {
   MOZ_ASSERT(PR_GetCurrentThread() == mThread);
   MOZ_ASSERT(aEvent);
+
+  MakeScopeExit([&] {
+    mHasPendingEventsPromisedIdleEvent = false;
+  });
 
   // We'll try to get an event to execute in three stages.
   // [1] First we just try to get it from the regular queue without waiting.
