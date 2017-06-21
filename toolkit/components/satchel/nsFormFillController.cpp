@@ -1040,7 +1040,13 @@ nsFormFillController::IsTextControl(nsINode* aNode)
 void
 nsFormFillController::MaybeStartControllingInput(nsIDOMHTMLInputElement* aInput)
 {
+  if (mFocusedInput == aInput) {
+    // Already controlling this input!
+    return;
+  }
+
   MOZ_LOG(sLogger, LogLevel::Verbose, ("MaybeStartControllingInput for %p", aInput));
+
   nsCOMPtr<nsINode> inputNode = do_QueryInterface(aInput);
   if (!inputNode) {
     return;
