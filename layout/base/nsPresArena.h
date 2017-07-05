@@ -10,21 +10,20 @@
 #ifndef nsPresArena_h___
 #define nsPresArena_h___
 
-#include "mozilla/ArenaAllocator.h"
+#include "nsArenaList.h"
 #include "mozilla/ArenaObjectID.h"
 #include "mozilla/ArenaRefPtr.h"
-#include "mozilla/MemoryChecking.h" // Note: Do not remove this, needed for MOZ_HAVE_MEM_CHECKS below
-#include "mozilla/MemoryReporting.h"
-#include <stdint.h>
-#include "nscore.h"
 #include "nsDataHashtable.h"
 #include "nsHashKeys.h"
-#include "nsTArray.h"
 #include "nsTHashtable.h"
 
 class nsWindowSizes;
 
-class nsPresArena {
+class nsPresArena :
+  public nsArenaList<mozilla::ArenaObjectID, true,
+                     mozilla::eArenaObjectID_COUNT,
+                     8192, 8>
+{
 public:
   nsPresArena();
   ~nsPresArena();
@@ -38,19 +37,6 @@ public:
     return Allocate(aID, aSize);
   }
   void FreeByFrameID(nsQueryFrame::FrameIID aID, void* aPtr)
-  {
-    Free(aID, aPtr);
-  }
-
-  /**
-   * Pool allocation with recycler lists indexed by object-type ID (see above).
-   * Every aID must always be used with the same object size, aSize.
-   */
-  void* AllocateByObjectID(mozilla::ArenaObjectID aID, size_t aSize)
-  {
-    return Allocate(aID, aSize);
-  }
-  void FreeByObjectID(mozilla::ArenaObjectID aID, void* aPtr)
   {
     Free(aID, aPtr);
   }
@@ -101,31 +87,10 @@ public:
   void AddSizeOfExcludingThis(nsWindowSizes& aWindowSizes) const;
 
 private:
-  void* Allocate(uint32_t aCode, size_t aSize);
-  void Free(uint32_t aCode, void* aPtr);
-
   inline void ClearArenaRefPtrWithoutDeregistering(
       void* aPtr,
       mozilla::ArenaObjectID aObjectID);
 
-  class FreeList
-  {
-  public:
-    nsTArray<void *> mEntries;
-    size_t mEntrySize;
-    size_t mEntriesEverAllocated;
-
-    FreeList()
-      : mEntrySize(0)
-      , mEntriesEverAllocated(0)
-    {}
-
-    size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
-    { return mEntries.ShallowSizeOfExcludingThis(aMallocSizeOf); }
-  };
-
-  FreeList mFreeLists[mozilla::eArenaObjectID_COUNT];
-  mozilla::ArenaAllocator<8192, 8> mPool;
   nsDataHashtable<nsPtrHashKey<void>, mozilla::ArenaObjectID> mArenaRefPtrs;
 };
 

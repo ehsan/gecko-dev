@@ -9,7 +9,6 @@
 
 #include "nsPresArena.h"
 
-#include "mozilla/Poison.h"
 #include "nsDebug.h"
 #include "nsPrintfCString.h"
 #include "GeckoStyleContext.h"
@@ -30,18 +29,8 @@ nsPresArena::nsPresArena()
 nsPresArena::~nsPresArena()
 {
   ClearArenaRefPtrs();
-
-#if defined(MOZ_HAVE_MEM_CHECKS)
-  for (FreeList* entry = mFreeLists; entry != ArrayEnd(mFreeLists); ++entry) {
-    nsTArray<void*>::index_type len;
-    while ((len = entry->mEntries.Length())) {
-      void* result = entry->mEntries.ElementAt(len - 1);
-      entry->mEntries.RemoveElementAt(len - 1);
-      MOZ_MAKE_MEM_UNDEFINED(result, entry->mEntrySize);
-    }
-  }
-#endif
 }
+
 
 /* inline */ void
 nsPresArena::ClearArenaRefPtrWithoutDeregistering(void* aPtr,
@@ -82,85 +71,6 @@ nsPresArena::ClearArenaRefPtrs(ArenaObjectID aObjectID)
       iter.Remove();
     }
   }
-}
-
-void*
-nsPresArena::Allocate(uint32_t aCode, size_t aSize)
-{
-  MOZ_ASSERT(aSize > 0, "PresArena cannot allocate zero bytes");
-  MOZ_ASSERT(aCode < ArrayLength(mFreeLists));
-
-  // We only hand out aligned sizes
-  aSize = mPool.AlignedSize(aSize);
-
-  FreeList* list = &mFreeLists[aCode];
-
-  nsTArray<void*>::index_type len = list->mEntries.Length();
-  if (list->mEntrySize == 0) {
-    MOZ_ASSERT(len == 0, "list with entries but no recorded size");
-    list->mEntrySize = aSize;
-  } else {
-    MOZ_ASSERT(list->mEntrySize == aSize,
-               "different sizes for same object type code");
-  }
-
-  void* result;
-  if (len > 0) {
-    // Remove from the end of the mEntries array to avoid memmoving entries,
-    // and use SetLengthAndRetainStorage to avoid a lot of malloc/free
-    // from ShrinkCapacity on smaller sizes.  500 pointers means the malloc size
-    // for the array is 4096 bytes or more on a 64-bit system.  The next smaller
-    // size is 2048 (with jemalloc), which we consider not worth compacting.
-    result = list->mEntries.ElementAt(len - 1);
-    if (list->mEntries.Capacity() > 500) {
-      list->mEntries.RemoveElementAt(len - 1);
-    } else {
-      list->mEntries.SetLengthAndRetainStorage(len - 1);
-    }
-#if defined(DEBUG)
-    {
-      MOZ_MAKE_MEM_DEFINED(result, list->mEntrySize);
-      char* p = reinterpret_cast<char*>(result);
-      char* limit = p + list->mEntrySize;
-      for (; p < limit; p += sizeof(uintptr_t)) {
-        uintptr_t val = *reinterpret_cast<uintptr_t*>(p);
-        if (val != mozPoisonValue()) {
-          MOZ_ReportAssertionFailure(
-            nsPrintfCString("PresArena: poison overwritten; "
-                            "wanted %.16" PRIx64 " "
-                            "found %.16" PRIx64 " "
-                            "errors in bits %.16" PRIx64 " ",
-                            uint64_t(mozPoisonValue()),
-                            uint64_t(val),
-                            uint64_t(mozPoisonValue() ^ val)).get(),
-            __FILE__, __LINE__);
-          MOZ_CRASH();
-        }
-      }
-    }
-#endif
-    MOZ_MAKE_MEM_UNDEFINED(result, list->mEntrySize);
-    return result;
-  }
-
-  // Allocate a new chunk from the arena
-  list->mEntriesEverAllocated++;
-  return mPool.Allocate(aSize);
-}
-
-void
-nsPresArena::Free(uint32_t aCode, void* aPtr)
-{
-  MOZ_ASSERT(aCode < ArrayLength(mFreeLists));
-
-  // Try to recycle this entry.
-  FreeList* list = &mFreeLists[aCode];
-  MOZ_ASSERT(list->mEntrySize > 0, "object of this type was never allocated");
-
-  mozWritePoison(aPtr, list->mEntrySize);
-
-  MOZ_MAKE_MEM_NOACCESS(aPtr, list->mEntrySize);
-  list->mEntries.AppendElement(aPtr);
 }
 
 void
