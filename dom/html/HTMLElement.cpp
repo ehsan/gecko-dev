@@ -17,6 +17,8 @@ public:
   explicit HTMLElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
   virtual ~HTMLElement();
 
+  NS_DECL_DOMARENA_HELPERS
+
   virtual nsresult Clone(mozilla::dom::NodeInfo* aNodeInfo,
                          nsINode** aResult,
                          bool aPreallocateChildren) const override;
@@ -34,7 +36,9 @@ HTMLElement::~HTMLElement()
 {
 }
 
-NS_IMPL_ELEMENT_CLONE(HTMLElement)
+NS_IMPL_DOMARENA_HELPERS(HTMLElement)
+
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLElement)
 
 JSObject*
 HTMLElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)
@@ -51,7 +55,10 @@ nsGenericHTMLElement*
 NS_NewHTMLElement(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
                   mozilla::dom::FromParser aFromParser)
 {
-  return new mozilla::dom::HTMLElement(aNodeInfo);
+  RefPtr<mozilla::dom::NodeInfo> nodeInfo(aNodeInfo);
+  auto* nodeInfoManager = nodeInfo->NodeInfoManager();
+  already_AddRefed<mozilla::dom::NodeInfo> nodeInfoArg(nodeInfo.forget());
+  return new(nodeInfoManager) mozilla::dom::HTMLElement(nodeInfoArg);
 }
 
 // Distinct from the above in order to have function pointer that compared unequal
@@ -60,5 +67,8 @@ nsGenericHTMLElement*
 NS_NewCustomElement(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
                     mozilla::dom::FromParser aFromParser)
 {
-  return new mozilla::dom::HTMLElement(aNodeInfo);
+  RefPtr<mozilla::dom::NodeInfo> nodeInfo(aNodeInfo);
+  auto* nodeInfoManager = nodeInfo->NodeInfoManager();
+  already_AddRefed<mozilla::dom::NodeInfo> nodeInfoArg(nodeInfo.forget());
+  return new (nodeInfoManager) mozilla::dom::HTMLElement(nodeInfoArg);
 }

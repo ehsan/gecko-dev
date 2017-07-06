@@ -14,7 +14,7 @@
 #include "nsContentUtils.h"
 #include "nsDOMTokenList.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Output)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT_CHECK_PARSER(Output)
 
 namespace mozilla {
 namespace dom {
@@ -34,6 +34,8 @@ HTMLOutputElement::HTMLOutputElement(already_AddRefed<mozilla::dom::NodeInfo>& a
 HTMLOutputElement::~HTMLOutputElement()
 {
 }
+
+NS_IMPL_DOMARENA_HELPERS(HTMLOutputElement)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLOutputElement)
 
@@ -57,7 +59,7 @@ NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLOutputElement)
                                nsIConstraintValidation)
 NS_INTERFACE_TABLE_TAIL_INHERITING(nsGenericHTMLFormElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLOutputElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLOutputElement)
 
 void
 HTMLOutputElement::SetCustomValidity(const nsAString& aError)

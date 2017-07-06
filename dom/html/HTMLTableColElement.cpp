@@ -10,7 +10,7 @@
 #include "nsAttrValueInlines.h"
 #include "mozilla/GenericSpecifiedValuesInlines.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(TableCol)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(TableCol)
 
 namespace mozilla {
 namespace dom {
@@ -23,13 +23,15 @@ HTMLTableColElement::~HTMLTableColElement()
 {
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLTableColElement)
+
 JSObject*
 HTMLTableColElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)
 {
   return HTMLTableColElementBinding::Wrap(aCx, this, aGivenProto);
 }
 
-NS_IMPL_ELEMENT_CLONE(HTMLTableColElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLTableColElement)
 
 bool
 HTMLTableColElement::ParseAttribute(int32_t aNamespaceID,

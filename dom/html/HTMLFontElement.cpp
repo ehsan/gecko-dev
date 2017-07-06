@@ -12,7 +12,7 @@
 #include "nsContentUtils.h"
 #include "nsCSSParser.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Font)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Font)
 
 namespace mozilla {
 namespace dom {
@@ -21,13 +21,15 @@ HTMLFontElement::~HTMLFontElement()
 {
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLFontElement)
+
 JSObject*
 HTMLFontElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)
 {
   return HTMLFontElementBinding::Wrap(aCx, this, aGivenProto);
 }
 
-NS_IMPL_ELEMENT_CLONE(HTMLFontElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLFontElement)
 
 bool
 HTMLFontElement::ParseAttribute(int32_t aNamespaceID,

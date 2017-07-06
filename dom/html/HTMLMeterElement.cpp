@@ -8,7 +8,7 @@
 #include "mozilla/EventStates.h"
 #include "mozilla/dom/HTMLMeterElementBinding.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Meter)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Meter)
 
 namespace mozilla {
 namespace dom {
@@ -27,7 +27,9 @@ HTMLMeterElement::~HTMLMeterElement()
 {
 }
 
-NS_IMPL_ELEMENT_CLONE(HTMLMeterElement)
+NS_IMPL_DOMARENA_HELPERS(HTMLMeterElement)
+
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLMeterElement)
 
 EventStates
 HTMLMeterElement::IntrinsicState() const

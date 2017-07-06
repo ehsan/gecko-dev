@@ -83,6 +83,8 @@ HTMLObjectElement::DoneAddingChildren(bool aHaveNotified)
   }
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLObjectElement)
+
 NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLObjectElement)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(HTMLObjectElement,
@@ -113,7 +115,7 @@ NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLObjectElement)
                                nsIConstraintValidation)
 NS_INTERFACE_TABLE_TAIL_INHERITING(nsGenericHTMLFormElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLObjectElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLObjectElement)
 
 #ifdef XP_MACOSX
 
@@ -599,4 +601,4 @@ HTMLObjectElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
 } // namespace dom
 } // namespace mozilla
 
-NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Object)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT_CHECK_PARSER(Object)

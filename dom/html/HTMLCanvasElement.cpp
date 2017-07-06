@@ -51,7 +51,7 @@
 using namespace mozilla::layers;
 using namespace mozilla::gfx;
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Canvas)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Canvas)
 
 namespace mozilla {
 namespace dom {
@@ -399,6 +399,8 @@ HTMLCanvasElement::~HTMLCanvasElement()
   }
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLCanvasElement)
+
 NS_IMPL_CYCLE_COLLECTION_INHERITED(HTMLCanvasElement, nsGenericHTMLElement,
                                    mCurrentContext, mPrintCallback,
                                    mPrintState, mOriginalCanvas,
@@ -411,7 +413,7 @@ NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLCanvasElement)
   NS_INTERFACE_TABLE_INHERITED(HTMLCanvasElement, nsIDOMHTMLCanvasElement)
 NS_INTERFACE_TABLE_TAIL_INHERITING(nsGenericHTMLElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLCanvasElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLCanvasElement)
 
 /* virtual */ JSObject*
 HTMLCanvasElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)

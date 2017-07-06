@@ -14,7 +14,7 @@
 #include "nsContentUtils.h"
 #include "jsfriendapi.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Table)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Table)
 
 namespace mozilla {
 namespace dom {
@@ -592,6 +592,8 @@ HTMLTableElement::~HTMLTableElement()
   ReleaseInheritedAttributes();
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLTableElement)
+
 JSObject*
 HTMLTableElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)
 {
@@ -621,7 +623,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(HTMLTableElement)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
 
 
-NS_IMPL_ELEMENT_CLONE(HTMLTableElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLTableElement)
 
 
 // the DOM spec says border, cellpadding, cellSpacing are all "wstring"

@@ -11,7 +11,7 @@
 #include "nsContentList.h"
 #include "nsCOMPtr.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Map)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Map)
 
 namespace mozilla {
 namespace dom {
@@ -20,6 +20,8 @@ HTMLMapElement::HTMLMapElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeIn
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
+
+NS_IMPL_DOMARENA_HELPERS(HTMLMapElement)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLMapElement)
 
@@ -37,7 +39,7 @@ NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLMapElement)
   NS_INTERFACE_TABLE_INHERITED(HTMLMapElement, nsIDOMHTMLMapElement)
 NS_INTERFACE_TABLE_TAIL_INHERITING(nsGenericHTMLElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLMapElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLMapElement)
 
 
 nsIHTMLCollection*

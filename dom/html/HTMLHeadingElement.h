@@ -21,6 +21,8 @@ public:
   {
   }
 
+  NS_DECL_DOMARENA_HELPERS
+
   virtual bool ParseAttribute(int32_t aNamespaceID,
                               nsIAtom* aAttribute,
                               const nsAString& aValue,

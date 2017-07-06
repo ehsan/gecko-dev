@@ -31,6 +31,8 @@ class HTMLTrackElement final : public nsGenericHTMLElement
 public:
   explicit HTMLTrackElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
 
+  NS_DECL_DOMARENA_HELPERS
+
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(HTMLTrackElement,

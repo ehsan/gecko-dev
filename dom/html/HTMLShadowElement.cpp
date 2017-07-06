@@ -25,13 +25,15 @@ NS_NewHTMLShadowElement(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
   // We have to jump through some hoops to be able to produce both NodeInfo* and
   // already_AddRefed<NodeInfo>& for our callees.
   RefPtr<mozilla::dom::NodeInfo> nodeInfo(aNodeInfo);
+  auto* nodeInfoManager = nodeInfo->NodeInfoManager();
   if (!nsDocument::IsWebComponentsEnabled(nodeInfo)) {
     already_AddRefed<mozilla::dom::NodeInfo> nodeInfoArg(nodeInfo.forget());
-    return new mozilla::dom::HTMLUnknownElement(nodeInfoArg);
+    return new(nodeInfoManager)
+      mozilla::dom::HTMLUnknownElement(nodeInfoArg);
   }
 
   already_AddRefed<mozilla::dom::NodeInfo> nodeInfoArg(nodeInfo.forget());
-  return new mozilla::dom::HTMLShadowElement(nodeInfoArg);
+  return new(nodeInfoManager) mozilla::dom::HTMLShadowElement(nodeInfoArg);
 }
 
 using namespace mozilla::dom;
@@ -47,6 +49,8 @@ HTMLShadowElement::~HTMLShadowElement()
     mProjectedShadow->RemoveMutationObserver(this);
   }
 }
+
+NS_IMPL_DOMARENA_HELPERS(HTMLShadowElement)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLShadowElement)
 
@@ -69,7 +73,7 @@ NS_IMPL_RELEASE_INHERITED(HTMLShadowElement, Element)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(HTMLShadowElement)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLShadowElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLShadowElement)
 
 JSObject*
 HTMLShadowElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)

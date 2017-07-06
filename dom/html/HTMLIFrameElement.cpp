@@ -14,7 +14,7 @@
 #include "nsContentUtils.h"
 #include "nsSandboxFlags.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(IFrame)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT_CHECK_PARSER(IFrame)
 
 namespace mozilla {
 namespace dom {
@@ -37,10 +37,12 @@ HTMLIFrameElement::~HTMLIFrameElement()
 {
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLIFrameElement)
+
 NS_IMPL_ISUPPORTS_INHERITED(HTMLIFrameElement, nsGenericHTMLFrameElement,
                             nsIDOMHTMLIFrameElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLIFrameElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLIFrameElement)
 
 NS_IMPL_STRING_ATTR(HTMLIFrameElement, Align, align)
 NS_IMPL_STRING_ATTR(HTMLIFrameElement, FrameBorder, frameborder)

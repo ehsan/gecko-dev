@@ -39,6 +39,8 @@ public:
        already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
        const nsAString& aValue);
 
+  NS_DECL_DOMARENA_HELPERS_NO_DELETECYCLECOLLECTABLE
+
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
   // nsIDOMNode interface

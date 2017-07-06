@@ -21,6 +21,8 @@ class HTMLTableElement final : public nsGenericHTMLElement
 public:
   explicit HTMLTableElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
 
+  NS_DECL_DOMARENA_HELPERS
+
   NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLTableElement, table)
 
   // nsISupports

@@ -51,7 +51,7 @@
 
 using namespace mozilla::net;
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Image)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Image)
 
 #ifdef DEBUG
 // Is aSubject a previous sibling of aNode.
@@ -132,6 +132,7 @@ HTMLImageElement::~HTMLImageElement()
   DestroyImageLoadingContent();
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLImageElement)
 
 NS_IMPL_ADDREF_INHERITED(HTMLImageElement, Element)
 NS_IMPL_RELEASE_INHERITED(HTMLImageElement, Element)
@@ -150,7 +151,7 @@ NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLImageElement)
 NS_INTERFACE_TABLE_TAIL_INHERITING(nsGenericHTMLElement)
 
 
-NS_IMPL_ELEMENT_CLONE(HTMLImageElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLImageElement)
 
 
 bool
@@ -732,7 +733,8 @@ HTMLImageElement::Image(const GlobalObject& aGlobal,
                                         kNameSpaceID_XHTML,
                                         nsIDOMNode::ELEMENT_NODE);
 
-  RefPtr<HTMLImageElement> img = new HTMLImageElement(nodeInfo);
+  RefPtr<HTMLImageElement> img =
+    new(doc->NodeInfoManager()) HTMLImageElement(nodeInfo);
 
   if (aWidth.WasPassed()) {
     img->SetWidth(aWidth.Value(), aError);

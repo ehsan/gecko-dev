@@ -22,6 +22,8 @@ public:
   {
   }
 
+  NS_DECL_DOMARENA_HELPERS
+
   NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLLegendElement, legend)
 
   using nsGenericHTMLElement::Focus;

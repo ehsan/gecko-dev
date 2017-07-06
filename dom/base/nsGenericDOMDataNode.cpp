@@ -72,6 +72,8 @@ nsGenericDOMDataNode::~nsGenericDOMDataNode()
   }
 }
 
+NS_IMPL_DOMARENA_HELPERS(nsGenericDOMDataNode)
+
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsGenericDOMDataNode)
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(nsGenericDOMDataNode)
@@ -136,9 +138,30 @@ NS_INTERFACE_MAP_BEGIN(nsGenericDOMDataNode)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsGenericDOMDataNode)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_LAST_RELEASE(nsGenericDOMDataNode,
-                                                   nsNodeUtils::LastRelease(this))
 
+// We need a custom Release() implementation here, so we can't use the stock
+// NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_LAST_RELEASE macro.
+NS_IMETHODIMP_(MozExternalRefCountType)
+nsGenericDOMDataNode::Release(void)
+{
+  MOZ_ASSERT(int32_t(mRefCnt) > 0, "dup release");
+  NS_ASSERT_OWNINGTHREAD(nsGenericDOMDataNode);
+  bool shouldDelete = false;
+  nsISupports* base =
+    NS_CYCLE_COLLECTION_CLASSNAME(nsGenericDOMDataNode)::Upcast(this);
+  nsrefcnt count = mRefCnt.decr(base, &shouldDelete);
+  NS_LOG_RELEASE(this, count, "nsGenericDOMDataNode");
+  if (count == 0) {
+    mRefCnt.incr(base);
+    nsNodeUtils::LastRelease(this);
+    mRefCnt.decr(base);
+    if (shouldDelete) {
+      mRefCnt.stabilizeForDeletion();
+      DeleteCycleCollectable();
+    }
+  }
+  return count;
+}
 
 void
 nsGenericDOMDataNode::GetNodeValueInternal(nsAString& aNodeValue)

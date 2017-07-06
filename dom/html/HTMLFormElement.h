@@ -46,6 +46,8 @@ class HTMLFormElement final : public nsGenericHTMLElement,
 public:
   explicit HTMLFormElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
 
+  NS_DECL_DOMARENA_HELPERS
+
   enum {
     FORM_CONTROL_LIST_HASHTABLE_LENGTH = 8
   };

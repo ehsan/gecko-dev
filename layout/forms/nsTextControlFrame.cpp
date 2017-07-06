@@ -1169,8 +1169,8 @@ nsTextControlFrame::UpdateValueDisplay(bool aNotify,
   nsIContent *textContent = rootNode->GetChildAt(0);
   if (!textContent) {
     // Set up a textnode with our value
-    RefPtr<nsTextNode> textNode =
-      new nsTextNode(mContent->NodeInfo()->NodeInfoManager());
+    auto* nim = mContent->NodeInfo()->NodeInfoManager();
+    RefPtr<nsTextNode> textNode = new(nim) nsTextNode(nim);
 
     NS_ASSERTION(textNode, "Must have textcontent!\n");
 

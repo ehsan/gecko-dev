@@ -23,6 +23,8 @@ class HTMLOptionElement final : public nsGenericHTMLElement,
 public:
   explicit HTMLOptionElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
 
+  NS_DECL_DOMARENA_HELPERS
+
   static already_AddRefed<HTMLOptionElement>
     Option(const GlobalObject& aGlobal,
            const nsAString& aText,

@@ -46,7 +46,7 @@ static NS_DEFINE_CID(kXULControllersCID,  NS_XULCONTROLLERS_CID);
 
 #define NS_NO_CONTENT_DISPATCH (1 << 0)
 
-NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(TextArea)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT_CHECK_PARSER(TextArea)
 
 namespace mozilla {
 namespace dom {
@@ -77,6 +77,7 @@ HTMLTextAreaElement::HTMLTextAreaElement(already_AddRefed<mozilla::dom::NodeInfo
                     NS_EVENT_STATE_VALID);
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLTextAreaElement)
 
 NS_IMPL_CYCLE_COLLECTION_INHERITED(HTMLTextAreaElement,
                                    nsGenericHTMLFormElementWithState,
@@ -108,7 +109,7 @@ HTMLTextAreaElement::Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult,
   *aResult = nullptr;
   already_AddRefed<mozilla::dom::NodeInfo> ni =
     RefPtr<mozilla::dom::NodeInfo>(aNodeInfo).forget();
-  RefPtr<HTMLTextAreaElement> it = new HTMLTextAreaElement(ni);
+  RefPtr<HTMLTextAreaElement> it = new(aNodeInfo->NodeInfoManager()) HTMLTextAreaElement(ni);
 
   nsresult rv = const_cast<HTMLTextAreaElement*>(this)->CopyInnerTo(it, aPreallocateChildren);
   NS_ENSURE_SUCCESS(rv, rv);

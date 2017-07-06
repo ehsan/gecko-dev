@@ -24,7 +24,7 @@
 #include "mozilla/dom/HTMLScriptElement.h"
 #include "mozilla/dom/HTMLScriptElementBinding.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Script)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT_CHECK_PARSER(Script)
 
 namespace mozilla {
 namespace dom {
@@ -46,6 +46,8 @@ HTMLScriptElement::HTMLScriptElement(already_AddRefed<mozilla::dom::NodeInfo>& a
 HTMLScriptElement::~HTMLScriptElement()
 {
 }
+
+NS_IMPL_DOMARENA_HELPERS(HTMLScriptElement)
 
 NS_IMPL_ISUPPORTS_INHERITED(HTMLScriptElement, nsGenericHTMLElement,
                             nsIDOMHTMLScriptElement,
@@ -99,7 +101,7 @@ HTMLScriptElement::Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult,
   *aResult = nullptr;
 
   already_AddRefed<mozilla::dom::NodeInfo> ni = RefPtr<mozilla::dom::NodeInfo>(aNodeInfo).forget();
-  HTMLScriptElement* it = new HTMLScriptElement(ni, NOT_FROM_PARSER);
+  HTMLScriptElement* it = new(aNodeInfo->NodeInfoManager()) HTMLScriptElement(ni, NOT_FROM_PARSER);
 
   nsCOMPtr<nsINode> kungFuDeathGrip = it;
   nsresult rv = const_cast<HTMLScriptElement*>(this)->CopyInnerTo(it, aPreallocateChildren);

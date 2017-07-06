@@ -12,7 +12,7 @@
 #include "nsContentList.h"
 #include "nsQueryObject.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(FieldSet)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(FieldSet)
 
 namespace mozilla {
 namespace dom {
@@ -38,6 +38,8 @@ HTMLFieldSetElement::~HTMLFieldSetElement()
   }
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLFieldSetElement)
+
 // nsISupports
 
 NS_IMPL_CYCLE_COLLECTION_INHERITED(HTMLFieldSetElement, nsGenericHTMLFormElement,
@@ -53,7 +55,7 @@ NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLFieldSetElement)
                                nsIConstraintValidation)
 NS_INTERFACE_TABLE_TAIL_INHERITING(nsGenericHTMLFormElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLFieldSetElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLFieldSetElement)
 
 
 NS_IMPL_BOOL_ATTR(HTMLFieldSetElement, Disabled, disabled)

@@ -26,6 +26,8 @@ public:
   {
   }
 
+  NS_DECL_DOMARENA_HELPERS
+
   virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult,
                          bool aPreallocateChildren) const override;
 

@@ -18,7 +18,7 @@
 
 // construction, destruction
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Label)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Label)
 
 namespace mozilla {
 namespace dom {
@@ -26,6 +26,8 @@ namespace dom {
 HTMLLabelElement::~HTMLLabelElement()
 {
 }
+
+NS_IMPL_DOMARENA_HELPERS(HTMLLabelElement)
 
 JSObject*
 HTMLLabelElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)
@@ -40,7 +42,7 @@ NS_IMPL_ISUPPORTS_INHERITED(HTMLLabelElement, nsGenericHTMLElement,
 
 // nsIDOMHTMLLabelElement
 
-NS_IMPL_ELEMENT_CLONE(HTMLLabelElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLLabelElement)
 
 NS_IMETHODIMP
 HTMLLabelElement::GetForm(nsIDOMHTMLFormElement** aForm)

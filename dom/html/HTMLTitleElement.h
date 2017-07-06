@@ -25,6 +25,8 @@ public:
 
   explicit HTMLTitleElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
 
+  NS_DECL_DOMARENA_HELPERS
+
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 

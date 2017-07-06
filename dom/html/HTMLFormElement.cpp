@@ -75,7 +75,7 @@
 #include "mozilla/dom/HTMLImageElement.h"
 
 // construction, destruction
-NS_IMPL_NS_NEW_HTML_ELEMENT(Form)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Form)
 
 namespace mozilla {
 namespace dom {
@@ -131,6 +131,8 @@ HTMLFormElement::~HTMLFormElement()
   Clear();
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLFormElement)
+
 // nsISupports
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLFormElement)
@@ -173,7 +175,7 @@ HTMLFormElement::AsyncEventRunning(AsyncEventDispatcher* aEvent)
 
 // nsIDOMHTMLFormElement
 
-NS_IMPL_ELEMENT_CLONE(HTMLFormElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLFormElement)
 
 nsIHTMLCollection*
 HTMLFormElement::Elements()

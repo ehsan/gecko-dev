@@ -14,7 +14,7 @@
 #include "nsContentUtils.h"
 #include "nsStubMutationObserver.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Style)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Style)
 
 namespace mozilla {
 namespace dom {
@@ -28,6 +28,8 @@ HTMLStyleElement::HTMLStyleElement(already_AddRefed<mozilla::dom::NodeInfo>& aNo
 HTMLStyleElement::~HTMLStyleElement()
 {
 }
+
+NS_IMPL_DOMARENA_HELPERS(HTMLStyleElement)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLStyleElement)
 
@@ -53,7 +55,7 @@ NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLStyleElement)
                                nsIMutationObserver)
 NS_INTERFACE_TABLE_TAIL_INHERITING(nsGenericHTMLElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLStyleElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLStyleElement)
 
 
 NS_IMETHODIMP

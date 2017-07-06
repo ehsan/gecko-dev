@@ -19,7 +19,7 @@
 
 #include "mozilla/Preferences.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Source)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Source)
 
 namespace mozilla {
 namespace dom {
@@ -33,6 +33,8 @@ HTMLSourceElement::~HTMLSourceElement()
 {
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLSourceElement)
+
 NS_IMPL_CYCLE_COLLECTION_INHERITED(HTMLSourceElement, nsGenericHTMLElement,
                                    mSrcMediaSource)
 
@@ -43,7 +45,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(HTMLSourceElement)
   NS_INTERFACE_MAP_ENTRY(nsIDOMHTMLSourceElement)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLSourceElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLSourceElement)
 
 NS_IMPL_URI_ATTR(HTMLSourceElement, Src, src)
 NS_IMPL_STRING_ATTR(HTMLSourceElement, Type, type)

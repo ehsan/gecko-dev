@@ -20,6 +20,8 @@ class HTMLDataElement final : public nsGenericHTMLElement
 public:
   explicit HTMLDataElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
 
+  NS_DECL_DOMARENA_HELPERS
+
   // HTMLDataElement WebIDL
   void GetValue(DOMString& aValue)
   {

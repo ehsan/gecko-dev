@@ -27,7 +27,7 @@ NS_NewXMLProcessingInstruction(nsNodeInfoManager *aNodeInfoManager,
 
   if (target == nsGkAtoms::xml_stylesheet) {
     RefPtr<XMLStylesheetProcessingInstruction> pi =
-      new XMLStylesheetProcessingInstruction(aNodeInfoManager, aData);
+      new(aNodeInfoManager) XMLStylesheetProcessingInstruction(aNodeInfoManager, aData);
     return pi.forget();
   }
 
@@ -38,7 +38,7 @@ NS_NewXMLProcessingInstruction(nsNodeInfoManager *aNodeInfoManager,
                                      target);
 
   RefPtr<ProcessingInstruction> instance =
-    new ProcessingInstruction(ni.forget(), aData);
+    new(aNodeInfoManager) ProcessingInstruction(ni.forget(), aData);
 
   return instance.forget();
 }
@@ -102,7 +102,7 @@ ProcessingInstruction::CloneDataNode(mozilla::dom::NodeInfo *aNodeInfo,
   nsAutoString data;
   nsGenericDOMDataNode::GetData(data);
   RefPtr<mozilla::dom::NodeInfo> ni = aNodeInfo;
-  return new ProcessingInstruction(ni.forget(), data);
+  return new(aNodeInfo->NodeInfoManager()) ProcessingInstruction(ni.forget(), data);
 }
 
 #ifdef DEBUG

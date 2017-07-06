@@ -8,7 +8,7 @@
 #include "mozilla/dom/HTMLProgressElement.h"
 #include "mozilla/dom/HTMLProgressElementBinding.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Progress)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Progress)
 
 namespace mozilla {
 namespace dom {
@@ -29,7 +29,9 @@ HTMLProgressElement::~HTMLProgressElement()
 {
 }
 
-NS_IMPL_ELEMENT_CLONE(HTMLProgressElement)
+NS_IMPL_DOMARENA_HELPERS(HTMLProgressElement)
+
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLProgressElement)
 
 
 EventStates

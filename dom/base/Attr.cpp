@@ -56,6 +56,36 @@ Attr::Attr(nsDOMAttributeMap *aAttrMap,
   // to drop our reference when it goes away.
 }
 
+void*
+Attr::operator new(size_t aSize, nsNodeInfoManager* aManager)
+{
+  return aManager->AllocateAttr(aSize);
+}
+
+void
+Attr::operator delete(void* aPtr)
+{
+}
+
+size_t
+Attr::SizeOfIncludingThis(mozilla::SizeOfState& aState) const
+{
+  return nsNodeInfoManager::SizeOfNode(sizeof(Attr)) +
+         SizeOfExcludingThis(aState);
+}
+
+NS_IMETHODIMP_(void)
+Attr::DeleteCycleCollectable()
+{
+  if (MOZ_UNLIKELY(MayNodeBeOnAlternateArena())) {
+    auto* nim = static_cast<nsNodeInfoManager*>
+      (GetProperty(nsGkAtoms::alternatearena));
+    nim->FreeAttr(this);
+    return;
+  }
+  OwnerDoc()->NodeInfoManager()->FreeAttr(this);
+}
+
 NS_IMPL_CYCLE_COLLECTION_CLASS(Attr)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Attr)
@@ -107,8 +137,29 @@ NS_INTERFACE_TABLE_HEAD(Attr)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(Attr)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_LAST_RELEASE(Attr,
-                                                   nsNodeUtils::LastRelease(this))
+
+// We need a custom Release() implementation here, so we can't use the stock
+// NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_LAST_RELEASE macro.
+NS_IMETHODIMP_(MozExternalRefCountType)
+Attr::Release(void)
+{
+  MOZ_ASSERT(int32_t(mRefCnt) > 0, "dup release");
+  NS_ASSERT_OWNINGTHREAD(Attr);
+  bool shouldDelete = false;
+  nsISupports* base = NS_CYCLE_COLLECTION_CLASSNAME(Attr)::Upcast(this);
+  nsrefcnt count = mRefCnt.decr(base, &shouldDelete);
+  NS_LOG_RELEASE(this, count, "Attr");
+  if (count == 0) {
+    mRefCnt.incr(base);
+    nsNodeUtils::LastRelease(this);
+    mRefCnt.decr(base);
+    if (shouldDelete) {
+      mRefCnt.stabilizeForDeletion();
+      DeleteCycleCollectable();
+    }
+  }
+  return count;
+}
 
 void
 Attr::SetMap(nsDOMAttributeMap *aMap)
@@ -258,7 +309,7 @@ Attr::Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult,
   const_cast<Attr*>(this)->GetValue(value);
 
   RefPtr<mozilla::dom::NodeInfo> ni = aNodeInfo;
-  *aResult = new Attr(nullptr, ni.forget(), value);
+  *aResult = new(aNodeInfo->NodeInfoManager()) Attr(nullptr, ni.forget(), value);
   if (!*aResult) {
     return NS_ERROR_OUT_OF_MEMORY;
   }

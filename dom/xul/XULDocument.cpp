@@ -2873,7 +2873,7 @@ XULDocument::ResumeWalk()
                     // of <overlay> get ignored.
 
                     RefPtr<nsTextNode> text =
-                        new nsTextNode(mNodeInfoManager);
+                        new(mNodeInfoManager) nsTextNode(mNodeInfoManager);
 
                     nsXULPrototypeText* textproto =
                         static_cast<nsXULPrototypeText*>(childproto);

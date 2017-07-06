@@ -769,7 +769,7 @@ nsXMLContentSink::FlushText(bool aReleaseTextNode)
 
       mTextLength = 0;
     } else {
-      RefPtr<nsTextNode> textContent = new nsTextNode(mNodeInfoManager);
+      RefPtr<nsTextNode> textContent = new(mNodeInfoManager) nsTextNode(mNodeInfoManager);
 
       mLastTextNode = textContent;
 
@@ -1112,7 +1112,7 @@ nsXMLContentSink::HandleComment(const char16_t *aName)
 {
   FlushText();
 
-  RefPtr<Comment> comment = new Comment(mNodeInfoManager);
+  RefPtr<Comment> comment = new(mNodeInfoManager) Comment(mNodeInfoManager);
   comment->SetText(nsDependentString(aName), false);
   nsresult rv = AddContentAsLeaf(comment);
   DidAddContent();
@@ -1132,7 +1132,7 @@ nsXMLContentSink::HandleCDataSection(const char16_t *aData,
 
   FlushText();
 
-  RefPtr<CDATASection> cdata = new CDATASection(mNodeInfoManager);
+  RefPtr<CDATASection> cdata = new(mNodeInfoManager) CDATASection(mNodeInfoManager);
   cdata->SetText(aData, aLength, false);
   nsresult rv = AddContentAsLeaf(cdata);
   DidAddContent();

@@ -20,6 +20,8 @@ public:
   {
   }
 
+  NS_DECL_DOMARENA_HELPERS
+
   void GetAlign(DOMString& aAlign)
   {
     GetHTMLAttr(nsGkAtoms::align, aAlign);

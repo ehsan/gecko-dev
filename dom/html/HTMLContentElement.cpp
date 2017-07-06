@@ -34,11 +34,13 @@ NS_NewHTMLContentElement(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
   RefPtr<mozilla::dom::NodeInfo> nodeInfo(aNodeInfo);
   if (!nsDocument::IsWebComponentsEnabled(nodeInfo)) {
     already_AddRefed<mozilla::dom::NodeInfo> nodeInfoArg(nodeInfo.forget());
-    return new mozilla::dom::HTMLUnknownElement(nodeInfoArg);
+    return new(nodeInfo->NodeInfoManager())
+      mozilla::dom::HTMLUnknownElement(nodeInfoArg);
   }
 
   already_AddRefed<mozilla::dom::NodeInfo> nodeInfoArg(nodeInfo.forget());
-  return new mozilla::dom::HTMLContentElement(nodeInfoArg);
+  return new(nodeInfo->NodeInfoManager())
+    mozilla::dom::HTMLContentElement(nodeInfoArg);
 }
 
 using namespace mozilla::dom;
@@ -52,6 +54,8 @@ HTMLContentElement::~HTMLContentElement()
 {
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLContentElement)
+
 NS_IMPL_CYCLE_COLLECTION_INHERITED(HTMLContentElement,
                                    nsGenericHTMLElement,
                                    mMatchedNodes)
@@ -62,7 +66,7 @@ NS_IMPL_RELEASE_INHERITED(HTMLContentElement, Element)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(HTMLContentElement)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLContentElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLContentElement)
 
 JSObject*
 HTMLContentElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)

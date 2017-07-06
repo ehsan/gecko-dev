@@ -14,11 +14,16 @@ nsGenericHTMLElement*
 NS_NewHTMLDialogElement(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
                          mozilla::dom::FromParser aFromParser)
 {
+  RefPtr<mozilla::dom::NodeInfo> nodeInfo(aNodeInfo);
+  auto* nodeInfoManager = nodeInfo->NodeInfoManager();
+  already_AddRefed<mozilla::dom::NodeInfo> nodeInfoArg(nodeInfo.forget());
   if (!mozilla::dom::HTMLDialogElement::IsDialogEnabled()) {
-    return new mozilla::dom::HTMLUnknownElement(aNodeInfo);
+    return new (nodeInfoManager)
+      mozilla::dom::HTMLUnknownElement(nodeInfoArg);
   }
 
-  return new mozilla::dom::HTMLDialogElement(aNodeInfo);
+  return new (nodeInfoManager)
+    mozilla::dom::HTMLDialogElement(nodeInfoArg);
 }
 
 namespace mozilla {
@@ -28,7 +33,9 @@ HTMLDialogElement::~HTMLDialogElement()
 {
 }
 
-NS_IMPL_ELEMENT_CLONE(HTMLDialogElement)
+NS_IMPL_DOMARENA_HELPERS(HTMLDialogElement)
+
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLDialogElement)
 
 bool
 HTMLDialogElement::IsDialogEnabled()

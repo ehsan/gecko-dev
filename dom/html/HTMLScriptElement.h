@@ -26,6 +26,8 @@ public:
   HTMLScriptElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo,
                     FromParser aFromParser);
 
+  NS_DECL_DOMARENA_HELPERS
+
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 

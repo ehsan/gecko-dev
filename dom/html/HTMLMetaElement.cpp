@@ -12,7 +12,7 @@
 #include "nsStyleConsts.h"
 #include "nsIContentSecurityPolicy.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Meta)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Meta)
 
 namespace mozilla {
 namespace dom {
@@ -26,11 +26,12 @@ HTMLMetaElement::~HTMLMetaElement()
 {
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLMetaElement)
 
 NS_IMPL_ISUPPORTS_INHERITED(HTMLMetaElement, nsGenericHTMLElement,
                             nsIDOMHTMLMetaElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLMetaElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLMetaElement)
 
 
 NS_IMPL_STRING_ATTR(HTMLMetaElement, Content, content)

@@ -12,7 +12,7 @@
 #include "nsMappedAttributes.h"
 
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(BR)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(BR)
 
 namespace mozilla {
 namespace dom {
@@ -26,7 +26,9 @@ HTMLBRElement::~HTMLBRElement()
 {
 }
 
-NS_IMPL_ELEMENT_CLONE(HTMLBRElement)
+NS_IMPL_DOMARENA_HELPERS(HTMLBRElement)
+
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLBRElement)
 
 static const nsAttrValue::EnumTable kClearTable[] = {
   { "left", StyleClear::Left },

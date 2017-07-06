@@ -36,7 +36,7 @@ nsGenericDOMDataNode*
 Comment::CloneDataNode(mozilla::dom::NodeInfo *aNodeInfo, bool aCloneText) const
 {
   RefPtr<mozilla::dom::NodeInfo> ni = aNodeInfo;
-  Comment *it = new Comment(ni.forget());
+  Comment *it = new(aNodeInfo->NodeInfoManager()) Comment(ni.forget());
   if (it && aCloneText) {
     it->mText = mText;
   }

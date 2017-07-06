@@ -28,6 +28,8 @@ public:
   HTMLMenuItemElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo,
                       mozilla::dom::FromParser aFromParser);
 
+  NS_DECL_DOMARENA_HELPERS
+
   NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLMenuItemElement, menuitem)
 
   // nsISupports

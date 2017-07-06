@@ -13,7 +13,10 @@ nsGenericHTMLElement*
 NS_NewHTMLPictureElement(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
                          mozilla::dom::FromParser aFromParser)
 {
-  return new mozilla::dom::HTMLPictureElement(aNodeInfo);
+  RefPtr<mozilla::dom::NodeInfo> nodeInfo(aNodeInfo);
+  auto* nodeInfoManager = nodeInfo->NodeInfoManager();
+  already_AddRefed<mozilla::dom::NodeInfo> nodeInfoArg(nodeInfo.forget());
+  return new(nodeInfoManager) mozilla::dom::HTMLPictureElement(nodeInfoArg);
 }
 
 namespace mozilla {
@@ -28,10 +31,12 @@ HTMLPictureElement::~HTMLPictureElement()
 {
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLPictureElement)
+
 NS_IMPL_ISUPPORTS_INHERITED(HTMLPictureElement, nsGenericHTMLElement,
                             nsIDOMHTMLPictureElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLPictureElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLPictureElement)
 
 void
 HTMLPictureElement::RemoveChildAt(uint32_t aIndex, bool aNotify)

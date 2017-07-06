@@ -27,6 +27,8 @@ public:
   explicit HTMLObjectElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo,
                              FromParser aFromParser = NOT_FROM_PARSER);
 
+  NS_DECL_DOMARENA_HELPERS
+
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 

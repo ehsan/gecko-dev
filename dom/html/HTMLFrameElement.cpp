@@ -9,7 +9,7 @@
 
 class nsIDOMDocument;
 
-NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Frame)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT_CHECK_PARSER(Frame)
 
 namespace mozilla {
 namespace dom {
@@ -24,11 +24,12 @@ HTMLFrameElement::~HTMLFrameElement()
 {
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLFrameElement)
 
 NS_IMPL_ISUPPORTS_INHERITED(HTMLFrameElement, nsGenericHTMLFrameElement,
                             nsIDOMHTMLFrameElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLFrameElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLFrameElement)
 
 
 NS_IMPL_STRING_ATTR(HTMLFrameElement, FrameBorder, frameborder)

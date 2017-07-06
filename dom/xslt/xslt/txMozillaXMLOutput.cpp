@@ -195,7 +195,7 @@ txMozillaXMLOutput::comment(const nsString& aData)
 
     TX_ENSURE_CURRENTNODE;
 
-    RefPtr<Comment> comment = new Comment(mNodeInfoManager);
+    RefPtr<Comment> comment = new(mNodeInfoManager) Comment(mNodeInfoManager);
 
     rv = comment->SetText(aData, false);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -596,7 +596,7 @@ txMozillaXMLOutput::closePrevious(bool aFlushText)
             rv = createTxWrapper();
             NS_ENSURE_SUCCESS(rv, rv);
         }
-        RefPtr<nsTextNode> text = new nsTextNode(mNodeInfoManager);
+        RefPtr<nsTextNode> text = new(mNodeInfoManager) nsTextNode(mNodeInfoManager);
 
         rv = text->SetText(mText, false);
         NS_ENSURE_SUCCESS(rv, rv);

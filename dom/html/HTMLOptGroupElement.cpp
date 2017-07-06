@@ -14,7 +14,7 @@
 #include "nsIFrame.h"
 #include "nsIFormControlFrame.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(OptGroup)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(OptGroup)
 
 namespace mozilla {
 namespace dom {
@@ -36,11 +36,12 @@ HTMLOptGroupElement::~HTMLOptGroupElement()
 {
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLOptGroupElement)
 
 NS_IMPL_ISUPPORTS_INHERITED(HTMLOptGroupElement, nsGenericHTMLElement,
                             nsIDOMHTMLOptGroupElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLOptGroupElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLOptGroupElement)
 
 
 nsresult

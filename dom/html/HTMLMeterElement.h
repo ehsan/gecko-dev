@@ -22,6 +22,8 @@ class HTMLMeterElement final : public nsGenericHTMLElement
 public:
   explicit HTMLMeterElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
 
+  NS_DECL_DOMARENA_HELPERS
+
   virtual EventStates IntrinsicState() const override;
 
   nsresult Clone(mozilla::dom::NodeInfo* aNodeInfo, nsINode** aResult,

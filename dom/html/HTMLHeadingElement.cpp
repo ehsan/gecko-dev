@@ -13,7 +13,7 @@
 #include "nsMappedAttributes.h"
 #include "mozAutoDocUpdate.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Heading)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Heading)
 
 namespace mozilla {
 namespace dom {
@@ -22,7 +22,9 @@ HTMLHeadingElement::~HTMLHeadingElement()
 {
 }
 
-NS_IMPL_ELEMENT_CLONE(HTMLHeadingElement)
+NS_IMPL_DOMARENA_HELPERS(HTMLHeadingElement)
+
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLHeadingElement)
 
 JSObject*
 HTMLHeadingElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)

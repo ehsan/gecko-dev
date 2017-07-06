@@ -11,7 +11,7 @@
 #include "nsMappedAttributes.h"
 #include "mozilla/dom/HTMLTableCaptionElementBinding.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(TableCaption)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(TableCaption)
 
 namespace mozilla {
 namespace dom {
@@ -20,13 +20,15 @@ HTMLTableCaptionElement::~HTMLTableCaptionElement()
 {
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLTableCaptionElement)
+
 JSObject*
 HTMLTableCaptionElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)
 {
   return HTMLTableCaptionElementBinding::Wrap(aCx, this, aGivenProto);
 }
 
-NS_IMPL_ELEMENT_CLONE(HTMLTableCaptionElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLTableCaptionElement)
 
 static const nsAttrValue::EnumTable kCaptionAlignTable[] = {
   { "left",   NS_STYLE_CAPTION_SIDE_LEFT },

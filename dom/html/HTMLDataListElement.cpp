@@ -7,7 +7,7 @@
 #include "HTMLDataListElement.h"
 #include "mozilla/dom/HTMLDataListElementBinding.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(DataList)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(DataList)
 
 namespace mozilla {
 namespace dom {
@@ -22,6 +22,8 @@ HTMLDataListElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)
   return HTMLDataListElementBinding::Wrap(aCx, this, aGivenProto);
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLDataListElement)
+
 NS_IMPL_CYCLE_COLLECTION_INHERITED(HTMLDataListElement, nsGenericHTMLElement,
                                    mOptions)
 
@@ -32,7 +34,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(HTMLDataListElement)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
 
 
-NS_IMPL_ELEMENT_CLONE(HTMLDataListElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLDataListElement)
 
 bool
 HTMLDataListElement::MatchOptions(Element* aElement, int32_t aNamespaceID,

@@ -395,8 +395,8 @@ nsXBLPrototypeBinding::AttributeChanged(nsIAtom* aAttribute,
           nsAutoString value;
           aChangedElement->GetAttr(aNameSpaceID, aAttribute, value);
           if (!value.IsEmpty()) {
-            RefPtr<nsTextNode> textContent =
-              new nsTextNode(realElement->NodeInfo()->NodeInfoManager());
+            auto* nim = realElement->NodeInfo()->NodeInfoManager();
+            RefPtr<nsTextNode> textContent = new(nim) nsTextNode(nim);
 
             textContent->SetText(value, true);
             realElement->AppendChildTo(textContent, true);
@@ -543,8 +543,8 @@ nsXBLPrototypeBinding::SetInitialAttributes(nsIContent* aBoundElement, nsIConten
                                                    kNameSpaceID_XUL) &&
                    dst == nsGkAtoms::value && !value.IsEmpty())) {
 
-                RefPtr<nsTextNode> textContent =
-                  new nsTextNode(realElement->NodeInfo()->NodeInfoManager());
+                auto* nim = realElement->NodeInfo()->NodeInfoManager();
+                RefPtr<nsTextNode> textContent = new(nim) nsTextNode(nim);
 
                 textContent->SetText(value, false);
                 realElement->AppendChildTo(textContent, false);
@@ -1195,13 +1195,13 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
       namespaceID == XBLBinding_Serialize_CommentNode) {
     switch (namespaceID) {
       case XBLBinding_Serialize_TextNode:
-        content = new nsTextNode(aNim);
+        content = new(aNim) nsTextNode(aNim);
         break;
       case XBLBinding_Serialize_CDATANode:
-        content = new CDATASection(aNim);
+        content = new(aNim) CDATASection(aNim);
         break;
       case XBLBinding_Serialize_CommentNode:
-        content = new Comment(aNim);
+        content = new(aNim) Comment(aNim);
         break;
       default:
         break;

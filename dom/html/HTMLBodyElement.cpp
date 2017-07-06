@@ -21,7 +21,7 @@
 #include "nsRuleWalker.h"
 #include "nsGlobalWindow.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Body)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Body)
 
 namespace mozilla {
 namespace dom {
@@ -38,10 +38,12 @@ HTMLBodyElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)
   return HTMLBodyElementBinding::Wrap(aCx, this, aGivenProto);
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLBodyElement)
+
 NS_IMPL_ISUPPORTS_INHERITED(HTMLBodyElement, nsGenericHTMLElement,
                             nsIDOMHTMLBodyElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLBodyElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLBodyElement)
 
 NS_IMETHODIMP
 HTMLBodyElement::SetBackground(const nsAString& aBackground)

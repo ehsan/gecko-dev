@@ -121,7 +121,7 @@
 // input type=date
 #include "js/Date.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Input)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT_CHECK_PARSER(Input)
 
 // XXX align=left, hspace, vspace, border? other nav4 attrs
 
@@ -704,6 +704,8 @@ HTMLInputElement::nsFilePickerShownCallback::Done(int16_t aResult)
   return dispatchChangeEventCallback->DispatchEvents();
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLInputElement)
+
 NS_IMPL_ISUPPORTS(HTMLInputElement::nsFilePickerShownCallback,
                   nsIFilePickerShownCallback)
 
@@ -1273,8 +1275,8 @@ HTMLInputElement::Clone(mozilla::dom::NodeInfo* aNodeInfo, nsINode** aResult,
   *aResult = nullptr;
 
   already_AddRefed<mozilla::dom::NodeInfo> ni = RefPtr<mozilla::dom::NodeInfo>(aNodeInfo).forget();
-  RefPtr<HTMLInputElement> it = new HTMLInputElement(ni, NOT_FROM_PARSER,
-                                                     FromClone::yes);
+  RefPtr<HTMLInputElement> it = new(aNodeInfo->NodeInfoManager())
+    HTMLInputElement(ni, NOT_FROM_PARSER, FromClone::yes);
 
   nsresult rv = const_cast<HTMLInputElement*>(this)->CopyInnerTo(it, aPreallocateArrays);
   NS_ENSURE_SUCCESS(rv, rv);

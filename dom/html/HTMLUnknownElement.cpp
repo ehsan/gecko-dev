@@ -9,10 +9,12 @@
 #include "mozilla/dom/HTMLElementBinding.h"
 #include "jsapi.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Unknown)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Unknown)
 
 namespace mozilla {
 namespace dom {
+
+NS_IMPL_DOMARENA_HELPERS(HTMLUnknownElement)
 
 NS_IMPL_ISUPPORTS_INHERITED(HTMLUnknownElement, nsGenericHTMLElement,
                             HTMLUnknownElement)
@@ -23,7 +25,7 @@ HTMLUnknownElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)
   return HTMLUnknownElementBinding::Wrap(aCx, this, aGivenProto);
 }
 
-NS_IMPL_ELEMENT_CLONE(HTMLUnknownElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLUnknownElement)
 
 } // namespace dom
 } // namespace mozilla

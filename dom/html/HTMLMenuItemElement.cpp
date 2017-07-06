@@ -13,7 +13,7 @@
 #include "nsContentUtils.h"
 
 
-NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(MenuItem)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT_CHECK_PARSER(MenuItem)
 
 namespace mozilla {
 namespace dom {
@@ -172,6 +172,7 @@ HTMLMenuItemElement::~HTMLMenuItemElement()
 {
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLMenuItemElement)
 
 NS_IMPL_ISUPPORTS_INHERITED(HTMLMenuItemElement, nsGenericHTMLElement,
                             nsIDOMHTMLMenuItemElement)
@@ -184,7 +185,7 @@ HTMLMenuItemElement::Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult,
   *aResult = nullptr;
   already_AddRefed<mozilla::dom::NodeInfo> ni = RefPtr<mozilla::dom::NodeInfo>(aNodeInfo).forget();
   RefPtr<HTMLMenuItemElement> it =
-    new HTMLMenuItemElement(ni, NOT_FROM_PARSER);
+    new(aNodeInfo->NodeInfoManager()) HTMLMenuItemElement(ni, NOT_FROM_PARSER);
   nsresult rv = const_cast<HTMLMenuItemElement*>(this)->CopyInnerTo(it, aPreallocateArrays);
   if (NS_SUCCEEDED(rv)) {
     switch (mType) {

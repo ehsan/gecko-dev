@@ -12,7 +12,7 @@
 #include "nsStyleConsts.h"
 #include "nsIAtom.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Span)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Span)
 
 namespace mozilla {
 namespace dom {
@@ -21,7 +21,9 @@ HTMLSpanElement::~HTMLSpanElement()
 {
 }
 
-NS_IMPL_ELEMENT_CLONE(HTMLSpanElement)
+NS_IMPL_DOMARENA_HELPERS(HTMLSpanElement)
+
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLSpanElement)
 
 JSObject*
 HTMLSpanElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)

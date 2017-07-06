@@ -16,7 +16,7 @@
 #include "nsStyleConsts.h"
 #include "nsMappedAttributes.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(SharedList)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(SharedList)
 
 namespace mozilla {
 namespace dom {
@@ -24,6 +24,8 @@ namespace dom {
 HTMLSharedListElement::~HTMLSharedListElement()
 {
 }
+
+NS_IMPL_DOMARENA_HELPERS(HTMLSharedListElement)
 
 NS_IMPL_ADDREF_INHERITED(HTMLSharedListElement, Element)
 NS_IMPL_RELEASE_INHERITED(HTMLSharedListElement, Element)
@@ -35,7 +37,7 @@ NS_INTERFACE_MAP_BEGIN(HTMLSharedListElement)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
 
 
-NS_IMPL_ELEMENT_CLONE(HTMLSharedListElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLSharedListElement)
 
 
 // Shared with nsHTMLSharedElement.cpp

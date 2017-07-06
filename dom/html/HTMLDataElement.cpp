@@ -8,7 +8,7 @@
 #include "mozilla/dom/HTMLDataElementBinding.h"
 #include "nsGenericHTMLElement.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Data)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Data)
 
 namespace mozilla {
 namespace dom {
@@ -22,7 +22,9 @@ HTMLDataElement::~HTMLDataElement()
 {
 }
 
-NS_IMPL_ELEMENT_CLONE(HTMLDataElement)
+NS_IMPL_DOMARENA_HELPERS(HTMLDataElement)
+
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLDataElement)
 
 JSObject*
 HTMLDataElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)

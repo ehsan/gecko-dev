@@ -20,7 +20,7 @@
 #include "nsPresContext.h"
 #include "nsIURI.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Anchor)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Anchor)
 
 namespace mozilla {
 namespace dom {
@@ -58,6 +58,8 @@ HTMLAnchorElement::IsInteractiveHTMLContent(bool aIgnoreTabindex) const
          nsGenericHTMLElement::IsInteractiveHTMLContent(aIgnoreTabindex);
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLAnchorElement)
+
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLAnchorElement)
   NS_INTERFACE_TABLE_INHERITED(HTMLAnchorElement,
                                nsIDOMHTMLAnchorElement,
@@ -79,7 +81,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(HTMLAnchorElement,
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mRelList)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-NS_IMPL_ELEMENT_CLONE(HTMLAnchorElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLAnchorElement)
 
 JSObject*
 HTMLAnchorElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)

@@ -46,7 +46,7 @@ enum {
 
 ASSERT_NODE_FLAGS_SPACE(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET + 2);
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Link)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Link)
 
 namespace mozilla {
 namespace dom {
@@ -60,6 +60,8 @@ HTMLLinkElement::HTMLLinkElement(already_AddRefed<mozilla::dom::NodeInfo>& aNode
 HTMLLinkElement::~HTMLLinkElement()
 {
 }
+
+NS_IMPL_DOMARENA_HELPERS(HTMLLinkElement)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLLinkElement)
 
@@ -88,7 +90,7 @@ NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLLinkElement)
 NS_INTERFACE_TABLE_TAIL_INHERITING(nsGenericHTMLElement)
 
 
-NS_IMPL_ELEMENT_CLONE(HTMLLinkElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLLinkElement)
 
 bool
 HTMLLinkElement::Disabled()

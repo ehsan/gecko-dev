@@ -21,6 +21,8 @@ class HTMLProgressElement final : public nsGenericHTMLElement
 public:
   explicit HTMLProgressElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
 
+  NS_DECL_DOMARENA_HELPERS
+
   EventStates IntrinsicState() const override;
 
   nsresult Clone(mozilla::dom::NodeInfo* aNodeInfo, nsINode** aResult,

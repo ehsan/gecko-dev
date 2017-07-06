@@ -22,6 +22,8 @@ class HTMLUnknownElement final : public nsGenericHTMLElement
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_HTMLUNKNOWNELEMENT_IID)
 
+  NS_DECL_DOMARENA_HELPERS
+
   NS_DECL_ISUPPORTS_INHERITED
 
   explicit HTMLUnknownElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)

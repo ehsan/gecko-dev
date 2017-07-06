@@ -60,9 +60,10 @@ public:
   {
     already_AddRefed<mozilla::dom::NodeInfo> ni =
       RefPtr<mozilla::dom::NodeInfo>(aNodeInfo).forget();
-    nsAttributeTextNode *it = new nsAttributeTextNode(ni,
-                                                      mNameSpaceID,
-                                                      mAttrName);
+    nsAttributeTextNode *it =
+      new (aNodeInfo->NodeInfoManager()) nsAttributeTextNode(ni,
+                                                             mNameSpaceID,
+                                                             mAttrName);
     if (it && aCloneText) {
       it->mText = mText;
     }
@@ -116,7 +117,7 @@ nsGenericDOMDataNode*
 nsTextNode::CloneDataNode(mozilla::dom::NodeInfo *aNodeInfo, bool aCloneText) const
 {
   already_AddRefed<mozilla::dom::NodeInfo> ni = RefPtr<mozilla::dom::NodeInfo>(aNodeInfo).forget();
-  nsTextNode *it = new nsTextNode(ni);
+  nsTextNode *it = new (aNodeInfo->NodeInfoManager()) nsTextNode(ni);
   if (aCloneText) {
     it->mText = mText;
   }
@@ -210,9 +211,8 @@ NS_NewAttributeContent(nsNodeInfoManager *aNodeInfoManager,
 
   already_AddRefed<mozilla::dom::NodeInfo> ni = aNodeInfoManager->GetTextNodeInfo();
 
-  nsAttributeTextNode* textNode = new nsAttributeTextNode(ni,
-                                                          aNameSpaceID,
-                                                          aAttrName);
+  nsAttributeTextNode* textNode =
+    new(aNodeInfoManager) nsAttributeTextNode(ni, aNameSpaceID, aAttrName);
   NS_ADDREF(*aResult = textNode);
 
   return NS_OK;

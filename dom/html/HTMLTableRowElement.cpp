@@ -14,7 +14,7 @@
 #include "nsContentList.h"
 #include "nsContentUtils.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(TableRow)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(TableRow)
 
 namespace mozilla {
 namespace dom {
@@ -22,6 +22,8 @@ namespace dom {
 HTMLTableRowElement::~HTMLTableRowElement()
 {
 }
+
+NS_IMPL_DOMARENA_HELPERS(HTMLTableRowElement)
 
 JSObject*
 HTMLTableRowElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)
@@ -44,7 +46,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(HTMLTableRowElement)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
 
 
-NS_IMPL_ELEMENT_CLONE(HTMLTableRowElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLTableRowElement)
 
 
 // protected method

@@ -57,6 +57,8 @@ public:
     SetHasWeirdParserInsertionMode();
   }
 
+  NS_DECL_DOMARENA_HELPERS
+
   NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLFrameSetElement, frameset)
 
   // nsISupports

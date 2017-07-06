@@ -10,7 +10,7 @@
 #include "nsVariant.h"
 #include "nsGkAtoms.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Time)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Time)
 
 namespace mozilla {
 namespace dom {
@@ -24,7 +24,9 @@ HTMLTimeElement::~HTMLTimeElement()
 {
 }
 
-NS_IMPL_ELEMENT_CLONE(HTMLTimeElement)
+NS_IMPL_DOMARENA_HELPERS(HTMLTimeElement)
+
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLTimeElement)
 
 JSObject*
 HTMLTimeElement::WrapNode(JSContext* cx, JS::Handle<JSObject*> aGivenProto)

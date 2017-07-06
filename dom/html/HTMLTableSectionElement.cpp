@@ -12,7 +12,7 @@
 #include "mozilla/dom/HTMLTableSectionElementBinding.h"
 #include "nsContentUtils.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(TableSection)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(TableSection)
 
 namespace mozilla {
 namespace dom {
@@ -22,6 +22,8 @@ namespace dom {
 HTMLTableSectionElement::~HTMLTableSectionElement()
 {
 }
+
+NS_IMPL_DOMARENA_HELPERS(HTMLTableSectionElement)
 
 JSObject*
 HTMLTableSectionElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)
@@ -44,7 +46,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(HTMLTableSectionElement)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
 
 
-NS_IMPL_ELEMENT_CLONE(HTMLTableSectionElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLTableSectionElement)
 
 nsIHTMLCollection*
 HTMLTableSectionElement::Rows()

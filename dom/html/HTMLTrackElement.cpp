@@ -50,7 +50,10 @@ nsGenericHTMLElement*
 NS_NewHTMLTrackElement(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
                        mozilla::dom::FromParser aFromParser)
 {
-  return new mozilla::dom::HTMLTrackElement(aNodeInfo);
+  RefPtr<mozilla::dom::NodeInfo> nodeInfo(aNodeInfo);
+  auto* nodeInfoManager = nodeInfo->NodeInfoManager();
+  already_AddRefed<mozilla::dom::NodeInfo> nodeInfoArg(nodeInfo.forget());
+  return new(nodeInfoManager) mozilla::dom::HTMLTrackElement(nodeInfoArg);
 }
 
 namespace mozilla {
@@ -144,7 +147,9 @@ HTMLTrackElement::~HTMLTrackElement()
   NotifyShutdown();
 }
 
-NS_IMPL_ELEMENT_CLONE(HTMLTrackElement)
+NS_IMPL_DOMARENA_HELPERS(HTMLTrackElement)
+
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLTrackElement)
 
 NS_IMPL_ADDREF_INHERITED(HTMLTrackElement, Element)
 NS_IMPL_RELEASE_INHERITED(HTMLTrackElement, Element)

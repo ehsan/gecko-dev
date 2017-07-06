@@ -20,7 +20,7 @@
 #include "nsIContentSecurityPolicy.h"
 #include "nsIURI.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Shared)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Shared)
 
 namespace mozilla {
 namespace dom {
@@ -30,6 +30,8 @@ extern nsAttrValue::EnumTable kListTypeTable[];
 HTMLSharedElement::~HTMLSharedElement()
 {
 }
+
+NS_IMPL_DOMARENA_HELPERS(HTMLSharedElement)
 
 NS_IMPL_ADDREF_INHERITED(HTMLSharedElement, Element)
 NS_IMPL_RELEASE_INHERITED(HTMLSharedElement, Element)
@@ -45,7 +47,7 @@ NS_INTERFACE_MAP_BEGIN(HTMLSharedElement)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
 
 
-NS_IMPL_ELEMENT_CLONE(HTMLSharedElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLSharedElement)
 
 // nsIDOMHTMLQuoteElement
 // Empty

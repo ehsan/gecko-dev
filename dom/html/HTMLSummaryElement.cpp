@@ -14,7 +14,7 @@
 #include "mozilla/TextEvents.h"
 #include "nsFocusManager.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Summary)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Summary)
 
 namespace mozilla {
 namespace dom {
@@ -23,7 +23,9 @@ HTMLSummaryElement::~HTMLSummaryElement()
 {
 }
 
-NS_IMPL_ELEMENT_CLONE(HTMLSummaryElement)
+NS_IMPL_DOMARENA_HELPERS(HTMLSummaryElement)
+
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLSummaryElement)
 
 nsresult
 HTMLSummaryElement::PostHandleEvent(EventChainPostVisitor& aVisitor)

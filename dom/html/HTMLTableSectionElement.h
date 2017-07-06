@@ -22,6 +22,8 @@ public:
     SetHasWeirdParserInsertionMode();
   }
 
+  NS_DECL_DOMARENA_HELPERS
+
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 

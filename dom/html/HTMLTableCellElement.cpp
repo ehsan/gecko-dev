@@ -14,7 +14,7 @@
 #include "celldata.h"
 #include "mozilla/dom/HTMLTableCellElementBinding.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(TableCell)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(TableCell)
 
 namespace mozilla {
 namespace dom {
@@ -22,6 +22,8 @@ namespace dom {
 HTMLTableCellElement::~HTMLTableCellElement()
 {
 }
+
+NS_IMPL_DOMARENA_HELPERS(HTMLTableCellElement)
 
 JSObject*
 HTMLTableCellElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)
@@ -32,7 +34,7 @@ HTMLTableCellElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto
 NS_IMPL_ISUPPORTS_INHERITED(HTMLTableCellElement, nsGenericHTMLElement,
                             nsIDOMHTMLTableCellElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLTableCellElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLTableCellElement)
 
 
 // protected method

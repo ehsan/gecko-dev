@@ -7,7 +7,7 @@
 
 #include "mozilla/dom/HTMLDetailsElementBinding.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Details)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Details)
 
 namespace mozilla {
 namespace dom {
@@ -16,7 +16,9 @@ HTMLDetailsElement::~HTMLDetailsElement()
 {
 }
 
-NS_IMPL_ELEMENT_CLONE(HTMLDetailsElement)
+NS_IMPL_DOMARENA_HELPERS(HTMLDetailsElement)
+
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLDetailsElement)
 
 nsIContent*
 HTMLDetailsElement::GetFirstSummary() const

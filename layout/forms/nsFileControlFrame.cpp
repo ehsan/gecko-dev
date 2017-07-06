@@ -94,8 +94,8 @@ MakeAnonButton(nsIDocument* aDoc, const char* labelKey,
 
   // Set the browse button text. It's a bit of a pain to do because we want to
   // make sure we are not notifying.
-  RefPtr<nsTextNode> textContent =
-    new nsTextNode(button->NodeInfo()->NodeInfoManager());
+  auto* nim = button->NodeInfo()->NodeInfoManager();
+  RefPtr<nsTextNode> textContent = new(nim) nsTextNode(nim);
 
   textContent->SetText(buttonTxt, false);
 

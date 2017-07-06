@@ -35,7 +35,7 @@ nsGenericDOMDataNode*
 CDATASection::CloneDataNode(mozilla::dom::NodeInfo *aNodeInfo, bool aCloneText) const
 {
   RefPtr<mozilla::dom::NodeInfo> ni = aNodeInfo;
-  CDATASection *it = new CDATASection(ni.forget());
+  CDATASection *it = new(aNodeInfo->NodeInfoManager()) CDATASection(ni.forget());
   if (it && aCloneText) {
     it->mText = mText;
   }

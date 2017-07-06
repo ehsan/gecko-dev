@@ -75,7 +75,8 @@ txMozillaTextOutput::endDocument(nsresult aResult)
 {
     NS_ENSURE_TRUE(mDocument && mTextParent, NS_ERROR_FAILURE);
 
-    RefPtr<nsTextNode> text = new nsTextNode(mDocument->NodeInfoManager());
+    auto* nim = mDocument->NodeInfoManager();
+    RefPtr<nsTextNode> text = new(nim) nsTextNode(nim);
 
     text->SetText(mText, false);
     nsresult rv = mTextParent->AppendChildTo(text, true);

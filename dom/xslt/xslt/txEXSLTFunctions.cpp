@@ -86,7 +86,7 @@ createTextNode(txIEvalContext *aContext, nsString& aValue,
     const txXPathNode& document = es->getSourceDocument();
 
     nsIDocument *doc = txXPathNativeNode::getDocument(document);
-    nsCOMPtr<nsIContent> text = new nsTextNode(doc->NodeInfoManager());
+    nsCOMPtr<nsIContent> text = new(doc->NodeInfoManager()) nsTextNode(doc->NodeInfoManager());
 
     nsresult rv = text->SetText(aValue, false);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -129,7 +129,7 @@ createAndAddToResult(nsIAtom* aName, const nsAString& aValue,
                                              nullptr, kNameSpaceID_None);
     NS_ENSURE_TRUE(elem, NS_ERROR_NULL_POINTER);
 
-    RefPtr<nsTextNode> text = new nsTextNode(doc->NodeInfoManager());
+    RefPtr<nsTextNode> text = new(doc->NodeInfoManager()) nsTextNode(doc->NodeInfoManager());
 
     nsresult rv = text->SetText(aValue, false);
     NS_ENSURE_SUCCESS(rv, rv);

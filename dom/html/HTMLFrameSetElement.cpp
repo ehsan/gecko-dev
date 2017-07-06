@@ -11,7 +11,7 @@
 #include "mozilla/UniquePtrExtensions.h"
 #include "nsAttrValueOrString.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(FrameSet)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(FrameSet)
 
 namespace mozilla {
 namespace dom {
@@ -19,6 +19,8 @@ namespace dom {
 HTMLFrameSetElement::~HTMLFrameSetElement()
 {
 }
+
+NS_IMPL_DOMARENA_HELPERS(HTMLFrameSetElement)
 
 JSObject*
 HTMLFrameSetElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)
@@ -29,7 +31,7 @@ HTMLFrameSetElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)
 NS_IMPL_ISUPPORTS_INHERITED(HTMLFrameSetElement, nsGenericHTMLElement,
                             nsIDOMHTMLFrameSetElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLFrameSetElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLFrameSetElement)
 
 NS_IMETHODIMP
 HTMLFrameSetElement::SetCols(const nsAString& aCols)

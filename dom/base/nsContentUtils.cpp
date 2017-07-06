@@ -5297,7 +5297,8 @@ nsContentUtils::SetNodeTextContent(nsIContent* aContent,
   }
 
   RefPtr<nsTextNode> textContent =
-    new nsTextNode(aContent->NodeInfo()->NodeInfoManager());
+    new(aContent->NodeInfo()->NodeInfoManager())
+      nsTextNode(aContent->NodeInfo()->NodeInfoManager());
 
   textContent->SetText(aValue, true);
 

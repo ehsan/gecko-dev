@@ -608,8 +608,8 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
                 rv = SubstituteText(aChild, attrValue, value);
                 if (NS_FAILED(rv)) return rv;
 
-                RefPtr<nsTextNode> content =
-                  new nsTextNode(mRoot->NodeInfo()->NodeInfoManager());
+                auto* nim = mRoot->NodeInfo()->NodeInfoManager();
+                RefPtr<nsTextNode> content = new(nim) nsTextNode(nim);
 
                 content->SetText(value, false);
 

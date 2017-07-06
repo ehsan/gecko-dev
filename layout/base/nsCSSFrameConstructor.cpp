@@ -1709,7 +1709,8 @@ nsCSSFrameConstructor::CreateGenConTextNode(nsFrameConstructorState& aState,
                                             RefPtr<nsTextNode>* aText,
                                             nsGenConInitializer* aInitializer)
 {
-  RefPtr<nsTextNode> content = new nsTextNode(mDocument->NodeInfoManager());
+  auto* nim = mDocument->NodeInfoManager();
+  RefPtr<nsTextNode> content = new(nim) nsTextNode(nim);
   content->SetText(aString, false);
   if (aText) {
     *aText = content;

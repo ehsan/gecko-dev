@@ -12,7 +12,7 @@
 #include "nsMappedAttributes.h"
 
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Paragraph)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Paragraph)
 
 namespace mozilla {
 namespace dom {
@@ -21,10 +21,12 @@ HTMLParagraphElement::~HTMLParagraphElement()
 {
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLParagraphElement)
+
 NS_IMPL_ISUPPORTS_INHERITED(HTMLParagraphElement, nsGenericHTMLElement,
                             nsIDOMHTMLParagraphElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLParagraphElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLParagraphElement)
 
 NS_IMPL_STRING_ATTR(HTMLParagraphElement, Align, align)
 

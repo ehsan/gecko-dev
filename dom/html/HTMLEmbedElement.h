@@ -23,6 +23,8 @@ public:
   explicit HTMLEmbedElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo,
                             mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
 
+  NS_DECL_DOMARENA_HELPERS
+
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
   NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLEmbedElement, embed)

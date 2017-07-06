@@ -17,7 +17,7 @@
 
 #define HTMLMENUBUILDER_CONTRACTID "@mozilla.org/content/html-menu-builder;1"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Menu)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Menu)
 
 namespace mozilla {
 namespace dom {
@@ -55,10 +55,12 @@ HTMLMenuElement::~HTMLMenuElement()
 {
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLMenuElement)
+
 NS_IMPL_ISUPPORTS_INHERITED(HTMLMenuElement, nsGenericHTMLElement,
                             nsIDOMHTMLMenuElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLMenuElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLMenuElement)
 
 NS_IMPL_BOOL_ATTR(HTMLMenuElement, Compact, compact)
 NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(HTMLMenuElement, Type, type,

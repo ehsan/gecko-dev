@@ -38,7 +38,7 @@
 #define NS_IN_SUBMIT_CLICK      (1 << 0)
 #define NS_OUTER_ACTIVATE_EVENT (1 << 1)
 
-NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Button)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT_CHECK_PARSER(Button)
 
 namespace mozilla {
 namespace dom {
@@ -69,6 +69,8 @@ HTMLButtonElement::HTMLButtonElement(already_AddRefed<mozilla::dom::NodeInfo>& a
 HTMLButtonElement::~HTMLButtonElement()
 {
 }
+
+NS_IMPL_DOMARENA_HELPERS(HTMLButtonElement)
 
 // nsISupports
 
@@ -118,7 +120,7 @@ HTMLButtonElement::FieldSetDisabledChanged(bool aNotify)
 
 // nsIDOMHTMLButtonElement
 
-NS_IMPL_ELEMENT_CLONE(HTMLButtonElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLButtonElement)
 
 
 // nsIDOMHTMLButtonElement

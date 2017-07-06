@@ -13,7 +13,7 @@
 #include "nsStyleConsts.h"
 #include "nsMappedAttributes.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Pre)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Pre)
 
 namespace mozilla {
 namespace dom {
@@ -22,10 +22,12 @@ HTMLPreElement::~HTMLPreElement()
 {
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLPreElement)
+
 NS_IMPL_ISUPPORTS_INHERITED(HTMLPreElement, nsGenericHTMLElement,
                             nsIDOMHTMLPreElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLPreElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLPreElement)
 
 NS_IMPL_INT_ATTR(HTMLPreElement, Width, width)
 

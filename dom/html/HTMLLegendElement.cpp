@@ -10,7 +10,7 @@
 #include "nsFocusManager.h"
 #include "nsIFrame.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Legend)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Legend)
 
 namespace mozilla {
 namespace dom {
@@ -20,7 +20,9 @@ HTMLLegendElement::~HTMLLegendElement()
 {
 }
 
-NS_IMPL_ELEMENT_CLONE(HTMLLegendElement)
+NS_IMPL_DOMARENA_HELPERS(HTMLLegendElement)
+
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLLegendElement)
 
 nsIContent*
 HTMLLegendElement::GetFieldSet() const

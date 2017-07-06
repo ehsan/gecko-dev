@@ -5907,7 +5907,7 @@ nsDocument::CreateTextNode(const nsAString& aData, nsIDOMText** aReturn)
 already_AddRefed<nsTextNode>
 nsIDocument::CreateTextNode(const nsAString& aData) const
 {
-  RefPtr<nsTextNode> text = new nsTextNode(mNodeInfoManager);
+  RefPtr<nsTextNode> text = new(mNodeInfoManager) nsTextNode(mNodeInfoManager);
   // Don't notify; this node is still being created.
   text->SetText(aData, false);
   return text.forget();
@@ -5938,7 +5938,7 @@ nsDocument::CreateComment(const nsAString& aData, nsIDOMComment** aReturn)
 already_AddRefed<dom::Comment>
 nsIDocument::CreateComment(const nsAString& aData) const
 {
-  RefPtr<dom::Comment> comment = new dom::Comment(mNodeInfoManager);
+  RefPtr<dom::Comment> comment = new(mNodeInfoManager) dom::Comment(mNodeInfoManager);
 
   // Don't notify; this node is still being created.
   comment->SetText(aData, false);
@@ -5969,7 +5969,7 @@ nsIDocument::CreateCDATASection(const nsAString& aData,
     return nullptr;
   }
 
-  RefPtr<CDATASection> cdata = new CDATASection(mNodeInfoManager);
+  RefPtr<CDATASection> cdata = new(mNodeInfoManager) CDATASection(mNodeInfoManager);
 
   // Don't notify; this node is still being created.
   cdata->SetText(aData, false);
@@ -6051,8 +6051,9 @@ nsIDocument::CreateAttribute(const nsAString& aName, ErrorResult& rv)
     return nullptr;
   }
 
-  RefPtr<Attr> attribute = new Attr(nullptr, nodeInfo.forget(),
-                                    EmptyString());
+  RefPtr<Attr> attribute =
+    new(mNodeInfoManager) Attr(nullptr, nodeInfo.forget(),
+                               EmptyString());
   return attribute.forget();
 }
 
@@ -6084,8 +6085,9 @@ nsIDocument::CreateAttributeNS(const nsAString& aNamespaceURI,
     return nullptr;
   }
 
-  RefPtr<Attr> attribute = new Attr(nullptr, nodeInfo.forget(),
-                                    EmptyString());
+  RefPtr<Attr> attribute =
+    new(mNodeInfoManager) Attr(nullptr, nodeInfo.forget(),
+                               EmptyString());
   return attribute.forget();
 }
 

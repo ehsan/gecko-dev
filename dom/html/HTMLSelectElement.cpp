@@ -37,7 +37,7 @@
 #include "nsStyleConsts.h"
 #include "nsTextNode.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Select)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT_CHECK_PARSER(Select)
 
 namespace mozilla {
 namespace dom {
@@ -149,6 +149,8 @@ HTMLSelectElement::~HTMLSelectElement()
   mOptions->DropReference();
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLSelectElement)
+
 // ISupports
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLSelectElement)
@@ -179,7 +181,7 @@ NS_INTERFACE_TABLE_TAIL_INHERITING(nsGenericHTMLFormElementWithState)
 // nsIDOMHTMLSelectElement
 
 
-NS_IMPL_ELEMENT_CLONE(HTMLSelectElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLSelectElement)
 
 void
 HTMLSelectElement::SetCustomValidity(const nsAString& aError)
@@ -728,7 +730,8 @@ HTMLSelectElement::SetLength(uint32_t aLength, ErrorResult& aRv)
 
     nsCOMPtr<nsINode> node = NS_NewHTMLOptionElement(nodeInfo.forget());
 
-    RefPtr<nsTextNode> text = new nsTextNode(mNodeInfo->NodeInfoManager());
+    RefPtr<nsTextNode> text =
+      new(mNodeInfo->NodeInfoManager()) nsTextNode(mNodeInfo->NodeInfoManager());
 
     aRv = node->AppendChildTo(text, false);
     if (aRv.Failed()) {

@@ -32,7 +32,7 @@
  * Implementation of &lt;option&gt;
  */
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Option)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Option)
 
 namespace mozilla {
 namespace dom {
@@ -51,10 +51,12 @@ HTMLOptionElement::~HTMLOptionElement()
 {
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLOptionElement)
+
 NS_IMPL_ISUPPORTS_INHERITED(HTMLOptionElement, nsGenericHTMLElement,
                             nsIDOMHTMLOptionElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLOptionElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLOptionElement)
 
 
 NS_IMETHODIMP
@@ -400,12 +402,14 @@ HTMLOptionElement::Option(const GlobalObject& aGlobal,
                                         kNameSpaceID_XHTML,
                                         nsIDOMNode::ELEMENT_NODE);
 
-  RefPtr<HTMLOptionElement> option = new HTMLOptionElement(nodeInfo);
+  RefPtr<HTMLOptionElement> option =
+    new (doc->NodeInfoManager()) HTMLOptionElement(nodeInfo);
 
   if (!aText.IsEmpty()) {
     // Create a new text node and append it to the option
     RefPtr<nsTextNode> textContent =
-      new nsTextNode(option->NodeInfo()->NodeInfoManager());
+      new (doc->NodeInfoManager())
+        nsTextNode(option->NodeInfo()->NodeInfoManager());
 
     textContent->SetText(aText, false);
 

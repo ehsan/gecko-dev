@@ -133,6 +133,8 @@ class HTMLCanvasElement final : public nsGenericHTMLElement,
 public:
   explicit HTMLCanvasElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
 
+  NS_DECL_DOMARENA_HELPERS
+
   NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLCanvasElement, canvas)
 
   // nsISupports

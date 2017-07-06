@@ -7,7 +7,7 @@
 #include "mozilla/dom/HTMLHRElement.h"
 #include "mozilla/dom/HTMLHRElementBinding.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(HR)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(HR)
 
 namespace mozilla {
 namespace dom {
@@ -21,10 +21,12 @@ HTMLHRElement::~HTMLHRElement()
 {
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLHRElement)
+
 NS_IMPL_ISUPPORTS_INHERITED(HTMLHRElement, nsGenericHTMLElement,
                             nsIDOMHTMLHRElement)
 
-NS_IMPL_ELEMENT_CLONE(HTMLHRElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLHRElement)
 
 
 bool

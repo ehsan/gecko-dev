@@ -38,6 +38,8 @@ public:
           const Optional<uint32_t>& aHeight,
           ErrorResult& aError);
 
+  NS_DECL_DOMARENA_HELPERS
+
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(HTMLImageElement,
                                            nsGenericHTMLElement)
 

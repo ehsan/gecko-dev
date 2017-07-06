@@ -10,7 +10,7 @@
 #include "nsMappedAttributes.h"
 #include "mozilla/dom/HTMLDivElementBinding.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Div)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Div)
 
 namespace mozilla {
 namespace dom {
@@ -19,7 +19,9 @@ HTMLDivElement::~HTMLDivElement()
 {
 }
 
-NS_IMPL_ELEMENT_CLONE(HTMLDivElement)
+NS_IMPL_DOMARENA_HELPERS(HTMLDivElement)
+
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLDivElement)
 
 JSObject*
 HTMLDivElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)

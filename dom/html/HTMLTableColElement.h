@@ -21,6 +21,8 @@ public:
     SetHasWeirdParserInsertionMode();
   }
 
+  NS_DECL_DOMARENA_HELPERS
+
   uint32_t Span() const
   {
     return GetIntAttr(nsGkAtoms::span, 1);

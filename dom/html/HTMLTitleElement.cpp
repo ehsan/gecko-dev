@@ -13,7 +13,7 @@
 #include "nsContentUtils.h"
 
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Title)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Title)
 
 namespace mozilla {
 namespace dom {
@@ -28,10 +28,12 @@ HTMLTitleElement::~HTMLTitleElement()
 {
 }
 
+NS_IMPL_DOMARENA_HELPERS(HTMLTitleElement)
+
 NS_IMPL_ISUPPORTS_INHERITED(HTMLTitleElement, nsGenericHTMLElement,
                             nsIMutationObserver)
 
-NS_IMPL_ELEMENT_CLONE(HTMLTitleElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLTitleElement)
 
 JSObject*
 HTMLTitleElement::WrapNode(JSContext* cx, JS::Handle<JSObject*> aGivenProto)

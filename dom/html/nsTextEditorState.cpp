@@ -2357,7 +2357,7 @@ nsTextEditorState::CreateEmptyDivNode()
   element = NS_NewHTMLDivElement(nodeInfo.forget());
 
   // Create the text node for DIV
-  RefPtr<nsTextNode> textNode = new nsTextNode(pNodeInfoManager);
+  RefPtr<nsTextNode> textNode = new(pNodeInfoManager) nsTextNode(pNodeInfoManager);
 
   element->AppendChildTo(textNode, false);
 

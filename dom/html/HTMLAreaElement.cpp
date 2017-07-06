@@ -13,7 +13,7 @@
 #include "mozilla/EventStates.h"
 #include "mozilla/MemoryReporting.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Area)
+NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(Area)
 
 namespace mozilla {
 namespace dom {
@@ -27,6 +27,8 @@ HTMLAreaElement::HTMLAreaElement(already_AddRefed<mozilla::dom::NodeInfo>& aNode
 HTMLAreaElement::~HTMLAreaElement()
 {
 }
+
+NS_IMPL_DOMARENA_HELPERS(HTMLAreaElement)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLAreaElement)
   NS_INTERFACE_TABLE_INHERITED(HTMLAreaElement,
@@ -49,7 +51,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(HTMLAreaElement,
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mRelList)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-NS_IMPL_ELEMENT_CLONE(HTMLAreaElement)
+NS_IMPL_ARENA_ELEMENT_CLONE(HTMLAreaElement)
 
 
 NS_IMPL_STRING_ATTR(HTMLAreaElement, Alt, alt)

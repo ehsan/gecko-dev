@@ -21,6 +21,8 @@ public:
   explicit HTMLTimeElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
   virtual ~HTMLTimeElement();
 
+  NS_DECL_DOMARENA_HELPERS
+
   // HTMLTimeElement WebIDL
   void GetDateTime(DOMString& aDateTime)
   {
