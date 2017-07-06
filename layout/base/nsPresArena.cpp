@@ -34,7 +34,7 @@ nsPresArena::~nsPresArena()
 
 /* inline */ void
 nsPresArena::ClearArenaRefPtrWithoutDeregistering(void* aPtr,
-                                                  ArenaObjectID aObjectID)
+                                                  mozilla::ArenaObjectID aObjectID)
 {
   switch (aObjectID) {
     // We use ArenaRefPtr<nsStyleContext>, which can be ServoStyleContext
@@ -54,18 +54,18 @@ nsPresArena::ClearArenaRefPtrs()
 {
   for (auto iter = mArenaRefPtrs.Iter(); !iter.Done(); iter.Next()) {
     void* ptr = iter.Key();
-    ArenaObjectID id = iter.UserData();
+    mozilla::ArenaObjectID id = iter.UserData();
     ClearArenaRefPtrWithoutDeregistering(ptr, id);
   }
   mArenaRefPtrs.Clear();
 }
 
 void
-nsPresArena::ClearArenaRefPtrs(ArenaObjectID aObjectID)
+nsPresArena::ClearArenaRefPtrs(mozilla::ArenaObjectID aObjectID)
 {
   for (auto iter = mArenaRefPtrs.Iter(); !iter.Done(); iter.Next()) {
     void* ptr = iter.Key();
-    ArenaObjectID id = iter.UserData();
+    mozilla::ArenaObjectID id = iter.UserData();
     if (id == aObjectID) {
       ClearArenaRefPtrWithoutDeregistering(ptr, id);
       iter.Remove();
