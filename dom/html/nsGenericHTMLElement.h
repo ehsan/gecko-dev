@@ -16,6 +16,7 @@
 #include "nsContentCreatorFunctions.h"
 #include "mozilla/ErrorResult.h"
 #include "nsIDOMHTMLMenuElement.h"
+#include "mozilla/dom/Arena.h"
 #include "mozilla/dom/BindingDeclarations.h"
 #include "mozilla/dom/DOMRect.h"
 #include "mozilla/dom/ValidityState.h"
@@ -1512,6 +1513,17 @@ NS_NewHTML##_elementName##Element(already_AddRefed<mozilla::dom::NodeInfo>&& aNo
   return new mozilla::dom::HTML##_elementName##Element(aNodeInfo);           \
 }
 
+#define NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT(_elementName)                      \
+nsGenericHTMLElement*                                                        \
+NS_NewHTML##_elementName##Element(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo, \
+                                  mozilla::dom::FromParser aFromParser)      \
+{                                                                            \
+  RefPtr<mozilla::dom::NodeInfo> nodeInfo(aNodeInfo);                        \
+  auto* nim = nodeInfo->NodeInfoManager();                                   \
+  already_AddRefed<mozilla::dom::NodeInfo> addrefed = nodeInfo.forget();     \
+  return new (nim) mozilla::dom::HTML##_elementName##Element(addrefed);      \
+}
+
 #define NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(_elementName)               \
 nsGenericHTMLElement*                                                        \
 NS_NewHTML##_elementName##Element(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo, \
@@ -1519,6 +1531,19 @@ NS_NewHTML##_elementName##Element(already_AddRefed<mozilla::dom::NodeInfo>&& aNo
 {                                                                            \
   return new mozilla::dom::HTML##_elementName##Element(aNodeInfo,            \
                                                        aFromParser);         \
+}
+
+#define NS_IMPL_NS_NEW_ARENA_HTML_ELEMENT_CHECK_PARSER(_elementName)         \
+nsGenericHTMLElement*                                                        \
+NS_NewHTML##_elementName##Element(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo, \
+                                  mozilla::dom::FromParser aFromParser)      \
+{                                                                            \
+  RefPtr<mozilla::dom::NodeInfo> nodeInfo(aNodeInfo);                        \
+  auto* nim = nodeInfo->NodeInfoManager();                                   \
+  already_AddRefed<mozilla::dom::NodeInfo> addrefed = nodeInfo.forget();     \
+  return new (nim)                                                           \
+    mozilla::dom::HTML##_elementName##Element(addrefed,                      \
+                                              aFromParser);                  \
 }
 
 // Here, we expand 'NS_DECLARE_NS_NEW_HTML_ELEMENT()' by hand.

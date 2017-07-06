@@ -418,6 +418,16 @@ nsNodeUtils::CloneNodeImpl(nsINode *aNode, bool aDeep, nsINode **aResult)
   return NS_OK;
 }
 
+static
+void
+AlternateArenaPropertyDtor(void* aObject, nsIAtom* aPropertyName,
+                           void* aPropertyValue, void* aData)
+{
+  MOZ_ASSERT(aPropertyName == nsGkAtoms::alternatearena);
+  nsNodeInfoManager* nim = static_cast<nsNodeInfoManager*>(aPropertyValue);
+  nim->Release();
+}
+
 /* static */
 nsresult
 nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
@@ -520,6 +530,12 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
     aNode->mNodeInfo.swap(newNodeInfo);
     if (elem) {
       elem->NodeInfoChanged(oldDoc);
+
+      RefPtr<nsNodeInfoManager> nim(nodeInfoManager);
+      aNode->SetNodeMayBeOnAlternateArena();
+      aNode->SetProperty(nsGkAtoms::alternatearena,
+                         nim.forget().take(),
+                         AlternateArenaPropertyDtor, false);
     }
 
     nsIDocument* newDoc = aNode->OwnerDoc();

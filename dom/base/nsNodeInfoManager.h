@@ -12,6 +12,7 @@
 #define nsNodeInfoManager_h___
 
 #include "mozilla/Attributes.h"           // for final
+#include "mozilla/dom/Arena.h"            // for mozilla::dom::Arena
 #include "nsCOMPtr.h"                     // for member
 #include "nsCycleCollectionParticipant.h" // for NS_DECL_CYCLE_*
 #include "plhash.h"                       // for typedef PLHashNumber
@@ -136,6 +137,27 @@ public:
              : mMathMLEnabled == eTriFalse ? false : InternalMathMLEnabled();
   }
 
+  void* Allocate(size_t aSize)
+  {
+    return mArena.Allocate(aSize);
+  }
+  void Free(size_t aSize, void* aPtr)
+  {
+    return mArena.Free(aSize, aPtr);
+  }
+  void* AllocateAttr(size_t aSize)
+  {
+    return mArena.AllocateAttr(aSize);
+  }
+  void FreeAttr(void* aPtr)
+  {
+    return mArena.FreeAttr(aPtr);
+  }
+  static size_t SizeOfNode(size_t aSizeOfThis)
+  {
+    return mozilla::dom::Arena::GetBucketSize(aSizeOfThis);
+  }
+
 protected:
   friend class nsDocument;
   friend class nsXULPrototypeDocument;
@@ -172,6 +194,7 @@ private:
   mozilla::dom::NodeInfo* mRecentlyUsedNodeInfos[RECENTLY_USED_NODEINFOS_SIZE];
   Tri mSVGEnabled;
   Tri mMathMLEnabled;
+  mozilla::dom::Arena mArena;
 };
 
 #endif /* nsNodeInfoManager_h___ */

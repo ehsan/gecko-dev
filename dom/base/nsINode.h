@@ -1586,6 +1586,10 @@ private:
     // Set if the element might have any kind of anonymous content children,
     // which would not be found through the element's children list.
     ElementMayHaveAnonymousChildren,
+    // Set if the node has been allocated from an arena controlled by a
+    // NodeInfoManager object for a different document (which can happen due to
+    // adoption).
+    NodeMayBeOnAlternateArena,
     // Guard value
     BooleanFlagCount
   };
@@ -1727,6 +1731,9 @@ public:
 
   void SetMayHaveAnonymousChildren() { SetBoolFlag(ElementMayHaveAnonymousChildren); }
   bool MayHaveAnonymousChildren() const { return GetBoolFlag(ElementMayHaveAnonymousChildren); }
+
+  void SetNodeMayBeOnAlternateArena() { SetBoolFlag(NodeMayBeOnAlternateArena); }
+  bool MayNodeBeOnAlternateArena() const { return GetBoolFlag(NodeMayBeOnAlternateArena); }
 
 protected:
   void SetParentIsContent(bool aValue) { SetBoolFlag(ParentIsContent, aValue); }

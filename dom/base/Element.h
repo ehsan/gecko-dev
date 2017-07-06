@@ -1801,8 +1801,30 @@ _elementName::Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult,   \
 {                                                                           \
   *aResult = nullptr;                                                       \
   already_AddRefed<mozilla::dom::NodeInfo> ni =                             \
-    RefPtr<mozilla::dom::NodeInfo>(aNodeInfo).forget();                   \
+    RefPtr<mozilla::dom::NodeInfo>(aNodeInfo).forget();                     \
   _elementName *it = new _elementName(ni);                                  \
+  if (!it) {                                                                \
+    return NS_ERROR_OUT_OF_MEMORY;                                          \
+  }                                                                         \
+                                                                            \
+  nsCOMPtr<nsINode> kungFuDeathGrip = it;                                   \
+  nsresult rv = const_cast<_elementName*>(this)->CopyInnerTo(it, aPreallocateChildren); \
+  if (NS_SUCCEEDED(rv)) {                                                   \
+    kungFuDeathGrip.swap(*aResult);                                         \
+  }                                                                         \
+                                                                            \
+  return rv;                                                                \
+}
+
+#define NS_IMPL_ARENA_ELEMENT_CLONE(_elementName)                           \
+nsresult                                                                    \
+_elementName::Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult,   \
+                    bool aPreallocateChildren) const                        \
+{                                                                           \
+  *aResult = nullptr;                                                       \
+  already_AddRefed<mozilla::dom::NodeInfo> ni =                             \
+    RefPtr<mozilla::dom::NodeInfo>(aNodeInfo).forget();                     \
+  _elementName *it = new(aNodeInfo->NodeInfoManager()) _elementName(ni);    \
   if (!it) {                                                                \
     return NS_ERROR_OUT_OF_MEMORY;                                          \
   }                                                                         \
