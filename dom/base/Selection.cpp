@@ -3573,8 +3573,7 @@ Selection::ScrollIntoView(SelectionRegion aRegion,
   if (!mFrameSelection)
     return NS_OK;//nothing to do
 
-  nsCOMPtr<nsIPresShell> presShell = mFrameSelection->GetShell();
-  if (!presShell)
+  if (!mFrameSelection->GetShell())
     return NS_OK;
 
   if (mFrameSelection->GetBatching())
@@ -3590,6 +3589,8 @@ Selection::ScrollIntoView(SelectionRegion aRegion,
   // either manually flush if they're in a safe position for it or use the
   // async version of this method.
   if (aFlags & Selection::SCROLL_DO_FLUSH) {
+    nsCOMPtr<nsIPresShell> presShell = mFrameSelection->GetShell();
+    MOZ_ASSERT(presShell);
     presShell->FlushPendingNotifications(FlushType::Layout);
 
     // Reget the presshell, since it might have been Destroy'ed.
@@ -3625,8 +3626,9 @@ Selection::ScrollIntoView(SelectionRegion aRegion,
         (uint32_t) ScrollInputMethod::MainThreadScrollCaretIntoView);
   }
 
-  presShell->ScrollFrameRectIntoView(frame, rect, aVertical, aHorizontal,
-    flags);
+  mFrameSelection->GetShell()
+                 ->ScrollFrameRectIntoView(frame, rect, aVertical, aHorizontal,
+                                           flags);
   return NS_OK;
 }
 
