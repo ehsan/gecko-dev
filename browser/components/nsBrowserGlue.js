@@ -3004,6 +3004,9 @@ const ContentPermissionIntegration = {
       case "autoplay-media": {
         return new PermissionUI.AutoplayPermissionPrompt(request);
       }
+      case "storage-access": {
+        return new PermissionUI.StorageAccessPermissionPrompt(request);
+      }
     }
     return undefined;
   },

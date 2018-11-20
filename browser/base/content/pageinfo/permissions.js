@@ -15,7 +15,11 @@ var gUsageRequest;
 var gPermissions = SitePermissions.listPermissions().sort((a, b) => {
   let firstLabel = SitePermissions.getPermissionLabel(a);
   let secondLabel = SitePermissions.getPermissionLabel(b);
-  return firstLabel.localeCompare(secondLabel);
+  let firstLabelIsNull = (firstLabel === null);
+  let secondLabelIsNull = (secondLabel === null);
+  return (firstLabelIsNull === secondLabelIsNull) &&
+         !firstLabelIsNull &&
+         firstLabel.localeCompare(secondLabel);
 });
 
 var permissionObserver = {
@@ -126,7 +130,11 @@ function createRow(aPartId) {
   let label = document.createXULElement("label");
   label.setAttribute("id", labelId);
   label.setAttribute("control", radiogroupId);
-  label.setAttribute("value", SitePermissions.getPermissionLabel(aPartId));
+  let labelValue = SitePermissions.getPermissionLabel(aPartId);
+  if (labelValue === null) {
+    return;
+  }
+  label.setAttribute("value", labelValue);
   label.setAttribute("class", "permissionLabel");
   row.appendChild(label);
 
